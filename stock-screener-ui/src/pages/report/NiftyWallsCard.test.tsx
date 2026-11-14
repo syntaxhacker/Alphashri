@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { createSignal } from "solid-js";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 
 import type { WallsPayload } from "@/api/reportNifty";
 import type { NiftyReport } from "@/types/niftyReport";
@@ -252,7 +253,9 @@ describe("niftyWallsFormat helpers", () => {
 
 describe("NiftyWallsCard", () => {
   it("renders the live break, the wall rows and the expand action", () => {
-    render(<NiftyWallsCard walls={walls} onExpand={onExpand} />);
+    render(() => (
+    <NiftyWallsCard walls={walls} onExpand={onExpand} />
+  ));
 
     expect(screen.getByTestId("nifty-walls-card")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-walls-alert")).toHaveTextContent("WALL BREAK");
@@ -268,14 +271,18 @@ describe("NiftyWallsCard", () => {
 
   it("opens the pressure desk from the card action", () => {
     const onOpenDesk = vi.fn();
-    render(<NiftyWallsCard walls={walls} onExpand={onExpand} onOpenDesk={onOpenDesk} />);
+    render(() => (
+    <NiftyWallsCard walls={walls} onExpand={onExpand} onOpenDesk={onOpenDesk} />
+  ));
 
     fireEvent.click(screen.getByTestId("nifty-walls-desk"));
     expect(onOpenDesk).toHaveBeenCalledTimes(1);
   });
 
   it("dismisses the alert and persists the dismissal", () => {
-    render(<NiftyWallsCard walls={walls} onExpand={onExpand} />);
+    render(() => (
+    <NiftyWallsCard walls={walls} onExpand={onExpand} />
+  ));
 
     fireEvent.click(screen.getByText("dismiss"));
 
@@ -286,8 +293,8 @@ describe("NiftyWallsCard", () => {
   });
 
   it("parks the gamma/pin read on a non-expiry day", () => {
-    render(
-      <NiftyWallsCard
+    render(() => (
+    <NiftyWallsCard
         walls={{
           ...walls,
           state: "WALL_WATCH",
@@ -299,8 +306,8 @@ describe("NiftyWallsCard", () => {
           events: [],
         }}
         onExpand={onExpand}
-      />,
-    );
+      />
+  ));
 
     expect(screen.getByText("WALL WATCH")).toBeInTheDocument();
     expect(screen.getByText(/Non-expiry/)).toBeInTheDocument();
@@ -308,12 +315,12 @@ describe("NiftyWallsCard", () => {
   });
 
   it("shows the last break on an EOD frame whose live state has faded", () => {
-    render(
-      <NiftyWallsCard
+    render(() => (
+    <NiftyWallsCard
         walls={{ ...walls, state: "WATCH", alert: null, alert_eligible: false }}
         onExpand={onExpand}
-      />,
-    );
+      />
+  ));
 
     expect(screen.getByText("FIRST BREAK")).toBeInTheDocument();
     expect(screen.getByText(/14:25:48 · 74,000/)).toBeInTheDocument();
@@ -333,7 +340,9 @@ describe("NiftyWallsCard", () => {
         sensex={null}
       />
     );
-    render(<NiftyWallsCard walls={walls} onExpand={onExpand} levels={levels} />);
+    render(() => (
+    <NiftyWallsCard walls={walls} onExpand={onExpand} levels={levels} />
+  ));
 
     const card = screen.getByTestId("nifty-walls-card");
     expect(within(card).getByTestId("levels-row-NIFTY")).toBeInTheDocument();
@@ -345,8 +354,22 @@ describe("NiftyWallsCard", () => {
 
 
 
+  it("lays the populated band out in five columns, not one", () => {
+    // Measured in the browser at 1366px: the xs single-column variant stacked
+    // CALL/PUT/READ/history and grew the card to 475px, which pushed the chart
+    // below the fold. The wide variant has to actually be applied.
+    render(() => <NiftyWallsCard walls={walls} onExpand={onExpand} />);
+    const grid = screen.getByTestId("nifty-walls-grid");
+    expect(grid.className).toContain("min-[1100px]:grid-cols-");
+    expect(grid.className).toContain("grid-cols-1");
+    // Guard the inline style too: an inline template would beat the variant.
+    expect(grid.getAttribute("style") ?? "").not.toContain("grid-template-columns");
+  });
+
   it("renders a reserved skeleton instead of a one-line empty row when there is no payload", () => {
-    render(<NiftyWallsCard walls={null} onExpand={onExpand} />);
+    render(() => (
+    <NiftyWallsCard walls={null} onExpand={onExpand} />
+  ));
 
     expect(screen.getByTestId("nifty-walls-card")).toBeInTheDocument();
     const skeleton = screen.getByTestId("nifty-walls-skeleton");
@@ -367,19 +390,21 @@ describe("NiftyWallsCard", () => {
   });
 
   it("keeps the caller empty text visible in the skeleton", () => {
-    render(<NiftyWallsCard walls={null} onExpand={onExpand} emptyText="Waiting for walls data." />);
+    render(() => (
+    <NiftyWallsCard walls={null} onExpand={onExpand} emptyText="Waiting for walls data." />
+  ));
 
     expect(screen.getByText("Waiting for walls data.")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-walls-skeleton")).toBeInTheDocument();
   });
 
   it("reserves three rows per side when the payload carries a single wall", () => {
-    render(
-      <NiftyWallsCard
+    render(() => (
+    <NiftyWallsCard
         walls={{ ...walls, calls: [walls.calls[0]], puts: [walls.puts[0]] }}
         onExpand={onExpand}
-      />,
-    );
+      />
+  ));
 
     const callTable = screen.getByTestId("nifty-walls-call");
     expect(callTable.querySelectorAll("[data-wall-row='true']")).toHaveLength(3);
@@ -396,16 +421,16 @@ describe("NiftyWallsCard", () => {
   });
 
   it("renders three rows with no reserved slots when the payload carries three walls", () => {
-    render(
-      <NiftyWallsCard
+    render(() => (
+    <NiftyWallsCard
         walls={{
           ...walls,
           calls: [walls.calls[0], walls.calls[1], { ...walls.calls[0], strike: 73800 }],
           puts: [walls.puts[0], walls.puts[1], { ...walls.puts[0], strike: 73300 }],
         }}
         onExpand={onExpand}
-      />,
-    );
+      />
+  ));
 
     const callTable = screen.getByTestId("nifty-walls-call");
     expect(callTable.querySelectorAll("[data-wall-row='true']")).toHaveLength(3);
@@ -417,7 +442,9 @@ describe("NiftyWallsCard", () => {
   });
 
   it("marks the nearest row and shows the side-aware erosion arrow and flow suffix on each row", () => {
-    render(<NiftyWallsCard walls={walls} onExpand={onExpand} />);
+    render(() => (
+    <NiftyWallsCard walls={walls} onExpand={onExpand} />
+  ));
 
     const callTable = screen.getByTestId("nifty-walls-call");
     expect(within(callTable).getByText("▲")).toBeInTheDocument();
@@ -427,11 +454,24 @@ describe("NiftyWallsCard", () => {
     expect(within(putTable).getByText("▼")).toBeInTheDocument();
     expect(within(putTable).getByTestId("nifty-walls-put-73700-flow")).toHaveTextContent("WRITERS ADDING · vol —");
   });
+
+  it("updates the skeleton empty text when the emptyText prop signal changes", () => {
+    const [emptyTextSig, setEmptyTextSig] = createSignal("No walls data.");
+    render(() => <NiftyWallsCard walls={null} onExpand={onExpand} emptyText={emptyTextSig()} />);
+
+    expect(screen.getByText("No walls data.")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-walls-skeleton")).toBeInTheDocument();
+
+    setEmptyTextSig("Waiting for walls data.");
+
+    expect(screen.getByText("Waiting for walls data.")).toBeInTheDocument();
+    expect(screen.queryByText("No walls data.")).toBeNull();
+  });
 });
 
 describe("NiftyWallsExpanded", () => {
   it("renders all walls, the tracked history and the break sequence", () => {
-    render(<NiftyWallsExpanded open walls={walls} onClose={() => {}} />);
+    render(() => <NiftyWallsExpanded open walls={walls} onClose={() => {}} />);
 
     expect(screen.getByText("CALL WALLS")).toBeInTheDocument();
     expect(screen.getByText("PUT WALLS")).toBeInTheDocument();
@@ -447,7 +487,7 @@ describe("NiftyWallsExpanded", () => {
   });
 
   it("ladders strikes monotonically and keeps a width for every table column", () => {
-    render(<NiftyWallsExpanded open walls={walls} onClose={() => {}} />);
+    render(() => <NiftyWallsExpanded open walls={walls} onClose={() => {}} />);
 
     const ladder = screen.getByTestId("walls-ladder");
     expect(
@@ -469,13 +509,13 @@ describe("NiftyWallsExpanded", () => {
   });
 
   it("shows the last break when the live alert has faded", () => {
-    render(
+    render(() => (
       <NiftyWallsExpanded
         open
         walls={{ ...walls, state: "WATCH", alert: null, alert_eligible: false }}
         onClose={() => {}}
-      />,
-    );
+      />
+    ));
 
     expect(screen.getByTestId("walls-break")).toHaveTextContent("First break 74,000");
     expect(screen.getByTestId("walls-break")).toHaveTextContent("74,096");
@@ -484,14 +524,14 @@ describe("NiftyWallsExpanded", () => {
 
   it("opens on the strike-time wall map and still exposes the data view", () => {
     const onReplayBreak = vi.fn();
-    render(
+    render(() => (
       <NiftyWallsExpanded
         open
         walls={wallsWithMap}
         onClose={() => {}}
         onReplayBreak={onReplayBreak}
-      />,
-    );
+      />
+    ));
 
     expect(screen.getByTestId("walls-map")).toBeInTheDocument();
     expect(screen.getByTestId("walls-map-calls")).toBeInTheDocument();

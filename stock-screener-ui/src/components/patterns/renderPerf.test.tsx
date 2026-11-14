@@ -1,10 +1,15 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
-import { memo, Profiler, act } from "react";
+import { createSignal, For, type JSX } from "solid-js";
+import { cleanup, render, screen } from "@solidjs/testing-library";
 import { SimpleGrid, UIProvider } from "@/ui";
-import type { PatternHitDTO } from "@/types/chartPatterns";
+import type { ChartCandle, PatternHitDTO } from "@/types/chartPatterns";
 import type { MatrixCell, PatternMatrixRow } from "./symbolMatrix";
 import { PatternCard, type PatternCardProps } from "./PatternCard";
 import { PatternGrid } from "./PatternGrid";
@@ -22,11 +27,13 @@ import {
   subscribe,
 } from "@/state/chartPatterns";
 
-vi.mock("@/hooks/useECharts", () => ({
-  useECharts: () => ({
-    chartRef: { current: null },
-    chartInstance: { current: null },
-    setChartOption: vi.fn(),
+vi.mock("@/utils/loadEcharts", () => ({
+  loadEcharts: async () => ({
+    init: () => ({
+      setOption: vi.fn(),
+      resize: vi.fn(),
+      dispose: vi.fn(),
+    }),
   }),
 }));
 
@@ -52,6 +59,43 @@ const SUMMARY = {
   bearish: 1,
   data_through: "2026-09-30",
 };
+
+/**
+ * Wall-time tripwires for the dense results grid, recorded from the measured
+ * numbers logged below (dev box, happy-dom). They sit ~3-4x above the quiet-load
+ * figure because the harness is dominated by node insertion and CI runs 20
+ * shards x 4 workers on shared vCPUs; a slow machine must not fail the suite,
+ * but a card that gets materially heavier still trips. The authoritative number
+ * for any change is the `[PERF]` log line, not these limits.
+ */
+const BUDGET = {
+  card: 150,
+  miniChart: 50,
+  grid60: 5000,
+  grid200: 10000,
+  grid200Candles: 12000,
+  update200: 300,
+};
+
+function budget(label: string, ms: number, limit: number): string {
+  return `${label}: ${ms.toFixed(2)} ms (budget ${limit} ms)`;
+}
+
+/** 120 one-minute candles — the shape a real hit carries into the grid. */
+function makeCandles(count: number): ChartCandle[] {
+  return Array.from({ length: count }, (_, i) => {
+    const o = 100 + Math.sin(i / 7) * 5 + i * 0.05;
+    const c = o + Math.cos(i / 5) * 2;
+    return {
+      t: `2026-09-${String((i % 27) + 1).padStart(2, "0")}`,
+      o,
+      h: Math.max(o, c) + 1,
+      l: Math.min(o, c) - 1,
+      c,
+      v: 1000,
+    };
+  });
+}
 
 function makeHit(id: number, symbol: string): PatternHitDTO {
   return {
@@ -81,33 +125,6 @@ function makeHit(id: number, symbol: string): PatternHitDTO {
   };
 }
 
-function renderWithUI(ui: React.ReactElement) {
-  return render(ui, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
-
-/** Mount `ui`, re-render once with `next()`, and tally Profiler commits + time. */
-function measure(ui: React.ReactElement, next: () => React.ReactElement) {
-  let commits = 0;
-  let mountMs = 0;
-  let updateMs = 0;
-  const { rerender } = renderWithUI(
-    <Profiler
-      id="perf"
-      onRender={(_id, phase, actualDuration) => {
-        commits += 1;
-        if (phase === "mount") mountMs += actualDuration ?? 0;
-        else updateMs += actualDuration ?? 0;
-      }}
-    >
-      {ui}
-    </Profiler>
-  );
-  act(() => {
-    rerender(next());
-  });
-  return { commits, mountMs, updateMs };
-}
-
 describe("render perf — patterns", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -120,44 +137,41 @@ describe("render perf — patterns", () => {
 
   test("mounts 60 cards and keeps all testids", () => {
     const hits = Array.from({ length: 60 }, (_, i) => makeHit(100 + i, `S${i}`));
-    renderWithUI(<PatternGrid hits={hits} onSelect={vi.fn()} />);
+    render(() => <PatternGrid hits={hits} onSelect={vi.fn()} />);
     expect(screen.getByTestId("patterns-grid")).toBeInTheDocument();
     expect(screen.getAllByTestId("patterns-card")).toHaveLength(60);
     expect(screen.getByTestId("patterns-card-S0-falling_wedge")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-mini-chart-S0-falling_wedge")).toBeInTheDocument();
   });
 
-  test("PatternCard identical re-render (profiler)", () => {
+  test("PatternCard mount stays within a sane wall-time budget", () => {
     const hit = makeHit(1, "IRCON");
     const onClick = vi.fn();
-    const { commits, mountMs, updateMs } = measure(
-      <PatternCard hit={hit} onClick={onClick} />,
-      () => <PatternCard hit={hit} onClick={onClick} />
-    );
+    const t0 = performance.now();
+    render(() => <PatternCard hit={hit} onClick={onClick} />);
+    const mountMs = performance.now() - t0;
     // eslint-disable-next-line no-console
-    console.log(
-      `[PERF] PatternCard identical re-render commits=${commits} mountMs=${mountMs.toFixed(2)} updateMs=${updateMs.toFixed(2)}`
-    );
+    console.log(`[PERF] PatternCard mount ${mountMs.toFixed(2)} ms`);
+    expect(mountMs, budget("PatternCard mount", mountMs, BUDGET.card)).toBeLessThan(BUDGET.card);
     expect(screen.getByTestId("patterns-card-IRCON-falling_wedge")).toBeInTheDocument();
   });
 
-  test("PatternMiniChart identical re-render (profiler)", () => {
+  test("PatternMiniChart mount stays within a sane wall-time budget", () => {
     const hit = makeHit(1, "IRCON");
-    const { commits, mountMs, updateMs } = measure(
-      <PatternMiniChart hit={hit} />,
-      () => <PatternMiniChart hit={hit} />
-    );
+    const t0 = performance.now();
+    render(() => <PatternMiniChart hit={hit} />);
+    const mountMs = performance.now() - t0;
     // eslint-disable-next-line no-console
-    console.log(
-      `[PERF] PatternMiniChart identical re-render commits=${commits} mountMs=${mountMs.toFixed(2)} updateMs=${updateMs.toFixed(2)}`
-    );
+    console.log(`[PERF] PatternMiniChart mount ${mountMs.toFixed(2)} ms`);
+    expect(mountMs, budget("PatternMiniChart mount", mountMs, BUDGET.miniChart)).toBeLessThan(BUDGET.miniChart);
     expect(screen.getByTestId("patterns-mini-chart-IRCON-falling_wedge")).toBeInTheDocument();
   });
 
-  test("PatternGrid identical-hits re-render (profiler)", () => {
+  test("PatternGrid mounts identical hits once per card", () => {
     const hits = Array.from({ length: 60 }, (_, i) => makeHit(100 + i, `S${i}`));
     const cb = vi.fn();
-    const grid = () => (
+    const t0 = performance.now();
+    render(() => (
       <PatternGrid
         hits={hits}
         onSelect={cb}
@@ -168,12 +182,11 @@ describe("render perf — patterns", () => {
         onSymbolOpen={cb}
         activeHit={null}
       />
-    );
-    const { commits, mountMs, updateMs } = measure(grid(), grid);
+    ));
+    const mountMs = performance.now() - t0;
     // eslint-disable-next-line no-console
-    console.log(
-      `[PERF] PatternGrid identical-hits re-render commits=${commits} mountMs=${mountMs.toFixed(2)} updateMs=${updateMs.toFixed(2)}`
-    );
+    console.log(`[PERF] PatternGrid 60-card mount ${mountMs.toFixed(2)} ms`);
+    expect(mountMs, budget("PatternGrid 60-card mount", mountMs, BUDGET.grid60)).toBeLessThan(BUDGET.grid60);
     expect(screen.getAllByTestId("patterns-card")).toHaveLength(60);
   }, 20000);
 
@@ -184,6 +197,7 @@ describe("render perf — patterns", () => {
       notifyCount += 1;
     });
     mockedStreamResults.mockImplementation(async (_query, handlers) => {
+      if (!handlers) return;
       handlers.onMeta?.({ total: 44, summary: SUMMARY, data_through: "2026-09-30" });
       for (const hit of hits) {
         handlers.onItem?.(hit as never);
@@ -325,14 +339,14 @@ describe("PatternSymbolMatrix render counts", () => {
     change: number | null,
     hits: PatternHitDTO[],
     best: PatternHitDTO | null,
-    timeframes: Record<string, MatrixCell>,
+    timeframesMap: Record<string, MatrixCell>,
   ): PatternMatrixRow {
     return {
       symbol,
       name,
       ltp,
       day_change_pct: change,
-      timeframes,
+      timeframes: timeframesMap,
       hits,
       best,
       hit_count: hits.length,
@@ -347,12 +361,20 @@ describe("PatternSymbolMatrix render counts", () => {
     return out as MatrixRenderStats;
   }
 
-  function mountMatrix(overrides: Partial<React.ComponentProps<typeof PatternSymbolMatrix>> = {}) {
-    return render(
+  function mountMatrix(overrides: {
+    rows?: () => PatternMatrixRow[];
+    activeSymbol?: () => string | null | undefined;
+  } = {}) {
+    return render(() => (
       <UIProvider>
-        <PatternSymbolMatrix rows={rows} timeframes={timeframes} onSelect={vi.fn()} {...overrides} />
-      </UIProvider>,
-    );
+        <PatternSymbolMatrix
+          rows={overrides.rows ? overrides.rows() : rows}
+          timeframes={timeframes}
+          onSelect={vi.fn()}
+          activeSymbol={overrides.activeSymbol ? overrides.activeSymbol() : undefined}
+        />
+      </UIProvider>
+    ));
   }
 
   test("mount builds columns and visible rows once, and renders every cell once", () => {
@@ -371,72 +393,39 @@ describe("PatternSymbolMatrix render counts", () => {
     expect(screen.getByTestId("patterns-matrix-row-BBB")).toBeInTheDocument();
   });
 
-  test("identical props re-render rebuilds no columns and no cells", () => {
-    mountMatrix(); // discarded container
-    const { container, rerender } = mountMatrix();
+  test("setting the active symbol rebuilds no columns and no cells", () => {
+    const [active, setActive] = createSignal<string | null>(null);
+    mountMatrix({ activeSymbol: () => active() });
     const before = matrixRenderStats();
-    rerender(
-      <UIProvider>
-        <PatternSymbolMatrix rows={rows} timeframes={timeframes} onSelect={vi.fn()} />
-      </UIProvider>,
-    );
+    setActive("AAA");
     const d = delta(before, matrixRenderStats());
-    // The matrix function re-runs (props object is new) but every memo bails out.
-    expect(d.matrixRenders).toBe(1);
+    // The highlight is read inline by each row; columns and memoised cells
+    // never rebuild even though the active symbol changed.
+    expect(d.matrixRenders).toBe(0);
     expect(d.columnsBuilds).toBe(0);
     expect(d.visibleRowsBuilds).toBe(0);
     expect(d.symbolCellRenders).toBe(0);
     expect(d.tfGlyphRenders).toBe(0);
     expect(d.patternChipRenders).toBe(0);
     expect(d.numTextRenders).toBe(0);
-    expect(within(container).getByTestId("patterns-matrix-row-AAA")).toBeInTheDocument();
-  });
-
-  test("opening a chart (new callbacks + activeSymbol) rebuilds no columns and no cells", () => {
-    const { rerender } = mountMatrix({ activeSymbol: null });
-    const before = matrixRenderStats();
-    const onSelect2 = vi.fn();
-    rerender(
-      <UIProvider>
-        <PatternSymbolMatrix
-          rows={rows}
-          timeframes={timeframes}
-          onSelect={onSelect2}
-          activeSymbol="AAA"
-        />
-      </UIProvider>,
-    );
-    const d = delta(before, matrixRenderStats());
-    // The highlight changed, so the matrix re-runs once; columns and every
-    // memoised cell must bail out even though `onSelect` identity changed.
-    expect(d.matrixRenders).toBe(1);
-    expect(d.columnsBuilds).toBe(0);
-    expect(d.visibleRowsBuilds).toBe(0);
-    expect(d.symbolCellRenders).toBe(0);
-    expect(d.tfGlyphRenders).toBe(0);
-    expect(d.patternChipRenders).toBe(0);
-    expect(d.numTextRenders).toBe(0);
-    // Markup and testids are identical; only the highlight moved.
     expect(screen.getByTestId("patterns-matrix-row-AAA")).toHaveAttribute("data-active", "true");
     expect(screen.getByTestId("patterns-matrix-row-BBB")).not.toHaveAttribute("data-active");
     expect(screen.getByTestId("patterns-matrix-tv-AAA")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-matrix-chart-AAA")).toBeInTheDocument();
+    setActive(null);
+    expect(screen.getByTestId("patterns-matrix-row-AAA")).not.toHaveAttribute("data-active");
   });
 
   test("filter change (new rows) rebuilds visible rows once, columns never", () => {
-    const { rerender } = mountMatrix();
+    const [rowsSignal, setRowsSignal] = createSignal<PatternMatrixRow[]>(rows);
+    mountMatrix({ rows: () => rowsSignal() });
     const before = matrixRenderStats();
     const hitC = perfHit({ id: 31, symbol: "CCC", timeframe: "5m", pattern_name: "Flag", confidence: 90 });
     const rowC = perfRow("CCC", null, 50, 1, [hitC], hitC, { "5m": perfCell({ confidence: 90 }) });
-    rerender(
-      <UIProvider>
-        <PatternSymbolMatrix rows={[...rows, rowC]} timeframes={timeframes} onSelect={vi.fn()} />
-      </UIProvider>,
-    );
+    setRowsSignal([...rows, rowC]);
     const d = delta(before, matrixRenderStats());
-    // Rows changed, so visibleRows rebuilds exactly once; columns must not
-    // be rebuilt by callback identity (onSelect is a new vi.fn each render).
-    expect(d.matrixRenders).toBe(1);
+    // Rows changed, so visibleRows rebuilds exactly once; columns must not rebuild.
+    expect(d.matrixRenders).toBe(0);
     expect(d.columnsBuilds).toBe(0);
     expect(d.visibleRowsBuilds).toBe(1);
     expect(screen.getByTestId("patterns-matrix-row-CCC")).toBeInTheDocument();
@@ -458,55 +447,76 @@ describe("render perf — 200-card grid (results limit)", () => {
   interface CountingCardProps extends PatternCardProps {
     counter: { renders: number };
   }
-  function countingCard(props: CountingCardProps) {
+  function CountingCard(props: CountingCardProps): JSX.Element {
     props.counter.renders += 1;
-    return <PatternCard {...props} />;
+    const { counter: _counter, ...rest } = props;
+    return <PatternCard {...rest} />;
   }
-  const CountingCard = memo(countingCard);
 
   test("mount 200 cards — wall ms + card render counts", () => {
     const counter = { renders: 0 };
     const hits = Array.from({ length: 200 }, (_, i) => makeHit(1000 + i, `P${i}`));
     const t0 = performance.now();
-    renderWithUI(
+    render(() => (
       <SimpleGrid data-testid="patterns-grid" cols={4} spacing={16}>
-        {hits.map((hit) => <CountingCard key={hit.id} hit={hit} counter={counter} />)}
+        <For each={hits}>{(hit) => <CountingCard hit={hit} counter={counter} />}</For>
       </SimpleGrid>
-    );
+    ));
     const mountMs = performance.now() - t0;
     // eslint-disable-next-line no-console
-    console.log(
-      `[PERF] mount 200 cards: ${mountMs.toFixed(2)} ms, card renders=${counter.renders}`,
-    );
+    console.log(`[PERF] mount 200 cards: ${mountMs.toFixed(2)} ms, card renders=${counter.renders}`);
+    expect(mountMs, budget("mount 200 cards", mountMs, BUDGET.grid200)).toBeLessThan(BUDGET.grid200);
     expect(screen.getByTestId("patterns-grid")).toBeInTheDocument();
     expect(screen.getAllByTestId("patterns-card")).toHaveLength(200);
     expect(screen.getByTestId("patterns-card-P0-falling_wedge")).toBeInTheDocument();
     expect(counter.renders).toBe(200);
   }, 20000);
 
-  test("update 200 cards with identical hits — card render count stays flat", () => {
+  test("mount 200 cards that each carry a candle window stays within budget", () => {
+    const counter = { renders: 0 };
+    const hits = Array.from({ length: 200 }, (_, i) => ({
+      ...makeHit(2000 + i, `C${i}`),
+      candles: makeCandles(120),
+    }));
+    const t0 = performance.now();
+    render(() => (
+      <SimpleGrid data-testid="patterns-grid" cols={4} spacing={16}>
+        <For each={hits}>{(hit) => <CountingCard hit={hit} counter={counter} />}</For>
+      </SimpleGrid>
+    ));
+    const mountMs = performance.now() - t0;
+    // eslint-disable-next-line no-console
+    console.log(
+      `[PERF] mount 200 cards with 120 candles: ${mountMs.toFixed(2)} ms, card renders=${counter.renders}`,
+    );
+    expect(
+      mountMs,
+      budget("mount 200 candle cards", mountMs, BUDGET.grid200Candles),
+    ).toBeLessThan(BUDGET.grid200Candles);
+    expect(screen.getAllByTestId("patterns-card")).toHaveLength(200);
+    expect(counter.renders).toBe(200);
+    expect(screen.getByTestId("patterns-mini-chart-C0-falling_wedge")).toBeInTheDocument();
+  }, 20000);
+
+  test("setting the list to a new array of the same hit objects renders no new cards", () => {
     const counter = { renders: 0 };
     const hits = Array.from({ length: 200 }, (_, i) => makeHit(1000 + i, `P${i}`));
-    const { rerender } = renderWithUI(
+    const [items, setItems] = createSignal(hits);
+    render(() => (
       <SimpleGrid data-testid="patterns-grid" cols={4} spacing={16}>
-        {hits.map((hit) => <CountingCard key={hit.id} hit={hit} counter={counter} />)}
+        <For each={items()}>{(hit) => <CountingCard hit={hit} counter={counter} />}</For>
       </SimpleGrid>
-    );
+    ));
     const mountRenders = counter.renders;
     const t0 = performance.now();
-    act(() => {
-      rerender(
-        <SimpleGrid data-testid="patterns-grid" cols={4} spacing={16}>
-          {hits.map((hit) => <CountingCard key={hit.id} hit={hit} counter={counter} />)}
-        </SimpleGrid>
-      );
-    });
+    setItems([...hits]);
     const updateMs = performance.now() - t0;
     // eslint-disable-next-line no-console
     console.log(
       `[PERF] update 200 cards identical: ${updateMs.toFixed(2)} ms, card renders=${counter.renders} (mount ${mountRenders})`,
     );
+    expect(updateMs, budget("update 200 cards identical", updateMs, BUDGET.update200)).toBeLessThan(BUDGET.update200);
     expect(screen.getAllByTestId("patterns-card")).toHaveLength(200);
-    expect(counter.renders).toBe(mountRenders); // memo bails out: zero extra card renders
+    expect(counter.renders).toBe(mountRenders); // For keys by reference: zero extra card renders
   }, 20000);
 });

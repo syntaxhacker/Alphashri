@@ -1,10 +1,13 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { UIProvider } from "@/ui";
+import { cleanup, render, screen, within, fireEvent } from "@solidjs/testing-library";
 import type { PatternHitDTO } from "@/types/chartPatterns";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 import { PatternSymbolMatrix } from "./PatternSymbolMatrix";
 import type { MatrixCell, PatternMatrixRow } from "./symbolMatrix";
 
@@ -144,23 +147,18 @@ function fixtureRows() {
   return { hit5m, hit1d, hit1w, rowA, rowB };
 }
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
 
 describe("PatternSymbolMatrix", () => {
   afterEach(() => cleanup());
 
   test("marks the row whose symbol is docked in the chart", () => {
     const { rowA, rowB } = fixtureRows();
-    r(
-      <PatternSymbolMatrix
+    render(() => <PatternSymbolMatrix
         rows={[rowA, rowB]}
         timeframes={["1D", "5m", "1W"]}
         onSelect={vi.fn()}
         activeSymbol={rowB.symbol}
-      />,
-    );
+      />);
     expect(screen.getByTestId(`patterns-matrix-row-${rowB.symbol}`)).toHaveAttribute(
       "data-active",
       "true",
@@ -172,7 +170,7 @@ describe("PatternSymbolMatrix", () => {
 
   test("renders one row per symbol with mapped timeframe headers", () => {
     const { rowA, rowB } = fixtureRows();
-    r(<PatternSymbolMatrix rows={[rowA, rowB]} timeframes={["1D", "5m", "1W"]} onSelect={vi.fn()} />);
+    render(() => <PatternSymbolMatrix rows={[rowA, rowB]} timeframes={["1D", "5m", "1W"]} onSelect={vi.fn()} />);
 
     const table = screen.getByTestId("patterns-symbol-matrix");
     const rows = screen.getAllByTestId(/patterns-matrix-row-/);
@@ -187,7 +185,7 @@ describe("PatternSymbolMatrix", () => {
 
   test("renders glyphs for cells and an em dash for missing cells", () => {
     const { rowA, rowB } = fixtureRows();
-    r(<PatternSymbolMatrix rows={[rowA, rowB]} timeframes={["5m", "1D", "1W"]} onSelect={vi.fn()} />);
+    render(() => <PatternSymbolMatrix rows={[rowA, rowB]} timeframes={["5m", "1D", "1W"]} onSelect={vi.fn()} />);
 
     const rowAEl = screen.getByTestId("patterns-matrix-row-AAA");
     const cellsA = within(rowAEl).getAllByRole("cell");
@@ -214,14 +212,14 @@ describe("PatternSymbolMatrix", () => {
   test("orders chips actionable-first and selects the clicked chip, not the row best", async () => {
     const onSelect = vi.fn();
     const { rowA, rowB, hit1d } = fixtureRows();
-    r(<PatternSymbolMatrix rows={[rowA, rowB]} timeframes={["5m", "1D", "1W"]} onSelect={onSelect} />);
+    render(() => <PatternSymbolMatrix rows={[rowA, rowB]} timeframes={["5m", "1D", "1W"]} onSelect={onSelect} />);
 
     const rowAEl = screen.getByTestId("patterns-matrix-row-AAA");
     const patternsCell = within(rowAEl).getAllByRole("cell")[8];
-    const chips = Array.from(patternsCell.querySelectorAll("span")).map((el) => el.textContent);
+    const chips = Array.from(patternsCell.querySelectorAll("button")).map((el) => el.textContent);
     expect(chips).toEqual(["Double Bottom 5m", "Head and Shoulders 1D"]);
 
-    await userEvent.click(within(patternsCell).getByText("Head and Shoulders 1D"));
+    fireEvent.click(within(patternsCell).getByText("Head and Shoulders 1D"));
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith(hit1d);
   });
@@ -229,13 +227,13 @@ describe("PatternSymbolMatrix", () => {
   test("matrix chips are keyboard-activatable", async () => {
     const onSelect = vi.fn();
     const { rowA, rowB, hit1d } = fixtureRows();
-    r(<PatternSymbolMatrix rows={[rowA, rowB]} timeframes={["5m", "1D", "1W"]} onSelect={onSelect} />);
+    render(() => <PatternSymbolMatrix rows={[rowA, rowB]} timeframes={["5m", "1D", "1W"]} onSelect={onSelect} />);
     const rowAEl = screen.getByTestId("patterns-matrix-row-AAA");
     const chip = within(rowAEl).getByRole("button", {
       name: "Open Head and Shoulders 1D chart",
     });
     chip.focus();
-    await userEvent.keyboard("{Enter}");
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Enter" });
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith(hit1d);
   });
@@ -243,9 +241,9 @@ describe("PatternSymbolMatrix", () => {
   test("clicking a row selects its best hit", async () => {
     const onSelect = vi.fn();
     const { rowA, rowB } = fixtureRows();
-    r(<PatternSymbolMatrix rows={[rowA, rowB]} timeframes={["5m", "1D", "1W"]} onSelect={onSelect} />);
+    render(() => <PatternSymbolMatrix rows={[rowA, rowB]} timeframes={["5m", "1D", "1W"]} onSelect={onSelect} />);
 
-    await userEvent.click(screen.getByTestId("patterns-matrix-row-BBB"));
+    fireEvent.click(screen.getByTestId("patterns-matrix-row-BBB"));
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith(rowB.best);
   });
@@ -266,26 +264,26 @@ describe("PatternSymbolMatrix", () => {
         "1D": makeCell({ count: 1, confidence: 60, patterns: ["Daily"], best_id: 102 }),
       },
     });
-    r(<PatternSymbolMatrix rows={[row]} timeframes={["5m", "1D"]} onSelect={vi.fn()} />);
+    render(() => <PatternSymbolMatrix rows={[row]} timeframes={["5m", "1D"]} onSelect={vi.fn()} />);
 
     const cells = within(screen.getByTestId("patterns-matrix-row-CCC")).getAllByRole("cell");
     expect(cells[3]).toHaveTextContent("▲2");
     expect(within(cells[3]).getByTitle("2 patterns · latest: Latest")).toBeInTheDocument();
-    const chips = Array.from(cells[7].querySelectorAll("span")).map((el) => el.textContent);
+    const chips = Array.from(cells[7].querySelectorAll("button")).map((el) => el.textContent);
     expect(chips).toEqual(["Latest 5m", "Daily 1D"]);
     expect(within(cells[7]).queryByText("+1")).not.toBeInTheDocument();
   });
 
   test("filters rows, scores and chips to the selected timeframes", () => {
     const { rowA, rowB } = fixtureRows();
-    r(<PatternSymbolMatrix rows={[rowA, rowB]} timeframes={["1D"]} onSelect={vi.fn()} />);
+    render(() => <PatternSymbolMatrix rows={[rowA, rowB]} timeframes={["1D"]} onSelect={vi.fn()} />);
 
     expect(screen.queryByTestId("patterns-matrix-row-BBB")).not.toBeInTheDocument();
     const cells = within(screen.getByTestId("patterns-matrix-row-AAA")).getAllByRole("cell");
     expect(cells[3]).toHaveTextContent("▼");
     expect(cells[4]).toHaveTextContent("55.0");
     expect(cells[5]).toHaveTextContent("—");
-    const chips = Array.from(cells[6].querySelectorAll("span")).map((el) => el.textContent);
+    const chips = Array.from(cells[6].querySelectorAll("button")).map((el) => el.textContent);
     expect(chips).toEqual(["Head and Shoulders 1D"]);
   });
 
@@ -293,29 +291,68 @@ describe("PatternSymbolMatrix", () => {
     const onShowMembers = vi.fn();
     const { rowA } = fixtureRows();
     const row = { ...rowA, symbol: "NIFTY", name: "Nifty 50" };
-    r(
-      <PatternSymbolMatrix
+    render(() => <PatternSymbolMatrix
         rows={[row]}
         timeframes={["5m", "1D"]}
         onSelect={vi.fn()}
         onShowMembers={onShowMembers}
-      />,
-    );
+      />);
 
-    await userEvent.click(screen.getByTestId("patterns-matrix-members-NIFTY"));
+    fireEvent.click(screen.getByTestId("patterns-matrix-members-NIFTY"));
     expect(onShowMembers).toHaveBeenCalledWith("NIFTY");
     expect(screen.queryByTestId("patterns-matrix-members-AAA")).not.toBeInTheDocument();
   });
 
   test("renders the empty message when there are no rows", () => {
-    r(
-      <PatternSymbolMatrix
+    render(() => <PatternSymbolMatrix
         rows={[]}
         timeframes={["5m"]}
         onSelect={vi.fn()}
         emptyMessage="Nothing to show."
-      />,
-    );
+      />);
     expect(screen.getByText("Nothing to show.")).toBeInTheDocument();
+  });
+
+  test("derives the min table width from the column count and scrolls in its panel", () => {
+    const { rowA, rowB } = fixtureRows();
+    render(() => <PatternSymbolMatrix rows={[rowA, rowB]} timeframes={["5m", "1D", "1W"]} onSelect={vi.fn()} />);
+    const table = screen.getByTestId("patterns-symbol-matrix");
+    // Symbol + LTP + Chg + 3 timeframes + Score + Pos + Patterns = 9 columns.
+    expect(table.style.minWidth).toBe(`${Math.max(560, 9 * 72)}px`);
+    // fillContainer: the table scrolls inside the panel rather than widening the page.
+    const panel = table.closest(".paper-tanstack-container") as HTMLElement;
+    expect(panel.style.maxHeight).toBe("");
+    expect(panel.style.flex).toContain("1 1 0%");
+  });
+
+  test("numeric cells are mono, tabular and right-aligned", () => {
+    const { rowA } = fixtureRows();
+    render(() => <PatternSymbolMatrix rows={[rowA]} timeframes={["5m", "1D", "1W"]} onSelect={vi.fn()} />);
+    const cells = within(screen.getByTestId("patterns-matrix-row-AAA")).getAllByRole("cell");
+    const numeric: Array<[number, string]> = [
+      [1, "₹1,234.50"],
+      [2, "+2.50%"],
+      [6, "82.5"],
+      [7, "88%"],
+    ];
+    for (const [index, text] of numeric) {
+      const value = within(cells[index]).getByText(text);
+      expect(value.className).toContain("font-mono");
+      expect(value.className).toContain("tabular-nums");
+      expect(value.className).toContain("text-right");
+    }
+  });
+
+  test("header alignment matches the columns", () => {
+    const { rowA } = fixtureRows();
+    render(() => <PatternSymbolMatrix rows={[rowA]} timeframes={["5m", "1D"]} onSelect={vi.fn()} />);
+    const table = screen.getByTestId("patterns-symbol-matrix");
+    const header = (label: string) => within(table).getByText(label).closest("th") as HTMLElement;
+    expect(header("Symbol").style.textAlign).toBe("left");
+    expect(header("LTP").style.textAlign).toBe("right");
+    expect(header("Score").style.textAlign).toBe("right");
+    expect(header("Pos %").style.textAlign).toBe("right");
+    // Timeframe glyph columns are centred.
+    expect(header("5m").style.textAlign).toBe("center");
   });
 });

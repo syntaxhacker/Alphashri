@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { ScreenerTable } from "./ScreenerTable";
+import { getColumnsForScreener } from "./columns";
 import { UIProvider } from "@/ui";
 import type { Stock } from "../../types";
 import type { ColumnDef } from "./columns";
@@ -70,86 +71,123 @@ describe("ScreenerTable", () => {
   });
 
   it("renders all stocks as rows", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerTable {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("stock-row-RELIANCE")).toBeInTheDocument();
     expect(screen.getByTestId("stock-row-TCS")).toBeInTheDocument();
     expect(screen.getByTestId("stock-row-INFY")).toBeInTheDocument();
   });
 
   it("renders header text for each column", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerTable {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     mockColumns.forEach((col) => {
       expect(screen.getByText(col.label)).toBeInTheDocument();
     });
   });
 
   it("calls onSymbolClick when stock row is clicked", async () => {
-      const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerTable {...defaultProps} />
-      </UIProvider>,
-    );
-    await user.click(screen.getByTestId("stock-row-TCS"));
+      </UIProvider>
+    ));
+    fireEvent.click(screen.getByTestId("stock-row-TCS"));
     expect(defaultProps.onSymbolClick).toHaveBeenCalledWith("TCS");
   });
 
   it("does not render copy-all-symbols button when stocks array is empty", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerTable {...defaultProps} stocks={[]} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.queryByTestId("copy-all-symbols-btn")).not.toBeInTheDocument();
   });
 
   it("renders correct number of columns in header", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerTable {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const ths = document.querySelectorAll("thead tr th");
     expect(ths.length).toBe(mockColumns.length + 1);
   });
 
   it("renders correct number of body rows", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerTable {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const rows = document.querySelectorAll("tbody tr");
     expect(rows.length).toBe(mockStocks.length);
   });
 
   it("handles empty stocks array gracefully", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerTable {...defaultProps} stocks={[]} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.queryByTestId("stock-row-RELIANCE")).not.toBeInTheDocument();
   });
 
   it("handles single stock", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerTable {...defaultProps} stocks={[mockStock]} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("stock-row-RELIANCE")).toBeInTheDocument();
     expect(screen.queryByTestId("stock-row-TCS")).not.toBeInTheDocument();
   });
+});
 
+describe("ScreenerTable market-tick updates", () => {
+  const tickColumns: ColumnDef[] = [
+    { key: "symbol", label: "Symbol", type: "string", sortable: true },
+    {
+      key: "day_change",
+      label: "Change",
+      type: "number",
+      sortable: true,
+      format: (value: number) => ({
+        value: `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`,
+        className: value >= 0 ? "success" : "error",
+      }),
+    },
+  ];
+
+  it("shows the FINAL value after 120 rapid market ticks (no stale intermediate renders)", async () => {
+    const [stocks, setStocks] = createSignal<Stock[]>([{ ...mockStock, day_change: 1.0 }]);
+    render(() => (
+      <UIProvider>
+        <ScreenerTable
+          stocks={stocks()}
+          columns={tickColumns}
+          touchedSymbols={new Set()}
+          onSymbolClick={vi.fn()}
+          onSymbolHover={vi.fn()}
+        />
+      </UIProvider>
+    ));
+    expect(screen.getByTestId("stock-row-RELIANCE")).toHaveTextContent("+1.00%");
+    for (let i = 1; i <= 120; i++) {
+      setStocks([{ ...mockStock, day_change: 1.0 + i / 100 }]);
+    }
+    await waitFor(() => {
+      expect(screen.getByTestId("stock-row-RELIANCE")).toHaveTextContent("+2.20%");
+    });
+    expect(screen.getByTestId("stock-row-RELIANCE")).not.toHaveTextContent("+1.00%");
+  });
 });
 
 describe("ScreenerTable approach badges", () => {
@@ -165,33 +203,76 @@ describe("ScreenerTable approach badges", () => {
   });
 
   it("shows FRESH badge for fresh approaches", () => {
-    render(
+    render(() => (
       <UIProvider>
-        <ScreenerTable {...badgeProps} stocks={[{ ...mockStock, approach_type: "fresh" as const }]} />
-      </UIProvider>,
-    );
+        <ScreenerTable
+          {...badgeProps}
+          stocks={[{ ...mockStock, approach_type: "fresh" as const }]}
+        />
+      </UIProvider>
+    ));
     const badge = screen.getByTestId("approach-badge-RELIANCE");
     expect(badge).toBeInTheDocument();
     expect(badge).toHaveTextContent("FRESH");
   });
 
   it("shows RETEST badge for retests", () => {
-    render(
+    render(() => (
       <UIProvider>
-        <ScreenerTable {...badgeProps} stocks={[{ ...mockStock, symbol: "ZIMLAB", approach_type: "retest" as const }]} />
-      </UIProvider>,
-    );
+        <ScreenerTable
+          {...badgeProps}
+          stocks={[{ ...mockStock, symbol: "ZIMLAB", approach_type: "retest" as const }]}
+        />
+      </UIProvider>
+    ));
     const badge = screen.getByTestId("approach-badge-ZIMLAB");
     expect(badge).toBeInTheDocument();
     expect(badge).toHaveTextContent("RETEST");
   });
 
   it("shows no badge without approach_type", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerTable {...badgeProps} stocks={[mockStock]} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.queryByTestId("approach-badge-RELIANCE")).not.toBeInTheDocument();
+  });
+});
+
+describe("ScreenerTable column kit", () => {
+  it("renders numeric cells mono/tabular right and badges centred", () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerTable
+          stocks={[mockStock]}
+          columns={getColumnsForScreener("buyer_interest_enhanced")}
+          touchedSymbols={new Set()}
+          onSymbolClick={vi.fn()}
+          onSymbolHover={vi.fn()}
+        />
+      </UIProvider>
+    ));
+    const row = screen.getByTestId("stock-row-RELIANCE");
+    const headers = [...document.querySelectorAll("thead th")].map((th) => th.textContent!.trim());
+    const cells = [...row.querySelectorAll("td")];
+
+    for (const name of ["Day Change", "Volume (M)", "Return 5D"]) {
+      const index = headers.indexOf(name);
+      expect(index, `${name} header exists`).toBeGreaterThan(-1);
+      expect(cells[index].style.textAlign, `${name} header`).toBe("right");
+      const value = cells[index].firstElementChild as HTMLElement;
+      expect(value.className, name).toContain("font-mono");
+      expect(value.className, name).toContain("tabular-nums");
+      expect(value.className, name).toContain("text-right");
+    }
+
+    const touchedIndex = headers.indexOf("Touched");
+    expect(cells[touchedIndex].style.textAlign).toBe("center");
+    expect(cells[touchedIndex].textContent).toBe("No");
+
+    const sectorIndex = headers.indexOf("Sector");
+    expect(cells[sectorIndex].style.textAlign).toBe("left");
+    expect(cells[sectorIndex].textContent).toBe("Energy");
   });
 });

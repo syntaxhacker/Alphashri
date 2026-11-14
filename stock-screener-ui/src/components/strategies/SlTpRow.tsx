@@ -6,7 +6,7 @@ interface SlTpRowProps {
   isSwing: boolean;
 }
 
-export function SlTpRow({ slDefault, tpDefault, isSwing }: SlTpRowProps) {
+export function SlTpRow(props: SlTpRowProps) {
   return (
     <Stack spacing={1} className="gap-2 p-2">
       <Box className="flex items-center gap-2 p-2">
@@ -15,9 +15,9 @@ export function SlTpRow({ slDefault, tpDefault, isSwing }: SlTpRowProps) {
           <NumberInput
             size="sm"
             name="sl_pct"
-            defaultValue={slDefault}
+            defaultValue={props.slDefault}
             min={0.1}
-            max={isSwing ? 30 : 10}
+            max={props.isSwing ? 30 : 10}
             step={0.1}
             suffix="%"
             required
@@ -31,12 +31,12 @@ export function SlTpRow({ slDefault, tpDefault, isSwing }: SlTpRowProps) {
           <NumberInput
             size="sm"
             name="tp_pct"
-            defaultValue={tpDefault}
+            defaultValue={props.tpDefault}
             min={0.1}
-            max={isSwing ? 20 : 10}
-            step={isSwing ? 0.5 : 0.1}
+            max={props.isSwing ? 20 : 10}
+            step={props.isSwing ? 0.5 : 0.1}
             suffix="%"
-            required={!isSwing}
+            required={!props.isSwing}
             data-testid="strategy-tp-pct-input"
           />
         </Box>

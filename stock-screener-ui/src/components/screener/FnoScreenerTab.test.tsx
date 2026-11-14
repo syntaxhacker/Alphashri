@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within, waitFor, fireEvent } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, within, waitFor, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { FnoScreenerTab } from "./FnoScreenerTab";
 import { buildFnoScreenerUrl, type FnoScreenerParams } from "../../api/fnoScreener";
@@ -191,14 +190,17 @@ const baseResponse = {
   matched: 6,
 };
 
-const renderTab = () => render(<UIProvider><FnoScreenerTab /></UIProvider>);
+const renderTab = () =>
+  render(() => (
+    <UIProvider>
+      <FnoScreenerTab />
+    </UIProvider>
+  ));
 
 beforeEach(() => {
   vi.clearAllMocks();
   mockFetchFnoScreener.mockResolvedValue(baseResponse);
 });
-
-
 
 describe("FnoScreenerTab", () => {
   it("renders the toolbar and fetches defaults on mount", async () => {
@@ -238,6 +240,32 @@ describe("FnoScreenerTab", () => {
     expect(screen.getByTestId("fno-cell-move-RELIANCE")).toHaveTextContent("+3.40%");
     expect(screen.getByTestId("fno-cell-oi-RELIANCE")).toHaveTextContent("1.3L");
     expect(screen.getByTestId("fno-cell-vol-TCS")).toHaveTextContent("0.90×");
+
+    // Numeric cells must be mono + tabular or the columns stop lining up.
+    for (const cell of [
+      "spot",
+      "d1",
+      "d5",
+      "vol",
+      "otm",
+      "premium",
+      "cost",
+      "pop",
+      "delta",
+      "gamma",
+      "theta",
+      "vega",
+      "iv",
+      "oi",
+      "spread",
+      "move",
+    ]) {
+      const el = screen.getByTestId(`fno-cell-${cell}-RELIANCE`);
+      expect(el.className, cell).toContain("font-mono");
+      expect(el.className, cell).toContain("tabular-nums");
+      expect(el.className, cell).toContain("text-right");
+    }
+    expect(screen.getByTestId("fno-cell-call-RELIANCE").className).toContain("text-left");
   });
 
   it("preset switch triggers a refetch and aborts the previous request", async () => {
@@ -246,8 +274,7 @@ describe("FnoScreenerTab", () => {
     expect(mockFetchFnoScreener).toHaveBeenCalledTimes(1);
     const firstSignal = mockFetchFnoScreener.mock.calls[0][1]?.signal as AbortSignal;
 
-    const user = userEvent.setup();
-    await user.click(screen.getByTestId("fno-preset-max_torque"));
+    fireEvent.click(screen.getByTestId("fno-preset-max_torque"));
 
     await waitFor(() => expect(mockFetchFnoScreener).toHaveBeenCalledTimes(2));
     const lastParams = mockFetchFnoScreener.mock.calls.at(-1)![0] as FnoScreenerParams;
@@ -263,8 +290,9 @@ describe("FnoScreenerTab", () => {
     renderTab();
     await waitFor(() => expect(screen.getByTestId("fno-row-RELIANCE")).toBeInTheDocument());
 
-    const user = userEvent.setup();
-    await user.selectOptions(within(screen.getByTestId("fno-expiry-select")).getByRole("combobox"), "2026-11-13");
+    fireEvent.input(within(screen.getByTestId("fno-expiry-select")).getByRole("combobox"), {
+      target: { value: "2026-11-13" },
+    });
 
     await waitFor(() => {
       const lastParams = mockFetchFnoScreener.mock.calls.at(-1)![0] as FnoScreenerParams;
@@ -276,10 +304,9 @@ describe("FnoScreenerTab", () => {
     renderTab();
     await waitFor(() => expect(screen.getByTestId("fno-row-RELIANCE")).toBeInTheDocument());
 
-    const user = userEvent.setup();
-    const input = screen.getByPlaceholderText("Min POP") as HTMLInputElement;
-    await user.clear(input);
-    await user.type(input, "40");
+    const input = screen.getByTestId("fno-min-pop-min-input") as HTMLInputElement;
+    fireEvent.input(input, { target: { value: "" } });
+    fireEvent.input(input, { target: { value: "40" } });
 
     await waitFor(() => {
       const lastParams = mockFetchFnoScreener.mock.calls.at(-1)![0] as FnoScreenerParams;
@@ -287,12 +314,61 @@ describe("FnoScreenerTab", () => {
     });
   });
 
+  it("renders both filter pairs as dual-thumb ranges", async () => {
+    renderTab();
+    await waitFor(() => expect(screen.getByTestId("fno-row-RELIANCE")).toBeInTheDocument());
+
+    // Two ranges × two thumbs each.
+    expect(screen.getAllByRole("slider")).toHaveLength(4);
+    expect(screen.getByTestId("fno-max-cost-select-slider-min")).toBeInTheDocument();
+    expect(screen.getByTestId("fno-max-cost-select-slider-max")).toBeInTheDocument();
+    expect(screen.getByTestId("fno-min-pop-slider-min")).toBeInTheDocument();
+    expect(screen.getByTestId("fno-min-pop-slider-max")).toBeInTheDocument();
+  });
+
+  it("cost range sends the cap to the backend and applies the floor locally", async () => {
+    renderTab();
+    await waitFor(() => expect(screen.getByTestId("fno-row-LT")).toBeInTheDocument());
+
+    fireEvent.input(screen.getByTestId("fno-max-cost-select-max-input"), {
+      target: { value: "8000" },
+    });
+
+    await waitFor(() => {
+      const lastParams = mockFetchFnoScreener.mock.calls.at(-1)![0] as FnoScreenerParams;
+      expect(lastParams.max_cost).toBe(8000);
+    });
+
+    // The floor is a local predicate over the fetched rows: no extra request.
+    fireEvent.input(screen.getByTestId("fno-max-cost-select-min-input"), {
+      target: { value: "5000" },
+    });
+    await waitFor(() => expect(screen.queryByTestId("fno-row-NMDC")).not.toBeInTheDocument());
+    expect(screen.getByTestId("fno-row-TCS")).toBeInTheDocument();
+    expect(screen.queryByTestId("fno-row-LT")).not.toBeInTheDocument();
+    expect(mockFetchFnoScreener).toHaveBeenCalledTimes(2);
+  });
+
+  it("POP range applies its ceiling locally without refetching", async () => {
+    renderTab();
+    await waitFor(() => expect(screen.getByTestId("fno-row-RELIANCE")).toBeInTheDocument());
+
+    fireEvent.input(screen.getByTestId("fno-min-pop-max-input"), {
+      target: { value: "50" },
+    });
+
+    await waitFor(() => expect(screen.queryByTestId("fno-row-RELIANCE")).not.toBeInTheDocument());
+    expect(screen.getByTestId("fno-row-TCS")).toBeInTheDocument();
+    expect(screen.getByTestId("fno-row-LT")).toBeInTheDocument();
+    expect(screen.getByTestId("fno-row-count")).toHaveTextContent(/2 symbols \/ 2 contracts/);
+    expect(mockFetchFnoScreener).toHaveBeenCalledTimes(1);
+  });
+
   it("refresh action icon refetches with refresh=true", async () => {
     renderTab();
     await waitFor(() => expect(screen.getByTestId("fno-row-RELIANCE")).toBeInTheDocument());
 
-    const user = userEvent.setup();
-    await user.click(screen.getByTestId("fno-refresh"));
+    fireEvent.click(screen.getByTestId("fno-refresh"));
 
     await waitFor(() => expect(mockFetchFnoScreener).toHaveBeenCalledTimes(2));
     const lastParams = mockFetchFnoScreener.mock.calls.at(-1)![0] as FnoScreenerParams;
@@ -361,12 +437,13 @@ describe("FnoScreenerTab", () => {
 
     const clickPremiumHeader = () => fireEvent.click(screen.getByText(/PREMIUM/));
     clickPremiumHeader();
-    // First click sorts premium ascending → IRFC 91 CE (lowest premium, 3.9) first.
-    expect(firstSymbol()).toBe("IRFC");
+    // Premium is numeric, so the first click sorts biggest-first (TanStack's
+    // auto-sort contract) → LT (89) first, and IRFC (3.9) last.
+    expect(firstSymbol()).toBe("LT");
 
     clickPremiumHeader();
-    // Second click sorts premium descending → LT (highest premium, 89) first.
-    expect(firstSymbol()).toBe("LT");
+    // Second click flips to ascending → IRFC 91 CE (lowest premium, 3.9) first.
+    expect(firstSymbol()).toBe("IRFC");
   });
 
   it("shows one row per symbol by default, deduping contracts", async () => {
@@ -383,8 +460,7 @@ describe("FnoScreenerTab", () => {
     renderTab();
     await waitFor(() => expect(screen.getByTestId("fno-row-IRFC")).toBeInTheDocument());
 
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "All contracts" }));
+    fireEvent.click(screen.getByRole("button", { name: "All contracts" }));
 
     expect(screen.getAllByTestId("fno-row-IRFC")).toHaveLength(2);
     expect(screen.getByTestId("fno-row-count")).toHaveTextContent(/5 symbols \/ 6 contracts/);
@@ -396,11 +472,10 @@ describe("FnoScreenerTab", () => {
     renderTab();
     await waitFor(() => expect(screen.getByTestId("fno-row-IRFC")).toBeInTheDocument());
 
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "All contracts" }));
+    fireEvent.click(screen.getByRole("button", { name: "All contracts" }));
     await waitFor(() => expect(screen.getAllByTestId("fno-row-IRFC")).toHaveLength(2));
 
-    await user.click(screen.getByRole("button", { name: "Best per symbol" }));
+    fireEvent.click(screen.getByRole("button", { name: "Best per symbol" }));
     await waitFor(() => expect(screen.getAllByTestId("fno-row-IRFC")).toHaveLength(1));
     expect(screen.getByTestId("fno-row-count")).toHaveTextContent(/5 symbols \/ 6 contracts/);
   });

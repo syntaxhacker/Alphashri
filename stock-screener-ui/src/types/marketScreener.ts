@@ -31,6 +31,11 @@ export interface MarketRow {
   low52w: number | null;
   /** Position within the 52-week range, 0–100. */
   pos52w: number | null;
+  /** Fundamentals (null when the source has no coverage). */
+  peRatio: number | null;
+  pbRatio: number | null;
+  dividendYield: number | null;
+  roe: number | null;
   fno: boolean;
   etf: boolean;
 }

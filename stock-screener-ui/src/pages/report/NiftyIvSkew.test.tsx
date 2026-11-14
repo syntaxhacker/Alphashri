@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { describe, expect, test } from "vitest";
+import type { JSX } from "solid-js";
+import { render, screen } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { NiftyStrike } from "@/types/niftyReport";
@@ -20,13 +21,11 @@ import {
   nearestIvPoint,
 } from "./NiftyIvSkew";
 
-afterEach(cleanup);
-
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>{children}</UIProvider>;
+function TestWrapper(props: { children?: JSX.Element }) {
+  return <UIProvider>{props.children}</UIProvider>;
 }
 
-function r(jsx: React.ReactElement) {
+function r(jsx: () => JSX.Element) {
   return render(jsx, { wrapper: TestWrapper });
 }
 
@@ -258,7 +257,8 @@ describe("buildIvSkewChart", () => {
 
 describe("NiftyIvSkew render", () => {
   test("renders all four stats, the read line and the coverage caption", () => {
-    r(<NiftyIvSkew strikes={CHAIN} spot={25750} />);
+    r(() =>
+    <NiftyIvSkew strikes={CHAIN} spot={25750} />);
     const panel = screen.getByTestId("nifty-iv-skew-panel");
     expect(panel).toBeInTheDocument();
     expect(panel).toHaveTextContent("IV skew");
@@ -280,14 +280,16 @@ describe("NiftyIvSkew render", () => {
   });
 
   test("legend explains the leg hues and ATM", () => {
-    r(<NiftyIvSkew strikes={CHAIN} spot={25750} />);
+    r(() =>
+    <NiftyIvSkew strikes={CHAIN} spot={25750} />);
     expect(screen.getByText("CALL IV")).toBeInTheDocument();
     expect(screen.getByText("PUT IV")).toBeInTheDocument();
     expect(screen.getByText("ATM")).toBeInTheDocument();
   });
 
   test("no strikes renders dashes and the chart empty state", () => {
-    r(<NiftyIvSkew strikes={[]} spot={25750} />);
+    r(() =>
+    <NiftyIvSkew strikes={[]} spot={25750} />);
     expect(screen.getByTestId("nifty-iv-skew-atm")).toHaveTextContent(IV_DASH);
     expect(screen.getByTestId("nifty-iv-skew-rr")).toHaveTextContent(IV_DASH);
     expect(screen.getByText("No IV in this expiry")).toBeInTheDocument();
@@ -296,7 +298,8 @@ describe("NiftyIvSkew render", () => {
   });
 
   test("undefined props do not crash", () => {
-    r(<NiftyIvSkew />);
+    r(() =>
+    <NiftyIvSkew />);
     expect(screen.getByTestId("nifty-iv-skew-panel")).toBeInTheDocument();
     expect(screen.getByText("No IV in this expiry")).toBeInTheDocument();
   });

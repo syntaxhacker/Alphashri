@@ -1,3 +1,4 @@
+import { createMemo, For, Show } from "solid-js";
 import { Box, Text, ToolbarRow, UnstyledButton } from "@/ui";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { StatusBadge } from "./StatusBadge";
@@ -44,50 +45,54 @@ export interface FullscreenPatternListProps {
  * newest first. Selecting a row replaces the chart's single active pattern
  * (radio-style — no multi-select, no dashed siblings).
  */
-export function FullscreenPatternList({ hits, activeKey, onSelect }: FullscreenPatternListProps) {
-  const sorted = sortHitsNewest(hits).slice(0, 1);
+export function FullscreenPatternList(props: FullscreenPatternListProps) {
+  const sorted = createMemo(() => sortHitsNewest(props.hits).slice(0, 1));
   return (
     <Box data-testid="patterns-fullscreen-list" className="flex flex-col gap-1">
-      <Text size="xs" c="dimmed" fw={700} style={{ textTransform: "uppercase" }}>
-        {`Patterns (${sorted.length})`}
+      <Text size="xs" c="dimmed" fw={700} style={{ "text-transform": "uppercase" }}>
+        {`Patterns (${sorted().length})`}
       </Text>
-      {sorted.length === 0 ? (
-        <Text size="xs" c="dimmed">
-          No patterns detected
-        </Text>
-      ) : (
-        sorted.map((hit, i) => {
-          const key = fullscreenHitKey(hit);
-          const active = activeKey != null && key === activeKey;
-          return (
-            <UnstyledButton
-              key={key}
-              onClick={() => onSelect(hit)}
-              data-testid={`patterns-fullscreen-list-item-${i}`}
-              data-selected={active ? "true" : undefined}
-              aria-pressed={active}
-              className={`block w-full cursor-pointer rounded-fin p-1 transition-colors hover:bg-fin-surface-alt ${
-                active ? "bg-fin-surface-alt" : "bg-transparent"
-              }`}
-            >
-              <ToolbarRow justify="space-between" gap={4} align="center">
-                <Text size="xs" fw={600} truncate style={{ flex: 1, minWidth: 0 }} lh={1.15}>
-                  {hit.pattern_name}
-                </Text>
-                <StatusBadge status={hit.status} display={displayStatusForHit(hit)} />
-              </ToolbarRow>
-              <ToolbarRow justify="space-between" gap={4} align="center">
-                <Text size="xs" c="dimmed" truncate lh={1.15}>
-                  {`${formatChartTimestamp(hit.end_date)} · ${hit.bars_ago} bar${hit.bars_ago === 1 ? "" : "s"} ago`}
-                </Text>
-                <Text size="xs" c="dimmed" lh={1.15}>
-                  {`${Math.round(hit.confidence)}%`}
-                </Text>
-              </ToolbarRow>
-            </UnstyledButton>
-          );
-        })
-      )}
+      <Show
+        when={sorted().length > 0}
+        fallback={
+          <Text size="xs" c="dimmed">
+            No patterns detected
+          </Text>
+        }
+      >
+        <For each={sorted()}>
+          {(hit, i) => {
+            const key = () => fullscreenHitKey(hit);
+            const active = () => props.activeKey != null && key() === props.activeKey;
+            return (
+              <UnstyledButton
+                onClick={() => props.onSelect(hit)}
+                data-testid={`patterns-fullscreen-list-item-${i()}`}
+                data-selected={active() ? "true" : undefined}
+                aria-pressed={active()}
+                className={`block w-full cursor-pointer rounded-fin p-1 transition-colors hover:bg-fin-surface-alt ${
+                  active() ? "bg-fin-surface-alt" : "bg-transparent"
+                }`}
+              >
+                <ToolbarRow justify="space-between" gap={4}>
+                  <Text size="xs" fw={600} truncate style={{ flex: 1, "min-width": 0 }} lh={1.15}>
+                    {hit.pattern_name}
+                  </Text>
+                  <StatusBadge status={hit.status} display={displayStatusForHit(hit)} />
+                </ToolbarRow>
+                <ToolbarRow justify="space-between" gap={4}>
+                  <Text size="xs" c="dimmed" truncate lh={1.15}>
+                    {`${formatChartTimestamp(hit.end_date)} · ${hit.bars_ago} bar${hit.bars_ago === 1 ? "" : "s"} ago`}
+                  </Text>
+                  <Text size="xs" c="dimmed" lh={1.15}>
+                    {`${Math.round(hit.confidence)}%`}
+                  </Text>
+                </ToolbarRow>
+              </UnstyledButton>
+            );
+          }}
+        </For>
+      </Show>
     </Box>
   );
 }

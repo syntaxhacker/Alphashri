@@ -1,9 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { render, screen, waitFor, within, fireEvent } from "@solidjs/testing-library";
+import { MemoryRouter, Route, createMemoryHistory } from "@solidjs/router";
 import { OrderFlowPage } from "./OrderFlowPage";
 import { getBrokerStatus } from "@/api/brokers";
 import { getExpiries, getFyersSymbol, getOptionChain, getUnderlyings } from "@/api/upstoxOptions";
@@ -23,6 +22,23 @@ vi.mock("@/api/upstoxOptions", () => ({
   getOptionChain: vi.fn(),
   getFyersSymbol: vi.fn(),
 }));
+
+// The @/ui Box/Flex/... stubs from src/pages/solidTestStubs.tsx render as
+// intrinsic elements; page tests exercise page wiring, not the theme runtime.
+// Popover is stubbed with a bare pass-through; no OrderFlow test opens the
+// View dropdown.
+vi.mock("@/ui", async (importOriginal) => {
+  const { uiLayoutStub } = await import("@/pages/solidTestStubs");
+  const actual = await importOriginal<Record<string, unknown>>();
+  const stubbed = await uiLayoutStub(actual);
+  const passthrough = (props: any) => <div>{props.children}</div>;
+  return {
+    ...stubbed,
+    Popover: (props: any) => <div data-testid="orderflow-view-popover">{props.children}</div>,
+    PopoverTarget: passthrough,
+    PopoverDropdown: passthrough,
+  };
+});
 
 const mockStatus = vi.mocked(getBrokerStatus);
 const mockUnderlyings = vi.mocked(getUnderlyings);
@@ -81,20 +97,18 @@ async function iframeParams(): Promise<URLSearchParams> {
 }
 
 function renderPage(initialEntry = "/orderflow") {
-  return render(
-    <MemoryRouter initialEntries={[initialEntry]}>
-      <Routes>
-        <Route path="/orderflow" element={<OrderFlowPage />} />
-        <Route path="/settings" element={<div data-testid="settings-route" />} />
-      </Routes>
-    </MemoryRouter>,
-  );
+  const history = createMemoryHistory();
+  history.set({ value: initialEntry, replace: true });
+  return render(() => (
+    <MemoryRouter history={history}>
+      <Route path="/orderflow" component={OrderFlowPage} />
+      <Route path="/settings" component={() => <div data-testid="settings-route" />} />
+    </MemoryRouter>
+  ));
 }
 
 async function switchToOptions() {
-  const user = userEvent.setup();
-  await user.click(within(screen.getByTestId("orderflow-mode")).getByRole("button", { name: "Options" }));
-  return user;
+  fireEvent.click(within(screen.getByTestId("orderflow-mode")).getByRole("button", { name: "Options" }));
 }
 
 async function waitForChain() {
@@ -109,13 +123,13 @@ describe("OrderFlowPage Options mode per-broker symbol", () => {
     renderPage();
     await screen.findByTestId("orderflow-iframe");
 
-    const user = await switchToOptions();
+    await switchToOptions();
     await waitForChain();
 
     // Default broker is fyers_tbt.
     expect((await iframeParams()).get("broker")).toBe("fyers_tbt");
 
-    await user.click(screen.getByTestId("orderflow-use-contract"));
+    fireEvent.click(screen.getByTestId("orderflow-use-contract"));
 
     await waitFor(() =>
       expect(mockFyersSymbol).toHaveBeenCalledWith("NIFTY", "2026-09-18", 105, "CE"),
@@ -129,12 +143,11 @@ describe("OrderFlowPage Options mode per-broker symbol", () => {
     renderPage();
     await screen.findByTestId("orderflow-iframe");
 
-    const user = await switchToOptions();
+    await switchToOptions();
     await waitForChain();
 
-    await user.click(within(screen.getByTestId("orderflow-broker")).getByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name: "Fyers · 5 lv + orders" }));
-    await user.click(screen.getByTestId("orderflow-use-contract"));
+    fireEvent.input(within(screen.getByTestId("orderflow-broker")).getByRole("combobox"), { target: { value: "fyers" } });
+    fireEvent.click(screen.getByTestId("orderflow-use-contract"));
 
     await waitFor(() => expect(mockFyersSymbol).toHaveBeenCalled());
     expect((await iframeParams()).get("symbol")).toBe("NSE:NIFTY26SEP23400CE");
@@ -144,11 +157,11 @@ describe("OrderFlowPage Options mode per-broker symbol", () => {
     renderPage();
     await screen.findByTestId("orderflow-iframe");
 
-    const user = await switchToOptions();
+    await switchToOptions();
     await waitForChain();
 
-    await user.selectOptions(within(screen.getByTestId("orderflow-broker")).getByRole("combobox"), "upstox");
-    await user.click(screen.getByTestId("orderflow-use-contract"));
+    fireEvent.input(within(screen.getByTestId("orderflow-broker")).getByRole("combobox"), { target: { value: "upstox" } });
+    fireEvent.click(screen.getByTestId("orderflow-use-contract"));
 
     const params = await iframeParams();
     expect(params.get("symbol")).toBe("NSE_FO|CE|105");
@@ -160,10 +173,10 @@ describe("OrderFlowPage Options mode per-broker symbol", () => {
     renderPage();
     await screen.findByTestId("orderflow-iframe");
 
-    const user = await switchToOptions();
+    await switchToOptions();
     await waitForChain();
 
-    await user.click(screen.getByTestId("orderflow-use-contract"));
+    fireEvent.click(screen.getByTestId("orderflow-use-contract"));
 
     const error = await screen.findByTestId("orderflow-options-error");
     expect(error).toHaveTextContent(/Could not find NIFTY 105 CE @ 2026-09-18 on Fyers/);

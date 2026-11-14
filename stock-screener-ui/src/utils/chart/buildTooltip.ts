@@ -49,8 +49,8 @@ export function buildTooltip(
         const costs = t.costs ?? 0;
         const side = t.side ? ` | ${t.side}` : "";
         const reason = t.exit_reason || "Open";
-        const sl = t.sl_price ? `SL: ₹${t.sl_price.toFixed(2)}` : "";
-        const tp = t.tp_price ? `TP: ₹${t.tp_price.toFixed(2)}` : "";
+        const sl = t.stop_loss ? `SL: ₹${t.stop_loss.toFixed(2)}` : "";
+        const tp = t.take_profit ? `TP: ₹${t.take_profit.toFixed(2)}` : "";
         const slTp = [sl, tp].filter(Boolean).join(" | ");
         const slTpRow = slTp ? `<div style="display:flex;gap:12px;color:${MARKER_SL}">${slTp}</div>` : "";
         return `<div style="padding:6px 8px;font-family:monospace;font-size:12px;line-height:1.4"><div style="color:${MARKER_ENTRY};font-weight:bold;margin-bottom:4px">Trade #${t.id}${side} | ${reason}</div><div style="display:flex;gap:12px;margin-bottom:2px"><span>Entry: <b>₹${t.entry_price.toFixed(2)}</b></span><span>Exit: <b>₹${(t.exit_price ?? 0).toFixed(2)}</b></span><span>Qty: ${t.quantity}</span></div>${slTpRow}<div style="display:flex;gap:12px;margin-top:2px"><span style="color:${pnlColor};font-weight:bold">P&L: ${pnl >= 0 ? "+" : ""}₹${pnl.toFixed(0)}</span><span style="color:${CHART_MUTED}">Cost: ₹${costs.toFixed(0)}</span></div></div>`;

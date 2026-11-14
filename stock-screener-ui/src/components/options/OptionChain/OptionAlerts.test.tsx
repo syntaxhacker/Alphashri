@@ -1,8 +1,12 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
-import { screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 import { OptionAlerts } from "./OptionAlerts";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
 
@@ -28,17 +32,17 @@ function makeContract(overrides: any = {}) {
 
 describe("OptionAlerts", () => {
   it("renders LIVE SMART MONEY ALERTS header", () => {
-    renderWithProviders(<OptionAlerts strikeMatrix={[]} spotPrice={24500} />);
+    render(() => <OptionAlerts strikeMatrix={[]} spotPrice={24500} />);
     expect(screen.getByText("LIVE SMART MONEY ALERTS")).toBeInTheDocument();
   });
 
   it("shows Scanning Live status badge", () => {
-    renderWithProviders(<OptionAlerts strikeMatrix={[]} spotPrice={24500} />);
+    render(() => <OptionAlerts strikeMatrix={[]} spotPrice={24500} />);
     expect(screen.getByText("Scanning Live")).toBeInTheDocument();
   });
 
   it("shows empty state with waiting message when no alerts", () => {
-    renderWithProviders(<OptionAlerts strikeMatrix={[]} spotPrice={24500} />);
+    render(() => <OptionAlerts strikeMatrix={[]} spotPrice={24500} />);
     expect(screen.getByTestId("options-alerts-empty")).toBeInTheDocument();
     expect(screen.getByText("Waiting for unusual activity patterns...")).toBeInTheDocument();
   });
@@ -51,12 +55,12 @@ describe("OptionAlerts", () => {
         pe: makeContract({ oi: 100000, prev_oi: 50000 }),
       },
     ];
-    renderWithProviders(<OptionAlerts strikeMatrix={strikeMatrix} spotPrice={null} />);
+    render(() => <OptionAlerts strikeMatrix={strikeMatrix} spotPrice={null} />);
     expect(screen.getByText("Waiting for unusual activity patterns...")).toBeInTheDocument();
   });
 
   it("renders profit tip box at bottom", () => {
-    renderWithProviders(<OptionAlerts strikeMatrix={[]} spotPrice={24500} />);
+    render(() => <OptionAlerts strikeMatrix={[]} spotPrice={24500} />);
     expect(screen.getByTestId("options-alerts-profit-tip")).toBeInTheDocument();
     expect(screen.getByText(/HOW TO PROFIT/)).toBeInTheDocument();
   });
@@ -70,7 +74,7 @@ describe("OptionAlerts", () => {
           pe: makeContract({ oi: 100, prev_oi: 100 }),
         },
       ];
-      renderWithProviders(<OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
+      render(() => <OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
       expect(screen.getByText(/New CE Wall at 24000/)).toBeInTheDocument();
     });
 
@@ -82,7 +86,7 @@ describe("OptionAlerts", () => {
           pe: makeContract({ oi: 200000, prev_oi: 50000, volume: 60000 }),
         },
       ];
-      renderWithProviders(<OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
+      render(() => <OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
       expect(screen.getByText(/New PE Wall at 25000/)).toBeInTheDocument();
     });
 
@@ -94,7 +98,7 @@ describe("OptionAlerts", () => {
           pe: makeContract({ oi: 100, prev_oi: 100 }),
         },
       ];
-      renderWithProviders(<OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
+      render(() => <OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
       expect(screen.queryByText(/New CE Wall at 24000/)).not.toBeInTheDocument();
       expect(screen.getByText("Waiting for unusual activity patterns...")).toBeInTheDocument();
     });
@@ -107,7 +111,7 @@ describe("OptionAlerts", () => {
           pe: makeContract({ oi: 100, prev_oi: 100 }),
         },
       ];
-      renderWithProviders(<OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
+      render(() => <OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
       expect(screen.queryByText(/New/)).not.toBeInTheDocument();
     });
   });
@@ -121,7 +125,7 @@ describe("OptionAlerts", () => {
           pe: makeContract({ oi: 100, prev_oi: 100 }),
         },
       ];
-      renderWithProviders(<OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
+      render(() => <OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
       expect(screen.getByText(/Call Squeeze Alert: 25000/)).toBeInTheDocument();
     });
 
@@ -133,7 +137,7 @@ describe("OptionAlerts", () => {
           pe: makeContract({ oi: 50000, prev_oi: 80000, ltp: 150, bid_price: 100 }),
         },
       ];
-      renderWithProviders(<OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
+      render(() => <OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
       expect(screen.queryByText(/Call Squeeze Alert/)).not.toBeInTheDocument();
     });
   });
@@ -147,7 +151,7 @@ describe("OptionAlerts", () => {
           pe: makeContract({ oi: 100, prev_oi: 100 }),
         },
       ];
-      renderWithProviders(<OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
+      render(() => <OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
       expect(screen.getByText(/Aggressive CE Entry/)).toBeInTheDocument();
     });
 
@@ -159,7 +163,7 @@ describe("OptionAlerts", () => {
           pe: makeContract({ oi: 100, prev_oi: 100 }),
         },
       ];
-      renderWithProviders(<OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
+      render(() => <OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
       expect(screen.queryByText(/Aggressive/)).not.toBeInTheDocument();
     });
   });
@@ -182,7 +186,7 @@ describe("OptionAlerts", () => {
           pe: makeContract({ oi: 100, prev_oi: 100 }),
         },
       ];
-      renderWithProviders(<OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
+      render(() => <OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
       const items = screen.getAllByTestId(/options-alert-item-/);
       expect(items[0]).toHaveTextContent(/Squeeze/);
     });
@@ -203,7 +207,7 @@ describe("OptionAlerts", () => {
           pe: makeContract({ oi: 100, prev_oi: 100 }),
         };
       });
-      renderWithProviders(<OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
+      render(() => <OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
       const items = screen.queryAllByTestId(/options-alert-item-/);
       expect(items.length).toBeLessThanOrEqual(5);
     });
@@ -218,7 +222,7 @@ describe("OptionAlerts", () => {
           pe: makeContract({ oi: 100, prev_oi: 100 }),
         },
       ];
-      renderWithProviders(<OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
+      render(() => <OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
       expect(screen.getByTestId("options-alerts-timeline")).toBeInTheDocument();
     });
 
@@ -230,7 +234,7 @@ describe("OptionAlerts", () => {
           pe: makeContract({ oi: 100, prev_oi: 100 }),
         },
       ];
-      renderWithProviders(<OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
+      render(() => <OptionAlerts strikeMatrix={strikeMatrix} spotPrice={24500} />);
       expect(screen.getByTestId("options-alert-item-0")).toBeInTheDocument();
       expect(screen.getByText(/New CE Wall at 24000/)).toBeInTheDocument();
       expect(screen.getByText("High")).toBeInTheDocument();

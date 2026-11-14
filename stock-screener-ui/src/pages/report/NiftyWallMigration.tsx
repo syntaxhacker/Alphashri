@@ -1,9 +1,8 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
-import { memo, useMemo } from "react";
-import { Box, Text } from "@/ui";
+import { createMemo, For, Show } from "solid-js";
+import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
-import { CompactPanel } from "@/components/common/compact";
-import { EmptyState } from "@/components/common/states";
+import { LocalCompactPanel, LocalEmptyState } from "./reportBits";
 import {
   buildWallMigration,
   type WallMigrationBucket,
@@ -30,7 +29,7 @@ interface PlottedSeries {
   name: string;
   color: string;
   dash?: string;
-  width: number;
+  width: string;
   testId: string;
   values: Array<number | null>;
 }
@@ -76,14 +75,14 @@ export function stepPath(
 export function migrationSeries(
   buckets: WallMigrationBucket[],
 ): PlottedSeries[] {
-  const col = (b: WallMigrationBucket, k: "callWall" | "putWall" | "maxPain" | "atm" | "spot") =>
-    buckets.map((x) => x[k]);
+  const col = (bs: WallMigrationBucket[], k: "callWall" | "putWall" | "maxPain" | "atm" | "spot") =>
+    bs.map((x) => x[k]);
   return [
     {
       key: "call",
       name: "Call wall",
       color: palette.NEGATIVE,
-      width: 1.5,
+      "width": "1.5px",
       testId: "nifty-wall-migration-call",
       values: col(buckets, "callWall"),
     },
@@ -91,7 +90,7 @@ export function migrationSeries(
       key: "put",
       name: "Put wall",
       color: palette.POSITIVE,
-      width: 1.5,
+      "width": "1.5px",
       testId: "nifty-wall-migration-put",
       values: col(buckets, "putWall"),
     },
@@ -100,7 +99,7 @@ export function migrationSeries(
       name: "Max pain",
       color: palette.PRIMARY,
       dash: "5 3",
-      width: 1.25,
+      "width": "1.25px",
       testId: "nifty-wall-migration-pain",
       values: col(buckets, "maxPain"),
     },
@@ -109,7 +108,7 @@ export function migrationSeries(
       name: "ATM",
       color: palette.TEXT_MUTED,
       dash: "2 3",
-      width: 1.25,
+      "width": "1.25px",
       testId: "nifty-wall-migration-atm",
       values: col(buckets, "atm"),
     },
@@ -117,56 +116,42 @@ export function migrationSeries(
       key: "spot",
       name: "Spot",
       color: palette.TERM_SPOT,
-      width: 1.25,
+      "width": "1.25px",
       testId: "nifty-wall-migration-spot",
       values: col(buckets, "spot"),
     },
   ];
 }
 
-function NiftyWallMigrationInner({ rows, bucketMin = 15 }: NiftyWallMigrationProps) {
-  const buckets = useMemo(
-    () => buildWallMigration(rows, { bucketMin }),
-    [rows, bucketMin],
-  );
-  const series = useMemo(() => migrationSeries(buckets), [buckets]);
+export function NiftyWallMigration(props: NiftyWallMigrationProps) {
+  const buckets = createMemo(() => buildWallMigration(props.rows, { bucketMin: props.bucketMin ?? 15 }));
+  const series = createMemo(() => migrationSeries(buckets()));
 
-  const finite = useMemo(() => {
+  const finite = createMemo(() => {
     const all: number[] = [];
-    for (const s of series) {
+    for (const s of series()) {
       for (const v of s.values) {
         if (v !== null && Number.isFinite(v)) all.push(v);
       }
     }
     return all;
-  }, [series]);
+  });
 
-  const { xs, yOf, lo, hi } = useMemo(() => {
-    const n = buckets.length;
+  const geometry = createMemo(() => {
+    const n = buckets().length;
     const innerW = SVG_W - PAD_L - PAD_R;
     const innerH = SVG_H - PAD_T - PAD_B;
-    const loV = finite.length > 0 ? Math.min(...finite) : 0;
-    const hiV = finite.length > 0 ? Math.max(...finite) : 1;
+    const f = finite();
+    const loV = f.length > 0 ? Math.min(...f) : 0;
+    const hiV = f.length > 0 ? Math.max(...f) : 1;
     const span = hiV - loV > 0 ? hiV - loV : 1;
     const pad = span * 0.08;
     const lo = loV - pad;
     const hi = hiV + pad;
     const xp = (i: number) => PAD_L + (n <= 1 ? innerW / 2 : (i / (n - 1)) * innerW);
     const yp = (v: number) => PAD_T + (1 - (v - lo) / (hi - lo)) * innerH;
-    return { xs: buckets.map((_, i) => xp(i)), yOf: yp, lo, hi };
-  }, [buckets, finite]);
-
-  if (buckets.length === 0) {
-    return (
-      <CompactPanel title="Wall migration" testId="nifty-wall-migration">
-        <EmptyState
-          data-testid="nifty-wall-migration-empty"
-          title="No tape yet"
-          description="Wall migration builds once the option tape records."
-        />
-      </CompactPanel>
-    );
-  }
+    return { xs: buckets().map((_, i) => xp(i)), yOf: yp, lo, hi };
+  });
 
   const latest = (s: PlottedSeries): number | null => {
     for (let i = s.values.length - 1; i >= 0; i--) {
@@ -176,97 +161,103 @@ function NiftyWallMigrationInner({ rows, bucketMin = 15 }: NiftyWallMigrationPro
     return null;
   };
 
+  const tickStep = () => Math.max(1, Math.ceil(buckets().length / 6));
+
   return (
-    <CompactPanel
-      title="Wall migration — pin over time"
-      testId="nifty-wall-migration"
+    <Show
+      when={buckets().length > 0}
+      fallback={
+        <LocalCompactPanel title="Wall migration" testId="nifty-wall-migration">
+          <LocalEmptyState
+            testId="nifty-wall-migration-empty"
+            title="No tape yet"
+            description="Wall migration builds once the option tape records."
+          />
+        </LocalCompactPanel>
+      }
     >
-      <Box className="flex flex-col gap-[4px] min-w-0">
-        <Box
-          data-testid="nifty-wall-migration-legend"
-          className="flex items-center gap-[10px] flex-wrap min-w-0"
-        >
-          {series.map((s) => (
-            <Box
-              key={s.key}
-              className="inline-flex items-center gap-[4px]"
-            >
-              <span
-                aria-hidden
-                className="block w-[14px] h-0 shrink-0"
-                style={{ borderTop: `2px ${s.dash ? "dashed" : "solid"} ${s.color}` }}
+      <LocalCompactPanel
+        title="Wall migration — pin over time"
+        testId="nifty-wall-migration"
+      >
+        <div class="flex flex-col gap-[4px] min-w-0">
+          <div
+            data-testid="nifty-wall-migration-legend"
+            class="flex items-center gap-[10px] flex-wrap min-w-0"
+          >
+            <For each={series()}>{(s) => (
+              <div class="inline-flex items-center gap-[4px]">
+                <span
+                  aria-hidden="true"
+                  class="block w-[14px] h-0 shrink-0"
+                  style={{ "border-top": `2px ${s.dash ? "dashed" : "solid"} ${s.color}` }}
+                />
+                <Text size="xs" span c="dimmed">
+                  {s.name}
+                </Text>
+              </div>
+            )}</For>
+          </div>
+          <svg
+            data-testid="nifty-wall-migration-chart"
+            viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+            role="img"
+            aria-label="Call wall, put wall, max pain, ATM and spot over time"
+            class="w-full h-[180px] block min-w-0"
+          >
+            <text x={4} y={PAD_T + 8} font-size="9" fill={palette.TEXT_MUTED}>
+              {formatWallStrike(geometry().hi)}
+            </text>
+            <text x={4} y={SVG_H - PAD_B} font-size="9" fill={palette.TEXT_MUTED}>
+              {formatWallStrike(geometry().lo)}
+            </text>
+            <For each={buckets()}>{(b, i) => (
+              i() % tickStep() === 0 ? (
+                <text
+                  x={geometry().xs[i()]}
+                  y={SVG_H - 4}
+                  font-size="9"
+                  fill={palette.TEXT_MUTED}
+                  text-anchor="middle"
+                >
+                  {b.label}
+                </text>
+              ) : null
+            )}</For>
+            <For each={series()}>{(s) => (
+              <path
+                data-testid={s.testId}
+                d={stepPath(geometry().xs, s.values.map((v) => (v === null ? null : geometry().yOf(v))))}
+                fill="none"
+                stroke={s.color}
+                stroke-width={s.width}
+                stroke-dasharray={s.dash ?? undefined}
+                stroke-linejoin="round"
               />
-              <Text size="xs" span c="dimmed">
-                {s.name}
-              </Text>
-            </Box>
-          ))}
-        </Box>
-        <svg
-          data-testid="nifty-wall-migration-chart"
-          viewBox={`0 0 ${SVG_W} ${SVG_H}`}
-          role="img"
-          aria-label="Call wall, put wall, max pain, ATM and spot over time"
-          className="w-full h-[180px] block min-w-0"
-        >
-          <text x={4} y={PAD_T + 8} fontSize={9} fill={palette.TEXT_MUTED}>
-            {formatWallStrike(hi)}
-          </text>
-          <text x={4} y={SVG_H - PAD_B} fontSize={9} fill={palette.TEXT_MUTED}>
-            {formatWallStrike(lo)}
-          </text>
-          {buckets.map((b, i) =>
-            i % Math.max(1, Math.ceil(buckets.length / 6)) === 0 ? (
-              <text
-                key={b.label}
-                x={xs[i]}
-                y={SVG_H - 4}
-                fontSize={9}
-                fill={palette.TEXT_MUTED}
-                textAnchor="middle"
-              >
-                {b.label}
-              </text>
-            ) : null,
-          )}
-          {series.map((s) => (
-            <path
-              key={s.key}
-              data-testid={s.testId}
-              d={stepPath(xs, s.values.map((v) => (v === null ? null : yOf(v))))}
-              fill="none"
-              stroke={s.color}
-              strokeWidth={s.width}
-              strokeDasharray={s.dash ?? undefined}
-              strokeLinejoin="round"
-            />
-          ))}
-          {series.map((s) => {
-            const v = latest(s);
-            if (v === null) return null;
-            return (
-              <text
-                key={`lbl-${s.key}`}
-                data-testid={`${s.testId}-label`}
-                x={SVG_W - 2}
-                y={Math.min(Math.max(yOf(v) + 3, PAD_T + 6), SVG_H - PAD_B)}
-                fontSize={10}
-                fontWeight={700}
-                fill={s.color}
-                textAnchor="end"
-              >
-                {formatWallStrike(v)}
-              </text>
-            );
-          })}
-        </svg>
-        <Text size="xs" span c="dimmed" data-testid="nifty-wall-migration-caption">
-          {buckets.length} buckets · Y = strike, X = time · steps join bucket closes
-        </Text>
-      </Box>
-    </CompactPanel>
+            )}</For>
+            <For each={series()}>{(s) => {
+              const v = latest(s);
+              if (v === null) return null;
+              return (
+                <text
+                  data-testid={`${s.testId}-label`}
+                  x={SVG_W - 2}
+                  y={Math.min(Math.max(geometry().yOf(v) + 3, PAD_T + 6), SVG_H - PAD_B)}
+                  font-size="10"
+                  font-weight={700}
+                  fill={s.color}
+                  text-anchor="end"
+                >
+                  {formatWallStrike(v)}
+                </text>
+              );
+            }}</For>
+          </svg>
+          <Text size="xs" span c="dimmed" data-testid="nifty-wall-migration-caption">
+            {buckets().length} buckets · Y = strike, X = time · steps join bucket closes
+          </Text>
+        </div>
+      </LocalCompactPanel>
+    </Show>
   );
 }
-
-export const NiftyWallMigration = memo(NiftyWallMigrationInner);
-NiftyWallMigration.displayName = "NiftyWallMigration";

@@ -1,5 +1,5 @@
+import { splitProps } from "solid-js";
 import { cn } from "../cn";
-import type { CSSProperties } from "react";
 import type { UIGridProps, UIGridColProps } from "../types";
 
 const sp = (v: unknown): string | undefined => {
@@ -9,45 +9,55 @@ const sp = (v: unknown): string | undefined => {
   return (m[v as string] ?? v) as string;
 };
 
-export function GridCol({ children, className, style, id, "data-testid": testId, span, offset, order, ...rest }: UIGridColProps & Record<string, unknown>) {
-  const size = span != null && span !== "auto" && span !== "content" ? span : undefined;
+const GRID_KNOWN = [
+  "children", "className", "style", "id", "data-testid", "gutter", "columns", "grow",
+] as const;
+
+export function GridCol(props: UIGridColProps & Record<string, unknown>) {
+  const [known, rest] = splitProps(props, [
+    "children", "className", "style", "id", "data-testid", "span", "offset", "order",
+  ] as const);
+
+  const span = known.span;
+  const size = span != null && span !== "auto" && span !== "content" ? (span as number) : undefined;
   const pct = size != null ? `${(size / 12) * 100}%` : undefined;
-  const styleObj: CSSProperties = {
-    ...style,
-    ...(size != null && { flexBasis: pct, maxWidth: pct }),
-    ...(offset != null && { marginLeft: `${(Number(offset) / 12) * 100}%` }),
-    ...(order != null && { order }),
-  };
+
   return (
     <div
-      id={id}
-      className={cn(className)}
-      style={styleObj}
-      data-testid={testId}
+      id={known.id}
+      className={cn(known.className)}
+      style={{
+        ...(known.style as Record<string, unknown> | undefined),
+        ...(size != null ? { "flex-basis": pct, "max-width": pct } : {}),
+        ...(known.offset != null ? { "margin-left": `${(Number(known.offset) / 12) * 100}%` } : {}),
+        ...(known.order != null ? { order: known.order } : {}),
+      }}
+      data-testid={known["data-testid"]}
       {...rest}
     >
-      {children}
+      {known.children}
     </div>
   );
 }
 
-export function Grid({ children, className, style, id, "data-testid": testId, gutter, columns, grow, ...rest }: UIGridProps & Record<string, unknown>) {
-  void columns; void grow;
-  const styleObj: CSSProperties = {
-    ...style,
-    display: "grid",
-    ...(gutter != null && { gap: sp(gutter) }),
-  };
+export function Grid(props: UIGridProps & Record<string, unknown>) {
+  const [known, rest] = splitProps(props, GRID_KNOWN);
+
   return (
     <div
-      id={id}
-      className={cn(className)}
-      style={styleObj}
-      data-testid={testId}
+      id={known.id}
+      className={cn(known.className)}
+      style={{
+        display: "grid",
+        ...(known.gutter != null ? { gap: sp(known.gutter) } : {}),
+        ...(known.style as Record<string, unknown> | undefined),
+      }}
+      data-testid={known["data-testid"]}
       {...rest}
     >
-      {children}
+      {known.children}
     </div>
   );
 }
+
 Grid.Col = GridCol;

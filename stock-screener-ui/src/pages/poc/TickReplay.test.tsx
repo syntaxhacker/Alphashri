@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import TickReplay from "./TickReplay";
 import SmcTrades from "./SmcTrades";
 
@@ -158,7 +157,7 @@ afterEach(() => {
 
 describe("TickReplay", () => {
   test("renders date chips, Play button, speed + OR TF dropdowns, slider, summary header", async () => {
-    render(<TickReplay />);
+    render(() => <TickReplay />);
 
     // date chips
     expect(screen.getByText("2026-09-02")).toBeInTheDocument();
@@ -177,11 +176,10 @@ describe("TickReplay", () => {
   });
 
   test("clicking a date chip refetches with that date in the URL", async () => {
-    const user = userEvent.setup();
-    render(<TickReplay />);
+    render(() => <TickReplay />);
 
     await screen.findByText("2026-09-02");
-    await user.click(screen.getByText("2026-08-26"));
+    fireEvent.click(screen.getByText("2026-08-26"));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -192,11 +190,12 @@ describe("TickReplay", () => {
   });
 
   test("changing OR TF refetches with orb= param", async () => {
-    const user = userEvent.setup();
-    render(<TickReplay />);
+    render(() => <TickReplay />);
 
     await screen.findByText(/Trades —/);
-    await user.selectOptions(screen.getByLabelText("OR TF"), "30");
+    const select = screen.getByLabelText("OR TF") as HTMLSelectElement;
+    select.value = "30";
+    select.dispatchEvent(new Event("input", { bubbles: true }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -207,7 +206,7 @@ describe("TickReplay", () => {
   });
 
   test("summary shows trades + net from the mocked bundle", async () => {
-    render(<TickReplay />);
+    render(() => <TickReplay />);
 
     // 1 closed trade, net +10.5 from the mocked bundle
     expect(
@@ -228,7 +227,7 @@ describe("SmcTrades", () => {
         json: () => Promise.resolve(body),
       } as unknown as Response);
     });
-    render(<SmcTrades />);
+    render(() => <SmcTrades />);
 
     // date chips
     expect(await screen.findByText("2026-09-02")).toBeInTheDocument();

@@ -121,7 +121,7 @@ Trading operations are perfect for Command — close, modify SL/TP, adjust lots.
 | **ConcreteCommand** | `ClosePositionCommand`, `ModifyStopLossCommand`, `ModifyTakeProfitCommand`, `BatchCloseCommand` |
 | **Invoker** | `CommandHistory` (manages undo/redo stacks, executes commands through the stacks) |
 | **Receiver** | `PositionStore` (the in-memory data store that commands read/write) |
-| **Client** | The UI layer (React components, keyboard shortcuts) that creates commands and passes them to the invoker |
+| **Client** | The UI layer (SolidJS components, keyboard shortcuts) that creates commands and passes them to the invoker |
 
 ### Our Structure
 
@@ -377,19 +377,23 @@ document.addEventListener("keydown", async (e) => {
 });
 ```
 
-### React integration tip
+### SolidJS integration tip
 
-Keep the `CommandHistory` and `PositionStore` as stable references (e.g., via `useRef` or a subscriber store). After every `execute()` / `undo()` / `redo()`, trigger a re-render so the UI reflects the updated store state:
+Keep the `CommandHistory` and `PositionStore` as stable module-level references. Solid has no re-render: writing a signal nobody reads does nothing, so after every `execute()` / `undo()` / `redo()` bump a signal and read it where the UI depends on the store:
 
 ```ts
-const [version, setVersion] = useState(0);
+import { createSignal } from "solid-js";
+
+const [version, setVersion] = createSignal(0);
 
 async function handleClose(position: PaperPosition) {
   const cmd = new ClosePositionCommand(store, position);
   await history.execute(cmd);
-  setVersion((v) => v + 1); // force re-render
+  setVersion((v) => v + 1); // invalidates anything that reads version()
 }
 ```
+
+In a component, read `version()` inside JSX or a `createMemo` so the updated store state actually reaches the DOM.
 
 ## Composite Commands
 

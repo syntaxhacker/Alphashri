@@ -1,15 +1,15 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
-import { render, screen, cleanup, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import type { JSX } from "solid-js";
+import { render, screen, cleanup, within, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { ValueTable } from "./ValueTable";
 import { buildValueColumns } from "./valueColumns";
 import type { ValueRow } from "../../api/valueScan";
 
-function r(jsx: React.ReactElement) {
-  return render(<UIProvider>{jsx}</UIProvider>);
+function r(jsx: JSX.Element) {
+  return render(() => <UIProvider>{jsx}</UIProvider>);
 }
 
 afterEach(cleanup);
@@ -56,7 +56,11 @@ export function makeValueRow(overrides: Partial<ValueRow> = {}): ValueRow {
 
 describe("ValueTable", () => {
   test("renders rows with symbol, price, and score", () => {
-    r(<ValueTable rows={[makeValueRow(), makeValueRow({ symbol: "TCS", name: "Tata Consultancy" })]} />);
+    r(
+      <ValueTable
+        rows={[makeValueRow(), makeValueRow({ symbol: "TCS", name: "Tata Consultancy" })]}
+      />,
+    );
     expect(screen.getByTestId("value-table")).toBeInTheDocument();
     expect(screen.getByTestId("value-row-RELIANCE")).toBeInTheDocument();
     expect(screen.getByTestId("value-row-TCS")).toBeInTheDocument();
@@ -84,19 +88,38 @@ describe("ValueTable", () => {
   test("colors change green/red and shows negative sign", () => {
     r(
       <ValueTable
-        rows={[makeValueRow({ symbol: "DOWN", change: -2.5 }), makeValueRow({ symbol: "UP", change: 2.5 })]}
+        rows={[
+          makeValueRow({ symbol: "DOWN", change: -2.5 }),
+          makeValueRow({ symbol: "UP", change: 2.5 }),
+        ]}
       />,
     );
     expect(screen.getByTestId("value-change-DOWN")).toHaveTextContent("-2.5%");
     expect(screen.getByTestId("value-change-UP")).toHaveTextContent("+2.5%");
   });
 
+  test("numeric cells are mono, tabular and right aligned", () => {
+    r(<ValueTable rows={[makeValueRow()]} />);
+    for (const id of ["price", "change", "mcap", "pe", "ps", "fcf", "roe", "rev", "w52"]) {
+      const cell = screen.getByTestId(`value-${id}-RELIANCE`);
+      expect(cell.className, id).toContain("font-mono");
+      expect(cell.className, id).toContain("tabular-nums");
+      expect(cell.className, id).toContain("text-right");
+    }
+    expect(screen.getByTestId("value-change-RELIANCE").className).toContain("text-fin-positive");
+  });
+
+  test("missing fundamentals print the shared dash glyph", () => {
+    r(<ValueTable rows={[makeValueRow({ symbol: "NULLCO", pe: null, ps: null })]} />);
+    expect(screen.getByTestId("value-dash-NULLCO-pe")).toBeInTheDocument();
+    expect(screen.getByTestId("value-dash-NULLCO-ps")).toBeInTheDocument();
+  });
+
   test("clicking a row calls onRowClick", async () => {
-    const user = userEvent.setup();
     const onRowClick = vi.fn();
     const row = makeValueRow();
     r(<ValueTable rows={[row]} onRowClick={onRowClick} />);
-    await user.click(screen.getByTestId("value-row-RELIANCE"));
+    await fireEvent.click(screen.getByTestId("value-row-RELIANCE"));
     expect(onRowClick).toHaveBeenCalledTimes(1);
     expect(onRowClick).toHaveBeenCalledWith(row);
   });

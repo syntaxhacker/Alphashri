@@ -1,3 +1,4 @@
+import { For, Show, createMemo } from "solid-js";
 import { Box, Stack, Text, Group, Badge, useColorScheme } from "@/ui";
 import type { SectorItem } from "../../types/sector";
 import { formatPercentage } from "../../utils/ui-helpers";
@@ -11,6 +12,7 @@ import {
   SECTOR_STRONG_RED,
   CREAM,
   BLACK,
+  TEXT_ON_ACCENT,
 } from "../../config/colors";
 import { withAlpha } from "../../utils/color";
 import { buildTreemapData } from "./sectorUtils";
@@ -47,99 +49,98 @@ function getTileSpan(index: number) {
   return { col: "span 1", row: "span 1", minHeight: 72 };
 }
 
-function TreemapTile({
-  sector,
-  index,
-  span,
-  isDark,
-}: {
+function TreemapTile(props: {
   sector: ReturnType<typeof buildTreemapData>[number] & { itemStyle: { color: string } };
   index: number;
-  span: ReturnType<typeof getTileSpan>;
+  span: { col: string; row: string; minHeight: number };
   isDark: boolean;
 }) {
+  const sector = () => props.sector;
+  const index = () => props.index;
+
   return (
     <Box
       style={{
-        gridColumn: span.col,
-        gridRow: span.row,
-        minHeight: span.minHeight,
-        background: sector.itemStyle.color,
-        color: "#ffffff",
-        padding: index === 0 ? "16px" : "12px",
+        "grid-column": props.span.col,
+        "grid-row": props.span.row,
+        "min-height": `${props.span.minHeight}px`,
+        background: sector().itemStyle.color,
+        color: TEXT_ON_ACCENT,
+        padding: index() === 0 ? "16px" : "12px",
         display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        boxShadow: isDark
+        "flex-direction": "column",
+        "justify-content": "space-between",
+        "box-shadow": props.isDark
           ? `inset 0 1px 0 ${withAlpha(CREAM, 0.04)}`
           : `inset 0 1px 0 ${withAlpha(CREAM, 0.16)}`,
       }}
     >
       <Stack gap={4}>
-        <Text fw={800} size={index === 0 ? "lg" : "sm"} lh={1.1}>
-          {sector.name}
+        <Text fw={800} size={index() === 0 ? "lg" : "sm"} lh={1.1}>
+          {sector().name}
         </Text>
-        <Text fw={700} size={index === 0 ? "md" : "sm"} opacity={0.95}>
-          {formatPercentage(sector.avgChange)}
+        <Text fw={700} size={index() === 0 ? "md" : "sm"} opacity={0.95} className="font-mono tabular-nums">
+          {formatPercentage(sector().avgChange)}
         </Text>
       </Stack>
       <Group justify="space-between" align="flex-end" gap="xs" wrap="nowrap">
         <Stack gap={2}>
-          <Text size="xs" opacity={0.75}>
-            Stocks {sector.stockCount}
+          <Text size="xs" opacity={0.75} className="font-mono tabular-nums">
+            Stocks {sector().stockCount}
           </Text>
-          <Text size="xs" opacity={0.75}>
-            {sector.advances} / {sector.declines}
+          <Text size="xs" opacity={0.75} className="font-mono tabular-nums">
+            {sector().advances} / {sector().declines}
           </Text>
         </Stack>
-        {index < 6 ? (
+        <Show when={index() < 6}>
           <Badge
             size="xs"
             variant="filled"
             color="secondary"
             style={{
-              backgroundColor: withAlpha(BLACK, 0.28),
-              color: "#ffffff",
+              "background-color": withAlpha(BLACK, 0.28),
+              color: TEXT_ON_ACCENT,
             }}
           >
-            #{index + 1}
+            #{index() + 1}
           </Badge>
-        ) : null}
+        </Show>
       </Group>
     </Box>
   );
 }
 
-export function SectorTreemap({ sectors }: { sectors: SectorItem[] }) {
-  const { colorScheme } = useColorScheme();
-  const isDark = colorScheme === "dark";
+export function SectorTreemap(props: { sectors: SectorItem[] }) {
+  const { isDark } = useColorScheme();
 
-  const rawTreemapData = buildTreemapData(sectors);
-  const treemapData = rawTreemapData.map((sector) => ({
-    ...sector,
-    itemStyle: { color: getSectorColor(sector.avgChange), gapWidth: 0 },
-  }));
+  const treemapData = createMemo(() =>
+    buildTreemapData(props.sectors).map((sector) => ({
+      ...sector,
+      itemStyle: { color: getSectorColor(sector.avgChange), gapWidth: 0 },
+    })),
+  );
 
   return (
     <Box
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-        gridAutoRows: "minmax(72px, auto)",
+        "grid-template-columns": "repeat(4, minmax(0, 1fr))",
+        "grid-auto-rows": "minmax(72px, auto)",
         gap: "8px",
         height: "100%",
-        minHeight: 320,
+        "min-height": "320px",
       }}
     >
-      {treemapData.map((sector, index) => (
-        <TreemapTile
-          key={sector.name}
-          sector={sector}
-          index={index}
-          span={getTileSpan(index)}
-          isDark={isDark}
-        />
-      ))}
+      <For each={treemapData()}>
+        {(sector, index) => (
+          <TreemapTile
+            sector={sector}
+            index={index()}
+            span={getTileSpan(index())}
+            isDark={isDark()}
+          />
+        )}
+      </For>
     </Box>
   );
 }

@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { NotificationsPanel } from "./NotificationsPanel";
 import { fetchSurges } from "../../api/notifications";
+import { createSignal } from "solid-js";
 import type { PriceSurgeEvent } from "../../types/notifications";
 
 vi.mock("../../api/notifications", () => ({
@@ -39,10 +39,9 @@ describe("NotificationsPanel", () => {
 
   it("loads the first page when opened", async () => {
     mockedFetchSurges.mockResolvedValueOnce({ total: 1, events: [makeEvent()] });
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <NotificationsPanel opened onClose={vi.fn()} />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     expect(await screen.findByTestId("surge-card-1")).toBeInTheDocument();
@@ -56,14 +55,12 @@ describe("NotificationsPanel", () => {
         total: 3,
         events: [makeEvent({ id: 2, symbol: "TCS" }), makeEvent({ id: 3, symbol: "INFY" })],
       });
-    const user = userEvent.setup();
-    render(
-      <UIProvider>
+        render(() => (<UIProvider>
         <NotificationsPanel opened onClose={vi.fn()} />
-      </UIProvider>,
+      </UIProvider>),
     );
 
-    await user.click(await screen.findByTestId("surge-alerts-more"));
+    await fireEvent.click(await screen.findByTestId("surge-alerts-more"));
 
     expect(mockedFetchSurges).toHaveBeenCalledWith(10, 10);
     expect(await screen.findByTestId("surge-card-3")).toBeInTheDocument();
@@ -75,43 +72,34 @@ describe("NotificationsPanel", () => {
       .mockResolvedValueOnce({ total: 12, events: [makeEvent({ id: 1 })] })
       .mockResolvedValueOnce({ total: 12, events: [makeEvent({ id: 11 })] })
       .mockResolvedValueOnce({ total: 12, events: [makeEvent({ id: 1 })] });
-    const user = userEvent.setup();
-    const { rerender } = render(
-      <UIProvider>
-        <NotificationsPanel opened onClose={vi.fn()} />
-      </UIProvider>,
+    const [opened, setOpened] = createSignal(true);
+    render(() => (<UIProvider>
+        <NotificationsPanel opened={opened()} onClose={vi.fn()} />
+      </UIProvider>),
     );
 
-    await user.click(await screen.findByTestId("surge-alerts-more"));
+    await fireEvent.click(await screen.findByTestId("surge-alerts-more"));
     expect(await screen.findByTestId("surge-card-11")).toBeInTheDocument();
 
-    rerender(
-      <UIProvider>
-        <NotificationsPanel opened={false} onClose={vi.fn()} />
-      </UIProvider>,
-    );
-    rerender(
-      <UIProvider>
-        <NotificationsPanel opened onClose={vi.fn()} />
-      </UIProvider>,
-    );
+    setOpened(false);
+    setOpened(true);
 
-    expect(await screen.findByTestId("surge-card-1")).toBeInTheDocument();
-    expect(mockedFetchSurges).toHaveBeenLastCalledWith(10, 0);
+    await waitFor(() => {
+      expect(screen.getByTestId("surge-card-1")).toBeInTheDocument();
+      expect(mockedFetchSurges).toHaveBeenLastCalledWith(10, 0);
+    });
   });
 
   it("shows an error and retries the same page", async () => {
     mockedFetchSurges.mockRejectedValueOnce(new Error("Network error"));
-    const user = userEvent.setup();
-    render(
-      <UIProvider>
+        render(() => (<UIProvider>
         <NotificationsPanel opened onClose={vi.fn()} />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     expect(await screen.findByTestId("surge-alerts-error")).toBeInTheDocument();
     mockedFetchSurges.mockResolvedValueOnce({ total: 1, events: [makeEvent()] });
-    await user.click(screen.getByText("Retry"));
+    await fireEvent.click(screen.getByText("Retry"));
 
     expect(await screen.findByTestId("surge-card-1")).toBeInTheDocument();
     await waitFor(() => {

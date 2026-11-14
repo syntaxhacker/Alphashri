@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { ReplaySummaryPanel } from "./ReplaySummary";
@@ -14,8 +14,7 @@ afterEach(() => {
 
 describe("ReplaySummaryPanel", () => {
   it("returns null when summary is null", () => {
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplaySummaryPanel summary={null} />
       </UIProvider>,
     );
@@ -28,8 +27,7 @@ describe("ReplaySummaryPanel", () => {
       gross_pnl: 1000, total_costs: 50, net_pnl: 950,
       strategy_breakdown: { ORB: { trades: 3, win_rate: 66.7, net_pnl: 600, profit_factor: 2.0 } },
     };
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplaySummaryPanel summary={summary} />
       </UIProvider>,
     );
@@ -42,8 +40,7 @@ describe("ReplaySummaryPanel", () => {
       gross_pnl: 1000, total_costs: 50, net_pnl: 950,
       strategy_breakdown: { ORB: { trades: 3, win_rate: 66.7, net_pnl: 600, profit_factor: 2.0 } },
     };
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplaySummaryPanel summary={summary} />
       </UIProvider>,
     );
@@ -63,8 +60,7 @@ describe("ReplaySummaryPanel", () => {
         EMA: { trades: 5, win_rate: 60, net_pnl: 1300, profit_factor: 1.7 },
       },
     };
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplaySummaryPanel summary={summary} />
       </UIProvider>,
     );
@@ -78,8 +74,7 @@ describe("ReplaySummaryPanel", () => {
       gross_pnl: 1000, total_costs: 50, net_pnl: 950,
       strategy_breakdown: { ORB: { trades: 3, win_rate: 66.7, net_pnl: 600, profit_factor: 2.0 } },
     };
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplaySummaryPanel summary={summary} />
       </UIProvider>,
     );
@@ -92,8 +87,7 @@ describe("ReplaySummaryPanel", () => {
       gross_pnl: 1000, total_costs: 50, net_pnl: 950,
       strategy_breakdown: { ORB: { trades: 3, win_rate: 66.7, net_pnl: 600, profit_factor: 2.0 } },
     };
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplaySummaryPanel summary={summary} />
       </UIProvider>,
     );
@@ -106,8 +100,7 @@ describe("ReplaySummaryPanel", () => {
       gross_pnl: 1000, total_costs: 50, net_pnl: 950,
       strategy_breakdown: { ORB: { trades: 3, win_rate: 66.7, net_pnl: 600, profit_factor: 2.0 } },
     };
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplaySummaryPanel summary={summary} />
       </UIProvider>,
     );
@@ -120,8 +113,7 @@ describe("ReplaySummaryPanel", () => {
       gross_pnl: 1000, total_costs: 50, net_pnl: 950,
       strategy_breakdown: { ORB: { trades: 3, win_rate: 66.7, net_pnl: 600, profit_factor: 2.0 } },
     };
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplaySummaryPanel summary={summary} />
       </UIProvider>,
     );

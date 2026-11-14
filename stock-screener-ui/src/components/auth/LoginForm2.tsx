@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Show, createSignal } from "solid-js";
 import { useAuth } from "./AuthProvider2";
 import {
   Flex,
@@ -22,34 +22,28 @@ interface RegisterFormProps {
   onSwitchToLogin?: () => void;
 }
 
-function AuthHeader({ subtitle }: { subtitle: string }) {
+function AuthHeader(props: { subtitle: string }) {
   return (
     <Stack gap={4} data-testid="auth-header">
       <Text size="xl" fw={700}>
         Alphashri
       </Text>
       <Text size="sm" c="dimmed">
-        {subtitle}
+        {props.subtitle}
       </Text>
     </Stack>
   );
 }
 
-function AuthError({ message, id }: { message: string; id?: string }) {
+function AuthError(props: { message: string; id?: string }) {
   return (
-    <Alert color="error" variant="light" data-testid="auth-error" id={id}>
-      {message}
+    <Alert color="error" variant="light" data-testid="auth-error" id={props.id}>
+      {props.message}
     </Alert>
   );
 }
 
-function AuthFooter({
-  prompt,
-  actionLabel,
-  onAction,
-  footerTestId,
-  linkTestId,
-}: {
+function AuthFooter(props: {
   prompt: string;
   actionLabel: string;
   onAction: () => void;
@@ -57,26 +51,26 @@ function AuthFooter({
   linkTestId: string;
 }) {
   return (
-    <Group justify="center" mt="sm" data-testid={footerTestId}>
+    <Group justify="center" mt="sm" data-testid={props.footerTestId}>
       <Text size="sm" c="dimmed">
-        {prompt}
+        {props.prompt}
       </Text>
-      <Button variant="subtle" size="xs" onClick={onAction} data-testid={linkTestId}>
-        {actionLabel}
+      <Button variant="subtle" size="xs" onClick={props.onAction} data-testid={props.linkTestId}>
+        {props.actionLabel}
       </Button>
     </Group>
   );
 }
 
-export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
-  const { login, error, loading, clearError } = useAuth();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+export function LoginForm(props: LoginFormProps) {
+  const auth = useAuth();
+  const [email, setEmail] = createSignal("");
+  const [password, setPassword] = createSignal("");
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: SubmitEvent) => {
     e.preventDefault();
-    const result = await login(email, password);
-    if (result.success) onSuccess?.();
+    const result = await auth.login(email(), password());
+    if (result.success) props.onSuccess?.();
   };
 
   return (
@@ -91,13 +85,13 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
         <form onSubmit={handleSubmit} id="login-form-element">
           <Stack gap="md">
             <AuthHeader subtitle="Sign in to your account" />
-            {error && <AuthError message={error} id="login-error" />}
+            <Show when={auth.error}>{(error) => <AuthError message={error()} id="login-error" />}</Show>
             <TextInput
               label="Email"
               id="email"
               type="email"
               data-testid="login-email-input"
-              value={email}
+              value={email()}
               onChange={(val) => setEmail(val)}
               placeholder="you@example.com"
               required
@@ -109,7 +103,7 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
               label="Password"
               id="password"
               data-testid="login-password-input"
-              value={password}
+              value={password()}
               onChange={(val) => setPassword(val)}
               placeholder="Enter your password"
               required
@@ -119,7 +113,7 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
             <Button
               type="submit"
               data-testid="login-submit-btn"
-              loading={loading}
+              loading={auth.loading}
               fullWidth
               size="sm"
             >
@@ -127,18 +121,20 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
             </Button>
           </Stack>
         </form>
-        {onSwitchToRegister && (
-          <AuthFooter
-            prompt="Don't have an account?"
-            actionLabel="Create Account"
-            onAction={() => {
-              clearError();
-              onSwitchToRegister();
-            }}
-            footerTestId="login-footer"
-            linkTestId="register-link"
-          />
-        )}
+        <Show when={props.onSwitchToRegister}>
+          {(onSwitch) => (
+            <AuthFooter
+              prompt="Don't have an account?"
+              actionLabel="Create Account"
+              onAction={() => {
+                auth.clearError();
+                onSwitch()();
+              }}
+              footerTestId="login-footer"
+              linkTestId="register-link"
+            />
+          )}
+        </Show>
       </Paper>
     </Flex>
   );
@@ -150,24 +146,24 @@ export function validateRegistration(password: string, confirmPassword: string):
   return null;
 }
 
-export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) {
-  const { register, error, loading, clearError } = useAuth();
-  const [email, setEmail] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [formError, setFormError] = useState<string | null>(null);
+export function RegisterForm(props: RegisterFormProps) {
+  const auth = useAuth();
+  const [email, setEmail] = createSignal("");
+  const [displayName, setDisplayName] = createSignal("");
+  const [password, setPassword] = createSignal("");
+  const [confirmPassword, setConfirmPassword] = createSignal("");
+  const [formError, setFormError] = createSignal<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: SubmitEvent) => {
     e.preventDefault();
     setFormError(null);
-    const ve = validateRegistration(password, confirmPassword);
+    const ve = validateRegistration(password(), confirmPassword());
     if (ve) {
       setFormError(ve);
       return;
     }
-    const result = await register(email, password, displayName || undefined);
-    if (result.success) onSuccess?.();
+    const result = await auth.register(email(), password(), displayName() || undefined);
+    if (result.success) props.onSuccess?.();
   };
 
   return (
@@ -182,15 +178,15 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
         <form onSubmit={handleSubmit} id="register-form-element">
           <Stack gap="md">
             <AuthHeader subtitle="Create your account" />
-            {(formError || error) && (
-              <AuthError message={formError || error!} id="register-error" />
-            )}
+            <Show when={formError() ?? auth.error}>
+              {(message) => <AuthError message={message()} id="register-error" />}
+            </Show>
             <TextInput
               label="Email"
               id="reg-email"
               type="email"
               data-testid="register-email-input"
-              value={email}
+              value={email()}
               onChange={(val) => setEmail(val)}
               placeholder="you@example.com"
               required
@@ -202,7 +198,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
               label="Display Name (optional)"
               id="display-name"
               data-testid="display-name-input"
-              value={displayName}
+              value={displayName()}
               onChange={(val) => setDisplayName(val)}
               placeholder="Your name"
               autoComplete="name"
@@ -212,7 +208,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
               label="Password"
               id="reg-password"
               data-testid="register-password-input"
-              value={password}
+              value={password()}
               onChange={(val) => setPassword(val)}
               placeholder="Create a password (min 6 characters)"
               required
@@ -223,7 +219,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
               label="Confirm Password"
               id="confirm-password"
               data-testid="confirm-password-input"
-              value={confirmPassword}
+              value={confirmPassword()}
               onChange={(val) => setConfirmPassword(val)}
               placeholder="Confirm your password"
               required
@@ -233,7 +229,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
             <Button
               type="submit"
               data-testid="register-button"
-              loading={loading}
+              loading={auth.loading}
               fullWidth
               size="sm"
             >
@@ -241,19 +237,21 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
             </Button>
           </Stack>
         </form>
-        {onSwitchToLogin && (
-          <AuthFooter
-            prompt="Already have an account?"
-            actionLabel="Sign In"
-            onAction={() => {
-              clearError();
-              setFormError(null);
-              onSwitchToLogin();
-            }}
-            footerTestId="register-footer"
-            linkTestId="login-link"
-          />
-        )}
+        <Show when={props.onSwitchToLogin}>
+          {(onSwitch) => (
+            <AuthFooter
+              prompt="Already have an account?"
+              actionLabel="Sign In"
+              onAction={() => {
+                auth.clearError();
+                setFormError(null);
+                onSwitch()();
+              }}
+              footerTestId="register-footer"
+              linkTestId="login-link"
+            />
+          )}
+        </Show>
       </Paper>
     </Flex>
   );

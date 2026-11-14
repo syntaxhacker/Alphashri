@@ -1,8 +1,13 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
-import { screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
+
 import { ChainSubHeader } from "./ChainSubHeader";
 
 afterEach(() => {
@@ -17,7 +22,7 @@ const mockStyles = {
 
 describe("ChainSubHeader", () => {
   it("renders column labels", () => {
-    renderWithProviders(<ChainSubHeader styles={mockStyles as any} />);
+    render(() => <ChainSubHeader styles={mockStyles as any} />);
     const subheader = screen.getByTestId("options-chain-table-subheader");
     expect(subheader.textContent).toContain("OI");
     expect(subheader.textContent).toContain("OI CHG");

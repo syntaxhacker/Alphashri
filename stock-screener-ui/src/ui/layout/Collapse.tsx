@@ -1,30 +1,30 @@
+import { splitProps } from "solid-js";
 import { cn } from "../cn";
-import type { CSSProperties } from "react";
 import type { UICollapseProps } from "../types";
 
-export function Collapse({ children, className, style, id, "data-testid": testId, in: open, transitionDuration, transitionTimingFunction, onTransitionEnd, ...rest }: UICollapseProps & Record<string, unknown>) {
-  const { timeout, unmountOnExit, ...domRest } = rest;
-  void timeout;
-  if (!open && unmountOnExit) return null;
-  const duration = transitionDuration ?? 225;
-  const timing = transitionTimingFunction ?? "ease";
-  const styleObj: CSSProperties = {
-    ...style,
+export function Collapse(props: UICollapseProps & Record<string, unknown>) {
+  // `timeout` is accepted for API compatibility but the height transition is
+  // driven by `transitionDuration`; keep it off the DOM.
+  const [, domRest] = splitProps(props, ["timeout"]);
+  if (!props.in && props.unmountOnExit) return null;
+  const duration = props.transitionDuration ?? 225;
+  const timing = props.transitionTimingFunction ?? "ease";
+  const styleObj: Record<string, string | number | undefined> = {
+    ...props.style,
     overflow: "hidden",
-    height: open ? "auto" : 0,
+    height: props.in ? "auto" : 0,
     transition: `height ${duration}ms ${timing}`,
   };
   return (
     <div
-      id={id}
-      className={cn(className)}
+      id={props.id}
+      className={cn(props.className)}
       style={styleObj}
-      data-testid={testId}
-      aria-hidden={!open}
-      onTransitionEnd={onTransitionEnd}
+      data-testid={props["data-testid"]}
+      aria-hidden={!props.in}
       {...domRest}
     >
-      {children}
+      {props.children}
     </div>
   );
 }

@@ -1,109 +1,145 @@
-import { useId } from "react";
+import { createMemo, createSignal, createUniqueId, splitProps } from "solid-js";
 import { cn } from "../cn";
-import { stripLegacyInputProps } from "./legacyProps";
+import * as palette from "../palette";
 import type { UITextareaProps } from "../types";
 
-function sizeClass(size?: UITextareaProps["size"]): string {
-  return size === "xs" || size === "sm" ? "px-2 py-1.5 text-xs" : "px-3 py-2 text-sm";
+/**
+ * Row height for 13px text. Two rows plus 8px block padding and the 1px borders
+ * land on 56px — comfortably taller than the 32px single-line field.
+ */
+const ROW_H = 19;
+
+function lineHeightOf(size?: UITextareaProps["size"]): number {
+  return size === "xs" ? 15 : ROW_H;
 }
 
-function resizeClass(resize?: UITextareaProps["resize"], autosize?: boolean): string | undefined {
-  const effective = resize ?? (autosize ? "none" : undefined);
-  if (effective === "none") return "resize-none";
-  if (effective === "both") return "resize";
-  if (effective === "horizontal") return "resize-x";
-  if (effective === "vertical") return "resize-y";
-  return undefined;
+function fontOf(size?: UITextareaProps["size"]): string {
+  return size === "xs" ? "11px" : "13px";
 }
 
-export function Textarea({
-  value,
-  defaultValue,
-  onChange,
-  autosize,
-  minRows,
-  maxRows,
-  resize,
-  label,
-  description,
-  error,
-  required,
-  disabled,
-  size,
-  placeholder,
-  className,
-  style,
-  "data-testid": testId,
-  w,
-  h,
-  id: inputId,
-  ...rest
-}: UITextareaProps) {
-  const autoId = useId();
-  const resolvedId = inputId ?? autoId;
-  const explicitWidth = w != null ? (typeof w === "number" ? `${w}px` : w) : undefined;
-  const explicitHeight = h != null ? (typeof h === "number" ? `${h}px` : h) : undefined;
-  const isError = Boolean(error);
-  const helperText = isError
-    ? typeof error === "string"
-      ? error
-      : String(error ?? "")
-    : (description as string | undefined);
+function resizeStyle(resize?: UITextareaProps["resize"], autosize?: boolean): string {
+  // Only an explicit autosize field hides the handle — the default keeps it so
+  // a textarea is always recognisable as a resizable multi-line control.
+  if (resize) return resize;
+  return autosize ? "none" : "vertical";
+}
 
-  const effectiveMinRows = minRows ?? (autosize ? 2 : 3);
-  const effectiveMaxRows = maxRows;
+export function Textarea(props: UITextareaProps) {
+  const [known, _rest] = splitProps(props, [
+    "value",
+    "defaultValue",
+    "onChange",
+    "autosize",
+    "minRows",
+    "maxRows",
+    "resize",
+    "label",
+    "description",
+    "error",
+    "required",
+    "disabled",
+    "size",
+    "placeholder",
+    "className",
+    "style",
+    "data-testid",
+    "id",
+    "w",
+    "h",
+  ]);
 
-  // Legacy Mantine props are accepted for backward compatibility but never
-  // forwarded to the DOM (native elements reject unknown attributes).
-  const forwarded = stripLegacyInputProps(rest);
+  const resolvedId = known.id ?? createUniqueId();
+  const [focused, setFocused] = createSignal(false);
+  const explicitWidth = createMemo(() =>
+    known.w != null ? (typeof known.w === "number" ? `${known.w}px` : known.w) : undefined,
+  );
+  const explicitHeight = createMemo(() =>
+    known.h != null ? (typeof known.h === "number" ? `${known.h}px` : known.h) : undefined,
+  );
+  const isError = createMemo(() => Boolean(known.error));
+  const helperText = createMemo(() =>
+    isError()
+      ? typeof known.error === "string"
+        ? known.error
+        : String(known.error ?? "")
+      : (known.description as string | undefined),
+  );
 
-  const wrapperStyle: React.CSSProperties = explicitWidth
-    ? { width: explicitWidth, ...style }
-    : style ?? {};
-  const inputStyle: React.CSSProperties = {
-    ...(explicitHeight ? { height: explicitHeight } : {}),
-    ...(effectiveMaxRows ? { maxHeight: `${effectiveMaxRows * 1.4}rem` } : {}),
-  };
+  const effectiveMinRows = createMemo(() => known.minRows ?? 2);
+  const effectiveMaxRows = createMemo(() => known.maxRows);
 
-  const wrapperTestId = testId ? `${testId}-field` : undefined;
-  const inputTestId = testId;
+  const wrapperStyle = createMemo(() =>
+    explicitWidth() ? { width: explicitWidth()!, ...known.style } : (known.style ?? {}),
+  );
+
+  /**
+   * A textarea must read as a multi-line field at a glance: it is taller than a
+   * one-line input by default (≈56px at two rows) and keeps a visible resize
+   * handle, which single-line inputs never have.
+   */
+  const inputStyle = createMemo<Record<string, string>>(() => {
+    const lineHeight = lineHeightOf(known.size);
+    const border = isError() ? palette.NEGATIVE : focused() ? palette.PRIMARY : palette.BORDER;
+    const rows = effectiveMinRows();
+    const natural = `${rows * lineHeight + 18}px`;
+    const height = explicitHeight() ?? natural;
+    return {
+      height,
+      "min-height": height,
+      "border-radius": "6px",
+      border: `1px solid ${border}`,
+      "box-shadow": focused() ? `0 0 0 1px ${border}` : "none",
+      "background-color": known.disabled ? palette.SURFACE_ALT : palette.SURFACE,
+      color: palette.TEXT,
+      "font-size": fontOf(known.size),
+      "line-height": `${lineHeight}px`,
+      padding: "8px 10px",
+      "outline": "none",
+      resize: resizeStyle(known.resize, known.autosize),
+      "text-align": "left",
+      "vertical-align": "top",
+      ...(effectiveMaxRows() ? { "max-height": `${effectiveMaxRows()! * lineHeight + 18}px` } : {}),
+      ...(known.disabled ? { opacity: "0.45", cursor: "not-allowed" } : {}),
+    };
+  });
+  const wrapperTestId = known["data-testid"] ? `${known["data-testid"]}-field` : undefined;
+  const inputTestId = known["data-testid"];
+
+  const isControlled = createMemo(
+    () => known.value !== undefined || (known.onChange !== undefined && known.defaultValue === undefined),
+  );
 
   return (
     <div
       data-testid={wrapperTestId}
-      className={cn("flex flex-col min-w-0 gap-1.5", explicitWidth == null ? "w-full" : undefined, className)}
-      style={wrapperStyle}
+      className={cn("flex flex-col min-w-0 gap-1.5", explicitWidth() == null ? "w-full" : undefined, known.className)}
+      style={wrapperStyle()}
     >
-      {label && (
-        <label htmlFor={resolvedId} className={cn("text-xs font-medium", isError ? "text-fin-negative" : "text-fin-text")}>
-          {label}
-          {required && <span className="ml-1 text-fin-negative">*</span>}
+      {known.label && (
+        <label htmlFor={resolvedId} className={cn("text-xs font-medium", isError() ? "text-fin-negative" : "text-fin-text")}>
+          {known.label}
+          {known.required && <span className="ml-1 text-fin-negative">*</span>}
         </label>
       )}
       <textarea
         id={resolvedId}
-        value={value}
-        defaultValue={defaultValue}
-        onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-        placeholder={placeholder}
-        required={required}
-        disabled={disabled}
-        rows={effectiveMinRows}
+        {...(isControlled() ? { value: known.value } : { defaultValue: known.defaultValue })}
+        onInput={(e) => known.onChange?.(e.currentTarget.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        placeholder={known.placeholder}
+        required={known.required}
+        disabled={known.disabled}
+        rows={effectiveMinRows()}
         className={cn(
-          "flex-1 min-w-0 block",
-          sizeClass(size),
-          resizeClass(resize, autosize),
-          "bg-fin-surface border border-fin-border rounded-fin text-fin-text placeholder:text-fin-text-muted",
-          "focus:outline-none focus:border-fin-primary focus:ring-2 focus:ring-fin-primary",
-          disabled ? "disabled:bg-fin-surface-alt disabled:text-fin-text-muted disabled:border-fin-border disabled:cursor-not-allowed" : undefined,
-          isError ? "border-fin-negative focus:border-fin-negative" : undefined,
+          "block w-full min-w-0 bg-transparent placeholder:text-fin-text-muted",
+          known.disabled ? "cursor-not-allowed" : undefined,
         )}
-        style={inputStyle}
+        style={inputStyle()}
         data-testid={inputTestId}
-        {...(forwarded as Record<string, unknown>)}
       />
-      {helperText && (
-        <span className={cn("text-xs", isError ? "text-fin-negative" : "text-fin-text-muted")}>{helperText}</span>
+      {helperText() && (
+        <span className={cn("text-xs", isError() ? "text-fin-negative" : "text-fin-text-muted")}>{helperText()}</span>
       )}
     </div>
   );

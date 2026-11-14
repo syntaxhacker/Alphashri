@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
-import { Alert, Box, Button, Select, Skeleton, Text, ToolbarRow } from "@/ui";
-import { TanStackTable } from "@/components/common/TanStackTable";
+import { createEffect, createSignal, onCleanup, Show } from "solid-js";
+import { Alert, Button, Select, Skeleton, Text, ToolbarRow } from "@/ui";
+import { TanStackTable, type TableColumnDef } from "@/components/common/TanStackTable";
+import { NumCell, SymbolCell, TextCell } from "@/components/common/tableCells";
 import { fetchProfitability } from "../../api/profitability";
 import type {
   ProfitabilityResponse,
@@ -12,7 +12,6 @@ import {
   formatCurrencyCompact,
   formatPercentage,
   formatTimeOnly,
-  getPnLTextColor,
 } from "../../utils/ui-helpers";
 
 interface ProfitabilityPageProps {
@@ -36,24 +35,20 @@ const WEEKS_OPTIONS = [
   { value: "12", label: "12 weeks" },
 ];
 
-function Money({ value, testId }: { value: number; testId?: string }) {
+function Money(props: { value: number; testId?: string }) {
   return (
-    <Text size="xs" fw={700} c={getPnLTextColor(value)} span data-testid={testId} className="tabular-nums">
-      {formatCurrencyCompact(value)}
-    </Text>
+    <NumCell value={props.value} signed fw={700} format={formatCurrencyCompact} testId={props.testId} />
   );
 }
 
-const STRATEGY_COLUMNS: ColumnDef<StrategyProfitRow>[] = [
+const STRATEGY_COLUMNS: TableColumnDef<StrategyProfitRow>[] = [
   {
     id: "label",
     header: "Strategy",
     accessorKey: "label",
     meta: { align: "left" },
     cell: (ctx) => (
-      <Text size="xs" fw={600} span data-testid={`profit-strategy-${ctx.row.original.id}`}>
-        {ctx.row.original.label}
-      </Text>
+      <TextCell value={ctx.row.original.label} fw={600} testId={`profit-strategy-${ctx.row.original.id}`} />
     ),
   },
   {
@@ -61,11 +56,7 @@ const STRATEGY_COLUMNS: ColumnDef<StrategyProfitRow>[] = [
     header: "Trades",
     accessorKey: "trades",
     meta: { align: "right" },
-    cell: (ctx) => (
-      <Text size="xs" span className="tabular-nums">
-        {ctx.row.original.trades}
-      </Text>
-    ),
+    cell: (ctx) => <NumCell value={ctx.row.original.trades} />,
   },
   {
     id: "win_rate",
@@ -73,9 +64,10 @@ const STRATEGY_COLUMNS: ColumnDef<StrategyProfitRow>[] = [
     accessorKey: "win_rate",
     meta: { align: "right" },
     cell: (ctx) => (
-      <Text size="xs" span className="tabular-nums">
-        {formatPercentage((ctx.row.original.win_rate ?? 0) * 100, 1, false)}
-      </Text>
+      <NumCell
+        value={(ctx.row.original.win_rate ?? 0) * 100}
+        format={(v) => formatPercentage(v, 1, false)}
+      />
     ),
   },
   {
@@ -98,9 +90,7 @@ const STRATEGY_COLUMNS: ColumnDef<StrategyProfitRow>[] = [
     accessorKey: "profit_factor",
     meta: { align: "right" },
     cell: (ctx) => (
-      <Text size="xs" span className="tabular-nums">
-        {(ctx.row.original.profit_factor ?? 0).toFixed(2)}
-      </Text>
+      <NumCell value={ctx.row.original.profit_factor ?? 0} format={(v) => v.toFixed(2)} />
     ),
   },
   {
@@ -116,23 +106,23 @@ const STRATEGY_COLUMNS: ColumnDef<StrategyProfitRow>[] = [
     accessorKey: "avg_hold_days",
     meta: { align: "right" },
     cell: (ctx) => (
-      <Text size="xs" span className="tabular-nums">
-        {(ctx.row.original.avg_hold_days ?? 0).toFixed(1)}
-      </Text>
+      <NumCell value={ctx.row.original.avg_hold_days ?? 0} format={(v) => v.toFixed(1)} />
     ),
   },
 ];
 
-const SIGNAL_COLUMNS: ColumnDef<ProfitTopSignal>[] = [
+const SIGNAL_COLUMNS: TableColumnDef<ProfitTopSignal>[] = [
   {
     id: "symbol",
     header: "Symbol",
     accessorKey: "symbol",
     meta: { align: "left" },
     cell: (ctx) => (
-      <Text size="xs" fw={600} span data-testid={`profit-signal-${ctx.row.original.symbol}-${ctx.row.index}`}>
-        {ctx.row.original.symbol}
-      </Text>
+      <SymbolCell
+        symbol={ctx.row.original.symbol}
+        fw={600}
+        testId={`profit-signal-${ctx.row.original.symbol}-${ctx.row.index}`}
+      />
     ),
   },
   {
@@ -140,44 +130,28 @@ const SIGNAL_COLUMNS: ColumnDef<ProfitTopSignal>[] = [
     header: "Pattern",
     accessorKey: "strategy",
     meta: { align: "left" },
-    cell: (ctx) => (
-      <Text size="xs" span>
-        {ctx.row.original.strategy}
-      </Text>
-    ),
+    cell: (ctx) => <TextCell value={ctx.row.original.strategy} />,
   },
   {
     id: "entry_date",
     header: "Entry",
     accessorKey: "entry_date",
     meta: { align: "left" },
-    cell: (ctx) => (
-      <Text size="xs" span className="tabular-nums">
-        {ctx.row.original.entry_date || "—"}
-      </Text>
-    ),
+    cell: (ctx) => <TextCell value={ctx.row.original.entry_date} mono />,
   },
   {
     id: "entry",
     header: "In ₹",
     accessorKey: "entry",
     meta: { align: "right" },
-    cell: (ctx) => (
-      <Text size="xs" span className="tabular-nums">
-        {formatCurrencyCompact(ctx.row.original.entry)}
-      </Text>
-    ),
+    cell: (ctx) => <NumCell value={ctx.row.original.entry} format={formatCurrencyCompact} />,
   },
   {
     id: "exit",
     header: "Out ₹",
     accessorKey: "exit",
     meta: { align: "right" },
-    cell: (ctx) => (
-      <Text size="xs" span className="tabular-nums">
-        {formatCurrencyCompact(ctx.row.original.exit)}
-      </Text>
-    ),
+    cell: (ctx) => <NumCell value={ctx.row.original.exit} format={formatCurrencyCompact} />,
   },
   {
     id: "net",
@@ -189,25 +163,31 @@ const SIGNAL_COLUMNS: ColumnDef<ProfitTopSignal>[] = [
 ];
 
 /** Pattern-profitability screener: which patterns make money.
- * Mount at `/report/profit` (see App.tsx route snippet below the component).
  * Dense TanStack tables sorted by net desc; `@/ui` only. */
-export function ProfitabilityPage({ universe: universeProp = "nifty500", onOpenSymbol }: ProfitabilityPageProps) {
-  const [universe, setUniverse] = useState<string>(universeProp);
-  const [weeks, setWeeks] = useState<number>(4);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [data, setData] = useState<ProfitabilityResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export function ProfitabilityPage(props: ProfitabilityPageProps) {
+  const [universe, setUniverse] = createSignal<string>(props.universe ?? "nifty500");
+  const [weeks, setWeeks] = createSignal<number>(4);
+  const [refreshKey, setRefreshKey] = createSignal(0);
+  const [data, setData] = createSignal<ProfitabilityResponse | null>(null);
+  const [loading, setLoading] = createSignal(true);
+  const [error, setError] = createSignal<string | null>(null);
 
-  useEffect(() => {
-    setUniverse(universeProp);
-  }, [universeProp]);
+  createEffect(() => {
+    const prop = props.universe;
+    if (prop) setUniverse(prop);
+  });
 
-  useEffect(() => {
+  createEffect(() => {
+    const w = weeks();
+    const u = universe();
+    refreshKey();
     let cancelled = false;
+    onCleanup(() => {
+      cancelled = true;
+    });
     setLoading(true);
     setError(null);
-    fetchProfitability(weeks, universe)
+    fetchProfitability(w, u)
       .then((payload) => {
         if (cancelled) return;
         setData(payload);
@@ -219,31 +199,32 @@ export function ProfitabilityPage({ universe: universeProp = "nifty500", onOpenS
         setData(null);
         setLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [weeks, universe, refreshKey]);
+  });
 
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = () => {
     setRefreshKey((k) => k + 1);
-  }, []);
+  };
 
-  const isEmpty =
-    !loading &&
-    !error &&
-    (data?.strategies ?? []).every((r) => (r.trades ?? 0) === 0) &&
-    (data?.top_signals ?? []).length === 0;
+  const isEmpty = () => {
+    const value = data();
+    return (
+      !loading() &&
+      !error() &&
+      (value?.strategies ?? []).every((r) => (r.trades ?? 0) === 0) &&
+      (value?.top_signals ?? []).length === 0
+    );
+  };
 
   return (
-    <Box data-testid="profitability-report" className="flex flex-col gap-2 min-w-0 w-full flex-1">
-      <ToolbarRow gap={8} wrap={false} data-testid="profitability-toolbar" style={{ height: 48 }}>
+    <div data-testid="profitability-report" class="flex flex-col gap-2 min-w-0 w-full flex-1">
+      <ToolbarRow gap={8} wrap={false} data-testid="profitability-toolbar" style={{ height: "48px" }}>
         <Text size="sm" fw={700} span data-testid="profitability-title" className="whitespace-nowrap">
           Pattern Profitability
         </Text>
         <Select
           size="xs"
           w={140}
-          value={universe}
+          value={universe()}
           onChange={(v) => {
             if (v) setUniverse(v);
           }}
@@ -254,7 +235,7 @@ export function ProfitabilityPage({ universe: universeProp = "nifty500", onOpenS
         <Select
           size="xs"
           w={110}
-          value={String(weeks)}
+          value={String(weeks())}
           onChange={(v) => {
             const n = Number(v);
             if (Number.isFinite(n)) setWeeks(n);
@@ -266,71 +247,82 @@ export function ProfitabilityPage({ universe: universeProp = "nifty500", onOpenS
         <Button size="xs" variant="subtle" onClick={handleRefresh} data-testid="profitability-refresh" aria-label="Refresh profitability">
           Refresh
         </Button>
-        <Box className="flex-1 min-w-0" />
-        {data?.as_of ? (
-          <Text size="xs" c="dimmed" truncate span data-testid="profitability-asof">
-            as of {formatTimeOnly(data.as_of)}
-            {data.cached ? " (cached)" : null}
-          </Text>
-        ) : null}
+        <div class="flex-1 min-w-0" />
+        <Show when={data()?.as_of}>
+          {(asOf) => (
+            <Text size="xs" c="dimmed" truncate span data-testid="profitability-asof">
+              as of {formatTimeOnly(asOf())}
+              {data()?.cached ? " (cached)" : null}
+            </Text>
+          )}
+        </Show>
       </ToolbarRow>
 
-      {loading ? (
-        <Box className="flex flex-col gap-2 w-full min-w-0" data-testid="profitability-loading">
-          <Skeleton h={16} />
-          <Skeleton h={16} />
-          <Skeleton h={16} />
-        </Box>
-      ) : error ? (
-        <Box data-testid="profitability-error">
-          <Alert color="error" data-testid="profitability-error-alert">
-            {error}
-          </Alert>
-        </Box>
-      ) : isEmpty ? (
-        <Box className="p-4 text-center w-full" data-testid="profitability-empty">
-          <Text size="xs" c="dimmed">
-            No pattern trades in the last {weeks} week{weeks === 1 ? "" : "s"}
-          </Text>
-        </Box>
-      ) : (
-        <>
-          <ToolbarRow gap={8} wrap={false}>
-            <Text size="sm" fw={700} span data-testid="profitability-strategies-title">
-              Strategies by net P&amp;L
-            </Text>
-          </ToolbarRow>
-          <TanStackTable<StrategyProfitRow>
-            data={data?.strategies ?? []}
-            columns={STRATEGY_COLUMNS}
-            dataTestId="profitability-strategies"
-            initialState={{ sorting: [{ id: "net_pnl", desc: true }] }}
-            emptyMessage="No strategy data"
-            dense
-          />
-          <ToolbarRow gap={8} wrap={false}>
-            <Text size="sm" fw={700} span data-testid="profitability-signals-title">
-              Top signals
-            </Text>
-          </ToolbarRow>
-          <TanStackTable<ProfitTopSignal>
-            data={data?.top_signals ?? []}
-            columns={SIGNAL_COLUMNS}
-            dataTestId="profitability-signals"
-            initialState={{ sorting: [{ id: "net", desc: true }] }}
-            emptyMessage="No signals"
-            dense
-            onRowClick={onOpenSymbol ? (row) => onOpenSymbol(row.symbol) : undefined}
-            getRowTestId={(row, index) => `profitability-signal-row-${row.symbol}-${index}`}
-          />
-        </>
-      )}
-    </Box>
+      <Show
+        when={!loading()}
+        fallback={
+          <div class="flex flex-col gap-2 w-full min-w-0" data-testid="profitability-loading">
+            <Skeleton h={16} />
+            <Skeleton h={16} />
+            <Skeleton h={16} />
+          </div>
+        }
+      >
+        <Show
+          when={error()}
+          fallback={
+            <Show
+              when={!isEmpty()}
+              fallback={
+                <div class="p-4 text-center w-full" data-testid="profitability-empty">
+                  <Text size="xs" c="dimmed">
+                    No pattern trades in the last {weeks()} week{weeks() === 1 ? "" : "s"}
+                  </Text>
+                </div>
+              }
+            >
+              <ToolbarRow gap={8} wrap={false}>
+                <Text size="sm" fw={700} span data-testid="profitability-strategies-title">
+                  Strategies by net P&amp;L
+                </Text>
+              </ToolbarRow>
+              <TanStackTable<StrategyProfitRow>
+                data={data()?.strategies ?? []}
+                columns={STRATEGY_COLUMNS}
+                dataTestId="profitability-strategies"
+                initialState={{ sorting: [{ id: "net_pnl", desc: true }] }}
+                emptyMessage="No strategy data"
+                dense
+              />
+              <ToolbarRow gap={8} wrap={false}>
+                <Text size="sm" fw={700} span data-testid="profitability-signals-title">
+                  Top signals
+                </Text>
+              </ToolbarRow>
+              <TanStackTable<ProfitTopSignal>
+                data={data()?.top_signals ?? []}
+                columns={SIGNAL_COLUMNS}
+                dataTestId="profitability-signals"
+                initialState={{ sorting: [{ id: "net", desc: true }] }}
+                emptyMessage="No signals"
+                dense
+                onRowClick={props.onOpenSymbol ? (row) => props.onOpenSymbol?.(row.symbol) : undefined}
+                getRowTestId={(row, index) => `profitability-signal-row-${row.symbol}-${index}`}
+              />
+            </Show>
+          }
+        >
+          {(message) => (
+            <div data-testid="profitability-error">
+              <Alert color="error" data-testid="profitability-error-alert">
+                {message()}
+              </Alert>
+            </div>
+          )}
+        </Show>
+      </Show>
+    </div>
   );
 }
 
 export default ProfitabilityPage;
-
-// Route mount (for the integrator — App.tsx):
-//   const ProfitabilityPage = lazy(() => import("./pages/report/Profitability").then(m => ({ default: m.ProfitabilityPage })));
-//   <Route path="/report/profit" element={<ProfitabilityPage />} />

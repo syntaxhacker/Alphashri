@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-import { ActionIcon, Badge, Box, Button, MultiSelect, Text, useDebouncedValue } from "@/ui";
-import { IconX } from "@tabler/icons-react";
+import { createEffect, createSignal, onCleanup, For, Show } from "solid-js";
+import { Badge, Box, Button, MultiSelect, Text } from "@/ui";
+import { IconX } from "@/patterns/icons";
 import { searchSymbols } from "@/api/symbols";
 import type { PatternFilters } from "@/types/chartPatterns";
 import { parseSymbolList } from "./parseSymbolList";
@@ -39,21 +39,27 @@ export function readSelectedSymbols(filters: PatternFilters): string[] {
  * it narrows results server-side through `setFilter`; the scan bar overrides
  * that with the custom-scope action so the selection drives a targeted scan.
  */
-export function SymbolFilter({
-  filters,
-  setFilter,
-  onChange,
-  placeholder = "Filter symbols…",
-  helperText = "Show patterns only for these symbols",
-}: SymbolFilterProps) {
-  const selected = readSelectedSymbols(filters);
-  const apply = onChange ?? ((symbols: string[]) => setFilter("symbols", symbols));
-  const [query, setQuery] = useState("");
-  const [debouncedQuery] = useDebouncedValue(query, 250);
-  const [options, setOptions] = useState<Array<{ value: string; label: string }>>([]);
+export function SymbolFilter(props: SymbolFilterProps) {
+  const selected = () => readSelectedSymbols(props.filters);
+  const placeholder = () => props.placeholder ?? "Filter symbols…";
+  const helperText = () => props.helperText ?? "Show patterns only for these symbols";
+  const apply = (symbols: string[]) =>
+    props.onChange ? props.onChange(symbols) : props.setFilter("symbols", symbols);
 
-  useEffect(() => {
-    const term = debouncedQuery.trim();
+  const [query, setQuery] = createSignal("");
+  const [debouncedQuery, setDebouncedQuery] = createSignal("");
+  const [options, setOptions] = createSignal<Array<{ value: string; label: string }>>([]);
+
+  let debounceTimer: number | undefined;
+  createEffect(() => {
+    const q = query();
+    window.clearTimeout(debounceTimer);
+    debounceTimer = window.setTimeout(() => setDebouncedQuery(q), 250);
+    onCleanup(() => window.clearTimeout(debounceTimer));
+  });
+
+  createEffect(() => {
+    const term = debouncedQuery().trim();
     if (term.length < 1) {
       setOptions([]);
       return;
@@ -72,13 +78,13 @@ export function SymbolFilter({
       .catch(() => {
         if (active) setOptions([]);
       });
-    return () => {
+    onCleanup(() => {
       active = false;
-    };
-  }, [debouncedQuery]);
+    });
+  });
 
   const removeSymbol = (symbol: string) => {
-    apply(selected.filter((s) => s !== symbol));
+    apply(selected().filter((s) => s !== symbol));
   };
 
   return (
@@ -89,19 +95,19 @@ export function SymbolFilter({
       <Box className="flex max-w-[380px] min-w-0 items-center gap-1">
         <Box
           className="min-w-0 flex-1"
-          onPaste={(e) => {
-            const parsed = parseSymbolList(e.clipboardData.getData("text"));
+          onPaste={(e: ClipboardEvent) => {
+            const parsed = parseSymbolList(e.clipboardData?.getData("text") ?? "");
             if (parsed.length > 1) {
               e.preventDefault();
-              apply(Array.from(new Set([...selected, ...parsed])));
+              apply(Array.from(new Set([...selected(), ...parsed])));
               setQuery("");
             }
           }}
         >
           <MultiSelect
-            data={options}
-            value={selected}
-            searchValue={query}
+            data={options()}
+            value={selected()}
+            searchValue={query()}
             onChange={(vals) => {
               apply(vals);
               setQuery("");
@@ -112,12 +118,12 @@ export function SymbolFilter({
             hidePickedOptions
             hideTags
             size="xs"
-            placeholder={placeholder}
+            placeholder={placeholder()}
             nothingFoundMessage="No symbols found"
             style={{ width: "100%" }}
           />
         </Box>
-        {selected.length > 0 && (
+        <Show when={selected().length > 0}>
           <Button
             size="xs"
             variant="subtle"
@@ -126,39 +132,40 @@ export function SymbolFilter({
           >
             Clear
           </Button>
-        )}
+        </Show>
       </Box>
-      {helperText ? (
+      <Show when={helperText()}>
         <Text size="xs" c="dimmed">
-          {helperText}
+          {helperText()}
         </Text>
-      ) : null}
-      {selected.length > 0 && (
+      </Show>
+      <Show when={selected().length > 0}>
         <Box className="flex max-h-[60px] flex-wrap gap-1 overflow-y-auto">
-          {selected.map((symbol) => (
-            <Badge
-              key={symbol}
-              size="xs"
-              variant="light"
-              color="info"
-              data-testid={`patterns-symbol-chip-${symbol}`}
-              rightSection={
-                <ActionIcon
-                  size="xs"
-                  variant="subtle"
-                  aria-label={`Remove ${symbol}`}
-                  data-testid={`patterns-symbol-remove-${symbol}`}
-                  onClick={() => removeSymbol(symbol)}
-                >
-                  <IconX size={8} />
-                </ActionIcon>
-              }
-            >
-              {symbol}
-            </Badge>
-          ))}
+          <For each={selected()}>
+            {(symbol) => (
+              <Badge
+                size="xs"
+                variant="light"
+                color="info"
+                data-testid={`patterns-symbol-chip-${symbol}`}
+                rightSection={
+                  <button
+                    type="button"
+                    aria-label={`Remove ${symbol}`}
+                    data-testid={`patterns-symbol-remove-${symbol}`}
+                    onClick={() => removeSymbol(symbol)}
+                    className="inline-flex h-4 w-4 items-center justify-center rounded-full text-fin-text-muted transition-colors hover:bg-fin-surface-alt hover:text-fin-text"
+                  >
+                    <IconX size={8} />
+                  </button>
+                }
+              >
+                {symbol}
+              </Badge>
+            )}
+          </For>
         </Box>
-      )}
+      </Show>
     </Box>
   );
 }

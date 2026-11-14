@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
+import type { JSX } from "solid-js";
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { createSignal } from "solid-js";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { BacktestProgress, calcProgressPercent } from "./BacktestProgress";
 import "@testing-library/jest-dom/vitest";
@@ -10,7 +12,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function Wrapper({ children }: { children: React.ReactNode }) {
+function Wrapper({ children }: { children: JSX.Element }) {
   return <UIProvider>{children}</UIProvider>;
 }
 
@@ -61,35 +63,50 @@ describe("BacktestProgress", () => {
   };
 
   it("renders progress container with testid", () => {
-    render(<BacktestProgress progress={defaultProgress} />, { wrapper: Wrapper });
+    render(() => <BacktestProgress progress={defaultProgress} />, { wrapper: Wrapper });
     expect(screen.getByTestId("progress-container")).toBeInTheDocument();
   });
 
   it("displays the counter correctly", () => {
-    render(<BacktestProgress progress={defaultProgress} />, { wrapper: Wrapper });
+    render(() => <BacktestProgress progress={defaultProgress} />, { wrapper: Wrapper });
     expect(screen.getByTestId("progress-counter")).toHaveTextContent("5/10");
   });
 
   it("displays the progress message", () => {
-    render(<BacktestProgress progress={defaultProgress} />, { wrapper: Wrapper });
+    render(() => <BacktestProgress progress={defaultProgress} />, { wrapper: Wrapper });
     expect(screen.getByTestId("progress-message")).toHaveTextContent("Processing...");
   });
 
   it("renders the progress bar reflecting current/total percent", () => {
-    render(<BacktestProgress progress={defaultProgress} />, { wrapper: Wrapper });
+    render(() => <BacktestProgress progress={defaultProgress} />, { wrapper: Wrapper });
     const fill = screen.getByTestId("progress-fill");
     expect(fill).toBeInTheDocument();
     expect(fill).toHaveAttribute("aria-valuenow", "50");
   });
 
   it("displays 'Running...' title", () => {
-    render(<BacktestProgress progress={defaultProgress} />, { wrapper: Wrapper });
+    render(() => <BacktestProgress progress={defaultProgress} />, { wrapper: Wrapper });
     expect(screen.getByText("Running...")).toBeInTheDocument();
   });
 
   it("renders with different progress values", () => {
     const progress = { current: 25, total: 100, message: "Analyzing stocks" };
-    render(<BacktestProgress progress={progress} />, { wrapper: Wrapper });
+    render(() => <BacktestProgress progress={progress} />, { wrapper: Wrapper });
+    expect(screen.getByTestId("progress-counter")).toHaveTextContent("25/100");
+    expect(screen.getByTestId("progress-message")).toHaveTextContent("Analyzing stocks");
+  });
+
+  it("updates the DOM when the progress prop signal changes", () => {
+    const [progress, setProgress] = createSignal<{
+      current: number;
+      total: number;
+      message: string;
+    }>({ current: 5, total: 10, message: "Processing..." });
+    render(() => <BacktestProgress progress={progress()} />, { wrapper: Wrapper });
+    expect(screen.getByTestId("progress-counter")).toHaveTextContent("5/10");
+    expect(screen.getByTestId("progress-message")).toHaveTextContent("Processing...");
+
+    setProgress({ current: 25, total: 100, message: "Analyzing stocks" });
     expect(screen.getByTestId("progress-counter")).toHaveTextContent("25/100");
     expect(screen.getByTestId("progress-message")).toHaveTextContent("Analyzing stocks");
   });

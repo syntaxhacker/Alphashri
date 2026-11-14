@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { SelectionBar } from "./SelectionBar";
 import { UIProvider } from "@/ui";
 
@@ -35,55 +34,53 @@ describe("SelectionBar", () => {
 
   it("returns null when selectedSymbols is empty", () => {
     mockSelectedSymbols = [];
-    render(
+    render(() => (
       <UIProvider>
         <SelectionBar onCompare={onCompare} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.queryByTestId("selection-bar")).not.toBeInTheDocument();
   });
 
   it("shows selected count badge", () => {
     mockSelectedSymbols = ["RELIANCE", "TCS", "INFY"];
-    render(
+    render(() => (
       <UIProvider>
         <SelectionBar onCompare={onCompare} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByText("3 selected")).toBeInTheDocument();
   });
 
   it("Clear button calls clearSelectedSymbols", async () => {
-      const user = userEvent.setup();
     mockSelectedSymbols = ["RELIANCE"];
-    render(
+    render(() => (
       <UIProvider>
         <SelectionBar onCompare={onCompare} />
-      </UIProvider>,
-    );
-    await user.click(screen.getByTestId("clear-selection-btn"));
+      </UIProvider>
+    ));
+    fireEvent.click(screen.getByTestId("clear-selection-btn"));
     expect(mockClearSelectedSymbols).toHaveBeenCalledTimes(1);
   });
 
   it("Compare button disabled when < 2 symbols", () => {
     mockSelectedSymbols = ["RELIANCE"];
-    render(
+    render(() => (
       <UIProvider>
         <SelectionBar onCompare={onCompare} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("compare-btn")).toBeDisabled();
   });
 
   it("Compare button calls onCompare when clicked", async () => {
-      const user = userEvent.setup();
     mockSelectedSymbols = ["RELIANCE", "TCS"];
-    render(
+    render(() => (
       <UIProvider>
         <SelectionBar onCompare={onCompare} />
-      </UIProvider>,
-    );
-    await user.click(screen.getByTestId("compare-btn"));
+      </UIProvider>
+    ));
+    fireEvent.click(screen.getByTestId("compare-btn"));
     expect(onCompare).toHaveBeenCalledTimes(1);
   });
 });

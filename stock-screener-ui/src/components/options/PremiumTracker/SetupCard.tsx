@@ -1,5 +1,5 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
-import { useMemo, useState } from "react";
+import { createMemo, createSignal, For, Show } from "solid-js";
 import { Box } from "@/ui";
 import { Badge, Button, Divider, NumberInput, Select, Text, TextInput, ToolbarRow } from "@/ui";
 import * as palette from "@/ui/palette";
@@ -31,68 +31,66 @@ function fmtRupee(value: number | null): string {
   return `${sign}₹${formatNumberIN(Math.round(value))}`;
 }
 
-export function SetupCard({ setup, spot, ltpOf, onUpdateLeg, onDeleteSetup, onPaperFill, glow }: SetupCardProps) {
-  const [conviction, setConviction] = useState<Conviction>("MEDIUM");
-  const [plan, setPlan] = useState("");
+export function SetupCard(props: SetupCardProps) {
+  const [conviction, setConviction] = createSignal<Conviction>("MEDIUM");
+  const [plan, setPlan] = createSignal("");
 
-  const legs = setup.legs;
-  const stats = useMemo(() => {
-    if (legs.length === 0) return null;
-    const lo = Math.min(...legs.map((l) => l.strike));
-    const hi = Math.max(...legs.map((l) => l.strike));
-    const span = Math.max(hi - lo, spot ? spot * 0.02 : lo * 0.02);
-    const be = breakevens(legs, lo - span, hi + span);
+  const setup = () => props.setup;
+  const legs = () => setup().legs;
+
+  const stats = createMemo(() => {
+    const ls = legs();
+    if (ls.length === 0) return null;
+    const lo = Math.min(...ls.map((l) => l.strike));
+    const hi = Math.max(...ls.map((l) => l.strike));
+    const span = Math.max(hi - lo, props.spot ? props.spot * 0.02 : lo * 0.02);
+    const be = breakevens(ls, lo - span, hi + span);
     return {
-      debit: netEntry(legs),
-      maxProfit: maxProfitAtExpiry(legs),
-      maxLoss: maxLossAtExpiry(legs),
+      debit: netEntry(ls),
+      maxProfit: maxProfitAtExpiry(ls),
+      maxLoss: maxLossAtExpiry(ls),
       breakevens: be,
     };
-  }, [legs, spot]);
+  });
 
-  const live = useMemo(
-    () =>
-      markSetup(setup, (strike, optionType) => ltpOf(strike, optionType)),
-    [setup, ltpOf],
-  );
+  const live = createMemo(() => markSetup(setup(), (strike, optionType) => props.ltpOf(strike, optionType)));
 
   return (
     <Box
-      data-testid={`setup-card-${setup.id}`}
+      data-testid={`setup-card-${setup().id}`}
       w={460}
       style={{
-        flexShrink: 0,
-        border: `1px solid ${glow ? palette.WARNING : palette.BORDER}`,
-        borderRadius: 1,
-        padding: 8,
+        "flex-shrink": 0,
+        border: `1px solid ${props.glow ? palette.WARNING : palette.BORDER}`,
+        "border-radius": "1px",
+        padding: "8px",
         display: "flex",
-        flexDirection: "column",
-        gap: 8,
+        "flex-direction": "column",
+        gap: "8px",
       }}
     >
-      <ToolbarRow justify="space-between" data-testid={`setup-header-${setup.id}`}>
+      <ToolbarRow justify="space-between" data-testid={`setup-header-${setup().id}`}>
         <Text size="sm" fw={700}>
-          {setup.name}
+          {setup().name}
         </Text>
         <ToolbarRow gap={4}>
-          <Badge color="default" size="xs">{setup.underlying}</Badge>
-          <Button size="sm" style={{ ...ROW_BUTTON_SX }} onClick={() => onDeleteSetup(setup.id)} data-testid={`setup-delete-${setup.id}`}>
+          <Badge color="default" size="xs">{setup().underlying}</Badge>
+          <Button size="sm" style={{ ...ROW_BUTTON_SX }} onClick={() => props.onDeleteSetup(setup().id)} data-testid={`setup-delete-${setup().id}`}>
             Del
           </Button>
         </ToolbarRow>
       </ToolbarRow>
 
-      {legs.map((leg) => {
-        const ltp = ltpOf(leg.strike, leg.optionType);
-        return (
-          <Box key={leg.legId} data-testid={`setup-leg-${leg.legId}`} w="100%">
+      <For each={legs()}>
+        {(leg) => (
+          <Box data-testid={`setup-leg-${leg.legId}`} w="100%">
             <ToolbarRow gap={4}>
               <Select
                 w={FIELD_W.action}
                 size="sm"
                 label="Action"
                 value={leg.action}
-                onChange={(v) => onUpdateLeg(setup.id, leg.legId, { action: String(v) as SetupLeg["action"] })}
+                onChange={(v) => props.onUpdateLeg(setup().id, leg.legId, { action: String(v) as SetupLeg["action"] })}
                 data={["BUY", "SELL"]}
                 data-testid={`setup-leg-action-${leg.legId}`}
               />
@@ -101,7 +99,7 @@ export function SetupCard({ setup, spot, ltpOf, onUpdateLeg, onDeleteSetup, onPa
                 size="sm"
                 label="Strike"
                 value={leg.strike}
-                onChange={(v) => onUpdateLeg(setup.id, leg.legId, { strike: Number(v) || 0 })}
+                onChange={(v) => props.onUpdateLeg(setup().id, leg.legId, { strike: Number(v) || 0 })}
                 data-testid={`setup-leg-strike-${leg.legId}`}
               />
               <Select
@@ -109,7 +107,7 @@ export function SetupCard({ setup, spot, ltpOf, onUpdateLeg, onDeleteSetup, onPa
                 size="sm"
                 label="Type"
                 value={leg.optionType}
-                onChange={(v) => onUpdateLeg(setup.id, leg.legId, { optionType: String(v) as SetupLeg["optionType"] })}
+                onChange={(v) => props.onUpdateLeg(setup().id, leg.legId, { optionType: String(v) as SetupLeg["optionType"] })}
                 data={["CE", "PE"]}
                 data-testid={`setup-leg-type-${leg.legId}`}
               />
@@ -118,7 +116,7 @@ export function SetupCard({ setup, spot, ltpOf, onUpdateLeg, onDeleteSetup, onPa
                 size="sm"
                 label="Qty"
                 value={leg.qty}
-                onChange={(v) => onUpdateLeg(setup.id, leg.legId, { qty: Number(v) || 0 })}
+                onChange={(v) => props.onUpdateLeg(setup().id, leg.legId, { qty: Number(v) || 0 })}
                 data-testid={`setup-leg-qty-${leg.legId}`}
               />
             </ToolbarRow>
@@ -128,26 +126,28 @@ export function SetupCard({ setup, spot, ltpOf, onUpdateLeg, onDeleteSetup, onPa
                 size="sm"
                 label="Entry ₹"
                 value={leg.entry}
-                onChange={(v) => onUpdateLeg(setup.id, leg.legId, { entry: Number(v) || 0 })}
+                onChange={(v) => props.onUpdateLeg(setup().id, leg.legId, { entry: Number(v) || 0 })}
                 data-testid={`setup-leg-entry-${leg.legId}`}
               />
               <Text size="xs" c="dimmed" data-testid={`setup-leg-ltp-${leg.legId}`}>
-                {ltp === null ? "live —" : `live ₹${ltp}`}
+                {props.ltpOf(leg.strike, leg.optionType) === null ? "live —" : `live ₹${props.ltpOf(leg.strike, leg.optionType)}`}
               </Text>
             </ToolbarRow>
           </Box>
-        );
-      })}
+        )}
+      </For>
 
-      <PayoffChart legs={legs} spot={spot} height={180} data-testid={`setup-payoff-${setup.id}`} />
+      <PayoffChart legs={legs()} spot={props.spot} height={180} data-testid={`setup-payoff-${setup().id}`} />
 
-      {stats && (
-        <Text size="xs" c="dimmed" data-testid={`setup-stats-${setup.id}`}>
-          {stats.debit >= 0 ? `Debit ₹${stats.debit}` : `Credit ₹${-stats.debit}`} · Max {fmtRupee(stats.maxProfit)} / Min {fmtRupee(stats.maxLoss)}
-          {stats.breakevens.length > 0 ? ` · BE ${stats.breakevens.slice(0, 4).join(", ")}` : ""}
-          {live !== null ? ` · Live ${fmtRupee(live)}` : ""}
-        </Text>
-      )}
+      <Show when={stats()}>
+        {(st) => (
+          <Text size="xs" c="dimmed" data-testid={`setup-stats-${setup().id}`}>
+            {st().debit >= 0 ? `Debit ₹${st().debit}` : `Credit ₹${-st().debit}`} · Max {fmtRupee(st().maxProfit)} / Min {fmtRupee(st().maxLoss)}
+            {st().breakevens.length > 0 ? ` · BE ${st().breakevens.slice(0, 4).join(", ")}` : ""}
+            {live() !== null ? ` · Live ${fmtRupee(live())}` : ""}
+          </Text>
+        )}
+      </Show>
 
       <Divider />
       <ToolbarRow gap={4}>
@@ -155,20 +155,20 @@ export function SetupCard({ setup, spot, ltpOf, onUpdateLeg, onDeleteSetup, onPa
           w={FIELD_W.conviction}
           size="sm"
           label="Conviction"
-          value={conviction}
+          value={conviction()}
           onChange={(v) => setConviction(String(v) as Conviction)}
           data={["LOW", "MEDIUM", "HIGH"]}
-          data-testid={`setup-conviction-${setup.id}`}
+          data-testid={`setup-conviction-${setup().id}`}
         />
         <TextInput
           w={FIELD_W.note}
           size="sm"
           label="Plan"
-          value={plan}
+          value={plan()}
           onChange={(v) => setPlan(String(v))}
-          data-testid={`setup-plan-${setup.id}`}
+          data-testid={`setup-plan-${setup().id}`}
         />
-        <Button size="sm" style={{ ...ROW_BUTTON_SX }} onClick={() => onPaperFill(setup, { conviction, plan })} data-testid={`setup-fill-${setup.id}`}>
+        <Button size="sm" style={{ ...ROW_BUTTON_SX }} onClick={() => props.onPaperFill(setup(), { conviction: conviction(), plan: plan() })} data-testid={`setup-fill-${setup().id}`}>
           Paper fill
         </Button>
       </ToolbarRow>

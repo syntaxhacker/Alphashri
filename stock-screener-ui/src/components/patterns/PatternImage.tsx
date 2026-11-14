@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { createEffect, createSignal, Show } from "solid-js";
 import { Box, Text } from "@/ui";
 import { PATTERN_LABELS } from "@/config/patternCatalog";
 
@@ -16,14 +16,13 @@ export interface PatternImageProps {
 }
 
 /** Compact inline SVG shown when a pattern has no uploaded image. */
-function PatternPlaceholder({ label, showLabel }: { label: string; showLabel: boolean }) {
+function PatternPlaceholder(props: { label: string; showLabel: boolean }) {
   return (
     <Box
       data-testid="pattern-image-placeholder"
       className="flex h-full w-full flex-col items-center justify-center gap-1 overflow-hidden rounded-fin border border-dashed border-fin-border bg-fin-surface-alt px-2"
     >
-      <Box
-        component="svg"
+      <svg
         viewBox="0 0 96 40"
         aria-hidden="true"
         className="h-auto w-full max-w-[120px] text-fin-primary"
@@ -32,9 +31,9 @@ function PatternPlaceholder({ label, showLabel }: { label: string; showLabel: bo
           points="2,34 18,20 30,26 48,10 64,18 78,6 94,12"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2"
-          strokeLinejoin="round"
-          strokeLinecap="round"
+          stroke-width="2"
+          stroke-linejoin="round"
+          stroke-linecap="round"
         />
         <line
           x1="2"
@@ -42,18 +41,18 @@ function PatternPlaceholder({ label, showLabel }: { label: string; showLabel: bo
           x2="94"
           y2="38"
           stroke="var(--color-fin-border)"
-          strokeWidth="1"
+          stroke-width="1"
         />
-      </Box>
+      </svg>
       <Text
         size="xs"
         c="dimmed"
         ta="center"
         lineClamp={2}
         data-testid="pattern-image-placeholder-label"
-        style={{ display: showLabel ? undefined : "none" }}
+        style={{ display: props.showLabel ? undefined : "none" }}
       >
-        {label}
+        {props.label}
       </Text>
     </Box>
   );
@@ -63,39 +62,34 @@ function PatternPlaceholder({ label, showLabel }: { label: string; showLabel: bo
  * Render the uploaded reference image for a pattern, falling back to a compact
  * SVG placeholder when there is no image (or the image fails to load).
  */
-export function PatternImage({
-  patternId,
-  images,
-  alt,
-  height = 120,
-  showPlaceholderLabel = true,
-}: PatternImageProps) {
-  const url = images[patternId];
-  const [errored, setErrored] = useState(false);
+export function PatternImage(props: PatternImageProps) {
+  const [errored, setErrored] = createSignal(false);
 
-  useEffect(() => {
+  const url = () => props.images[props.patternId];
+  const height = () => props.height ?? 120;
+  const showPlaceholderLabel = () => props.showPlaceholderLabel ?? true;
+
+  createEffect(() => {
+    url();
     setErrored(false);
-  }, [url]);
+  });
 
-  const label = alt ?? PATTERN_LABELS[patternId] ?? patternId;
-
-  if (url && !errored) {
-    return (
-      <Box
-        component="img"
-        src={url}
-        alt={label}
-        data-testid={`pattern-image-${patternId}`}
-        onError={() => setErrored(true)}
-        className="block w-full rounded-fin bg-fin-surface-alt object-contain"
-        style={{ height }}
-      />
-    );
-  }
+  const label = () => props.alt ?? PATTERN_LABELS[props.patternId] ?? props.patternId;
 
   return (
-    <Box className="w-full" style={{ height }}>
-      <PatternPlaceholder label={label} showLabel={showPlaceholderLabel} />
-    </Box>
+    <Show when={url() && !errored()} fallback={
+      <Box className="w-full" style={{ height: `${height()}px` }}>
+        <PatternPlaceholder label={label()} showLabel={showPlaceholderLabel()} />
+      </Box>
+    }>
+      <img
+        src={url()}
+        alt={label()}
+        data-testid={`pattern-image-${props.patternId}`}
+        onError={() => setErrored(true)}
+        className="block w-full rounded-fin bg-fin-surface-alt object-contain"
+        style={{ height: `${height()}px` }}
+      />
+    </Show>
   );
 }

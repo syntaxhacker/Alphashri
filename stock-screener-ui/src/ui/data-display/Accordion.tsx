@@ -1,27 +1,32 @@
-import * as React from "react";
+import { createContext, createMemo, createSignal, Show, splitProps, useContext } from "solid-js";
 import { cn } from "../cn";
 import type { UIAccordionProps, UIAccordionItemProps, UIAccordionControlProps, UIAccordionPanelProps } from "../types";
 
 type AccordionContextValue = {
-  multiple?: boolean;
-  value: string | string[] | undefined | null;
+  multiple: () => boolean | undefined;
+  value: () => string | string[] | undefined | null;
   onChange: (v: string | string[]) => void;
-  variant?: string;
-  chevronPosition?: string;
-  disableChevronRotation?: boolean;
+  variant: () => string | undefined;
+  chevronPosition: () => string | undefined;
+  disableChevronRotation: () => boolean | undefined;
 };
 
-const AccordionContext = React.createContext<AccordionContextValue | null>(null);
+type AccordionItemContextValue = {
+  value: string;
+  expanded: () => boolean;
+  toggle: () => void;
+};
 
-const AccordionItemContext = React.createContext<{ value: string; expanded: boolean; toggle: () => void } | null>(null);
+const AccordionContext = createContext<AccordionContextValue | null>(null);
+const AccordionItemContext = createContext<AccordionItemContextValue | null>(null);
 
 function useAccordionContext() {
-  const ctx = React.useContext(AccordionContext);
+  const ctx = useContext(AccordionContext);
   if (!ctx) throw new Error("Accordion compound components must be used within Accordion");
   return ctx;
 }
 function useAccordionItemContext() {
-  const ctx = React.useContext(AccordionItemContext);
+  const ctx = useContext(AccordionItemContext);
   if (!ctx) throw new Error("AccordionControl/Panel must be used within AccordionItem");
   return ctx;
 }
@@ -32,126 +37,170 @@ function isExpanded(accordionValue: string | string[] | null | undefined, itemVa
   return accordionValue === itemValue;
 }
 
-function Chevron({ expanded, disableRotation }: { expanded: boolean; disableRotation?: boolean }) {
-  const rotate = expanded && !disableRotation ? 180 : 0;
+function Chevron(props: { expanded: () => boolean; disableRotation?: () => boolean | undefined }) {
   return (
     <svg
       className="w-[20px] h-[20px] shrink-0 text-fin-text-muted transition-transform duration-200"
-      style={{ transform: rotate ? `rotate(${rotate}deg)` : undefined }}
+      style={{
+        transform: props.expanded() && !props.disableRotation?.() ? "rotate(180deg)" : undefined,
+      }}
       fill="none"
       stroke="currentColor"
       viewBox="0 0 24 24"
       aria-hidden="true"
     >
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 10l5 5 5-5" />
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 10l5 5 5-5" />
     </svg>
   );
 }
 
-export function Accordion({
-  multiple,
-  defaultValue,
-  value,
-  onChange,
-  variant,
-  chevronPosition,
-  disableChevronRotation,
-  children,
-  className,
-  style,
-  id,
-  "data-testid": testId,
-  ...rest
-}: UIAccordionProps) {
-  const isControlled = value !== undefined;
-  const [internal, setInternal] = React.useState<string | string[] | null | undefined>(
-    (defaultValue as any) ?? (multiple ? [] : null)
-  );
-  const current = isControlled ? value : internal;
+export function Accordion(props: UIAccordionProps) {
+  const [known, rest] = splitProps(props, [
+    "multiple",
+    "defaultValue",
+    "value",
+    "onChange",
+    "variant",
+    "chevronPosition",
+    "disableChevronRotation",
+    "children",
+    "className",
+    "style",
+    "id",
+    "data-testid",
+  ]);
 
-  const handleChange = React.useCallback(
-    (next: string | string[]) => {
-      if (!isControlled) setInternal(next as any);
-      onChange?.(next as any);
-    },
-    [isControlled, onChange]
+  const isControlled = createMemo(() => known.value !== undefined);
+  const internal = createSignal<string | string[] | null | undefined>(
+    known.defaultValue ?? (known.multiple ? [] : null),
   );
+  const [internalValue, setInternalValue] = internal;
+  const current = createMemo(() => (isControlled() ? known.value : internalValue()));
 
-  const ctx: AccordionContextValue = { multiple, value: current as any, onChange: handleChange, variant, chevronPosition, disableChevronRotation };
+  const handleChange = (next: string | string[]) => {
+    if (!isControlled()) setInternalValue(next as any);
+    known.onChange?.(next as any);
+  };
+
+  const ctx: AccordionContextValue = {
+    multiple: () => known.multiple,
+    value: current,
+    onChange: handleChange,
+    variant: () => known.variant,
+    chevronPosition: () => known.chevronPosition,
+    disableChevronRotation: () => known.disableChevronRotation,
+  };
 
   const cls = cn(
     "ui-accordion",
-    variant === "separated" ? "flex flex-col gap-2" : "",
-    variant === "contained" ? "rounded-fin border border-fin-border" : "",
-    className,
+    known.variant === "separated" ? "flex flex-col gap-2" : "",
+    known.variant === "contained" ? "rounded-fin border border-fin-border" : "",
+    known.className,
   );
 
   return (
     <AccordionContext.Provider value={ctx}>
-      <div id={id} className={cls} style={style} data-testid={testId} {...(rest as any)}>
-        {children}
+      <div
+        id={known.id}
+        className={cls}
+        style={known.style as Record<string, string | undefined>}
+        data-testid={known["data-testid"]}
+        {...(rest as Record<string, unknown>)}
+      >
+        {known.children}
       </div>
     </AccordionContext.Provider>
   );
 }
 
-export function AccordionItem({ value: itemValue, children, className, style, id, "data-testid": testId, ...rest }: UIAccordionItemProps) {
-  const { value, multiple, onChange } = useAccordionContext();
-  const expanded = isExpanded(value as any, itemValue, multiple);
+export function AccordionItem(props: UIAccordionItemProps) {
+  const [known, rest] = splitProps(props, ["value", "children", "className", "style", "id", "data-testid"]);
+  const { value, multiple, onChange, variant } = useAccordionContext();
+  const itemValue = known.value;
+  const expanded = createMemo(() => isExpanded(value(), itemValue));
 
-  const toggle = React.useCallback(() => {
-    if (multiple) {
-      const arr = Array.isArray(value) ? [...value] : value != null ? [value as string] : [];
-      const next = expanded ? arr.filter((v) => v !== itemValue) : [...arr, itemValue];
+  const toggle = () => {
+    if (multiple()) {
+      const v = value();
+      const arr: string[] = Array.isArray(v) ? [...v] : v != null ? [v] : [];
+      const next = expanded() ? arr.filter((v) => v !== itemValue) : [...arr, itemValue];
       onChange(next);
     } else {
-      const next = expanded ? "" : itemValue;
-      onChange(next as any);
+      onChange(expanded() ? "" : itemValue);
     }
-  }, [value, multiple, expanded, itemValue, onChange]);
+  };
 
   const itemCls = cn(
     "ui-accordion-item",
-    variant === "filled" ? "bg-fin-surface-alt" : "",
-    className
+    variant() === "filled" ? "bg-fin-surface-alt" : "",
+    known.className,
   );
 
   return (
     <AccordionItemContext.Provider value={{ value: itemValue, expanded, toggle }}>
-      // The item wrapper stays visible so the control remains clickable; only the panel
-      // content is hidden when collapsed (handled in AccordionPanel).
-      <div id={id} className={itemCls} style={style} data-testid={testId} {...(rest as any)}>
-        {children}
+      <div
+        id={known.id}
+        className={itemCls}
+        style={known.style as Record<string, string | undefined>}
+        data-testid={known["data-testid"]}
+        {...(rest as Record<string, unknown>)}
+      >
+        {known.children}
       </div>
     </AccordionItemContext.Provider>
   );
 }
 
-export function AccordionControl({ children, className, style, id, "data-testid": testId, ...rest }: UIAccordionControlProps) {
+export function AccordionControl(props: UIAccordionControlProps) {
+  const [known, rest] = splitProps(props, ["children", "className", "style", "id", "data-testid"]);
   const { expanded, toggle } = useAccordionItemContext();
   const { chevronPosition, disableChevronRotation } = useAccordionContext();
-  const isLeft = chevronPosition === "left";
+  const isLeft = createMemo(() => chevronPosition() === "left");
 
   const cls = cn(
     "ui-accordion-control",
     "flex w-full items-center gap-2 px-3 py-[6px] text-left text-[14px] font-medium text-fin-text bg-transparent border-none outline-none focus-visible:ring-1 focus-visible:ring-fin-primary cursor-pointer hover:bg-fin-surface-alt",
-    className,
+    known.className,
   );
 
   return (
-    <button type="button" id={id} aria-expanded={expanded} className={cls} style={style} data-testid={testId} onClick={toggle} {...(rest as any)}>
-      {isLeft && <Chevron expanded={expanded} disableRotation={disableChevronRotation} />}
-      <span className="flex-1 min-w-0">{children}</span>
-      {!isLeft && <Chevron expanded={expanded} disableRotation={disableChevronRotation} />}
+    <button
+      type="button"
+      id={known.id}
+      aria-expanded={expanded()}
+      className={cls}
+      style={known.style as Record<string, string | undefined>}
+      data-testid={known["data-testid"]}
+      onClick={toggle}
+      {...(rest as Record<string, unknown>)}
+    >
+      <Show when={isLeft()}>
+        <Chevron expanded={expanded} disableRotation={disableChevronRotation} />
+      </Show>
+      <span className="flex-1 min-w-0">{known.children}</span>
+      <Show when={!isLeft()}>
+        <Chevron expanded={expanded} disableRotation={disableChevronRotation} />
+      </Show>
     </button>
   );
 }
 
-export function AccordionPanel({ children, className, style, id, "data-testid": testId, ...rest }: UIAccordionPanelProps) {
+export function AccordionPanel(props: UIAccordionPanelProps) {
+  const [known, rest] = splitProps(props, ["children", "className", "style", "id", "data-testid"]);
   const { expanded } = useAccordionItemContext();
-  // Only the panel content is hidden when collapsed; the control stays visible in the item wrapper.
-  const cls = cn("ui-accordion-panel", "pt-1 pb-2", className);
-  return <div id={id} hidden={!expanded} className={cls} style={style} data-testid={testId} {...(rest as any)}>{children}</div>;
+  const cls = cn("ui-accordion-panel", "pt-1 pb-2", known.className);
+  return (
+    <div
+      id={known.id}
+      hidden={!expanded()}
+      className={cls}
+      style={known.style as Record<string, string | undefined>}
+      data-testid={known["data-testid"]}
+      {...(rest as Record<string, unknown>)}
+    >
+      {known.children}
+    </div>
+  );
 }
 
 Accordion.Item = AccordionItem;

@@ -1,8 +1,11 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
-import { UIProvider } from "@/ui";
+import { cleanup, render, screen } from "@solidjs/testing-library";
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { KeyPointLegend } from "./KeyPointLegend";
 
@@ -35,16 +38,11 @@ function hit(pattern_id: string, pivots: PatternHitDTO["pivots"]): PatternHitDTO
   };
 }
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
-
 describe("KeyPointLegend", () => {
   afterEach(() => cleanup());
 
   test("explains head & shoulders labels", () => {
-    r(
-      <KeyPointLegend
+    render(() =>       <KeyPointLegend
         hit={hit("head_shoulders", [
           { t: "2026-01-02", price: 100, kind: "high" },
           { t: "2026-01-05", price: 90, kind: "low" },
@@ -52,8 +50,7 @@ describe("KeyPointLegend", () => {
           { t: "2026-01-15", price: 92, kind: "low" },
           { t: "2026-01-20", price: 101, kind: "high" },
         ])}
-      />,
-    );
+      />);
     const legend = screen.getByTestId("patterns-key-point-legend");
     expect(legend).toHaveTextContent("LS Left shoulder");
     expect(legend).toHaveTextContent("H Head");
@@ -62,21 +59,19 @@ describe("KeyPointLegend", () => {
   });
 
   test("explains cup & handle labels", () => {
-    r(
-      <KeyPointLegend
+    render(() =>       <KeyPointLegend
         hit={hit("cup_handle", [
           { t: "2026-01-02", price: 110, kind: "high" },
           { t: "2026-01-10", price: 90, kind: "low" },
           { t: "2026-01-20", price: 108, kind: "high" },
           { t: "2026-01-25", price: 96, kind: "low" },
         ])}
-      />,
-    );
+      />);
     expect(screen.getByTestId("patterns-key-point-legend")).toHaveTextContent("H Handle");
   });
 
   test("renders nothing without key points", () => {
-    r(<KeyPointLegend hit={hit("head_shoulders", [])} />);
+    render(() => <KeyPointLegend hit={hit("head_shoulders", [])} />);
     expect(screen.queryByTestId("patterns-key-point-legend")).not.toBeInTheDocument();
   });
 });

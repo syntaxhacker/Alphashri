@@ -1,11 +1,17 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { renderWithProviders } from "../../test/test-utils";
+import { render, screen, fireEvent, waitFor, cleanup } from "@solidjs/testing-library";
 import { Admin52wRangePanel } from "./Admin52wRangePanel";
-const renderPanel = () => renderWithProviders(<Admin52wRangePanel />);
+
+// The @/ui Box/Flex/... stubs from src/pages/solidTestStubs.tsx render as
+// intrinsic elements; page tests exercise page wiring, not the theme runtime.
+vi.mock("@/ui", async (importOriginal) => {
+  const { uiLayoutStub } = await import("@/pages/solidTestStubs");
+  return uiLayoutStub(await importOriginal<Record<string, unknown>>());
+});
+
+const renderPanel = () => render(() => <Admin52wRangePanel />);
 
 const mockFetchWithAuth = vi.fn();
 
@@ -35,6 +41,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -91,7 +98,6 @@ describe("Admin52wRangePanel", () => {
   });
 
   it("Run batch posts with skip_existing based on fullRefresh toggle and respects interval", async () => {
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     mockFetchWithAuth
       .mockResolvedValueOnce({ ok: true, json: async () => makeStatus({ job: { status: "idle" } }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({}) }) // POST run
@@ -100,10 +106,10 @@ describe("Admin52wRangePanel", () => {
     await waitFor(() => expect(screen.getByTestId("admin-52w-run")).toBeInTheDocument());
     const checkbox = screen.getByRole("checkbox") as HTMLInputElement;
     expect(checkbox.checked).toBe(false);
-    await user.click(checkbox);
-    expect(checkbox.checked).toBe(true);
+    fireEvent.click(checkbox);
+    await waitFor(() => expect(checkbox.checked).toBe(true));
     const runBtn = screen.getByTestId("admin-52w-run");
-    await user.click(runBtn);
+    fireEvent.click(runBtn);
     await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalledWith(expect.stringContaining("/api/admin/52w-range/run"), expect.objectContaining({ method: "POST" })));
     const postCall = mockFetchWithAuth.mock.calls.find((c) => String(c[0]).includes("/52w-range/run"));
     const body = JSON.parse((postCall![1] as any).body);

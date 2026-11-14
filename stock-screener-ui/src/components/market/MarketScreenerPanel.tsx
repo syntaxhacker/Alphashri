@@ -1,11 +1,10 @@
 import {
-  memo,
-  useCallback,
-  useDeferredValue,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+  For,
+  Show,
+  createEffect,
+  createMemo,
+  createSignal,
+} from "solid-js";
 import {
   Box,
   Button,
@@ -21,16 +20,10 @@ import {
   Indicator,
   useMediaQuery,
 } from "@/ui";
-import {
-  IconAlertCircle,
-  IconFilter,
-  IconRefresh,
-  IconSearch,
-  IconX,
-} from "@tabler/icons-react";
+import { IconAlertCircle, IconFilter, IconRefresh, IconSearch, IconX } from "../common/Icons";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { MARKET_UNIVERSES, DEFAULT_MARKET_UNIVERSE } from "../../api/marketScreener";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { TableColumnDef as ColumnDef } from "../common/TanStackTable";
 import type { MarketRow, MarketUniverse } from "../../types/marketScreener";
 import {
   buildMarketFilterChips,
@@ -44,8 +37,9 @@ import {
 } from "./marketFilters";
 import { buildMarketColumns } from "./marketColumns";
 import { MarketFilterRail } from "./MarketFilterRail";
+import { MarketMapView, MarketViewToggle, type MarketViewMode } from "./MarketMapView";
 import { TanStackTable } from "../common/TanStackTable";
-import { useMarketSnapshot } from "../../hooks/useMarketSnapshot";
+import { useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
 import { useSymbolDock } from "../common/symbolDockContext";
 
 const STALE_AFTER_MS = 15 * 60 * 1000;
@@ -62,15 +56,7 @@ function isSnapshotStale(asOf: string | null): boolean {
 // but the 496-row grid must not re-reconcile until its `data` actually changes
 // (i.e. the deferred pass commits). Without this, the synchronous commit that
 // carries the chip/count text also re-renders every row.
-const MarketGrid = memo(function MarketGrid({
-  data,
-  columns,
-  hasActiveFilters,
-  onResetFilters,
-  onRowClick,
-  getRowStyle,
-  getRowTestId,
-}: {
+function MarketGrid(props: {
   data: MarketRow[];
   columns: ColumnDef<MarketRow>[];
   hasActiveFilters: boolean;
@@ -81,8 +67,8 @@ const MarketGrid = memo(function MarketGrid({
 }) {
   return (
     <TanStackTable
-      data={data}
-      columns={columns}
+      data={props.data}
+      columns={props.columns}
       dataTestId="market-grid"
       ariaLabel="Market screener results"
       rowWindowSize={80}
@@ -92,18 +78,18 @@ const MarketGrid = memo(function MarketGrid({
       enableSorting
       stickyHeader
       initialState={{ sorting: [{ id: "market_cap_cr", desc: true }] }}
-      onRowClick={onRowClick}
-      getRowStyle={getRowStyle}
-      getRowTestId={getRowTestId}
+      onRowClick={props.onRowClick}
+      getRowStyle={props.getRowStyle}
+      getRowTestId={props.getRowTestId}
       emptyMessage={
-        hasActiveFilters ? "No rows match the current filters" : "No market data"
+        props.hasActiveFilters ? "No rows match the current filters" : "No market data"
       }
       emptyAction={
-        hasActiveFilters ? (
+        props.hasActiveFilters ? (
           <Button
             size="xs"
             variant="subtle"
-            onClick={onResetFilters}
+            onClick={props.onResetFilters}
             data-testid="market-empty-reset"
           >
             Reset filters
@@ -112,78 +98,68 @@ const MarketGrid = memo(function MarketGrid({
       }
     />
   );
-});
+}
 
 export function MarketScreenerPanel() {
-  const [universe, setUniverse] = useState<MarketUniverse>(DEFAULT_MARKET_UNIVERSE);
-  const [search, setSearch] = useState("");
-  const deferredSearch = useDeferredValue(search);
-  const [filters, setFilters] = useState<MarketFilterState>(() => defaultMarketFilters());
-  const deferredFilters = useDeferredValue(filters);
-  const [railCollapsed, setRailCollapsed] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
+  const [universe, setUniverse] = createSignal<MarketUniverse>(DEFAULT_MARKET_UNIVERSE);
+  const [search, setSearch] = createSignal("");
+  const [filters, setFilters] = createSignal<MarketFilterState>(defaultMarketFilters());
+  const [railCollapsed, setRailCollapsed] = createSignal(false);
+  const [drawerOpen, setDrawerOpen] = createSignal(false);
+  const [viewMode, setViewMode] = createSignal<MarketViewMode>("table");
+  const [selectedSymbol, setSelectedSymbol] = createSignal<string | null>(null);
   const dock = useSymbolDock();
   const isNarrow = useMediaQuery("(max-width: 1023px)");
 
   const { rows, total, updateMode, asOf, isLoading, error, refresh, stale: cachedStale, warming } =
-    useMarketSnapshot(universe);
+    useMarketSnapshotSolid(universe);
 
   // Filters belong to one universe's snapshot; carrying them across a universe
   // switch silently hides every row of the new universe.
-  useEffect(() => {
+  let prevUniverse = universe();
+  createEffect(() => {
+    const u = universe();
+    if (u !== prevUniverse) {
+      prevUniverse = u;
+      setFilters(defaultMarketFilters());
+      setSearch("");
+    }
+  });
+
+  // Filters/search drive the table directly — Solid's keyed rows only
+  // reconcile what changed, so no deferred copies are needed. Filter and sort
+  // are separate memos: the sort re-runs only when the filtered set (or the
+  // sort key) changes.
+  const filteredRows = createMemo(() =>
+    sortMarketRows(
+      filterOnlyMarketRows(rows(), { ...filters(), search: search() }),
+      filters().sort,
+    ),
+  );
+  const matchCount = createMemo(
+    () => filterOnlyMarketRows(rows(), { ...filters(), search: search() }).length,
+  );
+  const chips = createMemo(
+    () => buildMarketFilterChips({ ...filters(), search: search() }),
+  );
+  const activeCount = createMemo(
+    () => countActiveMarketFilters({ ...filters(), search: search() }),
+  );
+  const sectors = createMemo(() => marketSectors(rows()));
+  const tierCounts = createMemo(() => countByCapTier(rows()));
+  const columns = createMemo(() => buildMarketColumns());
+  const stale = createMemo(() => cachedStale() || isSnapshotStale(asOf()));
+  const hasActiveFilters = () => chips().length > 0;
+
+  const patchFilters = (patch: Partial<MarketFilterState>) =>
+    setFilters((f) => ({ ...f, ...patch }));
+
+  const resetFilters = () => {
     setFilters(defaultMarketFilters());
     setSearch("");
-  }, [universe]);
+  };
 
-  // `filters`/`search` drive chips + the active-filter count + the match count
-  // immediately; the table consumes deferred copies so a filter click never
-  // blocks on re-rendering the full row set. Filter and sort are separate
-  // memos: the sort re-runs only when the filtered set (or the sort key)
-  // changes — never on toolbar/rail re-renders.
-  const deferredUnsorted = useMemo(
-    () => filterOnlyMarketRows(rows, { ...deferredFilters, search: deferredSearch }),
-    [rows, deferredFilters, deferredSearch],
-  );
-  const filteredRows = useMemo(
-    () => sortMarketRows(deferredUnsorted, deferredFilters.sort),
-    [deferredUnsorted, deferredFilters.sort],
-  );
-  // Count from the immediate filters (filter-only, no sort) — keeps the
-  // toolbar honest with the chips on the same commit instead of lagging the
-  // deferred table by one transition.
-  const matchCount = useMemo(
-    () => filterOnlyMarketRows(rows, { ...filters, search }).length,
-    [rows, filters, search],
-  );
-  const chips = useMemo(
-    () => buildMarketFilterChips({ ...filters, search }),
-    [filters, search],
-  );
-  const activeCount = useMemo(
-    () => countActiveMarketFilters({ ...filters, search }),
-    [filters, search],
-  );
-  const sectors = useMemo(() => marketSectors(rows), [rows]);
-  const tierCounts = useMemo(() => countByCapTier(rows), [rows]);
-  const columns = useMemo(() => buildMarketColumns(), []);
-  const stale = useMemo(
-    () => cachedStale || isSnapshotStale(asOf),
-    [cachedStale, asOf],
-  );
-  const hasActiveFilters = chips.length > 0;
-
-  const patchFilters = useCallback(
-    (patch: Partial<MarketFilterState>) => setFilters((f) => ({ ...f, ...patch })),
-    [],
-  );
-
-  const resetFilters = useCallback(() => {
-    setFilters(defaultMarketFilters());
-    setSearch("");
-  }, []);
-
-  const removeChip = useCallback((key: string) => {
+  const removeChip = (key: string) => {
     if (key === "search") {
       setSearch("");
       return;
@@ -222,62 +198,54 @@ export function MarketScreenerPanel() {
           return f;
       }
     });
-  }, []);
+  };
 
-  const handleToggleRail = useCallback(() => {
-    if (isNarrow) {
+  const handleToggleRail = () => {
+    if (isNarrow()) {
       setDrawerOpen((open) => !open);
     } else {
       setRailCollapsed((collapsed) => !collapsed);
     }
-  }, [isNarrow]);
+  };
 
-  const showWarmingHint =
-    universe === "all_equity" && warming && isLoading && error === null && rows.length === 0;
+  const showWarmingHint = () =>
+    universe() === "all_equity" && warming() && isLoading() && error() === null && rows().length === 0;
 
-  const modeBadge = (() => {
-    const mode = (updateMode ?? "").toLowerCase();
+  const modeBadge = createMemo(() => {
+    const mode = (updateMode() ?? "").toLowerCase();
     if (mode === "streaming") {
       return { label: "Live", color: "success" as const, hint: "Live streaming feed" };
     }
-    if (!updateMode) {
+    if (!updateMode()) {
       return { label: "Unknown", color: "default" as const, hint: "Feed mode not reported" };
     }
-    return { label: "Delayed", color: "warning" as const, hint: `Feed mode: ${updateMode}` };
-  })();
+    return { label: "Delayed", color: "warning" as const, hint: `Feed mode: ${updateMode()}` };
+  });
 
-  const showInitialLoading = isLoading && rows.length === 0;
-  const showError = error !== null && rows.length === 0;
-  const showErrorBanner = error !== null && !isLoading && rows.length > 0;
+  const showInitialLoading = () => isLoading() && rows().length === 0;
+  const showError = () => error() !== null && rows().length === 0;
+  const showErrorBanner = () => error() !== null && !isLoading() && rows().length > 0;
 
-  // Stable callbacks: TanStackTable must not receive new function identities
-  // on every render (that would destabilize row event handlers).
-  const handleRowClick = useCallback(
-    (row: MarketRow) => {
-      setSelectedSymbol(row.symbol);
-      dock.open(row.symbol);
-    },
-    [dock],
-  );
+  const handleRowClick = (row: MarketRow) => {
+    setSelectedSymbol(row.symbol);
+    dock.open(row.symbol);
+  };
 
-  const getRowStyle = useCallback(
-    (row: MarketRow) =>
-      row.symbol === selectedSymbol
-        ? { backgroundColor: "rgba(88, 166, 255, 0.12)" }
-        : undefined,
-    [selectedSymbol],
-  );
+  const getRowStyle = (row: MarketRow) =>
+    row.symbol === selectedSymbol()
+      ? { backgroundColor: "rgba(88, 166, 255, 0.12)" }
+      : undefined;
 
-  const getRowTestId = useCallback((row: MarketRow) => `market-row-${row.symbol}`, []);
+  const getRowTestId = (row: MarketRow) => `market-row-${row.symbol}`;
 
-  const rail = (
+  const rail = () => (
     <MarketFilterRail
-      filters={filters}
+      filters={filters()}
       onChange={patchFilters}
-      sectors={sectors}
-      tierCounts={tierCounts}
-      onCollapse={isNarrow ? () => setDrawerOpen(false) : () => setRailCollapsed(true)}
-      collapseLabel={isNarrow ? "Close filters" : "Collapse filters"}
+      sectors={sectors()}
+      tierCounts={tierCounts()}
+      onCollapse={isNarrow() ? () => setDrawerOpen(false) : () => setRailCollapsed(true)}
+      collapseLabel={isNarrow() ? "Close filters" : "Collapse filters"}
     />
   );
 
@@ -292,7 +260,7 @@ export function MarketScreenerPanel() {
         className="flex items-center gap-1 px-2 h-[48px] min-h-[48px] max-h-[48px] border border-fin-border rounded-sm bg-fin-surface flex-shrink-0 overflow-hidden"
       >
         <Select
-          value={universe}
+          value={universe()}
           onChange={(v) => v && setUniverse(v as MarketUniverse)}
           data={UNIVERSE_OPTIONS}
           size="xs"
@@ -305,45 +273,45 @@ export function MarketScreenerPanel() {
           placeholder="Search symbol or name…"
           size="xs"
           w={210}
-          value={search}
+          value={search()}
           onChange={(value: string) => setSearch(value)}
           leftSection={<IconSearch size={12} />}
           aria-label="Search symbols"
           data-testid="market-search"
         />
-        <Tooltip label={modeBadge.hint}>
+        <Tooltip label={modeBadge().hint}>
           <Badge
             size="xs"
             variant="light"
-            color={modeBadge.color}
+            color={modeBadge().color}
             data-testid="market-mode-badge"
           >
-            {modeBadge.label}
+            {modeBadge().label}
           </Badge>
         </Tooltip>
-        {stale ? (
+        <Show when={stale()}>
           <Tooltip
             label={
-              cachedStale && isLoading
+              cachedStale() && isLoading()
                 ? "Showing the last snapshot — refreshing in the background"
-                : `Snapshot is older than 15 minutes (as of ${asOf ?? "unknown"})`
+                : `Snapshot is older than 15 minutes (as of ${asOf() ?? "unknown"})`
             }
           >
             <Badge size="xs" variant="outline" color="warning" data-testid="market-stale-badge">
               Stale
             </Badge>
           </Tooltip>
-        ) : null}
+        </Show>
         <Box className="flex-1 min-w-0" />
         <Text
           size="xs"
           c="dimmed"
           truncate
-          title={`${formatNumberIN(matchCount)} of ${formatNumberIN(rows.length)} loaded rows match (universe total ${formatNumberIN(total)})`}
+          title={`${formatNumberIN(matchCount())} of ${formatNumberIN(rows().length)} loaded rows match (universe total ${formatNumberIN(total())})`}
           data-testid="market-result-count"
           className="font-numeric whitespace-nowrap"
         >
-          {formatNumberIN(matchCount)} / {formatNumberIN(rows.length)}
+          {formatNumberIN(matchCount())} / {formatNumberIN(rows().length)}
         </Text>
         <Tooltip label="Refresh snapshot">
           <span>
@@ -351,34 +319,37 @@ export function MarketScreenerPanel() {
               variant="subtle"
               size="sm"
               onClick={refresh}
-              disabled={isLoading}
+              disabled={isLoading()}
               aria-label="Refresh snapshot"
               data-testid="market-refresh"
             >
-              {isLoading ? <Loader size={12} /> : <IconRefresh size={14} />}
+              <Show when={isLoading()} fallback={<IconRefresh size={14} />}>
+                <Loader size={12} />
+              </Show>
             </ActionIcon>
           </span>
         </Tooltip>
         <Indicator
-          label={String(activeCount)}
+          label={String(activeCount())}
           color="primary"
           size={14}
-          disabled={activeCount === 0}
+          disabled={activeCount() === 0}
           data-testid="market-filter-count"
         >
-          <Tooltip label={isNarrow ? "Open filters" : railCollapsed ? "Show filters" : "Hide filters"}>
+          <Tooltip label={isNarrow() ? "Open filters" : railCollapsed() ? "Show filters" : "Hide filters"}>
             <ActionIcon
               variant="subtle"
               size="sm"
               onClick={handleToggleRail}
-              aria-label={isNarrow ? "Open filters" : "Toggle filters"}
-              aria-pressed={isNarrow ? drawerOpen : !railCollapsed}
+              aria-label={isNarrow() ? "Open filters" : "Toggle filters"}
+              aria-pressed={isNarrow() ? drawerOpen() : !railCollapsed()}
               data-testid="market-rail-toggle"
             >
               <IconFilter size={14} />
             </ActionIcon>
           </Tooltip>
         </Indicator>
+        <MarketViewToggle value={viewMode()} onChange={setViewMode} />
         <Button
           size="xs"
           variant="subtle"
@@ -390,7 +361,7 @@ export function MarketScreenerPanel() {
         </Button>
       </Paper>
 
-      {showWarmingHint ? (
+      <Show when={showWarmingHint()}>
         <Box
           role="status"
           data-testid="market-warming-hint"
@@ -410,9 +381,9 @@ export function MarketScreenerPanel() {
             Switch to Nifty 500
           </Button>
         </Box>
-      ) : null}
+      </Show>
 
-      {showErrorBanner ? (
+      <Show when={showErrorBanner()}>
         <Box
           role="alert"
           data-testid="market-error-banner"
@@ -420,7 +391,7 @@ export function MarketScreenerPanel() {
         >
           <IconAlertCircle size={14} />
           <Text size="xs" c="error" className="flex-1 min-w-0" data-testid="market-error-banner-message">
-            Refresh failed: {error?.message}
+            Refresh failed: {error()?.message}
           </Text>
           <Button
             size="xs"
@@ -432,16 +403,15 @@ export function MarketScreenerPanel() {
             Retry
           </Button>
         </Box>
-      ) : null}
+      </Show>
 
-      {chips.length > 0 ? (
+      <Show when={chips().length > 0}>
         <Box
           data-testid="market-active-chips"
           className="flex gap-1 flex-wrap flex-shrink-0"
         >
-          {chips.map((chip) => (
+          <For each={chips()}>{(chip) => (
             <Box
-              key={chip.key}
               component="button"
               type="button"
               onClick={() => removeChip(chip.key)}
@@ -452,88 +422,107 @@ export function MarketScreenerPanel() {
               <Text size="xs" className="leading-none">
                 {chip.label}
               </Text>
-              <IconX size={10} />
+              <IconX size={12} />
             </Box>
-          ))}
+          )}</For>
         </Box>
-      ) : null}
+      </Show>
 
       <Box className="flex-1 min-h-0 flex gap-2 overflow-hidden">
-        {!isNarrow && !railCollapsed ? (
+        <Show when={!isNarrow() && !railCollapsed()}>
           <Box
             data-testid="market-rail-panel"
             className="w-[240px] flex-shrink-0 min-h-0 overflow-y-auto border border-fin-border rounded-sm bg-fin-surface"
           >
-            {rail}
+            {rail()}
           </Box>
-        ) : null}
+        </Show>
 
         <Box
           className="flex-1 min-w-0 min-h-0 flex flex-col"
         >
-          {showInitialLoading ? (
+          <Show
+            when={showInitialLoading()}
+            fallback={
+              <Show
+                when={!showError()}
+                fallback={
+                  <Paper
+                    elevation={0}
+                    role="alert"
+                    data-testid="market-error"
+                    className="flex-1 border border-fin-border rounded-sm bg-fin-surface flex flex-col items-center justify-center gap-2 p-6 text-center"
+                  >
+                    <IconAlertCircle size={24} />
+                    <Text size="sm" fw={600}>
+                      Couldn’t load the market snapshot
+                    </Text>
+                    <Text size="xs" c="dimmed" data-testid="market-error-message">
+                      {error()?.message}
+                    </Text>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      leftSection={<IconRefresh size={12} />}
+                      onClick={refresh}
+                      data-testid="market-retry"
+                    >
+                      Retry
+                    </Button>
+                  </Paper>
+                }
+              >
+                <Show
+                  when={viewMode() === "map"}
+                  fallback={
+                    <MarketGrid
+                      data={filteredRows()}
+                      columns={columns()}
+                      hasActiveFilters={hasActiveFilters()}
+                      onResetFilters={resetFilters}
+                      onRowClick={handleRowClick}
+                      getRowStyle={getRowStyle}
+                      getRowTestId={getRowTestId}
+                    />
+                  }
+                >
+                  <MarketMapView
+                    rows={filteredRows()}
+                    onSymbolClick={(symbol) => {
+                      setSelectedSymbol(symbol);
+                      dock.open(symbol);
+                    }}
+                  />
+                </Show>
+              </Show>
+            }
+          >
             <Paper
               elevation={0}
               data-testid="market-skeleton"
               className="flex-1 border border-fin-border rounded-sm bg-fin-surface p-2 flex flex-col gap-2"
             >
-              {Array.from({ length: 12 }, (_, i) => (
-                <Skeleton key={i} h={24} />
-              ))}
+              <For each={Array.from({ length: 12 }, (_, i) => i)}>{() => <Skeleton h={24} visible />}</For>
             </Paper>
-          ) : showError ? (
-            <Paper
-              elevation={0}
-              role="alert"
-              data-testid="market-error"
-              className="flex-1 border border-fin-border rounded-sm bg-fin-surface flex flex-col items-center justify-center gap-2 p-6 text-center"
-            >
-              <IconAlertCircle size={22} />
-              <Text size="sm" fw={600}>
-                Couldn’t load the market snapshot
-              </Text>
-              <Text size="xs" c="dimmed" data-testid="market-error-message">
-                {error?.message}
-              </Text>
-              <Button
-                size="sm"
-                variant="outline"
-                leftSection={<IconRefresh size={12} />}
-                onClick={refresh}
-                data-testid="market-retry"
-              >
-                Retry
-              </Button>
-            </Paper>
-          ) : (
-            <MarketGrid
-              data={filteredRows}
-              columns={columns}
-              hasActiveFilters={hasActiveFilters}
-              onResetFilters={resetFilters}
-              onRowClick={handleRowClick}
-              getRowStyle={getRowStyle}
-              getRowTestId={getRowTestId}
-            />
-          )}
+          </Show>
         </Box>
       </Box>
 
-      {(isNarrow && drawerOpen) && (
+      <Show when={isNarrow() && drawerOpen()}>
         <Box
           data-testid="market-filter-drawer"
           className="fixed inset-0 z-50 flex"
-          style={{ zIndex: 1050 }}
+          style={{ "z-index": 1050 }}
           onClick={() => setDrawerOpen(false)}
         >
           <Box
             className="absolute inset-y-0 left-0 w-72 max-w-[280px] bg-fin-surface border-r border-fin-border flex flex-col transform transition-transform duration-300"
             onClick={(e) => e.stopPropagation()}
           >
-            {rail}
+            {rail()}
           </Box>
         </Box>
-      )}
+      </Show>
     </Box>
   );
 }

@@ -1,9 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { renderWithProviders } from "../../test/test-utils";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { AdminPatternTimeframesPanel, formatDuration } from "./AdminPatternTimeframesPanel";
 import {
   addAdminPatternTimeframe,
@@ -27,6 +25,15 @@ vi.mock("../../api/adminPatternTimeframes", () => ({
   addAdminPatternTimeframe: vi.fn(),
   deleteAdminPatternTimeframe: vi.fn(),
 }));
+
+// The @/ui Box/Flex/... stubs from src/pages/solidTestStubs.tsx render as
+// intrinsic elements; page tests exercise page wiring, not the theme runtime.
+vi.mock("@/ui", async (importOriginal) => {
+  const { uiLayoutStub } = await import("@/pages/solidTestStubs");
+  return uiLayoutStub(await importOriginal<Record<string, unknown>>());
+});
+
+const renderPanel = () => render(() => <AdminPatternTimeframesPanel />);
 
 const fetchMock = vi.mocked(fetchAdminPatternTimeframes);
 const patchMock = vi.mocked(setAdminPatternTimeframeEnabled);
@@ -77,10 +84,11 @@ function amountInput(): HTMLElement {
 async function chooseUnit(label: string): Promise<void> {
   const select = within(screen.getByTestId("admin-tf-unit")).getByRole("combobox") as HTMLSelectElement;
   const option = Array.from(select.options).find((o) => o.textContent === label);
-  fireEvent.change(select, { target: { value: option?.value ?? label } });
+  fireEvent.input(select, { target: { value: option?.value ?? label } });
 }
 
 beforeEach(() => {
+  cleanup();
   vi.clearAllMocks();
   fetchMock.mockResolvedValue(FIXTURES);
   patchMock.mockImplementation(async (_fetch, id, enabled) => ({
@@ -107,7 +115,7 @@ describe("formatDuration", () => {
 
 describe("AdminPatternTimeframesPanel", () => {
   it("renders one row per timeframe with durations and lowercase labels", async () => {
-    renderWithProviders(<AdminPatternTimeframesPanel />);
+    renderPanel();
 
     expect(await screen.findByTestId("admin-pattern-timeframes")).toBeInTheDocument();
     for (const tf of FIXTURES) {
@@ -121,14 +129,14 @@ describe("AdminPatternTimeframesPanel", () => {
   });
 
   it("shows the enabled/total summary and the default-off note", async () => {
-    renderWithProviders(<AdminPatternTimeframesPanel />);
+    renderPanel();
 
     expect(await screen.findByTestId("admin-tf-summary")).toHaveTextContent("3 enabled / 5 total");
     expect(screen.getByTestId("admin-tf-note")).toHaveTextContent("3m and 2h are off by default");
   });
 
   it("reflects enabled and disabled switches", async () => {
-    renderWithProviders(<AdminPatternTimeframesPanel />);
+    renderPanel();
 
     expect(await screen.findByTestId("admin-tf-toggle-1m")).toBeChecked();
     expect(screen.getByTestId("admin-tf-toggle-3m")).not.toBeChecked();
@@ -137,12 +145,11 @@ describe("AdminPatternTimeframesPanel", () => {
   });
 
   it("enables 3m through the API and turns the switch on", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<AdminPatternTimeframesPanel />);
+    renderPanel();
 
     const toggle = await screen.findByTestId("admin-tf-toggle-3m");
     expect(toggle).not.toBeChecked();
-    await user.click(toggle);
+    fireEvent.click(toggle);
 
     await waitFor(() =>
       expect(patchMock).toHaveBeenCalledWith(mockFetchWithAuth, "3m", true),
@@ -153,11 +160,10 @@ describe("AdminPatternTimeframesPanel", () => {
 
   it("shows an error alert and reverts the switch when the PATCH fails", async () => {
     patchMock.mockRejectedValueOnce(new Error("timeframe locked"));
-    const user = userEvent.setup();
-    renderWithProviders(<AdminPatternTimeframesPanel />);
+    renderPanel();
 
     const toggle = await screen.findByTestId("admin-tf-toggle-3m");
-    await user.click(toggle);
+    fireEvent.click(toggle);
 
     expect(await screen.findByTestId("admin-tf-error")).toHaveTextContent("timeframe locked");
     await waitFor(() => expect(screen.getByTestId("admin-tf-toggle-3m")).not.toBeChecked());
@@ -165,11 +171,10 @@ describe("AdminPatternTimeframesPanel", () => {
   });
 
   it("reorders down through the API with the reordered ids", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<AdminPatternTimeframesPanel />);
+    renderPanel();
 
     await screen.findByTestId("admin-pattern-timeframes");
-    await user.click(screen.getByTestId("admin-tf-down-1m"));
+    fireEvent.click(screen.getByTestId("admin-tf-down-1m"));
 
     await waitFor(() =>
       expect(reorderMock).toHaveBeenCalledWith(mockFetchWithAuth, ["3m", "1m", "2h", "1D", "45m"]),
@@ -178,21 +183,21 @@ describe("AdminPatternTimeframesPanel", () => {
 
   it("shows the load error alert when the fetch fails", async () => {
     fetchMock.mockRejectedValueOnce(new Error("admin unavailable"));
-    renderWithProviders(<AdminPatternTimeframesPanel />);
+    renderPanel();
 
     expect(await screen.findByTestId("admin-tf-load-error")).toHaveTextContent("admin unavailable");
   });
 
   it("shows the empty state when no timeframes are returned", async () => {
     fetchMock.mockResolvedValueOnce([]);
-    renderWithProviders(<AdminPatternTimeframesPanel />);
+    renderPanel();
 
     expect(await screen.findByText("No timeframes configured")).toBeInTheDocument();
     expect(screen.getByTestId("admin-tf-summary")).toHaveTextContent("0 enabled / 0 total");
   });
 
   it("renders the compact add row with the format hint", async () => {
-    renderWithProviders(<AdminPatternTimeframesPanel />);
+    renderPanel();
 
     expect(await screen.findByTestId("admin-tf-add-row")).toBeInTheDocument();
     expect(screen.getByTestId("admin-tf-amount")).toBeInTheDocument();
@@ -203,12 +208,11 @@ describe("AdminPatternTimeframesPanel", () => {
 
   it("adds 45 minutes through the API and appends the row", async () => {
     fetchMock.mockResolvedValue(BUILTIN_FIXTURES);
-    const user = userEvent.setup();
-    renderWithProviders(<AdminPatternTimeframesPanel />);
+    renderPanel();
 
     await screen.findByTestId("admin-pattern-timeframes");
-    await user.type(amountInput(), "45");
-    await user.click(screen.getByTestId("admin-tf-add"));
+    fireEvent.input(amountInput(), { target: { value: "45" } });
+    fireEvent.click(screen.getByTestId("admin-tf-add"));
 
     await waitFor(() =>
       expect(addMock).toHaveBeenCalledWith(
@@ -217,18 +221,17 @@ describe("AdminPatternTimeframesPanel", () => {
       ),
     );
     expect(await screen.findByTestId("admin-tf-row-45m")).toBeInTheDocument();
-    expect(amountInput()).toHaveValue(null);
+    expect((amountInput() as HTMLInputElement).value).toBe("");
   });
 
   it("passes an explicit native source when one is picked", async () => {
     fetchMock.mockResolvedValue(BUILTIN_FIXTURES);
-    const user = userEvent.setup();
-    renderWithProviders(<AdminPatternTimeframesPanel />);
+    renderPanel();
 
     await screen.findByTestId("admin-pattern-timeframes");
-    await user.type(amountInput(), "45");
-    fireEvent.change(within(screen.getByTestId("admin-tf-source")).getByRole("combobox"), { target: { value: "1m" } });
-    await user.click(screen.getByTestId("admin-tf-add"));
+    fireEvent.input(amountInput(), { target: { value: "45" } });
+    fireEvent.input(within(screen.getByTestId("admin-tf-source")).getByRole("combobox"), { target: { value: "1m" } });
+    fireEvent.click(screen.getByTestId("admin-tf-add"));
 
     await waitFor(() =>
       expect(addMock).toHaveBeenCalledWith(
@@ -244,13 +247,12 @@ describe("AdminPatternTimeframesPanel", () => {
     ["weeks", 3, "3W", 30240],
     ["months", 3, "3M", 129600],
   ])("computes minutes for %s", async (label, amount, id, minutes) => {
-    const user = userEvent.setup();
-    renderWithProviders(<AdminPatternTimeframesPanel />);
+    renderPanel();
 
     await screen.findByTestId("admin-pattern-timeframes");
-    await user.type(amountInput(), String(amount));
+    fireEvent.input(amountInput(), { target: { value: String(amount) } });
     await chooseUnit(label);
-    await user.click(screen.getByTestId("admin-tf-add"));
+    fireEvent.click(screen.getByTestId("admin-tf-add"));
 
     await waitFor(() =>
       expect(addMock).toHaveBeenCalledWith(
@@ -261,31 +263,30 @@ describe("AdminPatternTimeframesPanel", () => {
   });
 
   it("disables Add for an existing id and for an invalid amount", async () => {
-    renderWithProviders(<AdminPatternTimeframesPanel />);
+    renderPanel();
 
     await screen.findByTestId("admin-pattern-timeframes");
-    const addButton = screen.getByTestId("admin-tf-add");
-    expect(addButton).toBeDisabled();
+    const addButton = () => screen.getByTestId("admin-tf-add");
+    expect(addButton()).toBeDisabled();
 
-    fireEvent.change(amountInput(), { target: { value: "0" } });
-    expect(addButton).toBeDisabled();
+    fireEvent.input(amountInput(), { target: { value: "0" } });
+    expect(addButton()).toBeDisabled();
 
-    fireEvent.change(amountInput(), { target: { value: "45" } });
-    expect(addButton).toBeDisabled();
+    fireEvent.input(amountInput(), { target: { value: "45" } });
+    expect(addButton()).toBeDisabled();
 
-    fireEvent.change(amountInput(), { target: { value: "46" } });
-    expect(addButton).toBeEnabled();
+    fireEvent.input(amountInput(), { target: { value: "46" } });
+    expect(addButton()).toBeEnabled();
     expect(addMock).not.toHaveBeenCalled();
   });
 
   it("shows an inline error when the add fails", async () => {
     addMock.mockRejectedValueOnce(new Error("invalid timeframe"));
-    const user = userEvent.setup();
-    renderWithProviders(<AdminPatternTimeframesPanel />);
+    renderPanel();
 
     await screen.findByTestId("admin-pattern-timeframes");
-    await user.type(amountInput(), "7");
-    await user.click(screen.getByTestId("admin-tf-add"));
+    fireEvent.input(amountInput(), { target: { value: "7" } });
+    fireEvent.click(screen.getByTestId("admin-tf-add"));
 
     expect(await screen.findByTestId("admin-tf-add-error")).toHaveTextContent("invalid timeframe");
     expect(screen.getByTestId("admin-tf-error")).toHaveTextContent("invalid timeframe");
@@ -293,16 +294,15 @@ describe("AdminPatternTimeframesPanel", () => {
   });
 
   it("renders delete only for custom rows and removes the row on success", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<AdminPatternTimeframesPanel />);
+    renderPanel();
 
     await screen.findByTestId("admin-pattern-timeframes");
     expect(screen.queryByTestId("admin-tf-delete-1m")).toBeNull();
     expect(screen.queryByTestId("admin-tf-delete-3m")).toBeNull();
     expect(screen.queryByTestId("admin-tf-delete-1D")).toBeNull();
-    expect(screen.getByTestId("admin-tf-delete-45m")).toHaveAttribute("aria-label", "Delete 45m");
+    expect(screen.getByRole("button", { name: "Delete 45m" })).toBeInTheDocument();
 
-    await user.click(screen.getByTestId("admin-tf-delete-45m"));
+    fireEvent.click(screen.getByTestId("admin-tf-delete-45m"));
 
     await waitFor(() => expect(deleteMock).toHaveBeenCalledWith(mockFetchWithAuth, "45m"));
     await waitFor(() => expect(screen.queryByTestId("admin-tf-row-45m")).toBeNull());
@@ -310,11 +310,10 @@ describe("AdminPatternTimeframesPanel", () => {
 
   it("restores the row and shows the error when delete fails", async () => {
     deleteMock.mockRejectedValueOnce(new Error("cannot delete"));
-    const user = userEvent.setup();
-    renderWithProviders(<AdminPatternTimeframesPanel />);
+    renderPanel();
 
     await screen.findByTestId("admin-pattern-timeframes");
-    await user.click(screen.getByTestId("admin-tf-delete-45m"));
+    fireEvent.click(screen.getByTestId("admin-tf-delete-45m"));
 
     expect(await screen.findByTestId("admin-tf-error")).toHaveTextContent("cannot delete");
     expect(screen.getByTestId("admin-tf-row-45m")).toBeInTheDocument();

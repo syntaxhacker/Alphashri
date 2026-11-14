@@ -1,10 +1,9 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { screen, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { createSignal } from "solid-js";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { OptionsNav } from "./OptionsNav";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
 
 afterEach(() => {
   cleanup();
@@ -13,7 +12,7 @@ afterEach(() => {
 
 describe("OptionsNav", () => {
   it("renders all tabs", () => {
-    renderWithProviders(<OptionsNav activeTab="chain" onTabChange={vi.fn()} />);
+    render(() => <OptionsNav activeTab="chain" onTabChange={vi.fn()} />);
     expect(screen.getByText("Option Chain")).toBeInTheDocument();
     expect(screen.getByText("Positions")).toBeInTheDocument();
     expect(screen.getByText("Premium")).toBeInTheDocument();
@@ -23,24 +22,37 @@ describe("OptionsNav", () => {
 
   it("has clickable tabs", async () => {
     const onTabChange = vi.fn();
-    renderWithProviders(<OptionsNav activeTab="chain" onTabChange={onTabChange} />);
-    await userEvent.click(screen.getByText("Positions"));
+    render(() => <OptionsNav activeTab="chain" onTabChange={onTabChange} />);
+    fireEvent.click(screen.getByText("Positions"));
     expect(onTabChange).toHaveBeenCalledWith("positions");
 
-    await userEvent.click(screen.getByText("Premium"));
+    fireEvent.click(screen.getByText("Premium"));
     expect(onTabChange).toHaveBeenCalledWith("premium");
   });
 
   it("clicking Simulator tab emits simulator value", async () => {
     const onTabChange = vi.fn();
-    renderWithProviders(<OptionsNav activeTab="premium" onTabChange={onTabChange} />);
-    await userEvent.click(screen.getByText("Simulator"));
+    render(() => <OptionsNav activeTab="premium" onTabChange={onTabChange} />);
+    fireEvent.click(screen.getByText("Simulator"));
     expect(onTabChange).toHaveBeenCalledWith("simulator");
   });
 
   it("marks active tab with correct value", () => {
-    renderWithProviders(<OptionsNav activeTab="positions" onTabChange={vi.fn()} />);
+    render(() => <OptionsNav activeTab="positions" onTabChange={vi.fn()} />);
     const tab = screen.getByTestId("nav-tab-positions");
     expect(tab).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("reacts to a signal-backed activeTab after mutation", () => {
+    const [activeTab, setActiveTab] = createSignal("chain");
+    render(() => <OptionsNav activeTab={activeTab()} onTabChange={vi.fn()} />);
+
+    expect(screen.getByTestId("nav-tab-chain")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("nav-tab-premium")).toHaveAttribute("aria-selected", "false");
+
+    setActiveTab("premium");
+
+    expect(screen.getByTestId("nav-tab-premium")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("nav-tab-chain")).toHaveAttribute("aria-selected", "false");
   });
 });

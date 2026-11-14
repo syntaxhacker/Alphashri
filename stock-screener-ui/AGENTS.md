@@ -24,7 +24,7 @@
 **Violation handling:** If destructive command is about to run, abort, report `blocked: <command>`, wait for explicit approval. On accidental `reset --hard`, run `git reflog --oneline | head` + `git fsck --lost-found` and report, do not auto-recover without user.
 
 ## Stack
-React 19 + Vite 8 + Tailwind CSS 4 + TypeScript. Backend: FastAPI (Python).
+SolidJS 1.9 + Vite 8 + Tailwind CSS 4 + TypeScript. Backend: FastAPI (Python).
 
 ## Commands
 - `./start.sh` — starts both API (uvicorn) and UI (vite) together, auto-activates `.venv`. Background mode (reload on, uses `watchfiles`). Modes: `dev` (foreground, reload), `prod` (foreground, no reload), `restart [prod]`, `stop`, `status`, `logs`, `bots start|stop|status`. During market hours the 52W range batch now runs a prompt initial job quickly after startup (see the 52W section). Logs to `logs/alphashri.log`.
@@ -64,11 +64,15 @@ React 19 + Vite 8 + Tailwind CSS 4 + TypeScript. Backend: FastAPI (Python).
 - **Providers**: Chat uses OpenRouter free model (`openai/gpt-oss-20b:free`) if DeepSeek key not available. Analysis uses DeepSeek via LiteLLM (`deepseek/deepseek-chat`).
 - **No auth required** on chat, analyze, and stream endpoints (get_current_user had compatibility issues with this router). Conversation history endpoints use hardcoded user_id=3.
 - **Chat history**: Conversations and messages stored in `chat_conversations`/`chat_messages` tables. CRUD endpoints at `/api/trading-agents/conversations`.
-- **Chat Popup** (`src/components/common/ChatPopup.tsx`): Floating action button, expandable to full screen, history sidebar, markdown rendering via `react-markdown`.
+- **Chat Popup** (`src/components/common/ChatPopup.tsx`): Floating action button, expandable to full screen, history sidebar, markdown rendering via `marked`.
 
 ## Tailwind 4 Financial Theme Rules
-- Single source `src/ui/palette.ts` `FIN_*` (`FIN_PRIMARY #2563EB`, `FIN_POSITIVE #16A34A`, etc.) + layout tokens `FIN_HEADER_H 48`, `FIN_RADIUS 8`, `FIN_OUTER_PAD 16` — never hardcode hex outside palette
-- Theme tokens live in `src/tailwind.css` + `src/ui/palette.ts`; use `bg-fin-*`/`text-fin-*`/`border-fin-*` utilities and `var(--color-fin-*)`, never hardcode hex outside the palette
+Single source is `src/ui/palette.ts`; `src/tailwind.css` mirrors it (guarded by `theme-single-source.test.ts`).
+
+- **Never hardcode a hex outside `palette.ts`.** The guard scans every `.ts`/`.tsx` and fails on any `#RRGGBB`.
+- **Derive tints, never restate them:** `alpha(palette.POSITIVE, 0.12)`, not `"rgba(0,200,83,0.12)"`. Three separate green/red pairs had accumulated and disagreed about what "positive" means.
+- **Surface ramp** (each adjacent step ≥1.15:1, asserted): page `BG #000000` → panel `SURFACE #13161C` → raised `SURFACE_ALT #1F242D`, hairline `BORDER #2C313B`. Page == panel means the panel does not exist — that was the real cause of "everything looks the same".
+- **Radius** `4` (small) / `6` (controls) / `10` (large); `--radius-fin: 6px` is the control alias. **Control heights** `xs 24 · sm 30 · md 34 · lg 38`. **Type floor is 9px.** All four are guarded by `design-scale.test.ts` — see `SUBAGENT_RULES.md § 7.1`.
 - Use the local `@/ui` components (`Box/Flex/Stack/Group/Center/Grid/SimpleGrid/Paper/Card/ScrollArea`) + `CompactPanel/CompactStat/CompactStatGrid` (`components/common/compact.tsx`). They render semantic HTML + Tailwind.
 - 8pt grid: outer `16`, inner `8`, table `8px 12px 12px`, header `48`, gaps `xs4 sm8 md16` — no raw `6px` slop
 - `TanStackTable` `src/components/common/TanStackTable.tsx` `ROW_ESTIMATED 28` `cell 8/12/12` `sticky shadow` — dense but scannable (12px)
@@ -81,15 +85,13 @@ Full rules: [UI_RULES.md](./UI_RULES.md). Checklist to tick for every revamp: [U
 2. **Inputs default to `fullWidth`.** In a row, give each an explicit `w={n}` or wrap it in a flex cell (`<Box className="flex-1 min-w-0">` + `style={{ width: "100%" }}`). Accidental full-width selects are a bug.
 3. **Control rows use `<ToolbarRow>`** (from `@/ui`) — it forces `align-items:center` + explicit gap. `Group` defaults to `align-items: stretch`; if used for controls, pass `align="center"`.
 4. **No nested bordered cards**; one border per section, inner separation via dividers. Panels/charts fill their flex container (`autoSize`, no fixed heights in flex panels).
-5. **Verify visually, not just build.** After any UI change: `bun run build && bun run lint`, then a chrome-devtools screenshot at a real viewport in empty/loading/full states, then the guards:
-   - `npx vitest run src/test/ui-guard.test.ts`
-   - `npx vitest run src/ui/inputs/inputs.w-h.test.tsx`
-   - the feature's unit tests + its E2E spec.
+5. **Verify visually, not just build.** After any UI change: `bun run build && bun run lint`, then a chrome-devtools screenshot at a real viewport in empty/loading/full states, then run the guard suite listed once in `SUBAGENT_RULES.md §8` (do not keep a second copy here) plus the feature's unit tests and its E2E spec.
    Build/lint do NOT catch alignment bugs — the screenshot is part of the definition of done.
+6. **A page is not "done" until it is measured, not eyeballed.** The Index Report chrome was 800px above the chart (walls card 475px) with the chart permanently below the fold, and it survived review because nothing measured it. If a fix claims "now it fits", take the `getBoundingClientRect()` numbers before/after and put them in the commit message.
 
 ## State Management
 - All stores in `src/state/` — custom `createSubscriber` pattern + `useStoreSubscription` hook
-- Redux slices in `src/state/store/` (appSlice, notificationsSlice) — legacy, minimal usage
+- Solid `createStore` slices in `src/state/store/` (appSlice, notificationsSlice) — legacy, minimal usage
 - Never call `useState` for data that lives in a store
 
 ## Component Patterns
@@ -98,21 +100,27 @@ Full rules: [UI_RULES.md](./UI_RULES.md). Checklist to tick for every revamp: [U
 - Shared utilities: `formatNumber`, `formatSignedPnl`, `formatPercentage`, `formatCurrencyCompact`, `formatTimeOnly`, `formatElapsed`, `getPnLTextColor`, `getNextSortDirection`, `sortByField` in `src/utils/ui-helpers.ts`
 - Config/constants/theme consolidated in `src/config/` (constants.ts, theme.ts, backtestDefaults.ts)
 - ECharts: never wrap chart container in `ScrollArea` — ECharts needs explicit dimensions via `flex: 1` on a flex parent
-- **React keys**: never use `symbol` alone as key — always composite (`${strategy_id}-${symbol}`) or unique ID. Positions can have same symbol across strategies.
+- **List keys**: never use `symbol` alone as key — always composite (`${strategy_id}-${symbol}`) or unique ID. Positions can have same symbol across strategies.
 
 ## Folder Structure
 ```
 src/
-  api/          # API layer (fetchWithAuth, endpoint functions)
+  api/          # one module per feature, typed calls over fetchWithAuth (src/state/auth.ts)
   assets/       # static assets (svg, images)
-  components/   # UI components organized by feature
-  config/       # constants.ts, theme.ts, backtestDefaults.ts
-  hooks/        # generic shared hooks (useAsyncData, useECharts, useStoreSubscription, useTableSort)
-  pages/        # page-level routing targets (chart, sector, settings, options, screener, strategies)
-  state/        # all state management (subscriber stores + redux in state/store/)
+  components/   # feature UI; common/ holds shared widgets (TanStackTable, tableCells, compact)
+  config/       # constants, theme, backtestDefaults, colors, patternCatalog, tvSymbols
+  hooks/        # useFetch, usePolling, useStoreSubscription, useScreenerState, useOptionsState, …
+  pages/        # route entry points (21 of 28 routes; 7 live under components/ — see docs/MAP.md)
+  patterns/     # GoF study modules + icons.tsx + solidUiMock.tsx (test-only). NOT the chart-pattern feature
+  state/        # createSubscriber stores; state/store/ holds Solid createStore slices
+  test/         # shared guard specs (style-keys, no-react, design-scale, …)
+  test-utils/   # shared render/test helpers
   types/        # TypeScript type definitions
-  utils/        # shared utilities (ui-helpers, chartUtils, notifications, runtime_utils)
+  ui/           # local design system (Box/Flex/Paper/inputs) + palette.ts = single colour source
+  utils/        # pure helpers (chartUtils, color, marketClock, reportParsers, …)
 ```
+
+**Agent navigation map: `docs/MAP.md`** — "to do X, go to Y", verified paths, and the three things named "patterns".
 
 ## Replay Trading
 - Components: `src/components/replay/` — page-level feature, uses SSE from `api/replay_api.py`
@@ -436,7 +444,7 @@ See [PRODUCTION.md](./PRODUCTION.md) for infrastructure, deployment, Railway CLI
 ### CI E2E architecture (learnings — 2026-09)
 - **20 shards max.** GitHub Free allows **20 concurrent jobs**; the repo is public so `ubuntu-latest` = 4 vCPU/16 GB. More shards than 20 just queue. `--shard=N/20`, `workers: 4`.
 - **No `waitForTimeout`.** Use web-first assertions (`expect(...).toBeVisible()`), `expect.poll(...)`, `page.waitForResponse/Function`. Fixed sleeps are the #1 source of slowness and flakes.
-- **No pixel screenshot tests.** `toHaveScreenshot` was removed (env-sensitive, redundant with DOM assertions). Visual review happens in Storybook; wire Chromatic if automated visual diffing is needed.
+- **No pixel screenshot tests.** `toHaveScreenshot` was removed (env-sensitive, redundant with DOM assertions). There is no Storybook — visual review is `bun run dev` by eye; wire a visual-diff tool only if automated diffing is actually needed.
 - **No `globalSetup`.** `playwright.setup.ts` was deleted — it launched a browser to write a `storageState` file nothing read. Auth is seeded per-page via `loginAsTestUser` (`addInitScript`).
 - **Backend in CI**: set `CI_MODE=1` so `api_server_fastapi` skips news/Redis/background tasks and creates the SQLite schema from models (`SKIP_ALEMBIC=1` leaves it empty otherwise).
 - **Readiness probe**: `/health` also supports `HEAD`; wait with `wait-on http-get://127.0.0.1:8765/api/health` (plain `http://` uses HEAD).
@@ -477,7 +485,7 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - See [MUTATION_TESTING.md](./MUTATION_TESTING.md) for advanced testing guide
 
 ## Agent Fleet / Subagent Routing
-- **Default subagent model: `opencode/nemotron-3.5-super-vl-free` ("Nemotron 3.5 Super VL Free", $0).** Use it for every subagent unless the user names a different model. Do not fall back to Muse.
+- **Default subagent model: `opencode/nemotron-3.5-super-vl-free` ("Nemotron 3.5 Super VL Free", $0).** Use it for every subagent unless the user names a different model. Model routing is owned by `SUBAGENT_RULES.md §9` — that section is authoritative; do not keep a second copy of the pool here.
 - Free-tier quota is finite — if a free model returns `Free usage limit reached`, report it and retry later or escalate that one agent, stating why.
 - Escalate a single agent to a stronger model **only** for correctness-critical work (adversarial verification, final holdout) and state why.
 - Long-running loop protocol (waves, ledger, gates, **fill-honesty audit**) lives in the **`non-stop`** skill.
@@ -489,7 +497,7 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - **Protected paths.** Never edit `db/alphashri.db`, `.github/workflows/test.yml`, or unrelated files already dirty in the worktree.
 - **Return contract.** Report changes, files touched, the exact test command with pass/fail counts, and anything not done. A report without test counts is rejected.
 - **Review gate.** The main agent reviews the diff, fills integration gaps, then runs the full affected suite + `oxlint` + `bun run build` + the UI guards before committing. Agents never commit.
-- **Free model pool:** `opencode/deepseek-v4.1-flash-free`, `opencode/nemotron-3.5-super-vl-free`, `openrouter/nvidia/nemotron-3.5-super-vl:free`, `opencode/crouton-alpha-free`. One model per independent scope.
+- **Free model pool:** owned by `SUBAGENT_RULES.md §9` — use the pool listed there, one model per independent scope.
 
 ### Comment policy
 - Comments explain **why**, never **what**. No narration (`// set the value`), no docstrings that restate the signature, no changelog comments.
@@ -501,7 +509,7 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 
 - **Branch first:** on `develop`, `git switch -c <type>/<name>` before committing. Never commit then push `develop`.
 - **Size:** One logical change per commit, max ~80-120 lines / one `src/ui/*` group / one component family.
-- **Frequency:** After each green checkpoint (`bun run build` + `bun run lint` pass, or `build-storybook` pass for UI). Do not accumulate >30 min or >100 lines without a commit.
+- **Frequency:** After each green checkpoint (`bun run build` + `bun run lint` pass, or `bun run test` + `bun run typecheck` pass for UI). Do not accumulate >30 min or >100 lines without a commit.
 - **Format:** Conventional `type: scope` — `feat`, `fix`, `refactor`, `chore`. No `Co-authored-by` line unless user asks.
 - **Push policy:** `git push -u origin <feature-branch>` is allowed. Pushing `develop`/`main` requires explicit user approval and is normally a PR merge (`gh pr create --base develop`).
 - **Checkpoint type:** Use `wip:` prefix if not yet green: `wip: tailwind scaffold — Box/Stack`.
@@ -557,6 +565,67 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
   (yfinance said 29 Oct for Mankind Q2 FY27; the filing says 26 Oct).
 - Tests: `.venv/bin/python -m pytest .prime/agent/skills/earnings-history/tests -q`.
 
+## Position Probability (research skill — think before the position)
+
+- Reusable probabilistic pre-position brief for any NSE ticker:
+  **`.prime/agent/skills/position-probability/`** (Prime Agent skill `position-probability`).
+- One-shot generator (run from repo root, project venv):
+  ```bash
+  .venv/bin/python .prime/agent/skills/position-probability/scripts/position_probability.py \
+    --symbol IRFC --target 2026-11-23
+  ```
+  Output → `reports/position_probability/<SYMBOL>/position_probability_<target>.md` (+ Upstox daily CSVs).
+- Computes: momentum/trend state (RSI, 5/10/20/60/120d, distance to 20/50/100/200-DMA, 200-DMA
+  slope, vol ratio, realised vol, 52w position), correlation/beta vs indices (60d + 252d), zigzag
+  cycle legs, forward returns after ≥30% drawdown troughs, **conditional forward-return tables by
+  state**, **RSI-peak momentum decay**, matched-state analog, **market-implied range from live
+  Upstox option chains** (ATM straddle → 1σ, max pain, PCR, put−call skew), and the **probability
+  distribution of the close on the target date** (vol-only + market-implied, momentum/trend-adjusted,
+  blended) as price buckets, key levels and percentiles.
+- Data: **Upstox first** (`fetch_historical_data_v3` daily + `fetch_intraday_data_v3` for the current
+  session, because the daily endpoint omits today); option chains from the local
+  `/api/options/chain/{underlying}` (Upstox-native `NSE_FO` keys, QA token minted by the script);
+  valuation from yfinance. Horizon = real trading sessions (`trading.utils.is_trading_holiday`).
+- **Gotchas that corrupt results** (read `references/gotchas.md`): the API's `summary.expected_move`
+  is a **0.61×straddle convention, not 1σ** (compute 1σ as straddle ÷ 0.7979 ÷ spot); always report
+  **episodes** (non-overlapping) alongside pooled overlapping days; split momentum analogs by
+  above/below the 200-DMA or the sample mixes melt-up and bear-phase episodes; state the history
+  window (2021+ includes IRFC's 2022–24 melt-up, 2023+ does not).
+- P/B cycle (the real driver of NBFC/PSU moves) is a separate script because BVPS is not
+  script-friendly: `scripts/pb_cycle.py --symbol IRFC --bvps <csv with date,bvps>`.
+- Original working scripts from the Nov-2026 IRFC / POWERGRID run are kept in `session/` as an
+  audit trail; the maintained entry point is `scripts/position_probability.py`.
+- **Event IV crush** (separate script, same skill): `scripts/iv_crush.py --symbol SBIN --earnings
+  2026-11-03 --expiry 2026-11-23` measures the implied-vol collapse around an announcement from
+  the stock's **own listed options** (Upstox `/option/chain` accepts the equity instrument key;
+  the local `/api/options/chain` only serves indices). It rebuilds the ATM straddle's IV day by day
+  from Upstox historical candles of the same contracts and **re-picks the strike that was ATM on
+  each session** — reusing today's strike mis-states IV by several vol points. Reports IV
+  before/on/after the event, the crush in vol points, the straddle's rupee change, and the priced
+  move (straddle ÷ 0.7979 ÷ spot) vs the actual reaction.
+- **Dark-theme EDA report**: `scripts/generate_dark_report.py --symbols IRFC,POWERGRID --target 2026-11-23`
+  → `reports/eda_<target>/eda_report.html` (self-contained), `.md`, `figures/*.png`. Charts are
+  matplotlib PNGs themed from **`src/ui/palette.ts`** (parsed at runtime — the report cannot drift
+  from the product theme) and every chart is followed by a **data-driven "read this" paragraph**
+  computed from the same numbers, so the report stands alone.
+- **Intraday F&O momentum scan**: `scripts/fno_momentum_scan.py --top 10` ranks every optionable
+  NSE name by live momentum (Upstox market data only — no broker token needed) and can pull the
+  chains of the leaders → `reports/fno_scan/<date>/fno_momentum.csv`. Score = z-scored 1d/5d/10d/20d
+  momentum + RS vs NIFTY + participation + trend health, with penalties for RSI exhaustion and for
+  a single huge day on no volume. **Chain access needs the Upstox OAuth token** (which expires
+  ~24h after the OAuth flow — reconnect in Settings); when it is dead, option economics can still be
+  rebuilt from the local instrument cache (`upstox_trader/config_and_utils/nse_instruments.json` →
+  contract keys, lot sizes, expiries) + the historical-candle API (yesterday's ATM close → implied
+  IV → re-price at today's spot).
+- **Trend-strength battery**: `scripts/trend_strength.py --names SBIN,ICICIBANK,IRFC` → ATR (₹/%,
+  expansion vs 60d median), Wilder ADX + DI spread, Kaufman ER20, 40-day regression R², and
+  **move-in-ATR** (today's net displacement in ATR units). **ADX alone lies** — it reads the
+  *previous* leg (IRFC printed ADX 29 while below a falling 200-DMA with ER 0.20); read it with the
+  DI spread, ER, R² and move-in-ATR. Companion carry test: breakeven stock move =
+  `(theta × days + vega × IV-gap × bleed) / delta` — typically 0.05–0.15 ATR/day for an 11-DTE ATM
+  call, but expensive when you pay a big vol premium (use a spread, not a naked put).
+- Tests: `.venv/bin/python -m pytest .prime/agent/skills/position-probability/tests -q` (15, offline).
+
 ## Known Issues / Deferred
 - **Replay system name→ID migration** (Phase 3) — deferred, known limitation
 - **ExitReasonBadge**: doesn't color-code rich exit reasons (MANUAL_CLOSE, PnL-formatted strings like "Stop loss hit ₹1340.00") — falls to gray default
@@ -567,3 +636,7 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - **`_filter_to_date_or_recent` timezone bug** — see [PRODUCTION.md](./PRODUCTION.md) (known production issue)
 - **TradingAgents auth**: `get_current_user` dependency has compatibility issues with this router (langgraph_sdk/chaining chainlit interference). All trading_agents endpoints use no auth or hardcoded user_id=3 for now.
 - **Analysis speed**: Multi-agent analysis takes 60-120s (15+ DeepSeek LLM calls). First analysis on any ticker is slow, subsequent requests are instant from file cache.
+- **`tsc` clusters still open** (369 errors as of 2026-11-14 — re-measure, do not trust this number): `src/pages/**` beyond `report`, plus `components/options|sector|strategies|replay|backtest|news`. Re-measure with `npx tsc --noEmit 2>&1 | grep -c "error TS"`. Cleared clusters (`report`, `common`+`ui`, `paper-trading`+`bots`, `screener`+`patterns`, `utils`+`api`+`state`) each exposed real runtime defects — treat the remaining ones as bug hunts, not tidying.
+- **Index Report chart focus (LEVEL 1/2)** — specified in [docs/INDEX_REPORT_REDESIGN.md](./docs/INDEX_REPORT_REDESIGN.md) but not built. The walls card is now 5-column and 216px (was 475px single-column), so the chart is visible; the drawer and focus mode are still pending.
+- **`rowWindowSize` unreachable rows** — `TanStackTable` discloses `showing 80 of 312 · 232 not rendered` in the footer, but there is still no way to reach the remainder.
+- **Symbol cell click inversion** — body should navigate in-app, the `↗` affordance opens the external TV link; currently inverted. Top item in [docs/UX_BETTERMENT.md](./docs/UX_BETTERMENT.md).

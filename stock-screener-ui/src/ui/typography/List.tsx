@@ -1,5 +1,6 @@
+import { Show, splitProps } from "solid-js";
 import { cn } from "../cn";
-import type { ReactNode } from "react";
+import type { JSX } from "solid-js";
 import type { UIListProps, UIListItemProps } from "../types";
 
 const sizeMap: Record<string, string> = {
@@ -10,69 +11,61 @@ const sizeMap: Record<string, string> = {
   xl: "1.25rem",
 };
 
-export function List({
-  children,
-  type,
-  withPadding,
-  size,
-  spacing: _spacing,
-  listStyleType,
-  center,
-  icon,
-  className,
-  style,
-  id,
-  "data-testid": testId,
-  ...rest
-}: UIListProps) {
-  // `icon` is kept for API parity; per-item icons are rendered by List.Item.
-  void icon;
+const LIST_TAGS: Record<string, (props: any) => JSX.Element> = {
+  ol: (props) => <ol {...props} />,
+  ul: (props) => <ul {...props} />,
+};
 
-  const isOrdered = type === "ordered";
-  const styleObj: React.CSSProperties = {
-    margin: 0,
-    padding: 0,
-    ...(withPadding ? { paddingLeft: "24px" } : { paddingLeft: "0px" }),
-    listStylePosition: "inside",
-    ...(size != null && { fontSize: sizeMap[size as string] ?? (size as string) }),
-    ...(listStyleType && { listStyleType: listStyleType as string }),
-    ...(center && { textAlign: "center" }),
-    ...(isOrdered ? {} : { listStyleType: listStyleType ?? "disc" }),
-  };
-  const Element = isOrdered ? "ol" : "ul";
+export function List(props: UIListProps & Record<string, unknown>) {
+  const [known, rest] = splitProps(props, [
+    "children", "className", "style", "id", "data-testid", "type", "withPadding", "size",
+    "spacing", "listStyleType", "center", "icon",
+  ] as const);
+  // `icon` is kept for API parity; per-item icons are rendered by List.Item.
+  void known.icon;
+  void known.spacing;
+
+  const rootTag = known.type === "ordered" ? "ol" : "ul";
+  const Root = LIST_TAGS[rootTag];
 
   return (
-    <Element
-      className={cn(className)}
-      style={{ ...styleObj, ...style }}
-      id={id}
-      data-testid={testId}
-      {...(rest as Record<string, unknown>)}
+    <Root
+      className={cn(known.className)}
+      style={{
+        margin: 0,
+        padding: 0,
+        ...(known.withPadding ? { "padding-left": "24px" } : { "padding-left": "0px" }),
+        "list-style-position": "inside",
+        ...(known.size != null ? { "font-size": sizeMap[known.size as string] ?? (known.size as string) } : {}),
+        ...(known.listStyleType ? { "list-style-type": known.listStyleType } : {}),
+        ...(known.center ? { "text-align": "center" } : {}),
+        ...(known.type === "ordered" ? {} : { "list-style-type": known.listStyleType ?? "disc" }),
+        ...(known.style as Record<string, unknown> | undefined),
+      }}
+      id={known.id}
+      data-testid={known["data-testid"]}
+      {...rest}
     >
-      {children}
-    </Element>
+      {known.children}
+    </Root>
   );
 }
 
-export function ListItem({
-  children,
-  className,
-  style,
-  id,
-  "data-testid": testId,
-  icon,
-  ...rest
-}: UIListItemProps & { icon?: ReactNode }) {
+export function ListItem(props: UIListItemProps & { icon?: JSX.Element }) {
+  const [known, rest] = splitProps(props, [
+    "children", "className", "style", "id", "data-testid", "icon",
+  ] as const);
+
   return (
     <li
-      className={cn(className)}
-      style={style}
-      id={id}
-      data-testid={testId}
-      {...(rest as Record<string, unknown>)}
+      className={cn(known.className)}
+      style={known.style}
+      id={known.id}
+      data-testid={known["data-testid"]}
+      {...rest}
     >
-      {icon ? <span>{icon}</span> : null}
-      {children}
+      <Show when={known.icon}><span>{known.icon}</span></Show>
+      {known.children}
     </li>
   );
 }

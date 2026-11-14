@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, within } from "@testing-library/react";
+import { render, screen, cleanup, within, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import { StrategyForm } from "./StrategyForm";
 import type { StrategyConfig } from "../../types/strategies";
@@ -50,182 +49,181 @@ const baseProps = {
 
 describe("StrategyForm", () => {
   it("renders modal with data-testid", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-form-modal")).toBeInTheDocument();
   });
 
   it("shows Create Strategy title", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByText("Create Strategy")).toBeInTheDocument();
   });
 
   it("shows Edit Strategy title in edit mode", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} mode="edit" />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByText("Edit Strategy")).toBeInTheDocument();
   });
 
   it("renders form with data-testid", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-form")).toBeInTheDocument();
   });
 
   it("renders Strategy Name input", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-name-input")).toBeInTheDocument();
   });
 
   it("renders Strategy Type select (enabled in create mode)", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const typeInput = screen.getByTestId("strategy-type-input");
     expect(typeInput).toBeInTheDocument();
     expect(typeInput).not.toBeDisabled();
   });
 
   it("renders Strategy Type select (disabled in edit mode)", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} mode="edit" />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     // disabled state lives on the combobox inside the FormControl wrapper
     const typeInput = within(screen.getByTestId("strategy-type-input")).getByRole("combobox");
     expect(typeInput).toBeDisabled();
   });
 
   it("renders Description input", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-description-input")).toBeInTheDocument();
   });
 
   it("renders Screener Profiles MultiSelect", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-screener-profiles")).toBeInTheDocument();
   });
 
   it("renders Custom Stocks MultiSelect", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-custom-watchlist")).toBeInTheDocument();
   });
 
   it("renders form tabs", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-form-tabs")).toBeInTheDocument();
     expect(screen.getByTestId("strategy-form-tabs-list")).toBeInTheDocument();
   });
 
   it("renders ORB tab visible for ORB type", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-tab-orb")).toBeInTheDocument();
   });
 
   it("Sizing tab always visible", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-tab-risk")).toBeInTheDocument();
   });
 
   it("Execution tab always visible", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-tab-runner")).toBeInTheDocument();
   });
 
   it("renders Cancel and Submit buttons", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-cancel-btn")).toBeInTheDocument();
     expect(screen.getByTestId("submit-strategy-btn")).toBeInTheDocument();
   });
 
   it("submit button shows Create or Save text based on mode", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByText("Create")).toBeInTheDocument();
   });
 
   it("submit button shows Save in edit mode", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} mode="edit" />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByText("Save")).toBeInTheDocument();
   });
 
   it("Cancel button closes modal", async () => {
     const onClose = vi.fn();
-    const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} onClose={onClose} />
-      </UIProvider>,
-    );
-    await user.click(screen.getByTestId("strategy-cancel-btn"));
+      </UIProvider>
+    ));
+    fireEvent.click(screen.getByTestId("strategy-cancel-btn"));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("renders restart warning alert in edit mode with bot running", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} mode="edit" isBotRunning={true} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-form-restart-warning")).toBeInTheDocument();
   });
 
@@ -248,71 +246,68 @@ describe("StrategyForm", () => {
       brokerage_pct: 0.03, min_brokerage: 20, stt_pct: 0.025,
       exchange_pct: 0.003, sebi_pct: 0.0001, stamp_pct: 0.003,
       gst_pct: 18, created_at: null, updated_at: null };
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} template={template} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-form-template-info")).toBeInTheDocument();
     expect(screen.getByText(/ORB Template/)).toBeInTheDocument();
   });
 
   it("validates EMA fast period must be less than slow period", async () => {
     const onSubmit = vi.fn();
-    const user = userEvent.setup();
     const template = makeTemplate({
       strategy_type: "EMA_CROSS",
       ema_fast_period: 21,
       ema_slow_period: 9 });
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} template={template} onSubmit={onSubmit} />
-      </UIProvider>,
-    );
-    await user.click(screen.getByTestId("submit-strategy-btn"));
+      </UIProvider>
+    ));
+    fireEvent.click(screen.getByTestId("submit-strategy-btn"));
     expect(window.alert).toHaveBeenCalledWith("Fast EMA period must be less than Slow EMA period");
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it("allows submit when EMA fast < slow", async () => {
     const onSubmit = vi.fn();
-    const user = userEvent.setup();
     const template = makeTemplate({
       strategy_type: "EMA_CROSS",
       ema_fast_period: 9,
       ema_slow_period: 21 });
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} template={template} onSubmit={onSubmit} />
-      </UIProvider>,
-    );
-    await user.click(screen.getByTestId("submit-strategy-btn"));
+      </UIProvider>
+    ));
+    fireEvent.click(screen.getByTestId("submit-strategy-btn"));
     expect(window.alert).not.toHaveBeenCalled();
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
   it("shows correct tab panel for strategy type from template", () => {
     const emaTemplate = makeTemplate({ strategy_type: "EMA_CROSS" });
-    const { unmount } = render(
+    const { unmount } = render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} template={emaTemplate} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-tab-ema")).toBeInTheDocument();
     expect(screen.queryByTestId("strategy-tab-orb")).not.toBeInTheDocument();
     unmount();
     const orbTemplate = makeTemplate({ strategy_type: "ORB" });
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} template={orbTemplate} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-tab-orb")).toBeInTheDocument();
   });
 
   it("calls onSubmit with form data on submit", async () => {
     const onSubmit = vi.fn();
-    const user = userEvent.setup();
     const template = makeTemplate({
       name: "My Template",
       strategy_type: "ORB",
@@ -320,12 +315,12 @@ describe("StrategyForm", () => {
       sl_pct: 2,
       tp_pct: 3,
       screener_profiles: [] });
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} template={template} onSubmit={onSubmit} />
-      </UIProvider>,
-    );
-    await user.click(screen.getByTestId("submit-strategy-btn"));
+      </UIProvider>
+    ));
+    fireEvent.click(screen.getByTestId("submit-strategy-btn"));
     expect(onSubmit).toHaveBeenCalledTimes(1);
     const data = onSubmit.mock.calls[0][0];
     expect(data.name).toBe("My Template - Custom");
@@ -334,55 +329,55 @@ describe("StrategyForm", () => {
 
   it("shows Execution tab and RunnerPanel", () => {
     const template = makeTemplate();
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} template={template} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-tab-runner")).toBeInTheDocument();
     expect(screen.getByTestId("strategy-panel-runner")).toBeInTheDocument();
   });
 
   it("shows S/R Breakout tab for SR_BREAKOUT type", () => {
     const template = makeTemplate({ strategy_type: "SR_BREAKOUT" });
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} template={template} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-tab-sr")).toBeInTheDocument();
     expect(screen.getByTestId("strategy-panel-sr")).toBeInTheDocument();
   });
 
   it("shows 52W Params tab for 52W_CHASER type", () => {
     const template = makeTemplate({ strategy_type: "52W_CHASER" });
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} template={template} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-tab-52w")).toBeInTheDocument();
     expect(screen.getByTestId("strategy-panel-52w")).toBeInTheDocument();
   });
 
   it("shows 52W Params tab for 52W_TARGET type", () => {
     const template = makeTemplate({ strategy_type: "52W_TARGET" });
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} template={template} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-tab-52w")).toBeInTheDocument();
     expect(screen.getByTestId("strategy-panel-52w")).toBeInTheDocument();
   });
 
   it("shows EMA params panel with Fast/Slow period inputs for EMA_CROSS type", () => {
     const template = makeTemplate({ strategy_type: "EMA_CROSS" });
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} template={template} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-tab-ema")).toBeInTheDocument();
     expect(screen.getByTestId("strategy-panel-ema")).toBeInTheDocument();
     expect(screen.getByTestId("strategy-ema-fast-period-input")).toBeInTheDocument();
@@ -391,11 +386,11 @@ describe("StrategyForm", () => {
 
   it("shows Swing params panel with entry threshold, trailing stop, holding days, cooldown days for 52W_CHASER type", () => {
     const template = makeTemplate({ strategy_type: "52W_CHASER" });
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} template={template} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-panel-52w")).toBeInTheDocument();
     expect(screen.getByTestId("strategy-entry-threshold-input")).toBeInTheDocument();
     expect(screen.getByTestId("strategy-trailing-stop-input")).toBeInTheDocument();
@@ -405,11 +400,11 @@ describe("StrategyForm", () => {
 
   it("shows Swing params panel with all inputs for 52W_TARGET type", () => {
     const template = makeTemplate({ strategy_type: "52W_TARGET" });
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} template={template} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-panel-52w")).toBeInTheDocument();
     expect(screen.getByTestId("strategy-entry-threshold-input")).toBeInTheDocument();
     expect(screen.getByTestId("strategy-trailing-stop-input")).toBeInTheDocument();
@@ -418,15 +413,14 @@ describe("StrategyForm", () => {
   });
 
   it("changes active tab when strategy type is changed via Select", async () => {
-    const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <StrategyForm {...baseProps} template={makeTemplate({ strategy_type: "ORB" })} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategy-tab-orb")).toBeInTheDocument();
     expect(screen.queryByTestId("strategy-tab-sr")).not.toBeInTheDocument();
-    await user.selectOptions(within(screen.getByTestId("strategy-type-input")).getByRole("combobox"), "SR_BREAKOUT");
+    fireEvent.input(within(screen.getByTestId("strategy-type-input")).getByRole("combobox"), { target: { value: "SR_BREAKOUT" } });
     expect(screen.getByTestId("strategy-tab-sr")).toBeInTheDocument();
     expect(screen.queryByTestId("strategy-tab-orb")).not.toBeInTheDocument();
   });

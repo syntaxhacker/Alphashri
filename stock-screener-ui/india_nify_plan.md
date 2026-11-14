@@ -87,7 +87,7 @@ List what already exists so nobody re-runs finished work; freeze the "already
 tried" index; state the objective + the hard gate; publish the topic list.
 
 ### 2.2 Waves
-Dispatch **6–10 background agents** at a time (one concept each), each with the
+Dispatch **up to 5 background agents** at a time (one concept each), each with the
 **contract in §3**. Keep the pipeline ~⅔ full: when a wave drains, seed the next
 from the findings. While agents run, *you* fold results in and update the ledger
 (never idle).
@@ -184,7 +184,7 @@ Be brutally honest. Disclose the variant count. Negative results are valuable.
 | **W3** | combinations | confluence grid (causal), portfolio of survivors |
 | **W4** | **verification** | adversarial re-implement of the lead; **true holdout**; **fill-honesty audit of EVERY sleeve** |
 
-Start ~8 agents/wave (a 4-vCPU box handles ~6–10 single-threaded agents).
+Start up to 5 agents/wave (concurrency is owned by `SUBAGENT_RULES.md §9`; more just queues).
 
 ---
 
@@ -200,11 +200,12 @@ Start ~8 agents/wave (a 4-vCPU box handles ~6–10 single-threaded agents).
 ---
 
 ## 7. Model routing (cost control)
-- Default **every** fleet subagent to the cheap **Muse** model:
-  **`opencode-go/muse-spark-1.3-contributor`** ("Muse Spark 1.3 Contributor", ~$0.10/M).
-  For literally-$0: `opencode-go/beam-free` or `opencode-go/longcat-2.5-preview-free`.
-- **Note:** `opencode/muse-spark-1.3-contributor-free` appears in the model list but is
-  **not selectable** for subagents — use the `opencode-go/…contributor` id above.
+- Default **every** fleet subagent to the cheap **Nemotron** model:
+  **`opencode/nemotron-3.5-super-vl-free`** ("Nemotron 3.5 Super VL Free", $0).
+  Model routing is owned by `SUBAGENT_RULES.md §9` — that section is authoritative.
+- **Fallback pool** (free tiers report `Free usage limit reached`):
+  `opencode/deepseek-v4.1-flash-free`, `openrouter/nvidia/nemotron-3.5-super-vl:free`,
+  `openrouter/baidu/ernie-5.5-flash-preview:free`, `commandcode/deepseek-v4.1`.
 - Escalate a **single** agent to a stronger model only for correctness-critical
   verification (the fill-honesty audit / true holdout), and say so.
 - Cheap models are weaker on long numeric reasoning → **the gate, not the model,
@@ -231,7 +232,7 @@ Loop: harvest each result into the ledger + a showcase HTML, seed the next wave,
 and finish with an adversarial verification wave + a true holdout + a fill-honesty
 audit of every surviving sleeve.
 
-Never stop until I say STOP. Default subagents to opencode/muse-spark-1.3-contributor-free.
+Never stop until I say STOP. Default subagents to `opencode/nemotron-3.5-super-vl-free` (see `SUBAGENT_RULES.md §9`).
 ```
 
 ---

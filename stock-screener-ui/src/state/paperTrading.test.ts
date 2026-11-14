@@ -47,6 +47,7 @@ import type {
   DailySummary,
   SymbolPerformance,
   BotInfo,
+  PaperBotSnapshot,
 } from "../types/paperTrading";
 
 vi.mock("../api/paperTrading", () => ({
@@ -108,7 +109,9 @@ function createMockTrade(overrides: Partial<PaperTrade> = {}): PaperTrade {
     take_profit: 2650,
     peak_price: 2650,
     low_price: 2490,
+    hold_duration_minutes: 75,
     notes: "",
+    reason: "",
     strategy_id: 1,
     strategy_name: "ORB",
     bot_id: null,
@@ -321,6 +324,7 @@ describe("chart management", () => {
       trades: [],
       orb_levels: null,
       week52_levels: null,
+      pivot_levels: null,
       current_position: null,
     };
     setChartData(chartData);
@@ -478,9 +482,10 @@ describe("bot status", () => {
   });
 
   it("setBotSnapshot updates botSnapshot", () => {
-    const snapshot = {
+    const snapshot: PaperBotSnapshot = {
       timestamp: "2025-01-01T10:00:00",
       watchlist: ["RELIANCE"],
+      strategy_watchlists: {},
       open_positions: ["TCS"],
       scan_items: [],
       signals: [],
@@ -545,7 +550,9 @@ describe("strategy config", () => {
 
 describe("available bots", () => {
   it("setAvailableBots updates availableBots", () => {
-    const bots: BotInfo[] = [{ id: "bot-1", name: "Bot 1", strategies: [], is_active: true }];
+    const bots: BotInfo[] = [
+      { id: "bot-1", name: "Bot 1", strategies: [], is_active: true, live_trading: false },
+    ];
     setAvailableBots(bots);
     expect(getPaperTradingState().availableBots).toEqual(bots);
   });

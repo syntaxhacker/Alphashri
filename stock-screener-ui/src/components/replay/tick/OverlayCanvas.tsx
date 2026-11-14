@@ -2,7 +2,7 @@
 // Renders ONLY the <canvas>; the parent must be position:relative (see TickReplayChart).
 // Owns DPR sizing + visible-range redraw. Drawing itself lives in ./overlays
 // so it stays unit-testable without lightweight-charts.
-import { useCallback, useEffect, useRef } from "react";
+import { createEffect, onCleanup } from "solid-js";
 import type { Time } from "lightweight-charts";
 import type { NtChartApi } from "./NtChart";
 
@@ -14,20 +14,18 @@ export interface OverlayCoord {
 }
 
 interface OverlayCanvasProps {
-  chartApi: React.RefObject<NtChartApi | null>;
+  chartApi: { current: NtChartApi | undefined };
   height?: number;
   draw: (ctx: CanvasRenderingContext2D, coord: OverlayCoord) => void;
   testid?: string;
 }
 
-export default function OverlayCanvas({ chartApi, height = 300, draw, testid = "nt-overlay" }: OverlayCanvasProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const drawRef = useRef(draw);
-  drawRef.current = draw;
+export default function OverlayCanvas(props: OverlayCanvasProps) {
+  let canvasRef: HTMLCanvasElement | undefined;
 
-  const redraw = useCallback(() => {
-    const api = chartApi.current;
-    const canvas = canvasRef.current;
+  const redraw = () => {
+    const api = props.chartApi?.current;
+    const canvas = canvasRef;
     if (!api || !canvas) return;
     const chart = api.getChart();
     const series = api.getSeries();
@@ -36,6 +34,7 @@ export default function OverlayCanvas({ chartApi, height = 300, draw, testid = "
     if (!ctx) return;
     const parent = canvas.parentElement;
     const rect = parent ? parent.getBoundingClientRect() : canvas.getBoundingClientRect();
+    const height = props.height ?? 300;
     if (rect.width === 0) return;
     const dpr = window.devicePixelRatio || 1;
     canvas.width = rect.width * dpr;
@@ -45,37 +44,37 @@ export default function OverlayCanvas({ chartApi, height = 300, draw, testid = "
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, rect.width, height);
     const px = series as unknown as { priceToCoordinate: (v: number) => number | null };
-    drawRef.current(ctx, {
+    props.draw(ctx, {
       timeToX: (t: number) => chart.timeScale().timeToCoordinate(t as Time),
       priceToY: (p: number) => px.priceToCoordinate(p),
       width: rect.width,
       height,
     });
-  }, [chartApi, height]);
+  };
 
-  useEffect(() => {
-    const api = chartApi.current;
+  createEffect(() => {
+    void props.draw;
+    void props.height;
+    const api = props.chartApi?.current;
     const chart = api?.getChart();
     if (!chart) return;
     const onVis = () => requestAnimationFrame(redraw);
     chart.timeScale().subscribeVisibleLogicalRangeChange(onVis);
-    const parent = canvasRef.current?.parentElement;
+    const parent = canvasRef?.parentElement;
     const ro = new ResizeObserver(onVis);
     if (parent) ro.observe(parent);
     requestAnimationFrame(redraw);
-    return () => {
+    onCleanup(() => {
       ro.disconnect();
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(onVis);
-    };
-  }, [chartApi, redraw]);
-
-  useEffect(() => { redraw(); }, [redraw, draw]);
+    });
+  });
 
   return (
     <canvas
-      ref={canvasRef}
-      style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 10 }}
-      data-testid={testid}
+      ref={(el) => { canvasRef = el; }}
+      style={{ position: "absolute", inset: "0", "pointer-events": "none", "z-index": "10" }}
+      data-testid={props.testid ?? "nt-overlay"}
     />
   );
 }

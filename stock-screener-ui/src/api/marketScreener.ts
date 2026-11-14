@@ -142,6 +142,10 @@ interface RawMarketRow {
   high_52w?: unknown;
   low_52w?: unknown;
   pos_52w?: unknown;
+  pe_ratio?: unknown;
+  pb_ratio?: unknown;
+  dividend_yield?: unknown;
+  roe?: unknown;
   fno?: unknown;
   etf?: unknown;
 }
@@ -193,6 +197,10 @@ export function mapMarketRow(raw: RawMarketRow | null | undefined): MarketRow {
     high52w: toNumber(r.high_52w),
     low52w: toNumber(r.low_52w),
     pos52w: toNumber(r.pos_52w),
+    peRatio: toNumber(r.pe_ratio),
+    pbRatio: toNumber(r.pb_ratio),
+    dividendYield: toNumber(r.dividend_yield),
+    roe: toNumber(r.roe),
     fno: toBool(r.fno),
     etf: toBool(r.etf),
   };

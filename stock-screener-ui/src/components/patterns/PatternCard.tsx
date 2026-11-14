@@ -1,6 +1,6 @@
-import { memo, useMemo } from "react";
-import { ActionIcon, Badge, Box, Card, Text, ToolbarRow, Tooltip } from "@/ui";
-import { IconArrowsMaximize } from "@tabler/icons-react";
+import { createMemo, Show } from "solid-js";
+import { Badge, Box, Card, Text, Tooltip } from "@/ui";
+import { IconArrowsMaximize } from "@/patterns/icons";
 import { formatPercentage } from "@/utils/ui-helpers";
 import type { PatternHitDTO, TrendlinesView } from "@/types/chartPatterns";
 import { QUALITY_INFO } from "@/config/patternCatalog";
@@ -17,7 +17,7 @@ import {
   hitChangePct,
   hitLastPrice,
 } from "./patternFormat";
-import { changeChartColor, displayToneColor, qualityLabel as qualityLabelFor } from "./patternTone";
+import { changeChartColor, qualityLabel as qualityLabelFor } from "./patternTone";
 import { PatternMiniChart } from "./PatternMiniChart";
 
 export interface PatternCardProps {
@@ -35,44 +35,30 @@ export interface PatternCardProps {
   onSymbolOpen?: (symbol: string) => void;
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+/** Derived display tone → shared `Badge` colour token. */
+const STATUS_BADGE_COLOR: Record<string, string> = {
+  success: "success",
+  warning: "warning",
+  error: "error",
+  info: "info",
+  neutral: "default",
+};
+
+/** One stat cell: 10px label left, 11px mono value right. No rules, no cells. */
+function Metric(props: { label: string; value: string }) {
   return (
-    <Box className="min-w-0 px-1.5 py-1">
-      <Text
-        size="xs"
-        c="dimmed"
-        fw={700}
-        truncate
-        style={{ fontSize: 9, lineHeight: 1, letterSpacing: 0.6, textTransform: "uppercase" }}
-      >
-        {label}
+    <Box className="flex min-w-0 flex-1 items-center justify-between gap-2 px-1.5">
+      <Text size="xs" c="dimmed" fw={600} truncate style={{ "font-size": "10px", "line-height": 1 }}>
+        {props.label}
       </Text>
       <Text
         size="xs"
         fw={600}
         truncate
-        style={{ fontSize: 11, lineHeight: 1.25, fontVariantNumeric: "tabular-nums" }}
+        className="font-mono tabular-nums"
+        style={{ "font-size": "11px", "line-height": 1 }}
       >
-        {value}
-      </Text>
-    </Box>
-  );
-}
-
-function Level({ label, value, testId }: { label: string; value: string; testId?: string }) {
-  return (
-    <Box data-testid={testId} className="flex min-w-0 flex-col gap-[2px]">
-      <Text
-        size="xs"
-        c="dimmed"
-        fw={700}
-        truncate
-        style={{ fontSize: 9, lineHeight: 1, letterSpacing: 0.5, textTransform: "uppercase" }}
-      >
-        {label}
-      </Text>
-      <Text size="xs" fw={600} truncate style={{ fontSize: 11, lineHeight: 1.2, fontVariantNumeric: "tabular-nums" }}>
-        {value}
+        {props.value}
       </Text>
     </Box>
   );
@@ -111,334 +97,305 @@ function consolidationBounds(hit: PatternHitDTO): { lo: number | null; hi: numbe
 }
 
 /** One pattern result card in the grid. */
-export const PatternCard = memo(function PatternCard({
-  hit,
-  selected = false,
-  onClick,
-  onExpand,
-  onShowMembers,
-  trendlinesView = "both",
-  onSymbolPreview,
-  onSymbolPreviewEnd,
-  onSymbolOpen,
-}: PatternCardProps) {
-  const lastPrice = hitLastPrice(hit);
-  const changePct = hitChangePct(hit);
-  const barsLabel = `${hit.bars_ago} ${hit.timeframe} candle${hit.bars_ago === 1 ? "" : "s"} ago`;
-  const baseDays = hit.base_days ?? 0;
-  const isConsolidation = hit.pattern_id === "consolidation" || baseDays > 0;
-  const missingCandles = (hit.candles ?? []).length === 0;
-  const bounds = useMemo(() => (isConsolidation ? consolidationBounds(hit) : null), [hit, isConsolidation]);
-  const triggerDistance = useMemo(() => {
-    if (!isConsolidation || bounds?.hi == null || lastPrice <= 0) return null;
-    return ((lastPrice - bounds.hi) / bounds.hi) * 100;
-  }, [isConsolidation, bounds, lastPrice]);
-  const display = useMemo(
-    () =>
-      patternDisplayStatus({
-        rawStatus: hit.status,
-        isBase: isConsolidation,
-        lastClose: hit.last_close ?? null,
-        upper: bounds?.hi ?? null,
-        lower: bounds?.lo ?? null,
-      }),
-    [hit, isConsolidation, bounds]
+export function PatternCard(props: PatternCardProps) {
+  const hit = () => props.hit;
+  const selected = () => props.selected ?? false;
+  const trendlinesView = () => props.trendlinesView ?? "both";
+
+  const lastPrice = createMemo(() => hitLastPrice(hit()));
+  const changePct = createMemo(() => hitChangePct(hit()));
+  const barsLabel = () => `${hit().bars_ago} ${hit().timeframe} candle${hit().bars_ago === 1 ? "" : "s"} ago`;
+  const baseDays = createMemo(() => hit().base_days ?? 0);
+  const isConsolidation = createMemo(() => hit().pattern_id === "consolidation" || baseDays() > 0);
+  const missingCandles = () => (hit().candles ?? []).length === 0;
+  const bounds = createMemo(() => (isConsolidation() ? consolidationBounds(hit()) : null));
+  const triggerDistance = createMemo(() => {
+    if (!isConsolidation() || bounds()?.hi == null || lastPrice() <= 0) return null;
+    return ((lastPrice() - bounds()!.hi!) / bounds()!.hi!) * 100;
+  });
+  const display = createMemo(() =>
+    patternDisplayStatus({
+      rawStatus: hit().status,
+      isBase: isConsolidation(),
+      lastClose: hit().last_close ?? null,
+      upper: bounds()?.hi ?? null,
+      lower: bounds()?.lo ?? null,
+    }),
   );
-  const qualityKey = String(hit.quality ?? "").toLowerCase();
-  const qualityInfo = QUALITY_INFO[qualityKey as keyof typeof QUALITY_INFO];
-  const quality = qualityLabelFor(qualityKey, "—");
-  const canShowMembers = Boolean(onShowMembers && hasIndexMembers(hit.symbol));
-  const metrics = [
-    { label: "Score", value: formatScore(hit.confidence) },
-    { label: "Pos", value: formatRangePos(hit.range_pos) },
-  ];
+  const qualityKey = createMemo(() => String(hit().quality ?? "").toLowerCase());
+  const qualityInfo = () => QUALITY_INFO[qualityKey() as keyof typeof QUALITY_INFO];
+  const quality = () => qualityLabelFor(qualityKey(), "—");
+  const canShowMembers = () => Boolean(props.onShowMembers && hasIndexMembers(hit().symbol));
 
   return (
     <Card
-      data-testid={`patterns-card-${hit.symbol}-${hit.pattern_id}`}
-      onClick={() => onClick?.(hit)}
-      role={onClick ? "button" : undefined}
-      tabIndex={onClick ? 0 : undefined}
+      data-testid={`patterns-card-${hit().symbol}-${hit().pattern_id}`}
+      onClick={() => props.onClick?.(hit())}
+      role={props.onClick ? "button" : undefined}
+      tabIndex={props.onClick ? 0 : undefined}
       onKeyDown={
-        onClick
-          ? (e: React.KeyboardEvent) => {
+        props.onClick
+          ? (e: KeyboardEvent) => {
               // Inner controls (Members, expand) own their own keys; a bubbled
               // Enter must not also select the card.
               if (e.target !== e.currentTarget) return;
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
-                onClick(hit);
+                props.onClick?.(hit());
               }
             }
           : undefined
       }
-      className={`overflow-hidden rounded-fin border bg-fin-surface transition-[border-color] duration-[120ms] ${
-        selected ? "border-fin-primary" : missingCandles ? "border-fin-negative" : "border-fin-border"
-      } ${onClick ? "hover:border-fin-primary" : ""}`}
+      className={`flex min-w-0 flex-col overflow-hidden rounded-fin border bg-fin-surface transition-[border-color] duration-[120ms] ${
+        selected() ? "border-fin-primary" : missingCandles() ? "border-fin-negative" : "border-fin-border"
+      } ${props.onClick ? "hover:border-fin-primary" : ""}`}
       style={{
-        boxShadow: selected ? "inset 0 0 0 1px var(--color-fin-primary)" : "none",
-        cursor: onClick ? "pointer" : "default",
+        cursor: props.onClick ? "pointer" : "default",
         // Offscreen containment: the browser skips layout/paint for cards
         // outside the visible area while the user scrolls a long results grid.
-        contentVisibility: "auto",
-        containIntrinsicSize: "300px 480px",
+        "content-visibility": "auto",
+        "contain-intrinsic-size": "194px 196px",
       }}
     >
       <Box
         data-testid="patterns-card"
-        data-selected={selected ? "true" : undefined}
-        className="flex min-w-0 flex-col"
+        data-selected={selected() ? "true" : undefined}
+        className="flex min-w-0 flex-1 flex-col"
       >
-        <Box className="flex min-w-0 gap-1.5 px-1.5 pb-1 pt-1.5">
+        {/* Hierarchy: the symbol is the only strong element, the pattern name sits
+            muted beneath it, and the state chip + bars-ago line align right. */}
+        <Box className="flex min-w-0 items-start gap-2 px-1.5 pb-0.5 pt-1">
           <Box className="min-w-0 flex-1">
             <SymbolLink
-              symbol={hit.symbol}
-              testId={`patterns-card-tv-${hit.symbol}-${hit.pattern_id}`}
-              chartTestId={`patterns-card-chart-${hit.symbol}-${hit.pattern_id}`}
-              onOpen={onSymbolOpen}
-              onPreview={onSymbolPreview}
-              onPreviewEnd={onSymbolPreviewEnd}
-              size="sm"
+              symbol={hit().symbol}
+              testId={`patterns-card-tv-${hit().symbol}-${hit().pattern_id}`}
+              chartTestId={`patterns-card-chart-${hit().symbol}-${hit().pattern_id}`}
+              onOpen={props.onSymbolOpen}
+              onPreview={props.onSymbolPreview}
+              onPreviewEnd={props.onSymbolPreviewEnd}
+              size="xs"
               weight={700}
               className="max-w-full"
             />
-            <Text size="xs" c="dimmed" truncate style={{ fontSize: 10, lineHeight: 1.25 }}>
-              {hit.pattern_name}
-            </Text>
-          </Box>
-          <Box className="flex shrink-0 items-start gap-[2px]">
-            <Box
-              className="flex min-w-0 flex-col items-end gap-[2px]"
-            >
-              <Text size="xs" c="dimmed" style={{ fontSize: 9, lineHeight: 1, whiteSpace: "nowrap" }}>
-                {barsLabel}
+            <Box className="flex min-w-0 items-center justify-between gap-1">
+              <Text size="xs" c="dimmed" truncate style={{ "font-size": "10px", "line-height": 1.2 }}>
+                {hit().pattern_name}
               </Text>
-              <Tooltip label={display.tooltip} withArrow position="top">
-                <Box className="flex items-center gap-1">
-                  <Box
-                    className="h-[5px] w-[5px] shrink-0 rounded-full"
-                    style={{ backgroundColor: displayToneColor(display.tone) }}
-                  />
-                  <Text
-                    data-testid={`patterns-status-${String(hit.status ?? "").toLowerCase()}`}
-                    size="xs"
-                    fw={700}
-                    style={{
-                      fontSize: 9,
-                      lineHeight: 1,
-                      letterSpacing: 0.5,
-                      textTransform: "uppercase",
-                      color: displayToneColor(display.tone),
-                    }}
-                  >
-                    {display.label}
-                  </Text>
-                </Box>
-              </Tooltip>
-              <Tooltip label={qualityInfo?.description ?? quality} position="left" withArrow>
+              <Tooltip label={qualityInfo()?.description ?? quality()} position="left" withArrow>
                 <Text
-                  data-testid={`patterns-quality-${qualityKey || "unknown"}`}
+                  data-testid={`patterns-quality-${qualityKey() || "unknown"}`}
                   size="xs"
-                  fw={600}
                   c="dimmed"
-                  className="cursor-help"
-                  style={{
-                    fontSize: 9,
-                    lineHeight: 1,
-                    letterSpacing: 0.5,
-                    textTransform: "uppercase",
-                  }}
+                  className="cursor-help shrink-0"
+                  style={{ "font-size": "10px", "line-height": 1 }}
                 >
-                  {quality}
+                  {quality()}
                 </Text>
               </Tooltip>
             </Box>
+          </Box>
+          <Box className="flex shrink-0 flex-col items-end gap-1">
+            <Tooltip label={display().tooltip} withArrow position="top">
+              {/* Borderless tinted chip: the card owns the only 1px rule. */}
+              <Badge
+                data-testid={`patterns-status-${String(hit().status ?? "").toLowerCase()}`}
+                size="xs"
+                variant="light"
+                color={STATUS_BADGE_COLOR[display().tone]}
+                style={{ border: "0", "text-transform": "none", "letter-spacing": "normal" }}
+              >
+                {display().label}
+              </Badge>
+            </Tooltip>
+            <Text size="xs" c="dimmed" style={{ "font-size": "10px", "line-height": 1, "white-space": "nowrap" }}>
+              {barsLabel()}
+            </Text>
           </Box>
         </Box>
 
         <Box className="flex min-w-0 items-baseline gap-2 px-1.5 pb-1">
           <Text
-            size="sm"
-            fw={700}
-            style={{ fontSize: 16, lineHeight: 1.1, fontVariantNumeric: "tabular-nums" }}
+            size="xs"
+            fw={600}
+            className="font-mono tabular-nums"
+            style={{ "font-size": "11px", "line-height": 1.1 }}
           >
-            {formatPrice(lastPrice)}
+            {formatPrice(lastPrice())}
           </Text>
           <Text
             size="xs"
+            className="font-mono tabular-nums"
             style={{
-              fontSize: 11,
-              lineHeight: 1.1,
-              fontVariantNumeric: "tabular-nums",
-              color: changeChartColor(changePct),
+              "font-size": "11px",
+              "line-height": 1.1,
+              color: changeChartColor(changePct()),
             }}
           >
-            {formatPercentage(changePct, 2)}
+            {formatPercentage(changePct(), 2)}
           </Text>
-          {triggerDistance != null ? (
+          <Show when={triggerDistance() != null}>
             <Text
-              data-testid={`patterns-card-to-trigger-${hit.symbol}`}
+              data-testid={`patterns-card-to-trigger-${hit().symbol}`}
               size="xs"
-              c={triggerDistance >= 0 ? "success" : "dimmed"}
+              c={(triggerDistance() ?? 0) >= 0 ? "success" : "dimmed"}
+              className="font-mono tabular-nums"
               style={{
-                fontSize: 10,
-                lineHeight: 1.1,
-                fontVariantNumeric: "tabular-nums",
-                whiteSpace: "nowrap",
+                "font-size": "10px",
+                "line-height": 1.1,
+                "white-space": "nowrap",
               }}
             >
-              {`${formatSignedPct1(triggerDistance)} to trigger`}
+              {`${formatSignedPct1(triggerDistance()!)} to trigger`}
             </Text>
-          ) : null}
-          {missingCandles ? (
+          </Show>
+          <Show when={missingCandles()}>
             <Tooltip
               label="Chart data failed to load (rate limit or fetch error) — pattern levels only. Refresh or force-rescan to retry."
               withArrow
               position="top"
             >
-              <Badge color="error" size="xs" data-testid={`patterns-card-no-data-${hit.symbol}`}>
+              <Badge
+                color="error"
+                size="xs"
+                variant="light"
+                data-testid={`patterns-card-no-data-${hit().symbol}`}
+                style={{ border: "0", "text-transform": "none", "letter-spacing": "normal" }}
+              >
                 No chart
               </Badge>
             </Tooltip>
-          ) : null}
+          </Show>
         </Box>
 
-        <Box
-          className="relative min-w-0 border-t border-fin-border bg-fin-bg"
-        >
-          <PatternMiniChart hit={hit} trendlinesView={trendlinesView} />
+        <Box className="relative min-w-0 flex-1 overflow-hidden bg-fin-bg">
+          <PatternMiniChart hit={hit()} trendlinesView={trendlinesView()} />
           <Box
             className="absolute right-[2px] top-[2px] z-[1] flex items-center gap-[2px]"
           >
-            {onExpand ? (
+            <Show when={props.onExpand}>
               <Tooltip label="Open fullscreen chart" withArrow position="left">
-                <ActionIcon
-                  variant="subtle"
-                  size="xs"
-                  aria-label={`Open fullscreen chart for ${hit.symbol} ${hit.pattern_name}`}
-                  data-testid={`patterns-card-expand-${hit.symbol}-${hit.pattern_id}`}
+                <button
+                  type="button"
+                  aria-label={`Open fullscreen chart for ${hit().symbol} ${hit().pattern_name}`}
+                  data-testid={`patterns-card-expand-${hit().symbol}-${hit().pattern_id}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    onExpand(hit);
+                    props.onExpand?.(hit());
                   }}
-                  style={{ backgroundColor: "var(--color-fin-surface)" }}
-                  className="opacity-[0.85] hover:text-fin-text hover:opacity-100"
+                  style={{ "background-color": "transparent" }}
+                  className="inline-flex size-5 items-center justify-center rounded border-0 text-fin-text-muted transition-colors hover:text-fin-text"
                 >
                   <IconArrowsMaximize size={12} />
-                </ActionIcon>
+                </button>
               </Tooltip>
-            ) : null}
+            </Show>
           </Box>
         </Box>
 
-        {isConsolidation && bounds ? (
-          <ToolbarRow
-            gap={1.5}
-            justify="space-between"
-            wrap={false}
-            className="border-t border-fin-border px-1.5 py-1"
-          >
-            <Level
-              testId={`patterns-card-range-${hit.symbol}`}
-              label="Range"
-              value={
-                bounds.lo != null && bounds.hi != null
-                  ? `${formatPrice(bounds.lo)} – ${formatPrice(bounds.hi)}`
-                  : "—"
-              }
-            />
+        <Show when={isConsolidation() && bounds()}>
+          <Box className="flex h-5 min-w-0 items-center gap-2 px-1.5">
             <Box
-              data-testid={`patterns-card-breakout-both-${hit.symbol}`}
-              className="flex min-w-0 flex-col gap-[2px]"
+              data-testid={`patterns-card-range-${hit().symbol}`}
+              className="flex min-w-0 items-center gap-1"
             >
               <Text
                 size="xs"
                 c="dimmed"
-                fw={700}
+                fw={600}
                 truncate
-                style={{ fontSize: 9, lineHeight: 1, letterSpacing: 0.5, textTransform: "uppercase" }}
+                style={{ "font-size": "10px", "line-height": 1 }}
               >
                 Range
               </Text>
-              <ToolbarRow gap={6} wrap={false}>
-                <Text size="xs" fw={600} truncate style={{ fontSize: 11, color: PATTERN_CONFIRMED }}>
-                  ↑ {formatPrice(bounds.hi)}
-                </Text>
-                <Text size="xs" fw={600} truncate style={{ fontSize: 11, color: PATTERN_FAILED }}>
-                  ↓ {formatPrice(bounds.lo)}
-                </Text>
-              </ToolbarRow>
+              <Text
+                size="xs"
+                fw={600}
+                truncate
+                className="font-mono tabular-nums"
+                style={{ "font-size": "11px", "line-height": 1 }}
+              >
+                {bounds()?.lo != null && bounds()?.hi != null
+                  ? `${formatPrice(bounds()!.lo!)} – ${formatPrice(bounds()!.hi!)}`
+                  : "—"}
+              </Text>
             </Box>
-          </ToolbarRow>
-        ) : null}
+            <Box
+              data-testid={`patterns-card-breakout-both-${hit().symbol}`}
+              className="ml-auto flex shrink-0 items-center gap-1.5"
+            >
+              <Text
+                size="xs"
+                fw={600}
+                truncate
+                className="font-mono tabular-nums"
+                style={{ "font-size": "11px", color: PATTERN_CONFIRMED }}
+              >
+                ↑ {bounds()?.hi != null ? formatPrice(bounds()!.hi!) : "—"}
+              </Text>
+              <Text
+                size="xs"
+                fw={600}
+                truncate
+                className="font-mono tabular-nums"
+                style={{ "font-size": "11px", color: PATTERN_FAILED }}
+              >
+                ↓ {bounds()?.lo != null ? formatPrice(bounds()!.lo!) : "—"}
+              </Text>
+            </Box>
+          </Box>
+        </Show>
 
-        {baseDays > 0 || hit.to_52w_high != null ? (
-          <ToolbarRow
-            justify="space-between"
-            gap={1}
-            className="border-t border-fin-border px-1.5 py-[2px]"
-          >
-            {baseDays > 0 ? (
+        <Show when={baseDays() > 0 || hit().to_52w_high != null}>
+          <Box className="flex h-[18px] min-w-0 items-center justify-between gap-2 px-1.5">
+            <Show when={baseDays() > 0} fallback={<Box className="flex-1" />}>
               <Text
                 size="xs"
                 c="dimmed"
                 truncate
-                data-testid={`patterns-card-base-${hit.symbol}-${hit.pattern_id}`}
-                style={{ fontSize: 9, lineHeight: 1.2 }}
+                data-testid={`patterns-card-base-${hit().symbol}-${hit().pattern_id}`}
+                style={{ "font-size": "10px", "line-height": 1.2 }}
               >
-                {hit.range_pct != null
-                  ? `Base ${baseDays}d · ${formatOneDecimal(hit.range_pct)}%`
-                  : `Base ${baseDays}d`}
+                {hit().range_pct != null
+                  ? `Base ${baseDays()}d · ${formatOneDecimal(hit().range_pct!)}%`
+                  : `Base ${baseDays()}d`}
               </Text>
-            ) : (
-              <Box className="flex-1" />
-            )}
-            {hit.to_52w_high != null ? (
+            </Show>
+            <Show when={hit().to_52w_high != null}>
               <Text
                 size="xs"
                 c="dimmed"
                 truncate
                 data-testid="patterns-card-52w-gap"
-                style={{ fontSize: 9, lineHeight: 1.2, textAlign: "right" }}
+                style={{ "font-size": "10px", "line-height": 1.2, "text-align": "right" }}
               >
-                52W: {formatOneDecimal(hit.to_52w_high)}%
+                52W: {formatOneDecimal(hit().to_52w_high!)}%
               </Text>
-            ) : null}
-          </ToolbarRow>
-        ) : null}
+            </Show>
+          </Box>
+        </Show>
 
-        <Box
-          className="grid border-t border-fin-border"
-          style={{ gridTemplateColumns: `repeat(${canShowMembers ? 5 : 4}, minmax(0, 1fr))` }}
-        >
-          {metrics.map((metric, index) => (
-            <Box
-              key={metric.label}
-              className={`min-w-0 ${index === 0 ? "" : "border-l border-fin-border"}`}
-            >
-              <Metric label={metric.label} value={metric.value} />
-            </Box>
-          ))}
-          {canShowMembers ? (
-            <Box
-              className="flex min-w-0 items-center justify-center border-l border-fin-border"
-            >
-              <Box
-                component="button"
+        {/* Stat strip: one 18px line, background-shifted (no hairline) — the
+            card already has its single outer border. */}
+        <Box className="flex h-[18px] min-w-0 items-center bg-fin-surface-alt">
+          <Metric label="Score" value={formatScore(hit().confidence)} />
+          <Metric label="Pos" value={formatRangePos(hit().range_pos)} />
+          <Show when={canShowMembers()}>
+            <Box className="flex shrink-0 items-center pr-1.5">
+              <button
                 type="button"
-                data-testid={`patterns-card-members-${hit.symbol}`}
+                data-testid={`patterns-card-members-${hit().symbol}`}
                 onClick={(event) => {
                   event.stopPropagation();
-                  onShowMembers?.(hit.symbol);
+                  props.onShowMembers?.(hit().symbol);
                 }}
-                className="cursor-pointer border-0 bg-transparent p-1 text-[9px] font-bold uppercase tracking-[0.5px] text-fin-primary hover:underline"
+                className="cursor-pointer border-0 bg-transparent p-0 text-[10px] font-semibold text-fin-primary hover:underline"
               >
                 Members
-              </Box>
+              </button>
             </Box>
-          ) : null}
+          </Show>
         </Box>
       </Box>
     </Card>
   );
-});
+}

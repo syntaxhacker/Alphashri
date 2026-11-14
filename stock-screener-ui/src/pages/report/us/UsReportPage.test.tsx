@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 
 import { UIProvider } from "@/ui";
@@ -114,16 +113,15 @@ describe("UsReportPage", () => {
   });
 
   afterEach(() => {
-    cleanup();
     vi.clearAllMocks();
   });
 
   it("renders the live ladder and stats without tabs", async () => {
-    render(
+    render(() => (
       <UIProvider>
         <UsReportPage />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
 
     expect(screen.getByTestId("us-mode-live")).toBeInTheDocument();
     expect(screen.getByTestId("us-mode-eod")).toBeInTheDocument();
@@ -136,15 +134,14 @@ describe("UsReportPage", () => {
   });
 
   it("switches to EOD and exposes playback", async () => {
-    const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <UsReportPage />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
 
     await waitFor(() => expect(fetchUsLive).toHaveBeenCalled());
-    await user.click(screen.getByTestId("us-mode-eod"));
+    fireEvent.click(screen.getByTestId("us-mode-eod"));
 
     await waitFor(() => expect(fetchUsTape).toHaveBeenCalledWith("NQ", "2026-10-22"));
     await waitFor(() => expect(screen.getByTestId("us-playback")).toBeInTheDocument());

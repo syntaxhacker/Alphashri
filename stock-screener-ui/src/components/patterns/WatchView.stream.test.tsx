@@ -1,10 +1,14 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { act, fireEvent, render, screen, cleanup, waitFor } from "@testing-library/react";
-import { UIProvider } from "@/ui";
+import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import type { WatchPayload, WatchRow } from "@/types/chartPatterns";
 import { WatchView, WATCH_SLOW_HINT_MS, universeLabel } from "./WatchView";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 
 const mockFetchWatchSetups = vi.fn();
 const mockFetchWatch = vi.fn();
@@ -36,9 +40,6 @@ function makeRow(symbol: string, pct: number, state: WatchRow["state"]): WatchRo
   };
 }
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
 
 describe("WatchView streaming", () => {
   beforeEach(() => {
@@ -83,7 +84,7 @@ describe("WatchView streaming", () => {
       handlers.onDone?.();
     });
 
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
 
     // First row renders before done.
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
@@ -114,7 +115,7 @@ describe("WatchView streaming", () => {
       items: [makeRow("RELIANCE", 1.69, "armed"), makeRow("TCS", -1.25, "triggered")],
     } satisfies WatchPayload);
 
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
 
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
     expect(screen.getByTestId("watch-row-TCS")).toBeInTheDocument();
@@ -139,7 +140,7 @@ describe("WatchView streaming", () => {
       handlers.onDone?.();
     });
 
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
 
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
     // The SSE meta path sets updatedAt, so the snapshot age renders.
@@ -162,7 +163,7 @@ describe("WatchView streaming", () => {
       handlers.onDone?.();
     });
 
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
 
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
     expect(screen.getByTestId("watch-count")).toHaveTextContent("1 / 10");
@@ -183,12 +184,12 @@ describe("WatchView streaming", () => {
       handlers.onDone?.();
     });
 
-    r(<WatchView universe="nifty500" timeframe="1D" />);
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
 
     await waitFor(() => expect(screen.getByTestId("watch-row-TCS")).toBeInTheDocument());
     expect(screen.getByTestId("watch-count")).toHaveTextContent("2 / 2");
 
-    fireEvent.change(screen.getByTestId("watch-search"), { target: { value: "rel" } });
+    fireEvent.input(screen.getByTestId("watch-search"), { target: { value: "rel" } });
 
     await waitFor(() => expect(screen.queryByTestId("watch-row-TCS")).not.toBeInTheDocument());
     expect(screen.getByTestId("watch-count")).toHaveTextContent("1 / 2");
@@ -216,22 +217,16 @@ describe("WatchView streaming", () => {
         handlers.onDone?.();
       });
 
-      r(<WatchView universe="all_equity" timeframe="1D" />);
+      render(() => <WatchView universe="all_equity" timeframe="1D" />);
 
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(0);
-      });
+      await vi.advanceTimersByTimeAsync(0);
       expect(screen.getByTestId("watch-loading")).toBeInTheDocument();
       expect(screen.queryByTestId("watch-loading-hint")).not.toBeInTheDocument();
 
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(WATCH_SLOW_HINT_MS - 1);
-      });
+      await vi.advanceTimersByTimeAsync(WATCH_SLOW_HINT_MS - 1);
       expect(screen.queryByTestId("watch-loading-hint")).not.toBeInTheDocument();
 
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(1);
-      });
+      await vi.advanceTimersByTimeAsync(1);
       expect(screen.getByTestId("watch-loading-hint")).toHaveTextContent(
         "Computing the All NSE Equity screen — this can take a few seconds for All NSE Equity.",
       );
@@ -240,13 +235,9 @@ describe("WatchView streaming", () => {
       expect(mockFetchWatch).not.toHaveBeenCalled();
 
       // First item lands: loading + hint clear, the table takes over.
-      await act(async () => {
-        release();
-        await Promise.resolve();
-      });
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(0);
-      });
+      release();
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(0);
       expect(screen.queryByTestId("watch-loading-hint")).not.toBeInTheDocument();
       expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument();
     } finally {
@@ -263,11 +254,9 @@ describe("WatchView streaming", () => {
         handlers.onDone?.();
       });
 
-      r(<WatchView universe="nifty500" timeframe="1D" />);
+      render(() => <WatchView universe="nifty500" timeframe="1D" />);
 
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(WATCH_SLOW_HINT_MS + 1000);
-      });
+      await vi.advanceTimersByTimeAsync(WATCH_SLOW_HINT_MS + 1000);
       expect(screen.queryByTestId("watch-loading-hint")).not.toBeInTheDocument();
       expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument();
       expect(screen.getByTestId("watch-count")).toHaveTextContent("1 / 2");

@@ -1,99 +1,115 @@
-import { useId } from "react";
+import { createMemo, createSignal, createUniqueId } from "solid-js";
 import { cn } from "../cn";
+import * as palette from "../palette";
 import type { UITextInputProps } from "../types";
 
-function sizeClass(size?: UITextInputProps["size"]): string {
-  return size === "xs" || size === "sm" ? "px-2 py-1.5 text-xs" : "px-3 py-2 text-sm";
+type FieldBox = { h: number; fs: number; padY: number; padX: number };
+
+/**
+ * Text-family geometry. Text/password/number deliberately share one look — they
+ * are the same control; the distinguishing affordances live inside the field
+ * (reveal eye, steppers) or in the element itself (textarea height/resize).
+ */
+const FIELD_BOX: Record<string, FieldBox> = {
+  xs: { h: 26, fs: 11, padY: 4, padX: 8 },
+  sm: { h: 32, fs: 13, padY: 8, padX: 10 },
+};
+
+function boxOf(size?: UITextInputProps["size"]): FieldBox {
+  return FIELD_BOX[String(size)] ?? { h: 32, fs: 13, padY: 8, padX: 10 };
 }
 
-export function TextInput({
-  value,
-  defaultValue,
-  onChange,
-  onKeyDown,
-  leftSection,
-  rightSection,
-  className,
-  style,
-  "data-testid": testId,
-  label,
-  description,
-  error,
-  required,
-  disabled,
-  readOnly,
-  size,
-  placeholder,
-  type: inputType,
-  name,
-  id: inputId,
-  w,
-  h,
-  onFocus,
-  onBlur,
-}: UITextInputProps) {
-  const autoId = useId();
-  const resolvedId = inputId ?? autoId;
-  const explicitWidth = w != null ? (typeof w === "number" ? `${w}px` : w) : undefined;
-  const explicitHeight = h != null ? (typeof h === "number" ? `${h}px` : h) : undefined;
-  const isError = Boolean(error);
-  const helperText = isError
-    ? typeof error === "string"
-      ? error
-      : String(error ?? "")
-    : (description as string | undefined);
+export function TextInput(props: UITextInputProps) {
+  const resolvedId = props.id ?? createUniqueId();
+  const [focused, setFocused] = createSignal(false);
+  const explicitWidth = createMemo(() =>
+    props.w != null ? (typeof props.w === "number" ? `${props.w}px` : props.w) : undefined,
+  );
+  const explicitHeight = createMemo(() =>
+    props.h != null ? (typeof props.h === "number" ? `${props.h}px` : props.h) : undefined,
+  );
+  const isError = createMemo(() => Boolean(props.error));
+  const helperText = createMemo(() =>
+    isError()
+      ? typeof props.error === "string"
+        ? props.error
+        : String(props.error ?? "")
+      : (props.description as string | undefined),
+  );
 
-  const wrapperStyle: React.CSSProperties = explicitWidth
-    ? { width: explicitWidth, ...style }
-    : style ?? {};
-  const inputStyle: React.CSSProperties = explicitHeight ? { height: explicitHeight } : {};
+  const wrapperStyle = createMemo(() =>
+    explicitWidth() ? { width: explicitWidth()!, ...props.style } : (props.style ?? {}),
+  );
 
-  const wrapperTestId = testId ? `${testId}-field` : undefined;
-  const inputTestId = testId;
+  const inputStyle = createMemo<Record<string, string>>(() => {
+    const box = boxOf(props.size);
+    const border = isError() ? palette.NEGATIVE : focused() ? palette.PRIMARY : palette.BORDER;
+    return {
+      height: explicitHeight() ?? `${box.h}px`,
+      "border-radius": "6px",
+      border: `1px solid ${border}`,
+      "box-shadow": focused() ? `0 0 0 1px ${border}` : "none",
+      "background-color": props.disabled ? palette.SURFACE_ALT : palette.SURFACE,
+      color: palette.TEXT,
+      "font-size": `${box.fs}px`,
+      "line-height": "1",
+      padding: `${box.padY}px ${box.padX}px`,
+      "outline": "none",
+      ...(props.disabled ? { opacity: "0.45", cursor: "not-allowed" } : {}),
+    };
+  });
+
+  const wrapperTestId = props["data-testid"] ? `${props["data-testid"]}-field` : undefined;
+  const inputTestId = props["data-testid"];
+
+  const isControlled = createMemo(
+    () => props.value !== undefined || (props.onChange !== undefined && props.defaultValue === undefined),
+  );
 
   return (
     <div
       data-testid={wrapperTestId}
-      className={cn("flex flex-col min-w-0 gap-1.5", explicitWidth == null ? "w-full" : undefined, className)}
-      style={wrapperStyle}
+      className={cn("flex flex-col min-w-0 gap-1.5", explicitWidth() == null ? "w-full" : undefined, props.className)}
+      style={wrapperStyle()}
     >
-      {label && (
-        <label htmlFor={resolvedId} className={cn("text-xs font-medium", isError ? "text-fin-negative" : "text-fin-text")}>
-          {label}
-          {required && <span className="ml-1 text-fin-negative">*</span>}
+      {props.label && (
+        <label htmlFor={resolvedId} className={cn("text-xs font-medium", isError() ? "text-fin-negative" : "text-fin-text")}>
+          {props.label}
+          {props.required && <span className="ml-1 text-fin-negative">*</span>}
         </label>
       )}
       <div className="flex items-center gap-2 w-full min-w-0">
-        {leftSection && <div className="shrink-0">{leftSection}</div>}
+        {props.leftSection && <div className="shrink-0">{props.leftSection}</div>}
         <input
           id={resolvedId}
-          type={inputType ?? "text"}
-          value={value}
-          defaultValue={defaultValue}
-          onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-          onKeyDown={onKeyDown}
-          onFocus={onFocus}
-          onBlur={onBlur}
-          placeholder={placeholder}
-          name={name}
-          required={required}
-          disabled={disabled}
-          readOnly={readOnly}
+          type={props.type ?? "text"}
+          value={(isControlled() ? props.value : props.defaultValue) ?? ""}
+          onInput={(e) => props.onChange?.(e.currentTarget.value)}
+          onKeyDown={(e) => props.onKeyDown?.(e)}
+          onFocus={(e) => {
+            setFocused(true);
+            props.onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            props.onBlur?.(e);
+          }}
+          placeholder={props.placeholder}
+          name={props.name}
+          required={props.required}
+          disabled={props.disabled}
+          readOnly={props.readOnly}
           className={cn(
-            "flex-1 min-w-0 block",
-            sizeClass(size),
-            "bg-fin-surface border border-fin-border rounded-fin text-fin-text placeholder:text-fin-text-muted",
-            "focus:outline-none focus:border-fin-primary focus:ring-2 focus:ring-fin-primary",
-            disabled ? "disabled:bg-fin-surface-alt disabled:text-fin-text-muted disabled:border-fin-border disabled:cursor-not-allowed" : undefined,
-            isError ? "border-fin-negative focus:border-fin-negative" : undefined,
+            "flex-1 min-w-0 block bg-transparent placeholder:text-fin-text-muted",
+            props.disabled ? "cursor-not-allowed" : undefined,
           )}
-          style={inputStyle}
+          style={inputStyle()}
           data-testid={inputTestId}
         />
-        {rightSection && <div className="shrink-0">{rightSection}</div>}
+        {props.rightSection && <div className="shrink-0">{props.rightSection}</div>}
       </div>
-      {helperText && (
-        <span className={cn("text-xs", isError ? "text-fin-negative" : "text-fin-text-muted")}>{helperText}</span>
+      {helperText() && (
+        <span className={cn("text-xs", isError() ? "text-fin-negative" : "text-fin-text-muted")}>{helperText()}</span>
       )}
     </div>
   );

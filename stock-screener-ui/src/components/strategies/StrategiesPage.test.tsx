@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import { StrategiesPage } from "./StrategiesPage";
 import type { StrategiesPageProps } from "./types";
@@ -45,97 +44,95 @@ const baseProps: StrategiesPageProps = {
 
 describe("StrategiesPage", () => {
   it("renders with data-testid", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategiesPage {...baseProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategies-view")).toBeInTheDocument();
   });
 
   it("renders the merged strategies panel", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategiesPage {...baseProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategies-nav")).toBeInTheDocument();
   });
 
   it("renders content area", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategiesPage {...baseProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategies-content")).toBeInTheDocument();
   });
 
   it("shows error state with Retry and Dismiss buttons", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategiesPage {...baseProps} error="Something went wrong" />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategies-error")).toBeInTheDocument();
     expect(screen.getByTestId("strategies-retry-btn")).toBeInTheDocument();
     expect(screen.getByTestId("strategies-dismiss-btn")).toBeInTheDocument();
   });
 
-  it("Retry button calls onRefresh", async () => {
+  it("Retry button calls onRefresh", () => {
     const onRefresh = vi.fn();
-    const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <StrategiesPage {...baseProps} error="Error" onRefresh={onRefresh} />
-      </UIProvider>,
-    );
-    await user.click(screen.getByTestId("strategies-retry-btn"));
+      </UIProvider>
+    ));
+    fireEvent.click(screen.getByTestId("strategies-retry-btn"));
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
-  it("Dismiss button calls onClearError", async () => {
+  it("Dismiss button calls onClearError", () => {
     const onClearError = vi.fn();
-    const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <StrategiesPage {...baseProps} error="Error" onClearError={onClearError} />
-      </UIProvider>,
-    );
-    await user.click(screen.getByTestId("strategies-dismiss-btn"));
+      </UIProvider>
+    ));
+    fireEvent.click(screen.getByTestId("strategies-dismiss-btn"));
     expect(onClearError).toHaveBeenCalledTimes(1);
   });
 
   it("active view 'tree' renders TemplateTreeView", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategiesPage {...baseProps} activeView="tree" />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("template-tree-empty")).toBeInTheDocument();
   });
 
   it("active view 'performance' renders PerformanceView", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategiesPage {...baseProps} activeView="performance" />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("performance-empty-state")).toBeInTheDocument();
   });
 
   it("renders create modal when showCreateModal is true", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategiesPage {...baseProps} showCreateModal={true} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const modals = screen.getAllByTestId("strategy-form-modal");
     expect(modals.length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders edit modal when showEditModal is true", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategiesPage
           {...baseProps}
@@ -160,8 +157,8 @@ describe("StrategiesPage", () => {
             gst_pct: 18, created_at: null, updated_at: null,
           }}
         />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const modals = screen.getAllByTestId("strategy-form-modal");
     expect(modals.length).toBeGreaterThanOrEqual(1);
   });

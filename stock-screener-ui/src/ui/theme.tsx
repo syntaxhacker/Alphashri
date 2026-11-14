@@ -1,8 +1,8 @@
 // Local UI provider stub. Styling is provided by Tailwind tokens + sxTheme.
-import type { ReactNode } from "react";
+import type { JSX } from "solid-js";
 
 export const uiTheme = {} as any;
 
-export function UIProvider({ children }: { children: ReactNode; defaultColorScheme?: "light" | "dark"; forceColorScheme?: "light" | "dark" }) {
-  return <>{children}</>;
+export function UIProvider(props: { children: JSX.Element; defaultColorScheme?: "light" | "dark"; forceColorScheme?: "light" | "dark" }) {
+  return <>{props.children}</>;
 }

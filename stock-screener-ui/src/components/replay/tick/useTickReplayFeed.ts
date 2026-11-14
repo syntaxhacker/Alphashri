@@ -1,33 +1,59 @@
 // useTickReplayFeed — data hook for tick-replay pages. The page supplies fetcher(s);
 // the hook owns loading/error state. SmcTrades merges inv+retest; SmcPoc swaps nq/mock.
-import { useEffect, useState } from "react";
+import { createEffect, createSignal, onCleanup } from "solid-js";
 import type { Bar, ReplayTrade } from "./types";
 
 export interface TickReplayFeed<T extends ReplayTrade = ReplayTrade> {
-  bars: Bar[];
-  trades: T[];
-  loading: boolean;
-  error?: string;
-  basis?: number;
+  /** Reactive accessor for the loaded bars */
+  bars: () => Bar[];
+  /** Reactive accessor for the loaded trades */
+  trades: () => T[];
+  /** Reactive accessor for the loading flag */
+  loading: () => boolean;
+  /** Reactive accessor for the error message, if any */
+  error: () => string | undefined;
+  /** Reactive accessor for the basis, if provided by the fetcher */
+  basis: () => number | undefined;
 }
 
 export default function useTickReplayFeed<T extends ReplayTrade = ReplayTrade>(
   load: () => Promise<{ bars: Bar[]; trades: T[]; error?: string; basis?: number }>,
-  deps: unknown[],
+  deps: Array<() => unknown> = [],
 ): TickReplayFeed<T> {
-  const [state, setState] = useState<TickReplayFeed<T>>({ bars: [], trades: [], loading: true });
-  useEffect(() => {
+  const [bars, setBars] = createSignal<Bar[]>([]);
+  const [trades, setTrades] = createSignal<T[]>([]);
+  const [loading, setLoading] = createSignal(true);
+  const [error, setError] = createSignal<string | undefined>(undefined);
+  const [basis, setBasis] = createSignal<number | undefined>(undefined);
+
+  createEffect(() => {
+    for (const dep of deps) dep();
     let live = true;
-    setState((s) => ({ ...s, loading: true }));
+    setLoading(true);
     load()
       .then((d) => {
-        if (live) setState({ bars: d.bars, trades: d.trades, loading: false, error: d.error, basis: d.basis });
+        if (!live) return;
+        setBars(d.bars);
+        setTrades(d.trades);
+        setError(d.error);
+        setBasis(d.basis);
+        setLoading(false);
       })
       .catch(() => {
-        if (live) setState({ bars: [], trades: [], loading: false, error: "fetch failed" });
+        if (!live) return;
+        setBars([]);
+        setTrades([]);
+        setError("fetch failed");
+        setLoading(false);
       });
-    return () => { live = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
-  return state;
+    onCleanup(() => { live = false; });
+  });
+
+  return {
+    bars,
+    trades,
+    loading,
+    error,
+    basis,
+  };
 }

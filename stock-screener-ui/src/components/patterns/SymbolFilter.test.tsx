@@ -1,15 +1,18 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { UIProvider } from "@/ui";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import type { PatternFilters } from "@/types/chartPatterns";
 
 const searchSymbols = vi.fn();
 vi.mock("@/api/symbols", () => ({
   searchSymbols: (...args: unknown[]) => searchSymbols(...args),
 }));
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 
 import { SymbolFilter } from "./SymbolFilter";
 
@@ -33,9 +36,6 @@ function makeFilters(overrides: Partial<FiltersFixture> = {}): PatternFilters {
   } as PatternFilters;
 }
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
 
 describe("SymbolFilter", () => {
   beforeEach(() => {
@@ -47,19 +47,18 @@ describe("SymbolFilter", () => {
   afterEach(() => cleanup());
 
   test("typing searches and selecting a symbol calls setFilter('symbols', ...)", async () => {
-    const user = userEvent.setup();
     const setFilter = vi.fn();
-    r(<SymbolFilter filters={makeFilters()} setFilter={setFilter} />);
+    render(() => <SymbolFilter filters={makeFilters()} setFilter={setFilter} />);
 
     const combo = within(screen.getByTestId("patterns-symbol-filter")).getByRole("combobox");
     // The local MultiSelect opens its listbox on focus (the previous one opened on change).
     fireEvent.focus(combo);
-    fireEvent.change(combo, { target: { value: "reli" } });
+    fireEvent.input(combo, { target: { value: "reli" } });
 
     await waitFor(() => expect(searchSymbols).toHaveBeenCalledWith("reli", 20));
 
     const option = await screen.findByRole("option", { name: /RELIANCE/ });
-    await user.click(within(option).getByRole("checkbox"));
+    fireEvent.click(within(option).getByRole("checkbox"));
 
     await waitFor(() =>
       expect(setFilter).toHaveBeenCalledWith("symbols", ["RELIANCE"]),
@@ -67,17 +66,17 @@ describe("SymbolFilter", () => {
   });
 
   test("shows the helper text", () => {
-    r(<SymbolFilter filters={makeFilters()} setFilter={vi.fn()} />);
+    render(() => <SymbolFilter filters={makeFilters()} setFilter={vi.fn()} />);
     expect(screen.getByText("Show patterns only for these symbols")).toBeInTheDocument();
   });
 
   test("keeps typed text after async options resolve (controlled searchValue)", async () => {
     const setFilter = vi.fn();
-    r(<SymbolFilter filters={makeFilters()} setFilter={setFilter} />);
+    render(() => <SymbolFilter filters={makeFilters()} setFilter={setFilter} />);
 
     const combo = within(screen.getByTestId("patterns-symbol-filter")).getByRole("combobox");
     fireEvent.focus(combo);
-    fireEvent.change(combo, { target: { value: "reli" } });
+    fireEvent.input(combo, { target: { value: "reli" } });
 
     // Wait for the debounced search + options state update to land.
     await screen.findByRole("option", { name: /RELIANCE/ });
@@ -86,38 +85,37 @@ describe("SymbolFilter", () => {
   });
 
   test("clearing empties selected symbols", async () => {
-    const user = userEvent.setup();
     const setFilter = vi.fn();
-    r(<SymbolFilter filters={makeFilters({ symbols: ["TCS"] })} setFilter={setFilter} />);
+    render(() => <SymbolFilter filters={makeFilters({ symbols: ["TCS"] })} setFilter={setFilter} />);
 
     expect(screen.getByTestId("patterns-symbol-chip-TCS")).toBeInTheDocument();
 
-    await user.click(screen.getByTestId("patterns-symbol-clear"));
+    fireEvent.click(screen.getByTestId("patterns-symbol-clear"));
 
     expect(setFilter).toHaveBeenCalledWith("symbols", []);
   });
 
   test("chip remove is a labelled button reachable by keyboard", async () => {
-    const user = userEvent.setup();
     const setFilter = vi.fn();
-    r(<SymbolFilter filters={makeFilters({ symbols: ["TCS"] })} setFilter={setFilter} />);
+    render(() => <SymbolFilter filters={makeFilters({ symbols: ["TCS"] })} setFilter={setFilter} />);
 
     const remove = screen.getByRole("button", { name: "Remove TCS" });
     expect(remove).toBeInTheDocument();
 
     remove.focus();
     expect(remove).toHaveFocus();
-    await user.keyboard("{Enter}");
+    fireEvent.keyDown(remove, { key: "Enter" });
+    fireEvent.click(remove);
     expect(setFilter).toHaveBeenCalledWith("symbols", []);
   });
 
   test("debounces search: rapid keystrokes fire one search for the final term", async () => {
     const setFilter = vi.fn();
-    r(<SymbolFilter filters={makeFilters()} setFilter={setFilter} />);
+    render(() => <SymbolFilter filters={makeFilters()} setFilter={setFilter} />);
     const combo = within(screen.getByTestId("patterns-symbol-filter")).getByRole("combobox");
     fireEvent.focus(combo);
-    fireEvent.change(combo, { target: { value: "rel" } });
-    fireEvent.change(combo, { target: { value: "reli" } });
+    fireEvent.input(combo, { target: { value: "rel" } });
+    fireEvent.input(combo, { target: { value: "reli" } });
 
     await screen.findByRole("option", { name: /RELIANCE/ });
     expect(searchSymbols).toHaveBeenCalledWith("reli", 20);
@@ -125,82 +123,74 @@ describe("SymbolFilter", () => {
   });
 
   test("does not search on mount or for an empty query", () => {
-    r(<SymbolFilter filters={makeFilters()} setFilter={vi.fn()} />);
+    render(() => <SymbolFilter filters={makeFilters()} setFilter={vi.fn()} />);
     expect(searchSymbols).not.toHaveBeenCalled();
   });
 
   test("selecting a second symbol appends (multi-select)", async () => {
-    const user = userEvent.setup();
     searchSymbols.mockResolvedValue([
       { symbol: "RELIANCE", name: "Reliance Industries" },
       { symbol: "HDFCBANK", name: "HDFC Bank" },
     ]);
     const setFilter = vi.fn();
-    r(<SymbolFilter filters={makeFilters({ symbols: ["TCS"] })} setFilter={setFilter} />);
+    render(() => <SymbolFilter filters={makeFilters({ symbols: ["TCS"] })} setFilter={setFilter} />);
 
     const combo = within(screen.getByTestId("patterns-symbol-filter")).getByRole("combobox");
     fireEvent.focus(combo);
-    fireEvent.change(combo, { target: { value: "h" } });
+    fireEvent.input(combo, { target: { value: "h" } });
     const option = await screen.findByRole("option", { name: /HDFCBANK/ });
-    await user.click(within(option).getByRole("checkbox"));
+    fireEvent.click(within(option).getByRole("checkbox"));
 
     await waitFor(() => expect(setFilter).toHaveBeenCalledWith("symbols", ["TCS", "HDFCBANK"]));
   });
 
   test("onChange override (scope mode) receives selections instead of setFilter", async () => {
-    const user = userEvent.setup();
     const setFilter = vi.fn();
     const onChange = vi.fn();
-    r(<SymbolFilter filters={makeFilters()} setFilter={setFilter} onChange={onChange} />);
+    render(() => <SymbolFilter filters={makeFilters()} setFilter={setFilter} onChange={onChange} />);
 
     const combo = within(screen.getByTestId("patterns-symbol-filter")).getByRole("combobox");
     fireEvent.focus(combo);
-    fireEvent.change(combo, { target: { value: "reli" } });
-    await user.click(within(await screen.findByRole("option", { name: /RELIANCE/ })).getByRole("checkbox"));
+    fireEvent.input(combo, { target: { value: "reli" } });
+    fireEvent.click(within(await screen.findByRole("option", { name: /RELIANCE/ })).getByRole("checkbox"));
 
     await waitFor(() => expect(onChange).toHaveBeenCalledWith(["RELIANCE"]));
     expect(setFilter).not.toHaveBeenCalled();
   });
 
   test("remove and clear route through onChange when provided", async () => {
-    const user = userEvent.setup();
     const setFilter = vi.fn();
     const onChange = vi.fn();
-    r(
-      <SymbolFilter
+    render(() =>       <SymbolFilter
         filters={makeFilters({ symbols: ["TCS", "RELIANCE"] })}
         setFilter={setFilter}
         onChange={onChange}
-      />,
-    );
+      />);
 
-    await user.click(screen.getByRole("button", { name: "Remove RELIANCE" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove RELIANCE" }));
     expect(onChange).toHaveBeenCalledWith(["TCS"]);
     expect(setFilter).not.toHaveBeenCalled();
 
-    await user.click(screen.getByTestId("patterns-symbol-clear"));
+    fireEvent.click(screen.getByTestId("patterns-symbol-clear"));
     expect(onChange).toHaveBeenCalledWith([]);
     expect(setFilter).not.toHaveBeenCalled();
   });
 
   test("clicking a chip remove drops just that symbol (default setFilter)", async () => {
-    const user = userEvent.setup();
     const setFilter = vi.fn();
-    r(<SymbolFilter filters={makeFilters({ symbols: ["TCS", "RELIANCE"] })} setFilter={setFilter} />);
+    render(() => <SymbolFilter filters={makeFilters({ symbols: ["TCS", "RELIANCE"] })} setFilter={setFilter} />);
 
-    await user.click(screen.getByRole("button", { name: "Remove RELIANCE" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove RELIANCE" }));
     expect(setFilter).toHaveBeenCalledWith("symbols", ["TCS"]);
   });
 
   test("supports placeholder and helper text overrides", () => {
-    r(
-      <SymbolFilter
+    render(() =>       <SymbolFilter
         filters={makeFilters()}
         setFilter={vi.fn()}
         placeholder="Pick symbols…"
         helperText="Custom helper"
-      />,
-    );
+      />);
     expect(screen.getByPlaceholderText("Pick symbols…")).toBeInTheDocument();
     expect(screen.getByText("Custom helper")).toBeInTheDocument();
     expect(screen.queryByText("Show patterns only for these symbols")).not.toBeInTheDocument();

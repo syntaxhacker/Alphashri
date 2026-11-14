@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach, afterEach, test } from "vitest";
-import { screen, cleanup } from "@testing-library/react";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import { PerformanceAnalytics } from "./PerformanceAnalytics";
 import * as paperTradingState from "../../state/paperTrading";
 
@@ -60,7 +59,7 @@ describe("PerformanceAnalytics", () => {
   };
 
   it("shows empty state when no data", () => {
-    renderWithProviders(<PerformanceAnalytics />);
+    render(() => <PerformanceAnalytics />);
     expect(screen.getAllByText(/No analytics data available yet/i).length).toBeGreaterThan(0);
   });
 
@@ -88,7 +87,7 @@ describe("PerformanceAnalytics", () => {
       symbol_performance: [],
     };
     paperTradingState.setAnalyticsData(mockData as any);
-    renderWithProviders(<PerformanceAnalytics />);
+    render(() => <PerformanceAnalytics />);
     expect(screen.getAllByText(/^Total$/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Win Rate/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/^PF$/).length).toBeGreaterThan(0);
@@ -98,13 +97,13 @@ describe("PerformanceAnalytics", () => {
 
   test("shows loading spinner when analyticsLoading is true", () => {
     paperTradingState.setAnalyticsLoading(true);
-    renderWithProviders(<PerformanceAnalytics />);
+    render(() => <PerformanceAnalytics />);
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
   });
 
   test("renders daysBack SegmentedControl (7d/30d/90d) when data available", () => {
     paperTradingState.setAnalyticsData(mockAnalyticsData as any);
-    renderWithProviders(<PerformanceAnalytics />);
+    render(() => <PerformanceAnalytics />);
     expect(screen.getByText("7d")).toBeInTheDocument();
     expect(screen.getByText("30d")).toBeInTheDocument();
     expect(screen.getByText("90d")).toBeInTheDocument();
@@ -112,31 +111,31 @@ describe("PerformanceAnalytics", () => {
 
   test("renders Equity Curve chart section with heading", () => {
     paperTradingState.setAnalyticsData(mockAnalyticsData as any);
-    renderWithProviders(<PerformanceAnalytics />);
+    render(() => <PerformanceAnalytics />);
     expect(screen.getByText("Equity Curve")).toBeInTheDocument();
   });
 
   test("renders Daily P&L chart section with heading", () => {
     paperTradingState.setAnalyticsData(mockAnalyticsData as any);
-    renderWithProviders(<PerformanceAnalytics />);
+    render(() => <PerformanceAnalytics />);
     expect(screen.getByText("Daily P&L")).toBeInTheDocument();
   });
 
   test("renders Drawdown chart section with heading", () => {
     paperTradingState.setAnalyticsData(mockAnalyticsData as any);
-    renderWithProviders(<PerformanceAnalytics />);
+    render(() => <PerformanceAnalytics />);
     expect(screen.getByText("Drawdown")).toBeInTheDocument();
   });
 
   test("renders Monthly P&L chart section with heading", () => {
     paperTradingState.setAnalyticsData(mockAnalyticsData as any);
-    renderWithProviders(<PerformanceAnalytics />);
+    render(() => <PerformanceAnalytics />);
     expect(screen.getByText("Monthly P&L")).toBeInTheDocument();
   });
 
   test("renders correct values in summary cards", () => {
     paperTradingState.setAnalyticsData(mockAnalyticsData as any);
-    renderWithProviders(<PerformanceAnalytics />);
+    render(() => <PerformanceAnalytics />);
     expect(screen.getByText("₹4500")).toBeInTheDocument();
     expect(screen.getByText("60.0%")).toBeInTheDocument();
     expect(screen.getByText("2.00")).toBeInTheDocument();

@@ -1,12 +1,13 @@
+import { createSignal, createEffect, createMemo, onCleanup, onMount, Show } from "solid-js";
 import { formatNumberIN } from "@/utils/ui-helpers";
-import { useEffect, useMemo, useState } from "react";
-import { ActionIcon, Badge, Card, Collapse, Text } from "@/ui";
-import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
-import { useECharts } from "../../hooks/useECharts";
+import { ActionIcon, Badge, Collapse, Text, Card } from "@/ui";
+import { IconChevronDown, IconChevronRight } from "@/components/common/Icons";
+import { loadEcharts } from "../../utils/loadEcharts";
 import {
   CHART_AVG_ENTRY,
   CHART_MUTED,
   NEGATIVE,
+  OPTION_PAYOFF_TOOLTIP_TEXT,
   POSITIVE,
   SURFACE,
   SURFACE_ALT,
@@ -18,7 +19,6 @@ import {
   type PayoffPoint,
 } from "./optionTradeUtils";
 import type { PaperTrade } from "../../types/paperTrading";
-
 const CHART_HEIGHT = 210;
 
 function fmtInr(value: number): string {
@@ -33,21 +33,22 @@ function fmtK(value: number): string {
   return String(Math.round(value));
 }
 
-export function OptionPayoffChart({
-  series,
-  strike,
-  breakeven,
-  underlying,
-}: {
+export function OptionPayoffChart(props: {
   series: PayoffPoint[];
   strike: number;
   breakeven: number | null;
   underlying: string;
 }) {
-  const { chartRef, setChartOption } = useECharts({ isDark: true });
+  let chartEl: HTMLDivElement | undefined;
+  let chart: any = null;
+  let echartsLib: any = null;
+  let resizeHandler: (() => void) | null = null;
+  let ro: ResizeObserver | null = null;
+  const [libReady, setLibReady] = createSignal(false);
 
-  useEffect(() => {
-    if (series.length === 0) return;
+  const buildOption = () => {
+    const series = props.series;
+    const strike = props.strike;
     const markLineData: Record<string, unknown>[] = [
       { yAxis: 0, lineStyle: { color: CHART_MUTED, width: 1, type: "solid" }, label: { show: false } },
       {
@@ -56,26 +57,26 @@ export function OptionPayoffChart({
         label: { formatter: `K ${strike}`, color: CHART_AVG_ENTRY, fontSize: 10, position: "insideEndTop" },
       },
     ];
-    if (breakeven != null) {
+    if (props.breakeven != null) {
       markLineData.push({
-        xAxis: breakeven,
+        xAxis: props.breakeven,
         lineStyle: { color: CHART_MUTED, width: 1, type: "dotted" },
-        label: { formatter: `BE ${Math.round(breakeven)}`, color: CHART_MUTED, fontSize: 10, position: "insideEndTop" },
+        label: { formatter: `BE ${Math.round(props.breakeven)}`, color: CHART_MUTED, fontSize: 10, position: "insideEndTop" },
       });
     }
-    void setChartOption({
+    return {
       animation: false,
       backgroundColor: SURFACE,
       tooltip: {
         trigger: "axis",
         backgroundColor: SURFACE_ALT,
         borderColor: CHART_MUTED,
-        textStyle: { color: "#E6EDF3", fontSize: 11 },
+        textStyle: { color: OPTION_PAYOFF_TOOLTIP_TEXT, fontSize: 11 },
         formatter: (params: unknown) => {
           const p = Array.isArray(params) ? params[0] : params;
           const v = (p as { value?: [number, number] } | undefined)?.value;
           if (!v) return "";
-          return `${underlying} ${Number(v[0]).toFixed(0)}<br/><b>P&L ${fmtInr(Number(v[1]))}</b>`;
+          return `${props.underlying} ${Number(v[0]).toFixed(0)}<br/><b>P&L ${fmtInr(Number(v[1]))}</b>`;
         },
       },
       grid: { left: 58, right: 18, top: 14, bottom: 26 },
@@ -119,34 +120,91 @@ export function OptionPayoffChart({
           markLine: { symbol: "none", silent: true, data: markLineData },
         },
       ],
-    });
-  }, [series, strike, breakeven, underlying, setChartOption]);
+    };
+  };
 
-  if (series.length === 0) return null;
+  const applyOption = () => {
+    if (!chart) return;
+    try {
+      chart.setOption(buildOption(), true);
+      chart.resize();
+    } catch {
+      /* headless DOM without canvas 2d */
+    }
+  };
+
+  const initChart = () => {
+    if (chart || !chartEl || !echartsLib) return;
+    chart = echartsLib.init(chartEl, null);
+    resizeHandler = () => chart?.resize();
+    window.addEventListener("resize", resizeHandler);
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(() => chart?.resize());
+      ro.observe(chartEl);
+    }
+    applyOption();
+  };
+
+  onMount(async () => {
+    const lib = await loadEcharts();
+    if (lib) {
+      echartsLib = lib;
+      setLibReady(true);
+      initChart();
+    }
+  });
+
+  onCleanup(() => {
+    if (resizeHandler) window.removeEventListener("resize", resizeHandler);
+    ro?.disconnect();
+    if (chart) {
+      chart.dispose();
+      chart = null;
+    }
+  });
+
+  createEffect(() => {
+    if (!libReady()) return;
+    // Subscribe to everything buildOption reads: hasSeries length, series
+    // identity, strike, breakeven, underlying.
+    void props.series.length;
+    void props.series;
+    void props.strike;
+    void props.breakeven;
+    void props.underlying;
+    applyOption();
+  });
+
   return (
-    <div
-      ref={chartRef}
-      className="option-payoff-chart w-full border border-fin-surface-alt rounded-sm overflow-hidden"
-      data-testid="option-payoff-chart"
-      style={{ height: CHART_HEIGHT }}
-    />
+    <Show when={props.series.length > 0}>
+      <div
+        ref={(el) => {
+          chartEl = el;
+          initChart();
+        }}
+        class="option-payoff-chart w-full border border-fin-surface-alt rounded-sm overflow-hidden"
+        data-testid="option-payoff-chart"
+        style={{ height: `${CHART_HEIGHT}px` }}
+      />
+    </Show>
   );
 }
 
-function Stat({ label, value, tone }: { label: string; value: string; tone?: "pos" | "neg" }) {
+function Stat(props: { label: string; value: string; tone?: "pos" | "neg" }) {
+  const color = () => props.tone === "pos" ? POSITIVE : props.tone === "neg" ? NEGATIVE : undefined;
   return (
-    <div className="flex flex-col min-w-0">
-      <Text size="xs" c="dimmed" className="uppercase" style={{ fontSize: 9, letterSpacing: 0.5 }}>
-        {label}
+    <div class="flex flex-col min-w-0">
+      <Text size="xs" c="dimmed" className="uppercase" style={{ "font-size": "9px", "letter-spacing": "0.5px" }}>
+        {props.label}
       </Text>
       <Text
         size="xs"
         className="font-mono tabular-nums font-semibold"
         style={{
-          color: tone === "pos" ? POSITIVE : tone === "neg" ? NEGATIVE : undefined,
+          color: color(),
         }}
       >
-        {value}
+        {props.value}
       </Text>
     </div>
   );
@@ -156,61 +214,73 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "po
  * Collapsible payoff-at-expiry block for a single option trade.
  * Renders nothing (hidden) when the trade is not an option contract.
  */
-export function OptionPayoffCard({ trade }: { trade: PaperTrade }) {
-  const [open, setOpen] = useState(true);
-  const contract = useMemo(() => parseOptionSymbol((trade.symbol || "").trim()), [trade]);
-  const series = useMemo(() => computeTradePayoffSeries(trade), [trade]);
+export function OptionPayoffCard(props: { trade: PaperTrade }) {
+  const [open, setOpen] = createSignal(true);
+  const contract = createMemo(() => parseOptionSymbol((props.trade.symbol || "").trim()));
+  const series = createMemo(() => computeTradePayoffSeries(props.trade));
 
-  if (!contract || !series || series.length === 0) return null;
-
-  const isShort = (trade.side || "").toUpperCase() === "SELL";
-  const breakeven = optionBreakeven(contract.optionType, contract.strike, trade.entry_price);
-  const maxProfit = series.reduce((m, p) => Math.max(m, p.pnl), -Infinity);
-  const maxLoss = series.reduce((m, p) => Math.min(m, p.pnl), Infinity);
-  const net = Number.isFinite(trade.net_pnl) ? trade.net_pnl : null;
+  const ready = () => contract() && series() && series()!.length > 0;
 
   return (
-    <Card className="option-payoff-card flex-shrink-0 min-h-0" data-testid="option-payoff-card">
-      <div className="p-1.5 flex flex-col gap-1">
-        <div className="flex items-center gap-2 flex-wrap">
-          <ActionIcon
-            variant="subtle"
-            color="secondary"
-            size="sm"
-            aria-label={open ? "Collapse payoff" : "Expand payoff"}
-            onClick={() => setOpen((v) => !v)}
-            data-testid="option-payoff-toggle"
-          >
-            {open ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
-          </ActionIcon>
-          <Text size="xs" fw={700} className="uppercase" style={{ letterSpacing: 0.7 }} c="dimmed">
-            Payoff @ expiry
-          </Text>
-          <Badge size="xs" variant="filled" color={isShort ? "error" : "success"}>
-            {isShort ? "SHORT" : "LONG"} {contract.optionType}
-          </Badge>
-          <div className="flex gap-4 ml-2 flex-wrap items-center">
-            <Stat label="Underlying" value={contract.underlying} />
-            <Stat label="Strike" value={formatNumberIN(contract.strike)} />
-            <Stat label="Qty" value={String(trade.quantity)} />
-            <Stat label="Entry" value={fmtInr(trade.entry_price)} />
-            {breakeven != null && <Stat label="Breakeven" value={fmtInr(breakeven)} />}
-            {net != null && <Stat label="Net" value={fmtInr(net)} tone={net >= 0 ? "pos" : "neg"} />}
-          </div>
-          <div className="ml-auto flex gap-4">
-            <Stat label="Max win" value={fmtK(maxProfit)} tone="pos" />
-            <Stat label="Max loss" value={fmtK(maxLoss)} tone="neg" />
-          </div>
-        </div>
-        <Collapse in={open}>
-          <OptionPayoffChart
-            series={series}
-            strike={contract.strike}
-            breakeven={breakeven}
-            underlying={contract.underlying}
-          />
-        </Collapse>
-      </div>
-    </Card>
+    <Show when={ready() ? { contract: contract()!, series: series()! } : null}>
+      {(resolved) => {
+        const c = () => resolved().contract;
+        const s = () => resolved().series;
+        const isShort = () => (props.trade.side || "").toUpperCase() === "SELL";
+        const breakeven = () => optionBreakeven(c().optionType, c().strike, props.trade.entry_price);
+        const maxProfit = () => s().reduce((m, p) => Math.max(m, p.pnl), -Infinity);
+        const maxLoss = () => s().reduce((m, p) => Math.min(m, p.pnl), Infinity);
+        const net = () => Number.isFinite(props.trade.net_pnl) ? props.trade.net_pnl : null;
+
+        return (
+          <Card className="option-payoff-card flex-shrink-0 min-h-0" data-testid="option-payoff-card">
+            <div class="p-1.5 flex flex-col gap-1">
+              <div class="flex items-center gap-2 flex-wrap">
+                <ActionIcon
+                  variant="subtle"
+                  color="secondary"
+                  size="sm"
+                  aria-label={open() ? "Collapse payoff" : "Expand payoff"}
+                  onClick={() => setOpen((v) => !v)}
+                  data-testid="option-payoff-toggle"
+                >
+                  {open() ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+                </ActionIcon>
+                <Text size="xs" fw={700} className="uppercase" style={{ "letter-spacing": "0.7px" }} c="dimmed">
+                  Payoff @ expiry
+                </Text>
+                <Badge size="xs" variant="filled" color={isShort() ? "error" : "success"}>
+                  {isShort() ? "SHORT" : "LONG"} {c().optionType}
+                </Badge>
+                <div class="flex gap-4 ml-2 flex-wrap items-center">
+                  <Stat label="Underlying" value={c().underlying} />
+                  <Stat label="Strike" value={formatNumberIN(c().strike)} />
+                  <Stat label="Qty" value={String(props.trade.quantity)} />
+                  <Stat label="Entry" value={fmtInr(props.trade.entry_price)} />
+                  <Show when={breakeven() != null}>
+                    <Stat label="Breakeven" value={fmtInr(breakeven()!)} />
+                  </Show>
+                  <Show when={net() != null}>
+                    <Stat label="Net" value={fmtInr(net()!)} tone={net()! >= 0 ? "pos" : "neg"} />
+                  </Show>
+                </div>
+                <div class="ml-auto flex gap-4">
+                  <Stat label="Max win" value={fmtK(maxProfit())} tone="pos" />
+                  <Stat label="Max loss" value={fmtK(maxLoss())} tone="neg" />
+                </div>
+              </div>
+              <Collapse in={open()}>
+                <OptionPayoffChart
+                  series={s()}
+                  strike={c().strike}
+                  breakeven={breakeven()}
+                  underlying={c().underlying}
+                />
+              </Collapse>
+            </div>
+          </Card>
+        );
+      }}
+    </Show>
   );
 }

@@ -1,3 +1,4 @@
+import { For } from "solid-js";
 import { CompactStat, CompactStatGrid } from "../common/compact";
 import type { SummaryItem, ScreenerSummaryProps } from "./types";
 
@@ -22,19 +23,20 @@ export function getTone(item: SummaryItem): string {
   return "var(--color-fin-text)";
 }
 
-export function ScreenerSummary({ summary }: ScreenerSummaryProps) {
+export function ScreenerSummary(props: ScreenerSummaryProps) {
   return (
     <CompactStatGrid className="gap-1 p-2">
-      {summary.map((item) => (
-        <CompactStat
-          key={item.label}
-          label={item.label}
-          value={item.value}
-          tone={getTone(item)}
-          testId={`summary-card-${item.label}`}
-          className="flex items-center justify-between"
-        />
-      ))}
+      <For each={props.summary}>
+        {(item) => (
+          <CompactStat
+            label={item.label}
+            value={item.value}
+            tone={getTone(item)}
+            data-testid={`summary-card-${item.label}`}
+            className="flex items-center justify-between"
+          />
+        )}
+      </For>
     </CompactStatGrid>
   );
 }

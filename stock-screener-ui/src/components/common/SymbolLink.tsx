@@ -1,8 +1,12 @@
-import type { ReactNode, MouseEvent , CSSProperties} from "react";
+import { Show, splitProps, type JSX } from "solid-js";
 import { ActionIcon, Box, CopyButton, Text, Tooltip, cn } from "@/ui";
-import { IconChartCandle, IconCheck, IconCopy, IconExternalLink } from "@tabler/icons-react";
+import { IconChartCandle, IconCheck, IconCopy, IconExternalLink } from "./Icons";
 import { tradingViewSymbol } from "@/config/tvSymbols";
 import { useSymbolDock } from "./symbolDockContext";
+
+// `solid-js` does not re-export JSX.CSSProperties from its package root.
+type CSSProperties = JSX.CSSProperties;
+
 
 export interface SymbolLinkProps {
   symbol: string;
@@ -18,9 +22,10 @@ export interface SymbolLinkProps {
   onOpen?: (symbol: string) => void;
   /**
    * Hover intent. The HOST owns the debounce (one place for the whole app);
-   * this fires on pointer enter and `onPreviewEnd` on leave.
+   * this fires on pointer enter and `onPreviewEnd` on leave. The native
+   * mouseenter event is passed through so hosts can position a preview.
    */
-  onPreview?: (symbol: string) => void;
+  onPreview?: (symbol: string, event?: MouseEvent) => void;
   onPreviewEnd?: (symbol: string) => void;
   /** Render the symbol text as an external TradingView link (default true). */
   tvLink?: boolean;
@@ -41,9 +46,9 @@ export interface SymbolLinkProps {
   /** Text weight. */
   weight?: number;
   /** Optional secondary line (company name, pattern name…). */
-  secondary?: ReactNode;
+  secondary?: JSX.Element;
   /** Optional custom content for the symbol text (overrides internal rendering). */
-  children?: ReactNode;
+  children?: JSX.Element;
   /** Explicit aria-label for the text link/button. */
   ariaLabel?: string;
   /** Stop row-click handlers (default true, matches the previous links). */
@@ -71,154 +76,159 @@ export interface SymbolLinkProps {
  * Router-free by design: it renders only when `onOpen` is supplied, so
  * presentational tests and storybook don't need a navigation context.
  */
-export function SymbolLink({
-  symbol,
-  market,
-  tvSymbol,
-  onOpen,
-  onPreview,
-  onPreviewEnd,
-  tvLink = true,
-  tvIcon = false,
-  showChart = true,
-  showCopy = false,
-  onTextClick,
-  testId,
-  chartTestId,
-  size = "sm",
-  weight = 700,
-  secondary,
-  children,
-  ariaLabel,
-  stopPropagation = true,
-  className,
-  style,
-  textClassName,
-}: SymbolLinkProps) {
-  const label = String(symbol ?? "");
+export function SymbolLink(props: SymbolLinkProps) {
+  const [local] = splitProps(props, [
+    "symbol",
+    "market",
+    "tvSymbol",
+    "onOpen",
+    "onPreview",
+    "onPreviewEnd",
+    "tvLink",
+    "tvIcon",
+    "showChart",
+    "showCopy",
+    "onTextClick",
+    "testId",
+    "chartTestId",
+    "size",
+    "weight",
+    "secondary",
+    "children",
+    "ariaLabel",
+    "stopPropagation",
+    "className",
+    "style",
+    "textClassName",
+  ]);
+  const tvLink = () => local.tvLink ?? true;
+  const stopPropagation = () => local.stopPropagation ?? true;
+  const label = () => String(local.symbol ?? "");
   const dock = useSymbolDock();
-  const openHandler = onOpen ?? dock.open;
-  const previewHandler = onPreview ?? dock.preview;
-  const previewEndHandler = onPreviewEnd ?? dock.endPreview;
-  const tv = tvSymbol ?? tradingViewSymbol(label, market);
-  const tvUrl =
-    tvLink && tv
-      ? `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv)}`
+  const openHandler = () => local.onOpen ?? dock.open;
+  const previewHandler = () => local.onPreview ?? dock.preview;
+  const previewEndHandler = () => local.onPreviewEnd ?? dock.endPreview;
+  const tv = () => local.tvSymbol ?? tradingViewSymbol(label(), local.market);
+  const tvUrl = () =>
+    tvLink() && tv()
+      ? `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv()!)}`
       : "";
 
   const stop = (event: MouseEvent) => {
-    if (stopPropagation) event.stopPropagation();
+    if (stopPropagation()) event.stopPropagation();
   };
 
-  const handlePreview = () => previewHandler(label);
-  const handlePreviewEnd = () => previewEndHandler(label);
+  const handlePreview = (event: MouseEvent) => previewHandler()(label(), event);
+  const handlePreviewEnd = () => previewEndHandler()(label());
 
   const handleTextClick = (event: MouseEvent) => {
     stop(event);
-    if (onTextClick) {
-      onTextClick(label, event);
+    if (local.onTextClick) {
+      local.onTextClick(label(), event);
     }
   };
 
   return (
     <Box
-      data-testid={testId ? `${testId}-wrap` : undefined}
+      data-testid={local.testId ? `${local.testId}-wrap` : undefined}
       onMouseEnter={handlePreview}
       onMouseLeave={handlePreviewEnd}
-      className={cn("flex min-w-0 items-center gap-[2px]", className)}
-      style={style}
+      className={cn("flex min-w-0 items-center gap-[2px]", local.className)}
+      style={local.style}
     >
       <Box className="min-w-0 flex-1">
-        {tvLink && tvUrl ? (
+        <Show when={tvLink() && tvUrl()}>
           <Box
             component="a"
-            href={tvUrl}
+            href={tvUrl()}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label={ariaLabel ?? `Open ${label} on TradingView`}
-            data-testid={testId}
+            aria-label={local.ariaLabel ?? `Open ${label()} on TradingView`}
+            data-testid={local.testId}
             onClick={stop}
             className="pattern-tv-link block min-w-0 overflow-hidden text-fin-text underline decoration-fin-border underline-offset-2 hover:text-fin-primary hover:decoration-fin-primary"
           >
-            {children ?? <Text size={size} fw={weight} truncate className={textClassName}>{label}</Text>}
+            {local.children ?? <Text size={local.size ?? "sm"} fw={local.weight ?? 700} truncate className={local.textClassName}>{label()}</Text>}
           </Box>
-        ) : onTextClick ? (
+        </Show>
+        <Show when={!(tvLink() && tvUrl()) && local.onTextClick}>
           <Box
             component="button"
             type="button"
-            aria-label={ariaLabel ?? `Open ${label} chart`}
-            data-testid={testId}
+            aria-label={local.ariaLabel ?? `Open ${label()} chart`}
+            data-testid={local.testId}
             onClick={handleTextClick}
             className={cn(
               "block min-w-0 cursor-pointer overflow-hidden whitespace-nowrap text-ellipsis border-0 bg-transparent p-0 text-fin-text no-underline hover:text-fin-primary",
-              size === "xs" ? "text-xs" : size === "sm" ? "text-sm" : "text-base",
-              textClassName,
+              local.size === "xs" ? "text-xs" : local.size === "sm" || local.size === undefined ? "text-sm" : "text-base",
+              local.textClassName,
             )}
-            style={{ fontWeight: weight }}
+            style={{ "font-weight": local.weight ?? 700 }}
           >
-            {children ?? label}
+            {local.children ?? label()}
           </Box>
-        ) : (
-          <Text size={size} fw={weight} truncate data-testid={testId} className={textClassName}>
-            {children ?? label}
+        </Show>
+        <Show when={!(tvLink() && tvUrl()) && !local.onTextClick}>
+          <Text size={local.size ?? "sm"} fw={local.weight ?? 700} truncate data-testid={local.testId} className={local.textClassName}>
+            {local.children ?? label()}
           </Text>
-        )}
-        {secondary}
+        </Show>
+        {local.secondary}
       </Box>
 
-      {showCopy ? (
-        <CopyButton value={label}>
+      <Show when={local.showCopy}>
+        <CopyButton value={label()}>
           {({ copied, copy }) => (
             <ActionIcon
               variant="subtle"
               color={copied ? "info" : "secondary"}
               size="xs"
-              style={{ width: 16, height: 16, minHeight: 16, padding: 0 }}
+              style={{ width: "16px", height: "16px", "min-height": "16px", padding: "0px" }}
               onClick={(event) => {
                 event.stopPropagation();
                 copy();
               }}
-              aria-label={`Copy ${label}`}
-              data-testid={`symbol-copy-${label}`}
+              aria-label={`Copy ${label()}`}
+              data-testid={`symbol-copy-${label()}`}
             >
-              {copied ? <IconCheck size={10} /> : <IconCopy size={10} />}
+              {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
             </ActionIcon>
           )}
         </CopyButton>
-      ) : null}
+      </Show>
 
-      {tvLink && tvIcon && tvUrl ? (
-        <Tooltip label={`${label} on TradingView`}>
+      <Show when={tvLink() && (local.tvIcon ?? false) && tvUrl()}>
+        <Tooltip label={`${label()} on TradingView`}>
           <Box
             component="a"
-            href={tvUrl}
+            href={tvUrl()}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label={`Open ${label} on TradingView`}
+            aria-label={`Open ${label()} on TradingView`}
             onClick={stop}
             className="pattern-tv-link inline-flex flex-shrink-0 items-center text-fin-text-muted hover:text-fin-primary"
           >
-            <IconExternalLink size={11} />
+            <IconExternalLink size={12} />
           </Box>
         </Tooltip>
-      ) : null}
+      </Show>
 
-      {showChart && openHandler ? (
+      <Show when={(local.showChart ?? true) && openHandler()}>
         <Box
           component="button"
           type="button"
-          aria-label={`Open ${label} chart`}
-          title={`Open ${label} chart`}
-          data-testid={chartTestId ?? `symbol-chart-${label}`}
+          aria-label={`Open ${label()} chart`}
+          title={`Open ${label()} chart`}
+          data-testid={local.chartTestId ?? `symbol-chart-${label()}`}
           onClick={(event) => {
             stop(event);
-            openHandler(label);
+            openHandler()(label());
           }}
           className="inline-flex h-[18px] w-[18px] flex-shrink-0 cursor-pointer items-center justify-center rounded-[4px] border-0 bg-transparent p-0 text-fin-text-muted hover:bg-white/[0.08] hover:text-fin-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-fin-primary)]"
         >
           <IconChartCandle size={12} />
         </Box>
-      ) : null}
+      </Show>
     </Box>
   );
 }

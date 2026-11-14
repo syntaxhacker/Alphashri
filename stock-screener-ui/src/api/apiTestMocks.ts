@@ -1,9 +1,11 @@
+import * as palette from "@/ui/palette";
 /**
  * Shared test helpers for src/api tests — response/stream builders,
  * fixtures, and mock helpers. Test-only; not imported by production code.
  */
 import { describe, it, expect, vi } from "vitest";
 import type { ChartPreviewData } from "./chartPreview";
+import type { PaperTrade } from "../types/paperTrading";
 
 /* ---------- Response builders ---------- */
 
@@ -76,10 +78,15 @@ export function waitAsync(ms = 100): Promise<void> {
 
 /* ---------- Mock helpers ---------- */
 
+/**
+ * Structural subset of a vitest mock. Declared with method syntax on purpose:
+ * method parameters are bivariant, so a `MockedFunction<(url: string) => …>`
+ * satisfies this without weakening the signature to `any`.
+ */
 export type MockFn = {
-  mockResolvedValue: (value: unknown) => unknown;
-  mockResolvedValueOnce: (value: unknown) => unknown;
-  mockRejectedValue: (error: unknown) => unknown;
+  mockResolvedValue(value: unknown): unknown;
+  mockResolvedValueOnce(value: unknown): unknown;
+  mockRejectedValue(error: unknown): unknown;
 };
 
 export function mockOk(mock: MockFn, value: unknown): void {
@@ -309,6 +316,36 @@ export function makeRawTrade(overrides: Record<string, unknown> = {}) {
   };
 }
 
+export function makePaperTrade(overrides: Partial<PaperTrade> = {}): PaperTrade {
+  return {
+    trade_id: "1",
+    symbol: "TEST",
+    side: "BUY",
+    quantity: 10,
+    entry_price: 100,
+    exit_price: 110,
+    entry_time: "2025-10-24T10:00:00",
+    exit_time: "2025-10-24T10:30:00",
+    pnl: 100,
+    pnl_pct: 10,
+    exit_reason: "TP",
+    costs: 5,
+    net_pnl: 95,
+    stop_loss: 0,
+    take_profit: 0,
+    peak_price: 111,
+    low_price: 99,
+    hold_duration_minutes: 30,
+    notes: "",
+    reason: "",
+    strategy_id: 1,
+    strategy_name: "TEST",
+    bot_id: null,
+    bot_name: null,
+    ...overrides,
+  };
+}
+
 export function makeChartTrade(overrides: Record<string, unknown> = {}) {
   return {
     trade_id: 1,
@@ -317,7 +354,7 @@ export function makeChartTrade(overrides: Record<string, unknown> = {}) {
     candle_idx: 2,
     date: "2025-10-24",
     price: 103,
-    marker: { symbol: "triangle", color: "#58A6FF", size: 16 },
+    marker: { symbol: "triangle", color: palette.INFO, size: 16 },
     trade: {
       ...BASE_TRADE,
       or_high: undefined,

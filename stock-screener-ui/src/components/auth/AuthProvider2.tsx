@@ -1,4 +1,10 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import {
+  createContext,
+  createEffect,
+  createSignal,
+  useContext,
+  type JSX,
+} from "solid-js";
 import { Box } from "@/ui";
 
 import { API_BASE } from "@/api/config";
@@ -81,20 +87,15 @@ async function fetchMe(fetchFn: (url: string) => Promise<Response>): Promise<Use
   return data;
 }
 
-function useAuthState() {
-  const [user, setUser] = useState<User | null>(getStoredUser());
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  return { user, setUser, loading, setLoading, error, setError };
-}
+export function AuthProvider(props: { children?: JSX.Element }) {
+  const [user, setUser] = createSignal<User | null>(getStoredUser());
+  const [loading, setLoading] = createSignal(true);
+  const [error, setError] = createSignal<string | null>(null);
+  const authed = () => !!user() && !!getStoredToken();
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const { user, setUser, loading, setLoading, error, setError } = useAuthState();
-  const isAuthenticated = !!user && !!getStoredToken();
+  const getAccessToken = () => getStoredToken();
 
-  const getAccessToken = useCallback(() => getStoredToken(), []);
-
-  const refreshTokens = useCallback(async (): Promise<boolean> => {
+  const refreshTokens = async (): Promise<boolean> => {
     const rt = getStoredRefreshToken();
     if (!rt) return false;
     try {
@@ -110,9 +111,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       return false;
     }
-  }, []);
+  };
 
-  const checkAuth = useCallback(async () => {
+  const checkAuth = async () => {
     const token = getStoredToken();
     const storedUser = getStoredUser();
     if (!token) {
@@ -137,14 +138,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [fetchWithAuth, refreshTokens]);
+  };
 
-  useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
+  createEffect(() => {
+    void checkAuth();
+  });
 
-  const authenticate = useCallback(
-    async (
+  const authenticate = async (
       endpoint: string,
       body: Record<string, unknown>,
       fallback: string,
@@ -176,27 +176,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } finally {
         setLoading(false);
       }
-    },
-    [],
-  );
+    };
 
-  const login = useCallback(
-    (email: string, password: string) =>
-      authenticate("/api/auth/login", { email, password }, "Login failed"),
-    [authenticate],
-  );
+  const login = (email: string, password: string) =>
+    authenticate("/api/auth/login", { email, password }, "Login failed");
 
-  const register = useCallback(
-    (email: string, password: string, displayName?: string) =>
-      authenticate(
-        "/api/auth/register",
-        { email, password, display_name: displayName },
-        "Registration failed",
-      ),
-    [authenticate],
-  );
+  const register = (email: string, password: string, displayName?: string) =>
+    authenticate(
+      "/api/auth/register",
+      { email, password, display_name: displayName },
+      "Registration failed",
+    );
 
-  const logout = useCallback(async () => {
+  const logout = async () => {
     try {
       const rt = getStoredRefreshToken();
       if (rt)
@@ -210,15 +202,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     clearStoredAuth();
     setUser(null);
-  }, [fetchWithAuth]);
+  };
 
-  const clearError = useCallback(() => setError(null), []);
+  const clearError = () => setError(null);
 
+  // Accessor properties, not snapshots: Solid JSX reads these lazily, so
+  // consumers always see the live session without extra subscriptions.
   const value: AuthContextType = {
-    user,
-    isAuthenticated,
-    loading,
-    error,
+    get user() {
+      return user();
+    },
+    get isAuthenticated() {
+      return authed();
+    },
+    get loading() {
+      return loading();
+    },
+    get error() {
+      return error();
+    },
     login,
     register,
     logout,
@@ -229,7 +231,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <Box id="auth-provider" data-testid="auth-provider">
-      <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+      <AuthContext.Provider value={value}>{props.children}</AuthContext.Provider>
     </Box>
   );
 }

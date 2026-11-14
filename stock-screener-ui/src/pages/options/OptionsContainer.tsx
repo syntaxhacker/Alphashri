@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { createSignal } from "solid-js";
 import { Box } from "@/ui";
 import { useOptionsState } from "../../hooks/useOptionsState";
 import { OptionsPage } from "../../components/options/OptionsPage";
 
 export function OptionsContainer() {
   const options = useOptionsState();
-  const [activeTab, setActiveTab] = useState<string>("chain");
+  const [activeTab, setActiveTab] = createSignal<string>("chain");
 
   return (
     <Box
@@ -16,7 +16,7 @@ export function OptionsContainer() {
       className="flex flex-col h-full w-full min-h-0 overflow-hidden"
     >
       <Box className="flex flex-col h-full w-full min-h-0 overflow-hidden" style={{ flex: 1 }}>
-        <OptionsPage activeTab={activeTab} setActiveTab={setActiveTab} {...options} />
+        <OptionsPage activeTab={activeTab()} setActiveTab={setActiveTab} {...options} />
       </Box>
     </Box>
   );

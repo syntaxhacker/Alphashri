@@ -1,13 +1,13 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
-import type { ReactElement } from "react";
+import type { JSX } from "solid-js";
 
 import { SymbolAvatar } from "./SymbolAvatar";
 
-const renderWithProvider = (ui: ReactElement) => render(<UIProvider>{ui}</UIProvider>);
+const renderWithProvider = (ui: JSX.Element) => render(() => <UIProvider>{ui}</UIProvider>);
 
 describe("SymbolAvatar", () => {
   afterEach(() => {

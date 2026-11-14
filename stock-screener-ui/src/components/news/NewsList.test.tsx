@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { NewsList } from "./NewsList";
 import type { NewsItem } from "./news-types";
 import { TestWrapper } from "../../test/test-utils";
@@ -77,59 +76,58 @@ describe("NewsList", () => {
 
   describe("rendering", () => {
     it("renders news feed container", () => {
-      render(<NewsList {...defaultProps} />, { wrapper: TestWrapper });
+      render(() => (<NewsList {...defaultProps} />), { wrapper: TestWrapper });
       expect(screen.getByTestId("news-feed")).toBeInTheDocument();
     });
 
     it("renders the feed heading and story count", () => {
-      render(<NewsList {...defaultProps} />, { wrapper: TestWrapper });
+      render(() => (<NewsList {...defaultProps} />), { wrapper: TestWrapper });
       expect(screen.getByText("Market feed")).toBeInTheDocument();
       expect(screen.getByTestId("news-story-count")).toHaveTextContent("2 stories");
       expect(screen.getByTestId("news-feed-toolbar")).toBeInTheDocument();
     });
 
     it("renders refresh button", () => {
-      render(<NewsList {...defaultProps} />, { wrapper: TestWrapper });
+      render(() => (<NewsList {...defaultProps} />), { wrapper: TestWrapper });
       expect(screen.getByTestId("news-feed-refresh-btn")).toBeInTheDocument();
     });
 
     it("renders source selector", () => {
-      render(<NewsList {...defaultProps} />, { wrapper: TestWrapper });
+      render(() => (<NewsList {...defaultProps} />), { wrapper: TestWrapper });
       expect(screen.getByTestId("source-selector")).toBeInTheDocument();
     });
 
     it("renders empty state when no news available", () => {
-      render(
-        <NewsList
+      render(() => (<NewsList
           {...defaultProps}
           groupedNewsItems={{}}
           sourceNames={[]}
           expandedSources={new Set()}
-        />,
+        />),
         { wrapper: TestWrapper },
       );
       expect(screen.getByText("No news available")).toBeInTheDocument();
     });
 
     it("renders loading state", () => {
-      render(<NewsList {...defaultProps} loading={true} groupedNewsItems={{}} sourceNames={[]} />, {
+      render(() => (<NewsList {...defaultProps} loading={true} groupedNewsItems={{}} sourceNames={[]} />), {
         wrapper: TestWrapper,
       });
       expect(screen.getByTestId("news-loader")).toBeInTheDocument();
     });
 
     it("renders error state", () => {
-      render(<NewsList {...defaultProps} error="Failed to load news" />, { wrapper: TestWrapper });
+      render(() => (<NewsList {...defaultProps} error="Failed to load news" />), { wrapper: TestWrapper });
       expect(screen.getByText("Failed to load news")).toBeInTheDocument();
     });
 
     it("renders news items grouped by source", () => {
-      render(<NewsList {...defaultProps} />, { wrapper: TestWrapper });
+      render(() => (<NewsList {...defaultProps} />), { wrapper: TestWrapper });
       expect(screen.getByText("Test News 1")).toBeInTheDocument();
     });
 
     it("keeps all sources visible for the all-sources option", () => {
-      render(<NewsList {...defaultProps} selectedSourceName="All Sources" />, {
+      render(() => (<NewsList {...defaultProps} selectedSourceName="All Sources" />), {
         wrapper: TestWrapper,
       });
       expect(screen.getByText("Test News 1")).toBeInTheDocument();
@@ -137,15 +135,14 @@ describe("NewsList", () => {
     });
 
     it("marks the active article for reading", () => {
-      render(<NewsList {...defaultProps} selectedArticle={mockNewsItems[0]} />, {
+      render(() => (<NewsList {...defaultProps} selectedArticle={mockNewsItems[0]} />), {
         wrapper: TestWrapper,
       });
       expect(screen.getAllByTestId("news-list-item")[0]).toHaveAttribute("aria-current", "true");
     });
 
     it("matches a selected source id to the article source name", () => {
-      render(
-        <NewsList
+      render(() => (<NewsList
           {...defaultProps}
           selectedSource="economic-times"
           selectedSourceName="Economic Times"
@@ -155,7 +152,7 @@ describe("NewsList", () => {
           }}
           sourceNames={["Economic-Times", "Bloomberg"]}
           expandedSources={new Set(["Economic-Times"])}
-        />,
+        />),
         { wrapper: TestWrapper },
       );
       expect(screen.getByText("Test News 1")).toBeInTheDocument();
@@ -167,7 +164,7 @@ describe("NewsList", () => {
   describe("callbacks", () => {
     it("accepts onSourceChange callback", () => {
       const onSourceChange = vi.fn();
-      render(<NewsList {...defaultProps} onSourceChange={onSourceChange} />, {
+      render(() => (<NewsList {...defaultProps} onSourceChange={onSourceChange} />), {
         wrapper: TestWrapper,
       });
       expect(onSourceChange).not.toHaveBeenCalled();
@@ -175,61 +172,56 @@ describe("NewsList", () => {
 
     it("accepts onArticleClick callback", () => {
       const onArticleClick = vi.fn();
-      render(<NewsList {...defaultProps} onArticleClick={onArticleClick} />, {
+      render(() => (<NewsList {...defaultProps} onArticleClick={onArticleClick} />), {
         wrapper: TestWrapper,
       });
       expect(onArticleClick).not.toHaveBeenCalled();
     });
 
     it("calls onRefresh when refresh button is clicked", async () => {
-      const user = userEvent.setup();
-      const onRefresh = vi.fn();
-      render(<NewsList {...defaultProps} onRefresh={onRefresh} />, { wrapper: TestWrapper });
-      await user.click(screen.getByTestId("news-feed-refresh-btn"));
+            const onRefresh = vi.fn();
+      render(() => (<NewsList {...defaultProps} onRefresh={onRefresh} />), { wrapper: TestWrapper });
+      await fireEvent.click(screen.getByTestId("news-feed-refresh-btn"));
       expect(onRefresh).toHaveBeenCalled();
     });
 
     it("calls onArticleClick when article is clicked", async () => {
-      const user = userEvent.setup();
-      const onArticleClick = vi.fn();
-      render(<NewsList {...defaultProps} onArticleClick={onArticleClick} />, {
+            const onArticleClick = vi.fn();
+      render(() => (<NewsList {...defaultProps} onArticleClick={onArticleClick} />), {
         wrapper: TestWrapper,
       });
 
       const article = screen.getByText("Test News 1");
-      await user.click(article);
+      await fireEvent.click(article);
 
       expect(onArticleClick).toHaveBeenCalledWith(mockNewsItems[0]);
     });
 
     it("calls toggleSourceExpanded when source group header is clicked", async () => {
-      const user = userEvent.setup();
-      const toggleSourceExpanded = vi.fn();
-      render(<NewsList {...defaultProps} toggleSourceExpanded={toggleSourceExpanded} />, {
+            const toggleSourceExpanded = vi.fn();
+      render(() => (<NewsList {...defaultProps} toggleSourceExpanded={toggleSourceExpanded} />), {
         wrapper: TestWrapper,
       });
-      await user.click(screen.getByTestId("news-source-group-Reuters"));
+      await fireEvent.click(screen.getByTestId("news-source-group-Reuters"));
       expect(toggleSourceExpanded).toHaveBeenCalledWith("Reuters");
     });
 
     it("handles undefined onSourceChange gracefully", () => {
-      const { container } = render(
-        <NewsList {...defaultProps} onSourceChange={undefined as any} />,
+      const { container } = render(() => (<NewsList {...defaultProps} onSourceChange={undefined as any} />),
         { wrapper: TestWrapper },
       );
       expect(container).toBeInTheDocument();
     });
 
     it("handles undefined onArticleClick gracefully", () => {
-      const { container } = render(
-        <NewsList {...defaultProps} onArticleClick={undefined as any} />,
+      const { container } = render(() => (<NewsList {...defaultProps} onArticleClick={undefined as any} />),
         { wrapper: TestWrapper },
       );
       expect(container).toBeInTheDocument();
     });
 
     it("handles undefined onRefresh gracefully", () => {
-      const { container } = render(<NewsList {...defaultProps} onRefresh={undefined as any} />, {
+      const { container } = render(() => (<NewsList {...defaultProps} onRefresh={undefined as any} />), {
         wrapper: TestWrapper,
       });
       expect(container).toBeInTheDocument();
@@ -238,33 +230,31 @@ describe("NewsList", () => {
 
   describe("edge cases", () => {
     it("renders with empty sourceData array", () => {
-      render(
-        <NewsList
+      render(() => (<NewsList
           {...defaultProps}
           sourceData={[]}
           sourceNames={[]}
           groupedNewsItems={{} as any}
-        />,
+        />),
         { wrapper: TestWrapper },
       );
       expect(screen.getByTestId("source-selector")).toBeInTheDocument();
     });
 
     it("renders with undefined sourceData", () => {
-      render(
-        <NewsList
+      render(() => (<NewsList
           {...defaultProps}
           sourceData={undefined as any}
           sourceNames={[]}
           groupedNewsItems={{} as any}
-        />,
+        />),
         { wrapper: TestWrapper },
       );
       expect(screen.getByTestId("source-selector")).toBeInTheDocument();
     });
 
     it("renders with null error", () => {
-      render(<NewsList {...defaultProps} error={null} />, { wrapper: TestWrapper });
+      render(() => (<NewsList {...defaultProps} error={null} />), { wrapper: TestWrapper });
       expect(screen.queryByText("Failed to load news")).not.toBeInTheDocument();
     });
 
@@ -272,63 +262,59 @@ describe("NewsList", () => {
       const mockGroupedWithNull = {
         null: [{ ...mockNewsItems[0], source: null as any }],
       };
-      render(
-        <NewsList
+      render(() => (<NewsList
           {...defaultProps}
           groupedNewsItems={mockGroupedWithNull as any}
           sourceNames={["null"]}
-        />,
+        />),
         { wrapper: TestWrapper },
       );
       expect(screen.getByTestId("news-feed")).toBeInTheDocument();
     });
 
     it("renders with empty sourceNames array", () => {
-      render(
-        <NewsList
+      render(() => (<NewsList
           {...defaultProps}
           sourceNames={[]}
           groupedNewsItems={{} as any}
           expandedSources={new Set()}
-        />,
+        />),
         { wrapper: TestWrapper },
       );
       expect(screen.getByTestId("news-feed")).toBeInTheDocument();
     });
 
     it("renders with null selectedArticle", () => {
-      render(<NewsList {...defaultProps} selectedArticle={null} />, { wrapper: TestWrapper });
+      render(() => (<NewsList {...defaultProps} selectedArticle={null} />), { wrapper: TestWrapper });
       expect(screen.getByTestId("news-feed")).toBeInTheDocument();
     });
 
     it("renders with undefined groupedNewsItems", () => {
-      render(
-        <NewsList
+      render(() => (<NewsList
           {...defaultProps}
           groupedNewsItems={undefined as any}
           sourceNames={[]}
           expandedSources={new Set()}
-        />,
+        />),
         { wrapper: TestWrapper },
       );
       expect(screen.getByTestId("news-feed")).toBeInTheDocument();
     });
 
     it("renders with empty expandedSources set", () => {
-      render(<NewsList {...defaultProps} expandedSources={new Set()} />, { wrapper: TestWrapper });
+      render(() => (<NewsList {...defaultProps} expandedSources={new Set()} />), { wrapper: TestWrapper });
       expect(screen.getByTestId("news-feed")).toBeInTheDocument();
     });
 
     it("handles rapid article clicks", async () => {
-      const user = userEvent.setup();
-      const onArticleClick = vi.fn();
-      render(<NewsList {...defaultProps} onArticleClick={onArticleClick} />, {
+            const onArticleClick = vi.fn();
+      render(() => (<NewsList {...defaultProps} onArticleClick={onArticleClick} />), {
         wrapper: TestWrapper,
       });
 
       const article = screen.getByText("Test News 1");
-      await user.click(article);
-      await user.click(article);
+      await fireEvent.click(article);
+      await fireEvent.click(article);
 
       expect(onArticleClick).toHaveBeenCalledTimes(2);
     });

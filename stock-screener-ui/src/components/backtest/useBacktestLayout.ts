@@ -1,7 +1,7 @@
 // useBacktestLayout — right-rail layout state for the backtest page.
 // The rail holds three collapsible panels (Config / Results / Trades); the chart
 // is full-bleed to the left. Panel open-state and rail width are persisted.
-import { useCallback, useState, useEffect } from "react";
+import { createEffect, createSignal } from "solid-js";
 
 export type BacktestPanelId = "config" | "results" | "trades" | "edge";
 export type BacktestChartMode = "all" | "trades";
@@ -54,9 +54,10 @@ function loadState(): BacktestLayoutState {
 }
 
 export interface BacktestLayoutApi {
-  railWidth: number;
-  panels: Record<BacktestPanelId, boolean>;
-  chartMode: BacktestChartMode;
+  /** Reactive accessors for the layout state. */
+  railWidth: () => number;
+  panels: () => Record<BacktestPanelId, boolean>;
+  chartMode: () => BacktestChartMode;
   togglePanel: (id: BacktestPanelId) => void;
   setPanelOpen: (id: BacktestPanelId, open: boolean) => void;
   openPanel: (id: BacktestPanelId) => void;
@@ -66,43 +67,44 @@ export interface BacktestLayoutApi {
 }
 
 export function useBacktestLayout(): BacktestLayoutApi {
-  const [state, setState] = useState<BacktestLayoutState>(loadState);
+  const [state, setState] = createSignal<BacktestLayoutState>(loadState());
 
-  useEffect(() => {
+  createEffect(() => {
+    const s = state();
     if (typeof localStorage === "undefined") return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
     } catch {
       /* storage unavailable */
     }
-  }, [state]);
+  });
 
-  const togglePanel = useCallback((id: BacktestPanelId) => {
+  const togglePanel = (id: BacktestPanelId) => {
     setState((p) => ({ ...p, panels: { ...p.panels, [id]: !p.panels[id] } }));
-  }, []);
+  };
 
-  const setPanelOpen = useCallback((id: BacktestPanelId, open: boolean) => {
+  const setPanelOpen = (id: BacktestPanelId, open: boolean) => {
     setState((p) => (p.panels[id] === open ? p : { ...p, panels: { ...p.panels, [id]: open } }));
-  }, []);
+  };
 
-  const openPanel = useCallback((id: BacktestPanelId) => {
+  const openPanel = (id: BacktestPanelId) => {
     setState((p) => (p.panels[id] ? p : { ...p, panels: { ...p.panels, [id]: true } }));
-  }, []);
+  };
 
-  const setRailWidth = useCallback((w: number) => {
+  const setRailWidth = (w: number) => {
     setState((p) => ({ ...p, railWidth: clampWidth(w) }));
-  }, []);
+  };
 
-  const setChartMode = useCallback((mode: BacktestChartMode) => {
+  const setChartMode = (mode: BacktestChartMode) => {
     setState((p) => (p.chartMode === mode ? p : { ...p, chartMode: mode }));
-  }, []);
+  };
 
-  const reset = useCallback(() => setState(defaultState()), []);
+  const reset = () => setState(defaultState());
 
   return {
-    railWidth: state.railWidth,
-    panels: state.panels,
-    chartMode: state.chartMode,
+    railWidth: () => state().railWidth,
+    panels: () => state().panels,
+    chartMode: () => state().chartMode,
     togglePanel,
     setPanelOpen,
     openPanel,

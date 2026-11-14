@@ -1,6 +1,6 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { Box, Text } from "@/ui";
-import ReactECharts from "echarts-for-react";
+import { DepthChart } from "./DepthChart";
 import { ChartErrorBoundary } from "@/components/common/ChartErrorBoundary";
 import * as palette from "@/ui/palette";
 import { CompactStat, CompactStatGrid } from "@/components/common/compact";
@@ -69,7 +69,7 @@ interface LevelLine {
   value: number;
   color: string;
   type: "dashed" | "solid" | "dotted";
-  width: number;
+  width: string;
 }
 
 function num(v: unknown): number {
@@ -212,10 +212,10 @@ export function levelLines(report: NiftyReport, stats: DayStats, poc: number | n
   const spot = num(report?.spot);
   const ordered: LevelLine[] = [];
   if (Number.isFinite(spot) && spot > 0) {
-    ordered.push({ name: `Spot ${fmtStrike(spot)}`, value: spot, color: palette.TEXT, type: "solid", width: 1 });
+    ordered.push({ name: `Spot ${fmtStrike(spot)}`, value: spot, color: palette.TEXT, type: "solid", "width": "1px" });
   }
   if (Number.isFinite(Number(report?.maxPain)) && Number(report.maxPain) > 0) {
-    ordered.push({ name: `MP ${fmtStrike(Number(report.maxPain))}`, value: Number(report.maxPain), color: palette.PRIMARY, type: "solid", width: 2 });
+    ordered.push({ name: `MP ${fmtStrike(Number(report.maxPain))}`, value: Number(report.maxPain), color: palette.PRIMARY, type: "solid", "width": "2px" });
   }
   const calls = [...(report?.walls?.calls ?? [])].sort((a, b) => num(b?.oi) - num(a?.oi)).slice(0, 2);
   const puts = [...(report?.walls?.puts ?? [])].sort((a, b) => num(b?.oi) - num(a?.oi)).slice(0, 2);
@@ -224,23 +224,23 @@ export function levelLines(report: NiftyReport, stats: DayStats, poc: number | n
     const strike = Number(w.strike);
     const ws = wallSide(strike, spot);
     const tag = wallCode(true, ws, false);
-    ordered.push({ name: `${tag} ${fmtStrike(strike)}`, value: strike, color: palette.NEGATIVE, type: "dashed", width: 1 });
+    ordered.push({ name: `${tag} ${fmtStrike(strike)}`, value: strike, color: palette.NEGATIVE, type: "dashed", "width": "1px" });
   }
   for (const w of puts) {
     if (!Number.isFinite(Number(w?.strike))) continue;
     const strike = Number(w.strike);
     const ws = wallSide(strike, spot);
     const tag = wallCode(false, ws, false);
-    ordered.push({ name: `${tag} ${fmtStrike(strike)}`, value: strike, color: palette.POSITIVE, type: "dashed", width: 1 });
+    ordered.push({ name: `${tag} ${fmtStrike(strike)}`, value: strike, color: palette.POSITIVE, type: "dashed", "width": "1px" });
   }
   if (poc != null && Number.isFinite(poc)) {
-    ordered.push({ name: `OI POC ${fmtStrike(poc)}`, value: poc, color: palette.WARNING, type: "solid", width: 2 });
+    ordered.push({ name: `OI POC ${fmtStrike(poc)}`, value: poc, color: palette.WARNING, type: "solid", "width": "2px" });
   }
   if (stats.hi != null) {
-    ordered.push({ name: `Hi ${fmtStrike(stats.hi)}`, value: stats.hi, color: palette.TEXT_MUTED, type: "dotted", width: 1 });
+    ordered.push({ name: `Hi ${fmtStrike(stats.hi)}`, value: stats.hi, color: palette.TEXT_MUTED, type: "dotted", "width": "1px" });
   }
   if (stats.lo != null) {
-    ordered.push({ name: `Lo ${fmtStrike(stats.lo)}`, value: stats.lo, color: palette.TEXT_MUTED, type: "dotted", width: 1 });
+    ordered.push({ name: `Lo ${fmtStrike(stats.lo)}`, value: stats.lo, color: palette.TEXT_MUTED, type: "dotted", "width": "1px" });
   }
   const used: number[] = [];
   const out: LevelLine[] = [];
@@ -314,7 +314,7 @@ export function buildDepthOption(report: NiftyReport): Record<string, unknown> {
   const ceDom = rows.filter((r) => r.ceOi > r.peOi).map((r) => [r.ceOi + r.peOi, keyOf(r.strike)]);
   const peDom = rows.filter((r) => r.peOi > r.ceOi).map((r) => [r.ceOi + r.peOi, keyOf(r.strike)]);
 
-  const axisLabel = { color: palette.CHART_MUTED, fontSize: 10 };
+  const axisLabel = { color: palette.CHART_MUTED, "font-size": "10px" };
   const strikeFmt = (v: string | number) => fmtStrike(Number(v));
   const istFmt = (v: unknown) => formatIstTimeMs(Number(v));
   // Labeled level lines live on the candle series (grid 0): it owns the
@@ -328,7 +328,7 @@ export function buildDepthOption(report: NiftyReport): Record<string, unknown> {
   }));
 
   return {
-    backgroundColor: "transparent",
+    "background-color": "transparent",
     animation: false,
     legend: { show: false },
     // The two grids no longer share a value axis (depth y is categorical),
@@ -336,9 +336,9 @@ export function buildDepthOption(report: NiftyReport): Record<string, unknown> {
     axisPointer: { link: { yAxisIndex: [0] } },
     tooltip: {
       trigger: "item",
-      backgroundColor: palette.TOOLTIP_BG,
-      borderColor: palette.TOOLTIP_BORDER,
-      textStyle: { color: palette.TOOLTIP_TEXT, fontSize: 12 },
+      "background-color": palette.TOOLTIP_BG,
+      "border-color": palette.TOOLTIP_BORDER,
+      textStyle: { color: palette.TOOLTIP_TEXT, "font-size": "12px" },
       formatter: (p: unknown) => {
         const param = p as {
           seriesName?: string;
@@ -373,8 +373,8 @@ export function buildDepthOption(report: NiftyReport): Record<string, unknown> {
       },
     },
     grid: [
-      { left: 56, right: "32%", top: 16, bottom: 48 },
-      { left: "70%", right: 64, top: 16, bottom: 48 },
+      { "left": "56px", right: "32%", "top": "16px", "bottom": "48px" },
+      { left: "70%", "right": "64px", "top": "16px", "bottom": "48px" },
     ],
     xAxis: [
       {
@@ -432,13 +432,13 @@ export function buildDepthOption(report: NiftyReport): Record<string, unknown> {
         itemStyle: {
           color: palette.POSITIVE,
           color0: palette.NEGATIVE,
-          borderColor: palette.POSITIVE,
+          "border-color": palette.POSITIVE,
           borderColor0: palette.NEGATIVE,
         },
         markLine: {
           symbol: "none",
           silent: true,
-          label: { fontSize: 10, formatter: "{b}" },
+          label: { "font-size": "10px", formatter: "{b}" },
           data: lineData,
         },
       },
@@ -453,7 +453,7 @@ export function buildDepthOption(report: NiftyReport): Record<string, unknown> {
         barMaxWidth: 16,
         encode: { x: 0, y: 1 },
         data: rows.map((r) => [-r.ceOi, keyOf(r.strike)]),
-        itemStyle: { color: palette.NEGATIVE, borderRadius: [2, 0, 0, 2] },
+        itemStyle: { color: palette.NEGATIVE, "border-radius": [2, 0, 0, 2] },
       },
       {
         name: "PE OI",
@@ -464,11 +464,11 @@ export function buildDepthOption(report: NiftyReport): Record<string, unknown> {
         barMaxWidth: 16,
         encode: { x: 0, y: 1 },
         data: rows.map((r) => [r.peOi, keyOf(r.strike)]),
-        itemStyle: { color: palette.POSITIVE, borderRadius: [0, 2, 2, 0] },
+        itemStyle: { color: palette.POSITIVE, "border-radius": [0, 2, 2, 0] },
         label: {
           show: true,
           position: "right",
-          fontSize: 9,
+          "font-size": "9px",
           color: palette.CHART_MUTED,
           formatter: (p: { value?: unknown }) => {
             const strike = Array.isArray(p.value) ? Number((p.value as number[])[1]) : NaN;
@@ -509,41 +509,32 @@ export function buildDepthOption(report: NiftyReport): Record<string, unknown> {
 }
 
 /** Hoisted ECharts chrome — stable identity so the chart never gets new literals. */
-const DEPTH_CHART_STYLE = { height: "100%", width: "100%" } as const;
-const DEPTH_CHART_OPTS = { renderer: "canvas" } as const;
 
-const LegendChip = memo(function LegendChip({
-  testId,
-  color,
-  label,
-  value,
-  valueColor,
-}: {
+const LegendChip = (props: {
   testId: string;
   color: string;
   label: string;
   value: string;
   valueColor?: string;
-}) {
+}) => {
   return (
     <Box
-      data-testid={testId}
+      data-testid={props.testId}
       className="flex items-center gap-[8px] tabular-nums"
     >
       <Box
         className="w-[8px] h-[8px] rounded-full shrink-0"
-        style={{ backgroundColor: color }}
+        style={{ "background-color": props.color }}
       />
       <Text size="xs" c="dimmed" span>
-        {label}
+        {props.label}
       </Text>
-      <Text size="xs" fw={700} span className="tabular-nums" style={{ color: valueColor ?? palette.TEXT }}>
-        {value}
+      <Text size="xs" fw={700} span className="tabular-nums" style={{ color: props.valueColor ?? palette.TEXT }}>
+        {props.value}
       </Text>
     </Box>
   );
-});
-LegendChip.displayName = "LegendChip";
+};
 
 /** Minimal ECharts instance surface this panel drives. */
 interface DepthChartHandle {
@@ -562,11 +553,13 @@ interface NiftyDepthMapProps {
   active?: boolean;
 }
 
-function NiftyDepthMapInner({ report, active = true }: NiftyDepthMapProps) {
-  const rows = useMemo(() => buildDepthRows(report), [report]);
-  const stats = useMemo(() => dayStats(report), [report]);
-  const poc = useMemo(() => findOiPoc(report), [report]);
-  const option = useMemo(() => buildDepthOption(report), [report]);
+function NiftyDepthMapInner(props: NiftyDepthMapProps) {
+  const report = () => props.report;
+  const active = () => props.active ?? true;
+  const rows = createMemo(() => buildDepthRows(report()));
+  const stats = createMemo(() => dayStats(report()));
+  const poc = createMemo(() => findOiPoc(report()));
+  const option = createMemo(() => buildDepthOption(report()));
 
   /**
    * Keep the ECharts *engine* mounted once it has drawn a row.
@@ -579,43 +572,32 @@ function NiftyDepthMapInner({ report, active = true }: NiftyDepthMapProps) {
    * window leaves an instance created after `componentWillUnmount`, with no one
    * left to dispose it. Keeping it mounted removes the whole class.
    */
-  const [hasEverHadRows, setHasEverHadRows] = useState(false);
-  if (rows.length > 0 && !hasEverHadRows) setHasEverHadRows(true);
+  const [hasEverHadRows, setHasEverHadRows] = createSignal(false);
+  createEffect(() => {
+    if (rows().length > 0 && !hasEverHadRows()) setHasEverHadRows(true);
+  });
 
-  const chartRef = useRef<ReactECharts | null>(null);
-  const instanceRef = useRef<DepthChartHandle | null>(null);
+  const [chartInstance, setChartInstance] = createSignal<DepthChartHandle | null>(null);
 
-  const handleChartReady = useCallback((instance: DepthChartHandle) => {
-    instanceRef.current = instance;
-  }, []);
+  const handleChartReady = (instance: DepthChartHandle) => {
+    setChartInstance(() => instance);
+  };
 
-  /** Drop the instance reference on unmount so nothing can drive a disposed
-   *  ECharts instance (the library disposes it in `componentWillUnmount`). */
-  useEffect(
-    () => () => {
-      instanceRef.current = null;
-    },
-    [],
-  );
+  /** Drop the instance on unmount so nothing drives a disposed chart. */
+  onCleanup(() => {
+    setChartInstance(null);
+  });
 
-  const resolveInstance = useCallback(
-    (): DepthChartHandle | null =>
-      instanceRef.current ??
-      (chartRef.current?.getEchartsInstance?.() as unknown as
-        | DepthChartHandle
-        | undefined) ??
-      null,
-    [],
-  );
+  const resolveInstance = (): DepthChartHandle | null => chartInstance();
 
   // Resize only when the view becomes visible. The hidden container is
   // zero-size, so one resize on activation is required — but resizing on every
   // report push (every poll) forced a full ECharts/zrender re-layout for no
   // geometry change.
-  useEffect(() => {
-    if (!active) return;
+  createEffect(() => {
+    if (!active()) return;
     resolveInstance()?.resize();
-  }, [active, resolveInstance]);
+  });
 
   // Single option driver. The library's automatic setOption is disabled via
   // `shouldSetOption` below, so while `active` is false this effect provably
@@ -626,34 +608,36 @@ function NiftyDepthMapInner({ report, active = true }: NiftyDepthMapProps) {
   // in place every poll — the accumulation pattern that grows a long-lived
   // chart tab. Full replacement also guarantees a series removed upstream
   // cannot survive as a stale ghost series.
-  useEffect(() => {
-    if (!active) return;
+  createEffect(() => {
+    if (!active()) return;
     const instance = resolveInstance();
     if (!instance) return;
-    instance.setOption(option, { notMerge: true, lazyUpdate: false });
-  }, [active, option, resolveInstance]);
+    instance.setOption(option(), { notMerge: true, lazyUpdate: false });
+  });
 
-  const legend = useMemo(() => {
-    const ceDom = rows.filter((r) => r.ceOi > r.peOi).length;
-    const peDom = rows.filter((r) => r.peOi > r.ceOi).length;
-    const totalOi = rows.reduce((s, r) => s + r.ceOi + r.peOi, 0);
+  const legend = createMemo(() => {
+    const r = rows();
+    const ceDom = r.filter((x) => x.ceOi > x.peOi).length;
+    const peDom = r.filter((x) => x.peOi > x.ceOi).length;
+    const totalOi = r.reduce((acc, x) => acc + x.ceOi + x.peOi, 0);
     const chgByStrike = new Map<number, number>(
-      (Array.isArray(report?.strikes) ? report.strikes : [])
-        .filter((s) => s && Number.isFinite(Number(s.strike)))
-        .map((s) => [Number(s.strike), num(s?.ce?.oiChange) + num(s?.pe?.oiChange)]),
+      (Array.isArray(report()?.strikes) ? report()!.strikes! : [])
+        .filter((x) => x && Number.isFinite(Number(x.strike)))
+        .map((x) => [Number(x.strike), num(x?.ce?.oiChange) + num(x?.pe?.oiChange)]),
     );
-    const netChg = rows.reduce((s, r) => s + (chgByStrike.get(r.strike) ?? 0), 0);
+    const netChg = r.reduce((acc, x) => acc + (chgByStrike.get(x.strike) ?? 0), 0);
     return { ceDom, peDom, totalOi, netChg };
-  }, [rows, report]);
+  });
 
-  const changeTone =
-    stats.changePct == null ? "default" : stats.changePct > 0 ? palette.POSITIVE : stats.changePct < 0 ? palette.NEGATIVE : "default";
-  const changeText =
-    stats.changePct == null
+  const changeTone = () =>
+    stats().changePct == null ? "default" : (stats().changePct ?? 0) > 0 ? palette.POSITIVE : (stats().changePct ?? 0) < 0 ? palette.NEGATIVE : "default";
+  const changeText = () =>
+    stats().changePct == null
       ? "—"
-      : `${stats.changePct > 0 ? "+" : ""}${stats.changePct.toFixed(2)}%`;
-  const netChgTone = legend.netChg > 0 ? palette.POSITIVE : legend.netChg < 0 ? palette.NEGATIVE : palette.TEXT_MUTED;
-  const netChgText = `${legend.netChg > 0 ? "+" : ""}${formatOiCompact(legend.netChg)}`;
+      : `${(stats().changePct ?? 0) > 0 ? "+" : ""}${stats().changePct!.toFixed(2)}%`;
+  const netChgTone = () => (legend().netChg > 0 ? palette.POSITIVE : legend().netChg < 0 ? palette.NEGATIVE : palette.TEXT_MUTED);
+  const netChgText = () =>
+    `${legend().netChg > 0 ? "+" : ""}${formatOiCompact(legend().netChg)}`;
 
   return (
     <Box
@@ -665,29 +649,29 @@ function NiftyDepthMapInner({ report, active = true }: NiftyDepthMapProps) {
           <CompactStat
             data-testid="nifty-depth-stat-last"
             label="Last"
-            value={fmtStrike(num(report?.spot))}
+            value={fmtStrike(num(report()?.spot))}
           />
           <CompactStat
             data-testid="nifty-depth-stat-hilo"
             label="Hi / Lo"
             valueSize="md"
-            value={stats.hi == null || stats.lo == null ? "—" : `${fmtStrike(stats.hi)} / ${fmtStrike(stats.lo)}`}
+            value={stats().hi == null || stats().lo == null ? "—" : `${fmtStrike(stats().hi!)} / ${fmtStrike(stats().lo!)}`}
           />
           <CompactStat
             data-testid="nifty-depth-stat-chg"
             label="Change"
-            tone={changeTone}
-            value={changeText}
+            tone={changeTone()}
+            value={changeText()}
           />
           <CompactStat
             data-testid="nifty-depth-stat-pcr"
             label="PCR-OI"
-            value={Number.isFinite(Number(report?.pcrOi)) ? Number(report.pcrOi).toFixed(2) : "—"}
+            value={Number.isFinite(Number(report()?.pcrOi)) ? Number(report()!.pcrOi).toFixed(2) : "—"}
           />
           <CompactStat
             data-testid="nifty-depth-stat-maxpain"
             label="Max Pain"
-            value={Number(report?.maxPain) > 0 ? fmtStrike(Number(report.maxPain)) : "—"}
+            value={Number(report()?.maxPain) > 0 ? fmtStrike(Number(report()!.maxPain)) : "—"}
           />
         </CompactStatGrid>
       </Box>
@@ -696,11 +680,11 @@ function NiftyDepthMapInner({ report, active = true }: NiftyDepthMapProps) {
         data-testid="nifty-depth-legend"
         className="flex items-center flex-wrap gap-[16px] px-2"
       >
-        <LegendChip testId="nifty-depth-legend-ce-dom" color={palette.NEGATIVE} label="CE over PE" value={String(legend.ceDom)} />
-        <LegendChip testId="nifty-depth-legend-pe-dom" color={palette.POSITIVE} label="PE over CE" value={String(legend.peDom)} />
-        <LegendChip testId="nifty-depth-legend-total" color={palette.TEXT} label="Total OI" value={formatOiCompact(legend.totalOi)} />
-        <LegendChip testId="nifty-depth-legend-poc" color={palette.WARNING} label="OI POC" value={poc != null ? fmtStrike(poc) : "—"} />
-        <LegendChip testId="nifty-depth-legend-chg" color={palette.TEXT_MUTED} label="OI Chg" value={netChgText} valueColor={netChgTone} />
+        <LegendChip testId="nifty-depth-legend-ce-dom" color={palette.NEGATIVE} label="CE over PE" value={String(legend().ceDom)} />
+        <LegendChip testId="nifty-depth-legend-pe-dom" color={palette.POSITIVE} label="PE over CE" value={String(legend().peDom)} />
+        <LegendChip testId="nifty-depth-legend-total" color={palette.TEXT} label="Total OI" value={formatOiCompact(legend().totalOi)} />
+        <LegendChip testId="nifty-depth-legend-poc" color={palette.WARNING} label="OI POC" value={poc() != null ? fmtStrike(poc()!) : "—"} />
+        <LegendChip testId="nifty-depth-legend-chg" color={palette.TEXT_MUTED} label="OI Chg" value={netChgText()} valueColor={netChgTone()} />
       </Box>
 
       <Box
@@ -708,27 +692,20 @@ function NiftyDepthMapInner({ report, active = true }: NiftyDepthMapProps) {
         className="relative w-full min-w-0 min-h-[380px]"
         style={{ height: "min(62vh, 600px)" }}
       >
-        {rows.length === 0 ? (
+        {rows().length === 0 ? (
           <EmptyCompact
             data-testid="nifty-depth-empty"
             title="No strikes in window"
             description="No option-chain strikes near spot for this expiry."
           />
         ) : null}
-        {rows.length > 0 || hasEverHadRows ? (
+        {rows().length > 0 || hasEverHadRows() ? (
           <Box
             className="absolute inset-0"
-            style={{ display: rows.length > 0 ? "block" : "none" }}
+            style={{ display: rows().length > 0 ? "block" : "none" }}
           >
             <ChartErrorBoundary label="Depth map">
-              <ReactECharts
-                ref={chartRef}
-                option={option}
-                style={DEPTH_CHART_STYLE}
-                opts={DEPTH_CHART_OPTS}
-                onChartReady={handleChartReady}
-                shouldSetOption={() => false}
-              />
+              <DepthChart option={option()} onChartReady={handleChartReady} data-testid="nifty-depth-echarts" data-series={Array.isArray(option()?.series) ? (option() as { series?: unknown[] }).series?.length ?? 0 : 0} />
             </ChartErrorBoundary>
           </Box>
         ) : null}
@@ -741,6 +718,5 @@ function NiftyDepthMapInner({ report, active = true }: NiftyDepthMapProps) {
   );
 }
 
-/** Memoised leaf panel — `report` keeps identity between unrelated parent renders. */
-export const NiftyDepthMap = memo(NiftyDepthMapInner);
-NiftyDepthMap.displayName = "NiftyDepthMap";
+/** Leaf panel. Solid needs no memo: updates are fine-grained, not whole-tree. */
+export const NiftyDepthMap = NiftyDepthMapInner;

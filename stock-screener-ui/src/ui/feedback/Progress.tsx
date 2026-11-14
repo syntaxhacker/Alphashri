@@ -1,3 +1,4 @@
+import { For, splitProps } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
 import type { UIProgressProps } from "../types";
@@ -43,98 +44,98 @@ function hexRgb(hex: string): string {
 const MARKER_RGB = hexRgb(palette.MARKER_BORDER);
 const STRIPE = `repeating-linear-gradient(45deg, rgba(${MARKER_RGB}, 0.15) 0 8px, transparent 8px 16px)`;
 
-export function Progress({
-  value,
-  color,
-  size,
-  radius,
-  striped,
-  animated,
-  label,
-  sections,
-  transitionDuration,
-  className,
-  style,
-  "data-testid": testId,
-  id,
-  ...rest
-}: UIProgressProps) {
-  const h = resolveSize(size) ?? "8px";
-  const br = radiusValue(radius);
-  const col = resolveColor(color);
-  const v = Math.max(0, Math.min(100, value ?? 0));
-  const transition = transitionDuration != null ? `width ${transitionDuration}ms` : undefined;
+export function Progress(props: UIProgressProps) {
+  const [known, _rest] = splitProps(props, [
+    "value",
+    "color",
+    "size",
+    "radius",
+    "striped",
+    "animated",
+    "label",
+    "sections",
+    "transitionDuration",
+    "className",
+    "style",
+    "data-testid",
+    "id",
+  ]);
 
-  const barBase: React.CSSProperties = {
-    height: h,
-    borderRadius: br,
-    backgroundColor: col,
-    ...(striped ? { backgroundImage: STRIPE } : {}),
-    ...(animated && striped ? { backgroundSize: "16px 16px" } : {}),
-    ...(transition ? { transition } : {}),
-  };
+  const h = resolveSize(known.size) ?? "8px";
+  const br = radiusValue(known.radius);
+  const col = resolveColor(known.color);
+  const v = Math.max(0, Math.min(100, known.value ?? 0));
+  const transition = known.transitionDuration != null ? `width ${known.transitionDuration}ms` : undefined;
 
-  if (sections && sections.length > 0) {
+  const sectionsValue = known.sections;
+  if (sectionsValue && sectionsValue.length > 0) {
     return (
       <div
-        data-testid={testId}
-        id={id}
+        data-testid={known["data-testid"]}
+        id={known.id}
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={v}
-        className={cn("flex w-full shrink-0 overflow-hidden", className)}
-        style={{ height: h, borderRadius: br, backgroundColor: palette.BORDER, ...style }}
-        {...rest}
+        className={cn("flex w-full shrink-0 overflow-hidden", known.className)}
+        style={{ height: h, "border-radius": br, "background-color": palette.BORDER, ...known.style }}
       >
-        {sections.map((section, i) => {
+        <For each={sectionsValue}>{(section) => {
           const scol = resolveColor(section.color);
           const width = Math.max(0, Math.min(100, section.value));
           return (
             <div
-              key={i}
               className="shrink-0 flex items-center justify-center"
               style={{
                 width: `${width}%`,
                 height: "100%",
-                backgroundColor: scol,
-                borderRadius: 0,
+                "background-color": scol,
+                "border-radius": 0,
                 ...(transition ? { transition } : {}),
-                ...(striped ? { backgroundImage: STRIPE } : {}),
+                ...(known.striped ? { "background-image": STRIPE } : {}),
               }}
             >
-              {(label || section.label) && (
+              {(known.label || section.label) && (
                 <span className="text-[10px] font-semibold text-fin-text pointer-events-none select-none">
-                  {section.label ?? label}
+                  {section.label ?? known.label}
                 </span>
               )}
             </div>
           );
-        })}
+        }}</For>
       </div>
     );
   }
 
   return (
     <div
-      data-testid={testId}
-      id={id}
+      data-testid={known["data-testid"]}
+      id={known.id}
       role="progressbar"
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={v}
-      className={cn("relative w-full shrink-0", className)}
-      style={style}
-      {...rest}
+      className={cn("relative w-full shrink-0", known.className)}
+      style={known.style}
     >
       <div
         className="w-full shrink-0"
-        style={{ height: h, borderRadius: br, backgroundColor: palette.BORDER, ...(striped ? { backgroundImage: STRIPE } : {}) }}
+        style={{ height: h, "border-radius": br, "background-color": palette.BORDER, ...(known.striped ? { "background-image": STRIPE } : {}) }}
       />
-      <div className="shrink-0" style={barBase} />
-      {label && (
+      <div
+        className="shrink-0"
+        style={{
+          height: h,
+          "border-radius": br,
+          "background-color": col,
+          ...(known.striped ? { "background-image": STRIPE } : {}),
+          ...(known.animated && known.striped ? { "background-size": "16px 16px" } : {}),
+          ...(transition ? { transition } : {}),
+        }}
+      />
+      {known.label && (
         <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-fin-text pointer-events-none select-none">
-          {label}
+          {known.label}
         </span>
       )}
     </div>

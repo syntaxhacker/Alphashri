@@ -1,9 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { screen, cleanup, within } from "@testing-library/react";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
+import { render, screen, fireEvent, cleanup, within } from "@solidjs/testing-library";
 
 const mockStateStore: any = {
   currentView: "live",
@@ -106,7 +104,7 @@ vi.mock("./PaperSettings", () => ({
   PaperSettings: () => <div data-testid="paper-settings">Settings</div>,
 }));
 
-vi.mock("react-router-dom", () => ({
+vi.mock("@solidjs/router", () => ({
   useNavigate: vi.fn(() => vi.fn()),
   useLocation: vi.fn(() => ({ pathname: "/" })),
   useSearchParams: vi.fn(() => [new URLSearchParams(), vi.fn()]),
@@ -134,7 +132,7 @@ afterEach(() => {
 });
 
 function r() {
-  return renderWithProviders(<PaperTradingView />);
+  return render(() => <PaperTradingView />);
 }
 
 describe("PaperTradingView", () => {
@@ -220,13 +218,12 @@ describe("PaperTradingView", () => {
 
   describe("error alert", () => {
     test("error alert close button clears error", async () => {
-      const user = userEvent.setup();
       mockStateStore.error = "Something went wrong";
       r();
       const alert = screen.getByTestId("paper-error");
       expect(alert).toBeInTheDocument();
       const closeBtn = within(alert).getByRole("button");
-      await user.click(closeBtn);
+      await fireEvent.click(closeBtn);
       const { setError } = await import("../../state/paperTrading");
       expect(setError).toHaveBeenCalledWith(null);
     });
@@ -235,7 +232,7 @@ describe("PaperTradingView", () => {
   describe("cleanup on unmount", () => {
     test("cleanup stops auto-refresh on unmount", async () => {
       const { stopLiveAutoRefresh } = await import("../../api/paperTrading");
-      const { unmount } = renderWithProviders(<PaperTradingView />);
+      const { unmount } = render(() => <PaperTradingView />);
       unmount();
       expect(stopLiveAutoRefresh).toHaveBeenCalled();
     });

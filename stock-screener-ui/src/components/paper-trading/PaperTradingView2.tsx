@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
-import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import { Stack, Alert, ScrollArea, Card } from "@/ui";
+import { createSignal, createMemo, createEffect, onCleanup, onMount, Show, Match, Switch } from "solid-js";
+import { useStoreSnapshot } from "./storeSnapshot";
+import { Alert, ScrollArea, Stack, ToolbarRow, Card } from "@/ui";
 import {
   getPaperTradingState,
   subscribe,
@@ -18,7 +17,7 @@ import {
   listBots,
 } from "../../api/paperTrading";
 import { fetchBotSummaries } from "../../api/botControlApi";
-import type { BotInfo, BotSummary } from "../../types/paperTrading";
+import type { BotSummary } from "../../types/paperTrading";
 import {
   PaperPositionsTable,
   PaperPortfolioCard,
@@ -39,12 +38,11 @@ import { WatchlistScan2 } from "./WatchlistScan2";
 import { SelectedPositionBar } from "./SelectedPositionBar";
 import { OptionPayoffCard } from "./OptionPayoffChart";
 import { isOptionTrade } from "./optionTradeUtils";
+import type { Portfolio } from "./PaperPortfolioCard";
+type PaperTradingSnapshot = ReturnType<typeof getPaperTradingState>;
 
-function useLoadInitialData(
-  setAvailableBots: (bots: BotInfo[]) => void,
-  setBotSummaries: (summaries: BotSummary[]) => void,
-) {
-  const loadInitialData = useCallback(async (): Promise<string | null> => {
+function useLoadInitialData(setBotSummaries: (summaries: BotSummary[]) => void) {
+  const loadInitialData = async (): Promise<string | null> => {
     try {
       const [bots, summaries] = await Promise.all([listBots(), fetchBotSummaries()]);
       setAvailableBots(bots);
@@ -54,78 +52,86 @@ function useLoadInitialData(
       setError(`Failed to load initial data: ${error}`);
       return null;
     }
-  }, [setAvailableBots, setBotSummaries]);
+  };
 
   return loadInitialData;
 }
 
 function useHandleBotSelect(setActiveBotId: (id: string | null) => void) {
-  const handleBotSelect = useCallback(
-    async (botId: string) => {
-      if (!botId) {
-        setActiveBotId(null);
-        stopLiveAutoRefresh();
-        initLiveAutoRefresh();
-        refreshLiveData();
-      } else {
-        setActiveBotId(botId);
-        stopLiveAutoRefresh();
-        await refreshBotLiveData(botId);
-        initBotAutoRefresh(botId);
-      }
-    },
-    [setActiveBotId],
-  );
+  const handleBotSelect = async (botId: string) => {
+    if (!botId) {
+      setActiveBotId(null);
+      stopLiveAutoRefresh();
+      initLiveAutoRefresh();
+      refreshLiveData();
+    } else {
+      setActiveBotId(botId);
+      stopLiveAutoRefresh();
+      await refreshBotLiveData(botId);
+      initBotAutoRefresh(botId);
+    }
+  };
 
   return handleBotSelect;
 }
 
+const VALID_VIEWS: PaperView[] = ["live", "history", "settings", "activity", "aggregated"];
+
+function useUrlViewParam(state: () => PaperTradingSnapshot, handleViewChange: (view: PaperView) => void) {
+  // Push state -> URL when the tab changes; honor back/forward navigation.
+  let firstRun = true;
+
+  createEffect(() => {
+    const view = state().currentView;
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("view") !== view) {
+      params.set("view", view);
+      const next = `${window.location.pathname}?${params.toString()}`;
+      // Mount-time consistency replace; later user actions push history entries.
+      if (firstRun) window.history.replaceState({}, "", next);
+      else window.history.pushState({}, "", next);
+    }
+    firstRun = false;
+  });
+
+  onMount(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const viewParam = params.get("view") as PaperView | null;
+    if (viewParam && VALID_VIEWS.includes(viewParam) && viewParam !== getPaperTradingState().currentView) {
+      handleViewChange(viewParam);
+    }
+
+    const onPopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const view = params.get("view") as PaperView | null;
+      if (view && VALID_VIEWS.includes(view) && view !== getPaperTradingState().currentView) {
+        handleViewChange(view);
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    onCleanup(() => window.removeEventListener("popstate", onPopState));
+  });
+}
+
 function usePaperTradingViewModel() {
-  useStoreSubscription(subscribe);
-  const state = getPaperTradingState();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const state = useStoreSnapshot(subscribe, getPaperTradingState);
 
-  const [activeBotId, setActiveBotId] = useState<string | null>(null);
-  const [botSummaries, setBotSummaries] = useState<BotSummary[]>([]);
-  const [scanRefreshing, setScanRefreshing] = useState(false);
+  const [activeBotId, setActiveBotId] = createSignal<string | null>(null);
+  const [botSummaries, setBotSummaries] = createSignal<BotSummary[]>([]);
+  const [scanRefreshing, setScanRefreshing] = createSignal(false);
 
-  const loadInitialData = useLoadInitialData(
-    setAvailableBots,
-    setBotSummaries,
-  );
+  const loadInitialData = useLoadInitialData(setBotSummaries);
   const handleBotSelect = useHandleBotSelect(setActiveBotId);
-  const handleClearError = useCallback(() => setError(null), []);
+  const handleClearError = () => setError(null);
 
-  const actions = usePaperViewActions(activeBotId);
+  const actions = usePaperViewActions(() => activeBotId());
   const filters = useHistoryFilters();
 
-  // Sync URL ?view= -> state on mount and on browser nav (uses handleViewChange to also fetch data)
-  useEffect(() => {
-    const viewParam = searchParams.get("view") as PaperView | null;
-    const valid: PaperView[] = ["live", "history", "settings", "activity", "aggregated"];
-    if (viewParam && valid.includes(viewParam) && viewParam !== state.currentView) {
-      actions.handleViewChange(viewParam);
-    } else if (!viewParam) {
-      // No param -> push current view to URL for deep-link consistency
-      const next = new URLSearchParams(searchParams);
-      next.set("view", state.currentView);
-      setSearchParams(next, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useUrlViewParam(state, (view) => { void actions.handleViewChange(view); });
 
-  // Sync state -> URL when tab changes (via actions)
-  useEffect(() => {
-    const view = state.currentView;
-    const currentParam = searchParams.get("view");
-    if (currentParam !== view) {
-      const next = new URLSearchParams(searchParams);
-      next.set("view", view);
-      setSearchParams(next, { replace: false });
-    }
-  }, [state.currentView, searchParams, setSearchParams]);
-
-  useEffect(() => {
+  onMount(() => {
     loadInitialData().then((botId) => {
       if (botId) {
         setActiveBotId(botId);
@@ -135,24 +141,27 @@ function usePaperTradingViewModel() {
         refreshLiveData();
       }
     });
-    return () => {
+    onCleanup(() => {
       stopLiveAutoRefresh();
-    };
-  }, [loadInitialData]);
+    });
+  });
 
-  useEffect(() => {
+  createEffect(() => {
+    const running = state().botRunning;
+    void running;
     const timer = setTimeout(() => {
       fetchBotSummaries().then(setBotSummaries);
     }, 2000);
-    return () => clearTimeout(timer);
-  }, [state.botRunning]);
+    onCleanup(() => clearTimeout(timer));
+  });
 
-  const handleScanRefresh = useCallback(async () => {
-    if (!activeBotId) return;
+  const handleScanRefresh = async () => {
+    const botId = activeBotId();
+    if (!botId) return;
     setScanRefreshing(true);
-    await refreshBotLiveData(activeBotId);
+    await refreshBotLiveData(botId);
     setScanRefreshing(false);
-  }, [activeBotId]);
+  };
 
   return {
     state,
@@ -167,98 +176,85 @@ function usePaperTradingViewModel() {
   };
 }
 
-interface LiveViewProps {
-  state: ReturnType<typeof getPaperTradingState>;
-  activeBotId: string | null;
-  scanRefreshing: boolean;
-  handleScanRefresh: () => void;
-}
+type ViewModel = ReturnType<typeof usePaperTradingViewModel>;
 
-function LiveView({ state, activeBotId, scanRefreshing, handleScanRefresh }: LiveViewProps) {
-  const selectedPosition = useMemo(() => {
-    if (!state.selectedSymbol) return null;
-    return state.positions.find((p) => p.symbol === state.selectedSymbol) || null;
-  }, [state.positions, state.selectedSymbol]);
+function LiveView(props: { state: PaperTradingSnapshot; activeBotId: string | null; scanRefreshing: boolean; handleScanRefresh: () => void }) {
+  const selectedPosition = createMemo(() => {
+    if (!props.state.selectedSymbol) return null;
+    return props.state.positions.find((p) => p.symbol === props.state.selectedSymbol) || null;
+  });
 
   return (
-    <div className="paper-live-view-grid flex flex-col md:flex-row gap-2 flex-1 min-h-0" data-testid="live-view-grid" id="live-view-grid">
-      <div className="paper-live-left-panel flex-1 md:[flex:0_0_42%] min-w-0 min-h-0 flex flex-col gap-2" data-testid="paper-left-panel" id="left-panel">
+    <div class="paper-live-view-grid flex flex-col md:flex-row gap-2 flex-1 min-h-0" data-testid="live-view-grid" id="live-view-grid">
+      <div class="paper-live-left-panel flex-1 md:[flex:0_0_42%] min-w-0 min-h-0 flex flex-col gap-2" data-testid="paper-left-panel" id="left-panel">
         <Card className="paper-portfolio-card-wrap" id="paper-portfolio-card-wrap">
-          <div className="paper-portfolio-card-content p-1 flex-1 min-h-0 flex flex-col">
-            <PaperPortfolioCard portfolio={state.portfolio as any} />
+          <div class="paper-portfolio-card-content p-1 flex-1 min-h-0 flex flex-col">
+            <PaperPortfolioCard portfolio={props.state.portfolio as Portfolio | null} />
           </div>
         </Card>
         <Card className="paper-positions-card-wrap flex-1 min-h-40 flex flex-col" id="paper-positions-card-wrap">
-          <div className="paper-positions-card-content p-1 flex-1 min-h-0 flex flex-col">
+          <div class="paper-positions-card-content p-1 flex-1 min-h-0 flex flex-col">
             <ScrollArea className="paper-positions-scroll min-h-0" flex={1}>
               <Stack className="paper-positions-stack" spacing={0.5}>
-                <PaperPositionsTable activeBotId={activeBotId} />
+                <PaperPositionsTable activeBotId={props.activeBotId} />
               </Stack>
             </ScrollArea>
           </div>
         </Card>
         <Card className="paper-watchlist-card-wrap [flex:0_1_auto] min-h-0 overflow-hidden flex flex-col" id="paper-watchlist-card-wrap">
-          <div className="paper-watchlist-card-content p-1 flex-1 min-h-0 overflow-auto flex flex-col">
-            <WatchlistScan2 snapshot={state.botSnapshot} selectedSymbol={state.selectedSymbol} onRefresh={handleScanRefresh} refreshing={scanRefreshing} />
+          <div class="paper-watchlist-card-content p-1 flex-1 min-h-0 overflow-auto flex flex-col">
+            <WatchlistScan2 snapshot={props.state.botSnapshot} selectedSymbol={props.state.selectedSymbol} onRefresh={props.handleScanRefresh} refreshing={props.scanRefreshing} />
           </div>
         </Card>
       </div>
-      <div className="paper-live-right-panel flex-1 md:[flex:1_1_58%] min-w-0 min-h-0 flex flex-col gap-2 overflow-hidden" data-testid="paper-right-panel" id="right-panel">
+      <div class="paper-live-right-panel flex-1 md:[flex:1_1_58%] min-w-0 min-h-0 flex flex-col gap-2 overflow-hidden" data-testid="paper-right-panel" id="right-panel">
         <Card className="paper-chart-card-wrap flex-1 min-h-0 flex flex-col" id="paper-chart-card-wrap">
-          <div className="paper-chart-card-content p-1 flex-1 min-h-0 flex flex-col">
+          <div class="paper-chart-card-content p-1 flex-1 min-h-0 flex flex-col">
             <PaperChart />
           </div>
         </Card>
-        <SelectedPositionBar position={selectedPosition} />
+        <SelectedPositionBar position={selectedPosition()} />
       </div>
     </div>
   );
 }
 
-interface HistoryViewProps {
-  state: ReturnType<typeof getPaperTradingState>;
-}
-
-function HistoryView({ state }: HistoryViewProps) {
-  const selectedTrade = useMemo(
-    () =>
-      state.selectedTradeId
-        ? state.trades.find((t) => t.trade_id === state.selectedTradeId) ?? null
-        : null,
-    [state.trades, state.selectedTradeId],
+function HistoryView(props: { state: PaperTradingSnapshot }) {
+  const selectedTrade = createMemo(() =>
+    props.state.selectedTradeId
+      ? props.state.trades.find((t) => t.trade_id === props.state.selectedTradeId) ?? null
+      : null,
   );
-  const showPayoff = selectedTrade != null && isOptionTrade(selectedTrade);
+  const showPayoff = () => selectedTrade() != null && isOptionTrade(selectedTrade()!);
 
   return (
-    <div className="paper-history-view flex flex-col md:flex-row gap-2 flex-1 min-h-0" data-testid="paper-history-panel" id="history-view">
-      <div className="paper-history-left flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden" id="paper-history-left">
+    <div class="paper-history-view flex flex-col md:flex-row gap-2 flex-1 min-h-0" data-testid="paper-history-panel" id="history-view">
+      <div class="paper-history-left flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden" id="paper-history-left">
         <Card className="paper-history-table-card flex-1 min-h-0 flex flex-col" id="paper-history-table-card">
-          <div className="paper-history-table-card-content p-1 flex-1 min-h-0 flex flex-col">
+          <div class="paper-history-table-card-content p-1 flex-1 min-h-0 flex flex-col">
             <PaperHistoryTable />
           </div>
         </Card>
       </div>
-      <div className="paper-history-right flex-1 min-w-0 min-h-0 flex flex-col gap-2 overflow-hidden" id="paper-history-right">
+      <div class="paper-history-right flex-1 min-w-0 min-h-0 flex flex-col gap-2 overflow-hidden" id="paper-history-right">
         <Card className="paper-history-chart-card flex-1 min-h-0 flex flex-col" id="paper-history-chart-card">
-          <div className="paper-history-chart-card-content p-1 flex-1 min-h-0 flex flex-col">
+          <div class="paper-history-chart-card-content p-1 flex-1 min-h-0 flex flex-col">
             <PaperChart engine="tradingview" />
           </div>
         </Card>
-        {showPayoff && selectedTrade && <OptionPayoffCard trade={selectedTrade} />}
+        <Show when={showPayoff() ? selectedTrade() : null}>
+          {(trade) => <OptionPayoffCard trade={trade()!} />}
+        </Show>
       </div>
     </div>
   );
 }
 
-interface SettingsViewProps {
-  state: ReturnType<typeof getPaperTradingState>;
-}
-
-function SettingsView({ state: _state }: SettingsViewProps) {
+function SettingsView() {
   return (
-    <div className="paper-settings-view flex-1 min-h-0 flex flex-col" data-testid="paper-settings-panel" id="settings-view">
+    <div class="paper-settings-view flex-1 min-h-0 flex flex-col" data-testid="paper-settings-panel" id="settings-view">
       <ScrollArea className="paper-settings-scroll min-h-0" flex={1} type="auto">
-        <div className="paper-settings-inner max-w-[1200px] mx-auto w-full p-1" id="paper-settings-inner">
+        <div class="paper-settings-inner max-w-[1200px] mx-auto w-full p-1" id="paper-settings-inner">
           <PaperSettings />
         </div>
       </ScrollArea>
@@ -266,96 +262,103 @@ function SettingsView({ state: _state }: SettingsViewProps) {
   );
 }
 
-interface ErrorAlertProps {
-  message: string;
-  onClose: () => void;
-}
-
-function ErrorAlert({ message, onClose }: ErrorAlertProps) {
+function ErrorAlert(props: { message: string; onClose: () => void }) {
   return (
     <Alert
       title="Error"
       color="error"
       variant="filled"
-      mb="xs"
+      className="mb-1"
       data-testid="paper-error"
       withCloseButton
-      onClose={onClose}
+      onClose={props.onClose}
     >
-      {message}
+      {props.message}
     </Alert>
   );
 }
 
-interface HeaderSectionProps {
-  state: ReturnType<typeof getPaperTradingState>;
+function HeaderSection(props: {
+  state: PaperTradingSnapshot;
   botSummaries: BotSummary[];
   activeBotId: string | null;
-  actions: ReturnType<typeof usePaperViewActions>;
-  filters: ReturnType<typeof useHistoryFilters>;
+  actions: ViewModel["actions"];
+  filters: ViewModel["filters"];
   handleBotSelect: (botId: string) => Promise<void>;
-}
-
-function HeaderSection({
-  state,
-  botSummaries,
-  activeBotId,
-  actions,
-  filters,
-  handleBotSelect,
-}: HeaderSectionProps) {
+}) {
   return (
-    <div className="paper-header-section [flex:0_0_auto] mb-1" id="paper-header" data-testid="paper-header">
-      <Stack className="paper-header-stack" spacing={0.5}>
-        <div className="paper-header-tabs-wrap flex justify-between items-center" id="paper-header-tabs-wrap">
-          <PaperTradingTabs state={state} onViewChange={actions.handleViewChange} />
-        </div>
-        <div className="paper-filters-wrap" id="paper-filters-wrap" data-testid="paper-filters">
-          <FiltersBar
-            activeBotId={activeBotId}
-            bots={botSummaries}
-            state={state}
-            actions={{ ...actions, handleBotSelect }}
-            filters={filters}
-          />
-        </div>
-      </Stack>
-    </div>
+    <ToolbarRow
+      id="paper-header"
+      data-testid="paper-header"
+      gap={8}
+      wrap={false}
+      clip
+      className="paper-header-section [flex:0_0_auto] mb-1 shrink-0"
+      style={{
+        "padding-left": "12px",
+        "padding-right": "12px",
+        "flex-shrink": 0,
+      }}
+    >
+      <PaperTradingTabs state={props.state} onViewChange={props.actions.handleViewChange} />
+      <div
+        id="paper-filters-wrap"
+        data-testid="paper-filters"
+        class="ml-auto flex items-center"
+      >
+        <FiltersBar
+          activeBotId={props.activeBotId}
+          bots={props.botSummaries}
+          state={props.state}
+          actions={{ ...props.actions, handleBotSelect: props.handleBotSelect }}
+          filters={props.filters}
+        />
+      </div>
+    </ToolbarRow>
   );
 }
 
 export function PaperTradingView() {
-  const { state, activeBotId, botSummaries, handleBotSelect, handleClearError, actions, filters, scanRefreshing, handleScanRefresh } =
-    usePaperTradingViewModel();
+  const vm = usePaperTradingViewModel();
 
   return (
-    <div className="paper-trading-view px-4 py-1 flex flex-col h-full overflow-hidden" data-testid="paper-trading-view" id="paper-trading-main">
+    <div class="paper-trading-view px-4 py-1 flex flex-col h-full overflow-hidden" data-testid="paper-trading-view" id="paper-trading-main">
       <LivePriceUpdater />
-      {state.error && <ErrorAlert message={state.error} onClose={handleClearError} />}
+      <Show when={vm.state().error}>
+        {(message) => <ErrorAlert message={message()!} onClose={vm.handleClearError} />}
+      </Show>
 
       <HeaderSection
-        state={state}
-        botSummaries={botSummaries}
-        activeBotId={activeBotId}
-        actions={actions}
-        filters={filters}
-        handleBotSelect={handleBotSelect}
+        state={vm.state()}
+        botSummaries={vm.botSummaries()}
+        activeBotId={vm.activeBotId()}
+        actions={vm.actions}
+        filters={vm.filters}
+        handleBotSelect={vm.handleBotSelect}
       />
 
-      <div className="paper-content flex-1 min-h-0 flex flex-col" id="paper-content">
-        {state.currentView === "live" && <LiveView state={state} activeBotId={activeBotId} scanRefreshing={scanRefreshing} handleScanRefresh={handleScanRefresh} />}
-        {state.currentView === "history" && <HistoryView state={state} />}
-        {state.currentView === "settings" && <SettingsView state={state} />}
-        {state.currentView === "activity" && (
-          <ScrollArea className="min-h-0" flex={1} type="auto">
-            <ActivityFeed />
-          </ScrollArea>
-        )}
-        {state.currentView === "aggregated" && (
-          <ScrollArea className="min-h-0" flex={1} type="auto">
-            <AggregatedDashboard />
-          </ScrollArea>
-        )}
+      <div class="paper-content flex-1 min-h-0 flex flex-col" id="paper-content">
+        <Switch>
+          <Match when={vm.state().currentView === "live"}>
+            <LiveView state={vm.state()} activeBotId={vm.activeBotId()} scanRefreshing={vm.scanRefreshing()} handleScanRefresh={vm.handleScanRefresh} />
+          </Match>
+          <Match when={vm.state().currentView === "history"}>
+            <HistoryView state={vm.state()} />
+          </Match>
+          <Match when={vm.state().currentView === "settings"}>
+            <SettingsView />
+          </Match>
+          <Match when={vm.state().currentView === "activity"}>
+            <ScrollArea className="min-h-0" flex={1} type="auto">
+              <ActivityFeed />
+            </ScrollArea>
+          </Match>
+          <Match when={vm.state().currentView === "aggregated"}>
+            <ScrollArea className="min-h-0" flex={1} type="auto">
+              <AggregatedDashboard />
+            </ScrollArea>
+          </Match>
+        </Switch>
       </div>
     </div>
   );

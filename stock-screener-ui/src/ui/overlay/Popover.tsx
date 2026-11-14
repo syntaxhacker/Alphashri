@@ -1,5 +1,4 @@
-import * as React from "react";
-import { createPortal } from "react-dom";
+import { Show, createContext, createEffect, createMemo, createSignal, splitProps, useContext } from "solid-js";
 import { cn } from "../cn";
 import type {
   UIPopoverProps,
@@ -10,24 +9,24 @@ import type {
 type PopoverProps = UIPopoverProps;
 
 type PopoverContextValue = {
-  anchorEl: HTMLElement | null;
+  anchorEl: () => HTMLElement | null;
   setAnchorEl: (el: HTMLElement | null) => void;
-  open: boolean;
+  open: () => boolean;
   onClose?: () => void;
   onChange?: (open: boolean) => void;
-  position?: string;
-  offset?: number;
-  withArrow?: boolean;
-  width?: number | string;
-  shadow?: string;
-  controlledOpen?: boolean;
-  closeOnClickOutside?: boolean;
+  position: () => string | undefined;
+  offset: () => number | undefined;
+  withArrow: () => boolean | undefined;
+  width: () => number | string | undefined;
+  shadow: () => string | undefined;
+  controlledOpen: () => boolean | undefined;
+  closeOnClickOutside: () => boolean;
 };
 
-const PopoverContext = React.createContext<PopoverContextValue | null>(null);
+const PopoverContext = createContext<PopoverContextValue | null>(null);
 
 function usePopoverContext() {
-  const ctx = React.useContext(PopoverContext);
+  const ctx = useContext(PopoverContext);
   if (!ctx) throw new Error("Popover compound components must be used within Popover");
   return ctx;
 }
@@ -45,216 +44,219 @@ function paddingSize(v: number | string): string {
   return m[v] ?? String(v);
 }
 
-export function Popover({
-  children,
-  opened,
-  onClose,
-  onChange,
-  position,
-  withArrow,
-  width,
-  shadow,
-  offset,
-  _trapFocus,
-  closeOnClickOutside,
-  _middlewares,
-  _keepMounted,
-  className,
-  style,
-  id,
-  "data-testid": testId,
-  ...rest
-}: PopoverProps) {
-  const [internalAnchorEl, setInternalAnchorEl] = React.useState<HTMLElement | null>(null);
-  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false);
+export function Popover(props: PopoverProps) {
+  const [known, rest] = splitProps(props, [
+    "children",
+    "opened",
+    "onClose",
+    "onChange",
+    "position",
+    "withArrow",
+    "width",
+    "shadow",
+    "offset",
+    "trapFocus",
+    "closeOnClickOutside",
+    "middlewares",
+    "keepMounted",
+    "className",
+    "style",
+    "id",
+    "data-testid",
+  ]);
 
-  const isControlled = opened !== undefined;
-  const open = isControlled ? !!opened : uncontrolledOpen;
+  const [internalAnchorEl, setInternalAnchorEl] = createSignal<HTMLElement | null>(null);
+  const [uncontrolledOpen, setUncontrolledOpen] = createSignal(false);
 
-  // For uncontrolled mode, sync open state based on anchorEl presence.
-  React.useEffect(() => {
-    if (!isControlled) {
-      setUncontrolledOpen(!!internalAnchorEl);
+  const isControlled = createMemo(() => known.opened !== undefined);
+  const open = createMemo(() => (isControlled() ? !!known.opened : uncontrolledOpen()));
+
+  // Uncontrolled: open tracks anchorEl presence.
+  createEffect(() => {
+    if (!isControlled()) {
+      setUncontrolledOpen(!!internalAnchorEl());
     }
-  }, [internalAnchorEl, isControlled]);
+  });
 
-  const handleClose = React.useCallback(() => {
-    if (isControlled) {
-      onChange?.(false);
-      onClose?.();
+  const handleClose = () => {
+    if (isControlled()) {
+      known.onChange?.(false);
+      known.onClose?.();
     } else {
       setInternalAnchorEl(null);
       setUncontrolledOpen(false);
-      onChange?.(false);
-      onClose?.();
+      known.onChange?.(false);
+      known.onClose?.();
     }
-  }, [isControlled, onClose, onChange]);
+  };
 
-  const setAnchorEl = React.useCallback(
-    (el: HTMLElement | null) => {
-      setInternalAnchorEl(el);
-      if (!isControlled) {
-        setUncontrolledOpen(!!el);
-      }
-    },
-    [isControlled],
-  );
+  const setAnchorEl = (el: HTMLElement | null) => {
+    setInternalAnchorEl(el);
+    if (!isControlled()) {
+      setUncontrolledOpen(!!el);
+    }
+  };
 
-  // If controlled and opened is false, clear anchorEl so the dropdown can remount cleanly.
-  React.useEffect(() => {
-    if (isControlled && !opened) {
+  // Controlled: when closed, clear anchorEl so the dropdown can remount cleanly.
+  createEffect(() => {
+    if (isControlled() && !known.opened) {
       setInternalAnchorEl(null);
     }
-  }, [isControlled, opened]);
+  });
 
   const ctxValue: PopoverContextValue = {
     anchorEl: internalAnchorEl,
     setAnchorEl,
     open,
     onClose: handleClose,
-    onChange,
-    position,
-    offset,
-    withArrow,
-    width,
-    shadow,
-    controlledOpen: opened,
-    closeOnClickOutside: closeOnClickOutside ?? true,
+    onChange: known.onChange,
+    position: () => known.position,
+    offset: () => known.offset,
+    withArrow: () => known.withArrow,
+    width: () => known.width,
+    shadow: () => known.shadow,
+    controlledOpen: () => known.opened,
+    closeOnClickOutside: () => known.closeOnClickOutside ?? true,
   };
 
   return (
     <PopoverContext.Provider value={ctxValue}>
       <span
-        id={id}
-        data-testid={testId}
-        className={cn("inline-block", className)}
-        style={{ display: "inline-block", ...style }}
+        id={known.id}
+        data-testid={known["data-testid"]}
+        className={cn("inline-block", known.className)}
+        style={{ display: "inline-block", ...(known.style as Record<string, string | undefined>) }}
         {...(rest as Record<string, unknown>)}
       >
-        {children}
+        {typeof known.children === "function"
+          ? known.children({
+              ref: internalAnchorEl,
+              toggle: () => setAnchorEl(internalAnchorEl()),
+              close: handleClose,
+              opened: open(),
+            })
+          : known.children}
       </span>
     </PopoverContext.Provider>
   );
 }
 
-export function PopoverTarget({ children, className, style }: UIPopoverTargetProps) {
+export function PopoverTarget(props: UIPopoverTargetProps) {
+  const [known, rest] = splitProps(props, ["children", "className", "style", "id", "data-testid", "onClick"]);
   const { setAnchorEl, anchorEl, open, controlledOpen, onChange } = usePopoverContext();
-  const child = React.Children.only(children as React.ReactElement<any>);
-  const handleClick = (e: React.MouseEvent) => {
+
+  const handleClick = (e: MouseEvent) => {
     const target = e.currentTarget as HTMLElement;
-    if (controlledOpen !== undefined) {
-      // Controlled (Mantine-style): toggle via onChange.
+    if (controlledOpen() !== undefined) {
       setAnchorEl(target);
-      onChange?.(!open);
-    } else if (open && anchorEl === target) {
+      onChange?.(!open());
+    } else if (open() && anchorEl() === target) {
       setAnchorEl(null);
     } else {
       setAnchorEl(target);
     }
-    (child.props as any)?.onClick?.(e);
+    known.onClick?.(e);
   };
-  return React.cloneElement(child, {
-    ref: (child as any).ref,
-    onClick: handleClick,
-    className: cn(className, (child.props as any).className),
-    style: { ...style, ...(child.props as any).style },
-  } as any);
+
+  return (
+    <span
+      id={known.id}
+      data-testid={known["data-testid"]}
+      className={cn("inline-block", known.className)}
+      style={{ display: "inline-block", ...(known.style as Record<string, string | undefined>) }}
+      onClick={handleClick}
+      {...(rest as Record<string, unknown>)}
+    >
+      {known.children}
+    </span>
+  );
 }
 
-export function PopoverDropdown({
-  children,
-  className,
-  style,
-  p,
-}: UIPopoverDropdownProps & { p?: number | string }) {
+export function PopoverDropdown(props: UIPopoverDropdownProps & { p?: number | string }) {
+  const [known, rest] = splitProps(props, ["children", "className", "style", "p"]);
   const { anchorEl, open, onClose, position, offset, width, shadow, closeOnClickOutside } =
     usePopoverContext();
-  const ref = React.useRef<HTMLDivElement>(null);
-  const [place, setPlace] = React.useState<React.CSSProperties>({});
+  const [placeEl, setPlaceEl] = createSignal<HTMLDivElement | undefined>(undefined);
+  const [place, setPlace] = createSignal<Record<string, string | undefined>>({});
 
-  React.useEffect(() => {
-    if (!open || !anchorEl || !ref.current) return;
-    const rect = anchorEl.getBoundingClientRect();
-    const off = offset ?? 0;
+  createEffect(() => {
+    const anchor = anchorEl();
+    if (!open() || !anchor || !placeEl()) return;
+    const rect = anchor.getBoundingClientRect();
+    const off = offset() ?? 0;
     const vpW = window.innerWidth;
     const vpH = window.innerHeight;
-    let s: React.CSSProperties = { position: "fixed" };
-    switch (position) {
+    let s: Record<string, string | undefined> = { position: "fixed" };
+    switch (position()) {
       case "top":
-        s = { position: "fixed", bottom: vpH - rect.top + off, left: `${rect.left + rect.width / 2}px`, transform: "translateX(-50%)" };
+        s = { position: "fixed", bottom: `${vpH - rect.top + off}px`, left: `${rect.left + rect.width / 2}px`, transform: "translateX(-50%)" };
         break;
       case "bottom":
-        s = { position: "fixed", top: rect.bottom + off, left: `${rect.left + rect.width / 2}px`, transform: "translateX(-50%)" };
+        s = { position: "fixed", top: `${rect.bottom + off}px`, left: `${rect.left + rect.width / 2}px`, transform: "translateX(-50%)" };
         break;
       case "top-start":
-        s = { position: "fixed", bottom: vpH - rect.top + off, left: `${rect.left}px` };
+        s = { position: "fixed", bottom: `${vpH - rect.top + off}px`, left: `${rect.left}px` };
         break;
       case "top-end":
-        s = { position: "fixed", bottom: vpH - rect.top + off, right: `${vpW - rect.right}px` };
+        s = { position: "fixed", bottom: `${vpH - rect.top + off}px`, right: `${vpW - rect.right}px` };
         break;
       case "bottom-start":
-        s = { position: "fixed", top: rect.bottom + off, left: `${rect.left}px` };
+        s = { position: "fixed", top: `${rect.bottom + off}px`, left: `${rect.left}px` };
         break;
       case "bottom-end":
-        s = { position: "fixed", top: rect.bottom + off, right: `${vpW - rect.right}px` };
+        s = { position: "fixed", top: `${rect.bottom + off}px`, right: `${vpW - rect.right}px` };
         break;
       case "left":
-        s = { position: "fixed", right: vpW - rect.left + off, top: `${rect.top + rect.height / 2}px`, transform: "translateY(-50%)" };
+        s = { position: "fixed", right: `${vpW - rect.left + off}px`, top: `${rect.top + rect.height / 2}px`, transform: "translateY(-50%)" };
         break;
       case "right":
-        s = { position: "fixed", left: rect.right + off, top: `${rect.top + rect.height / 2}px`, transform: "translateY(-50%)" };
+        s = { position: "fixed", left: `${rect.right + off}px`, top: `${rect.top + rect.height / 2}px`, transform: "translateX(-50%)" };
         break;
       default:
-        s = { position: "fixed", top: rect.bottom + off, left: `${rect.left + rect.width / 2}px`, transform: "translateX(-50%)" };
+        s = { position: "fixed", top: `${rect.bottom + off}px`, left: `${rect.left + rect.width / 2}px`, transform: "translateX(-50%)" };
     }
-    if (width != null) {
-      s.width = typeof width === "number" ? `${width}px` : width;
+    const w = width();
+    if (w != null) {
+      s.width = typeof w === "number" ? `${w}px` : w;
     }
     setPlace(s);
-  }, [open, anchorEl, position, offset, width]);
+  });
 
-  React.useEffect(() => {
-    if (!open) return;
+  createEffect(() => {
+    if (!open()) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose?.();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  });
 
-  // Click outside closes the popover (honors closeOnClickOutside, default on).
-  React.useEffect(() => {
-    if (!open || closeOnClickOutside === false) return;
+  createEffect(() => {
+    if (!open() || closeOnClickOutside() === false) return;
     const onDoc = (e: MouseEvent) => {
-      const el = ref.current;
-      if (anchorEl && !anchorEl.contains(e.target as Node) && el && !el.contains(e.target as Node)) {
+      const el = placeEl();
+      const anchor = anchorEl();
+      if (anchor && !anchor.contains(e.target as Node) && el && !el.contains(e.target as Node)) {
         onClose?.();
       }
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
-  }, [open, anchorEl, closeOnClickOutside, onClose]);
+  });
 
-  const padStyle = p != null ? { padding: paddingSize(p) } : undefined;
-  const shadowClass = SHADOW_MAP[shadow ?? ""] ?? "";
-  const boxShadow = shadow && !(shadow in SHADOW_MAP) ? shadow : undefined;
+  const padStyle = known.p != null ? { padding: paddingSize(known.p) } : undefined;
+  const shadowClass = SHADOW_MAP[shadow() ?? ""] ?? "";
 
-  if (!open) return null;
-  return createPortal(
-    <div
-      ref={ref}
-      className={cn(
-        "z-50 bg-fin-surface border border-fin-border rounded-sm overflow-auto",
-        shadowClass,
-        className,
-      )}
-      style={{ ...place, ...padStyle, ...style, ...(boxShadow ? { boxShadow } : {}) }}
-    >
-      {children}
-    </div>,
-    document.body,
+  return (
+    <Show when={open()}>
+      <div
+        ref={(el) => setPlaceEl(el)}
+        className={cn("z-50 bg-fin-surface border border-fin-border rounded-sm overflow-auto", shadowClass, known.className)}
+        style={{ ...place(), ...padStyle, ...(known.style as Record<string, string | undefined>) }}
+        {...(rest as Record<string, unknown>)}
+      >
+        {known.children}
+      </div>
+    </Show>
   );
 }
-
-Popover.Target = PopoverTarget;
-Popover.Dropdown = PopoverDropdown;

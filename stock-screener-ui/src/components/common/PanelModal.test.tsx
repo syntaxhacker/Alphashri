@@ -1,17 +1,13 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
+import type { JSX } from "solid-js";
 import { PanelModal } from "./PanelModal";
 
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>{children}</UIProvider>;
-}
-
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: TestWrapper });
+function r(jsx: JSX.Element) {
+  return render(() => <UIProvider>{jsx}</UIProvider>);
 }
 
 afterEach(() => {
@@ -43,14 +39,13 @@ describe("PanelModal", () => {
   });
 
   test("close X calls onClose", async () => {
-    const user = userEvent.setup();
-    const onClose = vi.fn();
+        const onClose = vi.fn();
     r(
       <PanelModal open title="Closable" onClose={onClose}>
         <div>body</div>
       </PanelModal>,
     );
-    await user.click(screen.getByTestId("panel-modal-close"));
+    await fireEvent.click(screen.getByTestId("panel-modal-close"));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

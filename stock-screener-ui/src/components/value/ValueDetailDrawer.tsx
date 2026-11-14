@@ -1,3 +1,4 @@
+import { Show, For } from "solid-js";
 import { Box, Modal, Text, Badge, Divider } from "@/ui";
 import type { ValueRow } from "../../api/valueScan";
 import { VALUE_NA, formatValueNum, formatValuePct } from "./valueFormat";
@@ -52,83 +53,93 @@ function explainFlag(flag: string, row: ValueRow): string {
   }
 }
 
-export function ValueDetailDrawer({ row, onClose }: ValueDetailDrawerProps) {
+export function ValueDetailDrawer(props: ValueDetailDrawerProps) {
+  const row = () => props.row;
   return (
     <Modal
-      opened={row !== null}
-      onClose={onClose}
-      title={row ? `${row.symbol} — ${row.name}` : ""}
+      opened={row() !== null}
+      onClose={props.onClose}
+      title={row() ? `${row()!.symbol} — ${row()!.name}` : ""}
       size="md"
       data-testid="value-detail-drawer"
     >
-      {row && (
-        <Box className="flex flex-col gap-4" data-testid={`value-detail-${row.symbol}`}>
-          <Box>
-            <Text size="sm" fw={600}>
-              Score breakdown ({Math.round(row.score)}/100)
-            </Text>
-            {SUBSCORE_LABELS.map((s) => (
-              <Box
-                key={s.key}
-                className="mt-2 flex items-center gap-2"
-                data-testid={`value-detail-sub-${row.symbol}-${s.key}`}
-              >
-                <Text size="xs" c="dimmed" className="w-16">
-                  {s.label}
-                </Text>
-                <Box className="h-1.5 flex-1 overflow-hidden rounded-[2px] bg-fin-border">
-                  <Box className="h-full bg-fin-primary" style={{ width: `${row.subscores[s.key]}%` }} />
-                </Box>
-                <Text size="xs" fw={600} className="w-7 text-right">
-                  {row.subscores[s.key]}
-                </Text>
-              </Box>
-            ))}
-          </Box>
-          <Divider />
-          <Box>
-            <Text size="sm" fw={600}>
-              Sector peer ({row.peer.bucket})
-            </Text>
-            <Text size="xs" c="dimmed" data-testid={`value-detail-peer-${row.symbol}`}>
-              {`P/E median ${formatValueNum(row.peer.pe_median, 1, VALUE_NA)} · ROE median ${formatValuePct(row.peer.roe_median, 1, VALUE_NA)} · FCF yield median ${formatValuePct(row.peer.fcf_yield_median, 1, VALUE_NA)}`}
-            </Text>
-          </Box>
-          <Divider />
-          <Box>
-            <Text size="sm" fw={600}>
-              Why it screens
-            </Text>
-            <Box className="mt-2 flex flex-col gap-2">
-              {row.flags.length === 0 && (
-                <Text size="xs" c="dimmed">
-                  No special flags — it passed the gates on score alone.
-                </Text>
-              )}
-              {row.flags.map((f) => (
-                <Box key={f} className="flex items-center gap-2">
-                  <Badge size="xs" color="secondary">
-                    {f.replace(/_/g, " ")}
-                  </Badge>
+      <Show when={row()}>
+        {(r) => (
+          <Box className="flex flex-col gap-4" data-testid={`value-detail-${r().symbol}`}>
+            <Box>
+              <Text size="sm" fw={600}>
+                Score breakdown ({Math.round(r().score)}/100)
+              </Text>
+              <For each={SUBSCORE_LABELS}>
+                {(s) => (
+                  <Box
+                    className="mt-2 flex items-center gap-2"
+                    data-testid={`value-detail-sub-${r().symbol}-${s.key}`}
+                  >
+                    <Text size="xs" c="dimmed" className="w-16">
+                      {s.label}
+                    </Text>
+                    <Box className="h-1.5 flex-1 overflow-hidden rounded-[2px] bg-fin-border">
+                      <Box className="h-full bg-fin-primary" style={{ width: `${r().subscores[s.key]}%` }} />
+                    </Box>
+                    <Text size="xs" fw={600} className="w-7 text-right">
+                      {r().subscores[s.key]}
+                    </Text>
+                  </Box>
+                )}
+              </For>
+            </Box>
+            <Divider />
+            <Box>
+              <Text size="sm" fw={600}>
+                Sector peer ({r().peer.bucket})
+              </Text>
+              <Text size="xs" c="dimmed" data-testid={`value-detail-peer-${r().symbol}`}>
+                {`P/E median ${formatValueNum(r().peer.pe_median, 1, VALUE_NA)} · ROE median ${formatValuePct(r().peer.roe_median, 1, VALUE_NA)} · FCF yield median ${formatValuePct(r().peer.fcf_yield_median, 1, VALUE_NA)}`}
+              </Text>
+            </Box>
+            <Divider />
+            <Box>
+              <Text size="sm" fw={600}>
+                Why it screens
+              </Text>
+              <Box className="mt-2 flex flex-col gap-2">
+                <Show
+                  when={r().flags.length === 0}
+                  fallback={
+                    <For each={r().flags}>
+                      {(flag) => (
+                        <Box className="flex items-center gap-2">
+                          <Badge size="xs" color="secondary">
+                            {flag.replace(/_/g, " ")}
+                          </Badge>
+                          <Text size="xs" c="dimmed">
+                            {explainFlag(flag, r())}
+                          </Text>
+                        </Box>
+                      )}
+                    </For>
+                  }
+                >
                   <Text size="xs" c="dimmed">
-                    {explainFlag(f, row)}
+                    No special flags — it passed the gates on score alone.
                   </Text>
-                </Box>
-              ))}
+                </Show>
+              </Box>
+            </Box>
+            <Divider />
+            <Box>
+              <Text size="sm" fw={600}>
+                Derived metrics
+              </Text>
+              <Text size="xs" c="dimmed" data-testid={`value-detail-derived-${r().symbol}`}>
+                {`FCF yield ${formatValuePct(r().derived.fcf_yield, 1, VALUE_NA)} · Earnings yield ${formatValuePct(r().derived.earnings_yield, 1, VALUE_NA)} · vs 200-DMA ${formatValuePct(r().derived.vs_200dma, 1, VALUE_NA)} · off 52w high ${formatValuePct(r().derived.off_52w_high, 1, VALUE_NA)}`}
+                {r().derived.distorted_pe ? " · distorted P/E" : ""}
+              </Text>
             </Box>
           </Box>
-          <Divider />
-          <Box>
-            <Text size="sm" fw={600}>
-              Derived metrics
-            </Text>
-            <Text size="xs" c="dimmed" data-testid={`value-detail-derived-${row.symbol}`}>
-              {`FCF yield ${formatValuePct(row.derived.fcf_yield, 1, VALUE_NA)} · Earnings yield ${formatValuePct(row.derived.earnings_yield, 1, VALUE_NA)} · vs 200-DMA ${formatValuePct(row.derived.vs_200dma, 1, VALUE_NA)} · off 52w high ${formatValuePct(row.derived.off_52w_high, 1, VALUE_NA)}`}
-              {row.derived.distorted_pe ? " · distorted P/E" : ""}
-            </Text>
-          </Box>
-        </Box>
-      )}
+        )}
+      </Show>
     </Modal>
   );
 }

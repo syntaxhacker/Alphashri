@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, within, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, within, cleanup, waitFor } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { MarketTicker, MarketStatus } from "./MarketTicker";
 import { UIProvider } from "@/ui";
+import * as palette from "@/ui/palette";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 import { isMarketClosedToday, getHolidayState } from "../../state/holidays";
 
@@ -11,16 +12,9 @@ import { isMarketClosedToday, getHolidayState } from "../../state/holidays";
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-// Mock useMarketTickerEnabled with controllable value
-let mockMarketTickerEnabled = true;
-const mockSetMarketTickerEnabled = vi.fn();
-
-vi.mock("../../hooks/useMarketTickerEnabled", () => ({
-  useMarketTickerEnabled: () => [mockMarketTickerEnabled, mockSetMarketTickerEnabled],
-}));
-
 vi.mock("../../state/holidays", () => ({
-  subscribeToHolidays: vi.fn(),
+  // the hook expects an unsubscribe function back
+  subscribeToHolidays: vi.fn(() => () => {}),
   isMarketClosedToday: vi.fn().mockReturnValue(false),
   getHolidayState: vi.fn(() => ({ holidays: [] })),
 }));
@@ -29,8 +23,8 @@ describe("MarketTicker", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(isMarketClosedToday).mockReturnValue(false);
-    // Reset mock to enabled by default
-    mockMarketTickerEnabled = true;
+    // Component reads the enabled flag straight from localStorage (v2 key)
+    localStorage.clear();
     setupBrowserMocks();
   });
 
@@ -68,10 +62,9 @@ describe("MarketTicker", () => {
       json: async () => mockTickerData,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     expect(screen.getByTestId("market-ticker")).toBeInTheDocument();
@@ -83,10 +76,9 @@ describe("MarketTicker", () => {
       json: async () => mockTickerData,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -101,10 +93,9 @@ describe("MarketTicker", () => {
       json: async () => mockTickerData,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     await waitFor(() => {
@@ -119,17 +110,16 @@ describe("MarketTicker", () => {
       json: async () => mockTickerData,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     await waitFor(() => {
       // change=150 formatted as "+150.00 (0.68%)"
       const change = screen.getByTestId("ticker-change-nsei");
       expect(change).toHaveTextContent("+150.00 (0.68%)");
-      expect(change).toHaveStyle({ color: "#3FB950" });
+      expect(change).toHaveStyle({ color: palette.POSITIVE_COLOR });
       expect(change).toHaveTextContent("▲");
     });
   });
@@ -140,10 +130,9 @@ describe("MarketTicker", () => {
       json: async () => mockTickerData,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     await waitFor(() => {
@@ -160,10 +149,9 @@ describe("MarketTicker", () => {
       json: async () => mockTickerData,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     const item = await screen.findByTestId("ticker-nsei");
@@ -181,10 +169,9 @@ describe("MarketTicker", () => {
   it("displays loading state with skeletons", () => {
     mockFetch.mockImplementationOnce(() => new Promise((resolve) => setTimeout(resolve, 1000)));
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     const container = screen.getByTestId("market-ticker");
@@ -194,10 +181,9 @@ describe("MarketTicker", () => {
   it("handles fetch error", async () => {
     mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     await waitFor(() => {
@@ -214,10 +200,9 @@ describe("MarketTicker", () => {
       json: async () => mockTickerData,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     await waitFor(() => {
@@ -248,10 +233,9 @@ describe("MarketTicker", () => {
       json: async () => dataWithUnknown,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     await waitFor(() => {
@@ -265,10 +249,9 @@ describe("MarketTicker", () => {
       json: async () => mockTickerData,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     await waitFor(() => {
@@ -326,10 +309,9 @@ describe("MarketTicker", () => {
       json: async () => priorityData,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     await waitFor(() => {
@@ -349,10 +331,9 @@ describe("MarketTicker", () => {
       json: async () => mockTickerData,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     // Wait for initial fetch
@@ -394,10 +375,9 @@ describe("MarketTicker", () => {
       }),
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     await waitFor(() => {
@@ -409,7 +389,7 @@ describe("MarketTicker", () => {
     for (const testId of ["ticker-nsei", "ticker-gcf"]) {
       const item = screen.getByTestId(testId);
       expect(item.children).toHaveLength(3);
-      expect(item.style.gridTemplateColumns).toBe(
+      expect(item.style.getPropertyValue("grid-template-columns")).toBe(
         "minmax(56px, auto) minmax(64px, 1fr) 82px",
       );
       expect(within(item).getByText(/Nifty 50|Gold/)).toHaveStyle({
@@ -435,10 +415,9 @@ describe("MarketTicker", () => {
       loading: false,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     expect(screen.getByTestId("market-ticker-status")).toBeInTheDocument();
@@ -449,13 +428,11 @@ describe("MarketTicker", () => {
   });
 
   it("returns null when disabled", () => {
-    // Set mock to disabled
-    mockMarketTickerEnabled = false;
+    localStorage.setItem("alphashri_show_market_ticker_v2", "false");
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     // Market ticker container should not be in the document
@@ -468,10 +445,9 @@ describe("MarketTicker", () => {
     // The sidebar owns the closed status; the main column must not reserve a
     // 22px strip for a tape that has nothing to show.
     vi.mocked(isMarketClosedToday).mockReturnValue(true);
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker variant="tape" />
-      </UIProvider>,
+      </UIProvider>),
     );
     expect(screen.queryByTestId("market-ticker")).not.toBeInTheDocument();
     expect(screen.queryByTestId("market-ticker-status")).not.toBeInTheDocument();
@@ -491,10 +467,9 @@ describe("MarketTicker", () => {
       }),
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker variant="tape" />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     // Wait for the fetched tape items, not just the loading shell: the loading
@@ -514,10 +489,9 @@ describe("MarketStatus", () => {
 
   it("states the market is closed (dot + label) without a tape", () => {
     vi.mocked(isMarketClosedToday).mockReturnValue(true);
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketStatus />
-      </UIProvider>,
+      </UIProvider>),
     );
     expect(screen.getByTestId("app-market-status")).toBeInTheDocument();
     expect(screen.getByTestId("app-market-status-dot")).toBeInTheDocument();
@@ -526,10 +500,9 @@ describe("MarketStatus", () => {
 
   it("hides the label but keeps the dot when compact (collapsed rail)", () => {
     vi.mocked(isMarketClosedToday).mockReturnValue(true);
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketStatus compact />
-      </UIProvider>,
+      </UIProvider>),
     );
     expect(screen.getByTestId("app-market-status-dot")).toBeInTheDocument();
     expect(screen.queryByText("Market closed")).not.toBeInTheDocument();
@@ -537,10 +510,9 @@ describe("MarketStatus", () => {
   });
 
   it("reports a live market during trading hours", () => {
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketStatus />
-      </UIProvider>,
+      </UIProvider>),
     );
     expect(screen.getByText("Market live")).toBeInTheDocument();
   });

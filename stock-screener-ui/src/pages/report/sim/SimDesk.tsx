@@ -1,19 +1,48 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createEffect, createMemo, createSignal, For, Show, onCleanup } from "solid-js";
 import {
   ActionIcon,
   Alert,
   Badge,
-  Box,
   Button,
   Divider,
-  Group,
   Select,
   Switch,
   Text,
   ToolbarRow,
 } from "@/ui";
-import { IconBolt, IconPlayerPlay, IconPlus, IconTrash } from "@tabler/icons-react";
-import { PanelModal } from "@/components/common/PanelModal";
+import { IconBolt, IconPlayerPlay } from "@/components/common/Icons";
+import { LocalPanelModal } from "../LocalPanelModal";
+
+const IconPlus = (props: { size?: number }) => (
+  <svg
+    width={props.size ?? 14}
+    height={props.size ?? 14}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    aria-hidden="true"
+  >
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+);
+
+const IconTrash = (props: { size?: number }) => (
+  <svg
+    width={props.size ?? 14}
+    height={props.size ?? 14}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6" />
+  </svg>
+);
 import { fetchSimStrategies, runSim } from "@/api/reportSim";
 import type { NiftyReplay, NiftyReport } from "@/types/niftyReport";
 import type {
@@ -37,7 +66,7 @@ import { SimRuns } from "./SimRuns";
 import { combinedViewAt, selectedStrategy, strategyViewAt } from "./simView";
 import type { StrategyView } from "./simView";
 
-function SectionLabel({ children }: { children: string }) {
+function SectionLabel(props: { children: string }) {
   return (
     <Text
       span
@@ -46,7 +75,7 @@ function SectionLabel({ children }: { children: string }) {
       c="dimmed"
       className="uppercase tracking-[0.06em]"
     >
-      {children}
+      {props.children}
     </Text>
   );
 }
@@ -76,43 +105,40 @@ function errorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-export function SimDesk({
-  symbol,
-  mode,
-  date,
-  report,
-  replay,
-  replayIndex,
-}: SimDeskProps) {
-  const [open, setOpen] = useState(false);
-  const [strategies, setStrategies] = useState<SimStrategySpec[]>(() => [
+export function SimDesk(props: SimDeskProps) {
+  const symbol = () => props.symbol;
+  const report = () => props.report;
+  const replay = () => props.replay;
+  const replayIndex = () => props.replayIndex;
+  const [open, setOpen] = createSignal(false);
+  const [strategies, setStrategies] = createSignal<SimStrategySpec[]>([
     newStrategy(1, "long-call"),
   ]);
-  const [selectedId, setSelectedId] = useState(() => "sc-1");
-  const [result, setResult] = useState<SimRunResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [live, setLive] = useState(true);
-  const [templates, setTemplates] = useState<SimTemplate[]>(SIM_TEMPLATES);
+  const [selectedId, setSelectedId] = createSignal("sc-1");
+  const [result, setResult] = createSignal<SimRunResult | null>(null);
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+  const [live, setLive] = createSignal(true);
+  const [templates, setTemplates] = createSignal<SimTemplate[]>(SIM_TEMPLATES);
 
-  const abortRef = useRef<AbortController | null>(null);
+  let abortController: AbortController | null = null;
 
-  const ladder = useMemo(
-    () => buildLadder(report?.strikes ?? [], report?.spot ?? 0),
-    [report],
+  const ladder = createMemo(() =>
+    buildLadder(report()?.strikes ?? [], report()?.spot ?? 0),
   );
-  const spot = finite(report?.spot) ? report.spot : result?.spot ?? 0;
+  const resultSpot = () => result()?.spot;
+  const spot = () => finite(report()?.spot) ? report()!.spot : resultSpot() ?? 0;
   // After the close there is nothing to poll: force the recorded-session view
   // even if the parent report was manually left on Live. The time gate is the
   // primary one — an EOD report's `is_open` can be absent on older snapshots.
-  const marketClosed = !isDerivativesOpenIst() || report?.market?.is_open === false;
-  const effectiveMode: "live" | "eod" = marketClosed ? "eod" : mode;
-  const runDate =
-    effectiveMode === "eod"
-      ? date || report?.date || report?.market?.session_date || undefined
+  const marketClosed = () => !isDerivativesOpenIst() || report()?.market?.is_open === false;
+  const effectiveMode = (): "live" | "eod" => (marketClosed() ? "eod" : props.mode);
+  const runDate = () =>
+    effectiveMode() === "eod"
+      ? props.date || report()?.date || report()?.market?.session_date || undefined
       : undefined;
 
-  useEffect(() => {
+  createEffect(() => {
     let alive = true;
     fetchSimStrategies()
       .then((rows) => {
@@ -121,15 +147,15 @@ export function SimDesk({
       .catch(() => {
         // The local templates are enough; a failed fetch must not block the desk.
       });
-    return () => {
+    onCleanup(() => {
       alive = false;
-    };
-  }, []);
+    });
+  });
 
-  useEffect(() => () => abortRef.current?.abort(), []);
+  onCleanup(() => abortController?.abort());
 
-  const run = useCallback(async () => {
-    const errors = strategies.flatMap((strategy) => validateStrategy(strategy));
+  const run = async () => {
+    const errors = strategies().flatMap((strategy) => validateStrategy(strategy));
     if (errors.length > 0) {
       setError(errors[0]);
       return;
@@ -137,14 +163,14 @@ export function SimDesk({
     setLoading(true);
     setError(null);
     const controller = new AbortController();
-    abortRef.current?.abort();
-    abortRef.current = controller;
+    abortController?.abort();
+    abortController = controller;
     try {
       const next = await runSim(
         {
-          symbol,
-          date: runDate,
-          strategies,
+          symbol: symbol(),
+          date: runDate(),
+          strategies: strategies(),
           costs: true,
           slippageTicks: 0,
         },
@@ -156,90 +182,103 @@ export function SimDesk({
         setError(errorMessage(err, "Sim run failed"));
       }
     } finally {
-      if (abortRef.current === controller) setLoading(false);
+      if (abortController === controller) setLoading(false);
     }
-  }, [strategies, symbol, runDate]);
+  };
 
-  const runRef = useRef(run);
-  runRef.current = run;
+  createEffect(() => {
+    // Re-run when the panel opens or the scope changes.
+    open();
+    symbol();
+    runDate();
+    effectiveMode();
+    if (!open()) return;
+    void run();
+  });
 
-  useEffect(() => {
-    if (!open) return;
-    void runRef.current();
-  }, [open, symbol, runDate, effectiveMode]);
-
-  useEffect(() => {
-    if (!open || !live || effectiveMode !== "live") return;
-    const id = window.setInterval(() => void runRef.current(), LIVE_REFRESH_MS);
-    return () => window.clearInterval(id);
-  }, [open, live, effectiveMode]);
+  createEffect(() => {
+    // Live polling, gated to the live session and the open panel.
+    if (!open() || !live() || effectiveMode() !== "live") return;
+    const id = window.setInterval(() => void run(), LIVE_REFRESH_MS);
+    onCleanup(() => window.clearInterval(id));
+  });
 
   // A newly added or edited strategy has no row in the last result. Debounce
   // a fresh run so the desk never sits on a stale "Run the desk" state.
-  const lastRunStrategiesRef = useRef(strategies);
-  useEffect(() => {
-    if (!open) return;
-    if (lastRunStrategiesRef.current === strategies) return;
-    lastRunStrategiesRef.current = strategies;
-    const id = window.setTimeout(() => void runRef.current(), 600);
-    return () => window.clearTimeout(id);
-  }, [strategies, open]);
+  let lastRunStrategies = strategies();
+  createEffect(() => {
+    const current = strategies();
+    if (!open()) return;
+    if (lastRunStrategies === current) return;
+    lastRunStrategies = current;
+    const id = window.setTimeout(() => void run(), 600);
+    onCleanup(() => window.clearTimeout(id));
+  });
 
-  const selectedSpec = strategies.find((item) => item.id === selectedId) ?? strategies[0];
+  const selectedSpec = () =>
+    strategies().find((item) => item.id === selectedId()) ?? strategies()[0];
 
-  const addStrategy = useCallback(
-    (templateId?: string) => {
-      const created = newStrategy(strategies.length + 1, templateId);
-      const id = nextStrategyId(strategies);
-      const next = { ...created, id };
-      setStrategies((prev) => [...prev, next]);
-      setSelectedId(id);
-    },
-    [strategies],
-  );
+  const addStrategy = (templateId?: string) => {
+    const created = newStrategy(strategies().length + 1, templateId);
+    const id = nextStrategyId(strategies());
+    const next = { ...created, id };
+    setStrategies((prev) => [...prev, next]);
+    setSelectedId(id);
+  };
 
-  const updateStrategy = useCallback((next: SimStrategySpec) => {
+  const updateStrategy = (next: SimStrategySpec) => {
     setStrategies((prev) => prev.map((item) => (item.id === next.id ? next : item)));
-  }, []);
+  };
 
-  const removeStrategy = useCallback(
-    (id: string) => {
-      if (strategies.length <= 1) return;
-      const next = strategies.filter((item) => item.id !== id);
-      setStrategies(next);
-      if (selectedId === id) setSelectedId(next[0].id);
-    },
-    [strategies, selectedId],
+  const removeStrategy = (id: string) => {
+    if (strategies().length <= 1) return;
+    const next = strategies().filter((item) => item.id !== id);
+    setStrategies(next);
+    if (selectedId() === id) setSelectedId(next[0].id);
+  };
+
+  const asOf = createMemo(() =>
+    effectiveMode() === "eod" ? (replay()?.snapshots?.[replayIndex()]?.t ?? null) : null,
   );
-
-  const asOf =
-    effectiveMode === "eod" ? (replay?.snapshots?.[replayIndex]?.t ?? null) : null;
-  const selectedResult = selectedStrategy(result, selectedId);
-  const view: StrategyView | null = selectedResult
-    ? strategyViewAt(selectedResult, asOf)
-    : null;
-  const combined = result ? combinedViewAt(result, asOf) : null;
+  const selectedResult = createMemo(() => selectedStrategy(result(), selectedId()));
+  const view: () => StrategyView | null = createMemo(() =>
+    selectedResult() ? strategyViewAt(selectedResult()!, asOf()) : null,
+  );
+  const combined = createMemo(() => (result() ? combinedViewAt(result()!, asOf()) : null));
 
   // Coverage must stop at the playhead too: the full-day frame count would
   // reveal how long the session ran while scrubbing the open.
-  const coverageFrames = view?.equity.length ?? 0;
-  const coverageText = result
-    ? `${coverageFrames} frame${coverageFrames === 1 ? "" : "s"} · ${fmtTime(
-        view?.equity[0]?.t,
-      )}→${fmtTime(view?.equity.at(-1)?.t)}${
-        asOf ? "" : ` · ${finite(result.coverage.gaps) ? result.coverage.gaps : "—"} gaps`
-      }`
-    : "—";
-  const fillModel = result?.fillModel || "next-minute close fill · costs on · 0 slippage";
-  const expiryText = result?.expiry || report?.expiry || "—";
-  const dteText = result && finite(result.dte) ? `${result.dte}d` : "—";
-  const spotText = points(spot);
-  const lotText =
-    result && finite(result.lotSize) ? formatNumberIN(result.lotSize) : "—";
-  const tapeLagText =
-    result && finite(result.tapeLagSec) ? `${Math.round(result.tapeLagSec)}s` : "—";
-  const deskTotalText = combined ? fmtSignedInr(combined.total) : "—";
-  const validationErrors = selectedSpec ? validateStrategy(selectedSpec) : [];
+  const coverageFrames = () => view()?.equity.length ?? 0;
+  const coverageText = () => {
+    const r = result();
+    const v = view();
+    if (!r) return "—";
+    return `${coverageFrames()} frame${coverageFrames() === 1 ? "" : "s"} · ${fmtTime(
+      v?.equity[0]?.t,
+    )}→${fmtTime(v?.equity.at(-1)?.t)}${
+      asOf() ? "" : ` · ${finite(r.coverage.gaps) ? r.coverage.gaps : "—"} gaps`
+    }`;
+  };
+  const fillModel = () => result()?.fillModel || "next-minute close fill · costs on · 0 slippage";
+  const expiryText = () => result()?.expiry || report()?.expiry || "—";
+  const dteText = () => {
+    const r = result();
+    return r && finite(r.dte) ? `${r.dte}d` : "—";
+  };
+  const spotText = () => points(spot());
+  const lotText = () => {
+    const r = result();
+    return r && finite(r.lotSize) ? formatNumberIN(r.lotSize) : "—";
+  };
+  const tapeLagText = () => {
+    const r = result();
+    return r && finite(r.tapeLagSec) ? `${Math.round(r.tapeLagSec)}s` : "—";
+  };
+  const deskTotalText = () => (combined() ? fmtSignedInr(combined()!.total) : "—");
+  const validationErrors = () => {
+    const spec = selectedSpec();
+    return spec ? validateStrategy(spec) : [];
+  };
 
   return (
     <>
@@ -250,65 +289,65 @@ export function SimDesk({
         leftSection={<IconBolt size={14} />}
         onClick={() => setOpen(true)}
       >
-        {strategies.length > 0 ? `SIM · ${strategies.length}` : "SIM"}
+        {strategies().length > 0 ? `SIM · ${strategies().length}` : "SIM"}
       </Button>
 
-      <PanelModal
-        open={open}
+      <LocalPanelModal
+        open={open()}
         variant="drawer"
         drawerWidth={1080}
-        title={`SIM DESK · ${symbol}`}
+        title={`SIM DESK · ${symbol()}`}
         onClose={() => setOpen(false)}
         actions={
           <>
             <Text
               size="xs"
               c="dimmed"
-              title={fillModel}
+              title={fillModel()}
               className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
             >
-              {fillModel}
+              {fillModel()}
             </Text>
-            {marketClosed ? (
+            <Show when={marketClosed()}>
               <Badge data-testid="sim-market-closed" size="xs" color="warning" variant="outline">
                 MARKET CLOSED · EOD
               </Badge>
-            ) : null}
-            {effectiveMode === "live" ? (
+            </Show>
+            <Show when={effectiveMode() === "live"}>
               <Switch
                 data-testid="sim-live"
                 size="xs"
                 label="LIVE"
-                checked={live}
-                onChange={(event) => setLive(event.target.checked)}
+                checked={live()}
+                onChange={(event) => setLive((event.currentTarget as HTMLInputElement).checked)}
               />
-            ) : null}
+            </Show>
             <Button
               data-testid="sim-run"
               size="sm"
-              loading={loading}
+              loading={loading()}
               leftSection={<IconPlayerPlay size={14} />}
-              onClick={() => void runRef.current()}
+              onClick={() => void run()}
             >
               RUN
             </Button>
           </>
         }
       >
-        <Box className="flex flex-col gap-2 min-w-0">
+        <div class="flex flex-col gap-2 min-w-0">
           <SimContextStrip
-            mode={effectiveMode}
-            date={runDate ?? date}
-            expiry={expiryText}
-            dte={dteText}
-            spot={spotText}
-            lotSize={lotText}
-            lotVerified={result ? result.lotVerified : true}
-            coverageText={coverageText}
-            tapeLag={tapeLagText}
-            deskTotal={deskTotalText}
+            mode={effectiveMode()}
+            date={runDate() ?? props.date}
+            expiry={expiryText()}
+            dte={dteText()}
+            spot={spotText()}
+            lotSize={lotText()}
+            lotVerified={result() ? result()!.lotVerified : true}
+            coverageText={coverageText()}
+            tapeLag={tapeLagText()}
+            deskTotal={deskTotalText()}
           />
-          {result?.expiryNote ? (
+          <Show when={result()?.expiryNote}>
             <Text
               data-testid="sim-expiry-note"
               size="xs"
@@ -316,16 +355,16 @@ export function SimDesk({
               c="warning.main"
               className="leading-[1.45]"
             >
-              ⚠ {result.expiryNote}
+              ⚠ {result()!.expiryNote}
             </Text>
-          ) : null}
+          </Show>
 
-          <Box
-            className="flex flex-col min-[900px]:flex-row gap-2 min-w-0 min-h-0"
+          <div
+            class="flex flex-col min-[900px]:flex-row gap-2 min-w-0 min-h-0"
           >
-            <Box
+            <div
               data-testid="sim-rail"
-              className="w-full min-[900px]:w-[220px] shrink-0 flex flex-col gap-1.5 min-w-0"
+              class="w-full min-[900px]:w-[220px] shrink-0 flex flex-col gap-1.5 min-w-0"
             >
               <ToolbarRow justify="space-between">
                 <Text span size="xs" fw={700} className="uppercase">
@@ -344,7 +383,7 @@ export function SimDesk({
               <Select
                 data-testid="sim-template"
                 size="xs"
-                data={templates.map((template) => ({
+                data={templates().map((template) => ({
                   value: template.id,
                   label: template.name,
                 }))}
@@ -355,85 +394,87 @@ export function SimDesk({
                 }}
               />
               <Divider />
-              {strategies.map((item) => (
-                <Group key={item.id} gap={4} wrap="nowrap">
-                  <Button
-                    data-testid={`sim-strategy-${item.id}`}
-                    size="xs"
-                    variant={item.id === selectedId ? "light" : "subtle"}
-                    style={{ flex: 1, minWidth: 0, justifyContent: "flex-start" }}
-                    onClick={() => setSelectedId(item.id)}
-                  >
-                    {item.name}
-                  </Button>
-                  <ActionIcon
-                    data-testid={`sim-remove-${item.id}`}
-                    size="xs"
-                    variant="subtle"
-                    aria-label={`Remove ${item.name}`}
-                    disabled={strategies.length <= 1}
-                    onClick={() => removeStrategy(item.id)}
-                  >
-                    <IconTrash size={12} />
-                  </ActionIcon>
-                </Group>
-              ))}
-            </Box>
+              <For each={strategies()}>
+                {(item) => (
+                  <div class="flex flex-row flex-nowrap gap-1 min-w-0">
+                    <Button
+                      data-testid={`sim-strategy-${item.id}`}
+                      size="xs"
+                      variant={item.id === selectedId() ? "light" : "subtle"}
+                      style={{ flex: "1", "min-width": 0, "justify-content": "flex-start" }}
+                      onClick={() => setSelectedId(item.id)}
+                    >
+                      {item.name}
+                    </Button>
+                    <ActionIcon
+                      data-testid={`sim-remove-${item.id}`}
+                      size="xs"
+                      variant="subtle"
+                      aria-label={`Remove ${item.name}`}
+                      disabled={strategies().length <= 1}
+                      onClick={() => removeStrategy(item.id)}
+                    >
+                      <IconTrash size={12} />
+                    </ActionIcon>
+                  </div>
+                )}
+              </For>
+            </div>
 
-            <Box
+            <div
               data-testid="sim-pane"
-              className="flex-1 min-w-0 min-h-0 flex flex-col gap-2"
+              class="flex-1 min-w-0 min-h-0 flex flex-col gap-2"
             >
               <ToolbarRow justify="flex-end">
-                {asOf ? (
+                <Show when={asOf()}>
                   <Badge data-testid="sim-playhead" size="xs" color="warning" variant="outline">
-                    PLAYHEAD {fmtTime(asOf)}
+                    PLAYHEAD {fmtTime(asOf()!)}
                   </Badge>
-                ) : null}
+                </Show>
               </ToolbarRow>
 
-              {error ? (
+              <Show when={error()}>
                 <Alert color="error" data-testid="sim-error">
-                  {error}
+                  {error()}
                 </Alert>
-              ) : null}
+              </Show>
 
-              <Box
+              <div
                 data-testid="sim-view"
-                className="grid grid-cols-1 min-[1200px]:grid-cols-[minmax(320px,0.92fr)_minmax(380px,1.08fr)] gap-2 items-start min-w-0"
+                class="grid grid-cols-1 min-[1200px]:grid-cols-[minmax(320px,0.92fr)_minmax(380px,1.08fr)] gap-2 items-start min-w-0"
               >
-                <Box className="flex flex-col gap-2 min-w-0">
+                <div class="flex flex-col gap-2 min-w-0">
                   <SectionLabel>Build</SectionLabel>
-                  {selectedSpec ? (
+                  <Show when={selectedSpec()}>
                     <SimBuilder
-                      strategy={selectedSpec}
-                      ladder={ladder}
-                      spot={spot}
-                      errors={validationErrors}
+                      strategy={selectedSpec()!}
+                      ladder={ladder()}
+                      spot={spot()}
+                      errors={validationErrors()}
                       onChange={updateStrategy}
                     />
-                  ) : null}
-                </Box>
-                <Box className="flex flex-col gap-2 min-w-0">
+                  </Show>
+                </div>
+                <div class="flex flex-col gap-2 min-w-0">
                   <SectionLabel>Payoff</SectionLabel>
                   <SimPayoff
-                    strategy={selectedResult}
-                    view={view}
-                    planLegs={selectedSpec?.legs ?? []}
-                    entryTime={selectedSpec?.exec.entryTime}
-                    spot={spot}
+                    strategy={selectedResult()}
+                    view={view()}
+                    planLegs={selectedSpec()?.legs ?? []}
+                    entryTime={selectedSpec()?.exec.entryTime}
+                    spot={spot()}
                   />
-                </Box>
-              </Box>
+                </div>
+              </div>
 
-              <Box className="flex flex-col gap-2 min-w-0">
+              <div class="flex flex-col gap-2 min-w-0">
                 <SectionLabel>Runs</SectionLabel>
-                <SimRuns strategy={selectedResult} view={view} asOf={asOf} />
-              </Box>
-            </Box>
-          </Box>
-        </Box>
-      </PanelModal>
+                <SimRuns strategy={selectedResult()} view={view()} asOf={asOf()} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </LocalPanelModal>
     </>
   );
 }

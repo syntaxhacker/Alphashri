@@ -11,6 +11,8 @@ import { get52wHighColumns } from "./52wHigh";
 import { getUndervaluedColumns } from "./undervalued";
 import { getIntraday5mColumns, getIntraday10mColumns, getIntraday15mColumns } from "./intraday";
 
+import type { JSX } from "solid-js";
+
 export interface FormattedCell {
   value: string;
   className?: string;
@@ -23,7 +25,7 @@ export interface ColumnDef<T = Stock> {
   width?: number;
   align?: "left" | "center" | "right";
   sortable?: boolean;
-  format?: (value: any, row: T) => React.ReactNode | FormattedCell;
+  format?: (value: any, row: T) => JSX.Element | FormattedCell;
 }
 
 export function getColumnsForScreener(

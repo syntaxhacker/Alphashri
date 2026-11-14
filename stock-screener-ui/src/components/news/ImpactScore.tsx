@@ -1,3 +1,4 @@
+import { Show } from "solid-js";
 import { Badge, Paper, Progress, Stack, Group, Text, Tooltip } from "@/ui";
 
 interface ImpactScoreProps {
@@ -5,45 +6,55 @@ interface ImpactScoreProps {
   compact?: boolean;
 }
 
-export function ImpactScore({ score, compact = false }: ImpactScoreProps) {
-  if (score === undefined || score === null) return null;
-  const color = score >= 7 ? "error" : score >= 4 ? "warning" : "secondary";
-  const label = score >= 7 ? "High impact" : score >= 4 ? "Moderate impact" : "Low impact";
-
-  if (compact) {
-    return (
-      <Tooltip title={`${label}: ${score}/10`}>
-        <Badge
-          size="xs"
-          color={color}
-          variant="light"
-          data-testid="impact-score"
-          className="flex-[0_0_auto] tabular-nums"
-        >
-          {score}/10
-        </Badge>
-      </Tooltip>
-    );
-  }
+export function ImpactScore(props: ImpactScoreProps) {
+  const score = () => props.score;
+  const compact = () => props.compact ?? false;
+  const color = () => {
+    const s = score()!;
+    return s >= 7 ? "error" : s >= 4 ? "warning" : "secondary";
+  };
+  const label = () => {
+    const s = score()!;
+    return s >= 7 ? "High impact" : s >= 4 ? "Moderate impact" : "Low impact";
+  };
 
   return (
-    <Tooltip title={`Impact Score: ${score}/10`}>
-      <Paper p="xs" radius="md" maw={220} miw={180} data-testid="impact-score">
-        <Stack gap={6}>
-          <Group justify="space-between" gap="xs" wrap="nowrap" align="center">
-            <Text size="xs" fw={700} tt="uppercase" c="dimmed">
-              Impact
-            </Text>
-            <Badge size="sm" color={color} variant="light">
-              {score}/10
-            </Badge>
-          </Group>
-          <Progress value={score * 10} color={color} radius="xl" size="lg" />
-          <Text size="xs" c={color} fw={600}>
-            {label}
-          </Text>
-        </Stack>
-      </Paper>
-    </Tooltip>
+    <Show when={score() != null}>
+      <Show
+        when={compact()}
+        fallback={
+          <Tooltip label={`Impact Score: ${score()}/10`}>
+            <Paper p="xs" radius="md" maw={220} miw={180} data-testid="impact-score">
+              <Stack gap={6}>
+                <Group justify="space-between" gap="xs" wrap="nowrap" align="center">
+                  <Text size="xs" fw={700} tt="uppercase" c="dimmed">
+                    Impact
+                  </Text>
+                  <Badge size="sm" color={color()} variant="light">
+                    {score()}/10
+                  </Badge>
+                </Group>
+                <Progress value={score()! * 10} color={color()} radius="xl" size="lg" />
+                <Text size="xs" c={color()} fw={600}>
+                  {label()}
+                </Text>
+              </Stack>
+            </Paper>
+          </Tooltip>
+        }
+      >
+        <Tooltip label={`${label()}: ${score()}/10`}>
+          <Badge
+            size="xs"
+            color={color()}
+            variant="light"
+            data-testid="impact-score"
+            className="flex-[0_0_auto] font-mono tabular-nums"
+          >
+            {score()}/10
+          </Badge>
+        </Tooltip>
+      </Show>
+    </Show>
   );
 }

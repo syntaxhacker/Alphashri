@@ -1,4 +1,9 @@
-export function buildLegend(seriesNames: string[], showLegend: boolean, mutedColor?: string): any {
+/** Tolerates absent series names (`null`/`undefined`) from optional series. */
+export function buildLegend(
+  seriesNames: Array<string | null | undefined>,
+  showLegend: boolean,
+  mutedColor?: string,
+): any {
   if (!showLegend) return { show: false };
 
   const unique = [...new Set(seriesNames.filter(Boolean))];

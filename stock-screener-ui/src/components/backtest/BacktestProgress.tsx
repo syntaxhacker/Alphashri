@@ -1,7 +1,6 @@
 // BacktestProgress — stock loading UI shown while a backtest run is in flight.
-import { memo } from "react";
-import { Loader, Progress, Stack, Text } from "@/ui";
-
+import { createMemo } from "solid-js";
+import { Loader, Progress, Text, Stack } from "@/ui";
 interface BacktestProgressProps {
   progress: {
     current: number;
@@ -14,8 +13,8 @@ export function calcProgressPercent(current: number, total: number): number {
   return total > 0 ? (current / total) * 100 : 0;
 }
 
-export const BacktestProgress = memo(function BacktestProgress({ progress }: BacktestProgressProps) {
-  const percent = calcProgressPercent(progress.current, progress.total);
+export function BacktestProgress(props: BacktestProgressProps) {
+  const percent = createMemo(() => calcProgressPercent(props.progress.current, props.progress.total));
 
   return (
     <Stack
@@ -28,20 +27,20 @@ export const BacktestProgress = memo(function BacktestProgress({ progress }: Bac
         <Loader size="lg" data-testid="progress-spinner" />
         <Text size="xs" fw={600}>Running...</Text>
         <div className="flex-1" />
-        <Text size="xs" c="muted" data-testid="progress-counter" style={{ fontVariantNumeric: "tabular-nums" }}>
-          {progress.current}/{progress.total}
+        <Text size="xs" c="dimmed" data-testid="progress-counter" style={{ "font-variant-numeric": "tabular-nums" }}>
+          {props.progress.current}/{props.progress.total}
         </Text>
       </Stack>
       <Progress
         variant="determinate"
-        value={Math.max(0, Math.min(100, percent))}
+        value={Math.max(0, Math.min(100, percent()))}
         data-testid="progress-fill"
         size="md"
-        style={{ height: 6, borderRadius: 3 }}
+        style={{ height: "6px", "border-radius": "3px" }}
       />
-      <Text size="xs" c="muted" ta="center" data-testid="progress-message">
-        {progress.message}
+      <Text size="xs" c="dimmed" ta="center" data-testid="progress-message">
+        {props.progress.message}
       </Text>
     </Stack>
   );
-});
+}

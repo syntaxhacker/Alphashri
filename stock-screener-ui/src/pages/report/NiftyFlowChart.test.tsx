@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, test } from "vitest";
+import { fireEvent, render, screen } from "@solidjs/testing-library";
+import { describe, expect, test } from "vitest";
 import { NiftyFlowChart } from "./NiftyFlowChart";
 import { buildFlowSeries } from "./niftyFlowSeries";
 
-afterEach(cleanup);
+
 
 function series() {
   const rows = Array.from({ length: 40 }, (_, i) => {
@@ -21,7 +21,7 @@ function series() {
 
 describe("NiftyFlowChart", () => {
   test("draws the flow path, the gamma strip, a flip and the axis", () => {
-    render(<NiftyFlowChart series={series()} showAxis />);
+    render(() => <NiftyFlowChart series={series()} showAxis />);
     const svg = screen.getByTestId("nifty-flowchart-svg");
     expect(svg.querySelector("path")).not.toBeNull();
     // 40 regime cells + zero line + flip + flow path
@@ -32,7 +32,7 @@ describe("NiftyFlowChart", () => {
   });
 
   test("hover reads the minute, flow and regime", () => {
-    render(<NiftyFlowChart series={series()} showAxis />);
+    render(() => <NiftyFlowChart series={series()} showAxis />);
     const svg = screen.getByTestId("nifty-flowchart-svg");
     svg.getBoundingClientRect = () =>
       ({ left: 0, top: 0, right: 1000, bottom: 56, width: 1000, height: 56, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
@@ -44,7 +44,7 @@ describe("NiftyFlowChart", () => {
   });
 
   test("empty series renders the muted state", () => {
-    render(<NiftyFlowChart series={buildFlowSeries([])} />);
+    render(() => <NiftyFlowChart series={buildFlowSeries([])} />);
     expect(screen.getByTestId("nifty-flowchart-empty")).toBeInTheDocument();
   });
 });

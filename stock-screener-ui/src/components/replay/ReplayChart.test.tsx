@@ -1,13 +1,11 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import { ReplayChart } from "./ReplayChart";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 import { aggregateCandles } from "./ReplayChart";
-import { createRef } from "react";
 import type { ReplayChartHandle } from "./ReplayChart";
 
 vi.mock("../chart/TradingChart", () => ({
@@ -111,8 +109,7 @@ describe("aggregateCandles", () => {
 
 describe("ReplayChart", () => {
   it("shows empty state message when no symbols available", () => {
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayChart {...baseProps} />
       </UIProvider>,
     );
@@ -128,8 +125,7 @@ describe("ReplayChart", () => {
         INFY: [{ time: "09:15", open: 2000, high: 2050, low: 1990, close: 2020, volume: 500 }],
       },
     };
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayChart {...props} />
       </UIProvider>,
     );
@@ -144,8 +140,7 @@ describe("ReplayChart", () => {
         TCS: [{ time: "09:15", open: 100, high: 105, low: 98, close: 103, volume: 1000 }],
       },
     };
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayChart {...props} />
       </UIProvider>,
     );
@@ -163,8 +158,7 @@ describe("ReplayChart", () => {
         TCS: [{ time: "09:15", open: 100, high: 105, low: 98, close: 103, volume: 1000 }],
       },
     };
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayChart {...props} />
       </UIProvider>,
     );
@@ -183,8 +177,7 @@ describe("ReplayChart", () => {
         TCS: [{ time: "09:15", open: 100, high: 105, low: 98, close: 103, volume: 1000 }],
       },
     };
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayChart {...props} />
       </UIProvider>,
     );
@@ -201,8 +194,7 @@ describe("ReplayChart", () => {
       },
       selectedSymbol: "TCS",
     };
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayChart {...props} />
       </UIProvider>,
     );
@@ -213,7 +205,6 @@ describe("ReplayChart", () => {
   });
 
   it("clicking TF preset renders chart", async () => {
-    const user = userEvent.setup();
     const props = {
       ...baseProps,
       candlesBySymbol: {
@@ -224,18 +215,17 @@ describe("ReplayChart", () => {
       },
       selectedSymbol: "TCS",
     };
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayChart {...props} />
       </UIProvider>,
     );
     const btn5m = screen.getByTestId("tf-btn-5m");
-    await user.click(btn5m);
+    await fireEvent.click(btn5m);
     expect(screen.getByTestId("trading-chart")).toBeInTheDocument();
   });
 
   it("setTimeframe imperative handle is callable", () => {
-    const ref = createRef<ReplayChartHandle>();
+    const ref = { current: null as ReplayChartHandle | null };
     const props = {
       ...baseProps,
       candlesBySymbol: {
@@ -243,8 +233,7 @@ describe("ReplayChart", () => {
       },
       selectedSymbol: "TCS",
     };
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayChart {...props} ref={ref} />
       </UIProvider>,
     );

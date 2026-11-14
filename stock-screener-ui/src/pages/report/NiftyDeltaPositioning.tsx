@@ -1,9 +1,8 @@
+import { createMemo } from "solid-js";
+import type { JSX } from "solid-js";
 import { formatNumberIN } from "@/utils/ui-helpers";
-import { memo, useMemo } from "react";
-import type { ReactNode } from "react";
-import { Box, Text } from "@/ui";
+import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
-import { CompactPanel } from "@/components/common/compact";
 import { buildDeltaProfile, DeltaProfileChart } from "./DeltaProfileChart";
 import type {
   NiftyPositioningBlock,
@@ -192,44 +191,36 @@ export function nearestPositioningStrike(
   return Math.round((spot as number) / 50) * 50;
 }
 
-const PositioningStatRow = memo(function PositioningStatRow({
-  testId,
-  label,
-  value,
-  tone,
-  title,
-  trailing,
-}: {
+function PositioningStatRow(props: {
   testId: string;
   label: string;
   value: string;
   tone: string;
   title: string;
-  trailing?: ReactNode;
+  trailing?: JSX.Element;
 }) {
   return (
-    <Box
-      data-testid={testId}
-      title={title}
-      className="flex items-baseline justify-start gap-[6px] flex-[0_1_auto] px-[6px] py-[1px] min-w-0 rounded-[4px] tabular-nums"
+    <div
+      data-testid={props.testId}
+      title={props.title}
+      class="flex items-baseline justify-start gap-[6px] flex-[0_1_auto] px-[6px] py-[1px] min-w-0 rounded-[4px] tabular-nums"
       style={{
-        backgroundColor: palette.TERM_BG,
-        border: `1px solid ${palette.TERM_BORDER}`,
+        "background-color": palette.TERM_BG,
+        "border": `1px solid ${palette.TERM_BORDER}`,
       }}
     >
       <Text size="xs" c="dimmed" span>
-        {label}
+        {props.label}
       </Text>
-      <Box className="flex items-center gap-[8px] min-w-0">
-        <Text size="sm" fw={700} c={tone} span>
-          {value}
+      <div class="flex items-center gap-[8px] min-w-0">
+        <Text size="sm" fw={700} c={props.tone} span>
+          {props.value}
         </Text>
-        {trailing}
-      </Box>
-    </Box>
+        {props.trailing}
+      </div>
+    </div>
   );
-});
-PositioningStatRow.displayName = "PositioningStatRow";
+}
 
 interface NiftyDeltaPositioningProps {
   positioning?: NiftyPositioningBlock;
@@ -242,139 +233,136 @@ interface NiftyDeltaPositioningProps {
  * field on the payload is nullable, so an absent/partial block renders the
  * panel with em dashes and an empty chart instead of crashing.
  */
-function NiftyDeltaPositioningInner({
-  positioning,
-  spot = null,
-}: NiftyDeltaPositioningProps) {
-  const verdict = positioning?.verdict ?? null;
-  const accent = positioningAccent(verdict);
-  const strikes = Array.isArray(positioning?.strikes) ? positioning.strikes : [];
-  const profile = useMemo(
-    () => buildDeltaProfile(strikes, spot, POSITIONING_WINDOW_PTS),
-    [strikes, spot],
+export function NiftyDeltaPositioning(props: NiftyDeltaPositioningProps) {
+  const positioning = () => props.positioning;
+  const spot = () => props.spot ?? null;
+  const verdict = () => positioning()?.verdict ?? null;
+  const accent = () => positioningAccent(verdict());
+  const strikes = () => (Array.isArray(positioning()?.strikes) ? positioning()!.strikes : []);
+  const profile = createMemo(
+    () => buildDeltaProfile(strikes(), spot(), POSITIONING_WINDOW_PTS),
   );
-  const atmStrike = nearestPositioningStrike(spot);
-  const state = positioning?.state ?? null;
-  const flow = positioning?.flow ?? null;
-  const initiated = positioning?.initiated ?? null;
-  const deltaFlip = positioning?.deltaFlip ?? null;
-  const flipDistance = flipDistanceLabel(spot, deltaFlip);
-  const splitInfo = useMemo(
+  const atmStrike = () => nearestPositioningStrike(spot());
+  const state = () => positioning()?.state ?? null;
+  const flow = () => positioning()?.flow ?? null;
+  const initiated = () => positioning()?.initiated ?? null;
+  const deltaFlip = () => positioning()?.deltaFlip ?? null;
+  const flipDistance = () => flipDistanceLabel(spot(), deltaFlip());
+  const splitInfo = createMemo(
     () =>
       positioningSplit(
-        positioning?.bullCr,
-        positioning?.bearCr,
-        positioning?.splitPct,
+        positioning()?.bullCr,
+        positioning()?.bearCr,
+        positioning()?.splitPct,
       ),
-    [positioning?.bullCr, positioning?.bearCr, positioning?.splitPct],
   );
-  const split = positioningSplitLabel(
-    positioning?.bullCr,
-    positioning?.bearCr,
-    positioning?.splitPct,
-  );
+  const split = () =>
+    positioningSplitLabel(
+      positioning()?.bullCr,
+      positioning()?.bearCr,
+      positioning()?.splitPct,
+    );
   // The split bar is a share of GROSS initiated, not the direction of the
   // book: green = the bullish side's share, red = the bearish side's.
-  const splitTone =
-    splitInfo.dominant === "bull"
+  const splitTone = () =>
+    splitInfo().dominant === "bull"
       ? palette.POSITIVE
-      : splitInfo.dominant === "bear"
+      : splitInfo().dominant === "bear"
         ? palette.NEGATIVE
         : palette.TEXT_MUTED;
-  const bullShare = splitInfo.bullShare;
-  const bearShare = splitInfo.bearShare;
+  const bullShare = () => splitInfo().bullShare;
+  const bearShare = () => splitInfo().bearShare;
 
   return (
-    <CompactPanel
-      flush
-      scrollable
-      title="Delta positioning"
-      testId="nifty-positioning-panel"
+    <div
+      data-testid="nifty-positioning-panel"
+      class="flex flex-col border border-fin-border rounded-[4px] overflow-hidden"
     >
-      {/* `scrollable` gives the panel a flex column body with `overflow:
-          hidden`; without it a tall body painted past the panel
-          and stretched the page's scroll area. `height: 100%` (not flex:1)
-          because the body is an overflow container, not a flex parent. */}
-      <Box className="flex flex-col gap-[8px] min-w-0 h-full min-h-0">
-        <Box
+      <div class="flex items-center justify-between px-2 py-1 border-b border-fin-border bg-fin-surface">
+        <span class="text-[10px] font-bold uppercase tracking-[0.07em] text-fin-text-secondary">
+          Delta positioning
+        </span>
+      </div>
+      <div class="flex flex-col gap-[8px] min-w-0 h-full min-h-0 p-2 overflow-hidden">
+        <div
           data-testid="nifty-positioning-verdict"
           title="Direction of net delta positioning — positive = bullish, negative = bearish"
-          className="flex items-center gap-[8px] min-w-0 px-4 py-[2px]"
+          class="flex items-center gap-[8px] min-w-0 px-2 py-[2px]"
         >
-          <Box
+          <div
             aria-hidden
             data-testid="nifty-positioning-verdict-dot"
-            className="w-[6px] h-[6px] rounded-full shrink-0"
-            style={{ backgroundColor: accent, flexShrink: 0 }}
+            class="w-[6px] h-[6px] rounded-full shrink-0"
+            style={{ "background-color": accent(), "flex-shrink": 0 }}
           />
-          <Text size="sm" fw={700} c={accent} span>
-            {positioningVerdictLabel(verdict)}
+          <Text size="sm" fw={700} c={accent()} span>
+            {positioningVerdictLabel(verdict())}
           </Text>
           <Text size="xs" c="dimmed" span>
             delta positioning (Cr)
           </Text>
-        </Box>
+        </div>
 
-        <Box className="flex flex-wrap gap-[4px] min-w-0">
+        <div class="flex flex-wrap gap-[4px] min-w-0">
           <PositioningStatRow
             testId="nifty-positioning-state"
             label="State"
-            value={fmtCr(state)}
-            tone={signedPositioningAccent(state)}
+            value={fmtCr(state())}
+            tone={signedPositioningAccent(state())}
             title="State = Σ OI×|delta|, calls + / puts −"
           />
           <PositioningStatRow
             testId="nifty-positioning-flow"
             label="Flow"
-            value={fmtCr(flow)}
-            tone={signedPositioningAccent(flow)}
+            value={fmtCr(flow())}
+            tone={signedPositioningAccent(flow())}
             title="Flow = Σ ΔOI×|delta|, calls + / puts −"
           />
           <PositioningStatRow
             testId="nifty-positioning-initiated"
             label="Initiated"
-            value={fmtCr(initiated)}
-            tone={signedPositioningAccent(initiated)}
+            value={fmtCr(initiated())}
+            tone={signedPositioningAccent(initiated())}
             title="Initiated = ΔOI×|delta| signed by class (+ = bullish)"
           />
           <PositioningStatRow
             testId="nifty-positioning-split"
             label="Split"
-            value={split}
-            tone={splitTone}
+            value={split()}
+            tone={splitTone()}
             title={`Split = dominant side's gross initiated ÷ total gross initiated (bull ${
-              positioning?.bullCr !== undefined && positioning?.bullCr !== null
-                ? fmtCrMagnitude(positioning.bullCr)
+              positioning()?.bullCr !== undefined && positioning()?.bullCr !== null
+                ? fmtCrMagnitude(positioning()!.bullCr!)
                 : "—"
             } Cr · bear ${
-              positioning?.bearCr !== undefined && positioning?.bearCr !== null
-                ? fmtCrMagnitude(positioning.bearCr)
+              positioning()?.bearCr !== undefined && positioning()?.bearCr !== null
+                ? fmtCrMagnitude(positioning()!.bearCr!)
                 : "—"
             } Cr)`}
             trailing={
-              <Box
+              <div
                 data-testid="nifty-positioning-split-bar"
-                title={`Bullish ${bullShare}% · Bearish ${bearShare}%`}
-                className="flex w-[64px] h-[4px] rounded-[8px] overflow-hidden shrink-0"
+                title={`Bullish ${bullShare()}% · Bearish ${bearShare()}%`}
+                class="flex w-[64px] h-[4px] rounded-[8px] overflow-hidden shrink-0"
               >
-                <Box className="block" style={{ flexGrow: bullShare, flexShrink: 1, flexBasis: 0, backgroundColor: palette.POSITIVE }} />
-                <Box className="block" style={{ flexGrow: bearShare, flexShrink: 1, flexBasis: 0, backgroundColor: palette.NEGATIVE }} />
-              </Box>
+                <div class="block" style={{ "flex-grow": bullShare(), "flex-shrink": 1, "flex-basis": 0, "background-color": palette.POSITIVE }} />
+                <div class="block" style={{ "flex-grow": bearShare(), "flex-shrink": 1, "flex-basis": 0, "background-color": palette.NEGATIVE }} />
+              </div>
             }
           />
           <PositioningStatRow
             testId="nifty-positioning-flip"
             label="Δ pivot"
-            value={fmtFlipStrike(deltaFlip)}
-            tone={deltaFlip === null ? palette.TEXT_MUTED : palette.TERM_FLIP}
+            value={fmtFlipStrike(deltaFlip())}
+            tone={deltaFlip() === null ? palette.TEXT_MUTED : palette.TERM_FLIP}
             title="Delta pivot = strike where cumulative OI×delta exposure crosses zero (calls + / puts −). Below it the book is put-heavy (short delta); above it the call book dominates (long delta). Not the same thing as the GEX gamma flip."
             trailing={
               <Text size="xs" c="dimmed" span>
-                {flipDistance}
+                {flipDistance()}
               </Text>
             }
           />
-        </Box>
+        </div>
 
         <Text
           data-testid="nifty-positioning-window"
@@ -384,24 +372,20 @@ function NiftyDeltaPositioningInner({
           title="The curve is cumulative OI×delta across the chain (what defines the Δ pivot); the columns are today's initiated delta per strike. Both are restricted to the ±750 point band around spot."
           className="whitespace-nowrap overflow-hidden truncate"
         >
-          {`Profile ±${POSITIONING_WINDOW_PTS} pts${atmStrike !== null ? ` · ATM ${formatNumberIN(atmStrike)}` : ""} · curve > 0 = long δ · bars = initiated δ`}
+          {`Profile ±${POSITIONING_WINDOW_PTS} pts${atmStrike() !== null ? ` · ATM ${formatNumberIN(atmStrike()!)}` : ""} · curve > 0 = long δ · bars = initiated δ`}
         </Text>
 
         {/* Fills the row: the panel stretches to the analytics row height
             (align-items: stretch), so the chart takes the remaining space. */}
-        <Box className="min-w-0 flex-1 min-h-[120px] flex">
+        <div class="min-w-0 flex-1 min-h-[120px] flex">
           <DeltaProfileChart
-            points={profile}
-            spot={spot}
-            flip={deltaFlip}
+            points={profile()}
+            spot={spot()}
+            flip={deltaFlip()}
             formatValue={fmtCr}
           />
-        </Box>
-      </Box>
-    </CompactPanel>
+        </div>
+      </div>
+    </div>
   );
 }
-
-/** Memoised leaf panel — `positioning` keeps identity between unrelated parent renders. */
-export const NiftyDeltaPositioning = memo(NiftyDeltaPositioningInner);
-NiftyDeltaPositioning.displayName = "NiftyDeltaPositioning";

@@ -1,95 +1,33 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { ActionIcon, Badge, Button, Group, Stack, Text } from "@/ui";
-import { IconRefresh, IconSearch, IconSparkles } from "@tabler/icons-react";
-import { CompactPage, CompactPanel, CompactStat, CompactStatGrid } from "./compact";
+import type { Meta, StoryObj } from "@storybook/html-vite";
+import { solidStory } from "@/stories/solidStory";
+import { CompactPanel, CompactStat, CompactStatGrid } from "./compact";
 
-const meta: Meta<typeof CompactPanel> = {
-  title: "Composites/Compact",
-  component: CompactPanel,
-  tags: ["autodocs"],
-  parameters: {
-    layout: "fullscreen",
-    docs: {
-      description: {
-        component:
-          'Compact layout primitives — `CompactPage` (dense page shell with title/actions), `CompactPanel` (themed card surface for cards and empty states), and `CompactStat`/`CompactStatGrid` (responsive 2-4 column stat tiles). Use for dashboard and dense data pages where vertical space is tight. When not: for spacious marketing or detail pages use standard @/ui `Card`/`Paper` directly.',
-      },
-    },
-  },
-};
-
+const meta: Meta = { title: "Terminal/Panels", tags: ["autodocs"] };
 export default meta;
-type Story = StoryObj<typeof CompactPanel>;
+
+type Story = StoryObj;
 
 export const Panel: Story = {
-  render: () => (
-    <div style={{ padding: 16, maxWidth: 720 }}>
-      <CompactPanel
-        title="Compact Panel"
-        description="Shared surface for cards, empty states, and dense content blocks."
-        action={
-          <Button size="xs" variant="light" leftSection={<IconSparkles size={12} />}>
-            Action
-          </Button>
-        }
-      >
-        <Stack gap="xs">
-          <Text size="sm">
-            This replaces repeated `Card` and `Paper` shells in compact dashboard views.
-          </Text>
-          <Group gap="xs">
-            <Badge variant="light" color="info">
-              Reusable
-            </Badge>
-            <Badge variant="light" color="secondary">
-              Theme-aware
-            </Badge>
-          </Group>
-        </Stack>
-      </CompactPanel>
-    </div>
-  ),
-};
-
-export const StatGrid: Story = {
-  render: () => (
-    <div style={{ padding: 16, maxWidth: 960 }}>
-      <CompactStatGrid>
-        <CompactStat label="Net P&L" value="₹42,180" tone="success" hint="+8.2% today" />
-        <CompactStat label="Win Rate" value="61.4%" tone="blue.6" hint="Last 30 trades" />
-        <CompactStat label="Open Positions" value="4" tone="orange.6" hint="2 active strategies" />
-        <CompactStat label="Drawdown" value="-3.1%" tone="red.6" hint="Within limit" />
-      </CompactStatGrid>
-    </div>
-  ),
-};
-
-export const PageShell: Story = {
-  render: () => (
-    <div style={{ height: 520, padding: 16 }}>
-      <CompactPage
-        title="Compact Page Shell"
-        description="Use this for dense pages that still need a clear heading row."
-        actions={
-          <Group gap="xs">
-            <ActionIcon variant="light" aria-label="refresh">
-              <IconRefresh size={14} />
-            </ActionIcon>
-            <Button size="xs" variant="light" leftSection={<IconSearch size={12} />}>
-              Search
-            </Button>
-          </Group>
-        }
-      >
-        <CompactPanel
-          title="Nested Surface"
-          description="A page can stack common surfaces without repeating styling."
-        >
-          <Text size="sm" c="dimmed">
-            Keep the outer page layout and the inner content surfaces separate.
-          </Text>
+  render: () =>
+    solidStory(() => (
+      <div style={{ width: "420px" }}>
+        <CompactPanel title="ORDER BOOK" description="NIFTY 5,842 · nearest expiry">
+          <div style={{ padding: "4px 8px", "font-size": "11px" }}>458 rows · 12:03:15 IST</div>
         </CompactPanel>
-      </CompactPage>
-    </div>
-  ),
+      </div>
+    )),
+};
+
+export const Stats: Story = {
+  render: () =>
+    solidStory(() => (
+      <div style={{ width: "720px" }}>
+        <CompactStatGrid>
+          <CompactStat label="Spot" value="5,842.31" hint="+18.42" />
+          <CompactStat label="PCR (OI)" value="1.12" tone="success" />
+          <CompactStat label="Max Pain" value="5,800" />
+          <CompactStat label="Pin Risk" value="HIGH" tone="warning" />
+        </CompactStatGrid>
+      </div>
+    )),
 };

@@ -1,27 +1,24 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { describe, expect, test } from "vitest";
+import { render, screen, waitFor, within, fireEvent } from "@solidjs/testing-library";
+import type { JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import { DESK_GUIDE_ENTRIES, NiftyDeskGuide } from "./NiftyDeskGuide";
 
-function r(node: React.ReactElement) {
+function r(node: () => JSX.Element) {
   return render(node, { wrapper: UIProvider });
 }
 
-afterEach(cleanup);
-
 describe("NiftyDeskGuide", () => {
   test("the ? button opens the guide and every glossary heading renders", async () => {
-    const user = userEvent.setup();
-    r(<NiftyDeskGuide />);
+        r(() => <NiftyDeskGuide />);
 
     const button = screen.getByTestId("nifty-help-button");
     expect(button).toHaveAttribute("title", "Desk guide");
     expect(button).toHaveAttribute("aria-label", "Desk guide");
 
-    await user.click(button);
+    fireEvent.click(button);
 
     expect(screen.getByTestId("panel-modal-title")).toHaveTextContent(
       "Desk guide — read this once",
@@ -61,13 +58,12 @@ describe("NiftyDeskGuide", () => {
   });
 
   test("the close X dismisses the guide", async () => {
-    const user = userEvent.setup();
-    r(<NiftyDeskGuide />);
+        r(() => <NiftyDeskGuide />);
 
-    await user.click(screen.getByTestId("nifty-help-button"));
+    fireEvent.click(screen.getByTestId("nifty-help-button"));
     expect(screen.getByTestId("nifty-help-modal")).toBeInTheDocument();
 
-    await user.click(screen.getByTestId("panel-modal-close"));
+    fireEvent.click(screen.getByTestId("panel-modal-close"));
     await waitFor(() =>
       expect(screen.queryByTestId("nifty-help-modal")).not.toBeInTheDocument(),
     );

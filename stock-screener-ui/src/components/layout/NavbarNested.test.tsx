@@ -1,9 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import { MemoryRouter } from "react-router-dom";
+import { Router } from "@solidjs/router";
 import { NavbarNested } from "./NavbarNested";
 import { AuthContext } from "../auth/AuthProvider2";
 import * as hooks from "@/ui/hooks";
@@ -17,9 +16,9 @@ const mockUserAuth: any = {
   isAuthenticated: true,
 };
 
-/** Every route the rail renders for an admin (20 items incl. Admin). */
+/** Every route the rail renders for an admin (19 items incl. Admin). */
 const NAV_IDS =
-  /^nav-(screener|news|backtest|experiments|paper|replay|strategy-runner|sector|agri-prices|heatmap|order-flow|patterns|reports|strategies|bots|options|index-report|us-report|settings|admin)$/;
+  /^nav-(screener|news|backtest|experiments|paper|replay|strategy-runner|sector|agri-prices|order-flow|patterns|reports|strategies|bots|options|index-report|us-report|settings|admin)$/;
 
 function renderNavbar(opts: {
   activePath?: string;
@@ -28,17 +27,19 @@ function renderNavbar(opts: {
   onMobileNavigate?: any;
 } = {}) {
   const { activePath = "/", collapsed = false, auth = mockAdminAuth, onMobileNavigate } = opts;
-  return render(
-    <MemoryRouter>
-      <AuthContext.Provider value={auth}>
-        <NavbarNested
-          activePath={activePath}
-          collapsed={collapsed}
-          onMobileNavigate={onMobileNavigate}
-        />
-      </AuthContext.Provider>
-    </MemoryRouter>,
-  );
+  return render(() => (
+    <Router
+      root={() => (
+        <AuthContext.Provider value={auth}>
+          <NavbarNested
+            activePath={activePath}
+            collapsed={collapsed}
+            onMobileNavigate={onMobileNavigate}
+          />
+        </AuthContext.Provider>
+      )}
+    />
+  ));
 }
 
 beforeEach(() => {
@@ -66,10 +67,10 @@ afterEach(() => {
 
 // ── Nav list contract ──
 describe("NavbarNested nav list contract", () => {
-  it("renders all 20 nav items for admin (enforces list maintenance)", () => {
+  it("renders all 19 nav items for admin (enforces list maintenance)", () => {
     renderNavbar({ auth: mockAdminAuth, activePath: "/" });
     const items = screen.getAllByTestId(/^nav-/);
-    expect(items).toHaveLength(20);
+    expect(items).toHaveLength(19);
     const navIds = items.map((el) => el.getAttribute("data-testid")).filter(Boolean);
     expect(navIds).toContain("nav-screener");
     expect(navIds).toContain("nav-agri-prices");
@@ -80,12 +81,12 @@ describe("NavbarNested nav list contract", () => {
     expect(navIds).toContain("nav-strategies");
     expect(navIds).toContain("nav-admin");
     // exact count: the full rail, including the Admin-only entry
-    expect(screen.getAllByTestId(NAV_IDS)).toHaveLength(20);
+    expect(screen.getAllByTestId(NAV_IDS)).toHaveLength(19);
   });
 
-  it("renders 19 items for non-admin (hides Admin)", () => {
+  it("renders 18 items for non-admin (hides Admin)", () => {
     renderNavbar({ auth: mockUserAuth });
-    expect(screen.getAllByTestId(NAV_IDS)).toHaveLength(19);
+    expect(screen.getAllByTestId(NAV_IDS)).toHaveLength(18);
     expect(screen.queryByTestId("nav-admin")).not.toBeInTheDocument();
   });
 
@@ -101,7 +102,6 @@ describe("NavbarNested nav list contract", () => {
       "nav-strategy-runner",
       "nav-sector",
       "nav-agri-prices",
-      "nav-heatmap",
       "nav-order-flow",
       "nav-patterns",
       "nav-reports",
@@ -154,30 +154,16 @@ describe("NavbarNested active path highlighting", () => {
   });
 
   it("highlights correct item each time activePath changes (rerender)", () => {
-    const { rerender } = render(
-      <MemoryRouter>
-        <AuthContext.Provider value={mockAdminAuth}>
-          <NavbarNested activePath="/news" />
-        </AuthContext.Provider>
-      </MemoryRouter>,
-    );
+    renderNavbar({ activePath: "/news" });
     expect(screen.getByTestId("nav-news")).toHaveAttribute("data-active", "true");
-    rerender(
-      <MemoryRouter>
-        <AuthContext.Provider value={mockAdminAuth}>
-          <NavbarNested activePath="/sector" />
-        </AuthContext.Provider>
-      </MemoryRouter>,
-    );
-    // happy-dom rerender may duplicate; query again
     cleanup();
     renderNavbar({ activePath: "/sector" });
     expect(screen.getByTestId("nav-sector")).toHaveAttribute("data-active", "true");
   });
 
   it("clears previous active when navigating to new path", () => {
-    renderNavbar({ activePath: "/heatmap" });
-    expect(screen.getByTestId("nav-heatmap")).toHaveAttribute("data-active", "true");
+    renderNavbar({ activePath: "/orderflow" });
+    expect(screen.getByTestId("nav-order-flow")).toHaveAttribute("data-active", "true");
     expect(screen.getByTestId("nav-options")).not.toHaveAttribute("data-active");
   });
 });
@@ -234,7 +220,7 @@ describe("NavbarNested nav item accessible names", () => {
     expect(screen.queryByText("Screener")).not.toBeInTheDocument();
 
     const items = screen.getAllByTestId(NAV_IDS);
-    expect(items).toHaveLength(20);
+    expect(items).toHaveLength(19);
     for (const item of items) {
       const label = item.getAttribute("aria-label");
       expect(label).toBeTruthy();
@@ -257,7 +243,7 @@ describe("NavbarNested nav item accessible names", () => {
     renderNavbar({ collapsed: false, auth: mockAdminAuth });
 
     const items = screen.getAllByTestId(NAV_IDS);
-    expect(items).toHaveLength(20);
+    expect(items).toHaveLength(19);
     items.forEach((item) => expect(item).toHaveAttribute("aria-label"));
     // Visible labels still render alongside the accessible name.
     expect(screen.getByText("Screener")).toBeInTheDocument();
@@ -269,8 +255,7 @@ describe("NavbarNested nav item accessible names", () => {
   it("still navigates on click when collapsed", async () => {
     const onMobileNavigate = vi.fn();
     renderNavbar({ collapsed: true, onMobileNavigate });
-    const user = userEvent.setup();
-    await user.click(screen.getByTestId("nav-index-report"));
+        await fireEvent.click(screen.getByTestId("nav-index-report"));
     expect(onMobileNavigate).toHaveBeenCalledTimes(1);
   });
 });
@@ -284,10 +269,9 @@ describe("NavbarNested theme toggle", () => {
   });
 
   it("toggles color scheme on click and persists to localStorage", async () => {
-    const user = userEvent.setup();
-    renderNavbar();
+        renderNavbar();
     const btn = screen.getByTestId("theme-toggle-btn");
-    await user.click(btn);
+    await fireEvent.click(btn);
     const after = localStorage.getItem("color-scheme");
     // should have flipped to light or dark
     expect(after).toBeTruthy();
@@ -295,18 +279,17 @@ describe("NavbarNested theme toggle", () => {
     // document attribute should be set
     expect(document.documentElement.getAttribute("data-color-scheme")).toBe(after);
     // clicking again flips back
-    await user.click(btn);
+    await fireEvent.click(btn);
     const flippedAgain = localStorage.getItem("color-scheme");
     expect(flippedAgain).not.toEqual(after);
   });
 
   it("toggles icon after click (moon/sun swap)", async () => {
-    const user = userEvent.setup();
-    renderNavbar();
+        renderNavbar();
     const btn = screen.getByTestId("theme-toggle-btn");
     const firstSvg = btn.querySelector("svg");
     expect(firstSvg).toBeTruthy();
-    await user.click(btn);
+    await fireEvent.click(btn);
     const secondSvg = screen.getByTestId("theme-toggle-btn").querySelector("svg");
     expect(secondSvg).toBeTruthy();
     // svg presence confirms render; class/paths may differ but at least button still renders
@@ -315,14 +298,13 @@ describe("NavbarNested theme toggle", () => {
   it("calls underlying useColorScheme toggle (spy)", async () => {
     const toggleSpy = vi.fn();
     vi.spyOn(hooks, "useColorScheme").mockReturnValue({
-      colorScheme: "dark",
-      isDark: true,
+      colorScheme: () => "dark",
+      isDark: () => true,
       toggleColorScheme: toggleSpy,
       setColorScheme: vi.fn(),
     } as any);
-    const user = userEvent.setup();
-    renderNavbar();
-    await user.click(screen.getByTestId("theme-toggle-btn"));
+        renderNavbar();
+    await fireEvent.click(screen.getByTestId("theme-toggle-btn"));
     expect(toggleSpy).toHaveBeenCalledTimes(1);
   });
 });

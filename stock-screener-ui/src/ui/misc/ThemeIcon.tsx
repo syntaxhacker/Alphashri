@@ -1,3 +1,4 @@
+import { splitProps } from "solid-js";
 import { cn } from "../cn";
 import { sxTheme } from "../sxTheme";
 import type { UIThemeIconProps } from "../types";
@@ -10,7 +11,7 @@ function toPx(size: UIThemeIconProps["size"]): string | undefined {
   return m[size as string];
 }
 
-function radiusValue(radius: UIThemeIconProps["radius"]): string {
+function _radiusValue(radius: UIThemeIconProps["radius"]): string {
   if (radius == null) return "6px";
   if (typeof radius === "number") return `${radius}px`;
   if (radius === "xs") return "4px";
@@ -24,7 +25,7 @@ function resolveColor(color?: string): { main: string; dark: string } {
   if (!color) return primary;
   if (color.startsWith("#") || color.startsWith("rgb")) return { main: color, dark: color };
   const key = color.split(".")[0];
-  const entry = (sxTheme.palette as Record<string, { main?: string; contrastText?: string; dark?: string }>)[key];
+  const entry = (sxTheme.palette as unknown as Record<string, { main?: string; contrastText?: string; dark?: string }>)[key];
   if (entry) {
     return {
       main: entry.main ?? color,
@@ -34,17 +35,29 @@ function resolveColor(color?: string): { main: string; dark: string } {
   return { main: color, dark: color };
 }
 
-export function ThemeIcon({ variant, color, size, radius, children, className, style, "data-testid": testId, id, ...rest }: UIThemeIconProps) {
-  const { main, dark } = resolveColor(color as string);
-  const px = toPx(size);
-  const borderRadius = radiusValue(radius);
+export function ThemeIcon(props: UIThemeIconProps) {
+  const [known, _rest] = splitProps(props, [
+    "variant",
+    "color",
+    "size",
+    "radius",
+    "children",
+    "className",
+    "style",
+    "data-testid",
+    "id",
+  ]);
 
-  const baseSize = px != null ? { width: px, height: px, fontSize: `${Number(px.replace("px", "")) * 0.5}px` } : { width: "36px", height: "36px", fontSize: "18px" };
+  const { main, dark } = resolveColor(known.color as string);
+  const px = toPx(known.size);
+  const borderRadius = _radiusValue(known.radius);
+
+  const baseSize = px != null ? { width: px, height: px, "font-size": `${Number(px.replace("px", "")) * 0.5}px` } : { width: "36px", height: "36px", "font-size": "18px" };
 
   let backgroundColor: string | undefined;
   let colorValue: string | undefined;
-  const isFilled = variant === "filled";
-  switch (variant) {
+  const isFilled = known.variant === "filled";
+  switch (known.variant) {
     case "filled":
       backgroundColor = dark;
       break;
@@ -66,18 +79,18 @@ export function ThemeIcon({ variant, color, size, radius, children, className, s
 
   return (
     <span
-      className={cn(
-        "inline-flex items-center justify-center shrink-0",
-        isFilled ? "text-white" : "",
-        `rounded-[${borderRadius}]`,
-        className,
-      )}
-      style={{ ...baseSize, borderRadius, backgroundColor, color: isFilled ? undefined : colorValue, ...style }}
-      id={id}
-      data-testid={testId}
-      {...(rest as Record<string, unknown>)}
+      className={cn("inline-flex items-center justify-center shrink-0", isFilled ? "text-white" : "", known.className)}
+      style={{
+        ...baseSize,
+        "border-radius": borderRadius,
+        "background-color": backgroundColor,
+        color: isFilled ? undefined : colorValue,
+        ...(known.style as Record<string, string | undefined>),
+      }}
+      id={known.id}
+      data-testid={known["data-testid"]}
     >
-      {children}
+      {known.children}
     </span>
   );
 }

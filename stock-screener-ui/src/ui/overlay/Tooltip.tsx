@@ -1,11 +1,11 @@
-import * as React from "react";
+import { createSignal, onCleanup, splitProps } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
 import type { UITooltipProps } from "../types";
 
 type TooltipProps = UITooltipProps & { transitionProps?: { duration?: number } };
 
-type TooltipPosition = UITooltipProps["position"];
+type TooltipPosition = NonNullable<UITooltipProps["position"]>;
 
 const PLACEMENT: Record<TooltipPosition, string> = {
   top: "bottom-full left-1/2 -translate-x-1/2 mb-1",
@@ -29,7 +29,8 @@ const ARROW_SIDE: Record<TooltipPosition, "t" | "r" | "b" | "l"> = {
   "bottom-end": "t",
 };
 
-const ARROW_POS: Record<TooltipPosition, React.CSSProperties> = {
+type ArrowPos = { bottom?: string; left?: string; transform?: string; top?: string; right?: string };
+const ARROW_POS: Record<TooltipPosition, ArrowPos> = {
   top: { bottom: "-10px", left: "50%", transform: "translateX(-50%)" },
   bottom: { top: "-10px", left: "50%", transform: "translateX(-50%)" },
   left: { right: "-10px", top: "50%", transform: "translateY(-50%)" },
@@ -40,60 +41,64 @@ const ARROW_POS: Record<TooltipPosition, React.CSSProperties> = {
   "bottom-end": { top: "-10px", right: "8px" },
 };
 
-export function Tooltip({
-  label,
-  withArrow,
-  position,
-  openDelay,
-  closeDelay,
-  disabled,
-  multiline,
-  color,
-  _withinPortal,
-  children,
-  className,
-  style,
-  id,
-  "data-testid": testId,
-  _transitionProps,
-  onMouseEnter,
-  onMouseLeave,
-  ...rest
-}: TooltipProps) {
-  const [open, setOpen] = React.useState(false);
-  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  React.useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current);
-  }, []);
+export function Tooltip(props: TooltipProps) {
+  const [known, rest] = splitProps(props, [
+    "label",
+    "withArrow",
+    "position",
+    "openDelay",
+    "closeDelay",
+    "disabled",
+    "multiline",
+    "color",
+    "children",
+    "className",
+    "style",
+    "id",
+    "data-testid",
+    "onMouseEnter",
+    "onMouseLeave",
+    "withinPortal",
+    "transitionProps",
+  ]);
 
-  const enterMs = openDelay ?? 0;
-  const leaveMs = closeDelay ?? 0;
+  const [open, setOpen] = createSignal(false);
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  onCleanup(() => {
+    if (timer) clearTimeout(timer);
+  });
+
+  const enterMs = known.openDelay ?? 0;
+  const leaveMs = known.closeDelay ?? 0;
   const show = () => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setOpen(true), enterMs);
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => setOpen(true), enterMs);
   };
   const hide = () => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setOpen(false), leaveMs);
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => setOpen(false), leaveMs);
   };
 
-  const placement: TooltipPosition = position ?? "top";
+  const placement: TooltipPosition = known.position ?? "top";
 
-  if (disabled) return <>{children}</>;
+  if (known.disabled) return <>{known.children}</>;
 
   // A string label is the tooltip's accessible description. Surface it on the
-  // wrapper so it stays queryable (and readable) without hovering — the
-  // floating copy only exists while open. A child that already carries its own
-  // accessible name keeps it, so the name is never announced twice.
+  // wrapper so it stays queryable without hovering — the floating copy only
+  // exists while open. A child that already carries its own accessible name
+  // keeps it, so the name is never announced twice.
+  const childEl = known.children as any;
   const childHasName =
-    React.isValidElement(children) &&
-    (children.props as { "aria-label"?: string; "aria-labelledby"?: string })["aria-label"] != null;
+    childEl != null &&
+    typeof childEl === "object" &&
+    "props" in childEl &&
+    (childEl.props as { "aria-label"?: string; "aria-labelledby"?: string })["aria-label"] != null;
   const ariaLabel =
-    typeof label === "string" && !childHasName ? label : undefined;
+    typeof known.label === "string" && !childHasName ? known.label : undefined;
 
-  const arrowStyle: React.CSSProperties = { ...ARROW_POS[placement] };
+  const arrowStyle: ArrowPos = { ...ARROW_POS[placement] };
   const side = ARROW_SIDE[placement];
-  if (side && color) {
+  if (side && known.color) {
     const prop =
       side === "t"
         ? "borderTopColor"
@@ -102,46 +107,46 @@ export function Tooltip({
           : side === "b"
             ? "borderBottomColor"
             : "borderLeftColor";
-    arrowStyle[prop as keyof React.CSSProperties] = color;
+    (arrowStyle as Record<string, string>)[prop] = known.color;
   }
 
   return (
     <span
-      id={id}
-      data-testid={testId ? `${testId}-wrapper` : undefined}
+      id={known.id}
+      data-testid={known["data-testid"] ? `${known["data-testid"]}-wrapper` : undefined}
       aria-label={ariaLabel}
-      className={cn("inline-flex relative", className)}
-      style={style}
+      className={cn("inline-flex relative", known.className)}
+      style={known.style}
       onMouseEnter={(e) => {
-        onMouseEnter?.(e);
+        known.onMouseEnter?.(e);
         show();
       }}
       onMouseLeave={(e) => {
-        onMouseLeave?.(e);
+        known.onMouseLeave?.(e);
         hide();
       }}
       {...(rest as Record<string, unknown>)}
     >
-      {children}
-      {open && label && (
+      {known.children}
+      {open() && known.label && (
         <span
-          data-testid={testId}
+          data-testid={known["data-testid"]}
           className={cn(
             "absolute z-50",
             PLACEMENT[placement],
             "bg-fin-surface border border-fin-border text-fin-text rounded-sm text-xs px-2 py-1",
-            color ? "text-white" : undefined,
-            multiline ? "max-w-[220px] whitespace-normal" : "whitespace-nowrap",
+            known.color ? "text-white" : undefined,
+            known.multiline ? "max-w-[220px] whitespace-normal" : "whitespace-nowrap",
           )}
-          style={{ backgroundColor: color ?? undefined }}
+          style={{ "background-color": known.color ?? undefined }}
         >
-          {label}
-          {withArrow && (
+          {known.label}
+          {known.withArrow && (
             <span
               className="absolute w-0 h-0 border-[5px] border-transparent"
               style={{
                 [`border${side === "t" ? "Top" : side === "r" ? "Right" : side === "b" ? "Bottom" : "Left"}Color`]:
-                  color ?? palette.BORDER,
+                  known.color ?? palette.BORDER,
                 ...ARROW_POS[placement],
               }}
             />
@@ -153,5 +158,5 @@ export function Tooltip({
 }
 
 // Preserve static members for compatibility (no-ops / wrappers)
-(Tooltip as any).Group = ({ children }: { children?: React.ReactNode }) => <>{children}</>;
+(Tooltip as any).Group = ({ children }: { children?: any }) => <>{children}</>;
 (Tooltip as any).Floating = Tooltip;

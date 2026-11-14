@@ -27,12 +27,10 @@ describe("formatTimeLabel", () => {
   });
 
   it("handles undefined", () => {
-    // @ts-expect-error - testing edge case
     expect(formatTimeLabel(undefined)).toBe("");
   });
 
   it("handles null", () => {
-    // @ts-expect-error - testing edge case
     expect(formatTimeLabel(null)).toBe("");
   });
 

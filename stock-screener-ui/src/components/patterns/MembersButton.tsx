@@ -1,5 +1,4 @@
-import { Box } from "@/ui";
-import { IconUsers } from "@tabler/icons-react";
+import { IconUsers } from "@/patterns/icons";
 
 export interface MembersButtonProps {
   symbol: string;
@@ -11,28 +10,22 @@ export interface MembersButtonProps {
 }
 
 /** Small index-members trigger rendered next to a symbol link. */
-export function MembersButton({
-  symbol,
-  testId,
-  onShowMembers,
-  size = 16,
-  iconSize = 12,
-}: MembersButtonProps) {
+export function MembersButton(props: MembersButtonProps) {
+  const size = () => props.size ?? 16;
   return (
-    <Box
-      component="button"
+    <button
       type="button"
-      title={`View ${symbol} members`}
-      aria-label={`View ${symbol} members`}
-      data-testid={testId}
+      title={`View ${props.symbol} members`}
+      aria-label={`View ${props.symbol} members`}
+      data-testid={props.testId}
       onClick={(event) => {
         event.stopPropagation();
-        onShowMembers?.(symbol);
+        props.onShowMembers?.(props.symbol);
       }}
       className="inline-flex shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-fin-text-muted transition-colors hover:text-fin-primary"
-      style={{ width: size, height: size }}
+      style={{ width: `${size()}px`, height: `${size()}px` }}
     >
-      <IconUsers size={iconSize} />
-    </Box>
+      <IconUsers size={props.iconSize ?? 12} />
+    </button>
   );
 }

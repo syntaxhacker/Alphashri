@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, test, vi, beforeEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { buildSummaryItems, getTone, ScreenerSummary } from "./ScreenerSummary";
 
@@ -11,8 +11,9 @@ afterEach(() => {
 
 vi.mock("../common/compact", () => ({
   CompactStatGrid: ({ children }: any) => <div data-testid="compact-stat-grid">{children}</div>,
-  CompactStat: ({ label, value, tone, testId }: any) => (
-    <div data-testid={testId} data-tone={tone}>
+  // `CompactStat` forwards testId as `data-testid` now, so read the rest props.
+  CompactStat: ({ label, value, tone, ...rest }: { label: string; value: string | number; tone?: string; [key: string]: unknown }) => (
+    <div data-testid={rest["data-testid"] as string | undefined} data-tone={tone}>
       <span>{label}</span>
       <span>{value}</span>
     </div>
@@ -75,7 +76,7 @@ describe("ScreenerSummary", () => {
     });
 
     test("renders CompactStatGrid with CompactStat items", () => {
-      render(
+      render(() =>
         <ScreenerSummary
           summary={[
             { label: "Total", value: 100, color: "green" },
@@ -91,7 +92,7 @@ describe("ScreenerSummary", () => {
     });
 
     test("CompactStat receives correct tone from color", () => {
-      render(
+      render(() =>
         <ScreenerSummary
           summary={[
             { label: "Green", value: 1, color: "green" },
@@ -110,7 +111,7 @@ describe("ScreenerSummary", () => {
     });
 
     test("renders empty summary gracefully", () => {
-      const { container } = render(<ScreenerSummary summary={[]} />);
+      const { container } = render(() => <ScreenerSummary summary={[]} />);
       expect(container.querySelector("[data-testid='compact-stat-grid']")).toBeInTheDocument();
       expect(container.querySelectorAll("[data-testid^='summary-card-']").length).toBe(0);
     });

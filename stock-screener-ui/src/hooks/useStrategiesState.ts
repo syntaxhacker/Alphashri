@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { createMemo } from "solid-js";
 import * as strategiesState from "../state/strategies";
 import * as botsState from "../state/bots";
 import { useStoreSubscription } from "./useStoreSubscription";
@@ -30,38 +30,38 @@ function loadForView(view: StrategyView) {
 }
 
 function useViewActions() {
-  const onViewChange = useCallback((view: StrategyView) => {
+  const onViewChange = (view: StrategyView) => {
     strategiesState.setCurrentView(view);
     loadForView(view);
-  }, []);
+  };
 
-  const onRefresh = useCallback(() => {
+  const onRefresh = () => {
     loadForView(strategiesState.getCurrentView() as StrategyView);
-  }, []);
+  };
 
   return { onViewChange, onRefresh };
 }
 
 function useModalActions() {
-  const onOpenCreateModal = useCallback((template?: StrategyConfig) => {
+  const onOpenCreateModal = (template?: StrategyConfig) => {
     strategiesState.openCreateModal(template || null);
-  }, []);
+  };
 
-  const onOpenEditModal = useCallback((strategy: StrategyConfig) => {
+  const onOpenEditModal = (strategy: StrategyConfig) => {
     strategiesState.openEditModal(strategy);
-  }, []);
+  };
 
-  const onCloseCreateModal = useCallback(() => {
+  const onCloseCreateModal = () => {
     strategiesState.closeCreateModal();
-  }, []);
+  };
 
-  const onCloseEditModal = useCallback(() => {
+  const onCloseEditModal = () => {
     strategiesState.closeEditModal();
-  }, []);
+  };
 
-  const onCreateFromTemplate = useCallback((template: StrategyConfig) => {
+  const onCreateFromTemplate = (template: StrategyConfig) => {
     strategiesState.openCreateModal(template);
-  }, []);
+  };
 
   return {
     onOpenCreateModal,
@@ -73,23 +73,31 @@ function useModalActions() {
 }
 
 function useStrategyActions() {
-  const onCreate = useCallback((_data: StrategyFormData) => {}, []);
+  const onCreate = (_data: StrategyFormData) => {};
 
-  const onEdit = useCallback((_strategyId: number, _data: StrategyFormData) => {}, []);
+  const onEdit = (_strategyId: number, _data: StrategyFormData) => {};
 
-  const onDelete = useCallback((_strategyId: number) => {}, []);
+  const onDelete = (_strategyId: number) => {};
 
-  const onSelect = useCallback((_strategyId: number) => {}, []);
+  const onSelect = (_strategyId: number) => {};
 
   return { onCreate, onEdit, onDelete, onSelect };
 }
 
 export function useStrategiesState() {
-  useStoreSubscription(strategiesState.subscribe);
-  useStoreSubscription(botsState.subscribe);
-  const state = strategiesState.getStrategiesState();
-  const botsData = botsState.getBotsState();
-  const isAnyBotRunning = botsData.bots.some((b) => b.running);
+  const version = useStoreSubscription(strategiesState.subscribe);
+  const botsVersion = useStoreSubscription(botsState.subscribe);
+
+  // Module singletons: read the counter first so getters re-run on notify.
+  const readState = () => {
+    version();
+    return strategiesState.getStrategiesState();
+  };
+  const readBots = () => {
+    botsVersion();
+    return botsState.getBotsState();
+  };
+  const isAnyBotRunning = createMemo(() => readBots().bots.some((b) => b.running));
 
   const { onViewChange, onRefresh } = useViewActions();
   const {
@@ -101,38 +109,63 @@ export function useStrategiesState() {
   } = useModalActions();
   const { onCreate, onEdit, onDelete, onSelect } = useStrategyActions();
 
-  const onClearError = useCallback(() => {
+  const onClearError = () => {
     strategiesState.clearError();
-  }, []);
+  };
 
-  const onUpdate = useCallback(async (strategyId: number, field: string, value: number) => {
+  const onUpdate = async (strategyId: number, field: string, value: number) => {
     const result = await apiUpdateStrategy(strategyId, { [field]: value });
     if (result.strategy) {
       strategiesState.loadStrategies(false);
     }
     return result;
-  }, []);
+  };
 
-  const onEditTemplate = useCallback((template: StrategyConfig) => {
+  const onEditTemplate = (template: StrategyConfig) => {
     strategiesState.openEditModal(template);
-  }, []);
+  };
 
-  const onSyncVariationsCb = useCallback((templateId: number) => {
+  const onSyncVariationsCb = (templateId: number) => {
     syncVariations(templateId);
-  }, []);
+  };
 
+  // Getters, not values: a Solid component body runs once, so a snapshot would
+  // never show data that arrives after mount.
   return {
-    strategies: state.strategies,
-    templates: state.templates,
-    performance: state.allPerformance,
-    bots: state.bots,
-    isLoading: state.isLoading,
-    error: state.error,
-    activeView: strategiesState.getCurrentView() as StrategyView,
-    showCreateModal: state.showCreateModal,
-    showEditModal: state.showEditModal,
-    editingStrategy: state.editingStrategy,
-    parentTemplate: state.parentTemplate,
+    get strategies() {
+      return readState().strategies;
+    },
+    get templates() {
+      return readState().templates;
+    },
+    get performance() {
+      return readState().allPerformance;
+    },
+    get bots() {
+      return readState().bots;
+    },
+    get isLoading() {
+      return readState().isLoading;
+    },
+    get error() {
+      return readState().error;
+    },
+    get activeView() {
+      version();
+      return strategiesState.getCurrentView() as StrategyView;
+    },
+    get showCreateModal() {
+      return readState().showCreateModal;
+    },
+    get showEditModal() {
+      return readState().showEditModal;
+    },
+    get editingStrategy() {
+      return readState().editingStrategy;
+    },
+    get parentTemplate() {
+      return readState().parentTemplate;
+    },
     onViewChange,
     onRefresh,
     onOpenCreateModal,
@@ -148,6 +181,8 @@ export function useStrategiesState() {
     onSelectStrategy: onSelect,
     onClearError,
     onUpdate,
-    isAnyBotRunning,
+    get isAnyBotRunning() {
+      return isAnyBotRunning();
+    },
   };
 }

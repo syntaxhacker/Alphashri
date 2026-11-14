@@ -1,28 +1,27 @@
 /// <reference types="vite/client" />
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig, loadEnv } from 'vite';
-import react from '@vitejs/plugin-react';
+import solid from 'vite-plugin-solid';
 import tailwindcss from '@tailwindcss/vite';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
-  
+
   return {
+    // Solid ships browser + server builds behind export conditions. The
+    // development/browser pair forces the browser build and keeps
+    // `solid-js/web` on the client instead of the SSR stub.
     resolve: {
       alias: {
-        '@': fileURLToPath(new URL('./src', import.meta.url)),
+        "@": fileURLToPath(new URL('./src', import.meta.url)),
+        tslib: fileURLToPath(new URL('./node_modules/tslib/tslib.es6.js', import.meta.url)),
       },
+      conditions: ['development', 'browser'],
     },
     plugins: [
-      react(),
+      solid(),
       tailwindcss(),
-      // React Compiler disabled: the app is built on mutable module stores
-      // read during render (`useStoreSubscription` + `get*State()`), which the
-      // compiler memoizes as pure and renders stale (empty panels under lazy
-      // Suspense — reproduced 2026-11-07, PR #157 smoke failures). Re-enable
-      // only after migrating store consumers to `useSyncExternalStore`
-      // (see `useEventsStore` in src/state/events.ts).
       sentryVitePlugin({
         org: process.env.SENTRY_ORG,
         project: process.env.SENTRY_PROJECT,
@@ -37,16 +36,14 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks(id: string) {
-            if (id.includes("node_modules/react") || id.includes("node_modules/react-dom") || id.includes("node_modules/react-router-dom")) return "vendor";
+            if (id.includes("node_modules/solid-js") || id.includes("node_modules/@solidjs")) return "vendor";
             if (id.includes("@tanstack")) return "tanstack";
-            // echarts-for-react imports React. Keep it out of the shared "echarts"
-            // chunk so React is not duplicated into the 373 kB echarts bundle and
-            // the entry shell does not statically pull in the chart engine.
-            // echarts-for-react is only consumed by lazy page chunks (heatmap,
-            // report, options, paper trading), which pull echarts in lazily.
-            if (id.includes("echarts-for-react")) return undefined;
-            if (id.includes("echarts") || id.includes("zrender")) return "echarts";
-            if (id.includes("node_modules/@tabler/icons-react")) return "icons";
+            // Keep the chart engine out of the shared chunk so the entry shell
+            // does not statically pull it in (chart pages import it lazily).
+            // Scope to the package itself: a bare `echarts` match also caught
+            // src/pages/report/echartsSolid.ts, which dragged loadEcharts.ts
+            // into this chunk and turned the dynamic import into a static one.
+            if (id.includes("node_modules/echarts") || id.includes("node_modules/zrender")) return "echarts";
           },
         },
       },

@@ -1,5 +1,7 @@
+import { createMemo, splitProps } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
+import type { JSX } from "solid-js";
 import type { UIAnchorProps } from "../types";
 
 const sizeMap: Record<string, string> = {
@@ -38,91 +40,83 @@ function isLiteralColor(c: string): boolean {
   return c.startsWith("#") || c.startsWith("rgb") || c.includes(".");
 }
 
-export function Anchor({
-  children,
-  href,
-  target,
-  underline,
-  onClick,
-  onMouseEnter,
-  onMouseLeave,
-  size,
-  fw,
-  c,
-  ta,
-  lh,
-  span,
-  truncate,
-  lineClamp,
-  inherit,
-  component,
-  className,
-  style,
-  id,
-  "data-testid": testId,
-  ...rest
-}: UIAnchorProps) {
+const ANCHOR_TAGS: Record<string, (props: any) => JSX.Element> = {
+  a: (props) => <a {...props} />,
+  span: (props) => <span {...props} />,
+  div: (props) => <div {...props} />,
+};
+
+const ANCHOR_KNOWN = [
+  "children", "className", "style", "id", "data-testid", "onClick", "onMouseEnter", "onMouseLeave",
+  "href", "target", "underline", "size", "fw", "c", "ta", "lh", "span", "truncate", "lineClamp",
+  "inherit", "component",
+] as const;
+// `title` is intentionally omitted: it is a native tooltip and must flow through
+// `rest` onto the DOM element rather than being consumed here.
+
+export function Anchor(props: UIAnchorProps) {
+  const [known, rest] = splitProps(props, ANCHOR_KNOWN);
   // `inherit` is kept for API parity — semantic elements inherit by default.
-  void inherit;
+  void known.inherit;
 
-  const Element: React.ElementType = component ?? (span ? "span" : "a");
+  const derived = createMemo(() => {
+    const tone = known.c as string | undefined;
+    const cls = tone != null ? TONE_CLASS[tone] : undefined;
+    const underlineProp = known.underline === "always" ? "always" : known.underline === "never" ? "none" : "hover";
+    const o: Record<string, string | number | undefined> = { cursor: "pointer" };
+    if (tone != null) {
+      o.color = TONE_COLOR[tone] ?? (isLiteralColor(tone) ? tone : undefined);
+    }
+    if (known.fw != null) o["font-weight"] = known.fw;
+    if (known.ta != null) o["text-align"] = known.ta;
+    if (known.lh != null) o["line-height"] = known.lh;
+    if (known.size != null) o["font-size"] = sizeMap[known.size as string] ?? (known.size as string);
 
-  const tone = c as string | undefined;
-  const cls = tone != null ? TONE_CLASS[tone] : undefined;
-  const underlineProp: "always" | "hover" | "none" =
-    underline === "always" ? "always" : underline === "never" ? "none" : "hover";
+    let underlineClass: string | undefined;
+    if (underlineProp === "always") {
+      o["text-decoration"] = "underline";
+    } else if (underlineProp === "none") {
+      o["text-decoration"] = "none";
+    } else {
+      // "hover": no underline by default, underline on hover.
+      o["text-decoration"] = "none";
+      underlineClass = "hover:underline";
+    }
 
-  const styleObj: React.CSSProperties = { cursor: "pointer" };
-  if (tone != null) {
-    styleObj.color = TONE_COLOR[tone] ?? (isLiteralColor(tone) ? tone : undefined);
-  }
-  if (fw != null) styleObj.fontWeight = fw;
-  if (ta != null) styleObj.textAlign = ta;
-  if (lh != null) styleObj.lineHeight = lh;
-  if (size != null) styleObj.fontSize = sizeMap[size as string] ?? (size as string);
+    if (known.truncate) {
+      o.overflow = "hidden";
+      o["text-overflow"] = "ellipsis";
+      o["white-space"] = "nowrap";
+      o.display = "inline-block";
+      o["max-width"] = "100%";
+    }
 
-  let underlineClass: string | undefined;
-  if (underlineProp === "always") {
-    styleObj.textDecoration = "underline";
-  } else if (underlineProp === "none") {
-    styleObj.textDecoration = "none";
-  } else {
-    // "hover": no underline by default, underline on hover.
-    styleObj.textDecoration = "none";
-    underlineClass = "hover:underline";
-  }
+    if (known.lineClamp != null) {
+      o.display = "-webkit-box";
+      o["webkit-line-clamp"] = known.lineClamp;
+      o.WebkitBoxOrient = "vertical";
+      o.overflow = "hidden";
+    }
 
-  if (truncate) {
-    styleObj.overflow = "hidden";
-    styleObj.textOverflow = "ellipsis";
-    styleObj.whiteSpace = "nowrap";
-    styleObj.display = "inline-block";
-    styleObj.maxWidth = "100%";
-  }
+    return { cls, style: o, underlineClass };
+  });
 
-  if (lineClamp != null) {
-    styleObj.display = "-webkit-box";
-    styleObj.WebkitLineClamp = lineClamp;
-    styleObj.WebkitBoxOrient = "vertical";
-    styleObj.overflow = "hidden";
-  }
-
-  // `href`/`target` only apply to real anchors.
-  const linkProps = Element === "a" ? { href, target } : {};
+  const rootTag = (known.component ?? (known.span ? "span" : "a")) as string;
+  const Root = ANCHOR_TAGS[rootTag] ?? ANCHOR_TAGS["a"];
 
   return (
-    <Element
-      {...linkProps}
-      className={cn(className, cls, underlineClass)}
-      style={{ ...styleObj, ...style }}
-      id={id}
-      data-testid={testId}
-      onClick={onClick}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      {...(rest as Record<string, unknown>)}
+    <Root
+      {...(rootTag === "a" ? { href: known.href, target: known.target } : {})}
+      className={cn(known.className, derived().cls, derived().underlineClass)}
+      style={{ ...derived().style, ...(known.style as Record<string, unknown> | undefined) }}
+      id={known.id}
+      data-testid={known["data-testid"]}
+      onClick={known.onClick}
+      onMouseEnter={known.onMouseEnter}
+      onMouseLeave={known.onMouseLeave}
+      {...rest}
     >
-      {children}
-    </Element>
+      {known.children}
+    </Root>
   );
 }

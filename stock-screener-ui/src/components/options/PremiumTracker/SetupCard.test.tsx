@@ -1,11 +1,14 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen, cleanup, within, fireEvent } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, within, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { SetupCard } from "./SetupCard";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 import type { PaperSetup } from "./strategies";
 
 vi.mock("./PayoffChart", () => ({
@@ -42,7 +45,7 @@ afterEach(() => {
 
 describe("SetupCard", () => {
   it("renders legs, payoff chart, and bounded stats", () => {
-    renderWithProviders(<SetupCard {...props} />);
+    render(() => <SetupCard {...props} />);
     expect(screen.getByTestId("setup-card-s1")).toBeInTheDocument();
     expect(screen.getByTestId("mock-payoff-chart")).toBeInTheDocument();
     const stats = screen.getByTestId("setup-stats-s1").textContent ?? "";
@@ -51,20 +54,20 @@ describe("SetupCard", () => {
   });
 
   it("edits a leg entry and deletes the setup", async () => {
-    const { container } = renderWithProviders(<SetupCard {...props} />);
+    const { container } = render(() => <SetupCard {...props} />);
     const entryWrap = screen.getByTestId("setup-leg-entry-l1");
     const entryInput = within(entryWrap).getByRole("spinbutton");
-    fireEvent.change(entryInput, { target: { value: "45" } });
+    fireEvent.input(entryInput, { target: { value: "45" } });
     expect(props.onUpdateLeg).toHaveBeenCalledWith("s1", "l1", expect.objectContaining({ entry: 45 }));
-    await userEvent.click(screen.getByTestId("setup-delete-s1"));
+    fireEvent.click(screen.getByTestId("setup-delete-s1"));
     expect(props.onDeleteSetup).toHaveBeenCalledWith("s1");
     expect(container).toBeInTheDocument();
   });
 
-  it("paper fills with conviction and plan", async () => {
-    renderWithProviders(<SetupCard {...props} />);
-    await userEvent.type(screen.getByTestId("setup-plan-s1"), "sell costly chop");
-    await userEvent.click(screen.getByTestId("setup-fill-s1"));
+  it("paper fills with conviction and plan", () => {
+    render(() => <SetupCard {...props} />);
+    fireEvent.input(screen.getByTestId("setup-plan-s1"), { target: { value: "sell costly chop" } });
+    fireEvent.click(screen.getByTestId("setup-fill-s1"));
     expect(props.onPaperFill).toHaveBeenCalledWith(
       setup,
       expect.objectContaining({ conviction: "MEDIUM", plan: "sell costly chop" }),
@@ -72,7 +75,7 @@ describe("SetupCard", () => {
   });
 
   it("shows live pnl when chain marks exist", () => {
-    renderWithProviders(<SetupCard {...props} ltpOf={() => 30} />);
+    render(() => <SetupCard {...props} ltpOf={() => 30} />);
     const card = screen.getByTestId("setup-card-s1").textContent ?? "";
     expect(within(screen.getByTestId("setup-card-s1")).getByTestId("setup-stats-s1")).toBeInTheDocument();
     expect(card).toContain("Live");

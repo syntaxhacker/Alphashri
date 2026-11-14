@@ -15,7 +15,7 @@ import {
   getMetricValue,
   getSignedMetricColor,
   type MetricConfig,
-} from "../../pages/heatmap/heatmapUtils";
+} from "./heatmapUtils";
 
 export type { MetricConfig };
 
@@ -33,6 +33,21 @@ export const SECTOR_STOCK_METRICS: MetricConfig[] = [
 /** Falls back to the first metric when `metric` is not in the caller's list. */
 export function resolveStockMetric(metrics: MetricConfig[], metric: string): MetricConfig {
   return metrics.find((m) => m.value === metric) || metrics[0];
+}
+
+/**
+ * A metric formatter must never throw: the caller can hand it a value from a
+ * stale cache or a metric with no data on this universe. "—" is the honest
+ * render for "no value", and it keeps one bad row from blanking the whole map.
+ */
+export function safeFmt(metric: { fmt: (v: number) => string }, value: unknown): string {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return "—";
+  try {
+    return metric.fmt(n);
+  } catch {
+    return "—";
+  }
 }
 
 /** Min/max of `metric` across `stocks`; safe for empty lists. */
@@ -75,13 +90,16 @@ export interface StockTreemapStyle {
   changeNegative: string;
 }
 
-/** Builds the ECharts treemap option for a one-tile-per-stock heatmap. */
+/** Tile area by market cap (a real map) or uniform (a grid). */
+export type TreemapSizing = "uniform" | "market_cap";
+
 export function buildStockTreemapOption(
   stocks: HeatmapStock[],
   metric: string,
   metrics: MetricConfig[],
   isDark: boolean,
   style: StockTreemapStyle,
+  sizeBy: TreemapSizing = "uniform",
 ) {
   const activeMetric = resolveStockMetric(metrics, metric);
   const metricKey = activeMetric.value;
@@ -92,9 +110,10 @@ export function buildStockTreemapOption(
     const color = getHeatmapMetricColor(metricKey, mv, metricMin, metricMax);
     const textColor = getHeatmapMetricTextColor(metricKey, mv, metricMin, metricMax);
     const extra = stock as HeatmapStock & Record<string, unknown>;
+    const weight = sizeBy === "market_cap" ? Math.max(stock.market_cap || 0, 0) : 1;
     return {
       name: stock.symbol,
-      value: 1,
+      value: weight,
       path: stock.symbol,
       nameFull: stock.name,
       sector: stock.sector,
@@ -105,7 +124,7 @@ export function buildStockTreemapOption(
       score: extra.score,
       gap52: extra.to_52w_high,
       metricLabel: activeMetric.label,
-      metricValue: activeMetric.fmt(mv),
+      metricValue: safeFmt(activeMetric, mv),
       label: { color: textColor },
       itemStyle: { color },
     };

@@ -1,12 +1,11 @@
 // @vitest-environment happy-dom
+import type { JSX } from "solid-js";
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { screen, waitFor, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, waitFor, fireEvent, cleanup } from "@solidjs/testing-library";
 import { PaperPositionsTable } from "./PaperPositionsTable2";
 import { mockPosition } from "./testFixtures";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
-import type { PaperBotSnapshot, PaperTradingState } from "../../types/paperTrading";
+import type { PaperBotSnapshot, PaperPosition, PaperTradingState } from "../../types/paperTrading";
 
 afterEach(() => {
   cleanup();
@@ -27,6 +26,7 @@ function createMockState(overrides: Partial<PaperTradingState> = {}): PaperTradi
     filterSymbol: null,
     filterStrategy: null,
     filterBot: null,
+    filterSource: "equity",
     selectedSymbol: null,
     selectedStrategyId: null,
     selectedStrategyTab: null,
@@ -36,10 +36,16 @@ function createMockState(overrides: Partial<PaperTradingState> = {}): PaperTradi
     showPivotLines: false,
     show52wLines: false,
     showEmaLines: false,
-    intradayOnly: false,
     chartData: null,
     chartLoading: false,
     chartTimeframe: "5min",
+    chartFromDate: null,
+    chartDataLive: null,
+    chartTimeframeLive: "5min",
+    chartFromDateLive: null,
+    chartDataHistory: null,
+    chartTimeframeHistory: "5min",
+    chartFromDateHistory: null,
     isLoading: false,
     error: null,
     autoRefreshEnabled: true,
@@ -52,6 +58,14 @@ function createMockState(overrides: Partial<PaperTradingState> = {}): PaperTradi
     configError: null,
     configDirty: false,
     availableBots: [],
+    dashboardAnalyticsData: null,
+    dashboardAnalyticsLoading: false,
+    analyticsData: null,
+    analyticsLoading: false,
+    activityEvents: [],
+    activityLoading: false,
+    aggregatedData: null,
+    aggregatedLoading: false,
     ...overrides,
   };
 }
@@ -59,6 +73,7 @@ function createMockState(overrides: Partial<PaperTradingState> = {}): PaperTradi
 const mockBotSnapshot: PaperBotSnapshot = {
   timestamp: "2026-03-20T09:30:00Z",
   watchlist: ["RELIANCE", "TCS", "INFY"],
+  strategy_watchlists: {},
   open_positions: ["RELIANCE"],
   scan_items: [
     {
@@ -121,10 +136,10 @@ vi.mock("../../api/paperTrading", () => ({
   fetch52WLevels: vi.fn().mockResolvedValue({ high_52w: 3625, low_52w: 2800 }),
 }));
 
-vi.mock("react-router-dom", () => ({
+vi.mock("@solidjs/router", () => ({
   useNavigate: vi.fn(() => vi.fn()),
   useLocation: vi.fn(() => ({ pathname: "/" })),
-  BrowserRouter: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  BrowserRouter: ({ children }: { children: JSX.Element }) => <>{children}</>,
 }));
 
 vi.mock("../common/PreviewChartProvider", () => ({
@@ -142,8 +157,8 @@ function resetState() {
   currentState = createMockState();
 }
 
-function r(jsx: React.ReactElement) {
-  return renderWithProviders(jsx);
+function r(component: () => JSX.Element) {
+  return render(component);
 }
 
 function rWithPosition(
@@ -160,7 +175,7 @@ function rWithPosition(
     botSnapshot: null,
     ...stateOverrides,
   });
-  r(<PaperPositionsTable />);
+  r(() => <PaperPositionsTable />);
   return pos;
 }
 
@@ -168,7 +183,7 @@ function rWithCloseAllEnabled(positionOverrides: Partial<PaperPosition> = {}) {
   return rWithPosition(
     { current_price: 2550, ...positionOverrides },
     {
-      availableBots: [{ id: "bot-1", name: "Bot 1", strategies: [], is_active: true }],
+      availableBots: [{ id: "bot-1", name: "Bot 1", strategies: [], is_active: true, live_trading: false }],
     },
   );
 }
@@ -181,7 +196,7 @@ function rWithTwoPositions(
   const pos1 = mockPosition({ symbol: "RELIANCE", side: "BUY", ...pos1Overrides });
   const pos2 = mockPosition({ symbol: "INFY", side: "BUY", ...pos2Overrides });
   setState({ positions: [pos1, pos2], botSnapshot: null, ...stateOverrides });
-  r(<PaperPositionsTable />);
+  r(() => <PaperPositionsTable />);
   return { pos1, pos2 };
 }
 
@@ -198,20 +213,20 @@ describe("PaperPositionsTable", () => {
   describe("Empty states", () => {
     test("shows empty state when positions is empty and no botSnapshot", () => {
       setState({ positions: [], botSnapshot: null, isLoading: false });
-      r(<PaperPositionsTable />);
+      r(() => <PaperPositionsTable />);
       expect(screen.getByTestId("positions-empty")).toBeInTheDocument();
       expect(screen.getByText("No open positions")).toBeInTheDocument();
     });
 
     test("shows loading state when isLoading and no positions", () => {
       setState({ isLoading: true, positions: [], botSnapshot: null });
-      r(<PaperPositionsTable />);
+      r(() => <PaperPositionsTable />);
       expect(screen.getByText("Loading positions...")).toBeInTheDocument();
     });
 
     test("no positions but botSnapshot present shows empty positions", () => {
       setState({ positions: [], botSnapshot: mockBotSnapshot });
-      r(<PaperPositionsTable />);
+      r(() => <PaperPositionsTable />);
 
       expect(screen.getByTestId("positions-empty")).toBeInTheDocument();
     });
@@ -234,9 +249,8 @@ describe("PaperPositionsTable", () => {
     });
 
     test("position row click triggers symbol selection", async () => {
-      const user = userEvent.setup();
       rWithPosition();
-      await user.click(screen.getByText("RELIANCE"));
+      await fireEvent.click(screen.getByText("RELIANCE"));
       const { setSelectedSymbol } = await import("../../state/paperTrading");
       expect(setSelectedSymbol).toHaveBeenCalledWith("RELIANCE");
       const { fetchPaperChart } = await import("../../api/paperTrading");
@@ -323,7 +337,7 @@ describe("PaperPositionsTable", () => {
 
     test("CloseAll button NOT rendered when no positions", () => {
       setState({ positions: [], botSnapshot: null });
-      r(<PaperPositionsTable />);
+      r(() => <PaperPositionsTable />);
 
       expect(screen.queryByTestId("close-all-positions")).not.toBeInTheDocument();
     });
@@ -367,7 +381,6 @@ describe("PaperPositionsTable", () => {
 
   describe("CloseAll button loading and error", () => {
     test("closeAllPositions loading state shows loading indicator", async () => {
-      const user = userEvent.setup();
       const { closeAllPositions } = await import("../../api/paperTrading");
       vi.mocked(closeAllPositions).mockReturnValueOnce(new Promise(() => {}));
       const confirmMock = vi.fn(() => true);
@@ -376,12 +389,11 @@ describe("PaperPositionsTable", () => {
       rWithCloseAllEnabled();
 
       expect(screen.queryByText("Closing...")).not.toBeInTheDocument();
-      await user.click(screen.getByTestId("close-all-positions"));
+      await fireEvent.click(screen.getByTestId("close-all-positions"));
       expect(screen.getByText("Closing...")).toBeInTheDocument();
     });
 
     test("error alert renders when closeAllPositions fails", async () => {
-      const user = userEvent.setup();
       const { closeAllPositions } = await import("../../api/paperTrading");
       vi.mocked(closeAllPositions).mockRejectedValueOnce(new Error("Network error"));
       const confirmMock = vi.fn(() => true);
@@ -391,7 +403,7 @@ describe("PaperPositionsTable", () => {
 
       rWithCloseAllEnabled();
 
-      await user.click(screen.getByTestId("close-all-positions"));
+      await fireEvent.click(screen.getByTestId("close-all-positions"));
       await waitFor(() => {
         expect(alertMock).toHaveBeenCalledWith("Network error");
       });
@@ -415,14 +427,13 @@ describe("PaperPositionsTable", () => {
     });
 
     test("Infinity current_price excluded from closeAll payload", async () => {
-      const user = userEvent.setup();
       const { closeAllPositions } = await import("../../api/paperTrading");
       const confirmMock = vi.fn(() => true);
       window.confirm = confirmMock as any;
       rWithTwoPositions({ current_price: Infinity, symbol: "RELIANCE" }, { current_price: 2550, symbol: "TCS" }, {
-        availableBots: [{ id: "bot-1", name: "Bot 1", strategies: [], is_active: true }],
+        availableBots: [{ id: "bot-1", name: "Bot 1", strategies: [], is_active: true, live_trading: false }],
       });
-      await user.click(screen.getByTestId("close-all-positions"));
+      await fireEvent.click(screen.getByTestId("close-all-positions"));
       await waitFor(() => expect(closeAllPositions).toHaveBeenCalled());
       const prices = (closeAllPositions as any).mock.calls[0][1];
       expect(prices["RELIANCE"]).toBeUndefined();
@@ -436,29 +447,26 @@ describe("PaperPositionsTable", () => {
     });
 
     test("window.confirm false path does not call closePaperPosition", async () => {
-      const user = userEvent.setup();
       const { closePaperPosition } = await import("../../api/paperTrading");
       const confirmMock = vi.fn(() => false);
       window.confirm = confirmMock as any;
       rWithPosition({ current_price: 2550 });
       const closeBtn = screen.queryByTestId("close-position-1-RELIANCE") || screen.getByTestId("close-position-RELIANCE");
-      await user.click(closeBtn);
+      await fireEvent.click(closeBtn);
       expect(confirmMock).toHaveBeenCalled();
       expect(closePaperPosition).not.toHaveBeenCalled();
     });
 
     test("window.confirm false path for Close All does not call closeAllPositions", async () => {
-      const user = userEvent.setup();
       const { closeAllPositions } = await import("../../api/paperTrading");
       const confirmMock = vi.fn(() => false);
       window.confirm = confirmMock as any;
       rWithCloseAllEnabled();
-      await user.click(screen.getByTestId("close-all-positions"));
+      await fireEvent.click(screen.getByTestId("close-all-positions"));
       expect(closeAllPositions).not.toHaveBeenCalled();
     });
 
     test("concurrent handleCloseAll double-click calls closeAllPositions only once", async () => {
-      const user = userEvent.setup();
       const { closeAllPositions } = await import("../../api/paperTrading");
       // pending promise to keep closing=true
       let resolve: any;
@@ -467,9 +475,9 @@ describe("PaperPositionsTable", () => {
       window.confirm = confirmMock as any;
       rWithCloseAllEnabled();
       const btn = screen.getByTestId("close-all-positions");
-      await user.click(btn);
+      await fireEvent.click(btn);
       // second click while still closing should be ignored (button is disabled when loading, so click throws pointer-events error)
-      try { await user.click(btn); } catch {}
+      try { await fireEvent.click(btn); } catch {}
       expect(closeAllPositions).toHaveBeenCalledTimes(1);
       resolve(undefined);
       await waitFor(() => expect(screen.queryByText("Closing...")).not.toBeInTheDocument());

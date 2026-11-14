@@ -1,4 +1,3 @@
-import { memo } from "react";
 import {
   IconChartLine,
   IconChartDots,
@@ -12,13 +11,13 @@ import {
   IconNews,
   IconShield,
   IconPlayerPlay,
-  IconLayoutGrid,
   IconChartCandle,
   IconAdjustments,
   IconFlask,
   IconReportAnalytics,
   IconLeaf,
-} from "@tabler/icons-react";
+} from "../common/Icons";
+import { For, Show, createMemo } from "solid-js";
 import { Box, Group, ScrollArea, Stack, ActionIcon, Divider, useColorScheme } from "@/ui";
 import { NavbarLinksGroup } from "./NavbarLinksGroup";
 import { UserButton } from "./UserButton";
@@ -40,7 +39,6 @@ const navItems = [
   { label: "Strategy Runner", icon: IconAdjustments, link: "/strategy-runner" },
   { label: "Sector Analysis", icon: IconBuildingFactory, link: "/sector" },
   { label: "Agri Prices", icon: IconLeaf, link: "/agri" },
-  { label: "Heatmap", icon: IconLayoutGrid, link: "/heatmap" },
   { label: "Order Flow", icon: IconChartCandle, link: "/orderflow" },
   { label: "Patterns", icon: IconChartCandle, link: "/patterns" },
   { label: "Reports", icon: IconReportAnalytics, link: "/report" },
@@ -53,46 +51,31 @@ const navItems = [
   { label: "Admin", icon: IconShield, link: "/admin" },
 ];
 
-export const NavbarNested = memo(function NavbarNested({
-  activePath,
-  collapsed,
-  onMobileNavigate,
-}: NavbarNestedProps) {
+export function NavbarNested(props: NavbarNestedProps) {
   const { colorScheme, toggleColorScheme } = useColorScheme();
-  const { user } = useAuth();
+  const auth = useAuth();
 
-  const visibleNavItems = navItems.filter((item) => item.label !== "Admin" || user?.is_admin);
-
-  const themeToggle = (
-    <ActionIcon
-      variant="subtle"
-      size="sm"
-      onClick={toggleColorScheme}
-      aria-label="Toggle color scheme"
-      data-testid="theme-toggle-btn"
-    >
-      {colorScheme === "dark" ? <IconSun size={16} /> : <IconMoon size={16} />}
-    </ActionIcon>
+  const visibleNavItems = createMemo(() =>
+    navItems.filter((item) => item.label !== "Admin" || auth.user?.is_admin),
   );
-
-  const links = visibleNavItems.map((item) => (
-    <NavbarLinksGroup
-      key={item.label}
-      icon={item.icon}
-      label={item.label}
-      link={item.link}
-      active={activePath === item.link}
-      collapsed={collapsed}
-      onNavigate={onMobileNavigate}
-    />
-  ));
 
   return (
     <Box data-testid="sidemenu" id="navbar-nested" className="flex flex-col flex-1 min-h-0">
       <Box className="flex-1 min-h-0 overflow-hidden" id="navbar-links" data-testid="navbar-links">
         <ScrollArea h="100%" type="scroll">
           <Stack gap={1} p={1}>
-            {links}
+            <For each={visibleNavItems()}>
+              {(item) => (
+                <NavbarLinksGroup
+                  icon={item.icon}
+                  label={item.label}
+                  link={item.link}
+                  active={props.activePath === item.link}
+                  collapsed={props.collapsed}
+                  onNavigate={props.onMobileNavigate}
+                />
+              )}
+            </For>
           </Stack>
         </ScrollArea>
       </Box>
@@ -100,20 +83,45 @@ export const NavbarNested = memo(function NavbarNested({
       <Divider />
 
       <Box p={1} id="navbar-footer" data-testid="navbar-footer">
-        {collapsed ? (
-          // A 64px rail cannot hold the user row and the theme toggle side by
-          // side; stacking them centered keeps both inside the rail.
+        <Show
+          when={props.collapsed}
+          fallback={
+            <Group justify="space-between" px={1}>
+              <UserButton />
+              <Group gap={1}>
+                <ActionIcon
+                  variant="subtle"
+                  size="sm"
+                  onClick={toggleColorScheme}
+                  aria-label="Toggle color scheme"
+                  data-testid="theme-toggle-btn"
+                >
+                  <Show when={colorScheme() === "dark"} fallback={<IconMoon size={16} />}>
+                    <IconSun size={16} />
+                  </Show>
+                </ActionIcon>
+              </Group>
+            </Group>
+          }
+        >
+          {/* A 64px rail cannot hold the user row and the theme toggle side by
+              side; stacking them centered keeps both inside the rail. */}
           <Stack align="center" gap={0.5}>
             <UserButton collapsed />
-            {themeToggle}
+            <ActionIcon
+              variant="subtle"
+              size="sm"
+              onClick={toggleColorScheme}
+              aria-label="Toggle color scheme"
+              data-testid="theme-toggle-btn"
+            >
+              <Show when={colorScheme() === "dark"} fallback={<IconMoon size={16} />}>
+                <IconSun size={16} />
+              </Show>
+            </ActionIcon>
           </Stack>
-        ) : (
-          <Group justify="space-between" px={1}>
-            <UserButton />
-            <Group gap={1}>{themeToggle}</Group>
-          </Group>
-        )}
+        </Show>
       </Box>
     </Box>
   );
-});
+}

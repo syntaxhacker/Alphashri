@@ -1,11 +1,14 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { DiaryStrip } from "./DiaryStrip";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 import type { PaperTrade } from "./paperTrades";
 
 const trade: PaperTrade = {
@@ -38,21 +41,20 @@ afterEach(() => {
 
 describe("DiaryStrip review", () => {
   it("shows conviction and opens the revisit editor", async () => {
-    renderWithProviders(<DiaryStrip {...props} />);
+    render(() => <DiaryStrip {...props} />);
     expect(screen.getByText("HIGH")).toBeInTheDocument();
-    await userEvent.click(screen.getByTestId("diary-review-t1"));
+    fireEvent.click(screen.getByTestId("diary-review-t1"));
     expect(screen.getByTestId("diary-review-panel-t1")).toBeInTheDocument();
     expect(screen.getByTestId("diary-plan-t1")).toHaveTextContent("morning breakout");
   });
 
   it("saves what happened and what went wrong", async () => {
-    renderWithProviders(<DiaryStrip {...props} />);
-    await userEvent.click(screen.getByTestId("diary-review-t1"));
-    await userEvent.type(
-      screen.getByTestId("diary-review-text-t1"),
-      "Chopped till noon then ran without me",
-    );
-    await userEvent.click(screen.getByTestId("diary-review-save-t1"));
+    render(() => <DiaryStrip {...props} />);
+    fireEvent.click(screen.getByTestId("diary-review-t1"));
+    fireEvent.input(screen.getByTestId("diary-review-text-t1"), {
+      target: { value: "Chopped till noon then ran without me" },
+    });
+    fireEvent.click(screen.getByTestId("diary-review-save-t1"));
     expect(props.onUpdateTrade).toHaveBeenCalledWith(
       "t1",
       expect.objectContaining({ review: "Chopped till noon then ran without me" }),

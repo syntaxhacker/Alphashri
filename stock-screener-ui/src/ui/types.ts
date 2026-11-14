@@ -1,11 +1,11 @@
-import type { ReactNode, CSSProperties, MouseEvent, KeyboardEvent, ElementType } from "react";
+import type { JSX } from "solid-js";
 
 export type UITheme = typeof import("./sxTheme").sxTheme;
 
 export interface UIBaseProps {
-  children?: ReactNode;
+  children?: JSX.Element;
   className?: string;
-  style?: CSSProperties;
+  style?: JSX.CSSProperties;
   id?: string;
   "data-testid"?: string;
   onClick?: (e: MouseEvent) => void;
@@ -32,7 +32,16 @@ export type UIJustify = "flex-start" | "center" | "flex-end" | "space-between" |
 export type UIAlignItems = "flex-start" | "center" | "flex-end" | "stretch" | "baseline";
 export type UIGap = UISize | number | string;
 export type UIRadius = UISize | number | "xl";
-export type UIVariant = "filled" | "light" | "outline" | "subtle" | "default" | "transparent" | "white";
+export type UIVariant =
+  | "filled"
+  | "light"
+  | "outline"
+  | "subtle"
+  | "default"
+  | "transparent"
+  | "white"
+  /** Status pill: colour dot + label. */
+  | "dot";
 
 export interface UIBoxProps extends UIBaseProps {
   onClick?: (e: MouseEvent) => void;
@@ -85,7 +94,7 @@ export interface UIGroupProps extends UIFlexProps {
 }
 
 export interface UICenterProps extends UIBaseProps {
-  children?: ReactNode;
+  children?: JSX.Element;
   inline?: boolean;
 }
 
@@ -106,6 +115,7 @@ export interface UIScrollAreaProps extends UIBaseProps {
   offsetScrollbars?: boolean;
   scrollbarSize?: number;
   scrollHideDelay?: number;
+  onScroll?: (e: Event & { currentTarget: HTMLDivElement }) => void;
   onScrollPositionChange?: (pos: { x: number; y: number }) => void;
 }
 
@@ -113,7 +123,7 @@ export interface UIDividerProps extends UIBaseProps {
   orientation?: "horizontal" | "vertical";
   color?: UIColor;
   size?: number | string;
-  label?: ReactNode;
+  label?: JSX.Element;
   labelPosition?: "left" | "center" | "right";
 }
 
@@ -144,7 +154,7 @@ export interface UIGridColProps extends UIBaseProps {
 }
 
 export interface UITextProps extends UIBaseProps {
-  component?: ElementType;
+  component?: keyof JSX.IntrinsicElements;
   p?: number | string;
   px?: number | string;
   py?: number | string;
@@ -163,6 +173,8 @@ export interface UITextProps extends UIBaseProps {
   maw?: number | string;
   opacity?: number;
   fs?: string;
+  /** `text-transform` — `uppercase` for section labels, `capitalize` for headings. */
+  tt?: "uppercase" | "lowercase" | "capitalize" | "none";
   /** Native tooltip — the full text when the visible label is truncated. */
   title?: string;
   size?: UISize;
@@ -178,7 +190,9 @@ export interface UITextProps extends UIBaseProps {
 
 export interface UITitleProps extends UIBaseProps {
   order?: 1 | 2 | 3 | 4 | 5 | 6;
-  component?: ElementType;
+  /** Native tooltip attribute — forwarded to the root element. */
+  title?: string;
+  component?: keyof JSX.IntrinsicElements;
   mt?: number | string;
   mb?: number | string;
   ml?: number | string;
@@ -210,27 +224,29 @@ export interface UIListProps extends UIBaseProps {
   spacing?: UIGap;
   listStyleType?: string;
   center?: boolean;
-  icon?: ReactNode;
+  icon?: JSX.Element;
 }
 
 export interface UIListItemProps extends UIBaseProps {}
 
 export interface UIBadgeProps extends UIBaseProps {
   variant?: UIVariant;
+  /** Native tooltip attribute — forwarded to the badge element. */
+  title?: string;
   color?: UIColor;
   size?: UISize;
   radius?: UIRadius;
   fullWidth?: boolean;
-  leftSection?: ReactNode;
-  rightSection?: ReactNode;
+  leftSection?: JSX.Element;
+  rightSection?: JSX.Element;
 }
 
 export interface UIAlertProps extends UIBaseProps {
   variant?: "filled" | "light" | "outline" | "default" | "transparent";
   color?: UIColor;
   radius?: UIRadius;
-  icon?: ReactNode;
-  title?: ReactNode;
+  icon?: JSX.Element;
+  title?: JSX.Element;
   withCloseButton?: boolean;
   onClose?: () => void;
 }
@@ -280,14 +296,16 @@ export interface UIOverlayProps extends UIBaseProps {
 
 export interface UIButtonProps extends UIBaseProps {
   variant?: "filled" | "light" | "outline" | "subtle" | "default" | "transparent" | "white";
+  /** Native tooltip attribute — forwarded to the <button>. */
+  title?: string;
   color?: UIColor;
   size?: UISize;
   radius?: UIRadius;
   fullWidth?: boolean;
   disabled?: boolean;
   loading?: boolean;
-  leftSection?: ReactNode;
-  rightSection?: ReactNode;
+  leftSection?: JSX.Element;
+  rightSection?: JSX.Element;
   type?: "button" | "submit" | "reset";
   compact?: boolean;
   onClick?: (e: MouseEvent) => void;
@@ -295,6 +313,8 @@ export interface UIButtonProps extends UIBaseProps {
 
 export interface UIActionIconProps extends UIBaseProps {
   variant?: "filled" | "light" | "outline" | "subtle" | "default" | "transparent";
+  /** Native tooltip attribute — forwarded to the <button>. */
+  title?: string;
   color?: UIColor;
   size?: UISize | number | string;
   radius?: UIRadius;
@@ -307,10 +327,22 @@ export interface UIUnstyledButtonProps extends UIBaseProps {
   onClick?: (e: MouseEvent) => void;
 }
 
+/**
+ * Props carried over from the Mantine-era API. Accepted so old call sites keep
+ * compiling, stripped before render — they can never affect the DOM.
+ */
+export interface UIInputCompatProps {
+  errorProps?: Record<string, unknown>;
+  styles?: Record<string, unknown>;
+  loading?: boolean;
+  variant?: string;
+}
+
 export interface UIInputWrapperProps extends UIBaseProps {
-  label?: ReactNode;
-  description?: ReactNode;
-  error?: ReactNode;
+  label?: JSX.Element;
+  description?: JSX.Element;
+  /** Message or flag; a string is shown as the helper text. */
+  error?: boolean | string | JSX.Element;
   required?: boolean;
   disabled?: boolean;
   readOnly?: boolean;
@@ -318,6 +350,8 @@ export interface UIInputWrapperProps extends UIBaseProps {
   placeholder?: string;
   /** Form field name — forwarded to the native input for FormData support. */
   name?: string;
+  /** Accessible name for the control (multi-selects render a combobox, not a label). */
+  "aria-label"?: string;
   /** Explicit control width (number → px). When set, fullWidth is disabled. */
   w?: number | string;
   /** Explicit control height (number → px). */
@@ -329,14 +363,14 @@ export interface UITextInputProps extends UIInputWrapperProps {
   defaultValue?: string;
   onChange?: (value: string) => void;
   onKeyDown?: (e: KeyboardEvent) => void;
-  onFocus?: (e: React.FocusEvent) => void;
-  onBlur?: (e: React.FocusEvent) => void;
-  leftSection?: ReactNode;
-  rightSection?: ReactNode;
+  onFocus?: (e: FocusEvent) => void;
+  onBlur?: (e: FocusEvent) => void;
+  leftSection?: JSX.Element;
+  rightSection?: JSX.Element;
   type?: string;
 }
 
-export interface UINumberInputProps extends UIInputWrapperProps {
+export interface UINumberInputProps extends UIInputWrapperProps, UIInputCompatProps {
   value?: number | string;
   defaultValue?: number | string;
   onChange?: (value: number | string) => void;
@@ -350,8 +384,11 @@ export interface UINumberInputProps extends UIInputWrapperProps {
   hideControls?: boolean;
   suffix?: string;
   prefix?: string;
-  leftSection?: ReactNode;
-  rightSection?: ReactNode;
+  onFocus?: (e: FocusEvent) => void;
+  onBlur?: (e: FocusEvent) => void;
+  onKeyDown?: (e: KeyboardEvent) => void;
+  leftSection?: JSX.Element;
+  rightSection?: JSX.Element;
 }
 
 export interface UISelectProps extends UIInputWrapperProps {
@@ -361,8 +398,8 @@ export interface UISelectProps extends UIInputWrapperProps {
   data?: (string | { value: string; label: string; disabled?: boolean })[];
   searchable?: boolean;
   clearable?: boolean;
-  leftSection?: ReactNode;
-  rightSection?: ReactNode;
+  leftSection?: JSX.Element;
+  rightSection?: JSX.Element;
   nothingFoundMessage?: string;
   placeholder?: string;
   /**
@@ -396,8 +433,8 @@ export interface UIMultiSelectProps extends UIInputWrapperProps {
   clearable?: boolean;
   placeholder?: string;
   nothingFoundMessage?: string;
-  leftSection?: ReactNode;
-  rightSection?: ReactNode;
+  leftSection?: JSX.Element;
+  rightSection?: JSX.Element;
   maxValues?: number;
   hidePickedOptions?: boolean;
   /** Hide the inline selected tags (the caller renders its own chip row). */
@@ -431,32 +468,35 @@ export interface UIPasswordInputProps extends UITextInputProps {
 }
 
 export interface UISwitchProps extends UIBaseProps {
-  label?: ReactNode;
+  label?: JSX.Element;
   checked?: boolean;
   defaultChecked?: boolean;
-  onChange?: React.ChangeEventHandler<HTMLInputElement>;
+  onChange?: (e: Event & { currentTarget: HTMLInputElement | HTMLSelectElement; target: Element }) => void;
   disabled?: boolean;
   size?: UISize;
   color?: UIColor;
   onLabel?: string;
   offLabel?: string;
-  description?: ReactNode;
+  description?: JSX.Element;
+  /** Validation failure — renders the negative border like every text control. */
+  error?: boolean | string;
 }
 
 export interface UICheckboxProps extends UIBaseProps {
-  label?: ReactNode;
+  label?: JSX.Element;
   checked?: boolean;
   defaultChecked?: boolean;
-  onChange?: React.ChangeEventHandler<HTMLInputElement>;
+  onChange?: (e: Event & { currentTarget: HTMLInputElement | HTMLSelectElement; target: Element }) => void;
   disabled?: boolean;
   size?: UISize;
   color?: UIColor;
   indeterminate?: boolean;
-  description?: ReactNode;
+  description?: JSX.Element;
+  error?: boolean | string;
 }
 
 export interface UIChipProps extends UIBaseProps {
-  label?: ReactNode;
+  label?: JSX.Element;
   checked?: boolean;
   defaultChecked?: boolean;
   onChange?: (checked: boolean) => void;
@@ -481,7 +521,7 @@ export interface UISegmentedControlProps extends UIBaseProps {
 export interface UIModalProps extends UIBaseProps {
   opened: boolean;
   onClose: () => void;
-  title?: ReactNode;
+  title?: JSX.Element;
   size?: UISize | number | string;
   fullScreen?: boolean;
   centered?: boolean;
@@ -494,7 +534,7 @@ export interface UIModalProps extends UIBaseProps {
 }
 
 export interface UITooltipProps extends UIBaseProps {
-  label: ReactNode;
+  label: JSX.Element;
   withArrow?: boolean;
   position?: "top" | "bottom" | "left" | "right" | "top-start" | "top-end" | "bottom-start" | "bottom-end";
   openDelay?: number;
@@ -509,7 +549,9 @@ export interface UITooltipProps extends UIBaseProps {
   withinPortal?: boolean;
 }
 
-export interface UIPopoverProps extends UIBaseProps {
+// Popover accepts a render-prop child, so it cannot inherit the plain
+// `children` type from UIBaseProps.
+export interface UIPopoverProps extends Omit<UIBaseProps, "children"> {
   opened?: boolean;
   onClose?: () => void;
   /** Mantine-style controlled callback: called with the next opened state. */
@@ -524,18 +566,18 @@ export interface UIPopoverProps extends UIBaseProps {
   middlewares?: any;
   keepMounted?: boolean;
   /** Render function receiving { ref, toggle, close, open, opened } or direct children */
-  children?: ReactNode | ((payload: { ref: any; toggle: () => void; close: () => void; opened: boolean }) => ReactNode);
+  children?: JSX.Element | ((payload: { ref: any; toggle: () => void; close: () => void; opened: boolean }) => JSX.Element);
 }
 
 export interface UIPopoverTargetProps extends UIBaseProps {}
 export interface UIPopoverDropdownProps extends UIBaseProps {}
 
 export interface UINavLinkProps extends UIBaseProps {
-  label: ReactNode;
-  description?: ReactNode;
-  icon?: ReactNode;
-  leftSection?: ReactNode;
-  rightSection?: ReactNode;
+  label: JSX.Element;
+  description?: JSX.Element;
+  icon?: JSX.Element;
+  leftSection?: JSX.Element;
+  rightSection?: JSX.Element;
   href?: string;
   active?: boolean;
   disabled?: boolean;
@@ -543,7 +585,7 @@ export interface UINavLinkProps extends UIBaseProps {
   defaultOpened?: boolean;
   opened?: boolean;
   onClick?: () => void;
-  children?: ReactNode;
+  children?: JSX.Element;
   autoContrast?: boolean;
 }
 
@@ -594,8 +636,10 @@ export interface UITabsProps extends UIBaseProps {
 
 export interface UITabProps extends UIBaseProps {
   value: string;
-  icon?: ReactNode;
-  rightSection?: ReactNode;
+  icon?: JSX.Element;
+  /** Leading slot, rendered before the icon — matches `UIButtonProps`. */
+  leftSection?: JSX.Element;
+  rightSection?: JSX.Element;
   disabled?: boolean;
 }
 
@@ -632,8 +676,8 @@ export interface UITimelineProps extends UIBaseProps {
 }
 
 export interface UITimelineItemProps extends UIBaseProps {
-  title?: ReactNode;
-  bullet?: ReactNode;
+  title?: JSX.Element;
+  bullet?: JSX.Element;
   color?: UIColor;
   lineVariant?: "solid" | "dashed" | "dotted";
   active?: boolean;
@@ -653,7 +697,7 @@ export interface UITreeProps extends UIBaseProps {
   onExpandedChange?: (expanded: string[]) => void;
   onNodeClick?: (node: UITreeNode) => void;
   levelOffset?: number;
-  renderNode?: (payload: { node: UITreeNode; expanded: boolean; hasChildren: boolean; level: number; elementProps?: any }) => ReactNode;
+  renderNode?: (payload: { node: UITreeNode; expanded: boolean; hasChildren: boolean; level: number; elementProps?: any }) => JSX.Element;
 }
 
 export interface UIMenuProps extends UIBaseProps {
@@ -667,16 +711,16 @@ export interface UIMenuProps extends UIBaseProps {
   closeOnItemClick?: boolean;
   closeOnClickOutside?: boolean;
   loop?: boolean;
-  children?: ReactNode;
+  children?: JSX.Element;
   /** Render function for custom trigger */
-  renderTarget?: (props: any) => ReactNode;
+  renderTarget?: (props: any) => JSX.Element;
 }
 
 export interface UIMenuTargetProps extends UIBaseProps {}
 export interface UIMenuDropdownProps extends UIBaseProps {}
 export interface UIMenuItemProps extends UIBaseProps {
-  leftSection?: ReactNode;
-  rightSection?: ReactNode;
+  leftSection?: JSX.Element;
+  rightSection?: JSX.Element;
   color?: UIColor;
   disabled?: boolean;
   onClick?: () => void;
@@ -688,7 +732,7 @@ export interface UIAvatarProps extends UIBaseProps {
   color?: UIColor;
   radius?: UIRadius;
   size?: UISize | number | string;
-  children?: ReactNode;
+  children?: JSX.Element;
 }
 
 export interface UIThemeIconProps extends UIBaseProps {
@@ -696,7 +740,7 @@ export interface UIThemeIconProps extends UIBaseProps {
   color?: UIColor;
   size?: UISize | number | string;
   radius?: UIRadius;
-  children?: ReactNode;
+  children?: JSX.Element;
 }
 
 export interface UICloseButtonProps extends UIBaseProps {
@@ -723,13 +767,13 @@ export interface UIDatePickerProps extends UIBaseProps {
 }
 
 export interface UIInputLabelProps extends UIBaseProps {
-  children?: ReactNode;
+  children?: JSX.Element;
   required?: boolean;
   size?: UISize;
 }
 
 export interface UIThemeProviderProps {
-  children: ReactNode;
+  children: JSX.Element;
   defaultColorScheme?: "light" | "dark";
   forceColorScheme?: "light" | "dark";
 }
@@ -753,14 +797,15 @@ export interface UIThemeNotifyProps {
   title?: string;
   message: string;
   color?: UIColor;
-  icon?: ReactNode;
+  icon?: JSX.Element;
   autoClose?: number | boolean;
   withCloseButton?: boolean;
 }
 
 export interface UIUseColorSchemeResult {
-  isDark: boolean;
-  colorScheme: "light" | "dark";
+  /** Accessors, not snapshots — read them in JSX/effects to stay reactive. */
+  isDark: () => boolean;
+  colorScheme: () => "light" | "dark";
   toggleColorScheme: () => void;
   setColorScheme: (scheme: "light" | "dark") => void;
 }

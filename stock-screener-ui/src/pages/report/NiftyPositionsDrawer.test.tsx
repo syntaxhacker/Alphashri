@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
+import type { JSX } from "solid-js";
 import { NiftyPositionsDrawer } from "./NiftyPositionsDrawer";
 import {
   buildPositionRows,
@@ -84,8 +85,8 @@ function twoLegs(): PaperPosition[] {
   ];
 }
 
-function r(node: React.ReactElement) {
-  return render(node, { wrapper: UIProvider });
+function r(ui: () => JSX.Element) {
+  return render(() => <UIProvider>{ui()}</UIProvider>);
 }
 
 afterEach(() => {
@@ -96,7 +97,7 @@ afterEach(() => {
 
 describe("NiftyPositionsDrawer — toolbar button", () => {
   test("shows the open-leg count and net P&L with a dot", () => {
-    r(<NiftyPositionsDrawer positions={twoLegs()} strikes={CHAIN} />);
+    r(() => <NiftyPositionsDrawer positions={twoLegs()} strikes={CHAIN} />);
 
     const button = screen.getByTestId("nifty-positions-button");
     expect(button).toHaveTextContent("POS 2");
@@ -106,7 +107,7 @@ describe("NiftyPositionsDrawer — toolbar button", () => {
   });
 
   test("shows POS 0 · ₹0 and no dot for an empty book", () => {
-    r(<NiftyPositionsDrawer positions={[]} strikes={CHAIN} />);
+    r(() => <NiftyPositionsDrawer positions={[]} strikes={CHAIN} />);
 
     const button = screen.getByTestId("nifty-positions-button");
     expect(button).toHaveTextContent("POS 0");
@@ -115,17 +116,16 @@ describe("NiftyPositionsDrawer — toolbar button", () => {
   });
 
   test("renders the same empty label while the book is not loaded", () => {
-    r(<NiftyPositionsDrawer positions={null} />);
+    r(() => <NiftyPositionsDrawer positions={null} />);
     expect(screen.getByTestId("nifty-positions-button")).toHaveTextContent("POS 0");
   });
 });
 
 describe("NiftyPositionsDrawer — drawer", () => {
   test("click opens PAPER POSITIONS with every leg and the book greeks", async () => {
-    const user = userEvent.setup();
-    r(<NiftyPositionsDrawer positions={twoLegs()} strikes={CHAIN} />);
+    r(() => <NiftyPositionsDrawer positions={twoLegs()} strikes={CHAIN} />);
 
-    await user.click(screen.getByTestId("nifty-positions-button"));
+    fireEvent.click(screen.getByTestId("nifty-positions-button"));
 
     const drawer = await screen.findByTestId("nifty-positions-drawer");
     expect(screen.getByTestId("panel-modal")).toHaveAttribute("data-variant", "drawer");
@@ -152,9 +152,8 @@ describe("NiftyPositionsDrawer — drawer", () => {
   });
 
   test("sums the chain greeks with signed qty and shows each book greek", async () => {
-    const user = userEvent.setup();
-    r(<NiftyPositionsDrawer positions={twoLegs()} strikes={CHAIN} />);
-    await user.click(screen.getByTestId("nifty-positions-button"));
+    r(() => <NiftyPositionsDrawer positions={twoLegs()} strikes={CHAIN} />);
+    fireEvent.click(screen.getByTestId("nifty-positions-button"));
 
     const drawer = await screen.findByTestId("nifty-positions-drawer");
     // Δ = 50×0.52 + (−25)×(−0.48) = 38
@@ -168,20 +167,20 @@ describe("NiftyPositionsDrawer — drawer", () => {
   });
 
   test("keyboard Enter opens the drawer", async () => {
-    const user = userEvent.setup();
-    r(<NiftyPositionsDrawer positions={twoLegs()} strikes={CHAIN} />);
+    r(() => <NiftyPositionsDrawer positions={twoLegs()} strikes={CHAIN} />);
 
-    screen.getByTestId("nifty-positions-button").focus();
+    const user = userEvent.setup();
+    const button = screen.getByTestId("nifty-positions-button");
+    button.focus();
     await user.keyboard("{Enter}");
 
     expect(await screen.findByTestId("nifty-positions-drawer")).toBeInTheDocument();
   });
 
   test("empty book shows the no-positions state", async () => {
-    const user = userEvent.setup();
-    r(<NiftyPositionsDrawer positions={[]} strikes={CHAIN} />);
+    r(() => <NiftyPositionsDrawer positions={[]} strikes={CHAIN} />);
 
-    await user.click(screen.getByTestId("nifty-positions-button"));
+    fireEvent.click(screen.getByTestId("nifty-positions-button"));
 
     const drawer = await screen.findByTestId("nifty-positions-drawer");
     expect(within(drawer).getByTestId("nifty-positions-empty")).toHaveTextContent(
@@ -195,25 +194,18 @@ describe("NiftyPositionsDrawer — drawer", () => {
   test("refreshes on open and every 30s while open", async () => {
     vi.useFakeTimers();
     const onRefresh = vi.fn();
-    r(<NiftyPositionsDrawer positions={twoLegs()} strikes={CHAIN} onRefresh={onRefresh} />);
+    r(() => <NiftyPositionsDrawer positions={twoLegs()} strikes={CHAIN} onRefresh={onRefresh} />);
 
     expect(onRefresh).not.toHaveBeenCalled();
     fireEvent.click(screen.getByTestId("nifty-positions-button"));
-    await act(async () => {
-      await Promise.resolve();
-    });
     expect(onRefresh).toHaveBeenCalledTimes(1);
 
-    await act(async () => {
-      vi.advanceTimersByTime(POSITIONS_REFRESH_MS_FOR_TEST);
-    });
+    vi.advanceTimersByTime(POSITIONS_REFRESH_MS_FOR_TEST);
     expect(onRefresh).toHaveBeenCalledTimes(2);
 
     // Closing the drawer stops the poll.
     fireEvent.click(screen.getByTestId("panel-modal-close"));
-    await act(async () => {
-      vi.advanceTimersByTime(POSITIONS_REFRESH_MS_FOR_TEST * 2);
-    });
+    vi.advanceTimersByTime(POSITIONS_REFRESH_MS_FOR_TEST * 2);
     expect(onRefresh).toHaveBeenCalledTimes(2);
   });
 });

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
-import type { ReactElement } from "react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
+import type { JSX } from "solid-js";
 import { afterEach, describe, expect, test } from "vitest";
 import { UIProvider } from "@/ui";
 import type { NiftyReport } from "@/types/niftyReport";
@@ -19,7 +19,7 @@ function report(over: Partial<NiftyReport> = {}): NiftyReport {
   } as NiftyReport;
 }
 
-function r(jsx: ReactElement) {
+function r(jsx: () => JSX.Element) {
   return render(jsx, { wrapper: UIProvider });
 }
 
@@ -27,21 +27,21 @@ afterEach(cleanup);
 
 describe("NiftyFlowWindows session units", () => {
   test("hides the ₹cr amount for a generic underlying but keeps the verdict", () => {
-    r(<NiftyFlowWindows report={report()} showSessionValue={false} />);
+    r(() => <NiftyFlowWindows report={report()} showSessionValue={false} />);
     const session = screen.getByTestId("flow-session");
     expect(session).toHaveTextContent("CALL BUYING");
     expect(session).not.toHaveTextContent("₹");
   });
 
   test("shows the ₹cr amount by default (NIFTY)", () => {
-    r(<NiftyFlowWindows report={report()} />);
+    r(() => <NiftyFlowWindows report={report()} />);
     expect(screen.getByTestId("flow-session")).toHaveTextContent("₹2,657cr");
   });
 });
 
 describe("NiftyFlowWindows", () => {
   test("renders SESSION / 15m / 5m and badges the 5m flip", () => {
-    r(<NiftyFlowWindows report={report()} />);
+    r(() => <NiftyFlowWindows report={report()} />);
     expect(screen.getByTestId("nifty-flow-windows")).toBeInTheDocument();
     expect(screen.getByTestId("flow-session")).toHaveTextContent("CALL BUYING");
     expect(screen.getByTestId("flow-session")).toHaveTextContent("+₹2,657cr");
@@ -52,7 +52,7 @@ describe("NiftyFlowWindows", () => {
   });
 
   test("aligned legs show ALIGNED instead of a flip", () => {
-    r(
+    r(() => (
       <NiftyFlowWindows
         report={report({
           flow_window: {
@@ -61,14 +61,14 @@ describe("NiftyFlowWindows", () => {
             "5m": { from: "", ce: 1, pe: -1, net: 2 },
           },
         })}
-      />,
-    );
+      />
+    ));
     expect(screen.getByTestId("flow-aligned")).toHaveTextContent("ALIGNED");
     expect(screen.queryByTestId("flow-flip")).not.toBeInTheDocument();
   });
 
   test("aligned legs show the persisted LAST FLIP chip", () => {
-    r(
+    r(() => (
       <NiftyFlowWindows
         report={report({
           flow_window: {
@@ -78,24 +78,24 @@ describe("NiftyFlowWindows", () => {
           },
         })}
         lastFlip={{ at: "2026-11-04T11:28:00+05:30", reason: "5m vs 15m" }}
-      />,
-    );
+      />
+    ));
     expect(screen.getByTestId("flow-last-flip")).toHaveTextContent("LAST FLOW FLIP 11:28");
   });
 
   test("a current flip keeps the FLIP badge and never shows LAST FLIP", () => {
-    r(
+    r(() => (
       <NiftyFlowWindows
         report={report()}
         lastFlip={{ at: "2026-11-04T11:28:00+05:30", reason: "5m vs 15m" }}
-      />,
-    );
+      />
+    ));
     expect(screen.getByTestId("flow-flip")).toBeInTheDocument();
     expect(screen.queryByTestId("flow-last-flip")).not.toBeInTheDocument();
   });
 
   test("the legend chip is keyboard focusable and carries the full rule", () => {
-    r(<NiftyFlowWindows report={report()} />);
+    r(() => <NiftyFlowWindows report={report()} />);
     const chip = screen.getByTestId("flow-legend");
     expect(chip).toHaveAttribute("tabindex", "0");
     expect(chip.getAttribute("aria-label")).toContain("CALL BID");

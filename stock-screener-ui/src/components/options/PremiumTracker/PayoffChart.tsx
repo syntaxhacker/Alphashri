@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { createEffect, onCleanup, onMount, Show } from "solid-js";
+import type * as ECharts from "echarts";
 import { Box, Text } from "@/ui";
-import { useECharts } from "../../../hooks/useECharts";
 import {
   breakevens,
   curveSpots,
@@ -9,6 +9,7 @@ import {
   type PayoffLeg,
 } from "./payoff";
 import { NT_HLINE, CHART_MUTED, CHART_AVG_ENTRY } from "@/ui/palette";
+import { loadEcharts } from "@/utils/loadEcharts";
 
 const LINE_COLOR = NT_HLINE;
 
@@ -23,23 +24,33 @@ interface PayoffChartProps {
 
 function formatINR(value: number): string {
   const sign = value < 0 ? "-" : "";
-  return `${sign}\u20B9${Math.abs(value).toFixed(2)}`;
+  return `${sign}₹${Math.abs(value).toFixed(2)}`;
 }
 
-export function PayoffChart({
-  legs,
-  spot,
-  height = 140,
-  rangePct = 8,
-  "data-testid": testId = "payoff-chart",
-}: PayoffChartProps) {
-  const { chartRef, setChartOption } = useECharts({ isDark: true });
+export function PayoffChart(props: PayoffChartProps) {
+  let chartEl: HTMLDivElement | undefined;
+  let chart: ECharts.ECharts | undefined;
+  let disposed = false;
 
-  useEffect(() => {
+  const height = () => props.height ?? 140;
+  const rangePct = () => props.rangePct ?? 8;
+  const testId = () => props["data-testid"] ?? "payoff-chart";
+
+  async function applyOption(option: Record<string, unknown>) {
+    const lib = await loadEcharts();
+    if (disposed || !chartEl || !lib) return;
+    if (!chart) chart = lib.init(chartEl, null) as ECharts.ECharts;
+    chart.setOption(option, true);
+    chart.resize();
+  }
+
+  createEffect(() => {
+    const legs = props.legs;
     if (legs.length === 0) return;
+    const spot = props.spot;
     const atmFallback = legs[0]?.strike ?? 100;
     const base = spot ?? atmFallback;
-    const spots = curveSpots(base, rangePct);
+    const spots = curveSpots(base, rangePct());
     const curve = payoffCurve(legs, spots);
     const bes = breakevens(legs, spots[0] ?? 0, spots[spots.length - 1] ?? 0);
     const markLineData: Record<string, unknown>[] = [
@@ -60,7 +71,7 @@ export function PayoffChart({
               itemStyle: { color: LINE_COLOR },
             },
           ];
-    void setChartOption({
+    void applyOption({
       animation: false,
       backgroundColor: "transparent",
       tooltip: {
@@ -87,28 +98,42 @@ export function PayoffChart({
         },
       ],
     });
-  }, [legs, spot, rangePct]);
+  });
 
-  if (legs.length === 0) {
-    return (
+  onMount(() => {
+    const handleResize = () => chart?.resize();
+    window.addEventListener("resize", handleResize);
+    onCleanup(() => window.removeEventListener("resize", handleResize));
+  });
+
+  onCleanup(() => {
+    disposed = true;
+    chart?.dispose();
+    chart = undefined;
+  });
+
+  return (
+    <Show when={props.legs.length > 0} fallback={
       <Box
-        data-testid={testId}
+        data-testid={testId()}
         style={{
-          height,
+          height: `${height()}px`,
           width: "100%",
           display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          "align-items": "center",
+          "justify-content": "center",
         }}
       >
         <Text size="sm" className="text-fin-text-muted">
           Add a leg to see payoff
         </Text>
       </Box>
-    );
-  }
-
-  return (
-    <div ref={chartRef} data-testid={testId} style={{ height, width: "100%" }} />
+    }>
+      <div
+        ref={(el) => (chartEl = el)}
+        data-testid={testId()}
+        style={{ height: `${height()}px`, width: "100%" }}
+      />
+    </Show>
   );
 }

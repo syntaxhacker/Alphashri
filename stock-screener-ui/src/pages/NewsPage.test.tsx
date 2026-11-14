@@ -1,11 +1,16 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen, cleanup, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, fireEvent, waitFor, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import NewsPage from "./NewsPage";
-import { renderWithProviders } from "../test-utils/renderWithProviders";
 import { setupBrowserMocks } from "../test-utils/setupBrowser";
+
+// The @/ui Box/Flex/... stubs from src/pages/solidTestStubs.tsx render as
+// intrinsic elements; page tests exercise page wiring, not the theme runtime.
+vi.mock("@/ui", async (importOriginal) => {
+  const { uiLayoutStub } = await import("@/pages/solidTestStubs");
+  return uiLayoutStub(await importOriginal<Record<string, unknown>>());
+});
 
 // Mock modules using vi.hoisted to avoid top-level variable issues
 const { mockUseNewsList, mockUseNewsSourceGroups, mockFetchArticle } = vi.hoisted(() => {
@@ -30,19 +35,18 @@ vi.mock("../api/news", () => ({
   fetchArticle: mockFetchArticle,
 }));
 
-vi.mock("react-router-dom", () => ({
-  useNavigate: vi.fn(),
-  useSearchParams: vi.fn(() => [new URLSearchParams(), vi.fn()]),
+vi.mock("@solidjs/router", () => ({
+  useNavigate: vi.fn(() => vi.fn()),
 }));
 
 vi.mock("../components/news/NewsList", () => ({
-  NewsList: ({ onArticleClick, error }: any) => (
+  NewsList: (props: any) => (
     <div data-testid="news-list">
-      {error && <div data-testid="news-error">{error}</div>}
+      {props.error ? <div data-testid="news-error">{props.error}</div> : null}
       <div
         data-testid="news-item"
         onClick={() =>
-          onArticleClick({
+          props.onArticleClick?.({
             id: 1,
             title: "Test News Article",
             source: "TestSource",
@@ -71,9 +75,9 @@ describe("NewsPage", () => {
     vi.clearAllMocks();
     setupBrowserMocks();
 
-    // Set default mock implementations
+    // Set default mock implementations — the real hooks return accessors
     mockUseNewsList.mockReturnValue({
-      newsItems: [
+      newsItems: () => [
         {
           id: 1,
           title: "Test News Article",
@@ -83,18 +87,18 @@ describe("NewsPage", () => {
           symbols: [{ instrument_key: "TEST123", trading_symbol: "TEST", url: null }],
         },
       ],
-      sources: ["TestSource"],
-      selectedSource: "all",
+      sources: () => ["TestSource"],
+      selectedSource: () => "all",
       setSelectedSource: vi.fn(),
-      loading: false,
-      error: null,
+      loading: () => false,
+      error: () => null,
       loadNews: vi.fn(),
     });
 
     mockUseNewsSourceGroups.mockReturnValue({
-      groupedNewsItems: { TestSource: [] },
-      sourceNames: ["TestSource"],
-      expandedSources: new Set(),
+      groupedNewsItems: () => ({ TestSource: [] }),
+      sourceNames: () => ["TestSource"],
+      expandedSources: () => new Set(),
       toggleSourceExpanded: vi.fn(),
     });
 
@@ -109,7 +113,7 @@ describe("NewsPage", () => {
   });
 
   it("renders the news workspace on desktop", () => {
-    renderWithProviders(<NewsPage />);
+    render(() => <NewsPage />);
     expect(screen.getByTestId("news-page")).toBeInTheDocument();
     expect(screen.getByTestId("news-workspace-header")).toBeInTheDocument();
     expect(screen.getByTestId("news-list-region")).toBeInTheDocument();
@@ -117,36 +121,37 @@ describe("NewsPage", () => {
   });
 
   it("renders news list component", () => {
-    renderWithProviders(<NewsPage />);
+    render(() => <NewsPage />);
     expect(screen.getByText("Test News Article")).toBeInTheDocument();
   });
 
   it("shows error state", () => {
     mockUseNewsList.mockReturnValue({
-      newsItems: [],
-      sources: [],
-      selectedSource: "all",
+      newsItems: () => [],
+      sources: () => [],
+      selectedSource: () => "all",
       setSelectedSource: vi.fn(),
-      loading: false,
-      error: "Failed to load news",
+      loading: () => false,
+      error: () => "Failed to load news",
       loadNews: vi.fn(),
     });
 
-    renderWithProviders(<NewsPage />);
+    render(() => <NewsPage />);
     expect(screen.getByText("Failed to load news")).toBeInTheDocument();
   });
 
   it("clicking article calls fetchArticle", async () => {
-    renderWithProviders(<NewsPage />);
+    render(() => <NewsPage />);
 
     await waitFor(() => {
       expect(screen.getByText("Test News Article")).toBeInTheDocument();
     });
 
     const article = screen.getByText("Test News Article");
-    await userEvent.click(article);
+    fireEvent.click(article);
 
-    expect(mockFetchArticle).toHaveBeenCalledWith("https://example.com/article1");
+    await waitFor(() => {
+      expect(mockFetchArticle).toHaveBeenCalledWith("https://example.com/article1");
+    });
   });
-
 });

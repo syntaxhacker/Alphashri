@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { getIntraday5mColumns, getIntraday10mColumns, getIntraday15mColumns } from "./intraday";
+import { cellOf, cellText } from "./columnTestFixtures";
 
 function fmt(cols: ReturnType<typeof getIntraday5mColumns>, key: string) {
   const c = cols.find((x) => x.key === key);
@@ -24,28 +25,27 @@ describe.each([
     expect(cols[cols.length - 1].key).toBe("sector");
   });
   it("move column + green - red dash for null", () => {
-    const f = fmt(cols, moveKey);
-    expect((f(2.5) as any).value).toBe("+2.50%");
-    expect((f(2.5) as any).className).toBe("success");
-    expect((f(-1) as any).className).toBe("error");
-    expect((f(null) as any).value).toBe("-");
-    expect((f(null) as any).className).toBe("");
-    expect(() => f(NaN)).not.toThrow();
-    expect(() => f(Infinity)).not.toThrow();
-    expect((f(0) as any).className).toBe("success");
+    expect(cellText(() => fmt(cols, moveKey)(2.5))).toBe("+2.50%");
+    expect(cellOf(() => fmt(cols, moveKey)(2.5)).tone).toBe("success");
+    expect(cellOf(() => fmt(cols, moveKey)(-1)).tone).toBe("error");
+    expect(cellText(() => fmt(cols, moveKey)(null))).toBe("-");
+    expect(cellOf(() => fmt(cols, moveKey)(null)).tone).toBe("");
+    expect(() => cellText(() => fmt(cols, moveKey)(NaN))).not.toThrow();
+    expect(() => cellText(() => fmt(cols, moveKey)(Infinity))).not.toThrow();
+    expect(cellOf(() => fmt(cols, moveKey)(0)).tone).toBe("success");
   });
   it("volume_surge formats", () => {
-    const f = fmt(cols, "volume_surge");
-    expect(f(1.5)).toBe("1.5x");
-    expect(f(null)).toBe("1.0x");
-    expect(f(0)).toBe("0.0x");
-    expect(() => f(NaN)).not.toThrow();
+    expect(cellText(() => fmt(cols, "volume_surge")(1.5))).toBe("1.5x");
+    expect(cellText(() => fmt(cols, "volume_surge")(null))).toBe("1.0x");
+    expect(cellText(() => fmt(cols, "volume_surge")(0))).toBe("0.0x");
+    expect(() => cellText(() => fmt(cols, "volume_surge")(NaN))).not.toThrow();
   });
-  it("rsi null -> 0.0", () => expect(fmt(cols, "rsi")(null)).toBe("0.0"));
-  it("volume_m null -> 0.00", () => expect(fmt(cols, "volume_m")(null)).toBe("0.00"));
+  it("rsi null -> 0.0", () => expect(cellText(() => fmt(cols, "rsi")(null))).toBe("0.0"));
+  it("volume_m null -> 0.00", () =>
+    expect(cellText(() => fmt(cols, "volume_m")(null))).toBe("0.00"));
   it("day_change green/red", () => {
-    expect((fmt(cols, "day_change")(1) as any).className).toBe("success");
-    expect((fmt(cols, "day_change")(-1) as any).className).toBe("error");
+    expect(cellOf(() => fmt(cols, "day_change")(1)).tone).toBe("success");
+    expect(cellOf(() => fmt(cols, "day_change")(-1)).tone).toBe("error");
   });
   it("all sortable", () => cols.forEach((c) => expect(c.sortable).toBe(true)));
 });

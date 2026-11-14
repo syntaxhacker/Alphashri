@@ -78,4 +78,4 @@ Mantine-only props are silently dropped — that is the root cause of "stretched
 - Backend owns: candle cleaning + gap fill (`intraday[].synthetic`), spot vs last close (`spot_source`, `spot_chain`), IV/skew/straddle sanity, RV/IV, wall test/rejection/break events, freshness (`data_stale`).
 - The UI renders and formats only. Allowed: memoized O(n) resample (1m→5m/15m), EMA series, annotations from server events, number/date formatting.
 - Forbidden: re-deriving indicators from raw payloads, fabricating/gap-filling candles, event detection, per-tick scans, O(n²) work, deep JSON copies inside render.
-- If a value is missing, add it to the API response — never compute it in React.
+- If a value is missing, add it to the API response — never compute it in the UI.

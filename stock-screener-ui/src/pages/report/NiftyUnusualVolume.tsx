@@ -1,11 +1,9 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
-import { memo, useCallback, useMemo, useState } from "react";
-import type { CSSProperties } from "react";
-import { Box } from "@/ui";
+import { createMemo, createSignal, Show } from "solid-js";
+import type { JSX } from "solid-js";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
-import { TanStackTable } from "@/components/common/TanStackTable";
-import type { ColumnDef } from "@tanstack/react-table";
+import { TanStackTable, type TableColumnDef } from "@/components/common/TanStackTable";
 import type { NiftyStrike } from "@/types/niftyReport";
 import { hexToRgba } from "@/utils/color";
 import { formatReportClock, formatReportCompact, formatReportPct } from "./reportFormat";
@@ -112,12 +110,12 @@ export function getUnusualSentimentTone(sentiment: string, side: "CE" | "PE"): s
  * Terminal palette — matches the reference unusual-volume screenshot:
  * pitch-black desk, CE blue / PE orange bars, plain bold positioning text.
  */
-export const UNUSUAL_TERM_BG = "#000000";
-export const UNUSUAL_TERM_BORDER = "#1A1A1A";
-const UNUSUAL_CE = "#5B9CF6";
-const UNUSUAL_PE = "#F2A65A";
-const UNUSUAL_CALL_VOL = "#5B9CF6";
-const UNUSUAL_PUT_VOL = "#F2A65A";
+export const UNUSUAL_TERM_BG = palette.BG;
+export const UNUSUAL_TERM_BORDER = palette.UNUSUAL_TERM_BORDER;
+const UNUSUAL_CE = palette.UNUSUAL_CE;
+const UNUSUAL_PE = palette.UNUSUAL_PE;
+const UNUSUAL_CALL_VOL = palette.UNUSUAL_CE;
+const UNUSUAL_PUT_VOL = palette.UNUSUAL_PE;
 
 type UnusualLegFilter = "all" | "CE" | "PE";
 
@@ -133,8 +131,8 @@ function positioningText(sentiment: string, side: "CE" | "PE") {
     <span
       title={code ? `${label} (${side}) — ${sentimentNote(code, side)}` : label}
       data-testid={`nifty-unusual-sentiment-${side}`}
-      className="block overflow-hidden truncate whitespace-nowrap shrink-0"
-      style={{ maxWidth: "100%", verticalAlign: "middle" }}
+      class="block overflow-hidden truncate whitespace-nowrap shrink-0"
+      style={{ "max-width": "100%", "vertical-align": "middle" }}
     >
       <Text size="xs" fw={700} c={color} span truncate>
         {label}
@@ -147,12 +145,12 @@ function positioningText(sentiment: string, side: "CE" | "PE") {
 function unusualCell(value: string) {
   return (
     <span
-      className="block overflow-hidden truncate tabular-nums"
+      class="block overflow-hidden truncate tabular-nums"
       style={{
         display: "block",
         overflow: "hidden",
-        textOverflow: "ellipsis",
-        fontVariantNumeric: "tabular-nums",
+        "text-overflow": "ellipsis",
+        "font-variant-numeric": "tabular-nums",
       }}
     >
       <Text size="xs" span c="default">
@@ -168,17 +166,19 @@ export function isItmLeg(strike: number, leg: "CE" | "PE", spot: number): boolea
   return leg === "CE" ? strike < spot : strike > spot;
 }
 
-export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>[] {
+export function getNiftyUnusualColumns(maxVol: number): TableColumnDef<UnusualLegRow>[] {
   return [
     {
+      id: "rank",
       header: "#",
       accessorKey: "rank",
       accessorFn: (row) => row.rank,
       size: 30,
       meta: { align: "center" },
-      cell: (info) => unusualCell(String(info.getValue())),
+      cell: (info) => unusualCell(String(info.row.original.rank)),
     },
     {
+      id: "strike",
       header: "Strike",
       accessorKey: "strike",
       accessorFn: (row) => row.strike,
@@ -186,20 +186,20 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
       meta: { align: "right" },
       // Strike and leg share one cell: the leg is just a suffix, and a separate
       // column cost 46px the narrow panel cannot spare (TanStackTable forces
-      // minWidth = visibleColumnCount x 96).
+      // ["min-width"] = visibleColumnCount x 96).
       cell: (info) => {
         const row = info.row.original as UnusualLegRow;
         const tone = row.leg === "CE" ? UNUSUAL_CE : UNUSUAL_PE;
         return (
           <span
-            className="flex items-baseline justify-end gap-[4px] overflow-hidden tabular-nums"
+            class="flex items-baseline justify-end gap-[4px] overflow-hidden tabular-nums"
             style={{
               display: "flex",
-              alignItems: "baseline",
-              justifyContent: "flex-end",
-              gap: 4,
+              "align-items": "baseline",
+              "justify-content": "flex-end",
+              gap: "4px",
               overflow: "hidden",
-              fontVariantNumeric: "tabular-nums",
+              "font-variant-numeric": "tabular-nums",
             }}
           >
             <Text size="xs" span fw={700}>{formatNumberIN(row.strike)}</Text>
@@ -209,6 +209,7 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
       },
     },
     {
+      id: "volume",
       header: "Vol",
       accessorKey: "volume",
       accessorFn: (row) => row.volume,
@@ -223,36 +224,38 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
         // smaller legs fade toward 0.30 alpha — "more has more background".
         const fillAlpha = 0.3 + 0.7 * ratio;
         return (
-          <Box className="flex items-center gap-[8px] min-w-0">
-            <Box
-              className="flex-1 h-[5px] rounded-0 min-w-0"
-              style={{ backgroundColor: hexToRgba(base, 0.12), borderRadius: 0 }}
+          <div class="flex items-center gap-[8px] min-w-0">
+            <div
+              class="flex-1 h-[5px] rounded-0 min-w-0"
+              style={{ "background-color": hexToRgba(base, 0.12), "border-radius": "0" }}
             >
-              <Box
+              <div
                 data-testid={`nifty-unusual-bar-${row.strike}-${row.leg}`}
                 data-ratio={ratio.toFixed(3)}
-                className="h-full rounded-0"
-                style={{ width: `${pct}%`, opacity: fillAlpha, backgroundColor: base }}
+                class="h-full rounded-0"
+                style={{ width: `${pct}%`, opacity: fillAlpha, "background-color": base }}
               />
-            </Box>
-            <Box className="w-[58px] shrink-0 text-right tabular-nums">
+            </div>
+            <div class="w-[58px] shrink-0 text-right tabular-nums">
               <Text size="xs" span fw={700}>
                 {formatUnusualCompact(row.volume)}
               </Text>
-            </Box>
-          </Box>
+            </div>
+          </div>
         );
       },
     },
     {
+      id: "oi",
       header: "OI",
       accessorKey: "oi",
       accessorFn: (row) => row.oi,
       size: 62,
       meta: { align: "right" },
-      cell: (info) => unusualCell(formatUnusualCompact(Number(info.getValue()))),
+      cell: (info) => unusualCell(formatUnusualCompact(Number(info.row.original.oi))),
     },
     {
+      id: "volOi",
       header: "Vol÷OI",
       accessorKey: "volOi",
       accessorFn: (row) => row.volOi ?? -1,
@@ -266,6 +269,7 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
       },
     },
     {
+      id: "sentiment",
       header: "Position",
       accessorKey: "sentiment",
       accessorFn: (row) => row.sentiment,
@@ -273,7 +277,7 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
       meta: { align: "center" },
       cell: (info) => {
         const row = (info.row.original as UnusualLegRow);
-        return positioningText(String(info.getValue() ?? ""), row.leg);
+        return positioningText(String(info.row.original.sentiment ?? ""), row.leg);
       },
     },
   ];
@@ -311,178 +315,163 @@ function getUnusualRowTestId(row: UnusualLegRow): string {
   return `nifty-unusual-row-${row.strike}-${row.leg}`;
 }
 
-/** Memoised filter pill — replaces the per-render `pill()` closure. */
-const UnusualFilterPill = memo(function UnusualFilterPill({
-  active,
-  label,
-  testId,
-  onClick,
-}: {
+function UnusualFilterPill(props: {
   active: boolean;
   label: string;
   testId: string;
   onClick: () => void;
 }) {
   return (
-    <Box
-      component="button"
-      data-testid={testId}
-      onClick={onClick}
-      className="rounded-full px-[8px] py-[2px] text-[11px] font-bold cursor-pointer whitespace-nowrap shrink-0 border border-solid"
+    <button
+      type="button"
+      data-testid={props.testId}
+      onClick={props.onClick}
+      class="rounded-full px-[8px] py-[2px] text-[11px] font-bold cursor-pointer whitespace-nowrap shrink-0 border border-solid"
       style={{
-        borderColor: active ? "#2FC0AC" : "#30363D",
-        backgroundColor: active ? "rgba(47, 192, 172, 0.18)" : "transparent",
-        color: active ? "#8AE6D4" : "#8B949E",
+        "border-color": props.active ? palette.UNUSUAL_PILL_ACTIVE : palette.UNUSUAL_PILL_BORDER,
+        "background-color": props.active ? hexToRgba(palette.UNUSUAL_PILL_ACTIVE, 0.18) : "transparent",
+        color: props.active ? palette.UNUSUAL_PILL_ACTIVE_TEXT : palette.UNUSUAL_PILL_TEXT,
       }}
     >
-      {label}
-    </Box>
+      {props.label}
+    </button>
   );
-});
-UnusualFilterPill.displayName = "UnusualFilterPill";
+}
 
-function NiftyUnusualVolumeInner({
-  strikes,
-  spot,
-  updatedAtMs = null,
-  nextUpdateAtMs = null,
-}: {
+/**
+ * Ranked Vol÷OI board for one side of the chain — which strikes are trading
+ * unusual premium volume vs their own OI. Feeds the right-hand rail.
+ */
+export function NiftyUnusualVolume(props: {
   strikes: NiftyStrike[];
   spot: number;
   /** Epoch ms of the last successful refresh, and of the next scheduled one. */
   updatedAtMs?: number | null;
   nextUpdateAtMs?: number | null;
 }) {
-  const [legFilter, setLegFilter] = useState<UnusualLegFilter>("all");
-  const rows = useMemo(() => buildUnusualRows(strikes), [strikes]);
-  const totals = useMemo(() => {
+  const [legFilter, setLegFilter] = createSignal<UnusualLegFilter>("all");
+  const rows = createMemo(() => buildUnusualRows(props.strikes));
+  const totals = createMemo(() => {
     let ce = 0;
     let pe = 0;
-    for (const s of strikes ?? []) {
+    for (const s of props.strikes ?? []) {
       ce += s.ce?.volume ?? 0;
       pe += s.pe?.volume ?? 0;
     }
     return { ce, pe };
-  }, [strikes]);
-  const visible = useMemo(
-    () => (legFilter === "all" ? rows : rows.filter((r) => r.leg === legFilter)),
-    [rows, legFilter],
+  });
+  const visible = createMemo(() =>
+    legFilter() === "all" ? rows() : rows().filter((r) => r.leg === legFilter()),
   );
-  const maxVol = useMemo(
-    () => visible.reduce((m, r) => Math.max(m, r.volume), 0),
-    [visible],
+  const maxVol = createMemo(() =>
+    visible().reduce((m, r) => Math.max(m, r.volume), 0),
   );
-  const columns = useMemo(() => getNiftyUnusualColumns(maxVol), [maxVol]);
-  // Stable filter callbacks so the memoised pills keep working props.
-  const selectAll = useCallback(() => setLegFilter("all"), []);
-  const selectCalls = useCallback(() => setLegFilter("CE"), []);
-  const selectPuts = useCallback(() => setLegFilter("PE"), []);
-  // Stable row-style resolver (depends only on spot, not on every render).
-  const getRowStyle = useCallback(
-    (row: UnusualLegRow) =>
-      isItmLeg(row.strike, row.leg, spot)
-        ? { background: hexToRgba(palette.WARNING, 0.08) }
-        : undefined,
-    [spot],
-  );
-  const top = rows[0];
-  const focus = top ? formatUnusualFocus(top, spot) : "";
+  const columns = createMemo(() => getNiftyUnusualColumns(maxVol()));
+  const selectAll = () => setLegFilter("all");
+  const selectCalls = () => setLegFilter("CE");
+  const selectPuts = () => setLegFilter("PE");
+  const getRowStyle = (row: UnusualLegRow) =>
+    isItmLeg(row.strike, row.leg, props.spot)
+      ? { background: hexToRgba(palette.WARNING, 0.08) }
+      : undefined;
+  const top = () => rows()[0];
+  const focus = () => {
+    const t = top();
+    return t ? formatUnusualFocus(t, props.spot) : "";
+  };
   // Split the focus line into label/value pairs for terminal rendering while
   // keeping the exact same text (tests assert the full string).
-  const focusParts = focus ? focus.split(" · ") : [];
+  const focusParts = () => (focus() ? focus().split(" · ") : []);
 
   return (
-    <Box
+    <div
       data-testid="nifty-unusual-panel"
-      className="flex flex-col gap-[4px] min-w-0"
-      style={{ backgroundColor: UNUSUAL_TERM_BG }}
+      class="flex flex-col gap-[4px] min-w-0"
+      style={{ "background-color": UNUSUAL_TERM_BG }}
     >
-      <Box className="flex items-center justify-between gap-[4px] px-[6px] pt-[2px]">
+      <div class="flex items-center justify-between gap-[4px] px-[6px] pt-[2px]">
         <Text size="xs" fw={700} span>Unusual volume</Text>
-        <Box className="flex items-center gap-[4px]">
-          <UnusualFilterPill active={legFilter === "all"} label="C + P" testId="nifty-unusual-filter-all" onClick={selectAll} />
-          <UnusualFilterPill active={legFilter === "CE"} label="Calls" testId="nifty-unusual-filter-ce" onClick={selectCalls} />
-          <UnusualFilterPill active={legFilter === "PE"} label="Puts" testId="nifty-unusual-filter-pe" onClick={selectPuts} />
-        </Box>
-      </Box>
+        <div class="flex items-center gap-[4px]">
+          <UnusualFilterPill active={legFilter() === "all"} label="C + P" testId="nifty-unusual-filter-all" onClick={selectAll} />
+          <UnusualFilterPill active={legFilter() === "CE"} label="Calls" testId="nifty-unusual-filter-ce" onClick={selectCalls} />
+          <UnusualFilterPill active={legFilter() === "PE"} label="Puts" testId="nifty-unusual-filter-pe" onClick={selectPuts} />
+        </div>
+      </div>
       {/* Single wrapping stat line (was two stacked rows): call/put vol +
           top share + rank caption + upd stamp all flow inline — one ~18px
           line at width instead of two blocks. Nothing removed. */}
-      <Box data-testid="nifty-unusual-head" style={{ backgroundColor: UNUSUAL_TERM_BG, paddingLeft: 6, paddingRight: 6 }}>
-        <Box className="flex items-baseline flex-wrap gap-x-[10px] gap-y-0 tabular-nums">
-          <Box className="flex items-baseline gap-[4px]">
+      <div data-testid="nifty-unusual-head" style={{ "background-color": UNUSUAL_TERM_BG, "padding-left": "6px", "padding-right": "6px" }}>
+        <div class="flex items-baseline flex-wrap gap-x-[10px] gap-y-0 tabular-nums">
+          <div class="flex items-baseline gap-[4px]">
             <Text size="xs" span c="dimmed" tt="uppercase" fw={600}>Call vol</Text>
-            <Text data-testid="nifty-unusual-ce-vol" size="xs" span fw={700} c={UNUSUAL_CALL_VOL}>{formatUnusualCompact(totals.ce)}</Text>
-          </Box>
-          <Box className="flex items-baseline gap-[4px]">
+            <Text data-testid="nifty-unusual-ce-vol" size="xs" span fw={700} c={UNUSUAL_CALL_VOL}>{formatUnusualCompact(totals().ce)}</Text>
+          </div>
+          <div class="flex items-baseline gap-[4px]">
             <Text size="xs" span c="dimmed" tt="uppercase" fw={600}>Put vol</Text>
-            <Text data-testid="nifty-unusual-pe-vol" size="xs" span fw={700} c={UNUSUAL_PUT_VOL}>{formatUnusualCompact(totals.pe)}</Text>
-          </Box>
-          <Box className="flex items-baseline gap-[4px]">
+            <Text data-testid="nifty-unusual-pe-vol" size="xs" span fw={700} c={UNUSUAL_PUT_VOL}>{formatUnusualCompact(totals().pe)}</Text>
+          </div>
+          <div class="flex items-baseline gap-[4px]">
             <Text size="xs" span c="dimmed" tt="uppercase" fw={600}>Top share</Text>
-            <Text data-testid="nifty-unusual-top-share" size="xs" span fw={700}>{top ? formatUnusualShare(top.share) : "—"}</Text>
-          </Box>
+            <Text data-testid="nifty-unusual-top-share" size="xs" span fw={700}>{top() ? formatUnusualShare(top()!.share) : "—"}</Text>
+          </div>
           <Text data-testid="nifty-unusual-caption" size="xs" c="dimmed" ta="left" span>
-            ranked by Vol÷OI · {rows.length} legs
+            ranked by Vol÷OI · {rows().length} legs
           </Text>
-          {updatedAtMs !== null && (
-            <Text
-              data-testid="nifty-unusual-updated"
-              size="xs"
-              c="dimmed"
-              span
-              noWrap
-              className="tabular-nums shrink-0"
-              style={{ flexShrink: 0 }}
-            >
-              upd {clock(updatedAtMs)}
-              {nextUpdateAtMs !== null ? ` · next ${clock(nextUpdateAtMs)}` : ""}
-            </Text>
-          )}
-        </Box>
-      </Box>
-      {top && (
-        <Box
+          <Show when={props.updatedAtMs ?? null}>
+            {(stamp) => (
+              <Text
+                data-testid="nifty-unusual-updated"
+                size="xs"
+                c="dimmed"
+                span
+                className="font-mono tabular-nums shrink-0 whitespace-nowrap"
+                style={{ "flex-shrink": "0" }}
+              >
+                upd {clock(stamp())}
+                {props.nextUpdateAtMs != null ? ` · next ${clock(props.nextUpdateAtMs)}` : ""}
+              </Text>
+            )}
+          </Show>
+        </div>
+      </div>
+      <Show when={top()}>
+        <div
           data-testid="nifty-unusual-focus"
-          title={focus}
-          className="whitespace-nowrap overflow-hidden truncate tabular-nums min-w-0 px-[6px] py-[2px] border-t border-b"
+          title={focus()}
+          class="whitespace-nowrap overflow-hidden truncate tabular-nums min-w-0 px-[6px] py-[2px] border-t border-b"
           style={{
-            backgroundColor: "#0A0A0A",
-            borderTop: "1px solid #1A1A1A",
-            borderBottom: "1px solid #1A1A1A",
+            "background-color": palette.SURFACE,
+            "border-top": `1px solid ${UNUSUAL_TERM_BORDER}`,
+            "border-bottom": `1px solid ${UNUSUAL_TERM_BORDER}`,
           }}
         >
           <Text size="xs" span c="dimmed">
-            {focusParts.join(" · ")}
+            {focusParts().join(" · ")}
           </Text>
-        </Box>
-      )}
-      <Box
-        className="flex min-h-[120px] h-[150px] min-w-0 [&_.paper-tanstack-container]:[background:var(--desk-bg)]! [&_.paper-tanstack-scroll]:[background:var(--desk-bg)]! [&_.paper-tanstack-table]:[background:var(--desk-bg)]! [&_.paper-tanstack-cell]:[padding-top:2px]! [&_.paper-tanstack-cell]:[padding-bottom:2px]! [&_.paper-tanstack-cell]:[background:var(--desk-bg)]! [&_.paper-tanstack-cell]:[border-bottom:1px_solid_var(--desk-border)]! [&_.paper-tanstack-cell]:text-[12px]! [&_.paper-tanstack-header-cell]:[padding-top:2px]! [&_.paper-tanstack-header-cell]:[padding-bottom:2px]! [&_.paper-tanstack-header-cell]:[background:var(--desk-bg)]! [&_.paper-tanstack-header-cell]:[border-bottom:1px_solid_var(--desk-grid)]! [&_.paper-tanstack-header-cell]:[color:var(--desk-muted)]! [&_.paper-tanstack-header-cell]:text-[10px]! [&_.paper-tanstack-header-cell]:uppercase!"
+        </div>
+      </Show>
+      <div
+        class="flex min-h-[120px] h-[150px] min-w-0 [&_.paper-tanstack-container]:[background:var(--desk-bg)]! [&_.paper-tanstack-scroll]:[background:var(--desk-bg)]! [&_.paper-tanstack-table]:[background:var(--desk-bg)]! [&_.paper-tanstack-cell]:[padding-top:2px]! [&_.paper-tanstack-cell]:[padding-bottom:2px]! [&_.paper-tanstack-cell]:[background:var(--desk-bg)]! [&_.paper-tanstack-cell]:[border-bottom:1px_solid_var(--desk-border)]! [&_.paper-tanstack-cell]:text-[12px]! [&_.paper-tanstack-header-cell]:[padding-top:2px]! [&_.paper-tanstack-header-cell]:[padding-bottom:2px]! [&_.paper-tanstack-header-cell]:[background:var(--desk-bg)]! [&_.paper-tanstack-header-cell]:[border-bottom:1px_solid_var(--desk-grid)]! [&_.paper-tanstack-header-cell]:[color:var(--desk-muted)]! [&_.paper-tanstack-header-cell]:text-[10px]! [&_.paper-tanstack-header-cell]:uppercase!"
         style={{
-          backgroundColor: UNUSUAL_TERM_BG,
+          "background-color": UNUSUAL_TERM_BG,
           "--desk-bg": UNUSUAL_TERM_BG,
           "--desk-border": UNUSUAL_TERM_BORDER,
           "--desk-grid": palette.NT_GRID,
           "--desk-muted": palette.TEXT_MUTED,
-        } as CSSProperties}
+        } as JSX.CSSProperties}
       >
         <TanStackTable<UnusualLegRow>
-          data={visible}
-          columns={columns}
+          data={visible()}
+          columns={columns()}
           dataTestId="nifty-unusual-table"
           emptyMessage="No chain data"
           fillContainer
           getRowStyle={getRowStyle}
           getRowTestId={getUnusualRowTestId}
           dense
-          style={{ minWidth: 0 }}
+          style={{ "min-width": 0 }}
         />
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }
-
-/** Memoised leaf panel — `strikes` keeps identity between unrelated parent renders. */
-export const NiftyUnusualVolume = memo(NiftyUnusualVolumeInner);
-NiftyUnusualVolume.displayName = "NiftyUnusualVolume";

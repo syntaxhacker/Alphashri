@@ -1,3 +1,4 @@
+import { Show } from "solid-js";
 import { Badge, Box, Group, Text } from "@/ui";
 
 interface SectionHeaderProps {
@@ -5,6 +6,8 @@ interface SectionHeaderProps {
   badge?: string | number;
   color?: string;
   "data-testid"?: string;
+  // Historical spelling used by some callers — kept as an alias.
+  dataTestid?: string;
 }
 
 const ACCENT_CLASS: Record<string, string> = {
@@ -18,18 +21,21 @@ const ACCENT_CLASS: Record<string, string> = {
   grape: "bg-fin-text-muted",
 };
 
-export function SectionHeader({ title, badge, color = "primary", "data-testid": testId }: SectionHeaderProps) {
+export function SectionHeader(props: SectionHeaderProps) {
+  const color = () => props.color ?? "primary";
+  const testId = () => props["data-testid"] ?? props.dataTestid;
+
   return (
-    <Group gap="xs" data-testid={testId}>
-      <Box w={4} h={18} className={`rounded-fin ${ACCENT_CLASS[color] ?? "bg-fin-primary"}`} />
+    <Group gap="xs" data-testid={testId()}>
+      <Box w={4} h={18} className={`rounded-fin ${ACCENT_CLASS[color()] ?? "bg-fin-primary"}`} />
       <Text fw={600} size="sm">
-        {title}
+        {props.title}
       </Text>
-      {badge != null && (
-        <Badge size="sm" variant="light" color={color}>
-          {badge}
+      <Show when={props.badge != null}>
+        <Badge size="sm" variant="light" color={color()}>
+          {props.badge}
         </Badge>
-      )}
+      </Show>
     </Group>
   );
 }

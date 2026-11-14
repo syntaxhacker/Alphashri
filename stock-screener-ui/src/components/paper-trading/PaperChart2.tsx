@@ -1,26 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import {
-  Box,
-  Button,
-  Text,
-  Group,
-  Select,
-  Flex,
-  useColorScheme,
-  Badge,
-  LoadingOverlay,
-  ActionIcon,
-  Popover,
-  PopoverTarget,
-  PopoverDropdown,
-  Chip,
-  Divider,
-  Stack,
-  DatePicker,
-  Card,
-} from "@/ui";
-import { IconDots } from "@tabler/icons-react";
+import { createMemo, createEffect, createSignal, For, Show, onCleanup, onMount } from "solid-js";
+import { useStoreSnapshot } from "./storeSnapshot";
+import { Button, Text, Select, useColorScheme, Badge, LoadingOverlay, ActionIcon, Chip, Divider, DatePicker, Box, Group, Flex, Stack, Card } from "@/ui";
+import { Popover, PopoverTarget, PopoverDropdown } from "./localOverlays";
+import { IconDots } from "@/components/common/Icons";
 import dayjs from "dayjs";
 import {
   getPaperTradingState,
@@ -36,14 +18,14 @@ import {
 } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
 import { getPnLTextColor, formatPercentage } from "../../utils/ui-helpers";
-import { TradingChart } from "../chart/TradingChart";
-import { TradingViewChart } from "../chart/TradingViewChart";
+import { buildChartOption } from "../../utils/chart/buildChartOption";
+import { loadEcharts } from "../../utils/loadEcharts";
+import type { ChartInput } from "../../utils/chart/types";
 import { normalizePaper } from "../../utils/chart/normalizePaper";
 import type { PaperPosition } from "../../types/paperTrading";
 import { TIMEFRAMES } from "../../config/constants";
 import { PRIMARY, POSITIVE, NEGATIVE, PIVOT_OR_HIGH, PIVOT_52W_HIGH, PIVOT_PP, INDICATOR_BLUE_A, TEXT_MUTED, BORDER } from "@/ui/palette";
 import { alpha } from "@/ui/alpha";
-
 const toApiFormat = (val: number): string => {
   if (val === 1) return "1min";
   if (val === 5) return "5min";
@@ -62,70 +44,125 @@ const TIMEFRAME_OPTIONS = TIMEFRAMES.map((tf) => ({
   label: tf.label,
 }));
 
+/**
+ * Solid echarts host for the live chart. The React TradingChart wrapper is
+ * not portable, but its underlying option builder is framework-free, so this
+ * is the same chart rendered directly.
+ */
+function SolidTradingChart(props: { input: ChartInput | null }) {
+  let chartEl: HTMLDivElement | undefined;
+  let chart: any = null;
+  let echartsLib: any = null;
+  let resizeHandler: (() => void) | null = null;
+  let ro: ResizeObserver | null = null;
+  const [libReady, setLibReady] = createSignal(false);
 
-function PositionInfo({ position }: { position: PaperPosition }) {
-  const sideIcon = position.side === "BUY" ? "▲" : "▼";
+  onMount(async () => {
+    const lib = await loadEcharts();
+    if (lib) {
+      echartsLib = lib;
+      setLibReady(true);
+    }
+  });
+
+  onCleanup(() => {
+    if (resizeHandler) window.removeEventListener("resize", resizeHandler);
+    ro?.disconnect();
+    if (chart) {
+      try { chart.dispose(); } catch { /* echarts dispose can throw in headless DOM */ }
+      chart = null;
+    }
+  });
+
+  createEffect(() => {
+    if (!libReady()) return;
+    const input = props.input;
+    if (!input || !chartEl) return;
+    if (!chart) {
+      chart = echartsLib.init(chartEl, null);
+      resizeHandler = () => chart?.resize();
+      window.addEventListener("resize", resizeHandler);
+      if (typeof ResizeObserver !== "undefined") {
+        ro = new ResizeObserver(() => chart?.resize());
+        ro.observe(chartEl);
+      }
+    }
+    const option = buildChartOption(input);
+    try {
+      chart.setOption(option, true);
+      chart.resize();
+    } catch {
+      /* headless DOM without canvas 2d */
+    }
+  });
+
+  return <div ref={(el) => { chartEl = el; }} class="flex-1 min-h-0 w-full" data-testid="paper-trading-chart-canvas" />;
+}
+
+function PositionInfo(props: { position: PaperPosition }) {
+  const sideIcon = () => props.position.side === "BUY" ? "▲" : "▼";
 
   return (
-    <Group gap="xs" data-testid="position-info" id={`position-info-${position.symbol}`}>
-      <Badge size="sm" variant="filled" color={position.side === "BUY" ? "success" : "error"}>
-        {sideIcon} {position.side}
+    <Group gap="xs" data-testid="position-info" id={`position-info-${props.position.symbol}`}>
+      <Badge size="sm" variant="filled" color={props.position.side === "BUY" ? "success" : "error"}>
+        {sideIcon()} {props.position.side}
       </Badge>
-      <Text size="sm" fw={500}>
-        {position.quantity} @ ₹{position.entry_price.toFixed(2)}
+      <Text size="sm" fw={500} className="font-mono tabular-nums">
+        {props.position.quantity} @ ₹{props.position.entry_price.toFixed(2)}
       </Text>
-      <Text size="sm" fw={600} c={getPnLTextColor(position.pnl)}>
-        P&L: ₹{position.pnl.toFixed(0)} ({formatPercentage(position.pnl_pct, 2, true)})
+      <Text size="sm" fw={600} c={getPnLTextColor(props.position.pnl)} className="font-mono tabular-nums">
+        P&L: ₹{props.position.pnl.toFixed(0)} ({formatPercentage(props.position.pnl_pct, 2, true)})
       </Text>
     </Group>
   );
 }
 
-function ChartLegend({ orbLabel, hasWeek52, hasTrades, position }: { orbLabel?: string; hasWeek52: boolean; hasTrades: boolean; position?: PaperPosition }) {
-  const items: { color: string; label: string; shape: "square" | "circle" }[] = [];
-  if (hasTrades) {
-    items.push(
-      { color: PRIMARY, label: "Entry", shape: "square" },
-      { color: POSITIVE, label: "TP", shape: "circle" },
-      { color: NEGATIVE, label: "SL", shape: "circle" },
-    );
-  }
-  if (orbLabel) items.push({ color: PIVOT_OR_HIGH, label: orbLabel, shape: "square" });
-  if (hasWeek52) items.push({ color: PIVOT_52W_HIGH, label: "52W High", shape: "square" });
+function ChartLegend(props: { orbLabel?: string; hasWeek52: boolean; hasTrades: boolean; position?: PaperPosition }) {
+  const items = (): { color: string; label: string; shape: "square" | "circle" }[] => {
+    const out: { color: string; label: string; shape: "square" | "circle" }[] = [];
+    if (props.hasTrades) {
+      out.push(
+        { color: PRIMARY, label: "Entry", shape: "square" },
+        { color: POSITIVE, label: "TP", shape: "circle" },
+        { color: NEGATIVE, label: "SL", shape: "circle" },
+      );
+    }
+    if (props.orbLabel) out.push({ color: PIVOT_OR_HIGH, label: props.orbLabel, shape: "square" });
+    if (props.hasWeek52) out.push({ color: PIVOT_52W_HIGH, label: "52W High", shape: "square" });
+    return out;
+  };
 
-  if (items.length === 0 && !position) return null;
+  const hasAny = () => items().length > 0 || !!props.position;
 
   return (
-    <Flex className="paper-chart-legend py-2 px-2" gap="xs" justify="center" align="center" wrap="wrap" data-testid="chart-legend" id="chart-legend">
-      {items.map((item, i) => (
-        <Flex key={i} className="paper-chart-legend-item gap-2" id={`paper-chart-legend-${item.label.toLowerCase().replace(/\s+/g, "-")}`} align="center">
-          <div className="paper-chart-legend-swatch w-2 h-2 shrink-0" style={{ borderRadius: item.shape === "circle" ? "50%" : "2px", backgroundColor: item.color }} />
-          <Text className="paper-chart-legend-label" size="xs" c="dimmed">{item.label}</Text>
-        </Flex>
-      ))}
-      {position && <PositionInfo position={position} />}
-    </Flex>
+    <Show when={hasAny()}>
+      <Flex className="paper-chart-legend py-2 px-2" gap="xs" justify="center" align="center" wrap="wrap" data-testid="chart-legend" id="chart-legend">
+        <For each={items()}>{(item) => (
+          <Flex className="paper-chart-legend-item gap-2" id={`paper-chart-legend-${item.label.toLowerCase().replace(/\s+/g, "-")}`} align="center">
+            <div class="paper-chart-legend-swatch w-2 h-2 shrink-0" style={{ "border-radius": item.shape === "circle" ? "50%" : "2px", "background-color": item.color }} />
+            <Text className="paper-chart-legend-label" size="xs" c="dimmed">{item.label}</Text>
+          </Flex>
+        )}</For>
+        <Show when={props.position}>
+          {(position) => <PositionInfo position={position()} />}
+        </Show>
+      </Flex>
+    </Show>
   );
 }
 
-function ChartEmptyState({
-  className,
-  icon,
-  children,
-}: {
-  className: string;
-  icon?: string;
-  children: React.ReactNode;
-}) {
+function ChartEmptyState(props: { className: string; icon?: string; children?: import("solid-js").JSX.Element }) {
   return (
-    <Card className={`paper-chart-empty ${className}`} data-testid="paper-chart-empty" id="paper-chart" className2="h-full flex items-center justify-center">
-      <div className="paper-chart-empty-content text-center">
-        {icon && (
-          <Text className="paper-chart-empty-icon mb-1" size="lg" c="dimmed" >
-            {icon}
+    <Card className={`paper-chart-empty ${props.className}`} data-testid="paper-chart-empty" id="paper-chart">
+      <div class="paper-chart-empty-content text-center">
+        <Show when={props.icon}>
+          <Text className="paper-chart-empty-icon mb-1" size="lg" c="dimmed">
+            {props.icon}
           </Text>
-        )}
-        {icon ? children : <div data-testid="chart-placeholder-content">{children}</div>}
+        </Show>
+        <Show when={props.icon} fallback={<div data-testid="chart-placeholder-content">{props.children}</div>}>
+          {props.children}
+        </Show>
       </div>
     </Card>
   );
@@ -149,19 +186,21 @@ const OVERLAY_ITEMS = [
   { label: "EMA", key: "showEmaLines" as const, setter: setShowEmaLines, color: INDICATOR_BLUE_A },
 ] as const;
 
-function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState> }) {
-  const [range, setRange] = useState<[Date | null, Date | null]>([null, null]);
-  const [popoverOpened, setPopoverOpened] = useState(false);
+function ChartHeader(props: { state: ReturnType<typeof getPaperTradingState> }) {
+  const [range, setRange] = createSignal<[Date | null, Date | null]>([null, null]);
+  const [popoverOpened, setPopoverOpened] = createSignal(false);
 
-  useEffect(() => {
-    if (state.chartFromDate && state.chartData?.date) {
-      setRange([new Date(state.chartFromDate), new Date(state.chartData.date)]);
+  createEffect(() => {
+    const fromDate = props.state.chartFromDate;
+    const dataDate = props.state.chartData?.date;
+    if (fromDate && dataDate) {
+      setRange([new Date(fromDate), new Date(dataDate)]);
     }
-  }, [state.chartFromDate, state.chartData?.date]);
+  });
 
-  const fromDate = range[0] ? dayjs(range[0]).format("YYYY-MM-DD") : undefined;
+  const fromDate = () => range()[0] ? dayjs(range()[0]).format("YYYY-MM-DD") : undefined;
 
-  const handleQuickRange = useCallback((days: number) => {
+  const handleQuickRange = (days: number) => {
     const to = new Date();
     const from = days === -1 ? new Date(0) : dayjs().subtract(days, "day").toDate();
     setRange([from, to]);
@@ -172,41 +211,36 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
     if (s.selectedSymbol) {
       fetchPaperChart(s.selectedSymbol, cd, s.chartTimeframe, s.selectedStrategyId, fd, true, s.selectedTradeId || undefined);
     }
-  }, []);
+  };
 
-  const handleRangeChange = useCallback(
-    (r: [Date | null, Date | null]) => {
-      if (!r) return;
-      setRange(r);
-      if (r[0] && r[1] && r[0] > r[1]) return;
-      const fd = r[0] ? dayjs(r[0]).format("YYYY-MM-DD") : undefined;
-      const s = getPaperTradingState();
-      const cd = r[1] ? dayjs(r[1]).format("YYYY-MM-DD") : s.chartData?.date;
-      if (s.selectedSymbol && cd) {
-        fetchPaperChart(s.selectedSymbol, cd, s.chartTimeframe, s.selectedStrategyId, fd, true, s.selectedTradeId || undefined);
-      }
-      if (r[0] && r[1]) setPopoverOpened(false);
-    },
-    [],
-  );
+  const handleRangeChange = (r: [Date | null, Date | null] | null) => {
+    if (!r) return;
+    setRange(r);
+    if (!r[0] && !r[1]) return; // emptied field — ignore
+    if (r[0] && r[1] && r[0] > r[1]) return;
+    const fd = r[0] ? dayjs(r[0]).format("YYYY-MM-DD") : undefined;
+    const s = getPaperTradingState();
+    const cd = r[1] ? dayjs(r[1]).format("YYYY-MM-DD") : s.chartData?.date;
+    if (s.selectedSymbol && cd) {
+      fetchPaperChart(s.selectedSymbol, cd, s.chartTimeframe, s.selectedStrategyId, fd, true, s.selectedTradeId || undefined);
+    }
+    if (r[0] && r[1]) setPopoverOpened(false);
+  };
 
-  const handleTimeframeChange = useCallback(
-    async (value: string | null) => {
-      if (!value) return;
-      setChartTimeframe(value);
-      const s = getPaperTradingState();
-      if (s.currentView === "history") setChartTimeframeHistory(value);
-      else if (s.currentView === "live") setChartTimeframeLive(value);
-      const cd = s.chartData?.date;
-      if (s.selectedSymbol && cd) {
-        await fetchPaperChart(s.selectedSymbol, cd, value, s.selectedStrategyId, s.chartFromDate || undefined, true, s.selectedTradeId || undefined);
-      }
-    },
-    [],
-  );
+  const handleTimeframeChange = async (value: string | null) => {
+    if (!value) return;
+    setChartTimeframe(value);
+    const s = getPaperTradingState();
+    if (s.currentView === "history") setChartTimeframeHistory(value);
+    else if (s.currentView === "live") setChartTimeframeLive(value);
+    const cd = s.chartData?.date;
+    if (s.selectedSymbol && cd) {
+      await fetchPaperChart(s.selectedSymbol, cd, value, s.selectedStrategyId, s.chartFromDate || undefined, true, s.selectedTradeId || undefined);
+    }
+  };
 
-  const shortDate = (() => {
-    const d = state.chartData?.actual_date || state.chartData?.date;
+  const shortDate = () => {
+    const d = props.state.chartData?.actual_date || props.state.chartData?.date;
     if (!d) return "";
     if (d.includes(" to ")) {
       const [start, end] = d.split(" to ");
@@ -214,32 +248,36 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
       return `${fmt(start)} - ${fmt(end)}`;
     }
     return dayjs(d).format("MMM D");
-  })();
+  };
 
-  const hasActiveOverlays = OVERLAY_ITEMS.some(({ key }) => state[key]);
+  const hasActiveOverlays = () => OVERLAY_ITEMS.some(({ key }) => props.state[key]);
 
   return (
-    <div role="toolbar" className="paper-chart-header flex items-center flex-none flex-wrap gap-2 row-gap-2 px-2 py-1 min-h-12" data-testid="paper-chart-header" id="chart-header">
-      <div className="flex items-baseline gap-2 min-w-0 shrink-1 mr-2">
-        {state.chartData?.symbol && (
-          <Text fw={600} size="xs" className="min-w-0">
-            {state.chartData.symbol}
-          </Text>
-        )}
-        {shortDate && (
-          <Text size="xs" c="dimmed" fw={400} className="whitespace-nowrap">
-            · {shortDate}
-          </Text>
-        )}
+    <div role="toolbar" class="paper-chart-header flex items-center flex-none flex-wrap gap-2 row-gap-2 px-2 py-1 min-h-12" data-testid="paper-chart-header" id="chart-header">
+      <div class="flex items-baseline gap-2 min-w-0 shrink-1 mr-2">
+        <Show when={props.state.chartData?.symbol}>
+          {(symbol) => (
+            <Text fw={600} size="xs" className="min-w-0">
+              {symbol()}
+            </Text>
+          )}
+        </Show>
+        <Show when={shortDate()}>
+          {(d) => (
+            <Text size="xs" c="dimmed" fw={400} className="whitespace-nowrap">
+              · {d()}
+            </Text>
+          )}
+        </Show>
       </div>
 
       <Select
         data-testid="chart-timeframe-select"
         size="xs"
-        value={state.chartTimeframe}
+        value={props.state.chartTimeframe}
         onChange={handleTimeframeChange}
-        data={fromDate ? TIMEFRAME_OPTIONS : TIMEFRAME_OPTIONS.filter((tf) => tf.value !== "12hour" && tf.value !== "1day")}
-        style={{ width: 84, minWidth: 84, flex: "0 0 auto" }}
+        data={fromDate() ? TIMEFRAME_OPTIONS : TIMEFRAME_OPTIONS.filter((tf) => tf.value !== "12hour" && tf.value !== "1day")}
+        style={{ width: "84px", "min-width": "84px", flex: "0 0 auto" }}
       />
 
       <DatePicker
@@ -248,10 +286,10 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
         maxDate={new Date()}
         placeholder="From"
         valueFormat="MMM D"
-        value={range[0]}
-        onChange={(d) => handleRangeChange([d, range[1]])}
+        value={range()[0]}
+        onChange={(d) => handleRangeChange([d, range()[1]])}
         data-testid="chart-date-range-from"
-        style={{ width: 150, flex: "0 0 auto" }}
+        style={{ width: "150px", flex: "0 0 auto" }}
       />
 
       <DatePicker
@@ -260,28 +298,28 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
         maxDate={new Date()}
         valueFormat="MMM D"
         placeholder="To"
-        value={range[1]}
-        onChange={(d) => handleRangeChange([range[0], d])}
+        value={range()[1]}
+        onChange={(d) => handleRangeChange([range()[0], d])}
         data-testid="chart-date-range"
-        style={{ width: 150, flex: "0 0 auto" }}
+        style={{ width: "150px", flex: "0 0 auto" }}
       />
 
-      <div className="flex-1" />
+      <div class="flex-1" />
 
       <Popover
         width={260}
         position="bottom-end"
         shadow="md"
         withArrow
-        opened={popoverOpened}
+        opened={popoverOpened()}
         onChange={setPopoverOpened}
         onClose={() => setPopoverOpened(false)}
       >
         <PopoverTarget>
           <ActionIcon
             size="sm"
-            variant={hasActiveOverlays ? "filled" : "subtle"}
-            color={hasActiveOverlays ? "primary" : "secondary"}
+            variant={hasActiveOverlays() ? "filled" : "subtle"}
+            color={hasActiveOverlays() ? "primary" : "secondary"}
             data-testid="chart-more-button"
           >
             <IconDots size={16} />
@@ -290,13 +328,12 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
         <PopoverDropdown p="xs">
           <Stack className="gap-2">
             <Group gap="xs">
-              <div className="w-[3px] h-[14px] shrink-0" style={{ borderRadius: 2, backgroundColor: PRIMARY }} />
+              <div class="w-[3px] h-[14px] shrink-0" style={{ "border-radius": "2px", "background-color": PRIMARY }} />
               <Text size="xs" fw={600}>Range</Text>
             </Group>
             <Group className="gap-2">
-              {QUICK_RANGES.map((r) => (
+              <For each={QUICK_RANGES}>{(r) => (
                 <Button
-                  key={r.label}
                   size="xs"
                   variant="light"
                   color="primary"
@@ -304,35 +341,34 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
                 >
                   {r.label}
                 </Button>
-              ))}
+              )}</For>
             </Group>
 
             <Divider className="my-2" />
 
             <Group gap="xs">
-              <div className="w-[3px] h-[14px] shrink-0" style={{ borderRadius: 2, backgroundColor: PRIMARY }} />
+              <div class="w-[3px] h-[14px] shrink-0" style={{ "border-radius": "2px", "background-color": PRIMARY }} />
               <Text size="xs" fw={600}>Overlays</Text>
             </Group>
             <Group className="gap-2">
-              {OVERLAY_ITEMS.map(({ label, key, setter, color }) => (
-                <Box key={key} data-testid={`overlay-${label.toLowerCase()}`}>
+              <For each={OVERLAY_ITEMS}>{({ label, key, setter, color }) => (
+                <Box data-testid={`overlay-${label.toLowerCase()}`}>
                   <Chip
                     size="xs"
                     variant="outline"
-                    radius="sm"
-                    checked={state[key]}
+                    checked={props.state[key]}
                     data-testid={`chip-${label.toLowerCase()}`}
                     onChange={(checked) => setter(checked)}
                     style={
-                      state[key]
-                        ? { backgroundColor: alpha(color, 0.18), color, border: `1px solid ${color}` }
+                      props.state[key]
+                        ? { "background-color": alpha(color, 0.18), color, border: `1px solid ${color}` }
                         : { color: TEXT_MUTED, border: `1px solid ${BORDER}` }
                     }
                   >
                     {label}
                   </Chip>
                 </Box>
-              ))}
+              )}</For>
             </Group>
           </Stack>
         </PopoverDropdown>
@@ -365,87 +401,85 @@ function getEmptyState(
   return null;
 }
 
-export function PaperChart({ engine = "echarts" }: { engine?: "echarts" | "tradingview" } = {}) {
-  const { colorScheme } = useColorScheme();
-  const isDark = colorScheme === "dark";
-  const state = getPaperTradingState();
-
-  useStoreSubscription(subscribe);
-
-  const chartInput = useMemo(() => {
-    if (!state.chartData) return null;
-    return normalizePaper(
-      state.chartData,
-      isDark,
-      state.selectedTradeId,
-      state.showAllTrades || !!state.selectedTradeId,
-      state.showOrbLines,
-      state.showPivotLines,
-      state.show52wLines,
-      state.showEmaLines,
-    );
-  }, [
-    state.chartData, isDark, state.selectedTradeId,
-    state.showAllTrades, state.showOrbLines, state.showPivotLines,
-    state.show52wLines, state.showEmaLines,
-  ]);
-
-  const emptyState = getEmptyState(state);
-  if (emptyState) {
-    return (
-      <ChartEmptyState className={emptyState.className} icon={emptyState.icon}>
-        <Text c="dimmed">{emptyState.text}</Text>
-        {emptyState.subtext && (
-          <Text size="sm" c="dimmed" className="mt-2">{emptyState.subtext}</Text>
-        )}
-        {emptyState.className === "paper-chart-error" && state.selectedSymbol && (
-          <Button size="xs" variant="light" className="mt-2" onClick={() =>
-            fetchPaperChart(state.selectedSymbol, state.chartData?.date || dayjs().format("YYYY-MM-DD"), state.chartTimeframe, state.selectedStrategyId, undefined, true, state.selectedTradeId || undefined)
-          }>
-            Retry
-          </Button>
-        )}
-      </ChartEmptyState>
-    );
+export function PaperChart(props: { engine?: "echarts" | "tradingview" }) {
+  // The `tradingview` engine (lightweight-charts via the React
+  // TradingViewChart wrapper) has not been ported to Solid yet — it falls
+  // back to the echarts renderer, which shows the same data.
+  if (props.engine === "tradingview" && typeof window !== "undefined") {
+    console.warn("[PaperChart] engine=\"tradingview\" is not ported to Solid yet; rendering echarts instead.");
   }
+  const { colorScheme } = useColorScheme();
+  const isDark = () => colorScheme() === "dark";
+  const state = useStoreSnapshot(subscribe, getPaperTradingState);
+
+  const chartInput = createMemo(() => {
+    const s = state();
+    if (!s.chartData) return null;
+    return normalizePaper(
+      s.chartData,
+      isDark(),
+      s.selectedTradeId,
+      s.showAllTrades || !!s.selectedTradeId,
+      s.showOrbLines,
+      s.showPivotLines,
+      s.show52wLines,
+      s.showEmaLines,
+    );
+  });
+
+  const emptyState = () => getEmptyState(state());
 
   return (
-    <Card className="paper-chart-container flex flex-col min-h-0 overflow-hidden h-full" data-testid="paper-chart-container" id="paper-chart">
-      <ChartHeader state={state} />
-      <div className="paper-chart-body flex-1 min-h-0 relative flex flex-col" id="paper-chart-body">
-        <LoadingOverlay visible={state.chartLoading} zIndex={10} overlayProps={{ radius: "sm", blur: 1 }} />
-        {chartInput ? (
-          <div className="paper-chart-canvas-wrap flex-1 min-h-0 flex" id="paper-chart-canvas-wrap">
-            {engine === "tradingview" ? (
-              <TradingViewChart
-                candles={chartInput.candles as any}
-                trades={chartInput.trades as any}
-                highlightedTradeId={chartInput.highlightedTradeId ?? null}
-                showAllTrades={chartInput.showAllTrades}
-                markLines={chartInput.markLines}
-                emaData={chartInput.emaData}
-                livePosition={chartInput.livePosition}
-              />
-            ) : (
-              <TradingChart input={chartInput} style={{ flex: 1, minHeight: 0 }} />
-            )}
+    <Show
+      when={emptyState()}
+      fallback={
+        <Card className="paper-chart-container flex flex-col min-h-0 overflow-hidden h-full" data-testid="paper-chart-container" id="paper-chart">
+          <ChartHeader state={state()} />
+          <div class="paper-chart-body flex-1 min-h-0 relative flex flex-col" id="paper-chart-body">
+            <LoadingOverlay visible={state().chartLoading} zIndex={10} overlayProps={{ blur: 1 }} />
+            <Show
+              when={chartInput()}
+              fallback={
+                <ChartEmptyState className="paper-chart-loading" icon="⏳">
+                  <Text className="paper-chart-loading-text" c="dimmed">
+                    {state().chartLoading ? `Loading ${state().selectedSymbol} chart...` : "No data"}
+                  </Text>
+                </ChartEmptyState>
+              }
+            >
+              <div class="paper-chart-canvas-wrap flex-1 min-h-0 flex" id="paper-chart-canvas-wrap">
+                <SolidTradingChart input={chartInput()} />
+              </div>
+            </Show>
           </div>
-        ) : (
-          <ChartEmptyState className="paper-chart-loading" icon="⏳">
-            <Text className="paper-chart-loading-text" c="dimmed">
-              {state.chartLoading ? `Loading ${state.selectedSymbol} chart...` : "No data"}
-            </Text>
-          </ChartEmptyState>
-        )}
-      </div>
-      {state.chartData && (
-        <ChartLegend
-          orbLabel={state.chartData?.orb_levels ? `ORB (${state.chartData.orb_levels.or_minutes}m)` : undefined}
-          hasWeek52={!!state.chartData?.week52_levels}
-          hasTrades={!!state.chartData?.trades?.length}
-          position={state.chartData?.current_position}
-        />
+          <Show when={state().chartData}>
+            {(chartData) => (
+              <ChartLegend
+                orbLabel={chartData().orb_levels ? `ORB (${chartData().orb_levels!.or_minutes}m)` : undefined}
+                hasWeek52={!!chartData().week52_levels}
+                hasTrades={!!chartData().trades?.length}
+                position={chartData().current_position ?? undefined}
+              />
+            )}
+          </Show>
+        </Card>
+      }
+    >
+      {(empty) => (
+        <ChartEmptyState className={empty().className} icon={empty().icon}>
+          <Text c="dimmed">{empty().text}</Text>
+          <Show when={empty().subtext}>
+            {(subtext) => <Text size="sm" c="dimmed" className="mt-2">{subtext()}</Text>}
+          </Show>
+          <Show when={empty().className === "paper-chart-error" && state().selectedSymbol}>
+            <Button size="xs" variant="light" className="mt-2" onClick={() =>
+              fetchPaperChart(state().selectedSymbol!, state().chartData?.date || dayjs().format("YYYY-MM-DD"), state().chartTimeframe, state().selectedStrategyId, undefined, true, state().selectedTradeId || undefined)
+            }>
+              Retry
+            </Button>
+          </Show>
+        </ChartEmptyState>
       )}
-    </Card>
+    </Show>
   );
 }

@@ -1,10 +1,14 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 import { PositionsPanel } from "./PositionsPanel";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 
 beforeEach(() => setupBrowserMocks());
 afterEach(() => {
@@ -14,24 +18,24 @@ afterEach(() => {
 
 describe("PositionsPanel", () => {
   it("shows loading state", () => {
-    renderWithProviders(<PositionsPanel positions={[]} loading={true} />);
+    render(() => <PositionsPanel positions={[]} loading={true} />);
     expect(screen.getByTestId("options-positions-loading")).toBeInTheDocument();
     expect(screen.getByText("Loading positions...")).toBeInTheDocument();
   });
 
   it("shows error state", () => {
-    renderWithProviders(<PositionsPanel positions={[]} error="API error" />);
+    render(() => <PositionsPanel positions={[]} error="API error" />);
     expect(screen.getByTestId("options-positions-error")).toBeInTheDocument();
     expect(screen.getByText("API error")).toBeInTheDocument();
   });
 
   it("shows empty state", () => {
-    renderWithProviders(<PositionsPanel positions={[]} />);
+    render(() => <PositionsPanel positions={[]} />);
     expect(screen.getByText("No open positions")).toBeInTheDocument();
   });
 
   it("shows Option Positions title", () => {
-    renderWithProviders(<PositionsPanel positions={[]} />);
+    render(() => <PositionsPanel positions={[]} />);
     expect(screen.getByText("Option Positions")).toBeInTheDocument();
   });
 
@@ -58,7 +62,7 @@ describe("PositionsPanel", () => {
         pnl: -500,
       },
     ];
-    renderWithProviders(<PositionsPanel positions={positions} />);
+    render(() => <PositionsPanel positions={positions} />);
     expect(screen.getByTestId("options-position-row-0")).toBeInTheDocument();
     expect(screen.getByTestId("options-position-row-1")).toBeInTheDocument();
     expect(screen.getByText("CE")).toBeInTheDocument();
@@ -92,7 +96,7 @@ describe("PositionsPanel", () => {
         pnl: -500,
       },
     ];
-    renderWithProviders(<PositionsPanel positions={positions} />);
+    render(() => <PositionsPanel positions={positions} />);
     expect(screen.getByText("+₹1.2K")).toBeInTheDocument();
     expect(screen.getByText("₹-500")).toBeInTheDocument();
   });
@@ -108,7 +112,7 @@ describe("PositionsPanel", () => {
         average_price: 150.5,
       },
     ];
-    renderWithProviders(<PositionsPanel positions={positions} />);
+    render(() => <PositionsPanel positions={positions} />);
     expect(screen.getByText("-")).toBeInTheDocument();
   });
 });

@@ -1,9 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { screen, cleanup, within, fireEvent } from "@testing-library/react";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
+import { render, screen, cleanup, within, fireEvent } from "@solidjs/testing-library";
 
 const mockStateStore: any = {
   currentView: "history",
@@ -82,7 +80,7 @@ vi.mock("../common/PreviewChartProvider", () => ({
   })),
 }));
 
-vi.mock("react-router-dom", () => ({
+vi.mock("@solidjs/router", () => ({
   useNavigate: vi.fn(() => vi.fn()),
 }));
 
@@ -105,7 +103,7 @@ afterEach(() => {
 });
 
 function r() {
-  return renderWithProviders(<PaperHistoryTable />);
+  return render(() => <PaperHistoryTable />);
 }
 
 describe("PaperHistoryTable", () => {
@@ -114,14 +112,15 @@ describe("PaperHistoryTable", () => {
       mockStateStore.isLoading = true;
       mockStateStore.trades = [];
       r();
-      expect(screen.getByText("Loading trade history...")).toBeInTheDocument();
       expect(screen.getByTestId("history-panel")).toBeInTheDocument();
+      expect(screen.getByRole("progressbar")).toBeInTheDocument();
     });
 
     test("does not show loading when isLoading but trades exist", () => {
       mockStateStore.isLoading = true;
       mockStateStore.trades = [mockTrade()];
       r();
+      expect(screen.getByTestId("trades-header")).toBeInTheDocument();
       expect(screen.queryByText("Loading trade history...")).not.toBeInTheDocument();
     });
   });
@@ -183,7 +182,7 @@ describe("PaperHistoryTable", () => {
       mockStateStore.trades = [mockTrade()];
       r();
       const select = screen.getByTestId("source-filter-select");
-      fireEvent.change(within(select).getByRole("combobox"), { target: { value: "options" } });
+      fireEvent.input(within(select).getByRole("combobox"), { target: { value: "options" } });
       const { setFilterSource } = await import("../../state/paperTrading");
       expect(setFilterSource).toHaveBeenCalledWith("options");
     });
@@ -192,7 +191,7 @@ describe("PaperHistoryTable", () => {
       mockStateStore.trades = [mockTrade()];
       r();
       const select = screen.getByTestId("source-filter-select");
-      fireEvent.change(within(select).getByRole("combobox"), { target: { value: "equity" } });
+      fireEvent.input(within(select).getByRole("combobox"), { target: { value: "equity" } });
       const { setFilterSource } = await import("../../state/paperTrading");
       expect(setFilterSource).toHaveBeenCalledWith("equity");
     });
@@ -252,7 +251,7 @@ describe("PaperHistoryTable", () => {
       ];
       r();
       const select = screen.getByTestId("source-filter-select");
-      fireEvent.change(within(select).getByRole("combobox"), { target: { value: "futures" } });
+      fireEvent.input(within(select).getByRole("combobox"), { target: { value: "futures" } });
       const { setFilterSource } = await import("../../state/paperTrading");
       expect(setFilterSource).toHaveBeenCalledWith("futures");
     });
@@ -295,7 +294,6 @@ describe("PaperHistoryTable", () => {
 
   describe("option trade chart selection", () => {
     test("clicking an option trade fetches the underlying chart (no spaces)", async () => {
-      const user = userEvent.setup();
       mockStateStore.trades = [
         mockTrade({
           trade_id: "opt-1",
@@ -304,7 +302,7 @@ describe("PaperHistoryTable", () => {
         }),
       ];
       r();
-      await user.click(screen.getByTestId("trade-row-opt-1"));
+      await fireEvent.click(screen.getByTestId("trade-row-opt-1"));
       await vi.waitFor(() => {
         expect(mocks.mockFetchPaperChart).toHaveBeenCalled();
       });
@@ -314,12 +312,11 @@ describe("PaperHistoryTable", () => {
     });
 
     test("clicking a compact-format option trade resolves the underlying too", async () => {
-      const user = userEvent.setup();
       mockStateStore.trades = [
         mockTrade({ trade_id: "opt-2", symbol: "RELIANCE26OCT3000CE", source: "options_paper" }),
       ];
       r();
-      await user.click(screen.getByTestId("trade-row-opt-2"));
+      await fireEvent.click(screen.getByTestId("trade-row-opt-2"));
       await vi.waitFor(() => {
         expect(mocks.mockFetchPaperChart).toHaveBeenCalled();
       });
@@ -395,14 +392,13 @@ describe("PaperHistoryTable", () => {
     });
 
     test("collapses a day group when its header row is clicked", async () => {
-      const user = userEvent.setup();
       mockStateStore.trades = [
         mockTrade({ trade_id: "t1", exit_time: "2026-05-09T10:30:00Z" }),
         mockTrade({ trade_id: "t2", exit_time: "2026-05-09T11:30:00Z", symbol: "TCS" }),
       ];
       r();
       expect(screen.getByTestId("trade-row-t1")).toBeInTheDocument();
-      await user.click(screen.getByTestId("day-header-2026-05-09"));
+      await fireEvent.click(screen.getByTestId("day-header-2026-05-09"));
       expect(screen.queryByTestId("trade-row-t1")).not.toBeInTheDocument();
       expect(screen.queryByTestId("trade-row-t2")).not.toBeInTheDocument();
       // Day summary row stays visible
@@ -410,11 +406,10 @@ describe("PaperHistoryTable", () => {
     });
 
     test("expands a trade row to show detail", async () => {
-      const user = userEvent.setup();
       mockStateStore.trades = [mockTrade({ trade_id: "trade-1" })];
       r();
       expect(screen.queryByTestId("trade-reason-trade-1")).not.toBeInTheDocument();
-      await user.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+      await fireEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
       expect(screen.getByTestId("trade-reason-trade-1")).toBeInTheDocument();
     });
   });
@@ -424,8 +419,8 @@ describe("groupTradesByDate with sorting", () => {
   test("sorts by specified column", async () => {
     const { groupTradesByDate } = await import("../../utils/tradeHistoryUtils");
     const trades = [
-      { trade_id: "t1", symbol: "AAPL", exit_time: "2026-05-09T10:30:00Z" },
-      { trade_id: "t2", symbol: "ZOO", exit_time: "2026-05-09T11:00:00Z" },
+      mockTrade({ trade_id: "t1", symbol: "AAPL", exit_time: "2026-05-09T10:30:00Z" }),
+      mockTrade({ trade_id: "t2", symbol: "ZOO", exit_time: "2026-05-09T11:00:00Z" }),
     ];
     const result = groupTradesByDate(trades, "symbol", "asc");
     expect(result["2026-05-09"][0].trade_id).toBe("t1");
@@ -528,25 +523,23 @@ describe("tradeHistoryUtils edge cases", () => {
 
 describe("PaperHistoryTable interactions", () => {
   test("quick filter triggers refreshHistoryData", async () => {
-    const user = userEvent.setup();
     mockStateStore.trades = [mockTrade()];
     r();
     const segControl = screen.getByTestId("quick-filter");
     const todayBtn = segControl.querySelector("button");
     expect(todayBtn).not.toBeNull();
-    await user.click(todayBtn!);
+    await fireEvent.click(todayBtn!);
     expect(mocks.mockRefreshHistoryData).toHaveBeenCalled();
   });
 
   test("quick filter sets date filters", async () => {
-    const user = userEvent.setup();
     mockStateStore.trades = [mockTrade()];
     r();
     const { setFilterFromDate, setFilterToDate } = await import("../../state/paperTrading");
     const segControl = screen.getByTestId("quick-filter");
     const todayBtn = segControl.querySelector("button");
     expect(todayBtn).not.toBeNull();
-    await user.click(todayBtn!);
+    await fireEvent.click(todayBtn!);
     const dayjs = (await import("dayjs")).default;
     const today = dayjs().format("YYYY-MM-DD");
     expect(setFilterFromDate).toHaveBeenCalledWith(today);
@@ -554,28 +547,25 @@ describe("PaperHistoryTable interactions", () => {
   });
 
   test("handleSelectSymbol calls fetchPaperChart on row click", async () => {
-    const user = userEvent.setup();
     mockStateStore.trades = [mockTrade({ trade_id: "trade-1" })];
     r();
     const row = screen.getByTestId("trade-row-trade-1");
-    await user.click(row);
+    await fireEvent.click(row);
     await vi.waitFor(() => {
       expect(mocks.mockFetchPaperChart).toHaveBeenCalled();
     });
   });
 
   test("handleSelectSymbol sets selectedTradeId", async () => {
-    const user = userEvent.setup();
     mockStateStore.trades = [mockTrade({ trade_id: "trade-1", symbol: "RELIANCE" })];
     r();
     const row = screen.getByTestId("trade-row-trade-1");
-    await user.click(row);
+    await fireEvent.click(row);
     const { setSelectedTradeId } = await import("../../state/paperTrading");
     expect(setSelectedTradeId).toHaveBeenCalled();
   });
 
   test("clicking a trade always sets showAllTrades false via setSelectedTradeId", async () => {
-    const user = userEvent.setup();
     mockStateStore.trades = [
       mockTrade({ trade_id: "t1", symbol: "RELIANCE", exit_time: "2026-05-09T10:00:00Z" }),
       mockTrade({ trade_id: "t2", symbol: "RELIANCE", exit_time: "2026-05-09T11:00:00Z" }),
@@ -583,17 +573,16 @@ describe("PaperHistoryTable interactions", () => {
     r();
     const { setSelectedTradeId } = await import("../../state/paperTrading");
     const row = screen.getByTestId("trade-row-t1");
-    await user.click(row);
+    await fireEvent.click(row);
     expect(setSelectedTradeId).toHaveBeenCalled();
   });
 
   test("single symbol trade does not set showAllTrades", async () => {
-    const user = userEvent.setup();
     mockStateStore.trades = [mockTrade({ trade_id: "t1", symbol: "RELIANCE" })];
     r();
     const { setShowAllTrades } = await import("../../state/paperTrading");
     const row = screen.getByTestId("trade-row-t1");
-    await user.click(row);
+    await fireEvent.click(row);
     expect(setShowAllTrades).not.toHaveBeenCalledWith(true);
   });
 

@@ -34,9 +34,11 @@ from fastapi import APIRouter, Query
 from api.reports_api._numeric import safe_float as _f
 from api.reports_api._time import now_iso as _now_iso
 from api.reports_api._time import today_str as _today_str
-from chart_patterns.candles import fetch_for_timeframe, frame_last_date
+from chart_patterns.candles import fetch_for_timeframe, frame_last_date, _today_is_session
 from chart_patterns.parallel import max_workers, run_symbols
 from chart_patterns.universes import get_universe
+from cache.redis_client import get_redis_client
+from market_data.market_data import fetch_ohlc_batch
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -56,6 +58,28 @@ BASE_WINDOWS = (20, 50, 100)
 MIN_BARS = 21  # today + prior 20 (volume baseline / base_20)
 _TODAY_TTL = 60.0
 _TODAY_CACHE: dict[tuple[str, str], tuple[float, dict]] = {}
+
+#: Redis key holding the shared Upstox 429 circuit breaker's re-arm time
+#: (set by ``upstox_trader.rate_limiter.UpstoxRateLimiter.record_failure``).
+_CIRCUIT_KEY = "upstox:circuit:until"
+
+
+def _circuit_open() -> bool:
+    """True when the shared Upstox 429 circuit breaker is open right now.
+
+    Read-only Redis check, fail-soft: Redis down or an unparseable value is
+    treated as closed so a cache blip never blocks a scan.
+    """
+    try:
+        client = get_redis_client()
+        if client is None:
+            return False
+        until = client.get(_CIRCUIT_KEY)
+        if until is None:
+            return False
+        return float(until) > time.time()
+    except Exception:
+        return False
 
 _BREAKOUT_ORDER = ("52w_high", "gap", "base_20", "base_50", "base_100")
 _BREAKDOWN_ORDER = ("52w_low", "break_20", "break_50", "break_100")
@@ -211,16 +235,31 @@ def analyze_frame(df, *, symbol: str = "") -> Optional[dict]:
 
 
 def _scan_one(
-    symbol: str, *, date_str: str, is_today: bool, names: dict
+    symbol: str,
+    *,
+    date_str: str,
+    is_today: bool,
+    names: dict,
+    partial_bars: Optional[dict] = None,
 ) -> Optional[dict]:
     """Fetch one symbol's 1D frame and classify it.
 
+    When scanning today, the in-progress daily bar comes from
+    ``partial_bars[sym]`` (one batch OHLC quote for the whole universe) instead
+    of a per-symbol intraday tape fetch. A missing bar degrades gracefully to
+    the last cached daily frame — no upstream call is made for that symbol.
     Top-level function (thread-pool safe). Never raises — failures are None.
     """
     try:
         sym = str(symbol).upper()
         if is_today:
-            df = fetch_for_timeframe(sym, "1D", include_partial_today=True)
+            bar = (partial_bars or {}).get(sym) if partial_bars else None
+            df = fetch_for_timeframe(
+                sym,
+                "1D",
+                include_partial_today=bar is not None,
+                partial_bar=bar,
+            )
         else:
             df = fetch_for_timeframe(sym, "1D", as_of_date=date_str)
             if df is not None and not getattr(df, "empty", True):
@@ -291,7 +330,41 @@ def compute_report(date_str: str, universe: str) -> dict:
             return _empty_payload(date_str, universe, scanned=0)
         symbols = [str(s) for s in (symbols or [])]
         names = _name_map()
-        fn = partial(_scan_one, date_str=date_str, is_today=is_today, names=names)
+
+        # Today's scan appends an in-progress daily bar to each symbol's frame.
+        # Fetching that bar per symbol (1-minute tape, one HTTP call each,
+        # through the rate-limited queue with a 10 s circuit wait) is what made
+        # this endpoint hang for minutes on a 500-name universe. Instead, fetch
+        # today's OHLC for the whole universe in 1-2 batch calls
+        # (/v3/market-quote/ohlc, 500 keys per chunk) — bypassing the rate
+        # limiter queue entirely — and thread each symbol's bar into
+        # fetch_for_timeframe via partial_bar. Zero per-symbol tape calls.
+        # When the 429 circuit is open or the batch is unavailable, skip all
+        # upstream calls and scan on cached daily frames only: fast, fail-soft,
+        # retryable, reported via ``degraded``/``reason`` instead of hanging.
+        partial_bars: dict = {}
+        degraded = False
+        reason: Optional[str] = None
+        if is_today and symbols and _today_is_session():
+            if _circuit_open():
+                degraded = True
+                reason = "upstox_circuit_open"
+            else:
+                try:
+                    partial_bars = fetch_ohlc_batch(symbols, interval="1d") or {}
+                except Exception:
+                    partial_bars = {}
+                if not partial_bars:
+                    degraded = True
+                    reason = "batch_quote_unavailable"
+
+        fn = partial(
+            _scan_one,
+            date_str=date_str,
+            is_today=is_today,
+            names=names,
+            partial_bars=partial_bars,
+        )
         try:
             workers = max_workers()
         except Exception:
@@ -321,6 +394,8 @@ def compute_report(date_str: str, universe: str) -> dict:
             "as_of": _now_iso(),
             "cached": False,
             "scanned": len(symbols),
+            "degraded": degraded,
+            "reason": reason,
             "breakouts": _section(up, _BREAKOUT_ORDER),
             "breakdowns": _section(down, _BREAKDOWN_ORDER),
         }

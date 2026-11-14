@@ -1,87 +1,35 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { Stack, Title } from "@/ui";
-import { InlineLoader, EmptyState, ErrorAlert, EmptyCompact } from "./states";
+import type { Meta, StoryObj } from "@storybook/html-vite";
+import { solidStory } from "@/stories/solidStory";
+import { EmptyState, ErrorAlert, InlineLoader } from "./states";
 
-const meta: Meta<typeof InlineLoader> = {
-  title: "Composites/States",
-  component: InlineLoader,
-  tags: ["autodocs"],
-};
-
+const meta: Meta = { title: "Terminal/States", tags: ["autodocs"] };
 export default meta;
-type Story = StoryObj<typeof InlineLoader>;
 
-export const AllStates: Story = {
-  render: () => (
-    <Stack gap="md" p="md">
-      <div>
-        <Title order={5}>InlineLoader</Title>
-        <InlineLoader />
+type Story = StoryObj;
+
+export const Empty: Story = {
+  render: () =>
+    solidStory(() => (
+      <div style={{ width: "520px" }}>
+        <EmptyState title="No rows for this filter" description="Widen the strike range or switch expiry." />
       </div>
-      <div>
-        <Title order={5}>EmptyState</Title>
-        <EmptyState title="No data available" description="Try a different filter or date range." />
+    )),
+};
+
+export const Loading: Story = {
+  render: () =>
+    solidStory(() => (
+      <div style={{ width: "520px" }}>
+        <InlineLoader message="Loading option chain" />
       </div>
-      <div>
-        <Title order={5}>EmptyState (emoji)</Title>
-        <EmptyState emoji="📊" title="No trades today" description="Come back during market hours." />
+    )),
+};
+
+export const Error: Story = {
+  render: () =>
+    solidStory(() => (
+      <div style={{ width: "520px" }}>
+        <ErrorAlert title="Feed unavailable" message="The options tape returned 503." withRetry onRetry={() => {}} />
       </div>
-      <div>
-        <Title order={5}>EmptyCompact</Title>
-        <EmptyCompact title="Empty Panel" description="This panel has no content yet." />
-      </div>
-      <div>
-        <Title order={5}>ErrorAlert</Title>
-        <ErrorAlert message="Failed to fetch data from the server." />
-      </div>
-      <div>
-        <Title order={5}>ErrorAlert with retry</Title>
-        <ErrorAlert
-          message="Connection lost."
-          title="Network Error"
-          withRetry
-          onRetry={() => alert("Retry clicked")}
-        />
-      </div>
-    </Stack>
-  ),
-};
-
-export const LoaderSmall: Story = {
-  args: { size: "sm" },
-};
-
-export const LoaderLarge: Story = {
-  args: { size: "lg" },
-};
-
-export const EmptyDefault: Story = {
-  render: () => <EmptyState title="No data" description="Nothing to show here yet." />,
-};
-
-export const EmptyWithEmoji: Story = {
-  render: () => <EmptyState emoji="🔍" title="No results" description="Try adjusting your filters." />,
-};
-
-export const EmptyCompactStandalone: Story = {
-  render: () => (
-    <div style={{ padding: 16 }}>
-      <EmptyCompact title="Empty Panel" description="This panel has no content yet." />
-    </div>
-  ),
-};
-
-export const ErrorDefault: Story = {
-  render: () => <ErrorAlert message="Something went wrong. Please try again." />,
-};
-
-export const ErrorWithRetry: Story = {
-  render: () => (
-    <ErrorAlert
-      title="API Error"
-      message="Failed to load data."
-      withRetry
-      onRetry={() => {}}
-    />
-  ),
+    )),
 };

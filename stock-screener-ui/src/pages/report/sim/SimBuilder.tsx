@@ -1,20 +1,24 @@
-import type { ReactNode } from "react";
+import type { JSX } from "solid-js";
 import type { SimLegSpec, SimStrategySpec } from "@/types/reportSim";
-import {
-  ActionIcon,
-  Alert,
-  Badge,
-  Box,
-  Button,
-  Divider,
-  NumberInput,
-  Select,
-  Text,
-  TextInput,
-  ToolbarRow,
-} from "@/ui";
+import { ActionIcon, Alert, Badge, Button, Divider, NumberInput, Select, Text, TextInput, ToolbarRow } from "@/ui";
 import * as palette from "@/ui/palette";
-import { IconPlus, IconX } from "@tabler/icons-react";
+import { IconX } from "@/components/common/Icons";
+
+const IconPlus = (props: { size?: number }) => (
+  <svg
+    width={props.size ?? 14}
+    height={props.size ?? 14}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    aria-hidden="true"
+  >
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+);
+import { For, Show } from "solid-js";
 import { resolvePreviewStrike, structureKind } from "./simSpec";
 
 const MAX_LEGS = 12;
@@ -42,67 +46,56 @@ export interface SimContextStripProps {
   deskTotal: string;
 }
 
-function Ctx({ label, value, hint }: { label: string; value: ReactNode; hint?: ReactNode }) {
+function Ctx(props: { label: string; value: JSX.Element; hint?: JSX.Element }) {
   return (
-    <Box className="flex flex-col min-w-0">
+    <div class="flex flex-col min-w-0">
       <Text
         span
         size="xs"
         style={{
-          fontSize: 9,
-          letterSpacing: "0.06em",
-          textTransform: "uppercase",
+          "font-size": "9px",
+          "letter-spacing": "0.06em",
+          "text-transform": "uppercase",
           color: palette.TEXT_MUTED,
         }}
       >
-        {label}
+        {props.label}
       </Text>
-      <Box className="flex items-center gap-1 min-w-0">
+      <div class="flex items-center gap-1 min-w-0">
         <Text span size="xs" fw={700} className="font-mono">
-          {value}
+          {props.value}
         </Text>
-        {hint}
-      </Box>
-    </Box>
+        {props.hint}
+      </div>
+    </div>
   );
 }
 
 /** Desk-level context strip shared by every SIM tab. */
-export function SimContextStrip({
-  mode,
-  date,
-  expiry,
-  dte,
-  spot,
-  lotSize,
-  lotVerified,
-  coverageText,
-  tapeLag,
-  deskTotal,
-}: SimContextStripProps) {
+export function SimContextStrip(props: SimContextStripProps) {
   return (
     <ToolbarRow
       data-testid="sim-context"
       gap={16}
       className="border border-fin-border rounded-[1px] p-2 bg-fin-surface-alt"
     >
-      <Ctx label="Mode / date" value={`${mode.toUpperCase()} · ${date || "—"}`} />
-      <Ctx label="Expiry / DTE" value={`${expiry} · ${dte}`} />
-      <Ctx label="Spot" value={spot} />
+      <Ctx label="Mode / date" value={`${props.mode.toUpperCase()} · ${props.date || "—"}`} />
+      <Ctx label="Expiry / DTE" value={`${props.expiry} · ${props.dte}`} />
+      <Ctx label="Spot" value={props.spot} />
       <Ctx
         label="Lot size"
-        value={lotSize}
+        value={props.lotSize}
         hint={
-          lotVerified ? null : (
+          <Show when={!props.lotVerified}>
             <Badge data-testid="sim-lot-unverified" size="xs" color="warning" variant="outline">
               unverified
             </Badge>
-          )
+          </Show>
         }
       />
-      <Ctx label="Coverage" value={coverageText} />
-      <Ctx label="Tape lag" value={tapeLag} />
-      <Ctx label="Desk total" value={deskTotal} />
+      <Ctx label="Coverage" value={props.coverageText} />
+      <Ctx label="Tape lag" value={props.tapeLag} />
+      <Ctx label="Desk total" value={props.deskTotal} />
     </ToolbarRow>
   );
 }
@@ -125,126 +118,127 @@ function strikeLabel(ref: string, spot: number, ladder: number[]): string | null
   return strike === null ? null : String(strike);
 }
 
-export function SimBuilder({
-  strategy,
-  ladder,
-  spot,
-  errors,
-  onChange,
-}: SimBuilderProps) {
-  const legs = strategy.legs;
+export function SimBuilder(props: SimBuilderProps) {
+  const strategy = () => props.strategy;
+  const legs = () => strategy().legs;
+  const onChange = (next: SimStrategySpec) => props.onChange(next);
+  const ladder = () => props.ladder;
+  const spot = () => props.spot;
+  const errors = () => props.errors;
 
   const patchLeg = (index: number, patch: Partial<SimLegSpec>) =>
-    onChange({ ...strategy, legs: replaceLeg(legs, index, patch) });
+    onChange({ ...strategy(), legs: replaceLeg(legs(), index, patch) });
 
   const addLeg = () => {
-    if (legs.length >= MAX_LEGS) return;
+    if (legs().length >= MAX_LEGS) return;
     onChange({
-      ...strategy,
-      legs: [...legs, { action: "BUY", opt: "CE", strike: "ATM", lots: 1 }],
+      ...strategy(),
+      legs: [...legs(), { action: "BUY", opt: "CE", strike: "ATM", lots: 1 }],
     });
   };
 
   const removeLeg = (index: number) => {
-    onChange({ ...strategy, legs: legs.filter((_, i) => i !== index) });
+    onChange({ ...strategy(), legs: legs().filter((_, i) => i !== index) });
   };
 
   const patchExec = (patch: Partial<SimStrategySpec["exec"]>) =>
-    onChange({ ...strategy, exec: { ...strategy.exec, ...patch } });
+    onChange({ ...strategy(), exec: { ...strategy().exec, ...patch } });
 
-  const resolved = legs
-    .map((leg) => strikeLabel(leg.strike, spot, ladder))
-    .filter((value): value is string => value !== null);
+  const resolved = () =>
+    legs()
+      .map((leg) => strikeLabel(leg.strike, spot(), ladder()))
+      .filter((value): value is string => value !== null);
 
   return (
-    <Box
+    <div
       data-testid="sim-builder"
-      className="flex flex-col gap-2 min-w-0"
+      class="flex flex-col gap-2 min-w-0"
     >
       <TextInput
         data-testid="sim-name"
         label="Strategy name"
         size="xs"
         w="100%"
-        value={strategy.name}
-        onChange={(name) => onChange({ ...strategy, name })}
+        value={strategy().name}
+        onChange={(name) => onChange({ ...strategy(), name })}
       />
 
-      <Box
+      <div
         data-testid="sim-legs"
-        className="border border-fin-border rounded-[1px] p-2 min-w-0"
+        class="border border-fin-border rounded-[1px] p-2 min-w-0"
       >
         <ToolbarRow justify="space-between">
           <Text span size="xs" fw={700} className="uppercase">
-            Legs · {legs.length}
+            Legs · {legs().length}
           </Text>
           <Button
             data-testid="sim-add-leg"
             size="xs"
             variant="default"
             leftSection={<IconPlus size={12} />}
-            disabled={legs.length >= MAX_LEGS}
+            disabled={legs().length >= MAX_LEGS}
             onClick={addLeg}
           >
             + ADD LEG
           </Button>
         </ToolbarRow>
 
-        {legs.length === 0 ? (
+        <Show when={legs().length === 0}>
           <Text size="xs" c="dimmed" className="py-2">
             No legs yet — add one.
           </Text>
-        ) : null}
+        </Show>
 
-        {legs.map((leg, index) => {
-          const preview = strikeLabel(leg.strike, spot, ladder);
-          return (
-            <Box key={`leg-${index}`} data-testid={`sim-leg-${index}`}>
+        <For each={legs()}>
+          {(leg, index) => {
+            const preview = () => strikeLabel(leg.strike, spot(), ladder());
+            return (
+            <div data-testid={`sim-leg-${index()}`}>
               <Divider />
               <ToolbarRow gap={8} className="py-[6px]">
                 <Select
-                  data-testid={`sim-leg-${index}-action`}
+                  data-testid={`sim-leg-${index()}-action`}
                   size="xs"
                   w={84}
                   data={ACTIONS}
                   value={leg.action}
                   onChange={(value) => {
-                    if (value) patchLeg(index, { action: value as SimLegSpec["action"] });
+                    if (value) patchLeg(index(), { action: value as SimLegSpec["action"] });
                   }}
                 />
                 <Select
-                  data-testid={`sim-leg-${index}-opt`}
+                  data-testid={`sim-leg-${index()}-opt`}
                   size="xs"
                   w={70}
                   data={OPTS}
                   value={leg.opt}
                   onChange={(value) => {
-                    if (value) patchLeg(index, { opt: value as SimLegSpec["opt"] });
+                    if (value) patchLeg(index(), { opt: value as SimLegSpec["opt"] });
                   }}
                 />
-                <Box className="flex flex-col w-[100px]">
+                <div class="flex flex-col w-[100px]">
                   <TextInput
-                    data-testid={`sim-leg-${index}-strike`}
+                    data-testid={`sim-leg-${index()}-strike`}
                     size="xs"
                     w="100%"
                     placeholder="ATM+2 / 24900"
                     value={leg.strike}
-                    onChange={(strike) => patchLeg(index, { strike })}
+                    onChange={(strike) => patchLeg(index(), { strike })}
                   />
                   <Text
                     span
                     size="xs"
-                    data-testid={`sim-leg-${index}-resolved`}
+                    data-testid={`sim-leg-${index()}-resolved`}
                     style={{
-                      fontSize: 9,
-                      color: preview === null ? palette.NEGATIVE : palette.TEXT_MUTED,
+                      "font-size": "9px",
+                      color: preview() === null ? palette.NEGATIVE : palette.TEXT_MUTED,
                     }}
                   >
-                    {preview === null ? "unresolved" : `→ ${preview}`}
+                    {preview() === null ? "unresolved" : `→ ${preview()}`}
                   </Text>
-                </Box>
+                </div>
                 <NumberInput
-                  data-testid={`sim-leg-${index}-lots`}
+                  data-testid={`sim-leg-${index()}-lots`}
                   size="xs"
                   w={56}
                   label="Lots"
@@ -252,28 +246,29 @@ export function SimBuilder({
                   max={50}
                   value={leg.lots}
                   onChange={(value: number | string) =>
-                    patchLeg(index, { lots: toNumber(value, leg.lots) })
+                    patchLeg(index(), { lots: toNumber(value, leg.lots) })
                   }
                 />
                 <ActionIcon
-                  data-testid={`sim-leg-${index}-remove`}
+                  data-testid={`sim-leg-${index()}-remove`}
                   size="sm"
                   variant="subtle"
                   color="error"
-                  aria-label={`Remove leg ${index + 1}`}
-                  onClick={() => removeLeg(index)}
+                  aria-label={`Remove leg ${index() + 1}`}
+                  onClick={() => removeLeg(index())}
                 >
                   <IconX size={14} />
                 </ActionIcon>
               </ToolbarRow>
-            </Box>
-          );
-        })}
-      </Box>
+            </div>
+            );
+          }}
+        </For>
+      </div>
 
-      <Box
+      <div
         data-testid="sim-exec"
-        className="border border-fin-border rounded-[1px] p-2"
+        class="border border-fin-border rounded-[1px] p-2"
       >
         <Text span size="xs" fw={700} className="uppercase">
           Execution
@@ -284,7 +279,7 @@ export function SimBuilder({
             size="xs"
             w={90}
             label="Entry"
-            value={strategy.exec.entryTime}
+            value={strategy().exec.entryTime}
             onChange={(entryTime) => patchExec({ entryTime })}
           />
           <NumberInput
@@ -294,9 +289,9 @@ export function SimBuilder({
             label="SL %"
             min={0}
             max={500}
-            value={strategy.exec.slPct}
+            value={strategy().exec.slPct}
             onChange={(slPct: number | string) =>
-              patchExec({ slPct: toNumber(slPct, strategy.exec.slPct) })
+              patchExec({ slPct: toNumber(slPct, strategy().exec.slPct) })
             }
           />
           <NumberInput
@@ -306,9 +301,9 @@ export function SimBuilder({
             label="TP %"
             min={0}
             max={500}
-            value={strategy.exec.tpPct}
+            value={strategy().exec.tpPct}
             onChange={(tpPct: number | string) =>
-              patchExec({ tpPct: toNumber(tpPct, strategy.exec.tpPct) })
+              patchExec({ tpPct: toNumber(tpPct, strategy().exec.tpPct) })
             }
           />
           <NumberInput
@@ -318,9 +313,9 @@ export function SimBuilder({
             label="Max hold"
             min={0}
             max={400}
-            value={strategy.exec.maxHoldMin}
+            value={strategy().exec.maxHoldMin}
             onChange={(maxHoldMin: number | string) =>
-              patchExec({ maxHoldMin: toNumber(maxHoldMin, strategy.exec.maxHoldMin) })
+              patchExec({ maxHoldMin: toNumber(maxHoldMin, strategy().exec.maxHoldMin) })
             }
           />
           <NumberInput
@@ -329,9 +324,9 @@ export function SimBuilder({
             w={90}
             label="Trail %"
             min={0}
-            value={strategy.exec.trailPct}
+            value={strategy().exec.trailPct}
             onChange={(trailPct: number | string) =>
-              patchExec({ trailPct: toNumber(trailPct, strategy.exec.trailPct) })
+              patchExec({ trailPct: toNumber(trailPct, strategy().exec.trailPct) })
             }
           />
           <TextInput
@@ -339,34 +334,36 @@ export function SimBuilder({
             size="xs"
             w={90}
             label="EOD exit"
-            value={strategy.exec.eodExit}
+            value={strategy().exec.eodExit}
             onChange={(eodExit) => patchExec({ eodExit })}
           />
         </ToolbarRow>
-      </Box>
+      </div>
 
-      {errors.length > 0 ? (
+      <Show when={errors().length > 0}>
         <Alert color="error" data-testid="sim-errors">
-          {errors.map((message) => (
-            <Text key={message} span size="xs" style={{ display: "block" }}>
-              {message}
-            </Text>
-          ))}
+          <For each={errors()}>
+            {(message) => (
+              <Text span size="xs" style={{ display: "block" }}>
+                {message}
+              </Text>
+            )}
+          </For>
         </Alert>
-      ) : null}
+      </Show>
 
       <ToolbarRow gap={8} data-testid="sim-structure">
         <Badge size="xs" variant="outline" color="default">
-          {structureKind(legs)}
+          {structureKind(legs())}
         </Badge>
         <Text span size="xs" c="dimmed">
-          {legs.length} leg{legs.length === 1 ? "" : "s"}
+          {legs().length} leg{legs().length === 1 ? "" : "s"}
         </Text>
         <Text span size="xs" c="dimmed" className="min-w-0">
-          {resolved.length > 0 ? `strikes ${resolved.join(" / ")}` : "no resolved strikes"}
+          {resolved().length > 0 ? `strikes ${resolved().join(" / ")}` : "no resolved strikes"}
         </Text>
       </ToolbarRow>
-    </Box>
+    </div>
   );
 }
 

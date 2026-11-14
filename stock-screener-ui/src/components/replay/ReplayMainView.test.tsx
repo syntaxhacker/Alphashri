@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { ReplayMainView } from "./ReplayMainView";
@@ -33,8 +33,7 @@ const baseProps = {
 
 describe("ReplayMainView", () => {
   it("renders a flex-fill container that fills its parent", () => {
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayMainView {...baseProps} />
       </UIProvider>,
     );
@@ -45,8 +44,7 @@ describe("ReplayMainView", () => {
   });
 
   it("flex layout includes both chart and trade log", () => {
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayMainView {...baseProps} />
       </UIProvider>,
     );

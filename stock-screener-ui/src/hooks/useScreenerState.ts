@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useCallback, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { createEffect, createMemo } from "solid-js";
+import { useNavigate, useSearchParams } from "@solidjs/router";
 import * as state from "../state";
 import { subscribe } from "../state";
 import { fetchData, setupAutoRefresh, loadScreeners } from "../api";
@@ -24,18 +24,33 @@ function fetchScreener(provider: string | undefined, mode: string | undefined, s
   return fetchData(provider || defaults.provider, mode || defaults.mode, screener);
 }
 
+/**
+ * Screener page state.
+ *
+ * Every field is exposed as a **getter** so the caller reads it live. A Solid
+ * component body runs once, so a destructured snapshot would never update —
+ * the consumer must hold the object and read `s.isLoading`, not `const
+ * { isLoading } = s`.
+ */
 export function useScreenerState(initialScreener?: string) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  useStoreSubscription(subscribe);
-  const initialLoadDone = useRef(false);
 
-  // Load data on mount - only once
-  useEffect(() => {
-    if (initialLoadDone.current) return;
-    initialLoadDone.current = true;
+  // `state.*` are plain module `let`s reassigned by their setters, so a read
+  // captures nothing reactive on its own. Reading the subscription counter
+  // first makes every memo/getter below re-run when the store notifies.
+  const storeVersion = useStoreSubscription(subscribe);
 
-    const useUrlScreener = initialScreener && (!state.screenerOptions.length || initialScreener !== state.activeScreener);
+  let initialLoadDone = false;
+
+  // Load data on mount — only once. `createEffect` with no reactive read runs
+  // exactly once, which is what the React `[]` dependency array meant here.
+  createEffect(() => {
+    if (initialLoadDone) return;
+    initialLoadDone = true;
+
+    const useUrlScreener =
+      initialScreener && (!state.screenerOptions.length || initialScreener !== state.activeScreener);
     if (useUrlScreener) {
       state.setActiveScreener(initialScreener);
     }
@@ -51,77 +66,101 @@ export function useScreenerState(initialScreener?: string) {
         })
         .catch((err) => {
           console.error("Failed to load screeners:", err);
-          initialLoadDone.current = false;
+          initialLoadDone = false;
         });
     } else {
       fetchScreener(undefined, undefined, state.activeScreener);
       setupAutoRefresh();
     }
-  }, []);
+  });
 
-  // Derived state from global state
-  const approachingStocks = useMemo(() => {
+  const approachingStocks = createMemo(() => {
+    storeVersion();
     return approachingStocksOf(state.data);
-  }, [state.data]);
-
-  const touchedStocks = useMemo(() => {
+  });
+  const touchedStocks = createMemo(() => {
+    storeVersion();
     return touchedStocksOf(state.data);
-  }, [state.data]);
+  });
 
-  // Actions
-  const onRefresh = useCallback(() => {
+  // Actions are plain functions: a Solid function defined in the component body
+  // is already referentially stable, so useCallback has nothing to memoise.
+  const onRefresh = () => {
     fetchScreener(undefined, undefined, state.activeScreener);
-  }, []);
+  };
 
-  const onAutoRefreshChange = useCallback((seconds: number) => {
+  const onAutoRefreshChange = (seconds: number) => {
     state.setAutoRefreshSeconds(seconds);
     setupAutoRefresh();
-  }, []);
+  };
 
-  const onProviderChange = useCallback((newProvider: string) => {
+  const onProviderChange = (newProvider: string) => {
     fetchScreener(newProvider, undefined, state.activeScreener);
-  }, []);
+  };
 
-  const onModeChange = useCallback((newMode: string) => {
+  const onModeChange = (newMode: string) => {
     fetchScreener(undefined, newMode, state.activeScreener);
-  }, []);
+  };
 
-  const onScreenerChange = useCallback((screenerId: string) => {
+  const onScreenerChange = (screenerId: string) => {
     const cleanId = screenerId.replace(/^builtin:/, "");
     state.setActiveScreener(cleanId);
     fetchScreener(undefined, undefined, cleanId);
     setupAutoRefresh();
-    const next = new URLSearchParams(searchParams);
+    const next = new URLSearchParams(searchParams as unknown as Record<string, string>);
     next.set("screener", cleanId);
-    setSearchParams(next, { replace: true });
-  }, [searchParams]);
+    setSearchParams(next as never, { replace: true });
+  };
 
-  const onConfigScreenerSelect = useCallback((screenerId: string) => {
+  const onConfigScreenerSelect = (screenerId: string) => {
     state.setActiveScreener(screenerId);
-  }, []);
+  };
 
-  const onSymbolClick = useCallback(
-    (symbol: string) => {
-      navigate(`/chart/${symbol}`);
-    },
-    [navigate],
-  );
+  const onSymbolClick = (symbol: string) => {
+    navigate(`/chart/${symbol}`);
+  };
 
-  const onSymbolHover = useCallback((_symbol: string | null) => {}, []);
-
-  const { provider, mode } = getScreenerDefaults(state.data);
+  const onSymbolHover = (_symbol: string | null) => {};
 
   return {
-    approachingStocks,
-    touchedStocks,
-    screenerOptions: state.screenerOptions,
-    activeScreener: state.activeScreener,
-    isLoading: state.isLoading,
-    error: state.error,
-    warning: state.data?.warning || null,
-    autoRefreshSeconds: state.autoRefreshSeconds,
-    provider,
-    mode,
+    get approachingStocks() {
+      return approachingStocks();
+    },
+    get touchedStocks() {
+      return touchedStocks();
+    },
+    get screenerOptions() {
+      storeVersion();
+      return state.screenerOptions;
+    },
+    get activeScreener() {
+      storeVersion();
+      return state.activeScreener;
+    },
+    get isLoading() {
+      storeVersion();
+      return state.isLoading;
+    },
+    get error() {
+      storeVersion();
+      return state.error;
+    },
+    get warning() {
+      storeVersion();
+      return state.data?.warning || null;
+    },
+    get autoRefreshSeconds() {
+      storeVersion();
+      return state.autoRefreshSeconds;
+    },
+    get provider() {
+      storeVersion();
+      return getScreenerDefaults(state.data).provider;
+    },
+    get mode() {
+      storeVersion();
+      return getScreenerDefaults(state.data).mode;
+    },
     onRefresh,
     onAutoRefreshChange,
     onProviderChange,

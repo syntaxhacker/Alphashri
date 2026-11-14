@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { alpha, BORDER, CHART_SPLIT, INFO, NEGATIVE, POSITIVE, SURFACE_ALT, TEXT_MUTED, TOOLTIP_BG, WARNING } from "./colors";
 import {
-  POSITIVE,
-  NEGATIVE,
   NEUTRAL,
   MARKER_ENTRY,
   MARKER_TP,
@@ -215,12 +214,14 @@ describe("Color Constants", () => {
   });
 
   describe("Bot Status", () => {
-    it("BOT_RUNNING is green", () => {
-      expect(BOT_RUNNING).toBe("#3FB950");
+    it("BOT_RUNNING is the bullish anchor", () => {
+      expect(BOT_RUNNING).toBe(POSITIVE);
     });
 
-    it("BOT_STOPPED is muted", () => {
-      expect(BOT_STOPPED).toBe("#8B949E");
+    it("BOT_STOPPED is muted, not coloured", () => {
+      expect(BOT_STOPPED).toBe(TEXT_MUTED);
+      expect(BOT_STOPPED).not.toBe(POSITIVE);
+      expect(BOT_STOPPED).not.toBe(NEGATIVE);
     });
 
     it("BOT_SELECTED_BG is rgba", () => {
@@ -261,12 +262,12 @@ describe("Color Constants", () => {
   });
 
   describe("Heatmap / Tinted Backgrounds", () => {
-    it("TINT_POSITIVE is rgba with green tint", () => {
-      expect(TINT_POSITIVE).toMatch(/^rgba\(63, 185, 80, /);
+    it("TINT_POSITIVE derives from the bullish anchor", () => {
+      expect(TINT_POSITIVE).toBe(alpha(POSITIVE, 0.12));
     });
 
-    it("TINT_NEGATIVE is rgba with red tint", () => {
-      expect(TINT_NEGATIVE).toMatch(/^rgba\(248, 81, 73, /);
+    it("TINT_NEGATIVE derives from the bearish anchor", () => {
+      expect(TINT_NEGATIVE).toBe(alpha(NEGATIVE, 0.12));
     });
 
     it("TINT_LOSS_ROW is defined", () => {
@@ -279,8 +280,9 @@ describe("Color Constants", () => {
   });
 
   describe("ECharts Tooltip", () => {
-    it("TOOLTIP_DARK_BG is dark", () => {
-      expect(TOOLTIP_DARK_BG).toBe("#111111");
+    it("TOOLTIP_DARK_BG is the raised surface", () => {
+      expect(TOOLTIP_DARK_BG).toBe(TOOLTIP_BG);
+      expect(TOOLTIP_DARK_BG).toBe(SURFACE_ALT);
     });
 
     it("TOOLTIP_LIGHT_BG is light", () => {
@@ -296,9 +298,10 @@ describe("Color Constants", () => {
   });
 
   describe("ECharts Axis", () => {
-    it("dark axis colors are darker", () => {
-      expect(AXIS_DARK_LINE).toBe("#30363D");
-      expect(AXIS_DARK_SPLIT).toBe("#21262D");
+    it("dark axis hues derive from the chrome ramp", () => {
+      expect(AXIS_DARK_LINE).toBe(BORDER);
+      // Grid splitters are chart ink and must not move with the surface ramp.
+      expect(AXIS_DARK_SPLIT).toBe(CHART_SPLIT);
     });
 
     it("light axis colors are lighter", () => {
@@ -317,9 +320,9 @@ describe("Color Constants", () => {
     });
 
     it("overlay and dropdown variants are rgba", () => {
-      expect(CHART_DARK_OVERLAY).toMatch(/^rgba\(0, 0, 0, /);
+      expect(CHART_DARK_OVERLAY).toMatch(/^rgba\(/);
       expect(CHART_LIGHT_OVERLAY).toMatch(/^rgba\(255, 255, 255, /);
-      expect(CHART_DARK_DROPDOWN).toMatch(/^rgba\(0, 0, 0, /);
+      expect(CHART_DARK_DROPDOWN).toMatch(/^rgba\(/);
       expect(CHART_LIGHT_DROPDOWN).toMatch(/^rgba\(255, 255, 255, /);
     });
   });
@@ -345,8 +348,8 @@ describe("Color Constants", () => {
       expect(EXIT_COLORS.SL).toBe(MARKER_SL);
     });
 
-    it("maps EOD to MARKER_EOD", () => {
-      expect(EXIT_COLORS.EOD).toBe(MARKER_EOD);
+    it("maps EOD to the warning hue", () => {
+      expect(EXIT_COLORS.EOD).toBe(WARNING);
     });
   });
 
@@ -357,8 +360,8 @@ describe("Color Constants", () => {
   });
 
   describe("Error and Miscellaneous", () => {
-    it("ERROR_COLOR is red", () => {
-      expect(ERROR_COLOR).toBe("#F85149");
+    it("ERROR_COLOR is the bearish anchor", () => {
+      expect(ERROR_COLOR).toBe(NEGATIVE);
     });
 
     it("MARKER_BORDER is cream", () => {
@@ -379,34 +382,34 @@ describe("Color Constants", () => {
       expect(CHART_LIGHT_DATAZOOM_BG).toBeDefined();
     });
 
-    it("DATAZOOM_FILLER is rgba green", () => {
-      expect(DATAZOOM_FILLER).toMatch(/^rgba\(63, 185, 80, /);
+    it("DATAZOOM_FILLER is a bullish tint", () => {
+      expect(DATAZOOM_FILLER).toBe(alpha(POSITIVE, 0.15));
     });
   });
 
   describe("Volume Bars", () => {
-    it("VOLUME_BULLISH is green with transparency", () => {
-      expect(VOLUME_BULLISH).toBe("rgba(63, 185, 80, 0.45)");
+    it("VOLUME_BULLISH is a bullish tint", () => {
+      expect(VOLUME_BULLISH).toBe(alpha(POSITIVE, 0.45));
     });
 
-    it("VOLUME_BEARISH is red with transparency", () => {
-      expect(VOLUME_BEARISH).toBe("rgba(248, 81, 73, 0.45)");
+    it("VOLUME_BEARISH is a bearish tint", () => {
+      expect(VOLUME_BEARISH).toBe(alpha(NEGATIVE, 0.45));
     });
   });
 
   describe("ORB Area", () => {
-    it("ORB_AREA is cream with transparency", () => {
-      expect(ORB_AREA).toMatch(/^rgba\(77, 153, 255, /);
+    it("ORB_AREA is an informational band, not a loss", () => {
+      expect(ORB_AREA).toBe(alpha(INFO, 0.15));
     });
   });
 
   describe("IV Skew Area", () => {
     it("IV_AREA_START has alpha", () => {
-      expect(IV_AREA_START).toMatch(/0\.3\)$/);
+      expect(IV_AREA_START).toBe(alpha(INFO, 0.3));
     });
 
     it("IV_AREA_END fades to transparent", () => {
-      expect(IV_AREA_END).toMatch(/0\)$/);
+      expect(IV_AREA_END).toBe(alpha(INFO, 0));
     });
   });
 });

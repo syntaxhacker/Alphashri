@@ -1,9 +1,10 @@
 import { Box, Text, Tooltip } from "@/ui";
-import { useNavigate } from "react-router-dom";
+import { Show, type Component } from "solid-js";
+import { useNavigate } from "@solidjs/router";
 import * as palette from "@/ui/palette";
 
 interface NavbarLinksGroupProps {
-  icon: React.FC<any>;
+  icon: Component<Record<string, any>>;
   label: string;
   link: string;
   active: boolean;
@@ -11,55 +12,60 @@ interface NavbarLinksGroupProps {
   onNavigate?: () => void;
 }
 
-export function NavbarLinksGroup({
-  icon: Icon,
-  label,
-  link,
-  active,
-  collapsed,
-  onNavigate,
-}: NavbarLinksGroupProps) {
+export function NavbarLinksGroup(props: NavbarLinksGroupProps) {
   const navigate = useNavigate();
+  const collapsed = () => props.collapsed ?? false;
 
-  const testId = `nav-${label.toLowerCase().replace(/\s+/g, "-").replace("paper-trading", "paper").replace("sector-analysis", "sector")}`;
-  const navLink = (
-    <Box
-      role="button"
-      onClick={() => {
-        navigate(link);
-        onNavigate?.();
-      }}
-      data-testid={testId}
-      data-active={active || undefined}
-      id={`nav-link-${label.toLowerCase().replace(/\s+/g, "-")}`}
-      aria-label={label}
-      title={label}
-      className="flex items-center gap-2 rounded-fin px-3 py-3 min-w-0 cursor-pointer transition-colors"
-      style={{
-        justifyContent: collapsed ? "center" : "flex-start",
-        ...(active
-          ? { backgroundColor: "#80B5FF", color: "#1A5CD6" }
-          : {}),
-      }}
-    >
-      <Box className="flex items-center justify-center min-w-[36px]" style={{ color: active ? "#1A5CD6" : palette.TEXT_MUTED }}>
-        <Icon size={16} />
-      </Box>
-      {!collapsed && (
-        <Text size="sm" style={{ fontSize: "0.875rem", fontWeight: active ? 600 : 400 }}>
-          {label}
-        </Text>
-      )}
-    </Box>
-  );
-
-  if (collapsed) {
+  const testId = () => `nav-${props.label.toLowerCase().replace(/\s+/g, "-").replace("paper-trading", "paper").replace("sector-analysis", "sector")}`;
+  const navLink = () => {
+    const IconC = props.icon;
     return (
-      <Tooltip label={label} position="right">
-        {navLink}
-      </Tooltip>
+      <Box
+        role="button"
+        onClick={() => {
+          navigate(props.link);
+          props.onNavigate?.();
+        }}
+        data-testid={testId()}
+        data-active={props.active || undefined}
+        id={`nav-link-${props.label.toLowerCase().replace(/\s+/g, "-")}`}
+        aria-label={props.label}
+        title={props.label}
+        className="flex items-center gap-1.5 rounded-fin px-1.5 py-1 min-w-0 cursor-pointer transition-colors"
+        style={{
+          "justify-content": collapsed() ? "center" : "flex-start",
+          ...(props.active
+            ? { "background-color": palette.alpha(palette.PRIMARY, 0.14), color: palette.TEXT, "box-shadow": "inset 2px 0 0 0 " + palette.PRIMARY }
+            : {}),
+        }}
+      >
+        <Box className="flex items-center justify-center min-w-[20px]" style={{ color: props.active ? palette.PRIMARY : palette.TEXT_MUTED }}>
+          <IconC size={16} />
+        </Box>
+        <Show when={!collapsed()}>
+          <Text
+            size="sm"
+            style={{
+              "font-size": "10.5px",
+              "font-family": palette.MONO,
+              "letter-spacing": "0.06em",
+              "text-transform": "uppercase",
+              "font-weight": props.active ? 600 : 500,
+              color: props.active ? palette.PRIMARY : undefined,
+            }}
+          >
+            {props.label}
+          </Text>
+        </Show>
+      </Box>
     );
-  }
+  };
 
-  return navLink;
+  return (
+    <Show when={collapsed()} fallback={navLink()}>
+      <Tooltip label={props.label} position="right">
+        {navLink()}
+      </Tooltip>
+    </Show>
+  );
 }

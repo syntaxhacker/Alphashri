@@ -1,8 +1,13 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
-import { screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
+
 import { ChainTableHeader } from "./ChainTableHeader";
 import { SCALE_GREEN, SCALE_RED, SCALE_YELLOW, SCALE_GRAY } from "../../../config/colors";
 
@@ -33,23 +38,20 @@ const mockStyles = {
 
 describe("ChainTableHeader", () => {
   it("renders CALLS (CE) header", () => {
-    renderWithProviders(
-      <ChainTableHeader theme={mockTheme as any} styles={mockStyles as any} />,
-    );
+    render(() => 
+      <ChainTableHeader theme={mockTheme as any} styles={mockStyles as any} />);
     expect(screen.getByText("CALLS (CE)")).toBeInTheDocument();
   });
 
   it("renders STRIKE header", () => {
-    renderWithProviders(
-      <ChainTableHeader theme={mockTheme as any} styles={mockStyles as any} />,
-    );
+    render(() => 
+      <ChainTableHeader theme={mockTheme as any} styles={mockStyles as any} />);
     expect(screen.getByText("STRIKE")).toBeInTheDocument();
   });
 
   it("renders PUTS (PE) header", () => {
-    renderWithProviders(
-      <ChainTableHeader theme={mockTheme as any} styles={mockStyles as any} />,
-    );
+    render(() => 
+      <ChainTableHeader theme={mockTheme as any} styles={mockStyles as any} />);
     expect(screen.getByText("PUTS (PE)")).toBeInTheDocument();
   });
 });

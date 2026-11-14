@@ -1,25 +1,25 @@
+import type { JSX } from "solid-js";
 // BacktestRightRail — fixed right column holding the collapsible panels.
 // Width resizes on the DOM node during the gesture (rAF) and commits on release.
-import { useRef } from "react";
-import { Box } from "@/ui";
+
 import * as palette from "@/ui/palette";
 import { RAIL_MAX_WIDTH, RAIL_MIN_WIDTH } from "./useBacktestLayout";
-
+import { Box } from "@/ui";
 interface BacktestRightRailProps {
   width: number;
   onWidthChange: (width: number) => void;
-  children: React.ReactNode;
+  children: JSX.Element;
 }
 
-export function BacktestRightRail({ width, onWidthChange, children }: BacktestRightRailProps) {
-  const railRef = useRef<HTMLDivElement>(null);
+export function BacktestRightRail(props: BacktestRightRailProps) {
+  let railRef: HTMLDivElement | undefined;
 
-  const beginResize = (e: React.PointerEvent) => {
+  const beginResize = (e: PointerEvent) => {
     if (e.button !== 0) return;
     e.preventDefault();
     const startX = e.clientX;
-    const startW = railRef.current?.getBoundingClientRect().width ?? width;
-    const el = railRef.current;
+    const startW = railRef?.getBoundingClientRect().width ?? props.width;
+    const el = railRef;
     if (el) el.style.willChange = "width";
     let raf = 0;
     let next = startW;
@@ -33,7 +33,7 @@ export function BacktestRightRail({ width, onWidthChange, children }: BacktestRi
       window.removeEventListener("pointerup", up);
       if (raf) cancelAnimationFrame(raf);
       if (el) el.style.willChange = "";
-      onWidthChange(next);
+      props.onWidthChange(next);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -41,21 +41,21 @@ export function BacktestRightRail({ width, onWidthChange, children }: BacktestRi
 
   return (
     <Box
-      ref={railRef}
+      ref={el => (railRef = el)}
       data-testid="backtest-rail"
       className="flex-shrink-0 h-full min-h-0 flex flex-col overflow-hidden"
       style={{
         flex: "0 0 auto",
-        width,
-        minWidth: RAIL_MIN_WIDTH,
-        maxWidth: RAIL_MAX_WIDTH,
+        width: props.width,
+        "min-width": RAIL_MIN_WIDTH,
+        "max-width": RAIL_MAX_WIDTH,
         height: "100%",
-        minHeight: 0,
+        "min-height": 0,
         position: "relative",
         display: "flex",
-        flexDirection: "column",
-        backgroundColor: palette.NT_BG,
-        borderLeft: `1px solid ${palette.BORDER}`,
+        "flex-direction": "column",
+        "background-color": palette.NT_BG,
+        "border-left": `1px solid ${palette.BORDER}`,
         overflow: "hidden",
       }}
     >
@@ -69,13 +69,13 @@ export function BacktestRightRail({ width, onWidthChange, children }: BacktestRi
           left: 0,
           top: 0,
           bottom: 0,
-          width: 6,
+          width: "6px",
           cursor: "ew-resize",
-          touchAction: "none",
-          zIndex: 3,
+          "touch-action": "none",
+          "z-index": 3,
         }}
       />
-      {children}
+      {props.children}
     </Box>
   );
 }

@@ -1,6 +1,8 @@
-import { useCallback, useDeferredValue, useMemo, useState } from "react";
-import { ActionIcon, Box, Button, Chip, Divider, MultiSelect, Select, Switch, Text, TextInput, ToolbarRow, Tooltip } from "@/ui";
-import { IconX, IconRestore } from "@tabler/icons-react";
+import { createMemo, createSignal, For, Show } from "solid-js";
+import type { JSX } from "solid-js";
+import { Box, Button, Chip, Divider, MultiSelect, Select, Switch, Text, TextInput, ToolbarRow, Tooltip } from "@/ui";
+import { CompactPanel } from "@/components/common/compact";
+import { IconX, IconRestore } from "@/patterns/icons";
 import type {
   PatternDef,
   PatternFilters,
@@ -30,7 +32,7 @@ const BASE_LENGTH_PRESETS = [30, 60, 90, 120, 180];
 export interface PatternFilterRailProps {
   patterns: PatternDef[];
   results: PatternHitDTO[];
-  /** Aggregate counts for the whole filtered set (chips prefer these over `results`). */
+  /** Aggregate counts for the whole filtered set (chips prefer these over `props.results`). */
   summary?: PatternSummary | null;
   filters: PatternFilters;
   setFilter: (key: string, value: any) => void;
@@ -56,53 +58,27 @@ function toggle(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 }
 
-function Section({
-  title,
-  info,
-  level = "group",
-  children,
-}: {
+/** Section header: 10px, uppercase, muted, tracking-[0.06em]. */
+function Section(props: {
   title: string;
-  info?: React.ReactNode;
-  level?: "group" | "field";
-  children: React.ReactNode;
+  info?: JSX.Element;
+  children: JSX.Element;
 }) {
-  // `field` is the compact form used inside a group: a 10px muted label and the
-  // control, with no rule. `group` owns the single rule for a group of fields.
-  if (level === "field") {
-    return (
-      <Box className="flex min-w-0 flex-col gap-0.5">
-        <Box className="flex items-center gap-1">
-          <Text size="xs" c="dimmed" style={{ fontSize: 10, lineHeight: 1.2 }}>
-            {title}
-          </Text>
-          {info}
-        </Box>
-        {children}
-      </Box>
-    );
-  }
   return (
-    <Box className="flex flex-col gap-1">
-      <Box
-        className="flex items-center gap-1 border-b border-fin-border pb-0.5"
-      >
-        <Text size="xs" fw={700} style={{ textTransform: "uppercase", letterSpacing: 0.4 }} c="dimmed">
-          {title}
+    <Box className="flex min-w-0 flex-col gap-1">
+      <Box className="flex items-center gap-1">
+        <Text c="dimmed" className="text-[10px] font-semibold uppercase tracking-[0.06em]">
+          {props.title}
         </Text>
-        {info}
+        {props.info}
       </Box>
-      {children}
+      {props.children}
     </Box>
   );
 }
 
 /** Compact `?` help affordance listing a set of `{label, description}` entries. */
-function InfoTip({
-  title,
-  items,
-  testId,
-}: {
+function InfoTip(props: {
   title: string;
   items: Array<{ label: string; description: string }>;
   testId: string;
@@ -115,21 +91,23 @@ function InfoTip({
       label={
         <Box className="flex max-w-[260px] flex-col gap-1">
           <Text size="xs" fw={700}>
-            {title}
+            {props.title}
           </Text>
-          {items.map((item) => (
-            <Text key={item.label} size="xs">
-              <strong>{item.label}</strong>: {item.description}
-            </Text>
-          ))}
+          <For each={props.items}>
+            {(item) => (
+              <Text size="xs">
+                <strong>{item.label}</strong>: {item.description}
+              </Text>
+            )}
+          </For>
         </Box>
       }
     >
       <Text
         size="xs"
         c="dimmed"
-        style={{ cursor: "help", userSelect: "none", lineHeight: 1 }}
-        data-testid={testId}
+        style={{ cursor: "help", "user-select": "none", "line-height": 1 }}
+        data-testid={props.testId}
       >
         ⓘ
       </Text>
@@ -144,90 +122,73 @@ function infoItems(
 }
 
 /** Filter controls: family, patterns, direction, status, quality, formed-within, volume. */
-export function PatternFilterRail({
-  patterns,
-  results,
-  summary,
-  filters,
-  setFilter,
-  resetFilters,
-  applyFilters,
-  images,
-  layout = "rail",
-  onReplayScan,
-}: PatternFilterRailProps) {
-  const panel = layout === "panel";
+export function PatternFilterRail(props: PatternFilterRailProps) {
+  const panel = () => (props.layout ?? "rail") === "panel";
   // Compact pattern picker state (panel layout). Search + hide-zero keep the
   // gallery scannable without forcing a long scroll past empty patterns.
-  const [patternQuery, setPatternQuery] = useState("");
+  const [patternQuery, setPatternQuery] = createSignal("");
   // A user who arrives with advanced filters already applied must see them,
   // not a collapsed section that silently hides the active constraints.
-  const advancedActive =
-    filters.min_confidence != null ||
-    filters.min_breakout_score != null ||
-    filters.min_rel_volume != null ||
-    filters.min_volume_m != null ||
-    (filters.min_avg_volume_10d != null &&
-      filters.min_avg_volume_10d !== DEFAULT_PATTERN_FILTERS.min_avg_volume_10d) ||
-    (filters.trendlines ?? "both") !== "both";
-  const [advancedOpen, setAdvancedOpen] = useState(advancedActive);
-  const [hideZero, setHideZero] = useState(false);
-  // One pass over the results feeds both family and pattern counters; the old
-  // code re-scanned `results` once per family on every render.
-  const { familyCounts, patternCounts } = useMemo(() => {
+  const advancedActive = () =>
+    props.filters.min_confidence != null ||
+    props.filters.min_breakout_score != null ||
+    props.filters.min_rel_volume != null ||
+    props.filters.min_volume_m != null ||
+    (props.filters.min_avg_volume_10d != null &&
+      props.filters.min_avg_volume_10d !== DEFAULT_PATTERN_FILTERS.min_avg_volume_10d) ||
+    (props.filters.trendlines ?? "both") !== "both";
+  const [advancedOpen, setAdvancedOpen] = createSignal(advancedActive());
+  const [hideZero, setHideZero] = createSignal(false);
+  // One pass over the props.results feeds both family and pattern counters; the old
+  // code re-scanned `props.results` once per family on every render.
+  const counts = createMemo(() => {
     const familyMap = new Map<string, number>();
     const patternMap = new Map<string, number>();
-    for (const result of results) {
+    for (const result of props.results) {
       familyMap.set(result.family, (familyMap.get(result.family) ?? 0) + 1);
       patternMap.set(result.pattern_id, (patternMap.get(result.pattern_id) ?? 0) + 1);
     }
     return { familyCounts: familyMap, patternCounts: patternMap };
-  }, [results]);
+  });
 
-  const families = useMemo(() => {
-    const order = Array.from(new Set([...FAMILY_ORDER, ...patterns.map((p) => p.family)]));
+  const families = createMemo(() => {
+    const order = Array.from(new Set([...FAMILY_ORDER, ...props.patterns.map((p) => p.family)]));
     return order.map((id) => ({
       id,
       label: FAMILY_LABELS[id] ?? id,
-      count: summary?.family_counts?.[id] ?? familyCounts.get(id) ?? 0,
+      count: props.summary?.family_counts?.[id] ?? counts().familyCounts.get(id) ?? 0,
     }));
-  }, [patterns, summary, familyCounts]);
+  });
 
-  const selectedFamilies = asArray(filters.family);
-  const selectedPatterns = asArray(filters.pattern_id);
-  const selectedDirections = asArray(filters.direction);
-  const selectedStatuses = asArray(filters.status);
-  const formedWithin = filters.formed_within_bars ?? null;
-  const minBaseDays = filters.min_base_days ?? null;
-  const sort = filters.sort ?? "confidence";
+  const selectedFamilies = () => asArray(props.filters.family);
+  const selectedPatterns = () => asArray(props.filters.pattern_id);
+  const selectedDirections = () => asArray(props.filters.direction);
+  const selectedStatuses = () => asArray(props.filters.status);
+  const formedWithin = () => props.filters.formed_within_bars ?? null;
+  const minBaseDays = () => props.filters.min_base_days ?? null;
+  const sort = () => props.filters.sort ?? "confidence";
 
-  const patternCountFor = useCallback(
-    (patternId: string): number =>
-      summary?.pattern_counts?.[patternId] ?? patternCounts.get(patternId) ?? 0,
-    [summary, patternCounts],
-  );
+  const patternCountFor = (patternId: string): number =>
+    props.summary?.pattern_counts?.[patternId] ?? counts().patternCounts.get(patternId) ?? 0;
 
   // The gallery only depends on the query, the zero filter and the counters —
   // not on unrelated filter changes or typing in other inputs.
-  const deferredQuery = useDeferredValue(patternQuery);
-  const query = deferredQuery.trim().toLowerCase();
-  const gallery = useMemo(
-    () =>
-      PATTERN_FAMILIES.map((family) => ({
-        family,
-        visible: family.patterns.filter((pattern) => {
-          if (hideZero && patternCountFor(pattern.id) === 0) return false;
-          if (!query) return true;
-          const label = PATTERN_LABELS[pattern.id] ?? pattern.name;
-          return label.toLowerCase().includes(query);
-        }),
-      })).filter((group) => group.visible.length > 0),
-    [hideZero, patternCountFor, query],
+  const query = createMemo(() => patternQuery().trim().toLowerCase());
+  const gallery = createMemo(() =>
+    PATTERN_FAMILIES.map((family) => ({
+      family,
+      visible: family.patterns.filter((pattern) => {
+        if (hideZero() && patternCountFor(pattern.id) === 0) return false;
+        if (!query()) return true;
+        const label = PATTERN_LABELS[pattern.id] ?? pattern.name;
+        return label.toLowerCase().includes(query());
+      }),
+    })).filter((group) => group.visible.length > 0),
   );
 
   const presetsSection = (
     <Section title="Presets">
-      <PatternPresets filters={filters} applyFilters={applyFilters} />
+      <PatternPresets filters={props.filters} applyFilters={props.applyFilters} />
     </Section>
   );
 
@@ -236,20 +197,20 @@ export function PatternFilterRail({
       <Box
         data-testid="patterns-family-select"
         title={
-          selectedFamilies.length
-            ? selectedFamilies
-                .map((id) => families.find((f) => f.id === id)?.label ?? id)
+          selectedFamilies().length
+            ? selectedFamilies()
+                .map((id) => families().find((f) => f.id === id)?.label ?? id)
                 .join(", ")
             : undefined
         }
       >
         <MultiSelect
-          data={families.map((f) => ({ value: f.id, label: `${f.label} (${f.count})` }))}
-          value={selectedFamilies}
-          onChange={(vals) => setFilter("family", vals)}
+          data={families().map((f) => ({ value: f.id, label: `${f.label} (${f.count})` }))}
+          value={selectedFamilies()}
+          onChange={(vals) => props.setFilter("family", vals)}
           size="xs"
           placeholder={
-            selectedFamilies.length ? `${selectedFamilies.length} selected` : "Any family"
+            selectedFamilies().length ? `${selectedFamilies().length} selected` : "Any family"
           }
           clearable
           hideTags
@@ -258,27 +219,20 @@ export function PatternFilterRail({
     </Section>
   );
 
-  const patternTile = (patternId: string, label: string, count: number) => {
-    const selected = selectedPatterns.includes(patternId);
-    const togglePattern = () => setFilter("pattern_id", toggle(selectedPatterns, patternId));
+  const PatternTile = (tileProps: { patternId: string; label: string; count: number }) => {
+    const selected = () => selectedPatterns().includes(tileProps.patternId);
+    const togglePattern = () =>
+      props.setFilter("pattern_id", toggle(selectedPatterns(), tileProps.patternId));
     return (
-      <Box
-        key={patternId}
-        role="button"
-        tabIndex={0}
-        aria-pressed={selected}
+      <button
+        type="button"
+        aria-pressed={selected()}
         onClick={togglePattern}
-        onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            togglePattern();
-          }
-        }}
-        data-testid={`patterns-filter-pattern-${patternId}`}
+        data-testid={`patterns-filter-pattern-${tileProps.patternId}`}
         className={cn(
           "flex min-w-0 cursor-pointer items-center gap-[3px] rounded-fin border px-1 py-[2px] transition-[border-color,background-color] duration-[120ms]",
           "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary",
-          selected
+          selected()
             ? "border-fin-primary bg-fin-primary/12"
             : "border-fin-border bg-transparent hover:border-fin-primary hover:bg-fin-surface-alt",
         )}
@@ -288,8 +242,8 @@ export function PatternFilterRail({
           className="h-[14px] w-6 shrink-0 overflow-hidden rounded-sm"
         >
           <PatternImage
-            patternId={patternId}
-            images={images ?? {}}
+            patternId={tileProps.patternId}
+            images={props.images ?? {}}
             height={14}
             showPlaceholderLabel={false}
           />
@@ -297,21 +251,21 @@ export function PatternFilterRail({
         <Box className="flex min-w-0 flex-1 items-baseline">
           <Text
             size="xs"
-            fw={selected ? 700 : 500}
+            fw={selected() ? 700 : 500}
             truncate
             className="min-w-0 leading-[1.2]"
           >
-            {label}
+            {tileProps.label}
           </Text>
           <Text
             size="xs"
-            c={count > 0 ? "text.secondary" : "dimmed"}
-            style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", paddingLeft: 3 }}
+            c={tileProps.count > 0 ? "text.secondary" : "dimmed"}
+            style={{ "font-variant-numeric": "tabular-nums", "white-space": "nowrap", "padding-left": "3px" }}
           >
-            {` (${count})`}
+            {` (${tileProps.count})`}
           </Text>
         </Box>
-      </Box>
+      </button>
     );
   };
 
@@ -321,7 +275,7 @@ export function PatternFilterRail({
         <ToolbarRow gap={6}>
           <Box className="min-w-0 flex-1">
             <TextInput
-              value={patternQuery}
+              value={patternQuery()}
               onChange={(value) => setPatternQuery(String(value ?? ""))}
               placeholder="Find a pattern…"
               size="xs"
@@ -332,21 +286,21 @@ export function PatternFilterRail({
           <Switch
             label="Hide 0"
             size="xs"
-            checked={hideZero}
-            onChange={(e) => setHideZero(e.target.checked)}
+            checked={hideZero()}
+            onChange={(e) => setHideZero((e.currentTarget as HTMLInputElement).checked)}
             data-testid="patterns-filter-hide-zero"
           />
         </ToolbarRow>
-        {selectedPatterns.length >= 2 ? (
+        <Show when={selectedPatterns().length >= 2}>
           <Switch
             label="Match in order (sequence)"
             size="xs"
-            checked={Boolean(filters.sequence)}
-            onChange={(e) => setFilter("sequence", e.target.checked)}
+            checked={Boolean(props.filters.sequence)}
+            onChange={(e) => props.setFilter("sequence", (e.currentTarget as HTMLInputElement).checked)}
             data-testid="patterns-filter-sequence"
           />
-        ) : null}
-        {filters.sequence && selectedPatterns.length >= 2 ? (
+        </Show>
+        <Show when={props.filters.sequence && selectedPatterns().length >= 2}>
           <Box className="flex flex-col gap-1">
             <ToolbarRow gap={6} wrap>
               <Text size="xs" c="dimmed">Max gap</Text>
@@ -358,8 +312,8 @@ export function PatternFilterRail({
                   { value: "40", label: "40d" },
                   { value: "any", label: "Any" },
                 ]}
-                value={filters.sequence_gap_days == null ? "any" : String(filters.sequence_gap_days)}
-                onChange={(v) => setFilter("sequence_gap_days", v === "any" ? null : Number(v))}
+                value={props.filters.sequence_gap_days == null ? "any" : String(props.filters.sequence_gap_days)}
+                onChange={(v) => props.setFilter("sequence_gap_days", v === "any" ? null : Number(v))}
                 size="xs"
                 data-testid="patterns-filter-sequence-gap"
               />
@@ -372,83 +326,85 @@ export function PatternFilterRail({
                   { value: "10", label: "10 bars" },
                   { value: "any", label: "Any" },
                 ]}
-                value={filters.sequence_max_bars == null ? "any" : String(filters.sequence_max_bars)}
-                onChange={(v) => setFilter("sequence_max_bars", v === "any" ? null : Number(v))}
+                value={props.filters.sequence_max_bars == null ? "any" : String(props.filters.sequence_max_bars)}
+                onChange={(v) => props.setFilter("sequence_max_bars", v === "any" ? null : Number(v))}
                 size="xs"
                 data-testid="patterns-filter-sequence-bars"
               />
             </ToolbarRow>
             <ToolbarRow gap={4}>
               <Text size="xs" c="dimmed">Earlier steps</Text>
-              {["confirmed", "forming"].map((status) => {
-                const active = (filters.sequence_step_status ?? []).includes(status);
-                return (
-                  <Chip
-                    key={status}
-                    size="xs"
-                    variant="light"
-                    checked={active}
-                    onChange={() => {
-                      const current = filters.sequence_step_status ?? [];
-                      setFilter(
-                        "sequence_step_status",
-                        active ? current.filter((x) => x !== status) : [...current, status],
-                      );
-                    }}
-                    data-testid={`patterns-filter-sequence-status-${status}`}
-                  >
-                    {status === "confirmed" ? "Confirmed" : "Forming"}
-                  </Chip>
-                );
-              })}
+              <For each={["confirmed", "forming"]}>
+                {(status) => {
+                  const active = () => (props.filters.sequence_step_status ?? []).includes(status);
+                  return (
+                    <Chip
+                      size="xs"
+                      variant="light"
+                      checked={active()}
+                      onChange={() => {
+                        const current = props.filters.sequence_step_status ?? [];
+                        props.setFilter(
+                          "sequence_step_status",
+                          active() ? current.filter((x) => x !== status) : [...current, status],
+                        );
+                      }}
+                      data-testid={`patterns-filter-sequence-status-${status}`}
+                    >
+                      {status === "confirmed" ? "Confirmed" : "Forming"}
+                    </Chip>
+                  );
+                }}
+              </For>
             </ToolbarRow>
           </Box>
-        ) : null}
-        {selectedPatterns.length > 0 ? (
+        </Show>
+        <Show when={selectedPatterns().length > 0}>
           <ToolbarRow gap={4}>
             <Text size="xs" c="dimmed">
-              {`${selectedPatterns.length} selected`}
+              {`${selectedPatterns().length} selected`}
             </Text>
             <Tooltip label="Clear selected patterns">
-              <ActionIcon
-                size="xs"
-                variant="subtle"
+              <button
+                type="button"
                 aria-label="Clear patterns"
-                onClick={() => setFilter("pattern_id", [])}
+                onClick={() => props.setFilter("pattern_id", [])}
                 data-testid="patterns-filter-pattern-clear"
+                className="inline-flex size-5 items-center justify-center rounded text-fin-text-muted transition-colors hover:bg-fin-surface-alt hover:text-fin-text"
               >
                 <IconX size={14} />
-              </ActionIcon>
+              </button>
             </Tooltip>
           </ToolbarRow>
-        ) : null}
+        </Show>
         <Box
           className="flex max-h-[340px] flex-col gap-1 overflow-y-auto pr-1"
         >
-        {gallery.map(({ family, visible }) => {
-          return (
+        <For each={gallery()}>
+          {({ family, visible }) => (
             <Box
-              key={family.id}
               className="flex flex-col gap-0.5"
               data-testid={`patterns-filter-family-group-${family.id}`}
             >
-              <Text size="xs" c="dimmed" fw={600} style={{ fontSize: 10 }}>
+              <Text size="xs" c="dimmed" fw={600} style={{ "font-size": "10px" }}>
                 {family.label}
               </Text>
               <Box
                 className="grid grid-cols-[repeat(auto-fill,minmax(118px,1fr))] gap-0.5"
               >
-                {visible.map((pattern) =>
-                  patternTile(
-                    pattern.id,
-                    PATTERN_LABELS[pattern.id] ?? pattern.name,
-                    patternCountFor(pattern.id),
-                  ),
-                )}
+                <For each={visible}>
+                  {(pattern) => (
+                    <PatternTile
+                      patternId={pattern.id}
+                      label={PATTERN_LABELS[pattern.id] ?? pattern.name}
+                      count={patternCountFor(pattern.id)}
+                    />
+                  )}
+                </For>
               </Box>
             </Box>
-          );
-        })}
+          )}
+        </For>
         </Box>
       </Box>
     </Section>
@@ -462,11 +418,11 @@ export function PatternFilterRail({
             { value: "bullish", label: "Bullish" },
             { value: "bearish", label: "Bearish" },
           ]}
-          value={selectedDirections}
-          onChange={(vals) => setFilter("direction", vals)}
+          value={selectedDirections()}
+          onChange={(vals) => props.setFilter("direction", vals)}
           size="xs"
           placeholder={
-            selectedDirections.length ? `${selectedDirections.length} selected` : "Any direction"
+            selectedDirections().length ? `${selectedDirections().length} selected` : "Any direction"
           }
           clearable
           hideTags
@@ -483,11 +439,11 @@ export function PatternFilterRail({
             value: status,
             label: status.charAt(0).toUpperCase() + status.slice(1),
           }))}
-          value={selectedStatuses}
-          onChange={(vals) => setFilter("status", vals)}
+          value={selectedStatuses()}
+          onChange={(vals) => props.setFilter("status", vals)}
           size="xs"
           placeholder={
-            selectedStatuses.length ? `${selectedStatuses.length} selected` : "Any status"
+            selectedStatuses().length ? `${selectedStatuses().length} selected` : "Any status"
           }
           clearable
           hideTags
@@ -514,8 +470,8 @@ export function PatternFilterRail({
           { value: "strong", label: "Strong+" },
           { value: "textbook", label: "Textbook" },
         ]}
-        value={filters.quality ?? "any"}
-        onChange={(v) => setFilter("quality", v && v !== "any" ? v : null)}
+        value={props.filters.quality ?? "any"}
+        onChange={(v) => props.setFilter("quality", v && v !== "any" ? v : null)}
         size="xs"
         data-testid="patterns-quality-select"
       />
@@ -523,15 +479,15 @@ export function PatternFilterRail({
   );
 
   const formedSection = (
-    <Section title="Formed within (bars)" level="field">
+    <Section title="Formed within (bars)">
       <Box data-testid="patterns-filter-formed-within">
         <Select
           data={[
             { value: "any", label: "Any" },
             ...FORMED_PRESETS.map((n) => ({ value: String(n), label: String(n) })),
           ]}
-          value={formedWithin == null ? "any" : String(formedWithin)}
-          onChange={(v) => setFilter("formed_within_bars", v === "any" ? null : Number(v))}
+          value={formedWithin() == null ? "any" : String(formedWithin())}
+          onChange={(v) => props.setFilter("formed_within_bars", v === "any" ? null : Number(v))}
           size="xs"
           data-testid="patterns-filter-formed-within-select"
         />
@@ -540,7 +496,7 @@ export function PatternFilterRail({
   );
 
   const dateSection = (
-    <Section title="Formed between" level="field">
+    <Section title="Formed between">
       <Box className="flex flex-col gap-2">
         <Box className="flex flex-col gap-1">
           <Text size="xs" c="dimmed">
@@ -549,22 +505,22 @@ export function PatternFilterRail({
           <ToolbarRow gap={4}>
             <TextInput
               type="datetime-local"
-              value={filters.from_date ?? ""}
-              onChange={(v) => setFilter("from_date", v ? String(v) : null)}
+              value={props.filters.from_date ?? ""}
+              onChange={(v) => props.setFilter("from_date", v ? String(v) : null)}
               size="xs"
               w={190}
               data-testid="patterns-filter-from-date"
             />
-            {filters.from_date ? (
+            <Show when={props.filters.from_date}>
               <Button
                 size="xs"
                 variant="subtle"
-                onClick={() => setFilter("from_date", null)}
+                onClick={() => props.setFilter("from_date", null)}
                 data-testid="patterns-filter-from-date-clear"
               >
                 Clear
               </Button>
-            ) : null}
+            </Show>
           </ToolbarRow>
         </Box>
         <Box className="flex flex-col gap-1">
@@ -574,29 +530,29 @@ export function PatternFilterRail({
           <ToolbarRow gap={4}>
             <TextInput
               type="datetime-local"
-              value={filters.to_date ?? ""}
-              onChange={(v) => setFilter("to_date", v ? String(v) : null)}
+              value={props.filters.to_date ?? ""}
+              onChange={(v) => props.setFilter("to_date", v ? String(v) : null)}
               size="xs"
               w={190}
               data-testid="patterns-filter-to-date"
             />
-            {filters.to_date ? (
+            <Show when={props.filters.to_date}>
               <Button
                 size="xs"
                 variant="subtle"
-                onClick={() => setFilter("to_date", null)}
+                onClick={() => props.setFilter("to_date", null)}
                 data-testid="patterns-filter-to-date-clear"
               >
                 Clear
               </Button>
-            ) : null}
+            </Show>
           </ToolbarRow>
         </Box>
         <Box className="flex flex-wrap gap-1">
           <Chip
             size="xs"
             variant="light"
-            onChange={() => setFilter("from_date", daysAgoDatetimeLocal(30))}
+            onChange={() => props.setFilter("from_date", daysAgoDatetimeLocal(30))}
             data-testid="patterns-filter-date-last-30d"
           >
             Last 30 days
@@ -604,7 +560,7 @@ export function PatternFilterRail({
           <Chip
             size="xs"
             variant="light"
-            onChange={() => setFilter("from_date", startOfMonthDatetimeLocal())}
+            onChange={() => props.setFilter("from_date", startOfMonthDatetimeLocal())}
             data-testid="patterns-filter-date-this-month"
           >
             This month
@@ -614,9 +570,9 @@ export function PatternFilterRail({
     </Section>
   );
 
-  const replaySection = onReplayScan ? (
+  const replaySection = props.onReplayScan ? (
     <Section title="Replay scan">
-      <ReplayScanControl onReplayScan={onReplayScan} />
+      <ReplayScanControl onReplayScan={props.onReplayScan} />
     </Section>
   ) : null;
 
@@ -630,8 +586,8 @@ export function PatternFilterRail({
             { value: "range_pos", label: "Near breakout" },
             { value: "distance", label: "Closest to trigger" },
           ]}
-          value={sort}
-          onChange={(v) => setFilter("sort", v)}
+          value={sort()}
+          onChange={(v) => props.setFilter("sort", v)}
           size="xs"
           data-testid="patterns-filter-sort-select"
         />
@@ -642,7 +598,6 @@ export function PatternFilterRail({
   const historySection = (
     <Section
       title="Patterns per symbol"
-      level="field"
       info={
         <InfoTip
           title="Patterns per symbol"
@@ -660,32 +615,33 @@ export function PatternFilterRail({
       }
     >
       <ToolbarRow gap={4} data-testid="patterns-filter-history">
-        {[1, 3, 5].map((n) => (
-          <Chip
-            key={n}
-            size="xs"
-            variant="light"
-            checked={(filters.history ?? 1) === n}
-            onChange={() => setFilter("history", n)}
-            data-testid={`patterns-filter-history-${n}`}
-          >
-            {n}
-          </Chip>
-        ))}
+        <For each={[1, 3, 5]}>
+          {(n) => (
+            <Chip
+              size="xs"
+              variant="light"
+              checked={(props.filters.history ?? 1) === n}
+              onChange={() => props.setFilter("history", n)}
+              data-testid={`patterns-filter-history-${n}`}
+            >
+              {n}
+            </Chip>
+          )}
+        </For>
       </ToolbarRow>
     </Section>
   );
 
   const baseSection = (
-    <Section title="Base length (days)" level="field">
+    <Section title="Base length (days)">
       <Box data-testid="patterns-filter-min-base">
         <Select
           data={[
             { value: "any", label: "Any" },
             ...BASE_LENGTH_PRESETS.map((n) => ({ value: String(n), label: String(n) })),
           ]}
-          value={minBaseDays == null ? "any" : String(minBaseDays)}
-          onChange={(v) => setFilter("min_base_days", v === "any" ? null : Number(v))}
+          value={minBaseDays() == null ? "any" : String(minBaseDays())}
+          onChange={(v) => props.setFilter("min_base_days", v === "any" ? null : Number(v))}
           size="xs"
           data-testid="patterns-filter-min-base-select"
         />
@@ -694,10 +650,10 @@ export function PatternFilterRail({
   );
 
   const rangeSection = (
-    <Section title="Range ≤ %" level="field">
+    <Section title="Range ≤ %">
       <FilterNumber
-        value={filters.max_range_pct}
-        onChange={(v) => setFilter("max_range_pct", v)}
+        value={props.filters.max_range_pct}
+        onChange={(v) => props.setFilter("max_range_pct", v)}
         min={0}
         step={1}
         testId="patterns-filter-max-range"
@@ -706,10 +662,10 @@ export function PatternFilterRail({
   );
 
   const gap52Section = (
-    <Section title="52W gap ≤ %" level="field">
+    <Section title="52W gap ≤ %">
       <FilterNumber
-        value={filters.max_52w_gap}
-        onChange={(v) => setFilter("max_52w_gap", v)}
+        value={props.filters.max_52w_gap}
+        onChange={(v) => props.setFilter("max_52w_gap", v)}
         min={0}
         max={25}
         step={0.5}
@@ -719,10 +675,10 @@ export function PatternFilterRail({
   );
 
   const rangePosSection = (
-    <Section title="Range pos ≥ %" level="field">
+    <Section title="Range pos ≥ %">
       <FilterNumber
-        value={filters.min_range_pos}
-        onChange={(v) => setFilter("min_range_pos", v)}
+        value={props.filters.min_range_pos}
+        onChange={(v) => props.setFilter("min_range_pos", v)}
         min={0}
         max={100}
         step={5}
@@ -734,10 +690,10 @@ export function PatternFilterRail({
   // Result-level client-side floors (filtered in the store selector, never sent
   // to the API): pattern-fit confidence and breakout conviction.
   const scoreSection = (
-    <Section title="Score ≥" level="field">
+    <Section title="Score ≥">
       <FilterNumber
-        value={filters.min_confidence}
-        onChange={(v) => setFilter("min_confidence", v)}
+        value={props.filters.min_confidence}
+        onChange={(v) => props.setFilter("min_confidence", v)}
         min={0}
         max={100}
         step={5}
@@ -747,10 +703,10 @@ export function PatternFilterRail({
   );
 
   const breakoutSection = (
-    <Section title="Breakout ≥" level="field">
+    <Section title="Breakout ≥">
       <FilterNumber
-        value={filters.min_breakout_score}
-        onChange={(v) => setFilter("min_breakout_score", v)}
+        value={props.filters.min_breakout_score}
+        onChange={(v) => props.setFilter("min_breakout_score", v)}
         min={0}
         max={100}
         step={5}
@@ -762,10 +718,10 @@ export function PatternFilterRail({
   // Scan-time volume pre-filters: the scan pre-filters the universe via
   // TradingView before fetching candles (unlike the result-level filters).
   const relVolumeField = (
-    <Section title="Rel vol ≥" level="field">
+    <Section title="Rel vol ≥">
       <FilterNumber
-        value={filters.min_rel_volume}
-        onChange={(v) => setFilter("min_rel_volume", v)}
+        value={props.filters.min_rel_volume}
+        onChange={(v) => props.setFilter("min_rel_volume", v)}
         min={0}
         max={10}
         step={0.5}
@@ -775,10 +731,10 @@ export function PatternFilterRail({
   );
 
   const volumeMField = (
-    <Section title="Volume ≥ M" level="field">
+    <Section title="Volume ≥ M">
       <FilterNumber
-        value={filters.min_volume_m}
-        onChange={(v) => setFilter("min_volume_m", v)}
+        value={props.filters.min_volume_m}
+        onChange={(v) => props.setFilter("min_volume_m", v)}
         min={0}
         max={500}
         step={5}
@@ -788,10 +744,10 @@ export function PatternFilterRail({
   );
 
   const avgVolume10dField = (
-    <Section title="10d avg vol ≥ K" level="field">
+    <Section title="10d avg vol ≥ K">
       <FilterNumber
-        value={filters.min_avg_volume_10d}
-        onChange={(v) => setFilter("min_avg_volume_10d", v)}
+        value={props.filters.min_avg_volume_10d}
+        onChange={(v) => props.setFilter("min_avg_volume_10d", v)}
         min={0}
         max={500000}
         step={50}
@@ -803,7 +759,7 @@ export function PatternFilterRail({
   // View-only overlay toggle: controls which standalone support/resistance
   // lines are drawn on the card/fullscreen charts. Never sent to the API.
   const trendlinesSection = (
-    <Section title="Trendlines" level="field">
+    <Section title="Trendlines">
       <Select
         data={[
           { value: "both", label: "Both" },
@@ -811,8 +767,8 @@ export function PatternFilterRail({
           { value: "resistance", label: "TLR only" },
           { value: "none", label: "None" },
         ]}
-        value={filters.trendlines ?? "both"}
-        onChange={(v) => setFilter("trendlines", (v ?? "both") as TrendlinesView)}
+        value={props.filters.trendlines ?? "both"}
+        onChange={(v) => props.setFilter("trendlines", (v ?? "both") as TrendlinesView)}
         size="xs"
         data-testid="patterns-filter-trendlines"
       />
@@ -824,155 +780,154 @@ export function PatternFilterRail({
       <Switch
         label="Volume confirmed"
         size="xs"
-        checked={Boolean(filters.volume_confirmed)}
-        onChange={(e) => setFilter("volume_confirmed", e.target.checked ? true : null)}
+        checked={Boolean(props.filters.volume_confirmed)}
+        onChange={(e) => props.setFilter("volume_confirmed", (e.currentTarget as HTMLInputElement).checked ? true : null)}
         data-testid="patterns-volume-confirmed"
       />
-      {!panel && (
+      <Show when={!panel()}>
         <Tooltip label="Reset all filters">
-          <ActionIcon
-            size="xs"
-            variant="outline"
+          <button
+            type="button"
             aria-label="Reset filters"
-            onClick={resetFilters}
+            onClick={props.resetFilters}
             data-testid="patterns-reset"
+            className="inline-flex size-6 items-center justify-center rounded border border-fin-border bg-transparent text-fin-text-muted transition-colors hover:bg-fin-surface-alt hover:text-fin-text"
           >
             <IconRestore size={14} />
-          </ActionIcon>
+          </button>
         </Tooltip>
-      )}
+      </Show>
     </Box>
   );
 
-  if (panel) {
+  const railContent = (
+    <>
+      {/* Pattern: presets · family · gallery */}
+      <Box className="flex min-w-0 flex-col gap-1">
+        {presetsSection}
+        {familySection}
+        {patternsSection}
+      </Box>
+      <Divider />
+      {/* Direction/Quality */}
+      <Box className="flex min-w-0 flex-col gap-1">
+        {directionSection}
+        {statusSection}
+        {qualitySection}
+      </Box>
+      <Divider />
+      {/* Score/Range */}
+      <Box className="flex min-w-0 flex-col gap-1">
+        {formedSection}
+        {dateSection}
+        {sortSection}
+        {historySection}
+        {baseSection}
+        {rangeSection}
+        {gap52Section}
+        {rangePosSection}
+        {scoreSection}
+        {breakoutSection}
+        <Section title="Volume scan">
+          <Box className="grid grid-cols-3 gap-2">
+            {relVolumeField}
+            {volumeMField}
+            {avgVolume10dField}
+          </Box>
+        </Section>
+        {replaySection}
+        {volumeSection}
+      </Box>
+      <Divider />
+      {/* Triggers/Display */}
+      <Box className="flex min-w-0 flex-col gap-1">
+        {trendlinesSection}
+      </Box>
+    </>
+  );
+
+  if (panel()) {
     // Explicit, top-aligned columns so the grouping is obvious:
     //   What (presets/family/direction/status/quality) · Patterns · Refine.
     return (
-      <Box
-        data-testid="patterns-filter-rail"
-        className="grid grid-cols-1 items-start gap-2 lg:grid-cols-[minmax(220px,0.78fr)_minmax(320px,1.4fr)_minmax(320px,1.2fr)]"
-      >
-        <Box className="flex min-w-0 flex-col gap-1.5">
-          {presetsSection}
-          {familySection}
-          {directionSection}
-          {statusSection}
-          {qualitySection}
-          {sortSection}
-{historySection}
-        </Box>
-        <Box className="flex min-w-0 flex-col gap-1.5">
-          {patternsSection}
-        </Box>
-        <Box className="flex min-w-0 flex-col gap-1.5">
-          <Section title="Freshness">
-            <Box
-              className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-1"
+      <CompactPanel flush testId="patterns-filter-rail">
+        <Box
+          className="grid grid-cols-1 items-start gap-2 lg:grid-cols-[minmax(220px,0.78fr)_minmax(320px,1.4fr)_minmax(320px,1.2fr)]"
+        >
+          <Box className="flex min-w-0 flex-col gap-1.5">
+            {presetsSection}
+            {familySection}
+            {directionSection}
+            {statusSection}
+            {qualitySection}
+            {sortSection}
+            {historySection}
+          </Box>
+          <Box className="flex min-w-0 flex-col gap-1.5">
+            {patternsSection}
+          </Box>
+          <Box className="flex min-w-0 flex-col gap-1.5">
+            <Section title="Freshness">
+              <Box
+                className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-1"
+              >
+                {formedSection}
+                {dateSection}
+              </Box>
+            </Section>
+            <Section title="Structure">
+              <Box
+                className="grid grid-cols-2 gap-1"
+              >
+                {baseSection}
+                {rangeSection}
+                {gap52Section}
+                {rangePosSection}
+              </Box>
+            </Section>
+            <button
+              type="button"
+              onClick={() => setAdvancedOpen((open) => !open)}
+              aria-expanded={advancedOpen()}
+              aria-controls="patterns-advanced-section"
+              data-testid="patterns-filter-advanced"
+              className="inline-flex h-6 items-center self-start rounded-fin border border-fin-border bg-transparent px-2 text-xs text-fin-text-muted transition-colors hover:bg-fin-surface-alt"
             >
-              {formedSection}
-              {dateSection}
-            </Box>
-          </Section>
-          <Section title="Structure">
+              {advancedOpen() ? "Advanced ▾" : advancedActive() ? "Advanced •" : "Advanced ▸"}
+            </button>
             <Box
-              className="grid grid-cols-2 gap-1"
+              id="patterns-advanced-section"
+              className={advancedOpen() ? "flex flex-col gap-1.5" : "hidden"}
             >
-              {baseSection}
-              {rangeSection}
-              {gap52Section}
-              {rangePosSection}
+            <Section title="Scores">
+              <Box
+                className="grid grid-cols-2 gap-1"
+              >
+                {scoreSection}
+                {breakoutSection}
+              </Box>
+              {volumeSection}
+            </Section>
+            <Section title="Volume scan">
+              <Box
+                className="grid grid-cols-[repeat(auto-fit,minmax(80px,1fr))] gap-1"
+              >
+                {relVolumeField}
+                {volumeMField}
+                {avgVolume10dField}
+              </Box>
+            </Section>
+            <Section title="Display">{trendlinesSection}</Section>
             </Box>
-          </Section>
-          <Button
-            size="xs"
-            variant="subtle"
-            onClick={() => setAdvancedOpen((open) => !open)}
-            aria-expanded={advancedOpen}
-            aria-controls="patterns-advanced-section"
-            data-testid="patterns-filter-advanced"
-          >
-            {advancedOpen ? "Advanced ▾" : advancedActive ? "Advanced •" : "Advanced ▸"}
-          </Button>
-          <Box
-            id="patterns-advanced-section"
-            className={advancedOpen ? "flex flex-col gap-1.5" : "hidden"}
-          >
-          <Section title="Scores">
-            <Box
-              className="grid grid-cols-2 gap-1"
-            >
-              {scoreSection}
-              {breakoutSection}
-            </Box>
-            {volumeSection}
-          </Section>
-          <Section title="Volume scan">
-            <Box
-              className="grid grid-cols-[repeat(auto-fit,minmax(80px,1fr))] gap-1"
-            >
-              {relVolumeField}
-              {volumeMField}
-              {avgVolume10dField}
-            </Box>
-          </Section>
-          <Section title="Display">{trendlinesSection}</Section>
           </Box>
         </Box>
-      </Box>
+      </CompactPanel>
     );
   }
 
   return (
-    <Box
-      data-testid="patterns-filter-rail"
-      className="flex flex-col gap-3"
-    >
-      {presetsSection}
-      <Divider />
-      {familySection}
-      <Divider />
-      {patternsSection}
-      <Divider />
-      {directionSection}
-      <Divider />
-      {statusSection}
-      <Divider />
-      {qualitySection}
-      <Divider />
-      {formedSection}
-      <Divider />
-      {dateSection}
-      <Divider />
-      {sortSection}
-{historySection}
-      <Divider />
-      {trendlinesSection}
-      <Divider />
-      {baseSection}
-      <Divider />
-      {rangeSection}
-      <Divider />
-      {gap52Section}
-      <Divider />
-      {rangePosSection}
-      <Divider />
-      {scoreSection}
-      <Divider />
-      {breakoutSection}
-      <Divider />
-      <Section title="Volume scan">
-        <Box
-          className="grid grid-cols-3 gap-2"
-        >
-          {relVolumeField}
-          {volumeMField}
-          {avgVolume10dField}
-        </Box>
-      </Section>
-      <Divider />
-      {replaySection}
-      {replaySection ? <Divider /> : null}
-      {volumeSection}
-    </Box>
+    <CompactPanel flush testId="patterns-filter-rail">
+      {railContent}
+    </CompactPanel>
   );
 }

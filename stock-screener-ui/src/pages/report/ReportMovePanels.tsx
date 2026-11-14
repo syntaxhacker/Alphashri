@@ -1,8 +1,11 @@
-import { Badge, Box, Paper, Text } from "@/ui";
-import { SymbolAvatar } from "../../components/screener/SymbolAvatar";
-import { Sparkline } from "../../components/screener/Sparkline";
+import { For, Show } from "solid-js";
+import { Badge, Text } from "@/ui";
+import { CompactPanel } from "@/components/common/compact";
+import { NumCell } from "@/components/common/tableCells";
+import { LocalSymbolAvatar, LocalSparkline } from "./reportBits";
+import { ReportPanelTitle } from "./reportCells";
 import type { DailyMoveRow, DailyMovesPanelId } from "../../types/report";
-import { formatCurrency, formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
+import { formatCurrency, formatPercentage } from "../../utils/ui-helpers";
 import { symbolRowCursor, symbolRowProps } from "../../components/common/symbolRowProps";
 
 const MOVE_PANELS: Array<{ id: DailyMovesPanelId; title: string }> = [
@@ -17,36 +20,43 @@ const MOVE_PANELS: Array<{ id: DailyMovesPanelId; title: string }> = [
   { id: "turnover", title: "Turnover" },
 ];
 
-function MoveRow({ row, onOpenSymbol }: { row: DailyMoveRow; onOpenSymbol?: (symbol: string) => void }) {
+/** Explicit `minmax(0,1fr)` tracks: a bare `1fr` floor is the content width, so
+ *  one long symbol name widens the whole column past its panel. */
+const PANEL_GRID_COLS = [
+  "grid-cols-[repeat(1,minmax(0,1fr))]",
+  "min-[600px]:grid-cols-[repeat(2,minmax(0,1fr))]",
+  "min-[900px]:grid-cols-[repeat(3,minmax(0,1fr))]",
+  "min-[1200px]:grid-cols-[repeat(4,minmax(0,1fr))]",
+].join(" ");
+
+function MoveRow(props: { row: DailyMoveRow; onOpenSymbol?: (symbol: string) => void }) {
+  const row = () => props.row;
+  const onOpenSymbol = () => props.onOpenSymbol;
   return (
-    <Box
-      data-testid={`report-move-row-${row.symbol}`}
-      data-symbol={row.symbol}
-      {...symbolRowProps(onOpenSymbol, row.symbol)}
-      className={`flex items-center gap-2 min-w-0 py-1 border-b border-fin-border tabular-nums ${onOpenSymbol ? "hover:bg-fin-surface-alt" : ""}`}
-      style={{ cursor: symbolRowCursor(onOpenSymbol) }}
+    <div
+      data-testid={`report-move-row-${row().symbol}`}
+      data-symbol={row().symbol}
+      {...symbolRowProps(onOpenSymbol(), row().symbol)}
+      class={`flex items-center gap-1 min-w-0 py-1 px-2 border-b border-fin-border last:border-b-0 tabular-nums ${onOpenSymbol() ? "hover:bg-fin-surface-alt" : ""}`}
+      style={{ cursor: symbolRowCursor(onOpenSymbol()) }}
     >
-      <SymbolAvatar symbol={row.symbol} name={row.name} logo={row.logo} size={20} />
-      <Box className="flex-1 min-w-0 flex flex-col gap-0">
-        <Text size="xs" fw={700} truncate span title={row.symbol}>
-          {row.symbol}
+      <LocalSymbolAvatar symbol={row().symbol} name={row().name} logo={row().logo} size={20} />
+      <div class="flex-1 min-w-0 flex flex-col gap-0">
+        <Text size="xs" fw={700} truncate span title={row().symbol}>
+          {row().symbol}
         </Text>
-        {row.sub_value || row.sub_label ? (
-          <Text size="xs" c="dimmed" truncate span title={row.sub_label}>
-            {row.sub_value || row.sub_label}
+        <Show when={row().sub_value || row().sub_label}>
+          <Text size="xs" c="dimmed" truncate span title={row().sub_label}>
+            {row().sub_value || row().sub_label}
           </Text>
-        ) : null}
-      </Box>
-      <Box className="flex flex-col items-end shrink-0">
-        <Text size="xs" ta="right" span className="tabular-nums">
-          {formatCurrency(row.close, 2)}
-        </Text>
-        <Text size="xs" c={getPnLTextColor(row.change)} ta="right" span className="tabular-nums">
-          {formatPercentage(row.change)}
-        </Text>
-      </Box>
-      <Sparkline data={row.spark ?? []} change={row.change} width={64} height={20} />
-    </Box>
+        </Show>
+      </div>
+      <div class="flex flex-col items-end shrink-0">
+        <NumCell value={row().close} format={(v) => formatCurrency(v, 2)} size="xs" />
+        <NumCell value={row().change} signed size="xs" format={(v) => formatPercentage(v)} />
+      </div>
+      <LocalSparkline data={row().spark ?? []} change={row().change} width={64} height={20} />
+    </div>
   );
 }
 
@@ -55,43 +65,53 @@ interface ReportMovePanelsProps {
   onOpenSymbol?: (symbol: string) => void;
 }
 
-export function ReportMovePanels({ moves, onOpenSymbol }: ReportMovePanelsProps) {
+export function ReportMovePanels(props: ReportMovePanelsProps) {
+  const moves = () => props.moves;
+  const onOpenSymbol = () => props.onOpenSymbol;
   return (
-    <Box
-      className="grid grid-cols-1 min-[600px]:grid-cols-2 min-[900px]:grid-cols-3 min-[1200px]:grid-cols-4 gap-2 min-w-0 w-full"
-    >
-      {MOVE_PANELS.map((panel) => {
-        const rows = moves?.[panel.id] ?? [];
-        return (
-          <Paper
-            key={panel.id}
-            data-testid={`report-moves-${panel.id}`}
-            className="min-w-0 min-h-0 flex flex-col overflow-hidden border border-fin-border rounded-[2px] bg-fin-surface"
-          >
-            <Box className="flex items-center gap-2 px-2 pt-2 min-w-0">
-              <Text size="xs" fw={600} truncate span className="flex-1 min-w-0" data-testid={`report-moves-${panel.id}-title`}>
-                {panel.title}
-              </Text>
-              <Badge size="xs" data-testid={`report-moves-${panel.id}-count`}>
-                {rows.length}
-              </Badge>
-            </Box>
-            {rows.length === 0 ? (
-              <Box className="px-2 py-2" data-testid={`report-moves-${panel.id}-empty`}>
-                <Text size="xs" c="dimmed">
-                  No stocks qualify
-                </Text>
-              </Box>
-            ) : (
-              <Box className="px-2" data-testid={`report-moves-${panel.id}-rows`}>
-                {rows.map((row) => (
-                  <MoveRow key={row.symbol} row={row} onOpenSymbol={onOpenSymbol} />
-                ))}
-              </Box>
-            )}
-          </Paper>
-        );
-      })}
-    </Box>
+    // One bordered grid, not nine nested cards: the wrapper owns the top/left
+    // rules and each cell its bottom/right, so every panel is separated by a
+    // single 1px rule at any column count.
+    <div class={`grid ${PANEL_GRID_COLS} gap-0 min-w-0 w-full border-t border-l border-fin-border`}>
+      <For each={MOVE_PANELS}>
+        {(panel) => {
+          const rows = () => moves()?.[panel.id] ?? [];
+          return (
+            <div class="min-w-0 border-b border-r border-fin-border">
+              <CompactPanel
+                flush
+                padded={false}
+                testId={`report-moves-${panel.id}`}
+                title={
+                  <ReportPanelTitle testId={`report-moves-${panel.id}-title`}>
+                    {panel.title}
+                  </ReportPanelTitle>
+                }
+                action={
+                  <Badge size="xs" data-testid={`report-moves-${panel.id}-count`}>
+                    {rows().length}
+                  </Badge>
+                }
+              >
+                <Show
+                  when={rows().length === 0}
+                  fallback={
+                    <div data-testid={`report-moves-${panel.id}-rows`}>
+                      <For each={rows()}>{(row) => <MoveRow row={row} onOpenSymbol={onOpenSymbol()} />}</For>
+                    </div>
+                  }
+                >
+                  <div class="px-2 py-1" data-testid={`report-moves-${panel.id}-empty`}>
+                    <Text size="xs" c="dimmed">
+                      No stocks qualify
+                    </Text>
+                  </div>
+                </Show>
+              </CompactPanel>
+            </div>
+          );
+        }}
+      </For>
+    </div>
   );
 }

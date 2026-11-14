@@ -1,7 +1,12 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { JSX } from "solid-js";
+import { Show, createMemo } from "solid-js";
 import { Box, Text, Progress, Stack } from "@/ui";
 import { CompactStat, CompactStatGrid } from "./compact";
 import { getPnLTextColor } from "../../utils/ui-helpers";
+
+// `solid-js` does not re-export JSX.CSSProperties from its package root.
+type CSSProperties = JSX.CSSProperties;
+
 
 const signedCurrencyFormat = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -69,7 +74,7 @@ interface TradeStatsGridProps {
   /** Applied to the root node (empty state and populated stack). */
   testId?: string;
   /** Extra stats rendered after "Winners / Losers" and before "Progress". */
-  extraStats?: ReactNode;
+  extraStats?: JSX.Element;
   progressStat?: { value: string; hint: string } | null;
   progressBar?: { percent: number; style?: CSSProperties } | null;
 }
@@ -79,57 +84,53 @@ interface TradeStatsGridProps {
  * Total Trades, Win Rate, Profit Factor, Net P&L, Winners / Losers, plus
  * caller-supplied extra stats, an optional progress stat and progress bar.
  */
-export function TradeStatsGrid({
-  trades,
-  summary,
-  isRunning,
-  emptyText,
-  testId,
-  extraStats,
-  progressStat,
-  progressBar,
-}: TradeStatsGridProps) {
-  if (trades.length === 0 && !isRunning) {
-    return (
-      <Box data-testid={testId}>
-        <Text c="dimmed" ta="center">
-          {emptyText}
-        </Text>
-      </Box>
-    );
-  }
-
-  const { winRate, profitFactor, netPnl, winners, losers } = computeTradeStats(trades, summary);
+export function TradeStatsGrid(props: TradeStatsGridProps) {
+  const isRunning = () => props.isRunning;
+  const showEmpty = () => props.trades.length === 0 && !isRunning();
+  const stats = createMemo(() => computeTradeStats(props.trades, props.summary));
 
   return (
-    <Stack gap="sm" data-testid={testId}>
-      <CompactStatGrid>
-        <CompactStat label="Total Trades" value={trades.length} />
-        <CompactStat
-          label="Win Rate"
-          value={`${winRate.toFixed(1)}%`}
-          tone={winRate >= 50 ? "success" : "error"}
-        />
-        <CompactStat
-          label="Profit Factor"
-          value={profitFactor === 0 ? "—" : profitFactor.toFixed(2)}
-          tone={profitFactor > 1 ? "success" : profitFactor < 1 ? "error" : "text.primary"}
-        />
-        <CompactStat
-          label="Net P&L"
-          value={formatCurrencySigned(netPnl)}
-          tone={getPnLTextColor(netPnl)}
-        />
-        <CompactStat label="Winners / Losers" value={`${winners} / ${losers}`} />
-        {extraStats}
-        {isRunning && progressStat && (
-          <CompactStat label="Progress" value={progressStat.value} hint={progressStat.hint} />
-        )}
-      </CompactStatGrid>
+    <Show
+      when={showEmpty()}
+      fallback={
+        <Stack gap="sm" data-testid={props.testId}>
+          <CompactStatGrid>
+            <CompactStat label="Total Trades" value={props.trades.length} />
+            <CompactStat
+              label="Win Rate"
+              value={`${stats().winRate.toFixed(1)}%`}
+              tone={stats().winRate >= 50 ? "success" : "error"}
+            />
+            <CompactStat
+              label="Profit Factor"
+              value={stats().profitFactor === 0 ? "—" : stats().profitFactor.toFixed(2)}
+              tone={stats().profitFactor > 1 ? "success" : stats().profitFactor < 1 ? "error" : "default"}
+            />
+            <CompactStat
+              label="Net P&L"
+              value={formatCurrencySigned(stats().netPnl)}
+              tone={getPnLTextColor(stats().netPnl)}
+            />
+            <CompactStat label="Winners / Losers" value={`${stats().winners} / ${stats().losers}`} />
+            {props.extraStats}
+            <Show when={isRunning() && props.progressStat}>
+              {(progressStat) => (
+                <CompactStat label="Progress" value={progressStat().value} hint={progressStat().hint} />
+              )}
+            </Show>
+          </CompactStatGrid>
 
-      {progressBar && (
-        <Progress value={progressBar.percent} size="sm" animated style={progressBar.style} />
-      )}
-    </Stack>
+          <Show when={props.progressBar}>
+            {(progressBar) => <Progress value={progressBar().percent} size="sm" animated style={progressBar().style} />}
+          </Show>
+        </Stack>
+      }
+    >
+      <Box data-testid={props.testId}>
+        <Text c="dimmed" ta="center">
+          {props.emptyText}
+        </Text>
+      </Box>
+    </Show>
   );
 }

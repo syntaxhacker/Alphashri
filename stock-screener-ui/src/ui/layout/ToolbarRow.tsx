@@ -1,10 +1,11 @@
+import { splitProps } from "solid-js";
 import { cn } from "../cn";
-import type { CSSProperties, ReactNode } from "react";
+import type { JSX } from "solid-js";
 
 export interface ToolbarRowProps {
-  children: ReactNode;
+  children?: JSX.Element;
   className?: string;
-  style?: CSSProperties;
+  style?: JSX.CSSProperties;
   id?: string;
   "data-testid"?: string;
   /** Gap in px (default 8). */
@@ -21,25 +22,29 @@ export interface ToolbarRowProps {
  * controls. Guarantees `align-items: center` + an explicit gap so controls are
  * never vertically stretched or misaligned by a taller sibling.
  */
-export function ToolbarRow({
-  children,
-  className,
-  style,
-  id,
-  "data-testid": testId,
-  gap = 8,
-  justify = "flex-start",
-  wrap = true,
-  clip = false,
-}: ToolbarRowProps) {
+export function ToolbarRow(props: ToolbarRowProps) {
+  const [known, rest] = splitProps(props, [
+    "children", "className", "style", "id", "data-testid", "gap", "justify", "wrap", "clip",
+  ] as const);
+
   return (
     <div
-      id={id}
-      className={cn("flex items-center min-w-0", wrap ? "flex-wrap" : "flex-nowrap", clip ? "overflow-hidden" : undefined, className)}
-      style={{ justifyContent: justify, gap: `${gap}px`, ...style }}
-      data-testid={testId}
+      id={known.id}
+      className={cn(
+        "flex items-center min-w-0",
+        known.wrap !== false ? "flex-wrap" : "flex-nowrap",
+        known.clip ? "overflow-hidden" : undefined,
+        known.className,
+      )}
+      style={{
+        "justify-content": known.justify ?? "flex-start",
+        gap: `${known.gap ?? 8}px`,
+        ...(known.style as Record<string, unknown> | undefined),
+      }}
+      data-testid={known["data-testid"]}
+      {...rest}
     >
-      {children}
+      {known.children}
     </div>
   );
 }

@@ -1,8 +1,12 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { UIProvider } from "@/ui";
+import { cleanup, render, screen, waitFor } from "@solidjs/testing-library";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
 import type { ChartCandle, PatternHitDTO, TrendLine, Trendline } from "@/types/chartPatterns";
 import { BOUNDARY_COLORS, buildPatternChartOption } from "./patternChartOption";
@@ -10,11 +14,13 @@ import { PatternMiniChart } from "./PatternMiniChart";
 
 const { setChartOption } = vi.hoisted(() => ({ setChartOption: vi.fn() }));
 
-vi.mock("@/hooks/useECharts", () => ({
-  useECharts: () => ({
-    chartRef: { current: null },
-    chartInstance: { current: null },
-    setChartOption,
+vi.mock("@/utils/loadEcharts", () => ({
+  loadEcharts: async () => ({
+    init: () => ({
+      setOption: setChartOption,
+      resize: vi.fn(),
+      dispose: vi.fn(),
+    }),
   }),
 }));
 
@@ -58,9 +64,6 @@ function makeHit(overrides: Partial<PatternHitDTO> = {}): PatternHitDTO {
   };
 }
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
 
 interface FallbackSeries {
   type: string;
@@ -80,7 +83,7 @@ describe("PatternMiniChart", () => {
   afterEach(() => cleanup());
 
   test("renders the chart container", () => {
-    r(<PatternMiniChart hit={makeHit()} />);
+    render(() => <PatternMiniChart hit={makeHit()} />);
     expect(screen.getByTestId("patterns-mini-chart-IRCON-falling_wedge")).toBeInTheDocument();
   });
 
@@ -109,7 +112,7 @@ describe("PatternMiniChart", () => {
     ];
     const hit = makeHit({ candles, trendlines: [lineA, lineB], trend_lines: trendLines });
 
-    r(<PatternMiniChart hit={hit} trendlinesView="support" />);
+    render(() => <PatternMiniChart hit={hit} trendlinesView="support" />);
 
     await waitFor(() => expect(setChartOption).toHaveBeenCalled());
     expect(buildMock).toHaveBeenCalledTimes(1);
@@ -121,12 +124,12 @@ describe("PatternMiniChart", () => {
       trendlinesView: "support",
       compact: true,
     });
-    expect(setChartOption).toHaveBeenCalledWith({ mocked: "mini-chart" });
+    expect(setChartOption).toHaveBeenCalledWith({ mocked: "mini-chart" }, true);
   });
 
   test("defaults trendlinesView to both", async () => {
     const hit = makeHit({ candles: [candle("2026-09-01", 100, 102)] });
-    r(<PatternMiniChart hit={hit} />);
+    render(() => <PatternMiniChart hit={hit} />);
     await waitFor(() => expect(buildMock).toHaveBeenCalled());
     expect(buildMock).toHaveBeenCalledWith(expect.objectContaining({ trendlinesView: "both" }));
   });
@@ -137,7 +140,7 @@ describe("PatternMiniChart", () => {
       { t: "2026-09-02", price: 104 },
     ];
     const hit = makeHit({ candles: [candle("2026-09-01", 100, 102)], trendlines: [[], lineA] });
-    r(<PatternMiniChart hit={hit} />);
+    render(() => <PatternMiniChart hit={hit} />);
     await waitFor(() => expect(buildMock).toHaveBeenCalled());
     expect(buildMock).toHaveBeenCalledWith(expect.objectContaining({ trendlines: [lineA] }));
   });
@@ -151,7 +154,7 @@ describe("PatternMiniChart", () => {
       { t: "2026-09-01", price: 98 },
       { t: "2026-09-02", price: 99 },
     ];
-    r(<PatternMiniChart hit={makeHit({ candles: [], trendlines: [lineA, lineB] })} />);
+    render(() => <PatternMiniChart hit={makeHit({ candles: [], trendlines: [lineA, lineB] })} />);
     await waitFor(() => expect(setChartOption).toHaveBeenCalled());
     expect(buildMock).not.toHaveBeenCalled();
     const option = setChartOption.mock.calls[0][0] as FallbackOption;
@@ -164,7 +167,7 @@ describe("PatternMiniChart", () => {
   });
 
   test("falls back to a start→end line colored by direction when nothing else exists", async () => {
-    r(<PatternMiniChart hit={makeHit({ direction: "bullish", start_price: 100, end_price: 110 })} />);
+    render(() => <PatternMiniChart hit={makeHit({ direction: "bullish", start_price: 100, end_price: 110 })} />);
     await waitFor(() => expect(setChartOption).toHaveBeenCalled());
     expect(buildMock).not.toHaveBeenCalled();
     const bullOption = setChartOption.mock.calls[0][0] as FallbackOption;
@@ -174,7 +177,7 @@ describe("PatternMiniChart", () => {
     cleanup();
 
     setChartOption.mockClear();
-    r(<PatternMiniChart hit={makeHit({ direction: "bearish", start_price: 110, end_price: 100 })} />);
+    render(() => <PatternMiniChart hit={makeHit({ direction: "bearish", start_price: 110, end_price: 100 })} />);
     await waitFor(() => expect(setChartOption).toHaveBeenCalled());
     const bearOption = setChartOption.mock.calls[0][0] as FallbackOption;
     expect(bearOption.series).toHaveLength(1);

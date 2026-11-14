@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { ScreenerContent } from "./ScreenerContent";
-import type { ReactElement } from "react";
+import type { JSX } from "solid-js";
 import type { Stock } from "../../types";
 
 afterEach(() => {
@@ -12,8 +12,8 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-const renderWithProvider = (ui: ReactElement) =>
-  render(<UIProvider>{ui}</UIProvider>);
+const renderWithProvider = (ui: JSX.Element) =>
+  render(() => <UIProvider>{ui}</UIProvider>);
 
 vi.mock("./ScreenerSection", () => ({
   ScreenerSection: ({ title, description, stocks, action }: any) => (
@@ -47,6 +47,7 @@ vi.mock("./ScreenerErrorPanel", () => ({
 }));
 
 vi.mock("../../state", () => ({
+  subscribe: vi.fn(() => vi.fn()),
   screenerOptions: [
     { id: "trending", label: "Trending" },
     { id: "buyer_interest", label: "Buyer Interest" },
@@ -76,12 +77,10 @@ const defaultProps = {
   touchedStocks: [] as Stock[],
   isLoading: false,
   error: null as string | null,
-  totalStocks: 0,
   onRefresh: vi.fn(),
   onSymbolClick: vi.fn(),
   onSymbolHover: vi.fn(),
   activeScreener: "trending",
-  viewMode: "table" as const,
 };
 
 describe("ScreenerContent", () => {
@@ -90,7 +89,7 @@ describe("ScreenerContent", () => {
   });
 
   it("shows loading when isLoading is true", () => {
-    renderWithProvider(<ScreenerContent {...defaultProps} isLoading totalStocks={0} />);
+    renderWithProvider(<ScreenerContent {...defaultProps} isLoading />);
     expect(screen.getByTestId("screener-loading")).toBeInTheDocument();
   });
 
@@ -112,7 +111,7 @@ describe("ScreenerContent", () => {
     expect(screen.getByTestId("screener-error")).toHaveTextContent("Failed to fetch");
   });
 
-  it("shows empty state when totalStocks is 0", () => {
+  it("shows empty state when there are no rows", () => {
     renderWithProvider(<ScreenerContent {...defaultProps} />);
     expect(screen.getByTestId("screener-empty")).toBeInTheDocument();
   });
@@ -121,7 +120,6 @@ describe("ScreenerContent", () => {
     renderWithProvider(
       <ScreenerContent
         {...defaultProps}
-        totalStocks={3}
         approachingStocks={[
           mockStock("A"),
           mockStock("B"),
@@ -138,7 +136,6 @@ describe("ScreenerContent", () => {
       <ScreenerContent
         {...defaultProps}
         activeScreener="buyer_interest"
-        totalStocks={5}
         approachingStocks={[
           mockStock("A"),
           mockStock("B"),
@@ -156,7 +153,6 @@ describe("ScreenerContent", () => {
     renderWithProvider(
       <ScreenerContent
         {...defaultProps}
-        totalStocks={3}
         approachingStocks={[
           mockStock("A"),
           mockStock("B"),
@@ -176,7 +172,6 @@ describe("ScreenerContent", () => {
     renderWithProvider(
       <ScreenerContent
         {...defaultProps}
-        totalStocks={2}
         approachingStocks={[mockStock("A"), mockStock("B")]}
         touchedStocks={[]}
       />,

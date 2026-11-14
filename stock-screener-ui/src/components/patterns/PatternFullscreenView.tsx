@@ -4,7 +4,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconX,
-} from "@tabler/icons-react";
+} from "@/patterns/icons";
 import type {
   ChartCandle,
   PatternHitDTO,
@@ -87,67 +87,44 @@ export interface PatternFullscreenViewProps {
  * fullscreen modal chrome. The TV chart is mounted only while open so
  * lightweight-charts initialises against a live ref.
  */
-export function PatternFullscreenView({
-  opened,
-  onClose,
-  docked = false,
-  onMaximize,
-  onPrev,
-  onNext,
-  positionLabel,
-  onLive,
-  symbol,
-  hit,
-  candles,
-  overlays,
-  trendLines,
-  trendlinesView = "both",
-  timeframe,
-  timeframes,
-  onTimeframeChange,
-  loading = false,
-  asOf = null,
-  fromDate = null,
-  onAsOfChange,
-  hits,
-  onSelectHit,
-}: PatternFullscreenViewProps) {
-  const title = hit
-    ? `${hit.symbol} · ${hit.pattern_name}`
-    : symbol
-      ? symbol
-      : "Pattern chart";
+export function PatternFullscreenView(props: PatternFullscreenViewProps) {
+  const title = () =>
+    props.hit
+      ? `${props.hit.symbol} · ${props.hit.pattern_name}`
+      : props.symbol
+        ? props.symbol
+        : "Pattern chart";
 
   const toolbar = (
     <PatternChartToolbar
-      title={title}
-      timeframe={timeframe}
-      timeframes={timeframes}
-      onTimeframeChange={onTimeframeChange}
-      loading={loading}
-      asOf={asOf}
-      fromDate={fromDate}
-      onAsOfChange={onAsOfChange}
+      title={title()}
+      timeframe={props.timeframe}
+      timeframes={props.timeframes}
+      onTimeframeChange={props.onTimeframeChange}
+      loading={props.loading ?? false}
+      asOf={props.asOf ?? null}
+      fromDate={props.fromDate ?? null}
+      onAsOfChange={props.onAsOfChange}
     />
   );
 
   const body = (
     <PatternChartBody
-      hit={hit}
-      candles={candles}
-      hits={hits}
-      onSelectHit={onSelectHit}
-      overlays={overlays}
-      trendLines={trendLines}
-      trendlinesView={trendlinesView}
-      asOf={asOf}
-      docked={docked}
-      fill={docked}
+      hit={props.hit}
+      candles={props.candles}
+      hits={props.hits}
+      onSelectHit={props.onSelectHit}
+      overlays={props.overlays}
+      trendLines={props.trendLines}
+      trendlinesView={props.trendlinesView ?? "both"}
+      asOf={props.asOf ?? null}
+      docked={props.docked ?? false}
+      fill={props.docked ?? false}
     />
   );
 
   const stepper =
-    onPrev || onNext ? (
+    props.onPrev || props.onNext ? (
       <Box
         className="mt-[2px] flex shrink-0 items-center gap-[2px]"
       >
@@ -156,20 +133,20 @@ export function PatternFullscreenView({
             size="xs"
             variant="subtle"
             aria-label="Previous pattern"
-            onClick={onPrev}
+            onClick={props.onPrev}
             data-testid="patterns-chart-prev"
           >
-            <IconChevronLeft size={15} />
+            <IconChevronLeft size={14} />
           </ActionIcon>
         </Tooltip>
-        {positionLabel ? (
+        {props.positionLabel ? (
           <Text
             size="xs"
             c="dimmed"
             data-testid="patterns-chart-position"
-            className="min-w-[38px] text-center tabular-nums"
+            className="min-w-[38px] text-center font-mono tabular-nums"
           >
-            {positionLabel}
+            {props.positionLabel}
           </Text>
         ) : null}
         <Tooltip label="Next pattern (↓)">
@@ -177,16 +154,16 @@ export function PatternFullscreenView({
             size="xs"
             variant="subtle"
             aria-label="Next pattern"
-            onClick={onNext}
+            onClick={props.onNext}
             data-testid="patterns-chart-next"
           >
-            <IconChevronRight size={15} />
+            <IconChevronRight size={14} />
           </ActionIcon>
         </Tooltip>
       </Box>
     ) : null;
 
-  if (docked) {
+  if (props.docked ?? false) {
     return (
       <Box
         data-testid="patterns-chart-dock"
@@ -197,12 +174,12 @@ export function PatternFullscreenView({
         >
           <Box className="min-w-0 flex-1">{toolbar}</Box>
           {stepper}
-          {asOf && onLive ? (
+          {props.asOf && props.onLive ? (
             <Tooltip label="Return to live data">
               <Button
                 size="xs"
                 variant="outline"
-                onClick={onLive}
+                onClick={props.onLive}
                 data-testid="patterns-chart-live"
                 className="mt-[2px] shrink-0"
               >
@@ -210,13 +187,13 @@ export function PatternFullscreenView({
               </Button>
             </Tooltip>
           ) : null}
-          {onMaximize ? (
+          {props.onMaximize ? (
             <Tooltip label="Expand to full screen">
               <ActionIcon
                 size="xs"
                 variant="subtle"
                 aria-label="Expand chart"
-                onClick={onMaximize}
+                onClick={props.onMaximize}
                 data-testid="patterns-chart-expand"
                 className="mt-[2px]"
               >
@@ -229,7 +206,7 @@ export function PatternFullscreenView({
               size="xs"
               variant="subtle"
               aria-label="Close chart preview"
-              onClick={onClose}
+              onClick={props.onClose}
               data-testid="patterns-chart-close"
               className="mt-[2px]"
             >
@@ -244,8 +221,9 @@ export function PatternFullscreenView({
 
   return (
     <Modal
-      opened={opened}
-      onClose={onClose}
+      opened={props.opened}
+      onClose={props.onClose}
+      withCloseButton
       title={
         <Box
           className="flex w-full min-w-0 items-center gap-1"

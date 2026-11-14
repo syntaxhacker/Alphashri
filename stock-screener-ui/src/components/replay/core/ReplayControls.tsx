@@ -1,11 +1,10 @@
 // ReplayControls — presentational playback control strip (play/pause, speed, scrub slider,
 // clock/trade summary + loading/error chips). Strategy-specific parameter controls are
 // injected via `children` so this core component stays strategy-agnostic.
-import type { ReactNode } from "react";
-import { Stack, Box, Button, Select, Text, Chip } from "@/ui";
+import { For, type JSX } from "solid-js";
+import { Button, Select, Text, Chip, Stack, Box } from "@/ui";
 import { fmtClock } from "../format";
 import * as palette from "@/ui/palette";
-
 export const SPEEDS = [1, 5, 15, 60, 300];
 
 export interface ReplayControlsProps {
@@ -24,52 +23,48 @@ export interface ReplayControlsProps {
   onSpeedChange: (speed: number) => void;
   onJump: (t: number) => void;
   /** strategy-specific parameter controls rendered after Speed */
-  children?: ReactNode;
+  children?: JSX.Element;
 }
 
-export default function ReplayControls({
-  playing, loading, disabled, speed, t0, tEnd, clock,
-  closedCount, revealedCount, net, error,
-  onPlayToggle, onSpeedChange, onJump, children,
-}: ReplayControlsProps) {
+export default function ReplayControls(props: ReplayControlsProps) {
   return (
     <Stack direction="row" gap="sm" mb="sm" align="center" wrap>
-      <Button size="sm" variant="filled" onClick={onPlayToggle} disabled={disabled}>
-        {playing ? "⏸ Pause" : "▶ Play"}
+      <Button size="sm" variant="filled" onClick={props.onPlayToggle} disabled={props.disabled}>
+        {props.playing ? "⏸ Pause" : "▶ Play"}
       </Button>
       <Select
         size="sm"
         w={110}
-        value={String(speed)}
-        onChange={(v) => onSpeedChange(Number(v ?? ""))}
+        value={String(props.speed)}
+        onChange={(v) => props.onSpeedChange(Number(v ?? ""))}
         label="Speed"
         data-testid="replay-speed-select"
       >
-        {SPEEDS.map((s) => (
-          <option key={s} value={s}>
+        <For each={SPEEDS}>{(s) => (
+          <option value={s}>
             {s}x
           </option>
-        ))}
+        )}</For>
       </Select>
-      {children}
+      {props.children}
       <Box flex="1" miw={200} px="sm">
         <input
           type="range"
-          min={t0}
-          max={tEnd}
+          min={props.t0}
+          max={props.tEnd}
           step={1}
-          value={Math.round(clock)}
-          onChange={(e) => onJump(Number((e.target as HTMLInputElement).value))}
+          value={Math.round(props.clock)}
+          onInput={(e) => props.onJump(Number(e.currentTarget.value))}
           aria-label="replay position"
-          className="w-full"
-          style={{ accentColor: palette.PRIMARY }}
+          class="w-full"
+          style={{ "accent-color": palette.PRIMARY }}
         />
       </Box>
-      <Text size="xs" className="font-mono" style={{ color: "#E5E7EB" }}>
-        {clock > 0 ? fmtClock(clock) : "--:--:--"} · {closedCount}/{revealedCount} closed · net {net > 0 ? "+" : ""}{net.toFixed(1)}
+      <Text size="xs" className="font-mono tabular-nums" style={{ color: palette.REPLAY_CHART_TEXT }}>
+        {props.clock > 0 ? fmtClock(props.clock) : "--:--:--"} · {props.closedCount}/{props.revealedCount} closed · net {props.net > 0 ? "+" : ""}{props.net.toFixed(1)}
       </Text>
-      {loading && <Chip size="small" children="loading ticks…" style={{ backgroundColor: "#1F2937", color: palette.PRIMARY }} />}
-      {error && <Chip size="small" children={error} style={{ backgroundColor: "#3B1D1D", color: "#F87171" }} />}
+      {props.loading && <Chip size="sm" style={{ "background-color": palette.REPLAY_CHIP_BG, color: palette.PRIMARY }}>loading ticks…</Chip>}
+      {props.error && <Chip size="sm" style={{ "background-color": palette.REPLAY_CHIP_BG_ERROR, color: palette.REPLAY_CHIP_TEXT_ERROR }}>{props.error}</Chip>}
     </Stack>
   );
 }

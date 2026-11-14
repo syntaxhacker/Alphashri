@@ -1,16 +1,61 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import type { PatternHitDTO, PatternSummary } from "@/types/chartPatterns";
+import type { JSX } from "solid-js";
+import { For, Show } from "solid-js";
 import { PatternsPage, type PatternsPageProps } from "./PatternsPage";
 
 // These page tests mount the real filter modal (@/ui Autocomplete + Select).
 // Under a full-suite run with 8 workers the multi-select interaction can exceed
 // the 5s default; the assertions are deterministic, so allow a slower machine.
 vi.setConfig({ testTimeout: 20_000 });
+
+// The @/ui Box/Flex/... stubs from src/pages/solidTestStubs.tsx render as
+// intrinsic elements; page tests exercise page wiring, not the theme runtime.
+vi.mock("@/ui", async (importOriginal) => {
+  const { uiLayoutStub } = await import("@/pages/solidTestStubs");
+  const stubbed = await uiLayoutStub(await importOriginal<Record<string, unknown>>());
+  // Menu stub: bare pass-throughs with an onSelect-fired button; the
+  // suite asserts page wiring, not Menu internals.
+  const passthrough = (props: any) => <div>{props.children}</div>;
+  const Item = (props: any) => (
+    <button
+      type="button"
+      disabled={props.disabled}
+      aria-disabled={props.disabled ? "true" : undefined}
+      onClick={() => (props.disabled ? undefined : props.onClick?.(props) ?? props.onSelect?.(props))}
+      data-testid={props["data-testid"]}
+    >
+      {props.children}
+    </button>
+  );
+  const Menu = Object.assign(
+    (props: any) => <div data-testid="menu-root">{props.children}</div>,
+    {
+      Target: passthrough,
+      Dropdown: passthrough,
+      Item,
+      Divider: () => <hr />,
+      Label: (props: any) => <span>{props.children}</span>,
+    },
+  );
+  return {
+    ...stubbed,
+    Menu,
+    MenuTarget: passthrough,
+    MenuDropdown: passthrough,
+    MenuItem: Item,
+  };
+});
+
+// IndexMembersDrawer pulls its own data path; this suite asserts page
+// wiring and filter staging, not the members drawer — render nothing.
+vi.mock("@/components/patterns/IndexMembersDrawer", () => ({
+  IndexMembersDrawer: () => null,
+}));
 
 vi.mock("@/hooks/useECharts", () => ({
   useECharts: () => ({
@@ -45,32 +90,34 @@ const fullscreenOverlays = vi.hoisted(() => [] as unknown[]);
 // (card buttons incl. expand affordance, fullscreen modal + chart +
 // "No chart data") while recording the `trendlinesView` prop.
 vi.mock("@/components/patterns/PatternGrid", () => ({
-  PatternGrid: ({ hits, onSelect, onExpand, trendlinesView = "both" }: any) => {
-    gridTrendlinesViews.push(trendlinesView);
+  PatternGrid: (props: any) => {
+    gridTrendlinesViews.push(props.trendlinesView ?? "both");
     return (
-      <div data-testid="patterns-grid" data-trendlines-view={trendlinesView}>
-        {(hits as any[]).map((hit: any) => (
-          <div key={hit.id ?? `${hit.symbol}-${hit.pattern_id}-${hit.start_date}`}>
-            <button
-              type="button"
-              data-testid={`patterns-card-${hit.symbol}-${hit.pattern_id}`}
-              onClick={() => onSelect?.(hit)}
-            >
-              {hit.symbol} {hit.pattern_name}
-            </button>
-            <button
-              type="button"
-              data-testid={`patterns-card-expand-${hit.symbol}-${hit.pattern_id}`}
-              aria-label={`Open fullscreen chart for ${hit.symbol} ${hit.pattern_name}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onExpand?.(hit);
-              }}
-            >
-              expand
-            </button>
-          </div>
-        ))}
+      <div data-testid="patterns-grid" data-trendlines-view={props.trendlinesView ?? "both"}>
+        <For each={props.hits as any[]}>
+          {(hit: any) => (
+            <div>
+              <button
+                type="button"
+                data-testid={`patterns-card-${hit.symbol}-${hit.pattern_id}`}
+                onClick={() => props.onSelect?.(hit)}
+              >
+                {hit.symbol} {hit.pattern_name}
+              </button>
+              <button
+                type="button"
+                data-testid={`patterns-card-expand-${hit.symbol}-${hit.pattern_id}`}
+                aria-label={`Open fullscreen chart for ${hit.symbol} ${hit.pattern_name}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  props.onExpand?.(hit);
+                }}
+              >
+                expand
+              </button>
+            </div>
+          )}
+        </For>
       </div>
     );
   },
@@ -79,160 +126,173 @@ vi.mock("@/components/patterns/PatternGrid", () => ({
 // Dense list stub: mirrors the grid contract (row buttons + onSelect) so the
 // page tests stay deterministic without mounting the real TanStackTable.
 vi.mock("@/components/patterns/PatternListView", () => ({
-  PatternListView: ({ hits, onSelect, onSymbolPreview, onSymbolPreviewEnd, onSymbolOpen }: any) => (
+  PatternListView: (props: any) => (
     <div data-testid="patterns-list">
-      {(hits as any[]).map((hit: any) => (
-        <div key={hit.id ?? `${hit.symbol}-${hit.pattern_id}-${hit.start_date}`}>
-          <button
-            type="button"
-            data-testid={`patterns-list-row-${hit.symbol}-${hit.pattern_id}`}
-            onClick={() => onSelect?.(hit)}
-          >
-            {hit.symbol} {hit.pattern_name}
-          </button>
-          <span
-            data-testid={`patterns-list-tv-${hit.symbol}-wrap`}
-            onMouseEnter={() => onSymbolPreview?.(hit.symbol)}
-            onMouseLeave={() => onSymbolPreviewEnd?.(hit.symbol)}
-          >
-            {hit.symbol}
-          </span>
-          <button
-            type="button"
-            data-testid={`patterns-list-chart-${hit.symbol}`}
-            onClick={() => onSymbolOpen?.(hit.symbol)}
-          >
-            chart
-          </button>
-        </div>
-      ))}
+      <For each={props.hits as any[]}>
+        {(hit: any) => (
+          <div>
+            <button
+              type="button"
+              data-testid={`patterns-list-row-${hit.symbol}-${hit.pattern_id}`}
+              onClick={() => props.onSelect?.(hit)}
+            >
+              {hit.symbol} {hit.pattern_name}
+            </button>
+            <span
+              data-testid={`patterns-list-tv-${hit.symbol}-wrap`}
+              onMouseEnter={() => props.onSymbolPreview?.(hit.symbol)}
+              onMouseLeave={() => props.onSymbolPreviewEnd?.(hit.symbol)}
+            >
+              {hit.symbol}
+            </span>
+            <button
+              type="button"
+              data-testid={`patterns-list-chart-${hit.symbol}`}
+              onClick={() => props.onSymbolOpen?.(hit.symbol)}
+            >
+              chart
+            </button>
+          </div>
+        )}
+      </For>
     </div>
   ),
 }));
 
 vi.mock("@/components/patterns/PatternSymbolMatrix", () => ({
-  PatternSymbolMatrix: ({ rows, timeframes, onSelect }: any) => (
+  PatternSymbolMatrix: (props: any) => (
     <div data-testid="patterns-symbol-matrix">
-      <span data-testid="matrix-timeframes">{(timeframes as string[]).join(",")}</span>
-      {(rows as any[]).map((row: any) => (
-        <button
-          key={row.symbol}
-          type="button"
-          data-testid={`matrix-row-${row.symbol}`}
-          onClick={() => row.best && onSelect?.(row.best)}
-        >
-          {row.symbol}
-        </button>
-      ))}
+      <span data-testid="matrix-timeframes">{(props.timeframes as string[]).join(",")}</span>
+      <For each={props.rows as any[]}>
+        {(row: any) => (
+          <button
+            type="button"
+            data-testid={`matrix-row-${row.symbol}`}
+            onClick={() => row.best && props.onSelect?.(row.best)}
+          >
+            {row.symbol}
+          </button>
+        )}
+      </For>
     </div>
   ),
 }));
 
-vi.mock("@/components/patterns/PatternFullscreenView", () => ({  PatternFullscreenView: ({ opened, docked = false, onClose, onMaximize, onPrev, onNext, positionLabel, hit, hits = [], onSelectHit, candles, overlays, trendlinesView = "both", timeframe, timeframes = [], onTimeframeChange, loading = false }: any) => {
-    fullscreenTrendlinesViews.push(trendlinesView);
-    fullscreenOverlays.push(overlays);
-    if (!opened) return null;
-    const options = (timeframes as any[]).length > 0 ? (timeframes as any[]) : [{ id: timeframe, label: timeframe }];
+vi.mock("@/components/patterns/PatternFullscreenView", () => ({
+  PatternFullscreenView: (props: any) => {
+    fullscreenTrendlinesViews.push(props.trendlinesView ?? "both");
+    fullscreenOverlays.push(props.overlays);
+    const docked = () => props.docked ?? false;
+    const tfs = () => ((props.timeframes as any[]) ?? []).length > 0 ? (props.timeframes as any[]) : [{ id: props.timeframe, label: props.timeframe }];
     return (
-      <div data-testid={docked ? "patterns-chart-dock" : "patterns-fullscreen-modal"} data-trendlines-view={trendlinesView}>
-        <div data-testid="patterns-fullscreen-active-hit">{hit?.pattern_name}</div>
-        {(hits as any[]).map((h: any, i: number) => (
-          <button
-            key={h.id ?? `${h.symbol}-${h.pattern_id}-${h.start_date}`}
-            type="button"
-            data-testid={`patterns-fullscreen-list-item-${i}`}
-            onClick={() => onSelectHit?.(h)}
-          >
-            {h.pattern_name}
+      <Show when={props.opened}>
+        <div data-testid={docked() ? "patterns-chart-dock" : "patterns-fullscreen-modal"} data-trendlines-view={props.trendlinesView ?? "both"}>
+          <div data-testid="patterns-fullscreen-active-hit">{props.hit?.pattern_name}</div>
+          <For each={(props.hits ?? []) as any[]}>
+            {(h: any, i: number) => (
+              <button
+                type="button"
+                data-testid={`patterns-fullscreen-list-item-${i()}`}
+                onClick={() => props.onSelectHit?.(h)}
+              >
+                {h.pattern_name}
+              </button>
+            )}
+          </For>
+          <Show when={props.onTimeframeChange && props.timeframe != null}>
+            <select
+              data-testid="patterns-fullscreen-timeframe"
+              aria-label="Fullscreen timeframe"
+              value={props.timeframe}
+              onChange={(e) => props.onTimeframeChange((e.currentTarget as HTMLSelectElement).value)}
+            >
+              <For each={tfs()}>
+                {(tf: any) => (
+                  <option value={tf.id}>
+                    {tf.label || tf.id}
+                  </option>
+                )}
+              </For>
+            </select>
+          </Show>
+          <Show when={props.loading}>
+            <div data-testid="patterns-fullscreen-loading" />
+          </Show>
+          <button type="button" onClick={props.onClose}>
+            Close
           </button>
-        ))}
-        {onTimeframeChange && timeframe != null ? (
-          <select
-            data-testid="patterns-fullscreen-timeframe"
-            aria-label="Fullscreen timeframe"
-            value={timeframe}
-            onChange={(e) => onTimeframeChange(e.target.value)}
-          >
-            {options.map((tf: any) => (
-              <option key={tf.id} value={tf.id}>
-                {tf.label || tf.id}
-              </option>
-            ))}
-          </select>
-        ) : null}
-        {loading ? <div data-testid="patterns-fullscreen-loading" /> : null}
-        <button type="button" onClick={onClose}>
-          Close
-        </button>
-        {onMaximize ? (
-          <button type="button" data-testid="patterns-chart-expand" onClick={onMaximize}>
-            Expand
-          </button>
-        ) : null}
-        {onPrev ? (
-          <button type="button" data-testid="patterns-chart-prev" onClick={onPrev}>
-            Prev
-          </button>
-        ) : null}
-        {onNext ? (
-          <button type="button" data-testid="patterns-chart-next" onClick={onNext}>
-            Next
-          </button>
-        ) : null}
-        {positionLabel ? (
-          <div data-testid="patterns-chart-position">{positionLabel}</div>
-        ) : null}
-        <div data-testid="patterns-fullscreen-chart" />
-        {(candles?.length ?? 0) === 0 ? <div>No chart data</div> : null}
-      </div>
+          <Show when={props.onMaximize}>
+            <button type="button" data-testid="patterns-chart-expand" onClick={props.onMaximize}>
+              Expand
+            </button>
+          </Show>
+          <Show when={props.onPrev}>
+            <button type="button" data-testid="patterns-chart-prev" onClick={props.onPrev}>
+              Prev
+            </button>
+          </Show>
+          <Show when={props.onNext}>
+            <button type="button" data-testid="patterns-chart-next" onClick={props.onNext}>
+              Next
+            </button>
+          </Show>
+          <Show when={props.positionLabel}>
+            <div data-testid="patterns-chart-position">{props.positionLabel}</div>
+          </Show>
+          <div data-testid="patterns-fullscreen-chart" />
+          <Show when={((props.candles?.length ?? 0) === 0)}>
+            <div>No chart data</div>
+          </Show>
+        </div>
+      </Show>
     );
   },
 }));
 
 // Native-select stubs so toolbar wiring is deterministic (the real Select needs popup interaction). Testids + onChange contracts preserved.
 vi.mock("@/components/patterns/TimeframeSelect", () => ({
-  TimeframeSelect: ({ timeframes, value, onChange }: any) => {
-    const selected = Array.isArray(value) ? value : value ? [value] : [];
-    const source =
-      (timeframes as any[]).length > 0
-        ? (timeframes as any[])
-        : [{ id: selected[0] ?? "1D", label: selected[0] ?? "1D" }];
+  TimeframeSelect: (props: any) => {
+    const selected = () => (Array.isArray(props.value) ? props.value : props.value ? [props.value] : []);
+    const source = () =>
+      (props.timeframes as any[]).length > 0
+        ? (props.timeframes as any[])
+        : [{ id: selected()[0] ?? "1D", label: selected()[0] ?? "1D" }];
     return (
       <div data-testid="patterns-timeframe-select">
-        {source.map((tf: any) => (
-          <button
-            key={tf.id}
-            type="button"
-            data-testid={`tf-option-${tf.id}`}
-            onClick={() => {
-              const next = selected.includes(tf.id)
-                ? selected.filter((item: string) => item !== tf.id)
-                : [...selected, tf.id];
-              if (next.length > 0) onChange(next);
-            }}
-          >
-            {tf.label || tf.id}
-          </button>
-        ))}
+        <For each={source()}>
+          {(tf: any) => (
+            <button
+              type="button"
+              data-testid={`tf-option-${tf.id}`}
+              onClick={() => {
+                const next = selected().includes(tf.id)
+                  ? selected().filter((item: string) => item !== tf.id)
+                  : [...selected(), tf.id];
+                if (next.length > 0) props.onChange?.(next);
+              }}
+            >
+              {tf.label || tf.id}
+            </button>
+          )}
+        </For>
       </div>
     );
   },
 }));
 
 vi.mock("@/components/patterns/LookbackSelect", () => ({
-  LookbackSelect: ({ value, onChange }: any) => (
+  LookbackSelect: (props: any) => (
     <select
       data-testid="patterns-lookback-select"
       aria-label="Lookback"
-      value={value == null ? "auto" : String(value)}
-      onChange={(e) => {
-        const v = e.target.value;
-        onChange(v === "auto" ? null : Number(v));
+      value={props.value == null ? "auto" : String(props.value)}
+      onInput={(e) => {
+        const v = (e.currentTarget as HTMLSelectElement).value;
+        props.onChange?.(v === "auto" ? null : Number(v));
       }}
     >
       <option value="auto">Auto</option>
       <option value="250">250</option>
-      <option value="500">500</option>
     </select>
   ),
 }));
@@ -335,21 +395,14 @@ function makeProps(overrides: Partial<PatternsPageProps> = {}): PatternsPageProp
   };
 }
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
+function r(jsx: JSX.Element) {
+  return render(() => <UIProvider>{jsx}</UIProvider>);
 }
 
 /**
  * Pick an option in a local MultiSelect. The listbox opens on combobox focus,
  * and the option toggles through its checkbox (clicking the bare `li` is inert).
  */
-async function pickMultiOption(selectTestId: string, name: string | RegExp) {
-  const root = screen.getByTestId(selectTestId);
-  await userEvent.click(within(root).getByRole("combobox"));
-  const listbox = await within(root).findByRole("listbox");
-  const option = within(listbox).getByRole("option", { name });
-  await userEvent.click(within(option).getByRole("checkbox"));
-}
 
 describe("PatternsPage", () => {
   beforeEach(() => {
@@ -391,14 +444,28 @@ describe("PatternsPage", () => {
     expect(screen.queryByTestId("patterns-grid")).not.toBeInTheDocument();
   });
 
+  test("renders the live counters on the tab row instead of a second band", () => {
+    r(<PatternsPage {...makeProps()} />);
+    const tabList = screen.getByTestId("patterns-tab-list");
+    const stats = screen.getByTestId("patterns-stats");
+    const panel = screen.getByTestId("patterns-panel-scan");
+    // Same strip: the counters share the tab row's parent, not the panel body.
+    expect(tabList.parentElement).toBe(stats.parentElement?.parentElement);
+    expect(panel).not.toContainElement(stats);
+    // The wrapper owns the single bottom rule; the list's own rule is zeroed.
+    const band = tabList.parentElement as HTMLElement;
+    expect(band.className).toContain("border-b");
+    expect(tabList.getAttribute("style")).toContain("border-bottom-width: 0px");
+  });
+
   test("view toggle switches between the dense list and the card grid", async () => {
     r(<PatternsPage {...makeProps()} />);
     expect(screen.getByTestId("patterns-list")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
+    fireEvent.click(screen.getByRole("button", { name: "Grid" }));
     expect(await screen.findByTestId("patterns-grid")).toBeInTheDocument();
     expect(screen.queryByTestId("patterns-list")).not.toBeInTheDocument();
     expect(screen.getByTestId("patterns-card-IRCON-falling_wedge")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "List" }));
+    fireEvent.click(screen.getByRole("button", { name: "List" }));
     expect(await screen.findByTestId("patterns-list")).toBeInTheDocument();
     expect(screen.queryByTestId("patterns-grid")).not.toBeInTheDocument();
   });
@@ -456,7 +523,7 @@ describe("PatternsPage", () => {
       data_through: null,
     });
     r(<PatternsPage {...makeProps({ defaultView: "matrix" })} />);
-    await userEvent.click(await screen.findByTestId("matrix-row-IRCON"));
+    fireEvent.click(await screen.findByTestId("matrix-row-IRCON"));
     expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
   });
 
@@ -488,21 +555,21 @@ describe("PatternsPage", () => {
       });
       r(<PatternsPage {...makeProps({ results: [first, second], total: 2 })} />);
 
-      await userEvent.click(
+      fireEvent.click(
         screen.getByTestId(/^patterns-list-row-IRCON-falling_wedge/),
       );
       expect(await screen.findByTestId("patterns-chart-dock")).toBeInTheDocument();
       expect(screen.queryByTestId("patterns-fullscreen-modal")).not.toBeInTheDocument();
       expect(screen.getByTestId("patterns-chart-position")).toHaveTextContent("1 / 2");
 
-      await userEvent.click(screen.getByTestId("patterns-chart-next"));
+      fireEvent.click(screen.getByTestId("patterns-chart-next"));
       expect(await screen.findByTestId("patterns-chart-position")).toHaveTextContent("2 / 2");
       expect(screen.getByTestId("patterns-fullscreen-active-hit")).toHaveTextContent(
         "Rising Wedge",
       );
 
       // Arrow keys step through the same sequence; the dock stays mounted.
-      await userEvent.keyboard("{ArrowUp}");
+      fireEvent.keyDown(document.body, { key: "ArrowUp" });
       expect(await screen.findByTestId("patterns-chart-position")).toHaveTextContent("1 / 2");
       expect(screen.getByTestId("patterns-chart-dock")).toBeInTheDocument();
     } finally {
@@ -513,7 +580,7 @@ describe("PatternsPage", () => {
   test("clicking a list row opens the fullscreen chart", async () => {
     r(<PatternsPage {...makeProps()} />);
     expect(screen.queryByTestId("patterns-fullscreen-modal")).not.toBeInTheDocument();
-    await userEvent.click(screen.getByTestId("patterns-list-row-IRCON-falling_wedge"));
+    fireEvent.click(screen.getByTestId("patterns-list-row-IRCON-falling_wedge"));
     expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-fullscreen-chart")).toBeInTheDocument();
   });
@@ -546,7 +613,7 @@ describe("PatternsPage", () => {
       });
       r(<PatternsPage {...makeProps({ results: [first, second], total: 2 })} />);
 
-      await userEvent.hover(screen.getByTestId(/^patterns-list-tv-IRCON-wrap/));
+      fireEvent.mouseEnter(screen.getByTestId(/^patterns-list-tv-IRCON-wrap/));
       expect(
         await screen.findByTestId("patterns-chart-dock", {}, { timeout: 3000 }),
       ).toBeInTheDocument();
@@ -588,9 +655,10 @@ describe("PatternsPage", () => {
       });
       r(<PatternsPage {...makeProps({ results: [first, second], total: 2 })} />);
 
-      await userEvent.click(screen.getByTestId("patterns-list-chart-IRCON"));
+      fireEvent.click(screen.getByTestId("patterns-list-chart-IRCON"));
+      await waitFor(() => expect(fetchSymbolChart.mock.calls.length).toBeGreaterThanOrEqual(2));
       const before = fetchSymbolChart.mock.calls.length;
-      await userEvent.hover(screen.getByTestId(/^patterns-list-tv-RELIANCE-wrap/));
+      fireEvent.mouseEnter(screen.getByTestId(/^patterns-list-tv-RELIANCE-wrap/));
       await new Promise((resolve) => setTimeout(resolve, 400));
       expect(fetchSymbolChart.mock.calls.length).toBe(before);
     } finally {
@@ -600,13 +668,13 @@ describe("PatternsPage", () => {
 
   test("the f shortcut never opens Filters behind an open dialog", async () => {
     r(<PatternsPage {...makeProps()} />);
-    await userEvent.click(screen.getByTestId("patterns-paste-symbols"));
+    fireEvent.click(screen.getByTestId("patterns-paste-symbols"));
     expect(await screen.findByTestId("patterns-paste-symbols-input")).toBeInTheDocument();
 
     // Focus the dialog chrome (not its textarea), then press the page shortcut.
     const dialog = document.querySelector('[role="dialog"]') as HTMLElement;
     dialog.focus();
-    await userEvent.keyboard("f");
+    fireEvent.keyDown(dialog, { key: "f" });
 
     expect(screen.queryByTestId("patterns-filter-modal")).not.toBeInTheDocument();
     expect(screen.getByTestId("patterns-paste-symbols-input")).toBeInTheDocument();
@@ -628,21 +696,6 @@ describe("PatternsPage", () => {
     expect(screen.getByText(/Custom scope is empty/i)).toBeInTheDocument();
   });
 
-  test("Filters button opens the modal with the full rail", async () => {
-    r(<PatternsPage {...makeProps()} />);
-    expect(screen.queryByTestId("patterns-filter-rail")).not.toBeInTheDocument();
-    await userEvent.click(screen.getByTestId("patterns-open-filters"));
-    expect(await screen.findByTestId("patterns-filter-rail")).toBeInTheDocument();
-    // Pattern tiles show the reference image + label.
-    const img = await screen.findByTestId("pattern-image-falling_wedge");
-    expect(img).toHaveAttribute("src", "/api/chart-patterns/image/falling_wedge");
-    expect(screen.getByTestId("patterns-filter-pattern-falling_wedge")).toHaveTextContent(
-      "Falling Wedge",
-    );
-    await userEvent.click(screen.getByTestId("patterns-filters-done"));
-    await waitFor(() => expect(screen.queryByTestId("patterns-filter-rail")).not.toBeInTheDocument());
-  });
-
   test("renders symbol filter and results search controls", () => {
     r(<PatternsPage {...makeProps()} />);
     expect(screen.getByTestId("patterns-symbol-filter")).toBeInTheDocument();
@@ -660,6 +713,9 @@ describe("PatternsPage", () => {
   test("shows loading state", () => {
     r(<PatternsPage {...makeProps({ loading: true, results: [], total: 0 })} />);
     expect(screen.getByTestId("patterns-loading")).toBeInTheDocument();
+    // Cold load draws the card skeleton, not a centred spinner.
+    expect(screen.getByTestId("patterns-skeleton-grid")).toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     expect(screen.queryByTestId("patterns-empty")).not.toBeInTheDocument();
   });
 
@@ -697,7 +753,7 @@ describe("PatternsPage", () => {
     const props = makeProps({ results: [], total: 0 });
     r(<PatternsPage {...props} />);
     expect(screen.getByTestId("patterns-empty")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
     expect(props.refresh).toHaveBeenCalledTimes(1);
   });
 
@@ -707,15 +763,15 @@ describe("PatternsPage", () => {
     const cta = screen.getByTestId("patterns-empty-scan");
     expect(cta).toHaveTextContent("Scan 15m now");
     expect(screen.getByTestId("patterns-empty")).toHaveTextContent("nifty500 · 15m");
-    await userEvent.click(cta);
+    fireEvent.click(cta);
     expect(props.scan).toHaveBeenCalledTimes(1);
   });
 
   test("clicking a card opens the fullscreen chart", async () => {
     r(<PatternsPage {...makeProps()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
+    fireEvent.click(screen.getByRole("button", { name: "Grid" }));
     expect(screen.queryByTestId("patterns-fullscreen-modal")).not.toBeInTheDocument();
-    await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
+    fireEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
     expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-fullscreen-chart")).toBeInTheDocument();
   });
@@ -723,46 +779,8 @@ describe("PatternsPage", () => {
   test("scan again triggers scan", async () => {
     const props = makeProps();
     r(<PatternsPage {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-scan-again"));
+    fireEvent.click(screen.getByTestId("patterns-scan-again"));
     expect(props.scan).toHaveBeenCalledTimes(1);
-  });
-
-  test("filter edits are staged and applied only when Filter is clicked", async () => {
-    const props = makeProps();
-    r(<PatternsPage {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-open-filters"));
-    await pickMultiOption("patterns-family-select", /^Reversal/);
-    // Staged locally — no instant store update / reload.
-    expect(props.setFilter).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByTestId("patterns-filters-done"));
-    expect(props.applyFilters).toHaveBeenCalledWith(
-      expect.objectContaining({ family: ["reversal"] }),
-    );
-  });
-
-  test("a preset replaces the staged filters instead of merging with them", async () => {
-    const props = makeProps();
-    r(<PatternsPage {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-open-filters"));
-
-    // Stage a direction first…
-    await pickMultiOption("patterns-direction-select", "Bearish");
-    // …then apply a preset that says nothing about direction. The preset
-    // control is a native select, so drive it through its option list.
-    await userEvent.selectOptions(
-      within(screen.getByTestId("patterns-preset-select-input")).getByRole("combobox"),
-      "builtin:fresh_reversals",
-    );
-
-    await userEvent.click(screen.getByTestId("patterns-filters-done"));
-    expect(props.applyFilters).toHaveBeenCalledWith(
-      expect.objectContaining({
-        family: ["reversal"],
-        formed_within_bars: 3,
-        sort: "newest",
-        direction: [],
-      }),
-    );
   });
 
   test("shows the error alert instead of the generic empty copy when error is set", () => {
@@ -786,7 +804,7 @@ describe("PatternsPage", () => {
     expect(screen.getByText("TLS/TLR")).toBeInTheDocument();
     const toggle = screen.getByTestId("patterns-compute-trendlines");
     expect(toggle).toBeChecked();
-    await userEvent.click(toggle);
+    fireEvent.click(toggle);
     expect(props.setComputeTrendlines).toHaveBeenCalledWith(false);
   });
 
@@ -808,10 +826,10 @@ describe("PatternsPage", () => {
     const first = makeHit({ id: 11, symbol: "IRCON", pattern_id: "falling_wedge", pattern_name: "Falling Wedge", start_date: "2026-04-26" });
     const second = makeHit({ id: 22, symbol: "RELIANCE", pattern_id: "rising_wedge", pattern_name: "Rising Wedge", start_date: "2026-07-01" });
     r(<PatternsPage {...makeProps({ results: [first, second], total: 2 })} />);
-    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
+    fireEvent.click(screen.getByRole("button", { name: "Grid" }));
 
-    await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
-    await userEvent.click(screen.getByTestId("patterns-card-RELIANCE-rising_wedge"));
+    fireEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
+    fireEvent.click(screen.getByTestId("patterns-card-RELIANCE-rising_wedge"));
     expect(fetchSymbolChart).toHaveBeenCalledTimes(2);
 
     // Current request resolves with no candles; the stale one resolves last
@@ -829,9 +847,7 @@ describe("PatternsPage", () => {
     });
     // Flush the stale promise chain: without the guard it would paint the
     // first hit's candles here and remove "No chart data".
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
     // The newer selection stands: still the second hit, still no chart data.
     expect(screen.getByTestId("patterns-fullscreen-modal")).toHaveTextContent("Rising Wedge");
     expect(screen.getByText("No chart data")).toBeInTheDocument();
@@ -858,6 +874,48 @@ describe("PatternsPage toolbar", () => {
     expect(screen.getByTestId("patterns-job-status")).toBeInTheDocument();
   });
 
+  test("scan setup group carries symbol, timeframe and bars", () => {
+    r(<PatternsPage {...makeProps()} />);
+    const scope = screen.getByTestId("patterns-scan-scope");
+    expect(within(scope).getByTestId("patterns-symbol-filter")).toBeInTheDocument();
+    expect(within(scope).getByTestId("patterns-timeframe-select")).toBeInTheDocument();
+    expect(within(scope).getByTestId("patterns-lookback-select")).toBeInTheDocument();
+  });
+
+  test("one divider separates scan setup from the scan toggles", () => {
+    r(<PatternsPage {...makeProps()} />);
+    const toolbar = screen.getByTestId("patterns-results-toolbar");
+    expect(within(toolbar).getAllByRole("separator")).toHaveLength(1);
+    expect(within(toolbar).getByTestId("patterns-replay-toggle")).toBeInTheDocument();
+    expect(within(toolbar).getByTestId("patterns-compute-trendlines")).toBeInTheDocument();
+  });
+
+  test("search sits immediately before the view toggle in the results group", () => {
+    r(<PatternsPage {...makeProps()} />);
+    const results = screen.getByTestId("patterns-results-view-toolbar");
+    const ids = Array.from(results.querySelectorAll("[data-testid]")).map(
+      (el) => el.getAttribute("data-testid") ?? "",
+    );
+    const searchAt = ids.indexOf("patterns-results-search");
+    const toggleAt = ids.indexOf("patterns-view-toggle");
+    expect(searchAt).toBeGreaterThanOrEqual(0);
+    expect(toggleAt).toBe(searchAt + 1);
+    expect(within(results).getByTestId("patterns-open-filters")).toBeInTheDocument();
+  });
+
+  test("the band never wraps and every control is one height", () => {
+    r(<PatternsPage {...makeProps()} />);
+    const results = screen.getByTestId("patterns-results-view-toolbar");
+    const band = results.parentElement;
+    expect(band?.className).toContain("flex-nowrap");
+    expect(screen.getByTestId("patterns-results-toolbar").className).toContain("flex-nowrap");
+    expect(screen.getByTestId("patterns-open-filters")).toHaveStyle({ height: "30px" });
+    expect(screen.getByTestId("patterns-overflow")).toHaveStyle({
+      width: "30px",
+      height: "30px",
+    });
+  });
+
   test("toolbar shows timeframe, lookback, filter-results and TLS/TLR controls", () => {
     r(<PatternsPage {...makeProps()} />);
     expect(screen.getByTestId("patterns-timeframe-select")).toBeInTheDocument();
@@ -878,7 +936,7 @@ describe("PatternsPage toolbar", () => {
       ],
     });
     r(<PatternsPage {...props} />);
-    await userEvent.click(screen.getByTestId("tf-option-1h"));
+    fireEvent.click(screen.getByTestId("tf-option-1h"));
     expect(props.setSelectedTimeframes).toHaveBeenCalledWith(["1D", "1h"]);
   });
 
@@ -893,14 +951,14 @@ describe("PatternsPage toolbar", () => {
   test("changing the lookback select calls setLookbackBars", async () => {
     const props = makeProps();
     r(<PatternsPage {...props} />);
-    await userEvent.selectOptions(screen.getByTestId("patterns-lookback-select"), "250");
+    fireEvent.input(screen.getByTestId("patterns-lookback-select") as HTMLSelectElement, { target: { value: "250" } });
     expect(props.setLookbackBars).toHaveBeenCalledWith(250);
   });
 
   test("typing in Filter results commits the debounced q filter", async () => {
     const props = makeProps();
     r(<PatternsPage {...props} />);
-    await userEvent.type(screen.getByTestId("patterns-results-search"), "TCS");
+    fireEvent.input(screen.getByTestId("patterns-results-search"), { target: { value: "TCS" } });
     await waitFor(
       () => expect(props.setFilter).toHaveBeenCalledWith("q", "TCS"),
       { timeout: 3000 },
@@ -958,14 +1016,14 @@ describe("PatternsPage toolbar", () => {
   test("Force refresh button calls forceRefresh", async () => {
     const props = makeProps();
     r(<PatternsPage {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-overflow"));
-    await userEvent.click(await screen.findByTestId("patterns-force-refresh"));
+    fireEvent.click(screen.getByTestId("patterns-overflow"));
+    fireEvent.click(await screen.findByTestId("patterns-force-refresh"));
     expect(props.forceRefresh).toHaveBeenCalledTimes(1);
   });
 
   test("Force refresh button is disabled while scanning", async () => {
     r(<PatternsPage {...makeProps({ scanning: true })} />);
-    await userEvent.click(screen.getByTestId("patterns-overflow"));
+    fireEvent.click(screen.getByTestId("patterns-overflow"));
     // Overflow items are menu items: the menu signals disabled items via aria-disabled
     // (pointer-events:none blocks real clicks, same as the old button).
     expect(await screen.findByTestId("patterns-force-refresh")).toHaveAttribute(
@@ -1002,10 +1060,10 @@ describe("PatternsPage toolbar", () => {
     expect(screen.getByTestId("patterns-scan-reused")).toHaveTextContent("Cached · 12 min ago");
     expect(screen.getByTestId("patterns-job-status")).toHaveTextContent("through 2026-09-30");
     // The chip's own Force re-run action re-runs fresh.
-    await userEvent.click(screen.getByTestId("patterns-scan-reused-force"));
+    fireEvent.click(screen.getByTestId("patterns-scan-reused-force"));
     expect(props.forceRefresh).toHaveBeenCalledTimes(1);
     // The existing Force refresh action stays available in the overflow menu.
-    await userEvent.click(screen.getByTestId("patterns-overflow"));
+    fireEvent.click(screen.getByTestId("patterns-overflow"));
     expect(await screen.findByTestId("patterns-force-refresh")).toBeInTheDocument();
   });
 
@@ -1159,474 +1217,3 @@ describe("PatternsPage toolbar", () => {
   });
 });
 
-describe("PatternsPage applied filters + modal + fullscreen", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    gridTrendlinesViews.length = 0;
-    fullscreenTrendlinesViews.length = 0;
-    fullscreenOverlays.length = 0;
-    fetchPatternImages.mockResolvedValue({});
-    fetchSymbolChart.mockResolvedValue({ symbol: "IRCON", timeframe: "1D", candles: [], overlays: [] });
-  });
-  afterEach(() => cleanup());
-
-  test("applied-filters row renders one chip per active value", () => {
-    const props = makeProps({
-      filters: { ...makeProps().filters, family: ["reversal"], direction: ["bullish"], quality: "strong" },
-    });
-    r(<PatternsPage {...props} />);
-    expect(screen.getByTestId("patterns-applied-filters")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-applied-filter-family:reversal")).toHaveTextContent("Family: Reversal");
-    expect(screen.getByTestId("patterns-applied-filter-direction:bullish")).toHaveTextContent("Direction: Bullish");
-    expect(screen.getByTestId("patterns-applied-filter-quality:strong")).toBeInTheDocument();
-  });
-
-  test("applied-filters row is absent when no filters are active", () => {
-    r(<PatternsPage {...makeProps()} />);
-    expect(screen.queryByTestId("patterns-applied-filters")).not.toBeInTheDocument();
-  });
-
-  test("removing an applied chip calls setFilter with the value dropped", async () => {
-    const props = makeProps({ filters: { ...makeProps().filters, family: ["reversal"] } });
-    r(<PatternsPage {...props} />);
-    const chip = screen.getByTestId("patterns-applied-filter-family:reversal");
-    await userEvent.click(
-      within(chip).getByTestId("patterns-applied-filter-family:reversal-remove"),
-    );
-    expect(props.setFilter).toHaveBeenCalledWith("family", []);
-  });
-
-  test("Clear all in the applied row calls resetFilters", async () => {
-    const props = makeProps({ filters: { ...makeProps().filters, family: ["reversal"] } });
-    r(<PatternsPage {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-applied-clear-all"));
-    expect(props.resetFilters).toHaveBeenCalledTimes(1);
-  });
-
-  test("filters modal exposes the modal region; Reset all stages a reset", async () => {
-    const props = makeProps();
-    r(<PatternsPage {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-open-filters"));
-    expect(await screen.findByTestId("patterns-filter-modal")).toBeInTheDocument();
-    await userEvent.click(screen.getByTestId("patterns-reset"));
-    // Reset is staged locally; nothing hits the store until Filter.
-    expect(props.resetFilters).not.toHaveBeenCalled();
-  });
-
-  test("expand button on a card opens the fullscreen chart", async () => {
-    r(<PatternsPage {...makeProps()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
-    expect(screen.queryByTestId("patterns-fullscreen-modal")).not.toBeInTheDocument();
-    await userEvent.click(screen.getByTestId("patterns-card-expand-IRCON-falling_wedge"));
-    expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-fullscreen-chart")).toBeInTheDocument();
-    expect(fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1D", { detectPatterns: false, computeTrendlines: true });
-  });
-
-  test("grid + fullscreen default to the both trendlines view when computing", async () => {
-    r(<PatternsPage {...makeProps({ computeTrendlines: true })} />);
-    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
-    expect(gridTrendlinesViews.at(-1)).toBe("both");
-    expect(screen.getByTestId("patterns-grid")).toHaveAttribute("data-trendlines-view", "both");
-  });
-
-  test("TLS/TLR toggle off passes trendlinesView=none to grid and fullscreen", async () => {
-    r(<PatternsPage {...makeProps({ computeTrendlines: false })} />);
-    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
-    expect(gridTrendlinesViews.at(-1)).toBe("none");
-    expect(screen.getByTestId("patterns-grid")).toHaveAttribute("data-trendlines-view", "none");
-    await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
-    expect(await screen.findByTestId("patterns-fullscreen-modal")).toHaveAttribute(
-      "data-trendlines-view",
-      "none",
-    );
-    expect(fullscreenTrendlinesViews.at(-1)).toBe("none");
-  });
-
-  test("opening a card opts the chart fetch out of trendline computation when TLS/TLR is off", async () => {
-    r(<PatternsPage {...makeProps({ computeTrendlines: false })} />);
-    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
-    await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
-    expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
-    expect(fetchSymbolChart).toHaveBeenCalledWith(
-      "IRCON",
-      "1D",
-      expect.objectContaining({ computeTrendlines: false }),
-    );
-  });
-
-  test("opening a card forwards computeTrendlines when TLS/TLR is on", async () => {
-    r(<PatternsPage {...makeProps({ computeTrendlines: true, lookbackBars: 250 })} />);
-    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
-    await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
-    expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
-    expect(fetchSymbolChart).toHaveBeenCalledWith(
-      "IRCON",
-      "1D",
-      { detectPatterns: false, lookbackBars: 250, computeTrendlines: true },
-    );
-  });
-
-  test("view-only trendlines filter flows through when computation stays on", async () => {
-    r(
-      <PatternsPage
-        {...makeProps({
-          computeTrendlines: true,
-          filters: { ...makeProps().filters, trendlines: "support" },
-        })}
-      />,
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
-    expect(gridTrendlinesViews.at(-1)).toBe("support");
-  });
-
-  test("scan banner stays above the results while a scan runs with results", async () => {
-    r(
-      <PatternsPage
-        {...makeProps({
-          scanning: true,
-          job: {
-            job_id: "cpj_banner",
-            universe: "nifty500",
-            timeframe: "1D",
-            status: "running",
-            total: 50,
-            done: 12,
-            failed: 0,
-            skipped: 0,
-            queue_position: null,
-            started_at: null,
-            finished_at: null,
-            data_through: null,
-            error: null,
-          },
-        })}
-      />,
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
-    // Banner variant (compact count, no spaces around the slash) + grid kept.
-    expect(screen.getByTestId("patterns-scan-progress")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-scan-progress-count")).toHaveTextContent("12/50 stocks");
-    expect(screen.getByTestId("patterns-grid")).toBeInTheDocument();
-    expect(screen.queryByTestId("patterns-empty")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("patterns-loading")).not.toBeInTheDocument();
-  });
-
-  test("loading with no results and no active scan shows the generic loader", () => {
-    r(<PatternsPage {...makeProps({ loading: true, results: [], total: 0 })} />);
-    expect(screen.getByTestId("patterns-loading")).toBeInTheDocument();
-    expect(screen.getByText("Loading results…")).toBeInTheDocument();
-    expect(screen.queryByTestId("patterns-grid")).not.toBeInTheDocument();
-  });
-
-  test("opening a card loads the hit's timeframe into the fullscreen selector", async () => {
-    const hit = makeHit({ timeframe: "1h" });
-    r(
-      <PatternsPage
-        {...makeProps({
-          timeframe: "1D",
-          results: [hit],
-          total: 1,
-          timeframes: [
-            { id: "1D", label: "1D", minutes: 1440, native: "days/1", source_tf: null, max_lookback_days: 730, min_bars: 60 },
-            { id: "1h", label: "1h", minutes: 60, native: "hours/1", source_tf: null, max_lookback_days: 365, min_bars: 60 },
-          ],
-        })}
-      />,
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
-    await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
-    const select = await screen.findByTestId("patterns-fullscreen-timeframe");
-    expect(select).toHaveValue("1h");
-    expect(fetchSymbolChart).toHaveBeenCalledWith(
-      "IRCON",
-      "1h",
-      expect.objectContaining({ computeTrendlines: true }),
-    );
-  });
-
-  test("selecting a new fullscreen timeframe re-runs detection and promotes the newest hit", async () => {
-    // Newest wins over confidence: the older hit is far more confident but
-    // the fullscreen must default to the newest formation.
-    const oldConfident = makeHit({ id: 11, pattern_id: "falling_wedge", pattern_name: "Falling Wedge", confidence: 95, end_date: "2026-08-01", bars_ago: 40 });
-    const newWeak = makeHit({ id: 22, pattern_id: "rising_wedge", pattern_name: "Rising Wedge", confidence: 60, end_date: "2026-09-28", bars_ago: 1, start_date: "2026-07-01" });
-    r(
-      <PatternsPage
-        {...makeProps({
-          results: [oldConfident],
-          total: 1,
-          timeframes: [
-            { id: "1D", label: "1D", minutes: 1440, native: "days/1", source_tf: null, max_lookback_days: 730, min_bars: 60 },
-            { id: "1h", label: "1h", minutes: 60, native: "hours/1", source_tf: null, max_lookback_days: 365, min_bars: 60 },
-          ],
-        })}
-      />,
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
-    await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
-    await screen.findByTestId("patterns-fullscreen-modal");
-    fetchSymbolChart.mockClear();
-    // Phase 1 (candles only) then phase 2 (detection) — two-phase timeframe switch.
-    fetchSymbolChart.mockResolvedValueOnce({
-      symbol: "IRCON",
-      timeframe: "1h",
-      candles: [{ t: "2026-09-26T09:15:00+05:30", o: 100, h: 115, l: 98, c: 112, v: 1000 }],
-      hits: [],
-      trend_lines: [],
-    });
-    fetchSymbolChart.mockResolvedValueOnce({
-      symbol: "IRCON",
-      timeframe: "1h",
-      candles: [{ t: "2026-09-26T09:15:00+05:30", o: 100, h: 115, l: 98, c: 112, v: 1000 }],
-      overlays: [{ pattern_id: "rising_wedge", pattern_name: "Rising Wedge", trendlines: [] }],
-      trend_lines: [],
-      hits: [oldConfident, newWeak],
-    });
-
-    await userEvent.selectOptions(screen.getByTestId("patterns-fullscreen-timeframe"), "1h");
-
-    await waitFor(() =>
-      expect(fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1h", { detectPatterns: true }),
-    );
-    // Newest hit is promoted (not highest confidence); the new candles clear the empty state.
-    await waitFor(() =>
-      expect(screen.getByTestId("patterns-fullscreen-active-hit")).toHaveTextContent("Rising Wedge"),
-    );
-    expect(screen.queryByText("No chart data")).not.toBeInTheDocument();
-    // Single-pattern contract: no dashed sibling overlays reach the chart.
-    expect(fullscreenOverlays.at(-1)).toEqual([]);
-  });
-
-  test("a fullscreen timeframe switch with no hits clears the displayed hit", async () => {
-    r(
-      <PatternsPage
-        {...makeProps({
-          timeframes: [
-            { id: "1D", label: "1D", minutes: 1440, native: "days/1", source_tf: null, max_lookback_days: 730, min_bars: 60 },
-            { id: "1h", label: "1h", minutes: 60, native: "hours/1", source_tf: null, max_lookback_days: 365, min_bars: 60 },
-          ],
-        })}
-      />,
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
-    await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
-    await screen.findByTestId("patterns-fullscreen-modal");
-    expect(screen.getByTestId("patterns-fullscreen-modal")).toHaveTextContent("Falling Wedge");
-    fetchSymbolChart.mockClear();
-    // Phase 1 (candles only) then phase 2 (detection, no hits) — two-phase timeframe switch.
-    fetchSymbolChart.mockResolvedValueOnce({
-      symbol: "IRCON",
-      timeframe: "1h",
-      candles: [{ t: "2026-09-26T09:15:00+05:30", o: 100, h: 115, l: 98, c: 112, v: 1000 }],
-      hits: [],
-      trend_lines: [],
-    });
-    fetchSymbolChart.mockResolvedValueOnce({
-      symbol: "IRCON",
-      timeframe: "1h",
-      candles: [{ t: "2026-09-26T09:15:00+05:30", o: 100, h: 115, l: 98, c: 112, v: 1000 }],
-      overlays: [],
-      trend_lines: [],
-      hits: [],
-    });
-
-    await userEvent.selectOptions(screen.getByTestId("patterns-fullscreen-timeframe"), "1h");
-
-    await waitFor(() =>
-      expect(fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1h", { detectPatterns: true }),
-    );
-    await waitFor(() =>
-      expect(screen.getByTestId("patterns-fullscreen-modal")).not.toHaveTextContent("Falling Wedge"),
-    );
-  });
-
-  test("opening a card shows that hit and keeps a single-item pattern list", async () => {
-    const cardHit = makeHit({ id: 11, pattern_id: "falling_wedge", pattern_name: "Falling Wedge", confidence: 95, end_date: "2026-08-01", bars_ago: 40 });
-    r(<PatternsPage {...makeProps({ results: [cardHit], total: 1 })} />);
-    fetchSymbolChart.mockClear();
-    fetchSymbolChart.mockResolvedValueOnce({
-      symbol: "IRCON",
-      timeframe: "1D",
-      candles: [{ t: "2026-09-26T09:15:00+05:30", o: 100, h: 115, l: 98, c: 112, v: 1000 }],
-      overlays: [],
-      trend_lines: [],
-      hits: [],
-    });
-
-    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
-    await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
-    await screen.findByTestId("patterns-fullscreen-modal");
-    await waitFor(() =>
-      expect(fetchSymbolChart).toHaveBeenCalledWith(
-        "IRCON",
-        "1D",
-        expect.objectContaining({ detectPatterns: false }),
-      ),
-    );
-    expect(fetchPatternHit).toHaveBeenCalledWith(11);
-    await waitFor(() =>
-      expect(screen.getByTestId("patterns-fullscreen-active-hit")).toHaveTextContent("Falling Wedge"),
-    );
-    expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent("Falling Wedge");
-    expect(screen.queryByTestId("patterns-fullscreen-list-item-1")).not.toBeInTheDocument();
-  });
-
-  test("de-duplicates a stored card hit against the same live hit returned with id:null", async () => {
-    const cardHit = makeHit({
-      id: 34562,
-      pattern_id: "ascending_channel",
-      pattern_name: "Ascending Channel",
-      start_date: "2026-05-21",
-      end_date: "2026-09-08",
-      bars_ago: 17,
-    });
-    r(<PatternsPage {...makeProps({ results: [cardHit], total: 1 })} />);
-    fetchSymbolChart.mockClear();
-    fetchSymbolChart.mockResolvedValueOnce({
-      symbol: "IRCON",
-      timeframe: "1D",
-      candles: [],
-      overlays: [],
-      trend_lines: [],
-      // Live detection returns the SAME pattern with no DB id.
-      hits: [{ ...cardHit, id: null }],
-    });
-
-    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
-    await userEvent.click(screen.getByTestId("patterns-card-IRCON-ascending_channel"));
-    await screen.findByTestId("patterns-fullscreen-modal");
-    await waitFor(() =>
-      expect(screen.getByTestId("patterns-fullscreen-active-hit")).toHaveTextContent("Ascending Channel"),
-    );
-    // One row, not two: the id-carrying card hit and the id-less live hit are the same.
-    expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent("Ascending Channel");
-    expect(screen.queryByTestId("patterns-fullscreen-list-item-1")).not.toBeInTheDocument();
-  });
-
-  test("switching universe closes the docked chart", async () => {
-    vi.stubGlobal("matchMedia", (query: string) => ({
-      matches: query.includes("1200px"),
-      media: query,
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }));
-    try {
-      const props = makeProps({ results: [makeHit()], total: 1 });
-      const view = r(<PatternsPage {...props} />);
-      await userEvent.click(screen.getByTestId("patterns-list-row-IRCON-falling_wedge"));
-      expect(await screen.findByTestId("patterns-chart-dock")).toBeInTheDocument();
-
-      // Scope changed: the open hit belongs to the previous universe.
-      // (`r` re-applies the UIProvider wrapper, so pass the page bare.)
-      view.rerender(<PatternsPage {...props} universe="nifty50" />);
-      await waitFor(() =>
-        expect(screen.queryByTestId("patterns-chart-dock")).not.toBeInTheDocument(),
-      );
-    } finally {
-      vi.unstubAllGlobals();
-    }
-  });
-
-  test("a completed scan re-resolves the open stored hit", async () => {
-    const props = makeProps({
-      results: [makeHit({ id: 11 })],
-      total: 1,
-      summary: { ...SUMMARY, last_scan_at: "2026-10-01T00:00:00Z" },
-    });
-    const view = r(<PatternsPage {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-list-row-IRCON-falling_wedge"));
-    await screen.findByTestId("patterns-fullscreen-modal");
-    await waitFor(() => expect(fetchPatternHit).toHaveBeenCalledWith(11));
-    const callsAfterOpen = fetchPatternHit.mock.calls.length;
-
-    // A scan completed: `last_scan_at` moves, so the stored hit is re-fetched.
-    fetchPatternHit.mockResolvedValueOnce(makeHit({ id: 11, status: "failed" }));
-    view.rerender(
-      <PatternsPage
-        {...props}
-        summary={{ ...SUMMARY, last_scan_at: "2026-10-02T00:00:00Z" }}
-      />,
-    );
-    await waitFor(() =>
-      expect(fetchPatternHit.mock.calls.length).toBe(callsAfterOpen + 1),
-    );
-    expect(fetchPatternHit).toHaveBeenLastCalledWith(11);
-    // The chart stays open with the re-resolved hit.
-    expect(screen.getByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
-  });
-});
-
-describe("PatternsPage copy CSV", () => {
-  const writeText = vi.fn();
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    writeText.mockReset();
-    writeText.mockResolvedValue(undefined);
-    vi.stubGlobal("navigator", { clipboard: { writeText } });
-    fetchPatternImages.mockResolvedValue({});
-    fetchSymbolChart.mockResolvedValue({ symbol: "IRCON", timeframe: "1D", candles: [], overlays: [] });
-  });
-  afterEach(() => {
-    cleanup();
-    vi.unstubAllGlobals();
-  });
-
-  test("Copy CSV copies the result rows and shows a confirmation", async () => {
-    const second = makeHit({
-      id: 2,
-      symbol: "TCS",
-      name: "Tata Consultancy Services Ltd.",
-      pattern_id: "rising_wedge",
-      pattern_name: "Rising Wedge",
-    });
-    r(<PatternsPage {...makeProps({ results: [makeHit(), second], total: 2 })} />);
-
-    await userEvent.click(screen.getByTestId("patterns-overflow"));
-    await userEvent.click(await screen.findByTestId("patterns-copy-csv"));
-
-    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
-    const text = String(writeText.mock.calls[0][0]);
-    const [header, ...lines] = text.split("\n");
-    expect(header).toContain("Symbol");
-    expect(header).toContain("Pattern");
-    expect(text).toContain("IRCON");
-    expect(text).toContain("TCS");
-    expect(lines).toHaveLength(2);
-
-    const toast = await screen.findByTestId("patterns-copy-toast");
-    expect(toast).toHaveTextContent("Copied 2 rows");
-  });
-
-  test("Copy symbols copies the result symbols as a comma list", async () => {
-    r(<PatternsPage {...makeProps()} />);
-
-    await userEvent.click(screen.getByTestId("patterns-overflow"));
-    await userEvent.click(await screen.findByTestId("patterns-copy-symbols"));
-
-    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
-    expect(String(writeText.mock.calls[0][0])).toBe("NSE:IRCON");
-
-    const toast = await screen.findByTestId("patterns-copy-toast");
-    expect(toast).toHaveTextContent("Copied 1 symbol");
-  });
-
-  test("copy buttons are disabled when there are no results", async () => {
-    r(<PatternsPage {...makeProps({ results: [], total: 0 })} />);
-    await userEvent.click(screen.getByTestId("patterns-overflow"));
-    // Overflow items are menu items: the menu signals disabled items via aria-disabled
-    // (pointer-events:none blocks real clicks, same as the old buttons).
-    expect(await screen.findByTestId("patterns-copy-csv")).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
-    expect(await screen.findByTestId("patterns-copy-symbols")).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
-  });
-});

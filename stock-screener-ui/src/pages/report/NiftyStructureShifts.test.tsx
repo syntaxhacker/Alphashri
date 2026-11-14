@@ -1,10 +1,11 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@solidjs/testing-library";
 import { afterEach } from "vitest";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
+import type { JSX } from "solid-js";
 
 vi.mock("@/state/auth", () => ({ fetchWithAuth: vi.fn() }));
 
@@ -21,8 +22,8 @@ import {
 
 afterEach(cleanup);
 
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>{children}</UIProvider>;
+function TestWrapper(props: { children?: JSX.Element }) {
+  return <UIProvider>{props.children}</UIProvider>;
 }
 
 function shift(overrides?: Partial<NiftyStructureShift>): NiftyStructureShift {
@@ -165,16 +166,17 @@ describe("structure formatting helpers", () => {
 
 describe("NiftyStructureShifts render", () => {
   test("renders one row per shift, newest (last on payload) first", () => {
-    render(
-      <NiftyStructureShifts
-        structure={[
+    render(() => (
+      <TestWrapper>
+        <NiftyStructureShifts
+          structure={[
           shift({ t: "2026-10-14T09:20:00+05:30", kind: "pcr_shift", detail: "PCR fell" }),
           shift({ t: "2026-10-14T11:30:00+05:30", kind: "wall_move", detail: "call wall moved" }),
           shift({ t: "2026-10-14T13:06:00+05:30", kind: "wall_flip", detail: "support flipped" }),
         ]}
-      />,
-      { wrapper: TestWrapper },
-    );
+        />
+      </TestWrapper>
+    ));
     const rows = screen.getAllByTestId("nifty-structure-row");
     expect(rows).toHaveLength(3);
     expect(rows[0]).toHaveTextContent("13:06");
@@ -185,40 +187,42 @@ describe("NiftyStructureShifts render", () => {
   });
 
   test("header line reports shift and critical counts", () => {
-    render(
-      <NiftyStructureShifts
-        structure={[
+    render(() => (
+      <TestWrapper>
+        <NiftyStructureShifts
+          structure={[
           shift({ severity: "critical" }),
           shift({ severity: "watch" }),
           shift({ severity: "alert" }),
         ]}
-      />,
-      { wrapper: TestWrapper },
-    );
+        />
+      </TestWrapper>
+    ));
     expect(screen.getByTestId("nifty-structure-summary")).toHaveTextContent(
       "3 shifts · 1 critical",
     );
   });
 
   test("unknown kind still renders safely", () => {
-    render(
-      <NiftyStructureShifts
-        structure={[shift({ kind: "mystery_shift", severity: "unknown" })]}
-      />,
-      { wrapper: TestWrapper },
-    );
+    render(() => (
+      <TestWrapper>
+        <NiftyStructureShifts
+          structure={[shift({ kind: "mystery_shift", severity: "unknown" })]}
+        />
+      </TestWrapper>
+    ));
     expect(screen.getAllByTestId("nifty-structure-row")).toHaveLength(1);
     expect(screen.getByText("MYSTERY SHIFT")).toBeInTheDocument();
   });
 
   test("absent structure renders nothing at all", () => {
-    const { container } = render(<NiftyStructureShifts />, { wrapper: TestWrapper });
+    const { container } = render(() => <TestWrapper><NiftyStructureShifts /></TestWrapper>);
     expect(screen.queryByTestId("nifty-structure")).not.toBeInTheDocument();
     expect(container).toBeEmptyDOMElement();
   });
 
   test("empty array renders the friendly empty state", () => {
-    render(<NiftyStructureShifts structure={[]} />, { wrapper: TestWrapper });
+    render(() => <TestWrapper><NiftyStructureShifts structure={[]} /></TestWrapper>);
     expect(screen.getByTestId("nifty-structure")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-structure-empty")).toHaveTextContent(
       "No structural shifts yet today",
@@ -230,15 +234,16 @@ describe("NiftyStructureShifts render", () => {
   });
 
   test("row keeps a severity-coloured accent (critical vs watch)", () => {
-    render(
-      <NiftyStructureShifts
-        structure={[
+    render(() => (
+      <TestWrapper>
+        <NiftyStructureShifts
+          structure={[
           shift({ severity: "watch", t: "2026-10-14T09:20:00+05:30" }),
           shift({ severity: "critical", t: "2026-10-14T13:06:00+05:30" }),
         ]}
-      />,
-      { wrapper: TestWrapper },
-    );
+        />
+      </TestWrapper>
+    ));
     const rows = screen.getAllByTestId("nifty-structure-row");
     // newest-first: critical leads
     expect(within(rows[0]).getByText("13:06")).toBeInTheDocument();
@@ -246,18 +251,19 @@ describe("NiftyStructureShifts render", () => {
   });
 
   test("dense rows keep kind, time and the full detail on one line via title", () => {
-    render(
-      <NiftyStructureShifts
-        structure={[
+    render(() => (
+      <TestWrapper>
+        <NiftyStructureShifts
+          structure={[
           shift({
             t: "2026-10-14T13:06:00+05:30",
             kind: "wall_flip",
             detail: "22,700 support became resistance",
           }),
         ]}
-      />,
-      { wrapper: TestWrapper },
-    );
+        />
+      </TestWrapper>
+    ));
     const rows = screen.getAllByTestId("nifty-structure-row");
     expect(rows).toHaveLength(1);
     // kind + IST time + detail all live on the single row
@@ -277,16 +283,14 @@ describe("NiftyStructureShifts render", () => {
         detail: `shift number ${i}`,
       }),
     );
-    render(<NiftyStructureShifts structure={twelve} />, { wrapper: TestWrapper });
+    render(() => <TestWrapper><NiftyStructureShifts structure={twelve} /></TestWrapper>);
     const list = screen.getByTestId("nifty-structure-list");
     expect(within(list).getAllByTestId("nifty-structure-row")).toHaveLength(12);
     expect(list).toHaveStyle({ maxHeight: "120px", overflowY: "auto" });
   });
 
   test("absent detail falls back to a dash and still exposes a title", () => {
-    render(<NiftyStructureShifts structure={[shift({ detail: "" })]} />, {
-      wrapper: TestWrapper,
-    });
+    render(() => <TestWrapper><NiftyStructureShifts structure={[shift({ detail: "" })]} /></TestWrapper>);
     const detail = within(screen.getAllByTestId("nifty-structure-row")[0]).getByTestId(
       "nifty-structure-detail",
     );

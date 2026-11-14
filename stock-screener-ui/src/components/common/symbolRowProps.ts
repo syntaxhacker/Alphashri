@@ -1,4 +1,4 @@
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import type { JSX } from "solid-js";
 
 /**
  * Keyboard/pointer activation props for a clickable "symbol row" — the pattern
@@ -12,7 +12,7 @@ export interface SymbolRowActivationProps {
   role?: "button";
   tabIndex?: number;
   onClick?: () => void;
-  onKeyDown?: (event: ReactKeyboardEvent<HTMLElement>) => void;
+  onKeyDown?: JSX.EventHandler<HTMLElement, KeyboardEvent>;
 }
 
 /** Activation props for one row. No handler → the row stays inert. */

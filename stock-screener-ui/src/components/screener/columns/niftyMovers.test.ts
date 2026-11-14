@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { getNiftyMoversColumns } from "./niftyMovers";
-import { fmtOf, expectSymbolFirstSectorLast, expectPctClass } from "./columnTestFixtures";
+import { cellOf, cellText, fmtOf, expectSymbolFirstSectorLast } from "./columnTestFixtures";
 
 const fmt = (key: string) => fmtOf(getNiftyMoversColumns, key);
 
@@ -14,10 +14,18 @@ describe("niftyMovers columns", () => {
       [2.5, "+2.50", "success"],
       [-1.3, "-1.30", "error"],
       [0, "+0.00", "success"],
-      [NaN, "NaN", "error"],
-      [Infinity, "+Infinity", "success"],
-      [-Infinity, "-Infinity", "error"],
-    ])("impact %s -> %s %s", (v, ev, ec) => expectPctClass(fmt("impact_score")(v), ev, ec));
+    ])("impact %s -> %s %s", (v, ev, ec) => {
+      const cell = cellOf(() => fmt("impact_score")(v));
+      expect(cell.text).toBe(ev);
+      expect(cell.tone).toBe(ec);
+    });
+    it("only values above zero earn the plus sign", () => {
+      expect(cellText(() => fmt("impact_score")(-2))).toBe("-2.00");
+    });
+    it("NaN/Infinity render the dash", () => {
+      expect(cellText(() => fmt("impact_score")(NaN))).toBe("—");
+      expect(cellText(() => fmt("impact_score")(Infinity))).toBe("—");
+    });
   });
 
   describe("market_cap_b", () => {
@@ -25,27 +33,28 @@ describe("niftyMovers columns", () => {
       [185.3, "185.3B"],
       [0, "0.0B"],
       [10, "10.0B"],
-    ])("mcap %s -> %s", (v, exp) => expect(fmt("market_cap_b")(v)).toBe(exp));
+    ])("mcap %s -> %s", (v, exp) => expect(cellText(() => fmt("market_cap_b")(v))).toBe(exp));
     it("null/undefined -> 0.0B", () => {
-      expect(fmt("market_cap_b")(null)).toBe("0.0B");
-      expect(fmt("market_cap_b")(undefined)).toBe("0.0B");
+      expect(cellText(() => fmt("market_cap_b")(null))).toBe("0.0B");
+      expect(cellText(() => fmt("market_cap_b")(undefined))).toBe("0.0B");
     });
-    it("NaN -> NaNB", () => expect(() => fmt("market_cap_b")(NaN)).not.toThrow());
+    it("NaN -> 0.0B without throwing", () =>
+      expect(() => cellText(() => fmt("market_cap_b")(NaN))).not.toThrow());
   });
 
   describe("day_change", () => {
     it("positive green negative red zero green", () => {
-      expect((fmt("day_change")(1.5) as any).className).toBe("success");
-      expect((fmt("day_change")(-2) as any).className).toBe("error");
-      expect((fmt("day_change")(0) as any).className).toBe("success");
+      expect(cellOf(() => fmt("day_change")(1.5)).tone).toBe("success");
+      expect(cellOf(() => fmt("day_change")(-2)).tone).toBe("error");
+      expect(cellOf(() => fmt("day_change")(0)).tone).toBe("success");
     });
   });
 
   describe("volume_m", () => {
     it("formats and null fallback", () => {
-      expect(fmt("volume_m")(5)).toBe("5.00");
-      expect(fmt("volume_m")(null)).toBe("0.00");
-      expect(() => fmt("volume_m")(NaN)).not.toThrow();
+      expect(cellText(() => fmt("volume_m")(5))).toBe("5.00");
+      expect(cellText(() => fmt("volume_m")(null))).toBe("0.00");
+      expect(() => cellText(() => fmt("volume_m")(NaN))).not.toThrow();
     });
   });
 

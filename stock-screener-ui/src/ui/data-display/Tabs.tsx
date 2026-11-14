@@ -1,73 +1,71 @@
-import * as React from "react";
+import { createContext, createMemo, createSignal, Show, splitProps, useContext } from "solid-js";
 import { cn } from "../cn";
 import type { UITabsProps, UITabProps, UITabsPanelProps } from "../types";
 
 type TabsContextValue = {
-  value: string | null | undefined;
+  value: () => string | null | undefined;
   onChange: (v: string | null) => void;
 };
 
-const TabsContext = React.createContext<TabsContextValue | null>(null);
+const TabsContext = createContext<TabsContextValue | null>(null);
 
 function useTabsContext() {
-  const ctx = React.useContext(TabsContext);
+  const ctx = useContext(TabsContext);
   if (!ctx) throw new Error("Tabs compound components must be used within Tabs");
   return ctx;
 }
 
-export function Tabs({
-  value,
-  defaultValue,
-  onChange,
-  variant: _variant,
-  orientation = "horizontal",
-  children,
-  className,
-  style,
-  id,
-  "data-testid": testId,
-  ...rest
-}: UITabsProps) {
-  const isControlled = value !== undefined;
-  const [internal, setInternal] = React.useState<string | null | undefined>(defaultValue ?? null);
-  const activeValue = isControlled ? value : internal;
+export function Tabs(props: UITabsProps) {
+  const [known, rest] = splitProps(props, [
+    "value",
+    "defaultValue",
+    "onChange",
+    "orientation",
+    "children",
+    "className",
+    "style",
+    "id",
+    "data-testid",
+  ]);
 
-  const handleChange = React.useCallback(
-    (v: string | null) => {
-      if (!isControlled) setInternal(v);
-      onChange?.(v);
-    },
-    [isControlled, onChange]
-  );
+  const isControlled = createMemo(() => known.value !== undefined);
+  const internal = createSignal<string | null | undefined>(known.defaultValue ?? null);
+  const [internalValue, setInternalValue] = internal;
+  const activeValue = createMemo(() => (isControlled() ? known.value : internalValue()));
 
-  const ctxValue: TabsContextValue = { value: activeValue as any, onChange: handleChange };
+  const handleChange = (v: string | null) => {
+    if (!isControlled()) setInternalValue(v);
+    known.onChange?.(v);
+  };
+
+  const ctxValue: TabsContextValue = { value: activeValue, onChange: handleChange };
 
   const cls = cn(
     "ui-tabs-wrapper",
-    orientation === "vertical" ? "flex flex-col" : "flex flex-row",
-    className,
+    "min-w-0",
+    known.orientation === "vertical" ? "flex flex-row" : "flex flex-col",
+    known.className,
   );
 
   return (
     <TabsContext.Provider value={ctxValue}>
-      <div id={id} className={cls} style={style} data-testid={testId} {...(rest as any)}>
-        {children}
+      <div
+        id={known.id}
+        className={cls}
+        style={known.style as Record<string, string | undefined>}
+        data-testid={known["data-testid"]}
+        {...(rest as Record<string, unknown>)}
+      >
+        {known.children}
       </div>
     </TabsContext.Provider>
   );
 }
 
-export function TabsList({
-  orientation = "horizontal",
-  children,
-  className,
-  style,
-  id,
-  "data-testid": testId,
-  ...rest
-}: UITabsProps) {
+export function TabsList(props: UITabsProps) {
+  const [known, rest] = splitProps(props, ["orientation", "children", "className", "style", "id", "data-testid"]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: KeyboardEvent) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
     e.preventDefault();
     const list = e.currentTarget as HTMLElement;
@@ -85,93 +83,104 @@ export function TabsList({
 
   const cls = cn(
     "ui-tabs-list",
-    orientation === "vertical" ? "flex-col" : "flex flex-row items-center",
-    "gap-1 rounded-fin border border-fin-border bg-fin-surface p-[2px] min-h-[36px]",
-    className,
+    known.orientation === "vertical" ? "flex flex-col" : "flex flex-row items-stretch",
+    // Flat navigation strip: one rule under the whole row, active tab marked by
+    // an accent underline landing on it. Pass `className="border-b-0"` (plus an
+    // inline border-bottom-width:0) when a surrounding bar owns the rule.
+    "gap-0 min-h-[30px] border-b border-fin-border",
+    known.className,
   );
 
   return (
     <div
-      id={id}
+      id={known.id}
       role="tablist"
-      aria-orientation={orientation}
+      aria-orientation={known.orientation}
       className={cls}
-      style={style}
-      data-testid={testId}
+      style={known.style as Record<string, string | undefined>}
+      data-testid={known["data-testid"]}
       onKeyDown={handleKeyDown}
-      {...(rest as any)}
+      {...(rest as Record<string, unknown>)}
     >
-      {children}
+      {known.children}
     </div>
   );
 }
 
-export function Tab({
-  value: tabValue,
-  icon,
-  leftSection,
-  rightSection,
-  disabled,
-  children,
-  className,
-  style,
-  id,
-  "data-testid": testId,
-  ...rest
-}: UITabProps) {
+export function Tab(props: UITabProps) {
+  const [known, rest] = splitProps(props, [
+    "value",
+    "icon",
+    "leftSection",
+    "rightSection",
+    "disabled",
+    "children",
+    "className",
+    "style",
+    "id",
+    "data-testid",
+  ]);
   const { value, onChange } = useTabsContext();
-  const active = value === tabValue;
+  const active = createMemo(() => value() === known.value);
 
-  const handleClick = (_e: React.MouseEvent) => {
-    if (disabled) return;
-    onChange?.(tabValue);
+  const handleClick = () => {
+    if (known.disabled) return;
+    onChange?.(known.value);
   };
 
-  const cls = cn(
-    "ui-tab",
-    "inline-flex items-center justify-center gap-1.5 rounded-[4px] px-2 py-[4px] min-h-[36px] text-[13px] font-medium transition-colors outline-none focus-visible:ring-1 focus-visible:ring-fin-primary focus-visible:ring-offset-1",
-    active ? "bg-fin-surface-alt text-fin-primary" : "text-fin-text-muted hover:bg-fin-surface-alt hover:text-fin-text",
-    disabled ? "opacity-50 cursor-default" : "cursor-pointer",
-    className,
+  const cls = createMemo(() =>
+    cn(
+      "ui-tab",
+      "inline-flex items-center justify-center gap-1.5 px-3 min-h-[30px] text-[11px] font-medium tracking-[0.02em] leading-none transition-colors outline-none focus-visible:ring-1 focus-visible:ring-fin-primary",
+      // Full-height underline instead of a border-bottom on the button: it reads as
+      // one continuous rule with the strip, not a floating chip.
+      "border-b-2 -mb-px",
+      active()
+        ? "text-fin-text font-semibold border-fin-primary"
+        : "text-fin-text-muted border-transparent hover:bg-fin-surface-alt hover:text-fin-text",
+      known.disabled ? "opacity-50 cursor-default" : "cursor-pointer",
+      known.className,
+    ),
   );
 
   return (
     <button
-      id={id}
+      id={known.id}
       role="tab"
-      aria-selected={active}
-      data-testid={testId}
-      disabled={disabled}
-      tabIndex={active ? 0 : -1}
-      className={cls}
-      style={style}
+      aria-selected={active()}
+      data-testid={known["data-testid"]}
+      disabled={known.disabled}
+      tabIndex={active() ? 0 : -1}
+      className={cls()}
+      style={known.style as Record<string, string | undefined>}
       onClick={handleClick}
-      {...(rest as any)}
+      {...(rest as Record<string, unknown>)}
     >
-      <span className="flex items-center gap-1.5">{leftSection ?? icon}{children}{rightSection}</span>
+      <span className="flex items-center gap-1">{known.leftSection ?? known.icon}{known.children}{known.rightSection}</span>
     </button>
   );
 }
 
-export function TabsPanel({
-  value: panelValue,
-  keepMounted,
-  children,
-  className,
-  style,
-  id,
-  "data-testid": testId,
-  ...rest
-}: UITabsPanelProps) {
+export function TabsPanel(props: UITabsPanelProps) {
+  const [known, rest] = splitProps(props, ["value", "keepMounted", "children", "className", "style", "id", "data-testid"]);
   const { value } = useTabsContext();
-  const isActive = value === panelValue;
-  const cls = cn("ui-tabs-panel", "py-3 min-w-0 min-h-0", className);
-  if (!isActive && !keepMounted) return null;
+  const isActive = createMemo(() => value() === known.value);
+  const cls = cn("ui-tabs-panel", "py-1 min-w-0 min-h-0", known.className);
 
   return (
-    <div id={id} role="tabpanel" hidden={!isActive} className={cls} style={style} data-testid={testId} {...(rest as any)}>
-      {children}
-    </div>
+    <Show when={isActive() || known.keepMounted}>
+      <div
+        id={known.id}
+        role="tabpanel"
+        hidden={!isActive()}
+        className={cls}
+        style={known.style as Record<string, string | undefined>}
+        data-testid={known["data-testid"]}
+        {...(rest as Record<string, unknown>)}
+      >
+        {known.children}
+      </div>
+    </Show>
   );
 }
 

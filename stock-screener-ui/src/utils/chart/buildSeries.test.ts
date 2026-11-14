@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildSeries } from "./buildSeries";
+import type { MarkLineData } from "./types";
 import { CANDLESTICK_ITEM_STYLE } from "../chartUtils";
 import {
   MARKER_SL,
@@ -52,10 +53,10 @@ describe("buildSeries", () => {
 
   describe("markLines integration", () => {
     // The identical one-line bracket used by the symbol/label cases.
-    const singleBlackMarkLine = [
+    const singleBlackMarkLine: MarkLineData[] = [
       {
         yAxis: 100,
-        lineStyle: { color: BLACK },
+        lineStyle: { color: BLACK, type: "dashed", width: 1 },
         label: { position: "insideEndTop", formatter: "Test" },
       },
     ];

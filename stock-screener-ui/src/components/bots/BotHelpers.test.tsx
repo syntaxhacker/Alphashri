@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import {
@@ -20,15 +20,22 @@ import type {
   BotTrade,
   BotConfig,
 } from "../../types/bots";
+import { Router } from "@solidjs/router";
+import type { JSX } from "solid-js";
+
+// Local equivalent of the shared renderWithProviders test helper, fixed for
+// Solid: solid-router renders no plain children, so tests mount through the
+// router's `root` prop instead.
+function renderWithProviders(ui: () => JSX.Element) {
+  return render(() => (
+    <Router root={() => <UIProvider>{ui()}</UIProvider>} />
+  ));
+}
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
 });
-
-function renderWithProviders(ui: React.ReactElement) {
-  return render(<UIProvider>{ui}</UIProvider>);
-}
 
 const mockPortfolio: PortfolioSummary = {
   initial_capital: 100000,
@@ -99,6 +106,7 @@ const mockBot: BotConfig = {
   max_total_positions: 5,
   max_total_capital_pct: 0.5,
   max_daily_loss_pct: 0.03,
+  live_trading: false,
   strategies: [
     {
       id: "s1",
@@ -106,6 +114,7 @@ const mockBot: BotConfig = {
       strategy_type: "ORB",
       max_positions: 3,
       capital_allocation_pct: 0.5,
+      enable_shorts: false,
     },
   ],
   created_at: "2025-01-01T00:00:00Z",
@@ -116,7 +125,7 @@ const mockBot: BotConfig = {
 
 describe("PortfolioSummaryCard", () => {
   it("displays portfolio summary data", () => {
-    const { container } = renderWithProviders(<PortfolioSummaryCard portfolio={mockPortfolio} />);
+    const { container } = renderWithProviders(() => <PortfolioSummaryCard portfolio={mockPortfolio} />);
     const el = container.querySelector('[data-testid="portfolio-summary"]');
     expect(el).toBeInTheDocument();
   });
@@ -124,7 +133,7 @@ describe("PortfolioSummaryCard", () => {
 
 describe("StrategyStatusCard", () => {
   it("renders strategy card with data", () => {
-    const { container } = renderWithProviders(<StrategyStatusCard strategy={mockStrategy} isRunning={true} />);
+    const { container } = renderWithProviders(() => <StrategyStatusCard strategy={mockStrategy} isRunning={true} />);
     const el = container.querySelector('[data-testid="strategy-card"]');
     expect(el).toBeInTheDocument();
   });
@@ -132,7 +141,7 @@ describe("StrategyStatusCard", () => {
 
 describe("PositionsTable", () => {
   it("renders column headers", () => {
-    const { container } = renderWithProviders(<PositionsTable positions={[mockPosition]} />);
+    const { container } = renderWithProviders(() => <PositionsTable positions={[mockPosition]} />);
     const table = container.querySelector('[data-testid="bot-positions"]');
     expect(table).toBeInTheDocument();
     expect(table!.textContent).toContain("Strategy");
@@ -146,7 +155,7 @@ describe("PositionsTable", () => {
   });
 
   it("returns null when positions array is empty", () => {
-    const { container } = renderWithProviders(<PositionsTable positions={[]} />);
+    const { container } = renderWithProviders(() => <PositionsTable positions={[]} />);
     const el = container.querySelector('[data-testid="bot-positions"]');
     expect(el).toBeNull();
   });
@@ -154,13 +163,13 @@ describe("PositionsTable", () => {
 
 describe("TradesTable", () => {
   it("renders trade history table", () => {
-    const { container } = renderWithProviders(<TradesTable trades={[mockTrade]} onRefresh={vi.fn()} />);
+    const { container } = renderWithProviders(() => <TradesTable trades={[mockTrade]} onRefresh={vi.fn()} />);
     const el = container.querySelector('[data-testid="bot-trades"]');
     expect(el).toBeInTheDocument();
   });
 
   it("shows 'No trades yet' empty state", () => {
-    const { container } = renderWithProviders(<TradesTable trades={[]} onRefresh={vi.fn()} />);
+    const { container } = renderWithProviders(() => <TradesTable trades={[]} onRefresh={vi.fn()} />);
     const el = container.querySelector('[data-testid="bot-trades"]');
     expect(el).toBeInTheDocument();
     expect(screen.getByText("No trades yet")).toBeInTheDocument();
@@ -178,7 +187,7 @@ describe("BotActionButtons", () => {
   };
 
   it("shows action buttons with testids", () => {
-    const { container } = renderWithProviders(<BotActionButtons {...actionProps} />);
+    const { container } = renderWithProviders(() => <BotActionButtons {...actionProps} />);
     expect(container.querySelector(`[data-testid="view-bot-status-btn-${mockBot.id}"]`)).toBeInTheDocument();
     expect(container.querySelector(`[data-testid="start-bot-btn-${mockBot.id}"]`)).toBeInTheDocument();
     expect(container.querySelector(`[data-testid="edit-bot-btn-${mockBot.id}"]`)).toBeInTheDocument();
@@ -187,7 +196,7 @@ describe("BotActionButtons", () => {
 
   it("start button is disabled when bot is not active", () => {
     const inactiveBot = { ...mockBot, is_active: false };
-    const { container } = renderWithProviders(<BotActionButtons {...actionProps} bot={inactiveBot} />);
+    const { container } = renderWithProviders(() => <BotActionButtons {...actionProps} bot={inactiveBot} />);
     const btn = container.querySelector(`[data-testid="start-bot-btn-${inactiveBot.id}"]`);
     expect(btn).toBeInTheDocument();
     expect(btn).toBeDisabled();
@@ -195,7 +204,7 @@ describe("BotActionButtons", () => {
 
   it("delete button is disabled when bot is running", () => {
     const runningBot = { ...mockBot, running: true };
-    const { container } = renderWithProviders(<BotActionButtons {...actionProps} bot={runningBot} />);
+    const { container } = renderWithProviders(() => <BotActionButtons {...actionProps} bot={runningBot} />);
     const btn = container.querySelector(`[data-testid="delete-bot-btn-${runningBot.id}"]`);
     expect(btn).toBeInTheDocument();
     expect(btn).toBeDisabled();
@@ -203,7 +212,7 @@ describe("BotActionButtons", () => {
 
   it("shows stop button when bot is running", () => {
     const runningBot = { ...mockBot, running: true };
-    const { container } = renderWithProviders(<BotActionButtons {...actionProps} bot={runningBot} />);
+    const { container } = renderWithProviders(() => <BotActionButtons {...actionProps} bot={runningBot} />);
     const btn = container.querySelector(`[data-testid="stop-bot-btn-${runningBot.id}"]`);
     expect(btn).toBeInTheDocument();
   });
@@ -211,7 +220,7 @@ describe("BotActionButtons", () => {
 
 describe("BotSummaryCell", () => {
   it("shows strategy count and type badges", () => {
-    const { container } = renderWithProviders(<BotSummaryCell bot={mockBot} />);
+    const { container } = renderWithProviders(() => <BotSummaryCell bot={mockBot} />);
     expect(container.textContent).toContain("1 strategies");
   });
 });

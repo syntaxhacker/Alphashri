@@ -1,10 +1,25 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { AppLayout } from "./AppLayout";
-import { TestWrapper } from "../../test-utils/testUtils";
+import { MemoryRouter, createMemoryHistory } from "@solidjs/router";
+import { UIProvider } from "@/ui";
+import type { JSX } from "solid-js";
 import { fetchSurges } from "../../api/notifications";
+
+// testUtils's MemoryRouter mounts no route — plain children render nothing,
+// so these tests mount through the router's `root` prop instead.
+function TestWrapper(props: { children?: JSX.Element; initialRoute?: string; user?: unknown }) {
+  const history = createMemoryHistory();
+  history.set({ value: props.initialRoute ?? "/", replace: true, scroll: false });
+  return (
+    <MemoryRouter
+      history={history}
+      root={() => <UIProvider>{props.children}</UIProvider>}
+    />
+  );
+}
 
 // Mock matchMedia
 beforeEach(() => {
@@ -30,8 +45,8 @@ afterEach(() => {
 });
 
 vi.mock("../layout/NavbarNested", () => ({
-  NavbarNested: ({ activePath, collapsed }: { activePath: string; collapsed?: boolean }) => (
-    <nav data-testid="navbar-nested" data-active-path={activePath} data-collapsed={collapsed}>
+  NavbarNested: (props: { activePath: string; collapsed?: boolean }) => (
+    <nav data-testid="navbar-nested" data-active-path={props.activePath} data-collapsed={props.collapsed}>
       NavbarNested
     </nav>
   ),
@@ -60,12 +75,11 @@ describe("AppLayout", () => {
   });
 
   it("renders children correctly", () => {
-    render(
-      <TestWrapper>
+    render(() => (<TestWrapper>
         <AppLayout>
           <div data-testid="child-content">Child Content</div>
         </AppLayout>
-      </TestWrapper>,
+      </TestWrapper>),
     );
 
     expect(screen.getByTestId("child-content")).toBeInTheDocument();
@@ -73,12 +87,11 @@ describe("AppLayout", () => {
   });
 
   it("uses theme for shell backgrounds (live theme aware)", () => {
-    render(
-      <TestWrapper>
+    render(() => (<TestWrapper>
         <AppLayout>
           <div>content</div>
         </AppLayout>
-      </TestWrapper>,
+      </TestWrapper>),
     );
     // The shell is built from @/ui primitives with theme-aware classes instead of legacy theme vars.
     // Verify shell elements exist and have theme-aware attributes/classes instead of legacy vars.
@@ -92,12 +105,11 @@ describe("AppLayout", () => {
   });
 
   it("renders app shell structure", () => {
-    render(
-      <TestWrapper>
+    render(() => (<TestWrapper>
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>,
+      </TestWrapper>),
     );
 
     expect(screen.getByTestId("app-shell")).toBeInTheDocument();
@@ -107,12 +119,11 @@ describe("AppLayout", () => {
   });
 
   it("does not render a top app bar", () => {
-    render(
-      <TestWrapper>
+    render(() => (<TestWrapper>
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>,
+      </TestWrapper>),
     );
 
     // The header was removed to reclaim its vertical space; the brand and the
@@ -123,36 +134,33 @@ describe("AppLayout", () => {
   });
 
   it("renders logo", () => {
-    render(
-      <TestWrapper>
+    render(() => (<TestWrapper>
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>,
+      </TestWrapper>),
     );
 
     expect(screen.getByTestId("app-logo")).toHaveTextContent("Alphashri");
   });
 
   it("renders navbar with NavbarNested", () => {
-    render(
-      <TestWrapper>
+    render(() => (<TestWrapper>
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>,
+      </TestWrapper>),
     );
 
     expect(screen.getAllByTestId("navbar-nested").length).toBeGreaterThanOrEqual(1);
   });
 
   it("passes active path to NavbarNested", () => {
-    render(
-      <TestWrapper initialRoute="/sector">
+    render(() => (<TestWrapper initialRoute="/sector">
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>,
+      </TestWrapper>),
     );
 
     const navbars = screen.getAllByTestId("navbar-nested");
@@ -160,12 +168,11 @@ describe("AppLayout", () => {
   });
 
   it("renders children in main content area", () => {
-    render(
-      <TestWrapper>
+    render(() => (<TestWrapper>
         <AppLayout>
           <div data-testid="main-content">Main Content</div>
         </AppLayout>
-      </TestWrapper>,
+      </TestWrapper>),
     );
 
     const main = screen.getByTestId("app-main");
@@ -173,12 +180,11 @@ describe("AppLayout", () => {
   });
 
   it("handles navbar collapse toggle", () => {
-    render(
-      <TestWrapper>
+    render(() => (<TestWrapper>
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>,
+      </TestWrapper>),
     );
 
     const navbars = screen.getAllByTestId("navbar-nested");
@@ -186,41 +192,33 @@ describe("AppLayout", () => {
   });
 
   it("toggles desktop collapsed state when sidebar toggle clicked", async () => {
-    const { default: userEvent } = await import("@testing-library/user-event");
-    const user = userEvent.setup();
-    render(
-      <TestWrapper>
+    render(() => (<TestWrapper initialRoute="/">
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>,
+      </TestWrapper>),
     );
-    const navbars = screen.getAllByTestId("navbar-nested");
-    expect(navbars[0]).toHaveAttribute("data-collapsed", "false");
     const toggles = screen.getAllByLabelText("Toggle sidebar");
-    await user.click(toggles[toggles.length - 1]);
+    await fireEvent.click(toggles[toggles.length - 1]);
     expect(screen.getAllByTestId("navbar-nested")[0]).toHaveAttribute("data-collapsed", "true");
     // The rail renders a different subtree when collapsed, so re-query the
     // control instead of reusing the now-detached expanded-mode node.
-    await user.click(screen.getAllByLabelText("Toggle sidebar").pop()!);
+    await fireEvent.click(screen.getAllByLabelText("Toggle sidebar").pop()!);
     expect(screen.getAllByTestId("navbar-nested")[0]).toHaveAttribute("data-collapsed", "false");
   });
 
   it("collapsed rail hides brand, news and bell but keeps the expand control", async () => {
-    const { default: userEvent } = await import("@testing-library/user-event");
-    const user = userEvent.setup();
-    render(
-      <TestWrapper>
+    render(() => (<TestWrapper initialRoute="/">
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>,
+      </TestWrapper>),
     );
 
     expect(screen.getByTestId("app-logo")).toBeInTheDocument();
     expect(screen.getByTestId("notif-bell")).toBeInTheDocument();
 
-    await user.click(screen.getAllByLabelText("Toggle sidebar").pop()!);
+    await fireEvent.click(screen.getAllByLabelText("Toggle sidebar").pop()!);
 
     // The 64px rail keeps only the control needed to expand it again; the
     // brand, news button and notification bell return on expand.
@@ -230,29 +228,25 @@ describe("AppLayout", () => {
   });
 
   it("renders notification bell and opens panel on click", async () => {
-    const { default: userEvent } = await import("@testing-library/user-event");
-    const user = userEvent.setup();
-    render(
-      <TestWrapper>
+    render(() => (<TestWrapper initialRoute="/">
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>,
+      </TestWrapper>),
     );
     expect(screen.getByTestId("notif-bell")).toBeInTheDocument();
-    await user.click(screen.getByTestId("notif-bell"));
+    await fireEvent.click(screen.getByTestId("notif-bell"));
     // NotificationsPanel should be triggered (mocked panel not needed, just bell interaction)
     expect(screen.getByTestId("notif-bell")).toBeInTheDocument();
   });
 
   it("shows the surge alert count on the bell", async () => {
     vi.mocked(fetchSurges).mockResolvedValueOnce({ total: 5, events: [] });
-    render(
-      <TestWrapper>
+    render(() => (<TestWrapper>
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>,
+      </TestWrapper>),
     );
 
     expect(await screen.findByText("5")).toBeInTheDocument();
@@ -260,12 +254,11 @@ describe("AppLayout", () => {
   });
 
   it("hides the surge badge when there are no alerts", async () => {
-    render(
-      <TestWrapper>
+    render(() => (<TestWrapper>
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>,
+      </TestWrapper>),
     );
 
     await waitFor(() => {
@@ -275,17 +268,29 @@ describe("AppLayout", () => {
   });
 
   it("passes collapsed prop correctly to NavbarNested after toggle", async () => {
-    const { default: userEvent } = await import("@testing-library/user-event");
-    const user = userEvent.setup();
-    render(
-      <TestWrapper>
+    render(() => (<TestWrapper initialRoute="/">
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>,
+      </TestWrapper>),
     );
     const desktopToggle = screen.getAllByLabelText("Toggle sidebar").pop()!;
-    await user.click(desktopToggle);
+    await fireEvent.click(desktopToggle);
     expect(screen.getAllByTestId("navbar-nested")[0]).toHaveAttribute("data-collapsed", "true");
+  });
+
+  it("applies the rail width as a CSS length string", async () => {
+    render(() => (<TestWrapper initialRoute="/">
+        <AppLayout>
+          <div>Content</div>
+        </AppLayout>
+      </TestWrapper>),
+    );
+
+    expect(screen.getByTestId("app-navbar").getAttribute("style")).toMatch(/width:\s*148px/);
+
+    await fireEvent.click(screen.getAllByLabelText("Toggle sidebar").pop()!);
+
+    expect(screen.getByTestId("app-navbar").getAttribute("style")).toMatch(/width:\s*48px/);
   });
 });

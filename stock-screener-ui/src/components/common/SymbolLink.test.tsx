@@ -1,14 +1,14 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { cleanup, render, screen, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
+import type { JSX } from "solid-js";
 import { SymbolLink } from "./SymbolLink";
 import { SymbolDockContext } from "./symbolDockContext";
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
+function r(jsx: JSX.Element) {
+  return render(() => <UIProvider>{jsx}</UIProvider>);
 }
 
 describe("SymbolLink", () => {
@@ -44,7 +44,7 @@ describe("SymbolLink", () => {
         <SymbolLink symbol="SBIN" testId="sym-tv" chartTestId="sym-chart" />
       </SymbolDockContext.Provider>,
     );
-    await userEvent.click(screen.getByTestId("sym-chart"));
+    await fireEvent.click(screen.getByTestId("sym-chart"));
     expect(open).toHaveBeenCalledWith("SBIN");
   });
 
@@ -56,7 +56,7 @@ describe("SymbolLink", () => {
         <SymbolLink symbol="SBIN" testId="sym-tv" chartTestId="sym-chart" onOpen={onOpen} />
       </div>,
     );
-    await userEvent.click(screen.getByTestId("sym-chart"));
+    await fireEvent.click(screen.getByTestId("sym-chart"));
     expect(onOpen).toHaveBeenCalledWith("SBIN");
     expect(parent).not.toHaveBeenCalled();
   });
@@ -72,9 +72,9 @@ describe("SymbolLink", () => {
         onPreviewEnd={onPreviewEnd}
       />,
     );
-    await userEvent.hover(screen.getByTestId("sym-tv-wrap"));
-    expect(onPreview).toHaveBeenCalledWith("SBIN");
-    await userEvent.unhover(screen.getByTestId("sym-tv-wrap"));
+    await fireEvent.mouseEnter(screen.getByTestId("sym-tv-wrap"));
+    expect(onPreview).toHaveBeenCalledWith("SBIN", expect.any(MouseEvent));
+    await fireEvent.mouseLeave(screen.getByTestId("sym-tv-wrap"));
     expect(onPreviewEnd).toHaveBeenCalledWith("SBIN");
   });
 
@@ -90,7 +90,7 @@ describe("SymbolLink", () => {
     r(<SymbolLink symbol="RELIANCE" showCopy testId="sym-tv" />);
 
     const copy = screen.getByTestId("symbol-copy-RELIANCE");
-    await userEvent.click(copy);
+    await fireEvent.click(copy);
     expect(writeText).toHaveBeenCalledWith("RELIANCE");
   });
 });

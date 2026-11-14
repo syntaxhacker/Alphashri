@@ -1,21 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createEffect, createSignal, onCleanup } from "solid-js";
 import { usePolling } from "../../../hooks/usePolling";
 
 import { fetchUsDates, fetchUsEod, fetchUsLive, fetchUsPrice, fetchUsStatus, fetchUsTape } from "../../../api/usReport";
 import type { UsEod, UsMode, UsRow, UsStatus } from "../../../types/usReport";
 
 export interface UsReportState {
-  row: UsRow | null;
-  frames: UsRow[];
-  eod: UsEod | null;
-  status: UsStatus | null;
-  dates: string[];
-  date: string;
-  cursor: number;
-  playing: boolean;
-  speed: number;
-  loading: boolean;
-  error: string | null;
+  row: () => UsRow | null;
+  frames: () => UsRow[];
+  eod: () => UsEod | null;
+  status: () => UsStatus | null;
+  dates: () => string[];
+  date: () => string;
+  cursor: () => number;
+  playing: () => boolean;
+  speed: () => number;
+  loading: () => boolean;
+  error: () => string | null;
   setDate: (d: string) => void;
   setCursor: (i: number) => void;
   togglePlay: () => void;
@@ -27,31 +27,29 @@ export interface UsReportState {
  * Live poll (15 s) in ``live`` mode; tape frames + EOD card in ``eod`` mode.
  * In EOD the tape is fetched once and played back locally — no upstream calls.
  */
-export function useUsReport(root: string, mode: UsMode): UsReportState {
-  const [row, setRow] = useState<UsRow | null>(null);
-  const [liveFrames, setLiveFrames] = useState<UsRow[]>([]);
-  const [frames, setFrames] = useState<UsRow[]>([]);
-  const [eod, setEod] = useState<UsEod | null>(null);
-  const [status, setStatus] = useState<UsStatus | null>(null);
-  const [dates, setDates] = useState<string[]>([]);
-  const [date, setDateState] = useState("");
-  const [cursor, setCursorState] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(4);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [nonce, setNonce] = useState(0);
+export function useUsReport(root: () => string, mode: () => UsMode): UsReportState {
+  const [row, setRow] = createSignal<UsRow | null>(null);
+  const [liveFrames, setLiveFrames] = createSignal<UsRow[]>([]);
+  const [frames, setFrames] = createSignal<UsRow[]>([]);
+  const [eod, setEod] = createSignal<UsEod | null>(null);
+  const [status, setStatus] = createSignal<UsStatus | null>(null);
+  const [dates, setDates] = createSignal<string[]>([]);
+  const [date, setDateState] = createSignal("");
+  const [cursor, setCursorState] = createSignal(0);
+  const [playing, setPlaying] = createSignal(false);
+  const [speed, setSpeed] = createSignal(4);
+  const [loading, setLoading] = createSignal(true);
+  const [error, setError] = createSignal<string | null>(null);
+  const [nonce, setNonce] = createSignal(0);
 
-  const alive = useRef(true);
-  useEffect(() => {
-    alive.current = true;
-    return () => {
-      alive.current = false;
-    };
-  }, []);
+  let alive = true;
+  onCleanup(() => {
+    alive = false;
+  });
 
   // reset when the root changes
-  useEffect(() => {
+  createEffect(() => {
+    root();
     setDateState("");
     setFrames([]);
     setLiveFrames([]);
@@ -60,38 +58,39 @@ export function useUsReport(root: string, mode: UsMode): UsReportState {
     setCursorState(0);
     setPlaying(false);
     setLoading(true);
-  }, [root]);
+  });
 
-  const setDate = useCallback((d: string) => {
+  const setDate = (d: string) => {
     setDateState(d);
     setCursorState(0);
     setPlaying(false);
-  }, []);
+  };
 
-  const setCursor = useCallback((i: number) => {
+  const setCursor = (i: number) => {
     setCursorState(i);
-  }, []);
+  };
 
-  const togglePlay = useCallback(() => {
+  const togglePlay = () => {
     setPlaying((p) => {
-      if (!p && frames.length > 1) setCursorState(0);
+      if (!p && frames().length > 1) setCursorState(0);
       return !p;
     });
-  }, [frames.length]);
+  };
 
-  const refresh = useCallback(() => setNonce((n) => n + 1), []);
+  const refresh = () => setNonce((n) => n + 1);
 
   // ---- live mode -----------------------------------------------------------
-  useEffect(() => {
-    if (mode !== "live") return undefined;
+  createEffect(() => {
+    if (mode() !== "live") return;
+    nonce();
     let timer: ReturnType<typeof setInterval> | null = null;
     let priceTimer: ReturnType<typeof setInterval> | null = null;
     let statusTimer: ReturnType<typeof setInterval> | null = null;
 
     const todayEt = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-    fetchUsTape(root, todayEt)
+    fetchUsTape(root(), todayEt)
       .then((tape) => {
-        if (alive.current) setLiveFrames(tape.rows.slice(-390));
+        if (alive) setLiveFrames(tape.rows.slice(-390));
       })
       .catch(() => undefined);
 
@@ -148,22 +147,22 @@ export function useUsReport(root: string, mode: UsMode): UsReportState {
 
     const chainTick = async () => {
       try {
-        const live = await fetchUsLive(root);
-        if (!alive.current) return;
+        const live = await fetchUsLive(root());
+        if (!alive) return;
         setRow(live.row);
         mergeChain(live.row);
         setError(null);
       } catch (e) {
-        if (alive.current) setError(e instanceof Error ? e.message : String(e));
+        if (alive) setError(e instanceof Error ? e.message : String(e));
       } finally {
-        if (alive.current) setLoading(false);
+        if (alive) setLoading(false);
       }
     };
 
     const priceTick = async () => {
       try {
-        const p = await fetchUsPrice(root);
-        if (!alive.current) return;
+        const p = await fetchUsPrice(root());
+        if (!alive) return;
         applyPrice(p.spot, p.t);
       } catch {
         /* a missed tick is harmless — the 30 s chain poll still lands */
@@ -173,7 +172,7 @@ export function useUsReport(root: string, mode: UsMode): UsReportState {
     const statusTick = async () => {
       try {
         const st = await fetchUsStatus();
-        if (alive.current) setStatus(st);
+        if (alive) setStatus(st);
       } catch {
         /* status is cosmetic */
       }
@@ -185,24 +184,25 @@ export function useUsReport(root: string, mode: UsMode): UsReportState {
     timer = setInterval(() => void chainTick(), 30_000);
     priceTimer = setInterval(() => void priceTick(), 5_000);
     statusTimer = setInterval(() => void statusTick(), 30_000);
-    return () => {
+    onCleanup(() => {
       if (timer) clearInterval(timer);
       if (priceTimer) clearInterval(priceTimer);
       if (statusTimer) clearInterval(statusTimer);
-    };
-  }, [root, mode, nonce]);
+    });
+  });
 
   // ---- EOD mode ------------------------------------------------------------
-  useEffect(() => {
-    if (mode !== "eod") return undefined;
+  createEffect(() => {
+    if (mode() !== "eod") return;
+    root();
     let cancelled = false;
 
     const loadDates = async () => {
       try {
-        const res = await fetchUsDates(root);
+        const res = await fetchUsDates(root());
         if (cancelled) return;
         setDates(res.dates);
-        if (!date && res.dates.length) setDateState(res.dates[0]);
+        if (!date() && res.dates.length) setDateState(res.dates[0]);
         if (!res.dates.length) {
           setFrames([]);
           setEod(null);
@@ -217,21 +217,21 @@ export function useUsReport(root: string, mode: UsMode): UsReportState {
     };
 
     void loadDates();
-    return () => {
+    onCleanup(() => {
       cancelled = true;
-    };
-    // `date` intentionally excluded: dates are discovered once per root
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [root, mode]);
+    });
+  });
 
-  useEffect(() => {
-    if (mode !== "eod" || !date) return undefined;
+  createEffect(() => {
+    if (mode() !== "eod" || !date()) return;
+    nonce();
+    const currentDate = date();
     let cancelled = false;
     setLoading(true);
 
     const load = async () => {
       try {
-        const [tape, summary] = await Promise.all([fetchUsTape(root, date), fetchUsEod(root, date)]);
+        const [tape, summary] = await Promise.all([fetchUsTape(root(), currentDate), fetchUsEod(root(), currentDate)]);
         if (cancelled) return;
         setFrames(tape.rows);
         setEod(summary);
@@ -250,31 +250,40 @@ export function useUsReport(root: string, mode: UsMode): UsReportState {
     };
 
     void load();
-    return () => {
+    onCleanup(() => {
       cancelled = true;
-    };
-  }, [root, mode, date, nonce]);
+    });
+  });
 
   // ---- playback ------------------------------------------------------------
-  const playbackMs = Math.max(40, Math.round(1000 / Math.max(1, speed)));
+  const playbackMs = () => Math.max(40, Math.round(1000 / Math.max(1, speed())));
   usePolling(
     () => {
       setCursorState((c) => {
-        if (c >= frames.length - 1) {
+        if (c >= frames().length - 1) {
           setPlaying(false);
           return c;
         }
         return c + 1;
       });
     },
-    playbackMs,
-    { enabled: playing && mode === "eod" && frames.length >= 2, skipIfRunning: false },
+    playbackMs(),
+    { enabled: playing() && mode() === "eod" && frames().length >= 2, skipIfRunning: false },
   );
 
-  const liveRow = liveFrames.length ? liveFrames[liveFrames.length - 1] : row;
-  const frame = mode === "live" ? liveRow : (frames[cursor] ?? (frames.length ? frames[frames.length - 1] : null));
-  const shownFrames = mode === "live" ? liveFrames : frames;
-  const shownCursor = mode === "live" ? Math.max(0, shownFrames.length - 1) : cursor;
+  const liveRow = () => {
+    const lf = liveFrames();
+    return lf.length ? lf[lf.length - 1] : row();
+  };
+  const frame = () => {
+    if (mode() === "live") return liveRow();
+    const rows = frames();
+    const idx = Math.min(cursor(), Math.max(0, rows.length - 1));
+    return rows[idx] ?? (rows.length ? rows[rows.length - 1] : null);
+  };
+  const shownFrames = () => (mode() === "live" ? liveFrames() : frames());
+  const shownCursor = () =>
+    mode() === "live" ? Math.max(0, shownFrames().length - 1) : cursor();
 
   return {
     row: frame,

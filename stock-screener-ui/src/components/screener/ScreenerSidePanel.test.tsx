@@ -1,10 +1,9 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
-import type { ReactElement } from "react";
+import type { JSX } from "solid-js";
 
 let mockProfileFilters: Record<string, unknown> = {};
 let mockProfileMetaById: Record<string, unknown> = {};
@@ -35,8 +34,8 @@ import {
   normalizeSelectFilterOptions,
 } from "./ScreenerSidePanel";
 
-const renderWithProvider = (ui: ReactElement) =>
-  render(<UIProvider>{ui}</UIProvider>);
+const renderWithProvider = (ui: JSX.Element) =>
+  render(() => <UIProvider>{ui}</UIProvider>);
 
 const trendingFilters = [
   { key: "min_rsi", label: "Min RSI", type: "number", min: 0, max: 100, default: 30 },
@@ -114,7 +113,6 @@ describe("ScreenerSidePanel", () => {
   });
 
   it("Apply filters button triggers fetchData", async () => {
-      const user = userEvent.setup();
     mockProfileMetaById = { trending: { filters: trendingFilters } };
     renderWithProvider(
       <ScreenerSidePanel
@@ -122,7 +120,7 @@ describe("ScreenerSidePanel", () => {
         screenerOptions={[]}
       />,
     );
-    await user.click(screen.getByRole("button", { name: /apply filters/i }));
+    fireEvent.click(screen.getByRole("button", { name: /apply filters/i }));
     const api = await import("../../api");
     expect(api.fetchData).toHaveBeenCalledWith("upstox", "intraday", "trending", "manual");
   });

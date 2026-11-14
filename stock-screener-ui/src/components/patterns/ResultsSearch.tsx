@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import { TextInput, useDebouncedValue } from "@/ui";
-import { IconSearch } from "@tabler/icons-react";
+import { createEffect, createSignal, onCleanup } from "solid-js";
+import { TextInput } from "@/ui";
+import { IconSearch } from "@/patterns/icons";
 import type { PatternFilters } from "@/types/chartPatterns";
 
 /**
@@ -24,32 +24,42 @@ export function readResultsQuery(filters: PatternFilters): string {
  * Compact client-side text filter over the currently loaded results. Commits a
  * debounced `filters.q` so typing does not spam the results endpoint.
  */
-export function ResultsSearch({ filters, setFilter }: ResultsSearchProps) {
-  const external = readResultsQuery(filters);
-  const [value, setValue] = useState(external);
-  const [debouncedValue] = useDebouncedValue(value, 300);
-  const committedRef = useRef(false);
-  const lastCommittedRef = useRef<string | null>(null);
+export function ResultsSearch(props: ResultsSearchProps) {
+  const external = () => readResultsQuery(props.filters);
+  const [value, setValue] = createSignal(external());
+  const [debounced, setDebounced] = createSignal(external());
+  let debounceTimer: number | undefined;
+
+  createEffect(() => {
+    const v = value();
+    window.clearTimeout(debounceTimer);
+    debounceTimer = window.setTimeout(() => setDebounced(v), 300);
+    onCleanup(() => window.clearTimeout(debounceTimer));
+  });
 
   // Keep the input in sync when filters change elsewhere (reset, presets), but
   // ignore the echo of our own debounced commit: syncing that back would clobber
   // any characters typed after the commit landed.
-  useEffect(() => {
-    if (external === lastCommittedRef.current) return;
-    setValue(external);
-  }, [external]);
+  let lastCommitted: string | null = null;
+  createEffect(() => {
+    const ext = external();
+    if (ext === lastCommitted) return;
+    setValue(ext);
+  });
 
-  useEffect(() => {
+  let committedOnce = false;
+  createEffect(() => {
+    const dv = debounced();
     // Skip the mount run: initial value is not a user edit.
-    if (!committedRef.current) {
-      committedRef.current = true;
+    if (!committedOnce) {
+      committedOnce = true;
       return;
     }
     // No-op guard: never re-commit an unchanged query (avoids redundant reloads).
-    if (debouncedValue === external) return;
-    lastCommittedRef.current = debouncedValue;
-    setFilter("q", debouncedValue);
-  }, [debouncedValue, external, setFilter]);
+    if (dv === external()) return;
+    lastCommitted = dv;
+    props.setFilter("q", dv);
+  });
 
   return (
     <TextInput
@@ -58,9 +68,9 @@ export function ResultsSearch({ filters, setFilter }: ResultsSearchProps) {
       size="xs"
       w={190}
       leftSection={<IconSearch size={14} />}
-      value={value}
+      value={value()}
       onChange={setValue}
-      style={{ flexShrink: 0 }}
+      style={{ "flex-shrink": 0 }}
     />
   );
 }

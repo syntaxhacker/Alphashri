@@ -40,6 +40,10 @@ def _fake_fetch_factory(frames):
 def client(monkeypatch, tmp_path):
     monkeypatch.setattr(br, "get_universe", lambda u: [])
     monkeypatch.setattr(br, "fetch_for_timeframe", _fake_fetch_factory({}))
+    # Today-path tests must not make real upstream calls: the OHLC batch is
+    # pre-fetched once per scan and the circuit check reads Redis.
+    monkeypatch.setattr(br, "fetch_ohlc_batch", lambda symbols, interval="1d": {})
+    monkeypatch.setattr(br, "_circuit_open", lambda: False)
     # Isolate the past-date disk cache: explicit-date tests must never touch
     # the real experiments/ dir.
     monkeypatch.setattr(br, "REPORT_DIR", tmp_path)
@@ -184,8 +188,11 @@ class TestEndpoint:
         assert r.status_code == 200
         p = r.json()
         assert set(p) == {"date", "universe", "as_of", "cached", "scanned",
-                          "breakouts", "breakdowns"}
+                          "degraded", "reason", "breakouts", "breakdowns"}
         assert p["scanned"] == 2
+        # Past-date path: no batch fetch, not degraded.
+        assert p["degraded"] is False
+        assert p["reason"] is None
         assert p["breakouts"]["count"] == 2
         assert [row["symbol"] for row in p["breakouts"]["rows"]] == ["AAA", "BBB"]
         assert _ROW_KEYS <= set(p["breakouts"]["rows"][0])
@@ -293,3 +300,137 @@ class TestEndpoint:
         assert second["cached"] is True
         assert len(calls) == n  # immutable disk cache: no refetch
         assert second["breakouts"]["count"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Today path: one OHLC batch for the whole universe, no per-symbol tape fetch
+# ---------------------------------------------------------------------------
+
+def _pin_today(monkeypatch):
+    """Pin ``date`` to a completed session so the today scan path runs."""
+    monkeypatch.setattr(br, "_today_str", lambda: "2026-09-01")
+    import datetime as _dt
+
+    monkeypatch.setattr(
+        "chart_patterns.candles._last_completed_session",
+        lambda now=None: _dt.date(2026, 9, 1),
+    )
+
+
+def _today_client(monkeypatch, tmp_path):
+    monkeypatch.setattr(br, "REPORT_DIR", tmp_path)
+    br.clear_today_cache()
+    app = FastAPI()
+    app.include_router(br.router)
+    return TestClient(app)
+
+
+def _ohlc_bar(day="2026-09-01"):
+    """Single-row synthetic daily bar like ``fetch_ohlc_batch`` returns."""
+    idx = pd.DatetimeIndex([pd.Timestamp(day).tz_localize("UTC").normalize()])
+    return pd.DataFrame(
+        {"open": 100.0, "high": 110.0, "low": 99.0, "close": 110.0,
+         "volume": 5000.0},
+        index=idx,
+    )
+
+
+class TestTodayBatch:
+    def test_one_batch_call_bar_threaded_into_each_symbol(self, monkeypatch,
+                                                          tmp_path):
+        _pin_today(monkeypatch)
+        _today_client(monkeypatch, tmp_path)
+        batch_calls: list = []
+        fetch_kwargs: dict = {}
+
+        def _batch(symbols, interval="1d"):
+            batch_calls.append((list(symbols), interval))
+            bar = _ohlc_bar()
+            return {sym: bar for sym in symbols}
+
+        monkeypatch.setattr(br, "fetch_ohlc_batch", _batch)
+        monkeypatch.setattr(br, "_circuit_open", lambda: False)
+        monkeypatch.setattr(br, "get_universe", lambda u: ["AAA", "BBB"])
+
+        def _fetch(symbol, *a, **k):
+            fetch_kwargs[str(symbol).upper()] = dict(k)
+            return _flat_breakout_high()
+
+        monkeypatch.setattr(br, "fetch_for_timeframe", _fetch)
+
+        c = _today_client(monkeypatch, tmp_path)
+        p = c.get("/api/reports/breakouts?universe=tu").json()
+        assert p["degraded"] is False
+        assert p["reason"] is None
+        assert p["breakouts"]["count"] == 2
+        # One batch call for the whole universe (500-key chunks).
+        assert len(batch_calls) == 1
+        assert batch_calls[0] == (["AAA", "BBB"], "1d")
+        # Each symbol's fetch asks for and receives the batch bar.
+        assert set(fetch_kwargs) == {"AAA", "BBB"}
+        for sym in ("AAA", "BBB"):
+            assert fetch_kwargs[sym]["include_partial_today"] is True
+            assert isinstance(fetch_kwargs[sym].get("partial_bar"), pd.DataFrame)
+
+    def test_circuit_open_skips_batch_no_per_symbol_fallback(self, monkeypatch,
+                                                             tmp_path):
+        _pin_today(monkeypatch)
+        batch_called = [False]
+        fetch_kwargs: dict = {}
+
+        monkeypatch.setattr(
+            br, "fetch_ohlc_batch",
+            lambda symbols, interval="1d": (batch_called.__setitem__(0, True), {})[1],
+        )
+        monkeypatch.setattr(br, "_circuit_open", lambda: True)
+        monkeypatch.setattr(br, "get_universe", lambda u: ["AAA", "BBB"])
+
+        def _fetch(symbol, *a, **k):
+            fetch_kwargs[str(symbol).upper()] = dict(k)
+            return _flat_breakout_high()
+
+        monkeypatch.setattr(br, "fetch_for_timeframe", _fetch)
+
+        c = _today_client(monkeypatch, tmp_path)
+        p = c.get("/api/reports/breakouts?universe=tu").json()
+        assert p["degraded"] is True
+        assert p["reason"] == "upstox_circuit_open"
+        assert not batch_called[0]  # upstream batch never attempted
+        assert set(fetch_kwargs) == {"AAA", "BBB"}
+        for sym in ("AAA", "BBB"):
+            # No partial bar requested -> no per-symbol intraday tape call.
+            assert fetch_kwargs[sym]["include_partial_today"] is False
+            assert fetch_kwargs[sym].get("partial_bar") is None
+        # Scan still completes from cached daily frames.
+        assert p["scanned"] == 2
+        assert p["breakouts"]["count"] == 2
+
+    def test_batch_unavailable_degrades_without_hanging(self, monkeypatch,
+                                                       tmp_path):
+        _pin_today(monkeypatch)
+        c = _today_client(monkeypatch, tmp_path)
+        batch_calls = [0]
+        fetch_kwargs: dict = {}
+
+        monkeypatch.setattr(
+            br, "fetch_ohlc_batch",
+            lambda symbols, interval="1d": (batch_calls.__setitem__(0,
+                                                                    batch_calls[0] + 1), {})[1],
+        )
+        monkeypatch.setattr(br, "_circuit_open", lambda: False)
+        monkeypatch.setattr(br, "get_universe", lambda u: ["AAA", "BBB"])
+
+        def _fetch(symbol, *a, **k):
+            fetch_kwargs[str(symbol).upper()] = dict(k)
+            return _flat_breakout_high()
+
+        monkeypatch.setattr(br, "fetch_for_timeframe", _fetch)
+
+        p = c.get("/api/reports/breakouts?universe=tu").json()
+        assert p["degraded"] is True
+        assert p["reason"] == "batch_quote_unavailable"
+        assert batch_calls[0] == 1  # batch attempted exactly once
+        for sym in ("AAA", "BBB"):
+            assert fetch_kwargs[sym]["include_partial_today"] is False
+            assert fetch_kwargs[sym].get("partial_bar") is None
+        assert p["scanned"] == 2

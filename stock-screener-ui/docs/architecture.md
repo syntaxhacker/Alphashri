@@ -5,12 +5,12 @@ graph TB
         CLI["CLI / Scripts"]
     end
 
-    subgraph Frontend ["Frontend (React + TypeScript + Vite)"]
-        UI["MUI Components"]
-        Redux["Redux Toolkit Store"]
-        Router["React Router"]
+    subgraph Frontend ["Frontend (SolidJS 1.9 + TypeScript + Vite)"]
+        UI["@/ui Components<br/>semantic HTML + Tailwind 4"]
+        Stores["Custom Subscriber Stores<br/>createSubscriber + useStoreSubscription"]
+        Router["@solidjs/router"]
         Charts["ECharts"]
-        UI --> Redux
+        UI --> Stores
         UI --> Charts
         Router --> UI
     end

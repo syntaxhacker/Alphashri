@@ -1,6 +1,7 @@
+import { createMemo, splitProps } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
-import type { ElementType } from "react";
+import type { JSX } from "solid-js";
 import type { UITextProps } from "../types";
 
 const sizeMap: Record<string, string> = {
@@ -10,11 +11,6 @@ const sizeMap: Record<string, string> = {
   lg: "1.125rem",
   xl: "1.25rem",
 };
-
-function resolveSize(size: UITextProps["size"]): string | undefined {
-  if (!size) return undefined;
-  return sizeMap[size as string] ?? (size as string);
-}
 
 const TONE_CLASS: Record<string, string> = {
   primary: "text-fin-primary",
@@ -44,97 +40,109 @@ function isLiteralColor(c: string): boolean {
   return c.startsWith("#") || c.startsWith("rgb") || c.includes(".");
 }
 
-export function Text({
-  children,
-  className,
-  style,
-  onClick,
-  onMouseEnter,
-  onMouseLeave,
-  "data-testid": testId,
-  id,
-  size,
-  fw,
-  c,
-  ta,
-  tt,
-  lh,
-  truncate,
-  lineClamp,
-  span,
-  inherit,
-  component,
-  p, px, py, pt, pb, pl, pr,
-  m, mx, my, mt, mb, ml, mr,
-  w, maw, opacity, fs,
-  ...rest
-}: UITextProps) {
-  const sp = (v: number | string | undefined) =>
-    v == null ? undefined : typeof v === "number" ? `${v * 8}px` : v;
+const TEXT_KNOWN = [
+  "children", "className", "style", "id", "data-testid", "onClick", "onMouseEnter", "onMouseLeave",
+  "size", "fw", "c", "ta", "tt", "lh", "fs", "truncate", "lineClamp", "span", "inherit", "component",
+  "p", "px", "py", "pt", "pb", "pl", "pr", "m", "mx", "my", "mt", "mb", "ml", "mr",
+  "w", "maw", "opacity",
+] as const;
+// `title` is intentionally omitted: it is a native tooltip and must flow through
+// `rest` onto the DOM element rather than being consumed here.
+
+function resolveSize(size: UITextProps["size"]): string | undefined {
+  if (!size) return undefined;
+  return sizeMap[size as string] ?? (size as string);
+}
+
+const sp = (v: number | string | undefined) =>
+  v == null ? undefined : typeof v === "number" ? `${v * 8}px` : v;
+
+// Solid cannot render a dynamic intrinsic tag via `<Tag>` when Tag is a string
+// (createComponent calls it as a function). Resolve through a small intrinsic
+// registry so any `keyof JSX.IntrinsicElements` works.
+const TEXT_TAGS: Record<string, (props: any) => JSX.Element> = {
+  p: (props) => <p {...props} />,
+  span: (props) => <span {...props} />,
+  div: (props) => <div {...props} />,
+  a: (props) => <a {...props} />,
+  h1: (props) => <h1 {...props} />,
+  h2: (props) => <h2 {...props} />,
+  h3: (props) => <h3 {...props} />,
+  h4: (props) => <h4 {...props} />,
+  h5: (props) => <h5 {...props} />,
+  h6: (props) => <h6 {...props} />,
+  code: (props) => <code {...props} />,
+  pre: (props) => <pre {...props} />,
+};
+
+export function Text(props: UITextProps) {
+  const [known, rest] = splitProps(props, TEXT_KNOWN);
   // `inherit` is kept for API parity — semantic elements inherit by default.
-  void inherit;
+  void known.inherit;
 
-  const tone = c as string | undefined;
-  const cls = tone != null ? TONE_CLASS[tone] : undefined;
-  const styleObj: React.CSSProperties = {};
-  if (tone != null) {
-    styleObj.color = TONE_COLOR[tone] ?? (isLiteralColor(tone) ? tone : undefined);
-  }
-  if (fw != null) styleObj.fontWeight = fw;
-  if (ta != null) styleObj.textAlign = ta;
-  if (tt != null) styleObj.textTransform = tt;
-  if (lh != null) styleObj.lineHeight = lh;
-  if (size != null) styleObj.fontSize = resolveSize(size);
-  if (fs != null) styleObj.fontStyle = fs;
-  if (p != null) styleObj.padding = sp(p);
-  if (px != null) { styleObj.paddingLeft = sp(px); styleObj.paddingRight = sp(px); }
-  if (py != null) { styleObj.paddingTop = sp(py); styleObj.paddingBottom = sp(py); }
-  if (pt != null) styleObj.paddingTop = sp(pt);
-  if (pb != null) styleObj.paddingBottom = sp(pb);
-  if (pl != null) styleObj.paddingLeft = sp(pl);
-  if (pr != null) styleObj.paddingRight = sp(pr);
-  if (m != null) styleObj.margin = sp(m);
-  if (mx != null) { styleObj.marginLeft = sp(mx); styleObj.marginRight = sp(mx); }
-  if (my != null) { styleObj.marginTop = sp(my); styleObj.marginBottom = sp(my); }
-  if (mt != null) styleObj.marginTop = sp(mt);
-  if (mb != null) styleObj.marginBottom = sp(mb);
-  if (ml != null) styleObj.marginLeft = sp(ml);
-  if (mr != null) styleObj.marginRight = sp(mr);
-  if (w != null) styleObj.width = typeof w === "number" ? `${w}px` : w;
-  if (maw != null) styleObj.maxWidth = typeof maw === "number" ? `${maw}px` : maw;
-  if (opacity != null) styleObj.opacity = opacity;
-
-  if (truncate) {
-    styleObj.overflow = "hidden";
-    styleObj.textOverflow = "ellipsis";
-    styleObj.whiteSpace = "nowrap";
-    if (truncate === "start") {
-      styleObj.direction = "rtl";
-      styleObj.textAlign = "left";
+  const derived = createMemo(() => {
+    const tone = known.c as string | undefined;
+    const cls = tone != null ? TONE_CLASS[tone] : undefined;
+    const o: Record<string, string | number | undefined> = {};
+    if (tone != null) {
+      o.color = TONE_COLOR[tone] ?? (isLiteralColor(tone) ? tone : undefined);
     }
-  }
+    if (known.fw != null) o["font-weight"] = known.fw;
+    if (known.ta != null) o["text-align"] = known.ta;
+    if (known.tt != null) o["text-transform"] = known.tt;
+    if (known.lh != null) o["line-height"] = known.lh;
+    if (known.size != null) o["font-size"] = resolveSize(known.size);
+    if (known.fs != null) o.fontStyle = known.fs;
+    if (known.p != null) o.padding = sp(known.p);
+    if (known.px != null) { o["padding-left"] = sp(known.px); o["padding-right"] = sp(known.px); }
+    if (known.py != null) { o["padding-top"] = sp(known.py); o["padding-bottom"] = sp(known.py); }
+    if (known.pt != null) o["padding-top"] = sp(known.pt);
+    if (known.pb != null) o["padding-bottom"] = sp(known.pb);
+    if (known.pl != null) o["padding-left"] = sp(known.pl);
+    if (known.pr != null) o["padding-right"] = sp(known.pr);
+    if (known.m != null) o.margin = sp(known.m);
+    if (known.mx != null) { o["margin-left"] = sp(known.mx); o["margin-right"] = sp(known.mx); }
+    if (known.my != null) { o["margin-top"] = sp(known.my); o["margin-bottom"] = sp(known.my); }
+    if (known.mt != null) o["margin-top"] = sp(known.mt);
+    if (known.mb != null) o["margin-bottom"] = sp(known.mb);
+    if (known.ml != null) o["margin-left"] = sp(known.ml);
+    if (known.mr != null) o["margin-right"] = sp(known.mr);
+    if (known.w != null) o.width = typeof known.w === "number" ? `${known.w}px` : known.w;
+    if (known.maw != null) o["max-width"] = typeof known.maw === "number" ? `${known.maw}px` : known.maw;
+    if (known.opacity != null) o.opacity = known.opacity;
+    if (known.truncate) {
+      o.overflow = "hidden";
+      o["text-overflow"] = "ellipsis";
+      o["white-space"] = "nowrap";
+      if (known.truncate === "start") {
+        o.direction = "rtl";
+        o["text-align"] = "left";
+      }
+    }
+    if (known.lineClamp != null) {
+      o.display = "-webkit-box";
+      o["webkit-line-clamp"] = known.lineClamp;
+      o.WebkitBoxOrient = "vertical";
+      o.overflow = "hidden";
+    }
+    return { cls, style: o };
+  });
 
-  if (lineClamp != null) {
-    styleObj.display = "-webkit-box";
-    styleObj.WebkitLineClamp = lineClamp;
-    styleObj.WebkitBoxOrient = "vertical";
-    styleObj.overflow = "hidden";
-  }
-
-  const Component = (component ?? (span ? "span" : "p")) as ElementType;
+  const rootTag = (known.component ?? (known.span ? "span" : "p")) as string;
+  const Root = TEXT_TAGS[rootTag] ?? TEXT_TAGS["div"];
 
   return (
-    <Component
-      className={cn(className, cls)}
-      style={{ ...styleObj, ...style }}
-      id={id}
-      data-testid={testId}
-      onClick={onClick}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      {...(rest as Record<string, unknown>)}
+    <Root
+      className={cn(known.className, derived().cls)}
+      style={{ ...derived().style, ...(known.style as Record<string, unknown> | undefined) }}
+      id={known.id}
+      data-testid={known["data-testid"]}
+      onClick={known.onClick}
+      onMouseEnter={known.onMouseEnter}
+      onMouseLeave={known.onMouseLeave}
+      {...rest}
     >
-      {children}
-    </Component>
+      {known.children}
+    </Root>
   );
 }

@@ -1,16 +1,10 @@
+import { Show, For } from "solid-js";
 import { Box, Group, Text, Badge, Collapse, Stack } from "@/ui";
-import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
+import { IconChevronDown, IconChevronRight } from "../common/Icons";
 import type { NewsItem } from "./news-types";
 import { NewsItemCard } from "./NewsItemCard";
 
-export function NewsSourceGroup({
-  source,
-  items,
-  isExpanded,
-  readIds,
-  onToggle,
-  onItemClick,
-}: {
+export function NewsSourceGroup(props: {
   source: string;
   items: NewsItem[];
   isExpanded: boolean;
@@ -25,28 +19,31 @@ export function NewsSourceGroup({
         align="center"
         p="xs"
         className="rounded-sm bg-fin-surface-alt"
-        onClick={onToggle}
-        data-testid={`news-source-group-${source}`}
+        onClick={props.onToggle}
+        data-testid={`news-source-group-${props.source}`}
       >
-        {isExpanded ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+        <Show when={props.isExpanded} fallback={<IconChevronRight size={14} />}>
+          <IconChevronDown size={14} />
+        </Show>
         <Text size="sm" fw={600} tt="uppercase">
-          {source}
+          {props.source}
         </Text>
         <Badge size="xs" variant="light" color="secondary">
-          {items.length}
+          {props.items.length}
         </Badge>
       </Group>
 
-      <Collapse in={isExpanded}>
+      <Collapse in={props.isExpanded}>
         <Stack gap={4} mt="xs">
-          {items.map((item) => (
-            <NewsItemCard
-              key={item.id}
-              item={item}
-              isUnread={!readIds.has(item.id)}
-              onClick={onItemClick}
-            />
-          ))}
+          <For each={props.items}>
+            {(item) => (
+              <NewsItemCard
+                item={item}
+                isUnread={!props.readIds.has(item.id)}
+                onClick={props.onItemClick}
+              />
+            )}
+          </For>
         </Stack>
       </Collapse>
     </Box>

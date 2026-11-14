@@ -23,6 +23,7 @@ export { List, ListItem } from "./typography/List";
 
 // Inputs
 export { Button } from "./inputs/Button";
+export { RangeSlider, Slider } from "./inputs/RangeSlider";
 export { ActionIcon } from "./inputs/ActionIcon";
 export { UnstyledButton } from "./inputs/UnstyledButton";
 export { TextInput } from "./inputs/TextInput";
@@ -95,7 +96,7 @@ export { rem } from "./hooks";
 
 // Types
 export type {
-  UIBaseProps, UISize, UIColor, UITone, UIFontWeight, UIAlign, UIFlexDirection, UIFlexWrap,
+  UITheme, UIBaseProps, UISize, UIColor, UITone, UIFontWeight, UIAlign, UIFlexDirection, UIFlexWrap,
   UIJustify, UIAlignItems, UIGap, UIRadius, UIVariant,
   UIBoxProps, UIFlexProps, UIStackProps, UIGroupProps, UICenterProps,
   UIPaperProps, UICardProps, UIScrollAreaProps, UIDividerProps, UICollapseProps,

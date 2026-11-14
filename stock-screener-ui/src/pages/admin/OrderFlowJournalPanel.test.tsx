@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
-import { renderWithProviders } from "../../test/test-utils";
+import { render, screen, waitFor, fireEvent, cleanup } from "@solidjs/testing-library";
 import {
   OrderFlowJournalPanel,
   BROKER_BADGE,
@@ -14,9 +13,18 @@ import type { OrderFlowJournalRow, OrderFlowJournalSummary } from "../../types/a
 
 const mockFetchWithAuth = vi.fn();
 
+// The @/ui Box/Flex/... stubs from src/pages/solidTestStubs.tsx render as
+// intrinsic elements; page tests exercise page wiring, not the theme runtime.
+vi.mock("@/ui", async (importOriginal) => {
+  const { uiLayoutStub } = await import("@/pages/solidTestStubs");
+  return uiLayoutStub(await importOriginal<Record<string, unknown>>());
+});
+
 vi.mock("../../components/auth/AuthProvider2", () => ({
   useAuth: () => ({ fetchWithAuth: mockFetchWithAuth }),
 }));
+
+const renderPanel = () => render(() => <OrderFlowJournalPanel />);
 
 function row(overrides: Partial<OrderFlowJournalRow> = {}): OrderFlowJournalRow {
   return {
@@ -68,13 +76,14 @@ function mockResponse(body: unknown, ok = true) {
 }
 
 beforeEach(() => {
+  cleanup();
   vi.clearAllMocks();
   mockFetchWithAuth.mockImplementation(() => mockResponse(summary()));
 });
 
 describe("OrderFlowJournalPanel", () => {
   it("renders one row per symbol with broker, size, records and coverage", async () => {
-    renderWithProviders(<OrderFlowJournalPanel />);
+    renderPanel();
 
     expect(await screen.findByTestId("orderflow-journal-table")).toBeInTheDocument();
     expect(screen.getByText("RELIANCE")).toBeInTheDocument();
@@ -85,7 +94,7 @@ describe("OrderFlowJournalPanel", () => {
   });
 
   it("shows the worst gap so a partial session is obvious", async () => {
-    renderWithProviders(<OrderFlowJournalPanel />);
+    renderPanel();
     expect(await screen.findByText(/09:15 → 13:36 \(261m\)/)).toBeInTheDocument();
   });
 
@@ -93,14 +102,14 @@ describe("OrderFlowJournalPanel", () => {
     mockFetchWithAuth.mockImplementation(() =>
       mockResponse(summary({ rows: [row({ broker: "mixed", brokers_seen: ["fyers_tbt", "upstox"] })] })),
     );
-    renderWithProviders(<OrderFlowJournalPanel />);
+    renderPanel();
 
     const badge = await screen.findByTestId("ofj-broker-mixed");
     expect(badge).toHaveTextContent("MIXED");
   });
 
   it("reports overall coverage for the day", async () => {
-    renderWithProviders(<OrderFlowJournalPanel />);
+    renderPanel();
     // "13.1%" appears in both the summary stat and the row, so assert on the
     // unique session hint and the stat label instead.
     expect(await screen.findByText(/09:15–15:15 · 360 min/)).toBeInTheDocument();
@@ -109,11 +118,12 @@ describe("OrderFlowJournalPanel", () => {
   });
 
   it("reloads when the day changes", async () => {
-    const user = (await import("@testing-library/user-event")).default.setup();
-    renderWithProviders(<OrderFlowJournalPanel />);
+    renderPanel();
     await screen.findByTestId("orderflow-journal-table");
 
-    await user.selectOptions(within(screen.getByTestId("ofj-day-select")).getByRole("combobox"), "2026-09-16");
+    const select = screen.getByTestId("ofj-day-select").querySelector("select");
+    expect(select).not.toBeNull();
+    fireEvent.input(select as HTMLSelectElement, { target: { value: "2026-09-16" } });
 
     await waitFor(() =>
       expect(mockFetchWithAuth).toHaveBeenCalledWith(
@@ -124,7 +134,7 @@ describe("OrderFlowJournalPanel", () => {
 
   it("surfaces a backend error", async () => {
     mockFetchWithAuth.mockImplementation(() => mockResponse({ detail: "journal scan failed" }, false));
-    renderWithProviders(<OrderFlowJournalPanel />);
+    renderPanel();
     expect(await screen.findByTestId("ofj-error")).toHaveTextContent("journal scan failed");
   });
 
@@ -132,7 +142,7 @@ describe("OrderFlowJournalPanel", () => {
     mockFetchWithAuth.mockImplementation(() =>
       mockResponse(summary({ rows: [], total_bytes: 0, total_records: 0, overall_coverage_pct: 0 })),
     );
-    renderWithProviders(<OrderFlowJournalPanel />);
+    renderPanel();
     expect(await screen.findByText("No journal data for this day")).toBeInTheDocument();
   });
 });
@@ -175,7 +185,7 @@ describe("OrderFlowJournalPanel broker-name verification", () => {
         }),
       ),
     );
-    renderWithProviders(<OrderFlowJournalPanel />);
+    renderPanel();
 
     const flag = await screen.findByTestId("ofj-broker-mismatch");
     expect(flag).toHaveTextContent("name says fyers_tbt");
@@ -187,7 +197,7 @@ describe("OrderFlowJournalPanel broker-name verification", () => {
     mockFetchWithAuth.mockImplementation(() =>
       mockResponse(summary({ rows: [row({ broker: "fyers_tbt", named_broker: "fyers_tbt" })] })),
     );
-    renderWithProviders(<OrderFlowJournalPanel />);
+    renderPanel();
 
     await screen.findByTestId("ofj-broker-fyers_tbt");
     expect(screen.queryByTestId("ofj-broker-mismatch")).not.toBeInTheDocument();
@@ -196,7 +206,7 @@ describe("OrderFlowJournalPanel broker-name verification", () => {
 
 describe("OrderFlowJournalPanel closing-auction window", () => {
   it("explains that coverage is measured to the continuous close, not the full session", async () => {
-    renderWithProviders(<OrderFlowJournalPanel />);
+    renderPanel();
 
     const note = await screen.findByTestId("ofj-cas-note");
     expect(note).toHaveTextContent("Measured to");
@@ -210,7 +220,7 @@ describe("OrderFlowJournalPanel closing-auction window", () => {
     mockFetchWithAuth.mockImplementation(() =>
       mockResponse(summary({ auction_minutes: 0, full_session_close: "15:15", full_session_minutes: 360 })),
     );
-    renderWithProviders(<OrderFlowJournalPanel />);
+    renderPanel();
 
     await screen.findByTestId("orderflow-journal-table");
     expect(screen.queryByTestId("ofj-cas-note")).not.toBeInTheDocument();

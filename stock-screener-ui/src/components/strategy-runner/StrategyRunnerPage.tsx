@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { createSignal, onMount, Show } from "solid-js";
 import { Box, Text, Title, Progress, ToolbarRow } from "@/ui";
 import { StrategyRunnerConfig as StrategyRunnerConfigComp } from "./StrategyRunnerConfig";
 import { StrategyRunnerStats } from "./StrategyRunnerStats";
@@ -40,37 +40,35 @@ function writeConfigToURL(config: StrategyRunnerConfig) {
 }
 
 export function StrategyRunnerPage() {
-  const [config, setConfigRaw] = useState<StrategyRunnerConfig>(() => {
-    const initial: StrategyRunnerConfig = { bot_uuids: [], date: "", end_date: "", symbols: [] };
-    return { ...initial, ...readConfigFromURL() };
+  const [config, setConfigRaw] = createSignal<StrategyRunnerConfig>({
+    bot_uuids: [],
+    date: "",
+    end_date: "",
+    symbols: [],
+    ...readConfigFromURL(),
   });
-  const [bots, setBots] = useState<BotInfo[]>([]);
-  const [isRunning, setIsRunning] = useState(false);
-  const [trades, setTrades] = useState<StrategyRunnerTrade[]>([]);
-  const [summary, setSummary] = useState<StrategyRunnerSummary | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [progress, setProgress] = useState({ currentBot: 0, totalBots: 0, currentBotName: "" });
+  const [bots, setBots] = createSignal<BotInfo[]>([]);
+  const [isRunning, setIsRunning] = createSignal(false);
+  const [trades, setTrades] = createSignal<StrategyRunnerTrade[]>([]);
+  const [summary, setSummary] = createSignal<StrategyRunnerSummary | null>(null);
+  const [error, setError] = createSignal<string | null>(null);
+  const [progress, setProgress] = createSignal({ currentBot: 0, totalBots: 0, currentBotName: "" });
 
-  const configRef = useRef(config);
-  configRef.current = config;
+  const setConfig = (partial: Partial<StrategyRunnerConfig>) => {
+    const next = { ...config(), ...partial };
+    setConfigRaw(next);
+    writeConfigToURL(next);
+  };
 
-  const setConfig = useCallback((partial: Partial<StrategyRunnerConfig>) => {
-    setConfigRaw((prev) => {
-      const next = { ...prev, ...partial };
-      writeConfigToURL(next);
-      return next;
-    });
-  }, []);
-
-  useEffect(() => {
+  onMount(() => {
     listBots()
       .then((data) => setBots(data.map(botConfigToBotInfo)))
       .catch(() => {}); // auth-dependent, ignore silently
-  }, []);
+  });
 
-  const startRunner = useCallback(async () => {
-    if (isRunning) return;
-    const cfg = configRef.current;
+  const startRunner = async () => {
+    if (isRunning()) return;
+    const cfg = config();
     setIsRunning(true);
     setTrades([]);
     setSummary(null);
@@ -79,8 +77,8 @@ export function StrategyRunnerPage() {
 
     try {
       const result = await runStrategyRunner(cfg);
-      const trades = (result.trades || []) as StrategyRunnerTrade[];
-      setTrades(trades);
+      const resultTrades = (result.trades || []) as StrategyRunnerTrade[];
+      setTrades(resultTrades);
       if (result.summary) {
         setSummary(result.summary as StrategyRunnerSummary);
       }
@@ -89,20 +87,20 @@ export function StrategyRunnerPage() {
     } finally {
       setIsRunning(false);
     }
-  }, [isRunning]);
+  };
 
-  const stopRunner = useCallback(() => {
+  const stopRunner = () => {
     setIsRunning(false);
-  }, []);
+  };
 
-  const reset = useCallback(() => {
+  const reset = () => {
     setTrades([]);
     setSummary(null);
     setError(null);
     setIsRunning(false);
 
     writeConfigToURL({ bot_uuids: [], date: "", end_date: "", symbols: [] });
-  }, []);
+  };
 
   return (
     <Box className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-fin-bg">
@@ -110,53 +108,51 @@ export function StrategyRunnerPage() {
         gap={8}
         wrap={false}
         data-testid="sr-header"
-        style={{ flex: "0 0 auto", height: palette.FIN_HEADER_H, padding: `0 ${palette.FIN_OUTER_PAD}px`, borderBottom: "1px solid var(--color-fin-border)" }}
+        style={{ flex: "0 0 auto", height: `${palette.FIN_HEADER_H}px`, padding: `0 ${palette.FIN_OUTER_PAD}px`, "border-bottom": "1px solid var(--color-fin-border)" }}
       >
         <Title order={2} size="h4">Strategy Runner</Title>
-        <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <Text size="sm" c="dimmed" style={{ "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" }}>
           Compare bot strategies side by side
-          {config.bot_uuids.length > 0 || config.symbols.length > 0
-            ? ` · ${config.bot_uuids.length} bot${config.bot_uuids.length === 1 ? "" : "s"} · ${config.symbols.length} symbol${config.symbols.length === 1 ? "" : "s"}`
+          {config().bot_uuids.length > 0 || config().symbols.length > 0
+            ? ` · ${config().bot_uuids.length} bot${config().bot_uuids.length === 1 ? "" : "s"} · ${config().symbols.length} symbol${config().symbols.length === 1 ? "" : "s"}`
             : ""}
         </Text>
       </ToolbarRow>
 
       <Box flex="0 0 auto" data-testid="sr-config" className="border-b border-fin-border px-4 py-2">
         <StrategyRunnerConfigComp
-          config={config}
-          bots={bots}
-          isRunning={isRunning}
-          progress={progress}
+          config={config()}
+          bots={bots()}
+          isRunning={isRunning()}
+          progress={progress()}
           setConfig={setConfig}
-          loadBots={() => {}}
+          loadBots={() => Promise.resolve()}
           startRunner={startRunner}
           stopRunner={stopRunner}
           reset={reset}
         />
       </Box>
 
-      {isRunning && (
+      <Show when={isRunning()}>
         <Box flex="0 0 auto" data-testid="sr-progress" className="px-4 pt-2">
-          <Progress value={progress.totalBots > 0 ? ((progress.currentBot + (progress.currentBotName.includes("done") ? 1 : 0)) / progress.totalBots) * 100 : 0} size="sm" animated />
-          <Text size="xs" c="dimmed" mt={2}>{progress.currentBotName}</Text>
+          <Progress value={progress().totalBots > 0 ? ((progress().currentBot + (progress().currentBotName.includes("done") ? 1 : 0)) / progress().totalBots) * 100 : 0} size="sm" animated />
+          <Text size="xs" c="dimmed" mt={2}>{progress().currentBotName}</Text>
         </Box>
-      )}
+      </Show>
 
-      {error && (
+      <Show when={error()}>
         <Box flex="0 0 auto" data-testid="sr-error" className="px-4 pt-2">
-          <Text size="sm" c="error">{error}</Text>
+          <Text size="sm" c="error">{error()}</Text>
         </Box>
-      )}
+      </Show>
 
       <Box flex="0 0 auto" data-testid="sr-stats" className="border-b border-fin-border px-4 py-2">
-        <StrategyRunnerStats trades={trades} summary={summary} isRunning={isRunning} progress={progress} />
+        <StrategyRunnerStats trades={trades()} summary={summary()} isRunning={isRunning()} progress={progress()} />
       </Box>
 
-      <Box style={{ flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column" }} data-testid="sr-tabs">
-        <StrategyRunnerTabs trades={trades} summary={summary} bots={bots} />
+      <Box style={{ flex: 1, "min-height": 0, "min-width": 0, overflow: "hidden", display: "flex", "flex-direction": "column" }} data-testid="sr-tabs">
+        <StrategyRunnerTabs trades={trades()} summary={summary()} bots={bots()} />
       </Box>
     </Box>
   );
 }
-
-

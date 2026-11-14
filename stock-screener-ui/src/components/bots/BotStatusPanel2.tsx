@@ -1,9 +1,9 @@
-import { Box, Card, Text, Button, Group, Stack, SimpleGrid, Badge, Tooltip } from "@/ui";
-import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
+import { Show, For, createMemo, createSignal, onMount, onCleanup } from "solid-js";
+import { Box, Card, Text, Button, Stack, SimpleGrid, Badge, ToolbarRow, Tooltip } from "@/ui";
+import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "../common/Icons";
 import type { BotConfig, BotStatus, BotTrade } from "../../types/bots";
 import { loadBotStatus, loadBotTrades } from "../../state/bots";
 import { StatusBadge } from "../common/BadgeComponents";
-import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { subscribeToHolidays, isMarketClosedToday } from "../../state/holidays";
 import {
   PortfolioSummaryCard,
@@ -20,160 +20,181 @@ interface BotStatusPanelProps {
   onStop: (botId: string) => Promise<void>;
 }
 
-export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStatusPanelProps) {
-  useStoreSubscription(subscribeToHolidays);
-  const marketClosed = isMarketClosedToday();
+export function BotStatusPanel(props: BotStatusPanelProps) {
+  // Holiday state is module-global without signals — tick on store notify so
+  // the closed/open read below re-evaluates when holidays load.
+  const [holidaysTick, setHolidaysTick] = createSignal(0);
+  onMount(() => {
+    const unsubscribe = subscribeToHolidays(() => setHolidaysTick((n) => n + 1));
+    onCleanup(() => unsubscribe?.());
+  });
+  const marketClosed = createMemo(() => {
+    holidaysTick();
+    return isMarketClosedToday();
+  });
+
+  const status = () => props.status;
+  const strategies = createMemo(() => Object.values(status()?.strategies ?? {}));
+  const strategyCount = createMemo(() => Object.keys(status()?.strategies ?? {}).length);
+  const positions = createMemo(() => status()?.positions ?? []);
+  const lastUpdate = createMemo(() => status()?.last_update ?? null);
 
   const handleRefresh = async () => {
-    await Promise.all([loadBotStatus(bot.id), loadBotTrades(bot.id)]);
+    await Promise.all([loadBotStatus(props.bot.id), loadBotTrades(props.bot.id)]);
   };
 
   const handleStart = async () => {
-    await onStart(bot.id);
-    await loadBotStatus(bot.id);
-    await loadBotTrades(bot.id);
+    await props.onStart(props.bot.id);
+    await loadBotStatus(props.bot.id);
+    await loadBotTrades(props.bot.id);
   };
 
   const handleStop = async () => {
-    await onStop(bot.id);
-    await loadBotStatus(bot.id);
+    await props.onStop(props.bot.id);
+    await loadBotStatus(props.bot.id);
   };
 
   const handleRefreshTrades = async () => {
-    await loadBotTrades(bot.id);
+    await loadBotTrades(props.bot.id);
   };
 
   return (
     <Box
       data-testid="bot-status-panel"
-      data-bot-id={bot.id}
+      data-bot-id={props.bot.id}
       id="bot-status-panel"
-      className="bot-status-panel"
+      className="bot-status-panel flex h-full min-h-0 flex-col"
     >
-      <Stack spacing={1} gap="sm" className="gap-2 p-2">
+      <Stack spacing={1} gap="sm" className="flex flex-1 min-h-0 flex-col gap-2 p-2">
         <Card
-          elevation={1}
-          padding="sm"
-          radius="sm"
+          padding="xs"
           id="bot-header-card"
           data-testid="bot-header-card"
-          className="p-2"
+          className="shrink-0"
         >
-          <Box className="flex items-center justify-between gap-2 p-2">
-            <Stack gap={1} className="gap-2">
-              <Text fw={700} size="lg" c="primary.main" data-testid="bot-name">
-                {bot.name}
+          <ToolbarRow gap={8} wrap={false} className="px-2" style={{ "min-height": "30px" }}>
+            <Box className="flex items-center gap-2">
+              <Text fw={700} size="sm" data-testid="bot-name">
+                {props.bot.name}
               </Text>
-              <Group gap={1} align="center" className="flex items-center gap-2">
-                <StatusBadge
-                  running={status?.running ?? false}
-                  pid={status?.pid ?? undefined}
-                  statusUnknown={status?.status === "unknown"}
-                  data-testid="bot-running-badge"
-                />
-                {bot.live_trading ? (
-                  <Badge color="error" variant="filled" size="sm" data-testid="live-trading-badge">
-                    LIVE
-                  </Badge>
-                ) : (
-                  <Badge color="success" variant="filled" size="sm" data-testid="paper-trading-badge">
+              <StatusBadge
+                running={status()?.running ?? false}
+                pid={status()?.pid ?? undefined}
+                statusUnknown={status()?.status === "unknown"}
+                data-testid="bot-running-badge"
+              />
+              <Show
+                when={props.bot.live_trading}
+                fallback={
+                  <Badge color="success" variant="filled" size="xs" data-testid="paper-trading-badge">
                     PAPER
                   </Badge>
-                )}
-              </Group>
-            </Stack>
-            <Group gap={1} align="center" className="flex items-center gap-2">
-              {status?.running ? (
+                }
+              >
+                <Badge color="error" variant="filled" size="xs" data-testid="live-trading-badge">
+                  LIVE
+                </Badge>
+              </Show>
+            </Box>
+            <Box className="ml-auto flex items-center gap-2">
+              <Show
+                when={status()?.running}
+                fallback={
+                  <Tooltip label="Market closed — cannot start bot" disabled={!marketClosed()}>
+                    <span>
+                      <Button
+                        leftSection={<IconPlayerPlay size={14} />}
+                        variant="filled"
+                        color="success"
+                        size="xs"
+                        onClick={handleStart}
+                        disabled={marketClosed()}
+                        data-testid="start-bot-btn"
+                      >
+                        Start Bot
+                      </Button>
+                    </span>
+                  </Tooltip>
+                }
+              >
                 <Button
-                  leftSection={<IconPlayerStop size={16} />}
+                  leftSection={<IconPlayerStop size={14} />}
                   variant="filled"
                   color="error"
+                  size="xs"
                   onClick={handleStop}
                   data-testid="stop-bot-btn"
                 >
                   Stop Bot
                 </Button>
-              ) : (
-                <Tooltip
-                  label="Market closed — cannot start bot"
-                  disabled={!marketClosed}
-                >
-                  <span>
-                    <Button
-                      leftSection={<IconPlayerPlay size={16} />}
-                      variant="filled"
-                      color="success"
-                      onClick={handleStart}
-                      disabled={marketClosed}
-                      data-testid="start-bot-btn"
-                    >
-                      Start Bot
-                    </Button>
-                  </span>
-                </Tooltip>
-              )}
+              </Show>
               <Button
-                leftSection={<IconRefresh size={16} />}
+                leftSection={<IconRefresh size={14} />}
                 variant="light"
                 color="secondary"
+                size="xs"
                 onClick={handleRefresh}
                 data-testid="refresh-bot-status-btn"
+                style={{ height: "24px" }}
               >
                 Refresh
               </Button>
-            </Group>
-          </Box>
+            </Box>
+          </ToolbarRow>
         </Card>
 
-        {status?.portfolio ? (
-          <PortfolioSummaryCard portfolio={status.portfolio} />
-        ) : (
-          <Card
-            elevation={1}
-            padding="sm"
-            radius="md"
-            id="portfolio-placeholder"
-            data-testid="portfolio-placeholder"
-            className="p-2"
-          >
-            <Box className="flex items-center justify-center p-2">
-              <Text c="dimmed" ta="center">
-                Start the bot to see live portfolio data
-              </Text>
-            </Box>
-          </Card>
-        )}
+        <Show
+          when={status()?.portfolio}
+          fallback={
+            <Card
+              padding="xs"
+              id="portfolio-placeholder"
+              data-testid="portfolio-placeholder"
+              className="shrink-0"
+            >
+              <Box className="flex items-center justify-center px-2 py-3">
+                <Text size="xs" c="dimmed" ta="center">
+                  Start the bot to see live portfolio data
+                </Text>
+              </Box>
+            </Card>
+          }
+        >
+          {(portfolio) => <PortfolioSummaryCard portfolio={portfolio()} />}
+        </Show>
 
-        {status?.strategies && (
-          <Stack spacing={1} gap={0} data-testid="strategies-status" className="gap-2 p-2">
-            <Group gap={1} align="center" mb="sm" className="flex items-center gap-2 p-2">
-              <Box w={4} h={20} className="rounded-sm bg-fin-text-muted" />
-              <Text fw={600} size="sm">
+        <Show when={status()?.strategies}>
+          <Box data-testid="strategies-status" className="shrink-0">
+            <ToolbarRow gap={8} wrap={false} className="px-2" style={{ height: "24px" }}>
+              <Box w={4} h={14} className="rounded-sm bg-fin-text-muted" />
+              <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ "font-size": "10px", "letter-spacing": "0.06em", "text-transform": "uppercase" }}>
                 Strategy Status
               </Text>
-              <Badge size="sm" variant="light" color="secondary">
-                {Object.keys(status.strategies).length}
+              <Badge size="xs" variant="light" color="secondary">
+                {strategyCount()}
               </Badge>
-            </Group>
-            <SimpleGrid cols={3} spacing={16}>
-              {Object.values(status.strategies).map((s) => (
-                <StrategyStatusCard key={s.strategy_id} strategy={s} isRunning={status?.running ?? false} />
-              ))}
+            </ToolbarRow>
+            <SimpleGrid cols={3} spacing={8}>
+              <For each={strategies()}>
+                {(s) => (
+                  <StrategyStatusCard strategy={s} isRunning={status()?.running ?? false} />
+                )}
+              </For>
             </SimpleGrid>
-          </Stack>
-        )}
+          </Box>
+        </Show>
 
-        {status?.positions && status.positions.length > 0 && (
-          <PositionsTable positions={status.positions} />
-        )}
+        <Show when={positions().length > 0}>
+          <PositionsTable positions={positions()} />
+        </Show>
 
-        <TradesTable trades={trades} onRefresh={handleRefreshTrades} />
+        <TradesTable trades={props.trades} onRefresh={handleRefreshTrades} />
 
-        {status?.last_update && (
-          <Text size="sm" c="dimmed" ta="center" data-testid="bot-last-update">
-            Last update: {new Date(status.last_update).toLocaleTimeString()}
+        <Show when={lastUpdate()}>
+          <Text size="xs" c="dimmed" className="font-mono tabular-nums" data-testid="bot-last-update">
+            Last update: {new Date(lastUpdate()!).toLocaleTimeString()}
           </Text>
-        )}
+        </Show>
       </Stack>
     </Box>
   );

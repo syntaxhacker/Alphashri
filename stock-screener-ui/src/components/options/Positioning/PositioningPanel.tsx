@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 import { Stack } from "@/ui";
 import { Box } from "@/ui";
 import { Anchor, Button, Skeleton, Text } from "@/ui";
@@ -20,30 +20,34 @@ interface PositioningPanelProps {
   expiry: string;
 }
 
-export function PositioningPanel({ underlying, expiry }: PositioningPanelProps) {
-  const [selUnderlying, setSelUnderlying] = useState(underlying);
-  const [mode, setMode] = useState<PositioningMode>("since_open");
-  const [view, setView] = useState<PositioningView>("table");
-  const [data, setData] = useState<PositioningData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<{ message: string; status?: number } | null>(null);
-  const [attempt, setAttempt] = useState(0);
+export function PositioningPanel(props: PositioningPanelProps) {
+  const [selUnderlying, setSelUnderlying] = createSignal(props.underlying);
+  const [mode, setMode] = createSignal<PositioningMode>("since_open");
+  const [view, setView] = createSignal<PositioningView>("table");
+  const [data, setData] = createSignal<PositioningData | null>(null);
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal<{ message: string; status?: number } | null>(null);
+  const [attempt, setAttempt] = createSignal(0);
 
-  useEffect(() => {
-    setSelUnderlying(underlying);
-  }, [underlying]);
+  createEffect(() => {
+    setSelUnderlying(props.underlying);
+  });
 
-  const retry = useCallback(() => setAttempt((a) => a + 1), []);
+  const retry = () => setAttempt((a) => a + 1);
 
-  useEffect(() => {
-    if (!selUnderlying || !expiry) {
+  createEffect(() => {
+    const u = selUnderlying();
+    const expiry = props.expiry;
+    const m = mode();
+    attempt();
+    if (!u || !expiry) {
       setData(null);
       return;
     }
     let cancelled = false;
     setLoading(true);
     setError(null);
-    void getPositioning(selUnderlying, expiry, mode).then(
+    void getPositioning(u, expiry, m).then(
       (res) => {
         if (cancelled) return;
         setData(res);
@@ -62,12 +66,12 @@ export function PositioningPanel({ underlying, expiry }: PositioningPanelProps) 
         setLoading(false);
       },
     );
-    return () => {
+    onCleanup(() => {
       cancelled = true;
-    };
-  }, [selUnderlying, expiry, mode, attempt]);
+    });
+  });
 
-  const isUnauthorized = error?.status === 401;
+  const isUnauthorized = () => error()?.status === 401;
 
   return (
     <Stack
@@ -77,62 +81,65 @@ export function PositioningPanel({ underlying, expiry }: PositioningPanelProps) 
       className="flex flex-col w-full min-h-0 p-[16px]"
     >
       <PositioningHeader
-        underlying={selUnderlying}
+        underlying={selUnderlying()}
         onUnderlyingChange={setSelUnderlying}
-        mode={mode}
+        mode={mode()}
         onModeChange={setMode}
-        view={view}
+        view={view()}
         onViewChange={setView}
-        timestamp={data?.timestamp}
+        timestamp={data()?.timestamp}
       />
 
-      {loading && (
+      <Show when={loading()}>
         <Stack data-testid="positioning-loading" spacing={1}>
           <Skeleton h={64} radius="sm" />
           <Skeleton h={120} radius="sm" />
           <Skeleton h={200} radius="sm" />
         </Stack>
-      )}
+      </Show>
 
-      {!loading && error && (
+      <Show when={!loading() && error()}>
         <Box data-testid="positioning-error" className="flex flex-col gap-[64px]">
           <Text size="sm" className="text-fin-negative">
-            {isUnauthorized
+            {isUnauthorized()
               ? "Upstox connection required to load positioning."
-              : error.message}
+              : error()?.message}
           </Text>
-          {isUnauthorized && (
+          <Show when={isUnauthorized()}>
             <Anchor href="/settings" data-testid="positioning-connect">
               Connect Upstox in Settings
             </Anchor>
-          )}
+          </Show>
           <Box>
             <Button size="sm" onClick={retry} data-testid="positioning-retry">
               Retry
             </Button>
           </Box>
         </Box>
-      )}
+      </Show>
 
-      {!loading && !error && data && data.rows.length === 0 && (
-        <EmptyState
-          data-testid="positioning-empty"
-          title="No positioning data"
-          description="No strikes with readable positioning for this expiry."
-        />
-      )}
-
-      {!loading && !error && data && data.rows.length > 0 && (
-        <Stack spacing={2} className="flex flex-col">
-          <VerdictBanner data={data} />
-          <ReadingTable data={data} />
-          {view === "table" ? (
-            <PositioningStrikeTable rows={data.rows} />
-          ) : (
-            <PositioningChart rows={data.rows} />
-          )}
-        </Stack>
-      )}
+      <Show when={!loading() && !error() && data()}>
+        {(d) => (
+          <Show
+            when={d().rows.length === 0}
+            fallback={
+              <Stack spacing={2} className="flex flex-col">
+                <VerdictBanner data={d()} />
+                <ReadingTable data={d()} />
+                <Show when={view() === "table"} fallback={<PositioningChart rows={d().rows} />}>
+                  <PositioningStrikeTable rows={d().rows} />
+                </Show>
+              </Stack>
+            }
+          >
+            <EmptyState
+              data-testid="positioning-empty"
+              title="No positioning data"
+              description="No strikes with readable positioning for this expiry."
+            />
+          </Show>
+        )}
+      </Show>
     </Stack>
   );
 }

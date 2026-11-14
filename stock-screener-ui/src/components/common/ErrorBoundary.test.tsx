@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { JSX } from "solid-js";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -9,8 +10,8 @@ function Boom({ throwIt }: { throwIt: boolean }) {
   return <div data-testid="ok-child">all good</div>;
 }
 
-function wrap(ui: React.ReactNode) {
-  return render(<UIProvider>{ui}</UIProvider>);
+function wrap(ui: JSX.Element) {
+  return render(() => (<UIProvider>{ui}</UIProvider>));
 }
 
 afterEach(() => cleanup());

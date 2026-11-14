@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, waitFor, within, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { ValuePanel } from "./ValuePanel";
 import { valueScan } from "../../api/valueScan";
@@ -16,8 +15,8 @@ vi.mock("../../api/valueScan", async (importOriginal) => {
 
 const mockValueScan = vi.mocked(valueScan);
 
-function r(jsx: React.ReactElement) {
-  return render(<UIProvider>{jsx}</UIProvider>);
+function r(jsx: JSX.Element) {
+  return render(() => (<UIProvider>{jsx}</UIProvider>));
 }
 
 afterEach(cleanup);
@@ -94,14 +93,13 @@ describe("ValuePanel", () => {
   });
 
   test("switching market tabs sends the new market to the client", async () => {
-    const user = userEvent.setup();
-    r(<ValuePanel />);
+        r(<ValuePanel />);
     await screen.findByTestId("value-row-RELIANCE");
     expect(mockValueScan).toHaveBeenLastCalledWith(
       expect.objectContaining({ market: "india" }),
       expect.anything(),
     );
-    await user.click(screen.getByTestId("value-market-tab-usa"));
+    await fireEvent.click(screen.getByTestId("value-market-tab-usa"));
     await waitFor(
       () => {
         expect(mockValueScan).toHaveBeenLastCalledWith(
@@ -114,12 +112,11 @@ describe("ValuePanel", () => {
   });
 
   test("applying a preset sends it to the client", async () => {
-    const user = userEvent.setup();
-    r(<ValuePanel />);
+        r(<ValuePanel />);
     await screen.findByTestId("value-row-RELIANCE");
-    await user.selectOptions(
+    fireEvent.input(
       within(screen.getByTestId("value-preset-select")).getByRole("combobox"),
-      "DEEP",
+      { target: { value: "DEEP" } },
     );
     await waitFor(
       () => {
@@ -133,11 +130,10 @@ describe("ValuePanel", () => {
   });
 
   test("refresh button refetches", async () => {
-    const user = userEvent.setup();
-    r(<ValuePanel />);
+        r(<ValuePanel />);
     await screen.findByTestId("value-row-RELIANCE");
     const calls = mockValueScan.mock.calls.length;
-    await user.click(screen.getByTestId("value-refresh"));
+    await fireEvent.click(screen.getByTestId("value-refresh"));
     await waitFor(() => expect(mockValueScan.mock.calls.length).toBeGreaterThan(calls));
   });
 
@@ -156,14 +152,13 @@ describe("ValuePanel", () => {
   });
 
   test("CSV export produces a blob download", async () => {
-    const user = userEvent.setup();
-    const createObjectURL = vi.fn((_blob: Blob): string => "blob:csv");
+        const createObjectURL = vi.fn((_blob: Blob): string => "blob:csv");
     const revokeObjectURL = vi.fn();
     (URL as unknown as Record<string, unknown>).createObjectURL = createObjectURL;
     (URL as unknown as Record<string, unknown>).revokeObjectURL = revokeObjectURL;
     r(<ValuePanel />);
     await screen.findByTestId("value-row-RELIANCE");
-    await user.click(screen.getByTestId("value-export-csv"));
+    await fireEvent.click(screen.getByTestId("value-export-csv"));
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     const firstCall = createObjectURL.mock.calls[0];
     expect(firstCall).toBeDefined();
@@ -176,11 +171,10 @@ describe("ValuePanel", () => {
   });
 
   test("clicking a row opens the detail drawer", async () => {
-    const user = userEvent.setup();
-    const onRowClick = vi.fn();
+        const onRowClick = vi.fn();
     r(<ValuePanel onRowClick={onRowClick} />);
     await screen.findByTestId("value-row-RELIANCE");
-    await user.click(screen.getByTestId("value-row-RELIANCE"));
+    await fireEvent.click(screen.getByTestId("value-row-RELIANCE"));
     expect(onRowClick).toHaveBeenCalledWith(expect.objectContaining({ symbol: "RELIANCE" }));
     expect(screen.getByTestId("value-detail-RELIANCE")).toBeInTheDocument();
     expect(screen.getByTestId("value-detail-sub-RELIANCE-value")).toBeInTheDocument();

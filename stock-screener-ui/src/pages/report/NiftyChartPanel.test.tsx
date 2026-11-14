@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
-import { render, screen, within, cleanup } from "@testing-library/react";
+import { render, screen, within, cleanup } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
+import type { JSX } from "solid-js";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
@@ -19,32 +21,32 @@ import {
 import type { NiftyGex, NiftyReport } from "@/types/niftyReport";
 
 vi.mock("@/components/chart/TradingViewChart", async () => {
-  const React = await import("react");
+  const { onMount } = await import("solid-js");
   return {
-    TradingViewChart: ({ candles, markLines, emaData, fitMarkLines, touchMarkers }: {
+    TradingViewChart: (props: {
       candles?: { open: number; high: number; low: number; close: number }[];
       markLines?: { label: { formatter: string } }[];
       emaData?: unknown[];
       fitMarkLines?: boolean;
       touchMarkers?: { time: string; value: number }[];
     }) => {
-      React.useEffect(() => {
+      onMount(() => {
         panelMocks.tvMounts += 1;
-      }, []);
-      const first = candles?.[0];
+      });
+      const first = () => props.candles?.[0];
       return (
         <div
           data-testid="tradingview-chart"
-          data-candles={candles?.length ?? 0}
-          data-first-open={first?.open}
-          data-first-high={first?.high}
-          data-first-low={first?.low}
-          data-first-close={first?.close}
-          data-marklines={markLines?.length ?? 0}
-          data-markline-labels={(markLines ?? []).map((l) => l.label.formatter).join("|")}
-          data-emas={emaData?.length ?? 0}
-          data-fit-marklines={fitMarkLines ? "1" : "0"}
-          data-touch-markers={touchMarkers?.length ?? 0}
+          data-candles={props.candles?.length ?? 0}
+          data-first-open={first()?.open}
+          data-first-high={first()?.high}
+          data-first-low={first()?.low}
+          data-first-close={first()?.close}
+          data-marklines={props.markLines?.length ?? 0}
+          data-markline-labels={(props.markLines ?? []).map((l) => l.label.formatter).join("|")}
+          data-emas={props.emaData?.length ?? 0}
+          data-fit-marklines={props.fitMarkLines ? "1" : "0"}
+          data-touch-markers={props.touchMarkers?.length ?? 0}
         />
       );
     },
@@ -53,17 +55,16 @@ vi.mock("@/components/chart/TradingViewChart", async () => {
 
 const panelMocks = vi.hoisted(() => ({ tvMounts: 0, depthMounts: 0 }));
 
-// forwardRef: NiftyDepthMap passes a ref for its manual resize/setOption
-// driver (React 19 would tolerate a plain mock, but the ref would be lost).
-vi.mock("echarts-for-react", async () => {
-  const React = await import("react");
-  const MockDepthChart = React.forwardRef(function MockDepthChart() {
-    React.useEffect(() => {
+// DepthChart mock: counts mounts; renders a stand-in with the same testid.
+vi.mock("./DepthChart", async () => {
+  const { onMount } = await import("solid-js");
+  const MockDepthChart = () => {
+    onMount(() => {
       panelMocks.depthMounts += 1;
-    }, []);
+    });
     return <div data-testid="nifty-depth-echarts" />;
-  });
-  return { default: MockDepthChart };
+  };
+  return { DepthChart: MockDepthChart };
 });
 
 afterEach(() => {
@@ -73,12 +74,8 @@ afterEach(() => {
   panelMocks.depthMounts = 0;
 });
 
-function Wrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>{children}</UIProvider>;
-}
-
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: Wrapper });
+function r(ui: () => JSX.Element) {
+  return render(() => <UIProvider>{ui()}</UIProvider>);
 }
 
 function mockReport(overrides?: Record<string, unknown>): NiftyReport {
@@ -132,35 +129,30 @@ function depthReport() {
 
 describe("NiftyChartPanel", () => {
   test("flipAt draws a no-text marker on the candle close at that time", () => {
-    const { rerender } = r(
-      <NiftyChartPanel
-        report={mockReport({ candles: candles3() })}
-        mode="live"
-        view="chart"
-        flipAt="2026-10-12T09:16:00"
-      />,
-    );
+    const [report] = createSignal(mockReport({ candles: candles3() }));
+    const [flipAt, setFlipAt] = createSignal("2026-10-12T09:16:00");
+    r(() => <NiftyChartPanel report={report()} mode="live" view="chart" flipAt={flipAt()} />);
     expect(screen.getByTestId("nifty-chart-wrap")).toHaveAttribute("data-flip-marker", "1");
     expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-touch-markers", "1");
-    rerender(<NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />);
+    setFlipAt(undefined as unknown as string);
     expect(screen.getByTestId("nifty-chart-wrap")).toHaveAttribute("data-flip-marker", "0");
   });
 
   test("an invalid flipAt draws no marker", () => {
-    r(
+    r(() => (
       <NiftyChartPanel
         report={mockReport({ candles: candles3() })}
         mode="live"
         view="chart"
         flipAt="not-a-date"
-      />,
-    );
+      />
+    ));
     expect(screen.getByTestId("nifty-chart-wrap")).toHaveAttribute("data-flip-marker", "0");
     expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-touch-markers", "0");
   });
 
   test("an omitted flipAt draws no marker", () => {
-    r(<NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />);
+    r(() => <NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />);
     expect(screen.getByTestId("nifty-chart-wrap")).toHaveAttribute("data-flip-marker", "0");
     expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-touch-markers", "0");
   });
@@ -168,14 +160,14 @@ describe("NiftyChartPanel", () => {
   test("a flipAt between two candles marks the candle at/before it", () => {
     // 09:17:30 sits between the 09:16 and 09:20 closes → the marker lands on
     // the 09:16 candle (the last close at/before the flip stamp).
-    r(
+    r(() => (
       <NiftyChartPanel
         report={mockReport({ candles: candles3() })}
         mode="live"
         view="chart"
         flipAt="2026-10-12T09:17:30"
-      />,
-    );
+      />
+    ));
     expect(screen.getByTestId("nifty-chart-wrap")).toHaveAttribute("data-flip-marker", "1");
     // The flip marker is one of the chart's touch markers (no max-pain touches
     // here: maxPain 25,700 vs closes 25,620/25,640/25,680, no bursts).
@@ -183,7 +175,7 @@ describe("NiftyChartPanel", () => {
   });
 
   test("renders chart, size + timeframe toggles and wrap (legend hidden)", () => {
-    r(<NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />);
+    r(() => <NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />);
     expect(screen.getByTestId("nifty-chart-panel")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-tf-toggle")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-chart-size")).toBeInTheDocument();
@@ -197,8 +189,8 @@ describe("NiftyChartPanel", () => {
 
   test("default fills; size toggle pins S 180px → XL 760px", async () => {
     const user = userEvent.setup();
-    r(<NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />);
-    // Default = fill: no fixed height, autoSize chart.
+    r(() => <NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />);
+    // Default = "fill": no fixed height, autoSize chart.
     const wrap = screen.getByTestId("nifty-chart-wrap");
     expect(wrap).toHaveAttribute("data-fill", "1");
     expect(wrap).not.toHaveStyle({ height: "180px" });
@@ -215,14 +207,14 @@ describe("NiftyChartPanel", () => {
   test("fill mode caps the body; size changes notify the parent", async () => {
     const user = userEvent.setup();
     const onSizeChange = vi.fn();
-    r(
+    r(() => (
       <NiftyChartPanel
         report={mockReport({ candles: candles3() })}
         mode="live"
         view="chart"
         onSizeChange={onSizeChange}
-      />,
-    );
+      />
+    ));
     const wrap = screen.getByTestId("nifty-chart-wrap");
     // DESK reads at a glance: the auto chart stops at 300px (floor 260).
     expect(wrap).toHaveStyle({ maxHeight: "300px", minHeight: "260px" });
@@ -236,7 +228,7 @@ describe("NiftyChartPanel", () => {
 
   test("timeframe toggle resamples 1m → 5m client-side", async () => {
     const user = userEvent.setup();
-    r(<NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />);
+    r(() => <NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />);
     expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-candles", "3");
     // 09:15 + 09:16 fold into one 5m bucket, 09:20 starts the next → 2 bars
     await user.click(screen.getByRole("button", { name: "5m" }));
@@ -246,13 +238,10 @@ describe("NiftyChartPanel", () => {
   });
 
   test("depth view keeps the chart mounted but hidden; toggles stay hidden", async () => {
-    const user = userEvent.setup();
-    const { rerender } = r(
-      <NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />,
-    );
-    rerender(
-      <NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="depth" />,
-    );
+    const [view, setView] = createSignal<"chart" | "depth">("chart");
+    const [report] = createSignal(mockReport({ candles: candles3() }));
+    r(() => <NiftyChartPanel report={report()} mode="live" view={view()} />);
+    setView("depth");
     expect(await screen.findByTestId("nifty-depthmap")).toBeInTheDocument();
     // Both views stay mounted now (instant switching): the chart wrapper is
     // display:none instead of unmounted.
@@ -262,41 +251,39 @@ describe("NiftyChartPanel", () => {
     expect(screen.queryByTestId("nifty-tf-toggle")).not.toBeInTheDocument();
     expect(screen.queryByTestId("nifty-chart-size")).not.toBeInTheDocument();
     expect(screen.queryByTestId("nifty-level-legend")).not.toBeInTheDocument();
-    void user;
   });
 
   test("lazy depth mount: no depth subtree until first depth view", () => {
-    const { rerender } = r(
-      <NiftyChartPanel report={depthReport()} mode="live" view="chart" />,
-    );
+    const [view, setView] = createSignal<"chart" | "depth">("chart");
+    const [report] = createSignal(depthReport());
+    r(() => <NiftyChartPanel report={report()} mode="live" view={view()} />);
     expect(screen.getByTestId("tradingview-chart")).toBeInTheDocument();
     expect(screen.queryByTestId("nifty-depth-view")).not.toBeInTheDocument();
     expect(screen.queryByTestId("nifty-depthmap")).not.toBeInTheDocument();
     expect(panelMocks.depthMounts).toBe(0);
 
-    rerender(<NiftyChartPanel report={depthReport()} mode="live" view="depth" />);
+    setView("depth");
     expect(screen.getByTestId("nifty-depthmap")).toBeInTheDocument();
     expect(panelMocks.depthMounts).toBe(1);
   });
 
   test("Chart→Depth→Chart→Depth mounts ECharts once and never remounts the chart", () => {
-    const report = depthReport();
-    const { rerender } = r(
-      <NiftyChartPanel report={report} mode="live" view="chart" />,
-    );
+    const [view, setView] = createSignal<"chart" | "depth">("chart");
+    const [report] = createSignal(depthReport());
+    r(() => <NiftyChartPanel report={report()} mode="live" view={view()} />);
     expect(panelMocks.tvMounts).toBe(1);
     expect(panelMocks.depthMounts).toBe(0);
 
-    rerender(<NiftyChartPanel report={report} mode="live" view="depth" />);
+    setView("depth");
     expect(panelMocks.depthMounts).toBe(1);
     expect(screen.getByTestId("nifty-chart-view")).toHaveStyle({ display: "none" });
     expect(screen.getByTestId("nifty-depth-view")).not.toHaveStyle({ display: "none" });
 
-    rerender(<NiftyChartPanel report={report} mode="live" view="chart" />);
+    setView("chart");
     expect(screen.getByTestId("nifty-chart-view")).not.toHaveStyle({ display: "none" });
     expect(screen.getByTestId("nifty-depth-view")).toHaveStyle({ display: "none" });
 
-    rerender(<NiftyChartPanel report={report} mode="live" view="depth" />);
+    setView("depth");
     // Still exactly one mount each — switching only flips visibility.
     expect(panelMocks.depthMounts).toBe(1);
     expect(panelMocks.tvMounts).toBe(1);
@@ -305,41 +292,38 @@ describe("NiftyChartPanel", () => {
   });
 
   test("empty candles render the empty state, not the chart", () => {
-    r(<NiftyChartPanel report={mockReport()} mode="live" view="chart" />);
+    r(() => <NiftyChartPanel report={mockReport()} mode="live" view="chart" />);
     expect(screen.getByTestId("nifty-chart-empty")).toBeInTheDocument();
     expect(screen.queryByTestId("nifty-chart-wrap")).not.toBeInTheDocument();
   });
 
   test("a poll with no candles hides the chart instead of unmounting it", () => {
-    const { rerender } = r(
-      <NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />,
-    );
+    const [report, setReport] = createSignal(mockReport({ candles: candles3() }));
+    r(() => <NiftyChartPanel report={report()} mode="live" view="chart" />);
     expect(panelMocks.tvMounts).toBe(1);
 
     // Transient empty poll (feed hiccup / replay boundary): the empty state
     // shows, but the engine stays mounted so the next poll does not rebuild
     // every canvas, series and price line from scratch.
-    rerender(<NiftyChartPanel report={mockReport()} mode="live" view="chart" />);
+    setReport(mockReport());
     expect(screen.getByTestId("nifty-chart-empty")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-chart-wrap")).toBeInTheDocument();
     expect(panelMocks.tvMounts).toBe(1);
 
-    rerender(
-      <NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />,
-    );
+    setReport(mockReport({ candles: candles3() }));
     expect(screen.queryByTestId("nifty-chart-empty")).not.toBeInTheDocument();
     expect(panelMocks.tvMounts).toBe(1);
   });
 
   test("marks bars whose close touches max pain and exposes the count", () => {
     // closes are 25620 / 25640 / 25680 → only the last is within 10 pts.
-    r(<NiftyChartPanel report={mockReport({ candles: candles3(), maxPain: 25680 })} mode="live" view="chart" />);
+    r(() => <NiftyChartPanel report={mockReport({ candles: candles3(), maxPain: 25680 })} mode="live" view="chart" />);
     expect(screen.getByTestId("nifty-chart-wrap")).toHaveAttribute("data-mp-touches", "1");
     expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-touch-markers", "1");
   });
 
   test("no markers when no bar closes on max pain", () => {
-    r(<NiftyChartPanel report={mockReport({ candles: candles3(), maxPain: 25700 })} mode="live" view="chart" />);
+    r(() => <NiftyChartPanel report={mockReport({ candles: candles3(), maxPain: 25700 })} mode="live" view="chart" />);
     expect(screen.getByTestId("nifty-chart-wrap")).toHaveAttribute("data-mp-touches", "0");
     expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-touch-markers", "0");
   });
@@ -353,7 +337,7 @@ describe("NiftyChartPanel", () => {
       { time: "2026-10-12T09:17:00", open: 79015, high: 79080, low: 78980, close: 79040, volume: 1200 },
     ];
     const sensexStrikes = Array.from({ length: 11 }, (_, i) => ({ strike: 78500 + i * 100 })); // 78500..79500 step 100
-    r(
+    r(() => (
       <NiftyChartPanel
         report={mockReport({
           candles: sensexCandles,
@@ -364,8 +348,8 @@ describe("NiftyChartPanel", () => {
         mode="live"
         view="chart"
         symbol="SENSEX"
-      />,
-    );
+      />
+    ));
     expect(screen.getByTestId("nifty-chart-wrap")).toHaveAttribute("data-mp-touches", "1");
     expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-touch-markers", "1");
   });
@@ -379,7 +363,7 @@ describe("NiftyChartPanel", () => {
       { time: "2026-10-12T09:17:00", open: 23015, high: 23060, low: 22980, close: 23040, volume: 1200 },
     ];
     const niftyStrikes = Array.from({ length: 11 }, (_, i) => ({ strike: 22500 + i * 50 })); // 22500..23000 step 50
-    r(
+    r(() => (
       <NiftyChartPanel
         report={mockReport({
           candles: niftyCandles,
@@ -390,39 +374,24 @@ describe("NiftyChartPanel", () => {
         mode="live"
         view="chart"
         symbol="NIFTY"
-      />,
-    );
+      />
+    ));
     expect(screen.getByTestId("nifty-chart-wrap")).toHaveAttribute("data-mp-touches", "0");
     expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-touch-markers", "0");
   });
 
   test("replay drops wall events after the playhead (no look-ahead)", () => {
-    const report = mockReport({ candles: candles3(), maxPain: 25700 });
     const bursts = [
       { id: "rej", side: "call", type: "rejection", t: "2026-10-12T09:16:30", strike: 25800, spot: 25760, target: 25700 },
       { id: "brk", side: "call", type: "break", t: "2026-10-12T15:29:00", strike: 25900, spot: 25910 },
     ];
-    const { rerender } = r(
-      <NiftyChartPanel
-        report={report}
-        mode="eod"
-        view="chart"
-        asOf="2026-10-12T09:17:00"
-        bursts={bursts}
-      />,
-    );
+    const [asOf, setAsOf] = createSignal("2026-10-12T09:17:00");
+    const [report] = createSignal(mockReport({ candles: candles3(), maxPain: 25700 }));
+    r(() => <NiftyChartPanel report={report()} mode="eod" view="chart" asOf={asOf()} bursts={bursts} />);
     // Only the 09:16 rejection is knowable; the 15:29 break must not appear.
     expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-touch-markers", "1");
 
-    rerender(
-      <NiftyChartPanel
-        report={report}
-        mode="eod"
-        view="chart"
-        asOf="2026-10-12T15:30:00"
-        bursts={bursts}
-      />,
-    );
+    setAsOf("2026-10-12T15:30:00");
     expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-touch-markers", "2");
   });
 
@@ -435,14 +404,14 @@ describe("NiftyChartPanel", () => {
       { t: "2026-10-12T09:16:00", spot: 25650 },
       { t: "2026-10-12T09:16:10", spot: 25630 },
     ];
-    r(
+    r(() => (
       <NiftyChartPanel
         report={mockReport({ date: "2026-10-12", intraday: [], candles: [] })}
         spotPoints={spotPoints}
         mode="live"
         view="chart"
-      />,
-    );
+      />
+    ));
     const chart = screen.getByTestId("tradingview-chart");
     expect(chart).toHaveAttribute("data-candles", "2");
     expect(Number(chart.getAttribute("data-first-open"))).toBe(25600);
@@ -467,15 +436,15 @@ describe("NiftyChartPanel", () => {
         { t: "2026-10-12T09:17:00", spot: 25630 },
       ],
     } as unknown as Parameters<typeof NiftyChartPanel>[0]["tape"];
-    r(
+    r(() => (
       <NiftyChartPanel
         report={mockReport({ date: "2026-10-12", intraday: [], candles: [] })}
         spotPoints={spotPoints}
         tape={tape}
         mode="live"
         view="chart"
-      />,
-    );
+      />
+    ));
     const chart = screen.getByTestId("tradingview-chart");
     expect(chart).toHaveAttribute("data-candles", "3");
     // The 09:15 spot minute wins over the tape's 09:15 body; the other two
@@ -500,15 +469,15 @@ describe("NiftyChartPanel", () => {
         { t: "2026-10-12T09:17:00", spot: 25020 },
       ],
     } as unknown as Parameters<typeof NiftyChartPanel>[0]["tape"];
-    r(
+    r(() => (
       <NiftyChartPanel
         report={mockReport({ date: "2026-10-12", intraday: [], candles: [] })}
         spotPoints={spotPoints}
         tape={tape}
         mode="live"
         view="chart"
-      />,
-    );
+      />
+    ));
     const chart = screen.getByTestId("tradingview-chart");
     expect(chart).toHaveAttribute("data-candles", "3");
     expect(Number(chart.getAttribute("data-first-high"))).toBe(25640);
@@ -524,14 +493,14 @@ describe("NiftyChartPanel", () => {
       { time: "2026-10-12T09:15:00", open: 25600, high: 25650, low: 25580, close: 25620 },
       { time: "2026-10-12T09:16:00", open: 25620, high: 25680, low: 25600, close: 25640 },
     ];
-    r(
+    r(() => (
       <NiftyChartPanel
         report={mockReport({ date: "2026-10-12", intraday, candles: [] })}
         spotPoints={spotPoints}
         mode="live"
         view="chart"
-      />,
-    );
+      />
+    ));
     const chart = screen.getByTestId("tradingview-chart");
     expect(chart).toHaveAttribute("data-candles", "2");
     expect(Number(chart.getAttribute("data-first-high"))).toBe(25650);
@@ -546,14 +515,14 @@ describe("NiftyChartPanel", () => {
         { t: "2026-10-12T09:17:00", spot: 25630 },
       ],
     } as unknown as Parameters<typeof NiftyChartPanel>[0]["tape"];
-    r(
+    r(() => (
       <NiftyChartPanel
         report={mockReport({ date: "2026-10-12", intraday: [], candles: [] })}
         tape={tape}
         mode="live"
         view="chart"
-      />,
-    );
+      />
+    ));
     expect(screen.queryByTestId("nifty-chart-empty")).not.toBeInTheDocument();
     expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-candles", "3");
   });
@@ -565,7 +534,7 @@ describe("NiftyChartPanel", () => {
         { t: "2026-10-12T09:16:00", spot: 25640 },
       ],
     } as unknown as Parameters<typeof NiftyChartPanel>[0]["tape"];
-    r(
+    r(() => (
       <NiftyChartPanel
         report={mockReport({
           date: "2026-10-12",
@@ -579,8 +548,8 @@ describe("NiftyChartPanel", () => {
         tape={tape}
         mode="live"
         view="chart"
-      />,
-    );
+      />
+    ));
     // 2 today-only tape bars, not 3 stale candles + 2 tape bars (the old
     // two-day chart with an overnight jump).
     expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-candles", "2");
@@ -593,7 +562,7 @@ describe("NiftyChartPanel", () => {
         { t: "2026-10-12T09:16:00", spot: 25640 },
       ],
     } as unknown as Parameters<typeof NiftyChartPanel>[0]["tape"];
-    r(
+    r(() => (
       <NiftyChartPanel
         report={mockReport({
           date: "2026-10-12",
@@ -607,8 +576,8 @@ describe("NiftyChartPanel", () => {
         tape={tape}
         mode="live"
         view="chart"
-      />,
-    );
+      />
+    ));
     // 2 today-only tape bars — the 3 stale previous-session intraday bars
     // never mix into today's chart (same session-scoping rule as the
     // `candles` fallback above).
@@ -616,7 +585,7 @@ describe("NiftyChartPanel", () => {
   });
 
   test("maxWalls from the walls card overrides the report's max-OI lines", () => {
-    r(
+    r(() => (
       <NiftyChartPanel
         report={mockReport({
           candles: candles3(),
@@ -631,8 +600,8 @@ describe("NiftyChartPanel", () => {
         }}
         mode="live"
         view="chart"
-      />,
-    );
+      />
+    ));
     const labels = screen.getByTestId("tradingview-chart").getAttribute("data-markline-labels") ?? "";
     // maxWalls call at 24,000 is below spot (25,750.5) → CW (BELOW) since no call above
     expect(labels).toContain("CW (BELOW) 24,000");
@@ -641,14 +610,12 @@ describe("NiftyChartPanel", () => {
     expect(labels).not.toContain("CW 25,000");
   });
 
-  test("memo: same report reference keeps the wrap DOM node across parent re-renders", () => {
-    const report = mockReport({ candles: candles3() });
-    const { rerender } = r(<NiftyChartPanel report={report} mode="live" view="chart" />);
+  test("parent-driven prop updates keep the wrap DOM node mounted", () => {
+    const [flipAt, setFlipAt] = createSignal<string | undefined>(undefined);
+    const [report] = createSignal(mockReport({ candles: candles3() }));
+    r(() => <NiftyChartPanel report={report()} mode="live" view="chart" flipAt={flipAt()} />);
     const wrap = screen.getByTestId("nifty-chart-wrap");
-    rerender(
-      <NiftyChartPanel report={report} mode="live" view="chart" />,
-    );
-    // React.memo bailed out — the identical DOM node survived the re-render.
+    setFlipAt("2026-10-12T09:16:00");
     expect(screen.getByTestId("nifty-chart-wrap")).toBe(wrap);
     expect(screen.queryByTestId("nifty-level-legend")).not.toBeInTheDocument();
   });
@@ -668,14 +635,14 @@ describe("NiftyChartPanel", () => {
       { t: "2026-10-12T12:20:00", spot: 25755 },
       { t: "2026-10-12T12:20:10", spot: 25760 },
     ];
-    r(
+    r(() => (
       <NiftyChartPanel
         report={mockReport({ date: "2026-10-12", intraday: staleIntraday, candles: [] })}
         spotPoints={freshSpotPoints}
         mode="live"
         view="chart"
-      />,
-    );
+      />
+    ));
     const chart = screen.getByTestId("tradingview-chart");
     // Morning 09:15/11:56 from intraday + fresh 12:20 from spot points.
     expect(chart).toHaveAttribute("data-candles", "3");
@@ -723,11 +690,11 @@ describe("NiftyChartPanel live GEX overlay", () => {
     expect(labels).toContain("FLIP 25650");
     expect(labels.some((l) => l.startsWith("GFUEL"))).toBe(false);
 
-    r(<NiftyChartPanel report={report} mode="live" view="chart" />);
+    r(() => <NiftyChartPanel report={report} mode="live" view="chart" />);
     // The dense panel no longer renders the legend row; the exported
     // component still decodes the same codes for callers.
     expect(screen.queryByTestId("nifty-level-legend")).not.toBeInTheDocument();
-    r(<LevelLegend live gex={report.gex} spot={report.spot} />);
+    r(() => <LevelLegend live gex={report.gex} spot={report.spot} />);
     const legend = screen.getByTestId("nifty-level-legend");
     for (const code of ["FLIP", "GSUP", "GRES"]) {
       expect(within(legend).getByText(code, { exact: true })).toBeInTheDocument();
@@ -801,11 +768,11 @@ describe("NiftyChartPanel live GEX overlay", () => {
     // Walls stay out of the scale so a far call wall doesn't squash the candles.
     expect(lines.find((l) => l.label.formatter === "CW 23,500")?.includeInScale).toBeFalsy();
 
-    r(<NiftyChartPanel report={report} mode="live" view="chart" />);
+    r(() => <NiftyChartPanel report={report} mode="live" view="chart" />);
     // The dense panel no longer renders the legend row; the exported
     // component still decodes the same codes for callers.
     expect(screen.queryByTestId("nifty-level-legend")).not.toBeInTheDocument();
-    r(<LevelLegend live gex={report.gex} spot={report.spot} />);
+    r(() => <LevelLegend live gex={report.gex} spot={report.spot} />);
     const legend = screen.getByTestId("nifty-level-legend");
     for (const code of ["FLIP", "GRES", "GFUEL"]) {
       expect(within(legend).getByText(code, { exact: true })).toBeInTheDocument();
@@ -826,11 +793,11 @@ describe("NiftyChartPanel live GEX overlay", () => {
     expect(labels.some((l) => /GSUP|GRES|GFUEL/.test(l))).toBe(false);
     expect(labels).toContain("FLIP 23300");
 
-    r(<NiftyChartPanel report={report} mode="live" view="chart" />);
+    r(() => <NiftyChartPanel report={report} mode="live" view="chart" />);
     // The dense panel no longer renders the legend row; the exported
     // component still decodes the same codes for callers.
     expect(screen.queryByTestId("nifty-level-legend")).not.toBeInTheDocument();
-    r(<LevelLegend live gex={report.gex} spot={report.spot} />);
+    r(() => <LevelLegend live gex={report.gex} spot={report.spot} />);
     const legend = screen.getByTestId("nifty-level-legend");
     expect(within(legend).getByText("FLIP", { exact: true })).toBeInTheDocument();
     for (const code of ["GSUP", "GRES", "GFUEL"]) {
@@ -848,11 +815,11 @@ describe("NiftyChartPanel live GEX overlay", () => {
     });
     expect(gexLabels(report).some((l) => /FLIP|GSUP|GRES|GFUEL/.test(l))).toBe(false);
 
-    r(<NiftyChartPanel report={report} mode="live" view="chart" />);
+    r(() => <NiftyChartPanel report={report} mode="live" view="chart" />);
     // The dense panel no longer renders the legend row; the exported
     // component still decodes the same codes for callers.
     expect(screen.queryByTestId("nifty-level-legend")).not.toBeInTheDocument();
-    r(<LevelLegend live gex={report.gex} spot={report.spot} />);
+    r(() => <LevelLegend live gex={report.gex} spot={report.spot} />);
     const legend = screen.getByTestId("nifty-level-legend");
     for (const code of ["FLIP", "GSUP", "GRES", "GFUEL"]) {
       expect(within(legend).queryByText(code, { exact: true })).not.toBeInTheDocument();

@@ -1,7 +1,8 @@
-import { Box, Text } from "@/ui";
+import { createMemo, Show } from "solid-js";
+import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { WallsPayload, WallsRow } from "@/api/reportNifty";
-import { CompactPanel } from "@/components/common/compact";
+import { LocalCompactPanel } from "./reportBits";
 import { Sparkline } from "@/components/common/Sparkline";
 import {
   fuelTone,
@@ -109,12 +110,7 @@ function fuelPartsTooltip(row: WallsRow | null | undefined): string {
   return `Fuel parts — ${part("erosion", parts.erosion)} · ${part("volume", parts.volume)} · ${part("proximity", parts.proximity)} · ${part("gamma", parts.gamma)} · ${part("flow", parts.flow)} | flow: ${row?.flow ?? "—"}`;
 }
 
-function Stat({
-  label,
-  value,
-  tone = palette.TEXT,
-  hideBelowMd = false,
-}: {
+function Stat(props: {
   label: string;
   value: string;
   tone?: string;
@@ -122,162 +118,170 @@ function Stat({
   hideBelowMd?: boolean;
 }) {
   return (
-    <Box
-      component="span"
-      className="inline-flex items-baseline gap-[2px] min-w-0 shrink-0"
-      style={{ display: hideBelowMd ? "none" : "inline-flex" }}
+    <div
+      class="inline-flex items-baseline gap-[2px] min-w-0 shrink-0"
+      style={{ display: (props.hideBelowMd ?? false) ? "none" : "inline-flex" }}
     >
-      <Text size="xs" c="dimmed" lh={1.1} style={{ fontSize: REPORT_FONT.micro }}>
-        {label}
+      <Text size="xs" c="dimmed" lh={1.1} style={{ "font-size": `${REPORT_FONT.micro}px` }}>
+        {props.label}
       </Text>
       <Text
         size="xs"
         fw={700}
         lh={1.1}
-        c={tone}
-        className="tabular-nums whitespace-nowrap"
+        c={props.tone ?? palette.TEXT}
+        className="font-mono tabular-nums whitespace-nowrap"
       >
-        {value}
+        {props.value}
       </Text>
-    </Box>
+    </div>
   );
 }
 
-function ErosionRow({
-  row,
-  side,
-  regime,
-  testId,
-}: {
+function ErosionRow(props: {
   row: WallsRow | null;
   side: "CALL" | "PUT";
   regime: "LONG" | "SHORT" | null;
   testId: string;
 }) {
-  const view = wallErosionView(row, side);
-  const sideColor = side === "CALL" ? palette.NEGATIVE : palette.POSITIVE;
-  const statusColor = STATUS_TONE_COLOR[statusTone(row?.status)];
-  const flowColor = FLOW_TONE_COLOR[view.flowTone];
-  const fuelColor = FUEL_TONE_COLOR[fuelTone(view.fuelScore)];
-  const preBlast = isPreBlast(row, regime);
-  const ttb = row?.time_to_break_min;
-  const hasTtb = ttb != null && Number.isFinite(ttb);
+  const view = createMemo(() => wallErosionView(props.row, props.side));
+  const sideColor = props.side === "CALL" ? palette.NEGATIVE : palette.POSITIVE;
+  const statusColor = createMemo(() => STATUS_TONE_COLOR[statusTone(props.row?.status)]);
+  const flowColor = createMemo(() => FLOW_TONE_COLOR[view().flowTone]);
+  const fuelColor = createMemo(() => FUEL_TONE_COLOR[fuelTone(view().fuelScore)]);
+  const preBlast = createMemo(() => isPreBlast(props.row, props.regime));
+  const ttb = () => props.row?.time_to_break_min;
+  const hasTtb = createMemo(() => {
+    const t = ttb();
+    return t != null && Number.isFinite(t);
+  });
 
   return (
-    <Box
+    <div
       data-testid="wall-erosion-row"
-      data-side={side}
-      title={fuelPartsTooltip(row)}
-      className="flex items-center flex-nowrap min-w-0 shrink-0 overflow-hidden h-[24px]"
+      data-side={props.side}
+      title={fuelPartsTooltip(props.row)}
+      class="flex items-center flex-nowrap min-w-0 shrink-0 overflow-hidden h-[24px]"
       style={{
-        borderTop: `1px solid ${palette.BORDER}`,
-        height: ROW_H,
+        "border-top": `1px solid ${palette.BORDER}`,
+        height: `${ROW_H}px`,
       }}
     >
       {/* `display: contents` keeps the side wrapper out of the flex layout, so
           the row children stay direct flex items while the side testid still
           scopes the row's content. */}
-      <Box component="span" data-testid={testId} className="contents">
+      <span data-testid={props.testId} class="contents">
         <Text
           size="xs"
           fw={800}
           lh={1.1}
-          className="tabular-nums whitespace-nowrap shrink-0"
+          className="font-mono tabular-nums whitespace-nowrap shrink-0"
           style={{
-            width: 108,
-            flexShrink: 0,
+            "width": "108px",
+            "flex-shrink": 0,
             color: sideColor,
-            whiteSpace: "nowrap",
+            "white-space": "nowrap",
           }}
         >
-          {side} {view.strikeText} {view.arrow}
+          {props.side} {view().strikeText} {view().arrow}
         </Text>
-        <Box
-          component="span"
-          className="inline-flex items-center justify-center shrink-0 whitespace-nowrap"
+        <span
+          class="inline-flex items-center justify-center shrink-0 whitespace-nowrap"
           style={{
             padding: "4px 2px",
-            border: `1px solid ${statusColor}`,
-            color: statusColor,
-            borderRadius: `${REPORT_RADIUS.sm}px`,
-            fontSize: REPORT_FONT.micro,
-            fontWeight: 800,
-            lineHeight: 1.2,
-            letterSpacing: "0.06em",
+            border: `1px solid ${statusColor()}`,
+            color: statusColor(),
+            "border-radius": `${REPORT_RADIUS.sm}px`,
+            "font-size": `${REPORT_FONT.micro}px`,
+            "font-weight": 800,
+            "line-height": 1.2,
+            "letter-spacing": "0.06em",
           }}
         >
-          {view.statusText}
-        </Box>
+          {view().statusText}
+        </span>
         <Text
           size="xs"
           fw={700}
           lh={1.1}
-          className="tabular-nums whitespace-nowrap shrink-0"
+          className="font-mono tabular-nums whitespace-nowrap shrink-0"
         >
-          {distanceOf(row)}
+          {distanceOf(props.row)}
         </Text>
-        <Stat label="OI" value={view.oiText} />
+        <Stat label="OI" value={view().oiText} />
         <Stat
           label="30m"
-          value={view.erosion30Text}
-          tone={erosionColor(row?.erosion_30m)}
+          value={view().erosion30Text}
+          tone={erosionColor(props.row?.erosion_30m)}
         />
-        <Stat label="rate" value={view.rateText} hideBelowMd />
-        <Stat label="vol" value={view.volText} />
-        <Stat label="prem" value={view.premText} hideBelowMd />
+        <Stat label="rate" value={view().rateText} hideBelowMd />
+        <Stat label="vol" value={view().volText} />
+        <Stat label="prem" value={view().premText} hideBelowMd />
         <Text
           size="xs"
           fw={800}
           lh={1.1}
-          className="tabular-nums whitespace-nowrap shrink-0"
+          className="font-mono tabular-nums whitespace-nowrap shrink-0"
           style={{
-            color: flowColor,
-            letterSpacing: "0.04em",
-            whiteSpace: "nowrap",
-            maxWidth: FLOW_MAX_W,
+            color: flowColor(),
+            "letter-spacing": "0.04em",
+            "white-space": "nowrap",
+            "max-width": `${FLOW_MAX_W}px`,
             overflow: "hidden",
-            textOverflow: "ellipsis",
-            minWidth: 0,
-            flexShrink: 1,
+            "text-overflow": "ellipsis",
+            "min-width": "0px",
+            "flex-shrink": 1,
           }}
         >
-          {view.flowText}
+          {view().flowText}
         </Text>
         <Text
           size="xs"
           fw={800}
           lh={1.1}
-          className="tabular-nums whitespace-nowrap shrink-0"
+          className="font-mono tabular-nums whitespace-nowrap shrink-0"
           style={{
-            color: fuelColor,
-            letterSpacing: "0.04em",
-            whiteSpace: "nowrap",
-            minWidth: FUEL_MIN_W,
-            flexShrink: 0,
+            color: fuelColor(),
+            "letter-spacing": "0.04em",
+            "white-space": "nowrap",
+            "min-width": `${FUEL_MIN_W}px`,
+            "flex-shrink": 0,
           }}
         >
-          {preBlast ? `PRE-BLAST ${view.fuelScore}` : `FUEL ${view.fuelScore}`}
+          {preBlast() ? `PRE-BLAST ${view().fuelScore}` : `FUEL ${view().fuelScore}`}
         </Text>
-        <Box
-          className="ml-auto flex items-center justify-end"
+        <div
+          class="ml-auto flex items-center justify-end"
           style={{
-            width: RIGHT_GROUP_W,
-            minWidth: 0,
-            flexShrink: 0,
+            width: `${RIGHT_GROUP_W}px`,
+            "min-width": "0px",
+            "flex-shrink": 0,
             overflow: "hidden",
             display: "flex",
-            alignItems: "center",
-            justifyContent: "flex-end",
+            "align-items": "center",
+            "justify-content": "flex-end",
           }}
         >
-          {view.breached ? (
-            <>
+          <Show
+            when={view().breached}
+            fallback={
+            <Text
+              size="xs"
+              c="dimmed"
+              lh={1.1}
+              className="font-mono tabular-nums whitespace-nowrap shrink-0 min-w-0 overflow-hidden truncate"
+              style={{ "min-width": "0px", "flex-shrink": 1 }}
+            >
+              {hasTtb() ? `${fmtTimeToBreak(ttb())} to break` : "—"}
+            </Text>
+            }
+          >
               <Text
                 size="xs"
                 fw={900}
                 lh={1.1}
                 className="whitespace-nowrap shrink-0"
-                style={{ color: palette.NEGATIVE, letterSpacing: "0.06em" }}
+                style={{ color: palette.NEGATIVE, "letter-spacing": "0.06em" }}
               >
                 BREACHED
               </Text>
@@ -286,68 +290,55 @@ function ErosionRow({
                 c="dimmed"
                 lh={1.1}
                 className="min-w-0 overflow-hidden truncate whitespace-nowrap shrink-0"
-                style={{ fontSize: REPORT_FONT.micro, minWidth: 0, flexShrink: 1 }}
+                style={{ "font-size": `${REPORT_FONT.micro}px`, "min-width": "0px", "flex-shrink": 1 }}
               >
                 spot crossed
               </Text>
-            </>
-          ) : (
-            <Text
-              size="xs"
-              c="dimmed"
-              lh={1.1}
-              className="tabular-nums whitespace-nowrap shrink-0 min-w-0 overflow-hidden truncate"
-              style={{ minWidth: 0, flexShrink: 1 }}
-            >
-              {hasTtb ? `${fmtTimeToBreak(ttb)} to break` : "—"}
-            </Text>
-          )}
-          <Box
-            className="flex items-center justify-end overflow-hidden shrink-0"
+          </Show>
+          <div
+            class="flex items-center justify-end overflow-hidden shrink-0"
             style={{
-              width: SPARK_W,
-              height: SPARK_H,
-              flexShrink: 0,
+              width: `${SPARK_W}px`,
+              height: `${SPARK_H}px`,
+              "flex-shrink": 0,
               display: "flex",
-              alignItems: "center",
-              justifyContent: "flex-end",
+              "align-items": "center",
+              "justify-content": "flex-end",
               overflow: "hidden",
             }}
           >
             <Sparkline
-              values={view.spark}
+              values={view().spark}
               width={SPARK_W}
               height={SPARK_H}
               color={sideColor}
-              testId={`${testId}-spark`}
+              testId={`${props.testId}-spark`}
               responsive
             />
-          </Box>
-        </Box>
-      </Box>
-    </Box>
+          </div>
+        </div>
+      </span>
+    </div>
   );
 }
 
-export function NiftyWallErosionBoard({
-  walls,
-  symbol,
-  asOf,
-}: NiftyWallErosionBoardProps) {
-  const { call, put } = pickNearestWalls(walls);
-  const symbolLabel = symbol ?? walls?.symbol ?? "—";
-  const asOfText = hhmm(asOf ?? walls?.freshness?.last_t) ?? "—";
-  const regime = walls?.regime ?? null;
-  const flip = walls?.flip;
+export function NiftyWallErosionBoard(props: NiftyWallErosionBoardProps) {
+  const nearest = createMemo(() => pickNearestWalls(props.walls));
+  const call = () => nearest().call;
+  const put = () => nearest().put;
+  const symbolLabel = props.symbol ?? props.walls?.symbol ?? "—";
+  const asOfText = hhmm(props.asOf ?? props.walls?.freshness?.last_t) ?? "—";
+  const regime = createMemo(() => props.walls?.regime ?? null);
+  const flip = props.walls?.flip;
   const hasFlip = typeof flip === "number" && Number.isFinite(flip);
-  const regimeColor = regime === "SHORT" ? palette.NEGATIVE : palette.POSITIVE;
+  const regimeColor = createMemo(() => regime() === "SHORT" ? palette.NEGATIVE : palette.POSITIVE);
 
   return (
-    <CompactPanel
+    <LocalCompactPanel
       title="WALL EROSION"
       testId="wall-erosion-board"
       action={
-        <Box className="flex items-center gap-[4px] min-w-0 flex-nowrap justify-end overflow-hidden">
+        <div class="flex items-center gap-[4px] min-w-0 flex-nowrap justify-end overflow-hidden">
           <Text
             size="xs"
             fw={800}
@@ -365,90 +356,88 @@ export function NiftyWallErosionBoard({
           >
             as of {asOfText}
           </Text>
-          <Box
-            component="span"
-            data-testid={regime ? "wall-erosion-regime" : undefined}
-            aria-hidden={regime ? undefined : true}
-            className="inline-flex items-center justify-center shrink-0"
+          <span
+            data-testid={regime() ? "wall-erosion-regime" : undefined}
+            aria-hidden={regime() ? undefined : true}
+            class="inline-flex items-center justify-center shrink-0"
             style={{
-              width: REGIME_SLOT_W,
-              height: REGIME_SLOT_H,
-              flexShrink: 0,
-              visibility: regime ? "visible" : "hidden",
-              ...(regime
+              width: `${REGIME_SLOT_W}px`,
+              height: `${REGIME_SLOT_H}px`,
+              "flex-shrink": 0,
+              visibility: regime() ? "visible" : "hidden",
+              ...(regime()
                 ? {
                     padding: "4px 2px",
-                    border: `1px solid ${regimeColor}`,
-                    color: regimeColor,
-                    borderRadius: `${REPORT_RADIUS.sm}px`,
-                    fontSize: REPORT_FONT.micro,
-                    fontWeight: 800,
-                    lineHeight: 1.2,
-                    letterSpacing: "0.06em",
+                    border: `1px solid ${regimeColor()}`,
+                    color: regimeColor(),
+                    "border-radius": `${REPORT_RADIUS.sm}px`,
+                    "font-size": `${REPORT_FONT.micro}px`,
+                    "font-weight": 800,
+                    "line-height": 1.2,
+                    "letter-spacing": "0.06em",
                   }
                 : {}),
             }}
           >
-            {regime ? `${regime} Γ` : ""}
-          </Box>
+            {regime() ? `${regime()} Γ` : ""}
+          </span>
           <Text
             size="xs"
             c="dimmed"
             lh={1.2}
-            className="tabular-nums whitespace-nowrap shrink-0"
+            className="font-mono tabular-nums whitespace-nowrap shrink-0"
             style={{
-              width: FLIP_SLOT_W,
-              height: FLIP_SLOT_H,
+              width: `${FLIP_SLOT_W}px`,
+              height: `${FLIP_SLOT_H}px`,
               display: "flex",
-              alignItems: "center",
-              justifyContent: "flex-end",
-              flexShrink: 0,
+              "align-items": "center",
+              "justify-content": "flex-end",
+              "flex-shrink": 0,
               visibility: hasFlip ? "visible" : "hidden",
             }}
           >
             {hasFlip ? `flip ${fmtNum(flip)}` : ""}
           </Text>
-        </Box>
+        </div>
       }
     >
-      <Box
+      <div
         data-testid="wall-erosion-body"
         data-layout="fixed"
         data-rows="2"
-        aria-busy={walls ? undefined : "true"}
+        aria-busy={props.walls ? undefined : "true"}
         title="OI erosion + volume + premium flow. PRE-BLAST = short gamma and the wall is being consumed."
-        className="relative flex flex-col min-w-0 overflow-hidden"
+        class="relative flex flex-col min-w-0 overflow-hidden"
         style={{
-          height: ROW_H * 2 + 2,
-          minHeight: ROW_H * 2 + 2,
+          height: `${ROW_H * 2 + 2}px`,
+          "min-height": `${ROW_H * 2 + 2}px`,
         }}
       >
         {/* Zero-size marker: the strip keeps its shape while the payload loads. */}
-        {!walls ? (
-          <Box
-            component="span"
+        {!props.walls ? (
+          <span
             data-testid="wall-erosion-skeleton"
-            className="absolute overflow-hidden"
+            class="absolute overflow-hidden"
             style={{
               width: 0,
               height: 0,
-              pointerEvents: "none",
+              "pointer-events": "none",
             }}
           />
         ) : null}
         <ErosionRow
-          row={call}
+          row={call()}
           side="CALL"
-          regime={regime}
+          regime={regime()}
           testId="wall-erosion-call"
         />
         <ErosionRow
-          row={put}
+          row={put()}
           side="PUT"
-          regime={regime}
+          regime={regime()}
           testId="wall-erosion-put"
         />
-      </Box>
-    </CompactPanel>
+      </div>
+    </LocalCompactPanel>
   );
 }

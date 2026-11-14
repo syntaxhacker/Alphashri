@@ -26,6 +26,7 @@ function pressure(last3Ratio = 3): PressureSeries {
     bursts: 1,
     last3Ratio,
     lastRatio: last3Ratio,
+    flow: { ceBuy: 0, ceSell: 0, peBuy: 0, peSell: 0 },
   };
 }
 
@@ -104,8 +105,8 @@ describe("setupRadar", () => {
       strikes: [
         {
           strike: 22_450,
-          ce: { sentiment: "Short Buildup" },
-          pe: { sentiment: "Long Buildup" },
+          ce: { sentiment: "Short Buildup" } as never,
+          pe: { sentiment: "Long Buildup" } as never,
         },
       ],
       pressure: pressure(3),

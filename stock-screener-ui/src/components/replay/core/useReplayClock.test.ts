@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { act, cleanup, renderHook } from "@testing-library/react";
+import { cleanup, renderHook } from "@solidjs/testing-library";
 import { useReplayClock } from "./useReplayClock";
 
 let rafCbs = new Map<number, FrameRequestCallback>();
@@ -39,28 +39,28 @@ describe("useReplayClock", () => {
     }));
 
     // seed on first play: clock jumps to t0 and paints
-    expect(result.current.clockRef.current).toBe(1000);
+    expect(result.clockRef.current).toBe(1000);
     expect(onTick).toHaveBeenCalledWith(1000);
 
     // first rAF only arms (lazy) — never jumps
-    act(() => { frame(1000); });
+    frame(1000);
     expect(onTick).toHaveBeenCalledTimes(1);
 
     // 100ms per frame at speed 1 => +1s per 10 frames
     let ts = 1100;
     for (let i = 0; i < 10; i++) {
-      act(() => { frame(ts); });
+    frame(ts);
       ts += 100;
     }
-    expect(result.current.clockRef.current).toBeCloseTo(1001, 5);
+    expect(result.clockRef.current).toBeCloseTo(1001, 5);
 
     // keep going until tEnd; loop must stop and report end exactly once
     for (let i = 0; i < 60 && !onEnd.mock.calls.length; i++) {
-      act(() => { frame(ts); });
+    frame(ts);
       ts += 100;
     }
-    expect(result.current.clockRef.current).toBe(1005);
-    expect(result.current.clock).toBe(1005);
+    expect(result.clockRef.current).toBe(1005);
+    expect(result.clock()).toBe(1005);
     expect(onEnd).toHaveBeenCalledTimes(1);
     expect(onTick).toHaveBeenLastCalledWith(1005);
     // no frame left armed after stop
@@ -75,14 +75,14 @@ describe("useReplayClock", () => {
     }));
 
     // t0=0 => no seed paint; first frame arms
-    act(() => { frame(0); });
+    frame(0);
     expect(onTick).not.toHaveBeenCalled();
 
     // dt=0.1s * 10x = 1s per frame
-    act(() => { frame(100); });
-    expect(result.current.clockRef.current).toBeCloseTo(1, 5);
-    act(() => { frame(200); });
-    expect(result.current.clockRef.current).toBeCloseTo(2, 5);
+    frame(100);
+    expect(result.clockRef.current).toBeCloseTo(1, 5);
+    frame(200);
+    expect(result.clockRef.current).toBeCloseTo(2, 5);
   });
 
   test("does not run while paused", () => {
@@ -93,7 +93,7 @@ describe("useReplayClock", () => {
     }));
     expect(rafCbs.size).toBe(0);
     expect(onTick).not.toHaveBeenCalled();
-    expect(result.current.clockRef.current).toBe(0);
+    expect(result.clockRef.current).toBe(0);
   });
 
   test("guards a falsy tEnd (no loop)", () => {
@@ -103,7 +103,7 @@ describe("useReplayClock", () => {
     }));
     expect(rafCbs.size).toBe(0);
     expect(onTick).not.toHaveBeenCalled();
-    expect(result.current.clockRef.current).toBe(0);
+    expect(result.clockRef.current).toBe(0);
   });
 
   test("jump resets paint cursor and syncs both clock stores", () => {
@@ -112,12 +112,12 @@ describe("useReplayClock", () => {
       t0: 1000, tEnd: 2000, playing: false, speed: 1, onTick, onEnd: vi.fn(),
     }));
 
-    result.current.lastPaintRef.current = 999;
-    act(() => { result.current.jump(1234); });
+    result.lastPaintRef.current = 999;
+    result.jump(1234);
 
-    expect(result.current.clockRef.current).toBe(1234);
-    expect(result.current.clock).toBe(1234);
-    expect(result.current.lastPaintRef.current).toBe(0);
+    expect(result.clockRef.current).toBe(1234);
+    expect(result.clock()).toBe(1234);
+    expect(result.lastPaintRef.current).toBe(0);
     expect(onTick).toHaveBeenLastCalledWith(1234);
   });
 });

@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { Show, createEffect, createMemo, onCleanup } from "solid-js";
 import { Box, Loader, Flex, Stack, Text, useColorScheme } from "@/ui";
-import { useECharts } from "../../hooks/useECharts";
+import { loadEcharts } from "../../utils/loadEcharts";
 import {
   CREAM,
   BLACK,
@@ -81,23 +81,23 @@ interface CorrelationHeatmapProps {
   valueFormatter?: (val: number) => string;
 }
 
-export function CorrelationHeatmap({
-  matrix,
-  symbols,
-  isLoading,
-  isDark: isDarkProp,
-  testId,
-  valueFormatter,
-}: CorrelationHeatmapProps) {
+export function CorrelationHeatmap(props: CorrelationHeatmapProps) {
   const { colorScheme } = useColorScheme();
-  const isDark = isDarkProp ?? colorScheme === "dark";
-  const { chartRef, setChartOption } = useECharts({ isDark });
-  const hasData = matrix && symbols && matrix.length > 0 && symbols.length > 0;
-  const colors = chartColors(isDark);
-  const fmt = valueFormatter ?? ((v: number) => Math.round(v * 100) + "%");
+  const isDark = () => props.isDark ?? colorScheme() === "dark";
+  const hasData = createMemo(
+    () => Boolean(props.matrix && props.symbols && props.matrix.length > 0 && props.symbols.length > 0),
+  );
+  const fmt = () => props.valueFormatter ?? ((v: number) => Math.round(v * 100) + "%");
 
-  useEffect(() => {
-    if (!hasData) return;
+  let chartDiv: HTMLDivElement | undefined;
+  let chartInstance: any = null;
+
+  createEffect(() => {
+    if (!hasData()) return;
+    const colors = chartColors(isDark());
+    const symbols = props.symbols;
+    const matrix = props.matrix;
+    const format = fmt();
 
     const n = symbols.length;
     const heatmapData: any[] = [];
@@ -113,7 +113,7 @@ export function CorrelationHeatmap({
       }
     }
 
-    setChartOption({
+    const option = {
       backgroundColor: "transparent",
       tooltip: {
         position: "top" as const,
@@ -151,7 +151,7 @@ export function CorrelationHeatmap({
             show: true,
             fontSize: 14,
             fontWeight: 700,
-            formatter: (p: any) => fmt(p.data.value[2]),
+            formatter: (p: any) => format(p.data.value[2]),
           },
           itemStyle: { borderColor: colors.border, borderWidth: 1 },
           emphasis: {
@@ -160,16 +160,51 @@ export function CorrelationHeatmap({
           },
         },
       ],
-    });
-  }, [hasData, matrix, symbols, setChartOption]);
+    };
 
-  const minHeight = hasData ? Math.max(300, symbols.length * 40 + 120) : 300;
+    let cancelled = false;
+    void loadEcharts().then((echartsLib) => {
+      if (cancelled || !echartsLib || !chartDiv) return;
+      if (!chartInstance) {
+        chartInstance = echartsLib.init(chartDiv, null);
+      }
+      chartInstance.setOption(option, true);
+      chartInstance.resize();
+    });
+
+    onCleanup(() => {
+      cancelled = true;
+    });
+  });
+
+  onCleanup(() => {
+    if (chartInstance) {
+      chartInstance.dispose();
+      chartInstance = null;
+    }
+  });
+
+  const handleResize = () => chartInstance?.resize();
+  window.addEventListener("resize", handleResize);
+  onCleanup(() => window.removeEventListener("resize", handleResize));
+
+  // An empty state must not reserve the plot's height: two blank 300px+ panels
+  // left the Correlation tab mostly dead space before any symbols were chosen.
+  const minHeight = () => {
+    if (props.isLoading) return 300;
+    if (!hasData()) return 36;
+    return Math.max(300, props.symbols.length * 40 + 120);
+  };
 
   return (
-    <Box pos="relative" style={{ minHeight }}>
-      <Box data-testid={testId} ref={chartRef} style={{ minHeight, opacity: hasData ? 1 : 0 }} />
-      {isLoading && (
-        <Flex pos="absolute" top={0} right={0} bottom={0} left={0} justify="center" align="center" style={{ zIndex: 1 }}>
+    <Box pos="relative" style={{ "min-height": `${minHeight()}px` }}>
+      <Box
+        data-testid={props.testId}
+        ref={(el: HTMLDivElement) => (chartDiv = el)}
+        style={{ "min-height": `${minHeight()}px`, opacity: hasData() ? 1 : 0, width: "100%" }}
+      />
+      <Show when={props.isLoading}>
+        <Flex pos="absolute" top={0} right={0} bottom={0} left={0} justify="center" align="center" style={{ "z-index": 1 }}>
           <Stack align="center" gap="xs">
             <Loader size="sm" />
             <Text size="sm" c="dimmed">
@@ -177,14 +212,14 @@ export function CorrelationHeatmap({
             </Text>
           </Stack>
         </Flex>
-      )}
-      {!isLoading && !hasData && (
+      </Show>
+      <Show when={!props.isLoading && !hasData()}>
         <Flex pos="absolute" top={0} right={0} bottom={0} left={0} justify="center" align="center">
           <Text size="sm" c="dimmed">
             No correlation data available
           </Text>
         </Flex>
-      )}
+      </Show>
     </Box>
   );
 }

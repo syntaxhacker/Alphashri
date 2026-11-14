@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { PerformanceView } from "./PerformanceView";
@@ -14,21 +14,21 @@ afterEach(() => {
 
 describe("PerformanceView", () => {
   it("shows loading state with Loader when isLoading", () => {
-    render(
+    render(() => (
       <UIProvider>
         <PerformanceView performance={[]} strategies={[]} onSelectStrategy={vi.fn()} isLoading={true} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("performance-loading-state")).toBeInTheDocument();
     expect(screen.getByText("Loading performance")).toBeInTheDocument();
   });
 
   it("shows empty state when performance array empty", () => {
-    render(
+    render(() => (
       <UIProvider>
         <PerformanceView performance={[]} strategies={[]} onSelectStrategy={vi.fn()} isLoading={false} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("performance-empty-state")).toBeInTheDocument();
     expect(screen.getByText("No performance data")).toBeInTheDocument();
   });
@@ -37,11 +37,11 @@ describe("PerformanceView", () => {
     const perf: StrategyPerformance[] = [
       { strategy_id: 1, strategy_name: "ORB v1", total_trades: 10, winners: 6, losers: 4, win_rate: 60, total_pnl: 5000, net_pnl: 4800 },
     ];
-    render(
+    render(() => (
       <UIProvider>
         <PerformanceView performance={perf} strategies={[]} onSelectStrategy={vi.fn()} isLoading={false} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByText("Active Strategies")).toBeInTheDocument();
     expect(screen.getByText("ORB v1")).toBeInTheDocument();
     expect(screen.getAllByText("Total Trades").length).toBeGreaterThanOrEqual(1);
@@ -52,11 +52,11 @@ describe("PerformanceView", () => {
     const perf: StrategyPerformance[] = [
       { strategy_id: 1, strategy_name: "ORB v1", total_trades: 10, winners: 6, losers: 4, win_rate: 60, total_pnl: 5000, net_pnl: 4800 },
     ];
-    render(
+    render(() => (
       <UIProvider>
         <PerformanceView performance={perf} strategies={[]} onSelectStrategy={vi.fn()} isLoading={false} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("performance-table")).toBeInTheDocument();
   });
 
@@ -65,27 +65,26 @@ describe("PerformanceView", () => {
       { strategy_id: 1, strategy_name: "ORB v1", total_trades: 10, winners: 6, losers: 4, win_rate: 60, total_pnl: 5000, net_pnl: 4800 },
       { strategy_id: 2, strategy_name: "EMA v2", total_trades: 5, winners: 1, losers: 4, win_rate: 20, total_pnl: -1000, net_pnl: -1050 },
     ];
-    render(
+    render(() => (
       <UIProvider>
         <PerformanceView performance={perf} strategies={[]} onSelectStrategy={vi.fn()} isLoading={false} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByText("ORB v1")).toBeInTheDocument();
     expect(screen.getByText("EMA v2")).toBeInTheDocument();
   });
 
-  it("performance rows are clickable, call onSelectStrategy", async () => {
+  it("performance rows are clickable, call onSelectStrategy", () => {
     const onSelectStrategy = vi.fn();
-    const userEvent = (await import("@testing-library/user-event")).default;
     const perf: StrategyPerformance[] = [
       { strategy_id: 1, strategy_name: "ORB v1", total_trades: 10, winners: 6, losers: 4, win_rate: 60, total_pnl: 5000, net_pnl: 4800 },
     ];
-    render(
+    render(() => (
       <UIProvider>
         <PerformanceView performance={perf} strategies={[]} onSelectStrategy={onSelectStrategy} isLoading={false} />
-      </UIProvider>,
-    );
-    await userEvent.click(screen.getByText("ORB v1"));
+      </UIProvider>
+    ));
+    fireEvent.click(screen.getByText("ORB v1"));
     expect(onSelectStrategy).toHaveBeenCalledWith(1);
   });
 

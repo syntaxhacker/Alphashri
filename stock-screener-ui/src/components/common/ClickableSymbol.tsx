@@ -1,5 +1,5 @@
-import { useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { onCleanup } from "solid-js";
+import { useNavigate } from "@solidjs/router";
 import { usePreviewChart } from "./PreviewChartProvider";
 import { SymbolLink } from "./SymbolLink";
 
@@ -22,74 +22,66 @@ interface ClickableSymbolProps {
  * - Preserves `.symbol-link` class and `data-testid`/`symbol-link-<symbol>` e2e contracts.
  * - Keeps `stopClickPropagation` and 5s close timer behaviour for backward compat.
  */
-export function ClickableSymbol({
-  symbol,
-  fw = 600,
-  size = "sm",
-  showPreview = false,
-  previewTimeout = 5000,
-  onClick,
-  stopClickPropagation = true,
-  testId,
-}: ClickableSymbolProps) {
+export function ClickableSymbol(props: ClickableSymbolProps) {
   const navigate = useNavigate();
   const { showPreviewChart, hidePreviewChart } = usePreviewChart();
-  const closeTimerRef = useRef<number | null>(null);
+  let closeTimer: number | null = null;
 
-  const clearCloseTimer = useCallback(() => {
-    if (closeTimerRef.current) {
-      clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
+  const clearCloseTimer = () => {
+    if (closeTimer) {
+      clearTimeout(closeTimer);
+      closeTimer = null;
     }
-  }, []);
+  };
 
-  const handleClosePreview = useCallback(() => {
+  const handleClosePreview = () => {
     clearCloseTimer();
     hidePreviewChart();
-  }, [clearCloseTimer, hidePreviewChart]);
+  };
 
-  const handleMouseEnter = (e: React.MouseEvent) => {
-    if (!showPreview) return;
+  const handleMouseEnter = (_symbol: string, e?: MouseEvent) => {
+    if (!(props.showPreview ?? false)) return;
+    if (!e) return;
     clearCloseTimer();
-    showPreviewChart(e, symbol);
+    showPreviewChart(e, props.symbol);
   };
 
   const handleMouseLeave = () => {
-    if (!showPreview) return;
+    if (!(props.showPreview ?? false)) return;
     clearCloseTimer();
     hidePreviewChart();
-    closeTimerRef.current = window.setTimeout(() => {
+    closeTimer = window.setTimeout(() => {
       handleClosePreview();
-    }, previewTimeout);
+    }, props.previewTimeout ?? 5000);
   };
 
-  const handleTextClick = (sym: string, e: React.MouseEvent) => {
-    if (stopClickPropagation) {
+  const handleTextClick = (sym: string, e: MouseEvent) => {
+    if (props.stopClickPropagation ?? true) {
       e.stopPropagation();
     }
     handleClosePreview();
-    if (onClick) {
-      onClick(sym);
+    if (props.onClick) {
+      props.onClick(sym);
     } else {
       navigate(`/chart/${sym}`);
     }
   };
 
-  const testIdValue = testId ?? `symbol-link-${symbol}`;
+  onCleanup(clearCloseTimer);
 
   return (
     <SymbolLink
-      symbol={symbol}
+      symbol={props.symbol}
       tvLink={false}
       showChart={false}
       onTextClick={handleTextClick}
-      onPreview={showPreview ? handleMouseEnter : undefined}
-      onPreviewEnd={showPreview ? handleMouseLeave : undefined}
-      testId={testIdValue}
+      onPreview={(props.showPreview ?? false) ? handleMouseEnter : undefined}
+      onPreviewEnd={(props.showPreview ?? false) ? handleMouseLeave : undefined}
+      testId={props.testId ?? `symbol-link-${props.symbol}`}
       textClassName="symbol-link"
-      weight={fw}
-      size={size as "xs" | "sm" | "md"}
-      stopPropagation={stopClickPropagation}
+      weight={props.fw ?? 600}
+      size={(props.size ?? "sm") as "xs" | "sm" | "md"}
+      stopPropagation={props.stopClickPropagation ?? true}
     />
   );
 }

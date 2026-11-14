@@ -1,20 +1,20 @@
 // @vitest-environment happy-dom
+import type { JSX } from "solid-js";
 import { describe, expect, test, vi, afterEach } from "vitest";
-import { render, screen, cleanup, within } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, within } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { formatDateTimeHuman, formatDuration } from "../../utils/ui-helpers";
 import { sortTrades, TradeHistoryTable } from "./TradeHistoryTable";
 import type { Trade } from "../../types/backtest";
 import { TINT_LOSS_ROW } from "../../config/colors";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
 });
 
-function Wrapper({ children }: { children: React.ReactNode }) {
+function Wrapper({ children }: { children: JSX.Element }) {
   return <UIProvider>{children}</UIProvider>;
 }
 
@@ -291,16 +291,14 @@ describe("TradeHistoryTable rendering", () => {
   });
 
   test("renders nothing when trades empty", () => {
-    render(
-      <TradeHistoryTable symbol="TCS" trades={[]} {...defaultProps} />,
+    render(() => <TradeHistoryTable symbol="TCS" trades={[]} {...defaultProps} />,
       { wrapper: Wrapper },
     );
     expect(screen.queryByTestId("trade-history-panel")).toBeNull();
   });
 
   test("renders nothing when trades null", () => {
-    render(
-      <TradeHistoryTable symbol="TCS" trades={null as unknown as Trade[]} {...defaultProps} />,
+    render(() => <TradeHistoryTable symbol="TCS" trades={null as unknown as Trade[]} {...defaultProps} />,
       { wrapper: Wrapper },
     );
     expect(screen.queryByTestId("trade-history-panel")).toBeNull();
@@ -308,7 +306,7 @@ describe("TradeHistoryTable rendering", () => {
 
   test("header shows symbol name and trade count", () => {
     const trades = [makeTrade(), makeTrade()];
-    render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
+    render(() => <TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
     const header = screen.getByTestId("trade-history-header");
@@ -322,7 +320,7 @@ describe("TradeHistoryTable rendering", () => {
       makeTrade({ net_pnl: -50 }),
       makeTrade({ net_pnl: 30 }),
     ];
-    render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
+    render(() => <TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
     expect(screen.getByTestId("trade-summary-pnl")).toBeInTheDocument();
@@ -333,7 +331,7 @@ describe("TradeHistoryTable rendering", () => {
 
   test("headers disambiguate Entry/Exit time and price columns", () => {
     const trades = [makeTrade()];
-    render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
+    render(() => <TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
     // scope to the table: the summary row also renders a "P&L" label
@@ -354,7 +352,7 @@ describe("TradeHistoryTable rendering", () => {
 
   test("Level Hi column adapts to 52W data", () => {
     const trades = [makeTrade({ "52w_high": 500 })];
-    render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
+    render(() => <TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
     expect(screen.getByText("52W High")).toBeInTheDocument();
@@ -363,7 +361,7 @@ describe("TradeHistoryTable rendering", () => {
 
   test("Level Hi column shows 'Level Hi' for ORB data", () => {
     const trades = [makeTrade({ or_high: 110 })];
-    render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
+    render(() => <TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
     expect(screen.getByText("Level Hi")).toBeInTheDocument();
@@ -371,7 +369,7 @@ describe("TradeHistoryTable rendering", () => {
 
   test("Level Lo column only rendered for non-52W strategies", () => {
     const trades = [makeTrade({ or_low: 90 })];
-    render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
+    render(() => <TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
     expect(screen.getByText("Level Lo")).toBeInTheDocument();
@@ -379,7 +377,7 @@ describe("TradeHistoryTable rendering", () => {
 
   test("Level Lo column hidden for 52W strategies", () => {
     const trades = [makeTrade({ "52w_high": 500 })];
-    render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
+    render(() => <TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
     expect(screen.queryByText("Level Lo")).not.toBeInTheDocument();
@@ -387,7 +385,7 @@ describe("TradeHistoryTable rendering", () => {
 
   test("trade rows numbered (#)", () => {
     const trades = [makeTrade(), makeTrade({ net_pnl: 200 })];
-    render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
+    render(() => <TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
     expect(screen.getByTestId("trade-history-row-0")).toBeInTheDocument();
@@ -399,7 +397,7 @@ describe("TradeHistoryTable rendering", () => {
       makeTrade({ net_pnl: 100 }),
       makeTrade({ net_pnl: -50 }),
     ];
-    render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
+    render(() => <TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
     // P&L cells carry a semantic data-pnl-sign (emotion classes are hashed,
@@ -415,7 +413,7 @@ describe("TradeHistoryTable rendering", () => {
       makeTrade({ net_pnl_pct: 2.5 }),
       makeTrade({ net_pnl_pct: -1.3 }),
     ];
-    render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
+    render(() => <TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
     expect(screen.getByText("+2.50%")).toBeInTheDocument();
@@ -429,7 +427,7 @@ describe("TradeHistoryTable rendering", () => {
       makeTrade({ exit_reason: "TRAILING_STOP" }),
       makeTrade({ exit_reason: "EOD" }),
     ];
-    render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
+    render(() => <TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
     const table = within(screen.getByTestId("trade-history-table"));
@@ -440,13 +438,12 @@ describe("TradeHistoryTable rendering", () => {
   });
 
   test("row click calls onRowClick", async () => {
-      const user = userEvent.setup();
     const trades = [makeTrade()];
-    render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
+    render(() => <TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
     const row = screen.getByTestId("trade-history-row-0");
-    await user.click(row);
+    await fireEvent.click(row);
     expect(onRowClick).toHaveBeenCalledWith(1);
   });
 
@@ -455,7 +452,7 @@ describe("TradeHistoryTable rendering", () => {
       makeTrade({ net_pnl: 100 }),
       makeTrade({ net_pnl: -50 }),
     ];
-    render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
+    render(() => <TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
     const row0 = screen.getByTestId("trade-history-row-0");
@@ -465,14 +462,13 @@ describe("TradeHistoryTable rendering", () => {
   });
 
   test("result filter narrows rows and updates the count", async () => {
-    const user = userEvent.setup();
     const trades = [makeTrade({ net_pnl: 100 }), makeTrade({ net_pnl: -50 })];
-    render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
+    render(() => <TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
     expect(screen.getByTestId("filter-count")).toHaveTextContent("2/2");
 
-    await user.click(screen.getByRole("button", { name: "Win" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Win" }));
 
     expect(screen.getByTestId("filter-count")).toHaveTextContent("1/2");
     expect(screen.getByTestId("trade-history-row-0")).toBeInTheDocument();
@@ -480,27 +476,25 @@ describe("TradeHistoryTable rendering", () => {
   });
 
   test("filters renumber-safely and clear resets them", async () => {
-    const user = userEvent.setup();
     const trades = [makeTrade({ net_pnl: -50 }), makeTrade({ net_pnl: 100 })];
-    render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
+    render(() => <TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
-    await user.click(screen.getByRole("button", { name: "Win" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Win" }));
     // the surviving trade keeps its original stable number (#2), not #1
     expect(screen.getByTestId("trade-history-row-0")).toHaveAttribute("data-trade-number", "2");
 
-    await user.click(screen.getByTestId("filter-clear"));
+    await fireEvent.click(screen.getByTestId("filter-clear"));
     expect(screen.getByTestId("filter-count")).toHaveTextContent("2/2");
     expect(screen.getByTestId("trade-history-row-1")).toBeInTheDocument();
   });
 
   test("empty filter result shows a message", async () => {
-    const user = userEvent.setup();
     const trades = [makeTrade({ net_pnl: 100 })];
-    render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
+    render(() => <TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
-    await user.click(screen.getByRole("button", { name: "Loss" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Loss" }));
     expect(screen.getByText("No trades match the current filters.")).toBeInTheDocument();
   });
 });

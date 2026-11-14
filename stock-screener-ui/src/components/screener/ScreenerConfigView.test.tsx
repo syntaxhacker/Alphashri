@@ -1,10 +1,9 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
-import type { ReactElement } from "react";
+import type { JSX } from "solid-js";
 
 let mockSelectedSymbols: string[] = [];
 
@@ -33,7 +32,7 @@ vi.mock("./ScreenerTable", () => ({
     <div data-testid={props.testId || "screener-table"}>
       Table
       {props.columns.map((col: any) => (
-        <span key={col.key} data-testid={`preview-sort-header-${col.key}`}>
+        <span data-testid={`preview-sort-header-${col.key}`}>
           {col.label}
         </span>
       ))}
@@ -55,23 +54,26 @@ vi.mock("../../api/index", () => ({
   loadScreeners: (...args: any[]) => mockLoadScreeners(...args),
 }));
 
-let mockPreviewStocks: any[] = [];
-let mockPreviewLoading = false;
-const mockRefreshPreview = vi.fn();
-vi.mock("../../hooks/useScreenerApi", () => ({
-  useScreenerPreview: () => ({
-    stocks: mockPreviewStocks,
-    loading: mockPreviewLoading,
-    refresh: mockRefreshPreview,
-  }),
+const mockFetchWithAuth = vi.fn();
+vi.mock("@/api/screenerQuery", () => ({
+  // Reflect the argument: a constant mock let a preview fetch the wrong
+  // screener and still pass.
+  buildScreenerPreviewUrl: (opts: { screener?: string }) =>
+    `/api/screener/preview?screener=${opts?.screener ?? ""}`,
+  approachingStocksOf: (json: any) => json?.approaching ?? [],
+}));
+vi.mock("@/state/auth", () => ({
+  fetchWithAuth: (...args: any[]) => mockFetchWithAuth(...args),
 }));
 
 import { ScreenerConfigView } from "./ScreenerConfigView";
 
-const renderWithProvider = (ui: ReactElement) =>
-  render(<UIProvider>{ui}</UIProvider>);
+const renderWithProvider = (ui: JSX.Element) =>
+  render(() => <UIProvider>{ui}</UIProvider>);
 
-const mockOptions = [
+import type { ScreenerOption } from "../../types";
+
+const mockOptions: ScreenerOption[] = [
   {
     id: "trending",
     label: "Trending",
@@ -98,8 +100,9 @@ describe("ScreenerConfigView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSelectedSymbols = [];
-    mockPreviewStocks = [];
-    mockPreviewLoading = false;
+    // Default: preview fetch never resolves so the loading skeleton persists.
+    mockFetchWithAuth.mockReset();
+    mockFetchWithAuth.mockReturnValue(new Promise(() => {}));
   });
 
   afterEach(() => {
@@ -114,26 +117,24 @@ describe("ScreenerConfigView", () => {
   });
 
   it("Clicking row calls onScreenerChange", async () => {
-      const user = userEvent.setup();
     const onChange = vi.fn();
     renderWithProvider(<ScreenerConfigView {...defaultProps} onScreenerChange={onChange} />);
-    await user.click(screen.getByTestId("screener-row-new-highs"));
+    fireEvent.click(screen.getByTestId("screener-row-new-highs"));
     expect(onChange).toHaveBeenCalledWith("new-highs");
   });
 
   describe("create modal", () => {
     it("Create calls createScreener API on submit", async () => {
-      const user = userEvent.setup();
       mockCreateScreener.mockResolvedValueOnce({ id: 99 });
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
-      await user.click(screen.getByTestId("create-screener-btn"));
+      fireEvent.click(screen.getByTestId("create-screener-btn"));
       await waitFor(() => {
         expect(screen.getByTestId("screener-name-input")).toBeInTheDocument();
       });
-      await user.clear(screen.getByTestId("screener-name-input")); await user.type(screen.getByTestId("screener-name-input"), "My Screener");
+      fireEvent.input(screen.getByTestId("screener-name-input"), { target: { value: "My Screener" } });
       const confirmBtn = screen.getByTestId("confirm-create-btn");
       expect(confirmBtn).not.toBeDisabled();
-      await user.click(confirmBtn);
+      fireEvent.click(confirmBtn);
       await waitFor(() => {
         expect(mockCreateScreener).toHaveBeenCalled();
       });
@@ -143,14 +144,13 @@ describe("ScreenerConfigView", () => {
 
   describe("edit modal", () => {
     it("Edit calls updateScreener API on submit", async () => {
-      const user = userEvent.setup();
       mockUpdateScreener.mockResolvedValueOnce({});
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
-      await user.click(screen.getByTestId("edit-screener-trending"));
+      fireEvent.click(screen.getByTestId("edit-screener-trending"));
       await waitFor(() => {
         expect(screen.getByTestId("confirm-create-btn")).toBeInTheDocument();
       });
-      await user.click(screen.getByTestId("confirm-create-btn"));
+      fireEvent.click(screen.getByTestId("confirm-create-btn"));
       await waitFor(() => {
         expect(mockUpdateScreener).toHaveBeenCalled();
       });
@@ -160,14 +160,13 @@ describe("ScreenerConfigView", () => {
 
   describe("delete modal", () => {
     it("Delete calls deleteScreener API on confirm", async () => {
-      const user = userEvent.setup();
       mockDeleteScreener.mockResolvedValueOnce({});
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
-      await user.click(screen.getByTestId("delete-screener-trending"));
+      fireEvent.click(screen.getByTestId("delete-screener-trending"));
       await waitFor(() => {
         expect(screen.getByText("Delete")).toBeInTheDocument();
       });
-      await user.click(screen.getByText("Delete"));
+      fireEvent.click(screen.getByText("Delete"));
       await waitFor(() => {
         expect(mockDeleteScreener).toHaveBeenCalled();
       });
@@ -175,17 +174,16 @@ describe("ScreenerConfigView", () => {
     });
 
     it("Deleting active screener navigates to trending", async () => {
-      const user = userEvent.setup();
       const onChange = vi.fn();
       renderWithProvider(
         <ScreenerConfigView {...defaultProps} onScreenerChange={onChange} />,
       );
       mockDeleteScreener.mockResolvedValueOnce({});
-      await user.click(screen.getByTestId("delete-screener-trending"));
+      fireEvent.click(screen.getByTestId("delete-screener-trending"));
       await waitFor(() => {
         expect(screen.getByText("Delete")).toBeInTheDocument();
       });
-      await user.click(screen.getByText("Delete"));
+      fireEvent.click(screen.getByText("Delete"));
       await waitFor(() => {
         expect(onChange).toHaveBeenCalledWith("trending");
       });
@@ -194,13 +192,12 @@ describe("ScreenerConfigView", () => {
 
   describe("cancel button", () => {
     it("Cancel button closes create modal", async () => {
-      const user = userEvent.setup();
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
-      await user.click(screen.getByTestId("create-screener-btn"));
+      fireEvent.click(screen.getByTestId("create-screener-btn"));
       await waitFor(() => {
         expect(screen.getByTestId("screener-name-input")).toBeInTheDocument();
       });
-      await user.click(screen.getByTestId("cancel-create-btn"));
+      fireEvent.click(screen.getByTestId("cancel-create-btn"));
       await waitFor(() => {
         expect(screen.queryByTestId("screener-name-input")).not.toBeInTheDocument();
       });
@@ -208,67 +205,80 @@ describe("ScreenerConfigView", () => {
   });
 
   describe("preview debounce", () => {
-    it("Preview refreshes on screener change with debounce", async () => {
+    const fetchedScreener = () => {
+      const urls = mockFetchWithAuth.mock.calls.map((c) => String(c[0]));
+      const last = urls[urls.length - 1] ?? "";
+      return new URL(last, "http://x").searchParams.get("screener");
+    };
+    const uniqueFetches = () => new Set(mockFetchWithAuth.mock.calls.map((c) => String(c[0]))).size;
+    it("Preview fetches on screener change with debounce", async () => {
       vi.useFakeTimers();
-      const onChange = vi.fn();
-      const { rerender } = render(
-        <UIProvider>
-          <ScreenerConfigView
-            screenerOptions={defaultProps.screenerOptions}
-            activeScreener="trending"
-            onScreenerChange={onChange}
-          />
-        </UIProvider>,
-      );
+      try {
+        mockFetchWithAuth.mockReset();
+        mockFetchWithAuth.mockResolvedValue({
+          ok: true,
+          json: async () => ({ approaching: [], touched: [] }),
+        });
+        const onChange = vi.fn();
+        const { createSignal } = await import("solid-js");
+        const [screener, setScreener] = createSignal("trending");
+        render(() => (
+          <UIProvider>
+            <ScreenerConfigView
+              screenerOptions={defaultProps.screenerOptions}
+              activeScreener={screener()}
+              onScreenerChange={onChange}
+            />
+          </UIProvider>
+        ));
 
-      expect(mockRefreshPreview).not.toHaveBeenCalled();
+        expect(mockFetchWithAuth).not.toHaveBeenCalled();
 
-      vi.advanceTimersByTime(500);
-      await vi.runOnlyPendingTimersAsync();
-      expect(mockRefreshPreview).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(500);
+        // The URL is the contract: a call count would still pass if the preview
+        // fetched the wrong screener, and it races against lingering effects.
+        expect(fetchedScreener()).toBe("trending");
 
-      mockRefreshPreview.mockClear();
+        setScreener("new-highs");
+        await vi.advanceTimersByTimeAsync(500);
 
-      rerender(
-        <UIProvider>
-          <ScreenerConfigView
-            screenerOptions={defaultProps.screenerOptions}
-            activeScreener="new-highs"
-            onScreenerChange={onChange}
-          />
-        </UIProvider>,
-      );
-
-      expect(mockRefreshPreview).not.toHaveBeenCalled();
-
-      vi.advanceTimersByTime(500);
-      await vi.runOnlyPendingTimersAsync();
-      expect(mockRefreshPreview).toHaveBeenCalledTimes(1);
-
-      vi.useRealTimers();
+        // A debounce means the *last* selection wins, once.
+        expect(fetchedScreener()).toBe("new-highs");
+        expect(uniqueFetches()).toBe(2);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 
   describe("preview panel", () => {
     it("Preview shows loading state", () => {
-      mockPreviewLoading = true;
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
       expect(screen.getByTestId("preview-loading")).toBeInTheDocument();
       expect(screen.getByText("Loading...")).toBeInTheDocument();
     });
 
-    it("Preview shows empty state when no stocks", () => {
+    it("Preview shows empty state when no stocks", async () => {
+      mockFetchWithAuth.mockReset();
+      mockFetchWithAuth.mockResolvedValue({
+        ok: true,
+        json: async () => ({ approaching: [], touched: [] }),
+      });
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
-      expect(screen.getByTestId("preview-empty")).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByTestId("preview-empty")).toBeInTheDocument());
       expect(screen.getByText("No stocks")).toBeInTheDocument();
     });
 
-    it("Preview shows data state when stocks exist", () => {
-      mockPreviewStocks = [{ symbol: "RELIANCE", score: 85 }];
+    it("Preview shows data state when stocks exist", async () => {
+      mockFetchWithAuth.mockReset();
+      mockFetchWithAuth.mockResolvedValue({
+        ok: true,
+        json: async () => ({ approaching: [{ symbol: "RELIANCE", score: 85 }], touched: [] }),
+      });
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
+      await waitFor(() => expect(screen.getByTestId("preview-table")).toBeInTheDocument());
       expect(screen.queryByTestId("preview-empty")).not.toBeInTheDocument();
       expect(screen.queryByTestId("preview-loading")).not.toBeInTheDocument();
-      expect(screen.getByTestId("preview-table")).toBeInTheDocument();
     });
 
 

@@ -6,7 +6,7 @@ interface OptionsNavProps {
   onTabChange: (value: string) => void;
 }
 
-export function OptionsNav({ activeTab, onTabChange }: OptionsNavProps) {
+export function OptionsNav(props: OptionsNavProps) {
   return (
     <Box
       id="options-nav-wrapper"
@@ -17,8 +17,8 @@ export function OptionsNav({ activeTab, onTabChange }: OptionsNavProps) {
       <Tabs
         id="options-nav-tabs"
         className="options-nav"
-        value={activeTab}
-        onChange={(val) => val && onTabChange(val)}
+        value={props.activeTab}
+        onChange={(val) => val && props.onTabChange(val)}
         data-testid="options-nav"
       >
         <TabsList className="options-nav-list" data-testid="options-nav-list">

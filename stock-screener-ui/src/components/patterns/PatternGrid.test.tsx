@@ -1,19 +1,14 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { UIProvider } from "@/ui";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { PatternGrid } from "./PatternGrid";
-
-vi.mock("@/hooks/useECharts", () => ({
-  useECharts: () => ({
-    chartRef: { current: null },
-    chartInstance: { current: null },
-    setChartOption: vi.fn(),
-  }),
-}));
 
 vi.mock("./PatternMiniChart", () => ({
   PatternMiniChart: ({ trendlinesView }: { trendlinesView?: string }) => (
@@ -50,9 +45,6 @@ function makeHit(overrides: Partial<PatternHitDTO> = {}): PatternHitDTO {
   };
 }
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
 
 describe("PatternGrid", () => {
   afterEach(() => cleanup());
@@ -62,7 +54,7 @@ describe("PatternGrid", () => {
       makeHit({ id: 11, symbol: "AAA", start_date: "2026-04-26" }),
       makeHit({ id: 22, symbol: "BBB", start_date: "2026-07-01" }),
     ];
-    r(<PatternGrid hits={hits} onSelect={vi.fn()} activeHit={hits[1]} />);
+    render(() => <PatternGrid hits={hits} onSelect={vi.fn()} activeHit={hits[1]} />);
     const cards = screen.getAllByTestId("patterns-card");
     expect(cards[1]).toHaveAttribute("data-selected", "true");
     expect(cards[0]).not.toHaveAttribute("data-selected");
@@ -79,13 +71,34 @@ describe("PatternGrid", () => {
         makeHit({ id: 11, start_date: "2026-04-26", end_date: "2026-06-26" }),
         makeHit({ id: 22, start_date: "2026-07-01", end_date: "2026-09-26" }),
       ];
-      r(<PatternGrid hits={hits} onSelect={vi.fn()} />);
+      render(() => <PatternGrid hits={hits} onSelect={vi.fn()} />);
       // Both instances render (keyed by hit.id, not the shared composite).
       expect(screen.getAllByTestId("patterns-card")).toHaveLength(2);
       expect(warnings.some((w) => w.includes("duplicate") && w.includes("key"))).toBe(false);
     } finally {
       console.error = origError;
     }
+  });
+});
+
+describe("PatternGrid layout invariants", () => {
+  afterEach(() => cleanup());
+
+  test("grid uses equal minmax(0, 1fr) columns and an 8px gap", () => {
+    render(() => <PatternGrid hits={[makeHit({ id: 1 }), makeHit({ id: 2, symbol: "BBB" })]} onSelect={vi.fn()} />);
+    const grid = screen.getByTestId("patterns-grid");
+    expect(grid).toHaveStyle("display: grid");
+    expect(grid.getAttribute("style")).toMatch(/grid-template-columns: repeat\(\d, minmax\(0, 1fr\)\)/);
+    const gap = Number.parseFloat((grid as HTMLElement).style.gap || "0");
+    expect(gap).toBeLessThanOrEqual(8);
+    expect(grid.className).toContain("min-w-0");
+  });
+
+  test("a card cannot overflow its cell", () => {
+    render(() => <PatternGrid hits={[makeHit({ id: 1 })]} onSelect={vi.fn()} />);
+    const card = screen.getByTestId("patterns-card-IRCON-falling_wedge");
+    expect(card.className).toContain("min-w-0");
+    expect(card.className).toContain("overflow-hidden");
   });
 });
 
@@ -98,7 +111,7 @@ describe("PatternGrid missing coverage", () => {
       makeHit({ id: 2, symbol: "BBB" }),
       makeHit({ id: 3, symbol: "CCC" }),
     ];
-    r(<PatternGrid hits={hits} onSelect={vi.fn()} />);
+    render(() => <PatternGrid hits={hits} onSelect={vi.fn()} />);
     expect(screen.getByTestId("patterns-grid")).toBeInTheDocument();
     expect(screen.getAllByTestId("patterns-card")).toHaveLength(3);
     expect(screen.getByTestId("patterns-card-AAA-falling_wedge")).toBeInTheDocument();
@@ -107,7 +120,7 @@ describe("PatternGrid missing coverage", () => {
   });
 
   test("renders an empty grid with no cards", () => {
-    r(<PatternGrid hits={[]} onSelect={vi.fn()} />);
+    render(() => <PatternGrid hits={[]} onSelect={vi.fn()} />);
     expect(screen.getByTestId("patterns-grid")).toBeInTheDocument();
     expect(screen.queryByTestId("patterns-card")).not.toBeInTheDocument();
   });
@@ -139,7 +152,7 @@ describe("PatternGrid missing coverage", () => {
           id: undefined as unknown as number,
         },
       ];
-      r(<PatternGrid hits={hits} onSelect={vi.fn()} />);
+      render(() => <PatternGrid hits={hits} onSelect={vi.fn()} />);
       expect(screen.getAllByTestId("patterns-card")).toHaveLength(2);
       expect(screen.getByTestId("patterns-card-IRCON-double_bottom")).toBeInTheDocument();
       expect(screen.getByTestId("patterns-card-IRCON-flag")).toBeInTheDocument();
@@ -152,8 +165,8 @@ describe("PatternGrid missing coverage", () => {
   test("clicking a card calls onSelect with that hit", async () => {
     const onSelect = vi.fn();
     const hits = [makeHit({ id: 1, symbol: "AAA" }), makeHit({ id: 2, symbol: "BBB" })];
-    r(<PatternGrid hits={hits} onSelect={onSelect} />);
-    await userEvent.click(screen.getByTestId("patterns-card-BBB-falling_wedge"));
+    render(() => <PatternGrid hits={hits} onSelect={onSelect} />);
+    fireEvent.click(screen.getByTestId("patterns-card-BBB-falling_wedge"));
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith(hits[1]);
   });
@@ -165,15 +178,15 @@ describe("PatternGrid missing coverage", () => {
       makeHit({ id: 1, symbol: "AAA", pattern_id: "flag", pattern_name: "Flag" }),
       makeHit({ id: 2, symbol: "BBB", pattern_id: "flag", pattern_name: "Flag" }),
     ];
-    r(<PatternGrid hits={hits} onSelect={onSelect} onExpand={onExpand} />);
-    await userEvent.click(screen.getByTestId("patterns-card-expand-AAA-flag"));
+    render(() => <PatternGrid hits={hits} onSelect={onSelect} onExpand={onExpand} />);
+    fireEvent.click(screen.getByTestId("patterns-card-expand-AAA-flag"));
     expect(onExpand).toHaveBeenCalledTimes(1);
     expect(onExpand).toHaveBeenCalledWith(hits[0]);
     expect(onSelect).not.toHaveBeenCalled();
   });
 
   test("renders no expand buttons when onExpand is omitted", () => {
-    r(<PatternGrid hits={[makeHit({ id: 1 })]} onSelect={vi.fn()} />);
+    render(() => <PatternGrid hits={[makeHit({ id: 1 })]} onSelect={vi.fn()} />);
     expect(
       screen.queryByTestId("patterns-card-expand-IRCON-falling_wedge"),
     ).not.toBeInTheDocument();
@@ -181,20 +194,20 @@ describe("PatternGrid missing coverage", () => {
 
   test("forwards trendlinesView to every mini chart", () => {
     const hits = [makeHit({ id: 1, symbol: "AAA" }), makeHit({ id: 2, symbol: "BBB" })];
-    r(<PatternGrid hits={hits} onSelect={vi.fn()} trendlinesView="support" />);
+    render(() => <PatternGrid hits={hits} onSelect={vi.fn()} trendlinesView="support" />);
     const stubs = screen.getAllByTestId("mini-stub");
     expect(stubs).toHaveLength(2);
     stubs.forEach((stub) => expect(stub).toHaveAttribute("data-trendlines-view", "support"));
   });
 
   test("defaults trendlinesView to both", () => {
-    r(<PatternGrid hits={[makeHit({ id: 1 })]} onSelect={vi.fn()} />);
+    render(() => <PatternGrid hits={[makeHit({ id: 1 })]} onSelect={vi.fn()} />);
     expect(screen.getByTestId("mini-stub")).toHaveAttribute("data-trendlines-view", "both");
   });
 
   test("renders the 200-hit results limit", () => {
     const hits = Array.from({ length: 200 }, (_, i) => makeHit({ id: 1000 + i, symbol: `S${i}` }));
-    r(<PatternGrid hits={hits} onSelect={vi.fn()} />);
+    render(() => <PatternGrid hits={hits} onSelect={vi.fn()} />);
     expect(screen.getByTestId("patterns-grid")).toBeInTheDocument();
     expect(screen.getAllByTestId("patterns-card")).toHaveLength(200);
     expect(screen.getAllByTestId("mini-stub")).toHaveLength(200);

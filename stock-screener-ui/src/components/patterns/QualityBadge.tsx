@@ -9,26 +9,27 @@ export interface QualityBadgeProps {
 }
 
 /** Small semantic chip for shape quality, with a help tooltip explaining the tier. */
-export function QualityBadge({ quality, "data-testid": testId }: QualityBadgeProps) {
-  const key = String(quality ?? "").toLowerCase();
-  const info = QUALITY_INFO[key as keyof typeof QUALITY_INFO];
-  const label = qualityLabel(quality);
+export function QualityBadge(props: QualityBadgeProps) {
+  const key = () => String(props.quality ?? "").toLowerCase();
+  const info = () => QUALITY_INFO[key() as keyof typeof QUALITY_INFO];
+  const label = () => qualityLabel(props.quality);
+  const testId = () => props["data-testid"];
 
   const badge = (
     <Badge
-      color={qualityBadgeTone(quality)}
+      color={qualityBadgeTone(props.quality)}
       variant="outline"
       size="sm"
-      data-testid={testId ?? `patterns-quality-${key || "unknown"}`}
+      data-testid={testId() ?? `patterns-quality-${key() || "unknown"}`}
     >
-      {label}
+      {label()}
     </Badge>
   );
 
-  if (!info) return badge;
+  if (!info()) return badge;
 
   return (
-    <Tooltip label={info.description} position="top" withArrow multiline>
+    <Tooltip label={info()!.description} position="top" withArrow multiline>
       {badge}
     </Tooltip>
   );

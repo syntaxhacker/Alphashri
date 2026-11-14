@@ -1,51 +1,52 @@
-import { useLocation } from "react-router-dom";
-import { useCallback, useEffect, useState } from "react";
+import { Show, createEffect, createSignal, onCleanup, type JSX } from "solid-js";
+import { useLocation } from "@solidjs/router";
 import { useDisclosure } from "@/ui/hooks";
 import { Box, Divider, ActionIcon } from "@/ui";
 import * as palette from "@/ui/palette";
 import { useMediaQuery } from "@/ui/hooks";
-import { IconMenu2 } from "@tabler/icons-react";
+import { IconMenu2 } from "../common/Icons";
 import { NavbarNested } from "./NavbarNested";
 import { SidebarHeader } from "./SidebarHeader";
 import { NotificationsPanel, useSurgeAlertTotal } from "../notifications/NotificationsPanel";
 
 interface AppLayoutProps {
-  children: React.ReactNode;
+  children?: JSX.Element;
 }
 
 const MD_BREAKPOINT = "(min-width: 900px)";
 
-export function AppLayout({ children }: AppLayoutProps) {
+export function AppLayout(props: AppLayoutProps) {
   const location = useLocation();
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure();
   const [desktopCollapsed, { toggle: toggleDesktop }] = useDisclosure(false);
   // Only one navigation tree is mounted at a time: the hidden permanent drawer
   // used to keep all 19 links (and the news poller) alive on phones.
   const isDesktop = useMediaQuery(MD_BREAKPOINT, undefined, { noSsr: true });
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [notifRefreshKey, setNotifRefreshKey] = useState(0);
+  const [notifOpen, setNotifOpen] = createSignal(false);
+  const [notifRefreshKey, setNotifRefreshKey] = createSignal(0);
+  // Read-through accessor: the surge total refetches when the key bumps.
   const surgeTotal = useSurgeAlertTotal(notifRefreshKey);
-  const navWidth = desktopCollapsed ? 64 : 200;
+  const navWidth = () => (desktopCollapsed() ? 48 : 148);
 
   // The desk dock drawer is portaled to <body>, outside #app-shell; publish the
   // nav width on the root so the bottom sheet aligns with the main column.
-  useEffect(() => {
-    document.documentElement.style.setProperty("--app-nav-width", `${navWidth}px`);
-    return () => {
+  createEffect(() => {
+    document.documentElement.style.setProperty("--app-nav-width", `${navWidth()}px`);
+    onCleanup(() => {
       document.documentElement.style.removeProperty("--app-nav-width");
-    };
-  }, [navWidth]);
+    });
+  });
 
-  const handleNotifOpen = useCallback(() => setNotifOpen(true), []);
-  const handleNotifClose = useCallback(() => {
+  const handleNotifOpen = () => setNotifOpen(true);
+  const handleNotifClose = () => {
     setNotifOpen(false);
     setNotifRefreshKey((key) => key + 1);
-  }, []);
+  };
 
-  const drawerContent = (
+  const drawerContent = () => (
     <NavbarNested
       activePath={location.pathname}
-      collapsed={desktopCollapsed}
+      collapsed={desktopCollapsed()}
       onMobileNavigate={closeMobile}
     />
   );
@@ -53,7 +54,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   return (
     <Box
       className="flex h-screen overflow-hidden bg-fin-bg"
-      style={{ display: "flex", height: "100vh", overflow: "hidden", backgroundColor: palette.BG }}
+      style={{ display: "flex", height: "100vh", overflow: "hidden", "background-color": palette.BG }}
       id="app-shell"
       data-testid="app-shell"
     >
@@ -65,81 +66,81 @@ export function AppLayout({ children }: AppLayoutProps) {
         data-testid="app-mobile-nav-toggle"
         className="rounded-fin border border-fin-border shadow-sm"
         style={{
-          display: isDesktop ? "none" : "inline-flex",
+          display: isDesktop() ? "none" : "inline-flex",
           position: "fixed",
-          top: 8,
-          left: 8,
-          zIndex: 1299,
-          width: 36,
-          height: 36,
-          backgroundColor: palette.SURFACE,
+          top: "8px",
+          left: "8px",
+          "z-index": 1299,
+          width: "36px",
+          height: "36px",
+          "background-color": palette.SURFACE,
           border: `1px solid ${palette.BORDER}`,
-          boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+          "box-shadow": "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
         }}
       >
         <IconMenu2 size={18} />
       </ActionIcon>
 
-      <NotificationsPanel opened={notifOpen} onClose={handleNotifClose} />
+      <NotificationsPanel opened={notifOpen()} onClose={handleNotifClose} />
 
-      {!isDesktop ? (
+      <Show when={!isDesktop()}>
         <div
           style={{
-            display: mobileOpened ? "block" : "none",
+            display: mobileOpened() ? "block" : "none",
             position: "fixed",
-            top: 0,
-            left: 0,
-            bottom: 0,
-            width: 220,
-            boxSizing: "border-box",
-            zIndex: 1300,
+            top: "0px",
+            left: "0px",
+            bottom: "0px",
+            width: "168px",
+            "box-sizing": "border-box",
+            "z-index": 1300,
           }}
         >
           <SidebarHeader
             mobile
-            surgeTotal={surgeTotal}
+            surgeTotal={surgeTotal()}
             onToggleCollapse={toggleDesktop}
             onOpenNotifications={handleNotifOpen}
           />
           <Divider />
-          {drawerContent}
+          {drawerContent()}
         </div>
-      ) : null}
+      </Show>
 
-      {isDesktop ? (
+      <Show when={isDesktop()}>
         <div
           id="app-navbar"
           data-testid="app-navbar"
           style={{
             display: "block",
-            width: navWidth,
-            flexShrink: 0,
+            width: `${navWidth()}px`,
+            "flex-shrink": "0",
             transition: "width 0.2s ease-in-out",
             overflow: "hidden",
           }}
         >
           <SidebarHeader
-            rail={desktopCollapsed}
-            surgeTotal={surgeTotal}
+            rail={desktopCollapsed()}
+            surgeTotal={surgeTotal()}
             onToggleCollapse={toggleDesktop}
             onOpenNotifications={handleNotifOpen}
           />
           <Divider />
-          {drawerContent}
+          {drawerContent()}
         </div>
-      ) : null}
+      </Show>
 
       <Box
         component="main"
         className="flex-1 min-w-0 min-h-0 overflow-auto bg-fin-bg flex flex-col"
         style={{
-          flexGrow: 1,
-          minWidth: 0,
-          minHeight: 0,
+          "flex-grow": 1,
+          "min-width": "0px",
+          "min-height": "0px",
           overflow: "auto",
-          backgroundColor: palette.BG,
+          "background-color": palette.BG,
           display: "flex",
-          flexDirection: "column",
+          "flex-direction": "column",
         }}
         id="app-main"
         data-testid="app-main"
@@ -148,15 +149,15 @@ export function AppLayout({ children }: AppLayoutProps) {
           className="flex-1 min-h-0 flex flex-col w-full"
           style={{
             flex: 1,
-            minHeight: 0,
+            "min-height": "0px",
             display: "flex",
-            flexDirection: "column",
+            "flex-direction": "column",
             width: "100%",
-            padding: 0,
-            margin: 0,
+            padding: "0px",
+            margin: "0px",
           }}
         >
-          {children}
+          {props.children}
         </Box>
       </Box>
     </Box>

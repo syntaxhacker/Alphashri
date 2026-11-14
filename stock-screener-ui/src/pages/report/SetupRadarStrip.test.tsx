@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import { afterEach, describe, expect, test } from "vitest";
 import { SetupRadarStrip } from "./SetupRadarStrip";
 import type { SetupRead } from "./niftySetup";
@@ -24,7 +25,7 @@ const read: SetupRead = {
 
 describe("SetupRadarStrip", () => {
   test("renders every gate with its pass state and the score", () => {
-    render(<SetupRadarStrip read={read} />);
+    render(() => <SetupRadarStrip read={read} />);
     expect(screen.getByTestId("nifty-setup-radar")).toHaveAttribute("data-state", "ARMED");
     for (const gate of ["coil", "trend", "rvol", "level", "wall", "gamma", "fuel"]) {
       expect(screen.getByTestId(`nifty-setup-${gate}`)).toBeInTheDocument();
@@ -48,12 +49,13 @@ describe("SetupRadarStrip", () => {
         { key: "iv-rich", label: "IV rich", points: -2, detail: "IV/RV 1.24" },
       ],
     };
-    const { rerender } = render(<SetupRadarStrip read={read} preMove={armed} />);
+    const [preMove, setPreMove] = createSignal<PreMoveScore | undefined>(armed);
+    render(() => <SetupRadarStrip read={read} preMove={preMove()} />);
     expect(screen.getByTestId("nifty-premove")).toHaveAttribute("data-state", "armed");
     expect(screen.getByTestId("nifty-premove")).toHaveTextContent("PRE 5/9 ARMED");
     expect(screen.getByTestId("nifty-premove").getAttribute("title")).toContain("CE OI +0.96M");
 
-    rerender(<SetupRadarStrip read={read} preMove={{ ...armed, score: 0, state: "quiet", components: [] }} />);
+    setPreMove({ ...armed, score: 0, state: "quiet", components: [] });
     expect(screen.queryByTestId("nifty-premove")).not.toBeInTheDocument();
   });
 });

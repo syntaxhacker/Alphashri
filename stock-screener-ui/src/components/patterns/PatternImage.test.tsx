@@ -1,27 +1,25 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import type { ReactElement, ReactNode } from "react";
 import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { UIProvider } from "@/ui";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import { PatternImage } from "./PatternImage";
 
-function r(ui: ReactElement) {
-  return render(ui, {
-    wrapper: ({ children }: { children: ReactNode }) => <UIProvider>{children}</UIProvider>,
-  });
-}
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 
 afterEach(() => cleanup());
 
 describe("PatternImage", () => {
   test("renders the <img> when a URL exists", () => {
-    r(
+    render(() => (
       <PatternImage
         patternId="falling_wedge"
         images={{ falling_wedge: "/api/chart-patterns/image/falling_wedge" }}
-      />,
-    );
+      />
+    ));
 
     const img = screen.getByTestId("pattern-image-falling_wedge");
     expect(img.tagName).toBe("IMG");
@@ -30,7 +28,7 @@ describe("PatternImage", () => {
   });
 
   test("renders the placeholder when no image exists", () => {
-    r(<PatternImage patternId="falling_wedge" images={{}} />);
+    render(() => <PatternImage patternId="falling_wedge" images={{}} />);
 
     expect(screen.getByTestId("pattern-image-placeholder")).toBeInTheDocument();
     expect(screen.getByTestId("pattern-image-placeholder-label")).toHaveTextContent(
@@ -40,7 +38,7 @@ describe("PatternImage", () => {
   });
 
   test("falls back to the placeholder when the image fails to load", () => {
-    r(<PatternImage patternId="falling_wedge" images={{ falling_wedge: "/broken" }} />);
+    render(() => <PatternImage patternId="falling_wedge" images={{ falling_wedge: "/broken" }} />);
 
     fireEvent.error(screen.getByTestId("pattern-image-falling_wedge"));
 
@@ -49,27 +47,27 @@ describe("PatternImage", () => {
   });
 
   test("uses the raw id as the label for unknown patterns", () => {
-    r(<PatternImage patternId="mystery_shape" images={{}} />);
+    render(() => <PatternImage patternId="mystery_shape" images={{}} />);
     expect(screen.getByTestId("pattern-image-placeholder-label")).toHaveTextContent(
       "mystery_shape",
     );
   });
 
   test("hides the placeholder label in tile mode", () => {
-    r(<PatternImage patternId="falling_wedge" images={{}} showPlaceholderLabel={false} />);
+    render(() => <PatternImage patternId="falling_wedge" images={{}} showPlaceholderLabel={false} />);
     const label = screen.getByTestId("pattern-image-placeholder-label");
     expect(label).toHaveTextContent("Falling Wedge");
     expect(label).toHaveStyle({ display: "none" });
   });
 
   test("uses custom alt text for the rendered image", () => {
-    r(
+    render(() => (
       <PatternImage
         patternId="falling_wedge"
         images={{ falling_wedge: "/img/wedge.png" }}
         alt="Wedge example"
-      />,
-    );
+      />
+    ));
 
     const img = screen.getByTestId("pattern-image-falling_wedge");
     expect(img).toHaveAttribute("alt", "Wedge example");
@@ -77,7 +75,7 @@ describe("PatternImage", () => {
   });
 
   test("uses custom alt text for the placeholder label", () => {
-    r(<PatternImage patternId="falling_wedge" images={{}} alt="Custom placeholder" />);
+    render(() => <PatternImage patternId="falling_wedge" images={{}} alt="Custom placeholder" />);
 
     expect(screen.getByTestId("pattern-image-placeholder")).toBeInTheDocument();
     expect(screen.getByTestId("pattern-image-placeholder-label")).toHaveTextContent(
@@ -86,15 +84,17 @@ describe("PatternImage", () => {
   });
 
   test("recovers the image when the url prop changes after an error", () => {
-    const { rerender } = r(
-      <PatternImage patternId="falling_wedge" images={{ falling_wedge: "/broken" }} />,
-    );
+    let setImages!: (images: Record<string, string>) => void;
+    render(() => {
+      const [images, _setImages] = createSignal<Record<string, string>>({ falling_wedge: "/broken" });
+      setImages = _setImages;
+      return <PatternImage patternId="falling_wedge" images={images()} />;
+    });
+
     fireEvent.error(screen.getByTestId("pattern-image-falling_wedge"));
     expect(screen.getByTestId("pattern-image-placeholder")).toBeInTheDocument();
 
-    rerender(
-      <PatternImage patternId="falling_wedge" images={{ falling_wedge: "/fixed.png" }} />,
-    );
+    setImages({ falling_wedge: "/fixed.png" });
     const img = screen.getByTestId("pattern-image-falling_wedge");
     expect(img.tagName).toBe("IMG");
     expect(img).toHaveAttribute("src", "/fixed.png");

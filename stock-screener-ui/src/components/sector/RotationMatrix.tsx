@@ -1,8 +1,6 @@
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
-import { useMemo } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
 import { Box, Text } from "@/ui";
-import { TanStackTable } from "@/components/common/TanStackTable";
+import { TanStackTable, type TableColumnDef } from "@/components/common/TanStackTable";
 import { withAlpha } from "@/utils/color";
 import { formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
 import type { RotationPeriod, RotationRow } from "@/types/rotation";
@@ -20,47 +18,44 @@ export interface RotationMatrixProps {
   onSelect: (id: string) => void;
 }
 
-export function RotationMatrix({ rows, selectedId, onSelect }: RotationMatrixProps) {
-  const columns = useMemo<ColumnDef<RotationRow>[]>(
-    () => [
-      {
-        id: "group",
-        header: "Group",
-        accessorFn: (row) => row.name,
-        size: 180,
-        meta: { align: "left" },
-        cell: (info) => (
-          <Text truncate className="text-[10.5px] font-semibold leading-[1.15]">
-            {info.getValue<string>()}
-          </Text>
-        ),
-      },
-      ...PERIODS.map<ColumnDef<RotationRow>>((period) => ({
-        id: period,
-        header: period,
-        accessorFn: (row) => row.returns[period],
-        size: 64,
-        meta: { align: "right" },
-        cell: (info) => {
-          const value = info.getValue<number>();
-          return (
-            <Box
-              className="flex items-center justify-end min-h-[14px] px-[2px] rounded-[0.5px]"
-              style={{ backgroundColor: heatBackground(value) }}
+export function RotationMatrix(props: RotationMatrixProps) {
+  const columns: TableColumnDef<RotationRow>[] = [
+    {
+      id: "group",
+      header: "Group",
+      accessorFn: (row) => row.name,
+      size: 180,
+      meta: { align: "left" },
+      cell: ({ row }) => (
+        <Text truncate className="text-[10.5px] font-semibold leading-[1.15]">
+          {row.original.name}
+        </Text>
+      ),
+    },
+    ...PERIODS.map<TableColumnDef<RotationRow>>((period) => ({
+      id: period,
+      header: period,
+      accessorFn: (row) => row.returns[period],
+      size: 64,
+      meta: { align: "right" },
+      cell: ({ row }) => {
+        const value = row.original.returns[period];
+        return (
+          <Box
+            className="flex items-center justify-end min-h-[14px] px-[2px] rounded-[0.5px]"
+            style={{ "background-color": heatBackground(value) }}
+          >
+            <Text
+              c={getPnLTextColor(value)}
+              className="font-mono text-[10px] font-semibold tabular-nums leading-none"
             >
-              <Text
-                c={getPnLTextColor(value)}
-                className="font-mono text-[10px] font-semibold tabular-nums leading-none"
-              >
-                {formatPercentage(value, 1, true)}
-              </Text>
-            </Box>
-          );
-        },
-      })),
-    ],
-    [],
-  );
+              {formatPercentage(value, 1, true)}
+            </Text>
+          </Box>
+        );
+      },
+    })),
+  ];
 
   return (
     <Box
@@ -68,26 +63,26 @@ export function RotationMatrix({ rows, selectedId, onSelect }: RotationMatrixPro
       className="flex h-full min-h-0 flex-1 flex-col"
     >
       <TanStackTable<RotationRow>
-        data={rows}
+        data={props.rows}
         columns={columns}
         dataTestId="rotation-matrix-table"
         initialState={{ sorting: [{ id: "1M", desc: true }] }}
-        onRowClick={(row) => onSelect(row.id)}
+        onRowClick={(row) => props.onSelect(row.id)}
         stickyHeader
         fillContainer
         dense
         minTableWidth={700}
         getRowTestId={(row) => `rotation-matrix-row-${row.id}`}
         getRowStyle={(row) =>
-          row.id === selectedId
+          row.id === props.selectedId
             ? {
                 background: "rgba(88, 166, 255, 0.12)",
-                boxShadow: "inset 2px 0 0 var(--color-fin-primary)",
+                "box-shadow": "inset 2px 0 0 var(--color-fin-primary)",
               }
             : undefined
         }
         getRowAttributes={(row) => ({
-          "data-active": row.id === selectedId ? "true" : undefined,
+          "data-active": row.id === props.selectedId ? "true" : undefined,
         })}
       />
     </Box>

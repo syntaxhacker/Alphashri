@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { getMarketOpenGapColumns } from "./marketOpenGap";
-import { fmtOf, expectPctClass } from "./columnTestFixtures";
+import { cellOf, cellText, fmtOf } from "./columnTestFixtures";
 
 const fmt = (key: string) => fmtOf(getMarketOpenGapColumns, key);
 
@@ -18,9 +18,19 @@ describe("marketOpenGap columns", () => {
       [2.5, "+2.50%", "success"],
       [-3.1, "-3.10%", "error"],
       [0, "+0.00%", "success"],
-      [NaN, "NaN%", "error"],
-      [Infinity, "+Infinity%", "success"],
-    ])("gap %s -> %s %s", (v, ev, ec) => expectPctClass(fmt("gap_pct")(v), ev, ec));
+      [Infinity, "—", ""],
+      [NaN, "—", ""],
+    ])("gap %s -> %s tone %s", (v, ev, ec) => {
+      const cell = cellOf(() => fmt("gap_pct")(v));
+      expect(cell.text).toBe(ev);
+      expect(cell.tone).toBe(ec);
+    });
+    it("numbers are mono tabular right aligned", () => {
+      const cell = cellOf(() => fmt("gap_pct")(2.5));
+      expect(cell.className).toContain("font-mono");
+      expect(cell.className).toContain("tabular-nums");
+      expect(cell.className).toContain("text-right");
+    });
   });
 
   describe("premarket_change", () => {
@@ -28,26 +38,30 @@ describe("marketOpenGap columns", () => {
       [1.5, "+1.50%", "success"],
       [-0.5, "-0.50%", "error"],
       [0, "+0.00%", "success"],
-    ])("premarket %s -> %s %s", (v, ev, ec) => expectPctClass(fmt("premarket_change")(v), ev, ec));
+    ])("premarket %s -> %s %s", (v, ev, ec) => {
+      const cell = cellOf(() => fmt("premarket_change")(v));
+      expect(cell.text).toBe(ev);
+      expect(cell.tone).toBe(ec);
+    });
   });
 
   describe("day_change", () => {
     it("positive green negative red", () => {
-      expect((fmt("day_change")(3.45) as any).className).toBe("success");
-      expect((fmt("day_change")(-2.1) as any).className).toBe("error");
+      expect(cellOf(() => fmt("day_change")(3.45)).tone).toBe("success");
+      expect(cellOf(() => fmt("day_change")(-2.1)).tone).toBe("error");
     });
-    it("0 green", () => expect((fmt("day_change")(0) as any).className).toBe("success"));
+    it("0 green", () => expect(cellOf(() => fmt("day_change")(0)).tone).toBe("success"));
   });
 
   describe("volume_m", () => {
     it("12.345 -> 12.35", () => {
-      expect(fmt("volume_m")(12.345)).toBe("12.35");
+      expect(cellText(() => fmt("volume_m")(12.345))).toBe("12.35");
     });
     it("null -> 0.00", () => {
-      expect(fmt("volume_m")(null)).toBe("0.00");
+      expect(cellText(() => fmt("volume_m")(null))).toBe("0.00");
     });
-    it("undefined -> 0.00", () => expect(fmt("volume_m")(undefined)).toBe("0.00"));
-    it("Infinity not throw", () => expect(() => fmt("volume_m")(Infinity)).not.toThrow());
+    it("undefined -> 0.00", () => expect(cellText(() => fmt("volume_m")(undefined))).toBe("0.00"));
+    it("Infinity -> dash", () => expect(cellText(() => fmt("volume_m")(Infinity))).toBe("—"));
   });
 
   it("all sortable", () => getMarketOpenGapColumns().forEach((c) => expect(c.sortable).toBe(true)));

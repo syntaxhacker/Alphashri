@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { ScreenerNav } from "./ScreenerNav";
 import { UIProvider } from "@/ui";
 import type { ScreenerOption } from "../../types";
@@ -33,11 +32,11 @@ describe("ScreenerNav", () => {
   });
 
   it("renders navigation with all options", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerNav {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("screener-nav")).toBeInTheDocument();
     expect(screen.getByText("Trending")).toBeInTheDocument();
     expect(screen.getByText("New Highs")).toBeInTheDocument();
@@ -45,32 +44,31 @@ describe("ScreenerNav", () => {
   });
 
   it("marks active screener with data-active", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerNav {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("screener-nav-option-trending")).toHaveAttribute("data-active", "true");
     expect(screen.getByTestId("screener-nav-option-new-highs")).not.toHaveAttribute("data-active");
   });
 
   it("calls onChange when option is clicked", async () => {
-      const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerNav {...defaultProps} />
-      </UIProvider>,
-    );
-    await user.click(screen.getByTestId("screener-nav-option-new-highs"));
+      </UIProvider>
+    ));
+    fireEvent.click(screen.getByTestId("screener-nav-option-new-highs"));
     expect(defaultProps.onChange).toHaveBeenCalledWith("new-highs");
   });
 
   it("renders tooltips for options with descriptions", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerNav {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     // The local Tooltip renders description as aria-label on the wrapper span, not visible text
     expect(screen.getByLabelText("Stocks with strong momentum")).toBeInTheDocument();
     expect(screen.getByLabelText("Stocks at 52-week highs")).toBeInTheDocument();
@@ -79,56 +77,50 @@ describe("ScreenerNav", () => {
 
   it("handles options without descriptions", () => {
     const optionsWithoutDesc: ScreenerOption[] = [{ id: "simple", label: "Simple" }];
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerNav options={optionsWithoutDesc} activeScreener="simple" onChange={vi.fn()} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByText("Simple")).toBeInTheDocument();
   });
 
   it("changes active screener when different option selected", async () => {
-      const user = userEvent.setup();
-    let activeScreener = "trending";
+    const { createSignal } = await import("solid-js");
+    const [activeScreener, setActiveScreener] = createSignal("trending");
     const handleChange = (id: string) => {
-      activeScreener = id;
+      setActiveScreener(id);
     };
 
-    const { rerender } = render(
+    render(() => (
       <UIProvider>
-        <ScreenerNav options={mockOptions} activeScreener={activeScreener} onChange={handleChange} />
-      </UIProvider>,
-    );
+        <ScreenerNav options={mockOptions} activeScreener={activeScreener()} onChange={handleChange} />
+      </UIProvider>
+    ));
 
     expect(screen.getByTestId("screener-nav-option-trending")).toHaveAttribute("data-active", "true");
 
-    await user.click(screen.getByTestId("screener-nav-option-rsi_reversal"));
-
-    rerender(
-      <UIProvider>
-        <ScreenerNav options={mockOptions} activeScreener={activeScreener} onChange={handleChange} />
-      </UIProvider>,
-    );
+    fireEvent.click(screen.getByTestId("screener-nav-option-rsi_reversal"));
 
     expect(screen.getByTestId("screener-nav-option-rsi_reversal")).toHaveAttribute("data-active", "true");
   });
 
   it("handles single option", () => {
     const singleOption: ScreenerOption[] = [{ id: "only", label: "Only Option" }];
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerNav options={singleOption} activeScreener="only" onChange={vi.fn()} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByText("Only Option")).toBeInTheDocument();
   });
 
   it("handles empty options array", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerNav options={[]} activeScreener="" onChange={vi.fn()} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const nav = screen.getByTestId("screener-nav");
     expect(nav).toHaveAttribute("data-options-count", "0");
   });
@@ -138,37 +130,37 @@ describe("ScreenerNav", () => {
       { id: "52w_high", label: "52W High", status: "current" },
       { id: "near_52w_breakout", label: "Near 52W", status: "legacy" },
     ];
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerNav
           options={optionsWithStatus}
           activeScreener="52w_high"
           onChange={vi.fn()}
         />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByText("N")).toBeInTheDocument();
     expect(screen.getByText("L")).toBeInTheDocument();
     expect(screen.getByText("Legacy")).toBeInTheDocument();
   });
 
   it("sets aria-current=page only on active option", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerNav {...defaultProps} activeScreener="trending" />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("screener-nav-option-trending")).toHaveAttribute("aria-current", "page");
     expect(screen.getByTestId("screener-nav-option-new-highs")).not.toHaveAttribute("aria-current");
     expect(screen.getByTestId("screener-nav-option-rsi_reversal")).not.toHaveAttribute("aria-current");
   });
 
   it("exactly one option is active at a time", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerNav {...defaultProps} activeScreener="new-highs" />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const actives = mockOptions.filter((o) =>
       screen.getByTestId(`screener-nav-option-${o.id}`).hasAttribute("data-active"),
     );
@@ -177,11 +169,11 @@ describe("ScreenerNav", () => {
   });
 
   it("no option active when activeScreener is unknown", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerNav {...defaultProps} activeScreener="unknown" />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     mockOptions.forEach((o) => {
       expect(screen.getByTestId(`screener-nav-option-${o.id}`)).not.toHaveAttribute("data-active");
     });
@@ -192,11 +184,11 @@ describe("ScreenerNav", () => {
       { id: "52w_high", label: "52W High", status: "current" },
       { id: "old_one", label: "Old One", status: "legacy" },
     ];
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerNav options={options} activeScreener="old_one" onChange={vi.fn()} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("screener-nav-option-old_one")).toHaveAttribute("data-active", "true");
     expect(screen.getByTestId("screener-nav-option-52w_high")).not.toHaveAttribute("data-active");
   });

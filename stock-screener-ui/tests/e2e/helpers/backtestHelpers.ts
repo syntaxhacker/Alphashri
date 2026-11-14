@@ -156,11 +156,12 @@ export async function selectSymbolFromMultiselect(
   const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
   await symbolSelect.click({ force: true });
   await page.keyboard.type(symbol, { delay });
-  await expect(page.locator('[role="option"]').first()).toBeVisible({ timeout: 5000 });
-  const option = page.locator('[role="option"]').first();
-  if (await option.isVisible()) {
-    await option.click();
-  }
+  // The dropdown renders a "No symbols found" placeholder (role=option)
+  // before the 300 ms search debounce resolves; match the real row by text
+  // or the click lands on the placeholder and no symbol is selected.
+  const option = page.locator('[role="option"]', { hasText: symbol }).first();
+  await expect(option).toBeVisible({ timeout: 5000 });
+  await option.click();
 }
 
 export async function withTradeHistoryPanel(page: Page, fn: () => Promise<void>) {
@@ -222,8 +223,9 @@ export async function selectSymbolAndRun(page: Page, symbol: string = "RELIANCE"
 
   await searchInput.focus();
   await page.keyboard.type(symbol, { delay: 50 });
-  await page.waitForSelector('[role="option"]', { timeout: 5000 });
-  const option = page.locator('[role="option"]').first();
+  // Match the real row: the dropdown shows a "No symbols found" placeholder
+  // (role=option) until the 300 ms search debounce resolves.
+  const option = page.locator('[role="option"]', { hasText: symbol }).first();
   await option.waitFor({ state: "visible", timeout: 5000 });
   await option.click();
   const runBtn = page.locator('[data-testid="run-backtest-btn"]');

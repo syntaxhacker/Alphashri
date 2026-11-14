@@ -1,16 +1,20 @@
-import { useCallback, useEffect } from "react";
+import { Show, createEffect, onCleanup, type JSX } from "solid-js";
 import { Portal } from "@/ui/layout/Portal";
-import { IconX } from "@tabler/icons-react";
+import { IconX } from "./Icons";
 import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import { Box, Text } from "@/ui";
 
+// `solid-js` does not re-export JSX.CSSProperties from its package root.
+type CSSProperties = JSX.CSSProperties;
+
+
 export interface PanelModalProps {
   open: boolean;
-  title: ReactNode;
+  title: JSX.Element;
   onClose: () => void;
-  children: ReactNode;
-  actions?: ReactNode;
+  children?: JSX.Element;
+  actions?: JSX.Element;
   /** `drawer` docks the shell to the right edge: full viewport height, rail
    *  pinned to `drawerWidth` (capped at 74vw) on desktop, square edge. Used by
    *  the gamma/positions read-outs so they read as a side panel rather than a
@@ -36,216 +40,204 @@ const DIALOG_SHADOW = palette.DIALOG_SHADOW;
  * by `maxHeight`). The body is the only scroller so the title bar never leaves
  * the viewport.
  */
-export function PanelModal({
-  open,
-  title,
-  onClose,
-  children,
-  actions,
-  variant = "modal",
-  maxWidth,
-  drawerWidth,
-  autoHeight = false,
-  maxHeight = "80vh",
-}: PanelModalProps) {
-  const isDrawer = variant === "drawer";
-  const compact = !isDrawer && autoHeight;
-  const width = maxWidth != null ? `min(${maxWidth}px, 92vw)` : "92vw";
+export function PanelModal(props: PanelModalProps) {
+  const isDrawer = () => props.variant === "drawer";
+  const compact = () => !isDrawer() && (props.autoHeight ?? false);
+  const maxHeight = () => props.maxHeight ?? "80vh";
+  const width = () =>
+    props.maxWidth != null ? `min(${props.maxWidth}px, 92vw)` : "92vw";
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    },
-    [onClose],
-  );
+  createEffect(() => {
+    if (!props.open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") props.onClose();
+    };
+    document.addEventListener("keydown", handler);
+    onCleanup(() => document.removeEventListener("keydown", handler));
+  });
 
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) onClose();
-    },
-    [onClose],
-  );
+  const handleBackdropClick = (e: MouseEvent) => {
+    if (e.target === e.currentTarget) props.onClose();
+  };
 
-  useEffect(() => {
-    if (open) {
-      document.addEventListener("keydown", handleKeyDown);
-      return () => document.removeEventListener("keydown", handleKeyDown);
-    }
-  }, [open, handleKeyDown]);
+  const maxHeightValue = () =>
+    typeof maxHeight() === "number" ? `${maxHeight()}px` : (maxHeight() as string);
 
-  if (!open) return null;
-
-  const drawerPanelStyle: React.CSSProperties = {
+  const drawerPanelStyle: CSSProperties = {
     position: "absolute",
     top: 0,
     right: 0,
     width: "100%",
-    maxWidth: `min(${drawerWidth ?? 720}px, 74vw)`,
+    "max-width": `min(${props.drawerWidth ?? 720}px, 74vw)`,
     height: "100%",
-    maxHeight: "100%",
-    backgroundColor: palette.TERM_BG,
+    "max-height": "100%",
+    "background-color": palette.TERM_BG,
     color: palette.TEXT,
     border: `1px solid ${palette.TERM_BORDER}`,
-    borderRight: "none",
-    borderRadius: 0,
-    boxShadow: DIALOG_SHADOW,
+    "border-right": "none",
+    "border-radius": 0,
+    "box-shadow": DIALOG_SHADOW,
     display: "flex",
-    flexDirection: "column",
+    "flex-direction": "column",
     overflow: "hidden",
   };
 
-  const modalPanelStyle: React.CSSProperties = {
+  const modalPanelStyle: CSSProperties = {
     position: "absolute",
     top: "50%",
     left: "50%",
     transform: "translate(-50%, -50%)",
-    width: compact ? "100%" : width,
-    maxWidth: compact ? width : undefined,
-    maxHeight: compact ? (typeof maxHeight === "number" ? `${maxHeight}px` : maxHeight) : "88vh",
-    height: compact ? "auto" : "88vh",
-    backgroundColor: palette.TERM_BG,
+    width: compact() ? "100%" : width(),
+    "max-width": compact() ? width() : undefined,
+    "max-height": compact() ? maxHeightValue() : "88vh",
+    height: compact() ? "auto" : "88vh",
+    "background-color": palette.TERM_BG,
     color: palette.TEXT,
     border: `1px solid ${palette.TERM_BORDER}`,
-    borderRadius: "4px",
-    boxShadow: DIALOG_SHADOW,
+    "border-radius": "4px",
+    "box-shadow": DIALOG_SHADOW,
     display: "flex",
-    flexDirection: "column",
+    "flex-direction": "column",
     overflow: "hidden",
   };
 
-  const backdropStyle: React.CSSProperties = isDrawer
-    ? { backgroundColor: withAlpha(palette.BG, 0.18) }
-    : { backgroundColor: withAlpha(palette.BG, 0.5) };
+  const backdropStyle: CSSProperties = isDrawer()
+    ? { "background-color": withAlpha(palette.BG, 0.18) }
+    : { "background-color": withAlpha(palette.BG, 0.5) };
 
-  const titlebarStyle: React.CSSProperties = {
+  const titlebarStyle: CSSProperties = {
     display: "flex",
-    alignItems: "center",
-    gap: 8,
+    "align-items": "center",
+    gap: "8px",
     padding: "12px 16px",
-    minHeight: 36,
-    flexShrink: 0,
-    backgroundColor: palette.TERM_HEADER,
-    borderBottom: `1px solid ${palette.TERM_BORDER}`,
+    "min-height": "36px",
+    "flex-shrink": 0,
+    "background-color": palette.TERM_HEADER,
+    "border-bottom": `1px solid ${palette.TERM_BORDER}`,
   };
 
-  const titleStyle: React.CSSProperties = {
+  const titleStyle: CSSProperties = {
     flex: 1,
-    minWidth: 0,
+    "min-width": 0,
     overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
+    "text-overflow": "ellipsis",
+    "white-space": "nowrap",
   };
 
-  const bodyStyle: React.CSSProperties = {
-    flex: compact ? "0 1 auto" : 1,
-    minHeight: 0,
+  const bodyStyle: CSSProperties = {
+    flex: compact() ? "0 1 auto" : 1,
+    "min-height": 0,
     overflow: "auto",
-    padding: 8,
+    padding: "8px",
   };
 
-  const actionsStyle: React.CSSProperties = {
+  const actionsStyle: CSSProperties = {
     display: "flex",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    gap: 8,
+    "align-items": "center",
+    "justify-content": "flex-end",
+    gap: "8px",
     padding: "12px 16px",
-    flexShrink: 0,
-    borderTop: `1px solid ${palette.TERM_BORDER}`,
-    backgroundColor: palette.TERM_HEADER,
+    "flex-shrink": 0,
+    "border-top": `1px solid ${palette.TERM_BORDER}`,
+    "background-color": palette.TERM_HEADER,
   };
 
-  const closeButtonStyle: React.CSSProperties = {
+  const closeButtonStyle: CSSProperties = {
     padding: "2px",
     color: palette.TEXT_MUTED,
     border: "none",
     background: "none",
-    borderRadius: 0,
+    "border-radius": 0,
     cursor: "pointer",
   };
 
-  const titleText = typeof title === "string" ? (
-    <Text
-      span
-      size="xs"
-      fw={700}
-      style={{
-        fontSize: 10,
-        lineHeight: 1.2,
-        letterSpacing: "0.08em",
-        textTransform: "uppercase",
-        color: palette.TEXT_MUTED,
-      }}
-    >
-      {title}
-    </Text>
-  ) : (
-    title
-  );
-
-  return (
-    <Portal>
-      <div
-        data-testid="panel-modal"
-        data-variant={variant}
-        data-compact={compact ? "true" : undefined}
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 50,
-          display: "flex",
-          justifyContent: isDrawer ? "flex-end" : "center",
-          alignItems: isDrawer ? "stretch" : "center",
-          padding: isDrawer ? 0 : 16,
-          ...backdropStyle,
-        }}
-        onClick={handleBackdropClick}
-        onKeyDown={handleKeyDown}
-        role="dialog"
-        aria-modal="true"
-        tabIndex={-1}
-      >
+  // Zero-arg render thunk: Solid's `Show` calls it lazily, which is what keeps
+  // the `<Portal>` out of `document.body` while the panel is closed (an eager
+  // element child is created outside the owning root and never disposed).
+  // `Show`'s types only accept a *parameterised* render function, so the thunk
+  // is passed as an Element.
+  const body = (() => (
+      <Portal>
         <div
-          data-testid="panel-modal-panel"
-          style={isDrawer ? drawerPanelStyle : modalPanelStyle}
-          className="flex flex-col"
-          onClick={(e) => e.stopPropagation()}
+          data-testid="panel-modal"
+          data-variant={props.variant ?? "modal"}
+          data-compact={compact() ? "true" : undefined}
+          style={{
+            position: "fixed",
+            inset: "0px",
+            "z-index": 50,
+            display: "flex",
+            "justify-content": isDrawer() ? "flex-end" : "center",
+            "align-items": isDrawer() ? "stretch" : "center",
+            padding: isDrawer() ? 0 : "16px",
+            ...backdropStyle,
+          }}
+          onClick={handleBackdropClick}
+          role="dialog"
+          aria-modal="true"
+          tabIndex={-1}
         >
-          <Box
-            data-testid="panel-modal-titlebar"
-            style={titlebarStyle}
+          <div
+            data-testid="panel-modal-panel"
+            style={isDrawer() ? drawerPanelStyle : modalPanelStyle}
+            className="flex flex-col"
+            onClick={(e) => e.stopPropagation()}
           >
             <Box
-              data-testid="panel-modal-title"
-              style={titleStyle}
+              data-testid="panel-modal-titlebar"
+              style={titlebarStyle}
             >
-              {titleText}
+              <Box
+                data-testid="panel-modal-title"
+                style={titleStyle}
+              >
+                {typeof props.title === "string" ? (
+                  <Text
+                    span
+                    size="xs"
+                    fw={700}
+                    style={{
+                      "font-size": "10px",
+                      "line-height": 1.2,
+                      "letter-spacing": "0.08em",
+                      "text-transform": "uppercase",
+                      color: palette.TEXT_MUTED,
+                    }}
+                  >
+                    {props.title as string}
+                  </Text>
+                ) : (
+                  props.title
+                )}
+              </Box>
+              <button
+                type="button"
+                data-testid="panel-modal-close"
+                aria-label="Close panel"
+                onClick={props.onClose}
+                style={closeButtonStyle}
+              >
+                <IconX size={14} />
+              </button>
             </Box>
-            <button
-              type="button"
-              data-testid="panel-modal-close"
-              aria-label="Close panel"
-              onClick={onClose}
-              style={closeButtonStyle}
-            >
-              <IconX size={14} />
-            </button>
-          </Box>
-          <Box
-            data-testid="panel-modal-body"
-            style={bodyStyle}
-          >
-            {children}
-          </Box>
-          {actions ? (
             <Box
-              data-testid="panel-modal-actions"
-              style={actionsStyle}
+              data-testid="panel-modal-body"
+              style={bodyStyle}
             >
-              {actions}
+              {props.children}
             </Box>
-          ) : null}
+            <Show when={props.actions}>
+              <Box
+                data-testid="panel-modal-actions"
+                style={actionsStyle}
+              >
+                {props.actions}
+              </Box>
+            </Show>
+          </div>
         </div>
-      </div>
-    </Portal>
-  );
+      </Portal>
+  )) as unknown as JSX.Element;
+
+  return <Show when={props.open}>{body}</Show>;
 }

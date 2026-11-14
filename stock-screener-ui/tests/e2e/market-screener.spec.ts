@@ -1,6 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
-import { setupEventsMocks } from "../mocks/eventResponses";
 import { apiRoute } from "../mocks/routeHelper";
 import { collectConsoleErrors } from "./helpers/flowsB";
 
@@ -68,8 +67,6 @@ async function mockMarketSnapshot(page: Page, state: { status: number } = { stat
 
 async function openMarketTab(page: Page, state?: { status: number }) {
   await setupApiMocks(page);
-  // EventsPanel is mounted on every screener tab — keep it off the network too.
-  await setupEventsMocks(page);
   await loginAsTestUser(page);
   await mockMarketSnapshot(page, state);
   await page.goto(SNAPSHOT_PATH);

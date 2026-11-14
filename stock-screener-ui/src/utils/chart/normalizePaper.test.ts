@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizePaper } from "./normalizePaper";
+import { normalizePaper, type PaperNormalizeInput } from "./normalizePaper";
 import {
   PIVOT_OR_HIGH,
   PIVOT_OR_LOW,
@@ -289,17 +289,24 @@ describe("normalizePaper", () => {
         },
       };
       const result = runPaper(data, { showEmaLines: true });
-      expect(result.emaData).toHaveLength(2);
-      expect(result.emaData[0]).toMatchObject({
+      const ema = result.emaData ?? [];
+      expect(ema).toHaveLength(2);
+      expect(ema[0]).toMatchObject({
         label: "EMA 9",
         color: INDICATOR_BLUE_A,
         data: [100, 101, 102],
       });
-      expect(result.emaData[1].label).toBe("EMA 21");
+      expect(ema[1].label).toBe("EMA 21");
     });
 
     it("does not add EMA when showEmaLines is false", () => {
-      const data = { ...mockPaperData, ema_series: { ema_fast: { label: "EMA 9", data: [] } } };
+      const data = {
+        ...mockPaperData,
+        ema_series: {
+          ema_fast: { label: "EMA 9", color: INDICATOR_BLUE_A, data: [] },
+          ema_slow: { label: "EMA 21", color: INDICATOR_BLUE_B, data: [] },
+        },
+      };
       const result = runPaper(data, { showEmaLines: false });
       expect(result.emaData).toBeUndefined();
     });
@@ -307,7 +314,7 @@ describe("normalizePaper", () => {
 
   describe("live position", () => {
     it("maps current_position to livePosition", () => {
-      const data = {
+      const data: PaperNormalizeInput = {
         ...mockPaperData,
         current_position: {
           entry_price: 100,

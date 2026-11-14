@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { cleanup, render, screen, waitFor, within, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import type { RotationOverviewResponse, RotationRow } from "../../types/rotation";
 import { RotationTab } from "./RotationTab";
@@ -74,7 +73,7 @@ function response(overrides: Partial<RotationOverviewResponse> = {}): RotationOv
 }
 
 function renderTab() {
-  return render(<RotationTab market="india" />, {
+  return render(() => <RotationTab market="india" />, {
     wrapper: ({ children }) => <UIProvider>{children}</UIProvider>,
   });
 }
@@ -106,31 +105,30 @@ describe("RotationTab", () => {
   });
 
   test("period switch re-sorts the board without refetching", async () => {
-    const user = userEvent.setup();
     renderTab();
     await screen.findByTestId("rotation-board-table");
     const toolbar = screen.getByTestId("rotation-toolbar");
-    await user.click(within(toolbar).getByText("3M"));
+    fireEvent.click(within(toolbar).getByText("3M"));
 
     expect(screen.getByText("sorted by 3M")).toBeInTheDocument();
     expect(mockFetchRotationOverview).toHaveBeenCalledTimes(1);
   });
 
   test("kind switch refetches themes and keeps the detail panel populated", async () => {
-    const user = userEvent.setup();
     mockFetchRotationOverview.mockResolvedValue(response({ kind: "theme" }));
     renderTab();
     await screen.findByTestId("rotation-board-table");
 
     const toolbar = screen.getByTestId("rotation-toolbar");
-    await user.click(within(toolbar).getByText("Themes"));
+    fireEvent.click(within(toolbar).getByText("Themes"));
 
     await waitFor(() => {
       expect(mockFetchRotationOverview).toHaveBeenCalledWith(
         expect.objectContaining({ kind: "theme" }),
       );
     });
-    expect(screen.getByTestId("rotation-detail")).toHaveTextContent("Technology");
+    // The refetch only commits once its promise resolves — wait for the DOM
+    await waitFor(() => expect(screen.getByTestId("rotation-detail")).toHaveTextContent("Technology"));
   });
 
   test("shows an error state when the overview request fails", async () => {

@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import { Box, Button, Divider, NumberInput, Select, Badge, Text, ToolbarRow, useMediaQuery } from "@/ui";
 import SymbolAutocomplete from "@/components/common/SymbolAutocomplete";
 import { CompactPanel } from "@/components/common/compact";
@@ -79,15 +79,7 @@ function pnlText(value: number | null): string {
   return `${sign}${inr(value)}`;
 }
 
-function LegRow({
-  leg,
-  index,
-  strikes,
-  ltpOf,
-  onUpdate,
-  onRemove,
-  onDuplicate,
-}: {
+function LegRow(props: {
   leg: SimulatorLeg;
   index: number;
   strikes: number[];
@@ -96,64 +88,65 @@ function LegRow({
   onRemove: (legId: string) => void;
   onDuplicate: (legId: string) => void;
 }) {
-  const liveLTP = ltpOf(leg.strike, leg.optionType);
-  const strikeOptions = [...new Set([...strikes, leg.strike])]
-    .sort((a, b) => a - b)
-    .map((s) => ({ value: String(s), label: String(s) }));
+  const leg = () => props.leg;
+  const liveLTP = () => props.ltpOf(leg().strike, leg().optionType);
+  const strikeOptions = () =>
+    [...new Set([...props.strikes, leg().strike])]
+      .sort((a, b) => a - b)
+      .map((s) => ({ value: String(s), label: String(s) }));
 
   return (
     <Box
-      data-testid={`simulator-leg-${index}`}
-      key={leg.legId}
+      data-testid={`simulator-leg-${props.index}`}
       className="flex gap-[48px] items-center flex-wrap min-w-0"
     >
       <Select
-        value={leg.action}
+        value={leg().action}
         onChange={(v) => {
-          if (v === "BUY" || v === "SELL") onUpdate(leg.legId, { action: v });
+          if (v === "BUY" || v === "SELL") props.onUpdate(leg().legId, { action: v });
         }}
         data={ACTION_OPTIONS}
         size="xs"
         w={92}
       />
       <Select
-        value={leg.optionType}
+        value={leg().optionType}
         onChange={(v) => {
-          if (v === "CE" || v === "PE") onUpdate(leg.legId, { optionType: v });
+          if (v === "CE" || v === "PE") props.onUpdate(leg().legId, { optionType: v });
         }}
         data={TYPE_OPTIONS}
         size="xs"
         w={74}
       />
-      {strikes.length > 0 ? (
-        <Select
-          value={String(leg.strike)}
-          onChange={(v) => {
-            if (v != null) {
-              const strike = Number(v);
-              onUpdate(leg.legId, { strike, entry: ltpOf(strike, leg.optionType) ?? leg.entry });
-            }
-          }}
-          data={strikeOptions}
-          size="xs"
-          w={100}
-        />
-      ) : (
+      <Show when={props.strikes.length > 0} fallback={
         <NumberInput
-          value={leg.strike}
+          value={leg().strike}
           onChange={(v) => {
-            if (typeof v === "number") onUpdate(leg.legId, { strike: v });
+            if (typeof v === "number") props.onUpdate(leg().legId, { strike: v });
           }}
           step={FALLBACK_STEP}
           min={0}
           size="xs"
           w={100}
         />
-      )}
+      }>
+        <Select
+          value={String(leg().strike)}
+          onChange={(v) => {
+            if (v != null) {
+              const strike = Number(v);
+              props.onUpdate(leg().legId, { strike, entry: props.ltpOf(strike, leg().optionType) ?? leg().entry });
+            }
+          }}
+          data={strikeOptions()}
+          size="xs"
+          w={100}
+        />
+      </Show>
       <NumberInput
-        value={leg.qty}
+        value={leg().qty}
         onChange={(v) => {
-          if (typeof v === "number" && v >= 1) onUpdate(leg.legId, { qty: v });
+          if (typeof v === "number" && v >= 1) props.onUpdate(leg().legId, { qty: v });
         }}
         min={1}
         step={1}
@@ -161,178 +154,165 @@ function LegRow({
         w={70}
       />
       <NumberInput
-        value={leg.entry}
+        value={leg().entry}
         onChange={(v) => {
-          if (typeof v === "number") onUpdate(leg.legId, { entry: v });
+          if (typeof v === "number") props.onUpdate(leg().legId, { entry: v });
         }}
         step={0.05}
         min={0}
         prefix="₹"
         w={110}
       />
-      <Box style={{ minWidth: 72, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
-        <Text size="xs" className="text-fin-text-muted" style={{ fontVariantNumeric: "tabular-nums" }}>
-          {liveLTP == null ? "—" : liveLTP.toFixed(2)}
+      <Box style={{ "min-width": "72px", display: "flex", "align-items": "center", "justify-content": "flex-end" }}>
+        <Text size="xs" className="text-fin-text-muted" style={{ "font-variant-numeric": "tabular-nums" }}>
+          {liveLTP() == null ? "—" : liveLTP()!.toFixed(2)}
         </Text>
       </Box>
-      <Button
-        size="xs"
-        variant="subtle"
-        onClick={() => onDuplicate(leg.legId)}
+      <button
+        type="button"
         title="Duplicate leg"
+        aria-label="Duplicate leg"
+        onClick={() => props.onDuplicate(leg().legId)}
+        className="inline-flex h-6 w-6 items-center justify-center rounded text-fin-text-muted transition-colors hover:bg-fin-surface-alt hover:text-fin-text"
         style={{ padding: "2px" }}
       >
         ⧉
-      </Button>
-      <Button
-        size="xs"
-        variant="subtle"
-        onClick={() => onRemove(leg.legId)}
+      </button>
+      <button
+        type="button"
         title="Remove leg"
-        style={{ padding: "2px", marginLeft: "-4px" }}
+        aria-label="Remove leg"
+        onClick={() => props.onRemove(leg().legId)}
+        className="-ml-1 inline-flex h-6 w-6 items-center justify-center rounded text-fin-text-muted transition-colors hover:bg-fin-surface-alt hover:text-fin-text"
+        style={{ padding: "2px" }}
       >
         ×
-      </Button>
+      </button>
     </Box>
   );
 }
 
-export function SimulatorPanel({
-  selectedUnderlying,
-  selectedExpiry,
-  spotPrice,
-  strikeMatrix,
-  availableUnderlyings = [],
-  availableExpiries = [],
-  loading = false,
-  error = null,
-  onUnderlyingChange,
-  onExpiryChange,
-}: SimulatorPanelProps) {
+export function SimulatorPanel(props: SimulatorPanelProps) {
   const isMobile = useMediaQuery("(max-width: 900px)");
-  const liveSpot = spotPrice != null && spotPrice > 0 ? spotPrice : null;
+  const liveSpot = () => (props.spotPrice != null && props.spotPrice > 0 ? props.spotPrice : null);
 
-  const strikes = useMemo(() => {
+  const strikes = createMemo(() => {
     const set = new Set<number>();
-    for (const row of strikeMatrix) set.add(row.strike);
+    for (const row of props.strikeMatrix) set.add(row.strike);
     return [...set].sort((a, b) => a - b);
-  }, [strikeMatrix]);
+  });
 
-  const step = useMemo(() => {
+  const step = createMemo(() => {
     const diffs: number[] = [];
-    for (let i = 1; i < strikes.length; i += 1) {
-      const d = strikes[i] - strikes[i - 1];
+    const s = strikes();
+    for (let i = 1; i < s.length; i += 1) {
+      const d = s[i] - s[i - 1];
       if (d > 0) diffs.push(d);
     }
     return diffs.length ? Math.min(...diffs) : FALLBACK_STEP;
-  }, [strikes]);
+  });
 
-  const atm = useMemo(() => {
-    if (liveSpot != null) return roundToStep(liveSpot, step);
-    if (strikes.length) return strikes[Math.floor(strikes.length / 2)];
+  const atm = createMemo(() => {
+    const ls = liveSpot();
+    if (ls != null) return roundToStep(ls, step());
+    const s = strikes();
+    if (s.length) return s[Math.floor(s.length / 2)];
     return 0;
-  }, [liveSpot, strikes, step]);
+  });
 
-  const dte = daysToExpiry(selectedExpiry);
+  const dte = () => daysToExpiry(props.selectedExpiry);
 
-  const ltpOf = useCallback(
-    (strike: number, optionType: "CE" | "PE"): number | null => {
-      const row = strikeMatrix.find((r) => r.strike === strike);
-      const contract = optionType === "CE" ? row?.ce : row?.pe;
-      return contract?.market_data?.ltp ?? null;
-    },
-    [strikeMatrix],
-  );
+  const ltpOf = (strike: number, optionType: "CE" | "PE"): number | null => {
+    const row = props.strikeMatrix.find((r) => r.strike === strike);
+    const contract = optionType === "CE" ? row?.ce : row?.pe;
+    return contract?.market_data?.ltp ?? null;
+  };
 
-  const [legs, setLegs] = useState<SimulatorLeg[]>([]);
-  const [saved, setSaved] = useState<SavedStrategy[]>(loadSavedStrategies);
-  const [loadValue, setLoadValue] = useState<string | null>(null);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [legs, setLegs] = createSignal<SimulatorLeg[]>([]);
+  const [saved, setSaved] = createSignal<SavedStrategy[]>(loadSavedStrategies());
+  const [loadValue, setLoadValue] = createSignal<string | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = createSignal<string | null>(null);
+  const [notice, setNotice] = createSignal<string | null>(null);
 
-  useEffect(() => {
+  createEffect(() => {
+    void props.selectedUnderlying;
+    void props.selectedExpiry;
     setNotice(null);
-  }, [selectedUnderlying, selectedExpiry]);
+  });
 
-  const canBuild = atm > 0 && strikes.length > 0;
+  const canBuild = () => atm() > 0 && strikes().length > 0;
 
-  const setLeg = useCallback(
-    (legId: string, patch: Partial<Omit<SimulatorLeg, "legId">>) => {
-      setLegs((prev) => prev.map((leg) => (leg.legId === legId ? { ...leg, ...patch } : leg)));
-    },
-    [],
-  );
+  const setLeg = (legId: string, patch: Partial<Omit<SimulatorLeg, "legId">>) => {
+    setLegs((prev) => prev.map((leg) => (leg.legId === legId ? { ...leg, ...patch } : leg)));
+  };
 
-  const selectTemplate = useCallback(
-    (template: StrategyTemplate) => {
-      if (!canBuild) {
-        setNotice("Waiting for the live option chain — no premium has been filled.");
-        return;
-      }
-      const built: SimulatorLeg[] = template.build(atm, step).map((leg) => ({
-        legId: uid(),
-        action: leg.action,
-        optionType: leg.optionType,
-        strike: leg.strike,
-        qty: leg.qty,
-        entry: ltpOf(leg.strike, leg.optionType) ?? 0,
-      }));
-      const missing = built.filter((leg) => ltpOf(leg.strike, leg.optionType) == null);
-      setLegs(built);
-      setSelectedTemplateId(template.id);
-      setNotice(
-        missing.length
-          ? `${missing.length} leg(s) have no live LTP — enter the premium manually.`
-          : null,
-      );
-    },
-    [atm, step, ltpOf, canBuild],
-  );
+  const selectTemplate = (template: StrategyTemplate) => {
+    if (!canBuild()) {
+      setNotice("Waiting for the live option chain — no premium has been filled.");
+      return;
+    }
+    const built: SimulatorLeg[] = template.build(atm(), step()).map((leg) => ({
+      legId: uid(),
+      action: leg.action,
+      optionType: leg.optionType,
+      strike: leg.strike,
+      qty: leg.qty,
+      entry: ltpOf(leg.strike, leg.optionType) ?? 0,
+    }));
+    const missing = built.filter((leg) => ltpOf(leg.strike, leg.optionType) == null);
+    setLegs(built);
+    setSelectedTemplateId(template.id);
+    setNotice(
+      missing.length
+        ? `${missing.length} leg(s) have no live LTP — enter the premium manually.`
+        : null,
+    );
+  };
 
-  const addLeg = useCallback(() => {
-    if (!canBuild) {
+  const addLeg = () => {
+    if (!canBuild()) {
       setNotice("Waiting for the live option chain — no leg was added.");
       return;
     }
-    const entry = ltpOf(atm, "CE");
+    const entry = ltpOf(atm(), "CE");
     setLegs((prev) => [
       ...prev,
-      { legId: uid(), action: "BUY", optionType: "CE", strike: atm, qty: 1, entry: entry ?? 0 },
+      { legId: uid(), action: "BUY", optionType: "CE", strike: atm(), qty: 1, entry: entry ?? 0 },
     ]);
     setNotice(entry == null ? "No live LTP for this strike — enter the premium manually." : null);
-  }, [atm, ltpOf, canBuild]);
+  };
 
-  const removeLeg = useCallback((legId: string) => {
+  const removeLeg = (legId: string) => {
     setLegs((prev) => prev.filter((leg) => leg.legId !== legId));
-  }, []);
+  };
 
-  const duplicateLeg = useCallback((legId: string) => {
+  const duplicateLeg = (legId: string) => {
     setLegs((prev) => {
       const idx = prev.findIndex((leg) => leg.legId === legId);
       if (idx < 0) return prev;
       const copy = { ...prev[idx], legId: uid() };
       return [...prev.slice(0, idx + 1), copy, ...prev.slice(idx + 1)];
     });
-  }, []);
+  };
 
-  const reset = useCallback(() => {
+  const reset = () => {
     setLegs([]);
     setSelectedTemplateId(null);
     setLoadValue(null);
     setNotice(null);
-  }, []);
+  };
 
-  const save = useCallback(() => {
-    if (legs.length === 0) return;
+  const save = () => {
+    if (legs().length === 0) return;
     const entry: SavedStrategy = {
       id: uid(),
       name: `Saved ${new Date().toLocaleString()}`,
-      underlying: selectedUnderlying,
-      expiry: selectedExpiry,
-      legs,
+      underlying: props.selectedUnderlying,
+      expiry: props.selectedExpiry,
+      legs: legs(),
       createdAt: new Date().toISOString(),
     };
-    const next = [...saved, entry];
+    const next = [...saved(), entry];
     setSaved(next);
     setLoadValue(null);
     try {
@@ -340,229 +320,227 @@ export function SimulatorPanel({
     } catch {
       // storage unavailable — ignore
     }
-  }, [legs, saved, selectedUnderlying, selectedExpiry]);
+  };
 
-  const loadSaved = useCallback(
-    (id: string | null) => {
-      if (!id) return;
-      const found = saved.find((s) => s.id === id);
-      if (!found) return;
-      setLegs(found.legs.map((leg) => ({ ...leg, legId: uid() })));
-      setSelectedTemplateId(null);
-      setLoadValue(null);
-      setNotice(null);
-    },
-    [saved],
-  );
+  const loadSaved = (id: string | null) => {
+    if (!id) return;
+    const found = saved().find((s) => s.id === id);
+    if (!found) return;
+    setLegs(found.legs.map((leg) => ({ ...leg, legId: uid() })));
+    setSelectedTemplateId(null);
+    setLoadValue(null);
+    setNotice(null);
+  };
 
-  const payoffLegs = useMemo(() => toPayoffLegs(legs), [legs]);
-  const stats = useMemo(() => statsFor(payoffLegs, liveSpot), [payoffLegs, liveSpot]);
-  const scenario = useMemo(() => scenarioRows(payoffLegs, liveSpot), [payoffLegs, liveSpot]);
-  const rangePct = useMemo(
-    () => rangePctFor(liveSpot, legs.map((leg) => leg.strike)),
-    [liveSpot, legs],
-  );
+  const payoffLegs = createMemo(() => toPayoffLegs(legs()));
+  const stats = createMemo(() => statsFor(payoffLegs(), liveSpot()));
+  const scenario = createMemo(() => scenarioRows(payoffLegs(), liveSpot()));
+  const rangePct = createMemo(() => rangePctFor(liveSpot(), legs().map((leg) => leg.strike)));
 
-  const statCells = [
+  const statCells = createMemo(() => [
     {
       label: "Net",
       value:
-        stats.kind === "flat"
+        stats().kind === "flat"
           ? "Flat"
-          : `${stats.kind === "debit" ? "Debit" : "Credit"} ${inr(Math.abs(stats.netEntry))}`,
+          : `${stats().kind === "debit" ? "Debit" : "Credit"} ${inr(Math.abs(stats().netEntry))}`,
       tone: undefined,
     },
     {
       label: "Max profit",
-      value: stats.maxProfit == null ? "Open" : `+${inr(stats.maxProfit)}`,
-      tone: stats.maxProfit == null ? "secondary" : "success",
+      value: stats().maxProfit == null ? "Open" : `+${inr(stats().maxProfit!)}`,
+      tone: stats().maxProfit == null ? "secondary" : "success",
     },
     {
       label: "Max loss",
-      value: stats.maxLoss == null ? "Open" : `-${inr(Math.abs(stats.maxLoss))}`,
-      tone: stats.maxLoss == null ? "secondary" : "error",
+      value: stats().maxLoss == null ? "Open" : `-${inr(Math.abs(stats().maxLoss!))}`,
+      tone: stats().maxLoss == null ? "secondary" : "error",
     },
     {
       label: "Breakeven(s)",
-      value: stats.breakevens.length > 0 ? stats.breakevens.map((b) => b.toLocaleString()).join(", ") : "—",
+      value: stats().breakevens.length > 0 ? stats().breakevens.map((b) => b.toLocaleString()).join(", ") : "—",
       tone: "secondary",
     },
     {
       label: "Risk / reward",
-      value: stats.riskReward == null ? "—" : `${stats.riskReward.toFixed(2)} : 1`,
+      value: stats().riskReward == null ? "—" : `${stats().riskReward!.toFixed(2)} : 1`,
       tone: "secondary",
     },
-  ];
+  ]);
 
   return (
     <Box data-testid="simulator-panel" className="flex flex-col h-full min-h-0">
       {/* Header */}
-      <Box className="p-[8px] flex flex-col gap-[4px]" style={{ borderBottom: `1px solid ${palette.BORDER}` }}>
-        <ToolbarRow gap={8} justify="space-between" style={{ alignItems: "baseline" }}>
+      <Box className="p-[8px] flex flex-col gap-[4px]" style={{ "border-bottom": `1px solid ${palette.BORDER}` }}>
+        <ToolbarRow gap={8} justify="space-between" style={{ "align-items": "baseline" }}>
           <Box className="flex flex-col min-w-0" gap={0}>
             <Text size="sm" fw={700} className="text-fin-primary" tt="uppercase">
               SIMULATOR
             </Text>
-            <ToolbarRow gap={6} style={{ marginTop: 2 }}>
-              {onUnderlyingChange ? (
+            <ToolbarRow gap={6} style={{ "margin-top": "2px" }}>
+              <Show when={props.onUnderlyingChange} fallback={
+                <Text size="xs" className="text-fin-text-muted">{props.selectedUnderlying}</Text>
+              }>
                 <SymbolAutocomplete
-                  value={selectedUnderlying}
+                  value={props.selectedUnderlying}
                   onChange={(symbol) => {
                     const next = String(symbol || "").trim().toUpperCase();
-                    if (next) onUnderlyingChange(next);
+                    if (next) props.onUnderlyingChange?.(next);
                   }}
-                  extraOptions={availableUnderlyings}
+                  extraOptions={props.availableUnderlyings ?? []}
                   compact
                   fnoOnly
                   width={200}
                   testid="simulator-underlying-search"
                 />
-              ) : (
-                <Text size="xs" className="text-fin-text-muted">{selectedUnderlying}</Text>
-              )}
-              {availableExpiries.length > 0 && onExpiryChange ? (
+              </Show>
+              <Show when={(props.availableExpiries?.length ?? 0) > 0 && props.onExpiryChange} fallback={
+                <Text size="xs" className="text-fin-text-muted">{props.selectedExpiry}</Text>
+              }>
                 <Select
-                  value={selectedExpiry}
-                  onChange={(v) => v && onExpiryChange(String(v))}
-                  data={availableExpiries.map((e) => ({ value: e, label: e }))}
+                  value={props.selectedExpiry}
+                  onChange={(v) => v && props.onExpiryChange?.(String(v))}
+                  data={(props.availableExpiries ?? []).map((e) => ({ value: e, label: e }))}
                   size="xs"
                   w={132}
                   data-testid="simulator-expiry-select"
                 />
-              ) : (
-                <Text size="xs" className="text-fin-text-muted">{selectedExpiry}</Text>
-              )}
+              </Show>
             </ToolbarRow>
-            {isMobile ? (
-              <Text size="xs" className="text-fin-text-muted" style={{ marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
-                {loading ? "Loading · " : ""}
-                Spot {liveSpot == null ? "—" : liveSpot.toLocaleString()} · ATM {atm || "—"} · DTE{" "}
-                {dte == null ? "—" : `${dte} days`}
+            <Show when={isMobile()}>
+              <Text size="xs" className="text-fin-text-muted" style={{ "margin-top": "2px", "font-variant-numeric": "tabular-nums" }}>
+                {props.loading ? "Loading · " : ""}
+                Spot {liveSpot() == null ? "—" : liveSpot()!.toLocaleString()} · ATM {atm() || "—"} · DTE{" "}
+                {dte() == null ? "—" : `${dte()} days`}
               </Text>
-            ) : null}
+            </Show>
           </Box>
-          {!isMobile ? (
+          <Show when={!isMobile()}>
             <Box className="flex items-center flex-wrap gap-6">
-              {loading ? (
+              <Show when={props.loading}>
                 <Badge
                   size="xs"
                   variant="outline"
-                  style={{ color: palette.PRIMARY, borderColor: palette.BORDER }}
+                  style={{ color: palette.PRIMARY, "border-color": palette.BORDER }}
                 >
                   Loading live chain
                 </Badge>
-              ) : null}
+              </Show>
               <Badge
                 size="xs"
                 variant="outline"
-                style={{ color: palette.TEXT_MUTED, borderColor: palette.BORDER }}
+                style={{ color: palette.TEXT_MUTED, "border-color": palette.BORDER }}
               >
-                Spot {liveSpot == null ? "—" : liveSpot.toLocaleString()}
+                Spot {liveSpot() == null ? "—" : liveSpot()!.toLocaleString()}
               </Badge>
               <Badge
                 size="xs"
                 variant="outline"
-                style={{ color: palette.TEXT_MUTED, borderColor: palette.BORDER }}
+                style={{ color: palette.TEXT_MUTED, "border-color": palette.BORDER }}
               >
-                ATM {atm || "—"}
+                ATM {atm() || "—"}
               </Badge>
               <Badge
                 size="xs"
                 variant="outline"
-                style={{ color: palette.TEXT_MUTED, borderColor: palette.BORDER }}
+                style={{ color: palette.TEXT_MUTED, "border-color": palette.BORDER }}
               >
-                DTE {dte == null ? "—" : `${dte} days`}
+                DTE {dte() == null ? "—" : `${dte()} days`}
               </Badge>
             </Box>
-          ) : null}
+          </Show>
         </ToolbarRow>
         <Text size="xs" className="text-fin-text-muted">
           Build a multi-leg option strategy and view its payoff at expiry.
         </Text>
-        {error ? (
-          <Text size="xs" className="text-fin-negative" title={error} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {error}
+        <Show when={props.error}>
+          <Text size="xs" className="text-fin-negative" title={props.error ?? ""} style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
+            {props.error}
           </Text>
-        ) : null}
-        {notice ? (
-          <Text size="xs" className="text-fin-negative" title={notice}>
-            {notice}
+        </Show>
+        <Show when={notice()}>
+          <Text size="xs" className="text-fin-negative" title={notice() ?? ""}>
+            {notice()}
           </Text>
-        ) : null}
+        </Show>
       </Box>
 
-      <Box className="flex min-h-0 gap-[8px]" style={{ flex: 1, flexDirection: isMobile ? "column" : "row" }}>
+      <Box className="flex min-h-0 gap-[8px]" style={{ flex: 1, "flex-direction": isMobile() ? "column" : "row" }}>
         {/* Left rail: strategy templates */}
-        <Box className="w-full md:w-[280px] flex flex-col gap-[8px] min-w-0" style={{ minWidth: 0 }}>
+        <Box className="w-full md:w-[280px] flex flex-col gap-[8px] min-w-0" style={{ "min-width": 0 }}>
           <CompactPanel title="Templates" testId="simulator-template-panel" padded>
-            {[
+            <For each={[
               { group: "BUY", templates: BUY_STRATEGIES },
               { group: "SELL", templates: SELL_STRATEGIES },
-            ].map(({ group, templates }) => (
-              <Box key={group} className="flex flex-col gap-1 pt-1">
-                <Text size="xs" tt="uppercase" fw={700} className="text-fin-text-muted">
-                  {group}
-                </Text>
-                {templates.map((template) => {
-                  const active = selectedTemplateId === template.id;
-                  return (
-                    <Button
-                      key={template.id}
-                      data-testid={`simulator-template-${template.id}`}
-                      variant="outline"
-                      size="sm"
-                      fullWidth
-                      onClick={() => selectTemplate(template)}
-                      className={
-                        active
-                          ? "justify-start px-2 py-[3px] gap-0 normal-case border-fin-primary bg-fin-primary/15 text-fin-primary hover:bg-fin-primary/20"
-                          : "justify-start px-2 py-[3px] gap-0 normal-case border-fin-border bg-transparent text-fin-text hover:bg-white/5"
-                      }
-                    >
-                      <Box className="flex flex-col gap-0 min-w-0 w-full">
-                        <Text size="sm" fw={700}>{template.name}</Text>
-                        <Text size="xs" className="text-fin-text-muted">{template.blurb}</Text>
-                      </Box>
-                    </Button>
-                  );
-                })}
-              </Box>
-            ))}
+            ]}>
+              {({ group, templates }) => (
+                <Box className="flex flex-col gap-1 pt-1">
+                  <Text size="xs" tt="uppercase" fw={700} className="text-fin-text-muted">
+                    {group}
+                  </Text>
+                  <For each={templates}>
+                    {(template) => {
+                      const active = () => selectedTemplateId() === template.id;
+                      return (
+                        <Button
+                          data-testid={`simulator-template-${template.id}`}
+                          variant="outline"
+                          size="sm"
+                          fullWidth
+                          onClick={() => selectTemplate(template)}
+                          className={
+                            active()
+                              ? "justify-start px-2 py-[3px] gap-0 normal-case border-fin-primary bg-fin-primary/15 text-fin-primary hover:bg-fin-primary/20"
+                              : "justify-start px-2 py-[3px] gap-0 normal-case border-fin-border bg-transparent text-fin-text hover:bg-white/5"
+                          }
+                        >
+                          <Box className="flex flex-col gap-0 min-w-0 w-full">
+                            <Text size="sm" fw={700}>{template.name}</Text>
+                            <Text size="xs" className="text-fin-text-muted">{template.blurb}</Text>
+                          </Box>
+                        </Button>
+                      );
+                    }}
+                  </For>
+                </Box>
+              )}
+            </For>
           </CompactPanel>
         </Box>
 
         {/* Right builder */}
-        <Box className="flex flex-col gap-[8px] min-w-0" style={{ flex: 1, minWidth: 0 }}>
+        <Box className="flex flex-col gap-[8px] min-w-0" style={{ flex: 1, "min-width": 0 }}>
           <CompactPanel title="Leg builder" testId="simulator-builder-panel" padded>
-            <ToolbarRow gap={6} style={{ borderBottom: `1px solid ${palette.BORDER}`, backgroundColor: palette.SURFACE_ALT, marginBottom: 4 }}>
+            <ToolbarRow gap={6} style={{ "border-bottom": `1px solid ${palette.BORDER}`, "background-color": palette.SURFACE_ALT, "margin-bottom": "4px" }}>
               <Box miw={92}><Text size="xs" className="text-fin-text-muted">Action</Text></Box>
               <Box miw={74}><Text size="xs" className="text-fin-text-muted">Type</Text></Box>
               <Box miw={100}><Text size="xs" className="text-fin-text-muted">Strike</Text></Box>
               <Box miw={70}><Text size="xs" className="text-fin-text-muted">Qty</Text></Box>
-              <Box style={{ flex: 1, minWidth: 0, padding: "2px 8px" }}><Text size="xs" className="text-fin-text-muted" ta="right">Entry</Text></Box>
-              <Box style={{ minWidth: 72, display: "flex", justifyContent: "flex-end" }}><Text size="xs" className="text-fin-text-muted">LTP</Text></Box>
-              <Box style={{ width: 26 }} />
+              <Box style={{ flex: 1, "min-width": 0, padding: "2px 8px" }}><Text size="xs" className="text-fin-text-muted" ta="right">Entry</Text></Box>
+              <Box style={{ "min-width": "72px", display: "flex", "justify-content": "flex-end" }}><Text size="xs" className="text-fin-text-muted">LTP</Text></Box>
+              <Box style={{ width: "26px" }} />
             </ToolbarRow>
-            {legs.length === 0 ? (
+            <Show when={legs().length === 0} fallback={
+              <For each={legs()}>
+                {(leg, index) => (
+                  <LegRow
+                    leg={leg}
+                    index={index()}
+                    strikes={strikes()}
+                    ltpOf={ltpOf}
+                    onUpdate={setLeg}
+                    onRemove={removeLeg}
+                    onDuplicate={duplicateLeg}
+                  />
+                )}
+              </For>
+            }>
               <Box className="flex flex-col items-center gap-[8px] py-[16px]">
                 <Text size="xs" className="text-fin-text-muted">No legs yet</Text>
                 <Text size="xs" className="text-fin-text-muted">Pick a template or add a leg to build the payoff.</Text>
               </Box>
-            ) : (
-              legs.map((leg, index) => (
-                <LegRow
-                  key={leg.legId}
-                  leg={leg}
-                  index={index}
-                  strikes={strikes}
-                  ltpOf={ltpOf}
-                  onUpdate={setLeg}
-                  onRemove={removeLeg}
-                  onDuplicate={duplicateLeg}
-                />
-              ))
-            )}
-            <ToolbarRow gap={8} style={{ marginTop: 8, flexWrap: "wrap" }}>
+            </Show>
+            <ToolbarRow gap={8} style={{ "margin-top": "8px", "flex-wrap": "wrap" }}>
               <Button
                 data-testid="simulator-add-leg"
                 size="sm"
@@ -571,85 +549,97 @@ export function SimulatorPanel({
                 + Add leg
               </Button>
             </ToolbarRow>
-            <ToolbarRow gap={8} style={{ marginTop: 4, flexWrap: "wrap" }}>
+            <ToolbarRow gap={8} style={{ "margin-top": "4px", "flex-wrap": "wrap" }}>
               <Button data-testid="simulator-reset" variant="outline" size="sm" onClick={reset}>
                 Reset
               </Button>
-              <Button data-testid="simulator-save" size="sm" disabled={legs.length === 0} onClick={save}>
+              {/* Native button: @/ui Button evaluates `disabled` once at
+                  creation and never re-renders it, so Save would stay disabled
+                  forever. Native Reactive attribute updates correctly. */}
+              <button
+                type="button"
+                data-testid="simulator-save"
+                disabled={legs().length === 0}
+                onClick={save}
+                className="inline-flex h-8 items-center justify-center rounded-fin bg-fin-primary px-3 text-sm text-fin-bg transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
                 Save
-              </Button>
-              {saved.length > 0 && (
-                <>
-                  <Text size="xs" className="text-fin-text-muted">Load:</Text>
-                  <Select
-                    data-testid="simulator-load-select"
-                    value={loadValue}
-                    onChange={loadSaved}
-                    data={saved.map((s) => ({ value: s.id, label: `${s.name} · ${s.underlying} ${s.expiry}` }))}
-                    placeholder="Saved strategy"
-                    size="sm"
-                    w={210}
-                  />
-                </>
-              )}
+              </button>
+              <Show when={saved().length > 0}>
+                <Text size="xs" className="text-fin-text-muted">Load:</Text>
+                <Select
+                  data-testid="simulator-load-select"
+                  value={loadValue()}
+                  onChange={loadSaved}
+                  data={saved().map((s) => ({ value: s.id, label: `${s.name} · ${s.underlying} ${s.expiry}` }))}
+                  placeholder="Saved strategy"
+                  size="sm"
+                  w={210}
+                />
+              </Show>
             </ToolbarRow>
           </CompactPanel>
 
           <CompactPanel title="Payoff & scenarios" testId="simulator-payoff-panel" padded>
             <PayoffChart
-              legs={payoffLegs}
-              spot={liveSpot}
+              legs={payoffLegs()}
+              spot={liveSpot()}
               height={180}
-              rangePct={rangePct}
+              rangePct={rangePct()}
               data-testid="simulator-payoff"
             />
-            <ToolbarRow gap={10} style={{ marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
-              {statCells.map((cell, i) => (
-                <Fragment key={cell.label}>
-                  <Box className="flex flex-col gap-0 min-w-0">
-                    <Text size="xs" tt="uppercase" fw={700} className="text-fin-text-muted">
-                      {cell.label}
-                    </Text>
-                    <Text size="sm" fw={700} className={cell.tone === "success" ? "text-fin-positive" : cell.tone === "error" ? "text-fin-negative" : "text-fin-text-muted"} style={{ color: cell.label === "Net" ? palette.TEXT : undefined, fontVariantNumeric: "tabular-nums" }}>
-                      {cell.value}
-                    </Text>
-                  </Box>
-                  {i < statCells.length - 1 && <Divider orientation="vertical" />}
-                </Fragment>
-              ))}
+            <ToolbarRow gap={10} style={{ "margin-top": "8px", "flex-wrap": "wrap", "align-items": "center" }}>
+              <For each={statCells()}>
+                {(cell, i) => (
+                  <>
+                    <Box className="flex flex-col gap-0 min-w-0">
+                      <Text size="xs" tt="uppercase" fw={700} className="text-fin-text-muted">
+                        {cell.label}
+                      </Text>
+                      <Text size="sm" fw={700} className={cell.tone === "success" ? "text-fin-positive" : cell.tone === "error" ? "text-fin-negative" : "text-fin-text-muted"} style={{ color: cell.label === "Net" ? palette.TEXT : undefined, "font-variant-numeric": "tabular-nums" }}>
+                        {cell.value}
+                      </Text>
+                    </Box>
+                    <Show when={i() < statCells().length - 1}>
+                      <Divider orientation="vertical" />
+                    </Show>
+                  </>
+                )}
+              </For>
             </ToolbarRow>
-            <Box style={{ border: `1px solid ${palette.BORDER}`, borderRadius: 1, overflow: "hidden", marginTop: 8 }}>
-              <ToolbarRow gap={0} style={{ borderBottom: `1px solid ${palette.BORDER}`, backgroundColor: palette.SURFACE_ALT }}>
-                <Box style={{ flex: 1, minWidth: 0, padding: "2px 8px" }}><Text size="xs" className="text-fin-text-muted">Spot move</Text></Box>
-                <Box style={{ flex: 1, minWidth: 0, padding: "2px 8px" }}><Text size="xs" className="text-fin-text-muted" ta="right">Spot</Text></Box>
-                <Box style={{ flex: 1, minWidth: 0, padding: "2px 8px" }}><Text size="xs" className="text-fin-text-muted">P&L at expiry</Text></Box>
+            <Box style={{ border: `1px solid ${palette.BORDER}`, "border-radius": "1px", overflow: "hidden", "margin-top": "8px" }}>
+              <ToolbarRow gap={0} style={{ "border-bottom": `1px solid ${palette.BORDER}`, "background-color": palette.SURFACE_ALT }}>
+                <Box style={{ flex: 1, "min-width": 0, padding: "2px 8px" }}><Text size="xs" className="text-fin-text-muted">Spot move</Text></Box>
+                <Box style={{ flex: 1, "min-width": 0, padding: "2px 8px" }}><Text size="xs" className="text-fin-text-muted" ta="right">Spot</Text></Box>
+                <Box style={{ flex: 1, "min-width": 0, padding: "2px 8px" }}><Text size="xs" className="text-fin-text-muted">P&L at expiry</Text></Box>
               </ToolbarRow>
               <Box data-testid="simulator-scenario-table">
-                {scenario.map((row) => (
-                  <ToolbarRow
-                    key={row.label}
-                    gap={0}
-                    style={{ borderBottom: `1px solid ${palette.BORDER}`, alignItems: "center" }}
-                    data-testid="simulator-scenario-row"
-                  >
-                    <Box style={{ flex: 1, minWidth: 0, padding: "2px 8px" }}><Text size="xs">{row.label}</Text></Box>
-                    <Box style={{ flex: 1, minWidth: 0, padding: "2px 8px" }}>
-                      <Text size="xs" ta="right" style={{ fontVariantNumeric: "tabular-nums" }}>
-                        {row.spot == null ? "—" : row.spot.toLocaleString()}
-                      </Text>
-                    </Box>
-                    <Box style={{ flex: 1, minWidth: 0, padding: "2px 8px" }}>
-                      <Text
-                        size="xs"
-                        ta="right"
-                        className={row.pnl == null ? "text-fin-text-muted" : row.pnl > 0 ? "text-fin-positive" : "text-fin-negative"}
-                        style={{ fontVariantNumeric: "tabular-nums" }}
-                      >
-                        {pnlText(row.pnl)}
-                      </Text>
-                    </Box>
-                  </ToolbarRow>
-                ))}
+                <For each={scenario()}>
+                  {(row) => (
+                    <ToolbarRow
+                      gap={0}
+                      style={{ "border-bottom": `1px solid ${palette.BORDER}`, "align-items": "center" }}
+                      data-testid="simulator-scenario-row"
+                    >
+                      <Box style={{ flex: 1, "min-width": 0, padding: "2px 8px" }}><Text size="xs">{row.label}</Text></Box>
+                      <Box style={{ flex: 1, "min-width": 0, padding: "2px 8px" }}>
+                        <Text size="xs" ta="right" style={{ "font-variant-numeric": "tabular-nums" }}>
+                          {row.spot == null ? "—" : row.spot.toLocaleString()}
+                        </Text>
+                      </Box>
+                      <Box style={{ flex: 1, "min-width": 0, padding: "2px 8px" }}>
+                        <Text
+                          size="xs"
+                          ta="right"
+                          className={row.pnl == null ? "text-fin-text-muted" : row.pnl > 0 ? "text-fin-positive" : "text-fin-negative"}
+                          style={{ "font-variant-numeric": "tabular-nums" }}
+                        >
+                          {pnlText(row.pnl)}
+                        </Text>
+                      </Box>
+                    </ToolbarRow>
+                  )}
+                </For>
               </Box>
             </Box>
           </CompactPanel>

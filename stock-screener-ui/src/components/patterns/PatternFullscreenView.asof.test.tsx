@@ -1,8 +1,12 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { UIProvider } from "@/ui";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { PatternFullscreenView } from "./PatternFullscreenView";
 
@@ -36,24 +40,20 @@ const HIT: PatternHitDTO = {
   notes: "",
 };
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
 
 describe("PatternFullscreenView as-of replay", () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => cleanup());
 
   test("hides replay inputs when no onAsOfChange handler is provided", () => {
-    r(<PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
+    render(() => <PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
     expect(screen.queryByTestId("patterns-fullscreen-asof-from")).not.toBeInTheDocument();
     expect(screen.queryByTestId("patterns-fullscreen-asof-to")).not.toBeInTheDocument();
     expect(screen.queryByTestId("patterns-fullscreen-asof-banner")).not.toBeInTheDocument();
   });
 
   test("renders From/To datetime inputs when replay is wired", () => {
-    r(
-      <PatternFullscreenView
+    render(() =>       <PatternFullscreenView
         opened
         onClose={vi.fn()}
         hit={HIT}
@@ -61,8 +61,7 @@ describe("PatternFullscreenView as-of replay", () => {
         asOf={null}
         fromDate={null}
         onAsOfChange={vi.fn()}
-      />,
-    );
+      />);
     expect(screen.getByTestId("patterns-fullscreen-asof-from")).toHaveAttribute(
       "type",
       "datetime-local",
@@ -76,8 +75,7 @@ describe("PatternFullscreenView as-of replay", () => {
   });
 
   test("shows the as-of banner when a cutoff is set", () => {
-    r(
-      <PatternFullscreenView
+    render(() =>       <PatternFullscreenView
         opened
         onClose={vi.fn()}
         hit={HIT}
@@ -85,16 +83,14 @@ describe("PatternFullscreenView as-of replay", () => {
         asOf="2026-09-30T14:30"
         fromDate={null}
         onAsOfChange={vi.fn()}
-      />,
-    );
+      />);
     const banner = screen.getByTestId("patterns-fullscreen-asof-banner");
     expect(banner).toHaveTextContent("Viewing as of 2026-09-30 14:30");
   });
 
   test("changing the To input reports (asOf, fromDate)", () => {
     const onAsOfChange = vi.fn();
-    r(
-      <PatternFullscreenView
+    render(() =>       <PatternFullscreenView
         opened
         onClose={vi.fn()}
         hit={HIT}
@@ -102,9 +98,8 @@ describe("PatternFullscreenView as-of replay", () => {
         asOf={null}
         fromDate="2026-06-01T09:15"
         onAsOfChange={onAsOfChange}
-      />,
-    );
-    fireEvent.change(screen.getByTestId("patterns-fullscreen-asof-to"), {
+      />);
+    fireEvent.input(screen.getByTestId("patterns-fullscreen-asof-to"), {
       target: { value: "2026-09-30T14:30" },
     });
     expect(onAsOfChange).toHaveBeenCalledWith("2026-09-30T14:30", "2026-06-01T09:15");
@@ -112,8 +107,7 @@ describe("PatternFullscreenView as-of replay", () => {
 
   test("changing the From input reports (asOf, fromDate)", () => {
     const onAsOfChange = vi.fn();
-    r(
-      <PatternFullscreenView
+    render(() =>       <PatternFullscreenView
         opened
         onClose={vi.fn()}
         hit={HIT}
@@ -121,9 +115,8 @@ describe("PatternFullscreenView as-of replay", () => {
         asOf="2026-09-30T14:30"
         fromDate={null}
         onAsOfChange={onAsOfChange}
-      />,
-    );
-    fireEvent.change(screen.getByTestId("patterns-fullscreen-asof-from"), {
+      />);
+    fireEvent.input(screen.getByTestId("patterns-fullscreen-asof-from"), {
       target: { value: "2026-06-01T09:15" },
     });
     expect(onAsOfChange).toHaveBeenCalledWith("2026-09-30T14:30", "2026-06-01T09:15");

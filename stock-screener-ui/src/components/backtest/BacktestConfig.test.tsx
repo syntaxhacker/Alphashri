@@ -1,18 +1,18 @@
 // @vitest-environment happy-dom
+import type { JSX } from "solid-js";
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import {render, screen, cleanup, waitFor, within} from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor, within } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { BacktestConfig } from "./BacktestConfig";
 import type { Strategy, StrategyVariation } from "../../types/backtest";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
 });
 
-function Wrapper({ children }: { children: React.ReactNode }) {
+function Wrapper({ children }: { children: JSX.Element }) {
   return <UIProvider>{children}</UIProvider>;
 }
 
@@ -72,8 +72,7 @@ describe("BacktestConfig", () => {
 
   it("shows description when variation has description", () => {
     const variation = mockVariation({ description: "Test description" });
-    render(
-      <BacktestConfig
+    render(() => <BacktestConfig
         {...defaultProps({ selectedVariation: variation.id, variations: [variation] })}
       />,
       { wrapper: Wrapper },
@@ -82,7 +81,7 @@ describe("BacktestConfig", () => {
   });
 
   it("renders SymbolChips with selected symbols", () => {
-    render(<BacktestConfig {...defaultProps({ selectedSymbols: ["TCS", "INFY"] })} />, {
+    render(() => <BacktestConfig {...defaultProps({ selectedSymbols: ["TCS", "INFY"] })} />, {
       wrapper: Wrapper,
     });
     expect(screen.getByTestId("symbol-multiselect")).toBeInTheDocument();
@@ -92,8 +91,7 @@ describe("BacktestConfig", () => {
 
   it("renders param inputs when strategy selected and variation selected", () => {
     const strategy = mockStrategy();
-    render(
-      <BacktestConfig
+    render(() => <BacktestConfig
         {...defaultProps({
           selectedStrategy: strategy.id,
           selectedVariation: "var-1",
@@ -108,54 +106,52 @@ describe("BacktestConfig", () => {
   });
 
   it("shows placeholder text when no variation selected", () => {
-    render(<BacktestConfig {...defaultProps({ selectedVariation: null })} />, { wrapper: Wrapper });
+    render(() => <BacktestConfig {...defaultProps({ selectedVariation: null })} />, { wrapper: Wrapper });
     expect(screen.getByText("Select a strategy to configure parameters")).toBeInTheDocument();
   });
 
   it("displays days input with correct value", () => {
-    render(<BacktestConfig {...defaultProps({ days: 60 })} />, { wrapper: Wrapper });
+    render(() => <BacktestConfig {...defaultProps({ days: 60 })} />, { wrapper: Wrapper });
     expect(within(screen.getByTestId("days-input")).getByRole("spinbutton")).toHaveValue(60);
   });
 
   it("renders include costs checkbox and reflects prop", () => {
-    render(<BacktestConfig {...defaultProps({ includeCosts: true })} />, { wrapper: Wrapper });
+    render(() => <BacktestConfig {...defaultProps({ includeCosts: true })} />, { wrapper: Wrapper });
     expect(screen.getByTestId("include-costs-checkbox")).toBeChecked();
   });
 
   it("run button disabled when isRunning true", () => {
-    render(<BacktestConfig {...defaultProps({ isRunning: true })} />, { wrapper: Wrapper });
+    render(() => <BacktestConfig {...defaultProps({ isRunning: true })} />, { wrapper: Wrapper });
     expect(screen.getByTestId("run-backtest-btn")).toBeDisabled();
   });
 
   it("run button disabled when no symbols selected", () => {
-    render(<BacktestConfig {...defaultProps({ selectedSymbols: [] })} />, { wrapper: Wrapper });
+    render(() => <BacktestConfig {...defaultProps({ selectedSymbols: [] })} />, { wrapper: Wrapper });
     expect(screen.getByTestId("run-backtest-btn")).toBeDisabled();
   });
 
   it("run button enabled when not running and symbols selected", () => {
-    render(<BacktestConfig {...defaultProps({ isRunning: false, selectedSymbols: ["TCS"] })} />, {
+    render(() => <BacktestConfig {...defaultProps({ isRunning: false, selectedSymbols: ["TCS"] })} />, {
       wrapper: Wrapper,
     });
     expect(screen.getByTestId("run-backtest-btn")).not.toBeDisabled();
   });
 
   it("clicking run button calls onRun", async () => {
-      const user = userEvent.setup();
     const onRun = vi.fn();
-    render(<BacktestConfig {...defaultProps({ onRun, selectedSymbols: ["TCS"] })} />, {
+    render(() => <BacktestConfig {...defaultProps({ onRun, selectedSymbols: ["TCS"] })} />, {
       wrapper: Wrapper,
     });
-    await user.click(screen.getByTestId("run-backtest-btn"));
+    await fireEvent.click(screen.getByTestId("run-backtest-btn"));
     expect(onRun).toHaveBeenCalled();
   });
 
   it("run menu button opens menu with correct items", async () => {
-      const user = userEvent.setup();
-    render(<BacktestConfig {...defaultProps({ selectedSymbols: ["TCS"] })} />, {
+    render(() => <BacktestConfig {...defaultProps({ selectedSymbols: ["TCS"] })} />, {
       wrapper: Wrapper,
     });
     const menuBtn = screen.getByTestId("run-menu-btn");
-    await user.click(menuBtn);
+    await fireEvent.click(menuBtn);
     await waitFor(() => {
       expect(screen.getByTestId("menu-run-backtest")).toBeInTheDocument();
     });
@@ -164,16 +160,14 @@ describe("BacktestConfig", () => {
   });
 
   it("selecting 'Run & Save to History' calls onSaveToHistoryChange and onRunAndSave", async () => {
-      const user = userEvent.setup();
     const onRunAndSave = vi.fn();
     const onSaveToHistoryChange = vi.fn();
-    render(
-      <BacktestConfig
+    render(() => <BacktestConfig
         {...defaultProps({ onRunAndSave, onSaveToHistoryChange, selectedSymbols: ["TCS"] })}
       />,
       { wrapper: Wrapper },
     );
-    await user.click(screen.getByTestId("run-menu-btn"));
+    await fireEvent.click(screen.getByTestId("run-menu-btn"));
     const menuItem = await screen.findByTestId("menu-run-save");
     menuItem.click();
     expect(onSaveToHistoryChange).toHaveBeenCalledWith(true);
@@ -181,21 +175,19 @@ describe("BacktestConfig", () => {
   });
 
   it("selecting 'Reset Config' calls onReset", async () => {
-      const user = userEvent.setup();
     const onReset = vi.fn();
-    render(<BacktestConfig {...defaultProps({ onReset, selectedSymbols: ["TCS"] })} />, {
+    render(() => <BacktestConfig {...defaultProps({ onReset, selectedSymbols: ["TCS"] })} />, {
       wrapper: Wrapper,
     });
-    await user.click(screen.getByTestId("run-menu-btn"));
+    await fireEvent.click(screen.getByTestId("run-menu-btn"));
     const resetBtn = await screen.findByTestId("reset-btn");
-    await user.click(resetBtn);
+    await fireEvent.click(resetBtn);
     expect(onReset).toHaveBeenCalled();
   });
 
   it("Ctrl+Enter triggers onRun when conditions met", () => {
     const onRun = vi.fn();
-    render(
-      <BacktestConfig {...defaultProps({ onRun, selectedSymbols: ["TCS"], isRunning: false })} />,
+    render(() => <BacktestConfig {...defaultProps({ onRun, selectedSymbols: ["TCS"], isRunning: false })} />,
       { wrapper: Wrapper },
     );
     const event = new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true });
@@ -205,8 +197,7 @@ describe("BacktestConfig", () => {
 
   it("Ctrl+Enter does not run when isRunning true", () => {
     const onRun = vi.fn();
-    render(
-      <BacktestConfig {...defaultProps({ onRun, selectedSymbols: ["TCS"], isRunning: true })} />,
+    render(() => <BacktestConfig {...defaultProps({ onRun, selectedSymbols: ["TCS"], isRunning: true })} />,
       { wrapper: Wrapper },
     );
     const event = new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true });
@@ -216,7 +207,7 @@ describe("BacktestConfig", () => {
 
   it("Ctrl+Enter does not run when no symbols", () => {
     const onRun = vi.fn();
-    render(<BacktestConfig {...defaultProps({ onRun, selectedSymbols: [], isRunning: false })} />, {
+    render(() => <BacktestConfig {...defaultProps({ onRun, selectedSymbols: [], isRunning: false })} />, {
       wrapper: Wrapper,
     });
     const event = new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true });

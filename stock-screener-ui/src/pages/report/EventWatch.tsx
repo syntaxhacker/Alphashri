@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
-import { Alert, Badge, Box, Button, Chip, Skeleton, Text, ToolbarRow } from "@/ui";
-import { TanStackTable } from "@/components/common/TanStackTable";
+import { createEffect, createMemo, createSignal, For, Show, onCleanup } from "solid-js";
+import { Alert, Badge, Button, Chip, Skeleton, Text, ToolbarRow } from "@/ui";
+import { TanStackTable, type TableColumnDef } from "@/components/common/TanStackTable";
+import type { JSX } from "solid-js";
 import { fetchRecentEvents, fetchUpcomingEvents } from "../../api/eventWatch";
 import type {
   EventWatchEvent,
@@ -104,51 +104,54 @@ function withTech(events: EventWatchEvent[], lookup: Map<string, EventWatchTech>
 function numCell(value: number | undefined, format: (v: number) => string, color?: "success" | "error") {
   if (value === undefined || !Number.isFinite(value)) {
     return (
-      <Text size="xs" c="dimmed" span  className="tabular-nums">
+      <Text size="xs" c="dimmed" span className="tabular-nums">
         —
       </Text>
     );
   }
   return (
-    <Text size="xs" c={color} span  className="tabular-nums">
+    <Text size="xs" c={color} span className="tabular-nums">
       {format(value)}
     </Text>
   );
 }
 
-function TableWrap({ children }: { children: React.ReactNode }) {
+function TableWrap(props: { children: JSX.Element }) {
   return (
-    <Box
-      className="min-w-0 w-full overflow-hidden border border-fin-border rounded-[1px] bg-fin-surface"
+    <div
+      class="min-w-0 w-full overflow-hidden border border-fin-border rounded-[1px] bg-fin-surface"
     >
-      {children}
-    </Box>
+      {props.children}
+    </div>
   );
 }
 
-export function EventWatch({ universe = "nifty500", days = 7, daily, onOpenSymbol }: EventWatchProps) {
-  const [upcoming, setUpcoming] = useState<EventWatchResponse | null>(null);
-  const [recent, setRecent] = useState<EventWatchResponse | null>(null);
-  const [upcomingDone, setUpcomingDone] = useState(false);
-  const [recentDone, setRecentDone] = useState(false);
-  const [upcomingError, setUpcomingError] = useState<string | null>(null);
-  const [recentError, setRecentError] = useState<string | null>(null);
-  const [kindFilter, setKindFilter] = useState<string>("all");
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+export function EventWatch(props: EventWatchProps) {
+  const universe = () => props.universe ?? "nifty500";
+  const days = () => props.days ?? 7;
+  const [upcoming, setUpcoming] = createSignal<EventWatchResponse | null>(null);
+  const [recent, setRecent] = createSignal<EventWatchResponse | null>(null);
+  const [upcomingDone, setUpcomingDone] = createSignal(false);
+  const [recentDone, setRecentDone] = createSignal(false);
+  const [upcomingError, setUpcomingError] = createSignal<string | null>(null);
+  const [recentError, setRecentError] = createSignal<string | null>(null);
+  const [kindFilter, setKindFilter] = createSignal<string>("all");
+  const [copiedKey, setCopiedKey] = createSignal<string | null>(null);
 
-  // Per-row copy-symbol (clipboard only — never touches paper-trading state).
-  const handleCopy = useCallback(async (key: string, symbol: string) => {
+  const handleCopy = async (key: string, symbol: string) => {
     const ok = await copyToClipboard(symbol);
     setCopiedKey(ok ? key : null);
-  }, []);
+  };
 
-  useEffect(() => {
+  createEffect(() => {
+    universe();
+    days();
     let cancelled = false;
     setUpcomingDone(false);
     setRecentDone(false);
     setUpcomingError(null);
     setRecentError(null);
-    fetchUpcomingEvents(days, universe)
+    fetchUpcomingEvents(days(), universe())
       .then((payload) => {
         if (cancelled) return;
         setUpcoming(payload);
@@ -160,7 +163,7 @@ export function EventWatch({ universe = "nifty500", days = 7, daily, onOpenSymbo
         setUpcomingError(err instanceof Error ? err.message : "Failed to load upcoming events");
         setUpcomingDone(true);
       });
-    fetchRecentEvents(universe)
+    fetchRecentEvents(universe())
       .then((payload) => {
         if (cancelled) return;
         setRecent(payload);
@@ -172,184 +175,180 @@ export function EventWatch({ universe = "nifty500", days = 7, daily, onOpenSymbo
         setRecentError(err instanceof Error ? err.message : "Failed to load recent events");
         setRecentDone(true);
       });
-    return () => {
+    onCleanup(() => {
       cancelled = true;
-    };
-  }, [days, universe]);
+    });
+  });
 
-  const lookup = useMemo(() => buildTechLookup(daily), [daily]);
+  const lookup = createMemo(() => buildTechLookup(props.daily));
 
-  const upcomingRows = useMemo(
-    () => withTech(upcoming?.events ?? [], lookup),
-    [upcoming, lookup],
+  const upcomingRows = createMemo(
+    () => withTech(upcoming()?.events ?? [], lookup()),
   );
-  const recentRows = useMemo(() => withTech(recent?.events ?? [], lookup), [recent, lookup]);
+  const recentRows = createMemo(() => withTech(recent()?.events ?? [], lookup()));
 
-  const kindCounts = useMemo(() => {
+  const kindCounts = createMemo(() => {
     const counts = new Map<string, number>();
-    for (const ev of [...upcomingRows, ...recentRows]) {
+    for (const ev of [...upcomingRows(), ...recentRows()]) {
       const k = kindOf(ev);
       counts.set(k, (counts.get(k) ?? 0) + 1);
     }
     return counts;
-  }, [upcomingRows, recentRows]);
+  });
 
-  const filterKeys = useMemo(() => {
-    const keys = [...kindCounts.keys()].sort();
+  const filterKeys = createMemo(() => {
+    const keys = [...kindCounts().keys()].sort();
     return ["all", ...keys];
-  }, [kindCounts]);
+  });
 
-  const filteredUpcoming = useMemo(
-    () => (kindFilter === "all" ? upcomingRows : upcomingRows.filter((r) => kindOf(r) === kindFilter)),
-    [upcomingRows, kindFilter],
+  const filteredUpcoming = createMemo(
+    () => (kindFilter() === "all" ? upcomingRows() : upcomingRows().filter((r) => kindOf(r) === kindFilter())),
   );
-  const filteredRecent = useMemo(
-    () => (kindFilter === "all" ? recentRows : recentRows.filter((r) => kindOf(r) === kindFilter)),
-    [recentRows, kindFilter],
+  const filteredRecent = createMemo(
+    () => (kindFilter() === "all" ? recentRows() : recentRows().filter((r) => kindOf(r) === kindFilter())),
   );
 
-  const groupedUpcoming = useMemo(() => {
+  const groupedUpcoming = createMemo(() => {
     const groups = new Map<string, EventWatchRow[]>();
-    const sorted = [...filteredUpcoming].sort((a, b) => a.date.localeCompare(b.date));
+    const sorted = [...filteredUpcoming()].sort((a, b) => a.date.localeCompare(b.date));
     for (const row of sorted) {
       const list = groups.get(row.date) ?? [];
       list.push(row);
       groups.set(row.date, list);
     }
     return [...groups.entries()];
-  }, [filteredUpcoming]);
+  });
 
-  const buildColumns = useCallback(
-    (prefix: string): ColumnDef<EventWatchRow>[] => [
-      {
-        id: "symbol",
-        header: "Symbol",
-        accessorKey: "symbol",
-        meta: { align: "left" },
-        cell: ({ row }) => {
-          const r = row.original;
-          return (
-            <Box className="min-w-0 flex flex-col">
-              <Text size="xs" fw={700} truncate span>
-                {r.symbol}
+  const buildColumns = (prefix: string): TableColumnDef<EventWatchRow>[] => [
+    {
+      id: "symbol",
+      header: "Symbol",
+      accessorKey: "symbol",
+      meta: { align: "left" },
+      cell: ({ row }) => {
+        const r = row.original;
+        return (
+          <div class="min-w-0 flex flex-col">
+            <Text size="xs" fw={700} truncate span>
+              {r.symbol}
+            </Text>
+            <Show when={r.name}>
+              <Text size="xs" c="dimmed" truncate span>
+                {r.name}
               </Text>
-              {r.name ? (
-                <Text size="xs" c="dimmed" truncate span>
-                  {r.name}
-                </Text>
-              ) : null}
-            </Box>
-          );
-        },
+            </Show>
+          </div>
+        );
       },
-      {
-        id: "kind",
-        header: "Kind",
-        accessorKey: "kind",
-        meta: { align: "center" },
-        cell: ({ row }) => (
-          <Badge size="xs" color={KIND_COLOR[kindOf(row.original)] ?? "secondary"}>
-            {KIND_LABEL[kindOf(row.original)] ?? row.original.kind}
-          </Badge>
-        ),
+    },
+    {
+      id: "kind",
+      header: "Kind",
+      accessorKey: "kind",
+      meta: { align: "center" },
+      cell: ({ row }) => (
+        <Badge size="xs" color={KIND_COLOR[kindOf(row.original)] ?? "secondary"}>
+          {KIND_LABEL[kindOf(row.original)] ?? row.original.kind}
+        </Badge>
+      ),
+    },
+    {
+      id: "title",
+      header: "Event",
+      accessorKey: "title",
+      meta: { align: "left" },
+      cell: ({ row }) => (
+        <Text size="xs" c="dimmed" truncate span title={row.original.title} className="block max-w-[320px]">
+          {row.original.title}
+        </Text>
+      ),
+    },
+    {
+      id: "price",
+      header: "Price",
+      // The value lives under `tech`; an accessorKey of "price" made getValue
+      // return undefined, so both sides coerced to 0 and the sort never moved.
+      accessorFn: (row) => row.tech.price,
+      meta: { align: "right" },
+      cell: ({ row }) => numCell(row.original.tech.price, (v) => formatCurrency(v, 2)),
+    },
+    {
+      id: "chg",
+      header: "Chg %",
+      accessorFn: (row) => row.tech.chg_pct_5d,
+      meta: { align: "right" },
+      cell: ({ row }) => {
+        const v = row.original.tech.chg_pct_5d;
+        return numCell(
+          v,
+          (x) => formatPercentage(x),
+          v === undefined ? undefined : getPnLTextColor(v),
+        );
       },
-      {
-        id: "title",
-        header: "Event",
-        accessorKey: "title",
-        meta: { align: "left" },
-        cell: ({ row }) => (
-          <Text size="xs" c="dimmed" truncate span title={row.original.title} className="block max-w-[320px]">
-            {row.original.title}
+    },
+    {
+      id: "vol",
+      header: "Vol ×",
+      accessorFn: (row) => row.tech.vol_ratio,
+      meta: { align: "right" },
+      cell: ({ row }) =>
+        numCell(row.original.tech.vol_ratio, (v) => `${v.toFixed(1)}x`),
+    },
+    {
+      id: "dist52w",
+      header: "52W %",
+      accessorFn: (row) => row.tech.dist_52w_pct,
+      meta: { align: "right" },
+      cell: ({ row }) => {
+        const v = row.original.tech.dist_52w_pct;
+        return numCell(
+          v,
+          (x) => formatPercentage(x),
+          v === undefined ? undefined : getPnLTextColor(v),
+        );
+      },
+    },
+    {
+      id: "accum",
+      header: "Accum",
+      accessorFn: (row) => (row.tech.accum_ok ? 1 : 0),
+      meta: { align: "center" },
+      cell: ({ row }) =>
+        row.original.tech.accum_ok ? (
+          <Text size="xs" c="success" span>
+            ✓
+          </Text>
+        ) : (
+          <Text size="xs" c="dimmed" span>
+            —
           </Text>
         ),
+    },
+    {
+      id: "copy",
+      header: "",
+      meta: { align: "center" },
+      cell: ({ row }) => {
+        const r = row.original;
+        const key = `${prefix}-row-${r.symbol}-${r.kind}`;
+        return (
+          <Button
+            size="xs"
+            variant="subtle"
+            onClick={() => void handleCopy(key, r.symbol)}
+            data-testid={`${key}-copy`}
+            aria-label={`Copy ${r.symbol} symbol`}
+          >
+            {copiedKey() === key ? "Copied!" : "Copy"}
+          </Button>
+        );
       },
-      {
-        id: "price",
-        header: "Price",
-        accessorKey: "price",
-        meta: { align: "right" },
-        cell: ({ row }) => numCell(row.original.tech.price, (v) => formatCurrency(v, 2)),
-      },
-      {
-        id: "chg",
-        header: "Chg %",
-        accessorKey: "chg",
-        meta: { align: "right" },
-        cell: ({ row }) => {
-          const v = row.original.tech.chg_pct_5d;
-          return numCell(
-            v,
-            (x) => formatPercentage(x),
-            v === undefined ? undefined : getPnLTextColor(v),
-          );
-        },
-      },
-      {
-        id: "vol",
-        header: "Vol ×",
-        accessorKey: "vol",
-        meta: { align: "right" },
-        cell: ({ row }) =>
-          numCell(row.original.tech.vol_ratio, (v) => `${v.toFixed(1)}x`),
-      },
-      {
-        id: "dist52w",
-        header: "52W %",
-        accessorKey: "dist52w",
-        meta: { align: "right" },
-        cell: ({ row }) => {
-          const v = row.original.tech.dist_52w_pct;
-          return numCell(
-            v,
-            (x) => formatPercentage(x),
-            v === undefined ? undefined : getPnLTextColor(-Math.abs(v) === 0 ? 0 : v),
-          );
-        },
-      },
-      {
-        id: "accum",
-        header: "Accum",
-        accessorKey: "accum",
-        meta: { align: "center" },
-        cell: ({ row }) =>
-          row.original.tech.accum_ok ? (
-            <Text size="xs" c="success" span>
-              ✓
-            </Text>
-          ) : (
-            <Text size="xs" c="dimmed" span>
-              —
-            </Text>
-          ),
-      },
-      {
-        id: "copy",
-        header: "",
-        meta: { align: "center" },
-        cell: ({ row }) => {
-          const r = row.original;
-          const key = `${prefix}-row-${r.symbol}-${r.kind}`;
-          return (
-            <Button
-              size="xs"
-              variant="subtle"
-              onClick={() => void handleCopy(key, r.symbol)}
-              data-testid={`${key}-copy`}
-              aria-label={`Copy ${r.symbol} symbol`}
-            >
-              {copiedKey === key ? "Copied!" : "Copy"}
-            </Button>
-          );
-        },
-      },
-    ],
-    [copiedKey, handleCopy],
-  );
+    },
+  ];
 
-  const columns = useMemo(() => buildColumns("event-watch-upcoming"), [buildColumns]);
+  const columns = createMemo(() => buildColumns("event-watch-upcoming"));
 
-  const recentColumns = useMemo<ColumnDef<EventWatchRow>[]>(
+  const recentColumns = createMemo<TableColumnDef<EventWatchRow>[]>(
     () => [
       {
         id: "date",
@@ -364,136 +363,154 @@ export function EventWatch({ universe = "nifty500", days = 7, daily, onOpenSymbo
       },
       ...buildColumns("event-watch-recent"),
     ],
-    [buildColumns],
   );
 
-  const loading = !upcomingDone || !recentDone;
+  const loading = () => !upcomingDone() || !recentDone();
   // Backward-compatible: both endpoints absent (null, no error) → render nothing.
-  if (!loading && upcoming === null && recent === null && !upcomingError && !recentError) return null;
+  const renderNothing = () =>
+    !loading() &&
+    upcoming() === null &&
+    recent() === null &&
+    !upcomingError() &&
+    !recentError();
 
-  const totalUpcoming = upcomingRows.length;
-  const totalRecent = recentRows.length;
+  const totalUpcoming = () => upcomingRows().length;
+  const totalRecent = () => recentRows().length;
 
   return (
-    <Box data-testid="event-watch" className="flex flex-col gap-2 min-w-0">
-      <ToolbarRow gap={8} wrap={false}>
-        <Text size="sm" fw={700} span data-testid="event-watch-title">
-          Next-week watchlist
-        </Text>
-        <Badge size="xs" data-testid="event-watch-upcoming-count">
-          {totalUpcoming} scheduled
-        </Badge>
-        <Badge size="xs" data-testid="event-watch-recent-count">
-          {totalRecent} fresh
-        </Badge>
-        <Box className="flex-1 min-w-0" />
-      </ToolbarRow>
+    <Show when={!renderNothing()}>
+      <div data-testid="event-watch" class="flex flex-col gap-2 min-w-0">
+        <ToolbarRow gap={8} wrap={false}>
+          <Text size="sm" fw={700} span data-testid="event-watch-title">
+            Next-week watchlist
+          </Text>
+          <Badge size="xs" data-testid="event-watch-upcoming-count">
+            {totalUpcoming()} scheduled
+          </Badge>
+          <Badge size="xs" data-testid="event-watch-recent-count">
+            {totalRecent()} fresh
+          </Badge>
+          <div class="flex-1 min-w-0" />
+        </ToolbarRow>
 
-      {loading ? (
-        <Box className="flex flex-col gap-2" data-testid="event-watch-loading">
-          <Skeleton h={16} />
-          <Skeleton h={16} />
-        </Box>
-      ) : (
-        <>
+        <Show
+          when={!loading()}
+          fallback={
+            <div class="flex flex-col gap-2" data-testid="event-watch-loading">
+              <Skeleton h={16} />
+              <Skeleton h={16} />
+            </div>
+          }
+        >
           <ToolbarRow gap={4} wrap data-testid="event-watch-filters">
-            {filterKeys.map((key) => (
-              <Chip
-                key={key}
-                size="xs"
-                checked={kindFilter === key}
-                onChange={() => setKindFilter(key)}
-                data-testid={`event-watch-filter-${key}`}
-              >
-                {key === "all"
-                  ? `All (${totalUpcoming + totalRecent})`
-                  : `${KIND_LABEL[key as EventWatchKind] ?? key} (${kindCounts.get(key) ?? 0})`}
-              </Chip>
-            ))}
+            <For each={filterKeys()}>
+              {(key) => (
+                <Chip
+                  size="xs"
+                  checked={kindFilter() === key}
+                  onChange={() => setKindFilter(key)}
+                  data-testid={`event-watch-filter-${key}`}
+                >
+                  {key === "all"
+                    ? `All (${totalUpcoming() + totalRecent()})`
+                    : `${KIND_LABEL[key as EventWatchKind] ?? key} (${kindCounts().get(key) ?? 0})`}
+                </Chip>
+              )}
+            </For>
           </ToolbarRow>
 
-          {upcomingError ? (
-            <Box data-testid="event-watch-upcoming-error">
+          <Show when={upcomingError()}>
+            <div data-testid="event-watch-upcoming-error">
               <Alert color="error" data-testid="event-watch-upcoming-error-alert">
-                {upcomingError}
+                {upcomingError()}
               </Alert>
-            </Box>
-          ) : upcoming !== null ? (
-            <Box data-testid="event-watch-upcoming" className="flex flex-col gap-2 min-w-0">
+            </div>
+          </Show>
+          <Show when={!upcomingError() && upcoming() !== null}>
+            <div data-testid="event-watch-upcoming" class="flex flex-col gap-2 min-w-0">
               <Text size="xs" fw={600} c="dimmed" span data-testid="event-watch-upcoming-title">
                 Scheduled — results & event calendar
               </Text>
-              {filteredUpcoming.length === 0 ? (
-                <Box data-testid="event-watch-upcoming-empty">
+              <Show
+                when={filteredUpcoming().length === 0}
+                fallback={
+                  <For each={groupedUpcoming()}>
+                    {([date, rows]) => (
+                      <div class="flex flex-col gap-1 min-w-0">
+                        <ToolbarRow gap={8} wrap={false} data-testid={`event-watch-upcoming-group-${date}`}>
+                          <Text size="xs" fw={700} span className="tabular-nums">
+                            {date}
+                          </Text>
+                          <Badge size="xs">{rows.length}</Badge>
+                        </ToolbarRow>
+                        <TableWrap>
+                          <TanStackTable
+                            data={rows}
+                            columns={columns()}
+                            dataTestId="event-watch-upcoming-table"
+                            emptyMessage="No scheduled events"
+                            stickyHeader
+                            bare
+                            dense
+                            onRowClick={props.onOpenSymbol ? (row) => props.onOpenSymbol!(row.symbol) : undefined}
+                            getRowTestId={(row) => `event-watch-upcoming-row-${row.symbol}-${row.kind}`}
+                          />
+                        </TableWrap>
+                      </div>
+                    )}
+                  </For>
+                }
+              >
+                <div data-testid="event-watch-upcoming-empty">
                   <Text size="xs" c="dimmed">
-                    No scheduled events{kindFilter !== "all" ? ` for ${KIND_LABEL[kindFilter as EventWatchKind] ?? kindFilter}` : ""}
+                    No scheduled events{kindFilter() !== "all" ? ` for ${KIND_LABEL[kindFilter() as EventWatchKind] ?? kindFilter()}` : ""}
                   </Text>
-                </Box>
-              ) : (
-                groupedUpcoming.map(([date, rows]) => (
-                  <Box key={date} className="flex flex-col gap-1 min-w-0">
-                    <ToolbarRow gap={8} wrap={false} data-testid={`event-watch-upcoming-group-${date}`}>
-                      <Text size="xs" fw={700} span  className="tabular-nums">
-                        {date}
-                      </Text>
-                      <Badge size="xs">{rows.length}</Badge>
-                    </ToolbarRow>
-                    <TableWrap>
-                      <TanStackTable
-                        data={rows}
-                        columns={columns}
-                        dataTestId="event-watch-upcoming-table"
-                        emptyMessage="No scheduled events"
-                        stickyHeader
-                        bare
-                        dense
-                        onRowClick={onOpenSymbol ? (row) => onOpenSymbol(row.symbol) : undefined}
-                        getRowTestId={(row) => `event-watch-upcoming-row-${row.symbol}-${row.kind}`}
-                      />
-                    </TableWrap>
-                  </Box>
-                ))
-              )}
-            </Box>
-          ) : null}
+                </div>
+              </Show>
+            </div>
+          </Show>
 
-          {recentError ? (
-            <Box data-testid="event-watch-recent-error">
+          <Show when={recentError()}>
+            <div data-testid="event-watch-recent-error">
               <Alert color="error" data-testid="event-watch-recent-error-alert">
-                {recentError}
+                {recentError()}
               </Alert>
-            </Box>
-          ) : recent !== null ? (
-            <Box data-testid="event-watch-recent" className="flex flex-col gap-2 min-w-0">
+            </div>
+          </Show>
+          <Show when={!recentError() && recent() !== null}>
+            <div data-testid="event-watch-recent" class="flex flex-col gap-2 min-w-0">
               <Text size="xs" fw={600} c="dimmed" span data-testid="event-watch-recent-title">
                 Fresh fuel — trailing-7d updates, QIPs, upgrades & orders
               </Text>
-              {filteredRecent.length === 0 ? (
-                <Box data-testid="event-watch-recent-empty">
+              <Show
+                when={filteredRecent().length === 0}
+                fallback={
+                  <TableWrap>
+                    <TanStackTable
+                      data={[...filteredRecent()].sort((a, b) => b.date.localeCompare(a.date))}
+                      columns={recentColumns()}
+                      dataTestId="event-watch-recent-table"
+                      emptyMessage="No fresh events"
+                      stickyHeader
+                      bare
+                      dense
+                      onRowClick={props.onOpenSymbol ? (row) => props.onOpenSymbol!(row.symbol) : undefined}
+                      getRowTestId={(row) => `event-watch-recent-row-${row.symbol}-${row.kind}`}
+                    />
+                  </TableWrap>
+                }
+              >
+                <div data-testid="event-watch-recent-empty">
                   <Text size="xs" c="dimmed">
-                    No fresh events{kindFilter !== "all" ? ` for ${KIND_LABEL[kindFilter as EventWatchKind] ?? kindFilter}` : ""}
+                    No fresh events{kindFilter() !== "all" ? ` for ${KIND_LABEL[kindFilter() as EventWatchKind] ?? kindFilter()}` : ""}
                   </Text>
-                </Box>
-              ) : (
-                <TableWrap>
-                  <TanStackTable
-                    data={[...filteredRecent].sort((a, b) => b.date.localeCompare(a.date))}
-                    columns={recentColumns}
-                    dataTestId="event-watch-recent-table"
-                    emptyMessage="No fresh events"
-                    stickyHeader
-                    bare
-                    dense
-                    onRowClick={onOpenSymbol ? (row) => onOpenSymbol(row.symbol) : undefined}
-                    getRowTestId={(row) => `event-watch-recent-row-${row.symbol}-${row.kind}`}
-                  />
-                </TableWrap>
-              )}
-            </Box>
-          ) : null}
-        </>
-      )}
-    </Box>
+                </div>
+              </Show>
+            </div>
+          </Show>
+        </Show>
+      </div>
+    </Show>
   );
 }
 

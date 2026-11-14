@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { createEffect, createMemo, onCleanup, Show } from "solid-js";
 import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { SymbolChartData, ChartTrade } from "../../types/backtest";
@@ -38,18 +38,6 @@ function getCandleIndexMaps(chartData: SymbolChartData) {
     candleIndexCache.set(chartData, cached);
   }
   return cached;
-}
-
-interface BacktestChartProps {
-  symbol: string;
-  chartData: SymbolChartData | null | undefined;
-  isLoading?: boolean;
-  onTradeClick?: (tradeId: number) => void;
-  holidays?: MarketHoliday[];
-  /** "all" | "30d" | "7d" | "1d" — visible time-range preset. */
-  zoomValue?: string;
-  highlightedTradeId?: number | null;
-  showAllTrades?: boolean;
 }
 
 function findCandleIdx(
@@ -140,10 +128,7 @@ export function zoomToTrade(
   }, 120);
 }
 
-/** Map backtest chart_data into lightweight-charts mark lines (levels).
- *  Only the levels relevant to the strategy are shown: 52W strategies get the
- *  52W-high line, S/R breakout gets pivots, ORB gets the opening range — never
- *  ORB lines on a 52W chart. All lines are solid. */
+/** Map backtest chart_data into lightweight-charts mark lines (levels). */
 function buildLevelLines(chartData: SymbolChartData): MarkLineData[] {
   const lines: MarkLineData[] = [];
   const seen = new Set<string>();
@@ -212,42 +197,50 @@ export function mapTrades(chartData: SymbolChartData): ReplayTrade[] {
   return out.sort((a, b) => (a.entry_time || "").localeCompare(b.entry_time || ""));
 }
 
-export function BacktestChart({
-  symbol,
-  chartData,
-  isLoading,
-  onTradeClick,
-  holidays,
-  zoomValue,
-  highlightedTradeId = null,
-  showAllTrades = true,
-}: BacktestChartProps) {
-  const chartRef = useRef<TradingViewChartHandle | null>(null);
+interface BacktestChartProps {
+  symbol: string;
+  chartData: SymbolChartData | null | undefined;
+  isLoading?: boolean;
+  onTradeClick?: (tradeId: number) => void;
+  holidays?: MarketHoliday[];
+  /** "all" | "30d" | "7d" | "1d" — visible time-range preset. */
+  zoomValue?: string;
+  highlightedTradeId?: number | null;
+  showAllTrades?: boolean;
+}
 
-  useEffect(() => {
-    if (chartRef.current) chartHandles.set(symbol, chartRef.current);
-    return () => {
-      chartHandles.delete(symbol);
-    };
-  }, [symbol]);
+export function BacktestChart(props: BacktestChartProps) {
+  let chartRef: TradingViewChartHandle | undefined;
 
-  const input = useMemo(() => {
-    if (!chartData) return null;
-    return normalizeBacktest(chartData, true, holidays, highlightedTradeId);
-  }, [chartData, holidays, highlightedTradeId]);
+  createEffect(() => {
+    if (chartRef) chartHandles.set(props.symbol, chartRef);
+    onCleanup(() => {
+      chartHandles.delete(props.symbol);
+    });
+  });
 
-  const trades = useMemo(() => (chartData ? mapTrades(chartData) : []), [chartData]);
-  const markLines = useMemo(() => {
-    if (!chartData) return [];
+  const input = createMemo(() => {
+    const cd = props.chartData;
+    if (!cd) return null;
+    return normalizeBacktest(cd, true, props.holidays, props.highlightedTradeId ?? null);
+  });
+
+  const trades = createMemo(() => {
+    const cd = props.chartData;
+    return cd ? mapTrades(cd) : [];
+  });
+  const markLines = createMemo(() => {
+    const cd = props.chartData;
+    if (!cd) return [];
     // Force solid lines (the shared normalizer emits dashed/dotted).
-    const forced = (input?.markLines ?? []).map((ml) => ({
+    const forced = (input()?.markLines ?? []).map((ml) => ({
       ...ml,
       lineStyle: { ...ml.lineStyle, type: "solid" },
     }));
-    return [...forced, ...buildLevelLines(chartData)];
-  }, [chartData, input]);
-  const candles = useMemo(
-    () => (input?.candles ?? []).map((c) => ({
+    return [...forced, ...buildLevelLines(cd)];
+  });
+  const candles = createMemo(() =>
+    (input()?.candles ?? []).map((c) => ({
       time: c.time,
       open: c.open,
       high: c.high,
@@ -255,69 +248,68 @@ export function BacktestChart({
       close: c.close,
       volume: c.volume,
     })),
-    [input],
   );
 
   // zoom preset (All / 30D / 7D / 1D)
-  useEffect(() => {
-    if (!chartData || !zoomValue || chartData.candles.length === 0) return;
-    const total = chartData.candles.length;
-    const startIdx = getBacktestZoomStartIndex(chartData.candles, zoomValue);
+  createEffect(() => {
+    const cd = props.chartData;
+    const zv = props.zoomValue;
+    if (!cd || !zv || cd.candles.length === 0) return;
+    const total = cd.candles.length;
+    const startIdx = getBacktestZoomStartIndex(cd.candles, zv);
     const timer = setTimeout(() => {
-      if (zoomValue === "all") {
-        chartRef.current?.fitContent();
+      if (zv === "all") {
+        chartRef?.fitContent();
       } else {
-        chartRef.current?.zoomToIndexRange(startIdx, total - 1, total);
+        chartRef?.zoomToIndexRange(startIdx, total - 1, total);
       }
     }, 150);
-    return () => clearTimeout(timer);
-  }, [zoomValue, chartData]);
-
-  if (isLoading) {
-    return (
-      <Box
-        className="backtest-chart-loading flex items-center justify-center h-full rounded-fin"
-        data-testid="backtest-chart-loading"
-        style={{ height: "100%", backgroundColor: "#0A0A0A" }}
-      >
-        <Text c="dimmed">Loading {symbol}...</Text>
-      </Box>
-    );
-  }
-
-  if (!chartData || !input) {
-    return (
-      <Box
-        className="backtest-chart-empty flex items-center justify-center h-full rounded-fin"
-        data-testid="backtest-chart-empty"
-        style={{ height: "100%", backgroundColor: "#0A0A0A" }}
-      >
-        <Text c="dimmed">No chart data for {symbol}</Text>
-      </Box>
-    );
-  }
+    onCleanup(() => clearTimeout(timer));
+  });
 
   return (
-    <Box
-      id={`backtest-chart-${symbol}`}
-      className="backtest-chart w-full h-full min-h-0 min-w-0 flex"
-      data-testid="echarts-container"
-      data-symbol={symbol}
-      style={{ width: "100%", height: "100%", minHeight: 0, minWidth: 0, display: "flex", backgroundColor: palette.NT_BG }}
-    >
-      <TradingViewChart
-        ref={chartRef}
-        theme="nt"
-        entryLabels
-        candles={candles}
-        trades={trades}
-        highlightedTradeId={highlightedTradeId}
-        showAllTrades={showAllTrades}
-        markLines={markLines}
-        emaData={input.emaData}
-        rsiData={input.rsiData}
-        onTradeClick={onTradeClick}
-      />
-    </Box>
+    <>
+      <Show when={props.isLoading}>
+        <Box
+          className="backtest-chart-loading flex items-center justify-center h-full rounded-fin"
+          data-testid="backtest-chart-loading"
+          style={{ height: "100%", "background-color": palette.SURFACE }}
+        >
+          <Text c="dimmed">Loading {props.symbol}...</Text>
+        </Box>
+      </Show>
+      <Show when={!props.isLoading && (!props.chartData || !input())}>
+        <Box
+          className="backtest-chart-empty flex items-center justify-center h-full rounded-fin"
+          data-testid="backtest-chart-empty"
+          style={{ height: "100%", "background-color": palette.SURFACE }}
+        >
+          <Text c="dimmed">No chart data for {props.symbol}</Text>
+        </Box>
+      </Show>
+      <Show when={!props.isLoading && props.chartData && input()}>
+        <Box
+          id={`backtest-chart-${props.symbol}`}
+          className="backtest-chart w-full h-full min-h-0 min-w-0 flex"
+          data-testid="echarts-container"
+          data-symbol={props.symbol}
+          style={{ width: "100%", height: "100%", "min-height": 0, "min-width": 0, display: "flex", "background-color": palette.NT_BG }}
+        >
+          <TradingViewChart
+            ref={(h) => (chartRef = h)}
+            theme="nt"
+            entryLabels
+            candles={candles()}
+            trades={trades()}
+            highlightedTradeId={props.highlightedTradeId ?? null}
+            showAllTrades={props.showAllTrades ?? true}
+            markLines={markLines()}
+            emaData={input().emaData}
+            rsiData={input().rsiData}
+            onTradeClick={props.onTradeClick}
+          />
+        </Box>
+      </Show>
+    </>
   );
 }

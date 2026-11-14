@@ -37,7 +37,8 @@ append-only ledger row**; the gate stated **before** the run.
 ---
 
 ## 4. Resource limits (learned the hard way)
-- **Size the wave to the machine**: ~6–10 single-threaded agents on 4 vCPU; more just queue.
+- **Size the wave to the machine**: **5 concurrent agents** max on disjoint file sets — see
+  `SUBAGENT_RULES.md §9`, the single source of truth for concurrency. More just queues.
 - **Don't run your own heavy jobs** while the fleet is full; **batch** artifact regenerations
   (each `matplotlib`/build spawns processes).
 - **Don't poll.** Launch, attach a watcher, and let completion notify you.
@@ -79,6 +80,10 @@ Give each wave a theme so the ledger reads as a story. **Archive the agent code*
 ---
 
 ## 8. Cost control
-Default fleet agents to a cheap model (`opencode-go/muse-spark-1.3-contributor`); escalate a
-**single** agent only for correctness-critical work (adversarial verification / the final audit) and
-say why. **The gate, not the model, is what protects you.**
+Default fleet agents to `opencode/nemotron-3.5-super-vl-free`; escalate a **single** agent only
+for correctness-critical work (adversarial verification / the final audit) and say why. **The gate,
+not the model, is what protects you.**
+
+Model routing and concurrency are authoritative in `SUBAGENT_RULES.md §9` — this playbook does not
+restate the pool. When a free tier returns `Free usage limit reached`, fall through the pool there
+(or escalate one agent, stating why).

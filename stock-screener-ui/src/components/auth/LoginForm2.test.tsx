@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { LoginForm, RegisterForm } from "./LoginForm2";
@@ -22,8 +21,8 @@ vi.mock("./AuthProvider2", () => ({
   useAuth: (...args: any[]) => mockUseAuth(...args),
 }));
 
-function renderWithProvider(ui: React.ReactElement) {
-  return render(<UIProvider>{ui}</UIProvider>);
+function renderWithProvider(ui: JSX.Element) {
+  return render(() => (<UIProvider>{ui}</UIProvider>));
 }
 
 describe("LoginForm", () => {
@@ -69,25 +68,23 @@ describe("LoginForm", () => {
   });
 
   it("calls login(email, password) on form submit", async () => {
-    const user = userEvent.setup();
-    mockLogin.mockResolvedValue({ success: true });
+        mockLogin.mockResolvedValue({ success: true });
     renderWithProvider(<LoginForm />);
-    await user.type(screen.getByTestId("login-email-input"), "test@example.com");
-    await user.type(screen.getByTestId("login-password-input"), "password123");
-    await user.click(screen.getByTestId("login-submit-btn"));
+    await fireEvent.input(screen.getByTestId("login-email-input"), { target: { value: "test@example.com" } });
+    await fireEvent.input(screen.getByTestId("login-password-input"), { target: { value: "password123" } });
+    await fireEvent.click(screen.getByTestId("login-submit-btn"));
     await waitFor(() => {
       expect(mockLogin).toHaveBeenCalledWith("test@example.com", "password123");
     });
   });
 
   it("calls onSuccess callback when login succeeds", async () => {
-    const user = userEvent.setup();
-    const onSuccess = vi.fn();
+        const onSuccess = vi.fn();
     mockLogin.mockResolvedValue({ success: true });
     renderWithProvider(<LoginForm onSuccess={onSuccess} />);
-    await user.type(screen.getByTestId("login-email-input"), "test@example.com");
-    await user.type(screen.getByTestId("login-password-input"), "password123");
-    await user.click(screen.getByTestId("login-submit-btn"));
+    await fireEvent.input(screen.getByTestId("login-email-input"), { target: { value: "test@example.com" } });
+    await fireEvent.input(screen.getByTestId("login-password-input"), { target: { value: "password123" } });
+    await fireEvent.click(screen.getByTestId("login-submit-btn"));
     await waitFor(() => {
       expect(onSuccess).toHaveBeenCalled();
     });
@@ -112,11 +109,10 @@ describe("LoginForm", () => {
   });
 
   it("clicking register link calls clearError then onSwitchToRegister", async () => {
-    const user = userEvent.setup();
-    const onSwitchToRegister = vi.fn();
+        const onSwitchToRegister = vi.fn();
     mockClearError.mockImplementation(() => {});
     renderWithProvider(<LoginForm onSwitchToRegister={onSwitchToRegister} />);
-    await user.click(screen.getByTestId("register-link"));
+    await fireEvent.click(screen.getByTestId("register-link"));
     expect(mockClearError).toHaveBeenCalled();
     expect(onSwitchToRegister).toHaveBeenCalled();
   });
@@ -174,35 +170,33 @@ describe("RegisterForm", () => {
   });
 
   it("calls register(email, password, displayName) on submit", async () => {
-    const user = userEvent.setup();
-    mockRegister.mockResolvedValue({ success: true });
+        mockRegister.mockResolvedValue({ success: true });
     renderWithProvider(<RegisterForm />);
     const emailInput = screen.getByTestId("register-email-input");
     const nameInput = screen.getByTestId("display-name-input");
     const pwInput = screen.getByTestId("register-password-input");
     const confirmInput = screen.getByTestId("confirm-password-input");
-    await user.type(emailInput, "new@test.com");
-    await user.type(nameInput, "Test User");
-    await user.type(pwInput, "password123");
-    await user.type(confirmInput, "password123");
-    await user.click(screen.getByTestId("register-button"));
+    await fireEvent.input(emailInput, { target: { value: "new@test.com" } });
+    await fireEvent.input(nameInput, { target: { value: "Test User" } });
+    await fireEvent.input(pwInput, { target: { value: "password123" } });
+    await fireEvent.input(confirmInput, { target: { value: "password123" } });
+    await fireEvent.click(screen.getByTestId("register-button"));
     await waitFor(() => {
       expect(mockRegister).toHaveBeenCalledWith("new@test.com", "password123", "Test User");
     });
   });
 
   it("calls onSuccess callback when registration succeeds", async () => {
-    const user = userEvent.setup();
-    const onSuccess = vi.fn();
+        const onSuccess = vi.fn();
     mockRegister.mockResolvedValue({ success: true });
     renderWithProvider(<RegisterForm onSuccess={onSuccess} />);
     const emailInput = screen.getByTestId("register-email-input");
     const pwInput = screen.getByTestId("register-password-input");
     const confirmInput = screen.getByTestId("confirm-password-input");
-    await user.type(emailInput, "new@test.com");
-    await user.type(pwInput, "password123");
-    await user.type(confirmInput, "password123");
-    await user.click(screen.getByTestId("register-button"));
+    await fireEvent.input(emailInput, { target: { value: "new@test.com" } });
+    await fireEvent.input(pwInput, { target: { value: "password123" } });
+    await fireEvent.input(confirmInput, { target: { value: "password123" } });
+    await fireEvent.click(screen.getByTestId("register-button"));
     await waitFor(() => {
       expect(onSuccess).toHaveBeenCalled();
     });
@@ -214,10 +208,9 @@ describe("RegisterForm", () => {
   });
 
   it("clicking login link clears errors and calls onSwitchToLogin", async () => {
-    const user = userEvent.setup();
-    const onSwitchToLogin = vi.fn();
+        const onSwitchToLogin = vi.fn();
     renderWithProvider(<RegisterForm onSwitchToLogin={onSwitchToLogin} />);
-    await user.click(screen.getByTestId("login-link"));
+    await fireEvent.click(screen.getByTestId("login-link"));
     expect(mockClearError).toHaveBeenCalled();
     expect(onSwitchToLogin).toHaveBeenCalled();
   });

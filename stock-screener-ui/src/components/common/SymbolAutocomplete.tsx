@@ -2,7 +2,7 @@
 // Typing is debounced; a value is committed only on option select / Enter so
 // consumers are not refetched on every keystroke. Static extras (indices such
 // as NIFTY/BANKNIFTY) are merged ahead of API results.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, splitProps } from "solid-js";
 import { Box, TextInput } from "@/ui";
 import * as palette from "@/ui/palette";
 import { searchSymbols, type SymbolResult } from "@/api/symbols";
@@ -29,29 +29,27 @@ interface SymbolAutocompleteProps {
   fnoOnly?: boolean;
 }
 
-export default function SymbolAutocomplete({
-  value,
-  onChange,
-  label = "Symbol",
-  width = 220,
-  testid,
-  extraOptions = [],
-  compact = false,
-  fnoOnly = false,
-}: SymbolAutocompleteProps) {
-  const [results, setResults] = useState<SymbolResult[]>([]);
-  const [input, setInput] = useState(value ?? "");
-  const [open, setOpen] = useState(false);
-  const timer = useRef<number | undefined>(undefined);
-  const highlightedIndex = useRef(-1);
+export default function SymbolAutocomplete(props: SymbolAutocompleteProps) {
+  const [local] = splitProps(props, ["label", "width", "testid", "extraOptions", "compact", "fnoOnly"]);
+  const label = () => local.label ?? "Symbol";
+  const width = () => local.width ?? 220;
+  const extraOptions = () => local.extraOptions ?? [];
+  const compact = () => local.compact ?? false;
+  const fnoOnly = () => local.fnoOnly ?? false;
 
-  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const [results, setResults] = createSignal<SymbolResult[]>([]);
+  const [input, setInput] = createSignal(props.value ?? "");
+  const [open, setOpen] = createSignal(false);
+  const [highlightedIndex, setHighlightedIndex] = createSignal(-1);
+  let timer: number | undefined;
+
+  onCleanup(() => window.clearTimeout(timer));
 
   // Converge to an external value change (param load / form reset) without
   // clobbering text the user is actively typing (the prop only changes on commit).
-  useEffect(() => {
-    setInput(value ?? "");
-  }, [value]);
+  createEffect(() => {
+    setInput(props.value ?? "");
+  });
 
   const handleInput = (v: string, reason?: string) => {
     // The local Autocomplete fires reason "reset"/"blur" with "" when async options resolve or the
@@ -59,15 +57,15 @@ export default function SymbolAutocomplete({
     if (reason === "reset" || reason === "blur") return;
     setInput(v);
     setOpen(true);
-    window.clearTimeout(timer.current);
+    window.clearTimeout(timer);
     const q = v.trim();
     if (!q) {
       setResults([]);
       setOpen(false);
       return;
     }
-    timer.current = window.setTimeout(() => {
-      const request = fnoOnly
+    timer = window.setTimeout(() => {
+      const request = fnoOnly()
         ? searchSymbols(q, 10, true)
         : searchSymbols(q, 10);
       request
@@ -82,12 +80,12 @@ export default function SymbolAutocomplete({
     }, 250);
   };
 
-  const options = useMemo<Option[]>(() => {
-    const q = input.trim().toUpperCase();
+  const options = createMemo<Option[]>(() => {
+    const q = input().trim().toUpperCase();
     const seen = new Set<string>();
     const merged: Option[] = [];
 
-    for (const extra of extraOptions) {
+    for (const extra of extraOptions()) {
       const key = extra.toUpperCase();
       if (q && !key.includes(q)) continue;
       if (seen.has(key)) continue;
@@ -96,7 +94,7 @@ export default function SymbolAutocomplete({
     }
 
     if (q) {
-      for (const result of results) {
+      for (const result of results()) {
         const key = result.symbol.toUpperCase();
         if (seen.has(key)) continue;
         seen.add(key);
@@ -105,21 +103,21 @@ export default function SymbolAutocomplete({
     }
 
     return merged;
-  }, [extraOptions, input, results]);
+  });
 
   const handleSelect = (option: Option) => {
     setInput(labelOf(option));
     setOpen(false);
-    onChange(labelOf(option));
+    props.onChange(labelOf(option));
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      if (open && options[highlightedIndex.current] !== undefined) {
-        handleSelect(options[highlightedIndex.current]);
+      if (open() && options()[highlightedIndex()] !== undefined) {
+        handleSelect(options()[highlightedIndex()]);
       } else {
-        onChange(input);
+        props.onChange(input());
         setOpen(false);
       }
     } else if (e.key === "Escape") {
@@ -128,61 +126,60 @@ export default function SymbolAutocomplete({
   };
 
   return (
-    <Box style={{ position: "relative", width, display: "inline-block" }} data-testid={testid ? `${testid}-wrap` : undefined}>
+    <Box style={{ position: "relative", width: `${width()}px`, display: "inline-block" }} data-testid={local.testid ? `${local.testid}-wrap` : undefined}>
       <TextInput
         size="xs"
-        value={input}
+        value={input()}
         onChange={(v) => handleInput(v)}
         onKeyDown={handleKeyDown}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        label={compact ? undefined : label}
-        placeholder={compact ? "Index or F&O stock" : undefined}
-        data-testid={testid}
+        label={compact() ? undefined : label()}
+        placeholder={compact() ? "Index or F&O stock" : undefined}
+        data-testid={local.testid}
         style={{ width: "100%" }}
       />
-      {open && options.length > 0 && (
+      <Show when={open() && options().length > 0}>
         <Box
           style={{
             position: "absolute",
             top: "100%",
-            left: 0,
-            right: 0,
-            backgroundColor: palette.SURFACE,
+            left: "0px",
+            right: "0px",
+            "background-color": palette.SURFACE,
             border: `1px solid ${palette.BORDER}`,
-            borderTop: "none",
-            borderRadius: "0 0 4px 4px",
-            boxShadow: `0 4px 12px ${withAlpha(palette.BG, 0.3)}`,
-            zIndex: 50,
-            maxHeight: 240,
-            overflowY: "auto",
+            "border-top": "none",
+            "border-radius": "0 0 4px 4px",
+            "box-shadow": `0 4px 12px ${withAlpha(palette.BG, 0.3)}`,
+            "z-index": 50,
+            "max-height": "240px",
+            "overflow-y": "auto",
           }}
         >
-          {options.map((option, index) => (
+          <For each={options()}>{(option, index) => (
             <div
-              key={labelOf(option)}
               role="option"
               style={{
                 padding: "6px 8px",
                 cursor: "pointer",
-                borderBottom: `1px solid ${palette.BORDER}`,
+                "border-bottom": `1px solid ${palette.BORDER}`,
                 display: "flex",
-                alignItems: "center",
-                gap: 8,
-                backgroundColor: highlightedIndex.current === index ? palette.SCALE_GRAY[6] : "inherit",
+                "align-items": "center",
+                gap: "8px",
+                "background-color": highlightedIndex() === index() ? palette.SCALE_GRAY[6] : "inherit",
                 color: palette.TEXT,
               }}
-              onMouseEnter={() => (highlightedIndex.current = index)}
+              onMouseEnter={() => setHighlightedIndex(index())}
               onClick={() => handleSelect(option)}
             >
-              <span style={{ fontWeight: 600 }}>{labelOf(option)}</span>
-              {nameOf(option) ? (
-                <span style={{ color: palette.TEXT_MUTED, marginLeft: 8, fontSize: 12 }}>{nameOf(option)}</span>
-              ) : null}
+              <span style={{ "font-weight": 600 }}>{labelOf(option)}</span>
+              <Show when={nameOf(option)}>
+                <span style={{ color: palette.TEXT_MUTED, "margin-left": "8px", "font-size": "12px" }}>{nameOf(option)}</span>
+              </Show>
             </div>
-          ))}
+          )}</For>
         </Box>
-      )}
+      </Show>
     </Box>
   );
 }

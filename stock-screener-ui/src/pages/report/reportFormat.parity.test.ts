@@ -40,15 +40,15 @@ const VALUES: Array<number | null | undefined> = [
 const DASH = REPORT_DASH;
 const MINUS = REPORT_MINUS;
 
-function pin(
+function pin<O>(
   label: string,
-  fn: (v: number | null | undefined, opts?: unknown) => string,
-  opts: unknown,
+  fn: (v: number | null | undefined, opts?: O) => string,
+  opts: O | undefined,
   expected: Array<string | null>,
 ): void {
   test(label, () => {
     VALUES.forEach((v, i) => {
-      expect(fn(v, opts as never)).toBe(expected[i]);
+      expect(fn(v, opts)).toBe(expected[i]);
     });
   });
 }

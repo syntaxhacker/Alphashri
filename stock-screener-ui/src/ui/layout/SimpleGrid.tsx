@@ -1,5 +1,5 @@
+import { splitProps } from "solid-js";
 import { cn } from "../cn";
-import type { CSSProperties } from "react";
 import type { UISimpleGridProps } from "../types";
 
 const sp = (v: unknown): string | undefined => {
@@ -9,25 +9,29 @@ const sp = (v: unknown): string | undefined => {
   return (m[v as string] ?? v) as string;
 };
 
-export function SimpleGrid({ children, className, style, id, "data-testid": testId, cols, spacing, verticalSpacing, type, ...rest }: UISimpleGridProps & Record<string, unknown>) {
-  void type;
-  const n = typeof cols === "number" ? cols : 1;
-  const styleObj: CSSProperties = {
-    ...style,
-    display: "grid",
-    gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))`,
-    ...(spacing != null && { gap: sp(spacing) }),
-    ...(verticalSpacing != null && { rowGap: sp(verticalSpacing) }),
-  };
+export function SimpleGrid(props: UISimpleGridProps & Record<string, unknown>) {
+  const [known, rest] = splitProps(props, [
+    "children", "className", "style", "id", "data-testid", "cols", "spacing", "verticalSpacing", "type",
+  ] as const);
+  void known.type;
+
+  const n = typeof known.cols === "number" ? known.cols : 1;
+
   return (
     <div
-      id={id}
-      className={cn(className)}
-      style={styleObj}
-      data-testid={testId}
+      id={known.id}
+      className={cn(known.className)}
+      style={{
+        display: "grid",
+        "grid-template-columns": `repeat(${n}, minmax(0, 1fr))`,
+        ...(known.spacing != null ? { gap: sp(known.spacing) } : {}),
+        ...(known.verticalSpacing != null ? { "row-gap": sp(known.verticalSpacing) } : {}),
+        ...(known.style as Record<string, unknown> | undefined),
+      }}
+      data-testid={known["data-testid"]}
       {...rest}
     >
-      {children}
+      {known.children}
     </div>
   );
 }

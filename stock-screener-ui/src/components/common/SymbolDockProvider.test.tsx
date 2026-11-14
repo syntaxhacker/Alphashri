@@ -1,11 +1,9 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { act } from "react";
-import userEvent from "@testing-library/user-event";
-import { useContext } from "react";
-import { MemoryRouter } from "react-router-dom";
+import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
+import { useContext } from "solid-js";
+import { Router } from "@solidjs/router";
 import { UIProvider } from "@/ui";
 import { SymbolDockProvider } from "./SymbolDockProvider";
 import { SymbolDockContext } from "./symbolDockContext";
@@ -16,13 +14,14 @@ vi.mock("../../api/chartPatterns", () => ({
 }));
 
 vi.mock("@/components/patterns/PatternFullscreenView", () => ({
-  PatternFullscreenView: ({ symbol, loading }: { symbol: string | null; loading?: boolean }) => (
-    <div data-testid="patterns-chart-dock" data-loading={String(Boolean(loading))}>
-      {symbol}
+  PatternFullscreenView: (props: { symbol: string | null; loading?: boolean }) => (
+    <div data-testid="patterns-chart-dock" data-loading={String(Boolean(props.loading))}>
+      {props.symbol}
     </div>
   ),
 }));
 
+import { __resetFullscreen } from "@/pages/patterns/fullscreenKey";
 import { fetchSymbolChart } from "../../api/chartPatterns";
 
 const mockedFetchSymbolChart = vi.mocked(fetchSymbolChart);
@@ -82,19 +81,14 @@ function DockHarness() {
 }
 
 function renderDock() {
-  return render(
-    <UIProvider>
-      <MemoryRouter>
-        <SymbolDockProvider>
-          <DockHarness />
-        </SymbolDockProvider>
-      </MemoryRouter>
-    </UIProvider>,
-  );
+  return render(() => (
+    <Router root={() => <UIProvider><SymbolDockProvider><DockHarness /></SymbolDockProvider></UIProvider>} />
+  ));
 }
 
 describe("SymbolDockProvider stale badge", () => {
   beforeEach(() => {
+    __resetFullscreen();
     vi.stubGlobal("matchMedia", (query: string) => ({
       matches: query.includes("1200px"),
       media: query,
@@ -115,10 +109,9 @@ describe("SymbolDockProvider stale badge", () => {
 
   test("a stale-first payload shows the Cached badge", async () => {
     mockedFetchSymbolChart.mockResolvedValue(STALE_CHART);
-    const user = userEvent.setup();
-    renderDock();
+        renderDock();
 
-    await user.click(screen.getByTestId("open-ircon"));
+    await fireEvent.click(screen.getByTestId("open-ircon"));
 
     const badge = await screen.findByTestId("dock-stale");
     expect(badge).toHaveTextContent("Cached 2026-11-06");
@@ -129,14 +122,13 @@ describe("SymbolDockProvider stale badge", () => {
 
   test("a fresh payload hides the badge", async () => {
     mockedFetchSymbolChart.mockResolvedValue(STALE_CHART);
-    const user = userEvent.setup();
-    renderDock();
+        renderDock();
 
-    await user.click(screen.getByTestId("open-ircon"));
+    await fireEvent.click(screen.getByTestId("open-ircon"));
     expect(await screen.findByTestId("dock-stale")).toBeInTheDocument();
 
     mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
-    await user.click(screen.getByTestId("open-reliance"));
+    await fireEvent.click(screen.getByTestId("open-reliance"));
 
     await waitFor(() =>
       expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("RELIANCE"),
@@ -146,33 +138,31 @@ describe("SymbolDockProvider stale badge", () => {
 
   test("switching symbol resets the badge before the new frame arrives", async () => {
     mockedFetchSymbolChart.mockResolvedValue(STALE_CHART);
-    const user = userEvent.setup();
-    renderDock();
+        renderDock();
 
-    await user.click(screen.getByTestId("open-ircon"));
+    await fireEvent.click(screen.getByTestId("open-ircon"));
     expect(await screen.findByTestId("dock-stale")).toBeInTheDocument();
 
     // RELIANCE phase 1 hangs: the badge must disappear via the synchronous reset,
     // not because a fresh frame happened to land.
-    let resolvePhase1!: (v: unknown) => void;
+    let resolvePhase1!: (v: never) => void;
     mockedFetchSymbolChart.mockReset();
     mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
     mockedFetchSymbolChart.mockImplementationOnce(
       () => new Promise((resolve) => { resolvePhase1 = resolve; }),
     );
-    await user.click(screen.getByTestId("open-reliance"));
+    await fireEvent.click(screen.getByTestId("open-reliance"));
 
     expect(screen.queryByTestId("dock-stale")).not.toBeInTheDocument();
 
-    await act(async () => {
-      resolvePhase1(FRESH_CHART);
-    });
+    resolvePhase1(FRESH_CHART);
   });
 
 });
 
 describe("preview → endPreview race (A then B)", () => {
   beforeEach(() => {
+    __resetFullscreen();
     vi.stubGlobal("matchMedia", (query: string) => ({
       matches: query.includes("1200px"),
       media: query,
@@ -200,41 +190,26 @@ describe("preview → endPreview race (A then B)", () => {
     const previewA = screen.getByTestId("preview-ircon");
     const previewB = screen.getByTestId("preview-reliance");
 
-    const enter = (el: HTMLElement) =>
-      act(() => {
-        fireEvent.mouseOver(el, { relatedTarget: null });
-      });
-    const leave = (el: HTMLElement) =>
-      act(() => {
-        fireEvent.mouseOut(el, { relatedTarget: null });
-      });
+    const enter = (el: HTMLElement) => fireEvent.mouseEnter(el, { relatedTarget: null });
+    const leave = (el: HTMLElement) => fireEvent.mouseLeave(el, { relatedTarget: null });
 
     // Enter A → 300 ms debounce → A preview opens
     enter(previewA);
     expect(screen.queryByTestId("symbol-dock")).not.toBeInTheDocument();
 
-    act(() => {
-      vi.advanceTimersByTime(300);
-    });
-    await act(async () => {});
-    expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("IRCON");
+    vi.advanceTimersByTime(300);
+    await waitFor(() => expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("IRCON"));
 
     // Leave A → close timer scheduled (800 ms); enter B → it must be cancelled
     leave(previewA);
     enter(previewB);
 
-    act(() => {
-      vi.advanceTimersByTime(300);
-    });
-    await act(async () => {});
-    expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("RELIANCE");
+    vi.advanceTimersByTime(300);
+    await waitFor(() => expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("RELIANCE"));
 
     // Advance past the old close timer → dock still shows B, not closed, not A
-    act(() => {
-      vi.advanceTimersByTime(800);
-    });
-    await act(async () => {});
-    expect(screen.getByTestId("symbol-dock")).toBeInTheDocument();
+    vi.advanceTimersByTime(800);
+    await waitFor(() => expect(screen.getByTestId("symbol-dock")).toBeInTheDocument());
     expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("RELIANCE");
     expect(screen.getByTestId("patterns-chart-dock")).not.toHaveTextContent("IRCON");
   });

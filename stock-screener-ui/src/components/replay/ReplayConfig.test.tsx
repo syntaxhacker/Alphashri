@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 import { ReplayConfigBar } from "./ReplayConfig";
@@ -22,7 +21,7 @@ vi.mock("../../api/bots", () => ({
 
 vi.mock("../../state/holidays", () => ({
   getHolidayState: vi.fn(() => mockHolidays),
-  subscribeToHolidays: vi.fn(),
+  subscribeToHolidays: vi.fn(() => () => {}),
   loadHolidays: vi.fn(),
   isTradingHoliday: mockIsTradingHoliday,
 }));
@@ -63,8 +62,7 @@ describe("ReplayConfig", () => {
     mockIsTradingHoliday.mockReturnValue(true);
     const config: ReplayConfigType = { date: "2025-01-26", end_date: "", strategy: "ALL", symbols: [], refresh_cache: false, bot_uuid: "" };
     mockHolidays.holidays = [{ date: "2025-01-26", description: "Republic Day" }];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayConfigBar
           config={config}
           isRunning={false}
@@ -82,8 +80,7 @@ describe("ReplayConfig", () => {
     mockIsTradingHoliday.mockReturnValue(true);
     const config: ReplayConfigType = { date: "2025-01-26", end_date: "", strategy: "ALL", symbols: [], refresh_cache: false, bot_uuid: "" };
     mockHolidays.holidays = [{ date: "2025-01-26", description: "Republic Day" }];
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayConfigBar
           config={config}
           isRunning={false}
@@ -99,8 +96,7 @@ describe("ReplayConfig", () => {
 
   it("clears holiday warning when date changed to non-holiday", () => {
     mockIsTradingHoliday.mockReturnValue(false);
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayConfigBar
           config={defaultConfig}
           isRunning={false}
@@ -116,8 +112,7 @@ describe("ReplayConfig", () => {
 
   it("clears holiday warning when date cleared", () => {
     mockIsTradingHoliday.mockReturnValue(true);
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayConfigBar
           config={{ ...defaultConfig, date: "" }}
           isRunning={false}
@@ -132,8 +127,7 @@ describe("ReplayConfig", () => {
   });
 
   it("does NOT render Strategy Select (removed — bot has strategies)", () => {
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayConfigBar
           config={defaultConfig}
           isRunning={false}
@@ -148,8 +142,7 @@ describe("ReplayConfig", () => {
   });
 
   it("renders Run Replay button when not running", () => {
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayConfigBar
           config={defaultConfig}
           isRunning={false}
@@ -164,8 +157,7 @@ describe("ReplayConfig", () => {
   });
 
   it("Run Replay button is disabled when no date selected", () => {
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayConfigBar
           config={{ ...defaultConfig, date: "" }}
           isRunning={false}
@@ -181,9 +173,7 @@ describe("ReplayConfig", () => {
 
   it("Run button calls startReplay", async () => {
     const startReplay = vi.fn();
-    const user = userEvent.setup();
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayConfigBar
           config={defaultConfig}
           isRunning={false}
@@ -194,15 +184,13 @@ describe("ReplayConfig", () => {
         />
       </UIProvider>,
     );
-    await user.click(screen.getByTestId("replay-run-btn"));
+    await fireEvent.click(screen.getByTestId("replay-run-btn"));
     expect(startReplay).toHaveBeenCalledTimes(1);
   });
 
   it("Stop button calls stopReplay", async () => {
     const stopReplay = vi.fn();
-    const user = userEvent.setup();
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayConfigBar
           config={defaultConfig}
           isRunning={true}
@@ -213,13 +201,12 @@ describe("ReplayConfig", () => {
         />
       </UIProvider>,
     );
-    await user.click(screen.getByTestId("replay-stop-btn"));
+    await fireEvent.click(screen.getByTestId("replay-stop-btn"));
     expect(stopReplay).toHaveBeenCalledTimes(1);
   });
 
   it("does not show Reset button when running", () => {
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayConfigBar
           config={defaultConfig}
           isRunning={true}
@@ -235,9 +222,7 @@ describe("ReplayConfig", () => {
 
   it("Reset button calls reset", async () => {
     const reset = vi.fn();
-    const user = userEvent.setup();
-    render(
-      <UIProvider>
+    render(() => <UIProvider>
         <ReplayConfigBar
           config={defaultConfig}
           isRunning={false}
@@ -248,7 +233,7 @@ describe("ReplayConfig", () => {
         />
       </UIProvider>,
     );
-    await user.click(screen.getByTestId("replay-reset-btn"));
+    await fireEvent.click(screen.getByTestId("replay-reset-btn"));
     expect(reset).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,5 +1,5 @@
-import { useMemo, type ReactNode } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
+import { createMemo, type JSX } from "solid-js";
+import type { TableColumnDef } from "../../common/TanStackTable";
 import { Box, Text } from "@/ui";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
 import { TanStackTable } from "../../common/TanStackTable";
@@ -17,7 +17,7 @@ interface ReadingTableProps {
 interface ReadingRow {
   id: "state" | "flow" | "initiated" | "split" | "read";
   metric: string;
-  value: ReactNode;
+  value: JSX.Element;
   note: string;
 }
 
@@ -26,83 +26,82 @@ function net(a: number | null, b: number | null): number | null {
   return (a ?? 0) + (b ?? 0);
 }
 
-function SplitValue({ data }: { data: PositioningData }) {
-  const bearish = Math.abs(data.split.bearish_cr ?? 0);
-  const bullish = Math.abs(data.split.bullish_cr ?? 0);
+function SplitValue(props: { data: PositioningData }) {
+  const bearish = Math.abs(props.data.split.bearish_cr ?? 0);
+  const bullish = Math.abs(props.data.split.bullish_cr ?? 0);
   const gross = bearish + bullish;
   return (
-    <Box style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 160 }}>
-      <Box style={{ display: "flex", width: "100%", height: 8, borderRadius: 1, overflow: "hidden" }}>
-        <Box style={{ width: `${data.split.bearish_pct}%`, backgroundColor: NEGATIVE }} />
-        <Box style={{ width: `${data.split.bullish_pct}%`, backgroundColor: POSITIVE }} />
+    <Box style={{ display: "flex", "flex-direction": "column", gap: "4px", "min-width": "160px" }}>
+      <Box style={{ display: "flex", width: "100%", height: "8px", "border-radius": "1px", overflow: "hidden" }}>
+        <Box style={{ width: `${props.data.split.bearish_pct}%`, "background-color": NEGATIVE }} />
+        <Box style={{ width: `${props.data.split.bullish_pct}%`, "background-color": POSITIVE }} />
       </Box>
-      <Text size="xs" ta="right" style={{ fontVariantNumeric: "tabular-nums" }}>
+      <Text size="xs" ta="right" style={{ "font-variant-numeric": "tabular-nums" }}>
         {formatCr(gross)} · 100%
       </Text>
     </Box>
   );
 }
 
-const columns: ColumnDef<ReadingRow>[] = [
-  { header: "Metric", accessorKey: "metric", meta: { align: "left" } },
+const columns: TableColumnDef<ReadingRow>[] = [
+  { id: "metric", header: "Metric", accessorKey: "metric", meta: { align: "left" } },
   {
+    id: "value",
     header: "Value",
     accessorKey: "value",
     meta: { align: "right" },
-    cell: ({ getValue }) => <>{getValue<ReactNode>()}</>,
+    cell: (ctx) => <>{ctx.row.original.value}</>,
   },
   {
+    id: "note",
     header: "Note",
     accessorKey: "note",
     meta: { align: "left" },
-    cell: ({ getValue }) => (
+    cell: (ctx) => (
       <Text size="sm" c="dimmed">
-        {String(getValue<string>())}
+        {ctx.row.original.note}
       </Text>
     ),
   },
 ];
 
-export function ReadingTable({ data }: ReadingTableProps) {
-  const rows: ReadingRow[] = useMemo(
-    () => [
-      {
-        id: "state",
-        metric: "State",
-        value: formatCr(net(data.state.calls_cr, data.state.puts_cr)),
-        note: data.state.note,
-      },
-      {
-        id: "flow",
-        metric: "Flow",
-        value: formatCr(net(data.flow.calls_cr, data.flow.puts_cr)),
-        note: data.flow.note,
-      },
-      {
-        id: "initiated",
-        metric: "Initiated",
-        value: formatCr(data.initiated_cr),
-        note: data.initiated.note,
-      },
-      {
-        id: "split",
-        metric: "Split",
-        value: <SplitValue data={data} />,
-        note: `Bearish ${formatCr(data.split.bearish_cr)} · Bullish ${formatCr(data.split.bullish_cr)}`,
-      },
-      {
-        id: "read",
-        metric: "Read",
-        value: formatPct(data.read.pct),
-        note: `${formatShares(data.read.readable_shares)} of ${formatShares(data.read.total_shares)} shares readable`,
-      },
-    ],
-    [data],
-  );
+export function ReadingTable(props: ReadingTableProps) {
+  const rows = createMemo<ReadingRow[]>(() => [
+    {
+      id: "state",
+      metric: "State",
+      value: formatCr(net(props.data.state.calls_cr, props.data.state.puts_cr)),
+      note: props.data.state.note,
+    },
+    {
+      id: "flow",
+      metric: "Flow",
+      value: formatCr(net(props.data.flow.calls_cr, props.data.flow.puts_cr)),
+      note: props.data.flow.note,
+    },
+    {
+      id: "initiated",
+      metric: "Initiated",
+      value: formatCr(props.data.initiated_cr),
+      note: props.data.initiated.note,
+    },
+    {
+      id: "split",
+      metric: "Split",
+      value: <SplitValue data={props.data} />,
+      note: `Bearish ${formatCr(props.data.split.bearish_cr)} · Bullish ${formatCr(props.data.split.bullish_cr)}`,
+    },
+    {
+      id: "read",
+      metric: "Read",
+      value: formatPct(props.data.read.pct),
+      note: `${formatShares(props.data.read.readable_shares)} of ${formatShares(props.data.read.total_shares)} shares readable`,
+    },
+  ]);
 
   return (
     <TanStackTable<ReadingRow>
-      data={rows}
+      data={rows()}
       columns={columns}
       bare
       enableSorting={false}

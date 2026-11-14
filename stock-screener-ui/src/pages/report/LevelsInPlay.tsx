@@ -1,7 +1,7 @@
-import { Box } from "@/ui";
+import { createMemo, Show } from "solid-js";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
-import { CompactPanel } from "@/components/common/compact";
+import { LocalCompactPanel } from "./reportBits";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import type { NiftyReport, NiftySensex, NiftyWall } from "@/types/niftyReport";
 import { REPORT_FONT } from "./reportTokens";
@@ -88,95 +88,86 @@ function confluenceLabel(
   return "NO CONFLUENCE";
 }
 
-function LevelInline({
-  side,
-  level,
-  rowLabel,
-}: {
-  side: "CE" | "PE";
-  level: LevelRead | null;
-  rowLabel: string;
-}) {
-  const tone = side === "CE" ? palette.TERM_CE : palette.TERM_PE;
-  const testId = `levels-${side.toLowerCase()}-${rowLabel}`;
-  if (!level) {
+function LevelInline(props: { side: "CE" | "PE"; level: LevelRead | null; rowLabel: string }) {
+  const tone = props.side === "CE" ? palette.TERM_CE : palette.TERM_PE;
+  const testId = `levels-${props.side.toLowerCase()}-${props.rowLabel}`;
+  if (!props.level) {
     return (
       <span
         data-testid={testId}
-        className="text-[11px] leading-none whitespace-nowrap"
-        style={{ color: palette.TEXT_MUTED, fontSize: REPORT_FONT.xs }}
+        class="text-[11px] leading-none whitespace-nowrap"
+        style={{ color: palette.TEXT_MUTED, "font-size": `${REPORT_FONT.xs}px` }}
       >
-        {side} —
+        {props.side} —
       </span>
     );
   }
-  const dist = `${level.pct > 0 ? "+" : ""}${level.pct.toFixed(2)}% ${level.pts > 0 ? "+" : ""}${Math.round(level.pts)}p`;
+  const dist = createMemo(() => {
+    const level = props.level;
+    if (!level) return "";
+    return `${level.pct > 0 ? "+" : ""}${level.pct.toFixed(2)}% ${level.pts > 0 ? "+" : ""}${Math.round(level.pts)}p`;
+  });
   return (
     <span
       data-testid={testId}
-      className="flex items-baseline gap-1 shrink-0 whitespace-nowrap"
+      class="flex items-baseline gap-1 shrink-0 whitespace-nowrap"
       style={{
-        minWidth: 0,
-        flexShrink: 0,
+        "min-width": "0px",
+        "flex-shrink": 0,
       }}
     >
-      <span className="font-black text-[11px] leading-none" style={{ color: tone, fontSize: REPORT_FONT.xs, fontWeight: 800 }}>
-        {side}
+      <span class="font-black text-[11px] leading-none" style={{ color: tone, "font-size": `${REPORT_FONT.xs}px`, "font-weight": 800 }}>
+        {props.side}
       </span>
       <span
-        className="font-mono text-[12px] font-bold leading-none"
-        style={{ color: palette.TEXT, fontSize: REPORT_FONT.sm, fontWeight: 700 }}
+        class="font-mono text-[12px] font-bold leading-none"
+        style={{ color: palette.TEXT, "font-size": `${REPORT_FONT.sm}px`, "font-weight": 700 }}
       >
-        {formatNumberIN(Math.round(level.strike))}
+        {formatNumberIN(Math.round(props.level!.strike))}
       </span>
       <span
-        data-testid={`levels-dist-${rowLabel}-${side}`}
-        className="inline-flex items-center shrink-0"
+        data-testid={`levels-dist-${props.rowLabel}-${props.side}`}
+        class="inline-flex items-center shrink-0"
         style={{
           display: "inline-flex",
-          alignItems: "center",
-          height: 14,
-          minWidth: 0,
-          flexShrink: 0,
-          whiteSpace: "nowrap",
-          fontFamily: palette.MONO,
-          fontSize: REPORT_FONT.sm,
-          fontWeight: 800,
-          lineHeight: 1,
-          color: level.tag === "AT" ? palette.NEGATIVE : tone,
-          backgroundColor: level.tag === "AT" ? palette.TINT_NEGATIVE : palette.SURFACE_ALT,
-          border: `1px solid ${level.tag === "AT" ? palette.NEGATIVE : "transparent"}`,
-          borderRadius: "2px",
+          "align-items": "center",
+          height: "14px",
+          "min-width": "0px",
+          "flex-shrink": 0,
+          "white-space": "nowrap",
+          "font-family": palette.MONO,
+          "font-size": `${REPORT_FONT.sm}px`,
+          "font-weight": 800,
+          "line-height": 1,
+          color: props.level!.tag === "AT" ? palette.NEGATIVE : tone,
+          "background-color": props.level!.tag === "AT" ? palette.TINT_NEGATIVE : palette.SURFACE_ALT,
+          border: `1px solid ${props.level!.tag === "AT" ? palette.NEGATIVE : "transparent"}`,
+          "border-radius": "2px",
           padding: "0 3px",
         }}
       >
-        {dist}
+        {dist()}
       </span>
       <span
-        className="text-[11px] font-bold leading-none"
+        class="text-[11px] font-bold leading-none"
         style={{
-          fontSize: REPORT_FONT.xs,
-          fontWeight: 800,
-          letterSpacing: 0.2,
-          lineHeight: 1,
-          color: level.tag === "AT" ? palette.NEGATIVE : level.tag === "NEAR" ? tone : palette.TEXT_MUTED,
+          "font-size": `${REPORT_FONT.xs}px`,
+          "font-weight": 800,
+          "letter-spacing": "0.2px",
+          "line-height": 1,
+          color: props.level!.tag === "AT" ? palette.NEGATIVE : props.level!.tag === "NEAR" ? tone : palette.TEXT_MUTED,
         }}
       >
-        {level.tag}
+        {props.level!.tag}
       </span>
-      <span className="font-mono text-[11px] leading-none" style={{ color: palette.TEXT_MUTED, fontSize: REPORT_FONT.xs }}>
-        {level.oi >= 1e6 ? `${(level.oi / 1e6).toFixed(1)}M` : `${Math.round(level.oi / 1e3)}k`}
+      <span class="font-mono text-[11px] leading-none" style={{ color: palette.TEXT_MUTED, "font-size": `${REPORT_FONT.xs}px` }}>
+        {props.level!.oi >= 1e6 ? `${(props.level!.oi / 1e6).toFixed(1)}M` : `${Math.round(props.level!.oi / 1e3)}k`}
       </span>
     </span>
   );
 }
 
-function IndexRow({
-  label,
-  spot,
-  maxPain,
-  read,
-}: {
+function IndexRow(props: {
   label: string;
   spot: number;
   maxPain: number;
@@ -185,31 +176,31 @@ function IndexRow({
   // `columnGap` is breakpoint-responsive (xs/sm) and the first row drops its
   // top border — both are expressible as Tailwind variants.
   return (
-    <Box
-      data-testid={`levels-row-${label}`}
-      className="flex flex-wrap items-center justify-start gap-x-[6px] sm:gap-x-2 gap-y-px py-0 min-w-0 border-t border-fin-border first-of-type:border-t-0"
+    <div
+      data-testid={`levels-row-${props.label}`}
+      class="flex flex-wrap items-center justify-start gap-x-[6px] sm:gap-x-2 gap-y-px py-0 min-w-0 border-t border-fin-border first-of-type:border-t-0"
     >
       <div
-        data-testid={`levels-label-${label}`}
-        className="flex items-baseline gap-[3px] shrink-0"
-        style={{ minWidth: 84 }}
+        data-testid={`levels-label-${props.label}`}
+        class="flex items-baseline gap-[3px] shrink-0"
+        style={{ "min-width": "84px" }}
       >
-        <Text size="xs" fw={800} style={{ fontSize: REPORT_FONT.xs, letterSpacing: 0.3, lineHeight: 1 }}>
-          {label}
+        <Text size="xs" fw={800} style={{ "font-size": `${REPORT_FONT.xs}px`, "letter-spacing": "0.3px", "line-height": 1 }}>
+          {props.label}
         </Text>
-        <Text size="xs" c="dimmed" style={{ fontFamily: palette.MONO, fontSize: REPORT_FONT.xs, lineHeight: 1 }}>
-          {formatNumberIN(Math.round(spot))}
+        <Text size="xs" c="dimmed" style={{ "font-family": palette.MONO, "font-size": `${REPORT_FONT.xs}px`, "line-height": 1 }}>
+          {formatNumberIN(Math.round(props.spot))}
         </Text>
       </div>
-      <LevelInline side="CE" level={read.call} rowLabel={label} />
-      <LevelInline side="PE" level={read.put} rowLabel={label} />
+      <LevelInline side="CE" level={props.read.call} rowLabel={props.label} />
+      <LevelInline side="PE" level={props.read.put} rowLabel={props.label} />
       <span
-        className="font-mono text-[11px] leading-none whitespace-nowrap shrink-0"
-        style={{ color: palette.TEXT_MUTED, fontSize: REPORT_FONT.xs }}
+        class="font-mono text-[11px] leading-none whitespace-nowrap shrink-0"
+        style={{ color: palette.TEXT_MUTED, "font-size": `${REPORT_FONT.xs}px` }}
       >
-        MP {maxPain > 0 ? formatNumberIN(Math.round(maxPain)) : "—"}
+        MP {props.maxPain > 0 ? formatNumberIN(Math.round(props.maxPain)) : "—"}
       </span>
-    </Box>
+    </div>
   );
 }
 
@@ -221,31 +212,30 @@ interface LevelsInPlayProps {
 /** Just the dense rows — CE beside PE, one row per index, no panel/title/badge.
  *  Meant to be passed as `levels` to `NiftyWallsCard` (NIFTY) or rendered
  *  standalone where there is no walls card (SENSEX focus). */
-export function LevelsInPlayContent({ report, sensex }: LevelsInPlayProps) {
-  if (!report && !sensex) return null;
-  const nifty = report ? readIndex(report.spot, report.walls, report.wallsNear) : null;
-  const sensexRead = sensex ? readIndex(sensex.spot, sensex.walls, sensex.wallsNear) : null;
+export function LevelsInPlayContent(props: LevelsInPlayProps) {
+  const nifty = () => (props.report ? readIndex(props.report.spot, props.report.walls, props.report.wallsNear) : null);
+  const sensexRead = () => (props.sensex ? readIndex(props.sensex.spot, props.sensex.walls, props.sensex.wallsNear) : null);
 
   return (
-    <div className="min-w-0">
-      {report ? (
-        <IndexRow label="NIFTY" spot={report.spot} maxPain={report.maxPain} read={nifty ?? { call: null, put: null }} />
-      ) : null}
-      {sensex ? (
-        <IndexRow label="SENSEX" spot={sensex.spot} maxPain={sensex.maxPain} read={sensexRead ?? { call: null, put: null }} />
-      ) : null}
+    <div class="min-w-0">
+      <Show when={props.report}>{(report) => (
+        <IndexRow label="NIFTY" spot={report().spot} maxPain={report().maxPain} read={nifty() ?? { call: null, put: null }} />
+      )}</Show>
+      <Show when={props.sensex}>{(sensex) => (
+        <IndexRow label="SENSEX" spot={sensex().spot} maxPain={sensex().maxPain} read={sensexRead() ?? { call: null, put: null }} />
+      )}</Show>
     </div>
   );
 }
 
-export function LevelsInPlay({ report, sensex }: LevelsInPlayProps) {
-  if (!report && !sensex) return null;
-  const nifty = report ? readIndex(report.spot, report.walls, report.wallsNear) : null;
-  const sensexRead = sensex ? readIndex(sensex.spot, sensex.walls, sensex.wallsNear) : null;
-  const badge = confluenceLabel(nifty, sensexRead);
+export function LevelsInPlay(props: LevelsInPlayProps) {
+  const nifty = () => (props.report ? readIndex(props.report.spot, props.report.walls, props.report.wallsNear) : null);
+  const sensexRead = () => (props.sensex ? readIndex(props.sensex.spot, props.sensex.walls, props.sensex.wallsNear) : null);
+  const badge = () => confluenceLabel(nifty(), sensexRead());
 
   return (
-    <CompactPanel
+    <Show when={props.report || props.sensex}>
+    <LocalCompactPanel
       title="Levels"
       testId="levels-in-play"
       flush
@@ -255,16 +245,17 @@ export function LevelsInPlay({ report, sensex }: LevelsInPlayProps) {
           fw={800}
           data-testid="levels-badge"
           style={{
-            fontSize: REPORT_FONT.xs,
-            letterSpacing: 0.35,
-            color: badge === "DUAL RESISTANCE" ? palette.NEGATIVE : badge === "DUAL SUPPORT" ? palette.POSITIVE : palette.TEXT_MUTED,
+            "font-size": `${REPORT_FONT.xs}px`,
+            "letter-spacing": "0.35px",
+            color: badge() === "DUAL RESISTANCE" ? palette.NEGATIVE : badge() === "DUAL SUPPORT" ? palette.POSITIVE : palette.TEXT_MUTED,
           }}
         >
-          {badge}
+          {badge()}
         </Text>
       }
     >
-      <LevelsInPlayContent report={report} sensex={sensex} />
-    </CompactPanel>
+      <LevelsInPlayContent report={props.report} sensex={props.sensex} />
+    </LocalCompactPanel>
+    </Show>
   );
 }

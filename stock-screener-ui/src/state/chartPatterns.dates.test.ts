@@ -32,7 +32,7 @@ beforeEach(() => {
   // Pin the stream to "unavailable" so tests deterministically exercise the
   // non-streaming `fetchResults` fallback (real SSE would hit the network).
   mocked.streamResults.mockImplementation(
-    async (_query: unknown, handlers: { onError?: (e: Error) => void }) => {
+    async (_query, handlers = {}) => {
       handlers.onError?.(new Error("stream unavailable"));
     },
   );
@@ -88,7 +88,7 @@ describe("chartPatterns from/to date filters", () => {
 
   it("triggerScan omits replay keys when no dates are set", async () => {
     await triggerScan(true);
-    const payload = mocked.startScan.mock.calls[0][0] as Record<string, unknown>;
+    const payload = mocked.startScan.mock.calls[0][0] as unknown as Record<string, unknown>;
     expect("as_of_date" in payload).toBe(false);
     expect("from_date" in payload).toBe(false);
     expect(getChartPatternsState().lastScanAsOf).toBeNull();

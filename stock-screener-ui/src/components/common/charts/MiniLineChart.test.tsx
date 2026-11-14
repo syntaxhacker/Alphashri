@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, afterEach } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import type { JSX } from "solid-js";
+import { cleanup, render, screen } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
 import {
@@ -14,7 +15,7 @@ import {
 
 afterEach(cleanup);
 
-function TestWrapper({ children }: { children: React.ReactNode }) {
+function TestWrapper({ children }: { children: JSX.Element }) {
   return <UIProvider>{children}</UIProvider>;
 }
 
@@ -140,13 +141,12 @@ describe("scaleValue / sqrt scale", () => {
   });
 
   test("render accepts scale=sqrt without changing the DOM contract", () => {
-    render(
-      <MiniLineChart
+    render(() => (<MiniLineChart
         series={[{ name: "a", points: [0, 1, 10000], color: palette.PRIMARY }]}
         labels={["a", "b", "c"]}
         scale="sqrt"
         testId="mini-chart-sqrt"
-      />,
+      />),
       { wrapper: TestWrapper },
     );
     const chart = screen.getByTestId("mini-chart-sqrt");
@@ -158,12 +158,11 @@ describe("scaleValue / sqrt scale", () => {
 
 describe("MiniLineChart render", () => {
   test("renders a series path inside an SVG", () => {
-    render(
-      <MiniLineChart
+    render(() => (<MiniLineChart
         series={[{ name: "a", points: [1, 2, 3], color: palette.PRIMARY }]}
         labels={["x", "y", "z"]}
         testId="mini-chart"
-      />,
+      />),
       { wrapper: TestWrapper },
     );
     const chart = screen.getByTestId("mini-chart");
@@ -173,13 +172,12 @@ describe("MiniLineChart render", () => {
   });
 
   test("shows the empty message when all points are null", () => {
-    render(
-      <MiniLineChart
+    render(() => (<MiniLineChart
         series={[{ name: "a", points: [null, null], color: palette.PRIMARY }]}
         labels={["x", "y"]}
         testId="mini-chart-empty"
         emptyMessage="Nothing to plot"
-      />,
+      />),
       { wrapper: TestWrapper },
     );
     expect(screen.getByText("Nothing to plot")).toBeInTheDocument();

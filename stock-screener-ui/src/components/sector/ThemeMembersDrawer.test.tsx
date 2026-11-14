@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { cleanup, render, screen, waitFor, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { ThemeMembersDrawer } from "./ThemeMembersDrawer";
 
@@ -15,7 +14,7 @@ vi.mock("../../api/rotation", () => ({
 }));
 
 function renderDrawer() {
-  return render(
+  return render(() =>
     <ThemeMembersDrawer
       open
       slug="defence"
@@ -60,11 +59,10 @@ describe("ThemeMembersDrawer", () => {
   });
 
   test("filters the members", async () => {
-    const user = userEvent.setup();
     renderDrawer();
     await screen.findByTestId("theme-member-HAL");
 
-    await user.type(screen.getByTestId("theme-members-search"), "BE");
+    fireEvent.input(screen.getByTestId("theme-members-search"), { target: { value: "BE" } });
     expect(screen.getByTestId("theme-member-BEL")).toBeInTheDocument();
     expect(screen.queryByTestId("theme-member-HAL")).not.toBeInTheDocument();
   });

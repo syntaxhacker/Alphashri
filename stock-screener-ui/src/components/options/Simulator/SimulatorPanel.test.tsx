@@ -1,11 +1,14 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { screen, cleanup, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, within, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { SimulatorPanel } from "./SimulatorPanel";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 
 vi.mock("../PremiumTracker/PayoffChart", () => ({
   PayoffChart: () => <div data-testid="mock-payoff-chart">mock chart</div>,
@@ -22,7 +25,7 @@ const matrix = [
 ];
 
 function renderPanel() {
-  return renderWithProviders(
+  return render(() => 
     <SimulatorPanel
       selectedUnderlying="NIFTY"
       selectedExpiry="25MAY"
@@ -32,11 +35,12 @@ function renderPanel() {
   );
 }
 
-async function pickLoadOption(user: ReturnType<typeof userEvent.setup>, name: string | RegExp) {
+function pickLoadOption(name: string | RegExp) {
   const combo = within(screen.getByTestId("simulator-load-select")).getByRole("combobox");
-  await user.click(combo);
-  await screen.findByRole("option", { name });
-  await user.click(screen.getByRole("option", { name }));
+  fireEvent.click(combo);
+  return screen.findByRole("option", { name }).then((option) => {
+    fireEvent.click(option);
+  });
 }
 
 describe("SimulatorPanel", () => {
@@ -59,9 +63,8 @@ describe("SimulatorPanel", () => {
   });
 
   it("uses a single compact underlying search instead of a duplicate select", async () => {
-    const user = userEvent.setup();
     const onUnderlyingChange = vi.fn();
-    renderWithProviders(
+    render(() => 
       <SimulatorPanel
         selectedUnderlying="NIFTY"
         selectedExpiry="25MAY"
@@ -71,17 +74,16 @@ describe("SimulatorPanel", () => {
         availableExpiries={["25MAY"]}
         onUnderlyingChange={onUnderlyingChange}
         onExpiryChange={vi.fn()}
-      />,
-    );
+      />);
 
     expect(screen.getByTestId("simulator-underlying-search")).toBeInTheDocument();
     expect(screen.queryByTestId("simulator-underlying-select")).not.toBeInTheDocument();
     expect(screen.getByTestId("simulator-expiry-select")).toBeInTheDocument();
 
     const search = screen.getByPlaceholderText("Index or F&O stock");
-    await user.clear(search);
-    await user.type(search, "BANK");
-    await user.click(await screen.findByText("BANKNIFTY"));
+    fireEvent.input(search, { target: { value: "" } });
+    fireEvent.input(search, { target: { value: "BANK" } });
+    fireEvent.click(await screen.findByText("BANKNIFTY"));
 
     expect(onUnderlyingChange).toHaveBeenCalledWith("BANKNIFTY");
   });
@@ -97,9 +99,8 @@ describe("SimulatorPanel", () => {
   });
 
   it("selecting a template builds ATM legs with live LTP entries", async () => {
-    const user = userEvent.setup();
     renderPanel();
-    await user.click(screen.getByTestId("simulator-template-long-call"));
+    fireEvent.click(screen.getByTestId("simulator-template-long-call"));
     expect(screen.getAllByTestId(/^simulator-leg-\d+$/)).toHaveLength(1);
     // entry filled from live LTP of 23150 CE (95)
     expect(screen.getByText("Debit ₹95.00")).toBeInTheDocument();
@@ -108,43 +109,39 @@ describe("SimulatorPanel", () => {
   });
 
   it("selecting a sell template shows a net credit", async () => {
-    const user = userEvent.setup();
     renderPanel();
-    await user.click(screen.getByTestId("simulator-template-bear-call-spread"));
+    fireEvent.click(screen.getByTestId("simulator-template-bear-call-spread"));
     // BUY 23250 CE (no quote → 0) + SELL 23200 CE (₹40) = net credit ₹40
     expect(screen.getByText("Credit ₹40.00")).toBeInTheDocument();
   });
 
   it("adds and removes legs", async () => {
-    const user = userEvent.setup();
     renderPanel();
-    await user.click(screen.getByTestId("simulator-add-leg"));
+    fireEvent.click(screen.getByTestId("simulator-add-leg"));
     expect(screen.getAllByTestId(/^simulator-leg-\d+$/)).toHaveLength(1);
     expect(screen.getByText("Debit ₹95.00")).toBeInTheDocument();
 
-    await user.click(screen.getByTestId("simulator-add-leg"));
+    fireEvent.click(screen.getByTestId("simulator-add-leg"));
     expect(screen.getAllByTestId(/^simulator-leg-\d+$/)).toHaveLength(2);
 
     const removeButtons = screen.getAllByTitle("Remove leg");
-    await user.click(removeButtons[1]);
+    fireEvent.click(removeButtons[1]);
     expect(screen.getAllByTestId(/^simulator-leg-\d+$/)).toHaveLength(1);
 
-    await user.click(screen.getAllByTitle("Remove leg")[0]);
+    fireEvent.click(screen.getAllByTitle("Remove leg")[0]);
     expect(screen.queryAllByTestId(/^simulator-leg-\d+$/)).toHaveLength(0);
   });
 
   it("duplicate creates a copy of a leg", async () => {
-    const user = userEvent.setup();
     renderPanel();
-    await user.click(screen.getByTestId("simulator-template-long-call"));
-    await user.click(screen.getAllByTitle("Duplicate leg")[0]);
+    fireEvent.click(screen.getByTestId("simulator-template-long-call"));
+    fireEvent.click(screen.getAllByTitle("Duplicate leg")[0]);
     expect(screen.getAllByTestId(/^simulator-leg-\d+$/)).toHaveLength(2);
   });
 
   it("scenario table shows P&L at −10%..+10% with sign colours", async () => {
-    const user = userEvent.setup();
     renderPanel();
-    await user.click(screen.getByTestId("simulator-template-long-call"));
+    fireEvent.click(screen.getByTestId("simulator-template-long-call"));
     const scenarioRows = screen.getAllByTestId("simulator-scenario-row");
     expect(scenarioRows).toHaveLength(5);
     expect(screen.getByText("-10%")).toBeInTheDocument();
@@ -157,35 +154,33 @@ describe("SimulatorPanel", () => {
   });
 
   it("saves to localStorage, loads via Select, and resets", async () => {
-    const user = userEvent.setup();
     renderPanel();
     expect(screen.getByTestId("simulator-save")).toBeDisabled();
 
-    await user.click(screen.getByTestId("simulator-template-long-call"));
-    await user.click(screen.getByTestId("simulator-add-leg"));
+    fireEvent.click(screen.getByTestId("simulator-template-long-call"));
+    fireEvent.click(screen.getByTestId("simulator-add-leg"));
     expect(screen.getAllByTestId(/^simulator-leg-\d+$/)).toHaveLength(2);
 
-    await user.click(screen.getByTestId("simulator-save"));
+    fireEvent.click(screen.getByTestId("simulator-save"));
     expect(localStorage.getItem("options-simulator-saved-v1")).not.toBeNull();
     expect(screen.getByTestId("simulator-load-select")).toBeInTheDocument();
 
-    await pickLoadOption(user, /^Saved \d/);
+    await pickLoadOption(/^Saved \d/);
     // the saved strategy carried both legs
     expect(screen.getAllByTestId(/^simulator-leg-\d+$/)).toHaveLength(2);
 
-    await user.click(screen.getByTestId("simulator-reset"));
+    fireEvent.click(screen.getByTestId("simulator-reset"));
     expect(screen.queryAllByTestId(/^simulator-leg-\d+$/)).toHaveLength(0);
   });
 
   it("does not crash with a null spot", () => {
-    renderWithProviders(
+    render(() => 
       <SimulatorPanel
         selectedUnderlying="NIFTY"
         selectedExpiry="25MAY"
         spotPrice={null}
         strikeMatrix={matrix}
-      />,
-    );
+      />);
     expect(screen.getByTestId("simulator-panel")).toBeInTheDocument();
     expect(screen.getByText("ATM 23150")).toBeInTheDocument();
     expect(screen.getByText("Spot —")).toBeInTheDocument();
@@ -193,20 +188,19 @@ describe("SimulatorPanel", () => {
   });
 
   it("treats a zero spot as missing live data", () => {
-    renderWithProviders(
+    render(() => 
       <SimulatorPanel
         selectedUnderlying="NIFTY"
         selectedExpiry="25MAY"
         spotPrice={0}
         strikeMatrix={matrix}
-      />,
-    );
+      />);
     expect(screen.getByText("Spot —")).toBeInTheDocument();
     expect(screen.queryByText("Spot 0")).not.toBeInTheDocument();
   });
 
   it("shows live-chain loading and error states", () => {
-    renderWithProviders(
+    render(() => 
       <SimulatorPanel
         selectedUnderlying="NIFTY"
         selectedExpiry="25MAY"
@@ -214,23 +208,20 @@ describe("SimulatorPanel", () => {
         strikeMatrix={matrix}
         loading
         error="Upstox token expired or invalid"
-      />,
-    );
+      />);
     expect(screen.getByText("Loading live chain")).toBeInTheDocument();
     expect(screen.getByText("Upstox token expired or invalid")).toBeInTheDocument();
   });
 
   it("refuses to build a template before live strikes arrive", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(
+    render(() => 
       <SimulatorPanel
         selectedUnderlying="COCHINSHIP"
         selectedExpiry="2026-11-23"
         spotPrice={null}
         strikeMatrix={[]}
-      />,
-    );
-    await user.click(screen.getByTestId("simulator-template-long-call"));
+      />);
+    fireEvent.click(screen.getByTestId("simulator-template-long-call"));
     expect(screen.queryAllByTestId(/^simulator-leg-\d+$/)).toHaveLength(0);
     expect(screen.getByText(/Waiting for the live option chain/)).toBeInTheDocument();
   });

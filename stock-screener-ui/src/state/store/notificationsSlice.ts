@@ -1,4 +1,4 @@
-import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
+import { createStore, produce } from "solid-js/store";
 
 export type NotificationType = "success" | "error" | "warning" | "info";
 
@@ -10,7 +10,7 @@ export type Notification = {
   timestamp: number;
 };
 
-type NotificationsState = {
+export type NotificationsState = {
   items: Notification[];
 };
 
@@ -18,28 +18,43 @@ const initialState: NotificationsState = {
   items: [],
 };
 
-const notificationsSlice = createSlice({
-  name: "notifications",
-  initialState,
-  reducers: {
-    addNotification: (state, action: PayloadAction<Omit<Notification, "id" | "timestamp">>) => {
-      const notification: Notification = {
-        ...action.payload,
-        id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-        timestamp: Date.now(),
-        duration: action.payload.duration ?? 5000,
-      };
-      state.items.push(notification);
-    },
-    removeNotification: (state, action: PayloadAction<string>) => {
-      state.items = state.items.filter((n) => n.id !== action.payload);
-    },
-    clearAllNotifications: (state) => {
-      state.items = [];
-    },
-  },
-});
+/**
+ * Toast queue.
+ *
+ * `produce` keeps the array reference stable for untouched subscribers and
+ * only notifies the ones reading `items`.
+ */
+export const [notificationsStore, setNotificationsStore] =
+  createStore<NotificationsState>(initialState);
 
-export const { addNotification, removeNotification, clearAllNotifications } =
-  notificationsSlice.actions;
-export const notificationsReducer = notificationsSlice.reducer;
+export function addNotification(
+  payload: Omit<Notification, "id" | "timestamp">,
+): void {
+  const notification: Notification = {
+    ...payload,
+    id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+    timestamp: Date.now(),
+    duration: payload.duration ?? 5000,
+  };
+  setNotificationsStore(
+    produce((s) => {
+      s.items = [...s.items, notification];
+    }),
+  );
+}
+
+export function removeNotification(id: string): void {
+  setNotificationsStore(
+    produce((s) => {
+      s.items = s.items.filter((n) => n.id !== id);
+    }),
+  );
+}
+
+export function clearAllNotifications(): void {
+  setNotificationsStore(
+    produce((s) => {
+      s.items = [];
+    }),
+  );
+}

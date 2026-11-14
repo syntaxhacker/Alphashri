@@ -436,7 +436,7 @@ export interface NiftyReplay {
   count: number;
   interval_sec: number;
   snapshots: NiftyReplayFrame[];
-  /** Skipped-minute counts by reason (``{chain-failed: 41, timeout: 12}``).
+  /** Skipped-minute counts by reason (``{"chain-failed": 41, timeout: 12}``).
    *  Absent for days recorded before the gap journal existed. */
   gap_reasons?: Record<string, number>;
 }
@@ -589,6 +589,8 @@ export interface NiftyBurst {
   /** Wall events carry the target (max pain) and the tested strike. */
   target?: number | null;
   strike?: number;
+  /** Option leg the strike belongs to ("CE" | "PE"); per-strike bursts only. */
+  leg?: string;
   /** Wall strike the squeeze broke through. */
   wall?: number;
   /** Human headline supplied by the backend (wall/data-stale events). */

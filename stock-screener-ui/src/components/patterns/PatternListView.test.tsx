@@ -1,9 +1,12 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { UIProvider } from "@/ui";
+import { cleanup, render, screen, within, fireEvent } from "@solidjs/testing-library";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { PatternListView } from "./PatternListView";
 
@@ -39,9 +42,6 @@ function makeHit(overrides: Partial<PatternHitDTO> = {}): PatternHitDTO {
   };
 }
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
 
 describe("PatternListView", () => {
   afterEach(() => cleanup());
@@ -52,16 +52,16 @@ describe("PatternListView", () => {
       makeHit({ id: 2, symbol: "AAA", confidence: 80 }),
     ];
     const onOrderChange = vi.fn();
-    r(<PatternListView hits={hits} onSelect={vi.fn()} onOrderChange={onOrderChange} />);
+    render(() => <PatternListView hits={hits} onSelect={vi.fn()} onOrderChange={onOrderChange} />);
     expect(onOrderChange).toHaveBeenLastCalledWith([hits[0], hits[1]]);
 
-    await userEvent.click(within(screen.getByTestId("patterns-list")).getByText("Symbol"));
+    fireEvent.click(within(screen.getByTestId("patterns-list")).getByText("Symbol"));
     expect(onOrderChange).toHaveBeenLastCalledWith([hits[1], hits[0]]);
   });
 
   test("marks the hit currently shown in the docked chart", () => {
     const hits = [makeHit({ id: 1, symbol: "AAA" }), makeHit({ id: 2, symbol: "BBB" })];
-    r(<PatternListView hits={hits} onSelect={vi.fn()} activeHit={hits[1]} />);
+    render(() => <PatternListView hits={hits} onSelect={vi.fn()} activeHit={hits[1]} />);
     expect(screen.getByTestId("patterns-list-row-BBB-falling_wedge-2")).toHaveAttribute(
       "data-active",
       "true",
@@ -73,7 +73,7 @@ describe("PatternListView", () => {
 
   test("renders the dense table with one row per hit and all columns", () => {
     const hits = [makeHit({ id: 1, symbol: "AAA" }), makeHit({ id: 2, symbol: "BBB" })];
-    r(<PatternListView hits={hits} onSelect={vi.fn()} />);
+    render(() => <PatternListView hits={hits} onSelect={vi.fn()} />);
     const table = screen.getByTestId("patterns-list");
     expect(table).toBeInTheDocument();
     for (const header of ["Symbol", "Pattern", "Dir", "Status", "Q", "52W gap %", "Pos %", "Bars ago", "Price", "Chg %"]) {
@@ -88,20 +88,18 @@ describe("PatternListView", () => {
 
   test("opens index members from a broad-index row", async () => {
     const onShowMembers = vi.fn();
-    r(
-      <PatternListView
+    render(() =>       <PatternListView
         hits={[makeHit({ id: 9, symbol: "NIFTY" })]}
         onSelect={vi.fn()}
         onShowMembers={onShowMembers}
-      />,
-    );
+      />);
 
-    await userEvent.click(screen.getByTestId("patterns-list-members-NIFTY"));
+    fireEvent.click(screen.getByTestId("patterns-list-members-NIFTY"));
     expect(onShowMembers).toHaveBeenCalledWith("NIFTY");
   });
 
   test("Score header clarifies it is pattern-fit, not breakout conviction", () => {
-    r(<PatternListView hits={[makeHit()]} onSelect={vi.fn()} />);
+    render(() => <PatternListView hits={[makeHit()]} onSelect={vi.fn()} />);
     const header = screen.getByText("Score");
     expect(header.getAttribute("title")).toBe(
       "Pattern-fit confidence (geometry fit, R², volume) — not breakout conviction.",
@@ -113,7 +111,7 @@ describe("PatternListView", () => {
       makeHit({ id: 1, symbol: "AAA", range_pos: 10, confidence: 99 }),
       makeHit({ id: 2, symbol: "BBB", range_pos: 90, confidence: 50 }),
     ];
-    r(<PatternListView hits={hits} onSelect={vi.fn()} sort="range_pos" />);
+    render(() => <PatternListView hits={hits} onSelect={vi.fn()} sort="range_pos" />);
     const rows = within(screen.getByTestId("patterns-list")).getAllByTestId(/^patterns-list-row-/);
     expect(rows.map((el) => el.getAttribute("data-testid"))).toEqual([
       "patterns-list-row-BBB-falling_wedge-2",
@@ -126,7 +124,7 @@ describe("PatternListView", () => {
       makeHit({ id: 1, symbol: "AAA", confidence: 40 }),
       makeHit({ id: 2, symbol: "BBB", confidence: 95 }),
     ];
-    r(<PatternListView hits={hits} onSelect={vi.fn()} />);
+    render(() => <PatternListView hits={hits} onSelect={vi.fn()} />);
     const rows = within(screen.getByTestId("patterns-list")).getAllByTestId(/^patterns-list-row-/);
     expect(rows.map((el) => el.getAttribute("data-testid"))).toEqual([
       "patterns-list-row-BBB-falling_wedge-2",
@@ -135,7 +133,7 @@ describe("PatternListView", () => {
   });
 
   test("formats price, change, gap and badges", () => {
-    r(<PatternListView hits={[makeHit()]} onSelect={vi.fn()} />);
+    render(() => <PatternListView hits={[makeHit()]} onSelect={vi.fn()} />);
     const row = screen.getByTestId("patterns-list-row-IRCON-falling_wedge-1");
     expect(within(row).getByText("Falling Wedge")).toBeInTheDocument();
     expect(within(row).getByText("₹115.20")).toBeInTheDocument();
@@ -157,7 +155,7 @@ describe("PatternListView", () => {
       makeHit({ id: 1, symbol: "AAA", direction: "bearish" }),
       makeHit({ id: 2, symbol: "BBB", direction: "neutral" }),
     ];
-    r(<PatternListView hits={hits} onSelect={vi.fn()} />);
+    render(() => <PatternListView hits={hits} onSelect={vi.fn()} />);
     const bear = within(screen.getByTestId("patterns-list-row-AAA-falling_wedge-1")).getByText("▼");
     expect(bear.getAttribute("title")).toBe("bearish");
     expect(bear.getAttribute("aria-label")).toBe("bearish");
@@ -170,7 +168,7 @@ describe("PatternListView", () => {
     const hits = (["textbook", "strong", "fair", "marginal"] as const).map((q, i) =>
       makeHit({ id: i + 1, symbol: `S${i}`, quality: q }),
     );
-    r(<PatternListView hits={hits} onSelect={vi.fn()} />);
+    render(() => <PatternListView hits={hits} onSelect={vi.fn()} />);
     const expected: Array<[string, string]> = [
       ["textbook", "T"],
       ["strong", "S"],
@@ -185,12 +183,10 @@ describe("PatternListView", () => {
   });
 
   test("falls back to the pattern-window move and shows — for a missing 52W gap", () => {
-    r(
-      <PatternListView
+    render(() =>       <PatternListView
         hits={[makeHit({ day_change_pct: null, last_close: null, to_52w_high: null })]}
         onSelect={vi.fn()}
-      />,
-    );
+      />);
     const row = screen.getByTestId("patterns-list-row-IRCON-falling_wedge-1");
     // (112.6 - 100) / 100 = +12.60%; price falls back to end_price.
     expect(within(row).getByText("+12.60%")).toBeInTheDocument();
@@ -205,8 +201,7 @@ describe("PatternListView", () => {
       [{ t: "2026-01-01", price: 100 }],
     ];
     const base = { pattern_id: "consolidation", base_days: 80 } as const;
-    r(
-      <PatternListView
+    render(() =>       <PatternListView
         hits={[
           makeHit({ ...base, id: 1, symbol: "AAA", last_close: 115, trendlines: box, to_52w_high: 5, range_pos: 50 }),
           makeHit({ ...base, id: 2, symbol: "BBB", last_close: 105, trendlines: box, to_52w_high: 5, range_pos: 50 }),
@@ -224,25 +219,31 @@ describe("PatternListView", () => {
           makeHit({ id: 4, symbol: "DDD", last_close: 115, trendlines: box, to_52w_high: 5, range_pos: 50 }),
         ]}
         onSelect={vi.fn()}
-      />,
-    );
+      />);
     const table = screen.getByTestId("patterns-list");
     expect(within(table).getByText("To trigger")).toBeInTheDocument();
-    const aaa = screen.getByTestId("patterns-list-row-AAA-consolidation-1");
-    expect(within(aaa).getByText("+4.5%")).toBeInTheDocument();
-    const bbb = screen.getByTestId("patterns-list-row-BBB-consolidation-2");
-    expect(within(bbb).getByText("−4.5%")).toBeInTheDocument();
-    const ccc = screen.getByTestId("patterns-list-row-CCC-consolidation-3");
-    expect(within(ccc).getByText("—")).toBeInTheDocument();
-    const ddd = screen.getByTestId("patterns-list-row-DDD-falling_wedge-4");
-    expect(within(ddd).getByText("—")).toBeInTheDocument();
+    // Scope the dash assertions to the To-trigger column: other numeric columns
+    // legitimately render "—" for these fixtures.
+    const headers = within(table)
+      .getAllByRole("columnheader")
+      .map((h) => h.textContent?.trim() ?? "");
+    const triggerIdx = headers.findIndex((h) => h.startsWith("To trigger"));
+    expect(triggerIdx).toBeGreaterThanOrEqual(0);
+    const col = (rowId: string) => {
+      const cells = within(screen.getByTestId(rowId)).getAllByRole("cell");
+      return cells[triggerIdx];
+    };
+    expect(within(col("patterns-list-row-AAA-consolidation-1")).getByText("+4.5%")).toBeInTheDocument();
+    expect(within(col("patterns-list-row-BBB-consolidation-2")).getByText("−4.5%")).toBeInTheDocument();
+    expect(within(col("patterns-list-row-CCC-consolidation-3")).getByText("—")).toBeInTheDocument();
+    expect(within(col("patterns-list-row-DDD-falling_wedge-4")).getByText("—")).toBeInTheDocument();
   });
 
   test("clicking a row selects that hit", async () => {
     const onSelect = vi.fn();
     const hits = [makeHit({ id: 1, symbol: "AAA" }), makeHit({ id: 2, symbol: "BBB" })];
-    r(<PatternListView hits={hits} onSelect={onSelect} />);
-    await userEvent.click(screen.getByTestId("patterns-list-row-BBB-falling_wedge-2"));
+    render(() => <PatternListView hits={hits} onSelect={onSelect} />);
+    fireEvent.click(screen.getByTestId("patterns-list-row-BBB-falling_wedge-2"));
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith(hits[1]);
   });
@@ -253,7 +254,7 @@ describe("PatternListView", () => {
       makeHit({ id: 2, symbol: "BBB" }),
       makeHit({ id: 3, symbol: "CCC", tags: ["ETF"] } as unknown as Partial<PatternHitDTO>),
     ];
-    r(<PatternListView hits={hits} onSelect={vi.fn()} />);
+    render(() => <PatternListView hits={hits} onSelect={vi.fn()} />);
 
     expect(screen.getByTestId("patterns-list-tag-fno-AAA")).toHaveTextContent("F&O");
     expect(screen.queryByTestId("patterns-list-tag-fno-BBB")).not.toBeInTheDocument();
@@ -262,5 +263,70 @@ describe("PatternListView", () => {
     expect(
       within(screen.getByTestId("patterns-list-row-CCC-falling_wedge-3")).queryByText("ETF"),
     ).not.toBeInTheDocument();
+  });
+
+  test("numeric columns are mono, tabular and right-aligned", () => {
+    render(() => (
+      <PatternListView hits={[makeHit({ range_pos: 88 })]} onSelect={vi.fn()} />
+    ));
+    // Resolve by header text, not index: adding a column must not silently
+    // re-point these assertions at the wrong cell.
+    const table = screen.getByTestId("patterns-list");
+    const headers = within(table)
+      .getAllByRole("columnheader")
+      .map((h) => h.textContent?.trim() ?? "");
+    const cells = within(screen.getByTestId("patterns-list-row-IRCON-falling_wedge-1")).getAllByRole(
+      "cell",
+    );
+    const numeric: Array<[string, string]> = [
+      ["Score", "78.4"],
+      ["52W gap %", "13.4%"],
+      ["Pos %", "88%"],
+      ["Bars ago", "2"],
+      ["Price", "₹115.20"],
+      ["Chg %", "+2.50%"],
+    ];
+    for (const [header, text] of numeric) {
+      const index = headers.findIndex((h) => h.startsWith(header));
+      expect(index, `column ${header} not found in ${headers.join("|")}`).toBeGreaterThanOrEqual(0);
+      const value = within(cells[index]).getByText(text);
+      expect(value.className).toContain("font-mono");
+      expect(value.className).toContain("tabular-nums");
+      expect(value.className).toContain("text-right");
+    }
+  });
+
+  test("text and badge columns keep their alignment", () => {
+    render(() => <PatternListView hits={[makeHit()]} onSelect={vi.fn()} />);
+    const cells = within(screen.getByTestId("patterns-list-row-IRCON-falling_wedge-1")).getAllByRole(
+      "cell",
+    );
+    expect(within(cells[1]).getByText("Falling Wedge").className).toContain("text-left");
+    expect(cells[1].className).toContain("text-left");
+    // Direction / status / quality are badge-or-glyph columns: centred.
+    const table = screen.getByTestId("patterns-list");
+    const headers = within(table).getAllByRole("columnheader").map((h) => h.textContent?.trim() ?? "");
+    for (const name of ["Dir", "Status", "Q"]) {
+      const index = headers.findIndex((h) => h.startsWith(name));
+      expect(index).toBeGreaterThanOrEqual(0);
+      expect(cells[index].className).toContain("text-center");
+    }
+    expect(screen.getByTestId("patterns-status-confirmed")).toHaveTextContent("Confirmed");
+  });
+
+  test("keeps rows at the 24px h-6 contract", () => {
+    render(() => <PatternListView hits={[makeHit()]} onSelect={vi.fn()} />);
+    const table = screen.getByTestId("patterns-list");
+    const rowH = parseFloat(table.style.getPropertyValue("--tbl-row-h"));
+    expect(rowH).toBeLessThanOrEqual(24);
+    // No cell adds vertical padding beyond the shared 2px token, which would
+    // push the content past the fixed row height.
+    const row = screen.getByTestId("patterns-list-row-IRCON-falling_wedge-1");
+    for (const cell of within(row).getAllByRole("cell")) {
+      for (const el of [cell, ...Array.from(cell.querySelectorAll("*"))]) {
+        const cls = el.className?.toString() ?? "";
+        expect(cls).not.toMatch(/(?:^|\s)(?:py-[2-9]|p-[2-9]|my-[2-9])/);
+      }
+    }
   });
 });

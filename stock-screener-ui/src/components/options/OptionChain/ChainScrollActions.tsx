@@ -1,25 +1,25 @@
 import { Box, Tooltip, ActionIcon } from "@/ui";
 import { BLACK } from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
-import { IconTarget, IconArrowUp, IconArrowDown } from "@tabler/icons-react";
+import { IconTarget, IconArrowUp, IconArrowDown } from "@/patterns/icons";
 
 interface ChainScrollActionsProps {
   scrollToATM: (behavior?: ScrollBehavior) => void;
   scrollToEdge: (direction: "top" | "bottom") => void;
 }
 
-export function ChainScrollActions({ scrollToATM, scrollToEdge }: ChainScrollActionsProps) {
+export function ChainScrollActions(props: ChainScrollActionsProps) {
   return (
     <Box
       className="chain-scroll-actions"
       style={{
         position: "absolute",
-        right: 20,
-        bottom: 80,
-        zIndex: 100,
+        right: "20px",
+        bottom: "80px",
+        "z-index": 100,
         display: "flex",
-        flexDirection: "column",
-        gap: 8,
+        "flex-direction": "column",
+        gap: "8px",
       }}
       data-testid="options-chain-scroll-actions"
     >
@@ -29,7 +29,7 @@ export function ChainScrollActions({ scrollToATM, scrollToEdge }: ChainScrollAct
           color="secondary"
           size="lg"
           radius="xl"
-          onClick={() => scrollToEdge("top")}
+          onClick={() => props.scrollToEdge("top")}
           className="scroll-action-btn"
           data-testid="options-scroll-top-btn"
         >
@@ -42,12 +42,12 @@ export function ChainScrollActions({ scrollToATM, scrollToEdge }: ChainScrollAct
           color="warning"
           size="xl"
           radius="xl"
-          onClick={() => scrollToATM("smooth")}
-          style={{ boxShadow: `0 4px 12px ${withAlpha(BLACK, 0.15)}` }}
+          onClick={() => props.scrollToATM("smooth")}
+          style={{ "box-shadow": `0 4px 12px ${withAlpha(BLACK, 0.15)}` }}
           className="scroll-action-btn scroll-atm-btn"
           data-testid="options-scroll-atm-btn"
         >
-          <IconTarget size={22} />
+          <IconTarget size={24} />
         </ActionIcon>
       </Tooltip>
       <Tooltip label="Scroll to Bottom" position="left">
@@ -56,7 +56,7 @@ export function ChainScrollActions({ scrollToATM, scrollToEdge }: ChainScrollAct
           color="secondary"
           size="lg"
           radius="xl"
-          onClick={() => scrollToEdge("bottom")}
+          onClick={() => props.scrollToEdge("bottom")}
           className="scroll-action-btn"
           data-testid="options-scroll-bottom-btn"
         >

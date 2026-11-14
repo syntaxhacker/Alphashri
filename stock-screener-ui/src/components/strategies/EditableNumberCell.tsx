@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { createSignal, createEffect } from "solid-js";
 import { NumberInput } from "@/ui";
 
 interface EditableNumberCellProps {
@@ -13,92 +13,86 @@ interface EditableNumberCellProps {
   onUpdate: (strategyId: number, field: string, value: number) => Promise<void>;
 }
 
-export function EditableNumberCell({
-  value,
-  field,
-  strategyId,
-  step = 0.1,
-  decimalScale = 1,
-  min,
-  max,
-  suffix,
-  onUpdate,
-}: EditableNumberCellProps) {
-  const [localValue, setLocalValue] = useState(value);
-  const [saving, setSaving] = useState(false);
-  const lastCommitted = useRef(value);
-  const isDirty = useRef(false);
-  const localRef = useRef(value);
+export function EditableNumberCell(props: EditableNumberCellProps) {
+  const [localValue, setLocalValue] = createSignal<number | string>(props.value);
+  const [saving, setSaving] = createSignal(false);
+  let lastCommitted = props.value;
+  let isDirty = false;
+  let localRef: number | string = props.value;
 
-  if (!saving && !isDirty.current && localValue !== value) {
-    setLocalValue(value);
-  }
+  // Adopt an external value only while the user is not mid-edit: a refetch
+  // must not clobber keystrokes.
+  createEffect(() => {
+    const v = props.value;
+    if (!saving() && !isDirty && v !== localValue()) setLocalValue(v);
+  });
 
-  const updateRef = (v: number) => {
-    localRef.current = v;
-    setLocalValue(v);
-    if (v !== lastCommitted.current) {
-      isDirty.current = true;
+  const updateRef = (v: number | string) => {
+    localRef = v;
+    // Mark dirty BEFORE publishing: Solid notifies the sync effect
+    // synchronously inside setLocalValue, so setting the flag afterwards
+    // lets the effect revert the keystroke it just saw.
+    if (v !== lastCommitted) {
+      isDirty = true;
     }
+    setLocalValue(v);
   };
 
   const handleBlur = async () => {
     const numValue =
-      typeof localRef.current === "number"
-        ? localRef.current
-        : parseFloat(String(localRef.current));
-    if (isNaN(numValue) || numValue === lastCommitted.current) {
-      if (isDirty.current) {
-        setLocalValue(lastCommitted.current);
-        localRef.current = lastCommitted.current;
-        isDirty.current = false;
+      typeof localRef === "number" ? localRef : parseFloat(String(localRef));
+    if (isNaN(numValue) || numValue === lastCommitted) {
+      if (isDirty) {
+        setLocalValue(lastCommitted);
+        localRef = lastCommitted;
+        isDirty = false;
       }
       return;
     }
 
-    isDirty.current = true;
+    isDirty = true;
     setSaving(true);
     try {
-      await onUpdate(strategyId, field, numValue);
-      lastCommitted.current = numValue;
-      isDirty.current = false;
+      await props.onUpdate(props.strategyId, props.field, numValue);
+      lastCommitted = numValue;
+      isDirty = false;
     } catch {
-      setLocalValue(lastCommitted.current);
-      localRef.current = lastCommitted.current;
+      setLocalValue(lastCommitted);
+      localRef = lastCommitted;
     } finally {
       setSaving(false);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: KeyboardEvent) => {
     e.stopPropagation();
     if (e.key === "Enter") {
-      (e.target as HTMLInputElement).blur();
+      (e.currentTarget as HTMLInputElement).blur();
     }
     if (e.key === "Escape") {
-      setLocalValue(lastCommitted.current);
-      localRef.current = lastCommitted.current;
-      isDirty.current = false;
+      setLocalValue(lastCommitted);
+      localRef = lastCommitted;
+      isDirty = false;
     }
   };
 
   return (
     <NumberInput
       size="xs"
-      value={localValue}
+      value={localValue()}
       onChange={updateRef}
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
-      step={step}
-      decimalScale={decimalScale}
-      min={min}
-      max={max}
-      suffix={suffix}
+      step={props.step ?? 0.1}
+      decimalScale={props.decimalScale ?? 1}
+      min={props.min}
+      max={props.max}
+      suffix={props.suffix}
       hideControls
-      loading={saving}
+      loading={saving()}
       w={72}
       variant="default"
-      data-testid={`editable-${field}-${strategyId}`}
+      data-testid={`editable-${props.field}-${props.strategyId}`}
     />
   );
 }

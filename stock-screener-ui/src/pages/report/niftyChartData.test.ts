@@ -216,7 +216,7 @@ describe("candlesFromSpotPoints", () => {
     // The wicks exist: extremes exceed the body on both sides.
     expect(c.high).toBeGreaterThan(Math.max(c.open, c.close));
     expect(c.low).toBeLessThan(Math.min(c.open, c.close));
-    expect((c as { volume: number }).volume).toBe(0);
+    expect((c as unknown as { volume: number }).volume).toBe(0);
   });
 
   test("two minutes → two candles, each stamped `${minute}:00`", () => {

@@ -1,3 +1,4 @@
+import { splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UIAppShellProps, UIAppShellHeaderProps, UIAppShellNavbarProps, UIAppShellMainProps, UIAppShellSectionProps } from "../types";
 
@@ -34,110 +35,112 @@ function isCollapsed(c: boolean | { mobile?: boolean; desktop?: boolean } | unde
   return Boolean(c.desktop ?? c.mobile);
 }
 
-export function AppShell({ header, navbar, padding, children, className, style, "data-testid": testId, ...rest }: UIAppShellProps) {
-  const headerHeight = resolveDimension(header?.height as any, 60);
-  const headerCollapsed = Boolean(header?.collapsed);
-  const navbarWidth = resolveNavbarWidth(navbar?.width as any);
-  const navbarCollapsed = isCollapsed(navbar?.collapsed as any);
+export function AppShell(props: UIAppShellProps) {
+  const [known, _rest] = splitProps(props, ["header", "navbar", "padding", "children", "className", "style", "data-testid"]);
+
+  const headerHeight = resolveDimension(known.header?.height as any, 60);
+  const headerCollapsed = Boolean(known.header?.collapsed);
+  const navbarWidth = resolveNavbarWidth(known.navbar?.width as any);
+  const navbarCollapsed = isCollapsed(known.navbar?.collapsed as any);
 
   return (
     <div
-      className={cn("flex min-h-screen", className)}
-      style={style}
-      data-testid={testId}
-      {...(rest as Record<string, unknown>)}
+      className={cn("flex min-h-screen", known.className)}
+      style={known.style}
+      data-testid={known["data-testid"]}
     >
-      {!headerCollapsed && header && (
+      {!headerCollapsed && known.header && (
         <header
           className="fixed inset-x-0 top-0 z-40"
           style={{ height: `${headerHeight}px` }}
-          data-testid={testId ? `${testId}-header` : undefined}
+          data-testid={known["data-testid"] ? `${known["data-testid"]}-header` : undefined}
         />
       )}
-      {!navbarCollapsed && navbar && (
+      {!navbarCollapsed && known.navbar && (
         <nav
           className="fixed inset-y-0 left-0 z-40 flex-shrink-0"
           style={{
             width: `${navbarWidth}px`,
-            top: headerCollapsed ? 0 : headerHeight,
+            top: `${headerCollapsed ? 0 : headerHeight}px`,
             height: headerCollapsed ? "100%" : `calc(100% - ${headerHeight}px)`,
           }}
-          data-testid={testId ? `${testId}-navbar` : undefined}
+          data-testid={known["data-testid"] ? `${known["data-testid"]}-navbar` : undefined}
         />
       )}
       <main
         className="flex-1 min-w-0 min-h-0"
         style={{
-          marginLeft: navbarCollapsed || !navbar ? 0 : navbarWidth,
-          marginTop: headerCollapsed || !header ? 0 : headerHeight,
-          padding: padding != null ? (typeof padding === "number" ? `${padding}px` : String(padding)) : 0,
-          minWidth: 0,
-          minHeight: 0,
+          "margin-left": `${navbarCollapsed || !known.navbar ? 0 : navbarWidth}px`,
+          "margin-top": `${headerCollapsed || !known.header ? 0 : headerHeight}px`,
+          padding: known.padding != null ? (typeof known.padding === "number" ? `${known.padding}px` : String(known.padding)) : "0px",
+          "min-width": 0,
+          "min-height": 0,
         }}
-        data-testid={testId ? `${testId}-main` : undefined}
+        data-testid={known["data-testid"] ? `${known["data-testid"]}-main` : undefined}
       >
-        {children}
+        {known.children}
       </main>
     </div>
   );
 }
 
-export function AppShellHeader({ children, className, style, "data-testid": testId, id, ...rest }: UIAppShellHeaderProps) {
+export function AppShellHeader(props: UIAppShellHeaderProps) {
+  const [known, _rest] = splitProps(props, ["children", "className", "style", "data-testid", "id"]);
   return (
     <header
-      className={cn("fixed inset-x-0 top-0 z-40", className)}
-      style={style}
-      id={id}
-      data-testid={testId}
-      {...(rest as Record<string, unknown>)}
+      className={cn("fixed inset-x-0 top-0 z-40", known.className)}
+      style={known.style}
+      id={known.id}
+      data-testid={known["data-testid"]}
     >
-      {children}
+      {known.children}
     </header>
   );
 }
 
-export function AppShellNavbar({ p, children, className, style, "data-testid": testId, id, ...rest }: UIAppShellNavbarProps) {
-  const pad = p != null ? (typeof p === "number" ? `${p * 8}px` : String(p)) : undefined;
+export function AppShellNavbar(props: UIAppShellNavbarProps) {
+  const [known, _rest] = splitProps(props, ["p", "children", "className", "style", "data-testid", "id"]);
+  const pad = known.p != null ? (typeof known.p === "number" ? `${known.p * 8}px` : String(known.p)) : undefined;
   return (
     <nav
-      className={cn("fixed inset-y-0 left-0 z-40 flex-shrink-0 w-[280px]", className)}
-      style={{ width: "280px", padding: pad, ...style }}
-      id={id}
-      data-testid={testId}
-      {...(rest as Record<string, unknown>)}
+      className={cn("fixed inset-y-0 left-0 z-40 flex-shrink-0 w-[280px]", known.className)}
+      style={{ width: "280px", padding: pad, ...known.style }}
+      id={known.id}
+      data-testid={known["data-testid"]}
     >
-      {children}
+      {known.children}
     </nav>
   );
 }
 
-export function AppShellMain({ children, className, style, "data-testid": testId, id, ...rest }: UIAppShellMainProps) {
+export function AppShellMain(props: UIAppShellMainProps) {
+  const [known, _rest] = splitProps(props, ["children", "className", "style", "data-testid", "id"]);
   return (
     <main
-      className={cn("flex-1 min-w-0 min-h-0 p-4", className)}
-      style={style}
-      id={id}
-      data-testid={testId}
-      {...(rest as Record<string, unknown>)}
+      className={cn("flex-1 min-w-0 min-h-0 p-4", known.className)}
+      style={known.style}
+      id={known.id}
+      data-testid={known["data-testid"]}
     >
-      {children}
+      {known.children}
     </main>
   );
 }
 
-export function AppShellSection({ children, className, style, "data-testid": testId, id, grow, component: _component, ...rest }: UIAppShellSectionProps) {
+export function AppShellSection(props: UIAppShellSectionProps) {
+  const [known, _rest] = splitProps(props, ["children", "className", "style", "data-testid", "id", "grow"]);
   return (
     <section
-      className={cn(grow ? "flex-1" : "", className)}
-      style={style}
-      id={id}
-      data-testid={testId}
-      {...(rest as Record<string, unknown>)}
+      className={cn(known.grow ? "flex-1" : "", known.className)}
+      style={known.style}
+      id={known.id}
+      data-testid={known["data-testid"]}
     >
-      {children}
+      {known.children}
     </section>
   );
 }
+
 AppShell.Header = AppShellHeader;
 AppShell.Navbar = AppShellNavbar;
 AppShell.Main = AppShellMain;

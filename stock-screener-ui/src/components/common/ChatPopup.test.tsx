@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import type { JSX } from "solid-js";
+import { render, screen, waitFor, cleanup, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { ChatPopup } from "./ChatPopup";
 
@@ -28,8 +28,8 @@ const mockCheckHealth = vi.mocked(checkTradingAgentsHealth);
 const mockStreamAnalysis = vi.mocked(streamStockAnalysis);
 const mockSendChatMessage = vi.mocked(sendChatMessage);
 
-const renderWithProvider = (component: React.ReactElement) => {
-  return render(<UIProvider>{component}</UIProvider>);
+const renderWithProvider = (component: JSX.Element) => {
+  return render(() => (<UIProvider>{component}</UIProvider>));
 };
 
 describe("ChatPopup", () => {
@@ -48,8 +48,7 @@ describe("ChatPopup", () => {
   });
 
   it("opens chat window when FAB is clicked", async () => {
-      const user = userEvent.setup();
-    mockCheckHealth.mockResolvedValue({
+          mockCheckHealth.mockResolvedValue({
       status: "ok",
       tradingagents_available: true,
       timestamp: "2026-01-01T00:00:00",
@@ -58,7 +57,7 @@ describe("ChatPopup", () => {
     renderWithProvider(<ChatPopup />);
 
     const fab = screen.getByTestId("chat-popup-toggle");
-    await user.click(fab);
+    await fireEvent.click(fab);
 
     await waitFor(() => {
       expect(screen.getByTestId("chat-popup-window")).toBeInTheDocument();
@@ -66,8 +65,7 @@ describe("ChatPopup", () => {
   });
 
   it("shows availability status", async () => {
-      const user = userEvent.setup();
-    mockCheckHealth.mockResolvedValue({
+          mockCheckHealth.mockResolvedValue({
       status: "ok",
       tradingagents_available: true,
       timestamp: "2026-01-01T00:00:00",
@@ -76,7 +74,7 @@ describe("ChatPopup", () => {
     renderWithProvider(<ChatPopup />);
 
     const fab = screen.getByTestId("chat-popup-toggle");
-    await user.click(fab);
+    await fireEvent.click(fab);
 
     await waitFor(() => {
       expect(screen.getByTestId("chat-popup-window")).toBeInTheDocument();
@@ -84,8 +82,7 @@ describe("ChatPopup", () => {
   });
 
   it("shows unavailable badge when service not available", async () => {
-      const user = userEvent.setup();
-    mockCheckHealth.mockResolvedValue({
+          mockCheckHealth.mockResolvedValue({
       status: "unavailable",
       tradingagents_available: false,
       timestamp: "2026-01-01T00:00:00",
@@ -94,7 +91,7 @@ describe("ChatPopup", () => {
     renderWithProvider(<ChatPopup />);
 
     const fab = screen.getByTestId("chat-popup-toggle");
-    await user.click(fab);
+    await fireEvent.click(fab);
 
     await waitFor(() => {
       expect(screen.getByText("Unavailable")).toBeInTheDocument();
@@ -102,8 +99,7 @@ describe("ChatPopup", () => {
   });
 
   it("has message input field", async () => {
-      const user = userEvent.setup();
-    mockCheckHealth.mockResolvedValue({
+          mockCheckHealth.mockResolvedValue({
       status: "ok",
       tradingagents_available: true,
       timestamp: "2026-01-01T00:00:00",
@@ -112,7 +108,7 @@ describe("ChatPopup", () => {
     renderWithProvider(<ChatPopup />);
 
     const fab = screen.getByTestId("chat-popup-toggle");
-    await user.click(fab);
+    await fireEvent.click(fab);
 
     await waitFor(() => {
       expect(screen.getByTestId("chat-input")).toBeInTheDocument();
@@ -120,8 +116,7 @@ describe("ChatPopup", () => {
   });
 
   it("has send button", async () => {
-      const user = userEvent.setup();
-    mockCheckHealth.mockResolvedValue({
+          mockCheckHealth.mockResolvedValue({
       status: "ok",
       tradingagents_available: true,
       timestamp: "2026-01-01T00:00:00",
@@ -130,7 +125,7 @@ describe("ChatPopup", () => {
     renderWithProvider(<ChatPopup />);
 
     const fab = screen.getByTestId("chat-popup-toggle");
-    await user.click(fab);
+    await fireEvent.click(fab);
 
     await waitFor(() => {
       expect(screen.getByTestId("chat-send-button")).toBeInTheDocument();
@@ -138,8 +133,7 @@ describe("ChatPopup", () => {
   });
 
   it("closes chat window when FAB is clicked again", async () => {
-      const user = userEvent.setup();
-    mockCheckHealth.mockResolvedValue({
+          mockCheckHealth.mockResolvedValue({
       status: "ok",
       tradingagents_available: true,
       timestamp: "2026-01-01T00:00:00",
@@ -148,13 +142,13 @@ describe("ChatPopup", () => {
     renderWithProvider(<ChatPopup />);
 
     const fab = screen.getByTestId("chat-popup-toggle");
-    await user.click(fab);
+    await fireEvent.click(fab);
 
     await waitFor(() => {
       expect(screen.getByTestId("chat-popup-window")).toBeInTheDocument();
     });
 
-    await user.click(fab);
+    await fireEvent.click(fab);
 
     await waitFor(() => {
       const windowEl = screen.getByTestId("chat-popup-window");
@@ -164,8 +158,7 @@ describe("ChatPopup", () => {
   });
 
   it("displays welcome message when no messages", async () => {
-      const user = userEvent.setup();
-    mockCheckHealth.mockResolvedValue({
+          mockCheckHealth.mockResolvedValue({
       status: "ok",
       tradingagents_available: true,
       timestamp: "2026-01-01T00:00:00",
@@ -174,7 +167,7 @@ describe("ChatPopup", () => {
     renderWithProvider(<ChatPopup />);
 
     const fab = screen.getByTestId("chat-popup-toggle");
-    await user.click(fab);
+    await fireEvent.click(fab);
 
     await waitFor(() => {
       expect(screen.getByText(/Ask me to analyze a stock/i)).toBeInTheDocument();
@@ -182,8 +175,7 @@ describe("ChatPopup", () => {
   });
 
   it("calls health check on first open", async () => {
-      const user = userEvent.setup();
-    mockCheckHealth.mockResolvedValue({
+          mockCheckHealth.mockResolvedValue({
       status: "ok",
       tradingagents_available: true,
       timestamp: "2026-01-01T00:00:00",
@@ -192,7 +184,7 @@ describe("ChatPopup", () => {
     renderWithProvider(<ChatPopup />);
 
     const fab = screen.getByTestId("chat-popup-toggle");
-    await user.click(fab);
+    await fireEvent.click(fab);
 
     await waitFor(() => {
       expect(mockCheckHealth).toHaveBeenCalled();
@@ -200,31 +192,30 @@ describe("ChatPopup", () => {
   });
 
   it("sends user message on Enter key", async () => {
-      const user = userEvent.setup();
-    mockCheckHealth.mockResolvedValue({
+          mockCheckHealth.mockResolvedValue({
       status: "ok",
       tradingagents_available: true,
       timestamp: "2026-01-01T00:00:00",
     });
     mockSendChatMessage.mockResolvedValue({
       response: "Hello! How can I help?",
-      should_analyze: null,
+      conversation_id: "c1",
     });
 
     renderWithProvider(<ChatPopup />);
 
     const fab = screen.getByTestId("chat-popup-toggle");
-    await user.click(fab);
+    await fireEvent.click(fab);
 
     await waitFor(() => {
       expect(screen.getByTestId("chat-input")).toBeInTheDocument();
     });
 
     const input = screen.getByTestId("chat-input") as HTMLInputElement;
-    await user.clear(input); await user.type(input, "Hello");
+    await fireEvent.input(input, { target: { value: "" } }); await fireEvent.input(input, { target: { value: "Hello" } });
 
     const sendBtn = screen.getByTestId("chat-send-button");
-    await user.click(sendBtn);
+    await fireEvent.click(sendBtn);
 
     await waitFor(() => {
       expect(screen.getByText("Hello")).toBeInTheDocument();
@@ -232,8 +223,7 @@ describe("ChatPopup", () => {
   });
 
   it("displays agent progress indicators during stream", async () => {
-      const user = userEvent.setup();
-    mockCheckHealth.mockResolvedValue({
+          mockCheckHealth.mockResolvedValue({
       status: "ok",
       tradingagents_available: true,
       timestamp: "2026-01-01T00:00:00",
@@ -247,6 +237,7 @@ describe("ChatPopup", () => {
     }
     mockSendChatMessage.mockResolvedValue({
       should_analyze: "NVDA",
+      conversation_id: "c1",
       response: "Analyzing NVDA...",
     });
     mockStreamAnalysis.mockReturnValue(infiniteGen());
@@ -254,17 +245,17 @@ describe("ChatPopup", () => {
     renderWithProvider(<ChatPopup />);
 
     const fab = screen.getByTestId("chat-popup-toggle");
-    await user.click(fab);
+    await fireEvent.click(fab);
 
     await waitFor(() => {
       expect(screen.getByTestId("chat-input")).toBeInTheDocument();
     });
 
     const input = screen.getByTestId("chat-input") as HTMLInputElement;
-    await user.clear(input); await user.type(input, "Analyze NVDA");
+    await fireEvent.input(input, { target: { value: "" } }); await fireEvent.input(input, { target: { value: "Analyze NVDA" } });
 
     const sendBtn = screen.getByTestId("chat-send-button");
-    await user.click(sendBtn);
+    await fireEvent.click(sendBtn);
 
     await waitFor(() => {
       expect(screen.getByText("Market Analyst")).toBeInTheDocument();
@@ -279,8 +270,7 @@ describe("ChatPopup", () => {
   });
 
   it("shows tool calls when streaming", async () => {
-      const user = userEvent.setup();
-    mockCheckHealth.mockResolvedValue({
+          mockCheckHealth.mockResolvedValue({
       status: "ok",
       tradingagents_available: true,
       timestamp: "2026-01-01T00:00:00",
@@ -294,6 +284,7 @@ describe("ChatPopup", () => {
     }
     mockSendChatMessage.mockResolvedValue({
       should_analyze: "NVDA",
+      conversation_id: "c1",
       response: "Analyzing NVDA...",
     });
     mockStreamAnalysis.mockReturnValue(infiniteGenerator());
@@ -301,16 +292,16 @@ describe("ChatPopup", () => {
     renderWithProvider(<ChatPopup />);
 
     const fab = screen.getByTestId("chat-popup-toggle");
-    await user.click(fab);
+    await fireEvent.click(fab);
 
     await waitFor(() => {
       expect(screen.getByTestId("chat-input")).toBeInTheDocument();
     });
 
     const input = screen.getByTestId("chat-input") as HTMLInputElement;
-    await user.clear(input); await user.type(input, "Analyze NVDA");
+    await fireEvent.input(input, { target: { value: "" } }); await fireEvent.input(input, { target: { value: "Analyze NVDA" } });
     const sendBtn = screen.getByTestId("chat-send-button");
-    await user.click(sendBtn);
+    await fireEvent.click(sendBtn);
 
     await waitFor(() => {
       expect(screen.getByText("get_stock_price")).toBeInTheDocument();
@@ -318,8 +309,7 @@ describe("ChatPopup", () => {
   });
 
   it("shows analysis badge with ticker and decision", async () => {
-      const user = userEvent.setup();
-    mockCheckHealth.mockResolvedValue({
+          mockCheckHealth.mockResolvedValue({
       status: "ok",
       tradingagents_available: true,
       timestamp: "2026-01-01T00:00:00",
@@ -337,6 +327,7 @@ describe("ChatPopup", () => {
     }
     mockSendChatMessage.mockResolvedValue({
       should_analyze: "NVDA",
+      conversation_id: "c1",
       response: "Analyzing NVDA...",
     });
     mockStreamAnalysis.mockReturnValue(mockGenerator());
@@ -344,16 +335,16 @@ describe("ChatPopup", () => {
     renderWithProvider(<ChatPopup />);
 
     const fab = screen.getByTestId("chat-popup-toggle");
-    await user.click(fab);
+    await fireEvent.click(fab);
 
     await waitFor(() => {
       expect(screen.getByTestId("chat-input")).toBeInTheDocument();
     });
 
     const input = screen.getByTestId("chat-input") as HTMLInputElement;
-    await user.clear(input); await user.type(input, "Analyze NVDA");
+    await fireEvent.input(input, { target: { value: "" } }); await fireEvent.input(input, { target: { value: "Analyze NVDA" } });
     const sendBtn = screen.getByTestId("chat-send-button");
-    await user.click(sendBtn);
+    await fireEvent.click(sendBtn);
 
     await waitFor(() => {
       expect(screen.getAllByText("NVDA").length).toBeGreaterThanOrEqual(1);
@@ -363,8 +354,7 @@ describe("ChatPopup", () => {
   });
 
   it("renders reports section when analysis completes", async () => {
-      const user = userEvent.setup();
-    mockCheckHealth.mockResolvedValue({
+          mockCheckHealth.mockResolvedValue({
       status: "ok",
       tradingagents_available: true,
       timestamp: "2026-01-01T00:00:00",
@@ -385,6 +375,7 @@ describe("ChatPopup", () => {
     }
     mockSendChatMessage.mockResolvedValue({
       should_analyze: "NVDA",
+      conversation_id: "c1",
       response: "Analyzing NVDA...",
     });
     mockStreamAnalysis.mockReturnValue(mockGenerator());
@@ -392,16 +383,16 @@ describe("ChatPopup", () => {
     renderWithProvider(<ChatPopup />);
 
     const fab = screen.getByTestId("chat-popup-toggle");
-    await user.click(fab);
+    await fireEvent.click(fab);
 
     await waitFor(() => {
       expect(screen.getByTestId("chat-input")).toBeInTheDocument();
     });
 
     const input = screen.getByTestId("chat-input") as HTMLInputElement;
-    await user.clear(input); await user.type(input, "Analyze NVDA");
+    await fireEvent.input(input, { target: { value: "" } }); await fireEvent.input(input, { target: { value: "Analyze NVDA" } });
     const sendBtn = screen.getByTestId("chat-send-button");
-    await user.click(sendBtn);
+    await fireEvent.click(sendBtn);
 
     await waitFor(() => {
       expect(screen.getByText("market analysis")).toBeInTheDocument();

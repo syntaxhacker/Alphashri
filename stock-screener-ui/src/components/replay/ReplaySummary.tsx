@@ -1,6 +1,6 @@
-import { useMemo } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
-import { TanStackTable } from "../common/TanStackTable";
+import { createMemo, Show } from "solid-js";
+import type { TableColumnDef } from "../paper-trading/TanStackTable";
+import { TanStackTable } from "../paper-trading/TanStackTable";
 import { CompactPanel } from "../common/compact";
 import { getPnLTextColor } from "../../utils/ui-helpers";
 import * as palette from "@/ui/palette";
@@ -19,146 +19,144 @@ interface BreakdownRow {
   isTotal: boolean;
 }
 
-export function ReplaySummaryPanel({ summary }: ReplaySummaryProps) {
-  const breakdown = summary?.strategy_breakdown || {};
-  const entries = Object.entries(breakdown);
+export function ReplaySummaryPanel(props: ReplaySummaryProps) {
+  const rows = createMemo<BreakdownRow[]>(() => {
+    const breakdown = props.summary?.strategy_breakdown || {};
+    const entries = Object.entries(breakdown);
+    return [
+      ...entries.map(([name, s]) => ({
+        name,
+        trades: s.trades,
+        win_rate: s.win_rate,
+        net_pnl: s.net_pnl,
+        profit_factor: s.profit_factor,
+        isTotal: false,
+      })),
+      {
+        name: "Total",
+        trades: props.summary?.total_trades ?? 0,
+        win_rate: props.summary?.win_rate ?? 0,
+        net_pnl: props.summary?.net_pnl ?? 0,
+        profit_factor: props.summary?.profit_factor ?? 0,
+        isTotal: true,
+      },
+    ];
+  });
 
-  const rows: BreakdownRow[] = [
-    ...entries.map(([name, s]) => ({
-      name,
-      trades: s.trades,
-      win_rate: s.win_rate,
-      net_pnl: s.net_pnl,
-      profit_factor: s.profit_factor,
-      isTotal: false,
-    })),
+  const columns = createMemo<TableColumnDef<BreakdownRow>[]>(() => [
     {
-      name: "Total",
-      trades: summary?.total_trades ?? 0,
-      win_rate: summary?.win_rate ?? 0,
-      net_pnl: summary?.net_pnl ?? 0,
-      profit_factor: summary?.profit_factor ?? 0,
-      isTotal: true,
+      id: "name",
+      header: "Strategy",
+      accessorKey: "name",
+      meta: { align: "left" },
+      cell: ({ row }) => (
+        <span style={{ "font-weight": row.original.isTotal ? 700 : 500, "font-size": "11px" }}>
+          {row.original.name}
+        </span>
+      ),
     },
-  ];
-
-  const columns = useMemo<ColumnDef<BreakdownRow>[]>(
-    () => [
-      {
-        id: "name",
-        header: "Strategy",
-        accessorKey: "name",
-        meta: { align: "left" },
-        cell: (info) => (
-          <span style={{ fontWeight: info.row.original.isTotal ? 700 : 500, fontSize: 11 }}>
-            {info.getValue<string>()}
-          </span>
-        ),
-      },
-      {
-        id: "trades",
-        header: "Trades",
-        accessorKey: "trades",
-        meta: { align: "right" },
-        cell: (info) => (
+    {
+      id: "trades",
+      header: "Trades",
+      accessorKey: "trades",
+      meta: { align: "right" },
+      cell: ({ row }) => (
+        <span
+          style={{
+            "font-weight": row.original.isTotal ? 700 : 400,
+            "font-size": "11px",
+            "text-align": "right",
+            display: "block",
+          }}
+        >
+          {row.original.trades}
+        </span>
+      ),
+    },
+    {
+      id: "win_rate",
+      header: "Win Rate",
+      accessorKey: "win_rate",
+      meta: { align: "right" },
+      cell: ({ row }) => (
+        <span
+          style={{
+            "font-weight": row.original.isTotal ? 700 : 400,
+            "font-size": "11px",
+            "text-align": "right",
+            display: "block",
+          }}
+        >
+          {row.original.win_rate.toFixed(1)}%
+        </span>
+      ),
+    },
+    {
+      id: "net_pnl",
+      header: "Net P&L",
+      accessorKey: "net_pnl",
+      meta: { align: "right" },
+      cell: ({ row }) => {
+        const val = row.original.net_pnl;
+        return (
           <span
             style={{
-              fontWeight: info.row.original.isTotal ? 700 : 400,
-              fontSize: 11,
-              textAlign: "right",
+              "font-weight": 500,
+              "font-size": "11px",
+              "text-align": "right",
               display: "block",
+              color: getPnLTextColor(val) === "success" ? palette.POSITIVE : palette.NEGATIVE,
             }}
           >
-            {info.getValue<number>()}
+            {val >= 0 ? "+" : ""}
+            {val.toFixed(2)}
           </span>
-        ),
+        );
       },
-      {
-        id: "win_rate",
-        header: "Win Rate",
-        accessorKey: "win_rate",
-        meta: { align: "right" },
-        cell: (info) => (
+    },
+    {
+      id: "profit_factor",
+      header: "PF",
+      accessorKey: "profit_factor",
+      meta: { align: "right" },
+      cell: ({ row }) => {
+        const val = row.original.profit_factor;
+        const color =
+          val != null && val > 1
+            ? palette.POSITIVE
+            : val != null && val < 1
+              ? palette.NEGATIVE
+              : palette.TEXT_MUTED;
+        return (
           <span
             style={{
-              fontWeight: info.row.original.isTotal ? 700 : 400,
-              fontSize: 11,
-              textAlign: "right",
+              "font-weight": row.original.isTotal ? 700 : 400,
+              "font-size": "11px",
+              "text-align": "right",
               display: "block",
+              color,
             }}
           >
-            {info.getValue<number>().toFixed(1)}%
+            {val != null ? val.toFixed(2) : "N/A"}
           </span>
-        ),
+        );
       },
-      {
-        id: "net_pnl",
-        header: "Net P&L",
-        accessorKey: "net_pnl",
-        meta: { align: "right" },
-        cell: (info) => {
-          const val = info.getValue<number>();
-          return (
-            <span
-              style={{
-                fontWeight: 500,
-                fontSize: 11,
-                textAlign: "right",
-                display: "block",
-                color: getPnLTextColor(val) === "success" ? palette.POSITIVE : palette.NEGATIVE,
-              }}
-            >
-              {val >= 0 ? "+" : ""}
-              {val.toFixed(2)}
-            </span>
-          );
-        },
-      },
-      {
-        id: "profit_factor",
-        header: "PF",
-        accessorKey: "profit_factor",
-        meta: { align: "right" },
-        cell: (info) => {
-          const val = info.getValue<number | null>();
-          const color =
-            val != null && val > 1
-              ? palette.POSITIVE
-              : val != null && val < 1
-                ? palette.NEGATIVE
-                : palette.TEXT_MUTED;
-          return (
-            <span
-              style={{
-                fontWeight: info.row.original.isTotal ? 700 : 400,
-                fontSize: 11,
-                textAlign: "right",
-                display: "block",
-                color,
-              }}
-            >
-              {val != null ? val.toFixed(2) : "N/A"}
-            </span>
-          );
-        },
-      },
-    ],
-    [],
-  );
-
-  if (!summary) return null;
+    },
+  ]);
 
   return (
-    <CompactPanel title="Per-Strategy Breakdown" data-testid="replay-summary">
-      <TanStackTable<BreakdownRow>
-        data={rows}
-        columns={columns}
-        dataTestId="replay-summary-table"
-        enableSorting={false}
-        stickyHeader={false}
-        dense
-        getRowClassName={(row) => (row.isTotal ? "replay-summary-total" : undefined)}
-      />
-    </CompactPanel>
+    <Show when={props.summary}>
+      <CompactPanel title="Per-Strategy Breakdown" data-testid="replay-summary">
+        <TanStackTable<BreakdownRow>
+          data={rows()}
+          columns={columns()}
+          dataTestId="replay-summary-table"
+          enableSorting={false}
+          stickyHeader={false}
+          dense
+          getRowClassName={(row) => (row.isTotal ? "replay-summary-total" : undefined)}
+        />
+      </CompactPanel>
+    </Show>
   );
 }

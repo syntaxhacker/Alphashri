@@ -1,3 +1,4 @@
+import { Show } from "solid-js";
 import { Stack, Box, NumberInput, Switch, Tabs, Text, Divider } from "@/ui";
 import type { StrategyFormData } from "./types";
 
@@ -6,7 +7,7 @@ interface RunnerPanelProps {
   isOrb: boolean;
 }
 
-export function RunnerPanel({ initialValues, isOrb }: RunnerPanelProps) {
+export function RunnerPanel(props: RunnerPanelProps) {
   return (
     <Tabs.Panel
       value="runner"
@@ -22,14 +23,14 @@ export function RunnerPanel({ initialValues, isOrb }: RunnerPanelProps) {
         </Box>
 
         <Divider label="Entry Filters" labelPosition="left" />
-        {isOrb && (
+        <Show when={props.isOrb}>
           <Box className="flex items-center gap-2 p-2">
             <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Max Distance from OR</Text>
             <Box className="flex-1 flex items-center">
               <NumberInput
                 size="sm"
                 name="max_distance_from_or_pct"
-                defaultValue={initialValues.max_distance_from_or_pct}
+                defaultValue={props.initialValues.max_distance_from_or_pct}
                 min={0.1}
                 max={10}
                 step={0.1}
@@ -39,7 +40,7 @@ export function RunnerPanel({ initialValues, isOrb }: RunnerPanelProps) {
               />
             </Box>
           </Box>
-        )}
+        </Show>
 
         <Divider label="Execution Rules" labelPosition="left" />
         <Box className="flex items-center gap-2 p-2">
@@ -48,7 +49,7 @@ export function RunnerPanel({ initialValues, isOrb }: RunnerPanelProps) {
             <Switch
               label=""
               name="enable_shorts"
-              defaultChecked={initialValues.enable_shorts ?? false}
+              defaultChecked={props.initialValues.enable_shorts ?? false}
               data-testid="strategy-enable-shorts-input"
             />
           </Box>
@@ -59,7 +60,7 @@ export function RunnerPanel({ initialValues, isOrb }: RunnerPanelProps) {
             <NumberInput
               size="sm"
               name="eod_exit_hour"
-              defaultValue={initialValues.eod_exit_hour ?? 15}
+              defaultValue={props.initialValues.eod_exit_hour ?? 15}
               min={9}
               max={16}
               step={1}
@@ -74,7 +75,7 @@ export function RunnerPanel({ initialValues, isOrb }: RunnerPanelProps) {
             <NumberInput
               size="sm"
               name="eod_exit_minute"
-              defaultValue={initialValues.eod_exit_minute ?? 30}
+              defaultValue={props.initialValues.eod_exit_minute ?? 30}
               min={0}
               max={59}
               step={5}

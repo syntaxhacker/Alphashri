@@ -207,8 +207,9 @@ describe("buildChartOption", () => {
         ],
       });
       const result = buildChartOption(input);
-      expect(result.xAxis[0].data[0]).toBe("2025-01-15 09:30");
-      expect(result.xAxis[0].data[1]).toBe("2025-01-16 09:30");
+      const axisData = result.xAxis[0].data as string[];
+      expect(axisData[0]).toBe("2025-01-15 09:30");
+      expect(axisData[1]).toBe("2025-01-16 09:30");
     });
   });
 
@@ -243,10 +244,10 @@ describe("buildChartOption", () => {
         },
       });
       const result = buildChartOption(input);
-      const candleSeries = result.series.find((s: any) => s.type === "candlestick");
-      expect(candleSeries.markLine).toBeDefined();
-      expect(candleSeries.markLine.data).toContainEqual({ yAxis: 95, label: expect.any(Object) });
-      expect(candleSeries.markLine.data).toContainEqual({ yAxis: 110, label: expect.any(Object) });
+      const candleSeries = result.series.find((s) => s.type === "candlestick");
+      expect(candleSeries?.markLine).toBeDefined();
+      expect(candleSeries?.markLine.data).toContainEqual({ yAxis: 95, label: expect.any(Object) });
+      expect(candleSeries?.markLine.data).toContainEqual({ yAxis: 110, label: expect.any(Object) });
     });
 
   });
@@ -331,7 +332,8 @@ describe("buildChartOption", () => {
 
     it("configures yAxis formatter with rupee", () => {
       const result = buildChartOption(createMockInput({ showVolume: false }));
-      const formatter = result.yAxis[0].axisLabel.formatter as (v: number) => string;
+      const axisLabel = result.yAxis[0].axisLabel as { formatter: (v: number) => string };
+      const formatter = axisLabel.formatter;
       expect(formatter(1000)).toBe("₹1000");
     });
   });

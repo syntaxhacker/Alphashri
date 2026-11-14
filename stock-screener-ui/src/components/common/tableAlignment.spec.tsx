@@ -14,7 +14,8 @@
  *    with a clear message — the guard must never silently pass.
  */
 import { describe, it, expect } from "vitest";
-import { render, cleanup } from "@testing-library/react";
+import type { JSX } from "solid-js";
+import { render, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { IntervalMoversTable } from "../sector/IntervalMoversTable";
@@ -22,16 +23,13 @@ import { SectorTable } from "../sector/SectorTable";
 import { ReplayPositions } from "../replay/ReplayPositions";
 import { ReplaySummaryPanel } from "../replay/ReplaySummary";
 import { ReplayTradeLog } from "../replay/ReplayTradeLog";
-import { HeatmapListView } from "../../pages/heatmap/HeatmapListView";
 import { PositionsPanel } from "../options/OptionPositions/PositionsPanel";
 import { SectorAlertsList } from "../sector/SectorAlertsList";
 import { PerformanceView } from "../strategies/PerformanceView";
-import type { MetricConfig } from "../../pages/heatmap/heatmapUtils";
-import type { HeatmapStock } from "../../api/heatmap";
 
-function wrap(ui: React.ReactNode) {
+function wrap(ui: JSX.Element) {
   cleanup();
-  return render(<UIProvider>{ui}</UIProvider>);
+  return render(() => (<UIProvider>{ui}</UIProvider>));
 }
 
 /** Inline style first (reliable in happy-dom), computed style as fallback.
@@ -89,8 +87,6 @@ function grabGrid(testId: string) {
     })),
   );
 }
-
-const metric: MetricConfig = { value: "pe_ratio", label: "P/E", fmt: (v) => v.toFixed(1) };
 
 describe("table alignment across screens", () => {
   it("IntervalMoversTable (grid): text left, numeric right", () => {
@@ -208,27 +204,6 @@ describe("table alignment across screens", () => {
     expect(headerByText.get("Win Rate")).toBe("right");
     expect(headerByText.get("Net P&L")).toBe("right");
     expect(cellAligns.find((c) => c.text === "ORB High Beta")!.align).toBe("left");
-  });
-
-  it("HeatmapListView: symbol left, numeric right", () => {
-    const stocks: HeatmapStock[] = [
-      { symbol: "RELIANCE", name: "Reliance", sector: "Energy", market_cap: 19.2, pe_ratio: 24.5, pb_ratio: 3.1, dividend_yield: 0.4, perf_1y: 22.1, roe: 14.2, high_52w: 3050, low_52w: 2100, price: 2950.5, change_pct: 1.25 },
-      { symbol: "TCS", name: "TCS", sector: "IT", market_cap: 12.4, pe_ratio: 28.1, pb_ratio: 8.2, dividend_yield: 1.1, perf_1y: 8.4, roe: 32.5, high_52w: 3600, low_52w: 2800, price: 3420, change_pct: -0.75 },
-    ];
-    wrap(
-      <HeatmapListView
-        stocks={stocks}
-        metric="pe_ratio"
-        activeMetric={metric}
-        metricMin={0}
-        metricMax={50}
-      />,
-    );
-    const { headerByText, cellAligns } = grabTable("heatmap-list");
-    expect(headerByText.get("Symbol")).toBe("left");
-    expect(headerByText.get("P/E")).toBe("right");
-    const price = cellAligns.find((c) => c.text.includes("2950"));
-    if (price) expect(price.align).toBe("right");
   });
 
   it("SectorAlertsList (grid): time/sector cells, SURGING/DROPPING badge", () => {

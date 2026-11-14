@@ -17,8 +17,12 @@ export function formatRangePos(value: number | null | undefined): string {
   return value == null || !Number.isFinite(value) ? "—" : `${Math.round(value)}%`;
 }
 
-/** At most one decimal, trimming a trailing ".0" ("13" not "13.0"). */
-export function formatOneDecimal(value: number): string {
+/**
+ * At most one decimal, trimming a trailing ".0" ("13" not "13.0"). Returns
+ * "—" for missing/non-finite input so a half-streamed hit cannot print "NaN".
+ */
+export function formatOneDecimal(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "—";
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 

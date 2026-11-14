@@ -53,6 +53,10 @@ RELIANCE_ROW = {
     "SMA20": 2880.0, "SMA50": 2800.0, "SMA200": 2600.0,
     "Perf.W": 2.1, "Perf.1M": 4.6,
     "price_52_week_high": 3000.0, "price_52_week_low": 1800.0,
+    "price_earnings_ttm": 22.1,
+    "price_book_fq": 1.92,
+    "dividend_yield_recent": 0.35,
+    "return_on_equity": 9.01,
     "update_mode": "streaming",
 }
 
@@ -64,6 +68,8 @@ EXPECTED_RELIANCE_ROW = {
     "sma20": 2880.0, "sma50": 2800.0, "sma200": 2600.0,
     "perf_w": 2.1, "perf_1m": 4.6,
     "high_52w": 3000.0, "low_52w": 1800.0, "pos_52w": 95.5,
+    "pe_ratio": 22.1, "pb_ratio": 1.92,
+    "dividend_yield": 0.35, "roe": 9.01,
     "fno": True, "etf": False,
 }
 

@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { BotStatusPanel } from "./BotStatusPanel2";
@@ -13,11 +12,24 @@ vi.mock("../../state/bots", () => ({
 }));
 
 vi.mock("../../state/holidays", () => ({
-  subscribeToHolidays: vi.fn(),
+  subscribeToHolidays: vi.fn(() => () => {}),
   isMarketClosedToday: vi.fn().mockReturnValue(false),
 }));
 
 import { loadBotStatus, loadBotTrades } from "../../state/bots";
+
+import { Router } from "@solidjs/router";
+import type { JSX } from "solid-js";
+
+// Local equivalent of the shared renderWithProviders test helper, fixed for
+// Solid: solid-router renders no plain children, so tests mount through the
+// router's `root` prop instead.
+function renderWithProviders(ui: () => JSX.Element) {
+  return render(() => (
+    <Router root={() => <UIProvider>{ui()}</UIProvider>} />
+  ));
+}
+
 
 const mockBot: BotConfig = {
   id: "bot-1",
@@ -27,6 +39,7 @@ const mockBot: BotConfig = {
   max_total_positions: 5,
   max_total_capital_pct: 0.5,
   max_daily_loss_pct: 0.03,
+  live_trading: false,
   strategies: [],
   created_at: "2025-01-01T00:00:00Z",
   updated_at: null,
@@ -95,10 +108,6 @@ const mockTrade: BotTrade = {
   is_test_data: false,
 };
 
-function renderWithProviders(ui: React.ReactElement) {
-  return render(<UIProvider>{ui}</UIProvider>);
-}
-
 describe("BotStatusPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -117,7 +126,7 @@ describe("BotStatusPanel", () => {
   };
 
   it("renders bot name", () => {
-    renderWithProviders(<BotStatusPanel {...defaultProps} />);
+    renderWithProviders(() => <BotStatusPanel {...defaultProps} />);
     expect(screen.getByTestId("bot-name")).toHaveTextContent("Test Bot");
   });
 
@@ -130,12 +139,12 @@ describe("BotStatusPanel", () => {
       portfolio: null,
       strategies: {},
     };
-    renderWithProviders(<BotStatusPanel {...defaultProps} status={status} />);
+    renderWithProviders(() => <BotStatusPanel {...defaultProps} status={status} />);
     expect(screen.getByTestId("bot-running-badge")).toBeInTheDocument();
   });
 
   it("shows Start Bot button when bot is not running", () => {
-    renderWithProviders(<BotStatusPanel {...defaultProps} />);
+    renderWithProviders(() => <BotStatusPanel {...defaultProps} />);
     expect(screen.getByTestId("start-bot-btn")).toBeInTheDocument();
   });
 
@@ -148,25 +157,23 @@ describe("BotStatusPanel", () => {
       portfolio: null,
       strategies: {},
     };
-    renderWithProviders(<BotStatusPanel {...defaultProps} status={status} />);
+    renderWithProviders(() => <BotStatusPanel {...defaultProps} status={status} />);
     expect(screen.getByTestId("stop-bot-btn")).toBeInTheDocument();
   });
 
   it("refresh button reloads status and trades", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<BotStatusPanel {...defaultProps} />);
-    await user.click(screen.getByTestId("refresh-bot-status-btn"));
+        renderWithProviders(() => <BotStatusPanel {...defaultProps} />);
+    await fireEvent.click(screen.getByTestId("refresh-bot-status-btn"));
     expect(loadBotStatus).toHaveBeenCalledWith("bot-1");
     expect(loadBotTrades).toHaveBeenCalledWith("bot-1");
   });
 
   it("start handler calls onStart and loads status/trades once (no polling)", async () => {
-    const user = userEvent.setup();
-    const onStart = vi.fn().mockResolvedValue(undefined);
+        const onStart = vi.fn().mockResolvedValue(undefined);
     vi.mocked(loadBotStatus).mockResolvedValue(undefined);
     vi.mocked(loadBotTrades).mockResolvedValue(undefined);
-    renderWithProviders(<BotStatusPanel {...defaultProps} onStart={onStart} />);
-    await user.click(screen.getByTestId("start-bot-btn"));
+    renderWithProviders(() => <BotStatusPanel {...defaultProps} onStart={onStart} />);
+    await fireEvent.click(screen.getByTestId("start-bot-btn"));
     expect(onStart).toHaveBeenCalledWith("bot-1");
     await waitFor(() => {
       expect(loadBotStatus).toHaveBeenCalledTimes(1);
@@ -175,8 +182,7 @@ describe("BotStatusPanel", () => {
   });
 
   it("stop handler calls onStop and loads status once (no polling)", async () => {
-    const user = userEvent.setup();
-    const onStop = vi.fn().mockResolvedValue(undefined);
+        const onStop = vi.fn().mockResolvedValue(undefined);
     const status: BotStatus = {
       bot_id: "bot-1",
       running: true,
@@ -186,8 +192,8 @@ describe("BotStatusPanel", () => {
       strategies: {},
     };
     vi.mocked(loadBotStatus).mockResolvedValue(undefined);
-    renderWithProviders(<BotStatusPanel {...defaultProps} status={status} onStop={onStop} />);
-    await user.click(screen.getByTestId("stop-bot-btn"));
+    renderWithProviders(() => <BotStatusPanel {...defaultProps} status={status} onStop={onStop} />);
+    await fireEvent.click(screen.getByTestId("stop-bot-btn"));
     expect(onStop).toHaveBeenCalledWith("bot-1");
     await waitFor(() => {
       expect(loadBotStatus).toHaveBeenCalledTimes(1);
@@ -203,12 +209,12 @@ describe("BotStatusPanel", () => {
       portfolio: mockPortfolio,
       strategies: {},
     };
-    renderWithProviders(<BotStatusPanel {...defaultProps} status={status} />);
+    renderWithProviders(() => <BotStatusPanel {...defaultProps} status={status} />);
     expect(screen.getByTestId("portfolio-summary")).toBeInTheDocument();
   });
 
   it("placeholder card shown when no portfolio data", () => {
-    renderWithProviders(<BotStatusPanel {...defaultProps} />);
+    renderWithProviders(() => <BotStatusPanel {...defaultProps} />);
     expect(screen.getByTestId("portfolio-placeholder")).toBeInTheDocument();
     expect(screen.getByText("Start the bot to see live portfolio data")).toBeInTheDocument();
   });
@@ -222,7 +228,7 @@ describe("BotStatusPanel", () => {
       portfolio: null,
       strategies: { s1: mockStrategyStatus },
     };
-    renderWithProviders(<BotStatusPanel {...defaultProps} status={status} />);
+    renderWithProviders(() => <BotStatusPanel {...defaultProps} status={status} />);
     expect(screen.getByTestId("strategies-status")).toBeInTheDocument();
   });
 
@@ -236,12 +242,12 @@ describe("BotStatusPanel", () => {
       strategies: {},
       positions: [mockPosition],
     };
-    renderWithProviders(<BotStatusPanel {...defaultProps} status={status} />);
+    renderWithProviders(() => <BotStatusPanel {...defaultProps} status={status} />);
     expect(screen.getByTestId("bot-positions")).toBeInTheDocument();
   });
 
   it("trades table always rendered (empty or populated)", () => {
-    renderWithProviders(<BotStatusPanel {...defaultProps} trades={[mockTrade]} />);
+    renderWithProviders(() => <BotStatusPanel {...defaultProps} trades={[mockTrade]} />);
     expect(screen.getByTestId("bot-trades")).toBeInTheDocument();
   });
 
@@ -255,7 +261,7 @@ describe("BotStatusPanel", () => {
       strategies: {},
       last_update: "2025-06-15T12:00:00Z",
     };
-    renderWithProviders(<BotStatusPanel {...defaultProps} status={status} />);
+    renderWithProviders(() => <BotStatusPanel {...defaultProps} status={status} />);
     expect(screen.getByTestId("bot-last-update")).toBeInTheDocument();
   });
 });

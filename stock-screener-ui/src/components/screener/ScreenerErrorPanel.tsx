@@ -1,12 +1,12 @@
 import { Stack, Box, Text, Button } from "@/ui";
-import { IconAlertCircle } from "@tabler/icons-react";
+import { IconAlertCircle } from "./icons";
 
 interface ScreenerErrorPanelProps {
   error: string;
   onRefresh: () => void;
 }
 
-export function ScreenerErrorPanel({ error, onRefresh }: ScreenerErrorPanelProps) {
+export function ScreenerErrorPanel(props: ScreenerErrorPanelProps) {
   return (
     <Stack
       gap="sm"
@@ -22,7 +22,7 @@ export function ScreenerErrorPanel({ error, onRefresh }: ScreenerErrorPanelProps
           </Text>
         </Box>
         <Button
-          onClick={onRefresh}
+          onClick={props.onRefresh}
           variant="filled"
           color="error"
           size="sm"
@@ -32,7 +32,7 @@ export function ScreenerErrorPanel({ error, onRefresh }: ScreenerErrorPanelProps
         </Button>
       </Box>
       <Text size="sm" c="dimmed">
-        {error}
+        {props.error}
       </Text>
     </Stack>
   );

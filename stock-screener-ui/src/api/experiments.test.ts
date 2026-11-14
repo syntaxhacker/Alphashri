@@ -88,13 +88,19 @@ describe("fetchStrategies", () => {
   });
 
   it("uses status fallback when body has no detail/error", async () => {
-    mockedFetch.mockResolvedValue({ ok: false, status: 422, json: async () => ({}) } as Response);
+    mockedFetch.mockResolvedValue({ ok: false, status: 422, json: async () => ({}) } as unknown as Response);
     await fetchStrategies();
     expect(mockedSetError).toHaveBeenCalledWith(expect.stringContaining("422"));
   });
 
   it("handles json parse failure in parseError", async () => {
-    mockedFetch.mockResolvedValue({ ok: false, status: 500, json: async () => { throw new Error("parse fail"); } } as Response);
+    mockedFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => {
+        throw new Error("parse fail");
+      },
+    } as unknown as Response);
     const result = await fetchStrategies();
     expect(result).toEqual([]);
     expect(mockedSetError).toHaveBeenCalledWith(expect.stringContaining("500"));
@@ -264,7 +270,13 @@ describe("control experiments pause/resume/cancel", () => {
   });
 
   it("cancel handles json parse failure in parseError", async () => {
-    mockedFetch.mockResolvedValue({ ok: false, status: 500, json: async () => { throw new Error("x"); } } as Response);
+    mockedFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => {
+        throw new Error("x");
+      },
+    } as unknown as Response);
     expect(await cancelExperiment("s1")).toBe(false);
   });
 });

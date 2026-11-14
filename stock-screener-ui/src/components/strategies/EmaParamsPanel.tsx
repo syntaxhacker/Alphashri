@@ -7,7 +7,7 @@ interface EmaParamsPanelProps {
   isSwing: boolean;
 }
 
-export function EmaParamsPanel({ initialValues, isSwing }: EmaParamsPanelProps) {
+export function EmaParamsPanel(props: EmaParamsPanelProps) {
   return (
     <Tabs.Panel value="ema" keepMounted className="strategy-form-tab-panel" data-testid="strategy-panel-ema">
       <Stack spacing={1} gap="sm" mt="sm" className="p-2">
@@ -17,7 +17,7 @@ export function EmaParamsPanel({ initialValues, isSwing }: EmaParamsPanelProps) 
             <NumberInput
               size="sm"
               name="ema_fast_period"
-              defaultValue={initialValues.ema_fast_period}
+              value={props.initialValues.ema_fast_period}
               min={3}
               max={50}
               required
@@ -31,7 +31,7 @@ export function EmaParamsPanel({ initialValues, isSwing }: EmaParamsPanelProps) 
             <NumberInput
               size="sm"
               name="ema_slow_period"
-              defaultValue={initialValues.ema_slow_period}
+              value={props.initialValues.ema_slow_period}
               min={10}
               max={200}
               required
@@ -40,9 +40,9 @@ export function EmaParamsPanel({ initialValues, isSwing }: EmaParamsPanelProps) 
           </Box>
         </Box>
         <SlTpRow
-          slDefault={initialValues.sl_pct}
-          tpDefault={initialValues.tp_pct}
-          isSwing={isSwing}
+          slDefault={props.initialValues.sl_pct}
+          tpDefault={props.initialValues.tp_pct}
+          isSwing={props.isSwing}
         />
       </Stack>
     </Tabs.Panel>

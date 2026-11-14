@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, fireEvent, cleanup, waitFor } from "@solidjs/testing-library";
 import ReplayShell from "./ReplayShell";
 import { getStrategy } from "../strategies";
 
@@ -69,9 +68,8 @@ afterEach(() => {
 
 describe("ReplayShell manual run mode", () => {
   test("does not fetch on mount or state change, then fetches once on Run", async () => {
-    const user = userEvent.setup();
     const plugin = getStrategy("orb")!;
-    render(<ReplayShell plugin={plugin} />);
+    render(() => <ReplayShell plugin={plugin} />);
 
     // hint + Run affordance render before any fetch
     expect(screen.getByText(/Choose a symbol \/ date, then press Run/)).toBeInTheDocument();
@@ -79,11 +77,11 @@ describe("ReplayShell manual run mode", () => {
     expect(fetchMock).not.toHaveBeenCalled();
 
     // changing the date (a fetch-key input) must NOT trigger an auto-fetch
-    await user.click(screen.getByText("2026-09-09"));
+    await fireEvent.click(screen.getByText("2026-09-09"));
     expect(fetchMock).not.toHaveBeenCalled();
 
     // explicit Run triggers exactly one fetch with the symbol param
-    await user.click(screen.getByRole("button", { name: "Run" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Run" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/api/poc/replay/orb"),

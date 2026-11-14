@@ -1,11 +1,15 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { UIProvider } from "@/ui";
+import { cleanup, render, screen, waitFor, fireEvent } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import type { PatternFilters } from "@/types/chartPatterns";
 import { ResultsSearch } from "./ResultsSearch";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
 
 type FiltersFixture = PatternFilters & { q?: string };
 
@@ -27,83 +31,85 @@ function makeFilters(overrides: Partial<FiltersFixture> = {}): PatternFilters {
   } as PatternFilters;
 }
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
+/** Renders ResultsSearch against a filter store the test can echo back into. */
+function renderHarness(initialFilters: PatternFilters, setFilter: (key: string, value: unknown) => void) {
+  let echo!: (f: PatternFilters) => void;
+  const result = render(() => {
+    const [filters, setFilters] = createSignal(initialFilters);
+    echo = setFilters;
+    return <ResultsSearch filters={filters()} setFilter={setFilter} />;
+  });
+  return { ...result, echo: (f: PatternFilters) => echo(f) };
 }
 
 describe("ResultsSearch", () => {
   afterEach(() => cleanup());
 
   test("typing commits a debounced filters.q once", async () => {
-    const user = userEvent.setup();
     const setFilter = vi.fn();
-    r(<ResultsSearch filters={makeFilters()} setFilter={setFilter} />);
+    renderHarness(makeFilters(), setFilter);
+    const input = screen.getByTestId("patterns-results-search");
 
-    await user.type(screen.getByTestId("patterns-results-search"), "bank");
+    fireEvent.input(input, { target: { value: "bank" } });
 
     await waitFor(() => expect(setFilter).toHaveBeenCalledWith("q", "bank"));
     expect(setFilter).toHaveBeenCalledTimes(1);
   });
 
   test("renders the current value", () => {
-    r(<ResultsSearch filters={makeFilters({ q: "infy" })} setFilter={vi.fn()} />);
+    renderHarness(makeFilters({ q: "infy" }), vi.fn());
     expect(screen.getByTestId("patterns-results-search")).toHaveValue("infy");
   });
 
   test("keeps characters typed after a commit when the parent echoes q back", async () => {
-    const user = userEvent.setup();
     const setFilter = vi.fn();
-    const { rerender } = r(<ResultsSearch filters={makeFilters()} setFilter={setFilter} />);
+    const { echo } = renderHarness(makeFilters(), setFilter);
     const input = screen.getByTestId("patterns-results-search");
 
-    await user.type(input, "bank");
+    fireEvent.input(input, { target: { value: "bank" } });
     await waitFor(() => expect(setFilter).toHaveBeenCalledWith("q", "bank"));
 
     // User keeps typing before the store echo lands.
-    await user.type(input, "s");
+    fireEvent.input(input, { target: { value: "banks" } });
     expect(input).toHaveValue("banks");
 
     // The late echo of our own commit (filters.q === "bank") must NOT clobber it.
-    rerender(<ResultsSearch filters={makeFilters({ q: "bank" })} setFilter={setFilter} />);
+    echo(makeFilters({ q: "bank" }));
     expect(input).toHaveValue("banks");
     await waitFor(() => expect(setFilter).toHaveBeenCalledWith("q", "banks"));
   });
 
   test("propagates an external q reset (Clear filters) to the input", () => {
-    const { rerender } = r(
-      <ResultsSearch filters={makeFilters({ q: "bank" })} setFilter={vi.fn()} />,
-    );
+    const { echo } = renderHarness(makeFilters({ q: "bank" }), vi.fn());
     const input = screen.getByTestId("patterns-results-search");
     expect(input).toHaveValue("bank");
 
-    rerender(<ResultsSearch filters={makeFilters({ q: "" })} setFilter={vi.fn()} />);
+    echo(makeFilters({ q: "" }));
     expect(input).toHaveValue("");
   });
 
   test("does not commit on mount or when filters.q already matches", async () => {
     const setFilter = vi.fn();
-    const { rerender } = r(
-      <ResultsSearch filters={makeFilters({ q: "bank" })} setFilter={setFilter} />,
-    );
+    const { echo } = renderHarness(makeFilters({ q: "bank" }), setFilter);
     // Longer than the 300ms debounce: an unchanged query must never re-commit.
     await new Promise((resolve) => setTimeout(resolve, 450));
     expect(setFilter).not.toHaveBeenCalled();
 
-    rerender(<ResultsSearch filters={makeFilters({ q: "bank" })} setFilter={setFilter} />);
+    echo(makeFilters({ q: "bank" }));
     await new Promise((resolve) => setTimeout(resolve, 450));
     expect(setFilter).not.toHaveBeenCalled();
   });
 
   test("parent echo of a commit does not trigger a second commit", async () => {
-    const user = userEvent.setup();
     const setFilter = vi.fn();
-    const { rerender } = r(<ResultsSearch filters={makeFilters()} setFilter={setFilter} />);
+    const { echo } = renderHarness(makeFilters(), setFilter);
+    const input = screen.getByTestId("patterns-results-search");
 
-    await user.type(screen.getByTestId("patterns-results-search"), "bank");
+    fireEvent.input(input, { target: { value: "bank" } });
     await waitFor(() => expect(setFilter).toHaveBeenCalledWith("q", "bank"));
 
     // Late store echo of our own commit must not re-commit.
-    rerender(<ResultsSearch filters={makeFilters({ q: "bank" })} setFilter={setFilter} />);
+    echo(makeFilters({ q: "bank" }));
     await new Promise((resolve) => setTimeout(resolve, 450));
     expect(setFilter).toHaveBeenCalledTimes(1);
   });

@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext } from "solid-js";
 
 /** Imperative API exposed by the app-wide right-side symbol dock. */
 export interface SymbolDockApi {

@@ -1,5 +1,8 @@
-import { useMemo } from "react";
+import { createMemo, For, Show } from "solid-js";
+import type { JSX } from "solid-js";
 import { Box, Flex, Text } from "@/ui";
+
+type CSSProperties = JSX.CSSProperties;
 
 export interface PatternLegendLine {
   name: string;
@@ -19,6 +22,72 @@ export interface PatternChartLegendProps {
   onToggle?: (name: string) => void;
 }
 
+interface LegendEntry {
+  name: string;
+  color: string;
+}
+
+const ENTRY_CLASS =
+  "m-0 inline-flex items-center gap-1 rounded-fin border-0 bg-transparent p-[2px] font-[inherit] transition-opacity duration-[120ms]";
+
+function EntryButton(props: {
+  entry: LegendEntry;
+  isHidden: boolean;
+  interactive: boolean;
+  onToggle?: (name: string) => void;
+}) {
+  const title = () =>
+    props.interactive
+      ? props.isHidden
+        ? `Show ${props.entry.name}`
+        : `Hide ${props.entry.name}`
+      : undefined;
+  const style: CSSProperties = { opacity: props.isHidden ? "0.4" : "1" };
+  const swatch = (
+    <Box
+      w={8}
+      h={8}
+      className="rounded-full"
+      style={{ "background-color": props.entry.color, filter: props.isHidden ? "grayscale(1)" : undefined }}
+    />
+  );
+  const label = (
+    <Text
+      size="xs"
+      c="dimmed"
+      style={props.isHidden ? { "text-decoration": "line-through" } : undefined}
+    >
+      {props.entry.name}
+    </Text>
+  );
+
+  return (
+    <Show when={props.interactive} fallback={
+      <span
+        data-testid={`patterns-chart-legend-item-${props.entry.name}`}
+        class={`${ENTRY_CLASS} cursor-default`}
+        style={style}
+      >
+        {swatch}
+        {label}
+      </span>
+    }>
+      <button
+        type="button"
+        onClick={() => props.onToggle?.(props.entry.name)}
+        aria-pressed={!props.isHidden}
+        title={title()}
+        data-testid={`patterns-chart-legend-item-${props.entry.name}`}
+        class={`${ENTRY_CLASS} cursor-pointer hover:bg-fin-surface-alt focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-primary`}
+        style={style}
+      >
+        {swatch}
+        {label}
+      </button>
+    </Show>
+  );
+}
+
 /**
  * Compact HTML legend mirroring what's drawn on the TradingView pattern chart:
  * one swatch + label per pattern name (boundary segments share a name, so they
@@ -27,53 +96,30 @@ export interface PatternChartLegendProps {
  * series on the chart (lightweight-charts has no built-in legend toggle).
  * Renders nothing when there are no lines.
  */
-export function PatternChartLegend({ lines, levels, markers, hidden, onToggle }: PatternChartLegendProps) {
-  const entries = useMemo(() => {
+export function PatternChartLegend(props: PatternChartLegendProps) {
+  const entries = createMemo(() => {
     const seen = new Map<string, string>();
-    for (const line of [...(lines ?? []), ...(levels ?? []), ...(markers ?? [])]) {
+    for (const line of [...(props.lines ?? []), ...(props.levels ?? []), ...(props.markers ?? [])]) {
       if (!line?.name || !line?.color) continue;
       if (!seen.has(line.name)) seen.set(line.name, line.color);
     }
     return [...seen.entries()].map(([name, color]) => ({ name, color }));
-  }, [lines, levels, markers]);
-
-  if (entries.length === 0) return null;
+  });
 
   return (
-    <Flex gap="xs" justify="center" align="center" wrap="wrap" data-testid="patterns-chart-legend">
-      {entries.map((entry) => {
-        const isHidden = hidden?.has(entry.name) ?? false;
-        const interactive = Boolean(onToggle);
-        return (
-          <Box
-            key={entry.name}
-            component={interactive ? "button" : "span"}
-            type={interactive ? "button" : undefined}
-            onClick={interactive ? () => onToggle?.(entry.name) : undefined}
-            aria-pressed={interactive ? !isHidden : undefined}
-            title={interactive ? (isHidden ? `Show ${entry.name}` : `Hide ${entry.name}`) : undefined}
-            data-testid={`patterns-chart-legend-item-${entry.name}`}
-            className={`m-0 inline-flex items-center gap-1 rounded-fin border-0 bg-transparent p-[2px] font-[inherit] transition-opacity duration-[120ms] ${
-              interactive ? "cursor-pointer hover:bg-fin-surface-alt focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-primary" : "cursor-default"
-            }`}
-            style={{ opacity: isHidden ? 0.4 : 1 }}
-          >
-            <Box
-              w={8}
-              h={8}
-              className="rounded-full"
-              style={{ backgroundColor: entry.color, filter: isHidden ? "grayscale(1)" : undefined }}
+    <Show when={entries().length > 0}>
+      <Flex gap="xs" justify="center" align="center" wrap="wrap" data-testid="patterns-chart-legend">
+        <For each={entries()}>
+          {(entry) => (
+            <EntryButton
+              entry={entry}
+              isHidden={props.hidden?.has(entry.name) ?? false}
+              interactive={Boolean(props.onToggle)}
+              onToggle={props.onToggle}
             />
-            <Text
-              size="xs"
-              c="dimmed"
-              style={isHidden ? { textDecoration: "line-through" } : undefined}
-            >
-              {entry.name}
-            </Text>
-          </Box>
-        );
-      })}
-    </Flex>
+          )}
+        </For>
+      </Flex>
+    </Show>
   );
 }

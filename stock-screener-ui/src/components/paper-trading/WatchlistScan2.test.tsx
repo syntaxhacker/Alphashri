@@ -1,11 +1,10 @@
 // @vitest-environment happy-dom
+import type { JSX } from "solid-js";
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { screen, within, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, within, fireEvent, cleanup } from "@solidjs/testing-library";
 import { WatchlistScan2 } from "./WatchlistScan2";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
-import { BORDER_COLOR, NEGATIVE_COLOR, POSITIVE_COLOR, WARNING } from "@/ui/palette";
+import { BORDER_COLOR, NEGATIVE_COLOR, POSITIVE_COLOR, PRIMARY, WARNING } from "@/ui/palette";
 
 // Resolved value of #80b5ff under the palette theme.
 function withAlpha(hex: string, alpha: number): string {
@@ -22,8 +21,8 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function r(jsx: React.ReactElement) {
-  return renderWithProviders(jsx);
+function r(component: (() => JSX.Element) | JSX.Element) {
+  return typeof component === "function" ? render(component) : render(() => component);
 }
 
 vi.mock("../../state/paperTrading", () => ({
@@ -47,10 +46,10 @@ vi.mock("../common/PreviewChartProvider", () => ({
   })),
 }));
 
-vi.mock("react-router-dom", () => ({
+vi.mock("@solidjs/router", () => ({
   useNavigate: vi.fn(() => vi.fn()),
   useLocation: vi.fn(() => ({ pathname: "/" })),
-  BrowserRouter: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  BrowserRouter: ({ children }: { children: JSX.Element }) => <>{children}</>,
 }));
 
 function createMockSnapshot(
@@ -59,6 +58,7 @@ function createMockSnapshot(
   return {
     timestamp: new Date(Date.now() - 120_000).toISOString(),
     watchlist: ["RELIANCE", "TCS", "INFY", "HDFC", "WIPRO"],
+    strategy_watchlists: {},
     open_positions: [],
     scan_items: [
       {
@@ -146,7 +146,7 @@ describe("WatchlistScan2", () => {
 
   describe("empty states", () => {
     test("renders No data when snapshot is null", () => {
-      r(<WatchlistScan2 snapshot={null} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={null} selectedSymbol={null} />);
       expect(card()).toBeInTheDocument();
       expect(screen.getByText(/No recent scan results/)).toBeInTheDocument();
       expect(screen.getByText("No data")).toBeInTheDocument();
@@ -158,6 +158,7 @@ describe("WatchlistScan2", () => {
           snapshot={{
             timestamp: "2026-03-20T09:30:00Z",
             watchlist: [],
+            strategy_watchlists: {},
             open_positions: [],
             scan_items: [],
             signals: [],
@@ -177,7 +178,7 @@ describe("WatchlistScan2", () => {
   describe("header", () => {
     test("shows count badge with total items", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       expect(screen.getByTestId("watchlist-count")).toBeInTheDocument();
       expect(screen.getByTestId("watchlist-count")).toHaveTextContent("5");
       expect(within(card()).getByTestId("watchlist-count")).toBeInTheDocument();
@@ -185,13 +186,12 @@ describe("WatchlistScan2", () => {
 
     test("shows scan timestamp", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const header = card();
       expect(within(header).getByText(/updated/)).toBeInTheDocument();
     });
 
     test("refresh button calls onRefresh when clicked", async () => {
-      const user = userEvent.setup();
       const onRefresh = vi.fn();
       const snap = createMockSnapshot();
       r(
@@ -202,7 +202,7 @@ describe("WatchlistScan2", () => {
         />,
       );
       const refreshBtn = screen.getByTestId("watchlist-refresh");
-      await user.click(refreshBtn);
+      await fireEvent.click(refreshBtn);
       expect(onRefresh).toHaveBeenCalledTimes(1);
     });
 
@@ -228,7 +228,7 @@ describe("WatchlistScan2", () => {
   describe("status filter tabs", () => {
     test("shows all non-skipped items by default", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       expect(row("RELIANCE")).toBeInTheDocument();
       expect(row("TCS")).toBeInTheDocument();
       expect(row("INFY")).toBeInTheDocument();
@@ -237,10 +237,9 @@ describe("WatchlistScan2", () => {
     });
 
     test("filters by signal status", async () => {
-      const user = userEvent.setup();
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
-      await user.click(screen.getByText("Signals (2)"));
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      await fireEvent.click(screen.getByText("Signals (2)"));
       expect(row("RELIANCE")).toBeInTheDocument();
       expect(row("WIPRO")).toBeInTheDocument();
       expect(queryRow("TCS")).not.toBeInTheDocument();
@@ -248,20 +247,18 @@ describe("WatchlistScan2", () => {
     });
 
     test("filters by watching status", async () => {
-      const user = userEvent.setup();
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
-      await user.click(screen.getByText("Watching (1)"));
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      await fireEvent.click(screen.getByText("Watching (1)"));
       expect(row("TCS")).toBeInTheDocument();
       expect(queryRow("RELIANCE")).not.toBeInTheDocument();
       expect(queryRow("INFY")).not.toBeInTheDocument();
     });
 
     test("filters by rejected status", async () => {
-      const user = userEvent.setup();
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
-      await user.click(screen.getByText("Rejected (1)"));
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      await fireEvent.click(screen.getByText("Rejected (1)"));
       expect(row("INFY")).toBeInTheDocument();
       expect(queryRow("RELIANCE")).not.toBeInTheDocument();
       expect(queryRow("TCS")).not.toBeInTheDocument();
@@ -274,21 +271,19 @@ describe("WatchlistScan2", () => {
 
   describe("include skipped checkbox", () => {
     test("toggles skipped items visibility when checked", async () => {
-      const user = userEvent.setup();
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       expect(queryRow("HDFC")).not.toBeInTheDocument();
-      await user.click(screen.getByLabelText(/Skipped/));
+      await fireEvent.click(screen.getByLabelText(/Skipped/));
       expect(row("HDFC")).toBeInTheDocument();
     });
 
     test("hides skipped items when unchecked", async () => {
-      const user = userEvent.setup();
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
-      await user.click(screen.getByLabelText(/Skipped/));
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      await fireEvent.click(screen.getByLabelText(/Skipped/));
       expect(row("HDFC")).toBeInTheDocument();
-      await user.click(screen.getByLabelText(/Skipped/));
+      await fireEvent.click(screen.getByLabelText(/Skipped/));
       expect(queryRow("HDFC")).not.toBeInTheDocument();
     });
   });
@@ -299,11 +294,10 @@ describe("WatchlistScan2", () => {
 
   describe("symbol search", () => {
     test("filters rows by symbol query", async () => {
-      const user = userEvent.setup();
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const searchInput = screen.getByPlaceholderText("Search symbol");
-      await user.type(searchInput, "REL");
+      await fireEvent.input(searchInput, { target: { value: "REL" } });
       expect(row("RELIANCE")).toBeInTheDocument();
       expect(queryRow("TCS")).not.toBeInTheDocument();
       expect(queryRow("INFY")).not.toBeInTheDocument();
@@ -311,23 +305,21 @@ describe("WatchlistScan2", () => {
     });
 
     test("is case-insensitive", async () => {
-      const user = userEvent.setup();
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const searchInput = screen.getByPlaceholderText("Search symbol");
-      await user.type(searchInput, "tcs");
+      await fireEvent.input(searchInput, { target: { value: "tcs" } });
       expect(row("TCS")).toBeInTheDocument();
       expect(queryRow("RELIANCE")).not.toBeInTheDocument();
     });
 
     test("clearing search shows all items again", async () => {
-      const user = userEvent.setup();
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const searchInput = screen.getByPlaceholderText("Search symbol");
-      await user.type(searchInput, "ZZZ");
+      await fireEvent.input(searchInput, { target: { value: "ZZZ" } });
       expect(queryRow("RELIANCE")).not.toBeInTheDocument();
-      await user.clear(searchInput);
+      await fireEvent.input(searchInput, { target: { value: "" } });
       expect(row("RELIANCE")).toBeInTheDocument();
       expect(row("TCS")).toBeInTheDocument();
       expect(row("INFY")).toBeInTheDocument();
@@ -342,18 +334,17 @@ describe("WatchlistScan2", () => {
   describe("strategy multi-select filter", () => {
     test("multi-select appears with strategy options", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       expect(screen.getByPlaceholderText("Filter strategy")).toBeInTheDocument();
     });
 
     test("filters rows by selected strategy", async () => {
-      const user = userEvent.setup();
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const strategyInput = screen.getByPlaceholderText("Filter strategy");
-      await user.click(strategyInput);
+      fireEvent.focus(strategyInput);
       const srOption = await screen.findByRole("option", { name: "SR Breakout" });
-      await user.click(within(srOption).getByRole("checkbox"));
+      await fireEvent.click(within(srOption).getByRole("checkbox"));
       expect(row("TCS")).toBeInTheDocument();
       expect(row("WIPRO")).toBeInTheDocument();
       expect(queryRow("RELIANCE")).not.toBeInTheDocument();
@@ -361,13 +352,12 @@ describe("WatchlistScan2", () => {
     });
 
     test("selecting ORB Strategy shows ORB items", async () => {
-      const user = userEvent.setup();
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const strategyInput = screen.getByPlaceholderText("Filter strategy");
-      await user.click(strategyInput);
+      fireEvent.focus(strategyInput);
       const orbOption = await screen.findByRole("option", { name: "ORB Strategy" });
-      await user.click(within(orbOption).getByRole("checkbox"));
+      await fireEvent.click(within(orbOption).getByRole("checkbox"));
       expect(row("RELIANCE")).toBeInTheDocument();
       expect(row("INFY")).toBeInTheDocument();
       expect(queryRow("TCS")).not.toBeInTheDocument();
@@ -386,27 +376,26 @@ describe("WatchlistScan2", () => {
 
     test("signal row has green left border", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       expectLeftBorder("RELIANCE", POSITIVE_COLOR);
     });
 
     test("watching row has yellow/orange left border", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       expectLeftBorder("TCS", WARNING);
     });
 
     test("rejected row has red left border", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       expectLeftBorder("INFY", NEGATIVE_COLOR);
     });
 
     test("skipped row has gray left border", async () => {
-      const user = userEvent.setup();
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
-      await user.click(screen.getByLabelText(/Skipped/));
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      await fireEvent.click(screen.getByLabelText(/Skipped/));
       expectLeftBorder("HDFC", BORDER_COLOR);
     });
   });
@@ -416,20 +405,20 @@ describe("WatchlistScan2", () => {
   // ──────────────────────────────────────────────
 
   function hasSparkle(symbol: string) {
-    return row(symbol).querySelector(".tabler-icon-sparkles") !== null;
+    return row(symbol).querySelector('[data-testid="icon-sparkles"]') !== null;
   }
 
   describe("new signal indicator", () => {
     test("shows sparkle for items less than 1 min old", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       expect(hasSparkle("RELIANCE")).toBe(true);
       expect(hasSparkle("WIPRO")).toBe(true);
     });
 
     test("does not show sparkle for items older than 1 min", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       expect(hasSparkle("TCS")).toBe(false);
     });
   });
@@ -440,10 +429,9 @@ describe("WatchlistScan2", () => {
 
   describe("row click interaction", () => {
     test("clicking a signal row calls setSelectedSymbol and fetchPaperChart", async () => {
-      const user = userEvent.setup();
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
-      await user.click(row("RELIANCE"));
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      await fireEvent.click(row("RELIANCE"));
       const { setSelectedSymbol, setSelectedTradeId } = await import("../../state/paperTrading");
       const { fetchPaperChart } = await import("../../api/paperTrading");
       expect(setSelectedSymbol).toHaveBeenCalledWith("RELIANCE");
@@ -457,19 +445,17 @@ describe("WatchlistScan2", () => {
     });
 
     test("clicking a watching row calls setSelectedSymbol", async () => {
-      const user = userEvent.setup();
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
-      await user.click(row("TCS"));
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      await fireEvent.click(row("TCS"));
       const { setSelectedSymbol } = await import("../../state/paperTrading");
       expect(setSelectedSymbol).toHaveBeenCalledWith("TCS");
     });
 
     test("clicking a rejected row calls setSelectedSymbol", async () => {
-      const user = userEvent.setup();
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
-      await user.click(row("INFY"));
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      await fireEvent.click(row("INFY"));
       const { setSelectedSymbol } = await import("../../state/paperTrading");
       expect(setSelectedSymbol).toHaveBeenCalledWith("INFY");
     });
@@ -481,7 +467,7 @@ describe("WatchlistScan2", () => {
       );
       // selected rows use a primary-tint background (PRIMARY at 8% via local alpha())
       expect(row("RELIANCE")).toHaveStyle({
-        backgroundColor: withAlpha("#58A6FF", 0.08),
+        backgroundColor: withAlpha(PRIMARY, 0.08),
       });
     });
   });
@@ -493,22 +479,21 @@ describe("WatchlistScan2", () => {
   describe("footer", () => {
     test("shows visible and total count", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       expect(screen.getByText(/Showing 4 of 5/)).toBeInTheDocument();
     });
 
     test("shows +X skipped when skipped items are hidden", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       expect(screen.getByText(/\+1 skipped/)).toBeInTheDocument();
     });
 
     test("hides +X skipped when skipped items are shown", async () => {
-      const user = userEvent.setup();
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       expect(screen.getByText(/\+1 skipped/)).toBeInTheDocument();
-      await user.click(screen.getByLabelText(/Skipped/));
+      await fireEvent.click(screen.getByLabelText(/Skipped/));
       expect(screen.getByText(/Showing 5 of 5/)).toBeInTheDocument();
       expect(screen.queryByText(/\+1 skipped/)).not.toBeInTheDocument();
     });
@@ -520,16 +505,14 @@ describe("WatchlistScan2", () => {
 
   describe("empty filter results", () => {
     test("shows skipped count when search filters all items and skipped exist", async () => {
-      const user = userEvent.setup();
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const searchInput = screen.getByPlaceholderText("Search symbol");
-      await user.type(searchInput, "ZZZZ");
+      await fireEvent.input(searchInput, { target: { value: "ZZZZ" } });
       expect(screen.getByText("1 skipped")).toBeInTheDocument();
     });
 
     test("shows No items text when search filters all items and no skipped exist", async () => {
-      const user = userEvent.setup();
       r(
         <WatchlistScan2
           snapshot={createMockSnapshot({
@@ -552,7 +535,7 @@ describe("WatchlistScan2", () => {
         />,
       );
       const searchInput = screen.getByPlaceholderText("Search symbol");
-      await user.type(searchInput, "ZZZZ");
+      await fireEvent.input(searchInput, { target: { value: "ZZZZ" } });
       expect(screen.getByText("No items")).toBeInTheDocument();
     });
 
@@ -585,14 +568,14 @@ describe("WatchlistScan2", () => {
   describe("data rendering details", () => {
     test("custom source badge appears for custom items", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const wiproRow = row("WIPRO");
       expect(within(wiproRow).getByText("Custom")).toBeInTheDocument();
     });
 
     test("custom source badge does not appear for non-custom items", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const relianceRow = row("RELIANCE");
       expect(
         within(relianceRow).queryByText("Custom"),
@@ -601,28 +584,27 @@ describe("WatchlistScan2", () => {
 
     test("renders side badge for LONG items", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       expect(within(row("RELIANCE")).getByText("LONG")).toBeInTheDocument();
     });
 
     test("renders side badge for SHORT items", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       expect(within(row("INFY")).getByText("SHORT")).toBeInTheDocument();
     });
 
     test("skipped items without side show dash in side column", async () => {
-      const user = userEvent.setup();
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
-      await user.click(screen.getByLabelText(/Skipped/));
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      await fireEvent.click(screen.getByLabelText(/Skipped/));
       const cells = within(row("HDFC")).getAllByRole("cell");
       expect(cells[1]).toHaveTextContent("-");
     });
 
     test("formats price with ₹ symbol", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       expect(
         within(row("RELIANCE")).getByText("₹2520.00"),
       ).toBeInTheDocument();
@@ -654,27 +636,27 @@ describe("WatchlistScan2", () => {
 
     test("near column shows percentage for items with ORB or 52W levels", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const tcsRow = row("TCS");
       expect(within(tcsRow).getByText(/1\.\d+%/)).toBeInTheDocument();
     });
 
     test("near column shows dash when no levels available", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       expect(within(row("INFY")).getByText("-")).toBeInTheDocument();
     });
 
     test("watching status near column has yellow color", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const nearCell = within(row("TCS")).getByText(/1\.\d+%/);
       expect(nearCell).toBeInTheDocument();
     });
 
     test("renders strategy badge with strategy name", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       expect(
         within(row("RELIANCE")).getByText("ORB Strategy"),
       ).toBeInTheDocument();
@@ -685,14 +667,14 @@ describe("WatchlistScan2", () => {
 
     test("renders age column with relative time", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const tcsRow = row("TCS");
       expect(within(tcsRow).getByText(/m ago/)).toBeInTheDocument();
     });
 
     test("renders notes column with reason text", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const relianceRow = row("RELIANCE");
       expect(
         within(relianceRow).getByText("ORB breakout above 2525"),
@@ -701,7 +683,7 @@ describe("WatchlistScan2", () => {
 
     test("sort order: signal first (newest before oldest), then watching, then rejected", () => {
       const snap = createMockSnapshot();
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       const table = screen.getByTestId("watchlist-scan-table");
       const rows = within(table).getAllByRole("row");
       const bodyRows = rows.slice(1);
@@ -742,7 +724,7 @@ describe("WatchlistScan2", () => {
           },
         ],
       });
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       expect(row("AAPL")).toBeInTheDocument();
       expect(row("GOOGL")).toBeInTheDocument();
       expect(screen.getByTestId("watchlist-count")).toHaveTextContent("2");
@@ -858,7 +840,7 @@ describe("WatchlistScan2", () => {
           },
         ],
       });
-      r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       expect(row("NOTS")).toBeInTheDocument();
     });
 

@@ -1,14 +1,12 @@
-import { memo, useCallback, useMemo } from "react";
+import { createMemo, createEffect, createSignal, onCleanup, Show, type JSX } from "solid-js";
 import { Checkbox, ActionIcon, CopyButton, Tooltip, Badge, Group, Text, Box, Stack } from "@/ui";
-import { IconCopy, IconCheck } from "@tabler/icons-react";
-import type { ColumnDef as TanStackColumnDef } from "@tanstack/react-table";
-import { TanStackTable } from "../common/TanStackTable";
+import { IconCopy, IconCheck } from "./icons";
+import { TanStackTable, type TableColumnDef } from "../common/TanStackTable";
 import { SymbolLink } from "../common/SymbolLink";
 import { useSymbolDock } from "../common/symbolDockContext";
 import type { ColumnDef, FormattedCell } from "./columns";
 import type { Stock } from "../../types";
 import { selectedSymbols, toggleSymbolSelection, clearSelectedSymbols, setSelectedSymbols, subscribeToSelection } from "../../state";
-import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { getValueColor, getScoreColor, formatNumber } from "../../utils/ui-helpers";
 
 interface ScreenerTableProps {
@@ -22,52 +20,51 @@ interface ScreenerTableProps {
   testId?: string;
 }
 
-export const ScreenerTable = memo(function ScreenerTable({
-  stocks,
-  columns,
-  touchedSymbols,
-  badgeLabel,
-  scoreFormula,
-  onSymbolClick,
-  onSymbolHover,
-  testId = "screener-table",
-}: ScreenerTableProps) {
-  useStoreSubscription(subscribeToSelection);
-  const visibleSymbols = useMemo(() => stocks.map((stock) => stock.symbol), [stocks]);
-  const allSymbols = useMemo(() => visibleSymbols.join(", "), [visibleSymbols]);
-  const selectedSymbolSet = useMemo(() => new Set(selectedSymbols), [selectedSymbols]);
-  const allVisibleSelected = useMemo(
-    () => visibleSymbols.length > 0 && visibleSymbols.every((symbol) => selectedSymbolSet.has(symbol)),
-    [visibleSymbols, selectedSymbolSet],
-  );
-  const { preview, endPreview, open } = useSymbolDock();
+// src/hooks/useStoreSubscription.ts's useStoreSnapshot misses its createMemo
+// import, so the snapshot is inlined here with the same semantics.
+function useSelectionSnapshot() {
+  const [tick, setTick] = createSignal(0);
+  createEffect(() => {
+    const unsubscribe = subscribeToSelection(() => setTick((n) => n + 1));
+    onCleanup(unsubscribe);
+  });
+  return createMemo(() => {
+    tick();
+    return selectedSymbols;
+  });
+}
 
-  const handleSelectAll = useCallback(() => {
-    if (allVisibleSelected) {
+export function ScreenerTable(props: ScreenerTableProps) {
+  const selection = useSelectionSnapshot();
+  const visibleSymbols = createMemo(() => props.stocks.map((stock) => stock.symbol));
+  const allSymbols = createMemo(() => visibleSymbols().join(", "));
+  const selectedSymbolSet = createMemo(() => new Set(selection()));
+  const allVisibleSelected = createMemo(
+    () => visibleSymbols().length > 0 && visibleSymbols().every((symbol) => selectedSymbolSet().has(symbol)),
+  );
+  const dock = useSymbolDock();
+
+  const handleSelectAll = () => {
+    if (allVisibleSelected()) {
       clearSelectedSymbols();
     } else {
-      setSelectedSymbols(visibleSymbols);
+      setSelectedSymbols(visibleSymbols());
     }
-  }, [allVisibleSelected, visibleSymbols]);
+  };
 
-  const handleSymbolRowClick = useCallback(
-    (row: Stock) => {
-      onSymbolClick(row.symbol);
-    },
-    [onSymbolClick],
-  );
-  const containerTestId = testId === "screener-table" ? undefined : testId;
+  const testId = () => props.testId ?? "screener-table";
+  const containerTestId = () => (testId() === "screener-table" ? undefined : testId());
 
-  const tanStackColumns = useMemo<TanStackColumnDef<Stock>[]>(() => {
-    const cols: TanStackColumnDef<Stock>[] = [
+  const tanStackColumns = createMemo<TableColumnDef<Stock>[]>(() => {
+    const cols: TableColumnDef<Stock>[] = [
       {
         id: "selection",
         header: () => (
-          <Box onClick={(e) => e.stopPropagation()} className="flex justify-center">
+          <Box onClick={(e: MouseEvent) => e.stopPropagation()} className="flex justify-center">
             <Checkbox
               size="xs"
-              checked={allVisibleSelected}
-              indeterminate={selectedSymbolSet.size > 0 && !allVisibleSelected}
+              checked={allVisibleSelected()}
+              indeterminate={selectedSymbolSet().size > 0 && !allVisibleSelected()}
               onChange={(e: any) => { e?.stopPropagation?.(); handleSelectAll(); }}
               onClick={(e: any) => e.stopPropagation()}
               data-testid="select-all-checkbox"
@@ -75,12 +72,12 @@ export const ScreenerTable = memo(function ScreenerTable({
           </Box>
         ),
         enableSorting: false,
-        meta: { align: "center" } as never,
+        meta: { align: "center" },
         cell: ({ row }) => (
-          <Box onClick={(e) => e.stopPropagation()} className="flex justify-center">
+          <Box onClick={(e: MouseEvent) => e.stopPropagation()} className="flex justify-center">
             <Checkbox
               size="xs"
-              checked={selectedSymbolSet.has(row.original.symbol)}
+              checked={selectedSymbolSet().has(row.original.symbol)}
               onChange={(e: any) => { e?.stopPropagation?.(); toggleSymbolSelection(row.original.symbol); }}
               onClick={(e: any) => e.stopPropagation()}
               data-testid={`sel-checkbox-${row.original.symbol}`}
@@ -91,7 +88,7 @@ export const ScreenerTable = memo(function ScreenerTable({
       },
     ];
 
-    for (const col of columns) {
+    for (const col of props.columns) {
       cols.push({
         id: col.key,
         header: () => {
@@ -101,24 +98,24 @@ export const ScreenerTable = memo(function ScreenerTable({
               <Text fw={700} size="xs">
                 {col.label}
               </Text>
-              {isSymbolColumn && visibleSymbols.length > 0 && (
-                <CopyButton value={allSymbols}>
+              <Show when={isSymbolColumn && visibleSymbols().length > 0}>
+                <CopyButton value={allSymbols()}>
                   {({ copied, copy }) => (
                     <Tooltip label={copied ? "Copied" : "Copy all symbols"}>
                       <ActionIcon
                         variant="subtle"
                         color={copied ? "info" : "secondary"}
                         size="xs"
-                        style={{ width: 16, height: 16, minHeight: 16, padding: 0 }}
-                        onClick={(e) => { e.stopPropagation(); copy(); }}
+                        style={{ width: "16px", height: "16px", "min-height": "16px", padding: 0 }}
+                        onClick={(e: MouseEvent) => { e.stopPropagation(); copy(); }}
                         data-testid="copy-all-symbols-btn"
                       >
-                        {copied ? <IconCheck size={10} /> : <IconCopy size={10} />}
+                        {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
                       </ActionIcon>
                     </Tooltip>
                   )}
                 </CopyButton>
-              )}
+              </Show>
             </Group>
           );
         },
@@ -126,12 +123,13 @@ export const ScreenerTable = memo(function ScreenerTable({
         enableSorting: col.sortable ?? true,
         meta: {
           align:
-            col.key === "symbol"
+            col.align ??
+            (col.key === "symbol" || col.type === "string"
               ? "left"
               : col.type === "badge" || col.key === "score"
                 ? "center"
-                : "right",
-        } as never,
+                : "right"),
+        },
         cell: ({ row }) => {
           const stock = row.original;
           const value = stock[col.key as keyof Stock];
@@ -148,7 +146,7 @@ export const ScreenerTable = memo(function ScreenerTable({
               return <Text c={cell.className} fw={500}>{cell.value}</Text>;
             }
             if (formatted !== null && formatted !== undefined) {
-              return <>{formatted}</>;
+              return <>{formatted as JSX.Element}</>;
             }
           }
 
@@ -162,15 +160,15 @@ export const ScreenerTable = memo(function ScreenerTable({
                   symbol={stock.symbol}
                   testId={`symbol-link-${stock.symbol}`}
                   chartTestId={`symbol-chart-${stock.symbol}`}
-                  onPreview={(value) => {
-                    onSymbolHover?.(value);
-                    preview(value);
+                  onPreview={(value: string) => {
+                    props.onSymbolHover?.(value);
+                    dock.preview(value);
                   }}
                   onPreviewEnd={() => {
-                    onSymbolHover?.(null);
-                    endPreview();
+                    props.onSymbolHover?.(null);
+                    dock.endPreview();
                   }}
-                  onOpen={open}
+                  onOpen={dock.open}
                   className="flex-1"
                 />
                 <CopyButton value={stock.symbol}>
@@ -179,20 +177,20 @@ export const ScreenerTable = memo(function ScreenerTable({
                       variant="subtle"
                       color={copied ? "info" : "secondary"}
                       size="xs"
-                      style={{ width: 16, height: 16, minHeight: 16, padding: 0 }}
-                      onClick={(e) => { e.stopPropagation(); copy(); }}
+                      style={{ width: "16px", height: "16px", "min-height": "16px", padding: 0 }}
+                      onClick={(e: MouseEvent) => { e.stopPropagation(); copy(); }}
                       data-testid={`copy-symbol-btn-${stock.symbol}`}
                     >
-                      {copied ? <IconCheck size={10} /> : <IconCopy size={10} />}
+                      {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
                     </ActionIcon>
                   )}
                 </CopyButton>
-                {touchedSymbols.has(stock.symbol) && badgeLabel ? (
+                <Show when={props.touchedSymbols.has(stock.symbol) && props.badgeLabel}>
                   <Badge size="xs" variant="light" color="primary" data-testid={`touched-badge-${stock.symbol}`}>
-                    {badgeLabel}
+                    {props.badgeLabel}
                   </Badge>
-                ) : null}
-                {stock.approach_type === "fresh" || stock.approach_type === "retest" ? (
+                </Show>
+                <Show when={stock.approach_type === "fresh" || stock.approach_type === "retest"}>
                   <Badge
                     size="xs"
                     variant="light"
@@ -201,7 +199,7 @@ export const ScreenerTable = memo(function ScreenerTable({
                   >
                     {stock.approach_type === "fresh" ? "FRESH" : "RETEST"}
                   </Badge>
-                ) : null}
+                </Show>
               </Box>
             );
           }
@@ -209,7 +207,7 @@ export const ScreenerTable = memo(function ScreenerTable({
           if (col.key === "score" || col.type === "badge") {
             const scoreValue = typeof value === "number" ? value : 0;
             return (
-              <Tooltip label={scoreFormula ? `${scoreFormula} = ${scoreValue}` : `Score: ${scoreValue}`} multiline w={300} withinPortal>
+              <Tooltip label={props.scoreFormula ? `${props.scoreFormula} = ${scoreValue}` : `Score: ${scoreValue}`} multiline withinPortal>
                 <Badge color={getScoreColor(scoreValue)} variant="filled" data-testid={`score-badge-${stock.symbol}`}>
                   {scoreValue}
                 </Badge>
@@ -235,25 +233,25 @@ export const ScreenerTable = memo(function ScreenerTable({
     }
 
     return cols;
-  }, [columns, visibleSymbols, allSymbols, allVisibleSelected, selectedSymbolSet, touchedSymbols, badgeLabel, scoreFormula, onSymbolClick, onSymbolHover, preview, endPreview, open, handleSelectAll]);
+  });
 
     return (
-      <Box className="w-full overflow-hidden rounded-sm" data-testid={containerTestId}>
+      <Box className="w-full overflow-hidden rounded-sm" data-testid={containerTestId()}>
         <Stack spacing={0} className="w-full">
           <Box className="w-full flex justify-center">
               <TanStackTable<Stock>
-                data={stocks}
-                columns={tanStackColumns}
+                data={props.stocks}
+                columns={tanStackColumns()}
                 dataTestId="screener-table"
                 enableSorting
                 stickyHeader
                 className="w-full min-w-0"
                 getRowTestId={(row) => `stock-row-${row.symbol}`}
-                onRowClick={handleSymbolRowClick}
-                rowWindowSize={stocks.length > 120 ? 80 : 0}
+                onRowClick={(row) => props.onSymbolClick(row.symbol)}
+                rowWindowSize={props.stocks.length > 120 ? 80 : undefined}
               />
             </Box>
           </Stack>
       </Box>
   );
-});
+}

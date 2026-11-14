@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Show, createSignal } from "solid-js";
 import { Alert, Box, Button, Switch, Text, TextInput, ToolbarRow } from "@/ui";
 
 export interface ReplayScanArgs {
@@ -21,65 +21,63 @@ export interface ReplayScanControlProps {
  * Replay scans recompute history up to the cutoff, so they are slower —
  * the warning says so whenever replay mode is on.
  */
-export function ReplayScanControl({
-  onReplayScan,
-  disabled = false,
-  testIdPrefix = "patterns-replay",
-}: ReplayScanControlProps) {
-  const [enabled, setEnabled] = useState(false);
-  const [asOf, setAsOf] = useState("");
-  const [from, setFrom] = useState("");
+export function ReplayScanControl(props: ReplayScanControlProps) {
+  const [enabled, setEnabled] = createSignal(false);
+  const [asOf, setAsOf] = createSignal("");
+  const [from, setFrom] = createSignal("");
+  const testIdPrefix = () => props.testIdPrefix ?? "patterns-replay";
+  const disabled = () => props.disabled ?? false;
 
   const run = (): void => {
-    onReplayScan?.({
-      asOf: asOf !== "" ? asOf : null,
-      from: from !== "" ? from : null,
+    props.onReplayScan?.({
+      asOf: asOf() !== "" ? asOf() : null,
+      from: from() !== "" ? from() : null,
     });
   };
 
   return (
     <Box
-      data-testid={`${testIdPrefix}-control`}
+      data-testid={`${testIdPrefix()}-control`}
       className="flex flex-col gap-2"
     >
-      <ToolbarRow justify="space-between" gap={8} align="center">
+      <ToolbarRow justify="space-between" gap={8}>
         <Switch
           label="Replay scan"
           size="sm"
-          checked={enabled}
-          onChange={(e) => setEnabled(e.target.checked)}
-          disabled={disabled}
-          data-testid={`${testIdPrefix}-toggle`}
+          checked={enabled()}
+          onChange={(e) => setEnabled((e.currentTarget as HTMLInputElement).checked)}
+          disabled={disabled()}
+          data-testid={`${testIdPrefix()}-toggle`}
         />
-        {enabled ? (
+        <Show when={enabled()}>
           <Button
             size="xs"
             variant="outline"
             onClick={run}
-            disabled={disabled}
-            data-testid={`${testIdPrefix}-run`}
+            disabled={disabled()}
+            data-testid={`${testIdPrefix()}-run`}
           >
             Run replay
           </Button>
-        ) : null}
+        </Show>
       </ToolbarRow>
-      {enabled ? (
+      <Show when={enabled()}>
         <Box className="flex flex-col gap-2">
-          <Alert color="warning" data-testid={`${testIdPrefix}-warning`}>
+          <Alert color="warning" data-testid={`${testIdPrefix()}-warning`}>
             Replay scans are slower — they recompute history up to the as-of date.
           </Alert>
-          <ToolbarRow gap={8} align="center" style={{ flexWrap: "wrap" }}>
+          <ToolbarRow gap={8} style={{ "flex-wrap": "wrap" }}>
             <Box className="flex min-w-0 flex-col gap-1">
               <Text size="xs" c="dimmed">
                 As of
               </Text>
               <TextInput
                 type="datetime-local"
-                value={asOf}
+                value={asOf()}
                 onChange={(v) => setAsOf(String(v ?? ""))}
                 size="sm"
                 w={190}
-                data-testid={`${testIdPrefix}-asof`}
+                data-testid={`${testIdPrefix()}-asof`}
               />
             </Box>
             <Box className="flex min-w-0 flex-col gap-1">
@@ -88,16 +86,16 @@ export function ReplayScanControl({
               </Text>
               <TextInput
                 type="datetime-local"
-                value={from}
+                value={from()}
                 onChange={(v) => setFrom(String(v ?? ""))}
                 size="sm"
                 w={190}
-                data-testid={`${testIdPrefix}-from`}
+                data-testid={`${testIdPrefix()}-from`}
               />
             </Box>
           </ToolbarRow>
         </Box>
-      ) : null}
+      </Show>
     </Box>
   );
 }

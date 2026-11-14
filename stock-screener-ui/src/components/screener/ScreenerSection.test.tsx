@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { ScreenerSection } from "./ScreenerSection";
 import { UIProvider } from "@/ui";
@@ -23,9 +23,7 @@ describe("ScreenerSection", () => {
     touchedSymbols: new Set<string>(),
     onSymbolClick: vi.fn(),
     onSymbolHover: vi.fn(),
-    viewMode: "table" as const,
     section: "approaching" as const,
-    activeScreener: "trending",
   };
 
   beforeEach(() => {
@@ -37,21 +35,21 @@ describe("ScreenerSection", () => {
   });
 
   it("renders CompactPanel with title and description", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerSection {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByText("Approaching (3)")).toBeInTheDocument();
     expect(screen.getByText("Stocks nearing the high")).toBeInTheDocument();
   });
 
   it("delegates to ScreenerStockView", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerSection {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("screener-stock-view")).toBeInTheDocument();
   });
 });

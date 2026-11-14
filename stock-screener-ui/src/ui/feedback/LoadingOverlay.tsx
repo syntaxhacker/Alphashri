@@ -1,10 +1,11 @@
+import { Show, splitProps } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
 import { Loader } from "./Loader";
 import type { UILoadingOverlayProps } from "../types";
 
 function resolveColor(color: string | undefined): string {
-  if (!color) return withAlpha(palette.MARKER_BORDER, 0.6);
+  if (!color) return withAlpha(palette.SURFACE, 0.55);
   if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl")) return color;
   const m: Record<string, string> = {
     primary: palette.PRIMARY,
@@ -15,7 +16,7 @@ function resolveColor(color: string | undefined): string {
     info: palette.INFO,
     secondary: palette.TEXT_MUTED,
   };
-  return m[color] ?? withAlpha(palette.MARKER_BORDER, 0.6);
+  return m[color] ?? withAlpha(palette.SURFACE, 0.55);
 }
 
 function withAlpha(hex: string, alpha: number): string {
@@ -24,44 +25,43 @@ function withAlpha(hex: string, alpha: number): string {
   return `rgba(${parseInt(h.slice(0, 2), 16)}, ${parseInt(h.slice(2, 4), 16)}, ${parseInt(h.slice(4, 6), 16)}, ${alpha})`;
 }
 
-export function LoadingOverlay({
-  visible,
-  loaderProps,
-  overlayProps,
-  zIndex,
-  className,
-  style,
-  "data-testid": testId,
-  id,
-  children,
-  ...rest
-}: UILoadingOverlayProps) {
-  if (!visible) return null;
-
-  const blur =
-    overlayProps?.blur != null
-      ? `blur(${typeof overlayProps.blur === "number" ? `${overlayProps.blur}px` : overlayProps.blur})`
-      : undefined;
+export function LoadingOverlay(props: UILoadingOverlayProps) {
+  const [known, rest] = splitProps(props, [
+    "visible",
+    "loaderProps",
+    "overlayProps",
+    "zIndex",
+    "className",
+    "style",
+    "data-testid",
+    "id",
+    "children",
+  ]);
 
   return (
-    <div
-      data-testid={testId}
-      id={id}
-      className={cn("inset-0 z-10 flex items-center justify-center", overlayProps?.fixed ? "fixed" : "absolute", className)}
-      style={{
-        zIndex,
-        backgroundColor: resolveColor(overlayProps?.color),
-        opacity: overlayProps?.opacity,
-        backdropFilter: blur,
-        borderRadius: "inherit",
-        ...style,
-      }}
-      {...rest}
-    >
-      <div className="flex items-center justify-center w-full h-full">
-        <Loader {...loaderProps} />
+    <Show when={known.visible}>
+      <div
+        data-testid={known["data-testid"]}
+        id={known.id}
+        className={cn("inset-0 z-10 flex items-center justify-center", known.overlayProps?.fixed ? "fixed" : "absolute", known.className)}
+        style={{
+          "z-index": known.zIndex,
+          "background-color": resolveColor(known.overlayProps?.color),
+          opacity: known.overlayProps?.opacity,
+          "backdrop-filter":
+            known.overlayProps?.blur != null
+              ? `blur(${typeof known.overlayProps.blur === "number" ? `${known.overlayProps.blur}px` : known.overlayProps.blur})`
+              : undefined,
+          "border-radius": "inherit",
+          ...known.style,
+        }}
+        {...rest}
+      >
+        <div className="flex items-center justify-center w-full h-full">
+          <Loader {...known.loaderProps} />
+        </div>
+        {known.children}
       </div>
-      {children}
-    </div>
+    </Show>
   );
 }

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, waitFor } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { EventWatch } from "./EventWatch";
@@ -60,11 +60,11 @@ function mockOk() {
 }
 
 function renderWatch(props?: { onOpenSymbol?: (s: string) => void; daily?: unknown }) {
-  return render(
+  return render(() => (
     <UIProvider>
       <EventWatch universe="nifty500" daily={(props?.daily ?? mockDaily) as never} onOpenSymbol={props?.onOpenSymbol} />
-    </UIProvider>,
-  );
+    </UIProvider>
+  ));
 }
 
 beforeEach(() => {

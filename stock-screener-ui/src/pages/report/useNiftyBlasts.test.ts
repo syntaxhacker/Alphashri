@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, cleanup, renderHook } from "@testing-library/react";
+import { cleanup, renderHook } from "@solidjs/testing-library";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { useNiftyBlasts } from "./useNiftyBlasts";
 import { fetchNiftyBlasts } from "@/api/reportNifty";
@@ -36,10 +36,8 @@ afterEach(() => {
 async function primeEmptyBlasts() {
   vi.useFakeTimers();
   vi.mocked(fetchNiftyBlasts).mockResolvedValueOnce([]);
-  const { result } = renderHook(() => useNiftyBlasts(true));
-  await act(async () => {
-    await vi.advanceTimersByTimeAsync(0);
-  });
+  const { result } = renderHook(() => useNiftyBlasts(() => true));
+  await vi.advanceTimersByTimeAsync(0);
   return result;
 }
 
@@ -47,20 +45,16 @@ describe("useNiftyBlasts", () => {
   test("primes history, then alerts only on a new blast", async () => {
     vi.useFakeTimers();
     vi.mocked(fetchNiftyBlasts).mockResolvedValueOnce([blast()]);
-    const { result } = renderHook(() => useNiftyBlasts(true));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0);
-    });
-    expect(result.current.blast).toBeNull();
+    const { result } = renderHook(() => useNiftyBlasts(() => true));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(result.blast()).toBeNull();
     expect(playAlertSound).not.toHaveBeenCalled();
 
     vi.mocked(fetchNiftyBlasts).mockResolvedValue([
       blast({ t: "2026-10-26T12:29:00+05:30", delta: -16, label: "SPOT ↓ -16.0 pts / 10s", bias: "bear" }),
     ]);
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(3000);
-    });
-    expect(result.current.blast?.bias).toBe("bear");
+          await vi.advanceTimersByTimeAsync(3000);
+    expect(result.blast()?.bias).toBe("bear");
     expect(playAlertSound).toHaveBeenCalledWith("critical");
     expect(flashAlertTitle).toHaveBeenCalledWith("SPOT ↓ -16.0 pts / 10s");
   });
@@ -77,11 +71,9 @@ describe("useNiftyBlasts", () => {
         detail: "24,410.6 → 24,445.4",
       }),
     ]);
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(3000);
-    });
+          await vi.advanceTimersByTimeAsync(3000);
 
-    expect(result.current.blast).toBeNull();
+    expect(result.blast()).toBeNull();
     expect(playAlertSound).not.toHaveBeenCalled();
     expect(flashAlertTitle).not.toHaveBeenCalled();
   });
@@ -96,10 +88,8 @@ describe("useNiftyBlasts", () => {
         label: "SPOT ↑ +60.0 pts / 30s",
       }),
     ]);
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(3000);
-    });
-    expect(result.current.blast?.delta).toBe(60);
+          await vi.advanceTimersByTimeAsync(3000);
+    expect(result.blast()?.delta).toBe(60);
     expect(playAlertSound).toHaveBeenCalledTimes(1);
 
     vi.mocked(fetchNiftyBlasts).mockResolvedValue([
@@ -109,10 +99,8 @@ describe("useNiftyBlasts", () => {
         label: "SPOT ↑ +70.0 pts / 30s",
       }),
     ]);
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(3000);
-    });
-    expect(result.current.blast?.delta).toBe(60);
+          await vi.advanceTimersByTimeAsync(3000);
+    expect(result.blast()?.delta).toBe(60);
     expect(playAlertSound).toHaveBeenCalledTimes(1);
   });
 
@@ -129,29 +117,23 @@ describe("useNiftyBlasts", () => {
         t: "2026-10-26T12:30:00+05:30",
       }),
     ]);
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(3000);
-    });
-    expect(result.current.blast?.kind).toBe("volume");
+          await vi.advanceTimersByTimeAsync(3000);
+    expect(result.blast()?.kind).toBe("volume");
     expect(playAlertSound).toHaveBeenCalledWith("alert");
   });
 
   test("does nothing while disabled", async () => {
     vi.useFakeTimers();
-    renderHook(() => useNiftyBlasts(false));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(10_000);
-    });
+    renderHook(() => useNiftyBlasts(() => false));
+          await vi.advanceTimersByTimeAsync(10_000);
     expect(fetchNiftyBlasts).not.toHaveBeenCalled();
   });
 
   test("each poll is abortable and a new blast keeps at most one alert timer", async () => {
     vi.useFakeTimers();
     vi.mocked(fetchNiftyBlasts).mockResolvedValue([]);
-    const { unmount } = renderHook(() => useNiftyBlasts(true));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0);
-    });
+    const { cleanup: unmount } = renderHook(() => useNiftyBlasts(() => true));
+    await vi.advanceTimersByTimeAsync(0);
 
     // The poll passes an AbortSignal so an unmount cancels the request.
     expect(vi.mocked(fetchNiftyBlasts)).toHaveBeenCalledWith(

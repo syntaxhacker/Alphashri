@@ -1,8 +1,9 @@
-import { Alert, Box, Text } from "@/ui";
-import { IconAlertCircle } from "@tabler/icons-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import { useBacktestQueryParams } from "../../hooks/useBacktestQueryParams";
+import { Alert, Text, Box } from "@/ui";
+import * as palette from "@/ui/palette";
+import { IconAlertCircle } from "@/components/common/Icons";
+import { createMemo, createSignal, createEffect, Show } from "solid-js";
+import { useStoreSnapshot } from "../paper-trading/storeSnapshot";
+import { useBacktestQueryParams } from "./useBacktestQueryParams";
 import { BacktestConfig, BacktestProgress, TradeHistoryTable } from ".";
 import { BacktestLeftPanel } from "./BacktestPanels";
 import { BacktestToolbar } from "./BacktestToolbar";
@@ -39,7 +40,6 @@ import {
 } from "../../api/backtest";
 import { chartTradesToTrades } from "../../api/chartBuilder";
 import { getHolidayState, subscribeToHolidays, loadHolidays } from "../../state/holidays";
-
 function sortResults(results: any[] | null, column: string, direction: "asc" | "desc") {
   if (!results) return [];
   return [...results].sort((a, b) => {
@@ -63,22 +63,22 @@ function sortResults(results: any[] | null, column: string, direction: "asc" | "
 }
 
 function useSortHandlers() {
-  const [column, setColumn] = useState("net_pnl");
-  const [direction, setDirection] = useState<"asc" | "desc">("desc");
-  const handleSort = useCallback((col: string) => {
-    if (column === col) setDirection((d) => (d === "asc" ? "desc" : "asc"));
+  const [column, setColumn] = createSignal("net_pnl");
+  const [direction, setDirection] = createSignal<"asc" | "desc">("desc");
+  const handleSort = (col: string) => {
+    if (column() === col) setDirection((d) => (d === "asc" ? "desc" : "asc"));
     else { setColumn(col); setDirection("desc"); }
-  }, [column]);
+  };
   return { column, direction, handleSort };
 }
 
 function useTradeSortHandlers() {
-  const [column, setColumn] = useState("entry_time");
-  const [direction, setDirection] = useState<"asc" | "desc">("desc");
-  const handleSort = useCallback((col: string) => {
-    if (column === col) setDirection((d) => (d === "asc" ? "desc" : "asc"));
+  const [column, setColumn] = createSignal("entry_time");
+  const [direction, setDirection] = createSignal<"asc" | "desc">("desc");
+  const handleSort = (col: string) => {
+    if (column() === col) setDirection((d) => (d === "asc" ? "desc" : "asc"));
     else { setColumn(col); setDirection("desc"); }
-  }, [column]);
+  };
   return { column, direction, handleSort };
 }
 
@@ -92,84 +92,80 @@ function highlightTradeRow(tradeNumber: number, scope?: ParentNode | null, doScr
   setTimeout(() => row.classList.remove("trade-row-highlighted"), 3000);
 }
 
-function useBacktestEffects(state: any) {
-  useEffect(() => {
+function useBacktestEffects(state: () => ReturnType<typeof getBacktestState>) {
+  createEffect(() => {
     fetchStrategies();
     fetchVariations();
     fetchCosts();
     loadHolidays(2026);
-  }, []);
+  });
 
-  useEffect(() => {
-    if (state.results && state.results.length > 0 && !state.selectedChartSymbol) {
-      const firstSymbol = state.results[0].symbol;
+  createEffect(() => {
+    const s = state();
+    if (s.results && s.results.length > 0 && !s.selectedChartSymbol) {
+      const firstSymbol = s.results[0].symbol;
       setSelectedChartSymbol(firstSymbol);
-      const chartData = state.chartData.get(firstSymbol);
+      const chartData = s.chartData.get(firstSymbol);
       setTradeHistory(chartData?.trades?.length ? chartTradesToTrades(chartData.trades) : [], firstSymbol);
     }
-  }, [state.results, state.selectedChartSymbol, state.chartData]);
+  });
 }
 
-function useBacktestActions(state: any, chartMode: "all" | "trades") {
-  const [saveToHistory, setSaveToHistory] = useState(true);
-  const [selectedTf, setSelectedTf] = useState<string>("");
+function useBacktestActions(state: () => ReturnType<typeof getBacktestState>, chartMode: () => "all" | "trades") {
+  const [saveToHistory, setSaveToHistory] = createSignal(true);
+  const [selectedTf, setSelectedTf] = createSignal<string>("");
   const resultsSort = useSortHandlers();
   const tradeSort = useTradeSortHandlers();
 
-  const sortedResults = useMemo(
-    () => sortResults(state.results, resultsSort.column, resultsSort.direction),
-    [state.results, resultsSort.column, resultsSort.direction],
+  const sortedResults = createMemo(() =>
+    sortResults(state().results, resultsSort.column(), resultsSort.direction()),
   );
 
-  const handleRunBacktest = useCallback(() => runBacktest(false), []);
-  const handleRunAndSave = useCallback(() => runBacktest(true), []);
+  const handleRunBacktest = () => runBacktest(false);
+  const handleRunAndSave = () => runBacktest(true);
 
-  const handleViewChartAndTrades = useCallback((symbol: string) => {
+  const handleViewChartAndTrades = (symbol: string) => {
     setSelectedChartSymbol(symbol);
     const currentState = getBacktestState();
     const chartData = currentState.chartData.get(symbol);
     // Always update the history (even empty) so panels never show another symbol's trades.
     setTradeHistory(chartData?.trades?.length ? chartTradesToTrades(chartData.trades) : [], symbol);
     // Keep the timeframe selection consistent with the newly selected symbol.
-    if (selectedTf) {
-      const tfNum = parseInt(selectedTf, 10);
+    const tf = selectedTf();
+    if (tf) {
+      const tfNum = parseInt(tf, 10);
       if (!Number.isNaN(tfNum)) fetchChartData(symbol, tfNum);
     }
-  }, [selectedTf]);
+  };
 
-  const handleZoomToTrade = useCallback(
-    (tradeNumber: number) => {
-      if (chartMode === "trades") {
-        // Per-trade view: scroll the matching trade row into view (instant + exact,
-        // so distant rows don't appear to "not scroll").
-        const scroller = document.querySelector('[data-testid="trade-charts"]') as HTMLElement | null;
-        const el = scroller?.querySelector(`[data-trade-number="${tradeNumber}"]`) as HTMLElement | null;
-        if (scroller && el) {
-          const delta = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
-          scroller.scrollTop += delta - 8;
-        }
-        highlightTradeRow(tradeNumber, scroller, false);
-        return;
+  const handleZoomToTrade = (tradeNumber: number) => {
+    if (chartMode() === "trades") {
+      // Per-trade view: scroll the matching trade row into view (instant + exact,
+      // so distant rows don't appear to "not scroll").
+      const scroller = document.querySelector('[data-testid="trade-charts"]') as HTMLElement | null;
+      const el = scroller?.querySelector(`[data-trade-number="${tradeNumber}"]`) as HTMLElement | null;
+      if (scroller && el) {
+        const delta = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+        scroller.scrollTop += delta - 8;
       }
-      const chartData = state.selectedChartSymbol
-        ? state.chartData.get(state.selectedChartSymbol)
-        : undefined;
-      zoomToTrade(state.selectedChartSymbol || "", tradeNumber, chartData);
-      highlightTradeRow(tradeNumber, document.querySelector('[data-testid="trade-history-table"]'), false);
-    },
-    [state.selectedChartSymbol, state.chartData, chartMode],
-  );
+      highlightTradeRow(tradeNumber, scroller, false);
+      return;
+    }
+    const chartData = state().selectedChartSymbol
+      ? state().chartData.get(state().selectedChartSymbol)
+      : undefined;
+    zoomToTrade(state().selectedChartSymbol || "", tradeNumber, chartData);
+    highlightTradeRow(tradeNumber, document.querySelector('[data-testid="trade-history-table"]'), false);
+  };
 
-  const handleTfChange = useCallback(
-    async (tf: string | null) => {
-      const val = tf ?? "";
-      setSelectedTf(val);
-      if (!state.selectedChartSymbol) return;
-      const tfNum = val ? parseInt(val, 10) : undefined;
-      await fetchChartData(state.selectedChartSymbol, tfNum);
-    },
-    [state.selectedChartSymbol],
-  );
+  const handleTfChange = async (tf: string | null) => {
+    const val = tf ?? "";
+    setSelectedTf(val);
+    const symbol = state().selectedChartSymbol;
+    if (!symbol) return;
+    const tfNum = val ? parseInt(val, 10) : undefined;
+    await fetchChartData(symbol, tfNum);
+  };
 
   return {
     saveToHistory, setSaveToHistory, resultsSort, tradeSort, sortedResults,
@@ -178,142 +174,148 @@ function useBacktestActions(state: any, chartMode: "all" | "trades") {
   };
 }
 
-function EmptyPanel({ children, testId }: { children: string; testId?: string }) {
+function EmptyPanel(props: { children?: string; testId?: string }) {
   return (
-    <Box className="p-1.5" data-testid={testId} style={{ padding: 12 }}>
-      <Text size="xs" c="dimmed">{children}</Text>
+    <Box className="p-1.5" data-testid={props.testId} style={{ padding: "12px" }}>
+      <Text size="xs" c="dimmed">{props.children}</Text>
     </Box>
   );
 }
 
 export function BacktestPage() {
-  useStoreSubscription(subscribe);
-  useStoreSubscription(subscribeToHolidays);
+  const state = useStoreSnapshot(subscribe, getBacktestState);
+  const holidaySnap = useStoreSnapshot(subscribeToHolidays, getHolidayState);
   useBacktestQueryParams();
-  const state = getBacktestState();
-  const holidayState = getHolidayState();
-  const [activeTab, setActiveTab] = useState<string>("results");
-  const [tradeFilters, setTradeFilters] = useState<TradeFilters>(DEFAULT_TRADE_FILTERS);
+  const [activeTab, setActiveTab] = createSignal<string>("results");
+  const [tradeFilters, setTradeFilters] = createSignal<TradeFilters>(DEFAULT_TRADE_FILTERS);
   const layout = useBacktestLayout();
-  const actions = useBacktestActions(state, layout.chartMode);
+  const actions = useBacktestActions(state, () => layout.chartMode());
   useBacktestEffects(state);
   const { panels, togglePanel, openPanel } = layout;
-  const symbols = state.results?.map((r: any) => r.symbol) ?? [];
-  const hasResults = Boolean(state.results && state.results.length > 0);
-  const hasTrades = Boolean(state.tradeHistory && state.tradeHistorySymbol);
+  const symbols = createMemo(() => state().results?.map((r: any) => r.symbol) ?? []);
+  const hasResults = () => Boolean(state().results && state().results!.length > 0);
+  const hasTrades = () => Boolean(state().tradeHistory && state().tradeHistorySymbol);
 
-  useEffect(() => { if (hasResults) openPanel("results"); }, [hasResults, openPanel]);
-  useEffect(() => { if (hasTrades) openPanel("trades"); }, [hasTrades, openPanel]);
+  createEffect(() => { if (hasResults()) openPanel("results"); });
+  createEffect(() => { if (hasTrades()) openPanel("trades"); });
 
-  const strategyLabel = useMemo(() => {
-    const v = state.variations.find((x: any) => x.id === state.selectedVariation);
-    return v ? `${v.name} (${v.strategy_type})` : state.selectedStrategy;
-  }, [state.variations, state.selectedVariation, state.selectedStrategy]);
+  const strategyLabel = createMemo(() => {
+    const v = state().variations.find((x: any) => x.id === state().selectedVariation);
+    return v ? `${v.name} (${v.strategy_type})` : state().selectedStrategy;
+  });
 
-  const strategyType = useMemo(() => {
-    const v = state.variations.find((x: any) => x.id === state.selectedVariation);
-    return v?.strategy_type ?? state.selectedStrategy;
-  }, [state.variations, state.selectedVariation, state.selectedStrategy]);
+  const strategyType = createMemo(() => {
+    const v = state().variations.find((x: any) => x.id === state().selectedVariation);
+    return v?.strategy_type ?? state().selectedStrategy;
+  });
 
-  const activeChartData = useMemo(() => {
-    const sym = state.selectedChartSymbol ?? symbols[0];
-    return sym ? state.chartData.get(sym) : undefined;
-  }, [state.chartData, state.selectedChartSymbol, symbols]);
+  const activeChartData = createMemo(() => {
+    const sym = state().selectedChartSymbol ?? symbols()[0];
+    return sym ? state().chartData.get(sym) : undefined;
+  });
 
   return (
     <Box
       className="relative h-full min-h-0 flex flex-col overflow-hidden"
-      style={{ position: "relative", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", margin: 0, padding: 0 }}
+      style={{ position: "relative", height: "100%", "min-height": 0, display: "flex", "flex-direction": "column", overflow: "hidden", margin: 0, padding: 0 }}
       data-testid="backtest-view"
       id="backtest-main"
     >
       <BacktestToolbar
-        strategyLabel={strategyLabel}
-        symbolCount={state.selectedSymbols.length}
-        days={state.days}
-        isRunning={state.isRunning}
-        canRun={state.selectedSymbols.length > 0}
-        chartMode={layout.chartMode}
+        strategyLabel={strategyLabel()}
+        symbolCount={state().selectedSymbols.length}
+        days={state().days}
+        isRunning={state().isRunning}
+        canRun={state().selectedSymbols.length > 0}
+        chartMode={layout.chartMode()}
         onChartModeChange={layout.setChartMode}
         onRun={actions.handleRunBacktest}
         onReset={layout.reset}
       />
 
-      <Box className="relative flex-1 min-h-0 min-w-0 flex" style={{ position: "relative", flex: 1, minHeight: 0, minWidth: 0, display: "flex" }}>
+      <Box className="relative flex-1 min-h-0 min-w-0 flex" style={{ position: "relative", flex: 1, "min-height": 0, "min-width": 0, display: "flex" }}>
         {/* Full-bleed chart */}
-        <Box className="relative flex-1 min-w-0 min-h-0" style={{ position: "relative", flex: 1, minWidth: 0, minHeight: 0 }}>
-          {hasResults ? (
-            <ChartErrorBoundary resetKey={`${layout.chartMode}:${state.selectedChartSymbol}`}>
-              {layout.chartMode === "trades" ? (
-                <BacktestTradeCharts
-                  chartData={activeChartData}
-                  params={state.params}
-                  strategyType={strategyType}
-                  filters={tradeFilters}
-                  symbols={symbols}
-                  selectedSymbol={state.selectedChartSymbol ?? symbols[0]}
-                  onSymbolSelect={actions.handleViewChartAndTrades}
-                />
-              ) : (
-                <BacktestChartTabs
-                  symbols={symbols}
-                  selectedSymbol={state.selectedChartSymbol}
-                  onSymbolSelect={actions.handleViewChartAndTrades}
-                  zoomValue={state.chartOptions.date_range}
-                  onZoomChange={(value) => setChartOptions({ date_range: value as any })}
-                  chartDataMap={state.chartData}
-                  chartLoading={state.chartLoading}
-                  onTradeClick={actions.handleZoomToTrade}
-                  holidays={holidayState.holidays}
-                  selectedTf={actions.selectedTf}
-                  onTfChange={actions.handleTfChange}
-                />
-              )}
-            </ChartErrorBoundary>
-          ) : (
-            <Box className="h-full flex items-center justify-center" style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#000000" }}>
-              <Text c="dimmed" size="sm">
-                {state.isRunning ? "Running backtest…" : "Open Config, pick symbols and press Run to see the chart."}
-              </Text>
-            </Box>
-          )}
-
-          {state.isRunning && (
-            <Box style={{ position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 5 }}>
-              <BacktestProgress progress={{ current: state.progress.current, total: state.progress.total, message: state.progress.message }} />
-            </Box>
-          )}
-
-          {state.error && (
-            <Box style={{ position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 6, maxWidth: 560 }}>
-              <Alert
-                icon={<IconAlertCircle size={16} />}
-                title="Error"
-                color="error"
-                variant="filled"
-                data-testid="backtest-error"
-                withCloseButton
-                onClose={() => setError(null)}
+        <Box className="relative flex-1 min-w-0 min-h-0" style={{ position: "relative", flex: 1, "min-width": 0, "min-height": 0 }}>
+          <Show
+            when={hasResults()}
+            fallback={
+              <Box className="h-full flex items-center justify-center" style={{ height: "100%", display: "flex", "align-items": "center", "justify-content": "center", "background-color": palette.BG }}>
+                <Text c="dimmed" size="sm">
+                  {state().isRunning ? "Running backtest…" : "Open Config, pick symbols and press Run to see the chart."}
+                </Text>
+              </Box>
+            }
+          >
+            <ChartErrorBoundary resetKey={`${layout.chartMode()}:${state().selectedChartSymbol}`}>
+              <Show
+                when={layout.chartMode() === "trades"}
+                fallback={
+                  <BacktestChartTabs
+                    symbols={symbols()}
+                    selectedSymbol={state().selectedChartSymbol}
+                    onSymbolSelect={actions.handleViewChartAndTrades}
+                    zoomValue={state().chartOptions.date_range}
+                    onZoomChange={(value) => setChartOptions({ date_range: value as any })}
+                    chartDataMap={state().chartData}
+                    chartLoading={state().chartLoading}
+                    onTradeClick={actions.handleZoomToTrade}
+                    holidays={holidaySnap().holidays}
+                    selectedTf={actions.selectedTf()}
+                    onTfChange={actions.handleTfChange}
+                  />
+                }
               >
-                {state.error}
-              </Alert>
+                <BacktestTradeCharts
+                  chartData={activeChartData()}
+                  params={state().params}
+                  strategyType={strategyType()}
+                  filters={tradeFilters()}
+                  symbols={symbols()}
+                  selectedSymbol={state().selectedChartSymbol ?? symbols()[0]}
+                  onSymbolSelect={actions.handleViewChartAndTrades}
+                />
+              </Show>
+            </ChartErrorBoundary>
+          </Show>
+
+          <Show when={state().isRunning}>
+            <Box style={{ position: "absolute", top: "8px", left: "50%", transform: "translateX(-50%)", "z-index": 5 }}>
+              <BacktestProgress progress={{ current: state().progress.current, total: state().progress.total, message: state().progress.message }} />
             </Box>
-          )}
+          </Show>
+
+          <Show when={state().error}>
+            {(message) => (
+              <Box style={{ position: "absolute", top: "8px", left: "50%", transform: "translateX(-50%)", "z-index": 6, "max-width": "560px" }}>
+                <Alert
+                  icon={<IconAlertCircle size={16} />}
+                  title="Error"
+                  color="error"
+                  variant="filled"
+                  data-testid="backtest-error"
+                  withCloseButton
+                  onClose={() => setError(null)}
+                >
+                  {message()}
+                </Alert>
+              </Box>
+            )}
+          </Show>
         </Box>
 
         {/* Right rail — collapsible panels */}
-        <BacktestRightRail width={layout.railWidth} onWidthChange={layout.setRailWidth}>
-          <CollapsiblePanel id="config" title="Config" open={panels.config} onToggle={() => togglePanel("config")}>
+        <BacktestRightRail width={layout.railWidth()} onWidthChange={layout.setRailWidth}>
+          <CollapsiblePanel id="config" title="Config" open={panels().config} onToggle={() => togglePanel("config")}>
             <BacktestConfig
-              strategies={state.strategies}
-              variations={state.variations}
-              selectedStrategy={state.selectedStrategy}
-              selectedVariation={state.selectedVariation}
-              params={state.params}
-              selectedSymbols={state.selectedSymbols}
-              days={state.days}
-              includeCosts={state.includeCosts}
-              isRunning={state.isRunning}
+              strategies={state().strategies}
+              variations={state().variations}
+              selectedStrategy={state().selectedStrategy}
+              selectedVariation={state().selectedVariation}
+              params={state().params}
+              selectedSymbols={state().selectedSymbols}
+              days={state().days}
+              includeCosts={state().includeCosts}
+              isRunning={state().isRunning}
               onStrategyChange={setSelectedStrategy}
               onVariationChange={setSelectedVariation}
               onParamChange={setParam}
@@ -323,7 +325,7 @@ export function BacktestPage() {
               onReset={resetBacktestState}
               onRun={actions.handleRunBacktest}
               onRunAndSave={actions.handleRunAndSave}
-              saveToHistory={actions.saveToHistory}
+              saveToHistory={actions.saveToHistory()}
               onSaveToHistoryChange={actions.setSaveToHistory}
             />
           </CollapsiblePanel>
@@ -331,67 +333,71 @@ export function BacktestPage() {
           <CollapsiblePanel
             id="results"
             title="Results"
-            open={panels.results}
+            open={panels().results}
             onToggle={() => togglePanel("results")}
-            badge={hasResults ? state.results!.length : undefined}
+            badge={hasResults() ? state().results!.length : undefined}
           >
-            {hasResults ? (
+            <Show
+              when={hasResults()}
+              fallback={<EmptyPanel testId="results-empty">Run a backtest to see results.</EmptyPanel>}
+            >
               <BacktestLeftPanel
-                activeTab={activeTab}
+                activeTab={activeTab()}
                 setActiveTab={setActiveTab}
-                isRunning={state.isRunning}
-                progress={state.progress}
-                results={state.results}
-                totals={state.totals}
-                selectedChartSymbol={state.selectedChartSymbol}
-                sortedResults={actions.sortedResults}
-                resultsSortColumn={actions.resultsSort.column}
-                resultsSortDirection={actions.resultsSort.direction}
+                isRunning={state().isRunning}
+                progress={state().progress}
+                results={state().results}
+                totals={state().totals}
+                selectedChartSymbol={state().selectedChartSymbol}
+                sortedResults={actions.sortedResults()}
+                resultsSortColumn={actions.resultsSort.column()}
+                resultsSortDirection={actions.resultsSort.direction()}
                 onRowClick={actions.handleViewChartAndTrades}
                 onSort={actions.resultsSort.handleSort}
               />
-            ) : (
-              <EmptyPanel testId="results-empty">Run a backtest to see results.</EmptyPanel>
-            )}
+            </Show>
           </CollapsiblePanel>
 
           <CollapsiblePanel
             id="trades"
-            title={state.tradeHistorySymbol ? `Trades — ${state.tradeHistorySymbol}` : "Trades"}
-            open={panels.trades}
+            title={state().tradeHistorySymbol ? `Trades — ${state().tradeHistorySymbol}` : "Trades"}
+            open={panels().trades}
             onToggle={() => togglePanel("trades")}
-            badge={hasTrades ? state.tradeHistory!.length : undefined}
+            badge={hasTrades() ? state().tradeHistory!.length : undefined}
           >
-            {hasTrades && state.tradeHistory!.length > 0 ? (
+            <Show
+              when={hasTrades() && state().tradeHistory!.length > 0}
+              fallback={
+                <EmptyPanel>
+                  {state().tradeHistorySymbol ? `No trades for ${state().tradeHistorySymbol}.` : "Select a symbol to see its trades."}
+                </EmptyPanel>
+              }
+            >
               <TradeHistoryTable
-                symbol={state.tradeHistorySymbol!}
-                trades={state.tradeHistory!}
-                sortColumn={actions.tradeSort.column}
-                sortDirection={actions.tradeSort.direction}
+                symbol={state().tradeHistorySymbol!}
+                trades={state().tradeHistory!}
+                sortColumn={actions.tradeSort.column()}
+                sortDirection={actions.tradeSort.direction()}
                 onSort={actions.tradeSort.handleSort}
                 onRowClick={actions.handleZoomToTrade}
                 onClose={() => setTradeHistory(null, null)}
-                filters={tradeFilters}
+                filters={tradeFilters()}
                 onFiltersChange={setTradeFilters}
               />
-            ) : (
-              <EmptyPanel>
-                {state.tradeHistorySymbol ? `No trades for ${state.tradeHistorySymbol}.` : "Select a symbol to see its trades."}
-              </EmptyPanel>
-            )}
+            </Show>
           </CollapsiblePanel>
 
           <CollapsiblePanel
             id="edge"
-            title={state.tradeHistorySymbol ? `Edge AI — ${state.tradeHistorySymbol}` : "Edge AI"}
-            open={panels.edge}
+            title={state().tradeHistorySymbol ? `Edge AI — ${state().tradeHistorySymbol}` : "Edge AI"}
+            open={panels().edge}
             onToggle={() => togglePanel("edge")}
-            badge={hasTrades ? state.tradeHistory!.length : undefined}
+            badge={hasTrades() ? state().tradeHistory!.length : undefined}
           >
             <BacktestEdgePanel
-              symbol={state.tradeHistorySymbol ?? undefined}
-              trades={state.tradeHistory ?? []}
-              filters={tradeFilters}
+              symbol={state().tradeHistorySymbol ?? undefined}
+              trades={state().tradeHistory ?? []}
+              filters={tradeFilters()}
             />
           </CollapsiblePanel>
         </BacktestRightRail>

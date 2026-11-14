@@ -1,20 +1,24 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, waitFor } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { PayoffChart } from "./PayoffChart";
 import { curveSpots } from "./payoff";
 import type { PayoffLeg } from "./payoff";
 
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  return mockSolidUi();
+});
+
 const mocks = vi.hoisted(() => ({
   mockSetChartOption: vi.fn(),
 }));
 
-vi.mock("../../../hooks/useECharts", () => ({
-  useECharts: () => ({
-    chartRef: { current: null },
-    setChartOption: mocks.mockSetChartOption,
-  }),
+vi.mock("@/utils/loadEcharts", () => ({
+  loadEcharts: vi.fn(async () => ({
+    init: () => ({ setOption: mocks.mockSetChartOption, resize: vi.fn(), dispose: vi.fn() }),
+  })),
 }));
 
 const legs: PayoffLeg[] = [
@@ -32,13 +36,14 @@ describe("PayoffChart", () => {
   });
 
   it("shows empty-state text with no legs", () => {
-    render(<PayoffChart legs={[]} spot={null} />);
+    render(() => <PayoffChart legs={[]} spot={null} />);
     expect(screen.getByTestId("payoff-chart")).toBeInTheDocument();
     expect(screen.getByText("Add a leg to see payoff")).toBeInTheDocument();
   });
 
-  it("hides ECharts background grid split lines while keeping markLine/markPoint", () => {
-    render(<PayoffChart legs={legs} spot={100} />);
+  it("hides ECharts background grid split lines while keeping markLine/markPoint", async () => {
+    render(() => <PayoffChart legs={legs} spot={100} />);
+    await waitFor(() => expect(mocks.mockSetChartOption).toHaveBeenCalled());
     const opt = capturedOption();
     expect(opt.xAxis.splitLine.show).toBe(false);
     expect(opt.yAxis.splitLine.show).toBe(false);
@@ -54,14 +59,15 @@ describe("PayoffChart", () => {
     expect(mpData.length).toBeGreaterThan(0);
   });
 
-  it("honors rangePct (wider plotted span than default)", () => {
+  it("honors rangePct (wider plotted span than default)", async () => {
     const defaultSpan =
       Math.max(...curveSpots(100, 8)) - Math.min(...curveSpots(100, 8));
     const wideSpan =
       Math.max(...curveSpots(100, 20)) - Math.min(...curveSpots(100, 20));
     expect(wideSpan).toBeGreaterThan(defaultSpan);
 
-    render(<PayoffChart legs={legs} spot={100} rangePct={20} />);
+    render(() => <PayoffChart legs={legs} spot={100} rangePct={20} />);
+    await waitFor(() => expect(mocks.mockSetChartOption).toHaveBeenCalled());
     const opt = capturedOption();
     const spots = (opt.series as { data: [number, number][] }[])[0].data.map(
       (p) => p[0],

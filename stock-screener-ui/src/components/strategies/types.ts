@@ -30,6 +30,11 @@ export interface StrategiesPageProps {
   // View actions
   onViewChange: (view: StrategyView) => void;
 
+  // StrategiesPage passes these straight through to TemplateTreeView; they are
+  // optional so callers that only need the tree can omit them.
+  onEditTemplate?: (template: StrategyConfig) => void;
+  onSyncVariations?: (templateId: number) => void;
+
   // Strategy actions
   onCreateStrategy: (data: StrategyFormData) => void;
   onEditStrategy: (strategyId: number, data: StrategyFormData) => void;

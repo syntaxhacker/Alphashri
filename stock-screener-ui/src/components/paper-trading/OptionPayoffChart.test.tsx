@@ -1,19 +1,25 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
-import { screen, cleanup } from "@testing-library/react";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
+import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library";
 
 const mocks = vi.hoisted(() => ({
-  mockSetChartOption: vi.fn(),
+  mockSetOption: vi.fn(),
+  mockResize: vi.fn(),
+  mockDispose: vi.fn(),
+  mockInit: vi.fn(),
 }));
 
-vi.mock("../../hooks/useECharts", () => ({
-  useECharts: vi.fn(() => ({
-    chartRef: { current: null },
-    chartInstance: { current: null },
-    setChartOption: mocks.mockSetChartOption,
-  })),
+vi.mock("../../utils/loadEcharts", () => ({
+  loadEcharts: vi.fn(async () => {
+    mocks.mockInit.mockImplementation(() => ({
+      setOption: mocks.mockSetOption,
+      resize: mocks.mockResize,
+      dispose: mocks.mockDispose,
+      on: vi.fn(),
+    }));
+    return { init: mocks.mockInit };
+  }),
 }));
 
 import { OptionPayoffCard, OptionPayoffChart } from "./OptionPayoffChart";
@@ -38,20 +44,21 @@ function optionTrade(overrides: Partial<PaperTrade> = {}) {
 }
 
 describe("OptionPayoffCard", () => {
-  test("renders the card, header and chart for an option trade", () => {
-    renderWithProviders(<OptionPayoffCard trade={optionTrade()} />);
+  test("renders the card, header and chart for an option trade", async () => {
+    render(() => <OptionPayoffCard trade={optionTrade()} />);
     expect(screen.getByTestId("option-payoff-card")).toBeInTheDocument();
     expect(screen.getByTestId("option-payoff-chart")).toBeInTheDocument();
     expect(screen.getByText(/Payoff @ expiry/i)).toBeInTheDocument();
     expect(screen.getByText("LONG CE")).toBeInTheDocument();
     expect(screen.getAllByText("NIFTY").length).toBeGreaterThan(0);
     expect(screen.getByText("22,900")).toBeInTheDocument();
-    expect(mocks.mockSetChartOption).toHaveBeenCalled();
+    await vi.waitFor(() => expect(mocks.mockSetOption).toHaveBeenCalled());
   });
 
-  test("series data and markers (zero, strike, breakeven) reach ECharts", () => {
-    renderWithProviders(<OptionPayoffCard trade={optionTrade()} />);
-    const opt = mocks.mockSetChartOption.mock.calls[0][0] as any;
+  test("series data and markers (zero, strike, breakeven) reach ECharts", async () => {
+    render(() => <OptionPayoffCard trade={optionTrade()} />);
+    await vi.waitFor(() => expect(mocks.mockSetOption).toHaveBeenCalled());
+    const opt = mocks.mockSetOption.mock.calls[0][0] as any;
     expect(opt.series[0].data.length).toBeGreaterThan(1);
     const markLines = opt.series[0].markLine.data;
     expect(markLines.some((m: any) => m.yAxis === 0)).toBe(true);
@@ -61,23 +68,20 @@ describe("OptionPayoffCard", () => {
   });
 
   test("renders SHORT badge for SELL side", () => {
-    renderWithProviders(
-      <OptionPayoffCard trade={optionTrade({ side: "SELL" })} />,
-    );
+    render(() => <OptionPayoffCard trade={optionTrade({ side: "SELL" })} />);
     expect(screen.getByText("SHORT CE")).toBeInTheDocument();
   });
 
   test("is hidden for equity trades", () => {
-    renderWithProviders(<OptionPayoffCard trade={mockTrade()} />);
+    render(() => <OptionPayoffCard trade={mockTrade()} />);
     expect(screen.queryByTestId("option-payoff-card")).not.toBeInTheDocument();
-    expect(mocks.mockSetChartOption).not.toHaveBeenCalled();
+    expect(mocks.mockSetOption).not.toHaveBeenCalled();
   });
 
   test("toggle collapses and expands the chart", async () => {
-    const user = (await import("@testing-library/user-event")).default.setup();
-    renderWithProviders(<OptionPayoffCard trade={optionTrade()} />);
+    render(() => <OptionPayoffCard trade={optionTrade()} />);
     expect(screen.getByTestId("option-payoff-chart")).toBeInTheDocument();
-    await user.click(screen.getByTestId("option-payoff-toggle"));
+    await fireEvent.click(screen.getByTestId("option-payoff-toggle"));
     // Collapse keeps children mounted (hidden) but the Collapse node gets aria-hidden
     const collapse = screen.getByTestId("option-payoff-chart").closest('[aria-hidden="true"]');
     expect(collapse).not.toBeNull();
@@ -86,10 +90,8 @@ describe("OptionPayoffCard", () => {
 
 describe("OptionPayoffChart", () => {
   test("renders nothing for an empty series", () => {
-    const { container } = renderWithProviders(
-      <OptionPayoffChart series={[]} strike={100} breakeven={null} />,
-    );
+    const { container } = render(() => <OptionPayoffChart series={[]} strike={100} breakeven={null} underlying="NIFTY" />);
     expect(container.querySelector('[data-testid="option-payoff-chart"]')).toBeNull();
-    expect(mocks.mockSetChartOption).not.toHaveBeenCalled();
+    expect(mocks.mockSetOption).not.toHaveBeenCalled();
   });
 });

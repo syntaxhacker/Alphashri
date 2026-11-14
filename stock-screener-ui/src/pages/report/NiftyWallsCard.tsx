@@ -1,6 +1,7 @@
-import { memo, useEffect, useState, ReactNode } from "react";
-import { Box, Stack, Text, Button, Badge } from "@/ui";
-import { CompactPanel } from "@/components/common/compact";
+import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
+import type { JSX } from "solid-js";
+import { Text, Button, Badge } from "@/ui";
+import { LocalCompactPanel } from "./reportBits";
 import { Sparkline } from "@/components/common/Sparkline";
 import * as palette from "@/ui/palette";
 import type { WallsEvent, WallsPayload, WallsRow } from "@/api/reportNifty";
@@ -51,27 +52,21 @@ const WALLS_HEADINGS = ["OI", "NEW", "5m", "30m", "DIST"] as const;
  *  skeleton keeps the same band height as the populated card. */
 const WALLS_RESERVED_H = 96;
 
-/** The walls band grid: state/stats | CALL | PUT | READ+SEQ | tracked history. */
-const WALLS_GRID_COLS = {
-  xs: "minmax(0,1fr)",
-  md: "250px 1fr 1fr minmax(280px,1fr) minmax(120px,1fr)",
-} as const;
-
-function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
+function Stat(props: { label: string; value: string; color?: string }) {
   return (
-    <Box className="min-w-0 py-[2px]">
+    <div class="min-w-0 py-[2px]">
       <Text
         size="xs"
         span
         fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
         style={{
-          fontSize: REPORT_FONT.micro,
-          lineHeight: REPORT_LINE_HEIGHT.tight,
+          "font-size": `${REPORT_FONT.micro}px`,
+          "line-height": REPORT_LINE_HEIGHT.tight,
           color: palette.TEXT_MUTED,
-          letterSpacing: REPORT_LETTER_SPACING.wide,
+          "letter-spacing": REPORT_LETTER_SPACING.wide,
         }}
       >
-        {label}
+        {props.label}
       </Text>
       <Text
         size="xs"
@@ -79,17 +74,17 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
         fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
         className="tabular-nums whitespace-nowrap overflow-hidden truncate"
         style={{
-          fontSize: REPORT_FONT.md,
-          lineHeight: REPORT_LINE_HEIGHT.snug,
-          color: color ?? palette.TEXT_COLOR,
-          whiteSpace: "nowrap",
+          "font-size": `${REPORT_FONT.md}px`,
+          "line-height": REPORT_LINE_HEIGHT.snug,
+          color: props.color ?? palette.TEXT_COLOR,
+          "white-space": "nowrap",
           overflow: "hidden",
-          textOverflow: "ellipsis",
+          "text-overflow": "ellipsis",
         }}
       >
-        {value}
+        {props.value}
       </Text>
-    </Box>
+    </div>
   );
 }
 
@@ -122,31 +117,31 @@ function wallFuelColor(side: "CALL" | "PUT", row: WallsRow): string {
 
 /** A reserved row slot: same grid, same two-line strike cell and the same
  *  row height as a live row, so the table never shrinks. */
-function WallPlaceholderRow({ side }: { side: "CALL" | "PUT" }) {
+function WallPlaceholderRow(props: { side: "CALL" | "PUT" }) {
   return (
-    <Box
-      data-testid={`nifty-walls-${side.toLowerCase()}-placeholder`}
+    <div
+      data-testid={`nifty-walls-${props.side.toLowerCase()}-placeholder`}
       data-placeholder="true"
       data-wall-row="true"
-      className="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] items-center pl-[8px]"
+      class="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] items-center pl-[8px]"
       style={{
-        columnGap: `${REPORT_PAD.xs}px`,
-        paddingTop: `${REPORT_PAD.xs}px`,
-        paddingBottom: `${REPORT_PAD.xs}px`,
-        paddingLeft: `${REPORT_PAD.sm}px`,
-        minHeight: REPORT_ROW.walls,
-        borderLeft: "2px solid transparent",
+        "column-gap": `${REPORT_PAD.xs}px`,
+        "padding-top": `${REPORT_PAD.xs}px`,
+        "padding-bottom": `${REPORT_PAD.xs}px`,
+        "padding-left": `${REPORT_PAD.sm}px`,
+        "min-height": `${REPORT_ROW.walls}px`,
+        "border-left": "2px solid transparent",
       }}
     >
-      <Box className="flex flex-col gap-[4px] min-w-0" style={{ paddingLeft: `${REPORT_PAD.xs}px` }}>
+      <div class="flex flex-col gap-[4px] min-w-0" style={{ "padding-left": `${REPORT_PAD.xs}px` }}>
         <Text
           size="xs"
           span
           style={{
-            fontSize: REPORT_FONT.sm,
-            lineHeight: REPORT_LINE_HEIGHT.snug,
+            "font-size": `${REPORT_FONT.sm}px`,
+            "line-height": REPORT_LINE_HEIGHT.snug,
             color: palette.TEXT_MUTED,
-            fontVariantNumeric: "tabular-nums",
+            "font-variant-numeric": "tabular-nums",
           }}
         >
           —
@@ -155,54 +150,53 @@ function WallPlaceholderRow({ side }: { side: "CALL" | "PUT" }) {
           size="xs"
           span
           style={{
-            fontSize: REPORT_FONT.micro,
-            lineHeight: REPORT_LINE_HEIGHT.tight,
+            "font-size": `${REPORT_FONT.micro}px`,
+            "line-height": REPORT_LINE_HEIGHT.tight,
             color: palette.TEXT_MUTED,
           }}
         >
           —
         </Text>
-      </Box>
-      {WALLS_HEADINGS.map((heading) => (
+      </div>
+      <For each={WALLS_HEADINGS}>{() => (
         <Text
-          key={heading}
           size="xs"
           span
           style={{
-            fontSize: REPORT_FONT.sm,
-            lineHeight: REPORT_LINE_HEIGHT.snug,
-            textAlign: "right",
+            "font-size": `${REPORT_FONT.sm}px`,
+            "line-height": REPORT_LINE_HEIGHT.snug,
+            "text-align": "right",
             color: palette.TEXT_MUTED,
-            fontVariantNumeric: "tabular-nums",
+            "font-variant-numeric": "tabular-nums",
           }}
         >
           —
         </Text>
-      ))}
-    </Box>
+      )}</For>
+    </div>
   );
 }
 
-function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number }) {
-  const color = side === "CALL" ? palette.NEGATIVE : palette.POSITIVE;
-  const maxOi = wallsMaxOi(rows);
-  const sideKey = side.toLowerCase();
+function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number }) {
+  const color = props.side === "CALL" ? palette.NEGATIVE : palette.POSITIVE;
+  const maxOi = createMemo(() => wallsMaxOi(props.rows));
+  const sideKey = props.side.toLowerCase();
   // Three rows always: the missing ones are reserved slots, so a one-wall
   // payload leaves the table exactly as tall as a three-wall payload.
-  const placeholders = Math.max(0, WALLS_ROWS - Math.min(rows.length, WALLS_ROWS));
-  const display: (WallsRow | null)[] = [
-    ...rows.slice(0, WALLS_ROWS),
-    ...Array.from({ length: placeholders }, () => null),
-  ];
+  const placeholders = createMemo(() => Math.max(0, WALLS_ROWS - Math.min(props.rows.length, WALLS_ROWS)));
+  const display = createMemo(() => [
+    ...props.rows.slice(0, WALLS_ROWS),
+    ...Array.from({ length: placeholders() }, () => null),
+  ]);
   return (
-    <Box data-testid={`nifty-walls-${sideKey}`} className="min-w-0">
-      <Box
-        className="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] border-b border-solid pb-[4px] mb-[4px]"
+    <div data-testid={`nifty-walls-${sideKey}`} class="min-w-0">
+      <div
+        class="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] border-b border-solid pb-[4px] mb-[4px]"
         style={{
-          columnGap: `${REPORT_PAD.xs}px`,
-          borderBottom: `1px solid ${palette.BORDER}`,
-          paddingBottom: `${REPORT_PAD.xs}px`,
-          marginBottom: `${REPORT_PAD.xs}px`,
+          "column-gap": `${REPORT_PAD.xs}px`,
+          "border-bottom": `1px solid ${palette.BORDER}`,
+          "padding-bottom": `${REPORT_PAD.xs}px`,
+          "margin-bottom": `${REPORT_PAD.xs}px`,
         }}
       >
         <Text
@@ -210,35 +204,34 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
           span
           fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            fontSize: REPORT_FONT.xs,
+            "font-size": `${REPORT_FONT.xs}px`,
             color,
-            letterSpacing: REPORT_LETTER_SPACING.wider,
+            "letter-spacing": REPORT_LETTER_SPACING.wider,
           }}
         >
-          {side}
+          {props.side}
         </Text>
-        {WALLS_HEADINGS.map((heading) => (
+        <For each={WALLS_HEADINGS}>{(heading) => (
           <Text
-            key={heading}
             size="xs"
             span
             title={heading === "NEW" ? "New OI since session open (old book → new book)" : undefined}
             style={{
-              fontSize: REPORT_FONT.xs,
+              "font-size": `${REPORT_FONT.xs}px`,
               color: palette.TEXT_MUTED,
-              textAlign: "right",
-              letterSpacing: REPORT_LETTER_SPACING.normal,
+              "text-align": "right",
+              "letter-spacing": REPORT_LETTER_SPACING.normal,
             }}
           >
             {heading}
           </Text>
-        ))}
-      </Box>
-      {display.map((row, index) => {
+        )}</For>
+      </div>
+      <For each={display()}>{(row) => {
         if (!row) {
-          return <WallPlaceholderRow key={`${side}-placeholder-${index}`} side={side} />;
+          return <WallPlaceholderRow side={props.side} />;
         }
-        const view = wallErosionView(row, side);
+        const view = wallErosionView(row, props.side);
         const nearest = Boolean(row.nearest);
         const tracked = Boolean(row.tracked);
         const flowLabelText = flowLabel(row.flow);
@@ -249,71 +242,70 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
         const partsTitle = parts
           ? ` · parts: erosion ${parts.erosion}, volume ${parts.volume}, proximity ${parts.proximity}, gamma ${parts.gamma}, flow ${parts.flow}`
           : "";
-        const cellColor = wallFuelColor(side, row);
+        const cellColor = wallFuelColor(props.side, row);
         const border = nearest
           ? `2px solid ${cellColor}`
           : tracked
             ? `2px solid ${color}`
             : "2px solid transparent";
         return (
-          <Box
-            key={`${side}-${row.strike}`}
+          <div
             data-wall-row="true"
-            className="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] items-center pl-[8px]"
+            class="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] items-center pl-[8px]"
             style={{
-              columnGap: `${REPORT_PAD.xs}px`,
-              alignItems: "center",
-              paddingTop: `${REPORT_PAD.xs}px`,
-              paddingBottom: `${REPORT_PAD.xs}px`,
-              paddingLeft: `${REPORT_PAD.sm}px`,
-              minHeight: REPORT_ROW.walls,
-              borderLeft: border,
-              backgroundColor: (nearest || tracked) ? palette.SURFACE_ALT : "transparent",
+              "column-gap": `${REPORT_PAD.xs}px`,
+              "align-items": "center",
+              "padding-top": `${REPORT_PAD.xs}px`,
+              "padding-bottom": `${REPORT_PAD.xs}px`,
+              "padding-left": `${REPORT_PAD.sm}px`,
+              "min-height": `${REPORT_ROW.walls}px`,
+              "border-left": border,
+              "background-color": (nearest || tracked) ? palette.SURFACE_ALT : "transparent",
               transition: "background-color 180ms ease",
             }}
           >
-            <Box className="flex flex-col gap-[4px] min-w-0" style={{ paddingLeft: `${REPORT_PAD.xs}px` }}>
-              <Box className="flex items-baseline gap-[4px] min-w-0">
+            <div class="flex flex-col gap-[4px] min-w-0" style={{ "padding-left": `${REPORT_PAD.xs}px` }}>
+              <div class="flex items-baseline gap-[4px] min-w-0">
                 <Text
                   size="xs"
                   span
                   fw={tracked ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.medium}
                   style={{
-                    fontSize: REPORT_FONT.sm,
-                    lineHeight: REPORT_LINE_HEIGHT.snug,
-                    fontWeight: tracked ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.medium,
+                    "font-size": `${REPORT_FONT.sm}px`,
+                    "line-height": REPORT_LINE_HEIGHT.snug,
+                    "font-weight": tracked ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.medium,
                     color: tracked ? color : palette.TEXT_COLOR,
-                    fontVariantNumeric: "tabular-nums",
-                    whiteSpace: "nowrap",
+                    "font-variant-numeric": "tabular-nums",
+                    "white-space": "nowrap",
                     overflow: "hidden",
-                    textOverflow: "ellipsis",
+                    "text-overflow": "ellipsis",
                   }}
                 >
                   {fmtNum(row.strike)}
                 </Text>
-                {nearest && (
-                  <Box className="w-[3px] h-[3px] rounded-full shrink-0" style={{ backgroundColor: cellColor }} />
-                )}
-                {view.arrow !== "—" && (
+                <Show when={nearest}>
+                  <div class="w-[3px] h-[3px] rounded-full shrink-0" style={{ "background-color": cellColor }} />
+                </Show>
+                <Show when={view.arrow !== "—"}>
                   <Text
                     size="xs"
                     span
                     fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
                     style={{
-                      fontSize: REPORT_FONT.micro,
-                      fontWeight: REPORT_FONT_WEIGHT.extrabold,
+                      "font-size": `${REPORT_FONT.micro}px`,
+                      "font-weight": REPORT_FONT_WEIGHT.extrabold,
                       color: cellColor,
-                      marginLeft: `${REPORT_PAD.xs}px`,
-                      flexShrink: 0,
+                      "margin-left": `${REPORT_PAD.xs}px`,
+                      "flex-shrink": 0,
                     }}
                   >
                     {view.arrow}
                   </Text>
-                )}
-                <span style={{ fontSize: REPORT_FONT.micro, marginLeft: 3, color: palette.TEXT_MUTED }}>
-                  {wallCode(side === "CALL", wallSide(row.strike, spot), false)}
+                </Show>
+                <span style={{ "font-size": `${REPORT_FONT.micro}px`, "margin-left": "3px", color: palette.TEXT_MUTED }}>
+                  {wallCode(props.side === "CALL", wallSide(row.strike, props.spot), false)}
                 </span>
-              </Box>
+              </div>
               <Text
                 size="xs"
                 span
@@ -323,78 +315,78 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
                     ? `${flowLabelText} · vol ${volText} · prem ${fmtPremChange(row.prem_chg_5m)} · fuel ${view.fuelScore}${partsTitle}`
                     : undefined
                 }
-                data-testid={`nifty-walls-${side.toLowerCase()}-${row.strike}-flow`}
+                data-testid={`nifty-walls-${props.side.toLowerCase()}-${row.strike}-flow`}
                 style={{
-                  fontSize: REPORT_FONT.micro,
-                  lineHeight: REPORT_LINE_HEIGHT.tight,
+                  "font-size": `${REPORT_FONT.micro}px`,
+                  "line-height": REPORT_LINE_HEIGHT.tight,
                   color: flowToneColor(flowTone(row.flow)),
-                  fontWeight: REPORT_FONT_WEIGHT.bold,
-                  minWidth: 0,
+                  "font-weight": REPORT_FONT_WEIGHT.bold,
+                  "min-width": 0,
                 }}
               >
                 {flowSuffix}
               </Text>
-            </Box>
-            <Box
+            </div>
+            <div
               title={`Old ${fmtOI(row.oi_open)} → new ${fmtOI(row.oi)}`}
               style={{
                 position: "relative",
-                minWidth: 0,
-                alignSelf: "stretch",
+                "min-width": 0,
+                "align-self": "stretch",
                 display: "flex",
-                alignItems: "center",
-                justifyContent: "flex-end",
+                "align-items": "center",
+                "justify-content": "flex-end",
               }}
             >
-              <Box
+              <div
                 style={{
                   position: "absolute",
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  height: 2,
-                  backgroundColor: palette.SURFACE,
+                  "height": "2px",
+                  "background-color": palette.SURFACE,
                   overflow: "hidden",
                 }}
               >
-                <Box
+                <div
                   style={{
-                    width: `${Math.min(100, (row.oi / maxOi) * 100)}%`,
+                    width: `${Math.min(100, (row.oi / maxOi()) * 100)}%`,
                     height: "100%",
-                    backgroundColor: color,
+                    "background-color": color,
                     opacity: 0.55,
                     transition: "width 280ms cubic-bezier(.22,1,.36,1)",
                   }}
                 />
-              </Box>
+              </div>
               <Text
                 size="sm"
                 span
                 style={{
-                  fontSize: REPORT_FONT.sm,
-                  lineHeight: REPORT_LINE_HEIGHT.snug,
-                  textAlign: "right",
-                  fontVariantNumeric: "tabular-nums",
+                  "font-size": `${REPORT_FONT.sm}px`,
+                  "line-height": REPORT_LINE_HEIGHT.snug,
+                  "text-align": "right",
+                  "font-variant-numeric": "tabular-nums",
                   color: palette.TEXT_COLOR,
                 }}
               >
                 {fmtOI(row.oi)}
               </Text>
-            </Box>
+            </div>
             <Text
               size="sm"
               span
               title={`Old ${fmtOI(row.oi_open)} → new ${fmtOI(row.oi)} · ${fmtPct(row.new_oi_pct)} of old book`}
               style={{
-                fontSize: REPORT_FONT.sm,
-                lineHeight: REPORT_LINE_HEIGHT.snug,
-                textAlign: "right",
-                fontVariantNumeric: "tabular-nums",
+                "font-size": `${REPORT_FONT.sm}px`,
+                "line-height": REPORT_LINE_HEIGHT.snug,
+                "text-align": "right",
+                "font-variant-numeric": "tabular-nums",
                 color: erosionColor(row.new_oi),
-                backgroundColor: newOiTint(row.new_oi, rows),
-                borderRadius: `${REPORT_RADIUS.sm}px`,
-                paddingLeft: `${REPORT_PAD.xs}px`,
-                paddingRight: `${REPORT_PAD.xs}px`,
+                "background-color": newOiTint(row.new_oi, props.rows),
+                "border-radius": `${REPORT_RADIUS.sm}px`,
+                "padding-left": `${REPORT_PAD.xs}px`,
+                "padding-right": `${REPORT_PAD.xs}px`,
                 transition: "background-color 220ms ease",
               }}
             >
@@ -405,11 +397,11 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
               span
               title={row.erosion_5m != null ? `5m erosion ${fmtPct(row.erosion_5m)} · 30m rate ${fmtRate(row.erosion_rate_30m)}` : undefined}
               style={{
-                fontSize: REPORT_FONT.sm,
-                lineHeight: REPORT_LINE_HEIGHT.snug,
-                textAlign: "right",
+                "font-size": `${REPORT_FONT.sm}px`,
+                "line-height": REPORT_LINE_HEIGHT.snug,
+                "text-align": "right",
                 color: cellColor,
-                fontVariantNumeric: "tabular-nums",
+                "font-variant-numeric": "tabular-nums",
               }}
             >
               {fmtPct(row.erosion_5m)}
@@ -419,11 +411,11 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
               span
               title={`30m erosion ${fmtPct(row.erosion_30m)} · rate ${fmtRate(row.erosion_rate_30m)} · prem ${fmtPremChange(row.prem_chg_5m)}`}
               style={{
-                fontSize: REPORT_FONT.sm,
-                lineHeight: REPORT_LINE_HEIGHT.snug,
-                textAlign: "right",
+                "font-size": `${REPORT_FONT.sm}px`,
+                "line-height": REPORT_LINE_HEIGHT.snug,
+                "text-align": "right",
                 color: cellColor,
-                fontVariantNumeric: "tabular-nums",
+                "font-variant-numeric": "tabular-nums",
               }}
             >
               {fmtPct(row.erosion_30m)}
@@ -432,70 +424,69 @@ function WallTable({ side, rows, spot }: { side: "CALL" | "PUT"; rows: WallsRow[
               size="sm"
               span
               style={{
-                fontSize: REPORT_FONT.sm,
-                lineHeight: REPORT_LINE_HEIGHT.snug,
-                textAlign: "right",
+                "font-size": `${REPORT_FONT.sm}px`,
+                "line-height": REPORT_LINE_HEIGHT.snug,
+                "text-align": "right",
                 color: palette.TEXT_MUTED,
-                fontVariantNumeric: "tabular-nums",
+                "font-variant-numeric": "tabular-nums",
               }}
             >
               {dist(row.distance_pct)}
             </Text>
-          </Box>
+          </div>
         );
-      })}
-    </Box>
+      }}</For>
+    </div>
   );
 }
 
-function SequenceLine({ events }: { events: WallsEvent[] }) {
-  const recent = events.slice(-3);
-  const hidden = events.length - recent.length;
-  const firstBreakAt = firstBreakEvent(events)?.at;
+function SequenceLine(props: { events: WallsEvent[] }) {
+  const recent = () => props.events.slice(-3);
+  const hidden = () => props.events.length - recent().length;
+  const firstBreakAt = () => firstBreakEvent(props.events)?.at;
   return (
-    <Box className="flex items-center gap-[8px] min-w-0 overflow-hidden" style={{ marginLeft: `${REPORT_PAD.sm}px` }}>
+    <div class="flex items-center gap-[8px] min-w-0 overflow-hidden" style={{ "margin-left": `${REPORT_PAD.sm}px` }}>
       <Text
         size="xs"
         span
         fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
         style={{
-          fontSize: REPORT_FONT.micro,
+          "font-size": `${REPORT_FONT.micro}px`,
           color: palette.TEXT_MUTED,
-          letterSpacing: REPORT_LETTER_SPACING.wider,
-          flexShrink: 0,
+          "letter-spacing": REPORT_LETTER_SPACING.wider,
+          "flex-shrink": 0,
         }}
       >
         SEQ
       </Text>
-      {hidden > 0 && (
-        <Text size="xs" span style={{ color: palette.TEXT_MUTED, flexShrink: 0 }}>
-          +{hidden}
+      <Show when={hidden() > 0}>
+        <Text size="xs" span style={{ color: palette.TEXT_MUTED, "flex-shrink": 0 }}>
+          +{hidden()}
         </Text>
-      )}
-      {recent.map((event, index) => {
+      </Show>
+      <For each={recent()}>{(event) => {
         const isBreak = event.kind === "BREAK";
-        const isFirst = isBreak && event.at === firstBreakAt;
+        const isFirst = isBreak && event.at === firstBreakAt();
         return (
-          <Box
-            key={`${event.at}-${index}`}
+          <div
             data-wall-anim=""
-            className="flex items-center gap-[4px] shrink-0"
+            class="flex items-center gap-[4px] shrink-0"
             style={{
               display: "flex",
-              alignItems: "center",
+              "align-items": "center",
               gap: `${REPORT_PAD.xs}px`,
-              flexShrink: 0,
+              "flex-shrink": 0,
               animation: "wall-event-in 160ms cubic-bezier(.22,1,.36,1)",
             }}
           >
-            <Box className="w-[4px] h-[4px] rounded-full shrink-0" style={{ backgroundColor: isBreak ? palette.NEGATIVE : palette.WARNING }} />
+            <div class="w-[4px] h-[4px] rounded-full shrink-0" style={{ "background-color": isBreak ? palette.NEGATIVE : palette.WARNING }} />
             <Text
               size="xs"
               span
               style={{
-                fontSize: REPORT_FONT.micro,
+                "font-size": `${REPORT_FONT.micro}px`,
                 color: isBreak ? palette.NEGATIVE : palette.TEXT_MUTED,
-                fontVariantNumeric: "tabular-nums",
+                "font-variant-numeric": "tabular-nums",
               }}
             >
               {event.at.slice(11, 16)}
@@ -505,94 +496,90 @@ function SequenceLine({ events }: { events: WallsEvent[] }) {
               span
               fw={isBreak ? REPORT_FONT_WEIGHT.extrabold : REPORT_FONT_WEIGHT.medium}
               style={{
-                fontSize: REPORT_FONT.xsPlus,
-                fontWeight: isBreak ? REPORT_FONT_WEIGHT.extrabold : REPORT_FONT_WEIGHT.medium,
+                "font-size": `${REPORT_FONT.xsPlus}px`,
+                "font-weight": isBreak ? REPORT_FONT_WEIGHT.extrabold : REPORT_FONT_WEIGHT.medium,
                 color: isBreak ? palette.NEGATIVE : palette.TEXT_MUTED,
               }}
             >
               {isBreak ? (isFirst ? "BREAK" : "RE-BRK") : "TOUCH"}
             </Text>
-          </Box>
+          </div>
         );
-      })}
-    </Box>
+      }}</For>
+    </div>
   );
 }
 
-function MiniHistory({ walls }: { walls: WallsPayload }) {
-  const callValues = walls.history.map((point) => point.call_oi ?? null);
-  const putValues = walls.history.map((point) => point.put_oi ?? null);
-  const first = walls.history[0];
-  const last = walls.history[walls.history.length - 1];
+function MiniHistory(props: { walls: WallsPayload }) {
+  const callValues = () => props.walls.history.map((point) => point.call_oi ?? null);
+  const putValues = () => props.walls.history.map((point) => point.put_oi ?? null);
+  const first = () => props.walls.history[0];
+  const last = () => props.walls.history[props.walls.history.length - 1];
   return (
-    <Box className="min-w-0">
-      <Stack direction="row" className="items-center justify-between" style={{ alignItems: "center", justifyContent: "space-between" }}>
+    <div class="min-w-0">
+      <div class="flex items-center justify-between" style={{ "align-items": "center", "justify-content": "space-between" }}>
         <Text
           size="xs"
           span
           fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            fontSize: REPORT_FONT.micro,
-            fontWeight: REPORT_FONT_WEIGHT.extrabold,
+            "font-size": `${REPORT_FONT.micro}px`,
+            "font-weight": REPORT_FONT_WEIGHT.extrabold,
             color: palette.TEXT_MUTED,
-            letterSpacing: REPORT_LETTER_SPACING.wide,
+            "letter-spacing": REPORT_LETTER_SPACING.wide,
           }}
         >
-          TRACKED WALL {fmtNum(walls.call_wall.strike)} · LAST {walls.window_min}m
+          TRACKED WALL {fmtNum(props.walls.call_wall.strike)} · LAST {props.walls.window_min}m
         </Text>
         <Text size="xs" span style={{ color: palette.TEXT_MUTED }}>
-          {first?.t?.slice(11, 16)} → {last?.t?.slice(11, 16)}
+          {first()?.t?.slice(11, 16)} → {last()?.t?.slice(11, 16)}
         </Text>
-      </Stack>
-      <Stack direction="row" className="items-center justify-between" style={{ alignItems: "center", justifyContent: "space-between", marginTop: `${REPORT_PAD.xs}px` }}>
+      </div>
+      <div class="flex items-center justify-between" style={{ "align-items": "center", "justify-content": "space-between", "margin-top": `${REPORT_PAD.xs}px` }}>
         <Text size="xs" span style={{ color: palette.TEXT_MUTED }}>call OI · 30m Δ</Text>
         <Text
           size="xs"
           span
           fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            fontSize: REPORT_FONT.xs,
-            fontWeight: REPORT_FONT_WEIGHT.bold,
-            color: erosionColor(walls.tracked_call_erosion_30m),
+            "font-size": `${REPORT_FONT.xs}px`,
+            "font-weight": REPORT_FONT_WEIGHT.bold,
+            color: erosionColor(props.walls.tracked_call_erosion_30m),
           }}
         >
-          {fmtPct(walls.tracked_call_erosion_30m)}
+          {fmtPct(props.walls.tracked_call_erosion_30m)}
         </Text>
-      </Stack>
-      <Box style={{ "& svg": { width: "100%", height: 18, maxWidth: 420 } }}>
-        <Sparkline values={callValues} width={420} height={18} color={palette.NEGATIVE} testId="walls-card-call-spark" animate responsive />
-      </Box>
-      <Stack direction="row" className="items-center justify-between" style={{ alignItems: "center", justifyContent: "space-between" }}>
+      </div>
+      <Sparkline values={callValues()} width={420} height={18} color={palette.NEGATIVE} testId="walls-card-call-spark" animate responsive />
+      <div class="flex items-center justify-between" style={{ "align-items": "center", "justify-content": "space-between" }}>
         <Text size="xs" span style={{ color: palette.TEXT_MUTED }}>put OI · 30m Δ</Text>
         <Text
           size="xs"
           span
           fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            fontSize: REPORT_FONT.xs,
-            fontWeight: REPORT_FONT_WEIGHT.bold,
-            color: erosionColor(walls.tracked_put_build_30m),
+            "font-size": `${REPORT_FONT.xs}px`,
+            "font-weight": REPORT_FONT_WEIGHT.bold,
+            color: erosionColor(props.walls.tracked_put_build_30m),
           }}
         >
-          {fmtPct(walls.tracked_put_build_30m)}
+          {fmtPct(props.walls.tracked_put_build_30m)}
         </Text>
-      </Stack>
-      <Box style={{ "& svg": { width: "100%", height: 18, maxWidth: 420 } }}>
-        <Sparkline values={putValues} width={420} height={18} color={palette.POSITIVE} testId="walls-card-put-spark" animate responsive />
-      </Box>
-    </Box>
+      </div>
+      <Sparkline values={putValues()} width={420} height={18} color={palette.POSITIVE} testId="walls-card-put-spark" animate responsive />
+    </div>
   );
 }
 
 /** Muted placeholder block used by the null-payload skeleton. */
-function SkeletonBar({ height, width = "100%" }: { height: number; width?: number | string }) {
+function SkeletonBar(props: { height: number; width?: number | string }) {
   return (
-    <Box
+    <div
       style={{
-        height: `${height}px`,
-        width: typeof width === "number" ? `${width}px` : width,
-        borderRadius: `${REPORT_RADIUS.sm}px`,
-        backgroundColor: palette.SURFACE_ALT,
+        height: `${props.height}px`,
+        width: typeof props.width === "number" ? `${props.width}px` : props.width ?? "100%",
+        "border-radius": `${REPORT_RADIUS.sm}px`,
+        "background-color": palette.SURFACE_ALT,
       }}
     />
   );
@@ -602,27 +589,27 @@ function SkeletonBar({ height, width = "100%" }: { height: number; width?: numbe
  *  keeps the height of the live one. */
 function SkeletonStat() {
   return (
-    <Box className="min-w-0 py-[2px]">
+    <div class="min-w-0 py-[2px]">
       <SkeletonBar height={11} width="42%" />
       <SkeletonBar height={15} width="68%" />
-    </Box>
+    </div>
   );
 }
 
 /** The levels rows live inside this card in both states — dropping them on a
  *  null payload would change the card height by the levels band. */
-function WallsLevelsBlock({ levels }: { levels?: ReactNode }) {
-  if (!levels) return null;
+function WallsLevelsBlock(props: { levels?: JSX.Element }) {
+  if (!props.levels) return null;
   return (
-    <Box
+    <div
       style={{
-        borderTop: `1px solid ${palette.BORDER}`,
-        paddingTop: `${REPORT_PAD.sm}px`,
-        minWidth: 0,
+        "border-top": `1px solid ${palette.BORDER}`,
+        "padding-top": `${REPORT_PAD.sm}px`,
+        "min-width": 0,
       }}
     >
-      {levels}
-    </Box>
+      {props.levels}
+    </div>
   );
 }
 
@@ -635,64 +622,64 @@ function WallsLevelsBlock({ levels }: { levels?: ReactNode }) {
  *  side, so the skeleton body lands on the same height as the populated one.
  *  The READ/SEQ and tracked-history bands are reserved at 96px so they can
  *  never collapse below the live bands. */
-function WallsSkeleton({ emptyText }: { emptyText: string }) {
+function WallsSkeleton(props: { emptyText: string }) {
   return (
-    <Box
+    <div
       data-testid="nifty-walls-skeleton"
-      className="grid gap-[8px] p-[8px] items-start"
+      class="grid gap-[8px] p-[8px] items-start"
       style={{
         display: "grid",
-        gridTemplateColumns: WALLS_GRID_COLS.xs,
+        "grid-template-columns": "minmax(0,1fr)",
         gap: `${REPORT_PAD.sm}px`,
         padding: `${REPORT_PAD.sm}px`,
-        alignItems: "start",
+        "align-items": "start",
       }}
     >
-      <Box data-testid="nifty-walls-skeleton-strip" className="min-w-0">
-        <Stack direction="row" spacing={1} className="items-center flex-wrap" style={{ alignItems: "center", flexWrap: "wrap", rowGap: `${REPORT_PAD.xs}px` }}>
+      <div data-testid="nifty-walls-skeleton-strip" class="min-w-0">
+        <div class="flex items-center flex-wrap gap-2" style={{ "align-items": "center", "flex-wrap": "wrap", "row-gap": `${REPORT_PAD.xs}px` }}>
           <SkeletonBar height={18} width={64} />
           <SkeletonBar height={12} width={46} />
           <SkeletonBar height={12} width={108} />
-        </Stack>
-        <Box
+        </div>
+        <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            columnGap: `${REPORT_PAD.md}px`,
-            rowGap: `${REPORT_PAD.xs}px`,
-            marginTop: `${REPORT_PAD.sm}px`,
+            "grid-template-columns": "1fr 1fr",
+            "column-gap": `${REPORT_PAD.md}px`,
+            "row-gap": `${REPORT_PAD.xs}px`,
+            "margin-top": `${REPORT_PAD.sm}px`,
           }}
         >
           <SkeletonStat />
           <SkeletonStat />
           <SkeletonStat />
           <SkeletonStat />
-        </Box>
+        </div>
         <Text
           size="xs"
           span
           style={{
-            fontSize: REPORT_FONT.xs,
+            "font-size": `${REPORT_FONT.xs}px`,
             color: palette.TEXT_MUTED,
-            marginTop: `${REPORT_PAD.xs}px`,
+            "margin-top": `${REPORT_PAD.xs}px`,
           }}
         >
-          {emptyText}
+          {props.emptyText}
         </Text>
-      </Box>
+      </div>
 
       <WallTable side="CALL" rows={[]} spot={0} />
       <WallTable side="PUT" rows={[]} spot={0} />
 
-      <Box
+      <div
         data-testid="nifty-walls-skeleton-read"
         style={{
-          minHeight: WALLS_RESERVED_H,
-          minWidth: 0,
-          borderLeft: `1px solid ${palette.BORDER}`,
-          paddingLeft: `${REPORT_PAD.sm}px`,
+          "min-height": `${WALLS_RESERVED_H}px`,
+          "min-width": 0,
+          "border-left": `1px solid ${palette.BORDER}`,
+          "padding-left": `${REPORT_PAD.sm}px`,
           display: "flex",
-          flexDirection: "column",
+          "flex-direction": "column",
           gap: `${REPORT_PAD.xs}px`,
         }}
       >
@@ -701,10 +688,10 @@ function WallsSkeleton({ emptyText }: { emptyText: string }) {
           span
           fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            fontSize: REPORT_FONT.micro,
-            fontWeight: REPORT_FONT_WEIGHT.extrabold,
+            "font-size": `${REPORT_FONT.micro}px`,
+            "font-weight": REPORT_FONT_WEIGHT.extrabold,
             color: palette.TEXT_MUTED,
-            letterSpacing: REPORT_LETTER_SPACING.wider,
+            "letter-spacing": REPORT_LETTER_SPACING.wider,
           }}
         >
           READ
@@ -717,25 +704,25 @@ function WallsSkeleton({ emptyText }: { emptyText: string }) {
           span
           fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            fontSize: REPORT_FONT.micro,
-            fontWeight: REPORT_FONT_WEIGHT.extrabold,
+            "font-size": `${REPORT_FONT.micro}px`,
+            "font-weight": REPORT_FONT_WEIGHT.extrabold,
             color: palette.TEXT_MUTED,
-            letterSpacing: REPORT_LETTER_SPACING.wider,
-            marginTop: `${REPORT_PAD.sm}px`,
+            "letter-spacing": REPORT_LETTER_SPACING.wider,
+            "margin-top": `${REPORT_PAD.sm}px`,
           }}
         >
           SEQ
         </Text>
         <SkeletonBar height={10} width="60%" />
-      </Box>
+      </div>
 
-      <Box
+      <div
         data-testid="nifty-walls-skeleton-history"
         style={{
-          minHeight: WALLS_RESERVED_H,
-          minWidth: 0,
+          "min-height": `${WALLS_RESERVED_H}px`,
+          "min-width": 0,
           display: "flex",
-          flexDirection: "column",
+          "flex-direction": "column",
           gap: `${REPORT_PAD.xs}px`,
         }}
       >
@@ -744,18 +731,12 @@ function WallsSkeleton({ emptyText }: { emptyText: string }) {
         <SkeletonBar height={18} />
         <SkeletonBar height={10} width="34%" />
         <SkeletonBar height={18} />
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }
 
-export function NiftyWallsCardInner({
-  walls,
-  onExpand,
-  onOpenDesk,
-  emptyText = "No walls data.",
-  levels,
-}: {
+export function NiftyWallsCardInner(props: {
   walls: WallsPayload | null;
   onExpand: () => void;
   /** Opens the deeper pressure desk (phase plane + selected-wall path). */
@@ -763,17 +744,19 @@ export function NiftyWallsCardInner({
   emptyText?: string;
   /** Optional dense levels rows (e.g. LevelsInPlayContent) rendered inside
    *  this same card, after the walls grid. */
-  levels?: ReactNode;
+  levels?: JSX.Element;
 }) {
-  const [dismissed, setDismissed] = useState<string | null>(null);
+  const walls = () => props.walls;
+  const [dismissed, setDismissed] = createSignal<string | null>(null);
 
   // One alert per wall per cooldown: the backend latches `alert.at` to the
   // first break of the run; localStorage makes the dismiss survive reloads
   // and suppresses a re-break inside the same 15-minute window.
-  useEffect(() => {
-    if (!walls?.alert) return;
-    const alert = walls.alert;
-    const key = `walls.alert.v1.${walls.symbol}.${walls.date}.${alert.wall}`;
+  createEffect(() => {
+    const currentWalls = walls();
+    if (!currentWalls?.alert) return;
+    const alert = currentWalls.alert;
+    const key = `walls.alert.v1.${currentWalls.symbol}.${currentWalls.date}.${alert.wall}`;
     try {
       const stored = window.localStorage.getItem(key);
       if (!stored) return;
@@ -790,31 +773,33 @@ export function NiftyWallsCardInner({
     } catch {
       /* localStorage can be blocked; the in-memory dismiss still works */
     }
-  }, [walls?.alert?.at, walls?.alert?.wall, walls?.symbol, walls?.date]);
+  });
 
-  if (!walls) {
+  if (!walls()) {
     return (
-      <CompactPanel title="WALLS" testId="nifty-walls-card" padded={false}>
-        <WallsSkeleton emptyText={emptyText} />
-        <WallsLevelsBlock levels={levels} />
-      </CompactPanel>
+      <LocalCompactPanel title="WALLS" testId="nifty-walls-card" flush>
+        <WallsSkeleton emptyText={props.emptyText ?? "No walls data."} />
+        <WallsLevelsBlock levels={props.levels} />
+      </LocalCompactPanel>
     );
   }
-  const stateColor = STATE_COLOR[walls.state] ?? palette.TEXT_MUTED;
-  const alert = walls.alert;
-  const showAlert = Boolean(alert && walls.alert_eligible && dismissed !== alert.at);
-  const events = walls.events ?? [];
-  const firstBreak = firstBreakEvent(events) ?? null;
-  const lastBreak = lastBreakEvent(events) ?? null;
-  const breakEvent = firstBreak ?? lastBreak;
-  const dteLabel = formatDte(walls.dte);
-  const pinColor =
-    Math.abs(walls.pin_distance_pct) <= 0.15 ? palette.PRIMARY : palette.TEXT_MUTED;
+  const stateColor = () => STATE_COLOR[walls()!.state] ?? palette.TEXT_MUTED;
+  const alert = () => walls()!.alert;
+  const showAlert = () => Boolean(alert() && walls()!.alert_eligible && dismissed() !== alert()!.at);
+  const events = () => walls()!.events ?? [];
+  const firstBreak = () => firstBreakEvent(events()) ?? null;
+  const lastBreak = () => lastBreakEvent(events()) ?? null;
+  const breakEvent = () => firstBreak() ?? lastBreak();
+  const dteLabel = () => formatDte(walls()!.dte);
+  const pinColor = () =>
+    Math.abs(walls()!.pin_distance_pct) <= 0.15 ? palette.PRIMARY : palette.TEXT_MUTED;
   const dismiss = (at: string, wall: number) => {
     setDismissed(at);
+    const currentWalls = walls();
+    if (!currentWalls) return;
     try {
       window.localStorage.setItem(
-        `walls.alert.v1.${walls.symbol}.${walls.date}.${wall}`,
+        `walls.alert.v1.${currentWalls.symbol}.${currentWalls.date}.${wall}`,
         at,
       );
     } catch {
@@ -823,25 +808,23 @@ export function NiftyWallsCardInner({
   };
 
   return (
-    <CompactPanel
+    <LocalCompactPanel
       title="WALLS"
       testId="nifty-walls-card"
-      padded={false}
       action={
-        <Stack direction="row" spacing={0.5} className="items-center" style={{ alignItems: "center" }}>
-          {onOpenDesk ? (
+        <div class="flex items-center gap-1">
+          {props.onOpenDesk ? (
             <Button
               size="xs"
               variant="outline"
               data-testid="nifty-walls-desk"
-              onClick={onOpenDesk}
+              onClick={props.onOpenDesk}
               className="min-w-0"
               style={{
-                paddingY: 0,
-                paddingLeft: `${REPORT_PAD.sm}px`,
-                paddingRight: `${REPORT_PAD.sm}px`,
-                minWidth: 0,
-                fontSize: REPORT_FONT.micro,
+                "padding-left": `${REPORT_PAD.sm}px`,
+                "padding-right": `${REPORT_PAD.sm}px`,
+                "min-width": 0,
+                "font-size": `${REPORT_FONT.micro}px`,
               }}
             >
               DESK
@@ -850,208 +833,204 @@ export function NiftyWallsCardInner({
           <Button
             size="xs"
             variant="outline"
-            onClick={onExpand}
+            onClick={props.onExpand}
             className="min-w-0"
             style={{
-              paddingY: 0,
-              paddingLeft: `${REPORT_PAD.sm}px`,
-              paddingRight: `${REPORT_PAD.sm}px`,
-              minWidth: 0,
-              fontSize: REPORT_FONT.micro,
+              "padding-left": `${REPORT_PAD.sm}px`,
+              "padding-right": `${REPORT_PAD.sm}px`,
+              "min-width": 0,
+              "font-size": `${REPORT_FONT.micro}px`,
             }}
           >
             EXPAND
           </Button>
-        </Stack>
+        </div>
       }
-      style={{ borderTop: "none" }}
+      style={{ "border-top": "none" }}
     >
-      <Box
-        className="grid items-start"
-        style={{
-          display: "grid",
-          gridTemplateColumns: WALLS_GRID_COLS.xs,
-          gap: `${REPORT_PAD.sm}px`,
-          padding: `${REPORT_PAD.sm}px`,
-          alignItems: "start",
-        }}
+      <div
+        // The five-column band is the point of this card: at the xs variant it
+        // stacked CALL/PUT/READ/history into one column and grew to 475px,
+        // which pushed the chart below the fold. Media query, not inline style,
+        // so the wide layout actually wins at desk width.
+        class="grid items-start gap-[8px] p-[8px] grid-cols-1 min-[1100px]:grid-cols-[250px_1fr_1fr_minmax(280px,1fr)_minmax(120px,1fr)]"
+        data-testid="nifty-walls-grid"
       >
-        <Box className="min-w-0">
-          <Stack direction="row" spacing={1} className="items-center flex-wrap" style={{ alignItems: "center", flexWrap: "wrap", rowGap: `${REPORT_PAD.xs}px` }}>
+        <div class="min-w-0">
+          <div class="flex items-center flex-wrap gap-2" style={{ "align-items": "center", "flex-wrap": "wrap", "row-gap": `${REPORT_PAD.xs}px` }}>
             <Badge
               size="xs"
               variant="outline"
-              color={stateColor}
+              color={stateColor()}
               className="min-w-0"
               style={{
-                height: 18,
-                fontSize: REPORT_FONT.xs,
-                fontWeight: REPORT_FONT_WEIGHT.extrabold,
-                letterSpacing: REPORT_LETTER_SPACING.wide,
-                color: stateColor,
-                backgroundColor: "transparent",
-                border: `1px solid ${stateColor}`,
-                paddingLeft: `${REPORT_PAD.xs}px`,
-                paddingRight: `${REPORT_PAD.xs}px`,
+                "height": "18px",
+                "font-size": `${REPORT_FONT.xs}px`,
+                "font-weight": REPORT_FONT_WEIGHT.extrabold,
+                "letter-spacing": REPORT_LETTER_SPACING.wide,
+                color: stateColor(),
+                "background-color": "transparent",
+                border: `1px solid ${stateColor()}`,
+                "padding-left": `${REPORT_PAD.xs}px`,
+                "padding-right": `${REPORT_PAD.xs}px`,
               }}
             >
-              {walls.state.replace("_", " ")}
+              {walls()!.state.replace("_", " ")}
             </Badge>
-            {dteLabel && (
+            {dteLabel() && (
               <Text
                 size="xs"
                 span
                 fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
                 style={{
-                  fontSize: REPORT_FONT.xs,
-                  fontWeight: REPORT_FONT_WEIGHT.bold,
-                  color: walls.expiry_day ? palette.WARNING : palette.TEXT_MUTED,
-                  whiteSpace: "nowrap",
+                  "font-size": `${REPORT_FONT.xs}px`,
+                  "font-weight": REPORT_FONT_WEIGHT.bold,
+                  color: walls()!.expiry_day ? palette.WARNING : palette.TEXT_MUTED,
+                  "white-space": "nowrap",
                 }}
               >
-                {dteLabel}
+                {dteLabel()}
               </Text>
             )}
             <Text
               size="xs"
               span
               style={{
-                fontSize: REPORT_FONT.xs,
+                "font-size": `${REPORT_FONT.xs}px`,
                 color: palette.TEXT_MUTED,
-                whiteSpace: "nowrap",
+                "white-space": "nowrap",
               }}
             >
-              {walls.expiry ?? "—"} · tape {walls.freshness.last_t.slice(11, 16)}
+              {walls()!.expiry ?? "—"} · tape {walls()!.freshness.last_t.slice(11, 16)}
             </Text>
-            {walls.freshness.stale && (
+            {walls()!.freshness.stale && (
               <Badge
                 size="xs"
                 variant="outline"
                 color="warning"
                 className="min-w-0"
                 style={{
-                  height: 17,
-                  fontSize: REPORT_FONT.xs,
+                  "height": "17px",
+                  "font-size": `${REPORT_FONT.xs}px`,
                   color: palette.WARNING,
-                  backgroundColor: "transparent",
+                  "background-color": "transparent",
                   border: `1px solid ${palette.WARNING}`,
-                  paddingLeft: `${REPORT_PAD.xs}px`,
-                  paddingRight: `${REPORT_PAD.xs}px`,
+                  "padding-left": `${REPORT_PAD.xs}px`,
+                  "padding-right": `${REPORT_PAD.xs}px`,
                 }}
               >
                 STALE
               </Badge>
             )}
-          </Stack>
+          </div>
 
-          <Box
+          <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              columnGap: `${REPORT_PAD.md}px`,
-              rowGap: `${REPORT_PAD.xs}px`,
-              marginTop: `${REPORT_PAD.sm}px`,
+              "grid-template-columns": "1fr 1fr",
+              "column-gap": `${REPORT_PAD.md}px`,
+              "row-gap": `${REPORT_PAD.xs}px`,
+              "margin-top": `${REPORT_PAD.sm}px`,
             }}
           >
-            <Stat label="SPOT" value={fmtNum(walls.spot, 2)} />
-            <Stat label="MAX PAIN" value={fmtNum(walls.max_pain)} />
+            <Stat label="SPOT" value={fmtNum(walls()!.spot, 2)} />
+            <Stat label="MAX PAIN" value={fmtNum(walls()!.max_pain)} />
             <Stat
               label="PIN"
-              value={`${walls.pin_distance_pts > 0 ? "+" : ""}${fmtNum(walls.pin_distance_pts, 0)} (${walls.pin_distance_pct.toFixed(2)}%)`}
-              color={pinColor}
+              value={`${walls()!.pin_distance_pts > 0 ? "+" : ""}${fmtNum(walls()!.pin_distance_pts, 0)} (${walls()!.pin_distance_pct.toFixed(2)}%)`}
+              color={pinColor()}
             />
             <Stat
               label="GEX"
-              value={walls.gex_degraded ? "n/a" : fmtNum(walls.net_gex, 1)}
-              color={walls.gex_degraded ? palette.TEXT_MUTED : palette.TEXT_COLOR}
+              value={walls()!.gex_degraded ? "n/a" : fmtNum(walls()!.net_gex, 1)}
+              color={walls()!.gex_degraded ? palette.TEXT_MUTED : palette.TEXT_COLOR}
             />
-          </Box>
+          </div>
 
-        </Box>
+        </div>
 
-        <WallTable side="CALL" rows={walls.calls} spot={walls.spot} />
-        <WallTable side="PUT" rows={walls.puts} spot={walls.spot} />
+        <WallTable side="CALL" rows={walls()!.calls} spot={walls()!.spot} />
+        <WallTable side="PUT" rows={walls()!.puts} spot={walls()!.spot} />
 
-        <Box
+        <div
           style={{
-            minWidth: 0,
+            "min-width": 0,
             display: "grid",
-            gridTemplateColumns: "minmax(0,1.15fr) minmax(0,1fr)",
+            "grid-template-columns": "minmax(0,1.15fr) minmax(0,1fr)",
             gap: `${REPORT_PAD.md}px`,
           }}
         >
-          <Box style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: `${REPORT_PAD.sm}px` }}>
-            {showAlert && alert ? (
-              <Box
+          <div style={{ "min-width": 0, display: "flex", "flex-direction": "column", gap: `${REPORT_PAD.sm}px` }}>
+            {showAlert() && alert() ? (
+              <div
                 data-testid="nifty-walls-alert"
                 data-wall-anim=""
                 style={{
-                  borderLeft: `3px solid ${palette.NEGATIVE}`,
-                  backgroundColor: palette.SURFACE_ALT,
-                  paddingLeft: `${REPORT_PAD.sm}px`,
-                  paddingTop: `${REPORT_PAD.xs}px`,
-                  paddingBottom: `${REPORT_PAD.xs}px`,
+                  "border-left": `3px solid ${palette.NEGATIVE}`,
+                  "background-color": palette.SURFACE_ALT,
+                  "padding-left": `${REPORT_PAD.sm}px`,
+                  "padding-top": `${REPORT_PAD.xs}px`,
+                  "padding-bottom": `${REPORT_PAD.xs}px`,
                   animation: "wall-alert-in 180ms cubic-bezier(.22,1,.36,1)",
                 }}
               >
-                <Stack direction="row" spacing={1} className="items-center justify-between" style={{ alignItems: "center", justifyContent: "space-between", gap: `${REPORT_PAD.sm}px` }}>
+                <div class="flex items-center justify-between gap-2" style={{ "align-items": "center", "justify-content": "space-between", gap: `${REPORT_PAD.sm}px` }}>
                   <Text
                     size="xs"
                     span
                     fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
                     style={{
-                      fontSize: REPORT_FONT.xs,
-                      fontWeight: REPORT_FONT_WEIGHT.extrabold,
+                      "font-size": `${REPORT_FONT.xs}px`,
+                      "font-weight": REPORT_FONT_WEIGHT.extrabold,
                       color: palette.NEGATIVE,
-                      whiteSpace: "nowrap",
+                      "white-space": "nowrap",
                       overflow: "hidden",
-                      textOverflow: "ellipsis",
+                      "text-overflow": "ellipsis",
                     }}
                   >
-                    WALL BREAK · {fmtNum(alert.wall)} · {fmtNum(alert.spot, 1)}
+                    WALL BREAK · {fmtNum(alert()!.wall)} · {fmtNum(alert()!.spot, 1)}
                   </Text>
                   <Button
                     size="xs"
-                    variant="text"
-                    onClick={() => dismiss(alert.at, alert.wall)}
+                    variant="filled"
+                    onClick={() => dismiss(alert()!.at, alert()!.wall)}
                     className="min-w-0 shrink-0"
                     style={{
-                      minWidth: 0,
-                      paddingY: 0,
-                      paddingLeft: `${REPORT_PAD.xs}px`,
-                      paddingRight: `${REPORT_PAD.xs}px`,
-                      fontSize: REPORT_FONT.micro,
+                      "min-width": 0,
+                      "padding-left": `${REPORT_PAD.xs}px`,
+                      "padding-right": `${REPORT_PAD.xs}px`,
+                      "font-size": `${REPORT_FONT.micro}px`,
                       color: palette.TEXT_MUTED,
-                      flexShrink: 0,
+                      "flex-shrink": 0,
                     }}
                   >
                     dismiss
                   </Button>
-                </Stack>
+                </div>
                 <Text
                   size="xs"
                   span
                   style={{
-                    fontSize: REPORT_FONT.xsPlus,
-                    lineHeight: REPORT_LINE_HEIGHT.relaxed,
+                    "font-size": `${REPORT_FONT.xsPlus}px`,
+                    "line-height": REPORT_LINE_HEIGHT.relaxed,
                     color: palette.TEXT_MUTED,
                   }}
                 >
-                  call {fmtPct(alert.erosion_30m)} · put {fmtPct(alert.put_build_30m)} · {alert.at.slice(11, 19)}
+                  call {fmtPct(alert()!.erosion_30m)} · put {fmtPct(alert()!.put_build_30m)} · {alert()!.at.slice(11, 19)}
                 </Text>
-              </Box>
-            ) : breakEvent ? (
-              <Box style={{ paddingLeft: `${REPORT_PAD.sm}px`, borderLeft: `2px solid ${palette.NEGATIVE}`, display: "flex", flexDirection: "column", gap: `${REPORT_PAD.xs}px` }}>
-                <Stack direction="row" spacing={1} className="items-center flex-wrap" style={{ alignItems: "center", flexWrap: "wrap", rowGap: `${REPORT_PAD.xs}px` }}>
+              </div>
+            ) : breakEvent() ? (
+              <div style={{ "padding-left": `${REPORT_PAD.sm}px`, "border-left": `2px solid ${palette.NEGATIVE}`, display: "flex", "flex-direction": "column", gap: `${REPORT_PAD.xs}px` }}>
+                <div class="flex items-center flex-wrap gap-2" style={{ "align-items": "center", "flex-wrap": "wrap", "row-gap": `${REPORT_PAD.xs}px` }}>
                   <Text
                     size="xs"
                     span
                     fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
                     style={{
-                      fontSize: REPORT_FONT.micro,
-                      fontWeight: REPORT_FONT_WEIGHT.extrabold,
+                      "font-size": `${REPORT_FONT.micro}px`,
+                      "font-weight": REPORT_FONT_WEIGHT.extrabold,
                       color: palette.TEXT_MUTED,
-                      letterSpacing: REPORT_LETTER_SPACING.wide,
+                      "letter-spacing": REPORT_LETTER_SPACING.wide,
                     }}
                   >
                     FIRST BREAK
@@ -1062,36 +1041,36 @@ export function NiftyWallsCardInner({
                     fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
                     className="tabular-nums"
                     style={{
-                      fontSize: REPORT_FONT.xs,
-                      fontWeight: REPORT_FONT_WEIGHT.extrabold,
+                      "font-size": `${REPORT_FONT.xs}px`,
+                      "font-weight": REPORT_FONT_WEIGHT.extrabold,
                       color: palette.NEGATIVE,
-                      fontVariantNumeric: "tabular-nums",
+                      "font-variant-numeric": "tabular-nums",
                     }}
                   >
-                    {breakEvent.at.slice(11, 19)} · {fmtNum(breakEvent.wall)}
+                    {breakEvent()!.at.slice(11, 19)} · {fmtNum(breakEvent()!.wall)}
                   </Text>
                   <Text
                     size="xs"
                     span
                     style={{
-                      fontSize: REPORT_FONT.xsPlus,
+                      "font-size": `${REPORT_FONT.xsPlus}px`,
                       color: palette.TEXT_MUTED,
                     }}
                   >
-                    call {fmtPct(breakEvent.erosion_30m)} · put {fmtPct(breakEvent.put_build_30m)}
+                    call {fmtPct(breakEvent()!.erosion_30m)} · put {fmtPct(breakEvent()!.put_build_30m)}
                   </Text>
-                </Stack>
-                {lastBreak && lastBreak.at !== breakEvent.at && (
-                  <Stack direction="row" spacing={1} className="items-center flex-wrap" style={{ alignItems: "center", flexWrap: "wrap", rowGap: `${REPORT_PAD.xs}px` }}>
+                </div>
+                {lastBreak() && lastBreak()!.at !== breakEvent()!.at && (
+                  <div class="flex items-center flex-wrap gap-2" style={{ "align-items": "center", "flex-wrap": "wrap", "row-gap": `${REPORT_PAD.xs}px` }}>
                     <Text
                       size="xs"
                       span
                       fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
                       style={{
-                        fontSize: REPORT_FONT.micro,
-                        fontWeight: REPORT_FONT_WEIGHT.extrabold,
+                        "font-size": `${REPORT_FONT.micro}px`,
+                        "font-weight": REPORT_FONT_WEIGHT.extrabold,
                         color: palette.WARNING,
-                        letterSpacing: REPORT_LETTER_SPACING.wide,
+                        "letter-spacing": REPORT_LETTER_SPACING.wide,
                       }}
                     >
                       RE-BROKE
@@ -1102,53 +1081,53 @@ export function NiftyWallsCardInner({
                       fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
                       className="tabular-nums"
                       style={{
-                        fontSize: REPORT_FONT.xs,
-                        fontWeight: REPORT_FONT_WEIGHT.bold,
+                        "font-size": `${REPORT_FONT.xs}px`,
+                        "font-weight": REPORT_FONT_WEIGHT.bold,
                         color: palette.WARNING,
-                        fontVariantNumeric: "tabular-nums",
+                        "font-variant-numeric": "tabular-nums",
                       }}
                     >
-                      {lastBreak.at.slice(11, 19)} · {fmtNum(lastBreak.wall)}
+                      {lastBreak()!.at.slice(11, 19)} · {fmtNum(lastBreak()!.wall)}
                     </Text>
                     <Text
                       size="xs"
                       span
                       style={{
-                        fontSize: REPORT_FONT.xsPlus,
+                        "font-size": `${REPORT_FONT.xsPlus}px`,
                         color: palette.TEXT_MUTED,
                       }}
                     >
-                      call {fmtPct(lastBreak.erosion_30m)} · put {fmtPct(lastBreak.put_build_30m)}
+                      call {fmtPct(lastBreak()!.erosion_30m)} · put {fmtPct(lastBreak()!.put_build_30m)}
                     </Text>
-                  </Stack>
+                  </div>
                 )}
-              </Box>
-            ) : walls.expiry_day ? (
+              </div>
+            ) : walls()!.expiry_day ? (
               <Text
                 size="xs"
                 span
                 style={{
-                  fontSize: REPORT_FONT.xs,
-                  lineHeight: REPORT_LINE_HEIGHT.relaxed,
+                  "font-size": `${REPORT_FONT.xs}px`,
+                  "line-height": REPORT_LINE_HEIGHT.relaxed,
                   color: palette.TEXT_MUTED,
                 }}
               >
                 No confirmed break in the window.
               </Text>
             ) : null}
-            <SequenceLine events={events} />
-          </Box>
+            <SequenceLine events={events()} />
+          </div>
 
-          <Box style={{ minWidth: 0, borderLeft: `1px solid ${palette.BORDER}`, paddingLeft: `${REPORT_PAD.sm}px` }}>
+          <div style={{ "min-width": 0, "border-left": `1px solid ${palette.BORDER}`, "padding-left": `${REPORT_PAD.sm}px` }}>
             <Text
               size="xs"
               span
               fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
               style={{
-                fontSize: REPORT_FONT.micro,
-                fontWeight: REPORT_FONT_WEIGHT.extrabold,
+                "font-size": `${REPORT_FONT.micro}px`,
+                "font-weight": REPORT_FONT_WEIGHT.extrabold,
                 color: palette.TEXT_MUTED,
-                letterSpacing: REPORT_LETTER_SPACING.wider,
+                "letter-spacing": REPORT_LETTER_SPACING.wider,
               }}
             >
               READ
@@ -1157,37 +1136,34 @@ export function NiftyWallsCardInner({
               size="xs"
               span
               style={{
-                fontSize: REPORT_FONT.xsPlus,
-                lineHeight: REPORT_LINE_HEIGHT.relaxed,
+                "font-size": `${REPORT_FONT.xsPlus}px`,
+                "line-height": REPORT_LINE_HEIGHT.relaxed,
                 color: palette.TEXT_MUTED,
-                marginTop: `${REPORT_PAD.xs}px`,
+                "margin-top": `${REPORT_PAD.xs}px`,
               }}
             >
-              {walls.reasons.slice(0, 4).join(" · ")}
+              {walls()!.reasons.slice(0, 4).join(" · ")}
             </Text>
             <Text
               size="xs"
               span
               style={{
-                fontSize: REPORT_FONT.xsPlus,
-                lineHeight: REPORT_LINE_HEIGHT.relaxed,
+                "font-size": `${REPORT_FONT.xsPlus}px`,
+                "line-height": REPORT_LINE_HEIGHT.relaxed,
                 color: palette.TEXT_MUTED,
-                marginTop: `${REPORT_PAD.sm}px`,
+                "margin-top": `${REPORT_PAD.sm}px`,
               }}
             >
-              {walls.expiry_day ? "break = erosion + put floor" : "Non-expiry: positioning, not gamma"}
+              {walls()!.expiry_day ? "break = erosion + put floor" : "Non-expiry: positioning, not gamma"}
             </Text>
-          </Box>
-        </Box>
+          </div>
+        </div>
 
-        <MiniHistory walls={walls} />
-      </Box>
-      <WallsLevelsBlock levels={levels} />
-    </CompactPanel>
+        <MiniHistory walls={walls()!} />
+      </div>
+      <WallsLevelsBlock levels={props.levels} />
+    </LocalCompactPanel>
   );
 }
 
-/** Memoised: the report panel re-renders on every ~1 s spot tick, and this
- *  card's inputs (`walls` object, stable callbacks) only change per poll. */
-export const NiftyWallsCard = memo(NiftyWallsCardInner);
-NiftyWallsCard.displayName = "NiftyWallsCard";
+export const NiftyWallsCard = NiftyWallsCardInner;

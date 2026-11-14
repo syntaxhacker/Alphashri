@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, waitFor, fireEvent } from "@solidjs/testing-library";
 
 const searchSymbols = vi.fn();
 vi.mock("@/api/symbols", () => ({
@@ -21,28 +20,26 @@ beforeEach(() => {
 
 describe("SymbolAutocomplete", () => {
   test("debounces the query and commits the selected symbol", async () => {
-    const user = userEvent.setup();
-    const onChange = vi.fn();
-    render(<SymbolAutocomplete value="NETWEB" onChange={onChange} />);
+        const onChange = vi.fn();
+    render(() => (<SymbolAutocomplete value="NETWEB" onChange={onChange} />));
 
     const input = screen.getByLabelText("Symbol");
-    await user.clear(input);
-    await user.type(input, "RELI");
+    await fireEvent.input(input, { target: { value: "" } });
+    await fireEvent.input(input, { target: { value: "RELI" } });
 
     await waitFor(() => expect(searchSymbols).toHaveBeenCalledWith("RELI", 10));
 
     const option = await screen.findByText("RELIANCE");
-    await user.click(option);
+    await fireEvent.click(option);
 
     expect(onChange).toHaveBeenCalledWith("RELIANCE");
   });
 
   test("keeps typed text after async options resolve", async () => {
-    const user = userEvent.setup();
-    render(<SymbolAutocomplete value="" onChange={vi.fn()} />);
+        render(() => (<SymbolAutocomplete value="" onChange={vi.fn()} />));
     const input = screen.getByLabelText("Symbol");
 
-    await user.type(screen.getByLabelText("Symbol"), "RELI");
+    await fireEvent.input(screen.getByLabelText("Symbol"), { target: { value: "RELI" } });
     await waitFor(() => expect(searchSymbols).toHaveBeenCalledWith("RELI", 10));
     await screen.findByText("RELIANCE");
 
@@ -51,16 +48,14 @@ describe("SymbolAutocomplete", () => {
   });
 
   test("shows extra options when the input is empty", async () => {
-    const user = userEvent.setup();
-    render(
-      <SymbolAutocomplete
+        render(() => (<SymbolAutocomplete
         value=""
         onChange={vi.fn()}
         extraOptions={["NIFTY", "BANKNIFTY", "nifty"]}
-      />,
+      />),
     );
 
-    await user.click(screen.getByLabelText("Symbol"));
+    await fireEvent.focus(screen.getByLabelText("Symbol"));
 
     await waitFor(() => {
       const texts = optionTexts();
@@ -72,17 +67,15 @@ describe("SymbolAutocomplete", () => {
   });
 
   test("filters extras by substring and appends API results", async () => {
-    const user = userEvent.setup();
-    searchSymbols.mockResolvedValue([{ symbol: "TATASTEEL", name: "Tata Steel Limited" }]);
-    render(
-      <SymbolAutocomplete
+        searchSymbols.mockResolvedValue([{ symbol: "TATASTEEL", name: "Tata Steel Limited" }]);
+    render(() => (<SymbolAutocomplete
         value=""
         onChange={vi.fn()}
         extraOptions={["NIFTY", "TATA"]}
-      />,
+      />),
     );
 
-    await user.type(screen.getByLabelText("Symbol"), "TATA");
+    await fireEvent.input(screen.getByLabelText("Symbol"), { target: { value: "TATA" } });
     await waitFor(() => expect(searchSymbols).toHaveBeenCalledWith("TATA", 10));
     await screen.findByText("TATASTEEL");
 
@@ -93,17 +86,15 @@ describe("SymbolAutocomplete", () => {
   });
 
   test("dedupes an API result that is already an extra option", async () => {
-    const user = userEvent.setup();
-    searchSymbols.mockResolvedValue([{ symbol: "RELIANCE", name: "Reliance Industries" }]);
-    render(
-      <SymbolAutocomplete
+        searchSymbols.mockResolvedValue([{ symbol: "RELIANCE", name: "Reliance Industries" }]);
+    render(() => (<SymbolAutocomplete
         value=""
         onChange={vi.fn()}
         extraOptions={["RELIANCE"]}
-      />,
+      />),
     );
 
-    await user.type(screen.getByLabelText("Symbol"), "RELI");
+    await fireEvent.input(screen.getByLabelText("Symbol"), { target: { value: "RELI" } });
     await waitFor(() => expect(searchSymbols).toHaveBeenCalledWith("RELI", 10));
     await screen.findByText("RELIANCE");
 
@@ -111,14 +102,13 @@ describe("SymbolAutocomplete", () => {
   });
 
   test("compact mode drops the floating label and uses a placeholder", () => {
-    render(
-      <SymbolAutocomplete
+    render(() => (<SymbolAutocomplete
         value="NIFTY"
         onChange={vi.fn()}
         extraOptions={["NIFTY"]}
         compact
         testid="compact-symbol"
-      />,
+      />),
     );
 
     expect(screen.queryByLabelText("Symbol")).not.toBeInTheDocument();
@@ -127,19 +117,17 @@ describe("SymbolAutocomplete", () => {
   });
 
   test("selects a static extra option", async () => {
-    const user = userEvent.setup();
-    const onChange = vi.fn();
-    render(
-      <SymbolAutocomplete
+        const onChange = vi.fn();
+    render(() => (<SymbolAutocomplete
         value=""
         onChange={onChange}
         extraOptions={["NIFTY", "BANKNIFTY"]}
         compact
-      />,
+      />),
     );
 
-    await user.click(screen.getByPlaceholderText("Index or F&O stock"));
-    await user.click(await screen.findByText("BANKNIFTY"));
+    await fireEvent.focus(screen.getByPlaceholderText("Index or F&O stock"));
+    await fireEvent.click(await screen.findByText("BANKNIFTY"));
 
     expect(onChange).toHaveBeenCalledWith("BANKNIFTY");
   });

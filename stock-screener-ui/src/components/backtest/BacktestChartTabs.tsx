@@ -1,9 +1,9 @@
-import { memo } from "react";
-import { Tabs, Select, Group, Text, Box, Center } from "@/ui";
+import { For } from "solid-js";
+import { Tabs, Select, Text, Center, Group, Box } from "@/ui";
+import * as palette from "@/ui/palette";
 import { BacktestChart } from "./BacktestChart";
 import type { SymbolChartData } from "../../types/backtest";
 import type { MarketHoliday } from "../../types/holidays";
-
 export interface BacktestChartTabsProps {
   symbols: string[];
   selectedSymbol: string | null;
@@ -38,56 +38,45 @@ const TF_OPTIONS = [
   { value: "43200", label: "1M" },
 ];
 
-export const BacktestChartTabs = memo(function BacktestChartTabs({
-  symbols,
-  selectedSymbol,
-  onSymbolSelect,
-  zoomValue,
-  onZoomChange,
-  chartDataMap,
-  chartLoading,
-  onTradeClick,
-  holidays,
-  selectedTf,
-  onTfChange,
-}: BacktestChartTabsProps) {
-  if (symbols.length === 0) {
+export function BacktestChartTabs(props: BacktestChartTabsProps) {
+  if (props.symbols.length === 0) {
     return (
       <Center
         id="chart-container"
         data-testid="chart-container"
         h={400}
         className="rounded-fin"
-        style={{ backgroundColor: "#0A0A0A", borderRadius: 2 }}
+        style={{ "background-color": palette.SURFACE, "border-radius": "2px" }}
       >
         <Text c="dimmed">Select a symbol to view chart</Text>
       </Center>
     );
   }
 
-  const currentChartData = selectedSymbol ? chartDataMap.get(selectedSymbol) : null;
+  const sym = props.selectedSymbol;
+  const currentChartData = sym ? props.chartDataMap.get(sym) : null;
 
   return (
     <Box
       id="chart-container"
       data-testid="chart-container"
       h="100%"
-      style={{ display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0, overflow: "hidden" }}
+      style={{ display: "flex", "flex-direction": "column", "min-height": 0, "min-width": 0, overflow: "hidden" }}
     >
       <Box mb={1} flex="0 0 auto" data-testid="chart-tabs-header" p={1}>
         <Box className="flex items-center justify-between gap-2 p-2">
           <Box className="flex items-center justify-center">
             <Tabs
-              value={selectedSymbol}
-              onChange={(value) => value && onSymbolSelect(value)}
+              value={props.selectedSymbol}
+              onChange={(value) => value && props.onSymbolSelect(value)}
               data-testid="chart-tabs"
             >
               <Tabs.List className="flex items-center justify-center gap-2">
-                {symbols.map((symbol) => (
-                  <Tabs.Tab key={symbol} value={symbol} data-testid={`chart-tab-${symbol}`}>
+                <For each={props.symbols}>{(symbol) => (
+                  <Tabs.Tab value={symbol} data-testid={`chart-tab-${symbol}`}>
                     {symbol}
                   </Tabs.Tab>
-                ))}
+                )}</For>
               </Tabs.List>
             </Tabs>
           </Box>
@@ -95,8 +84,8 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
           <Group gap={1} align="center" className="flex items-center gap-2">
             <Select
               data-testid="chart-tf-select"
-              value={selectedTf}
-              onChange={(value) => onTfChange(value)}
+              value={props.selectedTf}
+              onChange={(value) => props.onTfChange(value)}
               data={TF_OPTIONS}
               w={80}
               size="sm"
@@ -104,8 +93,8 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
             />
             <Select
               id="chart-zoom-select"
-              value={zoomValue}
-              onChange={(value) => value && onZoomChange(value)}
+              value={props.zoomValue}
+              onChange={(value) => value && props.onZoomChange(value)}
               data={ZOOM_OPTIONS}
               data-testid="chart-zoom-select"
               w={80}
@@ -118,23 +107,23 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
       <Box
         flex={1}
         data-testid="chart-tabs-content"
-        style={{ minHeight: 0, minWidth: 0, position: "relative", overflow: "hidden" }}
+        style={{ "min-height": 0, "min-width": 0, position: "relative", overflow: "hidden" }}
       >
         {selectedSymbol ? (
           <BacktestChart
-            symbol={selectedSymbol}
+            symbol={props.selectedSymbol}
             chartData={currentChartData}
-            isLoading={chartLoading && !currentChartData}
-            onTradeClick={onTradeClick}
-            holidays={holidays}
-            zoomValue={zoomValue}
+            isLoading={props.chartLoading && !currentChartData}
+            onTradeClick={props.onTradeClick}
+            holidays={props.holidays}
+            zoomValue={props.zoomValue}
           />
         ) : (
           <Center
             data-testid="chart-placeholder"
             h="100%"
             className="rounded-fin"
-            style={{ backgroundColor: "#0A0A0A", borderRadius: 2 }}
+            style={{ "background-color": palette.SURFACE, "border-radius": "2px" }}
           >
             <Text c="dimmed">Select a symbol</Text>
           </Center>
@@ -142,4 +131,4 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
       </Box>
     </Box>
   );
-});
+}

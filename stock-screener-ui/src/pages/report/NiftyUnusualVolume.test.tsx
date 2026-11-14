@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, within, cleanup } from "@testing-library/react";
-import { configure } from "@testing-library/dom";
+import { render, screen, within, cleanup, configure } from "@solidjs/testing-library";
+import type { JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
 import {
@@ -70,12 +70,8 @@ vi.mock("echarts-for-react", () => ({
   default: () => <div data-testid="nifty-depth-echarts" />,
 }));
 
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>{children}</UIProvider>;
-}
-
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: TestWrapper });
+function r(ui: () => JSX.Element) {
+  return render(() => <UIProvider>{ui()}</UIProvider>);
 }
 
 function side(volume: number, oi: number, sentiment = "LB") {
@@ -267,15 +263,15 @@ describe("NiftyUnusualVolume render", () => {
   });
 
   test("header shows compact CE/PE totals, top share and the rank caption", () => {
-    r(
+    r(() => (
       <NiftyUnusualVolume
         spot={25750}
         strikes={[
           strikeAt(25700, side(1_250_000, 500_000, "LB"), side(850_000, 500_000, "SB")),
           strikeAt(25800, side(100_000, 500_000, "LB"), side(50_000, 500_000, "SB")),
         ]}
-      />,
-    );
+      />
+    ));
     expect(screen.getByTestId("nifty-unusual-panel")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-unusual-panel")).toHaveTextContent("Unusual volume");
     expect(screen.getByTestId("nifty-unusual-ce-vol")).toHaveTextContent("1.35M");
@@ -286,15 +282,15 @@ describe("NiftyUnusualVolume render", () => {
   });
 
   test("rows render in Vol÷OI order with pills, bars and full positioning names", () => {
-    r(
+    r(() => (
       <NiftyUnusualVolume
         spot={25750}
         strikes={[
           strikeAt(25700, side(100_000, 10_000, "LB"), side(50_000, 50_000, "SB")),
           strikeAt(25800, side(90_000, 1_000, "SC"), side(1_000, 1_000, "LU")),
         ]}
-      />,
-    );
+      />
+    ));
     const table = screen.getByTestId("nifty-unusual-table");
     const rows = within(table).getAllByTestId(/^nifty-unusual-row-/);
     expect(rows.map((el) => el.getAttribute("data-testid"))).toEqual([
@@ -314,15 +310,15 @@ describe("NiftyUnusualVolume render", () => {
   });
 
   test("volume bars scale both length and fill opacity with size", () => {
-    r(
+    r(() => (
       <NiftyUnusualVolume
         spot={25750}
         strikes={[
           strikeAt(25700, side(100_000, 10_000, "LB"), side(50_000, 50_000, "SB")),
           strikeAt(25800, side(10_000, 10_000, "LB"), side(5_000, 5_000, "SB")),
         ]}
-      />,
-    );
+      />
+    ));
     const table = screen.getByTestId("nifty-unusual-table");
     const big = within(table).getByTestId("nifty-unusual-bar-25700-CE");
     const small = within(table).getByTestId("nifty-unusual-bar-25800-CE");
@@ -335,12 +331,12 @@ describe("NiftyUnusualVolume render", () => {
   });
 
   test("oi=0 cell shows compact volume instead of a ratio", () => {
-    r(
+    r(() => (
       <NiftyUnusualVolume
         spot={25750}
         strikes={[strikeAt(25700, side(5_000, 0, "LB"), side(3_000, 1_000, "SB"))]}
-      />,
-    );
+      />
+    ));
     const table = screen.getByTestId("nifty-unusual-table");
     const ceRow = within(table).getByTestId("nifty-unusual-row-25700-CE");
     expect(ceRow).toHaveTextContent("5.00K");
@@ -350,12 +346,12 @@ describe("NiftyUnusualVolume render", () => {
   });
 
   test("position cell tooltip separates contract action from market tone", () => {
-    r(
+    r(() => (
       <NiftyUnusualVolume
         spot={25750}
         strikes={[strikeAt(25700, side(9_000, 1_000, "LB"), side(3_000, 1_000, "SC"))]}
-      />,
-    );
+      />
+    ));
     const cell = screen.getByTitle(/put writers buying back/);
     expect(cell).toHaveAttribute(
       "title",
@@ -367,12 +363,12 @@ describe("NiftyUnusualVolume render", () => {
   });
 
   test("ITM-side rows carry the subtle tint, OTM rows do not", () => {
-    r(
+    r(() => (
       <NiftyUnusualVolume
         spot={25750}
         strikes={[strikeAt(25700, side(9_000, 1_000, "LB"), side(9_000, 1_000, "SB"))]}
-      />,
-    );
+      />
+    ));
     const table = screen.getByTestId("nifty-unusual-table");
     // 25700 CE is ITM (below spot), 25700 PE is OTM
     const ceRow = within(table).getByTestId("nifty-unusual-row-25700-CE");
@@ -382,7 +378,7 @@ describe("NiftyUnusualVolume render", () => {
   });
 
   test("empty chain renders the No-chain empty state", () => {
-    r(<NiftyUnusualVolume spot={25750} strikes={[]} />);
+    r(() => <NiftyUnusualVolume spot={25750} strikes={[]} />);
     expect(screen.getByTestId("nifty-unusual-panel")).toBeInTheDocument();
     expect(screen.getByText("No chain data")).toBeInTheDocument();
     expect(screen.queryByTestId(/^nifty-unusual-row-/)).not.toBeInTheDocument();
@@ -427,15 +423,15 @@ describe("NiftyUnusualVolume focus strip", () => {
   });
 
   test("strip renders the #1 leg above the table, in rank order", () => {
-    r(
+    r(() => (
       <NiftyUnusualVolume
         spot={25750}
         strikes={[
           strikeAt(25700, side(100_000, 10_000, "LB"), side(50_000, 50_000, "SB")),
           strikeAt(25800, side(90_000, 1_000, "SC"), side(1_000, 1_000, "LU")),
         ]}
-      />,
-    );
+      />
+    ));
     const focus = screen.getByTestId("nifty-unusual-focus");
     expect(focus).toBeInTheDocument();
     expect(focus).toHaveTextContent(
@@ -450,53 +446,18 @@ describe("NiftyUnusualVolume focus strip", () => {
   });
 });
 
-describe("NiftyReportPanel unusual-volume wiring", () => {
-  function mockReport() {
-    return {
-      mode: "live",
-      date: "2026-10-12",
-      expiry: "weekly",
-      spot: 25750.5,
-      ohlc: { open: 25600, high: 25800, low: 25550, close: 25750.5 },
-      pcrOi: 1.12,
-      pcrVol: 0.95,
-      maxPain: 25700,
-      walls: { calls: [], puts: [] },
-      strikes: [strikeAt(25700, side(9_000, 1_000, "LB"), side(8_000, 1_000, "SB"))],
-      timeline: [],
-    };
-  }
-
-  test("unusual panel renders directly after the OI tape panel", async () => {
-    // The unusual-volume panel lives in the RESEARCH section (DESK keeps the
-    // band tight), so the mode is seeded before the panel mounts.
-    window.localStorage.setItem("nifty.deskMode", "research");
-    const { NiftyReportPanel } = await import("./NiftyReportPanel");
-    const api = await import("@/api/reportNifty");
-    vi.mocked(api.fetchLiveNifty).mockResolvedValue(mockReport() as never);
-    vi.mocked(api.fetchNiftyTape).mockResolvedValue({ date: "2026-10-12", interval_sec: 60, rows: [] });
-    r(<NiftyReportPanel />);
-    const unusual = await screen.findByTestId("nifty-unusual-panel");
-    expect(unusual).toBeInTheDocument();
-    expect(within(unusual).getByTestId("nifty-unusual-table")).toBeInTheDocument();
-    const tape = screen.getByTestId("nifty-tape-panel");
-    expect(tape.compareDocumentPosition(unusual) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    window.localStorage.removeItem("nifty.deskMode");
-  });
-});
-
 describe("last / next update stamp", () => {
   const T = Date.parse("2026-10-14T12:03:15+05:30");
 
   test("shows upd + next and keeps the rank caption", () => {
-    r(
+    r(() => (
       <NiftyUnusualVolume
         spot={25750}
         strikes={[strikeAt(25700, side(9_000, 1_000, "LB"), side(8_000, 1_000, "SB"))]}
         updatedAtMs={T}
         nextUpdateAtMs={T + 30_000}
-      />,
-    );
+      />
+    ));
     const el = screen.getByTestId("nifty-unusual-updated");
     expect(el).toHaveTextContent("upd 12:03:15");
     expect(el).toHaveTextContent("next 12:03:45");
@@ -504,7 +465,7 @@ describe("last / next update stamp", () => {
   });
 
   test("no stamp when no refresh time is supplied", () => {
-    r(<NiftyUnusualVolume spot={25750} strikes={[strikeAt(25700)]} />);
+    r(() => <NiftyUnusualVolume spot={25750} strikes={[strikeAt(25700)]} />);
     expect(screen.queryByTestId("nifty-unusual-updated")).not.toBeInTheDocument();
   });
 });

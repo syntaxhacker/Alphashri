@@ -69,7 +69,7 @@ describe("matchSequence", () => {
   });
 
   it("enforces the last-step recency", () => {
-    const hits = [
+    const hits: PatternHitDTO[] = [
       { ...h("consolidation", "2026-01-01", "2026-02-01"), status: "confirmed" },
       { ...h("rising_wedge", "2026-02-10", "2026-03-01"), status: "forming", bars_ago: 4 },
     ];
@@ -78,7 +78,7 @@ describe("matchSequence", () => {
   });
 
   it("filters the earlier steps by status", () => {
-    const hits = [
+    const hits: PatternHitDTO[] = [
       { ...h("consolidation", "2026-01-01", "2026-02-01"), status: "failed" },
       { ...h("rising_wedge", "2026-02-10", "2026-03-01"), status: "confirmed" },
     ];

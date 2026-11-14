@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { describe, expect, test, afterEach } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { describe, expect, test } from "vitest";
+import { render, screen } from "@solidjs/testing-library";
+import type { JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { NiftyGex } from "@/types/niftyReport";
@@ -20,10 +21,9 @@ import {
   trimGexProfile,
 } from "./NiftyGexProfile";
 
-afterEach(cleanup);
 
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>{children}</UIProvider>;
+function TestWrapper(props: { children?: JSX.Element }) {
+  return <UIProvider>{props.children}</UIProvider>;
 }
 
 function gex(overrides?: Partial<NiftyGex>): NiftyGex {
@@ -507,7 +507,7 @@ describe("gexSideLevels (spot-relative)", () => {
 
 describe("NiftyGexProfile render", () => {
   test("renders the panel, stat row and SVG chart", () => {
-    render(<NiftyGexProfile gex={gex()} spot={22700} />, { wrapper: TestWrapper });
+    render(() => <NiftyGexProfile gex={gex()} spot={22700} />, { wrapper: TestWrapper });
 
     expect(screen.getByTestId("nifty-gex-profile-panel")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-gex-profile-net")).toHaveTextContent("+7.50 Cr/pt");
@@ -521,7 +521,7 @@ describe("NiftyGexProfile render", () => {
   });
 
   test("names the gamma support/resistance strikes and explains the profile", () => {
-    render(<NiftyGexProfile gex={gex()} spot={22700} />, { wrapper: TestWrapper });
+    render(() => <NiftyGexProfile gex={gex()} spot={22700} />, { wrapper: TestWrapper });
     // Peak netGex is 22,600 (+12) — the pin magnet; the trough is 22,800 (−8).
     expect(screen.getByTestId("nifty-gex-profile-support")).toHaveTextContent("22,600");
     expect(screen.getByTestId("nifty-gex-profile-resist")).toHaveTextContent("22,800");
@@ -546,7 +546,7 @@ describe("NiftyGexProfile render", () => {
       ],
       zeroCross: null,
     });
-    render(<NiftyGexProfile gex={inverted} spot={22650} />, { wrapper: TestWrapper });
+    render(() => <NiftyGexProfile gex={inverted} spot={22650} />, { wrapper: TestWrapper });
     const resist = screen.getByTestId("nifty-gex-profile-resist");
     expect(resist).toHaveTextContent("γ fuel ↑");
     // deepest negative above spot (22,700, −10) — the stronger accelerator
@@ -564,13 +564,13 @@ describe("NiftyGexProfile render", () => {
       ],
       zeroCross: null,
     });
-    render(<NiftyGexProfile gex={wing} spot={22962.6} />, { wrapper: TestWrapper });
+    render(() => <NiftyGexProfile gex={wing} spot={22962.6} />, { wrapper: TestWrapper });
     expect(screen.getByTestId("nifty-gex-profile-support")).toHaveTextContent("22,700");
     expect(screen.getByTestId("nifty-gex-profile-resist")).toHaveTextContent("—");
   });
 
   test("positive gamma below/above spot keeps the support/resistance labels", () => {
-    render(<NiftyGexProfile gex={gex()} spot={22700} />, { wrapper: TestWrapper });
+    render(() => <NiftyGexProfile gex={gex()} spot={22700} />, { wrapper: TestWrapper });
     // 22,600 (+12) sits below spot -> support; no positive strike above spot,
     // so the right cell is the above-spot fuel level (22,800, -8).
     expect(screen.getByTestId("nifty-gex-profile-support")).toHaveTextContent("γ support");
@@ -587,14 +587,14 @@ describe("NiftyGexProfile render", () => {
         { strike: 25200, callGex: 0, putGex: 0, netGex: 0 },
       ],
     });
-    render(<NiftyGexProfile gex={padded} spot={22690} />, { wrapper: TestWrapper });
+    render(() => <NiftyGexProfile gex={padded} spot={22690} />, { wrapper: TestWrapper });
     const coverage = screen.getByTestId("nifty-gex-profile-coverage");
     expect(coverage).toHaveTextContent("band 22,600–22,700");
     expect(coverage).toHaveTextContent("2 of 5 strikes carry ≥1% of peak γ");
   });
 
   test("undefined gex shows the empty state and never crashes", () => {
-    render(<NiftyGexProfile spot={22700} />, { wrapper: TestWrapper });
+    render(() => <NiftyGexProfile spot={22700} />, { wrapper: TestWrapper });
 
     expect(screen.getByTestId("nifty-gex-profile-panel")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-gex-profile-chart")).toBeInTheDocument();
@@ -605,7 +605,7 @@ describe("NiftyGexProfile render", () => {
   });
 
   test("empty strike list also renders the empty state", () => {
-    render(<NiftyGexProfile gex={gex({ strikes: [] })} spot={22700} />, {
+    render(() => <NiftyGexProfile gex={gex({ strikes: [] })} spot={22700} />, {
       wrapper: TestWrapper,
     });
     expect(screen.getByTestId("nifty-gex-profile-chart")).toBeInTheDocument();

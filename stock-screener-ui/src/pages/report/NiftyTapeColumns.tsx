@@ -7,8 +7,8 @@
  * table memoise them on a cheap content signature.
  */
 
-import { Box, Text } from "@/ui";
-import type { ColumnDef } from "@tanstack/react-table";
+import { Text } from "@/ui";
+import type { TableColumnDef } from "@/components/common/TanStackTable";
 import type { NiftyTapeRow } from "@/types/niftyReport";
 import {
   TAPE_CALL_DOI,
@@ -39,6 +39,11 @@ import {
   REPORT_PAD,
 } from "./reportTokens";
 
+/** Row access by accessorKey; `Number()` coercion happens at call sites. */
+function rawCellValue(row: NiftyTapeRow, key: keyof NiftyTapeRow | string | undefined): unknown {
+  return key ? (row as unknown as Record<string, unknown>)[key as string] ?? NaN : NaN;
+}
+
 /** Numeric cell with tabular figures + ellipsis; optional full-bleed tint. */
 function tapeCell(
   value: string,
@@ -56,7 +61,7 @@ function tapeCell(
     <span
       data-testid={testId}
       data-alpha={tint ? String(tint) : undefined}
-      className={flash ? "tape-cell-flash" : undefined}
+      class={flash ? "tape-cell-flash" : undefined}
       style={{
         display: "block",
         ...(tint
@@ -66,12 +71,12 @@ function tapeCell(
             }
           : {}),
         overflow: "hidden",
-        textOverflow: "ellipsis",
-        fontVariantNumeric: "tabular-nums",
+        "text-overflow": "ellipsis",
+        "font-variant-numeric": "tabular-nums",
         ...(tint ? { background: tint } : {}),
       }}
     >
-      <Text span c={color ?? tone ?? "default"} fw={bold || tone ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.normal} style={{ fontSize: `${REPORT_FONT.xs}px` }}>
+      <Text span c={color ?? tone ?? "default"} fw={bold || tone ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.normal} style={{ "font-size": `${REPORT_FONT.xs}px` }}>
         {value}
       </Text>
     </span>
@@ -99,18 +104,18 @@ function spotFlipColor(v: number | null): string | undefined {
 /** Two-line terminal header: title + muted sub-label (baseline / hint). */
 function tapeHeader(title: string, sub?: string, tip?: string) {
   return (
-    <Box
+    <div
       title={tip ? `${title} — ${tip}` : undefined}
-      className="flex flex-col items-end"
-      style={{ lineHeight: REPORT_LINE_HEIGHT.tight }}
+      class="flex flex-col items-end"
+      style={{ "line-height": REPORT_LINE_HEIGHT.tight }}
     >
-      <span style={{ fontSize: `${REPORT_FONT.xs}px`, fontWeight: REPORT_FONT_WEIGHT.semibold }}>{title}</span>
+      <span style={{ "font-size": `${REPORT_FONT.xs}px`, "font-weight": REPORT_FONT_WEIGHT.semibold }}>{title}</span>
       {sub ? (
-        <span style={{ fontSize: `${REPORT_FONT.micro}px`, fontWeight: REPORT_FONT_WEIGHT.normal, opacity: 0.65, whiteSpace: "nowrap" }}>
+        <span style={{ "font-size": `${REPORT_FONT.micro}px`, "font-weight": REPORT_FONT_WEIGHT.normal, opacity: 0.65, "white-space": "nowrap" }}>
           {sub}
         </span>
       ) : null}
-    </Box>
+    </div>
   );
 }
 
@@ -125,7 +130,7 @@ export function getNiftyTapeColumns(
    * contradicts the gamma strip.
    */
   flipAtSpot?: number | null,
-): ColumnDef<NiftyTapeRow>[] {
+): TableColumnDef<NiftyTapeRow>[] {
   const since = baseline ? `since ${baseline}` : "since open";
   /** Live change-flash lookup: did this minute's field just move? */
   const fl = (t: string, col: string): boolean => changed?.get(t)?.has(col) ?? false;
@@ -141,14 +146,16 @@ export function getNiftyTapeColumns(
   };
   return [
     {
+      id: "t",
       header: "IST",
       accessorKey: "t",
       accessorFn: (row) => row.t,
       size: 64,
       meta: { align: "left" },
-      cell: (info) => tapeCell(formatTapeTime(String(info.getValue() ?? "")), undefined, undefined, "nifty-tape-time"),
+      cell: (info) => tapeCell(formatTapeTime(String((info.row.original as NiftyTapeRow).t ?? "")), undefined, undefined, "nifty-tape-time"),
     },
     {
+      id: "spot",
       header: () => tapeHeader("Spot", "Δ prev", "Nifty spot, arrow = tick vs previous minute"),
       accessorKey: "spot",
       accessorFn: (row) => row.spot,
@@ -161,21 +168,21 @@ export function getNiftyTapeColumns(
         const arrowColor = d === undefined || d === 0 ? undefined : d > 0 ? TAPE_TICK_POS : TAPE_TICK_NEG;
         return (
           <span
-            className={fl(row.t, "spot") ? "tape-cell-flash" : undefined}
+            class={fl(row.t, "spot") ? "tape-cell-flash" : undefined}
             style={{
               display: "flex",
-              alignItems: "baseline",
-              justifyContent: "flex-end",
+              "align-items": "baseline",
+              "justify-content": "flex-end",
               gap: "4px",
               overflow: "hidden",
-              fontVariantNumeric: "tabular-nums",
+              "font-variant-numeric": "tabular-nums",
             }}
           >
-            <Text span fw={REPORT_FONT_WEIGHT.bold} c={TAPE_SPOT} style={{ fontSize: REPORT_FONT.sm }}>
+            <Text span fw={REPORT_FONT_WEIGHT.bold} c={TAPE_SPOT} style={{ "font-size": `${REPORT_FONT.sm}px` }}>
               {formatTapePrice(row.spot)}
             </Text>
             {arrow ? (
-              <Text span fw={REPORT_FONT_WEIGHT.bold} c={arrowColor} style={{ fontSize: REPORT_FONT.xs }}>
+              <Text span fw={REPORT_FONT_WEIGHT.bold} c={arrowColor} style={{ "font-size": `${REPORT_FONT.xs}px` }}>
                 {arrow}
               </Text>
             ) : null}
@@ -184,13 +191,14 @@ export function getNiftyTapeColumns(
       },
     },
     {
+      id: "call_doi",
       header: () => tapeHeader("Call ΔOI", since, "Change in total call open interest"),
       accessorKey: "call_doi",
       accessorFn: (row) => row.call_doi,
       size: 96,
       meta: { align: "right" },
       cell: (info) => {
-        const v = Number(info.getValue());
+        const v = Number(rawCellValue(info.row.original, info.column.accessorKey));
         // Column identity hue (blue) + magnitude heat so big call prints pop.
         return tapeCell(
           formatTapeCompact(v),
@@ -204,13 +212,14 @@ export function getNiftyTapeColumns(
       },
     },
     {
+      id: "put_doi",
       header: () => tapeHeader("Put ΔOI", since, "Change in total put open interest"),
       accessorKey: "put_doi",
       accessorFn: (row) => row.put_doi,
       size: 96,
       meta: { align: "right" },
       cell: (info) => {
-        const v = Number(info.getValue());
+        const v = Number(rawCellValue(info.row.original, info.column.accessorKey));
         return tapeCell(
           formatTapeCompact(v),
           undefined,
@@ -229,12 +238,13 @@ export function getNiftyTapeColumns(
           "put−call",
           "Put ΔOI minus Call ΔOI; positive = put-side OI building faster than the call side (bearish)",
         ),
+      id: "net",
       accessorKey: "net",
       accessorFn: (row) => row.net,
       size: 96,
       meta: { align: "right" },
       cell: (info) => {
-        const v = Number(info.getValue());
+        const v = Number(rawCellValue(info.row.original, info.column.accessorKey));
         // Always-on brown wash; intensity tracks |net| ÷ max — quiet rows
         // fade, dominant rows glow.
         const ratio = s.net > 0 ? Math.min(1, Math.abs(v) / s.net) : 0;
@@ -257,12 +267,13 @@ export function getNiftyTapeColumns(
           "of |ΔOI|",
           "Put ΔOI minus Call ΔOI as a share of the total |ΔOI| (call + put)",
         ),
+      id: "net_pct",
       accessorKey: "net_pct",
       accessorFn: (row) => row.net_pct,
       size: 72,
       meta: { align: "right" },
       cell: (info) => {
-        const v = Number(info.getValue());
+        const v = Number(rawCellValue(info.row.original, info.column.accessorKey));
         return tapeCell(
           formatTapePct(v),
           undefined,
@@ -275,13 +286,14 @@ export function getNiftyTapeColumns(
       },
     },
     {
+      id: "call_tick",
       header: () => tapeHeader("Call·tick", "ticks", "Call OI ticks this minute"),
       accessorKey: "call_tick",
       accessorFn: (row) => row.call_tick,
       size: 84,
       meta: { align: "right" },
       cell: (info) => {
-        const v = Number(info.getValue());
+        const v = Number(rawCellValue(info.row.original, info.column.accessorKey));
         return tapeCell(
           formatTapeCompact(v),
           undefined,
@@ -294,13 +306,14 @@ export function getNiftyTapeColumns(
       },
     },
     {
+      id: "put_tick",
       header: () => tapeHeader("Put·tick", "ticks", "Put OI ticks this minute"),
       accessorKey: "put_tick",
       accessorFn: (row) => row.put_tick,
       size: 84,
       meta: { align: "right" },
       cell: (info) => {
-        const v = Number(info.getValue());
+        const v = Number(rawCellValue(info.row.original, info.column.accessorKey));
         return tapeCell(
           formatTapeCompact(v),
           undefined,
@@ -313,29 +326,32 @@ export function getNiftyTapeColumns(
       },
     },
     {
+      id: "pcr_vol",
       header: "PCR vol",
       accessorKey: "pcr_vol",
       accessorFn: (row) => row.pcr_vol,
       size: 68,
       meta: { align: "right" },
-      cell: (info) => tapeCell(formatTapeRatio(Number(info.getValue()))),
+      cell: (info) => tapeCell(formatTapeRatio(Number(rawCellValue(info.row.original, info.column.accessorKey)))),
     },
     {
+      id: "pcr_oi",
       header: "PCR OI",
       accessorKey: "pcr_oi",
       accessorFn: (row) => row.pcr_oi,
       size: 68,
       meta: { align: "right" },
-      cell: (info) => tapeCell(formatTapeRatio(Number(info.getValue()))),
+      cell: (info) => tapeCell(formatTapeRatio(Number(rawCellValue(info.row.original, info.column.accessorKey)))),
     },
     {
+      id: "pcr_doi",
       header: () => tapeHeader("PCR ΔOI", since, "Change in put/call OI ratio"),
       accessorKey: "pcr_doi",
       accessorFn: (row) => row.pcr_doi,
       size: 72,
       meta: { align: "right" },
       cell: (info) => {
-        const v = Number(info.getValue());
+        const v = Number(rawCellValue(info.row.original, info.column.accessorKey));
         return tapeCell(
           formatTapeRatio(v),
           undefined,
@@ -354,13 +370,14 @@ export function getNiftyTapeColumns(
           "pts",
           "Spot distance from the gamma flip (spot − flip); positive = spot above the flip",
         ),
+      id: "spot_flip",
       accessorKey: "spot_flip",
       accessorFn: (row) => row.spot_flip,
       size: 78,
       meta: { align: "right" },
       cell: (info) => {
         const row = info.row.original as NiftyTapeRow;
-        const raw = info.getValue() as number | null;
+        const raw = rawCellValue(info.row.original, info.column.accessorKey) as number | null;
         // With a spot-relative flip the column is re-derived from the row's
         // own spot, so every minute is measured against the same level.
         const v =

@@ -1,14 +1,31 @@
 // @vitest-environment happy-dom
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
+import { For } from "solid-js";
 import { ProfitabilityPage } from "./Profitability";
 import { fetchProfitability } from "../../api/profitability";
 
 vi.mock("../../api/profitability", () => ({
   fetchProfitability: vi.fn(),
+}));
+
+vi.mock("@/components/common/TanStackTable", () => ({
+  TanStackTable: (props: any) => (
+    <div data-testid={props.dataTestId}>
+      <For each={props.data}>{(row: any, i: () => number) => (
+        <div data-testid={props.getRowTestId ? props.getRowTestId(row, i()) : undefined}>
+          {props.columns.map((col: any) =>
+            col.cell ? (
+              <span>{col.cell({ row: { original: row, index: i(), isExpanded: () => false, toggle: () => {} } })}</span>
+            ) : null,
+          )}
+        </div>
+      )}</For>
+      {props.data.length === 0 ? (props.emptyMessage ?? "Empty") : null}
+    </div>
+  ),
 }));
 
 const mockPayload = {
@@ -27,11 +44,11 @@ const mockPayload = {
 };
 
 function renderPage() {
-  return render(
+  return render(() => (
     <UIProvider>
       <ProfitabilityPage />
-    </UIProvider>,
-  );
+    </UIProvider>
+  ));
 }
 
 describe("ProfitabilityPage", () => {
@@ -52,10 +69,9 @@ describe("ProfitabilityPage", () => {
   });
 
   test("weeks selector refetches with the new window", async () => {
-    const user = userEvent.setup();
     renderPage();
     await screen.findByTestId("profitability-strategies");
-    await user.click(screen.getByTestId("profitability-refresh"));
+    fireEvent.click(screen.getByTestId("profitability-refresh"));
     await waitFor(() =>
       expect(vi.mocked(fetchProfitability)).toHaveBeenCalledTimes(2),
     );

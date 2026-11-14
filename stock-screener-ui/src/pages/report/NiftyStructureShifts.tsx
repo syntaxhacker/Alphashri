@@ -1,7 +1,7 @@
-import { memo, useMemo } from "react";
-import { Box, Text } from "@/ui";
+import { createMemo, For, Show } from "solid-js";
+import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
-import { CompactPanel } from "@/components/common/compact";
+import { LocalCompactPanel } from "./reportBits";
 import type { NiftyStructureShift } from "@/types/niftyReport";
 
 /** Short uppercase labels for the known structural-shift kinds. */
@@ -76,90 +76,82 @@ interface NiftyStructureShiftsProps {
  * option tape. Absent `structure` renders nothing; an empty array renders a
  * friendly empty state. Newest arrives last on the payload and is shown first.
  */
-function NiftyStructureShiftsInner({ structure }: NiftyStructureShiftsProps) {
-  // Hooks stay unconditional: the absent-payload case returns null AFTER
-  // them, so toggling between null/defined never changes the hook order.
+export function NiftyStructureShifts(props: NiftyStructureShiftsProps) {
   // Newest is last in the payload — reverse so the latest shift leads.
-  const ordered = useMemo(
-    () => (structure ? [...structure].reverse() : []),
-    [structure],
-  );
-  const summary = useMemo(() => structureSummary(structure ?? []), [structure]);
-
-  if (!structure) return null;
+  const ordered = createMemo(() => (props.structure ? [...props.structure].reverse() : []));
+  const summary = createMemo(() => structureSummary(props.structure ?? []));
 
   return (
-    // Wrapper is a flex item inside the report's "signals row" (structure +
-    // OI bursts). It intentionally has no `overflow: hidden`: that would drop
-    // the implicit `min-height: auto` and could collapse it. `flex`/`minWidth`
-    // size it horizontally; `minWidth: 0` contains horizontal overflow while
-    // the internal list (below) owns the vertical scroll.
-    <Box data-testid="nifty-structure" className="flex-[1_1_420px] min-w-0">
-      <CompactPanel title="Structure shifts">
-        <Box data-testid="nifty-structure-summary" className="mb-[2px]">
-          <Text size="xs" fw={600} c="dimmed" span>
-            {summary}
-          </Text>
-        </Box>
+    <Show when={props.structure}>
+      {/* Wrapper is a flex item inside the report's "signals row" (structure +
+          OI bursts). It intentionally has no `overflow: hidden`: that would drop
+          the implicit `min-height: auto` and could collapse it. `flex`/`min-width`
+          size it horizontally; `min-width: 0` contains horizontal overflow while
+          the internal list (below) owns the vertical scroll. */}
+      <div data-testid="nifty-structure" class="flex-[1_1_420px] min-w-0">
+        <LocalCompactPanel title="Structure shifts">
+          <div data-testid="nifty-structure-summary" class="mb-[2px]">
+            <Text size="xs" fw={600} c="dimmed" span>
+              {summary()}
+            </Text>
+          </div>
 
-        {ordered.length === 0 ? (
-          <Text data-testid="nifty-structure-empty" size="sm" c="dimmed">
-            No structural shifts yet today
-          </Text>
-        ) : (
-          // Dense single-line list (~15px/row: no vertical padding,
-          // lineHeight 1.2) capped to a fixed height so the panel never
-          // grows unbounded — overflow scrolls inside the panel. This is an
-          // INNER scroller, never a direct page-column child.
-          <Box
-            data-testid="nifty-structure-list"
-            className="flex flex-col gap-[2px] min-w-0"
-            style={{ maxHeight: 120, overflowY: "auto" }}
+          <Show
+            when={ordered().length > 0}
+            fallback={
+              <Text data-testid="nifty-structure-empty" size="sm" c="dimmed">
+                No structural shifts yet today
+              </Text>
+            }
           >
-            {ordered.map((shift, i) => {
-              const accent = structureSeverityAccent(shift.severity);
-              const full = shift.detail || STRUCTURE_DASH;
-              return (
-                <Box
-                  key={`${shift.t}-${shift.kind}-${i}`}
-                  data-testid="nifty-structure-row"
-                  className="flex items-center gap-[8px] min-w-0 pl-1 pr-1 py-0 line-height-[1.2]"
-                  style={{
-                    borderLeft: `3px solid ${accent}`,
-                    backgroundColor: palette.SURFACE_ALT,
-                    borderRadius: 4,
-                  }}
-                >
-                  <Box component="span" className="shrink-0 whitespace-nowrap">
-                    <Text size="xs" fw={700} c={accent} span>
-                      {structureKindLabel(shift.kind)}
-                    </Text>
-                  </Box>
-                  <Box component="span" className="shrink-0 whitespace-nowrap">
-                    <Text size="xs" c="dimmed" span>
-                      {structureTimeLabel(shift.t)}
-                    </Text>
-                  </Box>
-                  <Box
-                    component="span"
-                    data-testid="nifty-structure-detail"
-                    title={full}
-                    className="flex-1 min-w-0 overflow-hidden truncate whitespace-nowrap"
+            {/* Dense single-line list (~15px/row: no vertical padding,
+                line-height 1.2) capped to a fixed height so the panel never
+                grows unbounded — overflow scrolls inside the panel. This is an
+                INNER scroller, never a direct page-column child. */}
+            <div
+              data-testid="nifty-structure-list"
+              class="flex flex-col gap-[2px] min-w-0"
+              style={{ "max-height": "120px", "overflow-y": "auto" }}
+            >
+              <For each={ordered()}>{(shift) => {
+                const accent = structureSeverityAccent(shift.severity);
+                const full = shift.detail || STRUCTURE_DASH;
+                return (
+                  <div
+                    data-testid="nifty-structure-row"
+                    class="flex items-center gap-[8px] min-w-0 pl-1 pr-1 py-0 leading-[1.2]"
+                    style={{
+                      "border-left": `3px solid ${accent}`,
+                      "background-color": palette.SURFACE_ALT,
+                      "border-radius": "4px",
+                    }}
                   >
-                    <Text size="xs" c="dimmed" span>
-                      {full}
-                    </Text>
-                  </Box>
-                </Box>
-              );
-            })}
-          </Box>
-        )}
-      </CompactPanel>
-    </Box>
+                    <span class="shrink-0 whitespace-nowrap">
+                      <Text size="xs" fw={700} c={accent} span>
+                        {structureKindLabel(shift.kind)}
+                      </Text>
+                    </span>
+                    <span class="shrink-0 whitespace-nowrap">
+                      <Text size="xs" c="dimmed" span>
+                        {structureTimeLabel(shift.t)}
+                      </Text>
+                    </span>
+                    <span
+                      data-testid="nifty-structure-detail"
+                      title={full}
+                      class="flex-1 min-w-0 overflow-hidden truncate whitespace-nowrap"
+                    >
+                      <Text size="xs" c="dimmed" span>
+                        {full}
+                      </Text>
+                    </span>
+                  </div>
+                );
+              }}</For>
+            </div>
+          </Show>
+        </LocalCompactPanel>
+      </div>
+    </Show>
   );
 }
-
-/** Memoised leaf panel — `structure` keeps identity between unrelated parent renders. */
-export const NiftyStructureShifts = memo(NiftyStructureShiftsInner);
-NiftyStructureShifts.displayName = "NiftyStructureShifts";

@@ -1,11 +1,47 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import type { PatternHitDTO } from "@/types/chartPatterns";
+import { For, Show, type JSX } from "solid-js";
 import { PatternsPage, type PatternsPageProps } from "./PatternsPage";
+
+// Menu stub: bare pass-throughs with an onSelect-fired button; the suite
+// asserts page wiring, not Menu internals.
+vi.mock("@/ui", async (importOriginal) => {
+  const { uiLayoutStub } = await import("@/pages/solidTestStubs");
+  const stubbed = await uiLayoutStub(await importOriginal<Record<string, unknown>>());
+  const passthrough = (props: any) => <div>{props.children}</div>;
+  const Item = (props: any) => (
+    <button
+      type="button"
+      disabled={props.disabled}
+      aria-disabled={props.disabled ? "true" : undefined}
+      onClick={() => (props.disabled ? undefined : props.onClick?.(props) ?? props.onSelect?.(props))}
+      data-testid={props["data-testid"]}
+    >
+      {props.children}
+    </button>
+  );
+  const Menu = Object.assign(
+    (props: any) => <div data-testid="menu-root">{props.children}</div>,
+    {
+      Target: passthrough,
+      Dropdown: passthrough,
+      Item,
+      Divider: () => <hr />,
+      Label: (props: any) => <span>{props.children}</span>,
+    },
+  );
+  return {
+    ...stubbed,
+    Menu,
+    MenuTarget: passthrough,
+    MenuDropdown: passthrough,
+    MenuItem: Item,
+  };
+});
 
 vi.mock("@/hooks/useECharts", () => ({
   useECharts: () => ({
@@ -30,18 +66,19 @@ vi.mock("@/api/patternImages", () => ({
 }));
 
 vi.mock("@/components/patterns/PatternGrid", () => ({
-  PatternGrid: ({ hits, onSelect }: any) => (
+  PatternGrid: (props: any) => (
     <div data-testid="patterns-grid">
-      {(hits as any[]).map((hit: any) => (
-        <button
-          key={hit.id ?? `${hit.symbol}-${hit.pattern_id}-${hit.start_date}`}
-          type="button"
-          data-testid={`patterns-card-${hit.symbol}-${hit.pattern_id}`}
-          onClick={() => onSelect?.(hit)}
-        >
-          {hit.symbol} {hit.pattern_name}
-        </button>
-      ))}
+      <For each={props.hits as any[]}>
+        {(hit: any) => (
+          <button
+            type="button"
+            data-testid={`patterns-card-${hit.symbol}-${hit.pattern_id}`}
+            onClick={() => props.onSelect?.(hit)}
+          >
+            {hit.symbol} {hit.pattern_name}
+          </button>
+        )}
+      </For>
     </div>
   ),
 }));
@@ -49,54 +86,71 @@ vi.mock("@/components/patterns/PatternGrid", () => ({
 // Dense list stub so the page default (list view) renders deterministically;
 // tests that need cards switch to the grid view first.
 vi.mock("@/components/patterns/PatternListView", () => ({
-  PatternListView: ({ hits, onSelect }: any) => (
+  PatternListView: (props: any) => (
     <div data-testid="patterns-list">
-      {(hits as any[]).map((hit: any) => (
-        <button
-          key={hit.id ?? `${hit.symbol}-${hit.pattern_id}-${hit.start_date}`}
-          type="button"
-          data-testid={`patterns-list-row-${hit.symbol}-${hit.pattern_id}`}
-          onClick={() => onSelect?.(hit)}
-        >
-          {hit.symbol} {hit.pattern_name}
-        </button>
-      ))}
+      <For each={props.hits as any[]}>
+        {(hit: any) => (
+          <button
+            type="button"
+            data-testid={`patterns-list-row-${hit.symbol}-${hit.pattern_id}`}
+            onClick={() => props.onSelect?.(hit)}
+          >
+            {hit.symbol} {hit.pattern_name}
+          </button>
+        )}
+      </For>
     </div>
   ),
 }));
 
+type FSVProps = {
+  opened?: boolean;
+  hit?: PatternHitDTO | null;
+  candles?: unknown[];
+  asOf?: string | null;
+  fromDate?: string | null;
+  onAsOfChange?: (asOf: string | null, fromDate: string | null) => void;
+  loading?: boolean;
+};
+
 // Passthrough stub for the fullscreen view: renders the real contract testids
 // for the as-of replay controls so page wiring is observable.
 vi.mock("@/components/patterns/PatternFullscreenView", () => ({
-  PatternFullscreenView: ({ opened, hit, candles, asOf, fromDate, onAsOfChange, loading }: any) => {
-    if (!opened) return null;
+  PatternFullscreenView: (props: FSVProps) => {
+    const asOf = () => props.asOf;
+    const fromDate = () => props.fromDate;
+    const hit = () => props.hit;
+    const candles = () => props.candles;
+    const loading = () => props.loading;
     return (
-      <div data-testid="patterns-fullscreen-modal">
-        <div>{hit?.pattern_name}</div>
-        {onAsOfChange ? (
-          <>
+      <Show when={props.opened}>
+        <div data-testid="patterns-fullscreen-modal">
+          <div>{hit()?.pattern_name}</div>
+          <Show when={props.onAsOfChange}>
             <input
               data-testid="patterns-fullscreen-asof-from"
               type="datetime-local"
-              value={fromDate ?? ""}
-              onChange={(e) => onAsOfChange(asOf ?? null, e.target.value || null)}
+              value={fromDate() ?? ""}
+              onInput={(e) => props.onAsOfChange?.(asOf() ?? null, (e.currentTarget as HTMLInputElement).value || null)}
             />
             <input
               data-testid="patterns-fullscreen-asof-to"
               type="datetime-local"
-              value={asOf ?? ""}
-              onChange={(e) => onAsOfChange(e.target.value || null, fromDate ?? null)}
+              value={asOf() ?? ""}
+              onInput={(e) => props.onAsOfChange?.((e.currentTarget as HTMLInputElement).value || null, fromDate() ?? null)}
             />
-          </>
-        ) : null}
-        {asOf ? (
-          <div data-testid="patterns-fullscreen-asof-banner">
-            {`Viewing as of ${String(asOf).replace("T", " ")}`}
-          </div>
-        ) : null}
-        {loading ? <div data-testid="patterns-fullscreen-loading" /> : null}
-        <div data-testid="patterns-fullscreen-candle-count">{candles?.length ?? 0}</div>
-      </div>
+          </Show>
+          <Show when={asOf()}>
+            <div data-testid="patterns-fullscreen-asof-banner">
+              {`Viewing as of ${String(asOf()).replace("T", " ")}`}
+            </div>
+          </Show>
+          <Show when={loading()}>
+            <div data-testid="patterns-fullscreen-loading" />
+          </Show>
+          <div data-testid="patterns-fullscreen-candle-count">{candles()?.length ?? 0}</div>
+        </div>
+      </Show>
     );
   },
 }));
@@ -188,8 +242,8 @@ function makeProps(overrides: Partial<PatternsPageProps> = {}): PatternsPageProp
   };
 }
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
+function r(jsx: JSX.Element) {
+  return render(() => <UIProvider>{jsx}</UIProvider>);
 }
 
 describe("PatternsPage fullscreen as-of replay", () => {
@@ -208,8 +262,8 @@ describe("PatternsPage fullscreen as-of replay", () => {
 
   test("opening a card starts live (no as-of banner, no asOf in the fetch)", async () => {
     r(<PatternsPage {...makeProps()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
-    await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
+    fireEvent.click(screen.getByRole("button", { name: "Grid" }));
+    fireEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
     expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-fullscreen-asof-from")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-fullscreen-asof-to")).toBeInTheDocument();
@@ -235,8 +289,8 @@ describe("PatternsPage fullscreen as-of replay", () => {
       start_date: "2026-07-01",
     });
     r(<PatternsPage {...makeProps({ results: [oldConfident], total: 1 })} />);
-    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
-    await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
+    fireEvent.click(screen.getByRole("button", { name: "Grid" }));
+    fireEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
     await screen.findByTestId("patterns-fullscreen-modal");
 
     fetchSymbolChart.mockClear();
@@ -247,7 +301,7 @@ describe("PatternsPage fullscreen as-of replay", () => {
           resolveReplay = resolve;
         }),
     );
-    fireEvent.change(screen.getByTestId("patterns-fullscreen-asof-to"), {
+    fireEvent.input(screen.getByTestId("patterns-fullscreen-asof-to"), {
       target: { value: "2026-09-30T14:30" },
     });
 
@@ -261,15 +315,13 @@ describe("PatternsPage fullscreen as-of replay", () => {
     // Loading state is kept while the replay fetch is in flight.
     expect(screen.getByTestId("patterns-fullscreen-loading")).toBeInTheDocument();
 
-    await act(async () => {
-      resolveReplay({
-        symbol: "IRCON",
-        timeframe: "1D",
-        candles: [{ t: "2026-09-30T09:15:00+05:30", o: 1, h: 1, l: 1, c: 1, v: 1 }],
-        overlays: [],
-        trend_lines: [],
-        hits: [oldConfident, newWeak],
-      });
+    resolveReplay({
+      symbol: "IRCON",
+      timeframe: "1D",
+      candles: [{ t: "2026-09-30T09:15:00+05:30", o: 1, h: 1, l: 1, c: 1, v: 1 }],
+      overlays: [],
+      trend_lines: [],
+      hits: [oldConfident, newWeak],
     });
 
     // Newest hit promoted; replay candles swapped in; banner shown.
@@ -287,8 +339,8 @@ describe("PatternsPage fullscreen as-of replay", () => {
 
   test("a replay window with no hits clears the displayed hit", async () => {
     r(<PatternsPage {...makeProps()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
-    await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
+    fireEvent.click(screen.getByRole("button", { name: "Grid" }));
+    fireEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
     await screen.findByTestId("patterns-fullscreen-modal");
     expect(screen.getByTestId("patterns-fullscreen-modal")).toHaveTextContent("Falling Wedge");
 
@@ -301,7 +353,7 @@ describe("PatternsPage fullscreen as-of replay", () => {
       trend_lines: [],
       hits: [],
     });
-    fireEvent.change(screen.getByTestId("patterns-fullscreen-asof-to"), {
+    fireEvent.input(screen.getByTestId("patterns-fullscreen-asof-to"), {
       target: { value: "2026-06-30T14:30" },
     });
 
@@ -322,18 +374,16 @@ describe("PatternsPage fullscreen as-of replay", () => {
   test("scan replay control runs the scanReplay callback with the replay window", async () => {
     const scanReplay = vi.fn();
     r(<PatternsPage {...makeProps({ scanReplay })} />);
-    await userEvent.click(screen.getByTestId("patterns-replay-toggle"));
-    fireEvent.change(screen.getByTestId("patterns-replay-asof"), {
+    fireEvent.click(screen.getByTestId("patterns-replay-toggle"));
+    fireEvent.input(screen.getByTestId("patterns-replay-asof"), {
       target: { value: "2026-09-30T14:30" },
     });
-    await userEvent.click(screen.getByTestId("patterns-replay-run"));
+    fireEvent.click(screen.getByTestId("patterns-replay-run"));
     expect(scanReplay).toHaveBeenCalledWith({ asOf: "2026-09-30T14:30", from: null });
   });
 
   test("replay as-of label is surfaced when set", () => {
     r(<PatternsPage {...makeProps({ replayAsOf: "2026-09-30T14:30" })} />);
-    expect(screen.getByTestId("patterns-scan-asof")).toHaveTextContent(
-      "as of 2026-09-30 14:30",
-    );
+    expect(screen.getByTestId("patterns-scan-asof")).toHaveTextContent("as of 2026-09-30 14:30");
   });
 });

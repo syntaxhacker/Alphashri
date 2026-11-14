@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { describe, expect, test, vi } from "vitest";
+import type { JSX } from "solid-js";
+import { render, screen, within, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { NiftyIntelStrip } from "./NiftyIntelStrip";
 import {
@@ -19,7 +19,9 @@ function intel(overrides: Partial<NiftyIntel> = {}): NiftyIntel {
     date: "2026-10-21",
     expiry: "current_week",
     fii_net: -1149,
+    fii_date: "2026-10-21",
     dii_net: 3201,
+    dii_date: "2026-10-21",
     dce_oi: 96_000_000,
     dpe_oi: 44_000_000,
     top_dce: [
@@ -43,15 +45,13 @@ function intel(overrides: Partial<NiftyIntel> = {}): NiftyIntel {
   };
 }
 
-function r(node: React.ReactElement) {
+function r(node: () => JSX.Element) {
   return render(node, { wrapper: UIProvider });
 }
 
-afterEach(cleanup);
-
 describe("NiftyIntelStrip — compact fields", () => {
   test("renders FII, DII, ΔOI, max pain, PCR and the news count", async () => {
-    r(<NiftyIntelStrip fetcher={vi.fn().mockResolvedValue(intel())} />);
+    r(() => <NiftyIntelStrip fetcher={vi.fn().mockResolvedValue(intel())} />);
 
     expect(await screen.findByTestId("nifty-intel-fii")).toHaveTextContent("−1,149");
     expect(screen.getByTestId("nifty-intel-dii")).toHaveTextContent("+3,201");
@@ -64,19 +64,19 @@ describe("NiftyIntelStrip — compact fields", () => {
   });
 
   test("uses the strip's 24px height contract", async () => {
-    r(<NiftyIntelStrip fetcher={vi.fn().mockResolvedValue(intel())} />);
+    r(() => <NiftyIntelStrip fetcher={vi.fn().mockResolvedValue(intel())} />);
     const strip = await screen.findByTestId("nifty-intel-strip");
-    expect(strip).toHaveStyle({ height: "24px" });
+    expect(strip).toHaveAttribute("style", expect.stringContaining("height:24px"));
   });
 
   test("keeps the strip to a dash per field when only some sources are available", async () => {
-    r(
+    r(() => (
       <NiftyIntelStrip
         fetcher={vi.fn().mockResolvedValue(
           intel({ fii_net: null, dii_net: null, dce_oi: null, dpe_oi: null, max_pain: null, pcr: null, news: [], unavailable: ["fii", "dii"] }),
         )}
-      />,
-    );
+      />
+    ));
     expect(await screen.findByTestId("nifty-intel-fii")).toHaveTextContent("—");
     expect(screen.getByTestId("nifty-intel-news")).toHaveTextContent("no news");
   });
@@ -84,10 +84,10 @@ describe("NiftyIntelStrip — compact fields", () => {
 
 describe("NiftyIntelStrip — drawer", () => {
   test("clicking the strip opens the modal with ΔOI strikes and linked headlines", async () => {
-    const user = userEvent.setup();
-    r(<NiftyIntelStrip fetcher={vi.fn().mockResolvedValue(intel())} />);
+        r(() => <NiftyIntelStrip fetcher={vi.fn().mockResolvedValue(intel())} />);
 
-    await user.click(await screen.findByTestId("nifty-intel-strip"));
+    await screen.findByTestId("nifty-intel-fii");
+    fireEvent.click(screen.getByTestId("nifty-intel-strip"));
 
     const modal = await screen.findByTestId("nifty-intel-modal");
     expect(within(modal).getByTestId("nifty-intel-modal-date")).toHaveTextContent("2026-10-21");
@@ -111,23 +111,23 @@ describe("NiftyIntelStrip — drawer", () => {
   });
 
   test("keyboard Enter opens the drawer", async () => {
-    const user = userEvent.setup();
-    r(<NiftyIntelStrip fetcher={vi.fn().mockResolvedValue(intel())} />);
+        r(() => <NiftyIntelStrip fetcher={vi.fn().mockResolvedValue(intel())} />);
 
-    const strip = await screen.findByTestId("nifty-intel-strip");
+    await screen.findByTestId("nifty-intel-fii");
+    const strip = screen.getByTestId("nifty-intel-strip");
     strip.focus();
-    await user.keyboard("{Enter}");
+    fireEvent.keyDown(strip, { key: "Enter" });
 
     expect(await screen.findByTestId("nifty-intel-modal")).toBeInTheDocument();
   });
 
   test("EOD labels the block as the latest session, not the replay frame", async () => {
-    const user = userEvent.setup();
-    r(<NiftyIntelStrip eod fetcher={vi.fn().mockResolvedValue(intel())} />);
+        r(() => <NiftyIntelStrip eod fetcher={vi.fn().mockResolvedValue(intel())} />);
 
-    const strip = await screen.findByTestId("nifty-intel-strip");
+    await screen.findByTestId("nifty-intel-fii");
+    const strip = screen.getByTestId("nifty-intel-strip");
     expect(strip).toHaveAttribute("title", expect.stringContaining("latest session, not this frame"));
-    await user.click(strip);
+    fireEvent.click(strip);
 
     const modal = await screen.findByTestId("nifty-intel-modal");
     expect(within(modal).getByTestId("nifty-intel-modal-eod")).toHaveTextContent(
@@ -138,7 +138,7 @@ describe("NiftyIntelStrip — drawer", () => {
 
 describe("NiftyIntelStrip — empty state", () => {
   test("a failed first fetch shows INTEL unavailable instead of crashing", async () => {
-    r(<NiftyIntelStrip fetcher={vi.fn().mockRejectedValue(new Error("network down"))} />);
+    r(() => <NiftyIntelStrip fetcher={vi.fn().mockRejectedValue(new Error("network down"))} />);
 
     expect(await screen.findByTestId("nifty-intel-unavailable")).toHaveTextContent("INTEL unavailable");
     expect(screen.getByTestId("nifty-intel-strip")).toHaveAttribute("data-state", "unavailable");

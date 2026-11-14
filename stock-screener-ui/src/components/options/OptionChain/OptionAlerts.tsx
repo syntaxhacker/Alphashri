@@ -1,7 +1,7 @@
-import { Text, Badge, ThemeIcon, Timeline, TimelineItem } from "@/ui";
+import { Text, Badge } from "@/ui";
 import { Box } from "@/ui";
-import { IconBellRinging, IconBolt, IconWall, IconActivity } from "@tabler/icons-react";
-import { useMemo } from "react";
+import { IconBellRinging, IconBolt, IconWall, IconActivity } from "@/patterns/icons";
+import { createMemo, Show, For } from "solid-js";
 import * as palette from "@/ui/palette";
 import { CompactPanel } from "../../common/compact";
 
@@ -10,12 +10,13 @@ interface OptionAlertsProps {
   spotPrice: number | null;
 }
 
-export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
-  const alerts = useMemo(() => {
+export function OptionAlerts(props: OptionAlertsProps) {
+  const alerts = createMemo(() => {
     const list: any[] = [];
+    const spotPrice = props.spotPrice;
     if (!spotPrice) return list;
 
-    strikeMatrix.forEach(({ strike, ce, pe }) => {
+    props.strikeMatrix.forEach(({ strike, ce, pe }) => {
       [ce, pe].forEach((opt, idx) => {
         if (!opt) return;
         const type = idx === 0 ? "CE" : "PE";
@@ -67,17 +68,20 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
       });
     });
 
-    return list.sort((_a, _b) => (_a.type === "SQUEEZE" ? -1 : 1)).slice(0, 5);
-  }, [strikeMatrix, spotPrice]);
+    return list.sort((a) => (a.type === "SQUEEZE" ? -1 : 1)).slice(0, 5);
+  });
 
   return (
     <CompactPanel id="option-alerts" className="option-alerts-panel" data-testid="options-alerts-panel">
       <Box className="flex items-center justify-center gap-[8px] p-[8px] w-full alerts-header" data-testid="options-alerts-header">
         <Box className="flex items-center gap-[8px]">
-          <ThemeIcon color="warning" variant="light">
+          <Box
+            className="inline-flex size-8 items-center justify-center rounded-md bg-amber-400/10 text-amber-400"
+            aria-hidden="true"
+          >
             <IconBellRinging size={18} />
-          </ThemeIcon>
-          <Text fw={800} size="sm" style={{ letterSpacing: "0.5px" }}>
+          </Box>
+          <Text fw={800} size="sm" style={{ "letter-spacing": "0.5px" }}>
             LIVE SMART MONEY ALERTS
           </Text>
         </Box>
@@ -86,33 +90,56 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
         </Badge>
       </Box>
 
-      {alerts.length === 0 ? (
-        <Box className="py-[16px] flex items-center justify-center alerts-empty-state" data-testid="options-alerts-empty">
-          <Text size="sm" className="text-fin-text-muted">
-            Waiting for unusual activity patterns...
-          </Text>
-        </Box>
-      ) : (
-        <Timeline active={0} bulletSize={24} lineWidth={2} className="alerts-timeline" data-testid="options-alerts-timeline">
-          {alerts.map((alert, i) => (
-            <TimelineItem key={i} bullet={alert.icon} color={alert.color} className="alert-item" data-testid={`options-alert-item-${i}`} title={
-              <Box className="flex items-center justify-between w-full">
-                <Text size="sm" fw={700}>{alert.title}</Text>
-                <Badge size="sm" color={alert.intensity === "Critical" ? "error" : "primary"}>{alert.intensity}</Badge>
+      <Show
+        when={alerts().length > 0}
+        fallback={
+          <Box className="py-[16px] flex items-center justify-center alerts-empty-state" data-testid="options-alerts-empty">
+            <Text size="sm" className="text-fin-text-muted">
+              Waiting for unusual activity patterns...
+            </Text>
+          </Box>
+        }
+      >
+        <Box className="alerts-timeline" data-testid="options-alerts-timeline" style={{ display: "flex", "flex-direction": "column", gap: "8px" }}>
+          <For each={alerts()}>
+            {(alert, i) => (
+              <Box
+                className="alert-item flex gap-3 relative min-h-[56px]"
+                data-testid={`options-alert-item-${i()}`}
+              >
+                <Box className="flex flex-col items-center">
+                  <Box
+                    className="inline-flex size-7 items-center justify-center rounded-full border-2"
+                    classList={{
+                      "border-rose-500 text-rose-500": alert.color === "error",
+                      "border-emerald-400 text-emerald-400": alert.color === "success",
+                      "border-sky-400 text-sky-400": alert.color === "info",
+                      "border-neutral-400 text-neutral-400": alert.color === "secondary",
+                    }}
+                    aria-hidden="true"
+                  >
+                    {alert.icon}
+                  </Box>
+                </Box>
+                <Box className="flex-1 flex flex-col">
+                  <Box className="flex items-center justify-between w-full">
+                    <Text size="sm" fw={700}>{alert.title}</Text>
+                    <Badge size="sm" color={alert.intensity === "Critical" ? "error" : "primary"}>{alert.intensity}</Badge>
+                  </Box>
+                  <Text size="sm" className="text-fin-text-muted" style={{ "margin-top": "8px" }}>
+                    {alert.description}
+                  </Text>
+                </Box>
               </Box>
-            }>
-              <Text size="sm" className="text-fin-text-muted" style={{ marginTop: 32 }}>
-                {alert.description}
-              </Text>
-            </TimelineItem>
-          ))}
-        </Timeline>
-      )}
+            )}
+          </For>
+        </Box>
+      </Show>
 
       <Box
         className="alerts-profit-tip"
         data-testid="options-alerts-profit-tip"
-        style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${palette.BORDER}` }}
+        style={{ "margin-top": "8px", "padding-top": "8px", "border-top": `1px solid ${palette.BORDER}` }}
       >
         <Text size="sm" fw={600} className="text-fin-primary">
           💡 HOW TO PROFIT: When a "Squeeze" alert appears near the spot price, consider a quick bullish trade. When a "Wall" appears, expect the price to reverse from that strike.
