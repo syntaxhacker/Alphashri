@@ -1,5 +1,5 @@
-import { Suspense, batch, createEffect, createMemo, createSignal, mergeProps, type JSX } from "solid-js";
-import { ActionIcon, Alert, Box, Button, Chip, Divider, LoadingOverlay, Menu, MenuDropdown, MenuItem, MenuTarget, Modal, SegmentedControl, Select, Switch, Tabs, Text, ToolbarRow, Tooltip, useMediaQuery } from "@/ui";
+import { Suspense, batch, createEffect, createMemo, createSignal, mergeProps, onCleanup, type JSX } from "solid-js";
+import { ActionIcon, Alert, Box, Button, Chip, Divider, Loader, Menu, MenuDropdown, MenuItem, MenuTarget, Modal, SegmentedControl, Select, Switch, Tabs, Text, ToolbarRow, Tooltip, useMediaQuery } from "@/ui";
 import { IconAdjustmentsHorizontal, IconDotsVertical } from "@/components/common/Icons";
 import type {
   JobDTO,
@@ -471,6 +471,18 @@ function PatternsWorkspace(props: PatternsPageProps) {
   const draftDirty = createMemo(() => !sameFilters(draftFilters(), filters()));
   const draftChipCount = createMemo(() => buildAppliedFilterChips(draftFilters(), patterns()).length);
   const scanActive = createMemo(() => scanning() || job()?.status === "running" || job()?.status === "queued");
+  const refreshing = createMemo(() => (view() === "matrix" ? matrixLoading() : loading()));
+  // Delay the refresh affordance: a scope switch or a stream flush fires several
+  // short loads back to back, and an immediate spinner reads as "still broken".
+  const [showRefresh, setShowRefresh] = createSignal(false);
+  createEffect(() => {
+    if (!refreshing()) {
+      setShowRefresh(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setShowRefresh(true), 200);
+    onCleanup(() => window.clearTimeout(timer));
+  });
 
   /** Toggle one value of a multi-select filter (used by the clickable stats). */
   const toggleFilterValue = (key: "status" | "direction", value: string): void => {
@@ -1021,10 +1033,17 @@ function PatternsWorkspace(props: PatternsPageProps) {
                   onSymbolOpen={openSymbolPinnedStable}
                 />
               )}
-              <LoadingOverlay
-                visible={view() === "matrix" ? matrixLoading() : loading()}
-                data-testid="patterns-refreshing"
-              />
+              <Show when={showRefresh()}>
+                <Box
+                  data-testid="patterns-refreshing"
+                  className="pointer-events-none absolute right-2 top-2 z-10 flex items-center gap-1 rounded-fin border border-fin-border bg-fin-surface px-1.5 py-0.5 shadow-sm"
+                >
+                  <Loader size="xs" />
+                  <Text size="xs" c="dimmed">
+                    Refreshing
+                  </Text>
+                </Box>
+              </Show>
             </Box>
             {isDesktop() && activeTab() === "scan" && fullscreen() && !chartMaximized() ? (
               <Box

@@ -51,3 +51,10 @@ Never render a component through a function call in JSX (`{panel()}` where `pane
 the expression re-runs on state change and constructs a new component every tick. Render the
 component and pass reactive props. Same for chart options: rebuild only when the data
 identity changes.
+
+## 11. First load is not a refresh
+An empty container may show a skeleton or progress block. A container that already has
+content keeps it and shows a **delayed, non-blocking** indicator (≥200 ms, corner chip).
+Never cover working data with an overlay because a background request started — a scope
+switch that fires four short loads must not strobe four times. Two independent loading
+flags must be combined into one derived "busy" state before they reach the UI.

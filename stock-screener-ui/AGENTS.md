@@ -6,6 +6,11 @@
 - **NEVER push directly to `develop` or `main`** — both are protected shared branches. All work goes through a short-lived feature branch (`feat/…`, `fix/…`, `chore/…`, `docs/…`) pushed to origin, then a PR targeting `develop` (or `develop` → `main` to release). No direct `git push origin develop` / `git push origin main`, ever.
 - **NEVER delete report artifacts** — anything under `reports/**` (figures, PNGs, HTML, CSV, JSON, scripts, notes) is kept, even after regeneration. Overwrite in place instead of `rm`-ing first. The user deletes their own reports.
 
+## Tooling — edit files natively
+- Use the native `read` / `edit` / `write` tools for every file read or write. Do **not** shell out to `sed -i`, `python - <<EOF`, `cat >`, `perl -pi`, or `awk` to modify files.
+- The shell is for running things: build, tests, git, `grep`/`rg`, `find`. Locate with `grep`/`glob`, then `read` before `edit`.
+- Bulk mechanical edits (a rename across 40 files) may use a checked-in script, but the script itself is written with the native tools and reviewed before it runs.
+
 ## 🛡️ Agent Git Safety (STRICT — ZERO EXCEPTIONS)
 **Destructive git is FORBIDDEN without explicit user `yes` in same turn:** `reset --hard`, `checkout --`, `restore`, `clean -fd`, `branch -D`, `push --force`, `stash` (push/pop/apply/clear/drop), `rebase`, `merge`, `cherry-pick`, `revert`, or any `HEAD`-moving command.
 
