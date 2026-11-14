@@ -1,5 +1,5 @@
 import { Show, createSignal, onMount } from "solid-js";
-import { alpha, Text, Title, Group, Paper, Badge, Box } from "@/ui";
+import { Text, Paper, Badge, Box, ToolbarRow } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { TableColumnDef as ColumnDef } from "../common/TanStackTable";
 import { TanStackTable } from "../common/TanStackTable";
@@ -112,55 +112,49 @@ export function StrategyPerformance() {
     data() && data()!.total_trades > 0 ? ((totalWins() / data()!.total_trades) * 100).toFixed(1) : "0.0";
 
   return (
-    <Show when={data()} fallback={<Text size="sm" c="dimmed">Loading...</Text>}>
+    <Show when={data()} fallback={<Box className="p-2"><Text size="xs" c="dimmed">Loading…</Text></Box>}>
       {(d) => (
-
-    <Paper elevation={1} p="sm" radius="sm">
-      <Box className="flex items-center justify-between gap-2 p-2" mb="sm">
-        <Box className="flex items-center gap-2">
-          <Box w={4} h={24} style={{ "border-radius": "2px", "background-color": palette.INFO }} />
-          <Title order={4} ta="center">Strategy Performance</Title>
-          <Badge size="sm" variant="light" color="info">last {d().days} days</Badge>
-        </Box>
-      </Box>
-      <TanStackTable<StrategyPerf>
-        data={d().strategies}
-        columns={columns}
-      />
-      <Paper
-        elevation={1}
-        p="sm"
-        mt="sm"
-        radius="sm"
-        style={{
-          "background-color": alpha(d().total_net_pnl >= 0 ? palette.POSITIVE : palette.NEGATIVE, 0.16),
-          "border-left": `4px solid ${d().total_net_pnl >= 0 ? palette.POSITIVE : palette.NEGATIVE}`,
-        }}
-      >
-        <Box className="flex items-center justify-between gap-2 p-2">
-          <Group gap="md" align="flex-start" className="items-start">
-            <Box className="flex flex-col gap-2 items-start">
-              <Text size="xs" c="dimmed">Total Trades</Text>
-              <Text fw={700} size="lg">{d().total_trades}</Text>
-            </Box>
-            <Box className="flex flex-col gap-2 items-start">
-              <Text size="xs" c="dimmed">Win / Loss</Text>
-              <Group gap="md" className="items-center">
-                <Badge color="success" variant="filled" size="sm">{totalWins()} W</Badge>
-                <Badge color="error" variant="filled" size="sm">{totalLosses()} L</Badge>
-                <Text size="sm" fw={700}>({totalWinRate()}%)</Text>
-              </Group>
-            </Box>
-          </Group>
-          <Box className="flex flex-col gap-2 items-start">
-            <Text size="xs" c="dimmed">Total Net P&L</Text>
-            <Text fw={700} size="lg" c={d().total_net_pnl >= 0 ? "success" : "error"}>
-              {d().total_net_pnl >= 0 ? "+" : ""}₹{d().total_net_pnl.toLocaleString()}
+        <Paper radius="sm" p={0} className="flex h-full min-h-0 flex-col overflow-hidden">
+          <ToolbarRow gap={8} wrap={false} className="shrink-0 px-2" style={{ height: "28px", "border-bottom": "1px solid var(--color-fin-border)" }}>
+            <Box w={4} h={16} style={{ "border-radius": "2px", "background-color": palette.INFO }} />
+            <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ "font-size": "10px", "letter-spacing": "0.06em", "text-transform": "uppercase" }}>
+              Strategy Performance
             </Text>
+            <Badge size="xs" variant="light" color="info">last {d().days} days</Badge>
+          </ToolbarRow>
+
+          <Box className="flex min-h-0 flex-1 flex-col p-1">
+            <TanStackTable<StrategyPerf>
+              data={d().strategies}
+              columns={columns}
+              dense
+              bare
+              fillContainer
+              emptyMessage="No strategy trades in this window"
+            />
           </Box>
-        </Box>
-      </Paper>
-    </Paper>
+
+          <Box className="flex shrink-0 items-center justify-between gap-4 px-2" style={{ height: "34px", "border-top": "1px solid var(--color-fin-border)" }}>
+            <Box className="flex items-center gap-4">
+              <Box className="flex items-baseline gap-2">
+                <Text size="xs" c="dimmed">Total Trades</Text>
+                <Text size="sm" fw={700} class="font-mono tabular-nums">{d().total_trades}</Text>
+              </Box>
+              <Box className="flex items-center gap-2">
+                <Text size="xs" c="dimmed">Win / Loss</Text>
+                <Badge color="success" variant="filled" size="xs">{totalWins()} W</Badge>
+                <Badge color="error" variant="filled" size="xs">{totalLosses()} L</Badge>
+                <Text size="xs" fw={700} class="font-mono tabular-nums">({totalWinRate()}%)</Text>
+              </Box>
+            </Box>
+            <Box className="flex items-baseline gap-2">
+              <Text size="xs" c="dimmed">Total Net P&L</Text>
+              <Text size="sm" fw={700} class="font-mono tabular-nums" c={d().total_net_pnl >= 0 ? "success" : "error"}>
+                {d().total_net_pnl >= 0 ? "+" : ""}₹{d().total_net_pnl.toLocaleString()}
+              </Text>
+            </Box>
+          </Box>
+        </Paper>
       )}
     </Show>
   );

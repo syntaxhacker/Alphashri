@@ -193,7 +193,7 @@ export function Admin52wRangePanel() {
               data-testid="admin-52w-full-refresh"
               size="xs"
             />
-            <Button size="xs" variant="light" leftSection={<Icon name="refresh" size={12} />} onClick={fetchStatus} loading={loading()} style={{ "min-height": "24px" }}>
+            <Button size="xs" variant="light" leftSection={<Icon name="refresh" size={12} />} onClick={fetchStatus} loading={loading()} style={{ height: "24px" }}>
               Refresh
             </Button>
           </ToolbarRow>
@@ -239,13 +239,17 @@ export function Admin52wRangePanel() {
           </Alert>
         </Show>
 
-        <Show when={vm().db?.db_latest_updated_at}>
-          <Text size="xs" c="dimmed" class={MONO} data-testid="admin-52w-latest-update">
-            Latest DB update: {formatDateTime(vm().db!.db_latest_updated_at!)}
-          </Text>
-        </Show>
-        <Show when={vm().d?.run_hint && !vm().running}>
-          <Text size="xs" c="dimmed" class={MONO}>CLI: {vm().d?.run_hint}</Text>
+        <Show when={vm().db?.db_latest_updated_at || (vm().d?.run_hint && !vm().running)}>
+          <Box className="mt-auto flex flex-col gap-1" data-testid="admin-52w-footer">
+            <Show when={vm().db?.db_latest_updated_at}>
+              <Text size="xs" c="dimmed" class={MONO} data-testid="admin-52w-latest-update">
+                Latest DB update: {formatDateTime(vm().db!.db_latest_updated_at!)}
+              </Text>
+            </Show>
+            <Show when={vm().d?.run_hint && !vm().running}>
+              <Text size="xs" c="dimmed" class={MONO}>CLI: {vm().d?.run_hint}</Text>
+            </Show>
+          </Box>
         </Show>
       </Stack>
     </Show>

@@ -234,7 +234,7 @@ export function OrderFlowJournalPanel() {
                   data-testid="ofj-day-select"
                 />
                 <Button size="xs" variant="outline" leftSection={<Icon name="refresh" size={12} />}
-                  onClick={() => void load(day())} data-testid="ofj-refresh" style={{ "min-height": "24px" }}>
+                  onClick={() => void load(day())} data-testid="ofj-refresh" style={{ height: "24px" }}>
                   Refresh
                 </Button>
                 <Text size="xs" c="dimmed" truncate maw={360} title="Coverage = share of session minutes with at least one stored record. Auto-refreshes every 60s.">
@@ -258,8 +258,8 @@ export function OrderFlowJournalPanel() {
 
               <Box className="flex min-h-0 flex-1 flex-col">
                 <CompactPanel title={`Stored data — ${s().day}`} flush scrollable>
-                  {/* CompactPanel's scroll body is a block box, so the fill-height
-                      chain has to be restarted here for `fillContainer` to bind. */}
+                  {/* The panel already draws the section border — `bare` keeps
+                      the table from nesting a second one. */}
                   <Box className="flex min-h-0 flex-col" style={{ height: "100%" }}>
                   <TanStackTable<OrderFlowJournalRow>
                     data={rows()}
@@ -267,6 +267,7 @@ export function OrderFlowJournalPanel() {
                     dataTestId="orderflow-journal-table"
                     emptyMessage="No journal data for this day"
                     dense
+                    bare
                     fillContainer
                     rowWindowSize={60}
                   />

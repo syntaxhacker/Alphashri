@@ -95,14 +95,16 @@ function BotsPageTabs(props: {
   };
   const state = useBotsState();
   return (
-    <ToolbarRow gap={8} wrap={false} id="bots-tabs" data-testid="bots-tabs" style={{ flex: "0 0 auto", height: "40px", padding: "0 16px", "border-bottom": "1px solid var(--color-fin-border)" }}>
+    <ToolbarRow gap={8} wrap={false} id="bots-tabs" data-testid="bots-tabs" style={{ flex: "0 0 auto", height: "32px", padding: "0 16px", "align-items": "flex-end", "border-bottom": "1px solid var(--color-fin-border)" }}>
       <Tabs
         value={props.currentView}
         onChange={(v) => v && props.onViewChange(v as BotsView)}
         id="bots-tabs"
         data-testid="bots-tabs"
       >
-        <Tabs.List className="flex items-center gap-2">
+        {/* The band draws the section rule; the strip sits flat on it so the
+            active underline lands on the same line. */}
+        <Tabs.List style={{ gap: "0", border: "0", background: "transparent", padding: "0", "min-height": "0" }}>
           <Tabs.Tab value="list" icon={<IconRobot size={16} color={TAB_META.list.color} />} data-testid="bots-tab-list" id="bots-tab-list">
             Bots
           </Tabs.Tab>
@@ -237,16 +239,19 @@ function BotsTable(props: {
       }
     >
       <Box id="bots-list-card" data-testid="bots-list-card" className="flex min-h-0 flex-1 flex-col overflow-hidden rounded border border-fin-border bg-fin-surface">
-        <ToolbarRow gap={8} wrap={false} style={{ padding: "8px 12px", "border-bottom": "1px solid var(--color-fin-border)" }}>
-          <Box w={4} h={20} className="rounded-sm bg-fin-positive" />
+        <ToolbarRow gap={8} wrap={false} style={{ padding: "4px 12px", "border-bottom": "1px solid var(--color-fin-border)" }}>
+          <Box w={4} h={16} className="rounded-sm bg-fin-positive" />
           <Text size="sm" fw={600}>Configured Bots</Text>
           <Badge size="sm" variant="light" color="info">{state().bots.length}</Badge>
           <Badge size="sm" variant="dot" color="success">{state().bots.filter((b) => b.running).length} running</Badge>
         </ToolbarRow>
+        {/* The card already draws the section border — `bare` keeps the table
+            from nesting a second one, and it fills the card body. */}
         <TanStackTable
           data={state().bots}
           columns={columns()}
           dataTestId="bots-table"
+          bare
           fillContainer
           getRowTestId={(row) => `bot-row-${row.id}`}
           getRowClassName={() => "bot-row"}
@@ -277,7 +282,7 @@ function PageContent(props: {
       when={!state().error}
       fallback={<ErrorAlert message={state().error ?? ""} onClose={props.handleClearError} data-testid="bots-error" />}
     >
-      <Stack className="flex flex-1 min-h-0 min-w-0 flex-col gap-2 px-4 py-2" id="bots-page">
+      <Stack className="flex flex-1 min-h-0 min-w-0 flex-col gap-2 px-4 pt-1 pb-2" id="bots-page">
         <BotsPageTabs currentView={props.currentView} onViewChange={props.handleViewChange} />
         <Box className="flex flex-1 min-h-0 min-w-0 flex-col overflow-hidden">
           <Switch>
@@ -380,47 +385,50 @@ export function BotsPage() {
         <Text size="sm" c="dimmed" style={{ "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" }}>
           Manage bot configurations, live status, and execution controls.
         </Text>
-        <Box className="flex-1" />
-            <Button
-              variant="filled"
-              color="success"
-              size="sm"
-              leftSection={<IconPlayerPlay size={16} />}
-              onClick={async () => {
-                const bots = state().bots;
-                const stoppedCount = bots.filter((b) => !b.running).length;
-                if (stoppedCount === 0) return;
-                if (window.confirm(`Start all ${stoppedCount} stopped bots?`)) {
-                  await startAllBotsAction();
-                }
-              }}
-              disabled={!state().bots.some((b) => !b.running)}
-            >
-              Start All ({state().bots.filter((b) => !b.running).length})
-            </Button>
-            <Button
-              variant="filled"
-              color="error"
-              size="sm"
-              leftSection={<IconPlayerStop size={16} />}
-              onClick={async () => {
-                const bots = state().bots;
-                const runningCount = bots.filter((b) => b.running).length;
-                if (window.confirm(`Stop all ${runningCount} running bots?`)) {
-                  await stopAllBotsAction();
-                }
-              }}
-              disabled={!state().bots.some((b) => b.running)}
-            >
-              Stop All ({state().bots.filter((b) => b.running).length})
-            </Button>
-            <Button
-              leftSection={<IconPlus size={16} />}
-              onClick={openCreateModal}
-              data-testid="create-bot-btn"
-            >
-              New Bot
+        <Box className="ml-auto flex items-center gap-2">
+          <Button
+            variant="filled"
+            color="success"
+            size="sm"
+            leftSection={<IconPlayerPlay size={16} />}
+            onClick={async () => {
+              const bots = state().bots;
+              const stoppedCount = bots.filter((b) => !b.running).length;
+              if (stoppedCount === 0) return;
+              if (window.confirm(`Start all ${stoppedCount} stopped bots?`)) {
+                await startAllBotsAction();
+              }
+            }}
+            disabled={!state().bots.some((b) => !b.running)}
+          >
+            Start All ({state().bots.filter((b) => !b.running).length})
           </Button>
+          <Button
+            variant="filled"
+            color="error"
+            size="sm"
+            leftSection={<IconPlayerStop size={16} />}
+            onClick={async () => {
+              const bots = state().bots;
+              const runningCount = bots.filter((b) => b.running).length;
+              if (window.confirm(`Stop all ${runningCount} running bots?`)) {
+                await stopAllBotsAction();
+              }
+            }}
+            disabled={!state().bots.some((b) => b.running)}
+          >
+            Stop All ({state().bots.filter((b) => b.running).length})
+          </Button>
+          <Button
+            variant="filled"
+            size="sm"
+            leftSection={<IconPlus size={16} />}
+            onClick={openCreateModal}
+            data-testid="create-bot-btn"
+          >
+            New Bot
+          </Button>
+        </Box>
       </ToolbarRow>
       <PageContent
         currentView={currentView()}

@@ -1,4 +1,4 @@
-import { For, Show } from "solid-js";
+import { For, Show, type JSX } from "solid-js";
 import {
   Card,
   Text,
@@ -7,6 +7,7 @@ import {
   Stack,
   Progress,
   ActionIcon,
+  ToolbarRow,
   Tooltip,
   Box,
 } from "@/ui";
@@ -32,6 +33,18 @@ import {
   TINT_NEGATIVE,
 } from "../../config/colors";
 
+const STAT_LABEL: JSX.CSSProperties = { "font-size": "10px", "letter-spacing": "0.04em", "text-transform": "uppercase" };
+const SECTION_LABEL: JSX.CSSProperties = { "font-size": "10px", "letter-spacing": "0.06em", "text-transform": "uppercase" };
+
+function StatLine(props: { label: string; value: JSX.Element; tone?: string }) {
+  return (
+    <Box className="flex items-center justify-between gap-2" style={{ "min-height": "18px" }}>
+      <Text size="xs" c="dimmed" tt="uppercase" style={STAT_LABEL}>{props.label}</Text>
+      <Text size="xs" fw={600} class="font-mono tabular-nums text-right" c={props.tone}>{props.value}</Text>
+    </Box>
+  );
+}
+
 export function PortfolioSummaryCard(props: { portfolio: PortfolioSummary }) {
   const pnlColor = () => getPnLTextColor(props.portfolio.total_pnl);
   const pnlBg = () => (props.portfolio.total_pnl >= 0 ? TINT_POSITIVE : TINT_NEGATIVE);
@@ -39,45 +52,33 @@ export function PortfolioSummaryCard(props: { portfolio: PortfolioSummary }) {
 
   return (
     <Card
-      padding="md"
-      radius="md"
+      padding="xs"
       data-testid="portfolio-summary"
-      className="p-2"
+      className="shrink-0"
     >
-      <Box className="flex items-center justify-between gap-2 p-2">
-        <Box className="flex items-center justify-center"><Text fw={600} size="sm" ta="center">Portfolio Summary</Text></Box>
-        <Box className="flex items-center justify-center">
-          <Badge color={isGreen() ? "success" : "error"} variant="light" size="sm">
-            {isGreen() ? "PROFIT" : "LOSS"}
-          </Badge>
+      <ToolbarRow gap={8} wrap={false} className="px-2" style={{ height: "24px" }}>
+        <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={SECTION_LABEL}>
+          Portfolio Summary
+        </Text>
+        <Badge className="ml-auto" color={isGreen() ? "success" : "error"} variant="light" size="xs">
+          {isGreen() ? "PROFIT" : "LOSS"}
+        </Badge>
+      </ToolbarRow>
+      <Box className="grid grid-cols-2 gap-x-4 px-2 pb-1">
+        <StatLine label="Capital" value={`₹${formatNumberShared(props.portfolio.initial_capital)}`} />
+        <StatLine label="Cash" value={`₹${formatNumberShared(props.portfolio.cash)}`} />
+        <StatLine label="Positions" value={String(props.portfolio.total_positions)} />
+        <Box className="flex items-center justify-between gap-2 rounded px-1" style={{ "background-color": pnlBg(), "min-height": "18px" }}>
+          <Text size="xs" c="dimmed" tt="uppercase" style={STAT_LABEL}>Total P&L</Text>
+          <Text size="xs" fw={600} c={pnlColor()} class="font-mono tabular-nums">
+            {formatSignedPnl(props.portfolio.total_pnl)}
+            <Text span size="xs" ml={4}>
+              ({props.portfolio.total_pnl_pct >= 0 ? "+" : ""}
+              {props.portfolio.total_pnl_pct.toFixed(2)}%)
+            </Text>
+          </Text>
         </Box>
       </Box>
-      <Stack spacing={1} className="flex items-center gap-2 p-2">
-        <Box className="flex w-full items-center justify-between gap-2 p-2">
-          <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Capital</Text>
-          <Text fw={600} className="flex flex-1 items-center justify-end text-right">₹{formatNumberShared(props.portfolio.initial_capital)}</Text>
-        </Box>
-        <Box className="flex w-full items-center justify-between gap-2 p-2">
-          <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Cash</Text>
-          <Text fw={600} className="flex flex-1 items-center justify-end text-right">₹{formatNumberShared(props.portfolio.cash)}</Text>
-        </Box>
-        <Box className="flex w-full items-center justify-between gap-2 p-2">
-          <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Positions</Text>
-          <Text fw={600} className="flex flex-1 items-center justify-end text-right">{props.portfolio.total_positions}</Text>
-        </Box>
-        <Box className="flex w-full items-center justify-between gap-2 rounded p-2" style={{ "background-color": pnlBg() }}>
-          <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Total P&L</Text>
-          <Box className="flex flex-1 items-center justify-end">
-            <Text fw={600} c={pnlColor()} ta="center">
-              {formatSignedPnl(props.portfolio.total_pnl)}
-              <Text span size="sm" ml={4}>
-                ({props.portfolio.total_pnl_pct >= 0 ? "+" : ""}
-                {props.portfolio.total_pnl_pct.toFixed(2)}%)
-              </Text>
-            </Text>
-          </Box>
-        </Box>
-      </Stack>
     </Card>
   );
 }
@@ -92,56 +93,38 @@ export function StrategyStatusCard(props: {
 
   return (
     <Card
-      padding="sm"
-      radius="md"
+      padding="xs"
       data-testid="strategy-card"
-      className="p-2"
+      className="min-w-0"
     >
-      <Box className="flex items-center justify-between gap-2 p-2">
-        <Box className="flex items-center justify-center">
-          <Text fw={600} size="sm" ta="center">{props.strategy.strategy_name}</Text>
-        </Box>
-        <Box className="flex items-center justify-center">
-          <Badge color={props.strategy.status === "running" ? "success" : "secondary"} variant="filled" size="sm">
-            {props.strategy.status}
-          </Badge>
-        </Box>
+      <ToolbarRow gap={8} wrap={false} className="px-2" style={{ height: "24px", "border-bottom": "1px solid var(--color-fin-border)" }}>
+        <Text size="xs" fw={700} truncate data-testid="strategy-card-name">{props.strategy.strategy_name}</Text>
+        <Badge className="ml-auto" color={props.strategy.status === "running" ? "success" : "secondary"} variant="filled" size="xs">
+          {props.strategy.status}
+        </Badge>
+      </ToolbarRow>
+      <Box className="flex flex-col gap-0.5 px-2 py-1">
+        <StatLine label="Positions" value={`${props.strategy.positions_count}/${props.strategy.max_positions}`} />
+        <StatLine
+          label="Capital Used"
+          value={`₹${formatNumberShared(props.strategy.capital_used)} / ₹${formatNumberShared(props.strategy.allocated_capital)} (${usedPct().toFixed(0)}%)`}
+        />
+        <Progress value={Math.min(usedPct(), 100)} size="xs" color="primary" />
+        <StatLine
+          label="P&L"
+          tone={pnlColor()}
+          value={
+            <>
+              {formatSignedPnl(props.strategy.total_pnl)}
+              <Text span size="xs" ml={4}>
+                ({isGreen() ? "+" : ""}
+                {((props.strategy.total_pnl / Math.max(props.strategy.allocated_capital, 1)) * 100).toFixed(2)}%)
+              </Text>
+            </>
+          }
+        />
+        <StatLine label="Trades" value={String(props.strategy.trades_count)} />
       </Box>
-
-      <Stack spacing={1} className="gap-2 p-2">
-        <Box className="flex items-center justify-between gap-2 p-2">
-          <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Positions</Text>
-          <Text size="sm" fw={500} className="flex flex-1 items-center justify-end text-right">
-            {props.strategy.positions_count}/{props.strategy.max_positions}
-          </Text>
-        </Box>
-
-        <Box className="flex items-center justify-between gap-2 p-2">
-          <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Capital Used</Text>
-          <Text size="sm" fw={500} className="flex flex-1 items-center justify-end text-right">
-            ₹{formatNumberShared(props.strategy.capital_used)} / ₹{formatNumberShared(props.strategy.allocated_capital)} ({usedPct().toFixed(0)}%)
-          </Text>
-        </Box>
-        <Progress value={Math.min(usedPct(), 100)} size="sm" color="primary" />
-
-        <Box className="flex items-center justify-between gap-2 p-2">
-          <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">P&L</Text>
-          <Text size="sm" fw={600} c={pnlColor()} className="flex flex-1 items-center justify-end text-right">
-            {formatSignedPnl(props.strategy.total_pnl)}
-            <Text span size="xs" ml={4}>
-              ({isGreen() ? "+" : ""}
-              {((props.strategy.total_pnl / Math.max(props.strategy.allocated_capital, 1)) * 100).toFixed(2)}%)
-            </Text>
-          </Text>
-        </Box>
-
-        <Box className="flex items-center justify-between gap-2 p-2">
-          <Text size="sm" c="dimmed" className="flex items-center min-w-[80px]">Trades</Text>
-          <Text size="sm" fw={500} className="flex flex-1 items-center justify-end text-right">
-            {props.strategy.trades_count}
-          </Text>
-        </Box>
-      </Stack>
     </Card>
   );
 }
@@ -233,20 +216,21 @@ export function PositionsTable(props: { positions: BotPosition[] }) {
 
   return (
     <Show when={props.positions.length > 0}>
-      <Card padding="md" radius="md" data-testid="bot-positions" className="p-2">
-        <Box className="flex items-center justify-between gap-2 p-2">
-          <Box className="flex items-center justify-center"><Text fw={600} ta="center">Open Positions</Text></Box>
-          <Box className="flex items-center justify-center">
-            <Badge color="primary" variant="light" size="sm">
-              {props.positions.length} active
-            </Badge>
-          </Box>
-        </Box>
+      <Card padding="xs" data-testid="bot-positions" className="flex min-h-0 flex-col">
+        <ToolbarRow gap={8} wrap={false} className="shrink-0 px-2" style={{ height: "26px", "border-bottom": "1px solid var(--color-fin-border)" }}>
+          <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={SECTION_LABEL}>Open Positions</Text>
+          <Badge color="primary" variant="light" size="xs">
+            {props.positions.length} active
+          </Badge>
+        </ToolbarRow>
         <TanStackTable
           data={props.positions}
           columns={columns}
           dataTestId="bot-positions-table"
           emptyMessage="No open positions"
+          dense
+          bare
+          fillContainer
         />
       </Card>
     </Show>
@@ -358,52 +342,42 @@ export function TradesTable(props: { trades: BotTrade[]; onRefresh: () => void }
     <Show
       when={props.trades.length > 0}
       fallback={
-        <Card padding="md" radius="md" data-testid="bot-trades" className="p-2">
-          <Box className="flex items-center justify-center p-2">
-            <Text fw={600} ta="center">
-              Trade History
-            </Text>
-          </Box>
-          <Box className="flex items-center justify-center p-2">
-            <Text c="dimmed" ta="center">
-              No trades yet
-            </Text>
+        <Card padding="xs" data-testid="bot-trades" className="flex min-h-0 flex-col">
+          <ToolbarRow gap={8} wrap={false} className="shrink-0 px-2" style={{ height: "26px", "border-bottom": "1px solid var(--color-fin-border)" }}>
+            <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={SECTION_LABEL}>Trade History</Text>
+            <Badge size="xs" variant="light" color="secondary">0</Badge>
+          </ToolbarRow>
+          <Box className="flex flex-1 items-center justify-center p-2">
+            <Text size="xs" c="dimmed">No trades yet</Text>
           </Box>
         </Card>
       }
     >
-      <Card padding="md" radius="md" data-testid="bot-trades" className="p-2">
-        <Box className="flex items-center justify-between gap-2 p-2">
-          <Box className="flex items-center justify-center"><Text fw={600} ta="center">Trade History ({props.trades.length})</Text></Box>
-          <Box className="flex items-center justify-center gap-2">
-            <Badge
-              color="success"
-              variant="filled"
-              size="sm"
-            >
-              {wins()} W
-            </Badge>
-            <Badge
-              color="error"
-              variant="filled"
-              size="sm"
-            >
-              {losses()} L
-            </Badge>
+      <Card padding="xs" data-testid="bot-trades" className="flex min-h-0 flex-1 flex-col">
+        <ToolbarRow gap={8} wrap={false} className="shrink-0 px-2" style={{ height: "26px", "border-bottom": "1px solid var(--color-fin-border)" }}>
+          <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={SECTION_LABEL}>
+            Trade History ({props.trades.length})
+          </Text>
+          <Box className="ml-auto flex items-center gap-2">
+            <Badge color="success" variant="filled" size="xs">{wins()} W</Badge>
+            <Badge color="error" variant="filled" size="xs">{losses()} L</Badge>
             <ActionIcon
               variant="subtle"
               onClick={props.onRefresh}
               title="Refresh trades"
               data-testid="refresh-trades-btn"
             >
-              <IconRefresh size={16} />
+              <IconRefresh size={14} />
             </ActionIcon>
           </Box>
-        </Box>
+        </ToolbarRow>
         <TanStackTable
           data={props.trades}
           columns={columns}
           dataTestId="bot-trades-table"
+          dense
+          bare
+          fillContainer
           getRowStyle={(row) => row.is_test ? { backgroundColor: TINT_TEST_TRADE } : undefined}
         />
       </Card>

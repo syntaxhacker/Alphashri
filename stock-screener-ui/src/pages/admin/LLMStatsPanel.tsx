@@ -214,7 +214,9 @@ export function LLMStatsPanel() {
             style={{ flex: 1, "min-height": "0px" }}
           >
             {/* CompactPanel's scroll body is a block box, so the fill-height
-                chain has to be restarted here for `fillContainer` to bind. */}
+                chain has to be restarted here for `fillContainer` to bind. The
+                panel already draws the section border — `bare` keeps the table
+                from nesting a second one. */}
             <Box className="flex min-h-0 flex-col" style={{ height: "100%" }}>
             <TanStackTable<LLMRun>
               data={vm().runs}
@@ -223,6 +225,7 @@ export function LLMStatsPanel() {
               enableSorting={false}
               emptyMessage="No recent runs"
               dense
+              bare
               fillContainer
               rowWindowSize={40}
             />
