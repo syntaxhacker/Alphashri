@@ -4,7 +4,9 @@ export { ClickableSymbol } from "./ClickableSymbol";
 export { SymbolLink, type SymbolLinkProps } from "./SymbolLink";
 export { CorrelationHeatmap } from "./CorrelationHeatmap";
 export { TanStackTable } from "./TanStackTable";
-export { RangeInput } from "./RangeInput";export { TableEmptyState } from "./TableEmptyState";
+export { RangeInput } from "./RangeInput";
+export { NumCell, TextCell, SymbolCell, BadgeCell } from "./tableCells";
+export { TableEmptyState } from "./TableEmptyState";
 export { TableLoadingState } from "./TableLoadingState";
 export { CompactPage, CompactPanel, CompactStat, CompactStatGrid } from "./compact";
 export {
