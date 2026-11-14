@@ -1009,7 +1009,6 @@ function PatternsWorkspace(props: PatternsPageProps) {
                 />
               ) : view() === "list" ? (
                 <PatternListView
-                  key={filters().sort}
                   hits={filteredLatest()}
                   onSelect={openChartHitStable}
                   onShowMembers={changeMembers}

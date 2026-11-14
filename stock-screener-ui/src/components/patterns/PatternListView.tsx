@@ -1,5 +1,6 @@
 import { Show } from "solid-js";
 import { Box, Text } from "@/ui";
+import { alpha, PRIMARY } from "@/ui/palette";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { BadgeCell, NumCell, TextCell } from "@/components/common";
@@ -298,35 +299,38 @@ export function PatternListView(props: PatternListViewProps) {
   ];
 
   return (
-    <TanStackTable
-      data={props.hits}
-      columns={columns}
-      dataTestId="patterns-list"
-      fillContainer
-      // No sticky thead: the merged universe/results toolbar above is sticky
-      // (`top: 0`, higher z) and would cover a `top: 0` thead while scrolling.
-      stickyHeader={false}
-      // Seed the header sort indicator from the active rail sort; the parent
-      // remounts (key=sort) so changing the rail re-seeds it. Sort keys match
-      // the server ordering (confidence desc / bars_ago asc / range_pos desc /
-      // breakout_score desc).
-      initialState={{ sorting: sortingFor(props.sort) }}
-      onRowClick={props.onSelect}
-      onSortedRowsChange={props.onOrderChange}
-      getRowStyle={(hit) =>
-        activeKey() && fullscreenDedupeKey(hit) === activeKey()
-          ? {
-              background: "rgba(88, 166, 255, 0.12)",
-              boxShadow: "inset 3px 0 0 var(--color-fin-primary)",
-            }
-          : undefined
-      }
-      getRowAttributes={(hit) => ({
-        "data-active": activeKey() && fullscreenDedupeKey(hit) === activeKey() ? "true" : undefined,
-      })}
-      getRowTestId={(hit) =>
-        `patterns-list-row-${hit.symbol}-${hit.pattern_id}${hit.id != null ? `-${hit.id}` : ""}`
-      }
-    />
+    // `key` on a component is only a prop in Solid, so the table kept its mount
+    // sort forever. A keyed Show is the actual remount: changing the rail sort
+    // gives the table a fresh seed.
+    <Show when={props.sort || "default"} keyed>
+      <TanStackTable
+        data={props.hits}
+        columns={columns}
+        dataTestId="patterns-list"
+        fillContainer
+        // No sticky thead: the merged universe/results toolbar above is sticky
+        // (`top: 0`, higher z) and would cover a `top: 0` thead while scrolling.
+        stickyHeader={false}
+        // Sort keys match the server ordering (confidence desc / bars_ago asc /
+        // range_pos desc / breakout_score desc).
+        initialState={{ sorting: sortingFor(props.sort) }}
+        onRowClick={props.onSelect}
+        onSortedRowsChange={props.onOrderChange}
+        getRowStyle={(hit) =>
+          activeKey() && fullscreenDedupeKey(hit) === activeKey()
+            ? {
+                "background-color": alpha(PRIMARY, 0.12),
+                "box-shadow": `inset 3px 0 0 ${PRIMARY}`,
+              }
+            : undefined
+        }
+        getRowAttributes={(hit) => ({
+          "data-active": activeKey() && fullscreenDedupeKey(hit) === activeKey() ? "true" : undefined,
+        })}
+        getRowTestId={(hit) =>
+          `patterns-list-row-${hit.symbol}-${hit.pattern_id}${hit.id != null ? `-${hit.id}` : ""}`
+        }
+      />
+    </Show>
   );
 }
