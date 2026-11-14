@@ -7,6 +7,7 @@ import "@testing-library/jest-dom/vitest";
 import { ScreenerPage, mapDashboardPanelToScreener, DEFAULT_DASHBOARD_UNIVERSE } from "./ScreenerPage";
 import { UIProvider } from "@/ui";
 import { fetchMarketSnapshot } from "../../api/marketScreener";
+import type { Stock } from "../../types";
 
 vi.setConfig({ testTimeout: 20_000 });
 
@@ -21,7 +22,8 @@ configure({ asyncUtilTimeout: 10_000 });
 // window.location-backed searchParams. The helper seeds it from initialRoute.
 vi.mock("@solidjs/router", async () => {
   const { createSignal } = await import("solid-js");
-  const state = globalThis.__screenerSearchParams ??= createSignal<Record<string, string | undefined>>({});
+  const g = globalThis as unknown as { __screenerSearchParams?: ReturnType<typeof createSignal<Record<string, string | undefined>>> };
+  const state = (g.__screenerSearchParams ??= createSignal<Record<string, string | undefined>>({}));
   const [search, setSearch] = state;
   return {
     useSearchParams: () => [
@@ -42,15 +44,15 @@ vi.mock("@solidjs/router", async () => {
 });
 
 const seedSearchParams = (route?: string) => {
-  const state = (globalThis as any).__screenerSearchParams;
+  const state = (globalThis as unknown as { __screenerSearchParams?: [unknown, (next: Record<string, string | undefined>) => void] }).__screenerSearchParams;
   if (!state) return;
   const q = (route ?? "/?tab=screener").split("?")[1];
   state[1](q ? Object.fromEntries(new URLSearchParams(q).entries()) : {});
 };
 
-const render = (ui: JSX.Element, options?: { initialRoute?: string }) => {
+const render = (ui: () => JSX.Element, options?: { initialRoute?: string }) => {
   seedSearchParams(options?.initialRoute);
-  return rtlRender(() => ui);
+  return rtlRender(ui);
 };
 
 // Mock child components to isolate ScreenerPage tests
@@ -62,7 +64,7 @@ vi.mock("./ScreenerNav", () => ({
       data-options-count={options.length}
     >
       {options.map((opt: any) => (
-        <button key={opt.id} data-testid={`nav-${opt.id}`} onClick={() => onChange(opt.id)}>
+        <button data-testid={`nav-${opt.id}`} onClick={() => onChange(opt.id)}>
           {opt.label}
         </button>
       ))}
@@ -116,7 +118,7 @@ vi.mock("./ScreenerTable", () => ({
       data-stocks-count={props.stocks.length}
     >
       {props.stocks.map((stock: Stock) => (
-        <div key={`stock-${stock.symbol}`} data-testid={`row-${stock.symbol}`}>
+        <div data-testid={`row-${stock.symbol}`}>
           {stock.symbol}
         </div>
       ))}
@@ -197,35 +199,14 @@ vi.mock("../../api/marketScreener", async (importOriginal) => {
   return { ...actual, fetchMarketSnapshot: vi.fn() };
 });
 
-// The real panels fetch on mount (value scan via a 300ms debounce, events
-// calendar + anomalies via the events store). These mocks fire the same API
-// calls on mount so the suite can prove the panels only mount — and only hit
-// the network — when their tab is active.
-const valueScanSpy = vi.hoisted(() => vi.fn(async () => ({})));
-const fetchEventsSpy = vi.hoisted(() => vi.fn(async () => ({})));
-const fetchAnomaliesSpy = vi.hoisted(() => vi.fn(async () => ({})));
+// The real panels fetch on mount (value scan via a 300ms debounce). These
+// mocks fire the same API call on mount so the suite can prove the panel
+// only mounts — and only hits the network — when its tab is active.
+const valueScanSpy = vi.hoisted(() => vi.fn(async (_params?: unknown) => ({})));
 
 vi.mock("../../api/valueScan", () => ({
   valueScan: valueScanSpy,
 }));
-
-vi.mock("../../api/events", () => ({
-  fetchEvents: fetchEventsSpy,
-  fetchAnomalies: fetchAnomaliesSpy,
-}));
-
-vi.mock("../events/EventsPanel", async () => {
-  const { onMount } = await import("solid-js");
-  return {
-    EventsPanel: () => {
-      onMount(() => {
-        void fetchEventsSpy({ market: "us" });
-        void fetchAnomaliesSpy("2026-11-09");
-      });
-      return <div data-testid="events-panel" />;
-    },
-  };
-});
 
 vi.mock("../value/ValuePanel", async () => {
   const { onMount } = await import("solid-js");
@@ -259,27 +240,26 @@ const marketSnapshot = {
       symbol: "RELIANCE",
       name: "Reliance Industries",
       sector: "Energy",
-      industry: "Oil & Gas",
       exchange: "NSE",
       close: 2946,
       change: 0.82,
-      volume: 1234567,
       relativeVolume: 1.4,
-      marketCap: 1990000000000,
       marketCapCr: 199000,
       capTier: "large",
       rsi: 61,
       adx: 24,
-      atr: 45,
       sma20: 2880,
       sma50: 2800,
       sma200: 2600,
       perfW: 2.1,
       perf1m: 4.6,
-      perf3m: 8.2,
       high52w: 3000,
       low52w: 1800,
       pos52w: 95,
+      peRatio: null,
+      pbRatio: null,
+      dividendYield: null,
+      roe: null,
       fno: true,
       etf: false,
     },
@@ -302,7 +282,7 @@ vi.mock("./DashboardView", async () => {
             Open symbol
           </button>
           {panels.map((id) => (
-            <button key={id} data-testid={`dashboard-open-scan-${id}`} onClick={() => props.onOpenScan?.(id)}>
+            <button data-testid={`dashboard-open-scan-${id}`} onClick={() => props.onOpenScan?.(id)}>
               {id}
             </button>
           ))}
@@ -345,6 +325,7 @@ describe("ScreenerPage", () => {
     ],
     activeScreener: "trending",
     onScreenerChange: vi.fn(),
+    onConfigScreenerSelect: vi.fn(),
     title: "Trending | Alphashri",
     status: "3 stocks",
     isLoading: false,
@@ -635,29 +616,22 @@ describe("ScreenerPage", () => {
     expect(screen.getByTestId("market-tab-panel")).toBeInTheDocument();
   });
 
-  it("does not fetch value scan or events endpoints on Dashboard or Market tabs", async () => {
+  it("does not fetch value scan endpoints on Dashboard or Market tabs", async () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>), { initialRoute: "/" });
     expect(valueScanSpy).not.toHaveBeenCalled();
-    expect(fetchEventsSpy).not.toHaveBeenCalled();
-    expect(fetchAnomaliesSpy).not.toHaveBeenCalled();
     // Panels stay in the DOM (hidden) but must not mount their contents
     expect(screen.getByTestId("deep-value-panel")).not.toBeVisible();
-    expect(screen.getByTestId("events-tab-panel")).not.toBeVisible();
     expect(screen.queryByTestId("value-panel")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("events-panel")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("tab-market"));
     await waitFor(() => expect(mockFetchMarketSnapshot).toHaveBeenCalledTimes(1), {
       timeout: 10_000,
     });
     expect(valueScanSpy).not.toHaveBeenCalled();
-    expect(fetchEventsSpy).not.toHaveBeenCalled();
-    expect(fetchAnomaliesSpy).not.toHaveBeenCalled();
     expect(screen.queryByTestId("value-panel")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("events-panel")).not.toBeInTheDocument();
   });
 
   it("fetches the value scan only when the Deep Value tab is opened, and remounts on re-entry", async () => {
@@ -670,40 +644,12 @@ describe("ScreenerPage", () => {
     fireEvent.click(screen.getByTestId("tab-deepvalue"));
     await waitFor(() => expect(valueScanSpy).toHaveBeenCalledTimes(1), { timeout: 10_000 });
     expect(await screen.findByTestId("value-panel", undefined, { timeout: 10_000 })).toBeInTheDocument();
-    expect(fetchEventsSpy).not.toHaveBeenCalled();
-    expect(fetchAnomaliesSpy).not.toHaveBeenCalled();
 
     // Switching away unmounts; coming back remounts and refetches
     fireEvent.click(screen.getByTestId("tab-dashboard"));
     expect(screen.queryByTestId("value-panel")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("tab-deepvalue"));
     await waitFor(() => expect(valueScanSpy).toHaveBeenCalledTimes(2), { timeout: 10_000 });
-  });
-
-  it("fetches the events endpoints only when the Events tab is opened, and remounts on re-entry", async () => {
-    render(() => (
-      <UIProvider>
-        <ScreenerPage {...defaultProps} />
-      </UIProvider>), { initialRoute: "/" });
-    expect(fetchEventsSpy).not.toHaveBeenCalled();
-    expect(fetchAnomaliesSpy).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByTestId("tab-events"));
-    await waitFor(() => {
-      expect(fetchEventsSpy).toHaveBeenCalledTimes(1);
-      expect(fetchAnomaliesSpy).toHaveBeenCalledTimes(1);
-    }, { timeout: 10_000 });
-    expect(await screen.findByTestId("events-panel", undefined, { timeout: 10_000 })).toBeInTheDocument();
-    expect(valueScanSpy).not.toHaveBeenCalled();
-
-    // Switching away unmounts; coming back remounts and refetches
-    fireEvent.click(screen.getByTestId("tab-dashboard"));
-    expect(screen.queryByTestId("events-panel")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("tab-events"));
-    await waitFor(() => {
-      expect(fetchEventsSpy).toHaveBeenCalledTimes(2);
-      expect(fetchAnomaliesSpy).toHaveBeenCalledTimes(2);
-    }, { timeout: 10_000 });
   });
 
   it("keeps correlation and config tabs working alongside dashboard", async () => {
@@ -825,8 +771,8 @@ describe("ScreenerPage", () => {
     expect(await screen.findByTestId("screener-table-approaching")).toBeInTheDocument();
     expect(await screen.findByTestId("group-performance-panel")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("tab-events"));
-    expect(await screen.findByTestId("events-panel", undefined, { timeout: 10_000 })).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("tab-deepvalue"));
+    expect(await screen.findByTestId("value-panel", undefined, { timeout: 10_000 })).toBeInTheDocument();
     // Visited tabs stay mounted (hidden), so switching back costs no remount.
     expect(screen.getByTestId("screener-table-approaching")).toBeInTheDocument();
 

@@ -1,7 +1,7 @@
 import { Show, Suspense, createEffect, createMemo, createSignal, lazy, onCleanup, onMount } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
 import { Box, Stack, Paper, Tabs, Text, Select, Skeleton, ActionIcon, Switch, Tooltip } from "@/ui";
-import { IconTable, IconChartDots, IconSettings, IconLayoutDashboard, IconRefresh, IconCoins, IconCalendarEvent, IconChartCandle, IconWorld } from "./icons";
+import { IconTable, IconChartDots, IconSettings, IconLayoutDashboard, IconRefresh, IconCoins, IconChartCandle, IconWorld } from "./icons";
 import * as state from "../../state";
 import { ScreenerHeader } from "./ScreenerHeader";
 // ScreenerContent pulls the table + its whole module tree — heavy module
@@ -26,7 +26,6 @@ import { ErrorBoundary } from "../common/ErrorBoundary";
 const CorrelationTab = lazy(() => import("./CorrelationTab").then((m) => ({ default: m.CorrelationTab })));
 const ScreenerConfigView = lazy(() => import("./ScreenerConfigView").then((m) => ({ default: m.ScreenerConfigView })));
 const DeepValueTab = lazy(() => import("../value/ValuePanel").then((m) => ({ default: m.ValuePanel })));
-const EventsTab = lazy(() => import("../events/EventsPanel").then((m) => ({ default: m.EventsPanel })));
 const FnoScreenerTab = lazy(() =>
   import("./FnoScreenerTab").then((m) => ({ default: m.FnoScreenerTab })),
 );
@@ -168,7 +167,6 @@ export function ScreenerPage(props: ScreenerPageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = createMemo(() => firstParam(searchParams.tab) || "dashboard");
   const isValueTab = () => activeTab() === "deepvalue";
-  const isEventsTab = () => activeTab() === "events";
   const isMarketTab = () => activeTab() === "market";
   const isFnoTab = () => activeTab() === "fno";
   const [internalUniverse, setInternalUniverse] = createSignal(DEFAULT_DASHBOARD_UNIVERSE);
@@ -276,41 +274,31 @@ export function ScreenerPage(props: ScreenerPageProps) {
           <Box className="flex items-center gap-2 min-w-0 flex-1">
             <Show when={isDashboard()} fallback={
               <Show when={isValueTab()} fallback={
-                <Show when={isEventsTab()} fallback={
-                  <Show when={isMarketTab()} fallback={
-                    <Show when={isFnoTab()} fallback={
-                      <Select
-                        value={props.activeScreener}
-                        onChange={(v) => v && props.onScreenerChange(v)}
-                        data={screenerSelectData()}
-                        size="xs"
-                        w={148}
-                        data-testid="screener-select"
-                        comboboxProps={{ withinPortal: true }}
-                        aria-label="Screener"
-                      />
-                    }>
-                      <Text
-                        size="xs"
-                        fw={600}
-                        data-testid="fno-tab-label"
-                        className="w-[148px] flex-shrink-0 hidden md:block"
-                      >
-                        F&O Momentum
-                      </Text>
-                    </Show>
+                <Show when={isMarketTab()} fallback={
+                  <Show when={isFnoTab()} fallback={
+                    <Select
+                      value={props.activeScreener}
+                      onChange={(v) => v && props.onScreenerChange(v)}
+                      data={screenerSelectData()}
+                      size="xs"
+                      w={148}
+                      data-testid="screener-select"
+                      comboboxProps={{ withinPortal: true }}
+                      aria-label="Screener"
+                    />
                   }>
-                    <Text size="xs" fw={600} data-testid="market-tab-label" className="w-[148px] flex-shrink-0">
-                      Market
+                    <Text
+                      size="xs"
+                      fw={600}
+                      data-testid="fno-tab-label"
+                      className="w-[148px] flex-shrink-0 hidden md:block"
+                    >
+                      F&O Momentum
                     </Text>
                   </Show>
                 }>
-                  {/* Keeps the tab strip from jumping: the slot below it is a
-                      148px Select on the other tabs. The word "Events" is already
-                      the active tab two elements to the right, so this slot names
-                      the surface instead of repeating it. */}
-                  <Text size="xs" fw={600} data-testid="events-tab-label" className="w-[148px] flex-shrink-0">
-                    Event calendar
+                  <Text size="xs" fw={600} data-testid="market-tab-label" className="w-[148px] flex-shrink-0">
+                    Market
                   </Text>
                 </Show>
               }>
@@ -354,10 +342,17 @@ export function ScreenerPage(props: ScreenerPageProps) {
                 <Tabs.Tab value="fno" leftSection={<IconChartCandle size={14} />} data-testid="tab-fno" style={{ "min-height": "32px" }}>
                   F&O
                 </Tabs.Tab>
-                <Tabs.Tab value="events" leftSection={<IconCalendarEvent size={14} />} data-testid="tab-events" style={{ "min-height": "32px" }}>
-                  Events
-                </Tabs.Tab>
-                <Tabs.Tab value="market" leftSection={<IconWorld size={14} />} data-testid="tab-market" style={{ "min-height": "32px" }} onMouseEnter={prefetchMarketTab} onFocus={prefetchMarketTab}>
+                {/* `onFocus` is not on `UITabProps` (shared type) but `Tab`
+                    forwards unknown props to the DOM, so the focus path still
+                    warms the chunk instead of silently disappearing. */}
+                <Tabs.Tab
+                  value="market"
+                  leftSection={<IconWorld size={14} />}
+                  data-testid="tab-market"
+                  style={{ "min-height": "32px" }}
+                  onMouseEnter={() => void prefetchMarketTab()}
+                  {...({ onFocus: () => void prefetchMarketTab() } as Record<string, unknown>)}
+                >
                   Market
                 </Tabs.Tab>
                 <Tabs.Tab value="correlation" leftSection={<IconChartDots size={14} />} data-testid="tab-correlation" style={{ "min-height": "32px" }}>
@@ -376,7 +371,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
                   <Switch
                     size="xs"
                     checked={showLastClose()}
-                    onChange={(e) => setShowLastClose(e.currentTarget.checked)}
+                    onChange={(e) => setShowLastClose((e.currentTarget as HTMLInputElement).checked)}
                     label="Last close"
                     data-testid="dashboard-last-close-toggle"
                     aria-label="Last close"
@@ -395,7 +390,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
                 </Tooltip>
               </Box>
             </Show>
-            <Show when={!isDashboard() && !isValueTab() && !isEventsTab() && !isMarketTab() && !isFnoTab()}>
+            <Show when={!isDashboard() && !isValueTab() && !isMarketTab() && !isFnoTab()}>
               <ScreenerHeader
                 status={props.status}
                 isLoading={props.isLoading}
@@ -486,17 +481,6 @@ export function ScreenerPage(props: ScreenerPageProps) {
             <Suspense fallback={<PanelFallback />}>
               <Show when={isValueTab()}>
                 <DeepValueTab />
-              </Show>
-            </Suspense>
-          </div>
-          <div
-            data-testid="events-tab-panel"
-            class="min-w-0 min-h-0 overflow-auto"
-            style={{ display: isEventsTab() ? "flex" : "none", flex: 1 }}
-          >
-            <Suspense fallback={<PanelFallback />}>
-              <Show when={isEventsTab()}>
-                <EventsTab />
               </Show>
             </Suspense>
           </div>
