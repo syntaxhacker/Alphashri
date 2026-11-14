@@ -302,9 +302,10 @@ function HoverPreview(props: HoverPreviewProps) {
         props.chartBox.current = null;
       }
 
-      props.chartBox.current = echartsLib.init(chartDiv);
-      props.chartBox.current.setOption(chartOption);
-      props.chartBox.current.resize();
+      const instance = echartsLib.init(chartDiv);
+      props.chartBox.current = instance;
+      instance.setOption(chartOption);
+      instance.resize();
     });
 
     onCleanup(() => {
@@ -414,9 +415,10 @@ function ExpandedPanel(props: ExpandedPanelProps) {
         props.chartBox.current = null;
       }
 
-      props.chartBox.current = echartsLib.init(chartDiv);
-      props.chartBox.current.setOption(chartOption);
-      props.chartBox.current.resize();
+      const instance = echartsLib.init(chartDiv);
+      props.chartBox.current = instance;
+      instance.setOption(chartOption);
+      instance.resize();
 
       window.addEventListener("resize", handleResize);
     });
@@ -469,7 +471,7 @@ function ExpandedPanel(props: ExpandedPanelProps) {
           onChange={props.onOrMinutesChange}
           data-testid="preview-or-select"
         />
-        <CloseButton ml="auto" size="md" onClick={props.onClose} data-testid="preview-close-btn" />
+        <CloseButton className="ml-auto" size="md" onClick={props.onClose} data-testid="preview-close-btn" />
       </Group>
 
       <Box

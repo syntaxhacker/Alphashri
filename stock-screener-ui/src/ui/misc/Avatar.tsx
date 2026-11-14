@@ -55,7 +55,7 @@ export function Avatar(props: UIAvatarProps) {
     "id",
   ]);
 
-  const { w, h, fontSize } = mapSize(known.size);
+  const dims = mapSize(known.size);
   const hasSrc = Boolean(known.src);
   const colorCls = known.color ? (BG_BY_COLOR[String(known.color)] ?? "bg-fin-surface text-fin-text") : "bg-fin-surface text-fin-text";
   const display = hasSrc ? undefined : known.children ?? (known.alt ? initials(known.alt) : "?");
@@ -68,12 +68,12 @@ export function Avatar(props: UIAvatarProps) {
         radiusClass(known.radius),
         known.className,
       )}
-      style={{ width: w, height: h, fontSize, ...known.style }}
+      style={{ width: dims.w, height: dims.h, "font-size": dims["font-size"], ...known.style }}
       id={known.id}
       data-testid={known["data-testid"]}
     >
       {hasSrc ? (
-        <img src={known.src} alt={known.alt ?? ""} className="w-full h-full object-cover" />
+        <img src={known.src ?? undefined} alt={known.alt ?? ""} className="w-full h-full object-cover" />
       ) : (
         <span className="text-fin-text font-medium leading-none">{display}</span>
       )}

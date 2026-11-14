@@ -69,6 +69,7 @@ export function Badge(props: UIBadgeProps) {
     "onClick",
     "onMouseEnter",
     "onMouseLeave",
+    "title",
   ]);
 
   const main = resolveColor(known.color);
@@ -100,6 +101,7 @@ export function Badge(props: UIBadgeProps) {
     <span
       data-testid={known["data-testid"]}
       id={known.id}
+      title={known.title}
       className={cn(
         "inline-flex items-center gap-1.5 whitespace-nowrap font-semibold border font-mono uppercase tracking-[0.06em]",
         br ? undefined : "rounded-fin",

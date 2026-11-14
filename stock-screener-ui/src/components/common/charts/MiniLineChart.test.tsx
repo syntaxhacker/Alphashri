@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, afterEach } from "vitest";
+import type { JSX } from "solid-js";
 import { cleanup, render, screen } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";

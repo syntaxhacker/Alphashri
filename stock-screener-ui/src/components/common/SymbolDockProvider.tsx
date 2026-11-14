@@ -15,7 +15,7 @@ const PatternFullscreenView = lazy(() =>
 );
 
 /** App header height (matches `FIN_HEADER_H`). */
-const DOCK_TOP = 48;
+const DOCK_TOP = "48px";
 const PREVIEW_DEBOUNCE_MS = 300;
 const PREVIEW_CLOSE_MS = 800;
 

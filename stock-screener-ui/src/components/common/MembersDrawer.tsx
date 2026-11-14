@@ -1,9 +1,13 @@
-import { For, Show, type CSSProperties, type JSX } from "solid-js";
+import { For, Show, type JSX } from "solid-js";
 import { ActionIcon, Alert, Box, Loader, Text, TextInput, ToolbarRow } from "@/ui";
 import { Portal } from "@/ui/layout/Portal";
 import { IconChartLine, IconX } from "./Icons";
 import { SymbolTvLink } from "@/components/patterns/SymbolTvLink";
 import * as palette from "@/ui/palette";
+
+// `solid-js` does not re-export JSX.CSSProperties from its package root.
+type CSSProperties = JSX.CSSProperties;
+
 
 /**
  * Legacy testids. Each surface keeps its own naming scheme, so the ids are
@@ -97,56 +101,56 @@ export function MembersDrawer(props: MembersDrawerProps) {
     top: 0,
     right: 0,
     width: `${props.width}px`,
-    maxWidth: "100%",
+    "max-width": "100%",
     height: "100%",
-    backgroundColor: palette.SURFACE,
-    borderLeft: `1px solid ${palette.BORDER}`,
+    "background-color": palette.SURFACE,
+    "border-left": `1px solid ${palette.BORDER}`,
     display: "flex",
-    flexDirection: "column",
-    minWidth: 0,
-    zIndex: 1300,
+    "flex-direction": "column",
+    "min-width": 0,
+    "z-index": 1300,
   };
 
   const headerStyle: CSSProperties = {
-    paddingLeft: pad(contentPx()),
-    paddingRight: pad(contentPx()),
-    paddingTop: pad(headerPy()),
-    paddingBottom: pad(headerPy()),
-    borderBottom: `1px solid ${palette.BORDER}`,
+    "padding-left": pad(contentPx()),
+    "padding-right": pad(contentPx()),
+    "padding-top": pad(headerPy()),
+    "padding-bottom": pad(headerPy()),
+    "border-bottom": `1px solid ${palette.BORDER}`,
   };
 
   const contentStyle: CSSProperties = {
-    paddingLeft: pad(contentPx()),
-    paddingTop: 6,
-    paddingBottom: 6,
-    ...(searchStacked() ? { display: "flex", flexDirection: "column", gap: 6 } : {}),
+    "padding-left": pad(contentPx()),
+    "padding-top": "6px",
+    "padding-bottom": "6px",
+    ...(searchStacked() ? { display: "flex", "flex-direction": "column", gap: "6px" } : {}),
   };
 
   const errorStyle: CSSProperties = {
-    paddingLeft: pad(contentPx()),
-    paddingBottom: 8,
+    "padding-left": pad(contentPx()),
+    "padding-bottom": "8px",
   };
 
   const bodyStyle: CSSProperties = {
     flex: 1,
-    minHeight: 0,
-    overflowY: "auto",
-    paddingLeft: pad(contentPx()),
-    paddingRight: pad(contentPx()),
-    paddingBottom: 8,
+    "min-height": 0,
+    "overflow-y": "auto",
+    "padding-left": pad(contentPx()),
+    "padding-right": pad(contentPx()),
+    "padding-bottom": "8px",
   };
 
   const loaderStyle: CSSProperties = {
     display: "flex",
-    alignItems: "center",
-    gap: 6,
-    paddingTop: 16,
-    paddingLeft: pad(bodyPx()),
+    "align-items": "center",
+    gap: "6px",
+    "padding-top": "16px",
+    "padding-left": pad(bodyPx()),
   };
 
   const gridStyle: CSSProperties = {
     display: "grid",
-    gridTemplateColumns: `repeat(auto-fill, minmax(${props.gridMin}px, 1fr))`,
+    "grid-template-columns": `repeat(auto-fill, minmax(${props.gridMin}px, 1fr))`,
     gap: gridGap(),
   };
 
@@ -155,9 +159,10 @@ export function MembersDrawer(props: MembersDrawerProps) {
       ? "flex items-center min-w-0 rounded-sm border border-fin-border bg-fin-bg hover:border-fin-primary hover:bg-fin-surface-alt"
       : "flex items-center min-w-0 rounded-sm hover:bg-fin-surface-alt";
 
-  return (
-    <Show when={props.open}>
-      {() => (
+  // Zero-arg render thunk, passed as an Element: `Show` only accepts a
+  // parameterised render function, but calling the child lazily is what keeps
+  // the `<Portal>` out of `document.body` while the drawer is closed.
+  const body = (() => (
         <Portal>
           <div
             data-testid={props.ids.drawer}
@@ -303,7 +308,7 @@ export function MembersDrawer(props: MembersDrawerProps) {
             </ToolbarRow>
           </div>
         </Portal>
-      )}
-    </Show>
-  );
+  )) as unknown as JSX.Element;
+
+  return <Show when={props.open}>{body}</Show>;
 }

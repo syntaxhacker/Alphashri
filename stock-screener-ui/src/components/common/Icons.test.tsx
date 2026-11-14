@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect } from "vitest";
+import type { JSX } from "solid-js";
 import { render, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import * as Icons from "./Icons";
@@ -22,7 +23,7 @@ const drawableChildren = (svg: SVGElement) => svg.querySelectorAll(DRAWABLE).len
  */
 const aliasEntries = Object.entries(Icons).filter(
   ([exportName, value]) => exportName.startsWith("Icon") && exportName !== "Icon" && typeof value === "function",
-) as Array<[string, (props: Icons.IconProps) => unknown]>;
+) as Array<[string, (props: Icons.IconProps) => JSX.Element]>;
 
 /** The bare base component: needs a `name` prop, so it is asserted explicitly below. */
 const baseExport = Icons.Icon;

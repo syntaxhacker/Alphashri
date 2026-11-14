@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type { JSX } from "solid-js";
 import { render, screen, waitFor, cleanup, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { ChatPopup } from "./ChatPopup";
@@ -198,7 +199,7 @@ describe("ChatPopup", () => {
     });
     mockSendChatMessage.mockResolvedValue({
       response: "Hello! How can I help?",
-      should_analyze: null,
+      conversation_id: "c1",
     });
 
     renderWithProvider(<ChatPopup />);
@@ -236,6 +237,7 @@ describe("ChatPopup", () => {
     }
     mockSendChatMessage.mockResolvedValue({
       should_analyze: "NVDA",
+      conversation_id: "c1",
       response: "Analyzing NVDA...",
     });
     mockStreamAnalysis.mockReturnValue(infiniteGen());
@@ -282,6 +284,7 @@ describe("ChatPopup", () => {
     }
     mockSendChatMessage.mockResolvedValue({
       should_analyze: "NVDA",
+      conversation_id: "c1",
       response: "Analyzing NVDA...",
     });
     mockStreamAnalysis.mockReturnValue(infiniteGenerator());
@@ -324,6 +327,7 @@ describe("ChatPopup", () => {
     }
     mockSendChatMessage.mockResolvedValue({
       should_analyze: "NVDA",
+      conversation_id: "c1",
       response: "Analyzing NVDA...",
     });
     mockStreamAnalysis.mockReturnValue(mockGenerator());
@@ -371,6 +375,7 @@ describe("ChatPopup", () => {
     }
     mockSendChatMessage.mockResolvedValue({
       should_analyze: "NVDA",
+      conversation_id: "c1",
       response: "Analyzing NVDA...",
     });
     mockStreamAnalysis.mockReturnValue(mockGenerator());

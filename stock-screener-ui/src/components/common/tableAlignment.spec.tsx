@@ -14,6 +14,7 @@
  *    with a clear message — the guard must never silently pass.
  */
 import { describe, it, expect } from "vitest";
+import type { JSX } from "solid-js";
 import { render, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";

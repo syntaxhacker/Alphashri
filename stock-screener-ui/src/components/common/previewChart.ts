@@ -329,7 +329,7 @@ function showError(size: ChartSize, message: string): void {
   const container = size === "preview" ? hoverContainer : expandedContainer;
   if (!container) return;
 
-  const bodyEl = container.querySelector(".chart-body-loading");
+  const bodyEl = container.querySelector<HTMLElement>(".chart-body-loading");
   if (bodyEl) {
     bodyEl.textContent = message;
     bodyEl.style.color = ERROR_COLOR;

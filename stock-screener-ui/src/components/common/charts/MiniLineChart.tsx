@@ -195,7 +195,7 @@ export function MiniLineChart(props: MiniLineChartProps) {
     <Box
       data-testid={props.testId}
       className="flex items-center justify-center"
-      style={{ "min-height": height() }}
+      style={{ "min-height": `${height()}px` }}
     >
       <Text size="xs" c="dimmed" span>
         {emptyMessage()}
@@ -212,7 +212,7 @@ export function MiniLineChart(props: MiniLineChartProps) {
         <svg
           viewBox={`0 0 ${W} ${height()}`}
           preserveAspectRatio="none"
-          style={{ width: "100%", height: height(), display: "block" }}
+          style={{ width: "100%", height: `${height()}px`, display: "block" }}
           onMouseMove={onMove}
           onMouseLeave={() => setHover(null)}
           role="img"

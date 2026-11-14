@@ -145,7 +145,7 @@ describe("SymbolDockProvider stale badge", () => {
 
     // RELIANCE phase 1 hangs: the badge must disappear via the synchronous reset,
     // not because a fresh frame happened to land.
-    let resolvePhase1!: (v: unknown) => void;
+    let resolvePhase1!: (v: never) => void;
     mockedFetchSymbolChart.mockReset();
     mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
     mockedFetchSymbolChart.mockImplementationOnce(

@@ -1,9 +1,13 @@
-import { Show, createEffect, onCleanup, type CSSProperties, type JSX } from "solid-js";
+import { Show, createEffect, onCleanup, type JSX } from "solid-js";
 import { Portal } from "@/ui/layout/Portal";
 import { IconX } from "./Icons";
 import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import { Box, Text } from "@/ui";
+
+// `solid-js` does not re-export JSX.CSSProperties from its package root.
+type CSSProperties = JSX.CSSProperties;
+
 
 export interface PanelModalProps {
   open: boolean;
@@ -64,17 +68,17 @@ export function PanelModal(props: PanelModalProps) {
     top: 0,
     right: 0,
     width: "100%",
-    maxWidth: `min(${props.drawerWidth ?? 720}px, 74vw)`,
+    "max-width": `min(${props.drawerWidth ?? 720}px, 74vw)`,
     height: "100%",
-    maxHeight: "100%",
-    backgroundColor: palette.TERM_BG,
+    "max-height": "100%",
+    "background-color": palette.TERM_BG,
     color: palette.TEXT,
     border: `1px solid ${palette.TERM_BORDER}`,
-    borderRight: "none",
-    borderRadius: 0,
-    boxShadow: DIALOG_SHADOW,
+    "border-right": "none",
+    "border-radius": 0,
+    "box-shadow": DIALOG_SHADOW,
     display: "flex",
-    flexDirection: "column",
+    "flex-direction": "column",
     overflow: "hidden",
   };
 
@@ -84,58 +88,58 @@ export function PanelModal(props: PanelModalProps) {
     left: "50%",
     transform: "translate(-50%, -50%)",
     width: compact() ? "100%" : width(),
-    maxWidth: compact() ? width() : undefined,
-    maxHeight: compact() ? maxHeightValue() : "88vh",
+    "max-width": compact() ? width() : undefined,
+    "max-height": compact() ? maxHeightValue() : "88vh",
     height: compact() ? "auto" : "88vh",
-    backgroundColor: palette.TERM_BG,
+    "background-color": palette.TERM_BG,
     color: palette.TEXT,
     border: `1px solid ${palette.TERM_BORDER}`,
-    borderRadius: "4px",
-    boxShadow: DIALOG_SHADOW,
+    "border-radius": "4px",
+    "box-shadow": DIALOG_SHADOW,
     display: "flex",
-    flexDirection: "column",
+    "flex-direction": "column",
     overflow: "hidden",
   };
 
   const backdropStyle: CSSProperties = isDrawer()
-    ? { backgroundColor: withAlpha(palette.BG, 0.18) }
-    : { backgroundColor: withAlpha(palette.BG, 0.5) };
+    ? { "background-color": withAlpha(palette.BG, 0.18) }
+    : { "background-color": withAlpha(palette.BG, 0.5) };
 
   const titlebarStyle: CSSProperties = {
     display: "flex",
-    alignItems: "center",
-    gap: 8,
+    "align-items": "center",
+    gap: "8px",
     padding: "12px 16px",
-    minHeight: 36,
-    flexShrink: 0,
-    backgroundColor: palette.TERM_HEADER,
-    borderBottom: `1px solid ${palette.TERM_BORDER}`,
+    "min-height": "36px",
+    "flex-shrink": 0,
+    "background-color": palette.TERM_HEADER,
+    "border-bottom": `1px solid ${palette.TERM_BORDER}`,
   };
 
   const titleStyle: CSSProperties = {
     flex: 1,
-    minWidth: 0,
+    "min-width": 0,
     overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
+    "text-overflow": "ellipsis",
+    "white-space": "nowrap",
   };
 
   const bodyStyle: CSSProperties = {
     flex: compact() ? "0 1 auto" : 1,
-    minHeight: 0,
+    "min-height": 0,
     overflow: "auto",
-    padding: 8,
+    padding: "8px",
   };
 
   const actionsStyle: CSSProperties = {
     display: "flex",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    gap: 8,
+    "align-items": "center",
+    "justify-content": "flex-end",
+    gap: "8px",
     padding: "12px 16px",
-    flexShrink: 0,
-    borderTop: `1px solid ${palette.TERM_BORDER}`,
-    backgroundColor: palette.TERM_HEADER,
+    "flex-shrink": 0,
+    "border-top": `1px solid ${palette.TERM_BORDER}`,
+    "background-color": palette.TERM_HEADER,
   };
 
   const closeButtonStyle: CSSProperties = {
@@ -143,13 +147,16 @@ export function PanelModal(props: PanelModalProps) {
     color: palette.TEXT_MUTED,
     border: "none",
     background: "none",
-    borderRadius: 0,
+    "border-radius": 0,
     cursor: "pointer",
   };
 
-  return (
-    <Show when={props.open}>
-      {() => (
+  // Zero-arg render thunk: Solid's `Show` calls it lazily, which is what keeps
+  // the `<Portal>` out of `document.body` while the panel is closed (an eager
+  // element child is created outside the owning root and never disposed).
+  // `Show`'s types only accept a *parameterised* render function, so the thunk
+  // is passed as an Element.
+  const body = (() => (
       <Portal>
         <div
           data-testid="panel-modal"
@@ -230,7 +237,7 @@ export function PanelModal(props: PanelModalProps) {
           </div>
         </div>
       </Portal>
-      )}
-    </Show>
-  );
+  )) as unknown as JSX.Element;
+
+  return <Show when={props.open}>{body}</Show>;
 }

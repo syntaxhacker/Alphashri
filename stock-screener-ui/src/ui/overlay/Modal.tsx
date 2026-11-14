@@ -28,13 +28,12 @@ export function Modal(props: ModalProps) {
     "title",
     "size",
     "fullScreen",
-    "_centered",
     "withCloseButton",
     "closeOnClickOutside",
     "closeOnEscape",
     "overlayProps",
     "padding",
-    "_transitionProps",
+    "transitionProps",
     "className",
     "style",
     "id",
@@ -42,10 +41,6 @@ export function Modal(props: ModalProps) {
     "onClick",
     "onMouseEnter",
     "onMouseLeave",
-    "role",
-    "aria-modal",
-    "aria-label",
-    "tabIndex",
   ]);
 
   // The testid travels with the dialog, so the close button can derive its own.
@@ -71,8 +66,9 @@ export function Modal(props: ModalProps) {
     });
   });
 
-  const isPreset = typeof known.size === "string" && known.size in SIZE_MAX_WIDTH;
-  const maxWidthClass = isPreset ? SIZE_MAX_WIDTH[known.size] : undefined;
+  const size = known.size;
+  const isPreset = typeof size === "string" && size in SIZE_MAX_WIDTH;
+  const maxWidthClass = isPreset ? SIZE_MAX_WIDTH[size as string] : undefined;
   const maxWidthStyle =
     !isPreset && known.size != null
       ? typeof known.size === "number"
@@ -87,7 +83,7 @@ export function Modal(props: ModalProps) {
     if (e.target === e.currentTarget && known.closeOnClickOutside) known.onClose?.();
   };
 
-  const overlayStyle: Record<string, string | undefined> = {
+  const overlayStyle: Record<string, string | number | undefined> = {
     "background-color": known.overlayProps?.color ?? undefined,
     opacity: known.overlayProps?.opacity != null ? known.overlayProps.opacity : undefined,
     "backdrop-filter":
@@ -96,7 +92,7 @@ export function Modal(props: ModalProps) {
         : undefined,
   };
 
-  const panelStyle: Record<string, string | undefined> = {
+  const panelStyle: Record<string, string | number | undefined> = {
     ...(maxWidthStyle ? { "max-width": maxWidthStyle } : {}),
     ...(known.fullScreen
       ? { position: "absolute", top: "0px", left: "0px", width: "100%", height: "100%" }
@@ -146,7 +142,7 @@ export function Modal(props: ModalProps) {
                   type="button"
                   aria-label="close"
                   data-testid={testId ? `${testId}-close` : undefined}
-                  onClick={onClose}
+                  onClick={() => known.onClose?.()}
                   className="absolute right-3 top-1/2 -translate-y-1/2 flex size-6 items-center justify-center rounded text-fin-text-muted hover:text-fin-text hover:bg-fin-border focus:outline-none"
                 >
                   ×

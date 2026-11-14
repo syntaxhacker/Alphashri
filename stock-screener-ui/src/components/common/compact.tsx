@@ -1,8 +1,12 @@
-import type { CSSProperties, JSX } from "solid-js";
+import type { JSX } from "solid-js";
 import { Show, splitProps } from "solid-js";
 import { Box, Card, Paper, SimpleGrid, Stack, Text, Title } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { UIStackProps, UIPaperProps } from "@/ui";
+
+// `solid-js` does not re-export JSX.CSSProperties from its package root.
+type CSSProperties = JSX.CSSProperties;
+
 
 const SCROLLABLE_PANEL_STYLE: CSSProperties = {
   display: "flex",
@@ -289,7 +293,7 @@ export function CompactStat(props: CompactStatProps) {
 }
 
 export function CompactStatGrid(props: {
-  children: JSX.Element;
+  children?: JSX.Element;
   /** Opt-in to the legacy centered layout. Default is left/stretch. */
   center?: boolean;
   /** Stat cells per row. Defaults to 4 — a stat grid is a single row of

@@ -11,7 +11,7 @@ function Chevron(props: { expanded: () => boolean }) {
       aria-hidden="true"
     >
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" stroke-width="2" d="M15 18l-6-6 6-6" />
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 18l-6-6 6-6" />
       </svg>
     </button>
   );
@@ -46,7 +46,7 @@ function TreeNode(props: TreeNodeProps) {
 
   const childrenList = () => (
     <ul className="list-none p-0 m-0 pl-2">
-      <For each={props.node.children} key={(child) => child.value}>
+      <For each={props.node.children}>
         {(child) => (
           <TreeNode
             node={child}
@@ -143,7 +143,7 @@ export function Tree(props: UITreeProps) {
       data-testid={known["data-testid"]}
       {...(rest as Record<string, unknown>)}
     >
-      <For each={known.data} key={(node) => node.value}>
+      <For each={known.data}>
         {(node) => (
           <TreeNode
             node={node}

@@ -14,11 +14,13 @@ const isSafeUrl = (href: unknown) =>
 const marked = new Marked({ gfm: true, breaks: true });
 marked.use({
   renderer: {
-    html({ text }: { text: string }) {
-      return escapeHtml(text);
+    html(token) {
+      return escapeHtml(token.text);
     },
-    link(this: { parser: { parseInline: (t: unknown[]) => string } }, token: { href?: string | null; title?: string | null; tokens?: unknown[]; text?: string }) {
-      const inner = token.tokens ? this.parser.parseInline(token.tokens) : escapeHtml(token.text ?? "");
+    link(token) {
+      const inner = token.tokens
+        ? this.parser.parseInline(token.tokens)
+        : escapeHtml(token.text ?? "");
       const href = token.href ?? "";
       const safe = isSafeUrl(href) ? escapeAttr(href) : "#";
       const title = token.title ? ` title="${escapeAttr(token.title)}"` : "";

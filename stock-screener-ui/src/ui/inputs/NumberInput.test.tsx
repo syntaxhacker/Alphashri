@@ -9,7 +9,7 @@ describe("NumberInput", () => {
     const onChange = vi.fn();
     render(() => <NumberInput value="" onChange={onChange} data-testid="num" />);
     const input = within(screen.getByTestId("num")).getByRole("spinbutton");
-    input.value = "20";
+    (input as HTMLInputElement).value = "20";
     fireEvent.input(input);
     expect(onChange).toHaveBeenLastCalledWith(20);
   });
@@ -18,10 +18,10 @@ describe("NumberInput", () => {
     const onChange = vi.fn();
     render(() => <NumberInput value="5" onChange={onChange} data-testid="num" />);
     const input = within(screen.getByTestId("num")).getByRole("spinbutton");
-    input.value = "";
+    (input as HTMLInputElement).value = "";
     fireEvent.input(input);
     expect(onChange).toHaveBeenLastCalledWith("");
-    input.value = "42";
+    (input as HTMLInputElement).value = "42";
     fireEvent.input(input);
     expect(onChange).toHaveBeenLastCalledWith(42);
   });

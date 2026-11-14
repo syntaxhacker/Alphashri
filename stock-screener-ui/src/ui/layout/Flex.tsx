@@ -1,4 +1,5 @@
 import { splitProps } from "solid-js";
+import type { JSX } from "solid-js";
 import { cn } from "../cn";
 import type { UIFlexProps } from "../types";
 
@@ -25,12 +26,12 @@ export function Flex(props: UIFlexProps & Record<string, unknown>) {
   const styleObj: Record<string, string | number | undefined> = {
     display: "flex",
   };
-  if (known.flexDirection != null) styleObj["flex-direction"] = known.flexDirection;
+  if (known.flexDirection != null) styleObj["flex-direction"] = known.flexDirection as string | undefined;
   else if (known.direction != null) styleObj["flex-direction"] = known.direction;
   if (known.wrap) styleObj["flex-wrap"] = known.wrap as string;
-  if (known.justifyContent != null) styleObj["justify-content"] = known.justifyContent;
+  if (known.justifyContent != null) styleObj["justify-content"] = known.justifyContent as string | undefined;
   else if (known.justify != null) styleObj["justify-content"] = known.justify;
-  if (known.alignItems != null) styleObj["align-items"] = known.alignItems;
+  if (known.alignItems != null) styleObj["align-items"] = known.alignItems as string | undefined;
   else if (known.align != null) styleObj["align-items"] = known.align;
   if (known.spacing != null) styleObj.gap = typeof known.spacing === "number" ? `${known.spacing * 8}px` : sp(known.spacing);
   if (known.gap != null) styleObj.gap = sp(known.gap);

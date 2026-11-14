@@ -1,8 +1,12 @@
-import type { CSSProperties, JSX } from "solid-js";
+import type { JSX } from "solid-js";
 import { Show, createMemo } from "solid-js";
 import { Box, Text, Progress, Stack } from "@/ui";
 import { CompactStat, CompactStatGrid } from "./compact";
 import { getPnLTextColor } from "../../utils/ui-helpers";
+
+// `solid-js` does not re-export JSX.CSSProperties from its package root.
+type CSSProperties = JSX.CSSProperties;
+
 
 const signedCurrencyFormat = new Intl.NumberFormat("en-IN", {
   style: "currency",

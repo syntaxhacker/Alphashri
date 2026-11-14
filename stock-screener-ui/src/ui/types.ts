@@ -32,7 +32,16 @@ export type UIJustify = "flex-start" | "center" | "flex-end" | "space-between" |
 export type UIAlignItems = "flex-start" | "center" | "flex-end" | "stretch" | "baseline";
 export type UIGap = UISize | number | string;
 export type UIRadius = UISize | number | "xl";
-export type UIVariant = "filled" | "light" | "outline" | "subtle" | "default" | "transparent" | "white";
+export type UIVariant =
+  | "filled"
+  | "light"
+  | "outline"
+  | "subtle"
+  | "default"
+  | "transparent"
+  | "white"
+  /** Status pill: colour dot + label. */
+  | "dot";
 
 export interface UIBoxProps extends UIBaseProps {
   onClick?: (e: MouseEvent) => void;
@@ -106,6 +115,7 @@ export interface UIScrollAreaProps extends UIBaseProps {
   offsetScrollbars?: boolean;
   scrollbarSize?: number;
   scrollHideDelay?: number;
+  onScroll?: (e: Event & { currentTarget: HTMLDivElement }) => void;
   onScrollPositionChange?: (pos: { x: number; y: number }) => void;
 }
 
@@ -163,6 +173,8 @@ export interface UITextProps extends UIBaseProps {
   maw?: number | string;
   opacity?: number;
   fs?: string;
+  /** `text-transform` — `uppercase` for section labels, `capitalize` for headings. */
+  tt?: "uppercase" | "lowercase" | "capitalize" | "none";
   /** Native tooltip — the full text when the visible label is truncated. */
   title?: string;
   size?: UISize;
@@ -178,6 +190,8 @@ export interface UITextProps extends UIBaseProps {
 
 export interface UITitleProps extends UIBaseProps {
   order?: 1 | 2 | 3 | 4 | 5 | 6;
+  /** Native tooltip attribute — forwarded to the root element. */
+  title?: string;
   component?: keyof JSX.IntrinsicElements;
   mt?: number | string;
   mb?: number | string;
@@ -217,6 +231,8 @@ export interface UIListItemProps extends UIBaseProps {}
 
 export interface UIBadgeProps extends UIBaseProps {
   variant?: UIVariant;
+  /** Native tooltip attribute — forwarded to the badge element. */
+  title?: string;
   color?: UIColor;
   size?: UISize;
   radius?: UIRadius;
@@ -280,6 +296,8 @@ export interface UIOverlayProps extends UIBaseProps {
 
 export interface UIButtonProps extends UIBaseProps {
   variant?: "filled" | "light" | "outline" | "subtle" | "default" | "transparent" | "white";
+  /** Native tooltip attribute — forwarded to the <button>. */
+  title?: string;
   color?: UIColor;
   size?: UISize;
   radius?: UIRadius;
@@ -295,6 +313,8 @@ export interface UIButtonProps extends UIBaseProps {
 
 export interface UIActionIconProps extends UIBaseProps {
   variant?: "filled" | "light" | "outline" | "subtle" | "default" | "transparent";
+  /** Native tooltip attribute — forwarded to the <button>. */
+  title?: string;
   color?: UIColor;
   size?: UISize | number | string;
   radius?: UIRadius;
@@ -318,6 +338,8 @@ export interface UIInputWrapperProps extends UIBaseProps {
   placeholder?: string;
   /** Form field name — forwarded to the native input for FormData support. */
   name?: string;
+  /** Accessible name for the control (multi-selects render a combobox, not a label). */
+  "aria-label"?: string;
   /** Explicit control width (number → px). When set, fullWidth is disabled. */
   w?: number | string;
   /** Explicit control height (number → px). */
@@ -597,6 +619,8 @@ export interface UITabsProps extends UIBaseProps {
 export interface UITabProps extends UIBaseProps {
   value: string;
   icon?: JSX.Element;
+  /** Leading slot, rendered before the icon — matches `UIButtonProps`. */
+  leftSection?: JSX.Element;
   rightSection?: JSX.Element;
   disabled?: boolean;
 }
@@ -761,8 +785,9 @@ export interface UIThemeNotifyProps {
 }
 
 export interface UIUseColorSchemeResult {
-  isDark: boolean;
-  colorScheme: "light" | "dark";
+  /** Accessors, not snapshots — read them in JSX/effects to stay reactive. */
+  isDark: () => boolean;
+  colorScheme: () => "light" | "dark";
   toggleColorScheme: () => void;
   setColorScheme: (scheme: "light" | "dark") => void;
 }

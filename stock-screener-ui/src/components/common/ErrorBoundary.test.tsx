@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
+import type { JSX } from "solid-js";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";

@@ -25,7 +25,7 @@ function resolveColor(color?: string): { main: string; dark: string } {
   if (!color) return primary;
   if (color.startsWith("#") || color.startsWith("rgb")) return { main: color, dark: color };
   const key = color.split(".")[0];
-  const entry = (sxTheme.palette as Record<string, { main?: string; contrastText?: string; dark?: string }>)[key];
+  const entry = (sxTheme.palette as unknown as Record<string, { main?: string; contrastText?: string; dark?: string }>)[key];
   if (entry) {
     return {
       main: entry.main ?? color,
@@ -80,7 +80,13 @@ export function ThemeIcon(props: UIThemeIconProps) {
   return (
     <span
       className={cn("inline-flex items-center justify-center shrink-0", isFilled ? "text-white" : "", known.className)}
-      style={{ ...baseSize, "border-radius": borderRadius, backgroundColor, color: isFilled ? undefined : colorValue, ...known.style }}
+      style={{
+        ...baseSize,
+        "border-radius": borderRadius,
+        "background-color": backgroundColor,
+        color: isFilled ? undefined : colorValue,
+        ...(known.style as Record<string, string | undefined>),
+      }}
       id={known.id}
       data-testid={known["data-testid"]}
     >

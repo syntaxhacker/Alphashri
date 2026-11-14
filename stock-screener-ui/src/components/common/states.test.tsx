@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, vi } from "vitest";
+import type { JSX } from "solid-js";
 import { render, screen, cleanup } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { InlineLoader, EmptyState, ErrorAlert } from "./states";

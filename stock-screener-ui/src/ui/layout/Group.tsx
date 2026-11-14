@@ -1,4 +1,5 @@
 import { splitProps } from "solid-js";
+import type { JSX } from "solid-js";
 import { cn } from "../cn";
 import type { UIGroupProps } from "../types";
 
@@ -28,9 +29,9 @@ export function Group(props: UIGroupProps & Record<string, unknown>) {
     "flex-direction": (known.flexDirection as string | undefined) ?? (known.direction as string | undefined) ?? "row",
     "flex-wrap": (known.wrap as string | undefined) ?? "wrap",
   };
-  if (known.justifyContent != null) styleObj["justify-content"] = known.justifyContent;
+  if (known.justifyContent != null) styleObj["justify-content"] = known.justifyContent as string | undefined;
   else if (known.justify != null) styleObj["justify-content"] = known.justify;
-  if (known.alignItems != null) styleObj["align-items"] = known.alignItems;
+  if (known.alignItems != null) styleObj["align-items"] = known.alignItems as string | undefined;
   else if (known.align != null) styleObj["align-items"] = known.align;
   if (known.spacing != null) styleObj.gap = typeof known.spacing === "number" ? `${known.spacing * 8}px` : sp(known.spacing);
   if (known.gap != null) styleObj.gap = sp(known.gap);

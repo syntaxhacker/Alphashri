@@ -1,8 +1,8 @@
-import { Badge } from "@/ui";
+import { Badge, type UISize } from "@/ui";
 
 interface SideBadgeProps {
   side: string;
-  size?: string;
+  size?: UISize;
   "data-testid"?: string;
 }
 
@@ -19,7 +19,7 @@ export function SideBadge(props: SideBadgeProps) {
 
 interface ExitReasonBadgeProps {
   reason: string;
-  size?: string;
+  size?: UISize;
   "data-testid"?: string;
 }
 
@@ -58,7 +58,7 @@ export function ExitReasonBadge(props: ExitReasonBadgeProps) {
   );
 }
 
-export function TradingModeBadge(props: { liveTrading: boolean; size?: "sm" | "md" | "lg" }) {
+export function TradingModeBadge(props: { liveTrading: boolean; size?: UISize }) {
   return (
     <Badge color={props.liveTrading ? "error" : "success"} variant="filled" size={props.size ?? "sm"}>
       {props.liveTrading ? "LIVE" : "PAPER"}
@@ -70,7 +70,7 @@ interface StatusBadgeProps {
   running: boolean;
   pid?: number;
   statusUnknown?: boolean;
-  size?: string;
+  size?: UISize;
   "data-testid"?: string;
 }
 

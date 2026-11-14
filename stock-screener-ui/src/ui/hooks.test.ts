@@ -25,7 +25,7 @@ describe("useMediaQuery", () => {
 
   it("returns the default when matchMedia is absent", () => {
     (window.matchMedia as any).mockImplementation(() => undefined as any);
-    let result: () => boolean;
+    let result!: () => boolean;
     createRoot(() => {
       result = useMediaQuery("(min-width: 1200px)", true);
     });
@@ -35,7 +35,7 @@ describe("useMediaQuery", () => {
   it("reacts to matchMedia changes", () => {
     const mql = { matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() };
     (window.matchMedia as any).mockReturnValue(mql);
-    let result: () => boolean;
+    let result!: () => boolean;
     createRoot(() => {
       result = useMediaQuery("(min-width: 1200px)");
     });

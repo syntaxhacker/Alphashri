@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal, createUniqueId, splitProps } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, createUniqueId, splitProps, type JSX } from "solid-js";
 import { cn } from "../cn";
 import type { UISelectProps } from "../types";
 
@@ -223,15 +223,16 @@ function SearchableSelect(props: {
   value: string | null | undefined;
   onChange?: (value: string | null) => void;
   disabled?: boolean;
-  size?: string;
+  size?: UISelectProps["size"];
   clearable?: boolean;
   placeholder?: string;
   nothingFoundMessage?: string;
   inputId: string;
   labelId: string | undefined;
   isError: boolean;
-  leftSection?: unknown;
-  rightSection?: unknown;
+  leftSection?: JSX.Element;
+  rightSection?: JSX.Element;
+  "aria-label"?: string;
 }) {
   const [query, setQuery] = createSignal("");
   const [open, setOpen] = createSignal(false);
@@ -248,7 +249,7 @@ function SearchableSelect(props: {
 
   createEffect(() => {
     if (!open()) return undefined;
-    const root = props.rootRef;
+    const root = props.rootRef();
     const handleOutside = (e: MouseEvent) => {
       if (open() && root && !root.contains(e.target as Node)) setOpen(false);
     };
@@ -350,7 +351,7 @@ function SearchableSelect(props: {
                   className={cn(
                     "px-3 py-2 text-xs cursor-pointer select-none",
                     opt.value === props.value ? "bg-fin-primary text-white" : "",
-                    highlighted() === i ? "bg-fin-surface-alt" : "",
+                    highlighted() === i() ? "bg-fin-surface-alt" : "",
                     opt.disabled ? "text-fin-text-muted opacity-50" : "",
                   )}
                 >

@@ -6,6 +6,8 @@ const toSz = (v: unknown): string | undefined => (typeof v === "number" ? `${v}p
 
 const SCROLL_AREA_KNOWN = [
   "children", "className", "style", "id", "data-testid", "h", "w", "onScroll", "onScrollPositionChange",
+  // Legacy Mantine-compat props: swallowed so they never reach the DOM.
+  "type", "offsetScrollbars", "scrollbarSize", "scrollHideDelay",
 ] as const;
 
 export const ScrollArea = Object.assign(

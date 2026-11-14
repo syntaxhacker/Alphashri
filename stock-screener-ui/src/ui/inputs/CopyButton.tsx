@@ -1,4 +1,5 @@
 import { createEffect, createSignal } from "solid-js";
+import type { JSX } from "solid-js";
 
 interface UICopyButtonProps {
   value: string;

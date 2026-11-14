@@ -42,7 +42,7 @@ function isLiteralColor(c: string): boolean {
 
 const TEXT_KNOWN = [
   "children", "className", "style", "id", "data-testid", "onClick", "onMouseEnter", "onMouseLeave",
-  "size", "fw", "c", "ta", "lh", "fs", "truncate", "lineClamp", "span", "inherit", "component",
+  "size", "fw", "c", "ta", "tt", "lh", "fs", "truncate", "lineClamp", "span", "inherit", "component",
   "p", "px", "py", "pt", "pb", "pl", "pr", "m", "mx", "my", "mt", "mb", "ml", "mr",
   "w", "maw", "opacity",
 ] as const;
@@ -89,6 +89,7 @@ export function Text(props: UITextProps) {
     }
     if (known.fw != null) o["font-weight"] = known.fw;
     if (known.ta != null) o["text-align"] = known.ta;
+    if (known.tt != null) o["text-transform"] = known.tt;
     if (known.lh != null) o["line-height"] = known.lh;
     if (known.size != null) o["font-size"] = resolveSize(known.size);
     if (known.fs != null) o.fontStyle = known.fs;

@@ -1,6 +1,6 @@
 import type { JSX } from "solid-js";
 import { Show } from "solid-js";
-import { Badge, Text } from "@/ui";
+import { Badge, Text, type UIVariant } from "@/ui";
 import { cn } from "@/ui/cn";
 import { getPnLTextColor } from "@/utils/ui-helpers";
 
@@ -127,7 +127,7 @@ export function SymbolCell(props: {
 export function BadgeCell(props: {
   label: string;
   color?: string;
-  variant?: "filled" | "light" | "outline" | "dot" | "default";
+  variant?: UIVariant;
   testId?: string;
   title?: string;
 }): JSX.Element {

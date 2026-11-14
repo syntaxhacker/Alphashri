@@ -105,7 +105,7 @@ export function Alert(props: UIAlertProps) {
         <button
           type="button"
           aria-label="Close"
-          onClick={(e) => known.onClose?.(e)}
+          onClick={() => known.onClose?.()}
           className="ml-auto shrink-0 rounded p-1 text-fin-text-muted hover:bg-fin-surface-alt focus:outline-none"
           style={{ color: textColor }}
         >

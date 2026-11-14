@@ -2,11 +2,12 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, test } from "vitest";
+import type { JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import { Sparkline } from "./Sparkline";
 
 function r(jsx: JSX.Element) {
-  return render(jsx, { wrapper: UIProvider });
+  return render(() => jsx, { wrapper: UIProvider });
 }
 
 afterEach(cleanup);

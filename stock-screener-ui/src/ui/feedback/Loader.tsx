@@ -58,7 +58,7 @@ export function Loader(props: UILoaderProps) {
           fill="none"
           aria-hidden="true"
         >
-          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" strokeLinecap="round" />
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
         </svg>
       )}>
         <Match when={known.type === "bars"}>
@@ -66,7 +66,7 @@ export function Loader(props: UILoaderProps) {
             <For each={[0.6, 1.0, 0.75]}>{(fill, i) => (
               <div
                 className="w-1.5 bg-current rounded-sm shrink-0 animate-pulse"
-                style={{ height: `${Math.round(fill * 100)}%`, "animation-delay": `${i * 0.15}s` }}
+                style={{ height: `${Math.round(fill * 100)}%`, "animation-delay": `${i() * 0.15}s` }}
               />
             )}</For>
           </div>
@@ -76,7 +76,7 @@ export function Loader(props: UILoaderProps) {
             <For each={[0, 1, 2]}>{(_, i) => (
               <div
                 className="w-2 h-2 bg-current rounded-full shrink-0 animate-pulse"
-                style={{ "animation-delay": `${i * 0.15}s` }}
+                style={{ "animation-delay": `${i() * 0.15}s` }}
               />
             )}</For>
           </div>

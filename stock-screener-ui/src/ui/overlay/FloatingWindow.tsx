@@ -1,4 +1,5 @@
 import { createEffect, For, onCleanup, splitProps } from "solid-js";
+import type { JSX } from "solid-js";
 import { cn } from "../cn";
 
 export interface FloatingWindowGeometry {
@@ -47,7 +48,7 @@ export function FloatingWindow(props: FloatingWindowProps) {
     "title",
     "icon",
     "geometry",
-    "zIndex",
+    "z-index",
     "minimized",
     "minWidth",
     "minHeight",
@@ -76,9 +77,9 @@ export function FloatingWindow(props: FloatingWindowProps) {
     rootEl.style.width = `${g.width}px`;
     rootEl.style.height = `${g.height}px`;
     rootEl.style.transform = `translate3d(${g.x}px, ${g.y}px, 0)`;
-    rootEl.style["z-index"] = String(known.zIndex);
+    rootEl.style.setProperty("z-index", String(known["z-index"]));
     rootEl.style.display = known.minimized ? "none" : "flex";
-    rootEl.style["flex-direction"] = "column";
+    rootEl.style.setProperty("flex-direction", "column");
   });
 
   onCleanup(() => {
@@ -169,14 +170,14 @@ export function FloatingWindow(props: FloatingWindowProps) {
       aria-hidden={known.minimized || undefined}
       role="dialog"
       aria-label={known.title}
-      onPointerDownCapture={() => known.onFocus?.()}
+      oncapture:pointerdown={() => known.onFocus?.()}
       className={cn("flex flex-col shadow-2xl")}
       {...(rest as Record<string, unknown>)}
     >
       {/* Title bar (drag handle) */}
       <div
         onPointerDown={(e) => beginGesture("move", e)}
-        onDoubleClick={() => known.onMinimize?.()}
+        onDblClick={() => known.onMinimize?.()}
         className="flex-none h-7 px-2 flex items-center gap-1.5 cursor-move select-none bg-fin-surface-alt border-b border-fin-border touch-none"
       >
         {known.icon}

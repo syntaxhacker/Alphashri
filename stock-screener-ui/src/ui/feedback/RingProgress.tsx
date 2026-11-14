@@ -72,10 +72,10 @@ export function RingProgress(props: UIRingProgressProps) {
       data-testid={known["data-testid"]}
       id={known.id}
       className={cn("relative inline-flex items-center justify-center shrink-0", known.className)}
-      style={{ width: size, height: size, ...known.style }}
+      style={{ width: `${size}px`, height: `${size}px`, ...(known.style as Record<string, string | undefined>) }}
     >
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0" aria-hidden="true">
-        <circle cx={cx} cy={cx} r={r} stroke={trackColor} stroke-width={thickness} fill="none" strokeLinecap={strokeCap} />
+        <circle cx={cx} cy={cx} r={r} stroke={trackColor} stroke-width={thickness} fill="none" stroke-linecap={strokeCap} />
         <For each={arcs}>{({ col, startLen, arcLen }) => (
           <circle
             cx={cx}
@@ -84,9 +84,9 @@ export function RingProgress(props: UIRingProgressProps) {
             stroke={col}
             stroke-width={thickness}
             fill="none"
-            strokeLinecap={strokeCap}
-            strokeDasharray={`${arcLen} ${circumference}`}
-            strokeDashoffset={startLen}
+            stroke-linecap={strokeCap}
+            stroke-dasharray={`${arcLen} ${circumference}`}
+            stroke-dashoffset={startLen}
             transform={`rotate(-90 ${cx} ${cx})`}
           />
         )}</For>
@@ -94,7 +94,7 @@ export function RingProgress(props: UIRingProgressProps) {
       <Show when={known.label != null}>
         <div
           className="absolute inset-0 flex items-center justify-center pointer-events-none select-none"
-          style={{ "font-size": Math.max(10, size * 0.25), "font-weight": 600, color: palette.TEXT }}
+          style={{ "font-size": `${Math.max(10, size * 0.25)}px`, "font-weight": 600, color: palette.TEXT }}
         >
           {known.label}
         </div>

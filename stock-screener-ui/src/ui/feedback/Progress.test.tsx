@@ -13,7 +13,7 @@ describe("Progress", () => {
 
   test("renders section bars", () => {
     render(() => (
-      <Progress sections={[{ value: 40, color: "info" }, { value: 25, color: "warning" }]} data-testid="pg2" />));
+      <Progress value={65} sections={[{ value: 40, color: "info" }, { value: 25, color: "warning" }]} data-testid="pg2" />));
     expect(screen.getByTestId("pg2").querySelectorAll("div")).toHaveLength(2);
   });
 });

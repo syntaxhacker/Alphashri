@@ -2,6 +2,7 @@ import { Show, type JSX } from "solid-js";
 import { Alert, Box, Button, Group, Loader, Stack, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { IconAlertCircle, IconDatabaseOff } from "@/components/common/Icons";
+import { cn } from "@/ui/cn";
 import { CompactPanel } from "./compact";
 
 export interface InlineLoaderProps {
@@ -96,11 +97,10 @@ export function ErrorAlert(props: ErrorAlertProps) {
       title={props.title ?? "Error"}
       color="error"
       variant="filled"
-      mb="md"
       withCloseButton={!!props.onClose}
       onClose={props.onClose}
       data-testid={testId()}
-      className={props.className}
+      className={cn("mb-4", props.className)}
     >
       {props.message}
       <Show when={props.withRetry && props.onRetry}>
@@ -109,7 +109,7 @@ export function ErrorAlert(props: ErrorAlertProps) {
           color="error"
           size="sm"
           onClick={props.onRetry}
-          mt="xs"
+          className="mt-1"
           data-testid={testId() ? `${testId()}-retry` : undefined}
         >
           Retry

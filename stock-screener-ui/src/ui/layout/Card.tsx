@@ -1,4 +1,5 @@
 import { splitProps } from "solid-js";
+import type { JSX } from "solid-js";
 import { cn } from "../cn";
 import type { UICardProps } from "../types";
 

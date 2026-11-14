@@ -61,7 +61,7 @@ export function AppShell(props: UIAppShellProps) {
           className="fixed inset-y-0 left-0 z-40 flex-shrink-0"
           style={{
             width: `${navbarWidth}px`,
-            top: headerCollapsed ? 0 : headerHeight,
+            top: `${headerCollapsed ? 0 : headerHeight}px`,
             height: headerCollapsed ? "100%" : `calc(100% - ${headerHeight}px)`,
           }}
           data-testid={known["data-testid"] ? `${known["data-testid"]}-navbar` : undefined}
@@ -70,9 +70,9 @@ export function AppShell(props: UIAppShellProps) {
       <main
         className="flex-1 min-w-0 min-h-0"
         style={{
-          "margin-left": navbarCollapsed || !known.navbar ? 0 : navbarWidth,
-          "margin-top": headerCollapsed || !known.header ? 0 : headerHeight,
-          padding: known.padding != null ? (typeof known.padding === "number" ? `${known.padding}px` : String(known.padding)) : 0,
+          "margin-left": `${navbarCollapsed || !known.navbar ? 0 : navbarWidth}px`,
+          "margin-top": `${headerCollapsed || !known.header ? 0 : headerHeight}px`,
+          padding: known.padding != null ? (typeof known.padding === "number" ? `${known.padding}px` : String(known.padding)) : "0px",
           "min-width": 0,
           "min-height": 0,
         }}

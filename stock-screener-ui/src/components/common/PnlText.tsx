@@ -1,12 +1,12 @@
 import type { JSX } from "solid-js";
-import { Text, Badge } from "@/ui";
+import { Text, Badge, type UISize, type UIFontWeight } from "@/ui";
 import { getPnLTextColor } from "../../utils/ui-helpers";
 
 interface PnlTextProps {
   value: number;
   children?: JSX.Element;
-  size?: string;
-  fw?: number | string;
+  size?: UISize;
+  fw?: UIFontWeight;
   span?: boolean;
   ml?: number | string;
   fs?: string;
@@ -38,7 +38,7 @@ export function PnlText(props: PnlTextProps) {
 interface PnlBadgeProps {
   value: number;
   children?: string;
-  size?: string;
+  size?: UISize;
   "data-testid"?: string;
 }
 

@@ -1,8 +1,12 @@
-import { Show, splitProps, type JSX, type CSSProperties } from "solid-js";
+import { Show, splitProps, type JSX } from "solid-js";
 import { ActionIcon, Box, CopyButton, Text, Tooltip, cn } from "@/ui";
 import { IconChartCandle, IconCheck, IconCopy, IconExternalLink } from "./Icons";
 import { tradingViewSymbol } from "@/config/tvSymbols";
 import { useSymbolDock } from "./symbolDockContext";
+
+// `solid-js` does not re-export JSX.CSSProperties from its package root.
+type CSSProperties = JSX.CSSProperties;
+
 
 export interface SymbolLinkProps {
   symbol: string;

@@ -55,19 +55,15 @@ export function Popover(props: PopoverProps) {
     "width",
     "shadow",
     "offset",
-    "_trapFocus",
+    "trapFocus",
     "closeOnClickOutside",
-    "_middlewares",
-    "_keepMounted",
+    "middlewares",
+    "keepMounted",
     "className",
     "style",
     "id",
     "data-testid",
   ]);
-
-  void known._trapFocus;
-  void known._middlewares;
-  void known._keepMounted;
 
   const [internalAnchorEl, setInternalAnchorEl] = createSignal<HTMLElement | null>(null);
   const [uncontrolledOpen, setUncontrolledOpen] = createSignal(false);
@@ -132,7 +128,14 @@ export function Popover(props: PopoverProps) {
         style={{ display: "inline-block", ...(known.style as Record<string, string | undefined>) }}
         {...(rest as Record<string, unknown>)}
       >
-        {known.children}
+        {typeof known.children === "function"
+          ? known.children({
+              ref: internalAnchorEl,
+              toggle: () => setAnchorEl(internalAnchorEl()),
+              close: handleClose,
+              opened: open(),
+            })
+          : known.children}
       </span>
     </PopoverContext.Provider>
   );
@@ -174,11 +177,12 @@ export function PopoverDropdown(props: UIPopoverDropdownProps & { p?: number | s
   const { anchorEl, open, onClose, position, offset, width, shadow, closeOnClickOutside } =
     usePopoverContext();
   const [placeEl, setPlaceEl] = createSignal<HTMLDivElement | undefined>(undefined);
-  const place = createSignal<Record<string, string | undefined>>({});
+  const [place, setPlace] = createSignal<Record<string, string | undefined>>({});
 
   createEffect(() => {
-    if (!open() || !anchorEl() || !placeEl()) return;
-    const rect = anchorEl().getBoundingClientRect();
+    const anchor = anchorEl();
+    if (!open() || !anchor || !placeEl()) return;
+    const rect = anchor.getBoundingClientRect();
     const off = offset() ?? 0;
     const vpW = window.innerWidth;
     const vpH = window.innerHeight;
@@ -190,16 +194,16 @@ export function PopoverDropdown(props: UIPopoverDropdownProps & { p?: number | s
       case "bottom":
         s = { position: "fixed", top: `${rect.bottom + off}px`, left: `${rect.left + rect.width / 2}px`, transform: "translateX(-50%)" };
         break;
-      case topStart:
+      case "top-start":
         s = { position: "fixed", bottom: `${vpH - rect.top + off}px`, left: `${rect.left}px` };
         break;
-      case topEnd:
+      case "top-end":
         s = { position: "fixed", bottom: `${vpH - rect.top + off}px`, right: `${vpW - rect.right}px` };
         break;
-      case bottomStart:
+      case "bottom-start":
         s = { position: "fixed", top: `${rect.bottom + off}px`, left: `${rect.left}px` };
         break;
-      case bottomEnd:
+      case "bottom-end":
         s = { position: "fixed", top: `${rect.bottom + off}px`, right: `${vpW - rect.right}px` };
         break;
       case "left":
@@ -211,10 +215,11 @@ export function PopoverDropdown(props: UIPopoverDropdownProps & { p?: number | s
       default:
         s = { position: "fixed", top: `${rect.bottom + off}px`, left: `${rect.left + rect.width / 2}px`, transform: "translateX(-50%)" };
     }
-    if (width() != null) {
-      s.width = typeof width() === "number" ? `${width()}px` : width();
+    const w = width();
+    if (w != null) {
+      s.width = typeof w === "number" ? `${w}px` : w;
     }
-    place.set(s);
+    setPlace(s);
   });
 
   createEffect(() => {
@@ -247,7 +252,7 @@ export function PopoverDropdown(props: UIPopoverDropdownProps & { p?: number | s
       <div
         ref={(el) => setPlaceEl(el)}
         className={cn("z-50 bg-fin-surface border border-fin-border rounded-sm overflow-auto", shadowClass, known.className)}
-        style={{ ...place(), ...padStyle, ...(known.style as Record<string, string | undefined>), ...(boxShadow ? { boxShadow } : {}) }}
+        style={{ ...place(), ...padStyle, ...(known.style as Record<string, string | undefined>) }}
         {...(rest as Record<string, unknown>)}
       >
         {known.children}

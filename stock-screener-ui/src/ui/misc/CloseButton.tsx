@@ -57,7 +57,7 @@ export function CloseButton(props: UICloseButtonProps) {
       type="button"
       aria-label="close"
       disabled={known.disabled}
-      onClick={(e) => known.onClick?.(e)}
+      onClick={() => known.onClick?.()}
       className={cn(
         "inline-flex items-center justify-center shrink-0 rounded-fin border border-transparent",
         w,

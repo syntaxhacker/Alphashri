@@ -67,7 +67,9 @@ export function Checkbox(props: UICheckboxProps) {
   const control = (
     <span className="relative inline-block shrink-0">
       <input
-        ref={(el) => (inputEl = el)}
+        ref={(el) => {
+          inputEl = el;
+        }}
         type="checkbox"
         role="checkbox"
         checked={known.checked}

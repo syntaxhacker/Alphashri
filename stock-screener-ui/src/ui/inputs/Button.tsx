@@ -85,19 +85,10 @@ export function Button(props: UIButtonProps) {
     "type",
     "onMouseEnter",
     "onMouseLeave",
-    "_compact",
-    "_elevation",
-    "_spacing",
-    "_alignItems",
   ]);
 
   const token = createMemo(() => colorToken(known.color));
   const disabledOrLoading = () => known.disabled || known.loading;
-  void known._elevation; void known._spacing; void known._alignItems;
-
-  // `compact` is accepted for backward compat but has no dedicated Tailwind
-  // mapping; sizing is driven by `size`. Deliberately not forwarded to the DOM.
-  void known._compact;
 
   return (
     <button
@@ -107,7 +98,7 @@ export function Button(props: UIButtonProps) {
       className={cn(
         "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed",
         variantClass(known.variant, token()),
-        SIZE_CLASSES[known.size],
+        known.size ? SIZE_CLASSES[known.size] : undefined,
         radiusClass(known.radius),
         known.fullWidth && "w-full",
         known.className,

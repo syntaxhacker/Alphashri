@@ -1,4 +1,5 @@
 import { createContext, createEffect, createMemo, createSignal, Show, splitProps, useContext } from "solid-js";
+import type { JSX } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
 import type { UIMenuProps, UIMenuTargetProps, UIMenuDropdownProps, UIMenuItemProps } from "../types";
@@ -99,9 +100,9 @@ export function Menu(props: UIMenuProps) {
     "shadow",
     "closeOnItemClick",
     "closeOnClickOutside",
-    "_loop",
+    "loop",
     "children",
-    "_renderTarget",
+    "renderTarget",
     "className",
     "style",
     "id",
@@ -185,13 +186,12 @@ export function Menu(props: UIMenuProps) {
         data-testid={known["data-testid"]}
         {...(rest as Record<string, unknown>)}
       >
-        <Show when={typeof known.children === "function"}>
-          {(known.children as (payload: { open: boolean; close: () => void }) => JSX.Element)({
-            open: open(),
-            close: onClose,
-          })}
-        </Show>
-        <Show when={typeof known.children !== "function"}>{known.children}</Show>
+        {typeof known.children === "function"
+          ? (known.children as unknown as (payload: { open: boolean; close: () => void }) => JSX.Element)({
+              open: open(),
+              close: onClose,
+            })
+          : known.children}
       </div>
     </MenuContext.Provider>
   );
@@ -248,8 +248,8 @@ export function MenuDropdown(props: UIMenuDropdownProps) {
   const [, setPlaceEl] = createSignal<HTMLElement | null>(null);
 
   const posStyle = createMemo(() => {
-    if (!anchorEl()) return {};
-    return menuPosition(anchorEl(), position(), offset() ?? 0);
+    const anchor = anchorEl();
+    return anchor ? menuPosition(anchor, position(), offset() ?? 0) : {};
   });
 
   return (

@@ -18,7 +18,7 @@ describe("MultiSelect search handling", () => {
       />
     ));
     const box = screen.getByRole("combobox");
-    box.value = "abc";
+    (box as HTMLInputElement).value = "abc";
     fireEvent.input(box);
     expect(onSearchChange).toHaveBeenCalledWith("abc", "input");
   });

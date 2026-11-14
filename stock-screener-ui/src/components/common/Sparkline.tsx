@@ -49,8 +49,8 @@ export function Sparkline(props: {
           stroke-linecap="round"
           opacity={0.9}
           pathLength={props.animate ? 1 : undefined}
-          stroke-dasharray={props.animate ? 1 : undefined}
-          stroke-dashoffset={props.animate ? 1 : undefined}
+          stroke-dasharray={props.animate ? "1" : undefined}
+          stroke-dashoffset={props.animate ? "1" : undefined}
           style={props.animate ? { animation: "wall-spark-draw 420ms cubic-bezier(.22,1,.36,1) forwards" } : undefined}
         />
       </svg>

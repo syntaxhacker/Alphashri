@@ -3,16 +3,21 @@ import { cn } from "../cn";
 import type { UITimelineProps, UITimelineItemProps } from "../types";
 
 type TimelineContextValue = {
-  active?: () => number | undefined;
-  bulletSize?: () => number | string | undefined;
-  color?: () => string | undefined;
-  lineWidth?: () => number | undefined;
-  reverseActive?: () => boolean | undefined;
-  align?: () => string | undefined;
+  bulletSize: () => number | string | undefined;
+  color: () => string | undefined;
+  lineWidth: () => number | undefined;
+  align: () => string | undefined;
   itemCount: () => number;
 };
 
-const TimelineContext = createContext<TimelineContextValue>({ itemCount: () => 0 });
+const timelineDefaults: TimelineContextValue = {
+  bulletSize: () => undefined,
+  color: () => undefined,
+  lineWidth: () => undefined,
+  align: () => undefined,
+  itemCount: () => 0,
+};
+const TimelineContext = createContext<TimelineContextValue>(timelineDefaults);
 
 function useTimelineContext() {
   return useContext(TimelineContext);
@@ -51,12 +56,10 @@ export function Timeline(props: UITimelineProps) {
   });
 
   const ctx: TimelineContextValue = {
-    active: known.active,
-    bulletSize: known.bulletSize,
-    color: known.color,
-    lineWidth: known.lineWidth,
-    reverseActive: known.reverseActive,
-    align: known.align,
+    bulletSize: () => known.bulletSize,
+    color: () => known.color,
+    lineWidth: () => known.lineWidth,
+    align: () => known.align,
     itemCount,
   };
 

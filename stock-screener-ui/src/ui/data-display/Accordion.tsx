@@ -42,14 +42,14 @@ function Chevron(props: { expanded: () => boolean; disableRotation?: () => boole
     <svg
       className="w-[20px] h-[20px] shrink-0 text-fin-text-muted transition-transform duration-200"
       style={{
-        transform: props.expanded() && !props.disableRotation() ? "rotate(180deg)" : undefined,
+        transform: props.expanded() && !props.disableRotation?.() ? "rotate(180deg)" : undefined,
       }}
       fill="none"
       stroke="currentColor"
       viewBox="0 0 24 24"
       aria-hidden="true"
     >
-      <path strokeLinecap="round" strokeLinejoin="round" stroke-width="2" d="M7 10l5 5 5-5" />
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 10l5 5 5-5" />
     </svg>
   );
 }
@@ -121,7 +121,8 @@ export function AccordionItem(props: UIAccordionItemProps) {
 
   const toggle = () => {
     if (multiple()) {
-      const arr = Array.isArray(value()) ? [...value()] : value() != null ? [value()] : [];
+      const v = value();
+      const arr: string[] = Array.isArray(v) ? [...v] : v != null ? [v] : [];
       const next = expanded() ? arr.filter((v) => v !== itemValue) : [...arr, itemValue];
       onChange(next);
     } else {

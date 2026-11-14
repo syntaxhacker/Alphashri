@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect } from "vitest";
+import type { JSX } from "solid-js";
 import { render } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { Select } from "./Select";
