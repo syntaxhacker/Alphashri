@@ -43,7 +43,7 @@ The Facade pattern is everywhere in software engineering:
 |--------|-------------------|
 | **Operating System kernel** | Hardware (CPU instructions, memory management, device drivers, interrupts) |
 | **jQuery (`$()`)** | DOM API, Ajax (`XMLHttpRequest`), event handling, CSS animations |
-| **`ReactDOM`** | React reconciler (fiber tree), diffing algorithm, DOM patching |
+| **`ReactDOM`** | React reconciler (fiber tree), diffing algorithm, DOM patching. (Generic React example — this app renders with SolidJS, which has no virtual DOM or reconciler.) |
 | **`fetch()`** | `XMLHttpRequest`, request/response headers, CORS, redirect handling |
 | **axios / ky** | `fetch()` / `XMLHttpRequest`, request/response interceptors, error normalization |
 | **SLF4J** | Logging implementations (log4j, java.util.logging, logback) |
@@ -400,37 +400,43 @@ The caller gets a single result object instead of having to run this workflow ma
 
 ### 1. Load a dashboard in a component
 
-```typescript
+```tsx
+import { createSignal, onMount, Show } from "solid-js";
+import { Alert, Loader, Stack } from "@/ui";
 import { TradingFacade } from "../patterns/facade/TradingFacade";
 
 function DashboardView() {
-  const [result, setResult] = useState<DashboardResult | null>(null);
+  const [result, setResult] = createSignal<DashboardResult | null>(null);
 
-  useEffect(() => {
+  onMount(() => {
     TradingFacade.getInstance()
       .loadDashboard()
       .then(setResult);
-  }, []);
+  });
 
-  if (!result) return <Loader />;
-
-  const { data, meta } = result;
   return (
-    <Stack>
-      {meta.failed.length > 0 && (
-        <Alert color="yellow">
-          Failed to load: {meta.failed.join(", ")}
-        </Alert>
-      )}
-      <PortfolioSummary portfolio={data.portfolio} />
-      <PositionsTable positions={data.positions} />
-      <TradesTable trades={data.trades} />
-      <AnalyticsChart analytics={data.analytics} />
-      <BotStatusBar bots={data.bots} running={data.running} />
-    </Stack>
+    <Show when={result()} fallback={<Loader />}>
+      {(res) => {
+        const { data, meta } = res();
+        return (
+          <Stack>
+            <Show when={meta.failed.length > 0}>
+              <Alert color="warning">Failed to load: {meta.failed.join(", ")}</Alert>
+            </Show>
+            <PortfolioSummary portfolio={data.portfolio} />
+            <PositionsTable positions={data.positions} />
+            <TradesTable trades={data.trades} />
+            <AnalyticsChart analytics={data.analytics} />
+            <BotStatusBar bots={data.bots} running={data.running} />
+          </Stack>
+        );
+      }}
+    </Show>
   );
 }
 ```
+
+Child panels are illustrative; the point is the facade call, not the widgets.
 
 ### 2. Load just portfolio + positions
 

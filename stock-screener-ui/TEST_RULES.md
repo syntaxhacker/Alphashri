@@ -152,24 +152,25 @@ All Playwright tests should use `apiRoute()` for every `localhost:8765` API endp
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, within, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, within, cleanup, fireEvent } from "@solidjs/testing-library";
 ```
 
 - **`@testing-library/jest-dom/vitest`** — required for `toBeInTheDocument()`, `toBeVisible()`, etc.
-- **`userEvent`** — always use over `fireEvent` (it simulates real browser interactions)
+- **`fireEvent`** — Solid's `@solidjs/testing-library` re-exports it; 185 test files use it. `@testing-library/user-event` is installed but only works where the DOM shim supports it (4 files) — do not reach for it by default.
 - **`within`** — scope queries to a parent element to avoid false matches
 
 ## Setup Patterns
 
 ```typescript
 // Wrapper for components that need the app shell
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
+import type { JSX } from "solid-js";
+
+function TestWrapper(props: { children: JSX.Element }) {
+  return <>{props.children}</>;
 }
 
-// Render helper — keeps calls concise
-function r(jsx: React.ReactElement) {
+// Render helper — Solid's render() takes a zero-arg component, not a JSX node
+function r(jsx: () => JSX.Element) {
   return render(jsx, { wrapper: TestWrapper });
 }
 
@@ -209,14 +210,20 @@ vi.mock("../../api/paperTrading", () => ({
 }));
 ```
 
-### Mocking React Router
+### Routing — use the real router in memory, don't mock it
 ```typescript
-vi.mock("react-router-dom", () => ({
-  useNavigate: vi.fn(() => vi.fn()),
-  useLocation: vi.fn(() => ({ pathname: "/" })),
-  BrowserRouter: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
+import { MemoryRouter, Route, createMemoryHistory } from "@solidjs/router";
+
+const history = createMemoryHistory();
+history.set({ value: "/report" });
+
+render(() => (
+  <MemoryRouter history={history}>
+    <Route path="/report" component={MyPage} />
+  </MemoryRouter>
+));
 ```
+`react-router-dom` does not exist in this app. `src/test/no-react.test.ts` fails on any React-era import, so a mocked router module is both unrunnable and guard-breaking.
 
 ### Accessing Mock References in Tests
 ```typescript
@@ -607,10 +614,10 @@ Before committing:
 | `toBeTruthy()` passes for hidden elements | Use `toBeInTheDocument()` or `toBeVisible()` |
 | `getByText("3")` matches wrong element | Scope the query with `within()` |
 | Dynamic mock import returns stale reference | Use `vi.mocked()` or re-import inside the test |
-| `fireEvent.click()` doesn't trigger React state | Use `userEvent.click()` from `@testing-library/user-event` |
+| `fireEvent.click()` doesn't trigger Solid state | Wrap the assertion in `await waitFor(...)`; Solid batches updates, so state is observed after the microtask |
 | Mutable module state leaks between tests | Reset state in `beforeEach` / `afterEach` |
 | E2E text selector breaks on i18n | Always use `data-testid` in E2E tests |
-| **Playwright `click({ force: true })` doesn't trigger React `onClick`** | **Use `page.evaluate(() => element.dispatchEvent(new MouseEvent('click')))` for React components** |
+| **Playwright `click({ force: true })` doesn't trigger a Solid `onClick`** | **Use `page.evaluate(() => element.dispatchEvent(new MouseEvent('click')))`** |
 | **Transient highlight class removed by setTimeout** | **Check for CSS class immediately after click, not with `toBeVisible({ timeout })`** |
 
 ## Mutation Testing (Backend/Scientific Tests)

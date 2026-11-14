@@ -56,14 +56,14 @@ Observer is everywhere in modern software, often hidden inside frameworks so you
 | Domain | Example | How Implements Observer |
 |--------|---------|------------------------|
 | **DOM/Browser** | `element.addEventListener("click", handler)` | The element is the Subject; the handler is the Observer |
-| **React** | `useEffect` / `useState` re-renders | Component re-renders are observers of state changes |
+| **React** | `useEffect` / `useState` re-renders | Component re-renders are observers of state changes (generic React example — this app is Solid, where effects/memos observe signals instead) |
 | **Redux** | `store.subscribe(listener)` | Store is Subject; connected components are Observers |
 | **RxJS** | `observable.subscribe(observer)` | Observable is Subject; subscribers are Observers |
 | **Node.js** | `EventEmitter.prototype.on()` | Emitter is Subject; registered callbacks are Observers |
 | **Vue** | `watch()` / computed properties | Reactive system auto-tracks dependencies and notifies |
 | **Angular** | `Subject` / `BehaviorSubject` / `EventEmitter` | Explicit Observable pattern throughout the framework |
 | **Kafka** | Consumer groups subscribe to topics | Distributed Pub/Sub at scale |
-| **WebSocket/SSE** | `useLivePrices` in this codebase | Server pushes events; client listeners are Observers |
+| **WebSocket/SSE** | `LivePriceUpdater` in this codebase | Server pushes events; client listeners are Observers |
 | **This codebase** | `createSubscriber()` + `EventBus` | Lightweight pub/sub for cross-cutting concerns |
 
 ---
@@ -262,7 +262,7 @@ Publisher     EventBus      Consumer
 Many real-world systems use both. In this codebase:
 - **Per-store** `createSubscriber()` uses classic direct-observer form
 - **Cross-cutting** communication uses the `EventBus` singleton
-- **React** components observe store changes through hooks (`useStoreSubscription`)
+- **SolidJS** components observe store changes through `useStoreSubscription` / `useStoreSnapshot`, which read a signal and let Solid's reactivity re-run the dependent computations
 
 ---
 
@@ -293,21 +293,35 @@ The `EventBus` class in `src/patterns/observer/EventBus.ts` extends this into a 
 | Once-listeners      | ✗                           | `.once()`                            |
 | Singleton           | Per-store instance          | Global `eventBus` singleton          |
 
-### Existing real-world observer: `useLivePrices`
+### Existing real-world observer: `LivePriceUpdater`
 
-The `src/hooks/useLivePrices.ts` hook is a real-world Observer in this codebase. It maintains a `Set<LivePricesSubscriber>` internally:
-
-```ts
-const listenersRef = useRef<Set<LivePricesSubscriber>>(new Set());
-```
-
-Each SSE "price" event iterates over all registered listeners and calls them with the updated price:
+`src/components/paper-trading/LivePriceUpdater.tsx` is a real-world Observer in this codebase. It opens the SSE stream inside a `createEffect` and tears it down with `onCleanup`, so each price frame flows through `applyPrice` into the shared price map:
 
 ```ts
-listenersRef.current.forEach((fn) => fn(data.symbol, pricesRef.current[data.symbol]));
+createEffect(() => {
+  // …
+  void (async () => {
+    const response = await fetch(`${API_BASE}/api/paper/live/stream`, {
+      headers,
+      signal: controller.signal,
+    });
+    if (!response.ok) return;
+    await readSseStream(
+      response,
+      (frame) => {
+        if (frame.event !== "price" || !frame.data) return;
+        const data = JSON.parse(frame.data) as LivePriceEvent;
+        if (data.symbol && data.ltp != null) applyPrice(data.symbol, data);
+      },
+      { signal: controller.signal },
+    );
+  })();
+
+  onCleanup(() => controller.abort());
+});
 ```
 
-This mirrors the `createSubscriber` pattern — a single channel with typed callbacks. An `EventBus` could replace this internal listener Set to allow decoupled consumers anywhere in the app.
+Each price event calls `setPositions(updated)` on the paper-trading store, which notifies every subscriber. This mirrors the `createSubscriber` pattern — a single channel with typed updates. An `EventBus` could replace the per-store notification to allow decoupled consumers anywhere in the app.
 
 ---
 
@@ -423,11 +437,11 @@ eventBus.clear("bot:*");   // remove listeners for pattern "bot:*"
 | Location                     | Pattern variant             | What it observes                  |
 |------------------------------|-----------------------------|-----------------------------------|
 | `src/state/createSubscriber.ts` | Simple Set-based pub/sub    | Generic store change notification |
-| `src/hooks/useLivePrices.ts` | Manual `Set<Subscriber>`    | SSE live price ticks              |
-| `src/state/store/*.ts`       | Redux slices (`appSlice`)   | Global app state via `useSelector`|
+| `src/components/paper-trading/LivePriceUpdater.tsx` | SSE frame handler | SSE live price ticks        |
+| `src/state/store/*.ts`       | Solid `createStore` slices (`appSlice`, `notificationsSlice`) | Global app state read through `useStoreSubscription` |
 | `src/components/common/ChatPopup.tsx` | Callback props       | User chat interaction             |
 
-The `EventBus` fills the gap between per-store `createSubscriber` and Redux — it provides a global, typed, topic-routed event system for cross-cutting concerns (price ticks, position lifecycle, bot state, auth changes, screener updates) without coupling publishers to consumers.
+The `EventBus` fills the gap between per-store `createSubscriber` and the `createStore` slices — it provides a global, typed, topic-routed event system for cross-cutting concerns (price ticks, position lifecycle, bot state, auth changes, screener updates) without coupling publishers to consumers.
 
 ---
 
@@ -466,7 +480,9 @@ Controller ──mutates──▶ Model ──notifies──▶ View (Observer)
                          └────── reads ───────┘
 ```
 
-### React State → View Binding
+### React State → View Binding (generic React example)
+
+This section describes React as a framework example of Observer, not this repo's stack — this app is SolidJS.
 
 React doesn't explicitly use Observer, but the **mental model is identical**. When `useState` or `useReducer` state changes, React re-renders the component tree that depends on that state. Components "subscribe" to state via hooks. The reconciliation algorithm determines which Observers (components) to notify.
 
@@ -475,7 +491,7 @@ React doesn't explicitly use Observer, but the **mental model is identical**. Wh
 - **Notification trigger**: setState / dispatch
 - **Update method**: re-render
 
-This is why `createSubscriber` in this codebase mirrors `React.useState`'s subscription model at a lower level.
+This is why `createSubscriber` in this codebase mirrors the same subscription model React uses — but at a lower level, and without a virtual DOM: in Solid, a store notification invalidates the computations that read it instead of re-rendering a component tree.
 
 ---
 
@@ -521,12 +537,12 @@ The biggest risk: **forgotten subscriptions**. If a component subscribes but nev
 How to prevent:
 
 1. Always return an unsubscribe function (thunk pattern).
-2. React components: unsubscribe in `useEffect` cleanup or `componentWillUnmount`.
+2. Components: unsubscribe in `onCleanup` (Solid) or `useEffect` cleanup / `componentWillUnmount` (React).
 3. Use `once()` for one-shot listeners.
 4. Consider weak references (e.g., `WeakSet`/`WeakMap`) for long-lived subjects.
 5. Add a `clear()` method for bulk cleanup (e.g., on page navigation).
 
-**Q: How does React's reconciliation relate to Observer?**
+**Q: How does React's reconciliation relate to Observer? (generic React example)**
 
 React's state management follows the Observer pattern at a conceptual level:
 
@@ -535,6 +551,8 @@ React's state management follows the Observer pattern at a conceptual level:
 - When state changes, React doesn't call `update()` on each component — instead it triggers a **re-render cycle** and uses the **virtual DOM diff** to efficiently update only what changed
 
 The key difference: React batches notifications and uses reconciliation to optimize the update, rather than calling a direct `update()` method on each observer. This is Observer with a **smart notification mechanism**.
+
+In this codebase (SolidJS) the same idea takes a different form: there is no reconciliation pass at all — a store notification invalidates exactly the effects and memos that read it, and they re-run. That is finer-grained than a component-tree re-render, but it is still Observer: the store is the Subject, the computations are the Observers.
 
 **Q: What happens if emit() throws an error? What about async observers?**
 

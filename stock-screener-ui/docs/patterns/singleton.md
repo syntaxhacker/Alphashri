@@ -45,7 +45,7 @@ The Singleton pattern (or singleton-like behaviour) appears everywhere in real s
 | Example | How it's a Singleton |
 |---|---|
 | **Node.js `require()` / ES module caching** | The first `import` evaluates a module; subsequent imports return the **same** exported bindings. Every module is effectively a singleton instance. |
-| **Redux store** | `createStore()` returns one store per app. Middleware like `connect()` accesses the single store. |
+| **Redux store** | `createStore()` returns one store per app. Middleware like `connect()` accesses the single store. (Generic React/Redux example — this app is Solid; its `createStore` from `solid-js/store` is a reactive store, not a Redux store.) |
 | **Logger instances (winston, log4j)** | Logger factories return a single root logger. Child loggers derive from it. |
 | **Browser `navigator` object** | A singleton representing the browser's user agent, geolocation, etc. |
 | **Java `Runtime.getRuntime()`** | Classic singleton — one `Runtime` per JVM. |

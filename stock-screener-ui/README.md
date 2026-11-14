@@ -1,17 +1,18 @@
 # Alphashri - Stock Trading Dashboard
 
-A modern, multi-user stock trading dashboard with paper trading, backtesting, real-time market data, and strategy analysis built with React, TypeScript, and FastAPI.
+A modern, multi-user stock trading dashboard with paper trading, backtesting, real-time market data, and strategy analysis built with SolidJS, TypeScript, and FastAPI.
 
 ## Tech Stack
 
 ### Frontend
-- **React 19** - UI library
+- **SolidJS 1.9** - UI library (fine-grained reactivity, no virtual DOM)
 - **TypeScript** - Type safety
-- **Vite** - Build tool and dev server
+- **Vite 8** - Build tool and dev server
 - **Tailwind CSS 4** - Styling system
-- **Redux Toolkit** - State management
-- **React Router** - Navigation
-- **Tabler Icons** - Icon library
+- **@solidjs/router** - Navigation
+- **Custom subscriber stores** - State management (`createSubscriber()` in `src/state/`, `useStoreSubscription()` in `src/hooks/`)
+- **Local `@/ui` components** - Semantic HTML + Tailwind primitives (no component-library dependency)
+- **Tabler-style icons** - Inline SVG Solid components (`src/components/common/Icons.tsx`)
 
 ### Backend
 - **FastAPI** - Python web framework
@@ -131,10 +132,11 @@ bun run preview          # Preview production build
 
 #### Frontend Tests (Playwright & Vitest)
 ```bash
-bun run test             # Run Playwright E2E tests
-bun run test:ui          # Run tests with UI
-bun run test:headed      # Run tests in headed mode
-bun run test:report      # Show test report
+bun run test             # Run Vitest unit/component tests (src)
+bun run test:e2e         # Run Playwright E2E tests (tests/e2e)
+bun run test:ui          # Run Playwright with UI
+bun run test:headed      # Run Playwright in headed mode
+bun run test:report      # Show Playwright report
 ```
 
 #### Backend Tests (pytest)
@@ -176,24 +178,27 @@ bun run build-storybook   # Build Storybook static files
 stock-screener-ui/
 ├── src/
 │   ├── api/              # API client and services
-│   ├── components/       # React components
+│   ├── components/       # Feature components
 │   │   ├── auth/         # Authentication components
 │   │   ├── backtest/     # Backtesting UI
 │   │   ├── bots/         # Trading bot components
 │   │   ├── chart/        # Chart components
+│   │   ├── common/       # Shared components (TanStackTable, compact, states)
 │   │   ├── layout/       # Layout components
 │   │   ├── options/      # Options trading
 │   │   ├── paper-trading/# Paper trading UI
 │   │   ├── screener/     # Stock screener
 │   │   ├── strategies/   # Strategy management
 │   │   └── ...
-│   ├── hooks/            # Custom React hooks
-│   ├── store/            # Redux store
-│   ├── state/            # State management
+│   ├── pages/            # Page-level routing targets
+│   ├── hooks/            # Shared hooks (useStoreSubscription, useFetch, usePolling, …)
+│   ├── state/            # Subscriber stores; store/ holds Solid slices
+│   ├── ui/               # Local design system (Box/Flex/Button/… + palette.ts)
 │   ├── types/            # TypeScript types
 │   ├── utils/            # Utility functions
-│   ├── theme/            # Tailwind theme tokens
-│   └── App.tsx           # Main app component
+│   ├── config/           # constants.ts, theme.ts, backtestDefaults.ts
+│   ├── tailwind.css      # Tailwind 4 theme mirror of palette.ts
+│   └── App.tsx           # Router + route table
 ├── api/                  # Backend API modules
 ├── db/                   # SQLite database
 ├── tests/                # Test files
@@ -323,8 +328,8 @@ User data is stored in user-scoped directories:
 - **Frontend-Backend Separation**: The UI is completely separate from the Python backend, communicating via REST API
 - **User Isolation**: Each user has isolated data directories for journals and trade logs
 - **Authentication**: JWT-based auth with optional requirement (disabled by default for development)
-- **State Management**: Redux Toolkit for global state, React hooks for local state
-- **Component System**: local `@/ui` semantic HTML + Tailwind
+- **State Management**: Custom subscriber stores — `createSubscriber()` (a `Set` of callbacks + `notify()`) paired with the `useStoreSubscription()` hook in `src/hooks/` for component subscriptions. `src/state/store/` holds two small Solid `createStore` slices (app + notifications); state is not reducer-based and no external state library is used.
+- **Component System**: local `@/ui` semantic HTML + Tailwind components (no external component library); colors single-sourced in `src/ui/palette.ts` and mirrored in `src/tailwind.css`
 - **Testing Strategy**: Playwright for E2E, Vitest for unit tests, Storybook for component testing
 
 ## Troubleshooting

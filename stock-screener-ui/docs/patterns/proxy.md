@@ -34,7 +34,7 @@ The Proxy pattern is everywhere in modern software:
 - **Vue 3 reactivity** — Vue's `reactive()` returns a JavaScript `Proxy` around your data object. When you read or write properties, Vue intercepts the operation and triggers reactive updates.
 - **MobX** — makes objects observable by wrapping them in JavaScript `Proxy` objects that track property access and mutations.
 - **JavaScript's built-in `Proxy` (ES6)** — the language-level meta-programming feature that our implementation is built on.
-- **`React.lazy()`** — wraps a dynamic `import()` in a proxy-like component; the module is loaded only when the component renders.
+- **`React.lazy()`** — wraps a dynamic `import()` in a proxy-like component; the module is loaded only when the component renders. (Generic React example — this app is Solid and uses `lazy()` + `Suspense` from `solid-js`.)
 - **Git remotes** — `origin` is effectively a remote proxy to a repository on GitHub/GitLab.
 - **Verdaccio / NPM proxies** — a local registry that proxies and caches packages from the public npm registry.
 - **CDNs (Varnish, CloudFlare)** — caching reverse proxies that sit in front of origin servers.
@@ -136,7 +136,7 @@ The Proxy pattern inserts a wrapper (the proxy) between the client and the real 
 | **Subject** (interface) | The type `T` (e.g., `BotStatus`, `PaperPosition[]`) |
 | **RealSubject** | The actual data object held in `LazyStateProxy.state` |
 | **Proxy** | The `createProxy()`-returned `Proxy` object + `LazyStateProxy` class |
-| **Client** | React components, hooks, or services that consume the state |
+| **Client** | SolidJS components, reactive primitives, or API services that consume the state |
 
 ## Three Proxy Types (Deep Dive)
 
@@ -147,7 +147,7 @@ Delays the creation or fetching of an expensive object until it's actually neede
 **Examples:**
 - Lazy-loaded images on web pages (a small placeholder first, full image via proxy)
 - ORM lazy loading (Hibernate's `_persistence_` proxies, SQLAlchemy's `InstrumentedAttribute`)
-- `React.lazy()` + `Suspense` (component code split with on-demand loading)
+- `React.lazy()` + `Suspense` (component code split with on-demand loading) — generic React example; this app does the same thing with `lazy()` + `Suspense` from `solid-js`
 - **Our implementation**: fetches API data only when a property is first accessed
 
 **Key considerations:**
@@ -388,26 +388,30 @@ for (const position of pp) {
 }
 ```
 
-### With React component
+### With a SolidJS component
 
 ```tsx
-function BotStatusCard({ botId }: { botId: string }) {
-  const [proxy] = useState(() => createBotStateProxy(botId).createProxy());
-  const [ready, setReady] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+import { createSignal, onMount, Show } from "solid-js";
+import { Text } from "@/ui";
 
-  useEffect(() => {
-    proxy.load().then(() => setReady(true)).catch(setError);
-  }, []);
+function BotStatusCard(props: { botId: string }) {
+  const proxy = createBotStateProxy(props.botId).createProxy();
+  const [ready, setReady] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
 
-  if (error) return <Text c="red">{error}</Text>;
-  if (!ready) return <Text>Loading…</Text>;
+  onMount(() => {
+    proxy.load().then(() => setReady(true)).catch((e: unknown) => setError(String(e)));
+  });
 
   return (
-    <div>
-      <Text>Status: {proxy.status}</Text>
-      <Text>Running: {String(proxy.running)}</Text>
-    </div>
+    <Show when={!error()} fallback={<Text c="error">{error()}</Text>}>
+      <Show when={ready()} fallback={<Text>Loading…</Text>}>
+        <div>
+          <Text>Status: {proxy.status}</Text>
+          <Text>Running: {String(proxy.running)}</Text>
+        </div>
+      </Show>
+    </Show>
   );
 }
 ```
@@ -417,7 +421,7 @@ function BotStatusCard({ botId }: { botId: string }) {
 The Virtual Proxy pattern is a natural fit for this codebase because:
 
 - **Bot status** and **positions** are fetched from separate API endpoints and consumed by different UI panels. The proxy defers each fetch until the panel actually mounts and reads a property.
-- **Deduplication** — the `loadingPromise` ensures that if a component re-renders before the fetch completes, it joins the in-flight request instead of firing a second one.
+- **Deduplication** — the `loadingPromise` ensures that if several consumers touch the proxy before the fetch completes, each joins the in-flight request instead of firing a second one.
 - **Cache control** — `invalidate()` lets the UI force a refresh (e.g., after a user clicks "Refresh" or after a WebSocket event signals stale data) without recreating the proxy.
 
 | Location | What it loads | Proxy type |
