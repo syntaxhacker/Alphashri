@@ -153,3 +153,23 @@ lazy `ScreenerContent` chunk paid its cold module transform *inside* the
 
 ## Git rules
 Main agent only. Feature branch. Small commits. Never push develop/main.
+
+## Wave 5 — layout / loading / professional polish
+
+| # | Job | Scope | Status |
+|---|---|---|---|
+| 33 | Patterns page clipped to viewport | PatternsPage + TanStackTable | **DONE**: page/Tabs/panel/wrappers were `flex:0 1 auto`; chain now grows, table `fillContainer`. 155px dead space gone (fills to 3px), all 3 views |
+| 34 | LoadingOverlay white sheet | LoadingOverlay | **DONE**: default scrim derived from `MARKER_BORDER` (#FFFFFF) @60% → now `SURFACE` @55% |
+| 35 | Symbol column clipped its own key | PatternListView | **DONE**: `pattern` had no size → ate 822px; symbol 134→176, pattern→210. TATASTEEL renders 179px, no ellipsis |
+| 36 | Watch tab upper bands (5 rows → 3) | WatchView | in flight |
+| 37 | Admin page redesign | pages/admin | in flight |
+| 38 | Remaining Min/Max → RangeInput | FnoScreenerTab, ValueFilters | in flight |
+| 39 | Redundant loaders audit | heatmap/agri/paper/patterns | in flight |
+| 40 | Scan tab chrome (ScanStats/AppliedFilters/Rail) | 3 components | in flight |
+
+### Layout invariants discovered (reuse these)
+- A flex child that must fill needs ALL of: `flex-1`, `min-h-0`, `h-0` on ancestors, and
+  `items-stretch` (NOT `items-start`) on the row — `items-start` sizes children to content.
+- `height: 100%` inside an auto-height flex parent grows to content; use `flex: 1 1 0%`.
+- A column with no `size` absorbs all slack and starves its neighbours (the symbol-column bug).
+- Numbers must be `font-mono tabular-nums`; the primary identifier column never truncates.
