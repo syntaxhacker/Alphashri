@@ -139,7 +139,7 @@ export function RotationDetail(props: RotationDetailProps) {
                         style={{ height: `${height}px`, "background-color": value >= 0 ? POSITIVE : NEGATIVE }}
                       />
                     </Box>
-                    <Text className="text-[8px] leading-none" style={{ color: TEXT_MUTED }}>{p}</Text>
+                    <Text className="text-[9px] leading-none" style={{ color: TEXT_MUTED }}>{p}</Text>
                     <Text
                       className="font-mono text-[8.5px] leading-none tabular-nums"
                       style={{ color: getPnLTextColor(value) }}

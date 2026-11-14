@@ -59,7 +59,7 @@ export function DeskDock(props: {
     >
       <span class="font-black text-[8.5px] tracking-[0.5em]">{tab.label}</span>
       <Show when={tab.summary != null}>
-        <span class="text-[8px] text-fin-text-muted">{tab.summary}</span>
+        <span class="text-[9px] text-fin-text-muted">{tab.summary}</span>
       </Show>
       <Show when={tab.badge != null && tab.badge > 0}>
         <span

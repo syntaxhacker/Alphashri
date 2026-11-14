@@ -120,6 +120,29 @@ describe("icon scale", () => {
   });
 });
 
+describe("type scale", () => {
+  /** Body 13, table 11, micro 9. Nothing smaller is legible at 1x. */
+  const TYPE_SCALE = new Set(["9", "10", "11", "12", "13", "14", "15", "16", "18", "20", "24", "28", "32"]);
+
+  it("no text is below the legibility floor", () => {
+    const offenders: Offender[] = [];
+    for (const path of walk(SRC)) {
+      if (/\.test\.|\.stories\./.test(path)) continue;
+      const rel = relative(SRC, path);
+      if (rel.startsWith("ui/")) continue; // the kit owns its own type map
+      readFileSync(path, "utf8")
+        .split("\n")
+        .forEach((text, i) => {
+          for (const m of text.matchAll(/text-\[(\d+)px\]/g)) {
+            if (!TYPE_SCALE.has(m[1])) offenders.push({ file: rel, line: i + 1, detail: `${m[1]}px` });
+          }
+        });
+    }
+    const report = offenders.map((o) => `${o.file}:${o.line} — ${o.detail}`).join("\n");
+    expect(offenders, `\n${report}\n\nAllowed: ${[...TYPE_SCALE].join(", ")}`).toEqual([]);
+  });
+});
+
 describe("control scale", () => {
   it("every control height is in the scale", () => {
     // Chart/canvas heights are content-driven and legitimately arbitrary

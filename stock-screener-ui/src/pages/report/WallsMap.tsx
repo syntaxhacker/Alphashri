@@ -296,17 +296,17 @@ export function WallsMapChart(props: {
       >
         <div class="flex items-baseline gap-1.5 min-w-0 flex-wrap row-gap-[1px]">
           <div class="text-[9px] font-bold tracking-[0.5em] text-fin-text">WALL MAP</div>
-          <div data-testid="walls-map-horizon-label" class="text-[8px] text-fin-text-muted">
+          <div data-testid="walls-map-horizon-label" class="text-[9px] text-fin-text-muted">
             Δ vs {horizon() === "session" ? "open" : timeLabel(times()[0])} · {times().length}m · {strikes().length} strikes
           </div>
           <div
             data-testid="walls-map-active-time"
-            class="text-[8px] font-bold"
+            class="text-[9px] font-bold"
             style={{ color: isLive() ? palette.POSITIVE : palette.WARNING }}
           >
             {isLive() ? "LIVE" : pinnedTime() ? "PINNED" : "PREVIEW"} · {timeLabel(activeTime())}
           </div>
-          <div class="text-[8px] text-fin-text-muted">
+          <div class="text-[9px] text-fin-text-muted">
             spot {fmtNum(activeSpot())} · MP {fmtNum(activeMaxPain())} · FLIP {activeFlip() != null ? fmtNum(activeFlip()!) : "—"}
           </div>
         </div>
@@ -315,7 +315,7 @@ export function WallsMapChart(props: {
             {(regime) => (
               <span
                 data-testid="walls-map-regime"
-                class="px-1 py-[1px] border rounded-sm text-[8px] font-bold leading-[1.4]"
+                class="px-1 py-[1px] border rounded-sm text-[9px] font-bold leading-[1.4]"
                 style={{
                   "border-color": regime() === "SHORT" ? palette.NEGATIVE : palette.POSITIVE,
                   color: regime() === "SHORT" ? palette.NEGATIVE : palette.POSITIVE,
@@ -337,7 +337,7 @@ export function WallsMapChart(props: {
               type="button"
               data-testid="walls-map-live"
               onClick={clearInspect}
-              class="inline-flex items-center justify-center min-w-0 rounded-sm text-[8px] font-bold leading-[1.4] whitespace-nowrap"
+              class="inline-flex items-center justify-center min-w-0 rounded-sm text-[9px] font-bold leading-[1.4] whitespace-nowrap"
               style={{
                 padding: "1px 5px",
                 color: palette.PRIMARY,
@@ -352,15 +352,15 @@ export function WallsMapChart(props: {
       </div>
 
       <div class="flex items-center flex-wrap mb-[3px] gap-1 row-gap-[2px]">
-        <div class="text-[7px] font-bold tracking-[0.5em] text-fin-text-muted">COLOR</div>
+        <div class="text-[9px] font-bold tracking-[0.5em] text-fin-text-muted">COLOR</div>
         <For each={["window", "session"] as const}>{(mode) =>
           toggleButton(`walls-map-horizon-${mode}`, () => horizon() === mode, mode === "window" ? "60m" : "SESSION", () => setHorizon(mode))
         }</For>
-        <div class="text-[7px] font-bold tracking-[0.5em] text-fin-text-muted ml-[8px]">MEASURE</div>
+        <div class="text-[9px] font-bold tracking-[0.5em] text-fin-text-muted ml-[8px]">MEASURE</div>
         <For each={["pct", "oi"] as const}>{(mode) =>
           toggleButton(`walls-map-measure-${mode}`, () => measure() === mode, mode === "pct" ? "%" : "OI", () => setMeasure(mode))
         }</For>
-        <div class="text-[7px] text-fin-text-muted ml-[8px]">bars: muted = open · bright = new</div>
+        <div class="text-[9px] text-fin-text-muted ml-[8px]">bars: muted = open · bright = new</div>
       </div>
 
       <svg

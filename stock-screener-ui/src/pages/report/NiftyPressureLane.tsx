@@ -219,7 +219,7 @@ export function NiftyPressureLane(props: NiftyPressureLaneProps) {
     <div data-testid="nifty-pressure-lane" class="w-full min-w-0 relative">
       <span
         aria-hidden="true"
-        class="absolute left-0 top-0 text-[8px] tracking-[0.06em] pointer-events-none"
+        class="absolute left-0 top-0 text-[9px] tracking-[0.06em] pointer-events-none"
         style={{ color: palette.TEXT_MUTED }}
       >
         VOL
@@ -306,7 +306,7 @@ export function NiftyPressureLane(props: NiftyPressureLaneProps) {
                 pct > 92 ? "translateX(-100%)" : pct < 2 ? "none" : "translateX(-50%)";
               return (
                 <span
-                  class="absolute text-[8px] leading-[12px] font-mono whitespace-nowrap"
+                  class="absolute text-[9px] leading-[12px] font-mono whitespace-nowrap"
                   style={{
                     left: `${pct}%`,
                     transform: shift,

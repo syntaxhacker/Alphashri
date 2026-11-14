@@ -341,7 +341,7 @@ export function NiftySqueezeRadar(props: NiftySqueezeRadarProps) {
         <Show when={opposite() && oppositeDist() != null}>
           <span
             data-testid="nifty-squeeze-opposite"
-            class="text-[8px] whitespace-nowrap"
+            class="text-[9px] whitespace-nowrap"
             style={{ color: palette.TEXT_MUTED }}
           >
             ↔ {formatNumberIN(opposite()!.strike)} {selection().side === "ce" ? "PE" : "CE"}{" "}
@@ -356,14 +356,14 @@ export function NiftySqueezeRadar(props: NiftySqueezeRadarProps) {
           >
             {proximity()}%
           </span>
-          <span class="text-[8px] tracking-[0.04em]" style={{ color: palette.TEXT_MUTED }}>
+          <span class="text-[9px] tracking-[0.04em]" style={{ color: palette.TEXT_MUTED }}>
             AT LEVEL
           </span>
         </div>
       </div>
 
       {/* Row 1.5: score decomposition — distance / flow / erosion / gamma regime */}
-      <div class="flex items-center gap-[4px] text-[8px] min-w-0" style={{ color: palette.TEXT_MUTED }}>
+      <div class="flex items-center gap-[4px] text-[9px] min-w-0" style={{ color: palette.TEXT_MUTED }}>
         <span data-testid="squeeze-erosion">
           DIST {distScorePct()} · FLOW {flowScorePct()} · ERODE {erodeScore()} · Γ {gammaLabel()}
         </span>
@@ -394,7 +394,7 @@ export function NiftySqueezeRadar(props: NiftySqueezeRadarProps) {
           }}
         />
       </div>
-      <div class="flex justify-between text-[7px] mt-[-4px]" style={{ color: palette.TEXT_MUTED }}>
+      <div class="flex justify-between text-[9px] mt-[-4px]" style={{ color: palette.TEXT_MUTED }}>
         <span>far</span>
         <span>building</span>
         <span>at the wall</span>
@@ -439,7 +439,7 @@ export function NiftySqueezeRadar(props: NiftySqueezeRadarProps) {
       {/* Row 4: labelled score sparkline + how long armed */}
       <Show when={n() >= 3}>
         <div class="flex items-center gap-[6px] min-w-0">
-          <span class="text-[8px] shrink-0" style={{ color: palette.TEXT_MUTED }}>
+          <span class="text-[9px] shrink-0" style={{ color: palette.TEXT_MUTED }}>
             {t0() ? fmtTime(t0()!) : "—"}
           </span>
           <svg
@@ -484,13 +484,13 @@ export function NiftySqueezeRadar(props: NiftySqueezeRadarProps) {
               />
             </Show>
           </svg>
-          <span class="text-[8px] shrink-0" style={{ color: palette.TEXT_MUTED }}>
+          <span class="text-[9px] shrink-0" style={{ color: palette.TEXT_MUTED }}>
             {t1() ? fmtTime(t1()!) : "—"}
           </span>
           <Show when={armedSince()}>
             <span
               data-testid="nifty-squeeze-armed"
-              class="text-[8px] font-bold shrink-0"
+              class="text-[9px] font-bold shrink-0"
               style={{ color: palette.POSITIVE }}
             >
               armed {armedMin()}m
@@ -499,7 +499,7 @@ export function NiftySqueezeRadar(props: NiftySqueezeRadarProps) {
         </div>
       </Show>
 
-      <div class="flex items-baseline gap-[6px] text-[8px] min-w-0" style={{ color: palette.TEXT_MUTED }}>
+      <div class="flex items-baseline gap-[6px] text-[9px] min-w-0" style={{ color: palette.TEXT_MUTED }}>
         <span class="overflow-hidden truncate whitespace-nowrap">
           ARM = prepare · TRIGGER = 1-min close through the wall · the score is an early warning, not an entry
         </span>

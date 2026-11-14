@@ -198,7 +198,7 @@ export function LocalCompactStat(props: {
         {props.value}
       </span>
       <Show when={props.hint}>
-        <span class="text-[8px] leading-[1.1] text-fin-text-muted">{props.hint}</span>
+        <span class="text-[9px] leading-[1.1] text-fin-text-muted">{props.hint}</span>
       </Show>
     </div>
   );
