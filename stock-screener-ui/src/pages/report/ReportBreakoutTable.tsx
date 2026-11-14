@@ -1,7 +1,9 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
-import { Badge, Chip, Text, ToolbarRow } from "@/ui";
+import { Badge, Chip, SegmentedControl, Text, ToolbarRow } from "@/ui";
+import { CompactPanel } from "@/components/common/compact";
 import { TanStackTable, type TableColumnDef } from "@/components/common/TanStackTable";
 import { LocalSymbolAvatar, LocalSparkline } from "./reportBits";
+import { ReportPanelTitle } from "./reportCells";
 import type { BreakoutRow, BreakoutSide } from "../../types/report";
 import { formatCurrency, formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
 
@@ -12,6 +14,7 @@ export const BREAKOUT_TYPE_LABELS: Record<string, string> = {
   base_100: "Base 100D",
   gap: "Gap",
 };
+
 
 function typeLabel(type: string): string {
   return BREAKOUT_TYPE_LABELS[type] ?? type;
@@ -44,6 +47,18 @@ interface ReportBreakoutTableProps {
    * derived client-side from `daily_closes` (min-max normalized). Rows without
    * daily closes always keep the payload spark. */
   sparkRange?: "intraday" | "5d";
+  /** Symbols the scan inspected. Printed once, on the scan's primary table —
+   * the date/universe already live in the identity band, so this panel never
+   * re-prints them. */
+  scanned?: number;
+  /** Override for the scanned badge id (the page owns the historic
+   * `report-breakouts-scanned` name). */
+  scannedTestId?: string;
+  /** Renders the scan-level spark-range control in this panel's header. Only
+   * one panel may own it — two controls would be two sources of truth for the
+   * same view switch. */
+  showSparkRange?: boolean;
+  onSparkRangeChange?: (range: "intraday" | "5d") => void;
 }
 
 function normalizeDailyCloses(closes: number[] | undefined): number[] {
@@ -64,6 +79,9 @@ export function ReportBreakoutTable(props: ReportBreakoutTableProps) {
   const emptyMessage = () => props.emptyMessage ?? "No breakouts today";
   const sparkRange = () => props.sparkRange ?? "intraday";
   const direction = () => props.direction;
+  const scanned = () => props.scanned;
+  const scannedTestId = () => props.scannedTestId ?? `${testId()}-scanned`;
+  const showSparkRange = () => props.showSparkRange ?? false;
   const [typeFilter, setTypeFilter] = createSignal<string>("all");
 
   const rows = createMemo(() => {
@@ -217,35 +235,58 @@ export function ReportBreakoutTable(props: ReportBreakoutTableProps) {
   const filterKeys = () => ["all", ...Object.keys(byType())];
 
   return (
-    <div data-testid={`${testId()}-section`} class="flex flex-col gap-2 min-w-0">
-      <ToolbarRow gap={8} wrap={false}>
-        <Text size="sm" fw={700} span data-testid={`${testId()}-title`}>
-          {props.title}
-        </Text>
-        <Badge size="xs" data-testid={`${testId()}-count`}>
-          {side()?.count ?? 0}
-        </Badge>
-        <div class="flex-1 min-w-0" />
-      </ToolbarRow>
-      <ToolbarRow gap={4} wrap data-testid={`${testId()}-filters`}>
-        <For each={filterKeys()}>
-          {(key) => (
-            <Chip
-              size="xs"
-              checked={typeFilter() === key}
-              onChange={() => setTypeFilter(key)}
-              data-testid={`${testId()}-filter-${key}`}
-            >
-              {key === "all" ? `All (${side()?.count ?? 0})` : `${typeLabel(key)} (${byType()[key] ?? 0})`}
-            </Chip>
-          )}
-        </For>
-      </ToolbarRow>
-      {/* Bare table in a single bordered wrapper: the shared container's
-          minHeight floor leaves ~100px of dead space under small result sets. */}
-      <div
-        class="min-w-0 w-full overflow-hidden border border-fin-border rounded-[1px] bg-fin-surface"
-      >
+    <CompactPanel
+      flush
+      scrollable
+      testId={`${testId()}-section`}
+      title={
+        <div class="flex items-center gap-2 min-w-0">
+          <ReportPanelTitle testId={`${testId()}-title`}>{props.title}</ReportPanelTitle>
+          <Badge size="xs" data-testid={`${testId()}-count`}>
+            {side()?.count ?? 0}
+          </Badge>
+          <Show when={scanned() != null}>
+            <span data-testid="report-breakouts-meta" class="flex items-center gap-2 min-w-0">
+              <Badge size="xs" data-testid={scannedTestId()}>
+                {scanned()} scanned
+              </Badge>
+            </span>
+          </Show>
+          <ToolbarRow gap={4} wrap={false} data-testid={`${testId()}-filters`} className="ml-2 min-w-0">
+            <For each={filterKeys()}>
+              {(key) => (
+                <Chip
+                  size="xs"
+                  checked={typeFilter() === key}
+                  onChange={() => setTypeFilter(key)}
+                  data-testid={`${testId()}-filter-${key}`}
+                >
+                  {key === "all" ? `All (${side()?.count ?? 0})` : `${typeLabel(key)} (${byType()[key] ?? 0})`}
+                </Chip>
+              )}
+            </For>
+          </ToolbarRow>
+        </div>
+      }
+      action={
+        <Show when={showSparkRange()}>
+          <SegmentedControl
+            size="xs"
+            value={sparkRange()}
+            onChange={(v) => props.onSparkRangeChange?.(v === "5d" ? "5d" : "intraday")}
+            data={[
+              { value: "intraday", label: "Intraday" },
+              { value: "5d", label: "5D" },
+            ]}
+            data-testid="report-spark-range"
+          />
+        </Show>
+      }
+    >
+      {/* Bare table: the panel's own border would be a second card, and the
+          shared container's minHeight floor leaves dead space under small
+          result sets. The table scrolls its own overflow (9 columns wide). */}
+      <div class="min-w-0 w-full overflow-hidden">
         <TanStackTable
           data={rows()}
           columns={columns()}
@@ -259,6 +300,6 @@ export function ReportBreakoutTable(props: ReportBreakoutTableProps) {
           getRowTestId={(row) => `${testId()}-row-${row.symbol}`}
         />
       </div>
-    </div>
+    </CompactPanel>
   );
 }
