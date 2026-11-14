@@ -514,4 +514,159 @@ describe("TanStackTable", () => {
     expect(screen.getByText("Alpha")).toBeInTheDocument();
     expect(screen.getByText("Beta")).toBeInTheDocument();
   });
+
+  // TanStack rebuilds row objects on every data change and `<For>` keys by
+  // reference, so a filter/sort update used to unmount and remount every row.
+  it("keeps the <tr> DOM node of an unchanged row when data is replaced", () => {
+    const [rows, setRows] = createSignal<TestItem[]>([
+      { id: "1", name: "Alpha", value: 100 },
+      { id: "2", name: "Beta", value: 200 },
+      { id: "3", name: "Gamma", value: 300 },
+    ]);
+    render(() => (
+      <TanStackTable<TestItem>
+        data={rows()}
+        columns={columns}
+        getRowTestId={(row) => `stable-${row.id}`}
+      />
+    ));
+
+    const before = Array.from(document.querySelectorAll<HTMLTableRowElement>("tbody tr"));
+    expect(before.map((tr) => tr.dataset.testid)).toEqual([
+      "stable-1",
+      "stable-2",
+      "stable-3",
+    ]);
+
+    // Same keys, new row objects, one cell value changed — exactly what a filter
+    // pass hands the table.
+    setRows([
+      { id: "1", name: "Alpha", value: 100 },
+      { id: "2", name: "Beta", value: 250 },
+      { id: "3", name: "Gamma", value: 300 },
+    ]);
+
+    const after = Array.from(document.querySelectorAll<HTMLTableRowElement>("tbody tr"));
+    expect(after.length).toBe(3);
+    expect(after[0]).toBe(before[0]);
+    expect(after[1]).toBe(before[1]);
+    expect(after[2]).toBe(before[2]);
+    // ...while the changed cell still updated.
+    expect(after[1].textContent).toContain("250");
+  });
+
+  it("keeps unchanged rows mounted when the visible set is filtered", () => {
+    const [rows, setRows] = createSignal<TestItem[]>([
+      { id: "1", name: "Alpha", value: 100 },
+      { id: "2", name: "Beta", value: 200 },
+    ]);
+    render(() => (
+      <TanStackTable<TestItem>
+        data={rows()}
+        columns={columns}
+        getRowTestId={(row) => `filter-${row.id}`}
+      />
+    ));
+    const betaBefore = screen.getByTestId("filter-2");
+
+    setRows([
+      { id: "1", name: "Alpha", value: 100 },
+      { id: "2", name: "Beta", value: 200 },
+      { id: "3", name: "Gamma", value: 300 },
+    ]);
+
+    expect(screen.getByTestId("filter-2")).toBe(betaBefore);
+    expect(screen.getByTestId("filter-3")).toBeInTheDocument();
+  });
+
+  it("keeps group header rows and their leaf rows stable across a data change", () => {
+    type Row = TestItem & { category: string };
+    const groupedColumns = [
+      { id: "category", header: "Category", accessorKey: "category" },
+      { id: "name", header: "Name", accessorKey: "name" },
+    ];
+    const [rows, setRows] = createSignal<Row[]>([
+      { id: "1", name: "Alpha", value: 100, category: "A" },
+      { id: "2", name: "Beta", value: 200, category: "A" },
+    ]);
+    render(() => (
+      <TanStackTable<Row>
+        data={rows()}
+        columns={groupedColumns}
+        enableGrouping
+        grouping={["category"]}
+        initialState={{ expanded: { "category:A": true } }}
+        getRowTestId={(row) => `grouped-row-${row.id}`}
+        getGroupRowTestId={(value) => `grouped-header-${String(value)}`}
+        renderGroupHeader={({ value }) => <span>{String(value)}</span>}
+      />
+    ));
+    const headerBefore = screen.getByTestId("grouped-header-A");
+    const rowBefore = screen.getByTestId("grouped-row-1");
+
+    setRows([
+      { id: "1", name: "Alpha", value: 120, category: "A" },
+      { id: "2", name: "Beta", value: 200, category: "A" },
+    ]);
+
+    expect(screen.getByTestId("grouped-header-A")).toBe(headerBefore);
+    expect(screen.getByTestId("grouped-row-1")).toBe(rowBefore);
+    expect(screen.getByTestId("grouped-row-1").textContent).toContain("Alpha");
+  });
+
+  it("keeps the sub-row open across a data change", () => {
+    const toggleColumns = [
+      { id: "name", header: "Name", accessorKey: "name" },
+      {
+        id: "toggle",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }: { row: { isExpanded: () => boolean; toggle: () => void } }) => (
+          <button data-testid="stable-toggle" onClick={() => row.toggle()}>
+            {row.isExpanded() ? "open" : "closed"}
+          </button>
+        ),
+      },
+    ];
+    const [rows, setRows] = createSignal<TestItem[]>([{ id: "1", name: "Alpha", value: 100 }]);
+    render(() => (
+      <TanStackTable<TestItem>
+        data={rows()}
+        columns={toggleColumns}
+        getRowCanExpand={() => true}
+        renderSubComponent={() => <span data-testid="stable-detail">detail</span>}
+        getRowTestId={(row) => `expand-${row.id}`}
+      />
+    ));
+    fireEvent.click(screen.getByTestId("stable-toggle"));
+    expect(screen.getByTestId("stable-detail")).toBeInTheDocument();
+    const rowBefore = screen.getByTestId("expand-1");
+
+    setRows([{ id: "1", name: "Alpha", value: 999 }]);
+
+    expect(screen.getByTestId("expand-1")).toBe(rowBefore);
+    expect(screen.getByTestId("stable-detail")).toBeInTheDocument();
+    expect(screen.getByTestId("stable-toggle").textContent).toBe("open");
+  });
+
+  it("reuses row nodes even with a row window applied", () => {
+    const many: TestItem[] = Array.from({ length: 30 }, (_, i) => ({
+      id: String(i),
+      name: `Row ${i}`,
+      value: i,
+    }));
+    const [rows, setRows] = createSignal(many);
+    render(() => (
+      <TanStackTable<TestItem>
+        data={rows()}
+        columns={columns}
+        rowWindowSize={5}
+        getRowTestId={(row) => `win-stable-${row.id}`}
+      />
+    ));
+    const first = screen.getByTestId("win-stable-0");
+    setRows(many.map((r, i) => (i === 1 ? { ...r, value: 42 } : r)));
+    expect(screen.getByTestId("win-stable-0")).toBe(first);
+    expect(screen.getByTestId("win-stable-1").textContent).toContain("42");
+  });
 });

@@ -2,7 +2,7 @@ import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { Box, Paper, ScrollArea, useDensity } from "@/ui";
 import { InlineLoader } from "./states";
 import * as palette from "@/ui/palette";
-import type { JSX } from "solid-js";
+import type { Accessor, JSX } from "solid-js";
 
 // `solid-js` does not re-export JSX.CSSProperties from its package root.
 type CSSProperties = JSX.CSSProperties;
@@ -181,6 +181,61 @@ export function TanStackTable<T>(props: Props<T>) {
   const groupKey = (value: unknown) =>
     `${props.grouping?.[0] ?? ""}:${String(value)}`;
 
+  type RowFrame = { row: T; index: number };
+  type GroupFrame = { value: unknown; rows: T[]; baseIndex: number };
+  type RowSlot = { kind: "row"; key: string; frame: Accessor<RowFrame>; set: (next: RowFrame) => void };
+  type GroupSlot = { kind: "group"; key: string; frame: Accessor<GroupFrame>; set: (next: GroupFrame) => void };
+  type BodySlot = RowSlot | GroupSlot;
+
+  // TanStack rebuilds every row object on each data change, and `<For>` keys by
+  // reference — so one filter click disposed and re-created all mounted rows
+  // (~450 ms at 80 rows x 14 columns, dominated by mergeProps/splitProps/
+  // cleanNode). A slot is the stable identity `<For>` keys on: it owns the
+  // current frame and its cells read it reactively, so an unchanged key keeps
+  // its `<tr>` and only cells that read a changed field update.
+  const rowSlots = new Map<string, RowSlot>();
+  const groupSlots = new Map<string, GroupSlot>();
+
+  const sameRowFrame = (a: RowFrame, b: RowFrame) => a.row === b.row && a.index === b.index;
+  const sameGroupFrame = (a: GroupFrame, b: GroupFrame) =>
+    a.value === b.value && a.rows === b.rows && a.baseIndex === b.baseIndex;
+
+  const ensureRowSlot = (row: T, index: number): RowSlot => {
+    const key = rowKey(row, index);
+    const existing = rowSlots.get(key);
+    if (existing) {
+      existing.set({ row, index });
+      return existing;
+    }
+    const [frame, set] = createSignal<RowFrame>({ row, index }, { equals: sameRowFrame });
+    const slot: RowSlot = { kind: "row", key, frame, set };
+    rowSlots.set(key, slot);
+    return slot;
+  };
+
+  const ensureGroupSlot = (value: unknown, rows: T[], baseIndex: number): GroupSlot => {
+    const key = groupKey(value);
+    const existing = groupSlots.get(key);
+    if (existing) {
+      existing.set({ value, rows, baseIndex });
+      return existing;
+    }
+    const [frame, set] = createSignal<GroupFrame>({ value, rows, baseIndex }, { equals: sameGroupFrame });
+    const slot: GroupSlot = { kind: "group", key, frame, set };
+    groupSlots.set(key, slot);
+    return slot;
+  };
+
+  // Keeps the registry bounded by the live row set. Deleting a slot only costs a
+  // re-mount for a row that is about to unmount anyway.
+  const pruneSlots = (items: BodySlot[]) => {
+    if (rowSlots.size > items.length * 2 + 64) {
+      const live = new Set(items.map((item) => `${item.kind}:${item.key}`));
+      for (const key of rowSlots.keys()) if (!live.has(`row:${key}`)) rowSlots.delete(key);
+      for (const key of groupSlots.keys()) if (!live.has(`group:${key}`)) groupSlots.delete(key);
+    }
+  };
+
   const isGroupExpanded = (value: unknown) => {
     const map = expandedGroups();
     const k = groupKey(value);
@@ -279,6 +334,11 @@ export function TanStackTable<T>(props: Props<T>) {
       }
     }
     return ids;
+  }, undefined, {
+    // A data swap rebuilds the sample but the columns' numeric-ness usually does
+    // not change. Without this, the fresh Set identity re-ran every cell's style
+    // effect (80 rows x 14 columns) on each filter click.
+    equals: (a, b) => a.size === b.size && [...a].every((id) => b.has(id)),
   });
   const isNumeric = (id: string) => numericColumnIds().has(id);
 
@@ -363,48 +423,56 @@ export function TanStackTable<T>(props: Props<T>) {
     );
   };
 
-  const renderSubRow = (row: T, index: number) => {
-    if (!props.getRowCanExpand?.(row) || !props.renderSubComponent) return null;
-    const expanded = () => isRowExpanded(row, index);
+  const renderSubRow = (row: Accessor<T>, index: Accessor<number>) => {
+    const shows = () => props.renderSubComponent != null && props.getRowCanExpand?.(row()) === true;
     return (
-      <Show when={expanded()}>
+      <Show when={shows() && isRowExpanded(row(), index())}>
         <tr className="paper-tanstack-expanded-row">
           <td colSpan={colCount()} style={{ padding: "0px", "border-top": `1px solid ${palette.BORDER}`, "border-bottom": `1px solid ${palette.BORDER}`, background: palette.BG }}>
-            {props.renderSubComponent(row)}
+            {props.renderSubComponent?.(row())}
           </td>
         </tr>
       </Show>
     );
   };
 
-  const renderRow = (row: T, index: number) => {
-    const k = rowKey(row, index);
+  const renderRow = (item: RowSlot) => {
+    // `frame()` is read inside every reactive position below, never captured as
+    // a value — that is what lets a stable slot re-render its cells instead of
+    // its host element being rebuilt.
+    const frame = item.frame;
+    const row = () => frame().row;
+    const index = () => frame().index;
+    const k = item.key;
     return (
       <>
         <tr
-          style={{ ...rowStyleBase(row) }}
-          onClick={() => props.onRowClick?.(row)}
-          onKeyDown={props.onRowClick ? (event: KeyboardEvent) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); props.onRowClick!(row); } } : undefined}
+          style={{ ...rowStyleBase(row()) }}
+          onClick={() => props.onRowClick?.(row())}
+          onKeyDown={props.onRowClick ? (event: KeyboardEvent) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); props.onRowClick!(row()); } } : undefined}
           tabIndex={props.onRowClick ? 0 : undefined}
-          className={props.getRowClassName?.(row)}
-          data-testid={props.getRowTestId?.(row, index)}
-          {...props.getRowAttributes?.(row, index)}
+          className={props.getRowClassName?.(row())}
+          data-testid={props.getRowTestId?.(row(), index())}
+          {...props.getRowAttributes?.(row(), index())}
           data-row="stock"
         >
           <For each={visibleColumns()}>{(col) => {
             const width = getColumnWidth(col);
-            const cell = col.cell
-              ? col.cell({ row: { original: row, index, isExpanded: () => isRowExpanded(row, index), toggle: () => toggleRow(row, index) }, column: col })
-              : <span>{String(getValue(row, col))}</span>;
+            const cell = () => {
+              const r = row();
+              const i = index();
+              return col.cell
+                ? col.cell({ row: { original: r, index: i, isExpanded: () => isRowExpanded(r, i), toggle: () => toggleRow(r, i) }, column: col })
+                : <span>{String(getValue(r, col))}</span>;
+            };
             return (
               <Box
                 component="td"
-                
                 className={`paper-tanstack-cell ${alignClass(col)}`}
                 id={`paper-tanstack-cell-${String(col.id)}-${k}`}
                 style={cellStyle(col, width)}
               >
-                {cell}
+                {cell()}
               </Box>
             );
           }}</For>
@@ -415,22 +483,22 @@ export function TanStackTable<T>(props: Props<T>) {
   };
 
   const bodyItems = createMemo(() => {
-    const items: Array<{ kind: "row"; row: T; index: number } | { kind: "group"; value: unknown; rows: T[]; baseIndex: number }> = [];
+    const items: BodySlot[] = [];
     const grps = groups();
     if (grps) {
       for (const g of grps) {
-        items.push({ kind: "group", value: g.value, rows: g.rows, baseIndex: g.baseIndex });
+        items.push(ensureGroupSlot(g.value, g.rows, g.baseIndex));
         if (isGroupExpanded(g.value)) {
           for (let i = 0; i < g.rows.length; i++) {
-            items.push({ kind: "row", row: g.rows[i], index: g.baseIndex + i });
+            items.push(ensureRowSlot(g.rows[i], g.baseIndex + i));
           }
         }
       }
-      return items;
+    } else {
+      const rows = sortedData();
+      for (let i = 0; i < rows.length; i++) items.push(ensureRowSlot(rows[i], i));
     }
-    for (let i = 0; i < sortedData().length; i++) {
-      items.push({ kind: "row", row: sortedData()[i], index: i });
-    }
+    pruneSlots(items);
     return items;
   });
 
@@ -497,28 +565,27 @@ export function TanStackTable<T>(props: Props<T>) {
                 fallback={(
                   <For each={visibleItems()}>{(item) => {
                     if (item.kind === "group") {
-                      const expanded = isGroupExpanded(item.value);
+                      const frame = item.frame;
+                      const expanded = () => isGroupExpanded(frame().value);
                       return (
-                        <>
-                          <tr
-                            data-testid={props.getGroupRowTestId?.(item.value)}
-                            onClick={() => toggleGroup(item.value)}
-                            style={{ "cursor": "pointer" }}
-                            className="paper-tanstack-group-row"
-                          >
-                            <Box component="td" colSpan={colCount()} style={{ padding: "0px", border: "none" }}>
-                              {props.renderGroupHeader?.({
-                                value: item.value,
-                                rows: item.rows,
-                                isExpanded: () => expanded,
-                                toggle: () => toggleGroup(item.value),
-                              })}
-                            </Box>
-                          </tr>
-                        </>
+                        <tr
+                          data-testid={props.getGroupRowTestId?.(frame().value)}
+                          onClick={() => toggleGroup(frame().value)}
+                          style={{ "cursor": "pointer" }}
+                          className="paper-tanstack-group-row"
+                        >
+                          <Box component="td" colSpan={colCount()} style={{ padding: "0px", border: "none" }}>
+                            {props.renderGroupHeader?.({
+                              value: frame().value,
+                              rows: frame().rows,
+                              isExpanded: expanded,
+                              toggle: () => toggleGroup(frame().value),
+                            })}
+                          </Box>
+                        </tr>
                       );
                     }
-                    return <>{renderRow(item.row, item.index)}</>;
+                    return renderRow(item);
                   }}</For>
                 )}
               >
