@@ -268,7 +268,7 @@ function ErrorAlert(props: { message: string; onClose: () => void }) {
       title="Error"
       color="error"
       variant="filled"
-      mb="xs"
+      className="mb-1"
       data-testid="paper-error"
       withCloseButton
       onClose={props.onClose}

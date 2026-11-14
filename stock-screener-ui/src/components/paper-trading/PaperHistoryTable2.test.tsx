@@ -419,8 +419,8 @@ describe("groupTradesByDate with sorting", () => {
   test("sorts by specified column", async () => {
     const { groupTradesByDate } = await import("../../utils/tradeHistoryUtils");
     const trades = [
-      { trade_id: "t1", symbol: "AAPL", exit_time: "2026-05-09T10:30:00Z" },
-      { trade_id: "t2", symbol: "ZOO", exit_time: "2026-05-09T11:00:00Z" },
+      mockTrade({ trade_id: "t1", symbol: "AAPL", exit_time: "2026-05-09T10:30:00Z" }),
+      mockTrade({ trade_id: "t2", symbol: "ZOO", exit_time: "2026-05-09T11:00:00Z" }),
     ];
     const result = groupTradesByDate(trades, "symbol", "asc");
     expect(result["2026-05-09"][0].trade_id).toBe("t1");

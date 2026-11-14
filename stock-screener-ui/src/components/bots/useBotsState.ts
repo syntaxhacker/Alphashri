@@ -1,6 +1,6 @@
 import { createEffect, createSignal, onCleanup } from "solid-js";
-import { getBotsState, getCurrentView, subscribe, type BotsState } from "../../state/bots";
-import type { BotsView } from "../../types/bots";
+import { getBotsState, getCurrentView, subscribe } from "../../state/bots";
+import type { BotsState, BotsView } from "../../types/bots";
 
 /**
  * Same legacy subscriber store, Solid-flavoured: `snapshot()` re-reads the

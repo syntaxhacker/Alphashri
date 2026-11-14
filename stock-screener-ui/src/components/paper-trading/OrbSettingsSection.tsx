@@ -24,7 +24,7 @@ export function OrbSettingsSection(props: OrbSettingsSectionProps) {
           description="Opening range in minutes"
           data-testid="config-or-minutes"
           value={props.config.or_minutes}
-          onChange={(v) => props.onChange("or_minutes", v)}
+          onChange={(v: number | string) => props.onChange("or_minutes", v)}
           min={15}
           max={120}
           step={15}
@@ -36,7 +36,7 @@ export function OrbSettingsSection(props: OrbSettingsSectionProps) {
           description="Stop loss percentage"
           data-testid="config-sl-pct"
           value={props.config.sl_pct}
-          onChange={(v) => props.onChange("sl_pct", Number(v))}
+          onChange={(v: number | string) => props.onChange("sl_pct", Number(v))}
           min={0.1}
           max={5}
           step={0.1}
@@ -50,7 +50,7 @@ export function OrbSettingsSection(props: OrbSettingsSectionProps) {
           description="Take profit percentage"
           data-testid="config-tp-pct"
           value={props.config.tp_pct}
-          onChange={(v) => props.onChange("tp_pct", Number(v))}
+          onChange={(v: number | string) => props.onChange("tp_pct", Number(v))}
           min={0.1}
           max={10}
           step={0.1}
@@ -62,7 +62,7 @@ export function OrbSettingsSection(props: OrbSettingsSectionProps) {
           description="Minimum ORB range"
           data-testid="config-min-or-range"
           value={props.config.min_or_range_pct}
-          onChange={(v) => props.onChange("min_or_range_pct", Number(v))}
+          onChange={(v: number | string) => props.onChange("min_or_range_pct", Number(v))}
           min={0.1}
           max={5}
           step={0.1}
@@ -74,7 +74,7 @@ export function OrbSettingsSection(props: OrbSettingsSectionProps) {
           description="Maximum ORB range"
           data-testid="config-max-or-range"
           value={props.config.max_or_range_pct}
-          onChange={(v) => props.onChange("max_or_range_pct", Number(v))}
+          onChange={(v: number | string) => props.onChange("max_or_range_pct", Number(v))}
           min={1}
           max={10}
           step={0.5}

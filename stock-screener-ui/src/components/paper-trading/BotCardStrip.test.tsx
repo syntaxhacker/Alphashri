@@ -11,7 +11,11 @@ describe("BotCardStrip", () => {
     name: "ORB Bot",
     running: true,
     is_active: true,
+    live_trading: false,
+    pid: null,
+    status: "running",
     position_count: 2,
+    strategies: [],
   };
 
   beforeEach(() => {

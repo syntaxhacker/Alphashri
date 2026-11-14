@@ -34,9 +34,9 @@ export function StrategyCard(props: StrategyCardProps) {
   return (
     <div class="paper-strategy-group border-t border-fin-border" data-testid={`strategy-card-${props.strategyName}`}>
       <div class="flex items-center gap-1.5 px-1.5 py-0.5 min-w-0 bg-fin-surface-alt">
-        <Text size="xs" fw={600} class="truncate min-w-0">{props.strategyName}</Text>
-        <Badge size="xs" variant="light" class="shrink-0">{summary().count}</Badge>
-        <Text size="xs" c={getPnLTextColor(summary().totalPnl)} fw={600} class="whitespace-nowrap shrink-0 font-mono tabular-nums">
+        <Text size="xs" fw={600} className="truncate min-w-0">{props.strategyName}</Text>
+        <Badge size="xs" variant="light" className="shrink-0">{summary().count}</Badge>
+        <Text size="xs" c={getPnLTextColor(summary().totalPnl)} fw={600} className="whitespace-nowrap shrink-0 font-mono tabular-nums">
           {formatSignedPnl(summary().totalPnl)}
         </Text>
         <div class="flex-1 min-w-[8px]" />
@@ -44,11 +44,11 @@ export function StrategyCard(props: StrategyCardProps) {
           <Progress
             value={capacityPct()}
             size={4}
-            w={60}
+            style={{ width: "60px" }}
             color={capacityPct() >= 100 ? "error" : "primary"}
             aria-label={`${summary().count} of ${props.maxCapacity} positions`}
           />
-          <Text size="xs" c="dimmed" class="whitespace-nowrap font-mono tabular-nums">{summary().count}/{props.maxCapacity}</Text>
+          <Text size="xs" c="dimmed" className="whitespace-nowrap font-mono tabular-nums">{summary().count}/{props.maxCapacity}</Text>
         </div>
         <Tooltip label="Close all in this strategy">
           <Button
@@ -60,7 +60,7 @@ export function StrategyCard(props: StrategyCardProps) {
               props.onCloseAll(props.positions);
             }}
             data-testid={`close-strategy-${props.strategyName}`}
-            class="shrink-0 min-w-0 px-1"
+            className="shrink-0 min-w-0 px-1"
           >
             <IconX size={12} />
           </Button>

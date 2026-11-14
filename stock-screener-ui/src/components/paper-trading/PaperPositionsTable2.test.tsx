@@ -5,7 +5,7 @@ import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, fireEvent, cleanup } from "@solidjs/testing-library";
 import { PaperPositionsTable } from "./PaperPositionsTable2";
 import { mockPosition } from "./testFixtures";
-import type { PaperBotSnapshot, PaperTradingState } from "../../types/paperTrading";
+import type { PaperBotSnapshot, PaperPosition, PaperTradingState } from "../../types/paperTrading";
 
 afterEach(() => {
   cleanup();
@@ -26,6 +26,7 @@ function createMockState(overrides: Partial<PaperTradingState> = {}): PaperTradi
     filterSymbol: null,
     filterStrategy: null,
     filterBot: null,
+    filterSource: "equity",
     selectedSymbol: null,
     selectedStrategyId: null,
     selectedStrategyTab: null,
@@ -35,10 +36,16 @@ function createMockState(overrides: Partial<PaperTradingState> = {}): PaperTradi
     showPivotLines: false,
     show52wLines: false,
     showEmaLines: false,
-    intradayOnly: false,
     chartData: null,
     chartLoading: false,
     chartTimeframe: "5min",
+    chartFromDate: null,
+    chartDataLive: null,
+    chartTimeframeLive: "5min",
+    chartFromDateLive: null,
+    chartDataHistory: null,
+    chartTimeframeHistory: "5min",
+    chartFromDateHistory: null,
     isLoading: false,
     error: null,
     autoRefreshEnabled: true,
@@ -51,6 +58,14 @@ function createMockState(overrides: Partial<PaperTradingState> = {}): PaperTradi
     configError: null,
     configDirty: false,
     availableBots: [],
+    dashboardAnalyticsData: null,
+    dashboardAnalyticsLoading: false,
+    analyticsData: null,
+    analyticsLoading: false,
+    activityEvents: [],
+    activityLoading: false,
+    aggregatedData: null,
+    aggregatedLoading: false,
     ...overrides,
   };
 }
@@ -58,6 +73,7 @@ function createMockState(overrides: Partial<PaperTradingState> = {}): PaperTradi
 const mockBotSnapshot: PaperBotSnapshot = {
   timestamp: "2026-03-20T09:30:00Z",
   watchlist: ["RELIANCE", "TCS", "INFY"],
+  strategy_watchlists: {},
   open_positions: ["RELIANCE"],
   scan_items: [
     {
@@ -167,7 +183,7 @@ function rWithCloseAllEnabled(positionOverrides: Partial<PaperPosition> = {}) {
   return rWithPosition(
     { current_price: 2550, ...positionOverrides },
     {
-      availableBots: [{ id: "bot-1", name: "Bot 1", strategies: [], is_active: true }],
+      availableBots: [{ id: "bot-1", name: "Bot 1", strategies: [], is_active: true, live_trading: false }],
     },
   );
 }
@@ -415,7 +431,7 @@ describe("PaperPositionsTable", () => {
       const confirmMock = vi.fn(() => true);
       window.confirm = confirmMock as any;
       rWithTwoPositions({ current_price: Infinity, symbol: "RELIANCE" }, { current_price: 2550, symbol: "TCS" }, {
-        availableBots: [{ id: "bot-1", name: "Bot 1", strategies: [], is_active: true }],
+        availableBots: [{ id: "bot-1", name: "Bot 1", strategies: [], is_active: true, live_trading: false }],
       });
       await fireEvent.click(screen.getByTestId("close-all-positions"));
       await waitFor(() => expect(closeAllPositions).toHaveBeenCalled());

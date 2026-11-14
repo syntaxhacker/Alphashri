@@ -138,18 +138,18 @@ export function StrategyPerformance() {
             <Box className="flex items-center gap-4">
               <Box className="flex items-baseline gap-2">
                 <Text size="xs" c="dimmed">Total Trades</Text>
-                <Text size="sm" fw={700} class="font-mono tabular-nums">{d().total_trades}</Text>
+                <Text size="sm" fw={700} className="font-mono tabular-nums">{d().total_trades}</Text>
               </Box>
               <Box className="flex items-center gap-2">
                 <Text size="xs" c="dimmed">Win / Loss</Text>
                 <Badge color="success" variant="filled" size="xs">{totalWins()} W</Badge>
                 <Badge color="error" variant="filled" size="xs">{totalLosses()} L</Badge>
-                <Text size="xs" fw={700} class="font-mono tabular-nums">({totalWinRate()}%)</Text>
+                <Text size="xs" fw={700} className="font-mono tabular-nums">({totalWinRate()}%)</Text>
               </Box>
             </Box>
             <Box className="flex items-baseline gap-2">
               <Text size="xs" c="dimmed">Total Net P&L</Text>
-              <Text size="sm" fw={700} class="font-mono tabular-nums" c={d().total_net_pnl >= 0 ? "success" : "error"}>
+              <Text size="sm" fw={700} className="font-mono tabular-nums" c={d().total_net_pnl >= 0 ? "success" : "error"}>
                 {d().total_net_pnl >= 0 ? "+" : ""}₹{d().total_net_pnl.toLocaleString()}
               </Text>
             </Box>

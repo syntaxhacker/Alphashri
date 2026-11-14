@@ -380,7 +380,7 @@ export function BotsPage() {
 
   return (
     <Box className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-fin-bg" data-testid="bots-view">
-      <ToolbarRow gap={8} wrap={false} style={{ flex: "0 0 auto", height: palette.FIN_HEADER_H, padding: `0 ${palette.FIN_OUTER_PAD}px`, "border-bottom": "1px solid var(--color-fin-border)" }}>
+      <ToolbarRow gap={8} wrap={false} style={{ flex: "0 0 auto", height: `${palette.FIN_HEADER_H}px`, padding: `0 ${palette.FIN_OUTER_PAD}px`, "border-bottom": "1px solid var(--color-fin-border)" }}>
         <Text size="lg" fw={600}>Bots</Text>
         <Text size="sm" c="dimmed" style={{ "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" }}>
           Manage bot configurations, live status, and execution controls.

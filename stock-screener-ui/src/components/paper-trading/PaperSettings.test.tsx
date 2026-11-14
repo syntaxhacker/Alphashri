@@ -34,6 +34,9 @@ function createMockStrategy(overrides: Partial<StrategyConfig> = {}): StrategyCo
     cooldown_minutes: 60,
     max_distance_from_or_pct: 1.0,
     entry_threshold_pct: 0.5,
+    min_breakout_pct: 0.5,
+    near_high_threshold_pct: 0.5,
+    min_days_since_52w_high: 5,
     enable_trailing_stop: false,
     trailing_stop_pct: 1.0,
     trailing_activation_pct: 0.5,
@@ -92,6 +95,7 @@ function createMockState(overrides: Partial<PaperTradingState> = {}): PaperTradi
     filterSymbol: null,
     filterStrategy: null,
     filterBot: null,
+    filterSource: "equity",
     selectedSymbol: null,
     selectedStrategyId: null,
     selectedStrategyTab: null,
@@ -101,10 +105,16 @@ function createMockState(overrides: Partial<PaperTradingState> = {}): PaperTradi
     showPivotLines: false,
     show52wLines: false,
     showEmaLines: false,
-    intradayOnly: false,
     chartData: null,
     chartLoading: false,
     chartTimeframe: "5min",
+    chartFromDate: null,
+    chartDataLive: null,
+    chartTimeframeLive: "5min",
+    chartFromDateLive: null,
+    chartDataHistory: null,
+    chartTimeframeHistory: "5min",
+    chartFromDateHistory: null,
     isLoading: false,
     error: null,
     autoRefreshEnabled: true,
@@ -117,32 +127,12 @@ function createMockState(overrides: Partial<PaperTradingState> = {}): PaperTradi
     configError: null,
     configDirty: false,
     availableBots: [],
+    dashboardAnalyticsData: null,
+    dashboardAnalyticsLoading: false,
+    analyticsData: null,
+    analyticsLoading: false,
     ...overrides,
   } as PaperTradingState;
-}
-
-// ============================================================
-// TypeScript module augmentation for mocked modules
-// Must come before vi.mock() for proper typing
-// ============================================================
-declare module "../../state/paperTrading" {
-  export const getPaperTradingState: ReturnType<typeof vi.fn>;
-  export const subscribe: ReturnType<typeof vi.fn>;
-  export const updateConfigValue: ReturnType<typeof vi.fn>;
-}
-
-declare module "../../api/paperTrading" {
-  export const fetchStrategyConfig: ReturnType<typeof vi.fn>;
-  export const updateStrategyConfig: ReturnType<typeof vi.fn>;
-  export const resetStrategyConfig: ReturnType<typeof vi.fn>;
-}
-
-declare module "../../api/strategies" {
-  export const listStrategies: ReturnType<typeof vi.fn>;
-}
-
-declare module "../../hooks/useStoreSubscription" {
-  export function useStoreSubscription(callback: () => void): void;
 }
 
 // ============================================================
@@ -180,9 +170,13 @@ vi.mock("../../hooks/useStoreSubscription", () => ({
 // ============================================================
 // Import mocked modules for direct mock reference in tests
 // ============================================================
-import { getPaperTradingState } from "../../state/paperTrading";
-import { fetchStrategyConfig } from "../../api/paperTrading";
-import { listStrategies } from "../../api/strategies";
+import { getPaperTradingState as getPaperTradingStateFn } from "../../state/paperTrading";
+import { fetchStrategyConfig as fetchStrategyConfigFn } from "../../api/paperTrading";
+import { listStrategies as listStrategiesFn } from "../../api/strategies";
+
+const getPaperTradingState = vi.mocked(getPaperTradingStateFn);
+const fetchStrategyConfig = vi.mocked(fetchStrategyConfigFn);
+const listStrategies = vi.mocked(listStrategiesFn);
 
 // ============================================================
 // Now import the component under test (after mocks are in place)

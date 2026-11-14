@@ -191,7 +191,7 @@ export function BotStatusPanel(props: BotStatusPanelProps) {
         <TradesTable trades={props.trades} onRefresh={handleRefreshTrades} />
 
         <Show when={lastUpdate()}>
-          <Text size="xs" c="dimmed" class="font-mono tabular-nums" data-testid="bot-last-update">
+          <Text size="xs" c="dimmed" className="font-mono tabular-nums" data-testid="bot-last-update">
             Last update: {new Date(lastUpdate()!).toLocaleTimeString()}
           </Text>
         </Show>

@@ -26,6 +26,7 @@ function createMockState(overrides: Partial<PaperTradingState> = {}): PaperTradi
     filterSymbol: null,
     filterStrategy: null,
     filterBot: null,
+    filterSource: "equity",
     selectedSymbol: null,
     selectedStrategyId: null,
     selectedStrategyTab: null,
@@ -35,7 +36,6 @@ function createMockState(overrides: Partial<PaperTradingState> = {}): PaperTradi
     showPivotLines: false,
     show52wLines: false,
     showEmaLines: false,
-    intradayOnly: false,
     chartData: null,
     chartLoading: false,
     chartTimeframe: "5min",
@@ -58,6 +58,8 @@ function createMockState(overrides: Partial<PaperTradingState> = {}): PaperTradi
     configError: null,
     configDirty: false,
     availableBots: [],
+    dashboardAnalyticsData: null,
+    dashboardAnalyticsLoading: false,
     analyticsData: null,
     analyticsLoading: false,
     activityEvents: [],
@@ -104,13 +106,13 @@ vi.mock("../../hooks/useStoreSubscription", () => ({
 // PaperTradingHelpers.test.tsx does for TradingDatePicker. Values convert to
 // Date like the real picker (empty -> null).
 vi.mock("@/ui/dates/DatePicker", () => ({
-  DatePicker: ({ value, onChange, "data-testid": testId, placeholder }: any) => (
+  DatePicker: (props: { value?: unknown; onChange?: (d: Date | null) => void; "data-testid"?: string; placeholder?: string }) => (
     <input
       type="text"
-      data-testid={testId}
-      defaultValue={Array.isArray(value) ? "" : (value ?? "")}
-      placeholder={placeholder}
-      onChange={(e) => onChange(e.target.value ? new Date(e.target.value) : null)}
+      data-testid={props["data-testid"]}
+      value={Array.isArray(props.value) ? "" : String(props.value ?? "")}
+      placeholder={props.placeholder}
+      onChange={(e) => props.onChange?.(e.target.value ? new Date(e.target.value) : null)}
     />
   ),
 }));

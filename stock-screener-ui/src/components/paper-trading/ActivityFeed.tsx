@@ -14,7 +14,9 @@ import * as palette from "@/ui/palette";
 export function ActivityFeed() {
   const state = useStoreSnapshot(subscribe, getPaperTradingState);
 
-  usePolling(() => fetchActivityFeed(), 15000, { immediate: true, skipIfRunning: false });
+  usePolling(() => {
+    void fetchActivityFeed();
+  }, 15000, { immediate: true, skipIfRunning: false });
 
   const columns = createMemo<TableColumnDef<ActivityEvent>[]>(() => [
     {

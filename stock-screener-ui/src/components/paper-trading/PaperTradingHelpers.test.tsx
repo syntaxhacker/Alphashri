@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import type { JSX } from "solid-js";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { render, screen, fireEvent, cleanup, within } from "@solidjs/testing-library";
@@ -18,6 +19,7 @@ const mockStateStore: any = {
   filterSymbol: null,
   filterStrategy: null,
   filterBot: null,
+  filterSource: "equity",
   selectedSymbol: null,
   selectedStrategyId: null,
   selectedStrategyTab: null,
@@ -27,7 +29,6 @@ const mockStateStore: any = {
   showPivotLines: false,
   show52wLines: false,
   showEmaLines: false,
-  intradayOnly: false,
   chartData: null,
   chartLoading: false,
   chartTimeframe: "5min",
@@ -43,6 +44,10 @@ const mockStateStore: any = {
   configError: null,
   configDirty: false,
   availableBots: [],
+  dashboardAnalyticsData: null,
+  dashboardAnalyticsLoading: false,
+  analyticsData: null,
+  analyticsLoading: false,
 };
 
 var mockActions = {
@@ -191,8 +196,8 @@ import type { BotSummary } from "../../types/paperTrading";
 import { mockTrade } from "./testFixtures";
 
 // --- Helper ---
-function r<T>(jsx: T) {
-  return render(() => jsx);
+function r(jsx: JSX.Element | (() => JSX.Element)) {
+  return typeof jsx === "function" ? render(jsx) : render(() => jsx);
 }
 
 // --- Mock data factories ---
@@ -201,6 +206,7 @@ function mockBot(overrides: Partial<BotSummary> = {}): BotSummary {
     id: "bot-1",
     name: "Test Bot",
     is_active: true,
+    live_trading: false,
     running: false,
     pid: null,
     status: "stopped",

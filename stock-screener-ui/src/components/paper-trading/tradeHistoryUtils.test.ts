@@ -33,7 +33,7 @@ describe("getUniqueStrategies", () => {
 
   test("skips trades without strategy_id", () => {
     const trades = [
-      mockTrade({ strategy_id: null, strategy_name: null }),
+      mockTrade({ strategy_id: 0, strategy_name: undefined }),
       mockTrade({ strategy_id: 1, strategy_name: "ORB Strategy" }),
     ];
     expect(getUniqueStrategies(trades)).toEqual([{ id: 1, name: "ORB Strategy" }]);

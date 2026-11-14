@@ -356,13 +356,12 @@ function ChartHeader(props: { state: ReturnType<typeof getPaperTradingState> }) 
                   <Chip
                     size="xs"
                     variant="outline"
-                    radius="sm"
                     checked={props.state[key]}
                     data-testid={`chip-${label.toLowerCase()}`}
                     onChange={(checked) => setter(checked)}
                     style={
                       props.state[key]
-                        ? { backgroundColor: alpha(color, 0.18), color, border: `1px solid ${color}` }
+                        ? { "background-color": alpha(color, 0.18), color, border: `1px solid ${color}` }
                         : { color: TEXT_MUTED, border: `1px solid ${BORDER}` }
                     }
                   >
@@ -437,7 +436,7 @@ export function PaperChart(props: { engine?: "echarts" | "tradingview" }) {
         <Card className="paper-chart-container flex flex-col min-h-0 overflow-hidden h-full" data-testid="paper-chart-container" id="paper-chart">
           <ChartHeader state={state()} />
           <div class="paper-chart-body flex-1 min-h-0 relative flex flex-col" id="paper-chart-body">
-            <LoadingOverlay visible={state().chartLoading} zIndex={10} overlayProps={{ radius: "sm", blur: 1 }} />
+            <LoadingOverlay visible={state().chartLoading} zIndex={10} overlayProps={{ blur: 1 }} />
             <Show
               when={chartInput()}
               fallback={
@@ -456,10 +455,10 @@ export function PaperChart(props: { engine?: "echarts" | "tradingview" }) {
           <Show when={state().chartData}>
             {(chartData) => (
               <ChartLegend
-                orbLabel={chartData().orb_levels ? `ORB (${chartData().orb_levels.or_minutes}m)` : undefined}
+                orbLabel={chartData().orb_levels ? `ORB (${chartData().orb_levels!.or_minutes}m)` : undefined}
                 hasWeek52={!!chartData().week52_levels}
                 hasTrades={!!chartData().trades?.length}
-                position={chartData().current_position}
+                position={chartData().current_position ?? undefined}
               />
             )}
           </Show>

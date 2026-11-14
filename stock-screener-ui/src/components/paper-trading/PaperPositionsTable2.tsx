@@ -75,7 +75,7 @@ function CloseAllButton(props: { positions: PaperPosition[] }) {
   return (
     <Tooltip label="Close all positions at current prices">
       <Button
-        size="compact-xs"
+        size="xs"
         variant="light"
         color="error"
         loading={closing()}

@@ -39,6 +39,7 @@ const mockBot: BotConfig = {
   max_total_positions: 10,
   max_total_capital_pct: 0.8,
   max_daily_loss_pct: 0.05,
+  live_trading: false,
   strategies: [
     {
       id: "s1",
@@ -46,6 +47,7 @@ const mockBot: BotConfig = {
       strategy_type: "ORB",
       max_positions: 3,
       capital_allocation_pct: 0.5,
+      enable_shorts: false,
     },
   ],
   created_at: "2025-01-01T00:00:00Z",
@@ -75,6 +77,7 @@ const mockStrategies: AvailableStrategy[] = [
     pivot_type: "",
     breakout_buffer_pct: 0,
     entry_threshold_pct: 0,
+    min_breakout_pct: 0,
     enable_trailing_stop: false,
     trailing_stop_pct: 0,
     max_holding_days: 0,
@@ -102,6 +105,7 @@ const mockStrategies: AvailableStrategy[] = [
     pivot_type: "swing",
     breakout_buffer_pct: 0.3,
     entry_threshold_pct: 0,
+    min_breakout_pct: 0,
     enable_trailing_stop: false,
     trailing_stop_pct: 0,
     max_holding_days: 0,
@@ -129,6 +133,7 @@ const mockStrategies: AvailableStrategy[] = [
     pivot_type: "",
     breakout_buffer_pct: 0,
     entry_threshold_pct: 1.5,
+    min_breakout_pct: 0,
     enable_trailing_stop: true,
     trailing_stop_pct: 0.5,
     max_holding_days: 30,
@@ -156,6 +161,7 @@ const mockStrategies: AvailableStrategy[] = [
     pivot_type: "",
     breakout_buffer_pct: 0,
     entry_threshold_pct: 0,
+    min_breakout_pct: 0,
     enable_trailing_stop: false,
     trailing_stop_pct: 0,
     max_holding_days: 0,
@@ -300,6 +306,7 @@ describe("BotConfigModal", () => {
           strategy_type: "52W_CHASER",
           max_positions: 3,
           capital_allocation_pct: 0.5,
+          enable_shorts: false,
         },
       ],
     };
@@ -320,6 +327,7 @@ describe("BotConfigModal", () => {
           strategy_type: "EMA_CROSS",
           max_positions: 3,
           capital_allocation_pct: 0.5,
+          enable_shorts: false,
         },
       ],
     };

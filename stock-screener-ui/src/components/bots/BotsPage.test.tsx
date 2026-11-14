@@ -96,6 +96,8 @@ const baseState = (): BotsState =>
       delete: false,
       start: false,
       stop: false,
+      "start-all": false,
+      "stop-all": false,
       trades: false,
     },
     error: null,
@@ -134,8 +136,9 @@ function createBot(overrides: Record<string, any> = {}) {
     max_total_positions: 5,
     max_total_capital_pct: 0.5,
     max_daily_loss_pct: 0.03,
+    live_trading: false,
     strategies: [
-      { id: "s1", name: "ORB Strategy", strategy_type: "ORB", max_positions: 3, capital_allocation_pct: 0.5 },
+      { id: "s1", name: "ORB Strategy", strategy_type: "ORB", max_positions: 3, capital_allocation_pct: 0.5, enable_shorts: false },
     ],
     created_at: "2025-01-01T00:00:00Z",
     updated_at: null,
@@ -154,7 +157,7 @@ describe("BotsPage", () => {
 
   afterEach(() => {
     cleanup();
-    delete (window as Window & { confirm?: () => boolean }).confirm;
+    delete (window as unknown as { confirm?: () => boolean }).confirm;
   });
 
   it("renders 'New Bot' create button", () => {
@@ -326,7 +329,7 @@ describe("BotsPage", () => {
         max_or_range_pct: 2.0, max_distance_from_or_pct: 0.5,
         cooldown_minutes: 75, enable_shorts: false, eod_exit_hour: 15,
         eod_exit_minute: 0, pivot_type: "", breakout_buffer_pct: 0,
-        entry_threshold_pct: 0, enable_trailing_stop: false,
+        entry_threshold_pct: 0, min_breakout_pct: 0, enable_trailing_stop: false,
         trailing_stop_pct: 0, max_holding_days: 0, cooldown_days: 0,
         ema_fast_period: 0, ema_slow_period: 0,
       },

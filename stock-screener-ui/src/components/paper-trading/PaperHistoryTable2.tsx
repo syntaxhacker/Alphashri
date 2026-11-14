@@ -343,7 +343,7 @@ function TradeHistoryTable(props: {
       chartSymbol,
       trade.exit_time,
       trade.trade_id,
-      trade.strategy_type || getStrategyTypeFromName(trade.strategy_name),
+      trade.strategy_type || getStrategyTypeFromName(trade.strategy_name) || undefined,
       trade.strategy_id,
       trade.entry_time,
     );
@@ -539,7 +539,7 @@ function HistoryList(props: {
 }) {
   return (
     <div class="paper-history-list flex-1 min-h-0 flex flex-col overflow-hidden relative" id="history-list">
-      <LoadingOverlay visible={props.state().isLoading} zIndex={5} overlayProps={{ radius: "sm", blur: 1 }} className="paper-history-loading-overlay" />
+      <LoadingOverlay visible={props.state().isLoading} zIndex={5} overlayProps={{ blur: 1 }} className="paper-history-loading-overlay" />
       <Show
         when={!(props.filteredTrades.length === 0 && !props.state().isLoading)}
         fallback={

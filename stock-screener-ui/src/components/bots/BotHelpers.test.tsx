@@ -106,6 +106,7 @@ const mockBot: BotConfig = {
   max_total_positions: 5,
   max_total_capital_pct: 0.5,
   max_daily_loss_pct: 0.03,
+  live_trading: false,
   strategies: [
     {
       id: "s1",
@@ -113,6 +114,7 @@ const mockBot: BotConfig = {
       strategy_type: "ORB",
       max_positions: 3,
       capital_allocation_pct: 0.5,
+      enable_shorts: false,
     },
   ],
   created_at: "2025-01-01T00:00:00Z",

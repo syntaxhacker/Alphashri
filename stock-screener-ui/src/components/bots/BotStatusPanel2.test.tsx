@@ -39,6 +39,7 @@ const mockBot: BotConfig = {
   max_total_positions: 5,
   max_total_capital_pct: 0.5,
   max_daily_loss_pct: 0.03,
+  live_trading: false,
   strategies: [],
   created_at: "2025-01-01T00:00:00Z",
   updated_at: null,

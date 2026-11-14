@@ -21,8 +21,8 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function r(component: () => JSX.Element) {
-  return render(component);
+function r(component: (() => JSX.Element) | JSX.Element) {
+  return typeof component === "function" ? render(component) : render(() => component);
 }
 
 vi.mock("../../state/paperTrading", () => ({
@@ -58,6 +58,7 @@ function createMockSnapshot(
   return {
     timestamp: new Date(Date.now() - 120_000).toISOString(),
     watchlist: ["RELIANCE", "TCS", "INFY", "HDFC", "WIPRO"],
+    strategy_watchlists: {},
     open_positions: [],
     scan_items: [
       {
@@ -157,6 +158,7 @@ describe("WatchlistScan2", () => {
           snapshot={{
             timestamp: "2026-03-20T09:30:00Z",
             watchlist: [],
+            strategy_watchlists: {},
             open_positions: [],
             scan_items: [],
             signals: [],

@@ -40,7 +40,7 @@ function StatLine(props: { label: string; value: JSX.Element; tone?: string }) {
   return (
     <Box className="flex items-center justify-between gap-2" style={{ "min-height": "18px" }}>
       <Text size="xs" c="dimmed" tt="uppercase" style={STAT_LABEL}>{props.label}</Text>
-      <Text size="xs" fw={600} class="font-mono tabular-nums text-right" c={props.tone}>{props.value}</Text>
+      <Text size="xs" fw={600} className="font-mono tabular-nums text-right" c={props.tone}>{props.value}</Text>
     </Box>
   );
 }
@@ -70,7 +70,7 @@ export function PortfolioSummaryCard(props: { portfolio: PortfolioSummary }) {
         <StatLine label="Positions" value={String(props.portfolio.total_positions)} />
         <Box className="flex items-center justify-between gap-2 rounded px-1" style={{ "background-color": pnlBg(), "min-height": "18px" }}>
           <Text size="xs" c="dimmed" tt="uppercase" style={STAT_LABEL}>Total P&L</Text>
-          <Text size="xs" fw={600} c={pnlColor()} class="font-mono tabular-nums">
+          <Text size="xs" fw={600} c={pnlColor()} className="font-mono tabular-nums">
             {formatSignedPnl(props.portfolio.total_pnl)}
             <Text span size="xs" ml={4}>
               ({props.portfolio.total_pnl_pct >= 0 ? "+" : ""}

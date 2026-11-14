@@ -100,7 +100,7 @@ export function Popover(props: {
       <span
         id={props.id}
         class={cn("relative inline-flex", props.className)}
-        style={props.style as Record<string, unknown> | undefined}
+        style={props.style}
         data-testid={props["data-testid"]}
       >
         {props.children}
@@ -139,7 +139,7 @@ export function PopoverDropdown(props: {
           props.p === "xs" && "p-1",
           props.className,
         )}
-        style={{ width: ctx.width() != null ? `${ctx.width()}px` : undefined, ...(props.style as Record<string, unknown> | undefined) }}
+        style={{ width: ctx.width() != null ? `${ctx.width()}px` : undefined, ...props.style }}
         data-testid={props["data-testid"]}
       >
         {props.children}
@@ -243,7 +243,7 @@ function MenuDropdown(props: {
           "absolute z-50 top-full right-0 mt-1 min-w-36 rounded-fin border border-fin-border bg-fin-surface shadow-md py-0.5",
           props.className,
         )}
-        style={props.style as Record<string, unknown> | undefined}
+        style={props.style}
         data-testid={props["data-testid"]}
       >
         {props.children}

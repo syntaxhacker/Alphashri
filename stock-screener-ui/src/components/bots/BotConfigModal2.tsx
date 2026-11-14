@@ -94,7 +94,7 @@ function StrategyParams(props: { strategy: AvailableStrategy }) {
   return (
     <Show when={items.length > 0}>
     <Group gap="xs" mt={4} wrap="wrap" align="center">
-      <ThemeIcon size="xs" variant="transparent" color="secondary" style={{ flex: "0 0 auto" }}>
+      <ThemeIcon size="xs" variant="outline" color="secondary" style={{ flex: "0 0 auto" }}>
         <IconInfoCircle size={12} />
       </ThemeIcon>
       <For each={items}>{(item) => (
@@ -265,7 +265,7 @@ export function BotConfigModal(props: BotConfigModalProps) {
                   min={1}
                   max={20}
                   value={maxPositions()}
-                  onChange={(val) => setMaxPositions(Number(val) || 10)}
+                  onChange={(val: number | string) => setMaxPositions(Number(val) || 10)}
                   data-testid="max-positions-input"
                 />
               </Box>
@@ -278,7 +278,7 @@ export function BotConfigModal(props: BotConfigModalProps) {
                   max={100}
                   step={5}
                   value={maxCapital()}
-                  onChange={(val) => setMaxCapital(Number(val) || 80)}
+                  onChange={(val: number | string) => setMaxCapital(Number(val) || 80)}
                   data-testid="max-capital-input"
                 />
               </Box>
@@ -292,7 +292,7 @@ export function BotConfigModal(props: BotConfigModalProps) {
                   max={20}
                   step={1}
                   value={maxDailyLoss()}
-                  onChange={(val) => setMaxDailyLoss(Number(val) || 3)}
+                  onChange={(val: number | string) => setMaxDailyLoss(Number(val) || 3)}
                   data-testid="max-daily-loss-input"
                 />
               </Box>
@@ -341,7 +341,7 @@ export function BotConfigModal(props: BotConfigModalProps) {
                             label: `${s.name} (${s.strategy_type})`,
                           }))}
                           value={strategy.strategy_id}
-                          onChange={(val) =>
+                          onChange={(val: string | null) =>
                             handleUpdateStrategy(strategy.id, "strategy_id", val || "")
                           }
                           data-testid={`strategy-allocation-select-${strategy.id}`}
@@ -356,7 +356,7 @@ export function BotConfigModal(props: BotConfigModalProps) {
                           max={100}
                           step={5}
                           value={strategy.capital_allocation_pct}
-                          onChange={(val) =>
+                          onChange={(val: number | string) =>
                             handleUpdateStrategy(
                               strategy.id,
                               "capital_allocation_pct",
@@ -374,7 +374,7 @@ export function BotConfigModal(props: BotConfigModalProps) {
                           min={1}
                           max={10}
                           value={strategy.max_positions}
-                          onChange={(val) =>
+                          onChange={(val: number | string) =>
                             handleUpdateStrategy(strategy.id, "max_positions", Number(val) || 3)
                           }
                           data-testid={`strategy-allocation-positions-${strategy.id}`}
@@ -413,6 +413,7 @@ export function BotConfigModal(props: BotConfigModalProps) {
                         pivot_type: "",
                         breakout_buffer_pct: 0,
                         entry_threshold_pct: 0,
+                        min_breakout_pct: 0,
                         enable_trailing_stop: false,
                         trailing_stop_pct: 0,
                         max_holding_days: 0,
@@ -444,7 +445,7 @@ export function BotConfigModal(props: BotConfigModalProps) {
                 </Text>
               </Box>
               <Show when={isOverAllocated()}>
-                <Alert color="error" variant="light" p="xs">
+                <Alert color="error" variant="light" className="px-2 py-1">
                   Over 100%
                 </Alert>
               </Show>

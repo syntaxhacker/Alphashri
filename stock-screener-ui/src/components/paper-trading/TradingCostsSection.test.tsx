@@ -39,6 +39,9 @@ function mockConfig(overrides: Partial<StrategyConfig> = {}): StrategyConfig {
     max_distance_from_or_pct: 0.5,
     // 52W Chaser Parameters
     entry_threshold_pct: 1.5,
+    min_breakout_pct: 0.5,
+    near_high_threshold_pct: 0.5,
+    min_days_since_52w_high: 5,
     enable_trailing_stop: false,
     trailing_stop_pct: 0.5,
     trailing_activation_pct: 2.0,
