@@ -106,7 +106,7 @@ export function PatternListView(props: PatternListViewProps) {
       id: "symbol",
       header: "Symbol",
       accessorKey: "symbol",
-      size: 134,
+      size: 176,
       meta: { align: "left" },
       cell: (ctx) => {
         const hit = ctx.row.original;
@@ -147,6 +147,7 @@ export function PatternListView(props: PatternListViewProps) {
       id: "pattern",
       header: "Pattern",
       accessorKey: "pattern_name",
+      size: 210,
       meta: { align: "left" },
       cell: (ctx) => (
         <Text size="sm" truncate>
