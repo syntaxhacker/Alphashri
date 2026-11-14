@@ -1,8 +1,9 @@
-import { createMemo, Show } from "solid-js";
+import { createMemo } from "solid-js";
 import { Badge, Text, ToolbarRow } from "@/ui";
+import { BadgeCell, NumCell, SymbolCell } from "@/components/common/tableCells";
 import { TanStackTable, type TableColumnDef } from "@/components/common/TanStackTable";
 import type { FollowThroughRow, FollowThroughSide } from "../../types/report";
-import { formatCurrency, formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
+import { formatCurrency, formatPercentage } from "../../utils/ui-helpers";
 import { BREAKOUT_TYPE_LABELS } from "./ReportBreakoutTable";
 
 function typeLabel(type: string): string {
@@ -47,21 +48,9 @@ export function ReportFollowThroughTable(props: ReportFollowThroughTableProps) {
         header: "Symbol",
         accessorKey: "symbol",
         meta: { align: "left" },
-        cell: ({ row }) => {
-          const r = row.original;
-          return (
-            <div class="min-w-0 flex flex-col">
-              <Text size="xs" fw={700} truncate span>
-                {r.symbol}
-              </Text>
-              <Show when={r.name}>
-                <Text size="xs" c="dimmed" truncate span>
-                  {r.name}
-                </Text>
-              </Show>
-            </div>
-          );
-        },
+        cell: ({ row }) => (
+          <SymbolCell symbol={row.original.symbol} name={row.original.name} />
+        ),
       },
       {
         id: "type",
@@ -69,9 +58,10 @@ export function ReportFollowThroughTable(props: ReportFollowThroughTableProps) {
         accessorKey: "type",
         meta: { align: "center" },
         cell: ({ row }) => (
-          <Badge size="xs" color={row.original.ret_pct >= 0 ? "success" : "error"}>
-            {typeLabel(row.original.type)}
-          </Badge>
+          <BadgeCell
+            label={typeLabel(row.original.type)}
+            color={row.original.ret_pct >= 0 ? "success" : "error"}
+          />
         ),
       },
       {
@@ -80,9 +70,7 @@ export function ReportFollowThroughTable(props: ReportFollowThroughTableProps) {
         accessorKey: "ref_close",
         meta: { align: "right" },
         cell: ({ row }) => (
-          <Text size="xs" span className="tabular-nums">
-            {formatCurrency(row.original.ref_close, 2)}
-          </Text>
+          <NumCell value={row.original.ref_close} format={(v) => formatCurrency(v, 2)} />
         ),
       },
       {
@@ -91,9 +79,7 @@ export function ReportFollowThroughTable(props: ReportFollowThroughTableProps) {
         accessorKey: "last_close",
         meta: { align: "right" },
         cell: ({ row }) => (
-          <Text size="xs" span className="tabular-nums">
-            {formatCurrency(row.original.last_close, 2)}
-          </Text>
+          <NumCell value={row.original.last_close} format={(v) => formatCurrency(v, 2)} />
         ),
       },
       {
@@ -102,9 +88,7 @@ export function ReportFollowThroughTable(props: ReportFollowThroughTableProps) {
         accessorKey: "ret_pct",
         meta: { align: "right" },
         cell: ({ row }) => (
-          <Text size="xs" c={getPnLTextColor(row.original.ret_pct)} span className="tabular-nums">
-            {formatPercentage(row.original.ret_pct)}
-          </Text>
+          <NumCell value={row.original.ret_pct} signed format={formatPercentage} />
         ),
       },
       {
@@ -113,9 +97,7 @@ export function ReportFollowThroughTable(props: ReportFollowThroughTableProps) {
         accessorKey: "max_fav_pct",
         meta: { align: "right" },
         cell: ({ row }) => (
-          <Text size="xs" c={getPnLTextColor(row.original.max_fav_pct)} span className="tabular-nums">
-            {formatPercentage(row.original.max_fav_pct)}
-          </Text>
+          <NumCell value={row.original.max_fav_pct} signed format={formatPercentage} />
         ),
       },
       {
@@ -141,7 +123,7 @@ export function ReportFollowThroughTable(props: ReportFollowThroughTableProps) {
         <Badge size="xs" data-testid={`${testId()}-count`}>
           {side()?.count ?? 0}
         </Badge>
-        <Text size="xs" c="dimmed" span data-testid={`${testId()}-summary`} className="tabular-nums">
+        <Text size="xs" c="dimmed" span data-testid={`${testId()}-summary`} className="font-mono tabular-nums">
           {formatSummary(side(), props.emptyNote)}
         </Text>
         <div class="flex-1 min-w-0" />

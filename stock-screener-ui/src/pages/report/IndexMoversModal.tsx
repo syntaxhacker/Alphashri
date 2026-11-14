@@ -1,12 +1,10 @@
 import { createEffect, createMemo, createSignal, Show, onCleanup } from "solid-js";
 import { TanStackTable, type TableColumnDef } from "@/components/common/TanStackTable";
+import { NumCell, SymbolCell } from "@/components/common/tableCells";
 import { LocalPanelModal } from "./LocalPanelModal";
 import * as palette from "@/ui/palette";
 import { Loader, Text, SegmentedControl, Button, Tooltip } from "@/ui";
 import { formatNumberIN } from "@/utils/ui-helpers";
-import {
-  REPORT_FONT,
-} from "./reportTokens";
 import { fetchIndexMovers, IndexMoversResponse, IndexMoverRow } from "@/api/indexMovers";
 
 interface IndexMoversModalProps {
@@ -15,8 +13,9 @@ interface IndexMoversModalProps {
   index: "NIFTY" | "SENSEX";
 }
 
-const GAINER_COLOR = palette.POSITIVE;
-const LOSER_COLOR = palette.NEGATIVE;
+function formatSignedPct(v: number): string {
+  return `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
+}
 
 interface MoversTableRow extends IndexMoverRow {
   rank: number;
@@ -40,21 +39,9 @@ function MoversTable(props: {
       header: "RANK",
       accessorKey: "rank",
       size: 50,
-      meta: { align: "center" },
+      meta: { align: "right" },
       cell: ({ row }) => (
-        <Text
-          span
-          size="xs"
-          fw={600}
-          style={{
-            "font-size": REPORT_FONT.xs,
-            "font-variant-numeric": "tabular-nums",
-            color: palette.TEXT_MUTED,
-            "font-family": palette.MONO,
-          }}
-        >
-          {String(row.original.rank)}
-        </Text>
+        <NumCell value={row.original.rank} fw={600} tone="dimmed" format={(v) => String(v)} />
       ),
     },
     {
@@ -62,20 +49,7 @@ function MoversTable(props: {
       accessorKey: "symbol",
       size: 120,
       meta: { align: "left" },
-      cell: ({ row }) => (
-        <Text
-          span
-          size="xs"
-          fw={700}
-          style={{
-            "font-size": REPORT_FONT.sm,
-            "font-variant-numeric": "tabular-nums",
-            "font-family": palette.MONO,
-          }}
-        >
-          {row.original.symbol}
-        </Text>
-      ),
+      cell: ({ row }) => <SymbolCell symbol={row.original.symbol} />,
     },
     {
       header: "LTP",
@@ -83,18 +57,7 @@ function MoversTable(props: {
       size: 90,
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text
-          span
-          size="xs"
-          fw={600}
-          style={{
-            "font-size": REPORT_FONT.sm,
-            "font-variant-numeric": "tabular-nums",
-            "font-family": palette.MONO,
-          }}
-        >
-          {formatNumberIN(row.original.ltp)}
-        </Text>
+        <NumCell value={row.original.ltp} fw={600} format={formatNumberIN} />
       ),
     },
     {
@@ -102,66 +65,18 @@ function MoversTable(props: {
       accessorKey: "change_pct",
       size: 90,
       meta: { align: "right" },
-      cell: ({ row }) => {
-        const val = row.original.change_pct;
-        const isGainer = val > 0;
-        return (
-          <Text
-            span
-            size="xs"
-            fw={700}
-            style={{
-              "font-size": REPORT_FONT.sm,
-              "font-variant-numeric": "tabular-nums",
-              "font-family": palette.MONO,
-              color: isGainer ? GAINER_COLOR : LOSER_COLOR,
-            }}
-          >
-            {isGainer ? "+" : ""}{val.toFixed(2)}%
-          </Text>
-        );
-      },
+      cell: ({ row }) => (
+        <NumCell value={row.original.change_pct} signed fw={700} format={formatSignedPct} />
+      ),
     },
     {
       header: "CONTRIB %",
       accessorKey: "contribution_pct",
       size: 90,
       meta: { align: "right" },
-      cell: ({ row }) => {
-        const val = row.original.contribution_pct;
-        if (val === undefined || val === null) {
-          return (
-            <Text
-              span
-              size="xs"
-              c="dimmed"
-              style={{
-                "font-size": REPORT_FONT.sm,
-                "font-variant-numeric": "tabular-nums",
-                "font-family": palette.MONO,
-              }}
-            >
-              —
-            </Text>
-          );
-        }
-        const isGainer = val > 0;
-        return (
-          <Text
-            span
-            size="xs"
-            fw={600}
-            style={{
-              "font-size": REPORT_FONT.sm,
-              "font-variant-numeric": "tabular-nums",
-              "font-family": palette.MONO,
-              color: isGainer ? GAINER_COLOR : LOSER_COLOR,
-            }}
-          >
-            {isGainer ? "+" : ""}{val.toFixed(2)}%
-          </Text>
-        );
-      },
+      cell: ({ row }) => (
+        <NumCell value={row.original.contribution_pct} signed fw={600} format={formatSignedPct} />
+      ),
     },
     {
       header: "VOLUME",
@@ -169,18 +84,7 @@ function MoversTable(props: {
       size: 110,
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text
-          span
-          size="xs"
-          c="dimmed"
-          style={{
-            "font-size": REPORT_FONT.xs,
-            "font-variant-numeric": "tabular-nums",
-            "font-family": palette.MONO,
-          }}
-        >
-          {formatNumberIN(row.original.volume)}
-        </Text>
+        <NumCell value={row.original.volume} tone="dimmed" format={formatNumberIN} />
       ),
     },
   ]);

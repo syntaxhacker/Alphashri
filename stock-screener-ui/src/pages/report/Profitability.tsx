@@ -1,6 +1,7 @@
 import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 import { Alert, Button, Select, Skeleton, Text, ToolbarRow } from "@/ui";
 import { TanStackTable, type TableColumnDef } from "@/components/common/TanStackTable";
+import { NumCell, SymbolCell, TextCell } from "@/components/common/tableCells";
 import { fetchProfitability } from "../../api/profitability";
 import type {
   ProfitabilityResponse,
@@ -11,7 +12,6 @@ import {
   formatCurrencyCompact,
   formatPercentage,
   formatTimeOnly,
-  getPnLTextColor,
 } from "../../utils/ui-helpers";
 
 interface ProfitabilityPageProps {
@@ -37,9 +37,7 @@ const WEEKS_OPTIONS = [
 
 function Money(props: { value: number; testId?: string }) {
   return (
-    <Text size="xs" fw={700} c={getPnLTextColor(props.value)} span data-testid={props.testId} className="tabular-nums">
-      {formatCurrencyCompact(props.value)}
-    </Text>
+    <NumCell value={props.value} signed fw={700} format={formatCurrencyCompact} testId={props.testId} />
   );
 }
 
@@ -50,9 +48,7 @@ const STRATEGY_COLUMNS: TableColumnDef<StrategyProfitRow>[] = [
     accessorKey: "label",
     meta: { align: "left" },
     cell: (ctx) => (
-      <Text size="xs" fw={600} span data-testid={`profit-strategy-${ctx.row.original.id}`}>
-        {ctx.row.original.label}
-      </Text>
+      <TextCell value={ctx.row.original.label} fw={600} testId={`profit-strategy-${ctx.row.original.id}`} />
     ),
   },
   {
@@ -60,11 +56,7 @@ const STRATEGY_COLUMNS: TableColumnDef<StrategyProfitRow>[] = [
     header: "Trades",
     accessorKey: "trades",
     meta: { align: "right" },
-    cell: (ctx) => (
-      <Text size="xs" span className="tabular-nums">
-        {ctx.row.original.trades}
-      </Text>
-    ),
+    cell: (ctx) => <NumCell value={ctx.row.original.trades} />,
   },
   {
     id: "win_rate",
@@ -72,9 +64,10 @@ const STRATEGY_COLUMNS: TableColumnDef<StrategyProfitRow>[] = [
     accessorKey: "win_rate",
     meta: { align: "right" },
     cell: (ctx) => (
-      <Text size="xs" span className="tabular-nums">
-        {formatPercentage((ctx.row.original.win_rate ?? 0) * 100, 1, false)}
-      </Text>
+      <NumCell
+        value={(ctx.row.original.win_rate ?? 0) * 100}
+        format={(v) => formatPercentage(v, 1, false)}
+      />
     ),
   },
   {
@@ -97,9 +90,7 @@ const STRATEGY_COLUMNS: TableColumnDef<StrategyProfitRow>[] = [
     accessorKey: "profit_factor",
     meta: { align: "right" },
     cell: (ctx) => (
-      <Text size="xs" span className="tabular-nums">
-        {(ctx.row.original.profit_factor ?? 0).toFixed(2)}
-      </Text>
+      <NumCell value={ctx.row.original.profit_factor ?? 0} format={(v) => v.toFixed(2)} />
     ),
   },
   {
@@ -115,9 +106,7 @@ const STRATEGY_COLUMNS: TableColumnDef<StrategyProfitRow>[] = [
     accessorKey: "avg_hold_days",
     meta: { align: "right" },
     cell: (ctx) => (
-      <Text size="xs" span className="tabular-nums">
-        {(ctx.row.original.avg_hold_days ?? 0).toFixed(1)}
-      </Text>
+      <NumCell value={ctx.row.original.avg_hold_days ?? 0} format={(v) => v.toFixed(1)} />
     ),
   },
 ];
@@ -129,9 +118,11 @@ const SIGNAL_COLUMNS: TableColumnDef<ProfitTopSignal>[] = [
     accessorKey: "symbol",
     meta: { align: "left" },
     cell: (ctx) => (
-      <Text size="xs" fw={600} span data-testid={`profit-signal-${ctx.row.original.symbol}-${ctx.row.index}`}>
-        {ctx.row.original.symbol}
-      </Text>
+      <SymbolCell
+        symbol={ctx.row.original.symbol}
+        fw={600}
+        testId={`profit-signal-${ctx.row.original.symbol}-${ctx.row.index}`}
+      />
     ),
   },
   {
@@ -139,44 +130,28 @@ const SIGNAL_COLUMNS: TableColumnDef<ProfitTopSignal>[] = [
     header: "Pattern",
     accessorKey: "strategy",
     meta: { align: "left" },
-    cell: (ctx) => (
-      <Text size="xs" span>
-        {ctx.row.original.strategy}
-      </Text>
-    ),
+    cell: (ctx) => <TextCell value={ctx.row.original.strategy} />,
   },
   {
     id: "entry_date",
     header: "Entry",
     accessorKey: "entry_date",
     meta: { align: "left" },
-    cell: (ctx) => (
-      <Text size="xs" span className="tabular-nums">
-        {ctx.row.original.entry_date || "—"}
-      </Text>
-    ),
+    cell: (ctx) => <TextCell value={ctx.row.original.entry_date} mono />,
   },
   {
     id: "entry",
     header: "In ₹",
     accessorKey: "entry",
     meta: { align: "right" },
-    cell: (ctx) => (
-      <Text size="xs" span className="tabular-nums">
-        {formatCurrencyCompact(ctx.row.original.entry)}
-      </Text>
-    ),
+    cell: (ctx) => <NumCell value={ctx.row.original.entry} format={formatCurrencyCompact} />,
   },
   {
     id: "exit",
     header: "Out ₹",
     accessorKey: "exit",
     meta: { align: "right" },
-    cell: (ctx) => (
-      <Text size="xs" span className="tabular-nums">
-        {formatCurrencyCompact(ctx.row.original.exit)}
-      </Text>
-    ),
+    cell: (ctx) => <NumCell value={ctx.row.original.exit} format={formatCurrencyCompact} />,
   },
   {
     id: "net",
