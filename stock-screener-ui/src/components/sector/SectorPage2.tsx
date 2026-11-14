@@ -1,5 +1,5 @@
 import { Show, For, createEffect, createMemo, createSignal, onCleanup, type Accessor, type Setter } from "solid-js";
-import { Box, cn, Group, Text, Button, Stack, Tabs, Loader, SegmentedControl, ScrollArea, ToolbarRow } from "@/ui";
+import { Box, Group, Text, Button, Stack, Tabs, Loader, ScrollArea, ToolbarRow } from "@/ui";
 import {
   IconChartBar,
   IconArrowsExchange,
@@ -23,6 +23,8 @@ import { formatPercentage } from "../../utils/ui-helpers";
 import { detectSectorAlerts, detectIntervalMovers } from "./SectorHelpers";
 import type { SectorAlert, InternalStockMover } from "./SectorHelpers";
 import { SectorHeatmapView } from "./SectorHeatmapView";
+import { SectorHeatmapControls } from "./SectorHeatmapContext";
+import { CompactToggle } from "./CompactToggle";
 import { SectorAlertsList } from "./SectorAlertsList";
 import type { ViewMode } from "./SectorHeatmapView";
 
@@ -219,91 +221,16 @@ function DashboardContent(props: {
   alerts: SectorAlert[];
   intervalMovers: InternalStockMover[];
   viewMode: ViewMode;
-  onViewModeChange: (mode: ViewMode) => void;
   heatmapStocks: HeatmapStock[];
   heatmapMetric: string;
-  onHeatmapMetricChange: (metric: string) => void;
-  stockSectorFilter: string | null;
-  onStockSectorFilterChange: (sector: string | null) => void;
-  sectorOptions: { value: string; label: string }[];
-  heatmapLoading: boolean;
   dashboardView: DashboardView;
-  onDashboardViewChange: (view: DashboardView) => void;
 }) {
   const data = () => props.data;
-  const bottomSector = () => data().sectors[data().sectors.length - 1];
-  const totalAdvances = () => data().sectors.reduce((acc, s) => acc + s.advances, 0);
-  const totalDeclines = () => data().sectors.reduce((acc, s) => acc + s.declines, 0);
 
   return (
     <Box
       className="flex-1 min-h-0 overflow-y-auto lg:overflow-y-hidden flex flex-col gap-[2px] p-[2px]"
     >
-      <Box
-        data-testid="sector-summary-strip"
-        className="flex items-center flex-wrap gap-2 min-h-[28px] px-[6px] py-[2px] border border-fin-border rounded-[1px] bg-fin-surface shrink-0"
-      >
-        <Box className="flex min-w-0 items-baseline gap-1">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-[9px] tracking-[0.3px]">
-            Top Sector
-          </Text>
-          <Text fw={700} c="success" truncate className="text-[11px]">
-            {data().sectors[0].sector}
-          </Text>
-          <Text c="dimmed" className="text-[9.5px] tabular-nums font-mono">
-            Avg Change: {formatPercentage(data().sectors[0].avg_change)}
-          </Text>
-        </Box>
-        <Box className="h-3 w-px shrink-0 bg-fin-border" />
-        <Box className="flex items-baseline gap-[6px]">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-[9px] tracking-[0.3px]">
-            Market Breadth
-          </Text>
-          <Text fw={700} c="success" className="text-[11px] tabular-nums font-mono">
-            {totalAdvances()} UP
-          </Text>
-          <Text fw={700} c="error" className="text-[11px] tabular-nums font-mono">
-            {totalDeclines()} DOWN
-          </Text>
-        </Box>
-        <Box className="h-3 w-px shrink-0 bg-fin-border" />
-        <Box className="flex min-w-0 items-baseline gap-1">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-[9px] tracking-[0.3px]">
-            Weakest Sector
-          </Text>
-          <Text fw={700} c="error" truncate className="text-[11px]">
-            {bottomSector().sector}
-          </Text>
-          <Text c="dimmed" className="text-[9.5px] tabular-nums font-mono">
-            Avg Change: {formatPercentage(bottomSector().avg_change)}
-          </Text>
-        </Box>
-        <Box className="flex-1" />
-        <Box
-          data-testid="sector-dashboard-view-toggle"
-          className="flex h-[22px] border border-fin-border rounded-[1px] overflow-hidden"
-        >
-          <For each={["table", "visual"] as const}>
-            {(view) => (
-              <button
-                type="button"
-                aria-pressed={props.dashboardView === view ? "true" : "false"}
-                onClick={() => props.onDashboardViewChange(view)}
-                class={cn(
-                  "px-[6px] border-0 cursor-pointer text-[9.5px] font-semibold leading-none",
-                  "bg-transparent text-fin-text-muted hover:bg-fin-primary/10",
-                )}
-                classList={{
-                  "bg-fin-primary/10 text-fin-primary": props.dashboardView === view,
-                }}
-              >
-                {view === "table" ? "Table" : "Visual"}
-              </button>
-            )}
-          </For>
-        </Box>
-      </Box>
-
       <Show when={props.dashboardView === "visual"} fallback={
         <Box
           className="flex-1 min-h-0 grid gap-[2px] grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,2.4fr)_minmax(320px,1fr)] grid-rows-[auto_auto] lg:grid-rows-[minmax(0,1fr)]"
@@ -323,6 +250,7 @@ function DashboardContent(props: {
             id="sector-heatmap-panel"
             data-testid="sector-heatmap-panel"
             padded={false}
+            scrollable
             className="min-h-[300px] lg:min-h-0 flex flex-col"
             title={
               <Box className="flex items-center justify-between gap-2">
@@ -330,7 +258,7 @@ function DashboardContent(props: {
                 <Show when={data().last_updated}>
                   <Box className="flex items-center gap-1">
                     <IconClock size={10} color="var(--color-fin-text-muted)" />
-                    <Text c="dimmed" className="text-[9.5px] tabular-nums font-mono">
+                    <Text c="dimmed" className="text-[9.5px] font-mono tabular-nums">
                       {new Date(data().last_updated!).toLocaleTimeString()}
                     </Text>
                   </Box>
@@ -340,16 +268,9 @@ function DashboardContent(props: {
           >
             <SectorHeatmapView
               viewMode={props.viewMode}
-              onViewModeChange={props.onViewModeChange}
               sectors={data().sectors}
               stocks={props.heatmapStocks}
               metric={props.heatmapMetric}
-              onMetricChange={props.onHeatmapMetricChange}
-              sectorFilter={props.stockSectorFilter}
-              sectorOptions={props.sectorOptions}
-              onSectorFilterChange={props.onStockSectorFilterChange}
-              lastUpdated={data().last_updated}
-              loading={props.heatmapLoading}
             />
           </CompactPanel>
 
@@ -569,19 +490,23 @@ function SectorPageHeader(props: {
   loading: boolean;
   onRefresh: () => void;
   showRefresh: boolean;
+  activeTab: SectorTab;
+  setActiveTab: (tab: string | null) => void;
 }) {
   useHolidayTick();
   const marketOpen = () => isMarketOpenNow();
   return (
     <ToolbarRow
       gap={8}
+      wrap={false}
+      clip
       data-testid="sector-header"
-      style={{ padding: "0 12px", "min-height": "36px", height: "36px", "border-bottom": "1px solid var(--color-fin-border)", "flex-shrink": 0 }}
+      style={{ padding: "0 12px", "min-height": "36px", height: "36px", "border-bottom": "1px solid var(--color-fin-border)", "flex-shrink": "0" }}
     >
       <Text fw={700} className="text-[12px] whitespace-nowrap">
         Sector Dashboard
       </Text>
-      <Text c="dimmed" className="text-[10px] whitespace-nowrap">
+      <Text c="dimmed" className="hidden whitespace-nowrap text-[10px] xl:inline">
         Real-time sector performance and technical strength.
       </Text>
       <Show when={!marketOpen()}>
@@ -594,17 +519,35 @@ function SectorPageHeader(props: {
           MARKET CLOSED
         </Text>
       </Show>
-      <Box className="flex-1" />
-      <SegmentedControl
+      <Box className="mx-1 h-4 w-px shrink-0 bg-fin-border" />
+      <CompactToggle
+        testId="sector-market-selector"
+        label="Market"
         value={props.market}
-        onChange={(v) => props.setMarket(v as "india" | "america")}
-        data={[
-          { label: "India", value: "india" },
-          { label: "US", value: "america" },
+        options={[
+          { value: "india", label: "India" },
+          { value: "america", label: "US" },
         ]}
-        size="xs"
-        data-testid="sector-market-selector"
+        onChange={(v) => props.setMarket(v as "india" | "america")}
       />
+      <Tabs value={props.activeTab} onChange={props.setActiveTab} className="min-h-0 shrink-0">
+        {/* The band already draws the section rule; a second bordered pill inside it is the nested-box anti-pattern. */}
+        <Tabs.List
+          className="gap-1"
+          style={{ border: "0", background: "transparent", padding: "0", "min-height": "0" }}
+        >
+          <Tabs.Tab value="dashboard" className="text-[11px]" icon={<IconChartBar size={12} />}>
+            Live Dashboard
+          </Tabs.Tab>
+          <Tabs.Tab value="correlation" className="text-[11px]" icon={<IconNetwork size={12} />}>
+            Sector Correlation
+          </Tabs.Tab>
+          <Tabs.Tab value="rotation" className="text-[11px]" icon={<IconArrowsExchange size={12} />}>
+            Rotation
+          </Tabs.Tab>
+        </Tabs.List>
+      </Tabs>
+      <Box className="flex-1" />
       <Show when={props.showRefresh}>
         {/* @/ui Button reads `disabled`/`loading` once at construction, so the
             button is rebuilt whenever the loading flag flips. */}
@@ -645,6 +588,97 @@ function SectorPageHeader(props: {
   );
 }
 
+function SectorContextBar(props: {
+  data: SectorResponse | null;
+  dashboardView: DashboardView;
+  onDashboardViewChange: (view: DashboardView) => void;
+  viewMode: ViewMode;
+  onViewModeChange: (mode: ViewMode) => void;
+  heatmapMetric: string;
+  onHeatmapMetricChange: (metric: string) => void;
+  stockSectorFilter: string | null;
+  onStockSectorFilterChange: (sector: string | null) => void;
+  sectorOptions: { value: string; label: string }[];
+  heatmapLoading: boolean;
+}) {
+  const sectors = () => props.data?.sectors ?? [];
+  const top = () => sectors()[0];
+  const bottom = () => sectors()[sectors().length - 1];
+  const advances = () => sectors().reduce((acc, s) => acc + s.advances, 0);
+  const declines = () => sectors().reduce((acc, s) => acc + s.declines, 0);
+
+  return (
+    <ToolbarRow
+      gap={8}
+      wrap={false}
+      clip
+      data-testid="sector-context-bar"
+      style={{ padding: "0 12px", "min-height": "28px", height: "28px", "border-bottom": "1px solid var(--color-fin-border)", "flex-shrink": "0" }}
+    >
+      <Show when={top() && bottom()}>
+        <Box data-testid="sector-summary-strip" className="flex min-w-0 shrink items-center gap-3 overflow-hidden">
+          <Box className="flex min-w-0 items-baseline gap-1">
+            <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-[9px] tracking-[0.3px] whitespace-nowrap">
+              Top Sector
+            </Text>
+            <Text fw={700} c="success" truncate className="text-[11px]">
+              {top()!.sector}
+            </Text>
+            <Text c="dimmed" className="text-[9.5px] font-mono tabular-nums whitespace-nowrap">
+              Avg Change: {formatPercentage(top()!.avg_change)}
+            </Text>
+          </Box>
+          <Box className="hidden items-baseline gap-[6px] lg:flex">
+            <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-[9px] tracking-[0.3px] whitespace-nowrap">
+              Market Breadth
+            </Text>
+            <Text fw={700} c="success" className="text-[11px] font-mono tabular-nums">
+              {advances()} UP
+            </Text>
+            <Text fw={700} c="error" className="text-[11px] font-mono tabular-nums">
+              {declines()} DOWN
+            </Text>
+          </Box>
+          <Box className="hidden min-w-0 items-baseline gap-1 xl:flex">
+            <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-[9px] tracking-[0.3px] whitespace-nowrap">
+              Weakest Sector
+            </Text>
+            <Text fw={700} c="error" truncate className="text-[11px]">
+              {bottom()!.sector}
+            </Text>
+            <Text c="dimmed" className="text-[9.5px] font-mono tabular-nums whitespace-nowrap">
+              Avg Change: {formatPercentage(bottom()!.avg_change)}
+            </Text>
+          </Box>
+        </Box>
+      </Show>
+      <Show when={props.dashboardView === "visual"}>
+        <SectorHeatmapControls
+          viewMode={props.viewMode}
+          onViewModeChange={props.onViewModeChange}
+          metric={props.heatmapMetric}
+          onMetricChange={props.onHeatmapMetricChange}
+          sectorFilter={props.stockSectorFilter}
+          sectorOptions={props.sectorOptions}
+          onSectorFilterChange={props.onStockSectorFilterChange}
+          loading={props.heatmapLoading}
+        />
+      </Show>
+      <Box className="flex-1" />
+      <CompactToggle
+        testId="sector-dashboard-view-toggle"
+        label="Dashboard view"
+        value={props.dashboardView}
+        options={[
+          { value: "table", label: "Table" },
+          { value: "visual", label: "Visual" },
+        ]}
+        onChange={(v) => props.onDashboardViewChange(v as DashboardView)}
+      />
+    </ToolbarRow>
+  );
+}
+
 function SectorTabContent(props: {
   activeTab: SectorTab;
   data: SectorResponse | null;
@@ -655,16 +689,9 @@ function SectorTabContent(props: {
   intervalMovers: InternalStockMover[];
   loadData: (m: string, isInitial?: boolean, force?: boolean) => Promise<boolean>;
   viewMode: ViewMode;
-  onViewModeChange: (mode: ViewMode) => void;
   heatmapStocks: HeatmapStock[];
   heatmapMetric: string;
-  onHeatmapMetricChange: (metric: string) => void;
-  stockSectorFilter: string | null;
-  onStockSectorFilterChange: (sector: string | null) => void;
-  sectorOptions: { value: string; label: string }[];
-  heatmapLoading: boolean;
   dashboardView: DashboardView;
-  onDashboardViewChange: (view: DashboardView) => void;
 }) {
   return (
     <Show
@@ -678,16 +705,9 @@ function SectorTabContent(props: {
                 alerts={props.alerts}
                 intervalMovers={props.intervalMovers}
                 viewMode={props.viewMode}
-                onViewModeChange={props.onViewModeChange}
                 heatmapStocks={props.heatmapStocks}
                 heatmapMetric={props.heatmapMetric}
-                onHeatmapMetricChange={props.onHeatmapMetricChange}
-                stockSectorFilter={props.stockSectorFilter}
-                onStockSectorFilterChange={props.onStockSectorFilterChange}
-                sectorOptions={props.sectorOptions}
-                heatmapLoading={props.heatmapLoading}
                 dashboardView={props.dashboardView}
-                onDashboardViewChange={props.onDashboardViewChange}
               />
             </Show>
           </Show>
@@ -747,31 +767,32 @@ export function SectorPage() {
         loading={state.loading()}
         onRefresh={() => state.loadData(state.market(), false, true)}
         showRefresh={state.activeTab() === "dashboard"}
+        activeTab={state.activeTab()}
+        setActiveTab={state.setActiveTab}
       />
+      <Show when={state.activeTab() === "dashboard" && state.data()}>
+        <SectorContextBar
+          data={state.data()}
+          dashboardView={dashboardView()}
+          onDashboardViewChange={(view) => {
+            setDashboardView(view);
+            writeDashboardView(view);
+          }}
+          viewMode={viewMode()}
+          onViewModeChange={setViewMode}
+          heatmapMetric={heatmapMetric()}
+          onHeatmapMetricChange={setHeatmapMetric}
+          stockSectorFilter={stockSectorFilter()}
+          onStockSectorFilterChange={setStockSectorFilter}
+          sectorOptions={sectorOptions()}
+          heatmapLoading={heatmapLoading()}
+        />
+      </Show>
       <Box className="flex-1 min-h-0 flex flex-col overflow-hidden">
         <Box
           id="sector-page"
           className="flex-1 min-h-0 flex flex-col overflow-hidden w-full"
         >
-          <Box className="flex h-6 shrink-0 items-center border-b border-fin-border px-2">
-            <Tabs
-              value={state.activeTab()}
-              onChange={state.setActiveTab}
-              className="min-h-[24px]"
-            >
-              <Tabs.List className="flex items-center gap-1">
-                <Tabs.Tab value="dashboard" className="min-h-[24px] py-0 text-[11px]" icon={<IconChartBar size={12} />}>
-                  Live Dashboard
-                </Tabs.Tab>
-                <Tabs.Tab value="correlation" className="min-h-[24px] py-0 text-[11px]" icon={<IconNetwork size={12} />}>
-                  Sector Correlation
-                </Tabs.Tab>
-                <Tabs.Tab value="rotation" className="min-h-[24px] py-0 text-[11px]" icon={<IconArrowsExchange size={12} />}>
-                  Rotation
-                </Tabs.Tab>
-              </Tabs.List>
-            </Tabs>
-          </Box>
           <Box flex={1} className="min-h-0 overflow-auto flex flex-col items-stretch">
             <SectorTabContent
               activeTab={state.activeTab()}
@@ -783,19 +804,9 @@ export function SectorPage() {
               intervalMovers={state.intervalMovers()}
               loadData={state.loadData}
               viewMode={viewMode()}
-              onViewModeChange={setViewMode}
               heatmapStocks={heatmapStocks()}
               heatmapMetric={heatmapMetric()}
-              onHeatmapMetricChange={setHeatmapMetric}
-              stockSectorFilter={stockSectorFilter()}
-              onStockSectorFilterChange={setStockSectorFilter}
-              sectorOptions={sectorOptions()}
-              heatmapLoading={heatmapLoading()}
               dashboardView={dashboardView()}
-              onDashboardViewChange={(view) => {
-                setDashboardView(view);
-                writeDashboardView(view);
-              }}
             />
           </Box>
         </Box>

@@ -1,6 +1,6 @@
-import { createEffect, createMemo, onCleanup, Show } from "solid-js";
+import { createEffect, createMemo, onCleanup } from "solid-js";
 import type * as ECharts from "echarts";
-import { Box, SegmentedControl, Select, Text, Loader, useColorScheme } from "@/ui";
+import { Box, useColorScheme } from "@/ui";
 import { loadEcharts } from "@/utils/loadEcharts";
 import type { SectorItem } from "../../types/sector";
 import type { HeatmapStock } from "../../api/heatmap";
@@ -26,18 +26,11 @@ import { formatPercentage } from "../../utils/ui-helpers";
 
 export type ViewMode = "sector" | "stock";
 
-interface SectorHeatmapViewProps {
+export interface SectorHeatmapViewProps {
   viewMode: ViewMode;
-  onViewModeChange: (mode: ViewMode) => void;
   sectors: SectorItem[];
   stocks: HeatmapStock[];
   metric: string;
-  onMetricChange: (metric: string) => void;
-  sectorFilter?: string | null;
-  sectorOptions?: { value: string; label: string }[];
-  onSectorFilterChange?: (sector: string | null) => void;
-  lastUpdated?: string;
-  loading?: boolean;
   onSymbolClick?: (symbol: string) => void;
 }
 
@@ -208,54 +201,12 @@ export function SectorHeatmapView(props: SectorHeatmapViewProps) {
     chart = undefined;
   });
 
-  const sectorFilterValue = () => props.sectorFilter ?? "";
-
   return (
     <Box
       data-testid="sector-heatmap-view"
-      className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden"
+      className="flex min-h-0 w-full flex-1 overflow-hidden"
+      style={{ height: "100%" }}
     >
-      <Box className="flex items-center gap-2 px-2 h-8 shrink-0 flex-wrap">
-        <SegmentedControl
-          size="xs"
-          value={props.viewMode}
-          onChange={(v) => props.onViewModeChange(v as ViewMode)}
-          data={[
-            { label: "Sectors", value: "sector" },
-            { label: "Stocks", value: "stock" },
-          ]}
-          data-testid="sector-heatmap-view-toggle"
-        />
-        <Show when={props.viewMode === "stock"}>
-          <Select
-            size="xs"
-            w={130}
-            placeholder="Color by"
-            value={props.metric}
-            onChange={(v) => props.onMetricChange(v || "change_pct")}
-            data={SECTOR_STOCK_METRICS}
-            data-testid="sector-heatmap-metric"
-          />
-          <Select
-            size="xs"
-            w={160}
-            placeholder="All sectors"
-            value={sectorFilterValue()}
-            onChange={(v) => props.onSectorFilterChange?.(v || null)}
-            data={[{ value: "", label: "All sectors" }, ...(props.sectorOptions ?? [])]}
-            clearable
-            data-testid="sector-heatmap-sector-filter"
-          />
-        </Show>
-        <Show when={props.lastUpdated}>
-          <Text c="dimmed" className="ml-auto text-[9.5px] font-mono tabular-nums">
-            Updated: {new Date(props.lastUpdated!).toLocaleTimeString()}
-          </Text>
-        </Show>
-        <Show when={props.loading}>
-          <Loader size="xs" />
-        </Show>
-      </Box>
       <Box className="flex min-h-0 w-full flex-1" data-testid="sector-heatmap-chart">
         <div ref={(el) => (chartEl = el)} class="h-full w-full" style={{ "min-width": 0 }} />
       </Box>

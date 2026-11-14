@@ -104,17 +104,19 @@ export function HeatmapPage() {
     >
       <ToolbarRow
         gap={8}
-        style={{ padding: "0 16px", "min-height": "48px", height: "48px", "border-bottom": "1px solid var(--color-fin-border)", "flex-shrink": "0" }}
+        wrap={false}
+        clip
+        style={{ padding: "0 16px", "min-height": "32px", height: "32px", "border-bottom": "1px solid var(--color-fin-border)", "flex-shrink": "0" }}
         data-testid="heatmap-toolbar"
       >
-        <Text data-testid="heatmap-title" fw={700} size="sm">NSE 500</Text>
+        <Text data-testid="heatmap-title" fw={700} className="text-[12px] whitespace-nowrap">NSE 500</Text>
         <Badge data-testid="heatmap-badge" variant="light" color={heatmapData()?.cached ? "success" : "primary"}>
           {heatmapData()?.cached ? "Cached" : "Live"}
         </Badge>
         <Select
           data-testid="heatmap-sector-filter"
           size="xs"
-          w={180}
+          w={170}
           h={22}
           placeholder="Filter by sector"
           clearable
@@ -135,33 +137,27 @@ export function HeatmapPage() {
           aria-label="Search symbol"
         />
         <Show when={!isScatterView()}>
-          <Box className="flex shrink-0 items-center gap-1">
-            <Text size="xs" c="dimmed">Metric</Text>
-            <Select
-              data-testid="heatmap-metric"
-              size="xs"
-              w={130}
-              h={22}
-              value={metric()}
-              onChange={(v) => setMetric(v || "market_cap")}
-              data={metricOptions}
-              aria-label="Metric"
-            />
-          </Box>
-        </Show>
-        <Box className="flex shrink-0 items-center gap-1">
-          <Text size="xs" c="dimmed">View</Text>
           <Select
-            data-testid="heatmap-view"
+            data-testid="heatmap-metric"
             size="xs"
             w={130}
             h={22}
-            value={view()}
-            onChange={(v) => setView(v || "treemap")}
-            data={VIEWS}
-            aria-label="View"
+            value={metric()}
+            onChange={(v) => setMetric(v || "market_cap")}
+            data={metricOptions}
+            aria-label="Metric"
           />
-        </Box>
+        </Show>
+        <Select
+          data-testid="heatmap-view"
+          size="xs"
+          w={130}
+          h={22}
+          value={view()}
+          onChange={(v) => setView(v || "treemap")}
+          data={VIEWS}
+          aria-label="View"
+        />
         <Box className="flex-1" />
         <Text
           data-testid="heatmap-stock-count"
