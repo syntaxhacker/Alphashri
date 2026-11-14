@@ -56,7 +56,10 @@ vi.mock("../../api/index", () => ({
 
 const mockFetchWithAuth = vi.fn();
 vi.mock("@/api/screenerQuery", () => ({
-  buildScreenerPreviewUrl: () => "/api/screener/preview?screener=test",
+  // Reflect the argument: a constant mock let a preview fetch the wrong
+  // screener and still pass.
+  buildScreenerPreviewUrl: (opts: { screener?: string }) =>
+    `/api/screener/preview?screener=${opts?.screener ?? ""}`,
   approachingStocksOf: (json: any) => json?.approaching ?? [],
 }));
 vi.mock("@/state/auth", () => ({
@@ -202,6 +205,12 @@ describe("ScreenerConfigView", () => {
   });
 
   describe("preview debounce", () => {
+    const fetchedScreener = () => {
+      const urls = mockFetchWithAuth.mock.calls.map((c) => String(c[0]));
+      const last = urls[urls.length - 1] ?? "";
+      return new URL(last, "http://x").searchParams.get("screener");
+    };
+    const uniqueFetches = () => new Set(mockFetchWithAuth.mock.calls.map((c) => String(c[0]))).size;
     it("Preview fetches on screener change with debounce", async () => {
       vi.useFakeTimers();
       try {
@@ -226,16 +235,16 @@ describe("ScreenerConfigView", () => {
         expect(mockFetchWithAuth).not.toHaveBeenCalled();
 
         await vi.advanceTimersByTimeAsync(500);
-        expect(mockFetchWithAuth).toHaveBeenCalledTimes(1);
-
-        mockFetchWithAuth.mockClear();
+        // The URL is the contract: a call count would still pass if the preview
+        // fetched the wrong screener, and it races against lingering effects.
+        expect(fetchedScreener()).toBe("trending");
 
         setScreener("new-highs");
-
-        expect(mockFetchWithAuth).not.toHaveBeenCalled();
-
         await vi.advanceTimersByTimeAsync(500);
-        expect(mockFetchWithAuth).toHaveBeenCalledTimes(1);
+
+        // A debounce means the *last* selection wins, once.
+        expect(fetchedScreener()).toBe("new-highs");
+        expect(uniqueFetches()).toBe(2);
       } finally {
         vi.useRealTimers();
       }
