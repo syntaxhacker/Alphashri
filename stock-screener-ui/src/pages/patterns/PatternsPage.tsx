@@ -684,14 +684,12 @@ export function PatternsPage(props: PatternsPageProps) {
         }
         actions={
           <Box
-            className="flex w-full min-w-0 flex-col gap-0.5"
+            className="flex w-full min-w-0 flex-row items-center gap-2"
           >
-            {/* Row 1 — scan setup: what to scan and how. */}
             <ToolbarRow
               justify="flex-start"
-             
               gap={8}
-              wrap={true}
+              wrap={false}
               data-testid="patterns-results-toolbar"
             >
               <Box
@@ -737,12 +735,11 @@ export function PatternsPage(props: PatternsPageProps) {
                 </Box>
               </Tooltip>
             </ToolbarRow>
-            {/* Row 2 — results: how to read what came back. */}
             <ToolbarRow
-              justify="flex-start"
-             
+              justify="flex-end"
               gap={8}
-              wrap={true}
+              wrap={false}
+              className="ml-auto shrink-0"
               data-testid="patterns-results-view-toolbar"
             >
               <SegmentedControl

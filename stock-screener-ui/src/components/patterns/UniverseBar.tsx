@@ -48,11 +48,11 @@ function Spinner() {
 /**
  * Scan-scope toolbar.
  *
- * Three fixed rows: scope + action, caller-supplied result controls, and an
- * error line. The scope is a single segmented group (one border, one selected
- * fill) rather than a row of loose pills, so the bar reads as one control and
- * its right-hand status / scan cluster never drifts. The whole bar is sticky
- * (`top: 0`) with a divider so content scrolling underneath stays legible.
+ * One bordered context band: scope + action on a single row, with the
+ * right-hand status / scan cluster pushed by `ml-auto` so it never becomes an
+ * orphan row. The caller's tools are rendered directly below (no extra bordered
+ * column or divider — the parent already owns that row), and the error line
+ * only appears when a scan fails. The whole block is sticky (`top: 0`).
  */
 export function UniverseBar(props: UniverseBarProps) {
   const [pasteOpen, setPasteOpen] = createSignal(false);
@@ -82,12 +82,10 @@ export function UniverseBar(props: UniverseBarProps) {
       : "Scan again";
 
   return (
-    <Box
-      data-testid="patterns-universe-bar"
-      className="sticky top-0 z-[5] min-w-0 border-b border-fin-border bg-fin-surface pb-1"
-    >
+    <Box className="sticky top-0 z-[5] min-w-0 bg-fin-surface pb-1">
       <Box
-        className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5"
+        data-testid="patterns-universe-bar"
+        className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-fin-border bg-fin-surface"
       >
         <Text
           size="xs"
@@ -113,7 +111,7 @@ export function UniverseBar(props: UniverseBarProps) {
                   title={u.count > 0 ? `${u.label} · ${formatNumberIN(u.count)} symbols` : u.label}
                   data-testid={`patterns-universe-${u.id}`}
                   className={cn(
-                    "inline-flex cursor-pointer appearance-none items-baseline gap-1 whitespace-nowrap rounded-fin border-0 px-1.5 py-[3px] font-[inherit] text-[11px] leading-[1.25] transition-colors",
+                    "inline-flex cursor-pointer appearance-none items-baseline gap-1 whitespace-nowrap rounded-fin border-0 px-1 py-[3px] font-[inherit] text-[10px] leading-[1.25] transition-colors",
                     "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary",
                     active()
                       ? "bg-fin-primary/12 font-semibold text-fin-primary shadow-[inset_0_0_0_1px_var(--color-fin-primary)]"
@@ -124,7 +122,7 @@ export function UniverseBar(props: UniverseBarProps) {
                   <Show when={u.count > 0}>
                     <span
                       className={cn(
-                        "text-[9.5px] font-medium tabular-nums",
+                        "text-[9px] font-medium tabular-nums",
                         active() ? "text-fin-primary opacity-90" : "text-fin-text-muted",
                       )}
                     >
@@ -144,7 +142,7 @@ export function UniverseBar(props: UniverseBarProps) {
             aria-pressed={customActive()}
             data-testid="patterns-universe-custom"
             className={cn(
-              "inline-flex cursor-pointer appearance-none items-center gap-1 whitespace-nowrap rounded-fin border-0 px-1.5 py-[3px] font-[inherit] text-[11px] leading-[1.25] transition-colors",
+              "inline-flex cursor-pointer appearance-none items-center gap-1 whitespace-nowrap rounded-fin border-0 px-1 py-[3px] font-[inherit] text-[10px] leading-[1.25] transition-colors",
               "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary",
               customActive()
                 ? "bg-fin-primary/12 font-semibold text-fin-primary shadow-[inset_0_0_0_1px_var(--color-fin-primary)]"
@@ -156,7 +154,7 @@ export function UniverseBar(props: UniverseBarProps) {
             <Show when={customSymbolCount() > 0}>
               <span
                 className={cn(
-                  "text-[9.5px] font-medium tabular-nums",
+                  "text-[9px] font-medium tabular-nums",
                   customActive() ? "text-fin-primary" : "text-fin-text-muted",
                 )}
               >
@@ -181,7 +179,7 @@ export function UniverseBar(props: UniverseBarProps) {
         </Show>
 
         <Box
-          className="ml-auto flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-1.5"
+          className="ml-auto flex min-w-0 shrink-0 flex-nowrap items-center justify-end gap-1.5"
         >
           <Box
             data-testid="patterns-job-status-wrap"
@@ -206,13 +204,7 @@ export function UniverseBar(props: UniverseBarProps) {
         </Box>
       </Box>
 
-      <Show when={props.actions}>
-        <Box
-          className="mt-1 flex min-w-0 flex-col gap-0.5 border-t border-fin-border pt-1"
-        >
-          {props.actions}
-        </Box>
-      </Show>
+      {props.actions}
 
       <Show when={props.error}>
         <Box

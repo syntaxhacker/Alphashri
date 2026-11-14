@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import type { JobDTO, Universe } from "@/types/chartPatterns";
 import { UniverseBar, type UniverseBarProps } from "./UniverseBar";
 
@@ -146,5 +146,22 @@ describe("UniverseBar", () => {
     };
     render(() => <UniverseBar {...makeProps({ job: completed })} />);
     expect(screen.getByTestId("patterns-job-status-wrap")).toHaveAttribute("data-visible", "false");
+  });
+
+  test("the caller's tools are a sibling of the scope band, not a nested column", () => {
+    render(() =>
+      <UniverseBar {...makeProps({ actions: <div data-testid="probe-actions" /> })} />,
+    );
+    const bar = screen.getByTestId("patterns-universe-bar");
+    const probe = screen.getByTestId("probe-actions");
+    expect(bar).not.toContainElement(probe);
+    expect(probe.parentElement).toBe(bar.parentElement);
+  });
+
+  test("the scan action shares the scope band with the pills", () => {
+    render(() => <UniverseBar {...makeProps()} />);
+    const bar = screen.getByTestId("patterns-universe-bar");
+    expect(within(bar).getByTestId("patterns-universe-nifty50")).toBeInTheDocument();
+    expect(within(bar).getByTestId("patterns-scan-again")).toBeInTheDocument();
   });
 });
