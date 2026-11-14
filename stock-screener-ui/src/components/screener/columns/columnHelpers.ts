@@ -21,9 +21,14 @@ export function pctOrEmpty(value: number | null | undefined, precision = 1): str
   return value && value > 0 ? `${value.toFixed(precision)}%` : "";
 }
 
-/** Rupee price with 2 decimals; null/undefined renders as ₹0.00. */
+/**
+ * Rupee price with 2 decimals. A missing price renders "—", never ₹0.00 —
+ * a halted or unsubscribed symbol must not assert a real catastrophic price.
+ * Genuine zeros still print ₹0.00.
+ */
 export function rupeePrice(value: number | null | undefined): string {
-  return `₹${(value ?? 0).toFixed(2)}`;
+  if (value == null || !Number.isFinite(value)) return "—";
+  return `₹${value.toFixed(2)}`;
 }
 
 /** FormattedCell with fixed decimals, dash when empty — always a cell object. */

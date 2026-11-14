@@ -19,8 +19,8 @@ describe("undervalued columns", () => {
     it.each([
       [100, "₹100.00"],
       [0, "₹0.00"],
-      [null, "₹0.00"],
-      [undefined, "₹0.00"],
+      [null, "—"],
+      [undefined, "—"],
     ])("tv_price %s -> %s", (v, exp) => expect(fmt("tv_price")(v)).toBe(exp));
     it("NaN -> ₹NaN? fallback 0", () => expect(() => fmt("tv_price")(NaN)).not.toThrow());
   });

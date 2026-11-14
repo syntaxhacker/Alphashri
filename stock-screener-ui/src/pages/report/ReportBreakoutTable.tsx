@@ -172,15 +172,15 @@ export function ReportBreakoutTable(props: ReportBreakoutTableProps) {
       },
       {
         id: "to_52w_high",
-        header: "52W gap %",
+        header: () => (
+          <span title="Percent below the 52-week high. Positive means still under the high; negative means above it.">
+            52W gap %
+          </span>
+        ),
         accessorKey: "to_52w_high",
         meta: { align: "right" },
         cell: ({ row }) => (
-          <NumCell
-            value={row.original.to_52w_high == null ? null : -row.original.to_52w_high}
-            signed
-            format={(v) => formatPercentage(-v)}
-          />
+          <NumCell value={row.original.to_52w_high} format={formatPercentage} />
         ),
       },
       {
