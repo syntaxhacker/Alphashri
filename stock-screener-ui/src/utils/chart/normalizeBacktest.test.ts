@@ -14,6 +14,17 @@ import {
   entryExitPair,
   backtestPivotHighlight,
 } from "./normalizeTestFixtures";
+import type {
+  BacktestNormalizeCandle,
+  BacktestNormalizeInput,
+} from "./normalizeBacktest";
+
+type BacktestFlexOverlay = NonNullable<
+  NonNullable<BacktestNormalizeInput["visuals"]>["overlays"]
+>[number];
+type OverlayEmaSeries = NonNullable<
+  NonNullable<BacktestNormalizeInput["visuals"]>["ema_series"]
+>[number];
 
 const runWithHighlight = (
   data: Parameters<typeof normalizeBacktest>[0],
@@ -22,13 +33,16 @@ const runWithHighlight = (
 ) => normalizeBacktest(data, false, holidays, highlightedTradeId);
 
 // Data wrapper for the single-overlay visual-normalization tests.
-const overlayData = (overlay: unknown) => ({
+const overlayData = (overlay: BacktestFlexOverlay): BacktestNormalizeInput => ({
   candles: [],
   trades: [],
   visuals: { overlays: [overlay] },
 });
 
-const emaSeriesData = (emaSeries: unknown[], candles: unknown[]) => ({
+const emaSeriesData = (
+  emaSeries: OverlayEmaSeries[],
+  candles: BacktestNormalizeCandle[],
+): BacktestNormalizeInput => ({
   candles,
   trades: [],
   visuals: { ema_series: emaSeries },
@@ -232,8 +246,9 @@ describe("normalizeBacktest", () => {
         [{ time: "09:30" }, { time: "09:31" }],
       );
       const result = normalizeBacktest(data, false);
-      expect(result.emaData).toHaveLength(2);
-      expect(result.emaData[0]).toMatchObject({
+      const ema = result.emaData ?? [];
+      expect(ema).toHaveLength(2);
+      expect(ema[0]).toMatchObject({
         label: "EMA 9",
         color: BULLISH,
         data: [100, 101],

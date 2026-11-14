@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach } from "vitest";
 import type { StrategyConfig } from "../../types/strategies";
+import { createMockStrategy } from "../stateTestFixtures";
 
 // Import via the strategies module since modal actions are now defined there
 import {
@@ -116,11 +117,7 @@ describe("modalActions", () => {
     });
 
     it("clears editingStrategy", () => {
-      getStrategiesState().editingStrategy = {
-        name: "test",
-        type: "ORB",
-        enabled: true,
-      } as StrategyConfig;
+      getStrategiesState().editingStrategy = createMockStrategy({ name: "test" });
       closeEditModal();
 
       expect(getStrategiesState().editingStrategy).toBeNull();

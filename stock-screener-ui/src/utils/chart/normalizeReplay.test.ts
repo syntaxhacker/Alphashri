@@ -251,8 +251,9 @@ describe("normalizeReplay", () => {
         rawCandles: false,
         activeTF: true,
       });
-      expect(result.emaData).toHaveLength(2);
-      expect(result.emaData[0]).toMatchObject({
+      const ema = result.emaData ?? [];
+      expect(ema).toHaveLength(2);
+      expect(ema[0]).toMatchObject({
         label: "EMA 9",
         color: INDICATOR_BLUE_A,
         data: [100, 101, 102],
@@ -386,19 +387,10 @@ describe("normalizeReplay", () => {
       expect(result.markAreas).toEqual([]);
     });
     it("handles trades with missing exit data", () => {
-      const incompleteTrades = [
-        {
-          id: 1,
-          symbol: "TEST",
-          entry_price: 100,
-          entry_time: "09:30",
-          quantity: 10,
-          side: "BUY",
-          pnl: 10,
-          candle_idx: 0,
-        },
-      ];
-      const result = callReplay({ trades: incompleteTrades });
+      // A replay close can land without an exit leg, so the payload is
+      // legitimately partial — assert the normalizer tolerates that.
+      const incompleteTrades = makeReplayTrade({ exit_price: undefined, exit_time: undefined });
+      const result = callReplay({ trades: [incompleteTrades] });
       expect(result.trades).toHaveLength(1);
       expect(result.trades[0].exit_price).toBeUndefined();
       expect(result.trades[0].exit_time).toBeUndefined();

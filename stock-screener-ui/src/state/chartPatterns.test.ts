@@ -819,12 +819,12 @@ describe("stale async responses", () => {
       releaseSlow = resolve;
     });
     mocked.streamResults
-      .mockImplementationOnce(async (_query, handlers) => {
+      .mockImplementationOnce(async (_query, handlers = {}) => {
         await slowGate;
         handlers.onItem?.({ id: 1, symbol: "STALE", pattern_id: "flag" } as never);
         handlers.onDone?.();
       })
-      .mockImplementationOnce(async (_query, handlers) => {
+      .mockImplementationOnce(async (_query, handlers = {}) => {
         handlers.onMeta?.({ total: 7, summary: SUMMARY, data_through: "2026-10-01" });
         handlers.onDone?.();
       });
@@ -851,11 +851,11 @@ describe("stale async responses", () => {
       releaseSlow = resolve;
     });
     mocked.streamResults
-      .mockImplementationOnce(async (_query, handlers) => {
+      .mockImplementationOnce(async (_query, handlers = {}) => {
         await slowGate;
         handlers.onError?.(new Error("slow boom"));
       })
-      .mockImplementationOnce(async (_query, handlers) => {
+      .mockImplementationOnce(async (_query, handlers = {}) => {
         handlers.onError?.(new Error("fast stream down"));
       });
     mocked.fetchResults.mockResolvedValueOnce({
@@ -1418,7 +1418,7 @@ describe("scan lifecycle extras", () => {
     mocked.startScan.mockClear();
     await triggerScan(true);
     expect(mocked.startScan).toHaveBeenCalledTimes(1);
-    const req = mocked.startScan.mock.calls[0][0] as Record<string, unknown>;
+    const req = mocked.startScan.mock.calls[0][0] as unknown as Record<string, unknown>;
     expect(req["symbols"]).toBeUndefined();
     expect(req["lookback_bars"]).toBe(250);
     expect(req["force"]).toBe(true);
@@ -1563,7 +1563,7 @@ describe("query coalescing and same-query reload", () => {
 
   it("a same-query reload keeps existing results until new items arrive", async () => {
     let releaseFirst!: () => void;
-    mocked.streamResults.mockImplementation(async (_query, handlers) => {
+    mocked.streamResults.mockImplementation(async (_query, handlers = {}) => {
       await new Promise<void>((resolve) => {
         releaseFirst = resolve;
       });
@@ -1580,7 +1580,7 @@ describe("query coalescing and same-query reload", () => {
     expect(getChartPatternsState().results.map((r) => r.symbol)).toEqual(["IRCON", "TCS"]);
 
     let releaseSecond!: () => void;
-    mocked.streamResults.mockImplementation(async (_query, handlers) => {
+    mocked.streamResults.mockImplementation(async (_query, handlers = {}) => {
       await new Promise<void>((resolve) => {
         releaseSecond = resolve;
       });
@@ -1613,7 +1613,7 @@ describe("query coalescing and same-query reload", () => {
       })
       .mockResolvedValue({ items: [], total: 0, summary: SUMMARY, data_through: "2026-09-30" });
     // Restore the pinned "stream unavailable" behaviour for this test.
-    mocked.streamResults.mockImplementation(async (_query, handlers) => {
+    mocked.streamResults.mockImplementation(async (_query, handlers = {}) => {
       handlers.onError?.(new Error("stream unavailable"));
     });
 

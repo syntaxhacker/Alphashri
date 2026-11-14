@@ -6,7 +6,7 @@ import type {
   MarkLineData,
   MarkAreaItem,
 } from "../chart/types";
-import { mapCandles, mapTrades } from "./normalizeCommon";
+import { mapCandles, mapTrades, type MappableTrade } from "./normalizeCommon";
 import {
   PIVOT_OR_HIGH,
   PIVOT_OR_LOW,
@@ -20,8 +20,42 @@ import {
   MARKER_TP,
 } from "../../config/colors";
 
+/**
+ * `normalizePaper` only reads the candle/trade stream plus the overlay fields a
+ * given chart shows. Typing that subset (rather than `PaperChartData`) keeps
+ * fixtures honest without forcing them to fabricate unused envelope fields, and
+ * makes it explicit that a partial overlay object is tolerated.
+ */
+export type PaperNormalizeInput = {
+  candles: PaperChartData["candles"];
+  trades: (MappableTrade & { trade_id: string })[];
+  orb_levels?: { or_high: number; or_low: number; or_minutes?: number; or_candle_count?: number } | null;
+  pivot_levels?: { r2?: number; r1?: number; pp: number; s1?: number; s2?: number } | null;
+  week52_levels?: { high_52w: number; low_52w?: number } | null;
+  ema_series?: {
+    ema_fast: { label: string; color: string; data: number[] };
+    ema_slow: { label: string; color: string; data: number[] };
+  } | null;
+  current_position?: {
+    entry_price: number;
+    entry_time?: string;
+    side: "BUY" | "SELL";
+    stop_loss: number;
+    take_profit: number;
+    current_price?: number;
+    pnl?: number;
+    pnl_pct?: number;
+    quantity?: number;
+  } | null;
+};
+
+/** Overlays are always materialized (empty array, not undefined) on this path. */
+export type PaperChartInput = ChartInput & {
+  markLines: MarkLineData[];
+  markAreas: MarkAreaItem[];
+};
 export function normalizePaper(
-  data: PaperChartData,
+  data: PaperNormalizeInput,
   isDark: boolean,
   selectedTradeId?: string | null,
   showAllTrades?: boolean,
@@ -29,7 +63,7 @@ export function normalizePaper(
   showPivotLines?: boolean,
   show52wLines?: boolean,
   showEmaLines?: boolean,
-): ChartInput {
+): PaperChartInput {
   const candles = mapCandles(data.candles);
 
   const trades = mapTrades(
@@ -44,6 +78,24 @@ export function normalizePaper(
   const overlays: UnifiedOverlay[] = [];
   const markLines: MarkLineData[] = [];
   const markAreas: MarkAreaItem[] = [];
+
+  // Levels arrive from partially-populated payloads (a pivot object may carry
+  // only `pp`), so a missing level is skipped here rather than pushed with an
+  // undefined `yAxis` and filtered out later.
+  const pushLine = (
+    value: number | undefined | null,
+    color: string,
+    style: string,
+    formatter: string,
+    width = 1,
+  ) => {
+    if (value == null || !isFinite(value)) return;
+    markLines.push({
+      yAxis: value,
+      lineStyle: { color, type: style, width },
+      label: { position: "insideEndTop", formatter },
+    });
+  };
 
   if (showOrbLines && data.orb_levels) {
     const orb = data.orb_levels;
@@ -78,48 +130,18 @@ export function normalizePaper(
 
   if (showPivotLines && data.pivot_levels) {
     const piv = data.pivot_levels;
-    markLines.push(
-      {
-        yAxis: piv.r2,
-        lineStyle: { color: PIVOT_R1, type: "dotted", width: 1 },
-        label: { position: "insideEndTop", formatter: `R2 ${piv.r2}` },
-      },
-      {
-        yAxis: piv.r1,
-        lineStyle: { color: PIVOT_R1, type: "dashed", width: 1 },
-        label: { position: "insideEndTop", formatter: `R1 ${piv.r1}` },
-      },
-      {
-        yAxis: piv.pp,
-        lineStyle: { color: PIVOT_PP, type: "dotted", width: 1 },
-        label: { position: "insideEndTop", formatter: `PP ${piv.pp}` },
-      },
-      {
-        yAxis: piv.s1,
-        lineStyle: { color: PIVOT_S1, type: "dashed", width: 1 },
-        label: { position: "insideEndTop", formatter: `S1 ${piv.s1}` },
-      },
-      {
-        yAxis: piv.s2,
-        lineStyle: { color: PIVOT_S1, type: "dotted", width: 1 },
-        label: { position: "insideEndTop", formatter: `S2 ${piv.s2}` },
-      },
-    );
+    pushLine(piv.r2, PIVOT_R1, "dotted", `R2 ${piv.r2}`);
+    pushLine(piv.r1, PIVOT_R1, "dashed", `R1 ${piv.r1}`);
+    pushLine(piv.pp, PIVOT_PP, "dotted", `PP ${piv.pp}`);
+    pushLine(piv.s1, PIVOT_S1, "dashed", `S1 ${piv.s1}`);
+    pushLine(piv.s2, PIVOT_S1, "dotted", `S2 ${piv.s2}`);
   }
 
   if (show52wLines && data.week52_levels) {
     const w52 = data.week52_levels;
-    markLines.push({
-      yAxis: w52.high_52w,
-      lineStyle: { color: PIVOT_52W_HIGH, type: "dashed", width: 2 },
-      label: { position: "insideEndTop", formatter: `52W-H ${w52.high_52w}` },
-    });
-    if (w52.low_52w > 0) {
-      markLines.push({
-        yAxis: w52.low_52w,
-        lineStyle: { color: PIVOT_52W_LOW, type: "dashed", width: 1 },
-        label: { position: "insideEndTop", formatter: `52W-L ${w52.low_52w}` },
-      });
+    pushLine(w52.high_52w, PIVOT_52W_HIGH, "dashed", `52W-H ${w52.high_52w}`, 2);
+    if (w52.low_52w != null && w52.low_52w > 0) {
+      pushLine(w52.low_52w, PIVOT_52W_LOW, "dashed", `52W-L ${w52.low_52w}`);
     }
   }
 

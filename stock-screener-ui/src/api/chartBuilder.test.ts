@@ -1,6 +1,13 @@
 import { describe, expect, test } from "vitest";
 import { buildChartData, chartTradesToTrades } from "./chartBuilder";
 import { makeChartTrade, makeRawCandle, makeRawTrade } from "./apiTestMocks";
+import {
+  MARKER_ENTRY,
+  MARKER_TP,
+  MARKER_SL,
+  EXIT_COLORS,
+  EXIT_DEFAULT,
+} from "../config/colors";
 
 describe("buildChartData", () => {
   function expectSingleCandleTimeNormalized(indexEntry: string): void {
@@ -173,7 +180,7 @@ describe("buildChartData", () => {
     expect(result.trades[0].type).toBe("entry");
     expect(result.trades[0].price).toBe(103);
     expect(result.trades[0].marker.symbol).toBe("triangle");
-    expect(result.trades[0].marker.color).toBe("#58A6FF");
+    expect(result.trades[0].marker.color).toBe(MARKER_ENTRY);
 
     expect(result.trades[1].type).toBe("exit");
     expect(result.trades[1].price).toBe(107);
@@ -187,9 +194,9 @@ describe("buildChartData", () => {
       makeRawTrade({ exit_reason: "EOD" }),
     ]);
 
-    expect(tpResult.trades[1].marker.color).toBe("#3FB950");
-    expect(slResult.trades[1].marker.color).toBe("#F85149");
-    expect(eodResult.trades[1].marker.color).toBe("#D29922");
+    expect(tpResult.trades[1].marker.color).toBe(MARKER_TP);
+    expect(slResult.trades[1].marker.color).toBe(MARKER_SL);
+    expect(eodResult.trades[1].marker.color).toBe(EXIT_COLORS.EOD);
   });
 
   test("defaults to cream for unknown exit reasons", () => {
@@ -197,7 +204,7 @@ describe("buildChartData", () => {
       makeRawTrade({ exit_reason: "UNKNOWN" as any }),
     ]);
 
-    expect(result.trades[1].marker.color).toBe("#D29922");
+    expect(result.trades[1].marker.color).toBe(EXIT_DEFAULT);
   });
 
   test("handles empty candles and trades", () => {

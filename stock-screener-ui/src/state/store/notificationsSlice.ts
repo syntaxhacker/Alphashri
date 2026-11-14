@@ -10,7 +10,7 @@ export type Notification = {
   timestamp: number;
 };
 
-type NotificationsState = {
+export type NotificationsState = {
   items: Notification[];
 };
 

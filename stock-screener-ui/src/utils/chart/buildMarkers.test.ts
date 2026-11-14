@@ -266,7 +266,7 @@ describe("buildTradeMarkers", () => {
 
     it("offsets exit marker when entry and exit are same candle", () => {
       const trade = createMockTrade({
-        entry_candle_idx: 0,
+        candle_idx: 0,
         exit_candle_idx: 0,
       });
       const result = buildTradeMarkers([trade], mockCandles);
@@ -278,7 +278,7 @@ describe("buildTradeMarkers", () => {
 
     it("does not offset when entry and exit are different candles", () => {
       const trade = createMockTrade({
-        entry_candle_idx: 0,
+        candle_idx: 0,
         exit_candle_idx: 3,
       });
       const result = buildTradeMarkers([trade], mockCandles);

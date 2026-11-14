@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render } from "solid-js/web";
-import type { ScreenerData } from "../types";
+import type { ScreenerData, Stock } from "../types";
 
 const { mockShowToast } = vi.hoisted(() => ({
   mockShowToast: vi.fn(),
@@ -27,8 +27,22 @@ function toastText(content: unknown): string {
   return text;
 }
 
-function makeStock(overrides: Record<string, any> = {}) {
-  return { symbol: "TEST", score: 50, sector: "Test", ...overrides };
+/** Minimal `Stock` that satisfies the required columns read by surge checks. */
+function makeStock(overrides: Record<string, any> = {}): Stock {
+  return {
+    symbol: "TEST",
+    score: 50,
+    tv_price: 100,
+    upstox_price: 100,
+    broker_diff: 0,
+    high_52w: 120,
+    to_52w_high: 16.7,
+    recent_return_5d: 1.2,
+    perf_w: 0.5,
+    sector: "Test",
+    touched_52w: false,
+    ...overrides,
+  };
 }
 
 function makeSurgeData(

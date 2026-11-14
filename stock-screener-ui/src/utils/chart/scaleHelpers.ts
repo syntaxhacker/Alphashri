@@ -59,7 +59,7 @@ export function buildHighlightEntryMarker(
 
 export function buildHighlightExitMarker(
   exitMarker: any,
-  exitIdx: number,
+  exitIdx: number | undefined,
   fontSizes: Record<string, number>,
 ) {
   if (!exitMarker || exitIdx === undefined) return null;

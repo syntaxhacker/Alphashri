@@ -327,7 +327,8 @@ export async function refreshBotLiveData(botId: string): Promise<void> {
         strategy_id: p.strategy_id,
         strategy_name: p.strategy_name,
         entry_reason: p.entry_reason || p.reason || "",
-        exit_reason: null,
+        // Open positions have no exit yet — `PaperPosition.exit_reason` is optional,
+        // so leave the key off rather than writing null.
         peak_price: p.peak_price || 0,
         low_price: p.low_price || 0,
         notes: p.notes || "",

@@ -76,10 +76,12 @@ export interface ChartTrade {
     exit_time?: string;
     quantity: number;
     gross_pnl: number;
+    /** Emitted by the backend trade record; absent on some chart payloads. */
+    gross_pnl_pct?: number;
     trading_costs: number;
     net_pnl: number;
     net_pnl_pct: number;
-    exit_reason: "TP" | "SL" | "EOD";
+    exit_reason: "TP" | "SL" | "EOD" | "TRAILING_STOP" | "MAX_HOLDING" | "NEW_52W_HIGH";
     hold_duration_minutes: number;
     // ORB strategy fields
     or_high?: number;
@@ -90,6 +92,11 @@ export interface ChartTrade {
     s1?: number; // Support 1
     r2?: number; // Resistance 2
     s2?: number; // Support 2
+    // 52W Chaser strategy fields (chart_data.py:215/263)
+    "52w_high"?: number;
+    trailing_active?: boolean;
+    /** Trade direction — "LONG" | "SHORT". */
+    side?: string;
   };
 }
 
@@ -109,8 +116,9 @@ export interface BaseChartData {
     }>;
   };
   date_range: {
-    start: string;
-    end: string;
+    // `chart_data.py` sends null when the candle window is empty.
+    start: string | null;
+    end: string | null;
   };
   total_candles: number;
   total_trades: number;

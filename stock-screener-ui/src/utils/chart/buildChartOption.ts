@@ -11,7 +11,26 @@ import { parseTimeToHHMM } from "../ui-helpers";
 import { CHART_DARK_OVERLAY, CHART_LIGHT_OVERLAY, CHART_CROSSHAIR } from "../../config/colors";
 import { theme } from "../../config/theme";
 
-export function buildChartOption(input: ChartInput): Record<string, unknown> {
+/**
+ * ECharts option document. The arrays are deliberately loose (`unknown` cells)
+ * because each series/axis carries a different shape, but the collection itself
+ * is typed so callers can index and assert without casting to `any`.
+ */
+export interface ChartOption {
+  backgroundColor: string;
+  animation: boolean;
+  title?: { text: string; left: string; textStyle: { color: string; fontSize: number } };
+  tooltip: Record<string, unknown>;
+  legend: Record<string, unknown>;
+  grid: Array<Record<string, unknown>>;
+  xAxis: Array<Record<string, unknown>>;
+  yAxis: Array<Record<string, unknown>>;
+  dataZoom: Array<Record<string, unknown>>;
+  axisPointer?: { link: Array<{ xAxisIndex: string }> };
+  series: Array<Record<string, unknown> & { name?: string; type?: string; markLine?: any }>;
+}
+
+export function buildChartOption(input: ChartInput): ChartOption {
   const colors = getChartThemeColors(input.isDark, theme);
   const tooltipBg = input.isDark ? CHART_DARK_OVERLAY : CHART_LIGHT_OVERLAY;
 

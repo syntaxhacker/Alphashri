@@ -64,7 +64,7 @@ describe("loadResults streaming", () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    mockedStreamResults.mockImplementation(async (_query, handlers) => {
+    mockedStreamResults.mockImplementation(async (_query, handlers = {}) => {
       handlers.onMeta?.({ total: 2, summary: SUMMARY, data_through: "2026-09-30" });
       handlers.onItem?.(makeHit(1, "LOW", 50) as never);
       await gate;
@@ -98,7 +98,7 @@ describe("loadResults streaming", () => {
 
   it("orders streamed items by breakout_score desc for sort=breakout", async () => {
     setFilters({ ...DEFAULT_PATTERN_FILTERS, sort: "breakout" });
-    mockedStreamResults.mockImplementation(async (_query, handlers) => {
+    mockedStreamResults.mockImplementation(async (_query, handlers = {}) => {
       handlers.onMeta?.({ total: 2, summary: SUMMARY, data_through: "2026-09-30" });
       // Arrives first but has the weaker conviction (lower score).
       handlers.onItem?.({
@@ -128,7 +128,7 @@ describe("loadResults streaming", () => {
   });
 
   it("falls back to fetchResults when the stream errors", async () => {
-    mockedStreamResults.mockImplementation(async (_query, handlers) => {
+    mockedStreamResults.mockImplementation(async (_query, handlers = {}) => {
       handlers.onError?.(new Error("stream exploded"));
     });
     mockedFetchResults.mockResolvedValue({

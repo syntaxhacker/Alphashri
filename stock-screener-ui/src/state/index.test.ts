@@ -128,7 +128,9 @@ describe("screener state", () => {
   it("setScreenerOptions updates options and notifies", () => {
     const callback = vi.fn();
     subscribeForTest(callback);
-    const options: ScreenerOption[] = [{ symbol: "TCS", price: 100 }];
+    const options: ScreenerOption[] = [
+      { id: "52w_high", label: "52W High", status: "current" },
+    ];
 
     indexModule.setScreenerOptions(options);
 
@@ -148,7 +150,7 @@ describe("screener state", () => {
 
   it("setProfileMetaById updates profile meta", () => {
     const meta: Record<string, ProfileMeta> = {
-      TCS: { name: "Tata Consultancy", industry: "IT" },
+      "52w_high": { section_labels: { primary: "Approaching", secondary: "Touched" } },
     };
 
     indexModule.setProfileMetaById(meta);
@@ -184,11 +186,10 @@ describe("notification state", () => {
     const initialLength = indexModule.notifications.length;
     const notification: ChangeNotification = {
       id: 1,
-      symbol: "TCS",
-      type: "price_change",
-      message: "Price changed",
-      timestamp: Date.now(),
-      read: false,
+      ts: "09:15:00",
+      title: "TCS",
+      detail: "Price changed",
+      kind: "primary",
     };
 
     indexModule.addNotification(notification);
@@ -201,19 +202,17 @@ describe("notification state", () => {
     const newNotifications: ChangeNotification[] = [
       {
         id: 1,
-        symbol: "TCS",
-        type: "price_change",
-        message: "Test 1",
-        timestamp: Date.now(),
-        read: false,
+        ts: "09:15:00",
+        title: "TCS",
+        detail: "Test 1",
+        kind: "primary",
       },
       {
         id: 2,
-        symbol: "INFY",
-        type: "volume_spike",
-        message: "Test 2",
-        timestamp: Date.now(),
-        read: false,
+        ts: "09:16:00",
+        title: "INFY",
+        detail: "Test 2",
+        kind: "secondary",
       },
     ];
 
@@ -225,11 +224,10 @@ describe("notification state", () => {
   it("clearNotifications resets array and seq", () => {
     indexModule.addNotification({
       id: 1,
-      symbol: "TCS",
-      type: "price_change",
-      message: "Test",
-      timestamp: Date.now(),
-      read: false,
+      ts: "09:15:00",
+      title: "TCS",
+      detail: "Test",
+      kind: "primary",
     });
 
     indexModule.clearNotifications();
@@ -250,8 +248,8 @@ describe("notification state", () => {
   });
 
   it("setNotifFilter updates filter", () => {
-    indexModule.setNotifFilter("unread");
-    expect(indexModule.notifFilter).toBe("unread");
+    indexModule.setNotifFilter("secondary");
+    expect(indexModule.notifFilter).toBe("secondary");
   });
 });
 

@@ -205,4 +205,4 @@ export interface StrategiesState {
 }
 
 // View type
-export type StrategiesView = "list" | "templates" | "bots" | "performance";
+export type StrategiesView = "tree" | "list" | "templates" | "bots" | "performance";

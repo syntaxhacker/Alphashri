@@ -5,6 +5,7 @@ vi.mock("./utils", async () => {
   return createApiUtilsMock();
 });
 
+import type { BotCreate } from "../types/bots";
 import { apiGet, apiPost, apiPut, apiDelete, apiPostAction } from "./utils";
 
 import {
@@ -65,7 +66,10 @@ describe("getBot", () => {
 
 describe("createBot", () => {
   it("creates bot with provided data", async () => {
-    const botData = { name: "New Bot", strategy_ids: ["orb"] };
+    const botData: BotCreate = {
+      name: "New Bot",
+      strategies: [{ strategy_id: "orb", max_positions: 5, capital_allocation_pct: 0.5 }],
+    };
     const createdBot = { bot_id: "1", ...botData };
     mockedApiPost.mockResolvedValue(createdBot);
 

@@ -57,6 +57,7 @@ import { fetchWithAuth } from "../state/auth";
 import { fetchData, resetLoadingState, detectAutoRefreshChanges, setRenderCallback, setupAutoRefresh } from "./index";
 import * as state from "../state";
 import * as backtestModule from "../state/backtest";
+import type { BacktestState } from "../state/backtest";
 import { isAbortError } from "../hooks/useFetch";
 import { detectAddedSymbols } from "../utils/runtime_utils";
 import { pushNotification, markNewSymbols } from "../utils/notifications";
@@ -255,7 +256,10 @@ describe("setupAutoRefresh", () => {
 
   it("skips auto-refresh on backtest view", async () => {
     vi.useFakeTimers();
-    vi.mocked(backtestModule.getBacktestState).mockReturnValue({ currentView: "backtest" });
+    // Only `currentView` is read by the guard under test.
+    vi.mocked(backtestModule.getBacktestState).mockReturnValue({
+      currentView: "backtest",
+    } as unknown as BacktestState);
     setupAutoRefresh();
     await vi.advanceTimersByTimeAsync(60000);
     expect(mockedFetch).not.toHaveBeenCalled();

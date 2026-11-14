@@ -99,8 +99,6 @@ export function checkPriceSurges(
       {
         type: moveValue > 0 ? "success" : "error",
         duration: 8000,
-        positionX: "right",
-        positionY: "bottom",
       },
     );
 

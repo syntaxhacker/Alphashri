@@ -17,21 +17,22 @@ function mapColorToVariant(color?: string): ToastType {
 /** Bottom-right stack, matching the old notistack anchor. */
 const POSITION = { positionX: "right", positionY: "bottom" } as const;
 
+/** `positionX`/`positionY` are toaster-level config, not per-toast (they are
+ *  omitted from `ToastOptions`), so they must be set on the host. */
 export function showNotification(options: UIThemeNotifyProps) {
   showToast(options.message, {
     type: mapColorToVariant(options.color as string),
     duration:
       typeof options.autoClose === "number" ? options.autoClose : options.autoClose === false ? false : 4000,
-    ...POSITION,
   });
 }
 
 export function showSuccess(title: string, message: string) {
-  showToast(message || title, { type: "success", duration: 4000, ...POSITION });
+  showToast(message || title, { type: "success", duration: 4000 });
 }
 
 export function showError(title: string, message: string) {
-  showToast(message || title, { type: "error", duration: 5000, ...POSITION });
+  showToast(message || title, { type: "error", duration: 5000 });
 }
 
 /**
@@ -41,7 +42,7 @@ export function showError(title: string, message: string) {
 export function Notifications(props: { children?: JSX.Element }) {
   return (
     <ToastProvider>
-      <Toaster />
+      <Toaster {...POSITION} />
       {props.children}
     </ToastProvider>
   );

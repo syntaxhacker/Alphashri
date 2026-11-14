@@ -15,6 +15,16 @@ import {
 
 type ReplayConfig = Parameters<typeof runReplay>[0];
 
+const defaultConfig = (overrides: Partial<ReplayConfig> = {}): ReplayConfig => ({
+  date: "2024-01-01",
+  end_date: "",
+  strategy: "ALL",
+  symbols: ["TATASTEEL"],
+  refresh_cache: false,
+  bot_uuid: "",
+  ...overrides,
+});
+
 function makeReplayHandlers() {
   return { onEvent: vi.fn(), onError: vi.fn(), onComplete: vi.fn() };
 }
@@ -28,7 +38,14 @@ function startSseReplay(config: ReplayConfig, events: unknown[]) {
 
 async function runPrimedReplay(
   prime: () => void,
-  config: ReplayConfig = { symbols: ["TATASTEEL"] } as ReplayConfig,
+  config: ReplayConfig = {
+    date: "2024-01-01",
+    end_date: "",
+    strategy: "ALL",
+    symbols: ["TATASTEEL"],
+    refresh_cache: false,
+    bot_uuid: "",
+  },
 ) {
   prime();
   const handlers = makeReplayHandlers();
@@ -83,7 +100,14 @@ describe("runReplay", () => {
   });
 
   it("streams events and calls onEvent for each SSE event", async () => {
-    const mockConfig = { symbols: ["TATASTEEL"], start_date: "2024-01-01", end_date: "2024-01-02" };
+    const mockConfig: ReplayConfig = {
+      date: "2024-01-01",
+      end_date: "2024-01-02",
+      strategy: "ALL",
+      symbols: ["TATASTEEL"],
+      refresh_cache: false,
+      bot_uuid: "",
+    };
     const mockEvents = [
       { type: "progress", percent: 25, message: "Processing..." },
       { type: "progress", percent: 50, message: "Halfway there" },
@@ -104,7 +128,14 @@ describe("runReplay", () => {
   });
 
   it("sends correct POST request with config as JSON", async () => {
-    const mockConfig = { symbols: ["TATASTEEL"], start_date: "2024-01-01" };
+    const mockConfig: ReplayConfig = {
+      date: "2024-01-01",
+      end_date: "",
+      strategy: "ALL",
+      symbols: ["TATASTEEL"],
+      refresh_cache: false,
+      bot_uuid: "",
+    };
     startSseReplay(mockConfig, [{ type: "complete" }]);
 
     await waitAsync();
@@ -117,7 +148,7 @@ describe("runReplay", () => {
   });
 
   it("aborts when cancel function is called", async () => {
-    const mockConfig = { symbols: ["TATASTEEL"] };
+    const mockConfig = defaultConfig();
     const mockEvents = [{ type: "progress", percent: 25 }, { type: "complete" }];
     const { onComplete, cancel } = startSseReplay(mockConfig, mockEvents);
 
@@ -131,7 +162,7 @@ describe("runReplay", () => {
   });
 
   it("returns a cancel function", () => {
-    const mockConfig = { symbols: ["TATASTEEL"] };
+    const mockConfig = defaultConfig();
     const { cancel } = startSseReplay(mockConfig, []);
 
     expect(typeof cancel).toBe("function");
@@ -157,7 +188,7 @@ describe("runReplay", () => {
   });
 
   it("handles malformed SSE events gracefully", async () => {
-    const mockConfig = { symbols: ["TATASTEEL"] };
+    const mockConfig = defaultConfig();
     const { onEvent } = startSseReplay(mockConfig, [{ type: "complete" }]);
 
     await waitAsync();
@@ -167,7 +198,7 @@ describe("runReplay", () => {
   });
 
   it("passes AbortSignal to fetch", async () => {
-    const mockConfig = { symbols: ["TATASTEEL"] };
+    const mockConfig = defaultConfig();
 
     new AbortController(); // Just verify abort controller can be created
 

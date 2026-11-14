@@ -5,6 +5,7 @@
  */
 
 import { fetchWithAuth } from "../state/auth";
+import type { ORBZone } from "../types/backtest";
 import { API_ENDPOINTS } from "./config";
 
 const API_BASE = API_ENDPOINTS.CHART_PREVIEW;
@@ -18,12 +19,6 @@ export interface PreviewCandle {
   low: number;
   close: number;
   volume: number;
-}
-
-export interface PivotLevel {
-  date: string;
-  date_raw: string;
-  pp: number; // Pivot Point
 }
 
 export interface PivotLevel {

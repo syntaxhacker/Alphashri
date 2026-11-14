@@ -247,7 +247,6 @@ describe("buildTooltip", () => {
 
     it("returns empty string when params is null/undefined", () => {
       const formatter = buildTooltip(mockCandles);
-      // @ts-expect-error testing edge case
       const result = formatter(null);
       expect(result).toBe("");
     });
