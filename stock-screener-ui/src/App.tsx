@@ -34,6 +34,7 @@ const PatternsContainer = lazy(() => import("./pages/patterns/PatternsContainer"
 const ReportContainer = lazy(() => import("./pages/report/ReportContainer").then(m => ({ default: m.ReportContainer })));
 const ProfitabilityPage = lazy(() => import("./pages/report/Profitability").then(m => ({ default: m.ProfitabilityPage })));
 const SmcPoc = lazy(() => import("./pages/poc/SmcPoc"));
+const KitPoc = lazy(() => import("./pages/poc/KitPoc").then((m) => ({ default: m.KitPoc })));
 const SmcTrades = lazy(() => import("./pages/poc/SmcTrades"));
 const TickReplay = lazy(() => import("./pages/poc/TickReplay"));
 const ReplayStrategyPage = lazy(() => import("./pages/poc/ReplayStrategyPage"));
@@ -126,6 +127,7 @@ function AppContent() {
           <Route path="/patterns" component={PatternsContainer} />
           <Route path="/report" component={ReportContainer} />
           <Route path="/report/profit" component={ProfitabilityPage} />
+          <Route path="/poc/kit" component={KitPoc} />
           <Route path="/poc/smc" component={SmcPoc} />
           <Route path="/poc/smc-trades" component={SmcTrades} />
           <Route path="/poc/tick-replay" component={TickReplay} />
