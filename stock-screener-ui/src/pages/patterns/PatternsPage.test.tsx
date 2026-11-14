@@ -857,6 +857,48 @@ describe("PatternsPage toolbar", () => {
     expect(screen.getByTestId("patterns-job-status")).toBeInTheDocument();
   });
 
+  test("scan setup group carries symbol, timeframe and bars", () => {
+    r(<PatternsPage {...makeProps()} />);
+    const scope = screen.getByTestId("patterns-scan-scope");
+    expect(within(scope).getByTestId("patterns-symbol-filter")).toBeInTheDocument();
+    expect(within(scope).getByTestId("patterns-timeframe-select")).toBeInTheDocument();
+    expect(within(scope).getByTestId("patterns-lookback-select")).toBeInTheDocument();
+  });
+
+  test("one divider separates scan setup from the scan toggles", () => {
+    r(<PatternsPage {...makeProps()} />);
+    const toolbar = screen.getByTestId("patterns-results-toolbar");
+    expect(within(toolbar).getAllByRole("separator")).toHaveLength(1);
+    expect(within(toolbar).getByTestId("patterns-replay-toggle")).toBeInTheDocument();
+    expect(within(toolbar).getByTestId("patterns-compute-trendlines")).toBeInTheDocument();
+  });
+
+  test("search sits immediately before the view toggle in the results group", () => {
+    r(<PatternsPage {...makeProps()} />);
+    const results = screen.getByTestId("patterns-results-view-toolbar");
+    const ids = Array.from(results.querySelectorAll("[data-testid]")).map(
+      (el) => el.getAttribute("data-testid") ?? "",
+    );
+    const searchAt = ids.indexOf("patterns-results-search");
+    const toggleAt = ids.indexOf("patterns-view-toggle");
+    expect(searchAt).toBeGreaterThanOrEqual(0);
+    expect(toggleAt).toBe(searchAt + 1);
+    expect(within(results).getByTestId("patterns-open-filters")).toBeInTheDocument();
+  });
+
+  test("the band never wraps and every control is one height", () => {
+    r(<PatternsPage {...makeProps()} />);
+    const results = screen.getByTestId("patterns-results-view-toolbar");
+    const band = results.parentElement;
+    expect(band?.className).toContain("flex-nowrap");
+    expect(screen.getByTestId("patterns-results-toolbar").className).toContain("flex-nowrap");
+    expect(screen.getByTestId("patterns-open-filters")).toHaveStyle({ height: "30px" });
+    expect(screen.getByTestId("patterns-overflow")).toHaveStyle({
+      width: "30px",
+      height: "30px",
+    });
+  });
+
   test("toolbar shows timeframe, lookback, filter-results and TLS/TLR controls", () => {
     r(<PatternsPage {...makeProps()} />);
     expect(screen.getByTestId("patterns-timeframe-select")).toBeInTheDocument();

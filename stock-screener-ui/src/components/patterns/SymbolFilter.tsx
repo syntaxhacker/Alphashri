@@ -118,7 +118,6 @@ export function SymbolFilter(props: SymbolFilterProps) {
             hidePickedOptions
             hideTags
             size="xs"
-            h={22}
             placeholder={placeholder()}
             nothingFoundMessage="No symbols found"
             style={{ width: "100%" }}

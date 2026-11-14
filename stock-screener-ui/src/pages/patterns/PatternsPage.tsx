@@ -67,6 +67,9 @@ export const PATTERNS_CSV_COLUMNS: CsvColumn[] = [
   { key: "bars_ago", header: "Bars ago" },
 ];
 
+/** Single control height for the scan band: the kit's `xs` inputs are 30px. */
+const TOOLBAR_CONTROL_H = "30px";
+
 /** Order-insensitive shallow comparison used for the modal's dirty check. */
 function sameFilters(a: PatternFilters, b: PatternFilters): boolean {
   const keys = new Set([...Object.keys(a), ...Object.keys(b)]) as Set<keyof PatternFilters>;
@@ -683,17 +686,18 @@ export function PatternsPage(props: PatternsPageProps) {
           ) : null
         }
         actions={
-          <Box
-            className="flex w-full min-w-0 flex-row items-center gap-2"
-          >
+          <Box className="flex w-full min-w-0 flex-row flex-nowrap items-center gap-2">
             <ToolbarRow
               justify="flex-start"
               gap={8}
               wrap={false}
+              className="min-w-0"
               data-testid="patterns-results-toolbar"
             >
               <Box
                 data-testid="patterns-scan-scope"
+                role="group"
+                aria-label="Scan setup"
                 className="flex shrink-0 items-center gap-2"
               >
                 <Box className="w-[210px] shrink-0">
@@ -705,35 +709,36 @@ export function PatternsPage(props: PatternsPageProps) {
                     helperText=""
                   />
                 </Box>
+                <TimeframeSelect
+                  timeframes={timeframes()}
+                  value={tfSelection()}
+                  onChange={(next) => {
+                    if (setSelectedTimeframes) setSelectedTimeframes(next);
+                    else setTimeframe(next[0] ?? timeframe());
+                  }}
+                />
+                <LookbackSelect value={lookbackBars()} onChange={setLookbackBars} />
               </Box>
               <Divider orientation="vertical" style={{ height: "18px", "align-self": "center" }} />
-              <TimeframeSelect
-                timeframes={timeframes()}
-                value={tfSelection()}
-                onChange={(next) => {
-                  if (setSelectedTimeframes) setSelectedTimeframes(next);
-                  else setTimeframe(next[0] ?? timeframe());
-                }}
-              />
-              <LookbackSelect value={lookbackBars()} onChange={setLookbackBars} />
-              <ReplayScanControl onReplayScan={scanReplay} />
-              {replayAsOf() ? (
-                <Text size="xs" c="dimmed" data-testid="patterns-scan-asof">
-                  {`as of ${formatAsOfLabel(replayAsOf())}`}
-                </Text>
-              ) : null}
-              <Divider orientation="vertical" style={{ height: "18px", "align-self": "center" }} />
-              <Tooltip label="Draw standalone support / resistance lines (TLS = support, TLR = resistance)">
-                <Box className="inline-flex">
-                  <Switch
-                    label="TLS/TLR"
-                    size="sm"
-                    checked={computeTrendlines()}
-                    onChange={(e) => setComputeTrendlines(e.currentTarget.checked)}
-                    data-testid="patterns-compute-trendlines"
-                  />
-                </Box>
-              </Tooltip>
+              <Box role="group" aria-label="Scan options" className="flex shrink-0 items-center gap-2">
+                <ReplayScanControl onReplayScan={scanReplay} />
+                {replayAsOf() ? (
+                  <Text size="xs" c="dimmed" data-testid="patterns-scan-asof">
+                    {`as of ${formatAsOfLabel(replayAsOf())}`}
+                  </Text>
+                ) : null}
+                <Tooltip label="Draw standalone support / resistance lines (TLS = support, TLR = resistance)">
+                  <Box className="inline-flex">
+                    <Switch
+                      label="TLS/TLR"
+                      size="sm"
+                      checked={computeTrendlines()}
+                      onChange={(e) => setComputeTrendlines(e.currentTarget.checked)}
+                      data-testid="patterns-compute-trendlines"
+                    />
+                  </Box>
+                </Tooltip>
+              </Box>
             </ToolbarRow>
             <ToolbarRow
               justify="flex-end"
@@ -742,6 +747,7 @@ export function PatternsPage(props: PatternsPageProps) {
               className="ml-auto shrink-0"
               data-testid="patterns-results-view-toolbar"
             >
+              <ResultsSearch filters={filters()} setFilter={setFilter} />
               <SegmentedControl
                 data={[
                   { value: "matrix", label: "Matrix" },
@@ -755,6 +761,16 @@ export function PatternsPage(props: PatternsPageProps) {
                 size="xs"
                 data-testid="patterns-view-toggle"
               />
+              {tfSelection().length > 1 ? (
+                <Text
+                  size="xs"
+                  c="dimmed"
+                  style={{ "font-size": "10px", "white-space": "nowrap" }}
+                  data-testid="patterns-multi-tf-hint"
+                >
+                  {`List/Grid: ${timeframe()}`}
+                </Text>
+              ) : null}
               {universe() === "indices" ? (
                 <Select
                   data={[
@@ -772,18 +788,6 @@ export function PatternsPage(props: PatternsPageProps) {
                   data-testid="patterns-index-group"
                 />
               ) : null}
-              {tfSelection().length > 1 ? (
-                <Text
-                  size="xs"
-                  c="dimmed"
-                  style={{ "font-size": "10px", "white-space": "nowrap" }}
-                  data-testid="patterns-multi-tf-hint"
-                >
-                  {`List/Grid: ${timeframe()}`}
-                </Text>
-              ) : null}
-              <Box className="min-w-2 flex-1" />
-              <ResultsSearch filters={filters()} setFilter={setFilter} />
               <Tooltip
                 label={
                   activeFilterGroups().length > 0
@@ -798,6 +802,7 @@ export function PatternsPage(props: PatternsPageProps) {
                     leftSection={<IconAdjustmentsHorizontal size={14} />}
                     onClick={() => setFiltersOpen(true)}
                     data-testid="patterns-open-filters"
+                    style={{ height: TOOLBAR_CONTROL_H }}
                   >
                     {activeFilterCount() > 0 ? `Filters (${activeFilterCount()})` : "Filters"}
                   </Button>
@@ -810,6 +815,7 @@ export function PatternsPage(props: PatternsPageProps) {
                     size="sm"
                     aria-label="More actions"
                     data-testid="patterns-overflow"
+                    style={{ width: TOOLBAR_CONTROL_H, height: TOOLBAR_CONTROL_H }}
                   >
                     <IconDotsVertical size={15} />
                   </ActionIcon>
