@@ -35,6 +35,28 @@ import type {
 
 const REPLAY_STUB_REPORT = Object.freeze({}) as unknown as NiftyReport;
 
+/** Flush panel header label. CompactPanel styles only *string* titles, so a JSX
+ *  title (label + badges + control on one line) has to carry the same treatment
+ *  itself — otherwise it renders as body copy inside the header strip. */
+const PANEL_TITLE_STYLE: JSX.CSSProperties = {
+  "font-family": palette.MONO,
+  "font-size": `${REPORT_FONT.micro}px`,
+  "font-weight": REPORT_FONT_WEIGHT.bold,
+  "letter-spacing": REPORT_LETTER_SPACING.wide,
+  "text-transform": "uppercase",
+  "line-height": REPORT_LINE_HEIGHT.tight,
+  color: palette.PRIMARY,
+  "white-space": "nowrap",
+};
+
+export function ReportPanelTitle(props: { testId?: string; children: JSX.Element }) {
+  return (
+    <span data-testid={props.testId} style={PANEL_TITLE_STYLE}>
+      {props.children}
+    </span>
+  );
+}
+
 const DECISION_CELL_CLASS =
   "flex flex-col justify-center flex-[1_1_0] gap-[1px] min-w-[92px] md:min-w-[96px] px-1 py-0.5 border-l first:border-l-0";
 const DECISION_CELL_STYLE: JSX.CSSProperties = {

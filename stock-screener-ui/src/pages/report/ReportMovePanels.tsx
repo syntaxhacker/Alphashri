@@ -1,10 +1,11 @@
 import { For, Show } from "solid-js";
 import { Badge, Text } from "@/ui";
 import { CompactPanel } from "@/components/common/compact";
+import { NumCell } from "@/components/common/tableCells";
 import { LocalSymbolAvatar, LocalSparkline } from "./reportBits";
 import { ReportPanelTitle } from "./reportCells";
 import type { DailyMoveRow, DailyMovesPanelId } from "../../types/report";
-import { formatCurrency, formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
+import { formatCurrency, formatPercentage } from "../../utils/ui-helpers";
 import { symbolRowCursor, symbolRowProps } from "../../components/common/symbolRowProps";
 
 const MOVE_PANELS: Array<{ id: DailyMovesPanelId; title: string }> = [
@@ -51,18 +52,8 @@ function MoveRow(props: { row: DailyMoveRow; onOpenSymbol?: (symbol: string) => 
         </Show>
       </div>
       <div class="flex flex-col items-end shrink-0">
-        <Text size="xs" ta="right" span className="font-mono tabular-nums">
-          {formatCurrency(row().close, 2)}
-        </Text>
-        <Text
-          size="xs"
-          c={getPnLTextColor(row().change)}
-          ta="right"
-          span
-          className="font-mono tabular-nums"
-        >
-          {formatPercentage(row().change)}
-        </Text>
+        <NumCell value={row().close} format={(v) => formatCurrency(v, 2)} size="xs" />
+        <NumCell value={row().change} signed size="xs" format={(v) => formatPercentage(v)} />
       </div>
       <LocalSparkline data={row().spark ?? []} change={row().change} width={64} height={20} />
     </div>
@@ -78,40 +69,46 @@ export function ReportMovePanels(props: ReportMovePanelsProps) {
   const moves = () => props.moves;
   const onOpenSymbol = () => props.onOpenSymbol;
   return (
-    <div class={`grid ${PANEL_GRID_COLS} gap-0 min-w-0 w-full`}>
+    // One bordered grid, not nine nested cards: the wrapper owns the top/left
+    // rules and each cell its bottom/right, so every panel is separated by a
+    // single 1px rule at any column count.
+    <div class={`grid ${PANEL_GRID_COLS} gap-0 min-w-0 w-full border-t border-l border-fin-border`}>
       <For each={MOVE_PANELS}>
         {(panel) => {
           const rows = () => moves()?.[panel.id] ?? [];
           return (
-            <CompactPanel
-              flush
-              testId={`report-moves-${panel.id}`}
-              title={
-                <ReportPanelTitle testId={`report-moves-${panel.id}-title`}>
-                  {panel.title}
-                </ReportPanelTitle>
-              }
-              action={
-                <Badge size="xs" data-testid={`report-moves-${panel.id}-count`}>
-                  {rows().length}
-                </Badge>
-              }
-            >
-              <Show
-                when={rows().length === 0}
-                fallback={
-                  <div data-testid={`report-moves-${panel.id}-rows`}>
-                    <For each={rows()}>{(row) => <MoveRow row={row} onOpenSymbol={onOpenSymbol()} />}</For>
-                  </div>
+            <div class="min-w-0 border-b border-r border-fin-border">
+              <CompactPanel
+                flush
+                padded={false}
+                testId={`report-moves-${panel.id}`}
+                title={
+                  <ReportPanelTitle testId={`report-moves-${panel.id}-title`}>
+                    {panel.title}
+                  </ReportPanelTitle>
+                }
+                action={
+                  <Badge size="xs" data-testid={`report-moves-${panel.id}-count`}>
+                    {rows().length}
+                  </Badge>
                 }
               >
-                <div class="px-2 py-1" data-testid={`report-moves-${panel.id}-empty`}>
-                  <Text size="xs" c="dimmed">
-                    No stocks qualify
-                  </Text>
-                </div>
-              </Show>
-            </CompactPanel>
+                <Show
+                  when={rows().length === 0}
+                  fallback={
+                    <div data-testid={`report-moves-${panel.id}-rows`}>
+                      <For each={rows()}>{(row) => <MoveRow row={row} onOpenSymbol={onOpenSymbol()} />}</For>
+                    </div>
+                  }
+                >
+                  <div class="px-2 py-1" data-testid={`report-moves-${panel.id}-empty`}>
+                    <Text size="xs" c="dimmed">
+                      No stocks qualify
+                    </Text>
+                  </div>
+                </Show>
+              </CompactPanel>
+            </div>
           );
         }}
       </For>
