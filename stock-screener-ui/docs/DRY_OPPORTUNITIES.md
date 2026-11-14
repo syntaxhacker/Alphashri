@@ -9,7 +9,7 @@
 - Found 11 clones in production `src/` (0.72% duplicated lines).
 - **Key production duplicates (refactor candidates):**
   1. **52W Gap column logic**:
-     - `src/components/screener/columns/52wHigh.ts:6-15` (gapCol formatting with color classes)
+     - `src/components/screener/columns/52wHigh.tsx` (gapCol formatting with color classes)
      - `src/components/screener/columns/near52wBreakout.ts:20-29`
      - *Opportunity:* Extract to shared `src/components/screener/columns/gapCol.ts` or base.
   2. **Heatmap utils internal dup**:
