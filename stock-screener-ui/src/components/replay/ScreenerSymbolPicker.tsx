@@ -1,5 +1,5 @@
 import { createSignal, Show, For } from "solid-js";
-import { Select, Button, Checkbox, ScrollArea, Text, Badge, Divider, Modal, Stack, Group } from "@/ui";
+import { Select, Button, Checkbox, ScrollArea, Text, Badge, Divider, Modal, Stack, Group, Tooltip, ActionIcon } from "@/ui";
 import { IconDatabase, IconPlus } from "@/components/common/Icons";
 import { fetchWithAuth } from "../../state/auth";
 import type { Stock } from "../../types";
@@ -123,16 +123,17 @@ export function ScreenerSymbolPicker(props: ScreenerSymbolPickerProps) {
 
   return (
     <>
-      <Button
-        size="sm"
-        variant="subtle"
-        color="secondary"
-        leftSection={<IconDatabase size={16} />}
-        onClick={() => setOpened(true)}
-        data-testid="screener-picker-btn"
-      >
-        Load
-      </Button>
+      <Tooltip label="Load symbols from a screener">
+        <ActionIcon
+          size="sm"
+          variant="subtle"
+          color="secondary"
+          onClick={() => setOpened(true)}
+          data-testid="screener-picker-btn"
+        >
+          <IconDatabase size={16} />
+        </ActionIcon>
+      </Tooltip>
 
       <Modal
         opened={opened()}

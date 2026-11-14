@@ -1,6 +1,7 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { Box, Button, Chip, Divider, MultiSelect, Select, Switch, Text, TextInput, ToolbarRow, Tooltip } from "@/ui";
+import { CompactPanel } from "@/components/common/compact";
 import { IconX, IconRestore } from "@/patterns/icons";
 import type {
   PatternDef,
@@ -57,38 +58,16 @@ function toggle(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 }
 
+/** Section header: 10px, uppercase, muted, tracking-[0.06em]. */
 function Section(props: {
   title: string;
   info?: JSX.Element;
-  level?: "group" | "field";
   children: JSX.Element;
 }) {
-  // `field` is the compact form used inside a group: a 10px muted label and the
-  // control, with no rule. `group` owns the single rule for a group of fields.
-  if (props.level === "field") {
-    return (
-      <Box className="flex min-w-0 flex-col gap-0.5">
-        <Box className="flex items-center gap-1">
-          <Text
-            size="xs"
-            c="dimmed"
-            className="tracking-wide uppercase"
-            style={{ "font-size": "10px", "line-height": 1.2 }}
-          >
-            {props.title}
-          </Text>
-          {props.info}
-        </Box>
-        {props.children}
-      </Box>
-    );
-  }
   return (
-    <Box className="flex flex-col gap-1">
-      <Box
-        className="flex items-center gap-1 border-b border-fin-border pb-0.5"
-      >
-        <Text fw={700} c="dimmed" className="text-[10px] tracking-wide uppercase">
+    <Box className="flex min-w-0 flex-col gap-1">
+      <Box className="flex items-center gap-1">
+        <Text c="dimmed" className="text-[10px] font-semibold uppercase tracking-[0.06em]">
           {props.title}
         </Text>
         {props.info}
@@ -500,7 +479,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
   );
 
   const formedSection = (
-    <Section title="Formed within (bars)" level="field">
+    <Section title="Formed within (bars)">
       <Box data-testid="patterns-filter-formed-within">
         <Select
           data={[
@@ -517,7 +496,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
   );
 
   const dateSection = (
-    <Section title="Formed between" level="field">
+    <Section title="Formed between">
       <Box className="flex flex-col gap-2">
         <Box className="flex flex-col gap-1">
           <Text size="xs" c="dimmed">
@@ -619,7 +598,6 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
   const historySection = (
     <Section
       title="Patterns per symbol"
-      level="field"
       info={
         <InfoTip
           title="Patterns per symbol"
@@ -655,7 +633,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
   );
 
   const baseSection = (
-    <Section title="Base length (days)" level="field">
+    <Section title="Base length (days)">
       <Box data-testid="patterns-filter-min-base">
         <Select
           data={[
@@ -672,7 +650,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
   );
 
   const rangeSection = (
-    <Section title="Range ≤ %" level="field">
+    <Section title="Range ≤ %">
       <FilterNumber
         value={props.filters.max_range_pct}
         onChange={(v) => props.setFilter("max_range_pct", v)}
@@ -684,7 +662,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
   );
 
   const gap52Section = (
-    <Section title="52W gap ≤ %" level="field">
+    <Section title="52W gap ≤ %">
       <FilterNumber
         value={props.filters.max_52w_gap}
         onChange={(v) => props.setFilter("max_52w_gap", v)}
@@ -697,7 +675,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
   );
 
   const rangePosSection = (
-    <Section title="Range pos ≥ %" level="field">
+    <Section title="Range pos ≥ %">
       <FilterNumber
         value={props.filters.min_range_pos}
         onChange={(v) => props.setFilter("min_range_pos", v)}
@@ -712,7 +690,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
   // Result-level client-side floors (filtered in the store selector, never sent
   // to the API): pattern-fit confidence and breakout conviction.
   const scoreSection = (
-    <Section title="Score ≥" level="field">
+    <Section title="Score ≥">
       <FilterNumber
         value={props.filters.min_confidence}
         onChange={(v) => props.setFilter("min_confidence", v)}
@@ -725,7 +703,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
   );
 
   const breakoutSection = (
-    <Section title="Breakout ≥" level="field">
+    <Section title="Breakout ≥">
       <FilterNumber
         value={props.filters.min_breakout_score}
         onChange={(v) => props.setFilter("min_breakout_score", v)}
@@ -740,7 +718,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
   // Scan-time volume pre-filters: the scan pre-filters the universe via
   // TradingView before fetching candles (unlike the result-level filters).
   const relVolumeField = (
-    <Section title="Rel vol ≥" level="field">
+    <Section title="Rel vol ≥">
       <FilterNumber
         value={props.filters.min_rel_volume}
         onChange={(v) => props.setFilter("min_rel_volume", v)}
@@ -753,7 +731,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
   );
 
   const volumeMField = (
-    <Section title="Volume ≥ M" level="field">
+    <Section title="Volume ≥ M">
       <FilterNumber
         value={props.filters.min_volume_m}
         onChange={(v) => props.setFilter("min_volume_m", v)}
@@ -766,7 +744,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
   );
 
   const avgVolume10dField = (
-    <Section title="10d avg vol ≥ K" level="field">
+    <Section title="10d avg vol ≥ K">
       <FilterNumber
         value={props.filters.min_avg_volume_10d}
         onChange={(v) => props.setFilter("min_avg_volume_10d", v)}
@@ -781,7 +759,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
   // View-only overlay toggle: controls which standalone support/resistance
   // lines are drawn on the card/fullscreen charts. Never sent to the API.
   const trendlinesSection = (
-    <Section title="Trendlines" level="field">
+    <Section title="Trendlines">
       <Select
         data={[
           { value: "both", label: "Both" },
@@ -822,137 +800,134 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
     </Box>
   );
 
+  const railContent = (
+    <>
+      {/* Pattern: presets · family · gallery */}
+      <Box className="flex min-w-0 flex-col gap-1">
+        {presetsSection}
+        {familySection}
+        {patternsSection}
+      </Box>
+      <Divider />
+      {/* Direction/Quality */}
+      <Box className="flex min-w-0 flex-col gap-1">
+        {directionSection}
+        {statusSection}
+        {qualitySection}
+      </Box>
+      <Divider />
+      {/* Score/Range */}
+      <Box className="flex min-w-0 flex-col gap-1">
+        {formedSection}
+        {dateSection}
+        {sortSection}
+        {historySection}
+        {baseSection}
+        {rangeSection}
+        {gap52Section}
+        {rangePosSection}
+        {scoreSection}
+        {breakoutSection}
+        <Section title="Volume scan">
+          <Box className="grid grid-cols-3 gap-2">
+            {relVolumeField}
+            {volumeMField}
+            {avgVolume10dField}
+          </Box>
+        </Section>
+        {replaySection}
+        {volumeSection}
+      </Box>
+      <Divider />
+      {/* Triggers/Display */}
+      <Box className="flex min-w-0 flex-col gap-1">
+        {trendlinesSection}
+      </Box>
+    </>
+  );
+
   if (panel()) {
     // Explicit, top-aligned columns so the grouping is obvious:
     //   What (presets/family/direction/status/quality) · Patterns · Refine.
     return (
-      <Box
-        data-testid="patterns-filter-rail"
-        className="grid grid-cols-1 items-start gap-2 lg:grid-cols-[minmax(220px,0.78fr)_minmax(320px,1.4fr)_minmax(320px,1.2fr)]"
-      >
-        <Box className="flex min-w-0 flex-col gap-1.5">
-          {presetsSection}
-          {familySection}
-          {directionSection}
-          {statusSection}
-          {qualitySection}
-          {sortSection}
-{historySection}
-        </Box>
-        <Box className="flex min-w-0 flex-col gap-1.5">
-          {patternsSection}
-        </Box>
-        <Box className="flex min-w-0 flex-col gap-1.5">
-          <Section title="Freshness">
-            <Box
-              className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-1"
+      <CompactPanel flush testId="patterns-filter-rail">
+        <Box
+          className="grid grid-cols-1 items-start gap-2 lg:grid-cols-[minmax(220px,0.78fr)_minmax(320px,1.4fr)_minmax(320px,1.2fr)]"
+        >
+          <Box className="flex min-w-0 flex-col gap-1.5">
+            {presetsSection}
+            {familySection}
+            {directionSection}
+            {statusSection}
+            {qualitySection}
+            {sortSection}
+            {historySection}
+          </Box>
+          <Box className="flex min-w-0 flex-col gap-1.5">
+            {patternsSection}
+          </Box>
+          <Box className="flex min-w-0 flex-col gap-1.5">
+            <Section title="Freshness">
+              <Box
+                className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-1"
+              >
+                {formedSection}
+                {dateSection}
+              </Box>
+            </Section>
+            <Section title="Structure">
+              <Box
+                className="grid grid-cols-2 gap-1"
+              >
+                {baseSection}
+                {rangeSection}
+                {gap52Section}
+                {rangePosSection}
+              </Box>
+            </Section>
+            <button
+              type="button"
+              onClick={() => setAdvancedOpen((open) => !open)}
+              aria-expanded={advancedOpen()}
+              aria-controls="patterns-advanced-section"
+              data-testid="patterns-filter-advanced"
+              className="inline-flex h-6 items-center self-start rounded-fin border border-fin-border bg-transparent px-2 text-xs text-fin-text-muted transition-colors hover:bg-fin-surface-alt"
             >
-              {formedSection}
-              {dateSection}
-            </Box>
-          </Section>
-          <Section title="Structure">
+              {advancedOpen() ? "Advanced ▾" : advancedActive() ? "Advanced •" : "Advanced ▸"}
+            </button>
             <Box
-              className="grid grid-cols-2 gap-1"
+              id="patterns-advanced-section"
+              className={advancedOpen() ? "flex flex-col gap-1.5" : "hidden"}
             >
-              {baseSection}
-              {rangeSection}
-              {gap52Section}
-              {rangePosSection}
+            <Section title="Scores">
+              <Box
+                className="grid grid-cols-2 gap-1"
+              >
+                {scoreSection}
+                {breakoutSection}
+              </Box>
+              {volumeSection}
+            </Section>
+            <Section title="Volume scan">
+              <Box
+                className="grid grid-cols-[repeat(auto-fit,minmax(80px,1fr))] gap-1"
+              >
+                {relVolumeField}
+                {volumeMField}
+                {avgVolume10dField}
+              </Box>
+            </Section>
+            <Section title="Display">{trendlinesSection}</Section>
             </Box>
-          </Section>
-          <button
-            type="button"
-            onClick={() => setAdvancedOpen((open) => !open)}
-            aria-expanded={advancedOpen()}
-            aria-controls="patterns-advanced-section"
-            data-testid="patterns-filter-advanced"
-            className="inline-flex h-6 items-center self-start rounded-fin border border-fin-border bg-transparent px-2 text-xs text-fin-text-muted transition-colors hover:bg-fin-surface-alt"
-          >
-            {advancedOpen() ? "Advanced ▾" : advancedActive() ? "Advanced •" : "Advanced ▸"}
-          </button>
-          <Box
-            id="patterns-advanced-section"
-            className={advancedOpen() ? "flex flex-col gap-1.5" : "hidden"}
-          >
-          <Section title="Scores">
-            <Box
-              className="grid grid-cols-2 gap-1"
-            >
-              {scoreSection}
-              {breakoutSection}
-            </Box>
-            {volumeSection}
-          </Section>
-          <Section title="Volume scan">
-            <Box
-              className="grid grid-cols-[repeat(auto-fit,minmax(80px,1fr))] gap-1"
-            >
-              {relVolumeField}
-              {volumeMField}
-              {avgVolume10dField}
-            </Box>
-          </Section>
-          <Section title="Display">{trendlinesSection}</Section>
           </Box>
         </Box>
-      </Box>
+      </CompactPanel>
     );
   }
 
   return (
-    <Box
-      data-testid="patterns-filter-rail"
-      className="flex flex-col gap-3"
-    >
-      {presetsSection}
-      <Divider />
-      {familySection}
-      <Divider />
-      {patternsSection}
-      <Divider />
-      {directionSection}
-      <Divider />
-      {statusSection}
-      <Divider />
-      {qualitySection}
-      <Divider />
-      {formedSection}
-      <Divider />
-      {dateSection}
-      <Divider />
-      {sortSection}
-{historySection}
-      <Divider />
-      {trendlinesSection}
-      <Divider />
-      {baseSection}
-      <Divider />
-      {rangeSection}
-      <Divider />
-      {gap52Section}
-      <Divider />
-      {rangePosSection}
-      <Divider />
-      {scoreSection}
-      <Divider />
-      {breakoutSection}
-      <Divider />
-      <Section title="Volume scan">
-        <Box
-          className="grid grid-cols-3 gap-2"
-        >
-          {relVolumeField}
-          {volumeMField}
-          {avgVolume10dField}
-        </Box>
-      </Section>
-      <Divider />
-      <Show when={replaySection}>
-        {replaySection}
-        <Divider />
-      </Show>
-      {volumeSection}
-    </Box>
+    <CompactPanel flush testId="patterns-filter-rail">
+      {railContent}
+    </CompactPanel>
   );
 }

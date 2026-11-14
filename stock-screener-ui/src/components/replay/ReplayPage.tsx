@@ -5,7 +5,7 @@ import { ReplayStats } from "./ReplayStats";
 import { ReplayMainView } from "./ReplayMainView";
 import { ReplayPositions } from "./ReplayPositions";
 import { ReplaySummaryPanel } from "./ReplaySummary";
-import { Text, Title, ToolbarRow, Box } from "@/ui";
+import { Text, Box } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { ReplayTrade } from "../../types/replay";
 type ReplayStateHandle = ReturnType<typeof useReplayState>;
@@ -29,19 +29,33 @@ function ReplayPageContent(
       style={{ display: "flex", "flex-direction": "column", overflow: "hidden", "background-color": palette.BG }}
       data-testid="replay-page"
     >
-      <ToolbarRow
-        gap={8}
-        wrap={false}
-        style={{ flex: "0 0 auto", height: "36px", padding: `0 ${palette.FIN_OUTER_PAD}px`, "border-bottom": `1px solid ${palette.BORDER}` }}
+      {/* One chrome band: page identity and every replay control on the same line. The
+          controls used to sit in three bordered rows (identity, config, stats). */}
+      <div
+        className="flex items-start flex-none border-b border-fin-border"
+        style={{
+          display: "flex",
+          "align-items": "flex-start",
+          gap: "8px",
+          "min-height": "32px",
+          padding: "1px 8px",
+          "border-bottom": `1px solid ${palette.BORDER}`,
+          overflow: "hidden",
+        }}
       >
-        <Title order={2} size="h4">
-          Replay Trading Day
-        </Title>
-        <Text size="sm" c="dimmed" style={{ "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" }}>
-          Simulate paper trading using historical candles
-        </Text>
-      </ToolbarRow>
-      <Box flex="0 0 auto" px="sm" py="xs" style={{ "border-bottom": `1px solid ${palette.BORDER}` }}>
+        <div className="flex items-center flex-none min-w-0" style={{ gap: "8px", height: "30px" }}>
+          <Text size="sm" fw={700} className="flex-none whitespace-nowrap">
+            Replay Trading Day
+          </Text>
+          <Text
+            size="sm"
+            c="dimmed"
+            className="hidden 2xl:block min-w-0"
+            style={{ "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" }}
+          >
+            Simulate paper trading using historical candles
+          </Text>
+        </div>
         <ReplayConfigBar
           config={state().config}
           isRunning={state().isRunning}
@@ -52,8 +66,8 @@ function ReplayPageContent(
           loadSymbols={props.handle.loadSymbols}
           error={state().error}
         />
-      </Box>
-      <Box flex="0 0 auto" px="sm" py="xs" style={{ "border-bottom": `1px solid ${palette.BORDER}` }}>
+      </div>
+      <Box flex="0 0 auto" px="sm" py="xs">
         <ReplayStats
           trades={state().trades}
           summary={state().summary}
@@ -63,7 +77,7 @@ function ReplayPageContent(
         />
       </Box>
       <Show when={state().openPositions.length > 0}>
-        <Box flex="0 0 auto" px="sm" py="xs" style={{ "border-bottom": `1px solid ${palette.BORDER}`, overflow: "auto", "max-height": "180px" }}>
+        <Box flex="0 0 auto" px="sm" py="xs" style={{ overflow: "auto", "max-height": "180px" }}>
           <ReplayPositions positions={state().openPositions} />
         </Box>
       </Show>

@@ -268,16 +268,14 @@ export default function ReplayShell(props: { plugin: ReplayStrategyPlugin; heade
         when={plugin().mode === "timeline"}
         fallback={
           <>
-            {manual() && (
-              <Stack direction="row" gap="sm" mb="sm" align="center">
-                {runButton()}
-              </Stack>
-            )}
             <Stack direction="row" gap="sm" mb="sm" align="center" wrap>
               {paramControls()}
               {!plugin().panel && <Button size="xs" variant="subtle" disabled style={{ "background-color": palette.REPLAY_CHIP_BG, color: palette.POSITIVE, "border-radius": "4px" }}>{trades().length} trades</Button>}
               {loading() && <Button size="xs" variant="subtle" disabled style={{ "background-color": palette.REPLAY_CHIP_BG, color: palette.PRIMARY, "border-radius": "4px" }}>loading ticks…</Button>}
               {bundle()?.error && <Button size="xs" variant="subtle" disabled style={{ "background-color": palette.REPLAY_CHIP_BG_ERROR, color: palette.REPLAY_CHIP_TEXT_ERROR, "border-radius": "4px" }}>{bundle()?.error}</Button>}
+              <Show when={manual()}>
+                <div class="ml-auto">{runButton()}</div>
+              </Show>
             </Stack>
             {plugin().panel?.(bundle() ?? EMPTY_BUNDLE, raw())}
             {!loading() && trades().length === 0 && (

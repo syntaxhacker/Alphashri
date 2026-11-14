@@ -1,6 +1,6 @@
 import { createSignal, createMemo, createEffect, For, Show, onMount, onCleanup } from "solid-js";
-import { Text, Select, Button, Switch, Alert, MultiSelect, Tooltip, ActionIcon, Badge, TextInput, Modal, Group, Box, Stack } from "@/ui";
-import { IconPlayerPlay, IconPlayerStop, IconAlertTriangle, IconX, IconDeviceFloppy, IconFolderOpen, IconTrash } from "@/components/common/Icons";
+import { Text, Select, Button, Switch, MultiSelect, Tooltip, ActionIcon, Badge, TextInput, Modal, Group, Box, Stack } from "@/ui";
+import { IconPlayerPlay, IconPlayerStop, IconX, IconDeviceFloppy, IconFolderOpen, IconTrash } from "@/components/common/Icons";
 import { ScreenerSymbolPicker } from "./ScreenerSymbolPicker";
 import { listBots } from "../../api/bots";
 import { searchSymbols } from "../../api/symbols";
@@ -150,14 +150,15 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
 
   return (
     <Box>
-      <Group gap="sm" wrap="wrap" align="flex-start" data-testid="replay-config">
-        <Box>
-          <Text size="xs" fw={500} style={{ "margin-bottom": "8px" }}>
-            Bot
-          </Text>
+      <Box
+        data-testid="replay-config"
+        className="flex flex-col flex-1 min-w-0"
+        style={{ gap: "2px", "justify-content": "center" }}
+      >
+        <div className="flex items-center min-w-0" style={{ gap: "8px", "row-gap": "4px", "flex-wrap": "wrap" }}>
           <Select
             size="sm"
-            w={180}
+            w={124}
             data={botOptions()}
             value={props.config.bot_uuid || null}
             onChange={(v) => props.setConfig({ bot_uuid: v ?? "" })}
@@ -167,49 +168,36 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
             placeholder="Default bot"
             data-testid="replay-bot-select"
           />
-        </Box>
 
-        <Group gap="xs" align="flex-start">
-          <Box data-testid="replay-date-from">
-            <Text size="xs" fw={500} style={{ "margin-bottom": "8px" }}>
-              From
-            </Text>
+          <Box data-testid="replay-date-from" className="flex items-center flex-none" style={{ gap: "4px" }}>
+            <span className="text-[10px] font-mono uppercase tracking-[0.06em] text-fin-text-muted">From</span>
             <TradingDatePicker
-              w={140}
+              w={112}
               maxDate={maxDate}
               value={props.config.date}
               onChange={(v) => props.setConfig({ date: v })}
-              placeholder="From"
             />
             {props.config.date && <span style={{ display: "none" }}>{formatDisplayDate(props.config.date)}</span>}
           </Box>
-          <Box data-testid="replay-date-to">
-            <Text size="xs" fw={500} style={{ "margin-bottom": "8px" }}>
-              To
-            </Text>
+          <Box data-testid="replay-date-to" className="flex items-center flex-none" style={{ gap: "4px" }}>
+            <span className="text-[10px] font-mono uppercase tracking-[0.06em] text-fin-text-muted">To</span>
             <TradingDatePicker
-              w={140}
+              w={112}
               maxDate={maxDate}
               value={props.config.end_date}
               onChange={(v) => props.setConfig({ end_date: v })}
-              placeholder="To"
             />
             {props.config.end_date && <span style={{ display: "none" }}>{formatDisplayDate(props.config.end_date)}</span>}
           </Box>
-        </Group>
 
-        <Box>
-          <Text size="xs" fw={500} style={{ "margin-bottom": "8px" }}>
-            Symbols
-          </Text>
-          <Group gap={4} align="center">
+          <div className="flex items-center flex-none" style={{ gap: "4px" }}>
             <ScreenerSymbolPicker
               symbols={props.config.symbols}
               onAddSymbols={(newSymbols) => props.setConfig({ symbols: [...props.config.symbols, ...newSymbols] })}
             />
             <MultiSelect
               size="sm"
-              w={220}
+              w={150}
               data={symbolOptions()}
               value={props.config.symbols}
               onChange={(v) => props.setConfig({ symbols: v })}
@@ -218,7 +206,7 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
               onSearchChange={setSymbolSearch}
               clearable
               hidePickedOptions
-              placeholder="Search symbols..."
+              placeholder="Symbols"
               nothingFoundMessage="No symbols found"
               maxDropdownHeight={200}
               data-testid="replay-symbols-select"
@@ -236,48 +224,34 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
                 </ActionIcon>
               </Tooltip>
             </Show>
-          </Group>
-          <Show when={props.config.symbols.length > 0}>
-            <Box mt={4} data-testid="symbol-chips">
-              <For each={props.config.symbols}>{(symbol) => (
-                <Badge
-                  variant="outline"
-                  size="sm"
-                  style={{ "margin-right": "8px", "margin-bottom": "8px" }}
-                  rightSection={
-                    <IconX
-                      size={10}
-                      style={{ cursor: "pointer" }}
-                      onClick={() =>
-                        props.setConfig({ symbols: props.config.symbols.filter((s) => s !== symbol) })
-                      }
-                    />
-                  }
-                >
-                  {symbol}
-                </Badge>
-              )}</For>
-            </Box>
-          </Show>
-        </Box>
+          </div>
 
-        <Box>
-          <Text size="xs" fw={500} style={{ "margin-bottom": "8px" }}>
-            Refresh Cache
-          </Text>
           <Switch
             size="sm"
+            label="Refresh cache"
+            className="flex-none whitespace-nowrap"
             checked={props.config.refresh_cache}
             onChange={(e) => props.setConfig({ refresh_cache: e.currentTarget.checked })}
             data-testid="replay-refresh-cache-switch"
           />
-        </Box>
 
-        <Box>
-          <Text size="xs" fw={500} style={{ "margin-bottom": "8px" }}>
-            &nbsp;
-          </Text>
-          <Group gap="xs" align="center">
+          <Show when={holidayWarning()}>
+            {(warning) => (
+              <Text
+                size="xs"
+                c="warning"
+                truncate
+                className="flex-none"
+                style={{ "max-width": "200px" }}
+                title={warning()}
+                data-testid="replay-holiday-warning"
+              >
+                {warning()}
+              </Text>
+            )}
+          </Show>
+
+          <div className="flex items-center ml-auto flex-none" style={{ gap: "8px" }}>
             <Show
               when={props.isRunning}
               fallback={
@@ -349,9 +323,38 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
                 Reset
               </Button>
             </Show>
-          </Group>
-        </Box>
-      </Group>
+          </div>
+        </div>
+
+        {/* Symbols already live in the multi-select; this one-line readout replaces the
+            stacked chip block that used to push the config row to its own band. */}
+        <Show when={props.config.symbols.length > 0}>
+          <div
+            data-testid="symbol-chips"
+            className="flex items-center overflow-hidden min-w-0"
+            style={{ gap: "4px", "flex-wrap": "nowrap", "max-height": "18px" }}
+          >
+            <For each={props.config.symbols}>{(symbol) => (
+              <Badge
+                variant="outline"
+                size="xs"
+                style={{ "white-space": "nowrap" }}
+                rightSection={
+                  <IconX
+                    size={10}
+                    style={{ cursor: "pointer" }}
+                    onClick={() =>
+                      props.setConfig({ symbols: props.config.symbols.filter((s) => s !== symbol) })
+                    }
+                  />
+                }
+              >
+                {symbol}
+              </Badge>
+            )}</For>
+          </div>
+        </Show>
+      </Box>
 
       {/* Save Config Modal */}
       <Modal
@@ -459,16 +462,6 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
           </Show>
         </Stack>
       </Modal>
-
-      <Show when={holidayWarning()}>
-        {(warning) => (
-          <Box mt="xs">
-            <Alert color="warning" icon={<IconAlertTriangle size={16} />}>
-              <Text size="xs">{warning()}</Text>
-            </Alert>
-          </Box>
-        )}
-      </Show>
     </Box>
   );
 }

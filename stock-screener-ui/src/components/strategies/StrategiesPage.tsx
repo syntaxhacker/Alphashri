@@ -10,7 +10,7 @@ import { CompactPanel } from "../common/compact";
 
 export function StrategiesPage(props: StrategiesPageProps) {
   return (
-    <Box className="strategies-page w-full h-full min-h-0 flex flex-col p-0 overflow-hidden px-4 py-2" data-testid="strategies-view" id="strategies-main">
+    <Box className="strategies-page w-full h-full min-h-0 flex flex-col p-0 overflow-hidden px-2 py-1" data-testid="strategies-view" id="strategies-main">
       <Box className="flex-1 min-h-0 flex flex-col" data-testid="strategies-content" id="strategies-content">
         <StrategiesNav activeView={props.activeView} onChange={props.onViewChange}>
           <Show
