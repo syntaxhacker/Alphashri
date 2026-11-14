@@ -353,8 +353,8 @@ export function DailyReportPage(props: DailyReportPageProps) {
   ];
 
   return (
-    <div data-testid="daily-report" class="flex flex-col gap-1 min-w-0 w-full flex-1 tabular-nums">
-      <ToolbarRow gap={8} data-testid="daily-report-toolbar" style={{ "min-height": "36px", position: "sticky", top: 0, "z-index": 10, "background-color": "var(--color-fin-surface)" }}>
+    <div data-testid="daily-report" class="flex flex-col min-w-0 w-full flex-1 tabular-nums">
+      <ToolbarRow gap={8} data-testid="daily-report-toolbar" style={{ "min-height": "32px", position: "sticky", top: 0, "z-index": 10, "background-color": "var(--color-fin-surface)" }}>
         <Text size="sm" fw={700} span data-testid="report-title" className="whitespace-nowrap">
           Daily Report
         </Text>
@@ -401,36 +401,37 @@ export function DailyReportPage(props: DailyReportPageProps) {
             </Badge>
           </Tooltip>
         </Show>
-        <div class="flex-1 min-w-0" />
-        <Show when={asOf()}>
-          <Text size="xs" c="dimmed" truncate span data-testid="report-asof" title={isCached() ? "Cached snapshot" : "Live snapshot"}>
-            as of {formatTimeOnly(asOf()!)}
-            <Show when={isCached()}>
-              <Text size="xs" c="dimmed" span data-testid="report-cached">
-                {" "}
-                (cached)
-              </Text>
-            </Show>
-          </Text>
-        </Show>
-        <Button
-          size="xs"
-          variant="subtle"
-          onClick={handleCopyCsv}
-          data-testid="report-copy-csv"
-          aria-label="Copy breakouts as CSV"
-        >
-          {copied() === "csv" ? "Copied!" : "Copy CSV"}
-        </Button>
-        <Button
-          size="xs"
-          variant="subtle"
-          onClick={handleCopySymbols}
-          data-testid="report-copy-symbols"
-          aria-label="Copy breakout symbols"
-        >
-          {copied() === "symbols" ? "Copied!" : "Copy symbols"}
-        </Button>
+        <div class="ml-auto flex items-center gap-2 flex-none min-w-0">
+          <Show when={asOf()}>
+            <Text size="xs" c="dimmed" truncate span data-testid="report-asof" title={isCached() ? "Cached snapshot" : "Live snapshot"}>
+              as of {formatTimeOnly(asOf()!)}
+              <Show when={isCached()}>
+                <Text size="xs" c="dimmed" span data-testid="report-cached">
+                  {" "}
+                  (cached)
+                </Text>
+              </Show>
+            </Text>
+          </Show>
+          <Button
+            size="xs"
+            variant="subtle"
+            onClick={handleCopyCsv}
+            data-testid="report-copy-csv"
+            aria-label="Copy breakouts as CSV"
+          >
+            {copied() === "csv" ? "Copied!" : "Copy CSV"}
+          </Button>
+          <Button
+            size="xs"
+            variant="subtle"
+            onClick={handleCopySymbols}
+            data-testid="report-copy-symbols"
+            aria-label="Copy breakout symbols"
+          >
+            {copied() === "symbols" ? "Copied!" : "Copy symbols"}
+          </Button>
+        </div>
       </ToolbarRow>
 
       <Show
@@ -439,9 +440,9 @@ export function DailyReportPage(props: DailyReportPageProps) {
           <Show
             when={isEmpty()}
             fallback={
-              <div class="flex flex-col gap-1 min-w-0 w-full" data-testid="report-tabs">
+              <div class="flex flex-col min-w-0 w-full" data-testid="report-tabs">
                     <div class="overflow-x-auto min-w-0">
-                      <div class="flex flex-row items-center gap-1 rounded-fin border border-fin-border bg-fin-surface p-[2px]" role="tablist" data-testid="report-tabs-list">
+                      <div class="flex flex-row items-center gap-1 h-7" role="tablist" data-testid="report-tabs-list">
                         <For each={tabs}>
                           {(t) => (
                             <button
