@@ -1,4 +1,4 @@
-import { createEffect, createSignal, Show, onCleanup } from "solid-js";
+import { createEffect, createSignal, For, Show, onCleanup } from "solid-js";
 import type { JSX } from "solid-js";
 import { Loader, Text, Tooltip } from "@/ui";
 import { IconChevronRight } from "@/components/common/Icons";
@@ -36,14 +36,14 @@ function MoverItem(props: { row: IndexMoverRow; isGainer: boolean }) {
   const signed = () => (isGainer() ? "+" : "");
   return (
     <span
-      className="inline-flex items-center gap-1 shrink-0 whitespace-nowrap"
+      class="inline-flex items-center gap-1 shrink-0 whitespace-nowrap"
     >
       <Text
         span
         size="xs"
         fw={700}
         style={{
-          "font-size": VALUE_FONT,
+          "font-size": `${VALUE_FONT}px`,
           "font-variant-numeric": "tabular-nums",
           color: color(),
           "font-family": palette.MONO,
@@ -56,7 +56,7 @@ function MoverItem(props: { row: IndexMoverRow; isGainer: boolean }) {
         size="xs"
         fw={700}
         style={{
-          "font-size": VALUE_FONT,
+          "font-size": `${VALUE_FONT}px`,
           "font-variant-numeric": "tabular-nums",
           color: color(),
           "font-family": palette.MONO,
@@ -69,7 +69,7 @@ function MoverItem(props: { row: IndexMoverRow; isGainer: boolean }) {
         size="xs"
         fw={700}
         style={{
-          "font-size": VALUE_FONT,
+          "font-size": `${VALUE_FONT}px`,
           "font-variant-numeric": "tabular-nums",
           color: color(),
           "font-family": palette.MONO,
@@ -85,10 +85,10 @@ function MoverItem(props: { row: IndexMoverRow; isGainer: boolean }) {
  *  the direction, so the section no longer repeats it as a label. */
 function MoverSection(props: { rows: IndexMoverRow[]; isGainer: boolean }) {
   return (
-    <span className="flex items-center gap-2 min-w-0 shrink-0">
-      {props.rows.map((row, i) => (
-        <MoverItem key={`${row().symbol}-${i}`} row={row} isGainer={props.isGainer} />
-      ))}
+    <span class="flex items-center gap-2 min-w-0 shrink-0">
+      <For each={props.rows}>
+        {(row) => <MoverItem row={row} isGainer={props.isGainer} />}
+      </For>
     </span>
   );
 }
@@ -172,9 +172,9 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
   const dataView = () => (
     <div
       data-testid="movers-strip"
-      className="flex items-center justify-between gap-2 h-[24px] min-h-[24px] px-2 border-t border-fin-border border-b border-fin-border bg-fin-surface font-mono text-[11px] whitespace-nowrap overflow-hidden shrink-0"
+      class="flex items-center justify-between gap-2 h-[24px] min-h-[24px] px-2 border-t border-fin-border border-b border-fin-border bg-fin-surface font-mono text-[11px] whitespace-nowrap overflow-hidden shrink-0"
     >
-      <span className="inline-flex items-center gap-1 min-w-0 flex-auto">
+      <span class="inline-flex items-center gap-1 min-w-0 flex-auto">
         <Text
           span
           size="xs"
@@ -192,7 +192,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
         {/* Separator — fixed 1px: a stretched flex item would push the
             losers past the strip's `overflow: hidden`. */}
         <span
-          className="shrink-0 self-center mx-[2px] h-[10px] w-[1px] min-w-[1px]"
+          class="shrink-0 self-center mx-[2px] h-[10px] w-[1px] min-w-[1px]"
           style={{ "background-color": palette.TERM_BORDER }}
         />
 
@@ -201,11 +201,11 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
       </span>
 
       {/* Right side: EXPAND button + stale badge */}
-      <span className="flex items-center gap-1 shrink-0">
+      <span class="flex items-center gap-1 shrink-0">
         <Show when={isStale()}>
           <Tooltip label={`Data is stale (${data()?.as_of})`} position="bottom-start">
             <span
-              className="inline-flex items-center gap-1 px-[2px] py-[1px] rounded-sm text-[10px] font-bold tracking-[0.05em] whitespace-nowrap"
+              class="inline-flex items-center gap-1 px-[2px] py-[1px] rounded-sm text-[10px] font-bold tracking-[0.05em] whitespace-nowrap"
               style={{
                 border: `1px solid ${palette.WARNING}`,
                 color: palette.WARNING,
@@ -218,7 +218,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
         <button
           type="button"
           data-testid="movers-expand"
-          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-border text-fin-border bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 min-w-0 shrink-0 h-[20px] px-1 py-0 text-[10px] font-bold tracking-[0.08em] uppercase"
+          class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-border text-fin-border bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 min-w-0 shrink-0 h-[20px] px-1 py-0 text-[10px] font-bold tracking-[0.08em] uppercase"
           onClick={() => props.onExpand()}
           aria-label="Expand index movers"
           title="Expand index movers"
@@ -281,7 +281,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
         <Text span size="xs" fw={700} c="dimmed" style={{ "letter-spacing": "0.1em" }}>
           MOVERS
         </Text>
-        <Text span size="xs" c="dimmed" className="ml-4 italic" style={{ "font-size": REPORT_FONT.xs }}>
+        <Text span size="xs" c="dimmed" className="ml-4 italic" style={{ "font-size": `${REPORT_FONT.xs}px` }}>
           · live only
         </Text>
       </div>

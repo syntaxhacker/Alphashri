@@ -25,16 +25,16 @@ vi.mock("@/components/common/TanStackTable", () => ({
     <table data-testid={props.dataTestId}>
       <thead>
         <tr>
-          {props.columns.map((col: any, j: number) => (
-            <th key={j}>{typeof col.header === "string" ? col.header : null}</th>
+          {props.columns.map((col: any) => (
+            <th>{typeof col.header === "string" ? col.header : null}</th>
           ))}
         </tr>
       </thead>
       <For each={props.data}>
         {(row: any, i) => (
           <tr data-testid={props.getRowTestId ? props.getRowTestId(row, i()) : undefined}>
-            {props.columns.map((col: any, j: number) => (
-              <td key={j}>{col.cell ? col.cell({ row: { original: row, index: i() }, column: col }) : null}</td>
+            {props.columns.map((col: any) => (
+              <td>{col.cell ? col.cell({ row: { original: row, index: i() }, column: col }) : null}</td>
             ))}
           </tr>
         )}
