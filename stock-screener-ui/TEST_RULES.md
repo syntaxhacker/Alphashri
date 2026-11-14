@@ -24,6 +24,10 @@ would break this?* If the answer is "nothing plausible", delete it.
 | snapshot of an entire component | noisy, hides intent, breaks on styling | assert the specific invariants |
 | `toHaveStyle({ color: "..." })` against a mocked primitive | the mock never applies it | assert `className` contains the palette token, or render the real primitive |
 | "it renders" / "does not throw" | a blank page also does not throw | assert observable output |
+| a mock that **ignores its argument** (`buildUrl: () => "/x?screener=test"`) | the parameter that caused the bug is unobservable, so "wrong screener" passes | reflect the argument: `(o) => \`/x?screener=${o.screener}\`` |
+| a mock that **drops the distinguishing prop** (`c`/`fw`/`tt`/`size`/`style`) | the regression cannot fail, which is the only reason the test exists | forward the prop, or render the real primitive |
+| pinning a **literal hex/value** that the source derives | the assertion breaks on a legitimate re-theme and passes while the derivation is wrong | assert the derivation: `expect(TINT).toBe(alpha(POSITIVE, 0.12))` |
+| accepting a "known flake" as a fixture | 1-in-3 red trains everyone to re-run until green, which hides real failures | find the shared-state or over-specified assertion; a flake is a bug |
 
 ### Required shape
 
@@ -109,6 +113,7 @@ npx vitest run src/test/numeric-typography.test.ts   # mono + tabular on every n
 npx vitest run src/test/table-structure.test.ts      # column-declaration baseline (shrinks)
 npx vitest run src/test/ui-guard.test.ts             # no Mantine styles={{}}
 npx vitest run src/test/theme-single-source.test.ts  # no hardcoded hex
+npx vitest run src/test/design-scale.test.ts         # radius / control height / icon size / type floor / focus ring
 npx vitest run src/ui/inputs/inputs.w-h.test.tsx     # w/h honoured
 ```
 

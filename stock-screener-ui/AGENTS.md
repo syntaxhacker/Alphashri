@@ -67,8 +67,12 @@ SolidJS 1.9 + Vite 8 + Tailwind CSS 4 + TypeScript. Backend: FastAPI (Python).
 - **Chat Popup** (`src/components/common/ChatPopup.tsx`): Floating action button, expandable to full screen, history sidebar, markdown rendering via `marked`.
 
 ## Tailwind 4 Financial Theme Rules
-- Single source `src/ui/palette.ts` `FIN_*` (`FIN_PRIMARY #2563EB`, `FIN_POSITIVE #16A34A`, etc.) + layout tokens `FIN_HEADER_H 48`, `FIN_RADIUS 8`, `FIN_OUTER_PAD 16` — never hardcode hex outside palette
-- Theme tokens live in `src/tailwind.css` + `src/ui/palette.ts`; use `bg-fin-*`/`text-fin-*`/`border-fin-*` utilities and `var(--color-fin-*)`, never hardcode hex outside the palette
+Single source is `src/ui/palette.ts`; `src/tailwind.css` mirrors it (guarded by `theme-single-source.test.ts`).
+
+- **Never hardcode a hex outside `palette.ts`.** The guard scans every `.ts`/`.tsx` and fails on any `#RRGGBB`.
+- **Derive tints, never restate them:** `alpha(palette.POSITIVE, 0.12)`, not `"rgba(0,200,83,0.12)"`. Three separate green/red pairs had accumulated and disagreed about what "positive" means.
+- **Surface ramp** (each adjacent step ≥1.15:1, asserted): page `BG #000000` → panel `SURFACE #13161C` → raised `SURFACE_ALT #1F242D`, hairline `BORDER #2C313B`. Page == panel means the panel does not exist — that was the real cause of "everything looks the same".
+- **Radius** `4` (small) / `6` (controls) / `10` (large); `--radius-fin: 6px` is the control alias. **Control heights** `xs 24 · sm 30 · md 34 · lg 38`. **Type floor is 9px.** All four are guarded by `design-scale.test.ts` — see `SUBAGENT_RULES.md § 7.1`.
 - Use the local `@/ui` components (`Box/Flex/Stack/Group/Center/Grid/SimpleGrid/Paper/Card/ScrollArea`) + `CompactPanel/CompactStat/CompactStatGrid` (`components/common/compact.tsx`). They render semantic HTML + Tailwind.
 - 8pt grid: outer `16`, inner `8`, table `8px 12px 12px`, header `48`, gaps `xs4 sm8 md16` — no raw `6px` slop
 - `TanStackTable` `src/components/common/TanStackTable.tsx` `ROW_ESTIMATED 28` `cell 8/12/12` `sticky shadow` — dense but scannable (12px)
@@ -83,9 +87,12 @@ Full rules: [UI_RULES.md](./UI_RULES.md). Checklist to tick for every revamp: [U
 4. **No nested bordered cards**; one border per section, inner separation via dividers. Panels/charts fill their flex container (`autoSize`, no fixed heights in flex panels).
 5. **Verify visually, not just build.** After any UI change: `bun run build && bun run lint`, then a chrome-devtools screenshot at a real viewport in empty/loading/full states, then the guards:
    - `npx vitest run src/test/ui-guard.test.ts`
+   - `npx vitest run src/test/design-scale.test.ts` (radius · control height · icon size · 9px type floor · focus ring)
+   - `npx vitest run src/test/theme-single-source.test.ts`
    - `npx vitest run src/ui/inputs/inputs.w-h.test.tsx`
    - the feature's unit tests + its E2E spec.
    Build/lint do NOT catch alignment bugs — the screenshot is part of the definition of done.
+6. **A page is not "done" until it is measured, not eyeballed.** The Index Report chrome was 800px above the chart (walls card 475px) with the chart permanently below the fold, and it survived review because nothing measured it. If a fix claims "now it fits", take the `getBoundingClientRect()` numbers before/after and put them in the commit message.
 
 ## State Management
 - All stores in `src/state/` — custom `createSubscriber` pattern + `useStoreSubscription` hook
@@ -628,3 +635,8 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - **`_filter_to_date_or_recent` timezone bug** — see [PRODUCTION.md](./PRODUCTION.md) (known production issue)
 - **TradingAgents auth**: `get_current_user` dependency has compatibility issues with this router (langgraph_sdk/chaining chainlit interference). All trading_agents endpoints use no auth or hardcoded user_id=3 for now.
 - **Analysis speed**: Multi-agent analysis takes 60-120s (15+ DeepSeek LLM calls). First analysis on any ticker is slow, subsequent requests are instant from file cache.
+- **`tsc` clusters still open** (~380 errors): `src/pages/**` beyond `report`, plus `components/options|sector|strategies|replay|backtest|news`. Cleared clusters (`report`, `common`+`ui`, `paper-trading`+`bots`, `screener`+`patterns`, `utils`+`api`+`state`) each exposed real runtime defects — treat the remaining ones as bug hunts, not tidying.
+- **Index Report chart focus (LEVEL 1/2)** — specified in [docs/INDEX_REPORT_REDESIGN.md](./docs/INDEX_REPORT_REDESIGN.md) but not built. The walls card is now 5-column and 216px (was 475px single-column), so the chart is visible; the drawer and focus mode are still pending.
+- **`rowWindowSize` unreachable rows** — `TanStackTable` discloses `showing 80 of 312 · 232 not rendered` in the footer, but there is still no way to reach the remainder.
+- **`HeatmapPage` Top-10 view renders two tables** — see [docs/BUGS_TABLES.md](./docs/BUGS_TABLES.md).
+- **Symbol cell click inversion** — body should navigate in-app, the `↗` affordance opens the external TV link; currently inverted. Top item in [docs/UX_BETTERMENT.md](./docs/UX_BETTERMENT.md).

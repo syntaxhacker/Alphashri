@@ -184,6 +184,29 @@ Layout invariants:
 - Empty/loading states collapse; they never reserve the data height.
 - Page never scrolls; the table scrolls.
 
+### 7.1 The design scale (enforced by `src/test/design-scale.test.ts`)
+
+| Dimension | Allowed | Why |
+|---|---|---|
+| Surface ramp | `BG #000` → `SURFACE #13161C` → `SURFACE_ALT #1F242D` → `BORDER #2C313B` | each adjacent step ≥1.15:1. When page == panel the panel has no existence, and every control floats on one sheet — this was the actual cause of "everything looks the same" |
+| Radius | 0/1/2/3/4/6/8/10, `9999px`, `50%` | controls 6, small items 4. Never a new inline radius |
+| Control height | 16–48 from the scale | six heights (22/26/28/30/32/34/36) for one job reads as inconsistent spacing at a glance |
+| Icon size | 8/12/14/16/18/20/24/32/40 | 10/11/13/15/22 was drift, not intent |
+| Type floor | **≥9px** | 7px/8px is a smudge at 1x, not a label |
+| Focus | one `@layer base` rule rings every `button/a/[role=button]/summary` + `input/select/textarea` | 55 of 61 raw buttons had no focus state; not fixable per component |
+
+Exempt by design: `src/ui/**` (owns its own `xs/sm/md/lg` map), chart/canvas containers
+(a 340px sparkline is content, not a control), decorative hero/empty-state art.
+
+**Colour derives, it never repeats.** `TINT_POSITIVE`/`VOLUME_BULLISH`/`ORB_AREA` all come
+from `alpha(anchor, a)`. Three independent green/red pairs had accumulated (#2FA36B/#D94A55,
+#00C853/#FF3B30, #E11D2E) so a row tint, a volume bar and a marker could disagree about what
+"positive" is. A near-miss duplicate ramp (`TERM_BORDER #2A2E35` vs `BORDER #2C313B`) is the
+same defect: it reads as the same thing but cannot be retuned together.
+
+**A tint means something.** Red is error/bearish, never "informational" and never "selected":
+`ORB_AREA`/`IV_AREA_*` (range and IV bands) read INFO blue; `BOT_SELECTED_BG` reads PRIMARY.
+
 Verify visually only if the brief says so — screenshots are the main agent's job.
 
 ---
@@ -225,8 +248,31 @@ If you added a test that passes both ways, it is not a regression test.
 
 ### Known flakes — do not "fix" them by weakening the test
 
-- `ScreenerConfigView.test.tsx › preview debounce` — fake-timer flake; passes in isolation.
+- `ScreenerConfigView.test.tsx › preview debounce` — **fixed**: it asserted
+  `toHaveBeenCalledTimes` and its URL mock ignored the `screener` argument. Now asserts the
+  URL's `screener` param; mutation-checked. Do not reintroduce call-count assertions here.
 - Mount-heavy page tests under 8 parallel workers — timing, not logic.
+
+> A flake that survives a session becomes "normal". Before writing a flake off, read its
+> assertions against `TEST_RULES.md § 0`: the anti-pattern table is where flakes live.
+
+### Dead config is a defect, not tidiness
+
+A constant that is declared and never read is worse than a missing one — it reads as if the
+system does the thing right:
+
+```ts
+const WALLS_GRID_COLS = { xs: "minmax(0,1fr)", md: "250px 1fr 1fr …" } as const;
+// every call site read .xs → the card rendered mobile-stacked at desk width,
+// 475px tall, pushing the chart below the fold. The `md` value was correct and dead.
+```
+
+Check **readers**, not declarations. A name used exactly once (its own declaration) has no
+second reader — the mapping is decorative:
+
+```bash
+grep -c "WALLS_GRID_COLS" NiftyWallsCard.tsx   # count occurrences, not lines
+```
 
 ---
 
@@ -268,7 +314,9 @@ If you added a test that passes both ways, it is not a regression test.
 ## Acceptance
 - <the assertion that must pass, and that it fails without the fix>
 - lint clean; targeted vitest green
+- `npx vitest run src/test/design-scale.test.ts src/test/theme-single-source.test.ts` green
 - tsc count for the scope: before → after (if a tsc task)
+- if the brief claims a layout now fits: `getBoundingClientRect()` before → after
 
 ## Return
 files changed · diff summary per file · commands run · pass/fail counts ·
