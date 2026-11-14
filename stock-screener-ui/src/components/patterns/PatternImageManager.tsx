@@ -2,7 +2,6 @@ import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-j
 import {
   Alert,
   Box,
-  Button,
   Group,
   Loader,
   Paper,
@@ -146,14 +145,17 @@ export function PatternImageManager() {
                   <Text size="sm" fw={600} truncate>
                     {pattern.name}
                   </Text>
-                  <Group gap="xs" justify="space-between" align="center" wrap={false}>
-                    <Button
-                      size="xs"
-                      variant="light"
-                      component="label"
-                      disabled={busy()}
-                      leftSection={<IconUpload size={14} />}
+                  <Group gap="xs" justify="space-between" align="center" wrap="nowrap">
+                    <label
+                      role="button"
+                      tabindex={busy() ? -1 : 0}
+                      className="inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-primary bg-fin-primary/10 px-2 py-1 text-xs text-fin-primary transition-colors hover:bg-fin-primary/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-fin-primary aria-disabled:opacity-50 aria-disabled:cursor-not-allowed"
+                      aria-disabled={busy() || undefined}
+                      aria-label={hasImage() ? `Replace image for ${pattern.name}` : `Upload image for ${pattern.name}`}
                     >
+                      <span className="flex-shrink-0 mr-1">
+                        <IconUpload size={14} />
+                      </span>
                       {hasImage() ? "Replace" : "Upload"}
                       <input
                         type="file"
@@ -168,7 +170,7 @@ export function PatternImageManager() {
                           if (file) void handleUpload(pattern.id, file);
                         }}
                       />
-                    </Button>
+                    </label>
                     <button
                       type="button"
                       disabled={!hasImage() || busy()}
