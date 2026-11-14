@@ -307,7 +307,8 @@ export function TanStackTable<T>(props: Props<T>) {
 
   const alignClass = (col: TableColumnDef<T>) => {
     const { align } = getColumnMeta(col);
-    return (align === "right" || isNumeric(col.id)) ? "font-mono" : "";
+    const dir = align === "right" || align === "center" ? align : "left";
+    return `text-${dir} ${dir === "right" || isNumeric(col.id) ? "font-mono tabular-nums" : ""}`;
   };
 
   const renderHeader = (col: TableColumnDef<T>) => {
