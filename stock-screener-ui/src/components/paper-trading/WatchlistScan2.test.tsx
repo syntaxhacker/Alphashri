@@ -4,7 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, fireEvent, cleanup } from "@solidjs/testing-library";
 import { WatchlistScan2 } from "./WatchlistScan2";
-import { BORDER_COLOR, NEGATIVE_COLOR, POSITIVE_COLOR, WARNING } from "@/ui/palette";
+import { BORDER_COLOR, NEGATIVE_COLOR, POSITIVE_COLOR, PRIMARY, WARNING } from "@/ui/palette";
 
 // Resolved value of #80b5ff under the palette theme.
 function withAlpha(hex: string, alpha: number): string {
@@ -465,7 +465,7 @@ describe("WatchlistScan2", () => {
       );
       // selected rows use a primary-tint background (PRIMARY at 8% via local alpha())
       expect(row("RELIANCE")).toHaveStyle({
-        backgroundColor: withAlpha("#58A6FF", 0.08),
+        backgroundColor: withAlpha(PRIMARY, 0.08),
       });
     });
   });
