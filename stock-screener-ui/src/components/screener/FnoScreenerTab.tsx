@@ -6,7 +6,6 @@ import {
   Badge,
   Box,
   Loader,
-  NumberInput,
   Select,
   SegmentedControl,
   Text,
@@ -16,6 +15,7 @@ import {
   ToolbarRow,
 } from "@/ui";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
+import { RangeInput } from "../common/RangeInput";
 import { TanStackTable } from "../common/TanStackTable";
 import { PayoffChart } from "@/components/options/PremiumTracker/PayoffChart";
 import { buildFnoColumns } from "./fnoColumns";
@@ -30,7 +30,12 @@ import {
 import { formatPercentage } from "@/utils/ui-helpers";
 
 const DEFAULT_LIMIT = 50;
-const MAX_COST_OPTIONS = [3000, 5000, 10000, 15000] as const;
+
+/** Cost per lot in ₹ — the old select capped at 15k, so 20k gives headroom. */
+const COST_DOMAIN: [number, number] = [0, 20000];
+const COST_STEP = 500;
+
+const POP_DOMAIN: [number, number] = [0, 100];
 
 const PRESET_OPTIONS = Object.entries(FNO_PRESETS).map(([value, meta]) => ({
   value: value as FnoScreenerPreset,
@@ -57,8 +62,10 @@ function screenerParams(
 export function FnoScreenerTab() {
   const [preset, setPreset] = createSignal<FnoScreenerPreset>("cheap_momentum");
   const [expiry, setExpiry] = createSignal<string>("");
-  const [maxCost, setMaxCost] = createSignal<number | undefined>(undefined);
-  const [minPop, setMinPop] = createSignal<number | undefined>(undefined);
+  const [costMin, setCostMin] = createSignal<number | undefined>(undefined);
+  const [costMax, setCostMax] = createSignal<number | undefined>(undefined);
+  const [popMin, setPopMin] = createSignal<number | undefined>(undefined);
+  const [popMax, setPopMax] = createSignal<number | undefined>(undefined);
   const [viewMode, setViewMode] = createSignal<"symbol" | "contract">("symbol");
   const [data, setData] = createSignal<FnoScreenerResponse | null>(null);
   const [isLoading, setIsLoading] = createSignal(true);
@@ -83,23 +90,38 @@ export function FnoScreenerTab() {
     }
   };
 
-  // Fetch on mount and whenever preset / expiry / max cost / min POP change.
+  // Fetch on mount and whenever preset / expiry / cost cap / POP floor change.
   // Stale in-flight requests are aborted via the AbortController above.
   createEffect(() => {
     const p = preset();
     const e = expiry();
-    const mc = maxCost();
-    const pop = minPop();
+    const mc = costMax();
+    const pop = popMin();
     void fetchData(screenerParams(p, e, mc, pop));
   });
 
   onCleanup(() => abortController?.abort());
 
   const handleRefresh = () => {
-    void fetchData(screenerParams(preset(), expiry(), maxCost(), minPop(), true));
+    void fetchData(screenerParams(preset(), expiry(), costMax(), popMin(), true));
   };
 
-  const rows = () => data()?.rows ?? [];
+  // The API filters one end of each pair (`max_cost`, `min_pop`); the opposite
+  // thumb is applied to the fetched rows so the control stays a real range.
+  const withinRange = (row: FnoScreenerRow): boolean => {
+    const lo = costMin();
+    const hi = costMax();
+    const pLo = popMin();
+    const pHi = popMax();
+    return (
+      (lo === undefined || row.cost_lot >= lo) &&
+      (hi === undefined || row.cost_lot <= hi) &&
+      (pLo === undefined || row.pop >= pLo) &&
+      (pHi === undefined || row.pop <= pHi)
+    );
+  };
+
+  const rows = () => (data()?.rows ?? []).filter(withinRange);
   // Symbol mode dedupes by symbol, keeping the first row per symbol (the
   // backend already sorts by the selected preset, so the first is the best
   // candidate). Contract mode shows every row. Both are pure derivations —
@@ -154,54 +176,6 @@ export function FnoScreenerTab() {
               </TabsList>
             </Tabs>
           </Box>
-          <Show when={data()}>
-            <Box
-              className="flex min-h-0 min-w-0 flex-[1_1_100%] flex-wrap items-center gap-x-16 gap-y-2 md:flex-1"
-            >
-              <Select
-                placeholder="Expiry"
-                value={expiry() || undefined}
-                onChange={(v) => setExpiry(v ?? "")}
-                data={data()!.expiries.map((e) => ({
-                  value: e.date,
-                  label: `${e.date} (${e.days_to_expiry} DTE)`,
-                }))}
-                size="xs"
-                w={190}
-                data-testid="fno-expiry-select"
-              />
-              <Select
-                placeholder="Max cost"
-                value={maxCost() ? String(maxCost()) : undefined}
-                onChange={(v: string | null) => setMaxCost(v ? Number(v) : undefined)}
-                data={MAX_COST_OPTIONS.map((c) => ({ value: String(c), label: `₹${c}` }))}
-                size="xs"
-                w={140}
-                data-testid="fno-max-cost-select"
-              />
-              <NumberInput
-                placeholder="Min POP"
-                value={minPop() ?? ""}
-                onChange={(v: string | number) => setMinPop(typeof v === "number" ? v : undefined)}
-                min={0}
-                max={100}
-                step={1}
-                size="xs"
-                w={120}
-                data-testid="fno-min-pop"
-              />
-              <SegmentedControl
-                size="xs"
-                value={viewMode()}
-                onChange={(v) => setViewMode(v as "symbol" | "contract")}
-                data={[
-                  { value: "symbol", label: "Best per symbol" },
-                  { value: "contract", label: "All contracts" },
-                ]}
-                data-testid="fno-view-mode"
-              />
-            </Box>
-          </Show>
           <Box
             className="flex min-h-0 min-w-0 flex-1 items-center justify-end gap-16"
           >
@@ -242,6 +216,66 @@ export function FnoScreenerTab() {
           </Box>
         </ToolbarRow>
 
+        {/* Controls get their own row: a 69px range sharing a line with the
+            30px selects stacks at 1366px and triples the header height. */}
+        <Show when={data()}>
+          <ToolbarRow gap={8} className="pt-1" data-testid="fno-filters">
+            <Select
+              placeholder="Expiry"
+              value={expiry() || undefined}
+              onChange={(v) => setExpiry(v ?? "")}
+              data={data()!.expiries.map((e) => ({
+                value: e.date,
+                label: `${e.date} (${e.days_to_expiry} DTE)`,
+              }))}
+              size="xs"
+              w={190}
+              data-testid="fno-expiry-select"
+            />
+            <SegmentedControl
+              size="xs"
+              value={viewMode()}
+              onChange={(v) => setViewMode(v as "symbol" | "contract")}
+              data={[
+                { value: "symbol", label: "Best per symbol" },
+                { value: "contract", label: "All contracts" },
+              ]}
+              data-testid="fno-view-mode"
+            />
+            {/* gap-8 inside the pair: each thumb overhangs its track by ~7px,
+                so a smaller gap makes two ranges look like one 4-thumb slider. */}
+            <Box className="flex flex-wrap items-center gap-8">
+              <Box w={200} className="shrink-0">
+                <RangeInput
+                  label="Cost / lot"
+                  min={costMin() ?? null}
+                  max={costMax() ?? null}
+                  onMinChange={(v) => setCostMin(v ?? undefined)}
+                  onMaxChange={(v) => setCostMax(v ?? undefined)}
+                  domain={COST_DOMAIN}
+                  step={COST_STEP}
+                  formatValue={(v) => `₹${Math.round(v / 1000)}k`}
+                  size="xs"
+                  testId="fno-max-cost-select"
+                />
+              </Box>
+              <Box w={200} className="shrink-0">
+                <RangeInput
+                  label="POP"
+                  min={popMin() ?? null}
+                  max={popMax() ?? null}
+                  onMinChange={(v) => setPopMin(v ?? undefined)}
+                  onMaxChange={(v) => setPopMax(v ?? undefined)}
+                  domain={POP_DOMAIN}
+                  formatValue={(v) => `${v}%`}
+                  size="xs"
+                  testId="fno-min-pop"
+                />
+              </Box>
+            </Box>
+          </ToolbarRow>
+        </Show>
+
         <Show when={showLoading()}>
           <Box
             data-testid="fno-loading"
@@ -264,7 +298,7 @@ export function FnoScreenerTab() {
         <Show when={showEmpty()}>
           <Box data-testid="fno-empty" className="py-8 text-center">
             <Text size="sm" c="dimmed">
-              No F&amp;O matches for these filters — loosen max cost or min POP.
+              No F&amp;O matches for these filters — widen the cost or POP range.
             </Text>
           </Box>
         </Show>

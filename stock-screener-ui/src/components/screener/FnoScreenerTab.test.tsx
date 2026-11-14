@@ -273,7 +273,7 @@ describe("FnoScreenerTab", () => {
     renderTab();
     await waitFor(() => expect(screen.getByTestId("fno-row-RELIANCE")).toBeInTheDocument());
 
-    const input = screen.getByPlaceholderText("Min POP") as HTMLInputElement;
+    const input = screen.getByTestId("fno-min-pop-min-input") as HTMLInputElement;
     fireEvent.input(input, { target: { value: "" } });
     fireEvent.input(input, { target: { value: "40" } });
 
@@ -281,6 +281,56 @@ describe("FnoScreenerTab", () => {
       const lastParams = mockFetchFnoScreener.mock.calls.at(-1)![0] as FnoScreenerParams;
       expect(lastParams.min_pop).toBe(40);
     });
+  });
+
+  it("renders both filter pairs as dual-thumb ranges", async () => {
+    renderTab();
+    await waitFor(() => expect(screen.getByTestId("fno-row-RELIANCE")).toBeInTheDocument());
+
+    // Two ranges × two thumbs each.
+    expect(screen.getAllByRole("slider")).toHaveLength(4);
+    expect(screen.getByTestId("fno-max-cost-select-slider-min")).toBeInTheDocument();
+    expect(screen.getByTestId("fno-max-cost-select-slider-max")).toBeInTheDocument();
+    expect(screen.getByTestId("fno-min-pop-slider-min")).toBeInTheDocument();
+    expect(screen.getByTestId("fno-min-pop-slider-max")).toBeInTheDocument();
+  });
+
+  it("cost range sends the cap to the backend and applies the floor locally", async () => {
+    renderTab();
+    await waitFor(() => expect(screen.getByTestId("fno-row-LT")).toBeInTheDocument());
+
+    fireEvent.input(screen.getByTestId("fno-max-cost-select-max-input"), {
+      target: { value: "8000" },
+    });
+
+    await waitFor(() => {
+      const lastParams = mockFetchFnoScreener.mock.calls.at(-1)![0] as FnoScreenerParams;
+      expect(lastParams.max_cost).toBe(8000);
+    });
+
+    // The floor is a local predicate over the fetched rows: no extra request.
+    fireEvent.input(screen.getByTestId("fno-max-cost-select-min-input"), {
+      target: { value: "5000" },
+    });
+    await waitFor(() => expect(screen.queryByTestId("fno-row-NMDC")).not.toBeInTheDocument());
+    expect(screen.getByTestId("fno-row-TCS")).toBeInTheDocument();
+    expect(screen.queryByTestId("fno-row-LT")).not.toBeInTheDocument();
+    expect(mockFetchFnoScreener).toHaveBeenCalledTimes(2);
+  });
+
+  it("POP range applies its ceiling locally without refetching", async () => {
+    renderTab();
+    await waitFor(() => expect(screen.getByTestId("fno-row-RELIANCE")).toBeInTheDocument());
+
+    fireEvent.input(screen.getByTestId("fno-min-pop-max-input"), {
+      target: { value: "50" },
+    });
+
+    await waitFor(() => expect(screen.queryByTestId("fno-row-RELIANCE")).not.toBeInTheDocument());
+    expect(screen.getByTestId("fno-row-TCS")).toBeInTheDocument();
+    expect(screen.getByTestId("fno-row-LT")).toBeInTheDocument();
+    expect(screen.getByTestId("fno-row-count")).toHaveTextContent(/2 symbols \/ 2 contracts/);
+    expect(mockFetchFnoScreener).toHaveBeenCalledTimes(1);
   });
 
   it("refresh action icon refetches with refresh=true", async () => {
