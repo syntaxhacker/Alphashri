@@ -31,7 +31,8 @@ const mocks = vi.hoisted(() => {
   };
   const fitContent = vi.fn();
   const chartApi = {
-    addSeries: vi.fn(() => makeSeries()),
+    // Declared args keep `mock.calls[n]` typed as a tuple (a bare `vi.fn()` infers `[]`).
+    addSeries: vi.fn((_kind?: unknown) => makeSeries()),
     removeSeries: vi.fn(),
     applyOptions: vi.fn(),
     remove: vi.fn(),
@@ -49,8 +50,9 @@ const mocks = vi.hoisted(() => {
     HistogramSeries: { kind: "histogram" },
     LineSeries: { kind: "line" },
     TickMarkType: { Year: 0, Month: 1, DayOfMonth: 2, Time: 3, TimeWithSeconds: 4 },
-    createChart: vi.fn(() => chartApi),
-    createSeriesMarkers: vi.fn(() => ({ setMarkers })),
+    // Declare the args so `mock.calls[0]` is typed as a tuple, not `[]`.
+    createChart: vi.fn((_container?: unknown, _options?: unknown) => chartApi),
+    createSeriesMarkers: vi.fn((_series?: unknown, _markers?: unknown) => ({ setMarkers })),
   };
 });
 

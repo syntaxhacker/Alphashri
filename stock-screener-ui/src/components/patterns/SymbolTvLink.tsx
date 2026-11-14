@@ -1,5 +1,7 @@
-import type { CSSProperties, JSX } from "solid-js";
+import type { JSX } from "solid-js";
 import { SymbolLink } from "@/components/common/SymbolLink";
+
+type CSSProperties = JSX.CSSProperties;
 
 export interface SymbolTvLinkProps {
   symbol: string;

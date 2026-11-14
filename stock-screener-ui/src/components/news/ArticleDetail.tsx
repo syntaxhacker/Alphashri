@@ -164,7 +164,7 @@ export function ArticleDetail(props: ArticleDetailProps) {
                       <Show when={content()?.sentiment || content()?.impact_score !== undefined}>
                         <Box className="flex items-center flex-wrap" style={{ display: "flex", "align-items": "center", "flex-wrap": "wrap", "padding-top": "4px", "padding-bottom": "4px", "padding-left": "4px", "padding-right": "4px" }}>
                           <Box className="flex items-center gap-2" style={{ color: palette.TEXT_MUTED, display: "flex", "align-items": "center", gap: "4px" }}>
-                            <IconBulb size={15} aria-hidden="true" />
+                            <IconBulb size={14} aria-hidden="true" />
                             <Text size="xs" fw={700}>
                               Signal snapshot
                             </Text>

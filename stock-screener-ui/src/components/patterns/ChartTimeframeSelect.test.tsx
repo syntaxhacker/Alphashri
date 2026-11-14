@@ -33,7 +33,7 @@ describe("ChartTimeframeSelect", () => {
 
   test("labels derived from the TFSpec fall back to the id", () => {
     const noLabel: TFSpec[] = [
-      { id: "3m", minutes: 3, native: true, source_tf: null, max_lookback_days: 90, min_bars: 60 },
+      { id: "3m", label: "3m", minutes: 3, native: true, source_tf: null, max_lookback_days: 90, min_bars: 60 },
     ];
     render(() => <ChartTimeframeSelect timeframes={noLabel} value="3m" onChange={vi.fn()} />);
     expect(screen.getByRole("option", { name: "3m" })).toBeInTheDocument();

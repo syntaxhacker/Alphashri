@@ -179,7 +179,7 @@ export function PatternImageManager() {
                       onClick={() => void handleDelete(pattern.id)}
                       className="inline-flex size-7 items-center justify-center rounded text-white/80 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      <IconTrash size={15} />
+                      <IconTrash size={14} />
                     </button>
                   </Group>
                   <Show when={cardErrors()[pattern.id]}>

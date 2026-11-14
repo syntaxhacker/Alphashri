@@ -191,7 +191,7 @@ export function SymbolLink(props: SymbolLinkProps) {
               aria-label={`Copy ${label()}`}
               data-testid={`symbol-copy-${label()}`}
             >
-              {copied ? <IconCheck size={10} /> : <IconCopy size={10} />}
+              {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
             </ActionIcon>
           )}
         </CopyButton>
@@ -208,7 +208,7 @@ export function SymbolLink(props: SymbolLinkProps) {
             onClick={stop}
             className="pattern-tv-link inline-flex flex-shrink-0 items-center text-fin-text-muted hover:text-fin-primary"
           >
-            <IconExternalLink size={11} />
+            <IconExternalLink size={12} />
           </Box>
         </Tooltip>
       </Show>

@@ -44,7 +44,7 @@ export function ScreenerInlineFilters(props: ScreenerInlineFiltersProps) {
     <>
       <FilterNotes notes={notes()} />
       <Show when={status()}>
-        <Text size="11px" c="dimmed" truncate data-testid="screener-status" title={status()}>
+        <Text className="text-[11px]" c="dimmed" truncate data-testid="screener-status" title={status()}>
           {status()}
         </Text>
       </Show>
@@ -85,10 +85,9 @@ function FilterNotes(props: { notes: string[] }) {
   return (
     <Show when={props.notes.length > 0}>
       <Text
-        size="11px"
         c="dimmed"
         truncate
-        className="min-w-0 flex-shrink"
+        className="text-[11px] min-w-0 flex-shrink"
         title={props.notes.join(" · ")}
         data-testid="screener-52w-high-banner"
       >
@@ -103,7 +102,7 @@ function FilterChips(props: { filters: any[]; activeScreener: string; trailing?:
   return (
     <>
       <Show when={hasFilters()}>
-        <Text size="11px" c="dimmed" fw={600} className="flex-shrink-0">
+        <Text className="text-[11px] flex-shrink-0" c="dimmed" fw={600}>
           Filters:
         </Text>
         <For each={props.filters}>

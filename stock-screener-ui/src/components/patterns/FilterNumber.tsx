@@ -1,7 +1,7 @@
 import { NumberInput } from "@/ui";
 
 export interface FilterNumberProps {
-  value: number | null | undefined;
+  value?: number | null;
   onChange: (value: number | null) => void;
   min?: number;
   max?: number;

@@ -3,8 +3,8 @@
  * builders draw (`patternChartOption` for ECharts, `patternTVData` for
  * TradingView). Extracted so the view gate + endpoint mapping cannot drift.
  */
-import type { AxisPoint, TrendLine } from "./trendlineMapping";
-import type { PatternHitDTO, TrendlinesView } from "@/types/chartPatterns";
+import type { AxisPoint } from "./trendlineMapping";
+import type { PatternHitDTO, TrendLine, TrendlinesView } from "@/types/chartPatterns";
 import { mapTimeSegment } from "./trendlineMapping";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
 

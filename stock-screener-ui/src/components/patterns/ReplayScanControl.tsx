@@ -40,12 +40,12 @@ export function ReplayScanControl(props: ReplayScanControlProps) {
       data-testid={`${testIdPrefix()}-control`}
       className="flex flex-col gap-2"
     >
-      <ToolbarRow justify="space-between" gap={8} align="center">
+      <ToolbarRow justify="space-between" gap={8}>
         <Switch
           label="Replay scan"
           size="sm"
           checked={enabled()}
-          onChange={(e) => setEnabled(e.currentTarget.checked)}
+          onChange={(e) => setEnabled((e.currentTarget as HTMLInputElement).checked)}
           disabled={disabled()}
           data-testid={`${testIdPrefix()}-toggle`}
         />
@@ -66,7 +66,7 @@ export function ReplayScanControl(props: ReplayScanControlProps) {
           <Alert color="warning" data-testid={`${testIdPrefix()}-warning`}>
             Replay scans are slower — they recompute history up to the as-of date.
           </Alert>
-          <ToolbarRow gap={8} align="center" style={{ "flex-wrap": "wrap" }}>
+          <ToolbarRow gap={8} style={{ "flex-wrap": "wrap" }}>
             <Box className="flex min-w-0 flex-col gap-1">
               <Text size="xs" c="dimmed">
                 As of

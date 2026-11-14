@@ -245,7 +245,7 @@ export function MarketAlertRow(props: MarketAlertRowProps) {
           className="rounded-none hover:text-fin-text"
           style={{ padding: "0px", color: palette.TEXT_MUTED }}
         >
-          <IconX size={11} />
+          <IconX size={12} />
         </ActionIcon>
       </Show>
     </Box>
@@ -341,7 +341,7 @@ export function MarketAlertCard(props: MarketAlertCardProps) {
           className="rounded-none hover:text-fin-text"
           style={{ "align-self": "flex-start", padding: "0px", color: palette.TEXT_MUTED }}
         >
-          <IconX size={11} />
+          <IconX size={12} />
         </ActionIcon>
       </Show>
     </Box>

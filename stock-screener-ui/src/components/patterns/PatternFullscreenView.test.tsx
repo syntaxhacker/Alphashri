@@ -27,7 +27,7 @@ vi.mock("./ChartTimeframeSelect", () => ({
         onChange={(e) => onChange(e.target.value)}
       >
         {source.map((tf: any) => (
-          <option key={tf.id} value={tf.id}>
+          <option value={tf.id}>
             {tf.label || tf.id}
           </option>
         ))}
@@ -188,8 +188,8 @@ describe("PatternFullscreenView", () => {
         candles={[]}
         timeframe="1D"
         timeframes={[
-          { id: "1D", label: "1D", minutes: 1440, native: "days/1", source_tf: null, max_lookback_days: 730, min_bars: 60 },
-          { id: "1h", label: "1h", minutes: 60, native: "hours/1", source_tf: null, max_lookback_days: 365, min_bars: 60 },
+          { id: "1D", label: "1D", minutes: 1440, native: true, source_tf: null, max_lookback_days: 730, min_bars: 60 },
+          { id: "1h", label: "1h", minutes: 60, native: true, source_tf: null, max_lookback_days: 365, min_bars: 60 },
         ]}
         onTimeframeChange={onTimeframeChange}
       />);

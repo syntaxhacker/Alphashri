@@ -10,14 +10,17 @@ import { Badge } from "@/ui";
 import { formatChartTimestamp } from "./datetime";
 
 /** Backend `tags` on a row (F&O / ETF). Always an array of strings; missing/invalid → []. */
-export function rowTags(row: { tags?: unknown } | null | undefined): string[] {
-  const tags = row?.tags;
+// `tags` is not declared on `PatternHitDTO` / `WatchRow` (shared types, owned
+// elsewhere) even though the backend sets it on both, so the parameter accepts
+// any row object and reads the field structurally.
+export function rowTags(row: object | null | undefined): string[] {
+  const tags = (row as { tags?: unknown } | null | undefined)?.tags;
   if (!Array.isArray(tags)) return [];
   return tags.filter((t): t is string => typeof t === "string");
 }
 
 /** True when the backend `tags` array carries `tag`. Never throws on missing. */
-export function hasTag(row: { tags?: unknown } | null | undefined, tag: string): boolean {
+export function hasTag(row: object | null | undefined, tag: string): boolean {
   return rowTags(row).includes(tag);
 }
 

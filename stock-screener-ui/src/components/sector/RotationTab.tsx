@@ -277,7 +277,7 @@ export function RotationTab(props: { market: "india" | "america" }) {
           onClick={refresh}
           data-testid="rotation-refresh"
         >
-          <IconRefresh size={15} />
+          <IconRefresh size={14} />
         </ActionIcon>
       </ToolbarRow>
 

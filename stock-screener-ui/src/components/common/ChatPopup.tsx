@@ -438,7 +438,7 @@ export function ChatPopup() {
                     <Stack gap={2}>
                       <For each={toolCalls()}>{(tc) => (
                         <Group gap={4}>
-                          <IconSearch size={10} />
+                          <IconSearch size={12} />
                           <Text size="xs" c="dimmed" lineClamp={1}>
                             {tc.tool}
                           </Text>

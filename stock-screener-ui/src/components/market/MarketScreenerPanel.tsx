@@ -422,7 +422,7 @@ export function MarketScreenerPanel() {
               <Text size="xs" className="leading-none">
                 {chip.label}
               </Text>
-              <IconX size={10} />
+              <IconX size={12} />
             </Box>
           )}</For>
         </Box>
@@ -453,7 +453,7 @@ export function MarketScreenerPanel() {
                     data-testid="market-error"
                     className="flex-1 border border-fin-border rounded-sm bg-fin-surface flex flex-col items-center justify-center gap-2 p-6 text-center"
                   >
-                    <IconAlertCircle size={22} />
+                    <IconAlertCircle size={24} />
                     <Text size="sm" fw={600}>
                       Couldn’t load the market snapshot
                     </Text>

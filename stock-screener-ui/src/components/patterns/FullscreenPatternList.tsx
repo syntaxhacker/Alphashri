@@ -74,13 +74,13 @@ export function FullscreenPatternList(props: FullscreenPatternListProps) {
                   active() ? "bg-fin-surface-alt" : "bg-transparent"
                 }`}
               >
-                <ToolbarRow justify="space-between" gap={4} align="center">
+                <ToolbarRow justify="space-between" gap={4}>
                   <Text size="xs" fw={600} truncate style={{ flex: 1, "min-width": 0 }} lh={1.15}>
                     {hit.pattern_name}
                   </Text>
                   <StatusBadge status={hit.status} display={displayStatusForHit(hit)} />
                 </ToolbarRow>
-                <ToolbarRow justify="space-between" gap={4} align="center">
+                <ToolbarRow justify="space-between" gap={4}>
                   <Text size="xs" c="dimmed" truncate lh={1.15}>
                     {`${formatChartTimestamp(hit.end_date)} · ${hit.bars_ago} bar${hit.bars_ago === 1 ? "" : "s"} ago`}
                   </Text>

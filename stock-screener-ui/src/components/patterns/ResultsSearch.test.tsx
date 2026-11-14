@@ -32,7 +32,7 @@ function makeFilters(overrides: Partial<FiltersFixture> = {}): PatternFilters {
 }
 
 /** Renders ResultsSearch against a filter store the test can echo back into. */
-function renderHarness(initialFilters: PatternFilters, setFilter: ReturnType<typeof vi.fn>) {
+function renderHarness(initialFilters: PatternFilters, setFilter: (key: string, value: unknown) => void) {
   let echo!: (f: PatternFilters) => void;
   const result = render(() => {
     const [filters, setFilters] = createSignal(initialFilters);

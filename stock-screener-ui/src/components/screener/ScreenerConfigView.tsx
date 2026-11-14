@@ -18,7 +18,8 @@ import {
 import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import { fetchWithAuth } from "@/state/auth";
-import type { ScreenerOption, ProfileFilter, ColumnDef } from "../../types";
+import type { ScreenerOption, ProfileFilter } from "../../types";
+import type { ColumnDef } from "./columns";
 import { ScreenerTable } from "./ScreenerTable";
 import { SelectionBar } from "./SelectionBar";
 import { createScreener, updateScreener, deleteScreener } from "../../api/screeners";
@@ -134,18 +135,22 @@ export function ScreenerConfigView(props: Props) {
     ],
   );
 
+  // `profile_meta.filters` is an ARRAY of `ProfileFilter` (`{key,label,type,default,
+  // rangeDefault?}`), not a record. Iterating it with `Object.entries` yielded
+  // `0={...}`/`1={...}` query params, so the preview was never actually filtered.
+  // Range filters carry their pair on `rangeDefault` and are sent as `<key>_min`
+  // / `<key>_max`, matching what `_passes_profile_filters` reads.
   const filterArr = createMemo(() => {
-    const out: { key: string; default: any; min?: number; max?: number }[] = [];
-    const activeFilters = activeOption()?.filters;
-    if (activeFilters) {
-      Object.entries(activeFilters as Record<string, any>).forEach(([key, value]) => {
-        if (Array.isArray(value) && value.length === 2) {
-          out.push({ key: key + "_min", default: value[0] });
-          out.push({ key: key + "_max", default: value[1] });
-        } else {
-          out.push({ key, default: value });
-        }
-      });
+    const out: { key: string; default: unknown }[] = [];
+    for (const filter of activeOption()?.filters ?? []) {
+      if (!filter?.key) continue;
+      const range = (filter as { rangeDefault?: unknown }).rangeDefault;
+      if (Array.isArray(range) && range.length === 2) {
+        out.push({ key: `${filter.key}_min`, default: range[0] });
+        out.push({ key: `${filter.key}_max`, default: range[1] });
+      } else if (filter.default !== undefined) {
+        out.push({ key: filter.key, default: filter.default });
+      }
     }
     return out;
   });
@@ -234,7 +239,7 @@ export function ScreenerConfigView(props: Props) {
     if (!f.label || f.columns.length === 0 || !editing) return;
     setSaving(true);
     try {
-      await updateScreener(Number(editing.id), {
+      await updateScreener(editing.id, {
         name: f.label,
         description: f.description,
         indicators: f.indicators,
@@ -261,7 +266,7 @@ export function ScreenerConfigView(props: Props) {
     if (!id) return;
     setSaving(true);
     try {
-      await deleteScreener(Number(id));
+      await deleteScreener(id);
       setDeleteConfirmOpen(false);
       setDeletingId(null);
       if (props.activeScreener === id) {
@@ -325,7 +330,7 @@ export function ScreenerConfigView(props: Props) {
           <NumberInput
             label={filter.label}
             value={filter.default as number}
-            onChange={(val) => updateFilterValue(filter.key, val || 0)}
+            onChange={(val: number | string) => updateFilterValue(filter.key, Number(val) || 0)}
             min={filter.min}
             max={filter.max}
             step={filter.step}
@@ -335,11 +340,18 @@ export function ScreenerConfigView(props: Props) {
       );
     }
     if (filter.type === "select" && filter.options) {
+      // `ProfileFilter.options` allows bare numbers, but `Select` only accepts
+      // strings or `{value,label}` — a number used to reach `normalizeOptions`
+      // and produce `{value: undefined, label: undefined}` (an unlabelled
+      // option). Normalise here.
+      const options = filter.options.map((option) =>
+        typeof option === "object" ? option : { value: String(option), label: String(option) },
+      );
       return (
         <Box className="flex items-center w-[120px]">
           <Select
             label={filter.label}
-            data={filter.options}
+            data={options}
             value={filter.default as string}
             onChange={(val) => updateFilterValue(filter.key, val || "")}
             className="w-[120px]"

@@ -11,8 +11,9 @@ afterEach(() => {
 
 vi.mock("../common/compact", () => ({
   CompactStatGrid: ({ children }: any) => <div data-testid="compact-stat-grid">{children}</div>,
-  CompactStat: ({ label, value, tone, testId }: any) => (
-    <div data-testid={testId} data-tone={tone}>
+  // `CompactStat` forwards testId as `data-testid` now, so read the rest props.
+  CompactStat: ({ label, value, tone, ...rest }: { label: string; value: string | number; tone?: string; [key: string]: unknown }) => (
+    <div data-testid={rest["data-testid"] as string | undefined} data-tone={tone}>
       <span>{label}</span>
       <span>{value}</span>
     </div>

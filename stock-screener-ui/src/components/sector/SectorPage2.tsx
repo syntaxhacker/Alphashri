@@ -257,7 +257,7 @@ function DashboardContent(props: {
                 <Text fw={600} className="text-[11px]">Market Heatmap</Text>
                 <Show when={data().last_updated}>
                   <Box className="flex items-center gap-1">
-                    <IconClock size={10} color="var(--color-fin-text-muted)" />
+                    <IconClock size={12} color="var(--color-fin-text-muted)" />
                     <Text c="dimmed" className="text-[9.5px] font-mono tabular-nums">
                       {new Date(data().last_updated!).toLocaleTimeString()}
                     </Text>

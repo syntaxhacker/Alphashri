@@ -1,6 +1,8 @@
 import { createMemo, For, Show } from "solid-js";
+import type { JSX } from "solid-js";
 import { Box, Flex, Text } from "@/ui";
-import type { CSSProperties } from "solid-js";
+
+type CSSProperties = JSX.CSSProperties;
 
 export interface PatternLegendLine {
   name: string;
@@ -53,7 +55,7 @@ function EntryButton(props: {
     <Text
       size="xs"
       c="dimmed"
-      style={props.isHidden ? { textDecoration: "line-through" } : undefined}
+      style={props.isHidden ? { "text-decoration": "line-through" } : undefined}
     >
       {props.entry.name}
     </Text>

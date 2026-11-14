@@ -333,7 +333,7 @@ export function AppliedFilters(props: AppliedFiltersProps) {
                           className="inline-flex cursor-pointer items-center justify-center rounded-sm p-0.5 leading-none hover:bg-white/10"
                           onClick={() => props.setFilter(chip.key, chip.nextValue)}
                         >
-                          <IconX size={10} stroke={2.5} />
+                          <IconX size={12} stroke={2.5} />
                         </button>
                       </span>
                     )}

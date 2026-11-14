@@ -1,5 +1,6 @@
 import { ScreenerTable } from "./ScreenerTable";
-import type { Stock, ColumnDef } from "../../types";
+import type { Stock } from "../../types";
+import type { ColumnDef } from "./columns";
 
 interface ScreenerStockViewProps {
   stocks: Stock[];

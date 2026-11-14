@@ -16,7 +16,7 @@ vi.mock("../../api/fnoScreener", async (importOriginal) => {
 // Mock PayoffChart so happy-dom never loads ECharts; forward data-testid so the
 // expanded row asserts the chart with the per-symbol id.
 vi.mock("@/components/options/PremiumTracker/PayoffChart", () => ({
-  PayoffChart: ({ dataTestid: testId }: { "data-testid"?: string }) => (
+  PayoffChart: ({ "data-testid": testId }: { "data-testid"?: string }) => (
     <div data-testid={testId ?? "mock-payoff-chart"}>mock chart</div>
   ),
 }));

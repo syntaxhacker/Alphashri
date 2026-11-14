@@ -86,11 +86,6 @@ export function IndexMembersDrawer(props: IndexMembersDrawerProps) {
         tv: (symbol) => `index-member-tv-${symbol}`,
         chart: (symbol) => `index-member-chart-${symbol}`,
       }}
-      textSx={{
-        title: { fontSize: "0.875rem" },
-        subtitle: { fontSize: "0.75rem" },
-        symbol: { fontSize: 11, lineHeight: 1.2 },
-      }}
       footerLeft={
         <Text size="xs" c="dimmed" truncate>
           {symbols().length === count() ? `${count()} listed` : `${symbols().length} of ${count()}`}

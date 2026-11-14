@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { within, cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import type { PatternFilters } from "@/types/chartPatterns";
+import { DEFAULT_PATTERN_FILTERS } from "@/state/chartPatterns";
 import {
   PatternPresets,
   PATTERN_PRESETS_STORAGE_KEY,
@@ -14,20 +15,7 @@ vi.mock("@/ui", async () => {
   return mockSolidUi();
 });
 
-const FILTERS: PatternFilters = {
-  family: [],
-  pattern_id: [],
-  direction: [],
-  status: [],
-  quality: null,
-  formed_within_bars: null,
-  volume_confirmed: null,
-  min_rr: null,
-  symbol: null,
-  min_base_days: null,
-  max_range_pct: null,
-  sort: "confidence",
-};
+const FILTERS: PatternFilters = { ...DEFAULT_PATTERN_FILTERS };
 
 function makeProps(overrides: Partial<PatternPresetsProps> = {}): PatternPresetsProps {
   return { filters: { ...FILTERS }, applyFilters: vi.fn(), ...overrides };

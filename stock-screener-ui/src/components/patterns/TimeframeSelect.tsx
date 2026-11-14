@@ -10,17 +10,17 @@ import { DEFAULT_TIMEFRAME } from "@/state/chartPatterns";
  * never empty. Mirrors CONTRACT §1.
  */
 export const FALLBACK_TIMEFRAMES: TFSpec[] = [
-  { id: "1m", label: "1m", minutes: 1, native: "minutes/1", source_tf: null, max_lookback_days: 30, min_bars: 60 },
-  { id: "5m", label: "5m", minutes: 5, native: "minutes/5", source_tf: null, max_lookback_days: 90, min_bars: 60 },
-  { id: "10m", label: "10m", minutes: 10, native: "minutes/10", source_tf: null, max_lookback_days: 90, min_bars: 60 },
-  { id: "15m", label: "15m", minutes: 15, native: "minutes/15", source_tf: null, max_lookback_days: 90, min_bars: 60 },
-  { id: "30m", label: "30m", minutes: 30, native: "minutes/30", source_tf: null, max_lookback_days: 180, min_bars: 60 },
-  { id: "1h", label: "1h", minutes: 60, native: "hours/1", source_tf: null, max_lookback_days: 365, min_bars: 60 },
-  { id: "3h", label: "3h", minutes: 180, native: null, source_tf: "1h", max_lookback_days: 365, min_bars: 60 },
-  { id: "4h", label: "4h", minutes: 240, native: "hours/4", source_tf: null, max_lookback_days: 365, min_bars: 60 },
-  { id: "1D", label: "1D", minutes: 1440, native: "days/1", source_tf: null, max_lookback_days: 730, min_bars: 60 },
-  { id: "1W", label: "1W", minutes: 10080, native: "weeks/1", source_tf: null, max_lookback_days: 1825, min_bars: 52 },
-  { id: "1M", label: "1M", minutes: 43200, native: "months/1", source_tf: null, max_lookback_days: 3650, min_bars: 24 },
+  { id: "1m", label: "1m", minutes: 1, native: true, source_tf: null, max_lookback_days: 30, min_bars: 60 },
+  { id: "5m", label: "5m", minutes: 5, native: true, source_tf: null, max_lookback_days: 90, min_bars: 60 },
+  { id: "10m", label: "10m", minutes: 10, native: true, source_tf: null, max_lookback_days: 90, min_bars: 60 },
+  { id: "15m", label: "15m", minutes: 15, native: true, source_tf: null, max_lookback_days: 90, min_bars: 60 },
+  { id: "30m", label: "30m", minutes: 30, native: true, source_tf: null, max_lookback_days: 180, min_bars: 60 },
+  { id: "1h", label: "1h", minutes: 60, native: true, source_tf: null, max_lookback_days: 365, min_bars: 60 },
+  { id: "3h", label: "3h", minutes: 180, native: false, source_tf: "1h", max_lookback_days: 365, min_bars: 60 },
+  { id: "4h", label: "4h", minutes: 240, native: false, source_tf: "1h", max_lookback_days: 365, min_bars: 60 },
+  { id: "1D", label: "1D", minutes: 1440, native: true, source_tf: null, max_lookback_days: 730, min_bars: 60 },
+  { id: "1W", label: "1W", minutes: 10080, native: true, source_tf: null, max_lookback_days: 1825, min_bars: 52 },
+  { id: "1M", label: "1M", minutes: 43200, native: true, source_tf: null, max_lookback_days: 3650, min_bars: 24 },
 ];
 
 export interface TimeframeSelectProps {

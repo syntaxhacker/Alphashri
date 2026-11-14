@@ -47,7 +47,7 @@ export function ChainScrollActions(props: ChainScrollActionsProps) {
           className="scroll-action-btn scroll-atm-btn"
           data-testid="options-scroll-atm-btn"
         >
-          <IconTarget size={22} />
+          <IconTarget size={24} />
         </ActionIcon>
       </Tooltip>
       <Tooltip label="Scroll to Bottom" position="left">

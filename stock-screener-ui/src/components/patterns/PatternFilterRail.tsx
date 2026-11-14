@@ -287,7 +287,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
             label="Hide 0"
             size="xs"
             checked={hideZero()}
-            onChange={(e) => setHideZero(e.currentTarget.checked)}
+            onChange={(e) => setHideZero((e.currentTarget as HTMLInputElement).checked)}
             data-testid="patterns-filter-hide-zero"
           />
         </ToolbarRow>
@@ -296,7 +296,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
             label="Match in order (sequence)"
             size="xs"
             checked={Boolean(props.filters.sequence)}
-            onChange={(e) => props.setFilter("sequence", e.currentTarget.checked)}
+            onChange={(e) => props.setFilter("sequence", (e.currentTarget as HTMLInputElement).checked)}
             data-testid="patterns-filter-sequence"
           />
         </Show>
@@ -781,7 +781,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
         label="Volume confirmed"
         size="xs"
         checked={Boolean(props.filters.volume_confirmed)}
-        onChange={(e) => props.setFilter("volume_confirmed", e.currentTarget.checked ? true : null)}
+        onChange={(e) => props.setFilter("volume_confirmed", (e.currentTarget as HTMLInputElement).checked ? true : null)}
         data-testid="patterns-volume-confirmed"
       />
       <Show when={!panel()}>

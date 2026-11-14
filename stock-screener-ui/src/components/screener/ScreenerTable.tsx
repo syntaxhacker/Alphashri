@@ -110,7 +110,7 @@ export function ScreenerTable(props: ScreenerTableProps) {
                         onClick={(e: MouseEvent) => { e.stopPropagation(); copy(); }}
                         data-testid="copy-all-symbols-btn"
                       >
-                        {copied ? <IconCheck size={10} /> : <IconCopy size={10} />}
+                        {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
                       </ActionIcon>
                     </Tooltip>
                   )}
@@ -181,7 +181,7 @@ export function ScreenerTable(props: ScreenerTableProps) {
                       onClick={(e: MouseEvent) => { e.stopPropagation(); copy(); }}
                       data-testid={`copy-symbol-btn-${stock.symbol}`}
                     >
-                      {copied ? <IconCheck size={10} /> : <IconCopy size={10} />}
+                      {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
                     </ActionIcon>
                   )}
                 </CopyButton>
@@ -207,7 +207,7 @@ export function ScreenerTable(props: ScreenerTableProps) {
           if (col.key === "score" || col.type === "badge") {
             const scoreValue = typeof value === "number" ? value : 0;
             return (
-              <Tooltip label={props.scoreFormula ? `${props.scoreFormula} = ${scoreValue}` : `Score: ${scoreValue}`} multiline w={300} withinPortal>
+              <Tooltip label={props.scoreFormula ? `${props.scoreFormula} = ${scoreValue}` : `Score: ${scoreValue}`} multiline withinPortal>
                 <Badge color={getScoreColor(scoreValue)} variant="filled" data-testid={`score-badge-${stock.symbol}`}>
                   {scoreValue}
                 </Badge>

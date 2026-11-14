@@ -32,7 +32,7 @@ export function ScreenerSummary(props: ScreenerSummaryProps) {
             label={item.label}
             value={item.value}
             tone={getTone(item)}
-            testId={`summary-card-${item.label}`}
+            data-testid={`summary-card-${item.label}`}
             className="flex items-center justify-between"
           />
         )}

@@ -32,7 +32,7 @@ vi.mock("./ScreenerTable", () => ({
     <div data-testid={props.testId || "screener-table"}>
       Table
       {props.columns.map((col: any) => (
-        <span key={col.key} data-testid={`preview-sort-header-${col.key}`}>
+        <span data-testid={`preview-sort-header-${col.key}`}>
           {col.label}
         </span>
       ))}
@@ -68,7 +68,9 @@ import { ScreenerConfigView } from "./ScreenerConfigView";
 const renderWithProvider = (ui: JSX.Element) =>
   render(() => <UIProvider>{ui}</UIProvider>);
 
-const mockOptions = [
+import type { ScreenerOption } from "../../types";
+
+const mockOptions: ScreenerOption[] = [
   {
     id: "trending",
     label: "Trending",

@@ -788,7 +788,7 @@ export function WatchView(props: WatchViewProps) {
                 placeholder="Vol (adj) ≥"
                 aria-label="Vol (adj) gate"
                 value={relVol()}
-                onChange={(v) => setRelVol(typeof v === "number" ? v : v === "" ? "" : Number(v))}
+                onChange={(v: number | string) => setRelVol(typeof v === "number" ? v : v === "" ? "" : Number(v))}
                 min={0}
                 step={0.1}
                 w={120}
@@ -879,7 +879,7 @@ export function WatchView(props: WatchViewProps) {
           placeholder="≤ % of trigger"
           aria-label="Within % of trigger"
           value={withinPct()}
-          onChange={(v) => setWithinPct(typeof v === "number" ? v : v === "" ? "" : Number(v))}
+          onChange={(v: number | string) => setWithinPct(typeof v === "number" ? v : v === "" ? "" : Number(v))}
           min={0}
           step={1}
           size="sm"
@@ -890,14 +890,14 @@ export function WatchView(props: WatchViewProps) {
           label="Hide inval."
           size="sm"
           checked={hideInvalidated()}
-          onChange={(e) => setHideInvalidated(e.currentTarget.checked)}
+          onChange={(e) => setHideInvalidated((e.currentTarget as HTMLInputElement).checked)}
           data-testid="watch-hide-invalidated"
         />
         <Switch
           label="Hide ETFs"
           size="sm"
           checked={hideEtfs()}
-          onChange={(e) => setHideEtfs(e.currentTarget.checked)}
+          onChange={(e) => setHideEtfs((e.currentTarget as HTMLInputElement).checked)}
           data-testid="watch-hide-etfs"
         />
         <Text size="xs" c="dimmed" data-testid="watch-count">
@@ -947,17 +947,22 @@ export function WatchView(props: WatchViewProps) {
 
       <Show when={loading() && items().length === 0} fallback={
         <Show when={items().length === 0 && !error()} fallback={
-          <TanStackTable<WatchRow>
-            key={setup()}
-            data={filtered()}
-            columns={columns()}
-            dataTestId="watch-table"
-            loading={loading()}
-            emptyMessage={items().length > 0 ? "No rows match the filters." : "No breakout candidates right now."}
-            initialState={{ sorting: initialSorting() }}
-            onRowClick={(row) => props.onOpenSymbol?.(row.symbol)}
-            getRowTestId={(row) => `watch-row-${row.symbol}`}
-          />
+          // Keyed on the setup so switching setups remounts the table: the
+          // header sort and scroll position belong to the previous setup.
+          <Show when={setup()} keyed>
+            {(_setup) => (
+              <TanStackTable<WatchRow>
+                data={filtered()}
+                columns={columns()}
+                dataTestId="watch-table"
+                loading={loading()}
+                emptyMessage={items().length > 0 ? "No rows match the filters." : "No breakout candidates right now."}
+                initialState={{ sorting: initialSorting() }}
+                onRowClick={(row) => props.onOpenSymbol?.(row.symbol)}
+                getRowTestId={(row) => `watch-row-${row.symbol}`}
+              />
+            )}
+          </Show>
         }>
           <Box
             data-testid="watch-empty"

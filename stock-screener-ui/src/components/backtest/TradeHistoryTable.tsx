@@ -364,7 +364,7 @@ export function TradeHistoryTable(props: TradeHistoryTableProps) {
             {props.symbol} Trades ({props.trades.length})
           </Text>
           <div class="flex-1" />
-          <Button size="xs" variant="subtle" color="secondary" onClick={exportCsv} leftSection={<IconDownload size={11} />} data-testid="export-trades-csv">
+          <Button size="xs" variant="subtle" color="secondary" onClick={exportCsv} leftSection={<IconDownload size={12} />} data-testid="export-trades-csv">
             CSV
           </Button>
           <ActionIcon variant="subtle" color="secondary" size="xs" onClick={props.onClose} data-testid="close-trade-history-btn" title="Close">

@@ -1,5 +1,5 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { Box, Divider, Text, Textarea, Tooltip } from "@/ui";
 import { cn } from "@/ui/cn";
@@ -60,6 +60,14 @@ export function UniverseBar(props: UniverseBarProps) {
   const parsed = createMemo(() => parseSymbolList(pasteText()));
   const customUniverse = () => props.customUniverse ?? "custom";
   const customSymbolCount = () => props.customSymbolCount ?? 0;
+
+  // `UITextareaProps` has no `autoFocus` (and `Textarea` drops unknown props),
+  // so focus the paste box imperatively once the dialog mounts.
+  createEffect(() => {
+    if (!pasteOpen()) return;
+    const el = document.querySelector<HTMLTextAreaElement>('[data-testid="patterns-paste-symbols-input"]');
+    el?.focus();
+  });
 
   const applyPaste = () => {
     if (!parsed().length) return;
@@ -149,7 +157,7 @@ export function UniverseBar(props: UniverseBarProps) {
                 : "font-medium text-fin-text-muted hover:bg-fin-surface hover:text-fin-text",
             )}
           >
-            <IconPencil size={11} />
+            <IconPencil size={12} />
             Custom
             <Show when={customSymbolCount() > 0}>
               <span
@@ -196,7 +204,7 @@ export function UniverseBar(props: UniverseBarProps) {
             data-testid="patterns-scan-again"
             className="inline-flex h-6 min-w-[96px] items-center justify-center gap-1 whitespace-nowrap rounded-fin border-0 bg-fin-primary px-2 text-xs font-semibold text-fin-bg transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Show when={props.scanning} fallback={<IconPlayerPlay size={13} />}>
+            <Show when={props.scanning} fallback={<IconPlayerPlay size={14} />}>
               <Spinner />
             </Show>
             {scanLabel()}
@@ -211,7 +219,7 @@ export function UniverseBar(props: UniverseBarProps) {
           role="alert"
           className="mt-1.5 flex items-center gap-1 rounded-fin border-l-[3px] border-fin-negative bg-fin-surface-alt px-1.5 py-[3px] text-fin-negative"
         >
-          <IconAlertTriangle size={13} />
+          <IconAlertTriangle size={14} />
           <Text size="xs" c="error" data-testid="patterns-status-line">
             {props.error}
           </Text>
@@ -252,7 +260,6 @@ export function UniverseBar(props: UniverseBarProps) {
               placeholder="ASIANPAINT, CIPLA, LT, NTPC…"
               minRows={5}
               autosize
-              autofocus
               data-testid="patterns-paste-symbols-input"
             />
             <Box className="flex justify-end gap-2">

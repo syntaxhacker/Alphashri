@@ -77,7 +77,6 @@ const defaultProps = {
   touchedStocks: [] as Stock[],
   isLoading: false,
   error: null as string | null,
-  totalStocks: 0,
   onRefresh: vi.fn(),
   onSymbolClick: vi.fn(),
   onSymbolHover: vi.fn(),
@@ -90,7 +89,7 @@ describe("ScreenerContent", () => {
   });
 
   it("shows loading when isLoading is true", () => {
-    renderWithProvider(<ScreenerContent {...defaultProps} isLoading totalStocks={0} />);
+    renderWithProvider(<ScreenerContent {...defaultProps} isLoading />);
     expect(screen.getByTestId("screener-loading")).toBeInTheDocument();
   });
 
@@ -112,7 +111,7 @@ describe("ScreenerContent", () => {
     expect(screen.getByTestId("screener-error")).toHaveTextContent("Failed to fetch");
   });
 
-  it("shows empty state when totalStocks is 0", () => {
+  it("shows empty state when there are no rows", () => {
     renderWithProvider(<ScreenerContent {...defaultProps} />);
     expect(screen.getByTestId("screener-empty")).toBeInTheDocument();
   });
@@ -121,7 +120,6 @@ describe("ScreenerContent", () => {
     renderWithProvider(
       <ScreenerContent
         {...defaultProps}
-        totalStocks={3}
         approachingStocks={[
           mockStock("A"),
           mockStock("B"),
@@ -138,7 +136,6 @@ describe("ScreenerContent", () => {
       <ScreenerContent
         {...defaultProps}
         activeScreener="buyer_interest"
-        totalStocks={5}
         approachingStocks={[
           mockStock("A"),
           mockStock("B"),
@@ -156,7 +153,6 @@ describe("ScreenerContent", () => {
     renderWithProvider(
       <ScreenerContent
         {...defaultProps}
-        totalStocks={3}
         approachingStocks={[
           mockStock("A"),
           mockStock("B"),
@@ -176,7 +172,6 @@ describe("ScreenerContent", () => {
     renderWithProvider(
       <ScreenerContent
         {...defaultProps}
-        totalStocks={2}
         approachingStocks={[mockStock("A"), mockStock("B")]}
         touchedStocks={[]}
       />,

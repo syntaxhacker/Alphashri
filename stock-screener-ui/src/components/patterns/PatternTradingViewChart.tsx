@@ -10,7 +10,9 @@ import {
   type IChartApi,
   type IPriceLine,
   type ISeriesApi,
+  type ISeriesMarkersPluginApi,
   type LineWidth,
+  type Time,
 } from "lightweight-charts";
 import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
@@ -68,7 +70,7 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
   let candleSeries: ISeriesApi<"Candlestick"> | null = null;
   let volumeSeries: ISeriesApi<"Histogram"> | null = null;
   let lineSeries: ISeriesApi<"Line">[] = [];
-  let markers: ReturnType<typeof createSeriesMarkers> | null = null;
+  let markers: ISeriesMarkersPluginApi<Time> | null = null;
   let priceLines: Array<{ name: string; line: IPriceLine }> = [];
   let hiddenRef: ReadonlySet<string> = props.hiddenNames ?? EMPTY_HIDDEN;
 

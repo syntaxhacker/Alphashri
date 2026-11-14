@@ -49,7 +49,7 @@ interface Props {
   approachingStocks: Stock[];
   touchedStocks: Stock[];
   isLoading: boolean;
-  error: string | null;
+  error?: string | null;
   onRefresh: () => void;
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;

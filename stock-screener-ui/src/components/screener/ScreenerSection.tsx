@@ -1,7 +1,8 @@
 import type { JSX } from "solid-js";
 import { CompactPanel } from "../common/compact";
 import { ScreenerStockView } from "./ScreenerStockView";
-import type { Stock, ColumnDef } from "../../types";
+import type { Stock } from "../../types";
+import type { ColumnDef } from "./columns";
 
 interface ScreenerSectionProps {
   title: string;

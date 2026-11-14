@@ -136,7 +136,7 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
             onClick={props.onPrev}
             data-testid="patterns-chart-prev"
           >
-            <IconChevronLeft size={15} />
+            <IconChevronLeft size={14} />
           </ActionIcon>
         </Tooltip>
         {props.positionLabel ? (
@@ -157,7 +157,7 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
             onClick={props.onNext}
             data-testid="patterns-chart-next"
           >
-            <IconChevronRight size={15} />
+            <IconChevronRight size={14} />
           </ActionIcon>
         </Tooltip>
       </Box>

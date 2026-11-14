@@ -87,7 +87,7 @@ export function ScreenerNav(props: ScreenerNavProps) {
             <For each={current()}>{renderItem}</For>
             <Show when={legacy().length > 0}>
               <Stack gap={1} className="w-full pt-2">
-                <Text size="11px" c="dimmed" tt="uppercase" fw={600} className="px-2 pt-1 pb-1">
+                <Text className="text-[11px] px-2 pt-1 pb-1" c="dimmed" tt="uppercase" fw={600}>
                   Legacy
                 </Text>
                 <ul className="flex flex-col gap-2 p-0">

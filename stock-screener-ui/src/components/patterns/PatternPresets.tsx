@@ -168,7 +168,7 @@ export function PatternPresets(props: PatternPresetsProps) {
             data-testid="patterns-preset-save"
             className={`${ICON_BUTTON_CLASS} size-7 self-start`}
           >
-            <IconBookmarkPlus size={15} />
+            <IconBookmarkPlus size={14} />
           </button>
         </Tooltip>
       }>

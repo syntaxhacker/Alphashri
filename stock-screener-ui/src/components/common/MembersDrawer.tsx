@@ -272,7 +272,7 @@ export function MembersDrawer(props: MembersDrawerProps) {
                                 color: palette.TEXT_MUTED,
                               }}
                             >
-                              <IconChartLine size={13} />
+                              <IconChartLine size={14} />
                             </a>
                           </div>
                         )}

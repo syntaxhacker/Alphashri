@@ -65,8 +65,8 @@ export function Sparkline(props: SparklineProps) {
           fill="none"
           stroke={positive() ? "var(--color-fin-positive)" : "var(--color-fin-negative)"}
           stroke-width={1.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
+          stroke-linecap="round"
+          stroke-linejoin="round"
         />
       </svg>
     </Box>

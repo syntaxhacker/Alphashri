@@ -93,7 +93,34 @@ describe("design scale", () => {
     expect(css).toMatch(/:is\(input, select, textarea\):focus/);
     expect(css).toMatch(/outline: 2px solid var\(--color-fin-primary\)/);
   });
+});
 
+/** Icon sizes: an icon is drawn at one of the scale steps or it is drift. */
+const ICON_SIZES = new Set(["8", "12", "14", "16", "18", "20", "24", "32", "40"]);
+/** Decorative hero/empty-state icons legitimately sit outside the control scale. */
+const ICON_DECORATIVE = /EmptyState|Empty|Hero|BacktestHistory|NewsHelpers|ArticleDetail|solidUiMock|KitPoc/;
+
+describe("icon scale", () => {
+  it("every Icon size is in the scale", () => {
+    const offenders: Offender[] = [];
+    for (const path of walk(SRC)) {
+      if (/\.test\.|\.stories\./.test(path)) continue;
+      const rel = relative(SRC, path);
+      if (rel.startsWith("ui/") || ICON_DECORATIVE.test(rel)) continue;
+      readFileSync(path, "utf8")
+        .split("\n")
+        .forEach((text, i) => {
+          for (const m of text.matchAll(/<Icon[A-Za-z]+[^>]*?\bsize=\{(\d+)\}/g)) {
+            if (!ICON_SIZES.has(m[1])) offenders.push({ file: rel, line: i + 1, detail: `icon ${m[1]}px` });
+          }
+        });
+    }
+    const report = offenders.map((o) => `${o.file}:${o.line} — ${o.detail}`).join("\n");
+    expect(offenders, `\n${report}\n\nAllowed: ${[...ICON_SIZES].join(", ")}`).toEqual([]);
+  });
+});
+
+describe("control scale", () => {
   it("every control height is in the scale", () => {
     // Chart/canvas heights are content-driven and legitimately arbitrary
     // (a 340px sparkline panel, a 148px IV skew). Only *control* heights —

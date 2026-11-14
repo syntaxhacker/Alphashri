@@ -197,6 +197,7 @@ describe("render perf — patterns", () => {
       notifyCount += 1;
     });
     mockedStreamResults.mockImplementation(async (_query, handlers) => {
+      if (!handlers) return;
       handlers.onMeta?.({ total: 44, summary: SUMMARY, data_through: "2026-09-30" });
       for (const hit of hits) {
         handlers.onItem?.(hit as never);

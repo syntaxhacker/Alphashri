@@ -10,8 +10,9 @@
  */
 import { For, splitProps, type JSX } from "solid-js";
 
-export interface TablerIconProps extends Omit<JSX.SvgSVGAttributes<SVGSVGElement>, "color"> {
+export interface TablerIconProps extends Omit<JSX.SvgSVGAttributes<SVGSVGElement>, "color" | "stroke"> {
   size?: number | string;
+  /** Stroke width in px (SVG `stroke-width`), not the stroke colour. */
   stroke?: number | string;
   color?: string;
   className?: string;

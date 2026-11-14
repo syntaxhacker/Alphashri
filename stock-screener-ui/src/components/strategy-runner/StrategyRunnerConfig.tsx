@@ -192,7 +192,7 @@ export function StrategyRunnerConfig(props: Props) {
                           onClick={() => props.setConfig({ symbols: props.config.symbols.filter((s) => s !== sym) })}
                           aria-label={`Remove ${sym}`}
                         >
-                          <IconX size={10} />
+                          <IconX size={12} />
                         </ActionIcon>
                       }
                     >

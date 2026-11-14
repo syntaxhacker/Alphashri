@@ -341,7 +341,7 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
                 style={{ "white-space": "nowrap" }}
                 rightSection={
                   <IconX
-                    size={10}
+                    size={12}
                     style={{ cursor: "pointer" }}
                     onClick={() =>
                       props.setConfig({ symbols: props.config.symbols.filter((s) => s !== symbol) })

@@ -47,7 +47,7 @@ export function ScreenerHeader(props: ScreenerHeaderProps) {
           </Tooltip>
           <NumberInput
             value={props.autoRefreshSeconds}
-            onChange={(value) => props.onAutoRefreshChange(Number(value) || 0)}
+            onChange={(value: number | string) => props.onAutoRefreshChange(Number(value) || 0)}
             min={0}
             max={3600}
             step={10}

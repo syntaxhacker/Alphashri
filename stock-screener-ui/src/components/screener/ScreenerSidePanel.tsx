@@ -100,7 +100,7 @@ export function ScreenerSidePanel(props: Props) {
           </Text>
           <NumberInput
             value={(value() as number) || filter.default || ""}
-            onChange={(val) => handleFilterChange(filter.key, val as number)}
+            onChange={(val: number | string) => handleFilterChange(filter.key, Number(val) || 0)}
             min={filter.min}
             max={filter.max}
             step={filter.step}
@@ -121,7 +121,7 @@ export function ScreenerSidePanel(props: Props) {
       >
         <Box p={1} className="flex flex-col gap-2">
           <Box className="flex items-center justify-between gap-2 px-1">
-            <Text size="11px" fw={600} c="dimmed" tt="uppercase">
+            <Text className="text-[11px]" fw={600} c="dimmed" tt="uppercase">
               Filters
             </Text>
           </Box>

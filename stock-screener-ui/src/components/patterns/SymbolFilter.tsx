@@ -95,8 +95,8 @@ export function SymbolFilter(props: SymbolFilterProps) {
       <Box className="flex max-w-[380px] min-w-0 items-center gap-1">
         <Box
           className="min-w-0 flex-1"
-          onPaste={(e) => {
-            const parsed = parseSymbolList(e.clipboardData.getData("text"));
+          onPaste={(e: ClipboardEvent) => {
+            const parsed = parseSymbolList(e.clipboardData?.getData("text") ?? "");
             if (parsed.length > 1) {
               e.preventDefault();
               apply(Array.from(new Set([...selected(), ...parsed])));

@@ -102,7 +102,7 @@ export function SymbolChips(props: {
                     onClick={() => handleRemoveSymbol(symbol)}
                     style={{ background: "transparent", border: "none", cursor: "pointer", display: "inline-flex", padding: 0 }}
                   >
-                    <IconX size={10} />
+                    <IconX size={12} />
                   </button>
                 }
                 data-testid={`chip-${symbol}`}
@@ -118,7 +118,7 @@ export function SymbolChips(props: {
               size="sm"
               className="symbol-chip symbol-expand-toggle"
               onClick={() => setSymbolsExpanded(true)}
-              rightSection={<IconChevronDown size={10} />}
+              rightSection={<IconChevronDown size={12} />}
               data-testid="symbol-expand-more-btn"
               style={{ color: palette.TEXT_MUTED }}
             >
@@ -132,7 +132,7 @@ export function SymbolChips(props: {
               size="sm"
               className="symbol-chip symbol-expand-toggle"
               onClick={() => setSymbolsExpanded(false)}
-              rightSection={<IconChevronUp size={10} />}
+              rightSection={<IconChevronUp size={12} />}
               data-testid="symbol-expand-less-btn"
               style={{ color: palette.TEXT_MUTED }}
             >

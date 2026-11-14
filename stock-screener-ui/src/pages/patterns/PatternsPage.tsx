@@ -829,7 +829,7 @@ function PatternsWorkspace(props: PatternsPageProps) {
                     data-testid="patterns-overflow"
                     style={{ width: TOOLBAR_CONTROL_H, height: TOOLBAR_CONTROL_H }}
                   >
-                    <IconDotsVertical size={15} />
+                    <IconDotsVertical size={14} />
                   </ActionIcon>
                 </MenuTarget>
                 <MenuDropdown data-testid="patterns-overflow-dropdown">

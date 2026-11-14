@@ -18,6 +18,7 @@ import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
 import { RangeInput } from "../common/RangeInput";
 import { TanStackTable } from "../common/TanStackTable";
 import { PayoffChart } from "@/components/options/PremiumTracker/PayoffChart";
+import type { PayoffLeg } from "@/components/options/PremiumTracker/payoff";
 import { buildFnoColumns } from "./fnoColumns";
 import {
   fetchFnoScreener,
@@ -143,9 +144,17 @@ export function FnoScreenerTab() {
   const showError = () => error() !== null && rows().length === 0;
   const backendIssue = createMemo(() => {
     const d = data();
-    return d && d.errors.length > 0
-      ? d.errors[0]?.error || d.warnings[0] || "Upstream options data unavailable"
-      : null;
+    if (!d || d.errors.length === 0) return null;
+    // `FnoScreenerResponse.errors` is typed `string[]`, but the backend returns
+    // `[{symbol, stage, error}]` (see `api/options_screener.py`). Read it
+    // structurally so either shape surfaces a message instead of `undefined`.
+    const first = d.errors[0] as unknown as
+      | string
+      | { error?: string; symbol?: string; stage?: string }
+      | null
+      | undefined;
+    if (typeof first === "string") return first || d.warnings[0] || "Upstream options data unavailable";
+    return first?.error || d.warnings[0] || "Upstream options data unavailable";
   });
   const showEmpty = () =>
     !isLoading() && error() === null && rows().length === 0 && backendIssue() === null;
@@ -338,7 +347,7 @@ export function FnoRowDetail(props: { row: FnoScreenerRow }) {
   // `legs` must rebuild when `props.row` changes (data refetch / view-mode
   // switch re-supplies the same expanded row with a new object). Reading
   // `row()` at body level would pin the first row forever.
-  const legs = () => [{ strike: row().strike, optionType: "CE", action: "BUY", qty: 1, entry: row().premium }];
+  const legs = (): PayoffLeg[] => [{ strike: row().strike, optionType: "CE", action: "BUY", qty: 1, entry: row().premium }];
   const rangePct = () => Math.max(12, Math.abs(row().strike / row().spot - 1) * 100 + 5);
   return (
     <Box
@@ -363,7 +372,7 @@ export function FnoRowDetail(props: { row: FnoScreenerRow }) {
         spot={row().spot}
         height={180}
         rangePct={rangePct()}
-        dataTestid={`fno-payoff-${row().symbol}`}
+        data-testid={`fno-payoff-${row().symbol}`}
       />
     </Box>
   );

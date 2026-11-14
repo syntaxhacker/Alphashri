@@ -129,7 +129,7 @@ export function TemplateTreeView(props: TemplateTreeViewProps) {
                     onClick={() => props.onEditStrategy(config)}
                     data-testid={`edit-strategy-btn-${id}`}
                   >
-                    <IconEdit size={13} />
+                    <IconEdit size={14} />
                   </ActionIcon>
                 </Tooltip>
                 <Tooltip label="Delete strategy" withinPortal>
@@ -140,7 +140,7 @@ export function TemplateTreeView(props: TemplateTreeViewProps) {
                     onClick={() => props.onDeleteStrategy(id)}
                     data-testid={`delete-strategy-btn-${id}`}
                   >
-                    <IconTrash size={13} />
+                    <IconTrash size={14} />
                   </ActionIcon>
                 </Tooltip>
               </>
@@ -155,7 +155,7 @@ export function TemplateTreeView(props: TemplateTreeViewProps) {
                   onClick={() => props.onEditTemplate(config)}
                   data-testid={`edit-template-btn-${id}`}
                 >
-                  <IconEdit size={13} />
+                  <IconEdit size={14} />
                 </ActionIcon>
               </Tooltip>
               <Tooltip label="Push params to all variations" withinPortal>
@@ -174,7 +174,7 @@ export function TemplateTreeView(props: TemplateTreeViewProps) {
                   }}
                   data-testid={`sync-variations-btn-${id}`}
                 >
-                  <IconRefresh size={13} />
+                  <IconRefresh size={14} />
                 </ActionIcon>
               </Tooltip>
               <Tooltip label="Create new variation" withinPortal>
@@ -185,7 +185,7 @@ export function TemplateTreeView(props: TemplateTreeViewProps) {
                   onClick={() => props.onCreateFromTemplate(config)}
                   data-testid={`create-variation-btn-${id}`}
                 >
-                  <IconPlus size={13} />
+                  <IconPlus size={14} />
                 </ActionIcon>
               </Tooltip>
             </>
