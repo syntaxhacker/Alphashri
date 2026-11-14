@@ -1,4 +1,4 @@
-import { For, Show, Suspense, createEffect, createMemo, createSignal, lazy, onCleanup, onMount } from "solid-js";
+import { Show, Suspense, createEffect, createMemo, createSignal, lazy, onCleanup, onMount } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
 import { Box, Stack, Paper, Tabs, Text, Select, Skeleton, ActionIcon, Switch, Tooltip } from "@/ui";
 import { IconTable, IconChartDots, IconSettings, IconLayoutDashboard, IconRefresh, IconCoins, IconCalendarEvent, IconChartCandle, IconWorld } from "./icons";
@@ -20,7 +20,6 @@ const GroupPerformancePanel = lazy(() =>
   import("./GroupPerformancePanel").then((m) => ({ default: m.GroupPerformancePanel })),
 );
 import { SelectionBar } from "./SelectionBar";
-import { screenerHasSideFilters } from "./ScreenerSidePanel";
 import { ScreenerInlineFilters } from "./ScreenerInlineFilters";
 import { ErrorBoundary } from "../common/ErrorBoundary";
 
@@ -151,11 +150,9 @@ function firstParam(value: string | string[] | undefined): string | null {
   return raw ?? null;
 }
 
-function CompactAlerts(props: {
-  activeScreener: string;
-  warning?: string | null;
-}) {
-  const lines = createMemo(() => {
+/** One-line notices for the context band. Never their own row. */
+function useAlertNotes(props: { activeScreener: string; warning?: string | null }) {
+  return createMemo(() => {
     const out: string[] = [];
     if (props.activeScreener === "52w_high") {
       out.push("52W from Upstox daily; LTP live when broker connected.");
@@ -165,24 +162,6 @@ function CompactAlerts(props: {
     }
     return out;
   });
-
-  return (
-    <Show when={lines().length > 0}>
-      <Box
-        py={1}
-        className="flex-shrink-0"
-        data-testid="screener-52w-high-banner"
-      >
-        <For each={lines()}>
-          {(line) => (
-            <Text size="11px" c="dimmed" lineClamp={2}>
-              {line}
-            </Text>
-          )}
-        </For>
-      </Box>
-    </Show>
-  );
 }
 
 export function ScreenerPage(props: ScreenerPageProps) {
@@ -283,19 +262,19 @@ export function ScreenerPage(props: ScreenerPageProps) {
     );
   };
 
-  const hasSideFilters = () => screenerHasSideFilters(props.activeScreener);
+  const alertNotes = useAlertNotes(props);
   const hasResults = () => props.approachingStocks.length + props.touchedStocks.length > 0;
   const isDashboard = () => activeTab() === "dashboard";
 
   return (
     <Box gap={1} className="w-full min-h-0 flex flex-col">
-      <Stack spacing={0} id="screener-main" data-testid="screener-page" gap={1} className="min-h-0 w-full">
+      <Stack spacing={0} id="screener-main" data-testid="screener-page" gap={0} className="min-h-0 w-full">
         <Paper
           radius={2}
           data-testid="screener-controls"
-          className="flex items-center justify-between gap-3 px-2 h-[34px] min-h-[34px] max-h-[34px] flex-shrink-0 overflow-hidden flex-nowrap border border-fin-border"
+          className="flex items-center gap-2 px-2 h-[32px] min-h-[32px] max-h-[32px] flex-shrink-0 overflow-hidden flex-nowrap border border-fin-border"
         >
-          <Box className="flex items-center gap-2 flex-shrink-0">
+          <Box className="flex items-center gap-2 min-w-0 flex-1">
             <Show when={isDashboard()} fallback={
               <Show when={isValueTab()} fallback={
                 <Show when={isEventsTab()} fallback={
@@ -360,7 +339,10 @@ export function ScreenerPage(props: ScreenerPageProps) {
               }}
               className="flex-1 min-w-0 overflow-x-auto"
             >
-              <Tabs.List className="min-h-[32px] flex items-center gap-1">
+              <Tabs.List
+                className="min-h-[32px] flex items-center gap-1"
+                style={{ padding: "0px", "min-height": "32px", border: "0px", gap: "2px" }}
+              >
                 <Tabs.Tab value="dashboard" leftSection={<IconLayoutDashboard size={14} />} data-testid="tab-dashboard" style={{ "min-height": "32px" }}>
                   Dashboard
                 </Tabs.Tab>
@@ -388,14 +370,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
               </Tabs.List>
             </Tabs>
           </Box>
-          <Box className="flex-1 px-2 flex justify-center overflow-hidden min-w-[80px]">
-            <Show when={!isMarketTab()}>
-              <Text size="xs" c="dimmed" truncate className="text-[11px]" title={props.status} data-testid="screener-status">
-                {props.status}
-              </Text>
-            </Show>
-          </Box>
-          <Box className="flex-shrink-0 flex items-center flex-nowrap">
+          <Box className="flex-shrink-0 flex items-center flex-nowrap ml-auto">
             <Show when={isDashboard()}>
               <Box className="flex items-center gap-2 flex-shrink-0">
                 <Tooltip label={showLastClose() ? "Showing last close (visual)" : "Show last close"}>
@@ -479,13 +454,16 @@ export function ScreenerPage(props: ScreenerPageProps) {
               <Paper
                 radius={2}
                 flex={1}
-                className="min-w-0 min-h-0 flex flex-col overflow-hidden border border-fin-border"
+                p={0}
+                className="min-w-0 min-h-0 flex flex-col overflow-hidden bg-fin-surface"
               >
-                <CompactAlerts activeScreener={props.activeScreener} warning={props.warning} />
-                <Show when={hasSideFilters()}>
-                  <ScreenerInlineFilters activeScreener={props.activeScreener} embedded />
-                </Show>
-                <Box flex={1} className="min-h-0 overflow-hidden flex flex-col py-1 gap-1">
+                <ScreenerInlineFilters
+                  activeScreener={props.activeScreener}
+                  status={props.status}
+                  notes={alertNotes()}
+                  embedded
+                />
+                <Box flex={1} className="min-h-0 overflow-hidden flex flex-col gap-1">
                   <Suspense fallback={<PanelFallback />}>
                     <ScreenerContent
                       approachingStocks={props.approachingStocks}

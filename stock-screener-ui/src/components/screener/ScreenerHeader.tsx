@@ -27,7 +27,7 @@ export function ScreenerHeader(props: ScreenerHeaderProps) {
     <Box
       id="screener-header"
       data-testid="screener-header"
-      className="flex-shrink-0 flex items-center gap-4 overflow-hidden flex-nowrap"
+      className="flex-shrink-0 flex items-center gap-2 overflow-hidden flex-nowrap"
     >
       <Show when={!props.hideStatus}>
         <Box className="flex-1 min-w-0 flex items-center overflow-hidden">
@@ -56,7 +56,7 @@ export function ScreenerHeader(props: ScreenerHeaderProps) {
             max={3600}
             step={10}
             w={64}
-            size="xs"
+            size="sm"
             disabled={disableControls()}
             data-testid="auto-refresh-input"
             aria-label="Auto-refresh seconds"
@@ -68,7 +68,7 @@ export function ScreenerHeader(props: ScreenerHeaderProps) {
               { value: "upstox", label: "Upstox" },
               { value: "indmoney", label: "IND" },
             ]}
-            size="xs"
+            size="sm"
             w={96}
             disabled={disableControls()}
             data-testid="provider-select"
@@ -81,14 +81,14 @@ export function ScreenerHeader(props: ScreenerHeaderProps) {
               { value: "intraday", label: "Intra" },
               { value: "historical", label: "5D" },
             ]}
-            size="xs"
+            size="sm"
             w={96}
             disabled={disableControls()}
             data-testid="mode-select"
             comboboxProps={{ withinPortal: true }}
           />
           <SegmentedControl
-            size="xs"
+            size="sm"
             value={props.viewMode}
             onChange={(value) => props.onViewModeChange(value as ScreenerViewMode)}
             data={[
