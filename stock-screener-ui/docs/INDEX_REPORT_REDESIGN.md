@@ -1,373 +1,353 @@
-# Index Report — redesign spec
+# Index Report — full redesign, BEFORE / AFTER
 
-Scope: both report surfaces in `src/pages/report/` (68 components).
-Analysis only; no code changed.
-
-- **A. Daily Report** — `/report`
-- **B. NIFTY desk** — `/report/index`
-
-Every section is an **old → new** pair. `BEFORE` ships today.
+Measured at **1366×890** on the running app (`/report/index`), not estimated.
 
 ---
 
-# A. Daily Report
-
-## A0. Page shell
-
-### BEFORE — first `<table>` at 147px, chrome 60px + 87px of panel header
+## 0. The defect, measured
 
 ```
-┌ Daily Report │ 13/11/2026 ◀ ▶ │ Nifty 500 ▾ │ Refresh │ NIFTY 25,118 ▲ ABOVE 20DMA ───── as of 21:26 │ Copy CSV │ Copy symbols ┐ 32
-├ Scan │ Breakouts │ Moves │ Follow-through │ Events ────────────────────────────────────────────────────────────────────────────────┤ 28
-│ ┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ │ Breakouts TODAY (31)  [501 scanned]  [All 31][52W High 4][Gap 2][Base 20D 25][Base 50D 1] ───────────── [Intraday│5D]          │ 87px
-│ │                                    ▲ badge + chip row + 2 nested paddings                                                   │
-│ ├────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ │ SYMBOL        TYPE      LEVEL     CLOSE     %ABOVE   VOL×   CHG%    52W GAP%  SECTOR      TREND                              │ ← 147px
-│ │ ANURAS        BASE 20D  ₹1209.60  ₹1304.50  +7.85%   4.1x   +9.45%  -7.81%    —           ∿∿∿∿                              │
-│ └────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-│ ┌ Breakdowns TODAY (0) ─────────────────────────────────────────────┐   ← empty, yet full height
-│ │ No breakdowns today                                               │
-│ └───────────────────────────────────────────────────────────────────┘
+nifty-stat-strip        59px   top  72
+nifty-flow-windows      24px   top 135
+movers-strip            24px   top 163
+nifty-report-strips    605px   top 191   ← ONE wall listing owns the viewport
+nifty-main-row         300px   top 800   ← THE CHART — below the fold (vp 890)
+desk-dock               26px   top 860   ← floating, overlapping
+────────────────────────────────────────
+toolbar 68 + content 1066 in a 822 client → 244px of scroll
 ```
 
-### AFTER — first row at ~88px, empty side collapsed, chips on the header line
+**The single most important panel on a trading desk is below the fold, while a
+list of wall strikes occupies 605px above it.** Every other problem on this page is
+downstream of that hierarchy inversion.
+
+---
+
+# A. NIFTY desk (`/report/index`)
+
+## A0. Composition — the hierarchy inversion
+
+### BEFORE
 
 ```
-┌ Daily Report │ 13/11/2026 ◀▶ │ Nifty 500 ▾ │ 31 breakouts · 0 breakdowns  ⟩  Refresh ──── as of 21:26 │ CSV ▾ │ Copy ▾ ┐ 32
-├ Scan │ Breakouts │ ●31 Moves │ Follow-through │ Events ────────────────────────────────────────────────────────────────────────────────┤ 28
-│ ┌ Breakouts TODAY [501 scanned] [All 31][52W 4][Gap 2][Base20 25][Base50 1] ───────────── [Intraday│5D ⓘ column source] ┐ 24px
-│ ├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ │ SYMBOL       TYPE      LEVEL     CLOSE     %ABOVE  VOL×  CHG%    52W GAP%→below high  SECTOR    TREND                      │ ← ~88px
-│ │ ANURAS       BASE 20D  ₹1209.60  ₹1304.50  +7.85%  4.1x  +9.45%  -7.81%              —         ∿∿∿∿                      │
-│ └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-│  ▸ Breakdowns TODAY (0) — none today  (collapsed to one 20px line, click to expand)
+┬ NIFTY ▾ │ NIFTY SENSEX │ Live EOD Chart Depth [DESK] RESEARCH │ Nearest expi ▾ │ 11/13/2026 │ ⟳ SIM 1 │ POS ✕ │ Refresh Snapshot ⓘ ┬  68
+│ ▮─────────────────────────────────────────────────────────────────────────────────────────────────────── 12:55 13.8% ─ 53/385 ─┤
+├ SPOT 25,106.75 │ REGIME SELL PREMIUM │ Γ FLIP 25,500 │ MAX-OI CALL 25,200 │ MAX-OI PUT 25,000 │ PIN RISK LOW │ PCR 0.80 …────────────┤ 59
+├ SESSION CALL WRITING ΔOI −19.3 │ NORMAL 0.7× RV 11.4/13.7 │ VIX 16.04 │ WEAK score 3.0 │ BEARISH · spot 25,106.75 · sell rallies at 25,078 ┤
+├ WINDOWS ? │ SESSION CALL WRITING −₹87,407cr │ 15m CE — · PE — │ 5m CE — · PE — ────────────────────────────────────────── ALIGNED ─┤ 24
+├ BREADTH · live only ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤ 24
+├ 01 1m CE 0 PE 0 FLAT 0.0 │ 12:55:17 ──────────────────────────────────────────────────────────────────────────────────────────────────┤
+├ MOVERS · live only ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤ 24
+├ ┌ WALL EROSION ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐ │
+│ │ CALL 25,200  STABLE +93 pts 14.88M  0.0% vol  FUEL 10                                                                              │ │
+│ │ PUT  25,100  STABLE −7 pts  11.88M  0.0% vol  FUEL 33                                                                              │ │
+│ ├ WALLS ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤ │ 605
+│ │ WALL WATCH 4-DTE │ SPOT 25,106.75 │ MAX PAIN 25,150 │ GEX 55.9                                                                       │ │
+│ │ CALL   OI      NEW  5m   30m  DIST            PUT    OI      NEW  5m   30m  DIST                                                     │ │
+│ │ 25,200 CW 14.88M  0  0.0% 0.0% +0.37%         25,000 PW 13.59M  0  0.0% 0.0% −0.42%                                                 │ │
+│ │ 26,000 CW 14.26M  0  0.0% 0.0% +3.56%         25,100 PW 11.88M  0  0.0% 0.0% −0.03%                                                 │ │
+│ │ 26,500 CW 13.93M  0  0.0% 0.0% +5.55%         24,000 PW 10.72M  0  0.0% 0.0% −4.41%                                                 │ │
+│ │ SEQ  TRACKED WALL 25,200 · LAST 60m · call 01 · 30m Δ                                                                              │ │
+│ │ READ 4-DTE · call wall 25,200 · put wall 25,000 · positioning, not gamma                                                           │ │
+│ └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘ │
+├ · NIFTY CHART ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ │ (candles)                                                                     1m 5m 15m PATTERNS S M L XL  CHAIN HEATMAP│VOL PREM │ │ 300
+│ └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘ │
+└ ──────────────────────────────────────────────────────────────────────────────── ▲ below fold: the chart, DELTA, GEX, IV, 30 strikes ─┘
+```
+
+### AFTER
+
+```
+┬ NIFTY ▾ │ NIFTY SENSEX │ ● LIVE  as of 12:55 │ ⏮ ◀ ▮▶ ▶ ⏭ │ 1x ▾ │ [L|E|R] ⓘ ──── ⟳ │ POS ✕ │ ⋯ ┬  36
+├ SPOT 25,106.75 ▲0.42% │ SL BIAS ▲ LONG ▸ │ 12 signals ▸ │ 3 walls breached ▸ │ FLIP 12:55 ▸ │ PCR 0.80 ▸ │ VIX 16.04 ▸ ┤ 28
+├─ CHART  58%  ───────────────────────────────────────┬─ TAPE 42% ────────────────────────────────────────────────┤
+│  as of 12:55  ▣CW ▣PW ▣spot ▣ΔOI  ⛶                     │ ⌕ strike  [All ▾]  ⏷ 12:55                                │
+│                                                          │ time  spot   ce_oi  pe_oi   ΔOI    prem   flow           │
+│      ╱╲    ╱╲                                            │ 12:55 25,106.8 14.88M 13.59M  −0.3M  42.1   ▼ sell         │
+│    ╱╲  ╲  ╱  ╲╱   ← CW 25,200 · PW 25,000 dashed         │ 12:54 25,108.2 14.91M 13.55M  +0.1M  41.8   ▲ buy          │
+│  ╱    ╲  ╲╱                                              │ 12:53 …                                                   │
+│ ▁▂▃▅▇█▇▅▃▂▁  ΔOI underlay                               │  ▲ own scroll · pinned minute highlights every panel       │
+│                                                          │                                                            │
+├────────────── draggable splitter ───────────────────────┴────────────────────────────────────────────────────────────┤
+│  ├ FLOW  5m −1.2cr ▼   │ 15m −3.4cr ▼  │ ▲ FLIP 12:55 ───────────────────────────── [ ⟩ expand ] ┤                │ 28
+├─ TRADER DOCK  [ Analytics · Overlays · Walls · Erosion · GEX · IV · Γ ]  ──────── [ ⌃ open ] ────────────────────────┤ 28
+└══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════┘
+                          ▲ collapsed by default; expands as a 340px drawer OVER the chart
+                            so it never pushes the chart off the fold
 ```
 
 | Element | BEFORE | AFTER |
 |---|---|---|
-| panel header | 87px: badge row + chip row + two paddings | 24px: badge and chips on one line with the table header |
-| date / universe in the panel | reprinted (`nifty500 · 2026-11-13`) | removed; the identity band owns it |
-| `Breakdowns (0)` | full table + empty state | one collapsed 20px line |
-| `Intraday│5D` | looks like a filter | `ⓘ column source` — it re-renders TREND, not the rows |
-| first row | 147px | ~88px |
-| Copy actions | two full-width buttons | one `CSV ▾` menu (CSV / symbols) |
+| toolbar | 68px (second row is the replay bar) | 36px + replay bar merged into the same row |
+| verdict | one 59px strip scrolled away from its panels | 28px, each item `▸`-clickable to pin the matching panel |
+| **walls / erosion** | **605px**, above the chart | inside a **collapsed drawer**, opened on demand |
+| **chart** | **below the fold at top 800** | **first panel, 58% of the remaining height** |
+| chart height | 300px | ~430px at 890 viewport |
+| flow | 3 separate bands + a panel | one 28px band, `⟩` expands |
+| scroll | one `overflow-auto`, 1066 in 822 → whole page scrolls | **two independent scroll owners** (chart column, tape column); page never scrolls |
+| desk-dock | floating at top 860, overlapping content | part of the dock strip, no overlap |
+
+**The maths:** 890 − 36 (toolbar) − 28 (verdict) − 28 (flow) − 28 (dock) = **770px for chart + tape**, versus 300px today.
+
+**Measured chrome above the chart: 800px → 92px.**
 
 ---
 
-## A1. Tab bar / loading semantics
+## A1. Where the walls go
+
+### BEFORE — the wall listing is the page
+
+```
+┌ WALL EROSION ────────────────────────────────────────────────────────┐
+│ CALL 25,200 STABLE +93 pts 14.88M  0.0% vol  FUEL 10                  │
+│ PUT  25,100 STABLE  −7 pts 11.88M  0.0% vol  FUEL 33                  │  605px
+├ WALLS ────────────────────────────────────────────────────────────────┤
+│ CALL  OI  NEW 5m 30m DIST  ← 3 strikes × 5 columns, then PUT × 3     │
+│ SEQ · READ 4-DTE · TRACKED WALL 25,200 · LAST 60m                     │
+└───────────────────────────────────────────────────────────────────────┘
+```
+
+### AFTER — two-line summary inline, detail in the drawer
+
+```
+├ WALLS  CW 25,200 (14.88M, ▲0.37%)  PW 25,000 (13.59M, ▼0.42%)  MP 25,150  GEX 55.9  [ detail ▸ ] ┤ 24
+```
+
+```
+drawer open ([ detail ▸ ] or click the summary row):
+┌ WALLS ─────────────────────────────────────────────────────────────── ✕ ┐
+│ CALL │ 25,200 CW │ 14.88M │ +0.37% │ FUEL ▰▰▱ 10                         │
+│      │ 26,000 CW │ 14.26M │ +3.56% │                                     │
+│ PUT  │ 25,000 PW │ 13.59M │ −0.42% │ FUEL ▰▰▰ 33                        │
+│ EROSION  CALL stable +93pts · PUT stable −7pts                          │
+│ SEQ      TRACKED 25,200 · LAST 60m · call 01 · 30m Δ                     │
+│ READ     4-DTE · positioning, not gamma                                  │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+| Element | BEFORE | AFTER |
+|---|---|---|
+| wall summary | 605px of rows | 24px line, always visible |
+| detail | always expanded | drawer on demand |
+| erosion | its own 60px block | `FUEL ▰▰▱` meters in the drawer |
+| read text | 2 lines of prose mid-list | last row of the drawer |
+
+---
+
+## A2. Replay transport
 
 ### BEFORE
 ```
-tab click → that tab shows its own skeleton         (fixed: was gated on daily && breakouts)
+│ ▮───────────────────────────────────────────────────────────────────────── 12:55 13.8% ─ 53/385 ─┤ 32
+   ▲ full-width scrubber on its own row · time is 9px at the far right
 ```
 
 ### AFTER
 ```
-tab click → instant switch; the tab's own panel shows a 24px skeleton line
-            the tab badge shows the row count:  ●31  so a tab advertises content
-other tabs stay mounted (no refetch on return)
+⏮ ◀ ▮▶ ▶ ⏭ │ 12:55.17 ▸ 1x ▾ │ keyframes ▁▂▃▅▇▅▃▂▁ │ 53/385 │ 13.8% · spread 0.3
+   ▲ inline in the toolbar, time 12px bold next to the transport
+   [ / ] step · space play-pause · l/e/r mode
 ```
 
 ---
 
-## A2. Scan tab — the strips stack
+## A3. Flow — three surfaces for one metric
 
 ### BEFORE
 ```
-┌ breadth: NIFTY 25,118 ▲0.42% │ Adv 159 │ Dec 334 │ … 9 stats ────────────────┐ 24
-┌ SECTOR LEADERS ───────────────────────┐ ┌ THEME LEADERS ────────────────┐
-│ +9.1pp Producer Mfg   −1.2pp Utilities│ │ …                             │
-└──────────────────────────────────────┘ └───────────────────────────────┘
-┌ INDEX MOVERS ─────────────────────────┐
-│ gainers / losers / most-active inline │
-└──────────────────────────────────────┘
-┌ NIFTY WALLS card ─────────────────────┐
-```
-
-### AFTER — one 48px band of strips, detail on demand
-```
-┌ BREADTH  NIFTY ▲0.42% · Adv 159 / Dec 334 · vol 63/61 ────────────────────── ▾ ┐ 24
-├ LEADERS  ▲ Producer Mfg +9.1  ▲ Health Svc +0.9  ▼ Utilities −1.2  ▼ Retail −0.3  ▾ ┤ 24
-├ MOVERS   ▲ POWERINDIA +10.7  ▲ TDPSWRS +4.6  ▼ COALINDIA −2.0  ▼ ONGC −1.5  ▾ ┤ 24
-└──────────────────────────────────────────────────────────────────────────────┘
-   ▲ each ▾ expands that strip in place; nothing is a card
-```
-
-| Element | BEFORE | AFTER |
-|---|---|---|
-| leadership strips | two bordered panels side by side | one line each, `▾` expands in place |
-| index movers | own panel | same line grammar as leaders |
-| walls card | a card among strips | moves to the Breakouts tab (it is wall data, not breadth) |
-| strip count | 4 separate bands | 3 lines in one band |
-
----
-
-## A3. Events tab
-
-### BEFORE
-```
-┌ EventWatch ───────────────────── ┐ ┌ ReportEventsStrip ───────────────┐
-│ next-week calendar (own endpoint)│ │ separate strip, own loading      │
-└──────────────────────────────────┘ └──────────────────────────────────┘
-   ▲ two loading indicators, two error paths, one after the other
+┌ nifty-flow-windows ─────────────────────────────────────────┐ 24
+│ WINDOWS ? │ SESSION CALL WRITING −₹87,407cr │ 15m CE — PE — │ 5m CE — PE — │
+└─────────────────────────────────────────────────────────────┘
+┌ NiftyFlowStrip ─────────────────────────────────────────────┐ 28
+│ 01 1m CE 0 PE 0 FLAT 0.0 │ 12:55:17 ────────────────────────│
+└─────────────────────────────────────────────────────────────┘
+   + NiftyFlowChart as a 200px panel further down
+        ▲ same CE−PE OI story, three places, no shared state
 ```
 
 ### AFTER
 ```
-┌ EVENTS  next week · 18 scheduled · 98 fresh ──────── ⟳ 07:30 digest ⓘ ┐
-│ 2026-11-13 ─ ABB RESULTS · APTUS DIV · ASTRAL DIV · CAMS DIV           │
-│ 2026-11-14 ─ ASHOKLEY RESULTS · PATANJALI RESULTS                      │
-└────────────────────────────────────────────────────────────────────────┘
-   ▲ one indicator, one error path; the digest time is stated
+├ FLOW  5m −1.2cr ▼ │ 15m −3.4cr ▼ │ ▲ FLIP 12:55 │ SESSION −₹87,407cr ─ [ ⟩ chart ] ┤ 28
+        └─ numbers wear the sparkline's own colour: one read, one line
 ```
-
-| Element | BEFORE | AFTER |
-|---|---|---|
-| loading | two independent spinners | one, on the band |
-| error | two alerts | one alert + Retry |
-| refresh cadence | invisible | `⟳ 07:30 digest ⓘ` explains when it updates |
 
 ---
 
-# B. NIFTY desk (`/report/index`)
+## A4. Loading and empty
+
+### BEFORE
+```
+◯ Loading index report …            ← centred spinner, whole desk blank
+```
+Every panel streams in at a different time and the page shifts each time.
+
+### AFTER
+```
+┬ NIFTY ▾ │ ● LIVE as of … │ ⏮ ◀ ▮▶ ▶ ───────────────── │ ⋯ ┬   ← chrome paints instantly
+├ SPOT ──── │ BIAS ─── │ FLIP ─── │ PCR ─── │ VIX ─── ┤   ← stat skeleton, exact widths
+├─ ░░░░░░░░░░░░░░░░░░░░░░░░░░┬─ ░░░░░░░░░░░░░░░░░░ ┤   ← chart + tape skeletons at
+│  ░░░░░░░░░░░░░░░░░░░░░░░░░░│  ░░░░░░░░░░░░░░░░░░ │     their real proportions
+└────────────────────────────┴────────────────────┘     (no layout shift on arrival)
+```
+
+---
+
+# B. Daily Report (`/report`)
 
 ## B0. Shell
 
-### BEFORE
+### BEFORE — first table row at 147px
 ```
-┌ Nifty ▾ │ 13 Nov │ LIVE ● │ as of 11:36 ── Replay ◀ ▮▶ ▶ ── [LIVE|EOD|REPLAY] ── ⋯ ┐ 32
-├ VERDICT: BIAS ▲ LONG · 12 signals · 3 walls breached · flow flip 11:20 · squeeze 0.42 ┤ 24
-├ CHART 59% ───────────────────────────┬ TAPE 41% ───────────────────────────────────────┤
-│ candles + CW/PW + spot + ΔOI underlay│ time │ spot │ ce_oi │ pe_oi │ ΔOI │ prem │ flow  │
-├──────────────────────────────────────┴─────────────────────────────────────────────────┤
-├ PRESSURE LANE (bursts, median, zero) ──────────────────────────────────────────────────┤ 44
-├ FLOW WINDOWS 5m/15m CE−PE OI + flip ───────────────────────────────────────────────────┤ 28
-├ GEX │ IV SKEW │ DELTA │ GAMMA │ WALLS │ EROSION │ MIGRATION ───────────────────────────┤
-└ DESK DOCK: Plan │ Pressure │ Tape (collapsible rail) ──────────────────────────────────┘
+┬ Daily Report │ 13/11/2026 ◀ ▶ │ Nifty 500 ▾ │ Refresh │ NIFTY 25,118 ▲ ABOVE 20DMA ─── as of 21:26 │ Copy CSV │ Copy symbols ┬ 32
+├ Scan │ Breakouts │ Moves │ Follow-through │ Events ────────────────────────────────────────────────────────────────────────────────┤ 28
+├ ┌───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ │ Breakouts TODAY (31)  [501 scanned]  [All 31][52W High 4][Gap 2][Base 20D 25][Base 50D 1] ─────── [Intraday│5D]                  │ 87px
+│ ├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ │ SYMBOL    TYPE     LEVEL     CLOSE     %ABOVE  VOL×  CHG%   52W GAP%  SECTOR   TREND                                              │ ← 147
+│ │ ANURAS    BASE 20D ₹1209.60  ₹1304.50  +7.85%  4.1x  +9.45% -7.81%   —        ∿∿∿∿                                              │
+│ └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+│ ┌ Breakdowns TODAY (0) ─────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ │ No breakdowns today                                                                                                               │ full height
+│ └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### AFTER
+### AFTER — first row at ~76px, empty side collapsed
 ```
-┌ Nifty ▾ │ 13 Nov │ ● LIVE  as of 11:36 │ ⏮ ◀ ▮▶ ▶ ⏭ │ 1x ▾ │ [L|E|R] ⓘ ──── ⟳ │ ⋯ ┐ 32
-├ BIAS ▲ LONG ▸ │ 12 signals ▸ │ 3 walls breached ▸ │ flow flip 11:20 ▸ │ squeeze 0.42 ▸ ┤ 24
-├ CHART 59% ────────────────────────────┬ TAPE 41% ──────────────────────────────────────┤
-│  as-of 11:36 ⓘ                        │ ⌕ symbol  [All strikes ▾]  ⏷ fresh             │ 20
-│  candles + CW/PW + spot + ΔOI         │ time │ spot │ ce_oi │ pe_oi │ ΔOI │ prem │ flow │
-│  overlay switches: ▣CW ▣PW ▣spot ▣OI  │ ▸ pinned minute highlighted across ALL panels   │
-├───────────────────────────────────────┴────────────────────────────────────────────────┤
-├ PRESSURE (44) ─────────────────────────────────────────────────────────────────────────┤
-├ FLOW 5m −1.2cr ▼ │ 15m −3.4cr ▼ │ FLIP 11:20 ▲ ───────────────── ⟳ ⟩  [chart ▾] ──────┤ 28
-├ GEX │ IV │ DELTA │ GAMMA │ WALLS │ EROSION │ MIGRATION  (one band, tabbed, 240px) ──────┤
-└ DESK: Plan 3 │ Pressure 2 │ Tape ───────────────────────────────────────────────────────┘
+┬ Daily Report │ 13/11/2026 ◀▶ │ Nifty 500 ▾ │ 31 up · 0 down │ ⟳ ──────── as of 21:26 │ CSV ▾ ┬ 32
+├ Scan │ Breakouts ●31 │ Moves │ Follow-through │ Events ────────────────────────────────────────────────────────────────────────────┤ 24
+├ Breakouts TODAY [501 scanned] [All 31][52W 4][Gap 2][Base20 25][Base50 1] ───────── [1D│5D ⓘ column] ┤ 20
+├ SYMBOL      TYPE     LEVEL     CLOSE     %ABOVE  VOL×  CHG%   52W BELOW HIGH  SECTOR   TREND        ┤ ← ~76
+│ ANURAS      BASE 20D ₹1209.60  ₹1304.50  +7.85%  4.1x  +9.45% −7.81%          —        ∿∿∿∿         │
+│ …
+▸ Breakdowns TODAY (0) — none today                                          (click to expand)        │ 20
 ```
 
 | Element | BEFORE | AFTER |
 |---|---|---|
-| verdict strip | five numbers, none clickable | each `▸` filters/pins the matching panel |
-| tape | no way to find a strike | `⌕ symbol` + strike filter + freshness |
-| pinned minute | affects flow + pressure, undiscoverable | row highlight + "pinned across all panels" note |
-| flow | three surfaces (strip, windows, chart) | one band: 5m/15m verdict + `chart ▾` for the detail |
-| panel band | 7 panels competing for width | one tabbed band at a fixed 240px |
-| desk tabs | names only | `Plan 3` — a collapsed rail advertises its content |
-| as-of | only in the toolbar | repeated on every panel header (the whole desk is as-of that time) |
-| mode `[LIVE|EOD|REPLAY]` | three letters, unexplained | `[L|E|R] ⓘ` with the tooltip stating what each does |
+| panel header | 87px (badge row + chip row + 2 paddings) | 20px (chips on the table's header line) |
+| empty side | full table + empty state | one 20px collapsed line |
+| date/universe in panel | reprinted | removed — the identity band owns it |
+| `Intraday│5D` | looks like a row filter | `1D│5D ⓘ column` — it re-renders TREND |
+| Copy CSV / symbols | two buttons | one `CSV ▾` menu |
+| first row | 147px | ~76px |
 
 ---
 
-## B1. Flow — three components, one metric
+## B1. Scan tab — strips as cards
 
 ### BEFORE
 ```
-NiftyFlowStrip      ──────●──────      28px   a line with a dot
-NiftyFlowWindows    │ 5m −1.2 │ 15m −3.4 │     28px    two numbers
-NiftyFlowChart      ┌──────────────┐   200px   a chart
-                    └──────────────┘
-        ▲ the same CE−PE OI move at three sizes, three places, no shared state
+┌ breadth  NIFTY ▲0.42% · Adv 159 · Dec 334 · … 9 stats ─────────────────────┐ 24
+┌ SECTOR LEADERS ──────────────────────┐ ┌ THEME LEADERS ───────────────────────┐ 90
+│ +9.1pp Producer Mfg   −1.2pp Utilities│ │ …                                    │
+└──────────────────────────────────────┘ └──────────────────────────────────────┘
+┌ INDEX MOVERS ────────────────────────┐
+│ gainers / losers / most-active        │ 90
+└───────────────────────────────────────┘
+┌ NIFTY WALLS card ────────────────────┐
+```
+
+### AFTER — three lines, one band, expand in place
+```
+├ BREADTH  NIFTY ▲0.42% · Adv 159/Dec 334 · vol 63/61 ────────────────────────────────── ▾ ┤ 24
+├ LEADERS  ▲Producer Mfg +9.1  ▲Health Svc +0.9  ▼Utilities −1.2  ▼Retail −0.3  +12 ▾ ┤ 24
+├ MOVERS   ▲POWERINDIA +10.7  ▲TDPSWRS +4.6  ▼COALINDIA −2.0  ▼ONGC −1.5      +18 ▾ ┤ 24
+└ walls moved to the Breakouts tab (wall data is not breadth data)
+```
+
+---
+
+## B2. Events tab — two of everything
+
+### BEFORE
+```
+┌ EventWatch ─────────────────────────────┐ ┌ ReportEventsStrip ──────────────────┐
+│ next-week calendar · own loader · own   │ │ own loader · own error               │
+│ error path                              │ │                                      │
+└─────────────────────────────────────────┘ └──────────────────────────────────────┘
 ```
 
 ### AFTER
 ```
-┌ FLOW  ✔ 5m −1.2cr ▼   ✔ 15m −3.4cr ▼   ▲ FLIP 11:20 ──────── [ ····▮▮▮▮ ] ⟩ ┐ 28
-│  strip + windows merged: the numbers ARE the legend for the sparkline        │
-└─────────────────────────────────────────────────────────────────────────────┘
-     ⟩ expands to the full flow chart in place (no separate panel)
+├ EVENTS  next week · 18 scheduled · 98 fresh ───────────────────── ⟳ 07:30 digest ⓘ ┤ 24
+│ 11-13 ─ ABB RESULTS · APTUS DIV · ASTRAL DIV · CAMS DIV                             │
+│ 11-14 ─ ASHOKLEY RESULTS · PATANJALI RESULTS                                         │
+└ one loader, one error, cadence stated
 ```
-
-| Element | BEFORE | AFTER |
-|---|---|---|
-| strip / windows | two bands, one dot + two numbers | one band: number + matching sparkline colour |
-| chart | a permanent 200px panel | expands on `⟩` |
-| flip | badge and a chart line, no link | `FLIP 11:20` is the anchor of both |
 
 ---
 
-## B2. Walls — four overlapping surfaces
+# C. Interaction maps
 
-### BEFORE
+## C1. NIFTY desk — BEFORE
 ```
-NiftyWallsCard      top 3 walls, compact
-NiftyWallsExpanded  the full wall table
-WallsMap            ladder with legend
-NiftyWallErosionBoard   erosion + fuel per side
-NiftyWallMigration  migration over time
-        ▲ five components all answering "where are the walls?"
-```
-
-### AFTER
-```
-┌ WALLS   CW 25,200 (OI 1.2cr, ▼18%)   PW 25,000 (OI 0.9cr, ▲4%)   [card ▾] [ladder ▾] [migration ▾] ┐
-└──────────────────────────────────────────────────────────────────────────────────────────────────┘
-     ▲ one band, three views of the same fact, one at a time
+mode [LIVE|EOD|REPLAY]  → switches data source (labels unexplained)
+replay scrubber         → playhead; panels clip to it, no per-panel indication
+panel expand            → LocalPanelModal
+desk dock tab           → swaps rail
+wall row                → nothing (rows are not clickable)
+tape row                → nothing
+scroll                  → ONE overflow-auto: the whole page moves, chart scrolls away
 ```
 
-| Element | BEFORE | AFTER |
-|---|---|---|
-| card / expanded | two components for the same list | one, with a detail toggle |
-| ladder | separate panel | `[ladder ▾]` in the same band |
-| migration | separate panel | `[migration ▾]` — the long view of the same fact |
-| erosion | own board | merged into the card as a fuel meter per side |
+## C2. NIFTY desk — AFTER
+```
+● LIVE [L|E|R ⓘ] ─► data source; tooltip states each
+⏮◀▮▶▶⏭ [ ]/space ─► playhead; every panel header shows "as of hh:mm"
+chart ⛶ ───────────► LocalPanelModal
+overlay chips ▣ ───► toggle CW / PW / spot / ΔOI without a modal
+splitter drag ─────► chart:tape ratio persists per user
+walls summary ▸ ───► opens the walls drawer over the chart
+tape row ──────────► pins that minute; highlight propagates to flow + pressure
+strike filter ─────► narrows the tape
+chart column ──────► OWN scroll        ┐ page never scrolls
+tape column ───────► OWN scroll        ┘
+```
+
+## C3. Daily Report — BEFORE → AFTER
+```
+BEFORE: date ◀▶ → refetch 4 sections · tab → client switch
+        chip → client filter · row → /chart/:symbol
+        Copy CSV → active section only (unclear)
+
+AFTER:  date ◀▶ → refetch · tab → instant, each tab has a count badge (●31)
+        chip → client filter · row → /chart/:symbol
+        CSV ▾ → [ current tab | all tabs ]        ← the scope is explicit
+        ⟳ → refetches only the visible tab
+```
 
 ---
 
-## B3. Gamma / GEX / IV — inconsistent units
+# D. Ranked backlog
 
-### BEFORE
-```
-┌ GEX      −₹4.2 lakh ┐  ┌ IV SKEW  +2.1% ┐  ┌ GAMMA  1.8e-4 ┐
-   ▲ three neighbouring panels, three units, no conversion shown
-```
-
-### AFTER
-```
-┌ GEX  −₹4.2L  ⓘ ₹ per 1% move ┐  ┌ IV   +2.1σ  ⓘ skew vs ATM ┐  ┌ Γ  1.8 ×10⁻⁴ ⓘ per ₹ ┐
-   ▲ every panel states its unit in the header, with a hover definition
-```
-
-| Element | BEFORE | AFTER |
-|---|---|---|
-| units | mixed, implicit | stated per header + `ⓘ` |
-| scales | `1.8e-4` | `1.8 ×10⁻⁴` — same value, readable |
-| colour | some signed, some neutral | signed values colour; magnitudes don't |
-
----
-
-## B4. Replay
-
-### BEFORE
-```
-Replay ◀ ▮▶ ▶   [LIVE|EOD|REPLAY]       ← the playhead time is 9px, at the far left
-every panel renders at "now" or at the playhead with no per-panel indication
-```
-
-### AFTER
-```
-⏮ ◀ ▮▶ ▶ ⏭  11:36  ⟩⟩ 1x ▾     [REPLAY ⓘ]    ← time is 12px, adjacent to the controls
-each panel header ends with  "as of 11:36"     ← the desk is uniformly as-of
-[ / ] step the playhead · space toggles play
-```
-
-| Element | BEFORE | AFTER |
-|---|---|---|
-| playhead time | 9px, distant | 12px, next to the transport |
-| per-panel as-of | none | on every panel header |
-| keyboard | none | `[` `]` step, `space` play, `l`/`e`/`r` mode |
-
----
-
-## C. Component inventory — all 68, with a verdict
-
-| Component | Verdict | Note |
-|---|---|---|
-| `NiftyReportShell` | keep | 26kB shell after the lazy split |
-| `ReportToolbar` | **change** | merge Copy buttons to a menu; state the mode meaning |
-| `NiftyReplayBar` | **change** | 12px time + keyboard |
-| `ReportWorkspace` | keep | 59/41 split matches a desk |
-| `DeskDock` | **change** | tab count badges |
-| `LocalPanelModal` | keep | |
-| `NiftyVerdictStrip` | **change** | make the five items actionable |
-| `NiftyPressureDesk` | keep | |
-| `NiftyPressureLane` | keep | |
-| `NiftyChartPanel` | **change** | overlay switches + as-of |
-| `NiftyDepthMap` | keep | ΔOI underlay |
-| `NiftyFlowChart` | **merge** | into the flow band |
-| `NiftyFlowWindows` | **merge** | into the flow band |
-| `NiftyFlowStrip` | **merge** | becomes the band's sparkline |
-| `NiftyOiHeatmap` | keep | canvas: 1 node per tape |
-| `NiftyWallsCard` | **merge** | one walls band |
-| `NiftyWallsExpanded` | **merge** | detail toggle |
-| `WallsMap` | **merge** | ladder view |
-| `NiftyWallErosionBoard` | **merge** | fuel meter in the card |
-| `NiftyWallMigration` | **merge** | migration view |
-| `NiftyDepthMap` / `DepthChart` | keep | |
-| `NiftyGammaStrip` / `NiftyGammaTime` | **change** | units |
-| `NiftyGexProfile` | **change** | units |
-| `NiftyIvSkew` / `NiftyIvStraddle` | **change** | state the unit |
-| `NiftyDeltaPositioning` | keep | |
-| `NiftyCoilGauge` | keep | |
-| `NiftySqueezeRadar` | keep | |
-| `NiftyStructureShifts` | keep | |
-| `SetupRadarStrip` | keep | |
-| `LevelsInPlay` | keep | |
-| `Nifty10sStrip` | keep | |
-| `NiftyTapeTable` / `NiftyTapeColumns` | **change** | strike filter + freshness + pinned row |
-| `NiftyUnusualVolume` | keep | |
-| `NiftyParticipantFlow` | keep | |
-| `NiftyPnlAttribution` | keep | |
-| `NiftyPositionsDrawer` | keep | |
-| `NiftyIntelStrip` | keep | |
-| `NiftyDataFreshness` | **change** | per panel, not global |
-| `NiftyDeskGuide` | keep | |
-| `RangeToggle` | keep | |
-| `DeltaProfileChart` | keep | |
-| `ReportAnalytics` / `ReportOverlays` / `ReportDecisionStrip` | keep | |
-| `sim/SimDesk` `SimBuilder` `SimRuns` `SimPayoff` | keep | exec copy bug fixed |
-| `us/UsReportPage` `us/UsChart` `us/UsLadder` | **change** | share the tape, don't copy it |
-| `DailyReportPage` | **change** | 87px panel header |
-| `ReportBreakoutTable` | **change** | chips onto the header line; collapse empty side |
-| `ReportFollowThrough` | keep | |
-| `ReportMovePanels` | keep | flush lattice |
-| `ReportStrips` / `ReportLeaderStrip` / `BreadthStrip` | **change** | one band, three lines |
-| `IndexMoversStrip` / `IndexMoversModal` | **change** | move into the movers line |
-| `EventWatch` / `ReportEventsStrip` | **change** | one loader, one error |
-| `Profitability` | **move** | belongs to strategy-runner |
-| `reportCells` / `reportBits` / `niftyChartData` / `niftyFlowRead` / `niftyOiHeatmap` / `niftyWallsFormat` | keep | pure helpers |
-
----
-
-## D. Ranked backlog
-
-| # | Change | Why | Effort | Risk |
+| # | Change | Gain | Effort | Risk |
 |---|---|---|---|---|
-| 1 | Daily Report: 87px panel header → 24px (chips on the header line) | first row 147 → ~88px | M | low |
-| 2 | Collapse an empty Breakouts/Breakdowns side to 20px | an empty table costs full height | M | low |
-| 3 | Remove the reprinted date/universe in the panel | duplicates the identity band | S | low |
-| 4 | Merge flow strip + windows into one band | one metric in three places | M | med |
-| 5 | Merge the five walls surfaces into one banded view | five answers to one question | L | med |
-| 6 | State units on GEX / IV / Gamma | three neighbours, three implicit units | S | low |
-| 7 | Verdict items become actionable (`▸`) | the top read should drive the desk | M | med |
-| 8 | Per-panel `as of` | a stale panel inside a fresh page is the dangerous case | M | med |
-| 9 | Replay: 12px time + `[`/`]`/`space` | replay is the main workflow, mouse-only today | M | low |
-| 10 | Desk dock tab counts | a collapsed rail hides everything | S | low |
-| 11 | Events: one loader, one error, stated cadence | two of everything | S | low |
-| 12 | `Intraday│5D` labelled as a column source | reads like a row filter | S | low |
-| 13 | Move `Profitability` to strategy-runner | it is not a market report | M | low |
-| 14 | US report shares the tape component | two tapes drift | L | med |
-
----
+| 1 | **Collapse walls/erosion into a drawer** | chart moves above the fold: 800px chrome → 92px | M | med |
+| 2 | **Two scroll owners** (chart col, tape col) | page stops scrolling; chart stays pinned | M | med |
+| 3 | **Merge toolbar + replay into one 36px row** | −32px | S | low |
+| 4 | **Verdict items `▸`-clickable** | the top read drives the desk | M | med |
+| 5 | **Flow: one 28px band** (merge windows+strip, chart behind `⟩`) | −24px, one place to look | M | low |
+| 6 | **Draggable chart/tape splitter** | 59/41 is wrong when reading the tape | M | low |
+| 7 | **Tape: strike filter + pinned-minute highlight** | the tape is the core surface | M | med |
+| 8 | **Chrome skeleton, not a spinner** | no layout shift on cold load | S | low |
+| 9 | **Daily: 87px panel header → 20px** | first row 147 → 76px | M | low |
+| 10 | **Daily: collapse the empty Breakouts/Breakdowns side** | empty table costs full height | S | low |
+| 11 | **Daily: strips → 3 lines, walls → Breakouts tab** | 4 cards → one band | M | low |
+| 12 | **Events: one loader, one error, stated cadence** | two of everything | S | low |
+| 13 | **Keyboard: `[`/`]`/space replay, `/` tape search** | replay is mouse-only | M | low |
+| 14 | **Units on GEX / IV / Γ headers** | three neighbours, three implicit units | S | low |
 
 ## E. Do not change
 
-- The lazy panel boundaries and the 26kB shell — first paint is fixed.
-- The canvas OI heatmap (one node for a ±500 tape; it is why the tape is smooth).
-- Per-section fetch timeout + per-section abort on the Daily Report.
-- The verdict strip's position (top of the desk, above the chart).
-- The 59/41 chart/tape split.
+- Lazy panel boundaries and the 26kB shell.
+- The canvas OI heatmap (1 node for a ±500 tape).
+- Per-section timeout + abort on the Daily Report.
+- 59/41 as the *default* chart/tape ratio (the splitter changes it, not the default).
 
 ## F. Open questions
 
-1. One route with a mode, or keep Daily Report and the NIFTY desk separate?
-2. Is `Profitability` a report tab at all?
-3. `Events` uses a different endpoint and cadence — own tab group, or a widget on Scan?
-4. Keep both erosion board and migration, or is migration the long view of the same fact?
-5. Should the SIM desk live under `/report/index`, or under Options?
+1. Should `REGIME` / `SESSION CALL WRITING` live in the verdict strip or the drawer?
+2. Is `TRADER DOCK` a bottom drawer or a right rail? (bottom preserves chart width at 1366)
+3. `Profitability` — report tab or strategy-runner?
+4. Does the SIM desk belong under `/report/index`?
