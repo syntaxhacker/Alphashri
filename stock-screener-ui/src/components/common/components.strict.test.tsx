@@ -129,7 +129,7 @@ describe("Tabs — stacked layout", () => {
     expect(wrapper).not.toContain("flex-row");
   });
 
-  it("marks the active tab with the amber underline and mono uppercase label", () => {
+  it("marks the active tab with an accent underline on a flat strip", () => {
     render(() => (
       <Tabs value="a" onChange={() => {}}>
         <TabsList>
@@ -140,11 +140,15 @@ describe("Tabs — stacked layout", () => {
       </Tabs>
     ));
     const active = classOf(screen.getByTestId("tab-a"));
-    expect(active).toContain("text-fin-primary");
+    // Navigation, not a bordered pill: the active tab is marked by an accent
+    // underline that lands on the strip's own rule, with sentence-case labels.
     expect(active).toContain("border-b-2");
-    expect(active).toContain("uppercase");
-    expect(active).toContain("font-mono");
-    expect(classOf(screen.getByTestId("tab-b"))).not.toContain("text-fin-primary");
+    expect(active).toContain("border-fin-primary");
+    expect(active).toContain("font-semibold");
+    expect(active).not.toContain("uppercase");
+    const inactive = classOf(screen.getByTestId("tab-b"));
+    expect(inactive).toContain("border-transparent");
+    expect(inactive).not.toContain("border-fin-primary");
   });
 });
 

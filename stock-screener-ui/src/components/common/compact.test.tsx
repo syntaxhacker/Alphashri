@@ -240,3 +240,100 @@ describe("CompactStatGrid", () => {
     expect(outer.style.alignItems).toBe("center");
   });
 });
+
+describe("CompactPanel flush (edge-to-edge inside a page panel)", () => {
+  it("drops border and radius when flush", () => {
+    render(() => (<CompactPanel flush title="Flush panel">Content</CompactPanel>));
+    const panel = document.querySelector('[data-compact]') as HTMLElement;
+    expect(panel.classList.contains("border")).toBe(false);
+    expect(panel.classList.contains("rounded-fin")).toBe(false);
+    expect(panel.style.borderRadius).toBe("");
+    expect(screen.getByText("Flush panel")).toBeInTheDocument();
+  });
+
+  it("keeps border and radius by default", () => {
+    render(() => (<CompactPanel title="Default panel">Content</CompactPanel>));
+    const panel = document.querySelector('[data-compact]') as HTMLElement;
+    expect(panel.classList.contains("border")).toBe(true);
+    expect(panel.classList.contains("rounded-fin")).toBe(true);
+    expect(panel.style.borderRadius).toBe("2px");
+  });
+
+  it("uses a divider-only header with no side padding when flush", () => {
+    render(() => (<CompactPanel flush title="Flush panel">Content</CompactPanel>));
+    const header = document.querySelector('[data-compact-header]') as HTMLElement;
+    expect(header.classList.contains("px-4")).toBe(false);
+    expect(header.style.paddingLeft).toBe("0px");
+    expect(header.style.paddingRight).toBe("0px");
+  });
+
+  it("keeps the padded header by default", () => {
+    render(() => (<CompactPanel title="Default panel">Content</CompactPanel>));
+    const header = document.querySelector('[data-compact-header]') as HTMLElement;
+    expect(header.classList.contains("px-4")).toBe(true);
+    expect(header.style.paddingLeft).toBe("8px");
+  });
+});
+
+describe("CompactStat terminal cell", () => {
+  it("renders the label 10px uppercase muted left-aligned", () => {
+    render(() => (<CompactStat label="PnL" value="+123.45" />));
+    const label = screen.getByText("PnL");
+    expect(label.style.fontSize).toBe("10px");
+    expect(label.style.textTransform).toBe("uppercase");
+    expect(label.style.textAlign).toBe("left");
+  });
+
+  it("renders the value mono tabular-nums right-aligned", () => {
+    render(() => (<CompactStat label="PnL" value="+123.45" tone="success" />));
+    const value = screen.getByText("+123.45");
+    expect(value.style.textAlign).toBe("right");
+    expect(value.style.fontFamily).toContain("ui-monospace");
+    expect(value.style.fontVariantNumeric).toBe("tabular-nums");
+  });
+
+  it("is one 41px row with no border of its own", () => {
+    render(() => (<CompactStat label="PnL" value="+123.45" />));
+    const card = document.querySelector('[data-compact-stat]') as HTMLElement;
+    const cell = card.firstElementChild as HTMLElement;
+    expect(cell.style.height).toBe("41px");
+    expect(card.style.border).toBe("");
+  });
+});
+
+describe("CompactStatGrid columns and dividers", () => {
+  it("defaults to 4 columns, not 1", () => {
+    render(() => (
+      <CompactStatGrid data-testid="stat-grid">
+        <CompactStat label="A" value="1" />
+        <CompactStat label="B" value="2" />
+        <CompactStat label="C" value="3" />
+        <CompactStat label="D" value="4" />
+        <CompactStat label="E" value="5" />
+      </CompactStatGrid>
+    ));
+    const grid = screen.getByTestId("stat-grid");
+    expect(grid.style.gridTemplateColumns).toBe("repeat(4, minmax(0, 1fr))");
+  });
+
+  it("has zero gap by default and separates cells with divide-x dividers", () => {
+    render(() => (
+      <CompactStatGrid data-testid="stat-grid">
+        <CompactStat label="A" value="1" />
+      </CompactStatGrid>
+    ));
+    const grid = screen.getByTestId("stat-grid");
+    expect(grid.style.gap).toBe("");
+    expect(grid.classList.contains("divide-x")).toBe(true);
+    expect(grid.classList.contains("divide-fin-border")).toBe(true);
+  });
+
+  it("still honors an explicit spacing prop", () => {
+    render(() => (
+      <CompactStatGrid data-testid="stat-grid" spacing={4}>
+        <CompactStat label="A" value="1" />
+      </CompactStatGrid>
+    ));
+    expect(screen.getByTestId("stat-grid").style.gap).toBe("4px");
+  });
+});

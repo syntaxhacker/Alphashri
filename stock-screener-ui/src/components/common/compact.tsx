@@ -1,6 +1,6 @@
 import type { CSSProperties, JSX } from "solid-js";
 import { Show, splitProps } from "solid-js";
-import { Box, Card, Paper, SimpleGrid, Stack, Text, Title, useDensity } from "@/ui";
+import { Box, Card, Paper, SimpleGrid, Stack, Text, Title } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { UIStackProps, UIPaperProps } from "@/ui";
 
@@ -120,8 +120,14 @@ export function CompactPanel(props: CompactPanelProps) {
   return (
     <Paper
       data-compact=""
-      className="bg-fin-surface rounded-fin border border-fin-border"
-      style={{ "background-color": palette.SURFACE, "border-radius": "2px", border: `1px solid ${palette.BORDER}`, ...panelStyle() }}
+      className={`bg-fin-surface${flush() ? "" : " rounded-fin border border-fin-border"}`}
+      style={{
+        "background-color": palette.SURFACE,
+        ...(flush()
+          ? {}
+          : { "border-radius": "2px", border: `1px solid ${palette.BORDER}` }),
+        ...panelStyle(),
+      }}
       data-testid={own.testId}
       {...(paperProps as Record<string, unknown>)}
     >
@@ -136,14 +142,14 @@ export function CompactPanel(props: CompactPanelProps) {
         <Show when={hasHeader()}>
           <Box
             data-compact-header=""
-            className="flex items-center justify-between gap-0.5 px-4 py-1 mb-0 w-full border-b border-fin-border"
+            className={`flex items-center justify-between gap-0.5 py-1 mb-0 w-full border-b border-fin-border${flush() ? "" : " px-4"}`}
             style={{
               display: "flex",
               "align-items": "center",
               "justify-content": "space-between",
               gap: "4px",
-              "padding-left": "8px",
-              "padding-right": "8px",
+              "padding-left": flush() ? "0px" : "8px",
+              "padding-right": flush() ? "0px" : "8px",
               "padding-bottom": "0px",
               width: "100%",
               "border-bottom": `1px solid ${palette.BORDER}`,
@@ -219,51 +225,49 @@ export function CompactStat(props: CompactStatProps) {
     "dense",
   ]);
   const tone = () => own.tone ?? "default";
-  const dense = () => own.dense ?? false;
-  const labelSize = (): "xs" | "sm" | "md" | "lg" | "xl" => (dense() ? "xs" : (own.labelSize ?? "xs"));
-  const valueSize = (): "xs" | "sm" | "md" | "lg" | "xl" => (dense() ? "sm" : (own.valueSize ?? "lg"));
-  const densityApi = useDensity();
-  // 4px body inset keeps stat cards from adding vertical air between rows.
-  const pad = () => (dense() ? 0.375 : Math.min(densityApi.tokens.statPad, 0.5));
-  const padPx = () => `${pad() * 8}px`;
 
   const isPrimitiveHint = () => typeof own.hint === "string" || typeof own.hint === "number";
 
   return (
     <Card
       data-compact-stat=""
-      className="bg-fin-surface border border-fin-border"
-      style={{ "background-color": palette.SURFACE, border: `1px solid ${palette.BORDER}` }}
+      className="bg-fin-surface"
       {...(paperProps as Record<string, unknown>)}
     >
       <Box
-        className="flex flex-col items-center justify-center text-center gap-1"
+        className="flex flex-col w-full"
         style={{
-          padding: padPx(),
-          "padding-bottom": padPx(),
           display: "flex",
           "flex-direction": "column",
-          "align-items": "center",
           "justify-content": "center",
-          gap: "4px",
-          "text-align": "center",
+          height: "41px",
+          width: "100%",
         }}
       >
-        <Box className="flex items-center justify-center w-full">
-          <Text size={labelSize()} tt="uppercase" fw={700} c="dimmed" style={{ "line-height": "1.15", "letter-spacing": "0.04em", "text-align": "center" }}>
+        <Box className="flex w-full">
+          <Text
+            fw={700}
+            c="dimmed"
+            style={{
+              "font-size": "10px",
+              "text-transform": "uppercase",
+              "letter-spacing": "0.06em",
+              "line-height": "1.2",
+              "text-align": "left",
+            }}
+          >
             {own.label}
           </Text>
         </Box>
-        <Box className="flex items-center justify-center w-full">
+        <Box className="flex w-full">
           <Text
-            size={valueSize()}
             fw={700}
             c={tone()}
             style={{
               "line-height": "1.1",
               "font-family": palette.MONO,
               "font-variant-numeric": "tabular-nums",
-              "text-align": "center",
+              "text-align": "right",
             }}
           >
             {own.value}
@@ -272,12 +276,10 @@ export function CompactStat(props: CompactStatProps) {
         <Show when={own.hint != null}>
           <Show
             when={isPrimitiveHint()}
-            fallback={<Box className="flex items-center justify-center w-full" style={{ "margin-top": "4px" }}>{own.hint}</Box>}
+            fallback={<Box className="flex w-full" style={{ "margin-top": "4px" }}>{own.hint}</Box>}
           >
-            <Box className="flex items-center justify-center w-full">
-              <Text size="xs" c="dimmed" style={{ "text-align": "center" }}>
-                {own.hint}
-              </Text>
+            <Box className="flex w-full">
+              <Text size="xs" c="dimmed">{own.hint}</Text>
             </Box>
           </Show>
         </Show>
@@ -290,10 +292,17 @@ export function CompactStatGrid(props: {
   children: JSX.Element;
   /** Opt-in to the legacy centered layout. Default is left/stretch. */
   center?: boolean;
+  /** Stat cells per row. Defaults to 4 — a stat grid is a single row of
+   *  cells, never a single stacked card. */
+  cols?: number;
   [key: string]: any;
 }) {
-  const [own, rest] = splitProps(props, ["children", "center"]);
+  const [own, rest] = splitProps(props, ["children", "center", "cols"]);
   const center = () => own.center ?? false;
+  const cols = () => {
+    const n = typeof own.cols === "number" ? own.cols : 4;
+    return n > 0 ? n : 4;
+  };
 
   return (
     <Box
@@ -302,17 +311,16 @@ export function CompactStatGrid(props: {
         "align-items": center() ? "center" : "stretch",
         display: "flex",
         width: "100%",
-        padding: "4px",
       }}
-      className="flex w-full p-2"
+      className="flex w-full"
     >
       <SimpleGrid
-        className="w-full gap-2"
+        cols={cols()}
+        className={`w-full divide-x divide-fin-border${rest.className ? ` ${rest.className}` : ""}`}
         style={{
           "justify-content": center() ? "center" : "flex-start",
           "align-items": center() ? "center" : "stretch",
           width: "100%",
-          gap: "4px",
         }}
         {...rest}
       >
