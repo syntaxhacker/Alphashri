@@ -327,10 +327,22 @@ export interface UIUnstyledButtonProps extends UIBaseProps {
   onClick?: (e: MouseEvent) => void;
 }
 
+/**
+ * Props carried over from the Mantine-era API. Accepted so old call sites keep
+ * compiling, stripped before render — they can never affect the DOM.
+ */
+export interface UIInputCompatProps {
+  errorProps?: Record<string, unknown>;
+  styles?: Record<string, unknown>;
+  loading?: boolean;
+  variant?: string;
+}
+
 export interface UIInputWrapperProps extends UIBaseProps {
   label?: JSX.Element;
   description?: JSX.Element;
-  error?: JSX.Element;
+  /** Message or flag; a string is shown as the helper text. */
+  error?: boolean | string | JSX.Element;
   required?: boolean;
   disabled?: boolean;
   readOnly?: boolean;
@@ -358,7 +370,7 @@ export interface UITextInputProps extends UIInputWrapperProps {
   type?: string;
 }
 
-export interface UINumberInputProps extends UIInputWrapperProps {
+export interface UINumberInputProps extends UIInputWrapperProps, UIInputCompatProps {
   value?: number | string;
   defaultValue?: number | string;
   onChange?: (value: number | string) => void;
@@ -372,6 +384,9 @@ export interface UINumberInputProps extends UIInputWrapperProps {
   hideControls?: boolean;
   suffix?: string;
   prefix?: string;
+  onFocus?: (e: FocusEvent) => void;
+  onBlur?: (e: FocusEvent) => void;
+  onKeyDown?: (e: KeyboardEvent) => void;
   leftSection?: JSX.Element;
   rightSection?: JSX.Element;
 }
@@ -463,6 +478,8 @@ export interface UISwitchProps extends UIBaseProps {
   onLabel?: string;
   offLabel?: string;
   description?: JSX.Element;
+  /** Validation failure — renders the negative border like every text control. */
+  error?: boolean | string;
 }
 
 export interface UICheckboxProps extends UIBaseProps {
@@ -475,6 +492,7 @@ export interface UICheckboxProps extends UIBaseProps {
   color?: UIColor;
   indeterminate?: boolean;
   description?: JSX.Element;
+  error?: boolean | string;
 }
 
 export interface UIChipProps extends UIBaseProps {

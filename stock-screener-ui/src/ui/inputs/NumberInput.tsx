@@ -2,6 +2,7 @@ import { createMemo, createSignal, createUniqueId, splitProps } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
 import { stripLegacyInputProps } from "./legacyProps";
+import type { UINumberInputProps } from "../types";
 
 /**
  * Coerce raw input text to the `onChange` payload. In-progress keystrokes
@@ -28,8 +29,8 @@ function boxOf(size?: string | number | undefined): FieldBox {
   return FIELD_BOX[String(size)] ?? { h: 32, fs: 13, padY: 8, padX: 10 };
 }
 
-export function NumberInput(props: any) {
-  const [known, _rest] = splitProps(props, [
+export function NumberInput(props: UINumberInputProps) {
+  const [known, _rest] = splitProps(props as UINumberInputProps & Record<string, unknown>, [
     "value",
     "defaultValue",
     "onChange",
@@ -63,6 +64,9 @@ export function NumberInput(props: any) {
     "loading",
     "id",
     "name",
+    "onBlur",
+    "onFocus",
+    "onKeyDown",
   ]);
 
   const resolvedId = known.id ?? createUniqueId();
@@ -168,8 +172,15 @@ export function NumberInput(props: any) {
             type="number"
             value={(isControlledInput() ? known.value : known.defaultValue) ?? ""}
             onInput={(e) => known.onChange?.(coerceNumberInput(e.currentTarget.value))}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
+            onFocus={(e) => {
+              setFocused(true);
+              known.onFocus?.(e);
+            }}
+            onBlur={(e) => {
+              setFocused(false);
+              known.onBlur?.(e);
+            }}
+            onKeyDown={(e) => known.onKeyDown?.(e)}
             placeholder={known.placeholder}
             name={known.name}
             min={known.min}

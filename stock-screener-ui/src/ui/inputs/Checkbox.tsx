@@ -36,6 +36,7 @@ export function Checkbox(props: UICheckboxProps) {
     "size",
     "color",
     "indeterminate",
+    "error",
     "description",
     "className",
     "style",
@@ -57,6 +58,8 @@ export function Checkbox(props: UICheckboxProps) {
     if (inputEl) inputEl.indeterminate = !!known.indeterminate;
   });
 
+  const [focused, setFocused] = createSignal(false);
+
   const handleChange = (e: Event & { currentTarget: HTMLInputElement }) => {
     const next = e.currentTarget.checked;
     if (!isControlled()) setUncontrolled(next);
@@ -77,7 +80,10 @@ export function Checkbox(props: UICheckboxProps) {
       width: `${side}px`,
       height: `${side}px`,
       "border-radius": "4px",
-      border: `1px solid ${marked ? tone : palette.BORDER}`,
+      border: `1px solid ${
+        known.error ? palette.NEGATIVE : focused() ? palette.PRIMARY : marked ? tone : palette.BORDER
+      }`,
+      "box-shadow": focused() ? `0 0 0 1px ${palette.PRIMARY}` : "none",
       "background-color": fill,
       color: palette.BG,
       "font-size": `${side - 4}px`,
@@ -105,6 +111,8 @@ export function Checkbox(props: UICheckboxProps) {
         checked={isControlled() ? isChecked() : undefined}
         defaultChecked={isControlled() ? undefined : known.defaultChecked}
         onChange={handleChange}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         disabled={known.disabled}
         id={known.id}
         data-testid={known["data-testid"]}
