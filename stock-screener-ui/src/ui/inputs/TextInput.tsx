@@ -1,13 +1,27 @@
-import { createMemo, createUniqueId } from "solid-js";
+import { createMemo, createSignal, createUniqueId } from "solid-js";
 import { cn } from "../cn";
+import * as palette from "../palette";
 import type { UITextInputProps } from "../types";
 
-function sizeClass(size?: UITextInputProps["size"]): string {
-  return size === "xs" || size === "sm" ? "px-2 py-1.5 text-xs" : "px-3 py-2 text-sm";
+type FieldBox = { h: number; fs: number; padY: number; padX: number };
+
+/**
+ * Text-family geometry. Text/password/number deliberately share one look — they
+ * are the same control; the distinguishing affordances live inside the field
+ * (reveal eye, steppers) or in the element itself (textarea height/resize).
+ */
+const FIELD_BOX: Record<string, FieldBox> = {
+  xs: { h: 26, fs: 11, padY: 4, padX: 8 },
+  sm: { h: 32, fs: 13, padY: 8, padX: 10 },
+};
+
+function boxOf(size?: UITextInputProps["size"]): FieldBox {
+  return FIELD_BOX[String(size)] ?? { h: 32, fs: 13, padY: 8, padX: 10 };
 }
 
 export function TextInput(props: UITextInputProps) {
   const resolvedId = props.id ?? createUniqueId();
+  const [focused, setFocused] = createSignal(false);
   const explicitWidth = createMemo(() =>
     props.w != null ? (typeof props.w === "number" ? `${props.w}px` : props.w) : undefined,
   );
@@ -26,7 +40,24 @@ export function TextInput(props: UITextInputProps) {
   const wrapperStyle = createMemo(() =>
     explicitWidth() ? { width: explicitWidth()!, ...props.style } : (props.style ?? {}),
   );
-  const inputStyle = createMemo(() => (explicitHeight() ? { height: explicitHeight()! } : {}));
+
+  const inputStyle = createMemo<Record<string, string>>(() => {
+    const box = boxOf(props.size);
+    const border = isError() ? palette.NEGATIVE : focused() ? palette.PRIMARY : palette.BORDER;
+    return {
+      height: explicitHeight() ?? `${box.h}px`,
+      "border-radius": "6px",
+      border: `1px solid ${border}`,
+      "box-shadow": focused() ? `0 0 0 1px ${border}` : "none",
+      "background-color": props.disabled ? palette.SURFACE_ALT : palette.SURFACE,
+      color: palette.TEXT,
+      "font-size": `${box.fs}px`,
+      "line-height": "1",
+      padding: `${box.padY}px ${box.padX}px`,
+      "outline": "none",
+      ...(props.disabled ? { opacity: "0.45", cursor: "not-allowed" } : {}),
+    };
+  });
 
   const wrapperTestId = props["data-testid"] ? `${props["data-testid"]}-field` : undefined;
   const inputTestId = props["data-testid"];
@@ -55,20 +86,22 @@ export function TextInput(props: UITextInputProps) {
           value={(isControlled() ? props.value : props.defaultValue) ?? ""}
           onInput={(e) => props.onChange?.(e.currentTarget.value)}
           onKeyDown={(e) => props.onKeyDown?.(e)}
-          onFocus={(e) => props.onFocus?.(e)}
-          onBlur={(e) => props.onBlur?.(e)}
+          onFocus={(e) => {
+            setFocused(true);
+            props.onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            props.onBlur?.(e);
+          }}
           placeholder={props.placeholder}
           name={props.name}
           required={props.required}
           disabled={props.disabled}
           readOnly={props.readOnly}
           className={cn(
-            "flex-1 min-w-0 block",
-            sizeClass(props.size),
-            "bg-fin-surface border border-fin-border rounded-fin text-fin-text placeholder:text-fin-text-muted",
-            "focus:outline-none focus:border-fin-primary focus:ring-2 focus:ring-fin-primary",
-            props.disabled ? "disabled:bg-fin-surface-alt disabled:text-fin-text-muted disabled:border-fin-border disabled:cursor-not-allowed" : undefined,
-            isError() ? "border-fin-negative focus:border-fin-negative" : undefined,
+            "flex-1 min-w-0 block bg-transparent placeholder:text-fin-text-muted",
+            props.disabled ? "cursor-not-allowed" : undefined,
           )}
           style={inputStyle()}
           data-testid={inputTestId}

@@ -1,18 +1,27 @@
-import { createMemo, createUniqueId, splitProps } from "solid-js";
+import { createMemo, createSignal, createUniqueId, splitProps } from "solid-js";
 import { cn } from "../cn";
+import * as palette from "../palette";
 import type { UITextareaProps } from "../types";
 
-function sizeClass(size?: UITextareaProps["size"]): string {
-  return size === "xs" || size === "sm" ? "px-2 py-1.5 text-xs" : "px-3 py-2 text-sm";
+/**
+ * Row height for 13px text. Two rows plus 8px block padding and the 1px borders
+ * land on 56px — comfortably taller than the 32px single-line field.
+ */
+const ROW_H = 19;
+
+function lineHeightOf(size?: UITextareaProps["size"]): number {
+  return size === "xs" ? 15 : ROW_H;
 }
 
-function resizeClass(resize?: UITextareaProps["resize"], autosize?: boolean): string | undefined {
-  const effective = resize ?? (autosize ? "none" : undefined);
-  if (effective === "none") return "resize-none";
-  if (effective === "both") return "resize";
-  if (effective === "horizontal") return "resize-x";
-  if (effective === "vertical") return "resize-y";
-  return undefined;
+function fontOf(size?: UITextareaProps["size"]): string {
+  return size === "xs" ? "11px" : "13px";
+}
+
+function resizeStyle(resize?: UITextareaProps["resize"], autosize?: boolean): string {
+  // Only an explicit autosize field hides the handle — the default keeps it so
+  // a textarea is always recognisable as a resizable multi-line control.
+  if (resize) return resize;
+  return autosize ? "none" : "vertical";
 }
 
 export function Textarea(props: UITextareaProps) {
@@ -40,6 +49,7 @@ export function Textarea(props: UITextareaProps) {
   ]);
 
   const resolvedId = known.id ?? createUniqueId();
+  const [focused, setFocused] = createSignal(false);
   const explicitWidth = createMemo(() =>
     known.w != null ? (typeof known.w === "number" ? `${known.w}px` : known.w) : undefined,
   );
@@ -55,19 +65,41 @@ export function Textarea(props: UITextareaProps) {
       : (known.description as string | undefined),
   );
 
-  const effectiveMinRows = createMemo(() => known.minRows ?? (known.autosize ? 2 : 3));
+  const effectiveMinRows = createMemo(() => known.minRows ?? 2);
   const effectiveMaxRows = createMemo(() => known.maxRows);
-
-  // Legacy Mantine props are accepted for backward compatibility but never
-  // forwarded to the DOM (native elements reject unknown attributes).
 
   const wrapperStyle = createMemo(() =>
     explicitWidth() ? { width: explicitWidth()!, ...known.style } : (known.style ?? {}),
   );
-  const inputStyle = createMemo(() => ({
-    ...(explicitHeight() ? { height: explicitHeight()! } : {}),
-    ...(effectiveMaxRows() ? { "max-height": `${effectiveMaxRows()! * 1.4}rem` } : {}),
-  }));
+
+  /**
+   * A textarea must read as a multi-line field at a glance: it is taller than a
+   * one-line input by default (≈56px at two rows) and keeps a visible resize
+   * handle, which single-line inputs never have.
+   */
+  const inputStyle = createMemo<Record<string, string>>(() => {
+    const lineHeight = lineHeightOf(known.size);
+    const border = isError() ? palette.NEGATIVE : focused() ? palette.PRIMARY : palette.BORDER;
+    const rows = effectiveMinRows();
+    return {
+      height: explicitHeight() ?? `${rows * lineHeight + 18}px`,
+      "min-height": `${lineHeight * rows + 18}px`,
+      "border-radius": "6px",
+      border: `1px solid ${border}`,
+      "box-shadow": focused() ? `0 0 0 1px ${border}` : "none",
+      "background-color": known.disabled ? palette.SURFACE_ALT : palette.SURFACE,
+      color: palette.TEXT,
+      "font-size": fontOf(known.size),
+      "line-height": `${lineHeight}px`,
+      padding: "8px 10px",
+      "outline": "none",
+      resize: resizeStyle(known.resize, known.autosize),
+      "text-align": "left",
+      "vertical-align": "top",
+      ...(effectiveMaxRows() ? { "max-height": `${effectiveMaxRows()! * lineHeight + 18}px` } : {}),
+      ...(known.disabled ? { opacity: "0.45", cursor: "not-allowed" } : {}),
+    };
+  });
 
   const wrapperTestId = known["data-testid"] ? `${known["data-testid"]}-field` : undefined;
   const inputTestId = known["data-testid"];
@@ -92,18 +124,15 @@ export function Textarea(props: UITextareaProps) {
         id={resolvedId}
         {...(isControlled() ? { value: known.value } : { defaultValue: known.defaultValue })}
         onInput={(e) => known.onChange?.(e.currentTarget.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         placeholder={known.placeholder}
         required={known.required}
         disabled={known.disabled}
         rows={effectiveMinRows()}
         className={cn(
-          "flex-1 min-w-0 block",
-          sizeClass(known.size),
-          resizeClass(known.resize, known.autosize),
-          "bg-fin-surface border border-fin-border rounded-fin text-fin-text placeholder:text-fin-text-muted",
-          "focus:outline-none focus:border-fin-primary focus:ring-2 focus:ring-fin-primary",
-          known.disabled ? "disabled:bg-fin-surface-alt disabled:text-fin-text-muted disabled:border-fin-border disabled:cursor-not-allowed" : undefined,
-          isError() ? "border-fin-negative focus:border-fin-negative" : undefined,
+          "block w-full min-w-0 bg-transparent placeholder:text-fin-text-muted",
+          known.disabled ? "cursor-not-allowed" : undefined,
         )}
         style={inputStyle()}
         data-testid={inputTestId}

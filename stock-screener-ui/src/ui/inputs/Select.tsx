@@ -1,5 +1,6 @@
 import { For, Show, createEffect, createMemo, createSignal, createUniqueId, splitProps, type JSX } from "solid-js";
 import { cn } from "../cn";
+import * as palette from "../palette";
 import type { UISelectProps } from "../types";
 
 type SelectOption = { value: string; label: string; disabled?: boolean };
@@ -50,14 +51,56 @@ function optionsFromChildren(children: unknown): SelectOption[] {
   return out;
 }
 
-function controlClasses(size?: UISelectProps["size"], disabled?: boolean, error?: boolean): string {
-  return cn(
-    "flex-1 min-w-0 border rounded-fin bg-fin-surface text-fin-text outline-none",
-    size === "xs" || size === "sm" ? "text-xs px-2 py-1.5" : "text-sm px-3 py-2",
-    disabled ? "opacity-50 cursor-not-allowed" : "",
-    error ? "border-fin-negative" : "border-fin-border",
-    "focus-visible:ring-1 focus-visible:ring-fin-primary",
+/**
+ * Dropdown affordance shared by every select-like control: a chevron on the
+ * right edge. This is the only cue that survives a monochrome/high-contrast
+ * rendering, so it must never be replaced by colour alone.
+ */
+function Chevron(props: { rotated?: boolean }) {
+  return (
+    <svg
+      data-part="chevron"
+      aria-hidden="true"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      className={cn(
+        "pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 transition-transform duration-150",
+        props.rotated ? "rotate-180" : "",
+      )}
+      style={{ "color": palette.TEXT_MUTED }}
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
   );
+}
+
+/** Height map shared with the rest of the kit: xs 24 / sm 30 / md 34. */
+function fieldHeight(size?: UISelectProps["size"]): string {
+  if (size === "xs") return "24px";
+  if (size === "sm") return "30px";
+  return "34px";
+}
+
+function fieldPadding(size?: UISelectProps["size"]): string {
+  if (size === "xs") return "pl-2 pr-7 text-[11px]";
+  if (size === "sm") return "pl-2 pr-7 text-xs";
+  return "pl-3 pr-7 text-sm";
+}
+
+/** The box is deliberately not a TextInput box: 6px radius, fixed height, chevron gutter. */
+function fieldStyle(opts: { size?: UISelectProps["size"]; tone: "idle" | "active" | "error"; height?: string }): Record<string, string> {
+  return {
+    "height": opts.height ?? fieldHeight(opts.size),
+    "border-radius": "6px",
+    "border-color": opts.tone === "error" ? palette.NEGATIVE : opts.tone === "active" ? palette.PRIMARY : palette.BORDER,
+    "box-shadow": opts.tone === "active" ? `0 0 0 1px ${palette.PRIMARY}` : "none",
+  };
 }
 
 function labelClasses(size?: UISelectProps["size"]): string {
@@ -99,6 +142,7 @@ export function Select(props: UISelectProps) {
     "comboboxProps",
     "withinPortal",
     "InputProps",
+    "aria-label",
   ]);
 
   const inputId = known.id ?? createUniqueId();
@@ -138,6 +182,12 @@ export function Select(props: UISelectProps) {
   const labelClass = createMemo(() => labelClasses(known.size));
   const helperTextClass = createMemo(() => helperTextClasses(isError()));
 
+  const [focused, setFocused] = createSignal(false);
+
+  /** A closed native <select> has no "open" event; focus is the closest stable signal. */
+  const tone = createMemo(() => (isError() ? "error" : focused() ? "active" : "idle") as "idle" | "active" | "error");
+  const hasValue = createMemo(() => (known.value ?? known.defaultValue) != null && (known.value ?? known.defaultValue) !== "");
+
   const handleChange = (e: Event) => {
     const target = e.currentTarget as HTMLSelectElement;
     known.onChange?.(target.value === "" ? null : target.value);
@@ -153,27 +203,41 @@ export function Select(props: UISelectProps) {
   const adornments = (
     <div className="inline-flex w-full items-center gap-2">
       {known.leftSection && <span className="shrink-0 text-fin-text-muted text-xs">{known.leftSection}</span>}
-      <select
-        id={inputId}
-        name={known.name as string | undefined}
-        value={isControlled() ? String(known.value ?? "") : known.defaultValue != null ? String(known.defaultValue) : undefined}
-        onInput={handleChange}
-        disabled={known.disabled}
-        required={known.required}
-        className={controlClasses(known.size, known.disabled, isError())}
-      >
-        {known.placeholder && <option value="" disabled hidden>{known.placeholder}</option>}
-        <Show when={options().length === 0}>
-          <option disabled value="">{known.nothingFoundMessage ?? "No options"}</option>
-        </Show>
-        <Show when={options().length > 0}>
-          <For each={options()}>{(opt) => (
-            <option value={opt.value} disabled={opt.disabled || undefined}>
-              {opt.label}
-            </option>
-          )}</For>
-        </Show>
-      </select>
+      <div className="relative min-w-0 flex-1">
+        <select
+          id={inputId}
+          name={known.name as string | undefined}
+          value={isControlled() ? String(known.value ?? "") : known.defaultValue != null ? String(known.defaultValue) : undefined}
+          onInput={handleChange}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          disabled={known.disabled}
+          required={known.required}
+          aria-label={known["aria-label"]}
+          className={cn(
+            "appearance-none flex w-full min-w-0 border bg-fin-surface leading-none outline-none py-0",
+            fieldPadding(known.size),
+            known.disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+          )}
+          style={{
+            ...fieldStyle({ size: known.size, tone: tone() }),
+            "color": hasValue() ? palette.TEXT : palette.TEXT_MUTED,
+          }}
+        >
+          {known.placeholder && <option value="" disabled>{known.placeholder}</option>}
+          <Show when={options().length === 0}>
+            <option disabled value="">{known.nothingFoundMessage ?? "No options"}</option>
+          </Show>
+          <Show when={options().length > 0}>
+            <For each={options()}>{(opt) => (
+              <option value={opt.value} disabled={opt.disabled || undefined}>
+                {opt.label}
+              </option>
+            )}</For>
+          </Show>
+        </select>
+        <Chevron rotated={focused()} />
+      </div>
       {showClear() && (
         <button type="button" aria-label="clear" onClick={handleClear} onMouseDown={(e) => e.stopPropagation()} className="shrink-0 p-1 text-fin-text-muted hover:bg-fin-surface-alt rounded-fin">
           &times;
@@ -301,30 +365,42 @@ function SearchableSelect(props: {
     }
   };
 
+  const tone = createMemo(() => (props.isError ? "error" : open() ? "active" : "idle") as "idle" | "active" | "error");
+
   return (
     <div className="w-full" onMouseDown={(e) => e.stopPropagation()}>
       <div className="relative w-full">
         <div className="inline-flex w-full items-center gap-2">
           {props.leftSection && <span className="shrink-0 text-fin-text-muted text-xs">{props.leftSection}</span>}
-          <input
-            id={props.inputId}
-            role="combobox"
-            aria-expanded={open()}
-            aria-haspopup="listbox"
-            aria-controls={listboxId}
-            aria-multiselectable="false"
-            value={displayValue()}
-            onInput={(e) => {
-              setQuery(e.currentTarget.value);
-              setOpen(true);
-            }}
-            onFocus={() => setOpen(true)}
-            onBlur={() => setOpen(false)}
-            onKeyDown={handleKeyDown}
-            disabled={props.disabled}
-            placeholder={props.placeholder}
-            className={controlClasses(props.size, props.disabled, props.isError)}
-          />
+          <div className="relative min-w-0 flex-1">
+            <input
+              id={props.inputId}
+              role="combobox"
+              aria-label={props["aria-label"]}
+              aria-expanded={open()}
+              aria-haspopup="listbox"
+              aria-controls={listboxId}
+              aria-multiselectable="false"
+              value={displayValue()}
+              onInput={(e) => {
+                setQuery(e.currentTarget.value);
+                setOpen(true);
+              }}
+              onFocus={() => setOpen(true)}
+              onBlur={() => setOpen(false)}
+              onKeyDown={handleKeyDown}
+              disabled={props.disabled}
+              placeholder={props.placeholder}
+              className={cn(
+                "flex w-full min-w-0 border bg-fin-surface leading-none outline-none py-0",
+                fieldPadding(props.size),
+                props.disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+                "text-fin-text placeholder:text-fin-text-muted",
+              )}
+              style={fieldStyle({ size: props.size, tone: tone() })}
+            />
+            <Chevron rotated={open()} />
+          </div>
           {props.clearable && displayValue() && !props.disabled && (
             <button type="button" aria-label="clear" onClick={handleClear} onMouseDown={(e) => e.stopPropagation()} className="shrink-0 p-1 text-fin-text-muted hover:bg-fin-surface-alt rounded-fin">
               &times;
@@ -333,7 +409,7 @@ function SearchableSelect(props: {
           {props.rightSection && <span className="shrink-0">{props.rightSection}</span>}
         </div>
         <Show when={open()}>
-          <ul id={listboxId} role="listbox" className="absolute z-50 left-0 right-0 mt-1 border border-fin-border rounded-fin bg-fin-surface text-fin-text max-h-48 overflow-y-auto outline-none">
+          <ul id={listboxId} role="listbox" className="absolute z-50 left-0 right-0 mt-1 border border-fin-border rounded-[6px] bg-fin-surface text-fin-text max-h-48 overflow-y-auto outline-none">
             {filtered().length === 0 ? (
               <li role="option" aria-disabled className="px-3 py-2 text-xs text-fin-text-muted">
                 {props.nothingFoundMessage ?? "No options"}

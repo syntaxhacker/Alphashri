@@ -23,6 +23,96 @@ function renderSlider(props: Partial<Parameters<typeof RangeSlider>[0]> = {}) {
   return { onChange, ...view };
 }
 
+/**
+ * Pointer dragging is the primary interaction — the keyboard tests below never
+ * exercised it, which is how a thumb that swallowed pointerdown shipped.
+ * happy-dom has no layout, so geometry is stubbed explicitly.
+ */
+/**
+ * Real DOM: the container has 6px horizontal padding around the 4px-high bar.
+ * happy-dom has no layout, so both rects are stubbed — the container one is
+ * padded and the bar one is not, exactly as in the browser. A slider that
+ * measures the padded container cannot reach either end of its domain.
+ */
+const PAD = 6;
+function stubTrackGeometry(el: HTMLElement, left = 0, width = 200) {
+  const outer = {
+    left, top: 0, width: width + PAD * 2, height: 20,
+    right: left + width + PAD * 2, bottom: 20, x: left, y: 0, toJSON: () => ({}),
+  };
+  const inner = {
+    left: left + PAD, top: 0, width, height: 4,
+    right: left + PAD + width, bottom: 4, x: left + PAD, y: 0, toJSON: () => ({}),
+  };
+  el.firstElementChild!.getBoundingClientRect = () => inner as DOMRect;
+  el.getBoundingClientRect = () => outer as DOMRect;
+  const captured = new Set<number>();
+  el.setPointerCapture = ((_id: number) => captured.add(_id)) as never;
+  el.hasPointerCapture = ((id: number) => captured.has(id)) as never;
+  el.releasePointerCapture = ((id: number) => captured.delete(id)) as never;
+}
+
+function pointer(el: HTMLElement, type: string, clientX: number) {
+  fireEvent(el, new MouseEvent(type, { clientX, bubbles: true, button: 0 }) as never);
+}
+
+describe("RangeSlider drag", () => {
+  it("a pointerdown on the track moves the nearest end to that position", () => {
+    const { onChange, container } = renderSlider({ value: [20, 80] });
+    const track = container.querySelector('[data-testid="rng-track"]') as HTMLElement;
+    stubTrackGeometry(track);
+    // 25% of the track: nearer to the 20 end than the 80 end.
+    pointer(track, "pointerdown", PAD + 50);
+    expect(onChange).toHaveBeenCalled();
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(next[0]).toBe(25);
+    expect(next[1]).toBe(80);
+  });
+
+  it("dragging moves the same end, not the nearest one each time", () => {
+    const { onChange, container } = renderSlider({ value: [20, 80] });
+    const track = container.querySelector('[data-testid="rng-track"]') as HTMLElement;
+    stubTrackGeometry(track);
+    pointer(track, "pointerdown", PAD + 60); // grabs the lower end
+    pointer(track, "pointermove", PAD + 90); // drag right past the upper end
+    const [next] = onChange.mock.calls.at(-1)!;
+    // The lower end follows the pointer; the pair never crosses.
+    expect(next[0]).toBe(45);
+    expect(next[1]).toBe(80);
+  });
+
+  it("the ends are reachable — dragging to x=0 and x=width hits the domain", () => {
+    const { onChange, container } = renderSlider({ value: [20, 80] });
+    const track = container.querySelector('[data-testid="rng-track"]') as HTMLElement;
+    stubTrackGeometry(track);
+    pointer(track, "pointerdown", PAD + 40);
+    pointer(track, "pointermove", PAD);
+    expect(onChange.mock.calls.at(-1)![0][0]).toBe(0);
+    pointer(track, "pointerdown", PAD + 190);
+    pointer(track, "pointermove", PAD + 200);
+    expect(onChange.mock.calls.at(-1)![0][1]).toBe(100);
+  });
+
+  it("a right-click does not start a drag", () => {
+    const { onChange, container } = renderSlider({ value: [20, 80] });
+    const track = container.querySelector('[data-testid="rng-track"]') as HTMLElement;
+    stubTrackGeometry(track);
+    fireEvent(track, new MouseEvent("pointerdown", { clientX: PAD + 100, bubbles: true, button: 2 }) as never);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("releasing ends the drag so later moves are ignored", () => {
+    const { onChange, container } = renderSlider({ value: [20, 80] });
+    const track = container.querySelector('[data-testid="rng-track"]') as HTMLElement;
+    stubTrackGeometry(track);
+    pointer(track, "pointerdown", PAD + 60);
+    const afterDown = onChange.mock.calls.length;
+    pointer(track, "pointerup", PAD + 60);
+    pointer(track, "pointermove", PAD + 190);
+    expect(onChange.mock.calls.length).toBe(afterDown);
+  });
+});
+
 describe("RangeSlider", () => {
   let raf: typeof requestAnimationFrame;
   beforeEach(() => {

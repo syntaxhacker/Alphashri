@@ -1,5 +1,6 @@
 import { createMemo, createSignal, createUniqueId, createEffect, For, Show, splitProps } from "solid-js";
 import { cn } from "../cn";
+import * as palette from "../palette";
 import type { UIMultiSelectProps } from "../types";
 
 type Option = { value: string; label: string; disabled?: boolean };
@@ -11,14 +12,17 @@ function normalizeOptions(data: UIMultiSelectProps["data"]): Option[] {
   );
 }
 
-function controlClasses(size?: UIMultiSelectProps["size"], disabled?: boolean, error?: boolean): string {
-  return cn(
-    "border rounded-fin bg-fin-surface text-fin-text outline-none",
-    size === "xs" || size === "sm" ? "text-xs px-2 py-1.5" : "text-sm px-3 py-2",
-    disabled ? "opacity-50 cursor-not-allowed" : "",
-    error ? "border-fin-negative" : "border-fin-border",
-    "focus-visible:ring-1 focus-visible:ring-fin-primary",
-  );
+/** Height map shared with the rest of the kit: xs 24 / sm 30 / md 34. */
+function fieldMinHeight(size?: UIMultiSelectProps["size"]): string {
+  if (size === "xs") return "24px";
+  if (size === "sm") return "30px";
+  return "34px";
+}
+
+function fieldPadding(size?: UIMultiSelectProps["size"]): string {
+  if (size === "xs") return "pl-1.5 pr-11 text-[11px]";
+  if (size === "sm") return "pl-2 pr-11 text-xs";
+  return "pl-2 pr-11 text-sm";
 }
 
 function labelClasses(size?: UIMultiSelectProps["size"]): string {
@@ -27,6 +31,82 @@ function labelClasses(size?: UIMultiSelectProps["size"]): string {
 
 function helperTextClasses(error?: boolean): string {
   return cn("text-xs leading-none", error ? "text-fin-negative" : "text-fin-text-muted");
+}
+
+/** Tag geometry: 18px tall, 4px radius, 11px type, PRIMARY at 14%. */
+const TAG_BOX = {
+  "height": "18px",
+  "border-radius": "4px",
+  "background-color": palette.alpha(palette.PRIMARY, 0.14),
+  "color": palette.TEXT,
+  "font-size": "11px",
+} as const;
+
+/** Two tag rows (18px each + 4px gap) is the growth ceiling before folding to `+N`. */
+const TAG_ROW_H = 18;
+const TAG_ROW_GAP = 4;
+const TAG_ROWS_MAX = 2;
+
+/**
+ * How many trailing tags to hide behind a `+N` chip. `widths` are the tag widths
+ * measured on an unwrapped row, `boxWidth` is the usable field width. Wrapping is
+ * greedy and a tag can never straddle a row, so a linear "two rows worth of
+ * pixels" budget overcounts badly on narrow fields (three 57px tags in a 111px
+ * box look like they fit 222px of budget, but only one fits per row).
+ */
+export function tagFoldCount(widths: number[], boxWidth: number, gap = TAG_ROW_GAP, maxRows = TAG_ROWS_MAX): number {
+  if (widths.length === 0 || boxWidth <= 0) return 0;
+  const chipWidth = 26;
+  const rowsFor = (count: number): number => {
+    let rows = 1;
+    let used = 0;
+    for (let i = 0; i < count; i++) {
+      const next = used === 0 ? widths[i] : used + gap + widths[i];
+      if (next > boxWidth && used > 0) {
+        rows++;
+        used = widths[i];
+      } else {
+        used = next;
+      }
+    }
+    if (count < widths.length) {
+      const next = used === 0 ? chipWidth : used + gap + chipWidth;
+      if (next > boxWidth && used > 0) rows++;
+    }
+    return rows;
+  };
+  for (let keep = widths.length; keep >= 0; keep--) {
+    if (rowsFor(keep) <= maxRows) return widths.length - keep;
+  }
+  return widths.length;
+}
+
+/**
+ * A plain input has no chevron. That single glyph is what makes a picker read as
+ * a picker even when colour is unavailable, so it is shared by Select/MultiSelect.
+ */
+function Chevron(props: { rotated?: boolean }) {
+  return (
+    <svg
+      data-part="chevron"
+      aria-hidden="true"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      className={cn(
+        "pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 transition-transform duration-150",
+        props.rotated ? "rotate-180" : "",
+      )}
+      style={{ "color": palette.TEXT_MUTED }}
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
 }
 
 export function MultiSelect(props: UIMultiSelectProps) {
@@ -127,6 +207,57 @@ export function MultiSelect(props: UIMultiSelectProps) {
     known.onChange?.(capped);
   };
 
+  /* --- tag overflow: measure the row, fold the tail into a `+N` chip --------- */
+  let tagsEl: HTMLDivElement | undefined;
+  let fieldEl: HTMLDivElement | undefined;
+  const [folded, setFolded] = createSignal(0);
+  const visibleValues = createMemo(() => {
+    const all = selectedValues();
+    const cut = folded();
+    return cut <= 0 ? all : all.slice(0, Math.max(all.length - cut, 0));
+  });
+  const foldedCount = createMemo(() => selectedValues().length - visibleValues().length);
+
+  const measureTags = () => {
+    const box = tagsEl;
+    if (!box) return;
+    const tags = [...box.querySelectorAll<HTMLElement>('[data-part="multiselect-tag"]')];
+    if (tags.length === 0) { setFolded(0); return; }
+    const widths = tags.map((t) => t.getBoundingClientRect().width);
+    // happy-dom / pre-layout: no box model to measure against, keep every tag.
+    if (!box.clientWidth || widths.some((w) => w <= 0)) { setFolded(0); return; }
+    setFolded(tagFoldCount(widths, box.clientWidth));
+  };
+
+  /** Re-measure from a full row, then fold — folding before measuring loops. */
+  const scheduleMeasure = () => {
+    setFolded(0);
+    queueMicrotask(measureTags);
+  };
+
+  // A microtask can land before the browser has laid the tags out, so the first
+  // measurement sees zero widths and folds nothing (tags then clip). The field's
+  // own resize signal is the reliable "layout is done" moment.
+  createEffect(() => {
+    const el = fieldEl;
+    if (!el) return undefined;
+    const observer = new ResizeObserver(() => measureTags());
+    observer.observe(el);
+    return () => observer.disconnect();
+  });
+
+  createEffect(() => {
+    selectedValues();
+    if (known.hideTags) return;
+    scheduleMeasure();
+  });
+
+  createEffect(() => {
+    if (!open()) return undefined;
+    scheduleMeasure();
+    return undefined;
+  });
+
   createEffect(() => {
     if (!open()) return undefined;
     const root = rootEl;
@@ -148,6 +279,14 @@ export function MultiSelect(props: UIMultiSelectProps) {
     if (query() === "") return;
     setQuery("");
     known.onSearchChange?.("", "clear");
+  };
+
+  const clearAll = (e: MouseEvent) => {
+    e.stopPropagation();
+    if (known.disabled) return;
+    setQuery("");
+    if (known.value === undefined) setInternalSelected([]);
+    known.onChange?.([]);
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -174,7 +313,18 @@ export function MultiSelect(props: UIMultiSelectProps) {
     }
   };
 
-  const tagClass = "inline-flex items-center gap-1.5 border rounded-fin px-2 py-0.5 text-xs text-fin-text border-fin-border bg-fin-surface-alt";
+  const hasSelection = createMemo(() => selectedValues().length > 0);
+
+  const fieldStyle = createMemo(() => ({
+    "min-height": explicitHeight() ?? fieldMinHeight(known.size),
+    "border-radius": "6px",
+    "border-color": isError() ? palette.NEGATIVE : open() ? palette.PRIMARY : palette.BORDER,
+    "box-shadow": open() && !isError() ? `0 0 0 1px ${palette.PRIMARY}` : "none",
+  }));
+
+  const tagsRowStyle = {
+    "max-height": `${TAG_ROW_H * TAG_ROWS_MAX + TAG_ROW_GAP}px`,
+  } as const;
 
   return (
     <div ref={(el) => (rootEl = el)} className={rootClass()} data-testid={known["data-testid"]} style={rootStyle()}>
@@ -185,30 +335,59 @@ export function MultiSelect(props: UIMultiSelectProps) {
         </label>
       )}
       <div className="relative w-full">
-        {!known.hideTags && selectedValues().length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-1">
-            <For each={selectedValues()}>{(v) => (
-              <span className={tagClass}>
-                {byValue().get(v)?.label ?? v}
-                {known.clearable && !known.disabled && (
-                  <button
-                    type="button"
-                    aria-label={`Remove ${v}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggle(v);
-                    }}
-                    className="shrink-0 p-0.5 text-fin-text-muted hover:bg-fin-surface rounded-fin"
-                  >
-                    &times;
-                  </button>
-                )}
-              </span>
-            )}</For>
-          </div>
-        )}
-        <div className="inline-flex w-full items-center gap-2">
-          {known.leftSection && <span className="shrink-0 text-fin-text-muted text-xs">{known.leftSection}</span>}
+        {/* One bordered field holds both the tags and the query input — a tag
+            painted above the box reads as a label, not as a value. */}
+        <div
+          ref={(el) => (fieldEl = el)}
+          data-part="multiselect-field"
+          className={cn(
+            "flex w-full min-w-0 items-center gap-1 border bg-fin-surface overflow-hidden",
+            fieldPadding(known.size),
+            known.disabled ? "opacity-50 cursor-not-allowed" : "",
+          )}
+          style={fieldStyle()}
+        >
+          <Show when={!known.hideTags && hasSelection()}>
+            <div
+              ref={(el) => (tagsEl = el)}
+              className="flex min-w-0 flex-1 flex-wrap items-center gap-1 overflow-hidden"
+              style={tagsRowStyle}
+            >
+              <For each={visibleValues()}>{(v) => (
+                <span
+                  data-part="multiselect-tag"
+                  className="inline-flex min-w-0 max-w-full shrink items-center gap-1 px-1.5 leading-none"
+                  style={TAG_BOX}
+                >
+                  <span className="truncate">{byValue().get(v)?.label ?? v}</span>
+                  {known.clearable && !known.disabled && (
+                    <button
+                      type="button"
+                      aria-label={`Remove ${v}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggle(v);
+                      }}
+                      className="shrink-0 text-fin-text-muted hover:text-fin-text"
+                      style={{ "font-size": "11px", "line-height": "1" }}
+                    >
+                      &times;
+                    </button>
+                  )}
+                </span>
+              )}</For>
+              <Show when={foldedCount() > 0}>
+                <span
+                  data-part="multiselect-overflow"
+                  className="inline-flex shrink-0 items-center px-1.5 leading-none text-fin-text-muted"
+                  style={{ ...TAG_BOX, "background-color": palette.SURFACE_ALT }}
+                  title={selectedValues().slice(visibleValues().length).join(", ")}
+                >
+                  +{foldedCount()}
+                </span>
+              </Show>
+            </div>
+          </Show>
           <input
             id={inputId}
             role="combobox"
@@ -222,13 +401,33 @@ export function MultiSelect(props: UIMultiSelectProps) {
             onKeyDown={handleKeyDown}
             disabled={known.disabled}
             required={known.required}
-            placeholder={known.placeholder}
-            className={controlClasses(known.size, known.disabled, isError())}
+            placeholder={hasSelection() && !known.hideTags ? "" : known.placeholder}
+            className={cn(
+              "min-w-0 bg-transparent outline-none border-0 p-0 leading-none",
+              "text-fin-text placeholder:text-fin-text-muted",
+              // The tags own the field; the query box keeps just enough room to
+              // type. A flex-1 input would split the width 50/50 and force the
+              // tags to clip long before the field is actually full.
+              hasSelection() && !known.hideTags ? "shrink-0 grow-0 w-[7ch]" : "flex-1",
+            )}
           />
+          {known.leftSection && <span className="shrink-0 text-fin-text-muted text-xs">{known.leftSection}</span>}
           {known.rightSection && <span className="shrink-0">{known.rightSection}</span>}
         </div>
+        <Show when={hasSelection() && !known.disabled}>
+          <button
+            type="button"
+            aria-label="Clear selection"
+            onClick={clearAll}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="absolute right-7 top-1/2 -translate-y-1/2 shrink-0 leading-none text-fin-text-muted hover:text-fin-text"
+          >
+            &times;
+          </button>
+        </Show>
+        <Chevron rotated={open()} />
         <Show when={open()}>
-          <ul role="listbox" className="absolute z-50 left-0 right-0 mt-1 border border-fin-border rounded-fin bg-fin-surface text-fin-text max-h-60 overflow-y-auto outline-none">
+          <ul role="listbox" className="absolute z-50 left-0 right-0 mt-1 border border-fin-border rounded-[6px] bg-fin-surface text-fin-text max-h-60 overflow-y-auto outline-none">
             {shownOptions().length === 0 ? (
               <li role="option" aria-disabled className="px-3 py-2 text-xs text-fin-text-muted">
                 {known.nothingFoundMessage ?? "No options"}
