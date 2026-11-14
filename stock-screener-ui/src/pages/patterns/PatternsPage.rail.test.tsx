@@ -12,7 +12,9 @@ import { PatternsPage, type PatternsPageProps } from "./PatternsPage";
 // Mounting + driving it takes ~10-13s per test even in isolation; under a
 // full-suite run with 8 workers that doubles. The assertions are deterministic,
 // so allow a slower machine.
-vi.setConfig({ testTimeout: 30_000 });
+// The @/ui mock resolves a dynamic import per worker; under a 20-shard CI run
+// the first test in this file pays that transform inside its own budget.
+vi.setConfig({ testTimeout: 60_000 });
 
 // The @/ui Box/Flex/... stubs from src/pages/solidTestStubs.tsx render as
 // intrinsic elements; page tests exercise page wiring, not the theme runtime.
