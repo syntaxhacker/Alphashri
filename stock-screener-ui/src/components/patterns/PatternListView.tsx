@@ -299,6 +299,7 @@ export function PatternListView(props: PatternListViewProps) {
       data={props.hits}
       columns={columns}
       dataTestId="patterns-list"
+      fillContainer
       // No sticky thead: the merged universe/results toolbar above is sticky
       // (`top: 0`, higher z) and would cover a `top: 0` thead while scrolling.
       stickyHeader={false}

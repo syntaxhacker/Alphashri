@@ -44,6 +44,10 @@ vi.mock("../../components/heatmap/stockTreemap", () => ({
   getStockMetricRange: () => ({ min: 0, max: 1 }),
   resolveStockMetric: (metrics: any[], value: string) =>
     metrics.find((m: any) => m.value === value) ?? metrics[0],
+  safeFmt: (metric: any, value: unknown) => {
+    const n = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(n) ? metric.fmt(n) : "—";
+  },
 }));
 
 vi.mock("../../api/heatmap", () => ({

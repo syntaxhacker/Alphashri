@@ -518,8 +518,7 @@ export function TanStackTable<T>(props: Props<T>) {
     "background-color": palette.SURFACE,
     "max-height": props.fillContainer ? undefined : "65vh",
     "min-height": props.fillContainer ? 0 : "200px",
-    flex: props.fillContainer ? 1 : undefined,
-    height: props.fillContainer ? "100%" : undefined,
+    flex: props.fillContainer ? "1 1 0%" : undefined,
   };
 
   return (

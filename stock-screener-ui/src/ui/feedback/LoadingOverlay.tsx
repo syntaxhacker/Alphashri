@@ -5,7 +5,7 @@ import { Loader } from "./Loader";
 import type { UILoadingOverlayProps } from "../types";
 
 function resolveColor(color: string | undefined): string {
-  if (!color) return withAlpha(palette.MARKER_BORDER, 0.6);
+  if (!color) return withAlpha(palette.SURFACE, 0.55);
   if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl")) return color;
   const m: Record<string, string> = {
     primary: palette.PRIMARY,
@@ -16,7 +16,7 @@ function resolveColor(color: string | undefined): string {
     info: palette.INFO,
     secondary: palette.TEXT_MUTED,
   };
-  return m[color] ?? withAlpha(palette.MARKER_BORDER, 0.6);
+  return m[color] ?? withAlpha(palette.SURFACE, 0.55);
 }
 
 function withAlpha(hex: string, alpha: number): string {

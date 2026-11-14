@@ -641,9 +641,9 @@ export function PatternsPage(props: PatternsPageProps) {
   return (
     <Box
       data-testid="patterns-page"
-      className="flex w-full flex-col gap-0.5 px-2 py-[2px] tabular-nums"
+      className="flex w-full flex-1 min-h-0 flex-col gap-0.5 px-2 py-[2px] tabular-nums"
     >
-      <Tabs value={activeTab()} onChange={handleTabChange} data-testid="patterns-tabs">
+      <Tabs value={activeTab()} onChange={handleTabChange} data-testid="patterns-tabs" className="flex flex-1 min-h-0 flex-col">
         <Tabs.List data-testid="patterns-tab-list">
           <Tabs.Tab value="scan" data-testid="patterns-tab-scan">
             Scan
@@ -652,7 +652,7 @@ export function PatternsPage(props: PatternsPageProps) {
             Watch
           </Tabs.Tab>
         </Tabs.List>
-        <Tabs.Panel value="scan" data-testid="patterns-panel-scan" style={{ "padding-top": 0, "padding-bottom": 0 }}>
+        <Tabs.Panel value="scan" data-testid="patterns-panel-scan" className="flex flex-1 min-h-0 flex-col" style={{ "padding-top": 0, "padding-bottom": 0 }}>
       <ScanStats
         summary={displaySummary()}
         job={job()}
@@ -856,7 +856,7 @@ export function PatternsPage(props: PatternsPageProps) {
         }
       />
 
-      <Box className="flex min-w-0 flex-col gap-0.5">
+      <Box className="flex flex-1 min-h-0 h-0 min-w-0 flex-col gap-0.5">
 
         <AppliedFilters
           filters={filters()}
@@ -970,9 +970,9 @@ export function PatternsPage(props: PatternsPageProps) {
           )
         ) : (
           <Box
-            className="flex min-w-0 items-start gap-0.5"
+            className="flex flex-1 min-h-0 h-0 min-w-0 items-stretch gap-0.5 overflow-hidden"
           >
-            <Box className="relative min-w-0 flex-1">
+            <Box className="relative flex flex-1 min-h-0 min-w-0 flex-col overflow-hidden">
               {view() === "matrix" ? (
                 <PatternSymbolMatrix
                   rows={filteredMatrixRows()}
@@ -1046,7 +1046,7 @@ export function PatternsPage(props: PatternsPageProps) {
         )}
       </Box>
         </Tabs.Panel>
-        <Tabs.Panel value="watch" data-testid="patterns-panel-watch" style={{ "padding-top": 0, "padding-bottom": 0 }}>
+        <Tabs.Panel value="watch" data-testid="patterns-panel-watch" className="flex flex-1 min-h-0 flex-col" style={{ "padding-top": 0, "padding-bottom": 0 }}>
           <WatchView
             universe={universe()}
             timeframe={timeframe()}
