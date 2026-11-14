@@ -217,10 +217,10 @@ describe("Switch — derived root class stays reactive", () => {
     const [disabled, setDisabled] = createSignal(false);
     render(() => <Switch label="Replay" disabled={disabled()} data-testid="sw" />);
     const root = screen.getByTestId("sw-group");
-    expect(root.className).not.toContain("opacity-50");
+    expect(root.className).not.toContain("opacity-[0.45]");
 
     setDisabled(true);
-    expect(root.className).toContain("opacity-50");
+    expect(root.className).toContain("opacity-[0.45]");
   });
 });
 
