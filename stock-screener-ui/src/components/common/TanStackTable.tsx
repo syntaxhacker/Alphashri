@@ -443,19 +443,29 @@ export function TanStackTable<T>(props: Props<T>) {
     return capped ? items.slice(0, windowSize) : items;
   });
 
+  // rowWindowSize is a hard cap with no scroll listener, so the remainder is
+  // genuinely not rendered. Say so — a table that quietly stops at 80 of 312
+  // reads as "the rest don't exist".
+  const hiddenCount = createMemo(() => {
+    const total = bodyItems().length;
+    const shown = visibleItems().length;
+    return total > shown ? total - shown : 0;
+  });
+
   const tableScroll = (
-    <ScrollArea
-      className="paper-tanstack-scroll"
-      style={{ flex: 1, "min-height": "0px", overflow: "auto", display: "flex", "flex-direction": "column", "background-color": palette.SURFACE }}
-    >
-      <table
-        ref={(el: HTMLTableElement) => (tableEl = el)}
-        data-testid={props.dataTestId}
-        aria-label={props.ariaLabel}
-        id={props.dataTestId ? `paper-tanstack-table-${props.dataTestId}` : undefined}
-        style={tableStyle()}
-        className={tableClassName()}
+    <>
+      <ScrollArea
+        className="paper-tanstack-scroll"
+        style={{ flex: 1, "min-height": "0px", overflow: "auto", display: "flex", "flex-direction": "column", "background-color": palette.SURFACE }}
       >
+        <table
+          ref={(el: HTMLTableElement) => (tableEl = el)}
+          data-testid={props.dataTestId}
+          aria-label={props.ariaLabel}
+          id={props.dataTestId ? `paper-tanstack-table-${props.dataTestId}` : undefined}
+          style={tableStyle()}
+          className={tableClassName()}
+        >
         <thead>
           <tr>
             <For each={visibleColumns()}>{renderHeader}</For>
@@ -515,7 +525,17 @@ export function TanStackTable<T>(props: Props<T>) {
           </Show>
         </tbody>
       </table>
-    </ScrollArea>
+      </ScrollArea>
+      <Show when={hiddenCount() > 0}>
+        <div
+          class="flex items-center justify-center gap-1 px-2 h-[18px] shrink-0 border-t border-fin-border text-[10px] text-fin-text-muted font-mono tabular-nums"
+          data-testid="table-window-footer"
+        >
+          showing {visibleItems().length} of {bodyItems().length}
+          <span class="opacity-70">· {hiddenCount()} not rendered</span>
+        </div>
+      </Show>
+    </>
   );
 
   if (props.bare) return tableScroll;

@@ -352,6 +352,23 @@ describe("TanStackTable", () => {
     expect(firstNameCell).toContain("row 19");
   });
 
+  // rowWindowSize is a hard cap with no scroll listener; the remainder is not
+  // rendered. Silently stopping at 80 of 312 reads as "the rest don't exist".
+  it("discloses how many rows the window is hiding", () => {
+    const many: TestItem[] = Array.from({ length: 12 }, (_, i) => ({ id: String(i + 1), name: `Row${i}`, value: i }));
+    render(() => (
+      <TanStackTable<TestItem> data={many} columns={columns} rowWindowSize={5} />
+    ));
+    const footer = screen.getByTestId("table-window-footer");
+    expect(footer).toHaveTextContent("showing 5 of 12");
+    expect(footer).toHaveTextContent("7 not rendered");
+  });
+
+  it("shows no window footer when every row fits", () => {
+    render(() => <TanStackTable<TestItem> data={data} columns={columns} rowWindowSize={50} />);
+    expect(screen.queryByTestId("table-window-footer")).not.toBeInTheDocument();
+  });
+
   it("applies getRowClassName and getRowStyle per row", () => {
     render(() => (<TanStackTable<TestItem>
         data={data}
