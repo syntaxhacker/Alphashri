@@ -2,7 +2,11 @@ import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { Box, Paper, ScrollArea, useDensity } from "@/ui";
 import { InlineLoader } from "./states";
 import * as palette from "@/ui/palette";
-import type { CSSProperties, JSX } from "solid-js";
+import type { JSX } from "solid-js";
+
+// `solid-js` does not re-export JSX.CSSProperties from its package root.
+type CSSProperties = JSX.CSSProperties;
+
 
 /**
  * Column-level metadata understood by TanStackTable.
@@ -154,7 +158,7 @@ export function TanStackTable<T>(props: Props<T>) {
     if (!props.enableGrouping || !props.grouping?.length) return null;
     const col = props.columns.find((c) => c.id === props.grouping![0]);
     const result: { value: unknown; rows: T[]; baseIndex: number }[] = [];
-    let cur: { value: unknown; rows: T[] } | null = null;
+    let cur: { value: unknown; rows: T[]; baseIndex: number } | null = null;
     let base = 0;
     for (const row of sortedData()) {
       const v = col ? getValue(row, col) : (row as any)[props.grouping![0]];
@@ -280,6 +284,9 @@ export function TanStackTable<T>(props: Props<T>) {
 
   const rowStyleBase = (row: T): CSSProperties => ({
     "cursor": props.onRowClick ? "pointer" : undefined,
+    // The row owns the surface; cells inherit it so a selection/hover tint on
+    // the <tr> is actually visible.
+    "background-color": palette.SURFACE,
     ...props.getRowStyle?.(row),
   });
 
@@ -293,7 +300,10 @@ export function TanStackTable<T>(props: Props<T>) {
       "white-space": "nowrap",
       height: "var(--tbl-row-h, 23px)",
       "border-bottom": `1px solid ${palette.BORDER}`,
-      "background-color": palette.SURFACE,
+      // Deliberately `background-color: inherit` for the base case: a cell that
+      // paints its own opaque surface covers whatever `getRowStyle` put on the
+      // <tr>, which is why the selected row (and every hover tint) was invisible.
+      "background-color": "inherit",
       width: width !== undefined ? `${width}px` : undefined,
       display: width === 0 ? "none" : undefined,
       "text-align": align ?? (isNumeric(col.id) ? "right" : "left"),

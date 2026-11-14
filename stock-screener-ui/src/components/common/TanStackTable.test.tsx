@@ -2,7 +2,7 @@
 import { createSignal } from "solid-js";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
-import { TanStackTable } from "./TanStackTable";
+import { TanStackTable, type TableColumnDef } from "./TanStackTable";
 
 afterEach(() => {
   cleanup();
@@ -147,7 +147,7 @@ describe("TanStackTable", () => {
   });
 
   it("applies right alignment from column meta to header and cells", () => {
-    const alignedColumns = [
+    const alignedColumns: TableColumnDef<TestItem>[] = [
       { id: "name", header: "Name", accessorKey: "name" },
       {
         id: "value",
@@ -180,7 +180,7 @@ describe("TanStackTable", () => {
   });
 
   it("explicit meta.align overrides numeric auto-alignment", () => {
-    const leftValueColumns = [
+    const leftValueColumns: TableColumnDef<TestItem>[] = [
       { id: "name", header: "Name", accessorKey: "name" },
       { id: "value", header: "Value", accessorKey: "value", meta: { align: "left" } },
     ];
@@ -365,6 +365,27 @@ describe("TanStackTable", () => {
     expect(row1.style.background).toBe("yellow");
     const row2 = screen.getByTestId("styled-2");
     expect(row2.className).toContain("highlight");
+  });
+
+  // Cells used to paint their own opaque surface, which covered the row tint —
+  // so a selected row was invisible. Cells must inherit the row's background.
+  it("a row tint is visible because cells inherit the row background", () => {
+    render(() => (<TanStackTable<TestItem>
+        data={data}
+        columns={columns}
+        getRowStyle={(r) => (r.name === "Alpha" ? { "background-color": "rgb(1, 2, 3)" } : undefined)}
+        getRowTestId={(r) => `tint-${r.id}`}
+      />),
+    );
+    const row = screen.getByTestId("tint-1");
+    expect(row.style.backgroundColor).toBe("rgb(1, 2, 3)");
+    const cells = row.querySelectorAll("td");
+    expect(cells.length).toBeGreaterThan(0);
+    for (const cell of Array.from(cells)) {
+      const el = cell as HTMLElement;
+      // Inherit (or transparent) — never an opaque surface of its own.
+      expect(["inherit", "transparent", ""]).toContain(el.style.backgroundColor);
+    }
   });
 
   it("disables sorting when enableSorting is false", async () => {
