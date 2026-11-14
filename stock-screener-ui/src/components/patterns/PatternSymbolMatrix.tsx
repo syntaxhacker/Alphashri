@@ -4,6 +4,7 @@ import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
 import { TanStackTable } from "@/components/common/TanStackTable";
+import { NumCell } from "@/components/common";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { SymbolLink } from "@/components/common/SymbolLink";
 import { hasIndexMembers } from "@/config/indexGroups";
@@ -97,15 +98,21 @@ export function matrixRenderStatsReset(): void {
   }
 }
 
-function NumText(props: { children: string | number | null | undefined; color?: string }) {
+/** Numeric cell with the matrix render counter kept for the perf suite. */
+function NumText(props: {
+  value: number | null | undefined;
+  format: (value: number) => string;
+  tone?: "success" | "error" | "dimmed" | "default";
+}) {
   matrixStats.numTextRenders += 1;
-  return (
-    <Text c={props.color} fw={600} className="text-[11px] leading-[1.1]">
-      {props.children}
-    </Text>
-  );
+  return <NumCell value={props.value} format={props.format} tone={props.tone} fw={600} />;
 }
 
+/**
+ * Not the kit's `SymbolCell`: this identity column also carries the hover
+ * preview, the chart icon and the index-members trigger under its own
+ * `patterns-matrix-*` test ids.
+ */
 function SymbolCell(props: {
   row: PatternMatrixRow;
   onShowMembers?: (symbol: string) => void;
@@ -274,7 +281,7 @@ export function PatternSymbolMatrix(props: PatternSymbolMatrixProps) {
         accessorKey: "ltp",
         size: 92,
         meta: { align: "right" },
-        cell: (ctx) => <NumText>{formatMatrixPrice(ctx.row.original.ltp)}</NumText>,
+        cell: (ctx) => <NumText value={ctx.row.original.ltp} format={formatMatrixPrice} />,
       },
       {
         id: "chg",
@@ -284,7 +291,7 @@ export function PatternSymbolMatrix(props: PatternSymbolMatrixProps) {
         meta: { align: "right" },
         cell: (ctx) => {
           const value = ctx.row.original.day_change_pct;
-          return <NumText color={changeTextTone(value)}>{formatMatrixPct(value)}</NumText>;
+          return <NumText value={value} format={formatMatrixPct} tone={changeTextTone(value)} />;
         },
       },
       ...tfColumns,
@@ -294,7 +301,9 @@ export function PatternSymbolMatrix(props: PatternSymbolMatrixProps) {
         accessorFn: (row) => row.best?.confidence ?? null,
         size: 66,
         meta: { align: "right" },
-        cell: (ctx) => <NumText>{formatScore(ctx.row.original.best?.confidence ?? null)}</NumText>,
+        cell: (ctx) => (
+          <NumText value={ctx.row.original.best?.confidence} format={formatScore} />
+        ),
       },
       {
         id: "pos",
@@ -302,13 +311,14 @@ export function PatternSymbolMatrix(props: PatternSymbolMatrixProps) {
         accessorFn: (row) => row.best?.range_pos ?? null,
         size: 64,
         meta: { align: "right" },
-        cell: (ctx) => <NumText>{formatRangePos(ctx.row.original.best?.range_pos ?? null)}</NumText>,
+        cell: (ctx) => <NumText value={ctx.row.original.best?.range_pos} format={formatRangePos} />,
       },
       {
         id: "patterns",
         header: "Patterns",
         accessorKey: "hit_count",
-        meta: { align: "left" },
+        // Chips are badges, not text — centred like every other badge column.
+        meta: { align: "center" },
         cell: (ctx) => {
           const ordered = sortHits(ctx.row.original.hits);
           const shown = ordered.slice(0, MAX_CHIPS);
@@ -341,6 +351,10 @@ export function PatternSymbolMatrix(props: PatternSymbolMatrixProps) {
       emptyMessage={props.emptyMessage ?? "No symbols match the current filters."}
       enableSorting
       stickyHeader
+      fillContainer
+      // One derived width keeps the table inside its panel: it scrolls rather
+      // than widening the docked-chart viewport at 1366px.
+      minTableWidth={Math.max(560, columns().length * 72)}
       rowWindowSize={80}
       onRowClick={onRowClick}
       getRowStyle={(row) =>

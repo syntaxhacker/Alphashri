@@ -2,14 +2,14 @@ import { Show } from "solid-js";
 import { Box, Text } from "@/ui";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
 import { TanStackTable } from "@/components/common/TanStackTable";
-import { formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
+import { BadgeCell, NumCell, TextCell } from "@/components/common";
+import { formatPercentage } from "@/utils/ui-helpers";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { fullscreenDedupeKey } from "@/pages/patterns/fullscreenKey";
 import { QUALITY_INFO } from "@/config/patternCatalog";
 import { SymbolLink } from "@/components/common/SymbolLink";
 import { hasIndexMembers } from "@/config/indexGroups";
 import { MembersButton } from "./MembersButton";
-import { StatusBadge } from "./StatusBadge";
 import { displayStatusForHit } from "./patternDisplayStatus";
 import { triggerDistancePct } from "./triggerDistance";
 import { directionGlyph, directionTone } from "./symbolMatrix";
@@ -52,9 +52,29 @@ function priceOf(hit: PatternHitDTO): number | null {
 }
 
 /** Range percentage with at most one decimal (`13` not `13.0`). */
-function gapPct(value: number | null | undefined): string {
-  if (value == null) return "—";
+function gapPct(value: number): string {
   return `${Number.isInteger(value) ? String(value) : value.toFixed(1)}%`;
+}
+
+/**
+ * Derived display status as a badge cell. `StatusBadge` renders the card-sized
+ * `sm` pill; the results table uses the kit's centred `xs` badge instead, like
+ * every other table.
+ */
+function StatusCell(props: { hit: PatternHitDTO }) {
+  const display = () => displayStatusForHit(props.hit);
+  const label = () => {
+    const raw = display().label;
+    return raw.charAt(0) + raw.slice(1).toLowerCase();
+  };
+  return (
+    <BadgeCell
+      label={label()}
+      color={display().tone === "neutral" ? "default" : display().tone}
+      title={display().tooltip}
+      testId={`patterns-status-${String(props.hit.status ?? "").toLowerCase() || "unknown"}`}
+    />
+  );
 }
 
 /** Compact direction glyph: ▲ bullish / ▼ bearish / ◆ otherwise (value kept in title/aria). */
@@ -62,7 +82,6 @@ function DirectionGlyph(props: { direction: string | null | undefined }) {
   const raw = () => String(props.direction ?? "—").toLowerCase();
   return (
     <Text
-      size="sm"
       fw={700}
       c={directionTone(props.direction)}
       title={raw()}
@@ -84,7 +103,6 @@ function QualityGlyph(props: { quality: string | null | undefined }) {
   const title = () => (info() ? `${info()!.label}: ${info()!.description}` : label());
   return (
     <Text
-      size="sm"
       fw={700}
       c={tone()}
       title={title()}
@@ -97,7 +115,7 @@ function QualityGlyph(props: { quality: string | null | undefined }) {
   );
 }
 
-/** Dense scanner table: one row per hit, ~28px rows, no sticky thead (see below). */
+/** Dense scanner table: one row per hit, 23px compact rows, no sticky thead (see below). */
 export function PatternListView(props: PatternListViewProps) {
   const activeKey = () => (props.activeHit ? fullscreenDedupeKey(props.activeHit) : null);
 
@@ -113,6 +131,8 @@ export function PatternListView(props: PatternListViewProps) {
         const symbol = hit.symbol;
         const canShowMembers = Boolean(props.onShowMembers && hasIndexMembers(symbol));
         return (
+          // Not the kit's `SymbolCell`: this identity column also carries the
+          // TradingView link, hover preview, F&O tag and members trigger.
           <Box className="flex min-w-0 items-center gap-[2px]">
             <SymbolLink
               symbol={symbol}
@@ -121,6 +141,8 @@ export function PatternListView(props: PatternListViewProps) {
               onOpen={props.onSymbolOpen}
               onPreview={props.onSymbolPreview}
               onPreviewEnd={props.onSymbolPreviewEnd}
+              size="xs"
+              weight={600}
               className="flex-1"
             />
             {/* Results are equities, so only the F&O badge is shown — an ETF
@@ -149,11 +171,7 @@ export function PatternListView(props: PatternListViewProps) {
       accessorKey: "pattern_name",
       size: 210,
       meta: { align: "left" },
-      cell: (ctx) => (
-        <Text size="sm" truncate>
-          {ctx.row.original.pattern_name}
-        </Text>
-      ),
+      cell: (ctx) => <TextCell value={ctx.row.original.pattern_name} />,
     },
     {
       id: "confidence",
@@ -165,14 +183,9 @@ export function PatternListView(props: PatternListViewProps) {
       accessorKey: "confidence",
       size: 70,
       meta: { align: "right" },
-      cell: (ctx) => {
-        const value = ctx.row.original.confidence;
-        return (
-          <Text size="sm" fw={600} truncate>
-            {value == null ? "—" : value.toFixed(1)}
-          </Text>
-        );
-      },
+      cell: (ctx) => (
+        <NumCell value={ctx.row.original.confidence} format={(v) => v.toFixed(1)} fw={600} />
+      ),
     },
     {
       id: "direction",
@@ -188,12 +201,7 @@ export function PatternListView(props: PatternListViewProps) {
       accessorKey: "status",
       size: 110,
       meta: { align: "center" },
-      cell: (ctx) => (
-        <StatusBadge
-          status={ctx.row.original.status}
-          display={displayStatusForHit(ctx.row.original)}
-        />
-      ),
+      cell: (ctx) => <StatusCell hit={ctx.row.original} />,
     },
     {
       id: "quality",
@@ -209,14 +217,7 @@ export function PatternListView(props: PatternListViewProps) {
       accessorFn: (hit) => hit.to_52w_high,
       size: 90,
       meta: { align: "right" },
-      cell: (ctx) => {
-        const value = ctx.row.original.to_52w_high;
-        return (
-          <Text size="sm" truncate>
-            {gapPct(value)}
-          </Text>
-        );
-      },
+      cell: (ctx) => <NumCell value={ctx.row.original.to_52w_high} format={gapPct} />,
     },
     {
       id: "range_pos",
@@ -224,14 +225,9 @@ export function PatternListView(props: PatternListViewProps) {
       accessorKey: "range_pos",
       size: 70,
       meta: { align: "right" },
-      cell: (ctx) => {
-        const value = ctx.row.original.range_pos;
-        return (
-          <Text size="sm" truncate>
-            {value == null ? "—" : `${Math.round(value)}%`}
-          </Text>
-        );
-      },
+      cell: (ctx) => (
+        <NumCell value={ctx.row.original.range_pos} format={(v) => `${Math.round(v)}%`} />
+      ),
     },
     {
       id: "bars_ago",
@@ -239,6 +235,7 @@ export function PatternListView(props: PatternListViewProps) {
       accessorKey: "bars_ago",
       size: 80,
       meta: { align: "right" },
+      cell: (ctx) => <NumCell value={ctx.row.original.bars_ago} />,
     },
     {
       id: "price",
@@ -246,14 +243,7 @@ export function PatternListView(props: PatternListViewProps) {
       accessorFn: priceOf,
       size: 100,
       meta: { align: "right" },
-      cell: (ctx) => {
-        const value = priceOf(ctx.row.original);
-        return (
-          <Text size="sm" fw={600} truncate>
-            {formatPrice(value)}
-          </Text>
-        );
-      },
+      cell: (ctx) => <NumCell value={priceOf(ctx.row.original)} format={formatPrice} fw={600} />,
     },
     {
       id: "chg",
@@ -261,14 +251,9 @@ export function PatternListView(props: PatternListViewProps) {
       accessorFn: hitChangePct,
       size: 90,
       meta: { align: "right" },
-      cell: (ctx) => {
-        const value = hitChangePct(ctx.row.original);
-        return (
-          <Text size="sm" c={getPnLTextColor(value)} truncate>
-            {formatPercentage(value, 2)}
-          </Text>
-        );
-      },
+      cell: (ctx) => (
+        <NumCell value={hitChangePct(ctx.row.original)} signed format={formatPercentage} />
+      ),
     },
     {
       id: "to_trigger",
@@ -284,12 +269,15 @@ export function PatternListView(props: PatternListViewProps) {
           ctx.row.original.pattern_id === "consolidation" || (ctx.row.original.base_days ?? 0) > 0
             ? triggerDistancePct(ctx.row.original)
             : null;
-        const text = formatSignedPct1(distance);
-        const tone = distance == null ? "text.disabled" : distance > 0 ? "success" : "text.secondary";
+        // Below the trigger is the arming case, not an error — only an actual
+        // break above it earns the success colour.
         return (
-          <Text size="sm" fw={600} c={tone} truncate>
-            {text}
-          </Text>
+          <NumCell
+            value={distance}
+            format={(v) => formatSignedPct1(v)}
+            fw={600}
+            tone={distance != null && distance > 0 ? "success" : "dimmed"}
+          />
         );
       },
     },

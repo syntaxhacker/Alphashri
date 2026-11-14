@@ -257,4 +257,57 @@ describe("PatternListView", () => {
       within(screen.getByTestId("patterns-list-row-CCC-falling_wedge-3")).queryByText("ETF"),
     ).not.toBeInTheDocument();
   });
+
+  test("numeric columns are mono, tabular and right-aligned", () => {
+    render(() => (
+      <PatternListView hits={[makeHit({ range_pos: 88 })]} onSelect={vi.fn()} />
+    ));
+    const cells = within(screen.getByTestId("patterns-list-row-IRCON-falling_wedge-1")).getAllByRole(
+      "cell",
+    );
+    // symbol, pattern, Score, Dir, Status, Q, 52W gap, Pos %, Bars ago, Price, Chg %, To trigger
+    const numeric: Array<[number, string]> = [
+      [2, "78.4"],
+      [6, "13.4%"],
+      [7, "88%"],
+      [8, "2"],
+      [9, "₹115.20"],
+      [10, "+2.50%"],
+    ];
+    for (const [index, text] of numeric) {
+      const cell = cells[index];
+      const value = within(cell).getByText(text);
+      expect(value.className).toContain("font-mono");
+      expect(value.className).toContain("tabular-nums");
+      expect(value.className).toContain("text-right");
+    }
+  });
+
+  test("text and badge columns keep their alignment", () => {
+    render(() => <PatternListView hits={[makeHit()]} onSelect={vi.fn()} />);
+    const cells = within(screen.getByTestId("patterns-list-row-IRCON-falling_wedge-1")).getAllByRole(
+      "cell",
+    );
+    expect(within(cells[1]).getByText("Falling Wedge").className).toContain("text-left");
+    expect(cells[1].className).toContain("text-left");
+    // Status / direction / quality are badge-or-glyph columns: centred.
+    for (const index of [3, 4, 5]) expect(cells[index].className).toContain("text-center");
+    expect(screen.getByTestId("patterns-status-confirmed")).toHaveTextContent("Confirmed");
+  });
+
+  test("keeps rows at the 24px h-6 contract", () => {
+    render(() => <PatternListView hits={[makeHit()]} onSelect={vi.fn()} />);
+    const table = screen.getByTestId("patterns-list");
+    const rowH = parseFloat(table.style.getPropertyValue("--tbl-row-h"));
+    expect(rowH).toBeLessThanOrEqual(24);
+    // No cell adds vertical padding beyond the shared 2px token, which would
+    // push the content past the fixed row height.
+    const row = screen.getByTestId("patterns-list-row-IRCON-falling_wedge-1");
+    for (const cell of within(row).getAllByRole("cell")) {
+      for (const el of [cell, ...Array.from(cell.querySelectorAll("*"))]) {
+        const cls = el.className?.toString() ?? "";
+        expect(cls).not.toMatch(/(?:^|\s)(?:py-[2-9]|p-[2-9]|my-[2-9])/);
+      }
+    }
+  });
 });

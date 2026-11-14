@@ -312,4 +312,47 @@ describe("PatternSymbolMatrix", () => {
       />);
     expect(screen.getByText("Nothing to show.")).toBeInTheDocument();
   });
+
+  test("derives the min table width from the column count and scrolls in its panel", () => {
+    const { rowA, rowB } = fixtureRows();
+    render(() => <PatternSymbolMatrix rows={[rowA, rowB]} timeframes={["5m", "1D", "1W"]} onSelect={vi.fn()} />);
+    const table = screen.getByTestId("patterns-symbol-matrix");
+    // Symbol + LTP + Chg + 3 timeframes + Score + Pos + Patterns = 9 columns.
+    expect(table.style.minWidth).toBe(`${Math.max(560, 9 * 72)}px`);
+    // fillContainer: the table scrolls inside the panel rather than widening the page.
+    const panel = table.closest(".paper-tanstack-container") as HTMLElement;
+    expect(panel.style.maxHeight).toBe("");
+    expect(panel.style.flex).toContain("1 1 0%");
+  });
+
+  test("numeric cells are mono, tabular and right-aligned", () => {
+    const { rowA } = fixtureRows();
+    render(() => <PatternSymbolMatrix rows={[rowA]} timeframes={["5m", "1D", "1W"]} onSelect={vi.fn()} />);
+    const cells = within(screen.getByTestId("patterns-matrix-row-AAA")).getAllByRole("cell");
+    const numeric: Array<[number, string]> = [
+      [1, "₹1,234.50"],
+      [2, "+2.50%"],
+      [6, "82.5"],
+      [7, "88%"],
+    ];
+    for (const [index, text] of numeric) {
+      const value = within(cells[index]).getByText(text);
+      expect(value.className).toContain("font-mono");
+      expect(value.className).toContain("tabular-nums");
+      expect(value.className).toContain("text-right");
+    }
+  });
+
+  test("header alignment matches the columns", () => {
+    const { rowA } = fixtureRows();
+    render(() => <PatternSymbolMatrix rows={[rowA]} timeframes={["5m", "1D"]} onSelect={vi.fn()} />);
+    const table = screen.getByTestId("patterns-symbol-matrix");
+    const header = (label: string) => within(table).getByText(label).closest("th") as HTMLElement;
+    expect(header("Symbol").style.textAlign).toBe("left");
+    expect(header("LTP").style.textAlign).toBe("right");
+    expect(header("Score").style.textAlign).toBe("right");
+    expect(header("Pos %").style.textAlign).toBe("right");
+    // Timeframe glyph columns are centred.
+    expect(header("5m").style.textAlign).toBe("center");
+  });
 });
