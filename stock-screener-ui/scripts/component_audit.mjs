@@ -21,7 +21,7 @@ function walk(dir, out = []) {
 }
 
 const files = GROUPS.flatMap((g) => walk(join(SRC, g))).filter(
-  (f) => /\.tsx$/.test(f) && !/\.(test|stories)\./.test(f),
+  (f) => /\.tsx$/.test(f) && !/\.(test|stories|spec)\./.test(f),
 );
 
 const rows = [];

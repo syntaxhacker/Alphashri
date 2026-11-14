@@ -18,7 +18,7 @@ Scope: `src/ui/**` and `src/components/common/**` component modules (91 files).
 ## Status
 
 - Components with a story: **5/91**
-- Components with a test: **57/91**
+- Components with a test: **58/91**
 - Violations: **0**
 
 No rule violations.
@@ -35,6 +35,7 @@ No rule violations.
 | `components/common/ClickableSymbol.tsx` | — | yes | 0 | 0 |
 | `components/common/compact.tsx` | yes | yes | 0 | 0 |
 | `components/common/CorrelationHeatmap.tsx` | — | yes | 0 | 0 |
+| `components/common/EChart.tsx` | — | yes | 0 | 0 |
 | `components/common/ErrorBoundary.tsx` | — | yes | 0 | 0 |
 | `components/common/Icons.tsx` | — | yes | 0 | 0 |
 | `components/common/Markdown.tsx` | — | — | 0 | 0 |
@@ -49,7 +50,6 @@ No rule violations.
 | `components/common/SymbolAutocomplete.tsx` | — | yes | 0 | 0 |
 | `components/common/SymbolDockProvider.tsx` | — | yes | 0 | 0 |
 | `components/common/SymbolLink.tsx` | — | yes | 0 | 0 |
-| `components/common/tableAlignment.spec.tsx` | — | — | 0 | 0 |
 | `components/common/tableCells.tsx` | — | yes | 0 | 0 |
 | `components/common/TableEmptyState.tsx` | — | yes | 0 | 0 |
 | `components/common/TableLoadingState.tsx` | — | yes | 0 | 0 |
