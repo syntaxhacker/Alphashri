@@ -149,6 +149,20 @@ function firstParam(value: string | string[] | undefined): string | null {
   return raw ?? null;
 }
 
+/**
+ * Query params a single tab owns. `setSearchParams` merges onto the current
+ * search string, so a param written by one tab otherwise survives every later
+ * tab change — leaving that tab has to delete it explicitly.
+ */
+const TAB_OWNED_PARAMS: Readonly<Record<string, readonly string[]>> = {
+  correlation: ["symbols", "timeframe", "period"],
+};
+
+/** Dashboard is the default tab, so it stays addressable as bare `/`. */
+function tabParamValue(tab: string): string | null {
+  return tab === "dashboard" ? null : tab;
+}
+
 /** One-line notices for the context band. Never their own row. */
 function useAlertNotes(props: { activeScreener: string; warning?: string | null }) {
   return createMemo(() => {
@@ -225,12 +239,25 @@ export function ScreenerPage(props: ScreenerPageProps) {
     props.screenerOptions.map((o) => ({ value: o.id, label: o.label })),
   );
 
-  const setActiveTab = (tab: string) => {
-    if (tab === "dashboard") {
-      setSearchParams({ tab: null }, { replace: true });
-    } else {
-      setSearchParams({ tab }, { replace: true });
+  /**
+   * One write per tab change. `setSearchParams` merges onto the current search
+   * string, so params owned by the tab being left are nulled explicitly to
+   * delete them, and the navigation is pushed so Back returns to the previous
+   * tab instead of leaving the page.
+   */
+  const writeTab = (tab: string, extra?: Record<string, string>) => {
+    const next: Record<string, string | null> = { tab: tabParamValue(tab) };
+    for (const [owner, keys] of Object.entries(TAB_OWNED_PARAMS)) {
+      if (owner === tab) continue;
+      for (const key of keys) next[key] = null;
     }
+    Object.assign(next, extra);
+    setSearchParams(next);
+  };
+
+  const setActiveTab = (tab: string) => {
+    if (tab === activeTab()) return;
+    writeTab(tab);
   };
 
   const handleOpenScan = (panelId: string) => {
@@ -253,10 +280,11 @@ export function ScreenerPage(props: ScreenerPageProps) {
     setPeriodUnit("days");
     fetchCorrelationData();
     state.clearSelectedSymbols();
-    setSearchParams(
-      { tab: "correlation", symbols: syms.join(","), timeframe: "daily", period: "90" },
-      { replace: true },
-    );
+    writeTab("correlation", {
+      symbols: syms.join(","),
+      timeframe: "daily",
+      period: "90",
+    });
   };
 
   const alertNotes = useAlertNotes(props);
