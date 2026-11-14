@@ -112,12 +112,13 @@ export const BEARISH = NEGATIVE_COLOR;
 export const EXIT_COLORS: Record<string, string> = {
   TP: POSITIVE_COLOR,
   SL: NEGATIVE_COLOR,
-  EOD: "#D29922",
+  EOD: WARNING,
 };
 export const EXIT_DEFAULT = WARNING;
 
 // Chart overlays / tooltips / axis (dark theme)
-export const TOOLTIP_BG = "#15181C";
+/** A tooltip is a popover: it sits on the raised step of the ramp, not between steps. */
+export const TOOLTIP_BG = SURFACE_ALT_COLOR;
 export const TOOLTIP_BORDER = BORDER_COLOR;
 export const TOOLTIP_TEXT = TEXT_COLOR;
 export const AXIS_LINE = BORDER_COLOR;
@@ -136,7 +137,7 @@ export const CHART_CROSSHAIR = "#6B7280";
 export const CHART_OVERLAY = "rgba(14, 16, 18, 0.95)";
 export const CHART_DROPDOWN = "rgba(21, 24, 28, 0.96)";
 export const CHART_DATAZOOM_BG = BG_COLOR;
-export const DATAZOOM_FILLER = "rgba(0, 200, 83, 0.15)";
+export const DATAZOOM_FILLER = alpha(POSITIVE, 0.15);
 
 // --- Desk / terminal surface for the Nifty analytics panels ----------------
 // Deep panel, hairline border, CE-blue / PE-orange legs, mint net-gamma.
@@ -155,7 +156,8 @@ export const PERF_POSITIVE = POSITIVE_COLOR;
 export const PERF_NEGATIVE = NEGATIVE_COLOR;
 export const BOT_RUNNING = POSITIVE_COLOR;
 export const BOT_STOPPED = TEXT_MUTED_COLOR;
-export const BOT_SELECTED_BG = "rgba(225, 29, 46, 0.16)";
+/** Selected bot card — selection ink, not an error: PRIMARY, never red. */
+export const BOT_SELECTED_BG = alpha(PRIMARY, 0.16);
 export const OI_CALL = POSITIVE_COLOR;
 export const OI_PUT = NEGATIVE_COLOR;
 export const INDICATOR_LINE = PRIMARY;
@@ -203,18 +205,19 @@ export const ROTATION_COOLING = "#5B8DEF";
 /** Text/icon on a saturated tile or badge fill. */
 export const TEXT_ON_ACCENT = "#FFFFFF";
 
-// Tinted row backgrounds
-export const TINT_POSITIVE = "rgba(0, 200, 83, 0.12)";
-export const TINT_NEGATIVE = "rgba(255, 59, 48, 0.12)";
-export const TINT_LOSS_ROW = "rgba(255, 59, 48, 0.12)";
-export const TINT_TEST_TRADE = "rgba(245, 165, 36, 0.12)";
+// Tinted row backgrounds — derived, so a tint can never sit on a hue of its own.
+export const TINT_POSITIVE = alpha(POSITIVE, 0.12);
+export const TINT_NEGATIVE = alpha(NEGATIVE, 0.12);
+export const TINT_LOSS_ROW = alpha(NEGATIVE, 0.12);
+export const TINT_TEST_TRADE = alpha(WARNING, 0.12);
 
-// Volume / ORB / IV areas
-export const VOLUME_BULLISH = "rgba(0, 200, 83, 0.45)";
-export const VOLUME_BEARISH = "rgba(255, 59, 48, 0.45)";
-export const ORB_AREA = "rgba(225, 29, 46, 0.15)";
-export const IV_AREA_START = "rgba(225, 29, 46, 0.30)";
-export const IV_AREA_END = "rgba(225, 29, 46, 0)";
+// Volume / ORB / IV areas. A range band and an IV skew band are informational,
+// not bullish or bearish, so they read INFO — a red band reads as a loss.
+export const VOLUME_BULLISH = alpha(POSITIVE, 0.45);
+export const VOLUME_BEARISH = alpha(NEGATIVE, 0.45);
+export const ORB_AREA = alpha(INFO, 0.15);
+export const IV_AREA_START = alpha(INFO, 0.3);
+export const IV_AREA_END = alpha(INFO, 0);
 
 // ----- Nifty tape terminal palette ----------------------------------------
 // A deliberate standalone "terminal" palette for the Nifty tape table (pitch

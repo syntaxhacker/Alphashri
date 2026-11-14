@@ -12,20 +12,21 @@ describe("Theme tokens (local Tailwind/sxTheme)", () => {
     expect(sxTheme.palette).toBeDefined();
   });
 
-  it("renders a pitch-black body with near-black panels", () => {
+  it("renders a black page with a perceptibly raised panel", () => {
     expect(BG_COLOR).toBe("#000000");
-    expect(SURFACE_COLOR).toBe("#0A0A0A");
-    expect(SURFACE_ALT).toBe("#121212");
-    expect(sxTheme.palette.background.default).toBe("#000000");
-    expect(sxTheme.palette.background.paper).toBe("#0A0A0A");
-    expect(BG).toBe("#000000");
-    expect(SURFACE).toBe("#0A0A0A");
+    expect(sxTheme.palette.background.default).toBe(BG_COLOR);
+    expect(sxTheme.palette.background.paper).toBe(SURFACE_COLOR);
+    expect(BG).toBe(BG_COLOR);
+    expect(SURFACE).toBe(SURFACE_COLOR);
+    // A panel indistinguishable from the page is not a panel.
+    expect(SURFACE).not.toBe(BG);
+    expect(SURFACE_ALT).not.toBe(SURFACE);
   });
 
-  it("keeps chart surfaces black and tooltips dark", () => {
-    expect(CHART_BG).toBe("#000000");
-    expect(CHART_DATAZOOM_BG).toBe("#000000");
-    expect(TOOLTIP_BG).toBe("#111111");
+  it("keeps chart plot surfaces black and tooltips on the raised step", () => {
+    expect(CHART_BG).toBe(BG);
+    expect(CHART_DATAZOOM_BG).toBe(BG);
+    expect(TOOLTIP_BG).toBe(SURFACE_ALT);
   });
 });
 
