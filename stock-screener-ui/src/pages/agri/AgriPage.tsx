@@ -4,7 +4,6 @@ import {
   Box,
   Button,
   Divider,
-  LoadingOverlay,
   Select,
   Text,
   ToolbarRow,
@@ -338,7 +337,6 @@ export function AgriPage() {
         </Box>
       </Box>
 
-      <LoadingOverlay visible={isLoading()} data-testid="agri-loading" />
     </Box>
   );
 }

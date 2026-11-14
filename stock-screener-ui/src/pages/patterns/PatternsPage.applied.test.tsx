@@ -546,7 +546,7 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
   test("loading with no results and no active scan shows the generic loader", () => {
     r(<PatternsPage {...makeProps({ loading: true, results: [], total: 0 })} />);
     expect(screen.getByTestId("patterns-loading")).toBeInTheDocument();
-    expect(screen.getByText("Loading results…")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
     expect(screen.queryByTestId("patterns-grid")).not.toBeInTheDocument();
   });
 

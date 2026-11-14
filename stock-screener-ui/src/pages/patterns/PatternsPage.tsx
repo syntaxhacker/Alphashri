@@ -895,12 +895,7 @@ export function PatternsPage(props: PatternsPageProps) {
             {scanActive() ? (
               <ScanProgress job={job()} scanning={scanning()} universe={universe()} timeframe={timeframe()} variant="block" />
             ) : (
-              <>
-                <Loader size="lg" />
-                <Text size="sm" c="dimmed">
-                  Loading results…
-                </Text>
-              </>
+              <Loader size="lg" />
             )}
           </Box>
         ) : !hasRows() ? (

@@ -611,9 +611,6 @@ export function PaperHistoryTable() {
         <div class="paper-history-loading flex justify-center py-2" data-testid="history-panel" id="history-panel">
           <Group className="paper-history-loading-group" gap="xs">
             <Loader size="sm" />
-            <Text className="paper-history-loading-text" size="xs" c="dimmed">
-              Loading trade history...
-            </Text>
           </Group>
         </div>
       }
