@@ -47,7 +47,7 @@ export function PatternGrid(props: PatternGridProps) {
   };
 
   return (
-    <SimpleGrid cols={cols()} spacing={16} data-testid="patterns-grid">
+    <SimpleGrid cols={cols()} spacing={8} data-testid="patterns-grid" className="min-w-0">
       <For each={props.hits}>
         {(hit) => (
           <PatternCard

@@ -387,6 +387,52 @@ describe("PatternCard missing coverage", () => {
   });
 });
 
+describe("PatternCard single-border shell", () => {
+  afterEach(() => cleanup());
+
+  /** Class tokens of the card and every descendant, so inner rules cannot hide in a nested Box. */
+  function allTokens(card: HTMLElement): string[] {
+    return [card, ...card.querySelectorAll("*")]
+      .flatMap((el) => (el.getAttribute("class") ?? "").split(/\s+/))
+      .filter(Boolean);
+  }
+
+  test("the card paints one border and no inner rules", () => {
+    const { container } = render(() => <PatternCard hit={HIT} onExpand={vi.fn()} />);
+    const card = container.querySelector<HTMLElement>('[data-testid="patterns-card-IRCON-falling_wedge"]')!;
+    expect(card.className).toMatch(/\bborder-fin-(border|primary|negative)\b/);
+    // No section rules and no dividers anywhere inside the tile.
+    expect(allTokens(card).filter((t) => /^border-[tlrbx]-/.test(t) || t.startsWith("divide-"))).toEqual([]);
+  });
+
+  test("the stat strip is a background shift, not a hairline", () => {
+    render(() => <PatternCard hit={HIT} />);
+    const strip = screen.getByText("Score").closest("span")!.parentElement!.parentElement!;
+    expect(strip.className).toContain("bg-fin-surface-alt");
+    expect(strip.className).toContain("h-[18px]");
+    expect(strip.className).not.toMatch(/\bborder|\bdivide/);
+  });
+
+  test("no uppercase tracking on labels inside the card", () => {
+    const { container } = render(() => <PatternCard hit={HIT} onShowMembers={vi.fn()} />);
+    const card = container.querySelector<HTMLElement>('[data-testid="patterns-card-IRCON-falling_wedge"]')!;
+    for (const el of [card, ...card.querySelectorAll("*")]) {
+      // The shared `Badge` ships uppercase/tracking classes; the card neutralises
+      // them inline, so only the computed style matters here.
+      expect(el.getAttribute("style") ?? "").not.toMatch(/text-transform:\s*uppercase/);
+      expect(el.getAttribute("style") ?? "").not.toMatch(/letter-spacing:\s*0\.(06|5)em/);
+    }
+  });
+
+  test("the chart slot fills its parent instead of a fixed height", () => {
+    render(() => <PatternCard hit={HIT} />);
+    const slot = screen.getByTestId("mini-stub").parentElement!;
+    expect(slot.className).toContain("flex-1");
+    expect(slot.getAttribute("style")).toBeNull();
+    expect(screen.getByTestId("patterns-card").className).toContain("flex-1");
+  });
+});
+
 describe("PatternCard offscreen containment", () => {
   afterEach(() => cleanup());
 

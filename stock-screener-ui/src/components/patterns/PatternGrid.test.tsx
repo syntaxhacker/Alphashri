@@ -81,6 +81,27 @@ describe("PatternGrid", () => {
   });
 });
 
+describe("PatternGrid layout invariants", () => {
+  afterEach(() => cleanup());
+
+  test("grid uses equal minmax(0, 1fr) columns and an 8px gap", () => {
+    render(() => <PatternGrid hits={[makeHit({ id: 1 }), makeHit({ id: 2, symbol: "BBB" })]} onSelect={vi.fn()} />);
+    const grid = screen.getByTestId("patterns-grid");
+    expect(grid).toHaveStyle("display: grid");
+    expect(grid.getAttribute("style")).toMatch(/grid-template-columns: repeat\(\d, minmax\(0, 1fr\)\)/);
+    const gap = Number.parseFloat((grid as HTMLElement).style.gap || "0");
+    expect(gap).toBeLessThanOrEqual(8);
+    expect(grid.className).toContain("min-w-0");
+  });
+
+  test("a card cannot overflow its cell", () => {
+    render(() => <PatternGrid hits={[makeHit({ id: 1 })]} onSelect={vi.fn()} />);
+    const card = screen.getByTestId("patterns-card-IRCON-falling_wedge");
+    expect(card.className).toContain("min-w-0");
+    expect(card.className).toContain("overflow-hidden");
+  });
+});
+
 describe("PatternGrid missing coverage", () => {
   afterEach(() => cleanup());
 
