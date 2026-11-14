@@ -188,6 +188,20 @@ export function PatternListView(props: PatternListViewProps) {
       ),
     },
     {
+      id: "breakout_score",
+      header: () => (
+        <span title="Breakout conviction from the pattern scan — distinct from fit confidence.">
+          BO
+        </span>
+      ),
+      accessorKey: "breakout_score",
+      size: 52,
+      meta: { align: "right" },
+      cell: (ctx) => (
+        <NumCell value={ctx.row.original.breakout_score} signed format={(v) => v.toFixed(1)} />
+      ),
+    },
+    {
       id: "direction",
       header: "Dir",
       accessorKey: "direction",

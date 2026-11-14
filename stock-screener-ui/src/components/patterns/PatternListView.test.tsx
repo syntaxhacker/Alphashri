@@ -222,14 +222,21 @@ describe("PatternListView", () => {
       />);
     const table = screen.getByTestId("patterns-list");
     expect(within(table).getByText("To trigger")).toBeInTheDocument();
-    const aaa = screen.getByTestId("patterns-list-row-AAA-consolidation-1");
-    expect(within(aaa).getByText("+4.5%")).toBeInTheDocument();
-    const bbb = screen.getByTestId("patterns-list-row-BBB-consolidation-2");
-    expect(within(bbb).getByText("−4.5%")).toBeInTheDocument();
-    const ccc = screen.getByTestId("patterns-list-row-CCC-consolidation-3");
-    expect(within(ccc).getByText("—")).toBeInTheDocument();
-    const ddd = screen.getByTestId("patterns-list-row-DDD-falling_wedge-4");
-    expect(within(ddd).getByText("—")).toBeInTheDocument();
+    // Scope the dash assertions to the To-trigger column: other numeric columns
+    // legitimately render "—" for these fixtures.
+    const headers = within(table)
+      .getAllByRole("columnheader")
+      .map((h) => h.textContent?.trim() ?? "");
+    const triggerIdx = headers.findIndex((h) => h.startsWith("To trigger"));
+    expect(triggerIdx).toBeGreaterThanOrEqual(0);
+    const col = (rowId: string) => {
+      const cells = within(screen.getByTestId(rowId)).getAllByRole("cell");
+      return cells[triggerIdx];
+    };
+    expect(within(col("patterns-list-row-AAA-consolidation-1")).getByText("+4.5%")).toBeInTheDocument();
+    expect(within(col("patterns-list-row-BBB-consolidation-2")).getByText("−4.5%")).toBeInTheDocument();
+    expect(within(col("patterns-list-row-CCC-consolidation-3")).getByText("—")).toBeInTheDocument();
+    expect(within(col("patterns-list-row-DDD-falling_wedge-4")).getByText("—")).toBeInTheDocument();
   });
 
   test("clicking a row selects that hit", async () => {
@@ -262,21 +269,27 @@ describe("PatternListView", () => {
     render(() => (
       <PatternListView hits={[makeHit({ range_pos: 88 })]} onSelect={vi.fn()} />
     ));
+    // Resolve by header text, not index: adding a column must not silently
+    // re-point these assertions at the wrong cell.
+    const table = screen.getByTestId("patterns-list");
+    const headers = within(table)
+      .getAllByRole("columnheader")
+      .map((h) => h.textContent?.trim() ?? "");
     const cells = within(screen.getByTestId("patterns-list-row-IRCON-falling_wedge-1")).getAllByRole(
       "cell",
     );
-    // symbol, pattern, Score, Dir, Status, Q, 52W gap, Pos %, Bars ago, Price, Chg %, To trigger
-    const numeric: Array<[number, string]> = [
-      [2, "78.4"],
-      [6, "13.4%"],
-      [7, "88%"],
-      [8, "2"],
-      [9, "₹115.20"],
-      [10, "+2.50%"],
+    const numeric: Array<[string, string]> = [
+      ["Score", "78.4"],
+      ["52W gap %", "13.4%"],
+      ["Pos %", "88%"],
+      ["Bars ago", "2"],
+      ["Price", "₹115.20"],
+      ["Chg %", "+2.50%"],
     ];
-    for (const [index, text] of numeric) {
-      const cell = cells[index];
-      const value = within(cell).getByText(text);
+    for (const [header, text] of numeric) {
+      const index = headers.findIndex((h) => h.startsWith(header));
+      expect(index, `column ${header} not found in ${headers.join("|")}`).toBeGreaterThanOrEqual(0);
+      const value = within(cells[index]).getByText(text);
       expect(value.className).toContain("font-mono");
       expect(value.className).toContain("tabular-nums");
       expect(value.className).toContain("text-right");
@@ -290,8 +303,14 @@ describe("PatternListView", () => {
     );
     expect(within(cells[1]).getByText("Falling Wedge").className).toContain("text-left");
     expect(cells[1].className).toContain("text-left");
-    // Status / direction / quality are badge-or-glyph columns: centred.
-    for (const index of [3, 4, 5]) expect(cells[index].className).toContain("text-center");
+    // Direction / status / quality are badge-or-glyph columns: centred.
+    const table = screen.getByTestId("patterns-list");
+    const headers = within(table).getAllByRole("columnheader").map((h) => h.textContent?.trim() ?? "");
+    for (const name of ["Dir", "Status", "Q"]) {
+      const index = headers.findIndex((h) => h.startsWith(name));
+      expect(index).toBeGreaterThanOrEqual(0);
+      expect(cells[index].className).toContain("text-center");
+    }
     expect(screen.getByTestId("patterns-status-confirmed")).toHaveTextContent("Confirmed");
   });
 
