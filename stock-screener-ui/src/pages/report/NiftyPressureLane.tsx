@@ -107,7 +107,7 @@ function PressureBars(props: PressureBarsProps) {
         const ceOpacity = p.ceFlow == null ? 0.3 : hot ? 0.95 : 0.55;
         const peOpacity = p.peFlow == null ? 0.3 : hot ? 0.95 : 0.55;
         return (
-          <g key={`${p.t}-${i}`}>
+          <g>
             <rect
               x={x}
               y={ZERO - up}

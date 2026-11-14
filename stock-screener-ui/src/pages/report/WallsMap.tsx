@@ -95,7 +95,7 @@ function AxisLabels(props: {
           x={props.xOffset + index * props.cellW + props.cellW / 2}
           y={HEADER_H + props.rowsH + 11}
           text-anchor="middle"
-          font-size={7.5}
+          font-size="7.5"
           fill={palette.TEXT_MUTED}
         >
           {timeLabel(props.times[index])}
@@ -381,16 +381,16 @@ export function WallsMapChart(props: {
         }}
       >
         {/* panel headers + current-OI columns */}
-        <text x={4} y={9} font-size={8} font-weight={800} fill={palette.NEGATIVE}>
+        <text x={4} y={9} font-size="8" font-weight={800} fill={palette.NEGATIVE}>
           CALLS · OI Δ
         </text>
-        <text x={PLOT_W + NOW_W / 2} y={9} text-anchor="middle" font-size={7.5} fill={palette.TEXT_MUTED}>
+        <text x={PLOT_W + NOW_W / 2} y={9} text-anchor="middle" font-size="7.5" fill={palette.TEXT_MUTED}>
           {isLive() ? "NOW" : timeLabel(activeTime())}
         </text>
-        <text x={PUT_NOW_X + NOW_W / 2} y={9} text-anchor="middle" font-size={7.5} fill={palette.TEXT_MUTED}>
+        <text x={PUT_NOW_X + NOW_W / 2} y={9} text-anchor="middle" font-size="7.5" fill={palette.TEXT_MUTED}>
           {isLive() ? "NOW" : timeLabel(activeTime())}
         </text>
-        <text x={PUT_PLOT_X + 4} y={9} font-size={8} font-weight={800} fill={palette.POSITIVE}>
+        <text x={PUT_PLOT_X + 4} y={9} font-size="8" font-weight={800} fill={palette.POSITIVE}>
           PUTS · OI Δ
         </text>
 
@@ -463,7 +463,7 @@ export function WallsMapChart(props: {
         {/* current OI bars, flanking the strike column */}
         <For each={strikes()}>{(strike, row) => {
           const callValue = activeCall(row());
-          const putValue = activePut(row);
+          const putValue = activePut(row());
           const callOpenValue = Math.max(0, props.map.call_open?.[row()] ?? 0);
           const putOpenValue = Math.max(0, props.map.put_open?.[row()] ?? 0);
           const callOld = Math.min(Math.max(0, callValue), callOpenValue);
@@ -534,7 +534,7 @@ export function WallsMapChart(props: {
                   x={x}
                   y={HEADER_H + 8}
                   text-anchor="middle"
-                  font-size={7}
+                  font-size="7"
                   font-weight={800}
                   fill={palette.NEGATIVE}
                   style={{ "paint-order": "stroke", "stroke": palette.SURFACE, "stroke-width": 2 }}
@@ -576,13 +576,13 @@ export function WallsMapChart(props: {
               x={PANEL_W + CENTER_W / 2}
               y={y}
               text-anchor="middle"
-              font-size={9}
+              font-size="9"
               font-weight={tag ? 800 : 500}
               fill={tag ? tagColor : palette.TEXT_COLOR}
               style={{ "font-variant-numeric": "tabular-nums" }}
             >
               {fmtNum(strike)}
-              {tag ? <tspan dx={2} font-size={6.5} fill={tagColor}>{tag}</tspan> : null}
+              {tag ? <tspan dx={2} font-size="6.5" fill={tagColor}>{tag}</tspan> : null}
             </text>
           );
         }}</For>

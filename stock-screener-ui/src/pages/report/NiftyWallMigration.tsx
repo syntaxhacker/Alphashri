@@ -29,7 +29,7 @@ interface PlottedSeries {
   name: string;
   color: string;
   dash?: string;
-  width: number;
+  width: string;
   testId: string;
   values: Array<number | null>;
 }
@@ -75,8 +75,8 @@ export function stepPath(
 export function migrationSeries(
   buckets: WallMigrationBucket[],
 ): PlottedSeries[] {
-  const col = (b: WallMigrationBucket, k: "callWall" | "putWall" | "maxPain" | "atm" | "spot") =>
-    buckets.map((x) => x[k]);
+  const col = (bs: WallMigrationBucket[], k: "callWall" | "putWall" | "maxPain" | "atm" | "spot") =>
+    bs.map((x) => x[k]);
   return [
     {
       key: "call",
@@ -205,10 +205,10 @@ export function NiftyWallMigration(props: NiftyWallMigrationProps) {
             aria-label="Call wall, put wall, max pain, ATM and spot over time"
             class="w-full h-[180px] block min-w-0"
           >
-            <text x={4} y={PAD_T + 8} font-size={9} fill={palette.TEXT_MUTED}>
+            <text x={4} y={PAD_T + 8} font-size="9" fill={palette.TEXT_MUTED}>
               {formatWallStrike(geometry().hi)}
             </text>
-            <text x={4} y={SVG_H - PAD_B} font-size={9} fill={palette.TEXT_MUTED}>
+            <text x={4} y={SVG_H - PAD_B} font-size="9" fill={palette.TEXT_MUTED}>
               {formatWallStrike(geometry().lo)}
             </text>
             <For each={buckets()}>{(b, i) => (
@@ -216,7 +216,7 @@ export function NiftyWallMigration(props: NiftyWallMigrationProps) {
                 <text
                   x={geometry().xs[i()]}
                   y={SVG_H - 4}
-                  font-size={9}
+                  font-size="9"
                   fill={palette.TEXT_MUTED}
                   text-anchor="middle"
                 >
@@ -243,7 +243,7 @@ export function NiftyWallMigration(props: NiftyWallMigrationProps) {
                   data-testid={`${s.testId}-label`}
                   x={SVG_W - 2}
                   y={Math.min(Math.max(geometry().yOf(v) + 3, PAD_T + 6), SVG_H - PAD_B)}
-                  font-size={10}
+                  font-size="10"
                   font-weight={700}
                   fill={s.color}
                   text-anchor="end"

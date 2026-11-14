@@ -6,14 +6,16 @@
 import { onCleanup } from "solid-js";
 import { loadEcharts } from "../../utils/loadEcharts";
 
+type EChartsHandle = {
+  setOption: (o: unknown, notMerge?: boolean) => void;
+  resize: () => void;
+  dispose: () => void;
+  on: (event: string, cb: (params: unknown) => void) => void;
+};
+
 export function createECharts(options: { onChartClick?: (params: unknown) => void } = {}) {
   let el: HTMLDivElement | undefined;
-  let chart: {
-    setOption: (o: unknown, notMerge?: boolean) => void;
-    resize: () => void;
-    dispose: () => void;
-    on: (event: string, cb: (params: unknown) => void) => void;
-  } | null = null;
+  let chart: EChartsHandle | null = null;
   let cancelled = false;
   let ro: ResizeObserver | null = null;
 
@@ -34,15 +36,18 @@ export function createECharts(options: { onChartClick?: (params: unknown) => voi
     const echartsLib = await loadEcharts();
     if (!el || cancelled || !echartsLib) return;
 
-    if (!chart) {
-      chart = echartsLib.init(el, null);
+    // Bind to a local so the non-null narrowing survives the closure.
+    let instance = chart;
+    if (!instance) {
+      instance = echartsLib.init(el, null) as EChartsHandle;
+      chart = instance;
       if (options.onChartClick) {
-        chart.on("click", options.onChartClick);
+        instance.on("click", options.onChartClick);
       }
     }
 
-    chart.setOption(option, true);
-    chart.resize();
+    instance.setOption(option, true);
+    instance.resize();
   };
 
   return {

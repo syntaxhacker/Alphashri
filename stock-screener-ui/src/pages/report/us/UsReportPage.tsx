@@ -71,7 +71,6 @@ export function UsReportPage() {
           <For each={ROOTS}>
             {(r) => (
             <Button
-              key={r.id}
               size="xs"
               variant={root() === r.id ? "filled" : "subtle"}
               disabled={!r.enabled}
@@ -89,7 +88,6 @@ export function UsReportPage() {
           <For each={["live", "eod"] as UsMode[]}>
             {(m) => (
             <Button
-              key={m}
               size="xs"
               variant={mode() === m ? "filled" : "subtle"}
               onClick={() => setMode(m)}
@@ -105,7 +103,6 @@ export function UsReportPage() {
           <For each={[1, 5, 15]}>
             {(v) => (
             <Button
-              key={v}
               size="xs"
               variant={tf() === v ? "filled" : "subtle"}
               onClick={() => setTf(v)}
@@ -279,12 +276,11 @@ export function UsReportPage() {
             const net = s.c_oi - s.p_oi;
             return (
               <div
-                key={s.k}
                 data-testid={`us-strike-${s.k}`}
                 class="grid grid-cols-[70px_70px_70px_70px_70px_70px_1fr] px-1"
-                style={{ "background-color": s.k === row?.put_wall || s.k === row?.call_wall ? "rgba(255,255,255,0.04)" : "transparent" }}
+                style={{ "background-color": s.k === row()?.put_wall || s.k === row()?.call_wall ? "rgba(255,255,255,0.04)" : "transparent" }}
               >
-                <span style={{ "font-weight": s.k === row?.max_pain ? 800 : 500, color: s.k === row?.max_pain ? WARNING : undefined }}>
+                <span style={{ "font-weight": s.k === row()?.max_pain ? 800 : 500, color: s.k === row()?.max_pain ? WARNING : undefined }}>
                   {fmtInt(s.k)}
                 </span>
                 <span style={{ "text-align": "right", color: POSITIVE }}>{fmtInt(s.c_oi)}</span>

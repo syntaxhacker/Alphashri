@@ -1,4 +1,5 @@
-import { createEffect, createMemo, Show, type CSSProperties } from "solid-js";
+import { createEffect, createMemo, Show } from "solid-js";
+import type { JSX } from "solid-js";
 import { Text } from "@/ui";
 import { TanStackTable, type TableColumnDef } from "@/components/common/TanStackTable";
 import { CompactStat, CompactStatGrid } from "@/components/common/compact";
@@ -92,6 +93,7 @@ export function SimRuns(props: SimRunsProps) {
   const columns = createMemo<TableColumnDef<SimTrade>[]>(() => {
     const columnsDef: TableColumnDef<SimTrade>[] = [
       {
+        id: "entryTime",
         header: "Entry",
         accessorKey: "entryTime",
         size: 64,
@@ -99,6 +101,7 @@ export function SimRuns(props: SimRunsProps) {
         cell: ({ row }) => <Num value={fmtTime(String(row.original.entryTime ?? ""))} />,
       },
       {
+        id: "exitTime",
         header: "Exit",
         accessorKey: "exitTime",
         size: 64,
@@ -130,6 +133,7 @@ export function SimRuns(props: SimRunsProps) {
         ),
       },
       {
+        id: "lots",
         header: "Lots",
         accessorKey: "lots",
         size: 46,
@@ -137,6 +141,7 @@ export function SimRuns(props: SimRunsProps) {
         cell: ({ row }) => <Num value={formatNumberIN(Number(row.original.lots) || 0)} />,
       },
       {
+        id: "entryPremium",
         header: "Entry ₹",
         accessorKey: "entryPremium",
         size: 76,
@@ -144,6 +149,7 @@ export function SimRuns(props: SimRunsProps) {
         cell: ({ row }) => <Num value={fmtInr(Number(row.original.entryPremium))} />,
       },
       {
+        id: "exitPremium",
         header: "Exit ₹",
         accessorKey: "exitPremium",
         size: 76,
@@ -151,6 +157,7 @@ export function SimRuns(props: SimRunsProps) {
         cell: ({ row }) => <Num value={fmtInr(Number(row.original.entryPremium))} />,
       },
       {
+        id: "grossPnl",
         header: "Gross",
         accessorKey: "grossPnl",
         size: 84,
@@ -161,6 +168,7 @@ export function SimRuns(props: SimRunsProps) {
         },
       },
       {
+        id: "costs",
         header: "Costs",
         accessorKey: "costs",
         size: 70,
@@ -168,6 +176,7 @@ export function SimRuns(props: SimRunsProps) {
         cell: ({ row }) => <Num value={fmtInr(Number(row.original.entryPremium))} />,
       },
       {
+        id: "netPnl",
         header: "Net",
         accessorKey: "netPnl",
         size: 86,
@@ -178,6 +187,7 @@ export function SimRuns(props: SimRunsProps) {
         },
       },
       {
+        id: "points",
         header: "Pts",
         accessorKey: "points",
         size: 72,
@@ -185,6 +195,7 @@ export function SimRuns(props: SimRunsProps) {
         cell: ({ row }) => <Num value={fmtPoints(Number(row.original.points))} />,
       },
       {
+        id: "exitReason",
         header: "Reason",
         accessorKey: "exitReason",
         size: 96,
@@ -199,6 +210,7 @@ export function SimRuns(props: SimRunsProps) {
         },
       },
       {
+        id: "holdMin",
         header: "Hold",
         accessorKey: "holdMin",
         size: 54,
@@ -268,7 +280,7 @@ export function SimRuns(props: SimRunsProps) {
         container; theme it to the desk surface via descendant selectors. */}
       <div
         class="min-w-0 [&_.paper-tanstack-container]:[background:var(--desk-bg)]! [&_.paper-tanstack-container]:[border:none]! [&_.paper-tanstack-scroll]:[background:var(--desk-bg)]! [&_.paper-tanstack-table]:[background:var(--desk-bg)]! [&_.sim-row-win_.paper-tanstack-cell]:[background:var(--tint-pos)]! [&_.sim-row-loss_.paper-tanstack-cell]:[background:var(--tint-neg)]!"
-        style={{ "--desk-bg": palette.TERM_BG, "--tint-pos": palette.TINT_POSITIVE, "--tint-neg": palette.TINT_NEGATIVE } as CSSProperties}
+        style={{ "--desk-bg": palette.TERM_BG, "--tint-pos": palette.TINT_POSITIVE, "--tint-neg": palette.TINT_NEGATIVE } as JSX.CSSProperties}
       >
         <TanStackTable<SimTrade>
           data={trades()}

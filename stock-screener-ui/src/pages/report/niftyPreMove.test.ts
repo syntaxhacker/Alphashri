@@ -57,7 +57,7 @@ function scoreCallCover(premStep: number) {
   const pts = points().map((p, i) =>
     i < 24
       ? p
-      : { ...p, ce: p.ce - (i - 23) * 100_000, cePrem: p.cePrem + (i - 23) * premStep },
+      : { ...p, ce: p.ce - (i - 23) * 100_000, cePrem: (p.cePrem ?? 0) + (i - 23) * premStep },
   );
   return scorePreMove({
     points: pts,

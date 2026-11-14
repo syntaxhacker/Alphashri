@@ -69,7 +69,7 @@ interface LevelLine {
   value: number;
   color: string;
   type: "dashed" | "solid" | "dotted";
-  width: number;
+  width: string;
 }
 
 function num(v: unknown): number {

@@ -429,7 +429,7 @@ describe("buildDepthOption", () => {
   });
 
   test("at most 6 bar labels; only top-3 CE + top-3 PE labeled", () => {
-    const strikes = [];
+    const strikes: ReturnType<typeof strikeAt>[] = [];
     for (let s = 25000; s <= 26500; s += 50) {
       strikes.push(strikeAt(s, 1000 + s, 9000 - s));
     }

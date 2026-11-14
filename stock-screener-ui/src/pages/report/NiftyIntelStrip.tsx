@@ -131,14 +131,14 @@ function IntelBody(props: { intel: NiftyIntel; eod?: boolean }) {
           testId="nifty-intel-modal-fii"
           label="FII net"
           value={fmtIntelSigned(intel().fii_net)}
-          tone={flowTone(intel.fii_net, palette)}
+          tone={flowTone(intel().fii_net, palette)}
           title="FII cash-market net flow (₹ crore), official Upstox series"
         />
         <Field
           testId="nifty-intel-modal-dii"
           label="DII net"
           value={fmtIntelSigned(intel().dii_net)}
-          tone={flowTone(intel.dii_net, palette)}
+          tone={flowTone(intel().dii_net, palette)}
           title="DII cash-market net flow (₹ crore), official Upstox series"
         />
         <Field

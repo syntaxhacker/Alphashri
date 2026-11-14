@@ -107,14 +107,19 @@ interface NiftyCoilGaugeProps {
  */
 export function NiftyCoilGauge(props: NiftyCoilGaugeProps) {
   const ratio = createMemo(() => coilRatio(props.regime));
-  const state = createMemo(() => coilState(ratio() == null ? null : ratio() * 100));
-  const accent = createMemo(() => (state() ? COIL_ACCENT[state()] : palette.TEXT_MUTED));
+  const state = createMemo(() => {
+    const r = ratio();
+    return coilState(r == null ? null : r * 100);
+  });
+  const accent = createMemo(() => {
+    const s = state();
+    return s ? COIL_ACCENT[s] : palette.TEXT_MUTED;
+  });
   const ratioText = createMemo(() => formatCoilRatio(ratio()));
-  const hint = createMemo(() =>
-    state()
-      ? `${state().toLowerCase()}: range ${ratioText()} baseline · ${COIL_COPY[state()]}`
-      : "no range baseline",
-  );
+  const hint = createMemo(() => {
+    const s = state();
+    return s ? `${s.toLowerCase()}: range ${ratioText()} baseline · ${COIL_COPY[s]}` : "no range baseline";
+  });
   const rvIv = createMemo(() => `RV ${fmtVol(props.regime?.rv)} / IV ${fmtVol(props.regime?.iv)}`);
 
   if (props.compact) {

@@ -96,7 +96,7 @@ function LevelInline(props: { side: "CE" | "PE"; level: LevelRead | null; rowLab
       <span
         data-testid={testId}
         class="text-[11px] leading-none whitespace-nowrap"
-        style={{ color: palette.TEXT_MUTED, "font-size": REPORT_FONT.xs }}
+        style={{ color: palette.TEXT_MUTED, "font-size": `${REPORT_FONT.xs}px` }}
       >
         {props.side} —
       </span>
@@ -116,12 +116,12 @@ function LevelInline(props: { side: "CE" | "PE"; level: LevelRead | null; rowLab
         "flex-shrink": 0,
       }}
     >
-      <span class="font-black text-[11px] leading-none" style={{ color: tone, "font-size": REPORT_FONT.xs, "font-weight": 800 }}>
+      <span class="font-black text-[11px] leading-none" style={{ color: tone, "font-size": `${REPORT_FONT.xs}px`, "font-weight": 800 }}>
         {props.side}
       </span>
       <span
         class="font-mono text-[12px] font-bold leading-none"
-        style={{ color: palette.TEXT, "font-size": REPORT_FONT.sm, "font-weight": 700 }}
+        style={{ color: palette.TEXT, "font-size": `${REPORT_FONT.sm}px`, "font-weight": 700 }}
       >
         {formatNumberIN(Math.round(props.level!.strike))}
       </span>
@@ -136,7 +136,7 @@ function LevelInline(props: { side: "CE" | "PE"; level: LevelRead | null; rowLab
           "flex-shrink": 0,
           "white-space": "nowrap",
           "font-family": palette.MONO,
-          "font-size": REPORT_FONT.sm,
+          "font-size": `${REPORT_FONT.sm}px`,
           "font-weight": 800,
           "line-height": 1,
           color: props.level!.tag === "AT" ? palette.NEGATIVE : tone,
@@ -151,7 +151,7 @@ function LevelInline(props: { side: "CE" | "PE"; level: LevelRead | null; rowLab
       <span
         class="text-[11px] font-bold leading-none"
         style={{
-          "font-size": REPORT_FONT.xs,
+          "font-size": `${REPORT_FONT.xs}px`,
           "font-weight": 800,
           "letter-spacing": "0.2px",
           "line-height": 1,
@@ -160,7 +160,7 @@ function LevelInline(props: { side: "CE" | "PE"; level: LevelRead | null; rowLab
       >
         {props.level!.tag}
       </span>
-      <span class="font-mono text-[11px] leading-none" style={{ color: palette.TEXT_MUTED, "font-size": REPORT_FONT.xs }}>
+      <span class="font-mono text-[11px] leading-none" style={{ color: palette.TEXT_MUTED, "font-size": `${REPORT_FONT.xs}px` }}>
         {props.level!.oi >= 1e6 ? `${(props.level!.oi / 1e6).toFixed(1)}M` : `${Math.round(props.level!.oi / 1e3)}k`}
       </span>
     </span>
@@ -185,10 +185,10 @@ function IndexRow(props: {
         class="flex items-baseline gap-[3px] shrink-0"
         style={{ "min-width": "84px" }}
       >
-        <Text size="xs" fw={800} style={{ "font-size": REPORT_FONT.xs, "letter-spacing": "0.3px", "line-height": 1 }}>
+        <Text size="xs" fw={800} style={{ "font-size": `${REPORT_FONT.xs}px`, "letter-spacing": "0.3px", "line-height": 1 }}>
           {props.label}
         </Text>
-        <Text size="xs" c="dimmed" style={{ "font-family": palette.MONO, "font-size": REPORT_FONT.xs, "line-height": 1 }}>
+        <Text size="xs" c="dimmed" style={{ "font-family": palette.MONO, "font-size": `${REPORT_FONT.xs}px`, "line-height": 1 }}>
           {formatNumberIN(Math.round(props.spot))}
         </Text>
       </div>
@@ -196,7 +196,7 @@ function IndexRow(props: {
       <LevelInline side="PE" level={props.read.put} rowLabel={props.label} />
       <span
         class="font-mono text-[11px] leading-none whitespace-nowrap shrink-0"
-        style={{ color: palette.TEXT_MUTED, "font-size": REPORT_FONT.xs }}
+        style={{ color: palette.TEXT_MUTED, "font-size": `${REPORT_FONT.xs}px` }}
       >
         MP {props.maxPain > 0 ? formatNumberIN(Math.round(props.maxPain)) : "—"}
       </span>
@@ -245,7 +245,7 @@ export function LevelsInPlay(props: LevelsInPlayProps) {
           fw={800}
           data-testid="levels-badge"
           style={{
-            "font-size": REPORT_FONT.xs,
+            "font-size": `${REPORT_FONT.xs}px`,
             "letter-spacing": "0.35px",
             color: badge() === "DUAL RESISTANCE" ? palette.NEGATIVE : badge() === "DUAL SUPPORT" ? palette.POSITIVE : palette.TEXT_MUTED,
           }}

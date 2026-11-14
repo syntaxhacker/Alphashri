@@ -62,9 +62,9 @@ function GammaBars(props: GammaBarsProps) {
   return (
     <>
       {/* zero line */}
-      <line x1={PAD_L} x2={PAD_L + (VB_W - PAD_L - PAD_R)} y1={zeroY} y2={zeroY} stroke={palette.TERM_BORDER} stroke-width={0.8} />
+      <line x1={PAD_L} x2={PAD_L + (VB_W - PAD_L - PAD_R)} y1={zeroY()} y2={zeroY()} stroke={palette.TERM_BORDER} stroke-width={0.8} />
       {/* cumulative flow */}
-      <path d={path} fill="none" stroke={palette.PRIMARY} stroke-width={1.1} opacity={0.95} />
+      <path d={path()} fill="none" stroke={palette.PRIMARY} stroke-width={1.1} opacity={0.95} />
       {/* gamma regime strip */}
       <For each={points()}>
         {(p, i) => (

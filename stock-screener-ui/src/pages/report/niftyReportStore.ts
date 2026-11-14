@@ -1736,7 +1736,7 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
       const isBooted = booted();
       if (activeSymbol === "NIFTY" || activeMode !== "live" || !isBooted) return;
       let alive = true;
-      let pollTimer: ReturnType<typeof setTimeout> | null = null;
+      let pollTimer: number | null = null;
       const runPoll = async () => {
         if (!alive) return;
         const currentRequestId = requestId + 1;

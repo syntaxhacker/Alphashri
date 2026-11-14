@@ -161,7 +161,7 @@ export function NiftyFlowWindows(props: {
         value={
           <>
             CE {fmtFlowOi(leg15()?.ce)} · PE {fmtFlowOi(leg15()?.pe)}{" "}
-            <span style={{ color: TONE_COLOR[leg15c.tone], "font-weight": 800 }}>{leg15c().label}</span>
+            <span style={{ color: TONE_COLOR[leg15c().tone], "font-weight": 800 }}>{leg15c().label}</span>
           </>
         }
       />
@@ -174,7 +174,7 @@ export function NiftyFlowWindows(props: {
         value={
           <>
             CE {fmtFlowOi(leg5()?.ce)} · PE {fmtFlowOi(leg5()?.pe)}{" "}
-            <span style={{ color: TONE_COLOR[leg5c.tone], "font-weight": 800 }}>{leg5c().label}</span>
+            <span style={{ color: TONE_COLOR[leg5c().tone], "font-weight": 800 }}>{leg5c().label}</span>
           </>
         }
       />

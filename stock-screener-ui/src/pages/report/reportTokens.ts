@@ -14,7 +14,7 @@ export const REPORT_FONT = {
   lg: 14,       // headline numbers, modal titles
   xl: 15,       // anchor numbers (spot in decision strip)
   /** Helper: return the exact px value for a given step */
-  px: (step: keyof typeof REPORT_FONT) => REPORT_FONT[step],
+  px: (step: "micro" | "xs" | "xsPlus" | "sm" | "md" | "lg" | "xl"): number => REPORT_FONT[step],
 } as const;
 
 // Row heights (px) — vertical rhythm for tables and dense lists
@@ -24,7 +24,7 @@ export const REPORT_ROW = {
   walls: 26,       // walls card/expanded tables (raised from 24)
   comfortable: 28, // expanded views, history charts
   /** Helper */
-  px: (step: keyof typeof REPORT_ROW) => REPORT_ROW[step],
+  px: (step: "dense" | "normal" | "walls" | "comfortable"): number => REPORT_ROW[step],
 } as const;
 
 // Padding scale (px) — 4px base unit
@@ -35,7 +35,7 @@ export const REPORT_PAD = {
   lg: 12,  // modal outer, major section breaks
   xl: 16,  // page-level margins
   /** Helper */
-  px: (step: keyof typeof REPORT_PAD) => REPORT_PAD[step],
+  px: (step: "xs" | "sm" | "md" | "lg" | "xl"): number => REPORT_PAD[step],
 } as const;
 
 // Border radius (px)
@@ -44,7 +44,7 @@ export const REPORT_RADIUS = {
   md: 8,   // cards, panels, modals
   lg: 12,  // large containers
   /** Helper */
-  px: (step: keyof typeof REPORT_RADIUS) => REPORT_RADIUS[step],
+  px: (step: "sm" | "md" | "lg"): number => REPORT_RADIUS[step],
 } as const;
 
 // Common composite tokens for frequent patterns

@@ -206,9 +206,9 @@ export const fmtPremChange = (value: number | null | undefined): string => {
  * undefined. The returned value has the same shape as the inputs.
  */
 export function resolveWallBoard(
-  near: { calls?: NiftyWall[] | null; puts?: NiftyWall[] | null } | null | undefined,
-  full: { calls?: NiftyWall[] | null; puts?: NiftyWall[] | null } | null | undefined,
-): { calls?: NiftyWall[] | null; puts?: NiftyWall[] | null } | null {
+  near: { calls?: WallsRow[] | null; puts?: WallsRow[] | null } | null | undefined,
+  full: { calls?: WallsRow[] | null; puts?: WallsRow[] | null } | null | undefined,
+): { calls?: WallsRow[] | null; puts?: WallsRow[] | null } | null {
   const nearHasData = (near?.calls?.length ?? 0) + (near?.puts?.length ?? 0) > 0;
-  return nearHasData ? near : full;
+  return (nearHasData ? near : full) ?? null;
 }

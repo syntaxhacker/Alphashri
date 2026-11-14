@@ -59,7 +59,7 @@ function LegBar(props: {
   const shares = () => legShares(props.writers, props.buyers, props.cover);
   const empty = () => shares().writers + shares().buyers + shares().cover <= 0;
   return (
-    <div className="flex items-center gap-[8px] min-w-0">
+    <div class="flex items-center gap-[8px] min-w-0">
       <Text
         size="xs"
         span
@@ -72,7 +72,7 @@ function LegBar(props: {
       <div
         data-testid={`nifty-participant-flow-bar-${props.leg}`}
         title={`${props.leg.toUpperCase()} writers ${formatFlowRupees(props.writers)} · buyers ${formatFlowRupees(props.buyers)} · cover ${formatFlowRupees(props.cover)}`}
-        className="flex-1 min-w-0 h-[10px] rounded-[8px] overflow-hidden flex items-stretch"
+        class="flex-1 min-w-0 h-[10px] rounded-[8px] overflow-hidden flex items-stretch"
         style={{ "background-color": "rgba(139, 148, 158, 0.15)" }}
       >
         <Show when={!empty() && shares().writers > 0}>
@@ -134,9 +134,9 @@ export function NiftyParticipantFlow(props: NiftyParticipantFlowProps) {
 
   const bodyView = () => (
     <LocalCompactPanel title="Participant flow — writers vs buyers" testId="nifty-participant-flow">
-      <div className="flex flex-col gap-[8px] min-w-0">
+      <div class="flex flex-col gap-[8px] min-w-0">
         <div
-          className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-[4px] w-full min-w-0"
+          class="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-[4px] w-full min-w-0"
         >
           <LocalCompactStat
             testId="nifty-participant-flow-total-buyers"
@@ -159,7 +159,7 @@ export function NiftyParticipantFlow(props: NiftyParticipantFlowProps) {
         </div>
         <div
           data-testid="nifty-participant-flow-legend"
-          className="flex items-center gap-[10px] flex-wrap min-w-0"
+          class="flex items-center gap-[10px] flex-wrap min-w-0"
         >
           <For each={[
             { name: "Writers", color: palette.NEGATIVE },
@@ -169,7 +169,6 @@ export function NiftyParticipantFlow(props: NiftyParticipantFlowProps) {
             {(e) => (
             <div class="inline-flex items-center gap-[4px]">
               <span
-                component="span"
                 aria-hidden
                 class="block w-[8px] h-[8px] rounded-[8px]"
                 style={{ "background-color": e.color }}
@@ -181,14 +180,14 @@ export function NiftyParticipantFlow(props: NiftyParticipantFlowProps) {
             )}
           </For>
         </div>
-        <div className="flex flex-col gap-[6px] min-w-0">
+        <div class="flex flex-col gap-[6px] min-w-0">
           <For each={buckets()}>
             {(b) => (
             <div
               data-testid="nifty-participant-flow-row"
               class="flex flex-col gap-[2px] min-w-0"
             >
-              <div className="flex items-baseline gap-[8px] min-w-0">
+              <div class="flex items-baseline gap-[8px] min-w-0">
                 <Text size="xs" span fw={700} style={{ "font-variant-numeric": "tabular-nums" }}>
                   {b.label}
                 </Text>

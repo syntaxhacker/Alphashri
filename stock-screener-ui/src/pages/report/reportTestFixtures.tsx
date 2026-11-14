@@ -129,14 +129,15 @@ export function ohlcCandle(
   return { time: t, open: o, high: h, low: l, close: c };
 }
 
-/** One spot-derived candle (volume 0). */
+/** One spot-derived candle (volume 0), same shape `niftyChartData` uses for
+ *  chain-derived bars. */
 export function spotCandle(
   t: string,
   o: number,
   h: number,
   l: number,
   c: number,
-): NiftyIntradayCandle {
+): NiftyIntradayCandle & { volume: number } {
   return { time: t, open: o, high: h, low: l, close: c, volume: 0 };
 }
 

@@ -63,7 +63,7 @@ function StatBar(props: { walls: WallsPayload }) {
             "padding-top": `${REPORT_PAD.xs}px`,
             "padding-bottom": `${REPORT_PAD.xs}px`,
             "min-width": 0,
-            "border-right": index < cells.length - 1 ? `1px solid ${palette.BORDER}` : "none",
+            "border-right": index() < cells().length - 1 ? `1px solid ${palette.BORDER}` : "none",
           }}
         >
           <Text
@@ -71,7 +71,7 @@ function StatBar(props: { walls: WallsPayload }) {
             span
             fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
             style={{
-              "font-size": REPORT_FONT.micro,
+              "font-size": `${REPORT_FONT.micro}px`,
               "line-height": REPORT_LINE_HEIGHT.tight,
               color: palette.TEXT_MUTED,
               "letter-spacing": REPORT_LETTER_SPACING.wide,
@@ -86,7 +86,7 @@ function StatBar(props: { walls: WallsPayload }) {
             fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
             className="font-mono tabular-nums whitespace-nowrap overflow-hidden truncate"
             style={{
-              "font-size": REPORT_FONT.md,
+              "font-size": `${REPORT_FONT.md}px`,
               "line-height": REPORT_LINE_HEIGHT.snug,
               "font-weight": REPORT_FONT_WEIGHT.bold,
               color: cell.color ?? palette.TEXT_COLOR,
@@ -131,7 +131,7 @@ function LadderRow(props: {
         "padding-right": `${REPORT_PAD.sm}px`,
         "padding-top": `${REPORT_PAD.xs}px`,
         "padding-bottom": `${REPORT_PAD.xs}px`,
-        "min-height": REPORT_ROW.walls,
+        "min-height": `${REPORT_ROW.walls}px`,
         "border-left": props.row.tracked ? `2px solid ${color}` : "2px solid transparent",
         "background-color": props.row.tracked ? palette.SURFACE_ALT : "transparent",
         transition: "background-color 180ms ease",
@@ -142,7 +142,7 @@ function LadderRow(props: {
         span
         fw={props.row.tracked || isBreak() ? REPORT_FONT_WEIGHT.extrabold : REPORT_FONT_WEIGHT.medium}
         style={{
-          "font-size": REPORT_FONT.sm,
+          "font-size": `${REPORT_FONT.sm}px`,
           "font-weight": props.row.tracked || isBreak() ? REPORT_FONT_WEIGHT.extrabold : REPORT_FONT_WEIGHT.medium,
           color: props.row.tracked ? color() : isBreak() ? palette.WARNING : palette.TEXT_COLOR,
           "font-variant-numeric": "tabular-nums",
@@ -150,8 +150,8 @@ function LadderRow(props: {
         }}
       >
         {fmtNum(props.row.strike)}
-        <span style={{ "font-size": REPORT_FONT.micro, "margin-left": "2px", color: palette.TEXT_MUTED }}>{tag()}</span>
-        {isBreak() ? <span style={{ "font-size": REPORT_FONT.micro, "margin-left": "2px", color: palette.NEGATIVE }}>BRK</span> : null}
+        <span style={{ "font-size": `${REPORT_FONT.micro}px`, "margin-left": "2px", color: palette.TEXT_MUTED }}>{tag()}</span>
+        {isBreak() ? <span style={{ "font-size": `${REPORT_FONT.micro}px`, "margin-left": "2px", color: palette.NEGATIVE }}>BRK</span> : null}
       </Text>
       <div style={{ "height": "8px", "background-color": palette.SURFACE, position: "relative", "border-radius": "2px", overflow: "hidden" }}>
         <div style={{ position: "absolute", inset: 0, width: `${totalPct()}%`, display: "flex", transition: "width 280ms cubic-bezier(.22,1,.36,1)" }}>
@@ -163,7 +163,7 @@ function LadderRow(props: {
         size="sm"
         span
         style={{
-          "font-size": REPORT_FONT.sm,
+          "font-size": `${REPORT_FONT.sm}px`,
           "text-align": "right",
           "font-variant-numeric": "tabular-nums",
           color: palette.TEXT_COLOR,
@@ -175,7 +175,7 @@ function LadderRow(props: {
         size="sm"
         span
         style={{
-          "font-size": REPORT_FONT.sm,
+          "font-size": `${REPORT_FONT.sm}px`,
           "text-align": "right",
           "font-variant-numeric": "tabular-nums",
           color: erosionColor(props.row.new_oi),
@@ -202,7 +202,7 @@ function WallsLadder(props: { walls: WallsPayload }) {
           span
           fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            "font-size": REPORT_FONT.xs,
+            "font-size": `${REPORT_FONT.xs}px`,
             "font-weight": REPORT_FONT_WEIGHT.extrabold,
             "letter-spacing": REPORT_LETTER_SPACING.wide,
             color: palette.TEXT_COLOR,
@@ -225,7 +225,7 @@ function WallsLadder(props: { walls: WallsPayload }) {
             span
             fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
             style={{
-              "font-size": REPORT_FONT.xs,
+              "font-size": `${REPORT_FONT.xs}px`,
               "font-weight": REPORT_FONT_WEIGHT.extrabold,
               color: palette.PRIMARY,
               "white-space": "nowrap",
@@ -237,7 +237,7 @@ function WallsLadder(props: { walls: WallsPayload }) {
             size="xs"
             span
             style={{
-              "font-size": REPORT_FONT.micro,
+              "font-size": `${REPORT_FONT.micro}px`,
               color: palette.TEXT_MUTED,
               "white-space": "nowrap",
             }}
@@ -282,7 +282,7 @@ function WallsTable(props: { title: string; side: "CALL" | "PUT"; rows: WallsRow
           span
           fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            "font-size": REPORT_FONT.xs,
+            "font-size": `${REPORT_FONT.xs}px`,
             "font-weight": REPORT_FONT_WEIGHT.extrabold,
             color,
             "letter-spacing": REPORT_LETTER_SPACING.wide,
@@ -298,7 +298,7 @@ function WallsTable(props: { title: string; side: "CALL" | "PUT"; rows: WallsRow
           width: "100%",
           "table-layout": "fixed",
           "border-collapse": "collapse",
-          "font-size": REPORT_FONT.sm,
+          "font-size": `${REPORT_FONT.sm}px`,
           "font-variant-numeric": "tabular-nums",
         }}
       >
@@ -312,7 +312,7 @@ function WallsTable(props: { title: string; side: "CALL" | "PUT"; rows: WallsRow
           <col style={{ width: "10%" }} />
         </colgroup>
         <thead>
-          <tr style={{ color: palette.TEXT_MUTED, height: REPORT_ROW.walls }}>
+          <tr style={{ color: palette.TEXT_MUTED, height: `${REPORT_ROW.walls}px` }}>
             <th align="left" style={{ "font-weight": 500, padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}>Strike</th>
             <th align="right" style={{ "font-weight": 500, padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}>OI</th>
             <th align="right" title="New OI since session open" style={{ "font-weight": 500, padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}>NEW</th>
@@ -328,12 +328,11 @@ function WallsTable(props: { title: string; side: "CALL" | "PUT"; rows: WallsRow
             const tag = wallCode(props.side === "CALL", ws, false);
             return (
               <tr
-                key={`${props.side}-${row.strike}`}
                 style={{
                   background: row.tracked ? palette.SURFACE_ALT : "transparent",
                   "font-weight": row.tracked ? 700 : 400,
                   "border-top": `1px solid ${palette.BORDER}`,
-                  height: REPORT_ROW.walls,
+                  height: `${REPORT_ROW.walls}px`,
                   transition: "background-color 180ms ease",
                 }}
               >
@@ -347,9 +346,9 @@ function WallsTable(props: { title: string; side: "CALL" | "PUT"; rows: WallsRow
                   }}
                 >
                   {fmtNum(row.strike)}
-                  <span style={{ "font-size": REPORT_FONT.micro, "margin-left": "3px", color: palette.TEXT_MUTED }}>{tag}</span>
+                  <span style={{ "font-size": `${REPORT_FONT.micro}px`, "margin-left": "3px", color: palette.TEXT_MUTED }}>{tag}</span>
                   {row.tracked ? (
-                    <span style={{ "font-size": REPORT_FONT.micro, "margin-left": "3px", color: palette.TEXT_MUTED }}>TRACKED</span>
+                    <span style={{ "font-size": `${REPORT_FONT.micro}px`, "margin-left": "3px", color: palette.TEXT_MUTED }}>TRACKED</span>
                   ) : null}
                 </td>
                 <td
@@ -421,7 +420,7 @@ function HistoryChart(props: { walls: WallsPayload }) {
           span
           fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            "font-size": REPORT_FONT.xs,
+            "font-size": `${REPORT_FONT.xs}px`,
             "font-weight": REPORT_FONT_WEIGHT.extrabold,
             color: palette.TEXT_COLOR,
             "letter-spacing": REPORT_LETTER_SPACING.wide,
@@ -430,7 +429,7 @@ function HistoryChart(props: { walls: WallsPayload }) {
           TRACKED WALL · {fmtNum(props.walls.call_wall.strike)} · LAST {props.walls.window_min}m
         </Text>
         <Text size="xs" span style={{ color: palette.TEXT_MUTED }}>
-          {first?.t?.slice(11, 16)} → {last?.t?.slice(11, 16)}
+          {first()?.t?.slice(11, 16)} → {last()?.t?.slice(11, 16)}
         </Text>
       </div>
       <div style={{ display: "grid", "grid-template-columns": "1fr 1fr", "gap": "1.5px" }}>
@@ -442,7 +441,7 @@ function HistoryChart(props: { walls: WallsPayload }) {
               span
               fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
               style={{
-                "font-size": REPORT_FONT.sm,
+                "font-size": `${REPORT_FONT.sm}px`,
                 "font-weight": REPORT_FONT_WEIGHT.bold,
                 color: erosionColor(props.walls.tracked_call_erosion_30m),
               }}
@@ -450,7 +449,7 @@ function HistoryChart(props: { walls: WallsPayload }) {
               {fmtPct(props.walls.tracked_call_erosion_30m)}
             </Text>
           </div>
-          <div style={{ "& svg": { width: "100%", "height": "44px" } }}>
+          <div>
             <Sparkline values={callValues()} width={560} height={44} color={palette.NEGATIVE} testId="walls-call-spark" animate />
           </div>
         </div>
@@ -462,7 +461,7 @@ function HistoryChart(props: { walls: WallsPayload }) {
               span
               fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
               style={{
-                "font-size": REPORT_FONT.sm,
+                "font-size": `${REPORT_FONT.sm}px`,
                 "font-weight": REPORT_FONT_WEIGHT.bold,
                 color: erosionColor(props.walls.tracked_put_build_30m),
               }}
@@ -470,7 +469,7 @@ function HistoryChart(props: { walls: WallsPayload }) {
               {fmtPct(props.walls.tracked_put_build_30m)}
             </Text>
           </div>
-          <div style={{ "& svg": { width: "100%", "height": "44px" } }}>
+          <div>
             <Sparkline values={putValues()} width={560} height={44} color={palette.POSITIVE} testId="walls-put-spark" animate />
           </div>
         </div>
@@ -483,7 +482,7 @@ function HistoryChart(props: { walls: WallsPayload }) {
             span
             fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
             style={{
-              "font-size": REPORT_FONT.sm,
+              "font-size": `${REPORT_FONT.sm}px`,
               "font-weight": REPORT_FONT_WEIGHT.bold,
               color: palette.PRIMARY,
             }}
@@ -491,7 +490,7 @@ function HistoryChart(props: { walls: WallsPayload }) {
             {fmtNum(props.walls.max_pain_drift)}
           </Text>
         </div>
-        <div style={{ "& svg": { width: "100%", "height": "24px" } }}>
+        <div>
           <Sparkline values={mpValues()} width={1160} height={24} color={palette.PRIMARY} testId="walls-maxpain-spark" animate />
         </div>
       </div>
@@ -511,7 +510,7 @@ function SequenceTable(props: { events: WallsEvent[] }) {
           span
           fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            "font-size": REPORT_FONT.xs,
+            "font-size": `${REPORT_FONT.xs}px`,
             "font-weight": REPORT_FONT_WEIGHT.extrabold,
             "letter-spacing": REPORT_LETTER_SPACING.wide,
             color: palette.TEXT_COLOR,
@@ -527,7 +526,7 @@ function SequenceTable(props: { events: WallsEvent[] }) {
           width: "100%",
           "table-layout": "fixed",
           "border-collapse": "collapse",
-          "font-size": REPORT_FONT.sm,
+          "font-size": `${REPORT_FONT.sm}px`,
           "font-variant-numeric": "tabular-nums",
         }}
       >
@@ -541,7 +540,7 @@ function SequenceTable(props: { events: WallsEvent[] }) {
           <col style={{ width: "17%" }} />
         </colgroup>
         <thead>
-          <tr style={{ color: palette.TEXT_MUTED, height: REPORT_ROW.walls }}>
+          <tr style={{ color: palette.TEXT_MUTED, height: `${REPORT_ROW.walls}px` }}>
             <th align="left" style={{ "font-weight": 500, padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}>Time</th>
             <th align="left" style={{ "font-weight": 500, padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}>Event</th>
             <th align="right" style={{ "font-weight": 500, padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}>Wall</th>
@@ -560,7 +559,7 @@ function SequenceTable(props: { events: WallsEvent[] }) {
                 style={{
                   background: isBreak ? palette.SURFACE_ALT : "transparent",
                   "border-top": `1px solid ${palette.BORDER}`,
-                  height: REPORT_ROW.walls,
+                  height: `${REPORT_ROW.walls}px`,
                 }}
               >
                 <td style={{ padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px`, color: palette.TEXT_MUTED }}>{event.at.slice(11, 19)}</td>
@@ -593,17 +592,17 @@ function SequenceTable(props: { events: WallsEvent[] }) {
           }}</For>
         </tbody>
       </Box>
-      {hidden > 0 && (
+      {hidden() > 0 && (
         <Text
           size="xs"
           span
           style={{
-            "font-size": REPORT_FONT.micro,
+            "font-size": `${REPORT_FONT.micro}px`,
             color: palette.TEXT_MUTED,
             "margin-top": `${REPORT_PAD.sm}px`,
           }}
         >
-          +{hidden} earlier events in the recorded window
+          +{hidden()} earlier events in the recorded window
         </Text>
       )}
     </div>
@@ -647,13 +646,13 @@ export function NiftyWallsExpanded(props: {
       autoHeight
       max-height="92vh"
       title={
-        <div spacing={1} class="flex-wrap" style={{ "flex-wrap": "wrap", "row-gap": "4px", "align-items": "center" }}>
+        <div class="flex flex-wrap items-center" style={{ "row-gap": "4px" }}>
           <Text
             size="lg"
             span
             fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
             style={{
-              "font-size": REPORT_FONT.lg,
+              "font-size": `${REPORT_FONT.lg}px`,
               "font-weight": REPORT_FONT_WEIGHT.extrabold,
               "letter-spacing": REPORT_LETTER_SPACING.wider,
             }}
@@ -666,7 +665,7 @@ export function NiftyWallsExpanded(props: {
             color={stateColor()}
             style={{
               "height": "20px",
-              "font-size": REPORT_FONT.xs,
+              "font-size": `${REPORT_FONT.xs}px`,
               "font-weight": REPORT_FONT_WEIGHT.extrabold,
               color: stateColor(),
               "background-color": "transparent",
@@ -692,7 +691,7 @@ export function NiftyWallsExpanded(props: {
             span
             fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
             style={{
-              "font-size": REPORT_FONT.micro,
+              "font-size": `${REPORT_FONT.micro}px`,
               "font-weight": REPORT_FONT_WEIGHT.bold,
               "letter-spacing": REPORT_LETTER_SPACING.wide,
               color: palette.TEXT_MUTED,
@@ -703,7 +702,6 @@ export function NiftyWallsExpanded(props: {
           <div class="flex items-center gap-[4px]">
             <For each={["MAP", "DATA"] as const}>{(mode) => (
               <Button
-                key={mode}
                 size="xs"
                 aria-pressed={activeView() === mode}
                 disabled={mode === "MAP" && !walls()!.wall_map}
@@ -715,7 +713,7 @@ export function NiftyWallsExpanded(props: {
                   "padding-right": `${REPORT_PAD.sm}px`,
                   "padding-top": "4px",
                   "padding-bottom": "4px",
-                  "font-size": REPORT_FONT.xs,
+                  "font-size": `${REPORT_FONT.xs}px`,
                   "font-weight": REPORT_FONT_WEIGHT.extrabold,
                   "line-height": 1.4,
                   color: activeView() === mode ? palette.TEXT_COLOR : palette.TEXT_MUTED,
@@ -732,7 +730,7 @@ export function NiftyWallsExpanded(props: {
 
         {activeView() === "MAP" && walls()!.wall_map ? (
           <WallsMapChart
-            map={walls()!.wall_map}
+            map={walls()!.wall_map!}
             events={events()}
             callWall={walls()!.call_wall.strike}
             putWall={walls()!.put_wall.strike}
@@ -743,7 +741,7 @@ export function NiftyWallsExpanded(props: {
           <>
             <WallsLadder walls={walls()!} />
 
-            <div style={{ display: "grid", "grid-template-columns": { xs: "1fr", md: "1fr 1fr" }, "gap": "1px" }}>
+            <div class="grid grid-cols-1 md:grid-cols-2" style={{ gap: "1px" }}>
               <WallsTable title="CALL WALLS" side="CALL" rows={walls()!.calls} spot={walls()!.spot} />
               <WallsTable title="PUT WALLS" side="PUT" rows={walls()!.puts} spot={walls()!.spot} />
             </div>
@@ -758,14 +756,14 @@ export function NiftyWallsExpanded(props: {
 
         <Divider style={{ "border-color": palette.BORDER }} />
 
-        <div style={{ display: "grid", "grid-template-columns": { xs: "1fr", md: "1.4fr 1fr" }, "gap": "1px" }}>
+        <div class="grid grid-cols-1 md:grid-cols-[1.4fr_1fr]" style={{ gap: "1px" }}>
           <div>
             <Text
               size="xs"
               span
               fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
               style={{
-                "font-size": REPORT_FONT.xs,
+                "font-size": `${REPORT_FONT.xs}px`,
                 "font-weight": REPORT_FONT_WEIGHT.extrabold,
                 "letter-spacing": REPORT_LETTER_SPACING.wide,
                 color: palette.TEXT_COLOR,
@@ -779,7 +777,7 @@ export function NiftyWallsExpanded(props: {
               size="sm"
               span
               style={{
-                "font-size": REPORT_FONT.sm,
+                "font-size": `${REPORT_FONT.sm}px`,
                 "line-height": REPORT_LINE_HEIGHT.relaxed,
                 color: palette.TEXT_COLOR,
               }}
@@ -792,14 +790,13 @@ export function NiftyWallsExpanded(props: {
             <div class="flex-wrap" style={{ "flex-wrap": "wrap", "row-gap": "4px", "margin-top": `${REPORT_PAD.md}px` }}>
               <For each={walls()!.reasons}>{(reason) => (
                 <Badge
-                  key={reason}
                   size="xs"
                   variant="light"
                   color="default"
                   className="min-w-0"
                   style={{
                     "height": "19px",
-                    "font-size": REPORT_FONT.xs,
+                    "font-size": `${REPORT_FONT.xs}px`,
                     color: palette.TEXT_MUTED,
                     "background-color": palette.SURFACE_ALT,
                     "padding-left": `${REPORT_PAD.sm}px`,
@@ -817,7 +814,7 @@ export function NiftyWallsExpanded(props: {
               span
               fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
               style={{
-                "font-size": REPORT_FONT.xs,
+                "font-size": `${REPORT_FONT.xs}px`,
                 "font-weight": REPORT_FONT_WEIGHT.extrabold,
                 "letter-spacing": REPORT_LETTER_SPACING.wide,
                 color: palette.TEXT_COLOR,
@@ -833,7 +830,7 @@ export function NiftyWallsExpanded(props: {
                   span
                   fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
                   style={{
-                    "font-size": REPORT_FONT.md,
+                    "font-size": `${REPORT_FONT.md}px`,
                     "font-weight": REPORT_FONT_WEIGHT.extrabold,
                     color: palette.NEGATIVE,
                   }}
@@ -846,7 +843,7 @@ export function NiftyWallsExpanded(props: {
                   size="xs"
                   span
                   style={{
-                    "font-size": REPORT_FONT.sm,
+                    "font-size": `${REPORT_FONT.sm}px`,
                     "line-height": REPORT_LINE_HEIGHT.relaxed,
                     color: palette.TEXT_MUTED,
                   }}
@@ -858,7 +855,7 @@ export function NiftyWallsExpanded(props: {
                     size="xs"
                     span
                     style={{
-                      "font-size": REPORT_FONT.xs,
+                      "font-size": `${REPORT_FONT.xs}px`,
                       "line-height": REPORT_LINE_HEIGHT.relaxed,
                       color: palette.WARNING,
                     }}
@@ -879,7 +876,7 @@ export function NiftyWallsExpanded(props: {
                     "padding-right": `${REPORT_PAD.sm}px`,
                     "padding-top": "4px",
                     "padding-bottom": "4px",
-                    "font-size": REPORT_FONT.xs,
+                    "font-size": `${REPORT_FONT.xs}px`,
                     "font-weight": REPORT_FONT_WEIGHT.extrabold,
                     "line-height": 1.4,
                     color: palette.PRIMARY,
@@ -899,7 +896,7 @@ export function NiftyWallsExpanded(props: {
               size="xs"
               span
               style={{
-                "font-size": REPORT_FONT.xs,
+                "font-size": `${REPORT_FONT.xs}px`,
                 "line-height": REPORT_LINE_HEIGHT.relaxed,
                 color: palette.TEXT_MUTED,
                 "margin-top": `${REPORT_PAD.md}px`,
@@ -918,7 +915,7 @@ export function NiftyWallsExpanded(props: {
           size="xs"
           span
           style={{
-            "font-size": REPORT_FONT.micro,
+            "font-size": `${REPORT_FONT.micro}px`,
             color: palette.TEXT_MUTED,
           }}
         >

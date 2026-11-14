@@ -2,8 +2,7 @@ import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { parseIstTimestampMs } from "./niftyDataFreshness";
-import { computeNiftyFreshness, type NiftyFreshnessInput } from "./niftyFreshness";
-import type { NiftyBurst } from "@/types/niftyReport";
+import { computeNiftyFreshness, type FreshnessBurst, type NiftyFreshnessInput } from "./niftyFreshness";
 
 interface NiftyDataFreshnessProps {
   report?: {
@@ -18,7 +17,7 @@ interface NiftyDataFreshnessProps {
     date?: string | null;
     rows?: Array<{ t?: string | null }> | null;
   } | null;
-  bursts?: NiftyBurst[] | null;
+  bursts?: FreshnessBurst[] | null;
   /** NSE cash session is open (a closed market is never "stale"). */
   marketOpen: boolean;
   sessionDate?: string | null;

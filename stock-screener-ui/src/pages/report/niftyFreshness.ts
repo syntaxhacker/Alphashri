@@ -5,8 +5,14 @@
  * it should use the warning (stale) colour.
  */
 
-import type { NiftyBurst } from "@/types/niftyReport";
 import { formatFreshnessAge } from "./niftyDataFreshness";
+
+/** The only two fields freshness needs — lets both `NiftyBurst` and the
+ *  client-side `OiBurst` feed the same badge. */
+export interface FreshnessBurst {
+  t?: string | null;
+  type?: string | null;
+}
 
 export interface NiftyFreshnessInput {
   /** Current wall-clock time (epoch ms). */
@@ -16,7 +22,7 @@ export interface NiftyFreshnessInput {
   /** True when the NSE cash session is open. */
   marketOpen: boolean;
   /** Burst array — checked for `type === "data_stale"`. */
-  bursts?: NiftyBurst[] | null;
+  bursts?: FreshnessBurst[] | null;
 }
 
 export interface NiftyFreshnessOutput {
@@ -31,7 +37,7 @@ export interface NiftyFreshnessOutput {
 /**
  * Check if any burst signals stale data.
  */
-function hasDataStaleBurst(bursts?: NiftyBurst[] | null): boolean {
+function hasDataStaleBurst(bursts?: FreshnessBurst[] | null): boolean {
   if (!bursts || bursts.length === 0) return false;
   return bursts.some((b) => b?.type === "data_stale");
 }

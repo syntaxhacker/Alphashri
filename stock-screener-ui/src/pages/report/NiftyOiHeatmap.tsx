@@ -643,7 +643,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
               x={PAD_L - 6}
               y={rowOf(s) * cellH() + cellH() / 2 + 3.5}
               text-anchor="end"
-              font-size={10}
+              font-size="10"
               fill="currentColor"
               opacity={0.65}
             >
@@ -657,7 +657,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
             y={gridH() / 2}
             transform={`rotate(-90 10 ${gridH() / 2})`}
             text-anchor="middle"
-            font-size={9}
+            font-size="9"
             fill="currentColor"
             opacity={0.8}
             font-family={MONO}
@@ -670,7 +670,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
             x={PAD_L - 4}
             y={VB_H() - 8}
             text-anchor="end"
-            font-size={9}
+            font-size="9"
             fill="currentColor"
             opacity={0.8}
             font-family={MONO}
@@ -688,7 +688,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
                 x={isFirst ? PAD_L : isLast ? VB_W - 2 : xOf(bi)}
                 y={VB_H() - 8}
                 text-anchor={isFirst ? "start" : isLast ? "end" : "middle"}
-                font-size={10}
+                font-size="10"
                 fill="currentColor"
                 opacity={0.9}
                 font-family={MONO}

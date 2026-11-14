@@ -66,7 +66,7 @@ function Stat(props: { label: string; value: string; color?: string }) {
         span
         fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
         style={{
-          "font-size": REPORT_FONT.micro,
+          "font-size": `${REPORT_FONT.micro}px`,
           "line-height": REPORT_LINE_HEIGHT.tight,
           color: palette.TEXT_MUTED,
           "letter-spacing": REPORT_LETTER_SPACING.wide,
@@ -80,7 +80,7 @@ function Stat(props: { label: string; value: string; color?: string }) {
         fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
         className="tabular-nums whitespace-nowrap overflow-hidden truncate"
         style={{
-          "font-size": REPORT_FONT.md,
+          "font-size": `${REPORT_FONT.md}px`,
           "line-height": REPORT_LINE_HEIGHT.snug,
           color: props.color ?? palette.TEXT_COLOR,
           "white-space": "nowrap",
@@ -135,7 +135,7 @@ function WallPlaceholderRow(props: { side: "CALL" | "PUT" }) {
         "padding-top": `${REPORT_PAD.xs}px`,
         "padding-bottom": `${REPORT_PAD.xs}px`,
         "padding-left": `${REPORT_PAD.sm}px`,
-        "min-height": REPORT_ROW.walls,
+        "min-height": `${REPORT_ROW.walls}px`,
         "border-left": "2px solid transparent",
       }}
     >
@@ -144,7 +144,7 @@ function WallPlaceholderRow(props: { side: "CALL" | "PUT" }) {
           size="xs"
           span
           style={{
-            "font-size": REPORT_FONT.sm,
+            "font-size": `${REPORT_FONT.sm}px`,
             "line-height": REPORT_LINE_HEIGHT.snug,
             color: palette.TEXT_MUTED,
             "font-variant-numeric": "tabular-nums",
@@ -156,7 +156,7 @@ function WallPlaceholderRow(props: { side: "CALL" | "PUT" }) {
           size="xs"
           span
           style={{
-            "font-size": REPORT_FONT.micro,
+            "font-size": `${REPORT_FONT.micro}px`,
             "line-height": REPORT_LINE_HEIGHT.tight,
             color: palette.TEXT_MUTED,
           }}
@@ -169,7 +169,7 @@ function WallPlaceholderRow(props: { side: "CALL" | "PUT" }) {
           size="xs"
           span
           style={{
-            "font-size": REPORT_FONT.sm,
+            "font-size": `${REPORT_FONT.sm}px`,
             "line-height": REPORT_LINE_HEIGHT.snug,
             "text-align": "right",
             color: palette.TEXT_MUTED,
@@ -210,7 +210,7 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
           span
           fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            "font-size": REPORT_FONT.xs,
+            "font-size": `${REPORT_FONT.xs}px`,
             color,
             "letter-spacing": REPORT_LETTER_SPACING.wider,
           }}
@@ -223,7 +223,7 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
             span
             title={heading === "NEW" ? "New OI since session open (old book → new book)" : undefined}
             style={{
-              "font-size": REPORT_FONT.xs,
+              "font-size": `${REPORT_FONT.xs}px`,
               color: palette.TEXT_MUTED,
               "text-align": "right",
               "letter-spacing": REPORT_LETTER_SPACING.normal,
@@ -264,7 +264,7 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
               "padding-top": `${REPORT_PAD.xs}px`,
               "padding-bottom": `${REPORT_PAD.xs}px`,
               "padding-left": `${REPORT_PAD.sm}px`,
-              "min-height": REPORT_ROW.walls,
+              "min-height": `${REPORT_ROW.walls}px`,
               "border-left": border,
               "background-color": (nearest || tracked) ? palette.SURFACE_ALT : "transparent",
               transition: "background-color 180ms ease",
@@ -277,7 +277,7 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
                   span
                   fw={tracked ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.medium}
                   style={{
-                    "font-size": REPORT_FONT.sm,
+                    "font-size": `${REPORT_FONT.sm}px`,
                     "line-height": REPORT_LINE_HEIGHT.snug,
                     "font-weight": tracked ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.medium,
                     color: tracked ? color : palette.TEXT_COLOR,
@@ -298,7 +298,7 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
                     span
                     fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
                     style={{
-                      "font-size": REPORT_FONT.micro,
+                      "font-size": `${REPORT_FONT.micro}px`,
                       "font-weight": REPORT_FONT_WEIGHT.extrabold,
                       color: cellColor,
                       "margin-left": `${REPORT_PAD.xs}px`,
@@ -308,7 +308,7 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
                     {view.arrow}
                   </Text>
                 </Show>
-                <span style={{ "font-size": REPORT_FONT.micro, "margin-left": "3px", color: palette.TEXT_MUTED }}>
+                <span style={{ "font-size": `${REPORT_FONT.micro}px`, "margin-left": "3px", color: palette.TEXT_MUTED }}>
                   {wallCode(props.side === "CALL", wallSide(row.strike, props.spot), false)}
                 </span>
               </div>
@@ -323,7 +323,7 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
                 }
                 data-testid={`nifty-walls-${props.side.toLowerCase()}-${row.strike}-flow`}
                 style={{
-                  "font-size": REPORT_FONT.micro,
+                  "font-size": `${REPORT_FONT.micro}px`,
                   "line-height": REPORT_LINE_HEIGHT.tight,
                   color: flowToneColor(flowTone(row.flow)),
                   "font-weight": REPORT_FONT_WEIGHT.bold,
@@ -369,7 +369,7 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
                 size="sm"
                 span
                 style={{
-                  "font-size": REPORT_FONT.sm,
+                  "font-size": `${REPORT_FONT.sm}px`,
                   "line-height": REPORT_LINE_HEIGHT.snug,
                   "text-align": "right",
                   "font-variant-numeric": "tabular-nums",
@@ -384,7 +384,7 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
               span
               title={`Old ${fmtOI(row.oi_open)} → new ${fmtOI(row.oi)} · ${fmtPct(row.new_oi_pct)} of old book`}
               style={{
-                "font-size": REPORT_FONT.sm,
+                "font-size": `${REPORT_FONT.sm}px`,
                 "line-height": REPORT_LINE_HEIGHT.snug,
                 "text-align": "right",
                 "font-variant-numeric": "tabular-nums",
@@ -403,7 +403,7 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
               span
               title={row.erosion_5m != null ? `5m erosion ${fmtPct(row.erosion_5m)} · 30m rate ${fmtRate(row.erosion_rate_30m)}` : undefined}
               style={{
-                "font-size": REPORT_FONT.sm,
+                "font-size": `${REPORT_FONT.sm}px`,
                 "line-height": REPORT_LINE_HEIGHT.snug,
                 "text-align": "right",
                 color: cellColor,
@@ -417,7 +417,7 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
               span
               title={`30m erosion ${fmtPct(row.erosion_30m)} · rate ${fmtRate(row.erosion_rate_30m)} · prem ${fmtPremChange(row.prem_chg_5m)}`}
               style={{
-                "font-size": REPORT_FONT.sm,
+                "font-size": `${REPORT_FONT.sm}px`,
                 "line-height": REPORT_LINE_HEIGHT.snug,
                 "text-align": "right",
                 color: cellColor,
@@ -430,7 +430,7 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
               size="sm"
               span
               style={{
-                "font-size": REPORT_FONT.sm,
+                "font-size": `${REPORT_FONT.sm}px`,
                 "line-height": REPORT_LINE_HEIGHT.snug,
                 "text-align": "right",
                 color: palette.TEXT_MUTED,
@@ -457,7 +457,7 @@ function SequenceLine(props: { events: WallsEvent[] }) {
         span
         fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
         style={{
-          "font-size": REPORT_FONT.micro,
+          "font-size": `${REPORT_FONT.micro}px`,
           color: palette.TEXT_MUTED,
           "letter-spacing": REPORT_LETTER_SPACING.wider,
           "flex-shrink": 0,
@@ -490,7 +490,7 @@ function SequenceLine(props: { events: WallsEvent[] }) {
               size="xs"
               span
               style={{
-                "font-size": REPORT_FONT.micro,
+                "font-size": `${REPORT_FONT.micro}px`,
                 color: isBreak ? palette.NEGATIVE : palette.TEXT_MUTED,
                 "font-variant-numeric": "tabular-nums",
               }}
@@ -502,7 +502,7 @@ function SequenceLine(props: { events: WallsEvent[] }) {
               span
               fw={isBreak ? REPORT_FONT_WEIGHT.extrabold : REPORT_FONT_WEIGHT.medium}
               style={{
-                "font-size": REPORT_FONT.xsPlus,
+                "font-size": `${REPORT_FONT.xsPlus}px`,
                 "font-weight": isBreak ? REPORT_FONT_WEIGHT.extrabold : REPORT_FONT_WEIGHT.medium,
                 color: isBreak ? palette.NEGATIVE : palette.TEXT_MUTED,
               }}
@@ -529,7 +529,7 @@ function MiniHistory(props: { walls: WallsPayload }) {
           span
           fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            "font-size": REPORT_FONT.micro,
+            "font-size": `${REPORT_FONT.micro}px`,
             "font-weight": REPORT_FONT_WEIGHT.extrabold,
             color: palette.TEXT_MUTED,
             "letter-spacing": REPORT_LETTER_SPACING.wide,
@@ -548,7 +548,7 @@ function MiniHistory(props: { walls: WallsPayload }) {
           span
           fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            "font-size": REPORT_FONT.xs,
+            "font-size": `${REPORT_FONT.xs}px`,
             "font-weight": REPORT_FONT_WEIGHT.bold,
             color: erosionColor(props.walls.tracked_call_erosion_30m),
           }}
@@ -564,7 +564,7 @@ function MiniHistory(props: { walls: WallsPayload }) {
           span
           fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            "font-size": REPORT_FONT.xs,
+            "font-size": `${REPORT_FONT.xs}px`,
             "font-weight": REPORT_FONT_WEIGHT.bold,
             color: erosionColor(props.walls.tracked_put_build_30m),
           }}
@@ -665,7 +665,7 @@ function WallsSkeleton(props: { emptyText: string }) {
           size="xs"
           span
           style={{
-            "font-size": REPORT_FONT.xs,
+            "font-size": `${REPORT_FONT.xs}px`,
             color: palette.TEXT_MUTED,
             "margin-top": `${REPORT_PAD.xs}px`,
           }}
@@ -680,7 +680,7 @@ function WallsSkeleton(props: { emptyText: string }) {
       <div
         data-testid="nifty-walls-skeleton-read"
         style={{
-          "min-height": WALLS_RESERVED_H,
+          "min-height": `${WALLS_RESERVED_H}px`,
           "min-width": 0,
           "border-left": `1px solid ${palette.BORDER}`,
           "padding-left": `${REPORT_PAD.sm}px`,
@@ -694,7 +694,7 @@ function WallsSkeleton(props: { emptyText: string }) {
           span
           fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            "font-size": REPORT_FONT.micro,
+            "font-size": `${REPORT_FONT.micro}px`,
             "font-weight": REPORT_FONT_WEIGHT.extrabold,
             color: palette.TEXT_MUTED,
             "letter-spacing": REPORT_LETTER_SPACING.wider,
@@ -710,7 +710,7 @@ function WallsSkeleton(props: { emptyText: string }) {
           span
           fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            "font-size": REPORT_FONT.micro,
+            "font-size": `${REPORT_FONT.micro}px`,
             "font-weight": REPORT_FONT_WEIGHT.extrabold,
             color: palette.TEXT_MUTED,
             "letter-spacing": REPORT_LETTER_SPACING.wider,
@@ -725,7 +725,7 @@ function WallsSkeleton(props: { emptyText: string }) {
       <div
         data-testid="nifty-walls-skeleton-history"
         style={{
-          "min-height": WALLS_RESERVED_H,
+          "min-height": `${WALLS_RESERVED_H}px`,
           "min-width": 0,
           display: "flex",
           "flex-direction": "column",
@@ -817,7 +817,6 @@ export function NiftyWallsCardInner(props: {
     <LocalCompactPanel
       title="WALLS"
       testId="nifty-walls-card"
-      padded={false}
       action={
         <div class="flex items-center gap-1">
           {props.onOpenDesk ? (
@@ -828,11 +827,10 @@ export function NiftyWallsCardInner(props: {
               onClick={props.onOpenDesk}
               className="min-w-0"
               style={{
-                "padding-y": 0,
                 "padding-left": `${REPORT_PAD.sm}px`,
                 "padding-right": `${REPORT_PAD.sm}px`,
                 "min-width": 0,
-                "font-size": REPORT_FONT.micro,
+                "font-size": `${REPORT_FONT.micro}px`,
               }}
             >
               DESK
@@ -844,11 +842,10 @@ export function NiftyWallsCardInner(props: {
             onClick={props.onExpand}
             className="min-w-0"
             style={{
-              "padding-y": 0,
               "padding-left": `${REPORT_PAD.sm}px`,
               "padding-right": `${REPORT_PAD.sm}px`,
               "min-width": 0,
-              "font-size": REPORT_FONT.micro,
+              "font-size": `${REPORT_FONT.micro}px`,
             }}
           >
             EXPAND
@@ -876,7 +873,7 @@ export function NiftyWallsCardInner(props: {
               className="min-w-0"
               style={{
                 "height": "18px",
-                "font-size": REPORT_FONT.xs,
+                "font-size": `${REPORT_FONT.xs}px`,
                 "font-weight": REPORT_FONT_WEIGHT.extrabold,
                 "letter-spacing": REPORT_LETTER_SPACING.wide,
                 color: stateColor(),
@@ -894,7 +891,7 @@ export function NiftyWallsCardInner(props: {
                 span
                 fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
                 style={{
-                  "font-size": REPORT_FONT.xs,
+                  "font-size": `${REPORT_FONT.xs}px`,
                   "font-weight": REPORT_FONT_WEIGHT.bold,
                   color: walls()!.expiry_day ? palette.WARNING : palette.TEXT_MUTED,
                   "white-space": "nowrap",
@@ -907,7 +904,7 @@ export function NiftyWallsCardInner(props: {
               size="xs"
               span
               style={{
-                "font-size": REPORT_FONT.xs,
+                "font-size": `${REPORT_FONT.xs}px`,
                 color: palette.TEXT_MUTED,
                 "white-space": "nowrap",
               }}
@@ -922,7 +919,7 @@ export function NiftyWallsCardInner(props: {
                 className="min-w-0"
                 style={{
                   "height": "17px",
-                  "font-size": REPORT_FONT.xs,
+                  "font-size": `${REPORT_FONT.xs}px`,
                   color: palette.WARNING,
                   "background-color": "transparent",
                   border: `1px solid ${palette.WARNING}`,
@@ -991,7 +988,7 @@ export function NiftyWallsCardInner(props: {
                     span
                     fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
                     style={{
-                      "font-size": REPORT_FONT.xs,
+                      "font-size": `${REPORT_FONT.xs}px`,
                       "font-weight": REPORT_FONT_WEIGHT.extrabold,
                       color: palette.NEGATIVE,
                       "white-space": "nowrap",
@@ -1003,15 +1000,14 @@ export function NiftyWallsCardInner(props: {
                   </Text>
                   <Button
                     size="xs"
-                    variant="text"
+                    variant="filled"
                     onClick={() => dismiss(alert()!.at, alert()!.wall)}
                     className="min-w-0 shrink-0"
                     style={{
                       "min-width": 0,
-                      "padding-y": 0,
                       "padding-left": `${REPORT_PAD.xs}px`,
                       "padding-right": `${REPORT_PAD.xs}px`,
-                      "font-size": REPORT_FONT.micro,
+                      "font-size": `${REPORT_FONT.micro}px`,
                       color: palette.TEXT_MUTED,
                       "flex-shrink": 0,
                     }}
@@ -1023,7 +1019,7 @@ export function NiftyWallsCardInner(props: {
                   size="xs"
                   span
                   style={{
-                    "font-size": REPORT_FONT.xsPlus,
+                    "font-size": `${REPORT_FONT.xsPlus}px`,
                     "line-height": REPORT_LINE_HEIGHT.relaxed,
                     color: palette.TEXT_MUTED,
                   }}
@@ -1039,7 +1035,7 @@ export function NiftyWallsCardInner(props: {
                     span
                     fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
                     style={{
-                      "font-size": REPORT_FONT.micro,
+                      "font-size": `${REPORT_FONT.micro}px`,
                       "font-weight": REPORT_FONT_WEIGHT.extrabold,
                       color: palette.TEXT_MUTED,
                       "letter-spacing": REPORT_LETTER_SPACING.wide,
@@ -1053,33 +1049,33 @@ export function NiftyWallsCardInner(props: {
                     fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
                     className="tabular-nums"
                     style={{
-                      "font-size": REPORT_FONT.xs,
+                      "font-size": `${REPORT_FONT.xs}px`,
                       "font-weight": REPORT_FONT_WEIGHT.extrabold,
                       color: palette.NEGATIVE,
                       "font-variant-numeric": "tabular-nums",
                     }}
                   >
-                    {breakEvent().at.slice(11, 19)} · {fmtNum(breakEvent().wall)}
+                    {breakEvent()!.at.slice(11, 19)} · {fmtNum(breakEvent()!.wall)}
                   </Text>
                   <Text
                     size="xs"
                     span
                     style={{
-                      "font-size": REPORT_FONT.xsPlus,
+                      "font-size": `${REPORT_FONT.xsPlus}px`,
                       color: palette.TEXT_MUTED,
                     }}
                   >
-                    call {fmtPct(breakEvent().erosion_30m)} · put {fmtPct(breakEvent().put_build_30m)}
+                    call {fmtPct(breakEvent()!.erosion_30m)} · put {fmtPct(breakEvent()!.put_build_30m)}
                   </Text>
                 </div>
-                {lastBreak() && lastBreak().at !== breakEvent().at && (
+                {lastBreak() && lastBreak()!.at !== breakEvent()!.at && (
                   <div class="flex items-center flex-wrap gap-2" style={{ "align-items": "center", "flex-wrap": "wrap", "row-gap": `${REPORT_PAD.xs}px` }}>
                     <Text
                       size="xs"
                       span
                       fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
                       style={{
-                        "font-size": REPORT_FONT.micro,
+                        "font-size": `${REPORT_FONT.micro}px`,
                         "font-weight": REPORT_FONT_WEIGHT.extrabold,
                         color: palette.WARNING,
                         "letter-spacing": REPORT_LETTER_SPACING.wide,
@@ -1093,23 +1089,23 @@ export function NiftyWallsCardInner(props: {
                       fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
                       className="tabular-nums"
                       style={{
-                        "font-size": REPORT_FONT.xs,
+                        "font-size": `${REPORT_FONT.xs}px`,
                         "font-weight": REPORT_FONT_WEIGHT.bold,
                         color: palette.WARNING,
                         "font-variant-numeric": "tabular-nums",
                       }}
                     >
-                      {lastBreak().at.slice(11, 19)} · {fmtNum(lastBreak().wall)}
+                      {lastBreak()!.at.slice(11, 19)} · {fmtNum(lastBreak()!.wall)}
                     </Text>
                     <Text
                       size="xs"
                       span
                       style={{
-                        "font-size": REPORT_FONT.xsPlus,
+                        "font-size": `${REPORT_FONT.xsPlus}px`,
                         color: palette.TEXT_MUTED,
                       }}
                     >
-                      call {fmtPct(lastBreak().erosion_30m)} · put {fmtPct(lastBreak().put_build_30m)}
+                      call {fmtPct(lastBreak()!.erosion_30m)} · put {fmtPct(lastBreak()!.put_build_30m)}
                     </Text>
                   </div>
                 )}
@@ -1119,7 +1115,7 @@ export function NiftyWallsCardInner(props: {
                 size="xs"
                 span
                 style={{
-                  "font-size": REPORT_FONT.xs,
+                  "font-size": `${REPORT_FONT.xs}px`,
                   "line-height": REPORT_LINE_HEIGHT.relaxed,
                   color: palette.TEXT_MUTED,
                 }}
@@ -1136,7 +1132,7 @@ export function NiftyWallsCardInner(props: {
               span
               fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
               style={{
-                "font-size": REPORT_FONT.micro,
+                "font-size": `${REPORT_FONT.micro}px`,
                 "font-weight": REPORT_FONT_WEIGHT.extrabold,
                 color: palette.TEXT_MUTED,
                 "letter-spacing": REPORT_LETTER_SPACING.wider,
@@ -1148,7 +1144,7 @@ export function NiftyWallsCardInner(props: {
               size="xs"
               span
               style={{
-                "font-size": REPORT_FONT.xsPlus,
+                "font-size": `${REPORT_FONT.xsPlus}px`,
                 "line-height": REPORT_LINE_HEIGHT.relaxed,
                 color: palette.TEXT_MUTED,
                 "margin-top": `${REPORT_PAD.xs}px`,
@@ -1160,7 +1156,7 @@ export function NiftyWallsCardInner(props: {
               size="xs"
               span
               style={{
-                "font-size": REPORT_FONT.xsPlus,
+                "font-size": `${REPORT_FONT.xsPlus}px`,
                 "line-height": REPORT_LINE_HEIGHT.relaxed,
                 color: palette.TEXT_MUTED,
                 "margin-top": `${REPORT_PAD.sm}px`,

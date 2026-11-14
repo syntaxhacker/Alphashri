@@ -36,6 +36,7 @@ function MoversTable(props: {
 }) {
   const columns = createMemo<TableColumnDef<MoversTableRow>[]>(() => [
     {
+      id: "rank",
       header: "RANK",
       accessorKey: "rank",
       size: 50,
@@ -45,6 +46,7 @@ function MoversTable(props: {
       ),
     },
     {
+      id: "symbol",
       header: "SYMBOL",
       accessorKey: "symbol",
       size: 120,
@@ -52,6 +54,7 @@ function MoversTable(props: {
       cell: ({ row }) => <SymbolCell symbol={row.original.symbol} />,
     },
     {
+      id: "ltp",
       header: "LTP",
       accessorKey: "ltp",
       size: 90,
@@ -61,6 +64,7 @@ function MoversTable(props: {
       ),
     },
     {
+      id: "change_pct",
       header: "CHANGE %",
       accessorKey: "change_pct",
       size: 90,
@@ -70,6 +74,7 @@ function MoversTable(props: {
       ),
     },
     {
+      id: "contribution_pct",
       header: "CONTRIB %",
       accessorKey: "contribution_pct",
       size: 90,
@@ -79,6 +84,7 @@ function MoversTable(props: {
       ),
     },
     {
+      id: "volume",
       header: "VOLUME",
       accessorKey: "volume",
       size: 110,
@@ -182,9 +188,9 @@ export function IndexMoversModal(props: IndexMoversModalProps) {
           <SegmentedControl
             value={tab()}
             onChange={(v) => setTab(v as TabValue)}
-            data={TABS}
+            data={[...TABS]}
             size="xs"
-            class="min-w-0"
+            className="min-w-0"
           />
           <Show when={isStale()}>
             <Tooltip label="Data is stale — quotes may be delayed">

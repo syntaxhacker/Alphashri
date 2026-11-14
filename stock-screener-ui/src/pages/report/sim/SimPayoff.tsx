@@ -242,7 +242,7 @@ export function SimPayoff(props: SimPayoffProps) {
               },
               {
                 yAxis: mark(),
-                lineStyle: { color: toneColor(mark), type: "dotted", "width": "1px" },
+                lineStyle: { color: toneColor(mark()), type: "dotted", "width": "1px" },
                 label: {
                   formatter:
                     "MARK " +

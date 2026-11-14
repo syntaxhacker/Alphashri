@@ -18,7 +18,8 @@ import {
   FLOW_NOISE_REL,
   FLIP_TTL_MS,
 } from "./niftyFlowRead";
-import type { OiPoint } from "@/types/niftyReport";
+import type { OiPoint } from "./niftyFlowRead";
+import type { NiftyStrike } from "@/types/niftyReport";
 import { makeStrikes } from "./reportTestFixtures";
 
 describe("classifyFlowLeg", () => {
@@ -112,7 +113,7 @@ describe("flowWindowFromTape (generic underlyings)", () => {
 
   test("two rows at the same timestamp do not throw and pick the later sorted row", () => {
     const dup = "2026-11-05T09:20:00+05:30";
-    let fw: ReturnType<typeof flowWindowFromTape>;
+    let fw: ReturnType<typeof flowWindowFromTape> | undefined;
     expect(() => {
       fw = flowWindowFromTape([
         { t: dup, ce_oi: 1000, pe_oi: 1000 },

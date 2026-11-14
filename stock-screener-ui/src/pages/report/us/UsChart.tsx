@@ -105,12 +105,12 @@ export function UsChart(props: Props) {
         viewBox={`0 0 ${g()!.width} ${H}`}
         preserveAspectRatio="none"
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
-        shapeRendering="crispEdges"
+        shape-rendering="crispEdges"
         role="img"
         aria-label="NQ candles against put wall, call wall and max pain"
       >
         <For each={ticks()}>{(t) => (
-          <line x1={0} x2={g()!.width} y1={yFor(t)} y2={yFor(t)} stroke="rgba(255,255,255,0.05)" stroke-width={1} vectorEffect="non-scaling-stroke" />
+          <line x1={0} x2={g()!.width} y1={yFor(t)} y2={yFor(t)} stroke="rgba(255,255,255,0.05)" stroke-width={1} vector-effect="non-scaling-stroke" />
         )}</For>
 
         <For each={inRange()}>{(w) => (
@@ -121,8 +121,8 @@ export function UsChart(props: Props) {
             y2={yFor(w.v)}
             stroke={w.color}
             stroke-width={1}
-            strokeDasharray={w.label === "PAIN" ? "2 5" : "6 4"}
-            vectorEffect="non-scaling-stroke"
+            stroke-dasharray={w.label === "PAIN" ? "2 5" : "6 4"}
+            vector-effect="non-scaling-stroke"
             opacity={0.75}
           />
         )}</For>
@@ -134,12 +134,12 @@ export function UsChart(props: Props) {
           const top = yFor(Math.max(b.o, b.c));
           const bottom = yFor(Math.min(b.o, b.c));
           return (
-            <g key={b.t}>
-              <line x1={x} x2={x} y1={yFor(b.h)} y2={yFor(b.l)} stroke={color} stroke-width={1} vectorEffect="non-scaling-stroke" opacity={0.95} />
+            <g>
+              <line x1={x} x2={x} y1={yFor(b.h)} y2={yFor(b.l)} stroke={color} stroke-width={1} vector-effect="non-scaling-stroke" opacity={0.95} />
               <rect
-                x={x - bodyW / 2}
+                x={x - bodyW() / 2}
                 y={top}
-                width={bodyW}
+                width={bodyW()}
                 height={Math.max(1.2, bottom - top)}
                 fill={color}
                 opacity={up ? 0.9 : 0.95}
@@ -149,8 +149,8 @@ export function UsChart(props: Props) {
         }}
         </For>
 
-        <line x1={g()!.cursorX} x2={g()!.cursorX} y1={0} y2={H} stroke="rgba(240,246,252,0.4)" stroke-width={1} vectorEffect="non-scaling-stroke" />
-        <line x1={0} x2={g()!.width} y1={yFor(frame()!.spot)} y2={yFor(frame()!.spot)} stroke={INFO} stroke-width={1} strokeDasharray="1 3" vectorEffect="non-scaling-stroke" opacity={0.6} />
+        <line x1={g()!.cursorX} x2={g()!.cursorX} y1={0} y2={H} stroke="rgba(240,246,252,0.4)" stroke-width={1} vector-effect="non-scaling-stroke" />
+        <line x1={0} x2={g()!.width} y1={yFor(frame()!.spot)} y2={yFor(frame()!.spot)} stroke={INFO} stroke-width={1} stroke-dasharray="1 3" vector-effect="non-scaling-stroke" opacity={0.6} />
       </svg>
 
       {/* y-axis ticks */}

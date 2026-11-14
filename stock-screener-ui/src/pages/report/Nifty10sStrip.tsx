@@ -83,7 +83,7 @@ export function Nifty10sStrip(props: Nifty10sStripProps) {
     <div
       data-testid="nifty-10s-strip"
       data-state={read ? read.bias : "balanced"}
-      className="flex items-center w-full min-w-0 shrink-0 overflow-hidden whitespace-nowrap"
+      class="flex items-center w-full min-w-0 shrink-0 overflow-hidden whitespace-nowrap"
       style={{
         gap: "8px",
         height: "20px",
@@ -124,7 +124,7 @@ export function Nifty10sStrip(props: Nifty10sStripProps) {
           data-testid="nifty-10s-reason"
           style={{ color: palette.TEXT_MUTED, "font-weight": 600, "flex-shrink": 0 }}
         >
-          {read.reason}
+          {read?.reason}
         </span>
       </Show>
       <Show when={burst}>

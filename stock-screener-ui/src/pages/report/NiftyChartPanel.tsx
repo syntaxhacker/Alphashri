@@ -174,7 +174,7 @@ export function LevelLegend(props: LevelLegendProps) {
             style={{
               width: it.zone ? "12px" : "8px",
               height: "8px",
-              "border-radius": it.zone ? 1 : "50%",
+              "border-radius": it.zone ? "1px" : "50%",
               "background-color": it.zone ? hexToRgba(it.color, 0.18) : it.color,
               border: it.zone ? `1px solid ${it.color}` : "none",
               "flex-shrink": 0,
@@ -256,8 +256,10 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
 
   const [chartSize, setChartSize] = createSignal<ChartSize>(props.initialSize ?? "fill");
   /** `null` = fill the panel (autoSize); a number = fixed preset. */
-  const chartHeight = () =>
-    chartSize() === "fill" ? null : CHART_HEIGHTS[chartSize()];
+  const chartHeight = () => {
+    const size = chartSize();
+    return size === "fill" ? null : CHART_HEIGHTS[size];
+  };
   const handleSizeChange = (v: string) => {
     const next = v as ChartSize;
     setChartSize(next);
@@ -355,8 +357,9 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
    * 1m bars is a lie. Switching TF hides the overlay until the next scan.
    */
   const patternOverlay = createMemo(() => {
-    if (!drawPattern() || patternScan().status !== "ready" || patternScan().tf !== chartTf()) return null;
-    const hit = patternScan().hits[0];
+    const scan = patternScan();
+    if (!drawPattern() || scan.status !== "ready" || scan.tf !== chartTf()) return null;
+    const hit = scan.hits[0];
     if (!hit) return null;
     return buildPatternOverlay(hit, chartCandles());
   });
@@ -552,104 +555,111 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
         </Show>
       </div>
       <Show when={patternScan().status !== "idle" && view() === "chart"}>
-        <div
-          data-testid="nifty-patterns-strip"
-          data-status={patternScan().status}
-          title={
-            patternScan().status === "ready"
-              ? patternScan().hits.length
+        {(() => {
+          const scan = patternScan();
+          if (scan.status === "idle") return null;
+          const tf = scan.tf;
+          const firstHit = scan.status === "ready" ? scan.hits[0] : undefined;
+          const stripTitle =
+            scan.status === "ready"
+              ? firstHit
                 ? (() => {
-                    const h = patternScan().hits[0];
                     const lvl = (v?: number | null) =>
                       typeof v === "number" && Number.isFinite(v)
                         ? formatNumberIN(Math.round(v))
                         : "—";
                     // The target is often off-scale by design (it would squash
                     // the candles), so the tooltip always carries all three.
-                    return `${h.pattern_name} · ${h.direction} · ${Math.round(h.confidence)}% · ${h.status} · ${
-                      h.bars_ago === 0 ? "now" : `${h.bars_ago} bars ago`
-                    } · BRK ${lvl(h.breakout_level)} · TGT ${lvl(h.target)} · SL ${lvl(h.stop)}`;
+                    return `${firstHit.pattern_name} · ${firstHit.direction} · ${Math.round(firstHit.confidence)}% · ${firstHit.status} · ${
+                      firstHit.bars_ago === 0 ? "now" : `${firstHit.bars_ago} bars ago`
+                    } · BRK ${lvl(firstHit.breakout_level)} · TGT ${lvl(firstHit.target)} · SL ${lvl(firstHit.stop)}`;
                   })()
                 : "No pattern in the scanned window"
-              : patternScan().status === "error"
-                ? patternScan().message
-                : `Scanning ${symbol} ${patternScan().tf}…`
-          }
-          className="flex items-center"
-          style={{
-            gap: "6px",
-            height: "18px",
-            "min-height": "18px",
-            "margin-top": "2px",
-            "padding-left": "4px",
-            "padding-right": "4px",
-            "font-family": palette.MONO,
-            "font-size": "9px",
-            "white-space": "nowrap",
-            overflow: "hidden",
-            color: palette.TEXT_MUTED,
-            "border-top": `1px solid ${palette.TERM_BORDER}`,
-          }}
-        >
-          <span style={{ "font-weight": 800, "letter-spacing": "0.08em" }}>
-            PATTERNS {patternScan().tf}
-          </span>
-          {patternScan().status === "loading" ? (
-            <span>scanning…</span>
-          ) : patternScan().status === "error" ? (
-            <span style={{ color: palette.NEGATIVE }}>{patternScan().message}</span>
-          ) : patternScan().hits.length === 0 ? (
-            <span>no pattern</span>
-          ) : (
-            <>
+              : scan.status === "error"
+                ? scan.message
+                : `Scanning ${symbol} ${tf}…`;
+          return (
+            <div
+              data-testid="nifty-patterns-strip"
+              data-status={scan.status}
+              title={stripTitle}
+              class="flex items-center"
+              style={{
+                gap: "6px",
+                height: "18px",
+                "min-height": "18px",
+                "margin-top": "2px",
+                "padding-left": "4px",
+                "padding-right": "4px",
+                "font-family": palette.MONO,
+                "font-size": "9px",
+                "white-space": "nowrap",
+                overflow: "hidden",
+                color: palette.TEXT_MUTED,
+                "border-top": `1px solid ${palette.TERM_BORDER}`,
+              }}
+            >
+              <span style={{ "font-weight": 800, "letter-spacing": "0.08em" }}>
+                PATTERNS {tf}
+              </span>
+              {scan.status === "loading" ? (
+                <span>scanning…</span>
+              ) : scan.status === "error" ? (
+                <span style={{ color: palette.NEGATIVE }}>{scan.message}</span>
+              ) : scan.hits.length === 0 ? (
+                <span>no pattern</span>
+              ) : (
+                <>
+                  <span
+                    data-testid={`nifty-pattern-${scan.hits[0].pattern_id}`}
+                    style={{
+                      color:
+                        scan.hits[0].direction === "bullish"
+                          ? palette.POSITIVE
+                          : scan.hits[0].direction === "bearish"
+                            ? palette.NEGATIVE
+                            : palette.TEXT,
+                      "font-weight": 700,
+                    }}
+                  >
+                    {scan.hits[0].pattern_name}
+                    {scan.hits[0].direction === "bullish"
+                      ? " ↑"
+                      : scan.hits[0].direction === "bearish"
+                        ? " ↓"
+                        : " ·"}{" "}
+                    {Math.round(scan.hits[0].confidence)}%
+                  </span>
+                  <span style={{ opacity: 0.8 }}>
+                    {scan.hits[0].status}
+                  </span>
+                </>
+              )}
               <span
-                data-testid={`nifty-pattern-${patternScan().hits[0].pattern_id}`}
+                data-testid="nifty-patterns-draw"
+                data-on={drawPattern() ? "1" : "0"}
+                role="button"
+                aria-pressed={drawPattern()}
+                onClick={() => setDrawPattern((v) => !v)}
+                title={
+                  tf === chartTf()
+                    ? `${drawPattern() ? "Hide" : "Show"} the pattern on the chart`
+                    : `Pattern was scanned on ${tf}; rescan on ${chartTf()} to draw it here`
+                }
                 style={{
-                  color:
-                    patternScan().hits[0].direction === "bullish"
-                      ? palette.POSITIVE
-                      : patternScan().hits[0].direction === "bearish"
-                        ? palette.NEGATIVE
-                        : palette.TEXT,
-                  "font-weight": 700,
+                  "margin-left": "auto",
+                  cursor: "pointer",
+                  "font-weight": 800,
+                  "letter-spacing": "0.06em",
+                  color: drawPattern() ? palette.PRIMARY : palette.TEXT_MUTED,
+                  opacity: tf === chartTf() ? 1 : 0.5,
                 }}
               >
-                {patternScan().hits[0].pattern_name}
-                {patternScan().hits[0].direction === "bullish"
-                  ? " ↑"
-                  : patternScan().hits[0].direction === "bearish"
-                    ? " ↓"
-                    : " ·"}{" "}
-                {Math.round(patternScan().hits[0].confidence)}%
+                {drawPattern() ? "DRAW ON" : "DRAW OFF"}
               </span>
-              <span style={{ opacity: 0.8 }}>
-                {patternScan().hits[0].status}
-              </span>
-            </>
-          )}
-          <span
-            data-testid="nifty-patterns-draw"
-            data-on={drawPattern() ? "1" : "0"}
-            role="button"
-            aria-pressed={drawPattern()}
-            onClick={() => setDrawPattern((v) => !v)}
-            title={
-              patternScan().tf === chartTf()
-                ? `${drawPattern() ? "Hide" : "Show"} the pattern on the chart`
-                : `Pattern was scanned on ${patternScan().tf}; rescan on ${chartTf()} to draw it here`
-            }
-            style={{
-              "margin-left": "auto",
-              cursor: "pointer",
-              "font-weight": 800,
-              "letter-spacing": "0.06em",
-              color: drawPattern() ? palette.PRIMARY : palette.TEXT_MUTED,
-              opacity: patternScan().tf === chartTf() ? 1 : 0.5,
-            }}
-          >
-            {drawPattern() ? "DRAW ON" : "DRAW OFF"}
-          </span>
-        </div>
+            </div>
+          );
+        })()}
       </Show>
       <Show when={depthEverShown()}>
         <div

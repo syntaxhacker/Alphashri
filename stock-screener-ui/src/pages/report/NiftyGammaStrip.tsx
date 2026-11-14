@@ -34,7 +34,7 @@ function Sep() {
   return (
     <span
       aria-hidden
-      className="text-[10px] opacity-60 shrink-0"
+      class="text-[10px] opacity-60 shrink-0"
       style={{ color: palette.TEXT_MUTED }}
     >
       ·
@@ -155,7 +155,7 @@ export function NiftyGammaStrip(props: NiftyGammaStripProps) {
         title={title()}
         onClick={openDrawer}
         onKeyDown={onKeyDown}
-        className="flex items-center gap-[6px] h-[24px] min-h-[24px] shrink-0 px-2 cursor-pointer overflow-hidden whitespace-nowrap font-mono tabular-nums"
+        class="flex items-center gap-[6px] h-[24px] min-h-[24px] shrink-0 px-2 cursor-pointer overflow-hidden whitespace-nowrap font-mono tabular-nums"
         style={{
           "display": "flex",
           "align-items": "center",

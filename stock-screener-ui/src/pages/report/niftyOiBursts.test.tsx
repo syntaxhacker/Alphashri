@@ -972,8 +972,9 @@ describe("strike-wall events", () => {
     label: "CALL WALL REJECTED 23,700",
   };
 
-  const wall = (over: Partial<OiBurst>): OiBurst => ({
+  const wall = (over: Pick<OiBurst, "id"> & Partial<OiBurst>): OiBurst => ({
     side: "call",
+    t: "2026-11-03T11:54:00+05:30",
     delta: 0,
     baseline: 0,
     score: 0,

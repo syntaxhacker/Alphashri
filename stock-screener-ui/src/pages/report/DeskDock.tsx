@@ -50,7 +50,6 @@ export function DeskDock(props: {
 
   const tabButton = (tab: DeskDockTab, selected: boolean) => (
     <button
-      key={tab.key}
       data-testid={`desk-dock-${tab.key}`}
       type="button"
       aria-pressed={selected}
@@ -129,9 +128,8 @@ export function DeskDock(props: {
                 <For each={props.tabs}>
                 {(tab) => (
                   <button
-                    key={tab.key}
                     type="button"
-                    class={`flex items-center gap-1 min-w-0 shrink-0 h-[20px] px-1.5 py-0 rounded-sm whitespace-nowrap ${active === tab.key ? "bg-fin-primary text-fin-bg" : "bg-fin-surface-alt text-fin-text"}`}
+                    class={`flex items-center gap-1 min-w-0 shrink-0 h-[20px] px-1.5 py-0 rounded-sm whitespace-nowrap ${active() === tab.key ? "bg-fin-primary text-fin-bg" : "bg-fin-surface-alt text-fin-text"}`}
                     onClick={() => props.onActiveChange(tab.key)}
                     style={{ "font-size": "8.5px", "font-weight": 800, "letter-spacing": "0.4px" }}
                   >
@@ -149,7 +147,7 @@ export function DeskDock(props: {
                 </ActionIcon>
               </div>
               <div
-                data-testid={active ? `desk-dock-body-${active}` : undefined}
+                data-testid={active() ? `desk-dock-body-${active()}` : undefined}
                 class="flex-1 min-h-0 overflow-auto p-1"
               >
                 {activeTab()?.content}

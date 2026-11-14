@@ -61,7 +61,7 @@ function Ctx(props: { label: string; value: JSX.Element; hint?: JSX.Element }) {
       >
         {props.label}
       </Text>
-      <div className="flex items-center gap-1 min-w-0">
+      <div class="flex items-center gap-1 min-w-0">
         <Text span size="xs" fw={700} className="font-mono">
           {props.value}
         </Text>
@@ -152,7 +152,7 @@ export function SimBuilder(props: SimBuilderProps) {
   return (
     <div
       data-testid="sim-builder"
-      className="flex flex-col gap-2 min-w-0"
+      class="flex flex-col gap-2 min-w-0"
     >
       <TextInput
         data-testid="sim-name"
@@ -165,7 +165,7 @@ export function SimBuilder(props: SimBuilderProps) {
 
       <div
         data-testid="sim-legs"
-        className="border border-fin-border rounded-[1px] p-2 min-w-0"
+        class="border border-fin-border rounded-[1px] p-2 min-w-0"
       >
         <ToolbarRow justify="space-between">
           <Text span size="xs" fw={700} className="uppercase">
@@ -216,7 +216,7 @@ export function SimBuilder(props: SimBuilderProps) {
                     if (value) patchLeg(index(), { opt: value as SimLegSpec["opt"] });
                   }}
                 />
-                <div className="flex flex-col w-[100px]">
+                <div class="flex flex-col w-[100px]">
                   <TextInput
                     data-testid={`sim-leg-${index()}-strike`}
                     size="xs"
@@ -268,7 +268,7 @@ export function SimBuilder(props: SimBuilderProps) {
 
       <div
         data-testid="sim-exec"
-        className="border border-fin-border rounded-[1px] p-2"
+        class="border border-fin-border rounded-[1px] p-2"
       >
         <Text span size="xs" fw={700} className="uppercase">
           Execution

@@ -122,7 +122,7 @@ function Stat(props: {
       class="inline-flex items-baseline gap-[2px] min-w-0 shrink-0"
       style={{ display: (props.hideBelowMd ?? false) ? "none" : "inline-flex" }}
     >
-      <Text size="xs" c="dimmed" lh={1.1} style={{ "font-size": REPORT_FONT.micro }}>
+      <Text size="xs" c="dimmed" lh={1.1} style={{ "font-size": `${REPORT_FONT.micro}px` }}>
         {props.label}
       </Text>
       <Text
@@ -164,7 +164,7 @@ function ErosionRow(props: {
       class="flex items-center flex-nowrap min-w-0 shrink-0 overflow-hidden h-[24px]"
       style={{
         "border-top": `1px solid ${palette.BORDER}`,
-        height: ROW_H,
+        height: `${ROW_H}px`,
       }}
     >
       {/* `display: contents` keeps the side wrapper out of the flex layout, so
@@ -192,7 +192,7 @@ function ErosionRow(props: {
             border: `1px solid ${statusColor()}`,
             color: statusColor(),
             "border-radius": `${REPORT_RADIUS.sm}px`,
-            "font-size": REPORT_FONT.micro,
+            "font-size": `${REPORT_FONT.micro}px`,
             "font-weight": 800,
             "line-height": 1.2,
             "letter-spacing": "0.06em",
@@ -226,7 +226,7 @@ function ErosionRow(props: {
             color: flowColor(),
             "letter-spacing": "0.04em",
             "white-space": "nowrap",
-            "max-width": FLOW_MAX_W,
+            "max-width": `${FLOW_MAX_W}px`,
             overflow: "hidden",
             "text-overflow": "ellipsis",
             "min-width": "0px",
@@ -244,7 +244,7 @@ function ErosionRow(props: {
             color: fuelColor(),
             "letter-spacing": "0.04em",
             "white-space": "nowrap",
-            "min-width": FUEL_MIN_W,
+            "min-width": `${FUEL_MIN_W}px`,
             "flex-shrink": 0,
           }}
         >
@@ -253,7 +253,7 @@ function ErosionRow(props: {
         <div
           class="ml-auto flex items-center justify-end"
           style={{
-            width: RIGHT_GROUP_W,
+            width: `${RIGHT_GROUP_W}px`,
             "min-width": "0px",
             "flex-shrink": 0,
             overflow: "hidden",
@@ -290,7 +290,7 @@ function ErosionRow(props: {
                 c="dimmed"
                 lh={1.1}
                 className="min-w-0 overflow-hidden truncate whitespace-nowrap shrink-0"
-                style={{ "font-size": REPORT_FONT.micro, "min-width": "0px", "flex-shrink": 1 }}
+                style={{ "font-size": `${REPORT_FONT.micro}px`, "min-width": "0px", "flex-shrink": 1 }}
               >
                 spot crossed
               </Text>
@@ -298,8 +298,8 @@ function ErosionRow(props: {
           <div
             class="flex items-center justify-end overflow-hidden shrink-0"
             style={{
-              width: SPARK_W,
-              height: SPARK_H,
+              width: `${SPARK_W}px`,
+              height: `${SPARK_H}px`,
               "flex-shrink": 0,
               display: "flex",
               "align-items": "center",
@@ -361,8 +361,8 @@ export function NiftyWallErosionBoard(props: NiftyWallErosionBoardProps) {
             aria-hidden={regime() ? undefined : true}
             class="inline-flex items-center justify-center shrink-0"
             style={{
-              width: REGIME_SLOT_W,
-              height: REGIME_SLOT_H,
+              width: `${REGIME_SLOT_W}px`,
+              height: `${REGIME_SLOT_H}px`,
               "flex-shrink": 0,
               visibility: regime() ? "visible" : "hidden",
               ...(regime()
@@ -371,7 +371,7 @@ export function NiftyWallErosionBoard(props: NiftyWallErosionBoardProps) {
                     border: `1px solid ${regimeColor()}`,
                     color: regimeColor(),
                     "border-radius": `${REPORT_RADIUS.sm}px`,
-                    "font-size": REPORT_FONT.micro,
+                    "font-size": `${REPORT_FONT.micro}px`,
                     "font-weight": 800,
                     "line-height": 1.2,
                     "letter-spacing": "0.06em",
@@ -387,8 +387,8 @@ export function NiftyWallErosionBoard(props: NiftyWallErosionBoardProps) {
             lh={1.2}
             className="font-mono tabular-nums whitespace-nowrap shrink-0"
             style={{
-              width: FLIP_SLOT_W,
-              height: FLIP_SLOT_H,
+              width: `${FLIP_SLOT_W}px`,
+              height: `${FLIP_SLOT_H}px`,
               display: "flex",
               "align-items": "center",
               "justify-content": "flex-end",

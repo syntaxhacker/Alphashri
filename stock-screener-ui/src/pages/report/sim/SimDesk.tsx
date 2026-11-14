@@ -303,10 +303,10 @@ export function SimDesk(props: SimDeskProps) {
             <Text
               size="xs"
               c="dimmed"
-              title={fillModel}
+              title={fillModel()}
               className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
             >
-              {fillModel}
+              {fillModel()}
             </Text>
             <Show when={marketClosed()}>
               <Badge data-testid="sim-market-closed" size="xs" color="warning" variant="outline">
@@ -319,7 +319,7 @@ export function SimDesk(props: SimDeskProps) {
                 size="xs"
                 label="LIVE"
                 checked={live()}
-                onChange={(event) => setLive(event.currentTarget.checked)}
+                onChange={(event) => setLive((event.currentTarget as HTMLInputElement).checked)}
               />
             </Show>
             <Button
@@ -334,7 +334,7 @@ export function SimDesk(props: SimDeskProps) {
           </>
         }
       >
-        <div className="flex flex-col gap-2 min-w-0">
+        <div class="flex flex-col gap-2 min-w-0">
           <SimContextStrip
             mode={effectiveMode()}
             date={runDate() ?? props.date}
@@ -360,11 +360,11 @@ export function SimDesk(props: SimDeskProps) {
           </Show>
 
           <div
-            className="flex flex-col min-[900px]:flex-row gap-2 min-w-0 min-h-0"
+            class="flex flex-col min-[900px]:flex-row gap-2 min-w-0 min-h-0"
           >
             <div
               data-testid="sim-rail"
-              className="w-full min-[900px]:w-[220px] shrink-0 flex flex-col gap-1.5 min-w-0"
+              class="w-full min-[900px]:w-[220px] shrink-0 flex flex-col gap-1.5 min-w-0"
             >
               <ToolbarRow justify="space-between">
                 <Text span size="xs" fw={700} className="uppercase">
@@ -423,7 +423,7 @@ export function SimDesk(props: SimDeskProps) {
 
             <div
               data-testid="sim-pane"
-              className="flex-1 min-w-0 min-h-0 flex flex-col gap-2"
+              class="flex-1 min-w-0 min-h-0 flex flex-col gap-2"
             >
               <ToolbarRow justify="flex-end">
                 <Show when={asOf()}>
@@ -441,9 +441,9 @@ export function SimDesk(props: SimDeskProps) {
 
               <div
                 data-testid="sim-view"
-                className="grid grid-cols-1 min-[1200px]:grid-cols-[minmax(320px,0.92fr)_minmax(380px,1.08fr)] gap-2 items-start min-w-0"
+                class="grid grid-cols-1 min-[1200px]:grid-cols-[minmax(320px,0.92fr)_minmax(380px,1.08fr)] gap-2 items-start min-w-0"
               >
-                <div className="flex flex-col gap-2 min-w-0">
+                <div class="flex flex-col gap-2 min-w-0">
                   <SectionLabel>Build</SectionLabel>
                   <Show when={selectedSpec()}>
                     <SimBuilder
@@ -455,7 +455,7 @@ export function SimDesk(props: SimDeskProps) {
                     />
                   </Show>
                 </div>
-                <div className="flex flex-col gap-2 min-w-0">
+                <div class="flex flex-col gap-2 min-w-0">
                   <SectionLabel>Payoff</SectionLabel>
                   <SimPayoff
                     strategy={selectedResult()}
@@ -467,7 +467,7 @@ export function SimDesk(props: SimDeskProps) {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2 min-w-0">
+              <div class="flex flex-col gap-2 min-w-0">
                 <SectionLabel>Runs</SectionLabel>
                 <SimRuns strategy={selectedResult()} view={view()} asOf={asOf()} />
               </div>

@@ -178,11 +178,11 @@ export function getNiftyTapeColumns(
               "font-variant-numeric": "tabular-nums",
             }}
           >
-            <Text span fw={REPORT_FONT_WEIGHT.bold} c={TAPE_SPOT} style={{ "font-size": REPORT_FONT.sm }}>
+            <Text span fw={REPORT_FONT_WEIGHT.bold} c={TAPE_SPOT} style={{ "font-size": `${REPORT_FONT.sm}px` }}>
               {formatTapePrice(row.spot)}
             </Text>
             {arrow ? (
-              <Text span fw={REPORT_FONT_WEIGHT.bold} c={arrowColor} style={{ "font-size": REPORT_FONT.xs }}>
+              <Text span fw={REPORT_FONT_WEIGHT.bold} c={arrowColor} style={{ "font-size": `${REPORT_FONT.xs}px` }}>
                 {arrow}
               </Text>
             ) : null}

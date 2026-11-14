@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, afterEach } from "vitest";
 
 import { render, screen, cleanup } from "@solidjs/testing-library";
+import type { JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import {
   attributeNiftyPnl,

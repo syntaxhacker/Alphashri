@@ -209,7 +209,7 @@ export function NiftyVolumeProfile(props: NiftyVolumeProfileProps) {
                       x={CENTER}
                       y={y + h / 2 + 3}
                       text-anchor="middle"
-                      font-size={8}
+                      font-size="8"
                       fill={isAtm ? palette.TERM_FLIP : palette.TEXT_MUTED}
                       font-weight={isAtm || isTop ? 700 : 400}
                     >

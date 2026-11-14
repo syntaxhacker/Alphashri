@@ -218,26 +218,26 @@ function FlowPlane(props: FlowPlaneProps) {
               />
             </g>
           )}</For>
-          <text x={x0 + 4} y={y0 + 11} fill={MUTED} font-size={9} font-family={MONO}>
+          <text x={x0 + 4} y={y0 + 11} fill={MUTED} font-size="9" font-family={MONO}>
             COVER
           </text>
-          <text x={x1 - 4} y={y0 + 11} fill={MUTED} font-size={9} font-family={MONO} text-anchor="end">
+          <text x={x1 - 4} y={y0 + 11} fill={MUTED} font-size="9" font-family={MONO} text-anchor="end">
             BUILD
           </text>
-          <text x={x0 + 4} y={y1 - 5} fill={MUTED} font-size={9} font-family={MONO}>
+          <text x={x0 + 4} y={y1 - 5} fill={MUTED} font-size="9" font-family={MONO}>
             UNWIND
           </text>
-          <text x={x1 - 4} y={y1 - 5} fill={MUTED} font-size={9} font-family={MONO} text-anchor="end">
+          <text x={x1 - 4} y={y1 - 5} fill={MUTED} font-size="9" font-family={MONO} text-anchor="end">
             SELL
           </text>
-          <text x={(x0 + x1) / 2} y={H - 8} fill={MUTED} font-size={8} font-family={MONO} text-anchor="middle">
+          <text x={(x0 + x1) / 2} y={H - 8} fill={MUTED} font-size="8" font-family={MONO} text-anchor="middle">
             OI Δ / 30m %
           </text>
           <text
             x={12}
             y={(y0 + y1) / 2}
             fill={MUTED}
-            font-size={8}
+            font-size="8"
             font-family={MONO}
             text-anchor="middle"
             transform={`rotate(-90 12 ${(y0 + y1) / 2})`}
@@ -317,7 +317,7 @@ function FlowPlane(props: FlowPlaneProps) {
                   x={x1 + 22}
                   y={ly}
                   fill={selected ? SELECTED : MUTED}
-                  font-size={9}
+                  font-size="9"
                   font-weight={selected ? 700 : 400}
                   font-family={MONO}
                   pointer-events="none"
@@ -357,10 +357,10 @@ function HistoryPanel(props: {
   if (finite.length < 2) {
     return (
       <g>
-        <text x={8} y={props.top + 10} fill={props.color} font-size={7.5} font-family={MONO}>
+        <text x={8} y={props.top + 10} fill={props.color} font-size="7.5" font-family={MONO}>
           {props.label} · INDEX 100
         </text>
-        <text x={272} y={props.top + 10} fill={MUTED} font-size={7.5} text-anchor="end" font-family={MONO}>
+        <text x={272} y={props.top + 10} fill={MUTED} font-size="7.5" text-anchor="end" font-family={MONO}>
           no history
         </text>
       </g>
@@ -388,15 +388,15 @@ function HistoryPanel(props: {
         y2={y(100)}
         stroke={BORDER}
         stroke-width={1}
-        strokeDasharray="2 3"
+        stroke-dasharray="2 3"
       />
-      <text x={8} y={props.top + 10} fill={props.color} font-size={7.5} font-family={MONO}>
+      <text x={8} y={props.top + 10} fill={props.color} font-size="7.5" font-family={MONO}>
         {props.label} · INDEX 100
       </text>
-      <text x={272} y={props.top + 10} fill={props.color} font-size={7.5} text-anchor="end" font-family={MONO}>
+      <text x={272} y={props.top + 10} fill={props.color} font-size="7.5" text-anchor="end" font-family={MONO}>
         {last.toFixed(1)}
       </text>
-      <text x={272} y={y(100) - 3} fill={MUTED} font-size={6.5} text-anchor="end" font-family={MONO}>
+      <text x={272} y={y(100) - 3} fill={MUTED} font-size="6.5" text-anchor="end" font-family={MONO}>
         100
       </text>
       <polyline points={points} fill="none" stroke={props.color} stroke-width={1.7} />
@@ -420,10 +420,10 @@ function WallHistory(props: HistoryProps) {
       >
         <HistoryPanel values={oi()} color={color()} label="OI" top={12} height={78} />
         <HistoryPanel values={prem()} color={palette.TEXT_MUTED} label="PREM" top={118} height={78} />
-        <text x={8} y={226} fill={MUTED} font-size={6.5} font-family={MONO}>
+        <text x={8} y={226} fill={MUTED} font-size="6.5" font-family={MONO}>
           last 30 tape minutes
         </text>
-        <text x={272} y={226} fill={MUTED} font-size={6.5} text-anchor="end" font-family={MONO}>
+        <text x={272} y={226} fill={MUTED} font-size="6.5" text-anchor="end" font-family={MONO}>
           indexed at start
         </text>
       </svg>

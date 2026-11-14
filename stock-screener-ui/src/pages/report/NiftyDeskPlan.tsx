@@ -67,7 +67,7 @@ function BiasBadge(props: { bias: DeskBias; side: "bull" | "bear" }) {
   return (
     <div
       data-testid={`desk-bias-${props.side}`}
-      className="inline-flex items-center shrink-0"
+      class="inline-flex items-center shrink-0"
       style={{
         "padding-left": "6px",
         "padding-right": "6px",
@@ -117,7 +117,7 @@ function InlineStats(props: { side: DeskSide; noTrade: boolean }) {
   return (
     <div
       data-testid={`desk-do-${side().side}-stats`}
-      className="flex items-baseline flex-wrap min-w-0"
+      class="flex items-baseline flex-wrap min-w-0"
       style={{ "column-gap": "8px", "row-gap": "2px" }}
     >
       <For each={stats}>
@@ -170,11 +170,11 @@ function DeskSideColumn(props: { side: DeskSide; label: string; noTrade: boolean
   return (
     <div
       data-testid={`desk-side-${side().side}`}
-      className="flex flex-col min-w-0"
+      class="flex flex-col min-w-0"
       style={{ gap: "8px" }}
     >
       <div
-        className="flex items-center min-w-0"
+        class="flex items-center min-w-0"
         style={{
           gap: "8px",
           "padding-bottom": "4px",
@@ -185,19 +185,19 @@ function DeskSideColumn(props: { side: DeskSide; label: string; noTrade: boolean
           span
           size="xs"
           fw={800}
-          style={{ color: accent, "font-size": "11px", "line-height": 1.2, "letter-spacing": "0.08em" }}
+          style={{ color: accent(), "font-size": "11px", "line-height": 1.2, "letter-spacing": "0.08em" }}
         >
-          {label}
+          {label()}
         </Text>
         <BiasBadge bias={side().bias} side={side().side} />
       </div>
 
       <div
         data-testid={`desk-do-${side().side}`}
-        className="flex flex-col min-w-0"
+        class="flex flex-col min-w-0"
         style={{ gap: "4px" }}
       >
-        <SectionLabel color={accent} testId={`desk-do-label-${side().side}`}>
+        <SectionLabel color={accent()} testId={`desk-do-label-${side().side}`}>
           Do
         </SectionLabel>
         <Text
@@ -223,7 +223,7 @@ function DeskSideColumn(props: { side: DeskSide; label: string; noTrade: boolean
 
       <div
         data-testid={`desk-dont-${side().side}`}
-        className="flex flex-col min-w-0"
+        class="flex flex-col min-w-0"
         style={{ gap: "4px" }}
       >
         <SectionLabel color={palette.WARNING} testId={`desk-dont-label-${side().side}`}>
@@ -254,7 +254,7 @@ function DeskSideColumn(props: { side: DeskSide; label: string; noTrade: boolean
           </SectionLabel>
           <ol
             data-testid={`desk-reasons-${side().side}`}
-            className="flex flex-col min-w-0"
+            class="flex flex-col min-w-0"
             style={{ "list-style": "none", margin: 0, padding: 0, gap: "4px" }}
           >
             <For each={side().reasons}>
@@ -275,7 +275,7 @@ function DeskSideColumn(props: { side: DeskSide; label: string; noTrade: boolean
                 </Text>
                 <div
                   data-testid={`desk-reason-tag-${side().side}-${index()}`}
-                  className="inline-flex items-center shrink-0"
+                  class="inline-flex items-center shrink-0"
                   style={{
                     "padding-left": "4px",
                     "padding-right": "4px",

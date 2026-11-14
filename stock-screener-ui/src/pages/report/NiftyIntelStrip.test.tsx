@@ -19,7 +19,9 @@ function intel(overrides: Partial<NiftyIntel> = {}): NiftyIntel {
     date: "2026-10-21",
     expiry: "current_week",
     fii_net: -1149,
+    fii_date: "2026-10-21",
     dii_net: 3201,
+    dii_date: "2026-10-21",
     dce_oi: 96_000_000,
     dpe_oi: 44_000_000,
     top_dce: [
