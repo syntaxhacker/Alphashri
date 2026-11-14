@@ -4,9 +4,9 @@ import { Box, Stack, Paper, Tabs, Text, Select, Skeleton, ActionIcon, Switch, To
 import { IconTable, IconChartDots, IconSettings, IconLayoutDashboard, IconRefresh, IconCoins, IconCalendarEvent, IconChartCandle, IconWorld } from "./icons";
 import * as state from "../../state";
 import { ScreenerHeader } from "./ScreenerHeader";
-// ScreenerContent pulls the table + heatmap (echarts) graph — several MB of
-// module evaluation on the critical path of every landing. Load it on first
-// render of the Screener tab, not at page boot.
+// ScreenerContent pulls the table + its whole module tree — heavy module
+// evaluation on the critical path of every landing. Load it on first render of
+// the Screener tab, not at page boot.
 const ScreenerContent = lazy(() =>
   import("./ScreenerContent").then((m) => ({ default: m.ScreenerContent })),
 );
@@ -165,7 +165,6 @@ function useAlertNotes(props: { activeScreener: string; warning?: string | null 
 }
 
 export function ScreenerPage(props: ScreenerPageProps) {
-  const [viewMode, setViewMode] = createSignal<"table" | "heatmap">("table");
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = createMemo(() => firstParam(searchParams.tab) || "dashboard");
   const isValueTab = () => activeTab() === "deepvalue";
@@ -407,8 +406,6 @@ export function ScreenerPage(props: ScreenerPageProps) {
                 onAutoRefreshChange={props.onAutoRefreshChange}
                 onProviderChange={props.onProviderChange}
                 onModeChange={props.onModeChange}
-                viewMode={viewMode()}
-                onViewModeChange={setViewMode}
                 hideStatus
                 disableControls={props.isLoading && !hasResults()}
               />
@@ -474,7 +471,6 @@ export function ScreenerPage(props: ScreenerPageProps) {
                       onSymbolClick={props.onSymbolClick}
                       onSymbolHover={props.onSymbolHover}
                       activeScreener={props.activeScreener}
-                      viewMode={viewMode()}
                     />
                   </Suspense>
                   <SelectionBar onCompare={handleCompare} />

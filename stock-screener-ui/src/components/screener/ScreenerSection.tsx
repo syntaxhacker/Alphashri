@@ -15,19 +15,17 @@ interface ScreenerSectionProps {
   action?: JSX.Element;
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;
-  viewMode: "table" | "heatmap";
   section: string;
-  activeScreener: string;
 }
 
 export function ScreenerSection(props: ScreenerSectionProps) {
   return (
     <CompactPanel
       title={props.title}
-      description={props.viewMode === "heatmap" ? undefined : props.description}
+      description={props.description}
       testId={props.testId}
       action={props.action}
-      scrollable={props.viewMode !== "heatmap"}
+      scrollable
       padded={false}
     >
       <ScreenerStockView
@@ -38,9 +36,7 @@ export function ScreenerSection(props: ScreenerSectionProps) {
         scoreFormula={props.scoreFormula}
         onSymbolClick={props.onSymbolClick}
         onSymbolHover={props.onSymbolHover}
-        viewMode={props.viewMode}
         section={props.section}
-        activeScreener={props.activeScreener}
       />
     </CompactPanel>
   );

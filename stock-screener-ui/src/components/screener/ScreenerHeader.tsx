@@ -1,8 +1,6 @@
 import { Show } from "solid-js";
-import { Box, Text, ActionIcon, NumberInput, Select, Tooltip, SegmentedControl, ToolbarRow } from "@/ui";
+import { Box, Text, ActionIcon, NumberInput, Select, Tooltip, ToolbarRow } from "@/ui";
 import { IconRefresh } from "./icons";
-
-type ScreenerViewMode = "table" | "heatmap";
 
 interface ScreenerHeaderProps {
   status: string;
@@ -14,8 +12,6 @@ interface ScreenerHeaderProps {
   onAutoRefreshChange: (value: number) => void;
   onProviderChange: (value: string) => void;
   onModeChange: (value: string) => void;
-  viewMode: ScreenerViewMode;
-  onViewModeChange: (value: ScreenerViewMode) => void;
   hideStatus?: boolean;
   disableControls?: boolean;
 }
@@ -86,16 +82,6 @@ export function ScreenerHeader(props: ScreenerHeaderProps) {
             disabled={disableControls()}
             data-testid="mode-select"
             comboboxProps={{ withinPortal: true }}
-          />
-          <SegmentedControl
-            size="sm"
-            value={props.viewMode}
-            onChange={(value) => props.onViewModeChange(value as ScreenerViewMode)}
-            data={[
-              { label: "Tbl", value: "table" },
-              { label: "Map", value: "heatmap" },
-            ]}
-            data-testid="screener-view-toggle"
           />
       </ToolbarRow>
     </Box>

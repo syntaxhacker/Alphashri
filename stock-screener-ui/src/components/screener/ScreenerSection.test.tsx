@@ -23,9 +23,7 @@ describe("ScreenerSection", () => {
     touchedSymbols: new Set<string>(),
     onSymbolClick: vi.fn(),
     onSymbolHover: vi.fn(),
-    viewMode: "table" as const,
     section: "approaching" as const,
-    activeScreener: "trending",
   };
 
   beforeEach(() => {

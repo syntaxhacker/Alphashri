@@ -54,7 +54,6 @@ interface Props {
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;
   activeScreener: string;
-  viewMode: "table" | "heatmap";
 }
 
 // src/hooks/useStoreSubscription.ts's useStoreSnapshot misses its createMemo
@@ -136,9 +135,7 @@ export function ScreenerContent(props: Props) {
                   touchedSymbols={section.touchedSymbols}
                   onSymbolClick={props.onSymbolClick}
                   onSymbolHover={props.onSymbolHover}
-                  viewMode={props.viewMode}
                   section={section.key}
-                  activeScreener={props.activeScreener}
                 />
               )}
             </For>

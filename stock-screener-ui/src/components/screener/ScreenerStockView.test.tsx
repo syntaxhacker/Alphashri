@@ -13,14 +13,6 @@ vi.mock("./ScreenerTable", () => ({
   ),
 }));
 
-vi.mock("./ScreenerHeatmapView", () => ({
-  ScreenerHeatmapView: (props: any) => (
-    <div data-testid={props.testId || "screener-heatmap"} data-view="heatmap">
-      Heatmap View
-    </div>
-  ),
-}));
-
 describe("ScreenerStockView", () => {
   const defaultProps = {
     stocks: [],
@@ -29,7 +21,6 @@ describe("ScreenerStockView", () => {
     onSymbolClick: vi.fn(),
     onSymbolHover: vi.fn(),
     section: "approaching" as const,
-    activeScreener: "trending",
   };
 
   beforeEach(() => {
@@ -40,37 +31,21 @@ describe("ScreenerStockView", () => {
     cleanup();
   });
 
-  it("renders ScreenerHeatmap when viewMode is heatmap", () => {
+  it("renders ScreenerTable", () => {
     render(() => (
       <UIProvider>
-        <ScreenerStockView {...defaultProps} viewMode="heatmap" />
-      </UIProvider>
-    ));
-    expect(screen.getByTestId("screener-heatmap-approaching")).toBeInTheDocument();
-    expect(screen.queryByTestId("screener-table-approaching")).not.toBeInTheDocument();
-  });
-
-  it("renders ScreenerTable when viewMode is table", () => {
-    render(() => (
-      <UIProvider>
-        <ScreenerStockView {...defaultProps} viewMode="table" />
+        <ScreenerStockView {...defaultProps} />
       </UIProvider>
     ));
     expect(screen.getByTestId("screener-table-approaching")).toBeInTheDocument();
-    expect(screen.queryByTestId("screener-heatmap-approaching")).not.toBeInTheDocument();
   });
 
-  it("passes data-testid with section suffix for both views", async () => {
-    const { createSignal } = await import("solid-js");
-    const [viewMode, setViewMode] = createSignal<"table" | "heatmap">("table");
+  it("passes data-testid with section suffix", () => {
     render(() => (
       <UIProvider>
-        <ScreenerStockView {...defaultProps} viewMode={viewMode()} section="touched" />
+        <ScreenerStockView {...defaultProps} section="touched" />
       </UIProvider>
     ));
     expect(screen.getByTestId("screener-table-touched")).toBeInTheDocument();
-
-    setViewMode("heatmap");
-    expect(screen.getByTestId("screener-heatmap-touched")).toBeInTheDocument();
   });
 });

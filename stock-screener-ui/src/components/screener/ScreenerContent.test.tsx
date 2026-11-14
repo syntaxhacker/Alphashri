@@ -82,7 +82,6 @@ const defaultProps = {
   onSymbolClick: vi.fn(),
   onSymbolHover: vi.fn(),
   activeScreener: "trending",
-  viewMode: "table" as const,
 };
 
 describe("ScreenerContent", () => {

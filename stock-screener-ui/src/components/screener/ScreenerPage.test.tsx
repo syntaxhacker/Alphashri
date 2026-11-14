@@ -79,7 +79,6 @@ vi.mock("./ScreenerHeader", () => ({
       data-auto-refresh={props.autoRefreshSeconds}
       data-provider={props.provider}
       data-mode={props.mode}
-      data-view-mode={props.viewMode}
       data-disable-controls={props.disableControls}
     >
       <button data-testid="refresh-btn" onClick={props.onRefresh}>
@@ -106,12 +105,6 @@ vi.mock("./ScreenerHeader", () => ({
         <option value="intraday">Intraday</option>
         <option value="historical">5D</option>
       </select>
-      <button data-testid="view-table" onClick={() => props.onViewModeChange("table")}>
-        Table
-      </button>
-      <button data-testid="view-heatmap" onClick={() => props.onViewModeChange("heatmap")}>
-        Heatmap
-      </button>
     </div>
   ),
 }));
@@ -124,21 +117,6 @@ vi.mock("./ScreenerTable", () => ({
     >
       {props.stocks.map((stock: Stock) => (
         <div key={`stock-${stock.symbol}`} data-testid={`row-${stock.symbol}`}>
-          {stock.symbol}
-        </div>
-      ))}
-    </div>
-  ),
-}));
-
-vi.mock("./ScreenerHeatmapView", () => ({
-  ScreenerHeatmapView: (props: any) => (
-    <div
-      data-testid={props.testId || "screener-heatmap"}
-      data-stocks-count={props.stocks.length}
-    >
-      {props.stocks.map((stock: Stock) => (
-        <div key={`heatmap-${stock.symbol}`} data-testid={`heatmap-${stock.symbol}`}>
           {stock.symbol}
         </div>
       ))}
@@ -463,35 +441,6 @@ describe("ScreenerPage", () => {
       </UIProvider>
     ));
     // Both approaching and touched sections render tables
-    expect(await screen.findByTestId("screener-table-approaching")).toBeInTheDocument();
-    expect(await screen.findByTestId("screener-table-touched")).toBeInTheDocument();
-  });
-
-  it("switches to heatmap view when view mode changes", async () => {
-    render(() => (
-      <UIProvider>
-        <ScreenerPage {...defaultProps} />
-      </UIProvider>
-    ));
-    fireEvent.click(screen.getByTestId("view-heatmap"));
-    // Both approaching and touched sections render heatmaps
-    expect(await screen.findByTestId("screener-heatmap-approaching")).toBeInTheDocument();
-    expect(await screen.findByTestId("screener-heatmap-touched")).toBeInTheDocument();
-  });
-
-  it("switches back to table view", async () => {
-    render(() => (
-      <UIProvider>
-        <ScreenerPage {...defaultProps} />
-      </UIProvider>
-    ));
-    // Switch to heatmap first
-    fireEvent.click(screen.getByTestId("view-heatmap"));
-    expect(await screen.findByTestId("screener-heatmap-approaching")).toBeInTheDocument();
-    expect(await screen.findByTestId("screener-heatmap-touched")).toBeInTheDocument();
-
-    // Switch back to table
-    fireEvent.click(screen.getByTestId("view-table"));
     expect(await screen.findByTestId("screener-table-approaching")).toBeInTheDocument();
     expect(await screen.findByTestId("screener-table-touched")).toBeInTheDocument();
   });

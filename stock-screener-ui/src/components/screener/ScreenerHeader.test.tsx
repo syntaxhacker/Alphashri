@@ -16,8 +16,6 @@ describe("ScreenerHeader", () => {
     onAutoRefreshChange: vi.fn(),
     onProviderChange: vi.fn(),
     onModeChange: vi.fn(),
-    viewMode: "table" as const,
-    onViewModeChange: vi.fn(),
   };
 
   beforeEach(() => {
@@ -108,37 +106,6 @@ describe("ScreenerHeader", () => {
     ));
     fireEvent.input(getCombobox("mode-select"), { target: { value: "historical" } });
     expect(defaultProps.onModeChange).toHaveBeenCalledWith("historical");
-  });
-
-  it("calls onViewModeChange when table button clicked", async () => {
-    render(() => (
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} viewMode="heatmap" />
-      </UIProvider>
-    ));
-    fireEvent.click(screen.getByRole("button", { name: "Tbl" }));
-    expect(defaultProps.onViewModeChange).toHaveBeenCalledWith("table");
-  });
-
-  it("calls onViewModeChange when heatmap button clicked", async () => {
-    render(() => (
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} />
-      </UIProvider>
-    ));
-    fireEvent.click(screen.getByRole("button", { name: "Map" }));
-    expect(defaultProps.onViewModeChange).toHaveBeenCalledWith("heatmap");
-  });
-
-  it("displays correct view mode state", () => {
-    render(() => (
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} viewMode="heatmap" />
-      </UIProvider>
-    ));
-    expect(screen.getByRole("button", { name: "Map" })).toBeInTheDocument();
-    const btn = screen.getByRole("button", { name: "Map" });
-    expect(btn).toHaveAttribute("aria-pressed", "true");
   });
 
   it("handles zero auto-refresh value", () => {
