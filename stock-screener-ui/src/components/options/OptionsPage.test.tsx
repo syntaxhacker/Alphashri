@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createSignal } from "solid-js";
-import { cleanup, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { OptionsPage } from "./OptionsPage";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
@@ -114,5 +114,63 @@ describe("OptionsPage", () => {
 
     expect(screen.getByTestId("options-chain-panel")).toBeInTheDocument();
     expect(container.querySelector("#options-chain-controls-bar")).not.toBeNull();
+  });
+
+  describe("context band", () => {
+    const band = () => document.querySelector("#options-chain-controls-bar");
+
+    it("holds the filters and the actions on one row", () => {
+      render(() => <OptionsPage {...defaultProps} />);
+      const bar = band()!;
+      const testids = Array.from(bar.querySelectorAll("[data-testid]")).map((el) =>
+        el.getAttribute("data-testid"),
+      );
+      for (const id of [
+        "underlying-select",
+        "expiry-select",
+        "option-type-select",
+        "moneyness-select",
+        "strike-min-input",
+        "strike-max-input",
+        "open-guide-btn",
+        "refresh-chain-btn",
+      ]) {
+        expect(testids).toContain(id);
+      }
+    });
+
+    it("pushes the actions cluster right, not onto its own row", () => {
+      render(() => <OptionsPage {...defaultProps} />);
+      const bar = band()!;
+      expect(bar).toHaveClass("flex-nowrap");
+      expect(screen.getByTestId("options-chain-actions")).toHaveClass("ml-auto");
+    });
+
+    it("calls refreshChain when the refresh action is clicked", () => {
+      const refreshChain = vi.fn();
+      render(() => <OptionsPage {...defaultProps} refreshChain={refreshChain} />);
+      fireEvent.click(screen.getByTestId("refresh-chain-btn"));
+      expect(refreshChain).toHaveBeenCalledTimes(1);
+    });
+
+    it("disables the refresh action while loading and enables it after", () => {
+      render(() => <OptionsPage {...defaultProps} loading={true} />);
+      expect(screen.getByTestId("refresh-chain-btn")).toBeDisabled();
+      cleanup();
+      render(() => <OptionsPage {...defaultProps} loading={false} />);
+      expect(screen.getByTestId("refresh-chain-btn")).toBeEnabled();
+    });
+
+    it("opens the guide modal from the band", () => {
+      render(() => <OptionsPage {...defaultProps} />);
+      expect(screen.queryByTestId("options-chain-guide-modal")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("open-guide-btn"));
+      expect(screen.getByTestId("options-chain-guide-modal")).toBeInTheDocument();
+    });
+
+    it("hides the actions on the positions tab", () => {
+      render(() => <OptionsPage {...defaultProps} activeTab="positions" />);
+      expect(screen.queryByTestId("options-chain-actions")).not.toBeInTheDocument();
+    });
   });
 });

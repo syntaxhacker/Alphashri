@@ -1,6 +1,6 @@
 import { createSignal, createMemo, createEffect, onCleanup, onMount, Show, Match, Switch } from "solid-js";
 import { useStoreSnapshot } from "./storeSnapshot";
-import { Alert, ScrollArea, Stack, Card } from "@/ui";
+import { Alert, ScrollArea, Stack, ToolbarRow, Card } from "@/ui";
 import {
   getPaperTradingState,
   subscribe,
@@ -287,22 +287,34 @@ function HeaderSection(props: {
   handleBotSelect: (botId: string) => Promise<void>;
 }) {
   return (
-    <div class="paper-header-section [flex:0_0_auto] mb-1" id="paper-header" data-testid="paper-header">
-      <Stack className="paper-header-stack" spacing={0.5}>
-        <div class="paper-header-tabs-wrap flex justify-between items-center" id="paper-header-tabs-wrap">
-          <PaperTradingTabs state={props.state} onViewChange={props.actions.handleViewChange} />
-        </div>
-        <div class="paper-filters-wrap" id="paper-filters-wrap" data-testid="paper-filters">
-          <FiltersBar
-            activeBotId={props.activeBotId}
-            bots={props.botSummaries}
-            state={props.state}
-            actions={{ ...props.actions, handleBotSelect: props.handleBotSelect }}
-            filters={props.filters}
-          />
-        </div>
-      </Stack>
-    </div>
+    <ToolbarRow
+      id="paper-header"
+      data-testid="paper-header"
+      gap={8}
+      wrap={false}
+      clip
+      className="paper-header-section [flex:0_0_auto] mb-1 shrink-0"
+      style={{
+        "padding-left": "12px",
+        "padding-right": "12px",
+        "flex-shrink": 0,
+      }}
+    >
+      <PaperTradingTabs state={props.state} onViewChange={props.actions.handleViewChange} />
+      <div
+        id="paper-filters-wrap"
+        data-testid="paper-filters"
+        class="ml-auto flex items-center"
+      >
+        <FiltersBar
+          activeBotId={props.activeBotId}
+          bots={props.botSummaries}
+          state={props.state}
+          actions={{ ...props.actions, handleBotSelect: props.handleBotSelect }}
+          filters={props.filters}
+        />
+      </div>
+    </ToolbarRow>
   );
 }
 

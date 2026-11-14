@@ -1,6 +1,6 @@
 import { createMemo, Show, Switch, Match } from "solid-js";
 import dayjs from "dayjs";
-import { Text, Select, Flex, Group } from "@/ui";
+import { Text, Select, Flex } from "@/ui";
 import { Tabs } from "@/ui";
 import { IconActivity, IconChartDots, IconClipboardList, IconSettings, IconTimeline } from "@/components/common/Icons";
 import { TradingDatePicker } from "../common/TradingDatePicker";
@@ -173,6 +173,14 @@ export function LiveFilters(props: {
   );
 }
 
+/** Caption beside the input, fixed 150px — keeps the filter row on one line. */
+const DATE_FILTER_STYLE = {
+  "flex-direction": "row",
+  "align-items": "center",
+  "gap": "4px",
+  width: "150px",
+} as const;
+
 export function HistoryFilters(props: {
   state: ReturnType<typeof getPaperTradingState>;
   filters: ReturnType<typeof useHistoryFilters>;
@@ -182,45 +190,35 @@ export function HistoryFilters(props: {
   const allOptions = createMemo(() => [{ value: "", label: "All" }, ...symbolOptions()]);
 
   return (
-    <Flex gap="xs" align="center" wrap="wrap">
-      <Group gap="xs" align="center">
-        <Text size="sm" c="dimmed">
-          From:
-        </Text>
-        <TradingDatePicker
-          value={props.state.filterFromDate || ""}
-          onChange={(v) => props.filters.handleFilterFromDate(normDate(v))}
-          data-testid="filter-from-date"
-          w={150}
-          placeholder="From"
-        />
-      </Group>
-      <Group gap="xs" align="center">
-        <Text size="sm" c="dimmed">
-          To:
-        </Text>
-        <TradingDatePicker
-          value={props.state.filterToDate || ""}
-          onChange={(v) => props.filters.handleFilterToDate(normDate(v))}
-          data-testid="filter-to-date"
-          w={150}
-          placeholder="To"
-        />
-      </Group>
-      <Group gap="xs" align="center">
-        <Text size="sm" c="dimmed">
-          Symbol:
-        </Text>
-        <Select
-          size="sm"
-          value={props.state.filterSymbol || ""}
-          onChange={props.filters.handleFilterSymbol}
-          data={allOptions()}
-          data-testid="filter-symbol"
-          w={120}
-          clearable
-        />
-      </Group>
+    // One line: captions sit beside their control (a `flex-col` wrapper put the
+    // caption above and made the identity band 52px / two rows tall).
+    <Flex gap="xs" align="center" wrap="nowrap" className="min-w-0">
+      <TradingDatePicker
+        value={props.state.filterFromDate || ""}
+        onChange={(v) => props.filters.handleFilterFromDate(normDate(v))}
+        data-testid="filter-from-date"
+        placeholder="From"
+        className="shrink-0 [&_input]:py-[1px]"
+        style={DATE_FILTER_STYLE}
+      />
+      <TradingDatePicker
+        value={props.state.filterToDate || ""}
+        onChange={(v) => props.filters.handleFilterToDate(normDate(v))}
+        data-testid="filter-to-date"
+        placeholder="To"
+        className="shrink-0 [&_input]:py-[1px]"
+        style={DATE_FILTER_STYLE}
+      />
+      <Select
+        size="sm"
+        value={props.state.filterSymbol || ""}
+        onChange={props.filters.handleFilterSymbol}
+        data={allOptions()}
+        data-testid="filter-symbol"
+        w={120}
+        className="shrink-0 [&_select]:py-[3px]"
+        clearable
+      />
     </Flex>
   );
 }

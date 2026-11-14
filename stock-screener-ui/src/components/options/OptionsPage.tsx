@@ -1,8 +1,12 @@
-import { Stack, ScrollArea, ToolbarRow } from "@/ui";
+import { Show } from "solid-js";
+import { Box, Button, Stack, ScrollArea, ToolbarRow, useDisclosure } from "@/ui";
 import * as palette from "@/ui/palette";
+import { IconHelpCircle, IconRefresh } from "@/patterns/icons";
 import { OptionChainPanel } from "./OptionChain/OptionChainPanel";
 import { OptionChainHeader } from "./OptionChain/OptionChainHeader";
 import { OptionChainFilters } from "./OptionChain/OptionChainFilters";
+import { OptionChainGuide } from "./OptionChain/OptionChainGuide";
+import { CHAIN_CONTROL_H } from "./OptionChain/controlClass";
 import { PositionsPanel } from "./OptionPositions/PositionsPanel";
 import { PremiumTrackerPanel } from "./PremiumTracker/PremiumTrackerPanel";
 import { PositioningPanel } from "./Positioning/PositioningPanel";
@@ -31,6 +35,8 @@ interface OptionsPageProps {
 }
 
 export function OptionsPage(props: OptionsPageProps) {
+  const [guideOpened, { open: openGuide, close: closeGuide }] = useDisclosure(false);
+
   return (
     <Stack
       id="options-main"
@@ -46,12 +52,11 @@ export function OptionsPage(props: OptionsPageProps) {
         clip
         className="w-full shrink-0"
         style={{
-          height: palette.FIN_HEADER_H,
-          "min-height": palette.FIN_HEADER_H,
-          "max-height": palette.FIN_HEADER_H,
+          height: "34px",
+          "min-height": "34px",
+          "max-height": "34px",
           "padding-left": "12px",
           "padding-right": "12px",
-          "border-bottom": `1px solid ${palette.BORDER}`,
           "flex-shrink": 0,
         }}
       >
@@ -59,18 +64,21 @@ export function OptionsPage(props: OptionsPageProps) {
       </ToolbarRow>
 
       {/* Chain controls stay mounted across chain/positions/premium tabs;
-          the simulator owns its header, so the chain controls are hidden there. */}
-      {props.activeTab !== "simulator" && (
+          the simulator owns its header, so the chain controls are hidden there.
+          One band: every control on a single 24px line, the guide/refresh
+          cluster pushed right by `ml-auto` (never its own row). */}
+      <Show when={props.activeTab !== "simulator"}>
         <ToolbarRow
           id="options-chain-controls-bar"
           gap={8}
           justify="flex-start"
-          className="w-full shrink-0"
+          wrap={false}
+          className="w-full shrink-0 overflow-x-auto"
           style={{
             "padding-left": "12px",
             "padding-right": "12px",
-            "padding-top": "4px",
-            "padding-bottom": "4px",
+            "padding-top": "2px",
+            "padding-bottom": "2px",
             "border-bottom": `1px solid ${palette.BORDER}`,
             "flex-shrink": 0,
           }}
@@ -84,25 +92,56 @@ export function OptionsPage(props: OptionsPageProps) {
             availableExpiries={props.availableExpiries}
           />
           <OptionChainFilters filters={props.filters} setFilters={props.setFilters} />
+          <Show when={props.activeTab === "chain"}>
+            <Box
+              data-testid="options-chain-actions"
+              className="ml-auto flex shrink-0 items-center gap-2"
+              style={{ height: `${CHAIN_CONTROL_H}px` }}
+            >
+              <Button
+                variant="light"
+                color="primary"
+                size="xs"
+                className="h-6"
+                leftSection={<IconHelpCircle size={12} />}
+                onClick={openGuide}
+                data-testid="open-guide-btn"
+              >
+                Guide
+              </Button>
+              {/* A real <button>, not a Box: the suite asserts
+                  toBeDisabled()/toBeEnabled(), which only exist on a form control. */}
+              <button
+                type="button"
+                disabled={props.loading}
+                aria-label="Refresh option chain"
+                onClick={() => !props.loading && props.refreshChain()}
+                className="inline-flex h-6 w-6 items-center justify-center border-0 bg-transparent p-0 text-fin-text-muted disabled:cursor-default disabled:opacity-50 enabled:cursor-pointer enabled:hover:text-fin-text"
+                data-testid="refresh-chain-btn"
+              >
+                <IconRefresh size={14} />
+              </button>
+            </Box>
+          </Show>
         </ToolbarRow>
-      )}
+      </Show>
 
       <div className="flex flex-col h-full overflow-hidden w-full min-h-0">
         <ScrollArea className="h-full" offsetScrollbars>
           {props.activeTab === "chain" && (
             <OptionChainPanel
-                selectedUnderlying={props.selectedUnderlying}
-                selectedExpiry={props.selectedExpiry}
-                loading={props.loading}
-                error={props.error}
-                filters={props.filters}
-                spotPrice={props.spotPrice}
-                refreshChain={props.refreshChain}
-                strikeMatrix={props.strikeMatrix}
-                timestamp={props.timestamp}
-                summary={props.summary}
-              />
-            )}
+              selectedUnderlying={props.selectedUnderlying}
+              selectedExpiry={props.selectedExpiry}
+              loading={props.loading}
+              error={props.error}
+              filters={props.filters}
+              spotPrice={props.spotPrice}
+              refreshChain={props.refreshChain}
+              strikeMatrix={props.strikeMatrix}
+              timestamp={props.timestamp}
+              summary={props.summary}
+            />
+          )}
 
             {props.activeTab === "positions" && (
               <div
@@ -156,6 +195,10 @@ export function OptionsPage(props: OptionsPageProps) {
             )}
           </ScrollArea>
       </div>
+
+      {/* Fixed overlay: kept outside the scroll container so it never inherits
+          the chain panel's scroll offset. */}
+      <OptionChainGuide opened={guideOpened()} onClose={closeGuide} />
     </Stack>
   );
 }

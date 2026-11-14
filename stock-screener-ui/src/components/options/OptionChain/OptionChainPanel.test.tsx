@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { Show } from "solid-js";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { OptionChainPanel } from "./OptionChainPanel";
 import { CHAIN_POLL_INTERVAL_MS } from "../../../hooks/chainLiveState";
@@ -101,32 +101,14 @@ describe("OptionChainPanel", () => {
     expect(screen.getByTestId("options-chain-selection")).toHaveTextContent("BANKNIFTY · 01JUN");
   });
 
-  it("calls refreshChain when refresh icon is clicked", () => {
-    const refreshChain = vi.fn();
-    render(() => <OptionChainPanel {...defaultProps} refreshChain={refreshChain} />);
-    fireEvent.click(screen.getByTestId("refresh-chain-btn"));
-    expect(refreshChain).toHaveBeenCalledTimes(1);
-  });
-
-  it("disables refresh button while loading", () => {
-    render(() => <OptionChainPanel {...defaultProps} loading={true} />);
-    const refreshBtn = screen.getByTestId("refresh-chain-btn");
-    expect(refreshBtn).toBeDisabled();
-  });
-
-  it("enables refresh button when not loading", () => {
-    render(() => <OptionChainPanel {...defaultProps} loading={false} />);
-    const refreshBtn = screen.getByTestId("refresh-chain-btn");
-    expect(refreshBtn).toBeEnabled();
-  });
-
-  it("renders Guide button and opens guide modal on click", () => {
+  it("no longer owns the guide action (moved to the options context band)", () => {
     render(() => <OptionChainPanel {...defaultProps} />);
-    const guideBtn = screen.getByTestId("open-guide-btn");
-    expect(guideBtn).toBeInTheDocument();
-    expect(screen.queryByTestId("options-chain-guide-modal")).not.toBeInTheDocument();
-    fireEvent.click(guideBtn);
-    expect(screen.getByTestId("options-chain-guide-modal")).toBeInTheDocument();
+    expect(screen.queryByTestId("open-guide-btn")).not.toBeInTheDocument();
+  });
+
+  it("no longer owns the refresh action (moved to the options context band)", () => {
+    render(() => <OptionChainPanel {...defaultProps} />);
+    expect(screen.queryByTestId("refresh-chain-btn")).not.toBeInTheDocument();
   });
 
   it("does not render header controls (moved to options toolbar)", () => {
@@ -233,21 +215,6 @@ describe("OptionChainPanel", () => {
       rendered.unmount();
       await vi.advanceTimersByTimeAsync(CHAIN_POLL_INTERVAL_MS * 3);
       expect(refreshChain).toHaveBeenCalledTimes(1);
-    });
-
-    it("manual refresh fetches immediately and resets the 15s timer", async () => {
-      const refreshChain = vi.fn();
-      render(() => <OptionChainPanel {...defaultProps} refreshChain={refreshChain} />);
-      await vi.advanceTimersByTimeAsync(10_000);
-      expect(refreshChain).not.toHaveBeenCalled();
-      screen.getByTestId("refresh-chain-btn").dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
-      expect(refreshChain).toHaveBeenCalledTimes(1);
-      await vi.advanceTimersByTimeAsync(10_000);
-      expect(refreshChain).toHaveBeenCalledTimes(1);
-      await vi.advanceTimersByTimeAsync(5_000);
-      expect(refreshChain).toHaveBeenCalledTimes(2);
     });
   });
 });

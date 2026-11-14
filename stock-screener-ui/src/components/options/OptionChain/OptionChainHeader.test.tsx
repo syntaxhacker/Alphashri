@@ -25,10 +25,16 @@ describe("OptionChainHeader", () => {
     availableExpiries: ["25MAY", "01JUN", "08JUN"],
   };
 
-  it("has select labels", () => {
+  it("renders a label for each select", () => {
     render(() => <OptionChainHeader {...defaultProps} />);
     expect(screen.getAllByText("Underlying").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Expiry").length).toBeGreaterThan(0);
+  });
+
+  it("keeps the accessible name on the select", () => {
+    render(() => <OptionChainHeader {...defaultProps} />);
+    expect(screen.getByLabelText("Underlying")).toBe(screen.getByTestId("underlying-select").querySelector("select"));
+    expect(screen.getByLabelText("Expiry")).toBe(screen.getByTestId("expiry-select").querySelector("select"));
   });
 
   it("displays available underlyings as select options", async () => {

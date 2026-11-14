@@ -1,11 +1,9 @@
 import { Show, Switch, Match, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
-import { Text, Badge, Loader, Alert, Tabs, TabsList, Tab, TabsPanel, Button, Tooltip, Box, Stack, useDisclosure } from "@/ui";
+import { Text, Badge, Loader, Alert, Tabs, TabsList, Tab, TabsPanel, Tooltip, Box, Stack } from "@/ui";
 import {
-  IconRefresh,
   IconAlertCircle,
   IconTable,
   IconChartBar,
-  IconHelpCircle,
   IconClock,
 } from "@/patterns/icons";
 import dayjs from "dayjs";
@@ -13,7 +11,6 @@ import { getChainLiveState, CHAIN_POLL_INTERVAL_MS } from "../../../hooks/chainL
 import { OptionChainTable } from "./OptionChainTable";
 import { ChainSummary } from "./ChainSummary";
 import { OIAnalysis } from "./OIAnalysis";
-import { OptionChainGuide } from "./OptionChainGuide";
 import { LiveSpotChart } from "./LiveSpotChart";
 
 interface OptionChainPanelProps {
@@ -30,10 +27,7 @@ interface OptionChainPanelProps {
 }
 
 export function OptionChainPanel(props: OptionChainPanelProps) {
-  const [guideOpened, { open, close }] = useDisclosure(false);
-
   let inFlight = false;
-  const [pollCycle, setPollCycle] = createSignal(0);
   const [nowMs, setNowMs] = createSignal(Date.now());
 
   const tick = async () => {
@@ -49,7 +43,6 @@ export function OptionChainPanel(props: OptionChainPanelProps) {
   };
 
   createEffect(() => {
-    pollCycle();
     const id = window.setInterval(() => {
       void tick();
     }, CHAIN_POLL_INTERVAL_MS);
@@ -63,18 +56,12 @@ export function OptionChainPanel(props: OptionChainPanelProps) {
     });
   });
 
-  const manualRefresh = () => {
-    setPollCycle((cycle) => cycle + 1);
-    void tick();
-  };
-
   const liveState = createMemo(() => getChainLiveState(props.timestamp, nowMs()));
 
   return (
     <Stack id="chain-panel" spacing={1} className="w-full" data-testid="options-chain-panel">
-      <OptionChainGuide opened={guideOpened()} onClose={close} />
-
-      {/* Spot info row — left-aligned, wraps on narrow screens */}
+      {/* Spot + sync state only: the underlying/expiry/type filters and the
+          guide/refresh actions live in the page's context band. */}
       <Box
         id="chain-header"
         data-testid="options-chain-header"
@@ -99,21 +86,6 @@ export function OptionChainPanel(props: OptionChainPanelProps) {
         <Text size="xs" c="dimmed" data-testid="options-chain-selection">
           {props.selectedUnderlying} · {props.selectedExpiry}
         </Text>
-        <Button variant="light" color="primary" size="compact-xs" leftSection={<IconHelpCircle size={14} />} onClick={open} data-testid="open-guide-btn">
-          Guide
-        </Button>
-        {/* A real <button>, not a Box: the merged test suite asserts
-            toBeDisabled()/toBeEnabled(), which only exist on a form control. */}
-        <button
-          type="button"
-          disabled={props.loading}
-          aria-label="Refresh option chain"
-          onClick={() => !props.loading && manualRefresh()}
-          className="inline-flex items-center border-0 bg-transparent p-0 disabled:cursor-default disabled:opacity-50 enabled:cursor-pointer"
-          data-testid="refresh-chain-btn"
-        >
-          <IconRefresh size={18} />
-        </button>
       </Box>
 
       {/* Error State */}
