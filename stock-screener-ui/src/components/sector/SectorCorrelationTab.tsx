@@ -150,7 +150,7 @@ function RelativeStrengthTable(props: { sectors: SectorRow[] }) {
         const val = row.original.relative_strength_5d;
         return (
           <Text c={val >= 0 ? "success" : "error"} className="text-[10.5px] font-numeric tabular-nums font-mono">
-            {formatPercentage(val / 100, 2, false)}
+            {formatPercentage(val, 2, true)}
           </Text>
         );
       },
@@ -165,7 +165,7 @@ function RelativeStrengthTable(props: { sectors: SectorRow[] }) {
         const val = row.original.relative_strength_1m;
         return (
           <Text c={val >= 0 ? "success" : "error"} className="text-[10.5px] font-numeric tabular-nums font-mono">
-            {formatPercentage(val / 100, 2, false)}
+            {formatPercentage(val, 2, true)}
           </Text>
         );
       },
@@ -180,7 +180,7 @@ function RelativeStrengthTable(props: { sectors: SectorRow[] }) {
         const val = row.original.relative_strength_3m;
         return (
           <Text c={val >= 0 ? "success" : "error"} className="text-[10.5px] font-numeric tabular-nums font-mono">
-            {formatPercentage(val / 100, 2, false)}
+            {formatPercentage(val, 2, true)}
           </Text>
         );
       },

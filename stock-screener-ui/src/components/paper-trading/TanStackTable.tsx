@@ -2,7 +2,8 @@ import { For, createEffect, createMemo, createSignal } from "solid-js";
 import { ScrollArea, useDensity, Box, Paper } from "@/ui";
 import { InlineLoader } from "../common/states";
 import * as palette from "@/ui/palette";
-import type { CSSProperties, JSX } from "solid-js";
+import type { JSX } from "solid-js";
+type CSSProperties = JSX.CSSProperties;
 
 /**
  * Column-level metadata understood by TanStackTable.
@@ -116,10 +117,16 @@ export function TanStackTable<T>(props: Props<T>) {
 
   const visibleColumns = createMemo(() => props.columns.filter((col) => getColumnWidth(col) !== 0));
 
+  // Default ON, matching the common table. Gating directly on
+  // `props.enableSorting` meant every consumer that didn't pass the flag
+  // (positions, trade history, activity feed, replay log, aggregated
+  // dashboard) had sorting silently disabled.
+  const enableSorting = () => props.enableSorting ?? true;
+
   const sortedData = createMemo(() => {
     const rows = [...props.data];
     const sorters = sorting();
-    if (!props.enableSorting || sorters.length === 0) return rows;
+    if (!enableSorting() || sorters.length === 0) return rows;
     for (let i = sorters.length - 1; i >= 0; i--) {
       const { id, desc } = sorters[i];
       const col = props.columns.find((c) => c.id === id);
@@ -142,7 +149,7 @@ export function TanStackTable<T>(props: Props<T>) {
     if (!props.enableGrouping || !props.grouping?.length) return null;
     const col = props.columns.find((c) => c.id === props.grouping![0]);
     const result: { value: unknown; rows: T[]; baseIndex: number }[] = [];
-    let cur: { value: unknown; rows: T[] } | null = null;
+    let cur: { value: unknown; rows: T[]; baseIndex: number } | null = null;
     let base = 0;
     for (const row of sortedData()) {
       const v = col ? getValue(row, col) : (row as any)[props.grouping![0]];
@@ -218,8 +225,8 @@ export function TanStackTable<T>(props: Props<T>) {
   const tableStyle: CSSProperties = {
     width: "100%",
     "table-layout": hasSizedColumns() ? "fixed" : "auto",
-    "min-width": props.minTableWidth ?? Math.max(640, colCount() * 96),
-    borderCollapse: "collapse",
+    "min-width": `${props.minTableWidth ?? Math.max(640, colCount() * 96)}px`,
+    "border-collapse": "collapse",
     "background-color": palette.SURFACE,
     ...props.style,
   };
@@ -249,14 +256,14 @@ export function TanStackTable<T>(props: Props<T>) {
     const { align } = getColumnMeta(col);
     const s: CSSProperties = {
       padding: width === 0 ? "0" : cellPad(),
-      "font-size": cellFontSize(),
+      "font-size": `${cellFontSize()}px`,
       "line-height": 1.2,
       "font-variant-numeric": "tabular-nums",
       "white-space": "nowrap",
-      height: rowEstimated(),
+      height: `${rowEstimated()}px`,
       "border-bottom": `1px solid ${palette.BORDER}`,
       "background-color": palette.SURFACE,
-      width: width !== undefined ? width : undefined,
+      width: width !== undefined ? `${width}px` : undefined,
       "display": width === 0 ? "none" : undefined,
       "text-align": align ?? (numericColumnIds().has(col.id) ? "right" : "left"),
     };
@@ -278,8 +285,8 @@ export function TanStackTable<T>(props: Props<T>) {
     const sortDir = sorting().find((s) => s.id === col.id);
     const headerStyle: CSSProperties = {
       padding: width === 0 ? "0" : cellPad(),
-      height: headerHeight(),
-      "font-size": cellFontSize(),
+      height: `${headerHeight()}px`,
+      "font-size": `${cellFontSize()}px`,
       "line-height": 1.2,
       "font-weight": 600,
       "font-variant-numeric": "tabular-nums",
@@ -287,10 +294,10 @@ export function TanStackTable<T>(props: Props<T>) {
       "user-select": "none",
       color: palette.TEXT_MUTED,
       "border-bottom": `1px solid ${palette.BORDER}`,
-      width: width !== undefined ? width : undefined,
+      width: width !== undefined ? `${width}px` : undefined,
       "display": width === 0 ? "none" : undefined,
       "text-align": getColumnMeta(col).align ?? (numericColumnIds().has(col.id) ? "right" : "left"),
-      "cursor": col.enableSorting !== false && props.enableSorting ? "pointer" : "default",
+      "cursor": col.enableSorting !== false && enableSorting() ? "pointer" : "default",
       "position": props.stickyHeader ? "sticky" : undefined,
       "top": props.stickyHeader ? 0 : undefined,
       "z-index": props.stickyHeader ? 1 : undefined,
@@ -303,7 +310,7 @@ export function TanStackTable<T>(props: Props<T>) {
         className="paper-tanstack-header-cell"
         id={`paper-tanstack-header-${String(col.id)}`}
         style={headerStyle}
-        onClick={() => col.enableSorting !== false && props.enableSorting && toggleSort(col.id)}
+        onClick={() => col.enableSorting !== false && enableSorting() && toggleSort(col.id)}
       >
         {content}
         {isSorted && (sortDir?.desc ? " ▼" : " ▲")}
@@ -453,11 +460,11 @@ export function TanStackTable<T>(props: Props<T>) {
     "display": "flex",
     "flex-direction": "column",
     "overflow": "hidden",
-    "border-radius": 8,
+    "border-radius": "8px",
     border: `1px solid ${palette.BORDER}`,
     "background-color": palette.SURFACE,
     "max-height": props.fillContainer ? undefined : "65vh",
-    "min-height": props.fillContainer ? 0 : 200,
+    "min-height": props.fillContainer ? "0px" : "200px",
     flex: props.fillContainer ? 1 : undefined,
     height: props.fillContainer ? "100%" : undefined,
   };

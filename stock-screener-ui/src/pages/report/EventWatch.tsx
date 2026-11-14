@@ -266,14 +266,16 @@ export function EventWatch(props: EventWatchProps) {
     {
       id: "price",
       header: "Price",
-      accessorKey: "price",
+      // The value lives under `tech`; an accessorKey of "price" made getValue
+      // return undefined, so both sides coerced to 0 and the sort never moved.
+      accessorFn: (row) => row.tech.price,
       meta: { align: "right" },
       cell: ({ row }) => numCell(row.original.tech.price, (v) => formatCurrency(v, 2)),
     },
     {
       id: "chg",
       header: "Chg %",
-      accessorKey: "chg",
+      accessorFn: (row) => row.tech.chg_pct_5d,
       meta: { align: "right" },
       cell: ({ row }) => {
         const v = row.original.tech.chg_pct_5d;
@@ -287,7 +289,7 @@ export function EventWatch(props: EventWatchProps) {
     {
       id: "vol",
       header: "Vol ×",
-      accessorKey: "vol",
+      accessorFn: (row) => row.tech.vol_ratio,
       meta: { align: "right" },
       cell: ({ row }) =>
         numCell(row.original.tech.vol_ratio, (v) => `${v.toFixed(1)}x`),
@@ -295,7 +297,7 @@ export function EventWatch(props: EventWatchProps) {
     {
       id: "dist52w",
       header: "52W %",
-      accessorKey: "dist52w",
+      accessorFn: (row) => row.tech.dist_52w_pct,
       meta: { align: "right" },
       cell: ({ row }) => {
         const v = row.original.tech.dist_52w_pct;
@@ -309,7 +311,7 @@ export function EventWatch(props: EventWatchProps) {
     {
       id: "accum",
       header: "Accum",
-      accessorKey: "accum",
+      accessorFn: (row) => (row.tech.accum_ok ? 1 : 0),
       meta: { align: "center" },
       cell: ({ row }) =>
         row.original.tech.accum_ok ? (

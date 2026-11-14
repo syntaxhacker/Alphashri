@@ -154,7 +154,7 @@ export function SimRuns(props: SimRunsProps) {
         accessorKey: "exitPremium",
         size: 76,
         meta: { align: "right" },
-        cell: ({ row }) => <Num value={fmtInr(Number(row.original.entryPremium))} />,
+        cell: ({ row }) => <Num value={fmtInr(Number(row.original.exitPremium))} />,
       },
       {
         id: "grossPnl",
@@ -173,7 +173,7 @@ export function SimRuns(props: SimRunsProps) {
         accessorKey: "costs",
         size: 70,
         meta: { align: "right" },
-        cell: ({ row }) => <Num value={fmtInr(Number(row.original.entryPremium))} />,
+        cell: ({ row }) => <Num value={fmtInr(Number(row.original.costs))} />,
       },
       {
         id: "netPnl",
