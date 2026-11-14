@@ -141,9 +141,12 @@ export const DATAZOOM_FILLER = alpha(POSITIVE, 0.15);
 
 // --- Desk / terminal surface for the Nifty analytics panels ----------------
 // Deep panel, hairline border, CE-blue / PE-orange legs, mint net-gamma.
+// The desk reuses the global ramp rather than a near-miss copy of it: it had
+// its own #2A2E35 / #15181C pair, one notch off the ramp, so a desk panel
+// could not be told from a standard panel and retuning the ramp missed it.
 export const TERM_BG = BG_COLOR;
-export const TERM_BORDER = "#2A2E35";
-export const TERM_HEADER = "#15181C";
+export const TERM_BORDER = BORDER_COLOR;
+export const TERM_HEADER = SURFACE_ALT_COLOR;
 export const TERM_CE = "#4F8BFF";
 export const TERM_PE = "#FF8A3D";
 export const TERM_GAMMA = POSITIVE_COLOR;

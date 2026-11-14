@@ -58,6 +58,15 @@ describe("theme single source", () => {
     expect(offenders, offenders.join("\n")).toEqual([]);
   });
 
+  it("the desk theme reuses the global ramp instead of a near-miss copy", () => {
+    // TERM_* previously carried #2A2E35 / #15181C — one notch off BORDER and
+    // SURFACE_ALT. Two ramps one notch apart read as the same thing but cannot
+    // be retuned together, so the desk looked subtly unlike every other panel.
+    expect(palette.TERM_BG).toBe(palette.BG_COLOR);
+    expect(palette.TERM_BORDER).toBe(palette.BORDER_COLOR);
+    expect(palette.TERM_HEADER).toBe(palette.SURFACE_ALT_COLOR);
+  });
+
   it("alpha() derives an rgba tint from an anchor", () => {
     expect(palette.alpha("#D9902A", 0.5)).toBe("rgba(217, 144, 42, 0.5)");
     expect(palette.alpha("#000", 1)).toBe("rgba(0, 0, 0, 1)");
