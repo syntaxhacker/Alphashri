@@ -18,6 +18,12 @@ export interface SliderProps {
 interface RangeSliderProps extends Omit<SliderProps, "value" | "onChange"> {
   value: [number, number];
   onChange: (value: [number, number]) => void;
+  /**
+   * Preview the drag locally and notify once, on pointer-up. For consumers whose
+   * onChange rebuilds an expensive subtree (a 3k-row table): a per-move commit
+   * costs ~500 ms, so the thumb lags several frames behind the cursor.
+   */
+  commitOnRelease?: boolean;
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
@@ -87,18 +93,33 @@ export function RangeSlider(props: RangeSliderProps) {
   const lo = () => props.value[0];
   const hi = () => props.value[1];
   const [active, setActive] = createSignal<0 | 1 | null>(null);
+  const [preview, setPreview] = createSignal<[number, number] | null>(null);
+  // What the thumb/fill/readout show: the live drag value, else the committed prop.
+  const shownLo = () => (preview() ?? [lo(), hi()])[0];
+  const shownHi = () => (preview() ?? [lo(), hi()])[1];
 
   const commit = (index: 0 | 1, raw: number) => {
-    const next: [number, number] = [lo(), hi()];
+    const next: [number, number] = [shownLo(), shownHi()];
     next[index] = clamp(raw, min(), props.max);
     if (index === 0) next[0] = Math.min(next[0], next[1]);
     else next[1] = Math.max(next[1], next[0]);
+    if (props.commitOnRelease) {
+      setPreview(next);
+      return;
+    }
     props.onChange(next);
   };
 
+  const flushPreview = () => {
+    const pending = preview();
+    setPreview(null);
+    if (pending) props.onChange(pending);
+  };
+
   const nudge = (index: 0 | 1, delta: number) => {
-    const base = index === 0 ? lo() : hi();
+    const base = index === 0 ? shownLo() : shownHi();
     commit(index, base + delta);
+    if (props.commitOnRelease) flushPreview();
   };
 
   const trackRef = () => {
@@ -148,6 +169,7 @@ export function RangeSlider(props: RangeSliderProps) {
       const release = (e: PointerEvent) => {
         if (node.hasPointerCapture(e.pointerId)) node.releasePointerCapture(e.pointerId);
         setActive(null);
+        flushPreview();
       };
       node.addEventListener("pointerdown", onPointerDown);
       node.addEventListener("pointermove", onPointerMove);
@@ -162,10 +184,14 @@ export function RangeSlider(props: RangeSliderProps) {
     };
   };
 
-  const fill = createMemo(() => ({
-    left: `${pct(lo(), min(), props.max)}%`,
-    width: `${Math.max(0, pct(hi(), min(), props.max) - pct(lo(), min(), props.max))}%`,
-  }));
+  const fill = createMemo(() => {
+    const l = shownLo();
+    const h = shownHi();
+    return {
+      left: `${pct(l, min(), props.max)}%`,
+      width: `${Math.max(0, pct(h, min(), props.max) - pct(l, min(), props.max))}%`,
+    };
+  });
 
   return (
     <div class="flex flex-col gap-1 min-w-0 w-full" data-testid={props.testId}>
@@ -178,7 +204,7 @@ export function RangeSlider(props: RangeSliderProps) {
             class="shrink-0 font-mono text-[10px] tabular-nums text-fin-text"
             data-testid={props.testId ? `${props.testId}-readout` : undefined}
           >
-            {fmt(lo())} – {fmt(hi())}
+            {fmt(shownLo())} – {fmt(shownHi())}
           </span>
         </div>
       </Show>
@@ -188,7 +214,7 @@ export function RangeSlider(props: RangeSliderProps) {
         </div>
         <Thumb
           index={0}
-          value={lo()}
+          value={shownLo()}
           min={min()}
           max={props.max}
           step={step()}
@@ -200,7 +226,7 @@ export function RangeSlider(props: RangeSliderProps) {
         />
         <Thumb
           index={1}
-          value={hi()}
+          value={shownHi()}
           min={min()}
           max={props.max}
           step={step()}

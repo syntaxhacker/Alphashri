@@ -238,17 +238,6 @@ export function MarketScreenerPanel() {
 
   const getRowTestId = (row: MarketRow) => `market-row-${row.symbol}`;
 
-  const rail = () => (
-    <MarketFilterRail
-      filters={filters()}
-      onChange={patchFilters}
-      sectors={sectors()}
-      tierCounts={tierCounts()}
-      onCollapse={isNarrow() ? () => setDrawerOpen(false) : () => setRailCollapsed(true)}
-      collapseLabel={isNarrow() ? "Close filters" : "Collapse filters"}
-    />
-  );
-
   return (
     <Box
       data-testid="market-screener"
@@ -434,7 +423,14 @@ export function MarketScreenerPanel() {
             data-testid="market-rail-panel"
             className="w-[240px] flex-shrink-0 min-h-0 overflow-y-auto border border-fin-border rounded-sm bg-fin-surface"
           >
-            {rail()}
+            <MarketFilterRail
+              filters={filters()}
+              onChange={patchFilters}
+              sectors={sectors()}
+              tierCounts={tierCounts()}
+              onCollapse={isNarrow() ? () => setDrawerOpen(false) : () => setRailCollapsed(true)}
+              collapseLabel={isNarrow() ? "Close filters" : "Collapse filters"}
+            />
           </Box>
         </Show>
 
@@ -519,7 +515,14 @@ export function MarketScreenerPanel() {
             className="absolute inset-y-0 left-0 w-72 max-w-[280px] bg-fin-surface border-r border-fin-border flex flex-col transform transition-transform duration-300"
             onClick={(e) => e.stopPropagation()}
           >
-            {rail()}
+            <MarketFilterRail
+              filters={filters()}
+              onChange={patchFilters}
+              sectors={sectors()}
+              tierCounts={tierCounts()}
+              onCollapse={isNarrow() ? () => setDrawerOpen(false) : () => setRailCollapsed(true)}
+              collapseLabel={isNarrow() ? "Close filters" : "Collapse filters"}
+            />
           </Box>
         </Box>
       </Show>

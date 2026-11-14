@@ -14,6 +14,8 @@ export interface RangeInputProps {
   size?: "xs" | "sm";
   testId?: string;
   disabled?: boolean;
+  /** Preview during the drag, notify once on release (see RangeSlider). */
+  commitOnRelease?: boolean;
 }
 
 function toNum(value: number | string | null | undefined): number | null {
@@ -37,8 +39,12 @@ export function RangeInput(props: RangeInputProps) {
   ];
 
   const applySlider = (next: [number, number]) => {
-    props.onMinChange?.(next[0] <= lo() ? null : next[0]);
-    props.onMaxChange?.(next[1] >= hi() ? null : next[1]);
+    const nextMin = next[0] <= lo() ? null : next[0];
+    const nextMax = next[1] >= hi() ? null : next[1];
+    // Only notify the side that actually changed: firing both callbacks made one
+    // pointer move produce two state writes (and two table/rail updates).
+    if (nextMin !== (props.min ?? null)) props.onMinChange?.(nextMin);
+    if (nextMax !== (props.max ?? null)) props.onMaxChange?.(nextMax);
   };
 
   return (
@@ -54,6 +60,7 @@ export function RangeInput(props: RangeInputProps) {
         marks={props.marks}
         size={props.size}
         disabled={props.disabled}
+        commitOnRelease={props.commitOnRelease}
         testId={props.testId ? `${props.testId}-slider` : undefined}
       />
       <Box className="flex items-center gap-1 min-w-0">

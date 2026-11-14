@@ -115,6 +115,7 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
         domain={[0, 10000]}
         step={10}
         formatValue={(v) => `₹${v}`}
+        commitOnRelease
         testId="market-filter-price"
       />
 
@@ -132,6 +133,7 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
           { value: 0, label: "0" },
           { value: 20, label: "+20" },
         ]}
+        commitOnRelease
         testId="market-filter-day"
       />
 
@@ -144,6 +146,7 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
         domain={[0, 500000]}
         step={1000}
         formatValue={(v) => `₹${Math.round(v / 1000)}k Cr`}
+        commitOnRelease
         testId="market-filter-mcap"
       />
 
@@ -161,6 +164,7 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
           { value: 70, label: "70" },
           { value: 100, label: "100" },
         ]}
+        commitOnRelease
         testId="market-filter-rsi"
       />
 
@@ -173,6 +177,7 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
         domain={[0, 10]}
         step={0.1}
         formatValue={(v) => `${v.toFixed(1)}x`}
+        commitOnRelease
         testId="market-filter-relvol"
       />
 
