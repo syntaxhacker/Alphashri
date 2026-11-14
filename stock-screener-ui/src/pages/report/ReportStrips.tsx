@@ -73,7 +73,7 @@ export function ReportStrips() {
         fallback={
           <Text
             data-testid="nifty-breadth-live-only"
-            className="px-2 py-1 text-[9px] text-fin-text-muted tracking-[0.04em]"
+            className="flex items-center h-6 min-h-6 px-2 text-[10px] text-fin-text-muted tracking-[0.06em] uppercase"
           >
             BREADTH · live only
           </Text>

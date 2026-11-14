@@ -1,6 +1,6 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { createEffect, createMemo, createSignal, For, Show, onCleanup } from "solid-js";
-import { Alert, Badge, Button, SegmentedControl, Select, Skeleton, Text, TextInput, ToolbarRow, Tooltip } from "@/ui";
+import { Alert, Badge, Button, Select, Skeleton, Text, TextInput, ToolbarRow, Tooltip } from "@/ui";
 import { fetchDailyReport, fetchReportBreakouts, fetchReportDelivery, fetchReportEvents, fetchReportFollowThrough, todayIST } from "../../api/report";
 import { fetchRegime } from "../../api/eventWatch";
 import type { RegimeResponse } from "../../types/eventWatch";
@@ -577,30 +577,12 @@ export function DailyReportPage(props: DailyReportPageProps) {
                               when={breakoutError()}
                               fallback={
                                 <>
-                                  <div class="flex items-center gap-2" data-testid="report-breakouts-meta">
-                                    <Badge size="xs" data-testid="report-breakouts-scanned">
-                                      {breakouts()?.scanned ?? 0} scanned
-                                    </Badge>
-                                    <Text size="xs" c="dimmed" span>
-                                      {breakouts()?.universe ?? universe()} · {breakouts()?.date ?? date()}
-                                    </Text>
-                                    <Show when={hasDailyCloses()}>
-                                      <SegmentedControl
-                                        size="xs"
-                                        value={sparkRange()}
-                                        onChange={(v) => setSparkRange(v === "5d" ? "5d" : "intraday")}
-                                        data={[
-                                          { value: "intraday", label: "Intraday" },
-                                          { value: "5d", label: "5D" },
-                                        ]}
-                                        data-testid="report-spark-range"
-                                      />
-                                    </Show>
-                                  </div>
                                   {/* Full-width stacked tables: nine columns per side do not fit in
                                       a half-width cell, and each table grew its own horizontal
                                       scrollbar. Stacking keeps one reading column and no inner
-                                      horizontal scroll. */}
+                                      horizontal scroll. The scan meta (scanned count + spark
+                                      range) is carried by the breakouts panel header — the
+                                      identity band above already owns date/universe. */}
                                   <div
                                     class="grid grid-cols-1 gap-1 items-start min-w-0 w-full"
                                   >
@@ -612,6 +594,10 @@ export function DailyReportPage(props: DailyReportPageProps) {
                                       onOpenSymbol={props.onOpenSymbol}
                                       emptyMessage="No breakouts today"
                                       sparkRange={sparkRange()}
+                                      scanned={breakouts()?.scanned ?? 0}
+                                      scannedTestId="report-breakouts-scanned"
+                                      showSparkRange={hasDailyCloses()}
+                                      onSparkRangeChange={setSparkRange}
                                     />
                                     <ReportBreakoutTable
                                       title="Breakdowns TODAY"
