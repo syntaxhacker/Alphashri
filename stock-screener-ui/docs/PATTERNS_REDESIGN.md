@@ -1,272 +1,378 @@
 # Patterns — redesign spec
 
-Scope: `/patterns` (Scan + Watch), `src/components/patterns/**` (37 components) and
-`src/pages/patterns/PatternsPage.tsx`. Analysis only; no code changed.
+Scope: `/patterns` (Scan + Watch), `src/components/patterns/**` (37 components), `src/pages/patterns/PatternsPage.tsx`.
+Analysis only; no code changed.
+
+Every section below is an **old → new** pair. `BEFORE` is what ships today, `AFTER` is the proposal.
 
 ---
 
-## 1. Current state, measured
+## 0. Page shell — the whole page
 
-| Band | Height | Contents |
+### BEFORE (measured: chrome 97px, 3 bands)
+
+```
+┌ Scan ══╤═ Watch ────────────── SCANNED 50 · PATTERNS 49 · IN VIEW 49 · CONFIRMED 18 · BULL/BEAR 35/11 · LAST CANDLE 11-12 18:30 · LAST SCAN 5h ago ┐ 31
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ SCOPE (All NSE 2,757)(NSE F&O 218)(Indices 52)[NIFTY 50 50](NIFTY 100 100)(NIFTY 200 200)(NIFTY 500 501)(Custom 🔗)  [CACHED · 17 MIN AGO][Force re-run][▶ Scan again] │ 26
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⌕ symbol… │ Timeframe 1D ▾ │ Bars Auto ▾ │ ⎯ │ ▮ REPLAY SCAN │ ▮ TLS/TLR ⎯ ⌕ Search results… │ Matrix│List│Grid │ ⚙ Filters │ ⋮ │ 30
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ SYMBOL        PATTERN          SCORE  BO  DIR  STATUS     Q  52W%   POS%  BARS  PRICE    CHG%    TO TRIGGER                                │  ← data 97px
+```
+
+### AFTER (chrome 88px, counters folded into the tab row, one filter model)
+
+```
+┌ Scan ══╤═ Watch ──── 49 of 50 ▸ ✕filter ──────── CONFIRMED 18 ▸  BULL/BEAR 35/11 ▸ ─────── 5h ago ┐ 31
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ SCOPE [All NSE 2,757] │ [NIFTY 50 50] │ ▾ 7 more │ ⓘ Indices = sector-mode  ⟩ ⟩ ⟩  [stale 17m ▾]  [Re-scan ▾] │ 26
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⌕ symbol… │ 1D ▾ │ Bars Auto ▾ ⎯ ▮ replay │ ▮ TLS/TLR ⓘ ⎯──── ⌕ results │ Matrix│List│Grid │ Filters 3 │ ⋮ │ 30
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ SYMBOL        PATTERN          SCORE  BO  DIR  STATUS     Q  52W%   POS%  BARS  PRICE    CHG%    TO TRIGGER                                │
+```
+
+What changed, and why:
+
+| Change | Why |
+|---|---|
+| `49 of 50` replaces SCANNED/PATTERNS/IN VIEW | three numbers stated one fact; frees ~200px |
+| `CONFIRMED 18 ▸` / `BULL/BEAR 35/11 ▸` | `▸` = clickable filter. Today they look inert but **are** clickable |
+| `✕filter` appears only when a filter is on | there is no way to see that a filter is active today |
+| `▾ 7 more` for universes | 10 pills forced 9px labels at 1366 |
+| `ⓘ Indices = sector-mode` | `Indices` is a *mode*, not a universe, and sits in the same grammar |
+| `TLS/TLR ⓘ` | unexplained abbreviation, no tooltip on the label |
+| `Re-scan ▾` merges Scan again + Force re-run | two buttons, one intent, no visible difference |
+| `Filters 3` | shows the active count on the button, not only inside the modal |
+
+---
+
+## 1. `ScanStats` — counters
+
+### BEFORE
+
+```
+SCANNED 50 · PATTERNS 49 · IN VIEW 49 · CONFIRMED 18 · BULL/BEAR 35/11 · LAST CANDLE 11-12 18:30 · LAST SCAN 5h ago
+ 9px      11px        9px         9px        9px  9px   11px     9px   9px   11px      9px
+```
+
+### AFTER (two states)
+
+```
+no filter:    50 scanned · 18 confirmed ▸ · ▲35 / ▼11 ▸ · candle 11-12 18:30 · scan 5h ago
+filtered:     49 of 50 ▸ ✕ clear · 18 confirmed ▸ · ▲35 / ▼11 ▸ · candle 11-12 18:30 · scan 5h ago
+                      ▲ only when a filter is active
+```
+
+| Element | BEFORE | AFTER |
 |---|---|---|
-| Tab strip + counters | 31px | `Scan | Watch`, then SCANNED/PATTERNS/IN VIEW/CONFIRMED/BULL-BEAR/LAST CANDLE/LAST SCAN right-aligned |
-| Context | 26px | `SCOPE` + 10 universe pills, `CACHED · 17 MIN AGO`, Force re-run, Scan again |
-| Tools | 30px | symbol · timeframe · lookback │ replay · TLS/TLR ─ search · Matrix|List|Grid · Filters · ⋮ |
-| **First data pixel** | **97px** | |
-| Left rail (optional) | 240px wide | Groups panel (sector performance, 18px rows) |
-
-Contract budget for a primary workspace is ≤96px, so chrome is at target. **The layout is not the
-remaining problem — interaction legibility is.**
+| count | `SCANNED 50` + `PATTERNS 49` + `IN VIEW 49` | `49 of 50` |
+| clickable | CONFIRMED, BULL/BEAR (no affordance) | `▸` suffix + hover underline + tooltip "filter by …" |
+| age | `LAST SCAN 5h ago` inside the strip | `scan 5h ago`, and the cache age moves to the scope row |
+| overflow | truncates silently at 1366 | tail is a `▾` menu |
 
 ---
 
-## 2. Every component
+## 2. `UniverseBar` — scope pills
 
-### 2.1 Page shell — `PatternsPage.tsx`
+### BEFORE
 
 ```
-┌─ Scan ══╤═ Watch ─────────────────────────────────────────────────────────────┐ 31
-│         │ SCANNED 50  PATTERNS 49  IN VIEW 49  CONFIRMED 18  BULL/BEAR 35/11 │
-│         │ LAST CANDLE 11-12 18:30 · LAST SCAN 5h ago                        │
-├─────────┴───────────────────────────────────────────────────────────────────┤ 26
-│ SCOPE (All NSE 2,757) (NSE F&O 218) (Indices 52) [NIFTY 50 50] …  [CACHED·17M] [Force] [Scan]│
-├─────────────────────────────────────────────────────────────────────────────┤ 30
-│ ⌕ symbol │ Timeframe 1D ▾ │ Bars Auto ▾ │ ⎯ │ ▮ REPLAY │ ▮ TLS/TLR ⎯ ⌕ results │ Matrix List Grid │ ⚙ Filters │ ⋮ │
-└─────────────────────────────────────────────────────────────────────────────┘
+SCOPE (All NSE 2,757)(NSE F&O 218)(Indices 52)[NIFTY 50 50](NIFTY 100 100)(NIFTY 200 200)(NIFTY 500 501)(Custom 🔗)   [CACHED · 17 MIN AGO][Force re-run][▶ Scan again]
+       └─ 10 pills, 9px labels at 1366, the widest is the least used
+```
+
+### AFTER
+
+```
+SCOPE ┌───────────────────┐ ┌──────────┐ ┌─────────┐                          [stale 17m ▾] [Re-scan ▾]
+      │ All NSE · 2,757 ▾ │ │ NIFTY 50 │ │ ▾ 7 more│
+      └───────────────────┘ └──────────┘ └─────────┘
+            ▲ active in a menu-shaped control, count inside
+```
+
+```
+▾ 7 more (open)
+┌────────────────────────────┐
+│ ✓ NIFTY 50 · 50            │
+│   NIFTY 100 · 100          │
+│   NIFTY 200 · 200          │
+│   NIFTY 500 · 501          │
+│ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄ │
+│   NSE F&O · 218            │
+│   Indices · 52   ⓘ mode    │
+│ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄ │
+│   Custom… (paste symbols)  │
+└────────────────────────────┘
 ```
 
 | Element | Interaction |
 |---|---|
-| `Scan` / `Watch` tab | URL `?tab=`; keeps both panels mounted (no remount on switch) |
-| counter chips | CONFIRMED and BULL/BEAR are **clickable → apply a filter**; the rest are inert but look identical |
-| universe pill | sets scope, refetches, writes `?universe=` |
-| `Custom` pill | opens the paste-symbols modal |
-| `CACHED · 17 MIN AGO` | hover shows the scan-session timestamp |
-| Force re-run | clears candle cache for the scope + re-scans |
-| Scan again | starts a scan; label changes with state |
+| active universe | click → nothing (already active); the menu keeps ✓ |
+| `▾ 7 more` | opens the menu; last-used items float to the top |
+| `Indices` | marked `ⓘ mode` — selecting it changes what a row *is* |
+| `Custom…` | opens the paste-symbols modal |
+| `stale 17m ▾` | hover → scan-session timestamp; click → force re-run |
 
-**Problems**
-1. Clickable counters are indistinguishable from inert ones (no cursor, no hover, no affordance).
-2. `TLS/TLR`, `BARS`, `SCOPE` are unexplained abbreviations with no tooltip on the label.
-3. `CACHED · 17 MIN AGO` and `LAST SCAN 5h ago` are two different ages with no visual distinction.
-4. Force re-run vs Scan again is a coin flip for a new user.
+---
 
-### 2.2 `UniverseBar` — pills
+## 3. `PatternListView` — the table
+
+### BEFORE
 
 ```
-┌ SCOPE ┐ ┌(All NSE 2,757)(NSE F&O 218)(Indices 52)│[NIFTY 50 50]│(NIFTY 100 100)…(Custom 🔗)┐ [CACHED] [Force re-run] [▶ Scan again] ┐
+SYMBOL             PATTERN           SCORE  BO   DIR  STATUS      Q  52W%    POS%  BARS  PRICE      CHG%    TO TRIGGER
+TATASTEEL   F&O ▾  Falling Wedge      93.9  ▲     CONFIRMED   T  16.2%     0%     4  ₹188.00   -0.68%   —
+SHIRAMFIN   F&O ▾  Descending Channel 93.0  ▼     CONFIRMED   T  13.0%     0%    29  ₹970.00   -3.37%   —
+…
+… 80 rows …                          ── rows 81-312 are unreachable, no indication ──
 ```
-Active pill: `bg-fin-primary/12`, semibold, 1px inset ring. Counts are 9.5px tabular.
 
-**Problems**
-- Ten pills in one row force 9px labels on a 1366 viewport; the least-used (`NIFTY 500 501`) is the
-  widest. Collapse to `All NSE | NIFTY 50 | ▾ more` (a menu), keeping the last-used ones visible.
-- `Indices 52` is a *mode*, not a universe — it changes the symbol set semantics. It sits in the same
-  visual grammar, which misleads.
-
-### 2.3 `ScanStats` — counters
+### AFTER
 
 ```
-SCANNED 50 · PATTERNS 49 · IN VIEW 49 · CONFIRMED 18 · BULL/BEAR 35/11 · LAST CANDLE … · LAST SCAN …
+SYMBOL             PATTERN           SCOREⓘ BOⓘ  DIR  STATUS      Qⓘ 52W%    POS%  BARS  PRICE      CHG%    TO TRIGGER
+TATASTEEL   F&O ⌗  Falling Wedge      93.9  ▲     ●CONFIRMED  ▰  16.2%     0%     4  ₹188.00   -0.68%   —
+SHIRAMFIN   F&O ⌗  Descending Channel 93.0  ▼     ●CONFIRMED  ▰  13.0%     0%    29  ₹970.00   -3.37%   —
+…
+… 80 rows …
+├──────────────────────────────────────────────────────────────────────────────────────┤
+│ showing 80 of 312 · 232 not rendered          [ load 80 more ▾ ]  [ load all ]      │ 18px
+└──────────────────────────────────────────────────────────────────────────────────────┘
 ```
-Labels 9px uppercase muted, values 11px mono tabular. Dividers 12px.
 
-**Problems**
-- `IN VIEW` duplicates the visible row count; `PATTERNS` and `SCANNED` differ only when a filter is on.
-  Three numbers where one (`49 of 50`) would do.
-- Truncates at 1366 with no indication.
-
-### 2.4 `PatternFilterRail` + `AppliedFilters`
-
-Rail: a column of sections (Instrument → Pattern → Direction/Quality → Score/Range → Triggers), each
-with a divider. Opens as a right-side modal under `lg`.
-
-```
-┌ Filters ─────────────────── ✕ ┐
-│ INSTRUMENT                      │   symbols · F&O only · ETFs · indices groups
-│ PATTERN                         │   family · pattern (multi-select) · timeframe
-│ DIRECTION / QUALITY             │   bullish/bearish · quality tiers
-│ SCORE / RANGE                   │   min confidence · range position
-│ TRIGGERS                        │   breakout · retest · within % of trigger
-│                        [Reset] [Filter] │
-└─────────────────────────────────┘
-```
-`AppliedFilters` above the table: chips capped at 6 with `+N` expander, `Clear all` at the end.
-
-| Element | Interaction |
-|---|---|
-| any rail control | **staged** — changes nothing until `Filter` is pressed (or `Enter`) |
-| preset dropdown | replaces staged filters rather than merging |
-| `Escape` / backdrop | discards staged edits |
-| chip `×` | removes that filter **immediately** (asymmetric with staging) |
-
-**Problems**
-- Staged-then-applied is invisible: the Filter button does not show a dirty badge, so users press it
-  blindly or forget.
-- Chips apply immediately while the rail stages — two mental models for the same data.
-- No "N results" preview on the Filter button, so the user cannot tell if a filter is safe.
-
-### 2.5 `PatternListView` (List)
-
-```
-SYMBOL            PATTERN           SCORE  BO  DIR  STATUS     Q  52W%   POS%  BARS  PRICE    CHG%    TO TRIGGER
-TATASTEEL  F&O    Falling Wedge      93.9  ▲    CONFIRMED  T  16.2%    0%     4  ₹188.00  -0.68%  —
-```
-23px rows, 12 columns, sticky header, numeric right + mono tabular.
-
-| Element | Interaction |
-|---|---|
-| header | click sorts; click again flips; 3rd clears (if `enableSortingRemoval`) |
-| row | click → opens the symbol in the docked chart |
-| symbol cell | TV link (external) + chart icon (in-app) — **two different destinations in one cell** |
-| `F&O` tag | none (inert badge) |
-| members button | opens the index-members drawer |
-| expanded row | none on List |
-
-**Problems**
-1. **Rows past 80 are unreachable** — `rowWindowSize` is a hard slice. Footer now discloses
-   "showing 80 of 312", but there is no way to see the rest.
-2. Symbol cell has two click targets with different outcomes and no visual distinction.
-3. `BO` (breakout) vs `SCORE` (fit confidence) are two scores with no explanation on hover.
-4. `Q` column is a single glyph (`T`/`S`/`F`) — meaningless without the legend.
-
-### 2.6 `PatternGrid` + `PatternCard`
-
-```
-┌──────────────────────────────────┐
-│ TATASTEEL           4 1D ago     │  header: symbol (700), pattern name (10px), bars ago, status dot+label
-│ Falling Wedge   ●CONFIRMED  T    │
-│ ┌──────────────────────────────┐ │
-│ │  sparkline + trendlines      │ │  chart: flex-1
-│ └──────────────────────────────┘ │
-│ SCORE 93.9            POS 0%     │  18px strip, surface-alt, no rules
-└──────────────────────────────────┘
-```
-Gap 8, `minmax(0,1fr)` columns, 2/3/4-up responsive.
-
-| Element | Interaction |
-|---|---|
-| card | click → docked chart |
-| expand icon | fullscreen chart (modal) |
-| members | members drawer |
-| chart hover | symbol preview (debounced) |
-| status dot | tooltip with the derived status reason |
-
-**Problems**
-- At 4-up on 1366 the chart is ~250×90 — too short to read a wedge. 3-up would be legible.
-- No keyboard focus on the card: you cannot Tab to a tile.
-- The stat strip shows only 2 numbers where the List shows 12 columns — inconsistent vocabulary.
-
-### 2.7 `PatternSymbolMatrix`
-
-Symbols × timeframes grid of pattern cells. `minTableWidth = max(560, cols×72)`, `fillContainer`.
-
-| Element | Interaction |
-|---|---|
-| cell | click → opens that symbol at that timeframe |
-| row | click → symbol at default TF |
-| timeframe column header | none (not sortable) |
-
-**Problems**
-- No visual weight for a cell with multiple patterns vs one.
-- No legend for cell colour.
-
-### 2.8 Supporting components (kept, minor fixes)
-
-| Component | Role | Verdict |
+| Element | BEFORE | AFTER |
 |---|---|---|
-| `PatternMiniChart` | sparkline + trendlines in a card | keep; needs a `min-height` floor |
-| `PatternFullscreenView` | full chart modal, single-select list | keep; list should show score+status, not just name |
-| `PatternChartToolbar` | TF / bars / replay inside the modal | keep |
-| `TimeframeSelect` | singleton + multi-select modes | keep; multi-select affordance is unclear |
-| `LookbackSelect` | bars lookback | keep |
-| `SymbolFilter` | multi-select symbol picker | keep |
-| `ResultsSearch` | filters the visible rows | keep; should also offer "jump to symbol" |
-| `ReplayScanControl` | replay-as-of scan | keep; `as of` stamp is good |
-| `ScanProgress` | block/banner/inline/queued variants | keep; 4 variants is a lot, but each is used |
-| `JobStatus` | queue position + last scan | keep |
-| `rowBadges` | F&O / ETF tags | keep |
-| `SymbolTvLink` | external TV link | keep; the click-inversion is the issue |
-| `PatternImageManager` | reference image upload | keep; now has a real button role |
-| `WatchView` | second tab: setups + relative volume gate | see §4 |
+| symbol cell | TV link + chart icon, **two different destinations**, identical look | `TATASTEEL` → in-app chart; TV glyph only on hover → external, with `↗` |
+| padded rows | `rowWindowSize` slice, nothing after row 80 | footer + `load more` (client slice, no refetch) |
+| `SCORE` / `BO` | two scores, no explanation | `ⓘ` on hover: "fit confidence (geometry, R², volume)" / "breakout conviction" |
+| `Q` column | single glyph `T`/`S`/`F` | `▰▰▰`/`▰▰▱`/`▰▱▱` — reads without a legend |
+| sort | header click only | header click + `ⓘ` states the direction meaning for `52W%` (gap, not gain) |
+| keyboard | Tab only | `/` search · `f` filters · `↑↓` rows · `Enter` chart · `Esc` clear |
 
 ---
 
-## 3. Interaction map (whole page)
+## 4. `PatternGrid` + `PatternCard`
+
+### BEFORE — 4-up at 1366, chart ≈ 250×90
 
 ```
-                    ┌──────────── Scan again ────────────┐
-                    │                                     ▼
-  SCOPE pill ───────┼──────────────────────────────► refetch + write ?universe=
-                    │
-  counter (CONF) ───┼──► apply status filter ──► table narrows (no refetch)
-                    │
-  Filters ──────────┼──► rail modal (staged) ──Apply──► table narrows
-                    │                              └──Esc──► discard
-                    │
-  view seg ─────────┼──► Matrix | List | Grid   (client only, ?view=)
-                    │
-  header click ─────┼──► sort asc ──► desc ──► (clear)
-                    │
-  row click ────────┼──► docked chart (right pane)
-                    │
-  symbol cell ──────┼──► TradingView (external)      ← ambiguous with row click
-                    │
-  card expand ──────┼──► fullscreen modal
-                    │
-  Tab → Watch ──────┼──► WatchView (?tab=watch), Scan stays mounted
+┌───────────────────────────────────┐ ┌───────────────────────────────────┐
+│ TATASTEEL            4 1D ago     │ │ SHIRAMFIN           29 1D ago     │
+│ Falling Wedge   ●CONFIRMED  T     │ │ Descending Channel  ●CONFIRMED T  │
+│ ┌───────────────────────────────┐ │ │ ┌───────────────────────────────┐ │
+│ │ ∿∿∿∿∿ sparkline + wedge ∿∿∿∿∿ │ │ │ │ ∿∿∿∿∿ wedge unreadable ∿∿∿∿∿∿ │ │  ← 90px
+│ └───────────────────────────────┘ │ │ └───────────────────────────────┘ │
+│ SCORE 93.9              POS 0%    │ │ SCORE 93.0              POS 0%    │
+└───────────────────────────────────┘ └───────────────────────────────────┘
+                ▲ cannot Tab to a card · no hover state on the tile
+```
+
+### AFTER — 3-up at ≤1440, chart ≈ 420×160, keyboard reachable
+
+```
+┌──────────────────────────────────────────────────┐ ┌──────────────────────────────┐ ┌──────────────────────────┐
+│ TATASTEEL   ⌗            4 1D ago   ● CONFIRMED  │ │ SHIRAMFIN  ⌗  29 1D  ● CONF  │ │ KOTAKBANK ⌗  25 1D ● CONF│
+│ Falling Wedge                        ▰▰▰ strong  │ │ Descending Channel     ▰▰▱  │ │ Ascending Channel  ▰▰▰  │
+│ ┌──────────────────────────────────────────────┐ │ │ ┌──────────────────────────┐ │ │ ┌──────────────────────┐ │
+│ │         ∿∿∿∿∿  wedge legible  ∿∿∿∿∿          │ │ │ │  ∿∿∿∿ channel ∿∿∿∿       │ │ │ │  ∿∿ channel ∿∿        │ │
+│ │                                              │ │ │ │                          │ │ │ │                      │ │
+│ │ 248 candles · 1D · through 11-12 18:30       │ │ │ │                          │ │ │ │                      │ │
+│ └──────────────────────────────────────────────┘ │ │ └──────────────────────────┘ │ │ └──────────────────────┘ │
+│ SCORE 93.9    52W% 16.2%    POS 0%    TRIGGER —  │ │ 93.0  13.0%  0%  —           │ │ 90.5  0.1%  0%  −        │
+└──────────────────────────────────────────────────┘ └──────────────────────────────┘ └──────────────────────────┘
+   ▲ focus ring on Tab · Enter opens chart · ⌗ = open fullscreen
+```
+
+| Element | BEFORE | AFTER |
+|---|---|---|
+| columns at 1366 | 4-up, chart 90px tall | 3-up, chart 160px |
+| stat strip | 2 numbers (SCORE, POS) | 4 (SCORE, 52W%, POS, TRIGGER) — same vocabulary as List |
+| quality | one glyph `T` | `▰▰▰ strong` (word + meter) |
+| focus | none | whole card is a focus target with a visible ring |
+| expand | icon only | icon + `Enter` when focused |
+| chart | `flex-1` with no floor | `min-height: 140px` so it never collapses |
+
+---
+
+## 5. `PatternFilterRail` + `AppliedFilters` — the two mental models
+
+### BEFORE — rail stages, chips apply instantly
+
+```
+rail (staged)                                   chips (instant)
+┌ Filters ────────────────────── ✕ ┐           ┌──────────────────────────────────────┐
+│ SYMBOLS     [multi-select]        │           │ [Family: Reversal ✕] [Bullish ✕] +2 │ ← applies now
+│ PATTERN     [multi-select]        │           └──────────────────────────────────────┘
+│ DIRECTION   ● Bull ● Bear         │
+│ QUALITY     ☑ strong ☑ medium     │            ▲ rail edits do NOT change rows
+│ MIN SCORE   [────●────] 40        │            ▲ chips DO. Two models, one dataset.
+│                        [Reset][Filter] │
+└───────────────────────────────────┘
+      ▲ Filter shows no count and no dirty state
+```
+
+### AFTER — one model: everything stages, the bar is the commit point
+
+```
+rail (staged)                                   bar (shows pending + committed)
+┌ Filters ──────────────── 3 changes ┐          ┌────────────────────────────────────────────┐
+│ SYMBOLS     [multi-select]          │          │ [Family: Reversal ✕] [Bullish ✕]  +2       │
+│ PATTERN     [multi-select]          │          │  ─── committed ───────────────────────────  │
+│ DIRECTION   ● Bull ○ Bear           │          │ ● 3 unapplied   [ Discard ]  [ Filter · 41 ]│
+│ QUALITY     ☑ strong ☑ medium       │          └────────────────────────────────────────────┘
+│ MIN SCORE   [──●──────] 40  41 rows │                        ▲ count = result preview
+│                    [Reset] [Filter·41]│                      ▲ Filter is the only commit
+└─────────────────────────────────────┘
+Esc / backdrop → Discard · Enter → Filter
+```
+
+| Element | BEFORE | AFTER |
+|---|---|---|
+| rail control | stages silently | stages, header shows `3 changes`, footer previews `41 rows` |
+| chip `✕` | removes immediately | stages like everything else |
+| Filter button | no count, no dirty state | `Filter · 41` + disabled when nothing pending |
+| Escape | discards (undiscoverable) | `[ Discard ]` button, same action |
+| Commit point | two (rail + chips) | one (the Filter button / Enter) |
+
+---
+
+## 6. `PatternSymbolMatrix`
+
+### BEFORE
+```
+        │ 1D          │ 1W          │ 1M          │ 3M
+NIFTY50 │ ● ●         │ ●           │             │ ● ● ●
+        │ ▲▲ (unexplained colour/weight)
+```
+
+### AFTER
+```
+        │ 1D              │ 1W              │ 1M              │ 3M
+NIFTY50 │ ▰▰ 2 patterns   │ ▰ 1             │ —               │ ▰▰▰ 3
+        │  ▲ weight = pattern count · colour = dominant direction · hover = list
+```
+
+| Element | BEFORE | AFTER |
+|---|---|---|
+| cell | dot(s), no legend | meter whose width = count, colour = direction, tooltip lists names |
+| header | inert | click sorts symbols by that timeframe's count |
+| empty | blank | `—` so "no pattern" ≠ "not scanned" |
+
+---
+
+## 7. Watch tab
+
+### BEFORE
+```
+┌ Long-base breakout ▾ │ Vol (adj) ≥ [0.7] │ Refresh ─────────────── updated 12:04 · 2m · ● live ┐
+│ Long tight base; trigger = box high, invalidate = box low · Long-base breakout · Vol(adj) ≥ 0.7 │
+│ ⌕ symbol │ All states ▾ │ ≤ % of trigger [5] │ ▣ hide inval │ ▣ hide ETFs │ 2/2 │ CSV │ Symbols │
+```
+The `Vol (adj) ≥ 0.7` gate **only applies on the next scan** but looks like a live filter.
+
+### AFTER
+```
+┌ Long-base breakout ▾ │ Vol (adj) ≥ [0.7] ⓘ next scan ▸ │ Refresh ────── updated 12:04 · 2m · ● live ┐
+│ Long tight base; trigger = box high, invalidate = box low · gate applies on re-scan              │
+│ ⌕ symbol │ All states ▾ │ ≤ % of trigger [5] │ ▣ hide inval ⓘ │ ▣ hide ETFs ⓘ │ 2/2 │ CSV │ Symbols │
+```
+`ⓘ next scan ▸` + the inline note make the distinction explicit. The two hide toggles get `ⓘ` so it is
+clear they are client-side.
+
+| Element | BEFORE | AFTER |
+|---|---|---|
+| vol-adj gate | looks like a filter, is scan-time | `ⓘ next scan ▸` label |
+| state badges | ARMED/FRESH/CONFIRMED, no legend | legend popover on the header |
+| hide toggles | plain switches | `ⓘ` marks them as instant/client-side |
+
+---
+
+## 8. Empty / loading / error states
+
+### BEFORE
+```
+loading:  ◯ (centred spinner, black page)          empty:  ┌────────────┐
+                                                   │ No results │
+                                                   └────────────┘
+```
+
+### AFTER
+```
+loading:  ┌ Scan ═╤═ Watch ── [skeleton stat blocks] ┐   ← bands paint immediately
+          ├ SCOPE [skeleton pills] ────────────────┤
+          ├ [skeleton tool row] ───────────────────┤
+          ├ ┌───────┐ ┌───────┐ ┌───────┐           │   ← card skeleton, no shift
+          │ └───────┘ └───────┘ └───────┘           │
+empty:    │  No patterns match these filters       │
+          │  [ clear 3 filters ]  [ widen scope ]  │   ← the way out, not just a message
+```
+
+| State | BEFORE | AFTER |
+|---|---|---|
+| loading | centred spinner, whole page dark | band + card skeleton (shipped) |
+| empty w/ filters | "No results" | states the cause + one-click clear |
+| empty no filters | "No results" | "Scan returned nothing for NIFTY 50 — widen scope" |
+| error | alert above the table | alert + `Retry` + `Force re-run` |
+
+---
+
+## 9. Interaction map — old vs new
+
+### BEFORE
+```
+  counter (CONFIRMED) ──► filter applied   (looks inert, so nobody finds it)
+  Filters ──► rail stages ──[Filter]──► applied
+  chip ✕ ──► applied IMMEDIATELY          (second model)
+  row click ──► in-app chart
+  symbol cell ──► TradingView (external)   (same look, different destination)
+  rows 81-312 ──► unreachable
+```
+
+### AFTER
+```
+  counter ▸ ─────► filter applied        (arrow + hover says so)
+  Filters 3 ─────► rail stages ──[Filter·41]──► applied
+                            └─[Discard]/Esc──► discarded
+  chip ✕ ────────► STAGED, then [Filter·41]  (one model)
+  row click ─────► in-app chart
+  TV glyph ──────► external, with ↗ and hover-only
+  footer [load more] ──► rows 81-312 appear (client slice, no refetch)
+  / ──► focus search      f ──► filters      ↑↓ ──► move    Enter ──► chart
 ```
 
 ---
 
-## 4. Watch tab (`WatchView`)
+## 10. Ranked backlog
 
-Three bands (36/24/32), 0px centre spread. Setup select · vol-adj gate · Refresh │ updated · age ·
-live/paused. Then search · state · within% · hide-invalidated · hide-ETFs · count · CSV · Symbols.
-
-| Element | Interaction |
-|---|---|
-| setup select | changes the setup definition; refetches |
-| vol-adj gate | **server-side**: only applies on the next scan, not instantly |
-| Refresh | refetch now |
-| state filter | client-only |
-| hide toggles | client-only |
-| CSV / Symbols | copy to clipboard |
-
-**Problems**
-- The vol-adj gate looks like a filter but only affects the *next* scan — same class of trap as the
-  screener's scan-time filters.
-- `ARMED` / `FRESH` / `CONFIRMED` state badges have no legend.
-
----
-
-## 5. Best ideas, ranked by impact ÷ effort
-
-| # | Idea | Why | Effort | Risk |
+| # | Change | Why | Effort | Risk |
 |---|---|---|---|---|
-| 1 | **Make counters honest**: one `49 of 50` chip instead of SCANNED/PATTERNS/IN VIEW | three numbers, one fact; frees ~200px | S | low |
-| 2 | **Distinguish clickable counters** — cursor+underline+tooltip "click to filter" | a filter affordance that looks inert is a non-feature | S | low |
-| 3 | **Collapse universes**: `All NSE │ NIFTY 50 │ ▾` | 10 pills → 3; ends 9px labels | S | low |
-| 4 | **Sortable-row disclosure**: keep the footer, add "load 80 more" | 232 of 312 rows unreadable today | M | low |
-| 5 | **Separate the symbol cell's two destinations** — TV icon = external, rest of cell = in-app | the click inversion every pro trips on | S | low |
-| 6 | **Say what BO and SCORE are** on hover, and put the quality legend in the header | two scores, one glyph column, no explanation | S | low |
-| 7 | **Rail staging badge**: `Filter (12 results)` + dirty dot | removes the "did that apply?" loop | M | med |
-| 8 | **Chips stage too** (same model as the rail) | two mental models for one dataset | M | med |
-| 9 | **Grid at 3-up on ≤1440** so the chart is legible | 250×90 cannot show a wedge | S | low |
-| 10 | **Keyboard**: `/` focus search, `f` filters, arrows move rows, Enter opens chart | tab-only navigation is slow at 312 rows | M | low |
-| 11 | **Watch: mark the vol-adj gate `next scan ▸`** | it silently does nothing now | S | low |
-| 12 | **Matrix cell weight** = pattern count, plus a colour legend | a dense grid with no legend is noise | S | med |
+| 1 | `49 of 50` + clickable-counter affordance | three numbers became one; a filter stops hiding | S | low |
+| 2 | Universe pills → control + `▾ more` menu | 10 pills force 9px labels at 1366 | S | low |
+| 3 | `load more` in the existing footer | 232 of 312 rows unreachable | M | low |
+| 4 | Symbol cell: in-app vs external split | the click inversion every pro trips on | S | low |
+| 5 | Grid 3-up at ≤1440 | 90px chart cannot show a wedge | S | low |
+| 6 | One filter model (chips stage too) | two models for one dataset | M | med |
+| 7 | Rail: `3 changes` + `Filter · 41` preview | staging is invisible today | M | med |
+| 8 | `ⓘ` on SCORE / BO / Q / TLS-TLR / Indices | seven unlabelled abbreviations | S | low |
+| 9 | Card keyboard focus + `Enter` | 312 rows, Tab-only navigation | M | low |
+| 10 | Matrix cell weight + legend | dense grid with no legend | S | med |
+| 11 | Watch: `ⓘ next scan ▸` on the gate | silently does nothing today | S | low |
+| 12 | Empty state offers the way out | "No results" is a dead end | S | low |
 
-## 6. Do not change
+---
 
-- The three-band composition and 97px chrome — it is at contract.
-- The `For`-based rows and the memoised card derivation (~0.18ms identical update).
+## 11. Do not change
+
+- The three-band composition; chrome is at 97px, inside the ≤96 budget once the counters fold.
+- `<For>`-based rows and the memoised card derivation (~0.18ms identical update).
 - The flat tab strip with an accent underline.
-- Rail staging itself — the model is right; only the *feedback* is missing.
+- Rail staging as a *concept* — only the feedback is missing.
 
-## 7. Open questions
+## 12. Open questions
 
-1. Should `Scan again` and `Force re-run` merge into one button with a modifier?
-2. Does the Watch tab belong here, or is it a separate route (it has its own setup + polling)?
-3. Keep the matrix as a third view, or fold it into List as a grouping?
-4. Should the counters move into the table header (data, not chrome)?
+1. Merge `Scan again` + `Force re-run`, or keep both with a modifier?
+2. Is Watch a tab or its own route (own setup, own polling)?
+3. Keep Matrix as a third view, or make it a List grouping?
+4. Move the counters into the table header (data, not chrome)?
