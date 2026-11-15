@@ -17,27 +17,27 @@ const px = (value: string, prop: string): number => {
 };
 
 describe("TextInput — the shared text look", () => {
-  it("is a 32px field, 6px radius, 1px border, 13px text, 8px 10px padding", () => {
+  it("is a 34px field, 6px radius, 1px border, 13px text, 9px 10px padding", () => {
     render(() => <TextInput data-testid="ti" />);
     const style = styleOf(screen.getByTestId("ti"));
-    expect(px(style, "height")).toBe(32);
+    expect(px(style, "height")).toBe(34);
     expect(style).toContain("border-radius: 6px");
-    expect(style).toContain(`border: 1px solid ${palette.BORDER}`);
+    expect(style).toContain("border-color: var(--color-fin-border)");
     expect(px(style, "font-size")).toBe(13);
-    expect(style).toContain("padding: 8px 10px");
+    expect(style).toContain("padding: 9px 10px");
   });
 
   it("paints the primary border plus a 1px ring on focus", () => {
     render(() => <TextInput data-testid="ti" />);
     fireEvent.focus(screen.getByTestId("ti"));
     const style = styleOf(screen.getByTestId("ti"));
-    expect(style).toContain(`border: 1px solid ${palette.PRIMARY}`);
-    expect(style).toContain(`box-shadow: 0 0 0 1px ${palette.PRIMARY}`);
+    expect(style).toContain("border-color: var(--color-fin-primary)");
+    expect(style).toContain("box-shadow: 0 0 0 1px var(--color-fin-primary)");
   });
 
   it("uses the negative border for the error state", () => {
     render(() => <TextInput data-testid="ti" error="Required" />);
-    expect(styleOf(screen.getByTestId("ti"))).toContain(`border: 1px solid ${palette.NEGATIVE}`);
+    expect(styleOf(screen.getByTestId("ti"))).toContain("border-color: var(--color-fin-negative)");
   });
 
   it("fades to 45% on SURFACE_ALT and blocks the cursor when disabled", () => {
@@ -45,7 +45,7 @@ describe("TextInput — the shared text look", () => {
     const style = styleOf(screen.getByTestId("ti"));
     expect(style).toContain("opacity: 0.45");
     expect(style).toContain("cursor: not-allowed");
-    expect(style).toContain(`background-color: ${palette.SURFACE_ALT}`);
+    expect(style).toContain("background-color: var(--color-fin-surface-alt)");
   });
 });
 
@@ -73,7 +73,7 @@ describe("PasswordInput — differs by the reveal eye and mono value", () => {
   it("keeps the shared field geometry and relies on the eye only", () => {
     render(() => <PasswordInput data-testid="pi" />);
     const style = styleOf(screen.getByTestId("pi"));
-    expect(px(style, "height")).toBe(32);
+    expect(px(style, "height")).toBe(34);
     expect(style).toContain("border-radius: 6px");
   });
 });
@@ -106,7 +106,7 @@ describe("NumberInput — differs by the stepper affordances", () => {
   it("keeps the shared field geometry so only the steppers distinguish it", () => {
     render(() => <NumberInput data-testid="ni" />);
     const style = styleOf(within(screen.getByTestId("ni")).getByRole("spinbutton"));
-    expect(px(style, "height")).toBe(32);
+    expect(px(style, "height")).toBe(34);
     expect(style).toContain("border-radius: 6px");
   });
 });
@@ -157,7 +157,7 @@ describe("text family — shared state colours", () => {
       </div>
     ));
     for (const testId of ["ti", "ni-input", "pi", "ta"]) {
-      expect(styleOf(screen.getByTestId(testId))).toContain(`border: 1px solid ${palette.NEGATIVE}`);
+      expect(styleOf(screen.getByTestId(testId))).toContain("border-color: var(--color-fin-negative)");
     }
   });
 });

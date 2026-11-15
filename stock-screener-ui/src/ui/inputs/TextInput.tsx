@@ -1,6 +1,5 @@
 import { createMemo, createSignal, createUniqueId } from "solid-js";
 import { cn } from "../cn";
-import * as palette from "../palette";
 import type { UITextInputProps } from "../types";
 
 type FieldBox = { h: number; fs: number; padY: number; padX: number };
@@ -9,14 +8,19 @@ type FieldBox = { h: number; fs: number; padY: number; padX: number };
  * Text-family geometry. Text/password/number deliberately share one look — they
  * are the same control; the distinguishing affordances live inside the field
  * (reveal eye, steppers) or in the element itself (textarea height/resize).
+ * `md` is the default step: a text field and a Select have to be the same
+ * height when they sit in one row.
  */
 const FIELD_BOX: Record<string, FieldBox> = {
-  xs: { h: 26, fs: 11, padY: 4, padX: 8 },
-  sm: { h: 32, fs: 13, padY: 8, padX: 10 },
+  xs: { h: 24, fs: 11, padY: 4, padX: 8 },
+  sm: { h: 30, fs: 13, padY: 7, padX: 10 },
+  md: { h: 34, fs: 13, padY: 9, padX: 10 },
+  lg: { h: 38, fs: 14, padY: 11, padX: 12 },
+  xl: { h: 42, fs: 15, padY: 13, padX: 12 },
 };
 
 function boxOf(size?: UITextInputProps["size"]): FieldBox {
-  return FIELD_BOX[String(size)] ?? { h: 32, fs: 13, padY: 8, padX: 10 };
+  return FIELD_BOX[String(size)] ?? FIELD_BOX.md;
 }
 
 export function TextInput(props: UITextInputProps) {
@@ -43,14 +47,22 @@ export function TextInput(props: UITextInputProps) {
 
   const inputStyle = createMemo<Record<string, string>>(() => {
     const box = boxOf(props.size);
-    const border = isError() ? palette.NEGATIVE : focused() ? palette.PRIMARY : palette.BORDER;
+    const border = isError()
+      ? "var(--color-fin-negative)"
+      : focused()
+        ? "var(--color-fin-primary)"
+        : "var(--color-fin-border)";
     return {
       height: explicitHeight() ?? `${box.h}px`,
       "border-radius": "6px",
-      border: `1px solid ${border}`,
+      // Longhands, not the `border` shorthand: a `var()` inside the shorthand is
+      // not parsed by every DOM implementation, which silently drops the width.
+      "border-width": "1px",
+      "border-style": "solid",
+      "border-color": border,
       "box-shadow": focused() ? `0 0 0 1px ${border}` : "none",
-      "background-color": props.disabled ? palette.SURFACE_ALT : palette.SURFACE,
-      color: palette.TEXT,
+      "background-color": props.disabled ? "var(--color-fin-surface-alt)" : "var(--color-fin-surface)",
+      color: "var(--color-fin-text)",
       "font-size": `${box.fs}px`,
       "line-height": "1",
       padding: `${box.padY}px ${box.padX}px`,

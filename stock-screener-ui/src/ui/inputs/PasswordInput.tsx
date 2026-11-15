@@ -6,14 +6,20 @@ import type { UIPasswordInputProps } from "../types";
 
 type FieldBox = { h: number; fs: number; padY: number; padX: number };
 
-/** Shared with TextInput/NumberInput: one look for the whole text family. */
+/**
+ * Shared with TextInput/NumberInput: one look for the whole text family.
+ * `md` is the default step so a password field matches a Select in the same row.
+ */
 const FIELD_BOX: Record<string, FieldBox> = {
-  xs: { h: 26, fs: 11, padY: 4, padX: 8 },
-  sm: { h: 32, fs: 13, padY: 8, padX: 10 },
+  xs: { h: 24, fs: 11, padY: 4, padX: 8 },
+  sm: { h: 30, fs: 13, padY: 7, padX: 10 },
+  md: { h: 34, fs: 13, padY: 9, padX: 10 },
+  lg: { h: 38, fs: 14, padY: 11, padX: 12 },
+  xl: { h: 42, fs: 15, padY: 13, padX: 12 },
 };
 
 function boxOf(size?: UIPasswordInputProps["size"]): FieldBox {
-  return FIELD_BOX[String(size)] ?? { h: 32, fs: 13, padY: 8, padX: 10 };
+  return FIELD_BOX[String(size)] ?? FIELD_BOX.md;
 }
 
 const Eye = () => (
@@ -97,14 +103,22 @@ export function PasswordInput(props: UIPasswordInputProps) {
    */
   const inputStyle = createMemo<Record<string, string>>(() => {
     const box = boxOf(known.size);
-    const border = isError() ? palette.NEGATIVE : focused() ? palette.PRIMARY : palette.BORDER;
+    const border = isError()
+      ? "var(--color-fin-negative)"
+      : focused()
+        ? "var(--color-fin-primary)"
+        : "var(--color-fin-border)";
     return {
       height: explicitHeight() ?? `${box.h}px`,
       "border-radius": "6px",
-      border: `1px solid ${border}`,
+      // Longhands, not the `border` shorthand: a `var()` inside the shorthand is
+      // not parsed by every DOM implementation, which silently drops the width.
+      "border-width": "1px",
+      "border-style": "solid",
+      "border-color": border,
       "box-shadow": focused() ? `0 0 0 1px ${border}` : "none",
-      "background-color": known.disabled ? palette.SURFACE_ALT : palette.SURFACE,
-      color: palette.TEXT,
+      "background-color": known.disabled ? "var(--color-fin-surface-alt)" : "var(--color-fin-surface)",
+      color: "var(--color-fin-text)",
       "font-size": `${box.fs}px`,
       "font-family": palette.MONO,
       "letter-spacing": visible() ? "normal" : "0.12em",
@@ -123,7 +137,7 @@ export function PasswordInput(props: UIPasswordInputProps) {
       "border-radius": "4px",
       border: "none",
       "background-color": "transparent",
-      color: visible() ? palette.PRIMARY : palette.TEXT_MUTED,
+      color: visible() ? "var(--color-fin-primary)" : "var(--color-fin-text-muted)",
       right: "4px",
       top: "50%",
       transform: "translateY(-50%)",
