@@ -117,7 +117,6 @@ src/
   config/       # constants, theme, backtestDefaults, colors, patternCatalog, tvSymbols
   hooks/        # useFetch, usePolling, useStoreSubscription, useScreenerState, useOptionsState, …
   pages/        # route entry points (21 of 28 routes; 7 live under components/ — see docs/MAP.md)
-  patterns/     # GoF study modules + icons.tsx + solidUiMock.tsx (test-only). NOT the chart-pattern feature
   state/        # createSubscriber stores; state/store/ holds Solid createStore slices
   test/         # shared guard specs (style-keys, no-react, design-scale, …)
   test-utils/   # shared render/test helpers
@@ -126,7 +125,7 @@ src/
   utils/        # pure helpers (chartUtils, color, marketClock, reportParsers, …)
 ```
 
-**Agent navigation map: `docs/MAP.md`** — "to do X, go to Y", verified paths, and the three things named "patterns".
+**Agent navigation map: `docs/MAP.md`** — "to do X, go to Y", verified paths, and the two things named "patterns".
 
 ## Replay Trading
 - Components: `src/components/replay/` — page-level feature, uses SSE from `api/replay_api.py`

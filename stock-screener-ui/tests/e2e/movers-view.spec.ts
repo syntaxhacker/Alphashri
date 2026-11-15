@@ -39,7 +39,7 @@ test.describe("Screener - Market movers view (dashboard folded into Market)", ()
 
     await expect(page.getByTestId("screener-dashboard")).toBeVisible({ timeout: 10000 });
     await expect(page).toHaveURL(
-      /screener.*tab=market.*view=movers|screener.*view=movers.*tab=market/,
+      /screener(\/market)?\?view=movers/,
       { timeout: 10000 },
     );
   });

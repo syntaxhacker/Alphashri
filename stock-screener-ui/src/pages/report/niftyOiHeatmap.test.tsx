@@ -5,6 +5,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { screen, cleanup } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import * as palette from "@/ui/palette";
+import * as heatmapModule from "./niftyOiHeatmap";
 import { buildOiHeatmap, heatmapReadText, readHeatmap, type HeatmapTapeRow } from "./niftyOiHeatmap";
 import { HEATMAP_CE, HEATMAP_FLIP, HEATMAP_MP, HEATMAP_PE, HEATMAP_SPOT, NiftyOiHeatmap } from "./NiftyOiHeatmap";
 import { chainAt, isoAt, r } from "./reportTestFixtures";
@@ -731,5 +732,30 @@ describe("padded leading bucket", () => {
       .filter(Boolean);
     expect(points).toHaveLength(2); // only the two buckets with a tape spot
     expect(screen.getByTestId("nifty-heatmap-svg")).toBeInTheDocument();
+  });
+});
+
+describe("model memo gating", () => {
+  test("does not rebuild buildOiHeatmap on a fresh-but-equal rows array", () => {
+    const buildSpy = vi.spyOn(heatmapModule, "buildOiHeatmap");
+    const [rows, setRows] = createSignal([
+      row(isoAt(0), 25750, chainAt(STRIKES, 1000, 1000)),
+      row(isoAt(6), 25760, chainAt(STRIKES, 2000, 1000)),
+    ]);
+    r(() => <NiftyOiHeatmap rows={rows()} bucketMin={5} widthPts={500} startTime={isoAt(0)} />);
+    const buildsAfterMount = buildSpy.mock.calls.length;
+    expect(buildsAfterMount).toBeGreaterThan(0);
+
+    // Identical content, new array identity — like tapeRows() on every frame — must not rebuild.
+    setRows((prev) => [...prev]);
+    expect(buildSpy.mock.calls.length).toBe(buildsAfterMount);
+
+    // Genuinely new content — must rebuild.
+    setRows((prev) => [...prev, row(isoAt(7), 25800, chainAt(STRIKES, 1000, 1000))]);
+    expect(buildSpy.mock.calls.length).toBe(buildsAfterMount + 1);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 });

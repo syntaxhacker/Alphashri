@@ -3,7 +3,7 @@ import { UIProvider } from "@/ui";
 import { createMemoryHistory, MemoryRouter } from "@solidjs/router";
 import type { JSX } from "solid-js";
 import { vi } from "vitest";
-import { AuthProvider, type User } from "../components/auth/AuthProvider2";
+import { AuthProvider, type User } from "../components/auth/AuthProvider";
 
 // Mock Auth Provider data
 let mockUser: User | null = null;
@@ -15,9 +15,9 @@ export function setMockUser(user: User | null) {
 }
 
 // Mock the useAuth hook
-vi.mock("../components/auth/AuthProvider2", async () => {
-  const actual = await vi.importActual<typeof import("../components/auth/AuthProvider2")>(
-    "../components/auth/AuthProvider2",
+vi.mock("../components/auth/AuthProvider", async () => {
+  const actual = await vi.importActual<typeof import("../components/auth/AuthProvider")>(
+    "../components/auth/AuthProvider",
   );
   return {
     ...actual,

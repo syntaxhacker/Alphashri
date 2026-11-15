@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
+import { alpha, PRIMARY } from "@/ui/palette";
 import type { ScreenerDashboardResponse, ScreenerDashboardRow } from "../../types/screenerDashboard";
 import { createSignal, type JSX } from "solid-js";
 
@@ -17,7 +18,7 @@ vi.mock("../../api/screenerDashboard", () => ({
 // pass-through twins (see src/patterns/solidUiMock.tsx). Everything else is
 // the real implementation.
 vi.mock("@/ui", async () => {
-  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
   const { For } = await import("solid-js");
   // The repo's stubs are near-miss twins: they drop `data-testid` from
   // SegmentedControl's root and Chip's onChange toggle. These match the real
@@ -205,14 +206,51 @@ describe("DashboardView", () => {
     expect(onOpenSymbol).toHaveBeenCalledWith("INDIAGLYCO");
   });
 
-  it("calls onOpenScan with the panel id when Open scan is clicked", async () => {
+  it("calls onOpenScan with the panel id and deduped symbols", async () => {
     const onOpenScan = vi.fn();
     renderWithProvider(<DashboardView universe="nifty500" onOpenScan={onOpenScan} />);
     await screen.findByTestId("dashboard-card-gainers");
     fireEvent.click(screen.getByTestId("dashboard-open-scan-gainers"));
-    expect(onOpenScan).toHaveBeenCalledWith("gainers");
+    expect(onOpenScan).toHaveBeenCalledWith("gainers", ["INDIAGLYCO", "RELIANCE"]);
     fireEvent.click(screen.getByTestId("dashboard-open-scan-volume_surge"));
-    expect(onOpenScan).toHaveBeenCalledWith("volume_surge");
+    expect(onOpenScan).toHaveBeenCalledWith("volume_surge", ["INFY"]);
+  });
+
+  it("dedupes symbols across the group's panels", async () => {
+    const onOpenScan = vi.fn();
+    mockFetchScreenerDashboard.mockResolvedValue({
+      ...payload(),
+      sections: [
+        {
+          id: "movers",
+          title: "Market Movers",
+          panels: [
+            {
+              id: "gainers",
+              title: "Top gainers",
+              metric_label: "Change %",
+              qualify: 2,
+              rows: [row({ symbol: "RELIANCE" }), row({ symbol: "INDIAGLYCO" })],
+            },
+            {
+              id: "losers",
+              title: "Top losers",
+              metric_label: "Change %",
+              qualify: 2,
+              rows: [row({ symbol: "INDIAGLYCO" }), row({ symbol: "TATAMOTORS" })],
+            },
+          ],
+        },
+      ],
+    });
+    renderWithProvider(<DashboardView universe="nifty500" onOpenScan={onOpenScan} />);
+    await screen.findByTestId("dashboard-card-gainers_losers");
+    fireEvent.click(screen.getByTestId("dashboard-open-scan-gainers_losers"));
+    expect(onOpenScan).toHaveBeenCalledWith("gainers", [
+      "RELIANCE",
+      "INDIAGLYCO",
+      "TATAMOTORS",
+    ]);
   });
 
   it("re-fetches when the universe changes", async () => {
@@ -270,6 +308,21 @@ describe("DashboardView", () => {
     const rowEl = await screen.findByTestId("dashboard-row-gainers-INDIAGLYCO");
     fireEvent.click(rowEl);
     expect(rowEl).toBeInTheDocument();
+  });
+
+  it("tints only the row matching selectedSymbol, and follows it reactively", async () => {
+    const [selected, setSelected] = createSignal<string | null>("RELIANCE");
+    renderWithProvider(<DashboardView universe="nifty500" selectedSymbol={selected()} />);
+    const reliance = await screen.findByTestId("dashboard-row-gainers-RELIANCE");
+    const glycols = screen.getByTestId("dashboard-row-gainers-INDIAGLYCO");
+    const tint = alpha(PRIMARY, 0.12).replace(/\s+/g, "");
+
+    expect(reliance.style.backgroundColor.replace(/\s+/g, "")).toBe(tint);
+    expect(glycols.style.backgroundColor).toBe("");
+
+    setSelected("INDIAGLYCO");
+    expect(glycols.style.backgroundColor.replace(/\s+/g, "")).toBe(tint);
+    expect(reliance.style.backgroundColor).toBe("");
   });
 });
 

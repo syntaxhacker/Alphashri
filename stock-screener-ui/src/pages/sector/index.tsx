@@ -1,0 +1,1 @@
+export { SectorPage } from "@/components/sector/SectorPage";

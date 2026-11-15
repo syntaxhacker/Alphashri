@@ -7,7 +7,7 @@ import type { TFSpec } from "@/types/chartPatterns";
 import { PatternChartToolbar } from "./PatternChartToolbar";
 
 vi.mock("@/ui", async () => {
-  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
   return mockSolidUi();
 });
 

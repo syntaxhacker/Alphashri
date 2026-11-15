@@ -267,7 +267,9 @@ export function setupAutoRefresh() {
   const interval = setInterval(() => {
     if (getBacktestState().currentView === "backtest") return;
     const params = new URLSearchParams(window.location.search);
-    const activeTab = params.get("tab");
+    // Tabs live in the path (`/screener/config`); the query form is the legacy one.
+    const pathTab = /^\/screener\/([^/]+)\/?$/.exec(window.location.pathname)?.[1] ?? null;
+    const activeTab = params.get("tab") ?? pathTab;
     if (activeTab === "config" || activeTab === "correlation") return;
     if (isMarketClosedToday()) return;
     if (state.data && !state.isLoading) {

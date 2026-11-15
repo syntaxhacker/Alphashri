@@ -1,8 +1,8 @@
 import { Show, Suspense, createEffect, createSignal, lazy, type JSX } from "solid-js";
 import { Center, Loader } from "@/ui";
 import { Navigate, Route, Router, useLocation } from "@solidjs/router";
-import { AuthProvider, useAuth } from "./components/auth/AuthProvider2";
-import { LoginForm, RegisterForm } from "./components/auth/LoginForm2";
+import { AuthProvider, useAuth } from "./components/auth/AuthProvider";
+import { LoginForm, RegisterForm } from "./components/auth/LoginForm";
 import { NotificationContainer } from "./components/notifications/NotificationContainer";
 import { PreviewChartProvider } from "./components/common/PreviewChartProvider";
 import { SymbolDockProvider } from "./components/common/SymbolDockProvider";
@@ -12,14 +12,14 @@ import { NewsWebSocketProvider } from "./state/newsWebSocket";
 import { loadHolidays } from "./state/holidays";
 
 const ScreenerContainer = lazy(() => import("./pages/screener/ScreenerContainer").then(m => ({ default: m.ScreenerContainer })));
-const SectorPage = lazy(() => import("./components/sector/SectorPage2").then(m => ({ default: m.SectorPage })));
+const SectorPage = lazy(() => import("./pages/sector").then(m => ({ default: m.SectorPage })));
 const StrategiesContainer = lazy(() => import("./pages/strategies/StrategiesContainer").then(m => ({ default: m.StrategiesContainer })));
-const BacktestPage = lazy(() => import("./components/backtest").then(m => ({ default: m.BacktestPage })));
-const ExperimentsPage = lazy(() => import("./components/experiments/ExperimentsPage").then(m => ({ default: m.ExperimentsPage })));
-const PaperTradingView = lazy(() => import("./components/paper-trading").then(m => ({ default: m.PaperTradingView })));
-const ReplayPage = lazy(() => import("./components/replay").then(m => ({ default: m.ReplayPage })));
-const StrategyRunnerPage = lazy(() => import("./components/strategy-runner").then(m => ({ default: m.StrategyRunnerPage })));
-const BotsPage = lazy(() => import("./components/bots/components").then(m => ({ default: m.BotsPage })));
+const BacktestPage = lazy(() => import("./pages/backtest").then(m => ({ default: m.BacktestPage })));
+const ExperimentsPage = lazy(() => import("./pages/experiments").then(m => ({ default: m.ExperimentsPage })));
+const PaperTradingView = lazy(() => import("./pages/paper").then(m => ({ default: m.PaperTradingView })));
+const ReplayPage = lazy(() => import("./pages/replay").then(m => ({ default: m.ReplayPage })));
+const StrategyRunnerPage = lazy(() => import("./pages/strategy-runner").then(m => ({ default: m.StrategyRunnerPage })));
+const BotsPage = lazy(() => import("./pages/bots").then(m => ({ default: m.BotsPage })));
 const OptionsContainer = lazy(() => import("./pages/options/OptionsContainer").then(m => ({ default: m.OptionsContainer })));
 const NiftyReportPage = lazy(() => import("./pages/report/NiftyReportShell").then(m => ({ default: m.NiftyReportShell })));
 const UsReportPage = lazy(() => import("./pages/report/us/UsReportPage").then(m => ({ default: m.UsReportPage })));
@@ -39,9 +39,24 @@ const TickReplay = lazy(() => import("./pages/poc/TickReplay"));
 const ReplayStrategyPage = lazy(() => import("./pages/poc/ReplayStrategyPage"));
 const ReplayIndexPage = lazy(() => import("./pages/poc/ReplayIndexPage"));
 
-/** `/` is a back-compat alias: keep the query so `/?tab=market` still lands on that tab. */
+/**
+ * `/` is a back-compat alias. A legacy `?tab=` becomes a path segment so every
+ * old screener link converges on `/screener/<tab>`; the remaining query (and the
+ * hash) are preserved.
+ */
 function RootRedirect() {
   const location = useLocation();
+  const incoming = new URLSearchParams(location.search);
+  const legacyTab = incoming.get("tab");
+  if (legacyTab) {
+    incoming.delete("tab");
+    const rest = incoming.toString();
+    return (
+      <Navigate
+        href={`/screener/${encodeURIComponent(legacyTab)}${rest ? `?${rest}` : ""}${location.hash}`}
+      />
+    );
+  }
   return <Navigate href={`/screener${location.search}${location.hash}`} />;
 }
 
@@ -111,7 +126,7 @@ function AppContent() {
       <Show when={auth.isAuthenticated} fallback={<AuthScreen />}>
         <Router root={Shell}>
           <Route path="/" component={RootRedirect} />
-          <Route path="/screener" component={ScreenerContainer} />
+          <Route path="/screener/:tab?" component={ScreenerContainer} />
           <Route path="/backtest" component={BacktestPage} />
           <Route path="/experiments" component={ExperimentsPage} />
           <Route path="/paper" component={PaperTradingView} />

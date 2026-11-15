@@ -4,8 +4,6 @@
  * Migrated from legacy string-based rendering to Solid components.
  */
 
-export { StrategiesContainer } from "../../pages/strategies/StrategiesContainer";
-
 // Solid components (new)
 export { StrategiesPage } from "./StrategiesPage";
 export { StrategiesNav } from "./StrategiesNav";

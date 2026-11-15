@@ -36,27 +36,28 @@ reappears (`react` in `bun.lock` is only a transitive peer of `@storybook/icons`
 `components/replay` · `/strategy-runner` → `components/strategy-runner` · `/bots` → `components/bots/components`.
 Everything else (`/`, `/options`, `/report/*`, `/settings`, `/news`, `/admin`, `/agri`,
 `/orderflow`, `/patterns`, `/chart/:symbol?`, `/poc/*`) resolves under `src/pages/`.
+Route entries live in `src/pages/<feature>/`; seven of them are thin re-exports of a feature folder under `components/`.
 
-## Disambiguation — three things named "patterns"
+## Disambiguation — things named "patterns"
 
 | Path | What it actually is |
 | --- | --- |
-| `src/patterns/` | **Textbook GoF demos** — `adapter builder command decorator facade factory iterator observer proxy singleton state strategy` + `index.ts` barrel. Alias `@/patterns` resolves here. |
-| `src/patterns/icons.tsx` | Inline-SVG **Tabler icon re-implementations** as Solid components (the React build used `forwardRef`, which Solid cannot call). |
-| `src/patterns/solidUiMock.tsx` | **Test-only** stand-in for `@/ui`, imported by 60 `*.test.tsx`. Not product UI. |
 | `src/components/patterns/` | The **chart-pattern feature UI** (`PatternListView`, `PatternGrid`, `PatternChartBody`, `PatternFullscreenView`, …). |
 | `src/pages/patterns/` | The **chart-pattern route** (`PatternsContainer.tsx`, `PatternsPage.tsx`, `patternsFullscreen.ts`). |
 
-`@/patterns/icons` is **not** the chart-pattern feature. `solidUiMock` is **not** product UI — never import it from non-test code.
+The old `src/patterns/` folder (12 GoF demo modules + `index.ts` barrel) is deleted. Its two non-demo contents were relocated:
+- Inline-SVG Tabler icons → `src/ui/icons.tsx` (import `@/ui/icons`)
+- Test-only `@/ui` stand-in → `src/test-utils/solidUiMock.tsx` (import `@/test-utils/solidUiMock`; tests only)
+
+`@/ui/icons` is **not** the chart-pattern feature. `solidUiMock` is **not** product UI — never import it from non-test code.
 
 ## Known traps
 
-- **`2` suffix, no v1.** 11 files end in `2` and no un-suffixed sibling exists:
-  `AuthProvider2`, `LoginForm2` (`components/auth`), `SectorPage2` (`components/sector`),
-  `PaperTradingView2`, `PaperChart2`, `PaperHistoryTable2`, `PaperPositionsTable2`, `WatchlistScan2`
-  (`components/paper-trading`), `BotConfigModal2`, `BotStatusPanel2` (`components/bots`),
-  `NewsPanel2` (`components/news`). The `2` is historical — do not create a v1 sibling, and don't
-  "fix" the name; barrels such as `components/paper-trading/index.ts` re-export it under the clean name.
+- **`2` suffix — gone.** The 11 `*2.tsx` sources and 12 `*2.test.tsx` tests were renamed to their
+  un-suffixed names (`AuthProvider`, `LoginForm`, `SectorPage`, `PaperTradingView`, `PaperChart`,
+  `PaperHistoryTable`, `PaperPositionsTable`, `WatchlistScan`, `BotConfigModal`, `BotStatusPanel`,
+  `NewsPanel`); no `*2` file remains under `src`. Barrels (`components/paper-trading/index.ts`,
+  `components/bots/components.ts`) and `src/App.tsx` now point at the clean names.
 - **Layering inversion.** `src/components/**` importing `src/pages/**` already happens in
   `StrategyRunnerTabs.tsx`, `PatternListView.tsx`, `SymbolDockProvider.tsx`, `MarketMapView.tsx`
   (plus tests). Do not add more — move the helper down into `src/utils/` instead.

@@ -1,6 +1,6 @@
 import { Show, Suspense, createEffect, createMemo, createSignal, lazy, onCleanup, onMount } from "solid-js";
 import type { Component } from "solid-js";
-import { useSearchParams } from "@solidjs/router";
+import { useParams, useNavigate, useSearchParams } from "@solidjs/router";
 import { Box, Stack, Paper, Tabs, Text, Select, Skeleton } from "@/ui";
 import { IconTable, IconChartDots, IconSettings, IconCoins, IconChartCandle, IconWorld } from "./icons";
 import * as state from "../../state";
@@ -39,7 +39,11 @@ function parseMarketView(raw: string | null): MarketView {
 interface MarketTabProps {
   initialView?: MarketView;
   onViewChange?: (view: MarketView) => void;
-  onOpenScan?: (panelId: string) => void;
+  onOpenScan?: (panelId: string, symbols: string[]) => void;
+  /** Symbols captured from a Dashboard "Open scan" — the table narrows to these names. */
+  symbolAllowlist?: string[] | null;
+  /** Clears the captured symbols (universe change / leaving the Market tab). */
+  onClearSymbolAllowlist?: () => void;
 }
 
 // MarketScreenerPage is a pass-through to the Market panel, whose view props are
@@ -112,65 +116,40 @@ function PanelFallback() {
   return <Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>;
 }
 
-/**
- * Map a Dashboard panel id to the closest existing screener profile id.
- * Returns null when there is no close profile — the caller then just opens
- * the Screener tab with the current profile.
- */
-export function mapDashboardPanelToScreener(
-  panelId: string,
-  screenerIds: string[],
-): string | null {
-  const has = (id: string) => screenerIds.includes(id);
-  switch (panelId) {
-    case "near_52w":
-    case "near_52w_high":
-    case "near_52w_high_low":
-      if (has("near_52w_breakout")) return "near_52w_breakout";
-      if (has("52w_high")) return "52w_high";
-      return null;
-    case "near_52w_low":
-      if (has("52w_high")) return "52w_high";
-      if (has("near_52w_breakout")) return "near_52w_breakout";
-      return null;
-    case "gainers_losers":
-    case "losers":
-      return null;
-    case "new_highs":
-    case "touched_52w":
-      if (has("touched_52w_high")) return "touched_52w_high";
-      if (has("52w_high")) return "52w_high";
-      return null;
-    case "gap":
-    case "gap_up":
-    case "gap_down":
-      if (has("market_open_gap")) return "market_open_gap";
-      return null;
-    default:
-      // gainers / losers / most_active / turnover / volume_surge /
-      // range_expansion and anything unknown → Screener tab as-is.
-      return null;
-  }
-}
-
 function firstParam(value: string | string[] | undefined): string | null {
   const raw = Array.isArray(value) ? value[0] : value;
   return raw ?? null;
 }
 
 /**
- * Query params a single tab owns. `setSearchParams` merges onto the current
- * search string, so a param written by one tab otherwise survives every later
- * tab change — leaving that tab has to delete it explicitly.
+ * Query params a single tab owns. `navigate` rebuilds the query from scratch, so
+ * leaving a tab has to drop its params explicitly — otherwise the next URL keeps
+ * params that only mean something on the tab you just left.
  */
 const TAB_OWNED_PARAMS: Readonly<Record<string, readonly string[]>> = {
   correlation: ["symbols", "timeframe", "period"],
   market: ["view"],
 };
 
+/** Tabs addressable as `/screener/<tab>`. `dashboard` is the folded legacy tab. */
+const KNOWN_TABS = new Set([
+  "screener",
+  "deepvalue",
+  "fno",
+  "market",
+  "correlation",
+  "config",
+  "dashboard",
+]);
+
 /** Market is the default tab, so it stays addressable as bare `/screener`. */
-function tabParamValue(tab: string): string | null {
-  return tab === "market" ? null : tab;
+function tabPath(tab: string): string {
+  return tab === "market" ? "/screener" : `/screener/${tab}`;
+}
+
+/** Legacy query URLs always carry the tab segment, including the default one. */
+function legacyTabPath(tab: string): string {
+  return `/screener/${tab}`;
 }
 
 /**
@@ -195,21 +174,76 @@ function useAlertNotes(props: { activeScreener: string; warning?: string | null 
 
 export function ScreenerPage(props: ScreenerPageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = createMemo(() => firstParam(searchParams.tab) || "market");
+  const params = useParams<{ tab?: string }>();
+  const navigate = useNavigate();
+
+  const pathTab = () => {
+    const raw = params.tab;
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    return value && KNOWN_TABS.has(value) ? value : null;
+  };
+  /** Pre-path URLs (`/screener?tab=…`) still resolve; an effect moves them to the path form. */
+  const legacyTab = () => {
+    const raw = firstParam(searchParams.tab);
+    return raw && KNOWN_TABS.has(raw) ? raw : null;
+  };
+  const activeTab = createMemo(() => pathTab() ?? legacyTab() ?? "market");
   const marketView = () => parseMarketView(firstParam(searchParams.view));
   const isValueTab = () => activeTab() === "deepvalue";
   const isMarketTab = () => activeTab() === "market";
   const isFnoTab = () => activeTab() === "fno";
 
-  // The Dashboard tab folded into Market as its `movers` view. Old links and
-  // bookmarks land on the replacement instead of an unstyled tab.
+  const ownedByAnotherTab = (tab: string, key: string) =>
+    Object.entries(TAB_OWNED_PARAMS).some(([owner, keys]) => owner !== tab && keys.includes(key));
+
+  /**
+   * Query for `tab`: drops the legacy `tab` param and every param owned by the
+   * tab being left, keeps the rest (e.g. the `screener` profile).
+   */
+  const searchForTab = (tab: string): string => {
+    const query = new URLSearchParams();
+    for (const [key, raw] of Object.entries(searchParams)) {
+      if (raw == null) continue;
+      const value = Array.isArray(raw) ? raw.join(",") : raw;
+      if (value === "" || key === "tab" || ownedByAnotherTab(tab, key)) continue;
+      query.append(key, value);
+    }
+    return query.toString();
+  };
+
+  /**
+   * One navigation per tab change. The path carries the tab; the query is
+   * rebuilt so a param written by the tab being left never survives, and the
+   * navigation is pushed so Back walks the tabs.
+   */
+  const navigateToTab = (
+    path: string,
+    searchFor: string,
+    extra?: Record<string, string>,
+    options?: { replace?: boolean },
+  ) => {
+    const query = new URLSearchParams(searchFor);
+    for (const [key, value] of Object.entries(extra ?? {})) query.set(key, value);
+    const search = query.toString();
+    navigate(`${path}${search ? `?${search}` : ""}`, options);
+  };
+
+  // Old `?tab=` links converge on the path form; `replace` keeps them out of history.
+  createEffect(() => {
+    const legacy = legacyTab();
+    if (!legacy || legacy === "dashboard") return;
+    navigateToTab(legacyTabPath(legacy), searchForTab(legacy), undefined, { replace: true });
+  });
+
+  // The Dashboard tab folded into Market as its `movers` view. It is reachable
+  // both as `?tab=dashboard` and as the path segment `/screener/dashboard`.
   createEffect(() => {
     if (activeTab() !== "dashboard") return;
-    setSearchParams({ tab: "market", view: "movers" }, { replace: true });
+    navigateToTab(legacyTabPath("market"), searchForTab("market"), { view: "movers" }, { replace: true });
   });
 
   // Mount the expensive screener panel on first visit, then keep it alive.
-  // Landing on ?tab=market must not pay the screener table's module/render cost.
+  // Landing on the Market tab must not pay the screener table's module/render cost.
   const [visitedTabs, setVisitedTabs] = createSignal<ReadonlySet<string>>(
     new Set([activeTab()]),
   );
@@ -250,36 +284,19 @@ export function ScreenerPage(props: ScreenerPageProps) {
     props.screenerOptions.map((o) => ({ value: o.id, label: o.label })),
   );
 
-  /**
-   * One write per tab change. `setSearchParams` merges onto the current search
-   * string, so params owned by the tab being left are nulled explicitly to
-   * delete them, and the navigation is pushed so Back returns to the previous
-   * tab instead of leaving the page.
-   */
-  const writeTab = (tab: string, extra?: Record<string, string>) => {
-    const next: Record<string, string | null> = { tab: tabParamValue(tab) };
-    for (const [owner, keys] of Object.entries(TAB_OWNED_PARAMS)) {
-      if (owner === tab) continue;
-      for (const key of keys) next[key] = null;
-    }
-    Object.assign(next, extra);
-    setSearchParams(next);
-  };
+  // Symbols captured from a Dashboard "Open scan": the Market table narrows
+  // to exactly these names. Cleared when the user leaves the Market tab.
+  const [marketSymbols, setMarketSymbols] = createSignal<string[]>([]);
 
   const setActiveTab = (tab: string) => {
     if (tab === activeTab()) return;
-    writeTab(tab);
+    if (tab !== "market") setMarketSymbols([]);
+    navigateToTab(tabPath(tab), searchForTab(tab));
   };
 
-  const handleOpenScan = (panelId: string) => {
-    const target = mapDashboardPanelToScreener(
-      panelId,
-      props.screenerOptions.map((o) => o.id),
-    );
-    if (target && target !== props.activeScreener) {
-      props.onScreenerChange(target);
-    }
-    setActiveTab("screener");
+  const handleOpenScan = (panelId: string, symbols: string[]) => {
+    setMarketSymbols(symbols);
+    navigateToTab(tabPath("market"), searchForTab("market"), { view: "table" }, { replace: true });
   };
 
   const handleCompare = () => {
@@ -291,7 +308,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
     setPeriodUnit("days");
     fetchCorrelationData();
     state.clearSelectedSymbols();
-    writeTab("correlation", {
+    navigateToTab(tabPath("correlation"), searchForTab("correlation"), {
       symbols: syms.join(","),
       timeframe: "daily",
       period: "90",
@@ -487,6 +504,8 @@ export function ScreenerPage(props: ScreenerPageProps) {
                     initialView={marketView()}
                     onViewChange={(v) => setSearchParams({ view: v === "table" ? null : v }, { replace: true })}
                     onOpenScan={handleOpenScan}
+                    symbolAllowlist={marketSymbols()}
+                    onClearSymbolAllowlist={() => setMarketSymbols([])}
                   />
                 </Show>
               </ErrorBoundary>

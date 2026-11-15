@@ -6,7 +6,7 @@ import { DiaryStrip } from "./DiaryStrip";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
 
 vi.mock("@/ui", async () => {
-  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
   return mockSolidUi();
 });
 import type { PaperTrade } from "./paperTrades";

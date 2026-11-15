@@ -57,7 +57,7 @@ vi.mock("./MarketTicker", () => ({
   MarketTicker: () => <div data-testid="market-ticker-mock" />,
 }));
 
-vi.mock("../news/NewsPanel2", () => ({
+vi.mock("../news/NewsPanel", () => ({
   default: () => <div data-testid="news-panel-mock" />,
 }));
 

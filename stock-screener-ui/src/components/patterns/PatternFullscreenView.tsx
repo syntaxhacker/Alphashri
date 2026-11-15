@@ -4,7 +4,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconX,
-} from "@/patterns/icons";
+} from "@/ui/icons";
 import type {
   ChartCandle,
   PatternHitDTO,

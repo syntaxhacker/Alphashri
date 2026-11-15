@@ -5,7 +5,7 @@ import { within, cleanup, render, screen, fireEvent } from "@solidjs/testing-lib
 import { LookbackSelect } from "./LookbackSelect";
 
 vi.mock("@/ui", async () => {
-  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
   return mockSolidUi();
 });
 

@@ -7,7 +7,7 @@ import type { PatternDef, PatternFilters } from "@/types/chartPatterns";
 import { AppliedFilters, buildAppliedFilterChips } from "./AppliedFilters";
 
 vi.mock("@/ui", async () => {
-  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
   return mockSolidUi();
 });
 

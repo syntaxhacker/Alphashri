@@ -3,7 +3,7 @@ import { useSearchParams } from "@solidjs/router";
 import { Center, Loader } from "@/ui";
 import { fetchTimeframes } from "@/api/chartPatterns";
 import type { TFSpec } from "@/types/chartPatterns";
-import { usePatternFullscreen } from "./usePatternFullscreenSolid";
+import { usePatternFullscreen } from "@/hooks/usePatternFullscreenSolid";
 import { PatternFullscreenView } from "@/components/patterns/PatternFullscreenView";
 
 const DailyReportPage = lazy(() => import("./DailyReportPage"));

@@ -5,7 +5,7 @@ import {
 } from "@/ui";
 import { ToolbarRow } from "@/ui";
 import { Icon } from "../../components/common/Icons";
-import { useAuth } from "../../components/auth/AuthProvider2";
+import { useAuth } from "../../components/auth/AuthProvider";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../../components/common/compact";
 import type { Week52RangeAdminStatus } from "../../types/admin";
 

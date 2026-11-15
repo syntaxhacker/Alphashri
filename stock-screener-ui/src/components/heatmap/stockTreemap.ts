@@ -188,6 +188,7 @@ export function buildStockTreemapOption(
         right: 0,
         bottom: 0,
         roam: false,
+        nodeClick: false,
         squareRatio: 1,
         label: {
           show: true,

@@ -6,7 +6,7 @@ import type { WatchPayload, WatchRow, WatchSetup } from "@/types/chartPatterns";
 import { WatchView, WATCH_POLL_MS, WATCH_DEFAULT_WITHIN_PCT, WATCH_DEFAULT_MIN_REL_VOLUME, WATCH_SNAPSHOT_TICK_MS, WATCH_AUTO_REFRESH, WATCH_SLOW_HINT_MS, formatSnapshotAge, universeLabel } from "./WatchView";
 
 vi.mock("@/ui", async () => {
-  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
   return mockSolidUi();
 });
 

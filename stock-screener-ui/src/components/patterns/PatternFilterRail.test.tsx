@@ -7,7 +7,7 @@ import { DEFAULT_PATTERN_FILTERS } from "@/state/chartPatterns";
 import { PatternFilterRail, type PatternFilterRailProps } from "./PatternFilterRail";
 
 vi.mock("@/ui", async () => {
-  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
   return mockSolidUi();
 });
 

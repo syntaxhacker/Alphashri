@@ -1,6 +1,6 @@
 import { Show, For } from "solid-js";
 import { Box, Collapse, Text, UnstyledButton, useDisclosure } from "@/ui";
-import { IconChevronDown } from "@/patterns/icons";
+import { IconChevronDown } from "@/ui/icons";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { formatChartTimestamp } from "./datetime";
 import { formatPrice } from "./shared";

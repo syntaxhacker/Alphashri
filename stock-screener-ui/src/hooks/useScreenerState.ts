@@ -34,7 +34,7 @@ function fetchScreener(provider: string | undefined, mode: string | undefined, s
  */
 export function useScreenerState(initialScreener?: string) {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [, setSearchParams] = useSearchParams();
 
   // `state.*` are plain module `let`s reassigned by their setters, so a read
   // captures nothing reactive on its own. Reading the subscription counter
@@ -107,9 +107,10 @@ export function useScreenerState(initialScreener?: string) {
     state.setActiveScreener(cleanId);
     fetchScreener(undefined, undefined, cleanId);
     setupAutoRefresh();
-    const next = new URLSearchParams(searchParams as unknown as Record<string, string>);
-    next.set("screener", cleanId);
-    setSearchParams(next as never, { replace: true });
+    // Merge one key. A URLSearchParams built from the router's query proxy was
+    // silently discarded by setSearchParams, so the URL never showed the
+    // selected screener.
+    setSearchParams({ screener: cleanId } as never, { replace: true });
   };
 
   const onConfigScreenerSelect = (screenerId: string) => {

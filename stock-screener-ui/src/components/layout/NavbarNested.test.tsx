@@ -4,7 +4,7 @@ import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { Router } from "@solidjs/router";
 import { NavbarNested } from "./NavbarNested";
-import { AuthContext } from "../auth/AuthProvider2";
+import { AuthContext } from "../auth/AuthProvider";
 import * as hooks from "@/ui/hooks";
 
 const mockAdminAuth: any = {
@@ -147,10 +147,18 @@ describe("NavbarNested active path highlighting", () => {
     expect(paper).not.toHaveAttribute("data-active", "true");
   });
 
-  it("highlights screener only for exact /screener", () => {
+  it("highlights screener for the screener route and its tab paths", () => {
     renderNavbar({ activePath: "/screener" });
     expect(screen.getByTestId("nav-screener")).toHaveAttribute("data-active", "true");
     expect(screen.getByTestId("nav-news")).not.toHaveAttribute("data-active");
+
+    cleanup();
+    renderNavbar({ activePath: "/screener/market" });
+    expect(screen.getByTestId("nav-screener")).toHaveAttribute("data-active", "true");
+
+    cleanup();
+    renderNavbar({ activePath: "/screener/correlation" });
+    expect(screen.getByTestId("nav-screener")).toHaveAttribute("data-active", "true");
   });
 
   it("does not highlight screener for exact / (route moved to /screener)", () => {

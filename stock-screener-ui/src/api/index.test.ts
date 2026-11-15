@@ -238,6 +238,14 @@ describe("detectAutoRefreshChanges", () => {
 describe("setupAutoRefresh", () => {
   beforeEach(() => {
     mockStateData.data = { screener: "trending", symbols: [{ symbol: "RELIANCE" }] };
+    // `mockReturnValue` survives clearAllMocks, so a "backtest" view from an
+    // earlier case would silently gate every later interval tick.
+    vi.mocked(backtestModule.getBacktestState).mockReturnValue({
+      currentView: "screener",
+    } as unknown as BacktestState);
+    // Route state is global to the file; each case starts on a bare screener route.
+    window.location.search = "";
+    window.location.pathname = "/screener";
   });
 
   afterEach(() => {
@@ -279,6 +287,30 @@ describe("setupAutoRefresh", () => {
     setupAutoRefresh();
     await vi.advanceTimersByTimeAsync(60000);
     expect(mockedFetch).not.toHaveBeenCalled();
+  });
+
+  it("skips auto-refresh on the /screener/config path tab", async () => {
+    vi.useFakeTimers();
+    window.location.pathname = "/screener/config";
+    setupAutoRefresh();
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(mockedFetch).not.toHaveBeenCalled();
+  });
+
+  it("skips auto-refresh on the /screener/correlation path tab", async () => {
+    vi.useFakeTimers();
+    window.location.pathname = "/screener/correlation";
+    setupAutoRefresh();
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(mockedFetch).not.toHaveBeenCalled();
+  });
+
+  it("refreshes on the default /screener path", async () => {
+    vi.useFakeTimers();
+    window.location.pathname = "/screener";
+    setupAutoRefresh();
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(mockedFetch).toHaveBeenCalled();
   });
 
   it("skips auto-refresh on config tab (no timers)", () => {

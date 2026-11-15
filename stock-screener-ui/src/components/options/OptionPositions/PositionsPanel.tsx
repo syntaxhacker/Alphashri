@@ -2,7 +2,7 @@ import { Switch, Match } from "solid-js";
 import { Text, Badge, Alert, ToolbarRow } from "@/ui";
 import { Box } from "@/ui";
 import type { TableColumnDef } from "../../common/TanStackTable";
-import { IconAlertCircle } from "@/patterns/icons";
+import { IconAlertCircle } from "@/ui/icons";
 import { TanStackTable } from "../../common/TanStackTable";
 import { getPnLTextColor, formatSignedPnl } from "../../../utils/ui-helpers";
 

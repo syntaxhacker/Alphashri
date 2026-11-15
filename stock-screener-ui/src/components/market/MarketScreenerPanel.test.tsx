@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, cleanup } from "@solidjs/testing-library";
+import { fireEvent, render, screen, cleanup, within } from "@solidjs/testing-library";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { UIProvider } from "@/ui";
 import { MarketScreenerPanel } from "./MarketScreenerPanel";
@@ -297,13 +297,86 @@ describe("MarketScreenerPanel — Movers view", () => {
 
     await fireEvent.click(screen.getByRole("button", { name: "Movers" }));
     expect(onViewChange).toHaveBeenCalledWith("movers");
+    // Settle the lazy dashboard before cleanup disposes its Suspense.
+    await screen.findByTestId("screener-dashboard");
   });
 
-  test("initialView=movers starts in Movers", () => {
+  test("initialView=movers starts in Movers", async () => {
     r(<MarketScreenerPanel initialView="movers" />);
-    expect(screen.getByTestId("screener-dashboard")).toBeInTheDocument();
+    expect(await screen.findByTestId("screener-dashboard")).toBeInTheDocument();
     expect(screen.queryByTestId("market-search")).not.toBeInTheDocument();
     expect(screen.queryByTestId("market-filter-rail")).not.toBeInTheDocument();
     expect(screen.getByTestId("market-view-toggle")).toBeInTheDocument();
+  });
+
+  test("switching to Movers clears the search; Table comes back empty", async () => {
+    r(<MarketScreenerPanel />);
+    const search = screen.getByTestId("market-search") as HTMLInputElement;
+    fireEvent.input(search, { target: { value: "reliance" } });
+    expect(search.value).toBe("reliance");
+
+    await fireEvent.click(screen.getByRole("button", { name: "Movers" }));
+    await screen.findByTestId("screener-dashboard");
+    expect(screen.queryByTestId("market-search")).not.toBeInTheDocument();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Table" }));
+    expect((screen.getByTestId("market-search") as HTMLInputElement).value).toBe("");
+    expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
+
+    // and back to Movers: the lazy branch remounts cleanly
+    await fireEvent.click(screen.getByRole("button", { name: "Movers" }));
+    expect(await screen.findByTestId("screener-dashboard")).toBeInTheDocument();
+  });
+});
+
+describe("MarketScreenerPanel — symbol allowlist", () => {
+  test("renders only allow-listed rows with a removable chip", () => {
+    const onClear = vi.fn();
+    r(<MarketScreenerPanel symbolAllowlist={["RELIANCE"]} onClearSymbolAllowlist={onClear} />);
+    expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
+    expect(screen.queryByTestId("market-row-MPHASIS")).not.toBeInTheDocument();
+    const chip = screen.getByTestId("market-symbol-allowlist");
+    expect(chip).toBeInTheDocument();
+    expect(chip).toHaveTextContent("Movers · 1 symbols ×");
+    fireEvent.click(chip);
+    expect(onClear).toHaveBeenCalled();
+  });
+
+  test("counts all allow-listed symbols in the chip", () => {
+    r(<MarketScreenerPanel symbolAllowlist={["RELIANCE", "MPHASIS"]} />);
+    expect(screen.getByTestId("market-symbol-allowlist")).toHaveTextContent(
+      "Movers · 2 symbols ×",
+    );
+  });
+
+  test("omits the chip when the list is empty or absent", () => {
+    r(<MarketScreenerPanel />);
+    expect(screen.queryByTestId("market-symbol-allowlist")).not.toBeInTheDocument();
+    r(<MarketScreenerPanel symbolAllowlist={[]} />);
+    expect(screen.queryByTestId("market-symbol-allowlist")).not.toBeInTheDocument();
+  });
+
+  test("changing the universe clears the symbol allowlist", async () => {
+    const onClear = vi.fn();
+    r(<MarketScreenerPanel symbolAllowlist={["RELIANCE"]} onClearSymbolAllowlist={onClear} />);
+    const combo = screen.getByTestId("market-universe-select").querySelector(
+      '[role="combobox"]',
+    ) as HTMLInputElement;
+    await fireEvent.focus(combo);
+    await fireEvent.mouseDown(await screen.findByRole("option", { name: "Nifty 500" }));
+    expect(onClear).toHaveBeenCalled();
+  });
+
+  test("keeps the table mounted across a Map round-trip", async () => {
+    r(<MarketScreenerPanel />);
+    const before = screen.getByTestId("market-grid");
+    const toggle = screen.getByTestId("market-view-toggle");
+
+    await fireEvent.click(within(toggle).getByText("Map"));
+    // Mounted but hidden: losing the node would reset TanStack's sort state.
+    expect(screen.getByTestId("market-grid")).toBe(before);
+
+    await fireEvent.click(within(toggle).getByText("Table"));
+    expect(screen.getByTestId("market-grid")).toBe(before);
   });
 });

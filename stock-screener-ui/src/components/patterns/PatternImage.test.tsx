@@ -6,7 +6,7 @@ import { createSignal } from "solid-js";
 import { PatternImage } from "./PatternImage";
 
 vi.mock("@/ui", async () => {
-  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
   return mockSolidUi();
 });
 

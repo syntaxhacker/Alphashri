@@ -1,6 +1,6 @@
 import { Modal, Text, Badge, List, ListItem } from "@/ui";
 import { Box, Paper, Stack } from "@/ui";
-import { IconTarget } from "@/patterns/icons";
+import { IconTarget } from "@/ui/icons";
 import * as palette from "@/ui/palette";
 
 interface OptionChainGuideProps {

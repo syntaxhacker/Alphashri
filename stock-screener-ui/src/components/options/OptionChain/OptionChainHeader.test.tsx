@@ -5,7 +5,7 @@ import { cleanup, render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 
 vi.mock("@/ui", async () => {
-  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
   return mockSolidUi();
 });
 import { OptionChainHeader } from "./OptionChainHeader";

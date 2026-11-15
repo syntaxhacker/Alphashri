@@ -86,23 +86,12 @@ describe("ClickableSymbol", () => {
     expect(parentHandler).not.toHaveBeenCalled();
   });
 
-  it("shows preview chart on hover when showPreview=true", async () => {
-          renderComponent({ showPreview: true });
-    await fireEvent.mouseEnter(screen.getByTestId("symbol-link-RELIANCE-wrap"));
-    expect(mocks.preview).toHaveBeenCalled();
-  });
-
-  it("hides preview chart on mouse leave", async () => {
-          renderComponent({ showPreview: true });
+  it("hover no longer opens the chart dock", async () => {
+    renderComponent({ showPreview: true });
     const wrap = screen.getByTestId("symbol-link-RELIANCE-wrap");
     await fireEvent.mouseEnter(wrap);
     await fireEvent.mouseLeave(wrap);
-    expect(mocks.endPreview).toHaveBeenCalled();
-  });
-
-  it("does not preview when showPreview=false", async () => {
-    renderComponent();
-    await fireEvent.mouseEnter(screen.getByTestId("symbol-link-RELIANCE-wrap"));
     expect(mocks.preview).not.toHaveBeenCalled();
+    expect(mocks.endPreview).not.toHaveBeenCalled();
   });
 });

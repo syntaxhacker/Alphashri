@@ -20,9 +20,20 @@ describe("route modules", () => {
   });
 
   it("/ redirects to /screener and /screener mounts the screener", () => {
-    expect(appSource).toContain('<Route path="/" component={() => <Navigate href="/screener" />} />');
-    expect(appSource).toContain('<Route path="/screener" component={ScreenerContainer} />');
+    expect(appSource).toContain('<Route path="/" component={RootRedirect} />');
+    expect(appSource).toContain("function RootRedirect()");
+    // The redirect must carry the query/hash, or /?tab=market lands on Dashboard.
+    expect(appSource).toContain("location.search");
+    expect(appSource).toContain("location.hash");
+    expect(appSource).toContain('<Route path="/screener/:tab?" component={ScreenerContainer} />');
     expect(appSource).toContain('<Route path="*" component={() => <Navigate href="/screener" />} />');
+  });
+
+  it("RootRedirect folds a legacy ?tab= into the screener path", () => {
+    // /?tab=screener -> /screener/screener, /?tab=market&view=movers -> /screener/market?view=movers
+    expect(appSource).toContain("new URLSearchParams(location.search)");
+    expect(appSource).toContain('incoming.delete("tab")');
+    expect(appSource).toMatch(/href=\{`\/screener\/\$\{encodeURIComponent\(legacyTab\)\}/);
   });
 
   it(

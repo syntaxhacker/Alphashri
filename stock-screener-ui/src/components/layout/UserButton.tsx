@@ -1,7 +1,7 @@
 import { Show, createMemo, useContext } from "solid-js";
 import { IconLogout } from "../common/Icons";
 import { Avatar, Box, Group, Text, UnstyledButton, Menu, MenuTarget, MenuDropdown, MenuItem } from "@/ui";
-import { AuthContext } from "../auth/AuthProvider2";
+import { AuthContext } from "../auth/AuthProvider";
 
 
 declare global {

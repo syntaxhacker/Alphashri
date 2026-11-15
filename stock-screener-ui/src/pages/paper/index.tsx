@@ -1,0 +1,1 @@
+export { PaperTradingView } from "@/components/paper-trading";

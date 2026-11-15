@@ -5,7 +5,7 @@ import { render, screen, within, cleanup, fireEvent } from "@solidjs/testing-lib
 import { PositioningHeader } from "./PositioningHeader";
 
 vi.mock("@/ui", async () => {
-  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
   return mockSolidUi();
 });
 

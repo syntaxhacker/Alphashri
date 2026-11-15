@@ -1,7 +1,7 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 import { Box, Button, Text, ToolbarRow } from "@/ui";
 import { PATTERN_CHIP_BG } from "@/ui/palette";
-import { IconX } from "@/patterns/icons";
+import { IconX } from "@/ui/icons";
 import { DEFAULT_PATTERN_FILTERS } from "@/state/chartPatterns";
 import type { PatternDef, PatternFilters } from "@/types/chartPatterns";
 import { FAMILY_LABELS } from "./shared";

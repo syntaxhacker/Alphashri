@@ -1,7 +1,7 @@
 import { Box, Tooltip, ActionIcon } from "@/ui";
 import { BLACK } from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
-import { IconTarget, IconArrowUp, IconArrowDown } from "@/patterns/icons";
+import { IconTarget, IconArrowUp, IconArrowDown } from "@/ui/icons";
 
 interface ChainScrollActionsProps {
   scrollToATM: (behavior?: ScrollBehavior) => void;

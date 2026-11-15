@@ -20,7 +20,7 @@ vi.mock("@/ui", async (importOriginal) => {
   return uiLayoutStub(await importOriginal<Record<string, unknown>>());
 });
 
-vi.mock("../../components/auth/AuthProvider2", () => ({
+vi.mock("../../components/auth/AuthProvider", () => ({
   useAuth: () => ({ fetchWithAuth: mockFetchWithAuth }),
 }));
 

@@ -6,7 +6,7 @@ import type { JobDTO, PatternSummary } from "@/types/chartPatterns";
 import { ScanStats } from "./ScanStats";
 
 vi.mock("@/ui", async () => {
-  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
   return mockSolidUi();
 });
 
