@@ -18,7 +18,9 @@ describe("SegmentedControl — view switch", () => {
     const track = screen.getByTestId("seg2");
     const item = track.querySelector("button") as HTMLButtonElement;
     expect(track.style.borderRadius).toBe("6px");
-    expect(track.style.border).toContain("1px solid");
+    expect(track.style.borderWidth).toBe("1px");
+    expect(track.style.borderStyle).toBe("solid");
+    expect(track.style.borderColor).toBe("var(--color-fin-border)");
     expect(item.style.borderRadius).toBe("4px");
     expect(item.style.height).toBe("24px");
   });

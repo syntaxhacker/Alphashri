@@ -1,7 +1,6 @@
 import { createMemo, createSignal, splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UISwitchProps } from "../types";
-import * as palette from "../palette";
 
 type SwitchProps = UISwitchProps;
 
@@ -35,21 +34,25 @@ function knobTravel(box: TrackBox): number {
   return box.w - TRACK_BORDER * 2 - KNOB_INSET * 2 - knobSide(box);
 }
 
+/**
+ * Theme tokens, not palette hexes: an inline style outranks the light-theme
+ * override in tailwind.css, so a hex here leaves the track dark on a white page.
+ */
 function toneColor(color?: UISwitchProps["color"]): string {
   switch (color) {
     case "error":
     case "danger":
-      return palette.NEGATIVE;
+      return "var(--color-fin-negative)";
     case "warning":
-      return palette.WARNING;
+      return "var(--color-fin-warning)";
     case "info":
-      return palette.INFO;
+      return "var(--color-fin-info)";
     case "secondary":
-      return palette.TEXT_MUTED;
+      return "var(--color-fin-text-muted)";
     case "success":
-      return palette.POSITIVE;
+      return "var(--color-fin-positive)";
     default:
-      return palette.PRIMARY;
+      return "var(--color-fin-primary)";
   }
 }
 
@@ -91,14 +94,20 @@ export function Switch(props: SwitchProps) {
   const trackStyle = createMemo<Record<string, string>>(() => {
     const box = trackBox(known.size);
     const tone = toneColor(known.color);
-    const fill = known.disabled ? palette.SURFACE_ALT : isOn() ? tone : palette.SURFACE_ALT;
+    const fill = known.disabled
+      ? "var(--color-fin-surface-alt)"
+      : isOn()
+        ? tone
+        : "var(--color-fin-surface-alt)";
+    // A focused track darkens in its own tone: the frame used to stay amber no
+    // matter which tone the fill was, so `color="success"` read as two objects.
     const border = isError()
-      ? palette.NEGATIVE
+      ? "var(--color-fin-negative)"
       : focused()
-        ? palette.PRIMARY
+        ? tone
         : isOn() && !known.disabled
           ? tone
-          : palette.BORDER;
+          : "var(--color-fin-border)";
     return {
       width: `${box.w}px`,
       height: `${box.h}px`,
@@ -106,8 +115,10 @@ export function Switch(props: SwitchProps) {
       position: "relative",
       "flex-shrink": "0",
       "border-radius": "9999px",
-      border: `1px solid ${border}`,
-      "box-shadow": focused() ? `0 0 0 1px ${palette.PRIMARY}` : "none",
+      "border-width": "1px",
+      "border-style": "solid",
+      "border-color": border,
+      "box-shadow": focused() ? `0 0 0 1px ${tone}` : "none",
       "background-color": fill,
       transition: "background-color 120ms linear, border-color 120ms linear",
       cursor: known.disabled ? "not-allowed" : "pointer",
@@ -120,7 +131,11 @@ export function Switch(props: SwitchProps) {
       width: `${knobSide(box)}px`,
       height: `${knobSide(box)}px`,
       "border-radius": "9999px",
-      "background-color": isOn() ? (known.disabled ? palette.TEXT_MUTED : palette.BG) : palette.TEXT_MUTED,
+      "background-color": isOn()
+        ? known.disabled
+          ? "var(--color-fin-text-muted)"
+          : "var(--color-fin-bg)"
+        : "var(--color-fin-text-muted)",
       position: "absolute",
       top: "50%",
       left: `${KNOB_INSET}px`,
@@ -153,7 +168,10 @@ export function Switch(props: SwitchProps) {
         disabled={known.disabled}
         id={known.id}
         data-testid={known["data-testid"]}
-        className="absolute inset-0 z-10 m-0 h-full w-full cursor-pointer appearance-none bg-transparent opacity-0 disabled:cursor-not-allowed"
+        // The native input is an invisible hit area; the global
+        // `:is(input, …):focus` outline would draw a second, amber frame over
+        // the track's own focused state on every mouse click.
+        className="absolute inset-0 z-10 m-0 h-full w-full cursor-pointer appearance-none bg-transparent opacity-0 outline-none focus-visible:outline-none disabled:cursor-not-allowed"
         onChange={handleChange}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}

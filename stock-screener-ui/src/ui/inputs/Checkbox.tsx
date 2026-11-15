@@ -1,6 +1,5 @@
 import { createEffect, createMemo, createSignal, splitProps } from "solid-js";
 import { cn } from "../cn";
-import * as palette from "../palette";
 import type { UICheckboxProps } from "../types";
 
 const BOX_SIDE: Record<string, number> = { xs: 14, sm: 16, md: 16, lg: 18, xl: 18 };
@@ -9,20 +8,25 @@ function boxSide(size?: UICheckboxProps["size"]): number {
   return BOX_SIDE[String(size)] ?? 16;
 }
 
+/**
+ * Theme tokens, not palette hexes: inline styles beat the light-theme override
+ * in tailwind.css, so a hex here keeps the control dark in the light scheme.
+ */
 function toneColor(color?: UICheckboxProps["color"]): string {
   switch (color) {
+    case "success":
+      return "var(--color-fin-positive)";
     case "error":
     case "danger":
-      return palette.NEGATIVE;
+      return "var(--color-fin-negative)";
     case "warning":
-      return palette.WARNING;
+      return "var(--color-fin-warning)";
     case "info":
-    case "primary":
-      return palette.PRIMARY;
+      return "var(--color-fin-info)";
     case "secondary":
-      return palette.TEXT_MUTED;
+      return "var(--color-fin-text-muted)";
     default:
-      return palette.PRIMARY;
+      return "var(--color-fin-primary)";
   }
 }
 
@@ -75,17 +79,28 @@ export function Checkbox(props: UICheckboxProps) {
     const side = boxSide(known.size);
     const tone = toneColor(known.color);
     const marked = isChecked() || !!known.indeterminate;
-    const fill = marked ? tone : known.disabled ? palette.SURFACE_ALT : palette.SURFACE;
+    const fill = marked
+      ? tone
+      : known.disabled
+        ? "var(--color-fin-surface-alt)"
+        : "var(--color-fin-surface)";
     return {
       width: `${side}px`,
       height: `${side}px`,
       "border-radius": "4px",
-      border: `1px solid ${
-        known.error ? palette.NEGATIVE : focused() ? palette.PRIMARY : marked ? tone : palette.BORDER
-      }`,
-      "box-shadow": focused() ? `0 0 0 1px ${palette.PRIMARY}` : "none",
+      // The frame follows the tone too: a green fill inside an amber frame read
+      // as two different controls sharing a box. Longhands, not `border`: a
+      // `var()` inside the shorthand is not parsed by every DOM implementation.
+      "border-width": "1px",
+      "border-style": "solid",
+      "border-color": known.error
+        ? "var(--color-fin-negative)"
+        : focused() || marked
+          ? tone
+          : "var(--color-fin-border)",
+      "box-shadow": focused() ? `0 0 0 1px ${tone}` : "none",
       "background-color": fill,
-      color: palette.BG,
+      color: "var(--color-fin-bg)",
       "font-size": `${side - 4}px`,
       "line-height": `${side - 2}px`,
       ...(known.disabled ? { opacity: "0.45", cursor: "not-allowed" } : {}),
@@ -116,7 +131,10 @@ export function Checkbox(props: UICheckboxProps) {
         disabled={known.disabled}
         id={known.id}
         data-testid={known["data-testid"]}
-        className="peer absolute inset-0 z-10 m-0 h-full w-full cursor-pointer appearance-none bg-transparent border-none disabled:cursor-not-allowed"
+        // The global `:is(input, …):focus` rule paints an amber outline on every
+        // mouse click; the box below is this control's own indicator, so the
+        // native one must stay off in both focus modes.
+        className="peer absolute inset-0 z-10 m-0 h-full w-full cursor-pointer appearance-none bg-transparent border-none outline-none focus-visible:outline-none disabled:cursor-not-allowed"
       />
       <span className={boxClass()} style={boxStyle()} data-part="checkbox-box">
         {known.indeterminate ? "—" : isChecked() ? "✔" : ""}

@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { Checkbox } from "./Checkbox";
 import { Switch } from "./Switch";
-import * as palette from "@/ui/palette";
 
 afterEach(cleanup);
 
@@ -31,8 +30,8 @@ describe("Checkbox — square selection box", () => {
   it("fills with the tone and shows the check when selected", () => {
     render(() => <Checkbox label="Row" checked onChange={() => {}} data-testid="cb" />);
     const style = boxOf("cb").getAttribute("style") ?? "";
-    expect(style).toContain(`background-color: ${palette.PRIMARY}`);
-    expect(style).toContain(`border: 1px solid ${palette.PRIMARY}`);
+    expect(style).toContain("background-color: var(--color-fin-primary)");
+    expect(style).toContain("border-color: var(--color-fin-primary)");
   });
 
   it("shows a dash for the indeterminate state", () => {
@@ -70,7 +69,7 @@ describe("Checkbox — square selection box", () => {
     const style = boxOf("cb").getAttribute("style") ?? "";
     expect(style).toContain("opacity: 0.45");
     expect(style).toContain("cursor: not-allowed");
-    expect(style).toContain(`background-color: ${palette.SURFACE_ALT}`);
+    expect(style).toContain("background-color: var(--color-fin-surface-alt)");
     expect(screen.getByTestId("cb")).toBeDisabled();
   });
 
@@ -78,7 +77,7 @@ describe("Checkbox — square selection box", () => {
     render(() => <Checkbox label="Row" data-testid="cb" />);
     fireEvent.focus(screen.getByTestId("cb"));
     const style = boxOf("cb").getAttribute("style") ?? "";
-    expect(style).toContain(`border: 1px solid ${palette.PRIMARY}`);
-    expect(style).toContain(`box-shadow: 0 0 0 1px ${palette.PRIMARY}`);
+    expect(style).toContain("border-color: var(--color-fin-primary)");
+    expect(style).toContain("box-shadow: 0 0 0 1px var(--color-fin-primary)");
   });
 });

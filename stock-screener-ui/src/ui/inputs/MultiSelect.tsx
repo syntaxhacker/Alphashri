@@ -1,5 +1,6 @@
 import { createMemo, createSignal, createUniqueId, createEffect, For, Show, splitProps } from "solid-js";
 import { cn } from "../cn";
+import { Checkbox } from "./Checkbox";
 import * as palette from "../palette";
 import type { UIMultiSelectProps } from "../types";
 
@@ -38,7 +39,7 @@ const TAG_BOX = {
   "height": "18px",
   "border-radius": "4px",
   "background-color": palette.alpha(palette.PRIMARY, 0.14),
-  "color": palette.TEXT,
+  "color": "var(--color-fin-text)",
   "font-size": "11px",
 } as const;
 
@@ -102,7 +103,7 @@ function Chevron(props: { rotated?: boolean }) {
         "pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 transition-transform duration-150",
         props.rotated ? "rotate-180" : "",
       )}
-      style={{ "color": palette.TEXT_MUTED }}
+      style={{ "color": "var(--color-fin-text-muted)" }}
     >
       <path d="m6 9 6 6 6-6" />
     </svg>
@@ -171,6 +172,16 @@ export function MultiSelect(props: UIMultiSelectProps) {
     (known.defaultValue ?? []).filter((v) => options().some((o) => o.value === v)),
   );
   const [query, setQuery] = createSignal(known.searchValue ?? "");
+  // The last search text this component handed to the caller. The caller's value
+  // is mirrored into the local query only when it differs from that, so an echo
+  // of our own keystroke does not rewrite the input under the caret.
+  let emittedSearch = known.searchValue ?? "";
+  createEffect(() => {
+    const incoming = known.searchValue ?? "";
+    if (incoming === emittedSearch) return;
+    emittedSearch = incoming;
+    setQuery(incoming);
+  });
   const [open, setOpen] = createSignal(false);
   const [highlighted, setHighlighted] = createSignal(-1);
 
@@ -186,7 +197,7 @@ export function MultiSelect(props: UIMultiSelectProps) {
 
   const rootClass = createMemo(() =>
     cn(
-      "flex flex-col gap-2 text-sm leading-none",
+      "flex flex-col gap-1.5 text-sm leading-none",
       explicitWidth() == null ? "w-full" : undefined,
       known.className,
     ),
@@ -272,12 +283,14 @@ export function MultiSelect(props: UIMultiSelectProps) {
     const next = (e.currentTarget as HTMLInputElement).value;
     setQuery(next);
     setOpen(true);
+    emittedSearch = next;
     known.onSearchChange?.(next, "input");
   };
 
   const handleClearSearch = () => {
     if (query() === "") return;
     setQuery("");
+    emittedSearch = "";
     known.onSearchChange?.("", "clear");
   };
 
@@ -285,6 +298,7 @@ export function MultiSelect(props: UIMultiSelectProps) {
     e.stopPropagation();
     if (known.disabled) return;
     setQuery("");
+    emittedSearch = "";
     if (known.value === undefined) setInternalSelected([]);
     known.onChange?.([]);
   };
@@ -318,8 +332,8 @@ export function MultiSelect(props: UIMultiSelectProps) {
   const fieldStyle = createMemo(() => ({
     "min-height": explicitHeight() ?? fieldMinHeight(known.size),
     "border-radius": "6px",
-    "border-color": isError() ? palette.NEGATIVE : open() ? palette.PRIMARY : palette.BORDER,
-    "box-shadow": open() && !isError() ? `0 0 0 1px ${palette.PRIMARY}` : "none",
+    "border-color": isError() ? "var(--color-fin-negative)" : open() ? "var(--color-fin-primary)" : "var(--color-fin-border)",
+    "box-shadow": open() && !isError() ? "0 0 0 1px var(--color-fin-primary)" : "none",
   }));
 
   const tagsRowStyle = {
@@ -380,7 +394,7 @@ export function MultiSelect(props: UIMultiSelectProps) {
                 <span
                   data-part="multiselect-overflow"
                   className="inline-flex shrink-0 items-center px-1.5 leading-none text-fin-text-muted"
-                  style={{ ...TAG_BOX, "background-color": palette.SURFACE_ALT }}
+                  style={{ ...TAG_BOX, "background-color": "var(--color-fin-surface-alt)" }}
                   title={selectedValues().slice(visibleValues().length).join(", ")}
                 >
                   +{foldedCount()}
@@ -395,7 +409,7 @@ export function MultiSelect(props: UIMultiSelectProps) {
             aria-expanded={open()}
             aria-haspopup="listbox"
             aria-multiselectable="true"
-            value={known.searchValue ?? query()}
+            value={query()}
             onInput={handleInputChange}
             onFocus={() => setOpen(true)}
             onKeyDown={handleKeyDown}
@@ -436,15 +450,10 @@ export function MultiSelect(props: UIMultiSelectProps) {
               <For each={shownOptions()}>{(opt) => (
                 <li role="option" aria-selected={selectedSet().has(opt.value)} aria-disabled={opt.disabled || known.disabled}>
                   <label className="flex items-center gap-2 cursor-pointer select-none w-full px-3 py-2 text-xs disabled:opacity-50 disabled:cursor-not-allowed">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={selectedSet().has(opt.value)}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        toggle(opt.value);
-                      }}
+                      onChange={() => toggle(opt.value)}
                       disabled={opt.disabled || known.disabled}
-                      className="shrink-0 text-fin-primary"
                     />
                     {opt.label}
                   </label>

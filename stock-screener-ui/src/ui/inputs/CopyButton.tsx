@@ -17,6 +17,12 @@ export function CopyButton(props: UICopyButtonProps) {
     };
   });
 
+  const flashCopied = () => {
+    if (timer) clearTimeout(timer);
+    setCopied(true);
+    timer = setTimeout(() => setCopied(false), props.timeout ?? 1000);
+  };
+
   const copy = async () => {
     try {
       if (navigator.clipboard?.writeText) {
@@ -30,18 +36,22 @@ export function CopyButton(props: UICopyButtonProps) {
         document.body.appendChild(ta);
         ta.focus();
         ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
+        const ok = (() => {
+          try {
+            return document.execCommand("copy");
+          } finally {
+            document.body.removeChild(ta);
+          }
+        })();
+        if (!ok) return;
       }
-      setCopied(true);
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => setCopied(false), props.timeout ?? 1000);
+      flashCopied();
     } catch {
-      // Clipboard failures still surface the copied state; callers decide how
-      // to present the confirmation.
-      setCopied(true);
+      // An insecure context or a denied permission means nothing reached the
+      // clipboard; the confirmation label is the only feedback the caller has,
+      // so it must stay off.
       if (timer) clearTimeout(timer);
-      timer = setTimeout(() => setCopied(false), props.timeout ?? 1000);
+      setCopied(false);
     }
   };
 

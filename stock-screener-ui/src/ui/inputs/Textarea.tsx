@@ -1,6 +1,5 @@
 import { createMemo, createSignal, createUniqueId, splitProps } from "solid-js";
 import { cn } from "../cn";
-import * as palette from "../palette";
 import type { UITextareaProps } from "../types";
 
 /**
@@ -79,7 +78,7 @@ export function Textarea(props: UITextareaProps) {
    */
   const inputStyle = createMemo<Record<string, string>>(() => {
     const lineHeight = lineHeightOf(known.size);
-    const border = isError() ? palette.NEGATIVE : focused() ? palette.PRIMARY : palette.BORDER;
+    const border = isError() ? "var(--color-fin-negative)" : focused() ? "var(--color-fin-primary)" : "var(--color-fin-border)";
     const rows = effectiveMinRows();
     const natural = `${rows * lineHeight + 18}px`;
     const height = explicitHeight() ?? natural;
@@ -87,10 +86,14 @@ export function Textarea(props: UITextareaProps) {
       height,
       "min-height": height,
       "border-radius": "6px",
-      border: `1px solid ${border}`,
+      // Longhands, not the `border` shorthand: a `var()` inside the shorthand is
+      // not parsed by every DOM implementation, which silently drops the width.
+      "border-width": "1px",
+      "border-style": "solid",
+      "border-color": border,
       "box-shadow": focused() ? `0 0 0 1px ${border}` : "none",
-      "background-color": known.disabled ? palette.SURFACE_ALT : palette.SURFACE,
-      color: palette.TEXT,
+      "background-color": known.disabled ? "var(--color-fin-surface-alt)" : "var(--color-fin-surface)",
+      color: "var(--color-fin-text)",
       "font-size": fontOf(known.size),
       "line-height": `${lineHeight}px`,
       padding: "8px 10px",
@@ -123,7 +126,7 @@ export function Textarea(props: UITextareaProps) {
       )}
       <textarea
         id={resolvedId}
-        {...(isControlled() ? { value: known.value } : { defaultValue: known.defaultValue })}
+        {...(isControlled() ? { value: String(known.value ?? "") } : {})}
         onInput={(e) => known.onChange?.(e.currentTarget.value)}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
@@ -137,7 +140,11 @@ export function Textarea(props: UITextareaProps) {
         )}
         style={inputStyle()}
         data-testid={inputTestId}
-      />
+      >
+        {/* A <textarea> has no value/defaultValue attribute: its initial text is
+            its own content, so the uncontrolled default has to be a child. */}
+        {isControlled() ? undefined : known.defaultValue}
+      </textarea>
       {helperText() && (
         <span className={cn("text-xs", isError() ? "text-fin-negative" : "text-fin-text-muted")}>{helperText()}</span>
       )}

@@ -1,6 +1,5 @@
 import { createMemo, createSignal, createUniqueId, splitProps } from "solid-js";
 import { cn } from "../cn";
-import * as palette from "../palette";
 import { stripLegacyInputProps } from "./legacyProps";
 import type { UINumberInputProps } from "../types";
 
@@ -19,14 +18,46 @@ export function coerceNumberInput(raw: string): number | string {
 
 type FieldBox = { h: number; fs: number; padY: number; padX: number };
 
-/** Shared with TextInput/PasswordInput: one look for the whole text family. */
+/**
+ * Shared with TextInput/PasswordInput: one look for the whole text family.
+ * `md` is the default step so a number field matches a Select in the same row.
+ */
 const FIELD_BOX: Record<string, FieldBox> = {
-  xs: { h: 26, fs: 11, padY: 4, padX: 8 },
-  sm: { h: 32, fs: 13, padY: 8, padX: 10 },
+  xs: { h: 24, fs: 11, padY: 4, padX: 8 },
+  sm: { h: 30, fs: 13, padY: 7, padX: 10 },
+  md: { h: 34, fs: 13, padY: 9, padX: 10 },
+  lg: { h: 38, fs: 14, padY: 11, padX: 12 },
+  xl: { h: 42, fs: 15, padY: 13, padX: 12 },
 };
 
 function boxOf(size?: string | number | undefined): FieldBox {
-  return FIELD_BOX[String(size)] ?? { h: 32, fs: 13, padY: 8, padX: 10 };
+  return FIELD_BOX[String(size)] ?? FIELD_BOX.md;
+}
+
+/** Repeating decimals (0.1 + 0.2) must not reach a money field as 0.30000000000000004. */
+function roundTo(value: number, scale?: number): number {
+  if (typeof scale !== "number" || !Number.isFinite(scale) || scale < 0) return value;
+  const factor = 10 ** Math.floor(scale);
+  return Math.round(value * factor) / factor;
+}
+
+function clampToRange(value: number, min?: number, max?: number): number {
+  let next = value;
+  if (typeof min === "number" && next < min) next = min;
+  if (typeof max === "number" && next > max) next = max;
+  return next;
+}
+
+/**
+ * `allowNegative`/`allowDecimal` are promises about what the field accepts, so
+ * a keystroke has to lose the characters they forbid before it is emitted.
+ * Dropping the dot instead of truncating at it is what ignoring the "." key
+ * would have produced anyway.
+ */
+function normalizeNumberText(raw: string, allowDecimal: boolean, allowNegative: boolean): string {
+  let text = allowNegative ? raw : raw.replace(/^-/, "");
+  if (!allowDecimal) text = text.replace(/\./g, "");
+  return text;
 }
 
 export function NumberInput(props: UINumberInputProps) {
@@ -101,16 +132,46 @@ export function NumberInput(props: UINumberInputProps) {
   /** A number field with no numeric cue is a text field. The steppers are it. */
   const showSteppers = createMemo(() => !known.hideControls);
 
+  const allowDecimal = () => known.allowDecimal !== false;
+  const allowNegative = () => known.allowNegative !== false;
+
+  /**
+   * Commit-time normalisation for blur: strip the forbidden characters, round
+   * to `decimalScale`, then clamp unless `clampBehavior` is "none". The cleaned
+   * value is written back to the element so an uncontrolled field never shows a
+   * number the state did not receive. Returns undefined when nothing moved.
+   */
+  const commitField = (el: HTMLInputElement): number | string | undefined => {
+    const raw = el.value;
+    const text = normalizeNumberText(raw, allowDecimal(), allowNegative());
+    let value: number | string = coerceNumberInput(text);
+    if (typeof value === "number") {
+      value = roundTo(value, known.decimalScale);
+      if (known.clampBehavior !== "none") value = clampToRange(value, known.min, known.max);
+    }
+    const shown = typeof value === "number" ? String(value) : text;
+    if (shown !== raw) el.value = shown;
+    return shown === raw ? undefined : value;
+  };
+
   const inputStyle = createMemo<Record<string, string>>(() => {
     const box = boxOf(known.size);
-    const border = isError() ? palette.NEGATIVE : focused() ? palette.PRIMARY : palette.BORDER;
+    const border = isError()
+      ? "var(--color-fin-negative)"
+      : focused()
+        ? "var(--color-fin-primary)"
+        : "var(--color-fin-border)";
     return {
       height: explicitHeight() ?? `${box.h}px`,
       "border-radius": "6px",
-      border: `1px solid ${border}`,
+      // Longhands, not the `border` shorthand: a `var()` inside the shorthand is
+      // not parsed by every DOM implementation, which silently drops the width.
+      "border-width": "1px",
+      "border-style": "solid",
+      "border-color": border,
       "box-shadow": focused() ? `0 0 0 1px ${border}` : "none",
-      "background-color": known.disabled ? palette.SURFACE_ALT : palette.SURFACE,
-      color: palette.TEXT,
+      "background-color": known.disabled ? "var(--color-fin-surface-alt)" : "var(--color-fin-surface)",
+      color: "var(--color-fin-text)",
       "font-size": `${box.fs}px`,
       "line-height": "1",
       padding: `${box.padY}px ${box.padX}px`,
@@ -125,9 +186,13 @@ export function NumberInput(props: UINumberInputProps) {
     const raw = Number(known.value ?? known.defaultValue ?? 0);
     const base = Number.isFinite(raw) ? raw : 0;
     const increment = typeof known.step === "number" && known.step !== 0 ? known.step : 1;
-    let next = base + increment * direction;
-    if (typeof known.min === "number" && next < known.min) next = known.min;
-    if (typeof known.max === "number" && next > known.max) next = known.max;
+    // Steppers obey min/max even when typing does not: a click is a deliberate
+    // single step, not an in-progress keystroke.
+    const next = clampToRange(
+      roundTo(base + increment * direction, known.decimalScale),
+      known.min,
+      known.max,
+    );
     known.onChange?.(next);
   };
 
@@ -137,9 +202,11 @@ export function NumberInput(props: UINumberInputProps) {
       width: "16px",
       height: `${Math.max(9, (box.h - 6) / 2 - 1)}px`,
       "border-radius": "3px",
-      border: `1px solid ${known.disabled ? palette.SURFACE_ALT : palette.BORDER}`,
-      "background-color": known.disabled ? palette.SURFACE_ALT : palette.BG,
-      color: palette.TEXT_MUTED,
+      "border-width": "1px",
+      "border-style": "solid",
+      "border-color": known.disabled ? "var(--color-fin-surface-alt)" : "var(--color-fin-border)",
+      "background-color": known.disabled ? "var(--color-fin-surface-alt)" : "var(--color-fin-bg)",
+      color: "var(--color-fin-text-muted)",
       "font-size": "11px",
       "line-height": "1",
       padding: "0px",
@@ -171,13 +238,28 @@ export function NumberInput(props: UINumberInputProps) {
             id={resolvedId}
             type="number"
             value={(isControlledInput() ? known.value : known.defaultValue) ?? ""}
-            onInput={(e) => known.onChange?.(coerceNumberInput(e.currentTarget.value))}
+            onInput={(e) => {
+              const el = e.currentTarget;
+              const text = normalizeNumberText(el.value, allowDecimal(), allowNegative());
+              if (text !== el.value) el.value = text;
+              const coerced = coerceNumberInput(text);
+              // "strict" clamps mid-keystroke; "blur" waits for the commit, so
+              // typing "5" on the way to "50" is not yanked up to a 10 floor.
+              known.onChange?.(
+                typeof coerced === "number" && known.clampBehavior === "strict"
+                  ? clampToRange(coerced, known.min, known.max)
+                  : coerced,
+              );
+            }}
             onFocus={(e) => {
               setFocused(true);
               known.onFocus?.(e);
             }}
             onBlur={(e) => {
+              const el = e.currentTarget;
               setFocused(false);
+              const committed = commitField(el);
+              if (committed !== undefined) known.onChange?.(committed);
               known.onBlur?.(e);
             }}
             onKeyDown={(e) => known.onKeyDown?.(e)}

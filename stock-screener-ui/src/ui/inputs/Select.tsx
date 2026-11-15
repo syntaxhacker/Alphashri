@@ -1,6 +1,5 @@
 import { For, Show, createEffect, createMemo, createSignal, createUniqueId, splitProps, type JSX } from "solid-js";
 import { cn } from "../cn";
-import * as palette from "../palette";
 import type { UISelectProps } from "../types";
 
 type SelectOption = { value: string; label: string; disabled?: boolean };
@@ -73,7 +72,7 @@ function Chevron(props: { rotated?: boolean }) {
         "pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 transition-transform duration-150",
         props.rotated ? "rotate-180" : "",
       )}
-      style={{ "color": palette.TEXT_MUTED }}
+      style={{ "color": "var(--color-fin-text-muted)" }}
     >
       <path d="m6 9 6 6 6-6" />
     </svg>
@@ -98,8 +97,8 @@ function fieldStyle(opts: { size?: UISelectProps["size"]; tone: "idle" | "active
   return {
     "height": opts.height ?? fieldHeight(opts.size),
     "border-radius": "6px",
-    "border-color": opts.tone === "error" ? palette.NEGATIVE : opts.tone === "active" ? palette.PRIMARY : palette.BORDER,
-    "box-shadow": opts.tone === "active" ? `0 0 0 1px ${palette.PRIMARY}` : "none",
+    "border-color": opts.tone === "error" ? "var(--color-fin-negative)" : opts.tone === "active" ? "var(--color-fin-primary)" : "var(--color-fin-border)",
+    "box-shadow": opts.tone === "active" ? "0 0 0 1px var(--color-fin-primary)" : "none",
   };
 }
 
@@ -169,7 +168,7 @@ export function Select(props: UISelectProps) {
 
   const rootClass = createMemo(() =>
     cn(
-      "flex flex-col gap-2 text-sm leading-none",
+      "flex flex-col gap-1.5 text-sm leading-none",
       explicitWidth() == null ? "w-full" : undefined,
       known.className,
     ),
@@ -221,7 +220,7 @@ export function Select(props: UISelectProps) {
           )}
           style={{
             ...fieldStyle({ size: known.size, tone: tone() }),
-            "color": hasValue() ? palette.TEXT : palette.TEXT_MUTED,
+            "color": hasValue() ? "var(--color-fin-text)" : "var(--color-fin-text-muted)",
           }}
         >
           {known.placeholder && <option value="" disabled>{known.placeholder}</option>}
@@ -272,6 +271,7 @@ export function Select(props: UISelectProps) {
           inputId={inputId}
           labelId={labelId()}
           isError={isError()}
+          aria-label={known["aria-label"]}
           leftSection={known.leftSection}
           rightSection={known.rightSection}
         />
@@ -299,6 +299,7 @@ function SearchableSelect(props: {
   "aria-label"?: string;
 }) {
   const [query, setQuery] = createSignal("");
+  const [typing, setTyping] = createSignal(false);
   const [open, setOpen] = createSignal(false);
   const [highlighted, setHighlighted] = createSignal(-1);
   const listboxId = `${props.inputId}-listbox`;
@@ -309,7 +310,10 @@ function SearchableSelect(props: {
     ),
   );
   const selectedLabel = createMemo(() => props.options.find((o) => o.value === props.value)?.label);
-  const displayValue = createMemo(() => selectedLabel() ?? query() ?? "");
+  // A committed value outlives the query, so the label has to lose the input to
+  // the query while the user is typing — otherwise every keystroke is written to
+  // `query` and immediately painted over by the label.
+  const displayValue = createMemo(() => (typing() ? query() : (selectedLabel() ?? "")));
 
   createEffect(() => {
     if (!open()) return undefined;
@@ -323,6 +327,7 @@ function SearchableSelect(props: {
 
   const handleSelect = (v: string) => {
     setOpen(false);
+    setTyping(false);
     const found = props.options.find((o) => o.value === v);
     setQuery(found ? found.label : v);
     props.onChange?.(v);
@@ -330,6 +335,7 @@ function SearchableSelect(props: {
 
   const handleClear = (e: MouseEvent) => {
     e.stopPropagation();
+    setTyping(false);
     setQuery("");
     setOpen(false);
     props.onChange?.(null);
@@ -338,6 +344,7 @@ function SearchableSelect(props: {
   const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
       setOpen(false);
+      setTyping(false);
       return;
     }
     if (!open()) {
@@ -383,11 +390,15 @@ function SearchableSelect(props: {
               aria-multiselectable="false"
               value={displayValue()}
               onInput={(e) => {
+                setTyping(true);
                 setQuery(e.currentTarget.value);
                 setOpen(true);
               }}
               onFocus={() => setOpen(true)}
-              onBlur={() => setOpen(false)}
+              onBlur={() => {
+                setTyping(false);
+                setOpen(false);
+              }}
               onKeyDown={handleKeyDown}
               disabled={props.disabled}
               placeholder={props.placeholder}

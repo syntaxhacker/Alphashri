@@ -1,6 +1,5 @@
 import { createMemo, splitProps } from "solid-js";
 import { cn } from "../cn";
-import * as palette from "../palette";
 import type { JSX } from "solid-js";
 import type { UITextProps } from "../types";
 
@@ -12,32 +11,25 @@ const sizeMap: Record<string, string> = {
   xl: "1.25rem",
 };
 
+/**
+ * Tones are utilities, not inline colours: an inline `color` beats both the
+ * light-theme token override and any `className` the caller passes.
+ */
 const TONE_CLASS: Record<string, string> = {
   primary: "text-fin-primary",
   secondary: "text-fin-text-muted",
   success: "text-fin-positive",
   error: "text-fin-negative",
   warning: "text-fin-warning",
-  info: "text-fin-primary",
+  info: "text-fin-info",
   danger: "text-fin-negative",
   dimmed: "text-fin-text-muted",
   default: "text-fin-text",
 };
 
-const TONE_COLOR: Record<string, string> = {
-  primary: palette.PRIMARY,
-  secondary: palette.TEXT_MUTED,
-  success: palette.POSITIVE,
-  error: palette.NEGATIVE,
-  warning: palette.WARNING,
-  info: palette.INFO,
-  danger: palette.NEGATIVE,
-  dimmed: palette.TEXT_MUTED,
-  default: palette.TEXT,
-};
-
+/** `c` also takes a raw colour; that is the one case an inline value is correct. */
 function isLiteralColor(c: string): boolean {
-  return c.startsWith("#") || c.startsWith("rgb") || c.includes(".");
+  return /^(#|rgba?\(|hsla?\()/i.test(c);
 }
 
 const TEXT_KNOWN = [
@@ -84,9 +76,7 @@ export function Text(props: UITextProps) {
     const tone = known.c as string | undefined;
     const cls = tone != null ? TONE_CLASS[tone] : undefined;
     const o: Record<string, string | number | undefined> = {};
-    if (tone != null) {
-      o.color = TONE_COLOR[tone] ?? (isLiteralColor(tone) ? tone : undefined);
-    }
+    if (tone != null && cls == null && isLiteralColor(tone)) o.color = tone;
     if (known.fw != null) o["font-weight"] = known.fw;
     if (known.ta != null) o["text-align"] = known.ta;
     if (known.tt != null) o["text-transform"] = known.tt;

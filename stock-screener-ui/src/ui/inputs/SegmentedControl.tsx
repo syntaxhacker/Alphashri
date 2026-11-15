@@ -1,6 +1,5 @@
 import { createMemo, createSignal, For, splitProps } from "solid-js";
 import { cn } from "../cn";
-import * as palette from "../palette";
 import type { UISegmentedControlProps } from "../types";
 
 /**
@@ -60,11 +59,15 @@ export function SegmentedControl(props: UISegmentedControlProps) {
     known.onChange?.(v);
   };
 
+  // Tokens, not palette hexes: the rail has to follow the light scheme like the
+  // Tailwind-painted item classes beside it do.
   const trackStyle = createMemo<Record<string, string>>(() => ({
     height: `${box().item + TRACK_PAD * 2 + 2}px`,
     "border-radius": `${TRACK_RADIUS}px`,
-    border: `1px solid ${palette.BORDER}`,
-    "background-color": palette.SURFACE,
+    "border-width": "1px",
+    "border-style": "solid",
+    "border-color": "var(--color-fin-border)",
+    "background-color": "var(--color-fin-surface)",
     padding: `${TRACK_PAD}px`,
   }));
 
