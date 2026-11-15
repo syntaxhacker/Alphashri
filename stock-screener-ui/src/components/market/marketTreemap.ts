@@ -27,7 +27,9 @@ export function toTreemapRow(row: MarketRow): MarketTreemapRow {
     pe_ratio: num(row.peRatio) ?? Number.NaN,
     pb_ratio: num(row.pbRatio),
     dividend_yield: num(row.dividendYield),
-    perf_1y: num(row.perf1m) ?? Number.NaN,
+    // The market snapshot has no 1-year return. It used to put perf1m here,
+    // so a "1Y Return" read was silently a 1-month number.
+    perf_1y: null,
     roe: num(row.roe),
     high_52w: num(row.high52w),
     low_52w: num(row.low52w),
