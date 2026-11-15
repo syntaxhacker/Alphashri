@@ -90,6 +90,20 @@ Also: `activePut(row)` when the callback takes the resolved value → `activePut
 Symptom: literal `function …` text on screen, a comparison that is always false, a testid
 reading `foo-<function>`, or NaN geometry in SVG.
 
+**The silent variant — `?? default` hides the wrong-object read.** Reading a property off
+the accessor *function* yields `undefined`, and a `?? default` turns that into a plausible
+value:
+
+```tsx
+const filters = () => props.filters;
+<NumberInput value={filters.max_pb ?? ""} />      // always "" — never warns
+<Switch checked={filters.require_low_de ?? false} />  // always off, still fires onChange
+```
+
+A controlled switch then shows OFF while the request carries the gate. Symptom: the
+`onChange` test passes, the screen disagrees; reopen a modal and every field is blank.
+Rule: when a prop is an accessor, every read gets `()`; `?? default` is not a substitute.
+
 ### 5.2 Numeric style values (silently dropped)
 
 Solid writes styles via `style.setProperty`, which needs a **string**. `height: 24` is
@@ -318,9 +332,11 @@ Canonical source for model routing **and** concurrency — `AGENTS.md` and
 
 | Purpose | Model |
 |---|---|
-| **Default for all subagent work** | `opencode/nemotron-3.5-super-vl-free` ("Nemotron 3.5 Super VL Free", $0) |
-| Fallback pool (use when a free tier reports `Free usage limit reached`) | `opencode/deepseek-v4.1-flash-free`, `openrouter/nvidia/nemotron-3.5-super-vl:free`, `openrouter/baidu/ernie-5.5-flash-preview:free`, `commandcode/deepseek-v4.1` |
-| Adversarial / final verification | escalate one agent, state why |
+| **Default for all subagent work** | `commandcode/deepseek-v4.1` — Command Code's latest DeepSeek ("DeepSeek V4.1 Flash (latest)") |
+| Never use | `commandcode/deepseek/deepseek-v4.1-flash-fast`; any non-DeepSeek model; any other provider for subagents |
+| If Command Code ships a newer DeepSeek | switch to it; do not pin an older DeepSeek |
+| Fallback | none — if the DeepSeek model is unavailable (`MODEL_NOT_IN_PLAN`), stop and report instead of substituting |
+| Adversarial / final verification | same model |
 
 - The user's standing instruction is **one model for every agent** — do not mix models
   across a wave unless asked.
