@@ -208,9 +208,9 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
       filters().sort,
     ),
   );
-  const matchCount = createMemo(
-    () => filterOnlyMarketRows(rows(), { ...filters(), search: search() }).length,
-  );
+  // The sorted set has the same membership as the filtered one, so reuse it
+  // instead of walking all ~3,200 rows a second time per filter change.
+  const matchCount = createMemo(() => filteredRows().length);
   const chips = createMemo(
     () => buildMarketFilterChips({ ...filters(), search: search() }),
   );
