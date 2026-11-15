@@ -1,6 +1,7 @@
 import type { HeatmapStock } from "@/api/heatmap";
 import type { MetricConfig } from "@/components/heatmap/heatmapUtils";
 import type { MarketRow } from "@/types/marketScreener";
+import type { MarketSortKey } from "./marketFilters";
 import { formatMarketCap } from "@/components/heatmap/heatmapUtils";
 
 export interface MarketTreemapRow extends HeatmapStock {
@@ -103,4 +104,25 @@ export const MARKET_SIGNED_METRICS = new Set([
 
 export function isMarketSignedMetric(metric: string): boolean {
   return MARKET_SIGNED_METRICS.has(metric);
+}
+
+/**
+ * The sort control and the map's colour are the same user intent. The layout is
+ * cap-ordered on purpose (`marketRowsByCapDesc`), so without this mapping moving
+ * the sort looks like it did nothing at all. `symbol_asc` has no metric.
+ */
+const SORT_METRIC: Record<MarketSortKey, string | null> = {
+  day_desc: "change_pct",
+  day_asc: "change_pct",
+  relvol_desc: "relative_volume",
+  mcap_desc: "market_cap",
+  rsi_desc: "rsi",
+  perf_1m_desc: "perf_1m",
+  perf_w_desc: "perf_w",
+  pos_52w_desc: "pos_52w",
+  symbol_asc: null,
+};
+
+export function marketSortMetric(sort: MarketSortKey): string | null {
+  return SORT_METRIC[sort] ?? null;
 }

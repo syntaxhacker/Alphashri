@@ -40,6 +40,14 @@ const mockDeleteUserConfig = vi.mocked(deleteUserConfig);
 
 const mockUseMarketSnapshot = vi.mocked(useMarketSnapshotSolid);
 
+// happy-dom has no 2D canvas context: the real treemap's async init can land
+// after an unmount and then throws from zrender's dispose. The map's DOM is what
+// these tests assert, so the renderer is stubbed out.
+vi.mock("../../utils/loadEcharts", () => {
+  const chart = { setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn(), on: vi.fn() };
+  return { loadEcharts: vi.fn(async () => ({ init: vi.fn(() => chart) })) };
+});
+
 function row(symbol: string, overrides: Partial<MarketRow> = {}): MarketRow {
   return {
     symbol,
@@ -293,6 +301,51 @@ describe("MarketScreenerPanel — non-blocking filters", () => {
 
     expect(filterSpy.mock.calls.length).toBe(callsBefore);
     expect(screen.getByTestId("market-result-count")).toHaveTextContent("496 / 496");
+  });
+});
+
+describe("MarketScreenerPanel — the sort control lives on the map", () => {
+  test("the rail offers sectors only; the map owns the sort", async () => {
+    r(<MarketScreenerPanel />);
+    const rail = screen.getByTestId("market-filter-rail");
+    expect(within(rail).queryByTestId("market-filter-sort")).toBeNull();
+    expect(within(rail).getByTestId("market-filter-sector")).toBeInTheDocument();
+
+    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Map"));
+    expect(screen.getByTestId("market-map-sort")).toBeInTheDocument();
+    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Table"));
+  });
+
+  test("changing the map sort updates filters.sort and the map's colour", async () => {
+    const rows = [
+      row("RELIANCE", { marketCapCr: 1_000_000, rsi: 20 }),
+      row("MPHASIS", { marketCapCr: 10_000, rsi: 80 }),
+    ];
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ rows, total: rows.length }));
+    r(<MarketScreenerPanel />);
+    const toggle = screen.getByTestId("market-view-toggle");
+    await fireEvent.click(within(toggle).getByText("Map"));
+
+    const metric = () =>
+      (screen.getByTestId("market-map-metric").querySelector("select") as HTMLSelectElement).value;
+    const sortValue = () =>
+      (screen.getByTestId("market-map-sort").querySelector("select") as HTMLSelectElement).value;
+    expect(metric()).toBe("market_cap");
+
+    fireEvent.input(screen.getByTestId("market-map-sort").querySelector("select")!, {
+      target: { value: "rsi_desc" },
+    });
+    // One owner: filters.sort. The sort select and the colour both read it back.
+    expect(sortValue()).toBe("rsi_desc");
+    expect(metric()).toBe("rsi");
+
+    // Rendered table order is NOT asserted here: TanStackTable re-sorts whatever
+    // array it receives by its own `initialState` (market_cap_cr desc), so a row
+    // order assertion would pass with or without this wiring. Header sort →
+    // filters.sort is a separate task; until then filters.sort drives the map's
+    // colour only.
+    await fireEvent.click(within(toggle).getByText("Table"));
+    expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
   });
 });
 

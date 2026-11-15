@@ -751,6 +751,8 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                     <MarketMapView
                       rows={filteredRows()}
                       onSymbolClick={selectAndOpen}
+                      sort={filters().sort}
+                      onSortChange={(sort) => patchFilters({ sort })}
                     />
                   </Show>
                 </Show>

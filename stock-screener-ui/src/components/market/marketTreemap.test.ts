@@ -1,5 +1,12 @@
 import { describe, expect, test } from "vitest";
-import { MARKET_METRICS, isMarketSignedMetric, marketRowsByCapDesc, toTreemapRow } from "./marketTreemap";
+import {
+  MARKET_METRICS,
+  isMarketSignedMetric,
+  marketRowsByCapDesc,
+  marketSortMetric,
+  toTreemapRow,
+} from "./marketTreemap";
+import { MARKET_SORT_OPTIONS, type MarketSortKey } from "./marketFilters";
 import { getMetricValue, getHeatmapMetricColor } from "@/components/heatmap/heatmapUtils";
 import { buildStockTreemapOption, getStockMetricRange, safeFmt } from "@/components/heatmap/stockTreemap";
 import type { HeatmapStock } from "@/api/heatmap";
@@ -235,5 +242,39 @@ describe("MARKET_METRICS", () => {
     expect(isMarketSignedMetric("change_pct")).toBe(true);
     expect(isMarketSignedMetric("pos_52w")).toBe(true);
     expect(isMarketSignedMetric("rsi")).toBe(false);
+  });
+});
+
+describe("marketSortMetric", () => {
+  test("maps every sort that has a metric to a real MARKET_METRICS value", () => {
+    const metricValues = new Set(MARKET_METRICS.map((m) => m.value));
+    const mapped = MARKET_SORT_OPTIONS.map((o) => marketSortMetric(o.value)).filter(
+      (m): m is string => m !== null,
+    );
+    // 9 sorts, one of which (symbol_asc) carries no metric.
+    expect(mapped).toHaveLength(8);
+    for (const metric of mapped) {
+      expect(metricValues.has(metric), `${metric} is not a map metric`).toBe(true);
+    }
+  });
+
+  test("is the mapping the user asked for", () => {
+    const expected: Record<Exclude<MarketSortKey, "symbol_asc">, string> = {
+      day_desc: "change_pct",
+      day_asc: "change_pct",
+      relvol_desc: "relative_volume",
+      mcap_desc: "market_cap",
+      rsi_desc: "rsi",
+      perf_1m_desc: "perf_1m",
+      perf_w_desc: "perf_w",
+      pos_52w_desc: "pos_52w",
+    };
+    for (const [sort, metric] of Object.entries(expected)) {
+      expect(marketSortMetric(sort as MarketSortKey)).toBe(metric);
+    }
+  });
+
+  test("symbol A–Z leaves the colour alone", () => {
+    expect(marketSortMetric("symbol_asc")).toBeNull();
   });
 });

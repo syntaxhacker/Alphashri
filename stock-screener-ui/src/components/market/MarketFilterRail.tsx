@@ -4,7 +4,6 @@ import {
   Checkbox,
   Divider,
   MultiSelect,
-  Select,
   Switch,
   Text,
   ActionIcon,
@@ -15,9 +14,7 @@ import { RangeInput } from "../common/RangeInput";
 import {
   CAP_TIERS,
   CAP_TIER_LABELS,
-  MARKET_SORT_OPTIONS,
   type MarketFilterState,
-  type MarketSortKey,
 } from "./marketFilters";
 
 /** One size for every band label in the rail — header included. */
@@ -248,7 +245,7 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
 
       <Divider />
 
-      <RailSection title="Sector & sort">
+      <RailSection title="Sector">
         <MultiSelect
           size="xs"
           data={props.sectors}
@@ -259,15 +256,6 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
           searchable
           aria-label="Sectors"
           data-testid="market-filter-sector"
-        />
-
-        <Select
-          size="xs"
-          data={MARKET_SORT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-          value={filters().sort}
-          onChange={(v) => v && props.onChange({ sort: v as MarketSortKey })}
-          aria-label="Sort rows"
-          data-testid="market-filter-sort"
         />
       </RailSection>
     </Box>
