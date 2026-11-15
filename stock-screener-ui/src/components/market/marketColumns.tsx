@@ -25,9 +25,16 @@ function fmtNum(value: number | null, digits = 1): string {
   return value.toFixed(digits);
 }
 
-function fmtCr(value: number | null): string {
+/** ₹ crore, compact: `18.1L` (lakh crore) / `54.2k` / `999`. */
+function fmtMcapCr(value: number | null): string {
   if (value === null) return DASH;
-  return Math.round(value).toLocaleString("en-IN");
+  if (value >= 1e5) return `${(value / 1e5).toFixed(1)}L`;
+  if (value >= 1e3) return `${(value / 1e3).toFixed(1)}k`;
+  return String(Math.round(value));
+}
+
+function mcapCrLabel(value: number): string {
+  return `₹${Math.round(value).toLocaleString("en-IN")} Cr`;
 }
 
 function pctColor(value: number | null): "success" | "error" | undefined {
@@ -317,9 +324,11 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
         return r.marketCapCr === null ? (
           dash(r.symbol, "mcap")
         ) : (
-          <Text size="xs" data-testid={`market-mcap-${r.symbol}`}>
-            {fmtCr(r.marketCapCr)}
-          </Text>
+          <Tooltip label={mcapCrLabel(r.marketCapCr)} position="top">
+            <Text size="xs" data-testid={`market-mcap-${r.symbol}`}>
+              {fmtMcapCr(r.marketCapCr)}
+            </Text>
+          </Tooltip>
         );
       },
     },

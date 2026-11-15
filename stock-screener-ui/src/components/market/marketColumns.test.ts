@@ -35,6 +35,18 @@ const ROW: MarketRow = {
 
 const ids = (columns: ReturnType<typeof buildMarketColumns>) => columns.map((column) => column.id);
 
+const cellArgs = (row: MarketRow, column: ReturnType<typeof buildMarketColumns>[number]) => ({
+  row: { original: row, index: 0, isExpanded: () => false, toggle: () => {} },
+  column,
+});
+
+function renderMcap(marketCapCr: number | null): void {
+  const column = buildMarketColumns().find((candidate) => candidate.id === "market_cap_cr");
+  if (!column?.cell) throw new Error("market_cap_cr column has no cell renderer");
+
+  render(() => column.cell!(cellArgs({ ...ROW, marketCapCr }, column)));
+}
+
 afterEach(() => cleanup());
 
 describe("buildMarketColumns", () => {
@@ -67,5 +79,47 @@ describe("buildMarketColumns", () => {
 
     fireEvent.click(screen.getByTestId("market-symbol-RELIANCE"));
     expect(onSymbolOpen).toHaveBeenCalledWith("RELIANCE");
+  });
+
+  test("mcap cell reads as lakh crore above 1e5", () => {
+    renderMcap(1812819);
+    const cell = screen.getByTestId("market-mcap-RELIANCE");
+    expect(cell).toHaveTextContent("18.1L");
+    expect(cell.closest("span")).toHaveAttribute("aria-label", "₹18,12,819 Cr");
+    expect(cell).not.toHaveAttribute("title");
+  });
+
+  test("mcap cell reads as thousands between 1e3 and 1e5", () => {
+    renderMcap(54236);
+    const cell = screen.getByTestId("market-mcap-RELIANCE");
+    expect(cell).toHaveTextContent("54.2k");
+    expect(cell.closest("span")).toHaveAttribute("aria-label", "₹54,236 Cr");
+  });
+
+  test("mcap keeps a plain integer below 1e3", () => {
+    renderMcap(999);
+    const cell = screen.getByTestId("market-mcap-RELIANCE");
+    expect(cell).toHaveTextContent("999");
+    expect(cell.closest("span")).toHaveAttribute("aria-label", "₹999 Cr");
+  });
+
+  test("hovering the mcap cell shows the exact grouped value", async () => {
+    renderMcap(1812819);
+    fireEvent.mouseEnter(screen.getByTestId("market-mcap-RELIANCE").closest("span")!);
+
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("₹18,12,819 Cr");
+  });
+
+  test("null mcap keeps the shared dash", () => {
+    renderMcap(null);
+    expect(screen.getByTestId("market-dash-RELIANCE-mcap")).toHaveTextContent("–");
+    expect(screen.queryByTestId("market-mcap-RELIANCE")).toBeNull();
+  });
+
+  test("sorting still uses the numeric value, not the compact label", () => {
+    const column = buildMarketColumns().find((candidate) => candidate.id === "market_cap_cr");
+    if (!column?.accessorFn) throw new Error("market_cap_cr has no numeric accessor");
+
+    expect(column.accessorFn(ROW, 0)).toBe(1955000);
   });
 });
