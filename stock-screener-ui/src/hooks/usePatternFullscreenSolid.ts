@@ -288,7 +288,7 @@ export function usePatternFullscreen({
           ? { ...prev, patternsLoading: true }
           : prev,
       );
-      const key = `${symbol}|${tf}|p`;
+      const key = `${symbol}|${tf}|p|${extra.asOf ?? ""}|${extra.fromDate ?? ""}`;
       const cached = symbolChartCache.get(key);
       if (cached && Date.now() - cached.ts < SYMBOL_CHART_CACHE_MS) {
         applyPatterns(cached.chart);
@@ -305,7 +305,7 @@ export function usePatternFullscreen({
     };
 
     const phase1 = async () => {
-      const key = `${symbol}|${tf}|l`;
+      const key = `${symbol}|${tf}|l|${extra.asOf ?? ""}|${extra.fromDate ?? ""}`;
       const cached = symbolChartCache.get(key);
       if (cached && Date.now() - cached.ts < SYMBOL_CHART_CACHE_MS) {
         applyCandles(cached.chart);

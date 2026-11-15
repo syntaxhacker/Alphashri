@@ -126,6 +126,7 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
       fill={props.docked ?? false}
       chartError={props.chartError ?? null}
       chartNote={props.chartNote ?? null}
+      loading={props.loading ?? false}
     />
   );
 

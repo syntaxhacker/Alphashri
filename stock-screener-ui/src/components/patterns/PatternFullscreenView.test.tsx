@@ -89,6 +89,14 @@ describe("PatternFullscreenView", () => {
     
   });
 
+  test("loading with no candles does not claim there is no chart data", () => {
+    render(() => (
+      <PatternFullscreenView opened docked onClose={vi.fn()} hit={null} symbol="IRCON" candles={[]} loading />
+    ));
+    // A spinner in the toolbar is not permission to say "No chart data".
+    expect(screen.queryByText("No chart data")).toBeNull();
+  });
+
   test("shows the endpoint reason when the chart has no candles", () => {
     render(() => (
       <PatternFullscreenView

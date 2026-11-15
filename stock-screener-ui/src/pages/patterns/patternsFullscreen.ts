@@ -31,6 +31,19 @@ const staleFields = (
     ? { stale: true, dataAsOf: chart.as_of ?? null }
     : { stale: false, dataAsOf: null };
 
+/**
+ * The endpoint answers 200 with `error`/`note` when it has no candles. This
+ * module is the Patterns page's state machine; the dock has its own copy
+ * (`hooks/usePatternFullscreenSolid.ts`). Every writer of `candles` must also
+ * write these, or the page shows a blank chart with no reason.
+ */
+const chartProblem = (
+  chart: SymbolChartPayload,
+): Pick<FullscreenChartState, "chartError" | "chartNote"> => ({
+  chartError: chart.error ?? null,
+  chartNote: chart.note ?? null,
+});
+
 export interface FullscreenChartState {
   symbol: string;
   hit: PatternHitDTO | null;
@@ -168,6 +181,7 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
             ? {
                 ...prev,
                 ...staleFields(chart),
+                ...chartProblem(chart),
                 hit: resolved,
                 hits: [resolved],
                 candles: chart.candles?.length ? chart.candles : prev.candles,
@@ -204,6 +218,7 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
             ...prev,
             ...extra,
             ...staleFields(chart),
+            ...chartProblem(chart),
             hit: newestHit(hits),
             hits,
             candles: chart.candles ?? [],
@@ -264,6 +279,7 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
           ? {
               ...prev,
               ...staleFields(chart),
+              ...chartProblem(chart),
               candles: chart.candles ?? [],
               overlays: [],
               trendLines: chart.trend_lines ?? [],
@@ -291,6 +307,7 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
           ? {
               ...prev,
               ...staleFields(chart),
+              ...chartProblem(chart),
               hit: newestHit(hits),
               hits,
               trendLines: chart.trend_lines ?? [],
@@ -316,7 +333,7 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
           ? { ...prev, patternsLoading: true }
           : prev,
       );
-      const key = `${symbol}|${tf}|p`;
+      const key = `${symbol}|${tf}|p|${extra.asOf ?? ""}|${extra.fromDate ?? ""}`;
       const cached = symbolChartCache.get(key);
       if (cached && Date.now() - cached.ts < SYMBOL_CHART_CACHE_MS) {
         applyPatterns(cached.chart);
@@ -333,7 +350,7 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
     };
 
     const phase1 = async () => {
-      const key = `${symbol}|${tf}|l`;
+      const key = `${symbol}|${tf}|l|${extra.asOf ?? ""}|${extra.fromDate ?? ""}`;
       const cached = symbolChartCache.get(key);
       if (cached && Date.now() - cached.ts < SYMBOL_CHART_CACHE_MS) {
         applyCandles(cached.chart);

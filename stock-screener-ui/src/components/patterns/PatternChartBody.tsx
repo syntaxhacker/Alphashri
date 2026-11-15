@@ -44,6 +44,8 @@ export interface PatternChartBodyProps {
   trendlinesView?: TrendlinesView;
   /** As-of replay cutoff (ISO local datetime, null = live). */
   asOf?: string | null;
+  /** A fetch is in flight with no candles yet — loading is not "no data". */
+  loading?: boolean;
   /** Chart endpoint failure code, shown under the empty state. */
   chartError?: string | null;
   /** Human-readable reason for an empty chart. */
@@ -203,6 +205,7 @@ function FullscreenTV(props: {
   historyHits?: PatternHitDTO[];
   chartError?: string | null;
   chartNote?: string | null;
+  loading?: boolean;
 }) {
   const trendlinesView = () => props.trendlinesView ?? "both";
   const data = createMemo(() =>
@@ -270,7 +273,7 @@ function FullscreenTV(props: {
           hiddenNames={hidden()}
         />
       </Box>
-      <Show when={props.candles.length === 0}>
+      <Show when={props.candles.length === 0 && !props.loading}>
         <Box className="absolute inset-0 flex flex-col items-center justify-center gap-1 px-4 text-center">
           <Text size="sm" c="dimmed">
             No chart data
@@ -356,6 +359,7 @@ export function PatternChartBody(props: PatternChartBodyProps) {
             historyHits={historyHits()}
             chartError={props.chartError}
             chartNote={props.chartNote}
+            loading={props.loading}
           />
         </Box>
 
