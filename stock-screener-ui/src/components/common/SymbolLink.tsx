@@ -139,21 +139,7 @@ export function SymbolLink(props: SymbolLinkProps) {
       style={local.style}
     >
       <Box className="min-w-0 flex-1">
-        <Show when={tvLink() && tvUrl()}>
-          <Box
-            component="a"
-            href={tvUrl()}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={local.ariaLabel ?? `Open ${label()} on TradingView`}
-            data-testid={local.testId}
-            onClick={stop}
-            className="pattern-tv-link block min-w-0 overflow-hidden text-fin-text underline decoration-fin-border underline-offset-2 hover:text-fin-primary hover:decoration-fin-primary"
-          >
-            {local.children ?? <Text size={local.size ?? "sm"} fw={local.weight ?? 700} truncate className={local.textClassName}>{label()}</Text>}
-          </Box>
-        </Show>
-        <Show when={!(tvLink() && tvUrl()) && local.onTextClick}>
+        <Show when={local.onTextClick}>
           <Box
             component="button"
             type="button"
@@ -170,7 +156,21 @@ export function SymbolLink(props: SymbolLinkProps) {
             {local.children ?? label()}
           </Box>
         </Show>
-        <Show when={!(tvLink() && tvUrl()) && !local.onTextClick}>
+        <Show when={!local.onTextClick && tvLink() && tvUrl()}>
+          <Box
+            component="a"
+            href={tvUrl()}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={local.ariaLabel ?? `Open ${label()} on TradingView`}
+            data-testid={local.testId}
+            onClick={stop}
+            className="pattern-tv-link block min-w-0 overflow-hidden text-fin-text underline decoration-fin-border underline-offset-2 hover:text-fin-primary hover:decoration-fin-primary"
+          >
+            {local.children ?? <Text size={local.size ?? "sm"} fw={local.weight ?? 700} truncate className={local.textClassName}>{label()}</Text>}
+          </Box>
+        </Show>
+        <Show when={!local.onTextClick && !(tvLink() && tvUrl())}>
           <Text size={local.size ?? "sm"} fw={local.weight ?? 700} truncate data-testid={local.testId} className={local.textClassName}>
             {local.children ?? label()}
           </Text>

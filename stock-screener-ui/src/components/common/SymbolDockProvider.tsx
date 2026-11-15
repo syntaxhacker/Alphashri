@@ -126,6 +126,7 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
     open,
     close,
     pinned: Boolean(fullscreen()?.pinned),
+    symbol: () => fullscreen()?.symbol ?? null,
     setOutlet,
   });
   createEffect(() => {

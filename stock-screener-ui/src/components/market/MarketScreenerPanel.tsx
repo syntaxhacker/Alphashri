@@ -169,6 +169,20 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   const [viewMode, setViewMode] = createSignal<MarketViewMode>(props.initialView ?? "table");
   const [selectedSymbol, setSelectedSymbol] = createSignal<string | null>(null);
   const dock = useSymbolDock();
+  // The symbol cell opens the dock directly (it stops row-click propagation),
+  // so the list must follow the dock or the chart's row never highlights and
+  // the arrow-key handler has no anchor.
+  createEffect(() => {
+    const shown = dock.symbol?.();
+    if (shown && shown !== selectedSymbol()) setSelectedSymbol(shown);
+  });
+
+  /** One path for every affordance: row, symbol text, chart icon, map tile,
+   *  keyboard. Selection and the dock can never disagree. */
+  const selectAndOpen = (symbol: string) => {
+    setSelectedSymbol(symbol);
+    dock.open(symbol);
+  };
   const isNarrow = useMediaQuery("(max-width: 1023px)");
   const isWide = useMediaQuery("(min-width: 1400px)");
 
@@ -219,7 +233,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   );
   const sectors = createMemo(() => marketSectors(rows()));
   const tierCounts = createMemo(() => countByCapTier(rows()));
-  const columns = createMemo(() => buildMarketColumns());
+  const columns = createMemo(() => buildMarketColumns({ onSymbolOpen: selectAndOpen }));
   const stale = createMemo(() => cachedStale() || isSnapshotStale(asOf()));
   const hasActiveFilters = () => chips().length > 0;
 
@@ -298,10 +312,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   const showError = () => error() !== null && rows().length === 0;
   const showErrorBanner = () => error() !== null && !isLoading() && rows().length > 0;
 
-  const handleRowClick = (row: MarketRow) => {
-    setSelectedSymbol(row.symbol);
-    dock.open(row.symbol);
-  };
+  const handleRowClick = (row: MarketRow) => selectAndOpen(row.symbol);
 
   const rowIndex = createMemo(() => {
     const symbol = selectedSymbol();
@@ -310,12 +321,13 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
 
   const stepSymbol = (direction: 1 | -1) => {
     const rows = filteredRows();
+    if (!rows.length) return;
     const current = rowIndex();
-    if (!rows.length || current < 0) return;
-    const next = rows[Math.min(Math.max(current + direction, 0), rows.length - 1)];
+    // No selection yet: Down starts at the top, Up at the bottom.
+    const base = current < 0 ? (direction > 0 ? -1 : rows.length) : current;
+    const next = rows[Math.min(Math.max(base + direction, 0), rows.length - 1)];
     if (next.symbol === selectedSymbol()) return;
-    setSelectedSymbol(next.symbol);
-    dock.open(next.symbol);
+    selectAndOpen(next.symbol);
     document
       .querySelector(`[data-testid="market-row-${next.symbol}"]`)
       ?.scrollIntoView({ block: "nearest" });
@@ -336,7 +348,6 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
       ) {
         return;
       }
-      if (!selectedSymbol()) return;
       event.preventDefault();
       stepSymbol(event.key === "ArrowDown" ? 1 : -1);
     };
@@ -597,10 +608,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
               <MoversPanel
                 universe={universe()}
                 selectedSymbol={selectedSymbol()}
-                onOpenSymbol={(symbol) => {
-                  setSelectedSymbol(symbol);
-                  dock.open(symbol);
-                }}
+                onOpenSymbol={selectAndOpen}
                 onOpenScan={props.onOpenScan}
               />
             </Box>
@@ -659,10 +667,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                   <Show when={viewMode() === "map"}>
                     <MarketMapView
                       rows={filteredRows()}
-                      onSymbolClick={(symbol) => {
-                        setSelectedSymbol(symbol);
-                        dock.open(symbol);
-                      }}
+                      onSymbolClick={selectAndOpen}
                     />
                   </Show>
                 </Show>

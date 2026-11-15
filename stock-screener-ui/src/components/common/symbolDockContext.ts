@@ -12,6 +12,12 @@ export interface SymbolDockApi {
   close: () => void;
   /** True while the dock holds a user-pinned chart (previews are ignored). */
   pinned: boolean;
+  /**
+   * Symbol currently shown in the dock, or null. Lists use this to highlight
+   * the row behind the chart — a link click opens the dock without touching
+   * the list's own selection state.
+   */
+  symbol?: () => string | null;
   /** Inline mount node; null falls back to the fixed overlay. */
   setOutlet: (el: HTMLElement | null) => void;
 }
