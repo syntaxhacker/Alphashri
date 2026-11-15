@@ -46,11 +46,12 @@ export function NiftyDataFreshness(props: NiftyDataFreshnessProps) {
       parseIstTimestampMs(props.report?.market?.as_of, effectiveSessionDate) ??
       parseIstTimestampMs(props.report?.fetchedAt, effectiveSessionDate);
 
-    let tapeTs: number | null = null;
-    for (const row of props.tape?.rows ?? []) {
-      const ts = parseIstTimestampMs(row?.t, effectiveSessionDate);
-      if (ts !== null && (tapeTs === null || ts > tapeTs)) tapeTs = ts;
-    }
+    // The tape is monotone: the newest row is the last one, so parse only it.
+    // An empty tape yields no timestamp.
+    const tapeRows = props.tape?.rows;
+    const lastRow =
+      tapeRows != null && tapeRows.length > 0 ? tapeRows[tapeRows.length - 1] : null;
+    const tapeTs = lastRow ? parseIstTimestampMs(lastRow?.t, effectiveSessionDate) : null;
 
     let burstTs: number | null = null;
     for (const b of props.bursts ?? []) {
