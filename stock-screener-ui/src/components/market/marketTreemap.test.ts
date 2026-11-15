@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { MARKET_METRICS, isMarketSignedMetric, toTreemapRow } from "./marketTreemap";
+import { MARKET_METRICS, isMarketSignedMetric, marketRowsByCapDesc, toTreemapRow } from "./marketTreemap";
 import { getMetricValue, getHeatmapMetricColor } from "@/components/heatmap/heatmapUtils";
 import { buildStockTreemapOption, getStockMetricRange, safeFmt } from "@/components/heatmap/stockTreemap";
 import type { HeatmapStock } from "@/api/heatmap";
@@ -154,6 +154,72 @@ describe("a row with no fundamentals must never crash the map", () => {
       const colour = getHeatmapMetricColor(metric.value, value, 0, 100);
       expect(colour, metric.value).toMatch(/^rgb\(\d+,\d+,\d+\)$/);
     }
+  });
+});
+
+describe("marketRowsByCapDesc", () => {
+  const row = (symbol: string, marketCapCr: number | null, rsi: number | null): MarketRow => ({
+    ...base,
+    symbol,
+    marketCapCr,
+    rsi,
+  });
+
+  test("orders by market cap descending with missing caps last", () => {
+    const out = marketRowsByCapDesc([
+      row("SMALL", 12_000, 71),
+      row("NOCAP", null, 44),
+      row("HUGE", 1_805_376, 22),
+      row("MID", 240_000, 63),
+      row("UNDEFINED", undefined as unknown as null, 55),
+    ]);
+    expect(out.map((r) => r.symbol)).toEqual(["HUGE", "MID", "SMALL", "NOCAP", "UNDEFINED"]);
+  });
+
+  test("keeps equal caps in their incoming order", () => {
+    const out = marketRowsByCapDesc([
+      row("B", 500, 1),
+      row("A", 500, 2),
+      row("C", 900, 3),
+      row("D", 500, 4),
+    ]);
+    expect(out.map((r) => r.symbol)).toEqual(["C", "B", "A", "D"]);
+  });
+
+  test("does not mutate the incoming rows", () => {
+    const input = [row("SMALL", 12_000, 71), row("HUGE", 1_805_376, 22)];
+    const snapshot = input.map((r) => r.symbol);
+    marketRowsByCapDesc(input);
+    expect(input.map((r) => r.symbol)).toEqual(snapshot);
+  });
+
+  test("returns a new array even for an already-sorted list", () => {
+    const input = [row("HUGE", 1_805_376, 22), row("SMALL", 12_000, 71)];
+    const out = marketRowsByCapDesc(input);
+    expect(out).not.toBe(input);
+    expect(out.map((r) => r.symbol)).toEqual(["HUGE", "SMALL"]);
+  });
+
+  test("the layout order is cap-desc even when the table sort hands over an RSI order", () => {
+    // The reported bug: table sorted by RSI ↓ gives small caps first, and the
+    // treemap squarifies in array order → tall slivers with clipped labels.
+    const rsiSorted = [
+      row("SMALL", 12_000, 91),
+      row("MID", 240_000, 74),
+      row("HUGE", 1_805_376, 21),
+    ];
+    const laidOut = marketRowsByCapDesc(rsiSorted).map(toTreemapRow);
+    const data = buildStockTreemapOption(laidOut as HeatmapStock[], "change_pct", MARKET_METRICS, true, {
+      borderDark: "#000",
+      borderLight: "#fff",
+      label: { fontSize: 11, fontWeight: 600, lineHeight: 1 },
+      changePositive: "#0f0",
+      changeNegative: "#f00",
+    }, "market_cap").series[0].data as { name: string; value: number }[];
+
+    expect(data.map((d) => d.name)).toEqual(["HUGE", "MID", "SMALL"]);
+    // The unfixed order would have been the RSI order — the shard layout.
+    expect(rsiSorted.map((r) => r.symbol)).not.toEqual(data.map((d) => d.name));
   });
 });
 

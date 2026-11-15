@@ -1,7 +1,7 @@
 import { createMemo, createSignal } from "solid-js";
 import { Box, SegmentedControl } from "@/ui";
 import { HeatmapTreemap } from "@/components/heatmap/HeatmapTreemap";
-import { MARKET_METRICS, isMarketSignedMetric, toTreemapRow } from "./marketTreemap";
+import { MARKET_METRICS, isMarketSignedMetric, marketRowsByCapDesc, toTreemapRow } from "./marketTreemap";
 import type { MarketRow } from "@/types/marketScreener";
 
 export interface MarketMapViewProps {
@@ -21,7 +21,9 @@ const EMPTY: MarketRow[] = [];
 
 export function MarketMapView(props: MarketMapViewProps) {
   const [metric, setMetric] = createSignal("change_pct");
-  const stocks = createMemo(() => (props.rows ?? EMPTY).map(toTreemapRow));
+  const stocks = createMemo(() =>
+    marketRowsByCapDesc(props.rows ?? EMPTY).map(toTreemapRow),
+  );
   return (
     <Box className="flex-1 min-w-0 min-h-0 flex flex-col" data-testid="market-map-view">
       <HeatmapTreemap

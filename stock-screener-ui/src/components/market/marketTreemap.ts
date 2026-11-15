@@ -18,6 +18,28 @@ function num(value: number | null | undefined): number | null {
   return value != null && Number.isFinite(value) ? value : null;
 }
 
+/**
+ * The treemap's layout order must not follow the table sort: the shared builder
+ * lays tiles out in array order (`sort: false`), so handing squarify an
+ * RSI-sorted list (small caps first) produced tall slivers with clipped labels.
+ * Unknown caps sort last; equal caps keep their filtered order.
+ */
+export function marketRowsByCapDesc(rows: readonly MarketRow[]): MarketRow[] {
+  return rows
+    .map((row, index) => ({
+      row,
+      index,
+      cap: row.marketCapCr != null && Number.isFinite(row.marketCapCr) ? row.marketCapCr : null,
+    }))
+    .sort((a, b) => {
+      if (a.cap === b.cap) return a.index - b.index;
+      if (a.cap === null) return 1;
+      if (b.cap === null) return -1;
+      return b.cap - a.cap;
+    })
+    .map((entry) => entry.row);
+}
+
 export function toTreemapRow(row: MarketRow): MarketTreemapRow {
   return {
     symbol: row.symbol,
