@@ -233,7 +233,14 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   );
   const sectors = createMemo(() => marketSectors(rows()));
   const tierCounts = createMemo(() => countByCapTier(rows()));
-  const columns = createMemo(() => buildMarketColumns({ onSymbolOpen: selectAndOpen }));
+  const columns = createMemo(() => {
+    const f = filters();
+    return buildMarketColumns({
+      onSymbolOpen: selectAndOpen,
+      // A pinned sector makes the column constant; it carries no information.
+      hideSector: f.sectors.length > 0,
+    });
+  });
   const stale = createMemo(() => cachedStale() || isSnapshotStale(asOf()));
   const hasActiveFilters = () => chips().length > 0;
 
@@ -279,8 +286,12 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
         case "etf":
           return { ...f, etfOnly: false };
         case "sector":
-          return { ...f, sector: null };
+          return { ...f, sectors: [] };
         default:
+          if (key.startsWith("sector:")) {
+            const name = key.slice("sector:".length);
+            return { ...f, sectors: f.sectors.filter((s) => s !== name) };
+          }
           return f;
       }
     });

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, cleanup, within } from "@solidjs/testing-library";
+import { fireEvent, render, screen, cleanup, within, waitFor } from "@solidjs/testing-library";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { UIProvider } from "@/ui";
 import { MarketScreenerPanel } from "./MarketScreenerPanel";
@@ -378,5 +378,47 @@ describe("MarketScreenerPanel — symbol allowlist", () => {
 
     await fireEvent.click(within(toggle).getByText("Table"));
     expect(screen.getByTestId("market-grid")).toBe(before);
+  });
+
+  test("pinning a sector hides the SECTOR column; removing the chip restores it", async () => {
+    r(<MarketScreenerPanel />);
+    expect(screen.getByText("SECTOR")).toBeInTheDocument();
+
+    const sectorSelect = screen.getByTestId("market-filter-sector");
+    await fireEvent.focus(within(sectorSelect).getByRole("combobox"));
+    const itOption = await screen.findByRole("option", { name: "IT" });
+    await fireEvent.click(within(itOption).getByRole("checkbox"));
+
+    // Every visible row is now IT, so the column carries no information.
+    await waitFor(() => expect(screen.queryByText("SECTOR")).toBeNull());
+    expect(screen.getByTestId("market-filter-chip-sector:IT")).toBeInTheDocument();
+
+    await fireEvent.click(screen.getByTestId("market-filter-chip-sector:IT"));
+    await waitFor(() => expect(screen.getByText("SECTOR")).toBeInTheDocument());
+  });
+
+  test("two sectors keep their own chips and survive removing one", async () => {
+    mockUseMarketSnapshot.mockReturnValue(
+      hookResult({ rows: [row("RELIANCE", { sector: "IT" }), row("ONGC", { sector: "Energy" })] }),
+    );
+    r(<MarketScreenerPanel />);
+
+    const sectorSelect = screen.getByTestId("market-filter-sector");
+    await fireEvent.focus(within(sectorSelect).getByRole("combobox"));
+    const it = await screen.findByRole("option", { name: "IT" });
+    await fireEvent.click(within(it).getByRole("checkbox"));
+    await fireEvent.focus(within(sectorSelect).getByRole("combobox"));
+    const energy = await screen.findByRole("option", { name: "Energy" });
+    await fireEvent.click(within(energy).getByRole("checkbox"));
+
+    expect(screen.getByTestId("market-filter-chip-sector:IT")).toBeInTheDocument();
+    expect(screen.getByTestId("market-filter-chip-sector:Energy")).toBeInTheDocument();
+
+    await fireEvent.click(screen.getByTestId("market-filter-chip-sector:IT"));
+    await waitFor(() =>
+      expect(screen.queryByTestId("market-filter-chip-sector:IT")).toBeNull(),
+    );
+    expect(screen.getByTestId("market-filter-chip-sector:Energy")).toBeInTheDocument();
+    expect(screen.queryByText("SECTOR")).toBeNull();
   });
 });

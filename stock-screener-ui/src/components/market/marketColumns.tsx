@@ -90,10 +90,12 @@ function Week52Bar(props: { row: MarketRow }) {
 export interface MarketColumnHandlers {
   /** Open the in-app chart. The text opens in-app; ↗ stays TradingView. */
   onSymbolOpen?: (symbol: string) => void;
+  /** Drop the SECTOR column when every visible row shares one sector. */
+  hideSector?: boolean;
 }
 
 export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnDef<MarketRow>[] {
-  return [
+  const columns: ColumnDef<MarketRow>[] = [
     {
       id: "symbol",
       header: "SYMBOL",
@@ -344,4 +346,5 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       },
     },
   ];
+  return handlers.hideSector ? columns.filter((column) => column.id !== "sector") : columns;
 }
