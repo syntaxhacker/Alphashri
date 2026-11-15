@@ -37,6 +37,8 @@ export interface DashboardViewProps {
   universe?: string;
   onOpenSymbol?: (symbol: string) => void;
   onOpenScan?: (panelId: string) => void;
+  /** Host supplies the snapshot/refresh chrome (Market tab); drop the as-of row. */
+  embedded?: boolean;
 }
 
 type SortKey = "default" | "change" | "relvol" | "volume" | "value";
@@ -95,7 +97,11 @@ export function dashboardRowHigh52w(row: ScreenerDashboardRow): number | null {
 }
 
 export function dashboardRowMcapCr(row: ScreenerDashboardRow): number | null {
-  return finiteOrNull(row.market_cap) ?? finiteOrNull(row.market_cap_cr);
+  // `market_cap` is rupees (the min-cap gate compares it to cr * 1e7);
+  // `market_cap_cr` is already crore. Normalise to crore for display.
+  const rupees = finiteOrNull(row.market_cap);
+  if (rupees != null) return rupees / 1e7;
+  return finiteOrNull(row.market_cap_cr);
 }
 
 function sortDashboardRows(
@@ -215,7 +221,7 @@ function RowDetail(props: { row: ScreenerDashboardRow; panelId: string }) {
     },
     {
       label: "Mkt cap",
-      value: mcap != null ? `₹${formatNumber(mcap * 1e7)}` : "—",
+      value: mcap != null ? `₹${formatNumber(mcap)} Cr` : "—",
       testid: "mcap",
     },
     {
@@ -619,49 +625,51 @@ export function DashboardView(props: DashboardViewProps) {
       data-universe={data()?.universe ?? universe()}
       className="flex w-full min-w-0 flex-1 flex-col gap-2"
     >
-      <ToolbarRow gap={8} wrap={false}>
-        <Box className="min-w-0 flex-1">
-          <Show
-            when={data()}
-            fallback={
-              <Text size="xs" c="dimmed" truncate span>
-                {universe()}
-              </Text>
-            }
+      <Show when={!props.embedded}>
+        <ToolbarRow gap={8} wrap={false}>
+          <Box className="min-w-0 flex-1">
+            <Show
+              when={data()}
+              fallback={
+                <Text size="xs" c="dimmed" truncate span>
+                  {universe()}
+                </Text>
+              }
+            >
+              {(current) => (
+                <Text size="xs" c="dimmed" truncate span>
+                  {current().universe} · {current().total} stocks · as of {formatTimeOnly(current().as_of)}
+                  <Show when={isStale()}>
+                    <Text
+                      size="xs"
+                      c="dimmed"
+                      span
+                      data-testid="dashboard-stale"
+                      title={
+                        typeof current().age_sec === "number"
+                          ? `Cached snapshot, ${current().age_sec}s old`
+                          : "Cached snapshot"
+                      }
+                    >
+                      {" "}(cached
+                      {typeof current().age_sec === "number" ? ` ${current().age_sec}s` : ""})
+                    </Text>
+                  </Show>
+                </Text>
+              )}
+            </Show>
+          </Box>
+          <Button
+            size="xs"
+            variant="subtle"
+            onClick={handleRefresh}
+            data-testid="dashboard-refresh"
+            aria-label="Refresh dashboard"
           >
-            {(current) => (
-              <Text size="xs" c="dimmed" truncate span>
-                {current().universe} · {current().total} stocks · as of {formatTimeOnly(current().as_of)}
-                <Show when={isStale()}>
-                  <Text
-                    size="xs"
-                    c="dimmed"
-                    span
-                    data-testid="dashboard-stale"
-                    title={
-                      typeof current().age_sec === "number"
-                        ? `Cached snapshot, ${current().age_sec}s old`
-                        : "Cached snapshot"
-                    }
-                  >
-                    {" "}(cached
-                    {typeof current().age_sec === "number" ? ` ${current().age_sec}s` : ""})
-                  </Text>
-                </Show>
-              </Text>
-            )}
-          </Show>
-        </Box>
-        <Button
-          size="xs"
-          variant="subtle"
-          onClick={handleRefresh}
-          data-testid="dashboard-refresh"
-          aria-label="Refresh dashboard"
-        >
-          Refresh
-        </Button>
-      </ToolbarRow>
+            Refresh
+          </Button>
+        </ToolbarRow>
+      </Show>
       <ToolbarRow gap={8} wrap={false} data-testid="dashboard-toolbar">
         <TextInput
           size="xs"

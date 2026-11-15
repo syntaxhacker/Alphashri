@@ -4,15 +4,15 @@ import { render as rtlRender, screen, cleanup, waitFor, within, fireEvent } from
 import { configure } from "@testing-library/dom";
 import type { JSX } from "solid-js";
 import "@testing-library/jest-dom/vitest";
-import { ScreenerPage, mapDashboardPanelToScreener, DEFAULT_DASHBOARD_UNIVERSE } from "./ScreenerPage";
+import { ScreenerPage, mapDashboardPanelToScreener } from "./ScreenerPage";
 import { UIProvider } from "@/ui";
 import { fetchMarketSnapshot } from "../../api/marketScreener";
 import type { Stock } from "../../types";
 
 vi.setConfig({ testTimeout: 20_000 });
 
-// Panels (Dashboard, GroupPerformance, ScreenerContent, the tab chunks) are
-// lazy: their DOM appears a microtask after render, and under an 8-worker run
+// Panels (GroupPerformance, ScreenerContent, the tab chunks) are lazy: their
+// DOM appears a microtask after render, and under an 8-worker run
 // that first chunk resolve can exceed the 1000 ms default findBy budget. Give
 // every async query room instead of sprinkling per-call timeouts.
 configure({ asyncUtilTimeout: 10_000 });
@@ -298,28 +298,18 @@ const marketSnapshot = {
   ],
 };
 
-const dashboardMounts = vi.hoisted(() => ({ count: 0 }));
+// The Market page is a pass-through to the Market panel, which owns the view.
+// Capture the props at that boundary so the URL contract is assertable without
+// the panel's internals; the real page still renders behind the capture.
+const marketPanelProps = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
 
-vi.mock("./DashboardView", async () => {
-  const { onMount } = await import("solid-js");
-  const panels = ["near_52w", "new_highs", "gap_up", "gainers", "most_active", "unknown_xyz"];
+vi.mock("../../pages/market/MarketScreenerPage", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../pages/market/MarketScreenerPage")>();
+  const Actual = actual.MarketScreenerPage as unknown as (props: Record<string, unknown>) => JSX.Element;
   return {
-    DashboardView: (props: any) => {
-      onMount(() => {
-        dashboardMounts.count += 1;
-      });
-      return (
-        <div data-testid="dashboard-view" data-universe={props.universe}>
-          <button data-testid="dashboard-open-symbol" onClick={() => props.onOpenSymbol?.("RELIANCE")}>
-            Open symbol
-          </button>
-          {panels.map((id) => (
-            <button data-testid={`dashboard-open-scan-${id}`} onClick={() => props.onOpenScan?.(id)}>
-              {id}
-            </button>
-          ))}
-        </div>
-      );
+    MarketScreenerPage: (props: Record<string, unknown>) => {
+      marketPanelProps.current = props;
+      return <Actual {...props} />;
     },
   };
 });
@@ -380,7 +370,7 @@ describe("ScreenerPage", () => {
     paramWrites.length = 0;
     selectedSymbolsRef.current = [];
     seedSearchParams("/?tab=screener");
-    dashboardMounts.count = 0;
+    marketPanelProps.current = null;
     mockFetchMarketSnapshot.mockResolvedValue(marketSnapshot);
   });
 
@@ -587,39 +577,43 @@ describe("ScreenerPage", () => {
     expect(screen.getByTestId("screener-controls")).toBeInTheDocument();
   });
 
-  it("renders the Dashboard tab by default", async () => {
+  it("opens Market on a bare route without writing a tab param", async () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>), { initialRoute: "/" });
-    expect(screen.getByTestId("tab-dashboard")).toBeInTheDocument();
-    // DashboardView is lazy: it resolves a microtask after the shell paints.
-    expect(await screen.findByTestId("dashboard-view")).toBeInTheDocument();
-    expect(screen.getByTestId("dashboard-view")).toHaveAttribute(
-      "data-universe",
-      DEFAULT_DASHBOARD_UNIVERSE,
-    );
-    // Dashboard toolbar replaces the screener select with the universe select
-    expect(screen.getByTestId("dashboard-universe-select")).toBeInTheDocument();
-    expect(screen.queryByTestId("screener-select")).not.toBeInTheDocument();
-    // Dashboard landing does not mount the screener subtree (mount-on-first-visit)
-    expect(screen.queryByTestId("screener-table-approaching")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("group-performance-panel")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tab-dashboard")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("dashboard-panel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("market-tab-panel")).toBeVisible();
+    expect(paramWrites).toHaveLength(0);
+    expect(currentSearchParams().tab).toBeUndefined();
   });
 
-  it("switches from dashboard to screener and back", async () => {
+  it("redirects ?tab=dashboard to the Market movers view", async () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=dashboard" });
+
+    await waitFor(() => expect(currentSearchParams().tab).toBe("market"), { timeout: 10_000 });
+    expect(currentSearchParams().view).toBe("movers");
+    expect(paramWrites.at(-1)?.options?.replace).toBe(true);
+    expect(screen.getByTestId("market-tab-panel")).toBeVisible();
+  });
+
+  it("switches from Market to Screener and back", async () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>), { initialRoute: "/" });
-    expect(await screen.findByTestId("dashboard-view")).toBeVisible();
+    expect(screen.getByTestId("market-tab-panel")).toBeVisible();
 
     fireEvent.click(screen.getByTestId("tab-screener"));
     expect(await screen.findByTestId("screener-table-approaching")).toBeVisible();
     expect(screen.getByTestId("screener-select")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("tab-dashboard"));
-    expect(await screen.findByTestId("dashboard-view")).toBeVisible();
+    fireEvent.click(screen.getByTestId("tab-market"));
+    expect(screen.getByTestId("market-tab-panel")).toBeVisible();
     expect(screen.queryByTestId("screener-table-approaching")).not.toBeVisible();
   });
 
@@ -638,19 +632,71 @@ describe("ScreenerPage", () => {
     expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
   });
 
-  it("does not mount the dashboard or screener panels on the Market tab", () => {
+  it("does not mount the screener panel on the Market tab", () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>), { initialRoute: "/?tab=market" });
-    expect(dashboardMounts.count).toBe(0);
-    expect(screen.queryByTestId("dashboard-view")).not.toBeInTheDocument();
     expect(screen.queryByTestId("screener-table-approaching")).not.toBeInTheDocument();
     expect(screen.queryByTestId("group-performance-panel")).not.toBeInTheDocument();
     expect(screen.getByTestId("market-tab-panel")).toBeInTheDocument();
+    // An explicit ?tab=market is already canonical; the shell must not rewrite it.
+    expect(paramWrites).toHaveLength(0);
+    expect(currentSearchParams().tab).toBe("market");
   });
 
-  it("does not fetch value scan endpoints on Dashboard or Market tabs", async () => {
+  it("forwards ?view= to the Market panel", async () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=market&view=movers" });
+
+    await waitFor(() => expect(marketPanelProps.current?.initialView).toBe("movers"), {
+      timeout: 10_000,
+    });
+    expect(paramWrites).toHaveLength(0);
+  });
+
+  it("defaults the Market panel to the table view when ?view= is absent", async () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=market" });
+
+    await waitFor(() => expect(marketPanelProps.current).not.toBeNull(), { timeout: 10_000 });
+    expect(marketPanelProps.current?.initialView).toBe("table");
+  });
+
+  it("writes ?view= when the Market panel changes view", async () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=market" });
+
+    await waitFor(() => expect(marketPanelProps.current).not.toBeNull(), { timeout: 10_000 });
+    const onViewChange = marketPanelProps.current?.onViewChange;
+    expect(onViewChange).toBeTypeOf("function");
+    (onViewChange as (v: string) => void)("map");
+
+    expect(currentSearchParams().view).toBe("map");
+    expect(paramWrites.at(-1)?.params.view).toBe("map");
+    expect(paramWrites.at(-1)?.options?.replace).toBe(true);
+  });
+
+  it("drops the market view param when leaving the Market tab", async () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=market&view=movers" });
+
+    await waitFor(() => expect(currentSearchParams().view).toBe("movers"), { timeout: 10_000 });
+    fireEvent.click(screen.getByTestId("tab-correlation"));
+
+    await waitFor(() => expect(currentSearchParams().tab).toBe("correlation"));
+    expect(currentSearchParams().view).toBeUndefined();
+  });
+
+  it("does not fetch value scan endpoints on the Market tab", async () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
@@ -660,7 +706,6 @@ describe("ScreenerPage", () => {
     expect(screen.getByTestId("deep-value-panel")).not.toBeVisible();
     expect(screen.queryByTestId("value-panel")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("tab-market"));
     await waitFor(() => expect(mockFetchMarketSnapshot).toHaveBeenCalledTimes(1), {
       timeout: 10_000,
     });
@@ -680,32 +725,32 @@ describe("ScreenerPage", () => {
     expect(await screen.findByTestId("value-panel", undefined, { timeout: 10_000 })).toBeInTheDocument();
 
     // Switching away unmounts; coming back remounts and refetches
-    fireEvent.click(screen.getByTestId("tab-dashboard"));
+    fireEvent.click(screen.getByTestId("tab-market"));
     expect(screen.queryByTestId("value-panel")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("tab-deepvalue"));
     await waitFor(() => expect(valueScanSpy).toHaveBeenCalledTimes(2), { timeout: 10_000 });
   });
 
-  it("keeps correlation and config tabs working alongside dashboard", async () => {
+  it("keeps correlation and config tabs working from Market", async () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>), { initialRoute: "/" });
     fireEvent.click(screen.getByTestId("tab-correlation"));
     await waitFor(
-      () => expect(screen.queryByTestId("dashboard-view")).not.toBeVisible(),
+      () => expect(screen.queryByTestId("market-tab-panel")).not.toBeVisible(),
       { timeout: 10_000 },
     );
     expect(await screen.findByTestId("correlation-tab", undefined, { timeout: 10_000 })).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("tab-config"));
     await waitFor(
-      () => expect(screen.queryByTestId("dashboard-view")).not.toBeVisible(),
+      () => expect(screen.queryByTestId("market-tab-panel")).not.toBeVisible(),
       { timeout: 10_000 },
     );
     expect(await screen.findByTestId("screener-config-view", undefined, { timeout: 10_000 })).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("tab-dashboard"));
+    fireEvent.click(screen.getByTestId("tab-market"));
     await waitFor(
-      () => expect(screen.getByTestId("dashboard-view")).toBeVisible(),
+      () => expect(screen.getByTestId("market-tab-panel")).toBeVisible(),
       { timeout: 10_000 },
     );
   });
@@ -720,10 +765,12 @@ describe("ScreenerPage", () => {
     fireEvent.click(screen.getByTestId("tab-market"));
 
     expect(paramWrites).toHaveLength(1);
-    expect(paramWrites[0].params.tab).toBe("market");
+    // Market is the default tab, so its param is dropped and the URL stays clean.
+    expect(paramWrites[0].params.tab).toBeNull();
     // `replace: true` kept Back on the tab you came from from ever being reachable.
     expect(paramWrites[0].options?.replace).toBeFalsy();
-    expect(currentSearchParams().tab).toBe("market");
+    expect(currentSearchParams().tab).toBeUndefined();
+    expect(currentSearchParams().view).toBeUndefined();
   });
 
   it("does not write the URL when the clicked tab is already active", async () => {
@@ -827,7 +874,11 @@ describe("ScreenerPage", () => {
           universe="nifty500"
         />
       </UIProvider>), { initialRoute: "/" });
-    fireEvent.click(await screen.findByTestId("dashboard-open-scan-near_52w"));
+    await waitFor(() => expect(marketPanelProps.current?.onOpenScan).toBeTypeOf("function"), {
+      timeout: 10_000,
+    });
+    const onOpenScan = marketPanelProps.current?.onOpenScan;
+    (onOpenScan as (id: string) => void)("near_52w");
     expect(onScreenerChange).toHaveBeenCalledWith("52w_high");
     expect(await screen.findByTestId("screener-table-approaching")).toBeVisible();
   });
@@ -838,52 +889,13 @@ describe("ScreenerPage", () => {
       <UIProvider>
         <ScreenerPage {...defaultProps} onScreenerChange={onScreenerChange} universe="nifty500" />
       </UIProvider>), { initialRoute: "/" });
-    fireEvent.click(await screen.findByTestId("dashboard-open-scan-gainers"));
+    await waitFor(() => expect(marketPanelProps.current?.onOpenScan).toBeTypeOf("function"), {
+      timeout: 10_000,
+    });
+    const onOpenScan = marketPanelProps.current?.onOpenScan;
+    (onOpenScan as (id: string) => void)("gainers");
     expect(onScreenerChange).not.toHaveBeenCalled();
     expect(await screen.findByTestId("screener-table-approaching")).toBeVisible();
-  });
-
-  it("dashboard refresh remounts the DashboardView", async () => {
-    render(() => (
-      <UIProvider>
-        <ScreenerPage {...defaultProps} universe="nifty500" />
-      </UIProvider>), { initialRoute: "/" });
-    expect(await screen.findByTestId("dashboard-view")).toBeInTheDocument();
-    expect(dashboardMounts.count).toBe(1);
-    fireEvent.click(screen.getByTestId("dashboard-refresh"));
-    await waitFor(() => expect(dashboardMounts.count).toBe(2));
-    expect(screen.getByTestId("dashboard-view")).toHaveAttribute("data-universe", "nifty500");
-  });
-
-  it("dashboard universe selector calls onUniverseChange", async () => {
-    const onUniverseChange = vi.fn();
-    render(() => (
-      <UIProvider>
-        <ScreenerPage {...defaultProps} universe="nifty50" onUniverseChange={onUniverseChange} />
-      </UIProvider>), { initialRoute: "/" });
-    fireEvent.input(within(screen.getByTestId("dashboard-universe-select")).getByRole("combobox"), { target: { value: "nifty500" } });
-    expect(onUniverseChange).toHaveBeenCalledWith("nifty500");
-  });
-
-  it("last close toggle flips its pressed state", async () => {
-    render(() => (
-      <UIProvider>
-        <ScreenerPage {...defaultProps} />
-      </UIProvider>), { initialRoute: "/" });
-    const toggle = screen.getByTestId("dashboard-last-close-toggle");
-    expect(toggle).not.toBeChecked();
-    fireEvent.click(toggle);
-    expect(toggle).toBeChecked();
-  });
-
-  it("dashboard symbol click forwards to onSymbolClick", async () => {
-    const onSymbolClick = vi.fn();
-    render(() => (
-      <UIProvider>
-        <ScreenerPage {...defaultProps} onSymbolClick={onSymbolClick} />
-      </UIProvider>), { initialRoute: "/" });
-    fireEvent.click(await screen.findByTestId("dashboard-open-symbol"));
-    expect(onSymbolClick).toHaveBeenCalledWith("RELIANCE");
   });
 
   it("keeps the screener table alive (no remount) when another tab is opened", async () => {
@@ -945,15 +957,14 @@ describe("ScreenerPage", () => {
     expect(screen.getByTestId("screener-content").className).not.toMatch(/\bpx-2\b/);
   });
 
-  it("keeps every chrome control on one height tier for the 28px band", () => {
+  it("keeps the chrome controls on one height tier for the 28px band", () => {
     render(() => (
       <UIProvider>
-        <ScreenerPage {...defaultProps} universe="nifty500" />
-      </UIProvider>), { initialRoute: "/" });
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=screener" });
 
     const controls = [
-      within(screen.getByTestId("dashboard-universe-select")).getByRole("combobox"),
-      screen.getByTestId("dashboard-refresh"),
+      within(screen.getByTestId("screener-select")).getByRole("combobox"),
     ];
     for (const control of controls) {
       const height = declaredHeightPx(control);

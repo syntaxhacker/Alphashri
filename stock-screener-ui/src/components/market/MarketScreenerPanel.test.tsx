@@ -5,12 +5,20 @@ import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { UIProvider } from "@/ui";
 import { MarketScreenerPanel } from "./MarketScreenerPanel";
 import { useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
+import { fetchScreenerDashboard } from "../../api/screenerDashboard";
 import * as marketFilters from "./marketFilters";
 import type { MarketRow } from "../../types/marketScreener";
+import type { ScreenerDashboardResponse } from "../../types/screenerDashboard";
 
 vi.mock("./useMarketSnapshotSolid", () => ({
   useMarketSnapshotSolid: vi.fn(),
 }));
+
+vi.mock("../../api/screenerDashboard", () => ({
+  fetchScreenerDashboard: vi.fn(),
+}));
+
+const mockFetchDashboard = vi.mocked(fetchScreenerDashboard);
 
 const mockUseMarketSnapshot = vi.mocked(useMarketSnapshotSolid);
 
@@ -102,6 +110,12 @@ afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
   mockUseMarketSnapshot.mockReturnValue(hookResult());
+  mockFetchDashboard.mockResolvedValue({
+    sections: [],
+    universe: "nifty500",
+    as_of: new Date().toISOString(),
+    total: 0,
+  } as ScreenerDashboardResponse);
 });
 
 describe("MarketScreenerPanel — stale cache, warming hint, timeout", () => {
@@ -259,5 +273,37 @@ describe("MarketScreenerPanel — selected row affordance", () => {
 
     await fireEvent.keyDown(document, { key: "ArrowDown" });
     expect(mphasis.style.backgroundColor).not.toBe(base);
+  });
+});
+
+describe("MarketScreenerPanel — Movers view", () => {
+  test("switching to Movers renders the dashboard and hides market search + filter rail", async () => {
+    r(<MarketScreenerPanel />);
+    expect(screen.queryByTestId("screener-dashboard")).not.toBeInTheDocument();
+    expect(screen.getByTestId("market-search")).toBeInTheDocument();
+    expect(screen.getByTestId("market-filter-rail")).toBeInTheDocument();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Movers" }));
+    await screen.findByTestId("screener-dashboard");
+
+    expect(screen.queryByTestId("market-search")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("market-filter-rail")).not.toBeInTheDocument();
+  });
+
+  test("onViewChange callback receives movers", async () => {
+    const onViewChange = vi.fn();
+    r(<MarketScreenerPanel onViewChange={onViewChange} />);
+    expect(onViewChange).not.toHaveBeenCalled();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Movers" }));
+    expect(onViewChange).toHaveBeenCalledWith("movers");
+  });
+
+  test("initialView=movers starts in Movers", () => {
+    r(<MarketScreenerPanel initialView="movers" />);
+    expect(screen.getByTestId("screener-dashboard")).toBeInTheDocument();
+    expect(screen.queryByTestId("market-search")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("market-filter-rail")).not.toBeInTheDocument();
+    expect(screen.getByTestId("market-view-toggle")).toBeInTheDocument();
   });
 });
