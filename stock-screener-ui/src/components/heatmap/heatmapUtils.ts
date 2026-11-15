@@ -173,6 +173,17 @@ export function getMetricValue(stock: HeatmapStock, metric: string): number {
 }
 
 /**
+ * The honest value for a tooltip: `null` when the source has no number, so the
+ * formatter renders "—" instead of a fabricated zero. `getMetricValue` stays
+ * zero-filling because it feeds the colour ramp.
+ */
+export function getRawMetricValue(stock: HeatmapStock, metric: string): number | null {
+  const row = stock as HeatmapStock & Record<string, unknown>;
+  const raw = metric === "market_cap" ? stock.market_cap : row[metric];
+  return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
+}
+
+/**
  * Input is **rupees** (the treemaps convert the snapshot's crore to rupees).
  * The crore band is 1e7, not 1e8: a ₹54,236 Cr company was rendering as
  * "₹54.2L" — the tooltip disagreed with the table's ₹Cr column by 10^5.

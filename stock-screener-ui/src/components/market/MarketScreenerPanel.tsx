@@ -385,7 +385,9 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
             data-testid="market-search"
           />
         </Show>
-        <Tooltip label={modeBadge().hint}>
+        {/* The toolbar sits directly under the tab strip: a default "top"
+            tooltip renders above the viewport and is clipped. */}
+        <Tooltip label={modeBadge().hint} position="bottom">
           <Badge
             size="xs"
             variant="light"
@@ -397,6 +399,8 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
         </Tooltip>
         <Show when={stale()}>
           <Tooltip
+            position="bottom"
+            multiline
             label={
               cachedStale() && isLoading()
                 ? "Showing the last snapshot — refreshing in the background"
@@ -421,7 +425,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
             {formatNumberIN(matchCount())} / {formatNumberIN(rows().length)}
           </Text>
         </Show>
-        <Tooltip label="Refresh snapshot">
+        <Tooltip label="Refresh snapshot" position="bottom">
           <span>
             <ActionIcon
               variant="subtle"
@@ -445,7 +449,10 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
             disabled={activeCount() === 0}
             data-testid="market-filter-count"
           >
-            <Tooltip label={isNarrow() ? "Open filters" : railCollapsed() ? "Show filters" : "Hide filters"}>
+            <Tooltip
+              position="bottom"
+              label={isNarrow() ? "Open filters" : railCollapsed() ? "Show filters" : "Hide filters"}
+            >
               <ActionIcon
                 variant="subtle"
                 size={28}
