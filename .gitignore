@@ -64,6 +64,7 @@ data_cache/
 # nse_instruments.json is untracked — fetch with scripts/fetch_instruments.py
 *.html
 !stock-screener-ui/index.html
+!stock-screener-ui/tests/e2e/fixtures/tooltip-harness.html
 # Upstox token (explicitly listed)
 .upstox_token.json
 
