@@ -1,9 +1,12 @@
 import {
   For,
   Show,
+  Suspense,
+  batch,
   createEffect,
   createMemo,
   createSignal,
+  lazy,
   onCleanup,
   onMount,
   type JSX,
@@ -44,9 +47,50 @@ import { MarketFilterRail } from "./MarketFilterRail";
 import { MarketMapView, MarketViewToggle, type MarketViewMode } from "./MarketMapView";
 import { TanStackTable } from "../common/TanStackTable";
 import { ChartDockOutlet } from "../common/ChartDockOutlet";
-import { DashboardView } from "../screener/DashboardView";
 import { useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
 import { useSymbolDock } from "../common/symbolDockContext";
+
+// Movers owns the whole dashboard module; keep it out of the Market chunk.
+const DashboardView = lazy(() =>
+  import("../screener/DashboardView").then((m) => ({ default: m.DashboardView })),
+);
+
+function MoversPanel(props: {
+  universe: string;
+  selectedSymbol: string | null;
+  onOpenSymbol: (symbol: string) => void;
+  onOpenScan?: (panelId: string) => void;
+}) {
+  let tree!: JSX.Element;
+  // Solid leaves its effect queue null when a Suspense is constructed outside a
+  // reactive root (a caller can build this element eagerly); batch seeds it.
+  batch(() => {
+    tree = (
+      <Suspense
+        fallback={
+          <Box
+            data-testid="market-movers-loading"
+            className="flex items-center justify-center gap-2 py-6 border border-fin-border rounded-sm bg-fin-surface"
+          >
+            <Loader size={14} />
+            <Text size="xs" c="dimmed">
+              Loading movers…
+            </Text>
+          </Box>
+        }
+      >
+        <DashboardView
+          embedded
+          universe={props.universe}
+          selectedSymbol={props.selectedSymbol}
+          onOpenSymbol={props.onOpenSymbol}
+          onOpenScan={props.onOpenScan}
+        />
+      </Suspense>
+    );
+  });
+  return tree;
+}
 
 const STALE_AFTER_MS = 15 * 60 * 1000;
 const UNIVERSE_OPTIONS = MARKET_UNIVERSES.map((o) => ({ value: o.value, label: o.label }));
@@ -404,6 +448,9 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
           value={viewMode()}
           onChange={(mode) => {
             setViewMode(mode);
+            // The market search is hidden in Movers; keeping a live filter there
+            // would silently shrink the table when the user comes back.
+            if (mode === "movers") setSearch("");
             props.onViewChange?.(mode);
           }}
         />
@@ -508,9 +555,9 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
         <Box className="flex-1 min-w-0 min-h-0 flex flex-col">
           {viewMode() === "movers" ? (
             <Box className="flex-1 min-w-0 min-h-0 overflow-y-auto">
-              <DashboardView
-                embedded
+              <MoversPanel
                 universe={universe()}
+                selectedSymbol={selectedSymbol()}
                 onOpenSymbol={(symbol) => {
                   setSelectedSymbol(symbol);
                   dock.open(symbol);

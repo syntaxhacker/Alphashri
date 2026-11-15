@@ -1,4 +1,4 @@
-import { For, Show, Switch, Match, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, Switch, Match, createEffect, createMemo, createSignal, onCleanup, onMount, type JSX } from "solid-js";
 import {
   ActionIcon,
   Badge,
@@ -32,6 +32,7 @@ import {
 import { Sparkline } from "./Sparkline";
 import { SymbolAvatar } from "./SymbolAvatar";
 import { symbolRowCursor, symbolRowProps } from "../common/symbolRowProps";
+import { alpha, PRIMARY } from "@/ui/palette";
 
 export interface DashboardViewProps {
   universe?: string;
@@ -39,6 +40,8 @@ export interface DashboardViewProps {
   onOpenScan?: (panelId: string) => void;
   /** Host supplies the snapshot/refresh chrome (Market tab); drop the as-of row. */
   embedded?: boolean;
+  /** Symbol already selected in the host (Market tab) — its rows are tinted. */
+  selectedSymbol?: string | null;
 }
 
 type SortKey = "default" | "change" | "relvol" | "volume" | "value";
@@ -263,6 +266,7 @@ function DashboardCard(props: {
   onToggleExpanded: () => void;
   onOpenSymbol?: (symbol: string) => void;
   onOpenScan?: (panelId: string) => void;
+  selectedSymbol?: string | null;
 }) {
   const visiblePanels = () => props.group.panels;
   const [selectedId, setSelectedId] = createSignal<string>(visiblePanels()[0]?.id ?? "");
@@ -379,6 +383,13 @@ function DashboardCard(props: {
           <For each={shown()}>
             {(row, idx) => {
             const isOpen = () => detailSymbol() === row.symbol;
+            const isSelected = () => props.selectedSymbol === row.symbol;
+            // Inline background (not a class) so the selected tint survives the
+            // row's own hover/border classes and mirrors the market table.
+            const rowStyle = (): JSX.CSSProperties => ({
+              cursor: symbolRowCursor(props.onOpenSymbol),
+              ...(isSelected() ? { "background-color": alpha(PRIMARY, 0.12) } : {}),
+            });
             return (
               <Box>
                 <Box
@@ -390,7 +401,7 @@ function DashboardCard(props: {
                     "border-b border-fin-border": isOpen() || idx() < shown().length - 1,
                     "hover:bg-fin-surface-alt": !!props.onOpenSymbol,
                   }}
-                  style={{ cursor: symbolRowCursor(props.onOpenSymbol) }}
+                  style={rowStyle()}
                 >
                   <SymbolAvatar symbol={row.symbol} name={row.name} logo={row.logo} size={20} />
                   <Box className="flex min-w-0 flex-1 flex-col gap-0">
@@ -769,6 +780,7 @@ export function DashboardView(props: DashboardViewProps) {
                           onToggleExpanded={handleToggleExpanded}
                           onOpenSymbol={props.onOpenSymbol}
                           onOpenScan={props.onOpenScan}
+                          selectedSymbol={props.selectedSymbol}
                         />
                       )}
                     </For>

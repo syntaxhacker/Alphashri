@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
+import { alpha, PRIMARY } from "@/ui/palette";
 import type { ScreenerDashboardResponse, ScreenerDashboardRow } from "../../types/screenerDashboard";
 import { createSignal, type JSX } from "solid-js";
 
@@ -17,7 +18,7 @@ vi.mock("../../api/screenerDashboard", () => ({
 // pass-through twins (see src/patterns/solidUiMock.tsx). Everything else is
 // the real implementation.
 vi.mock("@/ui", async () => {
-  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
   const { For } = await import("solid-js");
   // The repo's stubs are near-miss twins: they drop `data-testid` from
   // SegmentedControl's root and Chip's onChange toggle. These match the real
@@ -270,6 +271,21 @@ describe("DashboardView", () => {
     const rowEl = await screen.findByTestId("dashboard-row-gainers-INDIAGLYCO");
     fireEvent.click(rowEl);
     expect(rowEl).toBeInTheDocument();
+  });
+
+  it("tints only the row matching selectedSymbol, and follows it reactively", async () => {
+    const [selected, setSelected] = createSignal<string | null>("RELIANCE");
+    renderWithProvider(<DashboardView universe="nifty500" selectedSymbol={selected()} />);
+    const reliance = await screen.findByTestId("dashboard-row-gainers-RELIANCE");
+    const glycols = screen.getByTestId("dashboard-row-gainers-INDIAGLYCO");
+    const tint = alpha(PRIMARY, 0.12).replace(/\s+/g, "");
+
+    expect(reliance.style.backgroundColor.replace(/\s+/g, "")).toBe(tint);
+    expect(glycols.style.backgroundColor).toBe("");
+
+    setSelected("INDIAGLYCO");
+    expect(glycols.style.backgroundColor.replace(/\s+/g, "")).toBe(tint);
+    expect(reliance.style.backgroundColor).toBe("");
   });
 });
 

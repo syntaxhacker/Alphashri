@@ -297,13 +297,34 @@ describe("MarketScreenerPanel — Movers view", () => {
 
     await fireEvent.click(screen.getByRole("button", { name: "Movers" }));
     expect(onViewChange).toHaveBeenCalledWith("movers");
+    // Settle the lazy dashboard before cleanup disposes its Suspense.
+    await screen.findByTestId("screener-dashboard");
   });
 
-  test("initialView=movers starts in Movers", () => {
+  test("initialView=movers starts in Movers", async () => {
     r(<MarketScreenerPanel initialView="movers" />);
-    expect(screen.getByTestId("screener-dashboard")).toBeInTheDocument();
+    expect(await screen.findByTestId("screener-dashboard")).toBeInTheDocument();
     expect(screen.queryByTestId("market-search")).not.toBeInTheDocument();
     expect(screen.queryByTestId("market-filter-rail")).not.toBeInTheDocument();
     expect(screen.getByTestId("market-view-toggle")).toBeInTheDocument();
+  });
+
+  test("switching to Movers clears the search; Table comes back empty", async () => {
+    r(<MarketScreenerPanel />);
+    const search = screen.getByTestId("market-search") as HTMLInputElement;
+    fireEvent.input(search, { target: { value: "reliance" } });
+    expect(search.value).toBe("reliance");
+
+    await fireEvent.click(screen.getByRole("button", { name: "Movers" }));
+    await screen.findByTestId("screener-dashboard");
+    expect(screen.queryByTestId("market-search")).not.toBeInTheDocument();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Table" }));
+    expect((screen.getByTestId("market-search") as HTMLInputElement).value).toBe("");
+    expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
+
+    // and back to Movers: the lazy branch remounts cleanly
+    await fireEvent.click(screen.getByRole("button", { name: "Movers" }));
+    expect(await screen.findByTestId("screener-dashboard")).toBeInTheDocument();
   });
 });
