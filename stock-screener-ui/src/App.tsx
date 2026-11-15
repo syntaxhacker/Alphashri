@@ -104,7 +104,8 @@ function AppContent() {
     >
       <Show when={auth.isAuthenticated} fallback={<AuthScreen />}>
         <Router root={Shell}>
-          <Route path="/" component={ScreenerContainer} />
+          <Route path="/" component={() => <Navigate href="/screener" />} />
+          <Route path="/screener" component={ScreenerContainer} />
           <Route path="/backtest" component={BacktestPage} />
           <Route path="/experiments" component={ExperimentsPage} />
           <Route path="/paper" component={PaperTradingView} />
@@ -132,7 +133,7 @@ function AppContent() {
           <Route path="/poc/replay" component={ReplayIndexPage} />
           <Route path="/poc/replay/:strategyId" component={ReplayStrategyPage} />
           <Route path="/chart/:symbol?" component={ChartView} />
-          <Route path="*" component={() => <Navigate href="/" />} />
+          <Route path="*" component={() => <Navigate href="/screener" />} />
         </Router>
       </Show>
     </Show>
