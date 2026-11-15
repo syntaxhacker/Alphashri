@@ -206,14 +206,51 @@ describe("DashboardView", () => {
     expect(onOpenSymbol).toHaveBeenCalledWith("INDIAGLYCO");
   });
 
-  it("calls onOpenScan with the panel id when Open scan is clicked", async () => {
+  it("calls onOpenScan with the panel id and deduped symbols", async () => {
     const onOpenScan = vi.fn();
     renderWithProvider(<DashboardView universe="nifty500" onOpenScan={onOpenScan} />);
     await screen.findByTestId("dashboard-card-gainers");
     fireEvent.click(screen.getByTestId("dashboard-open-scan-gainers"));
-    expect(onOpenScan).toHaveBeenCalledWith("gainers");
+    expect(onOpenScan).toHaveBeenCalledWith("gainers", ["INDIAGLYCO", "RELIANCE"]);
     fireEvent.click(screen.getByTestId("dashboard-open-scan-volume_surge"));
-    expect(onOpenScan).toHaveBeenCalledWith("volume_surge");
+    expect(onOpenScan).toHaveBeenCalledWith("volume_surge", ["INFY"]);
+  });
+
+  it("dedupes symbols across the group's panels", async () => {
+    const onOpenScan = vi.fn();
+    mockFetchScreenerDashboard.mockResolvedValue({
+      ...payload(),
+      sections: [
+        {
+          id: "movers",
+          title: "Market Movers",
+          panels: [
+            {
+              id: "gainers",
+              title: "Top gainers",
+              metric_label: "Change %",
+              qualify: 2,
+              rows: [row({ symbol: "RELIANCE" }), row({ symbol: "INDIAGLYCO" })],
+            },
+            {
+              id: "losers",
+              title: "Top losers",
+              metric_label: "Change %",
+              qualify: 2,
+              rows: [row({ symbol: "INDIAGLYCO" }), row({ symbol: "TATAMOTORS" })],
+            },
+          ],
+        },
+      ],
+    });
+    renderWithProvider(<DashboardView universe="nifty500" onOpenScan={onOpenScan} />);
+    await screen.findByTestId("dashboard-card-gainers_losers");
+    fireEvent.click(screen.getByTestId("dashboard-open-scan-gainers_losers"));
+    expect(onOpenScan).toHaveBeenCalledWith("gainers", [
+      "RELIANCE",
+      "INDIAGLYCO",
+      "TATAMOTORS",
+    ]);
   });
 
   it("re-fetches when the universe changes", async () => {

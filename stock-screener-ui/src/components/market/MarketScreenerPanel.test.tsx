@@ -328,3 +328,42 @@ describe("MarketScreenerPanel — Movers view", () => {
     expect(await screen.findByTestId("screener-dashboard")).toBeInTheDocument();
   });
 });
+
+describe("MarketScreenerPanel — symbol allowlist", () => {
+  test("renders only allow-listed rows with a removable chip", () => {
+    const onClear = vi.fn();
+    r(<MarketScreenerPanel symbolAllowlist={["RELIANCE"]} onClearSymbolAllowlist={onClear} />);
+    expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
+    expect(screen.queryByTestId("market-row-MPHASIS")).not.toBeInTheDocument();
+    const chip = screen.getByTestId("market-symbol-allowlist");
+    expect(chip).toBeInTheDocument();
+    expect(chip).toHaveTextContent("Movers · 1 symbols ×");
+    fireEvent.click(chip);
+    expect(onClear).toHaveBeenCalled();
+  });
+
+  test("counts all allow-listed symbols in the chip", () => {
+    r(<MarketScreenerPanel symbolAllowlist={["RELIANCE", "MPHASIS"]} />);
+    expect(screen.getByTestId("market-symbol-allowlist")).toHaveTextContent(
+      "Movers · 2 symbols ×",
+    );
+  });
+
+  test("omits the chip when the list is empty or absent", () => {
+    r(<MarketScreenerPanel />);
+    expect(screen.queryByTestId("market-symbol-allowlist")).not.toBeInTheDocument();
+    r(<MarketScreenerPanel symbolAllowlist={[]} />);
+    expect(screen.queryByTestId("market-symbol-allowlist")).not.toBeInTheDocument();
+  });
+
+  test("changing the universe clears the symbol allowlist", async () => {
+    const onClear = vi.fn();
+    r(<MarketScreenerPanel symbolAllowlist={["RELIANCE"]} onClearSymbolAllowlist={onClear} />);
+    const combo = screen.getByTestId("market-universe-select").querySelector(
+      '[role="combobox"]',
+    ) as HTMLInputElement;
+    await fireEvent.focus(combo);
+    await fireEvent.mouseDown(await screen.findByRole("option", { name: "Nifty 500" }));
+    expect(onClear).toHaveBeenCalled();
+  });
+});

@@ -39,7 +39,11 @@ function parseMarketView(raw: string | null): MarketView {
 interface MarketTabProps {
   initialView?: MarketView;
   onViewChange?: (view: MarketView) => void;
-  onOpenScan?: (panelId: string) => void;
+  onOpenScan?: (panelId: string, symbols: string[]) => void;
+  /** Symbols captured from a Dashboard "Open scan" — the table narrows to these names. */
+  symbolAllowlist?: string[] | null;
+  /** Clears the captured symbols (universe change / leaving the Market tab). */
+  onClearSymbolAllowlist?: () => void;
 }
 
 // MarketScreenerPage is a pass-through to the Market panel, whose view props are
@@ -110,47 +114,6 @@ export const DEFAULT_DASHBOARD_UNIVERSE = "nifty500";
 /** Shared fallback for every lazy tab: same skeleton, one per boundary. */
 function PanelFallback() {
   return <Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>;
-}
-
-/**
- * Map a Dashboard panel id to the closest existing screener profile id.
- * Returns null when there is no close profile — the caller then just opens
- * the Screener tab with the current profile.
- */
-export function mapDashboardPanelToScreener(
-  panelId: string,
-  screenerIds: string[],
-): string | null {
-  const has = (id: string) => screenerIds.includes(id);
-  switch (panelId) {
-    case "near_52w":
-    case "near_52w_high":
-    case "near_52w_high_low":
-      if (has("near_52w_breakout")) return "near_52w_breakout";
-      if (has("52w_high")) return "52w_high";
-      return null;
-    case "near_52w_low":
-      if (has("52w_high")) return "52w_high";
-      if (has("near_52w_breakout")) return "near_52w_breakout";
-      return null;
-    case "gainers_losers":
-    case "losers":
-      return null;
-    case "new_highs":
-    case "touched_52w":
-      if (has("touched_52w_high")) return "touched_52w_high";
-      if (has("52w_high")) return "52w_high";
-      return null;
-    case "gap":
-    case "gap_up":
-    case "gap_down":
-      if (has("market_open_gap")) return "market_open_gap";
-      return null;
-    default:
-      // gainers / losers / most_active / turnover / volume_surge /
-      // range_expansion and anything unknown → Screener tab as-is.
-      return null;
-  }
 }
 
 function firstParam(value: string | string[] | undefined): string | null {
@@ -250,36 +213,39 @@ export function ScreenerPage(props: ScreenerPageProps) {
     props.screenerOptions.map((o) => ({ value: o.id, label: o.label })),
   );
 
+  // Symbols captured from a Dashboard "Open scan": the Market table narrows
+  // to exactly these names. Cleared when the user leaves the Market tab.
+  const [marketSymbols, setMarketSymbols] = createSignal<string[]>([]);
+
   /**
    * One write per tab change. `setSearchParams` merges onto the current search
    * string, so params owned by the tab being left are nulled explicitly to
    * delete them, and the navigation is pushed so Back returns to the previous
    * tab instead of leaving the page.
    */
-  const writeTab = (tab: string, extra?: Record<string, string>) => {
+  const writeTab = (
+    tab: string,
+    extra?: Record<string, string>,
+    options?: { replace?: boolean },
+  ) => {
     const next: Record<string, string | null> = { tab: tabParamValue(tab) };
     for (const [owner, keys] of Object.entries(TAB_OWNED_PARAMS)) {
       if (owner === tab) continue;
       for (const key of keys) next[key] = null;
     }
     Object.assign(next, extra);
-    setSearchParams(next);
+    setSearchParams(next, options);
   };
 
   const setActiveTab = (tab: string) => {
     if (tab === activeTab()) return;
+    if (tab !== "market") setMarketSymbols([]);
     writeTab(tab);
   };
 
-  const handleOpenScan = (panelId: string) => {
-    const target = mapDashboardPanelToScreener(
-      panelId,
-      props.screenerOptions.map((o) => o.id),
-    );
-    if (target && target !== props.activeScreener) {
-      props.onScreenerChange(target);
-    }
-    setActiveTab("screener");
+  const handleOpenScan = (panelId: string, symbols: string[]) => {
+    setMarketSymbols(symbols);
+    writeTab("market", { view: "table" }, { replace: true });
   };
 
   const handleCompare = () => {
@@ -487,6 +453,8 @@ export function ScreenerPage(props: ScreenerPageProps) {
                     initialView={marketView()}
                     onViewChange={(v) => setSearchParams({ view: v === "table" ? null : v }, { replace: true })}
                     onOpenScan={handleOpenScan}
+                    symbolAllowlist={marketSymbols()}
+                    onClearSymbolAllowlist={() => setMarketSymbols([])}
                   />
                 </Show>
               </ErrorBoundary>

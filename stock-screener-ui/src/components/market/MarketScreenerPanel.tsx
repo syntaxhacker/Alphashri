@@ -59,7 +59,7 @@ function MoversPanel(props: {
   universe: string;
   selectedSymbol: string | null;
   onOpenSymbol: (symbol: string) => void;
-  onOpenScan?: (panelId: string) => void;
+  onOpenScan?: (panelId: string, symbols: string[]) => void;
 }) {
   let tree!: JSX.Element;
   // Solid leaves its effect queue null when a Suspense is constructed outside a
@@ -153,7 +153,11 @@ function MarketGrid(props: {
 export interface MarketScreenerPanelProps {
   initialView?: MarketViewMode;
   onViewChange?: (view: MarketViewMode) => void;
-  onOpenScan?: (panelId: string) => void;
+  onOpenScan?: (panelId: string, symbols: string[]) => void;
+  /** Symbols captured from a Dashboard "Open scan" — the table narrows to these names. */
+  symbolAllowlist?: string[] | null;
+  /** Clears the captured symbols (universe change / leaving the Market tab). */
+  onClearSymbolAllowlist?: () => void;
 }
 
 export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
@@ -180,6 +184,9 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
       prevUniverse = u;
       setFilters(defaultMarketFilters());
       setSearch("");
+      // A symbol allowlist belongs to the universe it was captured in — a
+      // universe switch would silently hide every row, so clear it.
+      props.onClearSymbolAllowlist?.();
     }
   });
 
@@ -187,9 +194,17 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   // reconcile what changed, so no deferred copies are needed. Filter and sort
   // are separate memos: the sort re-runs only when the filtered set (or the
   // sort key) changes.
+  // The symbol allowlist (captured from a Dashboard "Open scan") narrows the
+  // snapshot to exactly those names — absent/empty leaves every row visible.
+  const allowlisted = createMemo(() => {
+    const list = props.symbolAllowlist;
+    return list && list.length > 0 ? new Set(list) : null;
+  });
   const filteredRows = createMemo(() =>
     sortMarketRows(
-      filterOnlyMarketRows(rows(), { ...filters(), search: search() }),
+      filterOnlyMarketRows(rows(), { ...filters(), search: search() }).filter(
+        (row) => allowlisted() == null || allowlisted()!.has(row.symbol),
+      ),
       filters().sort,
     ),
   );
@@ -532,6 +547,23 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
               <IconX size={12} />
             </Box>
           )}</For>
+        </Box>
+      </Show>
+      <Show
+        when={props.symbolAllowlist && props.symbolAllowlist.length > 0}
+      >
+        <Box
+          component="button"
+          type="button"
+          onClick={() => props.onClearSymbolAllowlist?.()}
+          aria-label="Clear symbol allowlist"
+          data-testid="market-symbol-allowlist"
+          className="inline-flex items-center gap-1 h-[22px] px-1.5 rounded-[11px] border border-fin-border bg-fin-surface text-fin-text text-[11px] leading-none cursor-pointer hover:border-fin-primary hover:text-fin-primary"
+        >
+          <Text size="xs" className="leading-none">
+            Movers · {props.symbolAllowlist!.length} symbols ×
+          </Text>
+          <IconX size={12} />
         </Box>
       </Show>
 

@@ -37,7 +37,7 @@ import { alpha, PRIMARY } from "@/ui/palette";
 export interface DashboardViewProps {
   universe?: string;
   onOpenSymbol?: (symbol: string) => void;
-  onOpenScan?: (panelId: string) => void;
+  onOpenScan?: (panelId: string, symbols: string[]) => void;
   /** Host supplies the snapshot/refresh chrome (Market tab); drop the as-of row. */
   embedded?: boolean;
   /** Symbol already selected in the host (Market tab) — its rows are tinted. */
@@ -198,6 +198,27 @@ function groupPanels(panels: ScreenerDashboardPanel[]): CardGroup[] {
   return groups;
 }
 
+/**
+ * Deduplicated, capped symbol list for a card's group: every panel's rows,
+ * so "Open scan" on a merged card (gainers+losers, 52W high+low) opens the
+ * market table for all of its names.
+ */
+function groupSymbols(group: CardGroup): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const panel of group.panels) {
+    const rows = Array.isArray(panel.rows) ? panel.rows : [];
+    for (const row of rows) {
+      const symbol = row.symbol;
+      if (symbol && !seen.has(symbol)) {
+        seen.add(symbol);
+        out.push(symbol);
+      }
+    }
+  }
+  return out.slice(0, 500);
+}
+
 function RowDetail(props: { row: ScreenerDashboardRow; panelId: string }) {
   const high52w = dashboardRowHigh52w(props.row);
   const mcap = dashboardRowMcapCr(props.row);
@@ -265,7 +286,7 @@ function DashboardCard(props: {
   expanded: boolean;
   onToggleExpanded: () => void;
   onOpenSymbol?: (symbol: string) => void;
-  onOpenScan?: (panelId: string) => void;
+  onOpenScan?: (panelId: string, symbols: string[]) => void;
   selectedSymbol?: string | null;
 }) {
   const visiblePanels = () => props.group.panels;
@@ -478,7 +499,7 @@ function DashboardCard(props: {
           <Button
             size="xs"
             variant="subtle"
-            onClick={props.onOpenScan ? () => props.onOpenScan!(activePanel()!.id) : undefined}
+            onClick={props.onOpenScan ? () => props.onOpenScan!(activePanel()!.id, groupSymbols(props.group)) : undefined}
             data-testid={`dashboard-open-scan-${cardKey()}`}
           >
             Open scan

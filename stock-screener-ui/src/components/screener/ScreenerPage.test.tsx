@@ -4,7 +4,7 @@ import { render as rtlRender, screen, cleanup, waitFor, within, fireEvent } from
 import { configure } from "@testing-library/dom";
 import type { JSX } from "solid-js";
 import "@testing-library/jest-dom/vitest";
-import { ScreenerPage, mapDashboardPanelToScreener } from "./ScreenerPage";
+import { ScreenerPage } from "./ScreenerPage";
 import { UIProvider } from "@/ui";
 import { fetchMarketSnapshot } from "../../api/marketScreener";
 import type { Stock } from "../../types";
@@ -846,56 +846,45 @@ describe("ScreenerPage", () => {
     expect(currentSearchParams().period).toBeUndefined();
   });
 
-  it("maps dashboard panels to screener profiles", () => {
-    const ids = ["52w_high", "near_52w_breakout", "touched_52w_high", "market_open_gap", "trending"];
-    expect(mapDashboardPanelToScreener("near_52w", ids)).toBe("near_52w_breakout");
-    expect(mapDashboardPanelToScreener("near_52w", ["52w_high"])).toBe("52w_high");
-    expect(mapDashboardPanelToScreener("near_52w", ["trending"])).toBeNull();
-    expect(mapDashboardPanelToScreener("new_highs", ids)).toBe("touched_52w_high");
-    expect(mapDashboardPanelToScreener("gap_up", ids)).toBe("market_open_gap");
-    expect(mapDashboardPanelToScreener("gainers", ids)).toBeNull();
-    expect(mapDashboardPanelToScreener("most_active", ids)).toBeNull();
-    expect(mapDashboardPanelToScreener("volume_surge", ids)).toBeNull();
-    expect(mapDashboardPanelToScreener("unknown_xyz", ids)).toBeNull();
-  });
-
-  it("onOpenScan for near_52w switches profile and opens the Screener tab", async () => {
-    const onScreenerChange = vi.fn();
+  it("onOpenScan writes tab=market&view=table (replace) and forwards the symbols", async () => {
     render(() => (
       <UIProvider>
-        <ScreenerPage
-          {...defaultProps}
-          screenerOptions={[
-            { id: "trending", label: "Trending" },
-            { id: "52w_high", label: "52W High" },
-          ]}
-          activeScreener="trending"
-          onScreenerChange={onScreenerChange}
-          universe="nifty500"
-        />
+        <ScreenerPage {...defaultProps} universe="nifty500" />
       </UIProvider>), { initialRoute: "/" });
     await waitFor(() => expect(marketPanelProps.current?.onOpenScan).toBeTypeOf("function"), {
       timeout: 10_000,
     });
     const onOpenScan = marketPanelProps.current?.onOpenScan;
-    (onOpenScan as (id: string) => void)("near_52w");
-    expect(onScreenerChange).toHaveBeenCalledWith("52w_high");
-    expect(await screen.findByTestId("screener-table-approaching")).toBeVisible();
+    (onOpenScan as (id: string, symbols: string[]) => void)("gainers", [
+      "INDIAGLYCO",
+      "RELIANCE",
+    ]);
+    expect(paramWrites.at(-1)?.params.tab).toBeNull();
+    expect(paramWrites.at(-1)?.params.view).toBe("table");
+    expect(paramWrites.at(-1)?.options?.replace).toBe(true);
+    expect(currentSearchParams().tab).toBeUndefined();
+    expect(currentSearchParams().view).toBe("table");
+    await waitFor(() => expect(marketPanelProps.current?.symbolAllowlist).toEqual(["INDIAGLYCO", "RELIANCE"]));
+    expect(marketPanelProps.current?.onClearSymbolAllowlist).toBeTypeOf("function");
+    expect(defaultProps.onScreenerChange).not.toHaveBeenCalled();
   });
 
-  it("onOpenScan for gainers opens the Screener tab without changing profile", async () => {
-    const onScreenerChange = vi.fn();
+  it("clears the symbol allowlist when leaving the Market tab", async () => {
     render(() => (
       <UIProvider>
-        <ScreenerPage {...defaultProps} onScreenerChange={onScreenerChange} universe="nifty500" />
+        <ScreenerPage {...defaultProps} universe="nifty500" />
       </UIProvider>), { initialRoute: "/" });
     await waitFor(() => expect(marketPanelProps.current?.onOpenScan).toBeTypeOf("function"), {
       timeout: 10_000,
     });
     const onOpenScan = marketPanelProps.current?.onOpenScan;
-    (onOpenScan as (id: string) => void)("gainers");
-    expect(onScreenerChange).not.toHaveBeenCalled();
-    expect(await screen.findByTestId("screener-table-approaching")).toBeVisible();
+    (onOpenScan as (id: string, symbols: string[]) => void)("gainers", ["RELIANCE"]);
+    await waitFor(() => expect(marketPanelProps.current?.symbolAllowlist).toEqual(["RELIANCE"]));
+    fireEvent.click(screen.getByTestId("tab-correlation"));
+    await waitFor(() => expect(currentSearchParams().tab).toBe("correlation"));
+    fireEvent.click(screen.getByTestId("tab-market"));
+    await waitFor(() => expect(screen.getByTestId("market-tab-panel")).toBeVisible());
+    await waitFor(() => expect(marketPanelProps.current?.symbolAllowlist).toEqual([]));
   });
 
   it("keeps the screener table alive (no remount) when another tab is opened", async () => {
