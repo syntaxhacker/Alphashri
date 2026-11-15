@@ -25,7 +25,7 @@ from db.database import get_db
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from chart_patterns import candles, config, jobs, store
 from chart_patterns import scan as scan_mod
@@ -156,8 +156,12 @@ _TS_CACHE_MAX = 8
 # ---------------------------------------------------------------------------
 
 _READ_CACHE_TTL_SEC = 3.0
+#: Lookup answers are keyed on the scan stamp too, so a longer TTL is safe:
+#: the key changes the moment a new scan completes.
+_LOOKUP_CACHE_TTL_SEC = 30.0
 _summary_cache: dict = {}
 _matrix_cache: dict = {}
+_lookup_cache: dict = {}
 _read_cache_lock = threading.Lock()
 _READ_CACHE_MAX_ENTRIES = 64
 
@@ -198,12 +202,12 @@ def _read_cache_get(cache: dict, key):
         return None
 
 
-def _read_cache_put(cache: dict, key, payload) -> None:
+def _read_cache_put(cache: dict, key, payload, ttl: Optional[float] = None) -> None:
     now = _time.monotonic()
     with _read_cache_lock:
         while len(cache) >= _READ_CACHE_MAX_ENTRIES:
             cache.pop(next(iter(cache)), None)
-        cache[key] = (now + _READ_CACHE_TTL_SEC, payload)
+        cache[key] = (now + (_READ_CACHE_TTL_SEC if ttl is None else ttl), payload)
 
 
 def _clear_read_caches() -> None:
@@ -211,6 +215,7 @@ def _clear_read_caches() -> None:
     with _read_cache_lock:
         _summary_cache.clear()
         _matrix_cache.clear()
+        _lookup_cache.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -1453,6 +1458,22 @@ class DetectRequest(BaseModel):
     lookback_bars: Optional[int] = 150
 
 
+#: Hard cap on one lookup request. A table page is ~50-300 rows; 500 leaves
+#: room for a full universe without letting one call become a bulk export.
+_LOOKUP_MAX_SYMBOLS = 500
+
+
+class PatternsLookupRequest(BaseModel):
+    """Batch availability of already-computed patterns (read-only, no detection)."""
+
+    symbols: list[str] = Field(..., max_length=_LOOKUP_MAX_SYMBOLS)
+    timeframe: str = "1D"
+    # Optional universe scope, so a caller aligned with the matrix gets exactly
+    # the matrix's rows. Unscoped reads fall back to the store's usual
+    # newest-row-per-pattern dedupe across every stored scan.
+    universe: Optional[str] = None
+
+
 class ScanRequest(BaseModel):
     universe: str = ""
     timeframe: str
@@ -1493,8 +1514,9 @@ class ScanRequest(BaseModel):
 MAX_CUSTOM_SYMBOLS = config.CUSTOM_SYMBOLS_MAX
 
 
-def _normalize_symbol_list(raw) -> list[str]:
+def _normalize_symbol_list(raw, cap: Optional[int] = None) -> list[str]:
     """Upper-cased, de-duplicated, order-preserving symbol scope (capped)."""
+    limit = MAX_CUSTOM_SYMBOLS if cap is None else int(cap)
     out: list[str] = []
     seen: set = set()
     for item in raw or []:
@@ -1503,7 +1525,7 @@ def _normalize_symbol_list(raw) -> list[str]:
             continue
         seen.add(symbol)
         out.append(symbol)
-        if len(out) >= MAX_CUSTOM_SYMBOLS:
+        if len(out) >= limit:
             break
     return out
 
@@ -2979,4 +3001,117 @@ async def get_matrix(
         "data_through": max(through_values, key=str) if through_values else None,
     })
     _read_cache_put(_matrix_cache, cache_key, payload)
+    return JSONResponse(content=payload)
+
+
+# ---------------------------------------------------------------------------
+# Batch pattern availability for the Market table.
+#
+# Same data path as ``/matrix`` and nothing else: one store read over stored
+# hits. No candle fetch, no detector, no upstream call — the table must never
+# turn a row render into a detection run. Symbols without a stored hit are
+# omitted (the client renders "—") rather than fabricated as "no patterns".
+# ---------------------------------------------------------------------------
+
+#: Store row cap per requested symbol. The query is deduped to the newest row
+#: per pattern identity and the catalogue tops out at 18 patterns, so this is
+#: headroom, not a display limit — it only bounds a pathological symbol that
+#: carries the same pattern id across many start dates.
+_LOOKUP_HITS_PER_SYMBOL = 20
+
+_LOOKUP_HIT_KEYS = (
+    "pattern_id", "direction", "status", "quality", "confidence",
+    "bars_ago", "start_date", "end_date",
+)
+
+
+def _lookup_pattern(hit: dict) -> dict:
+    out = {key: hit.get(key) for key in _LOOKUP_HIT_KEYS}
+    # Matrix cells label a hit by ``pattern_name``; the same field travels here
+    # so the column and the matrix can never describe one row differently.
+    out["name"] = hit.get("pattern_name") or hit.get("name")
+    return out
+
+
+def _lookup_items(items, symbols: list[str]) -> list[dict]:
+    """Group stored hits per symbol, emitted in sorted symbol order.
+
+    The store returns confidence order across *all* symbols, so echoing it would
+    make one symbol's position depend on unrelated symbols. Clients key the
+    answer by symbol; ordering it canonically is what lets a sort change in the
+    table reuse the same cache entry.
+    """
+    groups: dict[str, list[dict]] = {}
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        symbol = str(item.get("symbol") or "").strip().upper()
+        if not symbol:
+            continue
+        groups.setdefault(symbol, []).append(_lookup_pattern(item))
+    return [
+        {"symbol": symbol, "patterns": groups[symbol], "count": len(groups[symbol])}
+        for symbol in symbols
+        if symbol in groups
+    ]
+
+
+@router.post("/patterns/lookup", summary="Batch stored pattern availability for a symbol list")
+def lookup_patterns(
+    request: PatternsLookupRequest,
+    user: User = Depends(get_current_user),
+):
+    """Patterns already computed for these symbols on one timeframe.
+
+    DB read only. ``items`` holds just the symbols that have a stored hit; a
+    cold scan yields an empty list and clients show a dash. ``source`` is
+    always ``"stored"`` — this endpoint cannot produce a fresh detection.
+    """
+    timeframe = str(request.timeframe or "1D").strip()
+    if timeframe not in _valid_timeframe_ids():
+        raise HTTPException(status_code=422, detail=f"unknown timeframe {timeframe!r}")
+    symbols = _normalize_symbol_list(request.symbols, cap=_LOOKUP_MAX_SYMBOLS)
+    universe = (request.universe or "").strip() or None
+    if universe is not None:
+        universe = _normalize_universe(universe)
+        if universe not in _valid_universe_ids():
+            raise HTTPException(status_code=422, detail=f"unknown universe {universe!r}")
+    # Canonical (sorted) scope: `items` is sorted by symbol too, so a request
+    # for the same set in another order — or a table re-sort — hits this entry.
+    scope = tuple(sorted(symbols))
+    cached_key = (
+        getattr(store, "_session_factory", None),
+        timeframe,
+        universe,
+        scope,
+        _ist_session_date(),
+        _last_scan_at_for(universe, timeframe),
+    )
+    cached = _read_cache_get(_lookup_cache, cached_key)
+    if cached is not None:
+        return JSONResponse(content=cached)
+    summary: dict = {}
+    items: list = []
+    if symbols:
+        filters = {"symbol": symbols, "timeframe": timeframe, "sort": "confidence"}
+        if universe:
+            filters["universe"] = universe
+        try:
+            items, _total, summary = store.query_results(
+                filters,
+                limit=len(symbols) * _LOOKUP_HITS_PER_SYMBOL,
+                offset=0,
+            )
+        except Exception:
+            items, summary = [], {}
+    if not isinstance(summary, dict):
+        summary = {}
+    payload = _sanitize_for_json({
+        "timeframe": timeframe,
+        "session": _ist_session_date(),
+        "source": "stored",
+        "data_through": summary.get("data_through"),
+        "items": _lookup_items(items, list(scope)),
+    })
+    _read_cache_put(_lookup_cache, cached_key, payload, ttl=_LOOKUP_CACHE_TTL_SEC)
     return JSONResponse(content=payload)

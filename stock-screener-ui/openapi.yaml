@@ -869,6 +869,28 @@ components:
       - enabled
       title: PatternTimeframeToggleRequest
       type: object
+    PatternsLookupRequest:
+      description: Batch availability of already-computed patterns (read-only, no detection).
+      properties:
+        symbols:
+          items:
+            type: string
+          maxItems: 500
+          title: Symbols
+          type: array
+        timeframe:
+          default: 1D
+          title: Timeframe
+          type: string
+        universe:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Universe
+      required:
+      - symbols
+      title: PatternsLookupRequest
+      type: object
     PositionNotesUpdate:
       properties:
         notes:
@@ -4607,6 +4629,40 @@ paths:
               schema: {}
           description: Successful Response
       summary: Get Patterns
+      tags:
+      - chart-patterns
+  /api/chart-patterns/patterns/lookup:
+    post:
+      description: 'Patterns already computed for these symbols on one timeframe.
+
+
+        DB read only. ``items`` holds just the symbols that have a stored hit; a
+
+        cold scan yields an empty list and clients show a dash. ``source`` is
+
+        always ``"stored"`` — this endpoint cannot produce a fresh detection.'
+      operationId: lookup_patterns_api_chart_patterns_patterns_lookup_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatternsLookupRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Batch stored pattern availability for a symbol list
       tags:
       - chart-patterns
   /api/chart-patterns/results:
