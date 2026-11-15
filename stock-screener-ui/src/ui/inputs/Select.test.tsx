@@ -2,7 +2,6 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test } from "vitest";
 import { render, screen } from "@solidjs/testing-library";
-import * as palette from "../palette";
 import { Select } from "./Select";
 
 /**
@@ -37,11 +36,11 @@ describe("Select — reads as a dropdown", () => {
 
   test("paints the selected value in TEXT and the placeholder in TEXT_MUTED", () => {
     const { container, unmount } = render(() => <Select data={["a"]} value="a" />);
-    expect((container.querySelector("select") as HTMLSelectElement).style.color).toBe(palette.TEXT);
+    expect((container.querySelector("select") as HTMLSelectElement).style.color).toBe("var(--color-fin-text)");
     unmount();
 
     const { container: empty } = render(() => <Select data={["a"]} placeholder="Pick" value={null} />);
-    expect((empty.querySelector("select") as HTMLSelectElement).style.color).toBe(palette.TEXT_MUTED);
+    expect((empty.querySelector("select") as HTMLSelectElement).style.color).toBe("var(--color-fin-text-muted)");
   });
 
   test("the searchable variant also carries a chevron", () => {
