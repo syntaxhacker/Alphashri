@@ -6,6 +6,7 @@ interface ClickableSymbolProps {
   symbol: string;
   fw?: number;
   size?: string;
+  /** @deprecated hover no longer opens a preview. */
   showPreview?: boolean;
   /** @deprecated the dock owns preview dismissal. */
   previewTimeout?: number;
@@ -15,20 +16,10 @@ interface ClickableSymbolProps {
   testId?: string;
 }
 
-/** Symbol button for tables: hover previews in the dock, click navigates. */
+/** Symbol button for tables: click navigates; hover does nothing. */
 export function ClickableSymbol(props: ClickableSymbolProps) {
   const navigate = useNavigate();
   const dock = useSymbolDock();
-
-  const handleMouseEnter = () => {
-    if (!(props.showPreview ?? false)) return;
-    dock.preview(props.symbol);
-  };
-
-  const handleMouseLeave = () => {
-    if (!(props.showPreview ?? false)) return;
-    dock.endPreview();
-  };
 
   const handleTextClick = (sym: string, e: MouseEvent) => {
     if (props.stopClickPropagation ?? true) {
@@ -48,8 +39,6 @@ export function ClickableSymbol(props: ClickableSymbolProps) {
       tvLink={false}
       showChart={false}
       onTextClick={handleTextClick}
-      onPreview={handleMouseEnter}
-      onPreviewEnd={handleMouseLeave}
       testId={props.testId ?? `symbol-link-${props.symbol}`}
     />
   );

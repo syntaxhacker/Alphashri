@@ -106,8 +106,10 @@ export function SymbolLink(props: SymbolLinkProps) {
   const label = () => String(local.symbol ?? "");
   const dock = useSymbolDock();
   const openHandler = () => local.onOpen ?? dock.open;
-  const previewHandler = () => local.onPreview ?? dock.preview;
-  const previewEndHandler = () => local.onPreviewEnd ?? dock.endPreview;
+  // Hover no longer opens the chart. A symbol only opens on click; pages that
+  // want a preview opt in explicitly with onPreview.
+  const previewHandler = () => local.onPreview;
+  const previewEndHandler = () => local.onPreviewEnd;
   const tv = () => local.tvSymbol ?? tradingViewSymbol(label(), local.market);
   const tvUrl = () =>
     tvLink() && tv()
@@ -118,8 +120,8 @@ export function SymbolLink(props: SymbolLinkProps) {
     if (stopPropagation()) event.stopPropagation();
   };
 
-  const handlePreview = (event: MouseEvent) => previewHandler()(label(), event);
-  const handlePreviewEnd = () => previewEndHandler()(label());
+  const handlePreview = (event: MouseEvent) => previewHandler()?.(label(), event);
+  const handlePreviewEnd = () => previewEndHandler()?.(label());
 
   const handleTextClick = (event: MouseEvent) => {
     stop(event);
