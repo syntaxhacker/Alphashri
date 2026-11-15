@@ -2190,6 +2190,210 @@ export async function setupValueScanMocks(page: import("@playwright/test").Page)
   });
 }
 
+/* ------------------------------------------------------------------ *
+ * Saved user configs (GET/PUT/DELETE /api/user-configs/{scope})
+ *
+ * Stateful per page: a GET returns the latest PUT, and a page that never
+ * wrote gets the server defaults with `saved: false` — exactly the contract
+ * in docs/SAVED_CONFIGS_PLAN.md §2.5.
+ *
+ * The wire body is FLAT — `{universe, sectors, capTiers, …, sort, view}` —
+ * as shipped in `api/user_configs.py:MarketFiltersV1` and emitted by
+ * `useMarketConfig.serializeMarketConfig`. The plan's `{universe, filters}`
+ * nesting never shipped; a nested body is still accepted (and flattened) so a
+ * seed written in the old shape cannot silently restore nothing.
+ * ------------------------------------------------------------------ */
+
+/** `market.filters` v1 defaults — flat, mirroring `MarketFiltersV1()`. */
+export const DEFAULT_MARKET_FILTERS_CONFIG = {
+  universe: "all_equity",
+  sectors: [] as string[],
+  capTiers: [] as string[],
+  priceMin: null as number | null,
+  priceMax: null as number | null,
+  dayChangeMin: null as number | null,
+  dayChangeMax: null as number | null,
+  mcapMinCr: null as number | null,
+  mcapMaxCr: null as number | null,
+  rsiMin: null as number | null,
+  rsiMax: null as number | null,
+  relVolMin: null as number | null,
+  relVolMax: null as number | null,
+  aboveSma20: false,
+  aboveSma50: false,
+  aboveSma200: false,
+  fnoOnly: false,
+  etfOnly: false,
+  sort: "mcap_desc",
+  view: "table",
+};
+
+export type MarketFiltersPayload = typeof DEFAULT_MARKET_FILTERS_CONFIG;
+
+/** Fields of a `market.filters` payload, flat. Seeds may pass a subset. */
+export type MarketFiltersSeed = Partial<MarketFiltersPayload> & {
+  /** Legacy plan §2.4 nesting; flattened on write. Prefer the flat fields. */
+  filters?: Partial<MarketFiltersPayload>;
+};
+
+export interface UserConfigEnvelope {
+  scope: string;
+  version: number;
+  saved: boolean;
+  updated_at: string | null;
+  config: Record<string, unknown>;
+  warning?: string;
+}
+
+export interface UserConfigMockHandle {
+  /** Latest persisted payload, flat, or null when nothing has been saved yet. */
+  stored: () => Record<string, unknown> | null;
+  /** Every PUT body seen, in order — proves a write happened without spying on the UI. */
+  puts: () => Record<string, unknown>[];
+  /** Flip to a non-2xx status to exercise the "Filters not saved" chip. */
+  setPutStatus: (status: number | null) => void;
+}
+
+type UserConfigEntry = { config: Record<string, unknown>; updatedAt: string };
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * Flatten a `market.filters` body onto the defaults, keeping unknown keys.
+ * A nested `filters` object is merged in first and a top-level `universe`
+ * wins — the same rule the server (`flatten_market_config`) and the frontend
+ * adapter (`parseMarketConfig`) apply, so a legacy seed behaves like a PUT.
+ */
+function mergeMarketFilters(raw: unknown): Record<string, unknown> {
+  const base = JSON.parse(
+    JSON.stringify(DEFAULT_MARKET_FILTERS_CONFIG),
+  ) as Record<string, unknown>;
+  if (!isPlainObject(raw)) return base;
+  const { filters, ...top } = raw;
+  return {
+    ...base,
+    ...(isPlainObject(filters) ? filters : {}),
+    ...top,
+  };
+}
+
+/**
+ * Mock the per-scope saved-config endpoints.
+ *
+ * `initial` seeds a *saved* row (GET → `saved: true`). Omit it for a fresh
+ * account so the first GET proves the `saved: false` defaults path.
+ * Call after `setupApiMocks` and before `page.goto()`.
+ */
+export async function setupUserConfigMocks(
+  page: import("@playwright/test").Page,
+  initial?: MarketFiltersSeed,
+): Promise<UserConfigMockHandle> {
+  const scopes = new Map<string, UserConfigEntry>();
+  if (initial) {
+    scopes.set("market.filters", {
+      config: mergeMarketFilters(initial),
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  let putStatus: number | null = null;
+  const puts: Record<string, unknown>[] = [];
+  let clock = 0;
+  const nextUpdatedAt = () => new Date(Date.UTC(2026, 10, 15, 9, 0, clock++)).toISOString();
+
+  await page.route(apiRoute("user-configs/[^/]+"), async (route) => {
+    const request = route.request();
+    const scope = new URL(request.url()).pathname.split("/").pop() ?? "";
+    const method = request.method();
+
+    if (scope !== "market.filters") {
+      await route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "unknown_scope" }),
+      });
+      return;
+    }
+
+    if (method === "PUT") {
+      if (putStatus !== null && putStatus >= 400) {
+        await route.fulfill({
+          status: putStatus,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: "user_config_write_failed" }),
+        });
+        return;
+      }
+      let body: Record<string, unknown> = {};
+      try {
+        body = (JSON.parse(request.postData() || "{}") as Record<string, unknown>) ?? {};
+      } catch {
+        body = {};
+      }
+      puts.push(body);
+      const entry: UserConfigEntry = {
+        config: mergeMarketFilters(body.config),
+        updatedAt: nextUpdatedAt(),
+      };
+      scopes.set(scope, entry);
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          scope,
+          version: 1,
+          saved: true,
+          updated_at: entry.updatedAt,
+          config: entry.config,
+        } satisfies UserConfigEnvelope),
+      });
+      return;
+    }
+
+    if (method === "DELETE") {
+      const deleted = scopes.delete(scope);
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, scope, deleted }),
+      });
+      return;
+    }
+
+    const entry = scopes.get(scope) ?? null;
+    const envelope: UserConfigEnvelope = entry
+      ? {
+          scope,
+          version: 1,
+          saved: true,
+          updated_at: entry.updatedAt,
+          config: entry.config,
+        }
+      : {
+          scope,
+          version: 1,
+          saved: false,
+          updated_at: null,
+          config: mergeMarketFilters(null),
+        };
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(envelope),
+    });
+  });
+
+  return {
+    stored: () => scopes.get("market.filters")?.config ?? null,
+    puts: () => puts,
+    setPutStatus: (status) => {
+      putStatus = status;
+    },
+  };
+}
+
 // Mock screener dashboard response (GET /api/screener/dashboard)
 // 2 sections x 1 panel x 3 rows, matching ScreenerDashboardResponse shape.
 // Panel ids "gainers" / "volume_surge" pass through as lone cards (no merge pair).
