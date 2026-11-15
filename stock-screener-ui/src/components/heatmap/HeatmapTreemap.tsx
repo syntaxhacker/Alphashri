@@ -86,11 +86,30 @@ export function HeatmapTreemap(props: HeatmapTreemapProps) {
     if (params?.name) props.onSymbolClick?.(params.name);
   };
 
+  const resizeChart = () => {
+    if (chart) chart.resize();
+  };
+
+  let resizeFrame = 0;
+  let observer: ResizeObserver | null = null;
+
+  const scheduleResize = () => {
+    if (resizeFrame) return;
+    resizeFrame = requestAnimationFrame(() => {
+      resizeFrame = 0;
+      resizeChart();
+    });
+  };
+
+  const hasArea = (entries: ResizeObserverEntry[]) => {
+    const rect = entries[entries.length - 1]?.contentRect;
+    return !!rect && rect.width > 0 && rect.height > 0;
+  };
+
   onMount(() => {
     const el = chartEl;
-    const resize = () => chart?.resize();
-    window.addEventListener("resize", resize);
-    onCleanup(() => window.removeEventListener("resize", resize));
+    window.addEventListener("resize", resizeChart);
+    onCleanup(() => window.removeEventListener("resize", resizeChart));
 
     if (!el) return;
     void loadEcharts().then((echartsLib) => {
@@ -100,6 +119,15 @@ export function HeatmapTreemap(props: HeatmapTreemapProps) {
       instance.setOption(chartOption());
       if (props.onSymbolClick) {
         instance.on("click", handleChartClick);
+      }
+      // Opening the chart dock resizes this host without a window resize, so the
+      // canvas would keep its old width and overflow the narrowed column.
+      if (typeof ResizeObserver !== "undefined") {
+        observer = new ResizeObserver((entries) => {
+          if (!hasArea(entries)) return;
+          scheduleResize();
+        });
+        observer.observe(el);
       }
     });
   });
@@ -111,6 +139,12 @@ export function HeatmapTreemap(props: HeatmapTreemapProps) {
 
   onCleanup(() => {
     disposed = true;
+    if (resizeFrame) {
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = 0;
+    }
+    observer?.disconnect();
+    observer = null;
     chart?.dispose();
     chart = null;
   });
