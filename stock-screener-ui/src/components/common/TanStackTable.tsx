@@ -489,7 +489,10 @@ export function TanStackTable<T>(props: Props<T>) {
     ...props.style,
   });
 
-  const tableClassName = () => `paper-tanstack-table ${props.className || ""}`;
+  // `paper-row-states` opts this table into the managed row states in style.css
+  // (base surface / hover / focus). The legacy paper-trading table paints an
+  // opaque surface on every <td>, so it needs its own `td`-level hover instead.
+  const tableClassName = () => `paper-tanstack-table paper-row-states ${props.className || ""}`;
 
   const numericColumnIds = createMemo(() => {
     const ids = new Set<string>();
@@ -513,9 +516,11 @@ export function TanStackTable<T>(props: Props<T>) {
 
   const rowStyleBase = (row: T): CSSProperties => ({
     "cursor": props.onRowClick ? "pointer" : undefined,
-    // The row owns the surface; cells inherit it so a selection/hover tint on
-    // the <tr> is actually visible.
-    "background-color": palette.SURFACE,
+    // Deliberately no inline surface: an inline background-color outranks every
+    // `:hover` rule, which is why hover never painted on the row. The surface is
+    // declared in style.css on `tr[data-row="stock"]`, so hover can win; an
+    // inline tint from `getRowStyle` still outranks CSS, so selection wins over
+    // hover. Cells inherit the resolved row background.
     ...props.getRowStyle?.(row),
   });
 
@@ -623,6 +628,7 @@ export function TanStackTable<T>(props: Props<T>) {
           className={props.getRowClassName?.(row())}
           data-testid={props.getRowTestId?.(row(), index())}
           {...props.getRowAttributes?.(row(), index())}
+          data-clickable={props.onRowClick ? "true" : undefined}
           data-row="stock"
         >
           <For each={visibleColumns()}>{(col) => {

@@ -689,3 +689,106 @@ describe("TanStackTable", () => {
     expect(screen.getByText("Row3")).toBeInTheDocument();
   });
 });
+
+describe("TanStackTable — row states (selected / hovered / focused)", () => {
+  const rowsOf = () => Array.from(document.querySelectorAll<HTMLTableRowElement>("tbody tr[data-row='stock']"));
+  const tinted = () => rowsOf().filter((tr) => tr.style.backgroundColor !== "");
+
+  it("marks only clickable rows with data-clickable", () => {
+    const { unmount } = render(() => (
+      <TanStackTable<TestItem>
+        data={data}
+        columns={columns}
+        onRowClick={() => {}}
+        getRowTestId={(r) => `clickable-${r.id}`}
+      />
+    ));
+    expect(screen.getByTestId("clickable-1")).toHaveAttribute("data-clickable", "true");
+    expect(screen.getByTestId("clickable-2")).toHaveAttribute("data-clickable", "true");
+    unmount();
+
+    render(() => (
+      <TanStackTable<TestItem>
+        data={data}
+        columns={columns}
+        getRowTestId={(r) => `static-${r.id}`}
+      />
+    ));
+    // A hover tint on a row that does nothing would promise an interaction.
+    expect(screen.getByTestId("static-1")).not.toHaveAttribute("data-clickable");
+    expect(screen.getByTestId("static-2")).not.toHaveAttribute("data-clickable");
+  });
+
+  it("leaves the base surface to CSS so a hover rule can win", () => {
+    render(() => <TanStackTable<TestItem> data={data} columns={columns} onRowClick={() => {}} />);
+    // The managed states live under this class in style.css.
+    expect(document.querySelector("table")!.className).toContain("paper-row-states");
+    for (const tr of rowsOf()) {
+      // An inline surface outranks `:hover`; that is the bug this guards.
+      expect(tr.style.backgroundColor).toBe("");
+      // Cells must not paint their own surface either, or the row tint is hidden.
+      for (const td of Array.from(tr.querySelectorAll("td"))) {
+        expect((td as HTMLElement).style.backgroundColor).toBe("inherit");
+      }
+    }
+  });
+
+  it("keeps the selected inline tint, which outranks the hover rule", () => {
+    const [selected, setSelected] = createSignal<string | null>("1");
+    render(() => (
+      <TanStackTable<TestItem>
+        data={data}
+        columns={columns}
+        onRowClick={(r) => setSelected(r.id)}
+        getRowStyle={(r) => (r.id === selected() ? { "background-color": "rgb(1, 2, 3)" } : undefined)}
+        getRowTestId={(r) => `sel-${r.id}`}
+      />
+    ));
+    expect(tinted()).toHaveLength(1);
+    expect(screen.getByTestId("sel-1").style.backgroundColor).toBe("rgb(1, 2, 3)");
+    expect(screen.getByTestId("sel-2").style.backgroundColor).toBe("");
+  });
+
+  it("never leaves two rows selected after clicking a different row", () => {
+    const [selected, setSelected] = createSignal<string | null>(null);
+    render(() => (
+      <TanStackTable<TestItem>
+        data={data}
+        columns={columns}
+        onRowClick={(r) => setSelected(r.id)}
+        getRowStyle={(r) => (r.id === selected() ? { "background-color": "rgb(1, 2, 3)" } : undefined)}
+        getRowTestId={(r) => `one-${r.id}`}
+      />
+    ));
+    fireEvent.click(screen.getByTestId("one-1"));
+    expect(tinted().map((tr) => tr.dataset.testid)).toEqual(["one-1"]);
+    fireEvent.click(screen.getByTestId("one-2"));
+    // The multiply-highlighted row the user saw: the previous row kept its tint.
+    expect(tinted().map((tr) => tr.dataset.testid)).toEqual(["one-2"]);
+  });
+
+  it("focus paints an outline, never a background tint", () => {
+    render(() => <TanStackTable<TestItem> data={data} columns={columns} onRowClick={() => {}} />);
+    const first = rowsOf()[0];
+    first.focus();
+    expect(document.activeElement).toBe(first);
+    // A focused row must not become indistinguishable from a selected one.
+    expect(first.style.backgroundColor).toBe("");
+    expect(first.style.outline).toBe("");
+  });
+
+  it("declares the hover/focus rules against data-clickable in style.css", async () => {
+    // happy-dom cannot resolve `:hover` or `color-mix()`, so the rule text is
+    // the only unit-level assertion available; the main agent measures the
+    // painted pixels.
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const css = readFileSync(resolve(process.cwd(), "src/style.css"), "utf8");
+    expect(css).toMatch(/\.paper-row-states tbody tr\[data-row="stock"\]\s*\{[^}]*background-color: var\(--color-fin-surface\)/);
+    expect(css).toMatch(/\.paper-row-states tbody tr\[data-clickable="true"\]:hover\s*\{[^}]*background-color: color-mix\(in srgb, var\(--color-fin-primary\) 7%/);
+    expect(css).toMatch(/\.paper-row-states tbody tr\[data-clickable="true"\]:focus-visible\s*\{[^}]*outline: 1px solid var\(--color-fin-primary\)/);
+    expect(css).toMatch(/\.paper-row-states tbody tr\[data-clickable="true"\]:focus-visible\s*\{[^}]*outline-offset: -1px/);
+    // The old cell-level `!important` hover must not reach these rows again.
+    expect(css).toMatch(/\.paper-tanstack-table:not\(\.paper-row-states\) tbody tr:hover td/);
+  });
+});
