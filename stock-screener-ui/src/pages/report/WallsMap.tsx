@@ -161,7 +161,10 @@ export function WallsMapChart(props: {
       : props.map.put_delta[row]?.[column];
   const callOiAt = (row: number, column: number) => props.map.call_oi?.[row]?.[column] ?? props.map.call_now[row] ?? 0;
   const putOiAt = (row: number, column: number) => props.map.put_oi?.[row]?.[column] ?? props.map.put_now[row] ?? 0;
-  const maxAbsChange = () => {
+  // One grid-wide scan, memoised: cellFill and cellTitle both read it, so a
+  // re-render (hover, measure flip, horizon flip) runs the O(strikes × times)
+  // scan once instead of once per cell.
+  const maxAbsChange = createMemo(() => {
     let max = 0;
     strikes().forEach((_, row) => {
       times().forEach((_, column) => {
@@ -171,7 +174,7 @@ export function WallsMapChart(props: {
       });
     });
     return max;
-  };
+  });
   const cellFill = (side: "call" | "put", row: number, column: number) => {
     if (measure() === "pct") {
       return deltaFill(side === "call" ? callDelta(row, column) : putDelta(row, column));
@@ -181,6 +184,9 @@ export function WallsMapChart(props: {
     return oiFill(oi - base, maxAbsChange());
   };
   const cellTitle = (side: "call" | "put", strike: number, row: number, column: number, time: string) => {
+    // Key the title on the same single grid scan as the fills: hovering must
+    // not re-run the scan once per cell.
+    maxAbsChange();
     const delta = side === "call" ? callDelta(row, column) : putDelta(row, column);
     if (measure() === "pct") return `${timeLabel(time)} · ${fmtNum(strike)} ${side} Δ ${fmtPct(delta)}`;
     const oi = side === "call" ? callOiAt(row, column) : putOiAt(row, column);

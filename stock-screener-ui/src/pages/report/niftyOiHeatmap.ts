@@ -159,6 +159,17 @@ function hasChain(row: HeatmapTapeRow): boolean {
   return !!c && typeof c === "object" && Object.keys(c).length > 0;
 }
 
+// Cheap content signature of a tape row array: row count, the last row's
+// timestamp and spot, plus its chain's strike keys. Equal content yields the
+// same signature, so a model memo keyed on it skips rebuilds when a tape tick
+// hands over a fresh-but-equal array.
+export function tapeSignature(rows: HeatmapTapeRow[]): string {
+  if (rows.length === 0) return "0";
+  const last = rows[rows.length - 1];
+  const keys = last.chain ? Object.keys(last.chain).sort().join(",") : "";
+  return `${rows.length}|${last.t}|${last.spot ?? ""}|${keys}`;
+}
+
 export function buildOiHeatmap(
   rows: HeatmapTapeRow[],
   opts: HeatmapOptions = {},

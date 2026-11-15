@@ -8,6 +8,7 @@ import {
   buildOiHeatmap,
   heatmapReadText,
   readHeatmap,
+  tapeSignature,
   type HeatmapTapeRow,
 } from "./niftyOiHeatmap";
 import { gexFlipAtSpot } from "./niftyGex";
@@ -212,14 +213,24 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
   const metric = () => props.metric ?? "oi";
   const VB_H = () => props.viewBoxHeight ?? 180;
 
-  const model = createMemo(() =>
-    buildOiHeatmap(props.rows, {
+  // `rowsForSig` is the array the model paints from. `rowsSig` refreshes it on
+  // every frame (cheap signature computation) but the model memo tracks only
+  // the signature string, so a fresh-but-equal `props.rows` never rebuilds the
+  // model — Solid would otherwise track `props.rows` identity directly.
+  let rowsForSig = props.rows;
+  const rowsSig = createMemo(() => {
+    rowsForSig = props.rows;
+    return tapeSignature(props.rows);
+  });
+  const model = createMemo(() => {
+    rowsSig(); // rebuild only when row content changed, never on array identity alone
+    return buildOiHeatmap(rowsForSig, {
       bucketMin: bucketMin(),
       widthPts: props.widthPts ?? 500,
       metric: metric(),
       startTime: props.startTime ?? null,
-    }),
-  );
+    });
+  });
 
   // Spot-relative flip (the gamma strip's level) — null when no gex block is
   // passed, in which case each bucket keeps the flip recorded with its row.
