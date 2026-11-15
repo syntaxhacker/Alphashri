@@ -200,8 +200,12 @@ export function TanStackTable<T>(props: Props<T>) {
   const sameGroupFrame = (a: GroupFrame, b: GroupFrame) =>
     a.value === b.value && a.rows === b.rows && a.baseIndex === b.baseIndex;
 
-  const ensureRowSlot = (row: T, index: number): RowSlot => {
-    const key = rowKey(row, index);
+  const ensureRowSlot = (row: T, index: number, seen: Set<string>): RowSlot => {
+    const base = rowKey(row, index);
+    // A consumer that returns one test id for many rows must not collapse them
+    // into a single slot (the OI table did: "nifty-strike-row" for every strike).
+    const key = seen.has(base) ? `${base}#${index}` : base;
+    seen.add(key);
     const existing = rowSlots.get(key);
     if (existing) {
       existing.set({ row, index });
@@ -484,19 +488,20 @@ export function TanStackTable<T>(props: Props<T>) {
 
   const bodyItems = createMemo(() => {
     const items: BodySlot[] = [];
+    const seen = new Set<string>();
     const grps = groups();
     if (grps) {
       for (const g of grps) {
         items.push(ensureGroupSlot(g.value, g.rows, g.baseIndex));
         if (isGroupExpanded(g.value)) {
           for (let i = 0; i < g.rows.length; i++) {
-            items.push(ensureRowSlot(g.rows[i], g.baseIndex + i));
+            items.push(ensureRowSlot(g.rows[i], g.baseIndex + i, seen));
           }
         }
       }
     } else {
       const rows = sortedData();
-      for (let i = 0; i < rows.length; i++) items.push(ensureRowSlot(rows[i], i));
+      for (let i = 0; i < rows.length; i++) items.push(ensureRowSlot(rows[i], i, seen));
     }
     pruneSlots(items);
     return items;

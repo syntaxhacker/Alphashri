@@ -669,4 +669,23 @@ describe("TanStackTable", () => {
     expect(screen.getByTestId("win-stable-0")).toBe(first);
     expect(screen.getByTestId("win-stable-1").textContent).toContain("42");
   });
+
+  it("does not collapse rows that share one test id", () => {
+    const many: TestItem[] = Array.from({ length: 4 }, (_, i) => ({
+      id: String(i + 1),
+      name: `Row${i}`,
+      value: i,
+    }));
+    render(() => (
+      <TanStackTable<TestItem>
+        data={many}
+        columns={columns}
+        getRowTestId={() => "same-row"}
+      />
+    ));
+    // The OI table returns one id for every non-ATM strike; row slots must not
+    // treat that as one row.
+    expect(screen.getAllByTestId("same-row")).toHaveLength(4);
+    expect(screen.getByText("Row3")).toBeInTheDocument();
+  });
 });
