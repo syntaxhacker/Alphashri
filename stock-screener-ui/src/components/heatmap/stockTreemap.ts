@@ -13,6 +13,7 @@ import {
   getHeatmapMetricColor,
   getHeatmapMetricTextColor,
   getMetricValue,
+  getRawMetricValue,
   getSignedMetricColor,
   type MetricConfig,
 } from "./heatmapUtils";
@@ -41,6 +42,9 @@ export function resolveStockMetric(metrics: MetricConfig[], metric: string): Met
  * render for "no value", and it keeps one bad row from blanking the whole map.
  */
 export function safeFmt(metric: { fmt: (v: number) => string }, value: unknown): string {
+  // `Number(null)` is 0 and `Number("")` is 0, so a bare typeof check would
+  // render a missing value as a real zero ("0.0%", "₹0.00"). Missing first.
+  if (value == null || value === "") return "—";
   const n = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(n)) return "—";
   try {
@@ -124,7 +128,7 @@ export function buildStockTreemapOption(
       score: extra.score,
       gap52: extra.to_52w_high,
       metricLabel: activeMetric.label,
-      metricValue: safeFmt(activeMetric, mv),
+      metricValue: safeFmt(activeMetric, getRawMetricValue(stock, metricKey)),
       label: { color: textColor },
       itemStyle: { color },
     };
@@ -162,10 +166,10 @@ export function buildStockTreemapOption(
         if (d.score != null && d.score !== "") {
           lines.push(`  <div style="color:${tooltipText}">Score: <b>${d.score}</b></div>`);
         }
-        if (d.price != null && Number(d.price) > 0) {
+        if (d.price != null && Number.isFinite(Number(d.price)) && Number(d.price) > 0) {
           lines.push(`  <div style="color:${tooltipText}">Price: <b>₹${Number(d.price).toFixed(2)}</b></div>`);
         }
-        if (d.change != null && d.change !== "") {
+        if (d.change != null && d.change !== "" && Number.isFinite(Number(d.change))) {
           const ch = Number(d.change);
           const col = ch >= 0 ? style.changePositive : style.changeNegative;
           lines.push(
