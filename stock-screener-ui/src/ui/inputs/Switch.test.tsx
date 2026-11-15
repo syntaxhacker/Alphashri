@@ -3,7 +3,6 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { Switch } from "./Switch";
-import * as palette from "@/ui/palette";
 
 afterEach(cleanup);
 
@@ -51,23 +50,23 @@ describe("Switch — track + knob toggle", () => {
 
   it("tints the track PRIMARY when on and SURFACE_ALT when off", () => {
     render(() => <Switch label="TLS" data-testid="sw" defaultChecked />);
-    expect(trackOf("sw").getAttribute("style") ?? "").toContain(palette.PRIMARY);
+    expect(trackOf("sw").getAttribute("style") ?? "").toContain("var(--color-fin-primary)");
 
     cleanup();
     render(() => <Switch label="TLS" data-testid="sw" />);
     const off = trackOf("sw").getAttribute("style") ?? "";
-    expect(off).toContain(palette.SURFACE_ALT);
-    expect(off).not.toContain(palette.PRIMARY);
+    expect(off).toContain("var(--color-fin-surface-alt)");
+    expect(off).not.toContain("var(--color-fin-primary)");
   });
 
   it("honours tone colours", () => {
     render(() => <Switch color="error" data-testid="sw" defaultChecked />);
-    expect(trackOf("sw").getAttribute("style") ?? "").toContain(palette.NEGATIVE);
+    expect(trackOf("sw").getAttribute("style") ?? "").toContain("var(--color-fin-negative)");
   });
 
   it("marks an errored track with the negative border", () => {
     render(() => <Switch error data-testid="sw" />);
-    expect(trackOf("sw").getAttribute("style") ?? "").toContain(palette.NEGATIVE);
+    expect(trackOf("sw").getAttribute("style") ?? "").toContain("var(--color-fin-negative)");
   });
 
   it("toggles uncontrolled state and emits onChange", () => {
@@ -76,7 +75,7 @@ describe("Switch — track + knob toggle", () => {
     const input = screen.getByTestId("sw") as HTMLInputElement;
     fireEvent.click(input);
     expect(onChange).toHaveBeenCalledTimes(1);
-    expect(trackOf("sw").getAttribute("style") ?? "").toContain(palette.PRIMARY);
+    expect(trackOf("sw").getAttribute("style") ?? "").toContain("var(--color-fin-primary)");
   });
 
   it("stays disabled when disabled", () => {
@@ -88,6 +87,6 @@ describe("Switch — track + knob toggle", () => {
     render(() => <Switch label="TLS" data-testid="sw" />);
     fireEvent.focus(screen.getByTestId("sw"));
     const style = trackOf("sw").getAttribute("style") ?? "";
-    expect(style).toContain(`box-shadow: 0 0 0 1px ${palette.PRIMARY}`);
+    expect(style).toContain("box-shadow: 0 0 0 1px var(--color-fin-primary)");
   });
 });
