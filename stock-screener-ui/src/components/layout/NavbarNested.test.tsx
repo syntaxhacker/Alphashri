@@ -147,10 +147,15 @@ describe("NavbarNested active path highlighting", () => {
     expect(paper).not.toHaveAttribute("data-active", "true");
   });
 
-  it("highlights root only for exact /", () => {
-    renderNavbar({ activePath: "/" });
+  it("highlights screener only for exact /screener", () => {
+    renderNavbar({ activePath: "/screener" });
     expect(screen.getByTestId("nav-screener")).toHaveAttribute("data-active", "true");
     expect(screen.getByTestId("nav-news")).not.toHaveAttribute("data-active");
+  });
+
+  it("does not highlight screener for exact / (route moved to /screener)", () => {
+    renderNavbar({ activePath: "/" });
+    expect(screen.getByTestId("nav-screener")).not.toHaveAttribute("data-active", "true");
   });
 
   it("highlights correct item each time activePath changes (rerender)", () => {

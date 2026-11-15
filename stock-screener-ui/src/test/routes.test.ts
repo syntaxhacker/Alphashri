@@ -19,6 +19,12 @@ describe("route modules", () => {
     expect(lazyImports.length).toBeGreaterThan(20);
   });
 
+  it("/ redirects to /screener and /screener mounts the screener", () => {
+    expect(appSource).toContain('<Route path="/" component={() => <Navigate href="/screener" />} />');
+    expect(appSource).toContain('<Route path="/screener" component={ScreenerContainer} />');
+    expect(appSource).toContain('<Route path="*" component={() => <Navigate href="/screener" />} />');
+  });
+
   it(
     "every lazy route specifier resolves and evaluates without throwing",
     async () => {

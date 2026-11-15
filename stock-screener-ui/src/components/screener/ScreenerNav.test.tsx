@@ -192,4 +192,17 @@ describe("ScreenerNav", () => {
     expect(screen.getByTestId("screener-nav-option-old_one")).toHaveAttribute("data-active", "true");
     expect(screen.getByTestId("screener-nav-option-52w_high")).not.toHaveAttribute("data-active");
   });
+
+  it("gives every option row the same declared height and micro gaps", () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerNav {...defaultProps} />
+      </UIProvider>
+    ));
+    const option = screen.getByTestId("screener-nav-option-trending");
+    expect(option.className).toMatch(/(?:^|\s)h-\[28px\](?:\s|$)/);
+    // Rows are separated by the 4px micro step, not an ad-hoc padding pair.
+    expect(option.closest("ul")?.className).toContain("gap-1");
+    expect(option.className).not.toMatch(/\bpy-\d/);
+  });
 });

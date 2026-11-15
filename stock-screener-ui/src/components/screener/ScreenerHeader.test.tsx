@@ -137,4 +137,32 @@ describe("ScreenerHeader", () => {
     expect(defaultProps.onAutoRefreshChange).toHaveBeenCalled();
   });
 
+  // The header shares one 28px band with the tab strip. happy-dom has no
+  // layout, so the declared box is what can be asserted — a `sm` control
+  // (30/32px) overflows that band and re-introduces the mixed-height row.
+  it("keeps every toolbar control on one height tier", () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerHeader {...defaultProps} />
+      </UIProvider>
+    ));
+    const declared = (el: Element) => {
+      const fromClass = (el.getAttribute("class") ?? "").match(/(?:^|\s)h-\[(\d+)px\]/);
+      if (fromClass) return Number(fromClass[1]);
+      const inline = (el as HTMLElement).style.getPropertyValue("height");
+      return inline.endsWith("px") ? Number(inline.slice(0, -2)) : null;
+    };
+
+    const heights = [
+      declared(screen.getByTestId("refresh-btn")),
+      declared(getNumberInput()),
+      declared(getCombobox("provider-select")),
+      declared(getCombobox("mode-select")),
+    ];
+    for (const height of heights) {
+      expect(height, "every control in the band must declare a height").not.toBeNull();
+      expect(height!).toBeLessThanOrEqual(28);
+    }
+  });
+
 });

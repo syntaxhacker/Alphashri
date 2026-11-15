@@ -163,6 +163,12 @@ function tabParamValue(tab: string): string | null {
   return tab === "dashboard" ? null : tab;
 }
 
+/**
+ * One strip height for every tab. The band owns the single bottom rule, so the
+ * kit's own list rule is zeroed — two rules 1px apart read as a fat, fuzzy line.
+ */
+const TAB_STRIP_STYLE = { "min-height": "26px" } as const;
+
 /** One-line notices for the context band. Never their own row. */
 function useAlertNotes(props: { activeScreener: string; warning?: string | null }) {
   return createMemo(() => {
@@ -292,12 +298,12 @@ export function ScreenerPage(props: ScreenerPageProps) {
   const isDashboard = () => activeTab() === "dashboard";
 
   return (
-    <Box gap={1} className="w-full min-h-0 flex flex-col">
-      <Stack spacing={0} id="screener-main" data-testid="screener-page" gap={0} className="min-h-0 w-full">
+    <Box className="w-full min-h-0 flex flex-col p-4">
+      <Stack id="screener-main" data-testid="screener-page" gap={12} className="min-h-0 w-full">
         <Paper
-          radius={2}
+          radius={0}
           data-testid="screener-controls"
-          className="flex items-center gap-2 px-2 h-[32px] min-h-[32px] max-h-[32px] flex-shrink-0 overflow-hidden flex-nowrap border border-fin-border"
+          className="flex items-center gap-2 h-[28px] min-h-[28px] max-h-[28px] flex-shrink-0 overflow-hidden flex-nowrap border-b border-fin-border"
         >
           <Box className="flex items-center gap-2 min-w-0 flex-1">
             <Show when={isDashboard()} fallback={
@@ -355,19 +361,20 @@ export function ScreenerPage(props: ScreenerPageProps) {
               className="flex-1 min-w-0 overflow-x-auto"
             >
               <Tabs.List
-                className="min-h-[32px] flex items-center gap-1"
-                style={{ padding: "0px", "min-height": "32px", border: "0px", gap: "2px" }}
+                data-testid="screener-tab-list"
+                className="flex-1 min-w-0"
+                style={{ "border-bottom-width": "0px", "min-height": "26px" }}
               >
-                <Tabs.Tab value="dashboard" leftSection={<IconLayoutDashboard size={14} />} data-testid="tab-dashboard" style={{ "min-height": "32px" }}>
+                <Tabs.Tab value="dashboard" leftSection={<IconLayoutDashboard size={14} />} data-testid="tab-dashboard" style={TAB_STRIP_STYLE}>
                   Dashboard
                 </Tabs.Tab>
-                <Tabs.Tab value="screener" leftSection={<IconTable size={14} />} data-testid="tab-screener" style={{ "min-height": "32px" }}>
+                <Tabs.Tab value="screener" leftSection={<IconTable size={14} />} data-testid="tab-screener" style={TAB_STRIP_STYLE}>
                   Screener
                 </Tabs.Tab>
-                <Tabs.Tab value="deepvalue" leftSection={<IconCoins size={14} />} data-testid="tab-deepvalue" style={{ "min-height": "32px" }}>
+                <Tabs.Tab value="deepvalue" leftSection={<IconCoins size={14} />} data-testid="tab-deepvalue" style={TAB_STRIP_STYLE}>
                   Deep Value
                 </Tabs.Tab>
-                <Tabs.Tab value="fno" leftSection={<IconChartCandle size={14} />} data-testid="tab-fno" style={{ "min-height": "32px" }}>
+                <Tabs.Tab value="fno" leftSection={<IconChartCandle size={14} />} data-testid="tab-fno" style={TAB_STRIP_STYLE}>
                   F&O
                 </Tabs.Tab>
                 {/* `onFocus` is not on `UITabProps` (shared type) but `Tab`
@@ -377,16 +384,16 @@ export function ScreenerPage(props: ScreenerPageProps) {
                   value="market"
                   leftSection={<IconWorld size={14} />}
                   data-testid="tab-market"
-                  style={{ "min-height": "32px" }}
+                  style={TAB_STRIP_STYLE}
                   onMouseEnter={() => void prefetchMarketTab()}
                   {...({ onFocus: () => void prefetchMarketTab() } as Record<string, unknown>)}
                 >
                   Market
                 </Tabs.Tab>
-                <Tabs.Tab value="correlation" leftSection={<IconChartDots size={14} />} data-testid="tab-correlation" style={{ "min-height": "32px" }}>
+                <Tabs.Tab value="correlation" leftSection={<IconChartDots size={14} />} data-testid="tab-correlation" style={TAB_STRIP_STYLE}>
                   Correlation
                 </Tabs.Tab>
-                <Tabs.Tab value="config" leftSection={<IconSettings size={14} />} data-testid="tab-config" style={{ "min-height": "32px" }}>
+                <Tabs.Tab value="config" leftSection={<IconSettings size={14} />} data-testid="tab-config" style={TAB_STRIP_STYLE}>
                   Config
                 </Tabs.Tab>
               </Tabs.List>
@@ -408,7 +415,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
                 <Tooltip label="Refresh dashboard">
                   <ActionIcon
                     variant="subtle"
-                    size="sm"
+                    size="xs"
                     onClick={() => setDashboardRefreshKey((k) => k + 1)}
                     data-testid="dashboard-refresh"
                     aria-label="Refresh dashboard"
@@ -439,7 +446,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
           id="screener-content"
           data-testid="screener-content"
           flex={1}
-          className="min-h-0 flex overflow-hidden px-2"
+          className="min-h-0 flex overflow-hidden"
           style={{ display: "flex" }}
         >
           <div

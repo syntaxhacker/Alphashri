@@ -1,6 +1,6 @@
 import { Show, Suspense, createEffect, createSignal, lazy, type JSX } from "solid-js";
 import { Center, Loader } from "@/ui";
-import { Navigate, Route, Router } from "@solidjs/router";
+import { Navigate, Route, Router, useLocation } from "@solidjs/router";
 import { AuthProvider, useAuth } from "./components/auth/AuthProvider2";
 import { LoginForm, RegisterForm } from "./components/auth/LoginForm2";
 import { NotificationContainer } from "./components/notifications/NotificationContainer";
@@ -38,6 +38,12 @@ const SmcTrades = lazy(() => import("./pages/poc/SmcTrades"));
 const TickReplay = lazy(() => import("./pages/poc/TickReplay"));
 const ReplayStrategyPage = lazy(() => import("./pages/poc/ReplayStrategyPage"));
 const ReplayIndexPage = lazy(() => import("./pages/poc/ReplayIndexPage"));
+
+/** `/` is a back-compat alias: keep the query so `/?tab=market` still lands on that tab. */
+function RootRedirect() {
+  const location = useLocation();
+  return <Navigate href={`/screener${location.search}${location.hash}`} />;
+}
 
 function AuthScreen() {
   const [showRegister, setShowRegister] = createSignal(false);
@@ -104,7 +110,8 @@ function AppContent() {
     >
       <Show when={auth.isAuthenticated} fallback={<AuthScreen />}>
         <Router root={Shell}>
-          <Route path="/" component={ScreenerContainer} />
+          <Route path="/" component={RootRedirect} />
+          <Route path="/screener" component={ScreenerContainer} />
           <Route path="/backtest" component={BacktestPage} />
           <Route path="/experiments" component={ExperimentsPage} />
           <Route path="/paper" component={PaperTradingView} />
@@ -132,7 +139,7 @@ function AppContent() {
           <Route path="/poc/replay" component={ReplayIndexPage} />
           <Route path="/poc/replay/:strategyId" component={ReplayStrategyPage} />
           <Route path="/chart/:symbol?" component={ChartView} />
-          <Route path="*" component={() => <Navigate href="/" />} />
+          <Route path="*" component={() => <Navigate href="/screener" />} />
         </Router>
       </Show>
     </Show>

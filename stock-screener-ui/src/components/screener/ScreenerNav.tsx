@@ -45,7 +45,7 @@ export function ScreenerNav(props: ScreenerNavProps) {
         data-active={active() ? "true" : undefined}
         data-testid={`screener-nav-option-${option.id}`}
         className={cn(
-          "flex items-center gap-2 rounded-sm px-2 py-2 w-full text-left",
+          "flex items-center gap-2 rounded-sm px-2 h-[28px] w-full text-left",
           active() ? "bg-fin-surface-alt" : "",
         )}
         onClick={() => props.onChange(option.id)}
@@ -82,15 +82,15 @@ export function ScreenerNav(props: ScreenerNavProps) {
         w={152}
         className="flex-shrink-0 flex flex-col overflow-hidden border border-fin-border"
       >
-        <Box flex={1} p={1} className="overflow-auto">
-          <ul className="flex flex-col gap-2 p-0 w-full">
+        <Box flex={1} p={8} className="overflow-auto">
+          <ul className="flex flex-col gap-1 p-0 w-full">
             <For each={current()}>{renderItem}</For>
             <Show when={legacy().length > 0}>
-              <Stack gap={1} className="w-full pt-2">
-                <Text className="text-[11px] px-2 pt-1 pb-1" c="dimmed" tt="uppercase" fw={600}>
+              <Stack gap={8} className="w-full pt-3">
+                <Text className="text-[11px] px-2 py-1" c="dimmed" tt="uppercase" fw={600}>
                   Legacy
                 </Text>
-                <ul className="flex flex-col gap-2 p-0">
+                <ul className="flex flex-col gap-1 p-0">
                   <For each={legacy()}>{renderItem}</For>
                 </ul>
               </Stack>

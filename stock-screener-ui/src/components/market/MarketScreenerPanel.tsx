@@ -288,18 +288,19 @@ export function MarketScreenerPanel() {
   return (
     <Box
       data-testid="market-screener"
-      className="flex-1 h-full min-w-0 min-h-0 flex flex-col gap-1 overflow-hidden"
+      className="flex-1 h-full min-w-0 min-h-0 flex flex-col gap-2 overflow-hidden"
     >
       <Paper
         elevation={0}
         data-testid="market-toolbar"
-        className="flex items-center gap-1 px-2 h-[48px] min-h-[48px] max-h-[48px] border border-fin-border rounded-sm bg-fin-surface flex-shrink-0 overflow-hidden"
+        className="flex items-center gap-2 px-2 py-2 border border-fin-border rounded-sm bg-fin-surface flex-shrink-0 overflow-hidden"
       >
         <Select
           value={universe()}
           onChange={(v) => v && setUniverse(v as MarketUniverse)}
           data={UNIVERSE_OPTIONS}
           size="xs"
+          h={28}
           w={120}
           searchable
           aria-label="Market universe"
@@ -308,6 +309,7 @@ export function MarketScreenerPanel() {
         <TextInput
           placeholder="Search symbol or name…"
           size="xs"
+          h={28}
           w={210}
           value={search()}
           onChange={(value: string) => setSearch(value)}
@@ -353,7 +355,7 @@ export function MarketScreenerPanel() {
           <span>
             <ActionIcon
               variant="subtle"
-              size="sm"
+              size={28}
               onClick={refresh}
               disabled={isLoading()}
               aria-label="Refresh snapshot"
@@ -375,7 +377,7 @@ export function MarketScreenerPanel() {
           <Tooltip label={isNarrow() ? "Open filters" : railCollapsed() ? "Show filters" : "Hide filters"}>
             <ActionIcon
               variant="subtle"
-              size="sm"
+              size={28}
               onClick={handleToggleRail}
               aria-label={isNarrow() ? "Open filters" : "Toggle filters"}
               aria-pressed={isNarrow() ? drawerOpen() : !railCollapsed()}
@@ -389,6 +391,7 @@ export function MarketScreenerPanel() {
         <Button
           size="xs"
           variant="subtle"
+          style={{ height: "28px" }}
           leftSection={<IconX size={12} />}
           onClick={resetFilters}
           data-testid="market-reset"

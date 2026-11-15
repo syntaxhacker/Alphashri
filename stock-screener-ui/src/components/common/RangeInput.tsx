@@ -1,3 +1,4 @@
+import { Show } from "solid-js";
 import { Box, NumberInput, RangeSlider } from "@/ui";
 
 export interface RangeInputProps {
@@ -80,22 +81,13 @@ export function RangeInput(props: RangeInputProps) {
 
   return (
     <Box className="flex flex-col gap-1 min-w-0 w-full" data-testid={props.testId}>
-      <RangeSlider
-        value={sliderValue()}
-        onChange={applySlider}
-        min={lo()}
-        max={hi()}
-        step={props.step}
-        label={props.label}
-        formatValue={props.formatValue}
-        marks={props.marks}
-        size={props.size}
-        disabled={props.disabled}
-        commitOnRelease={props.commitOnRelease}
-        testId={props.testId ? `${props.testId}-slider` : undefined}
-      />
       <Box className="flex items-center gap-1 min-w-0">
-        <Box className="flex-1 min-w-0">
+        <Show when={props.label}>
+          <span className="min-w-0 flex-1 truncate text-[10px] font-semibold uppercase tracking-[0.4px] text-fin-text-muted">
+            {props.label}
+          </span>
+        </Show>
+        <Box className="w-[60px] shrink-0">
           <NumberInput
             placeholder="Min"
             aria-label={props.label ? `${props.label} minimum` : "Minimum"}
@@ -110,8 +102,8 @@ export function RangeInput(props: RangeInputProps) {
             data-testid={props.testId ? `${props.testId}-min` : undefined}
           />
         </Box>
-        <span className="shrink-0 text-[10px] text-fin-text-muted" aria-hidden="true">to</span>
-        <Box className="flex-1 min-w-0">
+        <span className="shrink-0 text-[10px] text-fin-text-muted" aria-hidden="true">–</span>
+        <Box className="w-[60px] shrink-0">
           <NumberInput
             placeholder="Max"
             aria-label={props.label ? `${props.label} maximum` : "Maximum"}
@@ -127,6 +119,21 @@ export function RangeInput(props: RangeInputProps) {
           />
         </Box>
       </Box>
+      <RangeSlider
+        value={sliderValue()}
+        onChange={applySlider}
+        min={lo()}
+        max={hi()}
+        step={props.step}
+        label={props.label}
+        hideHeader
+        formatValue={props.formatValue}
+        marks={props.marks}
+        size={props.size}
+        disabled={props.disabled}
+        commitOnRelease={props.commitOnRelease}
+        testId={props.testId ? `${props.testId}-slider` : undefined}
+      />
     </Box>
   );
 }

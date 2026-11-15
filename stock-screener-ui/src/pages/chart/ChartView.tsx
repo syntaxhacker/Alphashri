@@ -293,7 +293,7 @@ const ChartView = () => {
           title="No symbol specified"
           detail="Open a symbol from the screener, or use /chart/SYMBOL."
           actionLabel="Back to Screener"
-          onAction={() => navigate("/")}
+          onAction={() => navigate("/screener")}
         />
       }
     >

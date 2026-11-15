@@ -30,7 +30,7 @@ interface NavbarNestedProps {
 }
 
 const navItems = [
-  { label: "Screener", icon: IconChartLine, link: "/" },
+  { label: "Screener", icon: IconChartLine, link: "/screener" },
   { label: "News", icon: IconNews, link: "/news" },
   { label: "Backtest", icon: IconChartLine, link: "/backtest" },
   { label: "Experiments", icon: IconFlask, link: "/experiments" },
