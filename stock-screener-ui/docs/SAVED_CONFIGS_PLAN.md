@@ -360,6 +360,38 @@ onSaveFail(err):
 
 ---
 
+## 3.5 Table column preferences (P2, opt-in)
+
+`TanStackTable` is shared by ~15 tables. Column visibility and order belong to the
+table, not the screen, so each table that opts in registers its own scope:
+
+```
+table.market   { order: string[], hidden: string[] }
+table.value    { order: string[], hidden: string[] }
+table.bots     …
+```
+
+Rules:
+
+- **Opt-in** via props on `TanStackTable` (`tableId`, `enableColumnControls`,
+  `columnPrefs`, `onColumnPrefsChange`). Tables that don't pass them behave
+  exactly as today.
+- **Merge, never replace.** Hydration intersects the saved ids with the live
+  column definitions: keep saved order for known ids, append new columns at the
+  end, drop unknown ids from both `order` and `hidden`. A new column can never
+  be hidden by an older saved config.
+- **Structural columns** (`symbol` on market tables) may be locked visible by
+  the caller; the picker shows them disabled rather than allowing a table with
+  no identity column.
+- **Order is display order only** — sorting and filtering stay independent.
+- The picker is one popover in the table toolbar: checkboxes for visibility,
+  drag handle for order, "Reset to default" writes `{order: [], hidden: []}`.
+- Persistence goes through the same `savedConfig` store; no new endpoint and no
+  new table. A table with no saved row opens on its declared default order.
+- E2E: hide a column, reorder two, reload → same layout; reset restores.
+
+---
+
 ## 4. Failure modes
 
 | Failure | Detect | Behaviour |

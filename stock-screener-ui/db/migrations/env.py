@@ -21,7 +21,7 @@ from db.models import (
     User, UserSession, StrategyConfig, BotConfig, BacktestResult,
     BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument,
     Trade, Position, ChatConversation, ChatMessage,
-    Screener, ReplaySavedConfig, MarketHoliday, HolidayType,
+    Screener, ReplaySavedConfig, UserSavedConfig, MarketHoliday, HolidayType,
     Stock52WeekTouch, Stock52WeekRange,
     bot_strategies,
 )
