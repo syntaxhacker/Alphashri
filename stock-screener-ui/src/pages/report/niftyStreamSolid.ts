@@ -177,11 +177,28 @@ function normalizeAuxTape(raw: unknown): NiftyTape {
   return tape;
 }
 
+/**
+ * Content signature of a raw aux tape, computed *before* normalization.
+ * The backend resends aux every `AUX_RESEND_SEC` even when nothing changed, and
+ * re-normalizing 375 rows costs ~7 ms; stringify is an order of magnitude cheaper
+ * and still covers every field, so an identical payload skips both the normalize
+ * and the store write. Returns null when the payload cannot be serialized.
+ */
+function auxTapeSignature(raw: unknown): string | null {
+  try {
+    const json = JSON.stringify(raw);
+    return typeof json === "string" ? json : null;
+  } catch {
+    return null;
+  }
+}
+
 export function useNiftyReportStream(args: { expiry?: string; enabled: boolean }) {
   const [report, setReport] = createSignal<NiftyReport | null>(null);
   const [tape, setTape] = createSignal<NiftyTape | null>(null);
   const [sensex, setSensex] = createSignal<NiftySensex | null>(null);
   const [connected, setConnected] = createSignal(false);
+  let lastAuxSignature: string | null = null;
 
   createEffect(() => {
     if (!args.enabled) {
@@ -189,6 +206,7 @@ export function useNiftyReportStream(args: { expiry?: string; enabled: boolean }
       setReport(null);
       setTape(null);
       setSensex(null);
+      lastAuxSignature = null;
     }
   });
 
@@ -222,7 +240,11 @@ export function useNiftyReportStream(args: { expiry?: string; enabled: boolean }
           setLiveTick({ spot, ts, change_pct: changePct });
         } else if (f.type === "aux") {
           if (f.tape !== null && f.tape !== undefined) {
-            setTape(normalizeAuxTape(f.tape));
+            const signature = auxTapeSignature(f.tape);
+            if (signature === null || signature !== lastAuxSignature) {
+              lastAuxSignature = signature;
+              setTape(normalizeAuxTape(f.tape));
+            }
           }
           if (f.sensex !== null && f.sensex !== undefined) {
             setSensex(normalizeSensex(f.sensex as Record<string, unknown>));

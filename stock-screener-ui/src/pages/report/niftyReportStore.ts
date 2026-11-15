@@ -58,10 +58,8 @@ import { usePolling } from "@/hooks/usePolling";
 import { useDeskHotkeys } from "@/hooks/useDeskHotkeys";
 import type { DeskChartTimeframe } from "@/hooks/useDeskHotkeys";
 import { alertsMuted, flashAlertTitle, playAlertSound, setAlertsMuted } from "./alertSound";
-import { buildFlowSeries } from "./niftyFlowSeries";
 import {
   detectFlipChange,
-  detectFlowFlip,
   flipStorageKey,
   flowWindowFromTape,
   loadStoredFlip,
@@ -231,7 +229,6 @@ export interface NiftyReportData {
   breadth: () => BreadthPayload | null;
   intradayStart: () => string | null;
   tapeSpeed: () => { delta: number; ratio: number } | null;
-  flowSeries: () => ReturnType<typeof buildFlowSeries>;
   sessionContext: () => {
     byMinute: Map<string, "up" | "down" | null>;
     end: "up" | "down" | null;
@@ -241,7 +238,6 @@ export interface NiftyReportData {
   effectiveBursts: () => OiBurst[];
   burstMap: () => Map<string, "call" | "put">;
   lastFlip: () => FlowLastFlip | null;
-  currentFlip: () => ReturnType<typeof detectFlowFlip>;
   flipAt: () => string | null;
   refresh: () => void;
   snapshot: () => Promise<void>;
@@ -286,7 +282,6 @@ export interface NiftyReportAlerts {
   criticalOnly: () => boolean;
   toggleCriticalOnly: () => void;
   criticalCount: () => number;
-  burstById: () => Map<string, OiBurst>;
   displayedTrail: () => MarketAlert[];
   visibleBanners: () => MarketAlert[];
   bannerOverflow: () => number;
@@ -680,7 +675,6 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
     return { delta, ratio: Math.abs(delta) / Math.max(1, median * 5) };
   });
 
-  const flowSeries = createMemo(() => buildFlowSeries(tapeRows()));
   const pressure = createMemo(() => buildPressure(tapeRows()));
 
   const setup = createMemo<SetupRead>(() => {
@@ -805,20 +799,6 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
     }
     return map;
   });
-
-  const burstById = createMemo(() => {
-    const map = new Map<string, OiBurst>();
-    for (const burst of effectiveBursts()) map.set(burst.id, burst);
-    return map;
-  });
-
-  const currentFlip = createMemo(() =>
-    detectFlowFlip(
-      derivedFlow()?.["5m"],
-      derivedFlow()?.["15m"],
-      sessionTone(report()?.control?.verdict),
-    ),
-  );
 
   const flipStorageKeyNow = createMemo(() =>
     flipStorageKey(symbol(), mode(), date() || report()?.date || "live"),
@@ -1012,16 +992,19 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
         }
         baseIntraday = nextReport.intraday ?? [];
         baseCandles = nextReport.candles ?? [];
-        setReport(nextReport);
-        if (tapeData) setTape(tapeData);
-        setBursts(burstData as OiBurst[]);
-        setReplay(replayData && replayData.snapshots.length > 0 ? replayData : null);
-        setReplayIndex(0);
-        setReplayPlaying(false);
-        setSensex(null);
-        setSensexError(null);
-        setSensexLoading(false);
-        markUpdated();
+        // One refresh = one derived-graph pass; unbatched, each signal write re-runs it.
+        batch(() => {
+          setReport(nextReport);
+          if (tapeData) setTape(tapeData);
+          setBursts(burstData as OiBurst[]);
+          setReplay(replayData && replayData.snapshots.length > 0 ? replayData : null);
+          setReplayIndex(0);
+          setReplayPlaying(false);
+          setSensex(null);
+          setSensexError(null);
+          setSensexLoading(false);
+          markUpdated();
+        });
         if (activeMode === "live" && (!nextReport.intraday || nextReport.intraday.length === 0)) {
           void fetchOptionsLiveCandles(activeSymbol, undefined, controller.signal)
             .then((withCandles) => {
@@ -1084,50 +1067,52 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
         (data.intraday?.length ?? 0) > 0 ? (data.intraday as typeof baseIntraday) : nextNiftyReport.intraday ?? [];
       baseCandles =
         (data.candles?.length ?? 0) > 0 ? (data.candles as typeof baseCandles) : nextNiftyReport.candles ?? [];
-      setReport(nextNiftyReport);
-      if (activeMode === "live") {
-        sensexController?.abort();
-        const nextSensexController = new AbortController();
-        sensexController = nextSensexController;
-        setSensexLoading(true);
-        setSensexError(null);
-        void fetchSensexWithinTimeout(nextSensexController)
-          .then((sensexData) => {
-            if (currentRequestId === requestId && !nextSensexController.signal.aborted) {
-              setSensex(sensexData);
-            }
-          })
-          .catch((sensexFetchError) => {
-            const timedOut = isTimeoutError(sensexFetchError);
-            if (currentRequestId !== requestId) return;
-            if (nextSensexController.signal.aborted && !timedOut) return;
-            setSensex(null);
-            setSensexError(messageOf(sensexFetchError, "Sensex data unavailable"));
-          })
-          .finally(() => {
-            if (currentRequestId === requestId) setSensexLoading(false);
-          });
-      } else {
-        sensexController?.abort();
-        setSensex(null);
-        setSensexLoading(false);
-        setSensexError(null);
-      }
-      if (activeMode === "eod" && activeDate) {
-        if (replayData && replayData.snapshots.length > 0) {
-          setReplay(replayData);
-          setReplayIndex(0);
-          setReplayPlaying(false);
-          setSensex(null);
+      batch(() => {
+        setReport(nextNiftyReport);
+        if (activeMode === "live") {
+          sensexController?.abort();
+          const nextSensexController = new AbortController();
+          sensexController = nextSensexController;
+          setSensexLoading(true);
+          setSensexError(null);
+          void fetchSensexWithinTimeout(nextSensexController)
+            .then((sensexData) => {
+              if (currentRequestId === requestId && !nextSensexController.signal.aborted) {
+                setSensex(sensexData);
+              }
+            })
+            .catch((sensexFetchError) => {
+              const timedOut = isTimeoutError(sensexFetchError);
+              if (currentRequestId !== requestId) return;
+              if (nextSensexController.signal.aborted && !timedOut) return;
+              setSensex(null);
+              setSensexError(messageOf(sensexFetchError, "Sensex data unavailable"));
+            })
+            .finally(() => {
+              if (currentRequestId === requestId) setSensexLoading(false);
+            });
         } else {
-          setReplay(null);
-          setReplayIndex(0);
-          setReplayPlaying(false);
+          sensexController?.abort();
+          setSensex(null);
+          setSensexLoading(false);
+          setSensexError(null);
         }
-      }
-      if (tapeData) setTape(tapeData);
-      setBursts(burstData as OiBurst[]);
-      markUpdated();
+        if (activeMode === "eod" && activeDate) {
+          if (replayData && replayData.snapshots.length > 0) {
+            setReplay(replayData);
+            setReplayIndex(0);
+            setReplayPlaying(false);
+            setSensex(null);
+          } else {
+            setReplay(null);
+            setReplayIndex(0);
+            setReplayPlaying(false);
+          }
+        }
+        if (tapeData) setTape(tapeData);
+        setBursts(burstData as OiBurst[]);
+        markUpdated();
+      });
     } catch (loadError) {
       if (currentRequestId !== requestId || controller.signal.aborted) return;
       setNowMs(Date.now());
@@ -1432,12 +1417,10 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
       breadth,
       intradayStart,
       tapeSpeed,
-      flowSeries,
       sessionContext,
       effectiveBursts,
       burstMap,
       lastFlip,
-      currentFlip,
       flipAt: () => lastFlip()?.at ?? null,
       refresh,
       snapshot,
@@ -1479,7 +1462,6 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
       criticalOnly,
       toggleCriticalOnly,
       criticalCount,
-      burstById,
       displayedTrail,
       visibleBanners,
       bannerOverflow,
@@ -1763,13 +1745,15 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
           }
           baseIntraday = optionsReport.intraday ?? [];
           baseCandles = optionsReport.candles ?? [];
-          setReport(optionsReport);
-          if (tapeData) setTape(tapeData);
-          setBursts(burstData as OiBurst[]);
-          setSensex(null);
-          setSensexError(null);
-          setSensexLoading(false);
-          markUpdated();
+          batch(() => {
+            setReport(optionsReport);
+            if (tapeData) setTape(tapeData);
+            setBursts(burstData as OiBurst[]);
+            setSensex(null);
+            setSensexError(null);
+            setSensexLoading(false);
+            markUpdated();
+          });
         } catch (pollError) {
           if (!alive || currentRequestId !== requestId || controller.signal.aborted) return;
           setNowMs(Date.now());
