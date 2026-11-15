@@ -44,6 +44,10 @@ export interface PatternChartBodyProps {
   trendlinesView?: TrendlinesView;
   /** As-of replay cutoff (ISO local datetime, null = live). */
   asOf?: string | null;
+  /** Chart endpoint failure code, shown under the empty state. */
+  chartError?: string | null;
+  /** Human-readable reason for an empty chart. */
+  chartNote?: string | null;
   /** Right-hand panel content when no pattern is selected (page empty state). */
   emptyState?: JSX.Element;
   /**
@@ -197,6 +201,8 @@ function FullscreenTV(props: {
   trendLines?: TrendLine[];
   trendlinesView?: TrendlinesView;
   historyHits?: PatternHitDTO[];
+  chartError?: string | null;
+  chartNote?: string | null;
 }) {
   const trendlinesView = () => props.trendlinesView ?? "both";
   const data = createMemo(() =>
@@ -265,10 +271,20 @@ function FullscreenTV(props: {
         />
       </Box>
       <Show when={props.candles.length === 0}>
-        <Box className="absolute inset-0 flex items-center justify-center">
+        <Box className="absolute inset-0 flex flex-col items-center justify-center gap-1 px-4 text-center">
           <Text size="sm" c="dimmed">
             No chart data
           </Text>
+          <Show when={props.chartNote}>
+            <Text size="xs" c="dimmed" data-testid="chart-empty-note">
+              {props.chartNote}
+            </Text>
+          </Show>
+          <Show when={props.chartError}>
+            <Text size="xs" c="dimmed" data-testid="chart-empty-reason" className="font-mono opacity-70">
+              {props.chartError}
+            </Text>
+          </Show>
         </Box>
       </Show>
     </Box>
@@ -338,6 +354,8 @@ export function PatternChartBody(props: PatternChartBodyProps) {
             trendLines={props.trendLines}
             trendlinesView={props.trendlinesView}
             historyHits={historyHits()}
+            chartError={props.chartError}
+            chartNote={props.chartNote}
           />
         </Box>
 

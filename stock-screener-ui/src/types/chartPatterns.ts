@@ -270,6 +270,14 @@ export interface ChartPayload {
    */
   cached?: boolean;
   stale?: boolean;
+  /**
+   * Machine-readable failure from the chart endpoint (`no_data`,
+   * `fetch_timeout`, `upstream_error`). Present with empty `candles`; the UI
+   * must show `note` instead of a blank chart.
+   */
+  error?: string | null;
+  /** Human-readable explanation that accompanies `error`. */
+  note?: string | null;
 }
 
 /** User-facing result filters (the filter rail). */

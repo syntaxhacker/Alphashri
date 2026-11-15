@@ -272,6 +272,8 @@ function PatternsWorkspace(props: PatternsPageProps) {
     asOf: fullscreen()?.asOf ?? null,
     fromDate: fullscreen()?.fromDate ?? null,
     onAsOfChange: changeFullscreenAsOf,
+    chartError: fullscreen()?.chartError ?? null,
+    chartNote: fullscreen()?.chartNote ?? null,
   }));
   const [filtersOpen, setFiltersOpen] = createSignal(false);
   /** Dense results() view: symbol `matrix` (default), per-hit `list`, or card `grid`. */

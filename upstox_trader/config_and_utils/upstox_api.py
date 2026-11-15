@@ -222,6 +222,16 @@ class UpstoxAPI(BaseAPIClient):
                         datetime.fromtimestamp(expiry_ts / 1000).strftime('%Y-%m-%d') == expiry_date):
                     return instrument.get('instrument_key')
 
+        # Trade-to-trade (BE) and BZ scrips are still NSE equities. The strict
+        # EQ pass above misses them, so their charts returned `no_data` even
+        # though they are live symbols (e.g. QUINTEGRA).
+        if instrument_type == 'EQ':
+            for instrument in self.instruments:
+                if (instrument.get('trading_symbol') == clean_symbol and
+                        instrument.get('segment') == exchange and
+                        instrument.get('instrument_type') in ('BE', 'BZ')):
+                    return instrument.get('instrument_key')
+
         self._log(f"❌ Instrument key for '{clean_symbol}' (original: '{symbol}') not found with the specified criteria.")
         return None
 

@@ -89,6 +89,25 @@ describe("PatternFullscreenView", () => {
     
   });
 
+  test("shows the endpoint reason when the chart has no candles", () => {
+    render(() => (
+      <PatternFullscreenView
+        opened
+        onClose={vi.fn()}
+        hit={null}
+        symbol="QUINTEGRA"
+        candles={[]}
+        chartError="no_data"
+        chartNote="no candles for QUINTEGRA 1D in session 2026-11-15"
+      />
+    ));
+    expect(screen.getByText("No chart data")).toBeInTheDocument();
+    expect(screen.getByTestId("chart-empty-note")).toHaveTextContent(
+      "no candles for QUINTEGRA 1D in session 2026-11-15",
+    );
+    expect(screen.getByTestId("chart-empty-reason")).toHaveTextContent("no_data");
+  });
+
   test("keeps the collapsible pivot list in the panel", () => {
     render(() => <PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
     expect(screen.getByTestId("patterns-detail-pivots")).toBeInTheDocument();

@@ -236,6 +236,8 @@ function DockContent(props: {
             loading={props.state.loading ?? false}
             asOf={props.state.asOf ?? null}
             fromDate={props.state.fromDate ?? null}
+            chartError={props.state.chartError ?? null}
+            chartNote={props.state.chartNote ?? null}
             onClose={props.onClose}
             onLive={props.onLive}
           />
