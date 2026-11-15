@@ -1,6 +1,6 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 import { Box, Chip, Select, Text, TextInput, Tooltip } from "@/ui";
-import { IconX, IconBookmarkPlus } from "@/patterns/icons";
+import { IconX, IconBookmarkPlus } from "@/ui/icons";
 import { BUILTIN_PRESETS, type PatternPreset } from "@/config/patternCatalog";
 import type { PatternFilters } from "@/types/chartPatterns";
 

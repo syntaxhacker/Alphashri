@@ -1,6 +1,6 @@
 import { createEffect, createSignal, onCleanup } from "solid-js";
 import { TextInput } from "@/ui";
-import { IconSearch } from "@/patterns/icons";
+import { IconSearch } from "@/ui/icons";
 import type { PatternFilters } from "@/types/chartPatterns";
 
 /**

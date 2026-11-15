@@ -1,6 +1,6 @@
 import { createEffect, createSignal, onCleanup, For, Show } from "solid-js";
 import { Badge, Box, Button, MultiSelect, Text } from "@/ui";
-import { IconX } from "@/patterns/icons";
+import { IconX } from "@/ui/icons";
 import { searchSymbols } from "@/api/symbols";
 import type { PatternFilters } from "@/types/chartPatterns";
 import { parseSymbolList } from "./parseSymbolList";

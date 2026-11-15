@@ -5,7 +5,7 @@ import { cleanup, render, screen, within, fireEvent } from "@solidjs/testing-lib
 import type { PatternHitDTO } from "@/types/chartPatterns";
 
 vi.mock("@/ui", async () => {
-  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
   return mockSolidUi();
 });
 import { PatternSymbolMatrix } from "./PatternSymbolMatrix";

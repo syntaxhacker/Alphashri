@@ -1,4 +1,4 @@
-import { IconUsers } from "@/patterns/icons";
+import { IconUsers } from "@/ui/icons";
 
 export interface MembersButtonProps {
   symbol: string;

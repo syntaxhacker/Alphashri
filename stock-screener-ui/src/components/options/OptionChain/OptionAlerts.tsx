@@ -1,6 +1,6 @@
 import { Text, Badge } from "@/ui";
 import { Box } from "@/ui";
-import { IconBellRinging, IconBolt, IconWall, IconActivity } from "@/patterns/icons";
+import { IconBellRinging, IconBolt, IconWall, IconActivity } from "@/ui/icons";
 import { createMemo, Show, For } from "solid-js";
 import * as palette from "@/ui/palette";
 import { CompactPanel } from "../../common/compact";

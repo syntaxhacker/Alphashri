@@ -12,7 +12,7 @@ import {
   showSuccess,
   useMediaQuery,
 } from "@/ui";
-import { IconTrash, IconUpload } from "@/patterns/icons";
+import { IconTrash, IconUpload } from "@/ui/icons";
 import { PATTERN_CATALOG, PATTERN_LABELS } from "@/config/patternCatalog";
 import {
   deletePatternImage,

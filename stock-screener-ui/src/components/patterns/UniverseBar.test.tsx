@@ -6,7 +6,7 @@ import type { JobDTO, Universe } from "@/types/chartPatterns";
 import { UniverseBar, type UniverseBarProps } from "./UniverseBar";
 
 vi.mock("@/ui", async () => {
-  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
   return mockSolidUi();
 });
 

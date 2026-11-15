@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 vi.mock("@/ui", async () => {
-  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
   return mockSolidUi();
 });
 import { SymbolTvLink } from "./SymbolTvLink";

@@ -7,7 +7,7 @@ import { curveSpots } from "./payoff";
 import type { PayoffLeg } from "./payoff";
 
 vi.mock("@/ui", async () => {
-  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
   return mockSolidUi();
 });
 

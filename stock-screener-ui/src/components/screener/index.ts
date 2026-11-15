@@ -1,4 +1,3 @@
-export { ScreenerContainer } from "../../pages/screener/ScreenerContainer";
 export { ScreenerPage } from "./ScreenerPage";
 export { ScreenerNav } from "./ScreenerNav";
 export { ScreenerHeader } from "./ScreenerHeader";

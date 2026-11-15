@@ -9,7 +9,7 @@ import {
   IconPencil,
   IconPlayerPlay,
   IconX,
-} from "@/patterns/icons";
+} from "@/ui/icons";
 import type { JobDTO, Universe } from "@/types/chartPatterns";
 import { JobStatus } from "./JobStatus";
 import { parseSymbolList } from "./parseSymbolList";

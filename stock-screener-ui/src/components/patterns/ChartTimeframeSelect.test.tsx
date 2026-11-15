@@ -7,7 +7,7 @@ import { FALLBACK_TIMEFRAMES } from "./TimeframeSelect";
 import { ChartTimeframeSelect } from "./ChartTimeframeSelect";
 
 vi.mock("@/ui", async () => {
-  const { mockSolidUi } = await import("@/patterns/solidUiMock");
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
   return mockSolidUi();
 });
 

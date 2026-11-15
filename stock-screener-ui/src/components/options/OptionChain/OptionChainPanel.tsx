@@ -5,7 +5,7 @@ import {
   IconTable,
   IconChartBar,
   IconClock,
-} from "@/patterns/icons";
+} from "@/ui/icons";
 import dayjs from "dayjs";
 import { getChainLiveState, CHAIN_POLL_INTERVAL_MS } from "../../../hooks/chainLiveState";
 import { OptionChainTable } from "./OptionChainTable";

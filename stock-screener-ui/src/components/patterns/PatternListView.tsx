@@ -6,7 +6,7 @@ import { TanStackTable } from "@/components/common/TanStackTable";
 import { BadgeCell, NumCell, TextCell } from "@/components/common";
 import { formatPercentage } from "@/utils/ui-helpers";
 import type { PatternHitDTO } from "@/types/chartPatterns";
-import { fullscreenDedupeKey } from "@/pages/patterns/fullscreenKey";
+import { fullscreenDedupeKey } from "@/utils/patterns/fullscreenKey";
 import { QUALITY_INFO } from "@/config/patternCatalog";
 import { SymbolLink } from "@/components/common/SymbolLink";
 import { hasIndexMembers } from "@/config/indexGroups";

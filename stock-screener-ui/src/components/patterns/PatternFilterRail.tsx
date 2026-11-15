@@ -2,7 +2,7 @@ import { createMemo, createSignal, For, Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { Box, Button, Chip, Divider, MultiSelect, Select, Switch, Text, TextInput, ToolbarRow, Tooltip } from "@/ui";
 import { CompactPanel } from "@/components/common/compact";
-import { IconX, IconRestore } from "@/patterns/icons";
+import { IconX, IconRestore } from "@/ui/icons";
 import type {
   PatternDef,
   PatternFilters,

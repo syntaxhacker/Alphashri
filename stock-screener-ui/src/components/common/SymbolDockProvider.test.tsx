@@ -22,7 +22,7 @@ vi.mock("@/components/patterns/PatternFullscreenView", () => ({
   ),
 }));
 
-import { __resetFullscreen } from "@/pages/patterns/fullscreenKey";
+import { __resetFullscreen } from "@/utils/patterns/fullscreenKey";
 import { fetchSymbolChart } from "../../api/chartPatterns";
 
 const mockedFetchSymbolChart = vi.mocked(fetchSymbolChart);

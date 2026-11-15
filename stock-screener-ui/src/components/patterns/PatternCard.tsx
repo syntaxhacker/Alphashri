@@ -1,6 +1,6 @@
 import { createMemo, Show } from "solid-js";
 import { Badge, Box, Card, Text, Tooltip } from "@/ui";
-import { IconArrowsMaximize } from "@/patterns/icons";
+import { IconArrowsMaximize } from "@/ui/icons";
 import { formatPercentage } from "@/utils/ui-helpers";
 import type { PatternHitDTO, TrendlinesView } from "@/types/chartPatterns";
 import { QUALITY_INFO } from "@/config/patternCatalog";

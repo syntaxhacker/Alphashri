@@ -1,6 +1,6 @@
 import { createMemo, For } from "solid-js";
 import { Box, Button, Checkbox, Menu, MenuDropdown, MenuTarget, Text } from "@/ui";
-import { IconChevronDown } from "@/patterns/icons";
+import { IconChevronDown } from "@/ui/icons";
 import type { TFSpec } from "@/types/chartPatterns";
 import { DEFAULT_TIMEFRAME } from "@/state/chartPatterns";
 

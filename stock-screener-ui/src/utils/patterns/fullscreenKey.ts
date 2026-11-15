@@ -8,7 +8,7 @@
  * detected hits without importing a React module.
  */
 
-import type { PatternHitDTO } from "../../types/chartPatterns";
+import type { PatternHitDTO } from "@/types/chartPatterns";
 
 /**
  * Structural identity for de-duplicating a clicked card hit against

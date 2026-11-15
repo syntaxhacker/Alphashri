@@ -16,7 +16,7 @@ const walk = (dir: string, out: string[] = []): string[] => {
 };
 
 const targets = GROUPS.flatMap((group) => walk(join(SRC, group))).filter(
-  (file) => file.endsWith(".tsx") && !/\.(test|stories)\./.test(file) && !file.endsWith("palette.ts"),
+  (file) => file.endsWith(".tsx") && !/\.(test|stories|spec)\./.test(file) && !file.endsWith("palette.ts"),
 );
 
 describe("component audit", () => {

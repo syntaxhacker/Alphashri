@@ -1,7 +1,7 @@
 import { Show } from "solid-js";
 import { Box, Button, Stack, ScrollArea, ToolbarRow, useDisclosure } from "@/ui";
 import * as palette from "@/ui/palette";
-import { IconHelpCircle, IconRefresh } from "@/patterns/icons";
+import { IconHelpCircle, IconRefresh } from "@/ui/icons";
 import { OptionChainPanel } from "./OptionChain/OptionChainPanel";
 import { OptionChainHeader } from "./OptionChain/OptionChainHeader";
 import { OptionChainFilters } from "./OptionChain/OptionChainFilters";

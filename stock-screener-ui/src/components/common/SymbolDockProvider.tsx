@@ -5,7 +5,7 @@ import { useNavigate } from "@solidjs/router";
 import {
   usePatternFullscreen,
   type FullscreenChartState,
-} from "@/pages/report/usePatternFullscreenSolid";
+} from "@/hooks/usePatternFullscreenSolid";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { FALLBACK_TIMEFRAMES } from "@/components/patterns/TimeframeSelect";
 import { SymbolDockContext, type SymbolDockApi } from "./symbolDockContext";
