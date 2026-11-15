@@ -100,6 +100,25 @@ Default for every agent: `opencode/nemotron-3.5-super-vl-free` (`$0`).
 Free tiers hit `Free usage limit reached` mid-task and leave a half-edited tree —
 when that happens, finish that piece yourself and say so.
 
+## Time budget — the wave that timed out
+
+An agent has a **30-minute wall clock**. One of three blew through it on its last step and was
+reported as `failed` even though its edits were complete and correct.
+
+What ate the clock, in order:
+
+1. **`npx tsc --noEmit | grep -c` in every brief.** Minutes on this repo, and it answers nothing
+   actionable.
+2. **A whole-directory `npx vitest run src/ui`** (40 files / 264 tests) as a per-agent check.
+3. **Me running the same suites at the same time.** Two vitest runs on one box starve each other
+   and both look hung.
+
+Rules of thumb:
+
+- Brief: name the **specific test files**, not a directory, and skip full `tsc` for a subagent.
+- While a wave runs, **don't run heavy suites yourself** — do it once, after, as the gate.
+- A `failed` child may still have landed its work. **Check `git status` before rerunning anything.**
+
 ## Worked example (2026-11, `/poc/kit` audit)
 
 Found 16 UI-kit bugs → created `fix/ui-kit-poc` → 3 briefs (`/tmp/ui-kit-fix/{common,A,B,C}.md`)
