@@ -103,18 +103,35 @@ export function useDisclosure(
 
 // useColorScheme: `color-scheme` is the stored key. The legacy MUI-era key is still
 // READ as a fallback so existing users keep their saved preference; it is never written.
+// The order here is duplicated by the pre-paint bootstrap in index.html, which must
+// read the same keys in the same order (src/ui/useColorScheme.test.ts guards it).
+const SCHEME_KEYS = ["color-scheme", "mui-color-scheme"] as const;
+
+function storedScheme(): "light" | "dark" | null {
+  if (typeof window === "undefined") return null;
+  for (const key of SCHEME_KEYS) {
+    const value = window.localStorage.getItem(key);
+    if (value === "light" || value === "dark") return value;
+  }
+  return null;
+}
+
+function initialScheme(): "light" | "dark" {
+  const stored = storedScheme();
+  if (stored) return stored;
+  if (typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches) return "dark";
+  return "light";
+}
+
+/**
+ * One scheme for the whole app. A theme is global, so the signal cannot live
+ * inside the hook: with a per-caller signal the toolbar toggle wrote
+ * `data-color-scheme` (CSS flipped) while every chart that reads `colorScheme()`
+ * kept the old value until it remounted.
+ */
+const [colorScheme, setColorSchemeSignal] = createSignal<"light" | "dark">(initialScheme());
+
 export function useColorScheme(): UIUseColorSchemeResult {
-  const getInitial = (): "light" | "dark" => {
-    if (typeof window !== "undefined") {
-      const stored = window.localStorage.getItem("mui-color-scheme") ?? window.localStorage.getItem("color-scheme");
-      if (stored === "light" || stored === "dark") return stored;
-      if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) return "dark";
-    }
-    return "light";
-  };
-
-  const [colorScheme, setColorSchemeSignal] = createSignal(getInitial());
-
   createEffect(() => {
     const scheme = colorScheme();
     if (typeof document !== "undefined") {
@@ -129,7 +146,9 @@ export function useColorScheme(): UIUseColorSchemeResult {
       try {
         window.localStorage.setItem("color-scheme", scheme);
       } catch {}
-      document.documentElement?.setAttribute("data-color-scheme", scheme);
+    }
+    if (typeof document !== "undefined") {
+      document.documentElement.setAttribute("data-color-scheme", scheme);
       document.documentElement.style.colorScheme = scheme;
     }
   };
