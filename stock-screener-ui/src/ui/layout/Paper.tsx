@@ -10,11 +10,24 @@ const sp = (v: unknown): string | undefined => {
   return (m[v as string] ?? v) as string;
 };
 const toSz = (v: unknown): string | undefined => (typeof v === "number" ? `${v}px` : (v as string | undefined));
+/** Documented radius scale, not the 8pt spacing ramp: xs 2 · sm 4 · md 6 · lg 10 · xl 14. */
 const rad = (v: unknown): string | undefined => {
   if (v == null) return undefined;
   if (typeof v === "number") return `${v}px`;
-  const m: Record<string, string> = { xs: "4px", sm: "8px", md: "16px", lg: "24px", xl: "32px" };
+  const m: Record<string, string> = { xs: "2px", sm: "4px", md: "6px", lg: "10px", xl: "14px" };
   return (m[v as string] ?? v) as string;
+};
+
+/**
+ * Named elevation steps reuse the Tailwind shadow utilities; a caller-supplied
+ * CSS value is painted inline instead, so no shadow colour lives in this file.
+ */
+const SHADOW_CLASS: Record<string, string> = {
+  xs: "shadow-xs",
+  sm: "shadow-sm",
+  md: "shadow-md",
+  lg: "shadow-lg",
+  xl: "shadow-xl",
 };
 
 const PAPER_KNOWN = [
@@ -27,9 +40,9 @@ const PAPER_KNOWN = [
 
 export function Paper(props: UIPaperProps & Record<string, unknown>) {
   const [known, rest] = splitProps(props, PAPER_KNOWN);
-  void known.shadow;
 
   const testId = known["data-testid"] ?? (known.testId as string | undefined);
+  const shadowClass = known.shadow == null ? undefined : SHADOW_CLASS[String(known.shadow)];
 
   const styleObj: Record<string, string | number | undefined> = {};
   if (known.radius != null) styleObj["border-radius"] = rad(known.radius);
@@ -62,6 +75,8 @@ export function Paper(props: UIPaperProps & Record<string, unknown>) {
   if (known.mih != null) styleObj["min-height"] = toSz(known.mih);
   if (known.mah != null) styleObj["max-height"] = toSz(known.mah);
   if (known.flex != null) styleObj.flex = known.flex as unknown as string;
+  // Unnamed shadow values are raw CSS the caller owns (e.g. palette.DIALOG_SHADOW).
+  if (known.shadow != null && shadowClass == null) styleObj["box-shadow"] = String(known.shadow);
 
 // Solid compiles `<Tag>` to `createComponent(Tag, ...)`, which calls the
 // value as a function. A string tag is not callable, so dynamic elements go
@@ -87,7 +102,7 @@ const PAPER_TAGS: Record<string, (p: any) => JSX.Element> = {
   return (
     <Tag
       id={known.id}
-      className={cn("bg-fin-surface", known.className)}
+      className={cn("bg-fin-surface", shadowClass, known.className)}
       style={merged}
       data-testid={testId}
       onClick={known.onClick}
