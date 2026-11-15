@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  candleSeriesSig,
   candlesFromSpotPoints,
   candlesFromTape,
   clipToAsOf,
@@ -7,6 +8,7 @@ import {
   pickFreshestCandles,
   selectBaseCandles,
   sessionDateOf,
+  tapePointsSig,
   type SpotPoint,
   type TapeSpotPoint,
 } from "./niftyChartData";
@@ -535,4 +537,22 @@ describe("pickFreshestCandles", () => {
     expect(out).toEqual(eodCandles);
   });
 
+  test("candle signature ignores a fresh-but-equal array", () => {
+    const a = [ohlcCandle(`${SESSION}T09:15:00`, 100, 102, 99, 101)];
+    const b = a.map((c) => ({ ...c }));
+    expect(candleSeriesSig(a)).toBe(candleSeriesSig(b));
+  });
+
+  test("candle signature changes when a bar changes", () => {
+    const a = [ohlcCandle(`${SESSION}T09:15:00`, 100, 102, 99, 101)];
+    const b = [ohlcCandle(`${SESSION}T09:15:00`, 100, 102, 99, 999)];
+    expect(candleSeriesSig(a)).not.toBe(candleSeriesSig(b));
+  });
+
+  test("tape signature ignores a fresh-but-equal array and tracks spot changes", () => {
+    const a: TapeSpotPoint[] = [{ t: `${SESSION}T09:15:00`, spot: 100 }];
+    const b = a.map((r) => ({ ...r }));
+    expect(tapePointsSig(a)).toBe(tapePointsSig(b));
+    expect(tapePointsSig([{ t: a[0].t, spot: 101 }])).not.toBe(tapePointsSig(a));
+  });
 });
