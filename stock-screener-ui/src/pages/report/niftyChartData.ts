@@ -145,6 +145,36 @@ function minuteKey(time: string): string {
 }
 
 /**
+ * Cheap content signature of a candle series: the count plus every
+ * timestamp and OHLC value, joined into one string. It changes only when
+ * the series content changes — never when a fresh-but-equal array arrives
+ * (a new poll carrying the same candles). Used to gate the expensive chart
+ * pipeline behind identity-stable dependencies.
+ */
+export function candleSeriesSig(candles: readonly CandleLike[]): string {
+  const parts: string[] = [String(candles.length)];
+  for (const c of candles) {
+    const volume = (c as { volume?: number }).volume;
+    parts.push(c.time, String(c.open), String(c.high), String(c.low), String(c.close), String(Number(volume ?? 0)));
+  }
+  return parts.join("|");
+}
+
+/**
+ * Cheap content signature of tape / spot points: the count plus every
+ * timestamp and spot. Changes only when the points change, never on a
+ * fresh-but-equal array identity. Both `TapeSpotPoint` and `SpotPoint`
+ * carry at least `{ t, spot }`.
+ */
+export function tapePointsSig(points: readonly { t: string; spot?: number | null }[]): string {
+  const parts: string[] = [String(points.length)];
+  for (const p of points) {
+    parts.push(p.t, p.spot == null ? "x" : String(p.spot));
+  }
+  return parts.join("|");
+}
+
+/**
  * Merge same-frequency candle sources by minute, first source wins.
  *
  * Winner-takes-all was the candle-loss bug: the 10-second chain feed only

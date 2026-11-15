@@ -121,6 +121,8 @@ interface ChartLoaderState {
   trendLines: TrendLine[];
   loading: boolean;
   error: string | null;
+  /** Endpoint explanation when the response carries no candles. */
+  note: string | null;
 }
 
 const EMPTY_LISTS = {
@@ -147,6 +149,7 @@ function useSymbolPatternChartSolid(args: {
     ...EMPTY_LISTS,
     loading: Boolean(args.symbol()),
     error: null,
+    note: null,
   });
   let requestToken = 0;
   let mounted = true;
@@ -157,7 +160,7 @@ function useSymbolPatternChartSolid(args: {
   const load = () => {
     const symbol = args.symbol();
     if (!symbol) {
-      setState({ symbol, ...EMPTY_LISTS, loading: false, error: null });
+      setState({ symbol, ...EMPTY_LISTS, loading: false, error: null, note: null });
       return;
     }
     const token = ++requestToken;
@@ -165,8 +168,8 @@ function useSymbolPatternChartSolid(args: {
     // new one loads; a timeframe/as-of change keeps the candles (less flicker).
     setState((prev) =>
       prev.symbol === symbol
-        ? { ...prev, loading: true, error: null }
-        : { symbol, ...EMPTY_LISTS, loading: true, error: null },
+        ? { ...prev, loading: true, error: null, note: null }
+        : { symbol, ...EMPTY_LISTS, loading: true, error: null, note: null },
     );
 
     const asOf = args.asOf();
@@ -190,6 +193,7 @@ function useSymbolPatternChartSolid(args: {
           trendLines: chart.trend_lines ?? [],
           loading: false,
           error: null,
+          note: (chart.candles?.length ?? 0) > 0 ? null : (chart.note ?? chart.error ?? null),
         });
       })
       .catch((err: unknown) => {
@@ -354,7 +358,7 @@ const ChartView = () => {
             <ChartMessage
               testId="chart-empty"
               title={`No chart data for ${symbol().toUpperCase()}`}
-              detail={`No candles returned for ${timeframe()}. Try another timeframe.`}
+              detail={chart.state().note ?? `No candles returned for ${timeframe()}. Try another timeframe.`}
               actionLabel="Retry"
               onAction={chart.reload}
             />
