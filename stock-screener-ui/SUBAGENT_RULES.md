@@ -217,6 +217,21 @@ Verify visually only if the brief says so — screenshots are the main agent's j
 Read the minimum. Prefer `grep`/targeted reads over whole directories. For API shape, read
 `openapi.yaml` first, not the routers end to end.
 
+### Batch reads — one locate pass, then all reads at once
+
+Sequential one-file-per-turn reading is the slowest thing a subagent does. Do not do it.
+
+1. **Locate in one pass.** One `grep` (or a few, one per symbol family) prints every file:line
+   you need. `glob` for structure. Do not open a file just to discover a path grep can print.
+2. **Then read in one parallel batch.** Issue every `read` in a single turn — 5–10 files at a
+   time is normal. A brief that names six files should cost one read turn, not six.
+3. **Use `offset`/`limit`** for files over ~200 lines; read the section around the hits, not the
+   whole file. Never re-read a file already in context.
+4. **Order:** types / `openapi.yaml` → the consumer → its test. Independent verification
+   commands (`oxlint`, `vitest`, `tsc`) may be batched with reads.
+5. If a read reveals another file is needed, batch that with anything else the same finding
+   implies — never a single-file round trip.
+
 Run **targeted** checks only — never the full ~6.5k suite locally:
 
 ```bash
