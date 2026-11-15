@@ -49,7 +49,7 @@ jobs:
       - run: |
           cd stock-screener-ui/api
           # Install all deps normally, except conflicting packages (pandas 2.x vs 3.x)
-          grep -vE '^(tradingagents|tradingview-screener|preciz)' requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
+          grep -vE '^(tradingview-screener|preciz)' requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
           # pandas-ta is declared in the ROOT requirements.txt, but this job only
           # installs api/requirements.txt (it cd's into api/). trading/indicators/
           # _engine.py imports it, so 53 test modules failed to COLLECT with
@@ -57,12 +57,6 @@ jobs:
           uv pip install --system --python 3.12 'pandas-ta==0.4.71b0'
           # Install conflicting packages with --no-deps (works locally with pandas 3.0.2)
           uv pip install --system --python 3.12 --no-deps tradingview-screener
-          # tradingagents is NOT on PyPI (404) - it was installed locally from a
-          # source that no longer exists. Install it only when resolvable, so a
-          # missing optional dep cannot fail this step and block the whole suite
-          # (it was doing exactly that: Python Unit Tests and E2E never ran).
-          uv pip install --system --python 3.12 --no-deps tradingagents \
-            || echo "::warning::tradingagents unavailable - backend tests run without it"
         env:
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
       # The suite already used -n 4 (xdist), so it was capped at the runner's
@@ -92,7 +86,8 @@ jobs:
             echo "::warning::shard ${{ matrix.shard }} has no tests"
             exit 0
           fi
-          uv run --python 3.12 pytest $(cat "$RUNNER_TEMP/shard.txt") \
+          mapfile -t TESTS < "$RUNNER_TEMP/shard.txt"
+          uv run --python 3.12 pytest "${TESTS[@]}" \
             -o addopts="" -n 4 --dist loadfile -q --tb=short
         env:
           JWT_SECRET_KEY: test-secret
@@ -183,19 +178,13 @@ jobs:
       - name: Install Python deps for backend
         run: |
           cd stock-screener-ui/api
-          grep -vE '^(tradingagents|tradingview-screener|preciz)' requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
+          grep -vE '^(tradingview-screener|preciz)' requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
           # pandas-ta is declared in the ROOT requirements.txt, but this job only
           # installs api/requirements.txt (it cd's into api/). trading/indicators/
           # _engine.py imports it, so 53 test modules failed to COLLECT with
           # "No module named 'pandas_ta'" and the suite never ran.
           uv pip install --system --python 3.12 'pandas-ta==0.4.71b0'
           uv pip install --system --python 3.12 --no-deps tradingview-screener
-          # tradingagents is NOT on PyPI (404) - it was installed locally from a
-          # source that no longer exists. Install it only when resolvable, so a
-          # missing optional dep cannot fail this step and block the whole suite
-          # (it was doing exactly that: Python Unit Tests and E2E never ran).
-          uv pip install --system --python 3.12 --no-deps tradingagents \
-            || echo "::warning::tradingagents unavailable - backend tests run without it"
         env:
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
       - name: Start backend API
@@ -271,19 +260,13 @@ jobs:
       - name: Install Python deps for backend
         run: |
           cd stock-screener-ui/api
-          grep -vE '^(tradingagents|tradingview-screener|preciz)' requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
+          grep -vE '^(tradingview-screener|preciz)' requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
           # pandas-ta is declared in the ROOT requirements.txt, but this job only
           # installs api/requirements.txt (it cd's into api/). trading/indicators/
           # _engine.py imports it, so 53 test modules failed to COLLECT with
           # "No module named 'pandas_ta'" and the suite never ran.
           uv pip install --system --python 3.12 'pandas-ta==0.4.71b0'
           uv pip install --system --python 3.12 --no-deps tradingview-screener
-          # tradingagents is NOT on PyPI (404) - it was installed locally from a
-          # source that no longer exists. Install it only when resolvable, so a
-          # missing optional dep cannot fail this step and block the whole suite
-          # (it was doing exactly that: Python Unit Tests and E2E never ran).
-          uv pip install --system --python 3.12 --no-deps tradingagents \
-            || echo "::warning::tradingagents unavailable - backend tests run without it"
         env:
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
       - name: Start backend API
