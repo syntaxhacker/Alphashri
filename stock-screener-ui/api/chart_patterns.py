@@ -237,6 +237,10 @@ def _clear_read_caches() -> None:
 _CHART_FETCH_TIMEOUT_SEC = float(os.environ.get("CHART_FETCH_TIMEOUT_SEC", "7.0"))
 #: TTL of a negative (empty-result) cache entry (seconds).
 _CHART_NEG_CACHE_TTL_SEC = float(os.environ.get("CHART_NEG_CACHE_TTL_SEC", "300.0"))
+#: TTL for a *timeout* entry. A timeout is transient (cold feed, one slow
+#: request), so it must not suppress retries for the full empty-result TTL —
+#: that turned one 7s hiccup into five minutes of empty charts.
+_CHART_NEG_CACHE_TIMEOUT_TTL_SEC = float(os.environ.get("CHART_NEG_CACHE_TIMEOUT_TTL_SEC", "20.0"))
 _CHART_NEG_CACHE_MAX = 256
 
 
@@ -285,13 +289,16 @@ def _chart_neg_cache_get(symbol: str, timeframe: str, session: str) -> Optional[
         return None
 
 
-def _chart_neg_cache_put(symbol: str, timeframe: str, session: str, payload: dict) -> None:
+def _chart_neg_cache_put(
+    symbol: str, timeframe: str, session: str, payload: dict, *, ttl: Optional[float] = None,
+) -> None:
     now = _time.monotonic()
     key = (str(symbol).upper(), str(timeframe), session)
+    ttl_sec = _CHART_NEG_CACHE_TTL_SEC if ttl is None else ttl
     with _chart_neg_cache_lock:
         while len(_chart_neg_cache) >= _CHART_NEG_CACHE_MAX:
             _chart_neg_cache.pop(next(iter(_chart_neg_cache)), None)
-        _chart_neg_cache[key] = (now + _CHART_NEG_CACHE_TTL_SEC, payload)
+        _chart_neg_cache[key] = (now + ttl_sec, payload)
 
 
 def _chart_empty_payload(symbol: str, timeframe: str, *, reason: str, note: str) -> dict:
@@ -2411,7 +2418,10 @@ async def get_symbol_chart(
             )
             return _json_response(stale)
         payload = _chart_empty_payload(symbol_u, timeframe, reason=reason, note=note)
-        _chart_neg_cache_put(symbol_u, timeframe, session, payload)
+        _chart_neg_cache_put(
+            symbol_u, timeframe, session, payload,
+            ttl=_CHART_NEG_CACHE_TIMEOUT_TTL_SEC,
+        )
         _log_chart_fetch(
             symbol_u, timeframe, elapsed_ms=elapsed_ms, rows=0,
             cache_hit=False, timeout=True, error=reason, stale_fallback=False,
