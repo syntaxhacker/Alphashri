@@ -12,6 +12,7 @@ export interface MarketMapViewProps {
 export const MARKET_VIEW_OPTIONS = [
   { value: "table", label: "Table" },
   { value: "map", label: "Map" },
+  { value: "movers", label: "Movers" },
 ] as const;
 
 export type MarketViewMode = (typeof MARKET_VIEW_OPTIONS)[number]["value"];

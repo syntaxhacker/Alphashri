@@ -44,6 +44,7 @@ import { MarketFilterRail } from "./MarketFilterRail";
 import { MarketMapView, MarketViewToggle, type MarketViewMode } from "./MarketMapView";
 import { TanStackTable } from "../common/TanStackTable";
 import { ChartDockOutlet } from "../common/ChartDockOutlet";
+import { DashboardView } from "../screener/DashboardView";
 import { useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
 import { useSymbolDock } from "../common/symbolDockContext";
 
@@ -105,13 +106,19 @@ function MarketGrid(props: {
   );
 }
 
-export function MarketScreenerPanel() {
+export interface MarketScreenerPanelProps {
+  initialView?: MarketViewMode;
+  onViewChange?: (view: MarketViewMode) => void;
+  onOpenScan?: (panelId: string) => void;
+}
+
+export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   const [universe, setUniverse] = createSignal<MarketUniverse>(DEFAULT_MARKET_UNIVERSE);
   const [search, setSearch] = createSignal("");
   const [filters, setFilters] = createSignal<MarketFilterState>(defaultMarketFilters());
   const [railCollapsed, setRailCollapsed] = createSignal(false);
   const [drawerOpen, setDrawerOpen] = createSignal(false);
-  const [viewMode, setViewMode] = createSignal<MarketViewMode>("table");
+  const [viewMode, setViewMode] = createSignal<MarketViewMode>(props.initialView ?? "table");
   const [selectedSymbol, setSelectedSymbol] = createSignal<string | null>(null);
   const dock = useSymbolDock();
   const isNarrow = useMediaQuery("(max-width: 1023px)");
@@ -306,17 +313,19 @@ export function MarketScreenerPanel() {
           aria-label="Market universe"
           data-testid="market-universe-select"
         />
-        <TextInput
-          placeholder="Search symbol or name…"
-          size="xs"
-          h={28}
-          w={210}
-          value={search()}
-          onChange={(value: string) => setSearch(value)}
-          leftSection={<IconSearch size={12} />}
-          aria-label="Search symbols"
-          data-testid="market-search"
-        />
+        <Show when={viewMode() !== "movers"}>
+          <TextInput
+            placeholder="Search symbol or name…"
+            size="xs"
+            h={28}
+            w={210}
+            value={search()}
+            onChange={(value: string) => setSearch(value)}
+            leftSection={<IconSearch size={12} />}
+            aria-label="Search symbols"
+            data-testid="market-search"
+          />
+        </Show>
         <Tooltip label={modeBadge().hint}>
           <Badge
             size="xs"
@@ -341,16 +350,18 @@ export function MarketScreenerPanel() {
           </Tooltip>
         </Show>
         <Box className="flex-1 min-w-0" />
-        <Text
-          size="xs"
-          c="dimmed"
-          truncate
-          title={`${formatNumberIN(matchCount())} of ${formatNumberIN(rows().length)} loaded rows match (universe total ${formatNumberIN(total())})`}
-          data-testid="market-result-count"
-          className="font-numeric whitespace-nowrap"
-        >
-          {formatNumberIN(matchCount())} / {formatNumberIN(rows().length)}
-        </Text>
+        <Show when={viewMode() !== "movers"}>
+          <Text
+            size="xs"
+            c="dimmed"
+            truncate
+            title={`${formatNumberIN(matchCount())} of ${formatNumberIN(rows().length)} loaded rows match (universe total ${formatNumberIN(total())})`}
+            data-testid="market-result-count"
+            className="font-numeric whitespace-nowrap"
+          >
+            {formatNumberIN(matchCount())} / {formatNumberIN(rows().length)}
+          </Text>
+        </Show>
         <Tooltip label="Refresh snapshot">
           <span>
             <ActionIcon
@@ -367,37 +378,47 @@ export function MarketScreenerPanel() {
             </ActionIcon>
           </span>
         </Tooltip>
-        <Indicator
-          label={String(activeCount())}
-          color="primary"
-          size={14}
-          disabled={activeCount() === 0}
-          data-testid="market-filter-count"
-        >
-          <Tooltip label={isNarrow() ? "Open filters" : railCollapsed() ? "Show filters" : "Hide filters"}>
-            <ActionIcon
-              variant="subtle"
-              size={28}
-              onClick={handleToggleRail}
-              aria-label={isNarrow() ? "Open filters" : "Toggle filters"}
-              aria-pressed={isNarrow() ? drawerOpen() : !railCollapsed()}
-              data-testid="market-rail-toggle"
-            >
-              <IconFilter size={14} />
-            </ActionIcon>
-          </Tooltip>
-        </Indicator>
-        <MarketViewToggle value={viewMode()} onChange={setViewMode} />
-        <Button
-          size="xs"
-          variant="subtle"
-          style={{ height: "28px" }}
-          leftSection={<IconX size={12} />}
-          onClick={resetFilters}
-          data-testid="market-reset"
-        >
-          Reset
-        </Button>
+        <Show when={viewMode() !== "movers"}>
+          <Indicator
+            label={String(activeCount())}
+            color="primary"
+            size={14}
+            disabled={activeCount() === 0}
+            data-testid="market-filter-count"
+          >
+            <Tooltip label={isNarrow() ? "Open filters" : railCollapsed() ? "Show filters" : "Hide filters"}>
+              <ActionIcon
+                variant="subtle"
+                size={28}
+                onClick={handleToggleRail}
+                aria-label={isNarrow() ? "Open filters" : "Toggle filters"}
+                aria-pressed={isNarrow() ? drawerOpen() : !railCollapsed()}
+                data-testid="market-rail-toggle"
+              >
+                <IconFilter size={14} />
+              </ActionIcon>
+            </Tooltip>
+          </Indicator>
+        </Show>
+        <MarketViewToggle
+          value={viewMode()}
+          onChange={(mode) => {
+            setViewMode(mode);
+            props.onViewChange?.(mode);
+          }}
+        />
+        <Show when={viewMode() !== "movers"}>
+          <Button
+            size="xs"
+            variant="subtle"
+            style={{ height: "28px" }}
+            leftSection={<IconX size={12} />}
+            onClick={resetFilters}
+            data-testid="market-reset"
+          >
+            Reset
+          </Button>
+        </Show>
       </Paper>
 
       <Show when={showWarmingHint()}>
@@ -468,7 +489,7 @@ export function MarketScreenerPanel() {
       </Show>
 
       <Box className="flex-1 min-h-0 flex gap-2 overflow-hidden">
-        <Show when={!isNarrow() && !railCollapsed()}>
+        <Show when={!isNarrow() && !railCollapsed() && viewMode() !== "movers"}>
           <Box
             data-testid="market-rail-panel"
             className="w-[240px] flex-shrink-0 min-h-0 overflow-y-auto border border-fin-border rounded-sm bg-fin-surface"
@@ -484,73 +505,85 @@ export function MarketScreenerPanel() {
           </Box>
         </Show>
 
-        <Box
-          className="flex-1 min-w-0 min-h-0 flex flex-col"
-        >
-          <Show
-            when={showInitialLoading()}
-            fallback={
-              <Show
-                when={!showError()}
-                fallback={
-                  <Paper
-                    elevation={0}
-                    role="alert"
-                    data-testid="market-error"
-                    className="flex-1 border border-fin-border rounded-sm bg-fin-surface flex flex-col items-center justify-center gap-2 p-6 text-center"
-                  >
-                    <IconAlertCircle size={24} />
-                    <Text size="sm" fw={600}>
-                      Couldn’t load the market snapshot
-                    </Text>
-                    <Text size="xs" c="dimmed" data-testid="market-error-message">
-                      {error()?.message}
-                    </Text>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      leftSection={<IconRefresh size={12} />}
-                      onClick={refresh}
-                      data-testid="market-retry"
-                    >
-                      Retry
-                    </Button>
-                  </Paper>
-                }
-              >
+        <Box className="flex-1 min-w-0 min-h-0 flex flex-col">
+          {viewMode() === "movers" ? (
+            <Box className="flex-1 min-w-0 min-h-0 overflow-y-auto">
+              <DashboardView
+                embedded
+                universe={universe()}
+                onOpenSymbol={(symbol) => {
+                  setSelectedSymbol(symbol);
+                  dock.open(symbol);
+                }}
+                onOpenScan={props.onOpenScan}
+              />
+            </Box>
+          ) : (
+            <Show
+              when={showInitialLoading()}
+              fallback={
                 <Show
-                  when={viewMode() === "map"}
+                  when={!showError()}
                   fallback={
-                    <MarketGrid
-                      data={filteredRows()}
-                      columns={columns()}
-                      hasActiveFilters={hasActiveFilters()}
-                      onResetFilters={resetFilters}
-                      onRowClick={handleRowClick}
-                      getRowStyle={getRowStyle}
-                      getRowTestId={getRowTestId}
-                    />
+                    <Paper
+                      elevation={0}
+                      role="alert"
+                      data-testid="market-error"
+                      className="flex-1 border border-fin-border rounded-sm bg-fin-surface flex flex-col items-center justify-center gap-2 p-6 text-center"
+                    >
+                      <IconAlertCircle size={24} />
+                      <Text size="sm" fw={600}>
+                        Couldn’t load the market snapshot
+                      </Text>
+                      <Text size="xs" c="dimmed" data-testid="market-error-message">
+                        {error()?.message}
+                      </Text>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        leftSection={<IconRefresh size={12} />}
+                        onClick={refresh}
+                        data-testid="market-retry"
+                      >
+                        Retry
+                      </Button>
+                    </Paper>
                   }
                 >
-                  <MarketMapView
-                    rows={filteredRows()}
-                    onSymbolClick={(symbol) => {
-                      setSelectedSymbol(symbol);
-                      dock.open(symbol);
-                    }}
-                  />
+                  <Show
+                    when={viewMode() === "map"}
+                    fallback={
+                      <MarketGrid
+                        data={filteredRows()}
+                        columns={columns()}
+                        hasActiveFilters={hasActiveFilters()}
+                        onResetFilters={resetFilters}
+                        onRowClick={handleRowClick}
+                        getRowStyle={getRowStyle}
+                        getRowTestId={getRowTestId}
+                      />
+                    }
+                  >
+                    <MarketMapView
+                      rows={filteredRows()}
+                      onSymbolClick={(symbol) => {
+                        setSelectedSymbol(symbol);
+                        dock.open(symbol);
+                      }}
+                    />
+                  </Show>
                 </Show>
-              </Show>
-            }
-          >
-            <Paper
-              elevation={0}
-              data-testid="market-skeleton"
-              className="flex-1 border border-fin-border rounded-sm bg-fin-surface p-2 flex flex-col gap-2"
+              }
             >
-              <For each={Array.from({ length: 12 }, (_, i) => i)}>{() => <Skeleton h={24} visible />}</For>
-            </Paper>
-          </Show>
+              <Paper
+                elevation={0}
+                data-testid="market-skeleton"
+                className="flex-1 border border-fin-border rounded-sm bg-fin-surface p-2 flex flex-col gap-2"
+              >
+                <For each={Array.from({ length: 12 }, (_, i) => i)}>{() => <Skeleton h={24} visible />}</For>
+              </Paper>
+            </Show>
+          )}
         </Box>
         <Show when={isWide()}>
           <ChartDockOutlet class="flex-shrink-0 basis-[38%] min-w-80 max-w-3xl min-h-0 empty:hidden" />
