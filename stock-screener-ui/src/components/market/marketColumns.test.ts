@@ -3,7 +3,9 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { buildMarketColumns } from "./marketColumns";
+import type { PatternSummaryItem } from "./usePatternSummary";
 import type { MarketRow } from "../../types/marketScreener";
+import * as palette from "@/ui/palette";
 
 const ROW: MarketRow = {
   symbol: "RELIANCE",
@@ -120,6 +122,119 @@ describe("buildMarketColumns", () => {
     const column = buildMarketColumns().find((candidate) => candidate.id === "market_cap_cr");
     if (!column?.accessorFn) throw new Error("market_cap_cr has no numeric accessor");
 
-    expect(column.accessorFn(ROW, 0)).toBe(1955000);
+    expect(column.accessorFn(ROW)).toBe(1955000);
+  });
+});
+
+function pattern(
+  patch: Partial<PatternSummaryItem["patterns"][number]> = {},
+): PatternSummaryItem["patterns"][number] {
+  return {
+    pattern_id: "bull_flag",
+    name: "Bull Flag",
+    direction: "bullish",
+    status: "confirmed",
+    quality: "strong",
+    confidence: 80,
+    bars_ago: 2,
+    ...patch,
+  };
+}
+
+function renderPatterns(
+  item: PatternSummaryItem | undefined,
+  symbol = "RELIANCE",
+): void {
+  const patternsFor = vi.fn(() => item);
+  const column = buildMarketColumns({ patternsFor }).find(
+    (candidate) => candidate.id === "patterns",
+  );
+  if (!column?.cell) throw new Error("patterns column has no cell renderer");
+
+  render(() => column.cell!(cellArgs({ ...ROW, symbol }, column)));
+}
+
+describe("PATTERNS column", () => {
+  test("a bullish set renders the count with an up glyph and the success tone", () => {
+    renderPatterns({ count: 2, patterns: [pattern(), pattern({ pattern_id: "cup_handle" })] });
+
+    const badge = screen.getByTestId("market-patterns-RELIANCE");
+    expect(badge).toHaveTextContent("2▲");
+    // Tone derives from the palette anchor — a re-theme moves both together.
+    expect(badge.style.color).toBe(palette.POSITIVE_COLOR);
+  });
+
+  test("a bearish set renders the down glyph in the negative tone", () => {
+    renderPatterns({
+      count: 1,
+      patterns: [pattern({ pattern_id: "double_top", name: "Double Top", direction: "bearish" })],
+    });
+
+    const badge = screen.getByTestId("market-patterns-RELIANCE");
+    expect(badge).toHaveTextContent("1▼");
+    expect(badge.style.color).toBe(palette.NEGATIVE_COLOR);
+  });
+
+  test("mixed directions show the count alone in the neutral tone", () => {
+    renderPatterns({
+      count: 2,
+      patterns: [pattern(), pattern({ pattern_id: "double_top", direction: "bearish" })],
+    });
+
+    const badge = screen.getByTestId("market-patterns-RELIANCE");
+    expect(badge).toHaveTextContent(/^2$/);
+    expect(badge.style.color).toBe(palette.TEXT_MUTED);
+  });
+
+  test("the tooltip lists every pattern name with its confidence", async () => {
+    renderPatterns({
+      count: 3,
+      patterns: [
+        pattern(),
+        pattern({ pattern_id: "cup_handle", name: "Cup & Handle", confidence: 55.4 }),
+        pattern({ pattern_id: "wedge", name: "Rising Wedge", confidence: null }),
+      ],
+    });
+
+    // The hover handler lives on the Tooltip's wrapper, not on the badge.
+    fireEvent.mouseEnter(screen.getByTestId("market-patterns-RELIANCE").parentElement!);
+
+    const tooltip = await screen.findByRole("tooltip");
+    expect(tooltip).toHaveTextContent("Bull Flag · 80");
+    expect(tooltip).toHaveTextContent("Cup & Handle · 55");
+    // No confidence travels → no trailing separator.
+    expect(tooltip).toHaveTextContent("Rising Wedge");
+    expect(tooltip.textContent).not.toContain("Rising Wedge ·");
+  });
+
+  test("a symbol with no stored hit renders the shared dash", () => {
+    renderPatterns(undefined);
+
+    expect(screen.getByTestId("market-dash-RELIANCE-patterns")).toHaveTextContent("–");
+    expect(screen.queryByTestId("market-patterns-RELIANCE")).toBeNull();
+  });
+
+  test("the cell does not call patternsFor when the column is not rendered", () => {
+    const patternsFor = vi.fn(() => undefined);
+    buildMarketColumns({ patternsFor, hideSector: true });
+
+    // Building the list is not a lookup: the map must be read by cells only.
+    expect(patternsFor).not.toHaveBeenCalled();
+  });
+
+  test("the column cannot be sorted, so no header arrow can mislead", () => {
+    const column = buildMarketColumns({ patternsFor: () => ({ count: 3, patterns: [pattern()] }) })
+      .find((c) => c.id === "patterns");
+
+    expect(column?.accessorFn).toBeUndefined();
+    expect(column?.enableSorting).toBe(false);
+  });
+
+  test("the column is sized and centred like every other badge column", () => {
+    const column = buildMarketColumns().find((c) => c.id === "patterns");
+
+    expect(column?.header).toBe("PATTERNS");
+    expect(column?.size).toBe(104);
+    expect(column?.meta?.align).toBe("center");
   });
 });

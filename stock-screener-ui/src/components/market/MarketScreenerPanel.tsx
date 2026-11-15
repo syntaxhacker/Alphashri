@@ -43,6 +43,7 @@ import {
   type MarketFilterState,
 } from "./marketFilters";
 import { buildMarketColumns } from "./marketColumns";
+import { usePatternSummary } from "./usePatternSummary";
 import { alpha, PRIMARY } from "@/ui/palette";
 import { MarketFilterRail } from "./MarketFilterRail";
 import { MarketMapView, MarketViewToggle, type MarketViewMode } from "./MarketMapView";
@@ -116,6 +117,7 @@ function MarketGrid(props: {
   onRowClick: (row: MarketRow) => void;
   getRowStyle: (row: MarketRow) => JSX.CSSProperties | undefined;
   getRowTestId: (row: MarketRow) => string;
+  onVisibleRowsChange?: (rows: MarketRow[]) => void;
 }) {
   return (
     <TanStackTable
@@ -133,6 +135,7 @@ function MarketGrid(props: {
       onRowClick={props.onRowClick}
       getRowStyle={props.getRowStyle}
       getRowTestId={props.getRowTestId}
+      onVisibleRowsChange={props.onVisibleRowsChange}
       emptyMessage={
         props.hasActiveFilters ? "No rows match the current filters" : "No market data"
       }
@@ -281,12 +284,24 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   );
   const sectors = createMemo(() => marketSectors(rows()));
   const tierCounts = createMemo(() => countByCapTier(rows()));
+
+  // The PATTERNS column is fed from the window the table actually mounts:
+  // ~80 rows, one batch lookup, never the ~3,200-row snapshot.
+  const [visibleRows, setVisibleRows] = createSignal<MarketRow[]>([]);
+  const patterns = usePatternSummary(
+    () => visibleRows().map((row) => row.symbol),
+    () => universe(),
+  );
+
   const columns = createMemo(() => {
     const f = filters();
     return buildMarketColumns({
       onSymbolOpen: selectAndOpen,
       // A pinned sector makes the column constant; it carries no information.
       hideSector: f.sectors.length > 0,
+      // Read through the signal: cells re-render when the lookup lands without
+      // rebuilding the column list (a rebuild would remount every row).
+      patternsFor: (symbol) => patterns.summary().get(symbol),
     });
   });
   const stale = createMemo(() => cachedStale() || isSnapshotStale(asOf()));
@@ -731,6 +746,10 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                       reset TanStack's internal sorting state, so Table → Map →
                       Table silently lost the user's sort. */}
                   <Box
+                    // One busy flag for the whole table: the PATTERNS lookup is
+                    // supplementary, so it must never mount a per-row spinner.
+                    aria-busy={patterns.loading() ? "true" : undefined}
+                    data-patterns-loading={patterns.loading() ? "true" : undefined}
                     className={
                       viewMode() === "map"
                         ? "hidden"
@@ -745,6 +764,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                       onRowClick={handleRowClick}
                       getRowStyle={getRowStyle}
                       getRowTestId={getRowTestId}
+                      onVisibleRowsChange={setVisibleRows}
                     />
                   </Box>
                   <Show when={viewMode() === "map"}>

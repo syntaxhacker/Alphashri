@@ -40,6 +40,12 @@ const mockDeleteUserConfig = vi.mocked(deleteUserConfig);
 
 const mockUseMarketSnapshot = vi.mocked(useMarketSnapshotSolid);
 
+const mockLookupPatterns = vi.hoisted(() => vi.fn());
+vi.mock("../../api/patternLookup", () => ({
+  PATTERN_LOOKUP_MAX_SYMBOLS: 500,
+  lookupPatterns: mockLookupPatterns,
+}));
+
 // happy-dom has no 2D canvas context: the real treemap's async init can land
 // after an unmount and then throws from zrender's dispose. The map's DOM is what
 // these tests assert, so the renderer is stubbed out.
@@ -136,6 +142,13 @@ afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
   mockUseMarketSnapshot.mockReturnValue(hookResult());
+  mockLookupPatterns.mockResolvedValue({
+    timeframe: "1D",
+    session: "2026-11-16",
+    source: "stored",
+    data_through: "2026-11-14",
+    items: [],
+  });
   mockFetchDashboard.mockResolvedValue({
     sections: [],
     universe: "nifty500",
@@ -508,6 +521,124 @@ describe("MarketScreenerPanel — symbol allowlist", () => {
     );
     expect(screen.getByTestId("market-filter-chip-sector:Energy")).toBeInTheDocument();
     expect(screen.queryByText("SECTOR")).toBeNull();
+  });
+});
+
+describe("MarketScreenerPanel — PATTERNS column", () => {
+  function storedLookup(symbols: string[]) {
+    return {
+      timeframe: "1D",
+      session: "2026-11-16",
+      source: "stored",
+      data_through: "2026-11-14",
+      items: symbols.map((symbol) => ({
+        symbol,
+        count: 1,
+        patterns: [
+          {
+            pattern_id: "bull_flag",
+            name: "Bull Flag",
+            direction: "bullish",
+            status: "confirmed",
+            quality: "strong",
+            confidence: 80,
+            bars_ago: 2,
+          },
+        ],
+      })),
+    };
+  }
+
+  test("the column renders badges from the batched lookup", async () => {
+    mockLookupPatterns.mockResolvedValue(storedLookup(["RELIANCE"]));
+
+    r(<MarketScreenerPanel />);
+
+    const badge = await screen.findByTestId("market-patterns-RELIANCE", {}, { timeout: 3000 });
+    expect(badge).toHaveTextContent("1▲");
+    // The symbol with no stored hit keeps the shared dash, not a "0" badge.
+    expect(screen.getByTestId("market-dash-MPHASIS-patterns")).toHaveTextContent("–");
+  });
+
+  test("one request covers the whole visible window, never one per row", async () => {
+    const rows = Array.from({ length: 12 }, (_, i) => row(`SYM${i}`));
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ rows, total: rows.length }));
+    mockLookupPatterns.mockResolvedValue(storedLookup([]));
+
+    r(<MarketScreenerPanel />);
+    await waitFor(() => expect(mockLookupPatterns).toHaveBeenCalled(), { timeout: 3000 });
+
+    expect(mockLookupPatterns).toHaveBeenCalledTimes(1);
+    const body = mockLookupPatterns.mock.calls[0][0] as { symbols: string[] };
+    expect(body.symbols).toHaveLength(rows.length);
+    expect(body.symbols).toContain("SYM0");
+    expect(body.symbols).toContain("SYM11");
+  });
+
+  test("Table → Map → Table does not refetch while the window is unchanged", async () => {
+    mockLookupPatterns.mockResolvedValue(storedLookup(["RELIANCE"]));
+    r(<MarketScreenerPanel />);
+    await waitFor(() => expect(mockLookupPatterns).toHaveBeenCalledTimes(1), { timeout: 3000 });
+
+    const toggle = screen.getByTestId("market-view-toggle");
+    await fireEvent.click(within(toggle).getByText("Map"));
+    await fireEvent.click(within(toggle).getByText("Table"));
+
+    // The window is identical, so the cached answers are still current.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(mockLookupPatterns).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("market-patterns-RELIANCE")).toBeInTheDocument();
+  });
+
+  test("the loading flag is exposed once for the table, never per row", async () => {
+    let release: (value: unknown) => void = () => {};
+    mockLookupPatterns.mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+
+    r(<MarketScreenerPanel />);
+
+    // While the batch lookup is in flight the container is marked busy, but no
+    // row-level spinner appears (a per-row spinner would be 80 spinners).
+    await waitFor(
+      () =>
+        expect(
+          screen
+            .getByTestId("market-grid")
+            .closest('[data-patterns-loading="true"]'),
+        ).not.toBeNull(),
+      { timeout: 3000 },
+    );
+    expect(screen.queryByTestId("market-patterns-RELIANCE")).toBeNull();
+
+    release({
+      timeframe: "1D",
+      session: "2026-11-16",
+      source: "stored",
+      data_through: "2026-11-14",
+      items: [],
+    });
+    await waitFor(
+      () =>
+        expect(
+          screen
+            .getByTestId("market-grid")
+            .closest('[data-patterns-loading="true"]'),
+        ).toBeNull(),
+      { timeout: 3000 },
+    );
+  });
+
+  test("a failed lookup leaves dashes and never blanks the table", async () => {
+    mockLookupPatterns.mockRejectedValue(new Error("HTTP 503"));
+    r(<MarketScreenerPanel />);
+
+    await waitFor(() => expect(mockLookupPatterns).toHaveBeenCalled(), { timeout: 3000 });
+    expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
+    expect(screen.getByTestId("market-dash-RELIANCE-patterns")).toBeInTheDocument();
+    expect(screen.queryByTestId("market-error-banner")).toBeNull();
   });
 });
 

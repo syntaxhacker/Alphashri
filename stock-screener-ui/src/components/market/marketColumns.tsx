@@ -1,8 +1,9 @@
-import { Show } from "solid-js";
+import { For, Show } from "solid-js";
 import type { TableColumnDef as ColumnDef } from "../common/TanStackTable";
 import { Badge, Box, Text, Tooltip } from "@/ui";
 import { SymbolLink } from "../common/SymbolLink";
 import type { MarketRow } from "../../types/marketScreener";
+import type { PatternSummaryItem } from "./usePatternSummary";
 
 const DASH = "–";
 
@@ -99,7 +100,71 @@ export interface MarketColumnHandlers {
   onSymbolOpen?: (symbol: string) => void;
   /** Drop the SECTOR column when every visible row shares one sector. */
   hideSector?: boolean;
+  /** Stored 1D patterns for a symbol — absent means "not looked up yet". */
+  patternsFor?: (symbol: string) => PatternSummaryItem | undefined;
 }
+
+type PatternTone = "bullish" | "bearish" | "mixed";
+
+const PATTERN_TONE_COLOR: Record<PatternTone, "success" | "error" | "default"> = {
+  bullish: "success",
+  bearish: "error",
+  mixed: "default",
+};
+
+const PATTERN_GLYPH: Record<PatternTone, string> = {
+  bullish: "▲",
+  bearish: "▼",
+  mixed: "",
+};
+
+/** One tone for the row: one-sided only when every stored hit agrees. */
+function patternTone(patterns: PatternSummaryItem["patterns"]): PatternTone {
+  let bullish = false;
+  let bearish = false;
+  for (const pattern of patterns) {
+    const direction = String(pattern.direction ?? "").toLowerCase();
+    if (direction === "bullish") bullish = true;
+    else if (direction === "bearish") bearish = true;
+  }
+  if (bullish && bearish) return "mixed";
+  return bullish ? "bullish" : bearish ? "bearish" : "mixed";
+}
+
+function patternTooltip(patterns: PatternSummaryItem["patterns"]) {
+  return (
+    <Box component="span" className="flex flex-col gap-0.5">
+      <For each={patterns}>
+        {(pattern) => (
+          <span className="block whitespace-nowrap">
+            {pattern.name}
+            {pattern.confidence === null ? "" : ` · ${Math.round(pattern.confidence)}`}
+          </span>
+        )}
+      </For>
+    </Box>
+  );
+}
+
+/** Stored-pattern summary: count plus the tone its hits agree on. */
+function PatternBadge(props: { symbol: string; item: PatternSummaryItem | undefined }) {
+  const tone = () => (props.item ? patternTone(props.item.patterns) : "mixed");
+  return (
+    <Show when={props.item} fallback={<>{dash(props.symbol, "patterns")}</>}>
+      <Tooltip label={patternTooltip(props.item!.patterns)} multiline position="top">
+        <Badge
+          size="xs"
+          variant="light"
+          color={PATTERN_TONE_COLOR[tone()]}
+          data-testid={`market-patterns-${props.symbol}`}
+        >
+          {`${props.item!.count}${PATTERN_GLYPH[tone()]}`}
+        </Badge>
+      </Tooltip>
+    </Show>
+  );
+}
+
 
 export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnDef<MarketRow>[] {
   const columns: ColumnDef<MarketRow>[] = [
@@ -352,6 +417,20 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
             {tier.toUpperCase()}
           </Badge>
         );
+      },
+    },
+    {
+      id: "patterns",
+      header: "PATTERNS",
+      size: 104,
+      // No `accessorFn` + no sorting on purpose. The value arrives per visible
+      // window, so a sort would (a) rank every not-yet-loaded row as 0, and
+      // (b) reorder rows under the cursor the moment the lookup lands.
+      enableSorting: false,
+      meta: { align: "center" },
+      cell: ({ row }) => {
+        const r = row.original;
+        return <PatternBadge symbol={r.symbol} item={handlers.patternsFor?.(r.symbol)} />;
       },
     },
   ];

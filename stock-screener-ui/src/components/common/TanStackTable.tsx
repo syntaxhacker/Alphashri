@@ -141,6 +141,12 @@ interface Props<T> {
    * grouping) whenever that order changes.
    */
   onSortedRowsChange?: (rows: T[]) => void;
+  /**
+   * Emits the rows currently mounted in the virtualization window, once per
+   * real window change (length or first/last row). Callers use this to fetch
+   * supplementary data for exactly what is on screen — never for all rows.
+   */
+  onVisibleRowsChange?: (rows: T[]) => void;
   enableSorting?: boolean;
   /** Third click on a sorted column clears sorting. */
   enableSortingRemoval?: boolean;
@@ -693,6 +699,26 @@ export function TanStackTable<T>(props: Props<T>) {
   const visibleItems = createMemo(() => {
     const items = bodyItems();
     return items.slice(0, Math.min(windowEnd(), items.length));
+  });
+
+  // One callback per window change, never per row — a single effect that
+  // compares the mounted row identities. The snapshot's row objects are stable
+  // references, so a re-sort or filter fires exactly once while a cell update
+  // on an unchanged window fires nothing. Edges-only comparison would miss a
+  // window whose middle rows changed and silently starve a symbol-keyed
+  // consumer; the full sequence is ~80 reference compares, not 80 effects.
+  let lastVisible: T[] = [];
+  createEffect(() => {
+    if (!props.onVisibleRowsChange) return;
+    const rows: T[] = [];
+    for (const item of visibleItems()) {
+      if (item.kind === "row") rows.push(item.frame().row);
+    }
+    const same =
+      rows.length === lastVisible.length && rows.every((row, i) => row === lastVisible[i]);
+    if (same) return;
+    lastVisible = rows;
+    props.onVisibleRowsChange(rows);
   });
 
   const loadMore = () => {
