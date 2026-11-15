@@ -846,6 +846,7 @@ OPENAPI_TAGS = [
     {"name": "agri", "description": "Agri commodity endpoints."},
     {"name": "brokers", "description": "Broker connections and OAuth."},
     {"name": "replay", "description": "Historical replay engine."},
+    {"name": "user-configs", "description": "Per-user saved screen state (one default per scope)."},
     {"name": "experiments", "description": "Research experiment tracking."},
     {"name": "poc", "description": "POC / NQ strategy tooling."},
     {"name": "Order Flow", "description": "Order flow, depth and tape (incl. /ws WebSocket bridge)."},
@@ -1323,6 +1324,8 @@ except Exception as e:
     print(f"⚠️ Could not load admin API: {e}")
 
 _include_api("api.replay_api", "router", "replay", msg="✅ Replay API loaded at /api/replay")
+
+_include_api("api.user_configs", "router", "user-configs", msg="✅ User configs API loaded at /api/user-configs")
 
 _include_api("api.strategy_runner_api", "router", "strategy runner", msg="✅ Strategy Runner API loaded at /api/strategy-runner")
 

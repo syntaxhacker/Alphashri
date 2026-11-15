@@ -528,6 +528,38 @@ components:
       - exit_price
       title: ClosePositionRequest
       type: object
+    ConfigEnvelope:
+      properties:
+        config:
+          additionalProperties: true
+          title: Config
+          type: object
+        saved:
+          title: Saved
+          type: boolean
+        scope:
+          title: Scope
+          type: string
+        updated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updated At
+        version:
+          title: Version
+          type: integer
+        warning:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Warning
+      required:
+      - scope
+      - version
+      - saved
+      - config
+      title: ConfigEnvelope
+      type: object
     ConfigResponse:
       properties:
         available_models:
@@ -556,6 +588,19 @@ components:
       - available_models
       - default_analysts
       title: ConfigResponse
+      type: object
+    DeleteResponse:
+      properties:
+        deleted:
+          title: Deleted
+          type: boolean
+        scope:
+          title: Scope
+          type: string
+      required:
+      - scope
+      - deleted
+      title: DeleteResponse
       type: object
     DetectRequest:
       description: Single-symbol, synchronous pattern check (no job queue).
@@ -942,6 +987,21 @@ components:
       required:
       - legs
       title: PremiumTrackerResponse
+      type: object
+    PutConfigRequest:
+      properties:
+        config:
+          additionalProperties: true
+          title: Config
+          type: object
+        version:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Version
+      required:
+      - config
+      title: PutConfigRequest
       type: object
     RecordSurgeRequest:
       properties:
@@ -12380,6 +12440,105 @@ paths:
       summary: Stream Analysis
       tags:
       - Trading Agents
+  /api/user-configs/{scope}:
+    delete:
+      description: 'Remove the saved payload for a scope. Idempotent: the goal is "no row".'
+      operationId: delete_user_config_api_user_configs__scope__delete
+      parameters:
+      - in: path
+        name: scope
+        required: true
+        schema:
+          title: Scope
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Delete saved config for a scope
+      tags:
+      - user-configs
+    get:
+      description: Read the saved payload for a scope, falling back to defaults.
+      operationId: get_user_config_api_user_configs__scope__get
+      parameters:
+      - in: path
+        name: scope
+        required: true
+        schema:
+          title: Scope
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigEnvelope'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Read saved config for a scope
+      tags:
+      - user-configs
+    put:
+      description: Upsert the saved payload for a scope (default slot only).
+      operationId: put_user_config_api_user_configs__scope__put
+      parameters:
+      - in: path
+        name: scope
+        required: true
+        schema:
+          title: Scope
+          type: string
+      - in: header
+        name: If-Match
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: If-Match
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PutConfigRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigEnvelope'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Save config for a scope
+      tags:
+      - user-configs
   /api/value/scan:
     get:
       description: Return the ranked deep-value scan for ``market``.
@@ -12714,6 +12873,8 @@ tags:
   name: brokers
 - description: Historical replay engine.
   name: replay
+- description: Per-user saved screen state (one default per scope).
+  name: user-configs
 - description: Research experiment tracking.
   name: experiments
 - description: POC / NQ strategy tooling.

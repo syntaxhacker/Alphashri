@@ -20,6 +20,7 @@ from .screener import Screener
 from .price_surge import PriceSurgeEvent
 from .chat import ChatConversation, ChatMessage
 from .replay_saved_config import ReplaySavedConfig
+from .user_saved_config import UserSavedConfig
 from .chart_patterns import PatternComputeJob, PatternHit, PatternImage, PatternTimeframeConfig
 
 # --- Event Radar ---
@@ -61,6 +62,7 @@ __all__ = [
     "ChatConversation",
     "ChatMessage",
     "ReplaySavedConfig",
+    "UserSavedConfig",
     "PatternComputeJob",
     "PatternHit",
     "PatternImage",
