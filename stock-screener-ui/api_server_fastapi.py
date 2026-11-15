@@ -1281,6 +1281,8 @@ _include_api("api.market_screen.router", "router", "market screen", msg="✅ Mar
 
 _include_api("api.options", "router", "options", msg="✅ Options API loaded at /api/options")
 
+_include_api("api.options_underlying", "router", "options underlying", msg="✅ Options underlying API loaded at /api/options/underlying")
+
 _include_api("api.options_screener", "router", "F&O screener", msg="✅ F&O screener API loaded at /api/options/screener")
 
 _include_api("api.fyers_bridge", "router", "fyers bridge", msg="✅ Fyers bridge API loaded at /api/fyers-bridge")

@@ -650,6 +650,31 @@ components:
           type: number
       title: ExecIn
       type: object
+    ExpiryInfo:
+      properties:
+        date:
+          title: Date
+          type: string
+        dte_days:
+          title: Dte Days
+          type: integer
+        lot_size:
+          title: Lot Size
+          type: integer
+        tick_size:
+          title: Tick Size
+          type: number
+        weekly:
+          title: Weekly
+          type: boolean
+      required:
+      - date
+      - weekly
+      - dte_days
+      - lot_size
+      - tick_size
+      title: ExpiryInfo
+      type: object
     GroupPerformanceItem:
       properties:
         advances:
@@ -2363,6 +2388,46 @@ components:
           - type: 'null'
           title: Reason
       title: TradeNotesUpdate
+      type: object
+    UnderlyingInfo:
+      properties:
+        default_expiry:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Default Expiry
+        exchange:
+          title: Exchange
+          type: string
+        expiries:
+          items:
+            $ref: '#/components/schemas/ExpiryInfo'
+          title: Expiries
+          type: array
+        fno:
+          title: Fno
+          type: boolean
+        instrument_key:
+          title: Instrument Key
+          type: string
+        market_state:
+          title: Market State
+          type: string
+        spot:
+          title: Spot
+          type: number
+        symbol:
+          title: Symbol
+          type: string
+      required:
+      - symbol
+      - exchange
+      - fno
+      - instrument_key
+      - spot
+      - expiries
+      - market_state
+      title: UnderlyingInfo
       type: object
     UpdatePricesRequest:
       properties:
@@ -7707,6 +7772,40 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
       summary: Get Spot Price
+      tags:
+      - options
+  /api/options/underlying/{symbol}:
+    get:
+      description: 'Instrument key, F&O eligibility, real expiries and the expiry to open on.
+
+
+        ``default_expiry`` is the first expiry on or after today, except on expiry
+
+        day after 15:40 IST where it rolls to the next one (today stays listed).'
+      operationId: get_underlying_info_api_options_underlying__symbol__get
+      parameters:
+      - in: path
+        name: symbol
+        required: true
+        schema:
+          title: Symbol
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnderlyingInfo'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Underlying metadata for the option chain (expiries, lots, default expiry)
       tags:
       - options
   /api/options/underlyings:
