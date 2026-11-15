@@ -70,6 +70,19 @@ const render = (ui: () => JSX.Element, options?: { initialRoute?: string }) => {
   return rtlRender(ui);
 };
 
+/**
+ * happy-dom has no layout engine: `getBoundingClientRect()` returns 0×0 for
+ * everything, so chrome height cannot be measured. Assert the *declared* box
+ * instead — the arbitrary Tailwind height, else the inline height. A zero here
+ * means the element declares no height at all (which is a failure, not a pass).
+ */
+function declaredHeightPx(el: Element): number | null {
+  const fromClass = (el.getAttribute("class") ?? "").match(/(?:^|\s)h-\[(\d+)px\]/);
+  if (fromClass) return Number(fromClass[1]);
+  const inline = (el as HTMLElement).style.getPropertyValue("height");
+  return inline.endsWith("px") ? Number(inline.slice(0, -2)) : null;
+}
+
 // Mock child components to isolate ScreenerPage tests
 vi.mock("./ScreenerNav", () => ({
   ScreenerNav: ({ options, activeScreener, onChange }: any) => (
@@ -889,5 +902,63 @@ describe("ScreenerPage", () => {
     fireEvent.click(screen.getByTestId("tab-screener"));
     expect(screen.getByTestId("screener-table-approaching")).toBeInTheDocument();
     expect(screen.getByTestId("screener-table-approaching")).toBeVisible();
+  });
+
+  // LAYOUT_CONTRACT §1: primary workspace chrome (tab strip + toolbar) ≤96px.
+  // Not measurable in happy-dom (no layout), so the declared frame is asserted:
+  // outer page padding + band height + the gap under the band.
+  it("fits the tab strip and toolbar inside the 96px chrome budget", () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} universe="nifty500" />
+      </UIProvider>), { initialRoute: "/" });
+
+    const page = screen.getByTestId("screener-page") as HTMLElement;
+    const frame = page.parentElement as HTMLElement;
+    const band = screen.getByTestId("screener-controls");
+    const bandHeight = declaredHeightPx(band);
+    expect(bandHeight, "the chrome band must declare its height").not.toBeNull();
+
+    // p-4 = the 16px outer frame the page owns (the shell has no padding).
+    expect(frame.className).toMatch(/\bp-4\b/);
+    const sectionGap = parseFloat(page.style.getPropertyValue("gap") || "0");
+
+    expect(16 + (bandHeight ?? 0) + sectionGap).toBeLessThanOrEqual(96);
+  });
+
+  it("uses one bottom rule for the chrome band instead of a boxed band", () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} universe="nifty500" />
+      </UIProvider>), { initialRoute: "/" });
+
+    const bandTokens = screen.getByTestId("screener-controls").className.split(/\s+/);
+    expect(bandTokens).toContain("border-b");
+    // A bare `border` outlines all four sides and doubles up with the panels.
+    expect(bandTokens).not.toContain("border");
+
+    // The tab strip must not draw its own rule under the band's rule.
+    const tabList = screen.getByTestId("screener-tab-list") as HTMLElement;
+    expect(tabList.style.getPropertyValue("border-bottom-width")).toBe("0px");
+
+    // Outer padding belongs to the page frame, not to the content region.
+    expect(screen.getByTestId("screener-content").className).not.toMatch(/\bpx-2\b/);
+  });
+
+  it("keeps every chrome control on one height tier for the 28px band", () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} universe="nifty500" />
+      </UIProvider>), { initialRoute: "/" });
+
+    const controls = [
+      within(screen.getByTestId("dashboard-universe-select")).getByRole("combobox"),
+      screen.getByTestId("dashboard-refresh"),
+    ];
+    for (const control of controls) {
+      const height = declaredHeightPx(control);
+      expect(height, `${control.getAttribute("data-testid")} declares no height`).not.toBeNull();
+      expect(height!).toBeLessThanOrEqual(28);
+    }
   });
 });

@@ -120,7 +120,7 @@ export function ScreenerContent(props: Props) {
           when={!showEmpty()}
           fallback={<ScreenerEmpty />}
         >
-          <Stack gap={1} w="100%" p={0} className="flex min-h-0 items-stretch">
+          <Stack gap={8} w="100%" p={0} className="flex min-h-0 items-stretch">
             <For each={sections()}>
               {(section) => (
                 <ScreenerSection

@@ -193,4 +193,16 @@ describe("ScreenerContent", () => {
     expect(screen.getByTestId("screener-section")).toHaveAttribute("data-symbols", "F,P,R");
   });
 
+  it("separates stacked sections with the 8px inner gap", () => {
+    renderWithProvider(
+      <ScreenerContent
+        {...defaultProps}
+        approachingStocks={[mockStock("A")]}
+        touchedStocks={[mockStock("B")]}
+      />,
+    );
+    const stack = screen.getAllByTestId("screener-section")[0].parentElement as HTMLElement;
+    expect(stack.style.getPropertyValue("gap")).toBe("8px");
+  });
+
 });

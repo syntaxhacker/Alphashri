@@ -36,7 +36,7 @@ export function ScreenerHeader(props: ScreenerHeaderProps) {
           <Tooltip label="Refresh">
             <ActionIcon
               variant="subtle"
-              size="sm"
+              size="xs"
               onClick={props.onRefresh}
               loading={props.isLoading}
               data-testid="refresh-btn"
@@ -52,7 +52,7 @@ export function ScreenerHeader(props: ScreenerHeaderProps) {
             max={3600}
             step={10}
             w={64}
-            size="sm"
+            size="xs"
             disabled={disableControls()}
             data-testid="auto-refresh-input"
             aria-label="Auto-refresh seconds"
@@ -64,7 +64,7 @@ export function ScreenerHeader(props: ScreenerHeaderProps) {
               { value: "upstox", label: "Upstox" },
               { value: "indmoney", label: "IND" },
             ]}
-            size="sm"
+            size="xs"
             w={96}
             disabled={disableControls()}
             data-testid="provider-select"
@@ -77,7 +77,7 @@ export function ScreenerHeader(props: ScreenerHeaderProps) {
               { value: "intraday", label: "Intra" },
               { value: "historical", label: "5D" },
             ]}
-            size="sm"
+            size="xs"
             w={96}
             disabled={disableControls()}
             data-testid="mode-select"
