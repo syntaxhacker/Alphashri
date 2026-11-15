@@ -63,6 +63,12 @@ describe("toTreemapRow", () => {
     expect(out.adx).toBe(31.4);
     expect(out.relative_volume).toBe(1.4);
     expect(out.pos_52w).toBe(48.2);
+    expect(out.perf_w).toBe(2.1);
+    expect(out.perf_1m).toBe(4.6);
+  });
+
+  test("does not pass the 1-month return off as 1-year", () => {
+    expect(toTreemapRow(base).perf_1y).toBeNull();
   });
 
   test("carries the fundamentals the market snapshot now returns", () => {

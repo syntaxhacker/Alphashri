@@ -6,6 +6,7 @@ import {
   buildStockTreemapOption,
   getStockMetricRange,
   resolveStockMetric,
+  safeFmt,
   type StockTreemapStyle,
 } from "./stockTreemap";
 
@@ -123,5 +124,33 @@ describe("buildStockTreemapOption", () => {
   it("computes the metric range across stocks", () => {
     expect(getStockMetricRange([stock], "pe_ratio")).toEqual({ min: 22.5, max: 22.5 });
     expect(getStockMetricRange([], "pe_ratio")).toEqual({ min: 0, max: 1 });
+  });
+
+  it("renders a missing value as an em dash, never as a zero", () => {
+    const pct = { fmt: (v: number) => `${v.toFixed(1)}%` };
+    expect(safeFmt(pct, null)).toBe("—");
+    expect(safeFmt(pct, undefined)).toBe("—");
+    expect(safeFmt(pct, "")).toBe("—");
+    expect(safeFmt(pct, Number.NaN)).toBe("—");
+    expect(safeFmt(pct, 0)).toBe("0.0%");
+  });
+
+  it("does not label a null metric as 0% in the tooltip", () => {
+    const bare: HeatmapStock = { ...stock, change_pct: Number.NaN };
+    const option = buildStockTreemapOption(
+      [bare],
+      "change_pct",
+      SECTOR_STOCK_METRICS,
+      false,
+      STYLE,
+    ) as unknown as {
+      tooltip: { formatter: (p: { data: Record<string, unknown> }) => string };
+      series: Array<{ data: Array<Record<string, unknown>> }>;
+    };
+    const first = option.series[0]!.data[0]!;
+    const html = option.tooltip.formatter({ data: first });
+    expect(html).toContain("<b>—</b>");
+    expect(html).not.toContain("0.0%");
+    expect(html).not.toContain("+0.00%");
   });
 });

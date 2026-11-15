@@ -126,6 +126,7 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
     open,
     close,
     pinned: Boolean(fullscreen()?.pinned),
+    symbol: () => fullscreen()?.symbol ?? null,
     setOutlet,
   });
   createEffect(() => {
@@ -235,6 +236,8 @@ function DockContent(props: {
             loading={props.state.loading ?? false}
             asOf={props.state.asOf ?? null}
             fromDate={props.state.fromDate ?? null}
+            chartError={props.state.chartError ?? null}
+            chartNote={props.state.chartNote ?? null}
             onClose={props.onClose}
             onLive={props.onLive}
           />

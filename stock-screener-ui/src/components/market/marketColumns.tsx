@@ -87,7 +87,12 @@ function Week52Bar(props: { row: MarketRow }) {
   );
 }
 
-export function buildMarketColumns(): ColumnDef<MarketRow>[] {
+export interface MarketColumnHandlers {
+  /** Open the in-app chart. The text opens in-app; ↗ stays TradingView. */
+  onSymbolOpen?: (symbol: string) => void;
+}
+
+export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnDef<MarketRow>[] {
   return [
     {
       id: "symbol",
@@ -107,6 +112,8 @@ export function buildMarketColumns(): ColumnDef<MarketRow>[] {
               size="xs"
               weight={600}
               className={SYMBOL_LINK_CLASS}
+              tvIcon
+              onTextClick={(sym) => handlers.onSymbolOpen?.(sym)}
             />
             {r.fno ? (
               <Box className={BADGE_WRAP_CLASS}>

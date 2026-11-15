@@ -44,6 +44,10 @@ export interface FullscreenChartState {
   fromDate: string | null;
   stale?: boolean;
   dataAsOf?: string | null;
+  /** Chart endpoint failure code (`no_data`, `fetch_timeout`, …). */
+  chartError?: string | null;
+  /** Human-readable reason shown instead of a blank chart. */
+  chartNote?: string | null;
   pinned: boolean;
 }
 
@@ -128,6 +132,7 @@ export function usePatternFullscreen({
             ? {
                 ...prev,
                 ...staleFields(chart),
+                ...chartProblem(chart),
                 hit: resolved,
                 hits: [resolved],
                 candles: chart.candles?.length ? chart.candles : prev.candles,
@@ -150,6 +155,12 @@ export function usePatternFullscreen({
 
   const symbolChartCache = new Map<string, { chart: SymbolChartPayload; ts: number }>();
 
+  /** The endpoint answers 200 with `error`/`note` when it has no candles. */
+  const chartProblem = (chart: SymbolChartPayload) => ({
+    chartError: chart.error ?? null,
+    chartNote: chart.note ?? null,
+  });
+
   const applySymbolChart = (
     chart: SymbolChartPayload,
     symbol: string,
@@ -165,6 +176,7 @@ export function usePatternFullscreen({
             ...prev,
             ...extra,
             ...staleFields(chart),
+            ...chartProblem(chart),
             hit: newestHit(hits),
             hits,
             candles: chart.candles ?? [],
@@ -218,6 +230,7 @@ export function usePatternFullscreen({
           ? {
               ...prev,
               ...staleFields(chart),
+              ...chartProblem(chart),
               candles: chart.candles ?? [],
               overlays: [],
               trendLines: chart.trend_lines ?? [],
@@ -231,7 +244,12 @@ export function usePatternFullscreen({
       if (chartRequestToken !== token) return;
       setFullscreen((prev) =>
         prev && prev.symbol === symbol && prev.timeframe === tf
-          ? { ...prev, loading: false }
+          ? {
+              ...prev,
+              loading: false,
+              chartError: "request_failed",
+              chartNote: `Could not load candles for ${symbol} ${tf}.`,
+            }
           : prev,
       );
     };
@@ -244,6 +262,7 @@ export function usePatternFullscreen({
           ? {
               ...prev,
               ...staleFields(chart),
+              ...chartProblem(chart),
               hit: newestHit(hits),
               hits,
               trendLines: chart.trend_lines ?? [],
@@ -334,6 +353,8 @@ export function usePatternFullscreen({
       patternsLoading: undefined,
       stale: false,
       dataAsOf: null,
+      chartError: null,
+      chartNote: null,
     });
 
     void runTwoPhase(symbol, tf, token, detectPatterns, {

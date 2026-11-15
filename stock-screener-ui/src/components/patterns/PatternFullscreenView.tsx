@@ -75,6 +75,10 @@ export interface PatternFullscreenViewProps {
   fromDate?: string | null;
   /** Re-fetch the chart truncated at the new as-of cutoff / window. */
   onAsOfChange?: (asOf: string | null, fromDate: string | null) => void;
+  /** Chart endpoint failure code (`no_data`, `fetch_timeout`, …). */
+  chartError?: string | null;
+  /** Human-readable reason shown when the chart has no candles. */
+  chartNote?: string | null;
 }
 
 /**
@@ -120,6 +124,8 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
       asOf={props.asOf ?? null}
       docked={props.docked ?? false}
       fill={props.docked ?? false}
+      chartError={props.chartError ?? null}
+      chartNote={props.chartNote ?? null}
     />
   );
 

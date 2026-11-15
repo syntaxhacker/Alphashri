@@ -55,6 +55,10 @@ export interface FullscreenChartState {
   stale?: boolean;
   /** The stale frame's last session date (`YYYY-MM-DD`); null when fresh. */
   dataAsOf?: string | null;
+  /** Chart endpoint failure code (`no_data`, `fetch_timeout`, …). */
+  chartError?: string | null;
+  /** Human-readable reason shown when the chart has no candles. */
+  chartNote?: string | null;
   /** `true` when the user explicitly opened the chart; `false` for a hover preview. */
   pinned: boolean;
 }
