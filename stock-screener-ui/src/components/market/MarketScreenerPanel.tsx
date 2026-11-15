@@ -629,20 +629,27 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                     </Paper>
                   }
                 >
-                  <Show
-                    when={viewMode() === "map"}
-                    fallback={
-                      <MarketGrid
-                        data={filteredRows()}
-                        columns={columns()}
-                        hasActiveFilters={hasActiveFilters()}
-                        onResetFilters={resetFilters}
-                        onRowClick={handleRowClick}
-                        getRowStyle={getRowStyle}
-                        getRowTestId={getRowTestId}
-                      />
+                  {/* The table stays mounted across view switches. Unmounting it
+                      reset TanStack's internal sorting state, so Table → Map →
+                      Table silently lost the user's sort. */}
+                  <Box
+                    className={
+                      viewMode() === "map"
+                        ? "hidden"
+                        : "flex-1 min-w-0 min-h-0 flex flex-col"
                     }
                   >
+                    <MarketGrid
+                      data={filteredRows()}
+                      columns={columns()}
+                      hasActiveFilters={hasActiveFilters()}
+                      onResetFilters={resetFilters}
+                      onRowClick={handleRowClick}
+                      getRowStyle={getRowStyle}
+                      getRowTestId={getRowTestId}
+                    />
+                  </Box>
+                  <Show when={viewMode() === "map"}>
                     <MarketMapView
                       rows={filteredRows()}
                       onSymbolClick={(symbol) => {

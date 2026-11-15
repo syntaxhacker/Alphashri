@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, cleanup } from "@solidjs/testing-library";
+import { fireEvent, render, screen, cleanup, within } from "@solidjs/testing-library";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { UIProvider } from "@/ui";
 import { MarketScreenerPanel } from "./MarketScreenerPanel";
@@ -365,5 +365,18 @@ describe("MarketScreenerPanel — symbol allowlist", () => {
     await fireEvent.focus(combo);
     await fireEvent.mouseDown(await screen.findByRole("option", { name: "Nifty 500" }));
     expect(onClear).toHaveBeenCalled();
+  });
+
+  test("keeps the table mounted across a Map round-trip", async () => {
+    r(<MarketScreenerPanel />);
+    const before = screen.getByTestId("market-grid");
+    const toggle = screen.getByTestId("market-view-toggle");
+
+    await fireEvent.click(within(toggle).getByText("Map"));
+    // Mounted but hidden: losing the node would reset TanStack's sort state.
+    expect(screen.getByTestId("market-grid")).toBe(before);
+
+    await fireEvent.click(within(toggle).getByText("Table"));
+    expect(screen.getByTestId("market-grid")).toBe(before);
   });
 });
