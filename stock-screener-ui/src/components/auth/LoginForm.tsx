@@ -1,5 +1,5 @@
 import { Show, createSignal } from "solid-js";
-import { useAuth } from "./AuthProvider2";
+import { useAuth } from "./AuthProvider";
 import {
   Flex,
   Paper,

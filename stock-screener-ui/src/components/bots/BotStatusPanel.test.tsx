@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
-import { BotStatusPanel } from "./BotStatusPanel2";
+import { BotStatusPanel } from "./BotStatusPanel";
 import type { BotConfig, BotStatus, BotTrade } from "../../types/bots";
 
 vi.mock("../../state/bots", () => ({

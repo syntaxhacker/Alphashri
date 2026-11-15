@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
-import { LoginForm, RegisterForm } from "./LoginForm2";
+import { LoginForm, RegisterForm } from "./LoginForm";
 
 const mockLogin = vi.fn();
 const mockRegister = vi.fn();
@@ -17,7 +17,7 @@ const mockUseAuth = vi.fn(() => ({
   clearError: mockClearError,
 }));
 
-vi.mock("./AuthProvider2", () => ({
+vi.mock("./AuthProvider", () => ({
   useAuth: (...args: any[]) => mockUseAuth(...args),
 }));
 

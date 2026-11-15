@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import { SectorPage } from "./SectorPage2";
+import { SectorPage } from "./SectorPage";
 import type { SectorItem } from "../../types/sector";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 

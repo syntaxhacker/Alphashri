@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
-import { AuthProvider, useAuth } from "./AuthProvider2";
+import { AuthProvider, useAuth } from "./AuthProvider";
 
 const TOKEN_KEY = "alphashri_token";
 const REFRESH_TOKEN_KEY = "alphashri_refresh_token";

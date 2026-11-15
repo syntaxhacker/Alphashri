@@ -14,7 +14,7 @@ import type { AdminPatternTimeframe } from "../../types/admin";
 
 const mockFetchWithAuth = vi.fn();
 
-vi.mock("../../components/auth/AuthProvider2", () => ({
+vi.mock("../../components/auth/AuthProvider", () => ({
   useAuth: () => ({ fetchWithAuth: mockFetchWithAuth }),
 }));
 

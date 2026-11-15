@@ -3,7 +3,7 @@ import type { JSX } from "solid-js";
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, fireEvent, cleanup } from "@solidjs/testing-library";
-import { WatchlistScan2 } from "./WatchlistScan2";
+import { WatchlistScan2 } from "./WatchlistScan";
 import { BORDER_COLOR, NEGATIVE_COLOR, POSITIVE_COLOR, PRIMARY, WARNING } from "@/ui/palette";
 
 // Resolved value of #80b5ff under the palette theme.

@@ -2,7 +2,7 @@ import { Show, createMemo, createSignal, onCleanup, onMount, type JSX } from "so
 import type { TableColumnDef } from "../../components/common/TanStackTable";
 import { ActionIcon, Alert, Box, Button, Loader, NumberInput, Select, Switch, Text, ToolbarRow } from "@/ui";
 import { Icon } from "../../components/common/Icons";
-import { useAuth } from "../../components/auth/AuthProvider2";
+import { useAuth } from "../../components/auth/AuthProvider";
 import { TanStackTable } from "../../components/common/TanStackTable";
 import {
   addAdminPatternTimeframe,

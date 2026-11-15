@@ -25,8 +25,8 @@ import {
   closeEditModal,
 } from "../../state/bots";
 import type { BotConfig, BotsView } from "../../types/bots";
-import { BotConfigModal } from "./BotConfigModal2";
-import { BotStatusPanel } from "./BotStatusPanel2";
+import { BotConfigModal } from "./BotConfigModal";
+import { BotStatusPanel } from "./BotStatusPanel";
 import { InlineLoader, ErrorAlert, EmptyCompact } from "../common/states";
 import { TanStackTable } from "../common/TanStackTable";
 import type { TableColumnDef as ColumnDef } from "../common/TanStackTable";

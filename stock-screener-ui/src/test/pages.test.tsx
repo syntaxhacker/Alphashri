@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Component } from "solid-js";
 import { MemoryRouter, Route } from "@solidjs/router";
 import { Notifications } from "@/ui";
-import { AuthContext } from "@/components/auth/AuthProvider2";
+import { AuthContext } from "@/components/auth/AuthProvider";
 import appSource from "../App.tsx?raw";
 import { renderWithProviders } from "../test-utils/renderWithProviders";
 

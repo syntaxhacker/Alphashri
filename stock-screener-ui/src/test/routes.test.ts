@@ -20,7 +20,11 @@ describe("route modules", () => {
   });
 
   it("/ redirects to /screener and /screener mounts the screener", () => {
-    expect(appSource).toContain('<Route path="/" component={() => <Navigate href="/screener" />} />');
+    expect(appSource).toContain('<Route path="/" component={RootRedirect} />');
+    expect(appSource).toContain("function RootRedirect()");
+    // The redirect must carry the query/hash, or /?tab=market lands on Dashboard.
+    expect(appSource).toContain("location.search");
+    expect(appSource).toContain("location.hash");
     expect(appSource).toContain('<Route path="/screener" component={ScreenerContainer} />');
     expect(appSource).toContain('<Route path="*" component={() => <Navigate href="/screener" />} />');
   });

@@ -34,7 +34,7 @@ import {
   PaperTradingTabs,
 } from "./PaperTradingHelpers";
 import { LivePriceUpdater } from "./LivePriceUpdater";
-import { WatchlistScan2 } from "./WatchlistScan2";
+import { WatchlistScan2 } from "./WatchlistScan";
 import { SelectedPositionBar } from "./SelectedPositionBar";
 import { OptionPayoffCard } from "./OptionPayoffChart";
 import { isOptionTrade } from "./optionTradeUtils";

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
-import { BotConfigModal } from "./BotConfigModal2";
+import { BotConfigModal } from "./BotConfigModal";
 import type { BotConfig, AvailableStrategy } from "../../types/bots";
 
 import { Router } from "@solidjs/router";

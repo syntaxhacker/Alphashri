@@ -3,7 +3,7 @@ import type { JSX } from "solid-js";
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup, waitFor, within, fireEvent } from "@solidjs/testing-library";
-import { PaperChart } from "./PaperChart2";
+import { PaperChart } from "./PaperChart";
 import { mockPosition } from "./testFixtures";
 import type { PaperChartData, PaperTradingState } from "../../types/paperTrading";
 

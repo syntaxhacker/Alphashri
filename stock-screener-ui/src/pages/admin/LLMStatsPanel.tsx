@@ -1,7 +1,7 @@
 import { createSignal, createMemo, onMount, Show, For } from "solid-js";
 import { Alert, Badge, Box, Button, Loader, Stack, Text, ToolbarRow } from "@/ui";
 import { Icon } from "../../components/common/Icons";
-import { useAuth } from "../../components/auth/AuthProvider2";
+import { useAuth } from "../../components/auth/AuthProvider";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../../components/common/compact";
 import { TanStackTable } from "../../components/common/TanStackTable";
 import type { TableColumnDef } from "../../components/common/TanStackTable";

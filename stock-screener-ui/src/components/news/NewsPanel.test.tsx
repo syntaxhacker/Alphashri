@@ -54,7 +54,7 @@ vi.mock("./useNewsSourceGroups", () => ({
 }));
 
 // Import component and mocked modules after vi.mock
-import NewsPanel2 from "./NewsPanel2";
+import NewsPanel2 from "./NewsPanel";
 import { useNewsWebSocket } from "../../state/newsWebSocket";
 import { fetchNews, fetchArticle, fetchNewsSources } from "../../api/news";
 import { useNewsSourceGroups } from "./useNewsSourceGroups";

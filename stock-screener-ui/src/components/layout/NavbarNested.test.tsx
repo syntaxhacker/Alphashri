@@ -4,7 +4,7 @@ import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { Router } from "@solidjs/router";
 import { NavbarNested } from "./NavbarNested";
-import { AuthContext } from "../auth/AuthProvider2";
+import { AuthContext } from "../auth/AuthProvider";
 import * as hooks from "@/ui/hooks";
 
 const mockAdminAuth: any = {

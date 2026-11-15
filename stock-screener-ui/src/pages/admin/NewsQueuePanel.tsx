@@ -3,7 +3,7 @@ import { usePolling } from "@/hooks/usePolling";
 import { Alert, Badge, Box, Button, Loader, Progress, Stack, Text } from "@/ui";
 import { ToolbarRow } from "@/ui";
 import { Icon } from "../../components/common/Icons";
-import { useAuth } from "../../components/auth/AuthProvider2";
+import { useAuth } from "../../components/auth/AuthProvider";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../../components/common/compact";
 import type { NewsAnalysisQueueStatus, NewsAnalysisQueueStatusResponse } from "../../types/admin";
 

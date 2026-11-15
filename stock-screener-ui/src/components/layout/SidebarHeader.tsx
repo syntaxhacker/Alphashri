@@ -1,7 +1,7 @@
 import { Show } from "solid-js";
 import { IconBell, IconChevronLeft, IconChevronRight } from "../common/Icons";
 import { ActionIcon, Badge, Box, Stack, Text, Tooltip } from "@/ui";
-import NewsPanel2 from "../news/NewsPanel2";
+import NewsPanel2 from "../news/NewsPanel";
 import { MarketStatus, MarketTicker } from "./MarketTicker";
 
 const CONTROL_SIZE = 22;

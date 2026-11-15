@@ -88,15 +88,15 @@ vi.mock("./PaperPortfolioCard", () => ({
   PaperPortfolioCard: () => <div data-testid="paper-portfolio-card">Portfolio</div>,
 }));
 
-vi.mock("./PaperPositionsTable2", () => ({
+vi.mock("./PaperPositionsTable", () => ({
   PaperPositionsTable: () => <div data-testid="paper-positions-table">Positions</div>,
 }));
 
-vi.mock("./PaperChart2", () => ({
+vi.mock("./PaperChart", () => ({
   PaperChart: () => <div data-testid="paper-chart">Chart</div>,
 }));
 
-vi.mock("./PaperHistoryTable2", () => ({
+vi.mock("./PaperHistoryTable", () => ({
   PaperHistoryTable: () => <div data-testid="paper-history-table">History</div>,
 }));
 
@@ -120,7 +120,7 @@ vi.mock("../common/BadgeComponents", () => ({
   ),
 }));
 
-import { PaperTradingView } from "./PaperTradingView2";
+import { PaperTradingView } from "./PaperTradingView";
 
 beforeEach(() => {
   resetMockStateStore();

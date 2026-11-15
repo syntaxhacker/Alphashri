@@ -21,7 +21,7 @@ import { For, Show, createMemo } from "solid-js";
 import { Box, Group, ScrollArea, Stack, ActionIcon, Divider, useColorScheme } from "@/ui";
 import { NavbarLinksGroup } from "./NavbarLinksGroup";
 import { UserButton } from "./UserButton";
-import { useAuth } from "../auth/AuthProvider2";
+import { useAuth } from "../auth/AuthProvider";
 
 interface NavbarNestedProps {
   activePath: string;

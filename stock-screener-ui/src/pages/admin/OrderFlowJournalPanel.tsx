@@ -4,7 +4,7 @@ import type { TableColumnDef } from "../../components/common/TanStackTable";
 import { Alert, Badge, Box, Button, Loader, Select, Stack, Text } from "@/ui";
 import { ToolbarRow } from "@/ui";
 import { Icon } from "../../components/common/Icons";
-import { useAuth } from "../../components/auth/AuthProvider2";
+import { useAuth } from "../../components/auth/AuthProvider";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../../components/common/compact";
 import { TanStackTable } from "../../components/common/TanStackTable";
 import type { OrderFlowJournalRow, OrderFlowJournalSummary } from "../../types/admin";

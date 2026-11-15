@@ -15,7 +15,7 @@ const renderPanel = () => render(() => <Admin52wRangePanel />);
 
 const mockFetchWithAuth = vi.fn();
 
-vi.mock("../../components/auth/AuthProvider2", () => ({
+vi.mock("../../components/auth/AuthProvider", () => ({
   useAuth: () => ({ fetchWithAuth: mockFetchWithAuth }),
 }));
 
