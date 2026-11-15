@@ -18,6 +18,8 @@ export interface SliderProps {
 interface RangeSliderProps extends Omit<SliderProps, "value" | "onChange"> {
   value: [number, number];
   onChange: (value: [number, number]) => void;
+  /** Keep `label` for aria only; the caller renders its own header. */
+  hideHeader?: boolean;
   /**
    * Preview the drag locally and notify once, on pointer-up. For consumers whose
    * onChange rebuilds an expensive subtree (a 3k-row table): a per-move commit
@@ -270,7 +272,7 @@ export function RangeSlider(props: RangeSliderProps) {
 
   return (
     <div class="flex flex-col gap-1 min-w-0 w-full" data-testid={props.testId}>
-      <Show when={props.label}>
+      <Show when={props.label && !props.hideHeader}>
         <div class="flex items-center justify-between gap-1 min-w-0">
           <span class="text-[10px] font-semibold uppercase tracking-[0.4px] text-fin-text-muted truncate">
             {props.label}
