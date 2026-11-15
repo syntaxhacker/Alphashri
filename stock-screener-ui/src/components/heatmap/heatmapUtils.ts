@@ -172,11 +172,18 @@ export function getMetricValue(stock: HeatmapStock, metric: string): number {
   }
 }
 
+/**
+ * Input is **rupees** (the treemaps convert the snapshot's crore to rupees).
+ * The crore band is 1e7, not 1e8: a ₹54,236 Cr company was rendering as
+ * "₹54.2L" — the tooltip disagreed with the table's ₹Cr column by 10^5.
+ */
 export function formatMarketCap(mcap: number): string {
+  if (!Number.isFinite(mcap) || mcap <= 0) return "—";
   if (mcap >= 1e12) return `₹${(mcap / 1e12).toFixed(1)}T`;
-  if (mcap >= 1e10) return `₹${(mcap / 1e10).toFixed(1)}L`;
-  if (mcap >= 1e8) return `₹${(mcap / 1e8).toFixed(1)}Cr`;
-  return `₹${(mcap / 1e6).toFixed(0)}M`;
+  if (mcap >= 1e9) return `₹${(mcap / 1e9).toFixed(1)}B`;
+  if (mcap >= 1e7) return `₹${(mcap / 1e7).toFixed(1)}Cr`;
+  if (mcap >= 1e5) return `₹${(mcap / 1e5).toFixed(1)}L`;
+  return `₹${Math.round(mcap)}`;
 }
 
 export interface MetricConfig {
