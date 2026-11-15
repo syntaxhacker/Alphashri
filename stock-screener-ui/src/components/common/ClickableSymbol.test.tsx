@@ -8,8 +8,8 @@ import { ClickableSymbol } from "./ClickableSymbol";
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
-  showPreviewChart: vi.fn(),
-  hidePreviewChart: vi.fn(),
+  preview: vi.fn(),
+  endPreview: vi.fn(),
 }));
 
 vi.mock("@solidjs/router", async (importOriginal) => {
@@ -17,10 +17,14 @@ vi.mock("@solidjs/router", async (importOriginal) => {
   return { ...actual, useNavigate: () => mocks.navigate };
 });
 
-vi.mock("./PreviewChartProvider", () => ({
-  usePreviewChart: () => ({
-    showPreviewChart: mocks.showPreviewChart,
-    hidePreviewChart: mocks.hidePreviewChart,
+vi.mock("./symbolDockContext", () => ({
+  useSymbolDock: () => ({
+    preview: mocks.preview,
+    endPreview: mocks.endPreview,
+    open: vi.fn(),
+    close: vi.fn(),
+    pinned: false,
+    setOutlet: vi.fn(),
   }),
 }));
 
@@ -85,7 +89,7 @@ describe("ClickableSymbol", () => {
   it("shows preview chart on hover when showPreview=true", async () => {
           renderComponent({ showPreview: true });
     await fireEvent.mouseEnter(screen.getByTestId("symbol-link-RELIANCE-wrap"));
-    expect(mocks.showPreviewChart).toHaveBeenCalled();
+    expect(mocks.preview).toHaveBeenCalled();
   });
 
   it("hides preview chart on mouse leave", async () => {
@@ -93,13 +97,12 @@ describe("ClickableSymbol", () => {
     const wrap = screen.getByTestId("symbol-link-RELIANCE-wrap");
     await fireEvent.mouseEnter(wrap);
     await fireEvent.mouseLeave(wrap);
-    expect(mocks.hidePreviewChart).toHaveBeenCalled();
+    expect(mocks.endPreview).toHaveBeenCalled();
   });
 
-  it("debounces hover preview with timeout", async () => {
-          renderComponent({ showPreview: true, previewTimeout: 5000 });
+  it("does not preview when showPreview=false", async () => {
+    renderComponent();
     await fireEvent.mouseEnter(screen.getByTestId("symbol-link-RELIANCE-wrap"));
-    await fireEvent.mouseLeave(screen.getByTestId("symbol-link-RELIANCE-wrap"));
-    expect(mocks.hidePreviewChart).toHaveBeenCalled();
+    expect(mocks.preview).not.toHaveBeenCalled();
   });
 });

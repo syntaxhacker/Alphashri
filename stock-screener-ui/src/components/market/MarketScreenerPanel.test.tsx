@@ -246,3 +246,18 @@ describe("MarketScreenerPanel — non-blocking filters", () => {
     expect(screen.getByTestId("market-result-count")).toHaveTextContent("496 / 496");
   });
 });
+
+describe("MarketScreenerPanel — selected row affordance", () => {
+  test("click and ArrowDown both tint the selected row", async () => {
+    r(<MarketScreenerPanel />);
+    const reliance = screen.getByTestId("market-row-RELIANCE");
+    const mphasis = screen.getByTestId("market-row-MPHASIS");
+    const base = reliance.style.backgroundColor;
+
+    await fireEvent.click(reliance);
+    expect(reliance.style.backgroundColor).not.toBe(base);
+
+    await fireEvent.keyDown(document, { key: "ArrowDown" });
+    expect(mphasis.style.backgroundColor).not.toBe(base);
+  });
+});

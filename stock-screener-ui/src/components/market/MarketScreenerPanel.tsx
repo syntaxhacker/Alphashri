@@ -4,6 +4,9 @@ import {
   createEffect,
   createMemo,
   createSignal,
+  onCleanup,
+  onMount,
+  type JSX,
 } from "solid-js";
 import {
   Box,
@@ -36,9 +39,11 @@ import {
   type MarketFilterState,
 } from "./marketFilters";
 import { buildMarketColumns } from "./marketColumns";
+import { alpha, PRIMARY } from "@/ui/palette";
 import { MarketFilterRail } from "./MarketFilterRail";
 import { MarketMapView, MarketViewToggle, type MarketViewMode } from "./MarketMapView";
 import { TanStackTable } from "../common/TanStackTable";
+import { ChartDockOutlet } from "../common/ChartDockOutlet";
 import { useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
 import { useSymbolDock } from "../common/symbolDockContext";
 
@@ -62,7 +67,7 @@ function MarketGrid(props: {
   hasActiveFilters: boolean;
   onResetFilters: () => void;
   onRowClick: (row: MarketRow) => void;
-  getRowStyle: (row: MarketRow) => { backgroundColor: string } | undefined;
+  getRowStyle: (row: MarketRow) => JSX.CSSProperties | undefined;
   getRowTestId: (row: MarketRow) => string;
 }) {
   return (
@@ -110,6 +115,7 @@ export function MarketScreenerPanel() {
   const [selectedSymbol, setSelectedSymbol] = createSignal<string | null>(null);
   const dock = useSymbolDock();
   const isNarrow = useMediaQuery("(max-width: 1023px)");
+  const isWide = useMediaQuery("(min-width: 1400px)");
 
   const { rows, total, updateMode, asOf, isLoading, error, refresh, stale: cachedStale, warming } =
     useMarketSnapshotSolid(universe);
@@ -231,23 +237,53 @@ export function MarketScreenerPanel() {
     dock.open(row.symbol);
   };
 
-  const getRowStyle = (row: MarketRow) =>
+  const rowIndex = createMemo(() => {
+    const symbol = selectedSymbol();
+    return symbol ? filteredRows().findIndex((row) => row.symbol === symbol) : -1;
+  });
+
+  const stepSymbol = (direction: 1 | -1) => {
+    const rows = filteredRows();
+    const current = rowIndex();
+    if (!rows.length || current < 0) return;
+    const next = rows[Math.min(Math.max(current + direction, 0), rows.length - 1)];
+    if (next.symbol === selectedSymbol()) return;
+    setSelectedSymbol(next.symbol);
+    dock.open(next.symbol);
+    document
+      .querySelector(`[data-testid="market-row-${next.symbol}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  };
+
+  // Arrow keys walk the filtered list and re-point the chart at the new symbol.
+  onMount(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (!selectedSymbol()) return;
+      event.preventDefault();
+      stepSymbol(event.key === "ArrowDown" ? 1 : -1);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    onCleanup(() => document.removeEventListener("keydown", onKeyDown));
+  });
+
+  const getRowStyle = (row: MarketRow): JSX.CSSProperties | undefined =>
     row.symbol === selectedSymbol()
-      ? { backgroundColor: "rgba(88, 166, 255, 0.12)" }
+      ? { "background-color": alpha(PRIMARY, 0.16) }
       : undefined;
 
   const getRowTestId = (row: MarketRow) => `market-row-${row.symbol}`;
-
-  const rail = () => (
-    <MarketFilterRail
-      filters={filters()}
-      onChange={patchFilters}
-      sectors={sectors()}
-      tierCounts={tierCounts()}
-      onCollapse={isNarrow() ? () => setDrawerOpen(false) : () => setRailCollapsed(true)}
-      collapseLabel={isNarrow() ? "Close filters" : "Collapse filters"}
-    />
-  );
 
   return (
     <Box
@@ -434,7 +470,14 @@ export function MarketScreenerPanel() {
             data-testid="market-rail-panel"
             className="w-[240px] flex-shrink-0 min-h-0 overflow-y-auto border border-fin-border rounded-sm bg-fin-surface"
           >
-            {rail()}
+            <MarketFilterRail
+              filters={filters()}
+              onChange={patchFilters}
+              sectors={sectors()}
+              tierCounts={tierCounts()}
+              onCollapse={isNarrow() ? () => setDrawerOpen(false) : () => setRailCollapsed(true)}
+              collapseLabel={isNarrow() ? "Close filters" : "Collapse filters"}
+            />
           </Box>
         </Show>
 
@@ -506,6 +549,9 @@ export function MarketScreenerPanel() {
             </Paper>
           </Show>
         </Box>
+        <Show when={isWide()}>
+          <ChartDockOutlet class="flex-shrink-0 basis-[38%] min-w-80 max-w-3xl min-h-0 empty:hidden" />
+        </Show>
       </Box>
 
       <Show when={isNarrow() && drawerOpen()}>
@@ -519,7 +565,14 @@ export function MarketScreenerPanel() {
             className="absolute inset-y-0 left-0 w-72 max-w-[280px] bg-fin-surface border-r border-fin-border flex flex-col transform transition-transform duration-300"
             onClick={(e) => e.stopPropagation()}
           >
-            {rail()}
+            <MarketFilterRail
+              filters={filters()}
+              onChange={patchFilters}
+              sectors={sectors()}
+              tierCounts={tierCounts()}
+              onCollapse={isNarrow() ? () => setDrawerOpen(false) : () => setRailCollapsed(true)}
+              collapseLabel={isNarrow() ? "Close filters" : "Collapse filters"}
+            />
           </Box>
         </Box>
       </Show>

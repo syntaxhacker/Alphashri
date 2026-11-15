@@ -6,6 +6,11 @@
 - **NEVER push directly to `develop` or `main`** — both are protected shared branches. All work goes through a short-lived feature branch (`feat/…`, `fix/…`, `chore/…`, `docs/…`) pushed to origin, then a PR targeting `develop` (or `develop` → `main` to release). No direct `git push origin develop` / `git push origin main`, ever.
 - **NEVER delete report artifacts** — anything under `reports/**` (figures, PNGs, HTML, CSV, JSON, scripts, notes) is kept, even after regeneration. Overwrite in place instead of `rm`-ing first. The user deletes their own reports.
 
+## Tooling — edit files natively
+- Use the native `read` / `edit` / `write` tools for every file read or write. Do **not** shell out to `sed -i`, `python - <<EOF`, `cat >`, `perl -pi`, or `awk` to modify files.
+- The shell is for running things: build, tests, git, `grep`/`rg`, `find`. Locate with `grep`/`glob`, then `read` before `edit`.
+- Bulk mechanical edits (a rename across 40 files) may use a checked-in script, but the script itself is written with the native tools and reviewed before it runs.
+
 ## 🛡️ Agent Git Safety (STRICT — ZERO EXCEPTIONS)
 **Destructive git is FORBIDDEN without explicit user `yes` in same turn:** `reset --hard`, `checkout --`, `restore`, `clean -fd`, `branch -D`, `push --force`, `stash` (push/pop/apply/clear/drop), `rebase`, `merge`, `cherry-pick`, `revert`, or any `HEAD`-moving command.
 
@@ -81,6 +86,7 @@ Single source is `src/ui/palette.ts`; `src/tailwind.css` mirrors it (guarded by 
 
 ## UI Revamp Rules (MANDATORY — read before touching any tab/page)
 Full rules: [UI_RULES.md](./UI_RULES.md). Checklist to tick for every revamp: [UI_CHECKLIST.md](./UI_CHECKLIST.md).
+Judgement rules for any screen: [docs/UX_PRINCIPLES.md](./docs/UX_PRINCIPLES.md) — in-flow over overlay, one surface per concept, no dead ends, keyboard parity, measure before claiming.
 1. **`@/ui` is local semantic HTML + Tailwind.** Mantine-only props (`styles`) are dropped. Never pass `styles={{...}}` (guard test fails). Inputs honor `w`/`h`; when `w` is set the input stops being full-width.
 2. **Inputs default to `fullWidth`.** In a row, give each an explicit `w={n}` or wrap it in a flex cell (`<Box className="flex-1 min-w-0">` + `style={{ width: "100%" }}`). Accidental full-width selects are a bug.
 3. **Control rows use `<ToolbarRow>`** (from `@/ui`) — it forces `align-items:center` + explicit gap. `Group` defaults to `align-items: stretch`; if used for controls, pass `align="center"`.

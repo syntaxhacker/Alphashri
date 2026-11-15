@@ -789,13 +789,14 @@ describe("PatternsPage", () => {
     expect(screen.getByTestId("patterns-empty")).toBeInTheDocument();
   });
 
-  test("keeps the list mounted with a refresh overlay while reloading", () => {
+  test("keeps the list mounted and shows a non-blocking refresh chip", async () => {
     r(<PatternsPage {...makeProps({ loading: true })} />);
     // Existing results stay visible (no remount churn)…
     expect(screen.getByTestId("patterns-list")).toBeInTheDocument();
-    // …with an overlay spinner instead of the full-page loader.
-    expect(screen.getByTestId("patterns-refreshing")).toBeInTheDocument();
     expect(screen.queryByTestId("patterns-loading")).not.toBeInTheDocument();
+    // …with a delayed chip instead of a blocking overlay.
+    const chip = await screen.findByTestId("patterns-refreshing", {}, { timeout: 1000 });
+    expect(chip).toBeInTheDocument();
   });
 
   test("TLS/TLR toggle reflects state and calls setComputeTrendlines", async () => {

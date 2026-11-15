@@ -2,6 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { fireEvent, render, screen } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import { RangeSlider } from "./RangeSlider";
 import { UIProvider } from "../theme";
 
@@ -21,6 +22,37 @@ function renderSlider(props: Partial<Parameters<typeof RangeSlider>[0]> = {}) {
     </UIProvider>
   ));
   return { onChange, ...view };
+}
+
+/** Controlled host: a real drag only behaves like production when the parent
+ *  feeds the emitted pair back in (keyboard repeat, crossing, collapsed pair). */
+function renderControlled(
+  initial: [number, number],
+  props: Partial<Parameters<typeof RangeSlider>[0]> = {},
+) {
+  const calls: [number, number][] = [];
+  const Harness = () => {
+    const [pair, setPair] = createSignal<[number, number]>(initial);
+    return (
+      <UIProvider>
+        <RangeSlider
+          value={pair()}
+          onChange={(next) => {
+            calls.push(next);
+            setPair(next);
+          }}
+          min={0}
+          max={100}
+          label="Score"
+          testId="rng"
+          {...props}
+        />
+      </UIProvider>
+    );
+  };
+  const view = render(() => <Harness />);
+  const track = () => view.container.querySelector('[data-testid="rng-track"]') as HTMLElement;
+  return { calls, track, ...view };
 }
 
 /**
@@ -55,6 +87,15 @@ function stubTrackGeometry(el: HTMLElement, left = 0, width = 200) {
 function pointer(el: HTMLElement, type: string, clientX: number) {
   fireEvent(el, new MouseEvent(type, { clientX, bubbles: true, button: 0 }) as never);
 }
+
+/** Pointer capture is keyed by pointerId, so drags need a real PointerEvent. */
+function pointerId(el: HTMLElement, type: string, clientX: number, id = 1) {
+  fireEvent(el, new PointerEvent(type, { clientX, bubbles: true, button: 0, pointerId: id }) as never);
+}
+
+const ariaNow = (el: HTMLElement) => Number(el.getAttribute("aria-valuenow"));
+const ariaMin = (el: HTMLElement) => Number(el.getAttribute("aria-valuemin"));
+const ariaMax = (el: HTMLElement) => Number(el.getAttribute("aria-valuemax"));
 
 describe("RangeSlider drag", () => {
   it("a pointerdown on the track moves the nearest end to that position", () => {
@@ -110,6 +151,122 @@ describe("RangeSlider drag", () => {
     pointer(track, "pointerup", PAD + 60);
     pointer(track, "pointermove", PAD + 190);
     expect(onChange.mock.calls.length).toBe(afterDown);
+  });
+
+  it("commits once on release under commitOnRelease and previews in between", () => {
+    const { onChange, container } = renderSlider({ value: [20, 80], commitOnRelease: true });
+    const track = container.querySelector('[data-testid="rng-track"]') as HTMLElement;
+    stubTrackGeometry(track);
+    pointerId(track, "pointerdown", PAD + 60);
+    pointerId(track, "pointermove", PAD + 70);
+    pointerId(track, "pointermove", PAD + 80);
+    expect(onChange).not.toHaveBeenCalled();
+    // The preview is visible while dragging — that is the point of the mode.
+    expect(screen.getByTestId("rng-readout")).toHaveTextContent(`40 – 80`);
+    pointerId(track, "pointerup", PAD + 80);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith([40, 80]);
+  });
+
+  it("flushes the pending preview exactly once on pointercancel", () => {
+    const { onChange, container } = renderSlider({ value: [20, 80], commitOnRelease: true });
+    const track = container.querySelector('[data-testid="rng-track"]') as HTMLElement;
+    stubTrackGeometry(track);
+    pointerId(track, "pointerdown", PAD + 60);
+    pointerId(track, "pointermove", PAD + 100);
+    pointerId(track, "pointercancel", PAD + 100);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith([50, 80]);
+    // A cancel is the end of the gesture: a later move must not resurrect it.
+    pointerId(track, "pointermove", PAD + 150);
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("flushes the pending preview when the browser steals the capture", () => {
+    // No pointerup arrives when capture is lost (element scrolled out, the OS
+    // took the pointer); without this the drag stayed in preview and the
+    // consumer never learned the new range.
+    const { onChange, container } = renderSlider({ value: [20, 80], commitOnRelease: true });
+    const track = container.querySelector('[data-testid="rng-track"]') as HTMLElement;
+    stubTrackGeometry(track);
+    pointerId(track, "pointerdown", PAD + 60);
+    pointerId(track, "pointermove", PAD + 100);
+    pointerId(track, "lostpointercapture", PAD + 100);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith([50, 80]);
+  });
+
+  it("ignores a second pointer's release so a two-finger tap cannot drop the drag", () => {
+    const { onChange, container } = renderSlider({ value: [20, 80] });
+    const track = container.querySelector('[data-testid="rng-track"]') as HTMLElement;
+    stubTrackGeometry(track);
+    pointerId(track, "pointerdown", PAD + 60, 1);
+    pointerId(track, "pointermove", PAD + 70, 1);
+    const before = onChange.mock.calls.length;
+    pointerId(track, "pointerup", PAD + 70, 2);
+    pointerId(track, "pointermove", PAD + 90, 1);
+    expect(onChange.mock.calls.length).toBe(before + 1);
+    expect(onChange).toHaveBeenLastCalledWith([45, 80]);
+  });
+
+  it("releases pointer capture on release", () => {
+    const { container } = renderSlider({ value: [20, 80] });
+    const track = container.querySelector('[data-testid="rng-track"]') as HTMLElement;
+    stubTrackGeometry(track);
+    pointerId(track, "pointerdown", PAD + 60, 7);
+    expect(track.hasPointerCapture(7)).toBe(true);
+    pointerId(track, "pointerup", PAD + 60, 7);
+    expect(track.hasPointerCapture(7)).toBe(false);
+  });
+
+  it("does not move either thumb when disabled", () => {
+    const { onChange, container } = renderSlider({ value: [20, 80], disabled: true });
+    const track = container.querySelector('[data-testid="rng-track"]') as HTMLElement;
+    stubTrackGeometry(track);
+    pointer(track, "pointerdown", PAD + 60);
+    pointer(track, "pointermove", PAD + 190);
+    pointer(track, "pointerup", PAD + 190);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("dragging the lower end to the far right pins it at the upper end without inverting", () => {
+    const { onChange, container } = renderSlider({ value: [20, 80] });
+    const track = container.querySelector('[data-testid="rng-track"]') as HTMLElement;
+    stubTrackGeometry(track);
+    pointer(track, "pointerdown", PAD + 60);
+    pointer(track, "pointermove", PAD + 200);
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(next).toEqual([80, 80]);
+  });
+
+  it("dragging the upper end to the far left pins it at the lower end without inverting", () => {
+    const { onChange, container } = renderSlider({ value: [20, 80] });
+    const track = container.querySelector('[data-testid="rng-track"]') as HTMLElement;
+    stubTrackGeometry(track);
+    pointer(track, "pointerdown", PAD + 150);
+    pointer(track, "pointermove", PAD);
+    const [next] = onChange.mock.calls.at(-1)!;
+    expect(next).toEqual([20, 20]);
+  });
+
+  it("a collapsed pair can still be dragged apart from either side", () => {
+    const { calls, track } = renderControlled([50, 50]);
+    stubTrackGeometry(track());
+    // Right of the collapsed pair grabs the upper end and pushes it right.
+    pointer(track(), "pointerdown", PAD + 150);
+    expect(calls.at(-1)).toEqual([50, 75]);
+    // Left of it grabs the lower end.
+    pointer(track(), "pointerup", PAD + 150);
+    pointer(track(), "pointerdown", PAD + 50);
+    expect(calls.at(-1)).toEqual([25, 75]);
+  });
+
+  it("moves focus to the thumb the pointer grabbed", () => {
+    const { container } = renderSlider({ value: [20, 80] });
+    const track = container.querySelector('[data-testid="rng-track"]') as HTMLElement;
+    stubTrackGeometry(track);
+    pointer(track, "pointerdown", PAD + 150);
+    expect(document.activeElement).toBe(screen.getAllByRole("slider")[1]);
   });
 });
 
@@ -177,6 +334,93 @@ describe("RangeSlider", () => {
   it("formats the readout with the caller's formatter", () => {
     renderSlider({ formatValue: (v) => `${v}%` });
     expect(screen.getByTestId("rng-readout")).toHaveTextContent("20% – 80%");
+  });
+
+  it("publishes the formatted value and orientation to assistive tech", () => {
+    renderSlider({ formatValue: (v) => `₹${v}` });
+    const [minThumb, maxThumb] = screen.getAllByRole("slider");
+    // The readout says "₹20"; a screen reader that only gets `aria-valuenow=20`
+    // reads a bare number, so the two surfaces disagreed.
+    expect(minThumb).toHaveAttribute("aria-valuetext", "₹20");
+    expect(maxThumb).toHaveAttribute("aria-valuetext", "₹80");
+    expect(minThumb).toHaveAttribute("aria-orientation", "horizontal");
+    expect(maxThumb).toHaveAttribute("aria-orientation", "horizontal");
+  });
+
+  it("keeps aria-valuemin <= aria-valuenow <= aria-valuemax for an out-of-range value", () => {
+    renderSlider({ value: [-40, 240], min: 0, max: 100 });
+    const [minThumb, maxThumb] = screen.getAllByRole("slider");
+    for (const thumb of [minThumb, maxThumb]) {
+      expect(ariaMin(thumb)).toBeLessThanOrEqual(ariaNow(thumb));
+      expect(ariaNow(thumb)).toBeLessThanOrEqual(ariaMax(thumb));
+    }
+    // Readout agrees with aria rather than showing the impossible -40 – 240.
+    expect(screen.getByTestId("rng-readout")).toHaveTextContent("0 – 100");
+  });
+
+  it("orders a reversed value pair instead of painting an inverted fill", () => {
+    renderSlider({ value: [80, 20] });
+    const [minThumb, maxThumb] = screen.getAllByRole("slider");
+    expect(ariaNow(minThumb)).toBe(20);
+    expect(ariaNow(maxThumb)).toBe(80);
+    const fillEl = screen.getByTestId("rng-track").querySelectorAll("div")[0].firstElementChild as HTMLElement;
+    expect(fillEl.style.left).toBe("20%");
+    expect(fillEl.style.width).toBe("60%");
+  });
+
+  it("orders a reversed domain so the thumbs still span min..max", () => {
+    renderSlider({ value: [20, 80], min: 100, max: 0 });
+    const [minThumb] = screen.getAllByRole("slider");
+    expect(ariaMin(minThumb)).toBe(0);
+    expect(ariaMax(minThumb)).toBe(100);
+    fireEvent.keyDown(minThumb, { key: "ArrowRight" });
+    expect(screen.getByTestId("rng-readout")).toHaveTextContent("20 – 80");
+  });
+
+  it("Home/End reach the domain bounds of a reversed domain, not its ends", () => {
+    const { onChange } = renderSlider({ value: [20, 80], min: 100, max: 0 });
+    const [minThumb, maxThumb] = screen.getAllByRole("slider");
+    // Pre-fix `max` was read raw, so End went to the numerically-smaller bound.
+    fireEvent.keyDown(maxThumb, { key: "End" });
+    expect(onChange).toHaveBeenLastCalledWith([20, 100]);
+    fireEvent.keyDown(minThumb, { key: "Home" });
+    expect(onChange).toHaveBeenLastCalledWith([0, 80]);
+  });
+
+  it("snaps a fractional step without float drift", () => {
+    // 0.2 + 0.1 is 0.30000000000000004 in binary floating point, which then
+    // leaks into the committed filter and the emitted API param.
+    const { onChange } = renderSlider({ value: [0.2, 80], step: 0.1 });
+    const [minThumb] = screen.getAllByRole("slider");
+    fireEvent.keyDown(minThumb, { key: "ArrowRight" });
+    expect(onChange).toHaveBeenCalledWith([0.3, 80]);
+  });
+
+  it("emits exactly one change per key press under commitOnRelease", () => {
+    const { onChange } = renderSlider({ commitOnRelease: true });
+    const [minThumb] = screen.getAllByRole("slider");
+    fireEvent.keyDown(minThumb, { key: "ArrowRight" });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith([21, 80]);
+    fireEvent.keyDown(minThumb, { key: "ArrowRight" });
+    expect(onChange).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps keyboard repeat stable across presses with the parent feeding values back", () => {
+    const { calls } = renderControlled([20, 80], { commitOnRelease: true });
+    const [minThumb] = screen.getAllByRole("slider");
+    fireEvent.keyDown(minThumb, { key: "ArrowRight" });
+    fireEvent.keyDown(minThumb, { key: "ArrowRight" });
+    fireEvent.keyDown(minThumb, { key: "ArrowRight" });
+    expect(calls).toEqual([[21, 80], [22, 80], [23, 80]]);
+  });
+
+  it("does not nudge a disabled thumb even when the event is dispatched", () => {
+    const { onChange } = renderSlider({ disabled: true });
+    const [minThumb] = screen.getAllByRole("slider");
+    fireEvent.keyDown(minThumb, { key: "ArrowRight" });
+    fireEvent.keyDown(minThumb, { key: "Home" });
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("renders marks at their proportional positions", () => {

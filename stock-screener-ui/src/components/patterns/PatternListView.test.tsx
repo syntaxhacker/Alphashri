@@ -6,6 +6,7 @@ vi.mock("@/ui", async () => {
   return mockSolidUi();
 });
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { createSignal } from "solid-js";
 import { cleanup, render, screen, within, fireEvent } from "@solidjs/testing-library";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { PatternListView } from "./PatternListView";
@@ -117,6 +118,23 @@ describe("PatternListView", () => {
       "patterns-list-row-BBB-falling_wedge-2",
       "patterns-list-row-AAA-falling_wedge-1",
     ]);
+  });
+
+  test("re-seeds when the rail sort changes after mount", () => {
+    const [sort, setSort] = createSignal("range_pos");
+    const hits = [
+      makeHit({ id: 1, symbol: "AAA", range_pos: 10, bars_ago: 1, confidence: 50 }),
+      makeHit({ id: 2, symbol: "BBB", range_pos: 90, bars_ago: 9, confidence: 60 }),
+    ];
+    render(() => <PatternListView hits={hits} onSelect={vi.fn()} sort={sort()} />);
+    const firstRow = () =>
+      within(screen.getByTestId("patterns-list"))
+        .getAllByTestId(/^patterns-list-row-/)[0]
+        .getAttribute("data-testid");
+
+    expect(firstRow()).toBe("patterns-list-row-BBB-falling_wedge-2");
+    setSort("newest");
+    expect(firstRow()).toBe("patterns-list-row-AAA-falling_wedge-1");
   });
 
   test("defaults to confidence desc (highest first)", () => {

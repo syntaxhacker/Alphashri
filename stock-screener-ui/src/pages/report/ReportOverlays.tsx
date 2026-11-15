@@ -46,7 +46,7 @@ export function ReportOverlays() {
 
   const getOiRowTestId = (row: NiftyStrike): string | undefined => {
     const atm = store.data.atmStrike();
-    return atm !== null && row.strike === atm ? "nifty-strike-atm" : "nifty-strike-row";
+    return atm !== null && row.strike === atm ? "nifty-strike-atm" : `nifty-strike-row-${row.strike}`;
   };
 
   const pressureRange = () => store.data.pressure();

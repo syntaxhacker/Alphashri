@@ -17,6 +17,14 @@ vi.setConfig({ testTimeout: 20_000 });
 // every async query room instead of sprinkling per-call timeouts.
 configure({ asyncUtilTimeout: 10_000 });
 
+/** Every `setSearchParams` call, in order — options included, so push vs replace is assertable. */
+const paramWrites = vi.hoisted(
+  () => [] as Array<{
+    params: Record<string, string | string[] | null | undefined>;
+    options?: { replace?: boolean };
+  }>,
+);
+
 // @solidjs/router's navigation path never settles in happy-dom and MemoryRouter
 // has no initialEntries, so the router is replaced with a reactive
 // window.location-backed searchParams. The helper seeds it from initialRoute.
@@ -28,7 +36,8 @@ vi.mock("@solidjs/router", async () => {
   return {
     useSearchParams: () => [
       new Proxy({}, { get: (_, key) => search()[key as string] }) as Record<string, string | undefined>,
-      (params: Record<string, string | string[] | null | undefined>) => {
+      (params: Record<string, string | string[] | null | undefined>, options?: { replace?: boolean }) => {
+        paramWrites.push({ params, options });
         const next = { ...search() };
         for (const [k, v] of Object.entries(params)) {
           if (v == null || v === "" || (Array.isArray(v) && v.length === 0)) delete next[k];
@@ -49,6 +58,12 @@ const seedSearchParams = (route?: string) => {
   const q = (route ?? "/?tab=screener").split("?")[1];
   state[1](q ? Object.fromEntries(new URLSearchParams(q).entries()) : {});
 };
+
+/** The live query string as the component sees it. */
+const currentSearchParams = () =>
+  (globalThis as unknown as {
+    __screenerSearchParams?: [() => Record<string, string | undefined>, unknown];
+  }).__screenerSearchParams?.[0]() ?? {};
 
 const render = (ui: () => JSX.Element, options?: { initialRoute?: string }) => {
   seedSearchParams(options?.initialRoute);
@@ -170,11 +185,15 @@ vi.mock("../../hooks/useTableSort", () => ({
 }));
 
 // Mock the state module
+const selectedSymbolsRef = vi.hoisted(() => ({ current: [] as string[] }));
+
 vi.mock("../../state", () => ({
   profileMetaById: {
     trending: { section_labels: { primary: "Approaching", secondary: "Touched" } },
   },
-  selectedSymbols: [] as string[],
+  get selectedSymbols() {
+    return selectedSymbolsRef.current;
+  },
   toggleSymbolSelection: vi.fn(),
   setSelectedSymbols: vi.fn(),
   clearSelectedSymbols: vi.fn(),
@@ -345,6 +364,8 @@ describe("ScreenerPage", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    paramWrites.length = 0;
+    selectedSymbolsRef.current = [];
     seedSearchParams("/?tab=screener");
     dashboardMounts.count = 0;
     mockFetchMarketSnapshot.mockResolvedValue(marketSnapshot);
@@ -674,6 +695,95 @@ describe("ScreenerPage", () => {
       () => expect(screen.getByTestId("dashboard-view")).toBeVisible(),
       { timeout: 10_000 },
     );
+  });
+
+  it("pushes a history entry on tab change so Back returns to the previous tab", async () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=screener" });
+    expect(await screen.findByTestId("screener-table-approaching")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("tab-market"));
+
+    expect(paramWrites).toHaveLength(1);
+    expect(paramWrites[0].params.tab).toBe("market");
+    // `replace: true` kept Back on the tab you came from from ever being reachable.
+    expect(paramWrites[0].options?.replace).toBeFalsy();
+    expect(currentSearchParams().tab).toBe("market");
+  });
+
+  it("does not write the URL when the clicked tab is already active", async () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=screener" });
+    expect(await screen.findByTestId("screener-table-approaching")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("tab-screener"));
+
+    expect(paramWrites).toHaveLength(0);
+  });
+
+  it("drops correlation-only params when leaving the correlation tab", async () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>),
+      { initialRoute: "/?tab=correlation&symbols=INFY,TCS&timeframe=daily&period=90" });
+    expect(await screen.findByTestId("correlation-tab", undefined, { timeout: 10_000 })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("tab-config"));
+
+    await waitFor(() => expect(currentSearchParams().tab).toBe("config"));
+    // setSearchParams merges, so these only disappear if they are nulled out.
+    expect(currentSearchParams().symbols).toBeUndefined();
+    expect(currentSearchParams().timeframe).toBeUndefined();
+    expect(currentSearchParams().period).toBeUndefined();
+  });
+
+  it("keeps the screener profile param across tab changes", async () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=screener&screener=trending" });
+    expect(await screen.findByTestId("screener-table-approaching")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("tab-config"));
+    await waitFor(() => expect(currentSearchParams().tab).toBe("config"));
+    expect(currentSearchParams().screener).toBe("trending");
+  });
+
+  it("deep links land on their tab without rewriting the URL", async () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=deepvalue" });
+
+    expect(await screen.findByTestId("value-panel", undefined, { timeout: 10_000 })).toBeInTheDocument();
+    expect(paramWrites).toHaveLength(0);
+    expect(currentSearchParams().tab).toBe("deepvalue");
+  });
+
+  it("Compare pushes correlation params, which are dropped when leaving the tab", async () => {
+    selectedSymbolsRef.current = ["INFY", "TCS"];
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=screener" });
+    expect(await screen.findByTestId("screener-table-approaching")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("compare-btn"));
+
+    expect(currentSearchParams().tab).toBe("correlation");
+    expect(currentSearchParams().symbols).toBe("INFY,TCS");
+    expect(currentSearchParams().period).toBe("90");
+    expect(paramWrites.at(-1)?.options?.replace).toBeFalsy();
+
+    fireEvent.click(screen.getByTestId("tab-config"));
+    await waitFor(() => expect(currentSearchParams().tab).toBe("config"));
+    expect(currentSearchParams().symbols).toBeUndefined();
+    expect(currentSearchParams().period).toBeUndefined();
   });
 
   it("maps dashboard panels to screener profiles", () => {

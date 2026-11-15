@@ -13,15 +13,15 @@ import { buildPatternTVData } from "./patternTVData";
 import { selectLastN } from "./selectLastN";
 import { PatternChartLegend } from "./PatternChartLegend";
 import { PatternTradingViewChart } from "./PatternTradingViewChart";
+import { FullscreenPatternList, fullscreenHitKey } from "./FullscreenPatternList";
 import { KeyPointLegend } from "./KeyPointLegend";
 import { PivotList } from "./PatternPivotList";
 import { QualityBadge } from "./QualityBadge";
 import { StatusBadge } from "./StatusBadge";
 import { displayStatusForHit } from "./patternDisplayStatus";
 import { formatPrice } from "./shared";
-import { FullscreenPatternList, fullscreenHitKey } from "./FullscreenPatternList";
 import { KEY_POINTS_LEGEND_NAME, PIVOT_LEGEND_NAME } from "@/config/patterns";
-import { TEXT_MUTED, WARNING } from "@/ui/palette";
+import { PRIMARY, TEXT_MUTED, WARNING } from "@/ui/palette";
 
 export interface PatternChartBodyProps {
   hit: PatternHitDTO | null;
@@ -63,11 +63,28 @@ export interface PatternChartBodyProps {
  * audit list. Intentionally leaves vertical room free so future panels (levels,
  * trade plan, checklist) can be added without touching the chart layout.
  */
+function SectionLabel(props: { children?: JSX.Element; action?: JSX.Element }) {
+  return (
+    <Box className="flex items-center justify-between gap-2">
+      <Text
+        size="xs"
+        fw={700}
+        c="dimmed"
+        style={{ "font-size": "10px", "text-transform": "uppercase", "letter-spacing": "0.4px" }}
+      >
+        {props.children}
+      </Text>
+      {props.action}
+    </Box>
+  );
+}
+
 function FullscreenPanel(props: {
   hit: PatternHitDTO;
   hits?: PatternHitDTO[];
   onSelectHit?: (hit: PatternHitDTO) => void;
   candles?: ChartCandle[];
+  docked?: boolean;
 }) {
   // Live-detected hits carry no enrichment, so fall back to the chart's own
   // last two candles for Last close / Day.
@@ -85,43 +102,77 @@ function FullscreenPanel(props: {
   return (
     <Box
       data-testid="patterns-fullscreen-panel"
-      className="flex h-full min-w-0 flex-col gap-3 overflow-y-auto"
+      className="flex h-full min-w-0 flex-col overflow-y-auto"
     >
-      <Show when={props.hits && props.onSelectHit}>
-        <Box className="flex flex-col gap-2">
-          <FullscreenPatternList hits={props.hits!} activeKey={activeKey()} onSelect={props.onSelectHit!} />
-          <Box className="border-t border-fin-border" />
+      <Box className="flex flex-col gap-3 px-3 py-3">
+        <Box className="flex items-start justify-between gap-2">
+          <Box className="flex min-w-0 flex-col gap-1">
+            <Box className="flex items-baseline gap-2">
+              <Text fw={700} className="truncate text-[13px] leading-none">
+                {props.hit.symbol}
+              </Text>
+              <Text size="xs" c="dimmed" className="whitespace-nowrap text-[10px]">
+                {props.hit.timeframe} · {props.hit.bars_ago} bar{props.hit.bars_ago === 1 ? "" : "s"} ago
+              </Text>
+            </Box>
+            <Text size="xs" c="dimmed" className="truncate text-[11px]">
+              {props.hit.pattern_name}
+            </Text>
+          </Box>
+          <Box className="flex flex-shrink-0 items-center gap-1">
+            <StatusBadge status={props.hit.status} display={displayStatusForHit(props.hit)} />
+            <QualityBadge quality={props.hit.quality} />
+          </Box>
         </Box>
-      </Show>
-      <Box className="flex flex-col gap-2">
-        <ToolbarRow gap={4} wrap>
-          <StatusBadge status={props.hit.status} display={displayStatusForHit(props.hit)} />
-          <QualityBadge quality={props.hit.quality} />
-        </ToolbarRow>
-        <Text size="xs" c="dimmed" truncate>
-          {props.hit.symbol} · {props.hit.timeframe} · {props.hit.bars_ago} bar{props.hit.bars_ago === 1 ? "" : "s"} ago
-        </Text>
-        <ToolbarRow justify="space-between" gap={4}>
-          <Text size="xs" c="dimmed">
-            Last close
-          </Text>
-          <Text size="sm" fw={600}>
-            {formatPrice(lastClose())}
-          </Text>
-        </ToolbarRow>
-        <ToolbarRow justify="space-between" gap={4}>
-          <Text size="xs" c="dimmed">
-            Day
-          </Text>
-          <Text size="xs" c={getPnLTextColor(dayChange() ?? 0)}>
-            {dayChange() != null ? formatPercentage(dayChange()!, 2) : "—"}
-          </Text>
-        </ToolbarRow>
+
+        <Box className="flex items-end justify-between gap-3">
+          <Box className="flex min-w-0 flex-col gap-1">
+            <Text size="xs" c="dimmed" className="text-[10px] uppercase tracking-[0.4px]">
+              Last close
+            </Text>
+            <Box className="flex min-w-0 items-baseline gap-2">
+              <Text fw={600} className="font-mono tabular-nums text-[18px] leading-none">
+                {formatPrice(lastClose())}
+              </Text>
+              <Text
+                size="xs"
+                fw={600}
+                className="font-mono tabular-nums text-[11px]"
+                c={getPnLTextColor(dayChange() ?? 0)}
+              >
+                {dayChange() != null ? formatPercentage(dayChange()!, 2) : "—"}
+              </Text>
+            </Box>
+          </Box>
+          <Show when={props.hit.confidence != null}>
+            <Box className="flex w-28 flex-shrink-0 flex-col items-end gap-1">
+              <Text size="xs" c="dimmed" className="text-[10px] uppercase tracking-[0.4px]">
+                Confidence <span className="font-mono tabular-nums text-fin-text">{props.hit.confidence}%</span>
+              </Text>
+              <Box className="h-[3px] w-full overflow-hidden rounded-full bg-fin-surface-alt">
+                <Box
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${Math.max(0, Math.min(100, props.hit.confidence ?? 0))}%`,
+                    "background-color": PRIMARY,
+                  }}
+                />
+              </Box>
+            </Box>
+          </Show>
+        </Box>
       </Box>
 
+      <Show when={!props.docked && props.hits && props.onSelectHit}>
+        <Box className="border-t border-fin-border px-3 py-2">
+          <FullscreenPatternList hits={props.hits!} activeKey={activeKey()} onSelect={props.onSelectHit!} />
+        </Box>
+      </Show>
+
       <Show when={props.hit.notes}>
-        <Box className="border-t border-fin-border pt-2">
-          <Text size="xs" c="dimmed" style={{ "overflow-wrap": "anywhere" }}>
+        <Box className="flex flex-col gap-1 border-t border-fin-border px-3 py-2">
+          <SectionLabel>Notes</SectionLabel>
+          <Text size="xs" c="dimmed" className="text-[11px]" style={{ "overflow-wrap": "anywhere" }}>
             {props.hit.notes}
           </Text>
         </Box>
@@ -297,7 +348,7 @@ export function PatternChartBody(props: PatternChartBodyProps) {
             }`}
           >
             <Show when={props.hit} fallback={props.emptyState}>
-              {(h) => <FullscreenPanel hit={h()} hits={props.hits} onSelectHit={props.onSelectHit} candles={props.candles} />}
+              {(h) => <FullscreenPanel hit={h()} hits={props.hits} onSelectHit={props.onSelectHit} candles={props.candles} docked={docked()} />}
             </Show>
           </Box>
         </Show>

@@ -11,23 +11,25 @@ export function KeyPointLegend(props: { hit: PatternHitDTO }) {
     <Show when={meanings().length > 0}>
       <Box
         data-testid="patterns-key-point-legend"
-        className="flex flex-wrap items-baseline gap-x-1.5 gap-y-[2px] border-t border-fin-border pt-1"
+        className="flex flex-col gap-1 border-t border-fin-border px-3 py-2"
       >
         <Text
           size="xs"
           c="dimmed"
           fw={700}
-          style={{ "font-size": "10px", "text-transform": "uppercase" }}
+          style={{ "font-size": "10px", "text-transform": "uppercase", "letter-spacing": "0.4px" }}
         >
           Key points
         </Text>
-        <For each={meanings()}>
-          {(item, index) => (
-            <Text size="xs" c="dimmed" style={{ "font-size": "10px" }}>
-              {`${item.label} ${item.meaning}${index() < meanings().length - 1 ? " ·" : ""}`}
-            </Text>
-          )}
-        </For>
+        <Box className="flex flex-wrap gap-x-3 gap-y-0.5">
+          <For each={meanings()}>
+            {(item) => (
+              <Text size="xs" c="dimmed" style={{ "font-size": "11px" }}>
+                {`${item.label} ${item.meaning}`}
+              </Text>
+            )}
+          </For>
+        </Box>
       </Box>
     </Show>
   );

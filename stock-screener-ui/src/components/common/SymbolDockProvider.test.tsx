@@ -7,6 +7,7 @@ import { Router } from "@solidjs/router";
 import { UIProvider } from "@/ui";
 import { SymbolDockProvider } from "./SymbolDockProvider";
 import { SymbolDockContext } from "./symbolDockContext";
+import { ChartDockOutlet } from "./ChartDockOutlet";
 
 vi.mock("../../api/chartPatterns", () => ({
   fetchSymbolChart: vi.fn(),
@@ -212,5 +213,49 @@ describe("preview → endPreview race (A then B)", () => {
     await waitFor(() => expect(screen.getByTestId("symbol-dock")).toBeInTheDocument());
     expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("RELIANCE");
     expect(screen.getByTestId("patterns-chart-dock")).not.toHaveTextContent("IRCON");
+  });
+});
+
+describe("inline outlet", () => {
+  beforeEach(() => {
+    __resetFullscreen();
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("1200px"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  test("portals the chart into the page outlet instead of a fixed overlay", async () => {
+    mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
+    render(() => (
+      <Router
+        root={() => (
+          <UIProvider>
+            <SymbolDockProvider>
+              <DockHarness />
+              <ChartDockOutlet class="test-outlet" />
+            </SymbolDockProvider>
+          </UIProvider>
+        )}
+      />
+    ));
+
+    await fireEvent.click(screen.getByTestId("open-reliance"));
+
+    const outlet = screen.getByTestId("chart-dock-outlet");
+    await waitFor(() => expect(outlet.querySelector('[data-testid="symbol-dock"]')).not.toBeNull());
+    expect(outlet.querySelector('[data-testid="symbol-dock"]')!.className).not.toContain("fixed");
   });
 });
