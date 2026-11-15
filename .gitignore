@@ -102,3 +102,14 @@ mutants/
 !stock-screener-ui/tests/fixtures/*.json
 !stock-screener-ui/tests/indicators/fixtures/*.csv
 !stock-screener-ui/tests/indicators/fixtures/*.json
+
+# ---------------------------------------------------------------------------
+# Root-level caches and local residue
+# ---------------------------------------------------------------------------
+# The ignore rules for these lived only in stock-screener-ui/.gitignore, so a
+# `git add .` at the repo root could commit a 1 GB node_modules or test output.
+# `reports/` is deliberately ignored, not deleted: the artifacts stay on disk.
+node_modules/
+test-results/
+reports/
+venv/
