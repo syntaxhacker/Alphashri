@@ -675,6 +675,16 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
       }),
     });
   });
+
+  // Mock screener dashboard (registered after the broad /api/screener handler so it
+  // takes priority for /api/screener/dashboard requests).
+  await page.route(apiRoute("screener/dashboard"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(mockDashboardResponse),
+    });
+  });
 }
 
 // Mock strategy config
@@ -2179,3 +2189,106 @@ export async function setupValueScanMocks(page: import("@playwright/test").Page)
     });
   });
 }
+
+// Mock screener dashboard response (GET /api/screener/dashboard)
+// 2 sections x 1 panel x 3 rows, matching ScreenerDashboardResponse shape.
+// Panel ids "gainers" / "volume_surge" pass through as lone cards (no merge pair).
+export const mockDashboardResponse = {
+  universe: "nifty500",
+  as_of: "2026-10-21T15:30:00+05:30",
+  total: 6,
+  cached: false,
+  age_sec: 0,
+  sections: [
+    {
+      id: "movers",
+      title: "Movers",
+      total: 3,
+      panels: [
+        {
+          id: "gainers",
+          title: "Gainers",
+          metric_label: "Change %",
+          qualify: 3,
+          rows: [
+            {
+              symbol: "INDIAGLYCO",
+              name: "InterGlobe Aviation",
+              close: 3120.5,
+              change: 2.4,
+              logo: null,
+              sub_label: "Rel vol",
+              sub_value: "1.8x",
+              spark: [100, 102, 99, 101, 103, 102],
+            },
+            {
+              symbol: "RELIANCE",
+              name: "Reliance Industries",
+              close: 2940.0,
+              change: 1.2,
+              logo: null,
+              sub_label: "Rel vol",
+              sub_value: "1.4x",
+              spark: [98, 97, 99, 100, 101, 100],
+            },
+            {
+              symbol: "INFY",
+              name: "Infosys",
+              close: 1850.0,
+              change: 0.9,
+              logo: null,
+              sub_label: "Rel vol",
+              sub_value: "1.2x",
+              spark: [50, 51, 49, 50, 51, 50],
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: "unusual",
+      title: "Unusual",
+      total: 3,
+      panels: [
+        {
+          id: "volume_surge",
+          title: "Volume Surge",
+          metric_label: "Volume surge",
+          qualify: 3,
+          rows: [
+            {
+              symbol: "TCS",
+              name: "Tata Consultancy Services",
+              close: 4120.0,
+              change: -0.5,
+              logo: null,
+              sub_label: "Vol surge",
+              sub_value: "3.2x",
+              spark: [200, 205, 202, 208, 206, 204],
+            },
+            {
+              symbol: "HDFCBANK",
+              name: "HDFC Bank",
+              close: 1750.0,
+              change: 1.1,
+              logo: null,
+              sub_label: "Vol surge",
+              sub_value: "2.8x",
+              spark: [150, 148, 152, 151, 153, 150],
+            },
+            {
+              symbol: "ICICIBANK",
+              name: "ICICI Bank",
+              close: 1280.0,
+              change: -1.3,
+              logo: null,
+              sub_label: "Vol surge",
+              sub_value: "2.5x",
+              spark: [80, 82, 79, 81, 83, 80],
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
