@@ -1,9 +1,11 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { createSignal } from "solid-js";
-import { fireEvent, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { MultiSelect, tagFoldCount } from "./MultiSelect";
+
+afterEach(cleanup);
 
 describe("MultiSelect search handling", () => {
   test("forwards genuine typing to onSearchChange with reason 'input'", () => {
@@ -68,6 +70,124 @@ describe("MultiSelect search handling", () => {
     // The tag renders the selected label; with hideTags it must be absent.
     // (The "keeps a selected chip" test above is the positive control.)
     expect(screen.queryByText("BSE")).toBeNull();
+  });
+});
+
+const SECTORS = [
+  { value: "financials", label: "Financials" },
+  { value: "it", label: "IT" },
+  { value: "energy", label: "Energy" },
+];
+
+function SectorHarness(props: { onChange?: (v: string[]) => void }) {
+  const [value, setValue] = createSignal<string[]>([]);
+  return (
+    <MultiSelect
+      data={SECTORS}
+      value={value()}
+      onChange={(v) => {
+        setValue(v);
+        props.onChange?.(v);
+      }}
+      placeholder="All sectors"
+      clearable
+    />
+  );
+}
+
+const listboxEl = () => document.querySelector<HTMLElement>('[data-part="multiselect-listbox"]');
+const chipLabels = () =>
+  [...document.querySelectorAll<HTMLElement>('[data-part="multiselect-tag"]')].map((c) => c.firstElementChild?.textContent ?? "");
+
+function optionInput(label: string): HTMLInputElement {
+  const row = [...document.querySelectorAll<HTMLElement>('li[role="option"]')].find((li) => li.textContent?.includes(label));
+  if (!row) throw new Error(`option ${label} not rendered`);
+  return row.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+}
+
+async function openMenu(): Promise<HTMLElement> {
+  fireEvent.focus(screen.getByRole("combobox"));
+  const menu = await screen.findByRole("listbox");
+  return menu;
+}
+
+/**
+ * The listbox is portalled to <body> so the filter rail's `overflow-y-auto`
+ * cannot clip it. Outside-click detection used to test only the root, so a
+ * mousedown inside the menu counted as "outside": the menu unmounted before the
+ * checkbox's click could commit and the selection vanished.
+ */
+describe("MultiSelect — portalled listbox selection", () => {
+  test("a mousedown inside the listbox does not dismiss it", async () => {
+    render(() => <SectorHarness />);
+    await openMenu();
+    fireEvent.mouseDown(optionInput("Financials"));
+    expect(listboxEl()).not.toBeNull();
+  });
+
+  test("selecting one option commits and renders a chip", async () => {
+    const onChange = vi.fn();
+    render(() => <SectorHarness onChange={onChange} />);
+    await openMenu();
+    fireEvent.mouseDown(optionInput("Financials"));
+    fireEvent.click(optionInput("Financials"));
+    expect(onChange).toHaveBeenCalledWith(["financials"]);
+    expect(chipLabels()).toEqual(["Financials"]);
+    expect(listboxEl()).not.toBeNull();
+  });
+
+  test("selecting a second option keeps the first selection", async () => {
+    const onChange = vi.fn();
+    render(() => <SectorHarness onChange={onChange} />);
+    await openMenu();
+    fireEvent.mouseDown(optionInput("Financials"));
+    fireEvent.click(optionInput("Financials"));
+    fireEvent.mouseDown(optionInput("Energy"));
+    fireEvent.click(optionInput("Energy"));
+    expect(onChange).toHaveBeenLastCalledWith(["financials", "energy"]);
+    expect(chipLabels()).toEqual(["Financials", "Energy"]);
+  });
+
+  test("deselecting an option removes only that chip", async () => {
+    const onChange = vi.fn();
+    render(() => <SectorHarness onChange={onChange} />);
+    await openMenu();
+    for (const label of ["Financials", "Energy"]) {
+      fireEvent.mouseDown(optionInput(label));
+      fireEvent.click(optionInput(label));
+    }
+    fireEvent.mouseDown(optionInput("Financials"));
+    fireEvent.click(optionInput("Financials"));
+    expect(onChange).toHaveBeenLastCalledWith(["energy"]);
+    expect(chipLabels()).toEqual(["Energy"]);
+  });
+
+  test("clicking outside the portal still closes the menu", async () => {
+    render(() => <SectorHarness />);
+    await openMenu();
+    fireEvent.mouseDown(document.body);
+    expect(listboxEl()).toBeNull();
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  test("scrolling inside the listbox keeps it open", async () => {
+    render(() => <SectorHarness />);
+    await openMenu();
+    fireEvent.scroll(listboxEl()!);
+    expect(listboxEl()).not.toBeNull();
+  });
+
+  test("a menu orphaned by a detached trigger is cleared before another opens", async () => {
+    // A rootless tree never disposes, so its portalled menu would otherwise sit
+    // in <body> and answer queries for the next picker's options.
+    const first = render(() => <SectorHarness />);
+    await openMenu();
+    first.container.remove();
+    expect(listboxEl()).not.toBeNull();
+
+    render(() => <SectorHarness />);
+    await openMenu();
+    expect(document.querySelectorAll('[data-part="multiselect-listbox"]').length).toBe(1);
   });
 });
 
