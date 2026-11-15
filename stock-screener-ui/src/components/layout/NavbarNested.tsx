@@ -59,6 +59,11 @@ export function NavbarNested(props: NavbarNestedProps) {
     navItems.filter((item) => item.label !== "Admin" || auth.user?.is_admin),
   );
 
+  // `/screener/<tab>` is the same rail entry: tab paths share the screener link.
+  const isActive = (link: string) =>
+    props.activePath === link ||
+    (link === "/screener" && props.activePath.startsWith("/screener"));
+
   return (
     <Box data-testid="sidemenu" id="navbar-nested" className="flex flex-col flex-1 min-h-0">
       <Box className="flex-1 min-h-0 overflow-hidden" id="navbar-links" data-testid="navbar-links">
@@ -70,7 +75,7 @@ export function NavbarNested(props: NavbarNestedProps) {
                   icon={item.icon}
                   label={item.label}
                   link={item.link}
-                  active={props.activePath === item.link}
+                  active={isActive(item.link)}
                   collapsed={props.collapsed}
                   onNavigate={props.onMobileNavigate}
                 />

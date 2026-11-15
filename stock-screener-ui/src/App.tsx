@@ -39,9 +39,24 @@ const TickReplay = lazy(() => import("./pages/poc/TickReplay"));
 const ReplayStrategyPage = lazy(() => import("./pages/poc/ReplayStrategyPage"));
 const ReplayIndexPage = lazy(() => import("./pages/poc/ReplayIndexPage"));
 
-/** `/` is a back-compat alias: keep the query so `/?tab=market` still lands on that tab. */
+/**
+ * `/` is a back-compat alias. A legacy `?tab=` becomes a path segment so every
+ * old screener link converges on `/screener/<tab>`; the remaining query (and the
+ * hash) are preserved.
+ */
 function RootRedirect() {
   const location = useLocation();
+  const incoming = new URLSearchParams(location.search);
+  const legacyTab = incoming.get("tab");
+  if (legacyTab) {
+    incoming.delete("tab");
+    const rest = incoming.toString();
+    return (
+      <Navigate
+        href={`/screener/${encodeURIComponent(legacyTab)}${rest ? `?${rest}` : ""}${location.hash}`}
+      />
+    );
+  }
   return <Navigate href={`/screener${location.search}${location.hash}`} />;
 }
 
@@ -111,7 +126,7 @@ function AppContent() {
       <Show when={auth.isAuthenticated} fallback={<AuthScreen />}>
         <Router root={Shell}>
           <Route path="/" component={RootRedirect} />
-          <Route path="/screener" component={ScreenerContainer} />
+          <Route path="/screener/:tab?" component={ScreenerContainer} />
           <Route path="/backtest" component={BacktestPage} />
           <Route path="/experiments" component={ExperimentsPage} />
           <Route path="/paper" component={PaperTradingView} />

@@ -25,48 +25,92 @@ const paramWrites = vi.hoisted(
   }>,
 );
 
-// @solidjs/router's navigation path never settles in happy-dom and MemoryRouter
-// has no initialEntries, so the router is replaced with a reactive
-// window.location-backed searchParams. The helper seeds it from initialRoute.
+/** Every `navigate()` call, in order — the tab lives in the path, not the query. */
+const pathNavigations = vi.hoisted(
+  () => [] as Array<{ to: string; options?: { replace?: boolean } }>,
+);
+
+// @solidjs/router's navigation path never settles in happy-dom, so the router is
+// replaced with a reactive window.location-backed route. `useParams`/`useNavigate`
+// are backed by the same signal, so a tab change re-renders the page exactly like
+// a real navigation would.
 vi.mock("@solidjs/router", async () => {
   const { createSignal } = await import("solid-js");
-  const g = globalThis as unknown as { __screenerSearchParams?: ReturnType<typeof createSignal<Record<string, string | undefined>>> };
-  const state = (g.__screenerSearchParams ??= createSignal<Record<string, string | undefined>>({}));
-  const [search, setSearch] = state;
+  const g = globalThis as unknown as {
+    __screenerRoute?: ReturnType<
+      typeof createSignal<{ path: string; search: Record<string, string | undefined> }>
+    >;
+  };
+  const state = (g.__screenerRoute ??= createSignal({
+    path: "/screener",
+    search: {} as Record<string, string | undefined>,
+  }));
+  const [route, setRoute] = state;
+  const parseUrl = (url: string) => {
+    const [path, query = ""] = url.split("?");
+    return { path, search: Object.fromEntries(new URLSearchParams(query).entries()) };
+  };
   return {
     useSearchParams: () => [
-      new Proxy({}, { get: (_, key) => search()[key as string] }) as Record<string, string | undefined>,
+      new Proxy({} as Record<string, string | undefined>, {
+        get: (_, key) => route().search[key as string],
+        ownKeys: () => Object.keys(route().search),
+        getOwnPropertyDescriptor: (_, key) => ({
+          enumerable: true,
+          configurable: true,
+          value: route().search[key as string],
+        }),
+      }),
       (params: Record<string, string | string[] | null | undefined>, options?: { replace?: boolean }) => {
         paramWrites.push({ params, options });
-        const next = { ...search() };
+        const current = route();
+        const next = { ...current.search };
         for (const [k, v] of Object.entries(params)) {
           if (v == null || v === "" || (Array.isArray(v) && v.length === 0)) delete next[k];
           else next[k] = String(Array.isArray(v) ? v[0] : v);
         }
-        setSearch(next);
+        setRoute({ path: current.path, search: next });
       },
     ],
+    useParams: () =>
+      new Proxy({} as { tab?: string }, {
+        get: (_, key) => {
+          if (key !== "tab") return undefined;
+          return /^\/screener\/([^/]+)\/?$/.exec(route().path)?.[1];
+        },
+      }),
+    useNavigate: () => (to: string, options?: { replace?: boolean }) => {
+      pathNavigations.push({ to, options });
+      setRoute(parseUrl(to));
+    },
     MemoryRouter: (props: any) => props.children,
     Route: (props: any) => (props.component ? props.component() : props.children),
     createMemoryHistory: () => ({ get: () => "/", set: () => {}, listen: () => () => {} }),
   };
 });
 
-const seedSearchParams = (route?: string) => {
-  const state = (globalThis as unknown as { __screenerSearchParams?: [unknown, (next: Record<string, string | undefined>) => void] }).__screenerSearchParams;
+const seedRoute = (route = "/screener/screener") => {
+  const state = (globalThis as unknown as {
+    __screenerRoute?: [unknown, (next: { path: string; search: Record<string, string | undefined> }) => void];
+  }).__screenerRoute;
   if (!state) return;
-  const q = (route ?? "/?tab=screener").split("?")[1];
-  state[1](q ? Object.fromEntries(new URLSearchParams(q).entries()) : {});
+  const [path, query = ""] = route.split("?");
+  state[1]({
+    path,
+    search: Object.fromEntries(new URLSearchParams(query).entries()),
+  });
 };
 
-/** The live query string as the component sees it. */
-const currentSearchParams = () =>
+const currentRoute = () =>
   (globalThis as unknown as {
-    __screenerSearchParams?: [() => Record<string, string | undefined>, unknown];
-  }).__screenerSearchParams?.[0]() ?? {};
+    __screenerRoute?: [() => { path: string; search: Record<string, string | undefined> }, unknown];
+  }).__screenerRoute?.[0]() ?? { path: "/screener", search: {} };
+
+/** The live query string as the component sees it. */
+const currentSearchParams = () => currentRoute().search;
 
 const render = (ui: () => JSX.Element, options?: { initialRoute?: string }) => {
-  seedSearchParams(options?.initialRoute);
+  seedRoute(options?.initialRoute);
   return rtlRender(ui);
 };
 
@@ -368,8 +412,9 @@ describe("ScreenerPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     paramWrites.length = 0;
+    pathNavigations.length = 0;
     selectedSymbolsRef.current = [];
-    seedSearchParams("/?tab=screener");
+    seedRoute("/screener/screener");
     marketPanelProps.current = null;
     mockFetchMarketSnapshot.mockResolvedValue(marketSnapshot);
   });
@@ -595,10 +640,22 @@ describe("ScreenerPage", () => {
         <ScreenerPage {...defaultProps} />
       </UIProvider>), { initialRoute: "/?tab=dashboard" });
 
-    await waitFor(() => expect(currentSearchParams().tab).toBe("market"), { timeout: 10_000 });
+    await waitFor(() => expect(currentRoute().path).toBe("/screener/market"), { timeout: 10_000 });
     expect(currentSearchParams().view).toBe("movers");
-    expect(paramWrites.at(-1)?.options?.replace).toBe(true);
+    expect(currentSearchParams().tab).toBeUndefined();
+    expect(pathNavigations.at(-1)?.options?.replace).toBe(true);
     expect(screen.getByTestId("market-tab-panel")).toBeVisible();
+  });
+
+  it("redirects the /screener/dashboard path to the Market movers view", async () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/screener/dashboard" });
+
+    await waitFor(() => expect(currentRoute().path).toBe("/screener/market"), { timeout: 10_000 });
+    expect(currentSearchParams().view).toBe("movers");
+    expect(pathNavigations.at(-1)?.options?.replace).toBe(true);
   });
 
   it("switches from Market to Screener and back", async () => {
@@ -632,7 +689,7 @@ describe("ScreenerPage", () => {
     expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
   });
 
-  it("does not mount the screener panel on the Market tab", () => {
+  it("does not mount the screener panel on the Market tab", async () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
@@ -640,9 +697,13 @@ describe("ScreenerPage", () => {
     expect(screen.queryByTestId("screener-table-approaching")).not.toBeInTheDocument();
     expect(screen.queryByTestId("group-performance-panel")).not.toBeInTheDocument();
     expect(screen.getByTestId("market-tab-panel")).toBeInTheDocument();
-    // An explicit ?tab=market is already canonical; the shell must not rewrite it.
-    expect(paramWrites).toHaveLength(0);
-    expect(currentSearchParams().tab).toBe("market");
+    // An explicit ?tab=market converges on the path form; the tab is dropped.
+    await waitFor(() => expect(currentRoute().path).toBe("/screener/market"));
+    expect(pathNavigations.at(-1)).toEqual({
+      to: "/screener/market",
+      options: { replace: true },
+    });
+    expect(currentSearchParams().tab).toBeUndefined();
   });
 
   it("forwards ?view= to the Market panel", async () => {
@@ -654,7 +715,8 @@ describe("ScreenerPage", () => {
     await waitFor(() => expect(marketPanelProps.current?.initialView).toBe("movers"), {
       timeout: 10_000,
     });
-    expect(paramWrites).toHaveLength(0);
+    expect(currentRoute().path).toBe("/screener/market");
+    expect(currentSearchParams().view).toBe("movers");
   });
 
   it("defaults the Market panel to the table view when ?view= is absent", async () => {
@@ -692,8 +754,10 @@ describe("ScreenerPage", () => {
     await waitFor(() => expect(currentSearchParams().view).toBe("movers"), { timeout: 10_000 });
     fireEvent.click(screen.getByTestId("tab-correlation"));
 
-    await waitFor(() => expect(currentSearchParams().tab).toBe("correlation"));
+    await waitFor(() => expect(currentRoute().path).toBe("/screener/correlation"));
     expect(currentSearchParams().view).toBeUndefined();
+    // No `tab=` write: the tab lives in the path now.
+    expect(paramWrites.some((w) => "tab" in w.params)).toBe(false);
   });
 
   it("does not fetch value scan endpoints on the Market tab", async () => {
@@ -761,16 +825,22 @@ describe("ScreenerPage", () => {
         <ScreenerPage {...defaultProps} />
       </UIProvider>), { initialRoute: "/?tab=screener" });
     expect(await screen.findByTestId("screener-table-approaching")).toBeInTheDocument();
+    // The legacy query converges on /screener/screener (replace), then the tab click pushes.
+    await waitFor(() => expect(currentRoute().path).toBe("/screener/screener"));
+    pathNavigations.length = 0;
 
     fireEvent.click(screen.getByTestId("tab-market"));
 
-    expect(paramWrites).toHaveLength(1);
-    // Market is the default tab, so its param is dropped and the URL stays clean.
-    expect(paramWrites[0].params.tab).toBeNull();
+    expect(pathNavigations).toHaveLength(1);
+    // Market is the default tab, so its path is bare.
+    expect(pathNavigations[0].to).toBe("/screener");
     // `replace: true` kept Back on the tab you came from from ever being reachable.
-    expect(paramWrites[0].options?.replace).toBeFalsy();
+    expect(pathNavigations[0].options?.replace).toBeFalsy();
+    expect(currentRoute().path).toBe("/screener");
     expect(currentSearchParams().tab).toBeUndefined();
     expect(currentSearchParams().view).toBeUndefined();
+    // The tab is a path segment now, never a `tab=` write.
+    expect(paramWrites.some((w) => "tab" in w.params)).toBe(false);
   });
 
   it("does not write the URL when the clicked tab is already active", async () => {
@@ -779,10 +849,25 @@ describe("ScreenerPage", () => {
         <ScreenerPage {...defaultProps} />
       </UIProvider>), { initialRoute: "/?tab=screener" });
     expect(await screen.findByTestId("screener-table-approaching")).toBeInTheDocument();
+    await waitFor(() => expect(currentRoute().path).toBe("/screener/screener"));
+    pathNavigations.length = 0;
 
     fireEvent.click(screen.getByTestId("tab-screener"));
 
-    expect(paramWrites).toHaveLength(0);
+    expect(pathNavigations).toHaveLength(0);
+  });
+
+  it("converges a legacy ?tab= URL on its path form", async () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=screener" });
+
+    expect(await screen.findByTestId("screener-table-approaching")).toBeInTheDocument();
+    await waitFor(() => expect(currentRoute().path).toBe("/screener/screener"));
+    expect(pathNavigations.at(-1)).toEqual({ to: "/screener/screener", options: { replace: true } });
+    expect(currentSearchParams().tab).toBeUndefined();
+    expect(paramWrites.some((w) => "tab" in w.params)).toBe(false);
   });
 
   it("drops correlation-only params when leaving the correlation tab", async () => {
@@ -792,11 +877,13 @@ describe("ScreenerPage", () => {
       </UIProvider>),
       { initialRoute: "/?tab=correlation&symbols=INFY,TCS&timeframe=daily&period=90" });
     expect(await screen.findByTestId("correlation-tab", undefined, { timeout: 10_000 })).toBeInTheDocument();
+    await waitFor(() => expect(currentRoute().path).toBe("/screener/correlation"));
+    expect(currentSearchParams().symbols).toBe("INFY,TCS");
 
     fireEvent.click(screen.getByTestId("tab-config"));
 
-    await waitFor(() => expect(currentSearchParams().tab).toBe("config"));
-    // setSearchParams merges, so these only disappear if they are nulled out.
+    await waitFor(() => expect(currentRoute().path).toBe("/screener/config"));
+    // navigate rebuilds the query, so these only disappear if they are dropped.
     expect(currentSearchParams().symbols).toBeUndefined();
     expect(currentSearchParams().timeframe).toBeUndefined();
     expect(currentSearchParams().period).toBeUndefined();
@@ -810,7 +897,7 @@ describe("ScreenerPage", () => {
     expect(await screen.findByTestId("screener-table-approaching")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("tab-config"));
-    await waitFor(() => expect(currentSearchParams().tab).toBe("config"));
+    await waitFor(() => expect(currentRoute().path).toBe("/screener/config"));
     expect(currentSearchParams().screener).toBe("trending");
   });
 
@@ -818,11 +905,13 @@ describe("ScreenerPage", () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>), { initialRoute: "/?tab=deepvalue" });
+      </UIProvider>), { initialRoute: "/screener/deepvalue" });
 
     expect(await screen.findByTestId("value-panel", undefined, { timeout: 10_000 })).toBeInTheDocument();
+    // Already canonical: no redirect, no query write.
+    expect(pathNavigations).toHaveLength(0);
     expect(paramWrites).toHaveLength(0);
-    expect(currentSearchParams().tab).toBe("deepvalue");
+    expect(currentRoute().path).toBe("/screener/deepvalue");
   });
 
   it("Compare pushes correlation params, which are dropped when leaving the tab", async () => {
@@ -832,25 +921,26 @@ describe("ScreenerPage", () => {
         <ScreenerPage {...defaultProps} />
       </UIProvider>), { initialRoute: "/?tab=screener" });
     expect(await screen.findByTestId("screener-table-approaching")).toBeInTheDocument();
+    await waitFor(() => expect(currentRoute().path).toBe("/screener/screener"));
 
     fireEvent.click(screen.getByTestId("compare-btn"));
 
-    expect(currentSearchParams().tab).toBe("correlation");
+    await waitFor(() => expect(currentRoute().path).toBe("/screener/correlation"));
     expect(currentSearchParams().symbols).toBe("INFY,TCS");
     expect(currentSearchParams().period).toBe("90");
-    expect(paramWrites.at(-1)?.options?.replace).toBeFalsy();
+    expect(pathNavigations.at(-1)?.options?.replace).toBeFalsy();
 
     fireEvent.click(screen.getByTestId("tab-config"));
-    await waitFor(() => expect(currentSearchParams().tab).toBe("config"));
+    await waitFor(() => expect(currentRoute().path).toBe("/screener/config"));
     expect(currentSearchParams().symbols).toBeUndefined();
     expect(currentSearchParams().period).toBeUndefined();
   });
 
-  it("onOpenScan writes tab=market&view=table (replace) and forwards the symbols", async () => {
+  it("onOpenScan navigates to /screener?view=table (replace) and forwards the symbols", async () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} universe="nifty500" />
-      </UIProvider>), { initialRoute: "/" });
+      </UIProvider>), { initialRoute: "/screener" });
     await waitFor(() => expect(marketPanelProps.current?.onOpenScan).toBeTypeOf("function"), {
       timeout: 10_000,
     });
@@ -859,11 +949,10 @@ describe("ScreenerPage", () => {
       "INDIAGLYCO",
       "RELIANCE",
     ]);
-    expect(paramWrites.at(-1)?.params.tab).toBeNull();
-    expect(paramWrites.at(-1)?.params.view).toBe("table");
-    expect(paramWrites.at(-1)?.options?.replace).toBe(true);
+    await waitFor(() => expect(currentRoute().path).toBe("/screener"));
     expect(currentSearchParams().tab).toBeUndefined();
     expect(currentSearchParams().view).toBe("table");
+    expect(pathNavigations.at(-1)).toEqual({ to: "/screener?view=table", options: { replace: true } });
     await waitFor(() => expect(marketPanelProps.current?.symbolAllowlist).toEqual(["INDIAGLYCO", "RELIANCE"]));
     expect(marketPanelProps.current?.onClearSymbolAllowlist).toBeTypeOf("function");
     expect(defaultProps.onScreenerChange).not.toHaveBeenCalled();
@@ -873,7 +962,7 @@ describe("ScreenerPage", () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} universe="nifty500" />
-      </UIProvider>), { initialRoute: "/" });
+      </UIProvider>), { initialRoute: "/screener/market" });
     await waitFor(() => expect(marketPanelProps.current?.onOpenScan).toBeTypeOf("function"), {
       timeout: 10_000,
     });
@@ -881,7 +970,7 @@ describe("ScreenerPage", () => {
     (onOpenScan as (id: string, symbols: string[]) => void)("gainers", ["RELIANCE"]);
     await waitFor(() => expect(marketPanelProps.current?.symbolAllowlist).toEqual(["RELIANCE"]));
     fireEvent.click(screen.getByTestId("tab-correlation"));
-    await waitFor(() => expect(currentSearchParams().tab).toBe("correlation"));
+    await waitFor(() => expect(currentRoute().path).toBe("/screener/correlation"));
     fireEvent.click(screen.getByTestId("tab-market"));
     await waitFor(() => expect(screen.getByTestId("market-tab-panel")).toBeVisible());
     await waitFor(() => expect(marketPanelProps.current?.symbolAllowlist).toEqual([]));

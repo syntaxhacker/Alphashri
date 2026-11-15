@@ -147,10 +147,18 @@ describe("NavbarNested active path highlighting", () => {
     expect(paper).not.toHaveAttribute("data-active", "true");
   });
 
-  it("highlights screener only for exact /screener", () => {
+  it("highlights screener for the screener route and its tab paths", () => {
     renderNavbar({ activePath: "/screener" });
     expect(screen.getByTestId("nav-screener")).toHaveAttribute("data-active", "true");
     expect(screen.getByTestId("nav-news")).not.toHaveAttribute("data-active");
+
+    cleanup();
+    renderNavbar({ activePath: "/screener/market" });
+    expect(screen.getByTestId("nav-screener")).toHaveAttribute("data-active", "true");
+
+    cleanup();
+    renderNavbar({ activePath: "/screener/correlation" });
+    expect(screen.getByTestId("nav-screener")).toHaveAttribute("data-active", "true");
   });
 
   it("does not highlight screener for exact / (route moved to /screener)", () => {
