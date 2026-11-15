@@ -2,8 +2,8 @@ import { test, expect, Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
 
 async function selectScreener(page: Page, label: string) {
-  await page.getByTestId("screener-select").getByRole("combobox").click();
-  await page.getByRole("option", { name: label }).click();
+  // Native <select>: options are not clickable elements.
+  await page.getByTestId("screener-select").locator("select").selectOption({ label });
 }
 
 test.describe("Screener - URL Params", () => {
