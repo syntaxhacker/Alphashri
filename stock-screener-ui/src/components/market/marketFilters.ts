@@ -242,11 +242,9 @@ export function buildMarketFilterChips(filters: MarketFilterState): MarketFilter
 
   push(rangeChip("price", "LTP", filters.priceMin, filters.priceMax, ""));
   push(rangeChip("day", "Day", filters.dayChangeMin, filters.dayChangeMax, "%"));
-  if (has(filters.mcapMinCr))
-    chips.push({ key: "mcap", label: `MCap ≥ ${fmtNum(filters.mcapMinCr)} Cr` });
+  push(rangeChip("mcap", "MCap", filters.mcapMinCr, filters.mcapMaxCr, " Cr"));
   push(rangeChip("rsi", "RSI", filters.rsiMin, filters.rsiMax, ""));
-  if (has(filters.relVolMin))
-    chips.push({ key: "relvol", label: `RelVol ≥ ${fmtNum(filters.relVolMin)}` });
+  push(rangeChip("relvol", "RelVol", filters.relVolMin, filters.relVolMax, ""));
   if (filters.aboveSma20) chips.push({ key: "sma20", label: "Above SMA 20" });
   if (filters.aboveSma50) chips.push({ key: "sma50", label: "Above SMA 50" });
   if (filters.aboveSma200) chips.push({ key: "sma200", label: "Above SMA 200" });

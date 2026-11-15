@@ -6,7 +6,9 @@ import { UIProvider } from "@/ui";
 import { MarketScreenerPanel } from "./MarketScreenerPanel";
 import { useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
 import { fetchScreenerDashboard } from "../../api/screenerDashboard";
+import { getUserConfig, putUserConfig, deleteUserConfig } from "../../api/userConfigs";
 import * as marketFilters from "./marketFilters";
+import { defaultMarketConfig, serializeMarketConfig } from "./useMarketConfig";
 import type { MarketRow } from "../../types/marketScreener";
 import type { ScreenerDashboardResponse } from "../../types/screenerDashboard";
 
@@ -18,7 +20,23 @@ vi.mock("../../api/screenerDashboard", () => ({
   fetchScreenerDashboard: vi.fn(),
 }));
 
+// The panel hydrates saved filters on mount; the real client would hit the
+// network. Tests that care about the config path override these.
+vi.mock("../../api/userConfigs", () => ({
+  getUserConfig: vi.fn(),
+  putUserConfig: vi.fn(),
+  deleteUserConfig: vi.fn(),
+  UserConfigError: class UserConfigError extends Error {
+    status = 0;
+    code = "";
+    payload = undefined;
+  },
+}));
+
 const mockFetchDashboard = vi.mocked(fetchScreenerDashboard);
+const mockGetUserConfig = vi.mocked(getUserConfig);
+const mockPutUserConfig = vi.mocked(putUserConfig);
+const mockDeleteUserConfig = vi.mocked(deleteUserConfig);
 
 const mockUseMarketSnapshot = vi.mocked(useMarketSnapshotSolid);
 
@@ -116,6 +134,23 @@ beforeEach(() => {
     as_of: new Date().toISOString(),
     total: 0,
   } as ScreenerDashboardResponse);
+
+  // Default: nothing saved. Individual tests override with a saved payload.
+  mockGetUserConfig.mockResolvedValue({
+    scope: "market.filters",
+    version: 1,
+    saved: false,
+    updated_at: null,
+    config: serializeMarketConfig(defaultMarketConfig()),
+  });
+  mockPutUserConfig.mockImplementation(async (_scope, config) => ({
+    scope: "market.filters",
+    version: 1,
+    saved: true,
+    updated_at: "2026-11-15T09:41:22.192Z",
+    config,
+  }));
+  mockDeleteUserConfig.mockResolvedValue({ scope: "market.filters", deleted: true });
 });
 
 describe("MarketScreenerPanel — stale cache, warming hint, timeout", () => {
@@ -422,3 +457,211 @@ describe("MarketScreenerPanel — symbol allowlist", () => {
     expect(screen.queryByText("SECTOR")).toBeNull();
   });
 });
+
+describe("MarketScreenerPanel — saved filters", () => {
+  const SAVED_ROWS: MarketRow[] = [
+    row("RELIANCE", { sector: "IT", rsi: 62, relativeVolume: 2.4 }),
+    row("MPHASIS", { sector: "IT", rsi: 44, relativeVolume: 0.8 }),
+    row("ONGC", { sector: "Energy", rsi: 71, relativeVolume: 1.6 }),
+  ];
+
+  function savedPayload(overrides: Record<string, unknown> = {}) {
+    return {
+      ...serializeMarketConfig({
+        ...defaultMarketConfig({ universe: "nifty500" }),
+        filters: {
+          ...defaultMarketConfig().filters,
+          sectors: ["IT"],
+          rsiMin: 50,
+          sort: "relvol_desc",
+        },
+      }),
+      ...overrides,
+    };
+  }
+
+  function withSaved(config: Record<string, unknown>, saved = true) {
+    mockGetUserConfig.mockResolvedValue({
+      scope: "market.filters",
+      version: 1,
+      saved,
+      updated_at: saved ? "2026-11-15T09:41:22.192Z" : null,
+      config,
+    });
+  }
+
+  test("restores saved filters without letting the universe write reset them", async () => {
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: SAVED_ROWS, total: SAVED_ROWS.length }));
+    withSaved(savedPayload());
+
+    r(<MarketScreenerPanel />);
+
+    // The reset effect (:194-205) must not fire for the hydration write: with
+    // a saved universe of nifty500 both restored filters survive.
+    await waitFor(() =>
+      expect(screen.getByTestId("market-filter-chip-sector:IT")).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("market-filter-chip-rsi")).toHaveTextContent("RSI ≥ 50");
+    expect(screen.getByTestId("market-filter-count")).toHaveTextContent("2");
+    // Only RELIANCE clears RSI 50 within IT, and it sorts first by rel-vol.
+    expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
+    expect(screen.queryByTestId("market-row-MPHASIS")).toBeNull();
+    expect(screen.queryByTestId("market-row-ONGC")).toBeNull();
+    // A restored sector still hides the constant SECTOR column.
+    expect(screen.queryByText("SECTOR")).toBeNull();
+    expect(mockUseMarketSnapshot.mock.calls.at(-1)?.[0]()).toBe("nifty500");
+  });
+
+  test("hydrates the layout from the saved view when the URL says nothing", async () => {
+    withSaved(savedPayload({ view: "map" }));
+
+    r(<MarketScreenerPanel />);
+
+    await screen.findByTestId("market-map");
+    expect(screen.getByTestId("market-filter-chip-sector:IT")).toBeInTheDocument();
+    // Back to Table before cleanup: happy-dom has no 2D canvas context, and the
+    // treemap's animation frame errors on unmount if it is still mounted.
+    const toggle = screen.getByTestId("market-view-toggle");
+    await fireEvent.click(within(toggle).getByText("Table"));
+  });
+
+  test("a ?view= from the URL beats the saved view; the saved filters still apply", async () => {
+    withSaved(savedPayload({ view: "table" }));
+
+    r(<MarketScreenerPanel initialView="map" />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("market-filter-chip-sector:IT")).toBeInTheDocument(),
+    );
+    // `table` renders too (hidden), so assert the toggle's pressed state.
+    const toggle = screen.getByTestId("market-view-toggle");
+    expect(within(toggle).getByText("Map").closest("button")?.getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+  });
+
+  test("a cleared filter does not resurrect when a delayed GET lands", async () => {
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: SAVED_ROWS, total: SAVED_ROWS.length }));
+    let resolveGet: ((value: unknown) => void) | null = null;
+    mockGetUserConfig.mockReturnValue(
+      new Promise((resolve) => {
+        resolveGet = resolve;
+      }) as never,
+    );
+
+    r(<MarketScreenerPanel />);
+
+    // User mutates before the config GET answers: the latch closes.
+    const sectorSelect = screen.getByTestId("market-filter-sector");
+    await fireEvent.focus(within(sectorSelect).getByRole("combobox"));
+    const energy = await screen.findByRole("option", { name: "Energy" });
+    await fireEvent.click(within(energy).getByRole("checkbox"));
+    expect(screen.getByTestId("market-filter-chip-sector:Energy")).toBeInTheDocument();
+
+    resolveGet!({
+      scope: "market.filters",
+      version: 1,
+      saved: true,
+      updated_at: "2026-11-15T09:41:22.192Z",
+      config: savedPayload(),
+    });
+    await waitFor(() => expect(mockPutUserConfig).not.toHaveBeenCalled());
+
+    // The saved IT/rsi never applied over the user's clearing.
+    expect(screen.queryByTestId("market-filter-chip-sector:IT")).toBeNull();
+    expect(screen.queryByTestId("market-filter-chip-rsi")).toBeNull();
+    expect(screen.getByTestId("market-filter-chip-sector:Energy")).toBeInTheDocument();
+  });
+
+  test("a failed save shows the toolbar chip and leaves the table intact", async () => {
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: SAVED_ROWS, total: SAVED_ROWS.length }));
+    mockPutUserConfig.mockRejectedValue(Object.assign(new Error("boom"), { status: 500 }));
+
+    r(<MarketScreenerPanel />);
+
+    const sectorSelect = screen.getByTestId("market-filter-sector");
+    await fireEvent.focus(within(sectorSelect).getByRole("combobox"));
+    const it = await screen.findByRole("option", { name: "IT" });
+    await fireEvent.click(within(it).getByRole("checkbox"));
+
+    // The debounce is real time here (800ms); the chip is the only new chrome.
+    const chip = await screen.findByTestId("saved-config-error", {}, { timeout: 4000 });
+    expect(chip).toHaveTextContent(/^Filters not saved/);
+    expect(screen.getByTestId("saved-config-retry")).toBeInTheDocument();
+    // Failure never blanks the table or reverts the click.
+    expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
+    expect(screen.getByTestId("market-row-MPHASIS")).toBeInTheDocument();
+    expect(screen.getByTestId("market-filter-chip-sector:IT")).toBeInTheDocument();
+    expect(screen.getByTestId("market-result-count")).toHaveTextContent("2 / 3");
+  }, 10000);
+
+  test("the failure chip lives in the toolbar next to the filter count", async () => {
+    mockPutUserConfig.mockRejectedValue(Object.assign(new Error("boom"), { status: 422 }));
+    r(<MarketScreenerPanel />);
+
+    const sma20 = screen.getByTestId("market-filter-above-sma20");
+    fireEvent.click(sma20);
+
+    const chip = await screen.findByTestId("saved-config-error", {}, { timeout: 4000 });
+    const toolbar = screen.getByTestId("market-toolbar");
+    expect(toolbar).toContainElement(chip as HTMLElement);
+    expect(toolbar).toContainElement(screen.getByTestId("market-filter-count"));
+    await waitFor(() => expect(screen.getByTestId("saved-config-retry")).toBeInTheDocument());
+  }, 10000);
+
+  test("applying a saved value never writes it straight back", async () => {
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: SAVED_ROWS, total: SAVED_ROWS.length }));
+    withSaved(savedPayload());
+
+    r(<MarketScreenerPanel />);
+    await waitFor(() =>
+      expect(screen.getByTestId("market-filter-chip-sector:IT")).toBeInTheDocument(),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+
+    // Reading a config is not an edit: no echoing PUT, no new revision.
+    expect(mockPutUserConfig).not.toHaveBeenCalled();
+  }, 10000);
+
+  test("a reload restores what the previous mount saved", async () => {
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: SAVED_ROWS, total: SAVED_ROWS.length }));
+
+    r(<MarketScreenerPanel />);
+    const sectorSelect = screen.getByTestId("market-filter-sector");
+    await fireEvent.focus(within(sectorSelect).getByRole("combobox"));
+    const it = await screen.findByRole("option", { name: "IT" });
+    await fireEvent.click(within(it).getByRole("checkbox"));
+
+    // Wait for the debounce to reach the API, then make the GET answer with
+    // exactly what the PUT carried — that is what a page reload sees.
+    await waitFor(() => expect(mockPutUserConfig).toHaveBeenCalled(), { timeout: 4000 });
+    const savedByPut = mockPutUserConfig.mock.calls.at(-1)![1] as Record<string, unknown>;
+
+    cleanup();
+    withSaved(savedByPut);
+    r(<MarketScreenerPanel />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("market-filter-chip-sector:IT")).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
+    expect(screen.queryByTestId("market-row-ONGC")).toBeNull();
+    expect(screen.queryByText("SECTOR")).toBeNull();
+  }, 15000);
+
+  test("a 401 disables the feature silently: no chip, defaults applied", async () => {
+    mockGetUserConfig.mockRejectedValue(Object.assign(new Error("unauthorized"), { status: 401 }));
+
+    r(<MarketScreenerPanel />);
+
+    await waitFor(() => expect(mockGetUserConfig).toHaveBeenCalled());
+    const sectorSelect = screen.getByTestId("market-filter-sector");
+    await fireEvent.focus(within(sectorSelect).getByRole("combobox"));
+    const it = await screen.findByRole("option", { name: "IT" });
+    await fireEvent.click(within(it).getByRole("checkbox"));
+
+    expect(screen.queryByTestId("saved-config-error")).toBeNull();
+    expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
+  });
+});
+

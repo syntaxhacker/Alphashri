@@ -451,6 +451,28 @@ describe("buildMarketFilterChips", () => {
     const chips = buildMarketFilterChips(filters({ mcapMinCr: 5000, aboveSma200: true }));
     expect(chips.map((c) => c.label)).toEqual(["MCap ≥ 5000 Cr", "Above SMA 200"]);
   });
+
+  // A persisted max is invisible without its own chip: the values are saved, so
+  // the user must be able to see and remove the ceiling that hides rows.
+  test("a max-only MCap bound renders its own chip and is removable by key", () => {
+    const chips = buildMarketFilterChips(filters({ mcapMaxCr: 90000 }));
+    expect(chips).toEqual([{ key: "mcap", label: "MCap ≤ 90000 Cr" }]);
+    expect(countActiveMarketFilters(filters({ mcapMaxCr: 90000 }))).toBe(1);
+  });
+
+  test("a max-only RelVol bound renders its own chip", () => {
+    const chips = buildMarketFilterChips(filters({ relVolMax: 3 }));
+    expect(chips).toEqual([{ key: "relvol", label: "RelVol ≤ 3" }]);
+  });
+
+  test("a two-ended MCap or RelVol range reads as one range chip", () => {
+    expect(buildMarketFilterChips(filters({ mcapMinCr: 5000, mcapMaxCr: 90000 }))).toEqual([
+      { key: "mcap", label: "MCap 5000–90000 Cr" },
+    ]);
+    expect(buildMarketFilterChips(filters({ relVolMin: 1.5, relVolMax: 6 }))).toEqual([
+      { key: "relvol", label: "RelVol 1.5–6" },
+    ]);
+  });
 });
 
 describe("search index", () => {

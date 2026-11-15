@@ -7,6 +7,7 @@ import {
   createMemo,
   createSignal,
   lazy,
+  on,
   onCleanup,
   onMount,
   type JSX,
@@ -49,6 +50,7 @@ import { TanStackTable } from "../common/TanStackTable";
 import { ChartDockOutlet } from "../common/ChartDockOutlet";
 import { useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
 import { useSymbolDock } from "../common/symbolDockContext";
+import { useMarketConfig, type MarketConfigValue } from "./useMarketConfig";
 
 // Movers owns the whole dashboard module; keep it out of the Market chunk.
 const DashboardView = lazy(() =>
@@ -169,6 +171,32 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   const [viewMode, setViewMode] = createSignal<MarketViewMode>(props.initialView ?? "table");
   const [selectedSymbol, setSelectedSymbol] = createSignal<string | null>(null);
   const dock = useSymbolDock();
+
+  // Saved config: `?view=` wins when present, saved state is the fallback for a
+  // bare `/screener`, defaults otherwise. Hydration is applied in one batch and
+  // `prevUniverse` is moved first — see the reset effect below.
+  let prevUniverse = universe();
+  const applySavedConfig = (value: MarketConfigValue) => {
+    batch(() => {
+      // Announce the hydrated universe to the reset effect before the signal
+      // moves: restoring nifty500 must not wipe the sectors restored with it.
+      prevUniverse = value.universe;
+      setUniverse(value.universe);
+      setFilters(value.filters);
+      setViewMode(value.view);
+    });
+  };
+  const savedConfig = useMarketConfig({
+    // `?view=` is lossy on the way in: the shell parses a missing param to
+    // "table" and never writes `?view=table` back, so `table` cannot be told
+    // apart from a bare link. Only a non-default view is a present-tense
+    // instruction; everything else falls back to the saved layout.
+    urlView: props.initialView && props.initialView !== "table" ? props.initialView : undefined,
+    onApply: applySavedConfig,
+  });
+  const savedConfigError = () => savedConfig.error();
+  const savedConfigFailed = () =>
+    savedConfigError() === "not_saved" || savedConfigError() === "invalid";
   // The symbol cell opens the dock directly (it stops row-click propagation),
   // so the list must follow the dock or the chart's row never highlights and
   // the arrow-key handler has no anchor.
@@ -191,9 +219,11 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
 
   // Filters belong to one universe's snapshot; carrying them across a universe
   // switch silently hides every row of the new universe.
-  let prevUniverse = universe();
   createEffect(() => {
     const u = universe();
+    // Hydration advances `prevUniverse` to the restored universe inside the same
+    // batch, so this comparison is already false for the restore write: the
+    // saved sectors survive. Firing here would reset them.
     if (u !== prevUniverse) {
       prevUniverse = u;
       setFilters(defaultMarketFilters());
@@ -203,6 +233,24 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
       props.onClearSymbolAllowlist?.();
     }
   });
+
+  // Autosave: one effect owns every persisted field. The first run is the mount
+  // echo of the defaults (and of the URL view) — skipping it is what keeps the
+  // latch open long enough for the GET to apply. Any later change, including one
+  // that lands mid-GET, closes the latch in the store and is buffered there
+  // until hydration settles.
+  createEffect(
+    on(
+      () => ({
+        universe: universe(),
+        filters: filters(),
+        // `search` is session-local by design and never travels.
+        view: viewMode(),
+      }),
+      (value) => savedConfig.save({ ...value }),
+      { defer: true },
+    ),
+  );
 
   // Filters/search drive the table directly — Solid's keyed rows only
   // reconcile what changed, so no deferred copies are needed. Filter and sort
@@ -270,11 +318,11 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
         case "day":
           return { ...f, dayChangeMin: null, dayChangeMax: null };
         case "mcap":
-          return { ...f, mcapMinCr: null };
+          return { ...f, mcapMinCr: null, mcapMaxCr: null };
         case "rsi":
           return { ...f, rsiMin: null, rsiMax: null };
         case "relvol":
-          return { ...f, relVolMin: null };
+          return { ...f, relVolMin: null, relVolMax: null };
         case "sma20":
           return { ...f, aboveSma20: false };
         case "sma50":
@@ -464,6 +512,30 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
           </span>
         </Tooltip>
         <Show when={viewMode() !== "movers"}>
+          <Show when={savedConfigError() !== null}>
+            <Box
+              role="status"
+              data-testid="saved-config-error"
+              className="flex items-center gap-1 flex-shrink-0"
+            >
+              <Text size="xs" c="warning" className="whitespace-nowrap">
+                {savedConfigError() === "conflict"
+                  ? "Filters changed in another tab"
+                  : "Filters not saved"}
+              </Text>
+              <Show when={savedConfigFailed()}>
+                <Button
+                  size="xs"
+                  variant="subtle"
+                  style={{ height: "24px" }}
+                  onClick={() => savedConfig.retry()}
+                  data-testid="saved-config-retry"
+                >
+                  Retry
+                </Button>
+              </Show>
+            </Box>
+          </Show>
           <Indicator
             label={String(activeCount())}
             color="primary"
