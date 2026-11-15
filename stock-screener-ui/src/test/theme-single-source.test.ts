@@ -35,6 +35,22 @@ describe("theme single source", () => {
     expect(mismatched, mismatched.join("\n")).toEqual([]);
   });
 
+  it("overrides every palette anchor in light theme, not just a color-scheme flag", () => {
+    // The toolbar toggle used to set `data-color-scheme` and nothing else: no
+    // token moved, so the app stayed black in both themes. A partial block is
+    // the same bug, half-applied, so every anchor must actually change.
+    const block = /:root\[data-color-scheme="light"\]\s*\{([\s\S]*?)\}/.exec(THEME_CSS)?.[1];
+    expect(block, "no light theme block — the toggle would only set color-scheme").toBeTruthy();
+    const light = (token: string) =>
+      new RegExp(`${token}\\s*:\\s*([^;]+);`).exec(block!)?.[1].trim().toLowerCase();
+
+    const missing = TOKENS.map(([token]) => token).filter((token) => !light(token));
+    expect(missing, `not overridden in light: ${missing.join(", ")}`).toEqual([]);
+
+    const unchanged = TOKENS.filter(([token, dark]) => light(token) === dark.toLowerCase()).map(([token]) => token);
+    expect(unchanged, `identical to the dark value: ${unchanged.join(", ")}`).toEqual([]);
+  });
+
   it("no module outside palette.ts hardcodes a colour", async () => {
     const { readdirSync, statSync } = await import("node:fs");
     const { join } = await import("node:path");
