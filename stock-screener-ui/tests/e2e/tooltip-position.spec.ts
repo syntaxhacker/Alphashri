@@ -29,6 +29,17 @@ test.describe("Tooltip placement", () => {
     expect(t.y).toBeGreaterThanOrEqual(w.y + w.height);
     expect(t.x).toBeGreaterThanOrEqual(0);
     expect(t.x + t.width).toBeLessThanOrEqual(1280);
+
+    // The toolbar is overflow-hidden and a section sits directly below it.
+    // The portal must be the topmost element at its own centre.
+    const hit = await page.evaluate(
+      ({ x, y }) => {
+        const el = document.elementFromPoint(x, y);
+        return el?.closest('[role="tooltip"]')?.getAttribute("data-testid") ?? el?.tagName ?? "none";
+      },
+      { x: t.x + t.width / 2, y: t.y + t.height / 2 },
+    );
+    expect(hit).toBe("default-top-tip");
   });
 
   test("an explicit bottom tooltip renders fully below the trigger", async ({ page }) => {

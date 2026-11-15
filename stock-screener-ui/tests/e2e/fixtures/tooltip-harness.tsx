@@ -25,6 +25,9 @@ render(
           padding: "0 12px",
           background: "#13161C",
           "z-index": "10",
+          // The market toolbar's real ancestor chain: an overflow-hidden bar.
+          // An in-flow absolute tooltip is clipped here; the portal must escape.
+          overflow: "hidden",
         }}
       >
         <Tooltip label={LONG} data-testid="default-top-tip">
@@ -39,8 +42,20 @@ render(
         </Tooltip>
       </div>
 
-      <div style={{ position: "fixed", top: "320px", left: "48px" }}>
-        <Tooltip label="Mid viewport tooltip" data-testid="mid-tip">
+      {/* The section below the toolbar must never cover the floating tooltip. */}
+      <div
+        style={{
+          position: "fixed",
+          top: "40px",
+          left: "0",
+          right: "0",
+          height: "220px",
+          background: "#0b0d11",
+          "z-index": "20",
+        }}
+      />
+
+      <div style={{ position: "fixed", top: "320px", left: "48px" }}>        <Tooltip label="Mid viewport tooltip" data-testid="mid-tip">
           <button data-testid="mid-trigger" type="button">
             mid
           </button>
