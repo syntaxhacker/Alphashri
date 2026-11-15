@@ -264,6 +264,23 @@ test, and restoring. State the before/after.
 
 If you added a test that passes both ways, it is not a regression test.
 
+### Scenario coverage — enumerate before you test
+
+Unit tests assert the code you wrote; scenarios assert the **user's states**. Four recent
+defects were fully "tested" and still shipped because nobody enumerated the matrix:
+
+- sector filter made the SECTOR column constant → the column should have been hidden;
+- the chart icon opened the dock but the row never selected → arrows did nothing;
+- the toolbar tooltip was clipped by `overflow:hidden` → the test measured a bare harness;
+- `{candles: [], error: "no_data", note: …}` rendered a blank chart → the type never
+  admitted `error`/`note`, so the UI could not show them.
+
+Before writing tests, copy the relevant rows of `docs/TEST_SCENARIOS.md` into the brief and
+end every row as **test added**, **existing test (name it)**, or **N/A + reason**. Axes
+that must be enumerated: data state, view, input modality, theme, persistence, ancestor
+overflow, and request races. Prefer user-visible assertions (computed style, DOM text, row
+count, URL, `elementFromPoint`) over spies.
+
 ### Known flakes — do not "fix" them by weakening the test
 
 - `ScreenerConfigView.test.tsx › preview debounce` — **fixed**: it asserted
@@ -339,6 +356,9 @@ Canonical source for model routing **and** concurrency — `AGENTS.md` and
 - tsc count for the scope: before → after (if a tsc task)
 - if the brief claims a layout now fits: `getBoundingClientRect()` before → after
 
+## Scenario coverage (from docs/TEST_SCENARIOS.md)
+- <paste the relevant rows; each ends as test-added / existing-test / N/A + reason>
+
 ## Return
 files changed · diff summary per file · commands run · pass/fail counts ·
 runtime bugs found (separate from type-only) · risks · blockers
@@ -359,7 +379,8 @@ A report is rejected without **pass/fail counts**, the **exact commands**, and a
 3. Commands run verbatim.
 4. Test/lint/tsc output with counts (before → after for tsc).
 5. **Runtime bugs found**, listed separately from type-only fixes.
-6. Risks / untested paths.
-7. Blockers, or "none".
+6. **Scenario coverage** table — every row from the brief, with test-added / existing-test / N/A+reason.
+7. Risks / untested paths.
+8. Blockers, or "none".
 
 Never claim a surface "looks correct" if you cannot see it. Say what you measured.
