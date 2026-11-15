@@ -35,7 +35,14 @@ const stock: HeatmapStock = {
 
 type Tile = { metricLabel?: string; metricValue?: string };
 type Option = {
-  series: Array<{ data: Tile[]; label: { fontSize: number }; levels: unknown[] }>;
+  series: Array<{
+    data: Tile[];
+    label: { fontSize: number };
+    levels: unknown[];
+    nodeClick?: boolean;
+    roam?: boolean;
+    breadcrumb?: { show: boolean };
+  }>;
 };
 
 describe("stockTreemap metric definitions", () => {
@@ -98,6 +105,19 @@ describe("buildStockTreemapOption", () => {
     expect(light.series[0].levels[1]).toEqual({
       itemStyle: { borderColorSaturation: 0.6, gapWidth: 0, borderWidth: 1 },
     });
+  });
+
+  it("disables node-click zoom and breadcrumb, keeps roam off", () => {
+    const option = buildStockTreemapOption(
+      [stock],
+      "change_pct",
+      SECTOR_STOCK_METRICS,
+      false,
+      STYLE,
+    ) as unknown as Option;
+    expect(option.series[0].nodeClick).toBe(false);
+    expect(option.series[0].roam).toBe(false);
+    expect(option.series[0].breadcrumb.show).toBe(false);
   });
 
   it("computes the metric range across stocks", () => {

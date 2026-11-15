@@ -113,6 +113,9 @@ function buildSectorTreemapOption(sectors: SectorItem[], isDark: boolean) {
         right: 0,
         bottom: 0,
         roam: false,
+        // ECharts defaults nodeClick to 'zoomToNode'; a click must select the
+        // sector, not re-root the chart.
+        nodeClick: false,
         squareRatio: 1,
         label: {
           show: true,
