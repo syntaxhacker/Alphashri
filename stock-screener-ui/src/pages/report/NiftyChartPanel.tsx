@@ -1,5 +1,5 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
-import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, Show, untrack } from "solid-js";
 import { ActionIcon, Button, SegmentedControl, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { TradingViewChart } from "@/components/chart/TradingViewChart";
@@ -11,12 +11,14 @@ import { buildPatternOverlay } from "./niftyPatternOverlay";
 import { wallEventOverlay, type WallBurstLike } from "./niftyWallEventOverlay";
 import { fillCandleGaps } from "./niftyCandles";
 import {
+  candleSeriesSig,
   candlesFromSpotPoints,
   candlesFromTape,
   clipToAsOf,
   isOnSession,
   pickFreshestCandles,
   sessionDateOf,
+  tapePointsSig,
   type SpotPoint,
 } from "./niftyChartData";
 import { gexSideLevels } from "./NiftyGexProfile";
@@ -316,24 +318,49 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
   // snapshots a minute give true OHLC (open = first spot, close = last,
   // high/low the extremes) with real wicks. The 1-minute tape is the
   // last-resort fallback — its bars span open→close only (no wicks).
-  const spotCandles = createMemo(() => candlesFromSpotPoints(spotPoints() ?? [], sessionDate()));
-  const tapeCandles = createMemo(() => candlesFromTape(tape()?.rows ?? [], sessionDate()));
+  //
+  // The whole pipeline is gated on a content signature: report/tape/spot
+  // arrays get a new identity on every poll even when the candles are
+  // identical, and the chain below costs 3–7 ms per frame.
+  const chartInputsSig = createMemo(() =>
+    [
+      sessionDate(),
+      asOf() ?? "",
+      String(chartTf()),
+      candleSeriesSig(report().intraday ?? []),
+      candleSeriesSig(report().candles ?? []),
+      tapePointsSig(spotPoints() ?? []),
+      tapePointsSig(tape()?.rows ?? []),
+    ].join("~"),
+  );
+
+  let chartCache: { sig: string; data: ReturnType<typeof resampleCandles> } | null = null;
 
   /** 1-minute intraday candles when present, else the 15-min EOD candles —
    *  each resampled to the selected timeframe (1m passes through). */
   const chartCandles = createMemo(() => {
-    const base = pickFreshestCandles(report(), spotCandles(), tapeCandles(), sessionDate());
-    // The REST snapshot carries the whole day. On replay, stop at the
-    // playhead so the chart cannot show candles from the future.
-    const clipped = clipToAsOf(base, asOf());
-    // Repair poisoned bars and re-fill dropped minutes from the tape BEFORE
-    // resampling: a 0.00 close or a five-minute hole otherwise blows up the
-    // price scale / prints a fake jump. The tape is session-scoped too, so a
-    // previous day's tape can never be appended to today's base.
-    const filled = fillCandleGaps(clipped, {
-      tape: (tape()?.rows ?? []).filter((row) => isOnSession(row.t, sessionDate())),
+    const sig = chartInputsSig();
+    if (chartCache?.sig === sig) return chartCache.data;
+
+    const data = untrack(() => {
+      const spot = candlesFromSpotPoints(spotPoints() ?? [], sessionDate());
+      const tapeBars = candlesFromTape(tape()?.rows ?? [], sessionDate());
+      const base = pickFreshestCandles(report(), spot, tapeBars, sessionDate());
+      // The REST snapshot carries the whole day. On replay, stop at the
+      // playhead so the chart cannot show candles from the future.
+      const clipped = clipToAsOf(base, asOf());
+      // Repair poisoned bars and re-fill dropped minutes from the tape BEFORE
+      // resampling: a 0.00 close or a five-minute hole otherwise blows up the
+      // price scale / prints a fake jump. The tape is session-scoped too, so a
+      // previous day's tape can never be appended to today's base.
+      const filled = fillCandleGaps(clipped, {
+        tape: (tape()?.rows ?? []).filter((row) => isOnSession(row.t, sessionDate())),
+      });
+      return resampleCandles(filled, CHART_TF_MINUTES[chartTf()]);
     });
-    return resampleCandles(filled, CHART_TF_MINUTES[chartTf()]);
+
+    chartCache = { sig, data };
+    return data;
   });
   createEffect(() => {
     if (chartCandles().length > 0) setCandlesEverShown(true);
