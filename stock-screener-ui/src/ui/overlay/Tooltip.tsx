@@ -1,4 +1,4 @@
-import { createSignal, onCleanup, splitProps } from "solid-js";
+import { createEffect, createSignal, onCleanup, splitProps } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
 import type { UITooltipProps } from "../types";
@@ -81,6 +81,51 @@ export function Tooltip(props: TooltipProps) {
 
   const placement: TooltipPosition = known.position ?? "top";
 
+  // Flip to the other side when the requested one does not fit. The market
+  // toolbar sits directly under the tab strip, so a "top" tooltip there was
+  // rendered above the viewport and clipped; call sites should not have to
+  // know the page chrome.
+  const [flipped, setFlipped] = createSignal(false);
+  const [shiftX, setShiftX] = createSignal(0);
+  let placed = false;
+  let wrapEl: HTMLSpanElement | undefined;
+  let tipEl: HTMLSpanElement | undefined;
+
+  const effectivePlacement = (): TooltipPosition => {
+    if (!flipped()) return placement;
+    if (placement.startsWith("top")) return placement.replace("top", "bottom") as TooltipPosition;
+    if (placement.startsWith("bottom")) return placement.replace("bottom", "top") as TooltipPosition;
+    return placement;
+  };
+
+  createEffect(() => {
+    if (!open()) {
+      placed = false;
+      setFlipped(false);
+      setShiftX(0);
+      return;
+    }
+    // Measure after the floating span exists (same tick as the open render).
+    queueMicrotask(() => {
+      if (placed || !tipEl || !wrapEl) return;
+      placed = true;
+      const w = wrapEl.getBoundingClientRect();
+      const t = tipEl.getBoundingClientRect();
+      const gap = 8;
+      const roomAbove = w.top;
+      const roomBelow = window.innerHeight - w.bottom;
+      if (placement.startsWith("top") && roomAbove < t.height + gap && roomBelow >= t.height + gap) {
+        setFlipped(true);
+      } else if (placement.startsWith("bottom") && roomBelow < t.height + gap && roomAbove >= t.height + gap) {
+        setFlipped(true);
+      }
+      // A wide tooltip centred on a trigger near an edge pokes off-screen.
+      const pad = 8;
+      if (t.left < pad) setShiftX(pad - t.left);
+      else if (t.right > window.innerWidth - pad) setShiftX(window.innerWidth - pad - t.right);
+    });
+  });
+
   if (known.disabled) return <>{known.children}</>;
 
   // A string label is the tooltip's accessible description. Surface it on the
@@ -96,22 +141,29 @@ export function Tooltip(props: TooltipProps) {
   const ariaLabel =
     typeof known.label === "string" && !childHasName ? known.label : undefined;
 
-  const arrowStyle: ArrowPos = { ...ARROW_POS[placement] };
-  const side = ARROW_SIDE[placement];
-  if (side && known.color) {
-    const prop =
-      side === "t"
-        ? "borderTopColor"
-        : side === "r"
-          ? "borderRightColor"
-          : side === "b"
-            ? "borderBottomColor"
-            : "borderLeftColor";
-    (arrowStyle as Record<string, string>)[prop] = known.color;
-  }
+  const arrowStyle = (): ArrowPos => {
+    const p = effectivePlacement();
+    const pos: ArrowPos = { ...ARROW_POS[p] };
+    const s = ARROW_SIDE[p];
+    if (s && known.color) {
+      const prop =
+        s === "t"
+          ? "borderTopColor"
+          : s === "r"
+            ? "borderRightColor"
+            : s === "b"
+              ? "borderBottomColor"
+              : "borderLeftColor";
+      (pos as Record<string, string>)[prop] = known.color;
+    }
+    return pos;
+  };
 
   return (
     <span
+      ref={(el) => {
+        wrapEl = el;
+      }}
       id={known.id}
       data-testid={known["data-testid"] ? `${known["data-testid"]}-wrapper` : undefined}
       aria-label={ariaLabel}
@@ -130,24 +182,27 @@ export function Tooltip(props: TooltipProps) {
       {known.children}
       {open() && known.label && (
         <span
+          ref={(el) => {
+            tipEl = el;
+          }}
           data-testid={known["data-testid"]}
           className={cn(
             "absolute z-50",
-            PLACEMENT[placement],
+            PLACEMENT[effectivePlacement()],
             "bg-fin-surface border border-fin-border text-fin-text rounded-sm text-xs px-2 py-1",
             known.color ? "text-white" : undefined,
             known.multiline ? "max-w-[220px] whitespace-normal" : "whitespace-nowrap",
           )}
-          style={{ "background-color": known.color ?? undefined }}
+          style={{ "background-color": known.color ?? undefined, "margin-left": `${shiftX()}px` }}
         >
           {known.label}
           {known.withArrow && (
             <span
               className="absolute w-0 h-0 border-[5px] border-transparent"
               style={{
-                [`border${side === "t" ? "Top" : side === "r" ? "Right" : side === "b" ? "Bottom" : "Left"}Color`]:
+                [`border${ARROW_SIDE[effectivePlacement()] === "t" ? "Top" : ARROW_SIDE[effectivePlacement()] === "r" ? "Right" : ARROW_SIDE[effectivePlacement()] === "b" ? "Bottom" : "Left"}Color`]:
                   known.color ?? palette.BORDER,
-                ...ARROW_POS[placement],
+                ...arrowStyle(),
               }}
             />
           )}
