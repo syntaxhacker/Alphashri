@@ -283,7 +283,7 @@ export function ReportDecisionStrip() {
     return { up, conflict, ratio: speed.ratio, delta: speed.delta, tone };
   });
 
-  const planOneLiner = () => {
+  const planOneLiner = createMemo(() => {
     const summary = planSummary();
     const badge = tapeBadge();
     if (!summary) return null;
@@ -329,7 +329,9 @@ export function ReportDecisionStrip() {
         </Button>
       </Box>
     );
-  };
+  });
+
+  const planLine = planOneLiner();
 
   return (
     <Show when={report()}>
@@ -527,9 +529,9 @@ export function ReportDecisionStrip() {
               INDIA VIX
             </span>
           </Show>
-          <Show when={isDesk() && planOneLiner()}>
+          <Show when={isDesk() && planLine != null}>
             <Box className="flex-[1.2_1_0] min-w-0 [&>*]:w-full [&>*]:min-w-0">
-              {planOneLiner()}
+              {planLine}
             </Box>
           </Show>
         </Box>
@@ -558,9 +560,9 @@ export function ReportDecisionStrip() {
           data-testid="nifty-context-rail"
           className="flex items-stretch gap-0.5 w-full max-w-full min-w-0 shrink-0"
         >
-          <Show when={planOneLiner()}>
+          <Show when={planLine != null}>
             <Box className="flex-[38_1_0] min-w-0 flex [&>*]:w-full [&>*]:min-w-0">
-              {planOneLiner()}
+              {planLine}
             </Box>
           </Show>
           <Show when={symbol() === "NIFTY"}>
