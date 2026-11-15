@@ -561,3 +561,39 @@ describe("DashboardView round-2", () => {
     expect(screen.queryByTestId("dashboard-toggle-near_52w_high_low")).not.toBeInTheDocument();
   });
 });
+
+describe("DashboardView embedded", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.clear();
+    mockFetchScreenerDashboard.mockResolvedValue(payload());
+  });
+
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+  });
+
+  it("hides the as-of row and refresh button but keeps the toolbar", async () => {
+    renderWithProvider(<DashboardView universe="nifty500" embedded onOpenSymbol={() => {}} />);
+    await screen.findByTestId("dashboard-card-gainers");
+
+    expect(screen.getByTestId("screener-dashboard")).not.toHaveTextContent("as of");
+    expect(screen.queryByTestId("dashboard-refresh")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("dashboard-stale")).not.toBeInTheDocument();
+
+    expect(screen.getByTestId("dashboard-toolbar")).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-search")).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-customize")).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-section-movers")).toBeInTheDocument();
+  });
+
+  it("keeps the as-of row and refresh button when not embedded", async () => {
+    renderWithProvider(<DashboardView universe="nifty500" />);
+    await screen.findByTestId("dashboard-card-gainers");
+
+    expect(screen.getByTestId("dashboard-refresh")).toBeInTheDocument();
+    expect(screen.getByTestId("screener-dashboard")).toHaveTextContent("500 stocks · as of");
+    expect(screen.getByTestId("dashboard-toolbar")).toBeInTheDocument();
+  });
+});
