@@ -190,6 +190,60 @@ describe("hydration latch", () => {
     expect(applied).toHaveLength(0);
     expect(store.getState().value).toEqual({ universe: "all_equity", rsiMin: null, view: "table" });
   });
+
+  test("a remount's GET cannot overwrite a buffered local change", async () => {
+    const A: TestValue = { universe: "nifty500", rsiMin: 50, view: "map" };
+    const B: TestValue = { universe: "nifty50", rsiMin: 40, view: "table" };
+    const { store, get, put } = build();
+
+    // First hydration settles on A.
+    get.mockResolvedValueOnce(envelope(A));
+    store.hydrate();
+    await vi.runAllTimersAsync();
+    expect(store.getState().value).toEqual(A);
+
+    // The user changes to B; a PUT is armed but has not landed yet.
+    store.scheduleSave(B);
+    expect(store.getState().value).toEqual(B);
+
+    // A controlled table remounts inside the debounce and re-hydrates. The GET
+    // is deferred and still carries the stale A.
+    const remountGet = deferred<UserConfig<Record<string, unknown>>>();
+    get.mockReturnValueOnce(remountGet.promise);
+    const applied: TestValue[] = [];
+    store.hydrate({ apply: (v) => applied.push(v) });
+
+    remountGet.resolve(envelope(A));
+    await vi.runAllTimersAsync();
+    await flushDebounce();
+
+    // The stale GET never wins: no apply ran for it and the user's value stays.
+    expect(applied).toHaveLength(0);
+    expect(store.getState().value).toEqual(B);
+    // The buffered PUT still runs and carries B.
+    expect(put).toHaveBeenCalledTimes(1);
+    expect(put.mock.calls[0][1]).toEqual(B);
+  });
+
+  test("a remount with no pending change still adopts the saved value", async () => {
+    const A: TestValue = { universe: "nifty500", rsiMin: 50, view: "map" };
+    const C: TestValue = { universe: "nifty50", rsiMin: 20, view: "table" };
+    const { store, get } = build();
+
+    get.mockResolvedValueOnce(envelope(A));
+    store.hydrate();
+    await vi.runAllTimersAsync();
+    expect(store.getState().value).toEqual(A);
+
+    // No buffered change: the second hydrate reopens the latch and adopts C.
+    const applied: TestValue[] = [];
+    get.mockResolvedValueOnce(envelope(C));
+    store.hydrate({ apply: (v) => applied.push(v) });
+    await vi.runAllTimersAsync();
+
+    expect(applied.at(-1)).toEqual(C);
+    expect(store.getState().value).toEqual(C);
+  });
 });
 
 describe("autosave", () => {

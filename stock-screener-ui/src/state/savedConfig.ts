@@ -352,7 +352,10 @@ export function createSavedConfigStore<T>(
   function hydrate(options: HydrateOptions<T> = {}): void {
     if (disposed) return;
     const myGeneration = ++generation;
-    latchOpen = true;
+    // A buffered local change is strictly newer than anything the server can
+    // return. Reopening the latch on a remount inside the debounce window would
+    // let the GET re-apply an old value over the user's edit.
+    latchOpen = pending === null;
     override = options.override ?? null;
     if (options.apply) applyFn = options.apply;
     setState({ status: "loading", error: null, warning: null });
@@ -389,12 +392,17 @@ export function createSavedConfigStore<T>(
               ? null
               : keyFor(spec.defaults());
 
-        if (latchOpen) {
+        if (latchOpen && pending === null) {
           latest = effective;
           // A warning means the row was unreadable: let the panel's mount echo
           // write the defaults back and repair it.
           apply(effective, { echo: warning === null });
         } else {
+          // A local change is buffered (or an edit already closed the latch):
+          // the server's value is stale. Keep the user's value and leave the
+          // latch closed so no later response can overwrite it; drainPending()
+          // below still sends the buffered PUT.
+          if (pending !== null) latchOpen = false;
           state = { ...state, value: latest ?? effective };
           notify();
         }

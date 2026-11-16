@@ -300,6 +300,38 @@ describe("useTablePrefs store", () => {
     });
   });
 
+  test("a remount with a pending sort does not let its GET revert the click", async () => {
+    const OLD = { sorting: [{ id: "mcap", desc: true }], order: [], hidden: [] };
+    const NEW = { sorting: [{ id: "rsi", desc: false }], order: [], hidden: [] };
+    const made = makeTransport();
+    made.get.mockResolvedValueOnce(envelope("table.remount", OLD));
+    const first = mount("remount", made.transport);
+    await settle();
+    expect(first.api.prefs().sorting).toEqual(OLD.sorting);
+
+    // The user clicks a new sort; the PUT is armed but has not landed.
+    first.api.setSorting(NEW.sorting);
+    expect(first.api.prefs().sorting).toEqual(NEW.sorting);
+
+    // A second consumer mounts inside the debounce and re-hydrates the same
+    // store with the stale saved sort.
+    const remountGet = deferred<UserConfig<Record<string, unknown>>>();
+    made.get.mockReturnValueOnce(remountGet.promise);
+    const second = mount("remount", made.transport);
+    await settle();
+
+    remountGet.resolve(envelope("table.remount", OLD));
+    await settle();
+
+    // Both consumers keep the user's sort; the stale GET never wins.
+    expect(first.api.prefs().sorting).toEqual(NEW.sorting);
+    expect(second.api.prefs().sorting).toEqual(NEW.sorting);
+
+    await flushDebounce();
+    expect(made.put).toHaveBeenCalledTimes(1);
+    expect(made.put.mock.calls[0][1].sorting).toEqual(NEW.sorting);
+  });
+
   test("two table ids get separate scopes and separate payloads", async () => {
     const market = makeTransport();
     const screener = makeTransport();
