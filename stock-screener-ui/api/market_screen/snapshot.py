@@ -254,6 +254,24 @@ def filter_rows_by_symbols(
     return [row for row in rows if str(row.get("symbol") or "").upper() in wanted]
 
 
+def select_rows(
+    rows: list[dict[str, Any]], symbols: list[str], limit: int
+) -> tuple[list[dict[str, Any]], int]:
+    """Filter by symbol first, then apply the response cap.
+
+    ``build_snapshot`` truncates (and caches) to ``limit``, so filtering its
+    rows afterwards hides any symbol outside the returned head: with
+    ``limit=12&symbols=KAYNES`` the snapshot holds 12 rows and KAYNES may be
+    rank 400. Callers pass the full frame here instead.
+
+    Returns ``(rows_capped, matched_count)``; ``matched_count`` counts the
+    matches before the cap, so a filtered response can report how many symbols
+    were found even when fewer are returned.
+    """
+    matched = filter_rows_by_symbols(rows, symbols)
+    return matched[:limit], len(matched)
+
+
 def _compute_once(universe: str, limit: int):
     """One TV scan + shape (+ cookie self-heal). Never falls back to cache.
 

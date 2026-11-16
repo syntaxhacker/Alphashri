@@ -6759,9 +6759,13 @@ paths:
 
         ``?symbols=``) means no filter and returns all rows; otherwise it filters
 
-        the cached snapshot to the requested symbols (max 20, deduplicated
+        the full snapshot to the requested symbols (max 20, deduplicated
 
-        case-insensitively).'
+        case-insensitively) and ``total`` is the number of matches. The filter runs
+
+        before ``limit`` truncates the response, so a symbol outside the first
+
+        ``limit`` rows of the universe is still found.'
       operationId: market_snapshot_api_market_snapshot_get
       parameters:
       - description: 'Universe: all_equity (default), nifty50, nifty500 or nse_fo.'
@@ -6784,7 +6788,7 @@ paths:
           minimum: 1
           title: Limit
           type: integer
-      - description: Optional comma-separated symbols (max 20). Filters the cached snapshot after it is built; unknown symbols are omitted.
+      - description: Optional comma-separated symbols (max 20). Filtered against the full cached snapshot, before `limit` is applied; unknown symbols are omitted.
         in: query
         name: symbols
         required: false
@@ -6792,7 +6796,7 @@ paths:
           anyOf:
           - type: string
           - type: 'null'
-          description: Optional comma-separated symbols (max 20). Filters the cached snapshot after it is built; unknown symbols are omitted.
+          description: Optional comma-separated symbols (max 20). Filtered against the full cached snapshot, before `limit` is applied; unknown symbols are omitted.
           title: Symbols
       - description: Bypass the in-process/disk cache and re-fetch from TradingView.
         in: query

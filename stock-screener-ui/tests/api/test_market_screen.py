@@ -374,6 +374,52 @@ def test_symbols_filter_still_serves_cache_without_force(client, mock_tv):
     assert filtered["cached"] is True
 
 
+def test_symbols_filter_applies_before_limit(client, mock_tv):
+    """Regression: the filter must see the full frame, not the truncated head.
+
+    With ``limit=12`` the old code filtered a 12-row response, so a symbol at
+    rank 40 returned ``total: 0`` even though it exists. The scan is now built
+    at MAX_LIMIT and the cap is applied after the filter.
+    """
+    rows = [dict(RELIANCE_ROW, name=f"NSE:SYM{i:02d}") for i in range(40)]
+    rows.append(dict(RELIANCE_ROW, name="NSE:KAYNES"))
+    mock_tv.return_value = _frame(rows)
+
+    body = client.get("/api/market/snapshot?limit=12&symbols=KAYNES").json()
+    assert [r["symbol"] for r in body["rows"]] == ["KAYNES"]
+    assert body["total"] == 1
+    # The scan itself is not chopped to 12 rows: the filter needs the universe.
+    assert mock_tv.call_args.kwargs["limit"] == MAX_LIMIT
+
+
+def test_limit_without_symbols_still_truncates(client, mock_tv):
+    rows = [dict(RELIANCE_ROW, name=f"NSE:SYM{i:02d}") for i in range(20)]
+    # A real TV scan honours `limit`; the stub must too or the cap is untested.
+    mock_tv.side_effect = lambda *a, **kw: _frame(rows[: kw["limit"]])
+
+    body = client.get("/api/market/snapshot?limit=12").json()
+    assert body["total"] == 12
+    assert len(body["rows"]) == 12
+    assert [r["symbol"] for r in body["rows"]] == [f"SYM{i:02d}" for i in range(12)]
+    assert mock_tv.call_args.kwargs["limit"] == 12
+
+
+def test_symbols_filter_total_matches_and_respects_limit(client, mock_tv):
+    rows = [dict(RELIANCE_ROW, name="NSE:NOPE0") for _ in range(3)]
+    rows += [dict(RELIANCE_ROW, name=f"NSE:PICK{i}") for i in range(5)]
+    rows += [dict(RELIANCE_ROW, name="NSE:OTHER")]
+    mock_tv.return_value = _frame(rows)
+
+    body = client.get("/api/market/snapshot?symbols=pick0,PICK4").json()
+    assert [r["symbol"] for r in body["rows"]] == ["PICK0", "PICK4"]
+    assert body["total"] == 2
+
+    # ``limit`` caps the returned rows but ``total`` still counts all matches.
+    capped = client.get("/api/market/snapshot?symbols=PICK0,PICK1,PICK2&limit=2").json()
+    assert [r["symbol"] for r in capped["rows"]] == ["PICK0", "PICK1"]
+    assert capped["total"] == 3
+
+
 def test_upstream_failure_502_without_cache(client, mock_tv):
     mock_tv.side_effect = RuntimeError("TV scanner blew up")
     resp = client.get("/api/market/snapshot?limit=123")
