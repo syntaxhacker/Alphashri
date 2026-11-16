@@ -425,4 +425,33 @@ describe("usePatternFullscreen (page) stale marker vs displayed candle date", ()
     expect(api.fullscreen()?.stale).toBe(true);
     expect(api.fullscreen()?.dataAsOf).toBeNull();
   });
+
+  // Display freshness and detection freshness are separate axes: the chart can
+  // show today's tape bar while the hits stay on the completed session.
+  test("a current display keeps detection_as_of for the dock caveat", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue({
+      ...staleChart(["2026-11-13", "2026-11-16"], "2026-11-16"),
+      stale: false,
+      detection_as_of: "2026-11-13",
+    });
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    expect(api.fullscreen()?.stale).toBe(false);
+    expect(api.fullscreen()?.detectionAsOf).toBe("2026-11-13");
+  });
+
+  test("a payload without detection_as_of leaves the field null", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(staleChart(["2026-11-16"], "2026-11-16"));
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    expect(api.fullscreen()?.detectionAsOf).toBeNull();
+  });
 });

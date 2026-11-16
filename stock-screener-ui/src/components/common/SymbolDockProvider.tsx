@@ -4,10 +4,12 @@ import { Box, Loader, Text, Badge, Tooltip, Portal, useMediaQuery } from "@/ui";
 import { useNavigate } from "@solidjs/router";
 import {
   usePatternFullscreen,
+  istSessionDate,
   type FullscreenChartState,
 } from "@/hooks/usePatternFullscreenSolid";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { FALLBACK_TIMEFRAMES } from "@/components/patterns/TimeframeSelect";
+import { formatChartTick } from "@/utils/istChartTime";
 import { SymbolDockContext, type SymbolDockApi, type SymbolDockMode } from "./symbolDockContext";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { close as closeOptionsDock, open as openOptionsDock } from "@/state/optionsDock";
@@ -339,15 +341,53 @@ function DockContent(props: {
   onClose: () => void;
   onLive: () => void;
 }) {
+  /**
+   * Detection can trail the displayed series: the 1D chart appends today's tape
+   * bar for display only, so `hits`/`bars_ago` stay on the completed-session
+   * frame. Without this the dock presents a two-session-old pattern read as if
+   * it described the last candle. `stale` already covers the opposite case (the
+   * display itself lagging), so it stays untouched here.
+   */
+  const detectionNote = () => {
+    const detected = props.state.detectionAsOf;
+    if (!detected) return null;
+    const candles = props.state.candles ?? [];
+    const barDate = istSessionDate(candles.length ? candles[candles.length - 1].t : null);
+    if (!barDate || detected >= barDate) return null;
+    return `Detection through ${formatChartTick(detected).toUpperCase()}`;
+  };
+
   return (
-    <>
-      <Show when={props.state.stale}>
-        <Box className="absolute bottom-2 right-2 z-[1200]">
-          <Tooltip label="Showing cached candles; refreshing in background">
-            <Badge size="xs" variant="outline" color="warning" data-testid="dock-stale">
-              {props.state.dataAsOf ? `Cached ${props.state.dataAsOf}` : "Cached"}
-            </Badge>
-          </Tooltip>
+    <Box
+      data-testid="symbol-dock-body"
+      className="relative flex min-h-0 min-w-0 flex-1 flex-col"
+    >
+      <Show when={detectionNote() || props.state.stale}>
+        <Box className="pointer-events-none absolute bottom-2 right-2 z-[1200] flex max-w-[70%] flex-col items-end gap-1">
+          <Show when={detectionNote()}>
+            {(note) => (
+              <Text
+                size="xs"
+                c="dimmed"
+                truncate
+                maw={220}
+                title="Patterns were detected on this session; the chart also shows newer display-only bars"
+                data-testid="dock-detection-asof"
+                className="pointer-events-auto text-[10px] leading-none"
+              >
+                {note()}
+              </Text>
+            )}
+          </Show>
+          <Show when={props.state.stale}>
+            <Box className="pointer-events-auto">
+              <Tooltip label="Showing cached candles; refreshing in background">
+                <Badge size="xs" variant="outline" color="warning" data-testid="dock-stale">
+                  {props.state.dataAsOf ? `Cached ${props.state.dataAsOf}` : "Cached"}
+                </Badge>
+              </Tooltip>
+            </Box>
+          </Show>
         </Box>
       </Show>
       <Show when={props.state.patternsLoading}>
@@ -395,6 +435,6 @@ function DockContent(props: {
           />
         </Suspense>
       </ErrorBoundary>
-    </>
+    </Box>
   );
 }

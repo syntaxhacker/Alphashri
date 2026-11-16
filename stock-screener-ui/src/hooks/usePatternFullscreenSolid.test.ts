@@ -574,4 +574,49 @@ describe("usePatternFullscreen stale marker vs displayed candle date", () => {
     expect(api.fullscreen()?.stale).toBe(true);
     expect(api.fullscreen()?.dataAsOf).toBeNull();
   });
+
+  // The gap this field closes: a current display (today's tape bar) over a
+  // detection frame two sessions older. `stale` is false because the display is
+  // current, so only `detectionAsOf` can carry the caveat.
+  test("a current display keeps detection_as_of so the dock can date the hit", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue({
+      ...staleChart(["2026-11-12", "2026-11-13", "2026-11-16"], "2026-11-16"),
+      stale: false,
+      detection_as_of: "2026-11-13",
+    });
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    expect(api.fullscreen()?.stale).toBe(false);
+    expect(api.fullscreen()?.detectionAsOf).toBe("2026-11-13");
+  });
+
+  test("a 18:30Z detection stamp resolves to the next IST session", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue({
+      ...staleChart(["2026-11-16"], "2026-11-16"),
+      stale: false,
+      detection_as_of: "2026-11-13T18:30:00Z",
+    });
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    expect(api.fullscreen()?.detectionAsOf).toBe("2026-11-14");
+  });
+
+  test("a payload without detection_as_of leaves the field null", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(staleChart(["2026-11-16"], "2026-11-16"));
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    expect(api.fullscreen()?.detectionAsOf).toBeNull();
+  });
 });

@@ -38,7 +38,7 @@ const istDayFmt = new Intl.DateTimeFormat("en-CA", {
  * string's first 10 chars are the *previous* day — always convert to IST.
  * Date-only inputs are already session dates and pass through.
  */
-function istSessionDate(value: string | null | undefined): string | null {
+export function istSessionDate(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   if (trimmed === "") return null;
@@ -55,19 +55,25 @@ function istSessionDate(value: string | null | undefined): string | null {
  * today's tape bar to the *displayed* candles while `as_of` stays pinned to the
  * detection frame — so a displayed series newer than `as_of` is current and
  * must not carry a "Cached <old date>" badge over a newer candle.
+ *
+ * `detectionAsOf` is the base frame whose hits (and their `bars_ago`) were
+ * detected. It is a *separate* axis from display freshness: the displayed series
+ * may legitimately be newer than the detected one, and the consumer must say so
+ * instead of implying the pattern read is current.
  */
 const staleFields = (
   chart: SymbolChartPayload,
-): Pick<FullscreenChartState, "stale" | "dataAsOf"> => {
+): Pick<FullscreenChartState, "stale" | "dataAsOf" | "detectionAsOf"> => {
   const candles = chart.candles ?? [];
   const candleDate = istSessionDate(candles.length ? candles[candles.length - 1].t : null);
   const asOfDate = istSessionDate(chart.as_of);
+  const detectionAsOf = istSessionDate(chart.detection_as_of);
   if (candleDate && asOfDate && candleDate > asOfDate) {
-    return { stale: false, dataAsOf: null };
+    return { stale: false, dataAsOf: null, detectionAsOf };
   }
   return chart.stale === true
-    ? { stale: true, dataAsOf: chart.as_of ?? null }
-    : { stale: false, dataAsOf: null };
+    ? { stale: true, dataAsOf: chart.as_of ?? null, detectionAsOf }
+    : { stale: false, dataAsOf: null, detectionAsOf };
 };
 
 export interface FullscreenChartState {
@@ -85,6 +91,12 @@ export interface FullscreenChartState {
   fromDate: string | null;
   stale?: boolean;
   dataAsOf?: string | null;
+  /**
+   * Completed-session frame (`YYYY-MM-DD`) the open hits were detected on. The
+   * displayed series can be newer (today's tape bar is display-only), so a
+   * docked panel must label a detection date that trails the last candle.
+   */
+  detectionAsOf?: string | null;
   /** Latest traded price from the market snapshot; null until it resolves (or on failure). */
   livePrice?: number | null;
   /** Day change % paired with `livePrice`; null when unavailable. */
@@ -196,6 +208,7 @@ export function usePatternFullscreen({
       pinned: true,
       stale: false,
       dataAsOf: null,
+      detectionAsOf: null,
       livePrice: null,
       liveChange: null,
     });
@@ -499,6 +512,7 @@ export function usePatternFullscreen({
       patternsLoading: undefined,
       stale: false,
       dataAsOf: null,
+      detectionAsOf: null,
       chartError: null,
       chartNote: null,
       livePrice: null,

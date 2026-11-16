@@ -102,6 +102,34 @@ const STALE_BUT_APPENDED_CHART = {
   as_of: "2026-11-06",
 } as never;
 
+// The confirmed gap: a current 1D display (today's tape bar, `as_of` today) over
+// a detection frame two sessions older. `stale` is false, so only
+// `detection_as_of` can say the hit is dated 13 Nov.
+const CURRENT_DISPLAY_CANDLES = [
+  { t: "2026-11-13", o: 118, h: 122, l: 117, c: 120, v: 1000 },
+  { t: "2026-11-16", o: 121, h: 126, l: 120, c: 125, v: 1200 },
+];
+
+const CURRENT_DISPLAY_STALE_DETECTION = {
+  candles: CURRENT_DISPLAY_CANDLES,
+  hits: [],
+  trend_lines: [],
+  cached: true,
+  stale: false,
+  as_of: "2026-11-16",
+  detection_as_of: "2026-11-13",
+} as never;
+
+const CURRENT_DISPLAY_CURRENT_DETECTION = {
+  candles: CURRENT_DISPLAY_CANDLES,
+  hits: [],
+  trend_lines: [],
+  cached: true,
+  stale: false,
+  as_of: "2026-11-16",
+  detection_as_of: "2026-11-16",
+} as never;
+
 function DockHarness() {
   const dock = useContext(SymbolDockContext);
   return (
@@ -248,6 +276,67 @@ describe("SymbolDockProvider stale badge", () => {
     expect(mockRefreshSymbolChart).toHaveBeenCalledTimes(1);
   });
 
+});
+
+describe("SymbolDockProvider detection-as-of chip", () => {
+  beforeEach(() => {
+    __resetFullscreen();
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("1200px"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  test("a current display over a two-session-old detection dates the hit and shows no stale badge", async () => {
+    mockedFetchSymbolChart.mockResolvedValue(CURRENT_DISPLAY_STALE_DETECTION);
+    renderDock();
+
+    await fireEvent.click(screen.getByTestId("open-ircon"));
+
+    const chip = await screen.findByTestId("dock-detection-asof");
+    expect(chip).toHaveTextContent("13 NOV");
+    // The display itself is current, so the cached badge must stay suppressed.
+    expect(screen.queryByTestId("dock-stale")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("IRCON"),
+    );
+  });
+
+  test("a detection on the displayed bar date hides the chip", async () => {
+    mockedFetchSymbolChart.mockResolvedValue(CURRENT_DISPLAY_CURRENT_DETECTION);
+    renderDock();
+
+    await fireEvent.click(screen.getByTestId("open-ircon"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("IRCON"),
+    );
+    expect(screen.queryByTestId("dock-detection-asof")).not.toBeInTheDocument();
+  });
+
+  test("a payload without detection_as_of renders no chip", async () => {
+    mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
+    renderDock();
+
+    await fireEvent.click(screen.getByTestId("open-ircon"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("IRCON"),
+    );
+    expect(screen.queryByTestId("dock-detection-asof")).not.toBeInTheDocument();
+  });
 });
 
 describe("preview → endPreview race (A then B)", () => {

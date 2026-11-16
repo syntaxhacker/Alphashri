@@ -274,6 +274,12 @@ export interface ChartPayload {
    */
   as_of?: string | null;
   /**
+   * Completed-session frame date (`YYYY-MM-DD`) whose hits the detection ran on.
+   * The displayed candles can legitimately be newer — a 1D chart appends
+   * today's tape bar for display only, so `hits`/`bars_ago` stay pinned here.
+   */
+  detection_as_of?: string | null;
+  /**
    * Stale-first marker: a cached disk frame served while a background
    * refresh runs. Fresh wire responses omit these (or send `cached:false`).
    */
