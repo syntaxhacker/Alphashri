@@ -2722,3 +2722,85 @@ export async function setupOptionDockMocks(
     reset,
   };
 }
+
+// ---------------------------------------------------------------------------
+// F&O screener (GET /api/options/screener)
+// ---------------------------------------------------------------------------
+
+export const mockFnoScreenerResponse = {
+  status: "ok",
+  as_of: "2026-11-16T11:20:00+05:30",
+  expiry: "2026-11-26",
+  expiries: [
+    { date: "2026-11-26", days_to_expiry: 10 },
+    { date: "2026-12-31", days_to_expiry: 45 },
+  ],
+  preset: "cheap_momentum",
+  scanned: 120,
+  matched: 2,
+  stale: false,
+  warnings: [],
+  errors: [],
+  rows: [
+    {
+      symbol: "RELIANCE",
+      spot: 1417.4,
+      d1: 1.2,
+      d5: 4.5,
+      vol_ratio: 1.4,
+      above20: 1,
+      setup: "BREAKOUT",
+      call: "RELIANCE26NOV1420CE",
+      strike: 1420,
+      otm_pct: 0.18,
+      premium: 27.5,
+      cost_lot: 13_750,
+      breakeven: 1447.5,
+      pop: 62,
+      delta: 0.42,
+      gamma: 0.002,
+      theta: -4,
+      vega: 9,
+      iv: 21.9,
+      oi: 52_000,
+      volume: 85_000,
+      spread_pct: 1.8,
+      move_2pct_est: 0.45,
+    },
+    {
+      symbol: "TCS",
+      spot: 2485.1,
+      d1: 0.6,
+      d5: 2.1,
+      vol_ratio: 1.1,
+      above20: 1,
+      setup: "NEAR HIGH",
+      call: "TCS26NOV2500CE",
+      strike: 2500,
+      otm_pct: 0.6,
+      premium: 61.5,
+      cost_lot: 61_500,
+      breakeven: 2561.5,
+      pop: 58,
+      delta: 0.79,
+      gamma: 0.002,
+      theta: -6,
+      vega: 12,
+      iv: 23.4,
+      oi: 24_000,
+      volume: 40_000,
+      spread_pct: 2.2,
+      move_2pct_est: 0.3,
+    },
+  ],
+};
+
+export async function setupFnoScreenerMocks(page: import("@playwright/test").Page) {
+  await page.route(apiRoute("options/screener"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(mockFnoScreenerResponse),
+    });
+  });
+}
