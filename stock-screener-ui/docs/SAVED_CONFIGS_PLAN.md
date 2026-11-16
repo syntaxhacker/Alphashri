@@ -550,3 +550,36 @@ Each is exactly: one `SavedConfigScope` adapter + one registry row + one test fi
 11. **Size caps.** ✅ 16 KiB payload, `sectors ≤ 200`; 422 beyond.
 12. **`search` ownership.** ✅ Excluded from persistence in P1; unify the two owners before ever adding it.
 13. **GET rewrites a migrated payload?** ✅ No — GET never mutates; the row upgrades on the next write.
+
+---
+
+## 8. Table preferences (`table.*`)
+
+Table UI preferences use the same server-side saved-config store — no new endpoint,
+no new table. The reusable layer lives in `src/components/common/useTablePrefs.ts`
+(`createTablePrefsScope`, `registerTablePrefsScope`, `useTablePrefs`).
+
+- **Scope key** `table.${tableId}` — e.g. `table.market`,
+  `table.screener.52w_high`. **Version** `1`.
+- **Shape** (wire payload / `TablePrefs`):
+  ```ts
+  { sorting: [{ id: string; desc: boolean }], order: string[], hidden: string[] }
+  ```
+  Defaults are `{ sorting: [], order: [], hidden: [] }`. `order` and `hidden` are
+  reserved for column order/visibility; only `sorting` is written today.
+- **Per-table isolation.** One `createSavedConfigStore` per `tableId`, shared
+  across mounts of that table via a ref-counted module map (hydrate once, dispose
+  when the last consumer unmounts). Different `tableId`s never share state or
+  payloads; `registerTablePrefsScope(tableId)` is idempotent by tableId.
+- **Sort cycle ownership.** The table owns the sort cycle (TanStack's internal
+  signal + the click handler that advances asc → desc → none). This store only
+  persists the resulting `sorting` array: `prefs()` supplies the initial value,
+  `setSorting(next)` records each completed cycle and schedules the debounced PUT.
+  It does not compute, advance, or enforce a sort order and must not be wired to
+  mutate a table directly.
+- **Merge behaviour.** `parse` tolerates partial payloads (bad `sorting` entries
+  are dropped, duplicate ids keep the last value, missing keys become `[]`,
+  unknown keys ignored); `serialize` emits exactly the three keys. The store's
+  existing hydration latch/generation rules still apply — no write before the GET
+  settles.
+- Later lane: wire `prefs()` / `setSorting()` into `TanStackTable` (not this file).
