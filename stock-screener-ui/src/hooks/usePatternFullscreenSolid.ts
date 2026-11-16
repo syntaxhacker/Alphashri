@@ -7,6 +7,7 @@
  * once their scope converts; until then this is the report page's local twin.
  */
 import { createEffect, createSignal, onCleanup } from "solid-js";
+import { TZ_IST } from "@/config/constants";
 import type {
   ChartCandle,
   PatternHitDTO,
@@ -23,12 +24,51 @@ import {
 export type SymbolChartPayload = Awaited<ReturnType<typeof fetchSymbolChart>>;
 const SYMBOL_CHART_CACHE_MS = 60_000;
 
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const istDayFmt = new Intl.DateTimeFormat("en-CA", {
+  timeZone: TZ_IST,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/**
+ * IST session date (`YYYY-MM-DD`) of an ISO timestamp, or null.
+ * Daily bars arrive as `18:30Z` (= 00:00 IST of the session), so the raw
+ * string's first 10 chars are the *previous* day — always convert to IST.
+ * Date-only inputs are already session dates and pass through.
+ */
+function istSessionDate(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (trimmed === "") return null;
+  if (DATE_ONLY_RE.test(trimmed)) return trimmed;
+  const ms = Date.parse(trimmed);
+  if (Number.isNaN(ms)) return null;
+  const parts = istDayFmt.formatToParts(new Date(ms));
+  const pick = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${pick("year")}-${pick("month")}-${pick("day")}`;
+}
+
+/**
+ * Stale markers from a chart payload. A stale-first response can still append
+ * today's tape bar to the *displayed* candles while `as_of` stays pinned to the
+ * detection frame — so a displayed series newer than `as_of` is current and
+ * must not carry a "Cached <old date>" badge over a newer candle.
+ */
 const staleFields = (
   chart: SymbolChartPayload,
-): Pick<FullscreenChartState, "stale" | "dataAsOf"> =>
-  chart.stale === true
+): Pick<FullscreenChartState, "stale" | "dataAsOf"> => {
+  const candles = chart.candles ?? [];
+  const candleDate = istSessionDate(candles.length ? candles[candles.length - 1].t : null);
+  const asOfDate = istSessionDate(chart.as_of);
+  if (candleDate && asOfDate && candleDate > asOfDate) {
+    return { stale: false, dataAsOf: null };
+  }
+  return chart.stale === true
     ? { stale: true, dataAsOf: chart.as_of ?? null }
     : { stale: false, dataAsOf: null };
+};
 
 export interface FullscreenChartState {
   symbol: string;

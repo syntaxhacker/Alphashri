@@ -91,6 +91,17 @@ const FRESH_CHART = {
   stale: false,
 } as never;
 
+// Stale-first frame whose displayed candles have today's tape bar appended:
+// `as_of` still names the detection frame, so the old badge contradicted the chart.
+const STALE_BUT_APPENDED_CHART = {
+  candles: [candle(), { t: "2026-11-09", o: 121, h: 125, l: 120, c: 124, v: 900 }],
+  hits: [],
+  trend_lines: [],
+  cached: true,
+  stale: true,
+  as_of: "2026-11-06",
+} as never;
+
 function DockHarness() {
   const dock = useContext(SymbolDockContext);
   return (
@@ -169,6 +180,18 @@ describe("SymbolDockProvider stale badge", () => {
     await waitFor(() =>
       expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("IRCON"),
     );
+  });
+
+  test("a stale-first payload whose candles reach past as_of hides the badge", async () => {
+    mockedFetchSymbolChart.mockResolvedValue(STALE_BUT_APPENDED_CHART);
+    renderDock();
+
+    await fireEvent.click(screen.getByTestId("open-ircon"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("IRCON"),
+    );
+    expect(screen.queryByTestId("dock-stale")).not.toBeInTheDocument();
   });
 
   test("a fresh payload hides the badge", async () => {

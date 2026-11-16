@@ -489,3 +489,89 @@ describe("usePatternFullscreen live quote polling (15s, fake timers)", () => {
     expect(fetchQuotes).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("usePatternFullscreen stale marker vs displayed candle date", () => {
+  beforeEach(() => {
+    framePrice = 1000;
+    vi.mocked(fetchPatternHit).mockResolvedValue(null as never);
+    vi.mocked(fetchQuotes).mockResolvedValue([
+      { symbol: "KAYNES", close: 2986, change: -12.94 },
+    ]);
+  });
+
+  afterEach(() => {
+    hook?.unmount();
+    hook = undefined;
+    vi.clearAllMocks();
+  });
+
+  // A stale-first frame: `as_of` stays pinned to the detection frame while the
+  // displayed series has had today's tape bar appended.
+  const staleChart = (candleDates: string[], asOf?: string | null): ChartPayload => ({
+    ...chartPayload(framePrice),
+    candles: candleDates.map((t, i) => ({
+      t,
+      o: 100 + i,
+      h: 101 + i,
+      l: 99 + i,
+      c: 100 + i,
+      v: 1,
+    })),
+    stale: true,
+    ...(asOf === undefined ? {} : { as_of: asOf }),
+  });
+
+  test("a displayed candle newer than as_of clears the stale marker", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(
+      staleChart(["2026-11-12", "2026-11-13", "2026-11-16"], "2026-11-13"),
+    );
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    expect(api.fullscreen()?.stale).toBe(false);
+    expect(api.fullscreen()?.dataAsOf).toBeNull();
+  });
+
+  test("a daily bar stamped 18:30Z belongs to the next IST session", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(
+      staleChart(["2026-11-12T18:30:00Z", "2026-11-13T18:30:00Z"], "2026-11-13"),
+    );
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    expect(api.fullscreen()?.stale).toBe(false);
+    expect(api.fullscreen()?.dataAsOf).toBeNull();
+  });
+
+  test("a series ending on as_of keeps the stale marker and its date", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(
+      staleChart(["2026-11-12", "2026-11-13"], "2026-11-13"),
+    );
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    expect(api.fullscreen()?.stale).toBe(true);
+    expect(api.fullscreen()?.dataAsOf).toBe("2026-11-13");
+  });
+
+  test("no as_of keeps the previous behavior", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(staleChart(["2026-11-12", "2026-11-16"], null));
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    expect(api.fullscreen()?.stale).toBe(true);
+    expect(api.fullscreen()?.dataAsOf).toBeNull();
+  });
+});
