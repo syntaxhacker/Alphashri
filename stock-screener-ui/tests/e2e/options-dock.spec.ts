@@ -84,6 +84,22 @@ async function openDock(page: Page) {
   await expect(page.locator('[data-testid="options-dock"]')).toBeVisible({ timeout: 15000 });
 }
 
+/** Header labels with the sort-direction arrow stripped (strike sorts ▲ by default). */
+async function chainHeaders(page: Page): Promise<string[]> {
+  const raw = await page.locator('[data-testid="options-chain"] thead th').allTextContents();
+  return raw.map((text) => text.replace(/[▲▼]/g, "").trim());
+}
+
+/** The chain owns one `.paper-tanstack-scroll`; it must never scroll sideways. */
+async function chainScrollFits(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const scroller = document.querySelector(
+      '[data-testid="options-chain-table"] .paper-tanstack-scroll',
+    ) as HTMLElement;
+    return scroller.scrollWidth <= scroller.clientWidth;
+  });
+}
+
 test.describe("Options dock", () => {
   const consoleErrors: string[] = [];
 
@@ -268,9 +284,19 @@ test.describe("Options dock", () => {
     await page.locator('[data-testid="options-close"]').click();
     await expect(page.locator('[data-testid="options-dock"]')).toBeHidden({ timeout: 10000 });
 
+    // Give any stray refresh timer a window to fire; the counter must stay put.
     const settled = dock.counts.chain;
-    await page.waitForTimeout(1200);
-    expect(dock.counts.chain).toBe(settled);
+    let ticks = 0;
+    await expect
+      .poll(
+        () => {
+          ticks += 1;
+          expect(dock.counts.chain).toBe(settled);
+          return ticks >= 6 ? "stable" : "waiting";
+        },
+        { timeout: 2000, intervals: [200] },
+      )
+      .toBe("stable");
   });
 
   test("narrow viewport opens a bottom sheet and the page never scrolls sideways", async ({ page }) => {
@@ -281,17 +307,136 @@ test.describe("Options dock", () => {
     await expect(page.locator('[data-testid="options-dock-sheet"]')).toBeVisible();
     await expect(page.locator('[data-testid="options-chain-table"]')).toBeVisible();
 
-    const metrics = await page.evaluate(() => ({
-      scrollWidth: document.documentElement.scrollWidth,
-      clientWidth: document.documentElement.clientWidth,
-      sheetHeight: Math.round(
-        document.querySelector('[data-testid="options-dock-sheet"]')!.getBoundingClientRect().height,
-      ),
-    }));
+    // One-sided CE control, defaulted to CE.
+    const ce = page.locator('[data-testid="options-chain-side-ce"]');
+    const pe = page.locator('[data-testid="options-chain-side-pe"]');
+    await expect(ce).toBeVisible();
+    await expect(pe).toBeVisible();
+    await expect(ce).toHaveAttribute("aria-pressed", "true");
+    await expect(pe).toHaveAttribute("aria-pressed", "false");
+
+    // Exactly the five CE columns, in wireframe order, with no PE price cells.
+    await expect(page.locator('[data-testid="options-chain"] thead th')).toHaveCount(5);
+    expect(await chainHeaders(page)).toEqual(["OI", "IV", "Δ", "LTP", "STRIKE"]);
+    await expect(page.locator('[data-testid="options-ce-1420"]')).toBeVisible();
+    await expect(page.locator('[data-testid^="options-pe-"]')).toHaveCount(0);
+    // The ATM row is the strike nearest spot (1417.4 → 1420).
+    await expect(page.locator('[data-testid="options-chain-row-1420"]')).toHaveAttribute(
+      "data-atm",
+      "true",
+    );
+    await expect(page.locator('[data-testid="options-atm-marker-1420"]')).toBeVisible();
+
+    const metrics = await page.evaluate(() => {
+      const scroller = document.querySelector(
+        '[data-testid="options-chain-table"] .paper-tanstack-scroll',
+      ) as HTMLElement;
+      return {
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+        chainScrollWidth: scroller.scrollWidth,
+        chainClientWidth: scroller.clientWidth,
+        sheetHeight: Math.round(
+          document.querySelector('[data-testid="options-dock-sheet"]')!.getBoundingClientRect().height,
+        ),
+      };
+    });
     // A horizontal page scrollbar under 400 px is the class of bug a desktop
-    // screenshot never shows.
+    // screenshot never shows — and neither should the chain's own scroller.
     expect(metrics.scrollWidth).toBe(metrics.clientWidth);
+    expect(metrics.chainScrollWidth).toBeLessThanOrEqual(metrics.chainClientWidth);
     // 62vh of 844 = 523 px, ±2 px for rounding.
     expect(Math.abs(metrics.sheetHeight - 844 * 0.62)).toBeLessThan(3);
+  });
+
+  test("narrow chain: tapping PE flips the columns and keeps the ATM row", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await enterWithDock(page);
+    await openDock(page);
+
+    const ce = page.locator('[data-testid="options-chain-side-ce"]');
+    const pe = page.locator('[data-testid="options-chain-side-pe"]');
+    await expect(ce).toHaveAttribute("aria-pressed", "true");
+    await expect(pe).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator('[data-testid="options-ce-1420"]')).toBeVisible();
+
+    await pe.click();
+
+    await expect(ce).toHaveAttribute("aria-pressed", "false");
+    await expect(pe).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator('[data-testid="options-chain"] thead th')).toHaveCount(5);
+    await expect.poll(() => chainHeaders(page), { timeout: 10000 }).toEqual([
+      "STRIKE",
+      "LTP",
+      "Δ",
+      "IV",
+      "OI",
+    ]);
+    await expect(page.locator('[data-testid="options-pe-1420"]')).toBeVisible();
+    await expect(page.locator('[data-testid^="options-ce-"]')).toHaveCount(0);
+    // Same strike/ATM row survives the side switch.
+    await expect(page.locator('[data-testid="options-chain-row-1420"]')).toHaveAttribute(
+      "data-atm",
+      "true",
+    );
+    await expect(page.locator('[data-testid="options-atm-marker-1420"]')).toBeVisible();
+    await expect.poll(() => chainScrollFits(page), { timeout: 10000 }).toBe(true);
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+          ),
+        { timeout: 10000 },
+      )
+      .toBe(true);
+  });
+
+  test("wide viewport hides the side toggle and keeps the nine-column chain", async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await enterWithDock(page);
+    await openDock(page);
+
+    await expect(page.locator('[data-testid="options-chain-table"]')).toBeVisible();
+    await expect(page.locator('[data-testid="options-chain-side-ce"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="options-chain-side-pe"]')).toHaveCount(0);
+
+    await expect(page.locator('[data-testid="options-chain"] thead th')).toHaveCount(9);
+    expect(await chainHeaders(page)).toEqual([
+      "OI",
+      "IV",
+      "Δ",
+      "LTP",
+      "STRIKE",
+      "LTP",
+      "Δ",
+      "IV",
+      "OI",
+    ]);
+    await expect(page.locator('[data-testid="options-ce-1420"]')).toBeVisible();
+    await expect(page.locator('[data-testid="options-pe-1420"]')).toBeVisible();
+    await expect(page.locator('[data-testid="options-atm-marker-1420"]')).toBeVisible();
+
+    // Sorting is unchanged: strike is the initial ascending primary sort.
+    await expect(page.locator("#paper-tanstack-header-strike")).toHaveAttribute(
+      "aria-sort",
+      "ascending",
+    );
+    await expect(page.locator('[data-testid="options-chain"] tbody tr').first()).toHaveAttribute(
+      "data-testid",
+      "options-chain-row-1340",
+    );
+    // Clicking a numeric OI header promotes it to a descending primary sort.
+    await page.locator("#paper-tanstack-header-ce_oi").click();
+    await expect(page.locator("#paper-tanstack-header-ce_oi")).toHaveAttribute(
+      "aria-sort",
+      "descending",
+    );
+    await expect(page.locator('[data-testid="options-chain"] tbody tr').first()).toHaveAttribute(
+      "data-testid",
+      "options-chain-row-1420",
+    );
+    // ATM is pinned to the strike nearest spot, not to a row position.
+    await expect(page.locator('[data-testid="options-atm-marker-1420"]')).toBeVisible();
   });
 });
