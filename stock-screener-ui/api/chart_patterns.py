@@ -815,7 +815,7 @@ def _kick_stale_first_refresh(symbol: str, timeframe: str, lookback_bars) -> boo
                     df = candles.fetch_for_timeframe(
                         key[0], key[1],
                         lookback_bars=None if lookback_bars is None else int(lookback_bars),
-                        include_partial_today=False,
+                        include_partial_today=(key[1] == "1D"),
                         force_refresh=True,
                     )
                 except Exception as e:  # noqa: BLE001 - background refresh never propagates
@@ -2521,6 +2521,48 @@ async def _asof_symbol_chart(
     }
 
 
+def _chart_display_frame(base_df, symbol_u: str, timeframe: str,
+                         allow_append: bool = False) -> tuple:
+    """Return ``(display_df, is_partial)`` for a live chart response.
+
+    ``base_df`` is the completed-session frame used for detection and caches and
+    is never mutated. On the network path ``fetch_for_timeframe`` has already
+    appended the tape bar (and set ``partial_today``), so only its marker is
+    read here. ``allow_append=True`` is for the stale-disk path, where the
+    cached frame predates today and the bar must be fetched and appended now.
+    ``is_partial`` is true only while the session is still trading — once the
+    15:30 IST close has passed the bar is final and carries no marker. Never
+    raises.
+    """
+    display = base_df
+    is_partial = False
+    if base_df is not None and not getattr(base_df, "empty", True):
+        attrs = getattr(base_df, "attrs", {}) or {}
+        if timeframe == "1D" and attrs.get("partial_today"):
+            is_partial = bool(attrs.get(
+                "partial_today_in_progress", attrs.get("partial_today", False)
+            ))
+        elif timeframe == "1D" and allow_append:
+            try:
+                merged = candles.with_partial_today(base_df, symbol_u)
+                if merged is not None and not merged.empty and len(merged) > len(base_df):
+                    display = merged
+                    attrs = getattr(merged, "attrs", {}) or {}
+                    is_partial = bool(attrs.get(
+                        "partial_today_in_progress", attrs.get("partial_today", False)
+                    ))
+            except Exception:
+                pass
+    return display, is_partial
+
+
+def _mark_partial_last(series: list, is_partial: bool) -> list:
+    """Flag the trailing displayed candle as in-progress, when applicable."""
+    if is_partial and series:
+        series[-1]["is_partial"] = True
+    return series
+
+
 @router.get("/symbol/{symbol}/chart")
 async def get_symbol_chart(
     symbol: str,
@@ -2531,6 +2573,7 @@ async def get_symbol_chart(
     detect_patterns: bool = Query(False),
     as_of_date: Optional[str] = Query(None),
     from_date: Optional[str] = Query(None),
+    refresh: bool = Query(False),
 ):
     if as_of_date is not None:
         return _json_response(await _asof_symbol_chart(
@@ -2544,10 +2587,26 @@ async def get_symbol_chart(
     # Stale-first: a session-current frame in the default live-edge disk cache
     # is served immediately (marked cached/stale) while a daemon thread
     # refreshes the cache for the next poll. Replay/as-of never takes this.
-    stale_first = _stale_first_frame(symbol_u, timeframe, lb)
+    # An explicit refresh always goes to the network path.
+    stale_first = None if refresh else _stale_first_frame(symbol_u, timeframe, lb)
     if stale_first is not None:
         df, as_of, read_ms = stale_first
-        series = _clamped_candle_series(df, lookback_bars, limit)
+        try:
+            chart_lcs = candles._last_completed_session().isoformat()
+        except Exception:
+            chart_lcs = None
+        # The disk frame is the completed-session base: detection, enrichment
+        # and the frame identity stay pinned to it. Only when Upstox's daily
+        # frame genuinely lags the last completed session do we append today's
+        # tape bar to the *displayed* candles; a session-current frame already
+        # covers the latest session and never touches the tape here.
+        display_df, is_partial = df, False
+        if timeframe == "1D" and as_of and chart_lcs and as_of < chart_lcs:
+            display_df, is_partial = _chart_display_frame(
+                df, symbol_u, timeframe, allow_append=True
+            )
+        series = _clamped_candle_series(display_df, lookback_bars, limit)
+        _mark_partial_last(series, is_partial)
         if series:
             _remember_frame((symbol_u, timeframe), df, *_last_close_change(df))
             overlays, stored_fresh_lines = _stored_overlays_and_lines(symbol_u, timeframe)
@@ -2561,10 +2620,6 @@ async def get_symbol_chart(
                 trend_lines = []
             else:
                 trend_lines = _detect_trend_lines(df, lookback_bars, stored_fresh_lines)
-            try:
-                chart_lcs = candles._last_completed_session().isoformat()
-            except Exception:
-                chart_lcs = None
             payload = {
                 "symbol": symbol_u,
                 "timeframe": timeframe,
@@ -2604,7 +2659,7 @@ async def get_symbol_chart(
 
     # Negative cache hit: this (symbol, timeframe) already returned no
     # candles this session — answer instantly, no upstream fetch at all.
-    neg = _chart_neg_cache_get(symbol_u, timeframe, session)
+    neg = None if refresh else _chart_neg_cache_get(symbol_u, timeframe, session)
     if neg is not None:
         _log_chart_fetch(
             symbol_u, timeframe, elapsed_ms=0.0, rows=0,
@@ -2620,6 +2675,7 @@ async def get_symbol_chart(
                 symbol_u, timeframe,
                 lookback_bars=lb,
                 include_partial_today=(timeframe == "1D"),
+                force_refresh=bool(refresh),
             ),
             timeout=_CHART_FETCH_TIMEOUT_SEC,
         )
@@ -2705,19 +2761,20 @@ async def get_symbol_chart(
         return _json_response(payload)
     # The fetch window carries ~1.5x headroom; clamp the displayed chart to
     # exactly the requested Lookback (Auto keeps the whole window). A trailing
-    # synthetic session bar (1D only) is flagged for distinct UI rendering;
-    # tail-clamping always keeps the last row, so the flag maps to series[-1].
-    partial_last = bool(
-        df is not None and getattr(df, "attrs", {}).get("partial_today", False)
-    )
-    series = _clamped_candle_series(df, lookback_bars, limit)
-    if partial_last and series:
-        series[-1]["is_partial"] = True
+    # synthetic session bar (1D only, fetched with include_partial_today) is
+    # appended for display only — detection and the frame identity use the
+    # completed-session base frame so an unfinished bar can never form a hit.
+    display_df, is_partial = _chart_display_frame(df, symbol_u, timeframe)
+    base_df = df
+    if getattr(df, "attrs", {}).get("partial_today"):
+        base_df = df.iloc[:-1]
+    series = _clamped_candle_series(display_df, lookback_bars, limit)
+    _mark_partial_last(series, is_partial)
     _remember_frame((symbol_u, timeframe), df, *_last_close_change(df))
     overlays, stored_fresh_lines = _stored_overlays_and_lines(symbol_u, timeframe)
     hits_block = None
     if detect_patterns:
-        hits_block = _pattern_block(df, symbol_u, timeframe, session, lookback_bars, compute_trendlines, stored_fresh_lines)
+        hits_block = _pattern_block(base_df, symbol_u, timeframe, session, lookback_bars, compute_trendlines, stored_fresh_lines)
         overlays.extend(hits_block["live_overlays"])
     if hits_block is not None and hits_block["trend_lines"] is not None:
         trend_lines = hits_block["trend_lines"]
@@ -2726,7 +2783,7 @@ async def get_symbol_chart(
     else:
         # Reuse fresh scan-time lines so fullscreen agrees with the cards;
         # stale lines (detector changed) fall through to the recompute.
-        trend_lines = _detect_trend_lines(df, lookback_bars, stored_fresh_lines)
+        trend_lines = _detect_trend_lines(base_df, lookback_bars, stored_fresh_lines)
     payload = {
         "symbol": symbol_u,
         "timeframe": timeframe,
@@ -2738,7 +2795,7 @@ async def get_symbol_chart(
         payload["hits"] = list(hits_block["hits"])
         _store_pattern_block(
             symbol_u, timeframe, session, hits_block, compute_trendlines,
-            _frame_identity(df),
+            _frame_identity(base_df),
         )
     return _json_response(payload)
 

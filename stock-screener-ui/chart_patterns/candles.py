@@ -826,6 +826,40 @@ def _cached_synthetic_today(api, symbol: str) -> Optional[pd.DataFrame]:
     return synth
 
 
+def _synthetic_bar_in_progress(bar: Optional[pd.DataFrame]) -> bool:
+    """True when a tape-synthesized bar belongs to a session still trading.
+
+    ``_last_completed_session()`` advances to today at the 15:30 IST close, so a
+    bar dated after it can only be an in-progress session. Once the close has
+    passed the bar is final and no longer partial. Never raises.
+    """
+    if bar is None or getattr(bar, "empty", True):
+        return False
+    session = frame_last_date(bar)
+    if not session:
+        return False
+    try:
+        last_done = _last_completed_session().isoformat()
+    except Exception:
+        return False
+    return bool(session > last_done)
+
+
+def with_partial_today(
+    df: pd.DataFrame, symbol: str, api_client=None,
+    partial_bar: Optional[pd.DataFrame] = None,
+) -> Optional[pd.DataFrame]:
+    """Public entry point for appending today's synthetic bar for display.
+
+    The base frame is only read; the returned merged frame is flagged with
+    ``partial_today`` (a synthetic bar was appended) and
+    ``partial_today_in_progress`` (the session is still trading). The synthetic
+    bar is never written to the disk cache — that write happens before this
+    step in :func:`fetch_for_timeframe`. Never raises.
+    """
+    return _with_partial_today(df, symbol, api_client, partial_bar)
+
+
 def _with_partial_today(
     df: pd.DataFrame, symbol: str, api_client=None,
     partial_bar: Optional[pd.DataFrame] = None,
@@ -837,7 +871,8 @@ def _with_partial_today(
     directly and no per-symbol intraday tape call is made. Otherwise the bar is
     synthesized from today's 1-minute tape (legacy path). The official daily
     bar wins; the merged frame is flagged via ``df.attrs["partial_today"]`` and
-    must never be written to the disk cache. Never raises.
+    ``df.attrs["partial_today_in_progress"]`` and must never be written to the
+    disk cache. Never raises.
     """
     if df is None or df.empty:
         return df
@@ -867,6 +902,7 @@ def _with_partial_today(
         return df
     try:
         merged.attrs["partial_today"] = True
+        merged.attrs["partial_today_in_progress"] = _synthetic_bar_in_progress(bar)
     except Exception:
         pass
     return merged

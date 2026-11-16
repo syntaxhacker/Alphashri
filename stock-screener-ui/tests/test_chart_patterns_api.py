@@ -1597,17 +1597,26 @@ def test_symbol_chart_1d_forwards_partial_flag(cp_client, monkeypatch, no_stale_
 
 
 def test_symbol_chart_1d_marks_synthetic_last_bar(cp_client, monkeypatch, tmp_path):
-    """With a mocked 1-min tape the chart gains one `is_partial` bar."""
+    """An in-progress 1-min tape adds one `is_partial` bar to the display."""
+    from datetime import date as _date, datetime as _dt, timedelta as _td
+    from trading.timezone import IST
+
     store.save_hits("cpj_pmark", [_hit("IRCON")])
     base = _partial_daily_base()
+    today = _dt.now(IST).strftime("%Y-%m-%d")
+    y, m, d = (int(p) for p in today.split("-"))
     monkeypatch.setattr(cp_api.candles, "_today_is_session", lambda: True)
+    monkeypatch.setattr(
+        cp_api.candles, "_last_completed_session", lambda now=None: _date(y, m, d) - _td(days=1)
+    )
     monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    cp_api.candles._PARTIAL_CACHE.clear()
     monkeypatch.setattr(
         "market_data.market_data.fetch_candles_for_timeframe",
         lambda symbol, timeframe, **kwargs: base,
     )
     monkeypatch.setattr(
-        "market_data.market_data.get_api_client", lambda: _partial_tape()
+        "market_data.market_data.get_api_client", lambda: _partial_tape(day=today)
     )
     monkeypatch.setattr(
         cp_api.trendlines_mod, "detect_trendlines",
@@ -3250,8 +3259,9 @@ def test_symbol_chart_stale_first_serves_one_session_behind(
 
 
 def test_kick_stale_first_refresh_refetches_with_force_refresh(cp_client, monkeypatch):
-    """The background refresh re-fetches with force_refresh=True and never
-    requests the synthetic partial bar (which must not reach the disk cache)."""
+    """The background refresh bypasses the disk cache and fetches today's bar
+    for 1D; the synthetic bar is still not written to the disk cache (the write
+    happens before the append inside fetch_for_timeframe)."""
     calls: list = []
 
     def _recorder(symbol, timeframe, **kwargs):
@@ -3274,7 +3284,7 @@ def test_kick_stale_first_refresh_refetches_with_force_refresh(cp_client, monkey
     assert ok is True
     assert calls == [{
         "symbol": "POWERMECH", "timeframe": "1D",
-        "lookback_bars": 500, "include_partial_today": False, "force_refresh": True,
+        "lookback_bars": 500, "include_partial_today": True, "force_refresh": True,
     }]
     assert cp_api._refresh_inflight == set()
 
