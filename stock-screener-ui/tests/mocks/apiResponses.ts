@@ -2557,10 +2557,16 @@ function optionDockChainBody(expiry: string) {
     timestamp: "2026-11-16T11:20:00+05:30",
     summary: { pcr: 1.08, max_pain: 1420, total_ce_oi: 210_000, total_pe_oi: 226_000, dte: 10, atm_iv: 21.4 },
     chain: [
+      { strike: 1340, ce: leg(79.0, 18_000, 24.2, 0.88), pe: leg(3.1, 9_000, 24.0, -0.12) },
+      { strike: 1360, ce: leg(61.5, 24_000, 23.4, 0.79), pe: leg(5.4, 13_000, 23.2, -0.18) },
+      { strike: 1380, ce: leg(46.0, 31_000, 22.6, 0.68), pe: leg(9.1, 22_000, 22.4, -0.26) },
       { strike: 1400, ce: leg(27.5, 52_000, 21.9, 0.42), pe: leg(14.2, 74_000, 21.6, -0.37) },
       { strike: 1420, ce: leg(15.4, 86_000, 21.4, 0.31), pe: leg(21.8, 41_000, 21.2, -0.48) },
       // An illiquid strike with no greeks: the UI must render "—", never 0.
       { strike: 1440, ce: leg(2.1, 0, null, null), pe: leg(61.0, 12_000, 22.4, -0.71) },
+      { strike: 1460, ce: leg(6.3, 27_000, 22.8, 0.24), pe: leg(88.4, 8_000, 23.1, -0.79) },
+      { strike: 1480, ce: leg(3.4, 19_000, 23.6, 0.16), pe: leg(112.0, 5_000, 23.8, -0.86) },
+      { strike: 1500, ce: leg(1.9, 14_000, 24.4, 0.1), pe: leg(131.5, 3_000, 24.6, -0.91) },
     ],
   };
 }

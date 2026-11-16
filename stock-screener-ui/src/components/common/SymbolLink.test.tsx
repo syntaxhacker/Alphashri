@@ -39,7 +39,7 @@ describe("SymbolLink", () => {
     const open = vi.fn();
     r(
       <SymbolDockContext.Provider
-        value={{ open, preview: vi.fn(), endPreview: vi.fn(), close: vi.fn(), pinned: false }}
+        value={{ open, preview: vi.fn(), endPreview: vi.fn(), close: vi.fn(), pinned: false, setOutlet: vi.fn() }}
       >
         <SymbolLink symbol="SBIN" testId="sym-tv" chartTestId="sym-chart" />
       </SymbolDockContext.Provider>,
