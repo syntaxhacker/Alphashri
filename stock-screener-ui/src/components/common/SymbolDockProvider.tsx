@@ -285,7 +285,7 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
                   onMouseEnter={cancelClose}
                   onMouseLeave={endPreview}
                   className="fixed bottom-0 left-0 right-0 z-[1100] flex flex-col overflow-hidden border-t border-fin-border bg-fin-surface shadow-lg"
-                  style={{ height: "62vh" }}
+                  style={{ height: "62dvh" }}
                   data-testid="options-dock-sheet"
                 >
                   {renderPanel()}
@@ -297,7 +297,7 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
                 onMouseLeave={endPreview}
                 onMouseDown={pinFullscreen}
                 className="fixed right-0 bottom-0 z-[1100] flex flex-col overflow-hidden border-l border-fin-border bg-fin-surface shadow-lg"
-                style={{ top: DOCK_TOP, width: "clamp(420px, 36vw, 620px)" }}
+                style={{ top: DOCK_TOP, width: "clamp(480px, 36vw, 620px)" }}
               >
                 {renderPanel()}
               </Box>

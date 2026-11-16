@@ -386,6 +386,62 @@ describe("dock wrapper flex sizing", () => {
   });
 });
 
+describe("dock sheet height + rail width (audit fixes)", () => {
+  beforeEach(() => {
+    __resetFullscreen();
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("1200px"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  function source() {
+    return readFileSync(
+      resolve(process.cwd(), "src/components/common/SymbolDockProvider.tsx"),
+      "utf8",
+    );
+  }
+
+  test("bottom sheet uses dvh (dynamic viewport), not vh", () => {
+    expect(source()).toContain('style={{ height: "62dvh" }}');
+    expect(source()).not.toContain("62vh");
+  });
+
+  test("rail width clamp starts at 480px so the chain table is not clipped at 1200px", () => {
+    expect(source()).toContain('width: "clamp(480px, 36vw, 620px)"');
+    expect(source()).not.toContain("clamp(420px");
+  });
+
+  test("the non-sheet dock wrappers are unchanged: flex-1 min-h-0, no h-full", () => {
+    const wrapperClass =
+      'className="flex flex-1 min-h-0 w-full flex-col overflow-hidden border-l border-fin-border bg-fin-surface"';
+    expect(source().split(wrapperClass).length - 1).toBe(3);
+    expect(source()).not.toContain("h-full");
+  });
+
+  test("outlet still carries data-dock-open and style.css still collapses it when closed", () => {
+    const css = readFileSync(resolve(process.cwd(), "src/style.css"), "utf8");
+    expect(css).toContain('[data-testid="chart-dock-outlet"][data-dock-open="false"]');
+    const rule = css.match(
+      /\[data-testid="chart-dock-outlet"\]\[data-dock-open="false"\]\s*\{([^}]*)\}/,
+    );
+    expect(rule).not.toBeNull();
+    expect(rule![1]).toContain("display: none");
+  });
+});
+
 describe("outlet collapses while no dock is open", () => {
   beforeEach(() => {
     __resetFullscreen();
