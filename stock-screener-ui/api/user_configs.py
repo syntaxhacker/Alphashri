@@ -192,9 +192,11 @@ class TablePrefsV1(BaseModel):
 
 TABLE_FIELD_NAMES: frozenset[str] = frozenset(TablePrefsV1.model_fields)
 #: A table id is lowercase/digits with dot, underscore or dash separators; the
-#: leading char after ``table.`` cannot be a separator. Caps the whole scope at
-#: 6 + 80 chars so a typo cannot allocate an unbounded row key.
-TABLE_SCOPE_RE = re.compile(r"^table\.[a-z0-9][a-z0-9._-]{0,79}$")
+#: leading char after ``table.`` cannot be a separator. ``table.`` is 6 chars and
+#: the leading id char is 1, so a tail of at most 57 caps the whole scope at 64 —
+#: the width of ``user_saved_configs.scope`` (VARCHAR(64)). SQLite ignores the
+#: length, but Postgres rejects a longer value, so the bound is enforced here.
+TABLE_SCOPE_RE = re.compile(r"^table\.[a-z0-9][a-z0-9._-]{0,57}$")
 
 
 def default_table_prefs_payload() -> dict[str, Any]:

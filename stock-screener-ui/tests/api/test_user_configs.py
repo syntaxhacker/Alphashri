@@ -624,6 +624,39 @@ class TestDynamicTableScopes:
         assert response.status_code == 404
         assert response.json()["detail"] == "unknown_scope"
 
+    def test_scope_at_64_chars_is_accepted(self, user_client, db):
+        # "table." (6) + one leading id char + 57 tail chars = 64, the width of
+        # user_saved_configs.scope (VARCHAR(64)).
+        scope = "table." + "a" * 58
+        assert len(scope) == 64
+        response = user_client.get(f"/api/user-configs/{scope}")
+        assert response.status_code == 200
+        assert response.json()["scope"] == scope
+        assert response.json()["saved"] is False
+        assert response.json()["config"] == self.DEFAULTS
+
+        put = user_client.put(f"/api/user-configs/{scope}", json={"config": self.SAMPLE})
+        assert put.status_code == 200
+        assert put.json()["saved"] is True
+
+    def test_scope_at_65_chars_is_unknown(self, user_client, db):
+        # One char past VARCHAR(64) must be rejected before any DB access, so a
+        # Postgres backend cannot truncate or reject the value on insert.
+        scope = "table." + "a" * 59
+        assert len(scope) == 65
+        for method in ("get", "put", "delete"):
+            kwargs = {"json": {"config": self.DEFAULTS}} if method == "put" else {}
+            response = getattr(user_client, method)(f"/api/user-configs/{scope}", **kwargs)
+            assert response.status_code == 404, method
+            assert response.json()["detail"] == "unknown_scope"
+        assert db.query(UserSavedConfig).count() == 0
+
+    def test_longest_current_scope_round_trips(self, user_client):
+        # table.screener.52w_high.approaching is the longest scope in use (35).
+        scope = "/api/user-configs/table.screener.52w_high.approaching"
+        assert user_client.put(scope, json={"config": self.SAMPLE}).status_code == 200
+        assert user_client.get(scope).json()["config"] == self.SAMPLE
+
     def test_unsaved_table_scope_returns_defaults(self, user_client, db):
         response = user_client.get("/api/user-configs/table.market.grid")
         assert response.status_code == 200
