@@ -1,13 +1,32 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { ChainLeg, ChainRow } from "@/api/optionsDock";
 import { OptionChainTable } from "./OptionChainTable";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+function narrowViewport() {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query.includes("max-width: 639px"),
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+}
+
+const columnIdsOf = () =>
+  screen.getAllByRole("columnheader").map((header) => header.id.replace("paper-tanstack-header-", ""));
 
 function leg(overrides: Partial<ChainLeg> = {}): ChainLeg {
   return {
@@ -156,5 +175,65 @@ describe("OptionChainTable — header affordances", () => {
     const before = th.getAttribute("aria-sort");
     fireEvent.keyDown(th, { key: "Enter" });
     expect(th.getAttribute("aria-sort")).not.toBe(before);
+  });
+});
+
+describe("OptionChainTable — narrow one-sided layout", () => {
+  it("renders only the CE side plus the strike below sm", () => {
+    narrowViewport();
+    render(() => (
+      <UIProvider>
+        <OptionChainTable rows={ROWS} spot={24000} side="CE" />
+      </UIProvider>
+    ));
+
+    expect(columnIdsOf()).toEqual(["ce_oi", "ce_iv", "ce_delta", "ce_ltp", "strike"]);
+    expect(screen.getByTestId("options-ce-24000")).toBeInTheDocument();
+    expect(screen.queryByTestId("options-pe-24000")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("options-oi-bar-pe-0")).not.toBeInTheDocument();
+    // Switching sides must not disturb the shared row identity or ATM marker.
+    expect(screen.getByTestId("options-chain-row-24000")).toBeInTheDocument();
+    expect(screen.getByTestId("options-atm-marker-24000")).toBeInTheDocument();
+  });
+
+  it("renders only the strike plus the PE side, keeping the mirror order", () => {
+    narrowViewport();
+    render(() => (
+      <UIProvider>
+        <OptionChainTable rows={ROWS} spot={24000} side="PE" />
+      </UIProvider>
+    ));
+
+    expect(columnIdsOf()).toEqual(["strike", "pe_ltp", "pe_delta", "pe_iv", "pe_oi"]);
+    expect(screen.getByTestId("options-pe-24000")).toBeInTheDocument();
+    expect(screen.queryByTestId("options-ce-24000")).not.toBeInTheDocument();
+    expect(screen.getByTestId("options-atm-marker-24000")).toBeInTheDocument();
+  });
+
+  it("drops the 428px floor so the 5-column table fits a 390px sheet", () => {
+    narrowViewport();
+    render(() => (
+      <UIProvider>
+        <OptionChainTable rows={ROWS} spot={24000} side="CE" />
+      </UIProvider>
+    ));
+
+    const table = screen.getByTestId("options-chain") as HTMLElement;
+    expect(table.style.minWidth).toBe("250px");
+    expect(table.style.minWidth).not.toBe("428px");
+    expect(screen.getByTestId("options-chain-table")).toBeInTheDocument();
+  });
+
+  it("keeps all nine columns and the 428px floor at ≥640px even when a side is passed", () => {
+    render(() => (
+      <UIProvider>
+        <OptionChainTable rows={ROWS} spot={24000} side="CE" />
+      </UIProvider>
+    ));
+
+    expect(columnIdsOf()).toHaveLength(9);
+    expect((screen.getByTestId("options-chain") as HTMLElement).style.minWidth).toBe("428px");
+    expect(screen.getByTestId("options-ce-24000")).toBeInTheDocument();
+    expect(screen.getByTestId("options-pe-24000")).toBeInTheDocument();
   });
 });

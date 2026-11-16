@@ -101,6 +101,8 @@ export interface ChainColumnHandlers {
   /** Strike nearest spot, or null when there is no quote — drives the ATM marker. */
   atmStrike: () => number | null;
   onPick?: (strike: number, type: "CE" | "PE", leg: ChainLeg, side: "buy" | "sell") => void;
+  /** Restrict the narrow layout to one side plus the strike. Default: all nine. */
+  side?: "CE" | "PE";
 }
 
 export function chainColumns(handlers: ChainColumnHandlers): TableColumnDef<ChainRow>[] {
@@ -211,5 +213,18 @@ export function chainColumns(handlers: ChainColumnHandlers): TableColumnDef<Chai
     },
   ];
 
+  // The narrow one-sided layout keeps the same definitions (sizes/alignments
+  // untouched) and only selects a subset. Filtering preserves declaration
+  // order, so the PE set still reads `STRIKE | LTP Δ IV OI`.
+  if (handlers.side === "CE") {
+    return columnDefs.filter((col) =>
+      ["ce_oi", "ce_iv", "ce_delta", "ce_ltp", "strike"].includes(col.id),
+    );
+  }
+  if (handlers.side === "PE") {
+    return columnDefs.filter((col) =>
+      ["strike", "pe_ltp", "pe_delta", "pe_iv", "pe_oi"].includes(col.id),
+    );
+  }
   return columnDefs;
 }

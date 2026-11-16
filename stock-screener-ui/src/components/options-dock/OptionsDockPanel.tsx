@@ -1,5 +1,5 @@
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import { Box, Button, Text, Tooltip } from "@/ui";
+import { Box, Button, Text, Tooltip, useMediaQuery } from "@/ui";
 import * as palette from "@/ui/palette";
 import {
   IconArrowsMaximize,
@@ -19,7 +19,7 @@ import {
   netPremium,
 } from "@/state/optionsDock";
 import type { ChainLeg } from "@/api/optionsDock";
-import { OptionChainTable } from "./OptionChainTable";
+import { CHAIN_NARROW_QUERY, OptionChainTable } from "./OptionChainTable";
 import { LegBuilder } from "./LegBuilder";
 import { StrategyControl } from "./StrategyControl";
 import { PayoffPanel } from "./PayoffPanel";
@@ -111,10 +111,46 @@ function spotMoveColor(value: number | null): string | undefined {
   return undefined;
 }
 
+/** One-sided chain picker for the <640px sheet. Native buttons keep keyboard parity. */
+function ChainSideToggle(props: {
+  value: "CE" | "PE";
+  onChange: (side: "CE" | "PE") => void;
+}) {
+  const items: { side: "CE" | "PE" }[] = [{ side: "CE" }, { side: "PE" }];
+  return (
+    <Box
+      role="group"
+      aria-label="Option chain side"
+      className="inline-flex shrink-0 items-stretch overflow-hidden border border-fin-border"
+      style={{ height: "20px", "border-radius": "4px" }}
+    >
+      <For each={items}>
+        {(item) => (
+          <button
+            type="button"
+            aria-pressed={props.value === item.side}
+            data-testid={`options-chain-side-${item.side.toLowerCase()}`}
+            onClick={() => props.onChange(item.side)}
+            className={`inline-flex h-[18px] min-w-[28px] cursor-pointer items-center justify-center border-0 px-1.5 font-mono text-[9px] font-bold leading-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary ${
+              props.value === item.side
+                ? "bg-fin-surface-alt text-fin-text"
+                : "bg-transparent text-fin-text-muted"
+            }`}
+          >
+            {item.side}
+          </button>
+        )}
+      </For>
+    </Box>
+  );
+}
+
 /** The dock's `options` mode content. */
 export function OptionsDockPanel(props: { onClose?: () => void }) {
   const [maximized, setMaximized] = createSignal(false);
   const [now, setNow] = createSignal(new Date());
+  const isNarrow = useMediaQuery(CHAIN_NARROW_QUERY);
+  const [chainSide, setChainSide] = createSignal<"CE" | "PE">("CE");
 
   onMount(() => {
     // The 0-DTE / EXPIRED labels cross a boundary at 15:40; a 30 s clock is
@@ -401,9 +437,14 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
             padded={false}
             separated={false}
             meta={
-              <Text size="xs" c="dimmed" className="font-mono tabular-nums" style={{ "font-size": "9px" }}>
-                {chain()!.rows.length} strikes
-              </Text>
+              <Box className="flex items-center gap-2">
+                <Show when={isNarrow()}>
+                  <ChainSideToggle value={chainSide()} onChange={setChainSide} />
+                </Show>
+                <Text size="xs" c="dimmed" className="font-mono tabular-nums" style={{ "font-size": "9px" }}>
+                  {chain()!.rows.length} strikes
+                </Text>
+              </Box>
             }
           >
             {/* The strip is the chain's own stat row: outside the header it read
@@ -446,6 +487,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
             <OptionChainTable
               rows={chain()!.rows}
               spot={spot()}
+              side={chainSide()}
               loading={optionsDockState.refreshing && chain()!.rows.length === 0}
               onPick={handlePick}
             />

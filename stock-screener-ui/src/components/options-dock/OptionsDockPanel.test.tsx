@@ -107,7 +107,24 @@ afterEach(() => {
   cleanup();
   __resetOptionsDock();
   delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+  vi.unstubAllGlobals();
 });
+
+function narrowViewport() {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query.includes("max-width: 639px"),
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+}
+
+const columnIdsOf = () =>
+  screen.getAllByRole("columnheader").map((header) => header.id.replace("paper-tanstack-header-", ""));
 
 describe("expiryLabel", () => {
   test("labels a 0-DTE contract", () => {
@@ -451,5 +468,62 @@ describe("OptionsDockPanel", () => {
     expect(children.indexOf(payoff)).toBeGreaterThan(children.indexOf(legs));
     // The payoff's fixed height is untouched by the chain cap.
     expect(payoff.style.height).toBe("206px");
+  });
+});
+
+describe("OptionsDockPanel — narrow one-sided chain", () => {
+  test("shows a CE-defaulted side control below sm with only the CE columns", async () => {
+    narrowViewport();
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+
+    expect(screen.getByRole("group", { name: "Option chain side" })).toBeInTheDocument();
+    const ce = screen.getByTestId("options-chain-side-ce");
+    const pe = screen.getByTestId("options-chain-side-pe");
+    expect(ce).toHaveAttribute("aria-pressed", "true");
+    expect(pe).toHaveAttribute("aria-pressed", "false");
+
+    expect(columnIdsOf()).toEqual(["ce_oi", "ce_iv", "ce_delta", "ce_ltp", "strike"]);
+    expect(screen.getByTestId("options-ce-24000")).toBeInTheDocument();
+    expect(screen.queryByTestId("options-pe-24000")).not.toBeInTheDocument();
+    expect(screen.getByTestId("options-atm-marker-24000")).toBeInTheDocument();
+    expect((screen.getByTestId("options-chain") as HTMLElement).style.minWidth).toBe("250px");
+  });
+
+  test("switching to PE swaps the columns but keeps the strike/ATM row and selected legs", async () => {
+    narrowViewport();
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-side-pe")).toBeInTheDocument());
+
+    await fireEvent.click(screen.getByTestId("options-ce-24000"));
+    expect(optionsDockState.legs).toHaveLength(1);
+
+    await fireEvent.click(screen.getByTestId("options-chain-side-pe"));
+
+    expect(screen.getByTestId("options-chain-side-ce")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("options-chain-side-pe")).toHaveAttribute("aria-pressed", "true");
+    expect(columnIdsOf()).toEqual(["strike", "pe_ltp", "pe_delta", "pe_iv", "pe_oi"]);
+    expect(screen.getByTestId("options-pe-24000")).toBeInTheDocument();
+    expect(screen.queryByTestId("options-ce-24000")).not.toBeInTheDocument();
+    expect(screen.getByTestId("options-chain-row-24000")).toBeInTheDocument();
+    expect(screen.getByTestId("options-atm-marker-24000")).toBeInTheDocument();
+    // The leg picked before the switch is untouched.
+    expect(optionsDockState.legs).toHaveLength(1);
+    expect(optionsDockState.legs[0]).toMatchObject({ type: "CE", strike: 24000 });
+  });
+
+  test("hides the control and keeps all nine columns at ≥640px", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+
+    expect(screen.queryByTestId("options-chain-side-ce")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("options-chain-side-pe")).not.toBeInTheDocument();
+    expect(columnIdsOf()).toHaveLength(9);
+    expect((screen.getByTestId("options-chain") as HTMLElement).style.minWidth).toBe("428px");
+    expect(screen.getByTestId("options-ce-24000")).toBeInTheDocument();
+    expect(screen.getByTestId("options-pe-24000")).toBeInTheDocument();
   });
 });

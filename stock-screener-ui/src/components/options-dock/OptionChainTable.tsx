@@ -1,8 +1,14 @@
 import { Show, createMemo, type JSX } from "solid-js";
-import { Box } from "@/ui";
+import { Box, useMediaQuery } from "@/ui";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import type { ChainLeg, ChainRow } from "@/api/optionsDock";
 import { chainColumns } from "./chain.columns";
+
+/** Below Tailwind's `sm` the chain drops to a one-sided 5-column layout. */
+export const CHAIN_NARROW_QUERY = "(max-width: 639px)";
+
+/** 5 columns × their declared sizes (54+38+34+52+72) — fits a 390px sheet. */
+const NARROW_MIN_TABLE_WIDTH = 250;
 
 // Theme-aware tint: mixing the primary into the *current* surface keeps the ATM
 // row legible in both schemes (an inline palette rgba() sat on a dark literal
@@ -25,8 +31,12 @@ export function OptionChainTable(props: {
   rows: ChainRow[];
   spot: number;
   loading?: boolean;
+  /** Selected side for the narrow layout; ignored at ≥640px. */
+  side?: "CE" | "PE";
   onPick?: (strike: number, type: "CE" | "PE", leg: ChainLeg, side: "buy" | "sell") => void;
 }) {
+  const narrow = useMediaQuery(CHAIN_NARROW_QUERY);
+
   const atmStrike = createMemo(() => {
     const spot = props.spot;
     if (!(spot > 0) || props.rows.length === 0) return null;
@@ -55,6 +65,9 @@ export function OptionChainTable(props: {
     chainColumns({
       maxOi,
       atmStrike,
+      // Gated on `narrow` so a side passed while wide can never shrink the
+      // nine-column desktop layout.
+      side: narrow() ? (props.side ?? "CE") : undefined,
       onPick: (strike, type, leg, side) => props.onPick?.(strike, type, leg, side),
     }),
   );
@@ -70,7 +83,7 @@ export function OptionChainTable(props: {
         bare
         enableSorting
         stickyHeader
-        minTableWidth={428}
+        minTableWidth={narrow() ? NARROW_MIN_TABLE_WIDTH : 428}
         dataTestId="options-chain"
         ariaLabel="Option chain"
         loading={props.loading}
