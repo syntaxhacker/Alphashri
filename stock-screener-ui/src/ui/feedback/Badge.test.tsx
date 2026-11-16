@@ -17,6 +17,16 @@ describe("Badge — status label", () => {
     expect(screen.getByTestId("b2").textContent).toBe("up");
   });
 
+  test("filled badge foreground is the theme var, not a fixed hex", () => {
+    render(() => <Badge variant="filled" color="error" data-testid="fb">SL</Badge>);
+    expect(screen.getByTestId("fb").style.color).toBe("var(--color-fin-bg)");
+  });
+
+  test("non-filled badge foreground stays the tone colour", () => {
+    render(() => <Badge variant="outline" color="success" data-testid="nb">ok</Badge>);
+    expect(screen.getByTestId("nb").style.color).toBe("#2FA36B");
+  });
+
   test("leftSection and rightSection render", () => {
     render(() => (
       <Badge leftSection={<span>↑</span>} color="success" data-testid="b3">

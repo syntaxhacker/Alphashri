@@ -269,15 +269,13 @@ function FullscreenPanel(props: {
               <Text size="xs" c="dimmed" className="text-[10px] uppercase tracking-[0.4px]">
                 Confidence <span className="font-mono tabular-nums text-fin-text">{props.hit.confidence}%</span>
               </Text>
-              <Box className="h-[3px] w-full overflow-hidden rounded-full bg-fin-surface-alt">
-                <Box
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${Math.max(0, Math.min(100, props.hit.confidence ?? 0))}%`,
-                    "background-color": PRIMARY,
-                  }}
-                />
-              </Box>
+              <Box
+                className="h-[3px] w-full rounded-full overflow-hidden"
+                style={{
+                  width: `${Math.max(0, Math.min(100, props.hit.confidence ?? 0))}%`,
+                  "background-color": PRIMARY,
+                }}
+              />
             </Box>
           </Show>
         </Box>
