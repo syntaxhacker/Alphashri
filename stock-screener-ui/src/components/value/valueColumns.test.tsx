@@ -1,6 +1,9 @@
 // @vitest-environment happy-dom
-import { describe, it, expect } from "vitest";
-import { buildValueColumns } from "./valueColumns";
+import "@testing-library/jest-dom/vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library";
+import { UIProvider } from "@/ui";
+import { buildValueColumns, isInAppChartExchange } from "./valueColumns";
 import type { ValueRow } from "../../api/valueScan";
 
 function row(overrides: Partial<ValueRow> = {}): ValueRow {
@@ -73,5 +76,111 @@ describe("buildValueColumns NAME accessor", () => {
       String(accessor(b)).localeCompare(String(accessor(a))),
     );
     expect(desc.map((r) => r.symbol)).toEqual(["ZOMATO", "ABB"]);
+  });
+});
+
+describe("buildValueColumns symbol cell — in-app text / TV ↗ inversion", () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  function renderNameCell(
+    onSymbolClick?: (symbol: string) => void,
+    rowClick = vi.fn(),
+    rowOverrides: Partial<ValueRow> = {},
+  ) {
+    const col = buildValueColumns(onSymbolClick).find((c) => c.id === "name")!;
+    const original = row(rowOverrides);
+    const rowCtx = {
+      original,
+      index: 0,
+      isExpanded: () => false,
+      toggle: () => {},
+    };
+    render(() => (
+      <UIProvider>
+        <div onClick={rowClick}>{col.cell!({ row: rowCtx, column: col })}</div>
+      </UIProvider>
+    ));
+    return rowClick;
+  }
+
+  it("body click calls onSymbolClick and never window.open", async () => {
+    const onSymbolClick = vi.fn();
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    const rowClick = renderNameCell(onSymbolClick);
+
+    const text = screen.getByTestId("value-name-RELIANCE");
+    expect(text.tagName).toBe("BUTTON");
+    expect(text).toHaveTextContent("RELIANCE");
+    await fireEvent.click(text);
+
+    expect(onSymbolClick).toHaveBeenCalledTimes(1);
+    expect(onSymbolClick).toHaveBeenCalledWith("RELIANCE");
+    expect(openSpy).not.toHaveBeenCalled();
+    expect(rowClick).not.toHaveBeenCalled();
+  });
+
+  it("↗ is a TradingView anchor and does not call onSymbolClick", async () => {
+    const onSymbolClick = vi.fn();
+    renderNameCell(onSymbolClick);
+
+    const external = screen.getByTestId("symbol-tv-RELIANCE");
+    expect(external.tagName).toBe("A");
+    expect(external).toHaveAttribute(
+      "href",
+      "https://www.tradingview.com/chart/?symbol=NSE%3ARELIANCE",
+    );
+    expect(external).toHaveAttribute("target", "_blank");
+    expect(external.getAttribute("rel")).toContain("noopener");
+    await fireEvent.click(external);
+    expect(onSymbolClick).not.toHaveBeenCalled();
+  });
+
+  it("a NASDAQ row keeps the TV link and never wires the in-app chart handler", async () => {
+    const onSymbolClick = vi.fn();
+    renderNameCell(onSymbolClick, vi.fn(), {
+      symbol: "AAPL",
+      name: "Apple Inc",
+      exchange: "NASDAQ",
+    });
+
+    const text = screen.getByTestId("value-name-AAPL");
+    expect(text.tagName).toBe("A");
+    expect(text).toHaveAttribute(
+      "href",
+      "https://www.tradingview.com/chart/?symbol=NASDAQ%3AAAPL",
+    );
+    await fireEvent.click(text);
+    expect(onSymbolClick).not.toHaveBeenCalled();
+
+    const external = screen.getByTestId("symbol-tv-AAPL");
+    expect(external.tagName).toBe("A");
+    expect(external).toHaveAttribute(
+      "href",
+      "https://www.tradingview.com/chart/?symbol=NASDAQ%3AAAPL",
+    );
+    expect(external).toHaveAttribute("target", "_blank");
+    expect(external.getAttribute("rel")).toContain("noopener");
+  });
+
+  it("no handler leaves the body as a TV link, not an in-app button", () => {
+    renderNameCell(undefined, vi.fn());
+    const text = screen.getByTestId("value-name-RELIANCE");
+    expect(text.tagName).toBe("A");
+    expect(screen.getByTestId("symbol-tv-RELIANCE")).toBeInTheDocument();
+  });
+});
+
+describe("isInAppChartExchange", () => {
+  it("accepts NSE/BSE/NSI case-insensitively and rejects other markets", () => {
+    expect(isInAppChartExchange("NSE")).toBe(true);
+    expect(isInAppChartExchange(" bse ")).toBe(true);
+    expect(isInAppChartExchange("NSI")).toBe(true);
+    expect(isInAppChartExchange("NASDAQ")).toBe(false);
+    expect(isInAppChartExchange("NYSE")).toBe(false);
+    expect(isInAppChartExchange("LON")).toBe(false);
+    expect(isInAppChartExchange(undefined)).toBe(false);
   });
 });

@@ -13,6 +13,13 @@ vi.mock("../../api/valueScan", async (importOriginal) => {
   return { ...actual, valueScan: vi.fn() };
 });
 
+const routerMocks = vi.hoisted(() => ({ navigate: vi.fn() }));
+
+vi.mock("@solidjs/router", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return { ...actual, useNavigate: () => routerMocks.navigate };
+});
+
 const mockValueScan = vi.mocked(valueScan);
 
 function r(jsx: JSX.Element) {
@@ -193,6 +200,57 @@ describe("ValuePanel", () => {
     expect(text.split("\n")[0]).toContain("symbol");
     expect(text).toContain("RELIANCE");
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:csv");
+  });
+
+  test("clicking the symbol navigates once to the chart route", async () => {
+    r(<ValuePanel />);
+    await screen.findByTestId("value-row-RELIANCE");
+
+    const symbol = screen.getByTestId("value-name-RELIANCE");
+    expect(symbol.tagName).toBe("BUTTON");
+    await fireEvent.click(symbol);
+
+    expect(routerMocks.navigate).toHaveBeenCalledTimes(1);
+    expect(routerMocks.navigate).toHaveBeenCalledWith("/chart/RELIANCE");
+
+    const tv = screen.getByTestId("symbol-tv-RELIANCE");
+    expect(tv.tagName).toBe("A");
+    expect(tv).toHaveAttribute(
+      "href",
+      "https://www.tradingview.com/chart/?symbol=NSE%3ARELIANCE",
+    );
+    expect(tv).toHaveAttribute("target", "_blank");
+  });
+
+  test("a NASDAQ symbol body never navigates to the NSE-backed chart route", async () => {
+    r(<ValuePanel />);
+    await screen.findByTestId("value-row-RELIANCE");
+    await fireEvent.click(screen.getByTestId("value-market-tab-usa"));
+    const symbol = await screen.findByTestId("value-name-AAPL", {}, { timeout: 3000 });
+
+    expect(symbol.tagName).toBe("A");
+    await fireEvent.click(symbol);
+    expect(routerMocks.navigate).not.toHaveBeenCalled();
+
+    const tv = screen.getByTestId("symbol-tv-AAPL");
+    expect(tv.tagName).toBe("A");
+    expect(tv).toHaveAttribute(
+      "href",
+      "https://www.tradingview.com/chart/?symbol=NASDAQ%3AAAPL",
+    );
+    expect(tv).toHaveAttribute("target", "_blank");
+    expect(tv.getAttribute("rel")).toContain("noopener");
+  });
+
+  test("a NASDAQ row still opens the detail drawer on row click", async () => {
+    r(<ValuePanel />);
+    await screen.findByTestId("value-row-RELIANCE");
+    await fireEvent.click(screen.getByTestId("value-market-tab-usa"));
+    await screen.findByTestId("value-row-AAPL", {}, { timeout: 3000 });
+
+    await fireEvent.click(screen.getByTestId("value-row-AAPL"));
+    expect(screen.getByTestId("value-detail-AAPL")).toBeInTheDocument();
+    expect(routerMocks.navigate).not.toHaveBeenCalled();
   });
 
   test("clicking a row opens the detail drawer", async () => {

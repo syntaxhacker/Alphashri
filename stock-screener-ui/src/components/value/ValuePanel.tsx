@@ -196,6 +196,8 @@ export function ValuePanel(props: ValuePanelProps) {
             rows={rows()}
             loading={isLoading()}
             onRowClick={handleRowClick}
+            // Exchange-gated in buildValueColumns: only NSE/BSE rows wire this
+            // to the Upstox-backed chart route; other markets stay TV-only.
             onSymbolClick={(sym) => navigate(`/chart/${sym}`)}
           />
         </Show>

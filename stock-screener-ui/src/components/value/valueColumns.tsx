@@ -10,6 +10,16 @@ import { formatValueMcap, formatValueNum, formatValuePct, formatValuePrice } fro
 
 const DASH = "–";
 
+// `/chart/:symbol` resolves through Upstox/NSE, so only Indian listings have a
+// valid in-app destination. Everything else stays on TradingView. NSI covers
+// the index-style exchange tag some feeds use for NSE instruments.
+const IN_APP_CHART_EXCHANGES = new Set(["nse", "bse", "nsi"]);
+
+export function isInAppChartExchange(exchange: string | undefined): boolean {
+  if (!exchange) return false;
+  return IN_APP_CHART_EXCHANGES.has(exchange.trim().toLowerCase());
+}
+
 function dash(symbol: string, key: string): JSX.Element {
   return (
     <Text size="xs" c="dimmed" data-testid={`value-dash-${symbol}-${key}`}>
@@ -70,7 +80,9 @@ export function escapeCsvCell(cell: string | number): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export function buildValueColumns(): ColumnDef<ValueRow>[] {
+export function buildValueColumns(
+  onSymbolClick?: (symbol: string) => void,
+): ColumnDef<ValueRow>[] {
   return [
     {
       id: "name",
@@ -79,6 +91,7 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
       meta: { align: "left" },
       cell: ({ row }) => {
         const r = row.original;
+        const inApp = isInAppChartExchange(r.exchange) && typeof onSymbolClick === "function";
         return (
           // Single-line identity: symbol + company·exchange. A stacked second
           // line doubled the row height (40px) for information the drawer
@@ -92,6 +105,9 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
               size="xs"
               weight={600}
               className="flex-shrink-0"
+              inAppText={inApp}
+              tvIcon={!inApp}
+              onTextClick={inApp ? (sym) => onSymbolClick?.(sym) : undefined}
             />
             <TextCell
               value={`${r.name} · ${r.exchange}`}
