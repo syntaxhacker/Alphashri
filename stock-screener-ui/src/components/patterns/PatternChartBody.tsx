@@ -71,12 +71,14 @@ export interface CloseSeries {
 
 /**
  * Choose one source for the displayed close *and* its change: a hit enrichment
- * only wins when it carries a complete pair and its bar is not older than the
- * chart's last candle. Without a comparable hit date (or without a chart bar)
- * the drawn series wins; a partial enrichment never mixes with a chart bar.
+ * only wins when it carries a complete pair whose `close_bar_date` proves the
+ * bar is not older than the chart's last candle. `end_date` is the pattern
+ * formation date, not the close's bar date, so it is never used as a proxy.
+ * Without that date (or without a chart bar to compare) the drawn series wins;
+ * a partial enrichment never mixes with a chart bar.
  */
 export function resolveCloseSeries(params: {
-  hit: Pick<PatternHitDTO, "last_close" | "day_change_pct" | "end_date">;
+  hit: Pick<PatternHitDTO, "last_close" | "day_change_pct" | "close_bar_date">;
   candles: ChartCandle[];
 }): CloseSeries {
   const { hit, candles } = params;
@@ -91,7 +93,7 @@ export function resolveCloseSeries(params: {
   };
 
   const hasPair = hit.last_close != null && hit.day_change_pct != null;
-  const hitKey = istDateKey(hit.end_date);
+  const hitKey = istDateKey(hit.close_bar_date);
   const chartKey = istDateKey(last?.t ?? null);
   if (!hasPair || !hitKey) return chart;
   if (chartKey && hitKey < chartKey) return chart;
@@ -99,7 +101,7 @@ export function resolveCloseSeries(params: {
   return {
     close: hit.last_close ?? null,
     changePct: hit.day_change_pct ?? null,
-    barDate: hit.end_date,
+    barDate: hit.close_bar_date ?? null,
     source: "hit",
   };
 }

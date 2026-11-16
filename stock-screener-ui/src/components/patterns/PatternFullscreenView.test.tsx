@@ -80,6 +80,7 @@ const HIT: PatternHitDTO = {
   notes: "Higher lows into a falling wedge.",
   last_close: 113.4,
   day_change_pct: 1.2,
+  close_bar_date: "2026-09-26",
   pivots: [{ t: "2026-05-04", price: 108, kind: "low" }],
 };
 

@@ -11,15 +11,46 @@ import { SymbolDockProvider } from "./SymbolDockProvider";
 import { SymbolDockContext } from "./symbolDockContext";
 import { ChartDockOutlet } from "./ChartDockOutlet";
 
+const { mockRefreshSymbolChart } = vi.hoisted(() => ({
+  mockRefreshSymbolChart: vi.fn(),
+}));
+
 vi.mock("../../api/chartPatterns", () => ({
   fetchSymbolChart: vi.fn(),
   fetchPatternHit: vi.fn(),
 }));
 
+// Keep the real state machine (the stale/preview/outlet tests rely on it) and
+// swap only the refresh callback so the dock wiring can be asserted.
+vi.mock("@/hooks/usePatternFullscreenSolid", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/hooks/usePatternFullscreenSolid")>();
+  return {
+    ...actual,
+    usePatternFullscreen: (...args: Parameters<typeof actual.usePatternFullscreen>) => ({
+      ...actual.usePatternFullscreen(...args),
+      refreshSymbolChart: mockRefreshSymbolChart,
+    }),
+  };
+});
+
 vi.mock("@/components/patterns/PatternFullscreenView", () => ({
-  PatternFullscreenView: (props: { symbol: string | null; loading?: boolean }) => (
+  PatternFullscreenView: (props: {
+    symbol: string | null;
+    loading?: boolean;
+    onRefresh?: () => void;
+  }) => (
     <div data-testid="patterns-chart-dock" data-loading={String(Boolean(props.loading))}>
       {props.symbol}
+      {props.onRefresh ? (
+        <button
+          type="button"
+          data-testid="patterns-dock-refresh"
+          aria-label="Refresh pattern data"
+          onClick={props.onRefresh}
+        >
+          refresh
+        </button>
+      ) : null}
     </div>
   ),
 }));
@@ -176,6 +207,22 @@ describe("SymbolDockProvider stale badge", () => {
     expect(screen.queryByTestId("dock-stale")).not.toBeInTheDocument();
 
     resolvePhase1(FRESH_CHART);
+  });
+
+  test("opening a pattern dock wires onRefresh and the refresh button calls it", async () => {
+    mockRefreshSymbolChart.mockClear();
+    mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
+    renderDock();
+
+    await fireEvent.click(screen.getByTestId("open-ircon"));
+    await waitFor(() => expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("IRCON"));
+
+    const refresh = screen.getByTestId("patterns-dock-refresh");
+    expect(refresh).toBeInTheDocument();
+    expect(mockRefreshSymbolChart).not.toHaveBeenCalled();
+
+    await fireEvent.click(refresh);
+    expect(mockRefreshSymbolChart).toHaveBeenCalledTimes(1);
   });
 
 });

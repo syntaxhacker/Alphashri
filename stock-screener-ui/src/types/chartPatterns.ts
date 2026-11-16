@@ -164,6 +164,13 @@ export interface PatternHitDTO {
   last_close?: number | null;
   /** Latest bar change % for the symbol/timeframe (enriched). */
   day_change_pct?: number | null;
+  /**
+   * Session date of the bar `last_close`/`day_change_pct` were computed from.
+   * `end_date` is the pattern formation date, not the close's bar date — never
+   * use it as a proxy. Absent = the enrichment cannot be dated, so chart
+   * candles win. Added by the backend on enriched items (optional for old rows).
+   */
+  close_bar_date?: string | null;
   /** Consolidation base length in bars/days (`consolidation` pattern only). */
   base_days?: number;
   /** Consolidation range as a percentage of price (`consolidation` pattern only). */

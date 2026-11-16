@@ -9,7 +9,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import type { ChartCandle, PatternHitDTO } from "@/types/chartPatterns";
 import { createSignal } from "solid-js";
-import { PatternChartBody } from "./PatternChartBody";
+import { PatternChartBody, resolveCloseSeries } from "./PatternChartBody";
 
 // The TV chart mounts lightweight-charts (canvas) — stub it so the body can be
 // tested without a browser canvas, while still asserting the props forwarded.
@@ -84,6 +84,7 @@ const HIT: PatternHitDTO = {
   notes: "Breakout above ₹112.60 on volume",
   last_close: 120,
   day_change_pct: 2.5,
+  close_bar_date: "2026-09-26",
   pivots: [
     { t: "2026-05-04", price: 102.5, kind: "low" },
     { t: "2026-05-20", price: 112.6, kind: "high" },
@@ -160,7 +161,7 @@ describe("PatternChartBody", () => {
     expect(screen.queryByText("No chart data")).toBeNull();
   });
 
-  test("stale hit enrichment loses to the drawn candle, labelled with the bar date", () => {
+  test("a stored hit with no close_bar_date loses to the chart even when end_date is newer", () => {
     const candles: ChartCandle[] = [
       { t: "2026-11-12", o: 3500, h: 3510, l: 3470, c: 3484, v: 1000 },
       { t: "2026-11-13", o: 3484, h: 3450, l: 3420, c: 3430, v: 900 },
@@ -169,7 +170,9 @@ describe("PatternChartBody", () => {
       ...HIT,
       last_close: 3382,
       day_change_pct: 2.48,
-      end_date: "2026-11-11",
+      // Formation date is NOT the close's bar date — it must never win here.
+      end_date: "2026-11-15",
+      close_bar_date: null,
     };
     render(() => <PatternChartBody hit={hit} candles={candles} />);
     expect(screen.getByText("₹3430.00")).toBeInTheDocument();
@@ -177,27 +180,36 @@ describe("PatternChartBody", () => {
     expect(screen.queryByText("₹3382.00")).toBeNull();
     expect(screen.queryByText("+2.48%")).toBeNull();
     expect(screen.getByTestId("patterns-close-label")).toHaveTextContent("13 NOV");
+    expect(screen.getByTestId("patterns-close-label")).not.toHaveTextContent("15 NOV");
     expect(screen.queryByText(/LAST CLOSE/i)).toBeNull();
+    expect(resolveCloseSeries({ hit, candles }).source).toBe("chart");
   });
 
-  test("hit enrichment on the chart's last bar still wins as a complete pair", () => {
+  test("a hit dated on the chart's last bar wins with its own close/change pair", () => {
     const candles: ChartCandle[] = [
       { t: "2026-11-12", o: 3500, h: 3510, l: 3470, c: 3484, v: 1000 },
       { t: "2026-11-13", o: 3484, h: 3450, l: 3420, c: 3430, v: 900 },
     ];
     const hit: PatternHitDTO = {
       ...HIT,
-      last_close: 3500,
-      day_change_pct: 0.46,
-      end_date: "2026-11-13",
+      last_close: 3430,
+      day_change_pct: -1.55,
+      end_date: "2026-11-15",
+      close_bar_date: "2026-11-13",
     };
     render(() => <PatternChartBody hit={hit} candles={candles} />);
-    expect(screen.getByText("₹3500.00")).toBeInTheDocument();
-    expect(screen.getByText("+0.46%")).toBeInTheDocument();
+    expect(screen.getByText("₹3430.00")).toBeInTheDocument();
+    expect(screen.getByText("-1.55%")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-close-label")).toHaveTextContent("13 NOV");
+    expect(resolveCloseSeries({ hit, candles })).toEqual({
+      close: 3430,
+      changePct: -1.55,
+      barDate: "2026-11-13",
+      source: "hit",
+    });
   });
 
-  test("an undated hit cannot override the chart candles", () => {
+  test("an older close_bar_date loses to the chart even with a stale close", () => {
     const candles: ChartCandle[] = [
       { t: "2026-11-12", o: 3500, h: 3510, l: 3470, c: 3484, v: 1000 },
       { t: "2026-11-13", o: 3484, h: 3450, l: 3420, c: 3430, v: 900 },
@@ -206,11 +218,32 @@ describe("PatternChartBody", () => {
       ...HIT,
       last_close: 3382,
       day_change_pct: 2.48,
-      end_date: "",
+      end_date: "2026-11-15",
+      close_bar_date: "2026-11-10",
     };
     render(() => <PatternChartBody hit={hit} candles={candles} />);
     expect(screen.getByText("₹3430.00")).toBeInTheDocument();
     expect(screen.getByText("-1.55%")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-close-label")).toHaveTextContent("13 NOV");
+    expect(resolveCloseSeries({ hit, candles }).source).toBe("chart");
+  });
+
+  test("an undated hit (close_bar_date absent) cannot override the chart candles", () => {
+    const candles: ChartCandle[] = [
+      { t: "2026-11-12", o: 3500, h: 3510, l: 3470, c: 3484, v: 1000 },
+      { t: "2026-11-13", o: 3484, h: 3450, l: 3420, c: 3430, v: 900 },
+    ];
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: 3382,
+      day_change_pct: 2.48,
+      end_date: "2026-11-13",
+      close_bar_date: undefined,
+    };
+    render(() => <PatternChartBody hit={hit} candles={candles} />);
+    expect(screen.getByText("₹3430.00")).toBeInTheDocument();
+    expect(screen.getByText("-1.55%")).toBeInTheDocument();
+    expect(resolveCloseSeries({ hit, candles }).source).toBe("chart");
   });
 
   test("emptyState renders when there is no hit", () => {

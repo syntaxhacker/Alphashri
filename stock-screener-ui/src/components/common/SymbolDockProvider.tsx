@@ -58,6 +58,7 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
     pinFullscreen,
     closeFullscreen,
     selectFullscreenHit,
+    refreshSymbolChart,
   } = usePatternFullscreen({ timeframe: "1D", computeTrendlines: true });
 
   let previewTimer: number | null = null;
@@ -201,6 +202,7 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
             state={fullscreen()!}
             onSelectHit={selectFullscreenHit}
             onTimeframeChange={changeFullscreenTimeframe}
+            onRefresh={refreshSymbolChart}
             onClose={close}
             onLive={() => undefined}
           />
@@ -284,6 +286,7 @@ function DockContent(props: {
   state: FullscreenChartState;
   onSelectHit: (hit: PatternHitDTO) => void;
   onTimeframeChange: (tf: string) => void;
+  onRefresh: () => void;
   onClose: () => void;
   onLive: () => void;
 }) {
@@ -330,6 +333,7 @@ function DockContent(props: {
             timeframe={props.state.timeframe}
             timeframes={FALLBACK_TIMEFRAMES}
             onTimeframeChange={props.onTimeframeChange}
+            onRefresh={props.onRefresh}
             loading={props.state.loading ?? false}
             asOf={props.state.asOf ?? null}
             fromDate={props.state.fromDate ?? null}
