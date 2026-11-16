@@ -89,10 +89,12 @@ class Upstream:
 @pytest.fixture(autouse=True)
 def _reset_module_state():
     op.clear_option_chain_cache()
+    op._snapshot_last.clear()
     ou._cache.clear()
     ou._locks.clear()
     yield
     op.clear_option_chain_cache()
+    op._snapshot_last.clear()
     ou._cache.clear()
     ou._locks.clear()
 
@@ -319,3 +321,98 @@ class TestResponseShape:
             assert "expected_move" in summary
             assert "max_pain" in summary
             assert "dte" in summary
+
+
+class TestSnapshotHook:
+    """The chain hook is fire-and-forget: throttled, off the request path, silent on failure.
+
+    The shared API conftest stubs ``record_chain_snapshot`` to a no-op; tests
+    that need to observe captures replace it with their own recorder.
+    """
+
+    @pytest.fixture
+    def writer(self, monkeypatch):
+        calls = []
+
+        def fake(payload):
+            calls.append(payload)
+            return 0
+
+        monkeypatch.setattr(op, "record_chain_snapshot", fake)
+        return calls
+
+    def test_repeated_calls_in_one_minute_schedule_one_capture(self, client, upstream, writer):
+        upstream()
+        first = _get(client)
+        second = _get(client)
+
+        assert first.status_code == second.status_code == 200
+        assert len(writer) == 1
+        assert writer[0]["underlying"] == "NIFTY"
+        assert writer[0]["expiry"] == EXPIRY
+
+    def test_next_minute_schedules_another_capture(self, client, upstream, frozen, writer):
+        upstream()
+        _get(client)
+        assert len(writer) == 1
+
+        frozen(now=ou.datetime(2026, 11, 16, 10, 31, tzinfo=ou.config.IST))
+        refreshed = _get(client, refresh=1)
+        assert refreshed.status_code == 200
+        assert len(writer) == 2
+        assert writer[0]["timestamp"] != writer[1]["timestamp"]
+
+    def test_closed_market_captures_once_per_session(self, client, upstream, frozen, writer):
+        frozen(now=ou.datetime(2026, 11, 16, 18, 0, tzinfo=ou.config.IST), cash_open=False)
+        upstream()
+
+        first = _get(client).json()
+        second = _get(client, refresh=1).json()
+
+        assert first["quotes_live"] is False
+        assert first["session_date"] == second["session_date"]
+        assert len(writer) == 1
+
+        frozen(now=ou.datetime(2026, 11, 17, 18, 0, tzinfo=ou.config.IST), cash_open=False)
+        third = _get(client, refresh=1).json()
+        assert third["session_date"] != first["session_date"]
+        assert len(writer) == 2
+
+    def test_writer_exception_does_not_change_the_response(self, client, upstream, monkeypatch):
+        upstream()
+
+        def boom(payload):
+            raise RuntimeError("snapshot DB is down")
+
+        monkeypatch.setattr(op, "record_chain_snapshot", boom)
+        response = _get(client)
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "ok"
+
+    def test_empty_chain_is_not_captured(self, client, upstream, writer):
+        empty = _chain_payload()
+        empty["data"] = []
+        upstream(Upstream(empty))
+
+        response = _get(client)
+
+        assert response.status_code == 200
+        assert response.json()["chain"] == []
+        assert writer == []
+
+    def test_upstream_error_is_not_captured(self, client, upstream, writer):
+        fake = upstream()
+        fake.failure = HTTPException(status_code=429, detail="slow down")
+
+        assert _get(client).status_code == 429
+        assert writer == []
+
+    def test_direct_call_without_request_scope_is_not_captured(self, upstream, writer):
+        import asyncio
+
+        upstream()
+        payload = asyncio.run(op.get_option_chain("NIFTY", EXPIRY))
+
+        assert payload["status"] == "ok"
+        assert writer == []

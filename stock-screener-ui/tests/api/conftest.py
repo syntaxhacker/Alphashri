@@ -122,6 +122,29 @@ def _reset_option_caches():
     _clear()
 
 
+@pytest.fixture(autouse=True)
+def _stub_chain_snapshot_writer(monkeypatch):
+    """The live chain route now schedules a snapshot on every fresh poll.
+
+    ``record_chain_snapshot`` opens ``SessionLocal`` (the real SQLite file), so
+    API tests must never run it for real. Stub the imported name and clear the
+    process-local throttle between tests; tests that assert on the hook re-patch
+    it with their own recorder.
+    """
+    try:
+        from api import options as _options
+    except Exception:  # pragma: no cover - options modules unavailable
+        yield
+        return
+
+    monkeypatch.setattr(_options, "record_chain_snapshot", lambda payload: 0, raising=False)
+    if hasattr(_options, "_snapshot_last"):
+        _options._snapshot_last.clear()
+    yield
+    if hasattr(_options, "_snapshot_last"):
+        _options._snapshot_last.clear()
+
+
 @pytest.fixture(scope="function")
 def client(db: Session) -> TestClient:
     def override_get_db_for_client():

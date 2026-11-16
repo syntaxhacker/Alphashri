@@ -5,10 +5,11 @@ Provides secure proxy to Upstox Options API with caching and error handling.
 Includes server-side quantitative analysis (Expected Move, Max Pain, Sentiment).
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import asyncio
+import logging
 import httpx
 import os
 import json
@@ -19,6 +20,7 @@ from pathlib import Path
 
 import config
 from api.fyers_options import resolve_fyers_option_symbol
+from api.options_snapshots import mark_captured, record_chain_snapshot, should_capture
 from api.positioning import compute_positioning
 
 router = APIRouter(prefix="/api/options", tags=["options"])
@@ -423,6 +425,16 @@ def transform_option_contract(option_data: dict, strike: float, option_type: str
 
     sentiment = get_option_sentiment(price_change, oi_change)
 
+    # Upstox sometimes sends a non-finite/absurd IV (117) with a tradable LTP,
+    # and omits it entirely on other legs. Keep the raw value for display, but
+    # publish a validity flag so consumers never chart or annualise a bad IV.
+    raw_iv = greeks.get("iv")
+    try:
+        iv_number = float(raw_iv)
+        iv_valid = math.isfinite(iv_number) and 0 < iv_number <= 60
+    except (TypeError, ValueError):
+        iv_valid = False
+
     return {
         "instrument_key": option_data.get("instrument_key", ""),
         "trading_symbol": option_data.get("trading_symbol", ""),
@@ -440,12 +452,14 @@ def transform_option_contract(option_data: dict, strike: float, option_type: str
             "bid_qty": market_data.get("bid_qty", 0),
             "ask_qty": market_data.get("ask_qty", 0),
         },
+        "iv_valid": iv_valid,
         "option_greeks": {
             "delta": greeks.get("delta", 0),
             "gamma": greeks.get("gamma", 0),
             "vega": greeks.get("vega", 0),
             "theta": greeks.get("theta", 0),
             "iv": greeks.get("iv", 0),
+            "iv_valid": iv_valid,
             "pop": greeks.get("pop", 0),
         } if greeks else None,
         "sentiment": sentiment
@@ -555,13 +569,44 @@ def clear_option_chain_cache() -> None:
         _cache.pop(key, None)
 
 
-async def _build_chain_response(underlying: str, expiry: str) -> dict:
+def _chain_now() -> datetime:
+    """IST clock for the chain's freshness fields.
+
+    Delegates to the same (test-freezable) clock the cache key's session state
+    uses, so a cached frame's freshness fields always agree with the session it
+    was fetched under.
+    """
+    from api.options_underlying import _now
+
+    return _now()
+
+
+def _prints_session_date(now: datetime, market_state: str) -> str:
+    """IST date of the session the chain's prints belong to.
+
+    Live prints belong to the current session; pre-open and closed chains carry
+    the last completed session's prints (Friday on a weekend, the previous
+    trading day on a holiday).
+    """
+    if market_state == "open":
+        return now.date().isoformat()
+    from chart_patterns.candles import _last_completed_session
+
+    return _last_completed_session(now).isoformat()
+
+
+async def _build_chain_response(underlying: str, expiry: str, market_state: str) -> dict:
     """Upstream rows + the derived analytics, as the route returns them.
 
     Cached whole (not just the rows) so the analysis is not recomputed on every
-    poll and ``timestamp`` stays the moment the quotes were actually read.
+    poll, ``levels`` travel inside the frame, and ``timestamp``/``data_as_of``
+    describe the fetch, not the time a later hit was served.
     """
     chain, spot_price = await _fetch_chain_rows(underlying, expiry)
+
+    from api.options_levels import build_levels
+
+    levels = build_levels(chain, spot_price)
 
     total_ce_oi = 0
     total_pe_oi = 0
@@ -599,15 +644,32 @@ async def _build_chain_response(underlying: str, expiry: str) -> dict:
     dte = (expiry_date - datetime.now(config.IST)).days + 1
 
     expected_move = calculate_expected_move(spot_price, atm_iv, dte)
-    max_pain = calculate_max_pain(chain)
+    # Legacy contract: summary.max_pain stays a bare number (0 when absent) so
+    # existing consumers do not break, but the authoritative level is levels.
+    pain = levels.get("max_pain")
+    max_pain = pain["strike"] if pain else 0
     pcr = total_pe_oi / total_ce_oi if total_ce_oi > 0 else 0
+
+    now = _chain_now()
+    quotes_live = market_state == "open"
+    session_date = _prints_session_date(now, market_state)
+    data_as_of = (
+        now.isoformat() if quotes_live else
+        f"{session_date} — last completed session; quotes are not live "
+        f"(market_state={market_state})"
+    )
 
     return {
         "status": "ok",
         "underlying": underlying,
         "expiry": expiry,
         "spot": spot_price,
-        "timestamp": datetime.now(config.IST).isoformat(),
+        "timestamp": now.isoformat(),
+        "market_state": market_state,
+        "quotes_live": quotes_live,
+        "session_date": session_date,
+        "data_as_of": data_as_of,
+        "levels": levels,
         "chain": chain,
         "summary": {
             "pcr": round(pcr, 2),
@@ -621,11 +683,46 @@ async def _build_chain_response(underlying: str, expiry: str) -> dict:
     }
 
 
+#: Process-local capture throttle. The chain cache serves the same payload for
+#: seconds, so without a per-minute (or per-session) key every poll would
+#: schedule a redundant write. The DB's natural key makes a duplicate harmless;
+#: this map exists to avoid the write, not to guarantee correctness.
+_snapshot_last: dict = {}
+_SNAPSHOT_LOG = logging.getLogger(__name__)
+
+
+def _write_snapshot_safely(payload: dict) -> None:
+    """Background writer: a DB failure must never reach the HTTP response.
+
+    Starlette runs this sync callable in a threadpool after the response has
+    been sent, so neither the SQLite write nor its latency is on the request
+    path.
+    """
+    try:
+        record_chain_snapshot(payload)
+    except Exception:
+        _SNAPSHOT_LOG.warning("option chain snapshot write failed", exc_info=True)
+
+
+def _queue_snapshot(payload: Any, background_tasks: Optional[BackgroundTasks]) -> None:
+    """Throttle and schedule one fire-and-forget snapshot for a fresh chain."""
+    # Direct coroutine calls (tests, in-process callers) have no request scope.
+    if background_tasks is None:
+        return
+    try:
+        if should_capture(payload, _snapshot_last):
+            mark_captured(payload, _snapshot_last)
+            background_tasks.add_task(_write_snapshot_safely, payload)
+    except Exception:
+        _SNAPSHOT_LOG.warning("option chain snapshot scheduling failed", exc_info=True)
+
+
 @router.get("/chain/{underlying}")
 async def get_option_chain(
     underlying: str,
     expiry: str = Query(..., description="Expiry date in YYYY-MM-DD format"),
     refresh: bool = Query(False, description="Bypass the short-TTL chain cache"),
+    background_tasks: BackgroundTasks = None,
 ):
     """Get complete option chain with server-side analysis.
 
@@ -652,9 +749,9 @@ async def get_option_chain(
 
     session_state = await _session_state_now()
     try:
-        return await _cached(
+        payload = await _cached(
             _chain_cache_key(symbol, expiry, session_state),
-            lambda: _build_chain_response(symbol, expiry),
+            lambda: _build_chain_response(symbol, expiry, session_state),
             ttl_open=CHAIN_TTL_OPEN_SEC,
             ttl_closed=CHAIN_TTL_CLOSED_SEC,
             bypass=bypass,
@@ -664,6 +761,11 @@ async def get_option_chain(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch option chain: {str(e)}")
+
+    # Fire-and-forget: the response and its cache entry are already decided.
+    # Errors here (throttle or writer) are swallowed inside the helpers.
+    _queue_snapshot(payload, background_tasks)
+    return payload
 
 
 @router.get("/positioning/{underlying}")
