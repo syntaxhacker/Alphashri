@@ -428,3 +428,65 @@ describe("lifecycle", () => {
     expect(store.getState().value).toEqual({ universe: "nifty500", rsiMin: 50, view: "table" });
   });
 });
+
+describe("scheduleSave — synchronous publish", () => {
+  const next: TestValue = { universe: "nifty500", rsiMin: 50, view: "table" };
+
+  test("ready: a subscriber sees the new value on the same tick", async () => {
+    const { store, get, put } = build();
+    get.mockResolvedValue(envelope(DEFAULTS, { saved: false, updated_at: null }));
+    store.hydrate();
+    await vi.runAllTimersAsync();
+    expect(store.getState().status).toBe("ready");
+
+    const seen: Array<TestValue | null> = [];
+    const unsubscribe = store.subscribe(() => seen.push(store.getState().value));
+
+    store.scheduleSave(next);
+    // No await between the call and these assertions: the notification must be
+    // synchronous, otherwise a controlled consumer keeps rendering old state.
+    expect(store.getState().value).toEqual(next);
+    expect(seen).toEqual([next]);
+    expect(put).not.toHaveBeenCalled();
+
+    unsubscribe();
+  });
+
+  test("disabled: a subscriber still sees the new value synchronously and nothing is written", async () => {
+    const { store, get, put } = build();
+    get.mockRejectedValue(httpError(404, "not_found"));
+    store.hydrate();
+    await vi.runAllTimersAsync();
+    expect(store.getState().status).toBe("disabled");
+
+    const seen: Array<TestValue | null> = [];
+    const unsubscribe = store.subscribe(() => seen.push(store.getState().value));
+
+    store.scheduleSave(next);
+    expect(store.getState().value).toEqual(next);
+    expect(seen).toEqual([next]);
+    await flushDebounce();
+    expect(put).not.toHaveBeenCalled();
+
+    unsubscribe();
+  });
+
+  test("before hydration: a subscriber still sees the new value synchronously and nothing is written", async () => {
+    const { store, get, put } = build();
+    const pendingGet = deferred<UserConfig<Record<string, unknown>>>();
+    get.mockReturnValue(pendingGet.promise);
+    store.hydrate();
+    await vi.runAllTimersAsync();
+    expect(store.getState().hydrated).toBe(false);
+
+    const seen: Array<TestValue | null> = [];
+    const unsubscribe = store.subscribe(() => seen.push(store.getState().value));
+
+    store.scheduleSave(next);
+    expect(store.getState().value).toEqual(next);
+    expect(seen).toEqual([next]);
+    expect(put).not.toHaveBeenCalled();
+
+    unsubscribe();
+  });
+});

@@ -428,16 +428,18 @@ export function createSavedConfigStore<T>(
     }
     appliedEchoKey = null;
     if (pending && pendingKey === key) return;
-    // Optimistic: the UI already shows this value and we are only recording it.
-    // A failed write therefore leaves the live value intact.
-    state = { ...state, value };
+    // Publish the optimistic value synchronously. A controlled consumer reads
+    // `getState()` through its subscription, so without this notify it would
+    // keep rendering the previous array until the debounced PUT settles — and
+    // forever when the scope is disabled and no PUT ever happens.
+    state = { ...state, value, error: null };
     pending = value;
     pendingKey = key;
     latchOpen = false;
     blocked = false;
     holdRetry = false;
     retriedOnce = false;
-    if (state.error) setState({ error: null });
+    notify();
     if (!state.hydrated) return;
     if (state.status === "disabled") {
       dropPending();
