@@ -662,6 +662,7 @@ components:
           title: Lot Size
           type: integer
         tick_size:
+          description: Minimum price increment in **rupees** (Upstox reports paise; divided by 100 here). NSE uses ₹0.05 at/above ₹250 and ₹0.01 below.
           title: Tick Size
           type: number
         weekly:
@@ -2413,6 +2414,10 @@ components:
         market_state:
           title: Market State
           type: string
+        quotes_live:
+          description: True only while `market_state == "open"`. When false, chain LTPs are the last session's prints (a pre-open chain shows the previous close), not live prices.
+          title: Quotes Live
+          type: boolean
         spot:
           title: Spot
           type: number
@@ -2427,6 +2432,7 @@ components:
       - spot
       - expiries
       - market_state
+      - quotes_live
       title: UnderlyingInfo
       type: object
     UpdatePricesRequest:
@@ -7781,7 +7787,12 @@ paths:
 
         ``default_expiry`` is the first expiry on or after today, except on expiry
 
-        day after 15:40 IST where it rolls to the next one (today stays listed).'
+        day after 15:40 IST where it rolls to the next one (today stays listed).
+
+
+        ``quotes_live`` is true only while the F&O session is ``open``; pre-open and
+
+        closed chains carry the previous session''s LTPs.'
       operationId: get_underlying_info_api_options_underlying__symbol__get
       parameters:
       - in: path

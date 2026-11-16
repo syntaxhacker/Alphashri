@@ -3,7 +3,7 @@
 The route answers one question for the option chain: which instrument key,
 which expiries with their real lot/tick sizes, and which expiry a chain should
 open on. Every upstream call is mocked here; the real-API shape was verified
-against ``/v2/option/contract`` (NIFTY lot 65 / tick 5, RELIANCE lot 500).
+against ``/v2/option/contract`` (NIFTY lot 65 / tick 5 paise, RELIANCE lot 500).
 """
 
 import sys
@@ -27,6 +27,7 @@ CONTRACT_KEY_RELIANCE = "NSE_EQ|INE002A01018"
 
 
 def _contract(expiry: str, lot: int, tick: float, weekly: bool, kind: str = "CE", key: str = "") -> dict:
+    """``tick`` is what Upstox returns — **paise**, not rupees."""
     return {
         "name": "X",
         "segment": "NSE_FO",
@@ -152,7 +153,7 @@ class TestIndexResolution:
         assert body["spot"] == pytest.approx(25144.3)
         assert [e["date"] for e in body["expiries"]] == ["2026-11-17", "2026-11-24", "2026-12-29"]
         assert {e["lot_size"] for e in body["expiries"]} == {65}
-        assert {e["tick_size"] for e in body["expiries"]} == {5.0}
+        assert {e["tick_size"] for e in body["expiries"]} == {0.05}
         assert body["expiries"][0]["dte_days"] == 1
         assert body["market_state"] == "open"
         assert fake.calls[:2] == ["/option/contract", "/market-quote/ltp"]
@@ -171,6 +172,105 @@ class TestIndexResolution:
         body = client.get("/api/options/underlying/nifty").json()
         assert body["symbol"] == "NIFTY"
         assert body["instrument_key"] == CONTRACT_KEY_NIFTY
+
+
+class TestTickSizeUnits:
+    """Upstox sends paise; E1 must publish rupees or a UI rounds 1339.7 -> 1340."""
+
+    def test_index_five_paise_is_five_hundredths_of_a_rupee(self, client, upstream):
+        upstream(FakeUpstox(_nifty_rows()))
+        body = client.get("/api/options/underlying/NIFTY").json()
+
+        assert [e["tick_size"] for e in body["expiries"]] == [0.05, 0.05, 0.05]
+
+    def test_sub_250_equity_one_paise_is_one_hundredth(self, client, upstream, monkeypatch):
+        monkeypatch.setattr(
+            ou, "get_instrument_key", lambda s: "NSE_EQ|INE053F01010"
+        )
+        upstream(
+            FakeUpstox([_contract("2026-11-24", 3050, 1.0, True, key="NSE_FO|ONGC")], spot=133.9)
+        )
+        body = client.get("/api/options/underlying/ONGC").json()
+
+        assert body["expiries"][0]["tick_size"] == pytest.approx(0.01)
+
+    def test_fractional_paise_is_preserved(self, client, upstream):
+        upstream(FakeUpstox([_contract("2026-11-24", 65, 2.5, True)]))
+        body = client.get("/api/options/underlying/NIFTY").json()
+
+        assert body["expiries"][0]["tick_size"] == pytest.approx(0.025)
+
+    @pytest.mark.parametrize("raw", [0, 0.0, None])
+    def test_missing_upstream_tick_is_zero_rupees(self, client, upstream, raw):
+        upstream(FakeUpstox([_contract("2026-11-24", 65, raw, True)]))
+        body = client.get("/api/options/underlying/NIFTY").json()
+
+        assert body["expiries"][0]["tick_size"] == 0.0
+
+    def test_no_paise_value_leaks_into_the_payload(self, client, upstream, monkeypatch):
+        """Every raw paise value in this test is >= 1, so any rupee value >= 1 is a leak."""
+        monkeypatch.setattr(ou, "get_instrument_key", lambda s: "NSE_EQ|INE053F01010")
+        rows = [
+            _contract("2026-11-24", 65, 5.0, True, key="NSE_FO|A"),
+            _contract("2026-12-29", 3050, 1.0, False, key="NSE_FO|B"),
+        ]
+        upstream(FakeUpstox(rows))
+        body = client.get("/api/options/underlying/ONGC").json()
+
+        assert all(e["tick_size"] < 1 for e in body["expiries"])
+        assert "tick_size_paise" not in body["expiries"][0]
+
+
+class TestQuotesLive:
+    def test_open_session_has_live_quotes(self, client, upstream):
+        upstream(FakeUpstox(_nifty_rows()))
+        assert client.get("/api/options/underlying/NIFTY").json()["quotes_live"] is True
+
+    def test_pre_open_quotes_are_the_previous_session(self, client, upstream, frozen):
+        frozen(now=ou.datetime(2026, 11, 16, 9, 5, tzinfo=ou.config.IST), cash_open=False)
+        upstream(FakeUpstox(_nifty_rows()))
+        body = client.get("/api/options/underlying/NIFTY").json()
+
+        assert body["market_state"] == "pre_open"
+        assert body["quotes_live"] is False
+
+    def test_closed_session_is_not_live(self, client, upstream, frozen):
+        frozen(now=ou.datetime(2026, 11, 16, 18, 0, tzinfo=ou.config.IST), cash_open=False)
+        upstream(FakeUpstox(_nifty_rows()))
+        body = client.get("/api/options/underlying/NIFTY").json()
+
+        assert body["market_state"] == "closed"
+        assert body["quotes_live"] is False
+
+    def test_weekend_is_not_live(self, client, upstream, frozen):
+        frozen(now=ou.datetime(2026, 11, 21, 11, 0, tzinfo=ou.config.IST))
+        upstream(FakeUpstox(_nifty_rows()))
+        body = client.get("/api/options/underlying/NIFTY").json()
+
+        assert body["market_state"] == "closed"
+        assert body["quotes_live"] is False
+
+    def test_derivatives_tail_after_cash_close_is_live(self, client, upstream, frozen):
+        frozen(now=ou.datetime(2026, 11, 16, 15, 35, tzinfo=ou.config.IST), cash_open=False)
+        upstream(FakeUpstox(_nifty_rows()))
+        body = client.get("/api/options/underlying/NIFTY").json()
+
+        assert body["market_state"] == "open"
+        assert body["quotes_live"] is True
+
+    def test_quotes_live_always_agrees_with_market_state(self, client, upstream, frozen):
+        moments = [
+            ou.datetime(2026, 11, 16, 8, 0, tzinfo=ou.config.IST),
+            ou.datetime(2026, 11, 16, 9, 5, tzinfo=ou.config.IST),
+            ou.datetime(2026, 11, 16, 10, 30, tzinfo=ou.config.IST),
+            ou.datetime(2026, 11, 16, 15, 35, tzinfo=ou.config.IST),
+            ou.datetime(2026, 11, 16, 15, 45, tzinfo=ou.config.IST),
+        ]
+        upstream(FakeUpstox(_nifty_rows()))
+        for moment in moments:
+            frozen(now=moment, cash_open=moment.time() < ou.dtime(15, 30))
+            body = client.get("/api/options/underlying/NIFTY").json()
+            assert body["quotes_live"] is (body["market_state"] == "open"), moment
 
 
 class TestEquityResolution:

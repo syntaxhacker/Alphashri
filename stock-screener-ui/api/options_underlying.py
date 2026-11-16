@@ -8,7 +8,8 @@ should open on, and whether the F&O session is running.
 
 The lot size exists only on ``/v2/option/contract`` (the chain contract has
 none), so the payoff/greeks maths depends on this endpoint rather than on the
-chain payload.
+chain payload. Upstox reports ``tick_size`` in paise; E1 divides by 100 and
+publishes rupees, because a 5-paise tick rendered as "5" rounds every price.
 
 Symbols with no listed options answer ``200 {"fno": false}`` — an empty chain
 and a dead market are then distinguishable, which the old ``NSE_INDEX|<symbol>``
@@ -25,7 +26,7 @@ from datetime import datetime, time as dtime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 import config
 from api.auth import get_current_user
@@ -66,7 +67,12 @@ class ExpiryInfo(BaseModel):
     weekly: bool
     dte_days: int
     lot_size: int
-    tick_size: float
+    tick_size: float = Field(
+        description=(
+            "Minimum price increment in **rupees** (Upstox reports paise; divided by 100 "
+            "here). NSE uses ₹0.05 at/above ₹250 and ₹0.01 below."
+        )
+    )
 
 
 class UnderlyingInfo(BaseModel):
@@ -78,6 +84,12 @@ class UnderlyingInfo(BaseModel):
     expiries: list[ExpiryInfo]
     default_expiry: Optional[str] = None
     market_state: str
+    quotes_live: bool = Field(
+        description=(
+            "True only while `market_state == \"open\"`. When false, chain LTPs are the "
+            "last session's prints (a pre-open chain shows the previous close), not live prices."
+        )
+    )
 
 
 #: symbol -> {"ts": monotonic, "data": upstream-derived payload}. Only the parts
@@ -220,6 +232,15 @@ def _session_flags(now: datetime) -> tuple[bool, bool]:
     return is_market_open(now), is_trading_holiday(now)
 
 
+def _paise_to_rupees(value: float) -> float:
+    """Upstox ``tick_size`` is in paise; E1 exposes rupees.
+
+    NIFTY/RELIANCE report ``5.0`` (₹0.05) and ONGC/IRFC report ``1.0`` (₹0.01).
+    A UI that renders the raw number rounds tree prices to whole rupees.
+    """
+    return float(value or 0.0) / 100.0
+
+
 def _shape(
     symbol: str,
     exchange: str,
@@ -239,7 +260,7 @@ def _shape(
             "weekly": row["weekly"],
             "dte_days": (datetime.strptime(row["date"], "%Y-%m-%d").date() - today).days,
             "lot_size": row["lot_size"],
-            "tick_size": row["tick_size"],
+            "tick_size": _paise_to_rupees(row["tick_size"]),
         }
         for row in listing
         if (datetime.strptime(row["date"], "%Y-%m-%d").date() - today).days >= 0
@@ -252,6 +273,8 @@ def _shape(
         default_expiry = expiry["date"]
         break
 
+    market_state = _session_state(now, cash_open, holiday)
+
     return {
         "symbol": symbol,
         "exchange": exchange,
@@ -260,7 +283,8 @@ def _shape(
         "spot": spot,
         "expiries": expiries,
         "default_expiry": default_expiry,
-        "market_state": _session_state(now, cash_open, holiday),
+        "market_state": market_state,
+        "quotes_live": market_state == "open",
     }
 
 
@@ -301,6 +325,9 @@ async def get_underlying_info(symbol: str, user: User = Depends(get_current_user
 
     ``default_expiry`` is the first expiry on or after today, except on expiry
     day after 15:40 IST where it rolls to the next one (today stays listed).
+
+    ``quotes_live`` is true only while the F&O session is ``open``; pre-open and
+    closed chains carry the previous session's LTPs.
     """
     up = str(symbol or "").strip().upper()
     if not up:
