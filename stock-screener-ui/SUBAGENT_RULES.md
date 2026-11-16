@@ -332,10 +332,10 @@ Canonical source for model routing **and** concurrency — `AGENTS.md` and
 
 | Purpose | Model |
 |---|---|
-| **Default for all subagent work** | `opencode/nemotron-3.5-super-vl-free` ("Nemotron 3.5 Super VL Free") — temporary instruction, 2026-11-16, while Hy4 is overloaded |
-| Never use | any paid model, or a different free model without the user changing this line |
-| If Nemotron reports a free-usage limit | stop and report; do not silently swap to another provider |
-| Revert | back to `opencode/hy4-flash-free` once Hy4 stops returning "inference service is overloaded" |
+| **Default for all subagent work** | `opencode/hy4-flash-free` ("Hy4 flash Free") — user instruction, 2026-11-16 |
+| If Hy4 is overloaded / quota-exhausted | switch the wave to `commandcode/deepseek-v4.1` ("DeepSeek V4.1 Flash (latest)") — explicit user fallback, 2026-11-16 |
+| Never use | `commandcode/deepseek/deepseek-v4.1-flash-fast`, or any other provider/model without the user changing this line |
+| If BOTH free models are quota-exhausted | stop and report; do not pick a third model silently |
 | If the user changes the model | update this table first, then dispatch |
 
 - The user's standing instruction is **one model for every agent** — do not mix models
