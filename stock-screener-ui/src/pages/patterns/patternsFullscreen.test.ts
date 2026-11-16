@@ -147,3 +147,125 @@ describe("usePatternFullscreen (page) hit selection across reloads", () => {
     expect(api.fullscreen()?.hit?.id).toBe(newest.id);
   });
 });
+
+describe("usePatternFullscreen (page) live quote polling (15s, fake timers)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.mocked(fetchPatternHit).mockResolvedValue(null as never);
+    vi.mocked(fetchSymbolChart).mockImplementation(async () => chartPayload());
+    vi.mocked(fetchQuotes).mockResolvedValue([
+      { symbol: "KAYNES", close: 2986, change: -12.94 },
+    ]);
+  });
+
+  afterEach(() => {
+    hook?.unmount();
+    hook = undefined;
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  test("openFromSymbol fetches immediately, polls every 15s, stops on close", async () => {
+    vi.mocked(fetchQuotes)
+      .mockResolvedValueOnce([{ symbol: "KAYNES", close: 2986, change: -12.94 }])
+      .mockResolvedValue([{ symbol: "KAYNES", close: 3010, change: -11.2 }]);
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchQuotes).toHaveBeenCalledTimes(1);
+    expect(fetchQuotes).toHaveBeenCalledWith(["KAYNES"], expect.objectContaining({ signal: expect.anything() }));
+    expect(api.fullscreen()?.livePrice).toBe(2986);
+    expect(api.fullscreen()?.liveChange).toBe(-12.94);
+
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(fetchQuotes).toHaveBeenCalledTimes(2);
+    expect(fetchQuotes).toHaveBeenLastCalledWith(["KAYNES"], expect.objectContaining({ signal: expect.anything() }));
+    expect(api.fullscreen()?.livePrice).toBe(3010);
+    expect(api.fullscreen()?.liveChange).toBe(-11.2);
+
+    api.closeFullscreen();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(fetchQuotes).toHaveBeenCalledTimes(2);
+  });
+
+  test("openFromCard fetches the quote and arms the same 15s poll", async () => {
+    const hit = makeHit(7, "2026-11-13");
+    vi.mocked(fetchQuotes).mockResolvedValueOnce([
+      { symbol: "KAYNES", close: 2986, change: -12.94 },
+    ]);
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromCard(hit);
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchQuotes).toHaveBeenCalledTimes(1);
+    expect(fetchQuotes).toHaveBeenCalledWith(["KAYNES"], expect.objectContaining({ signal: expect.anything() }));
+    expect(api.fullscreen()?.livePrice).toBe(2986);
+    expect(api.fullscreen()?.liveChange).toBe(-12.94);
+
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(fetchQuotes).toHaveBeenCalledTimes(2);
+
+    api.closeFullscreen();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(fetchQuotes).toHaveBeenCalledTimes(2);
+  });
+
+  test("timeframe change clears live price immediately, repopulates on the next tick", async () => {
+    vi.mocked(fetchQuotes)
+      .mockResolvedValueOnce([{ symbol: "KAYNES", close: 2986, change: -12.94 }])
+      .mockResolvedValueOnce([{ symbol: "KAYNES", close: 3010, change: -11.2 }])
+      .mockResolvedValue([{ symbol: "KAYNES", close: 3055, change: -9.1 }]);
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(api.fullscreen()?.livePrice).toBe(2986);
+
+    api.changeFullscreenTimeframe("1h");
+    expect(api.fullscreen()?.timeframe).toBe("1h");
+    expect(api.fullscreen()?.livePrice).toBeNull();
+    expect(api.fullscreen()?.liveChange).toBeNull();
+
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(fetchQuotes).toHaveBeenCalledTimes(3);
+    expect(api.fullscreen()?.livePrice).toBe(3055);
+    expect(api.fullscreen()?.liveChange).toBe(-9.1);
+  });
+
+  test("as-of historical clears live price and pauses polling; returning to live refetches", async () => {
+    vi.mocked(fetchQuotes).mockResolvedValue([
+      { symbol: "KAYNES", close: 2986, change: -12.94 },
+    ]);
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(api.fullscreen()?.livePrice).toBe(2986);
+    expect(fetchQuotes).toHaveBeenCalledTimes(1);
+
+    api.changeFullscreenAsOf("2026-11-10", null);
+    expect(api.fullscreen()?.asOf).toBe("2026-11-10");
+    expect(api.fullscreen()?.livePrice).toBeNull();
+    expect(api.fullscreen()?.liveChange).toBeNull();
+
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(fetchQuotes).toHaveBeenCalledTimes(1); // no poll while historical
+
+    api.changeFullscreenAsOf(null, null);
+    expect(api.fullscreen()?.asOf).toBeNull();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchQuotes).toHaveBeenCalledTimes(2); // restarted: immediate fetch
+    expect(api.fullscreen()?.livePrice).toBe(2986);
+
+    api.closeFullscreen();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(fetchQuotes).toHaveBeenCalledTimes(2);
+  });
+});
