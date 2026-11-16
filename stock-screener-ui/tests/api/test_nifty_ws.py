@@ -339,7 +339,7 @@ def test_tick_sent_only_once_when_spot_unchanged(_reset_spot_state, monkeypatch)
 
 async def test_spot_tick_task_market_hours_gated(_reset_spot_state, monkeypatch):
     """When the market is closed the poller must not call get_spot_price."""
-    monkeypatch.setattr("trading.utils.is_market_open", lambda *a, **k: False)
+    monkeypatch.setattr("trading.utils.is_derivatives_open", lambda *a, **k: False)
     calls: list = []
 
     async def _counter(underlying: str):
@@ -363,7 +363,7 @@ async def test_spot_tick_task_never_raises_on_poll_error(
     _reset_spot_state, monkeypatch
 ):
     """A failing get_spot_price keeps the previous value and never raises."""
-    monkeypatch.setattr("trading.utils.is_market_open", lambda *a, **k: True)
+    monkeypatch.setattr("trading.utils.is_derivatives_open", lambda *a, **k: True)
 
     async def _raiser(underlying: str):
         raise RuntimeError("upstox down")
@@ -386,7 +386,7 @@ async def test_spot_tick_task_stores_spot_and_change_pct(
     _reset_spot_state, monkeypatch
 ):
     """On success the poller publishes spot + day-open-relative change_pct."""
-    monkeypatch.setattr("trading.utils.is_market_open", lambda *a, **k: True)
+    monkeypatch.setattr("trading.utils.is_derivatives_open", lambda *a, **k: True)
 
     async def _ok(underlying: str):
         assert underlying == "NIFTY"
@@ -412,7 +412,7 @@ async def test_start_nifty_spot_tick_task_is_idempotent(
     _reset_spot_state, monkeypatch
 ):
     """Double-start returns the running task instead of spawning a second."""
-    monkeypatch.setattr("trading.utils.is_market_open", lambda *a, **k: False)
+    monkeypatch.setattr("trading.utils.is_derivatives_open", lambda *a, **k: False)
     first = nifty_ws_module.start_nifty_spot_tick_task(interval_sec=0.01)
     second = nifty_ws_module.start_nifty_spot_tick_task(interval_sec=0.01)
     try:
