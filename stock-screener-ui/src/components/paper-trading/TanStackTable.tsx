@@ -13,6 +13,12 @@ export interface TableColumnMeta {
   align?: "left" | "center" | "right";
 }
 
+/** A single sort directive: column id + direction. */
+export interface SortEntry {
+  id: string;
+  desc: boolean;
+}
+
 export interface TableColumnDef<T> {
   id: string;
   header?: string | JSX.Element | ((ctx: { column: TableColumnDef<T> }) => JSX.Element);
@@ -38,7 +44,13 @@ export interface GroupHeaderInfo<T> {
 interface Props<T> {
   data: T[];
   columns: TableColumnDef<T>[];
-  initialState?: { sorting?: { id: string; desc: boolean }[]; expanded?: Record<string, boolean> };
+  initialState?: { sorting?: SortEntry[]; expanded?: Record<string, boolean> };
+  /** Initial sorting for an uncontrolled table (fallback when initialState.sorting is absent). */
+  initialSorting?: SortEntry[];
+  /** Controlled sorting source. When supplied, rendering follows it and only onSortingChange mutates it. */
+  sorting?: SortEntry[];
+  /** Emitted on every sort change, in both controlled and uncontrolled modes. */
+  onSortingChange?: (next: SortEntry[]) => void;
   /** Group rows by these column ids (requires enableGrouping). */
   grouping?: string[];
   /** Enables row grouping. */
@@ -136,7 +148,17 @@ export function TanStackTable<T>(props: Props<T>) {
   const cellFontSize = () => (props.dense ? 10 : 11);
   const headerHeight = () => (props.dense ? 20 : isComfortable() ? densityTokens.tableRowHeight : ROW_ESTIMATED);
 
-  const [sorting, setSorting] = createSignal<{ id: string; desc: boolean }[]>(props.initialState?.sorting ?? []);
+  const [internalSorting, setInternalSorting] = createSignal<SortEntry[]>(
+    props.initialState?.sorting ?? props.initialSorting ?? [],
+  );
+  const isSortControlled = () => props.sorting != null;
+  const sorting = (): SortEntry[] => (isSortControlled() ? props.sorting! : internalSorting());
+  // Controlled mode renders from props and persists only through the callback;
+  // uncontrolled mode keeps the signal but still emits so callers can observe.
+  const commitSorting = (next: SortEntry[]) => {
+    if (!isSortControlled()) setInternalSorting(next);
+    props.onSortingChange?.(next);
+  };
   const [expandedGroups, setExpandedGroups] = createSignal<Record<string, boolean>>({});
   const [expandedRows, setExpandedRows] = createSignal<Record<string, boolean>>({});
 
@@ -234,14 +256,14 @@ export function TanStackTable<T>(props: Props<T>) {
       // Flip on the second click; only the third clears (numeric desc→asc→none,
       // text asc→desc→none). Without removal, bounce between the two directions.
       if (found.desc !== descFirst(col) && enableSortingRemoval()) {
-        setSorting(next);
+        commitSorting(next);
         return;
       }
       next.unshift({ id, desc: !found.desc });
     } else {
       next.unshift({ id, desc: descFirst(col) });
     }
-    setSorting(next);
+    commitSorting(next);
   };
 
   createEffect(() => {
@@ -327,8 +349,14 @@ export function TanStackTable<T>(props: Props<T>) {
 
   const renderHeader = (col: TableColumnDef<T>) => {
     const width = getColumnWidth(col);
+    const sortable = () => col.enableSorting !== false && enableSorting();
     const isSorted = () => sorting().some((s) => s.id === col.id);
     const sortDir = () => sorting().find((s) => s.id === col.id);
+    const ariaSort = () => {
+      if (!sortable()) return undefined;
+      if (!isSorted()) return "none";
+      return sortDir()?.desc ? "descending" : "ascending";
+    };
     const headerStyle: CSSProperties = {
       padding: width === 0 ? "0" : cellPad(),
       height: `${headerHeight()}px`,
@@ -356,7 +384,8 @@ export function TanStackTable<T>(props: Props<T>) {
         className="paper-tanstack-header-cell"
         id={`paper-tanstack-header-${String(col.id)}`}
         style={headerStyle}
-        onClick={() => col.enableSorting !== false && enableSorting() && toggleSort(col.id)}
+        aria-sort={ariaSort()}
+        onClick={() => sortable() && toggleSort(col.id)}
       >
         {content}
         {isSorted() && (sortDir()?.desc ? " ▼" : " ▲")}

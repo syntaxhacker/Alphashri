@@ -229,3 +229,57 @@ describe("paper-trading TanStackTable — sort cycle", () => {
     expect(orderOf("paper-multi")).toEqual(["x", "z", "y"]);
   });
 });
+
+describe("paper-trading TanStackTable — controlled sorting", () => {
+  it("renders from the passed sorting and emits changes without mutating the source", () => {
+    const changes: Array<Array<{ id: string; desc: boolean }>> = [];
+    const controlled = [{ id: "value", desc: false }];
+    render(() => (
+      <TanStackTable<NullRow>
+        data={numData}
+        columns={numColumns}
+        dataTestId="paper-controlled"
+        getRowTestId={(r) => r.id}
+        sorting={controlled}
+        onSortingChange={(next) => changes.push(next)}
+      />
+    ));
+    expect(orderOf("paper-controlled")).toEqual(["r3", "r5", "r1", "r2", "r4"]);
+    expect(headerOf("paper-controlled", 1)).toHaveAttribute("aria-sort", "ascending");
+
+    fireEvent.click(headerOf("paper-controlled", 1));
+    // Controlled: the caller owns the value, so emitting [] does not change the rendered order.
+    expect(changes).toEqual([[]]);
+    expect(orderOf("paper-controlled")).toEqual(["r3", "r5", "r1", "r2", "r4"]);
+  });
+
+  it("uncontrolled table keeps its internal signal and still emits", () => {
+    const changes: Array<Array<{ id: string; desc: boolean }>> = [];
+    render(() => (
+      <TanStackTable<NullRow>
+        data={numData}
+        columns={numColumns}
+        dataTestId="paper-uncontrolled"
+        getRowTestId={(r) => r.id}
+        onSortingChange={(next) => changes.push(next)}
+      />
+    ));
+    fireEvent.click(headerOf("paper-uncontrolled", 1)); // numeric → desc
+    expect(orderOf("paper-uncontrolled")).toEqual(["r1", "r5", "r3", "r2", "r4"]);
+    expect(changes).toEqual([[{ id: "value", desc: true }]]);
+  });
+
+  it("initialSorting seeds an uncontrolled table", () => {
+    render(() => (
+      <TanStackTable<NullRow>
+        data={numData}
+        columns={numColumns}
+        dataTestId="paper-seeded"
+        getRowTestId={(r) => r.id}
+        initialSorting={[{ id: "value", desc: false }]}
+      />
+    ));
+    expect(orderOf("paper-seeded")).toEqual(["r3", "r5", "r1", "r2", "r4"]);
+    expect(headerOf("paper-seeded", 1)).toHaveAttribute("aria-sort", "ascending");
+  });
+});

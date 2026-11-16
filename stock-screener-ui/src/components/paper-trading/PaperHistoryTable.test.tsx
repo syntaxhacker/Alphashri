@@ -88,6 +88,36 @@ vi.mock("../../hooks/useStoreSubscription", () => ({
   useStoreSubscription: vi.fn(),
 }));
 
+type Sorting = Array<{ id: string; desc: boolean }>;
+const prefsMock = vi.hoisted(() => ({
+  ids: [] as string[],
+  calls: [] as Sorting[],
+  write: null as ((next: Sorting) => void) | null,
+}));
+
+vi.mock("../common/useTablePrefs", async () => {
+  const { createSignal } = await import("solid-js");
+  const [get, set] = createSignal<Sorting>([]);
+  prefsMock.write = set;
+  return {
+    useTablePrefs: (tableId: string) => {
+      prefsMock.ids.push(tableId);
+      return {
+        prefs: () => ({ sorting: get(), order: [], hidden: [] }),
+        setSorting: (next: Sorting) => {
+          prefsMock.calls.push(next);
+          set(next);
+        },
+        status: () => "ready",
+        error: () => null,
+        hydrated: () => true,
+        setColumnPrefs: () => {},
+        retry: () => {},
+      };
+    },
+  };
+});
+
 // Migration to @/ui primitives is complete.
 
 import { PaperHistoryTable } from "./PaperHistoryTable";
@@ -96,6 +126,9 @@ import { mockTrade } from "./testFixtures";
 beforeEach(() => {
   resetMockStateStore();
   vi.clearAllMocks();
+  prefsMock.ids.length = 0;
+  prefsMock.calls.length = 0;
+  prefsMock.write!([]);
 });
 
 afterEach(() => {
@@ -596,5 +629,42 @@ describe("PaperHistoryTable interactions", () => {
     await vi.waitFor(() => {
       expect(mocks.mockFetchPaperChart).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("PaperHistoryTable saved sort", () => {
+  const stockRowIds = () =>
+    Array.from(document.querySelectorAll("tbody tr[data-row='stock']")).map(
+      (tr) => (tr as HTMLElement).dataset.testid,
+    );
+
+  test("restores a saved sort on first render and reflects it in aria-sort", () => {
+    mockStateStore.trades = [
+      mockTrade({ trade_id: "t1", symbol: "ZOO", exit_time: "2026-05-09T10:30:00Z", net_pnl: 100 }),
+      mockTrade({ trade_id: "t2", symbol: "AAPL", exit_time: "2026-05-09T11:30:00Z", net_pnl: 300 }),
+      mockTrade({ trade_id: "t3", symbol: "RELIANCE", exit_time: "2026-05-09T12:30:00Z", net_pnl: 200 }),
+    ];
+    prefsMock.write!([{ id: "symbol", desc: false }]);
+    r();
+
+    expect(prefsMock.ids).toContain("paper.trades");
+    expect(stockRowIds()).toEqual(["trade-row-t2", "trade-row-t3", "trade-row-t1"]);
+    expect(document.getElementById("paper-tanstack-header-symbol")).toHaveAttribute("aria-sort", "ascending");
+  });
+
+  test("a header click persists the new sort and reorders rows", () => {
+    mockStateStore.trades = [
+      mockTrade({ trade_id: "t1", symbol: "ZOO", exit_time: "2026-05-09T12:30:00Z", net_pnl: 100 }),
+      mockTrade({ trade_id: "t2", symbol: "AAPL", exit_time: "2026-05-09T11:30:00Z", net_pnl: 300 }),
+      mockTrade({ trade_id: "t3", symbol: "RELIANCE", exit_time: "2026-05-09T10:30:00Z", net_pnl: 200 }),
+    ];
+    r();
+    // Empty saved prefs keep the current newest-first default order.
+    expect(stockRowIds()).toEqual(["trade-row-t1", "trade-row-t2", "trade-row-t3"]);
+
+    fireEvent.click(document.getElementById("paper-tanstack-header-net_pnl")!);
+    expect(prefsMock.calls.length).toBeGreaterThan(0);
+    expect(prefsMock.calls.at(-1)![0]).toMatchObject({ id: "net_pnl", desc: true });
+    expect(stockRowIds()).toEqual(["trade-row-t2", "trade-row-t3", "trade-row-t1"]);
   });
 });

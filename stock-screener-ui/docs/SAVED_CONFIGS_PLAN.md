@@ -582,6 +582,8 @@ no new table. The reusable layer lives in `src/components/common/useTablePrefs.t
   unknown keys ignored); `serialize` emits exactly the three keys. The store's
   existing hydration latch/generation rules still apply — no write before the GET
   settles.
+- The Market screener grid keys as `table.market.grid`: its header sort is
+  controlled through `useTablePrefs` and bridged to the map's `filters().sort`.
 - Screener tables key as `table.screener.${profileId}.${section}` (e.g.
   `table.screener.52w_high.approaching`, `table.screener.52w_high.touched`).
   `ScreenerContent` builds the id and forwards it through `ScreenerSection` →
@@ -589,3 +591,11 @@ no new table. The reusable layer lives in `src/components/common/useTablePrefs.t
   `tableId` falls back to `table.screener.${testId ?? "table"}`. TanStack is
   driven controlled: `sorting={prefs().sorting}` / `onSortingChange={setSorting}`,
   and an empty saved array keeps the caller's pre-sorted row order.
+- The backtest trade history keys as `table.backtest.trades`: its prop-driven
+  `sortColumn`/`sortDirection` hydrate from the single saved entry and every
+  header sort writes `setSorting([{ id, desc }])`.
+- Paper-trading tables key as `table.paper.trades` (trade history) and
+  `table.paper.positions` (open positions). Both use the paper-trading
+  `TanStackTable` controlled `sorting`/`onSortingChange` props; an empty saved
+  array keeps the trade history's newest-first default and the positions'
+  pre-sorted entry-time order.
