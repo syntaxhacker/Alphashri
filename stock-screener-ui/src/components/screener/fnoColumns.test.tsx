@@ -95,8 +95,7 @@ describe("buildFnoColumns", () => {
   it("every accessor maps to its matching row field", () => {
     const fieldById: Record<string, keyof FnoScreenerRow> = {
       symbol: "symbol",
-      setup: "setup",
-      call: "call",
+      call: "strike",
       spot: "spot",
       d1: "d1",
       d5: "d5",
@@ -115,8 +114,37 @@ describe("buildFnoColumns", () => {
       move_2pct_est: "move_2pct_est",
     };
     EXPECTED_DATA_COLUMNS.forEach((id) => {
+      if (id === "setup") return; // ranked for meaningful sort — asserted separately below
       expect(accessorOf(columns, id)(sampleRow)).toBe(sampleRow[fieldById[id]]);
     });
+  });
+
+  it("CALL accessor uses the numeric strike, not the formatted label", () => {
+    const call = accessorOf(columns, "call");
+    expect(call(sampleRow)).toBe(3000);
+    const low = { ...sampleRow, symbol: "LOW", strike: 250, call: "250 CE" };
+    const high = { ...sampleRow, symbol: "HIGH", strike: 1000, call: "1000 CE" };
+    // Ascending numeric sort: 1000 > 250. A lexicographic sort on "call"
+    // ("1000 CE" < "250 CE") would reverse this — the exact regression.
+    const asc = [high, low].sort((a, b) => (call(a) as number) - (call(b) as number));
+    expect(asc.map((r) => r.symbol)).toEqual(["LOW", "HIGH"]);
+    const desc = [low, high].sort((a, b) => (call(b) as number) - (call(a) as number));
+    expect(desc.map((r) => r.symbol)).toEqual(["HIGH", "LOW"]);
+  });
+
+  it("SETUP accessor ranks BREAKOUT first and WEAK last", () => {
+    const setup = accessorOf(columns, "setup");
+    const ranked = [
+      { ...sampleRow, symbol: "WEAK", setup: "WEAK" as const },
+      { ...sampleRow, symbol: "BASE", setup: "BASE" as const },
+      { ...sampleRow, symbol: "BREAKOUT", setup: "BREAKOUT" as const },
+      { ...sampleRow, symbol: "EXTENDED", setup: "EXTENDED" as const },
+      { ...sampleRow, symbol: "NEAR", setup: "NEAR HIGH" as const },
+      { ...sampleRow, symbol: "WATCH", setup: "WATCH" as const },
+    ].sort((a, b) => (setup(a) as number) - (setup(b) as number));
+    expect(ranked.map((r) => r.symbol)).toEqual([
+      "BREAKOUT", "NEAR", "WATCH", "BASE", "EXTENDED", "WEAK",
+    ]);
   });
 
   it("declares an alignment that matches the rendered cell", () => {

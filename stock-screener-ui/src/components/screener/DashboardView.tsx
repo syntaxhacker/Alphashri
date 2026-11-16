@@ -45,6 +45,7 @@ export interface DashboardViewProps {
 }
 
 type SortKey = "default" | "change" | "relvol" | "volume" | "value";
+type SortDirection = "asc" | "desc";
 
 /** Refetch size for "Show more" (backend max). */
 const DASHBOARD_MAX_LIMIT = 30;
@@ -110,23 +111,33 @@ export function dashboardRowMcapCr(row: ScreenerDashboardRow): number | null {
 function sortDashboardRows(
   rows: ScreenerDashboardRow[],
   sort: SortKey,
+  direction: SortDirection = "desc",
 ): ScreenerDashboardRow[] {
   if (sort === "default") return rows;
-  const get = (r: ScreenerDashboardRow): number => {
+  const get = (r: ScreenerDashboardRow): number | null => {
     switch (sort) {
       case "change":
-        return Number.isFinite(r.change) ? r.change : 0;
+        return finiteOrNull(r.change);
       case "relvol":
-        return dashboardRowRelVol(r);
+        return finiteOrNull(dashboardRowRelVol(r));
       case "volume":
-        return dashboardRowVolume(r);
+        return finiteOrNull(dashboardRowVolume(r));
       case "value":
-        return dashboardRowValue(r);
+        return finiteOrNull(dashboardRowValue(r));
       default:
-        return 0;
+        return null;
     }
   };
-  return [...rows].sort((a, b) => get(b) - get(a));
+  // Missing values trail in both directions; the factor flips only real numbers.
+  const factor = direction === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const av = get(a);
+    const bv = get(b);
+    if (av === null && bv === null) return 0;
+    if (av === null) return 1;
+    if (bv === null) return -1;
+    return factor * (av - bv);
+  });
 }
 
 function matchesQuery(row: ScreenerDashboardRow, q: string): boolean {
@@ -292,6 +303,7 @@ function DashboardCard(props: {
   const visiblePanels = () => props.group.panels;
   const [selectedId, setSelectedId] = createSignal<string>(visiblePanels()[0]?.id ?? "");
   const [sort, setSort] = createSignal<SortKey>("default");
+  const [sortDir, setSortDir] = createSignal<SortDirection>("desc");
   const [detailSymbol, setDetailSymbol] = createSignal<string | null>(null);
 
   const activePanel = () =>
@@ -305,7 +317,7 @@ function DashboardCard(props: {
     const filtered = (Array.isArray(panel.rows) ? panel.rows : []).filter((r) =>
       matchesQuery(r, props.query),
     );
-    return sortDashboardRows(filtered, sort());
+    return sortDashboardRows(filtered, sort(), sortDir());
   });
   const canShowMore = () => (activePanel()?.qualify ?? 0) > shown().length || props.expanded;
 
@@ -338,7 +350,7 @@ function DashboardCard(props: {
                   size="xs"
                   variant="subtle"
                   data-testid={`dashboard-sort-${cardKey()}`}
-                  aria-label={`Sort ${props.group.title}`}
+                  aria-label={`Sort ${props.group.title}: ${SORT_OPTIONS.find((o) => o.value === sort())?.label ?? "Default"}, ${sortDir() === "desc" ? "descending" : "ascending"}`}
                 >
                   <Text size="xs" span fw={700}>
                     …
@@ -358,6 +370,21 @@ function DashboardCard(props: {
                 </For>
               </MenuDropdown>
             </Menu>
+            <ActionIcon
+              size="xs"
+              variant="subtle"
+              data-testid={`dashboard-sort-direction-${cardKey()}`}
+              aria-label={
+                sortDir() === "desc"
+                  ? "Sort descending — click to sort ascending"
+                  : "Sort ascending — click to sort descending"
+              }
+              onClick={() => setSortDir((d) => (d === "desc" ? "asc" : "desc"))}
+            >
+              <Text size="xs" span fw={700}>
+                {sortDir() === "desc" ? "↓" : "↑"}
+              </Text>
+            </ActionIcon>
           </ToolbarRow>
           <Show when={isMerged() && activePanel()}>
             {(active) => (

@@ -75,6 +75,7 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
     {
       id: "name",
       header: "NAME",
+      accessorFn: (r) => r.name ?? r.symbol,
       meta: { align: "left" },
       cell: ({ row }) => {
         const r = row.original;

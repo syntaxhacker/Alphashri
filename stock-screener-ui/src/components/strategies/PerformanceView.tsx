@@ -45,7 +45,8 @@ export function PerformanceView(props: PerformanceViewProps) {
     {
       id: "wl",
       header: "W / L",
-      accessorFn: (row) => `${row.winners}/${row.losers}`,
+      // Raw winners count sorts numerically; a "10/2" string sorted lexicographically.
+      accessorFn: (row) => row.winners,
       meta: { align: "right" },
       cell: (ctx) => (
         <Group gap={4} className="flex items-center justify-end gap-2">

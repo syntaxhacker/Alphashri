@@ -116,7 +116,16 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
     },
     {
       id: "setup",
-      accessorFn: (r) => r.setup,
+      // Rank best-to-worst (BREAKOUT → WEAK) so sorting is meaningful, not alphabetical.
+      accessorFn: (r) =>
+        ({
+          BREAKOUT: 0,
+          "NEAR HIGH": 1,
+          WATCH: 2,
+          BASE: 3,
+          EXTENDED: 4,
+          WEAK: 5,
+        })[r.setup],
       header: "SETUP",
       size: 120,
       meta: { align: "center" },
@@ -135,7 +144,8 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
     },
     {
       id: "call",
-      accessorFn: (r) => r.call,
+      // Sort on the raw strike number; the cell still shows the formatted label.
+      accessorFn: (r) => r.strike,
       header: "CALL",
       size: 76,
       meta: { align: "left" },
