@@ -136,6 +136,25 @@ describe("OptionsDockPanel", () => {
     expect(root.className).not.toContain("h-full");
   });
 
+  test("non-maximized root is the single scroll owner; maximized root is not scrollable", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+
+    const root = screen.getByTestId("options-dock");
+    // The fixed-height sheet/rail wrappers clip, so the dock itself scrolls on
+    // short heights. A fits-content sheet shows no bar (overflow-y-auto).
+    expect(root.className).toContain("overflow-y-auto");
+    expect(root.className).toContain("overflow-x-hidden");
+    expect(root.className).not.toContain("h-full");
+
+    await fireEvent.click(screen.getByTestId("options-maximize"));
+    const maximizedRoot = screen.getByTestId("options-dock");
+    expect(maximizedRoot.className).toContain("fixed inset-0");
+    expect(maximizedRoot.className).toContain("overflow-hidden");
+    expect(maximizedRoot.className).not.toContain("overflow-y-auto");
+  });
+
   test("renders the chain with the ATM row tinted exactly once", async () => {
     open("NIFTY");
     renderPanel();

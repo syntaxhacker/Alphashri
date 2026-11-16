@@ -166,12 +166,14 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
   const legs = () => optionsDockState.legs;
 
   return (
+    // The sheet/rail wrappers clip at a fixed height, so the dock is the single
+    // scroll owner: a short sheet scrolls instead of clipping LEGS/PAYOFF.
     <Box
       data-testid="options-dock"
       className={
         maximized()
           ? "fixed inset-0 z-[1200] flex flex-col overflow-hidden bg-fin-surface"
-          : "flex flex-1 min-h-0 w-full flex-col overflow-hidden bg-fin-surface"
+          : "flex flex-1 min-h-0 w-full flex-col overflow-x-hidden overflow-y-auto bg-fin-surface"
       }
     >
       {/* ---------------------------------------------------------------- */}
