@@ -33,13 +33,13 @@ const MOCK_ROWS = [
 
 const ALL_SYMBOLS = MOCK_ROWS.map((row) => row.symbol);
 
-function snapshotEnvelope() {
+function snapshotEnvelope(rows: typeof MOCK_ROWS = MOCK_ROWS) {
   return {
     as_of: new Date().toISOString(),
     universe: "all_equity",
-    total: MOCK_ROWS.length,
+    total: rows.length,
     update_mode: "streaming",
-    rows: MOCK_ROWS,
+    rows,
   };
 }
 
@@ -47,7 +47,11 @@ function snapshotEnvelope() {
  * Register the snapshot mock. `state.status` is read per request so a test can
  * flip 502 → 200 before clicking retry. Call before page.goto().
  */
-async function mockMarketSnapshot(page: Page, state: { status: number } = { status: 200 }) {
+async function mockMarketSnapshot(
+  page: Page,
+  state: { status: number } = { status: 200 },
+  rows: typeof MOCK_ROWS = MOCK_ROWS,
+) {
   await page.route(apiRoute("market/snapshot"), async (route) => {
     if (state.status !== 200) {
       await route.fulfill({
@@ -60,17 +64,65 @@ async function mockMarketSnapshot(page: Page, state: { status: number } = { stat
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(snapshotEnvelope()),
+      body: JSON.stringify(snapshotEnvelope(rows)),
     });
   });
 }
 
-async function openMarketTab(page: Page, state?: { status: number }) {
+/**
+ * `POST /api/chart-patterns/patterns/lookup` — the PATTERNS column would
+ * otherwise reach the real API and log a 401 for every page. Every request body
+ * is recorded so a test can assert the window batching (one call per window,
+ * never one per row).
+ */
+async function mockPatternLookup(page: Page, seeded: Record<string, string[]> = {}) {
+  const requests: { symbols: string[]; timeframe?: string; universe?: string | null }[] = [];
+  await page.route(apiRoute("chart-patterns/patterns/lookup"), async (route) => {
+    const raw = route.request().postData();
+    const body = raw ? (JSON.parse(raw) as typeof requests[number]) : { symbols: [] };
+    requests.push(body);
+    const items = body.symbols
+      .filter((symbol) => seeded[symbol] !== undefined)
+      .map((symbol) => ({
+        symbol,
+        count: seeded[symbol].length,
+        patterns: seeded[symbol].map((direction, i) => ({
+          pattern_id: `pat_${i}`,
+          name: `${symbol} pattern ${i + 1}`,
+          direction,
+          status: "confirmed",
+          quality: "strong",
+          confidence: 80,
+          bars_ago: 2,
+        })),
+      }));
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        timeframe: "1D",
+        session: "2026-11-16",
+        source: "stored",
+        data_through: "2026-11-14",
+        items,
+      }),
+    });
+  });
+  return requests;
+}
+
+async function openMarketTab(
+  page: Page,
+  state?: { status: number },
+  lookup?: { seed?: Record<string, string[]>; rows?: typeof MOCK_ROWS },
+) {
   await setupApiMocks(page);
   await loginAsTestUser(page);
-  await mockMarketSnapshot(page, state);
+  await mockMarketSnapshot(page, state, lookup?.rows);
+  const lookupRequests = await mockPatternLookup(page, lookup?.seed);
   await page.goto(SNAPSHOT_PATH);
   await page.waitForSelector('[data-testid="market-screener"]', { timeout: 15000 });
+  return { lookupRequests };
 }
 
 test.describe("Market Screener tab", () => {
@@ -140,7 +192,7 @@ test.describe("Market Screener tab", () => {
     // Search narrows the filtered set, not the raw universe.
     // TextInput drops aria-label entirely; the textbox's accessible name comes
     // from its placeholder ("Search symbol or name…").
-    await page.getByRole("textbox", { name: /search symbol or name/i }).fill("reliance");
+    await page.getByRole("textbox", { name: /search symbols/i }).fill("reliance");
     await expect(page.locator('[data-testid="market-result-count"]')).toContainText(
       `1 / ${MOCK_ROWS.length}`,
     );
@@ -203,5 +255,54 @@ test.describe("Market Screener tab", () => {
     await openMarketTab(page);
 
     await expect(page.locator('[data-testid="market-mode-badge"]')).toHaveText(/live/i);
+  });
+
+  test("PATTERNS column shows a seeded badge and a dash for the rest", async ({ page }) => {
+    await openMarketTab(page, undefined, { seed: { RELIANCE: ["bullish", "bullish"] } });
+
+    await expect(page.locator('[data-testid="market-patterns-RELIANCE"]')).toBeVisible();
+    await expect(page.locator('[data-testid="market-patterns-RELIANCE"]')).toHaveText("2▲");
+    // A symbol the store has no hit for must read as a dash, not "0".
+    await expect(page.locator('[data-testid="market-dash-TCS-patterns"]')).toHaveText("–");
+  });
+
+  test("changing the sort costs one lookup for the new window, not one per row", async ({ page }) => {
+    // More rows than the 80-row window, so a re-sort really changes which
+    // symbols are on screen.
+    const manyRows = Array.from({ length: 100 }, (_, i) => ({
+      symbol: `SYM${String(i).padStart(3, "0")}`,
+      name: `Synthetic ${i}`,
+      sector: i % 2 === 0 ? "Energy" : "IT",
+      close: 100 + i,
+      change: i % 5,
+      relative_volume: 1,
+      market_cap_cr: 1_000_000 - i * 1_000,
+      cap_tier: "large",
+      rsi: 50,
+      adx: 20,
+      pos_52w: 0.5,
+      fno: false,
+      etf: false,
+    }));
+
+    const { lookupRequests } = await openMarketTab(page, undefined, { rows: manyRows });
+
+    await expect.poll(() => lookupRequests.length).toBe(1);
+    expect(lookupRequests[0].symbols.length).toBe(80);
+
+    // Sorting by LTP reverses the window, so the newly mounted rows are new
+    // symbols — one more batch request, never one per row.
+    await page.click("#paper-tanstack-header-close");
+    await expect.poll(() => lookupRequests.length).toBe(2, { timeout: 5000 });
+
+    // The second call only asks for what is not cached, and stays batched.
+    expect(lookupRequests[1].symbols.length).toBeGreaterThan(1);
+    expect(lookupRequests[1].symbols.length).toBeLessThanOrEqual(80);
+
+    // Clicking again returns to the first window: fully cached, zero requests.
+    await page.click("#paper-tanstack-header-close");
+    await expect.poll(() => lookupRequests.length).toBe(2, { timeout: 5000 });
+    await page.waitForTimeout(600);
+    expect(lookupRequests.length).toBe(2);
   });
 });

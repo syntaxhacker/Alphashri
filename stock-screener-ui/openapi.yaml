@@ -528,6 +528,38 @@ components:
       - exit_price
       title: ClosePositionRequest
       type: object
+    ConfigEnvelope:
+      properties:
+        config:
+          additionalProperties: true
+          title: Config
+          type: object
+        saved:
+          title: Saved
+          type: boolean
+        scope:
+          title: Scope
+          type: string
+        updated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updated At
+        version:
+          title: Version
+          type: integer
+        warning:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Warning
+      required:
+      - scope
+      - version
+      - saved
+      - config
+      title: ConfigEnvelope
+      type: object
     ConfigResponse:
       properties:
         available_models:
@@ -556,6 +588,19 @@ components:
       - available_models
       - default_analysts
       title: ConfigResponse
+      type: object
+    DeleteResponse:
+      properties:
+        deleted:
+          title: Deleted
+          type: boolean
+        scope:
+          title: Scope
+          type: string
+      required:
+      - scope
+      - deleted
+      title: DeleteResponse
       type: object
     DetectRequest:
       description: Single-symbol, synchronous pattern check (no job queue).
@@ -604,6 +649,32 @@ components:
           title: Trailpct
           type: number
       title: ExecIn
+      type: object
+    ExpiryInfo:
+      properties:
+        date:
+          title: Date
+          type: string
+        dte_days:
+          title: Dte Days
+          type: integer
+        lot_size:
+          title: Lot Size
+          type: integer
+        tick_size:
+          description: Minimum price increment in **rupees** (Upstox reports paise; divided by 100 here). NSE uses ₹0.05 at/above ₹250 and ₹0.01 below.
+          title: Tick Size
+          type: number
+        weekly:
+          title: Weekly
+          type: boolean
+      required:
+      - date
+      - weekly
+      - dte_days
+      - lot_size
+      - tick_size
+      title: ExpiryInfo
       type: object
     GroupPerformanceItem:
       properties:
@@ -824,6 +895,28 @@ components:
       - enabled
       title: PatternTimeframeToggleRequest
       type: object
+    PatternsLookupRequest:
+      description: Batch availability of already-computed patterns (read-only, no detection).
+      properties:
+        symbols:
+          items:
+            type: string
+          maxItems: 500
+          title: Symbols
+          type: array
+        timeframe:
+          default: 1D
+          title: Timeframe
+          type: string
+        universe:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Universe
+      required:
+      - symbols
+      title: PatternsLookupRequest
+      type: object
     PositionNotesUpdate:
       properties:
         notes:
@@ -942,6 +1035,21 @@ components:
       required:
       - legs
       title: PremiumTrackerResponse
+      type: object
+    PutConfigRequest:
+      properties:
+        config:
+          additionalProperties: true
+          title: Config
+          type: object
+        version:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Version
+      required:
+      - config
+      title: PutConfigRequest
       type: object
     RecordSurgeRequest:
       properties:
@@ -2281,6 +2389,51 @@ components:
           - type: 'null'
           title: Reason
       title: TradeNotesUpdate
+      type: object
+    UnderlyingInfo:
+      properties:
+        default_expiry:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Default Expiry
+        exchange:
+          title: Exchange
+          type: string
+        expiries:
+          items:
+            $ref: '#/components/schemas/ExpiryInfo'
+          title: Expiries
+          type: array
+        fno:
+          title: Fno
+          type: boolean
+        instrument_key:
+          title: Instrument Key
+          type: string
+        market_state:
+          title: Market State
+          type: string
+        quotes_live:
+          description: True only while `market_state == "open"`. When false, chain LTPs are the last session's prints (a pre-open chain shows the previous close), not live prices.
+          title: Quotes Live
+          type: boolean
+        spot:
+          title: Spot
+          type: number
+        symbol:
+          title: Symbol
+          type: string
+      required:
+      - symbol
+      - exchange
+      - fno
+      - instrument_key
+      - spot
+      - expiries
+      - market_state
+      - quotes_live
+      title: UnderlyingInfo
       type: object
     UpdatePricesRequest:
       properties:
@@ -4549,6 +4702,40 @@ paths:
       summary: Get Patterns
       tags:
       - chart-patterns
+  /api/chart-patterns/patterns/lookup:
+    post:
+      description: 'Patterns already computed for these symbols on one timeframe.
+
+
+        DB read only. ``items`` holds just the symbols that have a stored hit; a
+
+        cold scan yields an empty list and clients show a dash. ``source`` is
+
+        always ``"stored"`` — this endpoint cannot produce a fresh detection.'
+      operationId: lookup_patterns_api_chart_patterns_patterns_lookup_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatternsLookupRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Batch stored pattern availability for a symbol list
+      tags:
+      - chart-patterns
   /api/chart-patterns/results:
     get:
       operationId: get_results_api_chart_patterns_results_get
@@ -6558,7 +6745,16 @@ paths:
 
         The (potentially 58s cold) TV scan runs off the event loop via
 
-        ``asyncio.to_thread`` so it can never block other requests.'
+        ``asyncio.to_thread`` so it can never block other requests.
+
+
+        ``symbols`` is optional. An empty or whitespace-only value (e.g.
+
+        ``?symbols=``) means no filter and returns all rows; otherwise it filters
+
+        the cached snapshot to the requested symbols (max 20, deduplicated
+
+        case-insensitively).'
       operationId: market_snapshot_api_market_snapshot_get
       parameters:
       - description: 'Universe: all_equity (default), nifty50, nifty500 or nse_fo.'
@@ -6581,6 +6777,16 @@ paths:
           minimum: 1
           title: Limit
           type: integer
+      - description: Optional comma-separated symbols (max 20). Filters the cached snapshot after it is built; unknown symbols are omitted.
+        in: query
+        name: symbols
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Optional comma-separated symbols (max 20). Filters the cached snapshot after it is built; unknown symbols are omitted.
+          title: Symbols
       - description: Bypass the in-process/disk cache and re-fetch from TradingView.
         in: query
         name: force
@@ -6605,6 +6811,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - bearerAuth: []
       summary: NSE market snapshot for the one-page screener
       tags:
       - market
@@ -7591,6 +7799,45 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
       summary: Get Spot Price
+      tags:
+      - options
+  /api/options/underlying/{symbol}:
+    get:
+      description: 'Instrument key, F&O eligibility, real expiries and the expiry to open on.
+
+
+        ``default_expiry`` is the first expiry on or after today, except on expiry
+
+        day after 15:40 IST where it rolls to the next one (today stays listed).
+
+
+        ``quotes_live`` is true only while the F&O session is ``open``; pre-open and
+
+        closed chains carry the previous session''s LTPs.'
+      operationId: get_underlying_info_api_options_underlying__symbol__get
+      parameters:
+      - in: path
+        name: symbol
+        required: true
+        schema:
+          title: Symbol
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnderlyingInfo'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Underlying metadata for the option chain (expiries, lots, default expiry)
       tags:
       - options
   /api/options/underlyings:
@@ -12380,6 +12627,105 @@ paths:
       summary: Stream Analysis
       tags:
       - Trading Agents
+  /api/user-configs/{scope}:
+    delete:
+      description: 'Remove the saved payload for a scope. Idempotent: the goal is "no row".'
+      operationId: delete_user_config_api_user_configs__scope__delete
+      parameters:
+      - in: path
+        name: scope
+        required: true
+        schema:
+          title: Scope
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Delete saved config for a scope
+      tags:
+      - user-configs
+    get:
+      description: Read the saved payload for a scope, falling back to defaults.
+      operationId: get_user_config_api_user_configs__scope__get
+      parameters:
+      - in: path
+        name: scope
+        required: true
+        schema:
+          title: Scope
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigEnvelope'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Read saved config for a scope
+      tags:
+      - user-configs
+    put:
+      description: Upsert the saved payload for a scope (default slot only).
+      operationId: put_user_config_api_user_configs__scope__put
+      parameters:
+      - in: path
+        name: scope
+        required: true
+        schema:
+          title: Scope
+          type: string
+      - in: header
+        name: If-Match
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: If-Match
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PutConfigRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigEnvelope'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Save config for a scope
+      tags:
+      - user-configs
   /api/value/scan:
     get:
       description: Return the ranked deep-value scan for ``market``.
@@ -12714,6 +13060,8 @@ tags:
   name: brokers
 - description: Historical replay engine.
   name: replay
+- description: Per-user saved screen state (one default per scope).
+  name: user-configs
 - description: Research experiment tracking.
   name: experiments
 - description: POC / NQ strategy tooling.

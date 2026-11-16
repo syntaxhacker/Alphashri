@@ -1,7 +1,8 @@
 import { createSignal, createMemo, For, Show } from "solid-js";
 import dayjs from "dayjs";
 import { Select, Text, Loader, SegmentedControl, Anchor, Badge, ActionIcon, Textarea, Button, LoadingOverlay, Group, Stack } from "@/ui";
-import type { TableColumnDef } from "./TanStackTable";
+import type { TableColumnDef, SortEntry } from "./TanStackTable";
+import { useTablePrefs } from "../common/useTablePrefs";
 import type { PaperTrade, TradeSourceFilter } from "../../types/paperTrading";
 import {
   formatNumber,
@@ -323,6 +324,10 @@ function tradeDate(trade: PaperTrade): string {
   return (trade.exit_time || "").split("T")[0];
 }
 
+// The historical first-load order is newest-day-first. When no sort was ever
+// saved, keep it — an empty saved array must not silently re-sort the table.
+const DEFAULT_SORTING: SortEntry[] = [{ id: "date", desc: true }];
+
 function TradeHistoryTable(props: {
   trades: PaperTrade[];
   selectedTradeId: string | null;
@@ -335,6 +340,9 @@ function TradeHistoryTable(props: {
     entryTime?: string,
   ) => void;
 }) {
+  const { prefs, setSorting } = useTablePrefs("paper.trades");
+  const sorting = (): SortEntry[] =>
+    prefs().sorting.length > 0 ? prefs().sorting : DEFAULT_SORTING;
   const sortedTrades = createMemo(() => [...props.trades].sort((a, b) => (b.exit_time || "").localeCompare(a.exit_time || "")));
 
   const handleSelect = (trade: PaperTrade) => {
@@ -513,10 +521,9 @@ function TradeHistoryTable(props: {
       dense
       enableGrouping
       grouping={["date"]}
-      initialState={{
-        sorting: [{ id: "date", desc: true }],
-        expanded: {},
-      }}
+      initialState={{ expanded: {} }}
+      sorting={sorting()}
+      onSortingChange={setSorting}
       getRowCanExpand={() => true}
       renderSubComponent={(trade) => <TradeDetail trade={trade} />}
       renderGroupHeader={({ value, rows, isExpanded }) => (

@@ -85,6 +85,19 @@ const fullscreenTrendlinesViews = vi.hoisted(() => [] as unknown[]);
 // Records the `overlays` prop per fullscreen render (single-pattern contract:
 // the page always passes an empty list so only the active hit is drawn).
 const fullscreenOverlays = vi.hoisted(() => [] as unknown[]);
+// Spy on the page hook's per-symbol refresh; the rest of the hook stays real.
+const mockRefreshSymbolChart = vi.hoisted(() => vi.fn());
+
+vi.mock("./patternsFullscreen", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./patternsFullscreen")>();
+  return {
+    ...actual,
+    usePatternFullscreen: (...args: Parameters<typeof actual.usePatternFullscreen>) => ({
+      ...actual.usePatternFullscreen(...args),
+      refreshSymbolChart: mockRefreshSymbolChart,
+    }),
+  };
+});
 
 // Faithful stubs: preserve the contract testids the page relies on
 // (card buttons incl. expand affordance, fullscreen modal + chart +
@@ -152,6 +165,11 @@ vi.mock("@/components/patterns/PatternListView", () => ({
             >
               chart
             </button>
+            <button
+              type="button"
+              data-testid="patterns-list-select-null"
+              onClick={() => props.onSelect?.(null)}
+            />
           </div>
         )}
       </For>
@@ -238,6 +256,14 @@ vi.mock("@/components/patterns/PatternFullscreenView", () => ({
           </Show>
           <Show when={props.positionLabel}>
             <div data-testid="patterns-chart-position">{props.positionLabel}</div>
+          </Show>
+          <Show when={props.onRefresh}>
+            <button
+              type="button"
+              aria-label="Refresh pattern data"
+              data-testid="patterns-dock-refresh"
+              onClick={() => props.onRefresh()}
+            />
           </Show>
           <div data-testid="patterns-fullscreen-chart" />
           <Show when={((props.candles?.length ?? 0) === 0)}>
@@ -442,6 +468,29 @@ describe("PatternsPage", () => {
     expect(screen.getByTestId("patterns-list")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-list-row-IRCON-falling_wedge")).toBeInTheDocument();
     expect(screen.queryByTestId("patterns-grid")).not.toBeInTheDocument();
+  });
+
+  test("empty-state filter chips and refresh chip render without ReferenceError", async () => {
+    const chipProps = makeProps({
+      results: [],
+      total: 0,
+      filters: { ...makeProps().filters, family: ["reversal"], direction: ["bullish"] },
+    });
+    const chipView = r(<PatternsPage {...chipProps} />);
+    expect(screen.getByTestId("patterns-empty-relax")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-empty-relax-family:reversal")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-empty-relax-direction:bullish")).toBeInTheDocument();
+    chipView.unmount();
+
+    r(<PatternsPage {...makeProps({ loading: true })} />);
+    expect(await screen.findByTestId("patterns-refreshing")).toBeInTheDocument();
+  });
+
+  test("a null hit click does not throw", () => {
+    r(<PatternsPage {...makeProps()} />);
+    expect(() =>
+      fireEvent.click(screen.getByTestId("patterns-list-select-null")),
+    ).not.toThrow();
   });
 
   test("renders the live counters on the tab row instead of a second band", () => {
@@ -852,6 +901,40 @@ describe("PatternsPage", () => {
     // The newer selection stands: still the second hit, still no chart data.
     expect(screen.getByTestId("patterns-fullscreen-modal")).toHaveTextContent("Rising Wedge");
     expect(screen.getByText("No chart data")).toBeInTheDocument();
+  });
+
+  test("docked chart receives onRefresh and its button calls the hook's refresh once", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("1200px"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    try {
+      r(<PatternsPage {...makeProps({ results: [makeHit()], total: 1 })} />);
+      fireEvent.click(screen.getByTestId(/^patterns-list-row-IRCON-falling_wedge/));
+      expect(await screen.findByTestId("patterns-chart-dock")).toBeInTheDocument();
+      const button = screen.getByTestId("patterns-dock-refresh");
+      expect(button).toBeInTheDocument();
+      fireEvent.click(button);
+      expect(mockRefreshSymbolChart).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test("modal chart receives onRefresh and its button calls the hook's refresh once", async () => {
+    r(<PatternsPage {...makeProps()} />);
+    fireEvent.click(screen.getByTestId("patterns-list-row-IRCON-falling_wedge"));
+    expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
+    const button = screen.getByTestId("patterns-dock-refresh");
+    expect(button).toBeInTheDocument();
+    fireEvent.click(button);
+    expect(mockRefreshSymbolChart).toHaveBeenCalledTimes(1);
   });
 });
 

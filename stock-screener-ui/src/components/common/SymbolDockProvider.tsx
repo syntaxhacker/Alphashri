@@ -8,13 +8,22 @@ import {
 } from "@/hooks/usePatternFullscreenSolid";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { FALLBACK_TIMEFRAMES } from "@/components/patterns/TimeframeSelect";
-import { SymbolDockContext, type SymbolDockApi } from "./symbolDockContext";
+import { SymbolDockContext, type SymbolDockApi, type SymbolDockMode } from "./symbolDockContext";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { close as closeOptionsDock, open as openOptionsDock } from "@/state/optionsDock";
 
 // The chart engine is heavy; only download it once a dock is actually opened.
 const PatternFullscreenView = lazy(() =>
   import("@/components/patterns/PatternFullscreenView").then((m) => ({
     default: m.PatternFullscreenView,
+  })),
+);
+
+// Same rule for the options chain: the panel (and its payoff ECharts) must not
+// reach the entry chunk for the many sessions that never open it.
+const OptionsDockPanel = lazy(() =>
+  import("@/components/options-dock/OptionsDockPanel").then((m) => ({
+    default: m.OptionsDockPanel,
   })),
 );
 
@@ -31,8 +40,12 @@ const PREVIEW_CLOSE_MS = 800;
  * handlers (the Patterns page does, because it owns a richer dock with a
  * stepper and as-of replay).
  *
+ * The dock's `options` mode is the same rail, not a second one: one pin state,
+ * one outlet, one close gesture.
+ *
  * Desktop only; below 1200px `open` navigates to `/chart/:symbol` and hover
- * does nothing (no hidden mid-screen panel).
+ * does nothing (no hidden mid-screen panel). Options has no route to fall back
+ * to, so below 1200px it opens the bottom sheet the same way.
  */
 export function SymbolDockProvider(props: { children?: JSX.Element }) {
   const navigate = useNavigate();
@@ -45,6 +58,7 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
     pinFullscreen,
     closeFullscreen,
     selectFullscreenHit,
+    refreshSymbolChart,
   } = usePatternFullscreen({ timeframe: "1D", computeTrendlines: true });
 
   let previewTimer: number | null = null;
@@ -68,8 +82,12 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
   });
   onCleanup(clearTimers);
 
+  const [mode, setMode] = createSignal<SymbolDockMode>("chart");
+  const [optionsSymbol, setOptionsSymbol] = createSignal<string | null>(null);
+
   const preview = (symbol: string) => {
     if (!isDesktop()) return;
+    if (mode() === "options") return;
     if (fullscreenSnapshot?.pinned) return;
     if (previewTimer) window.clearTimeout(previewTimer);
     // A close timer may be pending from leaving the previous symbol —
@@ -90,6 +108,7 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
       previewTimer = null;
     }
     if (!isDesktop()) return;
+    if (mode() === "options") return;
     if (!fullscreenSnapshot || fullscreenSnapshot.pinned) return;
     if (closeTimer) window.clearTimeout(closeTimer);
     closeTimer = window.setTimeout(() => {
@@ -104,8 +123,20 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
     }
   };
 
-  const open = (symbol: string) => {
+  const open = (symbol: string, nextMode: SymbolDockMode = "chart") => {
     clearTimers();
+    if (nextMode === "options") {
+      setMode("options");
+      setOptionsSymbol(symbol);
+      openOptionsDock(symbol, "options");
+      return;
+    }
+    // Leaving options tears its polling down; the chart keeps its own state.
+    if (mode() === "options") {
+      closeOptionsDock();
+      setOptionsSymbol(null);
+    }
+    setMode("chart");
     if (!isDesktop()) {
       navigate(`/chart/${encodeURIComponent(symbol)}`);
       return;
@@ -115,7 +146,12 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
 
   const close = () => {
     clearTimers();
+    if (mode() === "options") {
+      closeOptionsDock();
+      setOptionsSymbol(null);
+    }
     closeFullscreen();
+    setMode("chart");
   };
 
   const [outlet, setOutlet] = createSignal<HTMLElement | null>(null);
@@ -126,7 +162,8 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
     open,
     close,
     pinned: Boolean(fullscreen()?.pinned),
-    symbol: () => fullscreen()?.symbol ?? null,
+    mode,
+    symbol: () => (mode() === "options" ? optionsSymbol() : fullscreen()?.symbol ?? null),
     setOutlet,
   });
   createEffect(() => {
@@ -134,46 +171,157 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
     setApi(produce((s) => { s.pinned = pinned; }));
   });
 
+  /** Options has no route fallback, so it opens the rail at any width. */
+  const showDock = () => {
+    if (mode() === "options") return optionsSymbol() != null;
+    return isDesktop() && Boolean(fullscreen());
+  };
+
+  // The inline outlet is a flex item with `basis-[38%]`. Solid's Portal leaves
+  // its unclassed wrapper <div> in the outlet after the dock closes, so `:empty`
+  // never matches and the table cannot reclaim the width. Mirror the open state
+  // onto the outlet instead; style.css collapses it while the dock is closed.
+  createEffect(() => {
+    const el = outlet();
+    if (el) {
+      el.setAttribute("data-dock-open", showDock() ? "true" : "false");
+    }
+    // Desktop rail (fixed overlay, no inline outlet): reserve its width on
+    // #app-main so page content can't hide behind it. Below 1200 px the dock
+    // is a bottom sheet; with an outlet it ports inline — neither needs the
+    // inset. The attribute mirrors open/close, width change, and unmount.
+    const railOpen = showDock() && !el && isDesktop();
+    document.documentElement.dataset.dockRailOpen = railOpen ? "true" : "false";
+    onCleanup(() => {
+      document.documentElement.dataset.dockRailOpen = "false";
+    });
+  });
+
+  /**
+   * Escape dismisses an open chart dock.
+   *
+   * `PatternFullscreenView` is always `docked` here, so its Modal Escape path is
+   * unreachable; this listener is the chart dock's only Escape gesture. It is
+   * attached only while the dock is open and removed on cleanup.
+   *
+   * The options panel owns Escape itself (restore when maximized, close
+   * otherwise), so this provider never closes in options mode — that avoids
+   * double-firing with the panel's own handler. Escape is also ignored when it
+   * originates in an input/textarea/select/contenteditable so the user can
+   * dismiss a picker without losing the dock.
+   */
+  const onDockKeydown = (event: KeyboardEvent) => {
+    if (event.key !== "Escape") return;
+    if (mode() === "options") return;
+    const target = event.target as HTMLElement | null;
+    if (
+      target &&
+      (target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.tagName === "SELECT" ||
+        target.isContentEditable)
+    ) {
+      return;
+    }
+    close();
+  };
+
+  createEffect(() => {
+    const open = showDock();
+    if (open) {
+      document.addEventListener("keydown", onDockKeydown);
+    } else {
+      document.removeEventListener("keydown", onDockKeydown);
+    }
+    onCleanup(() => document.removeEventListener("keydown", onDockKeydown));
+  });
+
+  const renderPanel = () => (
+    <Show
+      when={mode() === "options"}
+      fallback={
+        <Box
+          data-testid="symbol-dock"
+          onMouseEnter={cancelClose}
+          onMouseLeave={endPreview}
+          onMouseDown={pinFullscreen}
+          className="flex flex-1 min-h-0 w-full flex-col overflow-hidden border-l border-fin-border bg-fin-surface"
+        >
+          <DockContent
+            state={fullscreen()!}
+            onSelectHit={selectFullscreenHit}
+            onTimeframeChange={changeFullscreenTimeframe}
+            onRefresh={refreshSymbolChart}
+            onClose={close}
+            onLive={() => undefined}
+          />
+        </Box>
+      }
+    >
+      <Box
+        data-testid="symbol-dock"
+        data-mode="options"
+        className="flex flex-1 min-h-0 w-full flex-col overflow-hidden border-l border-fin-border bg-fin-surface"
+      >
+        <ErrorBoundary label="Options" resetKey={optionsSymbol() ?? undefined}>
+          <Suspense
+            fallback={
+              <Box className="flex flex-1 items-center justify-center">
+                <Loader size="sm" />
+              </Box>
+            }
+          >
+            <OptionsDockPanel onClose={close} />
+          </Suspense>
+        </ErrorBoundary>
+      </Box>
+    </Show>
+  );
+
   return (
     <SymbolDockContext.Provider value={api}>
       {props.children}
-      <Show when={isDesktop() && fullscreen()}>
+      <Show when={showDock()}>
         <Show
           when={outlet()}
           fallback={
-            <Box
-              data-testid="symbol-dock"
-              onMouseEnter={cancelClose}
-              onMouseLeave={endPreview}
-              onMouseDown={pinFullscreen}
-              className="fixed right-0 bottom-0 z-[1100] flex flex-col overflow-hidden border-l border-fin-border bg-fin-surface shadow-lg"
-              style={{ top: DOCK_TOP, width: "clamp(420px, 36vw, 620px)" }}
+            <Show
+              when={isDesktop()}
+              fallback={
+                // Below 1200 px the chart dock navigates away; options has no
+                // route to fall back to, so it becomes a bottom sheet instead of
+                // a rail that hangs off the left edge.
+                <Box
+                  onMouseEnter={cancelClose}
+                  onMouseLeave={endPreview}
+                  className="fixed bottom-0 left-0 right-0 z-[1100] flex flex-col overflow-hidden border-t border-fin-border bg-fin-surface shadow-lg"
+                  style={{ height: "62dvh" }}
+                  data-testid="options-dock-sheet"
+                >
+                  {renderPanel()}
+                </Box>
+              }
             >
-              <DockContent
-                state={fullscreen()!}
-                onSelectHit={selectFullscreenHit}
-                onTimeframeChange={changeFullscreenTimeframe}
-                onClose={close}
-                onLive={() => undefined}
-              />
-            </Box>
+              <Box
+                onMouseEnter={cancelClose}
+                onMouseLeave={endPreview}
+                onMouseDown={pinFullscreen}
+                className="fixed right-0 bottom-0 z-[1100] flex flex-col overflow-hidden border-l border-fin-border bg-fin-surface shadow-lg"
+                style={{ top: DOCK_TOP, width: "clamp(480px, 36vw, 620px)" }}
+              >
+                {renderPanel()}
+              </Box>
+            </Show>
           }
         >
           <Portal target={outlet()!}>
             <Box
-              data-testid="symbol-dock"
               onMouseEnter={cancelClose}
               onMouseLeave={endPreview}
               onMouseDown={pinFullscreen}
-              className="flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-fin-border bg-fin-surface"
+              className="flex flex-1 min-h-0 w-full flex-col overflow-hidden border-l border-fin-border bg-fin-surface"
             >
-              <DockContent
-                state={fullscreen()!}
-                onSelectHit={selectFullscreenHit}
-                onTimeframeChange={changeFullscreenTimeframe}
-                onClose={close}
-                onLive={() => undefined}
-              />
+              {renderPanel()}
             </Box>
           </Portal>
         </Show>
@@ -187,6 +335,7 @@ function DockContent(props: {
   state: FullscreenChartState;
   onSelectHit: (hit: PatternHitDTO) => void;
   onTimeframeChange: (tf: string) => void;
+  onRefresh: () => void;
   onClose: () => void;
   onLive: () => void;
 }) {
@@ -233,11 +382,14 @@ function DockContent(props: {
             timeframe={props.state.timeframe}
             timeframes={FALLBACK_TIMEFRAMES}
             onTimeframeChange={props.onTimeframeChange}
+            onRefresh={props.onRefresh}
             loading={props.state.loading ?? false}
             asOf={props.state.asOf ?? null}
             fromDate={props.state.fromDate ?? null}
             chartError={props.state.chartError ?? null}
             chartNote={props.state.chartNote ?? null}
+            livePrice={props.state.livePrice ?? null}
+            liveChange={props.state.liveChange ?? null}
             onClose={props.onClose}
             onLive={props.onLive}
           />

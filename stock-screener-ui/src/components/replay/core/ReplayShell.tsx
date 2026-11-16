@@ -14,7 +14,7 @@ import {
 import { useReplayClock } from "./useReplayClock";
 import ReplayChartHost, { type ReplayChartHandle } from "./ReplayChartHost";
 import ReplayControls from "./ReplayControls";
-import SymbolAutocomplete from "./SymbolAutocomplete";
+import SymbolAutocomplete from "@/components/common/SymbolAutocomplete";
 import type {
   ReplayParamSpec,
   ReplayParamValues,

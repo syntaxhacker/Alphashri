@@ -213,6 +213,11 @@ also makes every symbol permanently underlined in a dense table.
 **Fix.** Make the symbol text the in-app chart action and move TradingView to the hover icon
 (existing `tvIcon`), or demote the underline to hover-only so the row reads as data, not as links.
 
+**DONE 2026-11-16** — symbol body is now a focusable in-app button (Enter/click open the chart;
+`stopPropagation` prevents double-navigation); `↗` is a real `target="_blank" rel="noopener noreferrer"`
+TradingView anchor named "Open `<SYMBOL>` on TradingView". Fixed in the shared `SymbolLink`
+(`inAppText` prop), applied to Market and Screener.
+
 ---
 
 ### F16 · "Score" means two different numbers, and neither states its range
@@ -443,3 +448,17 @@ column is already wide enough (`POP %`, `OTM %`).
 Runner-up worth doing in the same pass: **F15** (symbol text goes to TradingView while the row goes
 to the in-app chart) — it is the click inversion every pro trips on first, and the `SymbolLink`
 props to fix it already exist.
+
+---
+
+## Dock modes (2026-11-16 audit)
+
+Read-only audit of the chart and options dock surfaces; no code changes in this pass.
+
+- `src/ui/navigation/AppShell.tsx:13,73` — **H1** (High): fixed rail (1200–1399 viewport) overlays shell content; content has no reserved space. Fix: reserve the rail width on `<main>` so content never slides under the rail.
+- `src/components/common/SymbolDockProvider.tsx:288` — **H2** (High): bottom sheet `height: "62vh"` collapses on mobile as viewport chrome shows/hides. Fix: `dvh` or a definite flex height owned by the parent flex.
+- `src/components/common/SymbolDockProvider.tsx` — **M1** (Medium, **done 2026-11-16**): chart dock Escape dismiss implemented (ignored inside inputs and while options owns the key). Fix: document-level Escape keydown that closes the dock unless a deeper element owns the key.
+- `src/components/options-dock/OptionsDockPanel.tsx:156` — **M2** (Medium, **done 2026-11-16**): options maximize now saves/restores focus, sets `aria-modal`, and locks body scroll until restore/close/unmount. Fix: restore focus on close, add `aria-modal="true"`, lock body scroll while maximized.
+- `src/components/common/ChartDockOutlet.tsx:18–19` · `SymbolDockProvider.tsx:187` — **M3** (Medium): `data-dock-open` lives only on the screener outlet; no carrier outside it (document or other hosts). Fix: promote to document level or extend to every dock host.
+- `src/components/options-dock/OptionChainTable.tsx:92` — **L1** (Low): chain min-width 428px vs 432px rail at exactly 1200px viewport — 1px boundary overlap. Fix: rail-aware min-width or raise the rail minimum to 480px.
+- `src/components/common/SymbolDockProvider.tsx` — **L2** (Low): chart fullscreen is not implemented in the provider; docked-only, options maximize is the only fullscreen surface. Fix: add provider fullscreen or document as out of scope.

@@ -79,7 +79,8 @@ describe("TanStackTable — terminal header", () => {
     const th = screen.getByTestId("t").querySelector<HTMLElement>("th");
     expect(th).not.toBeNull();
     const style = styleOf(th);
-    expect(style).toContain(`color: ${palette.PRIMARY}`);
+    // Theme token, not a baked palette literal: light mode repaints the header.
+    expect(style).toContain("color: var(--color-fin-primary)");
     expect(style).toContain("text-transform: uppercase");
     expect(style).toContain("font-weight: 700");
     expect(style).toContain("font-family:");
@@ -99,7 +100,7 @@ describe("TanStackTable — terminal header", () => {
     expect(container).not.toBeNull();
     const style = styleOf(container);
     expect(style).toContain("border-radius: 2px");
-    expect(style).toContain(`background-color: ${palette.SURFACE_COLOR}`);
+    expect(style).toContain("background-color: var(--color-fin-surface)");
   });
 });
 

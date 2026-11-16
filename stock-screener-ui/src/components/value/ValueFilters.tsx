@@ -128,6 +128,9 @@ export function ValueFilters(props: ValueFiltersProps) {
         onClose={() => setMoreOpen(false)}
         title="More value filters"
         size="lg"
+        withCloseButton
+        closeOnEscape
+        closeOnClickOutside
         data-testid="value-more-filters-modal"
       >
         <Box className="flex flex-col gap-4">
@@ -146,7 +149,7 @@ export function ValueFilters(props: ValueFiltersProps) {
               />
               <NumberInput
                 label="Max P/B"
-                value={filters.max_pb ?? ""}
+                value={filters().max_pb ?? ""}
                 onChange={(v: number | string) => props.onChange({ max_pb: toNum(v) })}
                 w={120}
                 size="sm"
@@ -154,7 +157,7 @@ export function ValueFilters(props: ValueFiltersProps) {
               />
               <NumberInput
                 label="Max D/E"
-                value={filters.max_de ?? ""}
+                value={filters().max_de ?? ""}
                 onChange={(v: number | string) => props.onChange({ max_de: toNum(v) })}
                 w={120}
                 size="sm"
@@ -170,7 +173,7 @@ export function ValueFilters(props: ValueFiltersProps) {
             <ToolbarRow gap={8}>
               <NumberInput
                 label="Min rev YoY%"
-                value={filters.min_rev_yoy ?? ""}
+                value={filters().min_rev_yoy ?? ""}
                 onChange={(v: number | string) => props.onChange({ min_rev_yoy: toNum(v) })}
                 w={120}
                 size="sm"
@@ -178,7 +181,7 @@ export function ValueFilters(props: ValueFiltersProps) {
               />
               <NumberInput
                 label="Min EPS YoY%"
-                value={filters.min_eps_yoy ?? ""}
+                value={filters().min_eps_yoy ?? ""}
                 onChange={(v: number | string) => props.onChange({ min_eps_yoy: toNum(v) })}
                 w={120}
                 size="sm"
@@ -186,7 +189,7 @@ export function ValueFilters(props: ValueFiltersProps) {
               />
               <NumberInput
                 label="Min div%"
-                value={filters.min_div_yield ?? ""}
+                value={filters().min_div_yield ?? ""}
                 onChange={(v: number | string) => props.onChange({ min_div_yield: toNum(v) })}
                 w={120}
                 size="sm"
@@ -194,7 +197,7 @@ export function ValueFilters(props: ValueFiltersProps) {
               />
               <NumberInput
                 label="Max RSI"
-                value={filters.max_rsi ?? ""}
+                value={filters().max_rsi ?? ""}
                 onChange={(v: number | string) => props.onChange({ max_rsi: toNum(v) })}
                 w={120}
                 size="sm"
@@ -210,7 +213,7 @@ export function ValueFilters(props: ValueFiltersProps) {
             <ToolbarRow gap={8}>
               <NumberInput
                 label="Min mcap (B)"
-                value={filters.min_mcap_bn ?? ""}
+                value={filters().min_mcap_bn ?? ""}
                 onChange={(v: number | string) => props.onChange({ min_mcap_bn: toNum(v) })}
                 w={120}
                 size="sm"
@@ -218,7 +221,7 @@ export function ValueFilters(props: ValueFiltersProps) {
               />
               <NumberInput
                 label="Max mcap (B)"
-                value={filters.max_mcap_bn ?? ""}
+                value={filters().max_mcap_bn ?? ""}
                 onChange={(v: number | string) => props.onChange({ max_mcap_bn: toNum(v) })}
                 w={120}
                 size="sm"
@@ -226,7 +229,7 @@ export function ValueFilters(props: ValueFiltersProps) {
               />
               <NumberInput
                 label="Min price"
-                value={filters.min_price ?? ""}
+                value={filters().min_price ?? ""}
                 onChange={(v: number | string) => props.onChange({ min_price: toNum(v) })}
                 w={120}
                 size="sm"
@@ -234,7 +237,7 @@ export function ValueFilters(props: ValueFiltersProps) {
               />
               <NumberInput
                 label="Min volume"
-                value={filters.min_volume ?? ""}
+                value={filters().min_volume ?? ""}
                 onChange={(v: number | string) => props.onChange({ min_volume: toNum(v) })}
                 w={120}
                 size="sm"
@@ -250,28 +253,28 @@ export function ValueFilters(props: ValueFiltersProps) {
             <ToolbarRow gap={16}>
               <Switch
                 label="Low leverage only"
-                checked={filters.require_low_de ?? false}
+                checked={filters().require_low_de ?? false}
                 onChange={(e) => props.onChange({ require_low_de: (e.currentTarget as HTMLInputElement).checked })}
                 size="sm"
                 data-testid="value-more-require-low-de"
               />
               <Switch
                 label="Positive FCF"
-                checked={filters.exclude_negative_fcf ?? false}
+                checked={filters().exclude_negative_fcf ?? false}
                 onChange={(e) => props.onChange({ exclude_negative_fcf: (e.currentTarget as HTMLInputElement).checked })}
                 size="sm"
                 data-testid="value-more-exclude-negative-fcf"
               />
               <Switch
                 label="Positive EPS"
-                checked={filters.exclude_negative_eps ?? false}
+                checked={filters().exclude_negative_eps ?? false}
                 onChange={(e) => props.onChange({ exclude_negative_eps: (e.currentTarget as HTMLInputElement).checked })}
                 size="sm"
                 data-testid="value-more-exclude-negative-eps"
               />
               <Switch
                 label="Exclude loss-making"
-                checked={filters.exclude_loss_making ?? false}
+                checked={filters().exclude_loss_making ?? false}
                 onChange={(e) => props.onChange({ exclude_loss_making: (e.currentTarget as HTMLInputElement).checked })}
                 size="sm"
                 data-testid="value-more-exclude-loss-making"

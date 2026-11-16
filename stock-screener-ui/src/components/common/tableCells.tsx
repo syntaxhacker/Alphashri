@@ -1,6 +1,6 @@
 import type { JSX } from "solid-js";
 import { Show } from "solid-js";
-import { Badge, Text, type UIVariant } from "@/ui";
+import { Badge, Box, Text, type UIVariant } from "@/ui";
 import { cn } from "@/ui/cn";
 import { getPnLTextColor } from "@/utils/ui-helpers";
 
@@ -101,19 +101,39 @@ export function SymbolCell(props: {
   testId?: string;
   onOpen?: (symbol: string) => void;
 }): JSX.Element {
+  const open = (event?: MouseEvent) => {
+    if (!props.onOpen) return;
+    // The symbol is the in-app action: don't also fire a row click handler.
+    event?.stopPropagation();
+    props.onOpen(props.symbol);
+  };
   return (
     <div class="flex min-w-0 flex-col leading-tight">
-      <Text
-        size="xs"
-        fw={props.fw ?? 700}
-        span
-        truncate
+      <Box
+        component="span"
         data-testid={props.testId}
-        className={cn("text-left min-w-0", props.onOpen && "cursor-pointer")}
-        onClick={props.onOpen ? () => props.onOpen?.(props.symbol) : undefined}
+        role={props.onOpen ? "button" : undefined}
+        tabIndex={props.onOpen ? 0 : undefined}
+        aria-label={props.onOpen ? `Open ${props.symbol} chart` : undefined}
+        className={cn(
+          "text-xs truncate text-left min-w-0",
+          props.onOpen && "cursor-pointer hover:text-fin-primary focus-visible:underline",
+        )}
+        style={{ "font-weight": props.fw ?? 700 }}
+        onClick={props.onOpen ? (event) => open(event) : undefined}
+        onKeyDown={
+          props.onOpen
+            ? (event: KeyboardEvent) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  open();
+                }
+              }
+            : undefined
+        }
       >
         {props.symbol}
-      </Text>
+      </Box>
       <Show when={props.name}>
         <Text size="xs" c="dimmed" span truncate className="text-left min-w-0 text-[10px]">
           {props.name}

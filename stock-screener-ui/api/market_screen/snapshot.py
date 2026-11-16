@@ -63,6 +63,8 @@ COLUMNS = [
 
 CACHE_TTL_SECONDS = 60.0
 MAX_LIMIT = 4000
+#: Upper bound for the optional `symbols` filter on GET /api/market/snapshot.
+MAX_SYMBOLS = 20
 
 #: Disk-stale snapshot directory (gitignored experiments data).
 _STALE_DIR = Path(__file__).resolve().parents[2] / "experiments" / "data" / "market_screen"
@@ -237,6 +239,21 @@ def _shape_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return shaped
 
 
+def filter_rows_by_symbols(
+    rows: list[dict[str, Any]], symbols: list[str]
+) -> list[dict[str, Any]]:
+    """Keep only rows whose symbol is in ``symbols`` (case-insensitive).
+
+    Applied to the already-built, cached snapshot so the TV scan and its TTL
+    are never bypassed by a symbol-filtered request. Unknown symbols simply
+    contribute no rows; an empty request keeps everything.
+    """
+    wanted = {s.strip().upper() for s in symbols if s.strip()}
+    if not wanted:
+        return list(rows)
+    return [row for row in rows if str(row.get("symbol") or "").upper() in wanted]
+
+
 def _compute_once(universe: str, limit: int):
     """One TV scan + shape (+ cookie self-heal). Never falls back to cache.
 
@@ -300,15 +317,28 @@ def _load_stale_snapshot(universe: str, limit: int) -> dict[str, Any] | None:
 # Singleflight: N concurrent misses/force requests == one TV scan
 # --------------------------------------------------------------------------- #
 
+def _is_dead_inflight(inf: dict[str, Any]) -> bool:
+    """A finished-with-error entry is a poisoned slot, not a live computation.
+
+    Callers hold ``_inflight_lock``. Waiting on such an entry re-raises a stale
+    failure forever, which is how ``force=true`` used to keep serving the disk
+    snapshot after one bad background refresh.
+    """
+    return inf.get("exc") is not None and inf.get("event") is not None and inf["event"].is_set()
+
+
 def _claim_slot(key: tuple[str, int]) -> tuple[dict[str, Any], bool]:
     """Return ``(inflight_entry, am_winner)`` for ``key``.
 
-    The winner owns the computation; everyone else waits on its event.
+    The winner owns the computation; everyone else waits on its event. A dead
+    (failed and already-signalled) entry is discarded so the caller retries as
+    the winner instead of inheriting a permanent failure.
     """
     with _inflight_lock:
         inf = _inflight.get(key)
-        if inf is not None:
+        if inf is not None and not _is_dead_inflight(inf):
             return inf, False
+        _inflight.pop(key, None)  # dead slot must not poison later requests
         inf = {
             "event": threading.Event(),
             "stored_at": None, "as_of": None,
@@ -360,8 +390,11 @@ def _run_singleflight(key: tuple[str, int], universe: str, limit: int) -> dict[s
 def _maybe_start_background_refresh(key: tuple[str, int], universe: str, limit: int) -> None:
     """Start a single background refresh for ``key`` unless one is in flight."""
     with _inflight_lock:
-        if key in _inflight:
-            return
+        existing = _inflight.get(key)
+        if existing is not None:
+            if not _is_dead_inflight(existing):
+                return
+            _inflight.pop(key, None)  # a finished-failed entry is not "in flight"
         inf = {
             "event": threading.Event(),
             "stored_at": None, "as_of": None,
@@ -386,10 +419,20 @@ def _maybe_start_background_refresh(key: tuple[str, int], universe: str, limit: 
             log.warning("background snapshot refresh failed for %s/%s: %s", universe, limit, exc)
             inf["exc"] = exc
         finally:
-            inf["event"].set()
+            # Must match _run_singleflight: leaving the slot behind poisons
+            # every later request for this key, including force=true.
+            _complete_inflight(key, inf)
 
     thread = threading.Thread(target=_refresh, daemon=True, name=f"snapshot-refresh-{universe}-{limit}")
-    thread.start()
+    try:
+        thread.start()
+    except Exception as exc:
+        # Starting a thread can fail (resource exhaustion). The slot must not
+        # stay claimed by a refresh that will never run, and the stale serve
+        # that triggered it must not turn into a 500.
+        log.warning("background snapshot refresh could not start for %s/%s: %s", universe, limit, exc)
+        inf["exc"] = exc  # a waiter must fall back to stale/disk, not read None rows
+        _complete_inflight(key, inf)
 
 
 def _envelope(entry: dict[str, Any], universe: str, *, cached: bool, stale: bool) -> dict[str, Any]:

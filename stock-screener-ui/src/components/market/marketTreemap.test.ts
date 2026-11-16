@@ -1,5 +1,12 @@
 import { describe, expect, test } from "vitest";
-import { MARKET_METRICS, isMarketSignedMetric, toTreemapRow } from "./marketTreemap";
+import {
+  MARKET_METRICS,
+  isMarketSignedMetric,
+  marketRowsByCapDesc,
+  marketSortMetric,
+  toTreemapRow,
+} from "./marketTreemap";
+import { MARKET_SORT_OPTIONS, type MarketSortKey } from "./marketFilters";
 import { getMetricValue, getHeatmapMetricColor } from "@/components/heatmap/heatmapUtils";
 import { buildStockTreemapOption, getStockMetricRange, safeFmt } from "@/components/heatmap/stockTreemap";
 import type { HeatmapStock } from "@/api/heatmap";
@@ -157,6 +164,72 @@ describe("a row with no fundamentals must never crash the map", () => {
   });
 });
 
+describe("marketRowsByCapDesc", () => {
+  const row = (symbol: string, marketCapCr: number | null, rsi: number | null): MarketRow => ({
+    ...base,
+    symbol,
+    marketCapCr,
+    rsi,
+  });
+
+  test("orders by market cap descending with missing caps last", () => {
+    const out = marketRowsByCapDesc([
+      row("SMALL", 12_000, 71),
+      row("NOCAP", null, 44),
+      row("HUGE", 1_805_376, 22),
+      row("MID", 240_000, 63),
+      row("UNDEFINED", undefined as unknown as null, 55),
+    ]);
+    expect(out.map((r) => r.symbol)).toEqual(["HUGE", "MID", "SMALL", "NOCAP", "UNDEFINED"]);
+  });
+
+  test("keeps equal caps in their incoming order", () => {
+    const out = marketRowsByCapDesc([
+      row("B", 500, 1),
+      row("A", 500, 2),
+      row("C", 900, 3),
+      row("D", 500, 4),
+    ]);
+    expect(out.map((r) => r.symbol)).toEqual(["C", "B", "A", "D"]);
+  });
+
+  test("does not mutate the incoming rows", () => {
+    const input = [row("SMALL", 12_000, 71), row("HUGE", 1_805_376, 22)];
+    const snapshot = input.map((r) => r.symbol);
+    marketRowsByCapDesc(input);
+    expect(input.map((r) => r.symbol)).toEqual(snapshot);
+  });
+
+  test("returns a new array even for an already-sorted list", () => {
+    const input = [row("HUGE", 1_805_376, 22), row("SMALL", 12_000, 71)];
+    const out = marketRowsByCapDesc(input);
+    expect(out).not.toBe(input);
+    expect(out.map((r) => r.symbol)).toEqual(["HUGE", "SMALL"]);
+  });
+
+  test("the layout order is cap-desc even when the table sort hands over an RSI order", () => {
+    // The reported bug: table sorted by RSI ↓ gives small caps first, and the
+    // treemap squarifies in array order → tall slivers with clipped labels.
+    const rsiSorted = [
+      row("SMALL", 12_000, 91),
+      row("MID", 240_000, 74),
+      row("HUGE", 1_805_376, 21),
+    ];
+    const laidOut = marketRowsByCapDesc(rsiSorted).map(toTreemapRow);
+    const data = buildStockTreemapOption(laidOut as HeatmapStock[], "change_pct", MARKET_METRICS, true, {
+      borderDark: "#000",
+      borderLight: "#fff",
+      label: { fontSize: 11, fontWeight: 600, lineHeight: 1 },
+      changePositive: "#0f0",
+      changeNegative: "#f00",
+    }, "market_cap").series[0].data as { name: string; value: number }[];
+
+    expect(data.map((d) => d.name)).toEqual(["HUGE", "MID", "SMALL"]);
+    // The unfixed order would have been the RSI order — the shard layout.
+    expect(rsiSorted.map((r) => r.symbol)).not.toEqual(data.map((d) => d.name));
+  });
+});
+
 describe("MARKET_METRICS", () => {
   test("offers both live technicals and fundamentals", () => {
     const values = MARKET_METRICS.map((m) => m.value);
@@ -169,5 +242,39 @@ describe("MARKET_METRICS", () => {
     expect(isMarketSignedMetric("change_pct")).toBe(true);
     expect(isMarketSignedMetric("pos_52w")).toBe(true);
     expect(isMarketSignedMetric("rsi")).toBe(false);
+  });
+});
+
+describe("marketSortMetric", () => {
+  test("maps every sort that has a metric to a real MARKET_METRICS value", () => {
+    const metricValues = new Set(MARKET_METRICS.map((m) => m.value));
+    const mapped = MARKET_SORT_OPTIONS.map((o) => marketSortMetric(o.value)).filter(
+      (m): m is string => m !== null,
+    );
+    // 9 sorts, one of which (symbol_asc) carries no metric.
+    expect(mapped).toHaveLength(8);
+    for (const metric of mapped) {
+      expect(metricValues.has(metric), `${metric} is not a map metric`).toBe(true);
+    }
+  });
+
+  test("is the mapping the user asked for", () => {
+    const expected: Record<Exclude<MarketSortKey, "symbol_asc">, string> = {
+      day_desc: "change_pct",
+      day_asc: "change_pct",
+      relvol_desc: "relative_volume",
+      mcap_desc: "market_cap",
+      rsi_desc: "rsi",
+      perf_1m_desc: "perf_1m",
+      perf_w_desc: "perf_w",
+      pos_52w_desc: "pos_52w",
+    };
+    for (const [sort, metric] of Object.entries(expected)) {
+      expect(marketSortMetric(sort as MarketSortKey)).toBe(metric);
+    }
+  });
+
+  test("symbol A–Z leaves the colour alone", () => {
+    expect(marketSortMetric("symbol_asc")).toBeNull();
   });
 });

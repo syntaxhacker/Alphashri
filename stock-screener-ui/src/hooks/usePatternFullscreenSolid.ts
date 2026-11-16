@@ -6,7 +6,7 @@
  * The hooks owner should fold this back into src/hooks/usePatternFullscreen.ts
  * once their scope converts; until then this is the report page's local twin.
  */
-import { createEffect, createSignal } from "solid-js";
+import { createEffect, createSignal, onCleanup } from "solid-js";
 import type {
   ChartCandle,
   PatternHitDTO,
@@ -14,6 +14,7 @@ import type {
   TrendLine,
 } from "@/types/chartPatterns";
 import { fetchPatternHit, fetchSymbolChart } from "@/api/chartPatterns";
+import { fetchQuotes } from "@/api/marketScreener";
 import {
   newestHit,
   sortHitsNewest,
@@ -44,6 +45,10 @@ export interface FullscreenChartState {
   fromDate: string | null;
   stale?: boolean;
   dataAsOf?: string | null;
+  /** Latest traded price from the market snapshot; null until it resolves (or on failure). */
+  livePrice?: number | null;
+  /** Day change % paired with `livePrice`; null when unavailable. */
+  liveChange?: number | null;
   /** Chart endpoint failure code (`no_data`, `fetch_timeout`, …). */
   chartError?: string | null;
   /** Human-readable reason shown instead of a blank chart. */
@@ -82,6 +87,45 @@ export function usePatternFullscreen({
   // chart or re-fetches a hit.
   let prevScopeKey: string | null = scopeKey;
   let prevResolutionKey: string | null = resolutionKey;
+  // The hit the user explicitly picked from the list. Reloads (refresh,
+  // timeframe, as-of) keep this pick while its identity survives the new
+  // payload; a card open or a fresh symbol open clears it so newest wins.
+  let selectedHit: PatternHitDTO | null = null;
+  // One live-quote poll at most per hook instance: a timer handle plus the
+  // AbortController that cancels the in-flight tick whenever the poll is
+  // superseded by a new load, a timeframe/as-of change, a close, or cleanup.
+  let liveTimer: ReturnType<typeof setInterval> | null = null;
+  let liveController: AbortController | null = null;
+
+  // Poll the live quote every 15s while the fullscreen dock/modal is open.
+  const POLL_INTERVAL_MS = 15_000;
+
+  const stopLivePoll = () => {
+    if (liveTimer !== null) {
+      clearInterval(liveTimer);
+      liveTimer = null;
+    }
+    liveController?.abort();
+    liveController = null;
+  };
+
+  const startLivePoll = (symbol: string, token: number) => {
+    stopLivePoll();
+    liveController = new AbortController();
+    const signal = liveController.signal;
+    liveTimer = setInterval(() => {
+      fetchLiveQuote(symbol, token, signal);
+    }, POLL_INTERVAL_MS);
+    fetchLiveQuote(symbol, token, signal);
+  };
+
+  const resolveHit = (hits: PatternHitDTO[]): PatternHitDTO | null => {
+    const picked = selectedHit;
+    if (picked && hits.some((h) => fullscreenHitIdentity(h) === fullscreenHitIdentity(picked))) {
+      return picked;
+    }
+    return newestHit(hits);
+  };
 
   const mergeHits = (
     clicked: PatternHitDTO,
@@ -94,6 +138,7 @@ export function usePatternFullscreen({
   };
 
   const openFromCard = (hit: PatternHitDTO) => {
+    selectedHit = null;
     const token = ++chartRequestToken;
     const identity = fullscreenHitIdentity(hit);
     const stored = hit.id != null;
@@ -111,6 +156,8 @@ export function usePatternFullscreen({
       pinned: true,
       stale: false,
       dataAsOf: null,
+      livePrice: null,
+      liveChange: null,
     });
 
     const fullHit = stored ? fetchPatternHit(hit.id as number).catch(() => hit) : Promise.resolve(hit);
@@ -150,10 +197,21 @@ export function usePatternFullscreen({
             ? { ...prev, loading: false }
             : prev,
         );
-      });
+    });
+    startLivePoll(hit.symbol, token);
   };
 
   const symbolChartCache = new Map<string, { chart: SymbolChartPayload; ts: number }>();
+
+  /** Drop both cached phases (and every replay window) for one symbol+timeframe. */
+  const invalidateSymbolChartCache = (symbol: string, tf: string) => {
+    const prefix = `${symbol}|${tf}|`;
+    for (const key of symbolChartCache.keys()) {
+      if (key.startsWith(`${prefix}l|`) || key.startsWith(`${prefix}p|`)) {
+        symbolChartCache.delete(key);
+      }
+    }
+  };
 
   /** The endpoint answers 200 with `error`/`note` when it has no candles. */
   const chartProblem = (chart: SymbolChartPayload) => ({
@@ -177,7 +235,7 @@ export function usePatternFullscreen({
             ...extra,
             ...staleFields(chart),
             ...chartProblem(chart),
-            hit: newestHit(hits),
+            hit: resolveHit(hits),
             hits,
             candles: chart.candles ?? [],
             overlays: [],
@@ -213,6 +271,9 @@ export function usePatternFullscreen({
       asOf?: string | null;
       fromDate?: string | null;
     },
+    // Only a refresh/load keeps the visible hit; timeframe switches still
+    // default to newest (or the explicit list pick) for the new timeframe.
+    preserveCurrentHit = false,
   ) => {
     const baseOpts: Record<string, unknown> = {
       ...(extra.lookbackBars != null ? { lookbackBars: extra.lookbackBars } : {}),
@@ -257,19 +318,28 @@ export function usePatternFullscreen({
     const applyPatterns = (chart: SymbolChartPayload) => {
       if (chartRequestToken !== token) return;
       const hits = sortHitsNewest(chart.hits ?? []);
-      setFullscreen((prev) =>
-        prev && prev.symbol === symbol && prev.timeframe === tf
-          ? {
-              ...prev,
-              ...staleFields(chart),
-              ...chartProblem(chart),
-              hit: newestHit(hits),
-              hits,
-              trendLines: chart.trend_lines ?? [],
-              patternsLoading: false,
-            }
-          : prev,
-      );
+      setFullscreen((prev) => {
+        if (!prev || prev.symbol !== symbol || prev.timeframe !== tf) return prev;
+        const current = prev.hit;
+        // Preserve the selection identity, but take the object from the new
+        // hits array — the old object carries a stale `close_bar_date` (null),
+        // which would make the panel fall back to the chart close instead of
+        // the refreshed hit's own dated pair.
+        const matches = current
+          ? hits.find((h) => fullscreenHitIdentity(h) === fullscreenHitIdentity(current))
+          : undefined;
+        return {
+          ...prev,
+          ...staleFields(chart),
+          ...chartProblem(chart),
+          hit: preserveCurrentHit
+            ? matches ?? newestHit(hits)
+            : resolveHit(hits),
+          hits,
+          trendLines: chart.trend_lines ?? [],
+          patternsLoading: false,
+        };
+      });
     };
 
     const applyPatternsError = () => {
@@ -288,7 +358,7 @@ export function usePatternFullscreen({
           ? { ...prev, patternsLoading: true }
           : prev,
       );
-      const key = `${symbol}|${tf}|p`;
+      const key = `${symbol}|${tf}|p|${extra.asOf ?? ""}|${extra.fromDate ?? ""}`;
       const cached = symbolChartCache.get(key);
       if (cached && Date.now() - cached.ts < SYMBOL_CHART_CACHE_MS) {
         applyPatterns(cached.chart);
@@ -305,7 +375,7 @@ export function usePatternFullscreen({
     };
 
     const phase1 = async () => {
-      const key = `${symbol}|${tf}|l`;
+      const key = `${symbol}|${tf}|l|${extra.asOf ?? ""}|${extra.fromDate ?? ""}`;
       const cached = symbolChartCache.get(key);
       if (cached && Date.now() - cached.ts < SYMBOL_CHART_CACHE_MS) {
         applyCandles(cached.chart);
@@ -329,17 +399,50 @@ export function usePatternFullscreen({
     void phase1();
   };
 
+  /** Best-effort live quote; a failure leaves the LTP fields null, never blocks the chart. */
+  const fetchLiveQuote = (symbol: string, token: number, signal?: AbortSignal) => {
+    void Promise.resolve()
+      .then(() => fetchQuotes([symbol], { signal }))
+      .then((quotes) => {
+        if (chartRequestToken !== token) return;
+        const upper = symbol.toUpperCase();
+        const quote = quotes.find((q) => q.symbol.toUpperCase() === upper);
+        setFullscreen((prev) =>
+          prev && prev.symbol === symbol
+            ? {
+                ...prev,
+                livePrice: quote?.close ?? null,
+                liveChange: quote?.change ?? null,
+              }
+            : prev,
+        );
+      })
+      .catch((_err) => {
+        if (signal?.aborted) return; // superseded by a newer tick/load — stay silent
+        if (chartRequestToken !== token) return;
+        setFullscreen((prev) =>
+          prev && prev.symbol === symbol
+            ? { ...prev, livePrice: null, liveChange: null }
+            : prev,
+        );
+      });
+  };
+
   const loadSymbolChart = (
     symbol: string,
     timeframe: string | undefined,
     pinned: boolean,
     detectPatterns = true,
+    replay?: { asOf?: string | null; fromDate?: string | null },
+    keepHit: PatternHitDTO | null = null,
   ) => {
     const tf = timeframe ?? defaultTimeframe;
     const token = ++chartRequestToken;
+    // A new load always supersedes the previous poll: one interval at most.
+    stopLivePoll();
     setFullscreen({
       symbol,
-      hit: null,
+      hit: keepHit,
       hits: [],
       timeframe: tf,
       candles: [],
@@ -347,45 +450,88 @@ export function usePatternFullscreen({
       trendLines: [],
       loading: true,
       detectPatterns,
-      asOf: null,
-      fromDate: null,
+      asOf: replay?.asOf ?? null,
+      fromDate: replay?.fromDate ?? null,
       pinned,
       patternsLoading: undefined,
       stale: false,
       dataAsOf: null,
       chartError: null,
       chartNote: null,
+      livePrice: null,
+      liveChange: null,
     });
 
     void runTwoPhase(symbol, tf, token, detectPatterns, {
       lookbackBars,
       computeTrendlines,
-    });
+      asOf: replay?.asOf ?? undefined,
+      fromDate: replay?.fromDate ?? undefined,
+    }, true);
+    // Live frames poll the quote every 15s; historical (as-of) frames never do.
+    if (replay?.asOf == null) {
+      startLivePoll(symbol, token);
+    }
+  };
+
+  /** Clear this symbol's cached frames and refetch the open chart in place. */
+  const refreshSymbolChart = () => {
+    const current = fullscreen();
+    if (!current) return;
+    invalidateSymbolChartCache(current.symbol, current.timeframe);
+    loadSymbolChart(
+      current.symbol,
+      current.timeframe,
+      current.pinned,
+      current.detectPatterns !== false,
+      { asOf: current.asOf, fromDate: current.fromDate },
+      current.hit,
+    );
   };
 
   const openFromSymbol = (
     symbol: string,
     timeframe?: string,
     detectPatterns = true,
-  ) => loadSymbolChart(symbol, timeframe, true, detectPatterns);
+  ) => {
+    selectedHit = null;
+    return loadSymbolChart(symbol, timeframe, true, detectPatterns);
+  };
 
   const previewFromSymbol = (
     symbol: string,
     timeframe?: string,
     detectPatterns = true,
-  ) => loadSymbolChart(symbol, timeframe, false, detectPatterns);
+  ) => {
+    selectedHit = null;
+    return loadSymbolChart(symbol, timeframe, false, detectPatterns);
+  };
 
   const changeFullscreenTimeframe = (tf: string) => {
     const current = fullscreen();
     if (!current || tf === current.timeframe) return;
     const token = ++chartRequestToken;
     const { symbol, asOf, fromDate } = current;
-    setFullscreen({ ...current, timeframe: tf, loading: true, patternsLoading: undefined });
+    stopLivePoll();
+    setFullscreen((prev) =>
+      prev
+        ? {
+            ...prev,
+            timeframe: tf,
+            loading: true,
+            patternsLoading: undefined,
+            livePrice: null,
+            liveChange: null,
+          }
+        : prev,
+    );
     void runTwoPhase(symbol, tf, token, current.detectPatterns !== false, {
       asOf,
       fromDate,
       computeTrendlines: undefined,
     });
+    // The reload for the new timeframe repopulates the quote via its poll.
+    if (asOf == null) startLivePoll(symbol, token);
   };
 
   const changeFullscreenAsOf = (asOf: string | null, fromDate: string | null) => {
@@ -393,7 +539,20 @@ export function usePatternFullscreen({
     if (!current) return;
     const token = ++chartRequestToken;
     const { symbol, timeframe: tf } = current;
-    setFullscreen({ ...current, asOf, fromDate, loading: true });
+    stopLivePoll();
+    setFullscreen((prev) =>
+      prev
+        ? {
+            ...prev,
+            asOf,
+            fromDate,
+            loading: true,
+            // A live quote must not sit on a historical frame.
+            livePrice: null,
+            liveChange: null,
+          }
+        : prev,
+    );
     void fetchSymbolChart(symbol, tf, {
       detectPatterns: true,
       asOf: asOf ?? undefined,
@@ -401,13 +560,18 @@ export function usePatternFullscreen({
     })
       .then((chart) => applySymbolChart(chart, symbol, tf, token, { asOf, fromDate }))
       .catch(() => applySymbolChartError(symbol, tf, token, { asOf, fromDate }));
+    // Returning to live restarts the quote fetch/poll; historical frames never poll.
+    if (asOf == null) startLivePoll(symbol, token);
   };
 
   const selectFullscreenHit = (hit: PatternHitDTO) => {
+    selectedHit = hit;
     setFullscreen((prev) => (prev ? { ...prev, hit } : prev));
   };
 
   const closeFullscreen = () => {
+    selectedHit = null;
+    stopLivePoll();
     chartRequestToken += 1;
     setFullscreen(null);
   };
@@ -464,6 +628,10 @@ export function usePatternFullscreen({
       });
   });
 
+  onCleanup(() => {
+    stopLivePoll();
+  });
+
   const pinFullscreen = () => {
     setFullscreen((prev) => (prev && !prev.pinned ? { ...prev, pinned: true } : prev));
   };
@@ -476,6 +644,7 @@ export function usePatternFullscreen({
     pinFullscreen,
     changeFullscreenTimeframe,
     changeFullscreenAsOf,
+    refreshSymbolChart,
     selectFullscreenHit,
     closeFullscreen,
   };

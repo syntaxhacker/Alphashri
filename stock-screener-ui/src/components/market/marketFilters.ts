@@ -54,8 +54,8 @@ export interface MarketFilterState {
   aboveSma200: boolean;
   fnoOnly: boolean;
   etfOnly: boolean;
-  /** Exact sector match; null = all sectors. */
-  sector: string | null;
+  /** Exact sector match set; empty = all sectors. */
+  sectors: string[];
   sort: MarketSortKey;
 }
 
@@ -78,7 +78,7 @@ export function defaultMarketFilters(): MarketFilterState {
     aboveSma200: false,
     fnoOnly: false,
     etfOnly: false,
-    sector: null,
+    sectors: [],
     sort: DEFAULT_MARKET_SORT,
   };
 }
@@ -159,7 +159,7 @@ export function filterOnlyMarketRows(
     if (filters.aboveSma200 && !isAboveSma(row.close, row.sma200)) return false;
     if (filters.fnoOnly && !row.fno) return false;
     if (filters.etfOnly && !row.etf) return false;
-    if (filters.sector && row.sector !== filters.sector) return false;
+    if (filters.sectors.length > 0 && !filters.sectors.includes(row.sector ?? "")) return false;
     return true;
   });
 }
@@ -242,17 +242,18 @@ export function buildMarketFilterChips(filters: MarketFilterState): MarketFilter
 
   push(rangeChip("price", "LTP", filters.priceMin, filters.priceMax, ""));
   push(rangeChip("day", "Day", filters.dayChangeMin, filters.dayChangeMax, "%"));
-  if (has(filters.mcapMinCr))
-    chips.push({ key: "mcap", label: `MCap ≥ ${fmtNum(filters.mcapMinCr)} Cr` });
+  push(rangeChip("mcap", "MCap", filters.mcapMinCr, filters.mcapMaxCr, " Cr"));
   push(rangeChip("rsi", "RSI", filters.rsiMin, filters.rsiMax, ""));
-  if (has(filters.relVolMin))
-    chips.push({ key: "relvol", label: `RelVol ≥ ${fmtNum(filters.relVolMin)}` });
+  push(rangeChip("relvol", "RelVol", filters.relVolMin, filters.relVolMax, ""));
   if (filters.aboveSma20) chips.push({ key: "sma20", label: "Above SMA 20" });
   if (filters.aboveSma50) chips.push({ key: "sma50", label: "Above SMA 50" });
   if (filters.aboveSma200) chips.push({ key: "sma200", label: "Above SMA 200" });
   if (filters.fnoOnly) chips.push({ key: "fno", label: "F&O only" });
   if (filters.etfOnly) chips.push({ key: "etf", label: "ETF only" });
-  if (filters.sector) chips.push({ key: "sector", label: `Sector: ${filters.sector}` });
+  for (const sector of filters.sectors) {
+    if (!sector) continue;
+    chips.push({ key: `sector:${sector}`, label: `Sector: ${sector}` });
+  }
 
   return chips;
 }

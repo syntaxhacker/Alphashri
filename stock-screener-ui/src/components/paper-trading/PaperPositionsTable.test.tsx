@@ -149,6 +149,36 @@ vi.mock("../common/PreviewChartProvider", () => ({
   })),
 }));
 
+type Sorting = Array<{ id: string; desc: boolean }>;
+const prefsMock = vi.hoisted(() => ({
+  ids: [] as string[],
+  calls: [] as Sorting[],
+  write: null as ((next: Sorting) => void) | null,
+}));
+
+vi.mock("../common/useTablePrefs", async () => {
+  const { createSignal } = await import("solid-js");
+  const [get, set] = createSignal<Sorting>([]);
+  prefsMock.write = set;
+  return {
+    useTablePrefs: (tableId: string) => {
+      prefsMock.ids.push(tableId);
+      return {
+        prefs: () => ({ sorting: get(), order: [], hidden: [] }),
+        setSorting: (next: Sorting) => {
+          prefsMock.calls.push(next);
+          set(next);
+        },
+        status: () => "ready",
+        error: () => null,
+        hydrated: () => true,
+        setColumnPrefs: () => {},
+        retry: () => {},
+      };
+    },
+  };
+});
+
 function setState(overrides: Partial<PaperTradingState>) {
   currentState = createMockState(overrides);
 }
@@ -204,6 +234,9 @@ describe("PaperPositionsTable", () => {
   beforeEach(() => {
     resetState();
     vi.clearAllMocks();
+    prefsMock.ids.length = 0;
+    prefsMock.calls.length = 0;
+    prefsMock.write!([]);
   });
 
   afterEach(() => {
@@ -500,5 +533,61 @@ describe("PaperPositionsTable", () => {
       // only original template scripts, not injected XSS
       expect(Array.from(scripts).some(s=>s.textContent?.includes("alert(1)"))).toBe(false);
     });
+  });
+});
+
+describe("PaperPositionsTable saved sort", () => {
+  beforeEach(() => {
+    resetState();
+    prefsMock.ids.length = 0;
+    prefsMock.calls.length = 0;
+    prefsMock.write!([]);
+  });
+
+  const stockRowIds = () =>
+    Array.from(document.querySelectorAll("tbody tr[data-row='stock']")).map(
+      (tr) => (tr as HTMLElement).dataset.testid,
+    );
+
+  function threePositions() {
+    return [
+      mockPosition({ symbol: "ZOO", order_id: "o1", entry_time: "2026-03-20T09:30:00Z" }),
+      mockPosition({ symbol: "AAPL", order_id: "o2", entry_time: "2026-03-20T10:30:00Z" }),
+      mockPosition({ symbol: "RELIANCE", order_id: "o3", entry_time: "2026-03-20T11:30:00Z" }),
+    ];
+  }
+
+  test("restores a saved sort on first render and reflects it in aria-sort", () => {
+    setState({ positions: threePositions(), botSnapshot: null });
+    prefsMock.write!([{ id: "symbol", desc: false }]);
+    r(() => <PaperPositionsTable />);
+
+    expect(prefsMock.ids).toContain("paper.positions");
+    expect(stockRowIds()).toEqual([
+      "position-row-1-AAPL",
+      "position-row-1-RELIANCE",
+      "position-row-1-ZOO",
+    ]);
+    expect(document.getElementById("paper-tanstack-header-symbol")).toHaveAttribute("aria-sort", "ascending");
+  });
+
+  test("a header click persists the new sort and reorders rows", () => {
+    setState({ positions: threePositions(), botSnapshot: null });
+    r(() => <PaperPositionsTable />);
+    // Empty saved prefs keep the current newest-entry-first default order.
+    expect(stockRowIds()).toEqual([
+      "position-row-1-RELIANCE",
+      "position-row-1-AAPL",
+      "position-row-1-ZOO",
+    ]);
+
+    fireEvent.click(document.getElementById("paper-tanstack-header-symbol")!);
+    expect(prefsMock.calls.length).toBeGreaterThan(0);
+    expect(prefsMock.calls.at(-1)![0]).toMatchObject({ id: "symbol", desc: false });
+    expect(stockRowIds()).toEqual([
+      "position-row-1-AAPL",
+      "position-row-1-RELIANCE",
+      "position-row-1-ZOO",
+    ]);
   });
 });

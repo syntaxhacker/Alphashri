@@ -1,9 +1,11 @@
 import { For, Show, createMemo, createSignal } from "solid-js";
+import { useNavigate } from "@solidjs/router";
 import { IconDownload, IconRefresh } from "../common/Icons";
 import {
   ActionIcon,
   Alert,
   Box,
+  Button,
   Divider,
   Loader,
   Select,
@@ -38,6 +40,7 @@ const PRESET_OPTIONS = Object.entries(VALUE_PRESETS).map(([value, meta]) => ({
 }));
 
 export function ValuePanel(props: ValuePanelProps) {
+  const navigate = useNavigate();
   const [filters, setFilters] = createSignal<ValueFilters>({
     market: "india",
     limit: 100,
@@ -45,11 +48,12 @@ export function ValuePanel(props: ValuePanelProps) {
     ...props.initialFilters,
   });
   const [selected, setSelected] = createSignal<ValueRow | null>(null);
-  const { rows, sectors, meta, isLoading, error, refresh, warnings, lastUpdated } =
+  const { data, rows, sectors, meta, isLoading, error, stale, refresh, warnings, lastUpdated } =
     useValueScanSolid(filters);
 
-  const patch = (p: Partial<ValueFilters>): void =>
+  const patch = (p: Partial<ValueFilters>): void => {
     setFilters((f) => ({ ...f, ...p }));
+  };
 
   const handleRowClick = (row: ValueRow): void => {
     setSelected(row);
@@ -57,15 +61,19 @@ export function ValuePanel(props: ValuePanelProps) {
   };
 
   const exportCsv = (): void => {
+    // Filename and content come from the same payload, so they can never
+    // disagree about which market was exported.
+    const frame = data();
+    if (!frame || stale()) return;
     const lines = [
       VALUE_CSV_HEADERS.join(","),
-      ...rows().map((r) => valueRowToCsvRow(r).map(escapeCsvCell).join(",")),
+      ...frame.rows.map((r) => valueRowToCsvRow(r).map(escapeCsvCell).join(",")),
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `deep-value-${filters().market ?? "india"}.csv`;
+    a.download = `deep-value-${frame.market}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -73,8 +81,15 @@ export function ValuePanel(props: ValuePanelProps) {
   };
 
   const showLoading = () => isLoading() && rows().length === 0;
-  const showError = () => error() !== null && rows().length === 0;
+  const showError = () => error() !== null;
   const showEmpty = () => !isLoading() && error() === null && rows().length === 0;
+  const canExport = () => data() !== null && !stale();
+  // A payload whose own market disagrees with the tab cannot be presented as
+  // the requested market — say which universe these rows are, never imply it.
+  const marketMismatch = createMemo(() => {
+    const d = data();
+    return d !== null && d.market !== (filters().market ?? "india");
+  });
   const sectorSummary = createMemo(() =>
     sectors()
       .slice(0, 5)
@@ -150,7 +165,23 @@ export function ValuePanel(props: ValuePanelProps) {
         </Show>
         <Show when={showError()}>
           <Alert color="error" data-testid="value-error">
-            {`Value scan failed: ${error()?.message ?? "unknown error"}`}
+            <div className="flex items-center justify-between gap-2">
+              <Text size="sm">{`Value scan failed: ${error()?.message ?? "unknown error"}`}</Text>
+              <Button
+                variant="outline"
+                color="error"
+                size="xs"
+                onClick={refresh}
+                data-testid="value-retry"
+              >
+                Retry
+              </Button>
+            </div>
+          </Alert>
+        </Show>
+        <Show when={marketMismatch()}>
+          <Alert color="warning" data-testid="value-market-mismatch">
+            {`Showing ${(data()?.market ?? "").toUpperCase()} results (${data()?.currency}) for the ${(filters().market ?? "india").toUpperCase()} request.`}
           </Alert>
         </Show>
         <Show when={showEmpty()}>
@@ -161,7 +192,14 @@ export function ValuePanel(props: ValuePanelProps) {
           </Box>
         </Show>
         <Show when={!showEmpty()}>
-          <ValueTable rows={rows()} loading={isLoading()} onRowClick={handleRowClick} />
+          <ValueTable
+            rows={rows()}
+            loading={isLoading()}
+            onRowClick={handleRowClick}
+            // Exchange-gated in buildValueColumns: only NSE/BSE rows wire this
+            // to the Upstox-backed chart route; other markets stay TV-only.
+            onSymbolClick={(sym) => navigate(`/chart/${sym}`)}
+          />
         </Show>
 
         <Divider />
@@ -185,6 +223,7 @@ export function ValuePanel(props: ValuePanelProps) {
             <ActionIcon
               size="sm"
               onClick={exportCsv}
+              disabled={!canExport()}
               data-testid="value-export-csv"
               aria-label="Export CSV"
             >

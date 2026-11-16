@@ -3,10 +3,28 @@ import "@testing-library/jest-dom/vitest";
 
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
-  return mockSolidUi();
+  return {
+    ...mockSolidUi(),
+    // The shared stub drops `loading`/`disabled`; the real ActionIcon forwards
+    // both (spinner + disabled). Keep that contract observable here.
+    ActionIcon: (props: any) => (
+      <button
+        type="button"
+        data-testid={props["data-testid"]}
+        aria-label={props["aria-label"]}
+        aria-busy={props.loading ? "true" : undefined}
+        disabled={Boolean(props.loading || props.disabled)}
+        onClick={props.onClick}
+        className={props.className}
+      >
+        {props.children}
+      </button>
+    ),
+  };
 });
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { PatternFullscreenView } from "./PatternFullscreenView";
 
@@ -62,6 +80,7 @@ const HIT: PatternHitDTO = {
   notes: "Higher lows into a falling wedge.",
   last_close: 113.4,
   day_change_pct: 1.2,
+  close_bar_date: "2026-09-26",
   pivots: [{ t: "2026-05-04", price: 108, kind: "low" }],
 };
 
@@ -81,12 +100,75 @@ describe("PatternFullscreenView", () => {
     // Meta lives in the panel; the breakout/target/stop/rr/confidence row is gone.
     expect(screen.getByTestId("patterns-status-confirmed")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-quality-strong")).toBeInTheDocument();
-    expect(screen.getByText("Last close")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-close-label")).toBeInTheDocument();
     expect(screen.getByText(/1\.20%/)).toBeInTheDocument();
     expect(screen.queryByText("Target")).toBeNull();
     expect(screen.queryByText("Stop")).toBeNull();
     expect(screen.queryByText("R:R")).toBeNull();
     
+  });
+
+  test("livePrice/liveChange render the LTP line in both the modal and the dock", () => {
+    const modal = render(() => (
+      <PatternFullscreenView
+        opened
+        onClose={vi.fn()}
+        hit={HIT}
+        candles={[]}
+        livePrice={2986}
+        liveChange={-12.94}
+      />
+    ));
+    expect(screen.getByTestId("patterns-ltp-line")).toHaveTextContent("₹2986.00");
+    expect(screen.getByTestId("patterns-ltp-change")).toHaveTextContent("-12.94%");
+    modal.unmount();
+    cleanup();
+
+    render(() => (
+      <PatternFullscreenView
+        opened
+        docked
+        onClose={vi.fn()}
+        hit={HIT}
+        candles={[]}
+        livePrice={2986}
+        liveChange={-12.94}
+      />
+    ));
+    expect(screen.getByTestId("patterns-chart-dock")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-ltp-line")).toHaveTextContent("₹2986.00");
+  });
+
+  test("dock refresh button calls onRefresh and disables while loading", () => {
+    const onRefresh = vi.fn();
+    const [loading, setLoading] = createSignal(false);
+    render(() => (
+      <PatternFullscreenView
+        opened
+        docked
+        onClose={vi.fn()}
+        hit={HIT}
+        candles={[]}
+        onRefresh={onRefresh}
+        loading={loading()}
+      />
+    ));
+    const refresh = screen.getByTestId("patterns-dock-refresh");
+    expect(refresh).toBeEnabled();
+    fireEvent.click(refresh);
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+
+    setLoading(true);
+    expect(screen.getByTestId("patterns-dock-refresh")).toBeDisabled();
+    expect(screen.getByTestId("patterns-dock-refresh")).toHaveAttribute("aria-busy", "true");
+  });
+
+  test("loading with no candles does not claim there is no chart data", () => {
+    render(() => (
+      <PatternFullscreenView opened docked onClose={vi.fn()} hit={null} symbol="IRCON" candles={[]} loading />
+    ));
+    // A spinner in the toolbar is not permission to say "No chart data".
+    expect(screen.queryByText("No chart data")).toBeNull();
   });
 
   test("shows the endpoint reason when the chart has no candles", () => {
@@ -119,6 +201,21 @@ describe("PatternFullscreenView", () => {
     render(() => <PatternFullscreenView opened onClose={vi.fn()} hit={null} candles={[]} />);
     expect(screen.getByTestId("patterns-tv-chart")).toBeInTheDocument();
     expect(screen.queryByTestId("patterns-fullscreen-panel")).toBeNull();
+  });
+
+  test("no hit: the fullscreen chart fills the width with no empty side column", () => {
+    render(() => <PatternFullscreenView opened onClose={vi.fn()} hit={null} candles={[]} />);
+    const column = screen.getByTestId("patterns-chart-column");
+    expect(column).toHaveClass("flex-1");
+    expect(column.className).not.toContain("lg:flex-[0_0_80%]");
+    expect(screen.queryByTestId("patterns-chart-panel-column")).toBeNull();
+  });
+
+  test("with a hit: the fullscreen keeps the 80/20 split", () => {
+    render(() => <PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
+    const column = screen.getByTestId("patterns-chart-column");
+    expect(column.className).toContain("lg:flex-[0_0_80%]");
+    expect(screen.getByTestId("patterns-chart-panel-column")).toBeInTheDocument();
   });
 
   test("renders the tradingview chart with a legend above it", () => {

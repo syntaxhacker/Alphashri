@@ -1,8 +1,9 @@
-import { Show } from "solid-js";
+import { For, Show } from "solid-js";
 import type { TableColumnDef as ColumnDef } from "../common/TanStackTable";
 import { Badge, Box, Text, Tooltip } from "@/ui";
 import { SymbolLink } from "../common/SymbolLink";
 import type { MarketRow } from "../../types/marketScreener";
+import type { PatternSummaryItem } from "./usePatternSummary";
 
 const DASH = "–";
 
@@ -25,9 +26,16 @@ function fmtNum(value: number | null, digits = 1): string {
   return value.toFixed(digits);
 }
 
-function fmtCr(value: number | null): string {
+/** ₹ crore, compact: `18.1L` (lakh crore) / `54.2k` / `999`. */
+function fmtMcapCr(value: number | null): string {
   if (value === null) return DASH;
-  return Math.round(value).toLocaleString("en-IN");
+  if (value >= 1e5) return `${(value / 1e5).toFixed(1)}L`;
+  if (value >= 1e3) return `${(value / 1e3).toFixed(1)}k`;
+  return String(Math.round(value));
+}
+
+function mcapCrLabel(value: number): string {
+  return `₹${Math.round(value).toLocaleString("en-IN")} Cr`;
 }
 
 function pctColor(value: number | null): "success" | "error" | undefined {
@@ -90,10 +98,76 @@ function Week52Bar(props: { row: MarketRow }) {
 export interface MarketColumnHandlers {
   /** Open the in-app chart. The text opens in-app; ↗ stays TradingView. */
   onSymbolOpen?: (symbol: string) => void;
+  /** Drop the SECTOR column when every visible row shares one sector. */
+  hideSector?: boolean;
+  /** Stored 1D patterns for a symbol — absent means "not looked up yet". */
+  patternsFor?: (symbol: string) => PatternSummaryItem | undefined;
 }
 
+type PatternTone = "bullish" | "bearish" | "mixed";
+
+const PATTERN_TONE_COLOR: Record<PatternTone, "success" | "error" | "default"> = {
+  bullish: "success",
+  bearish: "error",
+  mixed: "default",
+};
+
+const PATTERN_GLYPH: Record<PatternTone, string> = {
+  bullish: "▲",
+  bearish: "▼",
+  mixed: "",
+};
+
+/** One tone for the row: one-sided only when every stored hit agrees. */
+function patternTone(patterns: PatternSummaryItem["patterns"]): PatternTone {
+  let bullish = false;
+  let bearish = false;
+  for (const pattern of patterns) {
+    const direction = String(pattern.direction ?? "").toLowerCase();
+    if (direction === "bullish") bullish = true;
+    else if (direction === "bearish") bearish = true;
+  }
+  if (bullish && bearish) return "mixed";
+  return bullish ? "bullish" : bearish ? "bearish" : "mixed";
+}
+
+function patternTooltip(patterns: PatternSummaryItem["patterns"]) {
+  return (
+    <Box component="span" className="flex flex-col gap-0.5">
+      <For each={patterns}>
+        {(pattern) => (
+          <span className="block whitespace-nowrap">
+            {pattern.name}
+            {pattern.confidence === null ? "" : ` · ${Math.round(pattern.confidence)}`}
+          </span>
+        )}
+      </For>
+    </Box>
+  );
+}
+
+/** Stored-pattern summary: count plus the tone its hits agree on. */
+function PatternBadge(props: { symbol: string; item: PatternSummaryItem | undefined }) {
+  const tone = () => (props.item ? patternTone(props.item.patterns) : "mixed");
+  return (
+    <Show when={props.item} fallback={<>{dash(props.symbol, "patterns")}</>}>
+      <Tooltip label={patternTooltip(props.item!.patterns)} multiline position="top">
+        <Badge
+          size="xs"
+          variant="light"
+          color={PATTERN_TONE_COLOR[tone()]}
+          data-testid={`market-patterns-${props.symbol}`}
+        >
+          {`${props.item!.count}${PATTERN_GLYPH[tone()]}`}
+        </Badge>
+      </Tooltip>
+    </Show>
+  );
+}
+
+
 export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnDef<MarketRow>[] {
-  return [
+  const columns: ColumnDef<MarketRow>[] = [
     {
       id: "symbol",
       header: "SYMBOL",
@@ -112,6 +186,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
               size="xs"
               weight={600}
               className={SYMBOL_LINK_CLASS}
+              inAppText
               tvIcon
               onTextClick={(sym) => handlers.onSymbolOpen?.(sym)}
             />
@@ -181,7 +256,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       id: "close",
       header: "LTP",
       size: 70,
-      accessorFn: (r) => r.close ?? 0,
+      accessorFn: (r) => r.close,
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
@@ -195,10 +270,10 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       },
     },
     {
-      id: "change",
+      id: "day_change",
       header: "DAY %",
       size: 60,
-      accessorFn: (r) => r.change ?? 0,
+      accessorFn: (r) => r.change,
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
@@ -212,10 +287,17 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       },
     },
     {
+      // Historical sort id. `size: 0` keeps it out of the rendered header while
+      // TanStack can still resolve a saved sorter that names it.
+      id: "change",
+      size: 0,
+      accessorFn: (r) => r.change,
+    },
+    {
       id: "perf_w",
       header: "1W %",
       size: 54,
-      accessorFn: (r) => r.perfW ?? 0,
+      accessorFn: (r) => r.perfW,
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
@@ -232,7 +314,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       id: "perf_1m",
       header: "1M %",
       size: 54,
-      accessorFn: (r) => r.perf1m ?? 0,
+      accessorFn: (r) => r.perf1m,
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
@@ -249,7 +331,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       id: "pos_52w",
       header: "52W",
       size: 62,
-      accessorFn: (r) => r.pos52w ?? 0,
+      accessorFn: (r) => r.pos52w,
       meta: { align: "center" },
       cell: ({ row }) => <Week52Bar row={row.original} />,
     },
@@ -257,7 +339,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       id: "rsi",
       header: "RSI",
       size: 42,
-      accessorFn: (r) => r.rsi ?? 0,
+      accessorFn: (r) => r.rsi,
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
@@ -274,7 +356,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       id: "adx",
       header: "ADX",
       size: 42,
-      accessorFn: (r) => r.adx ?? 0,
+      accessorFn: (r) => r.adx,
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
@@ -291,7 +373,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       id: "relative_volume",
       header: "RELVOL",
       size: 56,
-      accessorFn: (r) => r.relativeVolume ?? 0,
+      accessorFn: (r) => r.relativeVolume,
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
@@ -308,16 +390,18 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       id: "market_cap_cr",
       header: "MCAP ₹Cr",
       size: 76,
-      accessorFn: (r) => r.marketCapCr ?? 0,
+      accessorFn: (r) => r.marketCapCr,
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
         return r.marketCapCr === null ? (
           dash(r.symbol, "mcap")
         ) : (
-          <Text size="xs" data-testid={`market-mcap-${r.symbol}`}>
-            {fmtCr(r.marketCapCr)}
-          </Text>
+          <Tooltip label={mcapCrLabel(r.marketCapCr)} position="top">
+            <Text size="xs" data-testid={`market-mcap-${r.symbol}`}>
+              {fmtMcapCr(r.marketCapCr)}
+            </Text>
+          </Tooltip>
         );
       },
     },
@@ -343,5 +427,20 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
         );
       },
     },
+    {
+      id: "patterns",
+      header: "PATTERNS",
+      size: 104,
+      // No `accessorFn` + no sorting on purpose. The value arrives per visible
+      // window, so a sort would (a) rank every not-yet-loaded row as 0, and
+      // (b) reorder rows under the cursor the moment the lookup lands.
+      enableSorting: false,
+      meta: { align: "center" },
+      cell: ({ row }) => {
+        const r = row.original;
+        return <PatternBadge symbol={r.symbol} item={handlers.patternsFor?.(r.symbol)} />;
+      },
+    },
   ];
+  return handlers.hideSector ? columns.filter((column) => column.id !== "sector") : columns;
 }

@@ -1,6 +1,28 @@
-import { For, Show, createEffect, createMemo, createSignal, createUniqueId, splitProps, type JSX } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, createUniqueId, onCleanup, splitProps, type JSX } from "solid-js";
+import { Portal } from "solid-js/web";
 import { cn } from "../cn";
 import type { UISelectProps } from "../types";
+
+/** Gap between the field and the listbox, and the minimum viewport edge inset. */
+const MENU_GAP = 4;
+const MENU_PAD = 8;
+/** `max-h-48` in px — the height the menu is allowed to grow to. */
+const MENU_MAX_HEIGHT = 192;
+
+/**
+ * Portalled menus live in `<body>`, so a component whose owner never disposes
+ * would leave its list floating over every later screen. A menu cannot outlive
+ * its trigger: drop those before opening another.
+ */
+const liveMenus = new Set<{ trigger: HTMLElement; host: HTMLElement }>();
+
+function pruneDetachedMenus() {
+  for (const menu of liveMenus) {
+    if (menu.trigger.isConnected) continue;
+    menu.host.remove();
+    liveMenus.delete(menu);
+  }
+}
 
 type SelectOption = { value: string; label: string; disabled?: boolean };
 
@@ -274,6 +296,7 @@ export function Select(props: UISelectProps) {
           aria-label={known["aria-label"]}
           leftSection={known.leftSection}
           rightSection={known.rightSection}
+          withinPortal={known.withinPortal}
         />
       </Show>
       {helperText() && <p className={helperTextClass()}>{helperText()}</p>}
@@ -296,6 +319,7 @@ function SearchableSelect(props: {
   isError: boolean;
   leftSection?: JSX.Element;
   rightSection?: JSX.Element;
+  withinPortal?: boolean;
   "aria-label"?: string;
 }) {
   const [query, setQuery] = createSignal("");
@@ -303,6 +327,9 @@ function SearchableSelect(props: {
   const [open, setOpen] = createSignal(false);
   const [highlighted, setHighlighted] = createSignal(-1);
   const listboxId = `${props.inputId}-listbox`;
+  let listboxEl: HTMLUListElement | undefined;
+  let fieldEl: HTMLDivElement | undefined;
+  const portalMenu = createMemo(() => props.withinPortal !== false);
 
   const filtered = createMemo(() =>
     props.options.filter(
@@ -318,11 +345,73 @@ function SearchableSelect(props: {
   createEffect(() => {
     if (!open()) return undefined;
     const root = props.rootRef();
+    // The listbox is portalled, so `root.contains` is false for its own
+    // children: a mousedown on an option counted as "outside" and unmounted
+    // the list before the click could commit the value.
     const handleOutside = (e: MouseEvent) => {
-      if (open() && root && !root.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node | null;
+      if (open() && root && !root.contains(target) && !listboxEl?.contains(target)) setOpen(false);
     };
     document.addEventListener("mousedown", handleOutside);
     return () => document.removeEventListener("mousedown", handleOutside);
+  });
+
+  /**
+   * The listbox is portalled and `fixed`, positioned from the field's rect. An
+   * absolute child is clipped by any ancestor with `overflow` — the market
+   * toolbar is `overflow-hidden`, so the universe list was cut off at 30px.
+   */
+  const [menuPos, setMenuPos] = createSignal<{ top: number; left: number; width: number | undefined } | null>(null);
+
+  const placeMenu = () => {
+    const el = fieldEl ?? props.rootRef();
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const maxH = MENU_MAX_HEIGHT;
+    const menuH = listboxEl?.getBoundingClientRect().height || maxH;
+    // A hidden/zero-width field (display:none ancestor, pre-layout) yields an
+    // all-zero rect; a `width: 0px` menu would then be invisible rather than
+    // merely misplaced.
+    const width = r.width > 0 ? Math.min(r.width, Math.max(0, window.innerWidth - MENU_PAD * 2)) : undefined;
+    const spaceBelow = window.innerHeight - r.bottom - MENU_PAD;
+    const spaceAbove = r.top - MENU_PAD;
+    const openUp = spaceBelow < Math.min(menuH, maxH) + MENU_GAP && spaceAbove > spaceBelow;
+    setMenuPos({
+      top: openUp
+        ? Math.max(MENU_PAD, r.top - Math.min(menuH, maxH, spaceAbove) - MENU_GAP)
+        : r.bottom + MENU_GAP,
+      left: Math.max(
+        MENU_PAD,
+        Math.min(r.left, window.innerWidth - (width ?? 0) - MENU_PAD),
+      ),
+      width,
+    });
+  };
+
+  createEffect(() => {
+    if (!open() || !portalMenu()) {
+      setMenuPos(null);
+      return;
+    }
+    // Render hidden first, then measure (visibility:hidden still lays out).
+    queueMicrotask(placeMenu);
+  });
+
+  createEffect(() => {
+    if (!open() || !portalMenu()) return;
+    pruneDetachedMenus();
+    // A scroll inside the menu itself must not reposition it — only an ancestor
+    // scroller or the window moving the field does that.
+    const onMove = (e: Event) => {
+      if (listboxEl && e.target instanceof Node && listboxEl.contains(e.target)) return;
+      placeMenu();
+    };
+    window.addEventListener("resize", onMove);
+    window.addEventListener("scroll", onMove, true);
+    onCleanup(() => {
+      window.removeEventListener("resize", onMove);
+      window.removeEventListener("scroll", onMove, true);
+    });
   });
 
   const handleSelect = (v: string) => {
@@ -374,12 +463,69 @@ function SearchableSelect(props: {
 
   const tone = createMemo(() => (props.isError ? "error" : open() ? "active" : "idle") as "idle" | "active" | "error");
 
+  const trackMenu = (host: HTMLElement) => {
+    const trigger = props.rootRef();
+    if (!trigger) return;
+    const menu = { trigger, host };
+    liveMenus.add(menu);
+    onCleanup(() => liveMenus.delete(menu));
+  };
+
+  const Listbox = () => (
+    <ul
+      ref={(el) => (listboxEl = el)}
+      id={listboxId}
+      role="listbox"
+      data-part="select-listbox"
+      className={cn(
+        "border border-fin-border rounded-[6px] bg-fin-surface text-fin-text max-h-48 overflow-y-auto outline-none",
+        portalMenu() ? "fixed z-[1300] shadow-md" : "absolute z-50 left-0 right-0 mt-1",
+      )}
+      style={
+        portalMenu()
+          ? {
+              top: `${menuPos()?.top ?? 0}px`,
+              left: `${menuPos()?.left ?? 0}px`,
+              width: menuPos()?.width != null ? `${menuPos()!.width}px` : undefined,
+              visibility: menuPos() ? "visible" : "hidden",
+            }
+          : undefined
+      }
+    >
+      {filtered().length === 0 ? (
+        <li role="option" aria-disabled className="px-3 py-2 text-xs text-fin-text-muted">
+          {props.nothingFoundMessage ?? "No options"}
+        </li>
+      ) : (
+        <For each={filtered()}>{(opt, i) => (
+          <li
+            role="option"
+            aria-selected={opt.value === props.value}
+            aria-disabled={opt.disabled || props.disabled || undefined}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              if (!opt.disabled && !props.disabled) handleSelect(opt.value);
+            }}
+            className={cn(
+              "px-3 py-2 text-xs cursor-pointer select-none",
+              opt.value === props.value ? "bg-fin-primary text-white" : "",
+              highlighted() === i() ? "bg-fin-surface-alt" : "",
+              opt.disabled ? "text-fin-text-muted opacity-50" : "",
+            )}
+          >
+            {opt.label}
+          </li>
+        )}</For>
+      )}
+    </ul>
+  );
+
   return (
     <div className="w-full" onMouseDown={(e) => e.stopPropagation()}>
       <div className="relative w-full">
         <div className="inline-flex w-full items-center gap-2">
           {props.leftSection && <span className="shrink-0 text-fin-text-muted text-xs">{props.leftSection}</span>}
-          <div className="relative min-w-0 flex-1">
+          <div ref={(el) => (fieldEl = el)} className="relative min-w-0 flex-1">
             <input
               id={props.inputId}
               role="combobox"
@@ -420,33 +566,11 @@ function SearchableSelect(props: {
           {props.rightSection && <span className="shrink-0">{props.rightSection}</span>}
         </div>
         <Show when={open()}>
-          <ul id={listboxId} role="listbox" className="absolute z-50 left-0 right-0 mt-1 border border-fin-border rounded-[6px] bg-fin-surface text-fin-text max-h-48 overflow-y-auto outline-none">
-            {filtered().length === 0 ? (
-              <li role="option" aria-disabled className="px-3 py-2 text-xs text-fin-text-muted">
-                {props.nothingFoundMessage ?? "No options"}
-              </li>
-            ) : (
-              <For each={filtered()}>{(opt, i) => (
-                <li
-                  role="option"
-                  aria-selected={opt.value === props.value}
-                  aria-disabled={opt.disabled || props.disabled || undefined}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    if (!opt.disabled && !props.disabled) handleSelect(opt.value);
-                  }}
-                  className={cn(
-                    "px-3 py-2 text-xs cursor-pointer select-none",
-                    opt.value === props.value ? "bg-fin-primary text-white" : "",
-                    highlighted() === i() ? "bg-fin-surface-alt" : "",
-                    opt.disabled ? "text-fin-text-muted opacity-50" : "",
-                  )}
-                >
-                  {opt.label}
-                </li>
-              )}</For>
-            )}
-          </ul>
+          <Show when={portalMenu()} fallback={<Listbox />}>
+            <Portal ref={trackMenu}>
+              <Listbox />
+            </Portal>
+          </Show>
         </Show>
       </div>
     </div>

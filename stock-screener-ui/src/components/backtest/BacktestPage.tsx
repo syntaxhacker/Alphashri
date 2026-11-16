@@ -2,6 +2,7 @@ import { Alert, Text, Box } from "@/ui";
 import * as palette from "@/ui/palette";
 import { IconAlertCircle } from "@/components/common/Icons";
 import { createMemo, createSignal, createEffect, Show } from "solid-js";
+import { useTablePrefs } from "../common/useTablePrefs";
 import { useStoreSnapshot } from "../paper-trading/storeSnapshot";
 import { useBacktestQueryParams } from "./useBacktestQueryParams";
 import { BacktestConfig, BacktestProgress, TradeHistoryTable } from ".";
@@ -73,11 +74,29 @@ function useSortHandlers() {
 }
 
 function useTradeSortHandlers() {
+  // The unified trade sort is prop-driven (not TanStack), so its persistence
+  // lives beside the signals that own it, under its own table scope.
+  const { prefs, setSorting, hydrated } = useTablePrefs("backtest.trades");
   const [column, setColumn] = createSignal("entry_time");
   const [direction, setDirection] = createSignal<"asc" | "desc">("desc");
+
+  let appliedSavedSort = false;
+  createEffect(() => {
+    if (appliedSavedSort || !hydrated()) return;
+    const sorting = prefs().sorting;
+    appliedSavedSort = true;
+    // Only one saved directive maps unambiguously onto the two sort props.
+    if (sorting.length !== 1) return;
+    setColumn(sorting[0].id);
+    setDirection(sorting[0].desc ? "desc" : "asc");
+  });
+
   const handleSort = (col: string) => {
-    if (column() === col) setDirection((d) => (d === "asc" ? "desc" : "asc"));
-    else { setColumn(col); setDirection("desc"); }
+    const nextDirection: "asc" | "desc" =
+      column() === col ? (direction() === "asc" ? "desc" : "asc") : "desc";
+    setColumn(col);
+    setDirection(nextDirection);
+    setSorting([{ id: col, desc: nextDirection === "desc" }]);
   };
   return { column, direction, handleSort };
 }
@@ -151,10 +170,9 @@ function useBacktestActions(state: () => ReturnType<typeof getBacktestState>, ch
       highlightTradeRow(tradeNumber, scroller, false);
       return;
     }
-    const chartData = state().selectedChartSymbol
-      ? state().chartData.get(state().selectedChartSymbol)
-      : undefined;
-    zoomToTrade(state().selectedChartSymbol || "", tradeNumber, chartData);
+    const symbol = state().selectedChartSymbol;
+    const chartData = symbol ? state().chartData.get(symbol) : undefined;
+    zoomToTrade(symbol ?? "", tradeNumber, chartData);
     highlightTradeRow(tradeNumber, document.querySelector('[data-testid="trade-history-table"]'), false);
   };
 

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
+import { render, screen, cleanup, fireEvent, waitFor } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { PerformanceView } from "./PerformanceView";
@@ -86,6 +86,24 @@ describe("PerformanceView", () => {
     ));
     fireEvent.click(screen.getByText("ORB v1"));
     expect(onSelectStrategy).toHaveBeenCalledWith(1);
+  });
+
+  it("clicking W / L sorts winners numerically (10/2 above 9/1 for desc)", async () => {
+    const perf: StrategyPerformance[] = [
+      { strategy_id: 1, strategy_name: "Nine", total_trades: 10, winners: 9, losers: 1, win_rate: 90, total_pnl: 900, net_pnl: 900 },
+      { strategy_id: 2, strategy_name: "Ten", total_trades: 12, winners: 10, losers: 2, win_rate: 83, total_pnl: 1000, net_pnl: 1000 },
+    ];
+    render(() => (
+      <UIProvider>
+        <PerformanceView performance={perf} strategies={[]} onSelectStrategy={vi.fn()} isLoading={false} />
+      </UIProvider>
+    ));
+    const firstName = () =>
+      document.querySelector('[data-testid="performance-table"] tbody [data-row="stock"]')?.textContent ?? "";
+    expect(firstName()).toContain("Nine");
+    fireEvent.click(screen.getByText("W / L"));
+    // "10/2" must rank above "9/1" — a lexicographic string sort would put "9" first.
+    await waitFor(() => expect(firstName()).toContain("Ten"));
   });
 
 });

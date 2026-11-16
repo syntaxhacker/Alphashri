@@ -2,6 +2,7 @@ import * as palette from "@/ui/palette";
 import { createMemo, onMount, onCleanup, createEffect, Show } from "solid-js";
 import { Box, Stack, Text } from "@/ui";
 import { Select } from "@/ui";
+import { useColorScheme } from "@/ui";
 import { loadEcharts } from "../../utils/loadEcharts";
 import type { HeatmapStock } from "../../api/heatmap";
 import {
@@ -64,7 +65,8 @@ export interface HeatmapTreemapProps {
 }
 
 export function HeatmapTreemap(props: HeatmapTreemapProps) {
-  const isDark = typeof document !== "undefined" ? document.documentElement.getAttribute("data-dark") === "true" : false;
+  const { colorScheme } = useColorScheme();
+  const isDark = () => colorScheme() === "dark";
   let chartEl: HTMLDivElement | undefined;
   let chart: any = null;
   let disposed = false;
@@ -79,18 +81,37 @@ export function HeatmapTreemap(props: HeatmapTreemapProps) {
   const metricMax = () => metricRange().max;
 
   const chartOption = createMemo(() =>
-    buildStockTreemapOption(props.stocks, metricKey(), metrics(), isDark, HEATMAP_TREEMAP_STYLE, props.sizeBy),
+    buildStockTreemapOption(props.stocks, metricKey(), metrics(), isDark(), HEATMAP_TREEMAP_STYLE, props.sizeBy),
   );
 
   const handleChartClick = (params: { name?: string }) => {
     if (params?.name) props.onSymbolClick?.(params.name);
   };
 
+  const resizeChart = () => {
+    if (chart) chart.resize();
+  };
+
+  let resizeFrame = 0;
+  let observer: ResizeObserver | null = null;
+
+  const scheduleResize = () => {
+    if (resizeFrame) return;
+    resizeFrame = requestAnimationFrame(() => {
+      resizeFrame = 0;
+      resizeChart();
+    });
+  };
+
+  const hasArea = (entries: ResizeObserverEntry[]) => {
+    const rect = entries[entries.length - 1]?.contentRect;
+    return !!rect && rect.width > 0 && rect.height > 0;
+  };
+
   onMount(() => {
     const el = chartEl;
-    const resize = () => chart?.resize();
-    window.addEventListener("resize", resize);
-    onCleanup(() => window.removeEventListener("resize", resize));
+    window.addEventListener("resize", resizeChart);
+    onCleanup(() => window.removeEventListener("resize", resizeChart));
 
     if (!el) return;
     void loadEcharts().then((echartsLib) => {
@@ -100,6 +121,15 @@ export function HeatmapTreemap(props: HeatmapTreemapProps) {
       instance.setOption(chartOption());
       if (props.onSymbolClick) {
         instance.on("click", handleChartClick);
+      }
+      // Opening the chart dock resizes this host without a window resize, so the
+      // canvas would keep its old width and overflow the narrowed column.
+      if (typeof ResizeObserver !== "undefined") {
+        observer = new ResizeObserver((entries) => {
+          if (!hasArea(entries)) return;
+          scheduleResize();
+        });
+        observer.observe(el);
       }
     });
   });
@@ -111,6 +141,12 @@ export function HeatmapTreemap(props: HeatmapTreemapProps) {
 
   onCleanup(() => {
     disposed = true;
+    if (resizeFrame) {
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = 0;
+    }
+    observer?.disconnect();
+    observer = null;
     chart?.dispose();
     chart = null;
   });

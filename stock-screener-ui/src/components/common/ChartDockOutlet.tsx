@@ -16,6 +16,7 @@ export function ChartDockOutlet(props: { class?: string }) {
         el = node;
       }}
       data-testid="chart-dock-outlet"
+      data-dock-open="false"
       class={props.class}
     />
   );

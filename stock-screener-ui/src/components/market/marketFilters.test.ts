@@ -36,6 +36,10 @@ function row(symbol: string, overrides: Partial<MarketRow> = {}): MarketRow {
     high52w: 120,
     low52w: 60,
     pos52w: 66,
+    peRatio: null,
+    pbRatio: null,
+    dividendYield: null,
+    roe: null,
     fno: false,
     etf: false,
     ...overrides,
@@ -251,10 +255,25 @@ describe("filterMarketRows", () => {
     );
   });
 
-  test("sector select is an exact match", () => {
-    expect(symbols(filterMarketRows(ROWS, filters({ sector: "IT" })))).toEqual(["MIDCO"]);
-    expect(filterMarketRows(ROWS, filters({ sector: "Energy" }))).toHaveLength(1);
-    expect(filterMarketRows(ROWS, filters({ sector: "Banking" }))).toEqual([]);
+  test("sector filter is an exact multi-select set", () => {
+    expect(symbols(filterMarketRows(ROWS, filters({ sectors: ["IT"] })))).toEqual(["MIDCO"]);
+    expect(symbols(filterMarketRows(ROWS, filters({ sectors: ["IT", "Pharma"] })))).toEqual([
+      "MIDCO",
+      "SMALLCO",
+    ]);
+    expect(symbols(filterMarketRows(ROWS, filters({ sectors: ["Energy", "Pharma"] })))).toEqual([
+      "LARGECO",
+      "SMALLCO",
+    ]);
+    expect(filterMarketRows(ROWS, filters({ sectors: ["Banking"] }))).toEqual([]);
+    // an empty selection is "all sectors", including rows with no sector
+    expect(defaultMarketFilters().sectors).toEqual([]);
+    expect(symbols(filterMarketRows(ROWS, filters({ sectors: [] })))).toEqual([
+      "ETFCO",
+      "LARGECO",
+      "MIDCO",
+      "SMALLCO",
+    ]);
   });
 
   test("combinations compose (cap + RSI + change)", () => {
@@ -381,7 +400,7 @@ describe("buildMarketFilterChips", () => {
         aboveSma200: true,
         fnoOnly: true,
         etfOnly: true,
-        sector: "Energy",
+        sectors: ["Energy"],
       }),
     );
     const keys = chips.map((c) => c.key);
@@ -399,9 +418,26 @@ describe("buildMarketFilterChips", () => {
       "sma200",
       "fno",
       "etf",
-      "sector",
+      "sector:Energy",
     ]);
     expect(countActiveMarketFilters(filters({ rsiMin: 30, fnoOnly: true }))).toBe(2);
+  });
+
+  test("one chip per selected sector, each independently removable", () => {
+    const chips = buildMarketFilterChips(filters({ sectors: ["IT", "Pharma"] }));
+    expect(chips).toEqual([
+      { key: "sector:IT", label: "Sector: IT" },
+      { key: "sector:Pharma", label: "Sector: Pharma" },
+    ]);
+    expect(countActiveMarketFilters(filters({ sectors: ["IT", "Pharma"] }))).toBe(2);
+
+    const three = buildMarketFilterChips(filters({ sectors: ["IT", "Pharma", "Energy"] }));
+    // Per-sector keys: dropping one key removes exactly one chip. A single shared
+    // "sector" key would let the panel's remove-by-key wipe the whole selection.
+    const withoutPharma = three.filter((c) => c.key !== "sector:Pharma");
+    expect(withoutPharma).toHaveLength(three.length - 1);
+    expect(withoutPharma.map((c) => c.key)).toEqual(["sector:IT", "sector:Energy"]);
+    expect(withoutPharma.map((c) => c.label)).toEqual(["Sector: IT", "Sector: Energy"]);
   });
 
   test("one-sided ranges and sort exclusion", () => {
@@ -418,6 +454,28 @@ describe("buildMarketFilterChips", () => {
   test("chip labels are human readable", () => {
     const chips = buildMarketFilterChips(filters({ mcapMinCr: 5000, aboveSma200: true }));
     expect(chips.map((c) => c.label)).toEqual(["MCap ≥ 5000 Cr", "Above SMA 200"]);
+  });
+
+  // A persisted max is invisible without its own chip: the values are saved, so
+  // the user must be able to see and remove the ceiling that hides rows.
+  test("a max-only MCap bound renders its own chip and is removable by key", () => {
+    const chips = buildMarketFilterChips(filters({ mcapMaxCr: 90000 }));
+    expect(chips).toEqual([{ key: "mcap", label: "MCap ≤ 90000 Cr" }]);
+    expect(countActiveMarketFilters(filters({ mcapMaxCr: 90000 }))).toBe(1);
+  });
+
+  test("a max-only RelVol bound renders its own chip", () => {
+    const chips = buildMarketFilterChips(filters({ relVolMax: 3 }));
+    expect(chips).toEqual([{ key: "relvol", label: "RelVol ≤ 3" }]);
+  });
+
+  test("a two-ended MCap or RelVol range reads as one range chip", () => {
+    expect(buildMarketFilterChips(filters({ mcapMinCr: 5000, mcapMaxCr: 90000 }))).toEqual([
+      { key: "mcap", label: "MCap 5000–90000 Cr" },
+    ]);
+    expect(buildMarketFilterChips(filters({ relVolMin: 1.5, relVolMax: 6 }))).toEqual([
+      { key: "relvol", label: "RelVol 1.5–6" },
+    ]);
   });
 });
 

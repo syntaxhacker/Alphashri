@@ -32,6 +32,11 @@ vi.mock("lightweight-charts", () => ({
 
 const fetchMock = vi.fn();
 
+const searchSymbols = vi.fn();
+vi.mock("@/api/symbols", () => ({
+  searchSymbols: (...args: unknown[]) => searchSymbols(...args),
+}));
+
 beforeEach(() => {
   class ResizeObserverMock {
     observe = vi.fn();
@@ -58,6 +63,8 @@ beforeEach(() => {
   fetchMock.mockResolvedValue({
     json: () => Promise.resolve({ bars: [], trades: [] }),
   } as unknown as Response);
+  searchSymbols.mockReset();
+  searchSymbols.mockResolvedValue([{ symbol: "RELIANCE", name: "Reliance Industries" }]);
 });
 
 afterEach(() => {
@@ -88,5 +95,51 @@ describe("ReplayShell manual run mode", () => {
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(String(fetchMock.mock.calls[0][0])).toContain("symbol=RELIANCE");
+  });
+});
+
+/**
+ * The Replay page shell is `h-screen overflow-hidden` and its cards clip too, so
+ * an in-flow `absolute` list was cut off at the field's own height. The symbol
+ * field now uses the shared portalled autocomplete — pin that here so a
+ * re-duplicated local copy cannot silently regress.
+ */
+describe("ReplayShell symbol field — portalled list", () => {
+  const listbox = () => document.querySelector<HTMLElement>('[data-part="symbol-autocomplete-list"]');
+
+  test("renders the option list in a fixed portal, not as an absolute child", async () => {
+    const shell = render(() => (
+      <div style={{ height: "100vh", overflow: "hidden" }}>
+        <ReplayShell plugin={getStrategy("orb")!} />
+      </div>
+    ));
+
+    const input = screen.getByLabelText("Symbol");
+    await fireEvent.input(input, { target: { value: "RELI" } });
+    await waitFor(() => expect(searchSymbols).toHaveBeenCalledWith("RELI", 10));
+    await screen.findByText("RELIANCE");
+
+    const list = listbox()!;
+    expect(shell.container.contains(list)).toBe(false);
+    expect(list.style.position).toBe("fixed");
+  });
+
+  test("a mousedown inside the list keeps it open and the click commits", async () => {
+    render(() => (
+      <div style={{ height: "100vh", overflow: "hidden" }}>
+        <ReplayShell plugin={getStrategy("orb")!} />
+      </div>
+    ));
+
+    const input = screen.getByLabelText("Symbol");
+    await fireEvent.input(input, { target: { value: "RELI" } });
+    const option = await screen.findByText("RELIANCE");
+
+    fireEvent.mouseDown(option);
+    expect(listbox()).not.toBeNull();
+
+    fireEvent.click(option);
+    expect(input).toHaveValue("RELIANCE");
+    expect(listbox()).toBeNull();
   });
 });

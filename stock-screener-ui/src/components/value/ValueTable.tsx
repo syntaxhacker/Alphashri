@@ -7,10 +7,11 @@ interface ValueTableProps {
   rows: ValueRow[];
   loading?: boolean;
   onRowClick?: (row: ValueRow) => void;
+  onSymbolClick?: (symbol: string) => void;
 }
 
 export function ValueTable(props: ValueTableProps) {
-  const columns = createMemo(() => buildValueColumns());
+  const columns = createMemo(() => buildValueColumns(props.onSymbolClick));
   return (
     <TanStackTable<ValueRow>
       data={props.rows}

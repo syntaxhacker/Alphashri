@@ -90,6 +90,20 @@ Also: `activePut(row)` when the callback takes the resolved value → `activePut
 Symptom: literal `function …` text on screen, a comparison that is always false, a testid
 reading `foo-<function>`, or NaN geometry in SVG.
 
+**The silent variant — `?? default` hides the wrong-object read.** Reading a property off
+the accessor *function* yields `undefined`, and a `?? default` turns that into a plausible
+value:
+
+```tsx
+const filters = () => props.filters;
+<NumberInput value={filters.max_pb ?? ""} />      // always "" — never warns
+<Switch checked={filters.require_low_de ?? false} />  // always off, still fires onChange
+```
+
+A controlled switch then shows OFF while the request carries the gate. Symptom: the
+`onChange` test passes, the screen disagrees; reopen a modal and every field is blank.
+Rule: when a prop is an accessor, every read gets `()`; `?? default` is not a substitute.
+
 ### 5.2 Numeric style values (silently dropped)
 
 Solid writes styles via `style.setProperty`, which needs a **string**. `height: 24` is
@@ -264,6 +278,23 @@ test, and restoring. State the before/after.
 
 If you added a test that passes both ways, it is not a regression test.
 
+### Scenario coverage — enumerate before you test
+
+Unit tests assert the code you wrote; scenarios assert the **user's states**. Four recent
+defects were fully "tested" and still shipped because nobody enumerated the matrix:
+
+- sector filter made the SECTOR column constant → the column should have been hidden;
+- the chart icon opened the dock but the row never selected → arrows did nothing;
+- the toolbar tooltip was clipped by `overflow:hidden` → the test measured a bare harness;
+- `{candles: [], error: "no_data", note: …}` rendered a blank chart → the type never
+  admitted `error`/`note`, so the UI could not show them.
+
+Before writing tests, copy the relevant rows of `docs/TEST_SCENARIOS.md` into the brief and
+end every row as **test added**, **existing test (name it)**, or **N/A + reason**. Axes
+that must be enumerated: data state, view, input modality, theme, persistence, ancestor
+overflow, and request races. Prefer user-visible assertions (computed style, DOM text, row
+count, URL, `elementFromPoint`) over spies.
+
 ### Known flakes — do not "fix" them by weakening the test
 
 - `ScreenerConfigView.test.tsx › preview debounce` — **fixed**: it asserted
@@ -301,9 +332,11 @@ Canonical source for model routing **and** concurrency — `AGENTS.md` and
 
 | Purpose | Model |
 |---|---|
-| **Default for all subagent work** | `opencode/nemotron-3.5-super-vl-free` ("Nemotron 3.5 Super VL Free", $0) |
-| Fallback pool (use when a free tier reports `Free usage limit reached`) | `opencode/deepseek-v4.1-flash-free`, `openrouter/nvidia/nemotron-3.5-super-vl:free`, `openrouter/baidu/ernie-5.5-flash-preview:free`, `commandcode/deepseek-v4.1` |
-| Adversarial / final verification | escalate one agent, state why |
+| **Default for all subagent work** | `opencode/nemotron-3.5-super-vl-free` ("Nemotron 3.5 Super VL Free") — temporary instruction, 2026-11-16, while Hy4 is overloaded |
+| Never use | any paid model, or a different free model without the user changing this line |
+| If Nemotron reports a free-usage limit | stop and report; do not silently swap to another provider |
+| Revert | back to `opencode/hy4-flash-free` once Hy4 stops returning "inference service is overloaded" |
+| If the user changes the model | update this table first, then dispatch |
 
 - The user's standing instruction is **one model for every agent** — do not mix models
   across a wave unless asked.
@@ -339,6 +372,9 @@ Canonical source for model routing **and** concurrency — `AGENTS.md` and
 - tsc count for the scope: before → after (if a tsc task)
 - if the brief claims a layout now fits: `getBoundingClientRect()` before → after
 
+## Scenario coverage (from docs/TEST_SCENARIOS.md)
+- <paste the relevant rows; each ends as test-added / existing-test / N/A + reason>
+
 ## Return
 files changed · diff summary per file · commands run · pass/fail counts ·
 runtime bugs found (separate from type-only) · risks · blockers
@@ -359,7 +395,8 @@ A report is rejected without **pass/fail counts**, the **exact commands**, and a
 3. Commands run verbatim.
 4. Test/lint/tsc output with counts (before → after for tsc).
 5. **Runtime bugs found**, listed separately from type-only fixes.
-6. Risks / untested paths.
-7. Blockers, or "none".
+6. **Scenario coverage** table — every row from the brief, with test-added / existing-test / N/A+reason.
+7. Risks / untested paths.
+8. Blockers, or "none".
 
 Never claim a surface "looks correct" if you cannot see it. Say what you measured.

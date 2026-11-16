@@ -6,6 +6,8 @@ const MARKET_API = `${API_BASE}/api/market`;
 
 export const DEFAULT_MARKET_UNIVERSE: MarketUniverse = "all_equity";
 export const MARKET_SNAPSHOT_LIMIT = 4000;
+/** Backend hard cap on symbols per /api/market/snapshot request. */
+export const MARKET_SYMBOLS_MAX = 20;
 
 const MARKET_SNAPSHOT_CACHE_PREFIX = "alphashri.market_snapshot.v1.";
 /** sessionStorage quota is ~5MB; stay well under it — an oversized entry is skipped, never truncated mid-row. */
@@ -111,6 +113,8 @@ export interface MarketSnapshotParams {
   universe?: MarketUniverse;
   limit?: number;
   force?: boolean;
+  /** Optional symbol filter (≤20); applied after the cached snapshot is built. */
+  symbols?: string[];
 }
 
 export function buildMarketSnapshotUrl(params: MarketSnapshotParams = {}): string {
@@ -118,6 +122,7 @@ export function buildMarketSnapshotUrl(params: MarketSnapshotParams = {}): strin
   search.set("universe", params.universe ?? DEFAULT_MARKET_UNIVERSE);
   search.set("limit", String(params.limit ?? MARKET_SNAPSHOT_LIMIT));
   if (params.force) search.set("force", "true");
+  if (params.symbols?.length) search.set("symbols", params.symbols.join(","));
   return `${MARKET_API}/snapshot?${search.toString()}`;
 }
 
@@ -228,4 +233,92 @@ export async function fetchMarketSnapshot(
     throw new Error(err?.detail || `Market snapshot failed (HTTP ${response.status})`);
   }
   return mapMarketSnapshot((await response.json()) as RawMarketSnapshot);
+}
+
+/** The only snapshot fields the pattern dock needs for its live-price line. */
+export interface MarketQuote {
+  symbol: string;
+  close: number | null;
+  change: number | null;
+}
+
+/**
+ * Trim symbols and dedupe case-insensitively (first occurrence wins, original
+ * casing preserved). Empty/whitespace-only entries are dropped.
+ */
+function dedupeSymbols(symbols: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of symbols) {
+    const sym = s.trim();
+    if (!sym) continue;
+    const key = sym.toUpperCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(sym);
+  }
+  return out;
+}
+
+/**
+ * Fetch live quotes for a single batch (≤20 symbols) via the cached
+ * snapshot's `symbols` filter.
+ */
+async function fetchQuotesBatch(symbols: string[], init?: RequestInit): Promise<MarketQuote[]> {
+  const response = await fetchWithAuth(buildMarketSnapshotUrl({ symbols }), init);
+  if (!response.ok) {
+    const err = (await response.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(err?.detail || `Market quotes failed (HTTP ${response.status})`);
+  }
+  const raw = (await response.json()) as RawMarketSnapshot;
+  const rows = Array.isArray(raw.rows) ? raw.rows : [];
+  return rows.map((row) => {
+    const r = row as RawMarketRow;
+    return {
+      symbol: toText(r.symbol) ?? "",
+      close: toNumber(r.close),
+      change: toNumber(r.change),
+    };
+  });
+}
+
+/**
+ * Fetch live quotes for a handful of symbols via the cached snapshot's
+ * `symbols` filter. An empty list short-circuits to `[]` (no network call).
+ *
+ * The backend caps the `symbols` filter at 20, so a longer list is deduped,
+ * chunked into batches of ≤20, fetched in parallel, and merged in input order.
+ * A single symbol still makes exactly one request.
+ */
+export async function fetchQuotes(symbols: string[], init?: RequestInit): Promise<MarketQuote[]> {
+  const clean = dedupeSymbols(symbols);
+  if (clean.length === 0) return [];
+  if (clean.length <= MARKET_SYMBOLS_MAX) return fetchQuotesBatch(clean, init);
+  const batches: string[][] = [];
+  for (let i = 0; i < clean.length; i += MARKET_SYMBOLS_MAX) {
+    batches.push(clean.slice(i, i + MARKET_SYMBOLS_MAX));
+  }
+  // One failed batch must not reject the whole quote set: settle every batch,
+  // merge the successes in input order, and only rethrow when every batch fails.
+  const outcomes = await Promise.allSettled(
+    batches.map((batch) => fetchQuotesBatch(batch, init)),
+  );
+  const merged: MarketQuote[] = [];
+  const seen = new Set<string>();
+  let firstError: unknown;
+  for (const outcome of outcomes) {
+    if (outcome.status === "fulfilled") {
+      for (const quote of outcome.value) {
+        if (seen.has(quote.symbol)) continue;
+        seen.add(quote.symbol);
+        merged.push(quote);
+      }
+    } else if (firstError === undefined) {
+      firstError = outcome.reason;
+    }
+  }
+  if (merged.length === 0 && firstError !== undefined) {
+    throw firstError;
+  }
+  return merged;
 }

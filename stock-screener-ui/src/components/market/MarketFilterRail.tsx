@@ -3,7 +3,7 @@ import {
   Box,
   Checkbox,
   Divider,
-  Select,
+  MultiSelect,
   Switch,
   Text,
   ActionIcon,
@@ -14,12 +14,8 @@ import { RangeInput } from "../common/RangeInput";
 import {
   CAP_TIERS,
   CAP_TIER_LABELS,
-  MARKET_SORT_OPTIONS,
   type MarketFilterState,
-  type MarketSortKey,
 } from "./marketFilters";
-
-const SECTOR_ALL = "__all__";
 
 /** One size for every band label in the rail — header included. */
 const SECTION_LABEL = "text-[10px] uppercase tracking-[0.06em]";
@@ -249,26 +245,17 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
 
       <Divider />
 
-      <RailSection title="Sector & sort">
-        <Select
+      <RailSection title="Sector">
+        <MultiSelect
           size="xs"
-          data={[
-            { value: SECTOR_ALL, label: "All sectors" },
-            ...props.sectors.map((s) => ({ value: s, label: s })),
-          ]}
-          value={filters().sector ?? SECTOR_ALL}
-          onChange={(v) => props.onChange({ sector: !v || v === SECTOR_ALL ? null : v })}
-          aria-label="Sector"
+          data={props.sectors}
+          value={filters().sectors}
+          onChange={(v) => props.onChange({ sectors: v })}
+          placeholder="All sectors"
+          clearable
+          searchable
+          aria-label="Sectors"
           data-testid="market-filter-sector"
-        />
-
-        <Select
-          size="xs"
-          data={MARKET_SORT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-          value={filters().sort}
-          onChange={(v) => v && props.onChange({ sort: v as MarketSortKey })}
-          aria-label="Sort rows"
-          data-testid="market-filter-sort"
         />
       </RailSection>
     </Box>

@@ -9,7 +9,7 @@
 //   - Text #E8E8E8, muted #9B9B9B, dividers #6E6E6E
 //   - Primary/CTA: amber #D9902A (panel headers, active tabs, selection, keys)
 //   - Links/info: blue #4A8FD8
-//   - Bullish #2FA36B / bearish #D94A55 — tickers and deltas only
+//   - Bullish #2FA36B / bearish #E5606A — tickers and deltas only
 // Every other color in the app derives from here. Changing a raw anchor
 // below re-themes the whole UI; never hardcode a hex outside this file.
 // ============================================================
@@ -17,7 +17,7 @@
 // ----- Raw anchors -----
 export const PRIMARY = "#D9902A";        // amber chrome
 export const POSITIVE_COLOR = "#2FA36B"; // bullish green
-export const NEGATIVE_COLOR = "#D94A55"; // bearish red
+export const NEGATIVE_COLOR = "#E5606A"; // bearish red — raised for 4.5:1 text contrast on SURFACE / SURFACE_ALT (was #D94A55: 4.37 / 3.75)
 export const TEXT_COLOR = "#E8E8E8";     // off-white
 export const TEXT_MUTED_COLOR = "#9B9B9B";
 export const BG_COLOR = "#000000";       // body / page

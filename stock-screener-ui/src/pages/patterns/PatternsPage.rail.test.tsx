@@ -399,13 +399,22 @@ function r(jsx: JSX.Element) {
 /**
  * Pick an option in a local MultiSelect. The listbox opens on combobox focus,
  * and the option toggles through its checkbox (clicking the bare `li` is inert).
+ * MultiSelect portals its listbox to document.body (it must escape the rail's
+ * `overflow-y-auto`), so the query is document-scoped and picks the listbox
+ * that owns the option — the presets select exposes same-named options.
  */
 async function pickMultiOption(selectTestId: string, name: string | RegExp) {
   const root = screen.getByTestId(selectTestId);
   const combobox = within(root).getByRole("combobox");
   fireEvent.focus(combobox);
   fireEvent.click(combobox);
-  const listbox = await within(root).findByRole("listbox");
+  const listbox = await waitFor(() => {
+    const matches = screen
+      .getAllByRole("listbox")
+      .filter((box) => within(box).queryByRole("option", { name }));
+    if (matches.length === 0) throw new Error(`no listbox with option ${String(name)}`);
+    return matches[matches.length - 1];
+  });
   const option = within(listbox).getByRole("option", { name });
   fireEvent.click(within(option).getByRole("checkbox"));
 }

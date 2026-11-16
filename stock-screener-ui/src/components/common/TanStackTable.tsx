@@ -1,11 +1,18 @@
-import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
-import { Box, Paper, ScrollArea, useDensity } from "@/ui";
+import { For, Show, createEffect, createMemo, createSignal, on } from "solid-js";
+import { Box, Button, Paper, ScrollArea, ToolbarRow, useDensity } from "@/ui";
 import { InlineLoader } from "./states";
+import { ColumnPicker, type ColumnPickerItem } from "./ColumnPicker";
 import * as palette from "@/ui/palette";
 import type { Accessor, JSX } from "solid-js";
 
 // `solid-js` does not re-export JSX.CSSProperties from its package root.
 type CSSProperties = JSX.CSSProperties;
+
+/** A single sort directive: column id + direction. */
+export interface SortEntry {
+  id: string;
+  desc: boolean;
+}
 
 
 /**
@@ -14,6 +21,77 @@ type CSSProperties = JSX.CSSProperties;
  */
 export interface TableColumnMeta {
   align?: "left" | "center" | "right";
+}
+
+/** Persisted shape of a table's column layout. `[]` means "declared default". */
+export interface ColumnPrefs {
+  order: string[];
+  hidden: string[];
+}
+
+export interface ResolvedColumnPrefs {
+  /** Every known id, in display order. */
+  order: string[];
+  /** Known + hideable ids only. */
+  hidden: string[];
+  /** Ids that render, in display order. Never empty for a non-empty table. */
+  visible: string[];
+}
+
+/**
+ * Merge saved prefs onto the live column declarations.
+ *
+ * `order` is advisory: unknown ids are dropped, known ids keep their saved
+ * position and columns added since the config was saved are appended in their
+ * declared order — so a new column can never be hidden by an older config.
+ * `hidden` is intersected with known ids and with the lockable set.
+ *
+ * The last step is the reachability guard: if a config hides every column, the
+ * locked column (or else the first in display order) is forced visible rather
+ * than rendering a table with no columns.
+ */
+export function resolveColumnPrefs(
+  columnIds: string[],
+  prefs: ColumnPrefs | undefined,
+  lockVisible: string[] = [],
+): ResolvedColumnPrefs {
+  const known = new Set(columnIds);
+  const order: string[] = [];
+  const placed = new Set<string>();
+  for (const id of prefs?.order ?? []) {
+    if (!known.has(id) || placed.has(id)) continue;
+    placed.add(id);
+    order.push(id);
+  }
+  for (const id of columnIds) {
+    if (placed.has(id)) continue;
+    placed.add(id);
+    order.push(id);
+  }
+
+  const locked = new Set(lockVisible.filter((id) => known.has(id)));
+  const hiddenSet = new Set<string>();
+  for (const id of prefs?.hidden ?? []) {
+    if (!known.has(id) || locked.has(id)) continue;
+    hiddenSet.add(id);
+  }
+
+  let visible = order.filter((id) => !hiddenSet.has(id));
+  if (visible.length === 0 && order.length > 0) {
+    // A table with no columns is not a table. Prefer the identity column; fall
+    // back to the first column in display order when no lock was declared.
+    const keeper = order.find((id) => locked.has(id)) ?? order[0];
+    hiddenSet.delete(keeper);
+    visible = order.filter((id) => !hiddenSet.has(id));
+  }
+
+  return { order, hidden: order.filter((id) => hiddenSet.has(id)), visible };
+}
+
+/** The picker needs text; a JSX/function header has none. */
+function columnLabel<T>(column: TableColumnDef<T>): string {
+  const header = column.header;
+  return typeof header === "string" && header.trim() !== "" ? header : column.id;
 }
 
 export interface TableColumnDef<T> {
@@ -41,7 +119,13 @@ export interface GroupHeaderInfo<T> {
 interface Props<T> {
   data: T[];
   columns: TableColumnDef<T>[];
-  initialState?: { sorting?: { id: string; desc: boolean }[]; expanded?: Record<string, boolean> };
+  initialState?: { sorting?: SortEntry[]; expanded?: Record<string, boolean> };
+  /** Initial sorting for an uncontrolled table (fallback when initialState.sorting is absent). */
+  initialSorting?: SortEntry[];
+  /** Controlled sorting source. When supplied, rendering follows it and only onSortingChange mutates it. */
+  sorting?: SortEntry[];
+  /** Emitted on every sort change, in both controlled and uncontrolled modes. */
+  onSortingChange?: (next: SortEntry[]) => void;
   /** Group rows by these column ids (requires enableGrouping). */
   grouping?: string[];
   /** Enables row grouping. */
@@ -69,6 +153,12 @@ interface Props<T> {
    * grouping) whenever that order changes.
    */
   onSortedRowsChange?: (rows: T[]) => void;
+  /**
+   * Emits the rows currently mounted in the virtualization window, once per
+   * real window change (length or first/last row). Callers use this to fetch
+   * supplementary data for exactly what is on screen — never for all rows.
+   */
+  onVisibleRowsChange?: (rows: T[]) => void;
   enableSorting?: boolean;
   /** Third click on a sorted column clears sorting. */
   enableSortingRemoval?: boolean;
@@ -87,6 +177,19 @@ interface Props<T> {
   minTableWidth?: number;
   /** Opt-in bare mode: skip the outer Paper wrapper. */
   bare?: boolean;
+  /**
+   * Reserved scope key for the saved-config store (e.g. `table.market`).
+   * Column controls are driven by `columnPrefs`; nothing here fetches or
+   * persists. It surfaces as `data-table-id` on the toolbar so a later task (or
+   * an E2E spec) can address this table's preferences unambiguously.
+   */
+  tableId?: string;
+  /** Opt-in column visibility + order picker. Off by default. */
+  enableColumnControls?: boolean;
+  columnPrefs?: ColumnPrefs;
+  onColumnPrefsChange?: (prefs: ColumnPrefs) => void;
+  /** Columns that cannot be hidden; the picker shows them disabled. */
+  lockVisible?: string[];
 }
 
 const ROW_ESTIMATED = 23;
@@ -106,6 +209,31 @@ function getValue<T>(row: T, column: TableColumnDef<T>): unknown {
   return undefined;
 }
 
+/**
+ * Missing values and NaN are not zeros — they trail in both directions. A null
+ * sorted as 0 read as "mid-pack" for signed metrics and "best" for negatives.
+ */
+function compareSortValues(aVal: unknown, bVal: unknown, desc: boolean): number {
+  const aMissing = aVal === null || aVal === undefined || aVal === "";
+  const bMissing = bVal === null || bVal === undefined || bVal === "";
+  if (aMissing || bMissing) {
+    if (aMissing && bMissing) return 0;
+    return aMissing ? 1 : -1;
+  }
+  if (typeof aVal === "string" && typeof bVal === "string") {
+    return desc ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
+  }
+  const an = Number(aVal);
+  const bn = Number(bVal);
+  const aNaN = Number.isNaN(an);
+  const bNaN = Number.isNaN(bn);
+  if (aNaN || bNaN) {
+    if (aNaN && bNaN) return 0;
+    return aNaN ? 1 : -1;
+  }
+  return desc ? bn - an : an - bn;
+}
+
 export function TanStackTable<T>(props: Props<T>) {
   const densityApi = useDensity();
   const isDense = () => props.dense ?? false;
@@ -123,11 +251,99 @@ export function TanStackTable<T>(props: Props<T>) {
     el.style.setProperty("--tbl-fs", `${isDense() ? 10 : 11}px`);
   });
 
-  const [sorting, setSorting] = createSignal<{ id: string; desc: boolean }[]>(props.initialState?.sorting ?? []);
+  const [internalSorting, setInternalSorting] = createSignal<SortEntry[]>(
+    props.initialState?.sorting ?? props.initialSorting ?? [],
+  );
+  const isSortControlled = () => props.sorting != null;
+  const sorting = (): SortEntry[] => (isSortControlled() ? props.sorting! : internalSorting());
+  const commitSorting = (next: SortEntry[]) => {
+    if (!isSortControlled()) setInternalSorting(next);
+    props.onSortingChange?.(next);
+  };
   const [expandedGroups, setExpandedGroups] = createSignal<Record<string, boolean>>({});
   const [expandedRows, setExpandedRows] = createSignal<Record<string, boolean>>({});
 
-  const visibleColumns = createMemo(() => props.columns.filter((col) => getColumnWidth(col) !== 0));
+  /** Declared columns that are not visibility-spacers (`size: 0`). */
+  const declaredColumns = createMemo(() => props.columns.filter((col) => getColumnWidth(col) !== 0));
+  const declaredIds = createMemo(() => declaredColumns().map((col) => col.id));
+
+  // One pass per prefs/columns change — never per row. Cell rendering reads
+  // `visibleColumns()` inside `<For>`, which only re-runs when this memo's
+  // identity changes.
+  const columnPrefsResolved = createMemo(() =>
+    resolveColumnPrefs(
+      declaredIds(),
+      // Inert unless the table opted in: a caller that passes prefs but leaves
+      // `enableColumnControls` off keeps the historical declared layout.
+      props.enableColumnControls ? props.columnPrefs : undefined,
+      props.enableColumnControls ? props.lockVisible : undefined,
+    ),
+  );
+
+  const columnsById = createMemo(() => new Map(declaredColumns().map((col) => [col.id, col])));
+
+  const visibleColumns = createMemo(() => {
+    const byId = columnsById();
+    const out: TableColumnDef<T>[] = [];
+    for (const id of columnPrefsResolved().visible) {
+      const col = byId.get(id);
+      if (col) out.push(col);
+    }
+    return out;
+  });
+
+  const emitPrefs = (next: ColumnPrefs) => props.onColumnPrefsChange?.(next);
+
+  /**
+   * Emits `order: []` when the layout still matches the declared order. Storing
+   * an explicit copy of today's order would freeze it: a later redesign that
+   * reorders the default columns would be silently overridden by a config the
+   * user never consciously set. `[]` means "no opinion", which is the truth.
+   */
+  const prefsForEmit = (order: string[], hiddenIds: string[]): ColumnPrefs => {
+    const declared = declaredIds();
+    const sameOrder = order.length === declared.length && order.every((id, i) => id === declared[i]);
+    return { order: sameOrder ? [] : order, hidden: hiddenIds };
+  };
+
+  const toggleColumnPref = (id: string, visible: boolean) => {
+    const current = columnPrefsResolved();
+    const hidden = new Set(current.hidden);
+    if (visible) hidden.delete(id);
+    else hidden.add(id);
+    emitPrefs(
+      prefsForEmit(
+        current.order,
+        current.order.filter((cid) => hidden.has(cid)),
+      ),
+    );
+  };
+
+  const moveColumnPref = (from: number, to: number) => {
+    const order = [...columnPrefsResolved().order];
+    if (from === to || from < 0 || to < 0 || from >= order.length || to >= order.length) return;
+    const [moved] = order.splice(from, 1);
+    order.splice(to, 0, moved);
+    emitPrefs(prefsForEmit(order, [...columnPrefsResolved().hidden]));
+  };
+
+  const resetColumnPrefs = () => emitPrefs({ order: [], hidden: [] });
+
+  const columnPickerItems = createMemo<ColumnPickerItem[]>(() => {
+    const resolved = columnPrefsResolved();
+    const byId = columnsById();
+    const hidden = new Set(resolved.hidden);
+    const locked = new Set(props.lockVisible ?? []);
+    return resolved.order.map((id) => {
+      const col = byId.get(id);
+      return {
+        id,
+        label: col ? columnLabel(col) : id,
+        visible: !hidden.has(id),
+        locked: locked.has(id),
+      };
+    });
+  });
 
   const enableSorting = () => props.enableSorting ?? true;
   const enableSortingRemoval = () => props.enableSortingRemoval ?? true;
@@ -140,16 +356,7 @@ export function TanStackTable<T>(props: Props<T>) {
       const { id, desc } = sorters[i];
       const col = props.columns.find((c) => c.id === id);
       if (!col) continue;
-      rows.sort((a, b) => {
-        let aVal = getValue(a, col);
-        let bVal = getValue(b, col);
-        if (typeof aVal === "string" && typeof bVal === "string") {
-          return desc ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
-        }
-        const an = aVal == null ? 0 : Number(aVal);
-        const bn = bVal == null ? 0 : Number(bVal);
-        return desc ? bn - an : an - bn;
-      });
+      rows.sort((a, b) => compareSortValues(getValue(a, col), getValue(b, col), desc));
     }
     return rows;
   });
@@ -254,40 +461,47 @@ export function TanStackTable<T>(props: Props<T>) {
     return props.initialState?.expanded?.[k] ?? false;
   };
 
-  const toggleSort = (id: string) => {
-    setSorting((prev) => {
-      const found = prev.find((s) => s.id === id);
-      const next = prev.filter((s) => s.id !== id);
-      // The clicked column becomes PRIMARY. Pushing it to the end left the
-      // previous sorter dominant, so clicking a header could never reorder the
-      // table — a header click always means "sort by this".
-      if (found) {
-        if (enableSortingRemoval() && found.desc) return next;
-        next.unshift({ id, desc: !found.desc });
-      } else {
-        // TanStack's auto-sort contract: text columns sort A→Z first, numeric
-        // columns sort biggest-first. Sample the first values to pick.
-        let desc = false;
-        const col = props.columns.find((c) => c.id === id);
-        if (col) {
-          let seen = 0;
-          let numeric = true;
-          for (const row of props.data) {
-            if (seen >= 5) break;
-            const v = getValue(row, col);
-            if (v === null || v === undefined || v === "") continue;
-            seen++;
-            if (typeof v !== "number") {
-              numeric = false;
-              break;
-            }
-          }
-          desc = seen > 0 && numeric;
-        }
-        next.unshift({ id, desc });
+  // TanStack's first-click contract: text columns sort A→Z first, numeric
+  // columns biggest-first. Sample the first values; shared by both the "new
+  // column" and "flip vs clear" paths so they can never disagree.
+  const descFirst = (col: TableColumnDef<T> | undefined): boolean => {
+    if (!col) return false;
+    let seen = 0;
+    let numeric = true;
+    for (const row of props.data) {
+      if (seen >= 5) break;
+      const v = getValue(row, col);
+      if (v === null || v === undefined || v === "") continue;
+      seen++;
+      if (typeof v !== "number") {
+        numeric = false;
+        break;
       }
-      return next;
-    });
+    }
+    return seen > 0 && numeric;
+  };
+
+  const toggleSort = (id: string) => {
+    const prev = sorting();
+    const found = prev.find((s) => s.id === id);
+    const next = prev.filter((s) => s.id !== id);
+    const col = props.columns.find((c) => c.id === id);
+    // The clicked column becomes PRIMARY. Pushing it to the end left the
+    // previous sorter dominant, so clicking a header could never reorder the
+    // table — a header click always means "sort by this".
+    if (found) {
+      // First click descends for numbers / ascends for text. The second flips
+      // the direction; only the third clears — flipping on desc was the bug
+      // that made ascending unreachable on numeric columns.
+      if (found.desc !== descFirst(col) && enableSortingRemoval()) {
+        commitSorting(next);
+        return;
+      }
+      next.unshift({ id, desc: !found.desc });
+    } else {
+      next.unshift({ id, desc: descFirst(col) });
+    }
+    commitSorting(next);
   };
 
   createEffect(() => {
@@ -320,11 +534,14 @@ export function TanStackTable<T>(props: Props<T>) {
     "table-layout": hasSizedColumns() ? "fixed" : "auto",
     "min-width": `${props.minTableWidth ?? Math.max(640, colCount() * 96)}px`,
     "border-collapse": "collapse",
-    "background-color": palette.SURFACE,
+    "background-color": "var(--color-fin-surface)",
     ...props.style,
   });
 
-  const tableClassName = () => `paper-tanstack-table ${props.className || ""}`;
+  // `paper-row-states` opts this table into the managed row states in style.css
+  // (base surface / hover / focus). The legacy paper-trading table paints an
+  // opaque surface on every <td>, so it needs its own `td`-level hover instead.
+  const tableClassName = () => `paper-tanstack-table paper-row-states ${props.className || ""}`;
 
   const numericColumnIds = createMemo(() => {
     const ids = new Set<string>();
@@ -348,9 +565,11 @@ export function TanStackTable<T>(props: Props<T>) {
 
   const rowStyleBase = (row: T): CSSProperties => ({
     "cursor": props.onRowClick ? "pointer" : undefined,
-    // The row owns the surface; cells inherit it so a selection/hover tint on
-    // the <tr> is actually visible.
-    "background-color": palette.SURFACE,
+    // Deliberately no inline surface: an inline background-color outranks every
+    // `:hover` rule, which is why hover never painted on the row. The surface is
+    // declared in style.css on `tr[data-row="stock"]`, so hover can win; an
+    // inline tint from `getRowStyle` still outranks CSS, so selection wins over
+    // hover. Cells inherit the resolved row background.
     ...props.getRowStyle?.(row),
   });
 
@@ -363,7 +582,7 @@ export function TanStackTable<T>(props: Props<T>) {
       "font-variant-numeric": "tabular-nums",
       "white-space": "nowrap",
       height: "var(--tbl-row-h, 23px)",
-      "border-bottom": `1px solid ${palette.BORDER}`,
+      "border-bottom": "1px solid var(--color-fin-border)",
       // Deliberately `background-color: inherit` for the base case: a cell that
       // paints its own opaque surface covers whatever `getRowStyle` put on the
       // <tr>, which is why the selected row (and every hover tint) was invisible.
@@ -387,8 +606,14 @@ export function TanStackTable<T>(props: Props<T>) {
 
   const renderHeader = (col: TableColumnDef<T>) => {
     const width = getColumnWidth(col);
+    const sortable = () => col.enableSorting !== false && enableSorting();
     const isSorted = () => sorting().some((s) => s.id === col.id);
     const sortDir = () => sorting().find((s) => s.id === col.id);
+    const ariaSort = () => {
+      if (!sortable()) return undefined;
+      if (!isSorted()) return "none";
+      return sortDir()?.desc ? "descending" : "ascending";
+    };
     const headerStyle = (): CSSProperties => ({
       padding: width === 0 ? "0" : "var(--tbl-cell-pad, 2px 8px)",
       height: "var(--tbl-row-h, 23px)",
@@ -401,16 +626,16 @@ export function TanStackTable<T>(props: Props<T>) {
       "font-variant-numeric": "tabular-nums",
       "white-space": "nowrap",
       "user-select": "none",
-      color: palette.PRIMARY,
-      "border-bottom": `1px solid ${palette.BORDER}`,
+      color: "var(--color-fin-primary)",
+      "border-bottom": "1px solid var(--color-fin-border)",
       width: width !== undefined ? `${width}px` : undefined,
       display: width === 0 ? "none" : undefined,
       "text-align": getColumnMeta(col).align ?? (isNumeric(col.id) ? "right" : "left"),
-      "cursor": col.enableSorting !== false && enableSorting() ? "pointer" : "default",
+      "cursor": sortable() ? "pointer" : "default",
       position: props.stickyHeader ? "sticky" : undefined,
       top: props.stickyHeader ? 0 : undefined,
       "z-index": props.stickyHeader ? 1 : undefined,
-      "background-color": props.stickyHeader ? palette.SURFACE_ALT : undefined,
+      "background-color": props.stickyHeader ? "var(--color-fin-surface-alt)" : undefined,
     });
     const h = col.header;
     const content = typeof h === "function" ? h({ column: col }) : h != null ? <span>{h}</span> : <span>{col.id}</span>;
@@ -419,7 +644,15 @@ export function TanStackTable<T>(props: Props<T>) {
         className="paper-tanstack-header-cell"
         id={`paper-tanstack-header-${String(col.id)}`}
         style={headerStyle()}
-        onClick={() => col.enableSorting !== false && enableSorting() && toggleSort(col.id)}
+        tabIndex={sortable() ? 0 : undefined}
+        aria-sort={ariaSort()}
+        onClick={() => sortable() && toggleSort(col.id)}
+        onKeyDown={sortable() ? (event: KeyboardEvent) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            toggleSort(col.id);
+          }
+        } : undefined}
       >
         {content}
         {isSorted() && (sortDir()?.desc ? " ▼" : " ▲")}
@@ -432,7 +665,7 @@ export function TanStackTable<T>(props: Props<T>) {
     return (
       <Show when={shows() && isRowExpanded(row(), index())}>
         <tr className="paper-tanstack-expanded-row">
-          <td colSpan={colCount()} style={{ padding: "0px", "border-top": `1px solid ${palette.BORDER}`, "border-bottom": `1px solid ${palette.BORDER}`, background: palette.BG }}>
+          <td colSpan={colCount()} style={{ padding: "0px", "border-top": "1px solid var(--color-fin-border)", "border-bottom": "1px solid var(--color-fin-border)", background: "var(--color-fin-bg)" }}>
             {props.renderSubComponent?.(row())}
           </td>
         </tr>
@@ -458,6 +691,7 @@ export function TanStackTable<T>(props: Props<T>) {
           className={props.getRowClassName?.(row())}
           data-testid={props.getRowTestId?.(row(), index())}
           {...props.getRowAttributes?.(row(), index())}
+          data-clickable={props.onRowClick ? "true" : undefined}
           data-row="stock"
         >
           <For each={visibleColumns()}>{(col) => {
@@ -511,27 +745,57 @@ export function TanStackTable<T>(props: Props<T>) {
     const size = props.rowWindowSize;
     return typeof size === "number" && Number.isFinite(size) && size > 0 ? size : Number.POSITIVE_INFINITY;
   };
-  const [windowEnd, setWindowEnd] = createSignal(windowBase());
+  // `rowWindowSize` seeds the window; it is not a hard cap. `Load more` grows
+  // this signal by one page until the whole set is mounted.
+  const [visibleCount, setVisibleCount] = createSignal(windowBase());
 
-  // A new dataset resets the window: filtering must not leave 800 rows mounted.
-  createEffect(() => {
-    void props.data;
-    setWindowEnd(windowBase());
-  });
+  // Collapse back to one page only when the *row set* is reshaped. A live
+  // table hands us a fresh `data` array on every snapshot poll with the same
+  // rows; reacting to that identity would yank a "Load more" window back to
+  // one page. The memo turns the set-shaping inputs into a stable string so a
+  // same-length replacement is deduped (Solid memos compare with `===`) and
+  // `on(..., { defer: true })` preserves the lazy initial window.
+  const windowResetKey = createMemo(() =>
+    JSON.stringify([
+      props.data.length,
+      sorting().map((s) => [s.id, s.desc]),
+      visibleColumns().map((c) => c.id),
+      windowBase(),
+    ]),
+  );
+  createEffect(on(windowResetKey, () => setVisibleCount(windowBase()), { defer: true }));
 
   const visibleItems = createMemo(() => {
     const items = bodyItems();
-    return items.slice(0, Math.min(windowEnd(), items.length));
+    return items.slice(0, Math.min(visibleCount(), items.length));
+  });
+
+  // One callback per window change, never per row — a single effect that
+  // compares the mounted row identities. The snapshot's row objects are stable
+  // references, so a re-sort or filter fires exactly once while a cell update
+  // on an unchanged window fires nothing. Edges-only comparison would miss a
+  // window whose middle rows changed and silently starve a symbol-keyed
+  // consumer; the full sequence is ~80 reference compares, not 80 effects.
+  let lastVisible: T[] = [];
+  createEffect(() => {
+    if (!props.onVisibleRowsChange) return;
+    const rows: T[] = [];
+    for (const item of visibleItems()) {
+      if (item.kind === "row") rows.push(item.frame().row);
+    }
+    const same =
+      rows.length === lastVisible.length && rows.every((row, i) => row === lastVisible[i]);
+    if (same) return;
+    lastVisible = rows;
+    props.onVisibleRowsChange(rows);
   });
 
   const loadMore = () => {
     const total = bodyItems().length;
     const step = Number.isFinite(windowBase()) ? windowBase() : total;
-    setWindowEnd((n) => Math.min(n + step, total));
+    setVisibleCount((n) => Math.min(n + step, total));
   };
 
-  // rowWindowSize is a page size, not a hard cap: the footer stays honest and
-  // scrolling near the end extends the window.
   const hiddenCount = createMemo(() => {
     const total = bodyItems().length;
     const shown = visibleItems().length;
@@ -540,13 +804,26 @@ export function TanStackTable<T>(props: Props<T>) {
 
   const tableScroll = (
     <>
+      <Show when={props.enableColumnControls}>
+        <ToolbarRow
+          justify="flex-end"
+          wrap={false}
+          className="px-2 shrink-0 border-b border-fin-border bg-fin-surface"
+          style={{ height: "26px" }}
+          data-testid="table-column-controls"
+        >
+          <ColumnPicker
+            items={columnPickerItems()}
+            tableId={props.tableId}
+            onMove={moveColumnPref}
+            onToggle={toggleColumnPref}
+            onReset={resetColumnPrefs}
+          />
+        </ToolbarRow>
+      </Show>
       <ScrollArea
         className="paper-tanstack-scroll"
-        style={{ flex: 1, "min-height": "0px", overflow: "auto", display: "flex", "flex-direction": "column", "background-color": palette.SURFACE }}
-        onScroll={(e) => {
-          const el = e.currentTarget as HTMLElement;
-          if (el.scrollTop + el.clientHeight >= el.scrollHeight - 160) loadMore();
-        }}
+        style={{ flex: 1, "min-height": "0px", overflow: "auto", display: "flex", "flex-direction": "column", "background-color": "var(--color-fin-surface)" }}
       >
         <table
           ref={(el: HTMLTableElement) => (tableEl = el)}
@@ -617,18 +894,22 @@ export function TanStackTable<T>(props: Props<T>) {
       </ScrollArea>
       <Show when={hiddenCount() > 0}>
         <div
-          class="flex items-center justify-center gap-1 px-2 h-[18px] shrink-0 border-t border-fin-border text-[10px] text-fin-text-muted font-mono tabular-nums"
+          class="flex items-center justify-between gap-2 px-2 h-[22px] shrink-0 border-t border-fin-border text-[10px] text-fin-text-muted font-mono tabular-nums"
           data-testid="table-window-footer"
         >
-          showing {visibleItems().length} of {bodyItems().length}
-          <button
-            type="button"
+          <span>
+            showing {visibleItems().length} of {bodyItems().length} · {hiddenCount()} not rendered
+          </span>
+          <Button
+            size="xs"
+            variant="subtle"
+            data-testid="table-load-more"
+            style={{ height: "20px" }}
+            className="shrink-0"
             onClick={loadMore}
-            data-testid="table-window-load-more"
-            class="ml-1 underline decoration-dotted underline-offset-2 hover:text-fin-text"
           >
-            load more
-          </button>
+            Load more
+          </Button>
         </div>
       </Show>
     </>
@@ -641,8 +922,8 @@ export function TanStackTable<T>(props: Props<T>) {
     "flex-direction": "column",
     overflow: "hidden",
     "border-radius": "2px",
-    border: `1px solid ${palette.BORDER}`,
-    "background-color": palette.SURFACE,
+    border: "1px solid var(--color-fin-border)",
+    "background-color": "var(--color-fin-surface)",
     "max-height": props.fillContainer ? undefined : "65vh",
     "min-height": props.fillContainer ? 0 : "200px",
     flex: props.fillContainer ? "1 1 0%" : undefined,

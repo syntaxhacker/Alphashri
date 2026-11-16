@@ -106,4 +106,47 @@ describe("NotificationsPanel", () => {
       expect(mockedFetchSurges).toHaveBeenCalledTimes(2);
     });
   });
+
+  // The panel used to render a title bar with no exit — only a reload escaped.
+  it("closes via the × in the title bar", async () => {
+    mockedFetchSurges.mockResolvedValueOnce({ total: 0, events: [] });
+    const onClose = vi.fn();
+    render(() => (
+      <UIProvider>
+        <NotificationsPanel opened onClose={onClose} />
+      </UIProvider>
+    ));
+
+    const close = await screen.findByLabelText("close");
+    await fireEvent.click(close);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes via Escape", async () => {
+    mockedFetchSurges.mockResolvedValueOnce({ total: 0, events: [] });
+    const onClose = vi.fn();
+    render(() => (
+      <UIProvider>
+        <NotificationsPanel opened onClose={onClose} />
+      </UIProvider>
+    ));
+
+    await screen.findByText(/Surge Alerts/);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes via a backdrop click", async () => {
+    mockedFetchSurges.mockResolvedValueOnce({ total: 0, events: [] });
+    const onClose = vi.fn();
+    render(() => (
+      <UIProvider>
+        <NotificationsPanel opened onClose={onClose} />
+      </UIProvider>
+    ));
+
+    await screen.findByText(/Surge Alerts/);
+    await fireEvent.click(screen.getByRole("dialog"));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });

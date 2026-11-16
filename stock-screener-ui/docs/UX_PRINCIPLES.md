@@ -50,7 +50,8 @@ done.
 Never render a component through a function call in JSX (`{panel()}` where `panel = () => <X/>`):
 the expression re-runs on state change and constructs a new component every tick. Render the
 component and pass reactive props. Same for chart options: rebuild only when the data
-identity changes.
+identity changes. Inactive tabs unmount their bodies — never keep them mounted with
+`display:none` so size-sensitive children measure zero; table sorts rehydrate from `useTablePrefs`.
 
 ## 11. First load is not a refresh
 An empty container may show a skeleton or progress block. A container that already has

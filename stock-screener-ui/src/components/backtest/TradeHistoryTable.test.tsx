@@ -4,7 +4,7 @@ import { describe, expect, test, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, within } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { formatDateTimeHuman, formatDuration } from "../../utils/ui-helpers";
-import { sortTrades, TradeHistoryTable } from "./TradeHistoryTable";
+import { sortTrades, sortTradeRows, TradeHistoryTable } from "./TradeHistoryTable";
 import type { Trade } from "../../types/backtest";
 import { TINT_LOSS_ROW } from "../../config/colors";
 import "@testing-library/jest-dom/vitest";
@@ -35,6 +35,44 @@ function makeTrade(overrides: Partial<Trade> = {}): Trade {
     date: "2025-06-15",
     ...overrides,
   };
+}
+
+/** Every sortable column has a distinct value so a wrong order is unambiguous. */
+function sortingFixture(): Trade[] {
+  return [
+    makeTrade({
+      entry_time: "2025-06-12T09:30:00Z", exit_time: "2025-06-12T10:00:00Z",
+      side: "SHORT", quantity: 40, entry_price: 400, exit_price: 410,
+      or_high: 900, or_low: 90, net_pnl: -20, net_pnl_pct: -2,
+      hold_duration_minutes: 120, exit_reason: "TP",
+    }),
+    makeTrade({
+      entry_time: "2025-06-10T09:30:00Z", exit_time: "2025-06-10T10:00:00Z",
+      side: "LONG", quantity: 10, entry_price: 100, exit_price: 110,
+      or_high: 100, or_low: 10, net_pnl: 100, net_pnl_pct: 5,
+      hold_duration_minutes: 30, exit_reason: "SL",
+    }),
+    makeTrade({
+      entry_time: "2025-06-14T09:30:00Z", exit_time: "2025-06-14T10:00:00Z",
+      side: "SHORT", quantity: 25, entry_price: 250, exit_price: 260,
+      or_high: 500, or_low: 50, net_pnl: 50, net_pnl_pct: 1,
+      hold_duration_minutes: 60, exit_reason: "EOD",
+    }),
+    makeTrade({
+      entry_time: "2025-06-11T09:30:00Z", exit_time: "2025-06-11T10:00:00Z",
+      side: "LONG", quantity: 15, entry_price: 150, exit_price: 160,
+      or_high: 300, or_low: 30, net_pnl: 10, net_pnl_pct: 0.5,
+      hold_duration_minutes: 90, exit_reason: "TRAILING_STOP",
+    }),
+  ];
+}
+
+/** Stable 1-based trade numbers in the DOM's rendered row order. */
+function renderedTradeNumbers(): number[] {
+  const table = screen.getByTestId("trade-history-table");
+  return Array.from(table.querySelectorAll<HTMLElement>("[data-trade-number]")).map((row) =>
+    Number(row.getAttribute("data-trade-number")),
+  );
 }
 
 describe("formatDateTimeHuman", () => {
@@ -270,6 +308,82 @@ describe("sortTrades", () => {
     const sorted = sortTrades(tradesWithLevels, "level_low", "asc");
     expect(sorted[0].or_low).toBe(30);
     expect(sorted[2].or_low).toBe(80);
+  });
+});
+
+describe("shared trade sort (external helper vs table-header path)", () => {
+  const SORTABLE_COLUMNS = [
+    "entry_time", "exit_time", "side", "quantity", "entry_price", "exit_price",
+    "level_high", "level_low", "net_pnl", "net_pnl_pct", "hold_duration_minutes", "exit_reason",
+  ];
+  const noop = () => {};
+
+  test.each(
+    SORTABLE_COLUMNS.flatMap((column) =>
+      (["asc", "desc"] as const).map((direction) => ({ column, direction })),
+    ),
+  )("$column/$direction: both sort paths agree and the table renders that order", ({ column, direction }) => {
+    const trades = sortingFixture();
+    const stableNumbers = (ordered: Trade[]) => ordered.map((t) => trades.indexOf(t) + 1);
+    const expected = stableNumbers(sortTrades(trades, column, direction));
+
+    expect(stableNumbers(sortTradeRows(trades, column, direction))).toEqual(expected);
+
+    render(
+      () => (
+        <TradeHistoryTable
+          symbol="TCS" trades={trades}
+          sortColumn={column} sortDirection={direction}
+          onSort={noop} onRowClick={noop} onClose={noop}
+        />
+      ),
+      { wrapper: Wrapper },
+    );
+    expect(renderedTradeNumbers()).toEqual(expected);
+  });
+
+  test("null/undefined numeric values sort last in both directions", () => {
+    const asNull = makeTrade({ net_pnl: null as unknown as number });
+    const asUndefined = makeTrade({ net_pnl: undefined as unknown as number });
+    const trades = [makeTrade({ net_pnl: 50 }), asNull, makeTrade({ net_pnl: -10 }), asUndefined];
+
+    for (const direction of ["asc", "desc"] as const) {
+      const viaHelper = sortTrades(trades, "net_pnl", direction);
+      expect(sortTradeRows(trades, "net_pnl", direction)).toEqual(viaHelper);
+      expect(viaHelper.slice(0, 2).map((t) => t.net_pnl)).toEqual(
+        direction === "asc" ? [-10, 50] : [50, -10],
+      );
+      expect(viaHelper.slice(2)).toEqual(expect.arrayContaining([asNull, asUndefined]));
+    }
+  });
+
+  test("level_high fallback uses the same field order in both paths", () => {
+    // or_high → r1 → 52w_high → legacy 52w_high_entry → 0; each row pins a later rung.
+    const viaR1 = makeTrade({ r1: 100, "52w_high": 900 });
+    (viaR1 as any)["52w_high_entry"] = 950;
+    const via52w = makeTrade({ "52w_high": 200 });
+    (via52w as any)["52w_high_entry"] = 950;
+    const viaLegacy = makeTrade();
+    (viaLegacy as any)["52w_high_entry"] = 300;
+    const noLevel = makeTrade();
+
+    const trades = [viaLegacy, noLevel, via52w, viaR1];
+    const expected = [noLevel, viaR1, via52w, viaLegacy]; // 0 → 100 → 200 → 300
+
+    expect(sortTrades(trades, "level_high", "asc")).toEqual(expected);
+    expect(sortTradeRows(trades, "level_high", "asc")).toEqual(expected);
+
+    render(
+      () => (
+        <TradeHistoryTable
+          symbol="TCS" trades={trades}
+          sortColumn="level_high" sortDirection="asc"
+          onSort={noop} onRowClick={noop} onClose={noop}
+        />
+      ),
+      { wrapper: Wrapper },
+    );
+    expect(renderedTradeNumbers()).toEqual(expected.map((t) => trades.indexOf(t) + 1));
   });
 });
 

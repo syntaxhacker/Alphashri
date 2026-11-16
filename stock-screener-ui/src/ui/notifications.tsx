@@ -1,6 +1,7 @@
 import { showToast, ToastProvider, Toaster } from "solid-notifications";
 import type { JSX } from "solid-js";
 import type { UIThemeNotifyProps } from "./types";
+import { useColorScheme } from "./hooks";
 
 type ToastType = "default" | "success" | "error" | "warning" | "info";
 
@@ -40,9 +41,10 @@ export function showError(title: string, message: string) {
  * queue, `Toaster` renders it.
  */
 export function Notifications(props: { children?: JSX.Element }) {
+  const { colorScheme } = useColorScheme();
   return (
     <ToastProvider>
-      <Toaster {...POSITION} />
+      <Toaster {...POSITION} theme={colorScheme()} limit={4} />
       {props.children}
     </ToastProvider>
   );

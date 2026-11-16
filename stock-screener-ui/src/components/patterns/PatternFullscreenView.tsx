@@ -3,6 +3,7 @@ import {
   IconArrowsMaximize,
   IconChevronLeft,
   IconChevronRight,
+  IconRefresh,
   IconX,
 } from "@/ui/icons";
 import type {
@@ -79,6 +80,12 @@ export interface PatternFullscreenViewProps {
   chartError?: string | null;
   /** Human-readable reason shown when the chart has no candles. */
   chartNote?: string | null;
+  /** Live quote from the market snapshot; the LTP line is omitted when null. */
+  livePrice?: number | null;
+  /** Day change % paired with `livePrice`. */
+  liveChange?: number | null;
+  /** Re-fetch the symbol chart, bypassing the in-memory chart cache. */
+  onRefresh?: () => void;
 }
 
 /**
@@ -126,6 +133,9 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
       fill={props.docked ?? false}
       chartError={props.chartError ?? null}
       chartNote={props.chartNote ?? null}
+      loading={props.loading ?? false}
+      livePrice={props.livePrice}
+      liveChange={props.liveChange}
     />
   );
 
@@ -169,6 +179,22 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
       </Box>
     ) : null;
 
+  const refreshButton = props.onRefresh ? (
+    <Tooltip label="Refresh chart data">
+      <ActionIcon
+        size="xs"
+        variant="subtle"
+        aria-label="Refresh pattern data"
+        loading={props.loading ?? false}
+        onClick={props.onRefresh}
+        data-testid="patterns-dock-refresh"
+        className="mt-[2px] shrink-0"
+      >
+        <IconRefresh size={14} />
+      </ActionIcon>
+    </Tooltip>
+  ) : null;
+
   if (props.docked ?? false) {
     return (
       <Box
@@ -180,6 +206,7 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
         >
           <Box className="min-w-0 flex-1">{toolbar}</Box>
           {stepper}
+          {refreshButton}
           {props.asOf && props.onLive ? (
             <Tooltip label="Return to live data">
               <Button
@@ -236,6 +263,7 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
         >
           <Box className="min-w-0 flex-1">{toolbar}</Box>
           {stepper}
+          {refreshButton}
         </Box>
       }
       fullScreen

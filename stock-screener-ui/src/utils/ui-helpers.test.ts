@@ -118,6 +118,26 @@ describe("formatPercentage", () => {
   test("handles zero", () => {
     expect(formatPercentage(0)).toBe("+0.00%");
   });
+
+  test("returns dash for null, undefined, NaN and infinities without throwing", () => {
+    expect(() => formatPercentage(null)).not.toThrow();
+    expect(() => formatPercentage(undefined)).not.toThrow();
+    expect(() => formatPercentage(NaN)).not.toThrow();
+    expect(formatPercentage(null)).toBe("—");
+    expect(formatPercentage(undefined)).toBe("—");
+    expect(formatPercentage(NaN)).toBe("—");
+    expect(formatPercentage(Infinity)).toBe("—");
+    expect(formatPercentage(-Infinity)).toBe("—");
+  });
+
+  test("keeps exact formatting for finite values with the sign option", () => {
+    expect(formatPercentage(5.5)).toBe("+5.50%");
+    expect(formatPercentage(-3.2)).toBe("-3.20%");
+    expect(formatPercentage(5.5, 2, false)).toBe("5.50%");
+    expect(formatPercentage(-3.2, 2, false)).toBe("-3.20%");
+    expect(formatPercentage(5.567, 1)).toBe("+5.6%");
+    expect(formatPercentage(5.567, 3)).toBe("+5.567%");
+  });
 });
 
 describe("formatDateTimeHuman", () => {
@@ -355,6 +375,34 @@ describe("formatDateHeader", () => {
     const result = formatDateHeader("2026-03-20");
     const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     expect(weekdays.some((d) => result.includes(d))).toBe(true);
+  });
+
+  // A bare YYYY-MM-DD is a calendar day; every zone must render that same day.
+  const calendarDayCases: Array<[string, string]> = [
+    ["2026-03-20", "Fri, 20 Mar"],
+    ["2026-03-01", "Sun, 01 Mar"],
+    ["2026-12-31", "Thu, 31 Dec"],
+    ["2026-11-16", "Mon, 16 Nov"],
+  ];
+
+  describe.each(["America/New_York", "Asia/Kolkata", "UTC"])("in %s", (tz) => {
+    test.each(calendarDayCases)("%s renders %s", (input, expected) => {
+      vi.stubEnv("TZ", tz);
+      try {
+        expect(formatDateHeader(input)).toBe(expected);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+  });
+
+  test("west and east of UTC agree on the same calendar day", () => {
+    vi.stubEnv("TZ", "America/New_York");
+    const newYork = calendarDayCases.map(([input]) => formatDateHeader(input));
+    vi.stubEnv("TZ", "Asia/Kolkata");
+    const kolkata = calendarDayCases.map(([input]) => formatDateHeader(input));
+    vi.unstubAllEnvs();
+    expect(newYork).toEqual(kolkata);
   });
 });
 

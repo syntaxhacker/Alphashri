@@ -17,72 +17,59 @@ export function tradePnlPct(t: Trade): number {
   return Number.isFinite(pct) ? pct : 0;
 }
 
+type SortableTradeValue = number | string | null | undefined;
+
+function tradeSortValue(trade: Trade, column: string): SortableTradeValue {
+  switch (column) {
+    case "entry_time": return trade.entry_time || "";
+    case "exit_time": return trade.exit_time || "";
+    case "side": return (trade as any).side || "LONG";
+    case "quantity": return trade.quantity;
+    case "entry_price": return trade.entry_price;
+    case "exit_price": return trade.exit_price;
+    case "level_high":
+      // ORB high → S/R R1 → 52W high → legacy 52W entry high → 0. This is the union
+      // of both former fallback chains; the table-header path previously stopped at 52W high.
+      return trade.or_high ?? trade.r1 ?? trade["52w_high"] ?? (trade as any)["52w_high_entry"] ?? 0;
+    case "level_low": return trade.or_low ?? trade.s1 ?? 0;
+    case "net_pnl": return trade.net_pnl;
+    case "net_pnl_pct": return tradePnlPct(trade);
+    case "hold_duration_minutes": return trade.hold_duration_minutes;
+    case "exit_reason": return trade.exit_reason || "";
+    default: return 0; // unknown column → all values equal → stable original order
+  }
+}
+
+function compareTradeValues(aVal: SortableTradeValue, bVal: SortableTradeValue, direction: "asc" | "desc"): number {
+  const desc = direction === "desc";
+
+  if (typeof aVal !== "string" && typeof bVal !== "string") {
+    // Numeric metrics: missing/NaN trail in both directions so a null never reads
+    // as zero (worst for signed P&L, mid-pack for prices) — matches the shared tables.
+    const aMissing = aVal === null || aVal === undefined || (typeof aVal === "number" && Number.isNaN(aVal));
+    const bMissing = bVal === null || bVal === undefined || (typeof bVal === "number" && Number.isNaN(bVal));
+    if (aMissing || bMissing) {
+      if (aMissing && bMissing) return 0;
+      return aMissing ? 1 : -1;
+    }
+    return desc ? (bVal as number) - (aVal as number) : (aVal as number) - (bVal as number);
+  }
+
+  // Text columns keep the original localeCompare order, including empty-string placement.
+  const aStr = typeof aVal === "string" ? aVal : String(aVal ?? "");
+  const bStr = typeof bVal === "string" ? bVal : String(bVal ?? "");
+  return desc ? bStr.localeCompare(aStr) : aStr.localeCompare(bStr);
+}
+
+/** The single sort used by both the external helper and the table-header path. */
+export function sortTradeRows(rows: Trade[], column: string, direction: "asc" | "desc"): Trade[] {
+  return [...rows].sort((a, b) =>
+    compareTradeValues(tradeSortValue(a, column), tradeSortValue(b, column), direction),
+  );
+}
+
 export function sortTrades(trades: Trade[], column: string, direction: "asc" | "desc"): Trade[] {
-  return [...trades].sort((a, b) => {
-    let aVal: number | string = 0;
-    let bVal: number | string = 0;
-
-    switch (column) {
-      case "entry_time":
-        aVal = a.entry_time || "";
-        bVal = b.entry_time || "";
-        break;
-      case "exit_time":
-        aVal = a.exit_time || "";
-        bVal = b.exit_time || "";
-        break;
-      case "side":
-        aVal = (a as any).side || "LONG";
-        bVal = (b as any).side || "LONG";
-        break;
-      case "quantity":
-        aVal = a.quantity;
-        bVal = b.quantity;
-        break;
-      case "entry_price":
-        aVal = a.entry_price;
-        bVal = b.entry_price;
-        break;
-      case "exit_price":
-        aVal = a.exit_price;
-        bVal = b.exit_price;
-        break;
-      case "level_high":
-        aVal = a.or_high ?? a.r1 ?? a["52w_high"] ?? a["52w_high_entry"] ?? 0;
-        bVal = b.or_high ?? b.r1 ?? b["52w_high"] ?? b["52w_high_entry"] ?? 0;
-        break;
-      case "level_low":
-        aVal = a.or_low ?? a.s1 ?? 0;
-        bVal = b.or_low ?? b.s1 ?? 0;
-        break;
-      case "net_pnl":
-        aVal = a.net_pnl;
-        bVal = b.net_pnl;
-        break;
-      case "net_pnl_pct":
-        aVal = tradePnlPct(a);
-        bVal = tradePnlPct(b);
-        break;
-      case "hold_duration_minutes":
-        aVal = a.hold_duration_minutes;
-        bVal = b.hold_duration_minutes;
-        break;
-      case "exit_reason":
-        aVal = a.exit_reason || "";
-        bVal = b.exit_reason || "";
-        break;
-      default:
-        return 0;
-    }
-
-    if (typeof aVal === "string" && typeof bVal === "string") {
-      return direction === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-    }
-
-    return direction === "asc"
-      ? (aVal as number) - (bVal as number)
-      : (bVal as number) - (aVal as number);
-  });
+  return sortTradeRows(trades, column, direction);
 }
 
 interface TradeHistoryTableProps {
@@ -121,42 +108,9 @@ export function TradeHistoryTable(props: TradeHistoryTableProps) {
 
   const filtersActive = () => sideFilter() !== "ALL" || resultFilter() !== "ALL" || reasonFilter() !== "ALL";
 
-  const sortedTrades = createMemo(() => {
-    return [...filteredTrades()].sort((a, b) => {
-      let aVal: number | string = 0;
-      let bVal: number | string = 0;
-      switch (props.sortColumn) {
-        case "entry_time": aVal = a.entry_time || ""; bVal = b.entry_time || ""; break;
-        case "exit_time": aVal = a.exit_time || ""; bVal = b.exit_time || ""; break;
-        case "side": aVal = (a as any).side || "LONG"; bVal = (b as any).side || "LONG"; break;
-        case "quantity": aVal = a.quantity; bVal = b.quantity; break;
-        case "entry_price": aVal = a.entry_price; bVal = b.entry_price; break;
-        case "exit_price": aVal = a.exit_price; bVal = b.exit_price; break;
-        case "level_high":
-          aVal = a.or_high ?? a.r1 ?? a["52w_high"] ?? 0;
-          bVal = b.or_high ?? b.r1 ?? b["52w_high"] ?? 0;
-          break;
-        case "level_low":
-          aVal = a.or_low ?? a.s1 ?? 0;
-          bVal = b.or_low ?? b.s1 ?? 0;
-          break;
-        case "net_pnl": aVal = a.net_pnl; bVal = b.net_pnl; break;
-        case "net_pnl_pct":
-          aVal = tradePnlPct(a);
-          bVal = tradePnlPct(b);
-          break;
-        case "hold_duration_minutes": aVal = a.hold_duration_minutes; bVal = b.hold_duration_minutes; break;
-        case "exit_reason": aVal = a.exit_reason || ""; bVal = b.exit_reason || ""; break;
-        default: return 0;
-      }
-      if (typeof aVal === "string" && typeof bVal === "string") {
-        return props.sortDirection === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-      }
-      return props.sortDirection === "asc"
-        ? (aVal as number) - (bVal as number)
-        : (bVal as number) - (aVal as number);
-    });
-  });
+  const sortedTrades = createMemo(() =>
+    sortTradeRows(filteredTrades(), props.sortColumn, props.sortDirection),
+  );
 
   const summary = createMemo(() => {
     const pnl = filteredTrades().reduce((sum, t) => sum + t.net_pnl, 0);

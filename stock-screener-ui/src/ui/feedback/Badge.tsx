@@ -118,7 +118,7 @@ export function Badge(props: UIBadgeProps) {
         known.fullWidth ? "w-full" : "shrink-0",
         known.className,
       )}
-      style={{ ...shape(), color: isFilled ? palette.BG : main, ...known.style }}
+      style={{ ...shape(), color: isFilled ? "var(--color-fin-bg)" : main, ...known.style }}
       onClick={(e) => known.onClick?.(e)}
       onMouseEnter={(e) => known.onMouseEnter?.(e)}
       onMouseLeave={(e) => known.onMouseLeave?.(e)}

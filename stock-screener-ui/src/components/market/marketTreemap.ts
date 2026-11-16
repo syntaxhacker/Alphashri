@@ -1,6 +1,7 @@
 import type { HeatmapStock } from "@/api/heatmap";
 import type { MetricConfig } from "@/components/heatmap/heatmapUtils";
 import type { MarketRow } from "@/types/marketScreener";
+import type { MarketSortKey } from "./marketFilters";
 import { formatMarketCap } from "@/components/heatmap/heatmapUtils";
 
 export interface MarketTreemapRow extends HeatmapStock {
@@ -16,6 +17,28 @@ const CRORE = 1e7;
 
 function num(value: number | null | undefined): number | null {
   return value != null && Number.isFinite(value) ? value : null;
+}
+
+/**
+ * The treemap's layout order must not follow the table sort: the shared builder
+ * lays tiles out in array order (`sort: false`), so handing squarify an
+ * RSI-sorted list (small caps first) produced tall slivers with clipped labels.
+ * Unknown caps sort last; equal caps keep their filtered order.
+ */
+export function marketRowsByCapDesc(rows: readonly MarketRow[]): MarketRow[] {
+  return rows
+    .map((row, index) => ({
+      row,
+      index,
+      cap: row.marketCapCr != null && Number.isFinite(row.marketCapCr) ? row.marketCapCr : null,
+    }))
+    .sort((a, b) => {
+      if (a.cap === b.cap) return a.index - b.index;
+      if (a.cap === null) return 1;
+      if (b.cap === null) return -1;
+      return b.cap - a.cap;
+    })
+    .map((entry) => entry.row);
 }
 
 export function toTreemapRow(row: MarketRow): MarketTreemapRow {
@@ -81,4 +104,25 @@ export const MARKET_SIGNED_METRICS = new Set([
 
 export function isMarketSignedMetric(metric: string): boolean {
   return MARKET_SIGNED_METRICS.has(metric);
+}
+
+/**
+ * The sort control and the map's colour are the same user intent. The layout is
+ * cap-ordered on purpose (`marketRowsByCapDesc`), so without this mapping moving
+ * the sort looks like it did nothing at all. `symbol_asc` has no metric.
+ */
+const SORT_METRIC: Record<MarketSortKey, string | null> = {
+  day_desc: "change_pct",
+  day_asc: "change_pct",
+  relvol_desc: "relative_volume",
+  mcap_desc: "market_cap",
+  rsi_desc: "rsi",
+  perf_1m_desc: "perf_1m",
+  perf_w_desc: "perf_w",
+  pos_52w_desc: "pos_52w",
+  symbol_asc: null,
+};
+
+export function marketSortMetric(sort: MarketSortKey): string | null {
+  return SORT_METRIC[sort] ?? null;
 }

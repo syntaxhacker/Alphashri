@@ -1,4 +1,5 @@
-import { createMemo, createSignal, createUniqueId, createEffect, For, Show, splitProps } from "solid-js";
+import { createMemo, createSignal, createUniqueId, createEffect, For, onCleanup, Show, splitProps } from "solid-js";
+import { Portal } from "solid-js/web";
 import { cn } from "../cn";
 import { Checkbox } from "./Checkbox";
 import * as palette from "../palette";
@@ -47,6 +48,21 @@ const TAG_BOX = {
 const TAG_ROW_H = 18;
 const TAG_ROW_GAP = 4;
 const TAG_ROWS_MAX = 2;
+
+/**
+ * Menus are portalled to `<body>`, so a component whose owner never disposes
+ * (a tree built outside a root) would leave its menu floating over every later
+ * screen. A menu cannot outlive its trigger: drop those before opening another.
+ */
+const liveMenus = new Set<{ trigger: HTMLElement; host: HTMLElement }>();
+
+function pruneDetachedMenus() {
+  for (const menu of liveMenus) {
+    if (menu.trigger.isConnected) continue;
+    menu.host.remove();
+    liveMenus.delete(menu);
+  }
+}
 
 /**
  * How many trailing tags to hide behind a `+N` chip. `widths` are the tag widths
@@ -184,6 +200,12 @@ export function MultiSelect(props: UIMultiSelectProps) {
   });
   const [open, setOpen] = createSignal(false);
   const [highlighted, setHighlighted] = createSignal(-1);
+  let listboxEl: HTMLUListElement | undefined;
+
+  const listboxId = () => `${inputId}-listbox`;
+  const optionId = (index: number) => `${inputId}-option-${index}`;
+  const activeDescendant = () =>
+    open() && highlighted() >= 0 ? optionId(highlighted()) : undefined;
 
   const selectedValues = createMemo(() => known.value ?? internalSelected());
   const selectedSet = createMemo(() => new Set(selectedValues()));
@@ -271,9 +293,12 @@ export function MultiSelect(props: UIMultiSelectProps) {
 
   createEffect(() => {
     if (!open()) return undefined;
+    pruneDetachedMenus();
     const root = rootEl;
+    // The listbox is portalled, so `root.contains` is false for its own children.
     const handleOutside = (e: MouseEvent) => {
-      if (open() && root && !root.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node | null;
+      if (open() && root && !root.contains(target) && !listboxEl?.contains(target)) setOpen(false);
     };
     document.addEventListener("mousedown", handleOutside);
     return () => document.removeEventListener("mousedown", handleOutside);
@@ -328,6 +353,61 @@ export function MultiSelect(props: UIMultiSelectProps) {
   };
 
   const hasSelection = createMemo(() => selectedValues().length > 0);
+
+  /**
+   * The listbox is portalled and fixed: an absolute child is clipped by any
+   * ancestor with `overflow` — the market filter rail is `overflow-y-auto`, so
+   * the sector picker's 240px menu was cut off at the rail's bottom edge.
+   */
+  const [menuPos, setMenuPos] = createSignal<{ top: number; left: number; width: number } | null>(null);
+
+  const placeMenu = () => {
+    const el = fieldEl ?? rootEl;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const menuH = 240;
+    const gap = 4;
+    const spaceBelow = window.innerHeight - r.bottom - 8;
+    const spaceAbove = r.top - 8;
+    const openUp = spaceBelow < menuH && spaceAbove > spaceBelow;
+    setMenuPos({
+      top: openUp ? Math.max(8, r.top - Math.min(menuH, spaceAbove) - gap) : r.bottom + gap,
+      left: Math.max(8, Math.min(r.left, window.innerWidth - r.width - 8)),
+      width: r.width,
+    });
+  };
+
+  createEffect(() => {
+    if (!open()) {
+      setMenuPos(null);
+      return;
+    }
+    queueMicrotask(placeMenu);
+  });
+
+  createEffect(() => {
+    if (!open()) return;
+    // A scroll inside the menu itself must not reposition it — only an ancestor
+    // scroller or the window moving the field does that.
+    const onMove = (e: Event) => {
+      if (listboxEl && e.target instanceof Node && listboxEl.contains(e.target)) return;
+      placeMenu();
+    };
+    window.addEventListener("resize", onMove);
+    window.addEventListener("scroll", onMove, true);
+    onCleanup(() => {
+      window.removeEventListener("resize", onMove);
+      window.removeEventListener("scroll", onMove, true);
+    });
+  });
+
+  const trackMenu = (host: HTMLElement) => {
+    const trigger = rootEl;
+    if (!trigger) return;
+    const menu = { trigger, host };
+    liveMenus.add(menu);
+    onCleanup(() => liveMenus.delete(menu));
+  };
 
   const fieldStyle = createMemo(() => ({
     "min-height": explicitHeight() ?? fieldMinHeight(known.size),
@@ -407,6 +487,8 @@ export function MultiSelect(props: UIMultiSelectProps) {
             role="combobox"
             aria-label={known["aria-label"]}
             aria-expanded={open()}
+            aria-controls={listboxId()}
+            aria-activedescendant={activeDescendant()}
             aria-haspopup="listbox"
             aria-multiselectable="true"
             value={query()}
@@ -441,14 +523,34 @@ export function MultiSelect(props: UIMultiSelectProps) {
         </Show>
         <Chevron rotated={open()} />
         <Show when={open()}>
-          <ul role="listbox" className="absolute z-50 left-0 right-0 mt-1 border border-fin-border rounded-[6px] bg-fin-surface text-fin-text max-h-60 overflow-y-auto outline-none">
+          <Portal ref={trackMenu}>
+            <ul
+              ref={(el) => (listboxEl = el)}
+              id={listboxId()}
+              role="listbox"
+              data-part="multiselect-listbox"
+              className="fixed border border-fin-border rounded-[6px] bg-fin-surface text-fin-text max-h-60 overflow-y-auto outline-none shadow-md"
+              style={{
+                top: `${menuPos()?.top ?? 0}px`,
+                left: `${menuPos()?.left ?? 0}px`,
+                width: menuPos() ? `${menuPos()!.width}px` : undefined,
+                visibility: menuPos() ? "visible" : "hidden",
+                "z-index": 1300,
+              }}
+            >
             {shownOptions().length === 0 ? (
               <li role="option" aria-disabled className="px-3 py-2 text-xs text-fin-text-muted">
                 {known.nothingFoundMessage ?? "No options"}
               </li>
             ) : (
-              <For each={shownOptions()}>{(opt) => (
-                <li role="option" aria-selected={selectedSet().has(opt.value)} aria-disabled={opt.disabled || known.disabled}>
+              <For each={shownOptions()}>{(opt, i) => (
+                <li
+                  id={optionId(i())}
+                  role="option"
+                  aria-selected={selectedSet().has(opt.value)}
+                  aria-disabled={opt.disabled || known.disabled}
+                  className={cn(highlighted() === i() ? "bg-fin-surface-alt" : "")}
+                >
                   <label className="flex items-center gap-2 cursor-pointer select-none w-full px-3 py-2 text-xs disabled:opacity-50 disabled:cursor-not-allowed">
                     <Checkbox
                       checked={selectedSet().has(opt.value)}
@@ -460,7 +562,8 @@ export function MultiSelect(props: UIMultiSelectProps) {
                 </li>
               )}</For>
             )}
-          </ul>
+            </ul>
+          </Portal>
         </Show>
       </div>
       {helperText() && <p className={helperTextClass()}>{helperText()}</p>}

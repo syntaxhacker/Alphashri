@@ -47,11 +47,13 @@ export function formatSignedPnl(value: number): string {
   return `${sign}₹${formatNumber(value)}`;
 }
 
+/** Returns "—" for missing or non-finite values instead of throwing on toFixed. */
 export function formatPercentage(
-  value: number,
+  value: number | null | undefined,
   precision: number = 2,
   showSign: boolean = true,
 ): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
   const sign = showSign && value >= 0 ? "+" : "";
   return `${sign}${value.toFixed(precision)}%`;
 }
@@ -329,7 +331,12 @@ export function formatTimeOnly(isoStr: string): string {
 }
 
 export function formatDateHeader(date: string): string {
-  const dateObj = new Date(date);
+  // A bare YYYY-MM-DD is a calendar day, not an instant. `new Date("2026-03-20")`
+  // parses it as UTC midnight, which renders as the previous day west of UTC.
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  const dateObj = dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+    : new Date(date);
   return dateObj.toLocaleDateString("en-IN", {
     weekday: "short",
     day: "2-digit",

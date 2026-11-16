@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js";
 import {
   valueScan,
   type ValueFilters,
@@ -25,6 +25,8 @@ export interface UseValueScanResult {
   warnings: () => string[];
   isLoading: () => boolean;
   error: () => Error | null;
+  /** True when the displayed payload was not produced by the current filter key. */
+  stale: () => boolean;
   refresh: () => void;
   lastUpdated: () => string | null;
 }
@@ -54,14 +56,27 @@ export function useValueScanSolid(filters: () => ValueFilters): UseValueScanResu
   };
 
   const key = createMemo(() => JSON.stringify(filters()));
+  const requestedMarket = createMemo(() => filters().market ?? "india");
+  const [loadedKey, setLoadedKey] = createSignal<string | null>(null);
 
   createEffect(() => {
     const k = key();
     const n = nonce();
     void n;
+    const market = requestedMarket();
+
+    // Rows from another market describe a universe the user is no longer
+    // looking at; keeping them under the new tab is a lie with a matching CSV.
+    const current = untrack(data);
+    if (current && current.market !== market) {
+      setData(null);
+      setLoadedKey(null);
+    }
+
     const cached = cacheRef.get(k);
     if (cached) {
       setData(cached);
+      setLoadedKey(k);
       setIsLoading(false);
     } else {
       setIsLoading(true);
@@ -76,6 +91,7 @@ export function useValueScanSolid(filters: () => ValueFilters): UseValueScanResu
         if (cancelled || signal.aborted) return;
         cacheRef.set(k, res);
         setData(res);
+        setLoadedKey(k);
         setError(null);
         setIsLoading(false);
       } catch (e) {
@@ -128,6 +144,11 @@ export function useValueScanSolid(filters: () => ValueFilters): UseValueScanResu
       : null;
   });
 
+  const stale = createMemo(() => {
+    const d = data();
+    return d !== null && (loadedKey() !== key() || d.market !== requestedMarket());
+  });
+
   return {
     data,
     rows,
@@ -136,6 +157,7 @@ export function useValueScanSolid(filters: () => ValueFilters): UseValueScanResu
     warnings,
     isLoading,
     error,
+    stale,
     refresh,
     lastUpdated: () => data()?.as_of ?? null,
   };

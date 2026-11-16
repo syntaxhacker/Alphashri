@@ -15,6 +15,7 @@ Branch: fix/table-alignment  |  Shared component: `src/components/common/TanStac
 2. **Numeric columns right-align automatically** — columns whose sample values are all numbers get `right` on both header and cells; text columns stay `left`.
 3. **`meta: { align }` overrides** the auto behavior per column.
 4. **Theme-aware card backgrounds** — no more white boxes in dark mode (`light-dark(...)`).
+5. **Sort cycle**: numeric columns `none → desc → asc → none`, text columns `none → asc → desc → none`; the third click clears only when `enableSortingRemoval` is on (default). `initialState.sorting` / `initialSorting` seed it; `sorting` + `onSortingChange` make it controlled.
 
 ## Table placement map (all 25 use the shared TanStackTable — NO custom tables)
 

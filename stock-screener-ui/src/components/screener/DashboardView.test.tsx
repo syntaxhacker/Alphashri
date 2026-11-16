@@ -486,6 +486,88 @@ describe("DashboardView round-2", () => {
     });
   });
 
+  it("null metric sorts last in both directions and the toggle reverses order", async () => {
+    mockFetchScreenerDashboard.mockResolvedValue({
+      ...payload(),
+      sections: [
+        {
+          id: "movers",
+          title: "Market Movers",
+          panels: [
+            {
+              id: "gainers",
+              title: "Top gainers",
+              metric_label: "Change %",
+              qualify: 3,
+              rows: [
+                row({ symbol: "AAA", change: 1.0 }),
+                row({ symbol: "BBB", change: 5.0 }),
+                row({ symbol: "NULLY", change: Number.NaN }),
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    renderWithProvider(<DashboardView universe="nifty500" />);
+    await screen.findByTestId("dashboard-card-gainers");
+    const symbols = () =>
+      Array.from(
+        screen
+          .getByTestId("dashboard-card-rows-gainers")
+          .querySelectorAll('[data-testid^="dashboard-row-gainers-"]'),
+      ).map((el) => el.getAttribute("data-symbol"));
+
+    fireEvent.click(screen.getByTestId("dashboard-sort-gainers"));
+    fireEvent.click(await screen.findByTestId("dashboard-sort-gainers-change"));
+    await waitFor(() => expect(symbols()).toEqual(["BBB", "AAA", "NULLY"]));
+
+    const toggle = screen.getByTestId("dashboard-sort-direction-gainers");
+    expect(toggle).toHaveAttribute(
+      "aria-label",
+      "Sort descending — click to sort ascending",
+    );
+    fireEvent.click(toggle);
+    await waitFor(() => expect(symbols()).toEqual(["AAA", "BBB", "NULLY"]));
+    expect(toggle).toHaveAttribute(
+      "aria-label",
+      "Sort ascending — click to sort descending",
+    );
+  });
+
+  it("renders a literal null change as a dash without crashing the card", async () => {
+    mockFetchScreenerDashboard.mockResolvedValue({
+      ...payload(),
+      sections: [
+        {
+          id: "movers",
+          title: "Market Movers",
+          panels: [
+            {
+              id: "gainers",
+              title: "Top gainers",
+              metric_label: "Change %",
+              qualify: 2,
+              rows: [
+                row({ symbol: "NULLCHG", change: null as unknown as number }),
+                row({ symbol: "GOODCHG", change: 3.5 }),
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    renderWithProvider(<DashboardView universe="nifty500" />);
+    // The card renders (leaves loading) even though one metric is null.
+    expect(await screen.findByTestId("dashboard-card-gainers")).toBeInTheDocument();
+    expect(screen.queryByTestId("dashboard-loading")).not.toBeInTheDocument();
+    const nullRow = screen.getByTestId("dashboard-row-gainers-NULLCHG");
+    expect(nullRow).toHaveTextContent("—");
+    // The sibling row with a finite metric renders normally.
+    const goodRow = screen.getByTestId("dashboard-row-gainers-GOODCHG");
+    expect(goodRow).toHaveTextContent("+3.50%");
+  });
+
   it("search filters rows across cards", async () => {
     renderWithProvider(<DashboardView universe="nifty500" />);
     await screen.findByTestId("dashboard-row-gainers-INDIAGLYCO");

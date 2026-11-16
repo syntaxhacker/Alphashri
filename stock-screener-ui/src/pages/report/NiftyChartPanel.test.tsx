@@ -291,6 +291,46 @@ describe("NiftyChartPanel", () => {
     expect(screen.getByTestId("nifty-chart-view")).toHaveStyle({ display: "none" });
   });
 
+  test("depth wrapper fills the panel and scrolls a short desk row instead of clipping", () => {
+    const [view, setView] = createSignal<"chart" | "depth">("chart");
+    const [report] = createSignal(depthReport());
+    r(() => <NiftyChartPanel report={report()} mode="live" view={view()} />);
+    setView("depth");
+    const depthView = screen.getByTestId("nifty-depth-view");
+    // Same flex contract as the chart view: grow into a tall panel, shrink in
+    // a short one, and scroll the overflowing map rather than cut it off.
+    expect(depthView).toHaveClass("flex", "flex-1", "min-h-0", "h-full", "overflow-auto");
+    expect(depthView).toHaveStyle({ display: "flex" });
+  });
+
+  test("depth map keeps its min-height as the content minimum behind scrolling", () => {
+    const [view, setView] = createSignal<"chart" | "depth">("chart");
+    const [report] = createSignal(depthReport());
+    r(() => <NiftyChartPanel report={report()} mode="live" view={view()} />);
+    setView("depth");
+    // The map's own floor is what forces the wrapper to scroll in a short row.
+    // Removing it would silently shrink the depth chart below a readable size.
+    expect(screen.getByTestId("nifty-depth-chart")).toHaveClass("min-h-[380px]");
+  });
+
+  test("chart → depth → chart keeps the chart wrapper's flex contract and DOM node", () => {
+    const [view, setView] = createSignal<"chart" | "depth">("chart");
+    const [report] = createSignal(depthReport());
+    r(() => <NiftyChartPanel report={report()} mode="live" view={view()} />);
+    const chartView = screen.getByTestId("nifty-chart-view");
+    expect(chartView).toHaveClass("flex", "flex-col");
+    expect(chartView).toHaveStyle({ display: "flex" });
+
+    setView("depth");
+    expect(chartView).toHaveStyle({ display: "none" });
+
+    setView("chart");
+    expect(screen.getByTestId("nifty-chart-view")).toBe(chartView);
+    expect(chartView).toHaveClass("flex", "flex-col");
+    expect(chartView).toHaveStyle({ display: "flex" });
+    expect(chartView.style.flex).toBeTruthy();
+  });
+
   test("empty candles render the empty state, not the chart", () => {
     r(() => <NiftyChartPanel report={mockReport()} mode="live" view="chart" />);
     expect(screen.getByTestId("nifty-chart-empty")).toBeInTheDocument();

@@ -13,6 +13,12 @@ export interface TableColumnMeta {
   align?: "left" | "center" | "right";
 }
 
+/** A single sort directive: column id + direction. */
+export interface SortEntry {
+  id: string;
+  desc: boolean;
+}
+
 export interface TableColumnDef<T> {
   id: string;
   header?: string | JSX.Element | ((ctx: { column: TableColumnDef<T> }) => JSX.Element);
@@ -38,7 +44,13 @@ export interface GroupHeaderInfo<T> {
 interface Props<T> {
   data: T[];
   columns: TableColumnDef<T>[];
-  initialState?: { sorting?: { id: string; desc: boolean }[]; expanded?: Record<string, boolean> };
+  initialState?: { sorting?: SortEntry[]; expanded?: Record<string, boolean> };
+  /** Initial sorting for an uncontrolled table (fallback when initialState.sorting is absent). */
+  initialSorting?: SortEntry[];
+  /** Controlled sorting source. When supplied, rendering follows it and only onSortingChange mutates it. */
+  sorting?: SortEntry[];
+  /** Emitted on every sort change, in both controlled and uncontrolled modes. */
+  onSortingChange?: (next: SortEntry[]) => void;
   /** Group rows by these column ids (requires enableGrouping). */
   grouping?: string[];
   /** Enables row grouping. */
@@ -103,6 +115,31 @@ function getValue<T>(row: T, column: TableColumnDef<T>): unknown {
   return undefined;
 }
 
+/**
+ * Missing values and NaN are not zeros — they trail in both directions. A null
+ * sorted as 0 read as "mid-pack" for signed metrics and "best" for negatives.
+ */
+function compareSortValues(aVal: unknown, bVal: unknown, desc: boolean): number {
+  const aMissing = aVal === null || aVal === undefined || aVal === "";
+  const bMissing = bVal === null || bVal === undefined || bVal === "";
+  if (aMissing || bMissing) {
+    if (aMissing && bMissing) return 0;
+    return aMissing ? 1 : -1;
+  }
+  if (typeof aVal === "string" && typeof bVal === "string") {
+    return desc ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
+  }
+  const an = Number(aVal);
+  const bn = Number(bVal);
+  const aNaN = Number.isNaN(an);
+  const bNaN = Number.isNaN(bn);
+  if (aNaN || bNaN) {
+    if (aNaN && bNaN) return 0;
+    return aNaN ? 1 : -1;
+  }
+  return desc ? bn - an : an - bn;
+}
+
 export function TanStackTable<T>(props: Props<T>) {
   const { density, tokens: densityTokens } = useDensity();
   const isComfortable = createMemo(() => density() === "comfortable");
@@ -111,7 +148,17 @@ export function TanStackTable<T>(props: Props<T>) {
   const cellFontSize = () => (props.dense ? 10 : 11);
   const headerHeight = () => (props.dense ? 20 : isComfortable() ? densityTokens.tableRowHeight : ROW_ESTIMATED);
 
-  const [sorting, setSorting] = createSignal<{ id: string; desc: boolean }[]>(props.initialState?.sorting ?? []);
+  const [internalSorting, setInternalSorting] = createSignal<SortEntry[]>(
+    props.initialState?.sorting ?? props.initialSorting ?? [],
+  );
+  const isSortControlled = () => props.sorting != null;
+  const sorting = (): SortEntry[] => (isSortControlled() ? props.sorting! : internalSorting());
+  // Controlled mode renders from props and persists only through the callback;
+  // uncontrolled mode keeps the signal but still emits so callers can observe.
+  const commitSorting = (next: SortEntry[]) => {
+    if (!isSortControlled()) setInternalSorting(next);
+    props.onSortingChange?.(next);
+  };
   const [expandedGroups, setExpandedGroups] = createSignal<Record<string, boolean>>({});
   const [expandedRows, setExpandedRows] = createSignal<Record<string, boolean>>({});
 
@@ -131,16 +178,7 @@ export function TanStackTable<T>(props: Props<T>) {
       const { id, desc } = sorters[i];
       const col = props.columns.find((c) => c.id === id);
       if (!col) continue;
-      rows.sort((a, b) => {
-        let aVal = getValue(a, col);
-        let bVal = getValue(b, col);
-        if (typeof aVal === "string" && typeof bVal === "string") {
-          return desc ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
-        }
-        const an = aVal == null ? 0 : Number(aVal);
-        const bn = bVal == null ? 0 : Number(bVal);
-        return desc ? bn - an : an - bn;
-      });
+      rows.sort((a, b) => compareSortValues(getValue(a, col), getValue(b, col), desc));
     }
     return rows;
   });
@@ -184,18 +222,48 @@ export function TanStackTable<T>(props: Props<T>) {
     return props.initialState?.expanded?.[k] ?? false;
   };
 
-  const toggleSort = (id: string) => {
-    setSorting((prev) => {
-      const found = prev.find((s) => s.id === id);
-      const next = prev.filter((s) => s.id !== id);
-      if (found) {
-        if (props.enableSortingRemoval && found.desc) return next;
-        next.push({ id, desc: !found.desc });
-      } else {
-        next.push({ id, desc: false });
+  const enableSortingRemoval = () => props.enableSortingRemoval ?? true;
+
+  // TanStack's first-click contract, shared with the common table: text sorts
+  // A→Z first, numeric biggest-first. Sample up to 5 non-null values so a few
+  // missing cells cannot flip the column's type.
+  const descFirst = (col: TableColumnDef<T> | undefined): boolean => {
+    if (!col) return false;
+    let seen = 0;
+    let numeric = true;
+    for (const row of props.data) {
+      if (seen >= 5) break;
+      const v = getValue(row, col);
+      if (v === null || v === undefined || v === "") continue;
+      seen++;
+      if (typeof v !== "number") {
+        numeric = false;
+        break;
       }
-      return next;
-    });
+    }
+    return seen > 0 && numeric;
+  };
+
+  const toggleSort = (id: string) => {
+    const prev = sorting();
+    const found = prev.find((s) => s.id === id);
+    const next = prev.filter((s) => s.id !== id);
+    const col = props.columns.find((c) => c.id === id);
+    // The clicked column becomes PRIMARY: a header click always means "sort by
+    // this". Appending it left the previous sorter dominant, so a second header
+    // click appeared to do nothing.
+    if (found) {
+      // Flip on the second click; only the third clears (numeric desc→asc→none,
+      // text asc→desc→none). Without removal, bounce between the two directions.
+      if (found.desc !== descFirst(col) && enableSortingRemoval()) {
+        commitSorting(next);
+        return;
+      }
+      next.unshift({ id, desc: !found.desc });
+    } else {
+      next.unshift({ id, desc: descFirst(col) });
+    }
+    commitSorting(next);
   };
 
   createEffect(() => {
@@ -281,8 +349,14 @@ export function TanStackTable<T>(props: Props<T>) {
 
   const renderHeader = (col: TableColumnDef<T>) => {
     const width = getColumnWidth(col);
-    const isSorted = sorting().some((s) => s.id === col.id);
-    const sortDir = sorting().find((s) => s.id === col.id);
+    const sortable = () => col.enableSorting !== false && enableSorting();
+    const isSorted = () => sorting().some((s) => s.id === col.id);
+    const sortDir = () => sorting().find((s) => s.id === col.id);
+    const ariaSort = () => {
+      if (!sortable()) return undefined;
+      if (!isSorted()) return "none";
+      return sortDir()?.desc ? "descending" : "ascending";
+    };
     const headerStyle: CSSProperties = {
       padding: width === 0 ? "0" : cellPad(),
       height: `${headerHeight()}px`,
@@ -310,10 +384,11 @@ export function TanStackTable<T>(props: Props<T>) {
         className="paper-tanstack-header-cell"
         id={`paper-tanstack-header-${String(col.id)}`}
         style={headerStyle}
-        onClick={() => col.enableSorting !== false && enableSorting() && toggleSort(col.id)}
+        aria-sort={ariaSort()}
+        onClick={() => sortable() && toggleSort(col.id)}
       >
         {content}
-        {isSorted && (sortDir?.desc ? " ▼" : " ▲")}
+        {isSorted() && (sortDir()?.desc ? " ▼" : " ▲")}
       </Box>
     );
   };

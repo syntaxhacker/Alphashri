@@ -997,6 +997,10 @@ def test_watch_near52w_contract(cp_client, mock_quotes, monkeypatch, tmp_path):
     """GET /watch?setup=near_52w: computed item shape + live keys."""
     from chart_patterns import candles, universes
 
+    # universe=nifty500 is a snapshot scope: force a fast-path miss so the
+    # endpoint takes arm + live instead of serving Redis-mirrored rows written
+    # by the background job (external state, unrelated to this contract).
+    monkeypatch.setattr(watch_mod, "get_snapshot", lambda *args, **kwargs: None)
     monkeypatch.setattr(watch_mod, "_NEAR52W_CACHE_DIR", tmp_path / "watch")
     monkeypatch.setattr(watch_mod, "_near52w_session", lambda: "2026-09-30")
     monkeypatch.setattr(universes, "get_universe", lambda uid: ["AAA"])

@@ -7,6 +7,7 @@ import {
   createMemo,
   createSignal,
   lazy,
+  on,
   onCleanup,
   onMount,
   type JSX,
@@ -29,7 +30,7 @@ import {
 import { IconAlertCircle, IconFilter, IconRefresh, IconSearch, IconX } from "../common/Icons";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { MARKET_UNIVERSES, DEFAULT_MARKET_UNIVERSE } from "../../api/marketScreener";
-import type { TableColumnDef as ColumnDef } from "../common/TanStackTable";
+import type { SortEntry, TableColumnDef as ColumnDef } from "../common/TanStackTable";
 import type { MarketRow, MarketUniverse } from "../../types/marketScreener";
 import {
   buildMarketFilterChips,
@@ -40,15 +41,19 @@ import {
   countByCapTier,
   sortMarketRows,
   type MarketFilterState,
+  type MarketSortKey,
 } from "./marketFilters";
 import { buildMarketColumns } from "./marketColumns";
+import { usePatternSummary } from "./usePatternSummary";
 import { alpha, PRIMARY } from "@/ui/palette";
 import { MarketFilterRail } from "./MarketFilterRail";
 import { MarketMapView, MarketViewToggle, type MarketViewMode } from "./MarketMapView";
 import { TanStackTable } from "../common/TanStackTable";
+import { useTablePrefs } from "../common/useTablePrefs";
 import { ChartDockOutlet } from "../common/ChartDockOutlet";
 import { useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
 import { useSymbolDock } from "../common/symbolDockContext";
+import { useMarketConfig, type MarketConfigValue } from "./useMarketConfig";
 
 // Movers owns the whole dashboard module; keep it out of the Market chunk.
 const DashboardView = lazy(() =>
@@ -93,13 +98,77 @@ function MoversPanel(props: {
 }
 
 const STALE_AFTER_MS = 15 * 60 * 1000;
+const STALE_CLOCK_MS = 30 * 1000;
 const UNIVERSE_OPTIONS = MARKET_UNIVERSES.map((o) => ({ value: o.value, label: o.label }));
 
-function isSnapshotStale(asOf: string | null): boolean {
+const DRAWER_FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/** First-load sort. Not written by the store until the user actually clicks a header. */
+const DEFAULT_TABLE_SORTING: SortEntry[] = [{ id: "market_cap_cr", desc: true }];
+
+/**
+ * The table prefs own the sort; the map dropdown only mirrors it when the primary
+ * sorter names a metric the dropdown can express. Ascending is expressible only
+ * for day change and symbol, so other ascending sorters leave the dropdown be.
+ */
+export function sortEntryToMarketSort(sorting: SortEntry[]): MarketSortKey | null {
+  const primary = sorting[0];
+  if (!primary) return null;
+  switch (primary.id) {
+    case "market_cap_cr":
+      return primary.desc ? "mcap_desc" : null;
+    case "day_change":
+    case "change":
+      return primary.desc ? "day_desc" : "day_asc";
+    case "rsi":
+      return primary.desc ? "rsi_desc" : null;
+    case "relative_volume":
+      return primary.desc ? "relvol_desc" : null;
+    case "perf_w":
+      return primary.desc ? "perf_w_desc" : null;
+    case "perf_1m":
+      return primary.desc ? "perf_1m_desc" : null;
+    case "pos_52w":
+      return primary.desc ? "pos_52w_desc" : null;
+    case "symbol":
+      return primary.desc ? null : "symbol_asc";
+    default:
+      return null;
+  }
+}
+
+/** Reverse of `sortEntryToMarketSort`: a dropdown choice drives the table. */
+export function marketSortToSortEntry(sort: MarketSortKey): SortEntry | null {
+  switch (sort) {
+    case "mcap_desc":
+      return { id: "market_cap_cr", desc: true };
+    case "day_desc":
+      return { id: "day_change", desc: true };
+    case "day_asc":
+      return { id: "day_change", desc: false };
+    case "rsi_desc":
+      return { id: "rsi", desc: true };
+    case "relvol_desc":
+      return { id: "relative_volume", desc: true };
+    case "perf_w_desc":
+      return { id: "perf_w", desc: true };
+    case "perf_1m_desc":
+      return { id: "perf_1m", desc: true };
+    case "pos_52w_desc":
+      return { id: "pos_52w", desc: true };
+    case "symbol_asc":
+      return { id: "symbol", desc: false };
+    default:
+      return null;
+  }
+}
+
+function isSnapshotStale(asOf: string | null, nowMs: number): boolean {
   if (!asOf) return false;
   const parsed = Date.parse(asOf);
   if (Number.isNaN(parsed)) return false;
-  return Date.now() - parsed > STALE_AFTER_MS;
+  return nowMs - parsed > STALE_AFTER_MS;
 }
 
 // Isolated memo boundary: chips/count/toolbar re-render on every filter click,
@@ -114,7 +183,18 @@ function MarketGrid(props: {
   onRowClick: (row: MarketRow) => void;
   getRowStyle: (row: MarketRow) => JSX.CSSProperties | undefined;
   getRowTestId: (row: MarketRow) => string;
+  onVisibleRowsChange?: (rows: MarketRow[]) => void;
+  onTableSortChange?: (sorting: SortEntry[]) => void;
 }) {
+  const { prefs, setSorting } = useTablePrefs("market.grid");
+  // Empty saved prefs keep the historical first-load order; the store writes
+  // only after a real sort change, so the default is never persisted on mount.
+  const sorting = (): SortEntry[] =>
+    prefs().sorting.length > 0 ? prefs().sorting : DEFAULT_TABLE_SORTING;
+  const handleSortingChange = (next: SortEntry[]) => {
+    setSorting(next);
+    props.onTableSortChange?.(next);
+  };
   return (
     <TanStackTable
       data={props.data}
@@ -127,10 +207,12 @@ function MarketGrid(props: {
       minTableWidth={1000}
       enableSorting
       stickyHeader
-      initialState={{ sorting: [{ id: "market_cap_cr", desc: true }] }}
+      sorting={sorting()}
+      onSortingChange={handleSortingChange}
       onRowClick={props.onRowClick}
       getRowStyle={props.getRowStyle}
       getRowTestId={props.getRowTestId}
+      onVisibleRowsChange={props.onVisibleRowsChange}
       emptyMessage={
         props.hasActiveFilters ? "No rows match the current filters" : "No market data"
       }
@@ -169,6 +251,47 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   const [viewMode, setViewMode] = createSignal<MarketViewMode>(props.initialView ?? "table");
   const [selectedSymbol, setSelectedSymbol] = createSignal<string | null>(null);
   const dock = useSymbolDock();
+  // Shares the ref-counted store with MarketGrid so the map dropdown and the
+  // header write one authoritative, persisted `table.market.grid` sort.
+  const { setSorting: setTableSorting } = useTablePrefs("market.grid");
+
+  // Only the toolbar's stale badge subscribes to the clock: a snapshot ages
+  // past 15 minutes while the tab sits open and no new data will arrive to
+  // re-run the memo, so `Date.now()` cannot be read inside it.
+  const [nowMs, setNowMs] = createSignal(Date.now());
+  createEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), STALE_CLOCK_MS);
+    onCleanup(() => clearInterval(id));
+  });
+
+  let drawerEl: HTMLDivElement | undefined;
+  let toggleEl: HTMLElement | undefined;
+
+  // Saved config: `?view=` wins when present, saved state is the fallback for a
+  // bare `/screener`, defaults otherwise. Hydration is applied in one batch and
+  // `prevUniverse` is moved first — see the reset effect below.
+  let prevUniverse = universe();
+  const applySavedConfig = (value: MarketConfigValue) => {
+    batch(() => {
+      // Announce the hydrated universe to the reset effect before the signal
+      // moves: restoring nifty500 must not wipe the sectors restored with it.
+      prevUniverse = value.universe;
+      setUniverse(value.universe);
+      setFilters(value.filters);
+      setViewMode(value.view);
+    });
+  };
+  const savedConfig = useMarketConfig({
+    // `?view=` is lossy on the way in: the shell parses a missing param to
+    // "table" and never writes `?view=table` back, so `table` cannot be told
+    // apart from a bare link. Only a non-default view is a present-tense
+    // instruction; everything else falls back to the saved layout.
+    urlView: props.initialView && props.initialView !== "table" ? props.initialView : undefined,
+    onApply: applySavedConfig,
+  });
+  const savedConfigError = () => savedConfig.error();
+  const savedConfigFailed = () =>
+    savedConfigError() === "not_saved" || savedConfigError() === "invalid";
   // The symbol cell opens the dock directly (it stops row-click propagation),
   // so the list must follow the dock or the chart's row never highlights and
   // the arrow-key handler has no anchor.
@@ -191,9 +314,11 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
 
   // Filters belong to one universe's snapshot; carrying them across a universe
   // switch silently hides every row of the new universe.
-  let prevUniverse = universe();
   createEffect(() => {
     const u = universe();
+    // Hydration advances `prevUniverse` to the restored universe inside the same
+    // batch, so this comparison is already false for the restore write: the
+    // saved sectors survive. Firing here would reset them.
     if (u !== prevUniverse) {
       prevUniverse = u;
       setFilters(defaultMarketFilters());
@@ -203,6 +328,24 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
       props.onClearSymbolAllowlist?.();
     }
   });
+
+  // Autosave: one effect owns every persisted field. The first run is the mount
+  // echo of the defaults (and of the URL view) — skipping it is what keeps the
+  // latch open long enough for the GET to apply. Any later change, including one
+  // that lands mid-GET, closes the latch in the store and is buffered there
+  // until hydration settles.
+  createEffect(
+    on(
+      () => ({
+        universe: universe(),
+        filters: filters(),
+        // `search` is session-local by design and never travels.
+        view: viewMode(),
+      }),
+      (value) => savedConfig.save({ ...value }),
+      { defer: true },
+    ),
+  );
 
   // Filters/search drive the table directly — Solid's keyed rows only
   // reconcile what changed, so no deferred copies are needed. Filter and sort
@@ -233,12 +376,44 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   );
   const sectors = createMemo(() => marketSectors(rows()));
   const tierCounts = createMemo(() => countByCapTier(rows()));
-  const columns = createMemo(() => buildMarketColumns({ onSymbolOpen: selectAndOpen }));
-  const stale = createMemo(() => cachedStale() || isSnapshotStale(asOf()));
+
+  // The PATTERNS column is fed from the window the table actually mounts:
+  // ~80 rows, one batch lookup, never the ~3,200-row snapshot.
+  const [visibleRows, setVisibleRows] = createSignal<MarketRow[]>([]);
+  const patterns = usePatternSummary(
+    () => visibleRows().map((row) => row.symbol),
+    () => universe(),
+  );
+
+  const columns = createMemo(() => {
+    const f = filters();
+    return buildMarketColumns({
+      onSymbolOpen: selectAndOpen,
+      // A pinned sector makes the column constant; it carries no information.
+      hideSector: f.sectors.length > 0,
+      // Read through the signal: cells re-render when the lookup lands without
+      // rebuilding the column list (a rebuild would remount every row).
+      patternsFor: (symbol) => patterns.summary().get(symbol),
+    });
+  });
+  const stale = createMemo(() => cachedStale() || isSnapshotStale(asOf(), nowMs()));
   const hasActiveFilters = () => chips().length > 0;
 
   const patchFilters = (patch: Partial<MarketFilterState>) =>
     setFilters((f) => ({ ...f, ...patch }));
+
+  // Best-effort bridge, never a second source of truth: header clicks persist to
+  // table prefs and only mirror into filters.sort when a key exists for them.
+  const onTableSortChange = (next: SortEntry[]) => {
+    const mapped = sortEntryToMarketSort(next);
+    if (mapped) patchFilters({ sort: mapped });
+  };
+
+  const onMapSortChange = (sort: MarketSortKey) => {
+    patchFilters({ sort });
+    const entry = marketSortToSortEntry(sort);
+    if (entry) setTableSorting([entry]);
+  };
 
   const resetFilters = () => {
     setFilters(defaultMarketFilters());
@@ -263,11 +438,11 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
         case "day":
           return { ...f, dayChangeMin: null, dayChangeMax: null };
         case "mcap":
-          return { ...f, mcapMinCr: null };
+          return { ...f, mcapMinCr: null, mcapMaxCr: null };
         case "rsi":
           return { ...f, rsiMin: null, rsiMax: null };
         case "relvol":
-          return { ...f, relVolMin: null };
+          return { ...f, relVolMin: null, relVolMax: null };
         case "sma20":
           return { ...f, aboveSma20: false };
         case "sma50":
@@ -279,20 +454,87 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
         case "etf":
           return { ...f, etfOnly: false };
         case "sector":
-          return { ...f, sector: null };
+          return { ...f, sectors: [] };
         default:
+          if (key.startsWith("sector:")) {
+            const name = key.slice("sector:".length);
+            return { ...f, sectors: f.sectors.filter((s) => s !== name) };
+          }
           return f;
       }
     });
   };
 
-  const handleToggleRail = () => {
+  const handleToggleRail = (event?: MouseEvent) => {
+    if (event?.currentTarget) toggleEl = event.currentTarget as HTMLElement;
     if (isNarrow()) {
       setDrawerOpen((open) => !open);
     } else {
       setRailCollapsed((collapsed) => !collapsed);
     }
   };
+
+  const closeDrawer = () => setDrawerOpen(false);
+
+  // The drawer only exists below 1024px. If the viewport grows while it is up,
+  // the `Show` unmounts it with focus inside — close first so focus is restored.
+  createEffect(() => {
+    if (!isNarrow() && drawerOpen()) closeDrawer();
+  });
+
+  const focusablesInDrawer = (): HTMLElement[] => {
+    if (!drawerEl) return [];
+    return Array.from(drawerEl.querySelectorAll<HTMLElement>(DRAWER_FOCUSABLE));
+  };
+
+  // A modal drawer must own focus: move it in on open, hand it back to the
+  // toggle on close, and keep Tab inside while it is up. Without this the
+  // pointer is the only way in or out below 1024px.
+  createEffect(
+    on(drawerOpen, (open, wasOpen) => {
+      if (open) {
+        (focusablesInDrawer()[0] ?? drawerEl)?.focus();
+        return;
+      }
+      if (!wasOpen) return;
+      (toggleEl ?? document.querySelector<HTMLElement>('[data-testid="market-rail-toggle"]'))?.focus();
+    }),
+  );
+
+  createEffect(() => {
+    if (!drawerOpen()) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeDrawer();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = focusablesInDrawer();
+      if (items.length === 0) {
+        event.preventDefault();
+        drawerEl?.focus();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (!active || !drawerEl?.contains(active)) {
+        event.preventDefault();
+        first.focus();
+        return;
+      }
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    onCleanup(() => document.removeEventListener("keydown", onKeyDown));
+  });
 
   const showWarmingHint = () =>
     universe() === "all_equity" && warming() && isLoading() && error() === null && rows().length === 0;
@@ -338,6 +580,8 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      // A modal drawer owns the keyboard; arrow keys inside it are not row steps.
+      if (drawerOpen()) return;
       const target = event.target as HTMLElement | null;
       if (
         target &&
@@ -453,6 +697,30 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
           </span>
         </Tooltip>
         <Show when={viewMode() !== "movers"}>
+          <Show when={savedConfigError() !== null}>
+            <Box
+              role="status"
+              data-testid="saved-config-error"
+              className="flex items-center gap-1 flex-shrink-0"
+            >
+              <Text size="xs" c="warning" className="whitespace-nowrap">
+                {savedConfigError() === "conflict"
+                  ? "Filters changed in another tab"
+                  : "Filters not saved"}
+              </Text>
+              <Show when={savedConfigFailed()}>
+                <Button
+                  size="xs"
+                  variant="subtle"
+                  style={{ height: "24px" }}
+                  onClick={() => savedConfig.retry()}
+                  data-testid="saved-config-retry"
+                >
+                  Retry
+                </Button>
+              </Show>
+            </Box>
+          </Show>
           <Indicator
             label={String(activeCount())}
             color="primary"
@@ -470,6 +738,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                 onClick={handleToggleRail}
                 aria-label={isNarrow() ? "Open filters" : "Toggle filters"}
                 aria-pressed={isNarrow() ? drawerOpen() : !railCollapsed()}
+                aria-expanded={isNarrow() ? drawerOpen() : !railCollapsed()}
                 data-testid="market-rail-toggle"
               >
                 <IconFilter size={14} />
@@ -648,6 +917,10 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                       reset TanStack's internal sorting state, so Table → Map →
                       Table silently lost the user's sort. */}
                   <Box
+                    // One busy flag for the whole table: the PATTERNS lookup is
+                    // supplementary, so it must never mount a per-row spinner.
+                    aria-busy={patterns.loading() ? "true" : undefined}
+                    data-patterns-loading={patterns.loading() ? "true" : undefined}
                     className={
                       viewMode() === "map"
                         ? "hidden"
@@ -662,12 +935,16 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                       onRowClick={handleRowClick}
                       getRowStyle={getRowStyle}
                       getRowTestId={getRowTestId}
+                      onVisibleRowsChange={setVisibleRows}
+                      onTableSortChange={onTableSortChange}
                     />
                   </Box>
                   <Show when={viewMode() === "map"}>
                     <MarketMapView
                       rows={filteredRows()}
                       onSymbolClick={selectAndOpen}
+                      sort={filters().sort}
+                      onSortChange={onMapSortChange}
                     />
                   </Show>
                 </Show>
@@ -684,16 +961,21 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
           )}
         </Box>
         <Show when={isWide()}>
-          <ChartDockOutlet class="flex-shrink-0 basis-[38%] min-w-80 max-w-3xl min-h-0 empty:hidden" />
+          <ChartDockOutlet class="flex-shrink-0 basis-[38%] min-w-80 max-w-3xl min-h-0 flex flex-col overflow-hidden" />
         </Show>
       </Box>
 
       <Show when={isNarrow() && drawerOpen()}>
         <Box
+          ref={(el: HTMLDivElement) => (drawerEl = el)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Filters"
+          tabIndex={-1}
           data-testid="market-filter-drawer"
           className="fixed inset-0 z-50 flex"
           style={{ "z-index": 1050 }}
-          onClick={() => setDrawerOpen(false)}
+          onClick={closeDrawer}
         >
           <Box
             className="absolute inset-y-0 left-0 w-72 max-w-[280px] bg-fin-surface border-r border-fin-border flex flex-col transform transition-transform duration-300"
@@ -704,8 +986,8 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
               onChange={patchFilters}
               sectors={sectors()}
               tierCounts={tierCounts()}
-              onCollapse={isNarrow() ? () => setDrawerOpen(false) : () => setRailCollapsed(true)}
-              collapseLabel={isNarrow() ? "Close filters" : "Collapse filters"}
+              onCollapse={closeDrawer}
+              collapseLabel="Close filters"
             />
           </Box>
         </Box>

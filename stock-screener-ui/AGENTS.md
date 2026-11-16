@@ -145,6 +145,10 @@ src/
   - Falls back to 20s polling on disconnect/error
 - **Price vs Polling**: WebSocket delivers first tick in ~30ms vs REST ~174ms. Live ticks stream at ~4/sec during market hours.
 
+## Behavioural guards (UI)
+- **Toasts**: `solid-notifications/index.css` must stay imported in `src/main.tsx`, and `.sn-*` must not be restyled. Details: [docs/NOTIFICATIONS.md](./docs/NOTIFICATIONS.md).
+- **Options dock sizing**: use flex for height, never percentage heights or `h-full` through a flex-stretched chain. Details: [docs/OPTIONS_CHAIN_COMPONENT_PLAN.md](./docs/OPTIONS_CHAIN_COMPONENT_PLAN.md).
+
 ## CSS
 - `style.css` holds only flash animations + `box-sizing` + body tokens; `divider` is no longer used as text color (was grey wash — win/loss same)
 - Semantic P&L: `success #16A34A` / `error #DC2626` distinct, `toast` left-border `success/error/warning/info`, `table th` `paper + text.secondary`
@@ -241,6 +245,7 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 
 ## Market Data Auth
 - **Market data endpoints** (`/api/chart/preview`, `/api/paper/chart`, `/api/backtest/run`) use `UpstoxAPI` with `UPSTOX_API_KEY`/`UPSTOX_API_SECRET` — **no OAuth broker token needed**
+- **`/api/market/snapshot` is app-auth protected** (route `Depends(get_current_user)`) so an anonymous `force=1` cannot trigger a full TV scan; the UI sends the normal bearer token. It is still **not** broker-OAuth gated.
 - **Options + broker endpoints** (`/api/options/*`, `/api/brokers/*`) require OAuth access token via `get_shared_broker_token('upstox')` — user must connect broker in Settings
 - **Live price streaming** (`/api/paper/live/stream`) also requires OAuth access token (uses `MarketDataStreamerV3` SDK)
 - Never gate market data behind broker OAuth check
@@ -633,15 +638,11 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 
 ## Known Issues / Deferred
 - **Replay system name→ID migration** (Phase 3) — deferred, known limitation
-- **ExitReasonBadge**: doesn't color-code rich exit reasons (MANUAL_CLOSE, PnL-formatted strings like "Stop loss hit ₹1340.00") — falls to gray default
-- **ExitReasonBadge missing cases**: `FORCE_CLOSE`, `TRAILING_STOP`, `MAX_HOLDING`, `NEW_52W_HIGH` — all show as raw gray text
 - **Portfolio summary compact redesign** — mentioned but not started
 - **52W daily data caching** — fetches 400 days per chart request with no caching
 - **52W range batch progress in admin UI**: The first daily run refreshes all stale symbols (~5-15 min at 3 workers × 0.35s delay), so the progress bar is visible during that window. Subsequent hourly runs are fast (everything already fresh → no-op in ~1s). Use the admin panel's "Clear cache + DB" or adjust `SCREENER_52W_INTERVAL_SEC` to control freshness.
 - **`_filter_to_date_or_recent` timezone bug** — see [PRODUCTION.md](./PRODUCTION.md) (known production issue)
 - **TradingAgents auth**: `get_current_user` dependency has compatibility issues with this router (langgraph_sdk/chaining chainlit interference). All trading_agents endpoints use no auth or hardcoded user_id=3 for now.
 - **Analysis speed**: Multi-agent analysis takes 60-120s (15+ DeepSeek LLM calls). First analysis on any ticker is slow, subsequent requests are instant from file cache.
-- **`tsc` clusters still open** (369 errors as of 2026-11-14 — re-measure, do not trust this number): `src/pages/**` beyond `report`, plus `components/options|sector|strategies|replay|backtest|news`. Re-measure with `npx tsc --noEmit 2>&1 | grep -c "error TS"`. Cleared clusters (`report`, `common`+`ui`, `paper-trading`+`bots`, `screener`+`patterns`, `utils`+`api`+`state`) each exposed real runtime defects — treat the remaining ones as bug hunts, not tidying.
+- **`tsc` clusters still open** (327 errors as of 2026-11-16 18:10, was 369 on 2026-11-14 — re-measure, do not trust this number): `src/pages/**` beyond `report`, plus `components/options|sector|strategies|replay|backtest|news`. Re-measure with `npx tsc --noEmit 2>&1 | grep -c "error TS"`. Cleared clusters (`report`, `common`+`ui`, `paper-trading`+`bots`, `screener`+`patterns`, `utils`+`api`+`state`) each exposed real runtime defects — treat the remaining ones as bug hunts, not tidying.
 - **Index Report chart focus (LEVEL 1/2)** — specified in [docs/INDEX_REPORT_REDESIGN.md](./docs/INDEX_REPORT_REDESIGN.md) but not built. The walls card is now 5-column and 216px (was 475px single-column), so the chart is visible; the drawer and focus mode are still pending.
-- **`rowWindowSize` unreachable rows** — `TanStackTable` discloses `showing 80 of 312 · 232 not rendered` in the footer, but there is still no way to reach the remainder.
-- **Symbol cell click inversion** — body should navigate in-app, the `↗` affordance opens the external TV link; currently inverted. Top item in [docs/UX_BETTERMENT.md](./docs/UX_BETTERMENT.md).

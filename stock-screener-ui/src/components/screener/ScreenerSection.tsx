@@ -17,6 +17,7 @@ interface ScreenerSectionProps {
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;
   section: string;
+  tableId?: string;
 }
 
 export function ScreenerSection(props: ScreenerSectionProps) {
@@ -38,6 +39,7 @@ export function ScreenerSection(props: ScreenerSectionProps) {
         onSymbolClick={props.onSymbolClick}
         onSymbolHover={props.onSymbolHover}
         section={props.section}
+        tableId={props.tableId}
       />
     </CompactPanel>
   );

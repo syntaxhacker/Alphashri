@@ -308,9 +308,18 @@ function NewsPanelContainer(props: { isOpen: boolean; children?: JSX.Element }) 
     <Box
       className={`news-panel fixed top-0 z-[200] flex h-screen w-[400px] max-w-[100vw] flex-col border-l border-fin-border bg-fin-surface ${props.isOpen ? "open" : ""}`}
       id="news-panel"
+      // The panel stays mounted for the slide animation. Once closed it must
+      // leave the tab order and hit-testing; visibility is delayed so the
+      // slide-out is still painted, then the off-screen box is hidden.
+      attr:inert={props.isOpen ? undefined : ""}
+      aria-hidden={props.isOpen ? undefined : "true"}
       style={{
         right: props.isOpen ? 0 : "-400px",
-        transition: "right 0.3s ease",
+        transition: props.isOpen
+          ? "right 0.3s ease, visibility 0s"
+          : "right 0.3s ease, visibility 0s linear 0.3s",
+        visibility: props.isOpen ? "visible" : "hidden",
+        "pointer-events": props.isOpen ? "auto" : "none",
       }}
       data-testid="news-panel"
     >

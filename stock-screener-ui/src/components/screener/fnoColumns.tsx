@@ -65,7 +65,9 @@ function money2(value: number): string {
   return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
+export function buildFnoColumns(
+  onSymbolClick?: (symbol: string) => void,
+): TableColumnDef<FnoScreenerRow>[] {
   return [
     {
       id: "expand",
@@ -106,17 +108,29 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
             symbol={r.symbol}
             market="NSE"
             showChart={false}
+            showOptions
             showCopy
             size="xs"
             weight={600}
             testId={`fno-cell-symbol-${r.symbol}`}
+            inAppText
+            onTextClick={(sym) => onSymbolClick?.(sym)}
           />
         );
       },
     },
     {
       id: "setup",
-      accessorFn: (r) => r.setup,
+      // Rank best-to-worst (BREAKOUT → WEAK) so sorting is meaningful, not alphabetical.
+      accessorFn: (r) =>
+        ({
+          BREAKOUT: 0,
+          "NEAR HIGH": 1,
+          WATCH: 2,
+          BASE: 3,
+          EXTENDED: 4,
+          WEAK: 5,
+        })[r.setup],
       header: "SETUP",
       size: 120,
       meta: { align: "center" },
@@ -135,7 +149,8 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
     },
     {
       id: "call",
-      accessorFn: (r) => r.call,
+      // Sort on the raw strike number; the cell still shows the formatted label.
+      accessorFn: (r) => r.strike,
       header: "CALL",
       size: 76,
       meta: { align: "left" },

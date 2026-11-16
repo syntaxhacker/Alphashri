@@ -1,4 +1,5 @@
 import { Show, createEffect, createMemo, createSignal, For, onCleanup } from "solid-js";
+import { useNavigate } from "@solidjs/router";
 import { IconRefresh } from "./icons";
 import {
   ActionIcon,
@@ -17,8 +18,8 @@ import {
 import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
 import { RangeInput } from "../common/RangeInput";
 import { TanStackTable } from "../common/TanStackTable";
-import { PayoffChart } from "@/components/options/PremiumTracker/PayoffChart";
-import type { PayoffLeg } from "@/components/options/PremiumTracker/payoff";
+import { PayoffChartCore } from "@/components/options-dock/PayoffChartCore";
+import type { DockLeg } from "@/state/optionsDock";
 import { buildFnoColumns } from "./fnoColumns";
 import {
   fetchFnoScreener,
@@ -61,6 +62,7 @@ function screenerParams(
 }
 
 export function FnoScreenerTab() {
+  const navigate = useNavigate();
   const [preset, setPreset] = createSignal<FnoScreenerPreset>("cheap_momentum");
   const [expiry, setExpiry] = createSignal<string>("");
   const [costMin, setCostMin] = createSignal<number | undefined>(undefined);
@@ -159,7 +161,7 @@ export function FnoScreenerTab() {
   const showEmpty = () =>
     !isLoading() && error() === null && rows().length === 0 && backendIssue() === null;
 
-  const columns = createMemo(() => buildFnoColumns());
+  const columns = createMemo(() => buildFnoColumns((sym) => navigate(`/chart/${sym}`)));
 
   return (
     <CompactPanel testId="fno-panel" scrollable>
@@ -328,7 +330,9 @@ export function FnoScreenerTab() {
             minTableWidth={1400}
             getRowTestId={(row) => `fno-row-${row.symbol}`}
             getRowCanExpand={() => true}
-            renderSubComponent={(row) => <FnoRowDetail row={row} />}
+            renderSubComponent={(row) => (
+              <FnoRowDetail row={row} expiry={expiry() || data()?.expiry} />
+            )}
             bare
           />
         </Show>
@@ -341,14 +345,41 @@ function money2(value: number): string {
   return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export function FnoRowDetail(props: { row: FnoScreenerRow }) {
+/** Whole calendar days to a `YYYY-MM-DD` expiry, on the options model's 365-day year. */
+export function expiryYearsFrom(expiry: string | undefined): number | undefined {
+  if (!expiry || !/^\d{4}-\d{2}-\d{2}$/.test(expiry)) return undefined;
+  const target = Date.parse(`${expiry}T00:00:00Z`);
+  if (!Number.isFinite(target)) return undefined;
+  const now = new Date();
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.max(1, Math.ceil((target - today) / 86_400_000)) / 365;
+}
+
+export function FnoRowDetail(props: { row: FnoScreenerRow; expiry?: string }) {
   const row = () => props.row;
   const maxLoss = () => row().cost_lot;
   // `legs` must rebuild when `props.row` changes (data refetch / view-mode
   // switch re-supplies the same expanded row with a new object). Reading
   // `row()` at body level would pin the first row forever.
-  const legs = (): PayoffLeg[] => [{ strike: row().strike, optionType: "CE", action: "BUY", qty: 1, entry: row().premium }];
-  const rangePct = () => Math.max(12, Math.abs(row().strike / row().spot - 1) * 100 + 5);
+  const legs = (): DockLeg[] => [
+    {
+      key: `fno-${row().symbol}-${row().strike}`,
+      expiry: props.expiry ?? "",
+      side: "buy",
+      type: "CE",
+      strike: row().strike,
+      premium: row().premium,
+      lots: 1,
+      lotSize: 1,
+    },
+  ];
+  // The screener quotes IV in vol points (22.5 = 22.5 %); the core takes a
+  // decimal fraction. With no expiry the core falls back to 7/365 for the model
+  // and hides ±1σ rather than printing a fabricated expected move.
+  const ivDecimal = () => {
+    const iv = row().iv;
+    return Number.isFinite(iv) && iv > 0 ? iv / 100 : Number.NaN;
+  };
   return (
     <Box
       className="flex w-full flex-col gap-1 p-2"
@@ -367,11 +398,12 @@ export function FnoRowDetail(props: { row: FnoScreenerRow }) {
         <CompactStat label="5D%" value={formatPercentage(row().d5)} data-testid="fno-detail-d5" />
         <CompactStat label="+2% est." value={formatPercentage(row().move_2pct_est)} data-testid="fno-detail-move2" />
       </CompactStatGrid>
-      <PayoffChart
+      <PayoffChartCore
         legs={legs()}
         spot={row().spot}
+        iv={ivDecimal()}
+        dteYears={expiryYearsFrom(props.expiry)}
         height={180}
-        rangePct={rangePct()}
         data-testid={`fno-payoff-${row().symbol}`}
       />
     </Box>

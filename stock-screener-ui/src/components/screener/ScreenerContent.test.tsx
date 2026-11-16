@@ -16,12 +16,13 @@ const renderWithProvider = (ui: JSX.Element) =>
   render(() => <UIProvider>{ui}</UIProvider>);
 
 vi.mock("./ScreenerSection", () => ({
-  ScreenerSection: ({ title, description, stocks, action }: any) => (
+  ScreenerSection: ({ title, description, stocks, action, tableId }: any) => (
     <div
       data-testid="screener-section"
       data-title={title}
       data-description={description || ""}
       data-symbols={(stocks || []).map((s: any) => s.symbol).join(",")}
+      data-table-id={tableId}
     >
       {action}
       {title}
@@ -203,6 +204,35 @@ describe("ScreenerContent", () => {
     );
     const stack = screen.getAllByTestId("screener-section")[0].parentElement as HTMLElement;
     expect(stack.style.getPropertyValue("gap")).toBe("8px");
+  });
+
+  it("gives each section a distinct tableId with the profile id and section key", () => {
+    renderWithProvider(
+      <ScreenerContent
+        {...defaultProps}
+        activeScreener="trending"
+        approachingStocks={[mockStock("A")]}
+        touchedStocks={[mockStock("B")]}
+      />,
+    );
+    const sections = screen.getAllByTestId("screener-section");
+    expect(sections[0]).toHaveAttribute("data-table-id", "screener.trending.approaching");
+    expect(sections[1]).toHaveAttribute("data-table-id", "screener.trending.touched");
+    expect(sections[0].getAttribute("data-table-id")).not.toBe(sections[1].getAttribute("data-table-id"));
+  });
+
+  it("scopes tableIds to the active profile", () => {
+    renderWithProvider(
+      <ScreenerContent
+        {...defaultProps}
+        activeScreener="52w_high"
+        approachingStocks={[mockStock("A")]}
+      />,
+    );
+    expect(screen.getByTestId("screener-section")).toHaveAttribute(
+      "data-table-id",
+      "screener.52w_high.approaching",
+    );
   });
 
 });

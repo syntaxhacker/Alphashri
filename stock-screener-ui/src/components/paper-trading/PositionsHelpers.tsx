@@ -11,7 +11,8 @@ import {
   updatePositionNotesAction,
 } from "../../state/paperTrading";
 import type { PaperPosition, PaperScanItem } from "../../types/paperTrading";
-import { TanStackTable, type TableColumnDef } from "./TanStackTable";
+import { TanStackTable, type TableColumnDef, type SortEntry } from "./TanStackTable";
+import { useTablePrefs } from "../common/useTablePrefs";
 import {
   formatSignedPnl,
   formatPercentage,
@@ -340,6 +341,8 @@ export function PositionsTableBody(props: {
   ) => void;
   onClose?: (symbol: string, price: number) => void;
 }) {
+  const { prefs, setSorting } = useTablePrefs("paper.positions");
+  const sorting = (): SortEntry[] => prefs().sorting;
   const handleClosePosition = async (symbol: string, currentPrice: number) => {
     if (props.onClose) {
       props.onClose(symbol, currentPrice);
@@ -487,6 +490,8 @@ export function PositionsTableBody(props: {
       className="paper-positions-table"
       data={props.positions}
       columns={columns()}
+      sorting={sorting()}
+      onSortingChange={setSorting}
       getRowCanExpand={() => true}
       renderSubComponent={(pos) => (
         <Box className="paper-position-expanded p-1" id={`paper-position-expanded-${pos.order_id || pos.symbol}`} style={{ "background-color": BG, "border-top": `1px solid ${BORDER}`, "border-bottom": `1px solid ${BORDER}` }}>

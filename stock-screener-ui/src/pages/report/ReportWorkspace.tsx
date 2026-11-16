@@ -257,6 +257,13 @@ export function ReportWorkspace() {
             isDesk() && chartSize() !== "fill" ? `${chartRowHeight()}px` : undefined,
         }}
       >
+        {/* Hold the wide first grid track while the report is absent; without
+            this the side column becomes grid child #1 and fills the 1fr track,
+            stranding the fixed 420/624px track empty. */}
+        <Show when={!store.data.report()}>
+          <Box data-testid="nifty-chart-placeholder" className="min-w-0 min-h-0" />
+        </Show>
+
         <Show when={store.data.report()}>
           {(current) => (
             <Suspense fallback={<PanelSkeleton h={chartRowHeight()} />}>

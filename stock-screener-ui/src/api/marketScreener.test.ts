@@ -4,6 +4,7 @@ import { describe, expect, test, vi, beforeEach } from "vitest";
 import {
   buildMarketSnapshotUrl,
   fetchMarketSnapshot,
+  fetchQuotes,
   mapMarketRow,
   mapMarketSnapshot,
   readCachedMarketSnapshot,
@@ -57,6 +58,14 @@ describe("buildMarketSnapshotUrl", () => {
   test("force=true is only sent when requested", () => {
     expect(buildMarketSnapshotUrl({ force: true })).toContain("force=true");
     expect(buildMarketSnapshotUrl({ force: false })).not.toContain("force=");
+  });
+
+  test("symbols are sent comma-separated only when present", () => {
+    expect(buildMarketSnapshotUrl()).not.toContain("symbols=");
+    expect(buildMarketSnapshotUrl({ symbols: [] })).not.toContain("symbols=");
+    expect(buildMarketSnapshotUrl({ symbols: ["KAYNES", "IRCON"] })).toContain(
+      "symbols=KAYNES%2CIRCON",
+    );
   });
 });
 
@@ -287,6 +296,128 @@ describe("fetchMarketSnapshot", () => {
     const controller = new AbortController();
     await fetchMarketSnapshot({}, { signal: controller.signal });
     expect(mockFetchWithAuth.mock.calls[0][1]).toMatchObject({ signal: controller.signal });
+  });
+});
+
+describe("fetchQuotes", () => {
+  test("requests the snapshot symbols filter and returns only the needed fields", async () => {
+    mockFetchWithAuth.mockResolvedValueOnce(
+      mockResponse(true, {
+        rows: [
+          { symbol: "KAYNES", close: 2986, change: -12.94, name: "Kaynes Technology" },
+          { symbol: "IRCON", close: 3430, change: -1.55 },
+        ],
+      }),
+    );
+    const quotes = await fetchQuotes(["KAYNES", "IRCON"]);
+    expect(mockFetchWithAuth.mock.calls[0][0]).toContain("symbols=KAYNES%2CIRCON");
+    expect(quotes).toEqual([
+      { symbol: "KAYNES", close: 2986, change: -12.94 },
+      { symbol: "IRCON", close: 3430, change: -1.55 },
+    ]);
+  });
+
+  test("an empty symbol list short-circuits with no network call", async () => {
+    expect(await fetchQuotes([])).toEqual([]);
+    expect(await fetchQuotes(["  ", ""])).toEqual([]);
+    expect(mockFetchWithAuth).not.toHaveBeenCalled();
+  });
+
+  test("maps missing numerics to null", async () => {
+    mockFetchWithAuth.mockResolvedValueOnce(
+      mockResponse(true, { rows: [{ symbol: "NOPE" }] }),
+    );
+    expect(await fetchQuotes(["NOPE"])).toEqual([
+      { symbol: "NOPE", close: null, change: null },
+    ]);
+  });
+
+  test("throws the server detail on !ok", async () => {
+    mockFetchWithAuth.mockResolvedValueOnce(
+      mockResponse(false, { detail: "symbols accepts at most 20 symbols" }, 400),
+    );
+    await expect(fetchQuotes(["A"])).rejects.toThrow("at most 20");
+  });
+
+  test("one failed batch does not reject the whole set; returns the partial set", async () => {
+    const batch1 = Array.from({ length: 20 }, (_, i) => `SYM${i + 1}`);
+    mockFetchWithAuth
+      .mockResolvedValueOnce(
+        mockResponse(
+          true,
+          { rows: batch1.map((s) => ({ symbol: s, close: 100, change: 1 })) },
+        ),
+      )
+      .mockRejectedValueOnce(new Error("batch 2 down"));
+    const quotes = await fetchQuotes([...batch1, "SYM21"]);
+    expect(mockFetchWithAuth).toHaveBeenCalledTimes(2);
+    expect(quotes).toHaveLength(20);
+    expect(quotes.map((q) => q.symbol)).toEqual(batch1);
+  });
+
+  test("all batches fail rethrows the first error", async () => {
+    const symbols = Array.from({ length: 21 }, (_, i) => `SYM${i + 1}`);
+    mockFetchWithAuth
+      .mockRejectedValueOnce(new Error("first batch down"))
+      .mockRejectedValueOnce(new Error("second batch down"));
+    await expect(fetchQuotes(symbols)).rejects.toThrow("first batch down");
+  });
+
+  test("a single symbol still makes exactly one request", async () => {
+    mockFetchWithAuth.mockResolvedValueOnce(
+      mockResponse(true, { rows: [{ symbol: "KAYNES", close: 2986, change: -12.94 }] }),
+    );
+    const quotes = await fetchQuotes(["KAYNES"]);
+    expect(mockFetchWithAuth).toHaveBeenCalledTimes(1);
+    expect((mockFetchWithAuth.mock.calls[0][0] as string)).toContain("symbols=KAYNES");
+    expect(quotes).toEqual([{ symbol: "KAYNES", close: 2986, change: -12.94 }]);
+  });
+
+  test("21+ symbols are deduped, chunked into batches of 20, and merged in input order", async () => {
+    const symbols = Array.from({ length: 21 }, (_, i) => `SYM${i + 1}`);
+    const batch1 = symbols.slice(0, 20);
+    const batch2 = symbols.slice(20);
+    mockFetchWithAuth
+      .mockResolvedValueOnce(
+        mockResponse(true, { rows: batch1.map((s) => ({ symbol: s, close: 100, change: 1 })) }),
+      )
+      .mockResolvedValueOnce(
+        mockResponse(true, { rows: batch2.map((s) => ({ symbol: s, close: 200, change: -1 })) }),
+      );
+    const quotes = await fetchQuotes(symbols);
+    expect(mockFetchWithAuth).toHaveBeenCalledTimes(2);
+    expect((mockFetchWithAuth.mock.calls[0][0] as string)).toContain(
+      `symbols=${batch1.join("%2C")}`,
+    );
+    expect((mockFetchWithAuth.mock.calls[1][0] as string)).toContain(
+      `symbols=${batch2.join("%2C")}`,
+    );
+    expect(quotes).toHaveLength(21);
+    expect(quotes.map((q) => q.symbol)).toEqual(symbols);
+    expect(quotes[0]).toEqual({ symbol: "SYM1", close: 100, change: 1 });
+    expect(quotes[20]).toEqual({ symbol: "SYM21", close: 200, change: -1 });
+  });
+
+  test("dedupes case-insensitively and keeps first-occurrence casing", async () => {
+    mockFetchWithAuth.mockResolvedValueOnce(
+      mockResponse(true, {
+        rows: [
+          { symbol: "RELIANCE", close: 2946, change: 0.82 },
+          { symbol: "TCS", close: 3100, change: -1.5 },
+          { symbol: "KAYNES", close: 2986, change: -12.94 },
+        ],
+      }),
+    );
+    const quotes = await fetchQuotes(["RELIANCE", "reliance", "  ", "TCS", "tcs", "KAYNES"]);
+    expect(mockFetchWithAuth).toHaveBeenCalledTimes(1);
+    expect((mockFetchWithAuth.mock.calls[0][0] as string)).toContain(
+      "symbols=RELIANCE%2CTCS%2CKAYNES",
+    );
+    expect(quotes).toEqual([
+      { symbol: "RELIANCE", close: 2946, change: 0.82 },
+      { symbol: "TCS", close: 3100, change: -1.5 },
+      { symbol: "KAYNES", close: 2986, change: -12.94 },
+    ]);
   });
 });
 

@@ -7,13 +7,13 @@ import { UIProvider } from "@/ui";
 import { FnoRowDetail } from "./FnoScreenerTab";
 import type { FnoScreenerRow } from "../../api/fnoScreener";
 
-// Mock PayoffChart so happy-dom never loads ECharts. Captures the props it is
-// called with so the test can assert which row's legs were rendered.
-let capturedProps: any = null;
-vi.mock("@/components/options/PremiumTracker/PayoffChart", () => ({
-  PayoffChart: (props: any) => {
-    capturedProps = props;
-    return <div data-testid="mock-payoff-chart">{props.legs?.[0]?.strike ?? "-"}</div>;
+// Mock the shared core so happy-dom never loads ECharts. Captures the props it
+// is called with so the test can assert which row's legs were rendered.
+const { captured } = vi.hoisted(() => ({ captured: { props: null as any } }));
+vi.mock("@/components/options-dock/PayoffChartCore", () => ({
+  PayoffChartCore: (props: any) => {
+    captured.props = props;
+    return <div data-testid={props["data-testid"]}>{props.legs?.[0]?.strike ?? "-"}</div>;
   },
 }));
 
@@ -44,16 +44,46 @@ describe("FnoRowDetail", () => {
     }
     render(() => <UIProvider><TestHost /></UIProvider>);
 
-    // Initial render: legs built from rowA (strike 3000).
-    await waitFor(() => expect(screen.getByTestId("mock-payoff-chart")).toHaveTextContent("3000"));
-    expect(capturedProps.legs[0].strike).toBe(3000);
+    // Initial render: one long-CE leg built from rowA (strike 3000).
+    await waitFor(() => expect(screen.getByTestId("fno-payoff-RELIANCE")).toHaveTextContent("3000"));
+    expect(captured.props.legs).toHaveLength(1);
+    expect(captured.props.legs[0]).toMatchObject({
+      key: "fno-RELIANCE-3000", side: "buy", type: "CE", strike: 3000,
+      premium: 45.5, lots: 1, lotSize: 1,
+    });
 
     fireEvent.click(screen.getByTestId("switch-row"));
 
     // Same `FnoRowDetail` instance, new `props.row`: legs must be rebuilt from
     // rowB (strike 4200). When `legs` is read at body level it stays pinned to
     // rowA forever and this assertion times out.
-    await waitFor(() => expect(screen.getByTestId("mock-payoff-chart")).toHaveTextContent("4200"));
-    expect(capturedProps.legs[0].strike).toBe(4200);
+    await waitFor(() => expect(screen.getByTestId("fno-payoff-TCS")).toHaveTextContent("4200"));
+    expect(captured.props.legs[0]).toMatchObject({
+      key: "fno-TCS-4200", strike: 4200, premium: 32,
+    });
+  });
+
+  it("converts vol-point IV to a decimal and derives DTE from the expiry", async () => {
+    render(() => (
+      <UIProvider>
+        <FnoRowDetail row={rowA} expiry="2026-12-20" />
+      </UIProvider>
+    ));
+
+    await waitFor(() => expect(captured.props.legs[0].strike).toBe(3000));
+    expect(captured.props.iv).toBeCloseTo(0.225, 6);
+    expect(captured.props.dteYears).toBeGreaterThan(0);
+    expect(captured.props.dteYears).toBeLessThanOrEqual(1);
+  });
+
+  it("omits DTE when there is no expiry so the core hides ±1σ", async () => {
+    render(() => (
+      <UIProvider>
+        <FnoRowDetail row={rowA} />
+      </UIProvider>
+    ));
+
+    await waitFor(() => expect(captured.props.legs[0].strike).toBe(3000));
+    expect(captured.props.dteYears).toBeUndefined();
   });
 });
