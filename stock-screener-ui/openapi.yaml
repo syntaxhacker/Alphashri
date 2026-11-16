@@ -6745,7 +6745,16 @@ paths:
 
         The (potentially 58s cold) TV scan runs off the event loop via
 
-        ``asyncio.to_thread`` so it can never block other requests.'
+        ``asyncio.to_thread`` so it can never block other requests.
+
+
+        ``symbols`` is optional. An empty or whitespace-only value (e.g.
+
+        ``?symbols=``) means no filter and returns all rows; otherwise it filters
+
+        the cached snapshot to the requested symbols (max 20, deduplicated
+
+        case-insensitively).'
       operationId: market_snapshot_api_market_snapshot_get
       parameters:
       - description: 'Universe: all_equity (default), nifty50, nifty500 or nse_fo.'
@@ -6802,6 +6811,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - bearerAuth: []
       summary: NSE market snapshot for the one-page screener
       tags:
       - market

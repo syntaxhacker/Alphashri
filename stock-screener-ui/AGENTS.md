@@ -245,6 +245,7 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 
 ## Market Data Auth
 - **Market data endpoints** (`/api/chart/preview`, `/api/paper/chart`, `/api/backtest/run`) use `UpstoxAPI` with `UPSTOX_API_KEY`/`UPSTOX_API_SECRET` — **no OAuth broker token needed**
+- **`/api/market/snapshot` is app-auth protected** (route `Depends(get_current_user)`) so an anonymous `force=1` cannot trigger a full TV scan; the UI sends the normal bearer token. It is still **not** broker-OAuth gated.
 - **Options + broker endpoints** (`/api/options/*`, `/api/brokers/*`) require OAuth access token via `get_shared_broker_token('upstox')` — user must connect broker in Settings
 - **Live price streaming** (`/api/paper/live/stream`) also requires OAuth access token (uses `MarketDataStreamerV3` SDK)
 - Never gate market data behind broker OAuth check

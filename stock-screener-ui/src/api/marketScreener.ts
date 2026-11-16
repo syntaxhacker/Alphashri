@@ -298,15 +298,27 @@ export async function fetchQuotes(symbols: string[], init?: RequestInit): Promis
   for (let i = 0; i < clean.length; i += MARKET_SYMBOLS_MAX) {
     batches.push(clean.slice(i, i + MARKET_SYMBOLS_MAX));
   }
-  const results = await Promise.all(batches.map((batch) => fetchQuotesBatch(batch, init)));
+  // One failed batch must not reject the whole quote set: settle every batch,
+  // merge the successes in input order, and only rethrow when every batch fails.
+  const outcomes = await Promise.allSettled(
+    batches.map((batch) => fetchQuotesBatch(batch, init)),
+  );
   const merged: MarketQuote[] = [];
   const seen = new Set<string>();
-  for (const batch of results) {
-    for (const quote of batch) {
-      if (seen.has(quote.symbol)) continue;
-      seen.add(quote.symbol);
-      merged.push(quote);
+  let firstError: unknown;
+  for (const outcome of outcomes) {
+    if (outcome.status === "fulfilled") {
+      for (const quote of outcome.value) {
+        if (seen.has(quote.symbol)) continue;
+        seen.add(quote.symbol);
+        merged.push(quote);
+      }
+    } else if (firstError === undefined) {
+      firstError = outcome.reason;
     }
+  }
+  if (merged.length === 0 && firstError !== undefined) {
+    throw firstError;
   }
   return merged;
 }

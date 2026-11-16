@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from sys import path as sys_path
 from time import sleep, time
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pandas as pd
@@ -27,6 +28,7 @@ if str(ROOT) not in sys_path:
     sys_path.insert(0, str(ROOT))
 
 from api_server_fastapi import app  # noqa: E402
+from api.auth import get_current_user  # noqa: E402
 from api.market_screen import snapshot as snapshot_mod  # noqa: E402
 from api.market_screen.snapshot import (  # noqa: E402
     ALLOWED_UNIVERSES,
@@ -92,8 +94,15 @@ def _clear_disk_stale() -> None:
 
 @pytest.fixture(scope="module")
 def client():
+    # /api/market/snapshot is now protected; override the dependency so the
+    # existing (authenticated) calls keep working. Cleared in teardown so the
+    # override does not leak into other test modules sharing this app object.
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(
+        id=1, email="qa@test.com", uuid="00000000-0000-0000-0000-000000000001"
+    )
     with TestClient(app) as test_client:
         yield test_client
+    app.dependency_overrides.pop(get_current_user, None)
 
 
 @pytest.fixture(autouse=True)
@@ -183,6 +192,20 @@ def test_limit_bounds(client, mock_tv):
     assert resp.status_code == 200
     assert resp.json()["total"] == 5
     assert mock_tv.call_args.kwargs["limit"] == 5
+
+
+def test_snapshot_requires_auth(client):
+    """An anonymous GET must be rejected: /api/market/snapshot is protected."""
+    app.dependency_overrides.pop(get_current_user, None)
+    try:
+        resp = client.get("/api/market/snapshot")
+        assert resp.status_code == 401, resp.text
+        detail = resp.json().get("detail", "")
+        assert "auth" in detail.lower() or "authenticate" in detail.lower(), detail
+    finally:
+        app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(
+            id=1, email="qa@test.com", uuid="00000000-0000-0000-0000-000000000001"
+        )
 
 
 def test_cap_tier_ranking(client, mock_tv):
@@ -318,6 +341,17 @@ def test_symbols_filter_more_than_20_is_400(client, mock_tv):
     assert resp.status_code == 400
     assert "at most 20" in resp.json()["detail"]
     assert mock_tv.call_count == 0
+
+
+def test_symbols_filter_repeated_entries_collapse_under_cap(client, mock_tv):
+    """Dedupe happens before the cap check: 21 repeats of one symbol -> 1 -> accepted."""
+    mock_tv.return_value = _frame([RELIANCE_ROW])
+    symbols = ",".join(["RELIANCE"] * 21)
+    resp = client.get(f"/api/market/snapshot?symbols={symbols}")
+    assert resp.status_code == 200, resp.text
+    assert [r["symbol"] for r in resp.json()["rows"]] == ["RELIANCE"]
+    assert resp.json()["total"] == 1
+    assert mock_tv.call_count == 1
 
 
 def test_symbols_filter_exactly_20_is_allowed(client, mock_tv):

@@ -339,6 +339,30 @@ describe("fetchQuotes", () => {
     await expect(fetchQuotes(["A"])).rejects.toThrow("at most 20");
   });
 
+  test("one failed batch does not reject the whole set; returns the partial set", async () => {
+    const batch1 = Array.from({ length: 20 }, (_, i) => `SYM${i + 1}`);
+    mockFetchWithAuth
+      .mockResolvedValueOnce(
+        mockResponse(
+          true,
+          { rows: batch1.map((s) => ({ symbol: s, close: 100, change: 1 })) },
+        ),
+      )
+      .mockRejectedValueOnce(new Error("batch 2 down"));
+    const quotes = await fetchQuotes([...batch1, "SYM21"]);
+    expect(mockFetchWithAuth).toHaveBeenCalledTimes(2);
+    expect(quotes).toHaveLength(20);
+    expect(quotes.map((q) => q.symbol)).toEqual(batch1);
+  });
+
+  test("all batches fail rethrows the first error", async () => {
+    const symbols = Array.from({ length: 21 }, (_, i) => `SYM${i + 1}`);
+    mockFetchWithAuth
+      .mockRejectedValueOnce(new Error("first batch down"))
+      .mockRejectedValueOnce(new Error("second batch down"));
+    await expect(fetchQuotes(symbols)).rejects.toThrow("first batch down");
+  });
+
   test("a single symbol still makes exactly one request", async () => {
     mockFetchWithAuth.mockResolvedValueOnce(
       mockResponse(true, { rows: [{ symbol: "KAYNES", close: 2986, change: -12.94 }] }),
