@@ -771,7 +771,7 @@ describe("TanStackTable — visible row window callback", () => {
     setRows([current[0], { id: "9", name: "Delta", value: 900 }, current[2]]);
 
     expect(onVisibleRowsChange).toHaveBeenCalledTimes(2);
-    expect(onVisibleRowsChange.mock.calls[1][0].map((r) => r.id)).toEqual(["1", "9", "3"]);
+    expect(onVisibleRowsChange.mock.calls[1][0].map((r: TestItem) => r.id)).toEqual(["1", "9", "3"]);
   });
 
   it("re-emits when the window's first row changes", () => {

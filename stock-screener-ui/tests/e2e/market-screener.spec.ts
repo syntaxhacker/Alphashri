@@ -192,7 +192,7 @@ test.describe("Market Screener tab", () => {
     // Search narrows the filtered set, not the raw universe.
     // TextInput drops aria-label entirely; the textbox's accessible name comes
     // from its placeholder ("Search symbol or name…").
-    await page.getByRole("textbox", { name: /search symbol or name/i }).fill("reliance");
+    await page.getByRole("textbox", { name: /search symbols/i }).fill("reliance");
     await expect(page.locator('[data-testid="market-result-count"]')).toContainText(
       `1 / ${MOCK_ROWS.length}`,
     );

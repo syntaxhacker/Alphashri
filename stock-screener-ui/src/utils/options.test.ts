@@ -98,7 +98,7 @@ describe("getExpiryDates", () => {
       byZone.push(
         instants.flatMap((instant) => {
           vi.setSystemTime(new Date(instant));
-          return [getExpiryDates("NIFTY")];
+          return getExpiryDates("NIFTY");
         }),
       );
       vi.useRealTimers();
