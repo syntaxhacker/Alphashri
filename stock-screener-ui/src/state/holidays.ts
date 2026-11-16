@@ -62,9 +62,25 @@ export async function loadHolidays(year?: number) {
   }
 }
 
+/**
+ * Calendar weekday (0 = Sunday) of a `YYYY-MM-DD` string.
+ *
+ * `new Date("2026-11-16")` is parsed as **UTC midnight**, so `getDay()` answers
+ * for the previous day everywhere west of Greenwich — every Monday in
+ * `America/New_York` read as Sunday (a "holiday") and every Saturday as Friday.
+ * Build the date from its parts so the weekday is the one on the label, and use
+ * noon rather than midnight so a zone whose DST transition happens at midnight
+ * cannot push it into the previous day.
+ */
+export function calendarWeekday(dateStr: string): number {
+  const [y, m, d] = dateStr.slice(0, 10).split("-").map(Number);
+  if (!y || !m || !d) return Number.NaN;
+  return new Date(y, m - 1, d, 12).getDay();
+}
+
 export function isTradingHoliday(dateStr: string): boolean {
   if (state.tradingDates.has(dateStr)) return true;
-  const day = new Date(dateStr).getDay();
+  const day = calendarWeekday(dateStr);
   return day === 0 || day === 6;
 }
 
