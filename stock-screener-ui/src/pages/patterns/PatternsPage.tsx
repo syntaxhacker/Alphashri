@@ -1,4 +1,4 @@
-import { Suspense, batch, createEffect, createMemo, createSignal, mergeProps, onCleanup, type JSX } from "solid-js";
+import { For, Show, Suspense, batch, createEffect, createMemo, createSignal, mergeProps, onCleanup, type JSX } from "solid-js";
 import { ActionIcon, Alert, Box, Button, Chip, Divider, Loader, Menu, MenuDropdown, MenuItem, MenuTarget, Modal, SegmentedControl, Select, Switch, Tabs, Text, ToolbarRow, Tooltip, useMediaQuery } from "@/ui";
 import { IconAdjustmentsHorizontal, IconDotsVertical } from "@/components/common/Icons";
 import type {
@@ -247,10 +247,12 @@ function PatternsWorkspace(props: PatternsPageProps) {
     setChartMaximized(false);
     closeFullscreen();
   };
-  const openChartHit = (hit: PatternHitDTO) => {
+  const openChartHit = (hit: PatternHitDTO | null) => {
+      if (!hit) return;
+      const current = fullscreen();
       if (
-        fullscreen()?.hit &&
-        fullscreenHitIdentity(fullscreen().hit) === fullscreenHitIdentity(hit)
+        current?.hit &&
+        fullscreenHitIdentity(current.hit) === fullscreenHitIdentity(hit)
       ) {
         return;
       }
@@ -572,7 +574,8 @@ function PatternsWorkspace(props: PatternsPageProps) {
       window.clearTimeout(previewTimerRef.current);
       previewTimerRef.current = null;
     }
-    if (!canPreview() || !fullscreen() || fullscreen().pinned) return;
+    const current = fullscreen();
+    if (!canPreview() || !current || current.pinned) return;
     if (previewCloseTimerRef.current) window.clearTimeout(previewCloseTimerRef.current);
     // Grace window so moving the pointer from the symbol into the rail does
     // not dismiss the preview before the rail's mouseenter lands.
@@ -754,7 +757,7 @@ function PatternsWorkspace(props: PatternsPageProps) {
                 <ReplayScanControl onReplayScan={scanReplay} />
                 {replayAsOf() ? (
                   <Text size="xs" c="dimmed" data-testid="patterns-scan-asof">
-                    {`as of ${formatAsOfLabel(replayAsOf())}`}
+                    {`as of ${formatAsOfLabel(replayAsOf() ?? "")}`}
                   </Text>
                 ) : null}
                 <Tooltip label="Draw standalone support / resistance lines (TLS = support, TLR = resistance)">
@@ -763,7 +766,7 @@ function PatternsWorkspace(props: PatternsPageProps) {
                       label="TLS/TLR"
                       size="sm"
                       checked={computeTrendlines()}
-                      onChange={(e) => setComputeTrendlines(e.currentTarget.checked)}
+                      onChange={(e) => setComputeTrendlines((e.currentTarget as HTMLInputElement).checked)}
                       data-testid="patterns-compute-trendlines"
                     />
                   </Box>

@@ -165,6 +165,11 @@ vi.mock("@/components/patterns/PatternListView", () => ({
             >
               chart
             </button>
+            <button
+              type="button"
+              data-testid="patterns-list-select-null"
+              onClick={() => props.onSelect?.(null)}
+            />
           </div>
         )}
       </For>
@@ -463,6 +468,29 @@ describe("PatternsPage", () => {
     expect(screen.getByTestId("patterns-list")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-list-row-IRCON-falling_wedge")).toBeInTheDocument();
     expect(screen.queryByTestId("patterns-grid")).not.toBeInTheDocument();
+  });
+
+  test("empty-state filter chips and refresh chip render without ReferenceError", async () => {
+    const chipProps = makeProps({
+      results: [],
+      total: 0,
+      filters: { ...makeProps().filters, family: ["reversal"], direction: ["bullish"] },
+    });
+    const chipView = r(<PatternsPage {...chipProps} />);
+    expect(screen.getByTestId("patterns-empty-relax")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-empty-relax-family:reversal")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-empty-relax-direction:bullish")).toBeInTheDocument();
+    chipView.unmount();
+
+    r(<PatternsPage {...makeProps({ loading: true })} />);
+    expect(await screen.findByTestId("patterns-refreshing")).toBeInTheDocument();
+  });
+
+  test("a null hit click does not throw", () => {
+    r(<PatternsPage {...makeProps()} />);
+    expect(() =>
+      fireEvent.click(screen.getByTestId("patterns-list-select-null")),
+    ).not.toThrow();
   });
 
   test("renders the live counters on the tab row instead of a second band", () => {
