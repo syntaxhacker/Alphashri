@@ -984,7 +984,23 @@ function MenuItem(props: DivProps & { closeOnClick?: boolean }) {
   );
 }
 
-function Modal(props: DivProps & { opened?: boolean; title?: JSX.Element; onClose?: () => void }) {
+function Modal(
+  props: DivProps & {
+    opened?: boolean;
+    title?: JSX.Element;
+    onClose?: () => void;
+    withCloseButton?: boolean;
+    closeOnClickOutside?: boolean;
+    closeOnEscape?: boolean;
+  },
+) {
+  // Deliberately over-supplies: the × renders whenever `onClose` exists unless
+  // the caller passes `withCloseButton={false}` — the one case the real Modal
+  // withholds. Reading `props.title` here is not an option: it re-evaluates the
+  // caller's title element. The dismissal paths are asserted against the real
+  // `Modal` in `src/ui/overlay/Modal.test.tsx`, never through this double.
+  const showClose = () => props.onClose != null && props.withCloseButton !== false;
+
   return (
     <Show when={props.opened}>
       <div
@@ -997,7 +1013,7 @@ function Modal(props: DivProps & { opened?: boolean; title?: JSX.Element; onClos
       >
         <div class="relative flex items-center justify-between border-b" style={{ width: "100%" }}>
           {props.title ? <div data-testid={props["data-testid"] ? `${props["data-testid"]}-title` : undefined}>{props.title}</div> : <div />}
-          {props.onClose ? (
+          {showClose() ? (
             <button
               type="button"
               aria-label="close"

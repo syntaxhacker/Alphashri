@@ -18,6 +18,12 @@ function paddingSize(v: UISize | number | string): string {
   return m[v as string] ?? String(v);
 }
 
+/**
+ * Dismissal defaults, whenever `onClose` is given: a titled modal always shows
+ * a × in its title bar, Escape closes, and a backdrop click closes. Dialogs
+ * that would discard something irreversible opt out explicitly with
+ * `closeOnEscape={false}` / `closeOnClickOutside={false}`.
+ */
 export function Modal(props: ModalProps) {
   // splitProps reads are reactive only while they stay inside a tracked scope
   // (JSX or an effect). Destructuring them here would pin the first snapshot.
@@ -46,21 +52,47 @@ export function Modal(props: ModalProps) {
   // The testid travels with the dialog, so the close button can derive its own.
   const testId = known["data-testid"];
 
+  // `?? true` rather than a truthiness check: an explicit `false` is a
+  // deliberate opt-out (irreversible dialogs) and must survive.
+  const canClose = () => known.onClose != null;
+  const closeOnEscape = () => known.closeOnEscape ?? true;
+  const closeOnClickOutside = () => known.closeOnClickOutside ?? true;
+  const showCloseButton = () =>
+    canClose() && (Boolean(known.title) || Boolean(known.withCloseButton));
+
   let dialogRef: HTMLDivElement | undefined;
+
+  // An open combobox/menu owns Escape first: the dialog must not vanish while
+  // the user is only closing a dropdown. This listener runs in the capture
+  // phase — the dropdown's own handler (bubble) has already flipped
+  // `aria-expanded`/unmounted the listbox by the time a bubble listener sees it.
+  // Binding a popup is judged by an open signal, never by presence alone: an
+  // inline Select's listbox is a dialog descendant whenever it is open.
+  const escapeBelongsToPopup = () => {
+    const active = document.activeElement as HTMLElement | null;
+    if (active?.getAttribute("role") === "combobox" && active.getAttribute("aria-expanded") === "true") {
+      return true;
+    }
+    if (active?.closest('[role="listbox"],[role="menu"]')) return true;
+    if (dialogRef?.querySelector('[role="combobox"][aria-expanded="true"]')) return true;
+    return Boolean(dialogRef?.querySelector('[role="menu"]'));
+  };
 
   createEffect(() => {
     if (!known.opened) return;
     const previous = document.activeElement as HTMLElement | null;
     const frame = window.requestAnimationFrame(() => dialogRef?.focus());
     const onDocKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && known.closeOnEscape) known.onClose?.();
+      if (e.key !== "Escape" || !closeOnEscape()) return;
+      if (escapeBelongsToPopup()) return;
+      known.onClose?.();
     };
-    document.addEventListener("keydown", onDocKey);
+    document.addEventListener("keydown", onDocKey, true);
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     onCleanup(() => {
       window.cancelAnimationFrame(frame);
-      document.removeEventListener("keydown", onDocKey);
+      document.removeEventListener("keydown", onDocKey, true);
       document.body.style.overflow = previousOverflow;
       previous?.focus?.();
     });
@@ -76,11 +108,8 @@ export function Modal(props: ModalProps) {
         : String(known.size)
       : undefined;
 
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape" && known.closeOnEscape) known.onClose?.();
-  };
   const handleBackdropClick = (e: MouseEvent) => {
-    if (e.target === e.currentTarget && known.closeOnClickOutside) known.onClose?.();
+    if (e.target === e.currentTarget && closeOnClickOutside()) known.onClose?.();
   };
 
   const overlayStyle: Record<string, string | number | undefined> = {
@@ -109,7 +138,6 @@ export function Modal(props: ModalProps) {
         className={cn("fixed inset-0 z-50 flex items-center justify-center", known.className)}
         style={overlayStyle}
         onClick={handleBackdropClick}
-        onKeyDown={handleKeyDown}
         role="dialog"
         aria-modal="true"
         aria-label={typeof known.title === "string" ? known.title : "dialog"}
@@ -125,19 +153,19 @@ export function Modal(props: ModalProps) {
           style={panelStyle}
           onClick={(e) => e.stopPropagation()}
         >
-          <Show when={known.title || known.withCloseButton}>
+          <Show when={known.title || showCloseButton()}>
             <div className="relative flex items-center justify-between border-b border-fin-border bg-fin-surface/50 px-3 py-2">
               {known.title && (
                 <div
                   className={cn(
                     "flex-1 text-sm font-medium text-fin-text truncate",
-                    known.withCloseButton ? "pr-8" : undefined,
+                    showCloseButton() ? "pr-8" : undefined,
                   )}
                 >
                   {known.title}
                 </div>
               )}
-              {known.withCloseButton && (
+              {showCloseButton() && (
                 <button
                   type="button"
                   aria-label="close"
