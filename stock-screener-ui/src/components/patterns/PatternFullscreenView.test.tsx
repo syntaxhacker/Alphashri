@@ -3,10 +3,28 @@ import "@testing-library/jest-dom/vitest";
 
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
-  return mockSolidUi();
+  return {
+    ...mockSolidUi(),
+    // The shared stub drops `loading`/`disabled`; the real ActionIcon forwards
+    // both (spinner + disabled). Keep that contract observable here.
+    ActionIcon: (props: any) => (
+      <button
+        type="button"
+        data-testid={props["data-testid"]}
+        aria-label={props["aria-label"]}
+        aria-busy={props.loading ? "true" : undefined}
+        disabled={Boolean(props.loading || props.disabled)}
+        onClick={props.onClick}
+        className={props.className}
+      >
+        {props.children}
+      </button>
+    ),
+  };
 });
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { PatternFullscreenView } from "./PatternFullscreenView";
 
@@ -81,12 +99,36 @@ describe("PatternFullscreenView", () => {
     // Meta lives in the panel; the breakout/target/stop/rr/confidence row is gone.
     expect(screen.getByTestId("patterns-status-confirmed")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-quality-strong")).toBeInTheDocument();
-    expect(screen.getByText("Last close")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-close-label")).toBeInTheDocument();
     expect(screen.getByText(/1\.20%/)).toBeInTheDocument();
     expect(screen.queryByText("Target")).toBeNull();
     expect(screen.queryByText("Stop")).toBeNull();
     expect(screen.queryByText("R:R")).toBeNull();
     
+  });
+
+  test("dock refresh button calls onRefresh and disables while loading", () => {
+    const onRefresh = vi.fn();
+    const [loading, setLoading] = createSignal(false);
+    render(() => (
+      <PatternFullscreenView
+        opened
+        docked
+        onClose={vi.fn()}
+        hit={HIT}
+        candles={[]}
+        onRefresh={onRefresh}
+        loading={loading()}
+      />
+    ));
+    const refresh = screen.getByTestId("patterns-dock-refresh");
+    expect(refresh).toBeEnabled();
+    fireEvent.click(refresh);
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+
+    setLoading(true);
+    expect(screen.getByTestId("patterns-dock-refresh")).toBeDisabled();
+    expect(screen.getByTestId("patterns-dock-refresh")).toHaveAttribute("aria-busy", "true");
   });
 
   test("loading with no candles does not claim there is no chart data", () => {

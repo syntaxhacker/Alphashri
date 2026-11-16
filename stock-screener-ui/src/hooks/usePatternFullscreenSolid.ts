@@ -44,6 +44,9 @@ export interface FullscreenChartState {
   fromDate: string | null;
   stale?: boolean;
   dataAsOf?: string | null;
+  // Follow-up (T3 live quote): no live_price/live_change field exists in this
+  // state (or in the dock open payload). Thread the market table's LTP through
+  // here before rendering a separate live line in the pattern panel.
   /** Chart endpoint failure code (`no_data`, `fetch_timeout`, …). */
   chartError?: string | null;
   /** Human-readable reason shown instead of a blank chart. */
@@ -154,6 +157,16 @@ export function usePatternFullscreen({
   };
 
   const symbolChartCache = new Map<string, { chart: SymbolChartPayload; ts: number }>();
+
+  /** Drop both cached phases (and every replay window) for one symbol+timeframe. */
+  const invalidateSymbolChartCache = (symbol: string, tf: string) => {
+    const prefix = `${symbol}|${tf}|`;
+    for (const key of symbolChartCache.keys()) {
+      if (key.startsWith(`${prefix}l|`) || key.startsWith(`${prefix}p|`)) {
+        symbolChartCache.delete(key);
+      }
+    }
+  };
 
   /** The endpoint answers 200 with `error`/`note` when it has no candles. */
   const chartProblem = (chart: SymbolChartPayload) => ({
@@ -334,6 +347,7 @@ export function usePatternFullscreen({
     timeframe: string | undefined,
     pinned: boolean,
     detectPatterns = true,
+    replay?: { asOf?: string | null; fromDate?: string | null },
   ) => {
     const tf = timeframe ?? defaultTimeframe;
     const token = ++chartRequestToken;
@@ -347,8 +361,8 @@ export function usePatternFullscreen({
       trendLines: [],
       loading: true,
       detectPatterns,
-      asOf: null,
-      fromDate: null,
+      asOf: replay?.asOf ?? null,
+      fromDate: replay?.fromDate ?? null,
       pinned,
       patternsLoading: undefined,
       stale: false,
@@ -360,7 +374,23 @@ export function usePatternFullscreen({
     void runTwoPhase(symbol, tf, token, detectPatterns, {
       lookbackBars,
       computeTrendlines,
+      asOf: replay?.asOf ?? undefined,
+      fromDate: replay?.fromDate ?? undefined,
     });
+  };
+
+  /** Clear this symbol's cached frames and refetch the open chart in place. */
+  const refreshSymbolChart = () => {
+    const current = fullscreen();
+    if (!current) return;
+    invalidateSymbolChartCache(current.symbol, current.timeframe);
+    loadSymbolChart(
+      current.symbol,
+      current.timeframe,
+      current.pinned,
+      current.detectPatterns !== false,
+      { asOf: current.asOf, fromDate: current.fromDate },
+    );
   };
 
   const openFromSymbol = (
@@ -476,6 +506,7 @@ export function usePatternFullscreen({
     pinFullscreen,
     changeFullscreenTimeframe,
     changeFullscreenAsOf,
+    refreshSymbolChart,
     selectFullscreenHit,
     closeFullscreen,
   };

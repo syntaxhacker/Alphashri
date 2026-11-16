@@ -160,6 +160,59 @@ describe("PatternChartBody", () => {
     expect(screen.queryByText("No chart data")).toBeNull();
   });
 
+  test("stale hit enrichment loses to the drawn candle, labelled with the bar date", () => {
+    const candles: ChartCandle[] = [
+      { t: "2026-11-12", o: 3500, h: 3510, l: 3470, c: 3484, v: 1000 },
+      { t: "2026-11-13", o: 3484, h: 3450, l: 3420, c: 3430, v: 900 },
+    ];
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: 3382,
+      day_change_pct: 2.48,
+      end_date: "2026-11-11",
+    };
+    render(() => <PatternChartBody hit={hit} candles={candles} />);
+    expect(screen.getByText("₹3430.00")).toBeInTheDocument();
+    expect(screen.getByText("-1.55%")).toBeInTheDocument();
+    expect(screen.queryByText("₹3382.00")).toBeNull();
+    expect(screen.queryByText("+2.48%")).toBeNull();
+    expect(screen.getByTestId("patterns-close-label")).toHaveTextContent("13 NOV");
+    expect(screen.queryByText(/LAST CLOSE/i)).toBeNull();
+  });
+
+  test("hit enrichment on the chart's last bar still wins as a complete pair", () => {
+    const candles: ChartCandle[] = [
+      { t: "2026-11-12", o: 3500, h: 3510, l: 3470, c: 3484, v: 1000 },
+      { t: "2026-11-13", o: 3484, h: 3450, l: 3420, c: 3430, v: 900 },
+    ];
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: 3500,
+      day_change_pct: 0.46,
+      end_date: "2026-11-13",
+    };
+    render(() => <PatternChartBody hit={hit} candles={candles} />);
+    expect(screen.getByText("₹3500.00")).toBeInTheDocument();
+    expect(screen.getByText("+0.46%")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-close-label")).toHaveTextContent("13 NOV");
+  });
+
+  test("an undated hit cannot override the chart candles", () => {
+    const candles: ChartCandle[] = [
+      { t: "2026-11-12", o: 3500, h: 3510, l: 3470, c: 3484, v: 1000 },
+      { t: "2026-11-13", o: 3484, h: 3450, l: 3420, c: 3430, v: 900 },
+    ];
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: 3382,
+      day_change_pct: 2.48,
+      end_date: "",
+    };
+    render(() => <PatternChartBody hit={hit} candles={candles} />);
+    expect(screen.getByText("₹3430.00")).toBeInTheDocument();
+    expect(screen.getByText("-1.55%")).toBeInTheDocument();
+  });
+
   test("emptyState renders when there is no hit", () => {
     render(() => <PatternChartBody hit={null} candles={[]} emptyState={<div data-testid="panel-empty">No pattern selected</div>} />);
     expect(screen.getByTestId("panel-empty")).toHaveTextContent("No pattern selected");

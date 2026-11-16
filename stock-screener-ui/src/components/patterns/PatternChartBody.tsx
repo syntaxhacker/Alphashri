@@ -21,7 +21,88 @@ import { StatusBadge } from "./StatusBadge";
 import { displayStatusForHit } from "./patternDisplayStatus";
 import { formatPrice } from "./shared";
 import { KEY_POINTS_LEGEND_NAME, PIVOT_LEGEND_NAME } from "@/config/patterns";
+import { TZ_IST } from "@/config/constants";
+import { formatChartTick } from "./datetime";
 import { PRIMARY, TEXT_MUTED, WARNING } from "@/ui/palette";
+
+const IST_KEY_FORMAT = new Intl.DateTimeFormat("en-CA", {
+  timeZone: TZ_IST,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function istKeyFromDate(date: Date): string {
+  const parts = IST_KEY_FORMAT.formatToParts(date);
+  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+/**
+ * IST session date (`YYYY-MM-DD`) behind a candle/hit timestamp, or null when it
+ * cannot be parsed. An ISO instant with an offset is converted; a bare calendar
+ * date (or an IST-local `YYYY-MM-DD HH:mm`) is already a session date.
+ */
+function istDateKey(value: string | null | undefined): string | null {
+  if (typeof value !== "string" || value.trim() === "") return null;
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(trimmed)) return trimmed.slice(0, 10);
+  const ms = Date.parse(trimmed);
+  return Number.isNaN(ms) ? null : istKeyFromDate(new Date(ms));
+}
+
+/** `13 Nov` within the current year, `13 Nov 2025` for an older bar. */
+function barDateLabel(value: string): string {
+  const key = istDateKey(value);
+  if (!key) return formatChartTick(value).toUpperCase();
+  const base = formatChartTick(key);
+  const year = key.slice(0, 4);
+  const currentYear = istKeyFromDate(new Date()).slice(0, 4);
+  return (year === currentYear ? base : `${base} ${year}`).toUpperCase();
+}
+
+export interface CloseSeries {
+  close: number | null;
+  changePct: number | null;
+  barDate: string | null;
+  source: "hit" | "chart";
+}
+
+/**
+ * Choose one source for the displayed close *and* its change: a hit enrichment
+ * only wins when it carries a complete pair and its bar is not older than the
+ * chart's last candle. Without a comparable hit date (or without a chart bar)
+ * the drawn series wins; a partial enrichment never mixes with a chart bar.
+ */
+export function resolveCloseSeries(params: {
+  hit: Pick<PatternHitDTO, "last_close" | "day_change_pct" | "end_date">;
+  candles: ChartCandle[];
+}): CloseSeries {
+  const { hit, candles } = params;
+  const last = candles.length ? candles[candles.length - 1] : null;
+  const prev = candles.length > 1 ? candles[candles.length - 2] : null;
+  const chart: CloseSeries = {
+    close: last?.c ?? null,
+    changePct:
+      last && prev && prev.c ? ((last.c - prev.c) / prev.c) * 100 : null,
+    barDate: last?.t ?? null,
+    source: "chart",
+  };
+
+  const hasPair = hit.last_close != null && hit.day_change_pct != null;
+  const hitKey = istDateKey(hit.end_date);
+  const chartKey = istDateKey(last?.t ?? null);
+  if (!hasPair || !hitKey) return chart;
+  if (chartKey && hitKey < chartKey) return chart;
+
+  return {
+    close: hit.last_close ?? null,
+    changePct: hit.day_change_pct ?? null,
+    barDate: hit.end_date,
+    source: "hit",
+  };
+}
 
 export interface PatternChartBodyProps {
   hit: PatternHitDTO | null;
@@ -92,17 +173,22 @@ function FullscreenPanel(props: {
   candles?: ChartCandle[];
   docked?: boolean;
 }) {
-  // Live-detected hits carry no enrichment, so fall back to the chart's own
-  // last two candles for Last close / Day.
-  const candles = () => props.candles ?? [];
-  const lastCandle = () => (candles().length ? candles()[candles().length - 1] : null);
-  const prevCandle = () => (candles().length > 1 ? candles()[candles().length - 2] : null);
-  const dayChange = () =>
-    props.hit.day_change_pct ??
-    (lastCandle() && prevCandle() && prevCandle()!.c
-      ? ((lastCandle()!.c - prevCandle()!.c) / prevCandle()!.c) * 100
-      : null);
-  const lastClose = () => props.hit.last_close ?? lastCandle()?.c ?? null;
+  // Enrichment is only as fresh as the frame it was captured on; the drawn
+  // candles are the authority whenever the hit cannot be dated or is older.
+  const series = createMemo(() =>
+    resolveCloseSeries({ hit: props.hit, candles: props.candles ?? [] }),
+  );
+  const closeLabel = () => {
+    const barDate = series().barDate;
+    if (!barDate) return "CLOSE";
+    const key = istDateKey(barDate);
+    const isPrev = key != null && key !== istKeyFromDate(new Date());
+    return `${isPrev ? "PREV CLOSE" : "CLOSE"} · ${barDateLabel(barDate)}`;
+  };
+  // Follow-up (T3 live quote): FullscreenChartState has no live_price/live_change
+  // today. Thread the market table's LTP through the dock open payload →
+  // FullscreenChartState → PatternFullscreenView → this panel, then render a
+  // separate `LTP ₹… −12.94%` line here. Do not add a backend call in this lane.
   const activeKey = () => fullscreenHitKey(props.hit);
 
   return (
@@ -133,20 +219,25 @@ function FullscreenPanel(props: {
 
         <Box className="flex items-end justify-between gap-3">
           <Box className="flex min-w-0 flex-col gap-1">
-            <Text size="xs" c="dimmed" className="text-[10px] uppercase tracking-[0.4px]">
-              Last close
+            <Text
+              size="xs"
+              c="dimmed"
+              className="text-[10px] uppercase tracking-[0.4px]"
+              data-testid="patterns-close-label"
+            >
+              {closeLabel()}
             </Text>
             <Box className="flex min-w-0 items-baseline gap-2">
               <Text fw={600} className="font-mono tabular-nums text-[18px] leading-none">
-                {formatPrice(lastClose())}
+                {formatPrice(series().close)}
               </Text>
               <Text
                 size="xs"
                 fw={600}
                 className="font-mono tabular-nums text-[11px]"
-                c={getPnLTextColor(dayChange() ?? 0)}
+                c={getPnLTextColor(series().changePct ?? 0)}
               >
-                {dayChange() != null ? formatPercentage(dayChange()!, 2) : "—"}
+                {series().changePct != null ? formatPercentage(series().changePct!, 2) : "—"}
               </Text>
             </Box>
           </Box>
