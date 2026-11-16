@@ -91,6 +91,25 @@ def test_trend_lines_and_sig_round_trip(cp_store):
     assert items[0]["trend_lines_sig"] == "sig-123"
 
 
+def test_trend_lines_window_round_trip(cp_store):
+    """The trailing-window fingerprint survives the payload JSON round trip.
+
+    Read-side reuse keys on it: a row that loses it falls back to the legacy
+    signature-only gate, so a broken round trip silently disables the proof.
+    """
+    store.save_job({"job_id": "cpj_s2w", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
+    lines = [_line("support")]
+    store.save_hits("cpj_s2w", [_hit(
+        trend_lines=lines, trend_lines_sig="sig-123", trend_lines_window="400:deadbeefdeadbeef",
+    )])
+
+    items, total, _ = store.query_results({"job_id": "cpj_s2w"})
+
+    assert total == 1
+    assert items[0]["trend_lines"] == lines
+    assert items[0]["trend_lines_window"] == "400:deadbeefdeadbeef"
+
+
 def test_blank_trend_lines_yield_empty_and_none_sig(cp_store):
     store.save_job({"job_id": "cpj_s3", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
     store.save_hits("cpj_s3", [_hit()])
@@ -100,6 +119,7 @@ def test_blank_trend_lines_yield_empty_and_none_sig(cp_store):
     assert total == 1
     assert items[0]["trend_lines"] == []
     assert items[0]["trend_lines_sig"] is None
+    assert items[0]["trend_lines_window"] is None
 
 
 def test_dedupe_across_jobs_unfiltered(cp_store):

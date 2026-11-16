@@ -873,8 +873,13 @@ def _kick_stale_first_refresh(symbol: str, timeframe: str, lookback_bars) -> boo
     return True
 
 
-def _stored_overlays_and_lines(symbol_u: str, timeframe: str) -> tuple[list, list]:
-    """Stored-scan overlays + fresh stored trend lines. Never raises."""
+def _stored_overlays_and_lines(symbol_u: str, timeframe: str, df=None) -> tuple[list, list]:
+    """Stored-scan overlays + fresh stored trend lines. Never raises.
+
+    ``df`` is the frame the chart/card will draw. When given, stored lines are
+    only reused if they were computed from that exact trailing window — the
+    detector signature alone cannot prove the geometry still applies.
+    """
     overlays: list = []
     stored_fresh_lines: list = []
     try:
@@ -896,7 +901,7 @@ def _stored_overlays_and_lines(symbol_u: str, timeframe: str) -> tuple[list, lis
                 "end_date": pattern.get("end_date"),
                 "id": pattern.get("id"),
             })
-        if not stored_fresh_lines and _stored_lines_fresh(pattern, chart_sig):
+        if not stored_fresh_lines and _stored_lines_fresh(pattern, chart_sig, df):
             stored_fresh_lines = list(pattern.get("trend_lines") or [])
     return overlays, stored_fresh_lines
 
@@ -1263,18 +1268,28 @@ def _slice_candles(df, start_date, end_date, max_bars: int = config.CARD_MAX_BAR
 
 
 def _stored_trend_lines(item) -> Optional[list]:
-    """Scan-time ``trend_lines`` already carried by a result item, else ``None``.
+    """Scan-time ``trend_lines`` as a list, **including a proven empty one**.
 
-    Never raises: missing keys, ``None`` values, wrong types, and non-dict
-    items all fall through to ``None`` (caller runs the legacy recompute).
+    ``None`` means "no usable stored answer" and the caller must recompute:
+
+    * a missing/non-list ``trend_lines`` was never persisted, and
+    * an empty list only counts when the row carries a ``trend_lines_window``
+      fingerprint — then the scan ran on that exact window and genuinely found
+      no line. "no lines" and "never computed" are otherwise indistinguishable,
+      and re-running the detector for every such card is the strictness that
+      made ``/results`` recompute per item.
+
+    Never raises.
     """
     try:
         stored = item.get("trend_lines")
     except Exception:
         return None
-    if isinstance(stored, list) and stored:
+    if not isinstance(stored, list):
+        return None
+    if stored:
         return stored
-    return None
+    return [] if _stored_lines_window(item) else None
 
 
 def _stored_lines_sig(item) -> Optional[str]:
@@ -1286,19 +1301,48 @@ def _stored_lines_sig(item) -> Optional[str]:
     return str(sig) if isinstance(sig, str) and sig else None
 
 
-def _stored_lines_fresh(item, current_sig=None) -> bool:
-    """True when stored ``trend_lines`` are non-empty and match the detector.
+def _stored_lines_window(item) -> Optional[str]:
+    """Scan-time ``trend_lines_window`` carried by a result item, else ``None``."""
+    try:
+        window = item.get("trend_lines_window")
+    except Exception:
+        return None
+    return str(window) if isinstance(window, str) and window else None
 
-    After a detector change the stored lines are stale and must be recomputed
-    so cards and fullscreen agree. ``current_sig`` lets batch callers compute
-    the detector signature once per request instead of per item; when omitted
-    it is built on demand.
+
+def _stored_lines_fresh(item, current_sig=None, df=None) -> bool:
+    """True when stored ``trend_lines`` may be served for ``df``.
+
+    The detector signature alone cannot prove the stored geometry still
+    matches the frame a card is drawn from, so two gates apply:
+
+    * ``trend_lines_sig`` must equal the current detector settings (a constant
+      change invalidates every stored line), and
+    * when the row carries ``trend_lines_window`` (new scans do), it must be
+      the trailing-window fingerprint of ``df``. Only that exact window
+      reproduces the lines bit-for-bit — and a *proven empty* result is just as
+      reusable as a non-empty one.
+
+    Rows persisted before the window fingerprint existed keep the pre-existing
+    signature-only behaviour when they carry lines, and are recomputed when
+    they do not (an empty list there cannot be told apart from "never ran").
+    ``df=None`` (no frame in hand) also falls back to the signature-only gate.
+    ``current_sig`` lets batch callers compute the detector signature once per
+    request instead of per item.
     """
     if _stored_trend_lines(item) is None:
         return False
     if current_sig is None:
         current_sig = config.trendline_signature()
-    return _stored_lines_sig(item) == current_sig
+    if _stored_lines_sig(item) != current_sig:
+        return False
+    window = _stored_lines_window(item)
+    if df is None or window is None:
+        return True
+    try:
+        return trendlines_mod.window_matches(window, df)
+    except Exception:
+        return False
 
 
 def _clamp_to_lookback(df, lookback_bars: Optional[int]):
@@ -1447,7 +1491,8 @@ def _cache_setdefault(cache, key, value, lock=None) -> None:
         cache.setdefault(key, value)
 
 
-def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache, lock=None, current_sig=None):
+def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache,
+                   lock=None, current_sig=None, max_bars=None):
     """Attach a candle window + last close/day change + trend lines to one item.
 
     Phase-2 of :func:`_enrich_with_candles`, factored so the SSE stream
@@ -1456,13 +1501,21 @@ def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache
     ``(symbol, timeframe)`` fetch key (``None`` when the item carries no
     symbol/timeframe); ``tl_cache`` maps keys to detector results. Pass
     ``lock`` when calling from worker threads (guards the shared caches).
+
+    ``max_bars`` caps the returned candle window (``None`` = the full
+    ``CHART_MAX_BARS``). Cards pass :data:`chart_patterns.config.CARD_MAX_BARS`:
+    a ~300px sparkline cannot use 700 bars, and shipping them was most of the
+    ``/results`` payload. The chart/detail paths keep the full series.
     Mutates and returns ``item``; never raises for a dict item.
     """
     if isinstance(item, dict):
         item.setdefault("tags", tags_for(str(item.get("symbol") or "")))
     if current_sig is None:
         current_sig = config.trendline_signature()
-    stored_lines = _stored_trend_lines(item) if _stored_lines_fresh(item, current_sig) else None
+    candle_limit = config.CHART_MAX_BARS if max_bars is None else int(max_bars)
+    stored_lines = (
+        _stored_trend_lines(item) if _stored_lines_fresh(item, current_sig, df) else None
+    )
     frame_id = _frame_identity(df)
     if key is None or frame_id is None:
         # No frame means no close to report. Never keep a value an earlier
@@ -1477,15 +1530,17 @@ def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache
     # The close, its date, the change and the candles all come from THIS frame.
     # The key carries its identity, so a newer frame can never reuse an older
     # value — not within this request (tl_cache) and not across requests (the
-    # persistent cache the chart/stored-hit paths also consult).
+    # persistent cache the chart/stored-hit paths also consult). The candle
+    # limit is part of the key: a card (160 bars) and a chart (full) share the
+    # frame but not the series.
     enrich_key = (
         str(key[0]).upper(), str(key[1]), lookback_bars,
-        config.CHART_MAX_BARS, frame_id,
+        candle_limit, frame_id,
     )
     cached = _enrichment_cache_get(enrich_key)
     if cached is None:
         cached = (
-            _clamped_candle_series(df, lookback_bars, config.CHART_MAX_BARS),
+            _clamped_candle_series(df, lookback_bars, candle_limit),
             *_last_close_change(df),
             _close_bar_date(df),
         )
@@ -1568,8 +1623,9 @@ def _fetch_candles_retry(symbol, timeframe, lookback_bars, *, log_failure: bool 
     return None
 
 
-def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bars: int = config.CARD_MAX_BARS,
-                          lookback_bars: Optional[int] = None, compute_trendlines: bool = True):
+def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bars: Optional[int] = None,
+                          lookback_bars: Optional[int] = None, compute_trendlines: bool = True,
+                          for_cards: bool = False):
     """Attach a real candle window + last close/day change to each result item.
 
     Candles are served from ``candles.fetch_for_timeframe`` (disk-cached), so
@@ -1579,11 +1635,20 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
     ``lookback_bars`` is provided the card window is clamped to exactly the
     last ``lookback_bars`` bars so card mini-charts span the Lookback. When
     ``lookback_bars`` is None (Auto) the whole fetched window is shown.
-    Items already carrying fresh scan-time ``trend_lines`` (non-empty with a
-    matching ``trend_lines_sig``) keep them; stale or blank lines are
-    recomputed with the detector and overwritten.
+
+    ``max_bars`` caps the returned series. Cards (``for_cards=True``) default
+    to :data:`chart_patterns.config.CARD_MAX_BARS` — a ~300px sparkline does
+    not read 700 bars, and shipping them was most of the ``/results`` body.
+    The chart/detail paths pass ``for_cards=False`` and keep the full series
+    unless a caller asks for an explicit cap.
+
+    Items already carrying fresh scan-time ``trend_lines`` (non-empty, a
+    matching ``trend_lines_sig`` *and* a ``trend_lines_window`` that matches
+    the frame's trailing window) keep them; stale, unprovable or blank lines
+    are recomputed with the detector and overwritten.
     """
-    _ = max_bars  # kept for backwards compatibility; cards now span the Lookback
+    if max_bars is None:
+        max_bars = config.CARD_MAX_BARS if for_cards else config.CHART_MAX_BARS
     fetch_lb = lookback_bars or config.READ_LOOKBACK_BARS
     items = list(items or [])
 
@@ -1627,7 +1692,7 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
         _finalize_item(
             item, cache.get(key) if key is not None else None, key=key,
             lookback_bars=lookback_bars, compute_trendlines=compute_trendlines,
-            tl_cache=tl_cache, current_sig=current_sig,
+            tl_cache=tl_cache, current_sig=current_sig, max_bars=max_bars,
         )
     return items
 
@@ -2108,12 +2173,14 @@ def _iter_completed_results(futs, stop, out):
 
 
 def _stream_results_worker(items, *, default_timeframe, fetch_lb, lookback_bars,
-                           compute_trendlines, out, stop):
+                           compute_trendlines, out, stop, max_bars=None):
     """Enrich each item on a bounded pool, enqueueing as results arrive.
 
     Queue protocol: ``("item", sanitized_dict)`` per enriched card,
     ``("error", message)`` on a task failure, always terminated by
     ``("end", None)``. Never raises (the terminator is sent from ``finally``).
+    ``max_bars`` mirrors the batch path's candle cap so a streamed card is
+    byte-identical to its ``/results`` twin.
     """
     df_cache: dict = {}
     tl_cache: dict = {}
@@ -2137,7 +2204,7 @@ def _stream_results_worker(items, *, default_timeframe, fetch_lb, lookback_bars,
         return _finalize_item(
             item, df, key=key, lookback_bars=lookback_bars,
             compute_trendlines=compute_trendlines, tl_cache=tl_cache, lock=lock,
-            current_sig=current_sig,
+            current_sig=current_sig, max_bars=max_bars,
         )
 
     try:
@@ -2193,13 +2260,13 @@ async def _drain_stream_queue(out, request, stop):
 
 async def _results_sse_events(items, *, default_timeframe, lookback_bars,
                               compute_trendlines, total, summary, data_through,
-                              request=None):
+                              request=None, max_bars=None):
     """Async SSE body for ``GET /results/stream`` (also drives the tests).
 
     Emits ``meta`` immediately (before any candle fetch), one ``item`` per
     fully enriched card as each enrichment completes, then ``done``. Never
     raises mid-stream: unexpected failures become ``event: error`` and close
-    the stream.
+    the stream. ``max_bars`` mirrors the batch path's candle cap.
     """
     try:
         yield _sse_event("meta", _sanitize_for_json({
@@ -2221,6 +2288,7 @@ async def _results_sse_events(items, *, default_timeframe, lookback_bars,
             "items": stream_items, "default_timeframe": default_timeframe,
             "fetch_lb": fetch_lb, "lookback_bars": lookback_bars,
             "compute_trendlines": compute_trendlines, "out": out, "stop": stop,
+            "max_bars": max_bars,
         },
         daemon=True,
     )
@@ -2251,10 +2319,12 @@ async def get_results(query: _ResultsQuery = Depends(_results_query)):
     )
     # Candle enrichment may hit the (disk-cached) Upstox API on a miss — keep it
     # off the event loop so a slow/hung fetch cannot freeze the whole server.
-    # The card window spans the active Lookback so mini-charts match the view.
+    # Cards are ~300px sparklines, so the series is capped at CARD_MAX_BARS;
+    # the chart/detail endpoints keep the full window.
     await run_in_threadpool(_enrich_with_candles, items, query.filters.get("timeframe"),
                             lookback_bars=query.lookback_bars,
-                            compute_trendlines=query.compute_trendlines)
+                            compute_trendlines=query.compute_trendlines,
+                            for_cards=True)
     _strip_risk_fields(items)
     return _json_response({
         "items": items,
@@ -2331,7 +2401,7 @@ async def stream_results(request: Request, query: _ResultsQuery = Depends(_resul
             lookback_bars=query.lookback_bars,
             compute_trendlines=query.compute_trendlines, total=total,
             summary=summary, data_through=summary.get("data_through"),
-            request=request,
+            request=request, max_bars=config.CARD_MAX_BARS,
         ):
             yield frame
 
@@ -2653,7 +2723,7 @@ async def get_symbol_chart(
         _mark_partial_last(series, is_partial)
         if series:
             _remember_frame((symbol_u, timeframe), df, *_last_close_change(df))
-            overlays, stored_fresh_lines = _stored_overlays_and_lines(symbol_u, timeframe)
+            overlays, stored_fresh_lines = _stored_overlays_and_lines(symbol_u, timeframe, df)
             hits_block = None
             if detect_patterns:
                 hits_block = _pattern_block(df, symbol_u, timeframe, session, lookback_bars, compute_trendlines, stored_fresh_lines)
@@ -2826,7 +2896,7 @@ async def get_symbol_chart(
     series = _clamped_candle_series(display_df, lookback_bars, limit)
     _mark_partial_last(series, is_partial)
     _remember_frame((symbol_u, timeframe), df, *_last_close_change(df))
-    overlays, stored_fresh_lines = _stored_overlays_and_lines(symbol_u, timeframe)
+    overlays, stored_fresh_lines = _stored_overlays_and_lines(symbol_u, timeframe, base_df)
     hits_block = None
     if detect_patterns:
         hits_block = _pattern_block(base_df, symbol_u, timeframe, session, lookback_bars, compute_trendlines, stored_fresh_lines)

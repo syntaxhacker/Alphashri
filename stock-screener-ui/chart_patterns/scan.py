@@ -504,7 +504,11 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
 
     # Scan-time trendlines: computed once per symbol so read-time results can
     # reuse the stored lines instead of re-running the detector per item.
+    # The window signature proves which trailing window those lines were fitted
+    # to, so a read can tell whether they still describe the frame a card draws
+    # (the detector settings alone cannot).
     scan_trend_lines: list = []
+    trend_lines_window: Optional[str] = None
     if compute_trendlines and hits and trendlines_mod is not None:
         try:
             _tl_res = trendlines_mod.detect_trendlines(df, lookback_bars=lookback_bars)
@@ -512,8 +516,10 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
                 scan_trend_lines = [
                     v for v in (_tl_res.get("support"), _tl_res.get("resistance")) if v
                 ]
+                trend_lines_window = trendlines_mod.window_signature(df, lookback_bars)
         except Exception:
             scan_trend_lines = []
+            trend_lines_window = None
 
     enriched = []
     for hit in hits:
@@ -529,6 +535,8 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
         record["trend_lines"] = list(scan_trend_lines)
         if compute_trendlines:
             record["trend_lines_sig"] = config.trendline_signature()
+            if trend_lines_window:
+                record["trend_lines_window"] = trend_lines_window
         record["source_sig"] = source_sig
         enriched.append(record)
 

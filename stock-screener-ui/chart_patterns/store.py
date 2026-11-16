@@ -310,6 +310,9 @@ def latest_hits_by_symbol(
             trend_lines_sig = payload.get("trend_lines_sig")
             if trend_lines_sig:
                 dto["trend_lines_sig"] = str(trend_lines_sig)
+            trend_lines_window = payload.get("trend_lines_window")
+            if trend_lines_window:
+                dto["trend_lines_window"] = str(trend_lines_window)
             by_symbol[sym] = dto
         return by_symbol
     except Exception:
@@ -392,6 +395,7 @@ def _add_hit_rows(session, job_id: str, hits: Iterable[dict]) -> int:
             "pivots": hit.get("pivots") or [],
             "trend_lines": hit.get("trend_lines") or [],
             "trend_lines_sig": hit.get("trend_lines_sig") or "",
+            "trend_lines_window": hit.get("trend_lines_window") or "",
             "source_sig": hit.get("source_sig") or "",
         }
         row = PatternHit(
@@ -518,6 +522,26 @@ def _payload_source_sig(raw) -> Optional[str]:
         return None
     sig = payload.get("source_sig")
     return str(sig) if sig else None
+
+
+def _payload_trend_lines_window(raw) -> Optional[str]:
+    """``trend_lines_window`` carried in a hit's ``payload_json``.
+
+    Fingerprints the trailing window the scan-time ``trend_lines`` were fitted
+    to. Missing/blank/malformed values yield ``None`` — legacy rows predate it,
+    so a read cannot prove the stored geometry still applies and falls back to
+    the detector-signature gate.
+    """
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw) if isinstance(raw, str) else {}
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    window = payload.get("trend_lines_window")
+    return str(window) if window else None
 
 
 def _apply_filters(query, filters: dict, session=None):
@@ -719,6 +743,7 @@ def query_results(filters: dict, limit: int = 100, offset: int = 0):
             dto["breakout_score"] = breakout_score(dto)
             dto["trend_lines"] = _payload_trend_lines(row.payload_json)
             dto["trend_lines_sig"] = _payload_trend_lines_sig(row.payload_json)
+            dto["trend_lines_window"] = _payload_trend_lines_window(row.payload_json)
             dto["source_sig"] = _payload_source_sig(row.payload_json)
             items.append(dto)
         _attach_52w_gaps(session, items)
@@ -964,6 +989,7 @@ def get_symbol_detail(
             dto["breakout_score"] = breakout_score(dto)
             dto["trend_lines"] = _payload_trend_lines(row.payload_json)
             dto["trend_lines_sig"] = _payload_trend_lines_sig(row.payload_json)
+            dto["trend_lines_window"] = _payload_trend_lines_window(row.payload_json)
             patterns.append(dto)
         patterns.sort(
             key=lambda p: (
