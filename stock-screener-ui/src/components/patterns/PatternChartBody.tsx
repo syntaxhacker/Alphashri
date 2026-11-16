@@ -309,6 +309,10 @@ export function PatternChartBody(props: PatternChartBodyProps) {
   const historyHits = createMemo(() => selectLastN(props.hits ?? [], historyCount(), true));
   const docked = () => props.docked ?? false;
   const fill = () => props.fill ?? false;
+  // The side panel only exists when there is a hit or an explicit empty state.
+  // Without it the chart must own the full width instead of keeping an 80%
+  // basis next to a 20% dead column (docked mode is unaffected).
+  const showPanel = () => props.hit || props.emptyState;
 
   return (
     <Box
@@ -332,8 +336,13 @@ export function PatternChartBody(props: PatternChartBodyProps) {
         }
       >
         <Box
+          data-testid="patterns-chart-column"
           className={`flex min-h-0 min-w-0 flex-col ${
-            docked() ? "flex-[1_1_auto]" : "flex-[1_1_auto] lg:flex-[0_0_80%]"
+            docked()
+              ? "flex-[1_1_auto]"
+              : showPanel()
+                ? "flex-[1_1_auto] lg:flex-[0_0_80%]"
+                : "flex-1"
           }`}
         >
           <ToolbarRow justify="flex-start" gap={6} style={{ "padding-bottom": "4px" }}>
@@ -363,8 +372,9 @@ export function PatternChartBody(props: PatternChartBodyProps) {
           />
         </Box>
 
-        <Show when={props.hit || props.emptyState}>
+        <Show when={showPanel()}>
           <Box
+            data-testid="patterns-chart-panel-column"
             className={`min-h-0 min-w-0 ${
               docked() ? "flex-[0_1_34%]" : "flex-[1_1_auto] lg:flex-[1_1_0]"
             }`}

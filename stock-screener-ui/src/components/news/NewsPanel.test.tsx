@@ -154,6 +154,28 @@ describe("NewsPanel2", () => {
     expect(btn.querySelector("svg")).not.toBeNull();
   });
 
+  it("closed panel is inert, aria-hidden and not pointer-interactive", () => {
+    renderComponent();
+    const panel = screen.getByTestId("news-panel");
+    expect(panel).not.toHaveClass("open");
+    expect(panel).toHaveAttribute("inert");
+    expect(panel).toHaveAttribute("aria-hidden", "true");
+    expect(panel).toHaveStyle({ visibility: "hidden", "pointer-events": "none", right: "-400px" });
+  });
+
+  it("open panel is interactive with inert and aria-hidden removed", async () => {
+    renderComponent();
+    await fireEvent.click(screen.getByTestId("news-toggle-btn"));
+
+    await waitFor(() => {
+      const panel = screen.getByTestId("news-panel");
+      expect(panel).toHaveClass("open");
+      expect(panel).not.toHaveAttribute("inert");
+      expect(panel).not.toHaveAttribute("aria-hidden");
+      expect(panel).toHaveStyle({ visibility: "visible", "pointer-events": "auto" });
+    });
+  });
+
   it("opens the panel when toggle button is clicked", async () => {
         renderComponent();
     const toggleBtn = screen.getByTestId("news-toggle-btn");

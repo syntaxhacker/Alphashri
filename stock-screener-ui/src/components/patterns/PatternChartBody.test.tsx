@@ -110,6 +110,28 @@ describe("PatternChartBody", () => {
     expect(screen.queryByTestId("patterns-fullscreen-asof-banner")).toBeNull();
   });
 
+  test("no hit and no emptyState: chart fills the width, no dead side column", () => {
+    render(() => <PatternChartBody hit={null} candles={[]} />);
+    const column = screen.getByTestId("patterns-chart-column");
+    expect(column).toHaveClass("flex-1");
+    expect(column.className).not.toContain("lg:flex-[0_0_80%]");
+    expect(screen.queryByTestId("patterns-chart-panel-column")).toBeNull();
+  });
+
+  test("with a hit: chart keeps the 80/20 split and the side column renders", () => {
+    render(() => <PatternChartBody hit={HIT} candles={CANDLES} />);
+    const column = screen.getByTestId("patterns-chart-column");
+    expect(column.className).toContain("lg:flex-[0_0_80%]");
+    expect(screen.getByTestId("patterns-chart-panel-column")).toBeInTheDocument();
+  });
+
+  test("emptyState keeps the side column instead of collapsing the chart", () => {
+    render(() => <PatternChartBody hit={null} candles={[]} emptyState={<div data-testid="panel-empty">No pattern selected</div>} />);
+    const column = screen.getByTestId("patterns-chart-column");
+    expect(column.className).toContain("lg:flex-[0_0_80%]");
+    expect(screen.getByTestId("patterns-chart-panel-column")).toBeInTheDocument();
+  });
+
   test("as-of banner renders the local datetime and is absent when null/empty", () => {
     const [asOf, setAsOf] = createSignal<string | null>("2026-09-26T14:30:00");
     render(() => <PatternChartBody hit={null} candles={[]} asOf={asOf()} />);

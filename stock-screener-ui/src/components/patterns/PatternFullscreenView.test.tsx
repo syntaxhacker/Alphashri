@@ -129,6 +129,21 @@ describe("PatternFullscreenView", () => {
     expect(screen.queryByTestId("patterns-fullscreen-panel")).toBeNull();
   });
 
+  test("no hit: the fullscreen chart fills the width with no empty side column", () => {
+    render(() => <PatternFullscreenView opened onClose={vi.fn()} hit={null} candles={[]} />);
+    const column = screen.getByTestId("patterns-chart-column");
+    expect(column).toHaveClass("flex-1");
+    expect(column.className).not.toContain("lg:flex-[0_0_80%]");
+    expect(screen.queryByTestId("patterns-chart-panel-column")).toBeNull();
+  });
+
+  test("with a hit: the fullscreen keeps the 80/20 split", () => {
+    render(() => <PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
+    const column = screen.getByTestId("patterns-chart-column");
+    expect(column.className).toContain("lg:flex-[0_0_80%]");
+    expect(screen.getByTestId("patterns-chart-panel-column")).toBeInTheDocument();
+  });
+
   test("renders the tradingview chart with a legend above it", () => {
     const t = "2026-09-26T09:15:00+05:30";
     const candles = [{ t, o: 100, h: 115, l: 98, c: 112, v: 1000 }];
