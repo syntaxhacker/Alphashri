@@ -176,6 +176,16 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
     return isDesktop() && Boolean(fullscreen());
   };
 
+  // The inline outlet is a flex item with `basis-[38%]`. Solid's Portal leaves
+  // its unclassed wrapper <div> in the outlet after the dock closes, so `:empty`
+  // never matches and the table cannot reclaim the width. Mirror the open state
+  // onto the outlet instead; style.css collapses it while the dock is closed.
+  createEffect(() => {
+    const el = outlet();
+    if (!el) return;
+    el.setAttribute("data-dock-open", showDock() ? "true" : "false");
+  });
+
   const renderPanel = () => (
     <Show
       when={mode() === "options"}

@@ -871,7 +871,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
           )}
         </Box>
         <Show when={isWide()}>
-          <ChartDockOutlet class="flex-shrink-0 basis-[38%] min-w-80 max-w-3xl min-h-0 flex flex-col overflow-hidden empty:hidden" />
+          <ChartDockOutlet class="flex-shrink-0 basis-[38%] min-w-80 max-w-3xl min-h-0 flex flex-col overflow-hidden" />
         </Show>
       </Box>
 

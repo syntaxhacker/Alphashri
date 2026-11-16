@@ -338,3 +338,97 @@ describe("dock wrapper flex sizing", () => {
     expect(dock.className).not.toContain("h-full");
   });
 });
+
+describe("outlet collapses while no dock is open", () => {
+  beforeEach(() => {
+    __resetFullscreen();
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("1200px"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  const renderWithOutlet = () =>
+    render(() => (
+      <Router
+        root={() => (
+          <UIProvider>
+            <SymbolDockProvider>
+              <DockHarness />
+              <ChartDockOutlet class="test-outlet" />
+            </SymbolDockProvider>
+          </UIProvider>
+        )}
+      />
+    ));
+
+  test("chart mode: outlet is hidden before opening and after closing", async () => {
+    mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
+    renderWithOutlet();
+
+    const outlet = screen.getByTestId("chart-dock-outlet");
+    expect(outlet).toHaveAttribute("data-dock-open", "false");
+
+    await fireEvent.click(screen.getByTestId("open-reliance"));
+    await waitFor(() => expect(outlet).toHaveAttribute("data-dock-open", "true"));
+    await waitFor(() =>
+      expect(outlet.querySelector('[data-testid="symbol-dock"]')).not.toBeNull(),
+    );
+
+    await fireEvent.click(screen.getByTestId("close-dock"));
+    await waitFor(() => expect(outlet).toHaveAttribute("data-dock-open", "false"));
+  });
+
+  test("options mode: outlet shows on open and hides on close", async () => {
+    mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
+    renderWithOutlet();
+
+    const outlet = screen.getByTestId("chart-dock-outlet");
+    expect(outlet).toHaveAttribute("data-dock-open", "false");
+
+    await fireEvent.click(screen.getByTestId("open-options"));
+    await waitFor(() => expect(outlet).toHaveAttribute("data-dock-open", "true"));
+    await screen.findByTestId("options-dock-panel");
+
+    await fireEvent.click(screen.getByTestId("close-dock"));
+    await waitFor(() => expect(outlet).toHaveAttribute("data-dock-open", "false"));
+  });
+
+  test("a hover preview (fullscreen chart) also shows the outlet", async () => {
+    mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
+    renderWithOutlet();
+
+    const outlet = screen.getByTestId("chart-dock-outlet");
+    expect(outlet).toHaveAttribute("data-dock-open", "false");
+
+    fireEvent.mouseEnter(screen.getByTestId("preview-ircon"), { relatedTarget: null });
+    await waitFor(() => expect(outlet).toHaveAttribute("data-dock-open", "true"), {
+      timeout: 1500,
+    });
+    await waitFor(() =>
+      expect(outlet.querySelector('[data-testid="symbol-dock"]')).not.toBeNull(),
+    );
+  });
+
+  test("style.css collapses the outlet while data-dock-open is false", () => {
+    const css = readFileSync(resolve(process.cwd(), "src/style.css"), "utf8");
+    expect(css).toContain('[data-testid="chart-dock-outlet"][data-dock-open="false"]');
+    const rule = css.match(
+      /\[data-testid="chart-dock-outlet"\]\[data-dock-open="false"\]\s*\{([^}]*)\}/,
+    );
+    expect(rule).not.toBeNull();
+    expect(rule![1]).toContain("display: none");
+  });
+});

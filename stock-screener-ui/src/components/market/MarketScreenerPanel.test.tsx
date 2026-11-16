@@ -963,3 +963,46 @@ describe("MarketScreenerPanel — saved filters", () => {
   });
 });
 
+describe("MarketScreenerPanel — chart dock outlet layout", () => {
+  beforeEach(() => {
+    // Wide enough for the inline outlet; the bottom-sheet/fixed-rail fallbacks
+    // depend on the other media queries, which must stay false here.
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("1400px") || query.includes("1200px"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  test("the row keeps a flex-1 table container and a collapsed outlet while the dock is closed", () => {
+    r(<MarketScreenerPanel />);
+
+    const grid = screen.getByTestId("market-grid");
+    const outlet = screen.getByTestId("chart-dock-outlet");
+    const row = outlet.parentElement as HTMLElement;
+
+    const tableContainer = Array.from(row.children).find(
+      (child) => child.contains(grid) && (child as HTMLElement).className.includes("flex-1"),
+    ) as HTMLElement | undefined;
+    expect(tableContainer).toBeDefined();
+    expect(tableContainer!.className).toContain("flex-1");
+
+    // The outlet owns its own 38% basis and starts hidden; it must never claim
+    // the table's flex-1 space, and the broken :empty utility is gone.
+    expect(outlet.className).toContain("basis-[38%]");
+    expect(outlet.className).not.toContain("flex-1");
+    expect(outlet.className).not.toContain("empty:hidden");
+    expect(outlet).toHaveAttribute("data-dock-open", "false");
+  });
+});
+
