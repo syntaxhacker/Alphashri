@@ -8,6 +8,12 @@ import type { Accessor, JSX } from "solid-js";
 // `solid-js` does not re-export JSX.CSSProperties from its package root.
 type CSSProperties = JSX.CSSProperties;
 
+/** A single sort directive: column id + direction. */
+export interface SortEntry {
+  id: string;
+  desc: boolean;
+}
+
 
 /**
  * Column-level metadata understood by TanStackTable.
@@ -113,7 +119,13 @@ export interface GroupHeaderInfo<T> {
 interface Props<T> {
   data: T[];
   columns: TableColumnDef<T>[];
-  initialState?: { sorting?: { id: string; desc: boolean }[]; expanded?: Record<string, boolean> };
+  initialState?: { sorting?: SortEntry[]; expanded?: Record<string, boolean> };
+  /** Initial sorting for an uncontrolled table (fallback when initialState.sorting is absent). */
+  initialSorting?: SortEntry[];
+  /** Controlled sorting source. When supplied, rendering follows it and only onSortingChange mutates it. */
+  sorting?: SortEntry[];
+  /** Emitted on every sort change, in both controlled and uncontrolled modes. */
+  onSortingChange?: (next: SortEntry[]) => void;
   /** Group rows by these column ids (requires enableGrouping). */
   grouping?: string[];
   /** Enables row grouping. */
@@ -214,7 +226,15 @@ export function TanStackTable<T>(props: Props<T>) {
     el.style.setProperty("--tbl-fs", `${isDense() ? 10 : 11}px`);
   });
 
-  const [sorting, setSorting] = createSignal<{ id: string; desc: boolean }[]>(props.initialState?.sorting ?? []);
+  const [internalSorting, setInternalSorting] = createSignal<SortEntry[]>(
+    props.initialState?.sorting ?? props.initialSorting ?? [],
+  );
+  const isSortControlled = () => props.sorting != null;
+  const sorting = (): SortEntry[] => (isSortControlled() ? props.sorting! : internalSorting());
+  const commitSorting = (next: SortEntry[]) => {
+    if (!isSortControlled()) setInternalSorting(next);
+    props.onSortingChange?.(next);
+  };
   const [expandedGroups, setExpandedGroups] = createSignal<Record<string, boolean>>({});
   const [expandedRows, setExpandedRows] = createSignal<Record<string, boolean>>({});
 
@@ -425,40 +445,47 @@ export function TanStackTable<T>(props: Props<T>) {
     return props.initialState?.expanded?.[k] ?? false;
   };
 
-  const toggleSort = (id: string) => {
-    setSorting((prev) => {
-      const found = prev.find((s) => s.id === id);
-      const next = prev.filter((s) => s.id !== id);
-      // The clicked column becomes PRIMARY. Pushing it to the end left the
-      // previous sorter dominant, so clicking a header could never reorder the
-      // table — a header click always means "sort by this".
-      if (found) {
-        if (enableSortingRemoval() && found.desc) return next;
-        next.unshift({ id, desc: !found.desc });
-      } else {
-        // TanStack's auto-sort contract: text columns sort A→Z first, numeric
-        // columns sort biggest-first. Sample the first values to pick.
-        let desc = false;
-        const col = props.columns.find((c) => c.id === id);
-        if (col) {
-          let seen = 0;
-          let numeric = true;
-          for (const row of props.data) {
-            if (seen >= 5) break;
-            const v = getValue(row, col);
-            if (v === null || v === undefined || v === "") continue;
-            seen++;
-            if (typeof v !== "number") {
-              numeric = false;
-              break;
-            }
-          }
-          desc = seen > 0 && numeric;
-        }
-        next.unshift({ id, desc });
+  // TanStack's first-click contract: text columns sort A→Z first, numeric
+  // columns biggest-first. Sample the first values; shared by both the "new
+  // column" and "flip vs clear" paths so they can never disagree.
+  const descFirst = (col: TableColumnDef<T> | undefined): boolean => {
+    if (!col) return false;
+    let seen = 0;
+    let numeric = true;
+    for (const row of props.data) {
+      if (seen >= 5) break;
+      const v = getValue(row, col);
+      if (v === null || v === undefined || v === "") continue;
+      seen++;
+      if (typeof v !== "number") {
+        numeric = false;
+        break;
       }
-      return next;
-    });
+    }
+    return seen > 0 && numeric;
+  };
+
+  const toggleSort = (id: string) => {
+    const prev = sorting();
+    const found = prev.find((s) => s.id === id);
+    const next = prev.filter((s) => s.id !== id);
+    const col = props.columns.find((c) => c.id === id);
+    // The clicked column becomes PRIMARY. Pushing it to the end left the
+    // previous sorter dominant, so clicking a header could never reorder the
+    // table — a header click always means "sort by this".
+    if (found) {
+      // First click descends for numbers / ascends for text. The second flips
+      // the direction; only the third clears — flipping on desc was the bug
+      // that made ascending unreachable on numeric columns.
+      if (found.desc !== descFirst(col) && enableSortingRemoval()) {
+        commitSorting(next);
+        return;
+      }
+      next.unshift({ id, desc: !found.desc });
+    } else {
+      next.unshift({ id, desc: descFirst(col) });
+    }
+    commitSorting(next);
   };
 
   createEffect(() => {

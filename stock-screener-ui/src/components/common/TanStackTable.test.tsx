@@ -2,7 +2,7 @@
 import { createSignal } from "solid-js";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
-import { TanStackTable, type TableColumnDef } from "./TanStackTable";
+import { TanStackTable, type SortEntry, type TableColumnDef } from "./TanStackTable";
 
 afterEach(() => {
   cleanup();
@@ -984,5 +984,182 @@ describe("TanStackTable — row states (selected / hovered / focused)", () => {
     expect(css).toMatch(/\.paper-row-states tbody tr\[data-clickable="true"\]:focus-visible\s*\{[^}]*outline-offset: -1px/);
     // The old cell-level `!important` hover must not reach these rows again.
     expect(css).toMatch(/\.paper-tanstack-table:not\(\.paper-row-states\) tbody tr:hover td/);
+  });
+});
+
+describe("TanStackTable — sort cycle and controlled sorting", () => {
+  const cycleData: TestItem[] = [
+    { id: "1", name: "Zulu", value: 30 },
+    { id: "2", name: "Alpha", value: 10 },
+    { id: "3", name: "Mike", value: 20 },
+  ];
+
+  // Names in render order; the first cell is the name column.
+  const namesOf = (tableId: string) =>
+    Array.from(
+      screen.getByTestId(tableId).querySelectorAll<HTMLTableRowElement>("tbody tr[data-row='stock']"),
+    ).map((tr) => tr.querySelector("td")!.textContent!.trim());
+
+  const headerOf = (tableId: string, index: number) =>
+    screen.getByTestId(tableId).querySelectorAll<HTMLElement>("th")[index];
+
+  it("numeric column cycles none → desc → asc → none → desc", () => {
+    render(() => (
+      <TanStackTable<TestItem> data={cycleData} columns={columns} dataTestId="cycle-num" />
+    ));
+    const valueTh = headerOf("cycle-num", 1);
+
+    fireEvent.click(valueTh);
+    expect(valueTh).toHaveAttribute("aria-sort", "descending");
+    expect(namesOf("cycle-num")[0]).toBe("Zulu");
+
+    fireEvent.click(valueTh);
+    expect(valueTh).toHaveAttribute("aria-sort", "ascending");
+    expect(namesOf("cycle-num")[0]).toBe("Alpha");
+
+    fireEvent.click(valueTh);
+    expect(valueTh).toHaveAttribute("aria-sort", "none");
+    expect(namesOf("cycle-num")).toEqual(["Zulu", "Alpha", "Mike"]);
+
+    fireEvent.click(valueTh);
+    expect(valueTh).toHaveAttribute("aria-sort", "descending");
+    expect(namesOf("cycle-num")[0]).toBe("Zulu");
+  });
+
+  it("text column cycles none → asc → desc → none", () => {
+    render(() => (
+      <TanStackTable<TestItem> data={cycleData} columns={columns} dataTestId="cycle-text" />
+    ));
+    const nameTh = headerOf("cycle-text", 0);
+
+    fireEvent.click(nameTh);
+    expect(nameTh).toHaveAttribute("aria-sort", "ascending");
+    expect(namesOf("cycle-text")[0]).toBe("Alpha");
+
+    fireEvent.click(nameTh);
+    expect(nameTh).toHaveAttribute("aria-sort", "descending");
+    expect(namesOf("cycle-text")[0]).toBe("Zulu");
+
+    fireEvent.click(nameTh);
+    expect(nameTh).toHaveAttribute("aria-sort", "none");
+    expect(namesOf("cycle-text")).toEqual(["Zulu", "Alpha", "Mike"]);
+  });
+
+  it("never clears when enableSortingRemoval is false — desc → asc → desc", () => {
+    render(() => (
+      <TanStackTable<TestItem>
+        data={cycleData}
+        columns={columns}
+        dataTestId="cycle-noremove"
+        enableSortingRemoval={false}
+      />
+    ));
+    const valueTh = headerOf("cycle-noremove", 1);
+
+    fireEvent.click(valueTh);
+    expect(valueTh).toHaveAttribute("aria-sort", "descending");
+    fireEvent.click(valueTh);
+    expect(valueTh).toHaveAttribute("aria-sort", "ascending");
+    fireEvent.click(valueTh);
+    expect(valueTh).toHaveAttribute("aria-sort", "descending");
+    expect(namesOf("cycle-noremove")[0]).toBe("Zulu");
+  });
+
+  it("clicking a different column makes it primary without disturbing the other direction", () => {
+    render(() => (
+      <TanStackTable<TestItem> data={cycleData} columns={columns} dataTestId="cycle-multi" />
+    ));
+    const nameTh = headerOf("cycle-multi", 0);
+    const valueTh = headerOf("cycle-multi", 1);
+
+    fireEvent.click(nameTh);
+    fireEvent.click(valueTh);
+
+    expect(nameTh).toHaveAttribute("aria-sort", "ascending");
+    expect(valueTh).toHaveAttribute("aria-sort", "descending");
+    expect(namesOf("cycle-multi")[0]).toBe("Zulu");
+  });
+
+  it("initialSorting seeds the first render and aria-sort reflects it", () => {
+    render(() => (
+      <TanStackTable<TestItem>
+        data={cycleData}
+        columns={columns}
+        dataTestId="seed-sorting"
+        initialSorting={[{ id: "value", desc: false }]}
+      />
+    ));
+    const valueTh = headerOf("seed-sorting", 1);
+    expect(valueTh).toHaveAttribute("aria-sort", "ascending");
+    expect(namesOf("seed-sorting")[0]).toBe("Alpha");
+  });
+
+  it("initialState.sorting still seeds sorting alongside initialSorting", () => {
+    render(() => (
+      <TanStackTable<TestItem>
+        data={cycleData}
+        columns={columns}
+        dataTestId="legacy-seed"
+        initialState={{ sorting: [{ id: "value", desc: true }] }}
+        initialSorting={[{ id: "value", desc: false }]}
+      />
+    ));
+    const valueTh = headerOf("legacy-seed", 1);
+    expect(valueTh).toHaveAttribute("aria-sort", "descending");
+    expect(namesOf("legacy-seed")[0]).toBe("Zulu");
+  });
+
+  it("emits onSortingChange in uncontrolled mode while keeping its own state", () => {
+    const onSortingChange = vi.fn();
+    render(() => (
+      <TanStackTable<TestItem>
+        data={cycleData}
+        columns={columns}
+        dataTestId="emit-sorting"
+        onSortingChange={onSortingChange}
+      />
+    ));
+    const valueTh = headerOf("emit-sorting", 1);
+
+    fireEvent.click(valueTh);
+    expect(onSortingChange).toHaveBeenCalledWith([{ id: "value", desc: true }]);
+    expect(valueTh).toHaveAttribute("aria-sort", "descending");
+    expect(namesOf("emit-sorting")[0]).toBe("Zulu");
+  });
+
+  it("controlled sorting: parent updates the prop and header clicks reorder rows", () => {
+    const onSortingChange = vi.fn();
+    const Controlled = () => {
+      const [sorting, setSorting] = createSignal<SortEntry[]>([]);
+      return (
+        <TanStackTable<TestItem>
+          data={cycleData}
+          columns={columns}
+          dataTestId="controlled-sorting"
+          sorting={sorting()}
+          onSortingChange={(next) => {
+            onSortingChange(next);
+            setSorting(next);
+          }}
+        />
+      );
+    };
+    render(() => <Controlled />);
+    const valueTh = headerOf("controlled-sorting", 1);
+
+    fireEvent.click(valueTh);
+    expect(onSortingChange).toHaveBeenCalledWith([{ id: "value", desc: true }]);
+    expect(valueTh).toHaveAttribute("aria-sort", "descending");
+    expect(namesOf("controlled-sorting")[0]).toBe("Zulu");
+
+    fireEvent.click(valueTh);
+    expect(onSortingChange).toHaveBeenLastCalledWith([{ id: "value", desc: false }]);
+    expect(valueTh).toHaveAttribute("aria-sort", "ascending");
+    expect(namesOf("controlled-sorting")[0]).toBe("Alpha");
+
+    fireEvent.click(valueTh);
+    expect(onSortingChange).toHaveBeenLastCalledWith([]);
+    expect(valueTh).toHaveAttribute("aria-sort", "none");
+    expect(namesOf("controlled-sorting")).toEqual(["Zulu", "Alpha", "Mike"]);
   });
 });
