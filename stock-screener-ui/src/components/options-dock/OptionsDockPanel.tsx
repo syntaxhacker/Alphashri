@@ -58,17 +58,15 @@ type DockFailure = { kind: string; message: string };
  * `error` while `status` stays `ready`. The banner wording mirrors the cold
  * panel for `auth`, and adds the two cases that only arise once a chain exists.
  */
-function bannerMessage(error: DockFailure): string {
+function bannerMessage(error: DockFailure, retrySeconds: number): string {
   switch (error.kind) {
     case "auth":
       return "Reconnect Upstox in Settings";
     case "rate":
-    case "rate_limited": {
-      const retryAfterMs = optionsDockState.paused?.retryAfterMs ?? 0;
-      return retryAfterMs > 0
-        ? `Refreshing paused — retry in ${Math.ceil(retryAfterMs / 1000)} s`
+    case "rate_limited":
+      return retrySeconds > 0
+        ? `Refreshing paused — retry in ${retrySeconds} s`
         : "Refreshing paused — rate limited";
-    }
     case "not_fno":
       return "No listed options";
     default:
@@ -112,8 +110,9 @@ function dteYearsOf(expiryDate: string | null, now: Date = new Date()): number {
 
 function spotMoveColor(value: number | null): string | undefined {
   if (value == null || !Number.isFinite(value)) return undefined;
-  if (value > 0) return palette.POSITIVE;
-  if (value < 0) return palette.NEGATIVE;
+  // Theme tokens, not palette hexes: the light-mode negative must stay readable.
+  if (value > 0) return "var(--color-fin-positive)";
+  if (value < 0) return "var(--color-fin-negative)";
   return undefined;
 }
 
@@ -176,16 +175,37 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
     );
   };
 
+  // The 0-DTE / EXPIRED labels cross a boundary at 15:40; a 30 s clock is
+  // enough to relabel without waking up per frame. A live 429 swaps in a 1 s
+  // clock so its countdown actually counts instead of repeating the first value.
+  let clockTimer: number | undefined;
+  createEffect(() => {
+    const interval = optionsDockState.paused ? 1_000 : 30_000;
+    if (clockTimer != null) window.clearInterval(clockTimer);
+    setNow(new Date());
+    clockTimer = window.setInterval(() => setNow(new Date()), interval);
+  });
+  onCleanup(() => {
+    if (clockTimer != null) window.clearInterval(clockTimer);
+  });
+
   onMount(() => {
-    // The 0-DTE / EXPIRED labels cross a boundary at 15:40; a 30 s clock is
-    // enough to relabel without waking up per frame.
-    const timer = window.setInterval(() => setNow(new Date()), 30_000);
-    onCleanup(() => window.clearInterval(timer));
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        if (maximized()) setMaximized(false);
-        else props.onClose?.();
+      if (event.key !== "Escape") return;
+      // A native picker (expiry <select>) or the lot input owns Escape while it
+      // is focused: the browser closes the picker, not the dock.
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
       }
+      if (maximized()) setMaximized(false);
+      else props.onClose?.();
     };
     window.addEventListener("keydown", onKey);
     onCleanup(() => window.removeEventListener("keydown", onKey));
@@ -250,6 +270,18 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
       minute: "2-digit",
       hour12: false,
     });
+  });
+
+  // Seconds left in a 429 pause, read off the ticking clock. Floored at 0 so a
+  // late tick can never show "retry in -1 s".
+  const retrySeconds = createMemo(() => {
+    const paused = optionsDockState.paused;
+    if (!paused) return 0;
+    const retryAt = Number.isFinite(paused.retryAt)
+      ? paused.retryAt
+      : Date.now() + paused.retryAfterMs;
+    const remaining = retryAt - now().getTime();
+    return Number.isFinite(remaining) ? Math.max(0, Math.ceil(remaining / 1000)) : 0;
   });
 
   const handlePick = (strike: number, type: "CE" | "PE", leg: ChainLeg, side: "buy" | "sell") => {
@@ -343,7 +375,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
 
           <Box className="flex items-center gap-0.5">
             <Show when={optionsDockState.paused}>
-              <Tooltip label={`Rate limited — refreshing in ${Math.ceil((optionsDockState.paused?.retryAfterMs ?? 0) / 1000)} s`}>
+              <Tooltip label={`Rate limited — refreshing in ${retrySeconds()} s`}>
                 <Text
                   size="xs"
                   c="warning"
@@ -544,7 +576,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                   className="min-w-0 flex-1 truncate font-mono"
                   style={{ "font-size": "10px", color: bannerColor(optionsDockState.error!) }}
                 >
-                  {bannerMessage(optionsDockState.error!)}
+                  {bannerMessage(optionsDockState.error!, retrySeconds())}
                 </Text>
                 <Box
                   component="button"

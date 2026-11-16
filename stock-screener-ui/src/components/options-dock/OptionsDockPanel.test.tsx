@@ -720,3 +720,92 @@ describe("OptionsDockPanel — maximize a11y", () => {
     expect(document.body.style.overflow).not.toBe("hidden");
   });
 });
+
+describe("OptionsDockPanel — spot tone", () => {
+  test("paints the spot change with theme tokens, not palette hexes", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-dock-change")).toBeInTheDocument());
+
+    const change = screen.getByTestId("options-dock-change") as HTMLElement;
+    // A hex here is illegible in light mode (3.10:1); the token flips with theme.
+    expect(change.style.color).toContain("var(--color-fin-positive)");
+    expect(change.style.color).not.toMatch(/#[0-9a-f]{6}/i);
+  });
+});
+
+describe("OptionsDockPanel — rate-limit countdown", () => {
+  test("the banner countdown decreases by four seconds", async () => {
+    vi.useFakeTimers();
+    try {
+      open("NIFTY");
+      renderPanel();
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(screen.getByTestId("options-chain-table")).toBeInTheDocument();
+
+      setOptionsDockState("paused", {
+        retryAfterMs: 8000,
+        retryAt: Date.now() + 8000,
+        reason: "rate_limited",
+      });
+      setOptionsDockState("error", { kind: "rate_limited", message: "slow down" });
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(screen.getByTestId("options-dock-error")).toHaveTextContent("retry in 8 s");
+
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(screen.getByTestId("options-dock-error")).toHaveTextContent("retry in 4 s");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("OptionsDockPanel — Escape ownership", () => {
+  const renderWithClose = (onClose: () => void) =>
+    render(() => (
+      <UIProvider>
+        <OptionsDockPanel onClose={onClose} />
+      </UIProvider>
+    ));
+
+  test("Escape inside a form control does not close the dock", async () => {
+    const onClose = vi.fn();
+    open("NIFTY");
+    renderWithClose(onClose);
+    await waitFor(() => expect(screen.getByTestId("options-expiry-select")).toBeInTheDocument());
+
+    const select = screen.getByTestId("options-expiry-select");
+    select.focus();
+    await fireEvent.keyDown(select, { key: "Escape" });
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  test("Escape on the panel itself closes the dock", async () => {
+    const onClose = vi.fn();
+    open("NIFTY");
+    renderWithClose(onClose);
+    await waitFor(() => expect(screen.getByTestId("options-dock")).toBeInTheDocument());
+
+    await fireEvent.keyDown(screen.getByTestId("options-dock"), { key: "Escape" });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  test("Escape on the panel restores from maximize before closing", async () => {
+    const onClose = vi.fn();
+    open("NIFTY");
+    renderWithClose(onClose);
+    await waitFor(() => expect(screen.getByTestId("options-maximize")).toBeInTheDocument());
+
+    await fireEvent.click(screen.getByTestId("options-maximize"));
+    expect(screen.getByTestId("options-dock")).toHaveAttribute("aria-modal", "true");
+
+    await fireEvent.keyDown(screen.getByTestId("options-dock"), { key: "Escape" });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId("options-dock")).not.toHaveAttribute("aria-modal");
+  });
+});

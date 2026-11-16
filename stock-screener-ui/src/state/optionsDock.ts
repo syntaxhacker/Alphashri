@@ -68,6 +68,9 @@ export interface NewDockLeg {
 
 export interface OptionsDockPause {
   retryAfterMs: number;
+  /** Wall-clock deadline, so the countdown can tick instead of repeating the
+   * first 429's `retryAfterMs` forever. */
+  retryAt: number;
   reason: "rate_limited";
 }
 
@@ -479,7 +482,7 @@ async function loadChain(symbol: string, expiry: string, reason: LoadReason): Pr
       const retryAfterMs =
         (error instanceof OptionDockError ? error.retryAfterMs : null) ?? DEFAULT_RATE_LIMIT_RETRY_MS;
       setOptionsDockState(produce((state) => {
-        state.paused = { retryAfterMs, reason: "rate_limited" };
+        state.paused = { retryAfterMs, retryAt: Date.now() + retryAfterMs, reason: "rate_limited" };
         state.status = state.chain ? "ready" : "loading";
         state.error = state.chain ? null : failure;
       }));

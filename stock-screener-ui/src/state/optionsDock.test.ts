@@ -370,6 +370,8 @@ describe("429 handling", () => {
     expect(optionsDockState.chain?.rows).toHaveLength(2);
     expect(optionsDockState.error).toBeNull();
     expect(optionsDockState.paused).toMatchObject({ retryAfterMs: 8000, reason: "rate_limited" });
+    // The deadline is absolute so the UI can count down instead of replaying 8 s.
+    expect(optionsDockState.paused!.retryAt).toBe(Date.now() + 8000);
   });
 
   it("clears the pause on a successful retry", async () => {
