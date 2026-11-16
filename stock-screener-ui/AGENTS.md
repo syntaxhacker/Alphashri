@@ -24,6 +24,30 @@
 - `git commit` locally is fine; only `git push` of a **feature branch** is allowed without asking. Pushing to shared branches requires explicit user approval and is normally a PR merge instead.
 - If already on `develop` with uncommitted work, create the feature branch (`git switch -c <type>/<name>`) before committing — never commit then push `develop`.
 
+**PR cycle (end-to-end, verified 2026-11-16):**
+1. Branch from the latest `develop`; never commit on `develop`/`main`.
+2. Pre-PR gate: `bun run lint`, `bun run build`, targeted unit + E2E for the touched areas, and `npx tsc --noEmit 2>&1 | grep -c "error TS"` (record the count; it must not rise).
+3. `git push -u origin <branch>`, then `gh pr create --base develop`. The body lists areas changed, behaviour changes (auth, migrations), verification commands/counts, and a test plan.
+4. Wait for checks. PR-to-`develop` runs **E2E Smoke (22)** + frontend unit/lint + 6 Python shards + GitGuardian; **E2E Full (20 shards) is skipped by CI for PR-to-develop**. For a large/feature-bundle PR, either dispatch the full suite once or state explicitly that smoke is the accepted gate.
+5. Merge with `gh pr merge <n> --merge` (preserves commit messages/measurements; do not squash a multi-commit bundle unless the user asks). Never `--admin`/bypass.
+6. `git switch develop && git pull --ff-only`; verify the merge commit and that the key files/fields actually landed.
+7. Delete the merged branch with `git branch -d <branch>` and `git push origin --delete <branch>` — only after step 6 verifies. An ancestor `feat/…` branch is also redundant; confirm before deleting it.
+8. One PR per branch. If a branch contains multiple independent features, ask whether to split; a single bundle PR is allowed only when the user explicitly says so, and its body must say that it is a bundle.
+
+**Release (develop → main; convention `v0.1.0`, `v0.2.0`):**
+1. Open a PR `develop` → `main`. PR-to-`main` runs the **full E2E suite (20 shards)** — wait for it, not just smoke.
+2. Merge with `gh pr merge <n> --merge` (keep the release merge commit).
+3. Tag the `main` merge commit (annotated, matching the existing style):
+   `git switch main && git pull --ff-only`
+   `git tag -a vX.Y.Z -m "Alphashri vX.Y.Z — <one-line summary>"`
+   `git push origin vX.Y.Z`
+4. Create the GitHub Release: `gh release create vX.Y.Z --title "Alphashri vX.Y.Z" --generate-notes` (target `main`; no binaries unless asked).
+5. Sync `main` back into `develop` through a `main` → `develop` PR; never commit or push directly to `develop`. Merge it after CI so develop contains the release merge/tag commit.
+6. Verify: `gh release list`, `git log --decorate -1 vX.Y.Z`, and both branches contain the release commit.
+7. Versioning is semver: features → minor, fixes → patch. Latest release: `v0.2.0` (2026-11-11).
+
+**Subagents may not touch branch state or GitHub:** no `git branch`, `switch`, `checkout`, `add`, `commit`, `push`, and no `gh pr create/merge`. A subagent that needs a branch stops and reports; the main agent is the only PR actor. A branch pushed by a subagent is a contract violation — surface it.
+
 **Subagent contract:** Agents launched via `Task` are read-only + edit (file writes allowed), but **STRICTLY FORBIDDEN** from any `bash` git command that can disturb other agents in same env p — including `stash` (push/pop/apply/clear/drop), `reset`, `checkout`, `restore`, `clean`, `rebase`, `merge`, `cherry-pick`, `revert`, `branch -D`, `push --force`. Allowed subagent git: `status`, `log --oneline`, `diff --stat` (read-only). If a subagent proposes `stash/reset/clean/checkout/rebase`, main agent must reject and surface to user.
 
 **Violation handling:** If destructive command is about to run, abort, report `blocked: <command>`, wait for explicit approval. On accidental `reset --hard`, run `git reflog --oneline | head` + `git fsck --lost-found` and report, do not auto-recover without user.
