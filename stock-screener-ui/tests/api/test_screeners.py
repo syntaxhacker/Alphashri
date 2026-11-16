@@ -1367,3 +1367,159 @@ class Test52wHighColdStartFallback:
 
         with pytest.raises(asyncio.TimeoutError):
             await rc.stale_while_revalidate("screener:test", slow, compute_timeout=0.01)
+
+
+class TestScreenerWarmSingleFlight:
+    """A cold 52W cache must spawn exactly one warm, whatever the request rate."""
+
+    @pytest.fixture(autouse=True)
+    def _clean_warm_state(self, monkeypatch):
+        import api_server_fastapi as api_mod
+
+        monkeypatch.setattr(api_mod, "_WARMING_SCREENERS", set())
+        monkeypatch.setattr(api_mod, "_WARM_TASKS", set())
+        monkeypatch.setattr(api_mod, "_SCREENER_MEM", {})
+        yield
+
+    @pytest.fixture
+    def ranges(self, db, monkeypatch):
+        from sqlalchemy.orm import sessionmaker
+        from db.models import Stock52WeekRange
+
+        TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db.get_bind())
+        monkeypatch.setattr("trading.week52_range_lookup.SessionLocal", TestSessionLocal)
+        monkeypatch.setattr("cache.redis_client.get_redis_client", lambda: None)
+
+        db.add(Stock52WeekRange(
+            symbol="RELIANCE", high_52w=1611.8, low_52w=1290.0,
+            close=1580.0, days_ago=None,
+        ))
+        db.commit()
+
+    def test_two_cold_requests_spawn_one_warm_without_redis(self, ranges, auth_client, monkeypatch):
+        import api_server_fastapi as api_mod
+
+        slow = MagicMock(side_effect=lambda *a, **k: {"approaching": [], "touched": []})
+        monkeypatch.setattr(api_mod, "_compute_screener", slow)
+        spawn = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(api_mod, "_spawn_task", spawn)
+
+        first = auth_client.get("/api/screener", params={"screener": "52w_high"})
+        second = auth_client.get("/api/screener", params={"screener": "52w_high"})
+
+        assert first.status_code == 200 and second.status_code == 200
+        assert spawn.call_count == 1, "second cold request started a duplicate sweep"
+        slow.assert_not_called()
+        assert second.json()["cache_status"] == "warming"
+
+    def test_cold_timeout_keeps_lock_and_does_not_start_second_compute(
+        self, db, auth_client, monkeypatch
+    ):
+        """Without a snapshot: 503 + Retry-After, lock retained, one compute total."""
+        import time
+        import fakeredis
+        import api_server_fastapi as api_mod
+        import cache.redis_client as rc
+        from cache.redis_client import make_cache_key
+
+        fake = fakeredis.FakeRedis(decode_responses=True)
+        monkeypatch.setattr("cache.redis_client.get_redis_client", lambda: fake)
+        monkeypatch.setattr("api.screener_api.screener_52w.load_all_52w_ranges", lambda: {})
+        monkeypatch.setattr(api_mod, "SCREENER_COLD_TIMEOUT", 0.3)
+
+        calls = []
+
+        def slow(*args, **kwargs):
+            calls.append(1)
+            time.sleep(1.5)
+            return {"approaching": [], "touched": []}
+
+        monkeypatch.setattr(api_mod, "_compute_screener", slow)
+        key = make_cache_key("screener", "upstox", "intraday", "52w_high")
+
+        first = auth_client.get("/api/screener", params={"screener": "52w_high"})
+        second = auth_client.get("/api/screener", params={"screener": "52w_high"})
+
+        assert first.status_code == 503
+        assert first.headers["retry-after"] == "15"
+        assert second.status_code in (503, 200), second.text
+        assert len(calls) == 1, "timed-out request released the lock for a duplicate compute"
+        assert fake.exists(f"{key}:lock") == 1
+
+        # The abandoned compute finishes anyway and fills the cache under its lock.
+        time.sleep(2.0)
+        assert rc.cache_get(key) == {"approaching": [], "touched": []}
+        assert fake.exists(f"{key}:lock") == 0
+        assert len(calls) == 1
+
+    def test_warm_result_is_served_from_memo_without_redis(self, ranges, auth_client, monkeypatch):
+        import api_server_fastapi as api_mod
+        from cache.redis_client import make_cache_key
+
+        key = make_cache_key("screener", "upstox", "intraday", "52w_high")
+        api_mod._SCREENER_MEM[key] = ({"approaching": [], "touched": [], "summary": []}, api_mod.time.monotonic())
+        spawn = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(api_mod, "_spawn_task", spawn)
+
+        response = auth_client.get("/api/screener", params={"screener": "52w_high"})
+
+        assert response.status_code == 200
+        assert response.headers["x-cache"] == "fresh"
+        assert response.json()["served_from_cache"] is True
+        spawn.assert_not_called()
+
+    def test_expired_memo_is_not_served(self, ranges, auth_client, monkeypatch):
+        import api_server_fastapi as api_mod
+        from cache.redis_client import make_cache_key
+
+        key = make_cache_key("screener", "upstox", "intraday", "52w_high")
+        stale_ts = api_mod.time.monotonic() - (api_mod._SCREENER_MEM_TTL + 1)
+        api_mod._SCREENER_MEM[key] = ({"approaching": [], "touched": []}, stale_ts)
+        monkeypatch.setattr(api_mod, "_spawn_task", MagicMock(return_value=MagicMock()))
+
+        response = auth_client.get("/api/screener", params={"screener": "52w_high"})
+
+        assert response.headers["x-cache"] == "warming"
+        assert key not in api_mod._SCREENER_MEM  # expired entry dropped, not served
+
+    @pytest.mark.asyncio
+    async def test_warm_task_is_retained_until_done(self, monkeypatch):
+        import asyncio
+        import api_server_fastapi as api_mod
+
+        release = asyncio.Event()
+
+        async def slow_warm(*args, **kwargs):
+            await release.wait()
+
+        monkeypatch.setattr(api_mod, "_warm_screener_cache", slow_warm)
+
+        task = api_mod._spawn_task(
+            "52w screener warm", lambda: slow_warm("k", "upstox", "intraday", "52w_high", {})
+        )
+        api_mod._WARM_TASKS.add(task)
+        task.add_done_callback(api_mod._WARM_TASKS.discard)
+
+        assert task in api_mod._WARM_TASKS, "warm task must be strongly referenced"
+        release.set()
+        await task
+        assert task not in api_mod._WARM_TASKS
+
+    def test_ensure_warm_starts_once_per_key(self, monkeypatch):
+        import api_server_fastapi as api_mod
+
+        spawn = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(api_mod, "_spawn_task", spawn)
+
+        assert api_mod._ensure_screener_warm("screener:k", "upstox", "intraday", "52w_high", {}) is True
+        assert api_mod._ensure_screener_warm("screener:k", "upstox", "intraday", "52w_high", {}) is False
+        assert spawn.call_count == 1
+        assert len(api_mod._WARM_TASKS) == 1
+
+    def test_ensure_warm_retries_when_spawn_fails(self, monkeypatch):
+        import api_server_fastapi as api_mod
+
+        monkeypatch.setattr(api_mod, "_spawn_task", MagicMock(return_value=None))
+
+        assert api_mod._ensure_screener_warm("screener:k", "upstox", "intraday", "52w_high", {}) is False
+        assert "screener:k" not in api_mod._WARMING_SCREENERS

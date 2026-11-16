@@ -496,6 +496,14 @@ else
 end
 """
 
+_EXTEND_LOCK_LUA = """
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+    return redis.call('PEXPIRE', KEYS[1], ARGV[2])
+else
+    return 0
+end
+"""
+
 
 def _try_acquire_lock(key: str, lock_ttl: int = 30, token: Optional[str] = None) -> str | None:
     """Try to acquire a lock. Returns the lock token if acquired, None otherwise."""
@@ -510,6 +518,24 @@ def _try_acquire_lock(key: str, lock_ttl: int = 30, token: Optional[str] = None)
     except Exception:
         pass
     return None
+
+
+def _extend_lock(key: str, token: str, lock_ttl: int) -> bool:
+    """Push a held lock's expiry forward; False when the lock is no longer ours."""
+    client = get_redis_client()
+    if client is None:
+        return False
+    try:
+        script = client.register_script(_EXTEND_LOCK_LUA)
+        return bool(script(keys=[key], args=[token, int(lock_ttl * 1000)]))
+    except Exception:
+        pass
+    try:
+        if client.get(key) == token:
+            return bool(client.pexpire(key, int(lock_ttl * 1000)))
+    except Exception:
+        pass
+    return False
 
 
 def _release_lock(key: str, token: str) -> bool:
@@ -549,6 +575,32 @@ def _release_lock(key: str, token: str) -> bool:
         return False
 
 
+class CacheWarming(Exception):
+    """No payload could be served: another worker owns the compute for this key.
+
+    Callers must answer with a bounded retry (e.g. HTTP 503 + ``Retry-After``)
+    instead of starting a second compute. A second sweep of a cold 52W cache is
+    ~200 sequential upstream calls, so a duplicate is far worse than a 503.
+    """
+
+
+# Strong references to computes whose awaiter already timed out: the asyncio
+# loop only keeps weak references, so an unreferenced task can be collected
+# mid-flight — and then nothing would fill the cache or release the lock.
+_INFLIGHT_COMPUTES: set = set()
+
+
+def _retire_compute(task) -> None:
+    _INFLIGHT_COMPUTES.discard(task)
+    if not task.cancelled():
+        task.exception()  # consumed here so an abandoned compute cannot warn at GC
+
+
+def _track_compute(task) -> None:
+    _INFLIGHT_COMPUTES.add(task)
+    task.add_done_callback(_retire_compute)
+
+
 async def stale_while_revalidate(
     key: str,
     compute_fn: Callable[[], Any],
@@ -559,15 +611,14 @@ async def stale_while_revalidate(
     poll_interval: float = 0.2,
     compute_timeout: float | None = None,
 ) -> tuple[Any, str]:
-    import asyncio
+    """Serve a cached payload, computing it at most once across workers.
 
-    async def _compute():
-        """Run the (blocking) compute off-loop, optionally bounded in time."""
-        if compute_timeout is None:
-            return await asyncio.to_thread(compute_fn)
-        return await asyncio.wait_for(
-            asyncio.to_thread(compute_fn), timeout=compute_timeout
-        )
+    The lock is released by whichever party owns the compute, and only when that
+    compute has actually ended. ``compute_timeout`` bounds the *caller's* wait,
+    not the compute: on timeout the work keeps running under its lock (so the
+    cache still fills) and the caller gets ``CacheWarming``.
+    """
+    import asyncio
 
     if stale_ttl is None:
         stale_ttl = fresh_ttl * 2
@@ -575,13 +626,61 @@ async def stale_while_revalidate(
     fresh_key = f"{key}:fresh"
     lock_key = f"{key}:lock"
 
+    async def _compute_bounded():
+        """Run the (blocking) compute off-loop, bounded in time (Redis-less path)."""
+        if compute_timeout is None:
+            return await asyncio.to_thread(compute_fn)
+        return await asyncio.wait_for(
+            asyncio.to_thread(compute_fn), timeout=compute_timeout
+        )
+
+    async def _compute_and_store(lock_token: str):
+        # Heartbeat: a compute slower than lock_ttl must not let its lock expire,
+        # or a second worker starts the same sweep while this one still runs.
+        stop = asyncio.Event()
+
+        async def _heartbeat():
+            interval = max(0.2, lock_ttl / 3)
+            while True:
+                try:
+                    await asyncio.wait_for(stop.wait(), timeout=interval)
+                    return
+                except (asyncio.TimeoutError, TimeoutError):
+                    if not await asyncio.to_thread(_extend_lock, lock_key, lock_token, lock_ttl):
+                        return
+
+        heartbeat = asyncio.create_task(_heartbeat())
+        try:
+            result = await asyncio.to_thread(compute_fn)
+            if result is not None:
+                cache_set(key, result, ttl=stale_ttl)
+                cache_set(fresh_key, "1", ttl=fresh_ttl)
+            return result
+        finally:
+            stop.set()
+            heartbeat.cancel()
+            try:
+                await heartbeat
+            except BaseException:
+                pass  # cancelled on purpose; its failure must not mask the compute's
+            _release_lock(lock_key, lock_token)
+
+    async def _owned_compute(lock_token: str):
+        # The compute is a separate task so a timed-out/cancelled awaiter cannot
+        # stop it: cancelling the wrapper would leave the thread running while
+        # the lock is already gone, which is exactly the duplicate-sweep bug.
+        task = asyncio.create_task(_compute_and_store(lock_token))
+        _track_compute(task)
+        if compute_timeout is None:
+            return await asyncio.shield(task)
+        try:
+            return await asyncio.wait_for(asyncio.shield(task), timeout=compute_timeout)
+        except (asyncio.TimeoutError, TimeoutError):
+            raise CacheWarming(key) from None
+
     client = get_redis_client()
     if client is None:
-        try:
-            result = await _compute()
-            return result, "miss"
-        except Exception:
-            raise
+        return await _compute_bounded(), "miss"
 
     try:
         is_fresh = client.exists(fresh_key) == 1
@@ -597,43 +696,39 @@ async def stale_while_revalidate(
         if lock_token:
 
             async def _background_refresh():
+                # Same locked compute as the miss path: it heartbeats the lock and
+                # releases it only after the compute ends.
                 try:
-                    result = await _compute()
-                    if result is not None:
-                        cache_set(key, result, ttl=stale_ttl)
-                        cache_set(fresh_key, "1", ttl=fresh_ttl)
+                    await _compute_and_store(lock_token)
+                except asyncio.CancelledError:
+                    raise
                 except Exception as e:
                     logger.warning("SWR background refresh failed for %s: %s", key, e)
-                finally:
-                    _release_lock(lock_key, lock_token)
 
             asyncio.ensure_future(_background_refresh())
         return data, "stale"
 
     lock_token = _try_acquire_lock(lock_key, lock_ttl)
-    try:
-        if lock_token:
-            result = await _compute()
-            if result is not None:
-                cache_set(key, result, ttl=stale_ttl)
-                cache_set(fresh_key, "1", ttl=fresh_ttl)
-            return result, "miss"
+    if lock_token:
+        return await _owned_compute(lock_token), "miss"
 
-        elapsed = 0.0
-        while elapsed < wait_timeout:
-            await asyncio.sleep(poll_interval)
-            elapsed += poll_interval
-            fresh_data = cache_get(key)
-            if fresh_data is not None:
-                return fresh_data, "coalesced"
+    # Another worker owns the compute: wait for its result, never sweep in parallel.
+    elapsed = 0.0
+    while elapsed < wait_timeout:
+        await asyncio.sleep(poll_interval)
+        elapsed += poll_interval
+        # Off-loop: a wedged Redis would otherwise block the whole event loop here.
+        fresh_data = await asyncio.to_thread(cache_get, key)
+        if fresh_data is not None:
+            return fresh_data, "coalesced"
 
-        result = await _compute()
-        if result is not None:
-            cache_set(key, result, ttl=stale_ttl)
-            cache_set(fresh_key, "1", ttl=fresh_ttl)
-        return result, "miss"
-    except Exception:
-        raise
-    finally:
-        if lock_token:
-            _release_lock(lock_key, lock_token)
+    # The holder may have released without writing (crash or failed compute) —
+    # only now may we take over. A lock still held means the compute is alive.
+    lock_token = _try_acquire_lock(lock_key, lock_ttl)
+    if lock_token:
+        return await _owned_compute(lock_token), "miss"
+
+    leftover = await asyncio.to_thread(cache_get, key)
+    if leftover is not None:
+        return leftover, "coalesced"
+    raise CacheWarming(key)

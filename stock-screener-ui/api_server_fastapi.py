@@ -11,6 +11,7 @@ from pathlib import Path as PathlibPath
 from contextlib import asynccontextmanager
 from datetime import datetime
 import asyncio
+import time
 
 _script_dir = PathlibPath(__file__).parent.absolute()
 _project_root = _script_dir.parent
@@ -76,6 +77,15 @@ else:
 PREWARM_SCREENERS = ["trending", "buyer_interest", "high_momentum", "nifty_movers", "52w_high", "price_surge"]
 PREWARM_INTERVAL = 60
 
+# The 52W sweep makes ~200 sequential Upstox calls (~100s), so the lock must
+# outlive the compute: the 30s default expires mid-flight and lets a second
+# request/prewarm start a duplicate sweep.
+SCREENER_LOCK_TTL = 300
+# How long a cold request without a range snapshot waits before answering 503.
+SCREENER_COLD_TIMEOUT = 8.0
+# How long a generic screener request waits for another worker's compute.
+SCREENER_WAIT_TIMEOUT = 15.0
+
 
 async def screener_prewarm_task():
     while True:
@@ -87,11 +97,13 @@ async def screener_prewarm_task():
                     ttl = cache_ttl(cache_key)
                     if ttl is None or ttl < PREWARM_INTERVAL:
                         try:
-                            await stale_while_revalidate(
+                            _prewarmed, _ = await stale_while_revalidate(
                                 cache_key,
                                 lambda s=screener_id: _compute_screener("upstox", "intraday", s, {}),
                                 fresh_ttl=300,
+                                lock_ttl=SCREENER_LOCK_TTL,
                             )
+                            _remember_screener(cache_key, _prewarmed)
                         except Exception:
                             pass
             await asyncio.sleep(PREWARM_INTERVAL)
@@ -519,6 +531,77 @@ def _compute_screener(provider, mode, screener, profile_filters):
 
 
 _WARMING_SCREENERS: set[str] = set()
+_WARM_TASKS: set[asyncio.Task] = set()
+
+# In-process fallback so a Redis outage degrades to a TTL cache instead of a
+# compute per request (with no Redis every cache_get misses, so every request
+# would look cold).
+_SCREENER_MEM_TTL = 300.0
+_SCREENER_MEM_MAX = 16
+_SCREENER_MEM: dict[str, tuple[object, float]] = {}
+
+
+def _screener_mem_get(cache_key: str):
+    entry = _SCREENER_MEM.get(cache_key)
+    if entry is None:
+        return None
+    payload, ts = entry
+    if time.monotonic() - ts > _SCREENER_MEM_TTL:
+        _SCREENER_MEM.pop(cache_key, None)
+        return None
+    return payload
+
+
+def _screener_mem_set(cache_key: str, payload) -> None:
+    if payload is None:
+        return
+    while len(_SCREENER_MEM) >= _SCREENER_MEM_MAX:
+        _SCREENER_MEM.pop(next(iter(_SCREENER_MEM)), None)
+    _SCREENER_MEM[cache_key] = (payload, time.monotonic())
+
+
+def _screener_probe(cache_key: str):
+    """Return ``(payload, redis_is_serving)``; payload is None when nothing is cached.
+
+    Runs off-loop (``to_thread``): the Redis probe may block on connect. The
+    availability *flag* is not consulted because it lags a few failures behind,
+    which would send the request back into a compute-per-request loop.
+    """
+    from cache.redis_client import cache_get, get_redis_client
+
+    client = get_redis_client()
+    if client is not None:
+        return cache_get(cache_key), True
+    return _screener_mem_get(cache_key), False
+
+
+def _remember_screener(cache_key: str, data) -> None:
+    """Mirror the payload into the process-local memo.
+
+    Written unconditionally (cheap, bounded): the memo is only *read* while Redis
+    is unavailable, so a healthy Redis never serves memo-stale data. Reading
+    ``is_cache_available()`` here would need a blocking probe on the event loop.
+    """
+    _screener_mem_set(cache_key, data)
+
+
+def _ensure_screener_warm(cache_key, provider, mode, screener, profile_filters) -> bool:
+    """Start at most one warm per cache key; returns whether one was started."""
+    if cache_key in _WARMING_SCREENERS:
+        return False
+    _WARMING_SCREENERS.add(cache_key)
+    task = _spawn_task(
+        "52w screener warm",
+        lambda: _warm_screener_cache(cache_key, provider, mode, screener, profile_filters),
+    )
+    if task is None:
+        _WARMING_SCREENERS.discard(cache_key)
+        return False
+    # The loop holds tasks weakly: without a strong reference the warm can be
+    # collected mid-flight and leave the cache cold forever.
+    _WARM_TASKS.add(task)
+    task.add_done_callback(_WARM_TASKS.discard)
+    return True
 
 
 async def _warm_screener_cache(cache_key, provider, mode, screener, profile_filters):
@@ -526,11 +609,13 @@ async def _warm_screener_cache(cache_key, provider, mode, screener, profile_filt
     try:
         from cache.redis_client import stale_while_revalidate
 
-        await stale_while_revalidate(
+        data, _ = await stale_while_revalidate(
             cache_key,
             lambda: _compute_screener(provider, mode, screener, profile_filters),
             fresh_ttl=300,
+            lock_ttl=SCREENER_LOCK_TTL,
         )
+        _remember_screener(cache_key, data)
     except asyncio.CancelledError:
         raise
     except Exception as e:
@@ -1242,14 +1327,28 @@ async def get_screener_data(
     if min_cap_b is not None:
         profile_filters['min_cap_b'] = min_cap_b
 
-    from cache.redis_client import make_cache_key, cache_get, stale_while_revalidate
+    from cache.redis_client import (
+        CacheWarming,
+        make_cache_key,
+        stale_while_revalidate,
+    )
     cache_key = make_cache_key("screener", provider, mode, screener, **profile_filters)
     screener_id = screener.replace('builtin:', '') if screener.startswith('builtin:') else screener
+    lock_ttl = SCREENER_LOCK_TTL if screener_id == '52w_high' else 30
 
     data = None
     status = None
 
-    if screener_id == '52w_high' and (await asyncio.to_thread(cache_get, cache_key)) is None:
+    # One off-loop probe: is Redis serving, and is anything cached? Probing on the
+    # loop would block for the connect timeout, and the availability flag lags a
+    # few failures behind (which sends callers back into a compute per request).
+    cached_payload, redis_serving = await asyncio.to_thread(_screener_probe, cache_key)
+    cold = cached_payload is None
+    if not cold and not redis_serving:
+        # No Redis: nothing to single-flight on, so the memo *is* the cache.
+        data, status = cached_payload, "fresh"
+
+    if cold and screener_id == '52w_high':
         # Cold start: the full compute makes ~200 sequential Upstox calls (~100s).
         # Serve a skeleton built from the stored range snapshot immediately and
         # fill the cache in the background instead of holding the request open.
@@ -1259,14 +1358,9 @@ async def get_screener_data(
             build_52w_skeleton_data, profile_filters, provider, mode
         )
         if skeleton is not None:
-            if cache_key not in _WARMING_SCREENERS:
-                _WARMING_SCREENERS.add(cache_key)
-                _spawn_task(
-                    "52w screener warm",
-                    lambda: _warm_screener_cache(
-                        cache_key, provider, mode, screener, profile_filters
-                    ),
-                )
+            # Single-flight per key: one in-flight warm, shared by every tab and
+            # by the prewarm. Its result also lands in the memo for the no-Redis case.
+            _ensure_screener_warm(cache_key, provider, mode, screener, profile_filters)
             skeleton['applied_profile_filters'] = profile_filters
             skeleton['cache_status'] = 'warming'
             skeleton['served_from_cache'] = False
@@ -1276,29 +1370,46 @@ async def get_screener_data(
             response.headers["X-Cache"] = "warming"
             return response
 
-        # No snapshot to build from: bound the wait, then fail fast rather than hang.
+        # No snapshot to build from: bound the wait, then fail fast rather than
+        # hang. Both bounds live inside stale_while_revalidate: wait_timeout
+        # bounds waiting for another holder, compute_timeout bounds our own
+        # compute. On timeout the compute keeps running *under its lock*
+        # (shielded), so the cache still fills and no second sweep starts.
         try:
-            data, status = await asyncio.wait_for(
-                stale_while_revalidate(
-                    cache_key,
-                    lambda: _compute_screener(provider, mode, screener, profile_filters),
-                    fresh_ttl=300,
-                    compute_timeout=8,
-                ),
-                timeout=8,
+            data, status = await stale_while_revalidate(
+                cache_key,
+                lambda: _compute_screener(provider, mode, screener, profile_filters),
+                fresh_ttl=300,
+                lock_ttl=lock_ttl,
+                wait_timeout=SCREENER_COLD_TIMEOUT,
+                compute_timeout=SCREENER_COLD_TIMEOUT,
             )
-        except (asyncio.TimeoutError, TimeoutError):
+        except (asyncio.TimeoutError, TimeoutError, CacheWarming):
             raise HTTPException(
                 status_code=503,
                 detail="52w_high screener is still warming up; retry shortly",
+                headers={"Retry-After": "15"},
             )
+        _remember_screener(cache_key, data)
 
     if data is None:
-        data, status = await stale_while_revalidate(
-            cache_key,
-            lambda: _compute_screener(provider, mode, screener, profile_filters),
-            fresh_ttl=300,
-        )
+        try:
+            data, status = await stale_while_revalidate(
+                cache_key,
+                lambda: _compute_screener(provider, mode, screener, profile_filters),
+                fresh_ttl=300,
+                lock_ttl=lock_ttl,
+                # Long enough to coalesce a full warm compute: computing here as
+                # well would double the upstream load the lock exists to prevent.
+                wait_timeout=SCREENER_WAIT_TIMEOUT,
+            )
+        except CacheWarming:
+            raise HTTPException(
+                status_code=503,
+                detail="Screener is still warming up; retry shortly",
+                headers={"Retry-After": "15"},
+            )
+        _remember_screener(cache_key, data)
 
     data['cache_status'] = status
     data['served_from_cache'] = status != 'miss'
