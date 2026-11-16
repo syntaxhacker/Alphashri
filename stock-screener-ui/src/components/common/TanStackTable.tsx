@@ -900,7 +900,7 @@ export function TanStackTable<T>(props: Props<T>) {
             variant="subtle"
             data-testid="table-load-more"
             style={{ height: "20px" }}
-            class="shrink-0"
+            className="shrink-0"
             onClick={loadMore}
           >
             Load more

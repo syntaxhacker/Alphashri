@@ -170,10 +170,9 @@ function useBacktestActions(state: () => ReturnType<typeof getBacktestState>, ch
       highlightTradeRow(tradeNumber, scroller, false);
       return;
     }
-    const chartData = state().selectedChartSymbol
-      ? state().chartData.get(state().selectedChartSymbol)
-      : undefined;
-    zoomToTrade(state().selectedChartSymbol || "", tradeNumber, chartData);
+    const symbol = state().selectedChartSymbol;
+    const chartData = symbol ? state().chartData.get(symbol) : undefined;
+    zoomToTrade(symbol ?? "", tradeNumber, chartData);
     highlightTradeRow(tradeNumber, document.querySelector('[data-testid="trade-history-table"]'), false);
   };
 

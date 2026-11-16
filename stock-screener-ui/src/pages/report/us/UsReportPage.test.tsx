@@ -153,7 +153,7 @@ describe("UsReportPage", () => {
     // No tape frames and no live row: the page must stay in its empty state.
     vi.mocked(fetchUsLive).mockResolvedValueOnce({
       date: "2026-10-22",
-      row: null,
+      row: null as unknown as UsRow,
       source: "tape",
     });
     vi.mocked(fetchUsTape).mockResolvedValueOnce({

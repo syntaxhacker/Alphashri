@@ -1,4 +1,5 @@
 import { For, Show, createMemo, createSignal } from "solid-js";
+import { useNavigate } from "@solidjs/router";
 import { IconDownload, IconRefresh } from "../common/Icons";
 import {
   ActionIcon,
@@ -39,6 +40,7 @@ const PRESET_OPTIONS = Object.entries(VALUE_PRESETS).map(([value, meta]) => ({
 }));
 
 export function ValuePanel(props: ValuePanelProps) {
+  const navigate = useNavigate();
   const [filters, setFilters] = createSignal<ValueFilters>({
     market: "india",
     limit: 100,
@@ -49,8 +51,9 @@ export function ValuePanel(props: ValuePanelProps) {
   const { data, rows, sectors, meta, isLoading, error, stale, refresh, warnings, lastUpdated } =
     useValueScanSolid(filters);
 
-  const patch = (p: Partial<ValueFilters>): void =>
+  const patch = (p: Partial<ValueFilters>): void => {
     setFilters((f) => ({ ...f, ...p }));
+  };
 
   const handleRowClick = (row: ValueRow): void => {
     setSelected(row);
@@ -189,7 +192,12 @@ export function ValuePanel(props: ValuePanelProps) {
           </Box>
         </Show>
         <Show when={!showEmpty()}>
-          <ValueTable rows={rows()} loading={isLoading()} onRowClick={handleRowClick} />
+          <ValueTable
+            rows={rows()}
+            loading={isLoading()}
+            onRowClick={handleRowClick}
+            onSymbolClick={(sym) => navigate(`/chart/${sym}`)}
+          />
         </Show>
 
         <Divider />

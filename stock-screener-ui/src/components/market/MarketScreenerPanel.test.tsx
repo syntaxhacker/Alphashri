@@ -2,6 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, cleanup, within, waitFor } from "@solidjs/testing-library";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
+import type { JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import {
   MarketScreenerPanel,
@@ -79,6 +80,10 @@ function row(symbol: string, overrides: Partial<MarketRow> = {}): MarketRow {
     high52w: 120,
     low52w: 60,
     pos52w: 66,
+    peRatio: null,
+    pbRatio: null,
+    dividendYield: null,
+    roe: null,
     fno: false,
     etf: false,
     ...overrides,
