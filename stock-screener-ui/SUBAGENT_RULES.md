@@ -332,10 +332,9 @@ Canonical source for model routing **and** concurrency — `AGENTS.md` and
 
 | Purpose | Model |
 |---|---|
-| **Default for all subagent work** | `opencode-go/hy4-flash-free` ("Hy4 flash Free" under **OpenCode Go**, not the default `opencode` provider) — user instruction, 2026-11-16; new waves start here |
-| If OpenCode Go Hy4 is unavailable (overload/quota) | re-dispatch only that lane on `commandcode/deepseek-v4.1` ("DeepSeek V4.1 Flash (latest)") — explicit user fallback, 2026-11-16 |
-| Never use | `commandcode/deepseek/deepseek-v4.1-flash-fast`, or any other provider/model without the user changing this line |
-| If BOTH free models are quota-exhausted | stop and report; do not pick a third model silently |
+| **Default and only model for all subagent work** | `opencode-go/hy4-flash-free` ("Hy4 flash Free" under **OpenCode Go**) — user instruction, 2026-11-16 |
+| Never use | DeepSeek, `commandcode/*`, `opencode/hy4-flash-free`, or any other provider/model |
+| If Go Hy4 is unavailable (overload/quota) | stop and report; do not substitute another model |
 | If the user changes the model | update this table first, then dispatch |
 
 - The user's standing instruction is **one model for every agent** — do not mix models
