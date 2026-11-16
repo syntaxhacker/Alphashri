@@ -2,6 +2,7 @@ import * as palette from "@/ui/palette";
 import { createMemo, onMount, onCleanup, createEffect, Show } from "solid-js";
 import { Box, Stack, Text } from "@/ui";
 import { Select } from "@/ui";
+import { useColorScheme } from "@/ui";
 import { loadEcharts } from "../../utils/loadEcharts";
 import type { HeatmapStock } from "../../api/heatmap";
 import {
@@ -64,7 +65,8 @@ export interface HeatmapTreemapProps {
 }
 
 export function HeatmapTreemap(props: HeatmapTreemapProps) {
-  const isDark = typeof document !== "undefined" ? document.documentElement.getAttribute("data-dark") === "true" : false;
+  const { colorScheme } = useColorScheme();
+  const isDark = () => colorScheme() === "dark";
   let chartEl: HTMLDivElement | undefined;
   let chart: any = null;
   let disposed = false;
@@ -79,7 +81,7 @@ export function HeatmapTreemap(props: HeatmapTreemapProps) {
   const metricMax = () => metricRange().max;
 
   const chartOption = createMemo(() =>
-    buildStockTreemapOption(props.stocks, metricKey(), metrics(), isDark, HEATMAP_TREEMAP_STYLE, props.sizeBy),
+    buildStockTreemapOption(props.stocks, metricKey(), metrics(), isDark(), HEATMAP_TREEMAP_STYLE, props.sizeBy),
   );
 
   const handleChartClick = (params: { name?: string }) => {

@@ -161,3 +161,67 @@ describe("text family — shared state colours", () => {
     }
   });
 });
+
+/**
+ * The field is built from an explicit attribute list, so anything not listed
+ * (aria-label in particular) was dropped: three search boxes reported no
+ * accessible name at all.
+ */
+describe("TextInput — native attributes reach the input", () => {
+  it("keeps aria-label as the accessible name", () => {
+    render(() => <TextInput aria-label="Search symbols" data-testid="ti" />);
+    expect(screen.getByRole("textbox", { name: "Search symbols" })).toBe(screen.getByTestId("ti"));
+  });
+
+  it("keeps aria-describedby and role", () => {
+    // The public prop type only names `aria-label`; the rest are native
+    // attributes a caller can still pass, so they must not be dropped.
+    const nativeProps: Record<string, string> = { "aria-describedby": "hint", role: "searchbox" };
+    render(() => (
+      <div>
+        <span id="hint">Type a ticker</span>
+        <TextInput aria-label="Search" {...nativeProps} data-testid="ti" />
+      </div>
+    ));
+    const input = screen.getByTestId("ti");
+    expect(input).toHaveAttribute("aria-describedby", "hint");
+    expect(input).toHaveAttribute("role", "searchbox");
+  });
+
+  it("still renders the props it owns and forwards them once", () => {
+    render(() => (
+      <TextInput
+        data-testid="ti"
+        label="Symbol"
+        placeholder="e.g. INFY"
+        name="symbol"
+        type="search"
+        required
+        aria-label="Search symbols"
+      />
+    ));
+    const input = screen.getByRole("searchbox", { name: "Search symbols" }) as HTMLInputElement;
+    expect(input.getAttribute("placeholder")).toBe("e.g. INFY");
+    expect(input.getAttribute("name")).toBe("symbol");
+    expect(input.getAttribute("type")).toBe("search");
+    expect(input.required).toBe(true);
+    // The wrapper renders the label itself; it must not also land on the input.
+    expect(input.getAttribute("label")).toBeNull();
+    expect(screen.getByLabelText(/Symbol/)).toBe(input);
+  });
+
+  it("swallows legacy Mantine props instead of writing them to the DOM", () => {
+    const legacy: Record<string, unknown> = {
+      allowDeselect: true,
+      maxDropdownHeight: 200,
+      comboboxProps: { withinPortal: true },
+      withinPortal: true,
+      InputProps: { disableUnderline: true },
+    };
+    const { container } = render(() => <TextInput data-testid="ti" {...legacy} />);
+    const html = container.innerHTML.toLowerCase();
+    for (const attr of ["allowdeselect", "maxdropdownheight", "inputprops", "comboboxprops", "withinportal"]) {
+      expect(html, `leaked DOM attribute: ${attr}`).not.toContain(attr);
+    }
+  });
+});

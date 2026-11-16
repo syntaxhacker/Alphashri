@@ -39,6 +39,21 @@ function newPresetId(): string {
   return `preset_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function sameValue(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((item, i) => item === b[i]);
+  }
+  return a === b;
+}
+
+/** A preset chip is "on" while the rail still carries exactly that preset's filter patch. */
+function presetIsActive(current: PatternFilters, patch: Partial<PatternFilters>): boolean {
+  return (Object.keys(patch) as Array<keyof PatternFilters>).every((key) =>
+    sameValue(current[key], patch[key]),
+  );
+}
+
 const ICON_BUTTON_CLASS =
   "inline-flex size-6 items-center justify-center rounded border-0 bg-transparent p-0 text-fin-text-muted transition-colors hover:bg-fin-surface-alt hover:text-fin-text disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -137,6 +152,7 @@ export function PatternPresets(props: PatternPresetsProps) {
                 <Chip
                   size="xs"
                   variant="light"
+                  checked={presetIsActive(props.filters, preset.filters)}
                   onClick={() => apply(preset.filters)}
                   data-testid={`patterns-preset-apply-${preset.id}`}
                 >

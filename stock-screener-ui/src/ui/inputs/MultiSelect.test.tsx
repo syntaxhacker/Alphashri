@@ -195,6 +195,85 @@ describe("MultiSelect — portalled listbox selection", () => {
  * The tag must live INSIDE the bordered field. Painting it above the box made it
  * read as a label instead of a selected value, which is the whole complaint.
  */
+/**
+ * Arrows moved `highlighted()` but no option ever read it, so the keyboard
+ * cursor was invisible and `aria-activedescendant` was never published.
+ */
+describe("MultiSelect — keyboard cursor", () => {
+  const options = () => [...document.querySelectorAll<HTMLElement>('li[role="option"]')];
+  const highlightedOption = () => options().find((li) => li.className.includes("bg-fin-surface-alt"));
+
+  test("ArrowDown highlights the first option and names it in aria-activedescendant", async () => {
+    render(() => <SectorHarness />);
+    await openMenu();
+    const combo = screen.getByRole("combobox");
+
+    expect(highlightedOption()).toBeUndefined();
+    expect(combo).not.toHaveAttribute("aria-activedescendant");
+
+    fireEvent.keyDown(combo, { key: "ArrowDown" });
+
+    const first = options()[0];
+    expect(first).toHaveTextContent("Financials");
+    expect(first.className).toContain("bg-fin-surface-alt");
+    expect(first.id).toBeTruthy();
+    expect(combo).toHaveAttribute("aria-activedescendant", first.id);
+  });
+
+  test("ArrowDown walks forward and Enter toggles the highlighted option", async () => {
+    const onChange = vi.fn();
+    render(() => <SectorHarness onChange={onChange} />);
+    await openMenu();
+    const combo = screen.getByRole("combobox");
+
+    fireEvent.keyDown(combo, { key: "ArrowDown" });
+    fireEvent.keyDown(combo, { key: "ArrowDown" });
+
+    const second = options()[1];
+    expect(second).toHaveTextContent("IT");
+    expect(second.className).toContain("bg-fin-surface-alt");
+    expect(combo).toHaveAttribute("aria-activedescendant", second.id);
+
+    fireEvent.keyDown(combo, { key: "Enter" });
+    expect(onChange).toHaveBeenCalledWith(["it"]);
+    expect(chipLabels()).toEqual(["IT"]);
+  });
+
+  test("ArrowUp clamps at the first option instead of going negative", async () => {
+    render(() => <SectorHarness />);
+    await openMenu();
+    const combo = screen.getByRole("combobox");
+
+    fireEvent.keyDown(combo, { key: "ArrowUp" });
+    fireEvent.keyDown(combo, { key: "ArrowUp" });
+
+    const first = options()[0];
+    expect(first.className).toContain("bg-fin-surface-alt");
+    expect(combo).toHaveAttribute("aria-activedescendant", first.id);
+  });
+
+  test("ArrowDown clamps at the last option", async () => {
+    render(() => <SectorHarness />);
+    await openMenu();
+    const combo = screen.getByRole("combobox");
+
+    for (let i = 0; i < 6; i++) fireEvent.keyDown(combo, { key: "ArrowDown" });
+
+    const all = options();
+    expect(all[all.length - 1].className).toContain("bg-fin-surface-alt");
+    expect(combo).toHaveAttribute("aria-activedescendant", all[all.length - 1].id);
+  });
+
+  test("the combobox points at the listbox it owns", async () => {
+    render(() => <SectorHarness />);
+    await openMenu();
+    const combo = screen.getByRole("combobox");
+    const listbox = screen.getByRole("listbox");
+    expect(listbox.id).toBeTruthy();
+    expect(combo).toHaveAttribute("aria-controls", listbox.id);
+  });
+});
+
 describe("MultiSelect — tag picker geometry", () => {
   test("renders the tags as descendants of the field root", () => {
     const { container } = render(() => (

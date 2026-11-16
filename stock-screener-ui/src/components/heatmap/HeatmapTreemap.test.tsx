@@ -1,10 +1,26 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
+import { createRoot } from "solid-js";
 import { render, cleanup } from "@solidjs/testing-library";
-import { UIProvider } from "@/ui";
+import { UIProvider, useColorScheme } from "@/ui";
 import { HeatmapTreemap } from "./HeatmapTreemap";
 import type { HeatmapStock } from "../../api/heatmap";
+import { SURFACE, CREAM } from "../../config/colors";
+
+function setScheme(scheme: "light" | "dark") {
+  createRoot((dispose) => {
+    useColorScheme().setColorScheme(scheme);
+    dispose();
+  });
+}
+
+/** Tile border: the one value the option takes straight from the scheme. */
+function lastBorderColor(): string | undefined {
+  const calls = mockChartInstance.setOption.mock.calls;
+  const option = calls[calls.length - 1]?.[0] as { series?: Array<{ itemStyle?: { borderColor?: string } }> } | undefined;
+  return option?.series?.[0]?.itemStyle?.borderColor;
+}
 
 const mockOn = vi.fn();
 const mockChartInstance = {
@@ -180,5 +196,31 @@ describe("HeatmapTreemap", () => {
     window.dispatchEvent(new Event("resize"));
 
     expect(mockChartInstance.resize).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * The theme lives in `data-color-scheme`; the treemap used to read a
+   * `data-dark` attribute nothing writes, so it was permanently "light".
+   */
+  test("builds a dark option when the app scheme is dark", async () => {
+    stubResizeObserver();
+    setScheme("dark");
+    r(() => <HeatmapTreemap stocks={[stock]} metric="roe" />);
+
+    await vi.waitFor(() => expect(mockChartInstance.setOption).toHaveBeenCalled());
+    await vi.waitFor(() => expect(lastBorderColor()).toBe(SURFACE));
+  });
+
+  test("repaints when the scheme flips while mounted", async () => {
+    stubResizeObserver();
+    setScheme("light");
+    r(() => <HeatmapTreemap stocks={[stock]} metric="roe" />);
+    await vi.waitFor(() => expect(lastBorderColor()).toBe(CREAM));
+
+    setScheme("dark");
+    await vi.waitFor(() => expect(lastBorderColor()).toBe(SURFACE));
+
+    setScheme("light");
+    await vi.waitFor(() => expect(lastBorderColor()).toBe(CREAM));
   });
 });

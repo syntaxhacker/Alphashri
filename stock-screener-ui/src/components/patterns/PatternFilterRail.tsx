@@ -552,6 +552,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
           <Chip
             size="xs"
             variant="light"
+            checked={props.filters.from_date === daysAgoDatetimeLocal(30)}
             onChange={() => props.setFilter("from_date", daysAgoDatetimeLocal(30))}
             data-testid="patterns-filter-date-last-30d"
           >
@@ -560,6 +561,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
           <Chip
             size="xs"
             variant="light"
+            checked={props.filters.from_date === startOfMonthDatetimeLocal()}
             onChange={() => props.setFilter("from_date", startOfMonthDatetimeLocal())}
             data-testid="patterns-filter-date-this-month"
           >

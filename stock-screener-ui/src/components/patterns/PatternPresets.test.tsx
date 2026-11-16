@@ -12,7 +12,9 @@ import {
 
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
-  return mockSolidUi();
+  // The real Chip so the controlled state is observable via `aria-checked`.
+  const { Chip } = await import("@/ui/inputs/Chip");
+  return mockSolidUi({ Chip });
 });
 
 const FILTERS: PatternFilters = { ...DEFAULT_PATTERN_FILTERS };
@@ -154,6 +156,40 @@ describe("PatternPresets", () => {
     fireEvent.click(screen.getByTestId("patterns-preset-apply-p1"));
 
     expect(props.applyFilters).toHaveBeenCalledWith(savedFilters);
+  });
+
+  /**
+   * The chip was uncontrolled: it lit on click and stayed lit after the filter
+   * it represents was cleared elsewhere in the rail.
+   */
+  test("saved preset chip reflects the applied filters, not its last click", () => {
+    localStorage.setItem(
+      PATTERN_PRESETS_STORAGE_KEY,
+      JSON.stringify([{ id: "p1", name: "Bulls", filters: { direction: ["bullish"] } }]),
+    );
+
+    render(() => <PatternPresets {...makeProps({ filters: { ...FILTERS, direction: ["bullish"] } })} />);
+    expect(screen.getByTestId("patterns-preset-apply-p1")).toHaveAttribute("aria-checked", "true");
+
+    cleanup();
+    render(() => <PatternPresets {...makeProps({ filters: { ...FILTERS, direction: [] } })} />);
+    expect(screen.getByTestId("patterns-preset-apply-p1")).toHaveAttribute("aria-checked", "false");
+  });
+
+  test("a saved preset chip unchecks when its date filters are cleared", () => {
+    localStorage.setItem(
+      PATTERN_PRESETS_STORAGE_KEY,
+      JSON.stringify([{ id: "p2", name: "Recent", filters: { from_date: "2026-06-01T09:15" } }]),
+    );
+
+    render(() => (
+      <PatternPresets {...makeProps({ filters: { ...FILTERS, from_date: "2026-06-01T09:15" } })} />
+    ));
+    expect(screen.getByTestId("patterns-preset-apply-p2")).toHaveAttribute("aria-checked", "true");
+
+    cleanup();
+    render(() => <PatternPresets {...makeProps({ filters: { ...FILTERS, from_date: null } })} />);
+    expect(screen.getByTestId("patterns-preset-apply-p2")).toHaveAttribute("aria-checked", "false");
   });
 
   test("applies the bullish built-in preset payload", async () => {

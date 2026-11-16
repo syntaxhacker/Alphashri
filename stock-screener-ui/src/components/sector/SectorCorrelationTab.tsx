@@ -4,6 +4,7 @@ import { Button } from "@/ui";
 import { Loader } from "@/ui";
 import { Select } from "@/ui";
 import { Chip } from "@/ui";
+import { useColorScheme } from "@/ui";
 import { IconRefresh, IconClock } from "../screener/icons";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
 import type { SectorCorrelationResponse } from "../../types/sector";
@@ -253,8 +254,8 @@ function ErrorState(props: { error: string }) {
 
 export function SectorCorrelationTab() {
   const store = useSectorCorrelationSnapshot();
-  const isDark = () =>
-    typeof document !== "undefined" && document.documentElement.getAttribute("data-dark") === "true";
+  const { colorScheme } = useColorScheme();
+  const isDark = () => colorScheme() === "dark";
 
   const sortedSectors = createMemo(() => {
     const d = store().data;

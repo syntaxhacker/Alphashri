@@ -202,6 +202,11 @@ export function MultiSelect(props: UIMultiSelectProps) {
   const [highlighted, setHighlighted] = createSignal(-1);
   let listboxEl: HTMLUListElement | undefined;
 
+  const listboxId = () => `${inputId}-listbox`;
+  const optionId = (index: number) => `${inputId}-option-${index}`;
+  const activeDescendant = () =>
+    open() && highlighted() >= 0 ? optionId(highlighted()) : undefined;
+
   const selectedValues = createMemo(() => known.value ?? internalSelected());
   const selectedSet = createMemo(() => new Set(selectedValues()));
   const shownOptions = createMemo(() => {
@@ -482,6 +487,8 @@ export function MultiSelect(props: UIMultiSelectProps) {
             role="combobox"
             aria-label={known["aria-label"]}
             aria-expanded={open()}
+            aria-controls={listboxId()}
+            aria-activedescendant={activeDescendant()}
             aria-haspopup="listbox"
             aria-multiselectable="true"
             value={query()}
@@ -519,6 +526,7 @@ export function MultiSelect(props: UIMultiSelectProps) {
           <Portal ref={trackMenu}>
             <ul
               ref={(el) => (listboxEl = el)}
+              id={listboxId()}
               role="listbox"
               data-part="multiselect-listbox"
               className="fixed border border-fin-border rounded-[6px] bg-fin-surface text-fin-text max-h-60 overflow-y-auto outline-none shadow-md"
@@ -535,8 +543,14 @@ export function MultiSelect(props: UIMultiSelectProps) {
                 {known.nothingFoundMessage ?? "No options"}
               </li>
             ) : (
-              <For each={shownOptions()}>{(opt) => (
-                <li role="option" aria-selected={selectedSet().has(opt.value)} aria-disabled={opt.disabled || known.disabled}>
+              <For each={shownOptions()}>{(opt, i) => (
+                <li
+                  id={optionId(i())}
+                  role="option"
+                  aria-selected={selectedSet().has(opt.value)}
+                  aria-disabled={opt.disabled || known.disabled}
+                  className={cn(highlighted() === i() ? "bg-fin-surface-alt" : "")}
+                >
                   <label className="flex items-center gap-2 cursor-pointer select-none w-full px-3 py-2 text-xs disabled:opacity-50 disabled:cursor-not-allowed">
                     <Checkbox
                       checked={selectedSet().has(opt.value)}

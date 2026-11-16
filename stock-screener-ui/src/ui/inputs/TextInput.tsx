@@ -1,5 +1,6 @@
-import { createMemo, createSignal, createUniqueId } from "solid-js";
+import { createMemo, createSignal, createUniqueId, splitProps } from "solid-js";
 import { cn } from "../cn";
+import { stripLegacyInputProps } from "./legacyProps";
 import type { UITextInputProps } from "../types";
 
 type FieldBox = { h: number; fs: number; padY: number; padX: number };
@@ -24,6 +25,36 @@ function boxOf(size?: UITextInputProps["size"]): FieldBox {
 }
 
 export function TextInput(props: UITextInputProps) {
+  // Every prop the component renders itself is claimed here; whatever is left
+  // (`aria-label`, `aria-describedby`, `role`, `autocomplete`, …) is a native
+  // input attribute the caller meant for the field, so it must reach the DOM.
+  const [, _rest] = splitProps(props, [
+    "value",
+    "defaultValue",
+    "onChange",
+    "onKeyDown",
+    "onFocus",
+    "onBlur",
+    "leftSection",
+    "rightSection",
+    "type",
+    "label",
+    "description",
+    "error",
+    "required",
+    "disabled",
+    "readOnly",
+    "size",
+    "placeholder",
+    "name",
+    "w",
+    "h",
+    "className",
+    "style",
+    "id",
+    "data-testid",
+  ] as Array<keyof UITextInputProps>);
+  const forwarded = stripLegacyInputProps(_rest);
   const resolvedId = props.id ?? createUniqueId();
   const [focused, setFocused] = createSignal(false);
   const explicitWidth = createMemo(() =>
@@ -93,6 +124,7 @@ export function TextInput(props: UITextInputProps) {
       <div className="flex items-center gap-2 w-full min-w-0">
         {props.leftSection && <div className="shrink-0">{props.leftSection}</div>}
         <input
+          {...(forwarded as Record<string, unknown>)}
           id={resolvedId}
           type={props.type ?? "text"}
           value={(isControlled() ? props.value : props.defaultValue) ?? ""}

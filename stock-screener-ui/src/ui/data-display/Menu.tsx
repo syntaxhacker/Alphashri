@@ -11,7 +11,6 @@ type MenuContextValue = {
   onClose: () => void;
   onOpen: (el: HTMLElement) => void;
   closeOnItemClick?: boolean;
-  closeOnClickOutside?: boolean;
   position: () => string | undefined;
   offset: () => number | undefined;
   withArrow: () => boolean | undefined;
@@ -139,7 +138,9 @@ export function Menu(props: UIMenuProps) {
   };
 
   createEffect(() => {
-    if (!open() || !known.closeOnClickOutside) return;
+    // Outside-dismiss is the default: a menu that stays open until Escape or a
+    // second target click reads as stuck. Callers opt out explicitly.
+    if (!open() || known.closeOnClickOutside === false) return;
     const handleMousedown = (e: MouseEvent) => {
       const target = e.target as Node;
       const anchor = internalAnchorEl();
@@ -168,7 +169,6 @@ export function Menu(props: UIMenuProps) {
     onClose,
     onOpen,
     closeOnItemClick: known.closeOnItemClick ?? true,
-    closeOnClickOutside: known.closeOnClickOutside,
     position: () => known.position,
     offset: () => known.offset,
     withArrow: () => known.withArrow,
@@ -244,8 +244,7 @@ export function MenuTarget(props: UIMenuTargetProps) {
 
 export function MenuDropdown(props: UIMenuDropdownProps) {
   const [known, rest] = splitProps(props, ["children", "className", "style", "id", "data-testid"]);
-  const { open, position, offset, shadow, withArrow, anchorEl } = useMenuContext();
-  const [, setPlaceEl] = createSignal<HTMLElement | null>(null);
+  const { open, position, offset, shadow, withArrow, anchorEl, registerDropdownEl } = useMenuContext();
 
   const posStyle = createMemo(() => {
     const anchor = anchorEl();
@@ -256,7 +255,7 @@ export function MenuDropdown(props: UIMenuDropdownProps) {
     <Show when={open()}>
       <div
         id={known.id}
-        ref={(el) => setPlaceEl(el)}
+        ref={(el) => registerDropdownEl(el)}
         role="menu"
         className={cn(
           "ui-menu-dropdown",
