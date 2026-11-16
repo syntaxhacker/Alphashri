@@ -30,7 +30,7 @@ import {
 import { IconAlertCircle, IconFilter, IconRefresh, IconSearch, IconX } from "../common/Icons";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { MARKET_UNIVERSES, DEFAULT_MARKET_UNIVERSE } from "../../api/marketScreener";
-import type { TableColumnDef as ColumnDef } from "../common/TanStackTable";
+import type { SortEntry, TableColumnDef as ColumnDef } from "../common/TanStackTable";
 import type { MarketRow, MarketUniverse } from "../../types/marketScreener";
 import {
   buildMarketFilterChips,
@@ -41,6 +41,7 @@ import {
   countByCapTier,
   sortMarketRows,
   type MarketFilterState,
+  type MarketSortKey,
 } from "./marketFilters";
 import { buildMarketColumns } from "./marketColumns";
 import { usePatternSummary } from "./usePatternSummary";
@@ -48,6 +49,7 @@ import { alpha, PRIMARY } from "@/ui/palette";
 import { MarketFilterRail } from "./MarketFilterRail";
 import { MarketMapView, MarketViewToggle, type MarketViewMode } from "./MarketMapView";
 import { TanStackTable } from "../common/TanStackTable";
+import { useTablePrefs } from "../common/useTablePrefs";
 import { ChartDockOutlet } from "../common/ChartDockOutlet";
 import { useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
 import { useSymbolDock } from "../common/symbolDockContext";
@@ -102,6 +104,66 @@ const UNIVERSE_OPTIONS = MARKET_UNIVERSES.map((o) => ({ value: o.value, label: o
 const DRAWER_FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+/** First-load sort. Not written by the store until the user actually clicks a header. */
+const DEFAULT_TABLE_SORTING: SortEntry[] = [{ id: "market_cap_cr", desc: true }];
+
+/**
+ * The table prefs own the sort; the map dropdown only mirrors it when the primary
+ * sorter names a metric the dropdown can express. Ascending is expressible only
+ * for day change and symbol, so other ascending sorters leave the dropdown be.
+ */
+export function sortEntryToMarketSort(sorting: SortEntry[]): MarketSortKey | null {
+  const primary = sorting[0];
+  if (!primary) return null;
+  switch (primary.id) {
+    case "market_cap_cr":
+      return primary.desc ? "mcap_desc" : null;
+    case "day_change":
+    case "change":
+      return primary.desc ? "day_desc" : "day_asc";
+    case "rsi":
+      return primary.desc ? "rsi_desc" : null;
+    case "relative_volume":
+      return primary.desc ? "relvol_desc" : null;
+    case "perf_w":
+      return primary.desc ? "perf_w_desc" : null;
+    case "perf_1m":
+      return primary.desc ? "perf_1m_desc" : null;
+    case "pos_52w":
+      return primary.desc ? "pos_52w_desc" : null;
+    case "symbol":
+      return primary.desc ? null : "symbol_asc";
+    default:
+      return null;
+  }
+}
+
+/** Reverse of `sortEntryToMarketSort`: a dropdown choice drives the table. */
+export function marketSortToSortEntry(sort: MarketSortKey): SortEntry | null {
+  switch (sort) {
+    case "mcap_desc":
+      return { id: "market_cap_cr", desc: true };
+    case "day_desc":
+      return { id: "day_change", desc: true };
+    case "day_asc":
+      return { id: "day_change", desc: false };
+    case "rsi_desc":
+      return { id: "rsi", desc: true };
+    case "relvol_desc":
+      return { id: "relative_volume", desc: true };
+    case "perf_w_desc":
+      return { id: "perf_w", desc: true };
+    case "perf_1m_desc":
+      return { id: "perf_1m", desc: true };
+    case "pos_52w_desc":
+      return { id: "pos_52w", desc: true };
+    case "symbol_asc":
+      return { id: "symbol", desc: false };
+    default:
+      return null;
+  }
+}
+
 function isSnapshotStale(asOf: string | null, nowMs: number): boolean {
   if (!asOf) return false;
   const parsed = Date.parse(asOf);
@@ -122,7 +184,17 @@ function MarketGrid(props: {
   getRowStyle: (row: MarketRow) => JSX.CSSProperties | undefined;
   getRowTestId: (row: MarketRow) => string;
   onVisibleRowsChange?: (rows: MarketRow[]) => void;
+  onTableSortChange?: (sorting: SortEntry[]) => void;
 }) {
+  const { prefs, setSorting } = useTablePrefs("market.grid");
+  // Empty saved prefs keep the historical first-load order; the store writes
+  // only after a real sort change, so the default is never persisted on mount.
+  const sorting = (): SortEntry[] =>
+    prefs().sorting.length > 0 ? prefs().sorting : DEFAULT_TABLE_SORTING;
+  const handleSortingChange = (next: SortEntry[]) => {
+    setSorting(next);
+    props.onTableSortChange?.(next);
+  };
   return (
     <TanStackTable
       data={props.data}
@@ -135,7 +207,8 @@ function MarketGrid(props: {
       minTableWidth={1000}
       enableSorting
       stickyHeader
-      initialState={{ sorting: [{ id: "market_cap_cr", desc: true }] }}
+      sorting={sorting()}
+      onSortingChange={handleSortingChange}
       onRowClick={props.onRowClick}
       getRowStyle={props.getRowStyle}
       getRowTestId={props.getRowTestId}
@@ -178,6 +251,9 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   const [viewMode, setViewMode] = createSignal<MarketViewMode>(props.initialView ?? "table");
   const [selectedSymbol, setSelectedSymbol] = createSignal<string | null>(null);
   const dock = useSymbolDock();
+  // Shares the ref-counted store with MarketGrid so the map dropdown and the
+  // header write one authoritative, persisted `table.market.grid` sort.
+  const { setSorting: setTableSorting } = useTablePrefs("market.grid");
 
   // Only the toolbar's stale badge subscribes to the clock: a snapshot ages
   // past 15 minutes while the tab sits open and no new data will arrive to
@@ -325,6 +401,19 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
 
   const patchFilters = (patch: Partial<MarketFilterState>) =>
     setFilters((f) => ({ ...f, ...patch }));
+
+  // Best-effort bridge, never a second source of truth: header clicks persist to
+  // table prefs and only mirror into filters.sort when a key exists for them.
+  const onTableSortChange = (next: SortEntry[]) => {
+    const mapped = sortEntryToMarketSort(next);
+    if (mapped) patchFilters({ sort: mapped });
+  };
+
+  const onMapSortChange = (sort: MarketSortKey) => {
+    patchFilters({ sort });
+    const entry = marketSortToSortEntry(sort);
+    if (entry) setTableSorting([entry]);
+  };
 
   const resetFilters = () => {
     setFilters(defaultMarketFilters());
@@ -847,6 +936,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                       getRowStyle={getRowStyle}
                       getRowTestId={getRowTestId}
                       onVisibleRowsChange={setVisibleRows}
+                      onTableSortChange={onTableSortChange}
                     />
                   </Box>
                   <Show when={viewMode() === "map"}>
@@ -854,7 +944,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                       rows={filteredRows()}
                       onSymbolClick={selectAndOpen}
                       sort={filters().sort}
-                      onSortChange={(sort) => patchFilters({ sort })}
+                      onSortChange={onMapSortChange}
                     />
                   </Show>
                 </Show>

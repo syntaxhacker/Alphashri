@@ -256,7 +256,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       id: "close",
       header: "LTP",
       size: 70,
-      accessorFn: (r) => r.close ?? 0,
+      accessorFn: (r) => r.close,
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
@@ -270,10 +270,10 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       },
     },
     {
-      id: "change",
+      id: "day_change",
       header: "DAY %",
       size: 60,
-      accessorFn: (r) => r.change ?? 0,
+      accessorFn: (r) => r.change,
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
@@ -287,10 +287,17 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       },
     },
     {
+      // Historical sort id. `size: 0` keeps it out of the rendered header while
+      // TanStack can still resolve a saved sorter that names it.
+      id: "change",
+      size: 0,
+      accessorFn: (r) => r.change,
+    },
+    {
       id: "perf_w",
       header: "1W %",
       size: 54,
-      accessorFn: (r) => r.perfW ?? 0,
+      accessorFn: (r) => r.perfW,
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
@@ -307,7 +314,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       id: "perf_1m",
       header: "1M %",
       size: 54,
-      accessorFn: (r) => r.perf1m ?? 0,
+      accessorFn: (r) => r.perf1m,
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
@@ -324,7 +331,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       id: "pos_52w",
       header: "52W",
       size: 62,
-      accessorFn: (r) => r.pos52w ?? 0,
+      accessorFn: (r) => r.pos52w,
       meta: { align: "center" },
       cell: ({ row }) => <Week52Bar row={row.original} />,
     },
@@ -332,7 +339,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       id: "rsi",
       header: "RSI",
       size: 42,
-      accessorFn: (r) => r.rsi ?? 0,
+      accessorFn: (r) => r.rsi,
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
@@ -349,7 +356,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       id: "adx",
       header: "ADX",
       size: 42,
-      accessorFn: (r) => r.adx ?? 0,
+      accessorFn: (r) => r.adx,
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
@@ -366,7 +373,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       id: "relative_volume",
       header: "RELVOL",
       size: 56,
-      accessorFn: (r) => r.relativeVolume ?? 0,
+      accessorFn: (r) => r.relativeVolume,
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
@@ -383,7 +390,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       id: "market_cap_cr",
       header: "MCAP ₹Cr",
       size: 76,
-      accessorFn: (r) => r.marketCapCr ?? 0,
+      accessorFn: (r) => r.marketCapCr,
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;

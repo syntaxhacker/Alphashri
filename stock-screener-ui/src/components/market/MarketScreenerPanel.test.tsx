@@ -3,7 +3,11 @@ import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, cleanup, within, waitFor } from "@solidjs/testing-library";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { UIProvider } from "@/ui";
-import { MarketScreenerPanel } from "./MarketScreenerPanel";
+import {
+  MarketScreenerPanel,
+  marketSortToSortEntry,
+  sortEntryToMarketSort,
+} from "./MarketScreenerPanel";
 import { useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
 import { fetchScreenerDashboard } from "../../api/screenerDashboard";
 import { getUserConfig, putUserConfig, deleteUserConfig } from "../../api/userConfigs";
@@ -133,8 +137,11 @@ function hookResult(overrides: HookOverrides = {}) {
   };
 }
 
-function r(jsx: JSX.Element) {
-  return render(() => (<UIProvider>{jsx}</UIProvider>));
+// Build the panel inside render's root so component onCleanup runs on cleanup.
+// Passing an already-created JSX element leaves it ownerless, which keeps the
+// ref-counted `useTablePrefs` store alive and leaks its debounced PUT across tests.
+function r(jsx: () => JSX.Element) {
+  return render(() => (<UIProvider>{jsx()}</UIProvider>));
 }
 
 afterEach(cleanup);
@@ -179,7 +186,7 @@ describe("MarketScreenerPanel — stale cache, warming hint, timeout", () => {
     mockUseMarketSnapshot.mockReturnValue(
       hookResult({ stale: true, isLoading: true }),
     );
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
     expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
     expect(screen.getByTestId("market-stale-badge")).toBeInTheDocument();
     expect(screen.queryByTestId("market-warming-hint")).not.toBeInTheDocument();
@@ -187,7 +194,7 @@ describe("MarketScreenerPanel — stale cache, warming hint, timeout", () => {
 
   test("a fresh snapshot clears the Stale badge", () => {
     mockUseMarketSnapshot.mockReturnValue(hookResult({ stale: false }));
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
     expect(screen.queryByTestId("market-stale-badge")).not.toBeInTheDocument();
   });
 
@@ -195,7 +202,7 @@ describe("MarketScreenerPanel — stale cache, warming hint, timeout", () => {
     mockUseMarketSnapshot.mockReturnValue(
       hookResult({ rows: [], total: 0, snapshot: null, isLoading: true, warming: true }),
     );
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
     expect(screen.getByTestId("market-skeleton")).toBeInTheDocument();
     expect(screen.getByTestId("market-warming-hint")).toBeInTheDocument();
     expect(screen.getByTestId("market-warming-hint-text")).toHaveTextContent(
@@ -207,7 +214,7 @@ describe("MarketScreenerPanel — stale cache, warming hint, timeout", () => {
     mockUseMarketSnapshot.mockReturnValue(
       hookResult({ rows: [], total: 0, snapshot: null, isLoading: true, warming: true }),
     );
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
     expect(screen.getByTestId("market-warming-hint")).toBeInTheDocument();
     const combo = screen.getByTestId("market-universe-select").querySelector('[role="combobox"]') as HTMLInputElement;
     await fireEvent.focus(combo);
@@ -220,7 +227,7 @@ describe("MarketScreenerPanel — stale cache, warming hint, timeout", () => {
     mockUseMarketSnapshot.mockReturnValue(
       hookResult({ rows: [], total: 0, snapshot: null, isLoading: true, warming: true }),
     );
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
         await fireEvent.click(screen.getByTestId("market-warming-switch"));
     expect(mockUseMarketSnapshot.mock.calls.at(-1)?.[0]()).toBe("nifty500");
   });
@@ -229,7 +236,7 @@ describe("MarketScreenerPanel — stale cache, warming hint, timeout", () => {
     mockUseMarketSnapshot.mockReturnValue(
       hookResult({ rows: [], total: 0, snapshot: null, isLoading: false, error: new Error("Market snapshot timed out") }),
     );
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
     expect(screen.getByTestId("market-error")).toBeInTheDocument();
     expect(screen.getByTestId("market-error-message")).toHaveTextContent("Market snapshot timed out");
     expect(screen.queryByTestId("market-skeleton")).not.toBeInTheDocument();
@@ -239,7 +246,7 @@ describe("MarketScreenerPanel — stale cache, warming hint, timeout", () => {
     mockUseMarketSnapshot.mockReturnValue(
       hookResult({ error: new Error("Market snapshot timed out"), isLoading: false }),
     );
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
     expect(screen.getByTestId("market-grid")).toBeInTheDocument();
     expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
     expect(screen.getByTestId("market-error-banner-message")).toHaveTextContent(
@@ -259,7 +266,7 @@ describe("MarketScreenerPanel — stale badge decays with time", () => {
     const asOf = new Date(Date.now()).toISOString();
     mockUseMarketSnapshot.mockReturnValue(hookResult({ asOf, stale: false }));
 
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
     // t0: the snapshot is fresh, so no badge and the table is up.
     expect(screen.queryByTestId("market-stale-badge")).not.toBeInTheDocument();
     expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
@@ -275,7 +282,7 @@ describe("MarketScreenerPanel — stale badge decays with time", () => {
     const asOf = new Date(Date.now()).toISOString();
     mockUseMarketSnapshot.mockReturnValue(hookResult({ asOf, stale: false }));
 
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
     vi.advanceTimersByTime(10 * 60 * 1000);
     expect(screen.queryByTestId("market-stale-badge")).not.toBeInTheDocument();
   });
@@ -302,7 +309,7 @@ describe("MarketScreenerPanel — narrow filter drawer keyboard parity", () => {
 
   function openDrawer() {
     narrowViewport();
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
     const toggle = screen.getByTestId("market-rail-toggle");
     fireEvent.click(toggle);
     return { toggle, drawer: screen.getByTestId("market-filter-drawer") };
@@ -379,7 +386,7 @@ describe("MarketScreenerPanel — non-blocking filters", () => {
   test("chip + active-count update immediately; table data is deferred", async () => {
     const rows = buildBenchRows(496);
     mockUseMarketSnapshot.mockReturnValue(hookResult({ rows, total: rows.length }));
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
 
     expect(screen.getByTestId("market-grid")).toBeInTheDocument();
     expect(screen.getByTestId("market-result-count")).toHaveTextContent("496 / 496");
@@ -419,7 +426,7 @@ describe("MarketScreenerPanel — non-blocking filters", () => {
     const rows = buildBenchRows(496);
     mockUseMarketSnapshot.mockReturnValue(hookResult({ rows, total: rows.length }));
     const filterSpy = vi.spyOn(marketFilters, "filterOnlyMarketRows");
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
 
     const callsBefore = filterSpy.mock.calls.length;
     expect(callsBefore).toBeGreaterThan(0);
@@ -433,7 +440,7 @@ describe("MarketScreenerPanel — non-blocking filters", () => {
 
 describe("MarketScreenerPanel — the sort control lives on the map", () => {
   test("the rail offers sectors only; the map owns the sort", async () => {
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
     const rail = screen.getByTestId("market-filter-rail");
     expect(within(rail).queryByTestId("market-filter-sort")).toBeNull();
     expect(within(rail).getByTestId("market-filter-sector")).toBeInTheDocument();
@@ -449,7 +456,7 @@ describe("MarketScreenerPanel — the sort control lives on the map", () => {
       row("MPHASIS", { marketCapCr: 10_000, rsi: 80 }),
     ];
     mockUseMarketSnapshot.mockReturnValue(hookResult({ rows, total: rows.length }));
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
     const toggle = screen.getByTestId("market-view-toggle");
     await fireEvent.click(within(toggle).getByText("Map"));
 
@@ -478,7 +485,7 @@ describe("MarketScreenerPanel — the sort control lives on the map", () => {
 
 describe("MarketScreenerPanel — selected row affordance", () => {
   test("click and ArrowDown both tint the selected row", async () => {
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
     const reliance = screen.getByTestId("market-row-RELIANCE");
     const mphasis = screen.getByTestId("market-row-MPHASIS");
     const base = reliance.style.backgroundColor;
@@ -493,7 +500,7 @@ describe("MarketScreenerPanel — selected row affordance", () => {
 
 describe("MarketScreenerPanel — Movers view", () => {
   test("switching to Movers renders the dashboard and hides market search + filter rail", async () => {
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
     expect(screen.queryByTestId("screener-dashboard")).not.toBeInTheDocument();
     expect(screen.getByTestId("market-search")).toBeInTheDocument();
     expect(screen.getByTestId("market-filter-rail")).toBeInTheDocument();
@@ -507,7 +514,7 @@ describe("MarketScreenerPanel — Movers view", () => {
 
   test("onViewChange callback receives movers", async () => {
     const onViewChange = vi.fn();
-    r(<MarketScreenerPanel onViewChange={onViewChange} />);
+    r(() => <MarketScreenerPanel onViewChange={onViewChange} />);
     expect(onViewChange).not.toHaveBeenCalled();
 
     await fireEvent.click(screen.getByRole("button", { name: "Movers" }));
@@ -517,7 +524,7 @@ describe("MarketScreenerPanel — Movers view", () => {
   });
 
   test("initialView=movers starts in Movers", async () => {
-    r(<MarketScreenerPanel initialView="movers" />);
+    r(() => <MarketScreenerPanel initialView="movers" />);
     expect(await screen.findByTestId("screener-dashboard")).toBeInTheDocument();
     expect(screen.queryByTestId("market-search")).not.toBeInTheDocument();
     expect(screen.queryByTestId("market-filter-rail")).not.toBeInTheDocument();
@@ -525,7 +532,7 @@ describe("MarketScreenerPanel — Movers view", () => {
   });
 
   test("switching to Movers clears the search; Table comes back empty", async () => {
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
     const search = screen.getByTestId("market-search") as HTMLInputElement;
     fireEvent.input(search, { target: { value: "reliance" } });
     expect(search.value).toBe("reliance");
@@ -547,7 +554,7 @@ describe("MarketScreenerPanel — Movers view", () => {
 describe("MarketScreenerPanel — symbol allowlist", () => {
   test("renders only allow-listed rows with a removable chip", () => {
     const onClear = vi.fn();
-    r(<MarketScreenerPanel symbolAllowlist={["RELIANCE"]} onClearSymbolAllowlist={onClear} />);
+    r(() => <MarketScreenerPanel symbolAllowlist={["RELIANCE"]} onClearSymbolAllowlist={onClear} />);
     expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
     expect(screen.queryByTestId("market-row-MPHASIS")).not.toBeInTheDocument();
     const chip = screen.getByTestId("market-symbol-allowlist");
@@ -558,22 +565,22 @@ describe("MarketScreenerPanel — symbol allowlist", () => {
   });
 
   test("counts all allow-listed symbols in the chip", () => {
-    r(<MarketScreenerPanel symbolAllowlist={["RELIANCE", "MPHASIS"]} />);
+    r(() => <MarketScreenerPanel symbolAllowlist={["RELIANCE", "MPHASIS"]} />);
     expect(screen.getByTestId("market-symbol-allowlist")).toHaveTextContent(
       "Movers · 2 symbols ×",
     );
   });
 
   test("omits the chip when the list is empty or absent", () => {
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
     expect(screen.queryByTestId("market-symbol-allowlist")).not.toBeInTheDocument();
-    r(<MarketScreenerPanel symbolAllowlist={[]} />);
+    r(() => <MarketScreenerPanel symbolAllowlist={[]} />);
     expect(screen.queryByTestId("market-symbol-allowlist")).not.toBeInTheDocument();
   });
 
   test("changing the universe clears the symbol allowlist", async () => {
     const onClear = vi.fn();
-    r(<MarketScreenerPanel symbolAllowlist={["RELIANCE"]} onClearSymbolAllowlist={onClear} />);
+    r(() => <MarketScreenerPanel symbolAllowlist={["RELIANCE"]} onClearSymbolAllowlist={onClear} />);
     const combo = screen.getByTestId("market-universe-select").querySelector(
       '[role="combobox"]',
     ) as HTMLInputElement;
@@ -583,7 +590,7 @@ describe("MarketScreenerPanel — symbol allowlist", () => {
   });
 
   test("keeps the table mounted across a Map round-trip", async () => {
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
     const before = screen.getByTestId("market-grid");
     const toggle = screen.getByTestId("market-view-toggle");
 
@@ -596,7 +603,7 @@ describe("MarketScreenerPanel — symbol allowlist", () => {
   });
 
   test("pinning a sector hides the SECTOR column; removing the chip restores it", async () => {
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
     expect(screen.getByText("SECTOR")).toBeInTheDocument();
 
     const sectorSelect = screen.getByTestId("market-filter-sector");
@@ -616,7 +623,7 @@ describe("MarketScreenerPanel — symbol allowlist", () => {
     mockUseMarketSnapshot.mockReturnValue(
       hookResult({ rows: [row("RELIANCE", { sector: "IT" }), row("ONGC", { sector: "Energy" })] }),
     );
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
 
     const sectorSelect = screen.getByTestId("market-filter-sector");
     await fireEvent.focus(within(sectorSelect).getByRole("combobox"));
@@ -666,7 +673,7 @@ describe("MarketScreenerPanel — PATTERNS column", () => {
   test("the column renders badges from the batched lookup", async () => {
     mockLookupPatterns.mockResolvedValue(storedLookup(["RELIANCE"]));
 
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
 
     const badge = await screen.findByTestId("market-patterns-RELIANCE", {}, { timeout: 3000 });
     expect(badge).toHaveTextContent("1▲");
@@ -679,7 +686,7 @@ describe("MarketScreenerPanel — PATTERNS column", () => {
     mockUseMarketSnapshot.mockReturnValue(hookResult({ rows, total: rows.length }));
     mockLookupPatterns.mockResolvedValue(storedLookup([]));
 
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
     await waitFor(() => expect(mockLookupPatterns).toHaveBeenCalled(), { timeout: 3000 });
 
     expect(mockLookupPatterns).toHaveBeenCalledTimes(1);
@@ -691,7 +698,7 @@ describe("MarketScreenerPanel — PATTERNS column", () => {
 
   test("Table → Map → Table does not refetch while the window is unchanged", async () => {
     mockLookupPatterns.mockResolvedValue(storedLookup(["RELIANCE"]));
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
     await waitFor(() => expect(mockLookupPatterns).toHaveBeenCalledTimes(1), { timeout: 3000 });
 
     const toggle = screen.getByTestId("market-view-toggle");
@@ -712,7 +719,7 @@ describe("MarketScreenerPanel — PATTERNS column", () => {
       }),
     );
 
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
 
     // While the batch lookup is in flight the container is marked busy, but no
     // row-level spinner appears (a per-row spinner would be 80 spinners).
@@ -747,7 +754,7 @@ describe("MarketScreenerPanel — PATTERNS column", () => {
 
   test("a failed lookup leaves dashes and never blanks the table", async () => {
     mockLookupPatterns.mockRejectedValue(new Error("HTTP 503"));
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
 
     await waitFor(() => expect(mockLookupPatterns).toHaveBeenCalled(), { timeout: 3000 });
     expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
@@ -792,7 +799,7 @@ describe("MarketScreenerPanel — saved filters", () => {
     mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: SAVED_ROWS, total: SAVED_ROWS.length }));
     withSaved(savedPayload());
 
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
 
     // The reset effect (:194-205) must not fire for the hydration write: with
     // a saved universe of nifty500 both restored filters survive.
@@ -813,7 +820,7 @@ describe("MarketScreenerPanel — saved filters", () => {
   test("hydrates the layout from the saved view when the URL says nothing", async () => {
     withSaved(savedPayload({ view: "map" }));
 
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
 
     await screen.findByTestId("market-map");
     expect(screen.getByTestId("market-filter-chip-sector:IT")).toBeInTheDocument();
@@ -826,7 +833,7 @@ describe("MarketScreenerPanel — saved filters", () => {
   test("a ?view= from the URL beats the saved view; the saved filters still apply", async () => {
     withSaved(savedPayload({ view: "table" }));
 
-    r(<MarketScreenerPanel initialView="map" />);
+    r(() => <MarketScreenerPanel initialView="map" />);
 
     await waitFor(() =>
       expect(screen.getByTestId("market-filter-chip-sector:IT")).toBeInTheDocument(),
@@ -847,7 +854,7 @@ describe("MarketScreenerPanel — saved filters", () => {
       }) as never,
     );
 
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
 
     // User mutates before the config GET answers: the latch closes.
     const sectorSelect = screen.getByTestId("market-filter-sector");
@@ -875,7 +882,7 @@ describe("MarketScreenerPanel — saved filters", () => {
     mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: SAVED_ROWS, total: SAVED_ROWS.length }));
     mockPutUserConfig.mockRejectedValue(Object.assign(new Error("boom"), { status: 500 }));
 
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
 
     const sectorSelect = screen.getByTestId("market-filter-sector");
     await fireEvent.focus(within(sectorSelect).getByRole("combobox"));
@@ -895,7 +902,7 @@ describe("MarketScreenerPanel — saved filters", () => {
 
   test("the failure chip lives in the toolbar next to the filter count", async () => {
     mockPutUserConfig.mockRejectedValue(Object.assign(new Error("boom"), { status: 422 }));
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
 
     const sma20 = screen.getByTestId("market-filter-above-sma20");
     fireEvent.click(sma20);
@@ -911,7 +918,7 @@ describe("MarketScreenerPanel — saved filters", () => {
     mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: SAVED_ROWS, total: SAVED_ROWS.length }));
     withSaved(savedPayload());
 
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
     await waitFor(() =>
       expect(screen.getByTestId("market-filter-chip-sector:IT")).toBeInTheDocument(),
     );
@@ -924,7 +931,7 @@ describe("MarketScreenerPanel — saved filters", () => {
   test("a reload restores what the previous mount saved", async () => {
     mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: SAVED_ROWS, total: SAVED_ROWS.length }));
 
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
     const sectorSelect = screen.getByTestId("market-filter-sector");
     await fireEvent.focus(within(sectorSelect).getByRole("combobox"));
     const it = await screen.findByRole("option", { name: "IT" });
@@ -937,7 +944,7 @@ describe("MarketScreenerPanel — saved filters", () => {
 
     cleanup();
     withSaved(savedByPut);
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
 
     await waitFor(() =>
       expect(screen.getByTestId("market-filter-chip-sector:IT")).toBeInTheDocument(),
@@ -950,7 +957,7 @@ describe("MarketScreenerPanel — saved filters", () => {
   test("a 401 disables the feature silently: no chip, defaults applied", async () => {
     mockGetUserConfig.mockRejectedValue(Object.assign(new Error("unauthorized"), { status: 401 }));
 
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
 
     await waitFor(() => expect(mockGetUserConfig).toHaveBeenCalled());
     const sectorSelect = screen.getByTestId("market-filter-sector");
@@ -961,6 +968,137 @@ describe("MarketScreenerPanel — saved filters", () => {
     expect(screen.queryByTestId("saved-config-error")).toBeNull();
     expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
   });
+});
+
+describe("MarketScreenerPanel — persisted table sort (table.market.grid)", () => {
+  const SORT_ROWS: MarketRow[] = [
+    row("SMALLCAP", { marketCapCr: 100, change: 9, rsi: 80 }),
+    row("MIDCAP", { marketCapCr: 900, change: 4, rsi: 50 }),
+    row("BIGCAP", { marketCapCr: 9000, change: -3, rsi: 20 }),
+  ];
+
+  const rowOrder = () =>
+    Array.from(document.querySelectorAll('[data-testid^="market-row-"]')).map((el) =>
+      el.getAttribute("data-testid"),
+    );
+  const header = (id: string) => document.getElementById(`paper-tanstack-header-${id}`);
+  const mapSortValue = () =>
+    (screen.getByTestId("market-map-sort").querySelector("select") as HTMLSelectElement).value;
+
+  beforeEach(() => {
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: SORT_ROWS, total: SORT_ROWS.length }));
+  });
+
+  function withSavedTableSorting(sorting: { id: string; desc: boolean }[]) {
+    mockGetUserConfig.mockImplementation(async (scope: string) => {
+      if (scope === "table.market.grid") {
+        return {
+          scope,
+          version: 1,
+          saved: true,
+          updated_at: "2026-11-15T09:41:22.192Z",
+          config: { sorting, order: [], hidden: [] },
+        } as never;
+      }
+      return {
+        scope: "market.filters",
+        version: 1,
+        saved: false,
+        updated_at: null,
+        config: serializeMarketConfig(defaultMarketConfig()),
+      } as never;
+    });
+  }
+
+  test("the bridge maps every supported metric and ignores unsupported directions", () => {
+    expect(sortEntryToMarketSort([{ id: "market_cap_cr", desc: true }])).toBe("mcap_desc");
+    expect(sortEntryToMarketSort([{ id: "day_change", desc: true }])).toBe("day_desc");
+    expect(sortEntryToMarketSort([{ id: "day_change", desc: false }])).toBe("day_asc");
+    expect(sortEntryToMarketSort([{ id: "rsi", desc: true }])).toBe("rsi_desc");
+    expect(sortEntryToMarketSort([{ id: "relative_volume", desc: true }])).toBe("relvol_desc");
+    expect(sortEntryToMarketSort([{ id: "perf_w", desc: true }])).toBe("perf_w_desc");
+    expect(sortEntryToMarketSort([{ id: "perf_1m", desc: true }])).toBe("perf_1m_desc");
+    expect(sortEntryToMarketSort([{ id: "pos_52w", desc: true }])).toBe("pos_52w_desc");
+    expect(sortEntryToMarketSort([{ id: "symbol", desc: false }])).toBe("symbol_asc");
+    // Ascending is only expressible for day %/symbol — the map keeps its last
+    // choice rather than pretending the table said something it cannot.
+    expect(sortEntryToMarketSort([{ id: "rsi", desc: false }])).toBeNull();
+    expect(sortEntryToMarketSort([])).toBeNull();
+
+    expect(marketSortToSortEntry("mcap_desc")).toEqual({ id: "market_cap_cr", desc: true });
+    expect(marketSortToSortEntry("day_asc")).toEqual({ id: "day_change", desc: false });
+    expect(marketSortToSortEntry("symbol_asc")).toEqual({ id: "symbol", desc: false });
+  });
+
+  test("a saved day-change desc renders the biggest gainers first with aria-sort", async () => {
+    withSavedTableSorting([{ id: "day_change", desc: true }]);
+    r(() => <MarketScreenerPanel />);
+
+    await waitFor(() =>
+      expect(rowOrder()).toEqual(["market-row-SMALLCAP", "market-row-MIDCAP", "market-row-BIGCAP"]),
+    );
+    expect(header("day_change")).toHaveAttribute("aria-sort", "descending");
+  });
+
+  test("empty saved prefs fall back to mcap desc and write nothing", async () => {
+    r(() => <MarketScreenerPanel />);
+    await waitFor(() => expect(rowOrder()[0]).toBe("market-row-BIGCAP"));
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    expect(mockPutUserConfig.mock.calls.map(([scope]) => scope)).not.toContain("table.market.grid");
+  }, 10000);
+
+  test("choosing day_asc in the map drives the table to day_change ascending", async () => {
+    r(() => <MarketScreenerPanel />);
+    const toggle = screen.getByTestId("market-view-toggle");
+    await fireEvent.click(within(toggle).getByText("Map"));
+
+    fireEvent.input(screen.getByTestId("market-map-sort").querySelector("select")!, {
+      target: { value: "day_asc" },
+    });
+    await fireEvent.click(within(toggle).getByText("Table"));
+
+    expect(header("day_change")).toHaveAttribute("aria-sort", "ascending");
+    await waitFor(() =>
+      expect(rowOrder()).toEqual(["market-row-BIGCAP", "market-row-MIDCAP", "market-row-SMALLCAP"]),
+    );
+    await waitFor(
+      () =>
+        expect(
+          mockPutUserConfig.mock.calls.some(([scope]) => scope === "table.market.grid"),
+        ).toBe(true),
+      { timeout: 4000 },
+    );
+  });
+
+  test("a header click persists the sort and mirrors it into the map dropdown", async () => {
+    r(() => <MarketScreenerPanel />);
+    await waitFor(() => expect(rowOrder()[0]).toBe("market-row-BIGCAP"));
+
+    fireEvent.click(header("day_change")!);
+    expect(rowOrder()[0]).toBe("market-row-SMALLCAP");
+    expect(header("day_change")).toHaveAttribute("aria-sort", "descending");
+
+    const toggle = screen.getByTestId("market-view-toggle");
+    await fireEvent.click(within(toggle).getByText("Map"));
+    await waitFor(() => expect(mapSortValue()).toBe("day_desc"));
+    await fireEvent.click(within(toggle).getByText("Table"));
+
+    await waitFor(
+      () =>
+        expect(
+          mockPutUserConfig.mock.calls.some(([scope]) => scope === "table.market.grid"),
+        ).toBe(true),
+      { timeout: 4000 },
+    );
+    const put = mockPutUserConfig.mock.calls.find(([scope]) => scope === "table.market.grid")!;
+    // The clicked column becomes primary; the previous sorter stays as a
+    // secondary, which is exactly what `setSorting` must persist.
+    expect(((put[1] as Record<string, unknown>).sorting as unknown[])[0]).toEqual({
+      id: "day_change",
+      desc: true,
+    });
+  }, 10000);
 });
 
 describe("MarketScreenerPanel — chart dock outlet layout", () => {
@@ -985,7 +1123,7 @@ describe("MarketScreenerPanel — chart dock outlet layout", () => {
   });
 
   test("the row keeps a flex-1 table container and a collapsed outlet while the dock is closed", () => {
-    r(<MarketScreenerPanel />);
+    r(() => <MarketScreenerPanel />);
 
     const grid = screen.getByTestId("market-grid");
     const outlet = screen.getByTestId("chart-dock-outlet");

@@ -153,6 +153,56 @@ describe("buildMarketColumns", () => {
   });
 });
 
+describe("numeric accessors — nulls stay null", () => {
+  const byId = () => new Map(buildMarketColumns().map((column) => [column.id, column]));
+
+  test("a missing field returns null, never a real zero", () => {
+    const empty: MarketRow = {
+      ...ROW,
+      close: null,
+      change: null,
+      perfW: null,
+      perf1m: null,
+      pos52w: null,
+      rsi: null,
+      adx: null,
+      relativeVolume: null,
+      marketCapCr: null,
+    };
+    const columns = byId();
+    for (const id of [
+      "close",
+      "day_change",
+      "perf_w",
+      "perf_1m",
+      "pos_52w",
+      "rsi",
+      "adx",
+      "relative_volume",
+      "market_cap_cr",
+    ]) {
+      expect(columns.get(id)?.accessorFn?.(empty), id).toBeNull();
+    }
+  });
+
+  test("a present field is returned raw so the comparator sees the real number", () => {
+    const columns = byId();
+    expect(columns.get("close")?.accessorFn?.(ROW)).toBe(2890.4);
+    expect(columns.get("day_change")?.accessorFn?.(ROW)).toBe(1.25);
+    expect(columns.get("perf_w")?.accessorFn?.(ROW)).toBe(2.1);
+    expect(columns.get("rsi")?.accessorFn?.(ROW)).toBe(61.2);
+    expect(columns.get("adx")?.accessorFn?.(ROW)).toBe(24.8);
+  });
+
+  test("the rendered dash is unchanged by the accessor switch", () => {
+    const column = buildMarketColumns().find((candidate) => candidate.id === "rsi");
+    if (!column?.cell) throw new Error("rsi column has no cell renderer");
+
+    render(() => column.cell!(cellArgs({ ...ROW, rsi: null }, column)));
+    expect(screen.getByTestId("market-dash-RELIANCE-rsi")).toHaveTextContent("–");
+  });
+});
+
 function pattern(
   patch: Partial<PatternSummaryItem["patterns"][number]> = {},
 ): PatternSummaryItem["patterns"][number] {
