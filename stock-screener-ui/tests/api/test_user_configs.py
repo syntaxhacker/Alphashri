@@ -588,3 +588,139 @@ class TestUserIsolation:
         assert len(rows) == 2
         assert {row.user_id for row in rows} == {1, 2}
         assert all(row.name == "" for row in rows)
+
+
+class TestDynamicTableScopes:
+    """``table.<id>`` scopes share TablePrefsV1 but are keyed per table."""
+
+    DEFAULTS = {"sorting": [], "order": [], "hidden": []}
+    APPROACHING_URL = "/api/user-configs/table.screener.52w_high.approaching"
+    SAMPLE = {
+        "sorting": [{"id": "to_52w_high", "desc": False}],
+        "order": [],
+        "hidden": [],
+    }
+
+    def test_unknown_scope_foo_bar_is_404(self, user_client, db):
+        for method in ("get", "put", "delete"):
+            kwargs = {"json": {"config": self.DEFAULTS}} if method == "put" else {}
+            response = getattr(user_client, method)("/api/user-configs/foo.bar", **kwargs)
+            assert response.status_code == 404, method
+            assert response.json()["detail"] == "unknown_scope"
+        assert db.query(UserSavedConfig).count() == 0
+
+    @pytest.mark.parametrize(
+        "scope",
+        [
+            "table.",
+            "table.-bad",
+            "TABLE.market",
+            "table.market!",
+            "table." + "a" * 81,
+        ],
+    )
+    def test_malformed_table_scope_is_404(self, user_client, scope):
+        response = user_client.get(f"/api/user-configs/{scope}")
+        assert response.status_code == 404
+        assert response.json()["detail"] == "unknown_scope"
+
+    def test_unsaved_table_scope_returns_defaults(self, user_client, db):
+        response = user_client.get("/api/user-configs/table.market.grid")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["scope"] == "table.market.grid"
+        assert body["version"] == 1
+        assert body["saved"] is False
+        assert body["updated_at"] is None
+        assert body["config"] == self.DEFAULTS
+        assert "warning" not in body
+        assert db.query(UserSavedConfig).count() == 0
+
+    def test_put_then_get_round_trip(self, user_client):
+        put = user_client.put(self.APPROACHING_URL, json={"config": self.SAMPLE, "version": 1})
+        assert put.status_code == 200
+        body = put.json()
+        assert body["saved"] is True
+        assert body["config"] == self.SAMPLE
+        assert body["updated_at"]
+
+        got = user_client.get(self.APPROACHING_URL)
+        assert got.status_code == 200
+        assert got.json()["saved"] is True
+        assert got.json()["config"] == self.SAMPLE
+        assert got.json()["updated_at"] == body["updated_at"]
+
+    @pytest.mark.parametrize(
+        "config",
+        [
+            {"sorting": [{"id": 123, "desc": False}], "order": [], "hidden": []},
+            {
+                "sorting": [{"id": f"c{i}", "desc": False} for i in range(11)],
+                "order": [],
+                "hidden": [],
+            },
+            {"sorting": [], "order": [], "hidden": [], "bogus": 1},
+        ],
+    )
+    def test_invalid_payload_is_422(self, user_client, db, config):
+        response = user_client.put(self.APPROACHING_URL, json={"config": config})
+        assert response.status_code == 422
+        assert db.query(UserSavedConfig).count() == 0
+
+    @pytest.mark.parametrize(
+        "config",
+        [
+            {"sorting": [], "order": [f"c{i}" for i in range(201)], "hidden": []},
+            {"sorting": [], "order": [], "hidden": ["x" * 65]},
+            {"sorting": [{"id": "", "desc": False}], "order": [], "hidden": []},
+        ],
+    )
+    def test_list_and_string_bounds_are_422(self, user_client, config):
+        response = user_client.put(self.APPROACHING_URL, json={"config": config})
+        assert response.status_code == 422
+        assert response.json()["detail"] == "invalid_config"
+
+    def test_oversize_payload_is_422(self, user_client, db):
+        long_ids = ["x" * 64 for _ in range(200)]
+        config = {"sorting": [], "order": long_ids, "hidden": long_ids}
+        response = user_client.put("/api/user-configs/table.backtest.trades", json={"config": config})
+        assert response.status_code == 422
+        assert response.json()["detail"] == "config_too_large"
+        assert db.query(UserSavedConfig).count() == 0
+
+    def test_scopes_are_isolated(self, user_client, db):
+        trades_url = "/api/user-configs/table.backtest.trades"
+        positions_url = "/api/user-configs/table.paper.positions"
+        trades = {"sorting": [{"id": "pnl", "desc": True}], "order": [], "hidden": []}
+        positions = {"sorting": [{"id": "entry_time", "desc": False}], "order": [], "hidden": []}
+
+        assert user_client.put(trades_url, json={"config": trades}).status_code == 200
+        assert user_client.put(positions_url, json={"config": positions}).status_code == 200
+
+        assert user_client.get(trades_url).json()["config"] == trades
+        assert user_client.get(positions_url).json()["config"] == positions
+
+        rows = db.query(UserSavedConfig).all()
+        assert len(rows) == 2
+        assert {row.scope for row in rows} == {
+            "table.backtest.trades",
+            "table.paper.positions",
+        }
+
+    def test_unreadable_table_row_falls_back_to_defaults(self, user_client, db):
+        db.add(
+            UserSavedConfig(
+                user_id=1,
+                scope="table.market.grid",
+                name="",
+                config={"sorting": [{"id": 123}], "order": [], "hidden": []},
+                version=1,
+            )
+        )
+        db.commit()
+
+        body = user_client.get("/api/user-configs/table.market.grid").json()
+        assert body["saved"] is False
+        assert body["warning"] == "invalid_saved_config"
+        assert body["config"] == self.DEFAULTS
+        assert db.query(UserSavedConfig).count() == 1

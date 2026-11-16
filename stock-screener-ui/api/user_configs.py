@@ -18,11 +18,17 @@ Three properties drive the design:
 ``sort`` and ``view`` at the same level — because the frontend adapter composes
 one payload from two signals (``universe`` + ``filters``) and the wire shape
 stays a plain object either side of that join.
+
+Table column preferences use a second, *dynamic* scope family: any scope matching
+``table.<id>`` is served from one shared ``TablePrefsV1`` schema. The tables are
+registered by the frontend at runtime, so enumerating them in ``SCOPE_REGISTRY``
+would only create a drift bug; the regex is the boundary instead.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Annotated, Any, Callable, Literal, Optional
@@ -153,6 +159,52 @@ def _unknown_market_keys(config: dict[str, Any]) -> list[str]:
     return sorted(unknown)
 
 
+class TableSortV1(BaseModel):
+    """One TanStack sort entry, with the column id bounded to a sane key."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1, max_length=64)
+    desc: bool = False
+
+
+class TablePrefsV1(BaseModel):
+    """Column preferences shared by every ``table.<id>`` scope.
+
+    ``extra="forbid"`` is the second line of defence after ``_unknown_table_keys``:
+    a typo in a writer must never be smuggled into the blob.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    sorting: list[TableSortV1] = Field(default_factory=list, max_length=10)
+    order: list[str] = Field(default_factory=list, max_length=200)
+    hidden: list[str] = Field(default_factory=list, max_length=200)
+
+    @field_validator("order", "hidden")
+    @classmethod
+    def _column_id_lengths(cls, values: list[str]) -> list[str]:
+        for value in values:
+            if not 1 <= len(value) <= 64:
+                raise ValueError("each column id must be 1..64 characters")
+        return values
+
+
+TABLE_FIELD_NAMES: frozenset[str] = frozenset(TablePrefsV1.model_fields)
+#: A table id is lowercase/digits with dot, underscore or dash separators; the
+#: leading char after ``table.`` cannot be a separator. Caps the whole scope at
+#: 6 + 80 chars so a typo cannot allocate an unbounded row key.
+TABLE_SCOPE_RE = re.compile(r"^table\.[a-z0-9][a-z0-9._-]{0,79}$")
+
+
+def default_table_prefs_payload() -> dict[str, Any]:
+    return TablePrefsV1().model_dump()
+
+
+def _unknown_table_keys(config: dict[str, Any]) -> list[str]:
+    return sorted(set(config) - TABLE_FIELD_NAMES)
+
+
 @dataclass(frozen=True)
 class ScopeSpec:
     scope: str
@@ -201,7 +253,19 @@ class DeleteResponse(BaseModel):
 
 
 def _spec_or_none(scope: str) -> Optional[ScopeSpec]:
-    return SCOPE_REGISTRY.get(scope)
+    spec = SCOPE_REGISTRY.get(scope)
+    if spec is not None:
+        return spec
+    if TABLE_SCOPE_RE.fullmatch(scope):
+        return ScopeSpec(
+            scope=scope,
+            version=1,
+            schema=TablePrefsV1,
+            default=default_table_prefs_payload,
+            max_bytes=MAX_CONFIG_BYTES,
+            unknown_keys=_unknown_table_keys,
+        )
+    return None
 
 
 def _unknown_scope() -> JSONResponse:

@@ -561,6 +561,14 @@ no new table. The reusable layer lives in `src/components/common/useTablePrefs.t
 
 - **Scope key** `table.${tableId}` — e.g. `table.market`,
   `table.screener.52w_high`. **Version** `1`.
+- **Server-side registration is dynamic, not enumerated.** `api/user_configs.py`
+  accepts any scope matching `^table\.[a-z0-9][a-z0-9._-]{0,79}$` and serves it
+  from the shared `TablePrefsV1` schema (defaults `{sorting: [], order: [], hidden: []}`);
+  everything else not in `SCOPE_REGISTRY` is still 404 `unknown_scope`. The regex
+  is the boundary, so registering a new table in the frontend needs no backend
+  change. The wire schema bounds `sorting` to 10 entries, `order`/`hidden` to
+  200 entries, and every id string to 1..64 chars; the 16 KiB payload cap and the
+  strict-write/tolerant-read envelope are the same as `market.filters`.
 - **Shape** (wire payload / `TablePrefs`):
   ```ts
   { sorting: [{ id: string; desc: boolean }], order: string[], hidden: string[] }
