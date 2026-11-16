@@ -1,8 +1,15 @@
 // @vitest-environment happy-dom
-import { describe, it, expect } from "vitest";
+import "@testing-library/jest-dom/vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library";
+import { UIProvider } from "@/ui";
 import type { TableColumnDef } from "../common/TanStackTable";
+import { SymbolDockContext } from "../common/symbolDockContext";
 import { buildFnoColumns } from "./fnoColumns";
 import type { FnoScreenerRow } from "../../api/fnoScreener";
+
+const dockOpen = vi.fn();
+const dockClose = vi.fn();
 
 const EXPECTED_DATA_COLUMNS = [
   "symbol",
@@ -176,5 +183,104 @@ describe("buildFnoColumns", () => {
     for (const col of columns) {
       expect((col.meta as { align?: string } | undefined)?.align).toBeTruthy();
     }
+  });
+});
+
+describe("buildFnoColumns symbol cell — in-app text / TV ↗ inversion", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  function renderSymbolCell(onSymbolClick?: (symbol: string) => void, rowClick = vi.fn()) {
+    const col = buildFnoColumns(onSymbolClick).find((c) => c.id === "symbol")!;
+    const row = {
+      original: sampleRow,
+      index: 0,
+      isExpanded: () => false,
+      toggle: () => {},
+    };
+    render(() => (
+      <UIProvider>
+        <SymbolDockContext.Provider
+          value={{
+            open: dockOpen,
+            close: dockClose,
+            preview: vi.fn(),
+            endPreview: vi.fn(),
+            pinned: false,
+            setOutlet: vi.fn(),
+          }}
+        >
+          <div onClick={rowClick}>{col.cell!({ row, column: col })}</div>
+        </SymbolDockContext.Provider>
+      </UIProvider>
+    ));
+    return rowClick;
+  }
+
+  it("body click calls onSymbolClick and never window.open", async () => {
+    const onSymbolClick = vi.fn();
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    const rowClick = renderSymbolCell(onSymbolClick);
+
+    const text = screen.getByTestId("fno-cell-symbol-RELIANCE");
+    expect(text.tagName).toBe("BUTTON");
+    expect(text).toHaveTextContent("RELIANCE");
+    await fireEvent.click(text);
+
+    expect(onSymbolClick).toHaveBeenCalledTimes(1);
+    expect(onSymbolClick).toHaveBeenCalledWith("RELIANCE");
+    expect(openSpy).not.toHaveBeenCalled();
+    expect(rowClick).not.toHaveBeenCalled();
+  });
+
+  it("↗ is a TradingView anchor and does not call onSymbolClick", async () => {
+    const onSymbolClick = vi.fn();
+    renderSymbolCell(onSymbolClick);
+
+    const external = screen.getByTestId("symbol-tv-RELIANCE");
+    expect(external.tagName).toBe("A");
+    expect(external).toHaveAttribute(
+      "href",
+      "https://www.tradingview.com/chart/?symbol=NSE%3ARELIANCE",
+    );
+    expect(external).toHaveAttribute("target", "_blank");
+    expect(external.getAttribute("rel")).toContain("noopener");
+    await fireEvent.click(external);
+    expect(onSymbolClick).not.toHaveBeenCalled();
+  });
+
+  it("renders an options-chain action that opens the dock in options mode", async () => {
+    renderSymbolCell();
+
+    const options = screen.getByTestId("symbol-options-RELIANCE");
+    expect(options.tagName).toBe("BUTTON");
+    await fireEvent.click(options);
+
+    expect(dockOpen).toHaveBeenCalledTimes(1);
+    expect(dockOpen).toHaveBeenCalledWith("RELIANCE", "options");
+  });
+
+  it("keeps the chart icon hidden and the TV ↗ anchor intact with showChart=false", () => {
+    renderSymbolCell();
+
+    expect(screen.queryByTestId("symbol-chart-RELIANCE")).not.toBeInTheDocument();
+    const external = screen.getByTestId("symbol-tv-RELIANCE");
+    expect(external.tagName).toBe("A");
+  });
+
+  it("options click does not call onSymbolClick or bubble to the row", async () => {
+    const onSymbolClick = vi.fn();
+    const rowClick = renderSymbolCell(onSymbolClick);
+
+    await fireEvent.click(screen.getByTestId("symbol-options-RELIANCE"));
+
+    expect(onSymbolClick).not.toHaveBeenCalled();
+    expect(rowClick).not.toHaveBeenCalled();
   });
 });

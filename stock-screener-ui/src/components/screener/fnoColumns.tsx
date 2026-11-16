@@ -65,7 +65,9 @@ function money2(value: number): string {
   return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
+export function buildFnoColumns(
+  onSymbolClick?: (symbol: string) => void,
+): TableColumnDef<FnoScreenerRow>[] {
   return [
     {
       id: "expand",
@@ -106,10 +108,13 @@ export function buildFnoColumns(): TableColumnDef<FnoScreenerRow>[] {
             symbol={r.symbol}
             market="NSE"
             showChart={false}
+            showOptions
             showCopy
             size="xs"
             weight={600}
             testId={`fno-cell-symbol-${r.symbol}`}
+            inAppText
+            onTextClick={(sym) => onSymbolClick?.(sym)}
           />
         );
       },
