@@ -5,6 +5,15 @@ import { render, screen, within, waitFor, fireEvent } from "@solidjs/testing-lib
 import { UIProvider } from "@/ui";
 import { FnoScreenerTab } from "./FnoScreenerTab";
 import { buildFnoScreenerUrl, type FnoScreenerParams } from "../../api/fnoScreener";
+import * as palette from "@/ui/palette";
+
+type PayoffOption = {
+  xAxis?: { data?: string[] };
+  series?: { name?: string; lineStyle?: { color?: string }; data?: (number | null)[] }[];
+  graphic?: { style?: { text?: string } }[];
+};
+const lastPayoffOption = () =>
+  (chartStub.setOption.mock.calls.at(-1)?.[0] ?? {}) as PayoffOption;
 
 const mockFetchFnoScreener = vi.hoisted(() => vi.fn());
 
@@ -13,12 +22,19 @@ vi.mock("../../api/fnoScreener", async (importOriginal) => {
   return { ...actual, fetchFnoScreener: mockFetchFnoScreener };
 });
 
-// Mock PayoffChart so happy-dom never loads ECharts; forward data-testid so the
-// expanded row asserts the chart with the per-symbol id.
-vi.mock("@/components/options/PremiumTracker/PayoffChart", () => ({
-  PayoffChart: ({ "data-testid": testId }: { "data-testid"?: string }) => (
-    <div data-testid={testId ?? "mock-payoff-chart"}>mock chart</div>
-  ),
+// The row detail now renders the shared ECharts payoff core. Stub the loader so
+// happy-dom never loads a real canvas and the test can assert the series it paints.
+const { chartStub } = vi.hoisted(() => ({
+  chartStub: {
+    setOption: vi.fn(),
+    resize: vi.fn(),
+    dispose: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
+  },
+}));
+vi.mock("@/utils/loadEcharts", () => ({
+  loadEcharts: vi.fn(async () => ({ init: vi.fn(() => chartStub) })),
 }));
 
 const baseResponse = {
@@ -415,15 +431,55 @@ describe("FnoScreenerTab", () => {
     expect(screen.getByTestId("fno-detail-move2")).toHaveTextContent("+3.40%");
   });
 
-  it("renders the payoff chart on row expand", async () => {
+  it("renders the shared payoff core on row expand, not the old single-line chart", async () => {
     renderTab();
     await waitFor(() => expect(screen.getByTestId("fno-row-RELIANCE")).toBeInTheDocument());
 
     fireEvent.click(screen.getByTestId("fno-expand-RELIANCE"));
     await waitFor(() => expect(screen.getByTestId("fno-detail-breakeven")).toBeInTheDocument());
+    await waitFor(() => expect(chartStub.setOption).toHaveBeenCalled());
 
-    // The shared PayoffChart renders for the expanded row (mocked to avoid ECharts in happy-dom).
     expect(screen.getByTestId("fno-payoff-RELIANCE")).toBeInTheDocument();
+    expect(screen.queryByTestId("payoff-chart")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("mock-payoff-chart")).not.toBeInTheDocument();
+    expect(screen.getByTestId("options-payoff-footer")).toBeInTheDocument();
+  });
+
+  it("prices a long call with a bounded max loss and green profit above the strike", async () => {
+    // Integer premium keeps the expected -₹40 loss exact after the chart rounds.
+    const call = { ...baseResponse.rows[0], premium: 40, iv: 22.5 };
+    mockFetchFnoScreener.mockResolvedValueOnce({ ...baseResponse, rows: [call], matched: 1 });
+    renderTab();
+    await waitFor(() => expect(screen.getByTestId("fno-row-RELIANCE")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId("fno-expand-RELIANCE"));
+    await waitFor(() => expect(screen.getByTestId("fno-payoff-RELIANCE")).toBeInTheDocument());
+    await waitFor(() => expect(chartStub.setOption).toHaveBeenCalled());
+
+    const option = lastPayoffOption();
+    const profit = option.series!.find((s) => s.lineStyle?.color === palette.POSITIVE)!;
+    const loss = option.series!.find((s) => s.lineStyle?.color === palette.NEGATIVE)!;
+    expect(profit).toBeDefined();
+    expect(loss).toBeDefined();
+
+    const spots = option.xAxis!.data!.map(Number);
+    spots.forEach((spot, i) => {
+      if (spot > call.strike + call.premium) {
+        expect(profit.data![i]).not.toBeNull();
+        expect(loss.data![i]).toBeNull();
+      } else if (spot < call.strike + call.premium) {
+        expect(loss.data![i]).not.toBeNull();
+        expect(profit.data![i]).toBeNull();
+      }
+    });
+    // A single long call loses exactly the premium at every spot below breakeven.
+    const losses = loss.data!.filter((v): v is number => v !== null);
+    expect(Math.min(...losses)).toBe(-call.premium);
+    expect(screen.getByTestId("options-max-pnl-value")).toHaveTextContent("∞");
+    expect(screen.getByTestId("options-max-pnl-value")).toHaveTextContent("−40");
+
+    // 22.5 is vol points on the API row; the core reads a 0.225 decimal.
+    expect(option.graphic?.[0]?.style?.text).toBe("flat vol 22.5%");
   });
 
   it("sorts rows by premium when the PREMIUM header is clicked", async () => {

@@ -277,6 +277,8 @@ src/state/fnoUniverse.ts     (new) session eligibility set
 src/components/common/SymbolActions.tsx  (new) §1.3
 ```
 
+> Implementation note: the payoff canvas is shared — `PayoffChartCore` (`src/components/options-dock/PayoffChartCore.tsx`) is rendered by both `PayoffPanel` and the F&O screener row detail (`FnoRowDetail`), so the row detail reads the same four series, guides and four-cell footer.
+
 There is **no second provider**. `SymbolDockProvider` (`components/common/SymbolDockProvider.tsx`)
 gains a mode and lazily renders `OptionsDockBody` for it — the same 420–620 px right rail, the same
 pin gesture, the same outlet, the same <1200 px fallback. Concretely:
