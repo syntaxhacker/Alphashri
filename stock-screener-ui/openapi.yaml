@@ -5518,6 +5518,13 @@ paths:
           - type: string
           - type: 'null'
           title: From Date
+      - in: query
+        name: refresh
+        required: false
+        schema:
+          default: false
+          title: Refresh
+          type: boolean
       responses:
         '200':
           content:
