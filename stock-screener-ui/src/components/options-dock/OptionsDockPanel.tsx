@@ -1,11 +1,12 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import { Box, Button, Text, Tooltip, useMediaQuery } from "@/ui";
+import { ActionIcon, Box, Button, Text, Tooltip, useMediaQuery } from "@/ui";
 import * as palette from "@/ui/palette";
 import {
   IconArrowsMaximize,
   IconArrowsMinimize,
   IconRefresh,
   IconRotate,
+  IconTarget,
   IconX,
 } from "@/components/common/Icons";
 import type { SortEntry } from "@/components/common/TanStackTable";
@@ -157,6 +158,9 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
   const isNarrow = useMediaQuery(CHAIN_NARROW_QUERY);
   const [chainSide, setChainSide] = createSignal<"CE" | "PE">("CE");
   const [chainSorting, setChainSorting] = createSignal<SortEntry[]>([...DEFAULT_CHAIN_SORTING]);
+  // Bumping this asks OptionChainTable to re-enable follow and re-centre the ATM
+  // row — the escape hatch when a user has scrolled away manually.
+  const [chainCenterNonce, setChainCenterNonce] = createSignal(0);
 
   // Maximize a11y state: the element that had focus when maximize was opened,
   // the body overflow value we temporarily replace, and whether we are
@@ -529,6 +533,17 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
             separated={false}
             meta={
               <Box className="flex items-center gap-2">
+                <Tooltip label="Center on at-the-money strike">
+                  <ActionIcon
+                    variant="transparent"
+                    data-testid="options-chain-center"
+                    aria-label="Center on at-the-money strike"
+                    className="text-fin-text-muted hover:text-fin-primary"
+                    onClick={() => setChainCenterNonce((n) => n + 1)}
+                  >
+                    <IconTarget size={12} />
+                  </ActionIcon>
+                </Tooltip>
                 <Show when={!isStrikeOrder()}>
                   <Tooltip label="Reset to strike order">
                     <Box
@@ -595,6 +610,8 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
               rows={chain()!.rows}
               spot={spot()}
               side={chainSide()}
+              expiry={optionsDockState.expiry}
+              centerNonce={chainCenterNonce()}
               loading={optionsDockState.refreshing && chain()!.rows.length === 0}
               onPick={handlePick}
               sorting={chainSorting()}

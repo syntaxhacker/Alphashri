@@ -30,6 +30,7 @@ vi.mock("../../utils/loadEcharts", () => ({
 
 import { OptionDockError, type OptionDockChain, type UnderlyingInfo } from "../../api/optionsDock";
 import { OptionsDockPanel, expiryLabel } from "./OptionsDockPanel";
+import { CHAIN_SCROLL_SETTLE_MS } from "./OptionChainTable";
 import { buildPayoff } from "./PayoffPanel";
 import { __resetOptionsDock, addLeg, open, optionsDockState, refresh, setOptionsDockState } from "../../state/optionsDock";
 
@@ -807,5 +808,40 @@ describe("OptionsDockPanel — Escape ownership", () => {
 
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByTestId("options-dock")).not.toHaveAttribute("aria-modal");
+  });
+});
+
+describe("OptionsDockPanel — center on ATM", () => {
+  test("the Center button re-enables follow after a manual scroll", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+
+    const center = screen.getByTestId("options-chain-center");
+    expect(center).toHaveAttribute("aria-label", "Center on at-the-money strike");
+    const host = screen.getByTestId("options-chain-table");
+    expect(host).toHaveAttribute("data-following", "true");
+
+    const scroller = screen.getByTestId("options-chain").closest(".paper-tanstack-scroll")!;
+    await new Promise((resolve) => setTimeout(resolve, CHAIN_SCROLL_SETTLE_MS + 40));
+    await fireEvent.scroll(scroller);
+    expect(host).toHaveAttribute("data-following", "false");
+
+    await fireEvent.click(center);
+    await waitFor(() => expect(host).toHaveAttribute("data-following", "true"));
+  });
+
+  test("stays reachable in the narrow one-sided header", async () => {
+    narrowViewport();
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-center")).toBeInTheDocument());
+
+    expect(screen.getByTestId("options-chain-center")).toHaveAttribute(
+      "aria-label",
+      "Center on at-the-money strike",
+    );
+    const header = screen.getByTestId("dock-section-chain");
+    expect(header.className).not.toContain("flex-wrap");
   });
 });

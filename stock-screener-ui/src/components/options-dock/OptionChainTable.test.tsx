@@ -1,11 +1,16 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { ChainLeg, ChainRow } from "@/api/optionsDock";
-import { OptionChainTable } from "./OptionChainTable";
+import {
+  CHAIN_SCROLL_SETTLE_MS,
+  OptionChainTable,
+  centerScrollTop,
+} from "./OptionChainTable";
 
 afterEach(() => {
   cleanup();
@@ -278,5 +283,176 @@ describe("OptionChainTable — narrow one-sided layout", () => {
     expect((screen.getByTestId("options-chain") as HTMLElement).style.minWidth).toBe("428px");
     expect(screen.getByTestId("options-ce-24000")).toBeInTheDocument();
     expect(screen.getByTestId("options-pe-24000")).toBeInTheDocument();
+  });
+});
+
+describe("centerScrollTop — pure helper", () => {
+  it("centres a row with the ½-row offset", () => {
+    // row 5 of 18px in a 100px viewport: 5*18 + 9 - 50 = 49.
+    expect(centerScrollTop(5, 18, 100)).toBe(49);
+  });
+
+  it("clamps the first rows to 0 (no negative scroll before the first row)", () => {
+    expect(centerScrollTop(0, 18, 200)).toBe(0);
+    expect(centerScrollTop(1, 18, 200)).toBe(0);
+  });
+
+  it("keeps a row past the viewport at a growing positive offset", () => {
+    expect(centerScrollTop(20, 18, 100)).toBe(20 * 18 + 9 - 50);
+  });
+
+  it("handles zero rows and a non-finite index", () => {
+    expect(centerScrollTop(-1, 18, 200)).toBe(0);
+    expect(centerScrollTop(Number.NaN, 18, 200)).toBe(0);
+  });
+
+  it("treats a missing viewport as 0 rather than NaN", () => {
+    expect(centerScrollTop(3, 18, 0)).toBe(3 * 18 + 9);
+  });
+
+  it("guards a non-positive row height", () => {
+    expect(centerScrollTop(3, 0, 100)).toBe(0);
+  });
+});
+
+describe("OptionChainTable — ATM auto-centering", () => {
+  const LADDER: ChainRow[] = Array.from({ length: 30 }, (_, i) => row(23000 + i * 100));
+  // spot 24000 → ATM strike 24000 at ladder index 10, viewport 120px → top 129.
+  const ATM_TOP = centerScrollTop(10, 18, 120);
+
+  let scrollToSpy: ReturnType<typeof vi.fn>;
+  let scrollTargets: HTMLElement[];
+  let originalScrollTo: PropertyDescriptor | undefined;
+  let originalClientHeight: PropertyDescriptor | undefined;
+
+  beforeEach(() => {
+    scrollTargets = [];
+    scrollToSpy = vi.fn(function (this: HTMLElement) {
+      scrollTargets.push(this);
+    });
+    originalScrollTo = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollTo");
+    originalClientHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientHeight");
+    Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+      configurable: true,
+      writable: true,
+      value: scrollToSpy,
+    });
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+      configurable: true,
+      get: () => 120,
+    });
+  });
+
+  afterEach(() => {
+    if (originalScrollTo) Object.defineProperty(HTMLElement.prototype, "scrollTo", originalScrollTo);
+    else Reflect.deleteProperty(HTMLElement.prototype, "scrollTo");
+    if (originalClientHeight) {
+      Object.defineProperty(HTMLElement.prototype, "clientHeight", originalClientHeight);
+    } else {
+      Reflect.deleteProperty(HTMLElement.prototype, "clientHeight");
+    }
+  });
+
+  type HarnessState = {
+    rows: ChainRow[];
+    spot: number;
+    side?: "CE" | "PE";
+    expiry?: string | null;
+    centerNonce?: number;
+  };
+  type HarnessCtl = {
+    setSpot: (v: number) => void;
+    setRows: (v: ChainRow[]) => void;
+    setSide: (v: "CE" | "PE") => void;
+    setExpiry: (v: string) => void;
+    setNonce: (v: number) => void;
+  };
+
+  function renderHarness(initial: HarnessState): HarnessCtl {
+    let ctl!: HarnessCtl;
+    render(() => {
+      const [rows, setRows] = createSignal(initial.rows);
+      const [spot, setSpot] = createSignal(initial.spot);
+      const [side, setSide] = createSignal<"CE" | "PE">(initial.side ?? "CE");
+      const [expiry, setExpiry] = createSignal<string | null>(initial.expiry ?? null);
+      const [nonce, setNonce] = createSignal(initial.centerNonce ?? 0);
+      ctl = { setRows, setSpot, setSide, setExpiry, setNonce };
+      return (
+        <UIProvider>
+          <OptionChainTable
+            rows={rows()}
+            spot={spot()}
+            side={side()}
+            expiry={expiry()}
+            centerNonce={nonce()}
+          />
+        </UIProvider>
+      );
+    });
+    return ctl;
+  }
+
+  const scrollerOf = () =>
+    screen.getByTestId("options-chain").closest(".paper-tanstack-scroll") as HTMLElement;
+  const hostOf = () => screen.getByTestId("options-chain-table");
+  const waitPastSettle = () => new Promise((resolve) => setTimeout(resolve, CHAIN_SCROLL_SETTLE_MS + 40));
+
+  it("scrolls the chain scroll container (never the page) to the ATM offset on first data", () => {
+    renderHarness({ rows: LADDER, spot: 24000 });
+    expect(scrollToSpy).toHaveBeenCalledWith({ top: ATM_TOP, behavior: "smooth" });
+    expect(scrollTargets[0]).toHaveClass("paper-tanstack-scroll");
+  });
+
+  it("recentres when the expiry changes", async () => {
+    const ctl = renderHarness({ rows: LADDER, spot: 24000, expiry: "2026-03-26" });
+    await waitPastSettle();
+    fireEvent.scroll(scrollerOf());
+    expect(hostOf()).toHaveAttribute("data-following", "false");
+
+    // Changing expiry swaps the ladder and earns a fresh centre even though the
+    // user had scrolled away.
+    ctl.setExpiry("2026-04-02");
+    await waitFor(() => expect(hostOf()).toHaveAttribute("data-following", "true"));
+    expect(scrollToSpy).toHaveBeenCalledWith({ top: ATM_TOP, behavior: "smooth" });
+  });
+
+  it("turns follow off on a manual scroll and ignores a following spot tick", async () => {
+    const ctl = renderHarness({ rows: LADDER, spot: 24000 });
+    expect(hostOf()).toHaveAttribute("data-following", "true");
+
+    await waitPastSettle();
+    fireEvent.scroll(scrollerOf());
+    expect(hostOf()).toHaveAttribute("data-following", "false");
+
+    scrollToSpy.mockClear();
+    ctl.setSpot(23950);
+    await waitFor(() => expect(scrollToSpy).not.toHaveBeenCalled());
+  });
+
+  it("a nonce bump (Center button) re-enables follow and recentres", async () => {
+    const ctl = renderHarness({ rows: LADDER, spot: 24000 });
+    await waitPastSettle();
+    fireEvent.scroll(scrollerOf());
+    expect(hostOf()).toHaveAttribute("data-following", "false");
+
+    scrollToSpy.mockClear();
+    ctl.setNonce(1);
+    await waitFor(() => expect(hostOf()).toHaveAttribute("data-following", "true"));
+    expect(scrollToSpy).toHaveBeenCalledWith({ top: ATM_TOP, behavior: "smooth" });
+  });
+
+  it("re-centres on a CE|PE side toggle in the 390px one-sided layout", async () => {
+    narrowViewport();
+    const ctl = renderHarness({ rows: LADDER, spot: 24000, side: "CE" });
+    await waitPastSettle();
+    fireEvent.scroll(scrollerOf());
+    expect(hostOf()).toHaveAttribute("data-following", "false");
+
+    scrollToSpy.mockClear();
+    ctl.setSide("PE");
+    await waitFor(() => expect(hostOf()).toHaveAttribute("data-following", "true"));
+    expect(scrollToSpy).toHaveBeenCalledWith({ top: ATM_TOP, behavior: "smooth" });
+    // The strike ladder is unchanged in narrow mode — only the side columns swapped.
+    expect(screen.getByTestId("options-strike-cell-24000")).toBeInTheDocument();
   });
 });

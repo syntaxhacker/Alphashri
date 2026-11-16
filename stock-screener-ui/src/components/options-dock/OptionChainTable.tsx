@@ -1,4 +1,13 @@
-import { Show, createMemo, type JSX } from "solid-js";
+import {
+  Show,
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  onMount,
+  untrack,
+  type JSX,
+} from "solid-js";
 import { Box, useMediaQuery } from "@/ui";
 import { TanStackTable, type SortEntry } from "@/components/common/TanStackTable";
 import type { ChainLeg, ChainRow } from "@/api/optionsDock";
@@ -12,6 +21,27 @@ export const CHAIN_NARROW_QUERY = "(max-width: 639px)";
 
 /** 5 columns × their declared sizes (54+38+34+52+72) — fits a 390px sheet. */
 const NARROW_MIN_TABLE_WIDTH = 250;
+
+/** TanStackTable's `dense` rows are `--tbl-row-h: 18px` (the sticky header excluded). */
+const CHAIN_ROW_HEIGHT = 18;
+
+/** Scroll events from our own smooth scroll are ignored for this long. */
+export const CHAIN_SCROLL_SETTLE_MS = 300;
+
+/**
+ * Scroll-top that centres row `index` in a viewport `clientHeight` tall. The
+ * ½-row term aligns the row's midpoint with the viewport midpoint; results
+ * before the first row clamp to 0 (a browser also clamps the scroll maximum,
+ * which is all the last rows need).
+ */
+export function centerScrollTop(index: number, rowHeight: number, clientHeight: number): number {
+  if (!Number.isFinite(index) || index < 0 || !Number.isFinite(rowHeight) || rowHeight <= 0) {
+    return 0;
+  }
+  const viewport = Number.isFinite(clientHeight) && clientHeight > 0 ? clientHeight : 0;
+  const top = index * rowHeight + rowHeight / 2 - viewport / 2;
+  return top > 0 ? top : 0;
+}
 
 // Theme-aware tint: mixing the primary into the *current* surface keeps the ATM
 // row legible in both schemes (an inline palette rgba() sat on a dark literal
@@ -40,6 +70,10 @@ export function OptionChainTable(props: {
   /** Controlled sorting. When omitted the table owns it, seeded to strike asc. */
   sorting?: SortEntry[];
   onSortingChange?: (next: SortEntry[]) => void;
+  /** Expiry date — a roll swaps the ladder and earns a fresh centre. */
+  expiry?: string | null;
+  /** Bump to force a re-centre (the chain header's Center button). */
+  centerNonce?: number;
 }) {
   const narrow = useMediaQuery(CHAIN_NARROW_QUERY);
 
@@ -67,6 +101,84 @@ export function OptionChainTable(props: {
     return max;
   });
 
+  // The scroll element belongs to TanStackTable, so reach it through our host.
+  let host: HTMLDivElement | undefined;
+  const scrollEl = () => host?.querySelector<HTMLElement>(".paper-tanstack-scroll") ?? null;
+  const [following, setFollowing] = createSignal(true);
+  let ignoreScrollUntil = 0;
+
+  // Only the strike *ladder* (not the 10 s leg patches) is structural. Pair it
+  // with the explicit expiry/side/Center signals so a spot tick cannot re-centre
+  // a user who scrolled away.
+  const strikeKey = createMemo(() => props.rows.map((row) => row.strike).join("|"));
+  const centerKey = createMemo(
+    () =>
+      `${strikeKey()}|${props.expiry ?? ""}|${props.side ?? ""}|${props.centerNonce ?? 0}`,
+  );
+
+  const atmIndex = () => {
+    const atm = atmStrike();
+    if (atm == null) return -1;
+    return props.rows.findIndex((row) => row.strike === atm);
+  };
+
+  const scrollToIndex = (el: HTMLElement, index: number) => {
+    const top = centerScrollTop(index, CHAIN_ROW_HEIGHT, el.clientHeight);
+    ignoreScrollUntil = Date.now() + CHAIN_SCROLL_SETTLE_MS;
+    // scrollIntoView is deliberately avoided: it also scrolls the page/dock.
+    if (typeof el.scrollTo === "function") el.scrollTo({ top, behavior: "smooth" });
+    else el.scrollTop = top;
+  };
+
+  const recenter = () => {
+    const el = scrollEl();
+    if (!el) return;
+    const index = atmIndex();
+    if (index < 0) return;
+    setFollowing(true);
+    scrollToIndex(el, index);
+  };
+
+  const followRecenter = () => {
+    if (!untrack(following)) return;
+    if (Date.now() < ignoreScrollUntil) return;
+    const el = scrollEl();
+    if (!el) return;
+    const index = atmIndex();
+    if (index < 0) return;
+    const rowTop = index * CHAIN_ROW_HEIGHT;
+    // Only move when the ATM row has actually left the visible band — a small
+    // tick inside the window must not yank the user's scroll position.
+    if (rowTop >= el.scrollTop && rowTop + CHAIN_ROW_HEIGHT <= el.scrollTop + el.clientHeight) {
+      return;
+    }
+    scrollToIndex(el, index);
+  };
+
+  createEffect(() => {
+    centerKey();
+    if (untrack(() => props.rows.length === 0)) return;
+    untrack(recenter);
+  });
+
+  createEffect(() => {
+    const spot = props.spot;
+    if (!Number.isFinite(spot)) return;
+    untrack(followRecenter);
+  });
+
+  const onScroll = () => {
+    if (Date.now() < ignoreScrollUntil) return;
+    setFollowing(false);
+  };
+
+  onMount(() => {
+    const el = scrollEl();
+    if (!el) return;
+    el.addEventListener("scroll", onScroll, { passive: true });
+    onCleanup(() => el.removeEventListener("scroll", onScroll));
+  });
+
   const columns = createMemo(() =>
     chainColumns({
       maxOi,
@@ -79,7 +191,12 @@ export function OptionChainTable(props: {
   );
 
   return (
-    <Box className="flex min-h-0 flex-1 flex-col" data-testid="options-chain-table">
+    <Box
+      className="flex min-h-0 flex-1 flex-col"
+      data-testid="options-chain-table"
+      data-following={following() ? "true" : "false"}
+      ref={(el: HTMLDivElement) => (host = el)}
+    >
       <TanStackTable<ChainRow>
         data={props.rows}
         columns={columns()}
