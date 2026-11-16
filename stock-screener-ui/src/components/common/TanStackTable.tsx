@@ -1,5 +1,5 @@
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
-import { Box, Paper, ScrollArea, ToolbarRow, useDensity } from "@/ui";
+import { Box, Button, Paper, ScrollArea, ToolbarRow, useDensity } from "@/ui";
 import { InlineLoader } from "./states";
 import { ColumnPicker, type ColumnPickerItem } from "./ColumnPicker";
 import * as palette from "@/ui/palette";
@@ -745,17 +745,24 @@ export function TanStackTable<T>(props: Props<T>) {
     const size = props.rowWindowSize;
     return typeof size === "number" && Number.isFinite(size) && size > 0 ? size : Number.POSITIVE_INFINITY;
   };
-  const [windowEnd, setWindowEnd] = createSignal(windowBase());
+  // `rowWindowSize` seeds the window; it is not a hard cap. `Load more` grows
+  // this signal by one page until the whole set is mounted.
+  const [visibleCount, setVisibleCount] = createSignal(windowBase());
 
-  // A new dataset resets the window: filtering must not leave 800 rows mounted.
+  // Collapse back to one page on any change that reshapes the set. Without the
+  // sort/column triggers a filtered or re-sorted set could inherit a window
+  // grown to hundreds of rows by an earlier interaction.
   createEffect(() => {
-    void props.data;
-    setWindowEnd(windowBase());
+    const data = props.data;
+    void data.length;
+    void sorting();
+    void visibleColumns();
+    setVisibleCount(windowBase());
   });
 
   const visibleItems = createMemo(() => {
     const items = bodyItems();
-    return items.slice(0, Math.min(windowEnd(), items.length));
+    return items.slice(0, Math.min(visibleCount(), items.length));
   });
 
   // One callback per window change, never per row — a single effect that
@@ -781,11 +788,9 @@ export function TanStackTable<T>(props: Props<T>) {
   const loadMore = () => {
     const total = bodyItems().length;
     const step = Number.isFinite(windowBase()) ? windowBase() : total;
-    setWindowEnd((n) => Math.min(n + step, total));
+    setVisibleCount((n) => Math.min(n + step, total));
   };
 
-  // rowWindowSize is a page size, not a hard cap: the footer stays honest and
-  // scrolling near the end extends the window.
   const hiddenCount = createMemo(() => {
     const total = bodyItems().length;
     const shown = visibleItems().length;
@@ -814,10 +819,6 @@ export function TanStackTable<T>(props: Props<T>) {
       <ScrollArea
         className="paper-tanstack-scroll"
         style={{ flex: 1, "min-height": "0px", overflow: "auto", display: "flex", "flex-direction": "column", "background-color": "var(--color-fin-surface)" }}
-        onScroll={(e) => {
-          const el = e.currentTarget as HTMLElement;
-          if (el.scrollTop + el.clientHeight >= el.scrollHeight - 160) loadMore();
-        }}
       >
         <table
           ref={(el: HTMLTableElement) => (tableEl = el)}
@@ -888,18 +889,22 @@ export function TanStackTable<T>(props: Props<T>) {
       </ScrollArea>
       <Show when={hiddenCount() > 0}>
         <div
-          class="flex items-center justify-center gap-1 px-2 h-[18px] shrink-0 border-t border-fin-border text-[10px] text-fin-text-muted font-mono tabular-nums"
+          class="flex items-center justify-between gap-2 px-2 h-[22px] shrink-0 border-t border-fin-border text-[10px] text-fin-text-muted font-mono tabular-nums"
           data-testid="table-window-footer"
         >
-          showing {visibleItems().length} of {bodyItems().length}
-          <button
-            type="button"
+          <span>
+            showing {visibleItems().length} of {bodyItems().length} · {hiddenCount()} not rendered
+          </span>
+          <Button
+            size="xs"
+            variant="subtle"
+            data-testid="table-load-more"
+            style={{ height: "20px" }}
+            class="shrink-0"
             onClick={loadMore}
-            data-testid="table-window-load-more"
-            class="ml-1 underline decoration-dotted underline-offset-2 hover:text-fin-text"
           >
-            load more
-          </button>
+            Load more
+          </Button>
         </div>
       </Show>
     </>

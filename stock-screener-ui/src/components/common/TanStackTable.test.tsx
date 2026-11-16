@@ -352,8 +352,8 @@ describe("TanStackTable", () => {
     expect(firstNameCell).toContain("row 19");
   });
 
-  // rowWindowSize is a hard cap with no scroll listener; the remainder is not
-  // rendered. Silently stopping at 80 of 312 reads as "the rest don't exist".
+  // rowWindowSize is a page size, not a hard cap: the footer discloses the
+  // hidden rows and an explicit action grows the window to reach them.
   it("discloses how many rows the window is hiding", () => {
     const many: TestItem[] = Array.from({ length: 12 }, (_, i) => ({ id: String(i + 1), name: `Row${i}`, value: i }));
     render(() => (
@@ -361,9 +361,10 @@ describe("TanStackTable", () => {
     ));
     const footer = screen.getByTestId("table-window-footer");
     expect(footer).toHaveTextContent("showing 5 of 12");
-    expect(screen.getByTestId("table-window-load-more")).toBeInTheDocument();
+    expect(footer).toHaveTextContent("7 not rendered");
+    expect(screen.getByTestId("table-load-more")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("table-window-load-more"));
+    fireEvent.click(screen.getByTestId("table-load-more"));
     expect(screen.getByTestId("table-window-footer")).toHaveTextContent("showing 10 of 12");
   });
 
@@ -690,6 +691,106 @@ describe("TanStackTable", () => {
   });
 });
 
+describe("TanStackTable — load more window", () => {
+  const makeRows = (n: number): TestItem[] =>
+    Array.from({ length: n }, (_, i) => ({ id: String(i + 1), name: `Row${i}`, value: i }));
+
+  it("reaches every row a page at a time and hides the action at the end", () => {
+    render(() => (
+      <TanStackTable<TestItem>
+        data={makeRows(312)}
+        columns={columns}
+        rowWindowSize={80}
+        getRowTestId={(r) => `lm-${r.id}`}
+      />
+    ));
+
+    expect(screen.getAllByTestId(/^lm-/)).toHaveLength(80);
+    const footer = screen.getByTestId("table-window-footer");
+    expect(footer).toHaveTextContent("showing 80 of 312 · 232 not rendered");
+    const button = screen.getByTestId("table-load-more");
+    expect(button).toBeInTheDocument();
+
+    fireEvent.click(button);
+    expect(screen.getAllByTestId(/^lm-/)).toHaveLength(160);
+    expect(footer).toHaveTextContent("showing 160 of 312 · 152 not rendered");
+
+    fireEvent.click(button); // 80 → 240
+    fireEvent.click(button); // capped at 312
+    expect(screen.getAllByTestId(/^lm-/)).toHaveLength(312);
+    expect(screen.queryByTestId("table-window-footer")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("table-load-more")).not.toBeInTheDocument();
+  });
+
+  it("resets the window when the data is filtered", () => {
+    const many = makeRows(312);
+    const [rows, setRows] = createSignal<TestItem[]>(many);
+    render(() => (
+      <TanStackTable<TestItem>
+        data={rows()}
+        columns={columns}
+        rowWindowSize={80}
+        getRowTestId={(r) => `reset-data-${r.id}`}
+      />
+    ));
+    fireEvent.click(screen.getByTestId("table-load-more"));
+    expect(screen.getAllByTestId(/^reset-data-/)).toHaveLength(160);
+
+    setRows(many.slice(0, 50));
+    expect(screen.getAllByTestId(/^reset-data-/)).toHaveLength(50);
+    expect(screen.queryByTestId("table-load-more")).not.toBeInTheDocument();
+  });
+
+  it("resets the window when the sort changes", () => {
+    render(() => (
+      <TanStackTable<TestItem>
+        data={makeRows(312)}
+        columns={columns}
+        rowWindowSize={80}
+        getRowTestId={(r) => `reset-sort-${r.id}`}
+      />
+    ));
+    fireEvent.click(screen.getByTestId("table-load-more"));
+    expect(screen.getAllByTestId(/^reset-sort-/)).toHaveLength(160);
+
+    fireEvent.click(screen.getByText("Value").closest("th")!);
+    expect(screen.getAllByTestId(/^reset-sort-/)).toHaveLength(80);
+    expect(screen.getByTestId("table-load-more")).toBeInTheDocument();
+  });
+
+  it("resets the window when the columns change", () => {
+    const base = [{ id: "name", header: "Name", accessorKey: "name" }];
+    const more = [...base, { id: "value", header: "Value", accessorKey: "value" }];
+    const [cols, setCols] = createSignal<TableColumnDef<TestItem>[]>(base);
+    render(() => (
+      <TanStackTable<TestItem>
+        data={makeRows(312)}
+        columns={cols()}
+        rowWindowSize={80}
+        getRowTestId={(r) => `reset-cols-${r.id}`}
+      />
+    ));
+    fireEvent.click(screen.getByTestId("table-load-more"));
+    expect(screen.getAllByTestId(/^reset-cols-/)).toHaveLength(160);
+
+    setCols(more);
+    expect(screen.getAllByTestId(/^reset-cols-/)).toHaveLength(80);
+  });
+
+  it("renders all rows with no footer when rowWindowSize is undefined", () => {
+    render(() => (
+      <TanStackTable<TestItem>
+        data={makeRows(120)}
+        columns={columns}
+        getRowTestId={(r) => `all-${r.id}`}
+      />
+    ));
+    expect(screen.getAllByTestId(/^all-/)).toHaveLength(120);
+    expect(screen.queryByTestId("table-window-footer")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("table-load-more")).not.toBeInTheDocument();
+  });
+});
+
 describe("TanStackTable — visible row window callback", () => {
   it("emits the mounted window once, not one call per row", () => {
     const onVisibleRowsChange = vi.fn();
@@ -814,7 +915,7 @@ describe("TanStackTable — visible row window callback", () => {
     ));
     expect(onVisibleRowsChange).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByTestId("table-window-load-more"));
+    fireEvent.click(screen.getByTestId("table-load-more"));
 
     expect(onVisibleRowsChange).toHaveBeenCalledTimes(2);
     expect(onVisibleRowsChange.mock.calls[1][0]).toHaveLength(10);
