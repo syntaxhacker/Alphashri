@@ -216,6 +216,147 @@ def _clear_read_caches() -> None:
         _summary_cache.clear()
         _matrix_cache.clear()
         _lookup_cache.clear()
+    # The frame watermark drives the matrix/summary cache keys, so a reset
+    # must also forget which frames we have seen (tests rely on this for
+    # isolation between modules).
+    _clear_all_enrichment()
+
+
+# ---------------------------------------------------------------------------
+# Frame-scoped enrichment cache.
+#
+# A ``last_close``/``day_change_pct`` pair is only meaningful alongside the
+# candle frame it was computed from. Every key below carries that frame's
+# identity (last-bar timestamp + interior digest), so a rolled frame can never
+# be served an older value. The per-(symbol, timeframe) index lets a forced
+# refresh drop one symbol without evicting any other.
+# ---------------------------------------------------------------------------
+
+_ENRICH_CACHE_TTL_SEC = float(os.environ.get("CHART_ENRICH_CACHE_TTL_SEC", "300.0"))
+_ENRICH_CACHE_MAX = 512
+_enrichment_cache: dict = {}
+_enrichment_keys: dict = {}
+_known_frame: dict = {}
+_enrichment_lock = threading.Lock()
+
+
+def _frame_identity(df) -> Optional[str]:
+    """Fingerprint of the exact frame a series/close was derived from.
+
+    The leading last-bar timestamp catches a rolled/new bar; the interior
+    digest catches a backfill that leaves the tail untouched. ``None`` means
+    "no frame" — callers must then neither reuse nor persist enrichment.
+    """
+    if df is None or getattr(df, "empty", True):
+        return None
+    try:
+        stamp = df.index[-1]
+        stamp = stamp.isoformat() if hasattr(stamp, "isoformat") else str(stamp)
+        close = float(df["close"].iloc[-1])
+    except Exception:
+        return None
+    try:
+        interior = scan_mod._frame_interior_digest(df)
+    except Exception:
+        interior = None
+    return f"{stamp}|{len(df)}|{close:.10g}|{interior or ''}"
+
+
+def _remember_frame(key, df, last_close, day_change) -> None:
+    """Publish the freshest frame/close seen for ``(symbol, timeframe)``."""
+    if key is None:
+        return
+    frame_id = _frame_identity(df)
+    if frame_id is None:
+        return
+    scope = (str(key[0]).upper(), str(key[1]))
+    with _enrichment_lock:
+        _known_frame[scope] = (frame_id, last_close, day_change)
+
+
+def _known_frame_close(symbol, timeframe) -> tuple:
+    """``(last_close, day_change_pct)`` for the current frame, if known."""
+    with _enrichment_lock:
+        value = _known_frame.get((str(symbol).upper(), str(timeframe)))
+    return (value[1], value[2]) if value else (None, None)
+
+
+def _frame_watermark(timeframes=None) -> tuple:
+    """Frame identities currently known for the requested timeframes.
+
+    Used in read-cache keys so a rolled frame invalidates a matrix/summary
+    answer even when no new scan has completed. A tuple of every identity is
+    used (not just the newest) so any frame change alters the key.
+    """
+    with _enrichment_lock:
+        return tuple(sorted(
+            value[0] for scope, value in _known_frame.items()
+            if not timeframes or scope[1] in timeframes
+        ))
+
+
+def _drop_enrichment_index_locked(key) -> None:
+    scope = (key[0], key[1])
+    keys = _enrichment_keys.get(scope)
+    if keys is not None:
+        keys.discard(key)
+        if not keys:
+            _enrichment_keys.pop(scope, None)
+
+
+def _enrichment_cache_get(key):
+    if key is None:
+        return None
+    now = _time.monotonic()
+    with _enrichment_lock:
+        entry = _enrichment_cache.get(key)
+        if entry is None:
+            return None
+        expires, payload = entry
+        if now >= expires:
+            _enrichment_cache.pop(key, None)
+            _drop_enrichment_index_locked(key)
+            return None
+        return payload
+
+
+def _enrichment_cache_put(key, payload) -> None:
+    if key is None:
+        return
+    now = _time.monotonic()
+    with _enrichment_lock:
+        while len(_enrichment_cache) >= _ENRICH_CACHE_MAX:
+            victim = next(iter(_enrichment_cache))
+            _enrichment_cache.pop(victim, None)
+            _drop_enrichment_index_locked(victim)
+        _enrichment_cache[key] = (now + _ENRICH_CACHE_TTL_SEC, payload)
+        _enrichment_keys.setdefault((key[0], key[1]), set()).add(key)
+
+
+def _clear_symbol_enrichment(symbol, timeframe) -> None:
+    """Drop one symbol+timeframe's enrichment (forced-refresh scope)."""
+    scope = (str(symbol).upper(), str(timeframe))
+    with _enrichment_lock:
+        for key in list(_enrichment_keys.pop(scope, ())):
+            _enrichment_cache.pop(key, None)
+        _known_frame.pop(scope, None)
+
+
+def _clear_timeframe_enrichment(timeframe) -> None:
+    tf = str(timeframe)
+    with _enrichment_lock:
+        scopes = [s for s in _enrichment_keys if s[1] == tf]
+        for scope in scopes:
+            for key in list(_enrichment_keys.pop(scope, ())):
+                _enrichment_cache.pop(key, None)
+            _known_frame.pop(scope, None)
+
+
+def _clear_all_enrichment() -> None:
+    with _enrichment_lock:
+        _enrichment_cache.clear()
+        _enrichment_keys.clear()
+        _known_frame.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -442,9 +583,10 @@ _refresh_inflight: set[tuple[str, str]] = set()
 _refresh_inflight_lock = threading.Lock()
 
 
-def _pattern_hit_cache_get(symbol: str, timeframe: str, session: str) -> Optional[dict]:
+def _pattern_hit_cache_get(symbol: str, timeframe: str, session: str,
+                           frame_id: Optional[str] = None) -> Optional[dict]:
     now = _time.monotonic()
-    key = (str(symbol).upper(), str(timeframe), session)
+    key = (str(symbol).upper(), str(timeframe), session, frame_id)
     with _pattern_hit_cache_lock:
         entry = _pattern_hit_cache.get(key)
         if entry is None:
@@ -456,13 +598,28 @@ def _pattern_hit_cache_get(symbol: str, timeframe: str, session: str) -> Optiona
         return None
 
 
-def _pattern_hit_cache_put(symbol: str, timeframe: str, session: str, payload: dict) -> None:
+def _pattern_hit_cache_put(symbol: str, timeframe: str, session: str, payload: dict,
+                           frame_id: Optional[str] = None) -> None:
     now = _time.monotonic()
-    key = (str(symbol).upper(), str(timeframe), session)
+    key = (str(symbol).upper(), str(timeframe), session, frame_id)
     with _pattern_hit_cache_lock:
         while len(_pattern_hit_cache) >= _PATTERN_HIT_CACHE_MAX:
             _pattern_hit_cache.pop(next(iter(_pattern_hit_cache)), None)
         _pattern_hit_cache[key] = (now + _PATTERN_HIT_CACHE_TTL_SEC, payload)
+
+
+def _clear_symbol_pattern_hits(symbol, timeframe) -> None:
+    symbol_u, tf = str(symbol).upper(), str(timeframe)
+    with _pattern_hit_cache_lock:
+        for key in [k for k in _pattern_hit_cache if k[0] == symbol_u and k[1] == tf]:
+            _pattern_hit_cache.pop(key, None)
+
+
+def _clear_timeframe_pattern_hits(timeframe) -> None:
+    tf = str(timeframe)
+    with _pattern_hit_cache_lock:
+        for key in [k for k in _pattern_hit_cache if k[1] == tf]:
+            _pattern_hit_cache.pop(key, None)
 
 
 def _clear_pattern_hit_cache() -> None:
@@ -476,6 +633,7 @@ def _clear_chart_caches() -> None:
     with _chart_neg_cache_lock:
         _chart_neg_cache.clear()
     _clear_pattern_hit_cache()
+    _clear_all_enrichment()
     with _refresh_inflight_lock:
         _refresh_inflight.clear()
 
@@ -668,6 +826,10 @@ def _kick_stale_first_refresh(symbol: str, timeframe: str, lookback_bars) -> boo
                 # it to the cache — so stop retrying and let the next poll serve
                 # it (marked with expected_as_of when it lags).
                 if df is not None and not getattr(df, "empty", True):
+                    # A rewritten candle file may carry a newer frame: forget
+                    # this symbol's old enrichment/close so the next read
+                    # recomputes against the frame actually on disk.
+                    _clear_symbol_enrichment(key[0], key[1])
                     return
                 # Empty frame (Upstox returned nothing this session) or an
                 # exception: retry after bounded backoff.
@@ -737,7 +899,8 @@ def _pattern_block(df, symbol_u: str, timeframe: str, session: str, lookback_bar
     ``hits``, ``live_overlays``, ``trend_lines`` (``None`` when not computed)
     and ``cache_hit``. Never raises.
     """
-    cached = _pattern_hit_cache_get(symbol_u, timeframe, session)
+    frame_id = _frame_identity(df)
+    cached = _pattern_hit_cache_get(symbol_u, timeframe, session, frame_id)
     if cached is not None:
         cached_tl = cached.get("trend_lines")
         tl_ok = False
@@ -783,7 +946,7 @@ def _pattern_block(df, symbol_u: str, timeframe: str, session: str, lookback_bar
 
 
 def _store_pattern_block(symbol_u: str, timeframe: str, session: str, block: dict,
-                         compute_trendlines: bool) -> None:
+                         compute_trendlines: bool, frame_id: Optional[str] = None) -> None:
     try:
         sig = config.trendline_signature() if compute_trendlines else None
     except Exception:
@@ -793,7 +956,7 @@ def _store_pattern_block(symbol_u: str, timeframe: str, session: str, block: dic
         "live_overlays": list(block["live_overlays"]),
         "trend_lines": list(block["trend_lines"]) if compute_trendlines and block["trend_lines"] is not None else None,
         "trend_lines_sig": sig,
-    })
+    }, frame_id)
 
 
 # ---------------------------------------------------------------------------
@@ -1279,48 +1442,48 @@ def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache
     if current_sig is None:
         current_sig = config.trendline_signature()
     stored_lines = _stored_trend_lines(item) if _stored_lines_fresh(item, current_sig) else None
-    if key is None:
+    frame_id = _frame_identity(df)
+    if key is None or frame_id is None:
+        # No frame means no close to report. Never keep a value an earlier
+        # enrichment may have left on the item — it would read as current.
         if isinstance(item, dict):
-            item.setdefault("candles", [])
-            item.setdefault("last_close", None)
-            item.setdefault("day_change_pct", None)
+            item["candles"] = []
+            item["last_close"] = None
+            item["day_change_pct"] = None
             item["trend_lines"] = (stored_lines or []) if compute_trendlines else []
         return item
-    # Per-key candle window + closes: result sets repeat (symbol, timeframe)
-    # across patterns; rebuilding the series per item is the dominant
-    # enrichment cost. Cache under a namespaced key in the shared ``tl_cache``
-    # (the batch path and the SSE worker both share one dict per request), so
-    # duplicates reuse one conversion. Sharing the list object is safe: the
-    # endpoint deep-copies via ``_sanitize_for_json`` before serializing.
-    series_key = ("__series__", key, lookback_bars)
-    cached = tl_cache.get(series_key) if isinstance(tl_cache, dict) else None
-    if cached is not None:
-        item["candles"], item["last_close"], item["day_change_pct"] = cached
-    else:
-        candle_series = _clamped_candle_series(df, lookback_bars, config.CHART_MAX_BARS)
-        last_close, day_change = _last_close_change(df)
-        if isinstance(tl_cache, dict):
-            _cache_setdefault(tl_cache, series_key, (candle_series, last_close, day_change), lock)
-        item["candles"] = candle_series
-        item["last_close"] = last_close
-        item["day_change_pct"] = day_change
+    # The close, the change and the candles all come from THIS frame. The key
+    # carries its identity, so a newer frame can never reuse an older value —
+    # not within this request (tl_cache) and not across requests (the
+    # persistent cache the chart/stored-hit paths also consult).
+    enrich_key = (
+        str(key[0]).upper(), str(key[1]), lookback_bars,
+        config.CHART_MAX_BARS, frame_id,
+    )
+    cached = _enrichment_cache_get(enrich_key)
+    if cached is None:
+        cached = (
+            _clamped_candle_series(df, lookback_bars, config.CHART_MAX_BARS),
+            *_last_close_change(df),
+        )
+        _enrichment_cache_put(enrich_key, cached)
+    item["candles"], item["last_close"], item["day_change_pct"] = cached
+    _remember_frame(key, df, item["last_close"], item["day_change_pct"])
     if not compute_trendlines:
         item["trend_lines"] = []
         return item
     if stored_lines is not None:
         item["trend_lines"] = stored_lines
         return item
-    if key not in tl_cache:
+    tl_key = (key, frame_id)
+    if tl_key not in tl_cache:
         try:
-            if df is not None and not getattr(df, "empty", True):
-                computed = trendlines_mod.detect_trendlines(df)
-            else:
-                computed = {"support": None, "resistance": None}
+            computed = trendlines_mod.detect_trendlines(df)
         except Exception:
             computed = {"support": None, "resistance": None}
-        _cache_setdefault(tl_cache, key, computed, lock)
+        _cache_setdefault(tl_cache, tl_key, computed, lock)
     try:
-        res = tl_cache[key] or {}
+        res = tl_cache[tl_key] or {}
         item["trend_lines"] = [v for v in (res.get("support"), res.get("resistance")) if v]
     except Exception:
         item["trend_lines"] = []
@@ -1683,8 +1846,13 @@ async def create_scan(request: ScanRequest, user: User = Depends(get_current_use
     if request.refresh:
         if symbols:
             candles.clear_cache(symbols=symbols, timeframe=request.timeframe)
+            for symbol in symbols:
+                _clear_symbol_enrichment(symbol, request.timeframe)
+                _clear_symbol_pattern_hits(symbol, request.timeframe)
         else:
             candles.clear_cache(timeframe=request.timeframe)
+            _clear_timeframe_enrichment(request.timeframe)
+            _clear_timeframe_pattern_hits(request.timeframe)
         params["force"] = True
         params["refresh"] = True
     try:
@@ -2175,6 +2343,7 @@ def _candle_fields(symbol: str, timeframe: str) -> dict:
     if df is None or getattr(df, "empty", True):
         return {"last_close": None, "day_change_pct": None, "history_bars": 0}
     last_close, day_change = _last_close_change(df)
+    _remember_frame((symbol, timeframe), df, last_close, day_change)
     return {"last_close": last_close, "day_change_pct": day_change, "history_bars": int(len(df))}
 
 
@@ -2349,6 +2518,7 @@ async def get_symbol_chart(
         df, as_of, read_ms = stale_first
         series = _clamped_candle_series(df, lookback_bars, limit)
         if series:
+            _remember_frame((symbol_u, timeframe), df, *_last_close_change(df))
             overlays, stored_fresh_lines = _stored_overlays_and_lines(symbol_u, timeframe)
             hits_block = None
             if detect_patterns:
@@ -2386,7 +2556,10 @@ async def get_symbol_chart(
                 )
             if detect_patterns:
                 payload["hits"] = list(hits_block["hits"])
-                _store_pattern_block(symbol_u, timeframe, session, hits_block, compute_trendlines)
+                _store_pattern_block(
+                    symbol_u, timeframe, session, hits_block, compute_trendlines,
+                    _frame_identity(df),
+                )
             _kick_stale_first_refresh(symbol_u, timeframe, lb)
             _log_chart_fetch(
                 symbol_u, timeframe, elapsed_ms=read_ms, rows=len(series),
@@ -2509,6 +2682,7 @@ async def get_symbol_chart(
     series = _clamped_candle_series(df, lookback_bars, limit)
     if partial_last and series:
         series[-1]["is_partial"] = True
+    _remember_frame((symbol_u, timeframe), df, *_last_close_change(df))
     overlays, stored_fresh_lines = _stored_overlays_and_lines(symbol_u, timeframe)
     hits_block = None
     if detect_patterns:
@@ -2531,7 +2705,10 @@ async def get_symbol_chart(
     }
     if detect_patterns:
         payload["hits"] = list(hits_block["hits"])
-        _store_pattern_block(symbol_u, timeframe, session, hits_block, compute_trendlines)
+        _store_pattern_block(
+            symbol_u, timeframe, session, hits_block, compute_trendlines,
+            _frame_identity(df),
+        )
     return _json_response(payload)
 
 
@@ -2919,13 +3096,22 @@ def _matrix_rows(pairs) -> list[dict]:
                 rows[symbol] = row
             if row["name"] is None and item.get("name"):
                 row["name"] = item.get("name")
+            hit_tf = str(item.get("timeframe") or timeframe or "")
+            # A stored hit may carry a close captured at an older frame. When a
+            # current frame is known, its close/change win (recompute path);
+            # with no frame available the stored value is kept for backwards
+            # compatibility rather than silently invented.
+            current_close, current_change = _known_frame_close(symbol, hit_tf)
             if row["ltp"] is None:
-                number = _matrix_number(item.get("last_close"))
+                number = _matrix_number(
+                    current_close if current_close is not None else item.get("last_close")
+                )
                 if number is not None:
                     row["ltp"] = number
-            if row["day_change_pct"] is None and item.get("day_change_pct") is not None:
-                row["day_change_pct"] = item.get("day_change_pct")
-            hit_tf = str(item.get("timeframe") or timeframe or "")
+            if row["day_change_pct"] is None:
+                change = current_change if current_change is not None else item.get("day_change_pct")
+                if change is not None:
+                    row["day_change_pct"] = change
             row["groups"].setdefault(hit_tf, []).append(item)
             row["hits"].append(item)
 
@@ -2974,6 +3160,7 @@ async def get_matrix(
         tuple(tf_ids),
         limit,
         tuple(_last_scan_at_for(universe, tf) for tf in tf_ids),
+        _frame_watermark(tf_ids),
     )
     cached = _read_cache_get(_matrix_cache, cache_key)
     if cached is not None:
