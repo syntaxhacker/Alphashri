@@ -338,6 +338,63 @@ describe("fetchQuotes", () => {
     );
     await expect(fetchQuotes(["A"])).rejects.toThrow("at most 20");
   });
+
+  test("a single symbol still makes exactly one request", async () => {
+    mockFetchWithAuth.mockResolvedValueOnce(
+      mockResponse(true, { rows: [{ symbol: "KAYNES", close: 2986, change: -12.94 }] }),
+    );
+    const quotes = await fetchQuotes(["KAYNES"]);
+    expect(mockFetchWithAuth).toHaveBeenCalledTimes(1);
+    expect((mockFetchWithAuth.mock.calls[0][0] as string)).toContain("symbols=KAYNES");
+    expect(quotes).toEqual([{ symbol: "KAYNES", close: 2986, change: -12.94 }]);
+  });
+
+  test("21+ symbols are deduped, chunked into batches of 20, and merged in input order", async () => {
+    const symbols = Array.from({ length: 21 }, (_, i) => `SYM${i + 1}`);
+    const batch1 = symbols.slice(0, 20);
+    const batch2 = symbols.slice(20);
+    mockFetchWithAuth
+      .mockResolvedValueOnce(
+        mockResponse(true, { rows: batch1.map((s) => ({ symbol: s, close: 100, change: 1 })) }),
+      )
+      .mockResolvedValueOnce(
+        mockResponse(true, { rows: batch2.map((s) => ({ symbol: s, close: 200, change: -1 })) }),
+      );
+    const quotes = await fetchQuotes(symbols);
+    expect(mockFetchWithAuth).toHaveBeenCalledTimes(2);
+    expect((mockFetchWithAuth.mock.calls[0][0] as string)).toContain(
+      `symbols=${batch1.join("%2C")}`,
+    );
+    expect((mockFetchWithAuth.mock.calls[1][0] as string)).toContain(
+      `symbols=${batch2.join("%2C")}`,
+    );
+    expect(quotes).toHaveLength(21);
+    expect(quotes.map((q) => q.symbol)).toEqual(symbols);
+    expect(quotes[0]).toEqual({ symbol: "SYM1", close: 100, change: 1 });
+    expect(quotes[20]).toEqual({ symbol: "SYM21", close: 200, change: -1 });
+  });
+
+  test("dedupes case-insensitively and keeps first-occurrence casing", async () => {
+    mockFetchWithAuth.mockResolvedValueOnce(
+      mockResponse(true, {
+        rows: [
+          { symbol: "RELIANCE", close: 2946, change: 0.82 },
+          { symbol: "TCS", close: 3100, change: -1.5 },
+          { symbol: "KAYNES", close: 2986, change: -12.94 },
+        ],
+      }),
+    );
+    const quotes = await fetchQuotes(["RELIANCE", "reliance", "  ", "TCS", "tcs", "KAYNES"]);
+    expect(mockFetchWithAuth).toHaveBeenCalledTimes(1);
+    expect((mockFetchWithAuth.mock.calls[0][0] as string)).toContain(
+      "symbols=RELIANCE%2CTCS%2CKAYNES",
+    );
+    expect(quotes).toEqual([
+      { symbol: "RELIANCE", close: 2946, change: 0.82 },
+      { symbol: "TCS", close: 3100, change: -1.5 },
+      { symbol: "KAYNES", close: 2986, change: -12.94 },
+    ]);
+  });
 });
 
 describe("snapshot cache (sessionStorage)", () => {

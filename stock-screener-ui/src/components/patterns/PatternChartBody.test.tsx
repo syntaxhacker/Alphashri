@@ -285,6 +285,53 @@ describe("PatternChartBody", () => {
     expect(screen.getByTestId("patterns-fullscreen-panel")).toBeInTheDocument();
   });
 
+  test("livePrice with null liveChange renders a neutral dash (no success tone)", () => {
+    const candles: ChartCandle[] = [
+      { t: "2026-11-12", o: 3500, h: 3510, l: 3470, c: 3484, v: 1000 },
+      { t: "2026-11-13", o: 3484, h: 3450, l: 3420, c: 3430, v: 900 },
+    ];
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: 3430,
+      day_change_pct: -1.55,
+      close_bar_date: "2026-11-13",
+    };
+    render(() => (
+      <PatternChartBody hit={hit} candles={candles} livePrice={2986} liveChange={null} />
+    ));
+    const ltp = screen.getByTestId("patterns-ltp-line");
+    expect(ltp).toHaveTextContent("LTP");
+    expect(ltp).toHaveTextContent("₹2986.00");
+    const change = screen.getByTestId("patterns-ltp-change");
+    expect(change).toHaveTextContent("—");
+    // The buggy path passed `getPnLTextColor(props.liveChange ?? 0)` → getPnLTextColor(0) === "success".
+    expect(getPnLTextColor(0)).toBe("success");
+    expect(change).not.toHaveClass("text-fin-positive");
+    expect(change).not.toHaveClass("text-fin-negative");
+  });
+
+  test("a negative liveChange is toned red and does not disturb the dated close", () => {
+    const candles: ChartCandle[] = [
+      { t: "2026-11-12", o: 3500, h: 3510, l: 3470, c: 3484, v: 1000 },
+      { t: "2026-11-13", o: 3484, h: 3450, l: 3420, c: 3430, v: 900 },
+    ];
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: 3430,
+      day_change_pct: -1.55,
+      close_bar_date: "2026-11-13",
+    };
+    render(() => (
+      <PatternChartBody hit={hit} candles={candles} livePrice={2986} liveChange={-12.94} />
+    ));
+    const change = screen.getByTestId("patterns-ltp-change");
+    expect(change).toHaveTextContent("-12.94%");
+    expect(getPnLTextColor(-12.94)).toBe("error");
+    // The dated daily close is untouched by the live line.
+    expect(screen.getByText("₹3430.00")).toBeInTheDocument();
+    expect(screen.getByText("-1.55%")).toBeInTheDocument();
+  });
+
   test("emptyState renders when there is no hit", () => {
     render(() => <PatternChartBody hit={null} candles={[]} emptyState={<div data-testid="panel-empty">No pattern selected</div>} />);
     expect(screen.getByTestId("panel-empty")).toHaveTextContent("No pattern selected");

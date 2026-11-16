@@ -6,6 +6,8 @@ const MARKET_API = `${API_BASE}/api/market`;
 
 export const DEFAULT_MARKET_UNIVERSE: MarketUniverse = "all_equity";
 export const MARKET_SNAPSHOT_LIMIT = 4000;
+/** Backend hard cap on symbols per /api/market/snapshot request. */
+export const MARKET_SYMBOLS_MAX = 20;
 
 const MARKET_SNAPSHOT_CACHE_PREFIX = "alphashri.market_snapshot.v1.";
 /** sessionStorage quota is ~5MB; stay well under it — an oversized entry is skipped, never truncated mid-row. */
@@ -241,13 +243,29 @@ export interface MarketQuote {
 }
 
 /**
- * Fetch live quotes for a handful of symbols via the cached snapshot's
- * `symbols` filter. An empty list short-circuits to `[]` (no network call).
+ * Trim symbols and dedupe case-insensitively (first occurrence wins, original
+ * casing preserved). Empty/whitespace-only entries are dropped.
  */
-export async function fetchQuotes(symbols: string[], init?: RequestInit): Promise<MarketQuote[]> {
-  const clean = symbols.map((s) => s.trim()).filter(Boolean);
-  if (clean.length === 0) return [];
-  const response = await fetchWithAuth(buildMarketSnapshotUrl({ symbols: clean }), init);
+function dedupeSymbols(symbols: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of symbols) {
+    const sym = s.trim();
+    if (!sym) continue;
+    const key = sym.toUpperCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(sym);
+  }
+  return out;
+}
+
+/**
+ * Fetch live quotes for a single batch (≤20 symbols) via the cached
+ * snapshot's `symbols` filter.
+ */
+async function fetchQuotesBatch(symbols: string[], init?: RequestInit): Promise<MarketQuote[]> {
+  const response = await fetchWithAuth(buildMarketSnapshotUrl({ symbols }), init);
   if (!response.ok) {
     const err = (await response.json().catch(() => null)) as { detail?: string } | null;
     throw new Error(err?.detail || `Market quotes failed (HTTP ${response.status})`);
@@ -262,4 +280,33 @@ export async function fetchQuotes(symbols: string[], init?: RequestInit): Promis
       change: toNumber(r.change),
     };
   });
+}
+
+/**
+ * Fetch live quotes for a handful of symbols via the cached snapshot's
+ * `symbols` filter. An empty list short-circuits to `[]` (no network call).
+ *
+ * The backend caps the `symbols` filter at 20, so a longer list is deduped,
+ * chunked into batches of ≤20, fetched in parallel, and merged in input order.
+ * A single symbol still makes exactly one request.
+ */
+export async function fetchQuotes(symbols: string[], init?: RequestInit): Promise<MarketQuote[]> {
+  const clean = dedupeSymbols(symbols);
+  if (clean.length === 0) return [];
+  if (clean.length <= MARKET_SYMBOLS_MAX) return fetchQuotesBatch(clean, init);
+  const batches: string[][] = [];
+  for (let i = 0; i < clean.length; i += MARKET_SYMBOLS_MAX) {
+    batches.push(clean.slice(i, i + MARKET_SYMBOLS_MAX));
+  }
+  const results = await Promise.all(batches.map((batch) => fetchQuotesBatch(batch, init)));
+  const merged: MarketQuote[] = [];
+  const seen = new Set<string>();
+  for (const batch of results) {
+    for (const quote of batch) {
+      if (seen.has(quote.symbol)) continue;
+      seen.add(quote.symbol);
+      merged.push(quote);
+    }
+  }
+  return merged;
 }

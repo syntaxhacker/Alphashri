@@ -256,7 +256,7 @@ function FullscreenPanel(props: {
                   size="xs"
                   fw={600}
                   className="font-mono tabular-nums text-[11px]"
-                  c={getPnLTextColor(props.liveChange ?? 0)}
+                  c={props.liveChange != null ? getPnLTextColor(props.liveChange) : undefined}
                   data-testid="patterns-ltp-change"
                 >
                   {props.liveChange != null ? formatPercentage(props.liveChange, 2) : "—"}
