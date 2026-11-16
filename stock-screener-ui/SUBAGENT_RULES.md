@@ -332,11 +332,10 @@ Canonical source for model routing **and** concurrency — `AGENTS.md` and
 
 | Purpose | Model |
 |---|---|
-| **Default for all subagent work** | `commandcode/deepseek-v4.1` — Command Code's latest DeepSeek ("DeepSeek V4.1 Flash (latest)") |
-| Never use | `commandcode/deepseek/deepseek-v4.1-flash-fast`; any non-DeepSeek model; any other provider for subagents |
-| If Command Code ships a newer DeepSeek | switch to it; do not pin an older DeepSeek |
-| Fallback | none — if the DeepSeek model is unavailable (`MODEL_NOT_IN_PLAN`), stop and report instead of substituting |
-| Adversarial / final verification | same model |
+| **Default for all subagent work** | `opencode/hy4-flash-free` ("Hy4 flash Free") — explicit user instruction, 2026-11-16 |
+| Never use | any other model/provider while this instruction stands; do not substitute silently |
+| If Hy4 reports a free-usage limit | stop and report; do not switch to DeepSeek/Nemotron/Kimi without the user changing this line |
+| If the user changes the model | update this table first, then dispatch |
 
 - The user's standing instruction is **one model for every agent** — do not mix models
   across a wave unless asked.
