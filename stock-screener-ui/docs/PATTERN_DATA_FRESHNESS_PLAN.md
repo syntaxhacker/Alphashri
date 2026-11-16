@@ -1,7 +1,6 @@
 # Pattern data freshness — KAYNES incident
 
-Status: **root-cause audit running** (read-only). Plan and task ownership below;
-facts marked *(confirmed)* were reproduced on 2026-11-16.
+Status: **audit complete (2026-11-16)**. Root cause and task ownership below.
 
 ## Incident
 
@@ -29,67 +28,78 @@ The two are not the same quantity, and the dock does not say so.
   `hit.last_close ?? lastCandle.close`, and labels the result **LAST CLOSE**
   with no date (`src/components/patterns/PatternChartBody.tsx` ~96-105, 137). *(code)*
 
-## Working root cause
+## Audit result (confirmed)
 
-Two sources of truth with different freshness:
+The dock's `last_close` was **never live**, and for this screen it did not come
+from `hit.last_close` at all (the live hit carries `null`). Two disk-cached
+daily variants disagreed:
 
-1. The chart candles pin to the **last completed session** (13 Nov) — correct
-   for daily pattern detection, which must not use a partial bar.
-2. The dock's `last_close`/`day_change_pct` come from an **enriched scan item**
-   captured at an older frame (11 Nov) and override the newer chart candle.
-3. The label has no date, so a historical daily close reads as "today".
+- `experiments/data/pattern_cache/candles/1D/KAYNES.v3.pkl` ended **11 Nov**
+  (3,382 / +2.48%);
+- `KAYNES.lb500.v3.pkl` ended **13 Nov** (3,430 / −1.55%).
 
-Today's dump (16 Nov, intraday) is in **neither** daily series by design; the
-table's LTP is the only live value. The bug is the stale enrichment plus the
-undated label, not the intraday/daily difference alone.
+`_read_cached()` (`chart_patterns/candles.py:221-276`) deliberately tolerates a
+daily frame up to **3 calendar days** behind and serves it without refreshing on
+that path. The `series_key` (`api/chart_patterns.py` `_finalize_item`) has no
+frame timestamp, and `_last_close_change()` returns only `(close, change)` — **no
+bar date** — so no consumer can tell which bar the number belongs to.
+`hit.end_date` is the **pattern formation** date, not the close's bar date
+(KAYNES stored hit: 15 Nov vs close bar 13 Nov).
+
+The frontend used `hit.last_close ?? lastCandle.close` and labelled it
+`LAST CLOSE` with no date. Sixteen of sixteen live rows currently agree
+(enrichment close == chart last close); the failure was a transient stale
+variant, since rewritten by the stale-first background refresh. The structural
+risk remains.
 
 ## Does it need a refresh?
 
-Yes, in two places:
+Yes — three separate fixes, not one button:
 
-- **Data**: an enrichment value must be invalidated when the candle frame moves.
-  The frame's last timestamp (or the existing interior digest) must be part of
-  the cache/persistence key; a forced scan must clear the per-symbol timeline /
-  series cache, not only the candle file.
-- **UI**: the pattern dock needs a refresh action that actually re-fetches the
-  symbol chart/enrichment (today the panel has no such affordance), and the
-  value must be labelled with its bar date.
+1. **Frame identity in the data model**: every enriched item must carry
+   `close_bar_date` (from the frame's last timestamp), and the frame date must be
+   part of the `series_key` and the `/results`/`/matrix`/`/lookup` cache keys.
+   Recomputing from the same frame is the source of truth.
+2. **Stop serving stale daily frames for enrichment**: drop the 3-day lag
+   tolerance on the enrichment read path (or force-refresh when the lag exceeds
+   one session). The chart may keep its stale-first policy; enrichment must not
+   inherit a stale close.
+3. **UI refresh**: the dock needs an explicit refresh that (a) bypasses the
+   60-second `symbolChartCache`, (b) re-runs the symbol chart fetch, and (c)
+   displays the close with `close_bar_date`. A forced scan already clears the
+   candle cache; the dock must not keep showing the pre-refresh frame.
 
 ## Tasks
 
-### T1 — Root-cause + all-data audit (read-only, running)
+### T1 — Root-cause + all-data audit (done)
 
-Owner: audit subagent. Trace the dock's `last_close` to its exact producer;
-list every cache (candle file, `tl_cache`, Redis/matrix, stored scan columns)
-with key + TTL + invalidation; compare enrichment vs chart candle vs live LTP
-for 8–12 symbols × `1D`/`1h`; rank fix options. **No edits.**
+The result above: stale per-lookback candle variants, a date-free enrichment
+contract, a 3-day daily lag, and a 60-second frontend chart cache with no
+refresh. `pattern_hits` stores no close at all, so `/symbol` enrichment is
+computed at request time from whichever frame wins.
 
-### T2 — Backend single source + invalidation
+### T2 — Backend single frame + date + keys
 
-- Derive `last_close`/`day_change_pct` from the **same frame** used for
-  detection/chart candles; never from an older persisted item when a newer
-  frame exists.
-- Include `timeframe`, `lookback`, `as_of`, and the frame's last timestamp /
-  digest in every cache key (candle, series, matrix, stored enrichment).
-- On a forced scan / refresh, clear the affected symbol+timeframe enrichment
-  and matrix entries as well as the candle cache.
-- Tests: (a) a newer frame invalidates an older enrichment; (b) the value equals
-  the last candle's close/change; (c) forced refresh replaces stale rows.
+- `_last_close_change` → return `(close, change, bar_date)`; `_finalize_item`
+  adds `close_bar_date` and includes the frame date in `series_key`.
+- `/results`, `/matrix`, `/lookup` response-cache keys include the frame date.
+- `_read_cached` stops tolerating a multi-day daily lag on the enrichment path
+  (serve stale for the chart only, with an explicit `stale` flag; never for the
+  computed close).
+- Forced refresh clears the symbol+timeframe candle and enrichment entries.
+- Tests: newer frame invalidates the old close; `/results` exposes
+  `close_bar_date` equal to the last candle's date; a 3-day-old daily file is
+  refreshed before enrichment.
 
-### T3 — Frontend source + label + refresh
+### T3 — Frontend dated close + refresh
 
-- Prefer the **chart's last candle** when its timestamp is newer than the hit's
-  enrichment; do not let a stale hit override it.
-- Label the value with its date: `CLOSE · 13 NOV ₹3,430 −1.55%` (and
-  `PREV CLOSE` when the last bar is not today). Never bare `LAST CLOSE` with a
-  historical bar.
-- If the dock is opened from the market table, show the live quote as a separate
-  `LTP · ₹2,986 −12.94%` line (pass it in the open payload; the table already
-  has it). Otherwise omit it rather than imply freshness.
-- Add a refresh button in the pattern dock that calls the symbol chart refresh
-  (and clear the in-memory `symbolChartCache` entry for that key).
-- Tests: stale enrichment + fresh candle → candle wins; label contains the bar
-  date; live quote is only shown when supplied; refresh clears the cache key.
+- Use `close_bar_date` when present; **do not use `hit.end_date` as a proxy**.
+  Fall back to the chart candle's timestamp, never to the pattern end date.
+- Label `CLOSE · 13 NOV` (or `PREV CLOSE` when the bar is not today), with the %
+  from the same pair of bars.
+- Add `data-testid="patterns-dock-refresh"` that invalidates the
+  `(symbol,timeframe)` entry in `usePatternFullscreenSolid`'s cache and refetches.
+- If a live quote is supplied by the opener, show it separately; otherwise omit.
 
 ### T4 — Sweep + E2E
 
