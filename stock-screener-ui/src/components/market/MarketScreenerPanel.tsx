@@ -96,13 +96,17 @@ function MoversPanel(props: {
 }
 
 const STALE_AFTER_MS = 15 * 60 * 1000;
+const STALE_CLOCK_MS = 30 * 1000;
 const UNIVERSE_OPTIONS = MARKET_UNIVERSES.map((o) => ({ value: o.value, label: o.label }));
 
-function isSnapshotStale(asOf: string | null): boolean {
+const DRAWER_FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function isSnapshotStale(asOf: string | null, nowMs: number): boolean {
   if (!asOf) return false;
   const parsed = Date.parse(asOf);
   if (Number.isNaN(parsed)) return false;
-  return Date.now() - parsed > STALE_AFTER_MS;
+  return nowMs - parsed > STALE_AFTER_MS;
 }
 
 // Isolated memo boundary: chips/count/toolbar re-render on every filter click,
@@ -174,6 +178,18 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   const [viewMode, setViewMode] = createSignal<MarketViewMode>(props.initialView ?? "table");
   const [selectedSymbol, setSelectedSymbol] = createSignal<string | null>(null);
   const dock = useSymbolDock();
+
+  // Only the toolbar's stale badge subscribes to the clock: a snapshot ages
+  // past 15 minutes while the tab sits open and no new data will arrive to
+  // re-run the memo, so `Date.now()` cannot be read inside it.
+  const [nowMs, setNowMs] = createSignal(Date.now());
+  createEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), STALE_CLOCK_MS);
+    onCleanup(() => clearInterval(id));
+  });
+
+  let drawerEl: HTMLDivElement | undefined;
+  let toggleEl: HTMLElement | undefined;
 
   // Saved config: `?view=` wins when present, saved state is the fallback for a
   // bare `/screener`, defaults otherwise. Hydration is applied in one batch and
@@ -304,7 +320,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
       patternsFor: (symbol) => patterns.summary().get(symbol),
     });
   });
-  const stale = createMemo(() => cachedStale() || isSnapshotStale(asOf()));
+  const stale = createMemo(() => cachedStale() || isSnapshotStale(asOf(), nowMs()));
   const hasActiveFilters = () => chips().length > 0;
 
   const patchFilters = (patch: Partial<MarketFilterState>) =>
@@ -360,13 +376,76 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
     });
   };
 
-  const handleToggleRail = () => {
+  const handleToggleRail = (event?: MouseEvent) => {
+    if (event?.currentTarget) toggleEl = event.currentTarget as HTMLElement;
     if (isNarrow()) {
       setDrawerOpen((open) => !open);
     } else {
       setRailCollapsed((collapsed) => !collapsed);
     }
   };
+
+  const closeDrawer = () => setDrawerOpen(false);
+
+  // The drawer only exists below 1024px. If the viewport grows while it is up,
+  // the `Show` unmounts it with focus inside — close first so focus is restored.
+  createEffect(() => {
+    if (!isNarrow() && drawerOpen()) closeDrawer();
+  });
+
+  const focusablesInDrawer = (): HTMLElement[] => {
+    if (!drawerEl) return [];
+    return Array.from(drawerEl.querySelectorAll<HTMLElement>(DRAWER_FOCUSABLE));
+  };
+
+  // A modal drawer must own focus: move it in on open, hand it back to the
+  // toggle on close, and keep Tab inside while it is up. Without this the
+  // pointer is the only way in or out below 1024px.
+  createEffect(
+    on(drawerOpen, (open, wasOpen) => {
+      if (open) {
+        (focusablesInDrawer()[0] ?? drawerEl)?.focus();
+        return;
+      }
+      if (!wasOpen) return;
+      (toggleEl ?? document.querySelector<HTMLElement>('[data-testid="market-rail-toggle"]'))?.focus();
+    }),
+  );
+
+  createEffect(() => {
+    if (!drawerOpen()) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeDrawer();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = focusablesInDrawer();
+      if (items.length === 0) {
+        event.preventDefault();
+        drawerEl?.focus();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (!active || !drawerEl?.contains(active)) {
+        event.preventDefault();
+        first.focus();
+        return;
+      }
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    onCleanup(() => document.removeEventListener("keydown", onKeyDown));
+  });
 
   const showWarmingHint = () =>
     universe() === "all_equity" && warming() && isLoading() && error() === null && rows().length === 0;
@@ -412,6 +491,8 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      // A modal drawer owns the keyboard; arrow keys inside it are not row steps.
+      if (drawerOpen()) return;
       const target = event.target as HTMLElement | null;
       if (
         target &&
@@ -568,6 +649,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                 onClick={handleToggleRail}
                 aria-label={isNarrow() ? "Open filters" : "Toggle filters"}
                 aria-pressed={isNarrow() ? drawerOpen() : !railCollapsed()}
+                aria-expanded={isNarrow() ? drawerOpen() : !railCollapsed()}
                 data-testid="market-rail-toggle"
               >
                 <IconFilter size={14} />
@@ -795,10 +877,15 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
 
       <Show when={isNarrow() && drawerOpen()}>
         <Box
+          ref={(el: HTMLDivElement) => (drawerEl = el)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Filters"
+          tabIndex={-1}
           data-testid="market-filter-drawer"
           className="fixed inset-0 z-50 flex"
           style={{ "z-index": 1050 }}
-          onClick={() => setDrawerOpen(false)}
+          onClick={closeDrawer}
         >
           <Box
             className="absolute inset-y-0 left-0 w-72 max-w-[280px] bg-fin-surface border-r border-fin-border flex flex-col transform transition-transform duration-300"
@@ -809,8 +896,8 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
               onChange={patchFilters}
               sectors={sectors()}
               tierCounts={tierCounts()}
-              onCollapse={isNarrow() ? () => setDrawerOpen(false) : () => setRailCollapsed(true)}
-              collapseLabel={isNarrow() ? "Close filters" : "Collapse filters"}
+              onCollapse={closeDrawer}
+              collapseLabel="Close filters"
             />
           </Box>
         </Box>

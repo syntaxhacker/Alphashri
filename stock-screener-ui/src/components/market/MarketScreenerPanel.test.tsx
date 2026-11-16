@@ -248,6 +248,120 @@ describe("MarketScreenerPanel — stale cache, warming hint, timeout", () => {
   });
 });
 
+describe("MarketScreenerPanel — stale badge decays with time", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test("a snapshot ages past 15 minutes while the tab sits open", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-16T09:30:00.000Z"));
+    const asOf = new Date(Date.now()).toISOString();
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ asOf, stale: false }));
+
+    r(<MarketScreenerPanel />);
+    // t0: the snapshot is fresh, so no badge and the table is up.
+    expect(screen.queryByTestId("market-stale-badge")).not.toBeInTheDocument();
+    expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
+
+    // Advance 16 minutes with no new data: the badge must appear on its own.
+    vi.advanceTimersByTime(16 * 60 * 1000);
+    expect(screen.getByTestId("market-stale-badge")).toBeInTheDocument();
+  });
+
+  test("a fresh snapshot never shows a badge, however long the tab stays open", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-16T09:30:00.000Z"));
+    const asOf = new Date(Date.now()).toISOString();
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ asOf, stale: false }));
+
+    r(<MarketScreenerPanel />);
+    vi.advanceTimersByTime(10 * 60 * 1000);
+    expect(screen.queryByTestId("market-stale-badge")).not.toBeInTheDocument();
+  });
+});
+
+describe("MarketScreenerPanel — narrow filter drawer keyboard parity", () => {
+  function narrowViewport() {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("max-width: 1023px"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+  }
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  function openDrawer() {
+    narrowViewport();
+    r(<MarketScreenerPanel />);
+    const toggle = screen.getByTestId("market-rail-toggle");
+    fireEvent.click(toggle);
+    return { toggle, drawer: screen.getByTestId("market-filter-drawer") };
+  }
+
+  test("opens as a modal dialog and moves focus into it", () => {
+    const { toggle, drawer } = openDrawer();
+    expect(drawer).toHaveAttribute("role", "dialog");
+    expect(drawer).toHaveAttribute("aria-modal", "true");
+    expect(drawer).toHaveAttribute("aria-label", "Filters");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    // Focus is inside the drawer, not left on the toolbar behind it.
+    expect(drawer.contains(document.activeElement)).toBe(true);
+  });
+
+  test("Escape closes the drawer and returns focus to the toggle", () => {
+    const { toggle, drawer } = openDrawer();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByTestId("market-filter-drawer")).not.toBeInTheDocument();
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(document.activeElement).toBe(toggle);
+    expect(drawer.isConnected).toBe(false);
+  });
+
+  test("Tab wraps inside the drawer instead of escaping to the page behind", () => {
+    const { drawer } = openDrawer();
+    const focusables = Array.from(
+      drawer.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    );
+    expect(focusables.length).toBeGreaterThan(1);
+
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    last.focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(document.activeElement).toBe(first);
+
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(last);
+  });
+
+  test("the rail's close button is a second dismiss path", () => {
+    const { toggle } = openDrawer();
+    fireEvent.click(screen.getByTestId("market-rail-collapse"));
+    expect(screen.queryByTestId("market-filter-drawer")).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(toggle);
+  });
+
+  test("ArrowDown inside the open drawer never re-points the table behind it", () => {
+    openDrawer();
+    const reliance = screen.getByTestId("market-row-RELIANCE");
+    const base = reliance.style.backgroundColor;
+    fireEvent.keyDown(document, { key: "ArrowDown" });
+    expect(reliance.style.backgroundColor).toBe(base);
+  });
+});
+
 describe("MarketScreenerPanel — non-blocking filters", () => {
   function buildBenchRows(count: number): MarketRow[] {
     const rows: MarketRow[] = [];
