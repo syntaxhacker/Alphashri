@@ -1,6 +1,9 @@
 import "./tailwind.css";
 import "@/ui/tailwindSafelist";
 import "./style.css";
+// Without this the `.sn-toast-wrapper` rules never load: the wrapper stays
+// `position: static` and the SVG icon stretches to the full page width.
+import "solid-notifications/index.css";
 import * as Sentry from "@sentry/solid";
 import { render } from "solid-js/web";
 import { Notifications } from "@/ui";
