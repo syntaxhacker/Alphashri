@@ -422,12 +422,38 @@ def _seed_cache(monkeypatch, tmp_path, df, symbol="KAYNES"):
     return path
 
 
-def _stale_chart_setup(monkeypatch, tmp_path, base, last_completed="2026-11-16"):
+def _now_frozen(monkeypatch, day: str, hh: int, mm: int = 0,
+                *, holiday: bool = False) -> None:
+    """Freeze the session clock used by the append gate (and the close time).
+
+    Pins ``candles._now_ist`` (the single clock read) and the trading-day
+    predicate, so the date/partial logic never depends on the wall clock — the
+    2026-11-16 incident was a live-Monday gate nobody could reproduce on demand.
+    ``holiday=True`` makes only the frozen day a holiday, not every day.
+    """
+    from datetime import datetime as _dt
+
+    from trading.timezone import IST
+
+    frozen_day = _date.fromisoformat(day)
+    frozen = _dt(frozen_day.year, frozen_day.month, frozen_day.day,
+                 hh, mm, tzinfo=IST)
+    holidays = {frozen_day} if holiday else set()
+    monkeypatch.setattr(cp_api.candles, "_now_ist", lambda: frozen)
+    monkeypatch.setattr(
+        cp_api.candles, "_is_trading_day",
+        lambda d: d.weekday() < 5 and d not in holidays,
+    )
+
+
+def _stale_chart_setup(monkeypatch, tmp_path, base, last_completed=None):
     """Wire a stale 1D disk frame + a 16-Nov 1-min tape, no network refresh."""
-    lc = _date.fromisoformat(last_completed)
+    if last_completed is not None:
+        lc = _date.fromisoformat(last_completed)
+        monkeypatch.setattr(
+            cp_api.candles, "_last_completed_session", lambda now=None: lc
+        )
     _seed_cache(monkeypatch, tmp_path, base)
-    monkeypatch.setattr(cp_api.candles, "_last_completed_session", lambda now=None: lc)
-    monkeypatch.setattr(cp_api.candles, "_today_is_session", lambda: True)
     cp_api.candles._PARTIAL_CACHE.clear()
     monkeypatch.setattr(
         "market_data.market_data.get_api_client", lambda: _tape_client()
@@ -445,7 +471,8 @@ def test_stale_1d_frame_gains_today_tape_bar_detection_on_base(monkeypatch, tmp_
     candle and reports itself current (``as_of`` 16 Nov), while detection and
     ``detection_as_of`` stay on the 13-Nov base frame."""
     base = _daily_frame([3300.0, 3382.0, 3430.0], "2026-11-13")
-    _stale_chart_setup(monkeypatch, tmp_path, base)
+    _now_frozen(monkeypatch, "2026-11-16", 16, 0)
+    _stale_chart_setup(monkeypatch, tmp_path, base, last_completed="2026-11-16")
     seen = {}
 
     def _detect(df, timeframe, symbol):
@@ -487,11 +514,124 @@ def test_stale_1d_frame_gains_today_tape_bar_detection_on_base(monkeypatch, tmp_
     assert "is_partial" not in series[-1]
 
 
+def test_mid_session_chart_today_bar_is_partial_and_current(monkeypatch, tmp_path):
+    """Monday 10:30 IST: the cached frame ends on Friday 13, which *is* the last
+    completed session, and the chart must still show the live 16-Nov bar.
+
+    The old gate (``as_of < last_completed_session``) was False all session, so
+    the chart served Friday until 15:30."""
+    base = _daily_frame([3300.0, 3382.0, 3430.0], "2026-11-13")
+    _now_frozen(monkeypatch, "2026-11-16", 10, 30)
+    _stale_chart_setup(monkeypatch, tmp_path, base, last_completed="2026-11-13")
+
+    app, client = _chart_client()
+    try:
+        resp = client.get(
+            "/api/chart-patterns/symbol/KAYNES/chart",
+            params={"timeframe": "1D", "detect_patterns": 1},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    body = resp.json()
+    series = body["candles"]
+    assert len(series) == len(base) + 1
+    assert series[-1]["t"] == "2026-11-15T18:30:00+00:00"
+    assert series[-1]["c"] == 2980.0
+    assert series[-1]["is_partial"] is True, "before 15:30 the bar is in progress"
+    assert body["as_of"] == "2026-11-16"
+    assert body["stale"] is False
+    assert body["detection_as_of"] == "2026-11-13"
+
+
+def test_closed_session_tape_bar_has_no_partial_marker(monkeypatch, tmp_path):
+    """After the 15:30 close the same gap yields a final bar, no ``is_partial``."""
+    base = _daily_frame([3300.0, 3382.0, 3430.0], "2026-11-13")
+    _now_frozen(monkeypatch, "2026-11-16", 16, 0)
+    _stale_chart_setup(monkeypatch, tmp_path, base, last_completed="2026-11-16")
+
+    app, client = _chart_client()
+    try:
+        resp = client.get(
+            "/api/chart-patterns/symbol/KAYNES/chart",
+            params={"timeframe": "1D"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["candles"]) == len(base) + 1
+    assert body["as_of"] == "2026-11-16"
+    assert body["stale"] is False
+    assert "is_partial" not in body["candles"][-1]
+
+
+def test_frame_already_ending_today_is_not_duplicated(monkeypatch, tmp_path):
+    """A cached frame that already contains the 16-Nov session is served as-is."""
+    base = _daily_frame([3300.0, 3382.0, 3430.0, 2980.0], "2026-11-16")
+    _now_frozen(monkeypatch, "2026-11-16", 10, 30)
+    _stale_chart_setup(monkeypatch, tmp_path, base, last_completed="2026-11-13")
+
+    app, client = _chart_client()
+    try:
+        resp = client.get(
+            "/api/chart-patterns/symbol/KAYNES/chart",
+            params={"timeframe": "1D"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["candles"]) == len(base)
+    assert body["as_of"] == "2026-11-16"
+    assert body["stale"] is False
+    assert "is_partial" not in body["candles"][-1]
+
+
+@pytest.mark.parametrize(
+    "day,holiday,expect_stale",
+    [
+        ("2026-11-14", False, False),  # Saturday: Friday 13 is the last session
+        ("2026-11-15", False, False),  # Sunday: same
+        ("2026-11-17", True, True),    # weekday holiday: last session is 16 Nov
+    ],
+)
+def test_no_session_today_never_appends(monkeypatch, tmp_path, day, holiday, expect_stale):
+    """Weekend/holiday: there is no session to append, even with tape rows.
+
+    The frame stays the completed-session base and the freshness fields keep
+    their pre-existing meaning: ``stale`` compares the display against the last
+    completed session, which a holiday does not advance past its previous
+    trading day."""
+    base = _daily_frame([3300.0, 3382.0, 3430.0], "2026-11-13")
+    _now_frozen(monkeypatch, day, 10, 30, holiday=holiday)
+    _stale_chart_setup(monkeypatch, tmp_path, base)
+
+    app, client = _chart_client()
+    try:
+        resp = client.get(
+            "/api/chart-patterns/symbol/KAYNES/chart",
+            params={"timeframe": "1D"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["candles"]) == len(base), "no synthetic bar on a non-session"
+    assert body["as_of"] == "2026-11-13"
+    assert body["stale"] is expect_stale
+
+
 def test_lagging_base_without_tape_bar_reports_stale(monkeypatch, tmp_path):
     """No intraday tape → no synthesized bar: the series ends on the base frame,
     so ``as_of`` is that date and the chart is stale versus the last session."""
     base = _daily_frame([3300.0, 3382.0, 3430.0], "2026-11-13")
-    _stale_chart_setup(monkeypatch, tmp_path, base)
+    _now_frozen(monkeypatch, "2026-11-16", 16, 0)
+    _stale_chart_setup(monkeypatch, tmp_path, base, last_completed="2026-11-16")
     monkeypatch.setattr(
         "market_data.market_data.get_api_client",
         lambda: SimpleNamespace(fetch_intraday_data_v3=lambda **kwargs: pd.DataFrame()),
@@ -520,7 +660,7 @@ def test_in_progress_tape_bar_is_marked_partial(monkeypatch):
     """Before the 15:30 close the synthesized bar carries ``is_partial``; the
     chart marks only the trailing displayed candle."""
     base = _daily_frame([3300.0, 3382.0, 3430.0], "2026-11-13")
-    monkeypatch.setattr(cp_api.candles, "_today_is_session", lambda: True)
+    _now_frozen(monkeypatch, "2026-11-16", 10, 30)
     monkeypatch.setattr(
         cp_api.candles, "_last_completed_session",
         lambda now=None: _date(2026, 11, 13),
@@ -546,13 +686,23 @@ def test_in_progress_tape_bar_is_marked_partial(monkeypatch):
 
 def test_refresh_query_skips_stale_first_and_forces_fetch(monkeypatch, tmp_path):
     """``refresh=1`` bypasses the disk frame and re-fetches with force_refresh,
-    and still answers with the freshness fields (no omission)."""
+    and still answers with the freshness fields (no omission).
+
+    The fetch returns a frame that ends on the *last completed* session and no
+    tape bar, so nothing can be appended: the answer is the lagging frame and
+    must say so."""
     base = _daily_frame([3300.0, 3382.0, 3430.0], "2026-11-13")
+    _now_frozen(monkeypatch, "2026-11-16", 16, 0)
     _seed_cache(monkeypatch, tmp_path, base)
     monkeypatch.setattr(
         cp_api.candles, "_last_completed_session",
         lambda now=None: _date(2026, 11, 16),
     )
+    monkeypatch.setattr(
+        "market_data.market_data.get_api_client",
+        lambda: SimpleNamespace(fetch_intraday_data_v3=lambda **kwargs: pd.DataFrame()),
+    )
+    cp_api.candles._PARTIAL_CACHE.clear()
     seen = {}
 
     def _fetch(symbol, timeframe, **kwargs):
@@ -593,12 +743,12 @@ def test_refresh_reports_today_when_the_tape_bar_is_appended(monkeypatch, tmp_pa
     """A forced refresh of a lagging daily frame still appends today's tape bar,
     so it answers ``as_of`` today and ``stale: false`` — not a stale payload."""
     base = _daily_frame([3300.0, 3382.0, 3430.0], "2026-11-13")
+    _now_frozen(monkeypatch, "2026-11-16", 10, 30)
     _seed_cache(monkeypatch, tmp_path, base)
     monkeypatch.setattr(
         cp_api.candles, "_last_completed_session",
-        lambda now=None: _date(2026, 11, 16),
+        lambda now=None: _date(2026, 11, 13),
     )
-    monkeypatch.setattr(cp_api.candles, "_today_is_session", lambda: True)
     monkeypatch.setattr(
         "market_data.market_data.get_api_client", lambda: _tape_client()
     )
@@ -630,7 +780,54 @@ def test_refresh_reports_today_when_the_tape_bar_is_appended(monkeypatch, tmp_pa
     body = resp.json()
     assert "cached" not in body
     assert body["candles"][-1]["t"] == "2026-11-15T18:30:00+00:00"
+    assert body["candles"][-1]["is_partial"] is True
     assert body["as_of"] == "2026-11-16"
     assert body["stale"] is False
     assert body["detection_as_of"] == "2026-11-13"
     assert "expected_as_of" not in body
+
+
+def test_refresh_appends_the_bar_even_if_the_fetch_returns_base_only(
+    monkeypatch, tmp_path,
+):
+    """Mid-session ``refresh=1`` where the fetch itself did not append the tape
+    bar must still display today: the append cannot depend on the fetch having
+    done it."""
+    base = _daily_frame([3300.0, 3382.0, 3430.0], "2026-11-13")
+    _now_frozen(monkeypatch, "2026-11-16", 10, 30)
+    _seed_cache(monkeypatch, tmp_path, base)
+    monkeypatch.setattr(
+        cp_api.candles, "_last_completed_session",
+        lambda now=None: _date(2026, 11, 13),
+    )
+    monkeypatch.setattr(
+        "market_data.market_data.get_api_client", lambda: _tape_client()
+    )
+    cp_api.candles._PARTIAL_CACHE.clear()
+    monkeypatch.setattr(
+        cp_api.candles, "fetch_for_timeframe", lambda *a, **k: base
+    )
+    monkeypatch.setattr(
+        cp_api, "_stored_overlays_and_lines", lambda *a, **k: ([], [])
+    )
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df, lookback_bars=None: {"support": None, "resistance": None},
+    )
+
+    app, client = _chart_client()
+    try:
+        resp = client.get(
+            "/api/chart-patterns/symbol/KAYNES/chart",
+            params={"timeframe": "1D", "refresh": 1},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["candles"][-1]["t"] == "2026-11-15T18:30:00+00:00"
+    assert body["candles"][-1]["is_partial"] is True
+    assert body["as_of"] == "2026-11-16"
+    assert body["stale"] is False
+    assert body["detection_as_of"] == "2026-11-13"

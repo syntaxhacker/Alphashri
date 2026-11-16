@@ -162,6 +162,27 @@ def _is_trading_day(d: date) -> bool:
         return True
 
 
+def _now_ist() -> datetime:
+    """The single clock read for session math (tests freeze this one seam)."""
+    from trading.timezone import IST
+
+    return datetime.now(IST)
+
+
+def previous_trading_day(d: date) -> Optional[date]:
+    """Most recent NSE session strictly before ``d``.
+
+    Walks back over weekends and trading holidays; ``None`` when no session is
+    found within a year (a broken holiday calendar, never a real date).
+    """
+    cursor = d - timedelta(days=1)
+    for _ in range(365):
+        if _is_trading_day(cursor):
+            return cursor
+        cursor -= timedelta(days=1)
+    return None
+
+
 def _last_completed_session(now: Optional[datetime] = None) -> date:
     """Last NSE session whose 15:30 IST close has passed.
 
@@ -174,7 +195,7 @@ def _last_completed_session(now: Optional[datetime] = None) -> date:
     from trading.utils import MARKET_CLOSE
 
     if now is None:
-        now = datetime.now(IST)
+        now = _now_ist()
     if isinstance(now, datetime):
         today = now.date()
         try:
@@ -191,12 +212,47 @@ def _last_completed_session(now: Optional[datetime] = None) -> date:
         after_close = True
     if _is_trading_day(today) and after_close:
         return today
-    d = today - timedelta(days=1)
-    for _ in range(365):
-        if _is_trading_day(d):
-            return d
-        d -= timedelta(days=1)
-    return d
+    return previous_trading_day(today) or (today - timedelta(days=1))
+
+
+def current_session_date(now: Optional[datetime] = None) -> Optional[date]:
+    """IST date of today's session, or ``None`` on a weekend/trading holiday.
+
+    Deliberately not derived from :func:`_last_completed_session`: that helper
+    only advances at the 15:30 close, so on a live Monday it still names the
+    previous Friday. A chart wants "is there a session today", which is true all
+    through the trading day.
+    """
+    today = _now_ist() if now is None else now
+    if isinstance(today, datetime):
+        today = today.date()
+    return today if _is_trading_day(today) else None
+
+
+def missing_today_bar(df: pd.DataFrame) -> bool:
+    """True when a daily frame ends on the last completed session, not today.
+
+    This is the append gate for the display edge, and it is deliberately *not*
+    ``as_of < _last_completed_session()``: that helper only advances at the
+    15:30 close, so on a live Monday it still names the previous Friday and a
+    Friday frame looks complete for the whole session — the chart then served
+    Friday until 15:30.
+
+    Restricted to a one-session gap (``previous_trading_day``, so the
+    Friday→Monday and holiday-bridge cases qualify). A frame further back is a
+    lagging feed: appending one isolated bar would draw a hole under a chart
+    that then claims to be current, so the stale frame is served as stale and
+    the background refresh closes the gap. False on a weekend/holiday (no
+    session) and when the frame already ends today (no duplicate). Never raises.
+    """
+    if df is None or getattr(df, "empty", True):
+        return False
+    session = current_session_date()
+    last = frame_last_date(df)
+    if session is None or not last:
+        return False
+    previous = previous_trading_day(session)
+    return previous is not None and last == previous.isoformat()
 
 
 def _cache_path(tf_id: str, symbol: str, as_of_date: Optional[str] = None,
@@ -793,11 +849,14 @@ def fetch_for_timeframe(
 
 
 def _today_is_session() -> bool:
-    """True when today (IST) is an NSE trading day."""
+    """True when today (IST) is an NSE trading day.
+
+    Fail-open on a clock/holiday-calendar failure (the pre-existing behaviour):
+    this only decides whether to *attempt* a tape fetch, and a fabricated empty
+    session is worse than one wasted call.
+    """
     try:
-        from datetime import datetime as _dt
-        from trading.timezone import IST
-        return _is_trading_day(_dt.now(IST).date())
+        return current_session_date() is not None
     except Exception:
         return True
 

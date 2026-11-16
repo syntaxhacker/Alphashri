@@ -2524,38 +2524,49 @@ async def _asof_symbol_chart(
     }
 
 
-def _chart_display_frame(base_df, symbol_u: str, timeframe: str,
-                         allow_append: bool = False) -> tuple:
+def _chart_display_frame(base_df, symbol_u: str, timeframe: str) -> tuple:
     """Return ``(display_df, is_partial)`` for a live chart response.
 
     ``base_df`` is the completed-session frame used for detection and caches and
     is never mutated. On the network path ``fetch_for_timeframe`` has already
-    appended the tape bar (and set ``partial_today``), so only its marker is
-    read here. ``allow_append=True`` is for the stale-disk path, where the
-    cached frame predates today and the bar must be fetched and appended now.
+    appended today's tape bar (and set ``partial_today``), so only its marker is
+    read here. When that marker is absent — a stale disk frame, or a fetch whose
+    own append bailed — the bar is appended here.
+
+    The append gate is :func:`candles.missing_today_bar` ("does the frame end on
+    the last completed session instead of today"), never
+    ``as_of < last_completed_session``: the latter only advances at the 15:30
+    close, so on a live Monday it still names Friday and a Friday frame would
+    look complete for the whole session.
+
     ``is_partial`` is true only while the session is still trading — once the
     15:30 IST close has passed the bar is final and carries no marker. Never
     raises.
     """
     display = base_df
     is_partial = False
-    if base_df is not None and not getattr(base_df, "empty", True):
-        attrs = getattr(base_df, "attrs", {}) or {}
-        if timeframe == "1D" and attrs.get("partial_today"):
+    if base_df is None or getattr(base_df, "empty", True):
+        return display, is_partial
+    if timeframe != "1D":
+        return display, is_partial
+    attrs = getattr(base_df, "attrs", {}) or {}
+    if attrs.get("partial_today"):
+        is_partial = bool(attrs.get(
+            "partial_today_in_progress", attrs.get("partial_today", False)
+        ))
+        return display, is_partial
+    if not candles.missing_today_bar(base_df):
+        return display, is_partial
+    try:
+        merged = candles.with_partial_today(base_df, symbol_u)
+        if merged is not None and not merged.empty and len(merged) > len(base_df):
+            display = merged
+            attrs = getattr(merged, "attrs", {}) or {}
             is_partial = bool(attrs.get(
                 "partial_today_in_progress", attrs.get("partial_today", False)
             ))
-        elif timeframe == "1D" and allow_append:
-            try:
-                merged = candles.with_partial_today(base_df, symbol_u)
-                if merged is not None and not merged.empty and len(merged) > len(base_df):
-                    display = merged
-                    attrs = getattr(merged, "attrs", {}) or {}
-                    is_partial = bool(attrs.get(
-                        "partial_today_in_progress", attrs.get("partial_today", False)
-                    ))
-            except Exception:
-                pass
+    except Exception:
+        pass
     return display, is_partial
 
 
@@ -2631,17 +2642,13 @@ async def get_symbol_chart(
         except Exception:
             chart_lcs = None
         # The disk frame is the completed-session base: detection, enrichment
-        # and the frame identity stay pinned to it. Only when Upstox's daily
-        # frame genuinely lags the last completed session do we append today's
-        # tape bar to the *displayed* candles; a session-current frame already
-        # covers the latest session and never touches the tape here.
-        display_df, is_partial = df, False
-        appended_today = False
-        if timeframe == "1D" and as_of and chart_lcs and as_of < chart_lcs:
-            display_df, is_partial = _chart_display_frame(
-                df, symbol_u, timeframe, allow_append=True
-            )
-            appended_today = display_df is not df
+        # and the frame identity stay pinned to it. Today's tape bar is appended
+        # to the *displayed* candles when the frame ends on the last completed
+        # session — which is exactly the mid-session case (a live Monday frame
+        # ends on Friday) that an ``as_of < last_completed_session`` gate
+        # suppressed for the whole day.
+        display_df, is_partial = _chart_display_frame(df, symbol_u, timeframe)
+        appended_today = display_df is not df
         series = _clamped_candle_series(display_df, lookback_bars, limit)
         _mark_partial_last(series, is_partial)
         if series:
@@ -2809,9 +2816,9 @@ async def get_symbol_chart(
         return _json_response(payload)
     # The fetch window carries ~1.5x headroom; clamp the displayed chart to
     # exactly the requested Lookback (Auto keeps the whole window). A trailing
-    # synthetic session bar (1D only, fetched with include_partial_today) is
-    # appended for display only — detection and the frame identity use the
-    # completed-session base frame so an unfinished bar can never form a hit.
+    # synthetic session bar (1D only) is appended for display only — detection
+    # and the frame identity use the completed-session base frame so an
+    # unfinished bar can never form a hit.
     display_df, is_partial = _chart_display_frame(df, symbol_u, timeframe)
     base_df = df
     if getattr(df, "attrs", {}).get("partial_today"):
