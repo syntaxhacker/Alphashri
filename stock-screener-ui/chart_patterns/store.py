@@ -691,8 +691,12 @@ def _deduped_base(session, base):
     return session.query(PatternHit).filter(PatternHit.id.in_(ids_subq))
 
 
-def query_results(filters: dict, limit: int = 100, offset: int = 0):
+def query_results(filters: dict, limit: Optional[int] = 100, offset: int = 0):
     """Return ``(items, total, summary)`` for the given filters.
+
+    ``limit=None`` fetches every matching row (no ``LIMIT`` clause) — used by
+    the batch lookup, which caps each symbol *after* grouping so a single
+    high-volume symbol cannot starve the others out of the result set.
 
     Ordering is confidence-first by default. ``filters["sort"] == "newest"``
     instead surfaces the freshest formations first (``bars_ago`` ascending),
@@ -731,12 +735,10 @@ def query_results(filters: dict, limit: int = 100, offset: int = 0):
             )
         else:
             order_by = (PatternHit.confidence.desc().nullslast(), PatternHit.id.desc())
-        rows = (
-            base.order_by(*order_by)
-            .offset(max(0, int(offset)))
-            .limit(max(0, int(limit)))
-            .all()
-        )
+        query = base.order_by(*order_by).offset(max(0, int(offset)))
+        if limit is not None:
+            query = query.limit(max(0, int(limit)))
+        rows = query.all()
         items = []
         for row in rows:
             dto = row.to_dict()

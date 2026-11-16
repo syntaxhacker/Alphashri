@@ -985,3 +985,77 @@ def test_refresh_appends_the_bar_even_if_the_fetch_returns_base_only(
     assert body["as_of"] == "2026-11-16"
     assert body["stale"] is False
     assert body["detection_as_of"] == "2026-11-13"
+
+
+# ---------------------------------------------------------------------------
+# Network-path freshness: a plain successful fetch carries the same freshness
+# keys as a cache serve. Omission previously forced clients to assume "current".
+# ---------------------------------------------------------------------------
+
+
+def test_network_path_carries_freshness_keys(monkeypatch, tmp_path):
+    """A plain 1D network fetch reports as_of/stale/detection_as_of just like a
+    stale-first serve; a lagging frame is still labelled stale, never omitted."""
+    base = _daily_frame([3300.0, 3382.0, 3430.0], "2026-11-13")
+    _now_frozen(monkeypatch, "2026-11-16", 16, 0)
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)  # empty: no stale-first
+    monkeypatch.setattr(
+        cp_api.candles, "_last_completed_session",
+        lambda now=None: _date(2026, 11, 16),
+    )
+    monkeypatch.setattr(
+        "market_data.market_data.get_api_client",
+        lambda: SimpleNamespace(fetch_intraday_data_v3=lambda **kwargs: pd.DataFrame()),
+    )
+    cp_api.candles._PARTIAL_CACHE.clear()
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: base)
+    monkeypatch.setattr(cp_api, "_stored_overlays_and_lines", lambda *a, **k: ([], []))
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df, lookback_bars=None: {"support": None, "resistance": None},
+    )
+
+    app, client = _chart_client()
+    try:
+        resp = client.get(
+            "/api/chart-patterns/symbol/KAYNES/chart", params={"timeframe": "1D"}
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "cached" not in body
+    assert {"as_of", "stale", "detection_as_of"} <= set(body)
+    assert body["as_of"] == "2026-11-13"
+    assert body["stale"] is True
+    assert body["detection_as_of"] == "2026-11-13"
+    assert body["expected_as_of"] == "2026-11-16"
+
+
+def test_network_path_intraday_current_without_expected_date(monkeypatch, tmp_path):
+    """Intraday has no expected session date: a plain fetch reports a valid
+    as_of with stale:false and no expected_as_of — the same freshness keys."""
+    frame = _frame_hourly([100.0, 101.0, 102.0], "2026-11-16T08:45:00")
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: frame)
+    monkeypatch.setattr(cp_api, "_stored_overlays_and_lines", lambda *a, **k: ([], []))
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df, lookback_bars=None: {"support": None, "resistance": None},
+    )
+
+    app, client = _chart_client()
+    try:
+        resp = client.get(
+            "/api/chart-patterns/symbol/TEST/chart", params={"timeframe": "1h"}
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert {"as_of", "stale", "detection_as_of"} <= set(body)
+    assert "expected_as_of" not in body
+    assert body["as_of"] == "2026-11-16"
+    assert body["stale"] is False

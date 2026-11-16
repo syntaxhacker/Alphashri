@@ -2048,7 +2048,12 @@ def test_symbol_chart_without_detect_patterns_keeps_old_shape(cp_client, monkeyp
     assert chart.status_code == 200
     body = chart.json()
     assert "hits" not in body
-    assert set(body) == {"symbol", "timeframe", "candles", "overlays", "trend_lines"}
+    # A successful network-path chart now carries the same freshness keys as a
+    # cache serve; only the optional expected_as_of may additionally appear.
+    assert set(body) - {"expected_as_of"} == {
+        "symbol", "timeframe", "candles", "overlays", "trend_lines",
+        "as_of", "stale", "detection_as_of",
+    }
     assert len(body["overlays"]) == 1
 
 
@@ -2814,7 +2819,10 @@ def test_symbol_chart_normal_path_unchanged(cp_client, monkeypatch, no_stale_fir
     assert len(body["candles"]) == 50
     assert body["candles"][0]["t"] and "o" in body["candles"][0]
     assert "error" not in body and "note" not in body
-    assert set(body) == {"symbol", "timeframe", "candles", "overlays", "trend_lines"}
+    assert set(body) - {"expected_as_of"} == {
+        "symbol", "timeframe", "candles", "overlays", "trend_lines",
+        "as_of", "stale", "detection_as_of",
+    }
     # Every click re-fetches (successful results are not negative-cached).
     again = cp_client.get("/api/chart-patterns/symbol/RELIANCE/chart", params={"timeframe": "1D", "limit": 50})
     assert again.status_code == 200
@@ -3131,8 +3139,8 @@ def test_symbol_chart_stale_first_miss_uses_network_path(cp_client, monkeypatch,
     )
     assert chart.status_code == 200
     body = chart.json()
-    assert "cached" not in body and "stale" not in body
-    assert "as_of" not in body
+    assert "cached" not in body
+    assert {"as_of", "stale", "detection_as_of"} <= set(body)
     assert fetch_calls == [("POWERMECH", "1D")]
     assert kicks == []
 
@@ -3188,7 +3196,8 @@ def test_symbol_chart_stale_first_intraday_requires_today(cp_client, monkeypatch
     )
     assert chart.status_code == 200
     body = chart.json()
-    assert "cached" not in body and "stale" not in body
+    assert "cached" not in body
+    assert {"as_of", "stale", "detection_as_of"} <= set(body)
     assert fetch_calls == [("POWERMECH", "5m")]
     assert kicks == []
 
@@ -3281,7 +3290,8 @@ def test_symbol_chart_stale_first_oversized_frame_falls_back_to_network(
     )
     assert chart.status_code == 200
     body = chart.json()
-    assert "cached" not in body and "stale" not in body
+    assert "cached" not in body
+    assert {"as_of", "stale", "detection_as_of"} <= set(body)
     assert fetch_calls == [("POWERMECH", "1D")]
     assert kicks == []
 
@@ -3420,7 +3430,8 @@ def test_symbol_chart_1w_no_daily_cache_uses_network(cp_client, monkeypatch, tmp
     )
     assert chart.status_code == 200
     body = chart.json()
-    assert "cached" not in body and "stale" not in body and "as_of" not in body
+    assert "cached" not in body
+    assert {"as_of", "stale", "detection_as_of"} <= set(body)
     assert fetch_calls == [("POWERMECH", "1W")], "no 1D cache -> network fetch for 1W"
     assert kicks == []
     assert len(body["candles"]) == 7
@@ -3765,7 +3776,8 @@ def test_stale_first_too_stale_falls_to_network(cp_client, monkeypatch, tmp_path
     resp = cp_client.get("/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1D"})
     assert resp.status_code == 200
     body = resp.json()
-    assert "cached" not in body and "stale" not in body and "as_of" not in body
+    assert "cached" not in body
+    assert {"as_of", "stale", "detection_as_of"} <= set(body)
     assert "expected_as_of" not in body
     assert fetch_calls == [("POWERMECH", "1D")]
     assert kicks == [], "no refresh kick on the network path"

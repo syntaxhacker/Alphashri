@@ -2963,19 +2963,21 @@ async def get_symbol_chart(
         "overlays": overlays,
         "trend_lines": trend_lines,
     }
-    if refresh:
-        # A forced refresh answers with the same freshness contract as a cache
-        # serve: describe the displayed series (today's tape bar included), so a
-        # current chart is never labelled stale.
-        try:
-            chart_lcs = candles._last_completed_session().isoformat()
-        except Exception:
-            chart_lcs = None
-        payload.update(_chart_freshness(
-            candles.frame_last_date(display_df), candles.frame_last_date(base_df),
-            chart_lcs if timeframe == "1D" else None,
-            served_from_cache=False,
-        ))
+    # Every successful chart answer carries the same freshness keys — a plain
+    # network fetch is no more "current by assumption" than a forced refresh or
+    # a cache serve. Describe the displayed series (today's tape bar included)
+    # against the base frame detection used; a network fetch is never flagged
+    # stale on its own (``served_from_cache=False``), and with no expected date
+    # (intraday/weekly/monthly) it simply reports ``as_of`` + ``stale: false``.
+    try:
+        chart_lcs = candles._last_completed_session().isoformat()
+    except Exception:
+        chart_lcs = None
+    payload.update(_chart_freshness(
+        candles.frame_last_date(display_df), candles.frame_last_date(base_df),
+        chart_lcs if timeframe == "1D" else None,
+        served_from_cache=False,
+    ))
     if detect_patterns:
         payload["hits"] = list(hits_block["hits"])
         _store_pattern_block(
@@ -3537,6 +3539,12 @@ def _lookup_items(items, symbols: list[str]) -> list[dict]:
     make one symbol's position depend on unrelated symbols. Clients key the
     answer by symbol; ordering it canonically is what lets a sort change in the
     table reuse the same cache entry.
+
+    The per-symbol cap is applied *here*, after grouping — never as a global SQL
+    LIMIT. A global limit lets one high-volume symbol consume the whole budget
+    and drop every other symbol from the answer (a stored hit then renders as
+    the same dash as "no patterns"). Capping each group keeps the top-N by
+    confidence for *every* symbol, in the store's incoming confidence order.
     """
     groups: dict[str, list[dict]] = {}
     for item in items or []:
@@ -3547,7 +3555,11 @@ def _lookup_items(items, symbols: list[str]) -> list[dict]:
             continue
         groups.setdefault(symbol, []).append(_lookup_pattern(item))
     return [
-        {"symbol": symbol, "patterns": groups[symbol], "count": len(groups[symbol])}
+        {
+            "symbol": symbol,
+            "patterns": groups[symbol][:_LOOKUP_HITS_PER_SYMBOL],
+            "count": min(len(groups[symbol]), _LOOKUP_HITS_PER_SYMBOL),
+        }
         for symbol in symbols
         if symbol in groups
     ]
@@ -3594,11 +3606,11 @@ def lookup_patterns(
         if universe:
             filters["universe"] = universe
         try:
-            items, _total, summary = store.query_results(
-                filters,
-                limit=len(symbols) * _LOOKUP_HITS_PER_SYMBOL,
-                offset=0,
-            )
+            # Fetch every hit for the requested symbols and let _lookup_items
+            # cap each symbol after grouping. A global `len(symbols) * cap` limit
+            # starved low-volume symbols whenever one symbol carried more hits
+            # than the whole budget; the cap belongs to the per-symbol groups.
+            items, _total, summary = store.query_results(filters, limit=None, offset=0)
         except Exception:
             items, summary = [], {}
     if not isinstance(summary, dict):
