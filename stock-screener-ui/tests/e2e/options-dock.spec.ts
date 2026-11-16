@@ -129,6 +129,48 @@ test.describe("Options dock", () => {
     await expect(page.locator('[data-testid="options-pop"]')).toContainText("%");
     await expect(page.locator('[data-testid="options-breakevens"]')).toContainText("BE");
     await expect(page.locator('[data-testid="options-payoff-chart"]')).toBeVisible();
+
+    // Four labelled footer cells, not one run-on line, and the footer starts
+    // below the chart — the x-axis tick labels must not collide with it.
+    const footer = page.locator('[data-testid="options-payoff-footer"]');
+    await expect(footer).toBeVisible();
+    await expect(footer.locator("> *")).toHaveCount(4);
+    await expect(page.locator('[data-testid="options-max-pnl"]')).toContainText("MAX P/L");
+    await expect(page.locator('[data-testid="options-expected-pnl"]')).toContainText("MODEL E[P&L]");
+    await expect(page.locator('[data-testid="options-expected-move"]')).toContainText("±1σ");
+    const boxes = await page.evaluate(() => {
+      const chart = document.querySelector('[data-testid="options-payoff-chart"]')!.getBoundingClientRect();
+      const foot = document.querySelector('[data-testid="options-payoff-footer"]')!.getBoundingClientRect();
+      return { chartBottom: chart.bottom, footerTop: foot.top, footerHeight: foot.height };
+    });
+    expect(boxes.footerTop).toBeGreaterThanOrEqual(Math.floor(boxes.chartBottom));
+    expect(boxes.footerHeight).toBeLessThanOrEqual(28);
+  });
+
+  test("the dock's sections carry headers and are separated by hairlines", async ({ page }) => {
+    await enterWithDock(page);
+    await openDock(page);
+
+    await expect(page.locator('[data-testid="dock-section-chain"]')).toContainText(/CHAIN · RELIANCE/);
+    await expect(page.locator('[data-testid="dock-section-strategy"]')).toHaveText("STRATEGY");
+    await expect(page.locator('[data-testid="dock-section-legs"]')).toContainText("LEGS");
+
+    await page.locator('[data-testid="options-ce-1420"]').click();
+    await expect(page.locator('[data-testid="dock-section-payoff"]')).toContainText("PAYOFF");
+
+    const sections = page.locator("[data-dock-section]");
+    await expect(sections).toHaveCount(4);
+    const borders = await page.evaluate(() =>
+      Array.from(document.querySelectorAll("[data-dock-section]")).map((el) => ({
+        id: el.getAttribute("data-testid"),
+        borderTop: parseFloat(getComputedStyle(el).borderTopWidth),
+        rounded: parseFloat(getComputedStyle(el).borderTopLeftRadius),
+      })),
+    );
+    // Chain opens the column under the summary strip's own rule; the three below
+    // it each add exactly one separator. No section is a rounded nested card.
+    expect(borders.map((b) => b.borderTop)).toEqual([0, 1, 1, 1]);
+    for (const b of borders) expect(b.rounded).toBe(0);
   });
 
   test("strategy preset builds an iron condor and survives an expiry change", async ({ page }) => {
