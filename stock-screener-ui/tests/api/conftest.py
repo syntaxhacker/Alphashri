@@ -97,6 +97,31 @@ def db(test_engine) -> Generator[Session, None, None]:
     connection.close()
 
 
+@pytest.fixture(autouse=True)
+def _reset_option_caches():
+    """Option routes keep a process-level short-TTL cache.
+
+    Every API test stubs Upstox with its own payload for the same
+    symbol+expiry, so without a reset the second test is served the first
+    test's chain. Reset both caches around each test.
+    """
+    try:
+        from api.options import clear_option_chain_cache
+        from api.options_underlying import _cache as _underlying_cache, _locks
+    except Exception:  # pragma: no cover - options modules unavailable
+        yield
+        return
+
+    def _clear() -> None:
+        clear_option_chain_cache()
+        _underlying_cache.clear()
+        _locks.clear()
+
+    _clear()
+    yield
+    _clear()
+
+
 @pytest.fixture(scope="function")
 def client(db: Session) -> TestClient:
     def override_get_db_for_client():

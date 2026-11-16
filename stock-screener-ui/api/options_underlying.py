@@ -288,22 +288,43 @@ def _shape(
     }
 
 
-async def _cached(symbol_key: str, loader):
-    """Single-flight: concurrent tabs on one symbol cost one upstream fetch."""
+async def _session_state_now() -> str:
+    """Session state for building a cache key that cannot cross a close/open."""
+    now = _now()
+    cash_open, holiday = await asyncio.to_thread(_session_flags, now)
+    return _session_state(now, cash_open, holiday)
+
+
+async def _cached(
+    symbol_key: str,
+    loader,
+    *,
+    ttl_open: float | None = None,
+    ttl_closed: float | None = None,
+    bypass: bool = False,
+    session_state: str | None = None,
+):
+    """Single-flight: concurrent tabs on one symbol cost one upstream fetch.
+
+    ``ttl_open``/``ttl_closed`` let a quote-level payload (the option chain) use
+    a seconds-scale window while the contract listing keeps its minutes-scale
+    one, without a second cache. ``bypass`` re-fetches and replaces the entry —
+    the manual-refresh path. ``session_state`` is an already-computed value the
+    caller needed for its key; passing it saves a second holiday query.
+    """
     lock = _locks.setdefault(symbol_key, asyncio.Lock())
     async with lock:
         entry = _cache.get(symbol_key)
-        if entry and time.monotonic() - entry["ts"] < entry["ttl"]:
+        if not bypass and entry and time.monotonic() - entry["ts"] < entry["ttl"]:
             return entry["data"]
         data = await loader()
-        now = _now()
-        cash_open, holiday = await asyncio.to_thread(_session_flags, now)
+        state = session_state or await _session_state_now()
         _cache[symbol_key] = {
             "ts": time.monotonic(),
             "ttl": (
-                CACHE_TTL_OPEN_SEC
-                if _session_state(now, cash_open, holiday) == "open"
-                else CACHE_TTL_CLOSED_SEC
+                (ttl_open if ttl_open is not None else CACHE_TTL_OPEN_SEC)
+                if state == "open"
+                else (ttl_closed if ttl_closed is not None else CACHE_TTL_CLOSED_SEC)
             ),
             "data": data,
         }

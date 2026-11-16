@@ -210,6 +210,9 @@ def clear_upstox_token_cache() -> None:
     from api.upstox_token import clear_upstox_token_cache as _clear
 
     _clear()
+    # A chain fetched with the old token belongs to the old connection; a
+    # reconnect is exactly when the operator expects fresh quotes.
+    clear_option_chain_cache()
 
 
 def get_upstox_token() -> str:
@@ -520,72 +523,143 @@ def _validate_expiry(expiry: str) -> str:
     return parsed.strftime("%Y-%m-%d")
 
 
+#: The chain is a quote-level payload with two consumers: the dock (15s poll)
+#: and the options recorder, which writes a 10s chain series. The window must
+#: stay below the recorder's cadence or it would duplicate a tick, so 5s — long
+#: enough to collapse concurrent tabs, an expiry switch and the report route onto
+#: one upstream call, and well inside the UI's 30s STALE threshold
+#: (``CHAIN_STALE_AFTER_MS``). Closed, nothing changes until the next session, so
+#: the window is wider — but not hours, so a reconnect still surfaces the last
+#: prints promptly.
+CHAIN_TTL_OPEN_SEC = 5.0
+CHAIN_TTL_CLOSED_SEC = 60.0
+
+#: Every key the chain cache owns; keeps ``clear_option_chain_cache`` from
+#: touching the contract-listing entries that share the same store.
+_CHAIN_KEY_PREFIX = "option-chain:"
+
+
+def _chain_cache_key(underlying: str, expiry: str, session_state: str) -> str:
+    """Session state belongs in the key: a chain fetched while open carries
+    live LTPs and live greeks, one fetched after the close carries the last
+    session's prints. Replaying the former after the close would mislabel it.
+    """
+    return f"{_CHAIN_KEY_PREFIX}{underlying.strip().upper()}:{expiry}:{session_state}"
+
+
+def clear_option_chain_cache() -> None:
+    """Drop cached chains only (tests / after a broker reconnect)."""
+    from api.options_underlying import _cache
+
+    for key in [k for k in _cache if k.startswith(_CHAIN_KEY_PREFIX)]:
+        _cache.pop(key, None)
+
+
+async def _build_chain_response(underlying: str, expiry: str) -> dict:
+    """Upstream rows + the derived analytics, as the route returns them.
+
+    Cached whole (not just the rows) so the analysis is not recomputed on every
+    poll and ``timestamp`` stays the moment the quotes were actually read.
+    """
+    chain, spot_price = await _fetch_chain_rows(underlying, expiry)
+
+    total_ce_oi = 0
+    total_pe_oi = 0
+    atm_iv = 0
+    closest_strike_diff = float('inf')
+
+    for row in chain:
+        strike = row["strike"]
+        ce_contract = row.get("ce")
+        if ce_contract:
+            total_ce_oi += ce_contract["market_data"]["oi"]
+
+            # Check for ATM IV
+            diff = abs(strike - spot_price)
+            if diff < closest_strike_diff:
+                iv = ce_contract["option_greeks"]["iv"] if ce_contract.get("option_greeks") else 0
+                if iv > 0:
+                    closest_strike_diff = diff
+                    atm_iv = iv
+
+        pe_contract = row.get("pe")
+        if pe_contract:
+            total_pe_oi += pe_contract["market_data"]["oi"]
+
+            # Check for ATM IV (only if CE didn't give us a better one)
+            diff = abs(strike - spot_price)
+            if diff < closest_strike_diff:
+                iv = pe_contract["option_greeks"]["iv"] if pe_contract.get("option_greeks") else 0
+                if iv > 0:
+                    closest_strike_diff = diff
+                    atm_iv = iv
+
+    # Calculate DS Summary
+    expiry_date = datetime.strptime(expiry, "%Y-%m-%d").replace(tzinfo=config.IST)
+    dte = (expiry_date - datetime.now(config.IST)).days + 1
+
+    expected_move = calculate_expected_move(spot_price, atm_iv, dte)
+    max_pain = calculate_max_pain(chain)
+    pcr = total_pe_oi / total_ce_oi if total_ce_oi > 0 else 0
+
+    return {
+        "status": "ok",
+        "underlying": underlying,
+        "expiry": expiry,
+        "spot": spot_price,
+        "timestamp": datetime.now(config.IST).isoformat(),
+        "chain": chain,
+        "summary": {
+            "pcr": round(pcr, 2),
+            "max_pain": max_pain,
+            "expected_move": expected_move,
+            "total_ce_oi": total_ce_oi,
+            "total_pe_oi": total_pe_oi,
+            "dte": dte,
+            "atm_iv": atm_iv
+        }
+    }
+
+
 @router.get("/chain/{underlying}")
 async def get_option_chain(
     underlying: str,
     expiry: str = Query(..., description="Expiry date in YYYY-MM-DD format"),
+    refresh: bool = Query(False, description="Bypass the short-TTL chain cache"),
 ):
-    """Get complete option chain with server-side analysis."""
+    """Get complete option chain with server-side analysis.
+
+    Served from a single-flight short-TTL cache keyed on underlying + expiry +
+    session state. Upstream failures are never cached — the loader raises before
+    anything is written, so a 401/429 is retried on the next request.
+
+    A cache hit returns the cached ``timestamp``, not a refreshed one: the field
+    describes when the quotes were actually read, and the UI's LIVE/STALE badge
+    derives from it. Restamping a served-stale chain would claim a freshness the
+    prices do not have.
+    """
     expiry = _validate_expiry(expiry)
+    # Canonical case here, not only in the key: the payload echoes the symbol,
+    # so a lowercase request served from an uppercase entry (or vice versa)
+    # would report a different ``underlying`` than the one it was cached under.
+    symbol = str(underlying or "").strip().upper()
+    # Lazy: ``api.options_underlying`` imports this module at load time.
+    from api.options_underlying import _cached, _session_state_now
+
+    # A direct call (tests, in-process callers) skips FastAPI's dependency
+    # resolution, so ``refresh`` can still be the ``Query`` default object.
+    bypass = refresh is True
+
+    session_state = await _session_state_now()
     try:
-        chain, spot_price = await _fetch_chain_rows(underlying, expiry)
-
-        total_ce_oi = 0
-        total_pe_oi = 0
-        atm_iv = 0
-        closest_strike_diff = float('inf')
-
-        for row in chain:
-            strike = row["strike"]
-            ce_contract = row.get("ce")
-            if ce_contract:
-                total_ce_oi += ce_contract["market_data"]["oi"]
-
-                # Check for ATM IV
-                diff = abs(strike - spot_price)
-                if diff < closest_strike_diff:
-                    iv = ce_contract["option_greeks"]["iv"] if ce_contract.get("option_greeks") else 0
-                    if iv > 0:
-                        closest_strike_diff = diff
-                        atm_iv = iv
-
-            pe_contract = row.get("pe")
-            if pe_contract:
-                total_pe_oi += pe_contract["market_data"]["oi"]
-
-                # Check for ATM IV (only if CE didn't give us a better one)
-                diff = abs(strike - spot_price)
-                if diff < closest_strike_diff:
-                    iv = pe_contract["option_greeks"]["iv"] if pe_contract.get("option_greeks") else 0
-                    if iv > 0:
-                        closest_strike_diff = diff
-                        atm_iv = iv
-        
-        # Calculate DS Summary
-        expiry_date = datetime.strptime(expiry, "%Y-%m-%d").replace(tzinfo=config.IST)
-        dte = (expiry_date - datetime.now(config.IST)).days + 1
-        
-        expected_move = calculate_expected_move(spot_price, atm_iv, dte)
-        max_pain = calculate_max_pain(chain)
-        pcr = total_pe_oi / total_ce_oi if total_ce_oi > 0 else 0
-
-        return {
-            "status": "ok",
-            "underlying": underlying,
-            "expiry": expiry,
-            "spot": spot_price,
-            "timestamp": datetime.now(config.IST).isoformat(),
-            "chain": chain,
-            "summary": {
-                "pcr": round(pcr, 2),
-                "max_pain": max_pain,
-                "expected_move": expected_move,
-                "total_ce_oi": total_ce_oi,
-                "total_pe_oi": total_pe_oi,
-                "dte": dte,
-                "atm_iv": atm_iv
-            }
-        }
+        return await _cached(
+            _chain_cache_key(symbol, expiry, session_state),
+            lambda: _build_chain_response(symbol, expiry),
+            ttl_open=CHAIN_TTL_OPEN_SEC,
+            ttl_closed=CHAIN_TTL_CLOSED_SEC,
+            bypass=bypass,
+            session_state=session_state,
+        )
     except HTTPException:
         raise
     except Exception as e:
