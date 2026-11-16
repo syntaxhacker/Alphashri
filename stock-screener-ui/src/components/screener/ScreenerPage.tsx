@@ -1,4 +1,4 @@
-import { Show, Suspense, createEffect, createMemo, createSignal, lazy, onCleanup, onMount } from "solid-js";
+import { Match, Show, Suspense, Switch, createEffect, createMemo, createSignal, lazy, onCleanup, onMount } from "solid-js";
 import type { Component } from "solid-js";
 import { useParams, useNavigate, useSearchParams } from "@solidjs/router";
 import { Box, Stack, Paper, Tabs, Text, Select, Skeleton } from "@/ui";
@@ -242,25 +242,6 @@ export function ScreenerPage(props: ScreenerPageProps) {
     navigateToTab(legacyTabPath("market"), searchForTab("market"), { view: "movers" }, { replace: true });
   });
 
-  // Mount the expensive screener panel on first visit, then keep it alive.
-  // Landing on the Market tab must not pay the screener table's module/render cost.
-  const [visitedTabs, setVisitedTabs] = createSignal<ReadonlySet<string>>(
-    new Set([activeTab()]),
-  );
-  createEffect(() => {
-    const tab = activeTab();
-    setVisitedTabs((prev) => {
-      if (prev.has(tab)) return prev;
-      const next = new Set(prev);
-      next.add(tab);
-      return next;
-    });
-  });
-  // Read straight off the signal instead of memoising a rebuilt Set: the
-  // "have we mounted this tab yet" question is O(1) and must not allocate a
-  // new Set (and a new memo dependency) every time the tab changes.
-  const isVisited = (tab: string) => visitedTabs().has(tab) || activeTab() === tab;
-
   // Warm the Market chunk once the browser is idle after mount; hover/focus
   // on the tab does the same sooner. Never blocks the initial load.
   onMount(() => {
@@ -317,6 +298,29 @@ export function ScreenerPage(props: ScreenerPageProps) {
 
   const alertNotes = useAlertNotes(props);
   const hasResults = () => props.approachingStocks.length + props.touchedStocks.length > 0;
+
+  // Market is both the default tab and the transient state while a legacy
+  // `?tab=dashboard` URL converges on the path form, so one component serves
+  // the explicit Match and the Switch fallback.
+  const MarketPanel = () => (
+    <div
+      data-testid="market-tab-panel"
+      class="min-w-0 min-h-0 overflow-hidden"
+      style={{ display: "flex", flex: 1 }}
+    >
+      <Suspense fallback={<PanelFallback />}>
+        <ErrorBoundary label="Market screener">
+          <MarketTab
+            initialView={marketView()}
+            onViewChange={(v) => setSearchParams({ view: v === "table" ? null : v }, { replace: true })}
+            onOpenScan={handleOpenScan}
+            symbolAllowlist={marketSymbols()}
+            onClearSymbolAllowlist={() => setMarketSymbols([])}
+          />
+        </ErrorBoundary>
+      </Suspense>
+    </div>
+  );
 
   return (
     <Box className="w-full min-h-0 flex flex-col p-4">
@@ -429,107 +433,100 @@ export function ScreenerPage(props: ScreenerPageProps) {
           className="min-h-0 flex overflow-hidden"
           style={{ display: "flex" }}
         >
-          <div
-            data-testid="screener-panel"
-            class="min-w-0 min-h-0 flex-row gap-1"
-            style={{ display: activeTab() === "screener" ? "flex" : "none", flex: 1 }}
-          >
-            <Show when={isVisited("screener")}>
-              <Suspense fallback={<Box className="p-1"><Skeleton h={24} /></Box>}>
-                <GroupPerformancePanel />
-              </Suspense>
-              <Paper
-                radius={2}
-                flex={1}
-                p={0}
-                className="min-w-0 min-h-0 flex flex-col overflow-hidden bg-fin-surface"
+          <Switch fallback={<MarketPanel />}>
+            <Match when={activeTab() === "screener"}>
+              <div
+                data-testid="screener-panel"
+                class="min-w-0 min-h-0 flex-row gap-1"
+                style={{ display: "flex", flex: 1 }}
               >
-                <ScreenerInlineFilters
-                  activeScreener={props.activeScreener}
-                  status={props.status}
-                  notes={alertNotes()}
-                  embedded
-                />
-                <Box flex={1} className="min-h-0 overflow-hidden flex flex-col gap-1">
-                  <Suspense fallback={<PanelFallback />}>
-                    <ScreenerContent
-                      approachingStocks={props.approachingStocks}
-                      touchedStocks={props.touchedStocks}
-                      isLoading={props.isLoading}
-                      error={props.error}
-                      onRefresh={props.onRefresh}
-                      onSymbolClick={props.onSymbolClick}
-                      onSymbolHover={props.onSymbolHover}
-                      activeScreener={props.activeScreener}
-                    />
-                  </Suspense>
-                  <SelectionBar onCompare={handleCompare} />
-                </Box>
-              </Paper>
-            </Show>
-          </div>
-          <div
-            data-testid="deep-value-panel"
-            class="min-w-0 min-h-0 overflow-auto"
-            style={{ display: isValueTab() ? "flex" : "none", flex: 1 }}
-          >
-            <Suspense fallback={<PanelFallback />}>
-              <Show when={isValueTab()}>
-                <DeepValueTab />
-              </Show>
-            </Suspense>
-          </div>
-          <div
-            data-testid="fno-tab-panel"
-            class="min-w-0 min-h-0 overflow-hidden"
-            style={{ display: isFnoTab() ? "flex" : "none", flex: 1 }}
-          >
-            <Suspense fallback={<PanelFallback />}>
-              <ErrorBoundary label="Market screener">
-                <Show when={isFnoTab()}>
-                  <FnoScreenerTab />
-                </Show>
-              </ErrorBoundary>
-            </Suspense>
-          </div>
-          <div
-            data-testid="market-tab-panel"
-            class="min-w-0 min-h-0 overflow-hidden"
-            style={{ display: isMarketTab() ? "flex" : "none", flex: 1 }}
-          >
-            <Suspense fallback={<PanelFallback />}>
-              <ErrorBoundary label="Market screener">
-                <Show when={isMarketTab()}>
-                  <MarketTab
-                    initialView={marketView()}
-                    onViewChange={(v) => setSearchParams({ view: v === "table" ? null : v }, { replace: true })}
-                    onOpenScan={handleOpenScan}
-                    symbolAllowlist={marketSymbols()}
-                    onClearSymbolAllowlist={() => setMarketSymbols([])}
+                <Suspense fallback={<Box className="p-1"><Skeleton h={24} /></Box>}>
+                  <GroupPerformancePanel />
+                </Suspense>
+                <Paper
+                  radius={2}
+                  flex={1}
+                  p={0}
+                  className="min-w-0 min-h-0 flex flex-col overflow-hidden bg-fin-surface"
+                >
+                  <ScreenerInlineFilters
+                    activeScreener={props.activeScreener}
+                    status={props.status}
+                    notes={alertNotes()}
+                    embedded
                   />
-                </Show>
-              </ErrorBoundary>
-            </Suspense>
-          </div>
-          <div
-            data-testid="correlation-config-panel"
-            class="min-w-0 min-h-0 overflow-auto"
-            style={{ display: activeTab() === "correlation" || activeTab() === "config" ? "flex" : "none", flex: 1 }}
-          >
-            <Suspense fallback={<PanelFallback />}>
-              <Show when={activeTab() === "config"} fallback={
-                <Show when={activeTab() === "correlation"}>
+                  <Box flex={1} className="min-h-0 overflow-hidden flex flex-col gap-1">
+                    <Suspense fallback={<PanelFallback />}>
+                      <ScreenerContent
+                        approachingStocks={props.approachingStocks}
+                        touchedStocks={props.touchedStocks}
+                        isLoading={props.isLoading}
+                        error={props.error}
+                        onRefresh={props.onRefresh}
+                        onSymbolClick={props.onSymbolClick}
+                        onSymbolHover={props.onSymbolHover}
+                        activeScreener={props.activeScreener}
+                      />
+                    </Suspense>
+                    <SelectionBar onCompare={handleCompare} />
+                  </Box>
+                </Paper>
+              </div>
+            </Match>
+            <Match when={isValueTab()}>
+              <div
+                data-testid="deep-value-panel"
+                class="min-w-0 min-h-0 overflow-auto"
+                style={{ display: "flex", flex: 1 }}
+              >
+                <Suspense fallback={<PanelFallback />}>
+                  <DeepValueTab />
+                </Suspense>
+              </div>
+            </Match>
+            <Match when={isFnoTab()}>
+              <div
+                data-testid="fno-tab-panel"
+                class="min-w-0 min-h-0 overflow-hidden"
+                style={{ display: "flex", flex: 1 }}
+              >
+                <Suspense fallback={<PanelFallback />}>
+                  <ErrorBoundary label="Market screener">
+                    <FnoScreenerTab />
+                  </ErrorBoundary>
+                </Suspense>
+              </div>
+            </Match>
+            <Match when={isMarketTab()}>
+              <MarketPanel />
+            </Match>
+            <Match when={activeTab() === "correlation"}>
+              <div
+                data-testid="correlation-config-panel"
+                class="min-w-0 min-h-0 overflow-auto"
+                style={{ display: "flex", flex: 1 }}
+              >
+                <Suspense fallback={<PanelFallback />}>
                   <CorrelationTab />
-                </Show>
-              }>
-                <ScreenerConfigView
-                  screenerOptions={props.screenerOptions}
-                  activeScreener={props.activeScreener}
-                  onScreenerChange={props.onConfigScreenerSelect}
-                />
-              </Show>
-            </Suspense>
-          </div>
+                </Suspense>
+              </div>
+            </Match>
+            <Match when={activeTab() === "config"}>
+              <div
+                data-testid="correlation-config-panel"
+                class="min-w-0 min-h-0 overflow-auto"
+                style={{ display: "flex", flex: 1 }}
+              >
+                <Suspense fallback={<PanelFallback />}>
+                  <ScreenerConfigView
+                    screenerOptions={props.screenerOptions}
+                    activeScreener={props.activeScreener}
+                    onScreenerChange={props.onConfigScreenerSelect}
+                  />
+                </Suspense>
+              </div>
+            </Match>
+          </Switch>
         </Box>
       </Stack>
     </Box>
