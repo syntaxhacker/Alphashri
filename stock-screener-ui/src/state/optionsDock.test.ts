@@ -388,6 +388,78 @@ describe("429 handling", () => {
   });
 });
 
+describe("failed refresh", () => {
+  it("surfaces an auth error after a good frame, keeps the chain and keeps polling", async () => {
+    vi.useFakeTimers();
+    (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
+
+    open("NIFTY");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchChain).toHaveBeenCalledTimes(1);
+    expect(optionsDockState.chain?.rows).toHaveLength(2);
+
+    fetchChain.mockRejectedValueOnce(new OptionDockError("auth", "Reconnect Upstox in Settings", 401));
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(fetchChain).toHaveBeenCalledTimes(2);
+    expect(optionsDockState.error).toMatchObject({
+      kind: "auth",
+      message: "Reconnect Upstox in Settings",
+    });
+    // The last frame stays painted instead of a frozen live-looking chain.
+    expect(optionsDockState.chain?.rows).toHaveLength(2);
+    expect(optionsDockState.chain?.asOf).toBe("2026-03-24T14:52:00+05:30");
+
+    // A poll is scheduled: the next interval triggers another fetch.
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(fetchChain).toHaveBeenCalledTimes(3);
+  });
+
+  it("surfaces a 5xx upstream error and keeps polling", async () => {
+    vi.useFakeTimers();
+    (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
+
+    open("NIFTY");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchChain).toHaveBeenCalledTimes(1);
+
+    fetchChain.mockRejectedValueOnce(new OptionDockError("upstream", "Upstox unavailable", 502));
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(optionsDockState.error).toMatchObject({
+      kind: "upstream",
+      message: "Upstox unavailable",
+    });
+    expect(optionsDockState.chain?.rows).toHaveLength(2);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(fetchChain).toHaveBeenCalledTimes(3);
+  });
+
+  it("429 pauses without spinning on the regular interval", async () => {
+    vi.useFakeTimers();
+    (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
+
+    open("NIFTY");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchChain).toHaveBeenCalledTimes(1);
+
+    fetchChain.mockRejectedValueOnce(new OptionDockError("rate_limited", "slow down", 429, 8000));
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(fetchChain).toHaveBeenCalledTimes(2);
+    expect(optionsDockState.paused).toMatchObject({ reason: "rate_limited" });
+
+    // The regular 10 s cadence must not fire while paused (no spin).
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(fetchChain).toHaveBeenCalledTimes(2);
+
+    // The retry-after timer fires once and clears the pause.
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(fetchChain).toHaveBeenCalledTimes(3);
+    expect(optionsDockState.paused).toBeNull();
+  });
+});
+
 describe("frames", () => {
   it("keeps at most three chain frames", async () => {
     const { __frames } = await import("./optionsDock");
@@ -621,6 +693,49 @@ describe("strategy presets", () => {
 
     expect(optionsDockState.activePreset).toBeNull();
     expect(optionsDockState.legs).toEqual([]);
+  });
+});
+
+describe("preset vs hand-picked legs", () => {
+  it("reprices preset legs on a tick but keeps a hand-picked leg's premium", async () => {
+    open("NIFTY");
+    await flush();
+    setStrategy("long_call");
+    expect(optionsDockState.legs).toHaveLength(1);
+    expect(optionsDockState.legs[0].fromPreset).toBe(true);
+
+    // Hand-picked at a strike that IS listed, with a premium the chain never
+    // quotes — without the flag the tick would silently overwrite 999.
+    addLeg({ side: "sell", type: "CE", strike: 24100, premium: 999 });
+    const manual = optionsDockState.legs.find((leg) => leg.strike === 24100)!;
+    expect(manual.fromPreset).toBe(false);
+
+    const moved = chain();
+    moved.rows[0].ce.ltp = 130.5; // 24000 CE — the preset leg
+    moved.rows[1].ce.ltp = 77.7;  // 24100 CE — the hand-picked leg
+    fetchChain.mockResolvedValueOnce(moved);
+    await refresh();
+
+    const presetAfter = optionsDockState.legs.find((leg) => leg.strike === 24000)!;
+    const manualAfter = optionsDockState.legs.find((leg) => leg.strike === 24100)!;
+    expect(presetAfter.premium).toBeCloseTo(130.5, 6);
+    expect(presetAfter.fromPreset).toBe(true);
+    expect(manualAfter.premium).toBe(999);
+    expect(manualAfter.fromPreset).toBe(false);
+  });
+
+  it("drops a hand-picked leg when the strategy changes", async () => {
+    open("NIFTY");
+    await flush();
+    setStrategy("long_call");
+    addLeg({ side: "buy", type: "PE", strike: 24100, premium: 999 });
+    expect(optionsDockState.legs.some((leg) => leg.type === "PE" && leg.strike === 24100)).toBe(true);
+
+    setStrategy("bull_call_spread");
+
+    expect(optionsDockState.legs.some((leg) => leg.type === "PE" && leg.strike === 24100)).toBe(false);
+    expect(optionsDockState.legs.length).toBeGreaterThan(0);
+    expect(optionsDockState.legs.every((leg) => leg.fromPreset === true)).toBe(true);
   });
 });
 

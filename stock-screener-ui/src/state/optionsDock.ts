@@ -50,6 +50,10 @@ export interface DockLeg extends OptionLeg {
   /** Stable identity for `remove`/`lots`/`side` — expiry + type + strike. */
   key: string;
   expiry: string;
+  /** Built by an active preset (true) or hand-picked (false). Only preset legs
+   * get their premium re-read from the chain on a same-shape tick. Optional for
+   * legacy/consumer compatibility — a missing flag means hand-picked. */
+  fromPreset?: boolean;
 }
 
 export interface NewDockLeg {
@@ -179,7 +183,8 @@ export function loadPersistedLegs(symbol: string): DockLeg[] {
     return parsed
       .filter(isDockLeg)
       .slice(0, MAX_LEGS)
-      .map((leg) => ({ ...leg, key: legKey(leg) }));
+      // Persisted legs are always hand-picked; `activePreset` is not restored.
+      .map((leg) => ({ ...leg, key: legKey(leg), fromPreset: false }));
   } catch {
     return [];
   }
@@ -482,10 +487,15 @@ async function loadChain(symbol: string, expiry: string, reason: LoadReason): Pr
       return;
     }
 
+    // Keep the last frame painted, but surface the typed failure (an `auth`
+    // error carries "Reconnect Upstox in Settings") and keep polling so a
+    // transient 401/5xx/network blip self-heals instead of freezing the dock.
+    // Same cadence as a healthy tick — never a tight loop.
     setOptionsDockState(produce((state) => {
       state.status = state.chain ? "ready" : "error";
-      state.error = state.chain ? null : failure;
+      state.error = failure;
     }));
+    schedulePoll();
     return;
   }
 
@@ -587,13 +597,17 @@ export function addLeg(leg: NewDockLeg): boolean {
     premium,
     lots,
     lotSize: lotSizeFor({ ...leg, expiry }),
+    fromPreset: false,
   };
 
   const existing = optionsDockState.legs.find((entry) => entry.key === next.key);
   if (existing) {
+    // Overwriting a preset leg by hand takes ownership of its premium.
     setLegs(
       optionsDockState.legs.map((entry) =>
-        entry.key === next.key ? { ...entry, side: next.side, premium: next.premium } : entry,
+        entry.key === next.key
+          ? { ...entry, side: next.side, premium: next.premium, fromPreset: false }
+          : entry,
       ),
     );
     return true;
@@ -656,6 +670,7 @@ function legsFromPreset(presetId: string): DockLeg[] | null {
     ...leg,
     expiry,
     key: legKey({ expiry, type: leg.type, strike: leg.strike }),
+    fromPreset: true,
   }));
 }
 
@@ -710,8 +725,8 @@ function rebuildPresetForNewFrame(): void {
 /**
  * A preset's premium is the chain's LTP at build time; a same-shape tick must
  * move it or the payoff prices a contract at yesterday's premium. Lots and side
- * tweaks are preserved — only the premium is re-read. Hand-picked legs are
- * skipped: their premium is what the user deliberately placed.
+ * tweaks are preserved — only the premium is re-read. Hand-picked legs (and any
+ * leg the user took ownership of) keep the premium they deliberately placed.
  */
 function repricePresetLegs(): void {
   const presetId = optionsDockState.activePreset;
@@ -722,6 +737,7 @@ function repricePresetLegs(): void {
 
   let changed = false;
   const next = legs.map((leg) => {
+    if (!leg.fromPreset) return leg;
     if (leg.expiry !== chain.expiry) return leg;
     const row = chain.rows.find((entry) => entry.strike === leg.strike);
     const ltp = row ? (leg.type === "CE" ? row.ce.ltp : row.pe.ltp) : null;
