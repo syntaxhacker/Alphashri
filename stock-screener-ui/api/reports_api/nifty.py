@@ -2988,6 +2988,188 @@ def _strike_oi_snapshot(strikes: list, spot: float, n: int = 3) -> list[dict]:
     return kept
 
 
+#: Window (points) the tape's per-row ``chain`` keeps around the spot.
+#: This is exactly the window the two chain readers use: the heatmap
+#: (``niftyOiHeatmap.ts``) and the volume profile (``niftyVolumeProfile.ts``)
+#: both drop every strike outside spot ± ``widthPts``, default 500 (the
+#: workspace passes ``strikeStep * 5``). Keeping the full ~142-strike chain per
+#: minute instead — 85-90% of a 2.29 MB payload — bought the wire nothing.
+#: Do not widen a consumer's window past this without raising the constant:
+#: the served rows no longer carry the far strikes.
+TAPE_CHAIN_WINDOW_PTS = 500
+#: Outlier guard only. The widest recorded row keeps 32 strikes (2026-11-06,
+#: 629-pt session range); this cap never binds on real data and exists so a
+#: corrupt spot cannot balloon a single row.
+TAPE_CHAIN_MAX_STRIKES = 40
+#: Day-wide anchors beyond the window: the heaviest OI strike per leg and the
+#: heaviest-flow strikes, because the wall-migration detector and the
+#: participant-flow classifier rank the WHOLE chain, not the visible window.
+TAPE_CHAIN_FLOW_ANCHORS = 3
+
+
+def _day_wide_anchor_strikes(rows: list[dict]) -> set[str]:
+    """Strike keys worth keeping in EVERY row of a day.
+
+    Three consumers read a strike that is not near the current spot: the
+    wall-migration detector ranks the whole chain per frame, the volume profile
+    accumulates a strike's whole-day volume, and the participant-flow
+    classifier reports the day's heaviest flow. A day-wide "heaviest OI per leg"
+    plus "heaviest flow" set keeps those answers stable while the per-row
+    windows keep the local view intact.
+    """
+    ce: dict[str, float] = {}
+    pe: dict[str, float] = {}
+    flow: dict[str, float] = {}
+    prev: Optional[dict] = None
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        chain = row.get("chain")
+        if not isinstance(chain, dict):
+            prev = None
+            continue
+        prev_chain = (prev or {}).get("chain") or {}
+        for key, cell in chain.items():
+            if not isinstance(cell, (list, tuple)) or len(cell) < 4:
+                continue
+            ce_oi = _safe_float(cell[2])
+            pe_oi = _safe_float(cell[3])
+            if ce_oi > ce.get(key, 0.0):
+                ce[key] = ce_oi
+            if pe_oi > pe.get(key, 0.0):
+                pe[key] = pe_oi
+            prior = prev_chain.get(key) if isinstance(prev_chain, dict) else None
+            if isinstance(prior, (list, tuple)) and len(prior) >= 4:
+                amount = 0.0
+                for now_oi, then_oi, now_prem, then_prem in (
+                        (ce_oi, _safe_float(prior[2]), cell[0], prior[0]),
+                        (pe_oi, _safe_float(prior[3]), cell[1], prior[1])):
+                    premium = (_safe_float(now_prem) + _safe_float(then_prem)) / 2.0
+                    amount += abs(now_oi - then_oi) * (premium if premium > 0 else 1.0)
+                if amount:
+                    flow[key] = flow.get(key, 0.0) + amount
+        prev = row
+    anchors: set[str] = set()
+    for ranking in (ce, pe):
+        anchors.update(sorted(ranking, key=ranking.get, reverse=True)[:1])
+    anchors.update(sorted(flow, key=flow.get, reverse=True)[:TAPE_CHAIN_FLOW_ANCHORS])
+    return anchors
+
+
+def _trim_tape_chains(rows: list[dict]) -> list[dict]:
+    """Keep only the strikes the tape's UI consumers can actually read.
+
+    The on-disk tape stays complete (``scripts/wall_replay/*``,
+    ``scripts/eval_unwind_pnl.py`` and ``scripts/paper_nifty_loop.py`` read
+    arbitrary strikes from the file); this trims the SERVED rows only.
+
+    A strike survives when any of these hold:
+
+    * it is within ``TAPE_CHAIN_WINDOW_PTS`` of the day's last spot — the
+      window the heatmap and the volume profile render, or
+    * it is within ``TAPE_CHAIN_WINDOW_PTS`` of the row's OWN spot. Both sides
+      use the same width on purpose: in replay the playhead sits mid-day, so the
+      heatmap's reference spot is an EARLIER spot, and a narrower row band drops
+      edge cells at every replay cut (measured: up to 5 visible strikes per cut
+      on 2026-11-03). With them equal, all 18 recorded days lose 0 visible
+      strikes at every one of their playheads, or
+    * it is a day-wide anchor (heaviest CE/PE OI, heaviest flow) or that row's
+      heaviest CE/PE OI strike or its nearest strike to the day's median spot
+      (the fixed premium reference ``niftyPressure.ts`` uses), or
+    * it is named by the row's ``call_wall``/``put_wall``/``max_pain``/
+      ``atm_strike`` or any of its ``walls`` entries or ``strikes_top`` rows.
+
+    Trimming is signalled per row (``chain_truncated`` / ``chain_center`` /
+    ``chain_window_pts``) so a consumer can tell a shortened chain from a short
+    one. Never raises: a malformed day is returned unchanged.
+
+    Verified invariants over all 18 recorded NIFTY days: the heatmap's strike
+    universe (spot ± 500) is byte-identical to the untrimmed day at EVERY
+    replay playhead, and the wall/volume maxima are unchanged.
+    """
+    rows = [r for r in rows or [] if isinstance(r, dict)]
+    if not rows:
+        return rows
+    try:
+        spots = [_safe_float(r.get("spot")) for r in rows]
+        spots = [s for s in spots if s > 0]
+        if not spots:
+            return rows
+        last_spot = spots[-1]
+        median_spot = sorted(spots)[len(spots) // 2]
+        anchors = _day_wide_anchor_strikes(rows)
+        out: list[dict] = []
+        for row in rows:
+            chain = row.get("chain")
+            if not isinstance(chain, dict) or not chain:
+                out.append(row)
+                continue
+            spot = _safe_float(row.get("spot"))
+            keep: set[str] = set()
+            for key in chain:
+                try:
+                    strike = float(key)
+                except (TypeError, ValueError):
+                    continue
+                near_session = abs(strike - last_spot) <= TAPE_CHAIN_WINDOW_PTS
+                near_row = spot > 0 and abs(strike - spot) <= TAPE_CHAIN_WINDOW_PTS
+                if near_session or near_row:
+                    keep.add(key)
+            keep |= anchors & set(chain)
+            # The row's own named levels: a wall/max-pain/ATM strike can sit
+            # outside both bands on a wide-range day and the panel still names it.
+            named = [row.get("call_wall"), row.get("put_wall"),
+                     row.get("max_pain"), row.get("max_pain_computed"),
+                     row.get("atm_strike")]
+            walls = row.get("walls")
+            if isinstance(walls, dict):
+                for side in ("calls", "puts"):
+                    for entry in walls.get(side) or []:
+                        if isinstance(entry, dict):
+                            named.append(entry.get("strike"))
+            for strike in named:
+                value = _safe_float(strike)
+                if value:
+                    keep.add(str(int(value)))
+            for entry in row.get("strikes_top") or []:
+                if isinstance(entry, dict):
+                    value = _safe_float(entry.get("strike"))
+                    if value:
+                        keep.add(str(int(value)))
+            try:
+                heaviest = max(chain, key=lambda k: (_safe_float(chain[k][2])
+                                                     + _safe_float(chain[k][3]))
+                               if isinstance(chain[k], (list, tuple)) and len(chain[k]) >= 4
+                               else -1.0)
+                keep.add(heaviest)
+            except (TypeError, ValueError):
+                pass
+            keep.add(min(chain, key=lambda k: abs(_safe_float(k) - median_spot)))
+            if len(keep) > TAPE_CHAIN_MAX_STRIKES:
+                # Outlier guard: keep the strikes closest to the row's own spot
+                # so a corrupt spot cannot balloon a row.
+                reference = spot if spot > 0 else last_spot
+                keep = set(sorted(keep, key=lambda k: abs(_safe_float(k) - reference)
+                                  )[:TAPE_CHAIN_MAX_STRIKES])
+            # Preserve the source key order: iterating a set makes the JSON byte
+            # order vary per process, and this payload is cached/compared by size.
+            trimmed = {k: v for k, v in chain.items() if k in keep}
+            if len(trimmed) < len(chain):
+                row = {
+                    **row,
+                    "chain": trimmed,
+                    "chain_truncated": True,
+                    "chain_center": spot or last_spot,
+                    "chain_window_pts": TAPE_CHAIN_WINDOW_PTS,
+                }
+            else:
+                row = {**row, "chain": trimmed}
+            out.append(row)
+        return out
+    except Exception:
+        return rows
+
+
 #: Max chain-vs-index disagreement tolerated before the index quote wins (0.25%).
 SPOT_CHAIN_DEV_MAX = 0.0025
 #: Max minute-over-minute spot move accepted without an independent confirmation.
@@ -3545,6 +3727,11 @@ def get_nifty_tape(date: Optional[str] = Query(default=None, description="Tape d
     the recorder was alive during market hours, so gaps stay gaps. A
     missing/empty tape yields a 404 ``{is_trading_day: False}`` envelope.
     See :func:`derive_tape_rows` for the per-row formulas.
+
+    Per-row ``chain`` snapshots are trimmed to the strikes the report UI can
+    read (:func:`_trim_tape_chains`) — the recorded file keeps every strike,
+    this response does not. A shortened row carries ``chain_truncated: true``,
+    ``chain_center`` (its spot) and ``chain_window_pts``.
     """
     date_str = validate_date(date or _today_str())
     raw = read_tape(date_str)
@@ -3554,7 +3741,7 @@ def get_nifty_tape(date: Optional[str] = Query(default=None, description="Tape d
             "date": date_str,
             "message": f"no Nifty tape for {date_str}",
         })
-    rows = derive_tape_rows(raw)
+    rows = _trim_tape_chains(derive_tape_rows(raw))
     # Honest baseline: deltas are measured vs the day's FIRST recorded row,
     # which may be well after the open when the recorder booted late.
     baseline_t = rows[0].get("t") if rows else None

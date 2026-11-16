@@ -7429,7 +7429,23 @@ paths:
       - Notifications
   /api/options/chain/{underlying}:
     get:
-      description: Get complete option chain with server-side analysis.
+      description: 'Get complete option chain with server-side analysis.
+
+
+        Served from a single-flight short-TTL cache keyed on underlying + expiry +
+
+        session state. Upstream failures are never cached — the loader raises before
+
+        anything is written, so a 401/429 is retried on the next request.
+
+
+        A cache hit returns the cached ``timestamp``, not a refreshed one: the field
+
+        describes when the quotes were actually read, and the UI''s LIVE/STALE badge
+
+        derives from it. Restamping a served-stale chain would claim a freshness the
+
+        prices do not have.'
       operationId: get_option_chain_api_options_chain__underlying__get
       parameters:
       - in: path
@@ -7446,6 +7462,15 @@ paths:
           description: Expiry date in YYYY-MM-DD format
           title: Expiry
           type: string
+      - description: Bypass the short-TTL chain cache
+        in: query
+        name: refresh
+        required: false
+        schema:
+          default: false
+          description: Bypass the short-TTL chain cache
+          title: Refresh
+          type: boolean
       responses:
         '200':
           content:
@@ -10266,7 +10291,16 @@ paths:
 
         missing/empty tape yields a 404 ``{is_trading_day: False}`` envelope.
 
-        See :func:`derive_tape_rows` for the per-row formulas.'
+        See :func:`derive_tape_rows` for the per-row formulas.
+
+
+        Per-row ``chain`` snapshots are trimmed to the strikes the report UI can
+
+        read (:func:`_trim_tape_chains`) — the recorded file keeps every strike,
+
+        this response does not. A shortened row carries ``chain_truncated: true``,
+
+        ``chain_center`` (its spot) and ``chain_window_pts``.'
       operationId: get_nifty_tape_api_reports_nifty_tape_get
       parameters:
       - description: 'Tape date YYYY-MM-DD (default: today)'
@@ -10866,7 +10900,14 @@ paths:
 
         ``spot_flip``) are identical. A missing/empty tape is a 404 envelope — the
 
-        recorder only writes rows for minutes it was alive.'
+        recorder only writes rows for minutes it was alive.
+
+
+        Per-row chains are trimmed by :func:`api.reports_api.nifty._trim_tape_chains`
+
+        (the same rule the NIFTY endpoint uses), so SENSEX''s ~233-strike chain no
+
+        longer dominates the response; the recorded file keeps every strike.'
       operationId: get_options_tape_api_reports_options__underlying__tape_get
       parameters:
       - in: path

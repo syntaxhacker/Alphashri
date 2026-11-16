@@ -159,6 +159,40 @@ def test_aux_frame_has_tape_and_sensex():
     assert aux["sensex"] == sensex
 
 
+def test_aux_tape_is_chain_trimmed_like_the_http_endpoint():
+    """The WS aux frame must not reintroduce the full-chain payload.
+
+    ``_build_tape_payload`` hand-builds the same ``{date, interval_sec,
+    baseline_t, rows}`` shape as ``GET /nifty/tape``; an untrimmed aux frame
+    would put the 2.3 MB chain back on the socket path.
+    """
+    chain = {str(20000 + i * 50): [10.0, 12.0, 1000 + i, 900 + i, 10, 12]
+             for i in range(0, 142)}
+    spot = 22_700.0
+    raw = [
+        {"t": "2026-10-16T09:15:00+05:30", "spot": spot,
+         "ce_oi": 1000, "pe_oi": 1200, "ce_vol": 500, "pe_vol": 600,
+         "pcr_oi": 1.2, "strikes_top": [{"strike": 22_700}], "chain": chain},
+    ]
+    with patch(
+        "api.reports_api.nifty_ws.nifty_report.read_tape",
+        return_value=raw,
+    ), patch(
+        "api.reports_api.nifty_ws.nifty_report._today_str",
+        return_value="2026-10-16",
+    ):
+        payload = nifty_ws_module._build_tape_payload()
+    assert payload is not None
+    row = payload["rows"][0]
+    assert len(row["chain"]) < len(chain)
+    assert row["chain_truncated"] is True
+    assert row["chain_window_pts"] == nifty_report.TAPE_CHAIN_WINDOW_PTS
+    # The row's own spot ± window is what the heatmap paints.
+    visible = {k for k in chain
+               if abs(float(k) - spot) <= nifty_report.TAPE_CHAIN_WINDOW_PTS}
+    assert visible <= set(row["chain"])
+
+
 def test_aux_frame_nulls_when_no_tape_and_sensex_fails():
     client = _make_client()
     report = _tiny_report()
