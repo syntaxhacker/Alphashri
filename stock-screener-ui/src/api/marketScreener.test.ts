@@ -4,6 +4,7 @@ import { describe, expect, test, vi, beforeEach } from "vitest";
 import {
   buildMarketSnapshotUrl,
   fetchMarketSnapshot,
+  fetchQuotes,
   mapMarketRow,
   mapMarketSnapshot,
   readCachedMarketSnapshot,
@@ -57,6 +58,14 @@ describe("buildMarketSnapshotUrl", () => {
   test("force=true is only sent when requested", () => {
     expect(buildMarketSnapshotUrl({ force: true })).toContain("force=true");
     expect(buildMarketSnapshotUrl({ force: false })).not.toContain("force=");
+  });
+
+  test("symbols are sent comma-separated only when present", () => {
+    expect(buildMarketSnapshotUrl()).not.toContain("symbols=");
+    expect(buildMarketSnapshotUrl({ symbols: [] })).not.toContain("symbols=");
+    expect(buildMarketSnapshotUrl({ symbols: ["KAYNES", "IRCON"] })).toContain(
+      "symbols=KAYNES%2CIRCON",
+    );
   });
 });
 
@@ -287,6 +296,47 @@ describe("fetchMarketSnapshot", () => {
     const controller = new AbortController();
     await fetchMarketSnapshot({}, { signal: controller.signal });
     expect(mockFetchWithAuth.mock.calls[0][1]).toMatchObject({ signal: controller.signal });
+  });
+});
+
+describe("fetchQuotes", () => {
+  test("requests the snapshot symbols filter and returns only the needed fields", async () => {
+    mockFetchWithAuth.mockResolvedValueOnce(
+      mockResponse(true, {
+        rows: [
+          { symbol: "KAYNES", close: 2986, change: -12.94, name: "Kaynes Technology" },
+          { symbol: "IRCON", close: 3430, change: -1.55 },
+        ],
+      }),
+    );
+    const quotes = await fetchQuotes(["KAYNES", "IRCON"]);
+    expect(mockFetchWithAuth.mock.calls[0][0]).toContain("symbols=KAYNES%2CIRCON");
+    expect(quotes).toEqual([
+      { symbol: "KAYNES", close: 2986, change: -12.94 },
+      { symbol: "IRCON", close: 3430, change: -1.55 },
+    ]);
+  });
+
+  test("an empty symbol list short-circuits with no network call", async () => {
+    expect(await fetchQuotes([])).toEqual([]);
+    expect(await fetchQuotes(["  ", ""])).toEqual([]);
+    expect(mockFetchWithAuth).not.toHaveBeenCalled();
+  });
+
+  test("maps missing numerics to null", async () => {
+    mockFetchWithAuth.mockResolvedValueOnce(
+      mockResponse(true, { rows: [{ symbol: "NOPE" }] }),
+    );
+    expect(await fetchQuotes(["NOPE"])).toEqual([
+      { symbol: "NOPE", close: null, change: null },
+    ]);
+  });
+
+  test("throws the server detail on !ok", async () => {
+    mockFetchWithAuth.mockResolvedValueOnce(
+      mockResponse(false, { detail: "symbols accepts at most 20 symbols" }, 400),
+    );
+    await expect(fetchQuotes(["A"])).rejects.toThrow("at most 20");
   });
 });
 

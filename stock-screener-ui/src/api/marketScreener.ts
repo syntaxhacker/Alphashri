@@ -111,6 +111,8 @@ export interface MarketSnapshotParams {
   universe?: MarketUniverse;
   limit?: number;
   force?: boolean;
+  /** Optional symbol filter (≤20); applied after the cached snapshot is built. */
+  symbols?: string[];
 }
 
 export function buildMarketSnapshotUrl(params: MarketSnapshotParams = {}): string {
@@ -118,6 +120,7 @@ export function buildMarketSnapshotUrl(params: MarketSnapshotParams = {}): strin
   search.set("universe", params.universe ?? DEFAULT_MARKET_UNIVERSE);
   search.set("limit", String(params.limit ?? MARKET_SNAPSHOT_LIMIT));
   if (params.force) search.set("force", "true");
+  if (params.symbols?.length) search.set("symbols", params.symbols.join(","));
   return `${MARKET_API}/snapshot?${search.toString()}`;
 }
 
@@ -228,4 +231,35 @@ export async function fetchMarketSnapshot(
     throw new Error(err?.detail || `Market snapshot failed (HTTP ${response.status})`);
   }
   return mapMarketSnapshot((await response.json()) as RawMarketSnapshot);
+}
+
+/** The only snapshot fields the pattern dock needs for its live-price line. */
+export interface MarketQuote {
+  symbol: string;
+  close: number | null;
+  change: number | null;
+}
+
+/**
+ * Fetch live quotes for a handful of symbols via the cached snapshot's
+ * `symbols` filter. An empty list short-circuits to `[]` (no network call).
+ */
+export async function fetchQuotes(symbols: string[], init?: RequestInit): Promise<MarketQuote[]> {
+  const clean = symbols.map((s) => s.trim()).filter(Boolean);
+  if (clean.length === 0) return [];
+  const response = await fetchWithAuth(buildMarketSnapshotUrl({ symbols: clean }), init);
+  if (!response.ok) {
+    const err = (await response.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(err?.detail || `Market quotes failed (HTTP ${response.status})`);
+  }
+  const raw = (await response.json()) as RawMarketSnapshot;
+  const rows = Array.isArray(raw.rows) ? raw.rows : [];
+  return rows.map((row) => {
+    const r = row as RawMarketRow;
+    return {
+      symbol: toText(r.symbol) ?? "",
+      close: toNumber(r.close),
+      change: toNumber(r.change),
+    };
+  });
 }

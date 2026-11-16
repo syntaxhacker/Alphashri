@@ -63,6 +63,8 @@ COLUMNS = [
 
 CACHE_TTL_SECONDS = 60.0
 MAX_LIMIT = 4000
+#: Upper bound for the optional `symbols` filter on GET /api/market/snapshot.
+MAX_SYMBOLS = 20
 
 #: Disk-stale snapshot directory (gitignored experiments data).
 _STALE_DIR = Path(__file__).resolve().parents[2] / "experiments" / "data" / "market_screen"
@@ -235,6 +237,21 @@ def _shape_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             }
         )
     return shaped
+
+
+def filter_rows_by_symbols(
+    rows: list[dict[str, Any]], symbols: list[str]
+) -> list[dict[str, Any]]:
+    """Keep only rows whose symbol is in ``symbols`` (case-insensitive).
+
+    Applied to the already-built, cached snapshot so the TV scan and its TTL
+    are never bypassed by a symbol-filtered request. Unknown symbols simply
+    contribute no rows; an empty request keeps everything.
+    """
+    wanted = {s.strip().upper() for s in symbols if s.strip()}
+    if not wanted:
+        return list(rows)
+    return [row for row in rows if str(row.get("symbol") or "").upper() in wanted]
 
 
 def _compute_once(universe: str, limit: int):

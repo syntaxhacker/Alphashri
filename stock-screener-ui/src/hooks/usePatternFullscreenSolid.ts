@@ -14,6 +14,7 @@ import type {
   TrendLine,
 } from "@/types/chartPatterns";
 import { fetchPatternHit, fetchSymbolChart } from "@/api/chartPatterns";
+import { fetchQuotes } from "@/api/marketScreener";
 import {
   newestHit,
   sortHitsNewest,
@@ -44,9 +45,10 @@ export interface FullscreenChartState {
   fromDate: string | null;
   stale?: boolean;
   dataAsOf?: string | null;
-  // Follow-up (T3 live quote): no live_price/live_change field exists in this
-  // state (or in the dock open payload). Thread the market table's LTP through
-  // here before rendering a separate live line in the pattern panel.
+  /** Latest traded price from the market snapshot; null until it resolves (or on failure). */
+  livePrice?: number | null;
+  /** Day change % paired with `livePrice`; null when unavailable. */
+  liveChange?: number | null;
   /** Chart endpoint failure code (`no_data`, `fetch_timeout`, …). */
   chartError?: string | null;
   /** Human-readable reason shown instead of a blank chart. */
@@ -114,6 +116,8 @@ export function usePatternFullscreen({
       pinned: true,
       stale: false,
       dataAsOf: null,
+      livePrice: null,
+      liveChange: null,
     });
 
     const fullHit = stored ? fetchPatternHit(hit.id as number).catch(() => hit) : Promise.resolve(hit);
@@ -342,6 +346,34 @@ export function usePatternFullscreen({
     void phase1();
   };
 
+  /** Best-effort live quote; a failure leaves the LTP fields null, never blocks the chart. */
+  const fetchLiveQuote = (symbol: string, token: number) => {
+    void Promise.resolve()
+      .then(() => fetchQuotes([symbol]))
+      .then((quotes) => {
+        if (chartRequestToken !== token) return;
+        const upper = symbol.toUpperCase();
+        const quote = quotes.find((q) => q.symbol.toUpperCase() === upper);
+        setFullscreen((prev) =>
+          prev && prev.symbol === symbol
+            ? {
+                ...prev,
+                livePrice: quote?.close ?? null,
+                liveChange: quote?.change ?? null,
+              }
+            : prev,
+        );
+      })
+      .catch(() => {
+        if (chartRequestToken !== token) return;
+        setFullscreen((prev) =>
+          prev && prev.symbol === symbol
+            ? { ...prev, livePrice: null, liveChange: null }
+            : prev,
+        );
+      });
+  };
+
   const loadSymbolChart = (
     symbol: string,
     timeframe: string | undefined,
@@ -369,6 +401,8 @@ export function usePatternFullscreen({
       dataAsOf: null,
       chartError: null,
       chartNote: null,
+      livePrice: null,
+      liveChange: null,
     });
 
     void runTwoPhase(symbol, tf, token, detectPatterns, {
@@ -377,6 +411,7 @@ export function usePatternFullscreen({
       asOf: replay?.asOf ?? undefined,
       fromDate: replay?.fromDate ?? undefined,
     });
+    fetchLiveQuote(symbol, token);
   };
 
   /** Clear this symbol's cached frames and refetch the open chart in place. */

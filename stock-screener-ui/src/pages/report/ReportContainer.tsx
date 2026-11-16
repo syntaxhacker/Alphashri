@@ -69,6 +69,8 @@ export function ReportContainer() {
         asOf={fullscreen()?.asOf ?? null}
         fromDate={fullscreen()?.fromDate ?? null}
         onAsOfChange={changeFullscreenAsOf}
+        livePrice={fullscreen()?.livePrice ?? null}
+        liveChange={fullscreen()?.liveChange ?? null}
       />
     </Suspense>
   );

@@ -133,6 +133,10 @@ export interface PatternChartBodyProps {
   chartError?: string | null;
   /** Human-readable reason for an empty chart. */
   chartNote?: string | null;
+  /** Live quote from the market snapshot. The LTP line is omitted when null. */
+  livePrice?: number | null;
+  /** Day change % paired with `livePrice`. */
+  liveChange?: number | null;
   /** Right-hand panel content when no pattern is selected (page empty state). */
   emptyState?: JSX.Element;
   /**
@@ -174,6 +178,8 @@ function FullscreenPanel(props: {
   onSelectHit?: (hit: PatternHitDTO) => void;
   candles?: ChartCandle[];
   docked?: boolean;
+  livePrice?: number | null;
+  liveChange?: number | null;
 }) {
   // Enrichment is only as fresh as the frame it was captured on; the drawn
   // candles are the authority whenever the hit cannot be dated or is older.
@@ -187,10 +193,6 @@ function FullscreenPanel(props: {
     const isPrev = key != null && key !== istKeyFromDate(new Date());
     return `${isPrev ? "PREV CLOSE" : "CLOSE"} · ${barDateLabel(barDate)}`;
   };
-  // Follow-up (T3 live quote): FullscreenChartState has no live_price/live_change
-  // today. Thread the market table's LTP through the dock open payload →
-  // FullscreenChartState → PatternFullscreenView → this panel, then render a
-  // separate `LTP ₹… −12.94%` line here. Do not add a backend call in this lane.
   const activeKey = () => fullscreenHitKey(props.hit);
 
   return (
@@ -242,6 +244,25 @@ function FullscreenPanel(props: {
                 {series().changePct != null ? formatPercentage(series().changePct!, 2) : "—"}
               </Text>
             </Box>
+            <Show when={props.livePrice != null}>
+              <Box className="flex min-w-0 items-baseline gap-2" data-testid="patterns-ltp-line">
+                <Text size="xs" c="dimmed" className="text-[10px] uppercase tracking-[0.4px]">
+                  LTP
+                </Text>
+                <Text fw={600} className="font-mono tabular-nums text-[14px] leading-none">
+                  {formatPrice(props.livePrice!)}
+                </Text>
+                <Text
+                  size="xs"
+                  fw={600}
+                  className="font-mono tabular-nums text-[11px]"
+                  c={getPnLTextColor(props.liveChange ?? 0)}
+                  data-testid="patterns-ltp-change"
+                >
+                  {props.liveChange != null ? formatPercentage(props.liveChange, 2) : "—"}
+                </Text>
+              </Box>
+            </Show>
           </Box>
           <Show when={props.hit.confidence != null}>
             <Box className="flex w-28 flex-shrink-0 flex-col items-end gap-1">
@@ -473,7 +494,17 @@ export function PatternChartBody(props: PatternChartBodyProps) {
             }`}
           >
             <Show when={props.hit} fallback={props.emptyState}>
-              {(h) => <FullscreenPanel hit={h()} hits={props.hits} onSelectHit={props.onSelectHit} candles={props.candles} docked={docked()} />}
+              {(h) => (
+                <FullscreenPanel
+                  hit={h()}
+                  hits={props.hits}
+                  onSelectHit={props.onSelectHit}
+                  candles={props.candles}
+                  docked={docked()}
+                  livePrice={props.livePrice}
+                  liveChange={props.liveChange}
+                />
+              )}
             </Show>
           </Box>
         </Show>

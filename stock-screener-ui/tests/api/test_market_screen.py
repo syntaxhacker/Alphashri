@@ -281,6 +281,65 @@ def test_force_bypasses_cache(client, mock_tv):
     assert first["stale"] is False and second["stale"] is False
 
 
+# --------------------------------------------------------------------------- #
+# Optional `symbols` filter (live LTP quote fetch for the pattern dock)
+# --------------------------------------------------------------------------- #
+
+def test_symbols_filter_returns_exact_requested_rows_case_insensitive(client, mock_tv):
+    rows = [
+        RELIANCE_ROW,
+        dict(RELIANCE_ROW, name="NSE:TCS"),
+        dict(RELIANCE_ROW, name="NSE:INFY"),
+    ]
+    mock_tv.return_value = _frame(rows)
+    body = client.get("/api/market/snapshot?symbols=reliance,InFY").json()
+    assert [r["symbol"] for r in body["rows"]] == ["RELIANCE", "INFY"]
+    assert body["total"] == 2
+
+
+def test_symbols_filter_unknown_symbols_are_absent(client, mock_tv):
+    mock_tv.return_value = _frame([RELIANCE_ROW])
+    body = client.get("/api/market/snapshot?symbols=NOPE,ALSO_MISSING").json()
+    assert body["rows"] == []
+    assert body["total"] == 0
+
+
+def test_symbols_filter_empty_is_no_filter(client, mock_tv):
+    mock_tv.return_value = _frame([RELIANCE_ROW, dict(RELIANCE_ROW, name="NSE:TCS")])
+    for value in ("", ",,,", "  ,  "):
+        body = client.get(f"/api/market/snapshot?symbols={value}").json()
+        assert [r["symbol"] for r in body["rows"]] == ["RELIANCE", "TCS"]
+        assert body["total"] == 2
+
+
+def test_symbols_filter_more_than_20_is_400(client, mock_tv):
+    symbols = ",".join(f"S{i}" for i in range(21))
+    resp = client.get(f"/api/market/snapshot?symbols={symbols}")
+    assert resp.status_code == 400
+    assert "at most 20" in resp.json()["detail"]
+    assert mock_tv.call_count == 0
+
+
+def test_symbols_filter_exactly_20_is_allowed(client, mock_tv):
+    mock_tv.return_value = _frame([RELIANCE_ROW])
+    symbols = ",".join(f"S{i}" for i in range(19)) + ",RELIANCE"
+    resp = client.get(f"/api/market/snapshot?symbols={symbols}")
+    assert resp.status_code == 200
+    assert [r["symbol"] for r in resp.json()["rows"]] == ["RELIANCE"]
+
+
+def test_symbols_filter_still_serves_cache_without_force(client, mock_tv):
+    mock_tv.return_value = _frame([RELIANCE_ROW, dict(RELIANCE_ROW, name="NSE:TCS")])
+    first = client.get("/api/market/snapshot").json()
+    assert first["cached"] is False
+
+    filtered = client.get("/api/market/snapshot?symbols=tcs").json()
+    assert [r["symbol"] for r in filtered["rows"]] == ["TCS"]
+    assert filtered["total"] == 1
+    assert mock_tv.call_count == 1  # no refetch: filter runs after the cached build
+    assert filtered["cached"] is True
+
+
 def test_upstream_failure_502_without_cache(client, mock_tv):
     mock_tv.side_effect = RuntimeError("TV scanner blew up")
     resp = client.get("/api/market/snapshot?limit=123")

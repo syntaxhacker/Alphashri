@@ -2,12 +2,17 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { renderSolidHook } from "@/test-utils/solidRenderHook";
 import { fetchPatternHit, fetchSymbolChart } from "@/api/chartPatterns";
+import { fetchQuotes } from "@/api/marketScreener";
 import type { ChartPayload } from "@/types/chartPatterns";
 import { usePatternFullscreen } from "./usePatternFullscreenSolid";
 
 vi.mock("@/api/chartPatterns", () => ({
   fetchPatternHit: vi.fn(),
   fetchSymbolChart: vi.fn(),
+}));
+
+vi.mock("@/api/marketScreener", () => ({
+  fetchQuotes: vi.fn(),
 }));
 
 vi.mock("@/components/patterns/FullscreenPatternList", () => ({
@@ -33,6 +38,9 @@ describe("usePatternFullscreen refreshSymbolChart", () => {
     framePrice = 1000;
     vi.mocked(fetchPatternHit).mockResolvedValue(null as never);
     vi.mocked(fetchSymbolChart).mockImplementation(async () => chartPayload(framePrice));
+    vi.mocked(fetchQuotes).mockResolvedValue([
+      { symbol: "KAYNES", close: 2986, change: -12.94 },
+    ]);
   });
 
   afterEach(() => {
@@ -82,5 +90,58 @@ describe("usePatternFullscreen refreshSymbolChart", () => {
       const opts = call[2];
       return typeof opts === "object" && opts?.detectPatterns === false;
     })).toBe(true);
+  });
+
+  test("openFromSymbol fetches the quote and stores livePrice/liveChange", async () => {
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await vi.waitFor(() => expect(api.fullscreen()?.livePrice).toBe(2986));
+    expect(fetchQuotes).toHaveBeenCalledTimes(1);
+    expect(fetchQuotes).toHaveBeenCalledWith(["KAYNES"]);
+    expect(api.fullscreen()?.liveChange).toBe(-12.94);
+    expect(api.fullscreen()?.candles[0].c).toBe(1000);
+  });
+
+  test("previewFromSymbol (pinned=false) also fetches the quote", async () => {
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.previewFromSymbol("KAYNES");
+    await vi.waitFor(() => expect(api.fullscreen()?.livePrice).toBe(2986));
+    expect(api.fullscreen()?.pinned).toBe(false);
+    expect(fetchQuotes).toHaveBeenCalledWith(["KAYNES"]);
+  });
+
+  test("refresh refetches both the quote and the chart", async () => {
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await vi.waitFor(() => expect(api.fullscreen()?.loading).toBe(false));
+    await vi.waitFor(() => expect(api.fullscreen()?.livePrice).toBe(2986));
+    expect(fetchQuotes).toHaveBeenCalledTimes(1);
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(2);
+
+    framePrice = 2000;
+    vi.mocked(fetchQuotes).mockResolvedValueOnce([
+      { symbol: "KAYNES", close: 3010, change: -11.2 },
+    ]);
+    api.refreshSymbolChart();
+    expect(api.fullscreen()?.livePrice).toBeNull(); // reset while reloading
+    await vi.waitFor(() => expect(api.fullscreen()?.loading).toBe(false));
+    await vi.waitFor(() => expect(api.fullscreen()?.livePrice).toBe(3010));
+    expect(fetchQuotes).toHaveBeenCalledTimes(2);
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(4);
+    expect(api.fullscreen()?.candles[0].c).toBe(2000);
+  });
+
+  test("a quote failure leaves LTP null but the chart still renders", async () => {
+    vi.mocked(fetchQuotes).mockRejectedValueOnce(new Error("snapshot down"));
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await vi.waitFor(() => expect(api.fullscreen()?.loading).toBe(false));
+    expect(api.fullscreen()?.livePrice).toBeNull();
+    expect(api.fullscreen()?.liveChange).toBeNull();
+    expect(api.fullscreen()?.candles[0].c).toBe(1000);
   });
 });

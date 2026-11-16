@@ -339,6 +339,8 @@ function DockContent(props: {
             fromDate={props.state.fromDate ?? null}
             chartError={props.state.chartError ?? null}
             chartNote={props.state.chartNote ?? null}
+            livePrice={props.state.livePrice ?? null}
+            liveChange={props.state.liveChange ?? null}
             onClose={props.onClose}
             onLive={props.onLive}
           />

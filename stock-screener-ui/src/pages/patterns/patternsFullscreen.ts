@@ -14,6 +14,7 @@ import type {
   TrendLine,
 } from "@/types/chartPatterns";
 import { fetchPatternHit, fetchSymbolChart } from "@/api/chartPatterns";
+import { fetchQuotes } from "@/api/marketScreener";
 import {
   newestHit,
   sortHitsNewest,
@@ -72,6 +73,10 @@ export interface FullscreenChartState {
   chartError?: string | null;
   /** Human-readable reason shown when the chart has no candles. */
   chartNote?: string | null;
+  /** Latest traded price from the market snapshot; null until it resolves (or on failure). */
+  livePrice?: number | null;
+  /** Day change % paired with `livePrice`; null when unavailable. */
+  liveChange?: number | null;
   /** `true` when the user explicitly opened the chart; `false` for a hover preview. */
   pinned: boolean;
 }
@@ -126,6 +131,16 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
   // Symbol-chart response cache (`symbol|tf|l` = candles, `symbol|tf|p` = patterns).
   const symbolChartCache = new Map<string, { chart: SymbolChartPayload; ts: number }>();
 
+  /** Drop both cached phases (and every replay window) for one symbol+timeframe. */
+  const invalidateSymbolChartCache = (symbol: string, tf: string) => {
+    const prefix = `${symbol}|${tf}|`;
+    for (const key of symbolChartCache.keys()) {
+      if (key.startsWith(`${prefix}l|`) || key.startsWith(`${prefix}p|`)) {
+        symbolChartCache.delete(key);
+      }
+    }
+  };
+
   const mergeHits = (
     clicked: PatternHitDTO,
     fetched: PatternHitDTO[],
@@ -157,6 +172,8 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
       pinned: true,
       stale: false,
       dataAsOf: null,
+      livePrice: null,
+      liveChange: null,
     });
 
     const fullHitStored = hit.id != null ? hit.id : null;
@@ -374,11 +391,40 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
     void phase1();
   };
 
+  /** Best-effort live quote; a failure leaves the LTP fields null, never blocks the chart. */
+  const fetchLiveQuote = (symbol: string, token: number) => {
+    void Promise.resolve()
+      .then(() => fetchQuotes([symbol]))
+      .then((quotes) => {
+        if (chartRequest !== token) return;
+        const upper = symbol.toUpperCase();
+        const quote = quotes.find((q) => q.symbol.toUpperCase() === upper);
+        setFullscreen((prev) =>
+          prev && prev.symbol === symbol
+            ? {
+                ...prev,
+                livePrice: quote?.close ?? null,
+                liveChange: quote?.change ?? null,
+              }
+            : prev,
+        );
+      })
+      .catch(() => {
+        if (chartRequest !== token) return;
+        setFullscreen((prev) =>
+          prev && prev.symbol === symbol
+            ? { ...prev, livePrice: null, liveChange: null }
+            : prev,
+        );
+      });
+  };
+
   const loadSymbolChart = (
     symbol: string,
     timeframe: string | undefined,
     pinned: boolean,
     detectPatterns = true,
+    replay?: { asOf?: string | null; fromDate?: string | null },
   ) => {
     const tf = timeframe ?? args.timeframe;
     const token = chartRequest + 1;
@@ -394,18 +440,37 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
       trendLines: [],
       loading: true,
       detectPatterns,
-      asOf: null,
-      fromDate: null,
+      asOf: replay?.asOf ?? null,
+      fromDate: replay?.fromDate ?? null,
       pinned,
       patternsLoading: undefined,
       stale: false,
       dataAsOf: null,
+      livePrice: null,
+      liveChange: null,
     });
 
     void runTwoPhase(symbol, tf, token, detectPatterns, startedAt, {
       lookbackBars: args.lookbackBars,
       computeTrendlines: args.computeTrendlines,
+      asOf: replay?.asOf ?? undefined,
+      fromDate: replay?.fromDate ?? undefined,
     });
+    fetchLiveQuote(symbol, token);
+  };
+
+  /** Clear this symbol's cached frames and refetch the open chart in place. */
+  const refreshSymbolChart = () => {
+    const current = fullscreen();
+    if (!current) return;
+    invalidateSymbolChartCache(current.symbol, current.timeframe);
+    loadSymbolChart(
+      current.symbol,
+      current.timeframe,
+      current.pinned,
+      current.detectPatterns !== false,
+      { asOf: current.asOf, fromDate: current.fromDate },
+    );
   };
 
   const openFromSymbol = (symbol: string, timeframe?: string, detectPatterns = true) =>
@@ -534,6 +599,7 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
     pinFullscreen,
     changeFullscreenTimeframe,
     changeFullscreenAsOf,
+    refreshSymbolChart,
     selectFullscreenHit,
     closeFullscreen,
   };

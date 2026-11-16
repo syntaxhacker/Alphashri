@@ -108,6 +108,37 @@ describe("PatternFullscreenView", () => {
     
   });
 
+  test("livePrice/liveChange render the LTP line in both the modal and the dock", () => {
+    const modal = render(() => (
+      <PatternFullscreenView
+        opened
+        onClose={vi.fn()}
+        hit={HIT}
+        candles={[]}
+        livePrice={2986}
+        liveChange={-12.94}
+      />
+    ));
+    expect(screen.getByTestId("patterns-ltp-line")).toHaveTextContent("₹2986.00");
+    expect(screen.getByTestId("patterns-ltp-change")).toHaveTextContent("-12.94%");
+    modal.unmount();
+    cleanup();
+
+    render(() => (
+      <PatternFullscreenView
+        opened
+        docked
+        onClose={vi.fn()}
+        hit={HIT}
+        candles={[]}
+        livePrice={2986}
+        liveChange={-12.94}
+      />
+    ));
+    expect(screen.getByTestId("patterns-chart-dock")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-ltp-line")).toHaveTextContent("₹2986.00");
+  });
+
   test("dock refresh button calls onRefresh and disables while loading", () => {
     const onRefresh = vi.fn();
     const [loading, setLoading] = createSignal(false);

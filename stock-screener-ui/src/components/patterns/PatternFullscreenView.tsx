@@ -80,6 +80,10 @@ export interface PatternFullscreenViewProps {
   chartError?: string | null;
   /** Human-readable reason shown when the chart has no candles. */
   chartNote?: string | null;
+  /** Live quote from the market snapshot; the LTP line is omitted when null. */
+  livePrice?: number | null;
+  /** Day change % paired with `livePrice`. */
+  liveChange?: number | null;
   /** Re-fetch the symbol chart, bypassing the in-memory chart cache. */
   onRefresh?: () => void;
 }
@@ -130,6 +134,8 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
       chartError={props.chartError ?? null}
       chartNote={props.chartNote ?? null}
       loading={props.loading ?? false}
+      livePrice={props.livePrice}
+      liveChange={props.liveChange}
     />
   );
 
