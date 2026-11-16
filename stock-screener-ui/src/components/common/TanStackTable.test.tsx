@@ -1368,6 +1368,64 @@ describe("TanStackTable — sort cycle and controlled sorting", () => {
     expect(valueTh).toHaveAttribute("aria-sort", "none");
     expect(namesOf("controlled-sorting")).toEqual(["Zulu", "Alpha", "Mike"]);
   });
+
+  it("re-sorts when the controlled sorting prop changes after mount (saved config arriving late)", () => {
+    const [sorting, setSorting] = createSignal<SortEntry[]>([]);
+    render(() => (
+      <TanStackTable<TestItem>
+        data={cycleData}
+        columns={columns}
+        dataTestId="async-sorting"
+        sorting={sorting()}
+      />
+    ));
+    const valueTh = headerOf("async-sorting", 1);
+
+    // Incoming order on first render, nothing sorted.
+    expect(namesOf("async-sorting")).toEqual(["Zulu", "Alpha", "Mike"]);
+    expect(valueTh).toHaveAttribute("aria-sort", "none");
+
+    // Saved config arrives after mount: numeric desc → largest first.
+    setSorting([{ id: "value", desc: true }]);
+    expect(namesOf("async-sorting")).toEqual(["Zulu", "Mike", "Alpha"]);
+    expect(valueTh).toHaveAttribute("aria-sort", "descending");
+    expect(valueTh.textContent).toContain("▼");
+
+    // Direction flips to ascending on the same column.
+    setSorting([{ id: "value", desc: false }]);
+    expect(namesOf("async-sorting")).toEqual(["Alpha", "Mike", "Zulu"]);
+    expect(valueTh).toHaveAttribute("aria-sort", "ascending");
+    expect(valueTh.textContent).toContain("▲");
+
+    // Cleared: incoming order restored, header back to neutral.
+    setSorting([]);
+    expect(namesOf("async-sorting")).toEqual(["Zulu", "Alpha", "Mike"]);
+    expect(valueTh).toHaveAttribute("aria-sort", "none");
+    expect(valueTh.textContent).not.toContain("▼");
+    expect(valueTh.textContent).not.toContain("▲");
+  });
+
+  it("re-sorts a text column when a saved ascending sort arrives after mount", () => {
+    const [sorting, setSorting] = createSignal<SortEntry[]>([]);
+    render(() => (
+      <TanStackTable<TestItem>
+        data={cycleData}
+        columns={columns}
+        dataTestId="async-name-sorting"
+        sorting={sorting()}
+      />
+    ));
+    const nameTh = headerOf("async-name-sorting", 0);
+
+    expect(namesOf("async-name-sorting")).toEqual(["Zulu", "Alpha", "Mike"]);
+    expect(nameTh).toHaveAttribute("aria-sort", "none");
+
+    // A persisted sort on a text column arrives late → A→Z.
+    setSorting([{ id: "name", desc: false }]);
+    expect(namesOf("async-name-sorting")).toEqual(["Alpha", "Mike", "Zulu"]);
+    expect(nameTh).toHaveAttribute("aria-sort", "ascending");
+    expect(nameTh.textContent).toContain("▲");
+  });
 });
 
 describe("TanStackTable — null-safe sorting", () => {
