@@ -4,6 +4,10 @@ import {
   addNotification,
   removeNotification,
   clearAllNotifications,
+  currentIstDayKey,
+  acknowledgeSurgeAlerts,
+  unreadSurgeCount,
+  resetSurgeAcknowledgement,
 } from "./notificationsSlice";
 
 /**
@@ -107,6 +111,41 @@ describe("notificationsSlice", () => {
     test("works on already empty state", () => {
       clearAllNotifications();
       expect(notificationsStore.items).toHaveLength(0);
+    });
+  });
+
+  describe("surge acknowledgement", () => {
+    beforeEach(() => resetSurgeAcknowledgement());
+
+    test("unread starts equal to today's bounded count", () => {
+      expect(unreadSurgeCount(7)).toBe(7);
+    });
+
+    test("acknowledging today's alerts zeroes unread", () => {
+      acknowledgeSurgeAlerts(7);
+      expect(unreadSurgeCount(7)).toBe(0);
+    });
+
+    test("new alerts after acknowledgement increase unread", () => {
+      acknowledgeSurgeAlerts(3);
+      expect(unreadSurgeCount(5)).toBe(2);
+    });
+
+    test("never returns a negative unread count", () => {
+      acknowledgeSurgeAlerts(9);
+      expect(unreadSurgeCount(2)).toBe(0);
+    });
+
+    test("ignores non-finite and negative counts", () => {
+      expect(unreadSurgeCount(Number.NaN)).toBe(0);
+      acknowledgeSurgeAlerts(-5);
+      expect(notificationsStore.seenSurgeCount).toBe(0);
+    });
+
+    test("IST day key matches the backend midnight boundary", () => {
+      // IST midnight is 18:30 UTC the previous day.
+      expect(currentIstDayKey(Date.UTC(2026, 10, 15, 19, 0, 0))).toBe("2026-11-16");
+      expect(currentIstDayKey(Date.UTC(2026, 10, 15, 18, 29, 0))).toBe("2026-11-15");
     });
   });
 });

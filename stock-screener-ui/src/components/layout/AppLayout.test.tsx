@@ -241,7 +241,7 @@ describe("AppLayout", () => {
   });
 
   it("shows the surge alert count on the bell", async () => {
-    vi.mocked(fetchSurges).mockResolvedValueOnce({ total: 5, events: [] });
+    vi.mocked(fetchSurges).mockResolvedValueOnce({ total: 5, today_count: 5, events: [] });
     render(() => (<TestWrapper>
         <AppLayout>
           <div>Content</div>

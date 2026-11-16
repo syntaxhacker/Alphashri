@@ -3,6 +3,7 @@ import { IconBell, IconChevronLeft, IconChevronRight } from "../common/Icons";
 import { ActionIcon, Badge, Box, Stack, Text, Tooltip } from "@/ui";
 import NewsPanel2 from "../news/NewsPanel";
 import { MarketStatus, MarketTicker } from "./MarketTicker";
+import { surgeAriaLabel, surgeBadgeText, surgeTooltip } from "../notifications/surgeAlertCount";
 
 const CONTROL_SIZE = 22;
 const CONTROL_GAP = "4px";
@@ -12,6 +13,7 @@ export interface SidebarHeaderProps {
   rail?: boolean;
   /** Rendered inside the temporary (mobile) drawer. */
   mobile?: boolean;
+  /** Unread surge alerts for today (NOT the all-time row count). */
   surgeTotal: number;
   onToggleCollapse: () => void;
   onOpenNotifications: () => void;
@@ -28,21 +30,23 @@ export function SidebarHeader(props: SidebarHeaderProps) {
   // suffix: both drawers stay mounted and duplicate test ids would break
   // strict-mode queries.
   const testId = (id: string) => (props.mobile ? `${id}-mobile` : id);
-  const label = () => (props.surgeTotal > 0 ? `${props.surgeTotal} surge alerts` : "Notifications");
+  const badgeText = () => surgeBadgeText(props.surgeTotal);
 
   const bell = () => (
-    <Tooltip label={label()}>
+    <Tooltip label={surgeTooltip(props.surgeTotal)}>
       <ActionIcon
         size={CONTROL_SIZE}
         onClick={props.onOpenNotifications}
         data-testid={testId("notif-bell")}
-        aria-label={props.surgeTotal > 0 ? `Notifications, ${props.surgeTotal} surge alerts` : "Notifications"}
+        aria-label={surgeAriaLabel(props.surgeTotal)}
         variant="subtle"
       >
-        <Show when={props.surgeTotal > 0}>
-          <Badge color="error" variant="filled" size="xs" data-testid={testId("notif-badge")}>
-            {props.surgeTotal > 9 ? "9+" : props.surgeTotal}
-          </Badge>
+        <Show when={badgeText()}>
+          {(text) => (
+            <Badge color="error" variant="filled" size="xs" data-testid={testId("notif-badge")}>
+              {text()}
+            </Badge>
+          )}
         </Show>
         <IconBell size={16} stroke={1.6} />
       </ActionIcon>
