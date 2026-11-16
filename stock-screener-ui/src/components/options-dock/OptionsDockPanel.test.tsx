@@ -31,7 +31,7 @@ vi.mock("../../utils/loadEcharts", () => ({
 import { OptionDockError, type OptionDockChain, type UnderlyingInfo } from "../../api/optionsDock";
 import { OptionsDockPanel, expiryLabel } from "./OptionsDockPanel";
 import { buildPayoff } from "./PayoffPanel";
-import { __resetOptionsDock, addLeg, open, optionsDockState, refresh } from "../../state/optionsDock";
+import { __resetOptionsDock, addLeg, open, optionsDockState, refresh, setOptionsDockState } from "../../state/optionsDock";
 
 function listing(overrides: Partial<UnderlyingInfo> = {}): UnderlyingInfo {
   return {
@@ -138,8 +138,8 @@ describe("OptionsDockPanel", () => {
     const atmRows = document.querySelectorAll('[data-atm="true"]');
     expect(atmRows).toHaveLength(1);
     expect(atmRows[0].getAttribute("data-testid")).toBe("options-chain-row-24000");
-    // ATM tint comes from the palette, never a raw hex.
-    expect((atmRows[0] as HTMLElement).style.backgroundColor).toBeTruthy();
+    // ATM tint is a theme token, never a hard-coded dark colour.
+    expect((atmRows[0] as HTMLElement).style.backgroundColor).toContain("var(--");
   });
 
   test("clicking a CE price adds a buy leg and shift-click adds a sell leg", async () => {
@@ -232,6 +232,63 @@ describe("OptionsDockPanel", () => {
     await waitFor(() => expect(screen.getByTestId("options-dock-error")).toBeInTheDocument());
     expect(screen.getByTestId("options-dock-error")).toHaveTextContent("Reconnect Upstox in Settings");
     expect(screen.getByTestId("options-dock-retry")).toBeInTheDocument();
+    // The full-panel cold state never paints a chain, and only one error slot exists.
+    expect(screen.queryByTestId("options-chain-table")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("options-dock-error")).toHaveLength(1);
+  });
+
+  test("a failed refresh with a painted chain shows the banner and Retry refreshes", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+
+    setOptionsDockState("error", { kind: "auth", message: "Reconnect Upstox in Settings" });
+
+    const banner = screen.getByTestId("options-dock-error");
+    expect(banner).toHaveTextContent("Reconnect Upstox in Settings");
+    expect(screen.getAllByTestId("options-dock-error")).toHaveLength(1);
+    // The last frame stays on screen behind the banner.
+    expect(screen.getByTestId("options-ce-24000")).toBeInTheDocument();
+
+    const before = fetchChain.mock.calls.length;
+    await fireEvent.click(screen.getByTestId("options-dock-retry"));
+    await waitFor(() => expect(fetchChain.mock.calls.length).toBeGreaterThan(before));
+    await waitFor(() => expect(screen.queryByTestId("options-dock-error")).not.toBeInTheDocument());
+  });
+
+  test("a non-auth failure surfaces the raw error message", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+
+    setOptionsDockState("error", { kind: "upstream", message: "Upstox unavailable" });
+
+    const banner = screen.getByTestId("options-dock-error");
+    expect(banner).toHaveTextContent("Upstox unavailable");
+    expect(banner).not.toHaveTextContent("Reconnect Upstox in Settings");
+    expect(screen.getByTestId("options-chain-table")).toBeInTheDocument();
+  });
+
+  test("not_fno and rate failures use their dedicated banner messages", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+
+    setOptionsDockState("error", { kind: "not_fno", message: "raw not_fno detail" });
+    expect(screen.getByTestId("options-dock-error")).toHaveTextContent("No listed options");
+
+    setOptionsDockState("error", { kind: "rate_limited", message: "slow down" });
+    expect(screen.getByTestId("options-dock-error")).toHaveTextContent("Refreshing paused");
+  });
+
+  test("no banner when the store has no error", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+
+    expect(optionsDockState.error).toBeNull();
+    expect(screen.queryByTestId("options-dock-error")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("options-dock-retry")).not.toBeInTheDocument();
   });
 
   test("429 keeps the chain painted and shows the paused chip", async () => {

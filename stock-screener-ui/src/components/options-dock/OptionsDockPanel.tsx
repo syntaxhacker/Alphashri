@@ -45,6 +45,37 @@ function istToday(): string {
   }).format(new Date());
 }
 
+type DockFailure = { kind: string; message: string };
+
+/**
+ * A failed refresh keeps the last chain painted and stores the typed failure in
+ * `error` while `status` stays `ready`. The banner wording mirrors the cold
+ * panel for `auth`, and adds the two cases that only arise once a chain exists.
+ */
+function bannerMessage(error: DockFailure): string {
+  switch (error.kind) {
+    case "auth":
+      return "Reconnect Upstox in Settings";
+    case "rate":
+    case "rate_limited": {
+      const retryAfterMs = optionsDockState.paused?.retryAfterMs ?? 0;
+      return retryAfterMs > 0
+        ? `Refreshing paused — retry in ${Math.ceil(retryAfterMs / 1000)} s`
+        : "Refreshing paused — rate limited";
+    }
+    case "not_fno":
+      return "No listed options";
+    default:
+      return error.message;
+  }
+}
+
+function bannerColor(error: DockFailure): string {
+  return error.kind === "rate" || error.kind === "rate_limited" || error.kind === "not_fno"
+    ? "var(--color-fin-warning)"
+    : "var(--color-fin-negative)";
+}
+
 /**
  * `26 MAR · 2d`, `26 MAR · 0-DTE`, `26 MAR · EXPIRED`.
  *
@@ -382,6 +413,33 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
               dteDays={selectedExpiry()?.dteDays ?? 0}
               dteYears={dteYears()}
             />
+            <Show when={optionsDockState.error && optionsDockState.status !== "error"}>
+              <Box
+                data-testid="options-dock-error"
+                className="flex h-[26px] shrink-0 items-center gap-2 overflow-hidden border-l-[3px] bg-fin-surface-alt px-2"
+                style={{ "border-left-color": bannerColor(optionsDockState.error!) }}
+              >
+                <Text
+                  size="xs"
+                  fw={600}
+                  className="min-w-0 flex-1 truncate font-mono"
+                  style={{ "font-size": "10px", color: bannerColor(optionsDockState.error!) }}
+                >
+                  {bannerMessage(optionsDockState.error!)}
+                </Text>
+                <Box
+                  component="button"
+                  type="button"
+                  aria-label="Retry option chain refresh"
+                  data-testid="options-dock-retry"
+                  onClick={() => void refresh()}
+                  className="inline-flex h-[20px] shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 font-mono text-[10px] font-semibold hover:underline"
+                  style={{ color: bannerColor(optionsDockState.error!) }}
+                >
+                  Retry
+                </Box>
+              </Box>
+            </Show>
             <OptionChainTable
               rows={chain()!.rows}
               spot={spot()}
