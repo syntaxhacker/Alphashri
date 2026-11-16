@@ -3130,16 +3130,25 @@ def _matrix_rows(pairs) -> list[dict]:
             if row["name"] is None and item.get("name"):
                 row["name"] = item.get("name")
             hit_tf = str(item.get("timeframe") or timeframe or "")
-            # A stored hit may carry a close captured at an older frame. When a
-            # current frame is known its close/change/date are one triple from
-            # that frame; a stale item's values must never be paired with a
-            # different frame's date.
+            # A stored hit may carry a close captured at an older frame. A known
+            # frame is usable only as a whole triple (date + close + change from
+            # that same frame). Some frames have an identity but no bar date
+            # (e.g. a non-datetime index); taking their fresh close while falling
+            # back to the item's stale date would fabricate a cross-frame pair.
+            # In that case use the item's own triple in full instead.
             current_close, current_change, current_bar_date = _known_frame_close(symbol, hit_tf)
-            row["_candidates"].append((
-                current_bar_date if current_bar_date is not None else item.get("close_bar_date"),
-                current_close if current_close is not None else item.get("last_close"),
-                current_change if current_change is not None else item.get("day_change_pct"),
-            ))
+            if (
+                isinstance(current_bar_date, str) and current_bar_date
+                and current_close is not None
+                and current_change is not None
+            ):
+                row["_candidates"].append((current_bar_date, current_close, current_change))
+            else:
+                row["_candidates"].append((
+                    item.get("close_bar_date"),
+                    item.get("last_close"),
+                    item.get("day_change_pct"),
+                ))
             row["groups"].setdefault(hit_tf, []).append(item)
             row["hits"].append(item)
 

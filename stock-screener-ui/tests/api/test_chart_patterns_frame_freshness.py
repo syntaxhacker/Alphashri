@@ -292,3 +292,75 @@ def test_matrix_without_frame_has_no_bar_date():
 
     assert rows[0]["ltp"] == 3382.0
     assert rows[0].get("close_bar_date") is None
+
+
+def _range_index_frame(closes) -> pd.DataFrame:
+    """A frame with an identity but no bar date (non-datetime index)."""
+    return pd.DataFrame({
+        "open": closes,
+        "high": [c + 1 for c in closes],
+        "low": [c - 1 for c in closes],
+        "close": closes,
+        "volume": [1000.0] * len(closes),
+    })
+
+
+def _matrix_client_get(monkeypatch, items):
+    """Drive the real /matrix endpoint with a controlled store response."""
+    monkeypatch.setattr(
+        cp_api.store, "query_results",
+        lambda *a, **k: (list(items), len(items), {"data_through": "2026-11-10"}),
+    )
+    app = FastAPI()
+    app.include_router(router)
+    try:
+        with TestClient(app) as client:
+            return client.get(
+                "/api/chart-patterns/matrix",
+                params={"universe": "custom", "timeframes": "1D"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_matrix_rangeindex_frame_never_fuses_item_date_with_fresh_close(monkeypatch):
+    """An identity without a bar date cannot fuse the item's date with the frame's close."""
+    df = _range_index_frame([3300.0, 3430.0])
+    assert cp_api._frame_identity(df) is not None
+    assert cp_api._close_bar_date(df) is None
+    cp_api._remember_frame(("KAYNES", "1D"), df, 3430.0, 1.42)
+
+    item = _stale_item()
+    item["close_bar_date"] = "2026-11-10"
+    item["last_close"] = 3382.0
+    item["day_change_pct"] = 2.48
+
+    resp = _matrix_client_get(monkeypatch, [item])
+
+    assert resp.status_code == 200
+    row = resp.json()["rows"][0]
+    # Never the item's stale date welded onto the fresh RangeIndex-frame close.
+    assert (row["close_bar_date"], row["ltp"]) != ("2026-11-10", 3430.0)
+    # The date is either absent or the item's own, and in both cases the close
+    # and change are the item's own too — one triple from a single source.
+    assert (row["close_bar_date"], row["ltp"], row["day_change_pct"]) in {
+        (None, 3382.0, 2.48),
+        ("2026-11-10", 3382.0, 2.48),
+    }
+
+
+def test_matrix_datetimeindex_frame_pairs_fresh_date_and_close(monkeypatch):
+    """A normal datetime-index frame still contributes its whole fresh triple."""
+    df = _frame([3300.0, 3430.0], "2026-11-13")
+    cp_api._remember_frame(("KAYNES", "1D"), df, 3430.0, 1.42)
+
+    item = _stale_item()
+    item["close_bar_date"] = "2026-11-10"  # older date must not win
+
+    resp = _matrix_client_get(monkeypatch, [item])
+
+    assert resp.status_code == 200
+    row = resp.json()["rows"][0]
+    assert row["close_bar_date"] == "2026-11-13"
+    assert row["ltp"] == 3430.0
+    assert row["day_change_pct"] == 1.42
