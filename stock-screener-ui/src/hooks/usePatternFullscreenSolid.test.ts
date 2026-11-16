@@ -200,6 +200,33 @@ describe("usePatternFullscreen refreshSymbolChart", () => {
     expect(api.fullscreen()?.hit?.id).toBe(oldest.id); // selection survives refresh
   });
 
+  test("refresh takes the same-identity hit from the new payload (new close_bar_date wins)", async () => {
+    const oldHit = { ...makeHit(1, "2026-11-13"), close_bar_date: null, last_close: 3550, day_change_pct: 3.5 };
+    const newest = makeHit(2, "2026-11-13");
+    const refreshed = { ...makeHit(1, "2026-11-13"), close_bar_date: "2026-11-16", last_close: 3600, day_change_pct: 2.86 };
+    vi.mocked(fetchSymbolChart).mockImplementation(async () => chartPayload(framePrice, [newest, oldHit]));
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+    expect(api.fullscreen()?.hit?.id).toBe(newest.id); // fresh open defaults to newest
+
+    api.selectFullscreenHit(oldHit);
+    expect(api.fullscreen()?.hit?.id).toBe(oldHit.id);
+    expect(api.fullscreen()?.hit?.close_bar_date).toBeNull();
+
+    vi.mocked(fetchSymbolChart).mockImplementation(async () => chartPayload(framePrice, [newest, refreshed]));
+    api.refreshSymbolChart();
+    await settled(api);
+    const hit = api.fullscreen()?.hit;
+    expect(hit?.id).toBe(1); // identity preserved
+    expect(hit?.close_bar_date).toBe("2026-11-16"); // object taken from the new payload
+    expect(hit?.last_close).toBe(3600);
+    expect(hit?.day_change_pct).toBe(2.86);
+    expect(hit).not.toBe(oldHit); // not the stale old object
+  });
+
   test("refresh preserves a card-opened hit without any explicit list selection", async () => {
     const newest = makeHit(1, "2026-11-13");
     const picked = makeHit(3, "2026-11-11");

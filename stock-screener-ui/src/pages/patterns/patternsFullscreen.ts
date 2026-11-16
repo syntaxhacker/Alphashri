@@ -366,14 +366,19 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
       setFullscreen((prev) => {
         if (!prev || prev.symbol !== symbol || prev.timeframe !== tf) return prev;
         const current = prev.hit;
-        const survives = !!current &&
-          hits.some((h) => fullscreenHitIdentity(h) === fullscreenHitIdentity(current));
+        // Preserve the selection identity, but take the object from the new
+        // hits array — the old object carries a stale `close_bar_date` (null),
+        // which would make the panel fall back to the chart close instead of
+        // the refreshed hit's own dated pair.
+        const matches = current
+          ? hits.find((h) => fullscreenHitIdentity(h) === fullscreenHitIdentity(current))
+          : undefined;
         return {
           ...prev,
           ...staleFields(chart),
           ...chartProblem(chart),
           hit: preserveCurrentHit
-            ? survives ? current : newestHit(hits)
+            ? matches ?? newestHit(hits)
             : resolveHit(hits),
           hits,
           trendLines: chart.trend_lines ?? [],
