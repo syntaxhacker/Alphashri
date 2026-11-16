@@ -801,3 +801,36 @@ outside `palette.ts`) · `bun run lint` (0 warnings) · `bun run build`.
 11. Don't reuse `useOptionsState`/`optionsStore` (they belong to the `/options` route —
     `src/state/optionsStore.ts`, consumed by `src/hooks/useOptionsState.ts`). A shared store would
     couple the dock's cache/abort lifecycle to a page the user may never open.
+
+## Layout invariants (measured, 2026-11)
+
+The dock is a **flex column**, never a percentage-height tree. Every ancestor's
+height comes from flex stretch, so its *specified* height is `auto`; a child
+with `height: 100%` therefore resolves against content, not the viewport. That
+is how the panel once grew to 1342px inside an 824px outlet and the chain table
+to 919px, pushing STRATEGY / LEGS / PAYOFF off-screen and scrolling the outlet
+to `y = -199`.
+
+Correct chain:
+
+- `ChartDockOutlet` is `flex flex-col min-h-0 overflow-hidden`; a `style.css`
+  rule makes its portal child (`> *`) a column flex box with `flex: 1 1 auto;
+  min-height: 0`.
+- All three `SymbolDockProvider` wrappers use **`flex-1`**, not `h-full`.
+- The panel root is `flex flex-1 min-h-0 w-full flex-col overflow-hidden`.
+- The CHAIN `DockSection` is `flex-1` with `min-h-[160px]`; its table scrolls
+  internally. The payoff keeps its fixed `206px`; legs/strategy are `shrink-0`.
+
+Verified at 1600×980: outlet 824, panel 824, chain 459 (client 401 / scroll
+919), payoff at `y=759`, bottom 964 ≤ viewport.
+
+Other invariants:
+
+- A failed chain refresh keeps the last frame, sets the typed error and
+  **reschedules polling**. The panel renders a 26px banner above the table
+  (Retry, auth → "Reconnect Upstox in Settings"); the cold full-panel error is
+  only for "no chain yet".
+- OI bars use `sqrt(oi / max)` with a 2px floor. OI is heavy-tailed — one
+  1.44M-OI strike made the linear median bar 3.75px. The printed number is the
+  exact value; the bar is a visual rank.
+- Zero OI renders `0`; missing IV/delta renders `—`. Never conflate the two.

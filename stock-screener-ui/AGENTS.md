@@ -145,16 +145,9 @@ src/
   - Falls back to 20s polling on disconnect/error
 - **Price vs Polling**: WebSocket delivers first tick in ~30ms vs REST ~174ms. Live ticks stream at ~4/sec during market hours.
 
-## Toasts (solid-notifications)
-- The library stylesheet **must** be imported in `src/main.tsx`: `import "solid-notifications/index.css"`. Without it `.sn-toast-wrapper` stays `position: static` and the SVG icon stretches to the full page width (the "giant arcs + X" artifact). Guarded by `src/test/toast-stylesheet.test.ts`.
-- `<Toaster>` gets `theme={colorScheme()}` from `useColorScheme()` so toasts follow the app theme (default is light inside a dark app), and `limit` caps the stack — the initial 52W load can emit one surge toast per ±5% stock.
-- Do not restyle `.sn-*` globally; the library owns its tokens (`--sn-*`).
-
-## Options Dock layout (hard-won)
-- **Never size the dock with percentages.** Every ancestor's height comes from flex stretch, so its *specified* height is `auto` and `height: 100%` resolves to content. The chain table grew to 919px and pushed STRATEGY/LEGS/PAYOFF off-screen.
-- Correct chain: `chart-dock-outlet` is a **column flex container** (plus a rule making its portal child flex), the three `SymbolDockProvider` wrappers use `flex-1` (not `h-full`), the panel root is `flex-1`, and the CHAIN `DockSection` is `flex-1 min-h-[160px]`. The chain's table scrolls internally; the payoff keeps its 206px.
-- A failed chain refresh keeps the last frame, sets the typed error and **reschedules polling**; the panel shows a 26px inline banner (Retry) above the table — the cold full-panel error only appears when there is no chain.
-- OI bars use a **√ scale** (`sqrt(oi/max)`) plus a 2px floor: OI is heavy-tailed (one 1.44M strike flattens every other bar under a linear scale). The printed number is the exact value.
+## Behavioural guards (UI)
+- **Toasts**: `solid-notifications/index.css` must stay imported in `src/main.tsx`, and `.sn-*` must not be restyled. Details: [docs/NOTIFICATIONS.md](./docs/NOTIFICATIONS.md).
+- **Options dock sizing**: use flex for height, never percentage heights or `h-full` through a flex-stretched chain. Details: [docs/OPTIONS_CHAIN_COMPONENT_PLAN.md](./docs/OPTIONS_CHAIN_COMPONENT_PLAN.md).
 
 ## CSS
 - `style.css` holds only flash animations + `box-sizing` + body tokens; `divider` is no longer used as text color (was grey wash — win/loss same)
