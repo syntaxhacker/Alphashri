@@ -227,32 +227,54 @@ def _fill_days_ago_from_upstox(stocks: list[dict], api, use_api: bool, touched_g
             continue
 
 
-def _load_range_price_as_of(symbols: list[str]) -> dict[str, str]:
+def _load_range_price_as_of(symbols: list[str], ranges: dict | None = None) -> dict[str, str]:
     """Verification timestamp of each stored range row, for the price's as-of.
 
-    ``load_all_52w_ranges`` deliberately drops ``updated_at``, so this is the one
-    cheap query that lets a row say how old its stored close is instead of
-    presenting it as today's LTP.
-    The table is one row per symbol, so a single scan beats an IN list of ~2k.
+    The bulk payload now carries ``updated_at``, so the common case is a dict
+    lookup with no DB round-trip. Caches written before that field existed fall
+    back to a primary-key-scoped query for just the missing symbols (never a
+    full ``stock_52w_range`` scan per screener call). Output stays
+    ``{symbol: iso_timestamp}``.
     """
     wanted = set(symbols)
     if not wanted:
         return {}
+    out: dict[str, str] = {}
+    missing = set(wanted)
+
+    for sym in wanted:
+        info = ranges.get(sym) if ranges else None
+        if not isinstance(info, dict):
+            continue
+        ts = info.get("updated_at")
+        if isinstance(ts, str) and ts:
+            out[sym] = ts
+            missing.discard(sym)
+        elif hasattr(ts, "isoformat"):
+            out[sym] = ts.isoformat()
+            missing.discard(sym)
+
+    if not missing:
+        return out
+
     try:
         from db.models.stock_52w_touch import Stock52WeekRange
 
         db = SessionLocal()
         try:
-            rows = db.query(Stock52WeekRange.symbol, Stock52WeekRange.updated_at).all()
-            return {
-                sym: ts.isoformat()
-                for sym, ts in rows
-                if ts is not None and sym in wanted
-            }
+            rows = (
+                db.query(Stock52WeekRange.symbol, Stock52WeekRange.updated_at)
+                .filter(Stock52WeekRange.symbol.in_(list(missing)))
+                .all()
+            )
+            for sym, ts in rows:
+                if ts is not None:
+                    out[sym] = ts.isoformat()
         finally:
             db.close()
     except Exception:
-        return {}
+        pass
+    return out
 
 
 def _build_52w_candidates(ranges: dict, touched_gap_pct: float, max_gap: float, screener: str, api=None,
@@ -383,7 +405,7 @@ def build_52w_skeleton_data(profile_filters=None, provider='upstox', mode='histo
         profile_filters.get('max_52w_gap') if profile_filters else None,
         10,
     )
-    price_as_of = _load_range_price_as_of(list(ranges.keys()))
+    price_as_of = _load_range_price_as_of(list(ranges.keys()), ranges)
     candidates = _build_52w_candidates(
         ranges, touched_gap_pct, max_gap, screener, api=None,
         price_as_of=price_as_of, skeleton=True,
@@ -446,7 +468,7 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
 
     candidates = _build_52w_candidates(
         ranges, touched_gap_pct, max_gap, screener, api,
-        price_as_of=_load_range_price_as_of(list(ranges.keys())),
+        price_as_of=_load_range_price_as_of(list(ranges.keys()), ranges),
     )
 
     # Enrich candidates with real TV data (volume etc) BEFORE the vol filter,

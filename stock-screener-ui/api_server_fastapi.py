@@ -166,6 +166,13 @@ def _sanitize_52w_range_entry(info) -> dict | None:
             out["days_ago"] = max(0, int(days))
         except (TypeError, ValueError):
             pass
+    # Carry the verification time into the bulk payload so the screener can read
+    # a row's as-of without re-scanning stock_52w_range on every request.
+    ts = info.get("updated_at")
+    if isinstance(ts, str) and ts:
+        out["updated_at"] = ts
+    elif hasattr(ts, "isoformat"):
+        out["updated_at"] = ts.isoformat()
     return out
 
 
@@ -180,11 +187,35 @@ def _sanitize_52w_ranges_bulk(data: dict) -> dict:
 
 
 def _store_52w_ranges_in_redis(data: dict):
-    """Store 52W ranges per-symbol and as bulk JSON in Redis."""
+    """Store every 52W range in one bulk Redis key (no per-symbol churn).
+
+    The batch writes ~3k symbols hourly; one round-trip to the bulk key replaces
+    thousands of per-symbol SETs whose 10-minute TTL mostly missed anyway.
+    """
     from cache.redis_client import cache_set
     clean = _sanitize_52w_ranges_bulk(data)
-    for symbol, info in clean.items():
-        cache_set(f"52w_range:{symbol}", info, ttl=_52W_RANGE_CACHE_TTL)
+
+    # Stamp verification time once per batch from the freshly-persisted rows so
+    # entries that arrived from the scanner (no updated_at) still carry an as-of.
+    try:
+        from db.database import SessionLocal
+        from db.models.stock_52w_touch import Stock52WeekRange
+
+        db = SessionLocal()
+        try:
+            stamps = {
+                row.symbol: row.updated_at.isoformat()
+                for row in db.query(Stock52WeekRange.symbol, Stock52WeekRange.updated_at).all()
+                if row.updated_at is not None
+            }
+        finally:
+            db.close()
+        for symbol, entry in clean.items():
+            if "updated_at" not in entry and symbol in stamps:
+                entry["updated_at"] = stamps[symbol]
+    except Exception:
+        pass
+
     cache_set("52w_range:all", clean, ttl=_52W_RANGE_CACHE_TTL)
 
     # Also clear the paper trading 52W file cache
@@ -1435,27 +1466,19 @@ async def get_screener_data(
 
 @app.get("/api/52w-range", tags=["screener"], summary="52-week range for one symbol")
 async def get_52w_range(symbol: str = Query(...)):
-    """Get 52-week high/low for a single symbol. Checks Redis first, falls back to DB."""
-    from cache.redis_client import cache_get
+    """Get 52-week high/low for one symbol from the bulk range cache.
+
+    The per-symbol ``52w_range:{symbol}`` keys are gone: the bulk key already
+    holds every row, so there is one cached payload to read regardless of how
+    many symbols are requested.
+    """
     import asyncio
+    from trading.week52_range_lookup import get_52w_range as lookup_52w_range
 
-    cached = await asyncio.to_thread(lambda: cache_get(f"52w_range:{symbol}"))
-    if cached and isinstance(cached, dict):
-        entry = _sanitize_52w_range_entry(cached)
-        if entry:
-            return entry
-
-    from db.database import SessionLocal
-    from db.models.stock_52w_touch import Stock52WeekRange
-
-    db = SessionLocal()
-    try:
-        row = db.query(Stock52WeekRange).filter(Stock52WeekRange.symbol == symbol).first()
-        if row:
-            return {"high": row.high_52w, "low": row.low_52w, "close": row.close}
-        return {"error": "not_found", "symbol": symbol}
-    finally:
-        db.close()
+    entry = await asyncio.to_thread(lookup_52w_range, symbol)
+    if entry:
+        return entry
+    return {"error": "not_found", "symbol": symbol}
 
 
 @app.get("/api/52w-range/bulk", tags=["screener"], summary="52-week ranges for many symbols")
