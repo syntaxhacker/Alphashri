@@ -1369,7 +1369,185 @@ class Test52wHighColdStartFallback:
             await rc.stale_while_revalidate("screener:test", slow, compute_timeout=0.01)
 
 
-class TestScreenerWarmSingleFlight:
+class Test52wSkeletonTruthfulness:
+    """The warming skeleton must not invent data the snapshot does not carry."""
+
+    @pytest.fixture
+    def sessions(self, db, monkeypatch):
+        from sqlalchemy.orm import sessionmaker
+
+        TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db.get_bind())
+        monkeypatch.setattr("api.screener_api.screener_52w.SessionLocal", TestSessionLocal)
+        monkeypatch.setattr("api.screener_api.screener_scan.SessionLocal", TestSessionLocal)
+        return db
+
+    def _ranges(self, monkeypatch, ranges):
+        monkeypatch.setattr(
+            "api.screener_api.screener_52w.load_all_52w_ranges", lambda: ranges,
+        )
+
+    def test_skeleton_nulls_live_metrics_and_reports_pending_volume_gates(
+        self, sessions, monkeypatch
+    ):
+        from api.screener_api.screener_52w import build_52w_skeleton_data
+
+        self._ranges(monkeypatch, {
+            'RELIANCE': {'high': 1611.8, 'low': 1290.0, 'close': 1580.0},
+        })
+
+        data = build_52w_skeleton_data(profile_filters={'max_52w_gap': 10})
+
+        row = next(s for s in data['approaching'] + data['touched'] if s['symbol'] == 'RELIANCE')
+        assert row['volume_m'] is None
+        assert row['rsi'] is None
+        assert row['adx'] is None
+        assert row['day_change'] is None
+        assert 'min_turnover_cr' in data['pending_filters']
+        assert 'min_turnover_cr' in data['warning']
+
+    def test_skeleton_survives_zero_defaults_on_live_metrics(self, sessions, monkeypatch):
+        """min_volume_m=0 means the gate is inert and must not be reported as pending."""
+        from api.screener_api.screener_52w import build_52w_skeleton_data
+
+        self._ranges(monkeypatch, {
+            'RELIANCE': {'high': 1611.8, 'low': 1290.0, 'close': 1580.0},
+        })
+
+        data = build_52w_skeleton_data(
+            profile_filters={'max_52w_gap': 10, 'min_volume_m': 0, 'min_turnover_cr': 0},
+        )
+        assert data['pending_filters'] == []
+
+    def test_old_stored_close_is_not_labelled_ltp_or_today(self, sessions, monkeypatch):
+        from datetime import timedelta
+
+        from db.models import Stock52WeekRange
+        from api.screener_api.screener_52w import build_52w_skeleton_data
+
+        old_session = datetime.now() - timedelta(days=40)
+        sessions.add(Stock52WeekRange(
+            symbol='STALEISH', high_52w=1000.0, low_52w=800.0,
+            close=995.0, days_ago=45, updated_at=old_session,
+        ))
+        sessions.commit()
+        self._ranges(monkeypatch, {
+            'STALEISH': {'high': 1000.0, 'low': 800.0, 'close': 995.0, 'days_ago': 45},
+        })
+
+        data = build_52w_skeleton_data(profile_filters={'max_52w_gap': 10})
+
+        row = next(s for s in data['touched'] if s['symbol'] == 'STALEISH')
+        assert row['ltp_fresh'] is False
+        assert row['price_as_of'].startswith(old_session.date().isoformat())
+        assert row['days_ago'] == 45, 'an old stored close must not become "today"'
+
+    def test_touched_today_verified_row_still_does_not_claim_zero_days(self, sessions, monkeypatch):
+        """A fresh snapshot timestamp proves when we verified, not which session closed.
+
+        The close inside a verified-today row may be an older bar, so the skeleton
+        must leave days_ago to touch history rather than asserting "today".
+        """
+        from db.models import Stock52WeekRange
+        from api.screener_api.screener_52w import build_52w_skeleton_data
+
+        sessions.add(Stock52WeekRange(
+            symbol='TODAYVERIFIED', high_52w=1000.0, low_52w=800.0, close=995.0,
+            days_ago=None, updated_at=datetime.now(),
+        ))
+        sessions.commit()
+        self._ranges(monkeypatch, {
+            'TODAYVERIFIED': {'high': 1000.0, 'low': 800.0, 'close': 995.0},
+        })
+
+        data = build_52w_skeleton_data(profile_filters={'max_52w_gap': 10})
+
+        row = next(s for s in data['touched'] if s['symbol'] == 'TODAYVERIFIED')
+        assert row['price_as_of'] is not None
+        assert row['days_ago'] is None
+
+    def test_price_as_of_present_but_does_not_fake_today(self, sessions, monkeypatch):
+        """A fresh snapshot with no stored days_ago may claim 0 only if captured today."""
+        from datetime import timedelta
+
+        from db.models import Stock52WeekRange
+        from api.screener_api.screener_52w import build_52w_skeleton_data
+
+        sessions.add(Stock52WeekRange(
+            symbol='OLDSNAP', high_52w=1000.0, low_52w=800.0, close=995.0,
+            days_ago=None, updated_at=datetime.now() - timedelta(days=12),
+        ))
+        sessions.commit()
+        self._ranges(monkeypatch, {
+            'OLDSNAP': {'high': 1000.0, 'low': 800.0, 'close': 995.0},
+        })
+
+        data = build_52w_skeleton_data(profile_filters={'max_52w_gap': 10})
+
+        row = next(s for s in data['touched'] if s['symbol'] == 'OLDSNAP')
+        assert row['days_ago'] != 0
+
+    def test_skeleton_and_full_paths_agree_on_bucket_for_recent_touch(
+        self, sessions, monkeypatch
+    ):
+        """A symbol with a recent touch row lands in the same bucket in both paths."""
+        from datetime import timedelta
+
+        from db.models import Stock52WeekTouch
+        from api.screener_api.screener_52w import (
+            build_52w_skeleton_data, fetch_52w_high_data,
+        )
+
+        sessions.add(Stock52WeekTouch(
+            symbol='RECENTTOUCH',
+            touched_date=datetime.now() - timedelta(days=2),
+            touched_price=1002.0,
+            is_high=True,
+            is_current_52w_high=False,
+        ))
+        sessions.commit()
+        self._ranges(monkeypatch, {
+            'RECENTTOUCH': {'high': 1005.0, 'low': 700.0, 'close': 1000.0},
+        })
+        filters = {'max_52w_gap': 10, 'min_volume_m': 0, 'min_turnover_cr': 0}
+
+        with patch('api.screener_api.screener_52w._enrich_with_tv_scanner_data'), patch(
+            'api.screener_api.screener_52w._create_upstox_api', return_value=(None, False)
+        ):
+            full = fetch_52w_high_data(provider='upstox', profile_filters=filters)
+
+        skeleton = build_52w_skeleton_data(profile_filters=filters)
+
+        def bucket(data):
+            for name in ('approaching', 'touched'):
+                if any(s['symbol'] == 'RECENTTOUCH' for s in data[name]):
+                    return name
+            return None
+
+        assert bucket(skeleton) == 'touched'
+        assert bucket(skeleton) == bucket(full)
+
+        # Touch history (DB only) also lands in the skeleton: no 90d bar fetch needed.
+        row = next(s for s in skeleton['touched'] if s['symbol'] == 'RECENTTOUCH')
+        assert row['last_touched'] is not None
+        assert row['days_ago'] == 2
+
+    def test_touched_sorted_by_days_ago_then_gap(self, sessions, monkeypatch):
+        from api.screener_api.screener_52w import build_52w_skeleton_data
+
+        self._ranges(monkeypatch, {
+            # all within the 1% touch band; gaps differ so the tie can be broken
+            'OLD': {'high': 1000.0, 'low': 700.0, 'close': 992.0, 'days_ago': 6},
+            'NEARGAP': {'high': 1000.0, 'low': 700.0, 'close': 999.9, 'days_ago': 1},
+            'WIDEGAP': {'high': 1000.0, 'low': 700.0, 'close': 995.0, 'days_ago': 1},
+        })
+
+        data = build_52w_skeleton_data(profile_filters={'max_52w_gap': 10})
+
+        order = [s['symbol'] for s in data['touched']]
+        assert order == ['NEARGAP', 'WIDEGAP', 'OLD']
+
+
+
     """A cold 52W cache must spawn exactly one warm, whatever the request rate."""
 
     @pytest.fixture(autouse=True)
