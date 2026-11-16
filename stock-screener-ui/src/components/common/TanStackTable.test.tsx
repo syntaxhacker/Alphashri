@@ -690,6 +690,143 @@ describe("TanStackTable", () => {
   });
 });
 
+describe("TanStackTable — visible row window callback", () => {
+  it("emits the mounted window once, not one call per row", () => {
+    const onVisibleRowsChange = vi.fn();
+    render(() => (
+      <TanStackTable<TestItem>
+        data={data}
+        columns={columns}
+        onVisibleRowsChange={onVisibleRowsChange}
+      />
+    ));
+
+    expect(onVisibleRowsChange).toHaveBeenCalledTimes(1);
+    expect(onVisibleRowsChange.mock.calls[0][0]).toEqual(data);
+  });
+
+  it("emits only the window slice when rowWindowSize caps the body", () => {
+    const many: TestItem[] = Array.from({ length: 12 }, (_, i) => ({
+      id: String(i + 1),
+      name: `Row${i}`,
+      value: i,
+    }));
+    const onVisibleRowsChange = vi.fn();
+    render(() => (
+      <TanStackTable<TestItem>
+        data={many}
+        columns={columns}
+        rowWindowSize={5}
+        onVisibleRowsChange={onVisibleRowsChange}
+      />
+    ));
+
+    expect(onVisibleRowsChange).toHaveBeenCalledTimes(1);
+    expect(onVisibleRowsChange.mock.calls[0][0]).toHaveLength(5);
+    expect(onVisibleRowsChange.mock.calls[0][0][0]).toBe(many[0]);
+  });
+
+  it("does not re-emit for a cell update when the window identities are unchanged", () => {
+    const initial: TestItem[] = [
+      { id: "1", name: "Alpha", value: 100 },
+      { id: "2", name: "Beta", value: 200 },
+      { id: "3", name: "Gamma", value: 300 },
+    ];
+    const [rows, setRows] = createSignal<TestItem[]>(initial);
+    const onVisibleRowsChange = vi.fn();
+    render(() => (
+      <TanStackTable<TestItem>
+        data={rows()}
+        columns={columns}
+        onVisibleRowsChange={onVisibleRowsChange}
+      />
+    ));
+    expect(onVisibleRowsChange).toHaveBeenCalledTimes(1);
+
+    // A live price tick mutates in place: same row references, same window.
+    // The cell still re-renders through its own reactive read.
+    const current = rows();
+    setRows([...current]);
+    expect(onVisibleRowsChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-emits when a row inside the window is replaced by another symbol", () => {
+    const [rows, setRows] = createSignal<TestItem[]>([
+      { id: "1", name: "Alpha", value: 100 },
+      { id: "2", name: "Beta", value: 200 },
+      { id: "3", name: "Gamma", value: 300 },
+    ]);
+    const onVisibleRowsChange = vi.fn();
+    render(() => (
+      <TanStackTable<TestItem>
+        data={rows()}
+        columns={columns}
+        onVisibleRowsChange={onVisibleRowsChange}
+      />
+    ));
+
+    // A middle-row swap keeps both edges but changes membership — an edges-only
+    // comparison would starve the new symbol of its lookup.
+    const current = rows();
+    setRows([current[0], { id: "9", name: "Delta", value: 900 }, current[2]]);
+
+    expect(onVisibleRowsChange).toHaveBeenCalledTimes(2);
+    expect(onVisibleRowsChange.mock.calls[1][0].map((r) => r.id)).toEqual(["1", "9", "3"]);
+  });
+
+  it("re-emits when the window's first row changes", () => {
+    const [rows, setRows] = createSignal<TestItem[]>([
+      { id: "1", name: "Alpha", value: 100 },
+      { id: "2", name: "Beta", value: 200 },
+    ]);
+    const onVisibleRowsChange = vi.fn();
+    render(() => (
+      <TanStackTable<TestItem>
+        data={rows()}
+        columns={columns}
+        onVisibleRowsChange={onVisibleRowsChange}
+      />
+    ));
+
+    setRows([
+      { id: "2", name: "Beta", value: 200 },
+      { id: "1", name: "Alpha", value: 100 },
+    ]);
+
+    expect(onVisibleRowsChange).toHaveBeenCalledTimes(2);
+    expect(onVisibleRowsChange.mock.calls[1][0][0].id).toBe("2");
+  });
+
+  it("re-emits when load more extends the window", () => {
+    const many: TestItem[] = Array.from({ length: 12 }, (_, i) => ({
+      id: String(i + 1),
+      name: `Row${i}`,
+      value: i,
+    }));
+    const onVisibleRowsChange = vi.fn();
+    render(() => (
+      <TanStackTable<TestItem>
+        data={many}
+        columns={columns}
+        rowWindowSize={5}
+        onVisibleRowsChange={onVisibleRowsChange}
+      />
+    ));
+    expect(onVisibleRowsChange).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByTestId("table-window-load-more"));
+
+    expect(onVisibleRowsChange).toHaveBeenCalledTimes(2);
+    expect(onVisibleRowsChange.mock.calls[1][0]).toHaveLength(10);
+  });
+
+  it("stays silent when no callback is supplied", () => {
+    // A table without the prop must not do the slice work at all.
+    render(() => <TanStackTable<TestItem> data={data} columns={columns} />);
+    expect(screen.getByText("Alpha")).toBeInTheDocument();
+  });
+});
+
 describe("TanStackTable — row states (selected / hovered / focused)", () => {
   const rowsOf = () => Array.from(document.querySelectorAll<HTMLTableRowElement>("tbody tr[data-row='stock']"));
   const tinted = () => rowsOf().filter((tr) => tr.style.backgroundColor !== "");
