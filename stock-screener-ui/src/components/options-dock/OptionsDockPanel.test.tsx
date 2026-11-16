@@ -637,3 +637,62 @@ describe("OptionsDockPanel — chain sort reset", () => {
     expect(rowOrder()[0]).toBe("options-chain-row-23900");
   });
 });
+
+describe("OptionsDockPanel — maximize a11y", () => {
+  const renderWithChain = async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+  };
+
+  test("maximize locks body scroll, sets aria-modal and focuses the restore button", async () => {
+    await renderWithChain();
+
+    await fireEvent.click(screen.getByTestId("options-maximize"));
+
+    expect(document.body.style.overflow).toBe("hidden");
+    expect(screen.getByTestId("options-dock")).toHaveAttribute("aria-modal", "true");
+    expect(document.activeElement).toBe(screen.getByTestId("options-maximize"));
+  });
+
+  test("restore unlocks body scroll, removes aria-modal and restores focus", async () => {
+    await renderWithChain();
+
+    const refresh = screen.getByTestId("options-refresh");
+    refresh.focus();
+    expect(document.activeElement).toBe(refresh);
+
+    await fireEvent.click(screen.getByTestId("options-maximize"));
+    expect(document.body.style.overflow).toBe("hidden");
+    expect(screen.getByTestId("options-dock")).toHaveAttribute("aria-modal", "true");
+
+    await fireEvent.click(screen.getByTestId("options-maximize")); // restore
+
+    expect(document.body.style.overflow).not.toBe("hidden");
+    expect(screen.getByTestId("options-dock")).not.toHaveAttribute("aria-modal");
+    expect(document.activeElement).toBe(refresh);
+  });
+
+  test("close unlocks body scroll and removes aria-modal", async () => {
+    await renderWithChain();
+
+    await fireEvent.click(screen.getByTestId("options-maximize"));
+    expect(document.body.style.overflow).toBe("hidden");
+
+    await fireEvent.click(screen.getByTestId("options-close"));
+
+    expect(document.body.style.overflow).not.toBe("hidden");
+    expect(screen.getByTestId("options-dock")).not.toHaveAttribute("aria-modal");
+  });
+
+  test("unmount while maximized restores body scroll", async () => {
+    await renderWithChain();
+
+    await fireEvent.click(screen.getByTestId("options-maximize"));
+    expect(document.body.style.overflow).toBe("hidden");
+
+    cleanup();
+
+    expect(document.body.style.overflow).not.toBe("hidden");
+  });
+});

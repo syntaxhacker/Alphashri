@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { Box, Button, Text, Tooltip, useMediaQuery } from "@/ui";
 import * as palette from "@/ui/palette";
 import {
@@ -159,6 +159,14 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
   const [chainSide, setChainSide] = createSignal<"CE" | "PE">("CE");
   const [chainSorting, setChainSorting] = createSignal<SortEntry[]>([...DEFAULT_CHAIN_SORTING]);
 
+  // Maximize a11y state: the element that had focus when maximize was opened,
+  // the body overflow value we temporarily replace, and whether we are
+  // maximized (so the effect only acts on transitions, not every store-driven
+  // re-render).
+  let restoreTarget: HTMLElement | null = null;
+  let previousOverflow = "";
+  let wasMaximized = false;
+
   const isStrikeOrder = () => {
     const sort = chainSorting();
     return (
@@ -181,6 +189,40 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
     };
     window.addEventListener("keydown", onKey);
     onCleanup(() => window.removeEventListener("keydown", onKey));
+  });
+
+  // Maximize a11y: aria-modal on the maximized root, body scroll lock, focus
+  // capture on the restore button, and focus/overflow restore on exit.
+  createEffect(() => {
+    const m = maximized();
+    if (m && !wasMaximized) {
+      const active = document.activeElement as HTMLElement | null;
+      restoreTarget = active && document.body.contains(active) ? active : null;
+      const root = document.querySelector<HTMLElement>('[data-testid="options-dock"]');
+      if (root) root.setAttribute("aria-modal", "true");
+      previousOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      const restoreButton = document.querySelector<HTMLElement>('[data-testid="options-maximize"]');
+      if (restoreButton) restoreButton.focus({ preventScroll: true });
+      else if (root) root.focus({ preventScroll: true });
+    } else if (!m && wasMaximized) {
+      const root = document.querySelector<HTMLElement>('[data-testid="options-dock"]');
+      if (root) root.removeAttribute("aria-modal");
+      document.body.style.overflow = previousOverflow;
+      restoreTarget?.focus?.({ preventScroll: true });
+      restoreTarget = null;
+    }
+    wasMaximized = m;
+  });
+
+  onCleanup(() => {
+    if (wasMaximized) {
+      const root = document.querySelector<HTMLElement>('[data-testid="options-dock"]');
+      if (root) root.removeAttribute("aria-modal");
+      document.body.style.overflow = previousOverflow;
+      restoreTarget?.focus?.({ preventScroll: true });
+      restoreTarget = null;
+    }
   });
 
   const symbol = () => optionsDockState.symbol ?? "—";
@@ -355,6 +397,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                 aria-label="Close options dock"
                 data-testid="options-close"
                 onClick={() => {
+                  setMaximized(false);
                   close();
                   props.onClose?.();
                 }}

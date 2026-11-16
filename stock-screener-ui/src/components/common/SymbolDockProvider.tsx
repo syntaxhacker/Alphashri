@@ -187,6 +187,45 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
     el.setAttribute("data-dock-open", showDock() ? "true" : "false");
   });
 
+  /**
+   * Escape dismisses an open chart dock.
+   *
+   * `PatternFullscreenView` is always `docked` here, so its Modal Escape path is
+   * unreachable; this listener is the chart dock's only Escape gesture. It is
+   * attached only while the dock is open and removed on cleanup.
+   *
+   * The options panel owns Escape itself (restore when maximized, close
+   * otherwise), so this provider never closes in options mode — that avoids
+   * double-firing with the panel's own handler. Escape is also ignored when it
+   * originates in an input/textarea/select/contenteditable so the user can
+   * dismiss a picker without losing the dock.
+   */
+  const onDockKeydown = (event: KeyboardEvent) => {
+    if (event.key !== "Escape") return;
+    if (mode() === "options") return;
+    const target = event.target as HTMLElement | null;
+    if (
+      target &&
+      (target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.tagName === "SELECT" ||
+        target.isContentEditable)
+    ) {
+      return;
+    }
+    close();
+  };
+
+  createEffect(() => {
+    const open = showDock();
+    if (open) {
+      document.addEventListener("keydown", onDockKeydown);
+    } else {
+      document.removeEventListener("keydown", onDockKeydown);
+    }
+    onCleanup(() => document.removeEventListener("keydown", onDockKeydown));
+  });
+
   const renderPanel = () => (
     <Show
       when={mode() === "options"}

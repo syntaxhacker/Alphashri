@@ -479,3 +479,85 @@ describe("outlet collapses while no dock is open", () => {
     expect(rule![1]).toContain("display: none");
   });
 });
+
+describe("Escape dismiss", () => {
+  beforeEach(() => {
+    __resetFullscreen();
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("1200px"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  test("Escape closes an open chart dock", async () => {
+    mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
+    renderDock();
+
+    await fireEvent.click(screen.getByTestId("open-ircon"));
+    expect(screen.getByTestId("symbol-dock")).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() =>
+      expect(screen.queryByTestId("symbol-dock")).not.toBeInTheDocument(),
+    );
+  });
+
+  test("Escape leaves an open options dock open (the panel restores instead)", async () => {
+    renderDock();
+
+    await fireEvent.click(screen.getByTestId("open-options"));
+    await screen.findByTestId("options-dock-panel");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByTestId("options-dock-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("symbol-dock")).toBeInTheDocument();
+  });
+
+  test("no keydown listener remains after close or unmount", async () => {
+    mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
+    renderDock();
+
+    await fireEvent.click(screen.getByTestId("open-ircon"));
+    await waitFor(() => expect(screen.getByTestId("symbol-dock")).toBeInTheDocument());
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() =>
+      expect(screen.queryByTestId("symbol-dock")).not.toBeInTheDocument(),
+    );
+
+    // The listener was removed with the dock: a second Escape is a no-op.
+    expect(() => fireEvent.keyDown(document, { key: "Escape" })).not.toThrow();
+    expect(screen.queryByTestId("symbol-dock")).not.toBeInTheDocument();
+
+    cleanup();
+    expect(() => fireEvent.keyDown(document, { key: "Escape" })).not.toThrow();
+  });
+
+  test("Escape inside an input does not close the chart dock", async () => {
+    mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
+    renderDock();
+
+    await fireEvent.click(screen.getByTestId("open-ircon"));
+    await waitFor(() => expect(screen.getByTestId("symbol-dock")).toBeInTheDocument());
+
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    input.focus();
+    expect(document.activeElement).toBe(input);
+
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(screen.getByTestId("symbol-dock")).toBeInTheDocument();
+  });
+});
