@@ -178,16 +178,28 @@ def _freeze_filters(filters: dict) -> tuple:
     return tuple(items)
 
 
-def _last_scan_at_for(universe, timeframe):
-    """Latest completed job's ``finished_at`` for a combo (``None``-safe)."""
+def _scan_stamps_for(universe, tf_ids):
+    """One DB round-trip: completed-scan stamp for each requested timeframe.
+
+    /matrix used to call ``_last_scan_at_for`` once per timeframe; a single
+    GROUP BY over the same job rows produces the identical key inputs with one
+    session instead of one per timeframe.
+    """
+    if not tf_ids:
+        return {}
     try:
         session = store._new_session()
         try:
-            return store._last_scan_at(session, {"universe": universe, "timeframe": timeframe})
+            return store._last_scan_at_many(session, universe, list(tf_ids))
         finally:
             session.close()
     except Exception:
-        return None
+        return {}
+
+
+def _last_scan_at_for(universe, timeframe):
+    """Latest completed job's ``finished_at`` for a combo (``None``-safe)."""
+    return _scan_stamps_for(universe, [timeframe]).get(timeframe)
 
 
 def _read_cache_get(cache: dict, key):
@@ -217,9 +229,8 @@ def _clear_read_caches() -> None:
         _summary_cache.clear()
         _matrix_cache.clear()
         _lookup_cache.clear()
-    # The frame watermark drives the matrix/summary cache keys, so a reset
-    # must also forget which frames we have seen (tests rely on this for
-    # isolation between modules).
+    # The frame watermark drives the matrix cache key, so a reset must also
+    # forget which frames we have seen (tests rely on this for isolation).
     _clear_all_enrichment()
 
 
@@ -244,6 +255,10 @@ def _clear_read_caches() -> None:
 
 _ENRICH_CACHE_TTL_SEC = float(os.environ.get("CHART_ENRICH_CACHE_TTL_SEC", "300.0"))
 _ENRICH_CACHE_MAX = 512
+#: _known_frame is keyed by (symbol, timeframe) and has no TTL; bound it so a
+#: large universe cannot grow it without limit. Eviction only drops the coarse
+#: watermark/close for one scope — never a stored hit or a response shape.
+_KNOWN_FRAME_MAX = 4096
 _enrichment_cache: dict = {}
 _enrichment_keys: dict = {}
 _known_frame: dict = {}
@@ -320,6 +335,8 @@ def _remember_frame(key, df, last_close, day_change) -> None:
         return
     scope = (str(key[0]).upper(), str(key[1]))
     with _enrichment_lock:
+        if scope not in _known_frame and len(_known_frame) >= _KNOWN_FRAME_MAX:
+            _known_frame.pop(next(iter(_known_frame)))
         _known_frame[scope] = (frame_id, last_close, day_change, _close_bar_date(frame))
 
 
@@ -330,18 +347,56 @@ def _known_frame_close(symbol, timeframe) -> tuple:
     return (value[1], value[2], value[3]) if value else (None, None, None)
 
 
-def _frame_watermark(timeframes=None) -> tuple:
-    """Frame identities currently known for the requested timeframes.
+def _frame_watermark(timeframes=None) -> Optional[str]:
+    """Coarse completed-session stamp for the requested timeframes.
 
-    Used in read-cache keys so a rolled frame invalidates a matrix/summary
-    answer even when no new scan has completed. A tuple of every identity is
-    used (not just the newest) so any frame change alters the key.
+    The old value was the tuple of every known frame identity — including each
+    symbol's last-bar timestamp and interior digest. In market hours those
+    advance on each symbol's own intraday tick, so the tuple changed on every
+    poll and the 3-second matrix cache never hit. The matrix only consumes the
+    *completed-session* close, so the newest completed bar date across the
+    universe is enough: stable while a session is in progress, advanced when a
+    new session is published. A new scan is covered by the scan stamp already in
+    the same key, so no stale answer can survive either invalidation source.
     """
     with _enrichment_lock:
-        return tuple(sorted(
-            value[0] for scope, value in _known_frame.items()
-            if not timeframes or scope[1] in timeframes
-        ))
+        dates = [
+            value[3] for scope, value in _known_frame.items()
+            if (not timeframes or scope[1] in timeframes) and len(value) > 3 and value[3]
+        ]
+    return max(dates) if dates else None
+
+
+def _summary_cache_key(filters: dict):
+    tf = filters.get("timeframe")
+    return (
+        getattr(store, "_session_factory", None),
+        _freeze_filters(filters),
+        _scan_stamps_for(filters.get("universe"), [tf] if tf else []).get(tf),
+    )
+
+
+def _matrix_cache_key(universe: str, tf_ids: list, limit: int):
+    stamps = _scan_stamps_for(universe, tf_ids)
+    return (
+        getattr(store, "_session_factory", None),
+        universe,
+        tuple(tf_ids),
+        limit,
+        tuple(stamps.get(tf) for tf in tf_ids),
+        _frame_watermark(tf_ids),
+    )
+
+
+def _lookup_cache_key(timeframe: str, universe, scope: tuple):
+    return (
+        getattr(store, "_session_factory", None),
+        timeframe,
+        universe,
+        scope,
+        _ist_session_date(),
+        _scan_stamps_for(universe, [timeframe]).get(timeframe),
+    )
 
 
 def _drop_enrichment_index_locked(key) -> None:
@@ -2449,11 +2504,7 @@ async def stream_results(request: Request, query: _ResultsQuery = Depends(_resul
 
 @router.get("/summary")
 async def get_summary(filters: dict = Depends(_summary_filters)):
-    cache_key = (
-        getattr(store, "_session_factory", None),
-        _freeze_filters(filters),
-        _last_scan_at_for(filters.get("universe"), filters.get("timeframe")),
-    )
+    cache_key = _summary_cache_key(filters)
     cached = _read_cache_get(_summary_cache, cache_key)
     if cached is not None:
         return JSONResponse(content=cached)
@@ -3466,14 +3517,7 @@ async def get_matrix(
 ):
     """One row per symbol, one compact cell per timeframe, from stored hits."""
     tf_ids = _matrix_timeframes(timeframes)
-    cache_key = (
-        getattr(store, "_session_factory", None),
-        universe,
-        tuple(tf_ids),
-        limit,
-        tuple(_last_scan_at_for(universe, tf) for tf in tf_ids),
-        _frame_watermark(tf_ids),
-    )
+    cache_key = _matrix_cache_key(universe, tf_ids, limit)
     cached = _read_cache_get(_matrix_cache, cache_key)
     if cached is not None:
         return JSONResponse(content=cached)
@@ -3588,14 +3632,7 @@ def lookup_patterns(
     # Canonical (sorted) scope: `items` is sorted by symbol too, so a request
     # for the same set in another order — or a table re-sort — hits this entry.
     scope = tuple(sorted(symbols))
-    cached_key = (
-        getattr(store, "_session_factory", None),
-        timeframe,
-        universe,
-        scope,
-        _ist_session_date(),
-        _last_scan_at_for(universe, timeframe),
-    )
+    cached_key = _lookup_cache_key(timeframe, universe, scope)
     cached = _read_cache_get(_lookup_cache, cached_key)
     if cached is not None:
         return JSONResponse(content=cached)

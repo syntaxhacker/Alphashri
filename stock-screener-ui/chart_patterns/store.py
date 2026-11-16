@@ -292,16 +292,8 @@ def latest_hits_by_symbol(
             sym = row.symbol
             if sym in by_symbol:
                 continue
-            dto = row.to_dict()
-            payload = {}
-            raw = row.payload_json
-            if isinstance(raw, str):
-                try:
-                    payload = json.loads(raw)
-                except (TypeError, ValueError):
-                    payload = {}
-            elif isinstance(raw, dict):
-                payload = dict(raw)
+            payload = _payload_dict(row.payload_json)
+            dto = row.to_dict(payload)
             source_sig = payload.get("source_sig")
             dto["source_sig"] = str(source_sig) if source_sig else None
             trend_lines = payload.get("trend_lines")
@@ -469,58 +461,50 @@ def save_hits_batch(entries: list[tuple[str, list[dict]]]) -> int:
         session.close()
 
 
+def _payload_dict(raw) -> dict:
+    """Parse a hit's ``payload_json`` once; accept an already-parsed dict too.
+
+    The read paths parse each row once and hand the dict to ``to_dict`` and all
+    four field helpers, replacing five ``json.loads`` calls per row.
+    """
+    if isinstance(raw, dict):
+        return raw
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw) if isinstance(raw, str) else {}
+    except (TypeError, ValueError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
 def _payload_trend_lines(raw) -> list:
     """Scan-time ``trend_lines`` carried in a hit's ``payload_json``.
 
-    ``PatternHit.to_dict`` only surfaces the legacy payload keys, so the store
-    re-attaches the scan-time lines here (read path follows the same
-    payload→dict route). Missing/blank/malformed values yield ``[]``.
+    ``raw`` is either the once-parsed payload dict or the raw column value;
+    missing/blank/malformed values yield ``[]``.
     """
-    if not raw:
-        return []
-    try:
-        payload = json.loads(raw) if isinstance(raw, str) else {}
-    except (TypeError, ValueError):
-        return []
-    if not isinstance(payload, dict):
-        return []
-    lines = payload.get("trend_lines") or []
+    lines = _payload_dict(raw).get("trend_lines") or []
     return list(lines) if isinstance(lines, list) else []
 
 
 def _payload_trend_lines_sig(raw) -> Optional[str]:
     """Scan-time ``trend_lines_sig`` carried in a hit's ``payload_json``.
 
-    Follows the same payload→dict route as ``_payload_trend_lines``.
-    Missing/blank/malformed values yield ``None`` (treated as stale).
+    Accepts the once-parsed payload dict. Missing/blank/malformed values yield
+    ``None`` (treated as stale).
     """
-    if not raw:
-        return None
-    try:
-        payload = json.loads(raw) if isinstance(raw, str) else {}
-    except (TypeError, ValueError):
-        return None
-    if not isinstance(payload, dict):
-        return None
-    sig = payload.get("trend_lines_sig")
+    sig = _payload_dict(raw).get("trend_lines_sig")
     return str(sig) if sig else None
 
 
 def _payload_source_sig(raw) -> Optional[str]:
     """``source_sig`` carried in a hit's ``payload_json``.
 
-    Follows the same payload→dict route as ``_payload_trend_lines``. Missing or
-    malformed values yield ``None`` (legacy rows never had a source signature).
+    Accepts the once-parsed payload dict. Missing or malformed values yield
+    ``None`` (legacy rows never had a source signature).
     """
-    if not raw:
-        return None
-    try:
-        payload = json.loads(raw) if isinstance(raw, str) else {}
-    except (TypeError, ValueError):
-        return None
-    if not isinstance(payload, dict):
-        return None
-    sig = payload.get("source_sig")
+    sig = _payload_dict(raw).get("source_sig")
     return str(sig) if sig else None
 
 
@@ -528,19 +512,11 @@ def _payload_trend_lines_window(raw) -> Optional[str]:
     """``trend_lines_window`` carried in a hit's ``payload_json``.
 
     Fingerprints the trailing window the scan-time ``trend_lines`` were fitted
-    to. Missing/blank/malformed values yield ``None`` — legacy rows predate it,
-    so a read cannot prove the stored geometry still applies and falls back to
-    the detector-signature gate.
+    to. Accepts the once-parsed payload dict. Missing/blank/malformed values
+    yield ``None`` — legacy rows predate it, so a read cannot prove the stored
+    geometry still applies and falls back to the detector-signature gate.
     """
-    if not raw:
-        return None
-    try:
-        payload = json.loads(raw) if isinstance(raw, str) else {}
-    except (TypeError, ValueError):
-        return None
-    if not isinstance(payload, dict):
-        return None
-    window = payload.get("trend_lines_window")
+    window = _payload_dict(raw).get("trend_lines_window")
     return str(window) if window else None
 
 
@@ -741,12 +717,13 @@ def query_results(filters: dict, limit: Optional[int] = 100, offset: int = 0):
         rows = query.all()
         items = []
         for row in rows:
-            dto = row.to_dict()
+            payload = _payload_dict(row.payload_json)
+            dto = row.to_dict(payload)
             dto["breakout_score"] = breakout_score(dto)
-            dto["trend_lines"] = _payload_trend_lines(row.payload_json)
-            dto["trend_lines_sig"] = _payload_trend_lines_sig(row.payload_json)
-            dto["trend_lines_window"] = _payload_trend_lines_window(row.payload_json)
-            dto["source_sig"] = _payload_source_sig(row.payload_json)
+            dto["trend_lines"] = _payload_trend_lines(payload)
+            dto["trend_lines_sig"] = _payload_trend_lines_sig(payload)
+            dto["trend_lines_window"] = _payload_trend_lines_window(payload)
+            dto["source_sig"] = _payload_source_sig(payload)
             items.append(dto)
         _attach_52w_gaps(session, items)
 
@@ -879,6 +856,39 @@ def _last_scan_at(session, filters: dict) -> Optional[str]:
         return None
 
 
+def _last_scan_at_many(session, universe, tf_ids) -> dict:
+    """Latest completed ``finished_at`` per timeframe in ONE query.
+
+    The read-cache keys for /matrix (and the single-tf /summary and /lookup)
+    need the scan stamp for each requested timeframe. Asking ``_last_scan_at``
+    once per timeframe cost one DB round-trip each; one GROUP BY over the same
+    rows is equivalent and keeps the cache key exact.
+    """
+    result: dict = {}
+    if not tf_ids:
+        return result
+    try:
+        q = session.query(
+            PatternComputeJob.timeframe,
+            func.max(PatternComputeJob.finished_at),
+        ).filter(
+            PatternComputeJob.status == "completed",
+            PatternComputeJob.timeframe.in_(list(tf_ids)),
+        )
+        if universe:
+            q = q.filter(PatternComputeJob.universe == universe)
+        for tf, value in q.group_by(PatternComputeJob.timeframe).all():
+            if value is None:
+                result[tf] = None
+            elif hasattr(value, "isoformat"):
+                result[tf] = value.isoformat()
+            else:
+                result[tf] = str(value)
+        return result
+    except Exception:
+        return {}
+
+
 def _scanned_count(session, filters: dict, base) -> int:
     try:
         if filters.get("job_id"):
@@ -987,11 +997,12 @@ def get_symbol_detail(
                 best[key] = row
         patterns = []
         for row in best.values():
-            dto = row.to_dict()
+            payload = _payload_dict(row.payload_json)
+            dto = row.to_dict(payload)
             dto["breakout_score"] = breakout_score(dto)
-            dto["trend_lines"] = _payload_trend_lines(row.payload_json)
-            dto["trend_lines_sig"] = _payload_trend_lines_sig(row.payload_json)
-            dto["trend_lines_window"] = _payload_trend_lines_window(row.payload_json)
+            dto["trend_lines"] = _payload_trend_lines(payload)
+            dto["trend_lines_sig"] = _payload_trend_lines_sig(payload)
+            dto["trend_lines_window"] = _payload_trend_lines_window(payload)
             patterns.append(dto)
         patterns.sort(
             key=lambda p: (
