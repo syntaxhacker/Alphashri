@@ -46,6 +46,16 @@ function renderTable() {
   ));
 }
 
+function renderRows(rows: ChainRow[]) {
+  return render(() => (
+    <UIProvider>
+      <OptionChainTable rows={rows} spot={rows[0].strike} />
+    </UIProvider>
+  ));
+}
+
+const minWidthOf = (el: HTMLElement) => el.style.minWidth || el.style.getPropertyValue("min-width");
+
 const hexToRgb = (hex: string) => {
   const h = hex.replace("#", "");
   return `rgb(${parseInt(h.slice(0, 2), 16)}, ${parseInt(h.slice(2, 4), 16)}, ${parseInt(h.slice(4, 6), 16)})`;
@@ -113,6 +123,25 @@ describe("OptionChainTable — chain cells", () => {
     expect(ceBar.style.backgroundColor).not.toContain("0.12");
     // Width still scales with OI.
     expect(parseFloat(ceBar.style.width)).toBeGreaterThan(parseFloat(peBar.style.width));
+  });
+});
+
+describe("OptionChainTable — OI bar square-root scale", () => {
+  it("scales a 25-of-100 OI to a 50% bar with a 2px floor", () => {
+    renderRows([row(100, { oi: 25 }, { oi: 100 })]);
+    const bar = screen.getByTestId("options-oi-bar-ce-25");
+    // sqrt(25 / 100) = 0.5 — a linear map would give 25%.
+    expect(bar.style.width).toBe("50%");
+    expect(minWidthOf(bar)).toBe("2px");
+  });
+
+  it("keeps a near-zero OI visible — 2px floor, never a 0% invisible bar", () => {
+    renderRows([row(100, { oi: 1 }, { oi: 1_000_000 })]);
+    const bar = screen.getByTestId("options-oi-bar-ce-1");
+    // sqrt(1 / 1_000_000) * 100 = 0.1%, not 0%; min-width supplies the visible tick.
+    expect(bar.style.width).not.toBe("0%");
+    expect(parseFloat(bar.style.width)).toBeGreaterThan(0);
+    expect(minWidthOf(bar)).toBe("2px");
   });
 });
 

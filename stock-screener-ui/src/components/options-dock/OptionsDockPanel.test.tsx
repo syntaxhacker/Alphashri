@@ -126,6 +126,16 @@ describe("expiryLabel", () => {
 });
 
 describe("OptionsDockPanel", () => {
+  test("root fills its flex parent with flex-1, never a percentage height", () => {
+    renderPanel();
+
+    const root = screen.getByTestId("options-dock");
+    // A percentage height resolves against an auto-height outlet and lets the
+    // content dictate the panel size; flex-1 fills the definite flex column.
+    expect(root.className).toContain("flex-1");
+    expect(root.className).not.toContain("h-full");
+  });
+
   test("renders the chain with the ATM row tinted exactly once", async () => {
     open("NIFTY");
     renderPanel();
@@ -362,5 +372,65 @@ describe("OptionsDockPanel", () => {
     const parent = sections[0].parentElement!;
     const order = Array.from(parent.querySelectorAll("[data-dock-section]"));
     expect(order).toEqual(sections);
+  });
+
+  test("sizes the chain section by flex fill with a shrink floor and scroll container", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+
+    const chainSection = screen.getByTestId("options-chain-section");
+    // The chain fills the remaining column height so its table scrolls instead
+    // of pushing STRATEGY/LEGS/PAYOFF past the viewport. A percentage cap
+    // (`max-h-[calc(100%-...)]`) resolves against an auto-height parent and no-ops.
+    expect(chainSection.className).not.toContain("max-h-[calc");
+    // A short viewport keeps a floor so the table never collapses to nothing.
+    expect(chainSection.className).toContain("min-h-[160px]");
+    // fill still supplies flex-1 + min-h-0, which lets the table shrink and scroll.
+    expect(chainSection.className).toContain("min-h-0");
+    expect(chainSection.className).toContain("flex-1");
+
+    // The table and its scroll container are still mounted.
+    expect(screen.getByTestId("options-chain-table")).toBeInTheDocument();
+    const table = screen.getByTestId("options-chain");
+    expect(table).toBeInTheDocument();
+    const scroller = table.closest(".paper-tanstack-scroll") as HTMLElement | null;
+    expect(scroller).not.toBeNull();
+    expect(scroller!.style.overflow).toBe("auto");
+  });
+
+  test("keeps payoff as a sibling after strategy and legs with four legs", async () => {
+    open("NIFTY");
+    await flush();
+    for (const [side, type, strike, premium] of [
+      ["sell", "CE", 24200, 36.6],
+      ["buy", "CE", 24500, 3.5],
+      ["sell", "PE", 23800, 23.1],
+      ["buy", "PE", 23500, 1.8],
+    ] as const) {
+      addLeg({ side, type, strike, premium });
+    }
+    renderPanel();
+
+    await waitFor(() => expect(screen.getByTestId("options-pop")).toBeInTheDocument());
+
+    const parent = screen.getByTestId("options-chain-section").parentElement!;
+    const directChild = (el: HTMLElement): HTMLElement => {
+      let node = el;
+      while (node.parentElement && node.parentElement !== parent) node = node.parentElement;
+      return node;
+    };
+    const strategy = directChild(screen.getByTestId("options-strategy-row"));
+    const legs = directChild(screen.getByTestId("options-legs"));
+    const payoff = directChild(screen.getByTestId("options-pop"));
+
+    // All four bands stay siblings in the same body, in visual order.
+    const chain = screen.getByTestId("options-chain-section");
+    const children = Array.from(parent.children);
+    expect(children.indexOf(strategy)).toBeGreaterThan(children.indexOf(chain));
+    expect(children.indexOf(legs)).toBeGreaterThan(children.indexOf(strategy));
+    expect(children.indexOf(payoff)).toBeGreaterThan(children.indexOf(legs));
+    // The payoff's fixed height is untouched by the chain cap.
+    expect(payoff.style.height).toBe("206px");
   });
 });

@@ -171,7 +171,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
       className={
         maximized()
           ? "fixed inset-0 z-[1200] flex flex-col overflow-hidden bg-fin-surface"
-          : "flex h-full min-h-0 w-full flex-col overflow-hidden bg-fin-surface"
+          : "flex flex-1 min-h-0 w-full flex-col overflow-hidden bg-fin-surface"
       }
     >
       {/* ---------------------------------------------------------------- */}
@@ -394,6 +394,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
             }
             testId="options-chain-section"
             headerTestId="dock-section-chain"
+            className="min-h-[160px]"
             fill
             padded={false}
             separated={false}

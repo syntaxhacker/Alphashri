@@ -24,6 +24,8 @@ export function DockSection(props: {
   bodyClass?: string;
   /** `false` when the previous sibling already draws the hairline. */
   separated?: boolean;
+  /** Extra classes on the outer section (e.g. a height cap for the chain). */
+  className?: string;
   footer?: JSX.Element;
   children: JSX.Element;
 }) {
@@ -36,7 +38,9 @@ export function DockSection(props: {
       data-testid={props.testId}
       className={`flex min-w-0 flex-col ${
         props.fill ? "min-h-0 flex-1" : "shrink-0"
-      }${separated() ? " border-t border-fin-border" : ""}`}
+      }${separated() ? " border-t border-fin-border" : ""}${
+        props.className ? ` ${props.className}` : ""
+      }`}
     >
       <Box
         data-testid={props.headerTestId}

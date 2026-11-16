@@ -123,3 +123,15 @@ body[data-color-scheme="dark"] { color-scheme: dark; }
   100% { opacity: 1; }
 }
 .nifty-critical-pulse { animation: nifty-critical-pulse 1.2s ease-in-out infinite; }
+
+/* Inline symbol/options dock: `flex-1` on the wrappers only constrains them if
+   their ancestors are flex containers with a definite height. The outlet and
+   the unclassed Portal wrapper are the missing links — make both flex columns
+   with `min-height: 0` so the dock shrinks to the outlet instead of overflowing. */
+[data-testid="chart-dock-outlet"] { display: flex; flex-direction: column; }
+[data-testid="chart-dock-outlet"] > * {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}

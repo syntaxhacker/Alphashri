@@ -185,7 +185,7 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
           onMouseEnter={cancelClose}
           onMouseLeave={endPreview}
           onMouseDown={pinFullscreen}
-          className="flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-fin-border bg-fin-surface"
+          className="flex flex-1 min-h-0 w-full flex-col overflow-hidden border-l border-fin-border bg-fin-surface"
         >
           <DockContent
             state={fullscreen()!}
@@ -200,7 +200,7 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
       <Box
         data-testid="symbol-dock"
         data-mode="options"
-        className="flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-fin-border bg-fin-surface"
+        className="flex flex-1 min-h-0 w-full flex-col overflow-hidden border-l border-fin-border bg-fin-surface"
       >
         <ErrorBoundary label="Options" resetKey={optionsSymbol() ?? undefined}>
           <Suspense
@@ -258,7 +258,7 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
               onMouseEnter={cancelClose}
               onMouseLeave={endPreview}
               onMouseDown={pinFullscreen}
-              className="flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-fin-border bg-fin-surface"
+              className="flex flex-1 min-h-0 w-full flex-col overflow-hidden border-l border-fin-border bg-fin-surface"
             >
               {renderPanel()}
             </Box>

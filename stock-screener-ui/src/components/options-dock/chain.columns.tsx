@@ -58,13 +58,20 @@ function PriceCell(props: {
   );
 }
 
-/** A one-`div` OI bar: length is `oi / max(oi)`, floored at 1px. No canvas. */
+/**
+ * A one-`div` OI bar, no canvas. Open interest is heavy-tailed — a single 1.4M
+ * strike flattens every other bar to a hairline under a linear `oi / max` map —
+ * so the length uses a square-root scale and reads as a visual rank, not a
+ * proportion. The printed number stays exact; `min-width` keeps a near-zero OI
+ * a visible tick.
+ */
 function OiCell(props: { value: number | null | undefined; max: number; side: "ce" | "pe" }) {
   const present = () => props.value != null && Number.isFinite(props.value);
   const pct = () => {
     const max = props.max;
     if (!(max > 0) || !present()) return 0;
-    return Math.max(1, Math.min(100, ((props.value as number) / max) * 100));
+    const ratio = Math.max(0, Math.min(1, (props.value as number) / max));
+    return Math.min(100, Math.sqrt(ratio) * 100);
   };
   // Solid OI tokens, not the 12% TINT_* alphas: those measured 1.12–1.18:1
   // against the row, below the 3:1 UI-graphics floor.
@@ -75,7 +82,11 @@ function OiCell(props: { value: number | null | undefined; max: number; side: "c
         aria-hidden="true"
         data-testid={`options-oi-bar-${props.side}-${props.value ?? "missing"}`}
         className="absolute right-0 top-0 h-[13px]"
-        style={{ width: `${pct()}%`, "background-color": fill() }}
+        style={{
+          width: `${pct()}%`,
+          "min-width": "2px",
+          "background-color": fill(),
+        }}
       />
       <span className={`${CELL} relative`}>
         {present() ? formatNumber(props.value as number) : DASH}

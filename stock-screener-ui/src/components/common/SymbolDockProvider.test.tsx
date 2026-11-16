@@ -1,5 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { useContext } from "solid-js";
@@ -21,6 +23,16 @@ vi.mock("@/components/patterns/PatternFullscreenView", () => ({
     </div>
   ),
 }));
+
+vi.mock("@/components/options-dock/OptionsDockPanel", () => ({
+  OptionsDockPanel: () => <div data-testid="options-dock-panel" />,
+}));
+
+// Opening options mode would otherwise fire a real /options/underlying fetch.
+vi.mock("@/state/optionsDock", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/state/optionsDock")>();
+  return { ...actual, open: vi.fn(), close: vi.fn() };
+});
 
 import { __resetFullscreen } from "@/utils/patterns/fullscreenKey";
 import { fetchSymbolChart } from "../../api/chartPatterns";
@@ -57,6 +69,13 @@ function DockHarness() {
       </button>
       <button type="button" data-testid="open-reliance" onClick={() => dock.open("RELIANCE")}>
         RELIANCE
+      </button>
+      <button
+        type="button"
+        data-testid="open-options"
+        onClick={() => dock.open("RELIANCE", "options")}
+      >
+        options
       </button>
       <button type="button" data-testid="close-dock" onClick={() => dock.close()}>
         close
@@ -257,5 +276,65 @@ describe("inline outlet", () => {
     const outlet = screen.getByTestId("chart-dock-outlet");
     await waitFor(() => expect(outlet.querySelector('[data-testid="symbol-dock"]')).not.toBeNull());
     expect(outlet.querySelector('[data-testid="symbol-dock"]')!.className).not.toContain("fixed");
+  });
+});
+
+describe("dock wrapper flex sizing", () => {
+  beforeEach(() => {
+    __resetFullscreen();
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("1200px"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  test("the three dock wrappers use flex-1, never h-full", () => {
+    const source = readFileSync(
+      resolve(process.cwd(), "src/components/common/SymbolDockProvider.tsx"),
+      "utf8",
+    );
+    const wrapperClass =
+      'className="flex flex-1 min-h-0 w-full flex-col overflow-hidden border-l border-fin-border bg-fin-surface"';
+    expect(source.split(wrapperClass).length - 1).toBe(3);
+    expect(source).not.toContain("h-full");
+  });
+
+  test("the options panel still renders inside the inline outlet wrappers", async () => {
+    mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
+    render(() => (
+      <Router
+        root={() => (
+          <UIProvider>
+            <SymbolDockProvider>
+              <DockHarness />
+              <ChartDockOutlet class="test-outlet" />
+            </SymbolDockProvider>
+          </UIProvider>
+        )}
+      />
+    ));
+
+    await fireEvent.click(screen.getByTestId("open-options"));
+
+    const outlet = screen.getByTestId("chart-dock-outlet");
+    const panel = await screen.findByTestId("options-dock-panel");
+    expect(panel).toBeInTheDocument();
+    const dock = screen.getByTestId("symbol-dock");
+    expect(dock).toHaveAttribute("data-mode", "options");
+    expect(outlet.querySelector('[data-testid="symbol-dock"]')).not.toBeNull();
+    expect(dock.className).toContain("flex-1");
+    expect(dock.className).not.toContain("h-full");
   });
 });
