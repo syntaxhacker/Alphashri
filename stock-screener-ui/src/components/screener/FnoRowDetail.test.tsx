@@ -48,7 +48,7 @@ describe("FnoRowDetail", () => {
     await waitFor(() => expect(screen.getByTestId("fno-payoff-RELIANCE")).toHaveTextContent("3000"));
     expect(captured.props.legs).toHaveLength(1);
     expect(captured.props.legs[0]).toMatchObject({
-      key: "fno-RELIANCE-3000", side: "buy", type: "CE", strike: 3000,
+      key: "fno-RELIANCE-CE-3000", side: "buy", type: "CE", strike: 3000,
       premium: 45.5, lots: 1, lotSize: 1,
     });
 
@@ -59,8 +59,35 @@ describe("FnoRowDetail", () => {
     // rowA forever and this assertion times out.
     await waitFor(() => expect(screen.getByTestId("fno-payoff-TCS")).toHaveTextContent("4200"));
     expect(captured.props.legs[0]).toMatchObject({
-      key: "fno-TCS-4200", strike: 4200, premium: 32,
+      key: "fno-TCS-PE-4200", type: "PE", strike: 4200, premium: 32,
     });
+  });
+
+  it("books a PE row as a put, not a call", async () => {
+    render(() => (
+      <UIProvider>
+        <FnoRowDetail row={rowB} />
+      </UIProvider>
+    ));
+
+    await waitFor(() => expect(captured.props.legs[0].strike).toBe(4200));
+    expect(captured.props.legs[0]).toMatchObject({
+      key: "fno-TCS-PE-4200", side: "buy", type: "PE", strike: 4200,
+    });
+  });
+
+  it("reads the type out of the API's strike label, not just the bare token", async () => {
+    // The endpoint emits `"4200 PE"` (api/options_screener.py); a bare `=== "PE"`
+    // check would silently book this as a call.
+    render(() => (
+      <UIProvider>
+        <FnoRowDetail row={{ ...rowB, call: "4200 PE" }} />
+      </UIProvider>
+    ));
+
+    await waitFor(() => expect(captured.props.legs[0].strike).toBe(4200));
+    expect(captured.props.legs[0].type).toBe("PE");
+    expect(captured.props.legs[0].key).toBe("fno-TCS-PE-4200");
   });
 
   it("converts vol-point IV to a decimal and derives DTE from the expiry", async () => {

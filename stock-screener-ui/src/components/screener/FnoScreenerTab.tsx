@@ -361,12 +361,21 @@ export function FnoRowDetail(props: { row: FnoScreenerRow; expiry?: string }) {
   // `legs` must rebuild when `props.row` changes (data refetch / view-mode
   // switch re-supplies the same expanded row with a new object). Reading
   // `row()` at body level would pin the first row forever.
+  // The screener row already says which side it is quoting (`call` is the
+  // option type, not a boolean): a PE row booked as a CE paints the payoff
+  // mirrored, so the leg type must come from the row and the key must carry it.
+  // The API sends a label (`"4200 PE"`) while fixtures send the bare token, so
+  // read the trailing type word rather than comparing the whole string.
+  const legType = (): "CE" | "PE" => {
+    const raw = String(row().call ?? "").trim().toUpperCase();
+    return raw === "PE" || raw.split(/\s+/).at(-1) === "PE" ? "PE" : "CE";
+  };
   const legs = (): DockLeg[] => [
     {
-      key: `fno-${row().symbol}-${row().strike}`,
+      key: `fno-${row().symbol}-${legType()}-${row().strike}`,
       expiry: props.expiry ?? "",
       side: "buy",
-      type: "CE",
+      type: legType(),
       strike: row().strike,
       premium: row().premium,
       lots: 1,

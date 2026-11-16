@@ -504,6 +504,35 @@ describe("FnoScreenerTab", () => {
     expect(option.graphic?.[0]?.style?.text).toBe("flat vol 22.5%");
   });
 
+  it("prices a PE row as a long put, not a long call", async () => {
+    // TCS is a PE row; booking it as a CE paints a mirrored payoff.
+    const put = { ...baseResponse.rows[1], premium: 40, iv: 19 };
+    mockFetchFnoScreener.mockResolvedValueOnce({ ...baseResponse, rows: [put], matched: 1 });
+    renderTab();
+    await waitFor(() => expect(screen.getByTestId("fno-row-TCS")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId("fno-expand-TCS"));
+    await waitFor(() => expect(screen.getByTestId("fno-payoff-TCS")).toBeInTheDocument());
+    await waitFor(() => expect(chartStub.setOption).toHaveBeenCalled());
+
+    const option = lastPayoffOption();
+    const profit = option.series!.find((s) => s.lineStyle?.color === palette.POSITIVE)!;
+    const loss = option.series!.find((s) => s.lineStyle?.color === palette.NEGATIVE)!;
+    const spots = option.xAxis!.data!.map(Number);
+    spots.forEach((spot, i) => {
+      if (spot < put.strike - put.premium) {
+        expect(profit.data![i]).not.toBeNull();
+        expect(loss.data![i]).toBeNull();
+      } else if (spot > put.strike - put.premium) {
+        expect(loss.data![i]).not.toBeNull();
+        expect(profit.data![i]).toBeNull();
+      }
+    });
+    // A long put tops out at (strike − premium) × lot and loses the premium above the strike.
+    expect(Math.min(...loss.data!.filter((v): v is number => v !== null))).toBe(-put.premium);
+    expect(screen.getByTestId("options-max-pnl-value")).toHaveTextContent("−40");
+  });
+
   it("sorts rows by premium when the PREMIUM header is clicked", async () => {
     renderTab();
     await waitFor(() => expect(screen.getByTestId("fno-row-RELIANCE")).toBeInTheDocument());

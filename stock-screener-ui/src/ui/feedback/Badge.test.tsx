@@ -22,6 +22,40 @@ describe("Badge — status label", () => {
     expect(screen.getByTestId("fb").style.color).toBe("var(--color-fin-bg)");
   });
 
+  test("filled badge background is a theme var so light mode can re-tone it", () => {
+    render(() => (
+      <>
+        <Badge variant="filled" color="success" data-testid="fs">up</Badge>
+        <Badge variant="filled" color="error" data-testid="fe">SL</Badge>
+        <Badge variant="filled" color="warning" data-testid="fw">WAIT</Badge>
+        <Badge variant="filled" color="info" data-testid="fi">NEW</Badge>
+        <Badge variant="filled" color="primary" data-testid="fp">LIVE</Badge>
+      </>
+    ));
+    expect(screen.getByTestId("fs").style.backgroundColor).toBe("var(--color-fin-positive)");
+    expect(screen.getByTestId("fe").style.backgroundColor).toBe("var(--color-fin-negative)");
+    expect(screen.getByTestId("fw").style.backgroundColor).toBe("var(--color-fin-warning)");
+    expect(screen.getByTestId("fi").style.backgroundColor).toBe("var(--color-fin-info)");
+    expect(screen.getByTestId("fp").style.backgroundColor).toBe("var(--color-fin-primary)");
+    // The fixed dark anchors fail contrast with the near-white light-mode text.
+    for (const id of ["fs", "fe", "fw", "fi", "fp"]) {
+      expect(screen.getByTestId(id).style.backgroundColor).not.toContain("#");
+    }
+  });
+
+  test("outline and light variants keep the tone colour instead of the token fill", () => {
+    render(() => (
+      <>
+        <Badge variant="outline" color="success" data-testid="os">ok</Badge>
+        <Badge variant="light" color="success" data-testid="ls">ok</Badge>
+      </>
+    ));
+    expect(screen.getByTestId("os").style.backgroundColor).toBe("transparent");
+    expect(screen.getByTestId("os").style.borderColor).toBe("#2FA36B");
+    expect(screen.getByTestId("ls").style.backgroundColor).toBe("rgba(47, 163, 107, 0.12)");
+    expect(screen.getByTestId("ls").style.color).toBe("#2FA36B");
+  });
+
   test("non-filled badge foreground stays the tone colour", () => {
     render(() => <Badge variant="outline" color="success" data-testid="nb">ok</Badge>);
     expect(screen.getByTestId("nb").style.color).toBe("#2FA36B");
