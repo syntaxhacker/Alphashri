@@ -61,10 +61,11 @@ function row(symbol: string, overrides: Partial<ValueRow> = {}): ValueRow {
   };
 }
 
-function response(rows: ValueRow[]): ValueScanResponse {
+function response(rows: ValueRow[], market = "india"): ValueScanResponse {
+  const usa = market === "usa";
   return {
-    market: "india",
-    currency: "INR",
+    market,
+    currency: usa ? "USD" : "INR",
     as_of: "2026-10-21T10:00:00+05:30",
     scanned: 500,
     matched: rows.length,
@@ -76,9 +77,33 @@ function response(rows: ValueRow[]): ValueScanResponse {
   };
 }
 
+const INDIA_ROWS = (): ValueRow[] => [row("RELIANCE"), row("TCS")];
+const USA_ROWS = (): ValueRow[] => [
+  row("AAPL", {
+    name: "Apple Inc",
+    exchange: "NASDAQ",
+    currency: "USD",
+    price: 190,
+  }),
+  row("MSFT", {
+    name: "Microsoft Corp",
+    exchange: "NASDAQ",
+    currency: "USD",
+    price: 410,
+  }),
+];
+
+// The real endpoint echoes the requested market, so a fixture that always
+// answers "india" cannot expose a cross-market render.
+function byMarket(filters?: { market?: string }): ValueScanResponse {
+  return filters?.market === "usa"
+    ? response(USA_ROWS(), "usa")
+    : response(INDIA_ROWS(), "india");
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
-  mockValueScan.mockResolvedValue(response([row("RELIANCE"), row("TCS")]));
+  mockValueScan.mockImplementation(async (filters) => byMarket(filters));
 });
 
 describe("ValuePanel", () => {
@@ -179,4 +204,132 @@ describe("ValuePanel", () => {
     expect(screen.getByTestId("value-detail-RELIANCE")).toBeInTheDocument();
     expect(screen.getByTestId("value-detail-sub-RELIANCE-value")).toBeInTheDocument();
   });
+
+  test("a successful market switch renders the new market's rows only", async () => {
+    r(<ValuePanel />);
+    await screen.findByTestId("value-row-RELIANCE");
+    await fireEvent.click(screen.getByTestId("value-market-tab-usa"));
+    expect(await screen.findByTestId("value-row-AAPL", {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.getByTestId("value-row-MSFT")).toBeInTheDocument();
+    expect(screen.queryByTestId("value-row-RELIANCE")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("value-error")).not.toBeInTheDocument();
+  });
+
+  test("a failed market switch shows the error and never the old market's rows", async () => {
+    mockValueScan.mockImplementation(async (filters) => {
+      if (filters?.market === "usa") throw new Error("scan down");
+      return byMarket(filters);
+    });
+    r(<ValuePanel />);
+    await screen.findByTestId("value-row-RELIANCE");
+    await fireEvent.click(screen.getByTestId("value-market-tab-usa"));
+
+    const err = await screen.findByTestId("value-error", {}, { timeout: 3000 });
+    expect(err).toHaveTextContent("scan down");
+    expect(screen.queryByTestId("value-row-RELIANCE")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("value-row-TCS")).not.toBeInTheDocument();
+
+    mockValueScan.mockImplementation(async (filters) => byMarket(filters));
+    await fireEvent.click(screen.getByTestId("value-retry"));
+    expect(await screen.findByTestId("value-row-AAPL", {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(mockValueScan).toHaveBeenLastCalledWith(
+      expect.objectContaining({ market: "usa" }),
+      expect.anything(),
+    );
+    expect(screen.queryByTestId("value-error")).not.toBeInTheDocument();
+  });
+
+  test("switching market mid-flight clears the old rows and blocks export", async () => {
+    let resolveUsa: ((value: ValueScanResponse) => void) | undefined;
+    mockValueScan.mockImplementation(async (filters) => {
+      if (filters?.market === "usa") {
+        return new Promise<ValueScanResponse>((resolve) => {
+          resolveUsa = resolve;
+        });
+      }
+      return byMarket(filters);
+    });
+    const downloads = captureDownloads();
+    r(<ValuePanel />);
+    await screen.findByTestId("value-row-RELIANCE");
+
+    await fireEvent.click(screen.getByTestId("value-market-tab-usa"));
+    expect(await screen.findByTestId("value-loading", {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.queryByTestId("value-row-RELIANCE")).not.toBeInTheDocument();
+    const exportBtn = screen.getByTestId("value-export-csv");
+    expect(exportBtn).toBeDisabled();
+    await fireEvent.click(exportBtn);
+    expect(downloads()).toEqual([]);
+
+    await waitFor(() => expect(resolveUsa).toBeDefined(), { timeout: 3000 });
+    resolveUsa?.(response(USA_ROWS(), "usa"));
+    expect(await screen.findByTestId("value-row-AAPL", {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.getByTestId("value-export-csv")).not.toBeDisabled();
+    downloads.restore();
+  });
+
+  test("a payload from another market is never presented as the requested one", async () => {
+    // Only a misrouting proxy/cache can produce this shape; the API echoes the
+    // requested market. The panel must still name the universe it is showing.
+    mockValueScan.mockImplementation(async (filters) =>
+      filters?.market === "usa"
+        ? response(INDIA_ROWS(), "india")
+        : byMarket(filters),
+    );
+    r(<ValuePanel />);
+    await screen.findByTestId("value-row-RELIANCE");
+    await fireEvent.click(screen.getByTestId("value-market-tab-usa"));
+
+    const mismatch = await screen.findByTestId("value-market-mismatch", {}, { timeout: 3000 });
+    expect(mismatch).toHaveTextContent("Showing INDIA");
+    expect(screen.getByTestId("value-export-csv")).toBeDisabled();
+  });
+
+  test("export names the file after the payload's market", async () => {
+    const downloads = captureDownloads();
+    r(<ValuePanel />);
+    await screen.findByTestId("value-row-RELIANCE");
+    await fireEvent.click(screen.getByTestId("value-market-tab-usa"));
+    await screen.findByTestId("value-row-AAPL", {}, { timeout: 3000 });
+
+    await fireEvent.click(screen.getByTestId("value-export-csv"));
+    expect(downloads()).toEqual(["deep-value-usa.csv"]);
+    const text = await downloads.blobText();
+    expect(text).toContain("AAPL");
+    expect(text).not.toContain("RELIANCE");
+    downloads.restore();
+  });
 });
+
+function captureDownloads(): (() => string[]) & {
+  restore: () => void;
+  blobText: () => Promise<string>;
+} {
+  const names: string[] = [];
+  const blobs: Blob[] = [];
+  const click = vi
+    .spyOn(HTMLAnchorElement.prototype, "click")
+    .mockImplementation(function (this: HTMLAnchorElement) {
+      names.push(this.download);
+    });
+  const createObjectURL = vi.fn((blob: Blob): string => {
+    blobs.push(blob);
+    return "blob:csv";
+  });
+  const revokeObjectURL = vi.fn();
+  const origCreate = URL.createObjectURL;
+  const origRevoke = URL.revokeObjectURL;
+  (URL as unknown as Record<string, unknown>).createObjectURL = createObjectURL;
+  (URL as unknown as Record<string, unknown>).revokeObjectURL = revokeObjectURL;
+
+  const read = () => names;
+  return Object.assign(read, {
+    restore: () => {
+      click.mockRestore();
+      (URL as unknown as Record<string, unknown>).createObjectURL = origCreate;
+      (URL as unknown as Record<string, unknown>).revokeObjectURL = origRevoke;
+    },
+    blobText: async () => (blobs[0] ? blobs[0].text() : ""),
+  });
+}
+
