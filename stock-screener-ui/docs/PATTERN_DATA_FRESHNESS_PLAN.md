@@ -91,6 +91,13 @@ computed at request time from whichever frame wins.
   `close_bar_date` equal to the last candle's date; a 3-day-old daily file is
   refreshed before enrichment.
 
+Implementation note (2026-11-16): the shipped T2 uses `_frame_identity` in the
+series/timeline/matrix keys and computes closes from the returned frame; it did
+**not** add `close_bar_date` to the response. The UI therefore falls back to the
+chart candle (the series actually drawn) when the field is absent — correct for
+display, but a future `close_bar_date` would let enrichment win when it is
+genuinely newer.
+
 ### T3 — Frontend dated close + refresh
 
 - Use `close_bar_date` when present; **do not use `hit.end_date` as a proxy**.
