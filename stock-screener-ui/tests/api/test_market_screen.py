@@ -8,7 +8,9 @@ mocked so no network call is made.
 
 import os
 import shutil
+import threading
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from sys import path as sys_path
@@ -25,6 +27,7 @@ if str(ROOT) not in sys_path:
     sys_path.insert(0, str(ROOT))
 
 from api_server_fastapi import app  # noqa: E402
+from api.market_screen import snapshot as snapshot_mod  # noqa: E402
 from api.market_screen.snapshot import (  # noqa: E402
     ALLOWED_UNIVERSES,
     MAX_LIMIT,
@@ -388,8 +391,10 @@ def test_cold_start_serves_disk_stale_snapshot():
 
     key = ("all_equity", MAX_LIMIT)
     assert key in _inflight  # background refresh was started
-    _inflight[key]["event"].wait(timeout=5)
+    inflight_entry = _inflight[key]
+    inflight_entry["event"].wait(timeout=5)
     assert scan.call_count == 1
+    assert key not in _inflight  # the finished refresh releases its slot
 
     # Cache is now warm: next request is a fresh hit with the scanned rows.
     out2 = build_snapshot("all_equity", MAX_LIMIT)
@@ -467,3 +472,167 @@ def test_streaming_feed_triggers_no_cookie_heal():
     assert scan.call_count == 1
     assert refresh.call_count == 0
     assert out["cached"] is False and out["stale"] is False
+
+
+# --------------------------------------------------------------------------- #
+# Background refresh must release its inflight slot (fail or succeed)
+# --------------------------------------------------------------------------- #
+
+@contextmanager
+def _gated_tv_scan():
+    """TV scan stub that blocks until the test releases it.
+
+    Because the stub cannot return before the test allows it, the background
+    worker is provably still inside ``_compute_once`` when the request returns
+    -- so the inflight entry can be inspected without a sleep-based race.
+    """
+    started = threading.Event()
+    release = threading.Event()
+    outcome = {"exc": None, "rows": _frame([RELIANCE_ROW])}
+
+    def scan(*args, **kwargs):
+        started.set()
+        if not release.wait(timeout=5):
+            raise AssertionError("scan gate never released")
+        if outcome["exc"] is not None:
+            raise outcome["exc"]
+        return outcome["rows"]
+
+    with patch("api.market_screen.snapshot.scan_frame", side_effect=scan) as scan_mock, \
+            patch("api.market_screen.snapshot.tv_feed_status",
+                  return_value={"mode": "streaming"}):
+        yield scan_mock, started, release, outcome
+
+
+def _seed_expired_entry(key) -> None:
+    """Expire a warm memory entry so the next request stale-serves + refreshes."""
+    _cache[key] = {
+        "stored_at": time() - 120,
+        "expires_at": time() - 1,
+        "as_of": "2026-01-05T00:00:00+05:30",
+        "update_mode": "streaming",
+        "rows": [EXPECTED_RELIANCE_ROW],
+    }
+
+
+def test_background_refresh_success_clears_inflight_and_warms_cache():
+    """A finished background refresh publishes rows and frees the slot."""
+    key = ("all_equity", MAX_LIMIT)
+    _seed_expired_entry(key)
+
+    with _gated_tv_scan() as (scan, started, release, outcome):
+        served = build_snapshot("all_equity", MAX_LIMIT)
+        assert served["stale"] is True
+        assert started.wait(timeout=5)
+        entry = _inflight[key]
+        outcome["rows"] = _frame([dict(RELIANCE_ROW, name="NSE:FRESH932")])
+        release.set()
+        assert entry["event"].wait(timeout=5), "refresh never signalled"
+
+    assert key not in _inflight
+    assert scan.call_count == 1
+    assert _cache[key]["rows"][0]["symbol"] == "FRESH932"
+    assert _cache[key]["as_of"] == entry["as_of"]
+
+
+def test_background_refresh_failure_clears_inflight():
+    """Regression: a failed background refresh must not leave a poisoned slot.
+
+    Before the fix ``_refresh`` only set the event, so the entry (with ``exc``
+    set on it) stayed in ``_inflight`` for the life of the process.
+    """
+    key = ("all_equity", MAX_LIMIT)
+    _seed_expired_entry(key)
+
+    with _gated_tv_scan() as (scan, started, release, outcome):
+        served = build_snapshot("all_equity", MAX_LIMIT)
+        assert served["stale"] is True  # stale-serve while the refresh runs
+        assert started.wait(timeout=5)
+        entry = _inflight[key]
+        outcome["exc"] = RuntimeError("broker token dead")
+        release.set()
+        assert entry["event"].wait(timeout=5), "refresh never signalled"
+
+    assert entry["exc"] is not None
+    assert key not in _inflight, "failed refresh leaked its slot"
+    assert scan.call_count == 1
+
+
+def test_force_after_failed_background_refresh_rescans():
+    """force=true must not inherit a dead slot: it scans again and is fresh."""
+    key = ("all_equity", MAX_LIMIT)
+    _seed_expired_entry(key)
+
+    with _gated_tv_scan() as (scan, started, release, outcome):
+        build_snapshot("all_equity", MAX_LIMIT)
+        assert started.wait(timeout=5)
+        entry = _inflight[key]
+        outcome["exc"] = RuntimeError("broker token dead")
+        release.set()
+        assert entry["event"].wait(timeout=5)
+        assert key not in _inflight  # the poisoning condition is gone
+
+        started.clear()
+        outcome["exc"] = None
+        outcome["rows"] = _frame([dict(RELIANCE_ROW, name="NSE:RECOVERED")])
+        out = build_snapshot("all_equity", MAX_LIMIT, True)
+
+    assert scan.call_count == 2, "force did not rescan after the failure"
+    assert out["stale"] is False and out["cached"] is False
+    assert out["as_of"] != "2026-01-05T00:00:00+05:30"
+    assert out["rows"][0]["symbol"] == "RECOVERED"
+    assert key not in _inflight
+
+
+def test_force_singleflight_collapses_after_poisoned_slot():
+    """A dead slot is discarded once, and the retry is still single-flighted."""
+    key = ("all_equity", MAX_LIMIT)
+    dead_event = threading.Event()
+    dead_event.set()
+    _inflight[key] = {
+        "event": dead_event, "stored_at": None, "as_of": None,
+        "update_mode": None, "rows": None, "exc": RuntimeError("dead"),
+    }
+
+    def slow_scan(*args, **kwargs):
+        sleep(0.25)
+        return _frame([RELIANCE_ROW])
+
+    with patch("api.market_screen.snapshot.scan_frame", side_effect=slow_scan) as scan, \
+            patch("api.market_screen.snapshot.tv_feed_status",
+                  return_value={"mode": "streaming"}):
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(
+                lambda _: build_snapshot("all_equity", MAX_LIMIT, True), range(8)))
+
+    assert scan.call_count == 1
+    assert all(r["stale"] is False and r["cached"] is False for r in results)
+    assert key not in _inflight
+
+
+@pytest.mark.parametrize("force", [False, True])
+def test_no_inflight_leak_on_upstream_failure(force):
+    """Every path leaves ``_inflight`` empty, even when the scan raises."""
+    key = ("all_equity", MAX_LIMIT)
+    with patch("api.market_screen.snapshot.scan_frame",
+               side_effect=RuntimeError("boom")) as scan, \
+            patch("api.market_screen.snapshot.tv_feed_status",
+                  return_value={"mode": "streaming"}):
+        with pytest.raises(RuntimeError, match="boom"):
+            build_snapshot("all_equity", MAX_LIMIT, force)
+        assert scan.call_count == 1
+
+    assert _inflight == {}
+
+
+def test_thread_start_failure_leaks_no_slot_and_still_serves_stale():
+    """A refresh thread that never starts must not claim the slot forever."""
+    key = ("all_equity", MAX_LIMIT)
+    _seed_expired_entry(key)
+
+    with patch("api.market_screen.snapshot.threading.Thread.start",
+               side_effect=RuntimeError("cannot start new thread")):
+        served = build_snapshot("all_equity", MAX_LIMIT)
+
+    assert served["stale"] is True  # stale serve still succeeds
+    assert _inflight == {}
