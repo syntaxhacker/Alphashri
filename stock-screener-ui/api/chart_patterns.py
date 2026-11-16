@@ -231,6 +231,15 @@ def _clear_read_caches() -> None:
 # identity (last-bar timestamp + interior digest), so a rolled frame can never
 # be served an older value. The per-(symbol, timeframe) index lets a forced
 # refresh drop one symbol without evicting any other.
+#
+# ``_known_frame`` holds the completed-session frame whose close the matrix
+# pairs with stored detection. It is published by result enrichment, the
+# ``/symbol`` header and the chart base frame — all of which read a completed
+# session — and ``_remember_frame`` refuses to store a frame that still ends
+# with today's in-progress bar. Written by all three callers *without* that
+# guard, a single (symbol, timeframe) slot let the last writer win, so a chart
+# request could leave a partial-session LTP next to completed-session detection
+# (KAYNES: 2,986 on 16-Nov vs 3,382 detected through 13-Nov).
 # ---------------------------------------------------------------------------
 
 _ENRICH_CACHE_TTL_SEC = float(os.environ.get("CHART_ENRICH_CACHE_TTL_SEC", "300.0"))
@@ -281,15 +290,37 @@ def _close_bar_date(df) -> Optional[str]:
 
 
 def _remember_frame(key, df, last_close, day_change) -> None:
-    """Publish the freshest frame/close/bar-date seen for ``(symbol, timeframe)``."""
+    """Publish the completed-session frame/close/bar-date for this symbol.
+
+    The matrix pairs this close with completed-session detection, so a frame
+    that still ends with a live, still-forming bar is trimmed to its last
+    completed bar before it is stored. Without that, a chart request overwrote
+    the completed frame with its display frame and the matrix reported a
+    partial-session LTP next to 13-Nov detection (KAYNES: 2,986 on 16-Nov vs
+    3,382 through 13-Nov).
+    """
     if key is None:
         return
-    frame_id = _frame_identity(df)
+    frame = df
+    if (
+        frame is not None
+        and not getattr(frame, "empty", True)
+        and (getattr(frame, "attrs", {}) or {}).get("partial_today")
+    ):
+        # ``iloc[:-1]`` keeps ``attrs``, so clear the marker: trimming is
+        # idempotent, and an already-trimmed ``base_df`` is not trimmed twice.
+        frame = frame.iloc[:-1].copy()
+        frame.attrs = {
+            key: value for key, value in (frame.attrs or {}).items()
+            if not str(key).startswith("partial_today")
+        }
+        last_close, day_change = _last_close_change(frame)
+    frame_id = _frame_identity(frame)
     if frame_id is None:
         return
     scope = (str(key[0]).upper(), str(key[1]))
     with _enrichment_lock:
-        _known_frame[scope] = (frame_id, last_close, day_change, _close_bar_date(df))
+        _known_frame[scope] = (frame_id, last_close, day_change, _close_bar_date(frame))
 
 
 def _known_frame_close(symbol, timeframe) -> tuple:
@@ -361,13 +392,21 @@ def _clear_symbol_enrichment(symbol, timeframe) -> None:
 
 
 def _clear_timeframe_enrichment(timeframe) -> None:
+    """Drop a whole timeframe's enrichment (universe refresh).
+
+    ``_known_frame`` is derived from itself, not from ``_enrichment_keys``: an
+    entry can exist for a symbol whose enrichment payload aged out of the
+    cache, and a refresh that leaves it behind lets the matrix keep serving the
+    pre-refresh close.
+    """
     tf = str(timeframe)
     with _enrichment_lock:
         scopes = [s for s in _enrichment_keys if s[1] == tf]
         for scope in scopes:
             for key in list(_enrichment_keys.pop(scope, ())):
                 _enrichment_cache.pop(key, None)
-            _known_frame.pop(scope, None)
+        for frame_scope in [s for s in _known_frame if s[1] == tf]:
+            _known_frame.pop(frame_scope, None)
 
 
 def _clear_all_enrichment() -> None:
@@ -2443,6 +2482,9 @@ def _candle_fields(symbol: str, timeframe: str) -> dict:
     if df is None or getattr(df, "empty", True):
         return {"last_close": None, "day_change_pct": None, "history_bars": 0}
     last_close, day_change = _last_close_change(df)
+    # Same completed-session frame as the results enrichment (this fetch never
+    # appends today's tape bar), so publishing it keeps the matrix readable for
+    # a symbol charted but not currently carrying stored hits.
     _remember_frame((symbol, timeframe), df, last_close, day_change)
     fields = {"last_close": last_close, "day_change_pct": day_change, "history_bars": int(len(df))}
     bar_date = _close_bar_date(df)
@@ -2722,6 +2764,8 @@ async def get_symbol_chart(
         series = _clamped_candle_series(display_df, lookback_bars, limit)
         _mark_partial_last(series, is_partial)
         if series:
+            # The disk frame is the completed-session base — the same frame
+            # detection uses, so it is safe to publish for the matrix.
             _remember_frame((symbol_u, timeframe), df, *_last_close_change(df))
             overlays, stored_fresh_lines = _stored_overlays_and_lines(symbol_u, timeframe, df)
             hits_block = None
@@ -2895,6 +2939,9 @@ async def get_symbol_chart(
         base_df = df.iloc[:-1]
     series = _clamped_candle_series(display_df, lookback_bars, limit)
     _mark_partial_last(series, is_partial)
+    # ``df`` is the fetched frame and may carry today's appended tape bar
+    # (``partial_today``); ``_remember_frame`` trims that trailing bar, leaving
+    # exactly ``base_df`` — the frame detection used.
     _remember_frame((symbol_u, timeframe), df, *_last_close_change(df))
     overlays, stored_fresh_lines = _stored_overlays_and_lines(symbol_u, timeframe, base_df)
     hits_block = None
@@ -3331,6 +3378,14 @@ def _matrix_rows(pairs) -> list[dict]:
             # (e.g. a non-datetime index); taking their fresh close while falling
             # back to the item's stale date would fabricate a cross-frame pair.
             # In that case use the item's own triple in full instead.
+            #
+            # ``_known_frame`` holds the completed-session enrichment frame only,
+            # so this can never splice an in-progress LTP (from a chart request)
+            # onto a completed-session hit — the KAYNES 2,986/13-Nov mismatch.
+            # Both triples are kept as candidates and the newest dated one wins:
+            # a stored row that is genuinely newer than the remembered frame is
+            # not regressed by it, and every candidate stays internally
+            # consistent (one date, one close, one change from one frame).
             current_close, current_change, current_bar_date = _known_frame_close(symbol, hit_tf)
             if (
                 isinstance(current_bar_date, str) and current_bar_date
@@ -3338,12 +3393,11 @@ def _matrix_rows(pairs) -> list[dict]:
                 and current_change is not None
             ):
                 row["_candidates"].append((current_bar_date, current_close, current_change))
-            else:
-                row["_candidates"].append((
-                    item.get("close_bar_date"),
-                    item.get("last_close"),
-                    item.get("day_change_pct"),
-                ))
+            row["_candidates"].append((
+                item.get("close_bar_date"),
+                item.get("last_close"),
+                item.get("day_change_pct"),
+            ))
             row["groups"].setdefault(hit_tf, []).append(item)
             row["hits"].append(item)
 

@@ -375,6 +375,160 @@ def test_matrix_datetimeindex_frame_pairs_fresh_date_and_close(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# The matrix reads one frame: the completed-session one. A chart request (whose
+# displayed series may include today's forming bar) must never rebind it.
+# ---------------------------------------------------------------------------
+
+
+def _close(df) -> tuple:
+    return cp_api._last_close_change(df)
+
+
+def test_matrix_uses_stored_triple_when_no_frame_is_known(monkeypatch):
+    """A stored hit on its own: the matrix reports that hit's complete triple."""
+    item = _stale_item()
+    item["close_bar_date"] = "2026-11-13"
+
+    resp = _matrix_client_get(monkeypatch, [item])
+
+    assert resp.status_code == 200
+    row = resp.json()["rows"][0]
+    assert (row["close_bar_date"], row["ltp"], row["day_change_pct"]) == (
+        "2026-11-13", 3382.0, 2.48,
+    )
+
+
+def test_symbol_then_matrix_keeps_the_stored_triple(monkeypatch):
+    """/symbol publishes a completed frame; the matrix picks it up whole."""
+    item = _stale_item()
+    item["close_bar_date"] = "2026-11-13"
+    df = _daily_frame([3300.0, 3382.0], "2026-11-13")
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: df)
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df, lookback_bars=None: {"support": None, "resistance": None},
+    )
+
+    cp_api._candle_fields("KAYNES", "1D")
+    close, change = _close(df)
+
+    resp = _matrix_client_get(monkeypatch, [item])
+
+    assert resp.status_code == 200
+    row = resp.json()["rows"][0]
+    assert (row["close_bar_date"], row["ltp"], row["day_change_pct"]) == (
+        "2026-11-13", close, change,
+    )
+
+
+def test_chart_with_a_partial_bar_does_not_change_the_matrix(monkeypatch, tmp_path):
+    """A 16-Nov chart request (displaying today's forming bar) leaves the matrix
+    on the completed 13-Nov session that detection is on."""
+    base = _daily_frame([3300.0, 3382.0, 3430.0], "2026-11-13")
+    _now_frozen(monkeypatch, "2026-11-16", 10, 30)
+    _seed_cache(monkeypatch, tmp_path, base)
+    monkeypatch.setattr(
+        cp_api.candles, "_last_completed_session",
+        lambda now=None: _date(2026, 11, 13),
+    )
+    monkeypatch.setattr(
+        "market_data.market_data.get_api_client", lambda: _tape_client()
+    )
+    cp_api.candles._PARTIAL_CACHE.clear()
+    # The network fetch appends today's tape bar, so the returned frame is
+    # flagged ``partial_today`` — exactly the frame that used to be published.
+    monkeypatch.setattr(
+        cp_api.candles, "fetch_for_timeframe",
+        lambda symbol, *a, **k: cp_api.candles.with_partial_today(base, symbol),
+    )
+    monkeypatch.setattr(
+        cp_api, "_stored_overlays_and_lines", lambda *a, **k: ([], [])
+    )
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df, lookback_bars=None: {"support": None, "resistance": None},
+    )
+
+    app, client = _chart_client()
+    try:
+        chart = client.get(
+            "/api/chart-patterns/symbol/KAYNES/chart",
+            params={"timeframe": "1D", "refresh": 1},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert chart.status_code == 200
+    body = chart.json()
+    assert body["candles"][-1]["t"] == "2026-11-15T18:30:00+00:00"
+    assert body["candles"][-1]["c"] == 2980.0
+    assert body["candles"][-1]["is_partial"] is True
+
+    item = _stale_item()
+    item["close_bar_date"] = "2026-11-13"
+    resp = _matrix_client_get(monkeypatch, [item])
+
+    assert resp.status_code == 200
+    row = resp.json()["rows"][0]
+    close, change = _close(base)
+    assert row["close_bar_date"] == "2026-11-13"
+    assert (row["ltp"], row["day_change_pct"]) == (close, change)
+    assert row["ltp"] != 2980.0, "never the in-progress tape LTP"
+
+
+def test_remember_frame_never_stores_a_partial_today_bar():
+    """A frame flagged ``partial_today`` publishes its last completed bar."""
+    base = _daily_frame([3300.0, 3382.0, 3430.0], "2026-11-13")
+    merged = base.copy()
+    merged.loc[pd.Timestamp("2026-11-15 18:30", tz="UTC")] = {
+        "open": 2980.0, "high": 2981.0, "low": 2979.0,
+        "close": 2980.0, "volume": 500.0,
+    }
+    merged.attrs["partial_today"] = True
+
+    cp_api._remember_frame(("KAYNES", "1D"), merged, *cp_api._last_close_change(merged))
+
+    close, change, bar_date = cp_api._known_frame_close("KAYNES", "1D")
+    assert bar_date == "2026-11-13"
+    assert close == 3430.0
+    assert change == _close(base)[1]
+
+
+def test_universe_refresh_clears_a_frame_without_enrichment(monkeypatch):
+    """refresh:true drops every frame for the timeframe, including one that only
+    ``/symbol`` wrote (no enrichment payload to index it by)."""
+    df = _daily_frame([3300.0, 3382.0], "2026-11-13")
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: df)
+    cp_api._candle_fields("KAYNES", "1D")
+    cp_api._remember_frame(("INFY", "1D"), df, *_close(df))
+    assert cp_api._enrichment_cache == {}
+    assert ("KAYNES", "1D") in cp_api._known_frame
+
+    monkeypatch.setattr(cp_api.candles, "clear_cache", lambda *a, **k: True)
+    monkeypatch.setattr(
+        cp_api.jobs, "submit",
+        lambda universe, tf, requested_by=None, params=None: {
+            "job_id": "cpj_universe_refresh", "universe": universe, "timeframe": tf,
+            "status": "queued", "queue_position": 0,
+        },
+    )
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_current_user] = lambda: _FakeUser()
+    try:
+        with TestClient(app) as client:
+            resp = client.post(
+                "/api/chart-patterns/scan",
+                json={"universe": "nifty50", "timeframe": "1D", "refresh": True},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    assert [scope for scope in cp_api._known_frame if scope[1] == "1D"] == []
+
+
+# ---------------------------------------------------------------------------
 # Live 1D display edge: a lagging official daily frame must not hide today's bar.
 # ---------------------------------------------------------------------------
 
