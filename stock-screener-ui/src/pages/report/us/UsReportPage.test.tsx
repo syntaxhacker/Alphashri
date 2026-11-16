@@ -148,4 +148,51 @@ describe("UsReportPage", () => {
     expect(screen.getByTestId("us-play")).toBeInTheDocument();
     expect(screen.getByTestId("us-seek")).toBeInTheDocument();
   });
+
+  it("never renders the sized ladder column before a row exists", async () => {
+    // No tape frames and no live row: the page must stay in its empty state.
+    vi.mocked(fetchUsLive).mockResolvedValueOnce({
+      date: "2026-10-22",
+      row: null,
+      source: "tape",
+    });
+    vi.mocked(fetchUsTape).mockResolvedValueOnce({
+      root: "NQ",
+      date: "2026-10-22",
+      interval_sec: 60,
+      minutes: 0,
+      rows: [],
+    });
+
+    render(() => (
+      <UIProvider>
+        <UsReportPage />
+      </UIProvider>
+    ));
+
+    await waitFor(() => expect(fetchUsLive).toHaveBeenCalled());
+    expect(screen.queryByTestId("us-ladder")).not.toBeInTheDocument();
+
+    // Class-based, viewport-independent: with no row the 400px/340px wrapper
+    // must not exist, so the chart's flex-1 min-w-0 column can reclaim the width.
+    const classes = () =>
+      Array.from(document.querySelectorAll("*")).map((el) => el.getAttribute("class") ?? "");
+    expect(classes().some((c) => c.includes("w-[400px]"))).toBe(false);
+    expect(classes().some((c) => c.includes("min-w-[340px]"))).toBe(false);
+    expect(classes().some((c) => c.includes("flex-1") && c.includes("min-w-0"))).toBe(true);
+  });
+
+  it("renders the sized ladder column once a row exists", async () => {
+    render(() => (
+      <UIProvider>
+        <UsReportPage />
+      </UIProvider>
+    ));
+
+    await waitFor(() => expect(screen.getByTestId("us-ladder")).toBeInTheDocument());
+    expect(screen.getByTestId("us-ladder-row-29000")).toBeInTheDocument();
+    const wrapper = screen.getByTestId("us-ladder").parentElement!;
+    expect(wrapper.getAttribute("class")).toContain("w-[400px]");
+    expect(wrapper.getAttribute("class")).toContain("min-w-[340px]");
+  });
 });

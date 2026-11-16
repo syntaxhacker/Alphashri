@@ -187,9 +187,11 @@ export function UsReportPage() {
 
       {/* ---- ladder + chart ---- */}
       <div class="flex gap-1 flex-1 min-h-0">
-        <div class="w-[400px] min-w-[340px] flex flex-col">
-          <Show when={row()}><UsLadder row={row()!} /></Show>
-        </div>
+        <Show when={row()}>
+          <div class="w-[400px] min-w-[340px] flex flex-col">
+            <UsLadder row={row()!} />
+          </div>
+        </Show>
         <div class="flex-1 min-w-0 flex flex-col gap-1">
           <UsChart frames={us.frames()} cursor={us.cursor()} bucket={tf()} />
           <Show when={mode() === "eod"}>
