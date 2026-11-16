@@ -330,6 +330,43 @@ describe("usePatternFullscreen refreshSymbolChart", () => {
   });
 });
 
+describe("usePatternFullscreen cleanup", () => {
+  beforeEach(() => {
+    vi.mocked(fetchPatternHit).mockResolvedValue(null as never);
+    vi.mocked(fetchQuotes).mockResolvedValue([
+      { symbol: "KAYNES", close: 2986, change: -12.94 },
+    ]);
+  });
+
+  afterEach(() => {
+    hook?.unmount();
+    hook = undefined;
+    vi.clearAllMocks();
+  });
+
+  test("unmount invalidates an in-flight chart request instead of letting it write state", async () => {
+    let resolveCandles: ((payload: ChartPayload) => void) | undefined;
+    vi.mocked(fetchSymbolChart).mockImplementation(
+      () => new Promise((resolve) => { resolveCandles = resolve; }),
+    );
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await vi.waitFor(() => expect(fetchSymbolChart).toHaveBeenCalledTimes(1));
+
+    hook.unmount();
+
+    resolveCandles?.(chartPayload(4321));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // A resolved-after-cleanup payload must not land: candles stay empty and
+    // the state stays in its loading placeholder.
+    expect(api.fullscreen()?.candles).toEqual([]);
+    expect(api.fullscreen()?.loading).toBe(true);
+  });
+});
+
 describe("usePatternFullscreen live quote polling (15s, fake timers)", () => {
   beforeEach(() => {
     vi.useFakeTimers();

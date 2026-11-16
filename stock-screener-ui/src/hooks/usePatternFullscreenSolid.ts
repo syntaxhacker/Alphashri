@@ -635,6 +635,9 @@ export function usePatternFullscreen({
 
   onCleanup(() => {
     stopLivePoll();
+    // Bump the token so a response already in flight cannot write to state
+    // after the owner is disposed.
+    chartRequestToken += 1;
   });
 
   const pinFullscreen = () => {
