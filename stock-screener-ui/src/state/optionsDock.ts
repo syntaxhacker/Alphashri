@@ -24,6 +24,12 @@ import {
   type UnderlyingInfo,
 } from "../api/optionsDock";
 import { pickDefaultExpiry, type OptionLeg } from "../utils/optionsMath";
+import {
+  STRATEGY_PRESETS,
+  buildPreset,
+  type ChainRow as StrategyChainRow,
+  type StrategyContext,
+} from "../utils/optionsStrategies";
 import { isDerivativesOpenIst } from "../utils/marketClock";
 
 export const FOCUSED_POLL_MS = 10_000;
@@ -75,6 +81,10 @@ export interface OptionsDockState {
   /** Non-null while a 429 has paused refreshing; the last frame stays painted. */
   paused: OptionsDockPause | null;
   refreshing: boolean;
+  /** Strategy whose legs are auto-built from the chain, `null` for hand-picked. */
+  activePreset: string | null;
+  /** Set when an active preset could not be rebuilt against the current chain. */
+  presetUnavailable: boolean;
 }
 
 function createInitialState(): OptionsDockState {
@@ -91,6 +101,8 @@ function createInitialState(): OptionsDockState {
     underlying: null,
     paused: null,
     refreshing: false,
+    activePreset: null,
+    presetUnavailable: false,
   };
 }
 
@@ -281,6 +293,7 @@ function applyChain(next: OptionDockChain): void {
   if (!sameShape) {
     setOptionsDockState("chain", next);
     setOptionsDockState("asOf", next.asOf);
+    rebuildPresetForNewFrame();
     return;
   }
 
@@ -298,6 +311,7 @@ function applyChain(next: OptionDockChain): void {
     setOptionsDockState("chain", "asOf", next.asOf);
     setOptionsDockState("asOf", next.asOf);
   }
+  repricePresetLegs();
 }
 
 type LegSide = ChainRow["ce"];
@@ -358,6 +372,9 @@ export function open(symbol: string, mode: OptionsDockMode = "options"): void {
         state.asOf = null;
         state.underlying = null;
         state.legs = loadPersistedLegs(upper);
+        // Persisted legs are hand-picked, not preset output.
+        state.activePreset = null;
+        state.presetUnavailable = false;
       }
       state.status = state.chain ? "ready" : "loading";
     }),
@@ -541,6 +558,8 @@ export function close(): void {
       state.underlying = null;
       state.asOf = null;
       state.legs = [];
+      state.activePreset = null;
+      state.presetUnavailable = false;
     }),
   );
 }
@@ -596,6 +615,123 @@ export function setLegLots(key: string, lots: number): void {
   const next = Math.max(1, Math.min(99, Math.floor(lots)));
   setLegs(optionsDockState.legs.map((leg) => (leg.key === key ? { ...leg, lots: next } : leg)));
 }
+
+/* ------------------------------------------------------------------ */
+/* Strategy presets                                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The live frame in the shape `optionsStrategies` expects. `ltp: null` becomes 0
+ * so the preset treats the strike as untradeable — inventing a premium would
+ * price a contract the market is not quoting.
+ */
+function toStrategyRows(rows: readonly ChainRow[]): StrategyChainRow[] {
+  return rows.map((row) => ({
+    strike: row.strike,
+    ce: { ltp: row.ce.ltp ?? 0, oi: row.ce.oi, iv: row.ce.iv },
+    pe: { ltp: row.pe.ltp ?? 0, oi: row.pe.oi, iv: row.pe.iv },
+  }));
+}
+
+/** Preset input from the frame currently on screen; `null` before a chain lands. */
+export function presetContext(): StrategyContext | null {
+  const chain = optionsDockState.chain;
+  if (!chain || !(chain.spot > 0) || chain.rows.length === 0) return null;
+  const expiry = optionsDockState.expiries.find((entry) => entry.date === optionsDockState.expiry);
+  return {
+    spot: chain.spot,
+    rows: toStrategyRows(chain.rows),
+    lotSize: expiry?.lotSize && expiry.lotSize > 0 ? expiry.lotSize : 0,
+  };
+}
+
+function legsFromPreset(presetId: string): DockLeg[] | null {
+  const ctx = presetContext();
+  if (!ctx) return null;
+  const expiry = optionsDockState.expiry;
+  if (!expiry) return null;
+  const built = buildPreset(presetId, ctx);
+  if (!built) return null;
+  return built.map((leg) => ({
+    ...leg,
+    expiry,
+    key: legKey({ expiry, type: leg.type, strike: leg.strike }),
+  }));
+}
+
+/**
+ * Apply the selected preset against the current chain. `null` selects
+ * "No strategy" and empties the leg strip.
+ *
+ * An unbuildable preset keeps its id on purpose: the chain may be too narrow
+ * today and the dock should say so instead of silently forgetting the choice.
+ */
+export function setStrategy(id: string | null): void {
+  if (id == null) {
+    setOptionsDockState(produce((state) => {
+      state.activePreset = null;
+      state.presetUnavailable = false;
+    }));
+    setLegs([]);
+    return;
+  }
+  if (!STRATEGY_PRESETS.some((preset) => preset.id === id)) return;
+
+  const hasChain = presetContext() != null;
+  const legs = hasChain ? legsFromPreset(id) : null;
+  setOptionsDockState(produce((state) => {
+    state.activePreset = id;
+    state.presetUnavailable = hasChain && legs == null;
+  }));
+  setLegs(legs ?? []);
+}
+
+/**
+ * Rebuild an active preset against a frame whose shape changed (expiry roll or a
+ * strike-set edit). Same-expiry polls never reach here, so a user's lot edits
+ * survive a 10 s tick; a genuinely new frame earns a fresh build.
+ *
+ * A preset the new chain cannot hold clears the legs but keeps the id, so the
+ * dock can explain the gap instead of forgetting the choice.
+ */
+function rebuildPresetForNewFrame(): void {
+  const presetId = optionsDockState.activePreset;
+  if (!presetId) return;
+  const rebuilt = legsFromPreset(presetId);
+  if (rebuilt == null) {
+    setOptionsDockState("presetUnavailable", true);
+    setLegs([]);
+    return;
+  }
+  setOptionsDockState("presetUnavailable", false);
+  setLegs(rebuilt);
+}
+
+/**
+ * A preset's premium is the chain's LTP at build time; a same-shape tick must
+ * move it or the payoff prices a contract at yesterday's premium. Lots and side
+ * tweaks are preserved — only the premium is re-read. Hand-picked legs are
+ * skipped: their premium is what the user deliberately placed.
+ */
+function repricePresetLegs(): void {
+  const presetId = optionsDockState.activePreset;
+  const chain = optionsDockState.chain;
+  if (!presetId || !chain) return;
+  const legs = optionsDockState.legs;
+  if (legs.length === 0) return;
+
+  let changed = false;
+  const next = legs.map((leg) => {
+    if (leg.expiry !== chain.expiry) return leg;
+    const row = chain.rows.find((entry) => entry.strike === leg.strike);
+    const ltp = row ? (leg.type === "CE" ? row.ce.ltp : row.pe.ltp) : null;
+    if (ltp == null || !(ltp > 0) || ltp === leg.premium) return leg;
+    changed = true;
+    return { ...leg, premium: ltp };
+  });
+  if (changed) setLegs(next);
+}
+
 
 export function toggleLegSide(key: string): void {
   setLegs(

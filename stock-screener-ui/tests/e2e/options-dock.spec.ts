@@ -131,6 +131,55 @@ test.describe("Options dock", () => {
     await expect(page.locator('[data-testid="options-payoff-chart"]')).toBeVisible();
   });
 
+  test("strategy preset builds an iron condor and survives an expiry change", async ({ page }) => {
+    const dock = await enterWithDock(page);
+    await openDock(page);
+
+    await page.locator('[data-testid="options-strategy"]').click();
+    await page.locator('[data-testid="options-strategy-iron_condor"]').click();
+
+    await expect(page.locator('[data-testid="options-leg-count"]')).toHaveText("4/4");
+    await expect(page.locator('[data-testid="options-leg-chips"]')).toBeVisible();
+    await expect(page.locator('[data-testid="options-strategy"]')).toContainText("Iron condor");
+    await expect(page.locator('[data-testid="options-strategy-risk"]')).toHaveText("defined risk");
+
+    // The preset prices from the in-memory frame: no extra chain request.
+    expect(dock.counts.underlying).toBe(1);
+    expect(dock.counts.chain).toBe(1);
+
+    await expect(page.locator('[data-testid="options-payoff"]')).toBeVisible();
+    await expect(page.locator('[data-testid="options-pop"]')).toContainText("%");
+    const points = await page
+      .locator('[data-testid="options-payoff-chart"]')
+      .getAttribute("data-points");
+    expect(Number(points)).toBeGreaterThan(0);
+
+    const before = dock.counts.chain;
+    await page.locator('[data-testid="options-expiry-select"]').selectOption("2026-12-31");
+    await expect.poll(() => dock.counts.chain, { timeout: 15000 }).toBe(before + 1);
+
+    // Rebuilt against the new frame rather than left stale on the old expiry.
+    await expect(page.locator('[data-testid="options-leg-count"]')).toHaveText("4/4");
+    await expect(page.locator('[data-testid="options-legs-expiry-mismatch"]')).toBeHidden();
+    await expect(page.locator('[data-testid="options-strategy"]')).toContainText("Iron condor");
+  });
+
+  test("No strategy clears the preset's legs", async ({ page }) => {
+    await enterWithDock(page);
+    await openDock(page);
+
+    await page.locator('[data-testid="options-strategy"]').click();
+    await page.locator('[data-testid="options-strategy-bull_call_spread"]').click();
+    await expect(page.locator('[data-testid="options-leg-count"]')).toHaveText("2/4");
+
+    await page.locator('[data-testid="options-strategy"]').click();
+    await page.locator('[data-testid="options-strategy-none"]').click();
+
+    await expect(page.locator('[data-testid="options-leg-count"]')).toHaveText("0/4");
+    await expect(page.locator('[data-testid="options-legs-empty"]')).toBeVisible();
+    await expect(page.locator('[data-testid="options-strategy"]')).toContainText("No strategy");
+  });
+
   test("changing expiry refetches the chain exactly once", async ({ page }) => {
     const dock = await enterWithDock(page);
     await openDock(page);

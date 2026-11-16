@@ -21,6 +21,7 @@ import {
 import type { ChainLeg } from "@/api/optionsDock";
 import { OptionChainTable } from "./OptionChainTable";
 import { LegBuilder } from "./LegBuilder";
+import { StrategyControl } from "./StrategyControl";
 import { PayoffPanel } from "./PayoffPanel";
 import { SummaryStrip, formatDte } from "./SummaryStrip";
 
@@ -367,6 +368,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
             loading={optionsDockState.refreshing && chain()!.rows.length === 0}
             onPick={handlePick}
           />
+          <StrategyControl />
           <LegBuilder
             legs={legs()}
             netPremium={netPremium()}

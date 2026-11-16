@@ -26,6 +26,7 @@ import {
   removeLeg,
   setExpiry,
   setLegLots,
+  setStrategy,
   staleLegs,
   toggleLegSide,
 } from "./optionsDock";
@@ -450,6 +451,176 @@ describe("refresh", () => {
 
     expect(fetchChain).toHaveBeenCalledTimes(1);
     expect(fetchChain).toHaveBeenCalledWith("NIFTY", "2026-03-26", expect.anything());
+  });
+});
+
+describe("strategy presets", () => {
+  it("builds the preset's legs and records the active preset", async () => {
+    open("NIFTY");
+    await flush();
+
+    setStrategy("bull_call_spread");
+
+    expect(optionsDockState.activePreset).toBe("bull_call_spread");
+    expect(optionsDockState.presetUnavailable).toBe(false);
+    expect(optionsDockState.legs).toHaveLength(2);
+    // Chips sort sell→buy, then CE→PE, then strike.
+    expect(optionsDockState.legs[0]).toMatchObject({
+      side: "sell",
+      type: "CE",
+      strike: 24100,
+      lotSize: 65,
+      expiry: "2026-03-26",
+    });
+    expect(optionsDockState.legs[1]).toMatchObject({ side: "buy", type: "CE", strike: 24000 });
+    // Premiums come from the frame, not from a placeholder.
+    expect(optionsDockState.legs[1].premium).toBeCloseTo(114.4, 6);
+  });
+
+  it("costs no request — the preset prices from the in-memory frame", async () => {
+    open("NIFTY");
+    await flush();
+    fetchChain.mockClear();
+
+    setStrategy("long_call");
+
+    expect(fetchChain).not.toHaveBeenCalled();
+    expect(optionsDockState.legs).toHaveLength(1);
+  });
+
+  it("rebuilds the legs from the new chain when the expiry changes", async () => {
+    open("NIFTY");
+    await flush();
+    setStrategy("bull_call_spread");
+    expect(optionsDockState.legs[0].expiry).toBe("2026-03-26");
+
+    setExpiry("2026-04-02");
+    await flush();
+
+    expect(optionsDockState.activePreset).toBe("bull_call_spread");
+    expect(optionsDockState.legs).toHaveLength(2);
+    expect(optionsDockState.legs.every((leg) => leg.expiry === "2026-04-02")).toBe(true);
+    expect(staleLegs()).toHaveLength(0);
+  });
+
+  it("clears the legs but keeps the id when the chain cannot hold the preset", async () => {
+    open("NIFTY");
+    await flush();
+
+    // Two strikes a side is not enough for an iron condor's two wings.
+    setStrategy("iron_condor");
+
+    expect(optionsDockState.activePreset).toBe("iron_condor");
+    expect(optionsDockState.presetUnavailable).toBe(true);
+    expect(optionsDockState.legs).toEqual([]);
+  });
+
+  it("keeps the selection and clears the legs when a rebuild stops fitting", async () => {
+    open("NIFTY");
+    await flush();
+    setStrategy("bull_call_spread");
+    expect(optionsDockState.legs).toHaveLength(2);
+
+    // The far expiry lists one strike only: a spread needs two.
+    fetchChain.mockImplementation(async (_symbol: string, expiry: string) => {
+      const frame = chain(expiry);
+      return { ...frame, rows: frame.rows.slice(0, 1) };
+    });
+    setExpiry("2026-04-02");
+    await flush();
+
+    expect(optionsDockState.activePreset).toBe("bull_call_spread");
+    expect(optionsDockState.presetUnavailable).toBe(true);
+    expect(optionsDockState.legs).toEqual([]);
+  });
+
+  it("rebuilds when a refresh changes the strike set, without asking again", async () => {
+    open("NIFTY");
+    await flush();
+    setStrategy("bull_call_spread");
+    expect(optionsDockState.legs.every((leg) => leg.expiry === "2026-03-26")).toBe(true);
+    fetchChain.mockClear();
+
+    // Same expiry, a different strike ladder — a shape change, not a tick.
+    fetchChain.mockResolvedValueOnce({
+      ...chain(),
+      rows: [
+        { strike: 23900, ce: { ltp: 140.1, oi: 0, iv: null }, pe: { ltp: 40.2, oi: 0, iv: null } },
+        { strike: 24000, ce: { ltp: 92.5, oi: 0, iv: null }, pe: { ltp: 61.0, oi: 0, iv: null } },
+        { strike: 24100, ce: { ltp: 55.4, oi: 0, iv: null }, pe: { ltp: 98.3, oi: 0, iv: null } },
+      ],
+    });
+    await refresh();
+
+    expect(fetchChain).toHaveBeenCalledTimes(1);
+    expect(optionsDockState.activePreset).toBe("bull_call_spread");
+    expect(optionsDockState.legs).toHaveLength(2);
+    // Priced from the new ladder, not carried over from the old one.
+    expect(optionsDockState.legs.map((leg) => leg.strike).sort()).toEqual([24000, 24100]);
+  });
+
+  it("setStrategy(null) clears the selection and the legs", async () => {
+    open("NIFTY");
+    await flush();
+    setStrategy("long_call");
+    expect(optionsDockState.legs).toHaveLength(1);
+
+    setStrategy(null);
+
+    expect(optionsDockState.activePreset).toBeNull();
+    expect(optionsDockState.presetUnavailable).toBe(false);
+    expect(optionsDockState.legs).toEqual([]);
+  });
+
+  it("ignores an unknown preset id", async () => {
+    open("NIFTY");
+    await flush();
+
+    setStrategy("not_a_preset");
+
+    expect(optionsDockState.activePreset).toBeNull();
+    expect(optionsDockState.legs).toEqual([]);
+  });
+
+  it("re-reads the preset premium on a same-shape tick but keeps the lots", async () => {
+    open("NIFTY");
+    await flush();
+    setStrategy("long_call");
+    const key = optionsDockState.legs[0].key;
+    setLegLots(key, 3);
+
+    const moved = chain();
+    moved.rows[0].ce.ltp = 120.5;
+    fetchChain.mockResolvedValueOnce(moved);
+    await refresh();
+
+    expect(optionsDockState.legs[0].lots).toBe(3);
+    expect(optionsDockState.legs[0].premium).toBeCloseTo(120.5, 6);
+  });
+
+  it("does not forget the hand-picked legs on a tick", async () => {
+    open("NIFTY");
+    await flush();
+    addLeg({ side: "buy", type: "PE", strike: 24000, premium: 82.9 });
+
+    const moved = chain();
+    moved.rows[1].pe.ltp = 150;
+    fetchChain.mockResolvedValueOnce(moved);
+    await refresh();
+
+    expect(optionsDockState.legs).toHaveLength(1);
+    expect(optionsDockState.legs[0].premium).toBeCloseTo(82.9, 6);
+  });
+
+  it("clearing on close drops the preset too", async () => {
+    open("NIFTY");
+    await flush();
+    setStrategy("long_call");
+
+    close();
+
+    expect(optionsDockState.activePreset).toBeNull();
+    expect(optionsDockState.legs).toEqual([]);
   });
 });
 

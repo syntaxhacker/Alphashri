@@ -329,6 +329,7 @@ export function PayoffPanel(props: {
         <div
           ref={(node) => (chartEl = node)}
           data-testid="options-payoff-chart"
+          data-points={snapshot()?.points.length ?? 0}
           style={{ width: "100%", height: "100%" }}
         />
         <Show when={!snapshot()}>
