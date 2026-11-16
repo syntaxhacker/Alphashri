@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
-import { Box, Text } from "@/ui";
+import { Box, Text, useColorScheme } from "@/ui";
 import * as palette from "@/ui/palette";
 import { loadEcharts } from "@/utils/loadEcharts";
 import { formatNumber } from "@/utils/ui-helpers";
@@ -15,8 +15,9 @@ import { DockSection } from "./DockSection";
 /**
  * Payoff at expiry plus the probability read.
  *
- * Recompute gate: legs change, or spot moves ≥ 0.05 %. A 10 s frame patch that
- * nudges spot by ₹2 on 24 000 must not re-run 241 points × N legs.
+ * Recompute gate: legs change, IV or DTE changes, or spot moves ≥ 0.05 %. A
+ * 10 s frame patch that nudges spot by ₹2 on 24 000 must not re-run 241 points
+ * × N legs — but an ATM-IV tick or an expiry switch must refresh POP/E[P&L]/±1σ.
  */
 const SPOT_MOVE_EPSILON = 0.0005;
 /** Horizontal pixel budget for the y axis labels. */
@@ -81,6 +82,19 @@ function pct(value: number): string {
   return Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : "—";
 }
 
+/**
+ * ECharts paints labels on a canvas, which cannot resolve `var(...)`. Read the
+ * theme token's computed value so light mode keeps its higher-contrast ink
+ * instead of the dark anchor baked into `palette.CHART_MUTED`.
+ */
+function mutedChartInk(): string {
+  if (typeof document === "undefined") return palette.CHART_MUTED;
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue("--color-fin-text-muted")
+    .trim();
+  return value || palette.CHART_MUTED;
+}
+
 function emptySnapshot(): PayoffSnapshot {
   return {
     points: [],
@@ -99,6 +113,7 @@ function buildOption(
   spot: number,
   iv: number,
   density: { spot: number; prob: number }[],
+  mutedInk: string,
 ) {
   const spots = snapshot.points.map((point) => point.spot);
   const maxProb = density.reduce((max, cell) => Math.max(max, cell.prob), 0);
@@ -145,7 +160,7 @@ function buildOption(
       axisLine: { lineStyle: { color: palette.AXIS_LINE } },
       axisTick: { show: false },
       axisLabel: {
-        color: palette.CHART_MUTED,
+        color: mutedInk,
         fontSize: 9,
         margin: 4,
         interval: Math.max(0, Math.floor(spots.length / 6)),
@@ -156,7 +171,7 @@ function buildOption(
       type: "value",
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { color: palette.CHART_MUTED, fontSize: 9 },
+      axisLabel: { color: mutedInk, fontSize: 9 },
       splitLine: { lineStyle: { color: palette.AXIS_SPLIT } },
     },
     series: [
@@ -214,7 +229,7 @@ function buildOption(
         top: 0,
         style: {
           text: `flat vol ${Number.isFinite(iv) && iv > 0 ? (iv * 100).toFixed(1) : "—"}%`,
-          fill: palette.CHART_MUTED,
+          fill: mutedInk,
           fontSize: 9,
           fontFamily: palette.MONO,
         },
@@ -234,6 +249,13 @@ export function PayoffPanel(props: {
   let chart: any = null;
   let disposed = false;
 
+  const { colorScheme } = useColorScheme();
+  /** Reading the scheme here repaints the canvas labels when the theme flips. */
+  const chartMuted = () => {
+    void colorScheme();
+    return mutedChartInk();
+  };
+
   // The gate: remember the inputs the current curve was built from.
   let lastSignature = "";
   let lastSpot = 0;
@@ -248,7 +270,11 @@ export function PayoffPanel(props: {
   const recompute = (force: boolean) => {
     const legs = props.legs;
     const spot = props.spot;
-    const signature = legSignature(legs);
+    const iv = ivDecimal();
+    const dte = props.dteYears;
+    // IV and DTE are not subject to the spot epsilon: an ATM-IV tick or an
+    // expiry switch must refresh POP/E[P&L]/±1σ even when spot has not moved.
+    const signature = `${legSignature(legs)}|${iv}|${dte}`;
     const moved = Math.abs(spot - lastSpot) / Math.max(spot, 1);
     if (!force && signature === lastSignature && moved < SPOT_MOVE_EPSILON) return;
     lastSignature = signature;
@@ -259,9 +285,9 @@ export function PayoffPanel(props: {
       setDensity([]);
       return;
     }
-    const next = buildPayoff(legs, spot, ivDecimal(), props.dteYears);
+    const next = buildPayoff(legs, spot, iv, dte);
     setSnapshot(next);
-    setDensity(next ? probabilityOfProfit(toPure(legs), spot, ivDecimal(), props.dteYears).density : []);
+    setDensity(next ? probabilityOfProfit(toPure(legs), spot, iv, dte).density : []);
   };
 
   createEffect(() => {
@@ -284,17 +310,17 @@ export function PayoffPanel(props: {
       if (disposed || !lib || !chartEl) return;
       chart = lib.init(chartEl, undefined, { renderer: "canvas" });
       // Merge mode: `notMerge: true` wipes the axis annotations on every tick.
-      chart.setOption(buildOption(snapshot() ?? emptySnapshot(), props.spot, ivDecimal(), density()), {
-        notMerge: false,
-        lazyUpdate: true,
-      });
+      chart.setOption(
+        buildOption(snapshot() ?? emptySnapshot(), props.spot, ivDecimal(), density(), chartMuted()),
+        { notMerge: false, lazyUpdate: true },
+      );
     });
   });
 
   createEffect(() => {
     const current = snapshot();
     if (!chart || !current) return;
-    chart.setOption(buildOption(current, props.spot, ivDecimal(), density()), {
+    chart.setOption(buildOption(current, props.spot, ivDecimal(), density(), chartMuted()), {
       notMerge: false,
       lazyUpdate: true,
     });
@@ -315,6 +341,16 @@ export function PayoffPanel(props: {
   const expectedPnl = createMemo(() => {
     const current = snapshot();
     return current && Number.isFinite(current.expectedPnl) ? current.expectedPnl : null;
+  });
+
+  /** An unbounded side prints `∞` — colour it by which tail has no strike. */
+  const maxPnlTone = createMemo(() => {
+    const current = snapshot();
+    if (!current) return undefined;
+    const unbounded = (value: number | null) => value == null || !Number.isFinite(value);
+    if (unbounded(current.maxLoss)) return palette.NEGATIVE;
+    if (unbounded(current.maxProfit)) return palette.POSITIVE;
+    return undefined;
   });
 
   return (
@@ -351,6 +387,7 @@ export function PayoffPanel(props: {
             testId="options-max-pnl"
             bordered
             value={`${signedCompact(snapshot()?.maxProfit ?? null)} / ${signedCompact(snapshot()?.maxLoss ?? null)}`}
+            tone={maxPnlTone()}
           />
           <PayoffMetric
             label="MODEL E[P&L]"

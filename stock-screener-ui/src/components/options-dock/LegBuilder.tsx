@@ -1,6 +1,5 @@
 import { For, Show } from "solid-js";
 import { Box, Text, Tooltip } from "@/ui";
-import * as palette from "@/ui/palette";
 import { IconMinus, IconPlus, IconTrash } from "@/components/common/Icons";
 import { formatNumber } from "@/utils/ui-helpers";
 import { MAX_LEGS, setLegLots, removeLeg, toggleLegSide, type DockLeg } from "@/state/optionsDock";
@@ -78,7 +77,10 @@ export function LegBuilder(props: {
                     data-testid={`options-leg-side-${leg.type}-${leg.strike}`}
                     onClick={() => toggleLegSide(leg.key)}
                     className="border-0 bg-transparent p-0 font-mono text-[10px] font-bold uppercase"
-                    style={{ color: leg.side === "sell" ? palette.NEGATIVE : palette.POSITIVE }}
+                    style={{
+                      color:
+                        leg.side === "sell" ? "var(--color-fin-negative)" : "var(--color-fin-positive)",
+                    }}
                   >
                     {leg.side === "sell" ? "S" : "B"}
                   </Box>

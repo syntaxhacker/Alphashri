@@ -322,4 +322,22 @@ describe("StrategyControl", () => {
     expect(screen.getByTestId("options-strategy-risk")).toHaveTextContent("undefined risk");
     expect(screen.getByTestId("options-strategy-description")).toBeInTheDocument();
   });
+
+  test("the risk badge text uses theme tokens, not the Badge's dark literal", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+
+    await pick("bull_call_spread");
+    const defined = screen.getByTestId("options-strategy-risk");
+    expect(defined).toHaveTextContent("defined risk");
+    expect(defined.style.color).toBe("var(--color-fin-positive)");
+    expect(defined.style.borderColor).toBe("var(--color-fin-positive)");
+    expect(defined.style.color).not.toMatch(/^#/);
+
+    await pick("short_put");
+    const undefinedRisk = screen.getByTestId("options-strategy-risk");
+    expect(undefinedRisk.style.color).toBe("var(--color-fin-warning)");
+    expect(undefinedRisk.style.borderColor).toBe("var(--color-fin-warning)");
+  });
 });

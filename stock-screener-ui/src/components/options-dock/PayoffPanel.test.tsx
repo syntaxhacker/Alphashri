@@ -248,3 +248,94 @@ describe("PayoffPanel footer", () => {
     expect(call.grid?.bottom).toBeGreaterThanOrEqual(18);
   });
 });
+
+const fmtPop = (value: number) => `${(value * 100).toFixed(1)}%`;
+
+function singleCall(side: "buy" | "sell"): DockLeg[] {
+  return [
+    {
+      key: "CE|24200",
+      expiry: "2026-03-26",
+      side,
+      type: "CE",
+      strike: 24200,
+      premium: 36.6,
+      lots: 1,
+      lotSize: 65,
+    },
+  ];
+}
+
+describe("PayoffPanel IV/DTE recompute", () => {
+  test("an ATM-IV tick alone refreshes POP even when spot and legs are unchanged", async () => {
+    const [iv, setIv] = createSignal(13.8);
+    render(() => (
+      <UIProvider>
+        <PayoffPanel legs={condor()} spot={24031.5} iv={iv()} dteYears={2 / 365} />
+      </UIProvider>
+    ));
+    await waitFor(() => expect(screen.getByTestId("options-pop")).toHaveTextContent("%"));
+
+    const before = screen.getByTestId("options-pop").textContent;
+    expect(before).toBe(fmtPop(buildPayoff(condor(), 24031.5, 0.138, 2 / 365)!.pop));
+
+    setIv(25);
+    await waitFor(() =>
+      expect(screen.getByTestId("options-pop")).not.toHaveTextContent(before ?? ""),
+    );
+    expect(screen.getByTestId("options-pop")).toHaveTextContent(
+      fmtPop(buildPayoff(condor(), 24031.5, 0.25, 2 / 365)!.pop),
+    );
+  });
+
+  test("a DTE change alone refreshes POP even when spot and legs are unchanged", async () => {
+    const [dte, setDte] = createSignal(2 / 365);
+    render(() => (
+      <UIProvider>
+        <PayoffPanel legs={condor()} spot={24031.5} iv={13.8} dteYears={dte()} />
+      </UIProvider>
+    ));
+    await waitFor(() => expect(screen.getByTestId("options-pop")).toHaveTextContent("%"));
+
+    const before = screen.getByTestId("options-pop").textContent;
+    expect(before).toBe(fmtPop(buildPayoff(condor(), 24031.5, 0.138, 2 / 365)!.pop));
+
+    setDte(10 / 365);
+    await waitFor(() =>
+      expect(screen.getByTestId("options-pop")).not.toHaveTextContent(before ?? ""),
+    );
+    expect(screen.getByTestId("options-pop")).toHaveTextContent(
+      fmtPop(buildPayoff(condor(), 24031.5, 0.138, 10 / 365)!.pop),
+    );
+  });
+});
+
+describe("PayoffPanel unbounded P/L tone", () => {
+  test("an unbounded loss prints ∞ in the negative tone", async () => {
+    render(() => (
+      <UIProvider>
+        <PayoffPanel legs={singleCall("sell")} spot={24031.5} iv={13.8} dteYears={2 / 365} />
+      </UIProvider>
+    ));
+    await waitFor(() => expect(chartStub.setOption).toHaveBeenCalled());
+
+    const value = screen.getByTestId("options-max-pnl-value");
+    expect(value).toHaveTextContent("∞");
+    expect(buildPayoff(singleCall("sell"), 24031.5, 0.138, 2 / 365)!.maxLoss).toBeNull();
+    expect(value.style.color).toBe(palette.NEGATIVE);
+  });
+
+  test("an unbounded profit prints ∞ in the positive tone", async () => {
+    render(() => (
+      <UIProvider>
+        <PayoffPanel legs={singleCall("buy")} spot={24031.5} iv={13.8} dteYears={2 / 365} />
+      </UIProvider>
+    ));
+    await waitFor(() => expect(chartStub.setOption).toHaveBeenCalled());
+
+    const value = screen.getByTestId("options-max-pnl-value");
+    expect(value).toHaveTextContent("∞");
+    expect(buildPayoff(singleCall("buy"), 24031.5, 0.138, 2 / 365)!.maxProfit).toBeNull();
+    expect(value.style.color).toBe(palette.POSITIVE);
+  });
+});

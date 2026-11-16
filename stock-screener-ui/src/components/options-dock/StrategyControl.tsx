@@ -25,6 +25,14 @@ function presetOf(id: string | null): StrategyPreset | null {
   return STRATEGY_PRESETS.find((preset) => preset.id === id) ?? null;
 }
 
+/**
+ * Badge's `color` prop resolves to a literal dark-theme hex, which fails
+ * contrast on the light header band. Override text and border with the token.
+ */
+function riskInk(risk: string): string {
+  return risk === "defined" ? "var(--color-fin-positive)" : "var(--color-fin-warning)";
+}
+
 interface PanelPosition {
   top: number;
   left: number;
@@ -139,6 +147,7 @@ export function StrategyControl() {
                 size="xs"
                 variant="outline"
                 color={preset().risk === "defined" ? "success" : "warning"}
+                style={{ color: riskInk(preset().risk), "border-color": riskInk(preset().risk) }}
                 data-testid="options-strategy-risk"
               >
                 {preset().risk} risk
