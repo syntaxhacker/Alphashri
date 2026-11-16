@@ -520,6 +520,9 @@ def _stale_chart_fallback(
         "cached": True,
         "stale": True,
         "as_of": as_of,
+        # This fallback serves the frame as-is (no tape append), so detection and
+        # display share a date; the field is kept for a uniform payload shape.
+        "detection_as_of": as_of,
         "note": f"served last cached frame (through {as_of}); {reason}",
     }
 
@@ -2563,6 +2566,38 @@ def _mark_partial_last(series: list, is_partial: bool) -> list:
     return series
 
 
+def _chart_freshness(
+    display_as_of: Optional[str],
+    detection_as_of: Optional[str],
+    expected_as_of: Optional[str],
+    *,
+    served_from_cache: bool,
+) -> dict:
+    """Freshness fields describing what the *chart shows*, not the base frame.
+
+    ``as_of`` is the last displayed bar, so a stale-first serve that appends
+    today's tape bar is current even though detection (and its hit ``bars_ago``)
+    stay pinned to the completed-session ``detection_as_of`` frame. ``stale`` is
+    true only when the displayed series still ends before the last completed
+    session — a cache serve of a session-current frame is ``cached``, not stale.
+    ``expected_as_of`` is echoed only for the daily path that can actually lag.
+    Intraday callers pass ``expected_as_of=None``: their cache serve is always
+    flagged stale, since "today" says nothing about the last bar's age.
+    """
+    if display_as_of and expected_as_of:
+        stale = display_as_of < expected_as_of
+    else:
+        stale = bool(served_from_cache)
+    fields = {
+        "as_of": display_as_of,
+        "stale": stale,
+        "detection_as_of": detection_as_of,
+    }
+    if stale and expected_as_of:
+        fields["expected_as_of"] = expected_as_of
+    return fields
+
+
 @router.get("/symbol/{symbol}/chart")
 async def get_symbol_chart(
     symbol: str,
@@ -2601,10 +2636,12 @@ async def get_symbol_chart(
         # tape bar to the *displayed* candles; a session-current frame already
         # covers the latest session and never touches the tape here.
         display_df, is_partial = df, False
+        appended_today = False
         if timeframe == "1D" and as_of and chart_lcs and as_of < chart_lcs:
             display_df, is_partial = _chart_display_frame(
                 df, symbol_u, timeframe, allow_append=True
             )
+            appended_today = display_df is not df
         series = _clamped_candle_series(display_df, lookback_bars, limit)
         _mark_partial_last(series, is_partial)
         if series:
@@ -2620,6 +2657,7 @@ async def get_symbol_chart(
                 trend_lines = []
             else:
                 trend_lines = _detect_trend_lines(df, lookback_bars, stored_fresh_lines)
+            display_as_of = candles.frame_last_date(display_df) or as_of
             payload = {
                 "symbol": symbol_u,
                 "timeframe": timeframe,
@@ -2627,19 +2665,29 @@ async def get_symbol_chart(
                 "overlays": overlays,
                 "trend_lines": trend_lines,
                 "cached": True,
-                "stale": True,
-                "as_of": as_of,
-                "note": f"served cached frame (through {as_of}); refreshing in background",
             }
-            # Mark the expected session clearly when Upstox daily data lags the
-            # last completed session, so the UI can badge "data through as_of,
-            # expected through expected_as_of" instead of a permanent stale badge.
-            if chart_lcs and as_of and as_of < chart_lcs:
-                payload["expected_as_of"] = chart_lcs
-                payload["note"] = (
-                    f"served cached frame (through {as_of}); Upstox daily data "
-                    f"expected through {chart_lcs}; refreshing in background"
+            # Freshness describes the displayed series (which may include today's
+            # tape bar), so a synthesized bar clears ``stale``; detection and its
+            # ``bars_ago`` stay on the completed-session base frame. Only the 1D
+            # path knows what "expected" means; weekly/monthly frames close on
+            # their own period.
+            expected = chart_lcs if timeframe == "1D" else None
+            payload.update(_chart_freshness(
+                display_as_of, as_of, expected, served_from_cache=True,
+            ))
+            if appended_today:
+                note = (
+                    f"today's bar synthesized from the intraday tape; detection "
+                    f"through {as_of}"
                 )
+            else:
+                note = f"served cached frame (through {as_of})"
+                if payload.get("expected_as_of"):
+                    note += (
+                        f"; Upstox daily data expected through "
+                        f"{payload['expected_as_of']}"
+                    )
+            payload["note"] = f"{note}; refreshing in background"
             if detect_patterns:
                 payload["hits"] = list(hits_block["hits"])
                 _store_pattern_block(
@@ -2791,6 +2839,19 @@ async def get_symbol_chart(
         "overlays": overlays,
         "trend_lines": trend_lines,
     }
+    if refresh:
+        # A forced refresh answers with the same freshness contract as a cache
+        # serve: describe the displayed series (today's tape bar included), so a
+        # current chart is never labelled stale.
+        try:
+            chart_lcs = candles._last_completed_session().isoformat()
+        except Exception:
+            chart_lcs = None
+        payload.update(_chart_freshness(
+            candles.frame_last_date(display_df), candles.frame_last_date(base_df),
+            chart_lcs if timeframe == "1D" else None,
+            served_from_cache=False,
+        ))
     if detect_patterns:
         payload["hits"] = list(hits_block["hits"])
         _store_pattern_block(
