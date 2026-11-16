@@ -403,6 +403,19 @@ describe("results/summary/symbol error messages", () => {
     await expect(fetchSymbolDetail("SBIN", "1D")).rejects.toThrow("Failed to load SBIN");
   });
 
+  it("fetchSymbolChart sends refresh=1 only when refresh is true", async () => {
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "IRCON", candles: [], overlays: [] }));
+    await fetchSymbolChart("IRCON", "1D", { refresh: true });
+    let url = mockedFetch.mock.calls[0][0] as string;
+    expect(queryOf(url).get("refresh")).toBe("1");
+
+    mockedFetch.mockClear();
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "IRCON", candles: [], overlays: [] }));
+    await fetchSymbolChart("IRCON", "1D");
+    url = mockedFetch.mock.calls[0][0] as string;
+    expect(queryOf(url).get("refresh")).toBeNull();
+  });
+
   it("fetchSymbolChart throws the server detail on failure", async () => {
     mockedFetch.mockResolvedValue(errorResponse(500, { detail: "chart boom" }));
     await expect(fetchSymbolChart("SBIN", "1D")).rejects.toThrow("chart boom");

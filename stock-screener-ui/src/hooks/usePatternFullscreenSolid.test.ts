@@ -107,6 +107,42 @@ describe("usePatternFullscreen refreshSymbolChart", () => {
     );
   });
 
+  test("refresh sends refresh=1 on both phases and serves freshly fetched candles", async () => {
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(2);
+
+    framePrice = 2000;
+    vi.mocked(fetchSymbolChart).mockClear();
+    api.refreshSymbolChart();
+    await settled(api);
+
+    // The cache was invalidated: the new price comes from the wire, not the
+    // 1000-priced candle cached by the first open.
+    expect(api.fullscreen()?.candles[0].c).toBe(2000);
+    const calls = vi.mocked(fetchSymbolChart).mock.calls;
+    expect(calls).toHaveLength(2); // candles phase + patterns phase
+    expect(calls.every((call) => {
+      const opts = call[2];
+      return typeof opts === "object" && opts?.refresh === true;
+    })).toBe(true);
+    expect(calls[0][2]).toEqual(expect.objectContaining({ detectPatterns: false, refresh: true }));
+  });
+
+  test("a normal open does not send refresh=1", async () => {
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(fetchSymbolChart).mock.calls.every((call) => {
+      const opts = call[2];
+      return typeof opts !== "object" || opts?.refresh !== true;
+    })).toBe(true);
+  });
+
   test("a second open after refresh cannot surface the pre-refresh payload", async () => {
     hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
     const api = hook.result.current;

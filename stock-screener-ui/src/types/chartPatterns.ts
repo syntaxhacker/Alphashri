@@ -236,6 +236,8 @@ export interface ChartCandle {
   l: number;
   c: number;
   v: number;
+  /** Today's daily bar built from the 1-min tape while the session is open. */
+  is_partial?: boolean;
 }
 
 /**

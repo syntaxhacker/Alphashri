@@ -317,6 +317,7 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
       computeTrendlines?: boolean;
       asOf?: string;
       fromDate?: string;
+      refresh?: boolean;
     },
     // Only a refresh/load keeps the visible hit; timeframe switches still
     // default to newest (or the explicit list pick) for the new timeframe.
@@ -326,6 +327,7 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
       ...(extra.lookbackBars != null ? { lookbackBars: extra.lookbackBars } : {}),
       ...(extra.asOf ? { asOf: extra.asOf } : {}),
       ...(extra.fromDate ? { fromDate: extra.fromDate } : {}),
+      ...(extra.refresh ? { refresh: true } : {}),
     };
     // `computeTrendlines` is only forwarded when explicitly provided — the
     // timeframe switch deliberately omits it (server default).
@@ -480,6 +482,7 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
     detectPatterns = true,
     replay?: { asOf?: string | null; fromDate?: string | null },
     keepHit: PatternHitDTO | null = null,
+    refresh = false,
   ) => {
     const tf = timeframe ?? args.timeframe;
     const token = chartRequest + 1;
@@ -512,6 +515,7 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
       computeTrendlines: args.computeTrendlines,
       asOf: replay?.asOf ?? undefined,
       fromDate: replay?.fromDate ?? undefined,
+      refresh,
     }, true);
     // Live frames poll the quote every 15s; historical (as-of) frames never do.
     if (replay?.asOf == null) {
@@ -531,6 +535,7 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
       current.detectPatterns !== false,
       { asOf: current.asOf, fromDate: current.fromDate },
       current.hit,
+      true,
     );
   };
 

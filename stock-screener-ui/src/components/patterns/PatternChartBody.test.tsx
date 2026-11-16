@@ -94,7 +94,10 @@ const HIT: PatternHitDTO = {
 
 
 describe("PatternChartBody", () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
 
   test("default render (no hit): body, history control, empty TV, no chart data", () => {
     render(() => <PatternChartBody hit={null} candles={[]} />);
@@ -207,6 +210,7 @@ describe("PatternChartBody", () => {
       changePct: -1.55,
       barDate: "2026-11-13",
       source: "hit",
+      isPartial: false,
     });
   });
 
@@ -366,5 +370,59 @@ describe("PatternChartBody", () => {
     expect(onSelectHit).toHaveBeenCalledTimes(1);
     expect(onSelectHit).toHaveBeenCalledWith(hits[0]);
     expect(onSelectHit).toHaveBeenCalledWith(expect.objectContaining({ symbol: "AAA" }));
+  });
+
+  test("the last returned candle (16 Nov) drives the close label and price", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-16T12:00:00Z"));
+    const candles: ChartCandle[] = [
+      { t: "2026-11-13", o: 3484, h: 3450, l: 3420, c: 3430, v: 900 },
+      { t: "2026-11-16", o: 3430, h: 3490, l: 3420, c: 3478, v: 1100 },
+    ];
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: null,
+      day_change_pct: null,
+      close_bar_date: null,
+    };
+    render(() => <PatternChartBody hit={hit} candles={candles} />);
+    const label = screen.getByTestId("patterns-close-label");
+    expect(label).toHaveTextContent("CLOSE · 16 NOV");
+    expect(label).not.toHaveTextContent("PREV CLOSE");
+    expect(label).not.toHaveTextContent("13 NOV");
+    expect(screen.getByText("₹3478.00")).toBeInTheDocument();
+    expect(screen.getByText("+1.40%")).toBeInTheDocument();
+    expect(screen.getByTestId("pattern-tv-stub")).toHaveAttribute("data-candle-count", "2");
+  });
+
+  test("a partial last candle shows a (live) marker; a completed bar does not", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-16T12:00:00Z"));
+    const base: ChartCandle[] = [
+      { t: "2026-11-13", o: 3484, h: 3450, l: 3420, c: 3430, v: 900 },
+      { t: "2026-11-16", o: 3430, h: 3490, l: 3420, c: 3478, v: 1100 },
+    ];
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: null,
+      day_change_pct: null,
+      close_bar_date: null,
+    };
+    const partial: ChartCandle[] = [
+      base[0]!,
+      { ...base[1]!, is_partial: true },
+    ];
+
+    const view = render(() => <PatternChartBody hit={hit} candles={partial} />);
+    expect(screen.getByTestId("patterns-close-label")).toHaveTextContent("CLOSE · 16 NOV");
+    expect(screen.getByTestId("patterns-close-partial")).toHaveTextContent("(live)");
+    // The marker never disturbs the price / percent pair.
+    expect(screen.getByText("₹3478.00")).toBeInTheDocument();
+    expect(screen.getByText("+1.40%")).toBeInTheDocument();
+
+    view.unmount();
+    render(() => <PatternChartBody hit={hit} candles={base} />);
+    expect(screen.getByTestId("patterns-close-label")).toHaveTextContent("CLOSE · 16 NOV");
+    expect(screen.queryByTestId("patterns-close-partial")).toBeNull();
   });
 });

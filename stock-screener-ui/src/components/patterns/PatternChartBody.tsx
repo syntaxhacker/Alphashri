@@ -67,6 +67,8 @@ export interface CloseSeries {
   changePct: number | null;
   barDate: string | null;
   source: "hit" | "chart";
+  /** The displayed bar is today's partial bar built from the live tape. */
+  isPartial: boolean;
 }
 
 /**
@@ -84,12 +86,14 @@ export function resolveCloseSeries(params: {
   const { hit, candles } = params;
   const last = candles.length ? candles[candles.length - 1] : null;
   const prev = candles.length > 1 ? candles[candles.length - 2] : null;
+  const isPartial = last?.is_partial === true;
   const chart: CloseSeries = {
     close: last?.c ?? null,
     changePct:
       last && prev && prev.c ? ((last.c - prev.c) / prev.c) * 100 : null,
     barDate: last?.t ?? null,
     source: "chart",
+    isPartial,
   };
 
   const hasPair = hit.last_close != null && hit.day_change_pct != null;
@@ -103,6 +107,9 @@ export function resolveCloseSeries(params: {
     changePct: hit.day_change_pct ?? null,
     barDate: hit.close_bar_date ?? null,
     source: "hit",
+    // The hit's dated pair describes the same bar as the chart's last candle,
+    // so the partial flag still applies to the label we render.
+    isPartial: chartKey != null && hitKey === chartKey ? isPartial : false,
   };
 }
 
@@ -230,6 +237,15 @@ function FullscreenPanel(props: {
               data-testid="patterns-close-label"
             >
               {closeLabel()}
+              <Show when={series().isPartial}>
+                <span
+                  data-testid="patterns-close-partial"
+                  className="ml-1 normal-case tracking-normal"
+                  style={{ color: WARNING }}
+                >
+                  (live)
+                </span>
+              </Show>
             </Text>
             <Box className="flex min-w-0 items-baseline gap-2">
               <Text fw={600} className="font-mono tabular-nums text-[18px] leading-none">

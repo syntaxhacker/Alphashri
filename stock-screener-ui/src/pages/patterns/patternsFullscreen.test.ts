@@ -98,6 +98,49 @@ describe("usePatternFullscreen (page) hit selection across reloads", () => {
     expect(api.fullscreen()?.hit?.id).toBe(oldest.id);
   });
 
+  test("refresh sends refresh=1 on both phases and serves freshly fetched candles", async () => {
+    let price = 100;
+    vi.mocked(fetchSymbolChart).mockImplementation(async () => ({
+      ...chartPayload(),
+      candles: [{ t: "2026-11-13", o: price, h: price, l: price, c: price, v: 1 }],
+    }));
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+    expect(api.fullscreen()?.candles[0].c).toBe(100);
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(2);
+
+    price = 200;
+    vi.mocked(fetchSymbolChart).mockClear();
+    api.refreshSymbolChart();
+    await settled(api);
+
+    // Cache was invalidated — the candle came from the wire, not the cached 100.
+    expect(api.fullscreen()?.candles[0].c).toBe(200);
+    const calls = vi.mocked(fetchSymbolChart).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls.every((call) => {
+      const opts = call[2];
+      return typeof opts === "object" && opts?.refresh === true;
+    })).toBe(true);
+    expect(calls[0][2]).toEqual(expect.objectContaining({ detectPatterns: false, refresh: true }));
+  });
+
+  test("a normal open does not send refresh=1", async () => {
+    vi.mocked(fetchSymbolChart).mockImplementation(async () => chartPayload());
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(fetchSymbolChart).mock.calls.every((call) => {
+      const opts = call[2];
+      return typeof opts !== "object" || opts?.refresh !== true;
+    })).toBe(true);
+  });
+
   test("refresh takes the same-identity hit from the new payload (new close_bar_date wins)", async () => {
     const oldHit = { ...makeHit(1, "2026-11-13"), close_bar_date: null, last_close: 3550, day_change_pct: 3.5 };
     const newest = makeHit(2, "2026-11-13");

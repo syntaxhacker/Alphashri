@@ -322,6 +322,8 @@ export interface SymbolChartOptions {
   asOf?: string;
   /** Replay window start: filter hits to this window (`from_date`). */
   fromDate?: string;
+  /** Bypass the candle cache and force a fresh read (`refresh=1`). */
+  refresh?: boolean;
 }
 
 export async function fetchSymbolChart(
@@ -336,6 +338,7 @@ export async function fetchSymbolChart(
   const detectPatterns = typeof opts === "number" ? undefined : opts?.detectPatterns;
   const asOf = typeof opts === "number" ? undefined : opts?.asOf;
   const fromDate = typeof opts === "number" ? undefined : opts?.fromDate;
+  const refresh = typeof opts === "number" ? undefined : opts?.refresh;
   appendParams(params, [
     ["limit", limit],
     ["lookback_bars", lookbackBars],
@@ -343,6 +346,7 @@ export async function fetchSymbolChart(
     ["detect_patterns", detectPatterns ? "1" : null],
     ["as_of_date", asOf],
     ["from_date", fromDate],
+    ["refresh", refresh ? "1" : null],
   ]);
   return getJson<ChartPayload>(
     `${CHART_PATTERNS_BASE}/symbol/${encodeURIComponent(symbol)}/chart?${params.toString()}`,
