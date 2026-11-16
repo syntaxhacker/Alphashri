@@ -899,6 +899,31 @@ def _include_api(module_path: str, router_attr: str, label: str, msg: str | None
         return False
 
 
+# The saved-config PUT sends `If-Match` (base revision). It must be listed here
+# or the browser preflight fails before the request ever leaves the page. The
+# conditional/cache family is included as a group because the same client sends
+# `If-None-Match` on revalidation and intermediaries add `Cache-Control`/`Pragma`.
+CORS_ALLOW_METHODS = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+CORS_ALLOW_HEADERS = (
+    "Content-Type, Authorization, X-Requested-With, "
+    "If-Match, If-None-Match, If-Modified-Since, Cache-Control, Pragma"
+)
+# Without this the browser hides the revision and retry hint from JS, so the
+# client cannot read what it is supposed to send back in `If-Match`/backoff.
+CORS_EXPOSE_HEADERS = "ETag, Retry-After"
+
+
+def _add_vary_origin(response: Response) -> None:
+    """Append `Origin` to `Vary` without clobbering `Accept-Encoding` from GZip."""
+    vary = response.headers.get("vary")
+    if vary is None:
+        response.headers["Vary"] = "Origin"
+        return
+    tokens = [token.strip().lower() for token in vary.split(",")]
+    if "origin" not in tokens:
+        response.headers["Vary"] = f"{vary}, Origin"
+
+
 class DynamicCORSMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         origin = request.headers.get("origin")
@@ -907,13 +932,17 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
                 response = Response(status_code=204)
                 response.headers["Access-Control-Allow-Origin"] = origin
                 response.headers["Access-Control-Allow-Credentials"] = "true"
-                response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-                response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+                response.headers["Access-Control-Allow-Methods"] = CORS_ALLOW_METHODS
+                response.headers["Access-Control-Allow-Headers"] = CORS_ALLOW_HEADERS
+                response.headers["Access-Control-Expose-Headers"] = CORS_EXPOSE_HEADERS
                 response.headers["Access-Control-Max-Age"] = "86400"
+                _add_vary_origin(response)
                 return response
             response = await call_next(request)
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Expose-Headers"] = CORS_EXPOSE_HEADERS
+            _add_vary_origin(response)
             return response
         return await call_next(request)
 
