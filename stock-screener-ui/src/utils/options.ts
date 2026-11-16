@@ -10,6 +10,16 @@ export function getAvailableUnderlyings(): string[] {
 }
 
 /**
+ * Serialise a Date as YYYY-MM-DD from its LOCAL components.
+ * `toISOString()` converts to UTC first, so west of UTC every expiry came out a day early.
+ */
+function toLocalDateString(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+/**
  * Get available expiry dates for an instrument
  */
 export function getExpiryDates(_instrumentKey: string): string[] {
@@ -20,7 +30,7 @@ export function getExpiryDates(_instrumentKey: string): string[] {
   for (let i = 0; i < 4; i++) {
     const date = new Date(today);
     date.setDate(today.getDate() + ((i * 7 + 4 - today.getDay() + 7) % 7));
-    expiries.push(date.toISOString().split("T")[0]);
+    expiries.push(toLocalDateString(date));
   }
 
   // Monthly expiries (last Thursday)
@@ -29,7 +39,7 @@ export function getExpiryDates(_instrumentKey: string): string[] {
     const day = date.getDay();
     const lastThursday = date.getDate() - ((day + 3) % 7);
     date.setDate(lastThursday);
-    expiries.push(date.toISOString().split("T")[0]);
+    expiries.push(toLocalDateString(date));
   }
 
   return [...new Set(expiries)].sort();
