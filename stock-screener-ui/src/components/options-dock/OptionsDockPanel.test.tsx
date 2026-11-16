@@ -127,6 +127,17 @@ const columnIdsOf = () =>
   screen.getAllByRole("columnheader").map((header) => header.id.replace("paper-tanstack-header-", ""));
 
 describe("expiryLabel", () => {
+  // Freeze the clock at a weekday 10:00 IST, before the 15:40 derivatives
+  // close, so the 0-DTE → EXPIRED boundary cannot flip with the real clock.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-16T10:00:00+05:30"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   test("labels a 0-DTE contract", () => {
     const today = new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Kolkata",
@@ -135,6 +146,19 @@ describe("expiryLabel", () => {
       day: "2-digit",
     }).format(new Date());
     expect(expiryLabel({ date: today, dteDays: 0 })).toContain("0-DTE");
+  });
+
+  test("labels a 1-DTE contract", () => {
+    expect(expiryLabel({ date: "2026-11-17", dteDays: 1 })).toBe("17 NOV · 1d");
+  });
+
+  test("labels an expired contract", () => {
+    // Yesterday's contract is expired at any time of day.
+    expect(expiryLabel({ date: "2026-11-15", dteDays: 0 })).toBe("15 NOV · EXPIRED");
+
+    // Today's contract flips to EXPIRED at the 15:40 derivatives close.
+    vi.setSystemTime(new Date("2026-11-16T15:50:00+05:30"));
+    expect(expiryLabel({ date: "2026-11-16", dteDays: 0 })).toBe("16 NOV · EXPIRED");
   });
 
   test("keeps the day count for a far expiry", () => {
