@@ -689,9 +689,15 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
         })()}
       </Show>
       <Show when={depthEverShown()}>
+        {/*
+          * Fill the panel when it is tall, but scroll when it is short: the
+          * depth map keeps its own min-height, so a desk-height chart row must
+          * scroll rather than clip the map (the panel body hides overflow).
+          */}
         <div
           data-testid="nifty-depth-view"
-          style={{ display: view() === "depth" ? "block" : "none" }}
+          class="flex flex-1 min-h-0 h-full overflow-auto"
+          style={{ display: view() === "depth" ? "flex" : "none" }}
         >
           <NiftyDepthMap report={report()} active={view() === "depth"} />
         </div>
