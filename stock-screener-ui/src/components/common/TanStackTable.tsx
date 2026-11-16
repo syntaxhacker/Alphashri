@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, on } from "solid-js";
 import { Box, Button, Paper, ScrollArea, ToolbarRow, useDensity } from "@/ui";
 import { InlineLoader } from "./states";
 import { ColumnPicker, type ColumnPickerItem } from "./ColumnPicker";
@@ -749,16 +749,21 @@ export function TanStackTable<T>(props: Props<T>) {
   // this signal by one page until the whole set is mounted.
   const [visibleCount, setVisibleCount] = createSignal(windowBase());
 
-  // Collapse back to one page on any change that reshapes the set. Without the
-  // sort/column triggers a filtered or re-sorted set could inherit a window
-  // grown to hundreds of rows by an earlier interaction.
-  createEffect(() => {
-    const data = props.data;
-    void data.length;
-    void sorting();
-    void visibleColumns();
-    setVisibleCount(windowBase());
-  });
+  // Collapse back to one page only when the *row set* is reshaped. A live
+  // table hands us a fresh `data` array on every snapshot poll with the same
+  // rows; reacting to that identity would yank a "Load more" window back to
+  // one page. The memo turns the set-shaping inputs into a stable string so a
+  // same-length replacement is deduped (Solid memos compare with `===`) and
+  // `on(..., { defer: true })` preserves the lazy initial window.
+  const windowResetKey = createMemo(() =>
+    JSON.stringify([
+      props.data.length,
+      sorting().map((s) => [s.id, s.desc]),
+      visibleColumns().map((c) => c.id),
+      windowBase(),
+    ]),
+  );
+  createEffect(on(windowResetKey, () => setVisibleCount(windowBase()), { defer: true }));
 
   const visibleItems = createMemo(() => {
     const items = bodyItems();

@@ -2,7 +2,7 @@
 import { createSignal } from "solid-js";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
-import { TanStackTable, type SortEntry, type TableColumnDef } from "./TanStackTable";
+import { TanStackTable, type ColumnPrefs, type SortEntry, type TableColumnDef } from "./TanStackTable";
 
 afterEach(() => {
   cleanup();
@@ -788,6 +788,111 @@ describe("TanStackTable — load more window", () => {
     expect(screen.getAllByTestId(/^all-/)).toHaveLength(120);
     expect(screen.queryByTestId("table-window-footer")).not.toBeInTheDocument();
     expect(screen.queryByTestId("table-load-more")).not.toBeInTheDocument();
+  });
+
+  // A snapshot poll hands back a brand-new array of the same row objects. Arrow
+  // keying off array identity used to collapse the window on every poll, so the
+  // "Load more" action appeared to undo itself moments after a click.
+  it("keeps the grown window when the same rows arrive in a new array", () => {
+    const many = makeRows(20);
+    const [rows, setRows] = createSignal<TestItem[]>(many);
+    render(() => (
+      <TanStackTable<TestItem>
+        data={rows()}
+        columns={columns}
+        rowWindowSize={5}
+        getRowTestId={(r) => `identity-${r.id}`}
+      />
+    ));
+    expect(screen.getAllByTestId(/^identity-/)).toHaveLength(5);
+    fireEvent.click(screen.getByTestId("table-load-more")); // 5 → 10
+    fireEvent.click(screen.getByTestId("table-load-more")); // 10 → 15
+    expect(screen.getAllByTestId(/^identity-/)).toHaveLength(15);
+    expect(screen.getByTestId("table-window-footer")).toHaveTextContent("showing 15 of 20 · 5 not rendered");
+
+    setRows([...many]); // same row objects, fresh array identity
+    expect(screen.getAllByTestId(/^identity-/)).toHaveLength(15);
+    expect(screen.getByTestId("table-window-footer")).toHaveTextContent("showing 15 of 20 · 5 not rendered");
+    expect(screen.getByTestId("table-load-more")).toBeInTheDocument();
+  });
+
+  it("resets the window to the base and updates the footer when the row count changes", () => {
+    const many = makeRows(20);
+    const [rows, setRows] = createSignal<TestItem[]>(many);
+    render(() => (
+      <TanStackTable<TestItem>
+        data={rows()}
+        columns={columns}
+        rowWindowSize={5}
+        getRowTestId={(r) => `reset-len-${r.id}`}
+      />
+    ));
+    fireEvent.click(screen.getByTestId("table-load-more"));
+    fireEvent.click(screen.getByTestId("table-load-more"));
+    expect(screen.getAllByTestId(/^reset-len-/)).toHaveLength(15);
+    expect(screen.getByTestId("table-window-footer")).toHaveTextContent("showing 15 of 20 · 5 not rendered");
+
+    setRows(many.slice(0, 8));
+    expect(screen.getAllByTestId(/^reset-len-/)).toHaveLength(5);
+    expect(screen.getByTestId("table-window-footer")).toHaveTextContent("showing 5 of 8 · 3 not rendered");
+  });
+
+  it("resets the window to the base when sorting changes", () => {
+    render(() => (
+      <TanStackTable<TestItem>
+        data={makeRows(312)}
+        columns={columns}
+        rowWindowSize={5}
+        getRowTestId={(r) => `reset-sort5-${r.id}`}
+      />
+    ));
+    fireEvent.click(screen.getByTestId("table-load-more"));
+    fireEvent.click(screen.getByTestId("table-load-more"));
+    expect(screen.getAllByTestId(/^reset-sort5-/)).toHaveLength(15);
+
+    fireEvent.click(screen.getByText("Value").closest("th")!);
+    expect(screen.getAllByTestId(/^reset-sort5-/)).toHaveLength(5);
+    expect(screen.getByTestId("table-load-more")).toBeInTheDocument();
+  });
+
+  it("resets the window to the base when a column's visibility changes", () => {
+    const [prefs, setPrefs] = createSignal<ColumnPrefs>({ order: [], hidden: [] });
+    render(() => (
+      <TanStackTable<TestItem>
+        data={makeRows(312)}
+        columns={columns}
+        rowWindowSize={5}
+        enableColumnControls
+        columnPrefs={prefs()}
+        getRowTestId={(r) => `reset-vis-${r.id}`}
+      />
+    ));
+    fireEvent.click(screen.getByTestId("table-load-more"));
+    fireEvent.click(screen.getByTestId("table-load-more"));
+    expect(screen.getAllByTestId(/^reset-vis-/)).toHaveLength(15);
+
+    setPrefs({ order: [], hidden: ["value"] });
+    expect(screen.getAllByTestId(/^reset-vis-/)).toHaveLength(5);
+    expect(screen.getByTestId("table-load-more")).toBeInTheDocument();
+  });
+
+  it("resets the window to the new base when rowWindowSize changes", () => {
+    const [size, setSize] = createSignal(5);
+    render(() => (
+      <TanStackTable<TestItem>
+        data={makeRows(312)}
+        columns={columns}
+        rowWindowSize={size()}
+        getRowTestId={(r) => `reset-size-${r.id}`}
+      />
+    ));
+    fireEvent.click(screen.getByTestId("table-load-more"));
+    fireEvent.click(screen.getByTestId("table-load-more"));
+    expect(screen.getAllByTestId(/^reset-size-/)).toHaveLength(15);
+
+    setSize(10);
+    expect(screen.getAllByTestId(/^reset-size-/)).toHaveLength(10);
+    expect(screen.getByTestId("table-window-footer")).toHaveTextContent("showing 10 of 312");
   });
 });
 
