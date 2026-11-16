@@ -540,7 +540,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                       className="inline-flex h-[20px] shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap border border-fin-border bg-transparent px-1 font-mono text-[9px] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
                       style={{ "border-radius": "4px" }}
                     >
-                      <IconRotate size={10} />
+                      <IconRotate size={12} />
                       <span className="hidden sm:inline">Strike</span>
                     </Box>
                   </Tooltip>
