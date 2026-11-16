@@ -100,6 +100,53 @@ async function chainScrollFits(page: Page): Promise<boolean> {
   });
 }
 
+/** True only when the ATM cell's rect is fully inside the chain scroller's band. */
+async function atmCellInBand(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const scroller = document.querySelector(
+      '[data-testid="options-chain-table"] .paper-tanstack-scroll',
+    );
+    const cell = document.querySelector('[data-testid="options-strike-cell-1420"]');
+    if (!scroller || !cell) return false;
+    const band = scroller.getBoundingClientRect();
+    const rect = cell.getBoundingClientRect();
+    return band.height > 0 && rect.top >= band.top && rect.bottom <= band.bottom;
+  });
+}
+
+async function setChainScrollTop(page: Page, top: number): Promise<void> {
+  await page.evaluate((value) => {
+    const el = document.querySelector(
+      '[data-testid="options-chain-table"] .paper-tanstack-scroll',
+    ) as HTMLElement;
+    el.scrollTop = value;
+  }, top);
+}
+
+/**
+ * Bounce the scroller away from the target edge first, so every call dispatches
+ * a scroll event even when the scroller is already parked there. The component
+ * ignores events for 300 ms after its own programmatic centre; polling keeps
+ * nudging until that settle window has passed and follow is actually off.
+ */
+async function scrollUntilUnfollowed(page: Page, edge: "top" | "bottom"): Promise<void> {
+  const host = page.locator('[data-testid="options-chain-table"]');
+  await expect.poll(
+    async () => {
+      await page.evaluate((which) => {
+        const el = document.querySelector(
+          '[data-testid="options-chain-table"] .paper-tanstack-scroll',
+        ) as HTMLElement;
+        const bottom = Math.max(0, el.scrollHeight - el.clientHeight);
+        if (which === "top") el.scrollTop = el.scrollTop === 0 ? bottom : 0;
+        else el.scrollTop = el.scrollTop >= bottom - 1 ? 0 : bottom;
+      }, edge);
+      return host.getAttribute("data-following");
+    },
+    { timeout: 8000, intervals: [200] },
+  ).toBe("false");
+}
+
 test.describe("Options dock", () => {
   const consoleErrors: string[] = [];
 
@@ -438,5 +485,89 @@ test.describe("Options dock", () => {
     );
     // ATM is pinned to the strike nearest spot, not to a row position.
     await expect(page.locator('[data-testid="options-atm-marker-1420"]')).toBeVisible();
+  });
+
+  test("wide: the chain opens centred on ATM and a manual scroll stops following", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await enterWithDock(page);
+    await openDock(page);
+
+    const host = page.locator('[data-testid="options-chain-table"]');
+    // The initial centre is a real scroll of the chain, not the page — a short
+    // ladder that fits the scroller could not exercise follow at all.
+    await expect.poll(() => atmCellInBand(page), { timeout: 10000 }).toBe(true);
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            (document.querySelector(
+              '[data-testid="options-chain-table"] .paper-tanstack-scroll',
+            ) as HTMLElement).scrollTop,
+        ),
+      )
+      .toBeGreaterThan(0);
+    await expect(host).toHaveAttribute("data-following", "true");
+
+    await scrollUntilUnfollowed(page, "top");
+    await setChainScrollTop(page, 0);
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            (document.querySelector(
+              '[data-testid="options-chain-table"] .paper-tanstack-scroll',
+            ) as HTMLElement).scrollTop,
+        ),
+      )
+      .toBe(0);
+    await expect(host).toHaveAttribute("data-following", "false");
+  });
+
+  test("wide: Center restores following and brings the ATM row back into view", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await enterWithDock(page);
+    await openDock(page);
+
+    const host = page.locator('[data-testid="options-chain-table"]');
+    await expect.poll(() => atmCellInBand(page), { timeout: 10000 }).toBe(true);
+
+    await scrollUntilUnfollowed(page, "bottom");
+    await page.evaluate(() => {
+      const el = document.querySelector(
+        '[data-testid="options-chain-table"] .paper-tanstack-scroll',
+      ) as HTMLElement;
+      el.scrollTop = el.scrollHeight;
+    });
+    // Away from centre the ATM cell really is out of the visible band.
+    await expect.poll(() => atmCellInBand(page), { timeout: 10000 }).toBe(false);
+    await expect(host).toHaveAttribute("data-following", "false");
+
+    await page.locator('[data-testid="options-chain-center"]').click();
+
+    await expect(host).toHaveAttribute("data-following", "true");
+    await expect.poll(() => atmCellInBand(page), { timeout: 10000 }).toBe(true);
+  });
+
+  test("narrow: the chain opens centred on ATM with no sideways page scroll", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await enterWithDock(page);
+    await openDock(page);
+
+    await expect.poll(() => atmCellInBand(page), { timeout: 10000 }).toBe(true);
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth === document.documentElement.clientWidth,
+          ),
+        { timeout: 10000 },
+      )
+      .toBe(true);
   });
 });
