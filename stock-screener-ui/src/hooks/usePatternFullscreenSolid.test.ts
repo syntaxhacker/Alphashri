@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { renderSolidHook } from "@/test-utils/solidRenderHook";
 import { fetchPatternHit, fetchSymbolChart } from "@/api/chartPatterns";
 import { fetchQuotes } from "@/api/marketScreener";
-import type { ChartPayload } from "@/types/chartPatterns";
+import type { ChartPayload, PatternHitDTO } from "@/types/chartPatterns";
 import { usePatternFullscreen } from "./usePatternFullscreenSolid";
 
 vi.mock("@/api/chartPatterns", () => ({
@@ -23,15 +23,50 @@ vi.mock("@/components/patterns/FullscreenPatternList", () => ({
 let framePrice = 1000;
 let hook: ReturnType<typeof renderSolidHook<ReturnType<typeof usePatternFullscreen>>> | undefined;
 
-const chartPayload = (price: number): ChartPayload => ({
+const chartPayload = (price: number, hits: PatternHitDTO[] = []): ChartPayload => ({
   symbol: "KAYNES",
   timeframe: "1D",
   candles: [{ t: "2026-11-13", o: price, h: price, l: price, c: price, v: 1 }],
   overlays: [],
   trend_lines: [],
-  hits: [],
+  hits,
   stale: false,
 });
+
+function makeHit(id: number, end_date: string): PatternHitDTO {
+  return {
+    id,
+    symbol: "KAYNES",
+    name: null,
+    timeframe: "1D",
+    pattern_id: `pattern_${id}`,
+    pattern_name: `Pattern ${id}`,
+    family: "continuation",
+    direction: "bullish",
+    status: "confirmed",
+    quality: "strong",
+    confidence: 80 - id,
+    start_date: "2026-11-01",
+    end_date,
+    start_price: 100,
+    end_price: 110,
+    breakout_level: 110,
+    target: 120,
+    stop: 95,
+    rr: 2,
+    bars_ago: id,
+    volume_confirmed: true,
+    trendlines: [],
+    notes: "",
+  };
+}
+
+type Api = ReturnType<typeof usePatternFullscreen>;
+const settled = (api: Api) =>
+  vi.waitFor(() => {
+    expect(api.fullscreen()?.loading).toBe(false);
+    expect(api.fullscreen()?.patternsLoading).toBe(false);
+  });
 
 describe("usePatternFullscreen refreshSymbolChart", () => {
   beforeEach(() => {
@@ -143,5 +178,91 @@ describe("usePatternFullscreen refreshSymbolChart", () => {
     expect(api.fullscreen()?.livePrice).toBeNull();
     expect(api.fullscreen()?.liveChange).toBeNull();
     expect(api.fullscreen()?.candles[0].c).toBe(1000);
+  });
+
+  test("refresh preserves the selected hit instead of resetting to the newest", async () => {
+    const newest = makeHit(1, "2026-11-13");
+    const oldest = makeHit(3, "2026-11-11");
+    const hits = [newest, makeHit(2, "2026-11-12"), oldest];
+    vi.mocked(fetchSymbolChart).mockImplementation(async () => chartPayload(framePrice, hits));
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+    expect(api.fullscreen()?.hit?.id).toBe(newest.id); // fresh open defaults to newest
+
+    api.selectFullscreenHit(oldest);
+    expect(api.fullscreen()?.hit?.id).toBe(oldest.id);
+
+    api.refreshSymbolChart();
+    await settled(api);
+    expect(api.fullscreen()?.hit?.id).toBe(oldest.id); // selection survives refresh
+  });
+
+  test("refresh preserves a card-opened hit without any explicit list selection", async () => {
+    const newest = makeHit(1, "2026-11-13");
+    const picked = makeHit(3, "2026-11-11");
+    vi.mocked(fetchSymbolChart).mockImplementation(async () =>
+      chartPayload(framePrice, [newest, makeHit(2, "2026-11-12"), picked]),
+    );
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromCard(picked);
+    await vi.waitFor(() => expect(api.fullscreen()?.loading).toBe(false));
+    expect(api.fullscreen()?.hit?.id).toBe(picked.id);
+
+    api.refreshSymbolChart();
+    await settled(api);
+    expect(api.fullscreen()?.hit?.id).toBe(picked.id);
+  });
+
+  test("refresh falls back to newest when the selected hit disappears", async () => {
+    const newest = makeHit(1, "2026-11-13");
+    const oldest = makeHit(3, "2026-11-11");
+    let payloadHits = [newest, makeHit(2, "2026-11-12"), oldest];
+    vi.mocked(fetchSymbolChart).mockImplementation(async () => chartPayload(framePrice, payloadHits));
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    api.selectFullscreenHit(oldest);
+    payloadHits = [newest, makeHit(2, "2026-11-12")]; // oldest no longer detected
+    api.refreshSymbolChart();
+    await settled(api);
+    expect(api.fullscreen()?.hit?.id).toBe(newest.id);
+  });
+
+  test("a fresh open with no prior hit still selects the newest hit", async () => {
+    const newest = makeHit(1, "2026-11-13");
+    vi.mocked(fetchSymbolChart).mockImplementation(async () =>
+      chartPayload(framePrice, [newest, makeHit(2, "2026-11-12")]),
+    );
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+    expect(api.fullscreen()?.hit?.id).toBe(newest.id);
+  });
+
+  test("timeframe change keeps the selected hit when its identity exists in the new timeframe", async () => {
+    const newest = makeHit(1, "2026-11-13");
+    const oldest = makeHit(3, "2026-11-11");
+    vi.mocked(fetchSymbolChart).mockImplementation(async () => chartPayload(framePrice, [newest, oldest]));
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    api.selectFullscreenHit(oldest);
+    api.changeFullscreenTimeframe("1h");
+    await settled(api);
+    expect(api.fullscreen()?.timeframe).toBe("1h");
+    expect(api.fullscreen()?.hit?.id).toBe(oldest.id);
   });
 });

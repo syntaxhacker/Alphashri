@@ -128,6 +128,19 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
     typeof args.resolutionKey === "function" ? args.resolutionKey() : args.resolutionKey ?? null;
   let prevScopeKey: string | null = readScopeKey();
   let prevResolutionKey: string | null = readResolutionKey();
+  // The hit the user explicitly picked from the list. Reloads (refresh,
+  // timeframe, as-of) keep this pick while its identity survives the new
+  // payload; a card open or a fresh symbol open clears it so newest wins.
+  let selectedHit: PatternHitDTO | null = null;
+
+  const resolveHit = (hits: PatternHitDTO[]): PatternHitDTO | null => {
+    const picked = selectedHit;
+    if (picked && hits.some((h) => fullscreenHitIdentity(h) === fullscreenHitIdentity(picked))) {
+      return picked;
+    }
+    return newestHit(hits);
+  };
+
   // Symbol-chart response cache (`symbol|tf|l` = candles, `symbol|tf|p` = patterns).
   const symbolChartCache = new Map<string, { chart: SymbolChartPayload; ts: number }>();
 
@@ -154,6 +167,7 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
   // Open from a known hit (e.g. a result card): show it immediately, then
   // load every detected pattern for the symbol and promote the newest.
   const openFromCard = (hit: PatternHitDTO) => {
+    selectedHit = null;
     const token = chartRequest + 1;
     chartRequest = token;
     const identity = fullscreenHitIdentity(hit);
@@ -236,7 +250,7 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
             ...extra,
             ...staleFields(chart),
             ...chartProblem(chart),
-            hit: newestHit(hits),
+            hit: resolveHit(hits),
             hits,
             candles: chart.candles ?? [],
             overlays: [],
@@ -277,6 +291,9 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
       asOf?: string;
       fromDate?: string;
     },
+    // Only a refresh/load keeps the visible hit; timeframe switches still
+    // default to newest (or the explicit list pick) for the new timeframe.
+    preserveCurrentHit = false,
   ) => {
     const baseOpts: Record<string, unknown> = {
       ...(extra.lookbackBars != null ? { lookbackBars: extra.lookbackBars } : {}),
@@ -319,19 +336,23 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
     const applyPatterns = (chart: SymbolChartPayload) => {
       if (chartRequest !== token) return;
       const hits = sortHitsNewest(chart.hits ?? []);
-      setFullscreen((prev) =>
-        prev && prev.symbol === symbol && prev.timeframe === tf
-          ? {
-              ...prev,
-              ...staleFields(chart),
-              ...chartProblem(chart),
-              hit: newestHit(hits),
-              hits,
-              trendLines: chart.trend_lines ?? [],
-              patternsLoading: false,
-            }
-          : prev,
-      );
+      setFullscreen((prev) => {
+        if (!prev || prev.symbol !== symbol || prev.timeframe !== tf) return prev;
+        const current = prev.hit;
+        const survives = !!current &&
+          hits.some((h) => fullscreenHitIdentity(h) === fullscreenHitIdentity(current));
+        return {
+          ...prev,
+          ...staleFields(chart),
+          ...chartProblem(chart),
+          hit: preserveCurrentHit
+            ? survives ? current : newestHit(hits)
+            : resolveHit(hits),
+          hits,
+          trendLines: chart.trend_lines ?? [],
+          patternsLoading: false,
+        };
+      });
     };
 
     const applyPatternsError = (_err: unknown) => {
@@ -425,6 +446,7 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
     pinned: boolean,
     detectPatterns = true,
     replay?: { asOf?: string | null; fromDate?: string | null },
+    keepHit: PatternHitDTO | null = null,
   ) => {
     const tf = timeframe ?? args.timeframe;
     const token = chartRequest + 1;
@@ -432,7 +454,7 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
     const startedAt = performance.now();
     setFullscreen({
       symbol,
-      hit: null,
+      hit: keepHit,
       hits: [],
       timeframe: tf,
       candles: [],
@@ -455,7 +477,7 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
       computeTrendlines: args.computeTrendlines,
       asOf: replay?.asOf ?? undefined,
       fromDate: replay?.fromDate ?? undefined,
-    });
+    }, true);
     fetchLiveQuote(symbol, token);
   };
 
@@ -470,15 +492,20 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
       current.pinned,
       current.detectPatterns !== false,
       { asOf: current.asOf, fromDate: current.fromDate },
+      current.hit,
     );
   };
 
-  const openFromSymbol = (symbol: string, timeframe?: string, detectPatterns = true) =>
-    loadSymbolChart(symbol, timeframe, true, detectPatterns);
+  const openFromSymbol = (symbol: string, timeframe?: string, detectPatterns = true) => {
+    selectedHit = null;
+    return loadSymbolChart(symbol, timeframe, true, detectPatterns);
+  };
 
   /** Hover preview: same widget, but dismissible (pinned = false). */
-  const previewFromSymbol = (symbol: string, timeframe?: string, detectPatterns = true) =>
-    loadSymbolChart(symbol, timeframe, false, detectPatterns);
+  const previewFromSymbol = (symbol: string, timeframe?: string, detectPatterns = true) => {
+    selectedHit = null;
+    return loadSymbolChart(symbol, timeframe, false, detectPatterns);
+  };
 
   // Fullscreen timeframe switch: candles first (phase 1), then patterns only
   // when the current chart has detection enabled (phase 2). Preserves as-of.
@@ -518,10 +545,12 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
 
   /** Fullscreen single-select: switch the chart to the chosen pattern. */
   const selectFullscreenHit = (hit: PatternHitDTO) => {
+    selectedHit = hit;
     setFullscreen((prev) => (prev ? { ...prev, hit } : prev));
   };
 
   const closeFullscreen = () => {
+    selectedHit = null;
     chartRequest += 1;
     setFullscreen(null);
   };
