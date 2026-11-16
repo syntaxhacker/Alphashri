@@ -193,6 +193,161 @@ describe("fetchWithAuth", () => {
   });
 });
 
+describe("proactive token refresh", () => {
+  beforeEach(resetAuthState);
+  afterEach(cleanupAuth);
+
+  function fakeJwt(expSecondsFromNow: number): string {
+    const payload = btoa(
+      JSON.stringify({ sub: "1", exp: Math.floor(Date.now() / 1000) + expSecondsFromNow }),
+    )
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+    return `header.${payload}.signature`;
+  }
+
+  const refreshedTokens = { access_token: "new-at", refresh_token: "new-rt" };
+
+  /** Routes /api/auth/refresh separately from data requests so call counts stay legible. */
+  function routeFetch(overrides: {
+    refresh?: () => Promise<any>;
+    data?: () => Promise<any>;
+  }) {
+    type FetchFn = (url: string, init?: RequestInit) => Promise<any>;
+    const refresh = vi.fn<FetchFn>(
+      overrides.refresh ?? (async () => createMockFetchResponse(refreshedTokens)),
+    );
+    const data = vi.fn<FetchFn>(
+      overrides.data ?? (async () => createMockFetchResponse({ ok: true })),
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) =>
+        String(url).includes("/api/auth/refresh") ? refresh(url, init) : data(url, init),
+      ),
+    );
+    return { refresh, data };
+  }
+
+  it("skips refresh when the token has more than 5 minutes left", async () => {
+    const { refresh, data } = routeFetch({});
+    setTokens(fakeJwt(900), "refresh-456");
+
+    await fetchWithAuth("http://test.com/api/data");
+
+    expect(refresh).not.toHaveBeenCalled();
+    expect(data).toHaveBeenCalledTimes(1);
+    expect(
+      (data.mock.calls[0][1] as RequestInit).headers,
+    ).toMatchObject({ Authorization: `Bearer ${getAccessToken()}` });
+  });
+
+  it("refreshes before the request when the token expires within 5 minutes", async () => {
+    const { refresh, data } = routeFetch({});
+    const staleToken = fakeJwt(120);
+    setTokens(staleToken, "refresh-456");
+
+    await fetchWithAuth("http://test.com/api/data");
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(data).toHaveBeenCalledTimes(1);
+    const headers = (data.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer new-at");
+    expect(headers.Authorization).not.toContain(staleToken);
+  });
+
+  it("shares one refresh between concurrent callers", async () => {
+    const { refresh, data } = routeFetch({});
+    setTokens(fakeJwt(120), "refresh-456");
+
+    await Promise.all(
+      Array.from({ length: 5 }, () => fetchWithAuth("http://test.com/api/data")),
+    );
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(data).toHaveBeenCalledTimes(5);
+  });
+
+  it("still sends the request when the proactive refresh fails, then retries once on 401", async () => {
+    const { refresh, data } = routeFetch({
+      refresh: async () => {
+        throw new Error("refresh network error");
+      },
+      data: async () => createMockFetchResponse({ detail: "expired" }, false, 401),
+    });
+    const staleToken = fakeJwt(120);
+    setTokens(staleToken, "refresh-456");
+
+    const response = await fetchWithAuth("http://test.com/api/data");
+
+    expect(data).toHaveBeenCalledTimes(1);
+    expect((data.mock.calls[0][1] as RequestInit).headers).toMatchObject({
+      Authorization: `Bearer ${staleToken}`,
+    });
+    // one failed proactive attempt + the legacy refresh-and-retry attempt
+    expect(refresh).toHaveBeenCalledTimes(2);
+    expect(response.status).toBe(401);
+  });
+
+  it("does not refresh proactively without a refresh token", async () => {
+    const { refresh, data } = routeFetch({});
+    localStorage.setItem("alphashri_token", fakeJwt(120));
+
+    await fetchWithAuth("http://test.com/api/data");
+
+    expect(refresh).not.toHaveBeenCalled();
+    expect(data).toHaveBeenCalledTimes(1);
+  });
+
+  it("never refreshes for the refresh endpoint itself", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        calls.push(String(url));
+        return createMockFetchResponse(refreshedTokens);
+      }),
+    );
+    setTokens(fakeJwt(120), "refresh-456");
+
+    await fetchWithAuth("http://test.com/api/auth/refresh", { method: "POST" });
+
+    // The expiring token must not add a proactive refresh in front of the call itself.
+    expect(calls).toEqual(["http://test.com/api/auth/refresh"]);
+  });
+
+  it("retries with the new token when a valid token is still rejected", async () => {
+    const { refresh, data } = routeFetch({
+      data: async () => createMockFetchResponse({ detail: "bad token" }, false, 401),
+    });
+    setTokens(fakeJwt(900), "refresh-456");
+
+    const response = await fetchWithAuth("http://test.com/api/data");
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(data).toHaveBeenCalledTimes(2);
+    expect((data.mock.calls[1][1] as RequestInit).headers).toMatchObject({
+      Authorization: "Bearer new-at",
+    });
+    expect(response.status).toBe(401);
+  });
+
+  it("returns 401 without a second attempt when the legacy refresh fails", async () => {
+    const { refresh, data } = routeFetch({
+      refresh: async () => createMockFetchResponse({}, false, 401),
+      data: async () => createMockFetchResponse({ detail: "expired" }, false, 401),
+    });
+    setTokens(fakeJwt(900), "refresh-456");
+
+    const response = await fetchWithAuth("http://test.com/api/data");
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(data).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(401);
+  });
+});
+
 describe("login", () => {
   beforeEach(resetAuthState);
   afterEach(cleanupAuth);
