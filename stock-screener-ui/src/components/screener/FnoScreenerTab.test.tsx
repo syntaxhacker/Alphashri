@@ -16,10 +16,18 @@ const lastPayoffOption = () =>
   (chartStub.setOption.mock.calls.at(-1)?.[0] ?? {}) as PayoffOption;
 
 const mockFetchFnoScreener = vi.hoisted(() => vi.fn());
+const routerMocks = vi.hoisted(() => ({ navigate: vi.fn() }));
 
 vi.mock("../../api/fnoScreener", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/fnoScreener")>();
   return { ...actual, fetchFnoScreener: mockFetchFnoScreener };
+});
+
+// FnoScreenerTab now owns the in-app symbol navigation; keep the router mock
+// local to this suite so the tab renders without mounting a full Router.
+vi.mock("@solidjs/router", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return { ...actual, useNavigate: () => routerMocks.navigate };
 });
 
 // The row detail now renders the shared ECharts payoff core. Stub the loader so
@@ -240,6 +248,20 @@ describe("FnoScreenerTab", () => {
     expect(screen.getByTestId("fno-loading")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId("fno-row-RELIANCE")).toBeInTheDocument());
     expect(screen.getByTestId("fno-table")).toBeInTheDocument();
+  });
+
+  it("clicking the symbol navigates once to the chart route without expanding the row", async () => {
+    renderTab();
+    await waitFor(() => expect(screen.getByTestId("fno-cell-symbol-RELIANCE")).toBeInTheDocument());
+
+    const symbol = screen.getByTestId("fno-cell-symbol-RELIANCE");
+    expect(symbol.tagName).toBe("BUTTON");
+    await fireEvent.click(symbol);
+
+    expect(routerMocks.navigate).toHaveBeenCalledTimes(1);
+    expect(routerMocks.navigate).toHaveBeenCalledWith("/chart/RELIANCE");
+    // The symbol click must not also fire a row-level detail action.
+    expect(screen.queryByTestId("fno-row-detail")).not.toBeInTheDocument();
   });
 
   it("renders rows with formatted cells once data resolves", async () => {
