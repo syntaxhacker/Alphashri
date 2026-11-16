@@ -286,10 +286,16 @@ async def compute_52w_ranges_task():
                 if st in ("completed", "failed", None, "idle"):
                     break
 
-            from cache.redis_client import invalidate_screener_cache
+            if _52w_batch_changed_ranges(job) is False:
+                # Prompt startup runs usually skip every symbol (--skip-updated-today).
+                # Wiping the prewarmed screener cache then just forces a 100s cold
+                # recompute on the next request for no data benefit.
+                print("[52W Range] Batch updated 0 ranges; screener cache left intact")
+            else:
+                from cache.redis_client import invalidate_screener_cache
 
-            n = invalidate_screener_cache()
-            print(f"[52W Range] Scheduled batch done (status={job.get('status')}); screener cache keys cleared: {n}")
+                n = invalidate_screener_cache()
+                print(f"[52W Range] Scheduled batch done (status={job.get('status')}); screener cache keys cleared: {n}")
 
             # Also clear the paper trading 52W file cache
             import shutil
@@ -510,6 +516,46 @@ def _compute_screener(provider, mode, screener, profile_filters):
         _enrich_with_touch_history(data, screener)
 
     return _sanitize_for_json(data)
+
+
+_WARMING_SCREENERS: set[str] = set()
+
+
+async def _warm_screener_cache(cache_key, provider, mode, screener, profile_filters):
+    """Fill a cold screener cache off the request path."""
+    try:
+        from cache.redis_client import stale_while_revalidate
+
+        await stale_while_revalidate(
+            cache_key,
+            lambda: _compute_screener(provider, mode, screener, profile_filters),
+            fresh_ttl=300,
+        )
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        print(f"⚠️ {screener} screener warm failed: {e}")
+    finally:
+        _WARMING_SCREENERS.discard(cache_key)
+
+
+def _52w_batch_changed_ranges(job: dict | None) -> bool | None:
+    """Whether a finished 52W batch changed range data; None when unknown.
+
+    A finished job with ok=0 is the common prompt-startup case (everything was
+    already refreshed today): the screener cache must not be wiped then.
+    """
+    if not isinstance(job, dict):
+        return None
+    if str(job.get("status") or "").lower() not in ("completed", "failed"):
+        return None
+    ok = job.get("ok")
+    if ok is None:
+        return None
+    try:
+        return int(ok) > 0
+    except (TypeError, ValueError):
+        return None
 
 
 def _spawn_task(label: str, factory, *, started: str = "🔄 {label} started", failed: str = "⚠️ {label} failed: {e}"):
@@ -1196,14 +1242,63 @@ async def get_screener_data(
     if min_cap_b is not None:
         profile_filters['min_cap_b'] = min_cap_b
 
-    from cache.redis_client import make_cache_key, stale_while_revalidate
+    from cache.redis_client import make_cache_key, cache_get, stale_while_revalidate
     cache_key = make_cache_key("screener", provider, mode, screener, **profile_filters)
+    screener_id = screener.replace('builtin:', '') if screener.startswith('builtin:') else screener
 
-    data, status = await stale_while_revalidate(
-        cache_key,
-        lambda: _compute_screener(provider, mode, screener, profile_filters),
-        fresh_ttl=300,
-    )
+    data = None
+    status = None
+
+    if screener_id == '52w_high' and (await asyncio.to_thread(cache_get, cache_key)) is None:
+        # Cold start: the full compute makes ~200 sequential Upstox calls (~100s).
+        # Serve a skeleton built from the stored range snapshot immediately and
+        # fill the cache in the background instead of holding the request open.
+        from api.screener_api.screener_52w import build_52w_skeleton_data
+
+        skeleton = await asyncio.to_thread(
+            build_52w_skeleton_data, profile_filters, provider, mode
+        )
+        if skeleton is not None:
+            if cache_key not in _WARMING_SCREENERS:
+                _WARMING_SCREENERS.add(cache_key)
+                _spawn_task(
+                    "52w screener warm",
+                    lambda: _warm_screener_cache(
+                        cache_key, provider, mode, screener, profile_filters
+                    ),
+                )
+            skeleton['applied_profile_filters'] = profile_filters
+            skeleton['cache_status'] = 'warming'
+            skeleton['served_from_cache'] = False
+            skeleton['refreshing'] = True
+            skeleton['warming'] = True
+            response = JSONResponse(content=_sanitize_for_json(skeleton))
+            response.headers["X-Cache"] = "warming"
+            return response
+
+        # No snapshot to build from: bound the wait, then fail fast rather than hang.
+        try:
+            data, status = await asyncio.wait_for(
+                stale_while_revalidate(
+                    cache_key,
+                    lambda: _compute_screener(provider, mode, screener, profile_filters),
+                    fresh_ttl=300,
+                    compute_timeout=8,
+                ),
+                timeout=8,
+            )
+        except (asyncio.TimeoutError, TimeoutError):
+            raise HTTPException(
+                status_code=503,
+                detail="52w_high screener is still warming up; retry shortly",
+            )
+
+    if data is None:
+        data, status = await stale_while_revalidate(
+            cache_key,
+            lambda: _compute_screener(provider, mode, screener, profile_filters),
+            fresh_ttl=300,
+        )
 
     data['cache_status'] = status
     data['served_from_cache'] = status != 'miss'

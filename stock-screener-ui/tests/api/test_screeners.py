@@ -1284,3 +1284,86 @@ class TestUpstox52wGap:
         good = next(s for s in result['approaching'] + result['touched'] if s['symbol'] == 'GOOD')
         assert good['source'] == 'upstox'
         assert good['to_52w_high'] == pytest.approx(6.54)
+
+
+class Test52wHighColdStartFallback:
+    """A cold 52w_high request serves a range-only skeleton in milliseconds."""
+
+    @pytest.fixture
+    def cold_ranges(self, db, monkeypatch):
+        from sqlalchemy.orm import sessionmaker
+        from db.models import Stock52WeekRange
+
+        TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db.get_bind())
+        monkeypatch.setattr("trading.week52_range_lookup.SessionLocal", TestSessionLocal)
+        # An empty screener cache without requiring a live Redis.
+        monkeypatch.setattr("cache.redis_client.get_redis_client", lambda: None)
+
+        db.add(Stock52WeekRange(
+            symbol="RELIANCE", high_52w=1611.8, low_52w=1290.0,
+            close=1580.0, days_ago=None,
+        ))
+        db.add(Stock52WeekRange(
+            symbol="TCS", high_52w=4000.0, low_52w=3000.0,
+            close=3999.0, days_ago=0,
+        ))
+        db.commit()
+
+    def test_cold_request_serves_skeleton_without_awaiting_full_compute(
+        self, cold_ranges, auth_client, monkeypatch
+    ):
+        import time
+
+        slow_compute = MagicMock(side_effect=lambda *a, **k: time.sleep(30))
+        monkeypatch.setattr("api_server_fastapi._compute_screener", slow_compute)
+        spawn = MagicMock(return_value=None)
+        monkeypatch.setattr("api_server_fastapi._spawn_task", spawn)
+
+        started = time.monotonic()
+        response = auth_client.get("/api/screener", params={"screener": "52w_high"})
+        elapsed = time.monotonic() - started
+
+        assert response.status_code == 200
+        assert elapsed < 2.0, f"cold request blocked for {elapsed:.2f}s"
+        assert response.headers["x-cache"] == "warming"
+        data = response.json()
+        assert data["warming"] is True
+        assert data["cache_status"] == "warming"
+        assert data["served_from_cache"] is False
+        assert data["refreshing"] is True
+        symbols = {s["symbol"] for s in data["approaching"] + data["touched"]}
+        assert {"RELIANCE", "TCS"} <= symbols
+        assert data["approaching"] and data["touched"]
+
+        slow_compute.assert_not_called()
+        assert spawn.call_count == 1
+        assert spawn.call_args.args[0] == "52w screener warm"
+
+    def test_cold_request_without_snapshot_times_out_to_503(self, db, auth_client, monkeypatch):
+        import asyncio
+
+        monkeypatch.setattr("cache.redis_client.get_redis_client", lambda: None)
+        monkeypatch.setattr("api.screener_api.screener_52w.load_all_52w_ranges", lambda: {})
+
+        async def timed_out(*args, **kwargs):
+            raise asyncio.TimeoutError()
+
+        monkeypatch.setattr("cache.redis_client.stale_while_revalidate", timed_out)
+
+        response = auth_client.get("/api/screener", params={"screener": "52w_high"})
+        assert response.status_code == 503
+
+    @pytest.mark.asyncio
+    async def test_compute_timeout_bounds_stale_while_revalidate(self, monkeypatch):
+        import asyncio
+        import time
+        import cache.redis_client as rc
+
+        monkeypatch.setattr(rc, "get_redis_client", lambda: None)
+
+        def slow():
+            time.sleep(2)
+            return {}
+
+        with pytest.raises(asyncio.TimeoutError):
+            await rc.stale_while_revalidate("screener:test", slow, compute_timeout=0.01)

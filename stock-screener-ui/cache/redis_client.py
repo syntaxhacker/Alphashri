@@ -557,8 +557,17 @@ async def stale_while_revalidate(
     lock_ttl: int = 30,
     wait_timeout: float = 15.0,
     poll_interval: float = 0.2,
+    compute_timeout: float | None = None,
 ) -> tuple[Any, str]:
     import asyncio
+
+    async def _compute():
+        """Run the (blocking) compute off-loop, optionally bounded in time."""
+        if compute_timeout is None:
+            return await asyncio.to_thread(compute_fn)
+        return await asyncio.wait_for(
+            asyncio.to_thread(compute_fn), timeout=compute_timeout
+        )
 
     if stale_ttl is None:
         stale_ttl = fresh_ttl * 2
@@ -569,7 +578,7 @@ async def stale_while_revalidate(
     client = get_redis_client()
     if client is None:
         try:
-            result = await asyncio.to_thread(compute_fn)
+            result = await _compute()
             return result, "miss"
         except Exception:
             raise
@@ -589,7 +598,7 @@ async def stale_while_revalidate(
 
             async def _background_refresh():
                 try:
-                    result = await asyncio.to_thread(compute_fn)
+                    result = await _compute()
                     if result is not None:
                         cache_set(key, result, ttl=stale_ttl)
                         cache_set(fresh_key, "1", ttl=fresh_ttl)
@@ -604,7 +613,7 @@ async def stale_while_revalidate(
     lock_token = _try_acquire_lock(lock_key, lock_ttl)
     try:
         if lock_token:
-            result = await asyncio.to_thread(compute_fn)
+            result = await _compute()
             if result is not None:
                 cache_set(key, result, ttl=stale_ttl)
                 cache_set(fresh_key, "1", ttl=fresh_ttl)
@@ -618,7 +627,7 @@ async def stale_while_revalidate(
             if fresh_data is not None:
                 return fresh_data, "coalesced"
 
-        result = await asyncio.to_thread(compute_fn)
+        result = await _compute()
         if result is not None:
             cache_set(key, result, ttl=stale_ttl)
             cache_set(fresh_key, "1", ttl=fresh_ttl)

@@ -162,34 +162,13 @@ def _fill_days_ago_from_upstox(stocks: list[dict], api, use_api: bool, touched_g
             continue
 
 
-def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=None):
-    screener = '52w_high'
-    warning = None
-    touched_gap_pct = touched_52w_gap_threshold_pct()
+def _build_52w_candidates(ranges: dict, touched_gap_pct: float, max_gap: float, screener: str, api=None) -> list[dict]:
+    """Shape stored 52W range rows into candidate rows.
 
-    ranges = load_all_52w_ranges()
-    if not ranges:
-        return {
-            'approaching': [],
-            'touched': [],
-            'last_updated': datetime.now().isoformat(),
-            'provider': provider,
-            'mode': mode,
-            'screener': screener,
-            'profile_meta': _profile_meta(screener),
-            'summary': [],
-            'warning': 'No 52-week range data. Run scripts/compute_52w_ranges_upstox.py --redis.',
-        }
-
-    max_gap = _to_float(
-        profile_filters.get('max_52w_gap') if profile_filters else None,
-        10,
-    )
-
-    api, use_api = _create_upstox_api(provider)
-
+    ``api`` is optional and only used to drop unmappable symbols. Passing None
+    keeps this path free of broker/Upstox work (used by the cold-start skeleton).
+    """
     candidates = []
-
     for symbol, info in ranges.items():
         high = _to_float(info.get('high'), 0)
         low = _to_float(info.get('low'), 0)
@@ -269,6 +248,80 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
         stock_data['rationale'] = _build_rationale(screener, stock_data)
 
         candidates.append(stock_data)
+    return candidates
+
+
+def build_52w_skeleton_data(profile_filters=None, provider='upstox', mode='historical'):
+    """Cheap cold-start payload built only from the stored 52W range snapshot.
+
+    No Upstox/TV calls: live LTP, day_change and volume may be null/missing until
+    the full compute (scheduled in the background by the endpoint) fills the cache.
+    Returns None when there is no usable snapshot, so the caller can fall back to
+    a bounded wait instead of serving an empty screener.
+    """
+    screener = '52w_high'
+    touched_gap_pct = touched_52w_gap_threshold_pct()
+    ranges = load_all_52w_ranges()
+    if not ranges:
+        return None
+    max_gap = _to_float(
+        profile_filters.get('max_52w_gap') if profile_filters else None,
+        10,
+    )
+    candidates = _build_52w_candidates(ranges, touched_gap_pct, max_gap, screener, api=None)
+    if not candidates:
+        return None
+
+    approaching = []
+    touched = []
+    for sd in candidates:
+        if sd.get('touched_52w'):
+            touched.append(sd)
+        else:
+            approaching.append(sd)
+    approaching.sort(key=lambda s: _to_float(s.get('to_52w_high'), 999))
+
+    return {
+        'approaching': approaching,
+        'touched': touched,
+        'last_updated': datetime.now().isoformat(),
+        'provider': provider,
+        'mode': mode,
+        'screener': screener,
+        'profile_meta': _profile_meta(screener),
+        'summary': _summary_items_for(screener, approaching, touched),
+        'warning': 'Live prices are loading — showing stored 52-week ranges. Refresh shortly for LTP and volume.',
+        'touched_gap_pct': touched_gap_pct,
+    }
+
+
+def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=None):
+    screener = '52w_high'
+    warning = None
+    touched_gap_pct = touched_52w_gap_threshold_pct()
+
+    ranges = load_all_52w_ranges()
+    if not ranges:
+        return {
+            'approaching': [],
+            'touched': [],
+            'last_updated': datetime.now().isoformat(),
+            'provider': provider,
+            'mode': mode,
+            'screener': screener,
+            'profile_meta': _profile_meta(screener),
+            'summary': [],
+            'warning': 'No 52-week range data. Run scripts/compute_52w_ranges_upstox.py --redis.',
+        }
+
+    max_gap = _to_float(
+        profile_filters.get('max_52w_gap') if profile_filters else None,
+        10,
+    )
+
+    api, use_api = _create_upstox_api(provider)
+
+    candidates = _build_52w_candidates(ranges, touched_gap_pct, max_gap, screener, api)
 
     # Enrich candidates with real TV data (volume etc) BEFORE the vol filter,
     # so that min_volume_m etc in 52w profile work with actual volume from TV.
