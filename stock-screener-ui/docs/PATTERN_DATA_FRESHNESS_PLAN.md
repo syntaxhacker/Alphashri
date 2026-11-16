@@ -103,6 +103,28 @@ Live evidence (20 symbol×timeframe rows):
 - Scoped refresh rebuilt KAYNES while INFY survived.
 - The only transient was the in-progress 1h bar.
 
+## Live LTP follow-up (2026-11-16 audit)
+
+The dated close + LTP line shipped, but a read-only audit found the LTP is not
+actually live:
+
+- **F1 HIGH** — `fetchLiveQuote` runs once in `loadSymbolChart` and never
+  refreshes. No interval exists; the price freezes until the dock is reopened.
+- **F2 HIGH** — `openFromCard` (the results-grid entry) never calls
+  `fetchLiveQuote`, so the LTP line is absent for cards.
+- **F3/F4 MED** — timeframe and as-of/replay changes neither refetch nor clear
+  `livePrice`, so a live quote is shown over a different/historical frame.
+- **F5/F7 LOW** — no client-side 20-symbol guard in `fetchQuotes` (backend 400 →
+  null), and a null change renders green. (fix in flight)
+- **F6 LOW** — the quote fetch is not aborted on token mismatch (state is
+  guarded; only the request is wasted).
+
+Fix: a 15 s poll inside `fetchLiveQuote`, gated by the request token and current
+symbol, cleared on close/symbol change; call it from `openFromCard`; reset
+`livePrice` on timeframe/as-of changes; same change in both pattern hooks. Test:
+open → advance 15 s → a second quote request and an updated `livePrice`;
+card open → quote fetched.
+
 ## Acceptance
 
 - No pattern surface displays an undated historical close as if it were live.
