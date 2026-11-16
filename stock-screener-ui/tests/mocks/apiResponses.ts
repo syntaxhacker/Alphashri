@@ -2248,6 +2248,8 @@ export interface UserConfigEnvelope {
 export interface UserConfigMockHandle {
   /** Latest persisted payload, flat, or null when nothing has been saved yet. */
   stored: () => Record<string, unknown> | null;
+  /** Latest persisted payload for an arbitrary scope (e.g. `table.market.grid`). */
+  storedScope: (scope: string) => Record<string, unknown> | null;
   /** Every PUT body seen, in order — proves a write happened without spying on the UI. */
   puts: () => Record<string, unknown>[];
   /** Flip to a non-2xx status to exercise the "Filters not saved" chip. */
@@ -2255,6 +2257,29 @@ export interface UserConfigMockHandle {
 }
 
 type UserConfigEntry = { config: Record<string, unknown>; updatedAt: string };
+
+/** Scopes owned by the route handler, shared with `seedUserConfig` for pre-navigation seeds. */
+const userConfigScopesByPage = new WeakMap<
+  import("@playwright/test").Page,
+  Map<string, UserConfigEntry>
+>();
+
+/** v1 table prefs — the wire shape every `table.*` scope defaults to. */
+const DEFAULT_TABLE_CONFIG = {
+  sorting: [] as { id: string; desc: boolean }[],
+  order: [] as string[],
+  hidden: [] as string[],
+};
+
+function isTableScope(scope: string): boolean {
+  return scope.startsWith("table.");
+}
+
+/** `table.*` bodies are echoed with the three v1 fields defaulted, never reshaped. */
+function mergeTableConfig(raw: unknown): Record<string, unknown> {
+  const base = JSON.parse(JSON.stringify(DEFAULT_TABLE_CONFIG)) as Record<string, unknown>;
+  return isPlainObject(raw) ? { ...base, ...raw } : base;
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -2291,6 +2316,7 @@ export async function setupUserConfigMocks(
   initial?: MarketFiltersSeed,
 ): Promise<UserConfigMockHandle> {
   const scopes = new Map<string, UserConfigEntry>();
+  userConfigScopesByPage.set(page, scopes);
   if (initial) {
     scopes.set("market.filters", {
       config: mergeMarketFilters(initial),
@@ -2308,7 +2334,7 @@ export async function setupUserConfigMocks(
     const scope = new URL(request.url()).pathname.split("/").pop() ?? "";
     const method = request.method();
 
-    if (scope !== "market.filters") {
+    if (scope !== "market.filters" && !isTableScope(scope)) {
       await route.fulfill({
         status: 404,
         contentType: "application/json",
@@ -2334,7 +2360,9 @@ export async function setupUserConfigMocks(
       }
       puts.push(body);
       const entry: UserConfigEntry = {
-        config: mergeMarketFilters(body.config),
+        config: isTableScope(scope)
+          ? mergeTableConfig(body.config ?? body)
+          : mergeMarketFilters(body.config),
         updatedAt: nextUpdatedAt(),
       };
       scopes.set(scope, entry);
@@ -2376,7 +2404,7 @@ export async function setupUserConfigMocks(
           version: 1,
           saved: false,
           updated_at: null,
-          config: mergeMarketFilters(null),
+          config: isTableScope(scope) ? mergeTableConfig(null) : mergeMarketFilters(null),
         };
     await route.fulfill({
       status: 200,
@@ -2387,11 +2415,31 @@ export async function setupUserConfigMocks(
 
   return {
     stored: () => scopes.get("market.filters")?.config ?? null,
+    storedScope: (scope) => scopes.get(scope)?.config ?? null,
     puts: () => puts,
     setPutStatus: (status) => {
       putStatus = status;
     },
   };
+}
+
+/**
+ * Seed a saved row for a scope before navigation. Requires
+ * `setupUserConfigMocks(page)` on the same page so the GET handler reads it.
+ */
+export async function seedUserConfig(
+  page: import("@playwright/test").Page,
+  scope: string,
+  config: Record<string, unknown>,
+): Promise<void> {
+  const scopes = userConfigScopesByPage.get(page);
+  if (!scopes) {
+    throw new Error("seedUserConfig needs setupUserConfigMocks(page) first");
+  }
+  scopes.set(scope, {
+    config: isTableScope(scope) ? mergeTableConfig(config) : mergeMarketFilters(config),
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 // Mock screener dashboard response (GET /api/screener/dashboard)
