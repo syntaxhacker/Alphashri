@@ -183,8 +183,18 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
   // onto the outlet instead; style.css collapses it while the dock is closed.
   createEffect(() => {
     const el = outlet();
-    if (!el) return;
-    el.setAttribute("data-dock-open", showDock() ? "true" : "false");
+    if (el) {
+      el.setAttribute("data-dock-open", showDock() ? "true" : "false");
+    }
+    // Desktop rail (fixed overlay, no inline outlet): reserve its width on
+    // #app-main so page content can't hide behind it. Below 1200 px the dock
+    // is a bottom sheet; with an outlet it ports inline — neither needs the
+    // inset. The attribute mirrors open/close, width change, and unmount.
+    const railOpen = showDock() && !el && isDesktop();
+    document.documentElement.dataset.dockRailOpen = railOpen ? "true" : "false";
+    onCleanup(() => {
+      document.documentElement.dataset.dockRailOpen = "false";
+    });
   });
 
   /**

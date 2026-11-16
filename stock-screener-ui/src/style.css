@@ -139,3 +139,11 @@ body[data-color-scheme="dark"] { color-scheme: dark; }
    collapse the 38% flex item. The provider mirrors the dock state onto the
    outlet; while closed, remove it from flex layout entirely. */
 [data-testid="chart-dock-outlet"][data-dock-open="false"] { display: none; }
+
+/* Fixed rail (desktop, no inline outlet) overlays #app-main; inset the main
+   content so nothing sits hidden behind it. Only applies while the rail is
+   open — the bottom sheet (<1200 px) and inline-outlet (≥1400 px) modes leave
+   it off. */
+html[data-dock-rail-open="true"] #app-main {
+  padding-right: clamp(480px, 36vw, 620px);
+}
