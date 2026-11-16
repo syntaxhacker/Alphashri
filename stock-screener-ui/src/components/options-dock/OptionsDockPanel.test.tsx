@@ -527,3 +527,113 @@ describe("OptionsDockPanel — narrow one-sided chain", () => {
     expect(screen.getByTestId("options-pe-24000")).toBeInTheDocument();
   });
 });
+
+describe("OptionsDockPanel — chain sort reset", () => {
+  const rowOrder = () =>
+    Array.from(document.querySelectorAll('[data-testid^="options-chain-row-"]')).map((el) =>
+      el.getAttribute("data-testid"),
+    );
+
+  const oiHeader = () =>
+    screen.getAllByRole("columnheader").find((h) => h.id === "paper-tanstack-header-ce_oi")!;
+
+  test("starts in strike order with no reset control", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+
+    expect(rowOrder()).toEqual([
+      "options-chain-row-23900",
+      "options-chain-row-24000",
+      "options-chain-row-24100",
+    ]);
+    expect(screen.queryByTestId("options-chain-reset-sort")).not.toBeInTheDocument();
+  });
+
+  test("clicking a metric header reorders the ladder, reset restores strike order", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+
+    fireEvent.click(oiHeader());
+    // CE OI: 24,100 (12.4M) > 24,000 (8.6M) > 23,900 (5.2M).
+    expect(rowOrder()).toEqual([
+      "options-chain-row-24100",
+      "options-chain-row-24000",
+      "options-chain-row-23900",
+    ]);
+
+    const reset = screen.getByTestId("options-chain-reset-sort");
+    expect(reset).toHaveAttribute("aria-label", "Reset to strike order");
+    await fireEvent.click(reset);
+
+    expect(screen.queryByTestId("options-chain-reset-sort")).not.toBeInTheDocument();
+    expect(rowOrder()).toEqual([
+      "options-chain-row-23900",
+      "options-chain-row-24000",
+      "options-chain-row-24100",
+    ]);
+  });
+
+  test("the strike column header still cycles the sort under control", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+
+    const strike = screen.getAllByRole("columnheader").find((h) => h.id.endsWith("strike"))!;
+    expect(strike).toHaveAttribute("aria-sort", "ascending");
+    // First click leaves strike order (numeric columns clear on the first click);
+    // the reset must surface, proving the click reached the controlled signal.
+    fireEvent.click(strike);
+    expect(strike).toHaveAttribute("aria-sort", "none");
+    expect(screen.getByTestId("options-chain-reset-sort")).toBeInTheDocument();
+
+    await fireEvent.click(screen.getByTestId("options-chain-reset-sort"));
+    expect(strike).toHaveAttribute("aria-sort", "ascending");
+    expect(screen.queryByTestId("options-chain-reset-sort")).not.toBeInTheDocument();
+  });
+
+  test("reset keeps selected legs and the ATM row intact", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-ce-24000")).toBeInTheDocument());
+
+    await fireEvent.click(screen.getByTestId("options-ce-24000"));
+    expect(optionsDockState.legs).toHaveLength(1);
+
+    fireEvent.click(oiHeader());
+    await fireEvent.click(screen.getByTestId("options-chain-reset-sort"));
+
+    expect(optionsDockState.legs).toHaveLength(1);
+    expect(optionsDockState.legs[0]).toMatchObject({ type: "CE", strike: 24000 });
+    expect(screen.getByTestId("options-chain-row-24000")).toHaveAttribute("data-atm", "true");
+    expect(screen.getByTestId("options-atm-marker-24000")).toBeInTheDocument();
+  });
+
+  test("narrow layout keeps the reset reachable, icon-only, and never wraps the header", async () => {
+    narrowViewport();
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+
+    fireEvent.click(oiHeader());
+    const reset = screen.getByTestId("options-chain-reset-sort");
+    expect(reset).toHaveAttribute("aria-label", "Reset to strike order");
+    // The label text collapses below sm; the icon button stays tappable.
+    const label = reset.querySelector("span")!;
+    expect(label).toHaveTextContent("Strike");
+    expect(label.className).toContain("hidden");
+    expect(label.className).toContain("sm:inline");
+
+    // DockSection's header stays a single non-wrapping row; the reset shrinks to
+    // an icon rather than forcing a second line at 390px.
+    const header = screen.getByTestId("dock-section-chain");
+    expect(header.className).not.toContain("flex-wrap");
+    expect(reset.className).toContain("shrink-0");
+    expect(reset.className).not.toContain("w-full");
+
+    await fireEvent.click(reset);
+    expect(screen.queryByTestId("options-chain-reset-sort")).not.toBeInTheDocument();
+    expect(rowOrder()[0]).toBe("options-chain-row-23900");
+  });
+});

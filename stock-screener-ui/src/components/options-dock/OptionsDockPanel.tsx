@@ -5,8 +5,10 @@ import {
   IconArrowsMaximize,
   IconArrowsMinimize,
   IconRefresh,
+  IconRotate,
   IconX,
 } from "@/components/common/Icons";
+import type { SortEntry } from "@/components/common/TanStackTable";
 import { formatPercentage } from "@/utils/ui-helpers";
 import { DERIVATIVES_CLOSE_MIN, istClock } from "@/utils/marketClock";
 import { isMarketOpenNow } from "@/state/holidays";
@@ -19,7 +21,11 @@ import {
   netPremium,
 } from "@/state/optionsDock";
 import type { ChainLeg } from "@/api/optionsDock";
-import { CHAIN_NARROW_QUERY, OptionChainTable } from "./OptionChainTable";
+import {
+  CHAIN_NARROW_QUERY,
+  DEFAULT_CHAIN_SORTING,
+  OptionChainTable,
+} from "./OptionChainTable";
 import { LegBuilder } from "./LegBuilder";
 import { StrategyControl } from "./StrategyControl";
 import { PayoffPanel } from "./PayoffPanel";
@@ -151,6 +157,16 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
   const [now, setNow] = createSignal(new Date());
   const isNarrow = useMediaQuery(CHAIN_NARROW_QUERY);
   const [chainSide, setChainSide] = createSignal<"CE" | "PE">("CE");
+  const [chainSorting, setChainSorting] = createSignal<SortEntry[]>([...DEFAULT_CHAIN_SORTING]);
+
+  const isStrikeOrder = () => {
+    const sort = chainSorting();
+    return (
+      sort.length === 1 &&
+      sort[0].id === DEFAULT_CHAIN_SORTING[0].id &&
+      sort[0].desc === DEFAULT_CHAIN_SORTING[0].desc
+    );
+  };
 
   onMount(() => {
     // The 0-DTE / EXPIRED labels cross a boundary at 15:40; a 30 s clock is
@@ -438,6 +454,22 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
             separated={false}
             meta={
               <Box className="flex items-center gap-2">
+                <Show when={!isStrikeOrder()}>
+                  <Tooltip label="Reset to strike order">
+                    <Box
+                      component="button"
+                      type="button"
+                      aria-label="Reset to strike order"
+                      data-testid="options-chain-reset-sort"
+                      onClick={() => setChainSorting([...DEFAULT_CHAIN_SORTING])}
+                      className="inline-flex h-[20px] shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap border border-fin-border bg-transparent px-1 font-mono text-[9px] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
+                      style={{ "border-radius": "4px" }}
+                    >
+                      <IconRotate size={10} />
+                      <span className="hidden sm:inline">Strike</span>
+                    </Box>
+                  </Tooltip>
+                </Show>
                 <Show when={isNarrow()}>
                   <ChainSideToggle value={chainSide()} onChange={setChainSide} />
                 </Show>
@@ -490,6 +522,8 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
               side={chainSide()}
               loading={optionsDockState.refreshing && chain()!.rows.length === 0}
               onPick={handlePick}
+              sorting={chainSorting()}
+              onSortingChange={setChainSorting}
             />
           </DockSection>
           <StrategyControl />

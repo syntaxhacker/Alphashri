@@ -164,6 +164,49 @@ describe("OptionChainTable — OI bar square-root scale", () => {
   });
 });
 
+describe("OptionChainTable — sorting", () => {
+  const rowOrder = () =>
+    Array.from(document.querySelectorAll('[data-testid^="options-chain-row-"]')).map((el) =>
+      el.getAttribute("data-testid"),
+    );
+
+  it("defaults to the strike ladder, ascending", () => {
+    renderTable();
+    expect(rowOrder()).toEqual([
+      "options-chain-row-23900",
+      "options-chain-row-24000",
+      "options-chain-row-24100",
+    ]);
+    const strike = screen.getAllByRole("columnheader").find((h) => h.id.endsWith("strike"))!;
+    expect(strike).toHaveAttribute("aria-sort", "ascending");
+  });
+
+  it("renders from a controlled sorting prop and reports header clicks", () => {
+    const onSortingChange = vi.fn();
+    render(() => (
+      <UIProvider>
+        <OptionChainTable
+          rows={ROWS}
+          spot={24000}
+          sorting={[{ id: "ce_oi", desc: true }]}
+          onSortingChange={onSortingChange}
+        />
+      </UIProvider>
+    ));
+
+    // ce OI: 24,100 (12.4M) > 23,900 (5M) > 24,000 (0).
+    expect(rowOrder()).toEqual([
+      "options-chain-row-24100",
+      "options-chain-row-23900",
+      "options-chain-row-24000",
+    ]);
+
+    const oi = screen.getAllByRole("columnheader").find((h) => h.id.endsWith("ce_oi"))!;
+    fireEvent.click(oi);
+    expect(onSortingChange).toHaveBeenCalledWith([{ id: "ce_oi", desc: false }]);
+  });
+});
+
 describe("OptionChainTable — header affordances", () => {
   it("requests a sticky, keyboard-sortable header", () => {
     renderTable();

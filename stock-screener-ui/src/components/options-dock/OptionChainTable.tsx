@@ -1,8 +1,11 @@
 import { Show, createMemo, type JSX } from "solid-js";
 import { Box, useMediaQuery } from "@/ui";
-import { TanStackTable } from "@/components/common/TanStackTable";
+import { TanStackTable, type SortEntry } from "@/components/common/TanStackTable";
 import type { ChainLeg, ChainRow } from "@/api/optionsDock";
 import { chainColumns } from "./chain.columns";
+
+/** Natural strike-ladder order: the default and the target of the reset control. */
+export const DEFAULT_CHAIN_SORTING: SortEntry[] = [{ id: "strike", desc: false }];
 
 /** Below Tailwind's `sm` the chain drops to a one-sided 5-column layout. */
 export const CHAIN_NARROW_QUERY = "(max-width: 639px)";
@@ -34,6 +37,9 @@ export function OptionChainTable(props: {
   /** Selected side for the narrow layout; ignored at ≥640px. */
   side?: "CE" | "PE";
   onPick?: (strike: number, type: "CE" | "PE", leg: ChainLeg, side: "buy" | "sell") => void;
+  /** Controlled sorting. When omitted the table owns it, seeded to strike asc. */
+  sorting?: SortEntry[];
+  onSortingChange?: (next: SortEntry[]) => void;
 }) {
   const narrow = useMediaQuery(CHAIN_NARROW_QUERY);
 
@@ -92,7 +98,9 @@ export function OptionChainTable(props: {
         getRowTestId={(row) => `options-chain-row-${row.strike}`}
         getRowStyle={(row) => (row.strike === atmStrike() ? ATM_BG_STYLE : undefined)}
         getRowAttributes={(row) => ({ "data-atm": row.strike === atmStrike() ? "true" : undefined })}
-        initialState={{ sorting: [{ id: "strike", desc: false }] }}
+        sorting={props.sorting}
+        onSortingChange={props.onSortingChange}
+        initialState={{ sorting: DEFAULT_CHAIN_SORTING }}
       />
       <Show when={props.rows.length === 0 && !props.loading}>
         <Box className="sr-only" data-testid="options-chain-empty">
