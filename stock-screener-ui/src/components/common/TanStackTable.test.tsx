@@ -1163,3 +1163,150 @@ describe("TanStackTable — sort cycle and controlled sorting", () => {
     expect(namesOf("controlled-sorting")).toEqual(["Zulu", "Alpha", "Mike"]);
   });
 });
+
+describe("TanStackTable — null-safe sorting", () => {
+  interface NullRow {
+    id: string;
+    name: string | null;
+    value: number | null;
+  }
+
+  const headerOf = (tableId: string, index: number) =>
+    screen.getByTestId(tableId).querySelectorAll<HTMLElement>("th")[index];
+  const orderOf = (tableId: string) =>
+    Array.from(
+      screen.getByTestId(tableId).querySelectorAll<HTMLTableRowElement>("tbody tr[data-row='stock']"),
+    ).map((tr) => tr.dataset.testid);
+
+  const numData: NullRow[] = [
+    { id: "r1", name: "Charlie", value: 3 },
+    { id: "r2", name: "Bravo", value: null },
+    { id: "r3", name: "Alpha", value: 1 },
+    { id: "r4", name: "Delta", value: null },
+    { id: "r5", name: "Echo", value: 2 },
+  ];
+  const numColumns: TableColumnDef<NullRow>[] = [
+    { id: "name", header: "Name", accessorKey: "name" },
+    {
+      id: "value",
+      header: "Value",
+      accessorKey: "value",
+      cell: ({ row }) => <span>{row.original.value == null ? "—" : String(row.original.value)}</span>,
+    },
+  ];
+
+  it("puts nulls last on a numeric column in both directions", () => {
+    render(() => (
+      <TanStackTable<NullRow>
+        data={numData}
+        columns={numColumns}
+        dataTestId="null-num"
+        getRowTestId={(r) => r.id}
+      />
+    ));
+    const valueTh = headerOf("null-num", 1);
+
+    fireEvent.click(valueTh); // first click desc
+    expect(orderOf("null-num")).toEqual(["r1", "r5", "r3", "r2", "r4"]);
+    fireEvent.click(valueTh); // second click asc
+    expect(orderOf("null-num")).toEqual(["r3", "r5", "r1", "r2", "r4"]);
+
+    // The trailing rows render as missing, not as a real zero.
+    const valueCells = Array.from(
+      screen.getByTestId("null-num").querySelectorAll<HTMLTableRowElement>("tbody tr[data-row='stock']"),
+    ).map((tr) => tr.querySelectorAll("td")[1].textContent!.trim());
+    expect(valueCells.slice(-2)).toEqual(["—", "—"]);
+  });
+
+  it("puts nulls last on a string column in both directions", () => {
+    const strData: NullRow[] = [
+      { id: "s1", name: "Charlie", value: 1 },
+      { id: "s2", name: null, value: 2 },
+      { id: "s3", name: "Alpha", value: 3 },
+      { id: "s4", name: null, value: 4 },
+      { id: "s5", name: "Bravo", value: 5 },
+    ];
+    render(() => (
+      <TanStackTable<NullRow>
+        data={strData}
+        columns={numColumns}
+        dataTestId="null-str"
+        getRowTestId={(r) => r.id}
+      />
+    ));
+    const nameTh = headerOf("null-str", 0);
+
+    fireEvent.click(nameTh); // text sorts ascending first
+    expect(orderOf("null-str")).toEqual(["s3", "s5", "s1", "s2", "s4"]);
+    fireEvent.click(nameTh);
+    expect(orderOf("null-str")).toEqual(["s1", "s5", "s3", "s2", "s4"]);
+  });
+
+  it("never lets a mixed number/string column return NaN from the comparator", () => {
+    type MixedRow = { id: string; v: number | string | null };
+    const mixedData: MixedRow[] = [
+      { id: "m1", v: 5 },
+      { id: "m2", v: "abc" },
+      { id: "m3", v: null },
+      { id: "m4", v: 3 },
+      { id: "m5", v: "10" },
+    ];
+    const mixedColumns: TableColumnDef<MixedRow>[] = [
+      {
+        id: "v",
+        header: "V",
+        accessorKey: "v",
+        cell: ({ row }) => <span>{row.original.v == null ? "—" : String(row.original.v)}</span>,
+      },
+    ];
+    render(() => (
+      <TanStackTable<MixedRow>
+        data={mixedData}
+        columns={mixedColumns}
+        dataTestId="null-mixed"
+        getRowTestId={(r) => r.id}
+      />
+    ));
+    const vTh = headerOf("null-mixed", 0);
+
+    // A NaN comparator result is treated as 0 by sort(), leaving insertion order
+    // untouched. Missing values must trail, and flipping the direction must
+    // reorder — that proves the comparator returned a real ordering.
+    fireEvent.click(vTh); // sample has a string → ascending
+    const ascending = orderOf("null-mixed");
+    expect([...ascending].sort()).toEqual(["m1", "m2", "m3", "m4", "m5"]);
+    expect(ascending.at(-1)).toBe("m3");
+    expect(ascending).not.toEqual(["m1", "m2", "m3", "m4", "m5"]);
+
+    fireEvent.click(vTh);
+    const descending = orderOf("null-mixed");
+    expect([...descending].sort()).toEqual(["m1", "m2", "m3", "m4", "m5"]);
+    expect(descending.at(-1)).toBe("m3");
+    expect(descending).not.toEqual(ascending);
+  });
+
+  it("a second header click makes that column primary", () => {
+    type MultiRow = { id: string; delta: number; pnl: number };
+    const multiData: MultiRow[] = [
+      { id: "x", delta: 1, pnl: 30 },
+      { id: "y", delta: 3, pnl: 10 },
+      { id: "z", delta: 2, pnl: 20 },
+    ];
+    const multiColumns: TableColumnDef<MultiRow>[] = [
+      { id: "delta", header: "Delta", accessorKey: "delta" },
+      { id: "pnl", header: "PnL", accessorKey: "pnl" },
+    ];
+    render(() => (
+      <TanStackTable<MultiRow>
+        data={multiData}
+        columns={multiColumns}
+        dataTestId="null-multi"
+        getRowTestId={(r) => r.id}
+      />
+    ));
+
+    fireEvent.click(headerOf("null-multi", 0)); // delta desc → y, z, x
+    fireEvent.click(headerOf("null-multi", 1)); // pnl desc → x, z, y
+    expect(orderOf("null-multi")).toEqual(["x", "z", "y"]);
+  });
+});

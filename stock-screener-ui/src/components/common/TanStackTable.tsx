@@ -209,6 +209,31 @@ function getValue<T>(row: T, column: TableColumnDef<T>): unknown {
   return undefined;
 }
 
+/**
+ * Missing values and NaN are not zeros — they trail in both directions. A null
+ * sorted as 0 read as "mid-pack" for signed metrics and "best" for negatives.
+ */
+function compareSortValues(aVal: unknown, bVal: unknown, desc: boolean): number {
+  const aMissing = aVal === null || aVal === undefined || aVal === "";
+  const bMissing = bVal === null || bVal === undefined || bVal === "";
+  if (aMissing || bMissing) {
+    if (aMissing && bMissing) return 0;
+    return aMissing ? 1 : -1;
+  }
+  if (typeof aVal === "string" && typeof bVal === "string") {
+    return desc ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
+  }
+  const an = Number(aVal);
+  const bn = Number(bVal);
+  const aNaN = Number.isNaN(an);
+  const bNaN = Number.isNaN(bn);
+  if (aNaN || bNaN) {
+    if (aNaN && bNaN) return 0;
+    return aNaN ? 1 : -1;
+  }
+  return desc ? bn - an : an - bn;
+}
+
 export function TanStackTable<T>(props: Props<T>) {
   const densityApi = useDensity();
   const isDense = () => props.dense ?? false;
@@ -331,16 +356,7 @@ export function TanStackTable<T>(props: Props<T>) {
       const { id, desc } = sorters[i];
       const col = props.columns.find((c) => c.id === id);
       if (!col) continue;
-      rows.sort((a, b) => {
-        let aVal = getValue(a, col);
-        let bVal = getValue(b, col);
-        if (typeof aVal === "string" && typeof bVal === "string") {
-          return desc ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
-        }
-        const an = aVal == null ? 0 : Number(aVal);
-        const bn = bVal == null ? 0 : Number(bVal);
-        return desc ? bn - an : an - bn;
-      });
+      rows.sort((a, b) => compareSortValues(getValue(a, col), getValue(b, col), desc));
     }
     return rows;
   });
