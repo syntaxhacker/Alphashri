@@ -74,7 +74,20 @@ else:
     _news_available, _llm_available, article_analyzer, fetch_news, fetch_article_content, NEWS_SOURCES = _init_news_modules()
 
 
-PREWARM_SCREENERS = ["trending", "buyer_interest", "high_momentum", "nifty_movers", "52w_high", "price_surge"]
+def _build_prewarm_screeners(screeners) -> list:
+    """Default tab first, then the rest in order, de-duplicated.
+
+    The prewarm loop is sequential, so growing this list warms more screeners
+    on startup without raising the Upstox request *rate* — no extra
+    concurrency is introduced, only more queued work for the same workers.
+    """
+    ordered = ["trending"] + [s for s in screeners if s != "trending"]
+    return list(dict.fromkeys(ordered))
+
+
+PREWARM_SCREENERS = _build_prewarm_screeners([
+    "trending", "buyer_interest", "high_momentum", "nifty_movers", "52w_high", "price_surge",
+])
 PREWARM_INTERVAL = 60
 
 # The 52W sweep makes ~200 sequential Upstox calls (~100s), so the lock must

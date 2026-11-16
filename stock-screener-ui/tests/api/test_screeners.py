@@ -24,8 +24,10 @@ if 'tradingview_screener' not in sys.modules:
     sys.modules['tradingview_screener'] = stub
 
 from api_server_fastapi import (
+    PREWARM_SCREENERS,
     PROFILE_META,
     PROFILES_WITH_52W_BUCKETS,
+    _build_prewarm_screeners,
     fetch_screener_data,
     _profile_meta,
     _passes_profile_filters,
@@ -231,6 +233,51 @@ class TestScreenersList:
             assert 'column' in sort_config
             assert 'direction' in sort_config
             assert sort_config['direction'] in ['asc', 'desc']
+
+
+class TestScreenerWorkerPool:
+    """Fan-out width matches the queued rate limiter's 20-worker pool."""
+
+    def test_default_max_workers_is_20(self, monkeypatch):
+        from api.screener_api import screener_models as sm
+
+        monkeypatch.delenv(sm.SCREENER_MAX_WORKERS_ENV_VAR, raising=False)
+        assert sm.DEFAULT_MAX_WORKERS == 20
+        assert sm.resolve_max_workers() == 20
+
+    def test_max_workers_env_override(self, monkeypatch):
+        from api.screener_api import screener_models as sm
+
+        monkeypatch.setenv(sm.SCREENER_MAX_WORKERS_ENV_VAR, "7")
+        assert sm.resolve_max_workers() == 7
+        assert sm.resolve_max_workers(3) == 3  # explicit arg wins
+
+    def test_max_workers_invalid_env_falls_back(self, monkeypatch):
+        from api.screener_api import screener_models as sm
+
+        for bad in ("", "0", "-3", "abc"):
+            monkeypatch.setenv(sm.SCREENER_MAX_WORKERS_ENV_VAR, bad)
+            assert sm.resolve_max_workers() == sm.DEFAULT_MAX_WORKERS
+
+
+class TestScreenerPrewarm:
+    """Default tab is warmed first; the set stays de-duplicated."""
+
+    def test_prewarm_includes_trending_first(self):
+        assert "trending" in PREWARM_SCREENERS
+        assert PREWARM_SCREENERS[0] == "trending"
+
+    def test_prewarm_keeps_existing_set_deduped(self):
+        assert set(PREWARM_SCREENERS) == {
+            "trending", "buyer_interest", "high_momentum",
+            "nifty_movers", "52w_high", "price_surge",
+        }
+        assert len(PREWARM_SCREENERS) == len(set(PREWARM_SCREENERS))
+
+    def test_prewarm_builder_dedupes_and_pins_trending_first(self):
+        assert _build_prewarm_screeners(
+            ["52w_high", "trending", "trending", "price_surge", "52w_high"]
+        ) == ["trending", "52w_high", "price_surge"]
 
 
 class TestScreenerDataRetrieval:
