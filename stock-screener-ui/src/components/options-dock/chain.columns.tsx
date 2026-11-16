@@ -1,3 +1,4 @@
+import { Show } from "solid-js";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
 import { Box } from "@/ui";
 import * as palette from "@/ui/palette";
@@ -58,21 +59,27 @@ function PriceCell(props: {
 }
 
 /** A one-`div` OI bar: length is `oi / max(oi)`, floored at 1px. No canvas. */
-function OiCell(props: { value: number; max: number; side: "ce" | "pe" }) {
+function OiCell(props: { value: number | null | undefined; max: number; side: "ce" | "pe" }) {
+  const present = () => props.value != null && Number.isFinite(props.value);
   const pct = () => {
     const max = props.max;
-    if (!(max > 0) || !Number.isFinite(props.value)) return 0;
-    return Math.max(1, Math.min(100, (props.value / max) * 100));
+    if (!(max > 0) || !present()) return 0;
+    return Math.max(1, Math.min(100, ((props.value as number) / max) * 100));
   };
-  const fill = () => (props.side === "ce" ? palette.TINT_POSITIVE : palette.TINT_NEGATIVE);
+  // Solid OI tokens, not the 12% TINT_* alphas: those measured 1.12–1.18:1
+  // against the row, below the 3:1 UI-graphics floor.
+  const fill = () => (props.side === "ce" ? palette.OI_CALL : palette.OI_PUT);
   return (
     <Box className="relative flex h-[13px] w-full items-center justify-end">
       <Box
         aria-hidden="true"
+        data-testid={`options-oi-bar-${props.side}-${props.value ?? "missing"}`}
         className="absolute right-0 top-0 h-[13px]"
         style={{ width: `${pct()}%`, "background-color": fill() }}
       />
-      <span className={`${CELL} relative`}>{props.value > 0 ? formatNumber(props.value) : DASH}</span>
+      <span className={`${CELL} relative`}>
+        {present() ? formatNumber(props.value as number) : DASH}
+      </span>
     </Box>
   );
 }
@@ -80,6 +87,8 @@ function OiCell(props: { value: number; max: number; side: "ce" | "pe" }) {
 export interface ChainColumnHandlers {
   /** Largest OI on either side — the OI bar denominator. */
   maxOi: () => number;
+  /** Strike nearest spot, or null when there is no quote — drives the ATM marker. */
+  atmStrike: () => number | null;
   onPick?: (strike: number, type: "CE" | "PE", leg: ChainLeg, side: "buy" | "sell") => void;
 }
 
@@ -133,11 +142,22 @@ export function chainColumns(handlers: ChainColumnHandlers): TableColumnDef<Chai
       size: 72,
       meta: { align: "center" },
       accessorFn: (row) => row.strike,
-      cell: ({ row }) => (
-        <span className={`${CELL} text-center text-fin-text-muted`}>
-          {row.original.strike.toLocaleString("en-IN")}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const isAtm = row.original.strike === handlers.atmStrike();
+        return (
+          <span
+            className={`${CELL} text-center ${isAtm ? "text-fin-primary" : "text-fin-text-muted"}`}
+            data-testid={`options-strike-cell-${row.original.strike}`}
+          >
+            <Show when={isAtm}>
+              <span role="img" aria-label={`At the money strike ${row.original.strike}`} data-testid={`options-atm-marker-${row.original.strike}`}>
+                ◀
+              </span>{" "}
+            </Show>
+            {row.original.strike.toLocaleString("en-IN")}
+          </span>
+        );
+      },
     },
     {
       id: "pe_ltp",

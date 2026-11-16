@@ -914,6 +914,63 @@ describe("TanStackTable — row states (selected / hovered / focused)", () => {
     expect(first.style.outline).toBe("");
   });
 
+  it("makes a sortable header keyboard-operable and reflects sort state in aria-sort", () => {
+    render(() => <TanStackTable<TestItem> data={data} columns={columns} dataTestId="kb-sort" />);
+    const th = screen.getByTestId("kb-sort").querySelector<HTMLElement>("th")!;
+
+    expect(th).toHaveAttribute("tabindex", "0");
+    expect(th).toHaveAttribute("aria-sort", "none");
+
+    fireEvent.keyDown(th, { key: "Enter" });
+    expect(th).toHaveAttribute("aria-sort", "ascending");
+    expect(th.textContent).toContain("▲");
+
+    fireEvent.keyDown(th, { key: "Enter" });
+    expect(th).toHaveAttribute("aria-sort", "descending");
+    expect(th.textContent).toContain("▼");
+
+    fireEvent.keyDown(th, { key: " " });
+    expect(th).toHaveAttribute("aria-sort", "none");
+    expect(th.textContent).not.toContain("▲");
+    expect(th.textContent).not.toContain("▼");
+  });
+
+  it("keeps non-sortable headers out of the tab order and without aria-sort", () => {
+    const staticColumns: TableColumnDef<TestItem>[] = [
+      { id: "name", header: "Name", accessorKey: "name", enableSorting: false },
+    ];
+    render(() => <TanStackTable<TestItem> data={data} columns={staticColumns} dataTestId="kb-static" />);
+    const th = screen.getByTestId("kb-static").querySelector<HTMLElement>("th")!;
+    expect(th).not.toHaveAttribute("tabindex");
+    expect(th).not.toHaveAttribute("aria-sort");
+  });
+
+  it("only marks the active column as sorted", () => {
+    render(() => <TanStackTable<TestItem> data={data} columns={columns} dataTestId="kb-one" />);
+    const headers = screen.getByTestId("kb-one").querySelectorAll<HTMLElement>("th");
+    fireEvent.click(headers[1]);
+    expect(headers[0]).toHaveAttribute("aria-sort", "none");
+    // Numeric columns sort biggest-first on first activation.
+    expect(headers[1]).toHaveAttribute("aria-sort", "descending");
+  });
+
+  it("positions the header sticky only when stickyHeader is set", () => {
+    const { unmount } = render(() => (
+      <TanStackTable<TestItem> data={data} columns={columns} dataTestId="sticky-off" />
+    ));
+    const off = screen.getByTestId("sticky-off").querySelector<HTMLElement>("th")!;
+    expect(off.style.position).not.toBe("sticky");
+    unmount();
+
+    render(() => (
+      <TanStackTable<TestItem> data={data} columns={columns} dataTestId="sticky-on" stickyHeader />
+    ));
+    const on = screen.getByTestId("sticky-on").querySelector<HTMLElement>("th")!;
+    expect(on.style.position).toBe("sticky");
+    expect(on.style.top).toBe("0px");
+    expect(on.style.backgroundColor).toBe("var(--color-fin-surface-alt)");
+  });
+
   it("declares the hover/focus rules against data-clickable in style.css", async () => {
     // happy-dom cannot resolve `:hover` or `color-mix()`, so the rule text is
     // the only unit-level assertion available; the main agent measures the

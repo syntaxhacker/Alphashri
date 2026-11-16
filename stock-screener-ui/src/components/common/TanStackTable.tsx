@@ -491,7 +491,7 @@ export function TanStackTable<T>(props: Props<T>) {
     "table-layout": hasSizedColumns() ? "fixed" : "auto",
     "min-width": `${props.minTableWidth ?? Math.max(640, colCount() * 96)}px`,
     "border-collapse": "collapse",
-    "background-color": palette.SURFACE,
+    "background-color": "var(--color-fin-surface)",
     ...props.style,
   });
 
@@ -539,7 +539,7 @@ export function TanStackTable<T>(props: Props<T>) {
       "font-variant-numeric": "tabular-nums",
       "white-space": "nowrap",
       height: "var(--tbl-row-h, 23px)",
-      "border-bottom": `1px solid ${palette.BORDER}`,
+      "border-bottom": "1px solid var(--color-fin-border)",
       // Deliberately `background-color: inherit` for the base case: a cell that
       // paints its own opaque surface covers whatever `getRowStyle` put on the
       // <tr>, which is why the selected row (and every hover tint) was invisible.
@@ -563,8 +563,14 @@ export function TanStackTable<T>(props: Props<T>) {
 
   const renderHeader = (col: TableColumnDef<T>) => {
     const width = getColumnWidth(col);
+    const sortable = () => col.enableSorting !== false && enableSorting();
     const isSorted = () => sorting().some((s) => s.id === col.id);
     const sortDir = () => sorting().find((s) => s.id === col.id);
+    const ariaSort = () => {
+      if (!sortable()) return undefined;
+      if (!isSorted()) return "none";
+      return sortDir()?.desc ? "descending" : "ascending";
+    };
     const headerStyle = (): CSSProperties => ({
       padding: width === 0 ? "0" : "var(--tbl-cell-pad, 2px 8px)",
       height: "var(--tbl-row-h, 23px)",
@@ -577,16 +583,16 @@ export function TanStackTable<T>(props: Props<T>) {
       "font-variant-numeric": "tabular-nums",
       "white-space": "nowrap",
       "user-select": "none",
-      color: palette.PRIMARY,
-      "border-bottom": `1px solid ${palette.BORDER}`,
+      color: "var(--color-fin-primary)",
+      "border-bottom": "1px solid var(--color-fin-border)",
       width: width !== undefined ? `${width}px` : undefined,
       display: width === 0 ? "none" : undefined,
       "text-align": getColumnMeta(col).align ?? (isNumeric(col.id) ? "right" : "left"),
-      "cursor": col.enableSorting !== false && enableSorting() ? "pointer" : "default",
+      "cursor": sortable() ? "pointer" : "default",
       position: props.stickyHeader ? "sticky" : undefined,
       top: props.stickyHeader ? 0 : undefined,
       "z-index": props.stickyHeader ? 1 : undefined,
-      "background-color": props.stickyHeader ? palette.SURFACE_ALT : undefined,
+      "background-color": props.stickyHeader ? "var(--color-fin-surface-alt)" : undefined,
     });
     const h = col.header;
     const content = typeof h === "function" ? h({ column: col }) : h != null ? <span>{h}</span> : <span>{col.id}</span>;
@@ -595,7 +601,15 @@ export function TanStackTable<T>(props: Props<T>) {
         className="paper-tanstack-header-cell"
         id={`paper-tanstack-header-${String(col.id)}`}
         style={headerStyle()}
-        onClick={() => col.enableSorting !== false && enableSorting() && toggleSort(col.id)}
+        tabIndex={sortable() ? 0 : undefined}
+        aria-sort={ariaSort()}
+        onClick={() => sortable() && toggleSort(col.id)}
+        onKeyDown={sortable() ? (event: KeyboardEvent) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            toggleSort(col.id);
+          }
+        } : undefined}
       >
         {content}
         {isSorted() && (sortDir()?.desc ? " ▼" : " ▲")}
@@ -608,7 +622,7 @@ export function TanStackTable<T>(props: Props<T>) {
     return (
       <Show when={shows() && isRowExpanded(row(), index())}>
         <tr className="paper-tanstack-expanded-row">
-          <td colSpan={colCount()} style={{ padding: "0px", "border-top": `1px solid ${palette.BORDER}`, "border-bottom": `1px solid ${palette.BORDER}`, background: palette.BG }}>
+          <td colSpan={colCount()} style={{ padding: "0px", "border-top": "1px solid var(--color-fin-border)", "border-bottom": "1px solid var(--color-fin-border)", background: "var(--color-fin-bg)" }}>
             {props.renderSubComponent?.(row())}
           </td>
         </tr>
@@ -756,7 +770,7 @@ export function TanStackTable<T>(props: Props<T>) {
       </Show>
       <ScrollArea
         className="paper-tanstack-scroll"
-        style={{ flex: 1, "min-height": "0px", overflow: "auto", display: "flex", "flex-direction": "column", "background-color": palette.SURFACE }}
+        style={{ flex: 1, "min-height": "0px", overflow: "auto", display: "flex", "flex-direction": "column", "background-color": "var(--color-fin-surface)" }}
         onScroll={(e) => {
           const el = e.currentTarget as HTMLElement;
           if (el.scrollTop + el.clientHeight >= el.scrollHeight - 160) loadMore();
@@ -855,8 +869,8 @@ export function TanStackTable<T>(props: Props<T>) {
     "flex-direction": "column",
     overflow: "hidden",
     "border-radius": "2px",
-    border: `1px solid ${palette.BORDER}`,
-    "background-color": palette.SURFACE,
+    border: "1px solid var(--color-fin-border)",
+    "background-color": "var(--color-fin-surface)",
     "max-height": props.fillContainer ? undefined : "65vh",
     "min-height": props.fillContainer ? 0 : "200px",
     flex: props.fillContainer ? "1 1 0%" : undefined,

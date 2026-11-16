@@ -1,9 +1,18 @@
-import { Show, createMemo } from "solid-js";
+import { Show, createMemo, type JSX } from "solid-js";
 import { Box } from "@/ui";
-import * as palette from "@/ui/palette";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import type { ChainLeg, ChainRow } from "@/api/optionsDock";
 import { chainColumns } from "./chain.columns";
+
+// Theme-aware tint: mixing the primary into the *current* surface keeps the ATM
+// row legible in both schemes (an inline palette rgba() sat on a dark literal
+// and measured 1.11:1 in light mode). The expression lives in a custom property
+// because a bare color-mix() in `background-color` is silently dropped by
+// DOM style shims; browsers resolve the var() on paint.
+const ATM_BG_STYLE = {
+  "--atm-tint": "color-mix(in srgb, var(--color-fin-primary) 8%, var(--color-fin-surface))",
+  "background-color": "var(--atm-tint)",
+} as JSX.CSSProperties;
 
 /**
  * The dock's chain table. One shared `TanStackTable`, 60-row window, no bespoke
@@ -43,7 +52,11 @@ export function OptionChainTable(props: {
   });
 
   const columns = createMemo(() =>
-    chainColumns({ maxOi, onPick: (strike, type, leg, side) => props.onPick?.(strike, type, leg, side) }),
+    chainColumns({
+      maxOi,
+      atmStrike,
+      onPick: (strike, type, leg, side) => props.onPick?.(strike, type, leg, side),
+    }),
   );
 
   return (
@@ -56,6 +69,7 @@ export function OptionChainTable(props: {
         fillContainer
         bare
         enableSorting
+        stickyHeader
         minTableWidth={428}
         dataTestId="options-chain"
         ariaLabel="Option chain"
@@ -63,11 +77,7 @@ export function OptionChainTable(props: {
         loadingMessage="Loading chain…"
         emptyMessage="No strikes listed for this expiry"
         getRowTestId={(row) => `options-chain-row-${row.strike}`}
-        getRowStyle={(row) =>
-          row.strike === atmStrike()
-            ? { "background-color": palette.alpha(palette.PRIMARY, 0.08) }
-            : undefined
-        }
+        getRowStyle={(row) => (row.strike === atmStrike() ? ATM_BG_STYLE : undefined)}
         getRowAttributes={(row) => ({ "data-atm": row.strike === atmStrike() ? "true" : undefined })}
         initialState={{ sorting: [{ id: "strike", desc: false }] }}
       />
