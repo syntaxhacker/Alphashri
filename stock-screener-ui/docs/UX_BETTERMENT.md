@@ -213,6 +213,11 @@ also makes every symbol permanently underlined in a dense table.
 **Fix.** Make the symbol text the in-app chart action and move TradingView to the hover icon
 (existing `tvIcon`), or demote the underline to hover-only so the row reads as data, not as links.
 
+**DONE 2026-11-16** — symbol body is now a focusable in-app button (Enter/click open the chart;
+`stopPropagation` prevents double-navigation); `↗` is a real `target="_blank" rel="noopener noreferrer"`
+TradingView anchor named "Open `<SYMBOL>` on TradingView". Fixed in the shared `SymbolLink`
+(`inAppText` prop), applied to Market and Screener.
+
 ---
 
 ### F16 · "Score" means two different numbers, and neither states its range

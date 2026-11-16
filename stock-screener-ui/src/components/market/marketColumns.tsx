@@ -186,6 +186,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
               size="xs"
               weight={600}
               className={SYMBOL_LINK_CLASS}
+              inAppText
               tvIcon
               onTextClick={(sym) => handlers.onSymbolOpen?.(sym)}
             />

@@ -29,7 +29,13 @@ export interface SymbolLinkProps {
   onPreviewEnd?: (symbol: string) => void;
   /** Render the symbol text as an external TradingView link (default true). */
   tvLink?: boolean;
-  /** Show the external-link affordance next to the text (default false). */
+  /**
+   * Invert the two destinations: the symbol **text** becomes the in-app action
+   * (a focusable button; Enter works) and TradingView moves to the `↗` affordance.
+   * The default stays `false` so legacy TV-on-text call sites are unaffected.
+   */
+  inAppText?: boolean;
+  /** Show the external-link affordance next to the text (default false). Forced on by `inAppText`. */
   tvIcon?: boolean;
   /** Show the trailing chart icon (default true). Set false for TV-only links. */
   showChart?: boolean;
@@ -72,6 +78,8 @@ export interface SymbolLinkProps {
  *
  * - Symbol text → TradingView (new tab) when `tvLink=true`, preserving the existing patterns
  *   contract (`patterns-*-tv-*` test ids).
+ * - With `inAppText=true` the two destinations swap: the text becomes the in-app
+ *   action (a focusable button) and the `↗` affordance is the TradingView link.
  * - When `tvLink=false` and `onTextClick` is provided, the text renders as a button
  *   with the custom click handler (ClickableSymbol use case).
  * - Trailing chart icon → the in-app right-side chart (`onOpen`); the host
@@ -91,6 +99,7 @@ export function SymbolLink(props: SymbolLinkProps) {
     "onPreview",
     "onPreviewEnd",
     "tvLink",
+    "inAppText",
     "tvIcon",
     "showChart",
     "showOptions",
@@ -109,6 +118,7 @@ export function SymbolLink(props: SymbolLinkProps) {
     "textClassName",
   ]);
   const tvLink = () => local.tvLink ?? true;
+  const inAppText = () => local.inAppText ?? false;
   const stopPropagation = () => local.stopPropagation ?? true;
   const label = () => String(local.symbol ?? "");
   const dock = useSymbolDock();
@@ -137,6 +147,16 @@ export function SymbolLink(props: SymbolLinkProps) {
     }
   };
 
+  const handleInAppTextClick = (event: MouseEvent) => {
+    // Stop the row handler so a symbol click navigates exactly once.
+    stop(event);
+    if (local.onTextClick) {
+      local.onTextClick(label(), event);
+    } else {
+      openHandler()(label());
+    }
+  };
+
   return (
     <Box
       data-testid={local.testId ? `${local.testId}-wrap` : undefined}
@@ -146,7 +166,24 @@ export function SymbolLink(props: SymbolLinkProps) {
       style={local.style}
     >
       <Box className="min-w-0 flex-1">
-        <Show when={local.onTextClick}>
+        <Show when={inAppText()}>
+          <Box
+            component="button"
+            type="button"
+            aria-label={local.ariaLabel ?? `Open ${label()} chart`}
+            data-testid={local.testId}
+            onClick={handleInAppTextClick}
+            className={cn(
+              "block min-w-0 cursor-pointer overflow-hidden whitespace-nowrap text-ellipsis border-0 bg-transparent p-0 text-left text-fin-text no-underline hover:text-fin-primary hover:underline focus-visible:underline",
+              local.size === "xs" ? "text-xs" : local.size === "sm" || local.size === undefined ? "text-sm" : "text-base",
+              local.textClassName,
+            )}
+            style={{ "font-weight": local.weight ?? 700 }}
+          >
+            {local.children ?? label()}
+          </Box>
+        </Show>
+        <Show when={!inAppText() && local.onTextClick}>
           <Box
             component="button"
             type="button"
@@ -163,7 +200,7 @@ export function SymbolLink(props: SymbolLinkProps) {
             {local.children ?? label()}
           </Box>
         </Show>
-        <Show when={!local.onTextClick && tvLink() && tvUrl()}>
+        <Show when={!inAppText() && !local.onTextClick && tvLink() && tvUrl()}>
           <Box
             component="a"
             href={tvUrl()}
@@ -177,7 +214,7 @@ export function SymbolLink(props: SymbolLinkProps) {
             {local.children ?? <Text size={local.size ?? "sm"} fw={local.weight ?? 700} truncate className={local.textClassName}>{label()}</Text>}
           </Box>
         </Show>
-        <Show when={!local.onTextClick && !(tvLink() && tvUrl())}>
+        <Show when={!inAppText() && !local.onTextClick && !(tvLink() && tvUrl())}>
           <Text size={local.size ?? "sm"} fw={local.weight ?? 700} truncate data-testid={local.testId} className={local.textClassName}>
             {local.children ?? label()}
           </Text>
@@ -206,7 +243,7 @@ export function SymbolLink(props: SymbolLinkProps) {
         </CopyButton>
       </Show>
 
-      <Show when={tvLink() && (local.tvIcon ?? false) && tvUrl()}>
+      <Show when={tvLink() && ((local.tvIcon ?? false) || inAppText()) && tvUrl()}>
         <Tooltip label={`${label()} on TradingView`}>
           <Box
             component="a"
@@ -214,8 +251,9 @@ export function SymbolLink(props: SymbolLinkProps) {
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`Open ${label()} on TradingView`}
+            data-testid={`symbol-tv-${label()}`}
             onClick={stop}
-            className="pattern-tv-link inline-flex flex-shrink-0 items-center text-fin-text-muted hover:text-fin-primary"
+            className="pattern-tv-link inline-flex flex-shrink-0 items-center text-fin-text-muted hover:text-fin-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-fin-primary)]"
           >
             <IconExternalLink size={12} />
           </Box>

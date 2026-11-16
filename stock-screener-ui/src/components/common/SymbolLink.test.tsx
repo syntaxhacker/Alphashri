@@ -94,3 +94,62 @@ describe("SymbolLink", () => {
     expect(writeText).toHaveBeenCalledWith("RELIANCE");
   });
 });
+
+describe("SymbolLink inAppText — symbol body / ↗ inversion", () => {
+  test("the symbol body is an in-app button, not a TV link, and fires the handler once", async () => {
+    const onOpen = vi.fn();
+    const row = vi.fn();
+    r(
+      <div onClick={row}>
+        <SymbolLink symbol="RELIANCE" testId="sym" inAppText onOpen={onOpen} />
+      </div>,
+    );
+    const text = screen.getByTestId("sym");
+    expect(text.tagName).toBe("BUTTON");
+    expect(text).toHaveAttribute("type", "button");
+    expect(text).not.toHaveAttribute("href");
+    expect(text).toHaveAccessibleName("Open RELIANCE chart");
+    await fireEvent.click(text);
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onOpen).toHaveBeenCalledWith("RELIANCE");
+    // The row handler must not also fire — one click, one navigation.
+    expect(row).not.toHaveBeenCalled();
+  });
+
+  test("onTextClick is the in-app action and wins over onOpen", async () => {
+    const onTextClick = vi.fn();
+    const onOpen = vi.fn();
+    r(
+      <SymbolLink
+        symbol="RELIANCE"
+        testId="sym"
+        inAppText
+        onTextClick={onTextClick}
+        onOpen={onOpen}
+      />,
+    );
+    await fireEvent.click(screen.getByTestId("sym"));
+    expect(onTextClick).toHaveBeenCalledWith("RELIANCE", expect.any(MouseEvent));
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  test("↗ is a real TradingView anchor with an accessible name and stops propagation", async () => {
+    const row = vi.fn();
+    r(
+      <div onClick={row}>
+        <SymbolLink symbol="RELIANCE" testId="sym" inAppText onOpen={vi.fn()} />
+      </div>,
+    );
+    const external = screen.getByTestId("symbol-tv-RELIANCE");
+    expect(external.tagName).toBe("A");
+    expect(external).toHaveAttribute(
+      "href",
+      "https://www.tradingview.com/chart/?symbol=NSE%3ARELIANCE",
+    );
+    expect(external).toHaveAttribute("target", "_blank");
+    expect(external).toHaveAttribute("rel", "noopener noreferrer");
+    expect(external).toHaveAccessibleName("Open RELIANCE on TradingView");
+    await fireEvent.click(external);
+    expect(row).not.toHaveBeenCalled();
+  });
+});

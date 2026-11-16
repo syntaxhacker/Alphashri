@@ -136,6 +136,7 @@ export function ScreenerContent(props: Props) {
                   onSymbolClick={props.onSymbolClick}
                   onSymbolHover={props.onSymbolHover}
                   section={section.key}
+                  tableId={`screener.${props.activeScreener}.${section.key}`}
                 />
               )}
             </For>

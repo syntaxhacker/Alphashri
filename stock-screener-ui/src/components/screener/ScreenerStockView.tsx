@@ -11,6 +11,7 @@ interface ScreenerStockViewProps {
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;
   section: string;
+  tableId?: string;
 }
 
 export function ScreenerStockView(props: ScreenerStockViewProps) {
@@ -24,6 +25,7 @@ export function ScreenerStockView(props: ScreenerStockViewProps) {
       onSymbolClick={props.onSymbolClick}
       onSymbolHover={props.onSymbolHover}
       testId={`screener-table-${props.section}`}
+      tableId={props.tableId}
     />
   );
 }

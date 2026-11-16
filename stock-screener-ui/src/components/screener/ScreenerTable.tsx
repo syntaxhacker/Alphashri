@@ -2,6 +2,7 @@ import { createMemo, createEffect, createSignal, onCleanup, Show, type JSX } fro
 import { Checkbox, ActionIcon, CopyButton, Tooltip, Badge, Group, Text, Box, Stack } from "@/ui";
 import { IconCopy, IconCheck } from "./icons";
 import { TanStackTable, type TableColumnDef } from "../common/TanStackTable";
+import { useTablePrefs } from "../common/useTablePrefs";
 import { SymbolLink } from "../common/SymbolLink";
 import { useSymbolDock } from "../common/symbolDockContext";
 import type { ColumnDef, FormattedCell } from "./columns";
@@ -18,6 +19,8 @@ interface ScreenerTableProps {
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;
   testId?: string;
+  /** Saved-config key. Falls back to `screener.${testId ?? "table"}`. */
+  tableId?: string;
 }
 
 // src/hooks/useStoreSubscription.ts's useStoreSnapshot misses its createMemo
@@ -35,6 +38,19 @@ function useSelectionSnapshot() {
 }
 
 export function ScreenerTable(props: ScreenerTableProps) {
+  const tableId = () => props.tableId ?? `screener.${props.testId ?? "table"}`;
+  // useTablePrefs is instantiated per id. Keying the body remounts it when the
+  // active profile changes in place, so the old store is released and the new
+  // id hydrates its own saved sort instead of inheriting the previous one.
+  return (
+    <Show when={tableId()} keyed>
+      {(id) => <ScreenerTableBody {...props} tableId={id} />}
+    </Show>
+  );
+}
+
+function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
+  const { prefs, setSorting } = useTablePrefs(props.tableId);
   const selection = useSelectionSnapshot();
   const visibleSymbols = createMemo(() => props.stocks.map((stock) => stock.symbol));
   const allSymbols = createMemo(() => visibleSymbols().join(", "));
@@ -160,6 +176,10 @@ export function ScreenerTable(props: ScreenerTableProps) {
                   symbol={stock.symbol}
                   testId={`symbol-link-${stock.symbol}`}
                   chartTestId={`symbol-chart-${stock.symbol}`}
+                  // Symbol text navigates in-app; TradingView moves to the ↗ affordance.
+                  inAppText
+                  tvIcon
+                  onTextClick={(sym) => props.onSymbolClick(sym)}
                   onPreview={(value: string) => {
                     props.onSymbolHover?.(value);
                     dock.preview(value);
@@ -244,6 +264,8 @@ export function ScreenerTable(props: ScreenerTableProps) {
                 columns={tanStackColumns()}
                 dataTestId="screener-table"
                 enableSorting
+                sorting={prefs().sorting}
+                onSortingChange={setSorting}
                 stickyHeader
                 className="w-full min-w-0"
                 getRowTestId={(row) => `stock-row-${row.symbol}`}

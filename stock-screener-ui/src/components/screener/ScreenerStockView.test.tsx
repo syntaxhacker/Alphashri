@@ -7,7 +7,7 @@ import { UIProvider } from "@/ui";
 
 vi.mock("./ScreenerTable", () => ({
   ScreenerTable: (props: any) => (
-    <div data-testid={props.testId || "screener-table"} data-view="table">
+    <div data-testid={props.testId || "screener-table"} data-view="table" data-table-id={props.tableId}>
       Table View
     </div>
   ),
@@ -47,5 +47,17 @@ describe("ScreenerStockView", () => {
       </UIProvider>
     ));
     expect(screen.getByTestId("screener-table-touched")).toBeInTheDocument();
+  });
+
+  it("forwards tableId to ScreenerTable", () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerStockView {...defaultProps} tableId="screener.52w_high.approaching" />
+      </UIProvider>
+    ));
+    expect(screen.getByTestId("screener-table-approaching")).toHaveAttribute(
+      "data-table-id",
+      "screener.52w_high.approaching",
+    );
   });
 });

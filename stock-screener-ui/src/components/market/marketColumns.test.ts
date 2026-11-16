@@ -83,6 +83,33 @@ describe("buildMarketColumns", () => {
     expect(onSymbolOpen).toHaveBeenCalledWith("RELIANCE");
   });
 
+  test("symbol body is in-app; ↗ is the TradingView link and neither bubbles to the row", async () => {
+    const onSymbolOpen = vi.fn();
+    const symbolColumn = buildMarketColumns({ onSymbolOpen }).find((column) => column.id === "symbol");
+    const cell = symbolColumn?.cell;
+    if (!cell) throw new Error("symbol column has no cell renderer");
+
+    render(() =>
+      cell({ row: { original: ROW, index: 0, isExpanded: () => false, toggle: () => {} }, column: symbolColumn }),
+    );
+
+    const text = screen.getByTestId("market-symbol-RELIANCE");
+    expect(text.tagName).toBe("BUTTON");
+    await fireEvent.click(text);
+    expect(onSymbolOpen).toHaveBeenCalledTimes(1);
+
+    const external = screen.getByTestId("symbol-tv-RELIANCE");
+    expect(external).toHaveAttribute(
+      "href",
+      "https://www.tradingview.com/chart/?symbol=NSE%3ARELIANCE",
+    );
+    expect(external).toHaveAttribute("target", "_blank");
+    expect(external).toHaveAttribute("rel", "noopener noreferrer");
+    expect(external).toHaveAccessibleName("Open RELIANCE on TradingView");
+    await fireEvent.click(external);
+    expect(onSymbolOpen).toHaveBeenCalledTimes(1);
+  });
+
   test("mcap cell reads as lakh crore above 1e5", () => {
     renderMcap(1812819);
     const cell = screen.getByTestId("market-mcap-RELIANCE");

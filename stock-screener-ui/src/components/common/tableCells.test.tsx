@@ -1,5 +1,6 @@
-import { describe, expect, test } from "vitest";
-import { render, screen } from "@solidjs/testing-library";
+import { describe, expect, test, vi } from "vitest";
+import { render, screen, fireEvent } from "@solidjs/testing-library";
+import "@testing-library/jest-dom/vitest";
 import { NumCell, TextCell, BadgeCell, SymbolCell } from "./tableCells";
 
 function cls(el: Element) {
@@ -82,6 +83,25 @@ describe("SymbolCell", () => {
     render(() => <SymbolCell symbol="SBIN" onOpen={(s) => (opened = s)} testId="s" />);
     screen.getByTestId("s").click();
     expect(opened).toBe("SBIN");
+  });
+
+  test("is keyboard-accessible and does not double-fire a row handler", () => {
+    const onOpen = vi.fn();
+    const row = vi.fn();
+    render(() => (
+      <div onClick={row}>
+        <SymbolCell symbol="SBIN" onOpen={onOpen} testId="s" />
+      </div>
+    ));
+    const el = screen.getByTestId("s");
+    expect(el).toHaveAttribute("role", "button");
+    expect(el).toHaveAttribute("tabindex", "0");
+    expect(el).toHaveAccessibleName("Open SBIN chart");
+    fireEvent.keyDown(el, { key: "Enter" });
+    expect(onOpen).toHaveBeenCalledWith("SBIN");
+    fireEvent.click(el);
+    expect(onOpen).toHaveBeenCalledTimes(2);
+    expect(row).not.toHaveBeenCalled();
   });
 });
 

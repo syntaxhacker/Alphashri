@@ -582,4 +582,10 @@ no new table. The reusable layer lives in `src/components/common/useTablePrefs.t
   unknown keys ignored); `serialize` emits exactly the three keys. The store's
   existing hydration latch/generation rules still apply — no write before the GET
   settles.
-- Later lane: wire `prefs()` / `setSorting()` into `TanStackTable` (not this file).
+- Screener tables key as `table.screener.${profileId}.${section}` (e.g.
+  `table.screener.52w_high.approaching`, `table.screener.52w_high.touched`).
+  `ScreenerContent` builds the id and forwards it through `ScreenerSection` →
+  `ScreenerStockView` → `ScreenerTable`; a table mounted without an explicit
+  `tableId` falls back to `table.screener.${testId ?? "table"}`. TanStack is
+  driven controlled: `sorting={prefs().sorting}` / `onSortingChange={setSorting}`,
+  and an empty saved array keeps the caller's pre-sorted row order.
