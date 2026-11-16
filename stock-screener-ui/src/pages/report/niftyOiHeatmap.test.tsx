@@ -180,6 +180,75 @@ describe("buildOiHeatmap", () => {
   });
 });
 
+describe("trimmed tape chain (server payload, spot ± 500)", () => {
+  // `GET /api/reports/nifty/tape` serves each row's chain trimmed to
+  // spot ± TAPE_CHAIN_WINDOW_PTS (500) — the full ~142-strike chain was 85.7%
+  // of a 2.29 MB payload. The heatmap must build the IDENTICAL cells for the
+  // strikes it renders; a far strike was never rendered, so its absence is
+  // silent. A trimmed row also carries `chain_truncated` / `chain_center` /
+  // `chain_window_pts`, which the builder ignores.
+  const WINDOW = 500;
+  // Full ladder: ±2,500 pts in 50s — like a recorded NIFTY chain.
+  const FULL = Array.from({ length: 101 }, (_, i) => 25750 + (i - 50) * 50);
+  const visible = FULL.filter((s) => Math.abs(s - 25760) <= WINDOW);
+  const trimmedChain = (ceOi: number, peOi: number) =>
+    chainAt(visible, ceOi, peOi);
+
+  test("trimmed and full chains build the same heatmap for the visible strikes", () => {
+    const full = [
+      row(isoAt(0), 25750, chainAt(FULL, 1000, 1000)),
+      row(isoAt(6), 25760, chainAt(FULL, 2000, 1000)),
+    ];
+    const trimmed = [
+      {
+        ...row(isoAt(0), 25750, trimmedChain(1000, 1000)),
+        chain_truncated: true,
+        chain_center: 25750,
+        chain_window_pts: WINDOW,
+      } as HeatmapTapeRow,
+      {
+        ...row(isoAt(6), 25760, trimmedChain(2000, 1000)),
+        chain_truncated: true,
+        chain_center: 25760,
+        chain_window_pts: WINDOW,
+      } as HeatmapTapeRow,
+    ];
+
+    const a = buildOiHeatmap(full, { bucketMin: 5, widthPts: WINDOW });
+    const b = buildOiHeatmap(trimmed, { bucketMin: 5, widthPts: WINDOW });
+
+    expect(b.strikes).toEqual(a.strikes);
+    expect(b.buckets).toEqual(a.buckets);
+    // ΔOI per visible cell is identical, not merely present.
+    expect(b.cells).toEqual(a.cells);
+    expect(b.maxAbs).toBe(a.maxAbs);
+    expect(b.empty).toBe(false);
+  });
+
+  test("a trimmed chain does not invent or shift visible strikes", () => {
+    const m = buildOiHeatmap(
+      [row(isoAt(0), 25760, trimmedChain(1000, 1000))],
+      { bucketMin: 5, widthPts: WINDOW },
+    );
+    expect(m.strikes).toEqual(visible);
+    // The far strikes are gone from the payload AND from the model.
+    expect(m.strikes).not.toContain(25760 - 2500);
+    expect(m.strikes).not.toContain(25760 + 2500);
+  });
+
+  test("the payload marker fields are inert to the builder", () => {
+    const plain = row(isoAt(0), 25760, trimmedChain(1000, 1000));
+    const marked = {
+      ...plain,
+      chain_truncated: true,
+      chain_center: 25760,
+      chain_window_pts: WINDOW,
+    } as HeatmapTapeRow;
+    expect(buildOiHeatmap([marked], { bucketMin: 5, widthPts: WINDOW }))
+      .toEqual(buildOiHeatmap([plain], { bucketMin: 5, widthPts: WINDOW }));
+  });
+});
+
 describe("heatmap read", () => {
   test("picks the largest CE and PE builds and compares spot to max pain", () => {
     const read = readHeatmap(buildOiHeatmap(READ_ROWS, { bucketMin: 5, widthPts: 500 }));

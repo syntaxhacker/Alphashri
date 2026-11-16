@@ -443,7 +443,12 @@ export interface NiftyReplay {
 
 /** Per-strike chain snapshot — `chain[strike] = [ce_ltp, pe_ltp, ce_oi, pe_oi, ce_vol, pe_vol]`
  *  with dead legs stored as `null` (so "no trade" stays distinguishable from
- *  "no price"). Absent on tapes recorded before the backend emitted it. */
+ *  "no price"). Absent on tapes recorded before the backend emitted it.
+ *
+ *  The served rows are trimmed to spot ± 500 pts (backend
+ *  `nifty.TAPE_CHAIN_WINDOW_PTS`) — the window every reader below renders — so
+ *  a strike far from spot is expected to be missing, not zero. A trimmed row
+ *  says so with `chain_truncated` / `chain_center` / `chain_window_pts`. */
 export type NiftyTapeChainTuple = [
   number | null,
   number | null,
@@ -492,8 +497,16 @@ export interface NiftyTapeRow {
   ce_vol?: number;
   pe_vol?: number;
   /** Per-strike chain snapshot backing the heatmap / participant-flow /
-   *  volume-profile visuals; absent on tapes recorded before it existed. */
+   *  volume-profile visuals; absent on tapes recorded before it existed.
+   *  Trimmed to spot ± `chain_window_pts` (500) by the backend — the window
+   *  those readers render, so a far strike is absent rather than zero. */
   chain?: Record<string, NiftyTapeChainTuple>;
+  /** The served chain was shortened to the readable window. */
+  chain_truncated?: boolean;
+  /** Strike centre the row's chain was trimmed around (its own spot). */
+  chain_center?: number | null;
+  /** Kept window in points around `chain_center`. */
+  chain_window_pts?: number;
 }
 
 /** A ready-to-trade burst signal block — `null` when the burst only merits a flag. */

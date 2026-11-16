@@ -28,6 +28,15 @@ export interface HeatmapTapeRow {
   flip?: number | null;
   walls?: { call?: number; put?: number } | null;
   chain?: ChainMap | null;
+  /** Payload marker: the served chain was trimmed (see the backend's
+   *  `_trim_tape_chains`). The builder reads only the strikes it renders, so
+   *  these are documentation — a row whose chain was shortened is not a row
+   *  with missing data. */
+  chain_truncated?: boolean;
+  /** Strike centre the served chain was trimmed around (the row's spot). */
+  chain_center?: number | null;
+  /** Kept window in points around `chain_center`. */
+  chain_window_pts?: number;
 }
 
 type HeatCellSign = "ce" | "pe" | "flat";
