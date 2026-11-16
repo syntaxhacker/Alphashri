@@ -8,6 +8,7 @@ import {
   type StrategyPreset,
 } from "@/utils/optionsStrategies";
 import { optionsDockState, presetContext, setStrategy } from "@/state/optionsDock";
+import { DockSection } from "./DockSection";
 
 const OUTLOOKS: { id: Outlook; label: string }[] = [
   { id: "bullish", label: "Bullish" },
@@ -120,20 +121,34 @@ export function StrategyControl() {
   }
 
   return (
-    <Box
-      className="flex shrink-0 flex-col gap-1 border-t border-fin-border px-2 py-1"
-      data-testid="options-strategy-row"
+    <DockSection
+      title="STRATEGY"
+      testId="options-strategy-row"
+      headerTestId="dock-section-strategy"
+      meta={
+        <Show when={active()}>
+          {(preset) => (
+            <Tooltip
+              label={
+                preset().risk === "defined"
+                  ? "Max loss is capped by the structure"
+                  : "A short leg has no strike beyond it — loss is not capped"
+              }
+            >
+              <Badge
+                size="xs"
+                variant="outline"
+                color={preset().risk === "defined" ? "success" : "warning"}
+                data-testid="options-strategy-risk"
+              >
+                {preset().risk} risk
+              </Badge>
+            </Tooltip>
+          )}
+        </Show>
+      }
     >
       <Box className="flex items-center gap-2">
-        <Text
-          size="xs"
-          fw={700}
-          className="font-mono tracking-[0.08em] text-fin-text-muted uppercase"
-          style={{ "font-size": "9px" }}
-        >
-          STRATEGY
-        </Text>
-
         <Box
           component="button"
           type="button"
@@ -154,33 +169,15 @@ export function StrategyControl() {
 
         <Show when={active()}>
           {(preset) => (
-            <Box className="flex min-w-0 flex-1 items-center justify-end gap-2">
-              <Text
-                size="xs"
-                c="dimmed"
-                className="min-w-0 truncate"
-                style={{ "font-size": "10px" }}
-                data-testid="options-strategy-description"
-              >
-                {preset().description}
-              </Text>
-              <Tooltip
-                label={
-                  preset().risk === "defined"
-                    ? "Max loss is capped by the structure"
-                    : "A short leg has no strike beyond it — loss is not capped"
-                }
-              >
-                <Badge
-                  size="xs"
-                  variant="outline"
-                  color={preset().risk === "defined" ? "success" : "warning"}
-                  data-testid="options-strategy-risk"
-                >
-                  {preset().risk} risk
-                </Badge>
-              </Tooltip>
-            </Box>
+            <Text
+              size="xs"
+              c="dimmed"
+              className="min-w-0 flex-1 truncate"
+              style={{ "font-size": "10px" }}
+              data-testid="options-strategy-description"
+            >
+              {preset().description}
+            </Text>
           )}
         </Show>
       </Box>
@@ -265,6 +262,6 @@ export function StrategyControl() {
           {active()!.name} needs a wider chain on this expiry — no legs built.
         </Text>
       </Show>
-    </Box>
+    </DockSection>
   );
 }

@@ -10,6 +10,7 @@ import {
   type OptionLeg,
 } from "@/utils/optionsMath";
 import type { DockLeg } from "@/state/optionsDock";
+import { DockSection } from "./DockSection";
 
 /**
  * Payoff at expiry plus the probability read.
@@ -70,10 +71,10 @@ export function buildPayoff(
   };
 }
 
-function money(value: number | null): string {
+function signedCompact(value: number | null): string {
   if (value == null || !Number.isFinite(value)) return "∞";
   const sign = value > 0 ? "+" : value < 0 ? "−" : "";
-  return `${sign}₹${formatNumber(Math.abs(value))}`;
+  return `${sign}${formatNumber(Math.abs(value))}`;
 }
 
 function pct(value: number): string {
@@ -93,23 +94,6 @@ function emptySnapshot(): PayoffSnapshot {
   };
 }
 
-/** Bands where the basket is profitable: breakeven 1→2, 3→4, … with the window edges. */
-function profitableBands(breakevens: number[], spots: number[]): { xAxis: string }[][] | undefined {
-  if (breakevens.length === 0 || spots.length === 0) return undefined;
-  const min = spots[0];
-  const max = spots[spots.length - 1];
-  const bounds = [min, ...breakevens.filter((be) => be > min && be < max), max];
-  if (bounds.length < 2) return undefined;
-  const pairs: { xAxis: string }[][] = [];
-  for (let i = 0; i + 1 < bounds.length; i += 2) {
-    pairs.push([
-      { xAxis: Math.round(bounds[i]).toString() },
-      { xAxis: Math.round(bounds[i + 1]).toString() },
-    ]);
-  }
-  return pairs;
-}
-
 function buildOption(
   snapshot: PayoffSnapshot,
   spot: number,
@@ -123,11 +107,32 @@ function buildOption(
     prob: maxProb > 0 ? (cell.prob / maxProb) * Math.max(0.15, Math.abs(snapshot.maxProfit ?? 1)) : 0,
   }));
   const spotLabel = Math.round(spot).toString();
+  // Two series over one grid: the line stops at zero and the other colour picks
+  // it up, so profit and loss are separable without a second y axis. A null is
+  // a gap, not a zero — `connectNulls: false` keeps the crossing readable.
+  const profit = snapshot.points.map((point) => (point.pnl >= 0 ? Math.round(point.pnl) : null));
+  const loss = snapshot.points.map((point) => (point.pnl < 0 ? Math.round(point.pnl) : null));
+
+  const markLine = {
+    silent: true,
+    symbol: "none",
+    label: { show: false },
+    data: [
+      { yAxis: 0, lineStyle: { color: palette.TEXT_MUTED, width: 1, type: "dashed" } },
+      ...snapshot.breakevens.map((be) => ({
+        xAxis: Math.round(be).toString(),
+        lineStyle: { color: palette.WARNING, width: 1, type: "dotted" },
+      })),
+      { xAxis: spotLabel, lineStyle: { color: palette.INFO, width: 1, type: "solid" } },
+    ],
+  };
 
   return {
     animation: false,
     backgroundColor: "transparent",
-    grid: { left: GRID_LEFT, right: 8, top: 8, bottom: 18 },
+    // 20px of bottom room: the tick labels sit under the plot and the footer
+    // band starts on the next pixel, so they must not be painted on top of it.
+    grid: { left: GRID_LEFT, right: 8, top: 13, bottom: 20 },
     tooltip: {
       trigger: "axis",
       backgroundColor: palette.TOOLTIP_BG,
@@ -142,6 +147,7 @@ function buildOption(
       axisLabel: {
         color: palette.CHART_MUTED,
         fontSize: 9,
+        margin: 4,
         interval: Math.max(0, Math.floor(spots.length / 6)),
       },
       splitLine: { show: false },
@@ -155,31 +161,37 @@ function buildOption(
     },
     series: [
       {
-        name: "P&L",
+        name: "P&L at expiry",
         type: "line",
-        data: snapshot.points.map((point) => Math.round(point.pnl)),
+        data: profit,
         showSymbol: false,
-        lineStyle: { width: 1.5, color: palette.PRIMARY },
-        areaStyle: { color: palette.alpha(palette.PRIMARY, 0.1) },
-        markLine: {
-          silent: true,
-          symbol: "none",
-          label: { show: false },
-          data: [
-            { yAxis: 0, lineStyle: { color: palette.TEXT_MUTED, width: 1, type: "dashed" } },
-            ...snapshot.breakevens.map((be) => ({
-              xAxis: Math.round(be).toString(),
-              lineStyle: { color: palette.WARNING, width: 1, type: "dotted" },
-            })),
-            { xAxis: spotLabel, lineStyle: { color: palette.INFO, width: 1, type: "solid" } },
-          ],
-        },
-        markArea: {
-          silent: true,
-          itemStyle: { color: palette.alpha(palette.POSITIVE, 0.08) },
-          data: profitableBands(snapshot.breakevens, spots) ?? [],
-        },
-        z: 2,
+        connectNulls: false,
+        lineStyle: { width: 1.5, color: palette.POSITIVE },
+        itemStyle: { color: palette.POSITIVE },
+        areaStyle: { color: palette.alpha(palette.POSITIVE, 0.22), origin: 0 },
+        z: 3,
+      },
+      {
+        name: "P&L at expiry",
+        type: "line",
+        data: loss,
+        showSymbol: false,
+        connectNulls: false,
+        lineStyle: { width: 1.5, color: palette.NEGATIVE },
+        itemStyle: { color: palette.NEGATIVE },
+        areaStyle: { color: palette.alpha(palette.NEGATIVE, 0.22), origin: 0 },
+        z: 3,
+      },
+      {
+        // Guides ride their own empty series: attached to either half they would
+        // vanish on a basket that is entirely profit or entirely loss.
+        name: "guides",
+        type: "line",
+        data: [],
+        showSymbol: false,
+        silent: true,
+        markLine,
+        z: 3,
       },
       {
         name: "P(S)",
@@ -187,18 +199,19 @@ function buildOption(
         data: densitySeries.map((cell) => Math.round(cell.prob)),
         showSymbol: false,
         lineStyle: { width: 0, opacity: 0 },
-        areaStyle: { color: palette.alpha(palette.INFO, 0.18) },
+        areaStyle: { color: palette.alpha(palette.INFO, 0.1) },
         silent: true,
         z: 1,
       },
     ],
     // `flat vol` is a disclosure, not a decoration: the POP below is computed at
-    // the ATM IV, so the panel says which σ the number came from.
+    // the ATM IV, so the panel says which σ the number came from. Top-right, in
+    // the empty corner — the bottom band belongs to the x-axis tick labels.
     graphic: [
       {
         type: "text",
-        right: 6,
-        bottom: 2,
+        right: 8,
+        top: 0,
         style: {
           text: `flat vol ${Number.isFinite(iv) && iv > 0 ? (iv * 100).toFixed(1) : "—"}%`,
           fill: palette.CHART_MUTED,
@@ -299,18 +312,20 @@ export function PayoffPanel(props: {
     return current.breakevens.map((be) => Math.round(be).toLocaleString("en-IN")).join(" · ");
   });
 
+  const expectedPnl = createMemo(() => {
+    const current = snapshot();
+    return current && Number.isFinite(current.expectedPnl) ? current.expectedPnl : null;
+  });
+
   return (
-    <Box className="flex min-h-0 flex-1 flex-col border-t border-fin-border" data-testid="options-payoff">
-      <Box className="flex items-center justify-between gap-2 px-2 py-1">
-        <Text
-          size="xs"
-          fw={700}
-          className="font-mono tabular-nums uppercase tracking-[0.08em] text-fin-text-muted"
-          style={{ "font-size": "9px" }}
-        >
-          PAYOFF
-        </Text>
-        <Box className="flex items-baseline gap-2">
+    <DockSection
+      title="PAYOFF"
+      testId="options-payoff"
+      headerTestId="dock-section-payoff"
+      fill
+      padded={false}
+      meta={
+        <Box className="flex items-baseline gap-1.5">
           <Text size="xs" c="dimmed" className="uppercase" style={{ "font-size": "9px" }}>
             POP
           </Text>
@@ -318,13 +333,53 @@ export function PayoffPanel(props: {
             size="xs"
             fw={700}
             className="font-mono tabular-nums"
+            style={{ "font-size": "10px" }}
             data-testid="options-pop"
           >
             {snapshot() ? pct(snapshot()!.pop) : "—"}
           </Text>
         </Box>
-      </Box>
-
+      }
+      footer={
+        <Box
+          className="flex h-[24px] items-stretch border-t border-fin-border"
+          data-testid="options-payoff-footer"
+        >
+          <PayoffMetric label="BE" testId="options-breakevens" value={beText()} />
+          <PayoffMetric
+            label="MAX P/L"
+            testId="options-max-pnl"
+            bordered
+            value={`${signedCompact(snapshot()?.maxProfit ?? null)} / ${signedCompact(snapshot()?.maxLoss ?? null)}`}
+          />
+          <PayoffMetric
+            label="MODEL E[P&L]"
+            testId="options-expected-pnl"
+            bordered
+            value={expectedPnl() != null ? signedCompact(expectedPnl()) : "—"}
+            tone={
+              expectedPnl() == null
+                ? undefined
+                : expectedPnl()! > 0
+                  ? palette.POSITIVE
+                  : expectedPnl()! < 0
+                    ? palette.NEGATIVE
+                    : undefined
+            }
+          />
+          <PayoffMetric
+            label="±1σ"
+            testId="options-expected-move"
+            bordered
+            value={
+              snapshot()
+                ? Math.round(expectedMove(props.spot, ivDecimal(), props.dteYears)).toLocaleString("en-IN")
+                : "—"
+            }
+          />
+        </Box>
+      }
+    >
       <Box className="relative min-h-0 flex-1" style={{ "min-height": "96px" }}>
         <div
           ref={(node) => (chartEl = node)}
@@ -343,49 +398,47 @@ export function PayoffPanel(props: {
           </Box>
         </Show>
       </Box>
+    </DockSection>
+  );
+}
 
-      <Box className="flex flex-wrap items-center gap-x-3 gap-y-0 px-2 pb-1">
-        <Text
-          size="xs"
-          c="dimmed"
-          className="font-mono tabular-nums"
-          style={{ "font-size": "10px" }}
-          data-testid="options-breakevens"
-        >
-          BE {beText()}
-        </Text>
-        <Text
-          size="xs"
-          c="dimmed"
-          className="font-mono tabular-nums"
-          style={{ "font-size": "10px" }}
-          data-testid="options-max-pnl"
-        >
-          max {money(snapshot()?.maxProfit ?? null)} / {money(snapshot()?.maxLoss ?? null)}
-        </Text>
-        <Text
-          size="xs"
-          c="dimmed"
-          className="font-mono tabular-nums"
-          style={{ "font-size": "10px" }}
-          data-testid="options-expected-pnl"
-        >
-          model E[P&L]{" "}
-          {snapshot() && Number.isFinite(snapshot()!.expectedPnl) ? money(snapshot()!.expectedPnl) : "—"}
-        </Text>
-        <Text
-          size="xs"
-          c="dimmed"
-          className="font-mono tabular-nums"
-          style={{ "font-size": "10px" }}
-          data-testid="options-expected-move"
-        >
-          ±1σ{" "}
-          {snapshot()
-            ? Math.round(expectedMove(props.spot, ivDecimal(), props.dteYears)).toLocaleString("en-IN")
-            : "—"}
-        </Text>
-      </Box>
+/**
+ * One footer cell: a 9px label over a 10px number, divided by a hairline. Four
+ * cells at 480px are too narrow for `LABEL value` on one line, so the value
+ * sits under its label and each cell keeps its own column.
+ */
+function PayoffMetric(props: {
+  label: string;
+  value: string;
+  testId: string;
+  tone?: string;
+  /** Cells after the first carry the left divider; the row's own border is the top. */
+  bordered?: boolean;
+}) {
+  return (
+    <Box
+      className={`flex min-w-0 flex-1 flex-col justify-center px-1.5${
+        props.bordered ? " border-l border-fin-border" : ""
+      }`}
+      data-testid={props.testId}
+    >
+      <Text
+        size="xs"
+        c="dimmed"
+        className="truncate uppercase"
+        style={{ "font-size": "9px", "letter-spacing": "0.06em", "line-height": "1.1" }}
+      >
+        {props.label}
+      </Text>
+      <Text
+        size="xs"
+        fw={700}
+        className="truncate font-mono tabular-nums"
+        style={{ "font-size": "10px", "line-height": "1.2", color: props.tone }}
+        data-testid={`${props.testId}-value`}
+      >
+        {props.value}
+      </Text>
     </Box>
   );
 }

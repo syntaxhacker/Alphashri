@@ -265,4 +265,45 @@ describe("OptionsDockPanel", () => {
     expect(screen.getByTestId("options-stat-atm-iv")).toHaveTextContent("13.8");
     expect(screen.getByTestId("options-stat-total-oi")).toHaveTextContent("Cr");
   });
+
+  test("chain, strategy, legs and payoff carry their own titled section headers", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-payoff-placeholder")).toBeInTheDocument());
+
+    expect(screen.getByTestId("dock-section-chain")).toHaveTextContent(/CHAIN · NIFTY/);
+    expect(screen.getByTestId("dock-section-chain")).toHaveTextContent(/\d{2} [A-Z]{3}/);
+    expect(screen.getByTestId("dock-section-strategy")).toHaveTextContent("STRATEGY");
+    expect(screen.getByTestId("dock-section-legs")).toHaveTextContent("LEGS");
+    expect(screen.getByTestId("options-payoff-placeholder")).toHaveTextContent("PAYOFF");
+  });
+
+  test("the sections are siblings separated by a top hairline, and none is a nested card", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("dock-section-strategy")).toBeInTheDocument());
+
+    const sections = [
+      screen.getByTestId("options-chain-section"),
+      screen.getByTestId("options-strategy-row"),
+      screen.getByTestId("options-legs"),
+      screen.getByTestId("options-payoff-placeholder"),
+    ];
+    for (const section of sections) {
+      expect(section).toHaveAttribute("data-dock-section");
+      // One border per section: no rounded card chrome inside the column.
+      expect(section.className).not.toContain("rounded");
+    }
+    // The chain opens the body (the summary strip already draws its own rule),
+    // so only the three below it add a separator.
+    expect(sections[0].className).not.toContain("border-t");
+    for (const section of sections.slice(1)) {
+      expect(section.className).toContain("border-t");
+      expect(section.className).toContain("border-fin-border");
+    }
+    // Rendered in order, one after another in the same parent.
+    const parent = sections[0].parentElement!;
+    const order = Array.from(parent.querySelectorAll("[data-dock-section]"));
+    expect(order).toEqual(sections);
+  });
 });

@@ -24,6 +24,7 @@ import { LegBuilder } from "./LegBuilder";
 import { StrategyControl } from "./StrategyControl";
 import { PayoffPanel } from "./PayoffPanel";
 import { SummaryStrip, formatDte } from "./SummaryStrip";
+import { DockSection } from "./DockSection";
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
@@ -354,20 +355,40 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
             </Show>
           }
         >
-          <SummaryStrip
-            rows={chain()!.rows}
-            spot={spot()}
-            pcr={chain()!.pcr}
-            atmIv={chain()!.atmIv}
-            dteDays={selectedExpiry()?.dteDays ?? 0}
-            dteYears={dteYears()}
-          />
-          <OptionChainTable
-            rows={chain()!.rows}
-            spot={spot()}
-            loading={optionsDockState.refreshing && chain()!.rows.length === 0}
-            onPick={handlePick}
-          />
+          <DockSection
+            title={
+              selectedExpiry()
+                ? `CHAIN · ${symbol()} ${shortDate(selectedExpiry()!.date)}`
+                : `CHAIN · ${symbol()}`
+            }
+            testId="options-chain-section"
+            headerTestId="dock-section-chain"
+            fill
+            padded={false}
+            separated={false}
+            meta={
+              <Text size="xs" c="dimmed" className="font-mono tabular-nums" style={{ "font-size": "9px" }}>
+                {chain()!.rows.length} strikes
+              </Text>
+            }
+          >
+            {/* The strip is the chain's own stat row: outside the header it read
+                as one more captionless band in the column. */}
+            <SummaryStrip
+              rows={chain()!.rows}
+              spot={spot()}
+              pcr={chain()!.pcr}
+              atmIv={chain()!.atmIv}
+              dteDays={selectedExpiry()?.dteDays ?? 0}
+              dteYears={dteYears()}
+            />
+            <OptionChainTable
+              rows={chain()!.rows}
+              spot={spot()}
+              loading={optionsDockState.refreshing && chain()!.rows.length === 0}
+              onPick={handlePick}
+            />
+          </DockSection>
           <StrategyControl />
           <LegBuilder
             legs={legs()}
@@ -377,20 +398,17 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
           <Show
             when={legs().length > 0}
             fallback={
-              <Box
-                className="flex shrink-0 items-center justify-center border-t border-fin-border px-2 py-1"
-                data-testid="options-payoff-placeholder"
-              >
+              <DockSection title="PAYOFF" testId="options-payoff-placeholder">
                 <Text size="xs" c="dimmed">
                   {formatDte(selectedExpiry()?.dteDays ?? 0)} · add a leg to see the
                   payoff
                 </Text>
-              </Box>
+              </DockSection>
             }
           >
             <Box
               className={maximized() ? "flex min-h-0 flex-1" : "flex shrink-0"}
-              style={maximized() ? undefined : { height: "220px" }}
+              style={maximized() ? undefined : { height: "206px" }}
             >
               <PayoffPanel
                 legs={legs()}

@@ -4,6 +4,7 @@ import * as palette from "@/ui/palette";
 import { IconMinus, IconPlus, IconTrash } from "@/components/common/Icons";
 import { formatNumber } from "@/utils/ui-helpers";
 import { MAX_LEGS, setLegLots, removeLeg, toggleLegSide, type DockLeg } from "@/state/optionsDock";
+import { DockSection } from "./DockSection";
 
 /**
  * Legs strip: one chip per leg (`S 24200 CE ×1 @36.6 ✕`), a buy/sell toggle and
@@ -23,25 +24,21 @@ export function LegBuilder(props: {
       : 0;
 
   return (
-    <Box
-      className="flex shrink-0 flex-col gap-1 border-t border-fin-border px-2 py-1"
-      data-testid="options-legs"
-    >
-      <Box className="flex items-center justify-between gap-2">
+    <DockSection
+      title="LEGS"
+      testId="options-legs"
+      headerTestId="dock-section-legs"
+      meta={
         <Box className="flex items-baseline gap-2">
           <Text
             size="xs"
-            fw={700}
-            className="font-mono tabular-nums tracking-[0.08em] text-fin-text-muted uppercase"
-            style={{ "font-size": "9px" }}
+            c="dimmed"
+            className="font-mono tabular-nums"
+            style={{ "font-size": "10px" }}
+            data-testid="options-leg-count"
           >
-            LEGS
-          </Text>
-          <Text size="xs" c="dimmed" className="font-mono tabular-nums" data-testid="options-leg-count">
             {props.legs.length}/{MAX_LEGS}
           </Text>
-        </Box>
-        <Box className="flex items-baseline gap-1">
           <Text size="xs" c="dimmed" className="uppercase" style={{ "font-size": "9px" }}>
             {props.netPremium >= 0 ? "net credit" : "net debit"}
           </Text>
@@ -50,13 +47,14 @@ export function LegBuilder(props: {
             fw={700}
             c={props.netPremium >= 0 ? "success" : "error"}
             className="font-mono tabular-nums"
+            style={{ "font-size": "10px" }}
             data-testid="options-net-premium"
           >
             ₹{formatNumber(Math.abs(props.netPremium))}
           </Text>
         </Box>
-      </Box>
-
+      }
+    >
       <Show
         when={props.legs.length > 0}
         fallback={
@@ -155,6 +153,6 @@ export function LegBuilder(props: {
           {staleCount()} leg{staleCount() === 1 ? "" : "s"} on a different expiry
         </Text>
       </Show>
-    </Box>
+    </DockSection>
   );
 }

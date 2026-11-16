@@ -18,6 +18,7 @@ vi.mock("../../utils/loadEcharts", () => ({
 
 import { PayoffPanel, buildPayoff } from "./PayoffPanel";
 import type { DockLeg } from "@/state/optionsDock";
+import * as palette from "@/ui/palette";
 
 function condor(): DockLeg[] {
   return [
@@ -95,5 +96,155 @@ describe("PayoffPanel recompute gate", () => {
     ));
     expect(screen.getByTestId("options-payoff-empty")).toBeInTheDocument();
     expect(screen.getByTestId("options-pop")).toHaveTextContent("—");
+    // The footer survives the empty state: four cells, every value a dash.
+    expect(screen.getByTestId("options-payoff-footer")).toBeInTheDocument();
+    for (const id of [
+      "options-breakevens",
+      "options-max-pnl",
+      "options-expected-pnl",
+      "options-expected-move",
+    ]) {
+      expect(screen.getByTestId(id)).toBeInTheDocument();
+    }
+    expect(screen.getByTestId("options-breakevens")).toHaveTextContent("BE");
+    expect(screen.getByTestId("options-max-pnl")).toHaveTextContent("MAX P/L");
+    expect(screen.getByTestId("options-expected-pnl")).toHaveTextContent("MODEL E[P&L]");
+    expect(screen.getByTestId("options-expected-move")).toHaveTextContent("±1σ");
+  });
+});
+
+type Series = {
+  name?: string;
+  data?: (number | null)[];
+  connectNulls?: boolean;
+  lineStyle?: { color?: string };
+  areaStyle?: { color?: string };
+  z?: number;
+};
+
+/** The most recent option option the panel pushed to the chart stub. */
+function lastSeries(): Series[] {
+  const call = chartStub.setOption.mock.calls.at(-1)?.[0] as { series?: Series[] } | undefined;
+  return call?.series ?? [];
+}
+
+describe("PayoffPanel series split", () => {
+  async function renderCondor() {
+    render(() => (
+      <UIProvider>
+        <PayoffPanel legs={condor()} spot={24031.5} iv={13.8} dteYears={2 / 365} />
+      </UIProvider>
+    ));
+    await waitFor(() => expect(chartStub.setOption).toHaveBeenCalled());
+  }
+
+  test("profit and loss are two series over the same 241-point grid", async () => {
+    await renderCondor();
+    const series = lastSeries();
+    const profit = series.find((s) => s.name === "P&L at expiry" && s.lineStyle?.color === palette.POSITIVE);
+    const loss = series.find((s) => s.name === "P&L at expiry" && s.lineStyle?.color === palette.NEGATIVE);
+
+    expect(profit).toBeDefined();
+    expect(loss).toBeDefined();
+    expect(profit!.data).toHaveLength(241);
+    expect(loss!.data).toHaveLength(241);
+    expect(profit!.connectNulls).toBe(false);
+    expect(loss!.connectNulls).toBe(false);
+  });
+
+  test("the profit series nulls every losing point, the loss series every winning one", async () => {
+    await renderCondor();
+    const snapshot = buildPayoff(condor(), 24031.5, 0.138, 2 / 365)!;
+    const series = lastSeries();
+    const profit = series.find((s) => s.lineStyle?.color === palette.POSITIVE)!.data!;
+    const loss = series.find((s) => s.lineStyle?.color === palette.NEGATIVE)!.data!;
+
+    let winners = 0;
+    let losers = 0;
+    snapshot.points.forEach((point, i) => {
+      if (point.pnl >= 0) {
+        winners += 1;
+        expect(profit[i]).not.toBeNull();
+        expect(loss[i]).toBeNull();
+      } else {
+        losers += 1;
+        expect(loss[i]).not.toBeNull();
+        expect(profit[i]).toBeNull();
+      }
+    });
+    // A condor is profitable in the middle and losing on both wings: the fixture
+    // is only meaningful if both halves actually carry points.
+    expect(winners).toBeGreaterThan(0);
+    expect(losers).toBeGreaterThan(0);
+  });
+
+  test("no PRIMARY payoff line is left and the probability band sits behind", async () => {
+    await renderCondor();
+    const series = lastSeries();
+    expect(series.some((s) => s.lineStyle?.color === palette.PRIMARY)).toBe(false);
+
+    const probability = series.find((s) => s.name === "P(S)")!;
+    expect(probability.z).toBeLessThan(
+      series.find((s) => s.lineStyle?.color === palette.POSITIVE)!.z!,
+    );
+    // areaStyle colour is an rgba() tint of INFO at an alpha ≤ 0.12.
+    expect(probability.areaStyle?.color).toBe(palette.alpha(palette.INFO, 0.1));
+    const alphaOf = Number(/,\s*([\d.]+)\)$/.exec(probability.areaStyle!.color!)?.[1]);
+    expect(alphaOf).toBeLessThanOrEqual(0.12);
+  });
+
+  test("guides ride their own series so a one-sided basket still shows the axis lines", async () => {
+    await renderCondor();
+    const guides = lastSeries().find((s) => s.name === "guides");
+    expect(guides).toBeDefined();
+    expect(guides!.data).toEqual([]);
+  });
+});
+
+describe("PayoffPanel footer", () => {
+  async function renderCondor() {
+    render(() => (
+      <UIProvider>
+        <PayoffPanel legs={condor()} spot={24031.5} iv={13.8} dteYears={2 / 365} />
+      </UIProvider>
+    ));
+    await waitFor(() => expect(chartStub.setOption).toHaveBeenCalled());
+  }
+
+  test("the four metrics read as labelled cells, not one run-on line", async () => {
+    await renderCondor();
+    const footer = screen.getByTestId("options-payoff-footer");
+    expect(footer.children).toHaveLength(4);
+
+    expect(screen.getByTestId("options-breakevens")).toHaveTextContent("BE");
+    expect(screen.getByTestId("options-breakevens-value")).toHaveTextContent("23,7");
+    expect(screen.getByTestId("options-max-pnl")).toHaveTextContent("MAX P/L");
+    expect(screen.getByTestId("options-max-pnl-value")).toHaveTextContent("+3.5K");
+    expect(screen.getByTestId("options-max-pnl-value")).toHaveTextContent("−16.0K");
+    expect(screen.getByTestId("options-expected-move-value")).toHaveTextContent(/\d/);
+  });
+
+  test("every cell but the first is divided by a left hairline", async () => {
+    await renderCondor();
+    const cells = screen.getByTestId("options-payoff-footer").children;
+    expect(cells[0].className).not.toContain("border-l");
+    for (const cell of Array.from(cells).slice(1)) {
+      expect(cell.className).toContain("border-l");
+    }
+  });
+
+  test("MODEL E[P&L] is signed and coloured by its sign", async () => {
+    await renderCondor();
+    const value = screen.getByTestId("options-expected-pnl-value");
+    const pnl = buildPayoff(condor(), 24031.5, 0.138, 2 / 365)!.expectedPnl;
+    // Fair-value condor: the model edge is within a few rupees of zero, so assert
+    // the colour against the computed sign rather than a hardcoded direction.
+    expect(value.style.color).toBe(pnl > 0 ? palette.POSITIVE : pnl < 0 ? palette.NEGATIVE : "");
+  });
+
+  test("the chart keeps room under the plot for the axis labels", async () => {
+    await renderCondor();
+    const call = chartStub.setOption.mock.calls.at(-1)?.[0] as { grid?: { bottom?: number } };
+    expect(call.grid?.bottom).toBeGreaterThanOrEqual(18);
   });
 });
