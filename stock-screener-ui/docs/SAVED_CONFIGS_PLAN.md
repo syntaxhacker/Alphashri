@@ -559,14 +559,25 @@ Table UI preferences use the same server-side saved-config store — no new endp
 no new table. The reusable layer lives in `src/components/common/useTablePrefs.ts`
 (`createTablePrefsScope`, `registerTablePrefsScope`, `useTablePrefs`).
 
+**Live (2026-11-16).** `table.*` dynamic scopes are shipped, not planned. Current
+keys: `table.market.grid`, `table.screener.<profile>.<section>` (e.g.
+`table.screener.52w_high.approaching`, `table.screener.52w_high.touched`),
+`table.paper.trades`, `table.paper.positions`, `table.backtest.trades`.
+
 - **Scope key** `table.${tableId}` — e.g. `table.market`,
   `table.screener.52w_high`. **Version** `1`.
 - **Server-side registration is dynamic, not enumerated.** `api/user_configs.py`
-  accepts any scope matching `^table\.[a-z0-9][a-z0-9._-]{0,79}$` and serves it
+  accepts any scope matching `^table\.[a-z0-9][a-z0-9._-]{0,57}$` and serves it
   from the shared `TablePrefsV1` schema (defaults `{sorting: [], order: [], hidden: []}`);
   everything else not in `SCOPE_REGISTRY` is still 404 `unknown_scope`. The regex
   is the boundary, so registering a new table in the frontend needs no backend
-  change. The wire schema bounds `sorting` to 10 entries, `order`/`hidden` to
+  change. The scope-key contract is **≤64 characters** because
+  `user_saved_configs.scope` is `VARCHAR(64)` (SQLite does not enforce column
+  length, but Postgres does). The current regex caps at 64 — `table.` (6) + one
+  leading id char + up to 57 tail chars — and that cap is being tightened in a
+  sibling lane; the stable contract is ≤64. The longest scope in use today is
+  `table.screener.52w_high.approaching` (35 chars).
+  The wire schema bounds `sorting` to 10 entries, `order`/`hidden` to
   200 entries, and every id string to 1..64 chars; the 16 KiB payload cap and the
   strict-write/tolerant-read envelope are the same as `market.filters`.
 - **Shape** (wire payload / `TablePrefs`):

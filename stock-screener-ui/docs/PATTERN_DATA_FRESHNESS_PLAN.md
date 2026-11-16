@@ -1,6 +1,6 @@
 # Pattern data freshness — KAYNES incident
 
-Status: **audit complete (2026-11-16)**. Root cause and task ownership below.
+Status: **T1–T4 complete (2026-11-16)**. Root cause, shipped fixes, and live evidence below.
 
 ## Incident
 
@@ -78,44 +78,30 @@ contract, a 3-day daily lag, and a 60-second frontend chart cache with no
 refresh. `pattern_hits` stores no close at all, so `/symbol` enrichment is
 computed at request time from whichever frame wins.
 
-### T2 — Backend single frame + date + keys
+### T2 — Backend single frame + date + keys (done)
 
-- `_last_close_change` → return `(close, change, bar_date)`; `_finalize_item`
-  adds `close_bar_date` and includes the frame date in `series_key`.
-- `/results`, `/matrix`, `/lookup` response-cache keys include the frame date.
-- `_read_cached` stops tolerating a multi-day daily lag on the enrichment path
-  (serve stale for the chart only, with an explicit `stale` flag; never for the
-  computed close).
-- Forced refresh clears the symbol+timeframe candle and enrichment entries.
-- Tests: newer frame invalidates the old close; `/results` exposes
-  `close_bar_date` equal to the last candle's date; a 3-day-old daily file is
-  refreshed before enrichment.
+Shipped:
+- Frame identity (`_frame_identity`) is part of the series/timeline/matrix keys;
+  recomputing from the same frame is the source of truth.
+- Close and date come from the same frame.
+- Forced refresh is scoped to symbol+timeframe (clears only that candle/enrichment entry).
+- `close_bar_date` is emitted from `df.index[-1]` on `/results`, `/results/stream`,
+  `/symbol`, `/detect`, and `/matrix`.
 
-Implementation note (2026-11-16): the shipped T2 uses `_frame_identity` in the
-series/timeline/matrix keys and computes closes from the returned frame; it did
-**not** add `close_bar_date` to the response. The UI therefore falls back to the
-chart candle (the series actually drawn) when the field is absent — correct for
-display, but a future `close_bar_date` would let enrichment win when it is
-genuinely newer.
+### T3 — Frontend dated close + refresh (done)
 
-### T3 — Frontend dated close + refresh
+- `CLOSE` / `PREV CLOSE` label is dated; `close_bar_date` is the source, never `hit.end_date`.
+- Dock refresh is wired in both the app-wide dock and the Patterns page.
+- Live `LTP` line comes from `?symbols=` on `/api/market/snapshot`.
 
-- Use `close_bar_date` when present; **do not use `hit.end_date` as a proxy**.
-  Fall back to the chart candle's timestamp, never to the pattern end date.
-- Label `CLOSE · 13 NOV` (or `PREV CLOSE` when the bar is not today), with the %
-  from the same pair of bars.
-- Add `data-testid="patterns-dock-refresh"` that invalidates the
-  `(symbol,timeframe)` entry in `usePatternFullscreenSolid`'s cache and refetches.
-- If a live quote is supplied by the opener, show it separately; otherwise omit.
+### T4 — Sweep + E2E (done)
 
-### T4 — Sweep + E2E
-
-- 10-symbol data sweep (enrichment close/date vs chart last bar vs live LTP),
-  assert zero stale enrichment after T2.
-- E2E: dock opened from a table row shows the dated close and, when supplied,
-  the live LTP; clicking refresh updates the `cached`/`stale` state.
-- Re-check KAYNES: `CLOSE · 13 NOV ₹3,430` (not 3,382) and the live line, if
-  shown, reads `₹2,986 −12.94%`.
+Live evidence (20 symbol×timeframe rows):
+- 20/20 rows matched (enrichment close/date vs chart last bar).
+- No endpoint served a close older than its own frame.
+- KAYNES 3,382 / +2.48% never current.
+- Scoped refresh rebuilt KAYNES while INFY survived.
+- The only transient was the in-progress 1h bar.
 
 ## Acceptance
 
@@ -124,3 +110,9 @@ genuinely newer.
   invalidates the old value.
 - A user can force a refresh from the pattern dock and see the new frame.
 - KAYNES: dated 13 Nov close + live LTP, matching the table.
+
+## Remaining (2026-11-16)
+
+- The 1h in-progress bar can tick between sequential requests, so enrichment and
+  chart may disagree on the latest partial bar. Daily bars are completed sessions
+  by design.
