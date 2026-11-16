@@ -18,6 +18,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta
 from typing import NamedTuple, Optional
 
+import pandas as pd
 from sqlalchemy.orm import Session
 
 from db.database import get_db
@@ -262,8 +263,25 @@ def _frame_identity(df) -> Optional[str]:
     return f"{stamp}|{len(df)}|{close:.10g}|{interior or ''}"
 
 
+def _close_bar_date(df) -> Optional[str]:
+    """IST calendar date of the frame's last bar, or ``None`` when unavailable.
+
+    Read from the same frame that produced the returned candles/close — never
+    from a pattern's start/end date or scan/request time. A frame without a
+    datetime index has no bar date to report; it is not invented.
+    """
+    if df is None or getattr(df, "empty", True):
+        return None
+    if not isinstance(getattr(df, "index", None), pd.DatetimeIndex):
+        return None
+    try:
+        return candles.frame_last_date(df)
+    except Exception:
+        return None
+
+
 def _remember_frame(key, df, last_close, day_change) -> None:
-    """Publish the freshest frame/close seen for ``(symbol, timeframe)``."""
+    """Publish the freshest frame/close/bar-date seen for ``(symbol, timeframe)``."""
     if key is None:
         return
     frame_id = _frame_identity(df)
@@ -271,14 +289,14 @@ def _remember_frame(key, df, last_close, day_change) -> None:
         return
     scope = (str(key[0]).upper(), str(key[1]))
     with _enrichment_lock:
-        _known_frame[scope] = (frame_id, last_close, day_change)
+        _known_frame[scope] = (frame_id, last_close, day_change, _close_bar_date(df))
 
 
 def _known_frame_close(symbol, timeframe) -> tuple:
-    """``(last_close, day_change_pct)`` for the current frame, if known."""
+    """``(last_close, day_change_pct, close_bar_date)`` for the current frame."""
     with _enrichment_lock:
         value = _known_frame.get((str(symbol).upper(), str(timeframe)))
-    return (value[1], value[2]) if value else (None, None)
+    return (value[1], value[2], value[3]) if value else (None, None, None)
 
 
 def _frame_watermark(timeframes=None) -> tuple:
@@ -1450,11 +1468,12 @@ def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache
             item["candles"] = []
             item["last_close"] = None
             item["day_change_pct"] = None
+            item["close_bar_date"] = None
             item["trend_lines"] = (stored_lines or []) if compute_trendlines else []
         return item
-    # The close, the change and the candles all come from THIS frame. The key
-    # carries its identity, so a newer frame can never reuse an older value —
-    # not within this request (tl_cache) and not across requests (the
+    # The close, its date, the change and the candles all come from THIS frame.
+    # The key carries its identity, so a newer frame can never reuse an older
+    # value — not within this request (tl_cache) and not across requests (the
     # persistent cache the chart/stored-hit paths also consult).
     enrich_key = (
         str(key[0]).upper(), str(key[1]), lookback_bars,
@@ -1465,9 +1484,10 @@ def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache
         cached = (
             _clamped_candle_series(df, lookback_bars, config.CHART_MAX_BARS),
             *_last_close_change(df),
+            _close_bar_date(df),
         )
         _enrichment_cache_put(enrich_key, cached)
-    item["candles"], item["last_close"], item["day_change_pct"] = cached
+    item["candles"], item["last_close"], item["day_change_pct"], item["close_bar_date"] = cached
     _remember_frame(key, df, item["last_close"], item["day_change_pct"])
     if not compute_trendlines:
         item["trend_lines"] = []
@@ -1755,6 +1775,13 @@ def detect_one(request: DetectRequest, user: User = Depends(get_current_user)):
     # (scan._process_symbol → _latest_record).
     if len(items) > 1:
         items = [scan_mod._latest_record(items)]
+    # Hits are read off this same frame, so tag them with its IST bar date.
+    # No frame date means no tag — never substitute the request/scan time.
+    bar_date = _close_bar_date(df)
+    if bar_date is not None:
+        for hit in items:
+            if isinstance(hit, dict):
+                hit["close_bar_date"] = bar_date
     # Sanitized like every other endpoint: a NaN in a detector float would
     # otherwise make JSONResponse (allow_nan=False) 500 the request.
     return _json_response({
@@ -2344,7 +2371,11 @@ def _candle_fields(symbol: str, timeframe: str) -> dict:
         return {"last_close": None, "day_change_pct": None, "history_bars": 0}
     last_close, day_change = _last_close_change(df)
     _remember_frame((symbol, timeframe), df, last_close, day_change)
-    return {"last_close": last_close, "day_change_pct": day_change, "history_bars": int(len(df))}
+    fields = {"last_close": last_close, "day_change_pct": day_change, "history_bars": int(len(df))}
+    bar_date = _close_bar_date(df)
+    if bar_date is not None:
+        fields["close_bar_date"] = bar_date
+    return fields
 
 
 @router.get("/symbol/{symbol}")
@@ -3090,28 +3121,25 @@ def _matrix_rows(pairs) -> list[dict]:
                     "name": None,
                     "ltp": None,
                     "day_change_pct": None,
+                    "close_bar_date": None,
                     "groups": {},
                     "hits": [],
+                    "_candidates": [],
                 }
                 rows[symbol] = row
             if row["name"] is None and item.get("name"):
                 row["name"] = item.get("name")
             hit_tf = str(item.get("timeframe") or timeframe or "")
             # A stored hit may carry a close captured at an older frame. When a
-            # current frame is known, its close/change win (recompute path);
-            # with no frame available the stored value is kept for backwards
-            # compatibility rather than silently invented.
-            current_close, current_change = _known_frame_close(symbol, hit_tf)
-            if row["ltp"] is None:
-                number = _matrix_number(
-                    current_close if current_close is not None else item.get("last_close")
-                )
-                if number is not None:
-                    row["ltp"] = number
-            if row["day_change_pct"] is None:
-                change = current_change if current_change is not None else item.get("day_change_pct")
-                if change is not None:
-                    row["day_change_pct"] = change
+            # current frame is known its close/change/date are one triple from
+            # that frame; a stale item's values must never be paired with a
+            # different frame's date.
+            current_close, current_change, current_bar_date = _known_frame_close(symbol, hit_tf)
+            row["_candidates"].append((
+                current_bar_date if current_bar_date is not None else item.get("close_bar_date"),
+                current_close if current_close is not None else item.get("last_close"),
+                current_change if current_change is not None else item.get("day_change_pct"),
+            ))
             row["groups"].setdefault(hit_tf, []).append(item)
             row["hits"].append(item)
 
@@ -3119,6 +3147,30 @@ def _matrix_rows(pairs) -> list[dict]:
     for row in rows.values():
         groups = row.pop("groups")
         hits = row.pop("hits")
+        candidates = row.pop("_candidates")
+        # The newest frame's date wins together with the close/change from that
+        # same frame, so a stale item can lend neither an older date to a
+        # current close nor a current date to an older close. With no dated
+        # frame, keep the legacy first-non-null close for backwards compat and
+        # leave the date unset (never fabricate one).
+        dated = [
+            c for c in candidates
+            if isinstance(c[0], str) and c[0] and _matrix_number(c[1]) is not None
+        ]
+        if dated:
+            bar_date, close, change = max(dated, key=lambda c: c[0])
+            row["close_bar_date"] = bar_date
+            row["ltp"] = _matrix_number(close)
+            if change is not None:
+                row["day_change_pct"] = change
+        else:
+            for _bar_date, close, change in candidates:
+                if row["ltp"] is None:
+                    number = _matrix_number(close)
+                    if number is not None:
+                        row["ltp"] = number
+                if row["day_change_pct"] is None and change is not None:
+                    row["day_change_pct"] = change
         cells: dict[str, dict] = {}
         latest_hits: list[dict] = []
         for timeframe, group in groups.items():

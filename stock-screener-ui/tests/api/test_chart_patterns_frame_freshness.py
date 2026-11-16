@@ -44,6 +44,20 @@ def _frame(closes, end: str) -> pd.DataFrame:
     )
 
 
+def _frame_hourly(closes, end: str) -> pd.DataFrame:
+    idx = pd.date_range(end=end, periods=len(closes), freq="h", tz="UTC")
+    return pd.DataFrame(
+        {
+            "open": closes,
+            "high": [c + 1 for c in closes],
+            "low": [c - 1 for c in closes],
+            "close": closes,
+            "volume": [1000.0] * len(closes),
+        },
+        index=idx,
+    )
+
+
 def _stale_item() -> dict:
     return {
         "symbol": "KAYNES", "timeframe": "1D", "pattern_id": "descending_channel",
@@ -159,3 +173,122 @@ def test_refresh_clears_only_target_symbol_enrichment(monkeypatch):
     ) is not None
     assert ("KAYNES", "1D") not in cp_api._known_frame
     assert ("INFY", "1D") in cp_api._known_frame
+
+
+# ---------------------------------------------------------------------------
+# close_bar_date: the frame's last-bar date travels with its close.
+# ---------------------------------------------------------------------------
+
+
+def test_results_item_carries_close_bar_date_from_frame(monkeypatch):
+    """A /results-style item is tagged with the IST date of the frame behind its close."""
+    df = _frame([3300.0, 3382.0, 3430.0], "2026-11-13")
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: df)
+
+    out = cp_api._enrich_with_candles([{"symbol": "KAYNES", "timeframe": "1D"}], "1D")
+
+    assert out[0]["last_close"] == 3430.0
+    assert out[0]["close_bar_date"] == "2026-11-13"
+
+
+def test_intraday_frame_bar_date_converted_to_ist(monkeypatch):
+    """08:45 UTC on 16 Nov is 14:15 IST — same date; 18:45 UTC rolls to the next."""
+    df = _frame_hourly([100.0, 101.0, 102.0], "2026-11-16T08:45:00")
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: df)
+
+    out = cp_api._enrich_with_candles([{"symbol": "TEST", "timeframe": "1h"}], "1h")
+
+    assert out[0]["close_bar_date"] == "2026-11-16"
+    assert cp_api._close_bar_date(_frame_hourly([100.0, 102.0], "2026-11-16T18:45:00")) == "2026-11-17"
+
+
+def test_symbol_header_carries_close_bar_date(monkeypatch):
+    df = _frame([3300.0, 3382.0, 3430.0], "2026-11-13")
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: df)
+
+    fields = cp_api._candle_fields("KAYNES", "1D")
+
+    assert fields["last_close"] == 3430.0
+    assert fields["close_bar_date"] == "2026-11-13"
+
+
+def test_no_frame_has_no_close_bar_date(monkeypatch):
+    """No frame means neither a close nor a fabricated (e.g. today's) date."""
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: None)
+
+    out = cp_api._enrich_with_candles([_stale_item()], "1D")
+
+    assert out[0]["last_close"] is None
+    assert out[0]["close_bar_date"] is None
+    assert cp_api._candle_fields("KAYNES", "1D").get("close_bar_date") is None
+
+
+def test_series_cache_preserves_close_bar_date():
+    """The bar date travels with last_close in the cached tuple, not recomputed later."""
+    df = _frame([3300.0, 3382.0, 3430.0], "2026-11-13")
+    key = ("KAYNES", "1D")
+
+    first = cp_api._finalize_item(
+        _stale_item(), df, key=key, lookback_bars=500,
+        compute_trendlines=False, tl_cache={},
+    )
+    second = cp_api._finalize_item(
+        _stale_item(), df, key=key, lookback_bars=500,
+        compute_trendlines=False, tl_cache={},
+    )
+
+    assert first["close_bar_date"] == second["close_bar_date"] == "2026-11-13"
+    cached = cp_api._enrichment_cache_get(
+        ("KAYNES", "1D", 500, cp_api.config.CHART_MAX_BARS, cp_api._frame_identity(df))
+    )
+    assert cached[3] == "2026-11-13", "bar date must live in the cached close tuple"
+
+
+def test_matrix_row_date_matches_its_close_frame():
+    cp_api._remember_frame(("KAYNES", "1D"), _frame([3382.0, 3430.0], "2026-11-13"), 3430.0, 1.42)
+
+    rows = cp_api._matrix_rows([("1D", [_stale_item()])])
+
+    assert rows[0]["ltp"] == 3430.0
+    assert rows[0]["close_bar_date"] == "2026-11-13"
+
+
+def test_matrix_uses_newest_frame_date_with_its_close():
+    """When symbols' frames disagree, the newest date wins with that frame's close."""
+    cp_api._remember_frame(("KAYNES", "1D"), _frame([3300.0, 3430.0], "2026-11-13"), 3430.0, 1.42)
+    cp_api._remember_frame(
+        ("KAYNES", "1h"),
+        _frame_hourly([100.0, 102.0], "2026-11-16T08:45:00"),
+        102.0, 2.0,
+    )
+    stale = _stale_item()
+    stale["close_bar_date"] = "2026-11-10"  # an older date must not win
+
+    rows = cp_api._matrix_rows([
+        ("1D", [stale]),
+        ("1h", [dict(stale, timeframe="1h")]),
+    ])
+
+    assert rows[0]["close_bar_date"] == "2026-11-16"
+    assert rows[0]["ltp"] == 102.0
+
+
+def test_matrix_stale_item_cannot_pair_old_date_with_new_close():
+    """With no known frame, the newest stored date keeps its own close."""
+    old = _stale_item()
+    old["close_bar_date"], old["last_close"] = "2026-11-10", 3382.0
+    fresh = _stale_item()
+    fresh["close_bar_date"], fresh["last_close"] = "2026-11-13", 3430.0
+
+    rows = cp_api._matrix_rows([("1D", [old, fresh])])
+
+    assert rows[0]["close_bar_date"] == "2026-11-13"
+    assert rows[0]["ltp"] == 3430.0
+
+
+def test_matrix_without_frame_has_no_bar_date():
+    """Legacy stored close is kept, but no date is invented."""
+    rows = cp_api._matrix_rows([("1D", [_stale_item()])])
+
+    assert rows[0]["ltp"] == 3382.0
+    assert rows[0].get("close_bar_date") is None
