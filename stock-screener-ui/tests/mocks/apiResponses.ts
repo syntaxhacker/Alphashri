@@ -2496,3 +2496,175 @@ export const mockDashboardResponse = {
     },
   ],
 };
+
+/* ------------------------------------------------------------------ *
+ * Options dock (P1) — E1 underlying metadata + E2 option chain
+ *
+ * The dock's budget is part of its contract, so the helper RETURNS counters:
+ * a test can assert 2 requests on open, 1 on an expiry change and 0 on a leg
+ * change without scraping the network log.
+ *
+ *   const dock = await setupOptionDockMocks(page);
+ *   …open the dock…
+ *   expect(dock.counts.underlying).toBe(1);
+ *   expect(dock.counts.chain).toBe(1);
+ *
+ * `dock.setChainStatus(429)` makes the NEXT chain response a rate-limit, which
+ * is how the "keep the last frame" state is exercised.
+ * ------------------------------------------------------------------ */
+
+export const mockOptionDockUnderlying = {
+  symbol: "RELIANCE",
+  exchange: "NSE",
+  fno: true,
+  instrument_key: "NSE_EQ|INE002A01018",
+  spot: 1417.4,
+  expiries: [
+    { date: "2026-11-26", weekly: true, dte_days: 10, lot_size: 500, tick_size: 0.05 },
+    { date: "2026-12-31", weekly: false, dte_days: 45, lot_size: 500, tick_size: 0.05 },
+  ],
+  default_expiry: "2026-11-26",
+  market_state: "open",
+};
+
+function optionDockChainBody(expiry: string) {
+  const leg = (ltp: number, oi: number, iv: number | null, delta: number | null) => ({
+    instrument_key: `NSE_FO|${oi}`,
+    trading_symbol: `RELIANCE${expiry.replace(/-/g, "")}${oi}CE`,
+    strike_price: oi,
+    expiry,
+    instrument_type: "CE",
+    market_data: {
+      ltp,
+      oi,
+      prev_oi: oi - 1000,
+      volume: 25_000,
+      bid_price: Math.max(0, ltp - 0.5),
+      ask_price: ltp + 0.5,
+      close_price: ltp,
+    },
+    option_greeks:
+      iv == null
+        ? null
+        : { delta, gamma: 0.002, theta: -4, vega: 9, iv, pop: 0.4 },
+  });
+
+  return {
+    status: "ok",
+    underlying: "RELIANCE",
+    expiry,
+    spot: 1417.4,
+    timestamp: "2026-11-16T11:20:00+05:30",
+    summary: { pcr: 1.08, max_pain: 1420, total_ce_oi: 210_000, total_pe_oi: 226_000, dte: 10, atm_iv: 21.4 },
+    chain: [
+      { strike: 1400, ce: leg(27.5, 52_000, 21.9, 0.42), pe: leg(14.2, 74_000, 21.6, -0.37) },
+      { strike: 1420, ce: leg(15.4, 86_000, 21.4, 0.31), pe: leg(21.8, 41_000, 21.2, -0.48) },
+      // An illiquid strike with no greeks: the UI must render "—", never 0.
+      { strike: 1440, ce: leg(2.1, 0, null, null), pe: leg(61.0, 12_000, 22.4, -0.71) },
+    ],
+  };
+}
+
+export interface OptionDockMocks {
+  counts: { underlying: number; chain: number };
+  /** Override the next `/underlying/{symbol}` response status (404 → non-F&O). */
+  setUnderlyingStatus: (status: number) => void;
+  /** Override the next `/chain/…` response status (429 → paused, 401 → reconnect). */
+  setChainStatus: (status: number) => void;
+  reset: () => void;
+}
+
+export async function setupOptionDockMocks(
+  page: import("@playwright/test").Page,
+  options: {
+    fno?: boolean;
+    underlyingStatus?: number;
+    chainStatus?: number;
+    /** `closed` keeps the dock from polling, so request counts stay exact. */
+    marketState?: "open" | "closed" | "pre_open";
+  } = {},
+): Promise<OptionDockMocks> {
+  const counts = { underlying: 0, chain: 0 };
+  let underlyingStatus = options.underlyingStatus ?? 200;
+  let chainStatus = options.chainStatus ?? 200;
+  const fno = options.fno ?? true;
+  const marketState = options.marketState ?? "closed";
+
+  const reset = () => {
+    counts.underlying = 0;
+    counts.chain = 0;
+  };
+
+  await page.route(apiRoute("options/underlying/**"), async (route) => {
+    counts.underlying += 1;
+    if (underlyingStatus === 404) {
+      await route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: { code: "not_fno", detail: "Unknown underlying" } }),
+      });
+      return;
+    }
+    if (underlyingStatus === 401) {
+      await route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: { code: "upstox_auth_required" } }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(
+        fno
+          ? { ...mockOptionDockUnderlying, market_state: marketState }
+          : {
+              ...mockOptionDockUnderlying,
+              fno: false,
+              expiries: [],
+              default_expiry: null,
+              market_state: marketState,
+            },
+      ),
+    });
+  });
+
+  await page.route(apiRoute("options/chain/**"), async (route) => {
+    counts.chain += 1;
+    if (chainStatus === 429) {
+      await route.fulfill({
+        status: 429,
+        contentType: "application/json",
+        headers: { "Retry-After": "8" },
+        body: JSON.stringify({ detail: { code: "rate_limited", detail: "retry shortly" } }),
+      });
+      return;
+    }
+    if (chainStatus === 401) {
+      await route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: { code: "upstox_auth_required" } }),
+      });
+      return;
+    }
+    const expiry = new URL(route.request().url()).searchParams.get("expiry") ?? "2026-11-26";
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(optionDockChainBody(expiry)),
+    });
+  });
+
+  return {
+    counts,
+    setUnderlyingStatus: (status: number) => {
+      underlyingStatus = status;
+    },
+    setChainStatus: (status: number) => {
+      chainStatus = status;
+    },
+    reset,
+  };
+}

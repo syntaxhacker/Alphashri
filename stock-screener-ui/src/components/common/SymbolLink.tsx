@@ -1,6 +1,6 @@
 import { Show, splitProps, type JSX } from "solid-js";
 import { ActionIcon, Box, CopyButton, Text, Tooltip, cn } from "@/ui";
-import { IconChartCandle, IconCheck, IconCopy, IconExternalLink } from "./Icons";
+import { IconChartCandle, IconCheck, IconCopy, IconExternalLink, IconChartArea } from "./Icons";
 import { tradingViewSymbol } from "@/config/tvSymbols";
 import { useSymbolDock } from "./symbolDockContext";
 
@@ -33,6 +33,12 @@ export interface SymbolLinkProps {
   tvIcon?: boolean;
   /** Show the trailing chart icon (default true). Set false for TV-only links. */
   showChart?: boolean;
+  /**
+   * Show the options-chain icon (default true). Opens the dock's options mode.
+   * Non-F&O symbols are not pre-checked in P1 — the panel owns its own
+   * "No listed options" state.
+   */
+  showOptions?: boolean;
   /** Copy the symbol to the clipboard (default false). Rendered after the symbol text. */
   showCopy?: boolean;
   /** Click handler for the symbol text when NOT a TV link (ClickableSymbol use case). */
@@ -87,6 +93,7 @@ export function SymbolLink(props: SymbolLinkProps) {
     "tvLink",
     "tvIcon",
     "showChart",
+    "showOptions",
     "showCopy",
     "onTextClick",
     "testId",
@@ -230,6 +237,24 @@ export function SymbolLink(props: SymbolLinkProps) {
         >
           <IconChartCandle size={12} />
         </Box>
+      </Show>
+
+      <Show when={(local.showOptions ?? local.showChart ?? true) && dock.open}>
+        <Tooltip label={`Options chain for ${label()}`}>
+          <Box
+            component="button"
+            type="button"
+            aria-label={`Open ${label()} options chain`}
+            data-testid={`symbol-options-${label()}`}
+            onClick={(event) => {
+              stop(event);
+              dock.open(label(), "options");
+            }}
+            className="inline-flex h-[18px] w-[18px] flex-shrink-0 cursor-pointer items-center justify-center rounded-[4px] border-0 bg-transparent p-0 text-fin-text-muted hover:bg-white/[0.08] hover:text-fin-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-fin-primary)]"
+          >
+            <IconChartArea size={12} />
+          </Box>
+        </Tooltip>
       </Show>
     </Box>
   );
