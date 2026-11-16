@@ -118,6 +118,26 @@ describe("formatPercentage", () => {
   test("handles zero", () => {
     expect(formatPercentage(0)).toBe("+0.00%");
   });
+
+  test("returns dash for null, undefined, NaN and infinities without throwing", () => {
+    expect(() => formatPercentage(null)).not.toThrow();
+    expect(() => formatPercentage(undefined)).not.toThrow();
+    expect(() => formatPercentage(NaN)).not.toThrow();
+    expect(formatPercentage(null)).toBe("—");
+    expect(formatPercentage(undefined)).toBe("—");
+    expect(formatPercentage(NaN)).toBe("—");
+    expect(formatPercentage(Infinity)).toBe("—");
+    expect(formatPercentage(-Infinity)).toBe("—");
+  });
+
+  test("keeps exact formatting for finite values with the sign option", () => {
+    expect(formatPercentage(5.5)).toBe("+5.50%");
+    expect(formatPercentage(-3.2)).toBe("-3.20%");
+    expect(formatPercentage(5.5, 2, false)).toBe("5.50%");
+    expect(formatPercentage(-3.2, 2, false)).toBe("-3.20%");
+    expect(formatPercentage(5.567, 1)).toBe("+5.6%");
+    expect(formatPercentage(5.567, 3)).toBe("+5.567%");
+  });
 });
 
 describe("formatDateTimeHuman", () => {

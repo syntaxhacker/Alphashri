@@ -47,11 +47,13 @@ export function formatSignedPnl(value: number): string {
   return `${sign}₹${formatNumber(value)}`;
 }
 
+/** Returns "—" for missing or non-finite values instead of throwing on toFixed. */
 export function formatPercentage(
-  value: number,
+  value: number | null | undefined,
   precision: number = 2,
   showSign: boolean = true,
 ): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
   const sign = showSign && value >= 0 ? "+" : "";
   return `${sign}${value.toFixed(precision)}%`;
 }
