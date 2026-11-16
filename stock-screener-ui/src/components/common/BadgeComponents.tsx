@@ -23,33 +23,52 @@ interface ExitReasonBadgeProps {
   "data-testid"?: string;
 }
 
+type ExitTone = "success" | "error" | "warning" | "info" | "secondary" | "neutral";
+
+// Compact labels for the bare codes/human forms; rich reasons keep their original text.
+const COMPACT_EXIT_LABELS: Record<string, string> = {
+  tp: "TP",
+  "take profit": "TP",
+  target: "Target",
+  sl: "SL",
+  "stop loss": "SL",
+  "trailing stop": "Trail",
+  trail: "Trail",
+  "force close": "Force",
+  "force": "Force",
+  "max holding": "Max Hold",
+  "max hold": "Max Hold",
+  "new 52w high": "52W High",
+  "52w high": "52W High",
+  "new 52w": "52W High",
+  manual: "Manual",
+  "manual close": "Manual",
+};
+
 export function ExitReasonBadge(props: ExitReasonBadgeProps) {
   const size = () => props.size ?? "sm";
-  const r = () => (props.reason || "").toLowerCase().trim();
+  const raw = () => (props.reason == null ? "" : String(props.reason));
+  // Enum codes and human strings use different separators/case; normalise both.
+  const key = () => raw().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
 
-  const color = () => {
-    const ladder = r();
-    if (ladder === "tp" || ladder === "target") return "success";
-    if (ladder === "sl" || ladder === "stop_loss" || ladder.includes("stop loss")) return "error";
-    if (ladder === "trailing_stop" || ladder === "trailing stop" || ladder.includes("trailing")) return "warning";
-    if (ladder === "max_holding" || ladder === "max holding" || ladder.includes("max holding")) return "warning";
-    if (ladder === "new_52w_high" || ladder === "new 52w" || ladder.includes("52w")) return "info";
-    if (ladder.startsWith("stop loss hit")) return "error";
-    if (ladder.startsWith("take profit")) return "success";
-    return "secondary";
+  const color = (): ExitTone => {
+    const k = key();
+    if (!k) return "neutral";
+    // Priority follows the backend's decisive exit reason: a note can embed more
+    // than one keyword (e.g. "52W Target exit: TRAILING_STOP"), and the trailing
+    // token is the one that actually fired.
+    if (/\bstop loss\b/.test(k) || /\bsl\b/.test(k)) return "error";
+    if (/\btrail(ing)?\b/.test(k)) return "warning";
+    if (/\bmax(imum)?\s?(holding|hold)\b/.test(k)) return "info";
+    if (/\bforce\b/.test(k) || /\beod\b/.test(k) || /\bend of day\b/.test(k)) return "warning";
+    if (/\b52w\b/.test(k)) return "success";
+    if (/\btarget\b/.test(k) || /\btake profit\b/.test(k) || /\btp\b/.test(k)) return "success";
+    if (/\bmanual\b/.test(k)) return "secondary";
+    if (/\bstop\b/.test(k)) return "error";
+    return "neutral";
   };
 
-  const label = () => {
-    const ladder = r();
-    if (ladder === "tp") return "TP";
-    if (ladder === "sl" || ladder === "stop_loss") return "SL";
-    if (ladder === "target") return "Target";
-    if (ladder === "trailing_stop" || ladder === "trailing stop") return "Trail";
-    if (ladder === "force_close" || ladder === "force close") return "Force";
-    if (ladder === "max_holding" || ladder === "max holding") return "Max Hold";
-    if (ladder === "new_52w_high") return "52W High";
-    return props.reason;
-  };
+  const label = () => COMPACT_EXIT_LABELS[key()] ?? raw();
 
   return (
     <Badge color={color()} variant="filled" size={size()} data-testid={props["data-testid"]}>
