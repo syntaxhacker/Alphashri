@@ -34,6 +34,18 @@
 7. Delete the merged branch with `git branch -d <branch>` and `git push origin --delete <branch>` — only after step 6 verifies. An ancestor `feat/…` branch is also redundant; confirm before deleting it.
 8. One PR per branch. If a branch contains multiple independent features, ask whether to split; a single bundle PR is allowed only when the user explicitly says so, and its body must say that it is a bundle.
 
+**Release (develop → main; convention `v0.1.0`, `v0.2.0`):**
+1. Open a PR `develop` → `main`. PR-to-`main` runs the **full E2E suite (20 shards)** — wait for it, not just smoke.
+2. Merge with `gh pr merge <n> --merge` (keep the release merge commit).
+3. Tag the `main` merge commit (annotated, matching the existing style):
+   `git switch main && git pull --ff-only`
+   `git tag -a vX.Y.Z -m "Alphashri vX.Y.Z — <one-line summary>"`
+   `git push origin vX.Y.Z`
+4. Create the GitHub Release: `gh release create vX.Y.Z --title "Alphashri vX.Y.Z" --generate-notes` (target `main`; no binaries unless asked).
+5. Sync `main` back into `develop` through a `main` → `develop` PR; never commit or push directly to `develop`. Merge it after CI so develop contains the release merge/tag commit.
+6. Verify: `gh release list`, `git log --decorate -1 vX.Y.Z`, and both branches contain the release commit.
+7. Versioning is semver: features → minor, fixes → patch. Latest release: `v0.2.0` (2026-11-11).
+
 **Subagents may not touch branch state or GitHub:** no `git branch`, `switch`, `checkout`, `add`, `commit`, `push`, and no `gh pr create/merge`. A subagent that needs a branch stops and reports; the main agent is the only PR actor. A branch pushed by a subagent is a contract violation — surface it.
 
 **Subagent contract:** Agents launched via `Task` are read-only + edit (file writes allowed), but **STRICTLY FORBIDDEN** from any `bash` git command that can disturb other agents in same env p — including `stash` (push/pop/apply/clear/drop), `reset`, `checkout`, `restore`, `clean`, `rebase`, `merge`, `cherry-pick`, `revert`, `branch -D`, `push --force`. Allowed subagent git: `status`, `log --oneline`, `diff --stat` (read-only). If a subagent proposes `stash/reset/clean/checkout/rebase`, main agent must reject and surface to user.
