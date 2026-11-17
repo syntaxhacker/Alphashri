@@ -5,6 +5,9 @@ import { recordSurge } from "../api/notifications";
 const SURGE_COOLDOWN_MS = 5 * 60 * 1000;
 const notifiedSymbols = new Map<string, number>();
 
+/** Temporarily silenced screener feeds. Remove an id to re-enable its toasts. */
+const MUTED_SCREENERS = new Set<string>(["52w_high"]);
+
 function isMarketHours(): boolean {
   const now = new Date();
   // Indian market hours: 9:15 AM - 3:30 PM IST (convert from local browser time — 
@@ -34,7 +37,6 @@ const DEFAULT_CONFIG: SurgeConfig = {
   threshold: 5,
 };
 
-// Global click listener to navigate to chart on surge notification click
 if (typeof document !== "undefined" && !document.querySelector("[data-surge-init]")) {
   document.addEventListener("click", (e) => {
     const el = (e.target as HTMLElement).closest("[data-surge-symbol]");
@@ -45,7 +47,6 @@ if (typeof document !== "undefined" && !document.querySelector("[data-surge-init
       }
     }
   });
-  // Add cursor style for surge notifications
   const style = document.createElement("style");
   style.textContent = "[data-surge-symbol]:not(:has([data-close-button]:hover)) { cursor: pointer; }";
   style.setAttribute("data-surge-init", "");
@@ -62,6 +63,7 @@ export function checkPriceSurges(
   screenLabel: string,
 ): void {
   if (!isMarketHours()) return;
+  if (MUTED_SCREENERS.has(screenerId)) return;
   const config = SURGE_CONFIG[screenerId] ?? DEFAULT_CONFIG;
   const { field, label: moveLabel, threshold } = config;
 

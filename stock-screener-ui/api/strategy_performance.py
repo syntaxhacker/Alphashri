@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/strategy-performance", tags=["strategy-performan
 
 
 @router.get("")
-async def get_strategy_performance(
+def get_strategy_performance(
     days: int = 30,
     user: User = Depends(get_current_user),
 ):

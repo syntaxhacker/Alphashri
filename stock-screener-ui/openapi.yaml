@@ -7050,7 +7050,20 @@ paths:
 
         before ``limit`` truncates the response, so a symbol outside the first
 
-        ``limit`` rows of the universe is still found.'
+        ``limit`` rows of the universe is still found.
+
+
+        ``format`` is the wire layout, not a different dataset: both layouts encode
+
+        the same rows (``columns`` hoists the field names once and transposes the
+
+        values; ``json`` keeps the object envelope with ``rows``). Validated before
+
+        any scan so a typo cannot burn a TradingView call. Both layouts are encoded
+
+        once per cached frame and served as bytes from the encoded-body cache;
+
+        GZipMiddleware still compresses against the request''s ``Accept-Encoding``.'
       operationId: market_snapshot_api_market_snapshot_get
       parameters:
       - description: 'Universe: all_equity (default), nifty50, nifty500, nse_fo or us (US large/mid/small caps listed on NASDAQ/NYSE/AMEX).'
@@ -7092,14 +7105,20 @@ paths:
           description: Bypass the in-process/disk cache and re-fetch from TradingView.
           title: Force
           type: boolean
+      - description: 'Response layout: json (default, the object envelope with rows) or columns (columns-v1: fields + equal-length columns + meta). Both layouts are encoded once per cached snapshot and served from an in-process encoded-body cache.'
+        in: query
+        name: format
+        required: false
+        schema:
+          default: json
+          description: 'Response layout: json (default, the object envelope with rows) or columns (columns-v1: fields + equal-length columns + meta). Both layouts are encoded once per cached snapshot and served from an in-process encoded-body cache.'
+          title: Format
+          type: string
       responses:
         '200':
           content:
             application/json:
-              schema:
-                additionalProperties: true
-                title: Response Market Snapshot Api Market Snapshot Get
-                type: object
+              schema: {}
           description: Successful Response
         '422':
           content:
@@ -7686,6 +7705,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - bearerAuth: []
       summary: Get Surges
       tags:
       - Notifications
@@ -7709,6 +7730,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - bearerAuth: []
       summary: Record Surge
       tags:
       - Notifications

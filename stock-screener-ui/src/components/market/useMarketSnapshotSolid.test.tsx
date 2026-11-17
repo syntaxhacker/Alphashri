@@ -92,6 +92,30 @@ describe("useMarketSnapshotSolid — enabled gate", () => {
     expect(api.fetchMarketSnapshot).not.toHaveBeenCalled();
   });
 
+  test("deferCacheUntilEnabled: no default-universe cache paint before the gate opens", async () => {
+    const cached = snapshot();
+    api.readCachedMarketSnapshot.mockReturnValue(cached);
+    const [enabled, setEnabled] = createSignal(false);
+    let result!: UseMarketSnapshotResult;
+    render(() => {
+      result = useMarketSnapshotSolid(() => "all_equity", {
+        enabled,
+        deferCacheUntilEnabled: true,
+      });
+      return <div data-testid="hook-host" />;
+    });
+    await flush();
+
+    expect(result.snapshot()).toBeNull();
+    expect(api.fetchMarketSnapshot).not.toHaveBeenCalled();
+
+    setEnabled(true);
+    await flush();
+    expect(result.snapshot()).toEqual(cached);
+    expect(api.readCachedMarketSnapshot).toHaveBeenCalled();
+    expect(api.fetchMarketSnapshot).toHaveBeenCalledTimes(1);
+  });
+
   test("enabling fetches once; disabling stops further fetches; re-enabling fetches again", async () => {
     const [enabled, setEnabled] = createSignal(false);
     let result!: UseMarketSnapshotResult;
@@ -247,5 +271,49 @@ describe("useMarketSnapshotSolid — live auto-refresh", () => {
     expect(isLiveUniverse("us")).toBe(false);
     expect(isLiveUniverse("nifty50")).toBe(true);
     expect(isLiveUniverse("nse_fo")).toBe(true);
+  });
+});
+
+describe("useMarketSnapshotSolid — wire format opt-in", () => {
+  function mountWithOptions(options: Parameters<typeof useMarketSnapshotSolid>[1]) {
+    let result!: UseMarketSnapshotResult;
+    render(() => {
+      result = useMarketSnapshotSolid(() => "all_equity", options);
+      return <div data-testid="hook-host" />;
+    });
+    return result;
+  }
+
+  test("wireFormat: 'columns' reaches every fetch — mount, refresh and auto tick", async () => {
+    vi.useFakeTimers();
+    const result = mountWithOptions({ wireFormat: "columns" });
+    await flush();
+    expect(api.fetchMarketSnapshot).toHaveBeenCalledTimes(1);
+    expect(api.fetchMarketSnapshot.mock.calls[0][0]).toMatchObject({
+      universe: "all_equity",
+      format: "columns",
+    });
+
+    result.refresh(true);
+    await flush();
+    expect(api.fetchMarketSnapshot.mock.calls[1][0]).toMatchObject({
+      format: "columns",
+      force: true,
+    });
+
+    await vi.advanceTimersByTimeAsync(MARKET_LIVE_POLL_MS);
+    expect(api.fetchMarketSnapshot).toHaveBeenCalledTimes(3);
+    expect(api.fetchMarketSnapshot.mock.calls[2][0]).toMatchObject({
+      format: "columns",
+      force: false,
+    });
+  });
+
+  test("default (no wireFormat) sends no format param at all", async () => {
+    mountWithOptions({});
+    await flush();
+    expect(api.fetchMarketSnapshot).toHaveBeenCalledTimes(1);
+    expect(api.fetchMarketSnapshot.mock.calls[0][0]).toMatchObject({ universe: "all_equity" });
+    expect(api.fetchMarketSnapshot.mock.calls[0][0]).not.toHaveProperty("format");
   });
 });

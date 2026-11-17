@@ -51,4 +51,8 @@ export interface MarketSnapshot {
   /** e.g. "streaming" (live) vs anything else (delayed). */
   updateMode: string;
   rows: MarketRow[];
+  /** The frame is being served while a refresh runs; `ageSec` bounds it. */
+  stale?: boolean;
+  ageSec?: number | null;
+  cached?: boolean;
 }

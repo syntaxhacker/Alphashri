@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js";
 import {
   fetchMarketSnapshot,
   readCachedMarketSnapshot,
@@ -28,6 +28,7 @@ export interface UseMarketSnapshotResult {
   refresh: (force?: boolean) => void;
   lastUpdated: () => string | null;
   stale: () => boolean;
+  ageSec: () => number | null;
   warming: () => boolean;
 }
 
@@ -43,18 +44,34 @@ export function isLiveUniverse(u: MarketUniverse): boolean {
  */
 export function useMarketSnapshotSolid(
   universe: () => MarketUniverse,
-  options: { force?: boolean; enabled?: () => boolean } = {},
+  options: {
+    force?: boolean;
+    enabled?: () => boolean;
+    deferCacheUntilEnabled?: boolean;
+    /** Columnar wire format. Omitted requests the plain JSON rows envelope. */
+    wireFormat?: "columns";
+  } = {},
 ): UseMarketSnapshotResult {
   const forceEveryFetch = options.force === true;
+  // Static opt-in: the wire format is a build-time choice, not reactive state.
+  // The decoded snapshot is identical, so both formats share one cache entry.
+  const wireFormat = options.wireFormat;
   // Reactive getter, not a snapshot: a view switch must re-run the effect below.
   const enabled = options.enabled ?? (() => true);
   const [nonce, setNonce] = createSignal(0);
+  const startEnabled = enabled();
+  // `deferCacheUntilEnabled` is for callers whose saved config can change the
+  // universe: painting the old/default cache first makes the table visibly
+  // flip. Other callers keep the instant cached paint.
+  const cacheAtStart = options.deferCacheUntilEnabled ? startEnabled : true;
   const [snapshot, setSnapshot] = createSignal<MarketSnapshot | null>(
-    readCachedMarketSnapshot(universe()),
+    cacheAtStart ? readCachedMarketSnapshot(universe()) : null,
   );
-  const [isLoading, setIsLoading] = createSignal(enabled());
+  const [isLoading, setIsLoading] = createSignal(startEnabled);
   const [error, setError] = createSignal<Error | null>(null);
-  const [stale, setStale] = createSignal<boolean>(readCachedMarketSnapshot(universe()) !== null);
+  const [stale, setStale] = createSignal<boolean>(
+    cacheAtStart && readCachedMarketSnapshot(universe()) !== null,
+  );
   const [warming, setWarming] = createSignal(false);
   let requestedUniverse = universe();
   let abortController: AbortController | null = null;
@@ -110,6 +127,14 @@ export function useMarketSnapshotSolid(
       const cached = readCachedMarketSnapshot(u);
       setSnapshot(cached);
       setStale(cached !== null);
+    } else if (untrack(snapshot) === null) {
+      // First enable after the config gate (same universe): paint the cache
+      // now, but do not make `snapshot` a dependency of this fetch effect.
+      const cached = readCachedMarketSnapshot(u);
+      if (cached) {
+        setSnapshot(cached);
+        setStale(true);
+      }
     }
     setIsLoading(true);
     setError(null);
@@ -125,7 +150,11 @@ export function useMarketSnapshotSolid(
     }, MARKET_SNAPSHOT_TIMEOUT_MS);
     const warmingId = window.setTimeout(() => setWarming(true), MARKET_SNAPSHOT_WARMING_HINT_MS);
 
-    const params: MarketSnapshotParams = { universe: u, force: forceEveryFetch || forceNext };
+    const params: MarketSnapshotParams = {
+      universe: u,
+      force: forceEveryFetch || forceNext,
+      ...(wireFormat ? { format: wireFormat } : {}),
+    };
     // Consume the one-shot manual force; the next fetch (auto tick or manual
     // unforced refresh) must not inherit it.
     forceNext = false;
@@ -135,7 +164,7 @@ export function useMarketSnapshotSolid(
         window.clearTimeout(timeoutId);
         window.clearTimeout(warmingId);
         setSnapshot(res);
-        setStale(false);
+        setStale(Boolean(res.stale));
         setIsLoading(false);
         setWarming(false);
         writeCachedMarketSnapshot(u, res);
@@ -175,6 +204,7 @@ export function useMarketSnapshotSolid(
     refresh,
     lastUpdated: createMemo(() => snapshot()?.asOf ?? null),
     stale,
+    ageSec: () => snapshot()?.ageSec ?? null,
     warming,
   };
 }

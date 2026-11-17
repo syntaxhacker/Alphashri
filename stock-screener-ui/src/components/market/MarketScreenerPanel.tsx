@@ -259,6 +259,11 @@ export interface MarketScreenerPanelProps {
   symbolAllowlist?: string[] | null;
   /** Clears the captured symbols (universe change / leaving the Market tab). */
   onClearSymbolAllowlist?: () => void;
+  /**
+   * Wire layout override. `"columns"` (the default) requests `columns-v1`;
+   * `"json"` requests the legacy rows envelope. Tests pass this explicitly.
+   */
+  wireFormat?: "columns" | "json";
 }
 
 export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
@@ -322,6 +327,23 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   const savedConfigError = () => savedConfig.error();
   const savedConfigFailed = () =>
     savedConfigError() === "not_saved" || savedConfigError() === "invalid";
+  const wireFormat = (() => {
+    if (props.wireFormat) return props.wireFormat === "json" ? undefined : "columns";
+    // `?wire=json` is the rollback switch: force the legacy rows envelope
+    // without a rebuild.
+    if (typeof window === "undefined") return "columns";
+    return new URLSearchParams(window.location.search).get("wire") === "json"
+      ? undefined
+      : "columns";
+  })();
+  // Latch the one-way "config settled" fact. Reading `savedConfig.hydrated()`
+  // directly inside the snapshot `enabled` gate would track the store's version
+  // signal, so every filter edit (which notifies the store) would abort and
+  // re-issue the full snapshot. The latch is set once and never flips back.
+  const [configReady, setConfigReady] = createSignal(false);
+  createEffect(() => {
+    if (savedConfig.hydrated()) setConfigReady(true);
+  });
   // The symbol cell opens the dock directly (it stops row-click propagation),
   // so the list must follow the dock or the chart's row never highlights and
   // the arrow-key handler has no anchor.
@@ -350,8 +372,14 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   const isNarrow = useMediaQuery("(max-width: 1023px)");
   const isWide = useMediaQuery("(min-width: 1400px)");
 
-  const { rows, total, updateMode, asOf, isLoading, error, refresh, stale: cachedStale, warming } =
-    useMarketSnapshotSolid(universe, { enabled: () => viewMode() !== "value" });
+  const { rows, total, updateMode, asOf, isLoading, error, refresh, stale: cachedStale, ageSec, warming } =
+    useMarketSnapshotSolid(universe, {
+      // Wait for `market.filters` so the first snapshot is the saved universe,
+      // not defaults followed by a second fetch when hydration lands.
+      enabled: () => viewMode() !== "value" && configReady(),
+      deferCacheUntilEnabled: true,
+      wireFormat,
+    });
 
   // Filters belong to one universe's snapshot; carrying them across a universe
   // switch silently hides every row of the new universe.
@@ -455,6 +483,13 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
     });
   });
   const stale = createMemo(() => cachedStale() || isSnapshotStale(asOf(), nowMs()));
+  const staleHint = () => {
+    const age = ageSec();
+    if (age != null && age < 900) {
+      return `Snapshot is ${Math.round(age)}s old — refreshing in the background`;
+    }
+    return `Snapshot is older than 15 minutes (as of ${asOf() ?? "unknown"})`;
+  };
   const hasActiveFilters = () => chips().length > 0;
 
   const patchFilters = (patch: Partial<MarketFilterState>) =>
@@ -612,7 +647,8 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
     return { label: "Delayed", color: "warning" as const, hint: `Feed mode: ${updateMode()}` };
   });
 
-  const showInitialLoading = () => isLoading() && rows().length === 0;
+  const waitingForConfig = () => !configReady() && viewMode() !== "value";
+  const showInitialLoading = () => (waitingForConfig() || isLoading()) && rows().length === 0;
   const showError = () => error() !== null && rows().length === 0;
   const showErrorBanner = () => error() !== null && !isLoading() && rows().length > 0;
 
@@ -738,11 +774,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
           <Tooltip
             position="bottom"
             multiline
-            label={
-              cachedStale() && isLoading()
-                ? "Showing the last snapshot — refreshing in the background"
-                : `Snapshot is older than 15 minutes (as of ${asOf() ?? "unknown"})`
-            }
+            label={staleHint()}
           >
             <Badge size="xs" variant="outline" color="warning" data-testid="market-stale-badge">
               Stale
@@ -769,7 +801,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                 variant="subtle"
                 size={28}
                 onClick={() => refresh(true)}
-                disabled={isLoading()}
+                disabled={isLoading() || waitingForConfig()}
                 aria-label="Refresh snapshot (fresh scan)"
                 data-testid="market-refresh"
               >

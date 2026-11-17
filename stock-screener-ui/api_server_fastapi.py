@@ -47,6 +47,7 @@ from api.screener import (
     PROFILES_WITH_52W_BUCKETS, _profile_meta, _passes_profile_filters,
     _build_rationale, _to_float,
 )
+from api.slow_api import SlowAPIMiddleware
 from api.screener_api.screener_scan import _enrich_with_touch_history
 from db.database import SessionLocal
 from db.models import Stock52WeekTouch, Screener
@@ -762,6 +763,13 @@ async def lifespan(app: FastAPI):
             from db.database import engine as _engine, Base as _Base
             from db.models.price_surge import PriceSurgeEvent
             _Base.metadata.create_all(bind=_engine, tables=[PriceSurgeEvent.__table__])
+            # `create_all` skips an existing table, including its indexes.
+            from sqlalchemy import text as _sql_text
+            with _engine.begin() as _conn:
+                _conn.execute(_sql_text(
+                    "CREATE INDEX IF NOT EXISTS ix_price_surge_events_created_at "
+                    "ON price_surge_events (created_at)"
+                ))
         except Exception:
             pass
         if not ci:
@@ -1123,6 +1131,10 @@ app.add_middleware(
     compresslevel=5,
     exclude_content_types=DEFAULT_EXCLUDED_CONTENT_TYPES,
 )
+
+# Added last so it wraps CORS/GZip and measures the full request path. It is a
+# pure ASGI middleware, so SSE is observed by TTFB rather than body lifetime.
+app.add_middleware(SlowAPIMiddleware)
 
 
 @app.get("/health", tags=["health"], summary="Liveness probe")

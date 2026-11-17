@@ -2,9 +2,12 @@
 Order endpoints for Paper Trading API.
 """
 
+import logging
 from datetime import datetime
 from fastapi import HTTPException, Depends
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 class PositionNotesUpdate(BaseModel):
     notes: str | None = Field(None, max_length=500)
@@ -26,8 +29,13 @@ def _calc_costs(entry_price: float, exit_price: float, quantity: int, side: str)
     return calculate_trading_costs(entry_price, exit_price, quantity, side)['total_costs']
 
 
+# Sync `def` throughout: these handlers touch the paper trader (in-memory but
+# SQLite-backed) and the positions/trades tables, so FastAPI must run them on the
+# anyio worker pool rather than on the event loop.
+
+
 @router.post("/order")
-async def place_order(request: OrderRequest, user: "User" = Depends(get_current_user)):
+def place_order(request: OrderRequest, user: "User" = Depends(get_current_user)):
     """Place a paper trading order."""
     user_id = _get_user_id(user)
     trader = get_paper_trader(user_id)
@@ -76,7 +84,7 @@ async def place_order(request: OrderRequest, user: "User" = Depends(get_current_
 
 
 @router.post("/close")
-async def close_position(request: ClosePositionRequest, user: "User" = Depends(get_current_user)):
+def close_position(request: ClosePositionRequest, user: "User" = Depends(get_current_user)):
     """Close a specific position.
 
     First tries PaperTrader in-memory close. Falls back to DB-based close
@@ -201,7 +209,7 @@ async def close_position(request: ClosePositionRequest, user: "User" = Depends(g
 
 
 @router.post("/close-all")
-async def close_all_positions(request: UpdatePricesRequest, user: "User" = Depends(get_current_user)):
+def close_all_positions(request: UpdatePricesRequest, user: "User" = Depends(get_current_user)):
     """Close all open positions."""
     user_id = _get_user_id(user)
     trader = get_paper_trader(user_id)
@@ -219,7 +227,7 @@ async def close_all_positions(request: UpdatePricesRequest, user: "User" = Depen
 
 
 @router.patch("/positions/{position_id}")
-async def update_position_notes(
+def update_position_notes(
     position_id: str,
     request: PositionNotesUpdate,
     user: "User" = Depends(get_current_user),
@@ -259,8 +267,9 @@ async def update_position_notes(
         return position.to_dict()
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Failed to update notes for position %s", position_id)
+        raise HTTPException(status_code=500, detail="Could not update position")
     finally:
         db.close()

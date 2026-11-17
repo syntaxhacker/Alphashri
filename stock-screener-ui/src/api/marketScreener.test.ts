@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach } from "vitest";
 import {
   buildMarketSnapshotUrl,
+  decodeColumnarSnapshot,
   fetchMarketSnapshot,
   fetchQuotes,
   MARKET_UNIVERSES,
@@ -79,6 +80,11 @@ describe("buildMarketSnapshotUrl", () => {
     expect(buildMarketSnapshotUrl({ symbols: ["KAYNES", "IRCON"] })).toContain(
       "symbols=KAYNES%2CIRCON",
     );
+  });
+
+  test("format=columns is only sent when requested", () => {
+    expect(buildMarketSnapshotUrl()).not.toContain("format=");
+    expect(buildMarketSnapshotUrl({ format: "columns" })).toContain("format=columns");
   });
 });
 
@@ -178,11 +184,9 @@ describe("mapMarketSnapshot", () => {
       ],
     });
     const row = snapshot.rows[0];
-    // The five fields dropped from the backend response must not reach components.
     for (const field of ["industry", "volume", "marketCap", "atr", "perf3m"]) {
       expect(row).not.toHaveProperty(field);
     }
-    // Serialized row is smaller than an equivalent row carrying the dropped fields.
     const before = JSON.stringify({
       ...row,
       industry: "Oil & Gas",
@@ -277,6 +281,197 @@ describe("mapMarketSnapshot", () => {
   });
 });
 
+describe("decodeColumnarSnapshot", () => {
+  /** Three columns deliberately carry null / float / boolean edge values. */
+  function columnarPayload() {
+    return {
+      format: "columns-v1",
+      meta: {
+        as_of: "2026-11-06T15:30:00+05:30",
+        universe: "nifty50",
+        total: 3,
+        update_mode: "streaming",
+      },
+      fields: [
+        "symbol",
+        "name",
+        "close",
+        "change",
+        "fno",
+        "etf",
+        "market_cap_cr",
+        "currency",
+        "marketCapUsdB",
+        "cap_tier",
+        "rsi",
+      ],
+      columns: {
+        symbol: ["RELIANCE", "AAPL", "NOPE"],
+        name: ["Reliance Industries", "Apple Inc", "No Coverage"],
+        close: [2946, 189.5, null],
+        change: [0.82, -1.25, null],
+        fno: [true, false, null],
+        etf: [false, true, 1],
+        market_cap_cr: [199000, null, null],
+        currency: ["INR", "USD", "INR"],
+        marketCapUsdB: [null, 46200.7, null],
+        cap_tier: ["Large", "Large", null],
+        rsi: [61.2, null, 44],
+      },
+    };
+  }
+
+  test("empty columns decode to an empty row set", () => {
+    const snapshot = decodeColumnarSnapshot({
+      format: "columns-v1",
+      meta: {
+        as_of: "2026-11-06T15:30:00+05:30",
+        universe: "nifty50",
+        total: 0,
+        update_mode: "streaming",
+      },
+      fields: [],
+      columns: {},
+    });
+    expect(snapshot.rows).toEqual([]);
+    expect(snapshot.total).toBe(0);
+  });
+
+  test("reconstructs the exact rows, preserving null/float/boolean values", () => {
+    const snapshot = decodeColumnarSnapshot(columnarPayload());
+    expect(snapshot.asOf).toBe("2026-11-06T15:30:00+05:30");
+    expect(snapshot.universe).toBe("nifty50");
+    expect(snapshot.total).toBe(3);
+    expect(snapshot.updateMode).toBe("streaming");
+    expect(snapshot.rows).toHaveLength(3);
+
+    expect(snapshot.rows[0]).toEqual({
+      symbol: "RELIANCE",
+      name: "Reliance Industries",
+      sector: null,
+      exchange: null,
+      close: 2946,
+      change: 0.82,
+      relativeVolume: null,
+      marketCapCr: 199000,
+      marketCapUsdB: null,
+      currency: "INR",
+      capTier: "large",
+      rsi: 61.2,
+      adx: null,
+      sma20: null,
+      sma50: null,
+      sma200: null,
+      perfW: null,
+      perf1m: null,
+      high52w: null,
+      low52w: null,
+      pos52w: null,
+      peRatio: null,
+      pbRatio: null,
+      dividendYield: null,
+      roe: null,
+      fno: true,
+      etf: false,
+    });
+
+    const usd = snapshot.rows[1];
+    expect(usd.currency).toBe("USD");
+    expect(usd.marketCapUsdB).toBe(46200.7);
+    expect(usd.marketCapCr).toBeNull();
+    expect(usd.fno).toBe(false);
+    expect(usd.etf).toBe(true);
+
+    const sparse = snapshot.rows[2];
+    expect(sparse.close).toBeNull();
+    expect(sparse.change).toBeNull();
+    expect(sparse.rsi).toBe(44);
+    expect(sparse.capTier).toBeNull();
+    // A null boolean column value is "unknown", never true.
+    expect(sparse.fno).toBe(false);
+    expect(sparse.etf).toBe(true);
+  });
+
+  test("field order drives reconstruction, not the columns' own key order", () => {
+    const payload = columnarPayload();
+    const columns: Record<string, unknown[]> = {};
+    for (const field of [...payload.fields].reverse()) {
+      columns[field] = payload.columns[field as keyof typeof payload.columns];
+    }
+    expect(Object.keys(columns)).toEqual([...payload.fields].reverse());
+    expect(decodeColumnarSnapshot({ ...payload, columns }).rows.map((row) => row.symbol)).toEqual([
+      "RELIANCE",
+      "AAPL",
+      "NOPE",
+    ]);
+  });
+
+  test("rejects a non-object payload", () => {
+    expect(() => decodeColumnarSnapshot(null)).toThrow(/expected a JSON object/);
+    expect(() => decodeColumnarSnapshot([])).toThrow(/expected a JSON object/);
+    expect(() => decodeColumnarSnapshot("columns-v1")).toThrow(/expected a JSON object/);
+  });
+
+  test("rejects an unsupported format", () => {
+    expect(() =>
+      decodeColumnarSnapshot({ ...columnarPayload(), format: "columns-v2" }),
+    ).toThrow(/unsupported format/);
+    const noFormat: Record<string, unknown> = { ...columnarPayload() };
+    delete noFormat.format;
+    expect(() => decodeColumnarSnapshot(noFormat)).toThrow(/unsupported format/);
+  });
+
+  test("rejects malformed meta, fields and columns", () => {
+    const payload = columnarPayload();
+    expect(() => decodeColumnarSnapshot({ ...payload, meta: null })).toThrow(
+      /meta must be an object/,
+    );
+    expect(() => decodeColumnarSnapshot({ ...payload, fields: [] })).toThrow(
+      /columns must be empty when fields is empty/,
+    );
+    expect(() => decodeColumnarSnapshot({ ...payload, fields: ["symbol", ""] })).toThrow(
+      /non-empty strings/,
+    );
+    expect(() => decodeColumnarSnapshot({ ...payload, fields: ["symbol", "symbol"] })).toThrow(
+      /duplicate field "symbol"/,
+    );
+    expect(() => decodeColumnarSnapshot({ ...payload, columns: null })).toThrow(
+      /columns must be an object/,
+    );
+  });
+
+  test("rejects a missing or non-array column", () => {
+    const payload = columnarPayload();
+    const withoutRsi: Record<string, unknown> = { ...payload.columns };
+    delete withoutRsi.rsi;
+    expect(() => decodeColumnarSnapshot({ ...payload, columns: withoutRsi })).toThrow(
+      /missing column "rsi"/,
+    );
+    expect(() =>
+      decodeColumnarSnapshot({
+        ...payload,
+        columns: { ...payload.columns, rsi: "not-an-array" },
+      }),
+    ).toThrow(/column "rsi" must be an array/);
+  });
+
+  test("rejects ragged columns instead of shifting values across rows", () => {
+    const payload = columnarPayload();
+    expect(() =>
+      decodeColumnarSnapshot({
+        ...payload,
+        columns: { ...payload.columns, close: [2946, 189.5] },
+      }),
+    ).toThrow(/column "close" has 2 values, expected 3/);
+    expect(() =>
+      decodeColumnarSnapshot({
+        ...payload,
+        columns: { ...payload.columns, rsi: [61.2, null, 44, 12] },
+      }),
+    ).toThrow(/column "rsi" has 4 values, expected 3/);
+  });
+});
+
 describe("currency-aware row mapping", () => {
   test("USD rows normalize the backend's camelCase cap and currency", () => {
     const snapshot = mapMarketSnapshot({
@@ -347,6 +542,106 @@ describe("fetchMarketSnapshot", () => {
     const controller = new AbortController();
     await fetchMarketSnapshot({}, { signal: controller.signal });
     expect(mockFetchWithAuth.mock.calls[0][1]).toMatchObject({ signal: controller.signal });
+  });
+
+  test("default request has no format param and parses plain rows", async () => {
+    mockFetchWithAuth.mockResolvedValueOnce(
+      mockResponse(true, { rows: [{ symbol: "RELIANCE", close: 2946 }] }),
+    );
+    const result = await fetchMarketSnapshot();
+    expect(mockFetchWithAuth.mock.calls[0][0] as string).not.toContain("format=");
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].close).toBe(2946);
+  });
+
+  test("format=columns requests the columnar wire format and decodes it", async () => {
+    mockFetchWithAuth.mockResolvedValueOnce(
+      mockResponse(true, {
+        format: "columns-v1",
+        meta: { as_of: "2026-11-06T15:30:00+05:30", universe: "us", total: 2, update_mode: "cached" },
+        fields: ["symbol", "close", "change", "fno"],
+        columns: {
+          symbol: ["AAPL", "NOPE"],
+          close: [189.5, null],
+          change: [-1.25, null],
+          fno: [true, null],
+        },
+      }),
+    );
+    const result = await fetchMarketSnapshot({ universe: "us", format: "columns" });
+    expect(mockFetchWithAuth.mock.calls[0][0] as string).toContain("format=columns");
+    expect(result.universe).toBe("us");
+    expect(result.total).toBe(2);
+    expect(result.updateMode).toBe("cached");
+    expect(result.rows.map((row) => [row.symbol, row.close, row.change, row.fno])).toEqual([
+      ["AAPL", 189.5, -1.25, true],
+      ["NOPE", null, null, false],
+    ]);
+  });
+
+  test("a columnar body is decoded even when the caller did not request it", async () => {
+    mockFetchWithAuth.mockResolvedValueOnce(
+      mockResponse(true, {
+        format: "columns-v1",
+        meta: { total: 1, update_mode: "streaming" },
+        fields: ["symbol", "close"],
+        columns: { symbol: ["TCS"], close: [3100] },
+      }),
+    );
+    const result = await fetchMarketSnapshot({ universe: "nifty50" });
+    expect(mockFetchWithAuth.mock.calls[0][0] as string).not.toContain("format=");
+    expect(result.rows).toEqual([expect.objectContaining({ symbol: "TCS", close: 3100 })]);
+  });
+
+  test("format=columns falls back to the plain envelope from an older backend", async () => {
+    mockFetchWithAuth.mockResolvedValueOnce(
+      mockResponse(true, {
+        as_of: "2026-11-06T15:30:00+05:30",
+        universe: "nifty50",
+        total: 1,
+        update_mode: "cached",
+        rows: [{ symbol: "RELIANCE", close: 2946 }],
+      }),
+    );
+    const result = await fetchMarketSnapshot({ format: "columns" });
+    expect(mockFetchWithAuth.mock.calls[0][0] as string).toContain("format=columns");
+    expect(result.updateMode).toBe("cached");
+    expect(result.rows).toEqual([expect.objectContaining({ symbol: "RELIANCE", close: 2946 })]);
+  });
+
+  test("format=columns with neither shape is still a decode error", async () => {
+    mockFetchWithAuth.mockResolvedValueOnce(mockResponse(true, { detail: "nope" }));
+    await expect(fetchMarketSnapshot({ format: "columns" })).rejects.toThrow(
+      /Malformed columnar market snapshot/,
+    );
+  });
+
+  test("format=columns with an unsupported columnar version still throws", async () => {
+    mockFetchWithAuth.mockResolvedValueOnce(
+      mockResponse(true, {
+        format: "columns-v2",
+        meta: {},
+        fields: ["symbol"],
+        columns: { symbol: ["RELIANCE"] },
+      }),
+    );
+    await expect(fetchMarketSnapshot({ format: "columns" })).rejects.toThrow(
+      /unsupported format/,
+    );
+  });
+
+  test("format=columns with a ragged body rejects the response", async () => {
+    mockFetchWithAuth.mockResolvedValueOnce(
+      mockResponse(true, {
+        format: "columns-v1",
+        meta: {},
+        fields: ["symbol", "close"],
+        columns: { symbol: ["A", "B"], close: [1] },
+      }),
+    );
+    await expect(fetchMarketSnapshot({ format: "columns" })).rejects.toThrow(
+      /column "close" has 1 values, expected 2/,
+    );
   });
 });
 

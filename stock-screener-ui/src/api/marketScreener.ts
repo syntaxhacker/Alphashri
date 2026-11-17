@@ -115,6 +115,8 @@ export interface MarketSnapshotParams {
   force?: boolean;
   /** Optional symbol filter (≤20); applied after the cached snapshot is built. */
   symbols?: string[];
+  /** Columnar wire layout. Omitted requests the plain JSON rows envelope. */
+  format?: "columns";
 }
 
 export function buildMarketSnapshotUrl(params: MarketSnapshotParams = {}): string {
@@ -123,6 +125,7 @@ export function buildMarketSnapshotUrl(params: MarketSnapshotParams = {}): strin
   search.set("limit", String(params.limit ?? MARKET_SNAPSHOT_LIMIT));
   if (params.force) search.set("force", "true");
   if (params.symbols?.length) search.set("symbols", params.symbols.join(","));
+  if (params.format === "columns") search.set("format", "columns");
   return `${MARKET_API}/snapshot?${search.toString()}`;
 }
 
@@ -165,6 +168,9 @@ interface RawMarketSnapshot {
   total?: unknown;
   update_mode?: unknown;
   rows?: unknown;
+  stale?: unknown;
+  age_sec?: unknown;
+  cached?: unknown;
 }
 
 function toBool(value: unknown): boolean {
@@ -222,7 +228,111 @@ export function mapMarketSnapshot(raw: RawMarketSnapshot | null | undefined): Ma
     total: finiteNumber(r.total) ?? rows.length,
     updateMode: finiteText(r.update_mode) ?? "unknown",
     rows,
+    stale: r.stale === true,
+    ageSec: finiteNumber(r.age_sec),
+    cached: r.cached === true,
   };
+}
+
+/** Columnar wire version this client understands — anything else is an error. */
+export const MARKET_COLUMNS_WIRE_FORMAT = "columns-v1";
+
+interface RawColumnarSnapshot {
+  format?: unknown;
+  meta?: unknown;
+  fields?: unknown;
+  columns?: unknown;
+}
+
+function malformedColumnar(reason: string): Error {
+  return new Error(`Malformed columnar market snapshot: ${reason}`);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * Rebuilds the row envelope from the opt-in columnar payload. The decoder is
+ * the whole validation boundary: a bad field list or a ragged column must fail
+ * loudly instead of yielding half-mapped rows (a short column would silently
+ * shift every following value onto the wrong symbol).
+ */
+export function decodeColumnarSnapshot(payload: unknown): MarketSnapshot {
+  if (!isRecord(payload)) {
+    throw malformedColumnar("expected a JSON object");
+  }
+  const raw = payload as RawColumnarSnapshot;
+  if (raw.format !== MARKET_COLUMNS_WIRE_FORMAT) {
+    throw malformedColumnar(
+      `unsupported format ${JSON.stringify(raw.format)} (expected "${MARKET_COLUMNS_WIRE_FORMAT}")`,
+    );
+  }
+  if (!isRecord(raw.meta)) {
+    throw malformedColumnar("meta must be an object");
+  }
+  if (!Array.isArray(raw.fields)) {
+    throw malformedColumnar("fields must be an array");
+  }
+  if (!isRecord(raw.columns)) {
+    throw malformedColumnar("columns must be an object");
+  }
+  if (raw.fields.length === 0) {
+    if (Object.keys(raw.columns).length > 0) {
+      throw malformedColumnar("columns must be empty when fields is empty");
+    }
+    return mapMarketSnapshot({ ...(raw.meta as RawMarketSnapshot), rows: [] });
+  }
+
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  for (const field of raw.fields) {
+    if (typeof field !== "string" || field.trim() === "") {
+      throw malformedColumnar("fields must contain only non-empty strings");
+    }
+    if (seen.has(field)) throw malformedColumnar(`duplicate field "${field}"`);
+    seen.add(field);
+    fields.push(field);
+  }
+
+  const table = raw.columns;
+  const columns: unknown[][] = [];
+  let rowCount: number | null = null;
+  for (const field of fields) {
+    if (!Object.prototype.hasOwnProperty.call(table, field)) {
+      throw malformedColumnar(`missing column "${field}"`);
+    }
+    const column = table[field];
+    if (!Array.isArray(column)) {
+      throw malformedColumnar(`column "${field}" must be an array`);
+    }
+    if (rowCount === null) {
+      rowCount = column.length;
+    } else if (column.length !== rowCount) {
+      throw malformedColumnar(`column "${field}" has ${column.length} values, expected ${rowCount}`);
+    }
+    columns.push(column);
+  }
+
+  const rows: Record<string, unknown>[] = [];
+  for (let i = 0; i < (rowCount ?? 0); i += 1) {
+    const row: Record<string, unknown> = {};
+    // Insertion order follows `fields`; the mapped row keeps its own fixed order.
+    for (let f = 0; f < fields.length; f += 1) {
+      row[fields[f]] = columns[f][i];
+    }
+    rows.push(row);
+  }
+
+  return mapMarketSnapshot({ ...(raw.meta as RawMarketSnapshot), rows });
+}
+
+function isColumnarPayload(payload: unknown): boolean {
+  return isRecord(payload) && payload.format === MARKET_COLUMNS_WIRE_FORMAT;
+}
+
+function isPlainSnapshotPayload(payload: unknown): payload is RawMarketSnapshot {
+  return isRecord(payload) && Array.isArray(payload.rows);
 }
 
 export async function fetchMarketSnapshot(
@@ -234,8 +344,20 @@ export async function fetchMarketSnapshot(
     const err = (await response.json().catch(() => null)) as { detail?: string } | null;
     throw new Error(err?.detail || `Market snapshot failed (HTTP ${response.status})`);
   }
-  return mapMarketSnapshot((await response.json()) as RawMarketSnapshot);
+  const payload = (await response.json()) as unknown;
+  // A columnar body is decoded even when the caller did not ask for it — mapping
+  // it as plain rows would yield an empty table.
+  if (isColumnarPayload(payload)) return decodeColumnarSnapshot(payload);
+  // A `format=columns` request may still be answered by a backend (or a mock)
+  // that only speaks the plain envelope; that is the documented JSON fallback,
+  // not a broken payload. Anything else routed here is left to the decoder so
+  // it fails with the precise malformed-columnar reason.
+  if (params.format === "columns" && !isPlainSnapshotPayload(payload)) {
+    return decodeColumnarSnapshot(payload);
+  }
+  return mapMarketSnapshot(payload as RawMarketSnapshot);
 }
+
 
 /** The only snapshot fields the pattern dock needs for its live-price line. */
 export interface MarketQuote {
