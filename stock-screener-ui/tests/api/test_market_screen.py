@@ -43,6 +43,7 @@ from api.market_screen.snapshot import (  # noqa: E402
     ALLOWED_UNIVERSES,
     FETCH_LIMIT_LADDER,
     FORCE_COOLDOWN_SEC,
+    LIVE_STALE_MAX_SECONDS,
     LIVE_TTL_SECONDS,
     MAX_LIMIT,
     OFF_TTL_SECONDS,
@@ -435,6 +436,7 @@ def _wait_for(predicate, timeout: float = 5.0) -> bool:
 def test_ttl_constants_and_predicate_mapping(monkeypatch):
     assert OFF_TTL_SECONDS == 60.0
     assert LIVE_TTL_SECONDS >= 3.0
+    assert LIVE_STALE_MAX_SECONDS >= LIVE_TTL_SECONDS
 
     import market_data.providers.sessions as sessions_mod
     import trading.utils as trading_utils
@@ -477,11 +479,52 @@ def test_live_age_4s_is_warm_hit(client, mock_tv, monkeypatch):
     assert body["age_sec"] >= 4.0
 
 
-def test_live_age_6s_blocks_on_fresh_scan(client, mock_tv, monkeypatch):
-    """A live expired frame must block on a scan, not stale-serve."""
+def test_live_age_6s_serves_stale_and_starts_one_refresh(monkeypatch):
+    """A live poll just past the TTL returns at once and refreshes in background.
+
+    ``_gated_tv_scan`` holds the scan open until the test releases it, so a
+    request that had blocked would not return before the gate.
+    """
     monkeypatch.setattr(snapshot_mod, "_universe_is_live", lambda universe: True)
     key = ("all_equity", MAX_LIMIT)
     _seed_entry(key, 6.0)
+
+    with _gated_tv_scan() as (scan, started, release, outcome):
+        t0 = time()
+        body = build_snapshot("all_equity", MAX_LIMIT)
+        elapsed = time() - t0
+
+        assert elapsed < 2.0, "the request blocked on the scan"
+        assert body["cached"] is True and body["stale"] is True
+        assert body["rows"][0]["symbol"] == "SEEDED"
+        assert body["age_sec"] >= 6.0
+        assert key in _inflight
+
+        assert started.wait(timeout=5)
+        refresh = _inflight[key]
+        again = build_snapshot("all_equity", MAX_LIMIT)
+        assert again["cached"] is True and again["stale"] is True
+        assert _inflight[key] is refresh, "a second background refresh was started"
+
+        outcome["rows"] = _frame([dict(RELIANCE_ROW, name="NSE:BG")])
+        release.set()
+        assert refresh["event"].wait(timeout=5)
+
+    assert scan.call_count == 1
+    assert key not in _inflight
+    assert _cache[key]["rows"][0]["symbol"] == "BG"
+
+    warm = build_snapshot("all_equity", MAX_LIMIT)
+    assert warm["cached"] is True and warm["stale"] is False
+    assert warm["rows"][0]["symbol"] == "BG"
+    assert scan.call_count == 1
+
+
+def test_live_age_past_stale_window_blocks_on_scan(client, mock_tv, monkeypatch):
+    """31s old (default window 30s) is too old to serve: the request scans."""
+    monkeypatch.setattr(snapshot_mod, "_universe_is_live", lambda universe: True)
+    key = ("all_equity", MAX_LIMIT)
+    _seed_entry(key, LIVE_STALE_MAX_SECONDS + 1.0)
     mock_tv.return_value = _frame([dict(RELIANCE_ROW, name="NSE:LIVE")])
 
     body = build_snapshot("all_equity", MAX_LIMIT)
@@ -495,7 +538,7 @@ def test_live_age_6s_blocks_on_fresh_scan(client, mock_tv, monkeypatch):
 
 
 def test_live_transition_ignores_pre_open_expires_at(client, mock_tv, monkeypatch):
-    """An entry cached pre-open (60s ``expires_at``) expires on the live 5s TTL."""
+    """An entry cached pre-open (60s ``expires_at``) is stale on the live 5s TTL."""
     key = ("all_equity", MAX_LIMIT)
     entry = _seed_entry(key, 6.0)
     assert entry["expires_at"] > time()  # the stored diagnostic still says fresh
@@ -505,9 +548,26 @@ def test_live_transition_ignores_pre_open_expires_at(client, mock_tv, monkeypatc
 
     body = build_snapshot("all_equity", MAX_LIMIT)
 
+    # Not a warm hit: read-time freshness used the live TTL, not expires_at.
+    assert body["cached"] is True and body["stale"] is True
+    assert body["rows"][0]["symbol"] == "SEEDED"
+    assert _wait_for(lambda: _cache[key]["rows"][0]["symbol"] == "OPEN")
+    assert _wait_for(lambda: key not in _inflight)
+
+
+def test_force_with_expired_live_frame_still_scans(client, mock_tv, monkeypatch):
+    """force=1 never takes the live stale path, even inside the window."""
+    monkeypatch.setattr(snapshot_mod, "_universe_is_live", lambda universe: True)
+    key = ("all_equity", MAX_LIMIT)
+    _seed_entry(key, 6.0)
+    mock_tv.return_value = _frame([dict(RELIANCE_ROW, name="NSE:FORCED")])
+
+    body = build_snapshot("all_equity", MAX_LIMIT, force=True)
+
     assert mock_tv.call_count == 1
     assert body["cached"] is False and body["stale"] is False
-    assert body["rows"][0]["symbol"] == "OPEN"
+    assert body["rows"][0]["symbol"] == "FORCED"
+    assert key in _force_last_at
 
 
 def test_closed_age_30s_is_warm_hit(client, mock_tv):
@@ -573,7 +633,7 @@ def test_live_upstream_failure_falls_back_to_memory_stale(client, mock_tv, monke
     """A blocked live refresh that fails still serves the memory frame."""
     monkeypatch.setattr(snapshot_mod, "_universe_is_live", lambda universe: True)
     key = ("all_equity", MAX_LIMIT)
-    _seed_entry(key, 6.0)
+    _seed_entry(key, LIVE_STALE_MAX_SECONDS + 1.0)
     mock_tv.side_effect = RuntimeError("TV down")
 
     body = build_snapshot("all_equity", MAX_LIMIT)
@@ -1047,6 +1107,30 @@ def test_background_refresh_failure_clears_inflight():
     assert entry["exc"] is not None
     assert key not in _inflight, "failed refresh leaked its slot"
     assert scan.call_count == 1
+
+
+def test_live_stale_serve_survives_background_refresh_failure(monkeypatch):
+    """The served stale frame is untouched when the refresh behind it fails."""
+    monkeypatch.setattr(snapshot_mod, "_universe_is_live", lambda universe: True)
+    key = ("all_equity", MAX_LIMIT)
+    _seed_entry(key, 6.0)
+
+    with _gated_tv_scan() as (scan, started, release, outcome):
+        served = build_snapshot("all_equity", MAX_LIMIT)
+        assert served["cached"] is True and served["stale"] is True
+        assert served["rows"][0]["symbol"] == "SEEDED"
+        assert served["age_sec"] >= 6.0
+
+        assert started.wait(timeout=5)
+        refresh = _inflight[key]
+        outcome["exc"] = RuntimeError("TV down")
+        release.set()
+        assert refresh["event"].wait(timeout=5), "refresh never signalled"
+
+    assert refresh["exc"] is not None
+    assert key not in _inflight
+    assert scan.call_count == 1
+    assert _cache[key]["rows"][0]["symbol"] == "SEEDED"
 
 
 def test_force_after_failed_background_refresh_rescans():
@@ -1702,3 +1786,24 @@ class TestCacheBound:
         finally:
             with snapshot_mod._cache_lock:
                 snapshot_mod._cache.clear()
+
+
+def test_shape_rows_converts_pandas_nan_text_to_null():
+    from api.market_screen.snapshot import _shape_rows
+
+    rows = _shape_rows(
+        [
+            {
+                "name": "NSE:TEST",
+                "description": float("nan"),
+                "sector": float("nan"),
+                "exchange": "NSE",
+            }
+        ],
+        universe="all_equity",
+    )
+
+    assert rows[0]["symbol"] == "TEST"
+    assert rows[0]["name"] is None
+    assert rows[0]["sector"] is None
+    assert rows[0]["exchange"] == "NSE"

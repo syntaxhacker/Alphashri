@@ -104,6 +104,16 @@ describe("checkPriceSurges", () => {
     expect(text).toContain("+6.0%");
   });
 
+  it("mutes 52W High surge toasts without muting other screeners", () => {
+    const week52 = makeSurgeData("52w_high", [{ symbol: "GALAPREC", day_change: 5.38 }]);
+    checkPriceSurges(week52, "52w_high", "52W High");
+    expect(mockShowToast).not.toHaveBeenCalled();
+
+    const trending = makeSurgeData("trending", [{ symbol: "TCS", day_change: 6.0 }]);
+    checkPriceSurges(trending, "trending", "Trending");
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
+  });
+
   it("uses default threshold of 5 for unknown profiless", () => {
     const data = makeSurgeData("trending", [{ symbol: "TCS", day_change: 4.9 }]);
     checkPriceSurges(data, "trending", "Trending");

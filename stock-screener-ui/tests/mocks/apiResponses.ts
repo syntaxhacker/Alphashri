@@ -751,6 +751,24 @@ export async function loginAsTestUser(page: import("@playwright/test").Page) {
       body: JSON.stringify(testUser),
     });
   });
+
+  // Surge endpoints now require auth; the fake E2E token would otherwise
+  // produce expected 401 console noise in every spec.
+  await page.route(apiRoute("notifications/surge**"), async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ total: 0, today_count: 0, offset: 0, limit: 10, events: [] }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ status: "ok", id: 1 }),
+    });
+  });
 }
 
 // Helper to setup paper trading API mocks

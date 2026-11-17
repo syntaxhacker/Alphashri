@@ -148,6 +148,7 @@ function hookResult(overrides: Partial<UseMarketSnapshotResult> = {}): UseMarket
     refresh: vi.fn(),
     lastUpdated: () => new Date().toISOString(),
     stale: () => false,
+    ageSec: () => null,
     warming: () => false,
     ...overrides,
   };
@@ -225,7 +226,7 @@ describe("MarketScreenerPage", () => {
       }),
     );
     r(() => <MarketScreenerPage />);
-    expect(screen.getByTestId("market-error")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("market-error")).toBeInTheDocument());
     expect(screen.getByTestId("market-error-message")).toHaveTextContent("snapshot 503");
     fireEvent.click(screen.getByTestId("market-retry"));
     expect(refresh).toHaveBeenCalledTimes(1);

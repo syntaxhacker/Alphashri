@@ -116,6 +116,7 @@ type HookOverrides = {
   refresh?: (force?: boolean) => void;
   lastUpdated?: string | null;
   stale?: boolean;
+  ageSec?: number | null;
   warming?: boolean;
 };
 
@@ -151,6 +152,7 @@ function hookResult(overrides: HookOverrides = {}) {
     refresh: o.refresh,
     lastUpdated: () => o.lastUpdated,
     stale: () => o.stale,
+    ageSec: () => o.ageSec ?? null,
     warming: () => o.warming,
   };
 }
@@ -166,6 +168,8 @@ afterEach(cleanup);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // The panel reads `?wire=` once at setup; a leftover value would leak.
+  window.history.replaceState({}, "", "/");
   mockUseMarketSnapshot.mockReturnValue(hookResult());
   mockLookupPatterns.mockResolvedValue({
     timeframe: "1D",
@@ -263,12 +267,12 @@ describe("MarketScreenerPanel — stale cache, warming hint, timeout", () => {
     expect(mockUseMarketSnapshot.mock.calls.at(-1)?.[0]()).toBe("nifty500");
   });
 
-  test("timeout error with no rows shows the error panel", () => {
+  test("timeout error with no rows shows the error panel", async () => {
     mockUseMarketSnapshot.mockReturnValue(
       hookResult({ rows: [], total: 0, snapshot: null, isLoading: false, error: new Error("Market snapshot timed out") }),
     );
     r(() => <MarketScreenerPanel />);
-    expect(screen.getByTestId("market-error")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("market-error")).toBeInTheDocument());
     expect(screen.getByTestId("market-error-message")).toHaveTextContent("Market snapshot timed out");
     expect(screen.queryByTestId("market-skeleton")).not.toBeInTheDocument();
   });
@@ -298,11 +302,9 @@ describe("MarketScreenerPanel — stale badge decays with time", () => {
     mockUseMarketSnapshot.mockReturnValue(hookResult({ asOf, stale: false }));
 
     r(() => <MarketScreenerPanel />);
-    // t0: the snapshot is fresh, so no badge and the table is up.
     expect(screen.queryByTestId("market-stale-badge")).not.toBeInTheDocument();
     expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
 
-    // Advance 16 minutes with no new data: the badge must appear on its own.
     vi.advanceTimersByTime(16 * 60 * 1000);
     expect(screen.getByTestId("market-stale-badge")).toBeInTheDocument();
   });
@@ -352,7 +354,6 @@ describe("MarketScreenerPanel — narrow filter drawer keyboard parity", () => {
     expect(drawer).toHaveAttribute("aria-modal", "true");
     expect(drawer).toHaveAttribute("aria-label", "Filters");
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    // Focus is inside the drawer, not left on the toolbar behind it.
     expect(drawer.contains(document.activeElement)).toBe(true);
   });
 
@@ -592,7 +593,6 @@ describe("MarketScreenerPanel — Movers view", () => {
     expect((screen.getByTestId("market-search") as HTMLInputElement).value).toBe("");
     expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
 
-    // and back to Movers: the lazy branch remounts cleanly
     await fireEvent.click(screen.getByRole("button", { name: "Movers" }));
     expect(await screen.findByTestId("screener-dashboard")).toBeInTheDocument();
   });
@@ -965,7 +965,6 @@ describe("MarketScreenerPanel — saved filters", () => {
     });
     await waitFor(() => expect(mockPutUserConfig).not.toHaveBeenCalled());
 
-    // The saved IT/rsi never applied over the user's clearing.
     expect(screen.queryByTestId("market-filter-chip-sector:IT")).toBeNull();
     expect(screen.queryByTestId("market-filter-chip-rsi")).toBeNull();
     expect(screen.getByTestId("market-filter-chip-sector:Energy")).toBeInTheDocument();
@@ -986,7 +985,6 @@ describe("MarketScreenerPanel — saved filters", () => {
     const chip = await screen.findByTestId("saved-config-error", {}, { timeout: 4000 });
     expect(chip).toHaveTextContent(/^Filters not saved/);
     expect(screen.getByTestId("saved-config-retry")).toBeInTheDocument();
-    // Failure never blanks the table or reverts the click.
     expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
     expect(screen.getByTestId("market-row-MPHASIS")).toBeInTheDocument();
     expect(screen.getByTestId("market-filter-chip-sector:IT")).toBeInTheDocument();
@@ -1308,7 +1306,6 @@ describe("MarketScreenerPanel — universe-aware columns, rail and reset", () =>
     expect(screen.getByTestId("market-filter-etf")).toBeInTheDocument();
     expect(screen.queryByTestId("market-filter-chip-fno")).toBeNull();
 
-    // Universe-specific conditions.
     fireEvent.click(screen.getByTestId("market-cap-large"));
     setNumber("market-filter-price-min", "100");
     setNumber("market-filter-mcap-min", "100");
@@ -1457,7 +1454,6 @@ describe("MarketScreenerPanel — cap-tier counts follow the loaded rows", () =>
     }));
     r(() => <MarketScreenerPanel />);
 
-    // India first: rank tiers with their own counts.
     expect(rail().getByText("Large (2)")).toBeInTheDocument();
     expect(rail().getByText("Mid (1)")).toBeInTheDocument();
 
@@ -1550,7 +1546,6 @@ describe("MarketScreenerPanel — F&O chip follows the universe's affordance", (
     expect(screen.getByTestId("market-filter-chip-fno")).toBeInTheDocument();
     expect(screen.getByTestId("market-filter-fno")).toBeInTheDocument();
     expect(screen.getByTestId("market-filter-count")).toHaveTextContent("2");
-    // fnoOnly is still a real filter in India: only the F&O row survives.
     expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
     expect(screen.queryByTestId("market-row-MPHASIS")).toBeNull();
     expect(screen.getByTestId("market-result-count")).toHaveTextContent("1 / 2");
@@ -1765,12 +1760,74 @@ describe("MarketScreenerPanel — market snapshot gating in Value view", () => {
   });
 });
 
+describe("MarketScreenerPanel — wire format", () => {
+  const wireOption = () =>
+    mockUseMarketSnapshot.mock.calls[0]?.[1] as { wireFormat?: string } | undefined;
+
+  test("defaults to the columnar layout", () => {
+    r(() => <MarketScreenerPanel />);
+    expect(wireOption()?.wireFormat).toBe("columns");
+  });
+
+  test("?wire=json requests the legacy JSON envelope instead", () => {
+    window.history.replaceState({}, "", "/?tab=market&wire=json");
+    r(() => <MarketScreenerPanel />);
+    expect(wireOption()?.wireFormat).toBeUndefined();
+  });
+
+  test("an explicit prop wins over the query string", () => {
+    window.history.replaceState({}, "", "/?wire=json");
+    r(() => <MarketScreenerPanel wireFormat="columns" />);
+    expect(wireOption()?.wireFormat).toBe("columns");
+  });
+
+  test("wireFormat='json' forces the legacy envelope", () => {
+    r(() => <MarketScreenerPanel wireFormat="json" />);
+    expect(wireOption()?.wireFormat).toBeUndefined();
+  });
+});
+
+describe("MarketScreenerPanel — wait for saved config before the first snapshot", () => {
+  test("does not enable the table fetch until market.filters settles", async () => {
+    let resolveConfig: (value: unknown) => void = () => {};
+    mockGetUserConfig.mockReturnValue(
+      new Promise((resolve) => {
+        resolveConfig = resolve;
+      }) as never,
+    );
+    mockUseMarketSnapshot.mockReturnValue(
+      hookResult({ rows: [], total: 0, snapshot: null, isLoading: false }),
+    );
+
+    r(() => <MarketScreenerPanel />);
+
+    const options = mockUseMarketSnapshot.mock.calls[0]?.[1] as
+      | { enabled?: () => boolean }
+      | undefined;
+    expect(options?.enabled?.()).toBe(false);
+    expect(screen.getByTestId("market-skeleton")).toBeInTheDocument();
+    expect(mockUseMarketSnapshot).toHaveBeenCalledTimes(1);
+
+    resolveConfig({
+      scope: "market.filters",
+      version: 1,
+      saved: false,
+      updated_at: null,
+      config: serializeMarketConfig(defaultMarketConfig()),
+    });
+
+    await waitFor(() => expect(options?.enabled?.()).toBe(true));
+    expect(mockUseMarketSnapshot).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("MarketScreenerPanel — manual refresh is a forced scan", () => {
-  test("the refresh button asks the hook to bypass the server cache", () => {
+  test("the refresh button asks the hook to bypass the server cache", async () => {
     const refresh = vi.fn();
     mockUseMarketSnapshot.mockReturnValue(hookResult({ refresh }));
     r(() => <MarketScreenerPanel />);
 
+    await waitFor(() => expect(screen.getByTestId("market-refresh")).not.toBeDisabled());
     fireEvent.click(screen.getByTestId("market-refresh"));
 
     expect(refresh).toHaveBeenCalledTimes(1);
@@ -1784,13 +1841,14 @@ describe("MarketScreenerPanel — manual refresh is a forced scan", () => {
     expect(screen.getByTestId("market-refresh")).toBeDisabled();
   });
 
-  test("the error retries stay unforced so they reuse the server cache", () => {
+  test("the error retries stay unforced so they reuse the server cache", async () => {
     const refresh = vi.fn();
     mockUseMarketSnapshot.mockReturnValue(
       hookResult({ rows: [], total: 0, snapshot: null, error: new Error("boom"), refresh }),
     );
     r(() => <MarketScreenerPanel />);
 
+    await waitFor(() => expect(screen.getByTestId("market-retry")).toBeInTheDocument());
     fireEvent.click(screen.getByTestId("market-retry"));
 
     expect(refresh).toHaveBeenCalledTimes(1);

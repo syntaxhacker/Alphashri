@@ -2,7 +2,7 @@
 Portfolio endpoints for Paper Trading API.
 """
 
-from datetime import timedelta
+from datetime import datetime
 from typing import Optional
 
 from fastapi import Depends
@@ -16,15 +16,14 @@ from .paper_api import router, _get_user_id
 from .requests import ResetRequest, UpdatePricesRequest
 
 
+# Every handler here is sync `def` on purpose: FastAPI runs them on the anyio
+# worker pool, so the SQLite reads/writes below never block the event loop.
 @router.get("/portfolio")
-async def get_portfolio(user: "User" = Depends(get_current_user)):
+def get_portfolio(user: "User" = Depends(get_current_user)):
     """Get current paper trading portfolio status."""
     user_id = _get_user_id(user)
     trader = get_paper_trader(user_id)
     status = trader.get_portfolio_status()
-
-    today_str = datetime.now(config.IST).strftime('%Y-%m-%d')
-    today_str_compact = datetime.now(config.IST).strftime('%Y%m%d')
 
     realized_pnl_today = 0.0
     daily_trades = 0
@@ -34,39 +33,32 @@ async def get_portfolio(user: "User" = Depends(get_current_user)):
         from db.models import Trade as TradeModel
         today_start = datetime.now(config.IST).replace(hour=0, minute=0, second=0, microsecond=0)
         today_end = today_start.replace(hour=23, minute=59, second=59)
-        db = SessionLocal()
-        today_trades = db.query(TradeModel).filter(
-            TradeModel.user_id == user_id,
-            TradeModel.is_test == False,
-            TradeModel.exit_time >= today_start,
-            TradeModel.exit_time <= today_end,
-        ).all()
-        for t in today_trades:
-            realized_pnl_today += float(t.net_pnl or 0)
-            daily_trades += 1
+        with SessionLocal() as db:
+            today_trades = db.query(TradeModel).filter(
+                TradeModel.user_id == user_id,
+                TradeModel.is_test == False,
+                TradeModel.exit_time >= today_start,
+                TradeModel.exit_time <= today_end,
+            ).all()
+            for t in today_trades:
+                realized_pnl_today += float(t.net_pnl or 0)
+                daily_trades += 1
     except Exception:
         pass
-    finally:
-        try:
-            db.close()
-        except Exception:
-            pass
 
     if "daily_pnl_pct" not in status:
         base = status.get("initial_capital", 0) or 0
         daily_pnl = status.get("daily_pnl", 0) or 0
         status["daily_pnl_pct"] = (daily_pnl / base * 100) if base else 0.0
 
-    from db.database import SessionLocal
-    db_session = SessionLocal()
     try:
+        from db.database import SessionLocal
         from db.models import BotConfig
-        bot_cfg = db_session.query(BotConfig).filter(BotConfig.user_id == user_id).first()
-        max_daily_loss_pct = bot_cfg.max_daily_loss_pct if bot_cfg and bot_cfg.max_daily_loss_pct is not None else 0.03
+        with SessionLocal() as db_session:
+            bot_cfg = db_session.query(BotConfig).filter(BotConfig.user_id == user_id).first()
+            max_daily_loss_pct = bot_cfg.max_daily_loss_pct if bot_cfg and bot_cfg.max_daily_loss_pct is not None else 0.03
     except Exception:
         max_daily_loss_pct = 0.03
-    finally:
-        db_session.close()
 
     status["max_daily_loss_pct"] = max_daily_loss_pct
     status["daily_loss_limit_exceeded"] = (
@@ -82,14 +74,11 @@ async def get_portfolio(user: "User" = Depends(get_current_user)):
     return status
 
 
-from datetime import datetime
-
-
 @router.post("/reset")
-async def reset_portfolio(request: "ResetRequest", user: "User" = Depends(get_current_user)):
+def reset_portfolio(request: "ResetRequest", user: "User" = Depends(get_current_user)):
     """Reset paper trading with new capital."""
     from trading.paper_trader import reset_paper_trader
-    
+
     user_id = _get_user_id(user)
     trader = reset_paper_trader(user_id, request.capital)
     return {
@@ -100,7 +89,7 @@ async def reset_portfolio(request: "ResetRequest", user: "User" = Depends(get_cu
 
 
 @router.get("/positions")
-async def get_positions(user: "User" = Depends(get_current_user)):
+def get_positions(user: "User" = Depends(get_current_user)):
     """Get all open positions."""
     user_id = _get_user_id(user)
     trader = get_paper_trader(user_id)
@@ -113,9 +102,9 @@ async def get_positions(user: "User" = Depends(get_current_user)):
 
 
 @router.post("/update-prices")
-async def update_prices(request: UpdatePricesRequest, user: "User" = Depends(get_current_user)):
+def update_prices(request: UpdatePricesRequest, user: "User" = Depends(get_current_user)):
     """Update prices and check for SL/TP triggers."""
-    
+
     user_id = _get_user_id(user)
     trader = get_paper_trader(user_id)
 
@@ -125,9 +114,6 @@ async def update_prices(request: UpdatePricesRequest, user: "User" = Depends(get
 
     trades_after = len(trader.trades)
     new_trades_count = trades_after - trades_before
-
-    if new_trades_count > 0:
-        pass
 
     return {
         "status": "success",

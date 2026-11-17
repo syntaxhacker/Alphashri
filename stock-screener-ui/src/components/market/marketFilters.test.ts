@@ -153,7 +153,6 @@ describe("filterMarketRows", () => {
       symbols(filterMarketRows(ROWS, filters({ capTiers: new Set(["mid", "small"]) }))),
     ).toEqual(["MIDCO", "SMALLCO"]);
     expect(filterMarketRows(ROWS, filters({ capTiers: new Set(["unknown"]) }))).toEqual([]);
-    // empty set = no filtering
     expect(filterMarketRows(ROWS, filters({ capTiers: new Set() }))).toHaveLength(4);
   });
 
@@ -174,7 +173,6 @@ describe("filterMarketRows", () => {
       "ETFCO",
       "MIDCO",
     ]);
-    // null price excluded when a bound is set
     const rows = [row("NOPRICE", { close: null })];
     expect(filterMarketRows(rows, filters({ priceMin: 1 }))).toEqual([]);
     expect(filterMarketRows(rows, filters())).toHaveLength(1);
@@ -269,7 +267,6 @@ describe("filterMarketRows", () => {
       "SMALLCO",
     ]);
     expect(filterMarketRows(ROWS, filters({ sectors: ["Banking"] }))).toEqual([]);
-    // an empty selection is "all sectors", including rows with no sector
     expect(defaultMarketFilters().sectors).toEqual([]);
     expect(symbols(filterMarketRows(ROWS, filters({ sectors: [] })))).toEqual([
       "ETFCO",

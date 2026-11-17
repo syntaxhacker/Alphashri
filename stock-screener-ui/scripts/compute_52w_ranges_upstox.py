@@ -145,8 +145,23 @@ def fetch_range_for_symbol(api, symbol: str, to_date: str | None) -> dict | None
     return entry
 
 
+def _range_changed(row: Stock52WeekRange, info: dict) -> bool:
+    """True when the freshly computed range differs from the stored row."""
+    return (
+        row.high_52w != info["high"]
+        or row.low_52w != info["low"]
+        or row.close != info["close"]
+        or row.days_ago != info.get("days_ago")
+    )
+
+
 def persist_ranges(data: dict, redis: bool) -> tuple[int, int]:
-    """Upsert into stock_52w_range; optionally refresh Redis cache."""
+    """Upsert into stock_52w_range; optionally refresh Redis cache.
+
+    Only rows whose values actually changed are written. Running a batch that
+    recomputes identical ranges used to dirty all ~3k rows and hold the SQLite
+    writer for seconds, which is what stalled the auth/config reads.
+    """
     if not data:
         return 0, 0
 
@@ -154,20 +169,19 @@ def persist_ranges(data: dict, redis: bool) -> tuple[int, int]:
     added = 0
     updated = 0
     try:
-        existing = {r.symbol: r for r in db.query(Stock52WeekRange).all()}
+        # Scope the read to this chunk: the caller batches at DB_FLUSH_EVERY, so
+        # this stays well under SQLite's bound-parameter limit and avoids
+        # reloading the whole table for every flush.
+        existing = {
+            r.symbol: r
+            for r in db.query(Stock52WeekRange)
+            .filter(Stock52WeekRange.symbol.in_(list(data)))
+            .all()
+        }
         now = datetime.now(config.IST).replace(tzinfo=None)
         for symbol, info in data.items():
             cur = existing.get(symbol)
-            if cur:
-                # Always record the fresh computation time. Values are overwritten
-                # (even if unchanged) so that "updated_at" reflects last verification.
-                cur.high_52w = info["high"]
-                cur.low_52w = info["low"]
-                cur.close = info["close"]
-                cur.days_ago = info.get("days_ago")
-                cur.updated_at = now
-                updated += 1
-            else:
+            if cur is None:
                 db.add(
                     Stock52WeekRange(
                         symbol=symbol,
@@ -178,8 +192,14 @@ def persist_ranges(data: dict, redis: bool) -> tuple[int, int]:
                         updated_at=now,
                     )
                 )
-                existing[symbol] = None  # noqa: track in-memory only
                 added += 1
+            elif _range_changed(cur, info):
+                cur.high_52w = info["high"]
+                cur.low_52w = info["low"]
+                cur.close = info["close"]
+                cur.days_ago = info.get("days_ago")
+                cur.updated_at = now
+                updated += 1
         db.commit()
     except Exception:
         db.rollback()
@@ -187,9 +207,31 @@ def persist_ranges(data: dict, redis: bool) -> tuple[int, int]:
     finally:
         db.close()
 
-    # Redis write is deferred to the merge step below (line ~348) so the bulk
-    # key is written ONCE with the complete merged data, not twice in a row.
+    # Redis write is deferred to the merge step in main() so the bulk key is
+    # written ONCE with the complete merged data, not once per chunk.
     return added, updated
+
+
+def flush_pending(pending: dict) -> tuple[int, int]:
+    """Persist and clear the buffered chunk. Never re-writes already-flushed rows."""
+    if not pending:
+        return 0, 0
+    added, updated = persist_ranges(pending, redis=False)
+    pending.clear()
+    return added, updated
+
+
+def queue_range(
+    pending: dict,
+    symbol: str,
+    info: dict,
+    flush_every: int = DB_FLUSH_EVERY,
+) -> tuple[int, int]:
+    """Buffer one symbol and commit the chunk once it reaches flush_every."""
+    pending[symbol] = info
+    if len(pending) >= flush_every:
+        return flush_pending(pending)
+    return 0, 0
 
 
 def main() -> None:
@@ -257,6 +299,10 @@ def main() -> None:
     if args.skip_updated_today and not args.dry_run:
         db = SessionLocal()
         try:
+            # updated_at only moves when a range actually changed, so a symbol
+            # that recomputes identically keeps its older stamp and is fetched
+            # again on the next run. In practice `close` moves for most names
+            # intraday, so the daily dedupe still holds during market hours.
             today = datetime.now(config.IST).date()
             fresh = {
                 r.symbol
@@ -335,8 +381,11 @@ def main() -> None:
             symbol, entry, err = fut.result()
             if entry:
                 ok += 1
-                pending[symbol] = entry
                 all_ok[symbol] = entry
+                if not args.dry_run:
+                    a, u = queue_range(pending, symbol, entry)
+                    total_added += a
+                    total_updated += u
                 if not args.dry_run and (done <= 5 or done % 25 == 0 or done == len(symbols)):
                     elapsed = time.monotonic() - t0
                     rate = done / elapsed if elapsed > 0 else 0
@@ -360,14 +409,9 @@ def main() -> None:
                 if failed <= 10:
                     print(f"  [{done}/{len(symbols)}] {symbol}: ERROR {err}")
 
-            if not args.dry_run and len(pending) >= DB_FLUSH_EVERY:
-                a, u = persist_ranges(pending, redis=False)
-                total_added += a
-                total_updated += u
-                pending.clear()
-
-    if not args.dry_run and all_ok:
-        a, u = persist_ranges(all_ok, redis=False)
+    # Only the unflushed remainder; flushing all_ok here re-wrote every chunk.
+    if not args.dry_run and pending:
+        a, u = flush_pending(pending)
         total_added += a
         total_updated += u
 
@@ -402,7 +446,7 @@ def main() -> None:
         )
     print(
         f"\nDone in {elapsed:.1f}s — ok={ok} skipped={skipped} failed={failed} "
-        f"(db +{total_added} ~{total_updated} updated)"
+        f"(db +{total_added} ~{total_updated} changed)"
     )
 
 

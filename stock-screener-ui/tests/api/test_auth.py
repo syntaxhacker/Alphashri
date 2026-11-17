@@ -817,3 +817,161 @@ class TestEdgeCases:
             algorithms=[JWT_ALGORITHM]
         )
         assert int(payload["sub"]) == user1.id
+
+
+# =============================================================================
+# Current-user cache
+# =============================================================================
+class TestCurrentUserCache:
+    """The per-request user lookup is cached for a short TTL.
+
+    ``_user_snapshot`` runs only on a cache miss (it is the function that turns a
+    freshly queried row into the detached copy), so counting its calls is an
+    exact proxy for "did this request touch the database".
+    """
+
+    def test_repeated_requests_reuse_the_cached_user(
+        self, client: TestClient, auth_headers: dict, monkeypatch
+    ):
+        from api import auth
+
+        auth.invalidate_user_cache()
+        calls: list[int] = []
+        real_snapshot = auth._user_snapshot
+
+        def counting_snapshot(row):
+            calls.append(row.id)
+            return real_snapshot(row)
+
+        monkeypatch.setattr(auth, "_user_snapshot", counting_snapshot)
+
+        for _ in range(3):
+            response = client.get("/api/auth/me", headers=auth_headers)
+            assert response.status_code == 200
+
+        assert len(calls) == 1
+
+    def test_cached_entry_expires_after_the_ttl(
+        self, client: TestClient, auth_headers: dict, monkeypatch
+    ):
+        import time as _time
+
+        from api import auth
+
+        auth.invalidate_user_cache()
+        calls: list[int] = []
+        real_snapshot = auth._user_snapshot
+
+        def counting_snapshot(row):
+            calls.append(row.id)
+            return real_snapshot(row)
+
+        monkeypatch.setattr(auth, "_user_snapshot", counting_snapshot)
+        monkeypatch.setattr(auth, "USER_CACHE_TTL_SECONDS", 0.05)
+
+        assert client.get("/api/auth/me", headers=auth_headers).status_code == 200
+        _time.sleep(0.1)
+        assert client.get("/api/auth/me", headers=auth_headers).status_code == 200
+
+        assert len(calls) == 2
+
+    def test_cache_holds_a_detached_copy_not_the_session_row(
+        self, client: TestClient, auth_headers: dict, db: Session
+    ):
+        from api import auth
+
+        auth.invalidate_user_cache()
+        assert client.get("/api/auth/me", headers=auth_headers).status_code == 200
+
+        token = auth_headers["Authorization"].split()[1]
+        jti = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])["jti"]
+        user_id = db.query(User).filter(User.email.like("authtest%")).one().id
+
+        cached = auth._cached_user(db, user_id, jti)
+        assert cached is not None
+        assert cached not in db
+        assert cached.email.startswith("authtest")
+
+    def test_update_me_invalidates_the_cache(
+        self, client: TestClient, auth_headers: dict
+    ):
+        from api import auth
+
+        auth.invalidate_user_cache()
+        assert client.get("/api/auth/me", headers=auth_headers).status_code == 200
+
+        response = client.put(
+            "/api/auth/me",
+            params={"display_name": "Cache Busted"},
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        assert response.json()["display_name"] == "Cache Busted"
+
+        # Without invalidation the stale snapshot would be served for the TTL.
+        assert client.get("/api/auth/me", headers=auth_headers).json()["display_name"] == "Cache Busted"
+
+    def test_logout_invalidates_the_cache(
+        self, client: TestClient, auth_headers: dict, db: Session
+    ):
+        from api import auth
+
+        auth.invalidate_user_cache()
+        me = client.get("/api/auth/me", headers=auth_headers).json()
+        user_id = me["id"]
+
+        token = auth_headers["Authorization"].split()[1]
+        jti = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])["jti"]
+        assert auth._cached_user(db, user_id, jti) is not None
+
+        assert client.post(
+            "/api/auth/logout", headers={"Authorization": f"Bearer {token}"}
+        ).status_code == 200
+
+        assert auth._cached_user(db, user_id, jti) is None
+
+    def test_cache_is_partitioned_per_database_bind(self, auth_headers, db: Session):
+        from api import auth
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+
+        auth.invalidate_user_cache()
+        user = db.query(User).filter(User.email.like("authtest%")).one()
+
+        other_engine = create_engine("sqlite:///:memory:")
+        OtherSession = sessionmaker(bind=other_engine)
+        other_session = OtherSession()
+        try:
+            assert auth._cache_bucket(db) is not auth._cache_bucket(other_session)
+            auth._store_user(db, auth._user_snapshot(user), "jti-a")
+            assert auth._cached_user(other_session, user.id, "jti-a") is None
+        finally:
+            other_session.close()
+            other_engine.dispose()
+
+    def test_cache_entry_is_scoped_to_the_token_that_proved_it(
+        self, client: TestClient, auth_headers: dict, db: Session
+    ):
+        from api import auth
+
+        auth.invalidate_user_cache()
+        assert client.get("/api/auth/me", headers=auth_headers).status_code == 200
+
+        user_id = db.query(User).filter(User.email.like("authtest%")).one().id
+        assert auth._cached_user(db, user_id, "some-other-jti") is None
+
+    def test_auth_handlers_run_outside_the_event_loop(self):
+        import inspect
+
+        from api import auth
+
+        for handler in (
+            auth.get_current_user,
+            auth.register,
+            auth.login,
+            auth.refresh_token,
+            auth.logout,
+            auth.get_me,
+            auth.update_me,
+        ):
+            assert not inspect.iscoroutinefunction(handler), handler.__name__

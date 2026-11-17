@@ -315,7 +315,6 @@ describe("PATTERNS column", () => {
     const tooltip = await screen.findByRole("tooltip");
     expect(tooltip).toHaveTextContent("Bull Flag · 80");
     expect(tooltip).toHaveTextContent("Cup & Handle · 55");
-    // No confidence travels → no trailing separator.
     expect(tooltip).toHaveTextContent("Rising Wedge");
     expect(tooltip.textContent).not.toContain("Rising Wedge ·");
   });
