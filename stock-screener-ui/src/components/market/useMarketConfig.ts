@@ -21,8 +21,10 @@ import {
   type SavedConfigStatus,
 } from "../../state/savedConfig";
 import { DEFAULT_MARKET_UNIVERSE } from "../../api/marketScreener";
+import { MARKET_UNIVERSE_DESCRIPTORS } from "../../config/marketUniverses";
 import type { MarketUniverse } from "../../types/marketScreener";
-import type { MarketViewMode } from "./MarketMapView";
+import { isRecord, parseStringList } from "../../utils/persistedConfig";
+import { MARKET_VIEW_OPTIONS, type MarketViewMode } from "./MarketMapView";
 import {
   CAP_TIERS,
   DEFAULT_MARKET_SORT,
@@ -42,14 +44,12 @@ export interface MarketConfigValue {
   view: MarketViewMode;
 }
 
-const UNIVERSES: ReadonlySet<string> = new Set([
-  "all_equity",
-  "nifty500",
-  "nifty50",
-  "nse_fo",
-]);
+/** One registry drives the dropdown, the parser and the default filters. */
+const UNIVERSES: ReadonlySet<string> = new Set(
+  MARKET_UNIVERSE_DESCRIPTORS.map((descriptor) => descriptor.value),
+);
 const SORTS: ReadonlySet<string> = new Set(MARKET_SORT_OPTIONS.map((o) => o.value));
-const VIEWS: ReadonlySet<string> = new Set(["table", "map", "movers"]);
+const VIEWS: ReadonlySet<string> = new Set(MARKET_VIEW_OPTIONS.map((o) => o.value));
 const TIERS: ReadonlySet<string> = new Set(CAP_TIERS);
 
 /** Server-side caps, mirrored so a hostile payload cannot ship NaN geometry. */
@@ -68,25 +68,11 @@ const NUMERIC_LIMITS: Record<string, [number, number]> = {
 
 const NUMERIC_KEYS = Object.keys(NUMERIC_LIMITS) as (keyof MarketFilterState)[];
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function parseNumber(raw: unknown, key: string): number | null {
   if (typeof raw !== "number" || !Number.isFinite(raw)) return null;
   const limits = NUMERIC_LIMITS[key];
   if (!limits) return raw;
   return raw < limits[0] || raw > limits[1] ? null : raw;
-}
-
-function parseSectors(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return [];
-  const out: string[] = [];
-  for (const item of raw) {
-    if (typeof item !== "string" || item.trim() === "") continue;
-    if (!out.includes(item)) out.push(item);
-  }
-  return out;
 }
 
 function parseCapTiers(raw: unknown): Set<string> {
@@ -101,9 +87,10 @@ function parseCapTiers(raw: unknown): Set<string> {
 export function defaultMarketConfig(
   overrides: Partial<Pick<MarketConfigValue, "universe" | "view">> = {},
 ): MarketConfigValue {
+  const universe = overrides.universe ?? DEFAULT_MARKET_UNIVERSE;
   return {
-    universe: overrides.universe ?? DEFAULT_MARKET_UNIVERSE,
-    filters: defaultMarketFilters(),
+    universe,
+    filters: defaultMarketFilters(universe),
     view: overrides.view ?? "table",
   };
 }
@@ -126,15 +113,18 @@ export function parseMarketConfig(raw: unknown): MarketConfigValue | null {
       }
     : raw;
 
-  const universe = typeof flat.universe === "string" ? flat.universe : DEFAULT_MARKET_UNIVERSE;
-  if (!UNIVERSES.has(universe)) return null;
+  const rawUniverse = typeof flat.universe === "string" ? flat.universe : DEFAULT_MARKET_UNIVERSE;
+  if (!UNIVERSES.has(rawUniverse)) return null;
+  // Resolve the universe before building filters so a future unit-specific
+  // default in `defaultMarketFilters` sees the saved universe, not the baseline.
+  const universe = rawUniverse as MarketUniverse;
 
-  const filters = defaultMarketFilters();
+  const filters = defaultMarketFilters(universe);
   for (const key of NUMERIC_KEYS) {
     (filters as unknown as Record<string, number | null>)[key] = parseNumber(flat[key], key);
   }
   filters.capTiers = parseCapTiers(flat.capTiers);
-  filters.sectors = parseSectors(flat.sectors);
+  filters.sectors = parseStringList(flat.sectors);
   filters.aboveSma20 = flat.aboveSma20 === true;
   filters.aboveSma50 = flat.aboveSma50 === true;
   filters.aboveSma200 = flat.aboveSma200 === true;
@@ -151,7 +141,7 @@ export function parseMarketConfig(raw: unknown): MarketConfigValue | null {
       ? (flat.view as MarketViewMode)
       : "table";
 
-  return { universe: universe as MarketUniverse, filters, view };
+  return { universe, filters, view };
 }
 
 /** Value -> wire payload. `search` and every non-persisted field stay out. */

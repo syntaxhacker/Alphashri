@@ -1,7 +1,7 @@
 # SolidJS migration conventions
 
-The UI **is** SolidJS 1.9 (`solid-js`), with `@solidjs/router`, `solid-js/store`,
-`@tanstack/solid-table` and `@solidjs/testing-library`. The React → Solid
+The UI **is** SolidJS 1.9 (`solid-js`), with `@solidjs/router`, `solid-js/store`
+and `@solidjs/testing-library`. The React → Solid
 migration is complete (see §7); React is no longer a dependency.
 
 This file is the **contract**. Follow it exactly — the whole point of Solid is
@@ -346,7 +346,7 @@ given library is absent and what to use instead.
 | `react` / `react-dom` / `@types/react*` | `solid-js` (+ `vite-plugin-solid`, `jsxImportSource: solid-js`) |
 | `react-router-dom` | `@solidjs/router` |
 | `react-redux` / Redux slices | `solid-js/store` (`createStore`) |
-| `@tanstack/react-table` | `@tanstack/solid-table` — the Solid adapter uses `<Table>`/`<TableBody>` sub-components, not `flexRender` |
+| `@tanstack/react-table` | local hand-rolled `src/components/common/TanStackTable.tsx` (`TableColumnDef`) |
 | `echarts-for-react` | `echarts` directly (`echarts.init` in `onMount`, `setOption` in `createEffect`) |
 | `react-markdown` | `marked` + a small renderer |
 | `notistack` | `solid-notifications` |

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSignal } from "solid-js";
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 
+import * as palette from "@/ui/palette";
 import type { WallsPayload } from "@/api/reportNifty";
 import type { NiftyReport } from "@/types/niftyReport";
 import { NiftyWallsCard } from "./NiftyWallsCard";
@@ -267,6 +268,45 @@ describe("NiftyWallsCard", () => {
 
     fireEvent.click(screen.getByText("EXPAND"));
     expect(onExpand).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders the one-line CW / PW / MP level legend with tooltips and level tokens", () => {
+    render(() => <NiftyWallsCard walls={walls} onExpand={onExpand} />);
+    const legend = screen.getByTestId("nifty-walls-levels-legend");
+    expect(legend).toHaveTextContent("CW 74,000");
+    expect(legend).toHaveTextContent("PW 73,500");
+    expect(legend).toHaveTextContent("MP 73,900");
+
+    const dot = (code: string) =>
+      screen.getByTestId(`nifty-walls-levels-legend-${code}`).firstElementChild as HTMLElement;
+    expect(dot("cw")).toHaveStyle({ backgroundColor: palette.LEVEL_CALL_WALL });
+    expect(dot("pw")).toHaveStyle({ backgroundColor: palette.LEVEL_PUT_WALL });
+    expect(dot("mp")).toHaveStyle({ backgroundColor: palette.LEVEL_MAX_PAIN });
+    for (const code of ["cw", "pw", "mp"]) {
+      expect(screen.getByTestId(`nifty-walls-levels-legend-${code}`).getAttribute("title")).toContain(
+        code.toUpperCase(),
+      );
+    }
+  });
+
+  it("reserves the level legend in the skeleton with dash placeholders", () => {
+    render(() => <NiftyWallsCard walls={null} onExpand={onExpand} />);
+    const legend = screen.getByTestId("nifty-walls-levels-legend");
+    expect(legend).toHaveTextContent("CW —");
+    expect(legend).toHaveTextContent("PW —");
+    expect(legend).toHaveTextContent("MP —");
+  });
+
+  it("side-codes call/put OI sparklines with OI_CALL / OI_PUT, not wall colours", () => {
+    render(() => <NiftyWallsCard walls={walls} onExpand={onExpand} />);
+    expect(
+      screen.getByTestId("walls-card-call-spark").querySelector("polyline")?.getAttribute("stroke"),
+    ).toBe(palette.OI_CALL);
+    expect(
+      screen.getByTestId("walls-card-put-spark").querySelector("polyline")?.getAttribute("stroke"),
+    ).toBe(palette.OI_PUT);
+    expect(palette.LEVEL_CALL_WALL).toBe(palette.NEGATIVE_COLOR);
+    expect(palette.LEVEL_PUT_WALL).toBe(palette.POSITIVE_COLOR);
   });
 
   it("opens the pressure desk from the card action", () => {

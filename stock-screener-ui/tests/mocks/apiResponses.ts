@@ -2575,7 +2575,7 @@ export const mockOptionDockUnderlying = {
   market_state: "open",
 };
 
-function optionDockChainBody(expiry: string) {
+function optionDockChainBody(expiry: string, withLevels = true) {
   const leg = (ltp: number, oi: number, iv: number | null, delta: number | null) => ({
     instrument_key: `NSE_FO|${oi}`,
     trading_symbol: `RELIANCE${expiry.replace(/-/g, "")}${oi}CE`,
@@ -2597,6 +2597,43 @@ function optionDockChainBody(expiry: string) {
         : { delta, gamma: 0.002, theta: -4, vega: 9, iv, pop: 0.4 },
   });
 
+  const seeded = [
+    { strike: 1340, ce: leg(79.0, 18_000, 24.2, 0.88), pe: leg(3.1, 9_000, 24.0, -0.12) },
+    { strike: 1360, ce: leg(61.5, 24_000, 23.4, 0.79), pe: leg(5.4, 13_000, 23.2, -0.18) },
+    { strike: 1380, ce: leg(46.0, 31_000, 22.6, 0.68), pe: leg(9.1, 22_000, 22.4, -0.26) },
+    { strike: 1400, ce: leg(27.5, 52_000, 21.9, 0.42), pe: leg(14.2, 74_000, 21.6, -0.37) },
+    { strike: 1420, ce: leg(15.4, 86_000, 21.4, 0.31), pe: leg(21.8, 41_000, 21.2, -0.48) },
+    // An illiquid strike with no greeks: the UI must render "—", never 0.
+    { strike: 1440, ce: leg(2.1, 0, null, null), pe: leg(61.0, 12_000, 22.4, -0.71) },
+    { strike: 1460, ce: leg(6.3, 27_000, 22.8, 0.24), pe: leg(88.4, 8_000, 23.1, -0.79) },
+    { strike: 1480, ce: leg(3.4, 19_000, 23.6, 0.16), pe: leg(112.0, 5_000, 23.8, -0.86) },
+    { strike: 1500, ce: leg(1.9, 14_000, 24.4, 0.1), pe: leg(131.5, 3_000, 24.6, -0.91) },
+  ];
+  const byStrike = new Map(seeded.map((row) => [row.strike, row]));
+
+  // 50 strikes at a 5-point step. ATM (1420) sits at index 15 so the initial
+  // centre is a real scroll at both 1600×900 and 390×844 — a 9-row ladder fits
+  // the scroller and can never exercise follow/recentre. The seeded rows keep
+  // their exact values (1340 stays the first row, 1420 stays the max CE OI);
+  // fillers stay well below that OI so existing sorting assertions are stable.
+  const chain: Array<(typeof seeded)[number]> = [];
+  for (let strike = 1340; strike <= 1590; strike += 5) {
+    // 1415 is closer to spot 1417.4 than the seeded ATM strike 1420.
+    if (strike === 1415) continue;
+    const row = byStrike.get(strike);
+    if (row) {
+      chain.push(row);
+      continue;
+    }
+    const off = Math.abs(strike - 1420);
+    const ltp = Math.max(0.4, 14 + off * 0.07);
+    chain.push({
+      strike,
+      ce: leg(ltp, 6_000 + (strike % 7) * 1_000, 22.5, 0.2),
+      pe: leg(ltp + 0.5, 7_000 + (strike % 5) * 1_000, 22.5, -0.2),
+    });
+  }
+
   return {
     status: "ok",
     underlying: "RELIANCE",
@@ -2604,18 +2641,28 @@ function optionDockChainBody(expiry: string) {
     spot: 1417.4,
     timestamp: "2026-11-16T11:20:00+05:30",
     summary: { pcr: 1.08, max_pain: 1420, total_ce_oi: 210_000, total_pe_oi: 226_000, dte: 10, atm_iv: 21.4 },
-    chain: [
-      { strike: 1340, ce: leg(79.0, 18_000, 24.2, 0.88), pe: leg(3.1, 9_000, 24.0, -0.12) },
-      { strike: 1360, ce: leg(61.5, 24_000, 23.4, 0.79), pe: leg(5.4, 13_000, 23.2, -0.18) },
-      { strike: 1380, ce: leg(46.0, 31_000, 22.6, 0.68), pe: leg(9.1, 22_000, 22.4, -0.26) },
-      { strike: 1400, ce: leg(27.5, 52_000, 21.9, 0.42), pe: leg(14.2, 74_000, 21.6, -0.37) },
-      { strike: 1420, ce: leg(15.4, 86_000, 21.4, 0.31), pe: leg(21.8, 41_000, 21.2, -0.48) },
-      // An illiquid strike with no greeks: the UI must render "—", never 0.
-      { strike: 1440, ce: leg(2.1, 0, null, null), pe: leg(61.0, 12_000, 22.4, -0.71) },
-      { strike: 1460, ce: leg(6.3, 27_000, 22.8, 0.24), pe: leg(88.4, 8_000, 23.1, -0.79) },
-      { strike: 1480, ce: leg(3.4, 19_000, 23.6, 0.16), pe: leg(112.0, 5_000, 23.8, -0.86) },
-      { strike: 1500, ce: leg(1.9, 14_000, 24.4, 0.1), pe: leg(131.5, 3_000, 24.6, -0.91) },
-    ],
+    chain,
+    // Five distinct strikes so every badge code renders once. `withLevels=false`
+    // reproduces a legacy payload for the "no level → no badge" regression.
+    levels: withLevels
+      ? {
+          spot: 1417.4,
+          step: 5,
+          thin: false,
+          call_wall: { strike: 1470, side: "above", strength: 0.2, oi: 95_000 },
+          put_wall: { strike: 1390, side: "below", strength: 0.25, oi: 88_000 },
+          max_pain: { strike: 1420, side: "at", strength: 0.3, payout: 1_250 },
+          gex: {
+            support: { strike: 1400, side: "below", strength: 0.4, net_gex: 1.2 },
+            resistance: { strike: 1450, side: "above", strength: 0.6, net_gex: -1.8 },
+            fuel_up: null,
+            fuel_down: null,
+            flip: 1420,
+            regime: "short",
+            degraded: false,
+          },
+        }
+      : undefined,
   };
 }
 
@@ -2636,6 +2683,8 @@ export async function setupOptionDockMocks(
     chainStatus?: number;
     /** `closed` keeps the dock from polling, so request counts stay exact. */
     marketState?: "open" | "closed" | "pre_open";
+    /** `false` omits the chain's `levels` block (legacy payload → no badges). */
+    levels?: boolean;
   } = {},
 ): Promise<OptionDockMocks> {
   const counts = { underlying: 0, chain: 0 };
@@ -2643,6 +2692,7 @@ export async function setupOptionDockMocks(
   let chainStatus = options.chainStatus ?? 200;
   const fno = options.fno ?? true;
   const marketState = options.marketState ?? "closed";
+  const withLevels = options.levels ?? true;
 
   const reset = () => {
     counts.underlying = 0;
@@ -2707,7 +2757,7 @@ export async function setupOptionDockMocks(
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(optionDockChainBody(expiry)),
+      body: JSON.stringify(optionDockChainBody(expiry, withLevels)),
     });
   });
 

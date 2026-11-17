@@ -1,4 +1,4 @@
-import { Show, For, createEffect, createSignal, onCleanup } from "solid-js";
+import { Show, For, createEffect, createSignal, createMemo, onCleanup } from "solid-js";
 import {
   Modal, Stack, Text, Badge, Group, Button, Paper,
   ScrollArea, Loader, Center,
@@ -8,6 +8,8 @@ import { fetchSurges } from "../../api/notifications";
 import type { PriceSurgeEvent } from "../../types/notifications";
 import { formatTimeAgo } from "../../utils/ui-helpers";
 import { ErrorAlert } from "../common/states";
+import { unreadSurgeCount } from "../../state/store/notificationsSlice";
+import { resolveTodayCount, acknowledgeFromResponse } from "./surgeAlertCount";
 
 const PAGE_SIZE = 10;
 
@@ -17,9 +19,14 @@ export function mergeSurgeEvents(previous: PriceSurgeEvent[], next: PriceSurgeEv
   );
 }
 
-/** Fetches the surge-alert total; `refreshKey` may be a value or an accessor — the refetch re-arms whenever it changes. */
+/**
+ * Unread surge alerts for the current IST session. `refreshKey` may be a value
+ * or an accessor — the refetch re-arms whenever it changes. The all-time row
+ * count is never used here: it grows without bound and made the bell announce
+ * thousands of "surge alerts".
+ */
 export function useSurgeAlertTotal(refreshKey: number | (() => number) = 0): () => number {
-  const [total, setTotal] = createSignal(0);
+  const [todayCount, setTodayCount] = createSignal(0);
 
   createEffect(() => {
     const key = typeof refreshKey === "function" ? refreshKey() : refreshKey;
@@ -27,17 +34,17 @@ export function useSurgeAlertTotal(refreshKey: number | (() => number) = 0): () 
     let active = true;
     fetchSurges(1, 0)
       .then((data) => {
-        if (active) setTotal(Number.isFinite(data.total) ? data.total : 0);
+        if (active) setTodayCount(resolveTodayCount(data));
       })
       .catch(() => {
-        if (active) setTotal(0);
+        if (active) setTodayCount(0);
       });
     onCleanup(() => {
       active = false;
     });
   });
 
-  return total;
+  return createMemo(() => unreadSurgeCount(todayCount()));
 }
 
 export function NotificationsPanel(props: { opened: boolean; onClose: () => void }) {
@@ -55,6 +62,9 @@ export function NotificationsPanel(props: { opened: boolean; onClose: () => void
       const incoming = Array.isArray(data.events) ? data.events : [];
       setEvents((prev) => (pageNum === 0 ? incoming : mergeSurgeEvents(prev, incoming)));
       setTotal(Number.isFinite(data.total) ? data.total : 0);
+      // Viewing the first page acknowledges today's alerts — the bell label
+      // drops back to "Notifications" until new ones arrive.
+      if (pageNum === 0) acknowledgeFromResponse(data);
     } catch {
       setLoadError("Could not load surge alerts.");
     } finally {

@@ -7,6 +7,10 @@ import { NotificationsPanel } from "./NotificationsPanel";
 import { fetchSurges } from "../../api/notifications";
 import { createSignal } from "solid-js";
 import type { PriceSurgeEvent } from "../../types/notifications";
+import {
+  unreadSurgeCount,
+  resetSurgeAcknowledgement,
+} from "../../state/store/notificationsSlice";
 
 vi.mock("../../api/notifications", () => ({
   fetchSurges: vi.fn(),
@@ -31,6 +35,7 @@ function makeEvent(overrides: Partial<PriceSurgeEvent> = {}): PriceSurgeEvent {
 describe("NotificationsPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetSurgeAcknowledgement();
   });
 
   afterEach(() => {
@@ -46,6 +51,22 @@ describe("NotificationsPanel", () => {
 
     expect(await screen.findByTestId("surge-card-1")).toBeInTheDocument();
     expect(mockedFetchSurges).toHaveBeenCalledWith(10, 0);
+  });
+
+  it("acknowledges today's alerts when the first page loads", async () => {
+    mockedFetchSurges.mockResolvedValueOnce({
+      total: 7094,
+      today_count: 4,
+      events: [makeEvent()],
+    });
+
+    render(() => (<UIProvider>
+        <NotificationsPanel opened onClose={vi.fn()} />
+      </UIProvider>),
+    );
+
+    expect(await screen.findByTestId("surge-card-1")).toBeInTheDocument();
+    expect(unreadSurgeCount(4)).toBe(0);
   });
 
   it("appends the next page without duplicating overlapping events", async () => {

@@ -249,6 +249,12 @@ def _build_tape_payload() -> Optional[dict]:
     except Exception:
         return None
     try:
+        # Same served shape as GET /nifty/tape — an untrimmed aux frame would
+        # reintroduce the 2.3 MB payload on the WebSocket path.
+        rows = nifty_report._trim_tape_chains(rows)
+    except Exception:
+        pass
+    try:
         baseline_t = rows[0].get("t") if rows else None
     except Exception:
         baseline_t = None

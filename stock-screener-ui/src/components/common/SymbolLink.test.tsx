@@ -48,6 +48,58 @@ describe("SymbolLink", () => {
     expect(open).toHaveBeenCalledWith("SBIN");
   });
 
+  test("a US market reaches the dock so the chart icon can route to ?market=usa", async () => {
+    const open = vi.fn();
+    r(
+      <SymbolDockContext.Provider
+        value={{ open, preview: vi.fn(), endPreview: vi.fn(), close: vi.fn(), pinned: false, setOutlet: vi.fn() }}
+      >
+        <SymbolLink symbol="AAPL" market="nasdaq" testId="sym-tv" chartTestId="sym-chart" />
+      </SymbolDockContext.Provider>,
+    );
+    await fireEvent.click(screen.getByTestId("sym-chart"));
+    expect(open).toHaveBeenCalledWith("AAPL", "chart", "nasdaq");
+  });
+
+  test("a US market preserves dotted symbols like BRK.B", async () => {
+    const open = vi.fn();
+    r(
+      <SymbolDockContext.Provider
+        value={{ open, preview: vi.fn(), endPreview: vi.fn(), close: vi.fn(), pinned: false, setOutlet: vi.fn() }}
+      >
+        <SymbolLink symbol="BRK.B" market="NYSE" testId="sym-tv" chartTestId="sym-chart" />
+      </SymbolDockContext.Provider>,
+    );
+    await fireEvent.click(screen.getByTestId("sym-chart"));
+    expect(open).toHaveBeenCalledWith("BRK.B", "chart", "NYSE");
+  });
+
+  test("an Indian market keeps the existing dock call shape", async () => {
+    const open = vi.fn();
+    r(
+      <SymbolDockContext.Provider
+        value={{ open, preview: vi.fn(), endPreview: vi.fn(), close: vi.fn(), pinned: false, setOutlet: vi.fn() }}
+      >
+        <SymbolLink symbol="RELIANCE" market="NSE" testId="sym-tv" chartTestId="sym-chart" />
+      </SymbolDockContext.Provider>,
+    );
+    await fireEvent.click(screen.getByTestId("sym-chart"));
+    expect(open).toHaveBeenCalledWith("RELIANCE");
+  });
+
+  test("the options icon forwards the market as well", async () => {
+    const open = vi.fn();
+    r(
+      <SymbolDockContext.Provider
+        value={{ open, preview: vi.fn(), endPreview: vi.fn(), close: vi.fn(), pinned: false, setOutlet: vi.fn() }}
+      >
+        <SymbolLink symbol="AAPL" market="NASDAQ" testId="sym-tv" />
+      </SymbolDockContext.Provider>,
+    );
+    await fireEvent.click(screen.getByTestId("symbol-options-AAPL"));
+    expect(open).toHaveBeenCalledWith("AAPL", "options", "NASDAQ");
+  });
+
   test("chart icon opens the in-app chart and does not follow the link", async () => {
     const onOpen = vi.fn();
     const parent = vi.fn();

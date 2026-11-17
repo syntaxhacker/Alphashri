@@ -27,6 +27,7 @@ import type {
   WatchSetup,
 } from "../types/chartPatterns";
 import { fetchWithAuth } from "../state/auth";
+import type { ChartMarket } from "../utils/chart/time";
 import { API_BASE } from "./config";
 import { readSseStream } from "./sse";
 import { appendParams, buildQueryString } from "./queryParams";
@@ -314,6 +315,11 @@ export async function fetchPatternHit(hitId: number): Promise<PatternHitDTO> {
 export interface SymbolChartOptions {
   limit?: number;
   lookbackBars?: number | null;
+  /**
+   * Market feed selector. Only `usa` is sent on the wire (`market=usa`); an
+   * omitted value keeps the India URL byte-identical.
+   */
+  market?: ChartMarket;
   /** Skip server-side trendline computation (false = skip; omitted = compute). */
   computeTrendlines?: boolean;
   /** Run live pattern detection on this timeframe (`detect_patterns=1`). */
@@ -322,6 +328,8 @@ export interface SymbolChartOptions {
   asOf?: string;
   /** Replay window start: filter hits to this window (`from_date`). */
   fromDate?: string;
+  /** Bypass the candle cache and force a fresh read (`refresh=1`). */
+  refresh?: boolean;
 }
 
 export async function fetchSymbolChart(
@@ -336,6 +344,8 @@ export async function fetchSymbolChart(
   const detectPatterns = typeof opts === "number" ? undefined : opts?.detectPatterns;
   const asOf = typeof opts === "number" ? undefined : opts?.asOf;
   const fromDate = typeof opts === "number" ? undefined : opts?.fromDate;
+  const refresh = typeof opts === "number" ? undefined : opts?.refresh;
+  const market = typeof opts === "number" ? undefined : opts?.market;
   appendParams(params, [
     ["limit", limit],
     ["lookback_bars", lookbackBars],
@@ -343,6 +353,8 @@ export async function fetchSymbolChart(
     ["detect_patterns", detectPatterns ? "1" : null],
     ["as_of_date", asOf],
     ["from_date", fromDate],
+    ["refresh", refresh ? "1" : null],
+    ["market", market],
   ]);
   return getJson<ChartPayload>(
     `${CHART_PATTERNS_BASE}/symbol/${encodeURIComponent(symbol)}/chart?${params.toString()}`,

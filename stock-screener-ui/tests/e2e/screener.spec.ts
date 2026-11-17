@@ -31,10 +31,20 @@ test.describe("Screener - Data Display", () => {
   });
   test("should display stock symbols as clickable links", async ({ page }) => {
     await openScreenerTable(page);
+    // SymbolLink renders the symbol body as a focusable <button> (inAppText),
+    // not an anchor — the ↗ TradingView affordance is the <a>.
     const firstSymbol = page
-      .locator('[data-testid="screener-table"] tbody a[data-testid^="symbol-link-"]')
+      .locator('[data-testid="screener-table"] tbody button[data-testid^="symbol-link-"]')
       .first();
     await expect(firstSymbol).toBeVisible();
+    const symbol = (await firstSymbol.textContent())?.trim() ?? "";
+    expect(symbol.length).toBeGreaterThan(0);
+
+    // Clicking the symbol body navigates in-app to that symbol's chart view.
+    await firstSymbol.click();
+    await expect(page).toHaveURL(/\/chart\//);
+    await expect(page.getByTestId("chart-view")).toBeVisible();
+    await expect(page.getByTestId("chart-title")).toContainText(symbol);
   });
   test("should display approaching and touched sections", async ({ page }) => {
     await openScreenerTable(page);
@@ -54,6 +64,7 @@ test.describe("Screener - Data Display", () => {
     await expect(status).toBeVisible();
   });
 });
+
 test.describe("Screener - Screener Navigation", () => {
   test.beforeEach(async ({ page }) => {
     await setupScreenerApp(page);
@@ -73,8 +84,10 @@ test.describe("Screener - Screener Navigation", () => {
 
     await page.locator('[data-testid="tab-correlation"]').click();
 
-    // After switching, wait for table rows to be visible again
-    await expect(page.locator('[data-testid="screener-table"] tbody tr').first()).toBeVisible({
+    // The Correlation tab is its own panel, not a stock table. Assert the
+    // navigation landed on it instead of a table the tab never renders.
+    await expect(page).toHaveURL(/\/screener\/correlation/);
+    await expect(page.locator('[data-testid="correlation-tab"]')).toBeVisible({
       timeout: 10000,
     });
   });

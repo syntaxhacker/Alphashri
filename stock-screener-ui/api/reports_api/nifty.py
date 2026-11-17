@@ -30,6 +30,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 import config
+from api import options_levels as levels
+from api.options_conventions import (
+    DEFAULT_LOT_SIZE,
+    GEX_FLIP_MAX_DIST_PCT,
+    GEX_LEVEL_MAX_DIST_PCT,
+    GEX_LEVEL_MIN_SHARE,
+)
+from api.options_math import put_call
+from api.reports_api._walls import as_report_walls as _as_report_walls
 from api.auth import get_current_user
 from api.reports_api._dates import validate_date
 from api.reports_api._numeric import safe_float as _safe_float, safe_int as _safe_int
@@ -160,47 +169,25 @@ def compute_pcr(pe_total: float, ce_total: float) -> Optional[float]:
     """Put-call ratio; ``None`` when there is no call base to divide by.
 
     A zero call base is not a PCR of 0.00 — it is an unknown ratio, and
-    printing 0.00 made the tape look like a pure put book.
+    printing 0.00 made the tape look like a pure put book. The ratio itself is
+    the shared :func:`api.options_math.put_call`; only the report's 2-decimal
+    rounding is local to this presentation layer.
     """
-    if not ce_total:
-        return None
-    return round(pe_total / ce_total, 2)
+    ratio = put_call(ce_total, pe_total)
+    return round(ratio, 2) if ratio is not None else None
 
 
 def compute_max_pain(strikes: list[dict]) -> float:
     """Max-pain strike over rows of ``{strike, ce_oi, pe_oi}``.
 
-    Total writer payout if the underlying expired at each candidate strike;
-    the minimum-payout strike wins. Ties resolve to the lowest strike.
-
-    The computation runs over the WHOLE chain passed in — the caller decides
-    the scope and reports it (``max_pain_scope_pts``). Truncating the chain
-    to a ±window around spot moved the level to a strike that is not the
-    chain's pain point, so the scope is now explicit instead of implied.
+    The payout formula lives in :func:`api.options_levels.compute_max_pain`
+    and runs over the WHOLE chain passed in — the caller decides the scope and
+    reports it (``max_pain_scope_pts``). That function uses ``None`` for "no OI
+    anywhere"; this report has always printed ``0.0`` for the unknown case, so
+    the wrapper keeps that back-compat value.
     """
-    if not strikes:
-        return 0.0
-    if not any(_safe_int(r.get("ce_oi")) + _safe_int(r.get("pe_oi"))
-               for r in strikes):
-        # No open interest anywhere: there is no pain level to report. Returning
-        # the lowest strike here would look like a real (and wildly wrong) level.
-        return 0.0
-    ordered = sorted(strikes, key=lambda r: r["strike"])
-    best_strike = ordered[0]["strike"]
-    min_loss = float("inf")
-    for cand in ordered:
-        t = cand["strike"]
-        loss = 0.0
-        for row in ordered:
-            s = row["strike"]
-            if t > s:
-                loss += (t - s) * row.get("ce_oi", 0)
-            elif t < s:
-                loss += (s - t) * row.get("pe_oi", 0)
-        if loss < min_loss:
-            min_loss = loss
-            best_strike = t
-    return best_strike
+    pain = levels.compute_max_pain(levels.normalize_strikes(strikes))
+    return pain if pain is not None else 0.0
 
 
 def build_leg(market_data: dict, greeks: Optional[dict] = None,
@@ -297,32 +284,24 @@ def top_walls(rows: list[dict], side: str, n: int = _TOP_WALLS,
               max_dist: Optional[float] = None) -> list[dict]:
     """Top-``n`` strikes by OI for side ``'ce'`` / ``'pe'``.
 
-    With ``spot``/``max_dist`` the ranking is limited to strikes within
-    ``max_dist`` points of spot — a far wall is book structure, not an
-    intraday level. Every entry carries its distance from spot.
+    Ranking and the ``spot``/``max_dist`` gate live in
+    :func:`api.options_levels.top_walls`; this wrapper only restores the
+    report's ``{strike, oi, distance}`` row shape.
     """
-    pool = rows
-    if spot and max_dist:
-        pool = [r for r in rows if abs(float(r.get("strike", 0)) - float(spot)) <= float(max_dist)]
-    ranked = sorted(pool, key=lambda r: r.get(side, {}).get("oi", 0), reverse=True)
-    out = []
-    for r in ranked[:n]:
-        oi = r[side]["oi"]
-        entry = {"strike": r["strike"], "oi": oi}
-        if spot:
-            entry["distance"] = round(float(r["strike"]) - float(spot), 2)
-        out.append(entry)
-    return out
+    walls = levels.top_walls(
+        levels.normalize_strikes(rows), side, spot=spot, n=n, max_dist=max_dist
+    )
+    return _as_report_walls(walls, spot)
 
 
 def near_walls(rows: list[dict], side: str, n: int = _TOP_WALLS,
                spot: Optional[float] = None,
                max_dist: Optional[float] = WALL_NEAR_DIST_PTS) -> list[dict]:
     """Heaviest OI near spot (falls back to the unrestricted ranking)."""
-    if not spot:
-        return top_walls(rows, side, n)
-    near = top_walls(rows, side, n, spot=spot, max_dist=max_dist)
-    return near or top_walls(rows, side, n, spot=spot)
+    walls = levels.near_walls(
+        levels.normalize_strikes(rows), side, spot=spot, n=n, max_dist=max_dist
+    )
+    return _as_report_walls(walls, spot)
 
 
 def _top_wall_strike(walls: Any, side: str) -> Optional[float]:
@@ -402,227 +381,22 @@ def _fetch_nifty_candles_cached(date_str: str, walkback_days: int = 0) -> list[d
     return data
 
 
-#: Largest distance (as a share of spot) at which a cumulative-gamma zero
-#: crossing is accepted as the flip level. The cumulative sum starts at ~0 at
-#: the deepest listed strike, so the first strike cluster that carries any real
-#: exposure can "cross" without describing a tradeable pivot — on 2026-10-21
-#: that artefact sat at 21,550, 1,402 pts below a 22,952 spot. A crossing
-#: outside this band is not reported at all.
-GEX_FLIP_MAX_DIST_PCT = 0.05
-
-#: Minimum |net_gex| for a strike to be reported as a support/resistance/fuel
-#: level, as a share of the profile's largest |net_gex|. Far-OTM wings carry
-#: greeks that round to a few paise of Cr (e.g. +0.07 at 21,000 under a 22,962
-#: spot) — large enough to win "largest positive below spot" but meaningless as
-#: a level. Below this share the side reports ``None`` and the UI renders ``—``.
-GEX_LEVEL_MIN_SHARE = 0.10
-
-#: Largest distance (as a share of spot) at which a support/resistance/fuel
-#: level is accepted. A wing 5%+ away cannot be the level that pins or fuels
-#: the current move, even when its gamma is real.
-GEX_LEVEL_MAX_DIST_PCT = 0.05
+# GEX gates are owned by api.options_conventions (imported above) and shared
+# with api.options_levels; their rationale lives there.
 
 
-def _gex_level(entry: dict, side: str) -> dict:
-    """Spot-relative level row: strike, net gamma, and which side of spot."""
-    return {"strike": entry["strike"], "net_gex": entry["net_gex"], "side": side}
-
-
-def compute_gex(rows: list[dict], spot: float, lot_size: int = 65) -> dict:
+def compute_gex(rows: list[dict], spot: float,
+                lot_size: int = DEFAULT_LOT_SIZE) -> dict:
     """Simplified dealer gamma exposure (GEX) per strike, in Cr per point.
 
-    Formula (per strike)::
-
-        call_gex = gamma_ce * oi_ce * spot / 1e7   (positive)
-        put_gex  = -(gamma_pe * oi_pe * spot / 1e7) (negative)
-        net_gex  = call_gex + put_gex
-
-    ``lot_size`` is accepted for backwards compatibility but **not applied**:
-    Upstox reports option OI in units (shares), so multiplying by the lot again
-    inflated every Cr figure 65×. Evidence: the same chain's ``walls`` block
-    carries OI of ~10-15M units at the ATM strikes (13,599,300 at 23,000 CE on
-    2026-10-21) — 209k contracts at lot 65, a plausible Nifty ATM OI. At 13.6M
-    *contracts* the single strike would represent 884M shares, larger than the
-    entire index's notional. The delta-positioning block next to it
-    (``nifty_positioning.py``) dropped the same multiplier.
-
-    Convention: customer long puts leave dealers short gamma, so the put
-    leg is expressed NEGATIVE and ``net_gex`` is the signed sum. ``net_total``
-    is the sum of ``net_gex`` across strikes (the whole book — *not* the
-    exposure at spot). ``regime`` is the sign of the cumulative net gamma **up
-    to spot**, i.e. the same side of the flip that spot trades on: ``"long"``
-    when that cumulative is positive (dampens moves / pins spot), ``"short"``
-    when negative (amplifies moves), and ``"flat"`` when ``|cum_at_spot| < 1.0``.
-    Deriving it from ``net_total`` used to label a spot *below* the flip as
-    "long gamma", contradicting the flip level shown beside it.
-
-    ``top_positive`` (top-2 by net_gex) / ``top_negative`` (bottom-2) are the
-    raw global extrema, kept for backwards compatibility. The actionable text
-    lives in ``levels``, which is **spot-relative**:
-
-    * ``support`` — largest positive net gamma **at/below** spot (pin magnet
-      that gets bought)
-    * ``resistance`` — largest positive net gamma **at/above** spot (pin magnet
-      that gets sold into)
-    * ``fuel_down`` — most negative net gamma **at/below** spot (below-spot
-      acceleration; never a support level)
-    * ``fuel_up`` — most negative net gamma **at/above** spot (upside squeeze
-      fuel; never a resistance level)
-
-    Each level is ``{strike, net_gex, side}`` with ``side`` ``"above"`` /
-    ``"below"``, or ``None`` when no strike on that side qualifies. A strike
-    must clear ``GEX_LEVEL_MIN_SHARE`` of the profile's peak |net_gex| and sit
-    within ``GEX_LEVEL_MAX_DIST_PCT`` of spot; otherwise it is a wing artefact
-    (the 2026-10-21 +0.07 at 21,000) and the level is ``None``.
-
-    ``zero_cross`` is the **sustained negative → positive** zero crossing of the
-    ascending cumulative net_gex, closest to spot and no further than
-    ``GEX_FLIP_MAX_DIST_PCT``; otherwise ``None``. A positive → negative cross
-    is a put wall, not a flip, and a leading-wing artefact outside the band is
-    discarded. A crossing that disagrees with the cumulative sign at spot is
-    also dropped, so the flip and ``regime`` can never contradict each other.
-    Pure function, no network. All floats rounded to 2 decimals.
-
-    Degraded mode: when the chain is usable (non-empty, non-zero OI) but
-    Upstox returned no gamma for any leg, a gamma-weighted sum is identically
-    zero and the report would claim ``net_total: 0 / regime: "flat"`` for a
-    perfectly good chain. In that case the per-strike OI itself is used as the
-    signed exposure proxy (calls positive, puts negative), which preserves the
-    sign convention and the shape while keeping the block meaningful.
-
-    The proxy is scaled like the real thing — ``OI × spot / 1e7``, i.e. the
-    same Cr conversion with the (missing) gamma factor dropped — so the two
-    live on one axis instead of the proxy being raw unit counts next to Cr
-    figures. Because it is still a proxy, the block is flagged
-    ``degraded: true`` and the callers must not present it as a gamma
-    profile: the tape row therefore records ``net_gex`` / ``flip`` as ``None``
-    for a degraded block instead of writing a fabricated flip into the day's
-    log.
+    Delegates the whole computation to :func:`api.options_levels.compute_gex`.
+    The shared module owns the formula, the ``GEX_*`` gates and every returned
+    key — including the report's back-compat ``strikes`` / ``net_total`` /
+    ``top_positive`` / ``top_negative`` alongside ``levels`` / ``zero_cross`` /
+    ``regime`` / ``degraded``. ``lot_size`` stays in the signature for backwards
+    compatibility and is still not applied: Upstox reports OI in units.
     """
-    spot_f = _safe_float(spot)
-    # A zero spot makes every gamma term zero, which would report "flat" for a
-    # live chain. Fall back to the median strike as the scale reference.
-    strikes = sorted(_safe_float((r or {}).get("strike")) for r in (rows or []))
-    strikes = [s for s in strikes if s > 0]
-    if spot_f <= 0 and strikes:
-        spot_f = strikes[len(strikes) // 2]
-    has_gamma = any(
-        _safe_float(((r or {}).get("ce") or {}).get("gamma"))
-        or _safe_float(((r or {}).get("pe") or {}).get("gamma"))
-        for r in (rows or [])
-    )
-    per = []
-    for r in rows or []:
-        ce = r.get("ce", {}) or {}
-        pe = r.get("pe", {}) or {}
-        g_ce = _safe_float(ce.get("gamma"))
-        g_pe = _safe_float(pe.get("gamma"))
-        oi_ce = _safe_int(ce.get("oi"))
-        oi_pe = _safe_int(pe.get("oi"))
-        if has_gamma:
-            call_gex = round(g_ce * oi_ce * spot_f / 1e7, 2)
-            put_gex = round(-g_pe * oi_pe * spot_f / 1e7, 2)
-        else:
-            # No greeks anywhere: OI is the only exposure signal available.
-            # Scaled like the real GEX (gamma dropped, same Cr conversion).
-            call_gex = round(oi_ce * spot_f / 1e7, 2)
-            put_gex = round(-oi_pe * spot_f / 1e7, 2)
-        net_gex = round(call_gex + put_gex, 2)
-        per.append({"strike": r.get("strike", 0.0), "call_gex": call_gex,
-                    "put_gex": put_gex, "net_gex": net_gex})
-    per.sort(key=lambda e: e["strike"])
-    net_total = round(sum(e["net_gex"] for e in per), 2)
-    by_desc = sorted(per, key=lambda e: e["net_gex"], reverse=True)
-    by_asc = sorted(per, key=lambda e: e["net_gex"])
-    top_positive = [{"strike": e["strike"], "net_gex": e["net_gex"]} for e in by_desc[:2]]
-    top_negative = [{"strike": e["strike"], "net_gex": e["net_gex"]} for e in by_asc[:2]]
-    # Spot-relative levels. A positive-gamma strike is a pin magnet on whichever
-    # side it sits; a negative-gamma strike is acceleration/fuel, never support
-    # or resistance. Naming a strike by its sign alone (old ``top_positive`` /
-    # ``top_negative``) put 23,200 "support" above a 22,952 spot on 2026-10-21.
-    #
-    # Significance + distance gates: the largest |net_gex| in the book sets the
-    # scale; a wing that carries <10% of it (or sits >5% from spot) is noise,
-    # not a level. Without the magnitude gate, a +0.07 Cr strike 1,963 pts below
-    # spot won "largest positive below spot" and rendered as "γ support 21,000".
-    peak_abs = max((abs(e["net_gex"]) for e in per), default=0.0)
-    min_abs = peak_abs * GEX_LEVEL_MIN_SHARE
-    max_dist = spot_f * GEX_LEVEL_MAX_DIST_PCT if spot_f > 0 else 0.0
-    near = [e for e in per if max_dist <= 0 or abs(e["strike"] - spot_f) <= max_dist]
-    below = [e for e in near if e["strike"] <= spot_f]
-    above = [e for e in near if e["strike"] >= spot_f]
-
-    def _pick(entries: list[dict], sign: int) -> Optional[dict]:
-        pool = [e for e in entries
-                if e["net_gex"] * sign > 0 and abs(e["net_gex"]) >= min_abs]
-        if not pool:
-            return None
-        if sign > 0:
-            return max(pool, key=lambda e: e["net_gex"])
-        return min(pool, key=lambda e: e["net_gex"])
-
-    support = _pick(below, 1)
-    resistance = _pick(above, 1)
-    fuel_down = _pick(below, -1)
-    fuel_up = _pick(above, -1)
-    levels = {
-        "support": _gex_level(support, "below") if support else None,
-        "resistance": _gex_level(resistance, "above") if resistance else None,
-        "fuel_down": _gex_level(fuel_down, "below") if fuel_down else None,
-        "fuel_up": _gex_level(fuel_up, "above") if fuel_up else None,
-    }
-
-    # Gamma flip: the sustained negative → positive crossing closest to spot.
-    # Only a negative → positive cross is a flip (below it the book is put
-    # heavy, above it calls dominate); a positive → negative cross is a put
-    # wall. A crossing further than GEX_FLIP_MAX_DIST_PCT from spot is a wing
-    # artefact, not a level, so it is dropped rather than reported.
-    # A DEGRADED block (no gamma anywhere) has no gamma flip at all: the
-    # crossing would be an OI artefact, so none is reported.
-    crossings: list[float] = []
-    cum = 0.0
-    cum_at_spot = 0.0
-    prev = None
-    for e in per:
-        cum = round(cum + e["net_gex"], 2)
-        if e["strike"] <= spot_f:
-            cum_at_spot = cum
-        if prev is not None and prev < 0 <= cum:
-            crossings.append(e["strike"])
-        prev = cum
-    zero_cross = None
-    if crossings and cum >= 0 and has_gamma:
-        max_flip_dist = spot_f * GEX_FLIP_MAX_DIST_PCT
-        candidates = [s for s in crossings if abs(s - spot_f) <= max_flip_dist]
-        if candidates:
-            zero_cross = min(candidates, key=lambda s: abs(s - spot_f))
-
-    # Regime = cumulative sign at spot (the side of the flip spot trades on),
-    # never ``net_total``: a book can be net long overall while spot sits below
-    # the flip (short gamma there), which made the panel self-contradictory.
-    # Drop a flip that disagrees with that sign so the two can never conflict.
-    if zero_cross is not None:
-        if spot_f < zero_cross and cum_at_spot >= 0:
-            zero_cross = None
-        elif spot_f > zero_cross and cum_at_spot < 0:
-            zero_cross = None
-    if abs(cum_at_spot) < 1.0:
-        regime = "flat"
-    elif cum_at_spot > 0:
-        regime = "long"
-    else:
-        regime = "short"
-    return {
-        "strikes": per,
-        "net_total": net_total,
-        "regime": regime,
-        "top_positive": top_positive,
-        "top_negative": top_negative,
-        "levels": levels,
-        "zero_cross": zero_cross,
-        # True when no leg carried gamma and the profile is an OI proxy.
-        "degraded": not has_gamma,
-    }
+    return levels.compute_gex(levels.normalize_strikes(rows), spot, lot_size)
 
 
 def market_block() -> dict:
@@ -1130,6 +904,20 @@ def _rolling_oi(rows: list[dict], minutes: tuple[int, ...] = (5, 15)) -> dict:
     return out
 
 
+def _self_iv_expiries(expiry: Optional[str],
+                      rows: list[dict]) -> dict[str, list[dict]]:
+    """Use the report's own chain as a one-point IV term map.
+
+    The chain is already in hand (reused from the 10s cache or fetched for this
+    report), so this never makes an upstream call. It keeps ``iv_surface.term``
+    populated with the report's own expiry instead of always empty, while
+    preserving the list payload shape. Returns ``{}`` when there is no expiry
+    label, in which case the term stays empty.
+    """
+    key = str(expiry or "").strip()
+    return {key: rows} if key else {}
+
+
 async def _attach_verdicts(report: dict, rows: list[dict], spot: float,
                            for_date: Optional[str],
                            expiries: Optional[Mapping[Any, Iterable[Any]]] = None,
@@ -1409,8 +1197,10 @@ async def _compute_live(expiry: Optional[str], for_date: Optional[str] = None,
     structure (``report["iv_surface"]["term"]``). This function fetches only the
     report's own chain, so callers that already hold other expiries pass them
     here — e.g. ``await _compute_live(None, expiries={exp: rows_for(exp)})``
-    where each value is ``parse_chain_payload(payload)[2]``. With no map the
-    term stays ``[]`` (the honest answer for a single expiry).
+    where each value is ``parse_chain_payload(payload)[2]``. When no map is
+    supplied the report's own chain is used as a one-point term map (no extra
+    upstream call — see :func:`_self_iv_expiries`), so ``term`` is populated
+    instead of always empty.
 
     Chain source: when ``payload`` is omitted the newest 10s poller frame is
     reused if fresh (:func:`_chain10s_chain`); only when there is no fresh frame
@@ -1473,7 +1263,9 @@ async def _compute_live(expiry: Optional[str], for_date: Optional[str] = None,
     report = reconcile_closed_market_spot(report)
     spot = _safe_float(report.get("spot")) or spot
     if with_verdicts:
-        await _attach_verdicts(report, rows, spot, for_date, expiries=expiries)
+        term_map = expiries if expiries is not None else _self_iv_expiries(
+            chain_expiry or expiry, rows)
+        await _attach_verdicts(report, rows, spot, for_date, expiries=term_map)
         # Verdict attachment builds the richer 1-minute series (gap-filled from
         # the tape); reconcile once more so the stored spot matches the last
         # candle it just produced (see reconcile_closed_market_spot).
@@ -1912,9 +1704,13 @@ async def get_live_report(expiry: Optional[str] = None,
                     except Exception:
                         report["pivots"] = None
                     try:
+                        term_map = (expiries if expiries is not None
+                                    else _self_iv_expiries(
+                                        report.get("expiry"),
+                                        report.get("strikes", [])))
                         await _attach_verdicts(
                             report, report.get("strikes", []),
-                            report.get("spot", 0), None, expiries=expiries)
+                            report.get("spot", 0), None, expiries=term_map)
                     except Exception:
                         pass
                     # Project the WS VIX reading (and any explicit control /
@@ -2988,6 +2784,188 @@ def _strike_oi_snapshot(strikes: list, spot: float, n: int = 3) -> list[dict]:
     return kept
 
 
+#: Window (points) the tape's per-row ``chain`` keeps around the spot.
+#: This is exactly the window the two chain readers use: the heatmap
+#: (``niftyOiHeatmap.ts``) and the volume profile (``niftyVolumeProfile.ts``)
+#: both drop every strike outside spot ± ``widthPts``, default 500 (the
+#: workspace passes ``strikeStep * 5``). Keeping the full ~142-strike chain per
+#: minute instead — 85-90% of a 2.29 MB payload — bought the wire nothing.
+#: Do not widen a consumer's window past this without raising the constant:
+#: the served rows no longer carry the far strikes.
+TAPE_CHAIN_WINDOW_PTS = 500
+#: Outlier guard only. The widest recorded row keeps 32 strikes (2026-11-06,
+#: 629-pt session range); this cap never binds on real data and exists so a
+#: corrupt spot cannot balloon a single row.
+TAPE_CHAIN_MAX_STRIKES = 40
+#: Day-wide anchors beyond the window: the heaviest OI strike per leg and the
+#: heaviest-flow strikes, because the wall-migration detector and the
+#: participant-flow classifier rank the WHOLE chain, not the visible window.
+TAPE_CHAIN_FLOW_ANCHORS = 3
+
+
+def _day_wide_anchor_strikes(rows: list[dict]) -> set[str]:
+    """Strike keys worth keeping in EVERY row of a day.
+
+    Three consumers read a strike that is not near the current spot: the
+    wall-migration detector ranks the whole chain per frame, the volume profile
+    accumulates a strike's whole-day volume, and the participant-flow
+    classifier reports the day's heaviest flow. A day-wide "heaviest OI per leg"
+    plus "heaviest flow" set keeps those answers stable while the per-row
+    windows keep the local view intact.
+    """
+    ce: dict[str, float] = {}
+    pe: dict[str, float] = {}
+    flow: dict[str, float] = {}
+    prev: Optional[dict] = None
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        chain = row.get("chain")
+        if not isinstance(chain, dict):
+            prev = None
+            continue
+        prev_chain = (prev or {}).get("chain") or {}
+        for key, cell in chain.items():
+            if not isinstance(cell, (list, tuple)) or len(cell) < 4:
+                continue
+            ce_oi = _safe_float(cell[2])
+            pe_oi = _safe_float(cell[3])
+            if ce_oi > ce.get(key, 0.0):
+                ce[key] = ce_oi
+            if pe_oi > pe.get(key, 0.0):
+                pe[key] = pe_oi
+            prior = prev_chain.get(key) if isinstance(prev_chain, dict) else None
+            if isinstance(prior, (list, tuple)) and len(prior) >= 4:
+                amount = 0.0
+                for now_oi, then_oi, now_prem, then_prem in (
+                        (ce_oi, _safe_float(prior[2]), cell[0], prior[0]),
+                        (pe_oi, _safe_float(prior[3]), cell[1], prior[1])):
+                    premium = (_safe_float(now_prem) + _safe_float(then_prem)) / 2.0
+                    amount += abs(now_oi - then_oi) * (premium if premium > 0 else 1.0)
+                if amount:
+                    flow[key] = flow.get(key, 0.0) + amount
+        prev = row
+    anchors: set[str] = set()
+    for ranking in (ce, pe):
+        anchors.update(sorted(ranking, key=ranking.get, reverse=True)[:1])
+    anchors.update(sorted(flow, key=flow.get, reverse=True)[:TAPE_CHAIN_FLOW_ANCHORS])
+    return anchors
+
+
+def _trim_tape_chains(rows: list[dict]) -> list[dict]:
+    """Keep only the strikes the tape's UI consumers can actually read.
+
+    The on-disk tape stays complete (``scripts/wall_replay/*``,
+    ``scripts/eval_unwind_pnl.py`` and ``scripts/paper_nifty_loop.py`` read
+    arbitrary strikes from the file); this trims the SERVED rows only.
+
+    A strike survives when any of these hold:
+
+    * it is within ``TAPE_CHAIN_WINDOW_PTS`` of the day's last spot — the
+      window the heatmap and the volume profile render, or
+    * it is within ``TAPE_CHAIN_WINDOW_PTS`` of the row's OWN spot. Both sides
+      use the same width on purpose: in replay the playhead sits mid-day, so the
+      heatmap's reference spot is an EARLIER spot, and a narrower row band drops
+      edge cells at every replay cut (measured: up to 5 visible strikes per cut
+      on 2026-11-03). With them equal, all 18 recorded days lose 0 visible
+      strikes at every one of their playheads, or
+    * it is a day-wide anchor (heaviest CE/PE OI, heaviest flow) or that row's
+      heaviest CE/PE OI strike or its nearest strike to the day's median spot
+      (the fixed premium reference ``niftyPressure.ts`` uses), or
+    * it is named by the row's ``call_wall``/``put_wall``/``max_pain``/
+      ``atm_strike`` or any of its ``walls`` entries or ``strikes_top`` rows.
+
+    Trimming is signalled per row (``chain_truncated`` / ``chain_center`` /
+    ``chain_window_pts``) so a consumer can tell a shortened chain from a short
+    one. Never raises: a malformed day is returned unchanged.
+
+    Verified invariants over all 18 recorded NIFTY days: the heatmap's strike
+    universe (spot ± 500) is byte-identical to the untrimmed day at EVERY
+    replay playhead, and the wall/volume maxima are unchanged.
+    """
+    rows = [r for r in rows or [] if isinstance(r, dict)]
+    if not rows:
+        return rows
+    try:
+        spots = [_safe_float(r.get("spot")) for r in rows]
+        spots = [s for s in spots if s > 0]
+        if not spots:
+            return rows
+        last_spot = spots[-1]
+        median_spot = sorted(spots)[len(spots) // 2]
+        anchors = _day_wide_anchor_strikes(rows)
+        out: list[dict] = []
+        for row in rows:
+            chain = row.get("chain")
+            if not isinstance(chain, dict) or not chain:
+                out.append(row)
+                continue
+            spot = _safe_float(row.get("spot"))
+            keep: set[str] = set()
+            for key in chain:
+                try:
+                    strike = float(key)
+                except (TypeError, ValueError):
+                    continue
+                near_session = abs(strike - last_spot) <= TAPE_CHAIN_WINDOW_PTS
+                near_row = spot > 0 and abs(strike - spot) <= TAPE_CHAIN_WINDOW_PTS
+                if near_session or near_row:
+                    keep.add(key)
+            keep |= anchors & set(chain)
+            # The row's own named levels: a wall/max-pain/ATM strike can sit
+            # outside both bands on a wide-range day and the panel still names it.
+            named = [row.get("call_wall"), row.get("put_wall"),
+                     row.get("max_pain"), row.get("max_pain_computed"),
+                     row.get("atm_strike")]
+            walls = row.get("walls")
+            if isinstance(walls, dict):
+                for side in ("calls", "puts"):
+                    for entry in walls.get(side) or []:
+                        if isinstance(entry, dict):
+                            named.append(entry.get("strike"))
+            for strike in named:
+                value = _safe_float(strike)
+                if value:
+                    keep.add(str(int(value)))
+            for entry in row.get("strikes_top") or []:
+                if isinstance(entry, dict):
+                    value = _safe_float(entry.get("strike"))
+                    if value:
+                        keep.add(str(int(value)))
+            try:
+                heaviest = max(chain, key=lambda k: (_safe_float(chain[k][2])
+                                                     + _safe_float(chain[k][3]))
+                               if isinstance(chain[k], (list, tuple)) and len(chain[k]) >= 4
+                               else -1.0)
+                keep.add(heaviest)
+            except (TypeError, ValueError):
+                pass
+            keep.add(min(chain, key=lambda k: abs(_safe_float(k) - median_spot)))
+            if len(keep) > TAPE_CHAIN_MAX_STRIKES:
+                # Outlier guard: keep the strikes closest to the row's own spot
+                # so a corrupt spot cannot balloon a row.
+                reference = spot if spot > 0 else last_spot
+                keep = set(sorted(keep, key=lambda k: abs(_safe_float(k) - reference)
+                                  )[:TAPE_CHAIN_MAX_STRIKES])
+            # Preserve the source key order: iterating a set makes the JSON byte
+            # order vary per process, and this payload is cached/compared by size.
+            trimmed = {k: v for k, v in chain.items() if k in keep}
+            if len(trimmed) < len(chain):
+                row = {
+                    **row,
+                    "chain": trimmed,
+                    "chain_truncated": True,
+                    "chain_center": spot or last_spot,
+                    "chain_window_pts": TAPE_CHAIN_WINDOW_PTS,
+                }
+            else:
+                row = {**row, "chain": trimmed}
+            out.append(row)
+        return out
+    except Exception:
+        return rows
+
+
 #: Max chain-vs-index disagreement tolerated before the index quote wins (0.25%).
 SPOT_CHAIN_DEV_MAX = 0.0025
 #: Max minute-over-minute spot move accepted without an independent confirmation.
@@ -3545,6 +3523,11 @@ def get_nifty_tape(date: Optional[str] = Query(default=None, description="Tape d
     the recorder was alive during market hours, so gaps stay gaps. A
     missing/empty tape yields a 404 ``{is_trading_day: False}`` envelope.
     See :func:`derive_tape_rows` for the per-row formulas.
+
+    Per-row ``chain`` snapshots are trimmed to the strikes the report UI can
+    read (:func:`_trim_tape_chains`) — the recorded file keeps every strike,
+    this response does not. A shortened row carries ``chain_truncated: true``,
+    ``chain_center`` (its spot) and ``chain_window_pts``.
     """
     date_str = validate_date(date or _today_str())
     raw = read_tape(date_str)
@@ -3554,7 +3537,7 @@ def get_nifty_tape(date: Optional[str] = Query(default=None, description="Tape d
             "date": date_str,
             "message": f"no Nifty tape for {date_str}",
         })
-    rows = derive_tape_rows(raw)
+    rows = _trim_tape_chains(derive_tape_rows(raw))
     # Honest baseline: deltas are measured vs the day's FIRST recorded row,
     # which may be well after the open when the recorder booted late.
     baseline_t = rows[0].get("t") if rows else None

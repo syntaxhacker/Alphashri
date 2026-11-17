@@ -171,10 +171,14 @@ def _closest_to_25_delta(legs):
 
 
 def skew_25d(strikes):
-    """25-delta put IV minus 25-delta call IV, in vol points.
+    """25-delta call IV minus 25-delta put IV, in vol points.
 
-    Positive = downside put skew (the desk's existing ``control.skew`` sign).
-    Returns None when either wing has no contract in the delta band.
+    Positive = calls rich, negative = puts rich — the documented 25Δ
+    risk-reversal convention, shared with ``api/options_iv.rr25`` and the
+    report IV-skew panel. This is deliberately opposite in sign to the desk's
+    ATM ``control.skew`` (put − call) shown beside it: that is a different
+    metric, not the 25Δ wing reversal. Returns None when either wing has no
+    contract in the delta band.
     """
     calls, puts = [], []
     for row in strikes or []:
@@ -187,7 +191,7 @@ def skew_25d(strikes):
     put = _closest_to_25_delta(puts)
     if call is None or put is None:
         return None
-    return put[1] - call[1]
+    return call[1] - put[1]
 
 
 def breadth_verdict(pcts):
@@ -1191,6 +1195,8 @@ def render(payload: dict, now=None) -> str:
         f"VIX {fmt_num(vix.get('ltp'))} {fmt_pct(vix.get('change_pct'))}"
     )
 
+    # SKEW25 is the 25Δ call−put RR; `ctl` is the ATM put−call skew from
+    # compute_control — different metrics, so opposite signs are expected.
     lines.append(
         f"VOL  ATM IV CE {fmt_num(vol['atm_ce_iv'])} / PE {fmt_num(vol['atm_pe_iv'])}  "
         f"RV {fmt_num(vol['rv'])}  IV/RV {vol['iv_rv']}  "

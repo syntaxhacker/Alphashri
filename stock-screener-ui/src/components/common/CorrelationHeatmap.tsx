@@ -19,6 +19,7 @@ import {
   CHART_LIGHT_BG,
 } from "../../config/colors";
 import { withAlpha } from "../../utils/color";
+import { contrastRatio } from "../../utils/contrast";
 
 const COLOR_STOPS = [
   { color: SECTOR_LIGHT_RED, pos: 0.0 },
@@ -54,14 +55,8 @@ function getTextColor(value: number): string {
   const g = Math.round(c1.g + (c2.g - c1.g) * local);
   const b = Math.round(c1.b + (c2.b - c1.b) * local);
 
-  const srgb = [r, g, b].map((c) => {
-    const s = c / 255;
-    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
-  });
-  const lum = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
-  const contrastWhite = 1.05 / (lum + 0.05);
-  const contrastBlack = (lum + 0.05) / 0.05;
-  return contrastWhite >= contrastBlack ? CREAM : BROWN_DARK;
+  const cell = `rgb(${r}, ${g}, ${b})`;
+  return contrastRatio(CREAM, cell) >= contrastRatio(BROWN_DARK, cell) ? CREAM : BROWN_DARK;
 }
 
 function chartColors(isDark: boolean) {

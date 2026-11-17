@@ -20,6 +20,7 @@
     "format": "oxfmt src tests",
     "format:check": "oxfmt --check src tests",
     "typecheck": "tsc --noEmit",
+    "contrast": "bun run scripts/check_contrast.ts",
     "prepare": "husky",
     "check:duplicates": "jscpd src tests --min-lines 5 --reporters console",
     "check:unused": "knip",
@@ -58,19 +59,15 @@
     "wrangler": "^4.73.0"
   },
   "dependencies": {
-    "@pipsend/charts": "^2.0.1",
     "@sentry/solid": "^11.12.0",
     "@solidjs/router": "^1.0.3",
     "@solidjs/testing-library": "^0.8.10",
-    "@tanstack/solid-table": "^9.3.1",
-    "d3-interpolate": "^3.0.1",
     "dayjs": "^1.11.20",
     "dukascopy-node": "^1.50.0",
     "echarts": "^6.0.0",
     "lightweight-charts": "^5.2.1",
     "lz-string": "^1.5.0",
     "marked": "^18.2.0",
-    "remark-gfm": "^4.0.1",
     "solid-js": "^1.9.19",
     "solid-notifications": "^1.2.0"
   }

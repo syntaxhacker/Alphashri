@@ -1,11 +1,22 @@
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import { Box, Button, Text, Tooltip, useMediaQuery } from "@/ui";
+import {
+  For,
+  Show,
+  Suspense,
+  createEffect,
+  createMemo,
+  createSignal,
+  lazy,
+  onCleanup,
+  onMount,
+} from "solid-js";
+import { ActionIcon, Box, Button, Text, Tooltip, useMediaQuery } from "@/ui";
 import * as palette from "@/ui/palette";
 import {
   IconArrowsMaximize,
   IconArrowsMinimize,
   IconRefresh,
   IconRotate,
+  IconTarget,
   IconX,
 } from "@/components/common/Icons";
 import type { SortEntry } from "@/components/common/TanStackTable";
@@ -19,6 +30,8 @@ import {
   setExpiry,
   refresh,
   netPremium,
+  resumePolling,
+  suspendPolling,
 } from "@/state/optionsDock";
 import type { ChainLeg } from "@/api/optionsDock";
 import {
@@ -31,8 +44,41 @@ import { StrategyControl } from "./StrategyControl";
 import { PayoffPanel } from "./PayoffPanel";
 import { SummaryStrip, formatDte } from "./SummaryStrip";
 import { DockSection } from "./DockSection";
+import { AnalyticsTabStrip } from "./analytics/AnalyticsTabStrip";
+import type { AnalyticsStripContext } from "./analytics/AnalyticsTabStrip";
+import type { AnalyticsContentTab } from "./analytics/AnalyticsPanel";
+import type { AnalyticsTab } from "./analytics/types";
+import {
+  abortAnalytics,
+  refreshAnalytics,
+  optionsAnalyticsState,
+} from "@/state/optionsAnalytics";
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+
+/**
+ * PAYOFF keeps its original slot. A chart tab also carries the smile chrome
+ * (18px caption + 16px wings + 24px footer = 58px), so at 206px its 96px plot
+ * did not fit and the footer was clipped. The taller band is bounded so a tall
+ * monitor does not hand the dock's whole column to one chart.
+ */
+export const PAYOFF_BAND_HEIGHT = "206px";
+export const CHART_BAND_HEIGHT = "clamp(320px, 42vh, 400px)";
+
+/** The band height for a tab; maximized docks ignore it and fill instead. */
+export function bandHeight(tab: AnalyticsTab): string {
+  return tab === "payoff" ? PAYOFF_BAND_HEIGHT : CHART_BAND_HEIGHT;
+}
+
+// The analytics bundle is fetched on the first non-payoff tab, never on open.
+const AnalyticsPanel = lazy(() =>
+  import("./analytics/AnalyticsPanel").then((module) => ({ default: module.AnalyticsPanel })),
+);
+
+// The four pillars pull ECharts; keep them out of the dock's own chunk.
+const DockPillarsView = lazy(() =>
+  import("./analytics/DockPillarsView").then((module) => ({ default: module.DockPillarsView })),
+);
 
 /** `2026-03-26` → `26 MAR`. */
 function shortDate(date: string): string {
@@ -58,17 +104,15 @@ type DockFailure = { kind: string; message: string };
  * `error` while `status` stays `ready`. The banner wording mirrors the cold
  * panel for `auth`, and adds the two cases that only arise once a chain exists.
  */
-function bannerMessage(error: DockFailure): string {
+function bannerMessage(error: DockFailure, retrySeconds: number): string {
   switch (error.kind) {
     case "auth":
       return "Reconnect Upstox in Settings";
     case "rate":
-    case "rate_limited": {
-      const retryAfterMs = optionsDockState.paused?.retryAfterMs ?? 0;
-      return retryAfterMs > 0
-        ? `Refreshing paused — retry in ${Math.ceil(retryAfterMs / 1000)} s`
+    case "rate_limited":
+      return retrySeconds > 0
+        ? `Refreshing paused — retry in ${retrySeconds} s`
         : "Refreshing paused — rate limited";
-    }
     case "not_fno":
       return "No listed options";
     default:
@@ -112,8 +156,9 @@ function dteYearsOf(expiryDate: string | null, now: Date = new Date()): number {
 
 function spotMoveColor(value: number | null): string | undefined {
   if (value == null || !Number.isFinite(value)) return undefined;
-  if (value > 0) return palette.POSITIVE;
-  if (value < 0) return palette.NEGATIVE;
+  // Theme tokens, not palette hexes: the light-mode negative must stay readable.
+  if (value > 0) return "var(--color-fin-positive)";
+  if (value < 0) return "var(--color-fin-negative)";
   return undefined;
 }
 
@@ -158,14 +203,81 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
   const isNarrow = useMediaQuery(CHAIN_NARROW_QUERY);
   const [chainSide, setChainSide] = createSignal<"CE" | "PE">("CE");
   const [chainSorting, setChainSorting] = createSignal<SortEntry[]>([...DEFAULT_CHAIN_SORTING]);
+  // Bumping this asks OptionChainTable to re-enable follow and re-centre the ATM
+  // row — the escape hatch when a user has scrolled away manually.
+  const [chainCenterNonce, setChainCenterNonce] = createSignal(0);
+  const [analyticsTab, setAnalyticsTab] = createSignal<AnalyticsTab>("payoff");
+  const [analyticsHeadline, setAnalyticsHeadline] = createSignal("");
+  // The pillars replace the chain in place; they never navigate to the
+  // standalone dashboard route, so the dock (and its legs) stay put.
+  const [pillarsOpen, setPillarsOpen] = createSignal(false);
+  let restoreMaximize = false;
+  /** Set for exactly one maximize transition, so entering pillars does not
+   * capture the strip button as the generic restore target (it is detached). */
+  let enteringPillars = false;
+  let pillarsTrigger: HTMLElement | null = null;
+
+  const openPillars = () => {
+    if (pillarsOpen()) return;
+    // The strip is about to unmount with the rest of the body, so remember who
+    // opened the view instead of letting the maximize effect read `<body>`.
+    pillarsTrigger = document.activeElement as HTMLElement | null;
+    enteringPillars = true;
+    // Charts need the room; restore the previous dock size on the way back.
+    restoreMaximize = maximized();
+    setAnalyticsHeadline("");
+    setPillarsOpen(true);
+    setMaximized(true);
+    // The chain is hidden; polling it would spend the options slice on a table
+    // nobody can see.
+    suspendPolling();
+  };
+
+  const closePillars = () => {
+    const restore = restoreMaximize;
+    restoreMaximize = false;
+    setPillarsOpen(false);
+    setMaximized(restore);
+    resumePolling();
+    // Solid has already re-rendered the body by now; the same button the user
+    // pressed is back, and focus must land on it rather than on the body.
+    const trigger =
+      document.querySelector<HTMLElement>('[data-testid="analytics-pillars-open"]') ?? pillarsTrigger;
+    trigger?.focus?.({ preventScroll: true });
+    pillarsTrigger = null;
+  };
+
+  // A stale summary must not survive a tab switch: the new tab owns its read.
+  const selectAnalyticsTab = (tab: AnalyticsTab) => {
+    setAnalyticsHeadline("");
+    setAnalyticsTab(tab);
+  };
 
   // Maximize a11y state: the element that had focus when maximize was opened,
-  // the body overflow value we temporarily replace, and whether we are
-  // maximized (so the effect only acts on transitions, not every store-driven
-  // re-render).
+  // the scroll owners' overflow values we temporarily replace, and whether we
+  // are maximized (so the effect only acts on transitions, not every
+  // store-driven re-render).
   let restoreTarget: HTMLElement | null = null;
   let previousOverflow = "";
+  let previousMainOverflow = "";
   let wasMaximized = false;
+
+  /**
+   * The page has two scrollers: `<body>` and the layout's `#app-main`. Locking
+   * only the body left the real scroller live behind the maximized dock.
+   */
+  const setScrollLock = (locked: boolean) => {
+    const main = document.getElementById("app-main");
+    if (locked) {
+      previousOverflow = document.body.style.overflow;
+      previousMainOverflow = main?.style.overflow ?? "";
+      document.body.style.overflow = "hidden";
+      if (main) main.style.overflow = "hidden";
+      return;
+    }
+    document.body.style.overflow = previousOverflow;
+    if (main) main.style.overflow = previousMainOverflow;
+  };
 
   const isStrikeOrder = () => {
     const sort = chainSorting();
@@ -176,39 +288,76 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
     );
   };
 
+  // The 0-DTE / EXPIRED labels cross a boundary at 15:40; a 30 s clock is
+  // enough to relabel without waking up per frame. A live 429 swaps in a 1 s
+  // clock so its countdown actually counts instead of repeating the first value.
+  let clockTimer: number | undefined;
+  createEffect(() => {
+    const interval = optionsDockState.paused ? 1_000 : 30_000;
+    if (clockTimer != null) window.clearInterval(clockTimer);
+    setNow(new Date());
+    clockTimer = window.setInterval(() => setNow(new Date()), interval);
+  });
+  onCleanup(() => {
+    if (clockTimer != null) window.clearInterval(clockTimer);
+    // The dashboard read is owned by DockPillarsView: its own cleanup aborts the
+    // in-flight flight when it unmounts, so this panel does not duplicate it.
+    abortAnalytics();
+    // Unmounting mid-pillars must not leave the chain suspended forever.
+    if (pillarsOpen()) resumePolling();
+  });
+
   onMount(() => {
-    // The 0-DTE / EXPIRED labels cross a boundary at 15:40; a 30 s clock is
-    // enough to relabel without waking up per frame.
-    const timer = window.setInterval(() => setNow(new Date()), 30_000);
-    onCleanup(() => window.clearInterval(timer));
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        if (maximized()) setMaximized(false);
-        else props.onClose?.();
+      if (event.key !== "Escape") return;
+      // A native picker (expiry <select>) or the lot input owns Escape while it
+      // is focused: the browser closes the picker, not the dock.
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (maximized() && !pillarsOpen()) setMaximized(false);
+      else if (pillarsOpen()) closePillars();
+      else {
+        abortAnalytics();
+        props.onClose?.();
       }
     };
     window.addEventListener("keydown", onKey);
     onCleanup(() => window.removeEventListener("keydown", onKey));
   });
 
-  // Maximize a11y: aria-modal on the maximized root, body scroll lock, focus
-  // capture on the restore button, and focus/overflow restore on exit.
+  // Maximize a11y: dialog semantics + scroll lock while maximized, focus capture
+  // on the restore button, and focus/overflow restore on exit.
   createEffect(() => {
     const m = maximized();
     if (m && !wasMaximized) {
-      const active = document.activeElement as HTMLElement | null;
-      restoreTarget = active && document.body.contains(active) ? active : null;
+      // Entering the pillars detaches the button that opened them; capturing it
+      // would leave a dead node. `closePillars` owns that restore instead.
+      const viaPillars = enteringPillars;
+      enteringPillars = false;
+      if (viaPillars) {
+        restoreTarget = null;
+      } else {
+        const active = document.activeElement as HTMLElement | null;
+        restoreTarget = active && document.body.contains(active) ? active : null;
+      }
       const root = document.querySelector<HTMLElement>('[data-testid="options-dock"]');
       if (root) root.setAttribute("aria-modal", "true");
-      previousOverflow = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
+      setScrollLock(true);
       const restoreButton = document.querySelector<HTMLElement>('[data-testid="options-maximize"]');
-      if (restoreButton) restoreButton.focus({ preventScroll: true });
-      else if (root) root.focus({ preventScroll: true });
+      if (!viaPillars && restoreButton) restoreButton.focus({ preventScroll: true });
+      else root?.focus({ preventScroll: true });
     } else if (!m && wasMaximized) {
       const root = document.querySelector<HTMLElement>('[data-testid="options-dock"]');
       if (root) root.removeAttribute("aria-modal");
-      document.body.style.overflow = previousOverflow;
+      setScrollLock(false);
       restoreTarget?.focus?.({ preventScroll: true });
       restoreTarget = null;
     }
@@ -219,7 +368,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
     if (wasMaximized) {
       const root = document.querySelector<HTMLElement>('[data-testid="options-dock"]');
       if (root) root.removeAttribute("aria-modal");
-      document.body.style.overflow = previousOverflow;
+      setScrollLock(false);
       restoreTarget?.focus?.({ preventScroll: true });
       restoreTarget = null;
     }
@@ -252,6 +401,18 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
     });
   });
 
+  // Seconds left in a 429 pause, read off the ticking clock. Floored at 0 so a
+  // late tick can never show "retry in -1 s".
+  const retrySeconds = createMemo(() => {
+    const paused = optionsDockState.paused;
+    if (!paused) return 0;
+    const retryAt = Number.isFinite(paused.retryAt)
+      ? paused.retryAt
+      : Date.now() + paused.retryAfterMs;
+    const remaining = retryAt - now().getTime();
+    return Number.isFinite(remaining) ? Math.max(0, Math.ceil(remaining / 1000)) : 0;
+  });
+
   const handlePick = (strike: number, type: "CE" | "PE", leg: ChainLeg, side: "buy" | "sell") => {
     const premium = leg.ltp ?? 0;
     addLeg({ side, type, strike, premium, expiry: optionsDockState.expiry ?? undefined });
@@ -259,11 +420,123 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
 
   const legs = () => optionsDockState.legs;
 
+  const stripContext = (): AnalyticsStripContext => ({
+    symbol: symbol(),
+    expiry: selectedExpiry(),
+    spot: spot(),
+    atmIv: chain()?.atmIv ?? null,
+    marketState: optionsDockState.underlying?.marketState ?? null,
+  });
+  const stripMaxPain = () =>
+    chain()?.levels?.maxPain?.strike ?? optionsAnalyticsState.data?.levels?.maxPain ?? null;
+
+  // One shell for both branches: the payoff tab renders it here, the lazy
+  // analytics tabs render the identical strip inside AnalyticsPanel.
+  const renderStrip = () => (
+    <AnalyticsTabStrip
+      value={analyticsTab()}
+      onChange={selectAnalyticsTab}
+      headline={analyticsHeadline()}
+      onRefresh={() => void refreshAnalytics()}
+      refreshing={optionsAnalyticsState.refreshing}
+      symbol={optionsDockState.symbol}
+      context={stripContext()}
+      data={optionsAnalyticsState.data}
+      maxPain={stripMaxPain()}
+      expiryOptions={optionsDockState.expiries}
+      selectedExpiry={optionsDockState.expiry}
+      onSelectExpiry={setExpiry}
+      onOpenPillars={openPillars}
+    />
+  );
+
+  /**
+   * The analytics band. Legs are only needed by the PAYOFF tab, so a chart tab
+   * (and the four pillars behind the strip) must open with zero legs — the
+   * no-legs branch renders the same band and falls back to the placeholder
+   * inside the PAYOFF tab only.
+   */
+  const renderBand = () => (
+    <Box
+      className={maximized() ? "flex min-h-0 flex-1" : "flex shrink-0"}
+      style={maximized() ? undefined : { height: bandHeight(analyticsTab()) }}
+    >
+      <DockSection
+        title="PAYOFF"
+        testId="options-analytics-band"
+        headerTestId="dock-section-analytics"
+        header={<></>}
+        fill
+        padded={false}
+      >
+        <Show
+          when={analyticsTab() === "payoff"}
+          fallback={
+            <Suspense
+              fallback={
+                <Box className="flex min-h-0 flex-1 items-center justify-center">
+                  <Text
+                    size="xs"
+                    c="dimmed"
+                    className="font-mono uppercase"
+                    style={{ "font-size": "9px" }}
+                  >
+                    Loading analytics
+                  </Text>
+                </Box>
+              }
+            >
+              <AnalyticsPanel
+                tab={analyticsTab() as AnalyticsContentTab}
+                symbol={symbol()}
+                rows={chain()!.rows}
+                spot={spot()}
+                atmIv={chain()!.atmIv}
+                legs={legs()}
+                selectedExpiry={optionsDockState.expiry}
+                dteYears={dteYears()}
+                onHeadline={setAnalyticsHeadline}
+                onTabChange={selectAnalyticsTab}
+                headline={analyticsHeadline()}
+                onRefresh={() => void refreshAnalytics()}
+                refreshing={optionsAnalyticsState.refreshing}
+                context={stripContext()}
+                maxPain={stripMaxPain()}
+                expiryOptions={optionsDockState.expiries}
+                onSelectExpiry={setExpiry}
+                onOpenPillars={openPillars}
+              />
+            </Suspense>
+          }
+        >
+          {renderStrip()}
+          <PayoffPanel
+            legs={legs()}
+            spot={spot()}
+            iv={chain()!.atmIv}
+            dteYears={dteYears()}
+            showHeader={false}
+          />
+        </Show>
+      </DockSection>
+    </Box>
+  );
+
+  // Chart tabs do not need a leg; only the PAYOFF tab has nothing to show
+  // without one, so the band appears as soon as a chart tab is chosen.
+  const bandVisible = () => legs().length > 0 || analyticsTab() !== "payoff";
+
   return (
     // The sheet/rail wrappers clip at a fixed height, so the dock is the single
     // scroll owner: a short sheet scrolls instead of clipping LEGS/PAYOFF.
     <Box
       data-testid="options-dock"
+      // A maximized dock is a real dialog, not a plain div with aria-modal set
+      // imperatively. The focus trap is deliberately deferred: the dock's own
+      // controls stay tabbable and Escape/Back are the documented exits.
+      role={maximized() ? "dialog" : undefined}
+      aria-label={maximized() ? "Options dock" : undefined}
+      tabIndex={maximized() ? -1 : undefined}
       className={
         maximized()
           ? "fixed inset-0 z-[1200] flex flex-col overflow-hidden bg-fin-surface"
@@ -343,7 +616,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
 
           <Box className="flex items-center gap-0.5">
             <Show when={optionsDockState.paused}>
-              <Tooltip label={`Rate limited — refreshing in ${Math.ceil((optionsDockState.paused?.retryAfterMs ?? 0) / 1000)} s`}>
+              <Tooltip label={`Rate limited — refreshing in ${retrySeconds()} s`}>
                 <Text
                   size="xs"
                   c="warning"
@@ -378,14 +651,17 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                 <IconRefresh size={12} />
               </Box>
             </Tooltip>
-            <Tooltip label={maximized() ? "Restore" : "Maximize"}>
+            <Tooltip label={pillarsOpen() ? "Back to chain first" : maximized() ? "Restore" : "Maximize"}>
               <Box
                 component="button"
                 type="button"
                 aria-label={maximized() ? "Restore options dock" : "Maximize options dock"}
                 data-testid="options-maximize"
+                // The pillars own the full-screen size; un-maximizing here would
+                // shrink the charts. Back to chain is the only exit.
+                disabled={pillarsOpen()}
                 onClick={() => setMaximized((v) => !v)}
-                className="inline-flex h-[22px] w-[22px] items-center justify-center border-0 bg-transparent p-0 text-fin-text-muted hover:text-fin-primary"
+                className="inline-flex h-[22px] w-[22px] items-center justify-center border-0 bg-transparent p-0 text-fin-text-muted hover:text-fin-primary disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {maximized() ? <IconArrowsMinimize size={12} /> : <IconArrowsMaximize size={12} />}
               </Box>
@@ -397,8 +673,10 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                 aria-label="Close options dock"
                 data-testid="options-close"
                 onClick={() => {
+                  setPillarsOpen(false);
                   setMaximized(false);
                   close();
+                  abortAnalytics();
                   props.onClose?.();
                 }}
                 className="inline-flex h-[22px] w-[22px] items-center justify-center border-0 bg-transparent p-0 text-fin-text-muted hover:text-fin-negative"
@@ -413,7 +691,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
       {/* ---------------------------------------------------------------- */}
       {/* Body                                                             */}
       {/* ---------------------------------------------------------------- */}
-      <Show when={optionsDockState.status === "error" && optionsDockState.error}>
+      <Show when={!pillarsOpen() && optionsDockState.status === "error" && optionsDockState.error}>
         <Box
           className="flex flex-1 flex-col items-center justify-center gap-1 px-4 text-center"
           data-testid="options-dock-error"
@@ -439,7 +717,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
         </Box>
       </Show>
 
-      <Show when={optionsDockState.status === "empty"}>
+      <Show when={!pillarsOpen() && optionsDockState.status === "empty"}>
         <Box
           className="flex flex-1 flex-col items-center justify-center gap-1 px-4 text-center"
           data-testid="options-dock-empty"
@@ -455,6 +733,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
 
       <Show
         when={
+          !pillarsOpen() &&
           optionsDockState.status !== "error" &&
           optionsDockState.status !== "empty"
         }
@@ -497,6 +776,17 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
             separated={false}
             meta={
               <Box className="flex items-center gap-2">
+                <Tooltip label="Center on at-the-money strike">
+                  <ActionIcon
+                    variant="transparent"
+                    data-testid="options-chain-center"
+                    aria-label="Center on at-the-money strike"
+                    className="text-fin-text-muted hover:text-fin-primary"
+                    onClick={() => setChainCenterNonce((n) => n + 1)}
+                  >
+                    <IconTarget size={12} />
+                  </ActionIcon>
+                </Tooltip>
                 <Show when={!isStrikeOrder()}>
                   <Tooltip label="Reset to strike order">
                     <Box
@@ -508,7 +798,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                       className="inline-flex h-[20px] shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap border border-fin-border bg-transparent px-1 font-mono text-[9px] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
                       style={{ "border-radius": "4px" }}
                     >
-                      <IconRotate size={10} />
+                      <IconRotate size={12} />
                       <span className="hidden sm:inline">Strike</span>
                     </Box>
                   </Tooltip>
@@ -544,7 +834,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                   className="min-w-0 flex-1 truncate font-mono"
                   style={{ "font-size": "10px", color: bannerColor(optionsDockState.error!) }}
                 >
-                  {bannerMessage(optionsDockState.error!)}
+                  {bannerMessage(optionsDockState.error!, retrySeconds())}
                 </Text>
                 <Box
                   component="button"
@@ -563,6 +853,8 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
               rows={chain()!.rows}
               spot={spot()}
               side={chainSide()}
+              expiry={optionsDockState.expiry}
+              centerNonce={chainCenterNonce()}
               loading={optionsDockState.refreshing && chain()!.rows.length === 0}
               onPick={handlePick}
               sorting={chainSorting()}
@@ -576,9 +868,12 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
             currentExpiry={optionsDockState.expiry}
           />
           <Show
-            when={legs().length > 0}
+            when={bandVisible()}
             fallback={
+              // Stripe above the caption so the four pillars open with zero legs;
+              // PAYOFF itself stays a placeholder until there is something to price.
               <DockSection title="PAYOFF" testId="options-payoff-placeholder">
+                {renderStrip()}
                 <Text size="xs" c="dimmed">
                   {formatDte(selectedExpiry()?.dteDays ?? 0)} · add a leg to see the
                   payoff
@@ -586,19 +881,33 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
               </DockSection>
             }
           >
-            <Box
-              className={maximized() ? "flex min-h-0 flex-1" : "flex shrink-0"}
-              style={maximized() ? undefined : { height: "206px" }}
-            >
-              <PayoffPanel
-                legs={legs()}
-                spot={spot()}
-                iv={chain()!.atmIv}
-                dteYears={dteYears()}
-              />
-            </Box>
+            {renderBand()}
           </Show>
         </Show>
+      </Show>
+
+      {/* The four-pillar analytics, in place of the chain. The dock stays the
+          same surface: legs, expiry and symbol are not lost to a route hop. */}
+      <Show when={pillarsOpen()}>
+        <Suspense
+          fallback={
+            <Box
+              className="flex flex-1 flex-col items-center justify-center gap-1"
+              data-testid="dock-pillars-chunk-loading"
+            >
+              <Text size="xs" c="dimmed">
+                Loading pillars…
+              </Text>
+            </Box>
+          }
+        >
+          <DockPillarsView
+            symbol={optionsDockState.symbol ?? ""}
+            onBack={closePillars}
+            selectedExpiry={optionsDockState.expiry}
+            onExpiry={setExpiry}
+          />
+        </Suspense>
       </Show>
     </Box>
   );

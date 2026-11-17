@@ -197,15 +197,16 @@ export async function navigateToBot(page: Page, _botId?: string) {
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
 
   // Select a bot via the Select dropdown
-  const botSelect = page.locator('[data-testid="bot-select"]');
+  const botSelect = page.locator('[data-testid="bot-select"] select');
   await expect(botSelect).toBeVisible({ timeout: 10000 });
-  await botSelect.click();
-  await page.waitForTimeout(200);
+  await botSelect.focus();
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
 
   await page.getByTestId("tab-live").click();
-  await page.waitForTimeout(1000);
+  await expect(
+    page.getByTestId("positions-table-container").or(page.getByTestId("positions-empty")).first(),
+  ).toBeVisible({ timeout: 20000 });
 }
 
 export async function verifyStrategyPanel(page: Page): Promise<void> {
@@ -213,5 +214,7 @@ export async function verifyStrategyPanel(page: Page): Promise<void> {
   // Verify the positions container is visible (all positions shown by default)
   const positionsContainer = page.getByTestId("positions-table-container");
   await expect(positionsContainer).toBeVisible();
-  await page.waitForTimeout(1000);
+  await expect(positionsContainer.locator('[data-testid^="strategy-card-"]').first()).toBeVisible({
+    timeout: 10000,
+  });
 }

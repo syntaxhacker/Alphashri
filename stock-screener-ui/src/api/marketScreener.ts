@@ -1,13 +1,16 @@
 import { fetchWithAuth } from "../state/auth";
 import { API_BASE } from "@/api/config";
+import { finiteNumber, finiteText } from "./wireParse";
+import { MARKET_ROW_CAP, MARKET_SYMBOL_CAP } from "../config/apiLimits";
+import { MARKET_UNIVERSE_DESCRIPTORS } from "../config/marketUniverses";
 import type { MarketRow, MarketSnapshot, MarketUniverse } from "../types/marketScreener";
 
 const MARKET_API = `${API_BASE}/api/market`;
 
 export const DEFAULT_MARKET_UNIVERSE: MarketUniverse = "all_equity";
-export const MARKET_SNAPSHOT_LIMIT = 4000;
+export const MARKET_SNAPSHOT_LIMIT = MARKET_ROW_CAP;
 /** Backend hard cap on symbols per /api/market/snapshot request. */
-export const MARKET_SYMBOLS_MAX = 20;
+export const MARKET_SYMBOLS_MAX = MARKET_SYMBOL_CAP;
 
 const MARKET_SNAPSHOT_CACHE_PREFIX = "alphashri.market_snapshot.v1.";
 /** sessionStorage quota is ~5MB; stay well under it — an oversized entry is skipped, never truncated mid-row. */
@@ -102,12 +105,9 @@ export function writeCachedMarketSnapshot(universe: MarketUniverse, snapshot: Ma
   }
 }
 
-export const MARKET_UNIVERSES: { value: MarketUniverse; label: string }[] = [
-  { value: "all_equity", label: "All NSE" },
-  { value: "nifty500", label: "Nifty 500" },
-  { value: "nifty50", label: "Nifty 50" },
-  { value: "nse_fo", label: "F&O" },
-];
+/** Dropdown options come from the same descriptors the formatters read. */
+export const MARKET_UNIVERSES: { value: MarketUniverse; label: string }[] =
+  MARKET_UNIVERSE_DESCRIPTORS.map(({ value, label }) => ({ value, label }));
 
 export interface MarketSnapshotParams {
   universe?: MarketUniverse;
@@ -136,6 +136,10 @@ interface RawMarketRow {
   change?: unknown;
   relative_volume?: unknown;
   market_cap_cr?: unknown;
+  /** Backend emits camelCase; accept the snake_case spelling too. */
+  marketCapUsdB?: unknown;
+  market_cap_usd_b?: unknown;
+  currency?: unknown;
   cap_tier?: unknown;
   rsi?: unknown;
   adx?: unknown;
@@ -163,49 +167,47 @@ interface RawMarketSnapshot {
   rows?: unknown;
 }
 
-function toNumber(value: unknown): number | null {
-  if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  if (typeof value === "string" && value.trim() !== "") {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
-
-function toText(value: unknown): string | null {
-  return typeof value === "string" && value.trim() !== "" ? value : null;
-}
-
 function toBool(value: unknown): boolean {
   return value === true || value === 1 || value === "true";
 }
 
+/** Legacy/partial payloads are INR; only an explicit USD marker flips it. */
+function toCurrency(value: unknown): "INR" | "USD" {
+  return typeof value === "string" && value.trim().toUpperCase() === "USD" ? "USD" : "INR";
+}
+
 export function mapMarketRow(raw: RawMarketRow | null | undefined): MarketRow {
   const r = raw ?? {};
+  const currency = toCurrency(r.currency);
+  const usdCap = finiteNumber(r.marketCapUsdB) ?? finiteNumber(r.market_cap_usd_b);
   return {
-    symbol: toText(r.symbol) ?? "",
-    name: toText(r.name) ?? "",
-    sector: toText(r.sector),
-    exchange: toText(r.exchange),
-    close: toNumber(r.close),
-    change: toNumber(r.change),
-    relativeVolume: toNumber(r.relative_volume),
-    marketCapCr: toNumber(r.market_cap_cr),
-    capTier: toText(r.cap_tier)?.toLowerCase() ?? null,
-    rsi: toNumber(r.rsi),
-    adx: toNumber(r.adx),
-    sma20: toNumber(r.sma20),
-    sma50: toNumber(r.sma50),
-    sma200: toNumber(r.sma200),
-    perfW: toNumber(r.perf_w),
-    perf1m: toNumber(r.perf_1m),
-    high52w: toNumber(r.high_52w),
-    low52w: toNumber(r.low_52w),
-    pos52w: toNumber(r.pos_52w),
-    peRatio: toNumber(r.pe_ratio),
-    pbRatio: toNumber(r.pb_ratio),
-    dividendYield: toNumber(r.dividend_yield),
-    roe: toNumber(r.roe),
+    symbol: finiteText(r.symbol) ?? "",
+    name: finiteText(r.name) ?? "",
+    sector: finiteText(r.sector),
+    exchange: finiteText(r.exchange),
+    close: finiteNumber(r.close),
+    change: finiteNumber(r.change),
+    relativeVolume: finiteNumber(r.relative_volume),
+    // One cap unit per currency: never let a stale field leak a ₹ figure into a
+    // USD row (or the reverse). The backend already emits the other as null.
+    marketCapCr: currency === "USD" ? null : finiteNumber(r.market_cap_cr),
+    marketCapUsdB: currency === "USD" ? usdCap : null,
+    currency,
+    capTier: finiteText(r.cap_tier)?.toLowerCase() ?? null,
+    rsi: finiteNumber(r.rsi),
+    adx: finiteNumber(r.adx),
+    sma20: finiteNumber(r.sma20),
+    sma50: finiteNumber(r.sma50),
+    sma200: finiteNumber(r.sma200),
+    perfW: finiteNumber(r.perf_w),
+    perf1m: finiteNumber(r.perf_1m),
+    high52w: finiteNumber(r.high_52w),
+    low52w: finiteNumber(r.low_52w),
+    pos52w: finiteNumber(r.pos_52w),
+    peRatio: finiteNumber(r.pe_ratio),
+    pbRatio: finiteNumber(r.pb_ratio),
+    dividendYield: finiteNumber(r.dividend_yield),
+    roe: finiteNumber(r.roe),
     fno: toBool(r.fno),
     etf: toBool(r.etf),
   };
@@ -215,10 +217,10 @@ export function mapMarketSnapshot(raw: RawMarketSnapshot | null | undefined): Ma
   const r = raw ?? {};
   const rows = Array.isArray(r.rows) ? r.rows.map((row) => mapMarketRow(row as RawMarketRow)) : [];
   return {
-    asOf: toText(r.as_of),
-    universe: toText(r.universe) ?? DEFAULT_MARKET_UNIVERSE,
-    total: toNumber(r.total) ?? rows.length,
-    updateMode: toText(r.update_mode) ?? "unknown",
+    asOf: finiteText(r.as_of),
+    universe: finiteText(r.universe) ?? DEFAULT_MARKET_UNIVERSE,
+    total: finiteNumber(r.total) ?? rows.length,
+    updateMode: finiteText(r.update_mode) ?? "unknown",
     rows,
   };
 }
@@ -275,9 +277,9 @@ async function fetchQuotesBatch(symbols: string[], init?: RequestInit): Promise<
   return rows.map((row) => {
     const r = row as RawMarketRow;
     return {
-      symbol: toText(r.symbol) ?? "",
-      close: toNumber(r.close),
-      change: toNumber(r.change),
+      symbol: finiteText(r.symbol) ?? "",
+      close: finiteNumber(r.close),
+      change: finiteNumber(r.change),
     };
   });
 }

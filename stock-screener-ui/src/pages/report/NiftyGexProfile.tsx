@@ -1,4 +1,8 @@
 import { createMemo, Show } from "solid-js";
+import {
+  GEX_LEVEL_MAX_DIST_PCT,
+  GEX_LEVEL_MIN_SHARE,
+} from "@/config/reportAnalytics";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
@@ -262,11 +266,9 @@ interface GexSideLevels {
   above: GexSideLevel | null;
 }
 
-/** A level must carry at least this share of the profile's peak |netGex|. */
-export const GEX_LEVEL_MIN_SHARE = 0.1;
-
-/** A level farther than this share of spot is a wing, not an actionable level. */
-export const GEX_LEVEL_MAX_DIST_PCT = 0.05;
+// Gates are owned by config (mirrored from the Python owner, drift-guarded by
+// tests/api/test_options_conventions.py); re-exported for existing importers.
+export { GEX_LEVEL_MAX_DIST_PCT, GEX_LEVEL_MIN_SHARE };
 
 /**
  * Largest positive (pin) if any, else most negative (fuel), on one side.
@@ -414,6 +416,18 @@ export function gexTone(v: number | null): string {
 }
 
 /**
+ * A pin magnet is a level, not a gamma sign: SUP is green support, RES is red
+ * resistance, regardless of the sign of the gamma that creates it. Negative
+ * gamma is fuel on its own side and keeps the sign-based tone.
+ */
+export function gexLevelTone(level: GexSideLevel | null): string {
+  if (!level) return palette.TEXT_MUTED;
+  if (level.kind === "support") return palette.LEVEL_SUPPORT;
+  if (level.kind === "resistance") return palette.LEVEL_RESISTANCE;
+  return gexTone(level.netGex);
+}
+
+/**
  * Pure MiniLineChart prop builder (unit-testable). The plotted window is the
  * significance band from `selectGexBand`, widened to keep the flip level and
  * the strike nearest spot inside it. Markers:
@@ -555,14 +569,14 @@ export function NiftyGexProfile(props: NiftyGexProfileProps) {
           <LocalCompactStat
             testId="nifty-gex-profile-support"
             label={belowCopy().label}
-            tone={gexTone(below()?.netGex ?? null) ?? undefined}
+            tone={gexLevelTone(below())}
             value={GexLevelValue({ level: below() })}
             hint={belowCopy().hint}
           />
           <LocalCompactStat
             testId="nifty-gex-profile-resist"
             label={aboveCopy().label}
-            tone={gexTone(above()?.netGex ?? null) ?? undefined}
+            tone={gexLevelTone(above())}
             value={GexLevelValue({ level: above() })}
             hint={aboveCopy().hint}
           />
@@ -638,6 +652,39 @@ export function NiftyGexProfile(props: NiftyGexProfileProps) {
             testId="nifty-gex-profile-chart"
             emptyMessage="No per-strike GEX profile"
           />
+        </div>
+        {/* Report-wide level key: the horizontal zero line splits dampening
+            (above) from amplifying (below); SUP/RES name the two pin magnets.
+            Dots carry the level colour, labels stay on the panel surface. */}
+        <div
+          data-testid="nifty-gex-profile-levels-legend"
+          class="flex flex-wrap items-center gap-[8px] w-full min-w-0"
+          style={{ "font-size": "9px", "line-height": "1.2", color: palette.TEXT_MUTED }}
+        >
+          <span
+            data-testid="nifty-gex-profile-level-legend-sup"
+            title="SUP · support — positive-gamma pin magnet below spot (green). A negative-gamma strike below spot is fuel, never support."
+            class="inline-flex items-center gap-[4px] whitespace-nowrap"
+          >
+            <span
+              aria-hidden="true"
+              class="inline-block shrink-0 rounded-full w-[6px] h-[6px]"
+              style={{ "background-color": palette.LEVEL_SUPPORT }}
+            />
+            <span>SUP {formatGexStrike(below()?.kind === "support" ? below()!.strike : null)}</span>
+          </span>
+          <span
+            data-testid="nifty-gex-profile-level-legend-res"
+            title="RES · resistance — positive-gamma pin magnet above spot (red). A negative-gamma strike above spot is fuel, never resistance."
+            class="inline-flex items-center gap-[4px] whitespace-nowrap"
+          >
+            <span
+              aria-hidden="true"
+              class="inline-block shrink-0 rounded-full w-[6px] h-[6px]"
+              style={{ "background-color": palette.LEVEL_RESISTANCE }}
+            />
+            <span>RES {formatGexStrike(above()?.kind === "resistance" ? above()!.strike : null)}</span>
+          </span>
         </div>
         <Show when={profile().length > 0}>
           <Text

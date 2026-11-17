@@ -37,7 +37,6 @@ export default defineConfig(({ mode }) => {
         output: {
           manualChunks(id: string) {
             if (id.includes("node_modules/solid-js") || id.includes("node_modules/@solidjs")) return "vendor";
-            if (id.includes("@tanstack")) return "tanstack";
             // Keep the chart engine out of the shared chunk so the entry shell
             // does not statically pull it in (chart pages import it lazily).
             // Scope to the package itself: a bare `echarts` match also caught

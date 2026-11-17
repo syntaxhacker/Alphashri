@@ -133,7 +133,7 @@ const STALE_AFTER_MS = 90_000;
 const REPLAY_PLAY_MS = 700;
 const SENSEX_REQUEST_TIMEOUT_MS = 10_000;
 const REQUEST_TIMEOUT_MS = 15_000;
-const GENERIC_POLL_MS = 15_000;
+export const GENERIC_POLL_MS = 15_000;
 const BREADTH_POLL_MS = 60_000;
 const BREADTH_FOCUS_GUARD_MS = 2_000;
 const CHAIN10S_POLL_MS = 10_000;
@@ -1721,6 +1721,13 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
       let pollTimer: number | null = null;
       const runPoll = async () => {
         if (!alive) return;
+        // A slow initial load can still be in flight when the first poll tick
+        // fires (both use a 15s budget). Skip this tick and re-arm instead of
+        // launching a second live/tape/bursts triple against the same request.
+        if (loadingInFlight) {
+          pollTimer = window.setTimeout(runPoll, GENERIC_POLL_MS);
+          return;
+        }
         const currentRequestId = requestId + 1;
         requestId = currentRequestId;
         const controller = new AbortController();

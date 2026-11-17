@@ -269,7 +269,7 @@ src/components/optiondock/
   ProbabilityPanel.tsx       lognormal density, POP, breakevens, E[P&L]
   GreeksPanel.tsx            net greeks + per-leg contribution
   OiProfile.tsx              horizontal OI bars by strike (CE left, PE right)
-  IvSurface3D.tsx            P3: heatmap (strike × expiry) + smile/term lines
+  analytics/SurfacePanel.tsx shipped: 2D ECharts heatmap (strike × expiry); + Smile/Term/Prob panels
   optionsDockStore.ts        createSubscriber store: chain frames, legs, selection
 src/api/optionChain.ts       (new) typed client: E1/E2/E3 — does NOT touch upstoxOptions.ts
 src/utils/optionsMath.ts     (new) pure: payoff, breakevens, lognormal POP, greeks aggregation
@@ -368,7 +368,7 @@ leaving 78 px of breathing room for the OI bar overlay and the ATM marker. Type 
 ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ NIFTY  26 MAR 2026 · 2d · 0-DTE │ 24 031.5 +0.42% │ PCR 1.11 │ PAIN 24 000 │ ±1σ 245   [⤡] [✕] │
 ├────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ SUMMARY │ CHAIN │ PAYOFF │ QUANT │ SURFACE                    [expiry 26 MAR · 2d ▾] [⟳]       │
+│ PAYOFF │ SMILE │ TERM │ SURFACE │ PROB                       [expiry 26 MAR · 2d ▾] [⟳]       │
 ├────────────────────────────────────────────────────────────────────────────────────────────────┤
 │                     CE                     │  STRIKE  │                   PE                   │
 │     OI   ΔOI   VOL    IV    Δ     LTP      │          │    LTP    Δ    IV   VOL   ΔOI      OI  │
@@ -391,8 +391,10 @@ leaving 78 px of breathing room for the OI bar overlay and the ATM marker. Type 
 
 Full screen is a *layout*, not a second implementation: the same `OptionChainTable` and the same
 store, with the chain taking the whole width (primary content gets the space — UX principle §1) and
-legs / payoff / probability / quant in a fixed 39-column footer band. It adds `ΔOI` per side and the
-`SURFACE` tab, which the 480 px dock cannot fit.
+legs / payoff / probability / quant in a fixed 39-column footer band. It adds `ΔOI` per side; the
+analytics strip is the same one the dock uses (`PAYOFF / SMILE / TERM / SURFACE / PROB`); all five
+tabs fit at 390 px and the strip's `overflow-x-auto` is an overflow guard, not active scroll — tabs
+are never dropped.
 
 ### 4.3 Narrow — 390 px (< 1200, bottom sheet, 46 columns)
 
@@ -402,7 +404,7 @@ legs / payoff / probability / quant in a fixed 39-column footer band. It adds `�
 │ NIFTY  26 MAR · 2d     24 031  +0.42%      │
 │ [ CE ] [ BOTH ] [ PE ]      [⤢] [✕]        │
 ├────────────────────────────────────────────┤
-│ SUMMARY │ CHAIN │ PAYOFF │ QUANT           │
+│ PAYOFF │ SMILE │ TERM │ SURFACE │ PROB    │
 ├────────────────────────────────────────────┤
 │      OI      IV        LTP │       STRIKE  │
 │     70L    13.8      144.0 │       23 950  │
@@ -425,7 +427,7 @@ sheet never scrolls horizontally.
 
 ```
 ┌────────────────────────────────────────────────────────┬──────────────────────────────────┐
-│ SURFACE | 3 expiries × 19 strikes (2d/9d/16d)          │ IV SMILE · 26 MAR                │
+│ SURFACE | 3 expiries × 21 strikes (2d/9d/16d)          │ IV SMILE · 26 MAR                │
 ├────────────────────────────────────────────────────────┼──────────────────────────────────┤
 │         K→23 800 23 900 24 000 24 100 24 200           │  14.6 ┤        ╭─╮               │
 │   26 MAR      13.9   13.8   13.8   13.8   13.9         │       │      ╱     ╲             │
@@ -433,7 +435,7 @@ sheet never scrolls horizontally.
 │   09 APR      14.9   14.6   14.6   14.7   14.9         │       └──┬───┬───┬───┬──         │
 │   ATM 24 000 · smile quadratic in ln(K/S)              │        23.8 23.9 24.0 24.1 24.2  │
 │   TERM  13.8 (2d) → 14.2 (9d) → 14.6 (16d)             │ skew  PE − CE   +0.6 vp          │
-│   term slope +0.4 vp/expiry          [2D] [3D]         │ 25Δ RR    −0.9 vp                │
+│   term slope +0.4 vp/expiry          [2D heatmap]      │ 25Δ RR    −0.9 vp                │
 └────────────────────────────────────────────────────────┴──────────────────────────────────┘
 ```
 
@@ -441,8 +443,48 @@ The heat cells are the same `σ(K)` the chain's IV column shows for 26 MAR (13.8
 strike out) — a surface that disagrees with the table above it is worse than no surface. Term
 structure is lifted per expiry, so the ATM ridge rises `13.8 → 14.2 → 14.6`.
 
-If the 3D engine ships (open decision #4) the heatmap gains a `[3D]` toggle and the same grid is
-raised on a surface plot — the data contract does not change.
+**Shipped (2026-11).** The analytics tab strip shipped as `PAYOFF · SMILE · TERM · SURFACE · PROB`
+(`AnalyticsTabStrip.tsx`); the analytics body (`AnalyticsPanel.tsx`) owns `SMILE / TERM / SURFACE /
+PROB` and the dock's payoff panel owns `PAYOFF`. `SurfacePanel.tsx` renders this grid as an **ECharts
+2D `heatmap`**, deliberately *not* `echarts-gl` WebGL — no 3D engine or `[3D]` toggle shipped.
+Missing expiry/strike intersections are omitted, never painted as a misleading zero. The sampled
+strike columns are capped by `SURFACE_MAX_STRIKES = 21` (`src/config/optionsAnalytics.ts`, the
+shipped value behind the "19 strikes" sketch above); expiries default to **3** and clamp to **6** via
+`ANALYTICS_DEFAULT_EXPIRIES` / `ANALYTICS_MAX_EXPIRIES` in the same module, mirrored in
+`api/options_conventions.py` for `GET /api/options/analytics/{underlying}`.
+
+### Analytics visual contract (shipped 2026-11)
+
+The five tabs keep the `analytics-tab-*` testid prefix; their visible labels are now:
+
+- **PAYOFF · IV BY STRIKE · IV BY EXPIRY · IV MAP · POSITION ODDS**.
+- Persistent context on every tab: `symbol · selected expiry · DTE · spot · ATM IV · CLOSED/OPEN`.
+
+**Verdict chips** (top of the analytics body):
+
+- Skew — `PUTS RICH` / `CALLS RICH` / `FLAT`, from the 25Δ call−put IV in **vol points**.
+- Term — `BACKWARDATION` / `CONTANGO` / `FLAT`, from the ATM-IV slope per expiry.
+- Levels — `MAX PAIN` and quote health `% QUOTED`.
+
+**Per-tab reading rules:**
+
+- **IV BY STRIKE** — strike axis in ₹; CE/PE legend; both 25Δ wings labelled; in-panel expiry chips; footer `WINGS VS ATM`.
+- **IV BY EXPIRY** — date axis, point IV labels, band on the selected expiry, near-term premium in vp.
+- **IV MAP** — hatched cells for no-quote intersections, highlighted selected-expiry row, `QUOTED %`, colour bar `low IV → high IV`.
+- **POSITION ODDS** — profit/loss shading, breakevens, ±1σ band, scenario row, `MODEL flat vol`; skew POP only when the skew series is available.
+- Empty states name the missing input, e.g. `0/26 valid IV quotes` — never a blank chart or a painted zero.
+
+**100-point IV cap fix.** `api/options_conventions.py` `IV_MAX` / `SURFACE_IV_MAX` are 100 (were 60), so analytics no longer discards genuine 60–100 prints. KAYNES front expiry now shows ATM IV **79.7**, 25Δ RR **−6.5 vp** (call−put) and wing **+2.9 vp** — chain IV and analytics agree.
+
+---
+
+## Colour semantics — side vs level vs contrast (contract)
+
+- **Side coding (CE/PE — non-directional):** CE/calls = `INFO` (blue), PE/puts = `WARNING` (orange), via `OI_CALL` / `OI_PUT`. Applies to OI bars and all side chrome; the smile legend and the bars must agree. Never green/red: OI is not bullish/bearish.
+- **Level coding (strike levels — directional meaning):** call wall `CW` = red (`LEVEL_CALL_WALL`, resistance), put wall `PW` = green (`LEVEL_PUT_WALL`, support), max pain `MP` = amber (`LEVEL_MAX_PAIN`), gamma SUP = green (`LEVEL_SUPPORT`), gamma RES = red (`LEVEL_RESISTANCE`). Do not reuse `OI_CALL`/`OI_PUT` for levels — side and level are independent axes, and one row may carry both CW and PW.
+- **Chain rows:** CW/PW get a 2px inset rail + 8% tint; MP gets a 7% tint/outline; ATM keeps its amber fill. When CW and PW share a strike, render both rails; badge priority governs only the single visible chip/letter.
+- **Contrast:** text ≥ 4.5:1, meaningful graphics ≥ 3:1, decorative hairlines exempt. Compute with `src/utils/contrast.ts` (`relativeLuminance`/`contrastRatio`/`compositeOver`/`pickTextColor`), run `bun run contrast`, and register every new fill/tint/text pair in `src/test/contrast.test.ts`.
+- **Why:** `#E8E8E8` on solid green/red OI fills measured ~2.6:1 and vanished at 10px. A 2px solid rail over a low-alpha tint keeps text on the surface — the reference pattern for any new filled cell.
 
 ---
 
@@ -620,7 +662,8 @@ delta-neutral basket into a directional one on paper.
    copies drift.
 9. **No unbounded stores.** 3 chain frames, 5 open chains, 20 saved leg sets.
 10. **No `rowWindowSize` as a hard cap** — the footer discloses what is not rendered.
-11. **No 3D engine in the entry bundle** (open decision #4).
+11. **No 3D engine at all** — the shipped surface is a 2D ECharts heatmap; `echarts-gl`/WebGL was
+    never added (open decision #4 resolved to (a)).
 
 ---
 
@@ -754,8 +797,8 @@ outside `palette.ts`) · `bun run lint` (0 warnings) · `bun run build`.
 
 **P3 — IV surface + streaming**
 
-- `IvSurface3D` (heatmap first; 3D behind the decision in §10), N-expiry fetch on explicit open,
-  15 min cache.
+- `SurfacePanel` (2D ECharts heatmap; no `echarts-gl`/3D), analytics payload fetched once on first
+  analytics-tab open and cached per symbol in the store (module LRU of 5), not per-expiry polling.
 - Optional: WebSocket market-data v3 (`optionGreeks`) for **one** pinned chain, 500 ms throttle,
   falling back to REST on disconnect. Only after P2 is measured — streaming must not become the
   default path for a dock the user opens for eight seconds.
@@ -769,7 +812,7 @@ outside `palette.ts`) · `bun run lint` (0 warnings) · `bun run build`.
 | 1 | Dock host | (a) extend `SymbolDockProvider` with a mode; (b) a second parallel provider | **(a)**. Two providers means two z-indices, two pin states and two closing gestures for one rail — a guaranteed drift. The context change is additive (`open(symbol, mode?)`). |
 | 2 | Refresh cadence | (a) 10 s focused / 30 s background REST; (b) 5 s REST; (c) WebSocket now | **(a)**. Focused chain 10 s (6 calls/min), 4 background chains 30 s (2 each), cap 5 chains ⇒ ≤ 15/min on top of the recorder's 12 ⇒ 27 of the 30/min `options` slice. (b) blows the slice at 2 chains. (c) is P3 and opt-in per pinned chain. |
 | 3 | Leg persistence | (a) session memory only; (b) localStorage per symbol; (c) server-side saved baskets | **(b)** `options.legs.v1.<SYMBOL>`, ≤ 20 symbols, ≤ 4 KB, purged on expiry change. (c) is the right long-term home but it is a DB + API + migration job that blocks P1 for no user-visible gain at this stage. |
-| 4 | IV surface engine | (a) ECharts 2D heatmap + smile/term lines; (b) `echarts-gl` 3D surface (new ~200 KB dependency) | **(a)** for P3.1, `[3D]` toggle via a lazy `echarts-gl` chunk only if the heatmap proves insufficient in review. The screen is 480 px wide most of the time, where a 3D rotation is strictly worse than a heatmap. |
+| 4 | IV surface engine | (a) ECharts 2D heatmap + smile/term lines; (b) `echarts-gl` 3D surface (new ~200 KB dependency) | **(a) shipped** — `SurfacePanel.tsx` uses the 2D ECharts `heatmap`; no `echarts-gl`/WebGL dependency and no `[3D]` toggle were added. At 390 px a 3D rotation is strictly worse than a heatmap, and missing intersections are omitted rather than painted as zero. |
 | 5 | Default strike window | (a) ±10 % of spot; (b) full chain; (c) ±N% per underlying | **(a)** with `[show all]` + auto-extend on scroll (no dead ends). A 400-strike chain at 60 mounted rows is a scroll tunnel; ±10 % is where the greeks and the liquidity are. Remember the user's last window per underlying. |
 | 6 | σ for probability | (a) ATM IV (flat vol); (b) 25Δ-skew-blended σ | **(a)** in P2, with `flat vol` stated in the header and the smile visible in the P3 surface so the user can see the error they are accepting. (b) in P3 as a toggle — it changes the POP number materially on wings and needs its own validation fixture before it becomes the default. |
 

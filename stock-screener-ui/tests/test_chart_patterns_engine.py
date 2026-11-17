@@ -105,6 +105,31 @@ def test_engine_runs_and_fills_symbol_timeframe():
         assert hit.timeframe == "1D"
 
 
+def test_engine_runs_on_us_provider_style_frame():
+    """Provider frames (tz-aware UTC index, int64 volume) need no NSE context."""
+    anchors = [(0, 112), (10, 100), (20, 115), (30, 100), (45, 115), (52, 100), (65, 118)]
+    n = 70
+    close = np.interp(np.arange(n), [a[0] for a in anchors], [a[1] for a in anchors])
+    idx = pd.date_range("2026-11-10 14:00", periods=n, freq="min", tz="UTC")
+    df = pd.DataFrame(
+        {
+            "open": np.concatenate([[close[0]], close[:-1]]),
+            "high": close + 0.5,
+            "low": close - 0.5,
+            "close": close,
+            "volume": np.full(n, 1000, dtype=np.int64),
+        },
+        index=idx,
+    )
+    hits = detect_patterns(df, "1m", "AAPL")
+    assert hits
+    assert all(h.symbol == "AAPL" and h.timeframe == "1m" for h in hits)
+    assert any(h.pattern_id == "triple_bottom" for h in hits)
+    # Overlay timestamps stay tz-aware ISO strings, matching the candle series.
+    points = [p for line in hits[0].trendlines for p in line]
+    assert points and all(p["t"].endswith("+00:00") for p in points)
+
+
 def test_engine_sorts_by_confidence_desc():
     hits = detect_patterns(triple_bottom_frame(), "1D", "TEST")
     confidences = [h.confidence for h in hits]

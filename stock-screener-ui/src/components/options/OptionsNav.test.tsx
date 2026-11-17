@@ -4,6 +4,7 @@ import { createSignal } from "solid-js";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { OptionsNav } from "./OptionsNav";
+import { SymbolDockContext } from "@/components/common/symbolDockContext";
 
 afterEach(() => {
   cleanup();
@@ -54,5 +55,29 @@ describe("OptionsNav", () => {
 
     expect(screen.getByTestId("nav-tab-premium")).toHaveAttribute("aria-selected", "true");
     expect(screen.getByTestId("nav-tab-chain")).toHaveAttribute("aria-selected", "false");
+  });
+
+  it("opens the options dock analytics instead of the standalone page", () => {
+    const open = vi.fn();
+    render(() => (
+      <SymbolDockContext.Provider
+        value={{
+          preview: vi.fn(),
+          endPreview: vi.fn(),
+          open,
+          close: vi.fn(),
+          pinned: false,
+          setOutlet: vi.fn(),
+        }}
+      >
+        <OptionsNav activeTab="chain" onTabChange={vi.fn()} />
+      </SymbolDockContext.Provider>
+    ));
+
+    const link = screen.getByTestId("options-analytics-link");
+    expect(link.tagName).toBe("BUTTON");
+    expect(link).not.toHaveAttribute("href");
+    fireEvent.click(link);
+    expect(open).toHaveBeenCalledWith("NIFTY", "options");
   });
 });

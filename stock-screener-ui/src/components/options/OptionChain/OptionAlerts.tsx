@@ -1,6 +1,6 @@
 import { Text, Badge } from "@/ui";
 import { Box } from "@/ui";
-import { IconBellRinging, IconBolt, IconWall, IconActivity } from "@/ui/icons";
+import { IconBellRinging, IconBolt, IconWall, IconActivity, IconHelpCircle } from "@/ui/icons";
 import { createMemo, Show, For } from "solid-js";
 import * as palette from "@/ui/palette";
 import { CompactPanel } from "../../common/compact";
@@ -142,7 +142,7 @@ export function OptionAlerts(props: OptionAlertsProps) {
         style={{ "margin-top": "8px", "padding-top": "8px", "border-top": `1px solid ${palette.BORDER}` }}
       >
         <Text size="sm" fw={600} className="text-fin-primary">
-          💡 HOW TO PROFIT: When a "Squeeze" alert appears near the spot price, consider a quick bullish trade. When a "Wall" appears, expect the price to reverse from that strike.
+          <IconHelpCircle size={14} aria-hidden="true" /> HOW TO PROFIT: When a "Squeeze" alert appears near the spot price, consider a quick bullish trade. When a "Wall" appears, expect the price to reverse from that strike.
         </Text>
       </Box>
     </CompactPanel>

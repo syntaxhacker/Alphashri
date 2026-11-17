@@ -1,4 +1,10 @@
-import type { MarketRow } from "../../types/marketScreener";
+import type { MarketRow, MarketUniverse } from "../../types/marketScreener";
+import {
+  capTierLabel as descriptorCapTierLabel,
+  marketCapOf,
+  marketCapUnitLabel,
+  marketUniverseDescriptor,
+} from "../../config/marketUniverses";
 
 export type MarketSortKey =
   | "day_desc"
@@ -25,14 +31,8 @@ export const MARKET_SORT_OPTIONS: { value: MarketSortKey; label: string }[] = [
   { value: "symbol_asc", label: "Symbol A–Z" },
 ];
 
-export const CAP_TIERS = ["large", "mid", "small", "micro"] as const;
+export const CAP_TIERS = ["mega", "large", "mid", "small", "micro"] as const;
 export type CapTier = (typeof CAP_TIERS)[number];
-export const CAP_TIER_LABELS: Record<CapTier, string> = {
-  large: "Large",
-  mid: "Mid",
-  small: "Small",
-  micro: "Micro",
-};
 
 export interface MarketFilterState {
   search: string;
@@ -42,7 +42,10 @@ export interface MarketFilterState {
   priceMax: number | null;
   dayChangeMin: number | null;
   dayChangeMax: number | null;
-  /** Market cap range, ₹ crore. */
+  /**
+   * Market cap range in the active universe's unit (₹ crore / $ billions).
+   * The legacy field names stay on the v1 wire; the unit comes from the descriptor.
+   */
   mcapMinCr: number | null;
   mcapMaxCr: number | null;
   rsiMin: number | null;
@@ -59,7 +62,11 @@ export interface MarketFilterState {
   sort: MarketSortKey;
 }
 
-export function defaultMarketFilters(): MarketFilterState {
+/** The cap unit depends on the universe; every default below is unit-neutral today. */
+export function defaultMarketFilters(
+  universe: MarketUniverse = "all_equity",
+): MarketFilterState {
+  void universe;
   return {
     search: "",
     capTiers: new Set<string>(),
@@ -120,7 +127,9 @@ const SORT_COMPARATORS: Record<MarketSortKey, (a: MarketRow, b: MarketRow) => nu
   day_desc: (a, b) => (b.change ?? -Infinity) - (a.change ?? -Infinity),
   day_asc: (a, b) => (a.change ?? Infinity) - (b.change ?? Infinity),
   relvol_desc: (a, b) => (b.relativeVolume ?? -Infinity) - (a.relativeVolume ?? -Infinity),
-  mcap_desc: (a, b) => (b.marketCapCr ?? -Infinity) - (a.marketCapCr ?? -Infinity),
+  // Reads the row's own currency, so a US snapshot sorts by $B even though the
+  // filter field is still named mcapMinCr on the v1 wire.
+  mcap_desc: (a, b) => (marketCapOf(b) ?? -Infinity) - (marketCapOf(a) ?? -Infinity),
   rsi_desc: (a, b) => (b.rsi ?? -Infinity) - (a.rsi ?? -Infinity),
   perf_1m_desc: (a, b) => (b.perf1m ?? -Infinity) - (a.perf1m ?? -Infinity),
   perf_w_desc: (a, b) => (b.perfW ?? -Infinity) - (a.perfW ?? -Infinity),
@@ -151,7 +160,7 @@ export function filterOnlyMarketRows(
     }
     if (!inRange(row.close, filters.priceMin, filters.priceMax)) return false;
     if (!inRange(row.change, filters.dayChangeMin, filters.dayChangeMax)) return false;
-    if (!inRange(row.marketCapCr, filters.mcapMinCr, filters.mcapMaxCr)) return false;
+    if (!inRange(marketCapOf(row), filters.mcapMinCr, filters.mcapMaxCr)) return false;
     if (!inRange(row.rsi, filters.rsiMin, filters.rsiMax)) return false;
     if (!inRange(row.relativeVolume, filters.relVolMin, filters.relVolMax)) return false;
     if (filters.aboveSma20 && !isAboveSma(row.close, row.sma20)) return false;
@@ -171,13 +180,59 @@ export function filterMarketRows(
   return sortMarketRows(filterOnlyMarketRows(rows, filters), filters.sort);
 }
 
-/** Distinct, alphabetically sorted sectors present in the snapshot. */
+/** Distinct, alphabetically sorted sectors present in the snapshot. Works for
+ *  any universe — US sectors come from the loaded US rows, never India's list. */
 export function marketSectors(rows: MarketRow[]): string[] {
   const seen = new Set<string>();
   for (const row of rows) {
     if (row.sector && row.sector.trim() !== "") seen.add(row.sector);
   }
   return [...seen].sort((a, b) => a.localeCompare(b));
+}
+
+/** Select options built from the loaded rows for whichever universe is active. */
+export function marketSectorOptions(rows: MarketRow[]): { value: string; label: string }[] {
+  return marketSectors(rows).map((sector) => ({ value: sector, label: sector }));
+}
+
+/** Cap-tier labels from the descriptor: bare in India, thresholded in the US. */
+export function capTierOptions(
+  universe: MarketUniverse = "all_equity",
+): { value: CapTier; label: string }[] {
+  const descriptor = marketUniverseDescriptor(universe);
+  // Only tiers the active descriptor actually defines: India has no mega cap.
+  return (Object.keys(descriptor.capTiers) as CapTier[]).map((tier) => ({
+    value: tier,
+    label: descriptorCapTierLabel(tier, descriptor),
+  }));
+}
+
+/**
+ * Universe switch: keep the unit-neutral conditions, drop every bound whose
+ * unit/cap tier/sector vocabulary belonged to the previous universe.
+ */
+export function resetUniverseSpecificFilters(
+  filters: MarketFilterState,
+  universe: MarketUniverse,
+): MarketFilterState {
+  return {
+    ...filters,
+    ...defaultMarketFilters(universe),
+    dayChangeMin: filters.dayChangeMin,
+    dayChangeMax: filters.dayChangeMax,
+    rsiMin: filters.rsiMin,
+    rsiMax: filters.rsiMax,
+    relVolMin: filters.relVolMin,
+    relVolMax: filters.relVolMax,
+    aboveSma20: filters.aboveSma20,
+    aboveSma50: filters.aboveSma50,
+    aboveSma200: filters.aboveSma200,
+    // F&O is an NSE/BSE-only universe; a leftover switch would hide every US row.
+    fnoOnly: false,
+    // ETFs are listed in both India and the US, so the choice survives a switch.
+    etfOnly: filters.etfOnly,
+    sort: filters.sort,
+  };
 }
 
 /** Rows per cap tier ("large" | …), useful for the rail checkbox labels. */
@@ -189,6 +244,15 @@ export function countByCapTier(rows: MarketRow[]): Record<string, number> {
     counts[tier] = (counts[tier] ?? 0) + 1;
   }
   return counts;
+}
+
+/**
+ * F&O is an NSE/BSE instrument class — the US descriptor has no such universe.
+ * Single source for the rail's toggle and the chip/count builders, so a saved
+ * `fnoOnly: true` from an India session cannot surface as a dead US control.
+ */
+export function universeHasFno(universe: MarketUniverse = "all_equity"): boolean {
+  return marketUniverseDescriptor(universe).currency !== "USD";
 }
 
 export interface MarketFilterChip {
@@ -226,7 +290,11 @@ function rangeChip(
  * Removable chips for the active filters. Sort is a view control, not a
  * filter, so it is deliberately excluded.
  */
-export function buildMarketFilterChips(filters: MarketFilterState): MarketFilterChip[] {
+export function buildMarketFilterChips(
+  filters: MarketFilterState,
+  universe: MarketUniverse = "all_equity",
+): MarketFilterChip[] {
+  const descriptor = marketUniverseDescriptor(universe);
   const chips: MarketFilterChip[] = [];
   const push = (chip: MarketFilterChip | null): void => {
     if (chip) chips.push(chip);
@@ -236,19 +304,29 @@ export function buildMarketFilterChips(filters: MarketFilterState): MarketFilter
   if (search) chips.push({ key: "search", label: `Search: ${search}` });
 
   for (const tier of [...filters.capTiers].sort()) {
-    const label = CAP_TIER_LABELS[tier as CapTier] ?? tier;
-    chips.push({ key: `capTier:${tier}`, label: `Cap: ${label}` });
+    chips.push({
+      key: `capTier:${tier}`,
+      label: `Cap: ${descriptorCapTierLabel(tier, descriptor)}`,
+    });
   }
 
   push(rangeChip("price", "LTP", filters.priceMin, filters.priceMax, ""));
   push(rangeChip("day", "Day", filters.dayChangeMin, filters.dayChangeMax, "%"));
-  push(rangeChip("mcap", "MCap", filters.mcapMinCr, filters.mcapMaxCr, " Cr"));
+  push(
+    rangeChip(
+      "mcap",
+      "MCap",
+      filters.mcapMinCr,
+      filters.mcapMaxCr,
+      marketCapUnitLabel(descriptor),
+    ),
+  );
   push(rangeChip("rsi", "RSI", filters.rsiMin, filters.rsiMax, ""));
   push(rangeChip("relvol", "RelVol", filters.relVolMin, filters.relVolMax, ""));
   if (filters.aboveSma20) chips.push({ key: "sma20", label: "Above SMA 20" });
   if (filters.aboveSma50) chips.push({ key: "sma50", label: "Above SMA 50" });
   if (filters.aboveSma200) chips.push({ key: "sma200", label: "Above SMA 200" });
-  if (filters.fnoOnly) chips.push({ key: "fno", label: "F&O only" });
+  if (filters.fnoOnly && universeHasFno(universe)) chips.push({ key: "fno", label: "F&O only" });
   if (filters.etfOnly) chips.push({ key: "etf", label: "ETF only" });
   for (const sector of filters.sectors) {
     if (!sector) continue;
@@ -258,6 +336,9 @@ export function buildMarketFilterChips(filters: MarketFilterState): MarketFilter
   return chips;
 }
 
-export function countActiveMarketFilters(filters: MarketFilterState): number {
-  return buildMarketFilterChips(filters).length;
+export function countActiveMarketFilters(
+  filters: MarketFilterState,
+  universe: MarketUniverse = "all_equity",
+): number {
+  return buildMarketFilterChips(filters, universe).length;
 }

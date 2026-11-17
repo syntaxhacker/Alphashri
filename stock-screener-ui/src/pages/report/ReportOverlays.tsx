@@ -287,7 +287,13 @@ export function ReportOverlays() {
       >
         <Box data-testid="nifty-ivskew-modal">
           <Show when={store.data.report()}>
-            {(current) => <NiftyIvSkew strikes={current().strikes} spot={current().spot} />}
+            {(current) => (
+              <NiftyIvSkew
+                strikes={current().strikes}
+                spot={current().spot}
+                ivSurface={current().iv_surface}
+              />
+            )}
           </Show>
         </Box>
       </PanelModal>

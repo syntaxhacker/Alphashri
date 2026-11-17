@@ -7,15 +7,17 @@ import uuid
 import json
 from pathlib import Path
 from datetime import datetime
+from typing import Generator
 from unittest.mock import MagicMock, Mock, patch
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 
 from db.database import Base, get_db
 from db.models import User, BotConfig, StrategyConfig
 from fastapi import FastAPI
+from api.auth import hash_password, get_current_user
 from tests.helpers.db import import_all_models
 
 
@@ -62,6 +64,89 @@ def test_db(test_db_engine):
         # Rollback all changes
         db.rollback()
         db.close()
+
+
+# ============================================================================
+# API-only fixtures (mirrored from tests/api/conftest.py)
+# ----------------------------------------------------------------------------
+# These live in the root conftest so they resolve even when pytest skips the
+# api conftest during collection (e.g. reversed explicit-file args, where only
+# the first argument's conftest chain is loaded). The api conftest still
+# defines the same names, so tests under tests/api/ keep using the closer
+# definition. Keep these in sync with tests/api/conftest.py.
+# ============================================================================
+
+@pytest.fixture(scope="function")
+def test_engine():
+    from db.models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument, Trade, Position, MarketHoliday, Stock52WeekTouch, Screener
+
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool
+    )
+    Base.metadata.create_all(bind=engine)
+    yield engine
+    Base.metadata.drop_all(bind=engine)
+    engine.dispose()
+
+
+@pytest.fixture(scope="function")
+def db(test_engine) -> Generator[Session, None, None]:
+    TestSessionLocal = sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=test_engine
+    )
+
+    connection = test_engine.connect()
+    transaction = connection.begin()
+
+    session = TestSessionLocal(bind=connection)
+
+    @event.listens_for(session, "after_transaction_end")
+    def restart_savepoint(db_session, transaction):
+        if transaction.nested and not transaction._parent.nested:
+            db_session.expire_all()
+            db_session.begin_nested()
+
+    session.begin_nested()
+
+    yield session
+
+    session.close()
+    transaction.rollback()
+    connection.close()
+
+
+@pytest.fixture(scope="function")
+def auth_client(db: Session) -> TestClient:
+    from api_server_fastapi import app
+
+    def override_get_db_for_client():
+        yield db
+
+    test_user = User(
+        email="test@example.com",
+        hashed_password=hash_password("TestPassword123!"),
+        display_name="Test User",
+        is_active=True,
+        id=1,
+    )
+    db.add(test_user)
+    db.commit()
+
+    def override_get_current_user():
+        return test_user
+
+    app.dependency_overrides[get_db] = override_get_db_for_client
+    app.dependency_overrides[get_current_user] = override_get_current_user
+
+    try:
+        with TestClient(app) as test_client:
+            yield test_client
+    finally:
+        app.dependency_overrides.clear()
 
 
 # ============================================================================

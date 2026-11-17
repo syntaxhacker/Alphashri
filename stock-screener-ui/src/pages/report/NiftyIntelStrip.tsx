@@ -296,7 +296,6 @@ export function NiftyIntelStrip(props: NiftyIntelStripProps) {
   });
 
   const openModal = () => {
-    console.log("[intel] openModal called, intelState:", intelState());
     if (intelState()) setOpen(true);
   };
 

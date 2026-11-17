@@ -2,13 +2,10 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, cleanup, within, waitFor } from "@solidjs/testing-library";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import type { JSX } from "solid-js";
+import { createSignal, type JSX } from "solid-js";
 import { UIProvider } from "@/ui";
-import {
-  MarketScreenerPanel,
-  marketSortToSortEntry,
-  sortEntryToMarketSort,
-} from "./MarketScreenerPanel";
+import { MarketScreenerPanel, marketSortToSortEntry, sortEntryToMarketSort } from "./MarketScreenerPanel";
+import { valueScan } from "../../api/valueScan";
 import { useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
 import { fetchScreenerDashboard } from "../../api/screenerDashboard";
 import { getUserConfig, putUserConfig, deleteUserConfig } from "../../api/userConfigs";
@@ -16,6 +13,15 @@ import * as marketFilters from "./marketFilters";
 import { defaultMarketConfig, serializeMarketConfig } from "./useMarketConfig";
 import type { MarketRow } from "../../types/marketScreener";
 import type { ScreenerDashboardResponse } from "../../types/screenerDashboard";
+import { SymbolDockContext, type SymbolDockApi } from "../common/symbolDockContext";
+
+// useNavigate needs a Router; the converted suites mock it at the module edge.
+const routerMocks = vi.hoisted(() => ({ navigate: vi.fn() }));
+
+vi.mock("@solidjs/router", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return { ...actual, useNavigate: () => routerMocks.navigate };
+});
 
 vi.mock("./useMarketSnapshotSolid", () => ({
   useMarketSnapshotSolid: vi.fn(),
@@ -24,6 +30,12 @@ vi.mock("./useMarketSnapshotSolid", () => ({
 vi.mock("../../api/screenerDashboard", () => ({
   fetchScreenerDashboard: vi.fn(),
 }));
+
+// The embedded Value view runs its own scan; keep it offline in this suite.
+vi.mock("../../api/valueScan", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../api/valueScan")>();
+  return { ...actual, valueScan: vi.fn() };
+});
 
 // The panel hydrates saved filters on mount; the real client would hit the
 // network. Tests that care about the config path override these.
@@ -39,6 +51,7 @@ vi.mock("../../api/userConfigs", () => ({
 }));
 
 const mockFetchDashboard = vi.mocked(fetchScreenerDashboard);
+const mockValueScan = vi.mocked(valueScan);
 const mockGetUserConfig = vi.mocked(getUserConfig);
 const mockPutUserConfig = vi.mocked(putUserConfig);
 const mockDeleteUserConfig = vi.mocked(deleteUserConfig);
@@ -100,7 +113,7 @@ type HookOverrides = {
   asOf?: string | null;
   isLoading?: boolean;
   error?: Error | null;
-  refresh?: () => void;
+  refresh?: (force?: boolean) => void;
   lastUpdated?: string | null;
   stale?: boolean;
   warming?: boolean;
@@ -167,6 +180,19 @@ beforeEach(() => {
     as_of: new Date().toISOString(),
     total: 0,
   } as ScreenerDashboardResponse);
+
+  mockValueScan.mockImplementation(async (filters) => ({
+    market: filters?.market ?? "india",
+    currency: filters?.market === "usa" ? "USD" : "INR",
+    as_of: "2026-11-17T10:00:00+05:30",
+    scanned: 500,
+    matched: 0,
+    fields_complete: true,
+    filters_applied: {},
+    warnings: [],
+    rows: [],
+    sectors: [],
+  }));
 
   // Default: nothing saved. Individual tests override with a saved payload.
   mockGetUserConfig.mockResolvedValue({
@@ -503,6 +529,22 @@ describe("MarketScreenerPanel — selected row affordance", () => {
   });
 });
 
+describe("MarketScreenerPanel — keyboard follows the table sort", () => {
+  test("ArrowDown steps the header-sorted order, not filters.sort", async () => {
+    r(() => <MarketScreenerPanel />);
+    // NAME asc is MPHASIS → RELIANCE; the pre-table mcap order is RELIANCE →
+    // MPHASIS, which is what the old stepping code used.
+    await fireEvent.click(screen.getByText("NAME").closest("th")!);
+    const first = await screen.findByTestId("market-row-MPHASIS");
+    await fireEvent.click(first);
+    const base = screen.getByTestId("market-row-RELIANCE").style.backgroundColor;
+
+    await fireEvent.keyDown(document, { key: "ArrowDown" });
+
+    expect(screen.getByTestId("market-row-RELIANCE").style.backgroundColor).not.toBe(base);
+  });
+});
+
 describe("MarketScreenerPanel — Movers view", () => {
   test("switching to Movers renders the dashboard and hides market search + filter rail", async () => {
     r(() => <MarketScreenerPanel />);
@@ -553,6 +595,52 @@ describe("MarketScreenerPanel — Movers view", () => {
     // and back to Movers: the lazy branch remounts cleanly
     await fireEvent.click(screen.getByRole("button", { name: "Movers" }));
     expect(await screen.findByTestId("screener-dashboard")).toBeInTheDocument();
+  });
+});
+
+describe("MarketScreenerPanel — active-filter row layout stability", () => {
+  async function applySectorFilter() {
+    const sectorSelect = screen.getByTestId("market-filter-sector");
+    await fireEvent.focus(within(sectorSelect).getByRole("combobox"));
+    const it = await screen.findByRole("option", { name: "IT" });
+    await fireEvent.click(within(it).getByRole("checkbox"));
+  }
+
+  test("the chip row stays mounted at a fixed 24px height as filters come and go", async () => {
+    r(() => <MarketScreenerPanel />);
+    const row = screen.getByTestId("market-active-chips");
+    expect(row).toHaveClass("h-6");
+    expect(row).toHaveClass("overflow-x-auto");
+    expect(row).toHaveClass("whitespace-nowrap");
+    expect(row).not.toHaveClass("flex-wrap");
+    expect(screen.getByTestId("market-active-chips-empty")).toHaveTextContent("No filters");
+
+    await applySectorFilter();
+    expect(screen.getByTestId("market-filter-chip-sector:IT")).toBeInTheDocument();
+    expect(screen.getByTestId("market-active-chips")).toBe(row);
+    expect(row).toHaveClass("h-6");
+    expect(screen.queryByTestId("market-active-chips-empty")).not.toBeInTheDocument();
+
+    await fireEvent.click(screen.getByTestId("market-filter-chip-sector:IT"));
+    expect(screen.getByTestId("market-active-chips")).toBe(row);
+    expect(row).toHaveClass("h-6");
+    expect(screen.getByTestId("market-active-chips-empty")).toBeInTheDocument();
+  });
+
+  test("the table region keeps flex-1 min-h-0 and is not remounted by filters", async () => {
+    r(() => <MarketScreenerPanel />);
+    const table = screen.getByTestId("market-table-region");
+    const tableClasses = table.className;
+    expect(tableClasses).toContain("flex-1");
+    expect(tableClasses).toContain("min-h-0");
+
+    await applySectorFilter();
+    expect(screen.getByTestId("market-table-region")).toBe(table);
+    expect(screen.getByTestId("market-table-region").className).toBe(tableClasses);
+
+    await fireEvent.click(screen.getByTestId("market-filter-chip-sector:IT"));
+    expect(screen.getByTestId("market-table-region")).toBe(table);
+    expect(screen.getByTestId("market-table-region").className).toBe(tableClasses);
   });
 });
 
@@ -1146,6 +1234,567 @@ describe("MarketScreenerPanel — chart dock outlet layout", () => {
     expect(outlet.className).not.toContain("flex-1");
     expect(outlet.className).not.toContain("empty:hidden");
     expect(outlet).toHaveAttribute("data-dock-open", "false");
+  });
+});
+
+describe("MarketScreenerPanel — universe-aware columns, rail and reset", () => {
+  const US_ROWS: MarketRow[] = [
+    row("AAPL", {
+      exchange: "NASDAQ",
+      currency: "USD",
+      marketCapCr: null,
+      marketCapUsdB: 3200,
+    }),
+    row("MSFT", {
+      exchange: "NASDAQ",
+      currency: "USD",
+      marketCapCr: null,
+      marketCapUsdB: 2800,
+    }),
+  ];
+
+  const mcapHeader = () =>
+    document.getElementById("paper-tanstack-header-market_cap_cr")?.textContent ?? "";
+
+  async function selectUniverse(name: string) {
+    const combo = screen.getByTestId("market-universe-select").querySelector(
+      '[role="combobox"]',
+    ) as HTMLInputElement;
+    await fireEvent.focus(combo);
+    // `handleSelect` keeps the chosen label as the search query, so a second
+    // open is filtered down to just that option. Clear it before picking.
+    await fireEvent.input(combo, { target: { value: "" } });
+    await fireEvent.mouseDown(await screen.findByRole("option", { name }));
+  }
+
+  function setNumber(testId: string, value: string) {
+    const input = within(screen.getByTestId(testId)).getByRole("spinbutton") as HTMLInputElement;
+    input.value = value;
+    fireEvent.input(input);
+  }
+
+  async function selectSector(sector: string) {
+    const select = screen.getByTestId("market-filter-sector");
+    await fireEvent.focus(within(select).getByRole("combobox"));
+    const option = await screen.findByRole("option", { name: sector });
+    await fireEvent.click(within(option).getByRole("checkbox"));
+  }
+
+  test("USA switches the MCAP header to $B and rows to $", async () => {
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: US_ROWS, total: US_ROWS.length }));
+    r(() => <MarketScreenerPanel />);
+    expect(mcapHeader()).toContain("MCAP ₹Cr");
+
+    await selectUniverse("USA");
+
+    expect(mcapHeader()).toContain("MCAP $B");
+    expect(screen.getByTestId("market-close-AAPL")).toHaveTextContent("$");
+    expect(screen.getByTestId("market-mcap-AAPL")).toHaveTextContent("$");
+    expect(screen.getByTestId("market-filter-price")).toHaveTextContent("Price $");
+  });
+
+  test("USA → All NSE clears unit-bound filters, keeps neutral ones, restores ₹Cr", async () => {
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: US_ROWS, total: US_ROWS.length }));
+    r(() => <MarketScreenerPanel />);
+
+    // F&O is India-only: set it while the toggle exists so entering USA must clear it.
+    fireEvent.click(screen.getByTestId("market-filter-fno"));
+    expect(screen.getByTestId("market-filter-chip-fno")).toBeInTheDocument();
+
+    await selectUniverse("USA");
+
+    // The US rail has no F&O affordance; ETF remains available in both universes.
+    expect(screen.queryByTestId("market-filter-fno")).toBeNull();
+    expect(screen.getByTestId("market-filter-etf")).toBeInTheDocument();
+    expect(screen.queryByTestId("market-filter-chip-fno")).toBeNull();
+
+    // Universe-specific conditions.
+    fireEvent.click(screen.getByTestId("market-cap-large"));
+    setNumber("market-filter-price-min", "100");
+    setNumber("market-filter-mcap-min", "100");
+    await selectSector("IT");
+    fireEvent.click(screen.getByTestId("market-filter-etf"));
+
+    // Unit-neutral conditions that must survive the switch.
+    setNumber("market-filter-day-min", "-5");
+    setNumber("market-filter-rsi-min", "50");
+    fireEvent.click(screen.getByTestId("market-filter-above-sma20"));
+    const toggle = screen.getByTestId("market-view-toggle");
+    await fireEvent.click(within(toggle).getByText("Map"));
+    fireEvent.input(screen.getByTestId("market-map-sort").querySelector("select")!, {
+      target: { value: "rsi_desc" },
+    });
+    await fireEvent.click(within(toggle).getByText("Table"));
+
+    expect(screen.getByTestId("market-filter-chip-capTier:large")).toBeInTheDocument();
+    expect(screen.getByTestId("market-filter-chip-price")).toBeInTheDocument();
+    expect(screen.getByTestId("market-filter-chip-mcap")).toBeInTheDocument();
+
+    await selectUniverse("All NSE");
+
+    expect(mcapHeader()).toContain("MCAP ₹Cr");
+    expect(screen.getByTestId("market-filter-fno")).toBeInTheDocument();
+    for (const key of ["capTier:large", "price", "mcap", "sector:IT", "fno"]) {
+      expect(screen.queryByTestId(`market-filter-chip-${key}`)).toBeNull();
+    }
+    // ETF is listed in both universes, so its filter survives the switch.
+    for (const key of ["day", "rsi", "sma20", "etf"]) {
+      expect(screen.getByTestId(`market-filter-chip-${key}`)).toBeInTheDocument();
+    }
+    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Map"));
+    expect(
+      (screen.getByTestId("market-map-sort").querySelector("select") as HTMLSelectElement).value,
+    ).toBe("rsi_desc");
+  });
+
+  test("a saved us config restores its filters without a reset", async () => {
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: US_ROWS, total: US_ROWS.length }));
+    const base = defaultMarketConfig({ universe: "us" });
+    mockGetUserConfig.mockResolvedValue({
+      scope: "market.filters",
+      version: 1,
+      saved: true,
+      updated_at: "2026-11-15T09:41:22.192Z",
+      config: serializeMarketConfig({
+        ...base,
+        filters: {
+          ...base.filters,
+          sectors: ["IT"],
+          mcapMinCr: 100,
+          capTiers: new Set(["large"]),
+          rsiMin: 50,
+          sort: "relvol_desc",
+        },
+      }),
+    });
+
+    r(() => <MarketScreenerPanel />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("market-filter-chip-sector:IT")).toBeInTheDocument(),
+    );
+    expect(mcapHeader()).toContain("MCAP $B");
+    expect(screen.getByTestId("market-filter-chip-mcap")).toBeInTheDocument();
+    expect(screen.getByTestId("market-filter-chip-capTier:large")).toBeInTheDocument();
+    expect(screen.getByTestId("market-filter-chip-rsi")).toHaveTextContent("RSI ≥ 50");
+    expect(mockUseMarketSnapshot.mock.calls.at(-1)?.[0]()).toBe("us");
+    // The reset effect must not fire on a later tick either.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByTestId("market-filter-chip-sector:IT")).toBeInTheDocument();
+  });
+
+  test("USA chips use $B and US tier thresholds; India chips stay byte-identical", async () => {
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: US_ROWS, total: US_ROWS.length }));
+    r(() => <MarketScreenerPanel />);
+    await selectUniverse("USA");
+
+    setNumber("market-filter-mcap-min", "10");
+    fireEvent.click(screen.getByTestId("market-cap-large"));
+
+    expect(screen.getByTestId("market-filter-chip-mcap")).toHaveTextContent(/^MCap ≥ 10 B$/);
+    expect(screen.getByTestId("market-filter-chip-capTier:large")).toHaveTextContent(
+      /^Cap: Large 10–200B$/,
+    );
+    expect(screen.getByTestId("market-filter-count")).toHaveTextContent("2");
+
+    await selectUniverse("All NSE");
+    setNumber("market-filter-mcap-min", "10");
+    fireEvent.click(screen.getByTestId("market-cap-large"));
+
+    expect(screen.getByTestId("market-filter-chip-mcap")).toHaveTextContent(/^MCap ≥ 10 Cr$/);
+    expect(screen.getByTestId("market-filter-chip-capTier:large")).toHaveTextContent(/^Cap: Large$/);
+    expect(screen.getByTestId("market-filter-count")).toHaveTextContent("2");
+  });
+
+  test("USA map reads caps in $B, not zero from the India descriptor", async () => {
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: US_ROWS, total: US_ROWS.length }));
+    r(() => <MarketScreenerPanel />);
+    await selectUniverse("USA");
+
+    const toggle = screen.getByTestId("market-view-toggle");
+    await fireEvent.click(within(toggle).getByText("Map"));
+    // The cap legend is the one chart-free surface that carries the map's
+    // currency: an INR descriptor reads marketCapCr (null on USD rows) → "0".
+    expect(screen.getByTestId("market-map").textContent ?? "").toMatch(/\$[\d,.]+B/);
+    await fireEvent.click(within(toggle).getByText("Table"));
+  });
+});
+
+describe("MarketScreenerPanel — cap-tier counts follow the loaded rows", () => {
+  const INDIA_TIER_ROWS: MarketRow[] = [
+    row("RELIANCE", { capTier: "large" }),
+    row("MPHASIS", { capTier: "large" }),
+    row("TCS", { capTier: "mid" }),
+    row("ONGC", { capTier: "small" }),
+    row("SMALLCO", { capTier: "micro" }),
+  ];
+  const US_TIER_ROWS: MarketRow[] = [
+    row("AAPL", { exchange: "NASDAQ", currency: "USD", capTier: "mega", marketCapCr: null, marketCapUsdB: 3000 }),
+    row("MSFT", { exchange: "NASDAQ", currency: "USD", capTier: "large", marketCapCr: null, marketCapUsdB: 300 }),
+    row("NVDA", { exchange: "NASDAQ", currency: "USD", capTier: "large", marketCapCr: null, marketCapUsdB: 100 }),
+    row("AVGO", { exchange: "NASDAQ", currency: "USD", capTier: "large", marketCapCr: null, marketCapUsdB: 50 }),
+    row("LLY", { exchange: "NYSE", currency: "USD", capTier: "mid", marketCapCr: null, marketCapUsdB: 5 }),
+    row("SMALL", { exchange: "NASDAQ", currency: "USD", capTier: "small", marketCapCr: null, marketCapUsdB: 1 }),
+  ];
+
+  async function selectUniverse(name: string) {
+    const combo = screen.getByTestId("market-universe-select").querySelector(
+      '[role="combobox"]',
+    ) as HTMLInputElement;
+    await fireEvent.focus(combo);
+    await fireEvent.input(combo, { target: { value: "" } });
+    await fireEvent.mouseDown(await screen.findByRole("option", { name }));
+  }
+
+  const rail = () => within(screen.getByTestId("market-filter-rail"));
+
+  test("US rail labels use countByCapTier(US rows), not stale India ranks", async () => {
+    const [rows, setRows] = createSignal<MarketRow[]>(INDIA_TIER_ROWS);
+    mockUseMarketSnapshot.mockImplementation(() => ({
+      ...hookResult(),
+      rows: () => rows(),
+      total: () => rows().length,
+    }));
+    r(() => <MarketScreenerPanel />);
+
+    // India first: rank tiers with their own counts.
+    expect(rail().getByText("Large (2)")).toBeInTheDocument();
+    expect(rail().getByText("Mid (1)")).toBeInTheDocument();
+
+    await selectUniverse("USA");
+    // The US snapshot lands after the tier options switched — exactly the
+    // reload path where the rail used to keep printing India's counts.
+    setRows(US_TIER_ROWS);
+
+    expect(rail().getByText("Mega ≥200B (1)")).toBeInTheDocument();
+    expect(rail().getByText("Large 10–200B (3)")).toBeInTheDocument();
+    expect(rail().getByText("Mid 2–10B (1)")).toBeInTheDocument();
+    expect(rail().getByText("Small 0.3–2B (1)")).toBeInTheDocument();
+    expect(rail().queryByText(/\(100\)|\(150\)|\(250\)|\(2728\)/)).toBeNull();
+  });
+
+  test("switching USA → India recomputes the counts from the India rows", async () => {
+    const [rows, setRows] = createSignal<MarketRow[]>(US_TIER_ROWS);
+    mockUseMarketSnapshot.mockImplementation(() => ({
+      ...hookResult(),
+      rows: () => rows(),
+      total: () => rows().length,
+    }));
+    r(() => <MarketScreenerPanel />);
+
+    await selectUniverse("USA");
+    setRows(US_TIER_ROWS);
+    expect(rail().getByText("Large 10–200B (3)")).toBeInTheDocument();
+
+    await selectUniverse("All NSE");
+    setRows(INDIA_TIER_ROWS);
+    expect(rail().getByText("Large (2)")).toBeInTheDocument();
+    expect(rail().queryByText("Mega ≥200B (1)")).toBeNull();
+  });
+});
+
+describe("MarketScreenerPanel — F&O chip follows the universe's affordance", () => {
+  function savedConfig(universe: "us" | "all_equity") {
+    const base = defaultMarketConfig({ universe });
+    return {
+      scope: "market.filters",
+      version: 1,
+      saved: true,
+      updated_at: "2026-11-15T09:41:22.192Z",
+      config: serializeMarketConfig({
+        ...base,
+        filters: { ...base.filters, fnoOnly: true, sectors: ["IT"] },
+      }),
+    };
+  }
+
+  const US_ROWS: MarketRow[] = [
+    row("AAPL", { exchange: "NASDAQ", currency: "USD", sector: "IT", marketCapCr: null, marketCapUsdB: 3000 }),
+    row("MSFT", { exchange: "NASDAQ", currency: "USD", sector: "IT", marketCapCr: null, marketCapUsdB: 2800 }),
+  ];
+  const INDIA_ROWS: MarketRow[] = [
+    row("RELIANCE", { sector: "IT", fno: true }),
+    row("MPHASIS", { sector: "IT", fno: false }),
+  ];
+
+  test("a saved US config with fnoOnly:true keeps every US row and shows no F&O chip or toggle", async () => {
+    // US rows carry `fno:false` from the backend, so an inherited fnoOnly used
+    // to empty the table as well as leave a dead chip in the toolbar.
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: US_ROWS, total: US_ROWS.length }));
+    mockGetUserConfig.mockResolvedValue(savedConfig("us") as never);
+
+    r(() => <MarketScreenerPanel />);
+
+    // Wait for hydration: the sector chip is the positive signal the saved
+    // config landed (so this is not a pass-before-hydration false positive).
+    await waitFor(() =>
+      expect(screen.getByTestId("market-filter-chip-sector:IT")).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId("market-filter-chip-fno")).toBeNull();
+    expect(screen.queryByTestId("market-filter-fno")).toBeNull();
+    expect(screen.getByTestId("market-filter-count")).toHaveTextContent("1");
+    expect(screen.getByTestId("market-row-AAPL")).toBeInTheDocument();
+    expect(screen.getByTestId("market-row-MSFT")).toBeInTheDocument();
+    expect(screen.getByTestId("market-result-count")).toHaveTextContent("2 / 2");
+  });
+
+  test("an India config keeps its F&O chip, toggle and filtering", async () => {
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: INDIA_ROWS, total: INDIA_ROWS.length }));
+    mockGetUserConfig.mockResolvedValue(savedConfig("all_equity") as never);
+
+    r(() => <MarketScreenerPanel />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("market-filter-chip-sector:IT")).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("market-filter-chip-fno")).toBeInTheDocument();
+    expect(screen.getByTestId("market-filter-fno")).toBeInTheDocument();
+    expect(screen.getByTestId("market-filter-count")).toHaveTextContent("2");
+    // fnoOnly is still a real filter in India: only the F&O row survives.
+    expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
+    expect(screen.queryByTestId("market-row-MPHASIS")).toBeNull();
+    expect(screen.getByTestId("market-result-count")).toHaveTextContent("1 / 2");
+  });
+});
+
+describe("MarketScreenerPanel — chart icon routes by exchange", () => {
+  const US_CHART_ROWS: MarketRow[] = [
+    row("AAPL", { exchange: "NASDAQ", currency: "USD" }),
+    row("MSFT", { exchange: "NYSE", currency: "USD" }),
+    row("BRK.B", { exchange: "AMEX", currency: "USD" }),
+  ];
+
+  beforeEach(() => {
+    mockUseMarketSnapshot.mockReturnValue(
+      hookResult({ rows: US_CHART_ROWS, total: US_CHART_ROWS.length }),
+    );
+  });
+
+  test("a NASDAQ row navigates to the in-app chart with market=usa", () => {
+    r(() => <MarketScreenerPanel />);
+    fireEvent.click(screen.getByTestId("market-chart-AAPL"));
+    expect(routerMocks.navigate).toHaveBeenCalledWith("/chart/AAPL?market=usa");
+  });
+
+  test("NYSE and AMEX rows also use the US chart route", () => {
+    r(() => <MarketScreenerPanel />);
+    fireEvent.click(screen.getByTestId("market-chart-MSFT"));
+    fireEvent.click(screen.getByTestId("market-chart-BRK.B"));
+    expect(routerMocks.navigate).toHaveBeenCalledWith("/chart/MSFT?market=usa");
+    expect(routerMocks.navigate).toHaveBeenCalledWith("/chart/BRK.B?market=usa");
+  });
+
+  test("dots in a US symbol survive the chart URL unchanged", () => {
+    r(() => <MarketScreenerPanel />);
+    fireEvent.click(screen.getByTestId("market-chart-BRK.B"));
+    expect(routerMocks.navigate).toHaveBeenCalledWith("/chart/BRK.B?market=usa");
+    expect(routerMocks.navigate).not.toHaveBeenCalledWith("/chart/BRK-B?market=usa");
+  });
+
+  test("an India row keeps the dock path and never navigates", () => {
+    mockUseMarketSnapshot.mockReturnValue(hookResult());
+    const open = vi.fn();
+    const dockValue: SymbolDockApi = {
+      preview: () => {},
+      endPreview: () => {},
+      open,
+      close: () => {},
+      pinned: false,
+      setOutlet: () => {},
+      symbol: () => null,
+      mode: () => "chart",
+    };
+    render(() => (
+      <UIProvider>
+        <SymbolDockContext.Provider value={dockValue}>
+          <MarketScreenerPanel />
+        </SymbolDockContext.Provider>
+      </UIProvider>
+    ));
+
+    fireEvent.click(screen.getByTestId("market-chart-RELIANCE"));
+    expect(open).toHaveBeenCalledWith("RELIANCE");
+    expect(routerMocks.navigate).not.toHaveBeenCalled();
+  });
+});
+
+describe("MarketScreenerPanel — embedded Value view", () => {
+  const toggle = () => screen.getByTestId("market-view-toggle");
+  const choose = (label: string) => fireEvent.click(within(toggle()).getByText(label));
+
+  test("initialView=value starts in the Value view", async () => {
+    r(() => <MarketScreenerPanel initialView="value" />);
+    expect(await screen.findByTestId("value-panel", {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.queryByTestId("market-search")).not.toBeInTheDocument();
+  });
+
+  test("the Value button renders the panel and hides the Market-only chrome", async () => {
+    r(() => <MarketScreenerPanel />);
+    expect(screen.getByTestId("market-search")).toBeInTheDocument();
+
+    await choose("Value");
+
+    expect(await screen.findByTestId("value-panel", {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.getByTestId("market-value-region")).toBeInTheDocument();
+    // The embedded panel has no second market selector: the Market universe
+    // select stays as the single source of truth.
+    expect(screen.getByTestId("market-universe-select")).toBeInTheDocument();
+    expect(screen.queryByTestId("value-market-tabs")).not.toBeInTheDocument();
+    for (const id of [
+      "market-search",
+      "market-filter-rail",
+      "market-rail-toggle",
+      "market-grid",
+      "market-refresh",
+      "market-mode-badge",
+      "market-active-chips",
+    ]) {
+      expect(screen.queryByTestId(id)).not.toBeInTheDocument();
+    }
+    expect(within(toggle()).getByText("Value").closest("button")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  test("the active Market universe drives the value scan market", async () => {
+    r(() => <MarketScreenerPanel />);
+    await choose("Value");
+    await screen.findByTestId("value-panel", {}, { timeout: 3000 });
+    await waitFor(() =>
+      expect(mockValueScan).toHaveBeenCalledWith(
+        expect.objectContaining({ market: "india" }),
+        expect.anything(),
+      ),
+    );
+
+    const combo = screen.getByTestId("market-universe-select").querySelector(
+      '[role="combobox"]',
+    ) as HTMLInputElement;
+    await fireEvent.focus(combo);
+    await fireEvent.mouseDown(await screen.findByRole("option", { name: "USA" }));
+
+    await waitFor(
+      () =>
+        expect(mockValueScan).toHaveBeenCalledWith(
+          expect.objectContaining({ market: "usa" }),
+          expect.anything(),
+        ),
+      { timeout: 3000 },
+    );
+  });
+
+  test("switching back restores the Market table with its filters intact", async () => {
+    r(() => <MarketScreenerPanel />);
+    fireEvent.click(screen.getByTestId("market-filter-above-sma200"));
+    expect(screen.getByTestId("market-filter-chip-sma200")).toBeInTheDocument();
+    const grid = screen.getByTestId("market-grid");
+
+    await choose("Value");
+    await screen.findByTestId("value-panel", {}, { timeout: 3000 });
+    expect(screen.queryByTestId("market-grid")).not.toBeInTheDocument();
+
+    await choose("Table");
+    expect(screen.getByTestId("market-search")).toBeInTheDocument();
+    expect(screen.getByTestId("market-filter-chip-sma200")).toBeInTheDocument();
+    expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
+    // The Market grid itself is remounted after the Value detour, so identity
+    // is not asserted here — only that its data and filters came back.
+    expect(grid.isConnected).toBe(false);
+  });
+
+  test("the Value view uses the shared view contract and restores search on return", async () => {
+    const onViewChange = vi.fn();
+    r(() => <MarketScreenerPanel onViewChange={onViewChange} />);
+    const search = screen.getByTestId("market-search") as HTMLInputElement;
+    fireEvent.input(search, { target: { value: "reliance" } });
+
+    await choose("Value");
+    await screen.findByTestId("value-panel", {}, { timeout: 3000 });
+    expect(onViewChange).toHaveBeenCalledWith("value");
+
+    await choose("Table");
+    expect(onViewChange).toHaveBeenLastCalledWith("table");
+    expect((screen.getByTestId("market-search") as HTMLInputElement).value).toBe("reliance");
+  });
+});
+
+describe("MarketScreenerPanel — market snapshot gating in Value view", () => {
+  // The real hook fetches only while `enabled()` is true (proved in
+  // useMarketSnapshotSolid.test.tsx), so this getter is the 0-vs-1 request boundary.
+  const enabledForFirstCall = () =>
+    mockUseMarketSnapshot.mock.calls[0]?.[1]?.enabled?.() as boolean | undefined;
+
+  test("Value view disables the market snapshot (zero market requests)", async () => {
+    r(() => <MarketScreenerPanel initialView="value" />);
+    await screen.findByTestId("value-panel", {}, { timeout: 3000 });
+
+    expect(enabledForFirstCall()).toBe(false);
+    expect(screen.getByTestId("market-value-region")).toBeInTheDocument();
+  });
+
+  test("switching Value → Table re-enables the market snapshot (one market request)", async () => {
+    r(() => <MarketScreenerPanel initialView="value" />);
+    await screen.findByTestId("value-panel", {}, { timeout: 3000 });
+    expect(enabledForFirstCall()).toBe(false);
+
+    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Table"));
+
+    expect(screen.getByTestId("market-search")).toBeInTheDocument();
+    expect(enabledForFirstCall()).toBe(true);
+  });
+
+  test("switching universe inside Value keeps the market snapshot disabled", async () => {
+    r(() => <MarketScreenerPanel initialView="value" />);
+    await screen.findByTestId("value-panel", {}, { timeout: 3000 });
+    expect(enabledForFirstCall()).toBe(false);
+
+    const combo = screen.getByTestId("market-universe-select").querySelector(
+      '[role="combobox"]',
+    ) as HTMLInputElement;
+    await fireEvent.focus(combo);
+    await fireEvent.mouseDown(await screen.findByRole("option", { name: "USA" }));
+
+    await waitFor(() =>
+      expect(mockValueScan).toHaveBeenCalledWith(
+        expect.objectContaining({ market: "usa" }),
+        expect.anything(),
+      ),
+    );
+    expect(enabledForFirstCall()).toBe(false);
+  });
+});
+
+describe("MarketScreenerPanel — manual refresh is a forced scan", () => {
+  test("the refresh button asks the hook to bypass the server cache", () => {
+    const refresh = vi.fn();
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ refresh }));
+    r(() => <MarketScreenerPanel />);
+
+    fireEvent.click(screen.getByTestId("market-refresh"));
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(refresh).toHaveBeenCalledWith(true);
+  });
+
+  test("the refresh button stays disabled while a fetch is in flight", () => {
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ isLoading: true }));
+    r(() => <MarketScreenerPanel />);
+
+    expect(screen.getByTestId("market-refresh")).toBeDisabled();
+  });
+
+  test("the error retries stay unforced so they reuse the server cache", () => {
+    const refresh = vi.fn();
+    mockUseMarketSnapshot.mockReturnValue(
+      hookResult({ rows: [], total: 0, snapshot: null, error: new Error("boom"), refresh }),
+    );
+    r(() => <MarketScreenerPanel />);
+
+    fireEvent.click(screen.getByTestId("market-retry"));
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(refresh.mock.calls[0][0]).not.toBe(true);
   });
 });
 

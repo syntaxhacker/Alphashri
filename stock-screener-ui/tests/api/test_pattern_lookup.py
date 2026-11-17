@@ -414,3 +414,59 @@ def test_lookup_single_store_query_for_many_symbols(lookup_client, monkeypatch):
     assert len(queries) == 1
     assert queries[0]["symbol"] == ["RELIANCE", "TCS", "INFY"]
     assert queries[0]["timeframe"] == "1D"
+
+
+# ---------------------------------------------------------------------------
+# Per-symbol cap — no global-LIMIT starvation
+# ---------------------------------------------------------------------------
+
+
+def _volume_hits(symbol, count, *, base_id, first_confidence):
+    """Distinct pattern identities so the store's dedupe keeps every row."""
+    return [
+        _hit(
+            symbol,
+            base_id + i,
+            pattern_id=f"pattern_{symbol}_{i}",
+            pattern_name=f"Pattern {i}",
+            confidence=first_confidence - i,
+        )
+        for i in range(count)
+    ]
+
+
+def test_lookup_caps_each_symbol_and_keeps_low_volume(lookup_client):
+    """25 hits for A and 1 for B: both appear, A is capped per symbol, B is not lost."""
+    _seed(
+        _volume_hits("AAA", 25, base_id=1, first_confidence=90.0)
+        + _volume_hits("ZZZ", 1, base_id=100, first_confidence=10.0)
+    )
+
+    resp = _post(lookup_client, ["AAA", "ZZZ"])
+
+    assert resp.status_code == 200
+    items = {item["symbol"]: item for item in resp.json()["items"]}
+    assert set(items) == {"AAA", "ZZZ"}
+    assert items["AAA"]["count"] == cp_api._LOOKUP_HITS_PER_SYMBOL
+    assert len(items["AAA"]["patterns"]) == cp_api._LOOKUP_HITS_PER_SYMBOL
+    assert items["ZZZ"]["count"] == 1
+    # Confidence ordering within a symbol is preserved (top-N by confidence).
+    confidences = [p["confidence"] for p in items["AAA"]["patterns"]]
+    assert confidences == sorted(confidences, reverse=True)
+    assert confidences[0] == 90.0
+
+
+def test_lookup_fetches_all_rows_before_capping(lookup_client):
+    """Total hits above the old `len(symbols) * cap` budget must not starve B."""
+    _seed(
+        _volume_hits("AAA", 45, base_id=1, first_confidence=90.0)
+        + _volume_hits("ZZZ", 1, base_id=200, first_confidence=10.0)
+    )
+
+    resp = _post(lookup_client, ["AAA", "ZZZ"])
+
+    assert resp.status_code == 200
+    items = {item["symbol"]: item for item in resp.json()["items"]}
+    assert set(items) == {"AAA", "ZZZ"}
+    assert items["AAA"]["count"] == cp_api._LOOKUP_HITS_PER_SYMBOL
+    assert items["ZZZ"]["count"] == 1

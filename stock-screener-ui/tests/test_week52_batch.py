@@ -123,3 +123,52 @@ class TestWeek52RangeLookup:
             data = fetch_52w_high_data()
             assert data["approaching"] == []
             assert data["warning"] is not None
+
+
+class TestBatchCacheInvalidation:
+    """A no-op prompt startup run must not wipe the prewarmed screener cache."""
+
+    def test_changed_ranges_helper(self):
+        from api_server_fastapi import _52w_batch_changed_ranges
+
+        assert _52w_batch_changed_ranges({"status": "completed", "ok": 0}) is False
+        assert _52w_batch_changed_ranges({"status": "completed", "ok": 3}) is True
+        assert _52w_batch_changed_ranges({"status": "failed", "ok": 1}) is True
+        assert _52w_batch_changed_ranges({"status": "running", "ok": 3}) is None
+        assert _52w_batch_changed_ranges(None) is None
+
+    async def _run_one_cycle(self, job, monkeypatch):
+        from api_server_fastapi import compute_52w_ranges_task
+
+        monkeypatch.setenv("SCREENER_52W_MAX_WAIT_SEC", "0")
+        sleep_calls = []
+
+        async def fake_sleep(secs):
+            sleep_calls.append(secs)
+            if len(sleep_calls) >= 2:
+                raise asyncio.CancelledError()
+
+        with patch("api_server_fastapi._is_market_hours", return_value=True), \
+             patch("api_server_fastapi.asyncio.sleep", new=fake_sleep), \
+             patch("trading.week52_job_status.get_job_status", return_value=job), \
+             patch("api.admin_routes._run_52w_batch_subprocess") as mock_run, \
+             patch("cache.redis_client.invalidate_screener_cache") as mock_invalidate:
+            try:
+                await compute_52w_ranges_task()
+            except asyncio.CancelledError:
+                pass
+            return mock_run, mock_invalidate
+
+    @pytest.mark.asyncio
+    async def test_prompt_run_with_no_changes_keeps_cache(self, monkeypatch):
+        job = {"status": "completed", "ok": 0, "total": 120, "skipped": 120}
+        mock_run, mock_invalidate = await self._run_one_cycle(job, monkeypatch)
+        mock_run.assert_called_once()
+        mock_invalidate.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_real_range_update_invalidates_cache(self, monkeypatch):
+        job = {"status": "completed", "ok": 5, "total": 120, "skipped": 115}
+        mock_run, mock_invalidate = await self._run_one_cycle(job, monkeypatch)
+        mock_run.assert_called_once()
+        mock_invalidate.assert_called_once()

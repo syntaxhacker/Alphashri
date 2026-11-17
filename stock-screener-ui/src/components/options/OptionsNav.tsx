@@ -1,5 +1,6 @@
 import { Box } from "@/ui";
 import { Tabs, TabsList, Tab } from "@/ui";
+import { useSymbolDock } from "@/components/common/symbolDockContext";
 
 interface OptionsNavProps {
   activeTab: string;
@@ -7,6 +8,7 @@ interface OptionsNavProps {
 }
 
 export function OptionsNav(props: OptionsNavProps) {
+  const dock = useSymbolDock();
   return (
     <Box
       id="options-nav-wrapper"
@@ -39,6 +41,14 @@ export function OptionsNav(props: OptionsNavProps) {
           </Tab>
         </TabsList>
       </Tabs>
+      <button
+        type="button"
+        onClick={() => dock.open("NIFTY", "options")}
+        className="ml-auto shrink-0 border-0 bg-transparent pl-2 font-mono text-[9px] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
+        data-testid="options-analytics-link"
+      >
+        Analytics ↗
+      </button>
     </Box>
   );
 }

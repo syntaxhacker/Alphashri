@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser, setupOptionDockMocks } from "../mocks/apiResponses";
+import { ANALYTICS_EXPIRIES, ANALYTICS_STRIKES, analyticsBody } from "../mocks/analyticsResponse";
 import { apiRoute } from "../mocks/routeHelper";
 import { collectConsoleErrors } from "./helpers/flowsB";
 
@@ -29,6 +30,7 @@ const MOCK_ROWS = [
     pos_52w: 0.72,
     fno: true,
     etf: false,
+    exchange: "NSE",
   },
 ];
 
@@ -65,6 +67,50 @@ async function mockPatternLookup(page: Page) {
   });
 }
 
+/**
+ * The in-dock pillars read `GET /api/options/analytics/{symbol}`. The shared
+ * `analyticsBody()` fixture carries the volatility/term/surface/RND blocks the
+ * defaults render; POSITIONING additionally needs the raw per-strike arrays.
+ */
+function pillarsBody() {
+  const strikes = [...ANALYTICS_STRIKES];
+  const base = analyticsBody();
+  return {
+    ...base,
+    expiries: base.expiries.map((expiry, index) =>
+      index === 0
+        ? {
+            ...expiry,
+            positioning: {
+              pcr: 1.05,
+              strikes,
+              ceOi: strikes.map((_, i) => 22_000 + i * 3_000),
+              peOi: strikes.map((_, i) => 18_000 + i * 2_000),
+              ceOiChange: strikes.map((_, i) => (i % 2 === 0 ? 1_200 : -800)),
+              peOiChange: strikes.map((_, i) => (i % 2 === 0 ? -1_000 : 700)),
+              ceVolume: strikes.map((_, i) => 4_000 - i * 200),
+              peVolume: strikes.map((_, i) => 3_500 - i * 150),
+              maxPainCurve: strikes.map((strike, i) => ({ strike, payout: 1_000 - i * 100 })),
+            },
+          }
+        : expiry,
+    ),
+  };
+}
+
+async function mockPillarsDashboard(page: Page) {
+  const counts = { analytics: 0 };
+  await page.route(apiRoute("options/analytics/**"), async (route) => {
+    counts.analytics += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(pillarsBody()),
+    });
+  });
+  return { counts };
+}
+
 async function enterWithDock(
   page: Page,
   options: Parameters<typeof setupOptionDockMocks>[1] = {},
@@ -98,6 +144,53 @@ async function chainScrollFits(page: Page): Promise<boolean> {
     ) as HTMLElement;
     return scroller.scrollWidth <= scroller.clientWidth;
   });
+}
+
+/** True only when the ATM cell's rect is fully inside the chain scroller's band. */
+async function atmCellInBand(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const scroller = document.querySelector(
+      '[data-testid="options-chain-table"] .paper-tanstack-scroll',
+    );
+    const cell = document.querySelector('[data-testid="options-strike-cell-1420"]');
+    if (!scroller || !cell) return false;
+    const band = scroller.getBoundingClientRect();
+    const rect = cell.getBoundingClientRect();
+    return band.height > 0 && rect.top >= band.top && rect.bottom <= band.bottom;
+  });
+}
+
+async function setChainScrollTop(page: Page, top: number): Promise<void> {
+  await page.evaluate((value) => {
+    const el = document.querySelector(
+      '[data-testid="options-chain-table"] .paper-tanstack-scroll',
+    ) as HTMLElement;
+    el.scrollTop = value;
+  }, top);
+}
+
+/**
+ * Bounce the scroller away from the target edge first, so every call dispatches
+ * a scroll event even when the scroller is already parked there. The component
+ * holds a programmatic-scroll guard until `scrollend` (or its fallback cap);
+ * polling keeps nudging until that guard releases and follow is actually off.
+ */
+async function scrollUntilUnfollowed(page: Page, edge: "top" | "bottom"): Promise<void> {
+  const host = page.locator('[data-testid="options-chain-table"]');
+  await expect.poll(
+    async () => {
+      await page.evaluate((which) => {
+        const el = document.querySelector(
+          '[data-testid="options-chain-table"] .paper-tanstack-scroll',
+        ) as HTMLElement;
+        const bottom = Math.max(0, el.scrollHeight - el.clientHeight);
+        if (which === "top") el.scrollTop = el.scrollTop === 0 ? bottom : 0;
+        else el.scrollTop = el.scrollTop >= bottom - 1 ? 0 : bottom;
+      }, edge);
+      return host.getAttribute("data-following");
+    },
+    { timeout: 8000, intervals: [200] },
+  ).toBe("false");
 }
 
 test.describe("Options dock", () => {
@@ -172,7 +265,10 @@ test.describe("Options dock", () => {
     await expect(page.locator('[data-testid="dock-section-legs"]')).toContainText("LEGS");
 
     await page.locator('[data-testid="options-ce-1420"]').click();
-    await expect(page.locator('[data-testid="dock-section-payoff"]')).toContainText("PAYOFF");
+    // The analytics strip owns its labels — the section header band is empty.
+    await expect(page.locator('[data-testid="analytics-tab-strip"]')).toBeVisible();
+    await expect(page.locator('[data-testid="analytics-tab-payoff"]')).toHaveText("PAYOFF");
+    await expect(page.locator('[data-testid="analytics-tab-smile"]')).toHaveText("IV BY STRIKE");
 
     const sections = page.locator("[data-dock-section]");
     await expect(sections).toHaveCount(4);
@@ -438,5 +534,348 @@ test.describe("Options dock", () => {
     );
     // ATM is pinned to the strike nearest spot, not to a row position.
     await expect(page.locator('[data-testid="options-atm-marker-1420"]')).toBeVisible();
+  });
+
+  test("wide: the chain opens centred on ATM and a manual scroll stops following", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await enterWithDock(page);
+    await openDock(page);
+
+    const host = page.locator('[data-testid="options-chain-table"]');
+    // The initial centre is a real scroll of the chain, not the page — a short
+    // ladder that fits the scroller could not exercise follow at all. Sample
+    // "centred" and follow in one atomic read: a trailing easing frame can no
+    // longer slip between the two checks and be sampled as a manual scroll.
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const scroller = document.querySelector(
+              '[data-testid="options-chain-table"] .paper-tanstack-scroll',
+            );
+            const cell = document.querySelector('[data-testid="options-strike-cell-1420"]');
+            const table = document.querySelector('[data-testid="options-chain-table"]');
+            if (!scroller || !cell || !table) return null;
+            const band = scroller.getBoundingClientRect();
+            const rect = cell.getBoundingClientRect();
+            const centred =
+              scroller.scrollTop > 0 &&
+              band.height > 0 &&
+              rect.top >= band.top &&
+              rect.bottom <= band.bottom;
+            return centred ? table.getAttribute("data-following") : null;
+          }),
+        { timeout: 10000 },
+      )
+      .toBe("true");
+
+    await scrollUntilUnfollowed(page, "top");
+    await setChainScrollTop(page, 0);
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            (document.querySelector(
+              '[data-testid="options-chain-table"] .paper-tanstack-scroll',
+            ) as HTMLElement).scrollTop,
+        ),
+      )
+      .toBe(0);
+    await expect(host).toHaveAttribute("data-following", "false");
+  });
+
+  test("wide: Center restores following and brings the ATM row back into view", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await enterWithDock(page);
+    await openDock(page);
+
+    const host = page.locator('[data-testid="options-chain-table"]');
+    await expect.poll(() => atmCellInBand(page), { timeout: 10000 }).toBe(true);
+
+    await scrollUntilUnfollowed(page, "bottom");
+    await page.evaluate(() => {
+      const el = document.querySelector(
+        '[data-testid="options-chain-table"] .paper-tanstack-scroll',
+      ) as HTMLElement;
+      el.scrollTop = el.scrollHeight;
+    });
+    // Away from centre the ATM cell really is out of the visible band.
+    await expect.poll(() => atmCellInBand(page), { timeout: 10000 }).toBe(false);
+    await expect(host).toHaveAttribute("data-following", "false");
+
+    await page.locator('[data-testid="options-chain-center"]').click();
+
+    await expect(host).toHaveAttribute("data-following", "true");
+    await expect.poll(() => atmCellInBand(page), { timeout: 10000 }).toBe(true);
+  });
+
+  test("narrow: the chain opens centred on ATM with no sideways page scroll", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await enterWithDock(page);
+    await openDock(page);
+
+    await expect.poll(() => atmCellInBand(page), { timeout: 10000 }).toBe(true);
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth === document.documentElement.clientWidth,
+          ),
+        { timeout: 10000 },
+      )
+      .toBe(true);
+  });
+
+  test("wide: level badges render on their strike cell and the summary echoes them", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await enterWithDock(page);
+    await openDock(page);
+
+    const wideBadges: Array<[number, string]> = [
+      [1420, "MP"],
+      [1470, "CW"],
+      [1390, "PW"],
+      [1400, "SUP"],
+      [1450, "RES"],
+    ];
+    for (const [strike, code] of wideBadges) {
+      const badge = page.locator(`[data-testid="options-strike-badge-${strike}"]`);
+      await expect(badge).toHaveAttribute("data-code", code);
+      await expect(badge).toHaveText(code);
+      await expect(page.locator(`[data-testid="options-strike-cell-${strike}"]`)).toContainText(code);
+    }
+
+    const line = page.locator('[data-testid="options-levels-line"]');
+    await expect(line).toBeVisible();
+    for (const label of ["SUP", "RES", "PW", "CW"]) {
+      await expect(line).toContainText(label);
+    }
+    await expect(page.locator('[data-testid="options-stat-max-pain"]')).toContainText("1,420");
+  });
+
+  test("narrow 390: strike badges are one-letter rails, never multi-letter chips", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await enterWithDock(page);
+    await openDock(page);
+
+    const narrowBadges: Array<[number, string]> = [
+      [1420, "M"],
+      [1470, "C"],
+      [1390, "P"],
+      [1400, "S"],
+      [1450, "R"],
+    ];
+    for (const [strike, letter] of narrowBadges) {
+      const badge = page.locator(`[data-testid="options-strike-badge-${strike}"]`);
+      await expect(badge).toHaveAttribute("role", "img");
+      await expect(badge).toHaveAttribute("data-letter", letter);
+      await expect(badge).toHaveText(letter);
+      await expect(page.locator(`[data-testid="options-strike-cell-${strike}"]`)).toContainText(letter);
+      const railWidth = await badge
+        .locator('[aria-hidden="true"]')
+        .first()
+        .evaluate((el) => (el as HTMLElement).style.width);
+      expect(railWidth).toBe("2px");
+    }
+
+    // No multi-letter chip survives at 390 px: every badge carries one letter.
+    const badges = page.locator('[data-testid^="options-strike-badge-"]');
+    await expect(badges).toHaveCount(5);
+    await expect(badges.filter({ hasText: /MP|CW|PW|SUP|RES/ })).toHaveCount(0);
+
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+          ),
+        { timeout: 10000 },
+      )
+      .toBe(true);
+  });
+
+  test("narrow 390: level rails, five analytics tabs and a stable header when analytics opens", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await enterWithDock(page);
+    await openDock(page);
+
+    await expect(page.locator('[data-testid="options-chain-table"]')).toBeVisible();
+
+    // Narrow one-letter markers + 2px rails on the five level strikes.
+    const narrowBadges: Array<[number, string]> = [
+      [1420, "M"],
+      [1470, "C"],
+      [1390, "P"],
+      [1400, "S"],
+      [1450, "R"],
+    ];
+    for (const [strike, letter] of narrowBadges) {
+      const badge = page.locator(`[data-testid="options-strike-badge-${strike}"]`);
+      await expect(badge).toHaveAttribute("role", "img");
+      await expect(badge).toHaveAttribute("data-letter", letter);
+      await expect(badge).toHaveText(letter);
+      await expect(page.locator(`[data-testid="options-strike-cell-${strike}"]`)).toContainText(
+        letter,
+      );
+      const railWidth = await badge
+        .locator('[aria-hidden="true"]')
+        .first()
+        .evaluate((el) => (el as HTMLElement).style.width);
+      expect(railWidth).toBe("2px");
+    }
+    const badges = page.locator('[data-testid^="options-strike-badge-"]');
+    await expect(badges).toHaveCount(5);
+    await expect(badges.filter({ hasText: /MP|CW|PW|SUP|RES/ })).toHaveCount(0);
+
+    // Real narrow summary: the level line keeps SUP/RES only, and max pain is
+    // the PAIN stat value rather than an "MP" chip.
+    const levelLine = page.locator('[data-testid="options-levels-line"]');
+    await expect(levelLine).toBeVisible();
+    await expect(levelLine).toContainText("SUP");
+    await expect(levelLine).toContainText("RES");
+    await expect(levelLine).not.toContainText("PW");
+    await expect(levelLine).not.toContainText("CW");
+    await expect(page.locator('[data-testid="options-stat-max-pain"]')).toContainText("1,420");
+
+    const noBodyOverflow = () =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      );
+    await expect.poll(noBodyOverflow, { timeout: 10000 }).toBe(true);
+
+    // Measure the band geometry before analytics mounts — tab reachability
+    // below scrolls the dock and would otherwise move the chain table top.
+    const geometry = () =>
+      page.evaluate(() => {
+        const rect = (id: string) =>
+          Math.round((document.querySelector(`[data-testid="${id}"]`) as HTMLElement)
+            .getBoundingClientRect()
+            .top);
+        const height = (id: string) =>
+          Math.round((document.querySelector(`[data-testid="${id}"]`) as HTMLElement)
+            .getBoundingClientRect()
+            .height);
+        return {
+          headerHeight: height("options-dock-header"),
+          summaryHeight: height("options-summary"),
+          chainTop: rect("options-chain-table"),
+        };
+      });
+    const before = await geometry();
+
+    // Selecting a strike adds a leg and mounts the analytics band + tab strip.
+    await page.locator('[data-testid="options-ce-1420"]').click();
+    await expect(page.locator('[data-testid="analytics-tab-payoff"]')).toHaveText("PAYOFF");
+    await expect(page.locator('[data-testid="options-payoff-chart"]')).toBeVisible();
+
+    const after = await geometry();
+    expect(after.headerHeight).toBe(before.headerHeight);
+    expect(after.summaryHeight).toBe(before.summaryHeight);
+    expect(after.chainTop).toBe(before.chainTop);
+
+    // All five tabs stay reachable at 390px; the strip owns overflow when they don't fit.
+    const strip = page.locator('[data-testid="analytics-tabs-list"]');
+    await expect(strip).toBeVisible();
+    const tabs: Array<[string, string]> = [
+      ["payoff", "PAYOFF"],
+      ["smile", "IV BY STRIKE"],
+      ["term", "IV BY EXPIRY"],
+      ["surface", "IV MAP"],
+      ["prob", "POSITION ODDS"],
+    ];
+    for (const [id, label] of tabs) {
+      const tab = page.locator(`[data-testid="analytics-tab-${id}"]`);
+      await expect(tab).toHaveText(label);
+      await tab.scrollIntoViewIfNeeded();
+      await expect(tab).toBeInViewport();
+    }
+    await expect(page.locator('[data-testid="analytics-tab-prob"]')).toBeInViewport();
+
+    await expect.poll(noBodyOverflow, { timeout: 10000 }).toBe(true);
+  });
+
+  test("Analytics opens the four pillars inside the dock without a route hop", async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 900 });
+    const dock = await enterWithDock(page);
+    // Registered after the app mocks so it wins over the broad `/api/**` handler.
+    const dashboard = await mockPillarsDashboard(page);
+    await openDock(page);
+
+    // A leg mounts the analytics strip, which owns the pillars entry point.
+    await page.locator('[data-testid="options-ce-1420"]').click();
+    await expect(page.locator('[data-testid="analytics-tab-strip"]')).toBeVisible();
+
+    const before = new URL(page.url());
+    const openPillars = page.locator('[data-testid="analytics-pillars-open"]');
+    await expect(openPillars).toBeVisible();
+    await expect(openPillars).toContainText("Analytics");
+    await openPillars.click();
+
+    await expect(page.locator('[data-testid="dock-pillars"]')).toBeVisible({ timeout: 15000 });
+
+    // The dock stays the surface: no `/options/analytics` hop, same pathname.
+    const after = new URL(page.url());
+    expect(after.pathname).toBe(before.pathname);
+    expect(after.href).not.toContain("/options/analytics");
+    // The pillars view mounts in its loading state, so the dashboard read is
+    // async — poll rather than read the counter on the visibility frame.
+    await expect.poll(() => dashboard.counts.analytics, { timeout: 15000 }).toBeGreaterThan(0);
+
+    for (const key of ["volatility", "positioning", "dealer", "liquidity"]) {
+      await expect(page.locator(`[data-testid="dock-pillar-tab-${key}"]`)).toBeVisible();
+    }
+    await expect(page.locator('[data-testid="dock-pillar-tab-volatility"]')).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    // Expiry chips come from the dashboard payload, front contract pre-selected.
+    await expect(page.locator('[data-testid="dock-pillars-expiry-row"]')).toBeVisible();
+    for (const date of ANALYTICS_EXPIRIES) {
+      await expect(page.locator(`[data-testid="dock-pillars-expiry-${date}"]`)).toBeVisible();
+    }
+    await expect(
+      page.locator(`[data-testid="dock-pillars-expiry-${ANALYTICS_EXPIRIES[0]}"]`),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    await page.locator('[data-testid="dock-pillar-tab-positioning"]').click();
+    await expect(page.locator('[data-testid="pillar-positioning"]')).toBeVisible();
+    await expect(page.locator('[data-testid="dock-pillar-tab-positioning"]')).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(page.locator('[data-testid="positioning-expiry"]')).toBeVisible();
+    await expect(page.locator('[data-testid="positioning-chart-grid"]')).toBeVisible();
+
+    await page.locator('[data-testid="dock-pillars-back"]').click();
+    await expect(page.locator('[data-testid="dock-pillars"]')).toBeHidden({ timeout: 10000 });
+    await expect(page.locator('[data-testid="options-chain-section"]')).toBeVisible();
+    await expect(page.locator('[data-testid="options-chain-table"]')).toBeVisible();
+
+    // Same dock, same mocked frame — no extra underlying/chain traffic.
+    expect(dock.counts.underlying).toBe(1);
+    expect(dock.counts.chain).toBe(1);
+  });
+
+  test("a chain with no levels renders no strike badges or level line", async ({ page }) => {
+    await enterWithDock(page, { levels: false });
+    await openDock(page);
+
+    await expect(page.locator('[data-testid="options-chain-table"]')).toBeVisible();
+    await expect(page.locator('[data-testid="options-strike-cell-1420"]')).toContainText("1,420");
+    await expect(page.locator('[data-testid^="options-strike-badge-"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="options-levels-line"]')).toHaveCount(0);
   });
 });

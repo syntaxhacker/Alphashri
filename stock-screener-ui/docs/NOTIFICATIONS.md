@@ -38,3 +38,16 @@ duration. Clicking the toast body opens `/chart/<symbol>` via the
 
 `src/test/toast-stylesheet.test.ts` fails if the CSS import disappears from
 `main.tsx`.
+
+## Bell badge semantics
+
+- **Today/unread, never all-time.** The count is `today_count − acknowledged`,
+  where `acknowledged` is what the user had seen when they last opened the panel
+  (`acknowledgeSurgeAlerts` on page 0, reset by the IST day key). A new session
+  starts fully unread; `resolveTodayCount` prefers the backend's bounded
+  `today_count` and only falls back to counting today's rows in the page.
+- **Caps:** the badge text is capped at `9+` (`SURGE_BADGE_CAP`) so it cannot
+  deform the icon; the aria-label/tooltip cap is `99+` (`SURGE_LABEL_CAP`).
+- **`total` is panel pagination only** — `hasMore = events.length < total`.
+  It is the all-time row count and must never drive the badge (that was the
+  runaway-count bug).

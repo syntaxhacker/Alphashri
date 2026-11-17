@@ -15,7 +15,7 @@ import { displayStatusForHit } from "./patternDisplayStatus";
 import { triggerDistancePct } from "./triggerDistance";
 import { directionGlyph, directionTone } from "./symbolMatrix";
 import { qualityBadgeTone, qualityLabel } from "./patternTone";
-import { formatPrice } from "./shared";
+import { formatChartPrice } from "./chartFormat";
 import { formatSignedPct1, hitChangePct } from "./patternFormat";
 import { PatternTags, rowTags } from "./rowBadges";
 
@@ -258,7 +258,7 @@ export function PatternListView(props: PatternListViewProps) {
       accessorFn: priceOf,
       size: 100,
       meta: { align: "right" },
-      cell: (ctx) => <NumCell value={priceOf(ctx.row.original)} format={formatPrice} fw={600} />,
+      cell: (ctx) => <NumCell value={priceOf(ctx.row.original)} format={formatChartPrice} fw={600} />,
     },
     {
       id: "chg",

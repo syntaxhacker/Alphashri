@@ -76,6 +76,8 @@ db/*.backup.*
 *storybook.log
 storybook-static
 bun.lockb
+# Bun is the only package manager here; a stale npm lock is a trap (root only — subprojects keep their own)
+/package-lock.json
 dump.rdb
 *.rdb
 

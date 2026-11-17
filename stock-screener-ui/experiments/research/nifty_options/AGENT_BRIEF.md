@@ -30,6 +30,10 @@ each owning **one** hypothesis track. Produce a machine-readable verdict, not pr
   columns: `ts,date,expiry,strike,opt,price,spot,T,iv,volume,rv,dte`.
 - **Surface metrics**: `experiments/data/nifty_options/surface_metrics_daily.parquet`
   columns: `date,expiry,dte,atm_iv,rv,vrp,vrp_ratio,rr25,iv_put,iv_call,term_slope`.
+- **Sign convention (research only):** `rr25` here = 25Δ put IV − 25Δ call IV
+  (classic "put skew is rich" sign; the tracked hypotheses and published findings
+  depend on it). Production analytics/report use the opposite `call − put` sign
+  (positive = calls rich). Never flip the cached research columns to match the UI.
 
 ## Kernel API (import from this dir)
 

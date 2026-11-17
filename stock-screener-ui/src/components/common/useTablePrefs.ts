@@ -21,6 +21,7 @@ import {
   type SavedConfigTransport,
 } from "../../state/savedConfig";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
+import { isNonEmptyString, isRecord, parseStringList } from "../../utils/persistedConfig";
 
 export const TABLE_PREFS_VERSION = 1;
 
@@ -59,10 +60,6 @@ export function defaultTablePrefs(): TablePrefs {
   return { sorting: [], order: [], hidden: [] };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function parseSorting(raw: unknown): TableSort[] {
   if (!Array.isArray(raw)) return [];
   // Map keeps the first position but the last value for a repeated id, so a
@@ -71,21 +68,11 @@ function parseSorting(raw: unknown): TableSort[] {
   for (const item of raw) {
     if (!isRecord(item)) continue;
     const { id, desc } = item;
-    if (typeof id !== "string" || id.trim() === "") continue;
+    if (!isNonEmptyString(id)) continue;
     if (typeof desc !== "boolean") continue;
     byId.set(id, { id, desc });
   }
   return [...byId.values()];
-}
-
-function parseIds(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return [];
-  const out: string[] = [];
-  for (const item of raw) {
-    if (typeof item !== "string" || item.trim() === "") continue;
-    if (!out.includes(item)) out.push(item);
-  }
-  return out;
 }
 
 /** `null` only for a non-object payload; bad fields degrade to empty arrays. */
@@ -93,8 +80,8 @@ export function parseTablePrefs(raw: unknown): TablePrefs | null {
   if (!isRecord(raw)) return null;
   return {
     sorting: parseSorting(raw.sorting),
-    order: parseIds(raw.order),
-    hidden: parseIds(raw.hidden),
+    order: parseStringList(raw.order),
+    hidden: parseStringList(raw.hidden),
   };
 }
 

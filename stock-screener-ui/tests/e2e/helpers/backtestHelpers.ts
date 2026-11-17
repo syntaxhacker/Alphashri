@@ -192,13 +192,13 @@ export async function selectSymbolAndRun(page: Page, symbol: string = "RELIANCE"
 
   const searchInput = page.locator('[data-testid="symbol-multiselect"] input');
   await searchInput.click();
-  await page.waitForTimeout(500);
+  await expect(page.locator('[data-part="multiselect-listbox"]')).toBeVisible({ timeout: 5000 });
 
   const clearBtn = page.locator('[data-testid="clear-symbols-btn"]');
   const clearBtnVisible = await clearBtn.isVisible().catch(() => false);
   if (clearBtnVisible) {
     await clearBtn.click({ force: true });
-    await page.waitForTimeout(500);
+    await expect(clearBtn).toBeHidden({ timeout: 5000 });
   }
 
   for (const sym of ["NETWEB", "SBILIFE"]) {
@@ -209,13 +209,13 @@ export async function selectSymbolAndRun(page: Page, symbol: string = "RELIANCE"
       const count = await removeBtn.count();
       if (count > 0) {
         await removeBtn.first().click({ force: true });
-        await page.waitForTimeout(300);
+        await expect(chip).toBeHidden({ timeout: 5000 });
       } else {
         const svg = chip.locator("svg");
         const svgCount = await svg.count();
         if (svgCount > 0) {
           await svg.first().click({ force: true });
-          await page.waitForTimeout(300);
+          await expect(chip).toBeHidden({ timeout: 5000 });
         }
       }
     }

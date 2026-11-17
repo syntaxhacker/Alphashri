@@ -18,14 +18,17 @@ vi.mock("./PatternTradingViewChart", () => ({
   PatternTradingViewChart: ({
     hit,
     candles,
+    market,
   }: {
     hit: PatternHitDTO | null;
     candles: ChartCandle[];
+    market?: string;
   }) => (
     <div
       data-testid="pattern-tv-stub"
       data-hit-symbol={hit?.symbol ?? "null"}
       data-candle-count={String(candles.length)}
+      data-market={market ?? "unset"}
     />
   ),
 }));
@@ -92,9 +95,24 @@ const HIT: PatternHitDTO = {
   ],
 };
 
+const US_HIT: PatternHitDTO = {
+  ...HIT,
+  id: 101,
+  symbol: "AAPL",
+  name: "Apple Inc.",
+  notes: "Breakout confirmed on volume",
+  last_close: 352.25,
+  day_change_pct: 1.2,
+  close_bar_date: "2026-09-26",
+  pivots: [],
+};
+
 
 describe("PatternChartBody", () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
 
   test("default render (no hit): body, history control, empty TV, no chart data", () => {
     render(() => <PatternChartBody hit={null} candles={[]} />);
@@ -207,6 +225,7 @@ describe("PatternChartBody", () => {
       changePct: -1.55,
       barDate: "2026-11-13",
       source: "hit",
+      isPartial: false,
     });
   });
 
@@ -366,5 +385,188 @@ describe("PatternChartBody", () => {
     expect(onSelectHit).toHaveBeenCalledTimes(1);
     expect(onSelectHit).toHaveBeenCalledWith(hits[0]);
     expect(onSelectHit).toHaveBeenCalledWith(expect.objectContaining({ symbol: "AAA" }));
+  });
+
+  test("the last returned candle (16 Nov) drives the close label and price", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-16T12:00:00Z"));
+    const candles: ChartCandle[] = [
+      { t: "2026-11-13", o: 3484, h: 3450, l: 3420, c: 3430, v: 900 },
+      { t: "2026-11-16", o: 3430, h: 3490, l: 3420, c: 3478, v: 1100 },
+    ];
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: null,
+      day_change_pct: null,
+      close_bar_date: null,
+    };
+    render(() => <PatternChartBody hit={hit} candles={candles} />);
+    const label = screen.getByTestId("patterns-close-label");
+    expect(label).toHaveTextContent("CLOSE · 16 NOV");
+    expect(label).not.toHaveTextContent("PREV CLOSE");
+    expect(label).not.toHaveTextContent("13 NOV");
+    expect(screen.getByText("₹3478.00")).toBeInTheDocument();
+    expect(screen.getByText("+1.40%")).toBeInTheDocument();
+    expect(screen.getByTestId("pattern-tv-stub")).toHaveAttribute("data-candle-count", "2");
+  });
+
+  test("a partial last candle shows a (live) marker; a completed bar does not", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-16T12:00:00Z"));
+    const base: ChartCandle[] = [
+      { t: "2026-11-13", o: 3484, h: 3450, l: 3420, c: 3430, v: 900 },
+      { t: "2026-11-16", o: 3430, h: 3490, l: 3420, c: 3478, v: 1100 },
+    ];
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: null,
+      day_change_pct: null,
+      close_bar_date: null,
+    };
+    const partial: ChartCandle[] = [
+      base[0]!,
+      { ...base[1]!, is_partial: true },
+    ];
+
+    const view = render(() => <PatternChartBody hit={hit} candles={partial} />);
+    expect(screen.getByTestId("patterns-close-label")).toHaveTextContent("CLOSE · 16 NOV");
+    expect(screen.getByTestId("patterns-close-partial")).toHaveTextContent("(live)");
+    // The marker never disturbs the price / percent pair.
+    expect(screen.getByText("₹3478.00")).toBeInTheDocument();
+    expect(screen.getByText("+1.40%")).toBeInTheDocument();
+
+    view.unmount();
+    render(() => <PatternChartBody hit={hit} candles={base} />);
+    expect(screen.getByTestId("patterns-close-label")).toHaveTextContent("CLOSE · 16 NOV");
+    expect(screen.queryByTestId("patterns-close-partial")).toBeNull();
+  });
+
+  test("market=usa keys an ET-offset candle to its New York session date, not IST", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-16T20:00:00Z")); // 15:00 ET / 01:30 IST next day
+    const candles: ChartCandle[] = [
+      { t: "2026-11-16T14:49:00-05:00", o: 100, h: 101, l: 99, c: 100, v: 900 },
+    ];
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: null,
+      day_change_pct: null,
+      close_bar_date: null,
+    };
+
+    const us = render(() => <PatternChartBody hit={hit} candles={candles} market="usa" />);
+    // 14:49 ET = 19:49Z = 01:19 IST on the 17th; the US session is the 16th.
+    expect(screen.getByTestId("patterns-close-label")).toHaveTextContent("CLOSE · 16 NOV");
+    expect(screen.getByTestId("patterns-close-label")).not.toHaveTextContent("17 NOV");
+    us.unmount();
+
+    render(() => <PatternChartBody hit={hit} candles={candles} />);
+    expect(screen.getByTestId("patterns-close-label")).toHaveTextContent("CLOSE · 17 NOV");
+  });
+
+  test("market=usa keeps the ET calendar date across the DST boundary", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-09T20:00:00Z"));
+    // 23:30 EDT on 8 Mar -> 03:30Z on 9 Mar (IST already the 9th).
+    const candles: ChartCandle[] = [
+      { t: "2026-03-08T23:30:00-04:00", o: 100, h: 101, l: 99, c: 100, v: 900 },
+    ];
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: null,
+      day_change_pct: null,
+      close_bar_date: null,
+    };
+    const us = render(() => <PatternChartBody hit={hit} candles={candles} market="usa" />);
+    expect(screen.getByTestId("patterns-close-label")).toHaveTextContent("08 MAR");
+    us.unmount();
+
+    render(() => <PatternChartBody hit={hit} candles={candles} />);
+    expect(screen.getByTestId("patterns-close-label")).toHaveTextContent("09 MAR");
+  });
+
+  test("an explicit timeZone overrides market", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-16T20:00:00Z"));
+    const candles: ChartCandle[] = [
+      { t: "2026-11-16T14:49:00-05:00", o: 100, h: 101, l: 99, c: 100, v: 900 },
+    ];
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: null,
+      day_change_pct: null,
+      close_bar_date: null,
+    };
+    render(() => (
+      <PatternChartBody hit={hit} candles={candles} market="usa" timeZone="Asia/Kolkata" />
+    ));
+    expect(screen.getByTestId("patterns-close-label")).toHaveTextContent("17 NOV");
+  });
+
+  test("feed/delay labels render a source badge only when supplied", () => {
+    const plain = render(() => <PatternChartBody hit={null} candles={[]} />);
+    expect(screen.queryByTestId("patterns-feed-badge")).toBeNull();
+    plain.unmount();
+
+    render(() => (
+      <PatternChartBody
+        hit={null}
+        candles={[]}
+        market="usa"
+        feedLabel="Yahoo"
+        delayLabel="~1 min (forming)"
+      />
+    ));
+    expect(screen.getByTestId("patterns-feed-badge")).toHaveTextContent(
+      "Yahoo · ~1 min (forming)",
+    );
+  });
+
+  test("market=usa: close and LTP render in USD with no rupee symbol", () => {
+    render(() => (
+      <PatternChartBody
+        hit={US_HIT}
+        candles={CANDLES}
+        market="usa"
+        livePrice={354.1}
+        liveChange={0.53}
+      />
+    ));
+    const panel = screen.getByTestId("patterns-fullscreen-panel");
+    expect(within(panel).getByText("$352.25")).toBeInTheDocument();
+    expect(within(panel).getByText("$354.10")).toBeInTheDocument();
+    expect(panel.textContent).not.toContain("₹");
+    expect(screen.getByTestId("pattern-tv-stub")).toHaveAttribute("data-market", "usa");
+  });
+
+  test("market=usa: chart body pivot prices render in $ with no ₹", () => {
+    const usWithPivots: PatternHitDTO = {
+      ...US_HIT,
+      pivots: [
+        { t: "2026-05-04", price: 1234.5, kind: "high" },
+        { t: "2026-05-20", price: 1180, kind: "low" },
+      ],
+    };
+    render(() => <PatternChartBody hit={usWithPivots} candles={CANDLES} market="usa" />);
+    const pivots = screen.getByTestId("patterns-detail-pivots");
+    expect(within(pivots).getByTestId("patterns-detail-pivot-0")).toHaveTextContent("$1,234.50");
+    expect(within(pivots).getByTestId("patterns-detail-pivot-1")).toHaveTextContent("$1,180.00");
+    expect(pivots.textContent).not.toContain("₹");
+  });
+
+  test("market=india keeps the ₹ price labels on close and LTP", () => {
+    render(() => (
+      <PatternChartBody
+        hit={US_HIT}
+        candles={CANDLES}
+        market="india"
+        livePrice={354.1}
+        liveChange={0.53}
+      />
+    ));
+    const panel = screen.getByTestId("patterns-fullscreen-panel");
+    expect(within(panel).getByText("₹352.25")).toBeInTheDocument();
+    expect(within(panel).getByText("₹354.10")).toBeInTheDocument();
+    expect(panel.textContent).not.toContain("$");
   });
 });

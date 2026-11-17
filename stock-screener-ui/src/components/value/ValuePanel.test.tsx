@@ -2,10 +2,11 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor, within, fireEvent } from "@solidjs/testing-library";
+import { createSignal, type JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import { ValuePanel } from "./ValuePanel";
 import { valueScan } from "../../api/valueScan";
-import type { ValueRow, ValueScanResponse } from "../../api/valueScan";
+import type { ValueMarket, ValueRow, ValueScanResponse } from "../../api/valueScan";
 
 vi.mock("../../api/valueScan", async (importOriginal) => {
   const actual =
@@ -222,16 +223,18 @@ describe("ValuePanel", () => {
     expect(tv).toHaveAttribute("target", "_blank");
   });
 
-  test("a NASDAQ symbol body never navigates to the NSE-backed chart route", async () => {
+  test("a US symbol navigates to the in-app chart with market=usa", async () => {
     r(<ValuePanel />);
     await screen.findByTestId("value-row-RELIANCE");
     await fireEvent.click(screen.getByTestId("value-market-tab-usa"));
     const symbol = await screen.findByTestId("value-name-AAPL", {}, { timeout: 3000 });
 
-    expect(symbol.tagName).toBe("A");
+    expect(symbol.tagName).toBe("BUTTON");
     await fireEvent.click(symbol);
-    expect(routerMocks.navigate).not.toHaveBeenCalled();
+    expect(routerMocks.navigate).toHaveBeenCalledTimes(1);
+    expect(routerMocks.navigate).toHaveBeenCalledWith("/chart/AAPL?market=usa");
 
+    // TradingView stays available as the secondary ↗ action.
     const tv = screen.getByTestId("symbol-tv-AAPL");
     expect(tv.tagName).toBe("A");
     expect(tv).toHaveAttribute(
@@ -240,6 +243,19 @@ describe("ValuePanel", () => {
     );
     expect(tv).toHaveAttribute("target", "_blank");
     expect(tv.getAttribute("rel")).toContain("noopener");
+  });
+
+  test("a US symbol keeps its dotted class symbol in the chart route", async () => {
+    mockValueScan.mockResolvedValue(
+      response([row("BRK.B", { name: "Berkshire Hathaway", exchange: "NYSE", currency: "USD" })], "usa"),
+    );
+    r(<ValuePanel initialFilters={{ market: "usa" }} />);
+    const symbol = await screen.findByTestId("value-name-BRK.B");
+
+    expect(symbol.tagName).toBe("BUTTON");
+    await fireEvent.click(symbol);
+    expect(routerMocks.navigate).toHaveBeenCalledTimes(1);
+    expect(routerMocks.navigate).toHaveBeenCalledWith("/chart/BRK.B?market=usa");
   });
 
   test("a NASDAQ row still opens the detail drawer on row click", async () => {
@@ -356,6 +372,52 @@ describe("ValuePanel", () => {
     expect(text).toContain("AAPL");
     expect(text).not.toContain("RELIANCE");
     downloads.restore();
+  });
+
+  test("embedded mode hides the market selector and follows the controlled market", async () => {
+    r(<ValuePanel embedded market="usa" />);
+    expect(screen.queryByTestId("value-market-tabs")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("value-row-AAPL", {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.queryByTestId("value-row-RELIANCE")).not.toBeInTheDocument();
+    expect(mockValueScan).toHaveBeenCalledWith(
+      expect.objectContaining({ market: "usa" }),
+      expect.anything(),
+    );
+  });
+
+  test("hideMarketSelect hides only the selector and keeps the default market", async () => {
+    r(<ValuePanel hideMarketSelect />);
+    expect(screen.queryByTestId("value-market-tabs")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("value-row-RELIANCE")).toBeInTheDocument();
+    expect(mockValueScan).toHaveBeenCalledWith(
+      expect.objectContaining({ market: "india" }),
+      expect.anything(),
+    );
+  });
+
+  test("standalone mode still shows the market selector and its tabs work", async () => {
+    r(<ValuePanel />);
+    expect(screen.getByTestId("value-market-tabs")).toBeInTheDocument();
+    await screen.findByTestId("value-row-RELIANCE");
+    await fireEvent.click(screen.getByTestId("value-market-tab-usa"));
+    expect(await screen.findByTestId("value-row-AAPL", {}, { timeout: 3000 })).toBeInTheDocument();
+  });
+
+  test("a controlled market change refetches without a selector", async () => {
+    const [market, setMarket] = createSignal<ValueMarket>("india");
+    r(<ValuePanel embedded market={market()} />);
+    await screen.findByTestId("value-row-RELIANCE");
+
+    setMarket("usa");
+    await waitFor(
+      () =>
+        expect(mockValueScan).toHaveBeenCalledWith(
+          expect.objectContaining({ market: "usa" }),
+          expect.anything(),
+        ),
+      { timeout: 3000 },
+    );
+    expect(await screen.findByTestId("value-row-AAPL", {}, { timeout: 3000 })).toBeInTheDocument();
   });
 });
 

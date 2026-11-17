@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import {
   MARKET_CONFIG_SCOPE,
   MARKET_CONFIG_VERSION,
@@ -9,6 +9,8 @@ import {
   serializeMarketConfig,
 } from "./useMarketConfig";
 import { SCOPES } from "../../state/savedConfig";
+import { DEFAULT_MARKET_UNIVERSE } from "../../api/marketScreener";
+import * as marketFiltersModule from "./marketFilters";
 import { defaultMarketFilters } from "./marketFilters";
 
 function payload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -100,6 +102,114 @@ describe("parse — tolerance and rejection", () => {
     });
     expect(parsed!.universe).toBe("nifty500");
     expect(parsed!.filters.sectors).toEqual(["IT"]);
+  });
+});
+
+describe("us universe", () => {
+  test("the saved-config parser accepts universe=us", () => {
+    const parsed = parseMarketConfig(payload({ universe: "us" }));
+    expect(parsed?.universe).toBe("us");
+    expect(parseMarketConfig(payload({ universe: "nasdaq" }))).toBeNull();
+  });
+
+  test("a US config round-trips through the v1 flat wire payload", () => {
+    const value = defaultMarketConfig({ universe: "us", view: "map" });
+    value.filters = {
+      ...value.filters,
+      capTiers: new Set(["large", "mid"]),
+      sectors: ["Semiconductors"],
+      mcapMinCr: 2,
+      mcapMaxCr: 100,
+      priceMin: 50,
+      sort: "rsi_desc",
+    };
+    const parsed = parseMarketConfig(JSON.parse(JSON.stringify(serializeMarketConfig(value))))!;
+    expect(parsed.universe).toBe("us");
+    expect(parsed.view).toBe("map");
+    expect(parsed.filters.mcapMinCr).toBe(2);
+    expect(parsed.filters.mcapMaxCr).toBe(100);
+    expect(parsed.filters.priceMin).toBe(50);
+    expect([...parsed.filters.capTiers].sort()).toEqual(["large", "mid"]);
+    expect(parsed.filters.sectors).toEqual(["Semiconductors"]);
+    expect(parsed.filters.sort).toBe("rsi_desc");
+  });
+
+  test("US defaults are the same unit-neutral baseline with no India F&O tags", () => {
+    const config = defaultMarketConfig({ universe: "us" });
+    expect(config.filters).toEqual(defaultMarketFilters("us"));
+    expect(config.filters.fnoOnly).toBe(false);
+    expect(config.filters.etfOnly).toBe(false);
+    expect(config.filters.sectors).toEqual([]);
+    expect(config.filters.mcapMinCr).toBeNull();
+  });
+});
+
+describe("restore passes the saved universe into default filters", () => {
+  test("a saved us config builds its filters with the US universe, not an India-only default", () => {
+    const expected = defaultMarketFilters("us");
+    const spy = vi.spyOn(marketFiltersModule, "defaultMarketFilters");
+    try {
+      const parsed = parseMarketConfig(payload({ universe: "us", rsiMin: 55 }))!;
+      expect(parsed.universe).toBe("us");
+      expect(spy).toHaveBeenCalledWith("us");
+      expect(parsed.filters.rsiMin).toBe(55);
+      expect(parsed.filters.fnoOnly).toBe(false);
+      expect(parsed.filters).toEqual({ ...expected, rsiMin: 55 });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  test("a saved India config still restores with its own universe and filters", () => {
+    const expected = defaultMarketFilters("nifty500");
+    const spy = vi.spyOn(marketFiltersModule, "defaultMarketFilters");
+    try {
+      const parsed = parseMarketConfig(payload({ universe: "nifty500", mcapMinCr: 500 }))!;
+      expect(parsed.universe).toBe("nifty500");
+      expect(spy).toHaveBeenCalledWith("nifty500");
+      expect(parsed.filters.mcapMinCr).toBe(500);
+      expect(parsed.filters).toEqual({ ...expected, mcapMinCr: 500 });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  test("a config missing universe falls back to the default and still restores filters", () => {
+    const { universe: _omitted, ...withoutUniverse } = payload({ rsiMin: 42, fnoOnly: true });
+    const spy = vi.spyOn(marketFiltersModule, "defaultMarketFilters");
+    try {
+      const parsed = parseMarketConfig(withoutUniverse)!;
+      expect(parsed.universe).toBe(DEFAULT_MARKET_UNIVERSE);
+      expect(spy).toHaveBeenCalledWith(DEFAULT_MARKET_UNIVERSE);
+      expect(parsed.filters.rsiMin).toBe(42);
+      expect(parsed.filters.fnoOnly).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  test("an unknown universe is rejected before any filters are built", () => {
+    const raw = payload({ universe: "nasdaq" });
+    const spy = vi.spyOn(marketFiltersModule, "defaultMarketFilters");
+    try {
+      expect(parseMarketConfig(raw)).toBeNull();
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
+describe("value view", () => {
+  test("view=value round-trips through the saved-config allowlist", () => {
+    const value = defaultMarketConfig({ view: "value" });
+    const wire = serializeMarketConfig(value);
+    expect(wire.view).toBe("value");
+    expect(parseMarketConfig(JSON.parse(JSON.stringify(wire)))?.view).toBe("value");
+  });
+
+  test("an unknown view falls back to table", () => {
+    expect(parseMarketConfig(payload({ view: "bogus" }))?.view).toBe("table");
   });
 });
 

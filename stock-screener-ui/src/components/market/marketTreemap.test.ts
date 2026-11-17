@@ -4,8 +4,10 @@ import {
   isMarketSignedMetric,
   marketRowsByCapDesc,
   marketSortMetric,
+  marketTreemapMetrics,
   toTreemapRow,
 } from "./marketTreemap";
+import { currencyFor } from "@/config/currency";
 import { MARKET_SORT_OPTIONS, type MarketSortKey } from "./marketFilters";
 import { getMetricValue, getHeatmapMetricColor } from "@/components/heatmap/heatmapUtils";
 import { buildStockTreemapOption, getStockMetricRange, safeFmt } from "@/components/heatmap/stockTreemap";
@@ -215,7 +217,7 @@ describe("marketRowsByCapDesc", () => {
       row("MID", 240_000, 74),
       row("HUGE", 1_805_376, 21),
     ];
-    const laidOut = marketRowsByCapDesc(rsiSorted).map(toTreemapRow);
+    const laidOut = marketRowsByCapDesc(rsiSorted).map((row) => toTreemapRow(row));
     const data = buildStockTreemapOption(laidOut as HeatmapStock[], "change_pct", MARKET_METRICS, true, {
       borderDark: "#000",
       borderLight: "#fff",
@@ -276,5 +278,44 @@ describe("marketSortMetric", () => {
 
   test("symbol A–Z leaves the colour alone", () => {
     expect(marketSortMetric("symbol_asc")).toBeNull();
+  });
+});
+
+describe("currency-aware treemap caps", () => {
+  const usRow: MarketRow = {
+    ...base,
+    currency: "USD",
+    marketCapCr: null,
+    marketCapUsdB: 1805.376,
+  };
+
+  test("India keeps its crore scale by default", () => {
+    expect(toTreemapRow(base).market_cap).toBeCloseTo(
+      1805376 * currencyFor("INR").mcapScale,
+      0,
+    );
+  });
+
+  test("USD uses the descriptor scale and the row's own cap field", () => {
+    expect(toTreemapRow(usRow, "USD").market_cap).toBeCloseTo(
+      1805.376 * currencyFor("USD").mcapScale,
+      0,
+    );
+  });
+
+  test("USD rows sort by their own cap field", () => {
+    const small: MarketRow = { ...usRow, symbol: "SMALL", marketCapUsdB: 12 };
+    expect(marketRowsByCapDesc([small, usRow], "USD").map((r) => r.symbol)).toEqual([
+      "RELIANCE",
+      "SMALL",
+    ]);
+  });
+
+  test("the cap metric carries the currency's symbol and suffix", () => {
+    const india = MARKET_METRICS.find((m) => m.value === "market_cap")!;
+    const usd = marketTreemapMetrics("USD").find((m) => m.value === "market_cap")!;
+    expect(india.fmt(2.5e9)).toBe("₹2.5B");
+    expect(usd.fmt(2.5e9)).toBe("$2.5B");
+    expect(usd.fmt(1.2e10)).toBe("$12.0B");
   });
 });

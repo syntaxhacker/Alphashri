@@ -673,8 +673,40 @@ def test_route_error_is_a_json_envelope(route_client, monkeypatch):
 
 # ------------------------------------------- symbol-owned session analytics
 def test_lot_size_resolves_from_the_chain_contract_instrument_key():
-    chain = [{"ce": {"instrument_key": "NSE_FO|125833"}, "pe": {}}]
-    assert options_report.resolve_lot_size("NOT_A_LISTED_NAME", chain) == 500
+    """A chain contract's instrument_key resolves via the live instrument file.
+
+    Derive the fixture from the file ``resolve_lot_size`` reads so a regenerated
+    instrument list cannot turn a valid assertion into a false failure.
+    """
+    from pathlib import Path
+
+    path = (Path(__file__).resolve().parents[2] / "upstox_trader"
+            / "config_and_utils" / "nse_instruments.json")
+    if not path.exists():
+        pytest.skip("nse_instruments.json is absent — no chain contract fixture")
+
+    with open(path) as fh:
+        instruments = json.load(fh)
+
+    # Mirror _fo_lots' coercion/last-wins so the picked key+lot match production.
+    by_key: dict[str, int] = {}
+    for item in instruments:
+        if item.get("segment") != "NSE_FO":
+            continue
+        try:
+            lot = int(item.get("lot_size") or 0)
+        except (TypeError, ValueError):
+            continue
+        if lot <= 0 or not item.get("instrument_key"):
+            continue
+        by_key[str(item["instrument_key"])] = lot
+
+    if not by_key:
+        pytest.skip("no NSE_FO entries with a positive lot_size in nse_instruments.json")
+
+    key = min(by_key)  # deterministic: first sorted instrument key
+    chain = [{"ce": {"instrument_key": key}, "pe": {}}]
+    assert options_report.resolve_lot_size("NOT_A_LISTED_NAME", chain) == by_key[key]
     assert options_report.resolve_lot_size("NOT_A_LISTED_NAME", []) == 1
 
 

@@ -28,8 +28,13 @@ function useStateSnapshot() {
   });
 }
 
+/** Fixed-height band — asserted by tests. Unmounting it shifts the table down. */
+export const SCREENER_INLINE_FILTERS_HEIGHT_CLASS = "h-[24px]";
+export const SCREENER_INLINE_FILTERS_PLACEHOLDER = "No filters";
+export const SCREENER_INLINE_FILTERS_EMPTY_TESTID = "screener-inline-filters-empty";
+
 const ROW_CLASS =
-  "flex items-center gap-2 px-2 h-[24px] min-h-[24px] flex-nowrap overflow-hidden flex-shrink-0 bg-fin-surface";
+  `flex items-center gap-2 px-2 ${SCREENER_INLINE_FILTERS_HEIGHT_CLASS} min-h-[24px] flex-nowrap overflow-hidden whitespace-nowrap flex-shrink-0 bg-fin-surface`;
 
 export function ScreenerInlineFilters(props: ScreenerInlineFiltersProps) {
   const store = useStateSnapshot();
@@ -51,32 +56,34 @@ export function ScreenerInlineFilters(props: ScreenerInlineFiltersProps) {
     </>
   );
 
+  // Always mounted: the band reserves its 24px even with no filters/notes/status,
+  // so the first filter (or first status tick) cannot push the table down.
   return (
-    <Show when={hasContent()}>
-      <Show
-        when={embedded()}
-        fallback={
-          <Paper
-            elevation={0}
-            data-testid="screener-inline-filters"
-            className={`${ROW_CLASS} border border-fin-border rounded-fin`}
-          >
-            <FilterChips
-              filters={filters()}
-              activeScreener={props.activeScreener}
-              trailing={trailing}
-            />
-          </Paper>
-        }
-      >
-        <Box data-testid="screener-inline-filters" className={ROW_CLASS}>
+    <Show
+      when={embedded()}
+      fallback={
+        <Paper
+          elevation={0}
+          data-testid="screener-inline-filters"
+          className={`${ROW_CLASS} border border-fin-border rounded-fin`}
+        >
           <FilterChips
             filters={filters()}
             activeScreener={props.activeScreener}
+            showPlaceholder={!hasContent()}
             trailing={trailing}
           />
-        </Box>
-      </Show>
+        </Paper>
+      }
+    >
+      <Box data-testid="screener-inline-filters" className={ROW_CLASS}>
+        <FilterChips
+          filters={filters()}
+          activeScreener={props.activeScreener}
+          showPlaceholder={!hasContent()}
+          trailing={trailing}
+        />
+      </Box>
     </Show>
   );
 }
@@ -97,10 +104,24 @@ function FilterNotes(props: { notes: string[] }) {
   );
 }
 
-function FilterChips(props: { filters: any[]; activeScreener: string; trailing?: JSX.Element }) {
+function FilterChips(props: {
+  filters: any[];
+  activeScreener: string;
+  showPlaceholder?: boolean;
+  trailing?: JSX.Element;
+}) {
   const hasFilters = () => props.filters.length > 0;
   return (
     <>
+      <Show when={props.showPlaceholder}>
+        <Text
+          c="dimmed"
+          className="text-[11px] leading-none whitespace-nowrap"
+          data-testid={SCREENER_INLINE_FILTERS_EMPTY_TESTID}
+        >
+          {SCREENER_INLINE_FILTERS_PLACEHOLDER}
+        </Text>
+      </Show>
       <Show when={hasFilters()}>
         <Text className="text-[11px] flex-shrink-0" c="dimmed" fw={600}>
           Filters:

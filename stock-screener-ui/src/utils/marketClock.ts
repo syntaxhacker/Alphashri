@@ -1,11 +1,12 @@
 /**
- * NSE session clock (IST).
+ * Exchange session clocks (IST for NSE, ET for US venues).
  *
  * Holidays are deliberately *not* modelled here: the replay-dates endpoint
  * only lists days that actually recorded snapshots, so a holiday resolves to
  * the last real session. This helper answers the simpler question — "is the
  * exchange open right now?" — which decides whether the report should open on
- * Live or on the newest recorded day.
+ * Live or on the newest recorded day, and whether a screen should auto-poll.
+ * Holiday awareness for the Indian session lives in `state/holidays.ts`.
  */
 
 /** 09:15 IST — continuous trading starts. */
@@ -52,4 +53,35 @@ export function isDerivativesOpenIst(now: Date = new Date()): boolean {
   const { weekday, minutes } = istClock(now);
   if (weekday === "Sat" || weekday === "Sun") return false;
   return minutes >= SESSION_START_MIN && minutes < DERIVATIVES_CLOSE_MIN;
+}
+
+/** 09:30 ET — US regular-session open. */
+export const US_SESSION_START_MIN = 9 * 60 + 30;
+/** 16:00 ET — US regular-session close. */
+export const US_MARKET_CLOSE_MIN = 16 * 60;
+
+/** ET (America/New_York) weekday + minute-of-day for `now`, DST-aware. */
+export function etClock(now: Date = new Date()): { weekday: string; minutes: number } {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/New_York",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(now);
+  const pick = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  // `hour12: false` renders midnight as "24" in some ICU versions.
+  const hour = Number(pick("hour")) % 24;
+  const minute = Number(pick("minute"));
+  return {
+    weekday: pick("weekday"),
+    minutes: (Number.isFinite(hour) ? hour : 0) * 60 + (Number.isFinite(minute) ? minute : 0),
+  };
+}
+
+/** True on Mon–Fri between 09:30 and 16:00 ET (no holiday calendar). */
+export function isUsMarketOpen(now: Date = new Date()): boolean {
+  const { weekday, minutes } = etClock(now);
+  if (weekday === "Sat" || weekday === "Sun") return false;
+  return minutes >= US_SESSION_START_MIN && minutes < US_MARKET_CLOSE_MIN;
 }

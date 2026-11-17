@@ -1,6 +1,9 @@
 # Pattern data freshness — KAYNES incident
 
-Status: **T1–T4 complete (2026-11-16)**. Root cause, shipped fixes, and live evidence below.
+Status: **T1–T4 complete (2026-11-16)**. The 1D display fix is partly live: the
+tape bar is appended to the displayed series (verified on 10 symbols), while the
+display-side freshness fields (`as_of` / `stale` / `detection_as_of`) are in
+flight — see T5.
 
 ## Incident
 
@@ -132,9 +135,75 @@ card open → quote fetched.
   invalidates the old value.
 - A user can force a refresh from the pattern dock and see the new frame.
 - KAYNES: dated 13 Nov close + live LTP, matching the table.
+- A 1D chart whose display includes today's tape bar reports `as_of` = today,
+  `stale: false`, and `detection_as_of` = the last completed session.
 
-## Remaining (2026-11-16)
+## T5 — 1D display freshness (2026-11-16; fields in flight)
 
-- The 1h in-progress bar can tick between sequential requests, so enrichment and
-  chart may disagree on the latest partial bar. Daily bars are completed sessions
-  by design.
+The dock showed a stale `as_of` (13 Nov) over a chart whose last candle was
+already today's. The fix keeps the displayed series and the detected series
+separate: **display may be newer than detection**, and every payload field says
+which one it describes.
+
+### Backend — `/symbol/{symbol}/chart` (stale-first path)
+
+- Today's tape bar is appended to the **display series only**. Detection,
+  `_remember_frame`, `_frame_identity`, `_store_pattern_block` and the disk
+  cache stay on the last completed session, so a hit can never form on an
+  unfinished bar and `bars_ago` stays comparable across polls.
+- `with_partial_today` / `is_partial`: the synthetic bar is marked
+  `partial_today` and `partial_today_in_progress`; only the **trailing displayed
+  candle** carries `is_partial: true`, and only while the session is in progress.
+  After the 15:30 IST close the bar is final — the marker is absent
+  (`_synthetic_bar_in_progress` compares the bar date to `_last_completed_session`).
+- Freshness contract (`_chart_freshness`), describing the **displayed** series:
+  - `as_of` = last displayed bar date (so it is today when the tape bar is shown);
+  - `stale` = false whenever the chart is current; `expected_as_of` is echoed
+    only when the display really is behind the last completed session;
+  - `detection_as_of` = the base frame date whose hits `bars_ago` refers to.
+  The tape append and the display-side `stale` suppression are already live; the
+  field contract is **in flight** — implemented and unit-tested
+  (`tests/api/test_chart_patterns_frame_freshness.py`, 21 pass), but the running
+  API still answers `as_of` 13 Nov / `stale: true` / `detection_as_of: null`
+  until the process is restarted on it.
+- `?refresh=1` (same lane) bypasses the stale-first and negative caches, forces
+  the fetch, and returns the **same fields** — a forced current chart is never
+  labelled stale. On the timeout/error fallback path `detection_as_of = as_of`
+  (no tape append, so display and detection share a date).
+
+### Frontend
+
+- `CLOSE` / `PREV CLOSE` come from the last candle (`resolveCloseSeries`), never
+  from `hit.last_close` unless its `close_bar_date` proves the same-or-newer bar.
+- A partial trailing candle shows the `(live)` marker next to the dated label.
+- The stale/"Cached `<date>`" badge is suppressed when the displayed candle is
+  newer than `as_of` (`staleFields` in `patternsFullscreen.ts` and
+  `usePatternFullscreenSolid.ts`); the backend `stale` flag alone is not trusted
+  when the two disagree.
+
+### Live evidence (10 symbols, 16 Nov close)
+
+`/symbol/{sym}/chart?timeframe=1D` — all 10 series end **16 Nov**, and the
+appended bar's OHLCV matches `yfinance <SYM>.NS` exactly:
+
+| Symbol | Last candle | Close | Volume |
+|---|---|---|---|
+| ASIANPAINT | 16 Nov | 2,572.9 | 1,146,195 |
+| HDFCBANK | 16 Nov | 816.5 | 27,143,063 |
+| ICICIBANK | 16 Nov | 1,585.0 | 10,069,097 |
+| INFY | 16 Nov | 1,145.1 | 4,851,757 |
+| KAYNES | 16 Nov | 2,980.0 | 9,882,559 |
+| LT | 16 Nov | 4,140.0 | 1,136,716 |
+| MARUTI | 16 Nov | 12,571.0 | 662,297 |
+| RELIANCE | 16 Nov | 1,344.8 | 7,653,026 |
+| SBIN | 16 Nov | 1,090.5 | 16,215,258 |
+| TCS | 16 Nov | 2,405.0 | 1,802,297 |
+
+`POST /detect {sym,1D}` for the same 10 symbols stays at **`data_through:
+2026-11-13`** — detection deliberately ignores the tape bar.
+
+**Caveat:** Upstox's official daily candle can lag a session (its own EOD
+publish runs after the close). The tape bar is therefore **display-only** — it
+is never written to the candle cache, never fed to detection, and never used to
+enrich `last_close`/`close_bar_date`. When the official bar lands, the frame
+identity rolls and the synthesized bar stops being appended.

@@ -11,8 +11,14 @@ Three properties drive the design:
 * **Writes are strict, reads are tolerant.** Unknown keys are a 422 on PUT
   (a client typo must not be smuggled into the blob) but are dropped silently on
   GET (an older payload must still render).
-* **Unknown scope is rejected before any DB access**, so a typo can never
-  create a row.
+* **Unknown scope is rejected before any DB access *and before the body is
+  validated***, so a typo can never create a row and can never surface as a
+  client-side 422 (which the frontend treats as a permanent bug, not as
+  "this build has no such scope").
+* **A revision is a microsecond UTC timestamp written by Python, not by the
+  database clock.** ``CURRENT_TIMESTAMP`` is second-resolution on SQLite, so two
+  saves in the same second used to produce the same ``updated_at`` — the ETag a
+  stale tab sent back then matched and its write silently won.
 
 ``market.filters`` v1 is a flat object — ``universe``, the market filter fields,
 ``sort`` and ``view`` at the same level — because the frontend adapter composes
@@ -30,16 +36,17 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any, Callable, Literal, Optional
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from api.auth import get_current_user
+from api.market_screen.config import ALL_CAP_TIERS, ALLOWED_UNIVERSES
 from db.database import get_db
 
 router = APIRouter(prefix="/api/user-configs", tags=["user-configs"])
@@ -47,8 +54,11 @@ router = APIRouter(prefix="/api/user-configs", tags=["user-configs"])
 DEFAULT_SLOT = ""
 MAX_CONFIG_BYTES = 16 * 1024
 
-MarketUniverse = Literal["all_equity", "nifty500", "nifty50", "nse_fo"]
-CapTier = Literal["large", "mid", "small", "micro"]
+# Built from the market-screen registry so a new universe/tier is picked up in
+# one place. Runtime validation only — the public request/response models carry
+# ``dict[str, Any]``, so these Literals are not exposed as OpenAPI enums.
+MarketUniverse = Literal[tuple(ALLOWED_UNIVERSES)]  # type: ignore[valid-type]
+CapTier = Literal[tuple(ALL_CAP_TIERS)]  # type: ignore[valid-type]
 MarketSortKey = Literal[
     "day_desc",
     "day_asc",
@@ -60,9 +70,12 @@ MarketSortKey = Literal[
     "pos_52w_desc",
     "symbol_asc",
 ]
-MarketView = Literal["table", "map", "movers"]
+#: Kept in lockstep with the frontend ``MARKET_VIEW_OPTIONS`` (``MarketViewMode``).
+#: Runtime-only Literal, so this list is not an OpenAPI enum, but the saved-config
+#: write path still rejects anything outside it with ``invalid_config``.
+MarketView = Literal["table", "map", "movers", "value"]
 
-CAP_TIERS: frozenset[str] = frozenset(("large", "mid", "small", "micro"))
+CAP_TIERS: frozenset[str] = frozenset(ALL_CAP_TIERS)
 
 
 class MarketFiltersV1(BaseModel):
@@ -78,7 +91,7 @@ class MarketFiltersV1(BaseModel):
 
     universe: MarketUniverse = "all_equity"
     sectors: list[str] = Field(default_factory=list, max_length=200)
-    capTiers: list[CapTier] = Field(default_factory=list, max_length=4)
+    capTiers: list[CapTier] = Field(default_factory=list, max_length=len(ALL_CAP_TIERS))
     priceMin: Optional[float] = Field(default=None, ge=0, le=10_000_000)
     priceMax: Optional[float] = Field(default=None, ge=0, le=10_000_000)
     dayChangeMin: Optional[float] = Field(default=None, ge=-100, le=100)
@@ -203,6 +216,25 @@ def default_table_prefs_payload() -> dict[str, Any]:
     return TablePrefsV1().model_dump()
 
 
+class TableSortReadV1(TableSortV1):
+    """Read-side sort entry: a newer build's extra keys must not lose the prefs."""
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class TablePrefsReadV1(TablePrefsV1):
+    """Read-side view of ``TablePrefsV1``.
+
+    ``extra="forbid"`` belongs on the write path only. A row written by a newer
+    build carries fields this build does not know yet; rejecting the whole
+    payload would silently reset the user's sorting/order/hidden to defaults.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    sorting: list[TableSortReadV1] = Field(default_factory=list, max_length=10)  # type: ignore[assignment]
+
+
 def _unknown_table_keys(config: dict[str, Any]) -> list[str]:
     return sorted(set(config) - TABLE_FIELD_NAMES)
 
@@ -215,6 +247,8 @@ class ScopeSpec:
     default: Callable[[], dict[str, Any]]
     max_bytes: int
     unknown_keys: Callable[[dict[str, Any]], list[str]]
+    #: Read-only schema; ``None`` means reads and writes share ``schema``.
+    read_schema: Optional[type[BaseModel]] = None
 
 
 SCOPE_REGISTRY: dict[str, ScopeSpec] = {
@@ -266,16 +300,58 @@ def _spec_or_none(scope: str) -> Optional[ScopeSpec]:
             default=default_table_prefs_payload,
             max_bytes=MAX_CONFIG_BYTES,
             unknown_keys=_unknown_table_keys,
+            read_schema=TablePrefsReadV1,
         )
     return None
 
 
-def _unknown_scope() -> JSONResponse:
-    return JSONResponse(status_code=404, content={"detail": "unknown_scope"})
+def _resolve_scope(scope: str) -> ScopeSpec:
+    """The scope gate as a dependency, so it runs before the body is validated.
+
+    An unknown scope must read as "this build has no such scope" (404) even when
+    the request body is absent or malformed. A body-declared handler parameter is
+    validated *before* the handler body, which turned the typo into a 422 — a code
+    the frontend treats as a permanent client bug rather than a disabled feature.
+    """
+    spec = _spec_or_none(scope)
+    if spec is None:
+        raise HTTPException(status_code=404, detail="unknown_scope")
+    return spec
 
 
 def _iso(value: Optional[datetime]) -> Optional[str]:
+    # isoformat() keeps the microseconds, which is what makes two saves in the
+    # same second two distinct revisions.
     return value.isoformat() if value else None
+
+
+def _as_utc(value: Optional[datetime]) -> Optional[datetime]:
+    """SQLite hands back naive values; the column's contract is UTC."""
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _next_revision(previous: Optional[datetime]) -> datetime:
+    """A revision that advances on every write, independent of clock resolution.
+
+    ``onupdate=func.now()`` is ``CURRENT_TIMESTAMP`` on SQLite, which has
+    one-second resolution: two saves inside the same second produced the same
+    ``updated_at``, so a stale tab's ``If-Match`` matched and its write won.
+    Comparing against the stored value also covers a build that sets the column
+    itself, or a clock that steps backwards.
+    """
+    prior = _as_utc(previous)
+    now = _utcnow()
+    if prior is not None and now <= prior:
+        return prior + timedelta(microseconds=1)
+    return now
 
 
 def _compact_bytes(payload: dict[str, Any]) -> int:
@@ -298,7 +374,7 @@ def _normalize_for_read(spec: ScopeSpec, raw: Any) -> Optional[dict[str, Any]]:
         cleaned["sectors"] = [s for s in sectors if isinstance(s, str)]
 
     try:
-        return spec.schema.model_validate(cleaned).model_dump()
+        return (spec.read_schema or spec.schema).model_validate(cleaned).model_dump()
     except ValidationError:
         return None
 
@@ -376,7 +452,12 @@ def _parse_dt(text: str) -> Optional[datetime]:
 
 
 def _etag_matches(if_match: str, row) -> bool:
-    """Compare a client revision against the row, tolerating ETag quoting."""
+    """Compare a client revision against the row, tolerating ETag quoting.
+
+    The stored revision is the whole identity of a version: two writes must never
+    compare equal, so the comparison is on the exact microsecond value and never
+    on a truncated (second-resolution) form.
+    """
     candidate = if_match.strip()
     if candidate.startswith("W/"):
         candidate = candidate[2:].strip()
@@ -385,11 +466,11 @@ def _etag_matches(if_match: str, row) -> bool:
 
     if row is None or row.updated_at is None:
         return False
-    stored = row.updated_at
-    if candidate == _iso(stored):
+    stored = _as_utc(row.updated_at)
+    if stored is None:
+        return False
+    if candidate == _iso(row.updated_at):
         return True
-    if stored.tzinfo is None:
-        stored = stored.replace(tzinfo=timezone.utc)
     sent = _parse_dt(candidate)
     return sent is not None and sent == stored
 
@@ -402,13 +483,11 @@ def _etag_matches(if_match: str, row) -> bool:
 @router.get("/{scope}", response_model=ConfigEnvelope, summary="Read saved config for a scope")
 def get_user_config(
     scope: str,
-    db: Session = Depends(get_db),
     user=Depends(get_current_user),
+    spec: ScopeSpec = Depends(_resolve_scope),
+    db: Session = Depends(get_db),
 ) -> Any:
     """Read the saved payload for a scope, falling back to defaults."""
-    spec = _spec_or_none(scope)
-    if spec is None:
-        return _unknown_scope()
     return _current_envelope(db, spec, user.id)
 
 
@@ -417,14 +496,15 @@ def put_user_config(
     scope: str,
     body: PutConfigRequest,
     if_match: Optional[str] = Header(default=None, alias="If-Match"),
-    db: Session = Depends(get_db),
     user=Depends(get_current_user),
+    spec: ScopeSpec = Depends(_resolve_scope),
+    db: Session = Depends(get_db),
 ) -> Any:
     """Upsert the saved payload for a scope (default slot only)."""
-    spec = _spec_or_none(scope)
-    if spec is None:
-        return _unknown_scope()
-
+    # The scope gate is a dependency, not an in-handler check: a dependency
+    # resolves before a body-shape error is raised, so an unknown scope answers
+    # 404 "unknown_scope" (a disabled feature) instead of 422 (a client bug).
+    # Unparseable JSON still 422s — FastAPI rejects it before any dependency runs.
     size = _compact_bytes(body.config)
     if size > spec.max_bytes:
         return JSONResponse(
@@ -474,6 +554,12 @@ def put_user_config(
                 },
             )
 
+    # Explicit, microsecond-precision revision. The column's ``onupdate`` is a
+    # database clock with one-second resolution on SQLite, which made two saves
+    # in the same second indistinguishable to ``If-Match``. Assigning here wins
+    # over ``onupdate``, so the ETag is decided by this write, not by the DB clock.
+    revision = _next_revision(row.updated_at if row is not None else None)
+
     if row is None:
         row = UserSavedConfig(
             user_id=user.id,
@@ -481,6 +567,7 @@ def put_user_config(
             name=DEFAULT_SLOT,
             config=normalized,
             version=spec.version,
+            updated_at=revision,
         )
         # An explicit SAVEPOINT, not a bare flush: two tabs can both read "no
         # row" and both insert, and the loser must unwind only its own INSERT
@@ -496,9 +583,13 @@ def put_user_config(
                 raise
             row.config = normalized
             row.version = spec.version
+            # The row we lost the race to may already carry a later revision;
+            # recompute instead of reusing the value derived from "no row".
+            row.updated_at = _next_revision(row.updated_at)
     else:
         row.config = normalized
         row.version = spec.version
+        row.updated_at = revision
 
     db.commit()
     db.refresh(row)
@@ -508,14 +599,11 @@ def put_user_config(
 @router.delete("/{scope}", response_model=DeleteResponse, summary="Delete saved config for a scope")
 def delete_user_config(
     scope: str,
-    db: Session = Depends(get_db),
     user=Depends(get_current_user),
+    spec: ScopeSpec = Depends(_resolve_scope),
+    db: Session = Depends(get_db),
 ) -> Any:
     """Remove the saved payload for a scope. Idempotent: the goal is "no row"."""
-    spec = _spec_or_none(scope)
-    if spec is None:
-        return _unknown_scope()
-
     row = _get_row(db, user.id, spec.scope)
     if row is None:
         return {"scope": spec.scope, "deleted": False}

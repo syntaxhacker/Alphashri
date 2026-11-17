@@ -230,6 +230,49 @@ describe("paper-trading TanStackTable — sort cycle", () => {
   });
 });
 
+describe("paper-trading TanStackTable — keyboard sorting", () => {
+  it("makes a sortable header keyboard-operable and reflects sort state in aria-sort", () => {
+    const tableId = renderNumTable();
+    const valueTh = headerOf(tableId, 1);
+
+    expect(valueTh).toHaveAttribute("tabindex", "0");
+    expect(valueTh).toHaveAttribute("aria-sort", "none");
+
+    valueTh.focus();
+    expect(document.activeElement).toBe(valueTh);
+
+    fireEvent.keyDown(valueTh, { key: "Enter" });
+    expect(valueTh).toHaveAttribute("aria-sort", "descending");
+    expect(valueTh.textContent).toContain("▼");
+    expect(orderOf(tableId)).toEqual(["r1", "r5", "r3", "r2", "r4"]);
+
+    fireEvent.keyDown(valueTh, { key: " " });
+    expect(valueTh).toHaveAttribute("aria-sort", "ascending");
+    expect(valueTh.textContent).toContain("▲");
+    expect(orderOf(tableId)).toEqual(["r3", "r5", "r1", "r2", "r4"]);
+  });
+
+  it("keeps non-sortable headers out of the tab order and without aria-sort", () => {
+    const staticColumns: TableColumnDef<NullRow>[] = [
+      { id: "name", header: "Name", accessorKey: "name", enableSorting: false },
+    ];
+    render(() => (
+      <TanStackTable<NullRow>
+        data={numData}
+        columns={staticColumns}
+        dataTestId="paper-static"
+        getRowTestId={(r) => r.id}
+      />
+    ));
+    const th = headerOf("paper-static", 0);
+
+    expect(th).not.toHaveAttribute("tabindex");
+    expect(th).not.toHaveAttribute("aria-sort");
+    fireEvent.keyDown(th, { key: "Enter" });
+    expect(orderOf("paper-static")).toEqual(["r1", "r2", "r3", "r4", "r5"]);
+  });
+});
+
 describe("paper-trading TanStackTable — controlled sorting", () => {
   it("renders from the passed sorting and emits changes without mutating the source", () => {
     const changes: Array<Array<{ id: string; desc: boolean }>> = [];

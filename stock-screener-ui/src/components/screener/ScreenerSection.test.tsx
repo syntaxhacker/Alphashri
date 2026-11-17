@@ -44,6 +44,43 @@ describe("ScreenerSection", () => {
     expect(screen.getByText("Stocks nearing the high")).toBeInTheDocument();
   });
 
+  it("reserves the description line when a profile has no description", () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerSection {...defaultProps} description="" />
+      </UIProvider>
+    ));
+    // CompactPanel omits the line when the description is empty; a placeholder
+    // keeps the header height identical across screener definitions. Read raw
+    // textContent — toHaveTextContent trims the non-breaking space to "".
+    expect(screen.getByTestId("status").textContent).toBe("\u00a0");
+  });
+
+  it("renders the same responsive description slot for real and missing descriptions", () => {
+    const slotOf = (description: string) => {
+      cleanup();
+      render(() => (
+        <UIProvider>
+          <ScreenerSection {...defaultProps} description={description} />
+        </UIProvider>
+      ));
+      const slot = screen.getByTestId("status").querySelector("span");
+      expect(slot).not.toBeNull();
+      return slot as HTMLSpanElement;
+    };
+
+    const realSlot = slotOf("Stocks nearing the high");
+    expect(realSlot.className).toContain("hidden");
+    expect(realSlot.className).toContain("sm:block");
+    expect(realSlot.textContent).toBe("Stocks nearing the high");
+
+    const emptySlot = slotOf("");
+    expect(emptySlot.className).toBe(realSlot.className);
+    // The nbsp fallback still applies at >=sm (the slot is display:none below
+    // sm, block above), keeping the one-line reservation on desktop.
+    expect(emptySlot.textContent).toBe("\u00a0");
+  });
+
   it("delegates to ScreenerStockView", () => {
     render(() => (
       <UIProvider>

@@ -179,33 +179,17 @@ def premium_flow_bias(rows: list[dict], spot: float) -> Optional[float]:
 def atm_ivs(rows: list[dict], spot: float) -> tuple[Optional[float], Optional[float]]:
     """``(ce_iv, pe_iv)`` for the strike nearest ``spot``; ``None`` per dead leg.
 
-    Applies the same usability gates as :mod:`api.reports_api.iv_surface`:
-    finite, 1..100 vol points and a leg that actually carries open interest. A
-    dead strike's greek (2026-11-03: 281%, and 226% at the ATM after the close)
-    is not a market-implied vol and must not feed the RV/IV verdict.
+    The pick and the OI / 1..100 IV gates come from
+    :func:`api.reports_api.iv_surface.atm_block`, so the verdict cannot drift
+    from the ATM block published in ``report.iv_surface``. A dead strike's
+    greek (2026-11-03: 281%, and 226% at the ATM after the close) is not a
+    market-implied vol and must not feed the RV/IV verdict.
     """
-    from api.reports_api.iv_surface import _iv as _usable_iv
+    from api.reports_api.iv_surface import atm_block
 
-    if not rows:
-        return None, None
-    best: Optional[tuple[float, Optional[float], Optional[float]]] = None
-    for r in rows:
-        try:
-            strike = _f((r or {}).get("strike"))
-            if strike is None:
-                continue
-            ce, pe = (r.get("ce") or {}), (r.get("pe") or {})
-            ce_iv = _usable_iv(ce.get("iv"), ce.get("oi"))
-            pe_iv = _usable_iv(pe.get("iv"), pe.get("oi"))
-        except Exception:
-            continue
-        dist = abs(strike - spot) if spot else 0.0
-        if best is None or dist < best[0]:
-            best = (dist, ce_iv, pe_iv)
-    if best is None:
-        return None, None
-    ce_iv = round(best[1], 2) if best[1] is not None else None
-    pe_iv = round(best[2], 2) if best[2] is not None else None
+    block = atm_block(rows, spot)
+    ce_iv = round(block["ce_iv"], 2) if block["ce_iv"] is not None else None
+    pe_iv = round(block["pe_iv"], 2) if block["pe_iv"] is not None else None
     return ce_iv, pe_iv
 
 
@@ -228,9 +212,13 @@ def compute_control(rows: list[dict], spot: float,
         ce_doi += _i(ce.get("oi")) - _i(ce.get("prev_oi"))
         pe_doi += _i(pe.get("oi")) - _i(pe.get("prev_oi"))
     atm_ce_iv, atm_pe_iv = atm_ivs(rows or [], _f(spot, 0.0) or 0.0)
-    skew = None
+    # Sign is PE − CE: a positive number means puts are richer (downside hedging
+    # is bid). That is the OPPOSITE sign of the 25-delta RR published in
+    # ``iv_surface.skew.skew_25d`` (CE − PE), so name it explicitly. ``skew`` is
+    # kept as a legacy alias for old payload consumers.
+    put_skew = None
     if atm_ce_iv is not None and atm_pe_iv is not None:
-        skew = round(atm_pe_iv - atm_ce_iv, 2)
+        put_skew = round(atm_pe_iv - atm_ce_iv, 2)
     regime = gex_regime if gex_regime in ("long", "short", "flat") else "flat"
     bias = _f(flow_bias)
     # Prefer the price-confirmed OI flow. Raw signed-delta flow calls added
@@ -245,7 +233,8 @@ def compute_control(rows: list[dict], spot: float,
         "flow_bias": round(bias, 2) if bias is not None else None,
         "atm_ce_iv": atm_ce_iv,
         "atm_pe_iv": atm_pe_iv,
-        "skew": skew,
+        "put_skew": put_skew,
+        "skew": put_skew,  # legacy alias; same PE − CE sign
         "gex_regime": regime,
     }
 

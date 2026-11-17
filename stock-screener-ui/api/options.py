@@ -5,10 +5,11 @@ Provides secure proxy to Upstox Options API with caching and error handling.
 Includes server-side quantitative analysis (Expected Move, Max Pain, Sentiment).
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import asyncio
+import logging
 import httpx
 import os
 import json
@@ -18,8 +19,12 @@ from datetime import datetime
 from pathlib import Path
 
 import config
+from api._bounded_cache import BoundedTTLCache
 from api.fyers_options import resolve_fyers_option_symbol
+from api.options_snapshots import mark_captured, record_chain_snapshot, should_capture
 from api.positioning import compute_positioning
+from api.options_underlying import INDEX_ALIASES, INDEX_CONTRACT_META
+from api.options_conventions import IV_MAX
 
 router = APIRouter(prefix="/api/options", tags=["options"])
 
@@ -137,14 +142,18 @@ def calculate_max_pain(strike_matrix: List[Dict[str, Any]]) -> float:
     return max_pain_strike
 
 
+# Derived from the single index registry so symbols, instrument keys and
+# lot/tick sizes cannot drift between the two tables (name/lot/tick live in
+# options_underlying.INDEX_CONTRACT_META; keys/exchange in INDEX_ALIASES).
 AVAILABLE_UNDERLYINGS = [
-    # lot_size 65 (was 25): GEX already computes with 65, and 23 consecutive real
-    # exchange prints were all exact multiples of 65.
-    {"symbol": "NIFTY", "name": "Nifty 50", "instrument_key": "NSE_INDEX|Nifty 50", "lot_size": 65, "tick_size": 0.05},
-    {"symbol": "BANKNIFTY", "name": "Nifty Bank", "instrument_key": "NSE_INDEX|Nifty Bank", "lot_size": 15, "tick_size": 1.05},
-    {"symbol": "FINNIFTY", "name": "Nifty Fin Service", "instrument_key": "NSE_INDEX|Nifty Fin Service", "lot_size": 25, "tick_size": 1.05},
-    {"symbol": "MIDCPNIFTY", "name": "NIFTY MID SELECT", "instrument_key": "NSE_INDEX|NIFTY MID SELECT", "lot_size": 50, "tick_size": 0.05},
-    {"symbol": "SENSEX", "name": "BSE Sensex", "instrument_key": "BSE_INDEX|SENSEX", "lot_size": 20, "tick_size": 5.0},
+    {
+        "symbol": symbol,
+        "name": INDEX_CONTRACT_META[symbol]["name"],
+        "instrument_key": INDEX_ALIASES[symbol][0],
+        "lot_size": INDEX_CONTRACT_META[symbol]["lot_size"],
+        "tick_size": INDEX_CONTRACT_META[symbol]["tick_size"],
+    }
+    for symbol in INDEX_ALIASES
 ]
 
 
@@ -210,6 +219,20 @@ def clear_upstox_token_cache() -> None:
     from api.upstox_token import clear_upstox_token_cache as _clear
 
     _clear()
+    # A chain fetched with the old token belongs to the old connection; a
+    # reconnect is exactly when the operator expects fresh quotes.
+    clear_option_chain_cache()
+    # The chain is not the only derived cache built from the old token's
+    # spot/IV: analytics payloads, the analytics RV cone and the RV daily-close
+    # series all outlive the chain's short TTL (45-900s). A reconnect must drop
+    # every one of them or it serves stale spot/IV until those TTLs lapse.
+    # Imports stay local: both modules reach back into api.options, so a
+    # module-level import here would close an import cycle.
+    from api.options_analytics import clear_analytics_cache
+    from api.options_rv import clear_rv_cache
+
+    clear_analytics_cache()  # analytics payloads + the analytics cone cache
+    clear_rv_cache()         # the provider daily-close series cache
 
 
 def get_upstox_token() -> str:
@@ -294,7 +317,10 @@ async def get_underlyings():
 #: them, which is exactly how an empty chain (strikes=[], net_gex=0,
 #: regime="flat", max_pain=0) got persisted to the snapshot log.
 _EXPIRIES_TTL_SEC = 300.0
-_expiries_cache: dict[str, dict] = {}
+#: Public route keyed by a caller-supplied underlying; bound it and sweep stale
+#: listings so repeated symbol keys cannot grow the cache without limit.
+_EXPIRIES_CACHE_MAX = 512
+_expiries_cache = BoundedTTLCache(_EXPIRIES_CACHE_MAX, ttl_getter=_EXPIRIES_TTL_SEC)
 
 
 @router.get("/expiries/{underlying}")
@@ -420,6 +446,18 @@ def transform_option_contract(option_data: dict, strike: float, option_type: str
 
     sentiment = get_option_sentiment(price_change, oi_change)
 
+    # Upstox sometimes sends a non-finite/absurd IV (117) with a tradable LTP,
+    # and omits it entirely on other legs. Keep the raw value for display, but
+    # publish a validity flag so consumers never chart or annualise a bad IV.
+    # The 100-point cap is shared with analytics (api.options_conventions);
+    # a 60-point cap silently invalidated genuine 79-83 prints on high-vol stocks.
+    raw_iv = greeks.get("iv")
+    try:
+        iv_number = float(raw_iv)
+        iv_valid = math.isfinite(iv_number) and 0 < iv_number <= IV_MAX
+    except (TypeError, ValueError):
+        iv_valid = False
+
     return {
         "instrument_key": option_data.get("instrument_key", ""),
         "trading_symbol": option_data.get("trading_symbol", ""),
@@ -437,12 +475,14 @@ def transform_option_contract(option_data: dict, strike: float, option_type: str
             "bid_qty": market_data.get("bid_qty", 0),
             "ask_qty": market_data.get("ask_qty", 0),
         },
+        "iv_valid": iv_valid,
         "option_greeks": {
             "delta": greeks.get("delta", 0),
             "gamma": greeks.get("gamma", 0),
             "vega": greeks.get("vega", 0),
             "theta": greeks.get("theta", 0),
             "iv": greeks.get("iv", 0),
+            "iv_valid": iv_valid,
             "pop": greeks.get("pop", 0),
         } if greeks else None,
         "sentiment": sentiment
@@ -520,76 +560,235 @@ def _validate_expiry(expiry: str) -> str:
     return parsed.strftime("%Y-%m-%d")
 
 
+#: The chain is a quote-level payload with two consumers: the dock (15s poll)
+#: and the options recorder, which writes a 10s chain series. The window must
+#: stay below the recorder's cadence or it would duplicate a tick, so 5s — long
+#: enough to collapse concurrent tabs, an expiry switch and the report route onto
+#: one upstream call, and well inside the UI's 30s STALE threshold
+#: (``CHAIN_STALE_AFTER_MS``). Closed, nothing changes until the next session, so
+#: the window is wider — but not hours, so a reconnect still surfaces the last
+#: prints promptly.
+CHAIN_TTL_OPEN_SEC = 5.0
+CHAIN_TTL_CLOSED_SEC = 60.0
+
+#: Every key the chain cache owns; keeps ``clear_option_chain_cache`` from
+#: touching the contract-listing entries that share the same store.
+_CHAIN_KEY_PREFIX = "option-chain:"
+
+
+def _chain_cache_key(underlying: str, expiry: str, session_state: str) -> str:
+    """Session state belongs in the key: a chain fetched while open carries
+    live LTPs and live greeks, one fetched after the close carries the last
+    session's prints. Replaying the former after the close would mislabel it.
+    """
+    return f"{_CHAIN_KEY_PREFIX}{underlying.strip().upper()}:{expiry}:{session_state}"
+
+
+def clear_option_chain_cache() -> None:
+    """Drop cached chains only (tests / after a broker reconnect)."""
+    from api.options_underlying import _cache
+
+    _cache.pop_where(lambda k: k.startswith(_CHAIN_KEY_PREFIX))
+
+
+def _chain_now() -> datetime:
+    """IST clock for the chain's freshness fields.
+
+    Delegates to the same (test-freezable) clock the cache key's session state
+    uses, so a cached frame's freshness fields always agree with the session it
+    was fetched under.
+    """
+    from api.options_underlying import _now
+
+    return _now()
+
+
+def _prints_session_date(now: datetime, market_state: str) -> str:
+    """IST date of the session the chain's prints belong to.
+
+    Live prints belong to the current session; pre-open and closed chains carry
+    the last completed session's prints (Friday on a weekend, the previous
+    trading day on a holiday).
+    """
+    if market_state == "open":
+        return now.date().isoformat()
+    from chart_patterns.candles import _last_completed_session
+
+    return _last_completed_session(now).isoformat()
+
+
+async def _build_chain_response(underlying: str, expiry: str, market_state: str) -> dict:
+    """Upstream rows + the derived analytics, as the route returns them.
+
+    Cached whole (not just the rows) so the analysis is not recomputed on every
+    poll, ``levels`` travel inside the frame, and ``timestamp``/``data_as_of``
+    describe the fetch, not the time a later hit was served.
+    """
+    chain, spot_price = await _fetch_chain_rows(underlying, expiry)
+
+    from api.options_levels import build_levels
+
+    levels = build_levels(chain, spot_price)
+
+    total_ce_oi = 0
+    total_pe_oi = 0
+    atm_iv = 0
+    closest_strike_diff = float('inf')
+
+    for row in chain:
+        strike = row["strike"]
+        ce_contract = row.get("ce")
+        if ce_contract:
+            total_ce_oi += ce_contract["market_data"]["oi"]
+
+            # Check for ATM IV
+            diff = abs(strike - spot_price)
+            if diff < closest_strike_diff:
+                iv = ce_contract["option_greeks"]["iv"] if ce_contract.get("option_greeks") else 0
+                if iv > 0:
+                    closest_strike_diff = diff
+                    atm_iv = iv
+
+        pe_contract = row.get("pe")
+        if pe_contract:
+            total_pe_oi += pe_contract["market_data"]["oi"]
+
+            # Check for ATM IV (only if CE didn't give us a better one)
+            diff = abs(strike - spot_price)
+            if diff < closest_strike_diff:
+                iv = pe_contract["option_greeks"]["iv"] if pe_contract.get("option_greeks") else 0
+                if iv > 0:
+                    closest_strike_diff = diff
+                    atm_iv = iv
+
+    # Calculate DS Summary
+    expiry_date = datetime.strptime(expiry, "%Y-%m-%d").replace(tzinfo=config.IST)
+    dte = (expiry_date - datetime.now(config.IST)).days + 1
+
+    expected_move = calculate_expected_move(spot_price, atm_iv, dte)
+    # Legacy contract: summary.max_pain stays a bare number (0 when absent) so
+    # existing consumers do not break, but the authoritative level is levels.
+    pain = levels.get("max_pain")
+    max_pain = pain["strike"] if pain else 0
+    pcr = total_pe_oi / total_ce_oi if total_ce_oi > 0 else 0
+
+    now = _chain_now()
+    quotes_live = market_state == "open"
+    session_date = _prints_session_date(now, market_state)
+    data_as_of = (
+        now.isoformat() if quotes_live else
+        f"{session_date} — last completed session; quotes are not live "
+        f"(market_state={market_state})"
+    )
+
+    return {
+        "status": "ok",
+        "underlying": underlying,
+        "expiry": expiry,
+        "spot": spot_price,
+        "timestamp": now.isoformat(),
+        "market_state": market_state,
+        "quotes_live": quotes_live,
+        "session_date": session_date,
+        "data_as_of": data_as_of,
+        "levels": levels,
+        "chain": chain,
+        "summary": {
+            "pcr": round(pcr, 2),
+            "max_pain": max_pain,
+            "expected_move": expected_move,
+            "total_ce_oi": total_ce_oi,
+            "total_pe_oi": total_pe_oi,
+            "dte": dte,
+            "atm_iv": atm_iv
+        }
+    }
+
+
+#: Process-local capture throttle. The chain cache serves the same payload for
+#: seconds, so without a per-minute (or per-session) key every poll would
+#: schedule a redundant write. The DB's natural key makes a duplicate harmless;
+#: this map exists to avoid the write, not to guarantee correctness.
+_snapshot_last: dict = {}
+_SNAPSHOT_LOG = logging.getLogger(__name__)
+
+
+def _write_snapshot_safely(payload: dict) -> None:
+    """Background writer: a DB failure must never reach the HTTP response.
+
+    Starlette runs this sync callable in a threadpool after the response has
+    been sent, so neither the SQLite write nor its latency is on the request
+    path.
+    """
+    try:
+        record_chain_snapshot(payload)
+    except Exception:
+        _SNAPSHOT_LOG.warning("option chain snapshot write failed", exc_info=True)
+
+
+def _queue_snapshot(payload: Any, background_tasks: Optional[BackgroundTasks]) -> None:
+    """Throttle and schedule one fire-and-forget snapshot for a fresh chain."""
+    # Direct coroutine calls (tests, in-process callers) have no request scope.
+    if background_tasks is None:
+        return
+    try:
+        if should_capture(payload, _snapshot_last):
+            mark_captured(payload, _snapshot_last)
+            background_tasks.add_task(_write_snapshot_safely, payload)
+    except Exception:
+        _SNAPSHOT_LOG.warning("option chain snapshot scheduling failed", exc_info=True)
+
+
 @router.get("/chain/{underlying}")
 async def get_option_chain(
     underlying: str,
     expiry: str = Query(..., description="Expiry date in YYYY-MM-DD format"),
+    refresh: bool = Query(False, description="Bypass the short-TTL chain cache"),
+    background_tasks: BackgroundTasks = None,
 ):
-    """Get complete option chain with server-side analysis."""
+    """Get complete option chain with server-side analysis.
+
+    Served from a single-flight short-TTL cache keyed on underlying + expiry +
+    session state. Upstream failures are never cached — the loader raises before
+    anything is written, so a 401/429 is retried on the next request.
+
+    A cache hit returns the cached ``timestamp``, not a refreshed one: the field
+    describes when the quotes were actually read, and the UI's LIVE/STALE badge
+    derives from it. Restamping a served-stale chain would claim a freshness the
+    prices do not have.
+    """
     expiry = _validate_expiry(expiry)
+    # Canonical case here, not only in the key: the payload echoes the symbol,
+    # so a lowercase request served from an uppercase entry (or vice versa)
+    # would report a different ``underlying`` than the one it was cached under.
+    symbol = str(underlying or "").strip().upper()
+    # options_underlying owns the chain cache and session clock; these private
+    # helpers are pulled in at call time, like the other late imports here.
+    from api.options_underlying import _cached, _session_state_now
+
+    # A direct call (tests, in-process callers) skips FastAPI's dependency
+    # resolution, so ``refresh`` can still be the ``Query`` default object.
+    bypass = refresh is True
+
+    session_state = await _session_state_now()
     try:
-        chain, spot_price = await _fetch_chain_rows(underlying, expiry)
-
-        total_ce_oi = 0
-        total_pe_oi = 0
-        atm_iv = 0
-        closest_strike_diff = float('inf')
-
-        for row in chain:
-            strike = row["strike"]
-            ce_contract = row.get("ce")
-            if ce_contract:
-                total_ce_oi += ce_contract["market_data"]["oi"]
-
-                # Check for ATM IV
-                diff = abs(strike - spot_price)
-                if diff < closest_strike_diff:
-                    iv = ce_contract["option_greeks"]["iv"] if ce_contract.get("option_greeks") else 0
-                    if iv > 0:
-                        closest_strike_diff = diff
-                        atm_iv = iv
-
-            pe_contract = row.get("pe")
-            if pe_contract:
-                total_pe_oi += pe_contract["market_data"]["oi"]
-
-                # Check for ATM IV (only if CE didn't give us a better one)
-                diff = abs(strike - spot_price)
-                if diff < closest_strike_diff:
-                    iv = pe_contract["option_greeks"]["iv"] if pe_contract.get("option_greeks") else 0
-                    if iv > 0:
-                        closest_strike_diff = diff
-                        atm_iv = iv
-        
-        # Calculate DS Summary
-        expiry_date = datetime.strptime(expiry, "%Y-%m-%d").replace(tzinfo=config.IST)
-        dte = (expiry_date - datetime.now(config.IST)).days + 1
-        
-        expected_move = calculate_expected_move(spot_price, atm_iv, dte)
-        max_pain = calculate_max_pain(chain)
-        pcr = total_pe_oi / total_ce_oi if total_ce_oi > 0 else 0
-
-        return {
-            "status": "ok",
-            "underlying": underlying,
-            "expiry": expiry,
-            "spot": spot_price,
-            "timestamp": datetime.now(config.IST).isoformat(),
-            "chain": chain,
-            "summary": {
-                "pcr": round(pcr, 2),
-                "max_pain": max_pain,
-                "expected_move": expected_move,
-                "total_ce_oi": total_ce_oi,
-                "total_pe_oi": total_pe_oi,
-                "dte": dte,
-                "atm_iv": atm_iv
-            }
-        }
+        payload = await _cached(
+            _chain_cache_key(symbol, expiry, session_state),
+            lambda: _build_chain_response(symbol, expiry, session_state),
+            ttl_open=CHAIN_TTL_OPEN_SEC,
+            ttl_closed=CHAIN_TTL_CLOSED_SEC,
+            bypass=bypass,
+            session_state=session_state,
+        )
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch option chain: {str(e)}")
+
+    # Fire-and-forget: the response and its cache entry are already decided.
+    # Errors here (throttle or writer) are swallowed inside the helpers.
+    _queue_snapshot(payload, background_tasks)
+    return payload
 
 
 @router.get("/positioning/{underlying}")

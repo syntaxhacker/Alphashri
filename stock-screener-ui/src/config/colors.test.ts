@@ -204,11 +204,13 @@ describe("Color Constants", () => {
   });
 
   describe("OI Chart", () => {
-    it("OI_CALL is green", () => {
+    it("OI_CALL is the blue call-side token", () => {
+      expect(OI_CALL).toBe(INFO);
       expect(OI_CALL).toMatch(/^#[0-9A-Fa-f]{6}$/);
     });
 
-    it("OI_PUT is red", () => {
+    it("OI_PUT is the orange put-side token", () => {
+      expect(OI_PUT).toBe(WARNING);
       expect(OI_PUT).toMatch(/^#[0-9A-Fa-f]{6}$/);
     });
   });

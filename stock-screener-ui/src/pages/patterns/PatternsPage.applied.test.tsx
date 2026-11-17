@@ -422,9 +422,12 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
     expect(screen.getByTestId("patterns-applied-filter-quality:strong")).toBeInTheDocument();
   });
 
-  test("applied-filters row is absent when no filters are active", () => {
+  test("applied-filters row stays mounted with a placeholder when no filters are active", () => {
     r(<PatternsPage {...makeProps()} />);
-    expect(screen.queryByTestId("patterns-applied-filters")).not.toBeInTheDocument();
+    const row = screen.getByTestId("patterns-applied-filters");
+    expect(row).toBeInTheDocument();
+    expect(row).toHaveClass("h-6");
+    expect(row).toHaveTextContent("No filters");
   });
 
   test("removing an applied chip calls setFilter with the value dropped", async () => {

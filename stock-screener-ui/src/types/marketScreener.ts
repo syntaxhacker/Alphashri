@@ -1,8 +1,8 @@
 /** Market Screener — snapshot contract shared by api/hooks/components. */
 
-export type MarketUniverse = "all_equity" | "nifty500" | "nifty50" | "nse_fo";
+export type MarketUniverse = "all_equity" | "nifty500" | "nifty50" | "nse_fo" | "us";
 
-export type MarketCapTier = "large" | "mid" | "small" | "micro";
+export type MarketCapTier = "mega" | "large" | "mid" | "small" | "micro";
 
 export interface MarketRow {
   symbol: string;
@@ -15,8 +15,12 @@ export interface MarketRow {
   change: number | null;
   /** Today's volume vs the trailing average (x). */
   relativeVolume: number | null;
-  /** Market cap in ₹ crore (derived from raw market cap server-side). */
+  /** Market cap in ₹ crore (derived from raw market cap server-side). Null for USD rows. */
   marketCapCr: number | null;
+  /** Market cap in $ billions. Null for INR rows. */
+  marketCapUsdB?: number | null;
+  /** Quote currency; absent on legacy cached rows means INR. */
+  currency?: "INR" | "USD";
   capTier: string | null;
   rsi: number | null;
   adx: number | null;

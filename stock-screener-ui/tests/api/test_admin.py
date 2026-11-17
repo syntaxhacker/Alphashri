@@ -68,6 +68,24 @@ class TestAdmin52wRange:
         assert response.json()["status"] == "started"
         mock_run.assert_called_once()
 
+    def test_batch_subprocess_uses_dedicated_rate_limit_slice(self, monkeypatch):
+        from api.admin_routes import _run_52w_batch_subprocess
+
+        monkeypatch.setenv("UPSTOX_RL_CONSUMER", "api")
+        monkeypatch.delenv("UPSTOX_52W_RL_CONSUMER", raising=False)
+        monkeypatch.delenv("UPSTOX_RL_CAP_SCAN52W", raising=False)
+
+        with patch("api.admin_routes.subprocess.Popen", return_value=MagicMock()) as mock_popen, \
+             patch("api.admin_routes._watch_52w_batch_subprocess"):
+            _run_52w_batch_subprocess(False, True, 0, True)
+
+        mock_popen.assert_called_once()
+        env = mock_popen.call_args.kwargs["env"]
+        assert env["UPSTOX_RL_CONSUMER"] == "scan52w"
+        assert env["UPSTOX_RL_CAP_SCAN52W"] == "60"
+        # The parent's interactive slice must not be forwarded to the child.
+        assert env["UPSTOX_RL_CONSUMER"] != "api"
+
     @patch("api.admin_routes.clear_52w_range_data")
     @patch("trading.week52_job_status.get_job_status", return_value=None)
     def test_delete_52w_cache(self, mock_status, mock_clear, client, admin_auth_headers):

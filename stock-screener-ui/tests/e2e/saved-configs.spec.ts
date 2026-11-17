@@ -3,6 +3,7 @@ import {
   setupApiMocks,
   loginAsTestUser,
   setupUserConfigMocks,
+  setupValueScanMocks,
   type UserConfigMockHandle,
 } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
@@ -243,5 +244,74 @@ test.describe("Saved screen state — market.filters", () => {
     await expect(chip).toHaveCount(0);
     await waitForPersisted(config, (m) => persistedStrings(m, "capTiers").join() === "large");
     expect(await renderedRowIds(page)).toEqual(visiblyApplied);
+  });
+
+  test("switching to Value writes view:'value' on PUT and restores it after a reload", async ({ page }) => {
+    await setupValueScanMocks(page);
+    const config = await setupUserConfigMocks(page);
+
+    // Stand in for the backend's view validation: `value` must be an accepted
+    // token. A regression that serialises anything else (or drops the field)
+    // gets a 422, so the 200 assertion below is a real contract check.
+    await page.route(apiRoute("user-configs/[^/]+"), async (route) => {
+      const request = route.request();
+      const scope = new URL(request.url()).pathname.split("/").pop();
+      if (request.method() === "PUT" && scope === "market.filters") {
+        let view: unknown;
+        try {
+          const body = JSON.parse(request.postData() || "{}") as {
+            config?: { view?: unknown };
+          };
+          view = body.config?.view;
+        } catch {
+          view = undefined;
+        }
+        if (view !== "value" && view !== "table") {
+          await route.fulfill({
+            status: 422,
+            contentType: "application/json",
+            body: JSON.stringify({ detail: "invalid_view" }),
+          });
+          return;
+        }
+      }
+      await route.fallback();
+    });
+
+    // Registered before the click: the first PUT carrying `view:"value"` is the
+    // one that must be accepted by the (validating) mock.
+    const valuePut = page.waitForResponse(
+      (res) =>
+        res.url().includes("/api/user-configs/market.filters") &&
+        res.request().method() === "PUT" &&
+        (res.request().postData() ?? "").includes('"view":"value"'),
+      { timeout: 12000 },
+    );
+
+    await openMarketTab(page);
+    await page.getByTestId("market-view-toggle").getByText("Value", { exact: true }).click();
+    await expect(page.getByTestId("market-value-region")).toBeVisible();
+
+    expect((await valuePut).status()).toBe(200);
+    const afterView = config.puts();
+    expect(
+      afterView.some(
+        (body) => (body.config as Record<string, unknown> | undefined)?.view === "value",
+      ),
+    ).toBe(true);
+
+    // Changing the universe from inside Value must keep `view:"value"` in the
+    // write — the persisted layout and the snapshot filter travel together.
+    await pickUniverse(page, "Nifty 500");
+    await waitForPersisted(config, (m) => persisted(m, "universe") === "nifty500");
+    const puts = config.puts();
+    const latest = puts[puts.length - 1];
+    expect((latest?.config as Record<string, unknown> | undefined)?.view).toBe("value");
+
+    await page.reload();
+
+    await expect(page.getByTestId("market-value-region")).toBeVisible();
+    await expect(page).toHaveURL(/[?&]view=value/);
+    await expect(page.locator(UNIVERSE_COMBO)).toHaveValue("Nifty 500");
   });
 });

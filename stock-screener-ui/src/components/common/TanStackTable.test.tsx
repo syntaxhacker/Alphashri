@@ -896,6 +896,27 @@ describe("TanStackTable — load more window", () => {
   });
 });
 
+describe("TanStackTable — sorted row callback", () => {
+  it("emits rows in the table's header-sorted order, not the input order", async () => {
+    const rows: TestItem[] = [
+      { id: "1", name: "Zulu", value: 1 },
+      { id: "2", name: "Alpha", value: 2 },
+    ];
+    const onSortedRowsChange = vi.fn();
+    render(() => (
+      <TanStackTable<TestItem>
+        data={rows}
+        columns={columns}
+        onSortedRowsChange={onSortedRowsChange}
+      />
+    ));
+
+    await fireEvent.click(screen.getByText("Name").closest("th")!);
+    const last = onSortedRowsChange.mock.calls.at(-1)?.[0] as TestItem[];
+    expect(last.map((row) => row.name)).toEqual(["Alpha", "Zulu"]);
+  });
+});
+
 describe("TanStackTable — visible row window callback", () => {
   it("emits the mounted window once, not one call per row", () => {
     const onVisibleRowsChange = vi.fn();

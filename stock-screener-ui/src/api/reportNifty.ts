@@ -20,6 +20,8 @@ import type {
   NiftyGexLevels,
   NiftyGexStrike,
   NiftyIntradayCandle,
+  NiftyIvSurface,
+  NiftyIvSurfacePoint,
   NiftyMarketBlock,
   NiftyOptionSide,
   NiftyPivots,
@@ -223,11 +225,67 @@ function normalizeControl(raw: unknown): NiftyControlBlock | undefined {
     pe_doi: nullNum(c.pe_doi ?? c.peDoi),
     atm_ce_iv: nullNum(c.atm_ce_iv ?? c.atmCeIv),
     atm_pe_iv: nullNum(c.atm_pe_iv ?? c.atmPeIv),
-    skew: nullNum(c.skew),
+    put_skew: nullNum(c.put_skew ?? c.skew),
+    skew: nullNum(c.skew ?? c.put_skew),
     gex_regime:
       typeof (c.gex_regime ?? c.gexRegime) === "string"
         ? String(c.gex_regime ?? c.gexRegime)
         : null,
+  };
+}
+
+/** `iv_surface` block — absent/empty → undefined, partial → null fields. */
+function normalizeIvSurface(raw: unknown): NiftyIvSurface | undefined {
+  const s = asBlock(raw);
+  if (!s) return undefined;
+  const atm = asBlock(s.atm);
+  const skew = asBlock(s.skew);
+  const coverage = asBlock(s.coverage);
+  const points = Array.isArray(s.points)
+    ? (s.points as Record<string, unknown>[]).map(
+        (p): NiftyIvSurfacePoint => ({
+          strike: safeNum(p.strike),
+          ce_iv: nullNum(p.ce_iv),
+          pe_iv: nullNum(p.pe_iv),
+          ce_delta: nullNum(p.ce_delta),
+          pe_delta: nullNum(p.pe_delta),
+        }),
+      )
+    : [];
+  return {
+    atm: atm
+      ? {
+          strike: nullNum(atm.strike),
+          ce_iv: nullNum(atm.ce_iv),
+          pe_iv: nullNum(atm.pe_iv),
+          avg_iv: nullNum(atm.avg_iv),
+        }
+      : null,
+    skew: skew
+      ? {
+          strike_ce25: nullNum(skew.strike_ce25),
+          ce_25d_iv: nullNum(skew.ce_25d_iv),
+          strike_pe25: nullNum(skew.strike_pe25),
+          pe_25d_iv: nullNum(skew.pe_25d_iv),
+          skew_25d: nullNum(skew.skew_25d),
+        }
+      : null,
+    term: Array.isArray(s.term)
+      ? (s.term as Record<string, unknown>[]).map((t) => ({
+          expiry: String(t.expiry ?? ""),
+          atm_iv: nullNum(t.atm_iv),
+        }))
+      : [],
+    coverage: coverage
+      ? {
+          rows: safeNum(coverage.rows),
+          with_ce_iv: safeNum(coverage.with_ce_iv),
+          with_pe_iv: safeNum(coverage.with_pe_iv),
+          with_delta: safeNum(coverage.with_delta),
+        }
+      : null,
+    degraded: typeof s.degraded === "boolean" ? s.degraded : null,
+    points,
   };
 }
 
@@ -540,6 +598,7 @@ export function normalizeReport(raw: Record<string, unknown>): NiftyReport {
     reference: normalizeReference(raw.reference),
     positioning: normalizePositioning(raw.positioning),
     structure: normalizeStructure(raw.structure),
+    iv_surface: normalizeIvSurface(raw.iv_surface ?? raw.ivSurface),
   };
 }
 

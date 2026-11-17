@@ -73,14 +73,36 @@ class TestNotificationsApi:
         mock_query = MagicMock()
         mock_db.query.return_value = mock_query
         mock_query.count.return_value = 2
+        mock_query.filter.return_value.count.return_value = 2
         mock_query.order_by.return_value.offset.return_value.limit.return_value.all.return_value = [e1, e2]
         with patch("api.notifications_api.SessionLocal", return_value=mock_db):
             r = client.get("/api/notifications/surge?limit=10&offset=0")
             assert r.status_code == 200
             data = r.json()
             assert data["total"] == 2
+            assert data["today_count"] == 2
             assert len(data["events"]) == 2
             assert data["limit"] == 10
+
+    def test_get_surges_bounded_today_count(self, client):
+        """The bell must receive today's count, never the 7094 all-time rows."""
+        mock_db = MagicMock()
+        mock_query = MagicMock()
+        mock_db.query.return_value = mock_query
+        mock_query.count.return_value = 7094
+        mock_query.filter.return_value.count.return_value = 3
+        mock_query.order_by.return_value.offset.return_value.limit.return_value.all.return_value = []
+        with patch("api.notifications_api.SessionLocal", return_value=mock_db):
+            r = client.get("/api/notifications/surge?limit=1&offset=0")
+            assert r.status_code == 200
+            data = r.json()
+            assert data["total"] == 7094
+            assert data["today_count"] == 3
+            # A bounded query was actually issued against created_at.
+            assert mock_query.filter.called
+            expr = mock_query.filter.call_args.args[0]
+            assert getattr(expr.left, "key", None) == "created_at"
+
 
     def test_no_hardcoded_secrets(self):
         text = Path(ROOT / "api" / "notifications_api.py").read_text()

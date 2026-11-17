@@ -4,7 +4,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { UIProvider } from "@/ui";
-import { MarketMapView } from "./MarketMapView";
+import { MARKET_VIEW_OPTIONS, MarketMapView, MarketViewToggle } from "./MarketMapView";
 import type { MarketRow } from "../../types/marketScreener";
 import type { MarketSortKey } from "./marketFilters";
 
@@ -81,6 +81,23 @@ describe("MarketMapView", () => {
   test("an empty universe renders no tiles without throwing", () => {
     render(() => <MarketMapView rows={[]} />);
     expect(order()).toBe("");
+  });
+});
+
+describe("market view vocabulary", () => {
+  test("offers the Value view alongside table/map/movers", () => {
+    expect(MARKET_VIEW_OPTIONS.map((o) => o.value)).toEqual(["table", "map", "movers", "value"]);
+    expect(MARKET_VIEW_OPTIONS.find((o) => o.value === "value")?.label).toBe("Value");
+  });
+
+  test("the toggle selects the Value view", () => {
+    const onChange = vi.fn();
+    render(() => <MarketViewToggle value="value" onChange={onChange} />);
+    const toggle = screen.getByTestId("market-view-toggle").querySelector("button, input");
+    // The segmented control carries every option in its data; the key assertion
+    // is that "Value" is a selectable segment, not just an internal type member.
+    expect(screen.getByText("Value")).toBeInTheDocument();
+    expect(toggle).toBeTruthy();
   });
 });
 

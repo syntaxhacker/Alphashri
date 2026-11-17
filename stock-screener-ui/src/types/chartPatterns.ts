@@ -5,6 +5,8 @@
  * no runtime state lives here.
  */
 
+import type { ChartMarket } from "@/utils/chart/time";
+
 /** Timeframe registry entry (`chart_patterns/timeframes.py:TFSpec`). */
 export interface TFSpec {
   id: string;
@@ -236,6 +238,8 @@ export interface ChartCandle {
   l: number;
   c: number;
   v: number;
+  /** Today's daily bar built from the 1-min tape while the session is open. */
+  is_partial?: boolean;
 }
 
 /**
@@ -272,6 +276,12 @@ export interface ChartPayload {
    */
   as_of?: string | null;
   /**
+   * Completed-session frame date (`YYYY-MM-DD`) whose hits the detection ran on.
+   * The displayed candles can legitimately be newer — a 1D chart appends
+   * today's tape bar for display only, so `hits`/`bars_ago` stay pinned here.
+   */
+  detection_as_of?: string | null;
+  /**
    * Stale-first marker: a cached disk frame served while a background
    * refresh runs. Fresh wire responses omit these (or send `cached:false`).
    */
@@ -285,6 +295,14 @@ export interface ChartPayload {
   error?: string | null;
   /** Human-readable explanation that accompanies `error`. */
   note?: string | null;
+  /** Data market: India uses Upstox, USA uses the provider registry. */
+  market?: ChartMarket;
+  /** Provider feed identifier (e.g. `yahoo`, `alpaca-iex`, `upstox`). */
+  feed?: string | null;
+  /** Honest latency label for the UI (e.g. `~1 min (forming)`). */
+  delay_label?: string | null;
+  /** US session date (`YYYY-MM-DD`, ET) for the returned candles. */
+  session_date?: string | null;
 }
 
 /** User-facing result filters (the filter rail). */

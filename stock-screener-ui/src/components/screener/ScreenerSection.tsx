@@ -20,11 +20,24 @@ interface ScreenerSectionProps {
   tableId?: string;
 }
 
+// The description slot is hidden below `sm`: on a narrow viewport a long real
+// description (e.g. the 52w_high secondary, ~102 chars) wraps to two lines and
+// shifts the table, while a profile with no description reserves one nbsp line.
+// Collapsing the whole slot to title-only height at <sm makes every definition
+// identical there; >=sm keeps the one-line reservation and the 24px band.
+const RESERVED_DESCRIPTION_LINE = "\u00a0";
+const DESCRIPTION_SLOT_CLASS = "hidden sm:block";
+
 export function ScreenerSection(props: ScreenerSectionProps) {
   return (
     <CompactPanel
       title={props.title}
-      description={props.description}
+      titleClassName="max-sm:truncate"
+      description={
+        <span class={DESCRIPTION_SLOT_CLASS}>
+          {props.description || RESERVED_DESCRIPTION_LINE}
+        </span>
+      }
       testId={props.testId}
       action={props.action}
       scrollable

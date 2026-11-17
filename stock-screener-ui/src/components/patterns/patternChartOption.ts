@@ -14,7 +14,8 @@ import {
 import { pointsToSeriesData } from "./trendlineMapping";
 import { createAxisIndex } from "./axisIndex";
 import { formatChartTick, formatChartTimestamp } from "./datetime";
-import { formatCurrency } from "@/utils/ui-helpers";
+import { formatChartPrice } from "./chartFormat";
+import type { ChartMarket } from "@/utils/chart/time";
 import { resolveVisibleStandalone } from "./standaloneLines";
 
 export const BOUNDARY_COLORS = PATTERN_BOUNDARY;
@@ -41,7 +42,7 @@ interface TooltipParam {
  * Readable tooltip: replaces the raw ISO category header with the IST trading
  * date/time and keeps each series' value visible.
  */
-function formatPatternTooltip(params: unknown): string {
+function formatPatternTooltip(params: unknown, market?: ChartMarket): string {
   const list = Array.isArray(params) ? (params as TooltipParam[]) : [params as TooltipParam];
   const first = list[0];
   if (!first) return "";
@@ -58,7 +59,7 @@ function formatPatternTooltip(params: unknown): string {
       } else if (p.seriesType === "scatter" && Array.isArray(p.value)) {
         // Pivot markers plot as [categoryIndex, price]; show the price at the
         // marker's readable date (the tooltip header) instead of raw indices.
-        value = formatCurrency(Number((p.value as number[])[1]), 2);
+        value = formatChartPrice(Number((p.value as number[])[1]), market);
       } else if (Array.isArray(p.value)) {
         value = (p.value as unknown[]).join(" / ");
       } else {
@@ -115,6 +116,8 @@ export interface PatternChartOptionInput {
   showZoom?: boolean;
   /** Larger fonts/margins for the fullscreen view. */
   large?: boolean;
+  /** Quote market for the pivot tooltip price (`usa` → `$`, default `india` → `₹`). */
+  market?: ChartMarket;
 }
 
 /**
@@ -136,6 +139,7 @@ export function buildPatternChartOption({
   large = false,
   trendlinesView = "both",
   standaloneTrendLines,
+  market,
 }: PatternChartOptionInput): Record<string, unknown> {
   const times = candles.map((c) => c.t);
 
@@ -395,7 +399,7 @@ export function buildPatternChartOption({
             type: "cross",
             label: { formatter: (p: { value?: unknown }) => formatChartTimestamp(String(p.value ?? "")) },
           },
-          formatter: formatPatternTooltip,
+          formatter: (params: unknown) => formatPatternTooltip(params, market),
         },
     legend: compact
       ? undefined

@@ -7,6 +7,7 @@ import { fetchWithAuth } from "../state/auth";
 import { errorResponse, okResponse } from "./apiTestMocks";
 import {
   OptionDockError,
+  REQUEST_TIMEOUT_MS,
   fetchChain,
   fetchUnderlying,
   normalizeChain,
@@ -62,6 +63,28 @@ function rawChain() {
       },
     ],
     summary: { pcr: 9.99, max_pain: 24000, total_ce_oi: 13800000, total_pe_oi: 10200000 },
+  };
+}
+
+function rawLevels() {
+  return {
+    spot: 24031.5,
+    step: 50,
+    thin: false,
+    call_wall: { strike: 24100, side: "above", strength: 0.18, oi: 13_599_300 },
+    put_wall: { strike: 23900, side: "below", strength: 0.14, oi: 9_821_500 },
+    call_walls: [{ strike: 24100, side: "above", strength: 0.18, oi: 13_599_300 }],
+    put_walls: [{ strike: 23900, side: "below", strength: 0.14, oi: 9_821_500 }],
+    max_pain: { strike: 24000, side: "below", strength: 0.31, payout: 1_234_567 },
+    gex: {
+      support: { strike: 23950, side: "below", strength: 0.37, net_gex: 0.57 },
+      resistance: { strike: 24200, side: "above", strength: 1, net_gex: 2.3 },
+      fuel_up: { strike: 24150, side: "above", strength: 0.45, net_gex: -0.69 },
+      fuel_down: { strike: 23850, side: "below", strength: 0.74, net_gex: -4.59 },
+      flip: 24150,
+      regime: "short",
+      degraded: false,
+    },
   };
 }
 
@@ -162,13 +185,27 @@ describe("fetchUnderlying", () => {
     expect(mockedFetch).not.toHaveBeenCalled();
   });
 
-  it("passes the abort signal through to fetchWithAuth", async () => {
-    mockedFetch.mockResolvedValue(okResponse(UNDERLYING_BODY));
+  it("links the caller's signal to the per-attempt signal passed to fetchWithAuth", async () => {
     const controller = new AbortController();
+    mockedFetch.mockImplementation((_url: string, options?: RequestInit) => {
+      return new Promise<Response>((_resolve, reject) => {
+        options?.signal?.addEventListener("abort", () => {
+          const abort = new Error("aborted");
+          abort.name = "AbortError";
+          reject(abort);
+        });
+      });
+    });
 
-    await fetchUnderlying("NIFTY", controller.signal);
+    const pending = fetchUnderlying("NIFTY", controller.signal);
+    const attemptSignal = mockedFetch.mock.calls[0][1]?.signal;
+    expect(attemptSignal).toBeDefined();
+    expect(attemptSignal).not.toBe(controller.signal);
+    expect(attemptSignal!.aborted).toBe(false);
 
-    expect(mockedFetch.mock.calls[0][1]).toMatchObject({ signal: controller.signal });
+    controller.abort();
+    expect(attemptSignal!.aborted).toBe(true);
+    await expect(pending).resolves.toBeNull();
   });
 });
 
@@ -198,6 +235,78 @@ describe("fetchChain", () => {
     const url = mockedFetch.mock.calls[0][0] as string;
     expect(url).toContain("/api/options/chain/NIFTY");
     expect(url).toContain("expiry=2026-03-26");
+  });
+
+  it("carries the levels block through to the DTO", async () => {
+    mockedFetch.mockResolvedValue(okResponse({ ...rawChain(), levels: rawLevels() }));
+
+    const chain = await fetchChain("NIFTY", "2026-03-26");
+
+    expect(chain?.levels?.maxPain?.strike).toBe(24000);
+    expect(chain?.levels?.gex.resistance?.strength).toBe(1);
+  });
+});
+
+describe("request deadline", () => {
+  it("rejects a hung chain with a typed timeout after the deadline, without retrying", async () => {
+    vi.useFakeTimers();
+    mockedFetch.mockImplementation(() => new Promise(() => undefined));
+
+    const pending = fetchChain("NIFTY", "2026-03-26");
+    const settled = pending.catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+
+    const error = await settled;
+    expect(error).toBeInstanceOf(OptionDockError);
+    expect(error).toMatchObject({ kind: "timeout" });
+    // A timeout is surfaced to the UI's Retry banner, not silently retried.
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
+  it("clears the deadline on a resolved response", async () => {
+    vi.useFakeTimers();
+    mockedFetch.mockResolvedValue(okResponse(UNDERLYING_BODY));
+
+    const info = await fetchUnderlying("NIFTY");
+    expect(info?.symbol).toBe("NIFTY");
+    // Advancing past the deadline must not reject an already-settled request.
+    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS + 1);
+    vi.useRealTimers();
+  });
+
+  it("aborts the in-flight attempt when the deadline fires, instead of leaving it running", async () => {
+    vi.useFakeTimers();
+    let attemptSignal: AbortSignal | undefined;
+    mockedFetch.mockImplementation((_url: string, options?: RequestInit) => {
+      attemptSignal = options?.signal ?? undefined;
+      return new Promise<Response>(() => undefined);
+    });
+
+    const settled = fetchChain("NIFTY", "2026-03-26").catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+
+    expect(await settled).toMatchObject({ kind: "timeout" });
+    expect(attemptSignal).toBeDefined();
+    expect(attemptSignal!.aborted).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it("keeps a caller abort as an abort, not a timeout, even when the fetch hangs", async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    mockedFetch.mockImplementation(() => new Promise<Response>(() => undefined));
+
+    const settled = fetchChain("NIFTY", "2026-03-26", controller.signal)
+      .then((value) => ({ value }))
+      .catch((error: unknown) => ({ error }));
+
+    controller.abort();
+    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+
+    // Abort resolves to null; a timeout would have rejected with an error.
+    expect(await settled).toEqual({ value: null });
+    vi.useRealTimers();
   });
 });
 
@@ -246,5 +355,66 @@ describe("normalizeChain", () => {
   it("keeps a null spot change out of the payload as null, never 0", () => {
     const chain = normalizeChain(rawChain());
     expect(chain.spotChangePct).toBeNull();
+  });
+
+  it("normalizes the levels block null-preservingly", () => {
+    const chain = normalizeChain({ ...rawChain(), levels: rawLevels() });
+    const lv = chain.levels!;
+
+    expect(lv.spot).toBe(24031.5);
+    expect(lv.step).toBe(50);
+    expect(lv.thin).toBe(false);
+    expect(lv.callWall).toEqual({
+      strike: 24100, side: "above", strength: 0.18, oi: 13_599_300, payout: null, netGex: null,
+    });
+    expect(lv.putWall?.oi).toBe(9_821_500);
+    expect(lv.callWalls).toHaveLength(1);
+    expect(lv.putWalls).toHaveLength(1);
+    expect(lv.maxPain).toEqual({
+      strike: 24000, side: "below", strength: 0.31, oi: null, payout: 1_234_567, netGex: null,
+    });
+    expect(lv.gex.support?.netGex).toBe(0.57);
+    expect(lv.gex.resistance?.strength).toBe(1);
+    expect(lv.gex.fuelUp?.netGex).toBe(-0.69);
+    expect(lv.gex.fuelDown?.strike).toBe(23850);
+    expect(lv.gex.flip).toBe(24150);
+    expect(lv.gex.regime).toBe("short");
+    expect(lv.gex.degraded).toBe(false);
+  });
+
+  it("keeps a legacy payload's levels null", () => {
+    expect(normalizeChain(rawChain()).levels).toBeNull();
+    expect(normalizeChain({ levels: null }).levels).toBeNull();
+    expect(normalizeChain({ levels: "nope" }).levels).toBeNull();
+  });
+
+  it("never invents a missing level metric and drops malformed levels", () => {
+    const chain = normalizeChain({
+      levels: {
+        call_wall: { strike: 100 },
+        put_wall: { oi: 5 },
+        max_pain: { strike: 200, strength: null, payout: null },
+        gex: { support: null, resistance: {}, fuel_up: "x", flip: null, regime: null, degraded: null },
+        call_walls: [null, { strike: 300 }, "bad"],
+      },
+    });
+    const lv = chain.levels!;
+
+    expect(lv.callWall).toEqual({
+      strike: 100, side: null, strength: null, oi: null, payout: null, netGex: null,
+    });
+    expect(lv.putWall).toBeNull();
+    expect(lv.maxPain?.strength).toBeNull();
+    expect(lv.maxPain?.payout).toBeNull();
+    expect(lv.gex.support).toBeNull();
+    expect(lv.gex.resistance).toBeNull();
+    expect(lv.gex.fuelUp).toBeNull();
+    expect(lv.gex.flip).toBeNull();
+    expect(lv.gex.regime).toBeNull();
+    expect(lv.gex.degraded).toBeNull();
+    expect(lv.callWalls).toEqual([
+      { strike: 300, side: null, strength: null, oi: null, payout: null, netGex: null },
+    ]);
+    expect(lv.putWalls).toEqual([]);
   });
 });

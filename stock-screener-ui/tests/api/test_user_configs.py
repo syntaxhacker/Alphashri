@@ -11,6 +11,7 @@ The behavioural rules under test, in the order they bite:
 """
 
 import sys
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -24,6 +25,13 @@ from api.auth import get_current_user, hash_password  # noqa: E402
 from api_server_fastapi import app  # noqa: E402
 from db.database import get_db  # noqa: E402
 from db.models import User, UserSavedConfig  # noqa: E402
+
+# These fixtures normally arrive from tests/api/conftest.py. Re-export them as
+# module-local fixtures so resolution never depends on whether that conftest was
+# attached during collection: a root-level test collected first can otherwise
+# leave this module without db/auth_client (and with the root `client`, whose
+# bare app has no user-configs route -> 404 instead of the expected 401).
+from tests.api.conftest import auth_client, client, db, test_engine  # noqa: E402,F401
 
 SCOPE = "market.filters"
 URL = f"/api/user-configs/{SCOPE}"
@@ -143,6 +151,14 @@ class TestAuth:
     def test_delete_requires_token(self, client):
         assert client.delete(URL).status_code == 401
 
+    def test_unknown_scope_still_requires_a_token(self, client):
+        # Auth is a dependency too, and it is listed first: an unauthenticated
+        # caller must not learn which scopes exist from a 404-vs-401 difference.
+        for method in ("get", "delete"):
+            assert getattr(client, method)("/api/user-configs/nope.nope").status_code == 401
+        assert client.put("/api/user-configs/nope.nope").status_code == 401
+        assert client.put("/api/user-configs/nope.nope", json={"config": DEFAULTS}).status_code == 401
+
 
 class TestGet:
     def test_unsaved_scope_returns_defaults(self, user_client, db):
@@ -212,6 +228,21 @@ class TestRoundTrip:
         assert response.json()["detail"] == "unknown_key"
         assert db.query(UserSavedConfig).count() == 0
 
+    def test_value_view_round_trips_through_put_get(self, user_client, db):
+        # The Market Value view saves `view: "value"`; the write path must accept
+        # it and the read path must return it unchanged (it used to 422).
+        payload = SAMPLE | {"view": "value"}
+        put = user_client.put(URL, json={"config": payload, "version": 1})
+        assert put.status_code == 200
+        assert put.json()["config"]["view"] == "value"
+
+        got = user_client.get(URL)
+        assert got.status_code == 200
+        assert got.json()["saved"] is True
+        assert got.json()["config"] == payload
+        db.expire_all()
+        assert db.query(UserSavedConfig).one().config["view"] == "value"
+
 
 class TestValidation:
     @pytest.mark.parametrize(
@@ -231,6 +262,14 @@ class TestValidation:
     )
     def test_out_of_range_or_unknown_values_are_422(self, user_client, db, config):
         response = user_client.put(URL, json={"config": config})
+        assert response.status_code == 422
+        assert response.json()["detail"] == "invalid_config"
+        assert db.query(UserSavedConfig).count() == 0
+
+    @pytest.mark.parametrize("view", ["grid", "values", "Value", ""])
+    def test_unknown_view_is_still_422(self, user_client, db, view):
+        # Adding "value" must not open the gate to arbitrary strings.
+        response = user_client.put(URL, json={"config": _with(view=view)})
         assert response.status_code == 422
         assert response.json()["detail"] == "invalid_config"
         assert db.query(UserSavedConfig).count() == 0
@@ -290,6 +329,88 @@ class TestValidation:
         assert body["detail"] == "config_too_large"
         assert body["max_bytes"] == 16384
         assert db.query(UserSavedConfig).count() == 0
+
+
+class TestUniverseRegistryDerivation:
+    """Universe and cap-tier ids come from the market-screen registry, not copies."""
+
+    def test_us_round_trips_with_all_filters(self, user_client, db):
+        from api.market_screen.config import ALLOWED_UNIVERSES
+
+        assert "us" in ALLOWED_UNIVERSES
+        payload = _with(
+            universe="us",
+            capTiers=["large", "small"],
+            sectors=["Technology", "Healthcare"],
+            priceMin=25.0,
+            priceMax=800.0,
+            dayChangeMin=-5.0,
+            dayChangeMax=12.0,
+            mcapMinCr=500.0,
+            mcapMaxCr=90000.0,
+            rsiMin=30.0,
+            rsiMax=70.0,
+            relVolMin=1.2,
+            relVolMax=8.0,
+            aboveSma200=True,
+            sort="day_desc",
+            view="movers",
+        )
+        put = user_client.put(URL, json={"config": payload, "version": 1})
+        assert put.status_code == 200
+        assert put.json()["config"] == payload
+        got = user_client.get(URL)
+        assert got.status_code == 200
+        assert got.json()["saved"] is True
+        assert got.json()["config"] == payload
+        db.expire_all()
+        assert db.query(UserSavedConfig).one().config == payload
+
+    def test_unknown_universe_is_rejected(self, user_client, db):
+        response = user_client.put(URL, json={"config": _with(universe="nasdaq")})
+        assert response.status_code == 422
+        assert response.json()["detail"] == "invalid_config"
+        assert db.query(UserSavedConfig).count() == 0
+
+    def test_four_legacy_india_universes_unchanged(self, user_client):
+        for universe in ("all_equity", "nifty500", "nifty50", "nse_fo"):
+            payload = _with(universe=universe)
+            assert user_client.put(URL, json={"config": payload}).status_code == 200
+            assert user_client.get(URL).json()["config"] == payload
+
+    def test_cap_tiers_derive_from_registry(self, user_client):
+        import api.user_configs as uc
+        from api.market_screen.config import ALL_CAP_TIERS
+
+        assert uc.CAP_TIERS == frozenset(ALL_CAP_TIERS)
+        assert uc.CAP_TIERS == {"mega", "large", "mid", "small", "micro"}
+        for tier in ALL_CAP_TIERS:
+            assert user_client.put(
+                URL, json={"config": _with(capTiers=[tier])}
+            ).status_code == 200, tier
+        assert user_client.put(
+            URL, json={"config": _with(capTiers=["huge"])}
+        ).status_code == 422
+
+    def test_types_track_registry_for_openapi(self):
+        from typing import get_args
+
+        import api.user_configs as uc
+        from api.market_screen.config import ALLOWED_UNIVERSES, ALL_CAP_TIERS
+
+        assert set(get_args(uc.MarketUniverse)) == set(ALLOWED_UNIVERSES)
+        assert set(get_args(uc.CapTier)) == set(ALL_CAP_TIERS)
+        schema = uc.MarketFiltersV1.model_json_schema()
+        assert set(schema["properties"]["universe"]["enum"]) == set(ALLOWED_UNIVERSES)
+        assert "us" in schema["properties"]["universe"]["enum"]
+
+    def test_view_literal_tracks_all_frontend_modes(self):
+        from typing import get_args
+
+        import api.user_configs as uc
+
+        # Mirrors MARKET_VIEW_OPTIONS / MarketViewMode in useMarketConfig.ts.
+        assert set(get_args(uc.MarketView)) == {"table", "map", "movers", "value"}
 
 
 class TestHostileStoredRow:
@@ -525,6 +646,185 @@ class TestIfMatch:
         assert response.json()["config"]["sort"] == "day_asc"
 
 
+class TestRevisionPrecision:
+    """A revision must identify one write, not one wall-clock second.
+
+    ``CURRENT_TIMESTAMP`` on SQLite is second-resolution, so the two writes below
+    used to receive the *same* ``updated_at``: the stale tab's ``If-Match`` then
+    matched and its write silently overwrote the newer one (lost update).
+    """
+
+    @staticmethod
+    def _freeze(monkeypatch, frozen):
+        import api.user_configs as uc
+
+        monkeypatch.setattr(uc, "_utcnow", lambda: frozen)
+
+    @staticmethod
+    def _instant(text: str):
+        """The wire form follows the column (naive on SQLite); compare instants."""
+        from datetime import datetime, timezone
+
+        parsed = datetime.fromisoformat(text)
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+    def test_two_writes_in_one_second_have_distinct_revisions(self, user_client, monkeypatch):
+        from datetime import datetime, timezone
+
+        frozen = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        self._freeze(monkeypatch, frozen)
+
+        first = user_client.put(URL, json={"config": SAMPLE})
+        second = user_client.put(URL, json={"config": _with(sort="rsi_desc")})
+
+        assert first.status_code == second.status_code == 200
+        rev1 = first.json()["updated_at"]
+        rev2 = second.json()["updated_at"]
+        # The revision comes from the write, and both land inside the same
+        # wall-clock second — the exact case the DB clock could not express.
+        assert self._instant(rev1) == frozen
+        assert rev2 != rev1
+        assert self._instant(rev2) == frozen + timedelta(microseconds=1)
+
+    def test_stale_revision_is_rejected_after_a_same_second_write(self, user_client, monkeypatch):
+        from datetime import datetime, timezone
+
+        frozen = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        self._freeze(monkeypatch, frozen)
+
+        rev1 = user_client.put(URL, json={"config": SAMPLE}).json()["updated_at"]
+        rev2 = user_client.put(
+            URL, json={"config": _with(sort="rsi_desc")}, headers={"If-Match": rev1}
+        ).json()["updated_at"]
+        assert rev2 != rev1
+
+        # The stale tab still holds rev1: it must not win over rev2.
+        stale = user_client.put(
+            URL, json={"config": _with(sort="day_desc")}, headers={"If-Match": rev1}
+        )
+        assert stale.status_code == 409
+        assert stale.json()["current"]["updated_at"] == rev2
+        assert stale.json()["current"]["config"]["sort"] == "rsi_desc"
+
+        # The tab that just wrote is still allowed to write again.
+        fresh = user_client.put(
+            URL, json={"config": _with(sort="day_desc")}, headers={"If-Match": rev2}
+        )
+        assert fresh.status_code == 200
+        assert fresh.json()["config"]["sort"] == "day_desc"
+
+    def test_two_immediate_writes_have_distinct_revisions(self, user_client, db):
+        # The regression case without freezing anything: on SQLite the DB clock
+        # is second-resolution, so an unmodified handler produced two identical
+        # revisions for two writes milliseconds apart.
+        rev1 = user_client.put(URL, json={"config": SAMPLE}).json()["updated_at"]
+        rev2 = user_client.put(URL, json={"config": _with(sort="rsi_desc")}).json()["updated_at"]
+
+        assert rev1 != rev2
+        assert self._instant(rev2) > self._instant(rev1)
+
+        db.expire_all()
+        row = db.query(UserSavedConfig).one()
+        assert self._instant(row.updated_at.isoformat()) == self._instant(rev2)
+
+        stale = user_client.put(
+            URL, json={"config": _with(sort="day_desc")}, headers={"If-Match": rev1}
+        )
+        assert stale.status_code == 409
+
+    def test_revision_advances_even_if_the_clock_steps_backwards(self, user_client, monkeypatch):
+        from datetime import datetime, timezone
+
+        import api.user_configs as uc
+
+        later = datetime(2026, 1, 1, 12, 0, 5, tzinfo=timezone.utc)
+        monkeypatch.setattr(uc, "_utcnow", lambda: later)
+        rev1 = user_client.put(URL, json={"config": SAMPLE}).json()["updated_at"]
+
+        earlier = datetime(2026, 1, 1, 12, 0, 1, tzinfo=timezone.utc)
+        monkeypatch.setattr(uc, "_utcnow", lambda: earlier)
+        rev2 = user_client.put(URL, json={"config": _with(sort="rsi_desc")}).json()["updated_at"]
+
+        assert self._instant(rev2) == later + timedelta(microseconds=1)
+        assert rev2 != rev1
+
+    def test_stored_row_carries_the_returned_revision(self, user_client, db):
+        body = user_client.put(URL, json={"config": SAMPLE}).json()
+        db.expire_all()
+        row = db.query(UserSavedConfig).one()
+        assert self._instant(row.updated_at.isoformat()) == self._instant(body["updated_at"])
+
+    def test_second_resolution_row_from_before_the_fix_still_validates(self, user_client, db):
+        """No migration: rows written by the old DB clock keep a second-resolution
+        ``updated_at``, and the revision a browser already holds must still match."""
+        from datetime import datetime, timezone
+
+        legacy = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        db.add(
+            UserSavedConfig(
+                user_id=1,
+                scope=SCOPE,
+                name="",
+                config=SAMPLE,
+                version=1,
+                updated_at=legacy,
+            )
+        )
+        db.commit()
+
+        held = user_client.get(URL).json()["updated_at"]
+        assert self._instant(held) == legacy
+
+        response = user_client.put(
+            URL, json={"config": _with(sort="rsi_desc")}, headers={"If-Match": held}
+        )
+        assert response.status_code == 200
+        # The write itself still advances to microsecond precision.
+        assert self._instant(response.json()["updated_at"]) > legacy
+
+
+class TestScopeBeforeBody:
+    """An unknown scope is "not in this build" (404), never a client bug (422).
+
+    The frontend maps 422 to *permanently blocked* and 404 to *disabled*, so a
+    typo'd or newer-build scope with a missing body must still read as 404.
+    """
+
+    UNKNOWN = "/api/user-configs/nope.nope"
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {},
+            {"json": {}},
+            {"json": {"config": "not-an-object"}},
+            {"json": {"config": {"sort": 1}, "version": "one"}},
+        ],
+    )
+    def test_unknown_scope_is_404_whatever_the_body(self, user_client, db, kwargs):
+        response = user_client.put(self.UNKNOWN, **kwargs)
+        assert response.status_code == 404
+        assert response.json()["detail"] == "unknown_scope"
+        assert db.query(UserSavedConfig).count() == 0
+
+    def test_unknown_table_scope_is_404_without_a_body(self, user_client, db):
+        response = user_client.put("/api/user-configs/foo.bar")
+        assert response.status_code == 404
+        assert response.json()["detail"] == "unknown_scope"
+        assert db.query(UserSavedConfig).count() == 0
+
+    def test_known_scope_without_a_body_is_422(self, user_client, db):
+        response = user_client.put(URL)
+        assert response.status_code == 422
+        assert response.json()["detail"][0]["loc"] == ["body"]
+        assert db.query(UserSavedConfig).count() == 0
+
+    def test_known_scope_with_an_empty_body_is_422(self, user_client, db):
+        response = user_client.put(URL, json={})
+        assert response.status_code == 422
+        assert db.query(UserSavedConfig).count() == 0
+
+
 class TestConcurrentFirstSave:
     def test_duplicate_insert_adopts_the_existing_row(self, user_client, db, monkeypatch):
         """Two tabs can both see "no row" and both insert; the loser must not 500.
@@ -757,3 +1057,71 @@ class TestDynamicTableScopes:
         assert body["warning"] == "invalid_saved_config"
         assert body["config"] == self.DEFAULTS
         assert db.query(UserSavedConfig).count() == 1
+
+
+class TestForwardCompatibleTableReads:
+    """A newer build's extra field must not cost the user their known prefs.
+
+    The write path stays strict (``extra="forbid"``), but reads are tolerant: a
+    row written by a future build carries keys this build has never heard of, and
+    discarding the whole payload would silently reset sorting/order/hidden.
+    """
+
+    URL = "/api/user-configs/table.screener.52w_high.approaching"
+    STORED = {
+        "sorting": [{"id": "to_52w_high", "desc": True}],
+        "order": ["symbol", "to_52w_high"],
+        "hidden": ["ltp"],
+        # From a build that adds pinning / column widths.
+        "pinned": ["symbol"],
+        "widths": {"symbol": 120},
+        "density": "compact",
+    }
+
+    def test_unknown_keys_do_not_discard_known_prefs(self, user_client, db):
+        db.add(
+            UserSavedConfig(
+                user_id=1,
+                scope="table.screener.52w_high.approaching",
+                name="",
+                config=self.STORED,
+                version=1,
+            )
+        )
+        db.commit()
+
+        body = user_client.get(self.URL).json()
+        assert body["saved"] is True
+        assert "warning" not in body
+        assert body["config"] == {
+            "sorting": [{"id": "to_52w_high", "desc": True}],
+            "order": ["symbol", "to_52w_high"],
+            "hidden": ["ltp"],
+        }
+
+    def test_unknown_key_inside_a_sort_entry_is_ignored(self, user_client, db):
+        db.add(
+            UserSavedConfig(
+                user_id=1,
+                scope="table.market.grid",
+                name="",
+                config={
+                    "sorting": [{"id": "day_change_pct", "desc": False, "fn": "custom"}],
+                    "order": ["symbol"],
+                    "hidden": [],
+                },
+                version=1,
+            )
+        )
+        db.commit()
+
+        body = user_client.get("/api/user-configs/table.market.grid").json()
+        assert body["saved"] is True
+        assert body["config"]["sorting"] == [{"id": "day_change_pct", "desc": False}]
+        assert body["config"]["order"] == ["symbol"]
+
+    def test_writes_stay_strict_about_unknown_keys(self, user_client, db):
+        response = user_client.put(self.URL, json={"config": {**self.STORED}})
+        assert response.status_code == 422
+        assert response.json()["detail"] == "unknown_key"
+        assert db.query(UserSavedConfig).count() == 0

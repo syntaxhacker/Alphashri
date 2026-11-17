@@ -5,10 +5,11 @@ Three readings, all derived from the same rows the report already carries:
 
 * ``atm`` — IV at the strike nearest spot (call, put and their mean). This is
   the level the rest of the surface is measured against.
-* ``skew`` — the 25-delta put IV minus the 25-delta call IV. Positive means
-  puts are bid over calls: downside insurance is the expensive side. Both legs
-  are picked by **nearest ``|delta|`` to 0.25**, never by moneyness, because
-  delta already absorbs spot, vol and time to expiry.
+* ``skew`` — the 25-delta call IV minus the 25-delta put IV (the documented
+  risk-reversal convention: positive = calls rich; negative = puts bid over
+  calls, i.e. downside insurance is the expensive side). Both legs are picked
+  by **nearest ``|delta|`` to 0.25**, never by moneyness, because delta already
+  absorbs spot, vol and time to expiry.
 * ``term`` — ATM IV per expiry when the caller supplies ``expiries`` (a
   mapping ``expiry -> rows``). Empty when only one chain is known.
 
@@ -20,8 +21,8 @@ Conventions worth keeping explicit:
   have not been computed yet; both are missing, not a 0% vol print. On
   2026-11-03 the chain returned ``281.25%`` on the 23,950 CE (a dead strike
   with delta 0.0053) and the block published it as "25Δ call IV" with a
-  ``−246`` skew. An IV outside the band, or on a strike nobody holds, is an
-  artefact: it is dropped, not reported.
+  ``+246`` skew under this call-minus-put sign. An IV outside the band, or on a
+  strike nobody holds, is an artefact: it is dropped, not reported.
 * The 25-delta wing is only named when a leg's ``|delta|`` actually lands in
   :data:`DELTA_MIN`..:data:`DELTA_MAX` (0.15..0.35). A chain whose nearest leg
   to 0.25 is a 0.005-delta lottery ticket has **no** 25-delta leg — it is
@@ -48,25 +49,32 @@ import math
 from statistics import median
 from typing import Any, Iterable, Mapping, Optional
 
+from api.options_conventions import (
+    DELTA_BAND,
+    DELTA_TARGET,
+    SURFACE_IV_MAX,
+    SURFACE_IV_MIN,
+)
+from api.options_iv import atm_iv as _shared_atm_iv
+from api.options_iv import wing_iv as _shared_wing_iv
 from api.reports_api._numeric import safe_opt_float
 
 __all__ = ["DELTA_MAX", "DELTA_MIN", "IV_MAX", "IV_MIN", "SKEW_DELTA",
-           "attach_iv_surface", "iv_summary"]
+           "atm_block", "attach_iv_surface", "iv_summary"]
 
-#: Delta whose IV defines a wing of the skew. 0.25 is the desk convention
-#: ("25-delta put" / "25-delta call"), not a tunable.
-SKEW_DELTA = 0.25
+# Canonical values live in api.options_conventions. The short names stay as the
+# module's public surface; both bands share IV_MAX=100 — only the floor differs
+# (surface 1% vs analytics 0%); see the owner for the rationale.
+#: Delta whose IV defines a wing of the skew — the desk's 25-delta convention.
+SKEW_DELTA = DELTA_TARGET
 
-#: A leg only counts as a 25-delta wing when its ``|delta|`` lands in this
-#: band. Without it, the "nearest leg to 0.25" on a chain with a hole is a
-#: 0.005-delta strike whose IV is pure noise (2026-11-03: 281%).
-DELTA_MIN = 0.15
-DELTA_MAX = 0.35
+#: A leg only counts as a 25-delta wing when its ``|delta|`` lands in this band.
+DELTA_MIN, DELTA_MAX = DELTA_BAND
 
-#: Usable implied-vol band, in vol points. Below 1% the print is a dead
-#: strike; above 100% it is a bad greek or a stale quote, not a surface.
-IV_MIN = 1.0
-IV_MAX = 100.0
+#: Usable implied-vol band for the surface: below 1% the print is a dead strike;
+#: above 100% it is a bad greek or a stale quote, not a surface.
+IV_MIN = SURFACE_IV_MIN
+IV_MAX = SURFACE_IV_MAX
 
 
 def _num(value: Any) -> Optional[float]:
@@ -163,12 +171,21 @@ def _atm(entries: list[dict[str, Any]], spot: Optional[float]) -> dict[str, Any]
 
     chosen = next(entry for entry in entries if entry["strike"] == strike)
     ce_iv, pe_iv = chosen["ce_iv"], chosen["pe_iv"]
-    parts = [iv for iv in (ce_iv, pe_iv) if iv is not None]
+    # Only the two quotes at the chosen ATM strike are candidate data; the
+    # shared helper averages whatever is present there (both legs, or the one
+    # surviving leg) and returns None when the strike is dead. Keeping the
+    # strike selection local preserves the surface's nearest-spot/median rule.
+    legs = [
+        {"strike": strike, "side": side, "iv": iv,
+         "delta": chosen[f"{side.lower()}_delta"]}
+        for side, iv in (("CE", ce_iv), ("PE", pe_iv))
+    ]
+    avg = _shared_atm_iv(legs, strike)
     return {
         "strike": strike,
         "ce_iv": ce_iv,
         "pe_iv": pe_iv,
-        "avg_iv": round(sum(parts) / len(parts), 4) if parts else None,
+        "avg_iv": round(avg, 4) if avg is not None else None,
     }
 
 
@@ -189,40 +206,19 @@ def _wing_iv(
     substitutes a different wing and mis-states the skew.
     """
     iv_key, delta_key = f"{side}_iv", f"{side}_delta"
-    all_cands = [
-        (entry["strike"], abs(entry[delta_key]), entry[iv_key])
+    # Hand the shared helper only legs that carry a delta; the OI/IV-band
+    # filtering already happened in :func:`_collect` (surface-specific). The
+    # helper owns the nearest-in-band pick and the guarded bracketing
+    # interpolation described above.
+    points = [
+        {"strike": entry["strike"], "side": side.upper(),
+         "iv": entry[iv_key], "delta": entry[delta_key]}
         for entry in entries
         if entry[delta_key] is not None
     ]
-    cands = [cand for cand in all_cands
-             if DELTA_MIN <= cand[1] <= DELTA_MAX]
-    if not cands:
-        return None, None
-
-    best = min(cands, key=lambda cand: (abs(cand[1] - SKEW_DELTA), cand[0]))
-    if best[2] is not None:
-        return best[0], best[2]
-
-    # Bracketing legs may sit outside the band (a 0.38 leg still brackets
-    # 0.25 honestly); only the *named* wing has to be inside it.
-    below = [cand for cand in all_cands
-             if cand[1] < SKEW_DELTA and cand[2] is not None]
-    above = [cand for cand in all_cands
-             if cand[1] > SKEW_DELTA and cand[2] is not None]
-    if not below or not above:
-        return best[0], None
-
-    lo = max(below, key=lambda cand: cand[1])   # nearest leg further OTM
-    hi = min(above, key=lambda cand: cand[1])   # nearest leg closer to ATM
-    if hi[1] == lo[1]:
-        return best[0], None
-    between = [cand for cand in all_cands
-               if lo[1] < cand[1] < hi[1] and cand[0] != best[0]]
-    if any(cand[2] is None for cand in between):
-        return best[0], None
-
-    interpolated = lo[2] + (hi[2] - lo[2]) * (SKEW_DELTA - lo[1]) / (hi[1] - lo[1])
-    return best[0], round(interpolated, 4)
+    return _shared_wing_iv(
+        points, side.upper(), target=SKEW_DELTA, delta_band=DELTA_BAND
+    )
 
 
 def _empty_skew() -> dict[str, Optional[float]]:
@@ -236,7 +232,7 @@ def _empty_skew() -> dict[str, Optional[float]]:
 
 
 def _skew(entries: list[dict[str, Any]]) -> dict[str, Any]:
-    """25-delta skew block: put wing minus call wing (positive = put skew)."""
+    """25-delta skew block: call wing minus put wing (positive = calls rich)."""
     strike_ce, ce_iv = _wing_iv(entries, "ce")
     strike_pe, pe_iv = _wing_iv(entries, "pe")
     return {
@@ -244,7 +240,7 @@ def _skew(entries: list[dict[str, Any]]) -> dict[str, Any]:
         "ce_25d_iv": ce_iv,
         "strike_pe25": strike_pe,
         "pe_25d_iv": pe_iv,
-        "skew_25d": round(pe_iv - ce_iv, 4)
+        "skew_25d": round(ce_iv - pe_iv, 4)
         if pe_iv is not None and ce_iv is not None else None,
     }
 
@@ -294,7 +290,25 @@ def _summarise(
         "term": _term(expiries, spot) if expiries else [],
         "coverage": _coverage(rows, entries),
         "degraded": degraded,
+        # Per-strike, surface-filtered legs so a consumer can render the smile
+        # from the same gated data instead of re-deriving it from raw rows.
+        "points": [
+            {"strike": entry["strike"],
+             "ce_iv": entry["ce_iv"], "pe_iv": entry["pe_iv"],
+             "ce_delta": entry["ce_delta"], "pe_delta": entry["pe_delta"]}
+            for entry in entries
+        ],
     }
+
+
+def atm_block(rows: Iterable[Any], spot: Optional[float] = None) -> dict[str, Any]:
+    """Surface-filtered ATM block for one chain, shared with the verdicts.
+
+    Applies the same OI / IV-band gates as the full surface and the same ATM
+    helper, so a caller that only needs the two ATM legs cannot drift from the
+    ATM read published in ``iv_surface.atm``.
+    """
+    return _atm(_collect(rows), _num(spot))
 
 
 def iv_summary(rows: Iterable[Any], spot: Optional[float] = None) -> dict[str, Any]:

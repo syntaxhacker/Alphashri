@@ -15,9 +15,9 @@
   2. **Heatmap utils internal dup**:
      - `src/pages/heatmap/heatmapUtils.ts` (two similar blocks ~85-105)
      - *Opportunity:* Refactor duplicated color/scale logic into helper fn.
-  3. **Backtest chart options overlap**:
-     - `src/components/backtest/buildBacktestChartOption.ts` duplicates with `src/utils/chart/buildOverlays.ts` (multiple 14-line blocks for series/options)
-     - *Opportunity:* Centralize in chart builders.
+  3. **Backtest chart options overlap — RESOLVED by removal**:
+     - `src/components/backtest/buildBacktestChartOption.ts` (dead file, 0 importers) duplicated `src/utils/chart/buildOverlays.ts` (multiple 14-line blocks for series/options); **REMOVED 2026-11**.
+     - *Status:* centralization achieved by deleting the unused copy; the shared builders in `src/utils/chart/` remain the single source.
   4. **Chart utils + zoom/trade**:
      - `src/utils/chartUtils.ts` <-> `src/components/backtest/zoomToTrade.ts` (multiple blocks for time/price handling)
   5. **Internal in trading_agents.ts**:
@@ -33,13 +33,13 @@
 ## From knip (unused = DRY by removal)
 - `bun run check:unused` found:
   - 7 unused files (e.g., some backtest/news/sector components – can delete or integrate)
-  - 1 unused dep: d3-interpolate
+  - 1 unused dep: d3-interpolate (REMOVED 2026-11 — no longer in package.json)
   - 49 unused exports (e.g., many in replay helpers, paper-trading helpers, heatmap colors, useApi hooks, useScreener* – dead code from refactors)
 - Removing these reduces maintenance surface (DRY principle: don't keep similar-but-unused variants).
 
 ## From depcheck
 - `bun run check:deps`:
-  - Unused: d3-interpolate (matches knip)
+  - Unused: d3-interpolate (matches knip) — REMOVED 2026-11
   - Unused devDeps: several @storybook/* addons (can clean if not used)
   - Missing: babel pkgs for remove-console-logs.js (script dep?)
 

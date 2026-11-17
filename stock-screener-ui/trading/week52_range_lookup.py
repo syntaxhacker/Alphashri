@@ -27,6 +27,11 @@ def _sanitize_52w_range_entry(info) -> dict | None:
             out["days_ago"] = max(0, int(days))
         except (TypeError, ValueError):
             pass
+    ts = info.get("updated_at")
+    if isinstance(ts, str) and ts:
+        out["updated_at"] = ts
+    elif hasattr(ts, "isoformat"):
+        out["updated_at"] = ts.isoformat()
     return out
 
 
@@ -41,12 +46,16 @@ def _sanitize_52w_ranges_bulk(data: dict) -> dict:
 
 
 def get_52w_range(symbol: str) -> dict | None:
-    """Redis per-symbol cache, then DB row for symbol."""
+    """Pick one symbol out of the bulk cache, then fall back to its DB row.
+
+    Per-symbol ``52w_range:{symbol}`` keys were dropped: the batch writes one
+    bulk key, and a single-symbol lookup reads that same payload.
+    """
     from cache.redis_client import cache_get
 
-    cached = cache_get(f"52w_range:{symbol}")
-    if cached is not None:
-        entry = _sanitize_52w_range_entry(cached)
+    bulk = cache_get("52w_range:all")
+    if isinstance(bulk, dict) and symbol in bulk:
+        entry = _sanitize_52w_range_entry(bulk[symbol])
         if entry is not None:
             return entry
 

@@ -7,6 +7,7 @@
  * once their scope converts; until then this is the report page's local twin.
  */
 import { createEffect, createSignal, onCleanup } from "solid-js";
+import { TZ_IST } from "@/config/constants";
 import type {
   ChartCandle,
   PatternHitDTO,
@@ -23,12 +24,57 @@ import {
 export type SymbolChartPayload = Awaited<ReturnType<typeof fetchSymbolChart>>;
 const SYMBOL_CHART_CACHE_MS = 60_000;
 
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const istDayFmt = new Intl.DateTimeFormat("en-CA", {
+  timeZone: TZ_IST,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/**
+ * IST session date (`YYYY-MM-DD`) of an ISO timestamp, or null.
+ * Daily bars arrive as `18:30Z` (= 00:00 IST of the session), so the raw
+ * string's first 10 chars are the *previous* day — always convert to IST.
+ * Date-only inputs are already session dates and pass through.
+ */
+export function istSessionDate(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (trimmed === "") return null;
+  if (DATE_ONLY_RE.test(trimmed)) return trimmed;
+  const ms = Date.parse(trimmed);
+  if (Number.isNaN(ms)) return null;
+  const parts = istDayFmt.formatToParts(new Date(ms));
+  const pick = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${pick("year")}-${pick("month")}-${pick("day")}`;
+}
+
+/**
+ * Stale markers from a chart payload. A stale-first response can still append
+ * today's tape bar to the *displayed* candles while `as_of` stays pinned to the
+ * detection frame — so a displayed series newer than `as_of` is current and
+ * must not carry a "Cached <old date>" badge over a newer candle.
+ *
+ * `detectionAsOf` is the base frame whose hits (and their `bars_ago`) were
+ * detected. It is a *separate* axis from display freshness: the displayed series
+ * may legitimately be newer than the detected one, and the consumer must say so
+ * instead of implying the pattern read is current.
+ */
 const staleFields = (
   chart: SymbolChartPayload,
-): Pick<FullscreenChartState, "stale" | "dataAsOf"> =>
-  chart.stale === true
-    ? { stale: true, dataAsOf: chart.as_of ?? null }
-    : { stale: false, dataAsOf: null };
+): Pick<FullscreenChartState, "stale" | "dataAsOf" | "detectionAsOf"> => {
+  const candles = chart.candles ?? [];
+  const candleDate = istSessionDate(candles.length ? candles[candles.length - 1].t : null);
+  const asOfDate = istSessionDate(chart.as_of);
+  const detectionAsOf = istSessionDate(chart.detection_as_of);
+  if (candleDate && asOfDate && candleDate > asOfDate) {
+    return { stale: false, dataAsOf: null, detectionAsOf };
+  }
+  return chart.stale === true
+    ? { stale: true, dataAsOf: chart.as_of ?? null, detectionAsOf }
+    : { stale: false, dataAsOf: null, detectionAsOf };
+};
 
 export interface FullscreenChartState {
   symbol: string;
@@ -45,6 +91,12 @@ export interface FullscreenChartState {
   fromDate: string | null;
   stale?: boolean;
   dataAsOf?: string | null;
+  /**
+   * Completed-session frame (`YYYY-MM-DD`) the open hits were detected on. The
+   * displayed series can be newer (today's tape bar is display-only), so a
+   * docked panel must label a detection date that trails the last candle.
+   */
+  detectionAsOf?: string | null;
   /** Latest traded price from the market snapshot; null until it resolves (or on failure). */
   livePrice?: number | null;
   /** Day change % paired with `livePrice`; null when unavailable. */
@@ -156,6 +208,7 @@ export function usePatternFullscreen({
       pinned: true,
       stale: false,
       dataAsOf: null,
+      detectionAsOf: null,
       livePrice: null,
       liveChange: null,
     });
@@ -270,6 +323,7 @@ export function usePatternFullscreen({
       computeTrendlines?: boolean;
       asOf?: string | null;
       fromDate?: string | null;
+      refresh?: boolean;
     },
     // Only a refresh/load keeps the visible hit; timeframe switches still
     // default to newest (or the explicit list pick) for the new timeframe.
@@ -279,6 +333,7 @@ export function usePatternFullscreen({
       ...(extra.lookbackBars != null ? { lookbackBars: extra.lookbackBars } : {}),
       ...(extra.asOf ? { asOf: extra.asOf } : {}),
       ...(extra.fromDate ? { fromDate: extra.fromDate } : {}),
+      ...(extra.refresh ? { refresh: true } : {}),
     };
     if (extra.computeTrendlines != null) {
       baseOpts.computeTrendlines = extra.computeTrendlines;
@@ -374,12 +429,22 @@ export function usePatternFullscreen({
       }
     };
 
+    // Stored-first by default. An explicit live request and as-of/replay frames
+    // never accept stored hits: replay is live-only, and an explicit live request
+    // must not be short-circuited by a stale stored scan. Otherwise a stored hit
+    // wins and only an unscanned symbol triggers one live fallback detection.
+    const forceLive = detectPatterns || extra.asOf != null;
+
     const phase1 = async () => {
       const key = `${symbol}|${tf}|l|${extra.asOf ?? ""}|${extra.fromDate ?? ""}`;
       const cached = symbolChartCache.get(key);
       if (cached && Date.now() - cached.ts < SYMBOL_CHART_CACHE_MS) {
         applyCandles(cached.chart);
-        if (detectPatterns) await phase2();
+        if (forceLive || (cached.chart.hits ?? []).length === 0) {
+          await phase2();
+        } else {
+          applyPatterns(cached.chart);
+        }
         return;
       }
       try {
@@ -390,7 +455,11 @@ export function usePatternFullscreen({
         if (chartRequestToken !== token) return;
         symbolChartCache.set(key, { chart, ts: Date.now() });
         applyCandles(chart);
-        if (detectPatterns) await phase2();
+        if (forceLive || (chart.hits ?? []).length === 0) {
+          await phase2();
+        } else {
+          applyPatterns(chart);
+        }
       } catch {
         applyCandlesError();
       }
@@ -432,9 +501,10 @@ export function usePatternFullscreen({
     symbol: string,
     timeframe: string | undefined,
     pinned: boolean,
-    detectPatterns = true,
+    detectPatterns = false,
     replay?: { asOf?: string | null; fromDate?: string | null },
     keepHit: PatternHitDTO | null = null,
+    refresh = false,
   ) => {
     const tf = timeframe ?? defaultTimeframe;
     const token = ++chartRequestToken;
@@ -456,6 +526,7 @@ export function usePatternFullscreen({
       patternsLoading: undefined,
       stale: false,
       dataAsOf: null,
+      detectionAsOf: null,
       chartError: null,
       chartNote: null,
       livePrice: null,
@@ -467,6 +538,7 @@ export function usePatternFullscreen({
       computeTrendlines,
       asOf: replay?.asOf ?? undefined,
       fromDate: replay?.fromDate ?? undefined,
+      refresh,
     }, true);
     // Live frames poll the quote every 15s; historical (as-of) frames never do.
     if (replay?.asOf == null) {
@@ -486,13 +558,14 @@ export function usePatternFullscreen({
       current.detectPatterns !== false,
       { asOf: current.asOf, fromDate: current.fromDate },
       current.hit,
+      true,
     );
   };
 
   const openFromSymbol = (
     symbol: string,
     timeframe?: string,
-    detectPatterns = true,
+    detectPatterns = false,
   ) => {
     selectedHit = null;
     return loadSymbolChart(symbol, timeframe, true, detectPatterns);
@@ -501,7 +574,7 @@ export function usePatternFullscreen({
   const previewFromSymbol = (
     symbol: string,
     timeframe?: string,
-    detectPatterns = true,
+    detectPatterns = false,
   ) => {
     selectedHit = null;
     return loadSymbolChart(symbol, timeframe, false, detectPatterns);
@@ -630,6 +703,9 @@ export function usePatternFullscreen({
 
   onCleanup(() => {
     stopLivePoll();
+    // Bump the token so a response already in flight cannot write to state
+    // after the owner is disposed.
+    chartRequestToken += 1;
   });
 
   const pinFullscreen = () => {

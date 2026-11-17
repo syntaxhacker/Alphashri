@@ -239,6 +239,7 @@ export function ReportWorkspace() {
               <NiftyIvSkew
                 strikes={store.data.report()?.strikes}
                 spot={store.data.report()?.spot}
+                ivSurface={store.data.report()?.iv_surface}
               />
             </Suspense>
           );
@@ -439,7 +440,11 @@ export function ReportWorkspace() {
               >
                 <Box className="min-w-0 min-h-0 relative">
                   <Suspense fallback={<PanelSkeleton h={160} />}>
-                    <NiftyIvSkew strikes={current().strikes} spot={current().spot} />
+                    <NiftyIvSkew
+                      strikes={current().strikes}
+                      spot={current().spot}
+                      ivSurface={current().iv_surface}
+                    />
                   </Suspense>
                   <ActionIcon
                     data-testid="nifty-ivskew-expand"

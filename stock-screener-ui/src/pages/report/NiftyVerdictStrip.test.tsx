@@ -76,6 +76,7 @@ describe("normalizeReport verdict blocks (snake_case -> typed, null-safe)", () =
       pe_doi: -1_200_000,
       atm_ce_iv: 12.5,
       atm_pe_iv: 13.1,
+      put_skew: -2.4,
       skew: -2.4,
       gex_regime: "short",
       flow_bias: null,

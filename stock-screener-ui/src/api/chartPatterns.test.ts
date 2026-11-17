@@ -293,6 +293,30 @@ describe("symbol endpoints", () => {
     expect(queryOf(url).get("lookback_bars")).toBe("120");
     expect(queryOf(url).get("compute_trendlines")).toBe("0");
   });
+
+  it("fetchSymbolChart appends market=usa only when market is set", async () => {
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "AAPL", candles: [], overlays: [] }));
+    await fetchSymbolChart("AAPL", "1D", { market: "usa" });
+    let url = mockedFetch.mock.calls[0][0] as string;
+    expect(url).toContain("/api/chart-patterns/symbol/AAPL/chart?");
+    expect(queryOf(url).get("market")).toBe("usa");
+    expect(queryOf(url).get("timeframe")).toBe("1D");
+
+    mockedFetch.mockClear();
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "IRCON", candles: [], overlays: [] }));
+    await fetchSymbolChart("IRCON", "1D", { computeTrendlines: true, detectPatterns: false });
+    url = mockedFetch.mock.calls[0][0] as string;
+    expect(queryOf(url).get("market")).toBeNull();
+  });
+
+  it("fetchSymbolChart keeps other params alongside market=usa", async () => {
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "AAPL", candles: [], overlays: [] }));
+    await fetchSymbolChart("AAPL", "5m", { market: "usa", limit: 200 });
+    const params = queryOf(mockedFetch.mock.calls[0][0] as string);
+    expect(params.get("market")).toBe("usa");
+    expect(params.get("timeframe")).toBe("5m");
+    expect(params.get("limit")).toBe("200");
+  });
 });
 
 describe("buildPatternsQuery missing serialization", () => {
@@ -401,6 +425,19 @@ describe("results/summary/symbol error messages", () => {
       },
     } as unknown as Response);
     await expect(fetchSymbolDetail("SBIN", "1D")).rejects.toThrow("Failed to load SBIN");
+  });
+
+  it("fetchSymbolChart sends refresh=1 only when refresh is true", async () => {
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "IRCON", candles: [], overlays: [] }));
+    await fetchSymbolChart("IRCON", "1D", { refresh: true });
+    let url = mockedFetch.mock.calls[0][0] as string;
+    expect(queryOf(url).get("refresh")).toBe("1");
+
+    mockedFetch.mockClear();
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "IRCON", candles: [], overlays: [] }));
+    await fetchSymbolChart("IRCON", "1D");
+    url = mockedFetch.mock.calls[0][0] as string;
+    expect(queryOf(url).get("refresh")).toBeNull();
   });
 
   it("fetchSymbolChart throws the server detail on failure", async () => {

@@ -19,47 +19,36 @@ import { PivotList } from "./PatternPivotList";
 import { QualityBadge } from "./QualityBadge";
 import { StatusBadge } from "./StatusBadge";
 import { displayStatusForHit } from "./patternDisplayStatus";
-import { formatPrice } from "./shared";
+import { formatChartPrice } from "./chartFormat";
 import { KEY_POINTS_LEGEND_NAME, PIVOT_LEGEND_NAME } from "@/config/patterns";
-import { TZ_IST } from "@/config/constants";
-import { formatChartTick } from "./datetime";
+import {
+  MARKET_TIME_ZONE,
+  sessionDateKey,
+  type ChartMarket,
+} from "@/utils/chart/time";
 import { PRIMARY, TEXT_MUTED, WARNING } from "@/ui/palette";
 
-const IST_KEY_FORMAT = new Intl.DateTimeFormat("en-CA", {
-  timeZone: TZ_IST,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-function istKeyFromDate(date: Date): string {
-  const parts = IST_KEY_FORMAT.formatToParts(date);
-  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
+/** Calendar-only `YYYY-MM-DD` → `13 Nov` — no timezone math on a session key. */
+function formatDayMonthKey(key: string): string {
+  const [, month, day] = key.split("-");
+  const name = MONTHS[Number(month) - 1] ?? month;
+  return `${day} ${name}`;
 }
 
-/**
- * IST session date (`YYYY-MM-DD`) behind a candle/hit timestamp, or null when it
- * cannot be parsed. An ISO instant with an offset is converted; a bare calendar
- * date (or an IST-local `YYYY-MM-DD HH:mm`) is already a session date.
- */
-function istDateKey(value: string | null | undefined): string | null {
-  if (typeof value !== "string" || value.trim() === "") return null;
-  const trimmed = value.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
-  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(trimmed)) return trimmed.slice(0, 10);
-  const ms = Date.parse(trimmed);
-  return Number.isNaN(ms) ? null : istKeyFromDate(new Date(ms));
+/** Session key for "today" in the chart's market zone. */
+function todayKey(timeZone: string): string {
+  return sessionDateKey(new Date().toISOString(), timeZone) ?? "";
 }
 
 /** `13 Nov` within the current year, `13 Nov 2025` for an older bar. */
-function barDateLabel(value: string): string {
-  const key = istDateKey(value);
-  if (!key) return formatChartTick(value).toUpperCase();
-  const base = formatChartTick(key);
+function barDateLabel(value: string, timeZone: string): string {
+  const key = sessionDateKey(value, timeZone);
+  if (!key) return value.toUpperCase();
+  const base = formatDayMonthKey(key);
   const year = key.slice(0, 4);
-  const currentYear = istKeyFromDate(new Date()).slice(0, 4);
-  return (year === currentYear ? base : `${base} ${year}`).toUpperCase();
+  return (year === todayKey(timeZone).slice(0, 4) ? base : `${base} ${year}`).toUpperCase();
 }
 
 export interface CloseSeries {
@@ -67,6 +56,8 @@ export interface CloseSeries {
   changePct: number | null;
   barDate: string | null;
   source: "hit" | "chart";
+  /** The displayed bar is today's partial bar built from the live tape. */
+  isPartial: boolean;
 }
 
 /**
@@ -77,24 +68,29 @@ export interface CloseSeries {
  * Without that date (or without a chart bar to compare) the drawn series wins;
  * a partial enrichment never mixes with a chart bar.
  */
-export function resolveCloseSeries(params: {
-  hit: Pick<PatternHitDTO, "last_close" | "day_change_pct" | "close_bar_date">;
-  candles: ChartCandle[];
-}): CloseSeries {
+export function resolveCloseSeries(
+  params: {
+    hit: Pick<PatternHitDTO, "last_close" | "day_change_pct" | "close_bar_date">;
+    candles: ChartCandle[];
+  },
+  timeZone: string = MARKET_TIME_ZONE.india,
+): CloseSeries {
   const { hit, candles } = params;
   const last = candles.length ? candles[candles.length - 1] : null;
   const prev = candles.length > 1 ? candles[candles.length - 2] : null;
+  const isPartial = last?.is_partial === true;
   const chart: CloseSeries = {
     close: last?.c ?? null,
     changePct:
       last && prev && prev.c ? ((last.c - prev.c) / prev.c) * 100 : null,
     barDate: last?.t ?? null,
     source: "chart",
+    isPartial,
   };
 
   const hasPair = hit.last_close != null && hit.day_change_pct != null;
-  const hitKey = istDateKey(hit.close_bar_date);
-  const chartKey = istDateKey(last?.t ?? null);
+  const hitKey = sessionDateKey(hit.close_bar_date, timeZone);
+  const chartKey = sessionDateKey(last?.t ?? null, timeZone);
   if (!hasPair || !hitKey) return chart;
   if (chartKey && hitKey < chartKey) return chart;
 
@@ -103,6 +99,9 @@ export function resolveCloseSeries(params: {
     changePct: hit.day_change_pct ?? null,
     barDate: hit.close_bar_date ?? null,
     source: "hit",
+    // The hit's dated pair describes the same bar as the chart's last candle,
+    // so the partial flag still applies to the label we render.
+    isPartial: chartKey != null && hitKey === chartKey ? isPartial : false,
   };
 }
 
@@ -149,6 +148,18 @@ export interface PatternChartBodyProps {
    * of the modal's 80/20 side-by-side split, and tighten the padding.
    */
   docked?: boolean;
+  /**
+   * Exchange whose session defines axis/session dates. `usa` resolves to
+   * America/New_York; `india` (the default) stays Asia/Kolkata. An explicit
+   * `timeZone` wins over `market`.
+   */
+  market?: ChartMarket;
+  /** IANA zone override for the session key and naive-timestamp parsing. */
+  timeZone?: string;
+  /** Source badge text from the chart payload (`feed`), e.g. "Yahoo". */
+  feedLabel?: string;
+  /** Delay badge text from the chart payload (`delay_label`), e.g. "~1 min". */
+  delayLabel?: string;
 }
 
 /**
@@ -180,18 +191,20 @@ function FullscreenPanel(props: {
   docked?: boolean;
   livePrice?: number | null;
   liveChange?: number | null;
+  market?: ChartMarket;
+  timeZone: string;
 }) {
   // Enrichment is only as fresh as the frame it was captured on; the drawn
   // candles are the authority whenever the hit cannot be dated or is older.
   const series = createMemo(() =>
-    resolveCloseSeries({ hit: props.hit, candles: props.candles ?? [] }),
+    resolveCloseSeries({ hit: props.hit, candles: props.candles ?? [] }, props.timeZone),
   );
   const closeLabel = () => {
     const barDate = series().barDate;
     if (!barDate) return "CLOSE";
-    const key = istDateKey(barDate);
-    const isPrev = key != null && key !== istKeyFromDate(new Date());
-    return `${isPrev ? "PREV CLOSE" : "CLOSE"} · ${barDateLabel(barDate)}`;
+    const key = sessionDateKey(barDate, props.timeZone);
+    const isPrev = key != null && key !== todayKey(props.timeZone);
+    return `${isPrev ? "PREV CLOSE" : "CLOSE"} · ${barDateLabel(barDate, props.timeZone)}`;
   };
   const activeKey = () => fullscreenHitKey(props.hit);
 
@@ -230,10 +243,19 @@ function FullscreenPanel(props: {
               data-testid="patterns-close-label"
             >
               {closeLabel()}
+              <Show when={series().isPartial}>
+                <span
+                  data-testid="patterns-close-partial"
+                  className="ml-1 normal-case tracking-normal"
+                  style={{ color: WARNING }}
+                >
+                  (live)
+                </span>
+              </Show>
             </Text>
             <Box className="flex min-w-0 items-baseline gap-2">
               <Text fw={600} className="font-mono tabular-nums text-[18px] leading-none">
-                {formatPrice(series().close)}
+                {formatChartPrice(series().close, props.market)}
               </Text>
               <Text
                 size="xs"
@@ -250,7 +272,7 @@ function FullscreenPanel(props: {
                   LTP
                 </Text>
                 <Text fw={600} className="font-mono tabular-nums text-[14px] leading-none">
-                  {formatPrice(props.livePrice!)}
+                  {formatChartPrice(props.livePrice!, props.market)}
                 </Text>
                 <Text
                   size="xs"
@@ -297,7 +319,7 @@ function FullscreenPanel(props: {
       </Show>
 
       <KeyPointLegend hit={props.hit} />
-      <PivotList pivots={props.hit.pivots} />
+      <PivotList pivots={props.hit.pivots} market={props.market} />
     </Box>
   );
 }
@@ -318,6 +340,8 @@ function FullscreenTV(props: {
   chartError?: string | null;
   chartNote?: string | null;
   loading?: boolean;
+  market?: ChartMarket;
+  timeZone: string;
 }) {
   const trendlinesView = () => props.trendlinesView ?? "both";
   const data = createMemo(() =>
@@ -328,6 +352,7 @@ function FullscreenTV(props: {
       trendLines: props.trendLines,
       trendlinesView: trendlinesView(),
       historyHits: props.historyHits,
+      timeZone: props.timeZone,
     }),
   );
   const levelEntries = createMemo(() =>
@@ -383,6 +408,8 @@ function FullscreenTV(props: {
           trendlinesView={trendlinesView()}
           historyHits={props.historyHits}
           hiddenNames={hidden()}
+          market={props.market}
+          timeZone={props.timeZone}
         />
       </Box>
       <Show when={props.candles.length === 0 && !props.loading}>
@@ -413,6 +440,7 @@ function FullscreenTV(props: {
  * ref and is cheap to keep mounted inside this body).
  */
 export function PatternChartBody(props: PatternChartBodyProps) {
+  const timeZone = () => props.timeZone ?? MARKET_TIME_ZONE[props.market ?? "india"];
   const asOfLabel = () => {
     const asOf = props.asOf;
     return typeof asOf === "string" && asOf !== "" ? asOf.replace("T", " ") : null;
@@ -459,6 +487,16 @@ export function PatternChartBody(props: PatternChartBodyProps) {
         >
           <ToolbarRow justify="flex-start" gap={6} style={{ "padding-bottom": "4px" }}>
             <Text size="xs" c="dimmed">History</Text>
+            <Show when={props.feedLabel || props.delayLabel}>
+              <Text
+                size="xs"
+                c="dimmed"
+                data-testid="patterns-feed-badge"
+                className="text-[10px] uppercase tracking-[0.4px]"
+              >
+                {[props.feedLabel, props.delayLabel].filter(Boolean).join(" · ")}
+              </Text>
+            </Show>
             <SegmentedControl
               size="xs"
               data={[
@@ -481,6 +519,8 @@ export function PatternChartBody(props: PatternChartBodyProps) {
             chartError={props.chartError}
             chartNote={props.chartNote}
             loading={props.loading}
+            market={props.market}
+            timeZone={timeZone()}
           />
         </Box>
 
@@ -501,6 +541,8 @@ export function PatternChartBody(props: PatternChartBodyProps) {
                   docked={docked()}
                   livePrice={props.livePrice}
                   liveChange={props.liveChange}
+                  market={props.market}
+                  timeZone={timeZone()}
                 />
               )}
             </Show>

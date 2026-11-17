@@ -3,7 +3,11 @@ import numpy as np
 import pandas as pd
 
 from chart_patterns import config as pattern_config
-from chart_patterns.trendlines import detect_trendlines
+from chart_patterns.trendlines import (
+    detect_trendlines,
+    window_matches,
+    window_signature,
+)
 
 
 def _rising_support_df(n: int = 60) -> pd.DataFrame:
@@ -182,3 +186,65 @@ def test_signature_changes_with_config(monkeypatch):
     assert pattern_config.trendline_signature() != base
     monkeypatch.setattr(pattern_config, "TRENDLINE_LOOKBACK_BARS", 999)
     assert pattern_config.trendline_signature() != base
+
+
+# ---------------------------------------------------------------------------
+# window_signature / window_matches: proving stored lines still apply.
+# ---------------------------------------------------------------------------
+
+
+def test_window_signature_is_stable_and_length_tagged():
+    df = _rising_support_df()
+    sig = window_signature(df)
+    assert sig and sig == window_signature(df.copy())
+    length, _, digest = sig.partition(":")
+    assert 0 < int(length) <= len(df)
+    assert len(digest) == 16
+
+
+def test_window_signature_tracks_the_trailing_window_not_the_head():
+    """Same tail, different head → same lines on the default window."""
+    full = _rising_support_df(400)
+    tail_only = full.iloc[-pattern_config.TRENDLINE_LOOKBACK_BARS:]
+    assert window_signature(full) == window_signature(tail_only)
+
+
+def test_window_signature_changes_when_the_trail_changes():
+    """A new/edited bar in the window must invalidate the fingerprint."""
+    df = _rising_support_df(120)
+    edited = df.copy()
+    edited.iloc[-1, edited.columns.get_loc("close")] += 1.0
+    assert window_signature(df) != window_signature(edited)
+
+
+def test_window_signature_honours_an_explicit_length():
+    df = _rising_support_df(300)
+    short = window_signature(df, 120)
+    assert short and short.startswith("120:")
+    assert short != window_signature(df)
+    assert window_matches(short, df)
+
+
+def test_window_matches_rejects_mismatched_or_missing_signatures():
+    df = _rising_support_df(120)
+    other = _descending_resistance_df(120)
+    assert window_matches(window_signature(df), df)
+    assert not window_matches(window_signature(other), df)
+    assert not window_matches(None, df)
+    assert not window_matches("", df)
+    assert not window_matches("not-a-signature", df)
+
+
+def test_window_signature_ignores_an_in_progress_trailing_bar():
+    """The read path has no tape bar, so its presence must not block reuse."""
+    df = _rising_support_df(120)
+    with_partial = df.copy()
+    with_partial.attrs["partial_today"] = True
+    assert window_signature(with_partial) == window_signature(df.iloc[:-1])
+
+
+def test_window_signature_none_for_missing_or_malformed_frames():
+    assert window_signature(None) is None
+    assert window_signature(pd.DataFrame()) is None
+    idx = pd.date_range("2026-01-01", periods=40, freq="D", tz="UTC")
+    assert window_signature(pd.DataFrame({"foo": range(40)}, index=idx)) is None

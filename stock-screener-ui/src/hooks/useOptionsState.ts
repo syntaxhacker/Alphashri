@@ -112,9 +112,7 @@ export function useOptionsState() {
     optionsState.setFilters(newFilters);
   };
 
-  const onChainRowClick = (contract: OptionContract) => {
-    console.log("Row clicked:", contract);
-  };
+  const onChainRowClick = () => {};
 
   // Getters, not values: a Solid component body runs once, so a snapshot would
   // never show data that arrives after mount.

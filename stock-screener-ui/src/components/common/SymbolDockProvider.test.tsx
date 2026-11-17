@@ -8,12 +8,27 @@ import { useContext } from "solid-js";
 import { Router } from "@solidjs/router";
 import { UIProvider } from "@/ui";
 import { SymbolDockProvider } from "./SymbolDockProvider";
-import { SymbolDockContext } from "./symbolDockContext";
+import {
+  SymbolDockContext,
+  chartHrefForSymbol,
+  hasIndianOptionsChain,
+  isInAppChartMarket,
+  isUsMarket,
+} from "./symbolDockContext";
 import { ChartDockOutlet } from "./ChartDockOutlet";
+import { SymbolLink } from "./SymbolLink";
 
 const { mockRefreshSymbolChart } = vi.hoisted(() => ({
   mockRefreshSymbolChart: vi.fn(),
 }));
+
+// Routing is asserted, not followed: keep `Router` real but intercept navigate.
+const routerMocks = vi.hoisted(() => ({ navigate: vi.fn() }));
+
+vi.mock("@solidjs/router", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return { ...actual, useNavigate: () => routerMocks.navigate };
+});
 
 vi.mock("../../api/chartPatterns", () => ({
   fetchSymbolChart: vi.fn(),
@@ -89,6 +104,45 @@ const FRESH_CHART = {
   trend_lines: [],
   cached: false,
   stale: false,
+} as never;
+
+// Stale-first frame whose displayed candles have today's tape bar appended:
+// `as_of` still names the detection frame, so the old badge contradicted the chart.
+const STALE_BUT_APPENDED_CHART = {
+  candles: [candle(), { t: "2026-11-09", o: 121, h: 125, l: 120, c: 124, v: 900 }],
+  hits: [],
+  trend_lines: [],
+  cached: true,
+  stale: true,
+  as_of: "2026-11-06",
+} as never;
+
+// The confirmed gap: a current 1D display (today's tape bar, `as_of` today) over
+// a detection frame two sessions older. `stale` is false, so only
+// `detection_as_of` can say the hit is dated 13 Nov.
+const CURRENT_DISPLAY_CANDLES = [
+  { t: "2026-11-13", o: 118, h: 122, l: 117, c: 120, v: 1000 },
+  { t: "2026-11-16", o: 121, h: 126, l: 120, c: 125, v: 1200 },
+];
+
+const CURRENT_DISPLAY_STALE_DETECTION = {
+  candles: CURRENT_DISPLAY_CANDLES,
+  hits: [],
+  trend_lines: [],
+  cached: true,
+  stale: false,
+  as_of: "2026-11-16",
+  detection_as_of: "2026-11-13",
+} as never;
+
+const CURRENT_DISPLAY_CURRENT_DETECTION = {
+  candles: CURRENT_DISPLAY_CANDLES,
+  hits: [],
+  trend_lines: [],
+  cached: true,
+  stale: false,
+  as_of: "2026-11-16",
+  detection_as_of: "2026-11-16",
 } as never;
 
 function DockHarness() {
@@ -171,6 +225,18 @@ describe("SymbolDockProvider stale badge", () => {
     );
   });
 
+  test("a stale-first payload whose candles reach past as_of hides the badge", async () => {
+    mockedFetchSymbolChart.mockResolvedValue(STALE_BUT_APPENDED_CHART);
+    renderDock();
+
+    await fireEvent.click(screen.getByTestId("open-ircon"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("IRCON"),
+    );
+    expect(screen.queryByTestId("dock-stale")).not.toBeInTheDocument();
+  });
+
   test("a fresh payload hides the badge", async () => {
     mockedFetchSymbolChart.mockResolvedValue(STALE_CHART);
         renderDock();
@@ -225,6 +291,67 @@ describe("SymbolDockProvider stale badge", () => {
     expect(mockRefreshSymbolChart).toHaveBeenCalledTimes(1);
   });
 
+});
+
+describe("SymbolDockProvider detection-as-of chip", () => {
+  beforeEach(() => {
+    __resetFullscreen();
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("1200px"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  test("a current display over a two-session-old detection dates the hit and shows no stale badge", async () => {
+    mockedFetchSymbolChart.mockResolvedValue(CURRENT_DISPLAY_STALE_DETECTION);
+    renderDock();
+
+    await fireEvent.click(screen.getByTestId("open-ircon"));
+
+    const chip = await screen.findByTestId("dock-detection-asof");
+    expect(chip).toHaveTextContent("13 NOV");
+    // The display itself is current, so the cached badge must stay suppressed.
+    expect(screen.queryByTestId("dock-stale")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("IRCON"),
+    );
+  });
+
+  test("a detection on the displayed bar date hides the chip", async () => {
+    mockedFetchSymbolChart.mockResolvedValue(CURRENT_DISPLAY_CURRENT_DETECTION);
+    renderDock();
+
+    await fireEvent.click(screen.getByTestId("open-ircon"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("IRCON"),
+    );
+    expect(screen.queryByTestId("dock-detection-asof")).not.toBeInTheDocument();
+  });
+
+  test("a payload without detection_as_of renders no chip", async () => {
+    mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
+    renderDock();
+
+    await fireEvent.click(screen.getByTestId("open-ircon"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("IRCON"),
+    );
+    expect(screen.queryByTestId("dock-detection-asof")).not.toBeInTheDocument();
+  });
 });
 
 describe("preview → endPreview race (A then B)", () => {
@@ -740,5 +867,173 @@ describe("Escape dismiss", () => {
 
     fireEvent.keyDown(input, { key: "Escape" });
     expect(screen.getByTestId("symbol-dock")).toBeInTheDocument();
+  });
+});
+
+describe("US symbol routing (no NSE dock)", () => {
+  function UsHarness() {
+    const dock = useContext(SymbolDockContext);
+    return (
+      <>
+        <SymbolLink symbol="AAPL" market="NASDAQ" testId="us-aapl" chartTestId="us-aapl-chart" />
+        <SymbolLink symbol="BRK.B" market="NYSE" testId="us-brkb" chartTestId="us-brkb-chart" />
+        <button
+          type="button"
+          data-testid="preview-aapl"
+          onMouseEnter={() => dock.preview("AAPL", "NASDAQ")}
+        >
+          preview AAPL
+        </button>
+        <button
+          type="button"
+          data-testid="open-aapl-options"
+          onClick={() => dock.open("AAPL", "options", "NASDAQ")}
+        >
+          AAPL options
+        </button>
+        <button type="button" data-testid="open-default" onClick={() => dock.open("RELIANCE")}>
+          open default
+        </button>
+      </>
+    );
+  }
+
+  const stubMatchMedia = (desktop: boolean) =>
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: desktop && query.includes("1200px"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+
+  const renderUs = () =>
+    render(() => (
+      <Router
+        root={() => (
+          <UIProvider>
+            <SymbolDockProvider>
+              <UsHarness />
+            </SymbolDockProvider>
+          </UIProvider>
+        )}
+      />
+    ));
+
+  beforeEach(() => {
+    __resetFullscreen();
+    routerMocks.navigate.mockClear();
+    stubMatchMedia(true);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  test("a US SymbolLink chart icon routes to ?market=usa and never opens the NSE dock", async () => {
+    mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
+    renderUs();
+
+    await fireEvent.click(screen.getByTestId("us-aapl-chart"));
+
+    expect(routerMocks.navigate).toHaveBeenCalledWith("/chart/AAPL?market=usa");
+    expect(mockedFetchSymbolChart).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("symbol-dock")).not.toBeInTheDocument();
+  });
+
+  test("BRK.B keeps its dot in the US route", async () => {
+    mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
+    renderUs();
+
+    await fireEvent.click(screen.getByTestId("us-brkb-chart"));
+
+    expect(routerMocks.navigate).toHaveBeenCalledWith("/chart/BRK.B?market=usa");
+    expect(routerMocks.navigate).not.toHaveBeenCalledWith("/chart/BRK-B?market=usa");
+  });
+
+  test("US routing is the same below 1200px", async () => {
+    stubMatchMedia(false);
+    mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
+    renderUs();
+
+    await fireEvent.click(screen.getByTestId("us-aapl-chart"));
+
+    expect(routerMocks.navigate).toHaveBeenCalledWith("/chart/AAPL?market=usa");
+    expect(screen.queryByTestId("symbol-dock")).not.toBeInTheDocument();
+  });
+
+  test("the US options affordance routes to the chart, not the NSE options dock", async () => {
+    mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
+    renderUs();
+
+    await fireEvent.click(screen.getByTestId("open-aapl-options"));
+
+    expect(routerMocks.navigate).toHaveBeenCalledWith("/chart/AAPL?market=usa");
+    expect(screen.queryByTestId("options-dock-panel")).not.toBeInTheDocument();
+  });
+
+  test("US hover preview does not open the NSE dock", async () => {
+    vi.useFakeTimers();
+    mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
+    renderUs();
+
+    fireEvent.mouseEnter(screen.getByTestId("preview-aapl"), { relatedTarget: null });
+    vi.advanceTimersByTime(1000);
+
+    expect(mockedFetchSymbolChart).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("symbol-dock")).not.toBeInTheDocument();
+  });
+
+  test("a default (no market) open keeps the existing narrow-width route", async () => {
+    stubMatchMedia(false);
+    mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
+    renderUs();
+
+    await fireEvent.click(screen.getByTestId("open-default"));
+
+    expect(routerMocks.navigate).toHaveBeenCalledWith("/chart/RELIANCE");
+  });
+});
+
+describe("shared exchange classification (symbolDockContext)", () => {
+  test("isUsMarket covers NASDAQ/NYSE/AMEX plus the usa/us provider labels, case-insensitively", () => {
+    for (const market of ["NASDAQ", " nyse ", "AMEX", "USA", "us"]) {
+      expect(isUsMarket(market)).toBe(true);
+    }
+  });
+
+  test("isUsMarket rejects India, unknown and missing markets", () => {
+    for (const market of ["NSE", "BSE", "NSI", "LON", "", undefined]) {
+      expect(isUsMarket(market)).toBe(false);
+    }
+  });
+
+  test("hasIndianOptionsChain is true only for NSE/BSE (case/space tolerant)", () => {
+    expect(hasIndianOptionsChain("NSE")).toBe(true);
+    expect(hasIndianOptionsChain(" bse ")).toBe(true);
+    expect(hasIndianOptionsChain("NASDAQ")).toBe(false);
+    expect(hasIndianOptionsChain("NSI")).toBe(false);
+    expect(hasIndianOptionsChain(null)).toBe(false);
+    expect(hasIndianOptionsChain(undefined)).toBe(false);
+  });
+
+  test("isInAppChartMarket covers Indian chart exchanges and US markets only", () => {
+    for (const market of ["NSE", "BSE", "NSI", "NASDAQ", " amex ", "usa"]) {
+      expect(isInAppChartMarket(market)).toBe(true);
+    }
+    expect(isInAppChartMarket("LON")).toBe(false);
+    expect(isInAppChartMarket(undefined)).toBe(false);
+  });
+
+  test("chartHrefForSymbol keeps BRK.B dotted and tags US markets", () => {
+    expect(chartHrefForSymbol("BRK.B", "NYSE")).toBe("/chart/BRK.B?market=usa");
+    expect(chartHrefForSymbol("BRK.B", "NYSE")).not.toContain("BRK-B");
+    expect(chartHrefForSymbol("RELIANCE", "NSE")).toBe("/chart/RELIANCE");
   });
 });

@@ -35,6 +35,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query
 
 import config
+from api.options_conventions import WALLS_NEAR_PCT as NEAR_PCT
 from api.reports_api.options_history import (
     DATA_ROOT,
     TAPE_DIR,
@@ -50,8 +51,10 @@ router = APIRouter(prefix="/api/reports/options", tags=["options-walls"])
 NIFTY_TAPE_DIR = "nifty_tape"
 DEFAULT_WINDOW_MIN = 60
 DEFAULT_TOP = 3
-#: Spot must be within this fraction of max pain / the tracked wall.
-NEAR_PCT = 0.0025
+# Spot must be within this fraction of max pain / the tracked wall. The 0.25%
+# band is owned by api.options_conventions and is deliberately narrower than
+# the 1% ``walls_near`` panel band.
+
 #: Call-wall OI erosion required for a break.
 EROSION_MIN = 0.10
 #: Put-OI build required at the tracked wall / max pain.

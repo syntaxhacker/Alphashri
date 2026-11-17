@@ -468,6 +468,18 @@ class TestUpstreamFailures:
         assert resp.status_code == 429
         assert resp.json()["detail"]["code"] == "rate_limited"
 
+    def test_rate_limited_upstream_has_fixed_retry_after(self, client, upstream):
+        """429 carries a constant Retry-After and never echoes upstream text."""
+        async def limited(endpoint, params=None):
+            raise HTTPException(status_code=429, detail="token=secret slow down")
+
+        upstream(limited)
+        resp = client.get("/api/options/underlying/NIFTY")
+
+        assert resp.status_code == 429
+        assert resp.headers["Retry-After"] == "5"
+        assert "secret" not in resp.text
+
     def test_spot_failure_keeps_the_listing(self, client, upstream):
         """A dead quote must not hide a valid expiry listing."""
 
@@ -512,3 +524,90 @@ class TestAuth:
         app.include_router(ou.router)
         resp = TestClient(app).get("/api/options/underlying/NIFTY")
         assert resp.status_code == 401
+
+
+class TestRegistryPin:
+    """The public options table and the instrument registry must not drift."""
+
+    def test_available_underlyings_covers_exactly_index_aliases(self):
+        from api.options import AVAILABLE_UNDERLYINGS
+
+        by_symbol = {entry["symbol"]: entry for entry in AVAILABLE_UNDERLYINGS}
+        assert len(by_symbol) == len(AVAILABLE_UNDERLYINGS)
+        assert set(by_symbol) == set(ou.INDEX_ALIASES)
+
+    def test_index_contract_meta_covers_exactly_index_aliases(self):
+        """A new alias without metadata must fail here, not at request time."""
+        assert set(ou.INDEX_CONTRACT_META) == set(ou.INDEX_ALIASES)
+
+    def test_instrument_keys_and_contract_meta_are_shared(self):
+        from api.options import AVAILABLE_UNDERLYINGS
+
+        for entry in AVAILABLE_UNDERLYINGS:
+            symbol = entry["symbol"]
+            instrument_key, _exchange = ou.INDEX_ALIASES[symbol]
+            meta = ou.INDEX_CONTRACT_META[symbol]
+            assert entry["instrument_key"] == instrument_key
+            assert entry["name"] == meta["name"]
+            assert entry["lot_size"] == meta["lot_size"]
+            assert entry["tick_size"] == meta["tick_size"]
+
+    def test_lot_and_tick_are_positive(self):
+        from api.options import AVAILABLE_UNDERLYINGS
+
+        for entry in AVAILABLE_UNDERLYINGS:
+            assert entry["lot_size"] > 0, entry["symbol"]
+            assert entry["tick_size"] > 0, entry["symbol"]
+
+    def test_existing_values_are_unchanged(self):
+        """Guard the exact public payload values against accidental edits."""
+        from api.options import AVAILABLE_UNDERLYINGS
+
+        expected = {
+            "NIFTY": ("NSE_INDEX|Nifty 50", "Nifty 50", 65, 0.05),
+            "BANKNIFTY": ("NSE_INDEX|Nifty Bank", "Nifty Bank", 15, 1.05),
+            "FINNIFTY": ("NSE_INDEX|Nifty Fin Service", "Nifty Fin Service", 25, 1.05),
+            "MIDCPNIFTY": ("NSE_INDEX|NIFTY MID SELECT", "NIFTY MID SELECT", 50, 0.05),
+            "SENSEX": ("BSE_INDEX|SENSEX", "BSE Sensex", 20, 5.0),
+        }
+        assert {
+            entry["symbol"]: (
+                entry["instrument_key"],
+                entry["name"],
+                entry["lot_size"],
+                entry["tick_size"],
+            )
+            for entry in AVAILABLE_UNDERLYINGS
+        } == expected
+
+
+class TestRedaction:
+    def test_upstream_http_detail_is_not_echoed(self, client, upstream):
+        secret = "https://internal.example/v2/option/contract?token=UPSTREAMSECRET"
+
+        async def boom(endpoint, params=None):
+            raise HTTPException(status_code=500, detail=secret)
+
+        upstream(boom)
+        resp = client.get("/api/options/underlying/NIFTY")
+
+        assert resp.status_code == 503
+        assert resp.json()["detail"]["code"] == "upstream_unavailable"
+        assert "UPSTREAMSECRET" not in resp.text
+        assert "internal.example" not in resp.text
+
+    def test_network_error_text_is_not_echoed(self, client, upstream):
+        import httpx
+
+        secret = "https://internal.example/proxy?key=NETWORKSECRET"
+
+        async def no_network(endpoint, params=None):
+            raise httpx.ConnectError(secret)
+
+        upstream(no_network)
+        resp = client.get("/api/options/underlying/NIFTY")
+
+        assert resp.status_code == 503
+        assert resp.json()["detail"]["code"] == "upstream_unavailable"
+        assert "NETWORKSECRET" not in resp.text
+        assert "internal.example" not in resp.text

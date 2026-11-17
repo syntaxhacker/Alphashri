@@ -8,7 +8,16 @@ import type {
   MiniMarker,
   MiniSeries,
 } from "@/components/common/charts/MiniLineChart";
-import type { NiftyStrike } from "@/types/niftyReport";
+import type { NiftyIvSurface, NiftyStrike } from "@/types/niftyReport";
+import {
+  IV_DELTA_BAND,
+  IV_DELTA_TARGET,
+  IV_MAX_PCT,
+} from "./ivConventions";
+
+// Kept as this module's public name so existing callers/tests keep working;
+// the value now has a single owner shared with the backend conventions.
+export { IV_MAX_PCT };
 
 /**
  * "Price × IV" panel for the Nifty report — the per-strike volatility smile.
@@ -31,14 +40,6 @@ import type { NiftyStrike } from "@/types/niftyReport";
 /** IV window (±500) — narrower than the chain/delta ±750 ladder so the wings
  *  stay readable inside the 3fr cell of the vol-surface row. */
 const IV_WINDOW_PTS = 500;
-
-/**
- * Sanity cut for a quoted IV. On expiry day, a leg with a few rupees of time
- * value left can print 300-500%, which is a Black-Scholes artefact rather than
- * a tradeable vol. Those legs are clipped from the chart and the caption says
- * how many, so the smile never becomes a single wing spike.
- */
-export const IV_MAX_PCT = 120;
 
 /** Rendered for any absent field so a stat never shows blank/NaN. */
 export const IV_DASH = "—";
@@ -90,6 +91,33 @@ export function buildIvSkewPoints(
   return near.length > 0 ? near : points;
 }
 
+/**
+ * Chart points from the backend's surface-filtered legs, when present.
+ *
+ * The payload already dropped dead strikes (no OI, IV outside 1..100), so the
+ * frontend must not re-apply its own looser rules on top of it. Falls back to
+ * an empty list so the caller can decide whether to derive from raw strikes.
+ */
+export function buildIvSkewPointsFromSurface(
+  surface: NiftyIvSurface | null | undefined,
+): IvSkewPoint[] {
+  const legs = surface?.points;
+  if (!Array.isArray(legs)) return [];
+  return legs
+    .map((p): IvSkewPoint => ({
+      strike: Number(p?.strike),
+      ceIv: ivOrNull(p?.ce_iv),
+      peIv: ivOrNull(p?.pe_iv),
+    }))
+    .filter(
+      (p) =>
+        Number.isFinite(p.strike) &&
+        p.strike > 0 &&
+        (p.ceIv !== null || p.peIv !== null),
+    )
+    .sort((a, b) => a.strike - b.strike);
+}
+
 /** Point whose strike is closest to `target`, or `null` when empty. */
 export function nearestIvPoint(
   points: IvSkewPoint[],
@@ -116,25 +144,42 @@ function meanPresent(values: (number | null)[]): number | null {
 }
 
 /**
- * IV at the strike whose |delta| sits closest to `target`, inside
- * `tolerance`. Uses the chain rows (not the plotted points) because delta is
- * only carried on the raw legs. Missing/zero greeks are skipped.
+ * IV at the strike whose |delta| sits closest to `target`, inside the shared
+ * delta band. Uses the chain rows (not the plotted points) because delta is
+ * only carried on the raw legs. A leg outside the band (or above the shared
+ * IV cap) is not a 25-delta wing — naming a 0.14-delta lottery ticket printing
+ * 281% mis-states the skew. Ties go to the lower strike, matching the backend.
  */
 export function legIvAtDelta(
   strikes: NiftyStrike[],
   side: "ce" | "pe",
-  target: number,
-  tolerance = 0.12,
+  target: number = IV_DELTA_TARGET,
+  band: readonly [number, number] = IV_DELTA_BAND,
 ): number | null {
-  let best: { dist: number; iv: number } | null = null;
+  const [lo, hi] = band;
+  let best: { dist: number; iv: number; strike: number } | null = null;
   for (const row of strikes ?? []) {
     const leg = row?.[side];
     const delta = Math.abs(Number(leg?.delta));
     const iv = ivOrNull(leg?.iv);
-    if (!Number.isFinite(delta) || delta <= 0 || iv === null) continue;
+    if (
+      !Number.isFinite(delta) ||
+      delta < lo ||
+      delta > hi ||
+      iv === null ||
+      iv > IV_MAX_PCT
+    ) {
+      continue;
+    }
     const dist = Math.abs(delta - target);
-    if (dist > tolerance) continue;
-    if (best === null || dist < best.dist) best = { dist, iv };
+    const strike = Number(row?.strike);
+    if (
+      best === null ||
+      dist < best.dist ||
+      (dist === best.dist && Number.isFinite(strike) && strike < best.strike)
+    ) {
+      best = { dist, iv, strike };
+    }
   }
   return best ? best.iv : null;
 }
@@ -149,34 +194,88 @@ interface IvSkewStats {
   put25: number | null;
   /** CE IV at the 25-delta strike (upside wing). */
   call25: number | null;
-  /** 25-delta risk reversal: put IV − call IV, in vol points. */
+  /** 25-delta risk reversal: call IV − put IV, in vol points (positive = calls rich). */
   rr25: number | null;
+}
+
+/** Any finite number (RR can be negative), or `null`. */
+function numOrNull(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Headline numbers straight from the backend surface block. */
+function statsFromSurface(surface: NiftyIvSurface): IvSkewStats {
+  const atm = surface.atm;
+  const skew = surface.skew;
+  const call25 = numOrNull(skew?.ce_25d_iv);
+  const put25 = numOrNull(skew?.pe_25d_iv);
+  const rr = numOrNull(skew?.skew_25d);
+  return {
+    atmStrike: numOrNull(atm?.strike),
+    atmIv: numOrNull(atm?.avg_iv),
+    atmCe: numOrNull(atm?.ce_iv),
+    atmPe: numOrNull(atm?.pe_iv),
+    put25,
+    call25,
+    rr25: rr ?? (call25 !== null && put25 !== null ? call25 - put25 : null),
+  };
 }
 
 /**
  * ATM IV (average of the two ATM legs) and the 25-delta anchors. Every field
  * degrades to `null` independently, so a sparse greeks payload still shows the
  * parts it has.
+ *
+ * When `surface` is supplied, its numbers win: the backend already applied the
+ * OI / IV-band gates and the delta band, so re-deriving them here would only
+ * invite a second convention. A complete block skips the chain scan entirely;
+ * a partial one falls back field-by-field (old snapshots carry no surface).
  */
 export function ivSkewStats(
   points: IvSkewPoint[],
   strikes: NiftyStrike[],
   spot: number | null | undefined,
+  surface?: NiftyIvSurface | null,
 ): IvSkewStats {
-  const atm = nearestIvPoint(points, spot);
-  const atmCe = atm?.ceIv ?? null;
-  const atmPe = atm?.peIv ?? null;
-  const call25 = legIvAtDelta(strikes, "ce", 0.25);
-  const put25 = legIvAtDelta(strikes, "pe", 0.25);
+  const derived = (): IvSkewStats => {
+    const atm = nearestIvPoint(points, spot);
+    const atmCe = atm?.ceIv ?? null;
+    const atmPe = atm?.peIv ?? null;
+    const call25 = legIvAtDelta(strikes, "ce");
+    const put25 = legIvAtDelta(strikes, "pe");
+    return {
+      atmStrike: atm?.strike ?? null,
+      atmIv: meanPresent([atmCe, atmPe]),
+      atmCe,
+      atmPe,
+      put25,
+      call25,
+      rr25: call25 !== null && put25 !== null ? call25 - put25 : null,
+    };
+  };
 
+  if (!surface) return derived();
+  const backend = statsFromSurface(surface);
+  if (
+    backend.atmStrike !== null &&
+    backend.atmIv !== null &&
+    backend.rr25 !== null &&
+    backend.put25 !== null &&
+    backend.call25 !== null
+  ) {
+    return backend;
+  }
+  const fallback = derived();
   return {
-    atmStrike: atm?.strike ?? null,
-    atmIv: meanPresent([atmCe, atmPe]),
-    atmCe,
-    atmPe,
-    put25,
-    call25,
-    rr25: call25 !== null && put25 !== null ? put25 - call25 : null,
+    atmStrike: backend.atmStrike ?? fallback.atmStrike,
+    atmIv: backend.atmIv ?? fallback.atmIv,
+    atmCe: backend.atmCe ?? fallback.atmCe,
+    atmPe: backend.atmPe ?? fallback.atmPe,
+    put25: backend.put25 ?? fallback.put25,
+    call25: backend.call25 ?? fallback.call25,
+    rr25: backend.rr25 ?? fallback.rr25,
   };
 }
 
@@ -199,7 +298,7 @@ export function ivSkewTone(v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v) || v === 0) {
     return palette.TEXT_MUTED;
   }
-  return v > 0 ? palette.TERM_PE : palette.TERM_CE;
+  return v > 0 ? palette.TERM_CE : palette.TERM_PE;
 }
 
 /** One-line read of the 25-delta skew — the panel's takeaway, or `null`. */
@@ -208,8 +307,8 @@ export function ivSkewRead(stats: IvSkewStats): string | null {
   const d = stats.rr25;
   if (Math.abs(d) < 0.1) return "25Δ wings flat — no directional vol bid";
   return d > 0
-    ? `25Δ puts ${d.toFixed(1)} vp over calls — downside hedging is bid`
-    : `25Δ calls ${Math.abs(d).toFixed(1)} vp over puts — upside calls are richer`;
+    ? `25Δ calls ${d.toFixed(1)} vp over puts — upside calls are richer`
+    : `25Δ puts ${Math.abs(d).toFixed(1)} vp over calls — downside hedging is bid`;
 }
 
 /** MiniLineChart-ready props for the smile. */
@@ -287,14 +386,22 @@ export function buildIvSkewChart(
 interface NiftyIvSkewProps {
   strikes?: NiftyStrike[];
   spot?: number | null;
+  /** Backend-computed IV surface — preferred over re-deriving from strikes. */
+  ivSurface?: NiftyIvSurface | null;
 }
 
 export function NiftyIvSkew(props: NiftyIvSkewProps) {
   const strikes = () => props.strikes;
   const spot = () => props.spot ?? null;
+  const surface = () => props.ivSurface ?? null;
   const rows = createMemo(() => (Array.isArray(strikes()) ? strikes()! : []));
-  const points = createMemo(() => buildIvSkewPoints(rows(), spot()));
-  const stats = createMemo(() => ivSkewStats(points(), rows(), spot()));
+  const points = createMemo(() => {
+    const backend = buildIvSkewPointsFromSurface(surface());
+    return backend.length ? backend : buildIvSkewPoints(rows(), spot());
+  });
+  const stats = createMemo(() =>
+    ivSkewStats(points(), rows(), spot(), surface()),
+  );
   const chart = createMemo(() => buildIvSkewChart(points(), stats()));
   const read = () => ivSkewRead(stats());
   const band = () => chart().band;
@@ -336,7 +443,7 @@ export function NiftyIvSkew(props: NiftyIvSkewProps) {
             label="25Δ RR"
             value={formatVolPts(stats().rr25)}
             tone={ivSkewTone(stats().rr25) ?? undefined}
-            hint="put − call"
+            hint="call − put"
           />
           <LocalCompactStat
             testId="nifty-iv-skew-put"

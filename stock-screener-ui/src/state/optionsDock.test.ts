@@ -23,11 +23,14 @@ import {
   open,
   optionsDockState,
   refresh,
+  resumePolling,
+  setOptionsDockState,
   removeLeg,
   setExpiry,
   setLegLots,
   setStrategy,
   staleLegs,
+  suspendPolling,
   toggleLegSide,
 } from "./optionsDock";
 
@@ -82,6 +85,25 @@ function chain(expiry = "2026-03-26", spot = 24031.5): OptionDockChain {
       { strike: 24000, ce: { ...empty, ltp: 114.4, oi: 8_600_000 }, pe: { ...empty, ltp: 82.9, oi: 10_200_000 } },
       { strike: 24100, ce: { ...empty, ltp: 67.7, oi: 12_400_000 }, pe: { ...empty, ltp: 136.2, oi: 5_100_000 } },
     ],
+    levels: {
+      spot,
+      step: 100,
+      thin: false,
+      callWall: null,
+      putWall: null,
+      callWalls: [],
+      putWalls: [],
+      maxPain: { strike: 24000, side: "below", strength: 0.3, oi: null, payout: 1000, netGex: null },
+      gex: {
+        support: null,
+        resistance: null,
+        fuelUp: null,
+        fuelDown: null,
+        flip: null,
+        regime: "flat",
+        degraded: false,
+      },
+    },
   };
 }
 
@@ -351,6 +373,53 @@ describe("polling", () => {
 
     hidden.mockRestore();
   });
+
+  it("suspendPolling stops the timer and resumePolling re-arms it without a fetch", async () => {
+    vi.useFakeTimers();
+    (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
+
+    open("NIFTY");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchChain).toHaveBeenCalledTimes(1);
+
+    suspendPolling();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetchChain).toHaveBeenCalledTimes(1);
+
+    resumePolling();
+    // Back to the chain paints the last frame; it must not spend a request.
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchChain).toHaveBeenCalledTimes(1);
+
+    // The cadence is rebuilt, so exactly one tick later the chain re-reads.
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(fetchChain).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchChain).toHaveBeenCalledTimes(2);
+  });
+
+  it("a tick that lands after suspendPolling cannot re-arm the timer", async () => {
+    vi.useFakeTimers();
+    (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
+
+    open("NIFTY");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchChain).toHaveBeenCalledTimes(1);
+
+    // A refresh is in flight when the chain goes off screen; its tail would
+    // normally call schedulePoll() and keep polling a hidden table.
+    let release: (value: OptionDockChain) => void = () => undefined;
+    fetchChain.mockImplementation(
+      () => new Promise<OptionDockChain>((resolve) => (release = resolve)),
+    );
+    const inFlight = refresh();
+    suspendPolling();
+    release(chain("2026-03-26"));
+    await inFlight;
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetchChain).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("429 handling", () => {
@@ -370,6 +439,8 @@ describe("429 handling", () => {
     expect(optionsDockState.chain?.rows).toHaveLength(2);
     expect(optionsDockState.error).toBeNull();
     expect(optionsDockState.paused).toMatchObject({ retryAfterMs: 8000, reason: "rate_limited" });
+    // The deadline is absolute so the UI can count down instead of replaying 8 s.
+    expect(optionsDockState.paused!.retryAt).toBe(Date.now() + 8000);
   });
 
   it("clears the pause on a successful retry", async () => {
@@ -384,6 +455,37 @@ describe("429 handling", () => {
     expect(optionsDockState.paused).not.toBeNull();
 
     await vi.advanceTimersByTimeAsync(2_000);
+    expect(optionsDockState.paused).toBeNull();
+  });
+
+  it("schedules no retry for a 429 while the derivatives session is closed", async () => {
+    vi.useFakeTimers();
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+    fetchUnderlying.mockResolvedValue(listing({ marketState: "closed" }));
+    fetchChain.mockRejectedValueOnce(new OptionDockError("rate_limited", "slow down", 429, 2000));
+
+    open("NIFTY");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchChain).toHaveBeenCalledTimes(1);
+    expect(optionsDockState.paused).toMatchObject({ reason: "rate_limited" });
+
+    // Well past the retry-after: no retry is scheduled while the market is shut.
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(fetchChain).toHaveBeenCalledTimes(1);
+  });
+
+  it("schedules a retry for a 429 while the derivatives session is open", async () => {
+    vi.useFakeTimers();
+    (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
+    fetchChain.mockRejectedValueOnce(new OptionDockError("rate_limited", "slow down", 429, 2000));
+
+    open("NIFTY");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchChain).toHaveBeenCalledTimes(1);
+    expect(optionsDockState.paused).toMatchObject({ reason: "rate_limited" });
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(fetchChain).toHaveBeenCalledTimes(2);
     expect(optionsDockState.paused).toBeNull();
   });
 });
@@ -457,6 +559,40 @@ describe("failed refresh", () => {
     await vi.advanceTimersByTimeAsync(3_000);
     expect(fetchChain).toHaveBeenCalledTimes(3);
     expect(optionsDockState.paused).toBeNull();
+  });
+});
+
+describe("levels patching", () => {
+  it("replaces the levels object on a same-shape tick when it changes", async () => {
+    open("NIFTY");
+    await flush();
+    expect(optionsDockState.chain?.levels?.maxPain?.strike).toBe(24000);
+
+    const moved = chain();
+    moved.levels = {
+      ...moved.levels!,
+      maxPain: { ...moved.levels!.maxPain!, strike: 23900, strength: 0.42 },
+      gex: {
+        ...moved.levels!.gex!,
+        support: { strike: 23950, side: "below", strength: 0.2, oi: null, payout: null, netGex: 1.1 },
+      },
+    };
+    fetchChain.mockResolvedValueOnce(moved);
+    await refresh();
+
+    expect(optionsDockState.chain?.levels?.maxPain?.strike).toBe(23900);
+    expect(optionsDockState.chain?.levels?.gex?.support?.strike).toBe(23950);
+  });
+
+  it("keeps the levels identity when a tick does not change levels", async () => {
+    open("NIFTY");
+    await flush();
+    const before = optionsDockState.chain!.levels;
+
+    fetchChain.mockResolvedValueOnce(chain());
+    await refresh();
+
+    expect(optionsDockState.chain!.levels).toBe(before);
   });
 });
 
@@ -736,6 +872,130 @@ describe("preset vs hand-picked legs", () => {
     expect(optionsDockState.legs.some((leg) => leg.type === "PE" && leg.strike === 24100)).toBe(false);
     expect(optionsDockState.legs.length).toBeGreaterThan(0);
     expect(optionsDockState.legs.every((leg) => leg.fromPreset === true)).toBe(true);
+  });
+});
+
+describe("flight isolation and terminal statuses", () => {
+  it("normal open resolves ready with exactly two requests (E1 then E2)", async () => {
+    open("NIFTY");
+    await flush();
+
+    expect(fetchUnderlying).toHaveBeenCalledTimes(1);
+    expect(fetchChain).toHaveBeenCalledTimes(1);
+    expect(optionsDockState.status).toBe("ready");
+    expect(optionsDockState.refreshing).toBe(false);
+  });
+
+  it("switching expiry while the listing is in flight does not abort it", async () => {
+    let resolveListing!: (info: UnderlyingInfo) => void;
+    let listingSignal: AbortSignal | undefined;
+    fetchUnderlying.mockImplementation(((_s: string, signal?: AbortSignal) => {
+      listingSignal = signal;
+      return new Promise((resolve) => {
+        resolveListing = resolve;
+      });
+    }) as never);
+
+    open("NIFTY");
+    await flush();
+    expect(listingSignal).toBeDefined();
+    expect(listingSignal!.aborted).toBe(false);
+
+    // expiries are not known yet, so the switch is ignored — crucially it must
+    // not cancel the listing flight.
+    setExpiry("2026-03-26");
+    expect(listingSignal!.aborted).toBe(false);
+    expect(fetchChain).not.toHaveBeenCalled();
+
+    resolveListing(listing());
+    await flush();
+
+    expect(listingSignal!.aborted).toBe(false);
+    expect(fetchChain).toHaveBeenCalledTimes(1);
+    expect(fetchChain).toHaveBeenCalledWith("NIFTY", "2026-03-26", expect.anything());
+    expect(optionsDockState.expiries).toHaveLength(2);
+    expect(optionsDockState.expiry).toBe("2026-03-26");
+    expect(optionsDockState.status).toBe("ready");
+    expect(optionsDockState.chain?.rows).toHaveLength(2);
+  });
+
+  it("ignores a stale expiry that the listing never offered", async () => {
+    open("NIFTY");
+    await flush();
+    fetchChain.mockClear();
+
+    setExpiry("2026-11-17");
+    await flush();
+
+    expect(fetchChain).not.toHaveBeenCalled();
+    expect(optionsDockState.expiry).toBe("2026-03-26");
+    expect(optionsDockState.chain?.expiry).toBe("2026-03-26");
+    expect(optionsDockState.status).toBe("ready");
+  });
+
+  it("a superseded chain fetch cannot strand the panel in loading", async () => {
+    const resolvers: Array<(frame: OptionDockChain) => void> = [];
+    fetchChain.mockImplementation((() => new Promise((resolve) => {
+      resolvers.push(resolve);
+    })) as never);
+
+    open("NIFTY");
+    await flush();
+    expect(optionsDockState.status).toBe("loading");
+    expect(optionsDockState.refreshing).toBe(true);
+
+    setExpiry("2026-04-02");
+    await flush();
+    expect(fetchChain).toHaveBeenCalledTimes(2);
+
+    // The abandoned request resolving late must not touch the panel.
+    resolvers[0](chain("2026-03-26"));
+    await flush();
+    expect(optionsDockState.expiry).toBe("2026-04-02");
+    expect(optionsDockState.status).toBe("loading");
+
+    // The current request lands the terminal status.
+    resolvers[1](chain("2026-04-02"));
+    await flush();
+    expect(optionsDockState.status).toBe("ready");
+    expect(optionsDockState.chain?.expiry).toBe("2026-04-02");
+    expect(optionsDockState.refreshing).toBe(false);
+  });
+
+  it("a timed-out chain lands in error with a working Retry, never loading", async () => {
+    fetchChain.mockRejectedValue(new OptionDockError("timeout", "The options service took too long to respond"));
+
+    open("NIFTY");
+    await flush();
+
+    expect(optionsDockState.status).toBe("error");
+    expect(optionsDockState.error).toMatchObject({ kind: "timeout" });
+    expect(optionsDockState.refreshing).toBe(false);
+    expect(optionsDockState.chain).toBeNull();
+
+    fetchChain.mockResolvedValueOnce(chain());
+    await refresh();
+
+    expect(fetchChain).toHaveBeenCalledTimes(2);
+    expect(optionsDockState.status).toBe("ready");
+    expect(optionsDockState.error).toBeNull();
+  });
+
+  it("a 200 empty chain for an unlisted expiry is empty, not a 0-row ready table", async () => {
+    open("NIFTY");
+    await flush();
+
+    // A stale query param can still put an unlisted date on the state; the
+    // backend answers any well-formed expiry with 200 + chain: [].
+    setOptionsDockState("expiry", "2026-11-17");
+    fetchChain.mockResolvedValueOnce({ ...chain("2026-11-17"), rows: [] });
+    await refresh();
+
+    expect(fetchChain).toHaveBeenCalledWith("NIFTY", "2026-11-17", expect.anything());
+    expect(optionsDockState.status).toBe("empty");
+    expect(optionsDockState.chain).toBeNull();
+    expect(optionsDockState.error).toBeNull();
+    expect(optionsDockState.refreshing).toBe(false);
   });
 });
 

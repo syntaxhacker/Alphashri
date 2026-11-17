@@ -6,9 +6,11 @@ import {
   isMarketSignedMetric,
   marketRowsByCapDesc,
   marketSortMetric,
+  marketTreemapMetrics,
   toTreemapRow,
 } from "./marketTreemap";
 import { DEFAULT_MARKET_SORT, MARKET_SORT_OPTIONS, type MarketSortKey } from "./marketFilters";
+import type { CurrencyCode } from "@/config/currency";
 import type { MarketRow } from "@/types/marketScreener";
 
 export interface MarketMapViewProps {
@@ -17,12 +19,15 @@ export interface MarketMapViewProps {
   /** The screener's sort; drives the tile colour, never the tile geometry. */
   sort?: MarketSortKey;
   onSortChange?: (sort: MarketSortKey) => void;
+  /** Quote currency of the current universe. Defaults to India. */
+  currency?: CurrencyCode;
 }
 
 export const MARKET_VIEW_OPTIONS = [
   { value: "table", label: "Table" },
   { value: "map", label: "Map" },
   { value: "movers", label: "Movers" },
+  { value: "value", label: "Value" },
 ] as const;
 
 export type MarketViewMode = (typeof MARKET_VIEW_OPTIONS)[number]["value"];
@@ -39,8 +44,11 @@ export function MarketMapView(props: MarketMapViewProps) {
     (props.sort ? marketSortMetric(props.sort) : null) ?? "change_pct",
   );
   const stocks = createMemo(() =>
-    marketRowsByCapDesc(props.rows ?? EMPTY).map(toTreemapRow),
+    marketRowsByCapDesc(props.rows ?? EMPTY, props.currency).map((row) =>
+      toTreemapRow(row, props.currency),
+    ),
   );
+  const metrics = createMemo(() => marketTreemapMetrics(props.currency));
 
   // The layout stays cap-ordered, so the sort only has a colour/metric left to
   // act on: without this the control reads as inert.
@@ -110,7 +118,7 @@ export function MarketMapView(props: MarketMapViewProps) {
       <HeatmapTreemap
         stocks={stocks()}
         metric={metric()}
-        metrics={MARKET_METRICS}
+        metrics={metrics()}
         showMetricSelect={false}
         isSignedMetric={isMarketSignedMetric}
         onSymbolClick={props.onSymbolClick}

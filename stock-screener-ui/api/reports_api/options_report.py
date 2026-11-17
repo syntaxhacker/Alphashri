@@ -57,12 +57,16 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query
 
 import config
+from api import options_levels as levels
 from api.options import (
     AVAILABLE_UNDERLYINGS,
     get_expiries,
     get_option_chain,
     get_option_sentiment,
 )
+from api.options_conventions import NEAR_BAND_PCT as _NEAR_BAND_PCT
+from api.options_math import put_call
+from api.reports_api._walls import as_report_walls as _as_report_walls
 
 try:  # pragma: no cover - import guard only (pandas/upstox client availability)
     from market_data.market_data import fetch_candles_for_timeframe
@@ -96,9 +100,9 @@ RATE_ACQUIRE_TIMEOUT_SEC = 2.0
 
 #: Heaviest OI strikes shown per side.
 _TOP_WALLS = 3
-#: ``walls_near`` band as a fraction of spot (1%): 240 pts on NIFTY, 850 on
-#: SENSEX, 14 on RELIANCE — a fixed 300 pts would cover a stock's whole chain.
-_NEAR_BAND_PCT = 0.01
+# ``walls_near`` band (1% of spot) is owned by api.options_conventions: 240 pts
+# on NIFTY, 850 on SENSEX, 14 on RELIANCE — a fixed 300 pts would cover a
+# stock's whole chain.
 
 #: Daily bars for pivots/baseline. One fetch per symbol per session — the
 #: previous completed session never changes inside a day.
@@ -324,55 +328,48 @@ def build_strikes(chain: list[dict]) -> list[dict]:
 
 
 def top_walls(strikes: list[dict], side: str, spot: float, n: int = _TOP_WALLS) -> list[dict]:
-    """Top-``n`` strikes by OI for ``'ce'``/``'pe'``, each with its distance."""
-    ranked = sorted(strikes, key=lambda r: r[side]["oi"], reverse=True)
-    out = []
-    for row in ranked[:n]:
-        entry = {"strike": row["strike"], "oi": row[side]["oi"]}
-        if spot:
-            entry["distance"] = round(row["strike"] - spot, 2)
-        out.append(entry)
-    return out
+    """Top-``n`` strikes by OI for ``'ce'``/``'pe'``, each with its distance.
+
+    Ranking lives in :func:`api.options_levels.top_walls`; this wrapper only
+    restores the report's row shape and its ``_TOP_WALLS`` default.
+    """
+    walls = levels.top_walls(
+        levels.normalize_strikes(strikes), side, spot=spot, n=n
+    )
+    return _as_report_walls(walls, spot)
 
 
 def near_walls(strikes: list[dict], side: str, spot: float, n: int = _TOP_WALLS) -> list[dict]:
-    """Heaviest OI inside a spot-relative band; falls back to the full chain."""
-    if not spot:
-        return top_walls(strikes, side, spot, n)
-    band = max(abs(spot) * _NEAR_BAND_PCT, 1e-9)
-    pool = [r for r in strikes if abs(r["strike"] - spot) <= band]
-    near = top_walls(pool, side, spot, n)
-    return near or top_walls(strikes, side, spot, n)
+    """Heaviest OI inside a spot-relative band; falls back to the full chain.
+
+    The band is computed here from ``_NEAR_BAND_PCT`` (1% of spot, with the old
+    tiny floor) and passed to the shared near-wall selector so the semantics
+    stay symbol-relative instead of NIFTY's fixed ``300`` points.
+    """
+    band = max(abs(spot) * _NEAR_BAND_PCT, 1e-9) if spot else None
+    walls = levels.near_walls(
+        levels.normalize_strikes(strikes), side, spot=spot, n=n, max_dist=band
+    )
+    return _as_report_walls(walls, spot)
 
 
 def compute_pcr_vol(strikes: list[dict]) -> float:
-    """PE volume / CE volume — 0 when there is no call volume."""
+    """PE volume / CE volume — 0 when there is no call volume.
+
+    Uses the shared :func:`api.options_math.put_call`; the 2-decimal rounding
+    and this report's ``0.0`` no-call-volume sentinel are presentation choices
+    kept here so the published payload does not change.
+    """
     ce_vol = sum(r["ce"]["volume"] for r in strikes)
     pe_vol = sum(r["pe"]["volume"] for r in strikes)
-    if ce_vol <= 0:
-        return 0.0
-    return round(pe_vol / ce_vol, 2)
+    ratio = put_call(ce_vol, pe_vol)
+    return round(ratio, 2) if ratio is not None else 0.0
 
 
 def compute_max_pain(strikes: list[dict]) -> float:
     """Max-pain strike (total writer payout minimised) over the chain."""
-    if not strikes:
-        return 0.0
-    best_strike = strikes[0]["strike"]
-    best_loss: Optional[float] = None
-    for cand in strikes:
-        cand_strike = cand["strike"]
-        loss = 0.0
-        for row in strikes:
-            strike = row["strike"]
-            if cand_strike > strike:
-                loss += (cand_strike - strike) * row["ce"]["oi"]
-            elif cand_strike < strike:
-                loss += (strike - cand_strike) * row["pe"]["oi"]
-        if best_loss is None or loss < best_loss:
-            best_loss = loss
-            best_strike = cand_strike
-    return float(best_strike)
+    pain = levels.compute_max_pain(levels.normalize_strikes(strikes))
+    return pain if pain is not None else 0.0
 
 
 def candles_to_intraday(df: Any) -> list[dict]:

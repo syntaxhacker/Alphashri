@@ -9,7 +9,7 @@ vi.mock("../state/auth", () => ({
 }));
 
 import { fetchWithAuth } from "../state/auth";
-import { fetchChartPreview, clearPreviewCache } from "./chartPreview";
+import { fetchChartPreview, clearPreviewCache, previewDaysForDate } from "./chartPreview";
 import { makePreviewData, mockError, mockFetchError, mockFetchOk } from "./apiTestMocks";
 
 const mockedFetch = vi.mocked(fetchWithAuth);
@@ -227,5 +227,33 @@ describe("clearPreviewCache", () => {
     await fetchChartPreview("INFY", 15);
 
     expect(mockedFetch).toHaveBeenCalledTimes(5);
+  });
+});
+
+describe("previewDaysForDate", () => {
+  const today = new Date(2025, 9, 31); // Fri 2025-10-31
+
+  it("returns 1 for today or an unparseable date", () => {
+    expect(previewDaysForDate("2025-10-31", today)).toBe(1);
+    expect(previewDaysForDate("", today)).toBe(1);
+    expect(previewDaysForDate("not-a-date", today)).toBe(1);
+  });
+
+  it("returns 1 for a future date", () => {
+    expect(previewDaysForDate("2025-11-05", today)).toBe(1);
+  });
+
+  it("counts weekday sessions back to the requested date", () => {
+    // Fri 31 back to Mon 27 inclusive = 5 weekday sessions
+    expect(previewDaysForDate("2025-10-27", today)).toBe(5);
+  });
+
+  it("skips weekends when walking back", () => {
+    // Fri 31 back to Mon 20: 20..24 is 5, 27..31 is 5 => 10 sessions
+    expect(previewDaysForDate("2025-10-20", today)).toBe(10);
+  });
+
+  it("caps at the endpoint's 30-day window", () => {
+    expect(previewDaysForDate("2020-01-01", today)).toBe(30);
   });
 });

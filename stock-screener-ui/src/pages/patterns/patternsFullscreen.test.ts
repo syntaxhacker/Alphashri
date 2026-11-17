@@ -98,6 +98,49 @@ describe("usePatternFullscreen (page) hit selection across reloads", () => {
     expect(api.fullscreen()?.hit?.id).toBe(oldest.id);
   });
 
+  test("refresh sends refresh=1 on both phases and serves freshly fetched candles", async () => {
+    let price = 100;
+    vi.mocked(fetchSymbolChart).mockImplementation(async () => ({
+      ...chartPayload(),
+      candles: [{ t: "2026-11-13", o: price, h: price, l: price, c: price, v: 1 }],
+    }));
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+    expect(api.fullscreen()?.candles[0].c).toBe(100);
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(2);
+
+    price = 200;
+    vi.mocked(fetchSymbolChart).mockClear();
+    api.refreshSymbolChart();
+    await settled(api);
+
+    // Cache was invalidated — the candle came from the wire, not the cached 100.
+    expect(api.fullscreen()?.candles[0].c).toBe(200);
+    const calls = vi.mocked(fetchSymbolChart).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls.every((call) => {
+      const opts = call[2];
+      return typeof opts === "object" && opts?.refresh === true;
+    })).toBe(true);
+    expect(calls[0][2]).toEqual(expect.objectContaining({ detectPatterns: false, refresh: true }));
+  });
+
+  test("a normal open does not send refresh=1", async () => {
+    vi.mocked(fetchSymbolChart).mockImplementation(async () => chartPayload());
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(fetchSymbolChart).mock.calls.every((call) => {
+      const opts = call[2];
+      return typeof opts !== "object" || opts?.refresh !== true;
+    })).toBe(true);
+  });
+
   test("refresh takes the same-identity hit from the new payload (new close_bar_date wins)", async () => {
     const oldHit = { ...makeHit(1, "2026-11-13"), close_bar_date: null, last_close: 3550, day_change_pct: 3.5 };
     const newest = makeHit(2, "2026-11-13");
@@ -298,5 +341,117 @@ describe("usePatternFullscreen (page) live quote polling (15s, fake timers)", ()
     api.closeFullscreen();
     await vi.advanceTimersByTimeAsync(30_000);
     expect(fetchQuotes).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("usePatternFullscreen (page) stale marker vs displayed candle date", () => {
+  beforeEach(() => {
+    vi.mocked(fetchPatternHit).mockResolvedValue(null as never);
+    vi.mocked(fetchQuotes).mockResolvedValue([{ symbol: "KAYNES", close: 2986, change: -12.94 }]);
+  });
+
+  afterEach(() => {
+    hook?.unmount();
+    hook = undefined;
+    vi.clearAllMocks();
+  });
+
+  // A stale-first frame: `as_of` stays pinned to the detection frame while the
+  // displayed series has had today's tape bar appended.
+  const staleChart = (candleDates: string[], asOf?: string | null): ChartPayload => ({
+    ...chartPayload(),
+    candles: candleDates.map((t, i) => ({
+      t,
+      o: 100 + i,
+      h: 101 + i,
+      l: 99 + i,
+      c: 100 + i,
+      v: 1,
+    })),
+    stale: true,
+    ...(asOf === undefined ? {} : { as_of: asOf }),
+  });
+
+  test("a displayed candle newer than as_of clears the stale marker", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(
+      staleChart(["2026-11-12", "2026-11-13", "2026-11-16"], "2026-11-13"),
+    );
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    expect(api.fullscreen()?.stale).toBe(false);
+    expect(api.fullscreen()?.dataAsOf).toBeNull();
+  });
+
+  test("a daily bar stamped 18:30Z belongs to the next IST session", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(
+      staleChart(["2026-11-12T18:30:00Z", "2026-11-13T18:30:00Z"], "2026-11-13"),
+    );
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    expect(api.fullscreen()?.stale).toBe(false);
+    expect(api.fullscreen()?.dataAsOf).toBeNull();
+  });
+
+  test("a series ending on as_of keeps the stale marker and its date", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(
+      staleChart(["2026-11-12", "2026-11-13"], "2026-11-13"),
+    );
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    expect(api.fullscreen()?.stale).toBe(true);
+    expect(api.fullscreen()?.dataAsOf).toBe("2026-11-13");
+  });
+
+  test("no as_of keeps the previous behavior", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(staleChart(["2026-11-12", "2026-11-16"], null));
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    expect(api.fullscreen()?.stale).toBe(true);
+    expect(api.fullscreen()?.dataAsOf).toBeNull();
+  });
+
+  // Display freshness and detection freshness are separate axes: the chart can
+  // show today's tape bar while the hits stay on the completed session.
+  test("a current display keeps detection_as_of for the dock caveat", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue({
+      ...staleChart(["2026-11-13", "2026-11-16"], "2026-11-16"),
+      stale: false,
+      detection_as_of: "2026-11-13",
+    });
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    expect(api.fullscreen()?.stale).toBe(false);
+    expect(api.fullscreen()?.detectionAsOf).toBe("2026-11-13");
+  });
+
+  test("a payload without detection_as_of leaves the field null", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(staleChart(["2026-11-16"], "2026-11-16"));
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    expect(api.fullscreen()?.detectionAsOf).toBeNull();
   });
 });

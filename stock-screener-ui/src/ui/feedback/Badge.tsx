@@ -22,6 +22,33 @@ const COLOR_MAIN: Record<string, string> = {
   dimmed: palette.TEXT_MUTED,
 };
 
+/**
+ * Filled badges invert: the tone becomes the background and the page colour
+ * becomes the foreground. `COLOR_MAIN` holds the fixed dark-theme anchors, so
+ * using it as a fill leaves near-white text on a mid-green/red and fails
+ * contrast in light mode (2.4–3.1:1). The fill therefore has to come from the
+ * theme token, which resolves to the same anchors on dark and to the darker
+ * light-theme tones where near-white text passes.
+ */
+const COLOR_FILL: Record<string, string> = {
+  primary: "var(--color-fin-primary)",
+  success: "var(--color-fin-positive)",
+  error: "var(--color-fin-negative)",
+  danger: "var(--color-fin-negative)",
+  warning: "var(--color-fin-warning)",
+  info: "var(--color-fin-info)",
+  secondary: "var(--color-fin-text-muted)",
+  default: "var(--color-fin-text-muted)",
+  neutral: "var(--color-fin-text-muted)",
+  dimmed: "var(--color-fin-text-muted)",
+};
+
+function resolveFill(color: UIBadgeProps["color"]): string {
+  if (!color) return COLOR_FILL.primary;
+  if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl")) return color;
+  return COLOR_FILL[color] ?? COLOR_FILL.primary;
+}
+
 type BadgeBox = { h: number; font: number; px: number };
 
 const BADGE_BOX: Record<string, BadgeBox> = {
@@ -72,6 +99,7 @@ export function Badge(props: UIBadgeProps) {
   ]);
 
   const main = resolveColor(known.color);
+  const fill = resolveFill(known.color);
   const isFilled = known.variant === "filled" || known.variant === "white";
   const isOutline = known.variant === "outline";
   const isDot = known.variant === "dot";
@@ -98,7 +126,7 @@ export function Badge(props: UIBadgeProps) {
       height: `${box.h}px`,
       "border-radius": radiusValue(known.radius),
       border: isOutline ? `1px solid ${main}` : "none",
-      "background-color": isFilled ? main : isOutline ? "transparent" : palette.alpha(main, 0.12),
+      "background-color": isFilled ? fill : isOutline ? "transparent" : palette.alpha(main, 0.12),
       "font-size": `${box.font}px`,
       "font-weight": "600",
       "line-height": "1",

@@ -384,8 +384,15 @@ export function TanStackTable<T>(props: Props<T>) {
         className="paper-tanstack-header-cell"
         id={`paper-tanstack-header-${String(col.id)}`}
         style={headerStyle}
+        tabIndex={sortable() ? 0 : undefined}
         aria-sort={ariaSort()}
         onClick={() => sortable() && toggleSort(col.id)}
+        onKeyDown={sortable() ? (event: KeyboardEvent) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            toggleSort(col.id);
+          }
+        } : undefined}
       >
         {content}
         {isSorted() && (sortDir()?.desc ? " ▼" : " ▲")}

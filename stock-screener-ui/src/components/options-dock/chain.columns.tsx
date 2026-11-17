@@ -2,7 +2,7 @@ import { Show } from "solid-js";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
 import { Box } from "@/ui";
 import * as palette from "@/ui/palette";
-import type { ChainLeg, ChainRow } from "@/api/optionsDock";
+import type { ChainLevel, ChainLeg, ChainRow, OptionChainLevels } from "@/api/optionsDock";
 import { formatNumber } from "@/utils/ui-helpers";
 
 /**
@@ -73,15 +73,33 @@ function OiCell(props: { value: number | null | undefined; max: number; side: "c
     const ratio = Math.max(0, Math.min(1, (props.value as number) / max));
     return Math.min(100, Math.sqrt(ratio) * 100);
   };
-  // Solid OI tokens, not the 12% TINT_* alphas: those measured 1.12–1.18:1
-  // against the row, below the 3:1 UI-graphics floor.
+  // The bar is a 2px rail under the number, not a solid block behind it:
+  // TEXT on the solid POSITIVE / NEGATIVE fills measures ~2.6:1. The low-alpha
+  // area keeps the magnitude readable while the rail carries the solid token
+  // (see src/utils/contrast.ts and src/test/contrast.test.ts).
   const fill = () => (props.side === "ce" ? palette.OI_CALL : palette.OI_PUT);
+  const valueKey = props.value ?? "missing";
   return (
     <Box className="relative flex h-[13px] w-full items-center justify-end">
       <Box
         aria-hidden="true"
-        data-testid={`options-oi-bar-${props.side}-${props.value ?? "missing"}`}
-        className="absolute right-0 top-0 h-[13px]"
+        className="absolute inset-x-0 bottom-0 h-[2px]"
+        style={{ "background-color": palette.alpha(palette.TEXT, 0.06) }}
+      />
+      <Box
+        aria-hidden="true"
+        data-testid={`options-oi-tint-${props.side}-${valueKey}`}
+        className="absolute bottom-0 right-0 h-[13px]"
+        style={{
+          width: `${pct()}%`,
+          "min-width": "2px",
+          "background-color": palette.alpha(fill(), 0.14),
+        }}
+      />
+      <Box
+        aria-hidden="true"
+        data-testid={`options-oi-bar-${props.side}-${valueKey}`}
+        className="absolute bottom-0 right-0 h-[2px]"
         style={{
           width: `${pct()}%`,
           "min-width": "2px",
@@ -95,6 +113,155 @@ function OiCell(props: { value: number | null | undefined; max: number; side: "c
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* Strike level badges                                                 */
+/* ------------------------------------------------------------------ */
+
+export type BadgeCode = "MP" | "CW" | "PW" | "SUP" | "RES" | "FU";
+
+/** Highest priority first — one badge per strike, never a duplicate label. */
+export const BADGE_PRIORITY: readonly BadgeCode[] = ["MP", "CW", "PW", "SUP", "RES", "FU"];
+
+const BADGE_SPECS: Record<BadgeCode, { label: string; letter: string; color: string }> = {
+  MP: { label: "MP", letter: "M", color: palette.LEVEL_MAX_PAIN },
+  CW: { label: "CW", letter: "C", color: palette.LEVEL_CALL_WALL },
+  PW: { label: "PW", letter: "P", color: palette.LEVEL_PUT_WALL },
+  SUP: { label: "SUP", letter: "S", color: palette.LEVEL_SUPPORT },
+  RES: { label: "RES", letter: "R", color: palette.LEVEL_RESISTANCE },
+  // Gamma fuel is opt-in: it never gets a visible chip/letter, only a rail.
+  FU: { label: "", letter: "", color: palette.INFO },
+};
+
+export interface StrikeBadge {
+  code: BadgeCode;
+  /** Wide chip text — empty for fuel. */
+  label: string;
+  /** 390px letter — empty for fuel. */
+  letter: string;
+  color: string;
+  /** Every code sharing this strike, priority order (for the tooltip). */
+  codes: BadgeCode[];
+  title: string;
+}
+
+function levelDetail(name: string, level: ChainLevel): string {
+  const strength =
+    level.strength != null && Number.isFinite(level.strength)
+      ? `${Math.round(level.strength * 100)}% confidence`
+      : "strength unavailable";
+  const parts = [`${name} ${level.strike.toLocaleString("en-IN")}`, strength];
+  if (level.side) parts.push(`${level.side} spot`);
+  if (level.oi != null) parts.push(`OI ${formatNumber(level.oi)}`);
+  else if (level.payout != null) parts.push(`payout ${formatNumber(level.payout)}`);
+  else if (level.netGex != null) parts.push(`net GEX ${level.netGex.toFixed(2)}`);
+  return parts.join(" · ");
+}
+
+/**
+ * Build the whole strike→badge map once per table render. Priority is applied
+ * by visiting candidates high→low and keeping the first per strike; later
+ * levels at the same strike only enrich the tooltip.
+ */
+export function buildStrikeBadges(levels: OptionChainLevels | null | undefined): Map<number, StrikeBadge> {
+  // Collect candidates per code, then visit them in BADGE_PRIORITY order so the
+  // constant stays the single source of truth for which badge wins a strike.
+  const candidates = new Map<BadgeCode, { name: string; level: ChainLevel }[]>();
+  const add = (code: BadgeCode, name: string, level: ChainLevel | null | undefined) => {
+    if (!level) return;
+    const list = candidates.get(code);
+    const entry = { name, level };
+    if (list) list.push(entry);
+    else candidates.set(code, [entry]);
+  };
+
+  add("MP", "Max pain", levels?.maxPain);
+  add("CW", "Call wall", levels?.callWall);
+  add("PW", "Put wall", levels?.putWall);
+  add("SUP", "Gamma support", levels?.gex?.support);
+  add("RES", "Gamma resistance", levels?.gex?.resistance);
+  add("FU", "Gamma fuel up", levels?.gex?.fuelUp);
+  add("FU", "Gamma fuel down", levels?.gex?.fuelDown);
+
+  const groups = new Map<number, { code: BadgeCode; name: string; level: ChainLevel }[]>();
+  for (const code of BADGE_PRIORITY) {
+    for (const { name, level } of candidates.get(code) ?? []) {
+      const group = groups.get(level.strike);
+      const entry = { code, name, level };
+      if (group) group.push(entry);
+      else groups.set(level.strike, [entry]);
+    }
+  }
+
+  const badges = new Map<number, StrikeBadge>();
+  for (const [strike, group] of groups) {
+    const primary = group[0];
+    const spec = BADGE_SPECS[primary.code];
+    badges.set(strike, {
+      code: primary.code,
+      label: spec.label,
+      letter: spec.letter,
+      color: spec.color,
+      codes: [...new Set(group.map((entry) => entry.code))],
+      title: group.map((entry) => levelDetail(entry.name, entry.level)).join(" · "),
+    });
+  }
+  return badges;
+}
+
+/** Wide: a 9px chip beside the strike number; fuel is a rail-only marker. */
+function WideBadge(props: { badge: StrikeBadge; strike: number }) {
+  return (
+    <Box
+      component="span"
+      data-testid={`options-strike-badge-${props.strike}`}
+      data-code={props.badge.code}
+      title={props.badge.title}
+      aria-label={props.badge.title}
+      className="ml-0.5 inline-flex shrink-0 items-center font-mono tabular-nums"
+      style={{ color: props.badge.color, "font-size": "9px", "line-height": "1" }}
+    >
+      <Show when={props.badge.label} fallback={<span className="inline-block h-[10px] w-[2px]" style={{ "background-color": props.badge.color }} aria-hidden="true" />}>
+        {props.badge.label}
+      </Show>
+    </Box>
+  );
+}
+
+/** 390px: no text chip — a 2px tinted rail plus one uppercase letter. */
+function NarrowBadge(props: { badge: StrikeBadge; strike: number }) {
+  return (
+    <Box
+      component="span"
+      role="img"
+      data-testid={`options-strike-badge-${props.strike}`}
+      data-code={props.badge.code}
+      data-letter={props.badge.letter}
+      title={props.badge.title}
+      aria-label={props.badge.title}
+      className="absolute left-0 top-0 flex h-full items-start"
+    >
+      <span className="h-full shrink-0" style={{ width: "2px", "background-color": props.badge.color }} aria-hidden="true" />
+      <Show when={props.badge.letter}>
+        <span
+          className="absolute left-[4px] top-0 font-mono tabular-nums"
+          style={{ color: props.badge.color, "font-size": "9px", "line-height": "1" }}
+          aria-hidden="true"
+        >
+          {props.badge.letter}
+        </span>
+      </Show>
+    </Box>
+  );
+}
+
+export function StrikeBadgeView(props: { badge: StrikeBadge; strike: number; narrow: boolean }) {
+  return (
+    <Show when={!props.narrow} fallback={<NarrowBadge badge={props.badge} strike={props.strike} />}>
+      <WideBadge badge={props.badge} strike={props.strike} />
+    </Show>
+  );
+}
+
 export interface ChainColumnHandlers {
   /** Largest OI on either side — the OI bar denominator. */
   maxOi: () => number;
@@ -103,6 +270,9 @@ export interface ChainColumnHandlers {
   onPick?: (strike: number, type: "CE" | "PE", leg: ChainLeg, side: "buy" | "sell") => void;
   /** Restrict the narrow layout to one side plus the strike. Default: all nine. */
   side?: "CE" | "PE";
+  /** Precomputed once per table render — never derive levels inside a cell. */
+  badgeFor?: (strike: number) => StrikeBadge | undefined;
+  narrow?: boolean;
 }
 
 export function chainColumns(handlers: ChainColumnHandlers): TableColumnDef<ChainRow>[] {
@@ -157,15 +327,21 @@ export function chainColumns(handlers: ChainColumnHandlers): TableColumnDef<Chai
       accessorFn: (row) => row.strike,
       cell: ({ row }) => {
         const isAtm = row.original.strike === handlers.atmStrike();
+        const badge = () => handlers.badgeFor?.(row.original.strike);
         return (
           <span
-            className={`${CELL} text-center ${isAtm ? "text-fin-primary" : "text-fin-text-muted"}`}
+            className={`${CELL} relative text-center ${isAtm ? "text-fin-primary" : "text-fin-text-muted"}`}
             data-testid={`options-strike-cell-${row.original.strike}`}
           >
             <Show when={isAtm}>
               <span role="img" aria-label={`At the money strike ${row.original.strike}`} data-testid={`options-atm-marker-${row.original.strike}`}>
                 ◀
               </span>{" "}
+            </Show>
+            <Show when={badge()}>
+              {(value) => (
+                <StrikeBadgeView badge={value()} strike={row.original.strike} narrow={handlers.narrow ?? false} />
+              )}
             </Show>
             {row.original.strike.toLocaleString("en-IN")}
           </span>

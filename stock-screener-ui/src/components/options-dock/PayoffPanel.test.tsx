@@ -65,6 +65,48 @@ describe("buildPayoff", () => {
   });
 });
 
+describe("PayoffPanel header", () => {
+  test("renders the titled PAYOFF header by default", () => {
+    render(() => (
+      <UIProvider>
+        <PayoffPanel legs={condor()} spot={24031.5} iv={13.8} dteYears={2 / 365} />
+      </UIProvider>
+    ));
+
+    const header = screen.getByTestId("dock-section-payoff");
+    expect(header).toHaveTextContent("PAYOFF");
+    expect(screen.getByTestId("options-payoff")).toContainElement(header);
+    expect(screen.getByTestId("options-pop")).toBeInTheDocument();
+  });
+
+  test("showHeader={false} drops the title strip and hairline but keeps every testid", () => {
+    render(() => (
+      <UIProvider>
+        <PayoffPanel
+          legs={condor()}
+          spot={24031.5}
+          iv={13.8}
+          dteYears={2 / 365}
+          showHeader={false}
+        />
+      </UIProvider>
+    ));
+
+    expect(screen.queryByTestId("dock-section-payoff")).not.toBeInTheDocument();
+    expect(screen.getByTestId("options-payoff").className).not.toContain("border-t");
+    for (const id of [
+      "options-pop",
+      "options-payoff-footer",
+      "options-breakevens",
+      "options-max-pnl",
+      "options-expected-pnl",
+      "options-expected-move",
+    ]) {
+      expect(screen.getByTestId(id)).toBeInTheDocument();
+    }
+  });
+});
+
 describe("PayoffPanel recompute gate", () => {
   test("a spot move below 0.05 % does not rebuild the chart option", async () => {
     const [spot, setSpot] = createSignal(24031.5);

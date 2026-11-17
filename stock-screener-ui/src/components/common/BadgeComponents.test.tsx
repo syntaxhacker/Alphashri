@@ -2,15 +2,16 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup } from "@solidjs/testing-library";
 import { SideBadge, ExitReasonBadge, StatusBadge, TradingModeBadge } from "./BadgeComponents";
-import { INFO, NEGATIVE_COLOR, POSITIVE_COLOR, TEXT_MUTED, WARNING } from "@/ui/palette";
 
+// Filled badges paint the tone as a theme token, not the fixed dark anchor:
+// the fill must re-tone in light mode or the near-white label fails contrast.
 const TONE_COLOR: Record<string, string> = {
-  success: POSITIVE_COLOR,
-  error: NEGATIVE_COLOR,
-  warning: WARNING,
-  info: INFO,
-  secondary: TEXT_MUTED,
-  neutral: TEXT_MUTED,
+  success: "var(--color-fin-positive)",
+  error: "var(--color-fin-negative)",
+  warning: "var(--color-fin-warning)",
+  info: "var(--color-fin-info)",
+  secondary: "var(--color-fin-text-muted)",
+  neutral: "var(--color-fin-text-muted)",
 };
 
 function expectTone(el: HTMLElement, tone: keyof typeof TONE_COLOR) {

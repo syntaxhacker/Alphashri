@@ -207,10 +207,13 @@ describe("buildAppliedFilterChips", () => {
 });
 
 describe("AppliedFilters", () => {
-  test("renders nothing when no filters are applied", () => {
+  test("keeps a fixed-height placeholder row when no filters are applied", () => {
     const { container } = render(() =>       <AppliedFilters filters={makeFilters({ min_avg_volume_10d: null })} patterns={PATTERNS} setFilter={vi.fn()} resetFilters={vi.fn()} />,
     );
-    expect(container).toBeEmptyDOMElement();
+    const row = screen.getByTestId("patterns-applied-filters");
+    expect(row).toBeInTheDocument();
+    expect(row).toHaveClass("h-6");
+    expect(container).not.toBeEmptyDOMElement();
   });
 
   test("shows a chip per applied filter", () => {
@@ -500,7 +503,7 @@ describe("AppliedFilters", () => {
         resetFilters={vi.fn()}
       />);
     expect(screen.queryByTestId("patterns-applied-filter-min_avg_volume_10d")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("patterns-applied-filters")).not.toBeInTheDocument();
+    expect(screen.getByTestId("patterns-applied-filters")).toHaveClass("h-6");
   });
 
   test.each([

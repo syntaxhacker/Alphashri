@@ -418,7 +418,8 @@ describe("aggregateGreeks", () => {
 
 describe("maxPain", () => {
   test("skewed OI table pins at the strike with the smallest total payout", () => {
-    // Heavy CE OI above 24 000 pulls the pin down; heavy PE OI below pulls it up.
+    // A strike carrying wall OI on both sides anchors the pin: a candidate
+    // below it pays the puts above, a candidate above it pays the calls below.
     const chain = [
       { strike: 23800, ceOi: 10, peOi: 900 },
       { strike: 23900, ceOi: 20, peOi: 600 },
@@ -426,26 +427,34 @@ describe("maxPain", () => {
       { strike: 24100, ceOi: 900, peOi: 20 },
       { strike: 24200, ceOi: 600, peOi: 10 },
     ];
+    // Canonical payouts: at 23 900 = 128 000, at 24 000 = 8 000, at 24 100 = 128 000.
     expect(maxPain(chain)).toBe(24000);
   });
 
-  test("3-strike hand-worked fixture pins in the middle", () => {
+  test("matches backend _payouts on an asymmetric chain (parity fixture)", () => {
+    // Mirrors tests/api/test_options_levels.py::test_brute_force_fixture, which
+    // asserts compute_max_pain(...) == 100.0 using the same canonical payouts.
     const chain = [
-      { strike: 90, ceOi: 0, peOi: 10 },
-      { strike: 100, ceOi: 5, peOi: 5 },
-      { strike: 110, ceOi: 10, peOi: 0 },
+      { strike: 100, ceOi: 10, peOi: 0 },
+      { strike: 110, ceOi: 0, peOi: 0 },
+      { strike: 120, ceOi: 0, peOi: 1 },
     ];
-    // Payout at 90 : CE(100) 5×10 + CE(110) 10×20 = 250
-    // Payout at 100: CE(110) 10×10 + PE(90) 10×10 = 200
-    // Payout at 110: PE(90) 10×20 + PE(100) 5×10 = 250
+    // CE OI at/below the candidate pays (candidate - strike); PE OI at/above
+    // the candidate pays (strike - candidate).
+    // loss(100) = (120-100)*1 = 20
+    // loss(110) = (110-100)*10 + (120-110)*1 = 110
+    // loss(120) = (120-100)*10 = 200
     expect(maxPain(chain)).toBe(100);
+  });
 
-    // Flip the skew to a one-sided wall: the pin follows the heavy side.
+  test("a put wall above the chain pulls the pin up to that strike", () => {
+    // Under the canonical convention a put wall only pays when the expiry price
+    // is below its strike, so the lowest pain-free candidate is the wall itself.
     expect(
       maxPain([
-        { strike: 90, ceOi: 0, peOi: 10 },
+        { strike: 90, ceOi: 0, peOi: 0 },
         { strike: 100, ceOi: 0, peOi: 0 },
-        { strike: 110, ceOi: 40, peOi: 0 },
+        { strike: 110, ceOi: 0, peOi: 40 },
       ]),
     ).toBe(110);
   });

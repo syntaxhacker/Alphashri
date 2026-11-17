@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
 from datetime import datetime
 
+import config
 from db.database import SessionLocal
 from db.models.price_surge import PriceSurgeEvent
 
@@ -46,7 +47,15 @@ async def get_surges(
 ):
     db = SessionLocal()
     try:
+        # `total` is the all-time row count (used to page the history panel).
+        # The bell must not announce it: surge rows accumulate for ever, so it
+        # grows into the thousands and stops being a meaningful "new alerts"
+        # signal. `today_count` is the bounded, session-relevant number.
         total = db.query(PriceSurgeEvent).count()
+        today_start = datetime.now(config.IST).replace(hour=0, minute=0, second=0, microsecond=0)
+        today_count = db.query(PriceSurgeEvent).filter(
+            PriceSurgeEvent.created_at >= today_start
+        ).count()
         events = (
             db.query(PriceSurgeEvent)
             .order_by(PriceSurgeEvent.created_at.desc())
@@ -54,6 +63,12 @@ async def get_surges(
             .limit(limit)
             .all()
         )
-        return {"total": total, "offset": offset, "limit": limit, "events": [e.to_dict() for e in events]}
+        return {
+            "total": total,
+            "today_count": today_count,
+            "offset": offset,
+            "limit": limit,
+            "events": [e.to_dict() for e in events],
+        }
     finally:
         db.close()

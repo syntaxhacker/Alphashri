@@ -1,6 +1,7 @@
 import { splitProps } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
+import { pickTextColor } from "../../utils/contrast";
 import type { JSX } from "solid-js";
 import type { UICodeProps } from "../types";
 
@@ -41,7 +42,14 @@ export function Code(props: UICodeProps & Record<string, unknown>) {
     "font-size": "0.875em",
     padding: "2px 6px",
     "border-radius": "1px",
-    ...(known.color != null ? { color: "white", ...(colorValue ? { "background-color": colorValue } : {}) } : {}),
+    ...(known.color != null
+      ? {
+          // White on the solid semantic fills is ~2.3–3.2:1; pick the readable
+          // ink for the actual fill instead of assuming a dark theme.
+          color: colorValue ? pickTextColor(colorValue) : palette.TEXT,
+          ...(colorValue ? { "background-color": colorValue } : {}),
+        }
+      : {}),
   };
 
   const rootTag = known.block ? "pre" : "code";

@@ -8,7 +8,7 @@ import { UIProvider } from "@/ui";
 import type { JSX } from "solid-js";
 import { fetchSurges } from "../../api/notifications";
 
-// testUtils's MemoryRouter mounts no route — plain children render nothing,
+// A MemoryRouter with plain children mounts no route — children render nothing,
 // so these tests mount through the router's `root` prop instead.
 function TestWrapper(props: { children?: JSX.Element; initialRoute?: string; user?: unknown }) {
   const history = createMemoryHistory();
@@ -241,7 +241,7 @@ describe("AppLayout", () => {
   });
 
   it("shows the surge alert count on the bell", async () => {
-    vi.mocked(fetchSurges).mockResolvedValueOnce({ total: 5, events: [] });
+    vi.mocked(fetchSurges).mockResolvedValueOnce({ total: 5, today_count: 5, events: [] });
     render(() => (<TestWrapper>
         <AppLayout>
           <div>Content</div>

@@ -4,9 +4,13 @@ import {
   MARKET_CLOSE_MIN,
   DERIVATIVES_CLOSE_MIN,
   DERIVATIVES_SESSION_MINUTES,
+  US_SESSION_START_MIN,
+  US_MARKET_CLOSE_MIN,
   isMarketOpenIst,
   isDerivativesOpenIst,
+  isUsMarketOpen,
   istClock,
+  etClock,
 } from "./marketClock";
 
 // 2026-10-21 is a Wednesday. IST is UTC+5:30.
@@ -51,5 +55,35 @@ describe("istClock", () => {
     expect(MARKET_CLOSE_MIN).toBe(930);
     expect(DERIVATIVES_CLOSE_MIN).toBe(940);
     expect(DERIVATIVES_SESSION_MINUTES).toBe(385);
+  });
+});
+
+describe("isUsMarketOpen", () => {
+  test("opens at 09:30 and closes at 16:00 ET", () => {
+    // 2026-11-02 is a Monday in EST (UTC-5) — DST ended 2026-11-01.
+    expect(isUsMarketOpen(at("2026-11-02T14:29:00Z"))).toBe(false); // 09:29 EST
+    expect(isUsMarketOpen(at("2026-11-02T14:30:00Z"))).toBe(true); //  09:30 EST
+    expect(isUsMarketOpen(at("2026-11-02T20:59:00Z"))).toBe(true); //  15:59 EST
+    expect(isUsMarketOpen(at("2026-11-02T21:00:00Z"))).toBe(false); // 16:00 EST
+  });
+
+  test("is closed on weekends", () => {
+    expect(isUsMarketOpen(at("2026-10-24T15:00:00Z"))).toBe(false); // Saturday 11:00 EDT
+    expect(isUsMarketOpen(at("2026-10-25T15:00:00Z"))).toBe(false); // Sunday (EDT→EST day)
+  });
+
+  test("follows DST: the same UTC instant is judged in EDT during summer", () => {
+    // 2026-07-15 is a Wednesday in EDT (UTC-4). A fixed -5 assumption would
+    // read 13:30Z as 08:30 and call the session closed.
+    expect(etClock(at("2026-07-15T13:30:00Z"))).toEqual({ weekday: "Wed", minutes: 570 });
+    expect(isUsMarketOpen(at("2026-07-15T13:29:00Z"))).toBe(false); // 09:29 EDT
+    expect(isUsMarketOpen(at("2026-07-15T13:30:00Z"))).toBe(true); //  09:30 EDT
+    expect(isUsMarketOpen(at("2026-07-15T19:59:00Z"))).toBe(true); //  15:59 EDT
+    expect(isUsMarketOpen(at("2026-07-15T20:00:00Z"))).toBe(false); // 16:00 EDT
+  });
+
+  test("constants match the US session", () => {
+    expect(US_SESSION_START_MIN).toBe(570);
+    expect(US_MARKET_CLOSE_MIN).toBe(960);
   });
 });

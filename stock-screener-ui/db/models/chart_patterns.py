@@ -47,6 +47,12 @@ class PatternComputeJob(Base):
     started_at = Column(DateTime, nullable=True)
     finished_at = Column(DateTime, nullable=True)
 
+    __table_args__ = (
+        # Last-completed-job lookups filter universe+timeframe+status and order
+        # by finished_at; without this the scan stamp does a full table scan.
+        Index("ix_pj_universe_tf_status_fin", "universe", "timeframe", "status", "finished_at"),
+    )
+
     def to_dict(self) -> dict:
         return {
             "job_id": self.id,
@@ -104,15 +110,23 @@ class PatternHit(Base):
     __table_args__ = (
         Index("ix_pattern_hits_symbol_timeframe", "symbol", "timeframe"),
         Index("ix_pattern_hits_job_status", "job_id", "status"),
+        # The confidence-first page filters job/timeframe then sorts by
+        # (confidence DESC, id DESC) with a LIMIT. These let SQLite walk the
+        # index backwards instead of building a temp B-tree for every page.
+        Index("ix_ph_job_tf_conf", "job_id", "timeframe", "confidence", "id"),
+        Index("ix_ph_tf_conf", "timeframe", "confidence", "id"),
     )
 
-    def to_dict(self) -> dict:
-        payload = {}
-        if self.payload_json:
-            try:
-                payload = json.loads(self.payload_json)
-            except (ValueError, TypeError):
-                payload = {}
+    def to_dict(self, payload=None) -> dict:
+        # ``payload`` is the once-parsed payload_json passed by the read paths;
+        # direct callers still get the legacy parse-on-demand behaviour.
+        if payload is None:
+            payload = {}
+            if self.payload_json:
+                try:
+                    payload = json.loads(self.payload_json)
+                except (ValueError, TypeError):
+                    payload = {}
         return {
             "id": self.id,
             "uuid": self.uuid,

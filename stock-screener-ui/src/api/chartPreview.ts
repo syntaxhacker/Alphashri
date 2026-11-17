@@ -47,6 +47,35 @@ export interface ChartPreviewData {
 const previewCache = new Map<string, { data: ChartPreviewData; timestamp: number }>();
 const CACHE_TTL = 60 * 1000; // 1 minute cache
 
+const MAX_PREVIEW_DAYS = 30;
+
+function parseIsoDate(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value ?? "");
+  if (!match) return null;
+  const parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+/**
+ * The endpoint always walks back from the last trading day, so a trade date has
+ * to be expressed as a session count for its candles to fall inside the window.
+ */
+export function previewDaysForDate(date: string, today: Date = new Date()): number {
+  const target = parseIsoDate(date);
+  if (!target) return 1;
+
+  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  if (target.getTime() >= end.getTime()) return 1;
+
+  let sessions = 1;
+  const cursor = new Date(target);
+  while (cursor < end && sessions < MAX_PREVIEW_DAYS) {
+    cursor.setDate(cursor.getDate() + 1);
+    if (cursor.getDay() !== 0 && cursor.getDay() !== 6) sessions += 1;
+  }
+  return sessions;
+}
+
 /**
  * Fetch chart preview data for a symbol.
  *
@@ -75,7 +104,7 @@ export async function fetchChartPreview(
   }
 
   try {
-    const url = `${API_BASE}/${symbol}?tf=${tf}&days=${days}&or_minutes=${orMinutes}`;
+    const url = `${API_BASE}/${encodeURIComponent(symbol)}?tf=${tf}&days=${days}&or_minutes=${orMinutes}`;
     const response = await fetchWithAuth(url);
 
     if (!response.ok) {

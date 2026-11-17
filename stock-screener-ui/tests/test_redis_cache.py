@@ -467,18 +467,18 @@ class TestStaleWhileRevalidate:
             compute_fn.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_miss_timeout_fallback(self, fake_redis):
+    async def test_miss_timeout_does_not_steal_lock(self, fake_redis):
+        """A lock held past the wait means a live compute: never start a second one."""
         with _patched_redis(fake_redis) as rc:
             fake_redis.set("test:swr:6:lock", "1", ex=30)
 
             compute_fn = MagicMock(return_value={"data": "fallback"})
-            data, status = await rc.stale_while_revalidate(
-                "test:swr:6", compute_fn, fresh_ttl=300, stale_ttl=600, wait_timeout=0.5, poll_interval=0.1
-            )
+            with pytest.raises(rc.CacheWarming):
+                await rc.stale_while_revalidate(
+                    "test:swr:6", compute_fn, fresh_ttl=300, stale_ttl=600, wait_timeout=0.5, poll_interval=0.1
+                )
 
-            assert status == "miss"
-            assert data == {"data": "fallback"}
-            compute_fn.assert_called_once()
+            compute_fn.assert_not_called()
             assert fake_redis.exists("test:swr:6:lock") == True
 
     @pytest.mark.asyncio
@@ -503,3 +503,68 @@ class TestStaleWhileRevalidate:
                 await rc.stale_while_revalidate("test:swr:8", compute_fn, fresh_ttl=300, stale_ttl=600)
 
             assert fake_redis.exists("test:swr:8:lock") == False
+
+    @pytest.mark.asyncio
+    async def test_compute_slower_than_lock_ttl_runs_once(self, fake_redis):
+        """A compute outliving lock_ttl must keep its lock: the waiter coalesces."""
+        import asyncio
+        import threading
+
+        with _patched_redis(fake_redis) as rc:
+            calls = []
+
+            def slow():
+                calls.append(1)
+                time.sleep(2.0)
+                return {"data": "slow"}
+
+            first, second = await asyncio.gather(
+                rc.stale_while_revalidate(
+                    "test:swr:9", slow, fresh_ttl=300, stale_ttl=600,
+                    lock_ttl=1, wait_timeout=5.0, poll_interval=0.1,
+                ),
+                rc.stale_while_revalidate(
+                    "test:swr:9", slow, fresh_ttl=300, stale_ttl=600,
+                    lock_ttl=1, wait_timeout=5.0, poll_interval=0.1,
+                ),
+            )
+
+            assert len(calls) == 1, "duplicate sweep: lock expired under a live compute"
+            assert sorted([first[1], second[1]]) == ["coalesced", "miss"]
+            assert first[0] == {"data": "slow"} and second[0] == {"data": "slow"}
+
+    @pytest.mark.asyncio
+    async def test_timed_out_compute_keeps_lock_and_fills_cache(self, fake_redis):
+        """The 8s-style timeout returns warming; the compute keeps its lock and lands."""
+        import asyncio
+
+        with _patched_redis(fake_redis) as rc:
+            compute_fn = MagicMock(side_effect=lambda: (time.sleep(1.0), {"data": "late"})[1])
+
+            with pytest.raises(rc.CacheWarming):
+                await rc.stale_while_revalidate(
+                    "test:swr:10", compute_fn, fresh_ttl=300, stale_ttl=600,
+                    lock_ttl=10, compute_timeout=0.2,
+                )
+
+            assert fake_redis.exists("test:swr:10:lock") == True
+            compute_fn.assert_called_once()
+
+            await asyncio.sleep(1.5)
+            assert rc.cache_get("test:swr:10") == {"data": "late"}
+            assert fake_redis.exists("test:swr:10:lock") == False
+            compute_fn.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_waiter_takes_over_when_holder_released_without_data(self, fake_redis):
+        """A dead holder (lock gone, nothing cached) must not stall callers forever."""
+        with _patched_redis(fake_redis) as rc:
+            compute_fn = MagicMock(return_value={"data": "computed"})
+
+            data, status = await rc.stale_while_revalidate(
+                "test:swr:11", compute_fn, fresh_ttl=300, stale_ttl=600,
+                lock_ttl=10, wait_timeout=0.2, poll_interval=0.05,
+            )
+
+            assert status == "miss"
+            assert data == {"data": "computed"}

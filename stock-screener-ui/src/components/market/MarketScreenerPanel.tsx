@@ -12,6 +12,7 @@ import {
   onMount,
   type JSX,
 } from "solid-js";
+import { useNavigate } from "@solidjs/router";
 import {
   Box,
   Button,
@@ -32,6 +33,7 @@ import { formatNumberIN } from "@/utils/ui-helpers";
 import { MARKET_UNIVERSES, DEFAULT_MARKET_UNIVERSE } from "../../api/marketScreener";
 import type { SortEntry, TableColumnDef as ColumnDef } from "../common/TanStackTable";
 import type { MarketRow, MarketUniverse } from "../../types/marketScreener";
+import { marketUniverseDescriptor } from "../../config/marketUniverses";
 import {
   buildMarketFilterChips,
   countActiveMarketFilters,
@@ -39,7 +41,9 @@ import {
   filterOnlyMarketRows,
   marketSectors,
   countByCapTier,
+  resetUniverseSpecificFilters,
   sortMarketRows,
+  universeHasFno,
   type MarketFilterState,
   type MarketSortKey,
 } from "./marketFilters";
@@ -48,7 +52,9 @@ import { usePatternSummary } from "./usePatternSummary";
 import { alpha, PRIMARY } from "@/ui/palette";
 import { MarketFilterRail } from "./MarketFilterRail";
 import { MarketMapView, MarketViewToggle, type MarketViewMode } from "./MarketMapView";
+import { marketUniverseToValueMarket } from "@/config/valueMarketMapping";
 import { TanStackTable } from "../common/TanStackTable";
+import { FilterStatusRow } from "../common/FilterStatusRow";
 import { useTablePrefs } from "../common/useTablePrefs";
 import { ChartDockOutlet } from "../common/ChartDockOutlet";
 import { useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
@@ -58,6 +64,10 @@ import { useMarketConfig, type MarketConfigValue } from "./useMarketConfig";
 // Movers owns the whole dashboard module; keep it out of the Market chunk.
 const DashboardView = lazy(() =>
   import("../screener/DashboardView").then((m) => ({ default: m.DashboardView })),
+);
+// Value owns its own scan pipeline; load it only when the Value view is opened.
+const ValueView = lazy(() =>
+  import("../value/ValuePanel").then((m) => ({ default: m.ValuePanel })),
 );
 
 function MoversPanel(props: {
@@ -100,6 +110,13 @@ function MoversPanel(props: {
 const STALE_AFTER_MS = 15 * 60 * 1000;
 const STALE_CLOCK_MS = 30 * 1000;
 const UNIVERSE_OPTIONS = MARKET_UNIVERSES.map((o) => ({ value: o.value, label: o.label }));
+
+// The in-app chart has two data paths: the NSE dock for Indian listings and the
+// US provider (selected by `?market=usa`) for NASDAQ/NYSE/AMEX. The symbol is
+// passed through untouched — `BRK.B` stays `BRK.B` in the URL.
+const USA_CHART_EXCHANGES = new Set(["nasdaq", "nyse", "amex"]);
+const normalizeExchange = (exchange: string | undefined): string =>
+  String(exchange ?? "").trim().toLowerCase();
 
 const DRAWER_FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -184,6 +201,7 @@ function MarketGrid(props: {
   getRowStyle: (row: MarketRow) => JSX.CSSProperties | undefined;
   getRowTestId: (row: MarketRow) => string;
   onVisibleRowsChange?: (rows: MarketRow[]) => void;
+  onSortedRowsChange?: (rows: MarketRow[]) => void;
   onTableSortChange?: (sorting: SortEntry[]) => void;
 }) {
   const { prefs, setSorting } = useTablePrefs("market.grid");
@@ -213,6 +231,7 @@ function MarketGrid(props: {
       getRowStyle={props.getRowStyle}
       getRowTestId={props.getRowTestId}
       onVisibleRowsChange={props.onVisibleRowsChange}
+      onSortedRowsChange={props.onSortedRowsChange}
       emptyMessage={
         props.hasActiveFilters ? "No rows match the current filters" : "No market data"
       }
@@ -249,8 +268,12 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   const [railCollapsed, setRailCollapsed] = createSignal(false);
   const [drawerOpen, setDrawerOpen] = createSignal(false);
   const [viewMode, setViewMode] = createSignal<MarketViewMode>(props.initialView ?? "table");
+  // Value is a view, not a separate page: every Market filter lives in this
+  // component's signals, so switching back restores the table as it was.
+  const showMarketChrome = () => viewMode() !== "movers" && viewMode() !== "value";
   const [selectedSymbol, setSelectedSymbol] = createSignal<string | null>(null);
   const dock = useSymbolDock();
+  const navigate = useNavigate();
   // Shares the ref-counted store with MarketGrid so the map dropdown and the
   // header write one authoritative, persisted `table.market.grid` sort.
   const { setSorting: setTableSorting } = useTablePrefs("market.grid");
@@ -272,12 +295,19 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   // `prevUniverse` is moved first — see the reset effect below.
   let prevUniverse = universe();
   const applySavedConfig = (value: MarketConfigValue) => {
+    // A saved `fnoOnly` can only have come from an India session. In a universe
+    // without F&O every row carries `fno:false`, so leaving it set would hide the
+    // whole snapshot behind a toggle the rail does not even render. Clear it at
+    // the boundary so state, toggle, chip and filter cannot disagree.
+    const restoredFilters = universeHasFno(value.universe)
+      ? value.filters
+      : { ...value.filters, fnoOnly: false };
     batch(() => {
       // Announce the hydrated universe to the reset effect before the signal
       // moves: restoring nifty500 must not wipe the sectors restored with it.
       prevUniverse = value.universe;
       setUniverse(value.universe);
-      setFilters(value.filters);
+      setFilters(restoredFilters);
       setViewMode(value.view);
     });
   };
@@ -300,17 +330,28 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
     if (shown && shown !== selectedSymbol()) setSelectedSymbol(shown);
   });
 
-  /** One path for every affordance: row, symbol text, chart icon, map tile,
-   *  keyboard. Selection and the dock can never disagree. */
+  /** One path for selection affordances: row, symbol text, map tile, keyboard.
+   *  The chart icon routes separately by exchange (see `openChart`). */
   const selectAndOpen = (symbol: string) => {
     setSelectedSymbol(symbol);
+    dock.open(symbol);
+  };
+
+  // The chart icon picks the data provider from the row's exchange. US rows
+  // navigate to the route that selects the US provider; everything else keeps
+  // the existing dock (row/text selection still goes through `selectAndOpen`).
+  const openChart = (symbol: string, exchange: string | undefined) => {
+    if (USA_CHART_EXCHANGES.has(normalizeExchange(exchange))) {
+      navigate(`/chart/${encodeURIComponent(symbol)}?market=usa`);
+      return;
+    }
     dock.open(symbol);
   };
   const isNarrow = useMediaQuery("(max-width: 1023px)");
   const isWide = useMediaQuery("(min-width: 1400px)");
 
   const { rows, total, updateMode, asOf, isLoading, error, refresh, stale: cachedStale, warming } =
-    useMarketSnapshotSolid(universe);
+    useMarketSnapshotSolid(universe, { enabled: () => viewMode() !== "value" });
 
   // Filters belong to one universe's snapshot; carrying them across a universe
   // switch silently hides every row of the new universe.
@@ -321,7 +362,9 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
     // saved sectors survive. Firing here would reset them.
     if (u !== prevUniverse) {
       prevUniverse = u;
-      setFilters(defaultMarketFilters());
+      // Keep the unit-neutral conditions (day/RSI/relvol/SMA/sort); drop every
+      // bound whose unit or vocabulary belonged to the previous universe.
+      setFilters((f) => resetUniverseSpecificFilters(f, u));
       setSearch("");
       // A symbol allowlist belongs to the universe it was captured in — a
       // universe switch would silently hide every row, so clear it.
@@ -357,22 +400,27 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
     const list = props.symbolAllowlist;
     return list && list.length > 0 ? new Set(list) : null;
   });
-  const filteredRows = createMemo(() =>
-    sortMarketRows(
-      filterOnlyMarketRows(rows(), { ...filters(), search: search() }).filter(
-        (row) => allowlisted() == null || allowlisted()!.has(row.symbol),
-      ),
-      filters().sort,
-    ),
-  );
+  const filteredRows = createMemo(() => {
+    const f = filters();
+    return sortMarketRows(
+      filterOnlyMarketRows(rows(), {
+        ...f,
+        search: search(),
+        // Same predicate as the rail toggle and the chip builder: an F&O-less
+        // universe has no `fno` rows, so an inherited flag must never filter.
+        fnoOnly: f.fnoOnly && universeHasFno(universe()),
+      }).filter((row) => allowlisted() == null || allowlisted()!.has(row.symbol)),
+      f.sort,
+    );
+  });
   // The sorted set has the same membership as the filtered one, so reuse it
   // instead of walking all ~3,200 rows a second time per filter change.
   const matchCount = createMemo(() => filteredRows().length);
   const chips = createMemo(
-    () => buildMarketFilterChips({ ...filters(), search: search() }),
+    () => buildMarketFilterChips({ ...filters(), search: search() }, universe()),
   );
   const activeCount = createMemo(
-    () => countActiveMarketFilters({ ...filters(), search: search() }),
+    () => countActiveMarketFilters({ ...filters(), search: search() }, universe()),
   );
   const sectors = createMemo(() => marketSectors(rows()));
   const tierCounts = createMemo(() => countByCapTier(rows()));
@@ -380,20 +428,30 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   // The PATTERNS column is fed from the window the table actually mounts:
   // ~80 rows, one batch lookup, never the ~3,200-row snapshot.
   const [visibleRows, setVisibleRows] = createSignal<MarketRow[]>([]);
+  // The table owns header sorting; `filteredRows` only mirrors the subset of
+  // sorters that map to `filters.sort`. Arrow stepping must follow what the
+  // user sees, not the pre-table order, or one press can skip several rows.
+  const [sortedRows, setSortedRows] = createSignal<MarketRow[]>([]);
   const patterns = usePatternSummary(
     () => visibleRows().map((row) => row.symbol),
     () => universe(),
   );
 
+  // The rail's price/MCAP units and cap-tier labels follow the active universe.
+  const currency = createMemo(() => marketUniverseDescriptor(universe()).currency);
+
   const columns = createMemo(() => {
     const f = filters();
     return buildMarketColumns({
       onSymbolOpen: selectAndOpen,
+      onChartOpen: openChart,
       // A pinned sector makes the column constant; it carries no information.
       hideSector: f.sectors.length > 0,
       // Read through the signal: cells re-render when the lookup lands without
       // rebuilding the column list (a rebuild would remount every row).
       patternsFor: (symbol) => patterns.summary().get(symbol),
+      // Drives the MCAP header's unit; cells still read each row's own currency.
+      universe: universe(),
     });
   });
   const stale = createMemo(() => cachedStale() || isSnapshotStale(asOf(), nowMs()));
@@ -481,6 +539,10 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   createEffect(() => {
     if (!isNarrow() && drawerOpen()) closeDrawer();
   });
+  // Opening Value must not leave a modal filter drawer floating above it.
+  createEffect(() => {
+    if (viewMode() === "value" && drawerOpen()) closeDrawer();
+  });
 
   const focusablesInDrawer = (): HTMLElement[] => {
     if (!drawerEl) return [];
@@ -556,13 +618,18 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
 
   const handleRowClick = (row: MarketRow) => selectAndOpen(row.symbol);
 
+  const navigationRows = createMemo(() => {
+    const sorted = sortedRows();
+    return sorted.length > 0 ? sorted : filteredRows();
+  });
+
   const rowIndex = createMemo(() => {
     const symbol = selectedSymbol();
-    return symbol ? filteredRows().findIndex((row) => row.symbol === symbol) : -1;
+    return symbol ? navigationRows().findIndex((row) => row.symbol === symbol) : -1;
   });
 
   const stepSymbol = (direction: 1 | -1) => {
-    const rows = filteredRows();
+    const rows = navigationRows();
     if (!rows.length) return;
     const current = rowIndex();
     // No selection yet: Down starts at the top, Up at the bottom.
@@ -582,6 +649,8 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
       // A modal drawer owns the keyboard; arrow keys inside it are not row steps.
       if (drawerOpen()) return;
+      // The Value view owns its own table; don't step market rows behind it.
+      if (viewMode() === "value") return;
       const target = event.target as HTMLElement | null;
       if (
         target &&
@@ -598,6 +667,17 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
     document.addEventListener("keydown", onKeyDown);
     onCleanup(() => document.removeEventListener("keydown", onKeyDown));
   });
+
+  const chooseView = (mode: MarketViewMode) => {
+    // A modal drawer would otherwise float above the value table.
+    if (mode === "value") closeDrawer();
+    setViewMode(mode);
+    // The market search is hidden in Movers; keeping a live filter there
+    // would silently shrink the table when the user comes back. Value leaves
+    // it alone so the table returns exactly as the user left it.
+    if (mode === "movers") setSearch("");
+    props.onViewChange?.(mode);
+  };
 
   const getRowStyle = (row: MarketRow): JSX.CSSProperties | undefined =>
     row.symbol === selectedSymbol()
@@ -627,7 +707,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
           aria-label="Market universe"
           data-testid="market-universe-select"
         />
-        <Show when={viewMode() !== "movers"}>
+        <Show when={showMarketChrome()}>
           <TextInput
             placeholder="Search symbol or name…"
             size="xs"
@@ -642,17 +722,19 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
         </Show>
         {/* The toolbar sits directly under the tab strip: a default "top"
             tooltip renders above the viewport and is clipped. */}
-        <Tooltip label={modeBadge().hint} position="bottom">
-          <Badge
-            size="xs"
-            variant="light"
-            color={modeBadge().color}
-            data-testid="market-mode-badge"
-          >
-            {modeBadge().label}
-          </Badge>
-        </Tooltip>
-        <Show when={stale()}>
+        <Show when={viewMode() !== "value"}>
+          <Tooltip label={modeBadge().hint} position="bottom">
+            <Badge
+              size="xs"
+              variant="light"
+              color={modeBadge().color}
+              data-testid="market-mode-badge"
+            >
+              {modeBadge().label}
+            </Badge>
+          </Tooltip>
+        </Show>
+        <Show when={stale() && viewMode() !== "value"}>
           <Tooltip
             position="bottom"
             multiline
@@ -668,7 +750,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
           </Tooltip>
         </Show>
         <Box className="flex-1 min-w-0" />
-        <Show when={viewMode() !== "movers"}>
+        <Show when={showMarketChrome()}>
           <Text
             size="xs"
             c="dimmed"
@@ -680,23 +762,25 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
             {formatNumberIN(matchCount())} / {formatNumberIN(rows().length)}
           </Text>
         </Show>
-        <Tooltip label="Refresh snapshot" position="bottom">
-          <span>
-            <ActionIcon
-              variant="subtle"
-              size={28}
-              onClick={refresh}
-              disabled={isLoading()}
-              aria-label="Refresh snapshot"
-              data-testid="market-refresh"
-            >
-              <Show when={isLoading()} fallback={<IconRefresh size={14} />}>
-                <Loader size={12} />
-              </Show>
-            </ActionIcon>
-          </span>
-        </Tooltip>
-        <Show when={viewMode() !== "movers"}>
+        <Show when={viewMode() !== "value"}>
+          <Tooltip label="Refresh snapshot — fresh scan" position="bottom">
+            <span>
+              <ActionIcon
+                variant="subtle"
+                size={28}
+                onClick={() => refresh(true)}
+                disabled={isLoading()}
+                aria-label="Refresh snapshot (fresh scan)"
+                data-testid="market-refresh"
+              >
+                <Show when={isLoading()} fallback={<IconRefresh size={14} />}>
+                  <Loader size={12} />
+                </Show>
+              </ActionIcon>
+            </span>
+          </Tooltip>
+        </Show>
+        <Show when={showMarketChrome()}>
           <Show when={savedConfigError() !== null}>
             <Box
               role="status"
@@ -746,17 +830,8 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
             </Tooltip>
           </Indicator>
         </Show>
-        <MarketViewToggle
-          value={viewMode()}
-          onChange={(mode) => {
-            setViewMode(mode);
-            // The market search is hidden in Movers; keeping a live filter there
-            // would silently shrink the table when the user comes back.
-            if (mode === "movers") setSearch("");
-            props.onViewChange?.(mode);
-          }}
-        />
-        <Show when={viewMode() !== "movers"}>
+        <MarketViewToggle value={viewMode()} onChange={chooseView} />
+        <Show when={showMarketChrome()}>
           <Button
             size="xs"
             variant="subtle"
@@ -770,7 +845,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
         </Show>
       </Paper>
 
-      <Show when={showWarmingHint()}>
+      <Show when={showWarmingHint() && viewMode() !== "value"}>
         <Box
           role="status"
           data-testid="market-warming-hint"
@@ -792,7 +867,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
         </Box>
       </Show>
 
-      <Show when={showErrorBanner()}>
+      <Show when={showErrorBanner() && viewMode() !== "value"}>
         <Box
           role="alert"
           data-testid="market-error-banner"
@@ -806,7 +881,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
             size="xs"
             variant="subtle"
             leftSection={<IconRefresh size={12} />}
-            onClick={refresh}
+            onClick={() => refresh()}
             data-testid="market-error-banner-retry"
           >
             Retry
@@ -814,10 +889,11 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
         </Box>
       </Show>
 
-      <Show when={chips().length > 0}>
-        <Box
-          data-testid="market-active-chips"
-          className="flex gap-1 flex-wrap flex-shrink-0"
+      <Show when={viewMode() !== "value"}>
+        <FilterStatusRow
+          testId="market-active-chips"
+          hasFilters={chips().length > 0 || (props.symbolAllowlist?.length ?? 0) > 0}
+          className="flex-shrink-0"
         >
           <For each={chips()}>{(chip) => (
             <Box
@@ -834,28 +910,26 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
               <IconX size={12} />
             </Box>
           )}</For>
-        </Box>
-      </Show>
-      <Show
-        when={props.symbolAllowlist && props.symbolAllowlist.length > 0}
-      >
-        <Box
-          component="button"
-          type="button"
-          onClick={() => props.onClearSymbolAllowlist?.()}
-          aria-label="Clear symbol allowlist"
-          data-testid="market-symbol-allowlist"
-          className="inline-flex items-center gap-1 h-[22px] px-1.5 rounded-[11px] border border-fin-border bg-fin-surface text-fin-text text-[11px] leading-none cursor-pointer hover:border-fin-primary hover:text-fin-primary"
-        >
-          <Text size="xs" className="leading-none">
-            Movers · {props.symbolAllowlist!.length} symbols ×
-          </Text>
-          <IconX size={12} />
-        </Box>
+          <Show when={props.symbolAllowlist && props.symbolAllowlist.length > 0}>
+            <Box
+              component="button"
+              type="button"
+              onClick={() => props.onClearSymbolAllowlist?.()}
+              aria-label="Clear symbol allowlist"
+              data-testid="market-symbol-allowlist"
+              className="inline-flex items-center gap-1 h-[22px] px-1.5 rounded-[11px] border border-fin-border bg-fin-surface text-fin-text text-[11px] leading-none cursor-pointer hover:border-fin-primary hover:text-fin-primary"
+            >
+              <Text size="xs" className="leading-none">
+                Movers · {props.symbolAllowlist!.length} symbols ×
+              </Text>
+              <IconX size={12} />
+            </Box>
+          </Show>
+        </FilterStatusRow>
       </Show>
 
       <Box className="flex-1 min-h-0 flex gap-2 overflow-hidden">
-        <Show when={!isNarrow() && !railCollapsed() && viewMode() !== "movers"}>
+        <Show when={!isNarrow() && !railCollapsed() && showMarketChrome()}>
           <Box
             data-testid="market-rail-panel"
             className="w-[240px] flex-shrink-0 min-h-0 overflow-y-auto border border-fin-border rounded-sm bg-fin-surface"
@@ -865,6 +939,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
               onChange={patchFilters}
               sectors={sectors()}
               tierCounts={tierCounts()}
+              currency={currency()}
               onCollapse={isNarrow() ? () => setDrawerOpen(false) : () => setRailCollapsed(true)}
               collapseLabel={isNarrow() ? "Close filters" : "Collapse filters"}
             />
@@ -872,7 +947,28 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
         </Show>
 
         <Box className="flex-1 min-w-0 min-h-0 flex flex-col">
-          {viewMode() === "movers" ? (
+          {viewMode() === "value" ? (
+            <Box
+              data-testid="market-value-region"
+              className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden"
+            >
+              <Suspense
+                fallback={
+                  <Box
+                    data-testid="market-value-loading"
+                    className="flex items-center justify-center gap-2 py-6 border border-fin-border rounded-sm bg-fin-surface"
+                  >
+                    <Loader size={14} />
+                    <Text size="xs" c="dimmed">
+                      Loading value scan…
+                    </Text>
+                  </Box>
+                }
+              >
+                <ValueView embedded market={marketUniverseToValueMarket(universe()) ?? "india"} />
+              </Suspense>
+            </Box>
+          ) : viewMode() === "movers" ? (
             <Box className="flex-1 min-w-0 min-h-0 overflow-y-auto">
               <MoversPanel
                 universe={universe()}
@@ -905,7 +1001,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                         size="sm"
                         variant="outline"
                         leftSection={<IconRefresh size={12} />}
-                        onClick={refresh}
+                        onClick={() => refresh()}
                         data-testid="market-retry"
                       >
                         Retry
@@ -921,6 +1017,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                     // supplementary, so it must never mount a per-row spinner.
                     aria-busy={patterns.loading() ? "true" : undefined}
                     data-patterns-loading={patterns.loading() ? "true" : undefined}
+                    data-testid="market-table-region"
                     className={
                       viewMode() === "map"
                         ? "hidden"
@@ -936,6 +1033,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                       getRowStyle={getRowStyle}
                       getRowTestId={getRowTestId}
                       onVisibleRowsChange={setVisibleRows}
+                      onSortedRowsChange={setSortedRows}
                       onTableSortChange={onTableSortChange}
                     />
                   </Box>
@@ -945,6 +1043,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                       onSymbolClick={selectAndOpen}
                       sort={filters().sort}
                       onSortChange={onMapSortChange}
+                      currency={currency()}
                     />
                   </Show>
                 </Show>
@@ -960,7 +1059,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
             </Show>
           )}
         </Box>
-        <Show when={isWide()}>
+        <Show when={isWide() && viewMode() !== "value"}>
           <ChartDockOutlet class="flex-shrink-0 basis-[38%] min-w-80 max-w-3xl min-h-0 flex flex-col overflow-hidden" />
         </Show>
       </Box>
@@ -986,6 +1085,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
               onChange={patchFilters}
               sectors={sectors()}
               tierCounts={tierCounts()}
+              currency={currency()}
               onCollapse={closeDrawer}
               collapseLabel="Close filters"
             />
