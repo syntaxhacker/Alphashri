@@ -38,10 +38,30 @@ type Series = {
   areaStyle?: Area;
   z?: number;
   markLine?: {
-    data?: { yAxis?: number; xAxis?: string; lineStyle?: { color?: string; type?: string } }[];
+    data?: MarkLineDatum[];
+  };
+  markArea?: {
+    data?: MarkAreaDatum[][];
   };
 };
-type ChartOption = { series?: Series[]; graphic?: { style?: { text?: string } }[] };
+type MarkLineDatum = {
+  yAxis?: number;
+  xAxis?: string;
+  lineStyle?: { color?: string; type?: string };
+  label?: { formatter?: string; fontSize?: number };
+};
+type MarkAreaDatum = {
+  itemStyle?: { color?: string };
+  label?: { formatter?: string; fontSize?: number };
+  xAxis?: string;
+};
+type ChartOption = {
+  grid?: { containLabel?: boolean };
+  xAxis?: { axisLabel?: { fontSize?: number } };
+  yAxis?: { axisLabel?: { fontSize?: number } };
+  series?: Series[];
+  graphic?: { style?: { text?: string; fontSize?: number } }[];
+};
 
 function lastOption(): ChartOption {
   return (chartStub.setOption.mock.calls.at(-1)?.[0] ?? {}) as ChartOption;
@@ -111,6 +131,16 @@ describe("PayoffChartCore series", () => {
     expect(lastOption().graphic?.[0]?.style?.text).toBe("flat vol 13.8%");
   });
 
+  test("axis ticks are 10px and contained inside the grid box", async () => {
+    await renderCondor();
+    const option = lastOption();
+    // 9px labels were clipped by the band edge on the POSITION ODDS tab.
+    expect(option.grid?.containLabel).toBe(true);
+    expect(option.xAxis?.axisLabel?.fontSize).toBeGreaterThanOrEqual(10);
+    expect(option.yAxis?.axisLabel?.fontSize).toBeGreaterThanOrEqual(10);
+    expect(option.graphic?.[0]?.style?.fontSize).toBeGreaterThanOrEqual(10);
+  });
+
   test("zero, breakeven and spot guides ride their own empty series", async () => {
     await renderCondor();
     const snapshot = buildPayoff(condor(), 24031.5, 0.138, 2 / 365)!;
@@ -127,6 +157,38 @@ describe("PayoffChartCore series", () => {
       xAxis: Math.round(24031.5).toString(),
       lineStyle: { color: palette.INFO, type: "solid" },
     });
+  });
+
+  test("host guides add labelled strike lines without replacing the model guides", async () => {
+    render(() => (
+      <UIProvider>
+        <PayoffChartCore
+          legs={condor()}
+          spot={24031.5}
+          iv={0.138}
+          dteYears={2 / 365}
+          guides={[
+            { x: 24200, color: palette.INFO, dash: "dotted", label: "CE 24.2K" },
+            { x: 24000, color: palette.PRIMARY, dash: "dashed", label: "MP" },
+          ]}
+        />
+      </UIProvider>
+    ));
+    await waitFor(() => expect(chartStub.setOption).toHaveBeenCalled());
+
+    const data = lastOption().series!.find((s) => s.name === "guides")!.markLine!.data! as any[];
+    expect(data.find((item) => item.label?.formatter === "CE 24.2K")).toMatchObject({
+      xAxis: "24200",
+      lineStyle: { color: palette.INFO, type: "dotted" },
+    });
+    expect(data.find((item) => item.label?.formatter === "MP")).toMatchObject({
+      xAxis: "24000",
+      lineStyle: { color: palette.PRIMARY, type: "dashed" },
+    });
+    expect(data[0]).toMatchObject({ yAxis: 0 });
+    for (const item of data.filter((entry) => entry.label?.formatter)) {
+      expect(item.label.fontSize).toBeGreaterThanOrEqual(10);
+    }
   });
 });
 
@@ -230,5 +292,59 @@ describe("PayoffChartCore recompute gate", () => {
     await waitFor(() => expect(chartStub.setOption).toHaveBeenCalled());
     const chart = screen.getByTestId("core-fixed-height");
     expect(chart.parentElement?.style.height).toBe("180px");
+  });
+});
+
+describe("PayoffChartCore optional probability visuals", () => {
+  test("omitted props keep the PAYOFF canvas exactly as before", async () => {
+    render(() => (
+      <UIProvider>
+        <PayoffChartCore legs={condor()} spot={24031.5} iv={0.138} dteYears={2 / 365} />
+      </UIProvider>
+    ));
+    await waitFor(() => expect(chartStub.setOption).toHaveBeenCalled());
+
+    const series = lastOption().series ?? [];
+    expect(series.find((s) => s.name === "prob-bands")).toBeUndefined();
+    const data = series.find((s) => s.name === "guides")!.markLine!.data!;
+    const beLine = data.find((item) => item.lineStyle?.color === palette.WARNING)!;
+    expect(beLine.label).toBeUndefined();
+  });
+
+  test("opt-in props add a wash/band series, labelled breakevens and a ±1σ band", async () => {
+    render(() => (
+      <UIProvider>
+        <PayoffChartCore
+          legs={condor()}
+          spot={24031.5}
+          iv={0.138}
+          dteYears={2 / 365}
+          shadeProfitLoss={true}
+          breakevens={[24000, 24400]}
+          sigmaBand={[23800, 24300]}
+        />
+      </UIProvider>
+    ));
+    await waitFor(() => expect(chartStub.setOption).toHaveBeenCalled());
+
+    const bands = lastOption().series!.find((s) => s.name === "prob-bands")!;
+    expect(bands.markArea!.data!).toHaveLength(3);
+    const [profitWash, lossWash, sigma] = bands.markArea!.data! as any[];
+    expect(profitWash[0].itemStyle.color).toBe(palette.alpha(palette.POSITIVE, 0.08));
+    expect(lossWash[0].itemStyle.color).toBe(palette.alpha(palette.NEGATIVE, 0.08));
+    expect(sigma[0].label.formatter).toBe("±1σ");
+    expect(sigma[0].xAxis).toBe("23800");
+
+    const data = lastOption().series!.find((s) => s.name === "guides")!.markLine!.data! as any[];
+    expect(data.find((item) => item.label?.formatter === "BE ₹24,000")).toMatchObject({
+      xAxis: "24000",
+      lineStyle: { color: palette.WARNING, type: "dotted" },
+    });
+
+    // Strike-line marks carry the same readable 10px as the axis ticks.
+    expect(sigma[0].label.fontSize).toBeGreaterThanOrEqual(10);
+    expect(
+      data.find((item) => item.label?.formatter === "BE ₹24,000")!.label.fontSize,
+    ).toBeGreaterThanOrEqual(10);
   });
 });

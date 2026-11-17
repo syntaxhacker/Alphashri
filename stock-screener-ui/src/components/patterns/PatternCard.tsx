@@ -7,7 +7,7 @@ import { QUALITY_INFO } from "@/config/patternCatalog";
 import { SymbolLink } from "@/components/common/SymbolLink";
 import { hasIndexMembers } from "@/config/indexGroups";
 import { PATTERN_CONFIRMED, PATTERN_FAILED } from "@/ui/palette";
-import { formatPrice } from "./shared";
+import { formatChartPrice } from "./chartFormat";
 import { patternDisplayStatus } from "./patternDisplayStatus";
 import {
   formatOneDecimal,
@@ -220,7 +220,7 @@ export function PatternCard(props: PatternCardProps) {
             className="font-mono tabular-nums"
             style={{ "font-size": "11px", "line-height": 1.1 }}
           >
-            {formatPrice(lastPrice())}
+            {formatChartPrice(lastPrice())}
           </Text>
           <Text
             size="xs"
@@ -315,7 +315,7 @@ export function PatternCard(props: PatternCardProps) {
                 style={{ "font-size": "11px", "line-height": 1 }}
               >
                 {bounds()?.lo != null && bounds()?.hi != null
-                  ? `${formatPrice(bounds()!.lo!)} – ${formatPrice(bounds()!.hi!)}`
+                  ? `${formatChartPrice(bounds()!.lo!)} – ${formatChartPrice(bounds()!.hi!)}`
                   : "—"}
               </Text>
             </Box>
@@ -330,7 +330,7 @@ export function PatternCard(props: PatternCardProps) {
                 className="font-mono tabular-nums"
                 style={{ "font-size": "11px", color: PATTERN_CONFIRMED }}
               >
-                ↑ {bounds()?.hi != null ? formatPrice(bounds()!.hi!) : "—"}
+                ↑ {bounds()?.hi != null ? formatChartPrice(bounds()!.hi!) : "—"}
               </Text>
               <Text
                 size="xs"
@@ -339,7 +339,7 @@ export function PatternCard(props: PatternCardProps) {
                 className="font-mono tabular-nums"
                 style={{ "font-size": "11px", color: PATTERN_FAILED }}
               >
-                ↓ {bounds()?.lo != null ? formatPrice(bounds()!.lo!) : "—"}
+                ↓ {bounds()?.lo != null ? formatChartPrice(bounds()!.lo!) : "—"}
               </Text>
             </Box>
           </Box>

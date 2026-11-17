@@ -7,7 +7,7 @@ interface ValueTableProps {
   rows: ValueRow[];
   loading?: boolean;
   onRowClick?: (row: ValueRow) => void;
-  onSymbolClick?: (symbol: string) => void;
+  onSymbolClick?: (symbol: string, exchange?: string) => void;
 }
 
 export function ValueTable(props: ValueTableProps) {

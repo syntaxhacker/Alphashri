@@ -1,31 +1,23 @@
-import type { JSX } from "solid-js";
 import { For } from "solid-js";
 import type { TableColumnDef as ColumnDef } from "../common/TanStackTable";
-import { Box, Text } from "@/ui";
+import { Box } from "@/ui";
 import type { ValueRow } from "../../api/valueScan";
 import { SymbolLink } from "../common/SymbolLink";
-import { BadgeCell, NumCell, TextCell } from "../common/tableCells";
+import { chartHrefForSymbol, isInAppChartMarket } from "../common/symbolDockContext";
+import { BadgeCell, DashCell, NumCell, TextCell } from "../common/tableCells";
 import { ValueScoreCell } from "./ValueScoreCell";
 import { formatValueMcap, formatValueNum, formatValuePct, formatValuePrice } from "./valueFormat";
 
 const DASH = "–";
 
-// `/chart/:symbol` resolves through Upstox/NSE, so only Indian listings have a
-// valid in-app destination. Everything else stays on TradingView. NSI covers
-// the index-style exchange tag some feeds use for NSE instruments.
-const IN_APP_CHART_EXCHANGES = new Set(["nse", "bse", "nsi"]);
-
+// Exchange → chart/options capability lives in symbolDockContext so every
+// table agrees on what "US" and "in-app chart" mean.
 export function isInAppChartExchange(exchange: string | undefined): boolean {
-  if (!exchange) return false;
-  return IN_APP_CHART_EXCHANGES.has(exchange.trim().toLowerCase());
+  return isInAppChartMarket(exchange);
 }
 
-function dash(symbol: string, key: string): JSX.Element {
-  return (
-    <Text size="xs" c="dimmed" data-testid={`value-dash-${symbol}-${key}`}>
-      {DASH}
-    </Text>
-  );
+export function buildChartHref(symbol: string, exchange?: string): string {
+  return chartHrefForSymbol(symbol, exchange);
 }
 
 interface ValueCsvColumn {
@@ -81,7 +73,7 @@ export function escapeCsvCell(cell: string | number): string {
 }
 
 export function buildValueColumns(
-  onSymbolClick?: (symbol: string) => void,
+  onSymbolClick?: (symbol: string, exchange?: string) => void,
 ): ColumnDef<ValueRow>[] {
   return [
     {
@@ -107,7 +99,7 @@ export function buildValueColumns(
               className="flex-shrink-0"
               inAppText={inApp}
               tvIcon={!inApp}
-              onTextClick={inApp ? (sym) => onSymbolClick?.(sym) : undefined}
+              onTextClick={inApp ? (sym) => onSymbolClick?.(sym, r.exchange) : undefined}
             />
             <TextCell
               value={`${r.name} · ${r.exchange}`}
@@ -180,7 +172,7 @@ export function buildValueColumns(
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
-        if (r.pe === null) return dash(r.symbol, "pe");
+        if (r.pe === null) return <DashCell testId={`value-dash-${r.symbol}-pe`} />;
         return (
           <NumCell
             value={r.pe}
@@ -198,7 +190,7 @@ export function buildValueColumns(
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
-        if (r.ps === null) return dash(r.symbol, "ps");
+        if (r.ps === null) return <DashCell testId={`value-dash-${r.symbol}-ps`} />;
         return (
           <NumCell
             value={r.ps}
@@ -216,7 +208,7 @@ export function buildValueColumns(
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
-        if (r.fcf_yield === null) return dash(r.symbol, "fcf");
+        if (r.fcf_yield === null) return <DashCell testId={`value-dash-${r.symbol}-fcf`} />;
         return (
           <NumCell
             value={r.fcf_yield}
@@ -234,7 +226,7 @@ export function buildValueColumns(
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
-        if (r.roe === null) return dash(r.symbol, "roe");
+        if (r.roe === null) return <DashCell testId={`value-dash-${r.symbol}-roe`} />;
         return (
           <NumCell
             value={r.roe}
@@ -252,7 +244,7 @@ export function buildValueColumns(
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
-        if (r.rev_yoy === null) return dash(r.symbol, "rev");
+        if (r.rev_yoy === null) return <DashCell testId={`value-dash-${r.symbol}-rev`} />;
         return (
           <NumCell
             value={r.rev_yoy}
@@ -282,7 +274,7 @@ export function buildValueColumns(
       meta: { align: "center" },
       cell: ({ row }) => {
         const r = row.original;
-        if (r.flags.length === 0) return dash(r.symbol, "flags");
+        if (r.flags.length === 0) return <DashCell testId={`value-dash-${r.symbol}-flags`} />;
         return (
           <Box
             className="flex flex-nowrap justify-center gap-1 overflow-hidden"
@@ -302,7 +294,7 @@ export function buildValueColumns(
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
-        if (r.off_52w_high === null) return dash(r.symbol, "w52");
+        if (r.off_52w_high === null) return <DashCell testId={`value-dash-${r.symbol}-w52`} />;
         return (
           <NumCell
             value={r.off_52w_high}

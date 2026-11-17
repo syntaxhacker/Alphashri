@@ -161,8 +161,20 @@ export const BOT_RUNNING = POSITIVE_COLOR;
 export const BOT_STOPPED = TEXT_MUTED_COLOR;
 /** Selected bot card — selection ink, not an error: PRIMARY, never red. */
 export const BOT_SELECTED_BG = alpha(PRIMARY, 0.16);
-export const OI_CALL = POSITIVE_COLOR;
-export const OI_PUT = NEGATIVE_COLOR;
+// OI is side-coded, not directional: calls are blue, puts orange. Green/red
+// here implied bullish/bearish P&L, which is wrong for open interest and
+// clashed with the smile legend (CE blue / PE orange).
+export const OI_CALL = INFO;
+export const OI_PUT = WARNING;
+
+// Strike-level semantics, shared by the chain rows, summary strip and report:
+// a call wall is resistance (red), a put wall is support (green), max pain is
+// the amber equilibrium. Do not reuse OI_CALL/OI_PUT for these.
+export const LEVEL_CALL_WALL = NEGATIVE_COLOR;
+export const LEVEL_PUT_WALL = POSITIVE_COLOR;
+export const LEVEL_MAX_PAIN = WARNING;
+export const LEVEL_SUPPORT = POSITIVE_COLOR;
+export const LEVEL_RESISTANCE = NEGATIVE_COLOR;
 export const INDICATOR_LINE = PRIMARY;
 export const INDICATOR_BLUE_A = "#4D99FF";
 export const INDICATOR_BLUE_B = "#1A5CD6";

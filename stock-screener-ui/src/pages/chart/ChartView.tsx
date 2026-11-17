@@ -1,20 +1,31 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, Show, Switch, Match } from "solid-js";
 import { useParams, useSearchParams, useNavigate } from "@solidjs/router";
-import { Button, Center, Loader, Text, ToolbarRow } from "@/ui";
+import { Badge, Button, Center, Loader, Text, ToolbarRow } from "@/ui";
 import { fetchTimeframes, fetchSymbolChart } from "@/api/chartPatterns";
-import type { ChartCandle, PatternHitDTO, TrendLine, TFSpec } from "@/types/chartPatterns";
+import type {
+  ChartCandle,
+  ChartPayload,
+  PatternHitDTO,
+  PatternOverlay,
+  TrendLine,
+  TFSpec,
+} from "@/types/chartPatterns";
 import {
   newestHit,
   sortHitsNewest,
 } from "@/components/patterns/FullscreenPatternList";
 import { PatternChartBody } from "@/components/patterns/PatternChartBody";
 import { PatternChartToolbar } from "@/components/patterns/PatternChartToolbar";
+import type { ChartMarket } from "@/utils/chart/time";
 
 /** Patterns read best on the daily frame; the URL can override it (`?tf=1W`). */
 const DEFAULT_TIMEFRAME = "1D";
 
 /** Minimal ladder while `/timeframes` is in flight or unavailable. */
 const FALLBACK_TIMEFRAMES: TFSpec[] = [{ id: "1D", label: "1D" } as TFSpec];
+
+/** Timeframes the US provider serves; the India registry is never reused for US. */
+const US_TIMEFRAMES = ["1D", "1m", "5m", "15m", "1h"] as const;
 
 /** Quick-switch timeframes offered when the current frame has no patterns. */
 const EMPTY_STATE_TIMEFRAMES = ["1D", "1W", "1h", "15m"];
@@ -113,23 +124,71 @@ function NoPatternsPanel(props: {
   );
 }
 
+type HitSource = "scan" | "live";
+
+/** Optional provenance carried by newer chart payloads, absent on older ones. */
+type SourcedHit = PatternHitDTO & { source?: unknown };
+type SourcedPayload = ChartPayload & { source?: unknown };
+
+/** US chart metadata added on top of the base contract (India omits all of it). */
+type MarketChartPayload = ChartPayload & {
+  market?: unknown;
+  feed?: unknown;
+  delay_label?: unknown;
+  session_date?: unknown;
+};
+
+function readMetaString(raw: unknown): string | null {
+  return typeof raw === "string" && raw ? raw : null;
+}
+
+function normalizeSource(raw: unknown): HitSource | null {
+  if (typeof raw !== "string") return null;
+  const value = raw.toLowerCase();
+  if (value === "scan" || value === "stored" || value === "db") return "scan";
+  if (value === "live" || value === "detected" || value === "detect") return "live";
+  return null;
+}
+
+/** Read provenance from the selected hit, then the payload; never invent it. */
+function readHitSource(hit: PatternHitDTO | null, chart: ChartPayload): HitSource | null {
+  return (
+    normalizeSource((hit as SourcedHit | null)?.source) ??
+    normalizeSource((chart as SourcedPayload).source)
+  );
+}
+
 interface ChartLoaderState {
   symbol: string;
   hit: PatternHitDTO | null;
   hits: PatternHitDTO[];
+  overlays: PatternOverlay[];
   candles: ChartCandle[];
   trendLines: TrendLine[];
   loading: boolean;
   error: string | null;
   /** Endpoint explanation when the response carries no candles. */
   note: string | null;
+  /** SCAN/LIVE badge source, only when the payload actually reports one. */
+  source: HitSource | null;
+  /** Active feed; US payloads additionally carry source/delay/session metadata. */
+  market: ChartMarket;
+  feed: string | null;
+  delayLabel: string | null;
+  sessionDate: string | null;
 }
 
 const EMPTY_LISTS = {
   hit: null,
   hits: [] as PatternHitDTO[],
+  overlays: [] as PatternOverlay[],
   candles: [] as ChartCandle[],
   trendLines: [] as TrendLine[],
+  source: null as HitSource | null,
+  market: "india" as ChartMarket,
+  feed: null as string | null,
+  delayLabel: null as string | null,
+  sessionDate: null as string | null,
 };
 
 /**
@@ -143,6 +202,7 @@ function useSymbolPatternChartSolid(args: {
   timeframe: () => string;
   asOf: () => string | null;
   fromDate: () => string | null;
+  market: () => ChartMarket;
 }) {
   const [state, setState] = createSignal<ChartLoaderState>({
     symbol: args.symbol(),
@@ -174,40 +234,84 @@ function useSymbolPatternChartSolid(args: {
 
     const asOf = args.asOf();
     const fromDate = args.fromDate();
-    const options = {
-      detectPatterns: true,
+    const timeframe = args.timeframe();
+    const market = args.market();
+    const baseOptions = {
       computeTrendlines: true,
       ...(asOf ? { asOf } : {}),
       ...(fromDate ? { fromDate } : {}),
     };
 
-    void fetchSymbolChart(symbol, args.timeframe(), options)
+    const applyChart = (chart: ChartPayload, market: ChartMarket) => {
+      if (!mounted || requestToken !== token) return;
+      const hits = sortHitsNewest(chart.hits ?? []);
+      const hit = newestHit(hits);
+      const meta = chart as MarketChartPayload;
+      const isUS = market === "usa";
+      setState({
+        symbol,
+        hit,
+        hits,
+        overlays: chart.overlays ?? [],
+        candles: chart.candles ?? [],
+        trendLines: chart.trend_lines ?? [],
+        loading: false,
+        error: null,
+        note: (chart.candles?.length ?? 0) > 0 ? null : (chart.note ?? chart.error ?? null),
+        source: readHitSource(hit, chart),
+        market,
+        feed: isUS ? readMetaString(meta.feed) : null,
+        delayLabel: isUS ? readMetaString(meta.delay_label) : null,
+        sessionDate: isUS ? readMetaString(meta.session_date) : null,
+      });
+    };
+
+    const fail = (err: unknown) => {
+      if (!mounted || requestToken !== token) return;
+      setState((prev) =>
+        prev.symbol === symbol
+          ? {
+              ...prev,
+              loading: false,
+              error: err instanceof Error ? err.message : "Failed to load chart",
+            }
+          : prev,
+      );
+    };
+
+    // US is a single live-detection read: one call, no stored scan lookup and
+    // no second fallback. The backend enables `detect_patterns` for the US
+    // feed, so the returned hits/trend lines render like any other chart.
+    if (market === "usa") {
+      void fetchSymbolChart(symbol, timeframe, { ...baseOptions, market: "usa", detectPatterns: true })
+        .then((chart) => applyChart(chart, market))
+        .catch(fail);
+      return;
+    }
+
+    // Replay cuts are point-in-time: stored scan hits come from the latest
+    // scan, so as-of goes straight to live detection (the previous behaviour).
+    if (asOf) {
+      void fetchSymbolChart(symbol, timeframe, { ...baseOptions, detectPatterns: true })
+        .then((chart) => applyChart(chart, market))
+        .catch(fail);
+      return;
+    }
+
+    // Stored-first: prefer the table's scanned pattern set. Only fall back to
+    // live detection for unscanned symbols, guarded by the same request token.
+    void fetchSymbolChart(symbol, timeframe, { ...baseOptions, detectPatterns: false })
       .then((chart) => {
         if (!mounted || requestToken !== token) return;
-        const hits = sortHitsNewest(chart.hits ?? []);
-        setState({
-          symbol,
-          hit: newestHit(hits),
-          hits,
-          candles: chart.candles ?? [],
-          trendLines: chart.trend_lines ?? [],
-          loading: false,
-          error: null,
-          note: (chart.candles?.length ?? 0) > 0 ? null : (chart.note ?? chart.error ?? null),
-        });
+        if ((chart.hits?.length ?? 0) > 0) {
+          applyChart(chart, market);
+          return;
+        }
+        void fetchSymbolChart(symbol, timeframe, { ...baseOptions, detectPatterns: true })
+          .then((chart) => applyChart(chart, market))
+          .catch(fail);
       })
-      .catch((err: unknown) => {
-        if (!mounted || requestToken !== token) return;
-        setState((prev) =>
-          prev.symbol === symbol
-            ? {
-                ...prev,
-                loading: false,
-                error: err instanceof Error ? err.message : "Failed to load chart",
-              }
-            : prev,
-        );
-      });
+      .catch(fail);
   };
 
   createEffect(() => {
@@ -216,6 +320,7 @@ function useSymbolPatternChartSolid(args: {
     args.timeframe();
     args.asOf();
     args.fromDate();
+    args.market();
     load();
   });
 
@@ -241,8 +346,26 @@ const ChartView = () => {
   const timeframe = createMemo(() => firstParam(searchParams.tf) || DEFAULT_TIMEFRAME);
   const asOf = createMemo(() => firstParam(searchParams.asof));
   const fromDate = createMemo(() => firstParam(searchParams.from));
+  // `?market` is an explicit override; anything other than `usa` is India.
+  const market = createMemo<ChartMarket>(() =>
+    firstParam(searchParams.market) === "usa" ? "usa" : "india",
+  );
+  const isUS = () => market() === "usa";
 
-  const chart = useSymbolPatternChartSolid({ symbol, timeframe, asOf, fromDate });
+  /** Patch one search param while keeping the rest (notably `market=usa`). */
+  const patchSearchParams = (patch: Record<string, string | string[] | null | undefined>) => {
+    setSearchParams({ ...searchParams, ...patch }, { replace: true });
+  };
+
+  // Replay is NSE-only: a `?asof=`/`?from=` on a US URL must not leak into the
+  // provider request (the US chart API has no as-of support).
+  const chart = useSymbolPatternChartSolid({
+    symbol,
+    timeframe,
+    asOf: () => (isUS() ? null : asOf()),
+    fromDate: () => (isUS() ? null : fromDate()),
+    market,
+  });
 
   createEffect(() => {
     let active = true;
@@ -258,29 +381,54 @@ const ChartView = () => {
     });
   });
 
+  // The US provider serves a fixed ladder; the India registry is not reused.
+  // Keep the active frame first: the shared Select does not re-apply `value`
+  // when options arrive asynchronously, so it falls back to the first option.
+  const visibleTimeframes = createMemo(() => {
+    if (!isUS()) return timeframes();
+    const ladder = timeframes().filter((tf) =>
+      (US_TIMEFRAMES as readonly string[]).includes(tf.id),
+    );
+    const active = timeframe();
+    const index = ladder.findIndex((tf) => tf.id === active);
+    return index > 0
+      ? [ladder[index], ...ladder.slice(0, index), ...ladder.slice(index + 1)]
+      : ladder;
+  });
+  const usFeedLabel = createMemo(() =>
+    [chart.state().feed, chart.state().delayLabel].filter(Boolean).join(" · "),
+  );
+
   const setTimeframe = (next: string) => {
     if (next === timeframe()) return;
-    setSearchParams({ tf: next }, { replace: true });
+    patchSearchParams({ tf: next });
   };
 
   const setAsOf = (nextAsOf: string | null, nextFrom: string | null) => {
-    setSearchParams(
-      {
-        asof: nextAsOf ? nextAsOf : null,
-        from: nextFrom ? nextFrom : null,
-      },
-      { replace: true },
-    );
+    patchSearchParams({
+      asof: nextAsOf ? nextAsOf : null,
+      from: nextFrom ? nextFrom : null,
+    });
   };
 
-  // An unknown/garbled `?tf=` falls back to 1D once the real ladder arrives.
+  // An unknown/garbled `?tf=` falls back to 1D. US validates against its fixed
+  // ladder immediately: the async `/timeframes` response starts as the 1D-only
+  // fallback, so consulting it here would clobber a valid deep link (e.g. 5m)
+  // before the real options arrive and fire a spurious second request.
   createEffect(() => {
-    const list = timeframes();
-    if (!list.length) return;
     const tf = timeframe();
     if (tf === DEFAULT_TIMEFRAME) return;
+
+    if (isUS()) {
+      if ((US_TIMEFRAMES as readonly string[]).includes(tf)) return;
+      patchSearchParams({ tf: DEFAULT_TIMEFRAME });
+      return;
+    }
+
+    const list = visibleTimeframes();
+    if (!list.length) return;
     if (list.some((spec) => spec.id === tf)) return;
-    setSearchParams({ tf: DEFAULT_TIMEFRAME }, { replace: true });
+    patchSearchParams({ tf: DEFAULT_TIMEFRAME });
   });
 
   const showLoader = () =>
@@ -304,34 +452,61 @@ const ChartView = () => {
       <div
         data-testid="chart-view"
         id="chart-view"
+        data-market={chart.state().market}
+        data-feed={chart.state().feed ?? ""}
+        data-delay-label={chart.state().delayLabel ?? ""}
+        data-session-date={chart.state().sessionDate ?? ""}
         class="flex h-full min-h-0 w-full flex-col overflow-hidden bg-fin-bg"
       >
         <div
           data-testid="chart-header"
           class="shrink-0 border-b border-fin-border px-4 py-2"
         >
-          <PatternChartToolbar
-            leading={
-              <Button
-                size="xs"
-                variant="subtle"
-                onClick={() => navigate(-1)}
-                data-testid="chart-back-btn"
-              >
-                ← Back
-              </Button>
-            }
-            title={symbol().toUpperCase()}
-            titleTestId="chart-title"
-            titleSize="md"
-            timeframe={timeframe()}
-            timeframes={timeframes()}
-            onTimeframeChange={setTimeframe}
-            loading={chart.state().loading}
-            asOf={asOf()}
-            fromDate={fromDate()}
-            onAsOfChange={setAsOf}
-          />
+          <ToolbarRow gap={8} className="min-w-0">
+            <PatternChartToolbar
+              leading={
+                <Button
+                  size="xs"
+                  variant="subtle"
+                  onClick={() => navigate(-1)}
+                  data-testid="chart-back-btn"
+                >
+                  ← Back
+                </Button>
+              }
+              title={symbol().toUpperCase()}
+              titleTestId="chart-title"
+              titleSize="md"
+              timeframe={timeframe()}
+              timeframes={visibleTimeframes()}
+              onTimeframeChange={setTimeframe}
+              loading={chart.state().loading}
+              asOf={isUS() ? null : asOf()}
+              fromDate={isUS() ? null : fromDate()}
+              onAsOfChange={isUS() ? undefined : setAsOf}
+            />
+            <Show when={!isUS() && chart.state().source}>
+              {(source) => (
+                <Badge size="xs" color="dimmed" data-testid="chart-pattern-source">
+                  {source() === "scan" ? "SCAN" : "LIVE"}
+                </Badge>
+              )}
+            </Show>
+            <Show when={isUS()}>
+              <Show when={usFeedLabel()}>
+                <Badge size="xs" color="dimmed" data-testid="chart-us-feed">
+                  {usFeedLabel()}
+                </Badge>
+              </Show>
+              <Show when={chart.state().sessionDate}>
+                {(session) => (
+                  <Badge size="xs" color="dimmed" data-testid="chart-us-session">
+                    {session()}
+                  </Badge>
+                )}
+              </Show>
+            </Show>
+          </ToolbarRow>
         </div>
 
         <Switch>
@@ -366,20 +541,23 @@ const ChartView = () => {
           <Match when={true}>
             <PatternChartBody
               fill
+              market={market()}
               hit={chart.state().hit}
               hits={chart.state().hits}
               onSelectHit={chart.selectHit}
               candles={chart.state().candles}
-              overlays={[]}
+              overlays={chart.state().overlays}
               trendLines={chart.state().trendLines}
-              asOf={asOf()}
+              asOf={isUS() ? null : asOf()}
               emptyState={
-                <NoPatternsPanel
-                  symbol={symbol().toUpperCase()}
-                  timeframe={timeframe()}
-                  timeframes={timeframes()}
-                  onChange={setTimeframe}
-                />
+                isUS() ? undefined : (
+                  <NoPatternsPanel
+                    symbol={symbol().toUpperCase()}
+                    timeframe={timeframe()}
+                    timeframes={visibleTimeframes()}
+                    onChange={setTimeframe}
+                  />
+                )
               }
             />
           </Match>

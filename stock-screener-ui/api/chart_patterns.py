@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import queue as _queue
+import re
 import threading
 import time as _time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -43,6 +44,7 @@ except Exception:  # pragma: no cover - engine always present in app env
     engine_mod = None
 from db.models.user import User
 from api.auth import get_current_user
+from api.rate_limit import US_CHART_RATE_DETAIL, us_chart_limiter
 from api.utils import _sanitize_for_json
 
 router = APIRouter(prefix="/api/chart-patterns", tags=["chart-patterns"])
@@ -965,6 +967,32 @@ def _kick_stale_first_refresh(symbol: str, timeframe: str, lookback_bars) -> boo
 
     threading.Thread(target=_run, name=f"chart-stale-refresh-{key[0]}-{key[1]}", daemon=True).start()
     return True
+
+
+def _stored_hits(symbol_u: str, timeframe: str, detail: Optional[dict] = None) -> list:
+    """Stored-scan hits in the chart's ``PatternHitDTO`` shape.
+
+    ``store.get_symbol_detail`` already returns each row as a DTO-shaped dict;
+    clone it, tag ``source="stored"`` so a consumer can tell these from
+    live-detected hits, and strip the risk-sizing fields the chart never
+    exposes. ``detail`` lets a caller that already fetched the symbol reuse it.
+    Never raises.
+    """
+    if detail is None:
+        try:
+            detail = store.get_symbol_detail(symbol_u, timeframe)
+        except Exception:
+            detail = {}
+    patterns = detail.get("patterns", []) if isinstance(detail, dict) else []
+    hits: list = []
+    for pattern in patterns:
+        if not isinstance(pattern, dict):
+            continue
+        record = dict(pattern)
+        record["source"] = "stored"
+        hits.append(record)
+    _strip_risk_fields(hits)
+    return hits
 
 
 def _stored_overlays_and_lines(symbol_u: str, timeframe: str, df=None) -> tuple[list, list]:
@@ -2584,6 +2612,7 @@ def _live_hit_to_dict(hit, symbol: str, timeframe: str) -> Optional[dict]:
         return None
     record.setdefault("symbol", symbol.upper())
     record.setdefault("timeframe", timeframe)
+    record.setdefault("source", "live")
     return record
 
 
@@ -2603,6 +2632,49 @@ def _live_overlay(hit: dict) -> Optional[dict]:
         }
     except Exception:
         return None
+
+
+def _live_detect_block(df, symbol_u: str, timeframe: str, lookback_bars,
+                       compute_trendlines: bool) -> dict:
+    """Pure live detection on a provider frame — no store, no NSE calendar.
+
+    The engine and the trendline detector are price geometry over a normalised
+    UTC OHLCV frame; neither reads the IST session, the NSE holiday calendar or
+    Upstox. That makes the same helpers the India live-chart path uses reusable
+    for a US frame. ``hits`` are tagged ``source="live"`` by
+    :func:`_live_hit_to_dict`. Never raises: a broken frame yields empty lists.
+    """
+    hits: list = []
+    overlays: list = []
+    if df is not None and not getattr(df, "empty", True) and engine_mod is None:
+        _chart_logger.error(
+            "chart_live_detect_unavailable symbol=%s timeframe=%s: pattern engine not importable",
+            symbol_u, timeframe,
+        )
+    if df is not None and not getattr(df, "empty", True) and engine_mod is not None:
+        try:
+            live = engine_mod.detect_patterns(df, timeframe, symbol_u) or []
+        except Exception:
+            # An engine failure used to become a silent empty hit list, which
+            # made a broken detector indistinguishable from "no patterns".
+            _chart_logger.exception(
+                "chart_live_detect_failed symbol=%s timeframe=%s rows=%d",
+                symbol_u, timeframe, len(df),
+            )
+            live = []
+        for hit in live:
+            record = _live_hit_to_dict(hit, symbol_u, timeframe)
+            if record is None:
+                continue
+            record["source"] = "live"
+            hits.append(record)
+            overlay = _live_overlay(record)
+            if overlay is not None:
+                overlays.append(overlay)
+    trend_lines: list = []
+    if compute_trendlines and df is not None and not getattr(df, "empty", True):
+        trend_lines = _detect_trend_lines(df, lookback_bars, [])
+    return {"hits": hits, "live_overlays": overlays, "trend_lines": trend_lines}
 
 
 async def _asof_symbol_chart(
@@ -2740,6 +2812,248 @@ def _mark_partial_last(series: list, is_partial: bool) -> list:
     return series
 
 
+# ---------------------------------------------------------------------------
+# US-stock chart (market=usa).
+#
+# The provider/cache/session modules are imported lazily inside the handler so
+# the India path never depends on them and stays byte-identical. A US chart is
+# deliberately thin: candles come from the provider via its cache. Optional
+# pattern detection runs the *pure* price engine on that frame (no store, no
+# calendar); the NSE session, Upstox and the stored scan are never touched.
+# All failures are mapped to fixed error payloads — no upstream text reaches
+# the client.
+# ---------------------------------------------------------------------------
+
+_US_TIMEFRAMES = frozenset({"1m", "5m", "15m", "1h", "1D"})
+_US_UNAVAILABLE_DETAIL = "US market data temporarily unavailable"
+_US_DEFAULT_FEED = "yahoo"
+_US_DEFAULT_DELAY_LABEL = "~1 min (forming)"
+# Public route: only well-formed ticker symbols may reach the provider/cache.
+# ``fullmatch`` gives anchored semantics without letting Python's ``$`` slip
+# past a trailing newline. Alphanumeric at both ends rejects leading/trailing
+# separators; the explicit ``..`` guard below rejects path-traversal dot pairs
+# (the interior class allows '.', as ``us_cache._safe_symbol`` does). Uppercase
+# + a single dot/hyphen keeps ordinary tickers (AAPL) and share classes
+# (BRK.B / BRK-B) valid.
+_US_SYMBOL_ALLOWLIST = re.compile(r"[A-Z0-9](?:[A-Z0-9.\-]{0,18}[A-Z0-9])?")
+_US_INVALID_SYMBOL_DETAIL = "Invalid US chart symbol"
+# A rate-limited upstream may hand back a Retry-After hint. Only a bounded,
+# positive integer is safe to echo — never any upstream text.
+_US_UPSTREAM_RETRY_DEFAULT = 60
+_US_UPSTREAM_RETRY_CAP = 300
+
+
+def _us_safe_retry_after(value) -> int:
+    """Clamp an upstream retry hint to a small positive integer, or a default."""
+    try:
+        seconds = int(str(value).strip())
+    except (TypeError, ValueError):
+        return _US_UPSTREAM_RETRY_DEFAULT
+    if seconds <= 0:
+        return _US_UPSTREAM_RETRY_DEFAULT
+    return min(seconds, _US_UPSTREAM_RETRY_CAP)
+
+
+def _us_tz_aware_frame(df):
+    """Copy ``df`` with a tz-aware index; localize a naive one to UTC.
+
+    The frontend pins naive ISO strings to IST, which would place a US bar
+    ~9.5h off. The provider contract already promises tz-aware UTC, so this is
+    a last-resort guard rather than a normal path.
+    """
+    if df is None or getattr(df, "empty", False):
+        return df
+    try:
+        if isinstance(getattr(df, "index", None), pd.DatetimeIndex) and df.index.tz is None:
+            return df.tz_localize("UTC")
+    except Exception:
+        return df
+    return df
+
+
+async def _us_symbol_chart(
+    symbol: str,
+    timeframe: str,
+    limit: int,
+    lookback_bars: Optional[int],
+    as_of_date: Optional[str],
+    request: Request,
+    detect_patterns: bool = False,
+    compute_trendlines: bool = True,
+):
+    """US chart payload. Returns a JSON response, never touches the NSE stack.
+
+    Detection is opt-in (``detect_patterns``): when requested, the pure price
+    engine runs directly on the provider frame and its hits/overlays/trend lines
+    are returned with ``source="live"``. The India-only stored scan, Upstox
+    fetch, IST session calendar and NSE holidays are never consulted.
+    """
+    if as_of_date is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="as_of_date is not supported for US charts (v1 has no US replay)",
+        )
+    if timeframe not in _US_TIMEFRAMES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"unsupported US timeframe {timeframe!r}; "
+                f"expected one of {sorted(_US_TIMEFRAMES)}"
+            ),
+        )
+    # Validate before touching the provider or the cache: a public caller must
+    # not be able to feed arbitrary strings into yfinance or the disk cache.
+    symbol_u = str(symbol).strip().upper()
+    if ".." in symbol_u or _US_SYMBOL_ALLOWLIST.fullmatch(symbol_u) is None:
+        raise HTTPException(status_code=400, detail=_US_INVALID_SYMBOL_DETAIL)
+
+    import importlib
+
+    try:
+        registry = importlib.import_module("market_data.providers.registry")
+        us_sessions = importlib.import_module("market_data.providers.sessions")
+        us_cache = importlib.import_module("chart_patterns.us_cache")
+        try:
+            provider_no_data = importlib.import_module(
+                "market_data.providers.base"
+            ).ProviderNoData
+        except (ImportError, AttributeError):
+            provider_no_data = importlib.import_module(
+                "market_data.providers"
+            ).ProviderNoData
+    except (ImportError, AttributeError) as exc:
+        # A missing US stack is an availability problem, never a 500.
+        raise HTTPException(status_code=502, detail=_US_UNAVAILABLE_DETAIL) from exc
+
+    provider = registry.provider_for("usa")
+
+    df = None
+    try:
+        df = us_cache.get_us_candles(symbol_u, timeframe)
+    except Exception:  # noqa: BLE001 - cache is an optimization, not a dependency
+        df = None
+    if df is None or getattr(df, "empty", False):
+        # Cold fetch -> one upstream call, so it spends a token. A warm cache
+        # hit returns above without ever reaching this branch.
+        client_ip = request.client.host if request.client else "unknown"
+        allowed, retry_after = us_chart_limiter.check(client_ip)
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail={"code": "rate_limited", "detail": US_CHART_RATE_DETAIL},
+                headers={"Retry-After": str(retry_after)},
+            )
+        try:
+            df = await run_in_threadpool(provider.candles, symbol_u, timeframe)
+        except provider_no_data as exc:
+            # Auth/config and rate-limit failures subclass ProviderNoData so
+            # legacy callers keep catching them, but they are not "no data".
+            # Distinguish via the neutral ``kind`` marker and map to a fixed
+            # payload — upstream text never reaches the client.
+            kind = getattr(exc, "kind", "no_data")
+            if kind == "auth":
+                _chart_logger.warning(
+                    "us_chart provider auth failure symbol=%s timeframe=%s",
+                    symbol_u, timeframe,
+                )
+                return JSONResponse(
+                    status_code=502,
+                    content={
+                        "error": "us_data_unavailable",
+                        "detail": _US_UNAVAILABLE_DETAIL,
+                    },
+                )
+            if kind == "rate_limit":
+                retry_after = _us_safe_retry_after(getattr(exc, "retry_after", None))
+                _chart_logger.warning(
+                    "us_chart provider rate limited symbol=%s timeframe=%s",
+                    symbol_u, timeframe,
+                )
+                return JSONResponse(
+                    status_code=429,
+                    content={"code": "rate_limited", "detail": US_CHART_RATE_DETAIL},
+                    headers={"Retry-After": str(retry_after)},
+                )
+            return JSONResponse(
+                status_code=404,
+                content={"error": "us_no_data", "symbol": symbol_u},
+            )
+        except Exception as exc:  # noqa: BLE001 - never leak upstream text
+            _chart_logger.warning(
+                "us_chart provider failure symbol=%s timeframe=%s error=%s",
+                symbol_u, timeframe, str(exc)[:200],
+            )
+            return JSONResponse(
+                status_code=502,
+                content={
+                    "error": "us_data_unavailable",
+                    "detail": _US_UNAVAILABLE_DETAIL,
+                },
+            )
+        if df is None or getattr(df, "empty", False):
+            return JSONResponse(
+                status_code=404,
+                content={"error": "us_no_data", "symbol": symbol_u},
+            )
+        try:
+            us_cache.put_us_candles(symbol_u, timeframe, df)
+        except Exception:  # noqa: BLE001 - a failed cache write must not fail the chart
+            pass
+
+    df = _us_tz_aware_frame(df)
+    series = _clamped_candle_series(df, lookback_bars, limit)
+    attrs = getattr(df, "attrs", {}) or {}
+    # `partial_last` records that the provider *saw* a forming tail, not that
+    # the returned tail is incomplete. On the 1m path the zero-volume forming
+    # bar is dropped, so the last candle is completed and must not be styled as
+    # in-progress. Only a kept forming bar (or an explicit `is_partial`) marks
+    # the tail incomplete.
+    tail_is_incomplete = bool(attrs.get("is_partial")) or bool(
+        attrs.get("partial_last") and not attrs.get("forming_dropped")
+    )
+    if series and tail_is_incomplete:
+        series[-1]["is_partial"] = True
+
+    try:
+        session_fn = us_sessions.session_date
+        session = session_fn() if callable(session_fn) else session_fn
+    except Exception:  # noqa: BLE001 - session label is informational
+        session = None
+
+    def _meta(name: str, default: str) -> str:
+        value = getattr(provider, name, None)
+        if callable(value):
+            try:
+                value = value()
+            except Exception:  # noqa: BLE001
+                value = None
+        return value or default
+
+    hits: list = []
+    overlays: list = []
+    trend_lines: list = []
+    if detect_patterns:
+        block = _live_detect_block(
+            df, symbol_u, timeframe, lookback_bars, compute_trendlines,
+        )
+        hits = block["hits"]
+        overlays = block["live_overlays"]
+        trend_lines = block["trend_lines"]
+
+    return _json_response({
+        "symbol": symbol_u,
+        "timeframe": timeframe,
+        "candles": series,
+        "overlays": overlays,
+        "trend_lines": trend_lines,
+        "hits": hits,
+        "market": "usa",
+        "feed": _meta("feed", _US_DEFAULT_FEED),
+        "delay_label": _meta("delay_label", _US_DEFAULT_DELAY_LABEL),
+        "session_date": session,
+    })
+
+
 def _chart_freshness(
     display_as_of: Optional[str],
     detection_as_of: Optional[str],
@@ -2772,8 +3086,44 @@ def _chart_freshness(
     return fields
 
 
-@router.get("/symbol/{symbol}/chart")
+class SymbolChartResponse(BaseModel):
+    """Documented shape of the chart payload (India and US paths).
+
+    The US path (``market=usa``) adds ``market``/``feed``/``delay_label``/
+    ``session_date`` and returns ``hits`` from live detection on the provider
+    frame. Fields are optional because empty/error branches omit most of them.
+    The handler writes a ``JSONResponse`` directly, so this model documents the
+    OpenAPI contract without re-encoding the candle-heavy payload.
+    """
+    symbol: str
+    timeframe: Optional[str] = None
+    candles: list = Field(default_factory=list)
+    overlays: list = Field(default_factory=list)
+    trend_lines: list = Field(default_factory=list)
+    hits: list = Field(default_factory=list)
+    as_of: Optional[str] = None
+    stale: Optional[bool] = None
+    detection_as_of: Optional[str] = None
+    expected_as_of: Optional[str] = None
+    note: Optional[str] = None
+    market: Optional[str] = Field(
+        default=None, description="Chart market: 'india' (default) or 'usa'."
+    )
+    feed: Optional[str] = Field(
+        default=None,
+        description="US price feed: 'yahoo', 'alpaca-iex' or 'alpaca-sip'.",
+    )
+    delay_label: Optional[str] = Field(
+        default=None, description="US quote delay, e.g. '~1 min (forming)'."
+    )
+    session_date: Optional[str] = Field(
+        default=None, description="US session date in ET (YYYY-MM-DD)."
+    )
+
+
+@router.get("/symbol/{symbol}/chart", response_model=SymbolChartResponse)
 async def get_symbol_chart(
+    request: Request,
     symbol: str,
     timeframe: str = Query("1D"),
     limit: int = Query(config.CHART_MAX_BARS, ge=1, le=config.CHART_MAX_BARS),
@@ -2783,7 +3133,18 @@ async def get_symbol_chart(
     as_of_date: Optional[str] = Query(None),
     from_date: Optional[str] = Query(None),
     refresh: bool = Query(False),
+    market: str = Query("india"),
 ):
+    if market == "usa":
+        return await _us_symbol_chart(
+            symbol, timeframe, limit, lookback_bars, as_of_date, request,
+            detect_patterns, compute_trendlines,
+        )
+    if market != "india":
+        raise HTTPException(
+            status_code=400,
+            detail=f"unknown market {market!r}; expected 'india' or 'usa'",
+        )
     if as_of_date is not None:
         return _json_response(await _asof_symbol_chart(
             symbol, timeframe, limit, lookback_bars, compute_trendlines,
@@ -2866,6 +3227,11 @@ async def get_symbol_chart(
                     symbol_u, timeframe, session, hits_block, compute_trendlines,
                     _frame_identity(df),
                 )
+            else:
+                # Detection off: the chart must agree with the market table,
+                # which shows the stored scan's pattern. Live detection never
+                # runs on this path.
+                payload["hits"] = _stored_hits(symbol_u, timeframe)
             _kick_stale_first_refresh(symbol_u, timeframe, lb)
             _log_chart_fetch(
                 symbol_u, timeframe, elapsed_ms=read_ms, rows=len(series),
@@ -3035,6 +3401,10 @@ async def get_symbol_chart(
             symbol_u, timeframe, session, hits_block, compute_trendlines,
             _frame_identity(base_df),
         )
+    else:
+        # Detection off: serve the stored scan hits so the chart matches the
+        # table. Replay (as_of_date) never reaches this branch — it stays live.
+        payload["hits"] = _stored_hits(symbol_u, timeframe)
     return _json_response(payload)
 
 

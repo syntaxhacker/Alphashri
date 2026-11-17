@@ -10,8 +10,10 @@ import {
 } from "solid-js";
 import { Box, useMediaQuery } from "@/ui";
 import { TanStackTable, type SortEntry } from "@/components/common/TanStackTable";
-import type { ChainLeg, ChainRow } from "@/api/optionsDock";
-import { chainColumns } from "./chain.columns";
+import type { ChainLeg, ChainRow, OptionChainLevels } from "@/api/optionsDock";
+import { optionsDockState } from "../../state/optionsDock";
+import { buildStrikeBadges, chainColumns } from "./chain.columns";
+import { highlightChainLevels, railShadow } from "./chainHighlight";
 
 /** Natural strike-ladder order: the default and the target of the reset control. */
 export const DEFAULT_CHAIN_SORTING: SortEntry[] = [{ id: "strike", desc: false }];
@@ -25,8 +27,20 @@ const NARROW_MIN_TABLE_WIDTH = 250;
 /** TanStackTable's `dense` rows are `--tbl-row-h: 18px` (the sticky header excluded). */
 const CHAIN_ROW_HEIGHT = 18;
 
-/** Scroll events from our own smooth scroll are ignored for this long. */
-export const CHAIN_SCROLL_SETTLE_MS = 300;
+/** Hard cap for a programmatic scroll whose browser never emits scrollend. */
+export const CHAIN_SCROLL_SETTLE_MS = 450;
+
+/** Without scrollend, release once frames have been quiet this long. */
+const CHAIN_SCROLL_QUIET_MS = 200;
+
+/** A single scroll step larger than this is a manual gesture, not an easing frame. */
+const CHAIN_MANUAL_DELTA_PX = 100;
+
+/** How close to the intended centre still counts as centred (~1.5 rows). */
+const CHAIN_CENTER_TOLERANCE_PX = 28;
+
+/** Modern browsers fire scrollend when a (smooth) scroll actually finishes. */
+const SCROLLEND_SUPPORTED = typeof window !== "undefined" && "onscrollend" in window;
 
 /**
  * Scroll-top that centres row `index` in a viewport `clientHeight` tall. The
@@ -54,6 +68,24 @@ const ATM_BG_STYLE = {
 } as JSX.CSSProperties;
 
 /**
+ * Row style for a strike: the ATM amber fill always wins, so a level tint is
+ * only painted on a non-ATM row. The level rails are independent of that — an
+ * ATM row can still carry a wall rail — and never touch height or padding.
+ */
+function strikeRowStyle(strike: number, atm: number | null, highlight: ReturnType<typeof highlightChainLevels>): JSX.CSSProperties {
+  const style: JSX.CSSProperties = {};
+  if (strike === atm) {
+    Object.assign(style, ATM_BG_STYLE);
+  } else if (highlight.tint) {
+    style["--level-tint"] = highlight.tint;
+    style["background-color"] = "var(--level-tint)";
+  }
+  const shadow = railShadow(highlight.rails);
+  if (shadow) style["box-shadow"] = shadow;
+  return style;
+}
+
+/**
  * The dock's chain table. One shared `TanStackTable`, 60-row window, no bespoke
  * renderer: the CE/PE halves are just columns with explicit `meta.align`.
  *
@@ -74,8 +106,14 @@ export function OptionChainTable(props: {
   expiry?: string | null;
   /** Bump to force a re-centre (the chain header's Center button). */
   centerNonce?: number;
+  /** Strike levels; falls back to the chain frame in the dock store. */
+  levels?: OptionChainLevels | null;
 }) {
   const narrow = useMediaQuery(CHAIN_NARROW_QUERY);
+
+  const levels = () => (props.levels !== undefined ? props.levels : (optionsDockState.chain?.levels ?? null));
+  // One map per levels change — cells only look up their strike.
+  const badgeMap = createMemo(() => buildStrikeBadges(levels()));
 
   const atmStrike = createMemo(() => {
     const spot = props.spot;
@@ -105,7 +143,38 @@ export function OptionChainTable(props: {
   let host: HTMLDivElement | undefined;
   const scrollEl = () => host?.querySelector<HTMLElement>(".paper-tanstack-scroll") ?? null;
   const [following, setFollowing] = createSignal(true);
-  let ignoreScrollUntil = 0;
+  // A centre is a real smooth scroll. The guard must stay up until that scroll
+  // actually ends: a quiet-timer release can fire during a load-induced pause
+  // and let the easing's trailing frames look like a manual scroll, flipping
+  // following off. Native `scrollend` is the accurate "it stopped" signal; the
+  // hard cap covers browsers (and mocks) that never emit it.
+  let programmaticScroll = false;
+  let programmaticTarget = 0;
+  let pendingManual = false;
+  let lastScrollTop = 0;
+  let settleTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const clearSettleTimer = () => {
+    if (settleTimer !== undefined) clearTimeout(settleTimer);
+    settleTimer = undefined;
+  };
+
+  const finishProgrammaticScroll = () => {
+    if (!programmaticScroll) return;
+    clearSettleTimer();
+    const el = scrollEl();
+    const drifted = !!el && Math.abs(el.scrollTop - programmaticTarget) > CHAIN_CENTER_TOLERANCE_PX;
+    programmaticScroll = false;
+    // A manual grab seen mid-centre, or ending away from the target, means the
+    // user took over — drop follow now that the guard has fully released.
+    if (pendingManual || drifted) setFollowing(false);
+    pendingManual = false;
+  };
+
+  const armSettleTimer = (ms: number) => {
+    if (settleTimer !== undefined) clearTimeout(settleTimer);
+    settleTimer = setTimeout(finishProgrammaticScroll, ms);
+  };
 
   // Only the strike *ladder* (not the 10 s leg patches) is structural. Pair it
   // with the explicit expiry/side/Center signals so a spot tick cannot re-centre
@@ -124,7 +193,12 @@ export function OptionChainTable(props: {
 
   const scrollToIndex = (el: HTMLElement, index: number) => {
     const top = centerScrollTop(index, CHAIN_ROW_HEIGHT, el.clientHeight);
-    ignoreScrollUntil = Date.now() + CHAIN_SCROLL_SETTLE_MS;
+    programmaticScroll = true;
+    programmaticTarget = top;
+    pendingManual = false;
+    lastScrollTop = el.scrollTop;
+    // A mocked or instant scroll emits no scrollend, so keep the hard cap.
+    armSettleTimer(CHAIN_SCROLL_SETTLE_MS);
     // scrollIntoView is deliberately avoided: it also scrolls the page/dock.
     if (typeof el.scrollTo === "function") el.scrollTo({ top, behavior: "smooth" });
     else el.scrollTop = top;
@@ -141,7 +215,7 @@ export function OptionChainTable(props: {
 
   const followRecenter = () => {
     if (!untrack(following)) return;
-    if (Date.now() < ignoreScrollUntil) return;
+    if (programmaticScroll) return;
     const el = scrollEl();
     if (!el) return;
     const index = atmIndex();
@@ -168,15 +242,38 @@ export function OptionChainTable(props: {
   });
 
   const onScroll = () => {
-    if (Date.now() < ignoreScrollUntil) return;
+    const el = scrollEl();
+    if (!el) return;
+    const current = el.scrollTop;
+    const delta = Math.abs(current - lastScrollTop);
+    lastScrollTop = current;
+    if (programmaticScroll) {
+      // Only a large step that moves *away* from the centre target is a manual
+      // grab. Easing frames approach the target, so they never trip this even
+      // when load drops frames and makes one easing step unusually large.
+      const away = Math.abs(current - programmaticTarget) > CHAIN_CENTER_TOLERANCE_PX;
+      if (delta > CHAIN_MANUAL_DELTA_PX && away) pendingManual = true;
+      // Without scrollend, keep pushing the quiet release out while frames land.
+      if (!SCROLLEND_SUPPORTED) armSettleTimer(CHAIN_SCROLL_QUIET_MS);
+      return;
+    }
     setFollowing(false);
+  };
+
+  const onScrollEnd = () => {
+    if (programmaticScroll) finishProgrammaticScroll();
   };
 
   onMount(() => {
     const el = scrollEl();
     if (!el) return;
     el.addEventListener("scroll", onScroll, { passive: true });
-    onCleanup(() => el.removeEventListener("scroll", onScroll));
+    if (SCROLLEND_SUPPORTED) el.addEventListener("scrollend", onScrollEnd);
+    onCleanup(() => {
+      el.removeEventListener("scroll", onScroll);
+      if (SCROLLEND_SUPPORTED) el.removeEventListener("scrollend", onScrollEnd);
+      clearSettleTimer();
+    });
   });
 
   const columns = createMemo(() =>
@@ -186,6 +283,8 @@ export function OptionChainTable(props: {
       // Gated on `narrow` so a side passed while wide can never shrink the
       // nine-column desktop layout.
       side: narrow() ? (props.side ?? "CE") : undefined,
+      narrow: narrow(),
+      badgeFor: (strike) => badgeMap().get(strike),
       onPick: (strike, type, leg, side) => props.onPick?.(strike, type, leg, side),
     }),
   );
@@ -213,8 +312,14 @@ export function OptionChainTable(props: {
         loadingMessage="Loading chain…"
         emptyMessage="No strikes listed for this expiry"
         getRowTestId={(row) => `options-chain-row-${row.strike}`}
-        getRowStyle={(row) => (row.strike === atmStrike() ? ATM_BG_STYLE : undefined)}
-        getRowAttributes={(row) => ({ "data-atm": row.strike === atmStrike() ? "true" : undefined })}
+        getRowStyle={(row) => strikeRowStyle(row.strike, atmStrike(), highlightChainLevels(levels(), row.strike))}
+        getRowAttributes={(row) => {
+          const highlight = highlightChainLevels(levels(), row.strike);
+          return {
+            "data-atm": row.strike === atmStrike() ? "true" : undefined,
+            "data-level": highlight.keys.length ? highlight.keys.join(" ") : undefined,
+          };
+        }}
         sorting={props.sorting}
         onSortingChange={props.onSortingChange}
         initialState={{ sorting: DEFAULT_CHAIN_SORTING }}

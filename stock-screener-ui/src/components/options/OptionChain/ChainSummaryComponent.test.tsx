@@ -47,6 +47,17 @@ describe("ChainSummary component rendering", () => {
     expect(screen.getByText("Bearish bias")).toBeInTheDocument();
   });
 
+  it("renders a neutral bias when PCR is between the shared cutoffs", () => {
+    render(() => <ChainSummary
+        strikeMatrix={[]}
+        spotPrice={24500}
+        selectedExpiry="25MAY"
+        summary={{ pcr: 1.0, max_pain: 24500, expected_move: null, total_ce_oi: 10000, total_pe_oi: 10000 }}
+      />);
+    expect(screen.getByText("Neutral")).toBeInTheDocument();
+    expect(screen.queryByText("Bullish bias")).not.toBeInTheDocument();
+  });
+
   it("renders Max Pain value", () => {
     render(() => <ChainSummary
         strikeMatrix={[]}

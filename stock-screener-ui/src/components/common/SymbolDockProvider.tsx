@@ -10,7 +10,13 @@ import {
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { FALLBACK_TIMEFRAMES } from "@/components/patterns/TimeframeSelect";
 import { formatChartTick } from "@/utils/istChartTime";
-import { SymbolDockContext, type SymbolDockApi, type SymbolDockMode } from "./symbolDockContext";
+import {
+  SymbolDockContext,
+  chartHrefForSymbol,
+  isUsMarket,
+  type SymbolDockApi,
+  type SymbolDockMode,
+} from "./symbolDockContext";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { close as closeOptionsDock, open as openOptionsDock } from "@/state/optionsDock";
 
@@ -87,8 +93,10 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
   const [mode, setMode] = createSignal<SymbolDockMode>("chart");
   const [optionsSymbol, setOptionsSymbol] = createSignal<string | null>(null);
 
-  const preview = (symbol: string) => {
+  const preview = (symbol: string, market?: string) => {
     if (!isDesktop()) return;
+    // US symbols have no NSE chart data — never open the NSE dock for them.
+    if (isUsMarket(market)) return;
     if (mode() === "options") return;
     if (fullscreenSnapshot?.pinned) return;
     if (previewTimer) window.clearTimeout(previewTimer);
@@ -125,8 +133,20 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
     }
   };
 
-  const open = (symbol: string, nextMode: SymbolDockMode = "chart") => {
+  const open = (symbol: string, nextMode: SymbolDockMode = "chart", market?: string) => {
     clearTimers();
+    if (isUsMarket(market)) {
+      // US listings have no NSE chart/options data. Route to the US chart
+      // provider at every width instead of leaving an NSE dock over the page.
+      if (mode() === "options") {
+        closeOptionsDock();
+        setOptionsSymbol(null);
+      }
+      closeFullscreen();
+      setMode("chart");
+      navigate(chartHrefForSymbol(symbol, market));
+      return;
+    }
     if (nextMode === "options") {
       setMode("options");
       setOptionsSymbol(symbol);

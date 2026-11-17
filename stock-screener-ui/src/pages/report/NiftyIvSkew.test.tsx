@@ -130,11 +130,13 @@ describe("ivSkewStats", () => {
   });
 
   test("25Δ anchors use the strike closest to |delta| 0.25", () => {
+    // Convention: 25Δ RR = call IV - put IV (positive = calls rich), so a
+    // put-rich fixture like this one reads negative.
     expect(legIvAtDelta(CHAIN, "ce", 0.25)).toBe(16.5);
     expect(legIvAtDelta(CHAIN, "pe", 0.25)).toBe(20.5);
     expect(stats.call25).toBe(16.5);
     expect(stats.put25).toBe(20.5);
-    expect(stats.rr25).toBeCloseTo(4.0, 10);
+    expect(stats.rr25).toBeCloseTo(-4.0, 10);
   });
 
   test("missing deltas / IV degrade to null rather than 0", () => {
@@ -179,9 +181,9 @@ describe("formatters + read", () => {
     expect(formatVolPts(null)).toBe(IV_DASH);
   });
 
-  test("skew tone follows the richer wing (orange puts / blue calls)", () => {
-    expect(ivSkewTone(2)).toBe(palette.TERM_PE);
-    expect(ivSkewTone(-2)).toBe(palette.TERM_CE);
+  test("skew tone follows the richer wing (blue calls / orange puts)", () => {
+    expect(ivSkewTone(2)).toBe(palette.TERM_CE);
+    expect(ivSkewTone(-2)).toBe(palette.TERM_PE);
     expect(ivSkewTone(0)).toBe(palette.TEXT_MUTED);
     expect(ivSkewTone(null)).toBe(palette.TEXT_MUTED);
   });
@@ -196,6 +198,9 @@ describe("formatters + read", () => {
       "25Δ wings flat — no directional vol bid",
     );
     expect(ivSkewRead({ ...stats, rr25: -2 })).toBe(
+      "25Δ puts 2.0 vp over calls — downside hedging is bid",
+    );
+    expect(ivSkewRead({ ...stats, rr25: 2 })).toBe(
       "25Δ calls 2.0 vp over puts — upside calls are richer",
     );
     expect(ivSkewRead({ ...stats, rr25: null })).toBeNull();
@@ -267,7 +272,7 @@ describe("NiftyIvSkew render", () => {
     expect(screen.getByTestId("nifty-iv-skew-atm")).toHaveTextContent(
       "CE 18.0% · PE 19.0%",
     );
-    expect(screen.getByTestId("nifty-iv-skew-rr")).toHaveTextContent("+4.0 vp");
+    expect(screen.getByTestId("nifty-iv-skew-rr")).toHaveTextContent("-4.0 vp");
     expect(screen.getByTestId("nifty-iv-skew-put")).toHaveTextContent("20.5%");
     expect(screen.getByTestId("nifty-iv-skew-call")).toHaveTextContent("16.5%");
     expect(screen.getByTestId("nifty-iv-skew-read")).toHaveTextContent(

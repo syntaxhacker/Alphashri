@@ -20,6 +20,7 @@ import {
   fetchUnderlying,
   type ChainRow,
   type DockExpiry,
+  type OptionChainLevels,
   type OptionDockChain,
   type UnderlyingInfo,
 } from "../api/optionsDock";
@@ -225,19 +226,39 @@ function legKey(leg: { expiry: string; type: string; strike: number }): string {
 /* Requests, abort, polling                                            */
 /* ------------------------------------------------------------------ */
 
-interface Flight {
-  controller: AbortController;
-  key: string;
+/**
+ * The listing (E1) and the chain (E2) are separate flights. A single shared
+ * controller let an expiry switch abort the in-flight listing, leaving the dock
+ * with no expiries but a chain for a date the backend never listed.
+ */
+let listingController: AbortController | null = null;
+let chainController: AbortController | null = null;
+let pollTimer: ReturnType<typeof setTimeout> | null = null;
+/**
+ * Set while the chain is off screen (the pillars view). A tick that lands after
+ * the suspend must not re-arm the timer, otherwise the "hidden" chain keeps
+ * spending the options slice through `schedulePoll`'s tail.
+ */
+let pollSuspended = false;
+/** Session token: bumped only by `open`/`close`, so an async continuation from a
+ * closed or superseded session cannot write into the new one. */
+let generation = 0;
+/** Incremented on every chain load; distinguishes a superseded chain request
+ * from the one that currently owns the panel (generation stays put for an
+ * expiry switch). */
+let chainRequestId = 0;
+
+function abortListing(): void {
+  if (listingController) {
+    listingController.abort();
+    listingController = null;
+  }
 }
 
-let flight: Flight | null = null;
-let pollTimer: ReturnType<typeof setTimeout> | null = null;
-let generation = 0;
-
-function cancelFlight(): void {
-  if (flight) {
-    flight.controller.abort();
-    flight = null;
+function abortChain(): void {
+  if (chainController) {
+    chainController.abort();
+    chainController = null;
   }
 }
 
@@ -261,6 +282,7 @@ function pollDelay(): number {
 
 function schedulePoll(): void {
   clearPoll();
+  if (pollSuspended) return;
   if (!optionsDockState.symbol || !optionsDockState.expiry) return;
   if (!derivativesSessionOpen()) return;
   if (optionsDockState.paused) return;
@@ -284,6 +306,16 @@ const LEG_NUMBER_FIELDS = [
   "ltp", "oi", "prevOi", "volume", "iv", "delta",
   "gamma", "theta", "vega", "pop", "bid", "ask",
 ] as const;
+
+/**
+ * The levels block is a small value object: patch it as a whole only when its
+ * contents actually changed, so a flat tick does not repaint every badge.
+ */
+function levelsEqual(a: OptionChainLevels | null | undefined, b: OptionChainLevels | null | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return JSON.stringify(a) === JSON.stringify(b);
+}
 
 /**
  * Patch a frame field by field instead of replacing the objects, so a 10 s tick
@@ -318,6 +350,9 @@ function applyChain(next: OptionDockChain): void {
   if (prev!.asOf !== next.asOf) {
     setOptionsDockState("chain", "asOf", next.asOf);
     setOptionsDockState("asOf", next.asOf);
+  }
+  if (!levelsEqual(prev!.levels, next.levels)) {
+    setOptionsDockState("chain", "levels", next.levels ?? null);
   }
   repricePresetLegs();
 }
@@ -360,8 +395,13 @@ export function open(symbol: string, mode: OptionsDockMode = "options"): void {
   if (!upper) return;
 
   const sameSymbol = optionsDockState.symbol === upper;
-  cancelFlight();
+  // A new session owns both flights; an expiry switch (which stays in this
+  // session) never aborts the listing.
+  abortListing();
+  abortChain();
   clearPoll();
+  // A new session always polls; a suspend belongs to the last view, not the symbol.
+  pollSuspended = false;
   generation += 1;
   const token = generation;
 
@@ -389,22 +429,29 @@ export function open(symbol: string, mode: OptionsDockMode = "options"): void {
   );
 
   const controller = new AbortController();
-  flight = { controller, key: `${upper}|listing` };
+  listingController = controller;
 
   void (async () => {
     let listing: UnderlyingInfo | null = null;
     try {
       listing = await fetchUnderlying(upper, controller.signal);
     } catch (error) {
-      if (controller.signal.aborted || token !== generation) return;
-      flight = null;
+      if (token !== generation || controller.signal.aborted) return;
+      listingController = null;
       const failure = statusError(error);
       setOptionsDockState({ status: "error", error: failure, refreshing: false });
       return;
     }
-    if (controller.signal.aborted || token !== generation) return;
-    flight = null;
-    if (!listing) return;
+    if (token !== generation || controller.signal.aborted) return;
+    listingController = null;
+    if (!listing) {
+      setOptionsDockState({
+        status: "error",
+        error: { kind: "upstream", message: "Could not load the option listing" },
+        refreshing: false,
+      });
+      return;
+    }
 
     const expiries = listing.expiries;
     const defaultExpiry =
@@ -434,17 +481,30 @@ export function open(symbol: string, mode: OptionsDockMode = "options"): void {
       }),
     );
 
-    await loadChain(upper, defaultExpiry, "open");
+    await loadChain(upper, defaultExpiry, "open", token);
   })();
 }
 
 type LoadReason = "open" | "expiry" | "refresh";
 
-async function loadChain(symbol: string, expiry: string, reason: LoadReason): Promise<void> {
-  cancelFlight();
+/**
+ * E2. `token` is the session generation captured by the caller: `loadChain`
+ * never mints one, so switching expiry or refreshing cannot invalidate the
+ * listing that launched this session. Requests within a session are superseded
+ * by `chainRequestId` instead.
+ */
+async function loadChain(
+  symbol: string,
+  expiry: string,
+  reason: LoadReason,
+  token: number,
+): Promise<void> {
+  if (token !== generation) return;
+  // Only ever abort the chain — the listing belongs to `open()`.
+  abortChain();
   clearPoll();
-  generation += 1;
-  const token = generation;
+  const reqId = ++chainRequestId;
+  const current = () => token === generation && reqId === chainRequestId;
 
   const cached = frameCache.get(frameKey(symbol, expiry));
   if (cached) {
@@ -465,15 +525,17 @@ async function loadChain(symbol: string, expiry: string, reason: LoadReason): Pr
   }
 
   const controller = new AbortController();
-  flight = { controller, key: frameKey(symbol, expiry) };
+  chainController = controller;
   setOptionsDockState("refreshing", true);
 
   let chain: OptionDockChain | null = null;
   try {
     chain = await fetchChain(symbol, expiry, controller.signal);
   } catch (error) {
-    if (controller.signal.aborted || token !== generation) return;
-    flight = null;
+    // A superseded load must not write: the newer request owns the panel and
+    // will land its own terminal status.
+    if (!current() || controller.signal.aborted) return;
+    chainController = null;
     setOptionsDockState("refreshing", false);
     const failure = statusError(error);
 
@@ -483,7 +545,7 @@ async function loadChain(symbol: string, expiry: string, reason: LoadReason): Pr
         (error instanceof OptionDockError ? error.retryAfterMs : null) ?? DEFAULT_RATE_LIMIT_RETRY_MS;
       setOptionsDockState(produce((state) => {
         state.paused = { retryAfterMs, retryAt: Date.now() + retryAfterMs, reason: "rate_limited" };
-        state.status = state.chain ? "ready" : "loading";
+        state.status = state.chain ? "ready" : "error";
         state.error = state.chain ? null : failure;
       }));
       scheduleRetry(retryAfterMs);
@@ -491,9 +553,9 @@ async function loadChain(symbol: string, expiry: string, reason: LoadReason): Pr
     }
 
     // Keep the last frame painted, but surface the typed failure (an `auth`
-    // error carries "Reconnect Upstox in Settings") and keep polling so a
-    // transient 401/5xx/network blip self-heals instead of freezing the dock.
-    // Same cadence as a healthy tick — never a tight loop.
+    // error carries "Reconnect Upstox in Settings", a timeout earns the Retry
+    // banner) and keep polling so a transient blip self-heals. Same cadence as
+    // a healthy tick — never a tight loop.
     setOptionsDockState(produce((state) => {
       state.status = state.chain ? "ready" : "error";
       state.error = failure;
@@ -502,9 +564,35 @@ async function loadChain(symbol: string, expiry: string, reason: LoadReason): Pr
     return;
   }
 
-  if (controller.signal.aborted || token !== generation) return;
-  flight = null;
-  if (!chain) return;
+  if (!current() || controller.signal.aborted) return;
+  chainController = null;
+  setOptionsDockState("refreshing", false);
+
+  if (!chain) {
+    // Only an abort normally yields null (filtered above), but an unexpected
+    // null must still end in a terminal status — never a stranded loading.
+    setOptionsDockState(produce((state) => {
+      state.status = state.chain ? "ready" : "error";
+      state.error = state.error ?? { kind: "upstream", message: "Could not load the option chain" };
+    }));
+    schedulePoll();
+    return;
+  }
+
+  // The backend accepts any well-formed expiry and answers 200 with `chain: []`.
+  // For a date the listing never offered that is the silent-corruption case:
+  // show the empty state instead of a zero-row "ready" table.
+  const knownExpiry = optionsDockState.expiries.some((entry) => entry.date === expiry);
+  if (chain.rows.length === 0 && !knownExpiry) {
+    setOptionsDockState(produce((state) => {
+      state.chain = null;
+      state.asOf = null;
+      state.status = "empty";
+      state.error = null;
+      state.paused = null;
+    }));
+    return;
+  }
 
   rememberFrame(symbol, expiry, chain);
   applyChain(chain);
@@ -519,7 +607,10 @@ async function loadChain(symbol: string, expiry: string, reason: LoadReason): Pr
 
 function scheduleRetry(retryAfterMs: number): void {
   clearPoll();
+  if (pollSuspended) return;
   if (!optionsDockState.symbol || !optionsDockState.expiry) return;
+  // A closed market's last print is final; the next open re-polls on its own.
+  if (!derivativesSessionOpen()) return;
   const delay = Number.isFinite(retryAfterMs) ? Math.max(retryAfterMs, 1000) : DEFAULT_RATE_LIMIT_RETRY_MS;
   pollTimer = setTimeout(() => {
     pollTimer = null;
@@ -534,29 +625,57 @@ export function refresh(): Promise<void> {
   const expiry = optionsDockState.expiry;
   if (!symbol) return Promise.resolve();
   if (!expiry) {
-    open(symbol, optionsDockState.mode);
+    // A listing is already running for this symbol; restarting it would abort
+    // a perfectly healthy E1 and land on an unknown-expiry chain.
+    if (!listingController) open(symbol, optionsDockState.mode);
     return Promise.resolve();
   }
   setOptionsDockState("paused", null);
-  return loadChain(symbol, expiry, "refresh");
+  return loadChain(symbol, expiry, "refresh", generation);
+}
+
+/**
+ * Stop the chain timer while the chain is off screen (the pillars view). The
+ * last frame stays painted; nothing polls until `resumePolling()`, and a tick
+ * that was already in flight cannot re-arm the timer while suspended.
+ */
+export function suspendPolling(): void {
+  pollSuspended = true;
+  clearPoll();
+}
+
+/**
+ * Hand the chain back to the poller. The frame painted before the suspend is
+ * still the truth the moment the chain reappears, so this only re-arms the
+ * timer: the next tick is a normal cadence away. Fetching here would spend a
+ * chain request on the click that merely stops hiding the table.
+ */
+export function resumePolling(): void {
+  pollSuspended = false;
+  schedulePoll();
 }
 
 /** Switch expiry: the cached frame paints immediately, one refresh follows. */
 export function setExpiry(expiry: string): void {
   const symbol = optionsDockState.symbol;
   if (!symbol || !expiry || expiry === optionsDockState.expiry) return;
+  // The backend accepts any well-formed date, so an unlisted expiry would paint
+  // a 0-row "ready" chain. Ignore it until the listing has offered the date.
+  if (!optionsDockState.expiries.some((entry) => entry.date === expiry)) return;
   setOptionsDockState("expiry", expiry);
-  void loadChain(symbol, expiry, "expiry");
+  void loadChain(symbol, expiry, "expiry", generation);
 }
 
 export function setMode(mode: OptionsDockMode): void {
   setOptionsDockState("mode", mode);
 }
 
-/** Close the dock: abort the in-flight request and stop every timer. */
+/** Close the dock: abort both flights and stop every timer. */
 export function close(): void {
-  cancelFlight();
+  abortListing();
+  abortChain();
   clearPoll();
+  pollSuspended = false;
   generation += 1;
   setOptionsDockState(
     produce((state) => {
@@ -790,7 +909,7 @@ function bindVisibility(): void {
   if (visibilityBound || typeof document === "undefined") return;
   visibilityBound = true;
   document.addEventListener("visibilitychange", () => {
-    if (!optionsDockState.symbol) return;
+    if (!optionsDockState.symbol || pollSuspended) return;
     if (document.visibilityState === "hidden") {
       clearPoll();
       return;
@@ -806,8 +925,10 @@ bindVisibility();
  * contract; `close()` is what a user action calls.
  */
 export function __resetOptionsDock(): void {
-  cancelFlight();
+  abortListing();
+  abortChain();
   clearPoll();
+  pollSuspended = false;
   generation += 1;
   frameCache.clear();
   openSymbols.length = 0;

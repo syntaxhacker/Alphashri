@@ -121,7 +121,6 @@ export function setPaperTradingView(view: PaperTradingView) {
 
 // Positions management
 export function setPositions(positions: PaperPosition[]) {
-  console.log("[setPositions] count:", positions.length, "sample order_id:", positions[0]?.order_id, "keys:", Object.keys(positions[0] || {}));
   state = { ...state, positions };
   notify();
 }

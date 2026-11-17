@@ -1,6 +1,18 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { Text } from "@/ui";
-import { HEATMAP_CE, HEATMAP_FLIP, HEATMAP_MP, HEATMAP_PE, HEATMAP_SPOT, HEATMAP_TOUCH_STROKE, MONO, TERM_BORDER, TERM_HEADER, TEXT_MUTED, WARNING } from "@/ui/palette";
+import {
+  HEATMAP_FLIP,
+  HEATMAP_SPOT,
+  HEATMAP_TOUCH_STROKE,
+  LEVEL_MAX_PAIN,
+  MONO,
+  OI_CALL,
+  OI_PUT,
+  TERM_BORDER,
+  TERM_HEADER,
+  TEXT_MUTED,
+  WARNING,
+} from "@/ui/palette";
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import {
   HEATMAP_PAD_L,
@@ -15,7 +27,7 @@ import { gexFlipAtSpot } from "./niftyGex";
 import { REPORT_MINUS, formatReportCompact } from "./reportFormat";
 import type { NiftyGex } from "@/types/niftyReport";
 
-export { HEATMAP_CE, HEATMAP_FLIP, HEATMAP_MP, HEATMAP_PE, HEATMAP_SPOT };
+export { HEATMAP_CE, HEATMAP_FLIP, HEATMAP_MP, HEATMAP_PE, HEATMAP_SPOT } from "@/ui/palette";
 
 const VB_W = HEATMAP_VB_W;
 const PAD_L = HEATMAP_PAD_L;
@@ -34,18 +46,18 @@ interface LegendItemDef {
 const LEGEND: LegendItemDef[] = [
   {
     id: "ce",
-    color: HEATMAP_CE,
+    color: OI_CALL,
     label: "net call-led",
     title:
-      "Red cell — call-side ΔOI grew more than put-side ΔOI (net call-led). A red cell does NOT mean calls were bought: the put leg may simply have fallen less than the call leg.",
+      "Blue cell — call-side ΔOI grew more than put-side ΔOI (net call-led). Cells are side-coded (CE blue / PE orange), never green/red: green/red would imply direction, which OI does not have. A blue cell does NOT mean calls were bought.",
     shape: "cell",
   },
   {
     id: "pe",
-    color: HEATMAP_PE,
+    color: OI_PUT,
     label: "net put-led",
     title:
-      "Green cell — put-side ΔOI grew more than call-side ΔOI (net put-led). Same caveat as the red cell: it is a net read, not a single-leg build.",
+      "Orange cell — put-side ΔOI grew more than call-side ΔOI (net put-led). Same caveat as the blue cell: it is a net read, not a single-leg build.",
     shape: "cell",
   },
   {
@@ -65,9 +77,9 @@ const LEGEND: LegendItemDef[] = [
   },
   {
     id: "maxpain",
-    color: HEATMAP_MP,
-    label: "max pain",
-    title: "Amber dashed — max-pain strike for each bucket",
+    color: LEVEL_MAX_PAIN,
+    label: "MP max pain",
+    title: "Amber dashed — max-pain pin (MP) for each bucket; the strike where the most options expire worthless",
     shape: "dashed",
   },
   {
@@ -79,9 +91,9 @@ const LEGEND: LegendItemDef[] = [
   },
   {
     id: "mp-touch",
-    color: WARNING,
+    color: LEVEL_MAX_PAIN,
     label: "max pain touch",
-    title: "Amber dot — spot sits within 10 pts of max pain in that bucket",
+    title: "Amber dot — spot sits within 10 pts of max pain (MP) in that bucket",
     shape: "dot",
   },
 ];
@@ -102,8 +114,8 @@ const OPACITY_LABELS: Record<"oi" | "volume" | "premium", { label: string; title
 };
 
 function cellFill(sign: string): string {
-  if (sign === "ce") return HEATMAP_CE;
-  if (sign === "pe") return HEATMAP_PE;
+  if (sign === "ce") return OI_CALL;
+  if (sign === "pe") return OI_PUT;
   if (sign === "flat") return TEXT_MUTED;
   return "transparent";
 }
@@ -602,7 +614,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
                 cx={xOf(bi())}
                 cy={yOf(b.touch.spot)}
                 r={3.5}
-                fill={WARNING}
+                fill={LEVEL_MAX_PAIN}
                 stroke={HEATMAP_TOUCH_STROKE}
                 stroke-width={1}
               >
@@ -619,7 +631,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
                 x2={PAD_L + (bi() + 1) * cellW()}
                 y1={yOf(b.maxPain)}
                 y2={yOf(b.maxPain)}
-                stroke={HEATMAP_MP}
+                stroke={LEVEL_MAX_PAIN}
                 stroke-width={1}
                 stroke-dasharray="4 3"
               >

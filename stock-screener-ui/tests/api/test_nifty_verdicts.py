@@ -195,7 +195,8 @@ class TestComputeControl:
     def test_frozen_contract_keys(self):
         out = nv.compute_control([], 100.0)
         assert set(out) == {"verdict", "ce_doi", "pe_doi", "flow_bias",
-                            "atm_ce_iv", "atm_pe_iv", "skew", "gex_regime"}
+                            "atm_ce_iv", "atm_pe_iv", "skew", "put_skew",
+                            "gex_regime"}
 
 
 class TestAtmIvs:

@@ -87,7 +87,7 @@ export const getStyles = (_theme: ThemeType, _isDark: boolean) => ({
     fontVariantNumeric: "tabular-nums" as const,
   },
   atmHighlight: {
-    backgroundColor: "rgba(88, 166, 255, 0.14)",
+    backgroundColor: palette.alpha(palette.INDICATOR_BLUE_A, 0.14),
     color: palette.WARNING,
   },
   // Distinct ATM row wash applied on top of the side gradient so the
@@ -98,7 +98,7 @@ export const getStyles = (_theme: ThemeType, _isDark: boolean) => ({
   },
   // Subtle zebra tint for non-ATM rows (kept faint so heatmaps stay legible).
   zebraRow: {
-    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    backgroundColor: palette.alpha(palette.TEXT_ON_ACCENT, 0.04),
   },
   // Compact ATM window toggle bar pinned above the sticky table header.
   windowBar: {

@@ -72,6 +72,9 @@ function OptionColumn(props: {
   const styles = getStyles(props.theme, isDark());
   const type = () => props.type;
   const strike = () => props.rowStrike;
+  // Side coding: CE blue, PE orange. OI is not bullish/bearish, so the legacy
+  // green/red pair has no place here (see docs/COLOR_SEMANTICS.md).
+  const sideFill = props.type === "CE" ? palette.OI_CALL : palette.OI_PUT;
 
   const m = createMemo(() => props.contract?.market_data);
 
@@ -161,7 +164,7 @@ function OptionColumn(props: {
               value: ltp.toFixed(2),
               kind: "ltp",
               fw: 700,
-              c: isITM ? (props.type === "CE" ? "success" : "error") : undefined,
+              c: isITM ? (props.type === "CE" ? "info" : "warning") : undefined,
               isLTP: true,
               title: `LTP ₹${ltp.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             },
@@ -171,7 +174,7 @@ function OptionColumn(props: {
               value: ltp.toFixed(2),
               kind: "ltp",
               fw: 700,
-              c: isITM ? (props.type === "CE" ? "success" : "error") : undefined,
+              c: isITM ? (props.type === "CE" ? "info" : "warning") : undefined,
               isLTP: true,
               title: `LTP ₹${ltp.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             },
@@ -286,13 +289,24 @@ function OptionColumn(props: {
                 cell.positive,
               );
 
+              const isOiCell = cell.kind === "oi";
+              // getCellPalette is the legacy green/red side ramp. For OI cells
+              // override it with a ≤14% side tint and surface ink so the number
+              // stays readable (2px rail below carries the solid token).
+              const oiTint = palette.alpha(sideFill, clamp(0.08 + kindIntensity * 0.06, 0.08, 0.14));
+              const cellBackground = isOiCell ? oiTint : (cellPalette.background as string);
+              const cellText = isOiCell ? palette.TEXT : cellPalette.text;
+              const cellShadow = isOiCell
+                ? `inset 0 0 0 1px ${palette.alpha(sideFill, 0.28)}`
+                : cellPalette.shadow;
+
               const cellStyle: CSSProperties = {
                 ...(styles.cell as CSSProperties),
                 position: "relative",
                 fontWeight: cell.fw,
-                background: cellPalette.background as string,
-                boxShadow: cellPalette.shadow,
-                color: cell.c ? undefined : cellPalette.text,
+                background: cellBackground,
+                boxShadow: cellShadow,
+                color: cell.c ? undefined : cellText,
               };
 
               return (
@@ -314,12 +328,26 @@ function OptionColumn(props: {
                           bottom: "4px",
                           [type() === "CE" ? "right" : "left"]: 0,
                           width: `${d().oiBarPct}%`,
-                          background: `linear-gradient(180deg, ${hexToRgba(cellPalette.accent, 0.22)} 0%, ${hexToRgba(cellPalette.accent, 0.08)} 100%)`,
+                          "background-color": palette.alpha(sideFill, 0.14),
                           "border-radius": type() === "CE" ? "999px 0 0 999px" : "0 999px 999px 0",
                           "z-index": 0,
                           transition: "width 0.35s ease",
                         }}
-                      />
+                      >
+                        <Box
+                          aria-hidden="true"
+                          data-testid={`options-oi-rail-${type()}-${strike()}`}
+                          style={{
+                            position: "absolute",
+                            top: 0,
+                            bottom: 0,
+                            [type() === "CE" ? "right" : "left"]: 0,
+                            width: "2px",
+                            "background-color": sideFill,
+                            "border-radius": type() === "CE" ? "999px 0 0 999px" : "0 999px 999px 0",
+                          }}
+                        />
+                      </Box>
                     </Show>
 
                     <Show when={cell.isVol}>
@@ -347,7 +375,7 @@ function OptionColumn(props: {
                           fw={cell.fw}
                           c={cell.c}
                           className={flashClassFor(cell.kind)}
-                          style={cell.c ? undefined : { color: cellPalette.text }}
+                          style={cell.c ? undefined : { color: cellText }}
                           ta="center"
                           lh={1.05}
                         >
@@ -523,16 +551,19 @@ export function OptionChainTable(props: OptionChainTableProps) {
               const rowStyle = (): CSSProperties => {
                 const prox = proximity();
                 const hovered = isHovered();
-                const rowCallBg = `rgba(63, 185, 80, ${0.04 + prox * 0.09 + (hovered ? 0.05 : 0) + (ceITM() ? 0.08 : 0)})`;
-                const rowPutBg = `rgba(248, 81, 73, ${0.04 + prox * 0.09 + (hovered ? 0.05 : 0) + (peITM() ? 0.08 : 0)})`;
+                const callAlpha = 0.04 + prox * 0.09 + (hovered ? 0.05 : 0) + (ceITM() ? 0.08 : 0);
+                const putAlpha = 0.04 + prox * 0.09 + (hovered ? 0.05 : 0) + (peITM() ? 0.08 : 0);
+                const rowCallBg = palette.alpha(palette.OI_CALL, callAlpha);
+                const rowPutBg = palette.alpha(palette.OI_PUT, putAlpha);
+                const atmBg = palette.alpha(palette.WARNING, 0.12 + prox * 0.12);
                 const style: CSSProperties = {
                   ...(styles.row as CSSProperties),
                   ...(isZebra() ? (styles.zebraRow as CSSProperties) : {}),
                   ...(isATM() ? (styles.atmRow as CSSProperties) : {}),
-                  background: `linear-gradient(90deg, ${rowCallBg} 0%, transparent 37%, ${isATM() ? `rgba(240, 136, 62, ${0.12 + prox * 0.12})` : "transparent"} 50%, transparent 63%, ${rowPutBg} 100%)`,
+                  background: `linear-gradient(90deg, ${rowCallBg} 0%, transparent 37%, ${isATM() ? atmBg : "transparent"} 50%, transparent 63%, ${rowPutBg} 100%)`,
                 };
                 if (hovered) {
-                  style["box-shadow"] = `inset 0 0 0 1px rgba(240, 136, 62, 0.5), 0 6px 16px rgba(0, 0, 0, 0.08)`;
+                  style["box-shadow"] = `inset 0 0 0 1px ${palette.alpha(palette.WARNING, 0.5)}, 0 6px 16px ${palette.alpha(palette.BG, 0.08)}`;
                 }
                 return style;
               };
@@ -571,7 +602,7 @@ export function OptionChainTable(props: OptionChainTableProps) {
                       ...(isATM() ? (styles.atmHighlight as CSSProperties) : {}),
                       ...(isHovered()
                         ? {
-                            "box-shadow": `inset 0 0 0 1px rgba(240, 136, 62, 0.45), 0 8px 22px rgba(0, 0, 0, 0.08)`,
+                            "box-shadow": `inset 0 0 0 1px ${palette.alpha(palette.WARNING, 0.45)}, 0 8px 22px ${palette.alpha(palette.BG, 0.08)}`,
                           }
                         : undefined),
                     } as CSSProperties}
@@ -590,7 +621,7 @@ export function OptionChainTable(props: OptionChainTableProps) {
                         ATM
                       </Badge>
                     </Show>
-                    {/* CE-vs-PE dominance micro-bar: green/red split of strike OI */}
+                    {/* CE-vs-PE dominance micro-bar: blue/orange split of strike OI */}
                     <Box
                       data-testid={`options-dominance-${strike()}`}
                       title={`CE ${ceSharePct().toFixed(0)}% / PE ${(100 - ceSharePct()).toFixed(0)}% of strike OI`}
@@ -604,8 +635,8 @@ export function OptionChainTable(props: OptionChainTableProps) {
                         "background-color": palette.BORDER,
                       }}
                     >
-                      <Box style={{ width: `${ceSharePct()}%`, "background-color": palette.POSITIVE }} />
-                      <Box style={{ width: `${100 - ceSharePct()}%`, "background-color": palette.NEGATIVE }} />
+                      <Box style={{ width: `${ceSharePct()}%`, "background-color": palette.OI_CALL }} />
+                      <Box style={{ width: `${100 - ceSharePct()}%`, "background-color": palette.OI_PUT }} />
                     </Box>
                   </Box>
 

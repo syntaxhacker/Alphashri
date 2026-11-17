@@ -11,11 +11,9 @@ import {
 } from "@/ui";
 import { IconChevronLeft, IconFilter } from "../common/Icons";
 import { RangeInput } from "../common/RangeInput";
-import {
-  CAP_TIERS,
-  CAP_TIER_LABELS,
-  type MarketFilterState,
-} from "./marketFilters";
+import { currencyFor, type CurrencyCode } from "@/config/currency";
+import { descriptorForCurrency } from "@/config/marketUniverses";
+import { capTierOptions, universeHasFno, type MarketFilterState } from "./marketFilters";
 
 /** One size for every band label in the rail — header included. */
 const SECTION_LABEL = "text-[10px] uppercase tracking-[0.06em]";
@@ -31,6 +29,34 @@ export interface MarketFilterRailProps {
   onCollapse?: () => void;
   /** Accessible label for the collapse button (desktop "collapse" / drawer "close"). */
   collapseLabel?: string;
+  /** Quote currency of the current universe. Defaults to India so callers are unchanged. */
+  currency?: CurrencyCode;
+}
+
+/**
+ * India's cap bound reads in thousands of crore (the legacy compact label);
+ * USD reads straight in billions. The unit always travels with the currency so
+ * a US bound can never acquire a crore suffix.
+ */
+export function formatRailMcap(value: number, currency?: CurrencyCode): string {
+  const spec = currencyFor(currency);
+  if (spec.code === "INR") {
+    return `${spec.symbol}${Math.round(value / 1000)}k ${spec.mcapSuffix}`;
+  }
+  return `${spec.symbol}${value}${spec.mcapSuffix}`;
+}
+
+export function railPriceLabel(currency?: CurrencyCode): string {
+  return `Price ${currencyFor(currency).symbol}`;
+}
+
+/** US rows are outside the NSE/BSE F&O universe, so the F&O affordance is India-only. */
+export function hasFnoAffordance(currency?: CurrencyCode): boolean {
+  return universeHasFno(descriptorForCurrency(currency).value);
+}
+
+export function formatRailPrice(value: number, currency?: CurrencyCode): string {
+  return `${currencyFor(currency).symbol}${value}`;
 }
 
 function SectionTitle(props: { children?: string }) {
@@ -62,6 +88,15 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
   const filters = () => props.filters;
   const tierCounts = () => props.tierCounts;
   const collapseLabel = () => props.collapseLabel ?? "Collapse filters";
+  const capTierOpts = () => capTierOptions(descriptorForCurrency(props.currency).value);
+
+  // Read inside the JSX prop, not once per <For> item: a snapshot refresh (or an
+  // India → US hydration) replaces tierCounts without recreating the options,
+  // and a captured string would keep printing the previous universe's counts.
+  const tierLabel = (tier: { value: string; label: string }): string => {
+    const count = tierCounts()?.[tier.value];
+    return count !== undefined ? `${tier.label} (${count})` : tier.label;
+  };
 
   const toggleTier = (tier: string, checked: boolean): void => {
     const next = new Set(filters().capTiers);
@@ -100,14 +135,14 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
 
       <RailSection title="Price & size">
         <RangeInput
-          label="Price ₹"
+          label={railPriceLabel(props.currency)}
           min={filters().priceMin ?? null}
           max={filters().priceMax ?? null}
           onMinChange={(v) => props.onChange({ priceMin: v })}
           onMaxChange={(v) => props.onChange({ priceMax: v })}
           domain={[0, 10000]}
           step={10}
-          formatValue={(v) => `₹${v}`}
+          formatValue={(v) => formatRailPrice(v, props.currency)}
           commitOnRelease
           testId="market-filter-price"
         />
@@ -120,25 +155,21 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
           onMaxChange={(v) => props.onChange({ mcapMaxCr: v })}
           domain={[0, 500000]}
           step={1000}
-          formatValue={(v) => `₹${Math.round(v / 1000)}k Cr`}
+          formatValue={(v) => formatRailMcap(v, props.currency)}
           commitOnRelease
           testId="market-filter-mcap"
         />
 
         <ToggleGroup>
-          <For each={CAP_TIERS}>{(tier) => {
-            const count = tierCounts()?.[tier];
-            const label = count !== undefined ? `${CAP_TIER_LABELS[tier]} (${count})` : CAP_TIER_LABELS[tier];
-            return (
-              <Checkbox
-                size="xs"
-                label={label}
-                checked={filters().capTiers.has(tier)}
-                onChange={(e) => toggleTier(tier, (e.currentTarget as HTMLInputElement).checked)}
-                data-testid={`market-cap-${tier}`}
-              />
-            );
-          }}</For>
+          <For each={capTierOpts()}>{(tier) => (
+            <Checkbox
+              size="xs"
+              label={tierLabel(tier)}
+              checked={filters().capTiers.has(tier.value)}
+              onChange={(e) => toggleTier(tier.value, (e.currentTarget as HTMLInputElement).checked)}
+              data-testid={`market-cap-${tier.value}`}
+            />
+          )}</For>
         </ToggleGroup>
       </RailSection>
 
@@ -226,13 +257,15 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
 
       <RailSection title="Instrument">
         <ToggleGroup>
-          <Switch
-            size="xs"
-            label="F&O only"
-            checked={filters().fnoOnly}
-            onChange={(e) => props.onChange({ fnoOnly: (e.currentTarget as HTMLInputElement).checked })}
-            data-testid="market-filter-fno"
-          />
+          <Show when={hasFnoAffordance(props.currency)}>
+            <Switch
+              size="xs"
+              label="F&O only"
+              checked={filters().fnoOnly}
+              onChange={(e) => props.onChange({ fnoOnly: (e.currentTarget as HTMLInputElement).checked })}
+              data-testid="market-filter-fno"
+            />
+          </Show>
           <Switch
             size="xs"
             label="ETF only"

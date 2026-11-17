@@ -2034,7 +2034,7 @@ def test_symbol_chart_detect_patterns_returns_hits(cp_client, monkeypatch, no_st
     assert isinstance(body["trend_lines"], list)
 
 
-def test_symbol_chart_without_detect_patterns_keeps_old_shape(cp_client, monkeypatch, no_stale_first):
+def test_symbol_chart_without_detect_patterns_returns_stored_hits(cp_client, monkeypatch, no_stale_first):
     from types import SimpleNamespace
 
     def _boom(df, timeframe, symbol):
@@ -2047,12 +2047,21 @@ def test_symbol_chart_without_detect_patterns_keeps_old_shape(cp_client, monkeyp
     chart = cp_client.get("/api/chart-patterns/symbol/IRCON/chart", params={"timeframe": "1D"})
     assert chart.status_code == 200
     body = chart.json()
-    assert "hits" not in body
+    # Detection off: the stored scan's hit is returned, not an empty/omitted one.
+    assert len(body["hits"]) == 1
+    stored = body["hits"][0]
+    assert stored["pattern_id"] == "falling_wedge"
+    assert stored["pattern_name"] == "Falling Wedge"
+    assert stored["id"] is not None
+    assert stored["source"] == "stored"
+    # Risk sizing is the trader's job — it is stripped from chart hits too.
+    for key in cp_api._RISK_FIELDS:
+        assert key not in stored
     # A successful network-path chart now carries the same freshness keys as a
     # cache serve; only the optional expected_as_of may additionally appear.
     assert set(body) - {"expected_as_of"} == {
         "symbol", "timeframe", "candles", "overlays", "trend_lines",
-        "as_of", "stale", "detection_as_of",
+        "as_of", "stale", "detection_as_of", "hits",
     }
     assert len(body["overlays"]) == 1
 
@@ -2075,6 +2084,106 @@ def test_symbol_chart_detect_patterns_engine_error_still_200(cp_client, monkeypa
     body = chart.json()
     assert body["hits"] == []
     assert len(body["candles"]) == 80
+
+
+def test_symbol_chart_stale_first_returns_stored_hits(cp_client, monkeypatch):
+    """The stale-first branch also serves stored hits when detection is off."""
+    from types import SimpleNamespace
+
+    store.save_hits("cpj_storedsf", [_hit("IRCON")])
+    df = _make_df(80)
+    monkeypatch.setattr(cp_api, "_stale_first_frame", lambda *a, **k: (df, "2026-03-11", 1.0))
+    monkeypatch.setattr(cp_api, "_kick_stale_first_refresh", lambda *a, **k: True)
+    monkeypatch.setattr(cp_api.candles, "missing_today_bar", lambda _df: False)
+
+    def _boom(*a, **k):
+        raise AssertionError("engine must not run when detect_patterns is absent")
+
+    monkeypatch.setattr(cp_api, "engine_mod", SimpleNamespace(detect_patterns=_boom))
+
+    chart = cp_client.get("/api/chart-patterns/symbol/IRCON/chart", params={"timeframe": "1D"})
+    assert chart.status_code == 200
+    body = chart.json()
+    assert body["cached"] is True
+    assert len(body["hits"]) == 1
+    assert body["hits"][0]["pattern_id"] == "falling_wedge"
+    assert body["hits"][0]["source"] == "stored"
+
+
+def test_symbol_chart_no_stored_hits_returns_empty_list(cp_client, monkeypatch, no_stale_first):
+    """No stored hits → empty list with no error and no live detection."""
+    from types import SimpleNamespace
+
+    def _boom(df, timeframe, symbol):
+        raise AssertionError("engine must not run when detect_patterns is absent")
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
+    monkeypatch.setattr(cp_api, "engine_mod", SimpleNamespace(detect_patterns=_boom))
+
+    chart = cp_client.get("/api/chart-patterns/symbol/NOHITS/chart", params={"timeframe": "1D"})
+    assert chart.status_code == 200
+    body = chart.json()
+    assert body["hits"] == []
+    assert body["overlays"] == []
+
+
+def test_aplapollo_stored_and_live_paths_are_distinguishable(cp_client, monkeypatch, no_stale_first):
+    """Stored Consolidation (table) vs live Ascending Triangle (detector).
+
+    Regression for APLAPOLLO: detection-off must return the stored hit instead
+    of none (which forced the chart to live-detect a different pattern), while
+    detection-on must keep the live hit as the primary list. The two paths are
+    distinguishable by their ``source`` tag and pattern name.
+    """
+    from types import SimpleNamespace
+
+    from chart_patterns.detectors.common import PatternHit
+
+    stored = dict(_hit("APLAPOLLO", name="Apollo Pipes"))
+    stored.update(pattern_id="consolidation", pattern_name="Consolidation")
+    store.save_hits("cpj_apollo", [stored])
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
+
+    live_hit = PatternHit(
+        pattern_id="ascending_triangle", pattern_name="Ascending Triangle",
+        family="continuation", direction="bullish", status="forming",
+        quality="strong", confidence=65.0,
+        start_date="2026-01-01", end_date="2026-02-01",
+        start_price=100.0, end_price=110.0,
+        breakout_level=110.0, target=120.0, stop=95.0, rr=2.0,
+        bars_ago=1, volume_confirmed=True,
+        symbol="APLAPOLLO", timeframe="1D", notes="live",
+    )
+    engine_calls = []
+
+    def fake_detect(df, timeframe, symbol):
+        engine_calls.append(symbol)
+        return [live_hit]
+
+    monkeypatch.setattr(cp_api, "engine_mod", SimpleNamespace(detect_patterns=fake_detect))
+
+    off = cp_client.get(
+        "/api/chart-patterns/symbol/APLAPOLLO/chart",
+        params={"timeframe": "1D", "detect_patterns": 0},
+    )
+    assert off.status_code == 200
+    off_body = off.json()
+    assert engine_calls == [], "live detection must not run when detect_patterns=0"
+    assert len(off_body["hits"]) == 1
+    assert off_body["hits"][0]["pattern_name"] == "Consolidation"
+    assert off_body["hits"][0]["source"] == "stored"
+
+    on = cp_client.get(
+        "/api/chart-patterns/symbol/APLAPOLLO/chart",
+        params={"timeframe": "1D", "detect_patterns": 1},
+    )
+    assert on.status_code == 200
+    on_body = on.json()
+    assert engine_calls == ["APLAPOLLO"]
+    assert len(on_body["hits"]) == 1
+    assert on_body["hits"][0]["pattern_name"] == "Ascending Triangle"
+    assert on_body["hits"][0]["source"] == "live"
+    assert on_body["hits"][0]["pattern_name"] != off_body["hits"][0]["pattern_name"]
 
 
 # ---------------------------------------------------------------------------
@@ -2821,8 +2930,10 @@ def test_symbol_chart_normal_path_unchanged(cp_client, monkeypatch, no_stale_fir
     assert "error" not in body and "note" not in body
     assert set(body) - {"expected_as_of"} == {
         "symbol", "timeframe", "candles", "overlays", "trend_lines",
-        "as_of", "stale", "detection_as_of",
+        "as_of", "stale", "detection_as_of", "hits",
     }
+    assert body["hits"][0]["pattern_id"] == "falling_wedge"
+    assert body["hits"][0]["source"] == "stored"
     # Every click re-fetches (successful results are not negative-cached).
     again = cp_client.get("/api/chart-patterns/symbol/RELIANCE/chart", params={"timeframe": "1D", "limit": 50})
     assert again.status_code == 200

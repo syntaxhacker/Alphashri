@@ -2,17 +2,25 @@ import { For, Show } from "solid-js";
 import type { TableColumnDef as ColumnDef } from "../common/TanStackTable";
 import { Badge, Box, Text, Tooltip } from "@/ui";
 import { SymbolLink } from "../common/SymbolLink";
-import type { MarketRow } from "../../types/marketScreener";
+import { hasIndianOptionsChain } from "../common/symbolDockContext";
+import type { MarketRow, MarketUniverse } from "../../types/marketScreener";
+import {
+  descriptorForCurrency,
+  formatMarketCap,
+  formatPrice,
+  marketCapLabel,
+  marketCapOf,
+  marketUniverseDescriptor,
+  type MarketUniverseDescriptor,
+} from "../../config/marketUniverses";
 import type { PatternSummaryItem } from "./usePatternSummary";
+import { DashCell } from "../common/tableCells";
 
 const DASH = "–";
 
-function fmtPrice(value: number | null): string {
-  if (value === null) return DASH;
-  return value.toLocaleString("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+/** Cells derive their descriptor from the row's own currency, never the tab. */
+function rowDescriptor(row: MarketRow): MarketUniverseDescriptor {
+  return descriptorForCurrency(row.currency);
 }
 
 function fmtPct(value: number | null, signed = true): string {
@@ -26,29 +34,9 @@ function fmtNum(value: number | null, digits = 1): string {
   return value.toFixed(digits);
 }
 
-/** ₹ crore, compact: `18.1L` (lakh crore) / `54.2k` / `999`. */
-function fmtMcapCr(value: number | null): string {
-  if (value === null) return DASH;
-  if (value >= 1e5) return `${(value / 1e5).toFixed(1)}L`;
-  if (value >= 1e3) return `${(value / 1e3).toFixed(1)}k`;
-  return String(Math.round(value));
-}
-
-function mcapCrLabel(value: number): string {
-  return `₹${Math.round(value).toLocaleString("en-IN")} Cr`;
-}
-
 function pctColor(value: number | null): "success" | "error" | undefined {
   if (value === null) return undefined;
   return value >= 0 ? "success" : "error";
-}
-
-function dash(symbol: string, key: string) {
-  return (
-    <Text size="xs" c="dimmed" data-testid={`market-dash-${symbol}-${key}`}>
-      {DASH}
-    </Text>
-  );
 }
 
 const NAME_TEXT_CLASS = "block max-w-[110px]";
@@ -60,7 +48,8 @@ const WEEK52_TRACK_CLASS =
   "relative mx-auto h-[6px] w-[48px] overflow-hidden rounded-[3px] bg-fin-border";
 const WEEK52_FILL_CLASS = "absolute left-0 top-0 bottom-0 rounded-[3px] bg-fin-primary";
 
-const CAP_TIER_COLOR: Record<string, "primary" | "info" | "warning" | "default"> = {
+const CAP_TIER_COLOR: Record<string, "primary" | "info" | "warning" | "success" | "default"> = {
+  mega: "success",
   large: "primary",
   mid: "info",
   small: "warning",
@@ -72,12 +61,16 @@ function Week52Bar(props: { row: MarketRow }) {
   const pos = () => props.row.pos52w;
   const title = () => {
     if (props.row.high52w !== null && props.row.low52w !== null) {
-      return `52W range ₹${props.row.low52w.toLocaleString("en-IN")}–₹${props.row.high52w.toLocaleString("en-IN")} · at ${Math.max(0, Math.min(100, pos()!)).toFixed(0)}%`;
+      const descriptor = rowDescriptor(props.row);
+      const symbol = descriptor.currencySymbol;
+      const low = props.row.low52w.toLocaleString(descriptor.priceLocale);
+      const high = props.row.high52w.toLocaleString(descriptor.priceLocale);
+      return `52W range ${symbol}${low}–${symbol}${high} · at ${Math.max(0, Math.min(100, pos()!)).toFixed(0)}%`;
     }
     return `52W position ${Math.max(0, Math.min(100, pos()!)).toFixed(0)}%`;
   };
   return (
-    <Show when={pos() !== null} fallback={<>{dash(props.row.symbol, "week52")}</>}>
+    <Show when={pos() !== null} fallback={<DashCell testId={`market-dash-${props.row.symbol}-week52`} />}>
       <Tooltip label={title()}>
         <Box
           role="img"
@@ -98,10 +91,18 @@ function Week52Bar(props: { row: MarketRow }) {
 export interface MarketColumnHandlers {
   /** Open the in-app chart. The text opens in-app; ↗ stays TradingView. */
   onSymbolOpen?: (symbol: string) => void;
+  /**
+   * Chart-icon destination override. The row's exchange travels with the symbol
+   * so the host can pick a data provider. When absent, `SymbolLink` keeps its
+   * default dock behaviour (single-arg `onSymbolOpen` contract stays intact).
+   */
+  onChartOpen?: (symbol: string, exchange: string | undefined) => void;
   /** Drop the SECTOR column when every visible row shares one sector. */
   hideSector?: boolean;
   /** Stored 1D patterns for a symbol — absent means "not looked up yet". */
   patternsFor?: (symbol: string) => PatternSummaryItem | undefined;
+  /** Drives the MCAP header unit; cells still read each row's own currency. */
+  universe?: MarketUniverse;
 }
 
 type PatternTone = "bullish" | "bearish" | "mixed";
@@ -150,7 +151,7 @@ function patternTooltip(patterns: PatternSummaryItem["patterns"]) {
 function PatternBadge(props: { symbol: string; item: PatternSummaryItem | undefined }) {
   const tone = () => (props.item ? patternTone(props.item.patterns) : "mixed");
   return (
-    <Show when={props.item} fallback={<>{dash(props.symbol, "patterns")}</>}>
+    <Show when={props.item} fallback={<DashCell testId={`market-dash-${props.symbol}-patterns`} />}>
       <Tooltip label={patternTooltip(props.item!.patterns)} multiline position="top">
         <Badge
           size="xs"
@@ -167,6 +168,7 @@ function PatternBadge(props: { symbol: string; item: PatternSummaryItem | undefi
 
 
 export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnDef<MarketRow>[] {
+  const headerDescriptor = marketUniverseDescriptor(handlers.universe);
   const columns: ColumnDef<MarketRow>[] = [
     {
       id: "symbol",
@@ -181,6 +183,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
             <SymbolLink
               symbol={r.symbol}
               market={r.exchange ?? "NSE"}
+              showOptions={hasIndianOptionsChain(r.exchange)}
               testId={`market-symbol-${r.symbol}`}
               chartTestId={`market-chart-${r.symbol}`}
               size="xs"
@@ -189,8 +192,15 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
               inAppText
               tvIcon
               onTextClick={(sym) => handlers.onSymbolOpen?.(sym)}
+              // Only override the chart icon when the host supplied a destination;
+              // otherwise SymbolLink falls back to the app-wide dock.
+              onOpen={
+                handlers.onChartOpen
+                  ? (sym) => handlers.onChartOpen!(sym, r.exchange ?? undefined)
+                  : undefined
+              }
             />
-            {r.fno ? (
+            {r.fno && hasIndianOptionsChain(r.exchange) ? (
               <Box className={BADGE_WRAP_CLASS}>
                 <Badge size="xs" variant="light" color="info" data-testid={`market-fno-${r.symbol}`}>
                   F&O
@@ -248,7 +258,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
             {r.sector}
           </Text>
         ) : (
-          dash(r.symbol, "sector")
+          <DashCell testId={`market-dash-${r.symbol}-sector`} />
         );
       },
     },
@@ -261,10 +271,11 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       cell: ({ row }) => {
         const r = row.original;
         return r.close === null ? (
-          dash(r.symbol, "close")
+          <DashCell testId={`market-dash-${r.symbol}-close`} />
         ) : (
           <Text size="xs" fw={600} data-testid={`market-close-${r.symbol}`}>
-            ₹{fmtPrice(r.close)}
+            {rowDescriptor(r).currencySymbol}
+            {formatPrice(r.close, rowDescriptor(r))}
           </Text>
         );
       },
@@ -278,7 +289,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       cell: ({ row }) => {
         const r = row.original;
         return r.change === null ? (
-          dash(r.symbol, "change")
+          <DashCell testId={`market-dash-${r.symbol}-change`} />
         ) : (
           <Text size="xs" fw={600} c={pctColor(r.change)} data-testid={`market-change-${r.symbol}`}>
             {fmtPct(r.change)}
@@ -302,7 +313,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       cell: ({ row }) => {
         const r = row.original;
         return r.perfW === null ? (
-          dash(r.symbol, "perf-w")
+          <DashCell testId={`market-dash-${r.symbol}-perf-w`} />
         ) : (
           <Text size="xs" c={pctColor(r.perfW)} data-testid={`market-perfw-${r.symbol}`}>
             {fmtPct(r.perfW)}
@@ -319,7 +330,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       cell: ({ row }) => {
         const r = row.original;
         return r.perf1m === null ? (
-          dash(r.symbol, "perf-1m")
+          <DashCell testId={`market-dash-${r.symbol}-perf-1m`} />
         ) : (
           <Text size="xs" c={pctColor(r.perf1m)} data-testid={`market-perf1m-${r.symbol}`}>
             {fmtPct(r.perf1m)}
@@ -344,7 +355,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       cell: ({ row }) => {
         const r = row.original;
         return r.rsi === null ? (
-          dash(r.symbol, "rsi")
+          <DashCell testId={`market-dash-${r.symbol}-rsi`} />
         ) : (
           <Text size="xs" data-testid={`market-rsi-${r.symbol}`}>
             {fmtNum(r.rsi)}
@@ -361,7 +372,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       cell: ({ row }) => {
         const r = row.original;
         return r.adx === null ? (
-          dash(r.symbol, "adx")
+          <DashCell testId={`market-dash-${r.symbol}-adx`} />
         ) : (
           <Text size="xs" data-testid={`market-adx-${r.symbol}`}>
             {fmtNum(r.adx)}
@@ -378,7 +389,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       cell: ({ row }) => {
         const r = row.original;
         return r.relativeVolume === null ? (
-          dash(r.symbol, "relvol")
+          <DashCell testId={`market-dash-${r.symbol}-relvol`} />
         ) : (
           <Text size="xs" data-testid={`market-relvol-${r.symbol}`}>
             {fmtNum(r.relativeVolume, 2)}x
@@ -388,18 +399,20 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
     },
     {
       id: "market_cap_cr",
-      header: "MCAP ₹Cr",
+      header: `MCAP ${headerDescriptor.currencySymbol}${headerDescriptor.capUnit}`,
       size: 76,
-      accessorFn: (r) => r.marketCapCr,
+      accessorFn: (r) => marketCapOf(r),
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
-        return r.marketCapCr === null ? (
-          dash(r.symbol, "mcap")
+        const descriptor = rowDescriptor(r);
+        const cap = marketCapOf(r, descriptor);
+        return cap === null ? (
+          <DashCell testId={`market-dash-${r.symbol}-mcap`} />
         ) : (
-          <Tooltip label={mcapCrLabel(r.marketCapCr)} position="top">
+          <Tooltip label={marketCapLabel(cap, descriptor)} position="top">
             <Text size="xs" data-testid={`market-mcap-${r.symbol}`}>
-              {fmtMcapCr(r.marketCapCr)}
+              {formatMarketCap(cap, descriptor)}
             </Text>
           </Tooltip>
         );
@@ -414,7 +427,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       cell: ({ row }) => {
         const r = row.original;
         const tier = r.capTier;
-        if (!tier) return dash(r.symbol, "cap-tier");
+        if (!tier) return <DashCell testId={`market-dash-${r.symbol}-cap-tier`} />;
         return (
           <Badge
             size="xs"

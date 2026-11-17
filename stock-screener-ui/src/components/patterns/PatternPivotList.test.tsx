@@ -40,6 +40,18 @@ describe("PatternPivotList", () => {
     expect(screen.getByTestId("patterns-detail-pivots")).toHaveTextContent("(2)");
   });
 
+  test("renders US pivot prices with $ and no ₹ when market is usa", () => {
+    render(() => (
+      <PivotList
+        market="usa"
+        pivots={[{ t: "2026-05-04", price: 1234.5, kind: "high" }]}
+      />
+    ));
+    const row = screen.getByTestId("patterns-detail-pivot-0");
+    expect(row).toHaveTextContent("$1,234.50");
+    expect(row.textContent).not.toContain("₹");
+  });
+
   test("is collapsed by default and toggles open/closed", async () => {
     render(() => <PivotList pivots={[{ t: "2026-05-04", price: 100, kind: "low" }]} />);
     const toggle = screen.getByTestId("patterns-detail-pivots-toggle");

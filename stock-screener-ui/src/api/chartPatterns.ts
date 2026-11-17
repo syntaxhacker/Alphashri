@@ -27,6 +27,7 @@ import type {
   WatchSetup,
 } from "../types/chartPatterns";
 import { fetchWithAuth } from "../state/auth";
+import type { ChartMarket } from "../utils/chart/time";
 import { API_BASE } from "./config";
 import { readSseStream } from "./sse";
 import { appendParams, buildQueryString } from "./queryParams";
@@ -314,6 +315,11 @@ export async function fetchPatternHit(hitId: number): Promise<PatternHitDTO> {
 export interface SymbolChartOptions {
   limit?: number;
   lookbackBars?: number | null;
+  /**
+   * Market feed selector. Only `usa` is sent on the wire (`market=usa`); an
+   * omitted value keeps the India URL byte-identical.
+   */
+  market?: ChartMarket;
   /** Skip server-side trendline computation (false = skip; omitted = compute). */
   computeTrendlines?: boolean;
   /** Run live pattern detection on this timeframe (`detect_patterns=1`). */
@@ -339,6 +345,7 @@ export async function fetchSymbolChart(
   const asOf = typeof opts === "number" ? undefined : opts?.asOf;
   const fromDate = typeof opts === "number" ? undefined : opts?.fromDate;
   const refresh = typeof opts === "number" ? undefined : opts?.refresh;
+  const market = typeof opts === "number" ? undefined : opts?.market;
   appendParams(params, [
     ["limit", limit],
     ["lookback_bars", lookbackBars],
@@ -347,6 +354,7 @@ export async function fetchSymbolChart(
     ["as_of_date", asOf],
     ["from_date", fromDate],
     ["refresh", refresh ? "1" : null],
+    ["market", market],
   ]);
   return getJson<ChartPayload>(
     `${CHART_PATTERNS_BASE}/symbol/${encodeURIComponent(symbol)}/chart?${params.toString()}`,

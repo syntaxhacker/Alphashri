@@ -5,11 +5,13 @@ import {
   buildMarketSnapshotUrl,
   fetchMarketSnapshot,
   fetchQuotes,
+  MARKET_UNIVERSES,
   mapMarketRow,
   mapMarketSnapshot,
   readCachedMarketSnapshot,
   writeCachedMarketSnapshot,
 } from "./marketScreener";
+import { MARKET_ROW_CAP, MARKET_SYMBOL_CAP } from "../config/apiLimits";
 import type { MarketSnapshot } from "../types/marketScreener";
 import { fetchWithAuth } from "../state/auth";
 
@@ -37,7 +39,7 @@ describe("buildMarketSnapshotUrl", () => {
     const url = buildMarketSnapshotUrl();
     expect(url).toContain("/api/market/snapshot?");
     expect(url).toContain("universe=all_equity");
-    expect(url).toContain("limit=4000");
+    expect(url).toContain(`limit=${MARKET_ROW_CAP}`);
     expect(url).not.toContain("force=");
   });
 
@@ -48,11 +50,22 @@ describe("buildMarketSnapshotUrl", () => {
   });
 
   test("supports every universe value", () => {
-    for (const universe of ["all_equity", "nifty500", "nifty50", "nse_fo"]) {
+    for (const universe of ["all_equity", "nifty500", "nifty50", "nse_fo", "us"]) {
       expect(buildMarketSnapshotUrl({ universe: universe as never })).toContain(
         `universe=${universe}`,
       );
     }
+  });
+
+  test("the first Market dropdown offers USA alongside the NSE universes", () => {
+    expect(MARKET_UNIVERSES).toContainEqual({ value: "us", label: "USA" });
+    expect(MARKET_UNIVERSES.map((option) => option.value)).toEqual([
+      "all_equity",
+      "nifty500",
+      "nifty50",
+      "nse_fo",
+      "us",
+    ]);
   });
 
   test("force=true is only sent when requested", () => {
@@ -185,6 +198,7 @@ describe("mapMarketSnapshot", () => {
       "capTier",
       "change",
       "close",
+      "currency",
       "dividendYield",
       "etf",
       "exchange",
@@ -192,6 +206,7 @@ describe("mapMarketSnapshot", () => {
       "high52w",
       "low52w",
       "marketCapCr",
+      "marketCapUsdB",
       "name",
       "pbRatio",
       "peRatio",
@@ -259,6 +274,42 @@ describe("mapMarketSnapshot", () => {
   test("total falls back to the row count when absent", () => {
     const snapshot = mapMarketSnapshot({ rows: [{ symbol: "A" }, { symbol: "B" }] });
     expect(snapshot.total).toBe(2);
+  });
+});
+
+describe("currency-aware row mapping", () => {
+  test("USD rows normalize the backend's camelCase cap and currency", () => {
+    const snapshot = mapMarketSnapshot({
+      universe: "us",
+      rows: [
+        {
+          symbol: "NVDA",
+          exchange: "NASDAQ",
+          close: 189.5,
+          currency: "usd",
+          marketCapUsdB: 46200.7,
+          cap_tier: "Large",
+        },
+      ],
+    });
+    const row = snapshot.rows[0];
+    expect(row.currency).toBe("USD");
+    expect(row.marketCapUsdB).toBe(46200.7);
+    // The backend emits null for the rupee field on US rows — never fabricate one.
+    expect(row.marketCapCr).toBeNull();
+    expect(row.capTier).toBe("large");
+  });
+
+  test("the snake_case cap spelling is accepted too", () => {
+    expect(mapMarketRow({ currency: "USD", market_cap_usd_b: "1234.5" }).marketCapUsdB).toBe(
+      1234.5,
+    );
+  });
+
+  test("legacy and INR rows stay INR with a null dollar cap", () => {
+    expect(mapMarketRow({ market_cap_cr: 199000 }).currency).toBe("INR");
+    expect(mapMarketRow({ currency: "INR", marketCapUsdB: 42 }).marketCapUsdB).toBeNull();
+    expect(mapMarketRow({ currency: null }).marketCapUsdB).toBeNull();
   });
 });
 
@@ -340,7 +391,7 @@ describe("fetchQuotes", () => {
   });
 
   test("one failed batch does not reject the whole set; returns the partial set", async () => {
-    const batch1 = Array.from({ length: 20 }, (_, i) => `SYM${i + 1}`);
+    const batch1 = Array.from({ length: MARKET_SYMBOL_CAP }, (_, i) => `SYM${i + 1}`);
     mockFetchWithAuth
       .mockResolvedValueOnce(
         mockResponse(
@@ -351,12 +402,12 @@ describe("fetchQuotes", () => {
       .mockRejectedValueOnce(new Error("batch 2 down"));
     const quotes = await fetchQuotes([...batch1, "SYM21"]);
     expect(mockFetchWithAuth).toHaveBeenCalledTimes(2);
-    expect(quotes).toHaveLength(20);
+    expect(quotes).toHaveLength(MARKET_SYMBOL_CAP);
     expect(quotes.map((q) => q.symbol)).toEqual(batch1);
   });
 
   test("all batches fail rethrows the first error", async () => {
-    const symbols = Array.from({ length: 21 }, (_, i) => `SYM${i + 1}`);
+    const symbols = Array.from({ length: MARKET_SYMBOL_CAP + 1 }, (_, i) => `SYM${i + 1}`);
     mockFetchWithAuth
       .mockRejectedValueOnce(new Error("first batch down"))
       .mockRejectedValueOnce(new Error("second batch down"));
@@ -373,10 +424,10 @@ describe("fetchQuotes", () => {
     expect(quotes).toEqual([{ symbol: "KAYNES", close: 2986, change: -12.94 }]);
   });
 
-  test("21+ symbols are deduped, chunked into batches of 20, and merged in input order", async () => {
-    const symbols = Array.from({ length: 21 }, (_, i) => `SYM${i + 1}`);
-    const batch1 = symbols.slice(0, 20);
-    const batch2 = symbols.slice(20);
+  test("cap+1 symbols are deduped, chunked into cap-sized batches, and merged in input order", async () => {
+    const symbols = Array.from({ length: MARKET_SYMBOL_CAP + 1 }, (_, i) => `SYM${i + 1}`);
+    const batch1 = symbols.slice(0, MARKET_SYMBOL_CAP);
+    const batch2 = symbols.slice(MARKET_SYMBOL_CAP);
     mockFetchWithAuth
       .mockResolvedValueOnce(
         mockResponse(true, { rows: batch1.map((s) => ({ symbol: s, close: 100, change: 1 })) }),
@@ -392,10 +443,10 @@ describe("fetchQuotes", () => {
     expect((mockFetchWithAuth.mock.calls[1][0] as string)).toContain(
       `symbols=${batch2.join("%2C")}`,
     );
-    expect(quotes).toHaveLength(21);
+    expect(quotes).toHaveLength(MARKET_SYMBOL_CAP + 1);
     expect(quotes.map((q) => q.symbol)).toEqual(symbols);
     expect(quotes[0]).toEqual({ symbol: "SYM1", close: 100, change: 1 });
-    expect(quotes[20]).toEqual({ symbol: "SYM21", close: 200, change: -1 });
+    expect(quotes[MARKET_SYMBOL_CAP]).toEqual({ symbol: "SYM21", close: 200, change: -1 });
   });
 
   test("dedupes case-insensitively and keeps first-occurrence casing", async () => {

@@ -162,8 +162,9 @@ and the rows never reorder. If the value is nested or derived, use `accessorFn`.
 
 ## 6. Type errors are a bug-finding instrument
 
-`npx tsc --noEmit` in this repo reports **369 pre-existing errors as of 2026-11-14**. Re-measure
-rather than trusting that number: `npx tsc --noEmit 2>&1 | grep -c "error TS"`. **Do not treat them as
+`npx tsc --noEmit` in this repo reports **322 pre-existing errors as of 2026-11-17** (historical
+measurement: 369 as of 2026-11-14). Re-measure rather than trusting that number:
+`npx tsc --noEmit 2>&1 | grep -c "error TS"`. **Do not treat them as
 cosmetic.** Every cluster cleared so far exposed real runtime defects:
 
 | Cluster cleared | Runtime bug it exposed |
@@ -228,8 +229,10 @@ Verify visually only if the brief says so — screenshots are the main agent's j
 
 ## 8. Implementation + verification
 
-Read the minimum. Prefer `grep`/targeted reads over whole directories. For API shape, read
-`openapi.yaml` first, not the routers end to end.
+Read the minimum. **Start with [`docs/AGENT_QUICKSTART.md`](./docs/AGENT_QUICKSTART.md)** —
+it has the commands, folder map, unit/E2E/backend recipes and fixture locations. Then
+`docs/MAP.md` for the task→file map. Prefer `grep`/targeted reads over whole directories.
+For API shape, read `openapi.yaml` first, not the routers end to end.
 
 ### Batch reads — one locate pass, then all reads at once
 
@@ -339,7 +342,11 @@ Canonical source for model routing **and** concurrency — `AGENTS.md` and
 
 - The user's standing instruction is **one model for every agent** — do not mix models
   across a wave unless asked.
-- **5 concurrent agents** max, on disjoint file sets. More just queues.
+- **Concurrency is 8 simultaneous subagents** (user instruction, 2026-11-16) until the
+  user says decrease to 5. Keep one agent per disjoint file set; if a wave would
+  overlap, queue the lane instead of sharing files.
+- Hard ceiling is the 8 above; do not dispatch a ninth lane. Queued lanes wait for a
+  free slot rather than sharing files.
 - Free tiers return `Free usage limit reached` mid-task and can leave the tree half-edited.
   When that happens: the main agent finishes the task itself and says so.
 - Verify every agent claim. Reports have asserted success while the page was blank, the

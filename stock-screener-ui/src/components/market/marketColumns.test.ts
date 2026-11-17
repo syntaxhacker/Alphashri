@@ -83,6 +83,42 @@ describe("buildMarketColumns", () => {
     expect(onSymbolOpen).toHaveBeenCalledWith("RELIANCE");
   });
 
+  test("chart icon uses onChartOpen while symbol text keeps the single-arg onSymbolOpen", () => {
+    const onSymbolOpen = vi.fn();
+    const onChartOpen = vi.fn();
+    const symbolColumn = buildMarketColumns({ onSymbolOpen, onChartOpen }).find(
+      (column) => column.id === "symbol",
+    );
+    const cell = symbolColumn?.cell;
+    if (!cell) throw new Error("symbol column has no cell renderer");
+
+    render(() => cell(cellArgs(ROW, symbolColumn)));
+
+    fireEvent.click(screen.getByTestId("market-symbol-RELIANCE"));
+    expect(onSymbolOpen).toHaveBeenCalledWith("RELIANCE");
+
+    fireEvent.click(screen.getByTestId("market-chart-RELIANCE"));
+    expect(onChartOpen).toHaveBeenCalledWith("RELIANCE", "NSE");
+    expect(onSymbolOpen).toHaveBeenCalledTimes(1);
+  });
+
+  test("chart icon keeps the default dock when onChartOpen is absent", () => {
+    const onSymbolOpen = vi.fn();
+    const symbolColumn = buildMarketColumns({ onSymbolOpen }).find(
+      (column) => column.id === "symbol",
+    );
+    const cell = symbolColumn?.cell;
+    if (!cell) throw new Error("symbol column has no cell renderer");
+
+    render(() => cell(cellArgs(ROW, symbolColumn)));
+
+    // No onOpen override reaches SymbolLink, so its default dock handler renders
+    // the chart icon and the symbol text still uses the one-arg callback.
+    expect(screen.getByTestId("market-chart-RELIANCE")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("market-symbol-RELIANCE"));
+    expect(onSymbolOpen).toHaveBeenCalledWith("RELIANCE");
+  });
+
   test("symbol body is in-app; ↗ is the TradingView link and neither bubbles to the row", async () => {
     const onSymbolOpen = vi.fn();
     const symbolColumn = buildMarketColumns({ onSymbolOpen }).find((column) => column.id === "symbol");
@@ -313,5 +349,100 @@ describe("PATTERNS column", () => {
     expect(column?.header).toBe("PATTERNS");
     expect(column?.size).toBe(104);
     expect(column?.meta?.align).toBe("center");
+  });
+});
+
+const US_ROW: MarketRow = {
+  ...ROW,
+  symbol: "NVDA",
+  name: "NVIDIA Corp",
+  exchange: "NASDAQ",
+  close: 1234.5,
+  currency: "USD",
+  marketCapCr: null,
+  marketCapUsdB: 12345.7,
+  capTier: "large",
+};
+
+function renderUsCell(id: string, row: MarketRow = US_ROW): void {
+  const column = buildMarketColumns({ universe: "us" }).find((candidate) => candidate.id === id);
+  if (!column?.cell) throw new Error(`${id} column has no cell renderer`);
+  render(() => column.cell!(cellArgs(row, column)));
+}
+
+describe("USD rows", () => {
+  test("the LTP cell prefixes $ and groups with the US locale", () => {
+    renderUsCell("close");
+    expect(screen.getByTestId("market-close-NVDA")).toHaveTextContent("$1,234.50");
+  });
+
+  test("the MCAP header reads $B from the descriptor", () => {
+    expect(
+      buildMarketColumns({ universe: "us" }).find((column) => column.id === "market_cap_cr")?.header,
+    ).toBe("MCAP $B");
+  });
+
+  test("the MCAP cell compacts $ billions and the tooltip keeps the full value", async () => {
+    renderUsCell("market_cap_cr");
+    const cell = screen.getByTestId("market-mcap-NVDA");
+    expect(cell).toHaveTextContent("$12,345.7B");
+    fireEvent.mouseEnter(cell.closest("span")!);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("$12,345.7B");
+  });
+
+  test("sorting still uses the dollar cap, not the null rupee field", () => {
+    const column = buildMarketColumns({ universe: "us" }).find((c) => c.id === "market_cap_cr");
+    expect(column?.accessorFn?.(US_ROW)).toBe(12345.7);
+  });
+
+  test("the 52W tooltip uses $ from the row, not ₹", () => {
+    renderUsCell("pos_52w");
+    const bar = screen.getByTestId("market-52w-NVDA");
+    expect(bar.getAttribute("aria-label")).toContain("52W range $2,210–$3,020");
+    expect(bar.getAttribute("aria-label")).not.toContain("₹");
+  });
+
+  test("India keeps the original header, ₹ price and ₹ lakh-crore cell", () => {
+    expect(buildMarketColumns().find((c) => c.id === "market_cap_cr")?.header).toBe("MCAP ₹Cr");
+    renderMcap(1812819);
+    expect(screen.getByTestId("market-mcap-RELIANCE")).toHaveTextContent("18.1L");
+    expect(screen.getByTestId("market-mcap-RELIANCE").closest("span")).toHaveAttribute(
+      "aria-label",
+      "₹18,12,819 Cr",
+    );
+  });
+});
+
+function renderSymbolCell(row: MarketRow): void {
+  const column = buildMarketColumns().find((candidate) => candidate.id === "symbol");
+  if (!column?.cell) throw new Error("symbol column has no cell renderer");
+  render(() => column.cell!(cellArgs(row, column)));
+}
+
+describe("F&O affordances follow the row's exchange", () => {
+  test("an NSE row keeps the F&O badge and the options-chain icon", () => {
+    renderSymbolCell(ROW);
+    expect(screen.getByTestId("market-fno-RELIANCE")).toBeInTheDocument();
+    expect(screen.getByTestId("symbol-options-RELIANCE")).toBeInTheDocument();
+  });
+
+  test("a US row hides both even when the snapshot carries a stale fno flag", () => {
+    renderSymbolCell({ ...US_ROW, fno: true });
+    expect(screen.queryByTestId("market-fno-NVDA")).toBeNull();
+    expect(screen.queryByTestId("symbol-options-NVDA")).toBeNull();
+    // The chart icon is not an F&O affordance and must survive.
+    expect(screen.getByTestId("market-chart-NVDA")).toBeInTheDocument();
+  });
+
+  test("the row's exchange wins over the active screen", () => {
+    renderSymbolCell({ ...US_ROW, exchange: "NSE", fno: true });
+    expect(screen.getByTestId("market-fno-NVDA")).toBeInTheDocument();
+    expect(screen.getByTestId("symbol-options-NVDA")).toBeInTheDocument();
+  });
+
+  test("a BSE row is treated as Indian too", () => {
+    renderSymbolCell({ ...ROW, symbol: "TATA", exchange: "BSE" });
+    expect(screen.getByTestId("market-fno-TATA")).toBeInTheDocument();
+    expect(screen.getByTestId("symbol-options-TATA")).toBeInTheDocument();
   });
 });

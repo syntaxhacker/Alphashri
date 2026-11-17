@@ -5,6 +5,8 @@
  * no runtime state lives here.
  */
 
+import type { ChartMarket } from "@/utils/chart/time";
+
 /** Timeframe registry entry (`chart_patterns/timeframes.py:TFSpec`). */
 export interface TFSpec {
   id: string;
@@ -293,6 +295,14 @@ export interface ChartPayload {
   error?: string | null;
   /** Human-readable explanation that accompanies `error`. */
   note?: string | null;
+  /** Data market: India uses Upstox, USA uses the provider registry. */
+  market?: ChartMarket;
+  /** Provider feed identifier (e.g. `yahoo`, `alpaca-iex`, `upstox`). */
+  feed?: string | null;
+  /** Honest latency label for the UI (e.g. `~1 min (forming)`). */
+  delay_label?: string | null;
+  /** US session date (`YYYY-MM-DD`, ET) for the returned candles. */
+  session_date?: string | null;
 }
 
 /** User-facing result filters (the filter rail). */

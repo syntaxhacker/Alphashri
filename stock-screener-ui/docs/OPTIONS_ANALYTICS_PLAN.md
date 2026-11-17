@@ -1,8 +1,153 @@
 # Options analytics — IV smile, term structure, surface, probability
 
-Status: **plan only** (no code in this document). Goal: add the analytics that
-actually change a decision — where the skew is, whether the move is priced, and
-what the probability is at *this* strike — not more decoration.
+Status: **P0/P1 + P2 dashboard shipped (P2 on 2026-11-17)** — shared levels,
+chain truth, snapshot capture, the analytics endpoint
+(`/api/options/analytics/{symbol}`), IV math, client/state/math and the
+SMILE/TERM/SURFACE(heatmap)/PROB dock tabs are implemented. The full-screen
+**Options Analytics dashboard** now ships four pillars (VOLATILITY / POSITIONING
+/ DEALER / LIQUIDITY) backed by new per-expiry engine blocks. True 3D and
+calibration remain design. Verified scope, decisions and live evidence are
+collected in "Verified scope, decisions & live evidence (2026-11-16)" below;
+this document remains the design record. Goal: add the analytics that actually change a decision — where the skew
+is, whether the move is priced, and what the probability is at *this* strike —
+not more decoration.
+
+## Verified scope, decisions & live evidence (2026-11-16)
+
+**Scope — NSE only.** No US/global options. Chain data is the Upstox-backed
+`GET /api/options/chain/{underlying}?expiry=` (`api/options.py`). Every option
+price is **LTP only**: chain rows also carry `close_price`, a stale daily
+reference for an option (session-mismatched), and it must never be used.
+
+**Decisions (resolved).**
+- Surface: 2D heatmap first; true 3D behind an optional lazy tab, last.
+- Snapshots: every **60 s**, **90-day** retention (no 5 m/30 d downsample yet).
+- POP: show **both flat-ATM and skew-adjusted**; never silently replace the
+  current number.
+- RND: only from a fitted / arbitrage-repaired smile — raw quotes show
+  **34–37% negative butterflies**, so raw second differences are unusable.
+- 25Δ RR sign: **`IV(25Δ call) − IV(25Δ put)`**, positive = calls rich. This is
+  what the probe, `api/options_iv.py` and the frontend `riskReversal` /
+  `ivSkewStats` now use (aligned from the earlier `put − call`).
+
+**Live verification (2026-11-16, read-only probe `scripts/market/options_analytics_probe.py`
+against the local Upstox-backed chain; no DB/Redis writes).**
+
+| Underlying | ATM IV | 25Δ RR (call − put) |
+|---|---|---|
+| NIFTY (1D / 7D / 15D) | 15.87 / 14.06 / 13.69 | +0.29 / −1.15 / −1.37 |
+| RELIANCE | 20.26 / 23.44 / 22.03 | +1.22 / +0.12 |
+
+- Max pain recomputed from the shared module matched the chain summary **9/9**.
+- IV coverage **61–78%** of legs; **22–35% of near legs** have missing/zero IV;
+  wings printing >100 are dropped by the shared 100-vol cap
+  (`api/options_conventions.IV_MAX`). It was 60 until 2026-11-17: that silently
+  discarded genuine 79–83 prints on high-vol stocks (KAYNES) and emptied the
+  analytics tabs while the chain still showed the IV.
+- GEX: **NIFTY degraded (36–47% gamma coverage)**; RELIANCE healthy.
+- **ONGC had no walls tape**; stock underlyings expose only **3 expiries** (thin
+  term structure).
+
+**Data plumbing (shipped, 2026-11-16).** The chain frame now carries
+`market_state`, `quotes_live`, `session_date`, `data_as_of`, per-leg `iv_valid`
+and `levels` (`api/options.py:_build_chain_response`; legacy
+`summary.max_pain` stays a bare number). The snapshot store exists — model and
+migration `2026_11_16_1400-os1a2b3c4d5e`, writer `api/options_snapshots.py`
+(one capture per IST minute while `open`, one per session when `closed`; 90-day
+`purge_old_snapshots`), read path `scripts/market/options_calibration.py`. Pure
+IV math (`api/options_iv.py`) and shared levels (`api/options_levels.py`, with
+anti-drift tests) are in place. `GET /api/options/analytics/{symbol}` is
+**registered** (`api_server_fastapi.py`, present in `openapi.yaml`) and returns
+expiries with smile metrics plus levels. Frontend client/math/state
+(`src/api/optionsAnalytics.ts`, `src/utils/optionsAnalyticsMath.ts`,
+`src/state/optionsAnalytics.ts`) and the lazy SMILE/TERM/SURFACE(heatmap)/PROB
+dock tabs are shipped, with chain level labels (`MP/CW/PW/SUP/RES` chips +
+390px `M/C/P/S/R` letters). IV math: ATM IV is the average of the ATM CE and PE
+prints; a gamma-coverage warning is emitted when near-ATM gamma coverage is low.
+**IV inversion (§4.2) is not implemented** — missing IV stays missing.
+
+### Operational limits (verified in source, 2026-11-16)
+
+- **Analytics rate limit** (`api/rate_limit.py`, `api/options_analytics.py`): 30 tokens per 60 s per client IP, charged only on cold builds — a warm analytics-cache read never consumes a token. Exceeding it returns **429** with a `Retry-After` header and a fixed `{"code": "rate_limited", ...}` detail (upstream text never reaches the client).
+- **Cold chain builds** (`api/options_analytics.py`): a global (module-level) `BoundedSemaphore` caps concurrency at **4**; waiting >30 s for a slot raises a structured **503** instead of hanging.
+- **Fixed 503 bodies**: `analytics_unavailable` (analytics) and `upstream_unavailable` (underlying/chain fetch, `api/options_underlying.py`). Exception/upstream text is logged server-side only; detail strings are constants.
+- **Market snapshot** (`api/market_screen/snapshot.py`): in-memory shaped-frame cache is a **32-entry LRU**; disk-stale snapshots are **JSON** (`snapshot_stale_*.json`, no pickle). `_scan_window()` scans the full `MAX_LIMIT` (=4000) frame once for US/hygiene universes then slices per request; India ceiling-maps the cap onto `FETCH_LIMIT_LADDER = (50, 100, 250, 500, 1000, 2000, 4000)` and slices the cached bucket to the exact `limit`. Cache is keyed by `(universe, scan_window)`, so at most **7 buckets per universe** are scanned instead of one per client `limit`. `force=1` has a **5 s** cooldown (`FORCE_COOLDOWN_SEC = 5.0`) per `(universe, scan_window)`: a forced request inside it reuses the usable cached frame (fresh entry → `cached=True`, `stale=False`) instead of rescanning; concurrent forces still singleflight and non-force TTL paths are unchanged.
+- **Auth unchanged**: the analytics endpoint remains public (no `get_current_user`), same posture as `/api/options/chain`; no auth was added or removed.
+- **Live auth (verified 2026-11-17)**: public does not mean keyless — a cold chain build still needs valid Upstox OAuth (or a warm chain cache); without a token the endpoint returns **401 `upstox_auth_required`**, not 503. Dashboard E2E mocks analytics, so live verification requires reconnecting Upstox in Settings. US chart uses Yahoo (no broker token) and works live.
+
+## P2 dashboard — pillars, blocks & contract (shipped 2026-11-17)
+
+The full-screen dashboard (`/options/analytics/:symbol`, shell
+`src/pages/options/OptionsAnalyticsPage.tsx`) is a single fetch of
+`GET /api/options/analytics/{symbol}` with four lazy-loaded pillar tabs
+(`PillarKey = volatility | positioning | dealer | liquidity`, from
+`src/types/optionsDashboard.ts`):
+
+| Pillar | Blocks / charts (per selected expiry unless noted) |
+|---|---|
+| **VOLATILITY** | ATM IV smile by strike (IV points), ATM IV term structure by DTE, risk-neutral probability density, IV vs realised-vol cone |
+| **POSITIONING** | call/put OI by strike, OI change + volume by strike, max-pain payout curve, cumulative PCR by strike |
+| **DEALER** | net gamma exposure (GEX) profile, net delta exposure (DEX) profile, vanna + charm profiles, theta decay by expiry/tenor |
+| **LIQUIDITY** | median-spread + illiquid KPIs, bid-ask spread heatmap by strike × expiry, volume/Open-interest ratio by strike |
+
+**Wire additions** (all nullable; missing ≠ 0 — owned by
+`api/options_analytics.py` response models and now described in `openapi.yaml`):
+per-expiry `positioning`, `dealer`, `liquidity`, `rnd` blocks, a top-level `rv`
+(realised-vol cone) term, plus `marketState`/`sessionDate`/`quotesLive`.
+Engines: `api/options_{positioning,dealer,liquidity,rnd,rv}.py`. Each is
+best-effort: a missing/broken engine degrades that one block to `null` and adds
+a warning (`rv_unavailable`, `used_smile_fallback`), never a 500. The frontend
+also builds chart-ready projections (per-strike/per-tenor pairs) from the raw
+parallel arrays the engines emit — those arrays are never flattened to a single
+aggregate.
+
+**Test counts (targeted, 2026-11-17):**
+
+- Backend analytics/engine suite: **262 tests collected**
+  (`test_options_{analytics,analytics_dashboard,positioning,dealer,liquidity,rnd,rv,iv,conventions}.py`,
+  `test_options_analytics_probe.py`, `test_options_calibration.py`).
+- Frontend dashboard/analytics: **114 passed across 13 files**
+  (four pillar suites, page shell, API/state/math/config).
+- E2E: `options-analytics.spec.ts` **6**, `options-dashboard.spec.ts` **4**
+  (mocked; not run in this session).
+- OpenAPI drift guard: **26/26 passed** (`tests/contract/test_openapi_sync.py`)
+  after regenerating `openapi.yaml` via `scripts/export_openapi.py`.
+
+## Verification (shipped, 2026-11-16)
+
+Metric definitions used in the probe-vs-endpoint comparisons are in
+[Metric definitions](#metric-definitions) below — read them before treating a
+number mismatch as a bug.
+
+- Analytics tests at wiring time: **235 backend + 82 frontend** passing.
+- Options regression: **322 backend** passing.
+- E2E: **33/33** options, **18/18** level-label, and analytics **19/20 → 20/20**
+  after the refresh wiring.
+- Max pain from the shared module matched the chain summary **9/9**.
+- ATM IV corrected to the probe convention (ATM CE/PE print average).
+- 25Δ RR sign is **`call IV − put IV`** (positive = calls rich), matching the
+  probe and `api/options_iv.py`.
+
+### Metric definitions
+
+- **ATM IV (analytics)** = average of the snapped ATM strike's CE and PE IV when
+  both are valid; one-sided uses the single available side; otherwise
+  bracketing-strike interpolation. Do **not** compare it to `summary.atm_iv`,
+  which is a single CE leg at the anchor strike (legacy) — the expected 0.2–0.6
+  vol gap is methodological, not an error. Live check (NIFTY 1D/7D/15D):
+  analytics **16.145 / 14.635 / 14.210** vs probe **16.12 / 14.62 / 14.22**.
+- **25Δ RR** = 25Δ call IV − 25Δ put IV (`call − put`); exact match with the
+  probe. **Fly** = `(call + put)/2 − ATM`.
+- **gamma_coverage** = fraction of near-ATM (±5% of spot) legs with finite
+  `gamma > 0`; `gex_degraded` fires below **0.50** or when no gamma exists. The
+  probe's 36–47% is a **different** definition (share of OI-bearing strikes
+  carrying gamma) — do not use it to judge the endpoint.
+- **Levels** (walls / max pain / GEX) come from `api/options_levels.py`; `null`
+  means none, never `0`.
+- Analytics is **public** (no auth gate). At this 2026-11-16 verification,
+  snapshot history was still empty (capture had just been wired) and
+  **RND density and the probability cone were not built yet** — both shipped
+  with P2 on 2026-11-17 (see "P2 dashboard — pillars, blocks & contract" above).
 
 ## 1. The questions this has to answer
 
@@ -33,8 +178,11 @@ what the probability is at *this* strike — not more decoration.
 | Event IV crush | `.prime/agent/skills/position-probability/scripts/iv_crush.py` | methodology to reuse |
 | Chart libs | `echarts` 6 (no `echarts-gl`) | true 3D needs a new dependency |
 
-**Gaps:** no IV history, no smile/term aggregation, POP ignores skew, no RND,
-no surface, no probability cone, no IV rank, no calibration.
+**Gaps (P2+):** no IV history, no IV rank, no calibration — all gated on
+snapshot history. RND density, the probability cone, skew-adjusted POP and the
+realised-vol cone shipped with P2 on 2026-11-17 (see the P2 dashboard section
+above); smile/term aggregation and the 2D surface heatmap shipped in P1.
+Remaining: scenario grid, calibration and optional true 3D.
 
 ## 3. Analytics catalog (value → formula)
 
@@ -193,22 +341,27 @@ ltp, iv, delta, gamma, theta, vega, oi, volume, spot, source
   E[P&L] already in the dock must switch to the skew number (or show both).
 - Levels: markers in the chain (`SUP/RES/MP/CW/PW`) + a one-line legend; tap a
   marker to center the chain on that strike (reuse the auto-center helper).
-- 390px: charts stack; the tab strip scrolls; no 3D; heatmap can pan/zoom.
+- 390px: charts stack; all five analytics tabs fit (the strip's `overflow-x-auto`
+  is an overflow guard, not active scroll); no 3D; heatmap can pan/zoom.
 - Performance: one analytics fetch per open/expiry; charts render on tab
   activation only; dispose ECharts on tab switch; no timers.
+- **Visual contract:** shipped tab labels, persistent context, verdict chips,
+  per-tab reading rules, empty-state wording and the 100-point IV cap fix are
+  recorded in [OPTIONS_CHAIN_COMPONENT_PLAN.md §4.4](./OPTIONS_CHAIN_COMPONENT_PLAN.md#analytics-visual-contract-shipped-2026-11).
 
 ## 7. Phases and priority
 
-| Phase | Scope | Effort | Why |
+| Phase | Scope | Status (2026-11-16) | Remaining |
 |---|---|---|---|
-| **P0** | Snapshot table + IV inversion + shared levels module + levels labels in chain | 2–3 d | Data foundation; levels are immediately useful |
-| **P1** | Smile + term + 25Δ RR/BF + IV rank + skew-adjusted POP (dock) | 4–6 d | Highest decision value; no 3D dependency |
-| **P2** | RND density + probability cone + surface **heatmap** + scenario grid | 4–6 d | Probability depth; heatmap is cheap |
-| **P3** | Optional WebGL 3D surface + calibration dashboard (PIT/coverage) | 3–5 d | Visual polish/validation, not first value |
-| **P4** | Event IV crush + alerts (skew spike/term inversion) | 3–4 d | Tied to earnings/events |
+| **P0** | Snapshot table + IV inversion + shared levels module + levels labels in chain | **Shipped.** Shared levels module (anti-drift tests), snapshot store + capture (one/minute open, one/session closed), chain truth fields (`market_state`/`quotes_live`/`session_date`/`data_as_of`/`iv_valid`/`levels`) and chain labels (`MP/CW/PW/SUP/RES` + 390px letters) | IV inversion (§4.2) not built; IV rank waits on snapshot history |
+| **P1** | Smile + term + 25Δ RR/BF + skew-adjusted POP (dock) | **Shipped.** Pure IV math (`api/options_iv.py`: ATM CE/PE average, gamma-coverage warning), `/api/options/analytics/{symbol}` with smile metrics, client/math/state and SMILE/TERM/SURFACE(heatmap)/PROB tabs | RND density/cone + skew-adjusted POP are P2 (fitted-smile phase); IV rank needs history |
+| **P2** | RND density + probability cone + surface **heatmap** + scenario grid | **Shipped (2026-11-17):** full-screen 4-pillar dashboard + per-expiry positioning/dealer/liquidity/rnd engines + realised-vol term; heatmap tab shipped | Scenario grid not built; RND from the fitted smile is labelled model-dependent; calibration still design |
+| **P3** | Optional WebGL 3D surface + calibration dashboard (PIT/coverage) | design only | 3D last; calibration after snapshot history exists |
+| **P4** | Event IV crush + alerts (skew spike/term inversion) | design only | — |
 
-**Recommendation:** do P0 + P1 first. True 3D is last; the heatmap answers the
-same question at a fraction of the bundle/perf cost.
+**Recommendation:** P0 + P1 + the P2 dashboard are done (see the pillars/block
+table above). Remaining: scenario grid, calibration, and true 3D last — the
+heatmap answers the same question at a fraction of the bundle/perf cost.
 
 ## 8. Tests and acceptance
 
@@ -241,11 +394,42 @@ same question at a fraction of the bundle/perf cost.
 - False precision: round IV to 0.1 vol and probabilities to 0.1%; show model and
   fit quality.
 
-## 10. Decisions needed
+## 10. Decisions — resolved 2026-11-16
 
-1. Heatmap first (recommended) or true 3D from day one?
-2. How many expiries in the surface (3 / 4 / 6) and which window (±10% / ±15%)?
-3. Snapshot cadence and retention (60s/90d recommended; 5m after 30d)?
-4. Risk-neutral density (market-implied) or a real-world blend for POP?
-5. Show both flat-ATM and skew POP, or replace the current POP?
-6. Scope: NSE only (current chain) or also US/global via another provider?
+1. **Surface:** 2D heatmap first; true 3D (`echarts-gl`) optional and last.
+2. **Expiries/window:** not fixed. Stocks expose only 3 expiries (thin term) —
+   do not fabricate a 30d point for them; ±10% vs ±15% remains open.
+3. **Snapshots:** 60 s cadence, 90-day retention.
+4. **RND / POP:** market-implied (risk-neutral, labelled), from a fitted /
+   arbitrage-repaired smile only; show both flat-ATM and skew POP.
+5. **Scope:** NSE only — no US/global options.
+6. **25Δ RR sign:** `call IV − put IV` (positive = calls rich); the frontend
+   `riskReversal` / `ivSkewStats` are now aligned to this convention.
+
+## 11. Open risks (live status, 2026-11-16)
+
+- **RR sign alignment: resolved.** Backend/probe and the frontend
+  `riskReversal`/`ivSkewStats` now use `call − put` (positive = calls rich).
+- **RND density / probability cone: shipped with P2 (2026-11-17); this was an
+  open risk at the 2026-11-16 snapshot.** 34–37% of raw quote butterflies are
+  negative, so the engine derives RND from a fitted / arbitrage-repaired smile
+  (`api/options_rnd.py`) and labels it model-dependent; the probability cone is
+  the `Probability.cone` block.
+- **IV rank waits for snapshot history.** Capture is wired (one/minute while
+  `open`, one/session when `closed`) but no history has accumulated yet — IV
+  rank, history and calibration have no data until it fills.
+- **True 3D surface: optional, not built.** 2D heatmap is the shipped default;
+  `echarts-gl` would be a lazy-loaded last step.
+- **Thin term for stocks:** only 3 expiries listed; suppress 30d interpolation
+  and term-slope reads instead of inventing a point.
+- **ONGC had no walls tape** in the live probe; don't expect walls for every
+  underlying.
+- **Analytics endpoint is public** — no `get_current_user` gate (same posture as
+  `/api/options/chain`), though §5 specified app bearer auth.
+- **0-DTE:** `T→0` degenerates the density/POP; floor `T` or disable and show the
+  caveat (see `OPTIONS_CHAIN_COMPONENT_PLAN.md`).
+- **openapi.yaml regeneration: done (2026-11-17).** Regenerated after the
+  dashboard + US-chart contract additions (`positioning`/`dealer`/`liquidity`/
+  `rnd`/`rv` on the analytics response, `SymbolChartResponse` on the US chart
+  route). Drift guard `tests/contract/test_openapi_sync.py` passes **26/26**;
+  never hand-edit the generated file.

@@ -21,6 +21,7 @@ keywords resolve server-side and can disagree with the label the client shows).
 """
 
 import asyncio
+import logging
 import time
 from datetime import datetime, time as dtime
 from typing import Optional
@@ -29,8 +30,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 import config
+from api._bounded_cache import BoundedTTLCache, prune_locks
 from api.auth import get_current_user
-from api.options import fetch_upstox, get_instrument_key
 from db.models import User
 from trading.utils import (
     DERIVATIVES_CLOSE,
@@ -42,14 +43,57 @@ from trading.utils import (
 )
 
 router = APIRouter(prefix="/api/options", tags=["options"])
+log = logging.getLogger(__name__)
+
+#: Fixed client-facing detail: upstream bodies/exception strings can carry
+#: internal URLs and tokens, so they are logged here instead.
+UPSTREAM_UNAVAILABLE_DETAIL = "Upstream option data is temporarily unavailable. Retry shortly."
+#: Fixed Retry-After on upstream 429s. No upstream text (which may carry
+#: internal URLs or tokens) is echoed back — only a constant delay is sent.
+UPSTREAM_429_RETRY_AFTER_SEC = 5
+
+
+async def fetch_upstox(endpoint: str, params: Optional[dict] = None) -> dict:
+    """Proxy to the single Upstox client in :mod:`api.options`.
+
+    Imported on call, not at module load: ``api.options`` builds its public
+    underlyings table from this module's registry, so importing it back here
+    at module scope would be circular. Kept at module scope so tests can
+    monkeypatch ``ou.fetch_upstox``.
+    """
+    from api.options import fetch_upstox as _fetch_upstox
+
+    return await _fetch_upstox(endpoint, params)
+
+
+def get_instrument_key(underlying: str) -> str:
+    """Proxy to :func:`api.options.get_instrument_key` (lazy: see above)."""
+    from api.options import get_instrument_key as _get_instrument_key
+
+    return _get_instrument_key(underlying)
+
 
 #: Index underlyings whose Upstox key is not derivable from the equity map.
+#: ``symbol -> (instrument_key, exchange)``.
 INDEX_ALIASES: dict[str, tuple[str, str]] = {
     "NIFTY": ("NSE_INDEX|Nifty 50", "NSE"),
     "BANKNIFTY": ("NSE_INDEX|Nifty Bank", "NSE"),
     "FINNIFTY": ("NSE_INDEX|Nifty Fin Service", "NSE"),
     "MIDCPNIFTY": ("NSE_INDEX|NIFTY MID SELECT", "NSE"),
     "SENSEX": ("BSE_INDEX|SENSEX", "BSE"),
+}
+
+#: Display name + contract metadata for every INDEX_ALIASES symbol, keyed by the
+#: same symbol. This is the sole owner of the index lot/tick literals; the public
+#: ``api.options.AVAILABLE_UNDERLYINGS`` table is derived from it so the two
+#: registries cannot drift. NIFTY's 65 is what GEX already computes with (23
+#: consecutive exchange prints were exact multiples of 65; it was 25).
+INDEX_CONTRACT_META: dict[str, dict] = {
+    "NIFTY": {"name": "Nifty 50", "lot_size": 65, "tick_size": 0.05},
+    "BANKNIFTY": {"name": "Nifty Bank", "lot_size": 15, "tick_size": 1.05},
+    "FINNIFTY": {"name": "Nifty Fin Service", "lot_size": 25, "tick_size": 1.05},
+    "MIDCPNIFTY": {"name": "NIFTY MID SELECT", "lot_size": 50, "tick_size": 0.05},
+    "SENSEX": {"name": "BSE Sensex", "lot_size": 20, "tick_size": 5.0},
 }
 
 #: A contract listing only changes when the exchange rolls an expiry, so a
@@ -92,12 +136,31 @@ class UnderlyingInfo(BaseModel):
     )
 
 
-#: symbol -> {"ts": monotonic, "data": upstream-derived payload}. Only the parts
-#: that come from Upstox are cached; ``dte_days``/``default_expiry``/
-#: ``market_state`` are recomputed per request so a 15:40 rollover is not
-#: delayed by a cache window that started before it.
-_cache: dict[str, dict] = {}
+#: symbol/chain-key -> {"ts": monotonic, "ttl": seconds, "data": upstream-derived
+#: payload}. Only the parts that come from Upstox are cached; ``dte_days``/
+#: ``default_expiry``/``market_state`` are recomputed per request so a 15:40
+#: rollover is not delayed by a cache window that started before it. Public
+#: callers supply the symbol, so the cache is LRU-capped and expiry-swept.
+_CACHE_MAX = 512
 _locks: dict[str, asyncio.Lock] = {}
+
+
+def _drop_lock(key: str) -> None:
+    """Release the guard for a cache key that was evicted/cleared.
+
+    A guard still held by an in-flight fetch is left in place; ``prune_locks``
+    collects it once it goes idle.
+    """
+    lock = _locks.get(key)
+    if lock is not None and not lock.locked():
+        _locks.pop(key, None)
+
+
+_cache = BoundedTTLCache(
+    _CACHE_MAX,
+    ttl_getter=lambda value: value["ttl"],
+    on_evict=_drop_lock,
+)
 
 
 def _resolve_instrument(symbol: str) -> tuple[str, str]:
@@ -139,20 +202,23 @@ async def _contract_rows(instrument_key: str) -> list[dict]:
             raise HTTPException(
                 status_code=429,
                 detail={"code": "rate_limited", "detail": "Upstox rate limit reached, retry shortly."},
+                headers={"Retry-After": str(UPSTREAM_429_RETRY_AFTER_SEC)},
             )
+        log.warning("option contract listing failed for %s: %s", instrument_key, exc.detail)
         raise HTTPException(
             status_code=503,
             detail={
                 "code": "upstream_unavailable",
-                "detail": f"Upstox option contract listing unavailable: {exc.detail}",
+                "detail": UPSTREAM_UNAVAILABLE_DETAIL,
             },
         )
     except Exception as exc:  # httpx/JSON-level failure — never a bare 500
+        log.warning("option contract listing failed for %s: %s", instrument_key, exc)
         raise HTTPException(
             status_code=503,
             detail={
                 "code": "upstream_unavailable",
-                "detail": f"Upstox option contract listing failed: {exc}",
+                "detail": UPSTREAM_UNAVAILABLE_DETAIL,
             },
         )
 
@@ -313,22 +379,28 @@ async def _cached(
     caller needed for its key; passing it saves a second holiday query.
     """
     lock = _locks.setdefault(symbol_key, asyncio.Lock())
-    async with lock:
-        entry = _cache.get(symbol_key)
-        if not bypass and entry and time.monotonic() - entry["ts"] < entry["ttl"]:
-            return entry["data"]
-        data = await loader()
-        state = session_state or await _session_state_now()
-        _cache[symbol_key] = {
-            "ts": time.monotonic(),
-            "ttl": (
-                (ttl_open if ttl_open is not None else CACHE_TTL_OPEN_SEC)
-                if state == "open"
-                else (ttl_closed if ttl_closed is not None else CACHE_TTL_CLOSED_SEC)
-            ),
-            "data": data,
-        }
-        return data
+    prune_locks(_locks, _CACHE_MAX, keep=(symbol_key,))
+    try:
+        async with lock:
+            entry = _cache.get(symbol_key)
+            if not bypass and entry and time.monotonic() - entry["ts"] < entry["ttl"]:
+                return entry["data"]
+            data = await loader()
+            state = session_state or await _session_state_now()
+            _cache[symbol_key] = {
+                "ts": time.monotonic(),
+                "ttl": (
+                    (ttl_open if ttl_open is not None else CACHE_TTL_OPEN_SEC)
+                    if state == "open"
+                    else (ttl_closed if ttl_closed is not None else CACHE_TTL_CLOSED_SEC)
+                ),
+                "data": data,
+            }
+            return data
+    finally:
+        # The guard just went idle; collect stale idle locks on every path.
+        # Keep the current key: another tab may already be waiting on it.
+        prune_locks(_locks, _CACHE_MAX, keep=(symbol_key,))
 
 
 def clear_underlying_cache() -> None:

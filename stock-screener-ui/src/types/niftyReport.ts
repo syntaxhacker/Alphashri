@@ -135,8 +135,52 @@ export interface NiftyControlBlock {
   pe_doi: number | null;
   atm_ce_iv: number | null;
   atm_pe_iv: number | null;
+  /** PE − CE ATM skew (positive = puts richer). Distinct from `iv_surface`'s
+   *  25-delta RR, which is CE − PE — the two have opposite signs. */
+  put_skew?: number | null;
+  /** Legacy alias of `put_skew`; same PE − CE sign, kept for old payloads. */
   skew: number | null;
   gex_regime: string | null;
+}
+
+/** One surface-filtered leg from `report.iv_surface.points`. */
+export interface NiftyIvSurfacePoint {
+  strike: number;
+  ce_iv: number | null;
+  pe_iv: number | null;
+  ce_delta: number | null;
+  pe_delta: number | null;
+}
+
+/**
+ * `report.iv_surface` — ATM / 25Δ skew / term structure computed by the
+ * backend from the same chain. Prefer these numbers over re-deriving them from
+ * raw strikes; every field is nullable because a thin chain degrades block by block.
+ */
+export interface NiftyIvSurface {
+  atm?: {
+    strike: number | null;
+    ce_iv: number | null;
+    pe_iv: number | null;
+    avg_iv: number | null;
+  } | null;
+  skew?: {
+    strike_ce25: number | null;
+    ce_25d_iv: number | null;
+    strike_pe25: number | null;
+    pe_25d_iv: number | null;
+    /** CE − PE, in vol points (positive = calls rich). */
+    skew_25d: number | null;
+  } | null;
+  term?: { expiry: string; atm_iv: number | null }[];
+  coverage?: {
+    rows: number;
+    with_ce_iv: number;
+    with_pe_iv: number;
+    with_delta: number;
+  } | null;
+  degraded?: boolean | null;
+  points?: NiftyIvSurfacePoint[];
 }
 
 /** Rolling CE/PE OI change over the last N minutes of the tape. */
@@ -396,6 +440,8 @@ export interface NiftyReport {
   positioning?: NiftyPositioningBlock;
   /** Structural tape shifts — absent renders nothing, `[]` renders empty. */
   structure?: NiftyStructureShift[];
+  /** Backend-computed IV surface — preferred over re-deriving from `strikes`. */
+  iv_surface?: NiftyIvSurface;
 }
 
 /** Live Sensex context shown beside the Nifty report. */

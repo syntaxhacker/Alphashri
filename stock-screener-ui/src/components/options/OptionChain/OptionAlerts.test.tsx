@@ -65,6 +65,13 @@ describe("OptionAlerts", () => {
     expect(screen.getByText(/HOW TO PROFIT/)).toBeInTheDocument();
   });
 
+  it("renders the profit tip with a plain label instead of an emoji", () => {
+    render(() => <OptionAlerts strikeMatrix={[]} spotPrice={24500} />);
+    const tip = screen.getByTestId("options-alerts-profit-tip");
+    expect(tip.textContent ?? "").toContain("HOW TO PROFIT");
+    expect(document.body.textContent ?? "").not.toMatch(/🔥|📊|💡/);
+  });
+
   describe("Wall alert detection", () => {
     it("triggers Wall alert when OI change > 40% and change > 50000 contracts", () => {
       const strikeMatrix = [

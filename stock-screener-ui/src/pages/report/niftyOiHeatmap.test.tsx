@@ -7,7 +7,7 @@ import { createSignal } from "solid-js";
 import * as palette from "@/ui/palette";
 import * as heatmapModule from "./niftyOiHeatmap";
 import { buildOiHeatmap, heatmapReadText, readHeatmap, type HeatmapTapeRow } from "./niftyOiHeatmap";
-import { HEATMAP_CE, HEATMAP_FLIP, HEATMAP_MP, HEATMAP_PE, HEATMAP_SPOT, NiftyOiHeatmap } from "./NiftyOiHeatmap";
+import { HEATMAP_FLIP, HEATMAP_SPOT, NiftyOiHeatmap } from "./NiftyOiHeatmap";
 import { chainAt, isoAt, r } from "./reportTestFixtures";
 
 afterEach(() => {
@@ -327,8 +327,32 @@ describe("NiftyOiHeatmap render", () => {
 
   test("marks max-pain and flip dashed lines", () => {
     r(() => <NiftyOiHeatmap {...{ rows: twoBuckets, bucketMin: 5, widthPts: 500 }} />);
-    expect(screen.getAllByTestId("nifty-heatmap-maxpain").length).toBeGreaterThan(0);
+    const mp = screen.getAllByTestId("nifty-heatmap-maxpain");
+    expect(mp.length).toBeGreaterThan(0);
+    for (const line of mp) expect(line.getAttribute("stroke")).toBe(palette.LEVEL_MAX_PAIN);
     expect(screen.getAllByTestId("nifty-heatmap-flip").length).toBeGreaterThan(0);
+  });
+
+  test("the legend names only marks the heatmap draws — MP, not CW/PW", () => {
+    r(() => <NiftyOiHeatmap {...{ rows: twoBuckets, bucketMin: 5, widthPts: 500 }} />);
+    const legend = screen.getByTestId("nifty-heatmap-legend");
+    expect(legend).toHaveTextContent("MP max pain");
+    expect(legend).toHaveTextContent("spot");
+    expect(legend).toHaveTextContent("gamma flip");
+    expect(legend).not.toHaveTextContent("CW call wall");
+    expect(legend).not.toHaveTextContent("PW put wall");
+    expect(screen.queryByTestId("nifty-heatmap-legend-call-wall-swatch")).toBeNull();
+    expect(screen.queryByTestId("nifty-heatmap-legend-put-wall-swatch")).toBeNull();
+    expect(screen.getByTestId("nifty-heatmap-legend-maxpain-swatch")).toHaveStyle({
+      borderTopColor: palette.LEVEL_MAX_PAIN,
+    });
+  });
+
+  test("max-pain and side tokens have the canonical palette values", () => {
+    expect(palette.LEVEL_MAX_PAIN).toBe(palette.WARNING);
+    expect(palette.OI_CALL).toBe(palette.INFO);
+    expect(palette.OI_PUT).toBe(palette.WARNING);
+    expect(palette.OI_CALL).not.toBe(palette.OI_PUT);
   });
 
   test(" strike labels every 100 pts and time labels every 30 min", () => {
@@ -394,15 +418,15 @@ describe("NiftyOiHeatmap render", () => {
     const mp = screen.getByTestId("nifty-heatmap-legend-maxpain-swatch");
     const flip = screen.getByTestId("nifty-heatmap-legend-flip-swatch");
     const touch = screen.getByTestId("nifty-heatmap-legend-mp-touch-swatch");
-    expect(ce).toHaveStyle({ backgroundColor: HEATMAP_CE });
+    expect(ce).toHaveStyle({ backgroundColor: palette.OI_CALL });
     expect(ce).toHaveClass("w-2", "h-2");
-    expect(pe).toHaveStyle({ backgroundColor: HEATMAP_PE });
+    expect(pe).toHaveStyle({ backgroundColor: palette.OI_PUT });
     expect(pe).toHaveClass("w-2", "h-2");
     expect(spot).toHaveStyle({ backgroundColor: HEATMAP_SPOT });
     expect(spot).toHaveClass("w-3", "h-0.5");
-    expect(mp).toHaveStyle({ borderTopColor: HEATMAP_MP });
+    expect(mp).toHaveStyle({ borderTopColor: palette.LEVEL_MAX_PAIN });
     expect(flip).toHaveStyle({ borderTopColor: HEATMAP_FLIP });
-    expect(touch).toHaveStyle({ backgroundColor: palette.WARNING });
+    expect(touch).toHaveStyle({ backgroundColor: palette.LEVEL_MAX_PAIN });
     for (const el of [ce, pe, spot, mp, flip, touch]) expect(el.textContent).toBe("");
   });
 
@@ -417,8 +441,8 @@ describe("NiftyOiHeatmap render", () => {
     for (const dot of dots) {
       expect(dot.tagName.toLowerCase()).toBe("circle");
       expect(dot).toHaveAttribute("r", "3.5");
-      expect(dot.getAttribute("fill")).toBe(palette.WARNING);
-      expect(dot.getAttribute("stroke")).toBe("#000");
+      expect(dot.getAttribute("fill")).toBe(palette.LEVEL_MAX_PAIN);
+      expect(dot.getAttribute("stroke")).toBe(palette.HEATMAP_TOUCH_STROKE);
       expect(dot.querySelector("title")?.textContent).toMatch(/^Max pain touch /);
     }
   });

@@ -452,6 +452,45 @@ components:
           title: Strategies
       title: BotUpdate
       type: object
+    ChainIvRow:
+      properties:
+        ceDelta:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Cedelta
+        ceIv:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Ceiv
+        ceOi:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Ceoi
+        peDelta:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Pedelta
+        peIv:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Peiv
+        peOi:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Peoi
+        strike:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Strike
+      title: ChainIvRow
+      type: object
     ChatRequest:
       properties:
         conversation_id:
@@ -650,6 +689,67 @@ components:
           type: number
       title: ExecIn
       type: object
+    ExpiryAnalytics:
+      properties:
+        atmIv:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Atmiv
+        date:
+          title: Date
+          type: string
+        dealer:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Dealer
+        dteDays:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Dtedays
+        iv:
+          items:
+            $ref: '#/components/schemas/ChainIvRow'
+          title: Iv
+          type: array
+        levels:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Levels
+        liquidity:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Liquidity
+        metrics:
+          $ref: '#/components/schemas/ExpiryMetrics'
+        positioning:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Positioning
+        rnd:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Rnd
+        spot:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Spot
+      required:
+      - date
+      title: ExpiryAnalytics
+      type: object
     ExpiryInfo:
       properties:
         date:
@@ -675,6 +775,35 @@ components:
       - lot_size
       - tick_size
       title: ExpiryInfo
+      type: object
+    ExpiryMetrics:
+      properties:
+        fly25:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Fly25
+        n:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: N
+        r2:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: R2
+        rr25:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Rr25
+        slope:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Slope
+      title: ExpiryMetrics
       type: object
     GroupPerformanceItem:
       properties:
@@ -806,6 +935,56 @@ components:
           title: Force
           type: boolean
       title: NiftySnapshotRequest
+      type: object
+    OptionsAnalyticsResponse:
+      properties:
+        asOf:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Asof
+        expiries:
+          items:
+            $ref: '#/components/schemas/ExpiryAnalytics'
+          title: Expiries
+          type: array
+        marketState:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Marketstate
+        quotesLive:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Quoteslive
+        rv:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Rv
+        sessionDate:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sessiondate
+        spot:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Spot
+        symbol:
+          title: Symbol
+          type: string
+        warnings:
+          items:
+            type: string
+          title: Warnings
+          type: array
+      required:
+      - symbol
+      title: OptionsAnalyticsResponse
       type: object
     OrderRequest:
       properties:
@@ -2302,6 +2481,97 @@ components:
           title: Trailing Stop Pct
       title: StrategyUpdate
       type: object
+    SymbolChartResponse:
+      description: 'Documented shape of the chart payload (India and US paths).
+
+
+        The US path (``market=usa``) adds ``market``/``feed``/``delay_label``/
+
+        ``session_date`` and returns ``hits`` from live detection on the provider
+
+        frame. Fields are optional because empty/error branches omit most of them.
+
+        The handler writes a ``JSONResponse`` directly, so this model documents the
+
+        OpenAPI contract without re-encoding the candle-heavy payload.'
+      properties:
+        as_of:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: As Of
+        candles:
+          items: {}
+          title: Candles
+          type: array
+        delay_label:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: US quote delay, e.g. '~1 min (forming)'.
+          title: Delay Label
+        detection_as_of:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Detection As Of
+        expected_as_of:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expected As Of
+        feed:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: 'US price feed: ''yahoo'', ''alpaca-iex'' or ''alpaca-sip''.'
+          title: Feed
+        hits:
+          items: {}
+          title: Hits
+          type: array
+        market:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: 'Chart market: ''india'' (default) or ''usa''.'
+          title: Market
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+        overlays:
+          items: {}
+          title: Overlays
+          type: array
+        session_date:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: US session date in ET (YYYY-MM-DD).
+          title: Session Date
+        stale:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Stale
+        symbol:
+          title: Symbol
+          type: string
+        timeframe:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Timeframe
+        trend_lines:
+          items: {}
+          title: Trend Lines
+          type: array
+      required:
+      - symbol
+      title: SymbolChartResponse
+      type: object
     ThemeDetailResponse:
       properties:
         constituents:
@@ -2575,7 +2845,14 @@ openapi: 3.1.0
 paths:
   /api/52w-range:
     get:
-      description: Get 52-week high/low for a single symbol. Checks Redis first, falls back to DB.
+      description: 'Get 52-week high/low for one symbol from the bulk range cache.
+
+
+        The per-symbol ``52w_range:{symbol}`` keys are gone: the bulk key already
+
+        holds every row, so there is one cached payload to read regardless of how
+
+        many symbols are requested.'
       operationId: get_52w_range_api_52w_range_get
       parameters:
       - in: query
@@ -5525,11 +5802,19 @@ paths:
           default: false
           title: Refresh
           type: boolean
+      - in: query
+        name: market
+        required: false
+        schema:
+          default: india
+          title: Market
+          type: string
       responses:
         '200':
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/SymbolChartResponse'
           description: Successful Response
         '422':
           content:
@@ -6768,13 +7053,13 @@ paths:
         ``limit`` rows of the universe is still found.'
       operationId: market_snapshot_api_market_snapshot_get
       parameters:
-      - description: 'Universe: all_equity (default), nifty50, nifty500 or nse_fo.'
+      - description: 'Universe: all_equity (default), nifty50, nifty500, nse_fo or us (US large/mid/small caps listed on NASDAQ/NYSE/AMEX).'
         in: query
         name: universe
         required: false
         schema:
           default: all_equity
-          description: 'Universe: all_equity (default), nifty50, nifty500 or nse_fo.'
+          description: 'Universe: all_equity (default), nifty50, nifty500, nse_fo or us (US large/mid/small caps listed on NASDAQ/NYSE/AMEX).'
           title: Universe
           type: string
       - description: Max rows returned (1..4000).
@@ -6824,7 +7109,7 @@ paths:
           description: Validation Error
       security:
       - bearerAuth: []
-      summary: NSE market snapshot for the one-page screener
+      summary: Market snapshot (NSE / US) for the one-page screener
       tags:
       - market
   /api/news:
@@ -7427,6 +7712,60 @@ paths:
       summary: Record Surge
       tags:
       - Notifications
+  /api/options/analytics/{underlying}:
+    get:
+      description: 'Nearest ``expiries`` expiries of one underlying, from cache only.
+
+
+        Reads the expiry ladder from the underlying cache and each chain from the
+
+        chain cache, so a poll burst adds no Upstox calls. Any upstream/derivation
+
+        failure is a structured ``503 analytics_unavailable``.
+
+
+        Successful responses carry a browser cache window equal to the server TTL
+
+        and a body-derived ETag; a matching ``If-None-Match`` revalidation answers
+
+        304 without a body. The rate-limit and server-cache paths run before this,
+
+        so both cold (charged) and warm (free) request budgets are unchanged.'
+      operationId: get_options_analytics_api_options_analytics__underlying__get
+      parameters:
+      - in: path
+        name: underlying
+        required: true
+        schema:
+          title: Underlying
+          type: string
+      - description: Number of nearest expiries (1-6)
+        in: query
+        name: expiries
+        required: false
+        schema:
+          default: 3
+          description: Number of nearest expiries (1-6)
+          maximum: 6
+          minimum: 1
+          title: Expiries
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptionsAnalyticsResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: 'Multi-expiry option analytics: ATM IV, 25-delta skew, smile fit and levels'
+      tags:
+      - options
   /api/options/chain/{underlying}:
     get:
       description: 'Get complete option chain with server-side analysis.
@@ -11154,234 +11493,6 @@ paths:
       summary: Get Strategies
       tags:
       - report-sim
-  /api/reports/us/bars:
-    get:
-      description: One-minute OHLC candles (o/h/l/c from the 10 s sampler).
-      operationId: get_bars_api_reports_us_bars_get
-      parameters:
-      - in: query
-        name: root
-        required: false
-        schema:
-          default: NQ
-          title: Root
-          type: string
-      - in: query
-        name: date
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Date
-      - in: query
-        name: limit
-        required: false
-        schema:
-          default: 390
-          maximum: 2000
-          minimum: 1
-          title: Limit
-          type: integer
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Get Bars
-      tags:
-      - reports-us
-  /api/reports/us/eod:
-    get:
-      description: Settled end-of-day card derived from the tape.
-      operationId: get_eod_api_reports_us_eod_get
-      parameters:
-      - in: query
-        name: root
-        required: false
-        schema:
-          default: NQ
-          title: Root
-          type: string
-      - in: query
-        name: date
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Date
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Get Eod
-      tags:
-      - reports-us
-  /api/reports/us/live:
-    get:
-      description: Latest tape row for ``root`` (one upstream fetch only if the tape is empty).
-      operationId: get_live_api_reports_us_live_get
-      parameters:
-      - in: query
-        name: root
-        required: false
-        schema:
-          default: NQ
-          title: Root
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Get Live
-      tags:
-      - reports-us
-  /api/reports/us/price:
-    get:
-      description: Futures last price only — cheap enough for a 5 s poll.
-      operationId: get_price_api_reports_us_price_get
-      parameters:
-      - in: query
-        name: root
-        required: false
-        schema:
-          default: NQ
-          title: Root
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Get Price
-      tags:
-      - reports-us
-  /api/reports/us/replay/dates:
-    get:
-      operationId: get_replay_dates_api_reports_us_replay_dates_get
-      parameters:
-      - in: query
-        name: root
-        required: false
-        schema:
-          default: NQ
-          title: Root
-          type: string
-      - in: query
-        name: limit
-        required: false
-        schema:
-          default: 30
-          maximum: 180
-          minimum: 1
-          title: Limit
-          type: integer
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Get Replay Dates
-      tags:
-      - reports-us
-  /api/reports/us/roots:
-    get:
-      description: Configured futures roots (NQ only for now).
-      operationId: get_roots_api_reports_us_roots_get
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-      summary: Get Roots
-      tags:
-      - reports-us
-  /api/reports/us/tape:
-    get:
-      description: Every recorded minute for a day, oldest first (replay frames).
-      operationId: get_tape_api_reports_us_tape_get
-      parameters:
-      - in: query
-        name: root
-        required: false
-        schema:
-          default: NQ
-          title: Root
-          type: string
-      - in: query
-        name: date
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Date
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Get Tape
-      tags:
-      - reports-us
-  /api/reports/us/tape/status:
-    get:
-      operationId: get_tape_status_api_reports_us_tape_status_get
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-      summary: Get Tape Status
-      tags:
-      - reports-us
   /api/rotation/overview:
     get:
       operationId: get_rotation_overview_api_rotation_overview_get
@@ -13064,8 +13175,6 @@ tags:
   name: reports-nifty
 - description: Nifty intelligence aggregates.
   name: reports-nifty-intel
-- description: US market reports and tape.
-  name: reports-us
 - description: Options chain, analytics and sentiment.
   name: options
 - description: Options report generation.

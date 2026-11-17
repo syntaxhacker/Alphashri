@@ -85,6 +85,8 @@ export function CompactPage(props: CompactPageProps) {
 interface CompactPanelProps extends UIPaperProps {
   children: JSX.Element;
   title?: JSX.Element;
+  /** Opt-in classes for the header title element (e.g. responsive truncation). */
+  titleClassName?: string;
   description?: JSX.Element;
   action?: JSX.Element;
   padded?: boolean;
@@ -102,6 +104,7 @@ export function CompactPanel(props: CompactPanelProps) {
   const [own, paperProps] = splitProps(props, [
     "children",
     "title",
+    "titleClassName",
     "description",
     "action",
     "padded",
@@ -165,6 +168,7 @@ export function CompactPanel(props: CompactPanelProps) {
                   <Box className="flex items-center flex-start">
                     <Title
                       order={4}
+                      className={own.titleClassName}
                       style={{
                         "font-size": "10px",
                         "font-family": palette.MONO,

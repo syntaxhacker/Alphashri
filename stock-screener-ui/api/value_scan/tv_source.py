@@ -30,6 +30,7 @@ from api.tv import (
     NUMERIC_COLUMNS,
     USA_EXCHANGES,
     VALUE_COLUMNS,
+    resolve_market,
     scan_frame,
 )
 
@@ -41,11 +42,9 @@ class TvSourceError(Exception):
 
 
 def _markets_for(market: str) -> list[str]:
-    if market == "usa":
-        return ["america"]
-    if market == "india":
-        return ["india"]
-    return list(GLOBAL_COUNTRIES)
+    if market == "global":
+        return list(GLOBAL_COUNTRIES)
+    return [resolve_market(market)]
 
 
 def _is_missing(value: Any) -> bool:

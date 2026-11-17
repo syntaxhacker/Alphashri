@@ -1,7 +1,19 @@
 # Options chain strike levels — implementation contract
 
 Companion to [OPTIONS_ANALYTICS_PLAN.md](./OPTIONS_ANALYTICS_PLAN.md). Status:
-**contract only**; no code yet.
+**implemented (2026-11-16)** — see "Implemented status" below.
+
+## Implemented status (2026-11-16)
+
+- DTO/state patch, chain badges (wide chip + 390px `M/C/P/S/R` letter), summary
+  line and E2E coverage are **done**; the shared max-pain/GEX module has
+  anti-drift tests against the report wrapper.
+- **PAIN is authoritative on the `levels` block:** `summary.max_pain` is sourced
+  from `levels.max_pain.strike` (`0` for compatibility); the frontend reads the
+  DTO and never recomputes it.
+- **No stale gate by design:** levels are a pure function of the returned chain
+  frame — no second staleness check inside `build_levels`. Freshness is carried
+  by the chain's `quotes_live:false` / STALE badge.
 
 ## Decision
 
@@ -67,14 +79,18 @@ degrades GEX if gammas round to zero.
 
 Priority per strike row: **MAX PAIN > CALL WALL > PUT WALL > SUP > RES > FUEL**.
 
-| Label | Tone |
+| Label | Token (semantic role) |
 |---|---|
-| `MP` | warning |
-| `CW` | `OI_CALL` |
-| `PW` | `OI_PUT` |
-| `SUP` | positive |
-| `RES` | negative |
-| `FU↑/FU↓` | info, opt-in (tooltip/expansion only) |
+| `MP` | `LEVEL_MAX_PAIN` — amber equilibrium |
+| `CW` | `LEVEL_CALL_WALL` — red, resistance |
+| `PW` | `LEVEL_PUT_WALL` — green, support |
+| `SUP` | `LEVEL_SUPPORT` — green |
+| `RES` | `LEVEL_RESISTANCE` — red |
+| `FU↑/FU↓` | `INFO` — blue, opt-in (tooltip/expansion only) |
+
+- **Side coding is a separate axis:** CE/calls = `OI_CALL` (`INFO`, blue), PE/puts = `OI_PUT` (`WARNING`, orange), including OI bars. Never green/red — OI is not bullish/bearish. Do not reuse these tokens for levels above.
+- **Row treatment:** CW/PW get a 2px inset rail + 8% tint, MP a 7% tint/outline, ATM keeps its amber fill. One row may carry both CW and PW — render both rails; the priority above picks only the visible chip/letter.
+- **Contrast:** text ≥ 4.5:1, UI graphics ≥ 3:1 (decorative hairlines exempt); use `src/utils/contrast.ts` and `bun run contrast`, and add new pairs to `src/test/contrast.test.ts`. Solid green/red behind 10px text measured ~2.6:1 — the rail+tint pattern is the fix.
 
 - Wide: 9px chip left of the strike number in the 72px strike cell; a secondary
   level may be a 2px left-rail tint.
@@ -84,6 +100,22 @@ Priority per strike row: **MAX PAIN > CALL WALL > PUT WALL > SUP > RES > FUEL**.
   `SUP · RES · PW · CW` (narrow: SUP/RES only; thin chain: existing warning).
 - Never badge `null`; never duplicate a label; never show live-only levels when
   the session is stale (keep the existing STALE badge).
+
+## Narrow-viewport (390px) contract
+
+Verified at 390×844 against `chain.columns.tsx`, `SummaryStrip.tsx`,
+`AnalyticsTabStrip.tsx` and `tests/e2e/options-dock.spec.ts`
+(`narrow 390: level rails, five analytics tabs and a stable header when analytics opens`).
+
+- Strike rails render one uppercase letter `M/C/P/S/R` (max pain / call wall /
+  put wall / support / resistance) with `role="img"` + `data-letter` and a 2px
+  tinted rail; no multi-letter chip survives at 390px.
+- The summary level line shows `SUP/RES` only; max pain is the **PAIN** stat
+  value, never an `MP` chip.
+- Measured header **31px**, summary **32px**, chain top **411px** — each unchanged
+  when the analytics band mounts.
+- All five tabs (`PAYOFF/SMILE/TERM/SURFACE/PROB`) fit at 390px; the strip's
+  `overflow-x-auto` (scrollbar hidden) is an overflow guard, not active scroll.
 
 ## Reuse plan
 

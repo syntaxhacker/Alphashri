@@ -1,4 +1,4 @@
-import { createEffect, createMemo, onCleanup, onMount } from "solid-js";
+import { createEffect, createMemo, onCleanup, onMount, Show } from "solid-js";
 import {
   CandlestickSeries,
   ColorType,
@@ -12,6 +12,7 @@ import {
   type ISeriesApi,
   type ISeriesMarkersPluginApi,
   type LineWidth,
+  type TickMarkType,
   type Time,
 } from "lightweight-charts";
 import * as palette from "@/ui/palette";
@@ -23,7 +24,9 @@ import type {
   TrendlinesView,
 } from "@/types/chartPatterns";
 import { buildPatternTVData, type TVMarker, type TVSiblingOverlay } from "./patternTVData";
+import { chartPriceLocale } from "./chartFormat";
 import { KEY_POINTS_LEGEND_NAME, PIVOT_LEGEND_NAME } from "@/config/patterns";
+import { MARKET_TIME_ZONE, type ChartMarket } from "@/utils/chart/time";
 import { tvTickMarkFormatter, tvTimeFormatter } from "@/utils/tvTimeFormat";
 
 export interface PatternTradingViewChartProps {
@@ -38,6 +41,10 @@ export interface PatternTradingViewChartProps {
   hiddenNames?: ReadonlySet<string>;
   /** Fixed pixel height, or `"100%"` (default) to fill the flex parent. */
   height?: number | string;
+  /** IANA zone for axis/crosshair labels. Defaults to Asia/Kolkata (India). */
+  timeZone?: string;
+  /** Market whose currency drives the axis/crosshair number locale. Defaults to India. */
+  market?: ChartMarket;
 }
 
 function clampWidth(w?: number): LineWidth {
@@ -47,6 +54,11 @@ function clampWidth(w?: number): LineWidth {
 
 /** Stable empty set so the visibility effect never sees a new reference. */
 const EMPTY_HIDDEN: ReadonlySet<string> = new Set<string>();
+
+/** Candle scheme from the chart options, reused to fade a still-forming bar. */
+const CANDLE_UP = palette.MARKER_BORDER;
+const CANDLE_DOWN = palette.SCALE_BLUE[6] ?? palette.NEGATIVE;
+const PARTIAL_OPACITY = 0.4;
 
 function visibleMarkers(markers: TVMarker[], hidden: ReadonlySet<string>): TVMarker[] {
   return markers.filter((marker) =>
@@ -74,6 +86,15 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
   let priceLines: Array<{ name: string; line: IPriceLine }> = [];
   let hiddenRef: ReadonlySet<string> = props.hiddenNames ?? EMPTY_HIDDEN;
 
+  const timeZoneOf = () => props.timeZone ?? MARKET_TIME_ZONE.india;
+  // The chart is created once; the callbacks read this ref so a zone change
+  // repaints the axis without rebuilding the series (and losing pan/zoom).
+  let timeZoneRef = timeZoneOf();
+  let localeRef = chartPriceLocale(props.market);
+  const tickFormatter = (time: Time, kind: TickMarkType) =>
+    tvTickMarkFormatter(time, kind, timeZoneRef);
+  const crosshairFormatter = (time: Time) => tvTimeFormatter(time, timeZoneRef);
+
   const trendlinesView = () => props.trendlinesView ?? "both";
   const data = createMemo(() =>
     buildPatternTVData({
@@ -85,6 +106,8 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
       historyHits: props.historyHits,
     }),
   );
+  // The mapper already reduces this to the newest flagged bar only.
+  const partialTime = createMemo(() => data().candles.find((c) => c.isPartial)?.time ?? null);
 
   // Create the chart once; data/overlays update in the effect below.
   onMount(() => {
@@ -101,9 +124,9 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
         secondsVisible: false,
         rightOffset: 6,
         barSpacing: 5,
-        tickMarkFormatter: tvTickMarkFormatter,
+        tickMarkFormatter: tickFormatter,
       },
-      localization: { locale: "en-IN", timeFormatter: tvTimeFormatter },
+      localization: { locale: localeRef, timeFormatter: crosshairFormatter },
       rightPriceScale: { borderColor: palette.BORDER },
       crosshair: { mode: 1 },
       handleScroll: true,
@@ -113,8 +136,8 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
 
     // Same default candle scheme as the paper-trading chart: white up bars,
     // blue down bars (`TradingViewChart`'s default theme).
-    const bull = palette.MARKER_BORDER;
-    const bear = palette.SCALE_BLUE[6];
+    const bull = CANDLE_UP;
+    const bear = CANDLE_DOWN;
     const candles = created.addSeries(CandlestickSeries, {
       upColor: bull,
       downColor: bear,
@@ -180,6 +203,25 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
     });
   });
 
+  // Rebind the axis/crosshair formatters when the session zone changes (fresh
+  // callbacks repaint the time scale) and the number locale when the market does.
+  createEffect(() => {
+    const nextZone = timeZoneOf();
+    const nextLocale = chartPriceLocale(props.market);
+    const zoneChanged = nextZone !== timeZoneRef;
+    const localeChanged = nextLocale !== localeRef;
+    if (!zoneChanged && !localeChanged) return;
+    timeZoneRef = nextZone;
+    localeRef = nextLocale;
+    chart?.applyOptions({
+      ...(zoneChanged ? { timeScale: { tickMarkFormatter: tickFormatter } } : {}),
+      localization: {
+        ...(zoneChanged ? { timeFormatter: crosshairFormatter } : {}),
+        locale: nextLocale,
+      },
+    });
+  });
+
   // Explicit numeric height updates without recreate; `"100%"` is driven by the
   // ResizeObserver above (which measures the flex parent).
   createEffect(() => {
@@ -194,7 +236,21 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
     const volume = volumeSeries;
     if (!chart || !candle || !volume) return;
 
-    candle.setData(d.candles as never);
+    // lightweight-charts supports per-bar colour overrides: fade the still
+    // forming bar so it reads as provisional without disturbing closed candles.
+    const partial = partialTime();
+    const candleData =
+      partial == null
+        ? d.candles
+        : d.candles.map((c) => {
+            if (c.time !== partial) return c;
+            const fill = withAlpha(
+              c.close >= c.open ? CANDLE_UP : CANDLE_DOWN,
+              PARTIAL_OPACITY,
+            );
+            return { ...c, color: fill, borderColor: fill, wickColor: fill };
+          });
+    candle.setData(candleData as never);
     volume.setData(d.volume as never);
 
     priceLines.forEach(({ line }) => {
@@ -363,9 +419,24 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
   return (
     <div
       data-testid="patterns-tv-chart"
+      data-partial={partialTime() != null ? "true" : undefined}
       className="relative flex min-h-0 w-full flex-col"
       style={{ height: typeof props.height === "number" ? `${props.height}px` : (props.height ?? "100%") }}
     >
+      <Show when={partialTime() != null}>
+        <span
+          data-testid="patterns-tv-partial-badge"
+          className="pointer-events-none absolute right-2 top-1 z-[4] rounded-fin border px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wide"
+          style={{
+            color: palette.WARNING,
+            "border-color": withAlpha(palette.WARNING, 0.5),
+            "background-color": withAlpha(palette.BG, 0.85),
+          }}
+          title="The last candle is still forming"
+        >
+          Forming
+        </span>
+      </Show>
       <div ref={(el) => (containerEl = el)} className="relative min-h-0 w-full flex-1" />
       <canvas
         ref={(el) => (overlayEl = el)}

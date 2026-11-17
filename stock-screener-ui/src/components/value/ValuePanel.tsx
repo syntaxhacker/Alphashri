@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { IconDownload, IconRefresh } from "../common/Icons";
 import {
@@ -21,17 +21,26 @@ import {
   VALUE_MARKETS,
   VALUE_PRESETS,
   type ValueFilters,
+  type ValueMarket,
   type ValueRow,
 } from "../../api/valueScan";
 import { ValueFilters as ValueFilterBar } from "./ValueFilters";
 import { ValueTable } from "./ValueTable";
 import { ValueDetailDrawer } from "./ValueDetailDrawer";
-import { VALUE_CSV_HEADERS, escapeCsvCell, valueRowToCsvRow } from "./valueColumns";
+import { VALUE_CSV_HEADERS, buildChartHref, escapeCsvCell, valueRowToCsvRow } from "./valueColumns";
 
 interface ValuePanelProps {
   initialFilters?: Partial<ValueFilters>;
   onRowClick?: (row: ValueRow) => void;
   sectorOptions?: string[];
+  /** Embedded under another surface (e.g. the Market View switch). Drops the
+   *  standalone market tabs so the host's universe selector is the only one. */
+  embedded?: boolean;
+  /** Controlled market. Overrides `initialFilters.market` and stays in sync
+   *  with the host's universe. */
+  market?: ValueMarket;
+  /** Hide the self-contained market selector. Implied by `embedded`. */
+  hideMarketSelect?: boolean;
 }
 
 const PRESET_OPTIONS = Object.entries(VALUE_PRESETS).map(([value, meta]) => ({
@@ -46,6 +55,13 @@ export function ValuePanel(props: ValuePanelProps) {
     limit: 100,
     sort: "score",
     ...props.initialFilters,
+    ...(props.market !== undefined ? { market: props.market } : {}),
+  });
+  // A host-owned market follows its owner without rebuilding the other filters.
+  createEffect(() => {
+    const market = props.market;
+    if (market === undefined) return;
+    setFilters((f) => (f.market === market ? f : { ...f, market }));
   });
   const [selected, setSelected] = createSignal<ValueRow | null>(null);
   const { data, rows, sectors, meta, isLoading, error, stale, refresh, warnings, lastUpdated } =
@@ -84,6 +100,9 @@ export function ValuePanel(props: ValuePanelProps) {
   const showError = () => error() !== null;
   const showEmpty = () => !isLoading() && error() === null && rows().length === 0;
   const canExport = () => data() !== null && !stale();
+  // The standalone tab owns a market selector; an embedded panel must not show
+  // a second one — the host's universe selector drives `market` instead.
+  const showMarketTabs = () => !props.embedded && props.hideMarketSelect !== true;
   // A payload whose own market disagrees with the tab cannot be presented as
   // the requested market — say which universe these rows are, never imply it.
   const marketMismatch = createMemo(() => {
@@ -105,22 +124,24 @@ export function ValuePanel(props: ValuePanelProps) {
             <Text size="sm" fw={700} data-testid="value-title">
               DEEP VALUE
             </Text>
-            <Tabs
-              value={filters().market ?? "india"}
-              onChange={(v) => patch({ market: (v ?? "india") as ValueFilters["market"] })}
-              data-testid="value-market-tabs"
-            >
-              <TabsList>
-                <For each={VALUE_MARKETS}>{(m) => (
-                  <Tab
-                    value={m.value}
-                    data-testid={`value-market-tab-${m.value}`}
-                  >
-                    {m.label}
-                  </Tab>
-                )}</For>
-              </TabsList>
-            </Tabs>
+            <Show when={showMarketTabs()}>
+              <Tabs
+                value={filters().market ?? "india"}
+                onChange={(v) => patch({ market: (v ?? "india") as ValueFilters["market"] })}
+                data-testid="value-market-tabs"
+              >
+                <TabsList>
+                  <For each={VALUE_MARKETS}>{(m) => (
+                    <Tab
+                      value={m.value}
+                      data-testid={`value-market-tab-${m.value}`}
+                    >
+                      {m.label}
+                    </Tab>
+                  )}</For>
+                </TabsList>
+              </Tabs>
+            </Show>
             <Select
               placeholder="Preset"
               data={PRESET_OPTIONS}
@@ -196,9 +217,10 @@ export function ValuePanel(props: ValuePanelProps) {
             rows={rows()}
             loading={isLoading()}
             onRowClick={handleRowClick}
-            // Exchange-gated in buildValueColumns: only NSE/BSE rows wire this
-            // to the Upstox-backed chart route; other markets stay TV-only.
-            onSymbolClick={(sym) => navigate(`/chart/${sym}`)}
+            // Exchange-gated in buildValueColumns: NSE/BSE/NSI and US listings
+            // wire this to the in-app chart; buildChartHref adds `?market=usa`
+            // for US rows so the chart picks the US provider.
+            onSymbolClick={(sym, exchange) => navigate(buildChartHref(sym, exchange))}
           />
         </Show>
 

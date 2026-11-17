@@ -19,9 +19,12 @@ from datetime import datetime
 from pathlib import Path
 
 import config
+from api._bounded_cache import BoundedTTLCache
 from api.fyers_options import resolve_fyers_option_symbol
 from api.options_snapshots import mark_captured, record_chain_snapshot, should_capture
 from api.positioning import compute_positioning
+from api.options_underlying import INDEX_ALIASES, INDEX_CONTRACT_META
+from api.options_conventions import IV_MAX
 
 router = APIRouter(prefix="/api/options", tags=["options"])
 
@@ -139,14 +142,18 @@ def calculate_max_pain(strike_matrix: List[Dict[str, Any]]) -> float:
     return max_pain_strike
 
 
+# Derived from the single index registry so symbols, instrument keys and
+# lot/tick sizes cannot drift between the two tables (name/lot/tick live in
+# options_underlying.INDEX_CONTRACT_META; keys/exchange in INDEX_ALIASES).
 AVAILABLE_UNDERLYINGS = [
-    # lot_size 65 (was 25): GEX already computes with 65, and 23 consecutive real
-    # exchange prints were all exact multiples of 65.
-    {"symbol": "NIFTY", "name": "Nifty 50", "instrument_key": "NSE_INDEX|Nifty 50", "lot_size": 65, "tick_size": 0.05},
-    {"symbol": "BANKNIFTY", "name": "Nifty Bank", "instrument_key": "NSE_INDEX|Nifty Bank", "lot_size": 15, "tick_size": 1.05},
-    {"symbol": "FINNIFTY", "name": "Nifty Fin Service", "instrument_key": "NSE_INDEX|Nifty Fin Service", "lot_size": 25, "tick_size": 1.05},
-    {"symbol": "MIDCPNIFTY", "name": "NIFTY MID SELECT", "instrument_key": "NSE_INDEX|NIFTY MID SELECT", "lot_size": 50, "tick_size": 0.05},
-    {"symbol": "SENSEX", "name": "BSE Sensex", "instrument_key": "BSE_INDEX|SENSEX", "lot_size": 20, "tick_size": 5.0},
+    {
+        "symbol": symbol,
+        "name": INDEX_CONTRACT_META[symbol]["name"],
+        "instrument_key": INDEX_ALIASES[symbol][0],
+        "lot_size": INDEX_CONTRACT_META[symbol]["lot_size"],
+        "tick_size": INDEX_CONTRACT_META[symbol]["tick_size"],
+    }
+    for symbol in INDEX_ALIASES
 ]
 
 
@@ -215,6 +222,17 @@ def clear_upstox_token_cache() -> None:
     # A chain fetched with the old token belongs to the old connection; a
     # reconnect is exactly when the operator expects fresh quotes.
     clear_option_chain_cache()
+    # The chain is not the only derived cache built from the old token's
+    # spot/IV: analytics payloads, the analytics RV cone and the RV daily-close
+    # series all outlive the chain's short TTL (45-900s). A reconnect must drop
+    # every one of them or it serves stale spot/IV until those TTLs lapse.
+    # Imports stay local: both modules reach back into api.options, so a
+    # module-level import here would close an import cycle.
+    from api.options_analytics import clear_analytics_cache
+    from api.options_rv import clear_rv_cache
+
+    clear_analytics_cache()  # analytics payloads + the analytics cone cache
+    clear_rv_cache()         # the provider daily-close series cache
 
 
 def get_upstox_token() -> str:
@@ -299,7 +317,10 @@ async def get_underlyings():
 #: them, which is exactly how an empty chain (strikes=[], net_gex=0,
 #: regime="flat", max_pain=0) got persisted to the snapshot log.
 _EXPIRIES_TTL_SEC = 300.0
-_expiries_cache: dict[str, dict] = {}
+#: Public route keyed by a caller-supplied underlying; bound it and sweep stale
+#: listings so repeated symbol keys cannot grow the cache without limit.
+_EXPIRIES_CACHE_MAX = 512
+_expiries_cache = BoundedTTLCache(_EXPIRIES_CACHE_MAX, ttl_getter=_EXPIRIES_TTL_SEC)
 
 
 @router.get("/expiries/{underlying}")
@@ -428,10 +449,12 @@ def transform_option_contract(option_data: dict, strike: float, option_type: str
     # Upstox sometimes sends a non-finite/absurd IV (117) with a tradable LTP,
     # and omits it entirely on other legs. Keep the raw value for display, but
     # publish a validity flag so consumers never chart or annualise a bad IV.
+    # The 100-point cap is shared with analytics (api.options_conventions);
+    # a 60-point cap silently invalidated genuine 79-83 prints on high-vol stocks.
     raw_iv = greeks.get("iv")
     try:
         iv_number = float(raw_iv)
-        iv_valid = math.isfinite(iv_number) and 0 < iv_number <= 60
+        iv_valid = math.isfinite(iv_number) and 0 < iv_number <= IV_MAX
     except (TypeError, ValueError):
         iv_valid = False
 
@@ -565,8 +588,7 @@ def clear_option_chain_cache() -> None:
     """Drop cached chains only (tests / after a broker reconnect)."""
     from api.options_underlying import _cache
 
-    for key in [k for k in _cache if k.startswith(_CHAIN_KEY_PREFIX)]:
-        _cache.pop(key, None)
+    _cache.pop_where(lambda k: k.startswith(_CHAIN_KEY_PREFIX))
 
 
 def _chain_now() -> datetime:
@@ -740,7 +762,8 @@ async def get_option_chain(
     # so a lowercase request served from an uppercase entry (or vice versa)
     # would report a different ``underlying`` than the one it was cached under.
     symbol = str(underlying or "").strip().upper()
-    # Lazy: ``api.options_underlying`` imports this module at load time.
+    # options_underlying owns the chain cache and session clock; these private
+    # helpers are pulled in at call time, like the other late imports here.
     from api.options_underlying import _cached, _session_state_now
 
     # A direct call (tests, in-process callers) skips FastAPI's dependency

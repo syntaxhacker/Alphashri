@@ -429,12 +429,22 @@ export function usePatternFullscreen({
       }
     };
 
+    // Stored-first by default. An explicit live request and as-of/replay frames
+    // never accept stored hits: replay is live-only, and an explicit live request
+    // must not be short-circuited by a stale stored scan. Otherwise a stored hit
+    // wins and only an unscanned symbol triggers one live fallback detection.
+    const forceLive = detectPatterns || extra.asOf != null;
+
     const phase1 = async () => {
       const key = `${symbol}|${tf}|l|${extra.asOf ?? ""}|${extra.fromDate ?? ""}`;
       const cached = symbolChartCache.get(key);
       if (cached && Date.now() - cached.ts < SYMBOL_CHART_CACHE_MS) {
         applyCandles(cached.chart);
-        if (detectPatterns) await phase2();
+        if (forceLive || (cached.chart.hits ?? []).length === 0) {
+          await phase2();
+        } else {
+          applyPatterns(cached.chart);
+        }
         return;
       }
       try {
@@ -445,7 +455,11 @@ export function usePatternFullscreen({
         if (chartRequestToken !== token) return;
         symbolChartCache.set(key, { chart, ts: Date.now() });
         applyCandles(chart);
-        if (detectPatterns) await phase2();
+        if (forceLive || (chart.hits ?? []).length === 0) {
+          await phase2();
+        } else {
+          applyPatterns(chart);
+        }
       } catch {
         applyCandlesError();
       }
@@ -487,7 +501,7 @@ export function usePatternFullscreen({
     symbol: string,
     timeframe: string | undefined,
     pinned: boolean,
-    detectPatterns = true,
+    detectPatterns = false,
     replay?: { asOf?: string | null; fromDate?: string | null },
     keepHit: PatternHitDTO | null = null,
     refresh = false,
@@ -551,7 +565,7 @@ export function usePatternFullscreen({
   const openFromSymbol = (
     symbol: string,
     timeframe?: string,
-    detectPatterns = true,
+    detectPatterns = false,
   ) => {
     selectedHit = null;
     return loadSymbolChart(symbol, timeframe, true, detectPatterns);
@@ -560,7 +574,7 @@ export function usePatternFullscreen({
   const previewFromSymbol = (
     symbol: string,
     timeframe?: string,
-    detectPatterns = true,
+    detectPatterns = false,
   ) => {
     selectedHit = null;
     return loadSymbolChart(symbol, timeframe, false, detectPatterns);

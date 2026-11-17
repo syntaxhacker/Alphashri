@@ -25,6 +25,8 @@ import type { DockLeg } from "@/state/optionsDock";
 const SPOT_MOVE_EPSILON = 0.0005;
 /** Horizontal pixel budget for the y axis labels. */
 const GRID_LEFT = 46;
+/** Axis ticks and strike-line labels: 9px was unreadable in the narrow dock. */
+const LABEL_FONT_SIZE = 10;
 /** Only used when a host has no expiry to quote; that host hides the ±1σ cell. */
 const FALLBACK_DTE_YEARS = 7 / 365;
 
@@ -37,6 +39,14 @@ export interface PayoffSnapshot {
   pop: number;
   expectedPnl: number;
   sigma: number;
+}
+
+/** A vertical strike annotation supplied by a host (leg strikes, max pain). */
+export interface PayoffGuide {
+  x: number;
+  color: string;
+  dash: "dotted" | "dashed" | "solid";
+  label: string;
 }
 
 function toPure(legs: DockLeg[]): OptionLeg[] {
@@ -113,12 +123,24 @@ function emptySnapshot(): PayoffSnapshot {
   };
 }
 
+/** Optional, additive visuals for hosts that want a richer probability canvas. */
+export interface PayoffVisuals {
+  /** Wash the plot green above zero and red below it (on top of the split series). */
+  shadeProfitLoss?: boolean;
+  /** Labelled breakeven lines. Omit to keep the unlabelled payoff-canvas lines. */
+  breakevens?: number[];
+  /** Shaded expected-move window with a `±1σ` caption. */
+  sigmaBand?: [number, number] | null;
+}
+
 function buildOption(
   snapshot: PayoffSnapshot,
   spot: number,
   iv: number,
   density: { spot: number; prob: number }[],
   mutedInk: string,
+  guides: PayoffGuide[] = [],
+  visuals: PayoffVisuals = {},
 ) {
   const spots = snapshot.points.map((point) => point.spot);
   const maxProb = density.reduce((max, cell) => Math.max(max, cell.prob), 0);
@@ -133,26 +155,89 @@ function buildOption(
   const profit = snapshot.points.map((point) => (point.pnl >= 0 ? Math.round(point.pnl) : null));
   const loss = snapshot.points.map((point) => (point.pnl < 0 ? Math.round(point.pnl) : null));
 
+  const labelledBe = visuals.breakevens != null;
+  const beSource = visuals.breakevens ?? snapshot.breakevens;
+  const beLines = beSource.map((be) => ({
+    xAxis: Math.round(be).toString(),
+    lineStyle: { color: palette.WARNING, width: 1, type: "dotted" },
+    ...(labelledBe
+      ? {
+          label: {
+            show: true,
+            formatter: `BE ₹${Math.round(be).toLocaleString("en-IN")}`,
+            color: mutedInk,
+            fontSize: LABEL_FONT_SIZE,
+            fontFamily: palette.MONO,
+            position: "end" as const,
+          },
+        }
+      : {}),
+  }));
+
   const markLine = {
     silent: true,
     symbol: "none",
     label: { show: false },
     data: [
       { yAxis: 0, lineStyle: { color: palette.TEXT_MUTED, width: 1, type: "dashed" } },
-      ...snapshot.breakevens.map((be) => ({
-        xAxis: Math.round(be).toString(),
-        lineStyle: { color: palette.WARNING, width: 1, type: "dotted" },
-      })),
+      ...beLines,
       { xAxis: spotLabel, lineStyle: { color: palette.INFO, width: 1, type: "solid" } },
+      ...guides.map((guide) => ({
+        xAxis: Math.round(guide.x).toString(),
+        lineStyle: { color: guide.color, width: 1, type: guide.dash },
+        label: {
+          show: true,
+          formatter: guide.label,
+          color: mutedInk,
+          fontSize: LABEL_FONT_SIZE,
+          fontFamily: palette.MONO,
+          position: "end",
+        },
+      })),
     ],
   };
+
+  const markAreaData: any[] = [];
+  if (visuals.shadeProfitLoss) {
+    const pnls = snapshot.points.map((point) => point.pnl);
+    const high = Math.max(0, ...pnls) || 1;
+    const low = Math.min(0, ...pnls) || -1;
+    markAreaData.push([
+      { yAxis: 0, itemStyle: { color: palette.alpha(palette.POSITIVE, 0.08) } },
+      { yAxis: high },
+    ]);
+    markAreaData.push([
+      { yAxis: low, itemStyle: { color: palette.alpha(palette.NEGATIVE, 0.08) } },
+      { yAxis: 0 },
+    ]);
+  }
+  const band = visuals.sigmaBand;
+  if (band && Number.isFinite(band[0]) && Number.isFinite(band[1]) && band[1] > band[0]) {
+    markAreaData.push([
+      {
+        xAxis: Math.round(band[0]).toString(),
+        itemStyle: { color: palette.alpha(palette.INFO, 0.08) },
+        label: {
+          show: true,
+          formatter: "±1σ",
+          color: mutedInk,
+          fontSize: LABEL_FONT_SIZE,
+          fontFamily: palette.MONO,
+          position: "insideTop",
+        },
+      },
+      { xAxis: Math.round(band[1]).toString() },
+    ]);
+  }
 
   return {
     animation: false,
     backgroundColor: "transparent",
     // 20px of bottom room: the tick labels sit under the plot and the footer
     // band starts on the next pixel, so they must not be painted on top of it.
-    grid: { left: GRID_LEFT, right: 8, top: 13, bottom: 20 },
+    // `containLabel` keeps the 10px ticks inside the grid box instead of letting
+    // them overflow the 46px left gutter and get clipped by the band edge.
+    grid: { left: GRID_LEFT, right: 8, top: 13, bottom: 20, containLabel: true },
     tooltip: {
       trigger: "axis",
       backgroundColor: palette.TOOLTIP_BG,
@@ -166,7 +251,7 @@ function buildOption(
       axisTick: { show: false },
       axisLabel: {
         color: mutedInk,
-        fontSize: 9,
+        fontSize: LABEL_FONT_SIZE,
         margin: 4,
         interval: Math.max(0, Math.floor(spots.length / 6)),
       },
@@ -176,7 +261,7 @@ function buildOption(
       type: "value",
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { color: mutedInk, fontSize: 9 },
+      axisLabel: { color: mutedInk, fontSize: LABEL_FONT_SIZE },
       splitLine: { lineStyle: { color: palette.AXIS_SPLIT } },
     },
     series: [
@@ -213,6 +298,21 @@ function buildOption(
         markLine,
         z: 3,
       },
+      // Additive wash/band series: absent by default so the payoff canvas keeps
+      // its exact series shape, present only when a host opts into the visuals.
+      ...(markAreaData.length
+        ? [
+            {
+              name: "prob-bands",
+              type: "line",
+              data: [],
+              showSymbol: false,
+              silent: true,
+              markArea: { silent: true, data: markAreaData },
+              z: 0,
+            },
+          ]
+        : []),
       {
         name: "P(S)",
         type: "line",
@@ -235,7 +335,7 @@ function buildOption(
         style: {
           text: `flat vol ${Number.isFinite(iv) && iv > 0 ? (iv * 100).toFixed(1) : "—"}%`,
           fill: mutedInk,
-          fontSize: 9,
+          fontSize: LABEL_FONT_SIZE,
           fontFamily: palette.MONO,
         },
       },
@@ -259,6 +359,12 @@ export function PayoffChartCore(props: {
   "data-testid"?: string;
   /** Lets a host surface the computed POP in its own header without a second recompute. */
   onSnapshot?: (snapshot: PayoffSnapshot | null) => void;
+  /** Extra vertical strike lines (leg strikes, max pain) drawn above the curve. */
+  guides?: PayoffGuide[];
+  /** Additive probability visuals; omitted on the PAYOFF tab, so its canvas is unchanged. */
+  shadeProfitLoss?: boolean;
+  breakevens?: number[];
+  sigmaBand?: [number, number] | null;
 }) {
   let chartEl: HTMLDivElement | undefined;
   let chart: any = null;
@@ -328,7 +434,19 @@ export function PayoffChartCore(props: {
       chart = lib.init(chartEl, undefined, { renderer: "canvas" });
       // Merge mode: `notMerge: true` wipes the axis annotations on every tick.
       chart.setOption(
-        buildOption(snapshot() ?? emptySnapshot(), props.spot, ivDecimal(), density(), chartMuted()),
+        buildOption(
+          snapshot() ?? emptySnapshot(),
+          props.spot,
+          ivDecimal(),
+          density(),
+          chartMuted(),
+          props.guides ?? [],
+          {
+            shadeProfitLoss: props.shadeProfitLoss,
+            breakevens: props.breakevens,
+            sigmaBand: props.sigmaBand,
+          },
+        ),
         { notMerge: false, lazyUpdate: true },
       );
     });
@@ -336,11 +454,20 @@ export function PayoffChartCore(props: {
 
   createEffect(() => {
     const current = snapshot();
+    const guides = props.guides ?? [];
+    // Read the additive visual props so a change to them repaints the canvas.
+    const shadeProfitLoss = props.shadeProfitLoss;
+    const breakevens = props.breakevens;
+    const sigmaBand = props.sigmaBand;
     if (!chart || !current) return;
-    chart.setOption(buildOption(current, props.spot, ivDecimal(), density(), chartMuted()), {
-      notMerge: false,
-      lazyUpdate: true,
-    });
+    chart.setOption(
+      buildOption(current, props.spot, ivDecimal(), density(), chartMuted(), guides, {
+        shadeProfitLoss,
+        breakevens,
+        sigmaBand,
+      }),
+      { notMerge: false, lazyUpdate: true },
+    );
   });
 
   onCleanup(() => {

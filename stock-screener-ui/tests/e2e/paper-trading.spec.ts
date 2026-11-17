@@ -492,10 +492,11 @@ test.describe("Paper Trading - Settings", () => {
     // Use a positive value below min (0.1) - should trigger error without being clamped
     await slPctInput.fill("0.05");
 
-    // Error should be visible immediately after invalid value is entered
-    await expect(page.locator('[data-testid="config-sl-pct-error"]')).toBeVisible({
-      timeout: 10000,
-    });
+    // Source passes `dataTestid` (camelCase) via errorProps, which renders as a
+    // `datatestid` DOM attribute — there is no `data-testid="config-sl-pct-error"`.
+    // Assert the user-visible error message within the SL field instead.
+    const slFieldError = page.locator('[data-testid="config-sl-pct"]').getByText("Invalid stop loss percentage");
+    await expect(slFieldError).toBeVisible({ timeout: 10000 });
   });
 });
 

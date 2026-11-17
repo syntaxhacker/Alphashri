@@ -158,6 +158,21 @@ describe("OIAnalysis", () => {
       const spikes = screen.queryAllByTestId(/options-oi-spike-/);
       expect(spikes.length).toBeLessThanOrEqual(6);
     });
+
+    it("labels the volume/OI heuristic neutrally", () => {
+      const strikeMatrix = [
+        {
+          // ΔOI 10k vs volume 200k → ratio 20 > HIGH_TURNOVER_VOL_OI_RATIO
+          strike: 24000,
+          ce: makeContract({ market_data: { oi: 60000, prev_oi: 50000, volume: 200000 } }),
+          pe: null,
+        },
+      ];
+      render(() => <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} />);
+      const spike = screen.getByTestId("options-oi-spike-0");
+      expect(spike).toHaveTextContent("High churn");
+      expect(spike).not.toHaveTextContent("Speculative");
+    });
   });
 
   describe("OI Distribution chart", () => {
@@ -204,5 +219,63 @@ describe("OIAnalysis", () => {
       render(() => <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} />);
       expect(screen.getByTestId("options-oi-sentiment-panel").textContent).toContain("24000");
     });
+  });
+
+  describe("real PCR read", () => {
+    it("uses summary.pcr for the tone, not the largest PE-vs-CE OI change", () => {
+      // A huge PE OI build is exactly what the old fake classifier called
+      // "Bullish" — a low summary PCR must still read bearish.
+      const strikeMatrix = [
+        {
+          strike: 25000,
+          ce: makeContract({ market_data: { oi: 1000, prev_oi: 900, volume: 100 } }),
+          pe: makeContract({ market_data: { oi: 200000, prev_oi: 100000, volume: 100000 } }),
+        },
+      ];
+      render(() => <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} summary={{ pcr: 0.5 }} />);
+      const read = screen.getByTestId("options-pcr-read");
+      expect(read).toHaveTextContent("0.50");
+      expect(read).toHaveTextContent("Bearish");
+      expect(read).not.toHaveTextContent("Bullish");
+    });
+
+    it("reads bullish from a high PCR even when the call OI change dominates", () => {
+      const strikeMatrix = [
+        {
+          strike: 25000,
+          ce: makeContract({ market_data: { oi: 200000, prev_oi: 100000, volume: 100000 } }),
+          pe: makeContract({ market_data: { oi: 1000, prev_oi: 900, volume: 100 } }),
+        },
+      ];
+      render(() => <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} summary={{ pcr: 1.5 }} />);
+      const read = screen.getByTestId("options-pcr-read");
+      expect(read).toHaveTextContent("1.50");
+      expect(read).toHaveTextContent("Bullish");
+      expect(read).not.toHaveTextContent("Bearish");
+    });
+
+    it("is neutral at 1.0 instead of inheriting the old > 1 bullish rule", () => {
+      render(() => <OIAnalysis strikeMatrix={[]} spotPrice={24500} summary={{ pcr: 1.0 }} />);
+      const read = screen.getByTestId("options-pcr-read");
+      expect(read).toHaveTextContent("1.00");
+      expect(read).toHaveTextContent("Neutral");
+    });
+
+    it("says the PCR is unavailable when no summary is present", () => {
+      render(() => <OIAnalysis strikeMatrix={[]} spotPrice={24500} />);
+      expect(screen.getByTestId("options-pcr-read")).toHaveTextContent("unavailable");
+    });
+  });
+
+  it("renders plain section labels without emoji", () => {
+    const strikeMatrix = [
+      {
+        strike: 24000,
+        ce: makeContract({ market_data: { oi: 150000, prev_oi: 50000, volume: 60000 } }),
+        pe: null,
+      },
+    ];
+    render(() => <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} summary={{ pcr: 1.5 }} />);
+    expect(document.body.textContent ?? "").not.toMatch(/🔥|📊|💡/);
   });
 });

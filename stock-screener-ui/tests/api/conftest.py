@@ -123,6 +123,23 @@ def _reset_option_caches():
 
 
 @pytest.fixture(autouse=True)
+def _reset_analytics_rate_limiter():
+    """The analytics limiter is process-level and each cold build spends
+    ``expiries`` tokens. Without a per-test reset, a file's worth of cold reads
+    exhausts the shared bucket and 429s unrelated tests.
+    """
+    try:
+        from api.rate_limit import analytics_limiter
+    except Exception:  # pragma: no cover - analytics module unavailable
+        yield
+        return
+
+    analytics_limiter.reset()
+    yield
+    analytics_limiter.reset()
+
+
+@pytest.fixture(autouse=True)
 def _stub_chain_snapshot_writer(monkeypatch):
     """The live chain route now schedules a snapshot on every fresh poll.
 

@@ -716,7 +716,6 @@ async def lifespan(app: FastAPI):
     _nifty_tape_task = None
     _nifty_snapshot_task = None
     _chain10s_task = None
-    _us_tape_task = None
     _nifty_stream_task = None
     _nifty_oi_task = None
     _nifty_spot_task = None
@@ -825,13 +824,6 @@ async def lifespan(app: FastAPI):
                 print("⏱️ 1s spot tick tape task started" if _tick_tape_task else "⏱️ 1s spot tick tape disabled")
             except Exception as e:
                 print(f"⚠️ 1s tick tape task failed: {e}")
-            try:
-                from api.reports_api.us_tape import start_us_tape_task
-                _us_tape_task = start_us_tape_task()
-                print("📼 US futures tape task started (NQ)")
-            except Exception as e:
-                print(f"⚠️ US tape task failed: {e}")
-                _us_tape_task = None
             from api.reports_api.nifty_stream import nifty_burst_watch_task
             _nifty_stream_task = _spawn_task("Nifty burst stream watcher", nifty_burst_watch_task, started="📡 Nifty burst stream watcher started", failed="⚠️ Nifty burst stream watcher failed: {e}")
             try:
@@ -934,13 +926,6 @@ async def lifespan(app: FastAPI):
         _nifty_snapshot_task.cancel()
     if _chain10s_task:
         _chain10s_task.cancel()
-    if _us_tape_task:
-        _us_tape_task.cancel()
-    try:
-        from api.reports_api.us_tape import stop_us_tasks
-        stop_us_tasks()
-    except Exception:
-        pass
     if _nifty_stream_task:
         _nifty_stream_task.cancel()
     if _nifty_spot_task:
@@ -997,7 +982,6 @@ OPENAPI_TAGS = [
     {"name": "reports", "description": "Generated market reports and delivery."},
     {"name": "reports-nifty", "description": "Nifty report, bursts, structure, positioning and verdicts."},
     {"name": "reports-nifty-intel", "description": "Nifty intelligence aggregates."},
-    {"name": "reports-us", "description": "US market reports and tape."},
     {"name": "options", "description": "Options chain, analytics and sentiment."},
     {"name": "options-report", "description": "Options report generation."},
     {"name": "options-walls", "description": "Options wall / gamma exposure levels."},
@@ -1554,6 +1538,8 @@ _include_api("api.options", "router", "options", msg="✅ Options API loaded at 
 
 _include_api("api.options_underlying", "router", "options underlying", msg="✅ Options underlying API loaded at /api/options/underlying")
 
+_include_api("api.options_analytics", "router", "options analytics", msg="✅ Options analytics API loaded at /api/options/analytics")
+
 _include_api("api.options_screener", "router", "F&O screener", msg="✅ F&O screener API loaded at /api/options/screener")
 
 _include_api("api.fyers_bridge", "router", "fyers bridge", msg="✅ Fyers bridge API loaded at /api/fyers-bridge")
@@ -1652,8 +1638,6 @@ _include_api("api.reports_api.market", "router", "reports", msg="✅ Reports API
 _include_api("api.reports_api.digest", "router", "reports digest", msg="✅ Reports digest API loaded at /api/reports/digest/send")
 
 _include_api("api.reports_api.nifty", "router", "Nifty Report", msg="✅ Nifty Report API loaded at /api/reports/nifty")
-
-_include_api("api.reports_api.us", "router", "US Report", msg="✅ US Report API loaded at /api/reports/us")
 
 _include_api("api.reports_api.nifty_ws", "router", "Nifty WS", msg="✅ Nifty WS API loaded at /ws/nifty/report + /ws/nifty/bursts")
 

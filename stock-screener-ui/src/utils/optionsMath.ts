@@ -449,8 +449,11 @@ export function aggregateGreeks(
 
 /**
  * Max pain: the strike with the smallest total payout to option holders at
- * expiry. OI of 0 is legal (an untraded strike still is a candidate) and ties
- * resolve to the lowest strike so the result is deterministic.
+ * expiry. Canonical writer convention (backend `api/options_levels._payouts`):
+ * call OI at strikes BELOW the candidate pays `candidate - strike`, put OI at
+ * strikes ABOVE it pays `strike - candidate`. OI of 0 is legal (an untraded
+ * strike still is a candidate) and ties resolve to the lowest strike so the
+ * result is deterministic.
  */
 export function maxPain(chain: readonly { strike: number; ceOi: number; peOi: number }[]): number | null {
   let best: number | null = null;
@@ -466,8 +469,8 @@ export function maxPain(chain: readonly { strike: number; ceOi: number; peOi: nu
       if (!Number.isFinite(row.strike)) continue;
       const ceOi = Number.isFinite(row.ceOi) ? row.ceOi : 0;
       const peOi = Number.isFinite(row.peOi) ? row.peOi : 0;
-      if (row.strike > candidate) payout += ceOi * (row.strike - candidate);
-      else if (row.strike < candidate) payout += peOi * (candidate - row.strike);
+      if (row.strike < candidate) payout += ceOi * (candidate - row.strike);
+      else if (row.strike > candidate) payout += peOi * (row.strike - candidate);
     }
 
     if (payout < bestPayout) {

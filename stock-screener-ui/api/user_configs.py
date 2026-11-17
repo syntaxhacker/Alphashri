@@ -46,6 +46,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from api.auth import get_current_user
+from api.market_screen.config import ALL_CAP_TIERS, ALLOWED_UNIVERSES
 from db.database import get_db
 
 router = APIRouter(prefix="/api/user-configs", tags=["user-configs"])
@@ -53,8 +54,11 @@ router = APIRouter(prefix="/api/user-configs", tags=["user-configs"])
 DEFAULT_SLOT = ""
 MAX_CONFIG_BYTES = 16 * 1024
 
-MarketUniverse = Literal["all_equity", "nifty500", "nifty50", "nse_fo"]
-CapTier = Literal["large", "mid", "small", "micro"]
+# Built from the market-screen registry so a new universe/tier is picked up in
+# one place. Runtime validation only — the public request/response models carry
+# ``dict[str, Any]``, so these Literals are not exposed as OpenAPI enums.
+MarketUniverse = Literal[tuple(ALLOWED_UNIVERSES)]  # type: ignore[valid-type]
+CapTier = Literal[tuple(ALL_CAP_TIERS)]  # type: ignore[valid-type]
 MarketSortKey = Literal[
     "day_desc",
     "day_asc",
@@ -66,9 +70,12 @@ MarketSortKey = Literal[
     "pos_52w_desc",
     "symbol_asc",
 ]
-MarketView = Literal["table", "map", "movers"]
+#: Kept in lockstep with the frontend ``MARKET_VIEW_OPTIONS`` (``MarketViewMode``).
+#: Runtime-only Literal, so this list is not an OpenAPI enum, but the saved-config
+#: write path still rejects anything outside it with ``invalid_config``.
+MarketView = Literal["table", "map", "movers", "value"]
 
-CAP_TIERS: frozenset[str] = frozenset(("large", "mid", "small", "micro"))
+CAP_TIERS: frozenset[str] = frozenset(ALL_CAP_TIERS)
 
 
 class MarketFiltersV1(BaseModel):
@@ -84,7 +91,7 @@ class MarketFiltersV1(BaseModel):
 
     universe: MarketUniverse = "all_equity"
     sectors: list[str] = Field(default_factory=list, max_length=200)
-    capTiers: list[CapTier] = Field(default_factory=list, max_length=4)
+    capTiers: list[CapTier] = Field(default_factory=list, max_length=len(ALL_CAP_TIERS))
     priceMin: Optional[float] = Field(default=None, ge=0, le=10_000_000)
     priceMax: Optional[float] = Field(default=None, ge=0, le=10_000_000)
     dayChangeMin: Optional[float] = Field(default=None, ge=-100, le=100)

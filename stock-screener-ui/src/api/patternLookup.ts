@@ -1,5 +1,6 @@
 import { fetchWithAuth } from "../state/auth";
 import { API_BASE } from "@/api/config";
+import { finiteNumber, finiteText } from "./wireParse";
 import type { PatternDirection, PatternQuality, PatternStatus } from "@/types/chartPatterns";
 
 const LOOKUP_API = `${API_BASE}/api/chart-patterns/patterns/lookup`;
@@ -43,39 +44,26 @@ export interface PatternLookupRequest {
   universe?: string | null;
 }
 
-function toText(value: unknown): string | null {
-  return typeof value === "string" && value.trim() !== "" ? value : null;
-}
-
-function toNumberOrNull(value: unknown): number | null {
-  if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  if (typeof value === "string" && value.trim() !== "") {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
-
 function mapPattern(raw: unknown): PatternLookupPattern | null {
   if (raw === null || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
-  const patternId = toText(r.pattern_id);
+  const patternId = finiteText(r.pattern_id);
   if (patternId === null) return null;
   return {
     pattern_id: patternId,
-    name: toText(r.name) ?? patternId,
-    direction: toText(r.direction) ?? "neutral",
-    status: toText(r.status) ?? "forming",
-    quality: toText(r.quality) ?? "fair",
-    confidence: toNumberOrNull(r.confidence),
-    bars_ago: toNumberOrNull(r.bars_ago),
+    name: finiteText(r.name) ?? patternId,
+    direction: finiteText(r.direction) ?? "neutral",
+    status: finiteText(r.status) ?? "forming",
+    quality: finiteText(r.quality) ?? "fair",
+    confidence: finiteNumber(r.confidence),
+    bars_ago: finiteNumber(r.bars_ago),
   };
 }
 
 function mapItem(raw: unknown): PatternLookupItem | null {
   if (raw === null || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
-  const symbol = toText(r.symbol)?.trim().toUpperCase();
+  const symbol = finiteText(r.symbol)?.trim().toUpperCase();
   if (symbol === undefined || symbol === "") return null;
   const patterns = Array.isArray(r.patterns)
     ? r.patterns.map(mapPattern).filter((p): p is PatternLookupPattern => p !== null)
@@ -92,10 +80,10 @@ export function mapPatternLookup(raw: unknown): PatternLookupResponse {
     ? r.items.map(mapItem).filter((item): item is PatternLookupItem => item !== null)
     : [];
   return {
-    timeframe: toText(r.timeframe) ?? "1D",
-    session: toText(r.session),
-    source: toText(r.source) ?? "stored",
-    data_through: toText(r.data_through),
+    timeframe: finiteText(r.timeframe) ?? "1D",
+    session: finiteText(r.session),
+    source: finiteText(r.source) ?? "stored",
+    data_through: finiteText(r.data_through),
     items,
   };
 }

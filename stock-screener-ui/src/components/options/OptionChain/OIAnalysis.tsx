@@ -1,10 +1,12 @@
 import { Badge, Box, Stack, Text, useColorScheme } from "@/ui";
 import * as palette from "@/ui/palette";
+import { IconActivity, IconChartBar } from "@/ui/icons";
 import { createEffect, createMemo, onCleanup, onMount, For } from "solid-js";
 import type * as ECharts from "echarts";
 import { OptionAlerts } from "./OptionAlerts";
 import { IVSkewChart } from "./IVSkewChart";
 import { fontWeights } from "../../../config/theme";
+import { HIGH_TURNOVER_VOL_OI_RATIO, pcrTone } from "@/config/optionsMath";
 import { CHART_DROPDOWN } from "@/ui/palette";
 import { CompactPanel } from "../../common/compact";
 import { loadEcharts } from "@/utils/loadEcharts";
@@ -12,6 +14,7 @@ import { loadEcharts } from "@/utils/loadEcharts";
 interface OIAnalysisProps {
   strikeMatrix: Array<{ strike: number; ce: any; pe: any }>;
   spotPrice: number | null;
+  summary?: { pcr?: number | null } | null;
 }
 
 export function OIAnalysis(props: OIAnalysisProps) {
@@ -38,7 +41,7 @@ export function OIAnalysis(props: OIAnalysisProps) {
         const change = oi - prevOi;
         const changePct = prevOi > 0 ? (change / prevOi) * 100 : 0;
         const volOiRatio = change !== 0 ? volume / Math.abs(change) : volume;
-        const activityType = volOiRatio > 10 ? "Speculative" : "Positional";
+        const activityType = volOiRatio > HIGH_TURNOVER_VOL_OI_RATIO ? "High churn" : "OI build";
         return { ...opt, change, changePct, oi, activityType };
       })
       .filter((opt) => opt.change > 0)
@@ -56,19 +59,31 @@ export function OIAnalysis(props: OIAnalysisProps) {
     return { spikes, chartData };
   });
 
-  const pcrTrend = createMemo(() => {
-    const cd = analysisData().chartData;
-    if (cd.length === 0) return "Bullish";
-    return Math.max(...cd.map((d) => d.peChange)) > Math.max(...cd.map((d) => d.ceChange))
-      ? "Bullish"
-      : "Bearish";
+  // PCR is put OI ÷ call OI and comes from the summary. The old "PCR trend"
+  // compared the largest PE and CE OI changes on the spike chart, which is a
+  // different quantity — share the table tab's tone helper instead.
+  const pcr = createMemo(() => {
+    const raw = props.summary?.pcr;
+    return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
   });
-
-  const speculationNote = createMemo(() =>
-    analysisData().spikes[0]?.activityType === "Positional"
-      ? " This looks like a long-term directional bet by institutional players."
-      : " This is likely high-frequency intraday churn or hedging activity.",
+  const pcrLabel = createMemo(() => {
+    const tone = pcrTone(pcr());
+    return tone === "bullish" ? "Bullish bias" : tone === "bearish" ? "Bearish bias" : "Neutral";
+  });
+  const pcrDisplay = createMemo(() => (pcr() == null ? "unavailable" : (pcr() as number).toFixed(2)));
+  const pcrText = createMemo(() =>
+    pcr() == null
+      ? "PCR (put/call OI) unavailable"
+      : `PCR (put/call OI) ${pcrDisplay()} — ${pcrLabel()}`,
   );
+
+  const turnoverNote = createMemo(() => {
+    const top = analysisData().spikes[0];
+    if (!top) return "";
+    return top.activityType === "High churn"
+      ? " Volume here is large relative to the OI change."
+      : " Volume here is in line with the OI change.";
+  });
 
   async function applyOption(option: Record<string, unknown>) {
     const lib = await loadEcharts();
@@ -150,10 +165,10 @@ export function OIAnalysis(props: OIAnalysisProps) {
       <div className="oi-analysis-grid grid w-full grid-cols-1 items-center justify-center gap-2 md:grid-cols-2">
         <div className="flex justify-center">
           <Stack spacing={1} className="oi-analysis-left w-full">
-            <IVSkewChart strikeMatrix={props.strikeMatrix} />
+            <IVSkewChart strikeMatrix={props.strikeMatrix} spotPrice={props.spotPrice} />
             <CompactPanel className="oi-spikes-panel" data-testid="options-oi-spikes-panel">
               <Text size="xs" fw={800} c="primary" className="mb-2" style={{ "letter-spacing": "0.5px" }}>
-                🔥 INTENSITY (OI SPIKES)
+                <IconActivity size={14} aria-hidden="true" /> INTENSITY (OI SPIKES)
               </Text>
               <Stack spacing={1} className="oi-spikes-list" data-testid="options-oi-spikes-list">
                 <For each={analysisData().spikes}>
@@ -195,7 +210,7 @@ export function OIAnalysis(props: OIAnalysisProps) {
           <Stack spacing={1} className="oi-analysis-right w-full">
             <CompactPanel className="oi-distribution-panel" data-testid="options-oi-distribution-panel">
               <Text size="xs" fw={800} c="primary" className="mb-2" style={{ "letter-spacing": "0.5px" }}>
-                📊 OI CHANGE DISTRIBUTION
+                <IconChartBar size={14} aria-hidden="true" /> OI CHANGE DISTRIBUTION
               </Text>
               <div
                 ref={(el) => (chartEl = el)}
@@ -216,13 +231,9 @@ export function OIAnalysis(props: OIAnalysisProps) {
                       {analysisData().spikes[0]?.strike}
                     </Text>
                     .
-                    {speculationNote()}
-                    <Text span c="dimmed" size="sm" className="mt-1.5 block">
-                      PCR is currently signaling a{" "}
-                      <Text span fw={700}>
-                        {pcrTrend()}
-                      </Text>{" "}
-                      trend in new contracts.
+                    {turnoverNote()}
+                    <Text span c="dimmed" size="sm" className="mt-1.5 block" data-testid="options-pcr-read">
+                      {pcrText()}
                     </Text>
                   </Text>
                 </Box>

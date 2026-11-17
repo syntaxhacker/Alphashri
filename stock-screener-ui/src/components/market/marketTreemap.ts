@@ -2,6 +2,8 @@ import type { HeatmapStock } from "@/api/heatmap";
 import type { MetricConfig } from "@/components/heatmap/heatmapUtils";
 import type { MarketRow } from "@/types/marketScreener";
 import type { MarketSortKey } from "./marketFilters";
+import { currencyFor, type CurrencyCode } from "@/config/currency";
+import { descriptorForCurrency, marketCapOf } from "@/config/marketUniverses";
 import { formatMarketCap } from "@/components/heatmap/heatmapUtils";
 
 export interface MarketTreemapRow extends HeatmapStock {
@@ -13,11 +15,14 @@ export interface MarketTreemapRow extends HeatmapStock {
   perf_1m: number | null;
 }
 
-const CRORE = 1e7;
-
 function num(value: number | null | undefined): number | null {
   return value != null && Number.isFinite(value) ? value : null;
 }
+
+// A bare `.map(toTreemapRow)` hands the array index through as the second
+// argument; treat anything non-string as the default currency, not a crash.
+const quoteCurrency = (currency?: CurrencyCode): string | undefined =>
+  typeof currency === "string" ? currency : undefined;
 
 /**
  * The treemap's layout order must not follow the table sort: the shared builder
@@ -25,12 +30,16 @@ function num(value: number | null | undefined): number | null {
  * RSI-sorted list (small caps first) produced tall slivers with clipped labels.
  * Unknown caps sort last; equal caps keep their filtered order.
  */
-export function marketRowsByCapDesc(rows: readonly MarketRow[]): MarketRow[] {
+export function marketRowsByCapDesc(
+  rows: readonly MarketRow[],
+  currency?: CurrencyCode,
+): MarketRow[] {
+  const descriptor = descriptorForCurrency(quoteCurrency(currency));
   return rows
     .map((row, index) => ({
       row,
       index,
-      cap: row.marketCapCr != null && Number.isFinite(row.marketCapCr) ? row.marketCapCr : null,
+      cap: marketCapOf(row, descriptor),
     }))
     .sort((a, b) => {
       if (a.cap === b.cap) return a.index - b.index;
@@ -41,12 +50,14 @@ export function marketRowsByCapDesc(rows: readonly MarketRow[]): MarketRow[] {
     .map((entry) => entry.row);
 }
 
-export function toTreemapRow(row: MarketRow): MarketTreemapRow {
+export function toTreemapRow(row: MarketRow, currency?: CurrencyCode): MarketTreemapRow {
+  const spec = currencyFor(quoteCurrency(currency));
+  const cap = marketCapOf(row, descriptorForCurrency(quoteCurrency(currency)));
   return {
     symbol: row.symbol,
     name: row.name,
     sector: row.sector ?? "—",
-    market_cap: row.marketCapCr != null ? row.marketCapCr * CRORE : 0,
+    market_cap: cap != null ? cap * spec.mcapScale : 0,
     pe_ratio: num(row.peRatio) ?? Number.NaN,
     pb_ratio: num(row.pbRatio),
     dividend_yield: num(row.dividendYield),
@@ -80,20 +91,34 @@ function show(value: unknown, render: (n: number) => string): string {
 
 const pct = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
 
-export const MARKET_METRICS: MetricConfig[] = [
-  { value: "market_cap", label: "Market Cap", fmt: (v) => show(v, formatMarketCap) },
-  { value: "change_pct", label: "Day Change", fmt: (v) => show(v, pct) },
-  { value: "pos_52w", label: "52W Position", fmt: (v) => show(v, (n) => `${n.toFixed(0)}%`) },
-  { value: "relative_volume", label: "Rel Volume", fmt: (v) => show(v, (n) => `${n.toFixed(1)}x`) },
-  { value: "rsi", label: "RSI", fmt: (v) => show(v, (n) => n.toFixed(1)) },
-  { value: "adx", label: "ADX", fmt: (v) => show(v, (n) => n.toFixed(1)) },
-  { value: "perf_w", label: "1W Return", fmt: (v) => show(v, pct) },
-  { value: "perf_1m", label: "1M Return", fmt: (v) => show(v, pct) },
-  { value: "pe_ratio", label: "P/E", fmt: (v) => show(v, (n) => n.toFixed(1)) },
-  { value: "pb_ratio", label: "P/B", fmt: (v) => show(v, (n) => n.toFixed(2)) },
-  { value: "roe", label: "ROE", fmt: (v) => show(v, (n) => `${n.toFixed(1)}%`) },
-  { value: "dividend_yield", label: "Div Yield", fmt: (v) => show(v, (n) => `${n.toFixed(2)}%`) },
-];
+/** The cap tile's unit travels with the currency it was scaled with. */
+function marketCapFormatter(currency?: CurrencyCode): (v: number) => string {
+  const spec = currencyFor(currency);
+  // Keep the shared India formatter for the default path — its compact bands
+  // are load-bearing and already agreed with the table's cap column.
+  if (spec.code === "INR") return (v) => show(v, formatMarketCap);
+  return (v) => show(v, (n) => `${spec.symbol}${spec.compact(n)}`);
+}
+
+/** India stays the default; a US map asks for its own descriptor-backed unit. */
+export function marketTreemapMetrics(currency?: CurrencyCode): MetricConfig[] {
+  return [
+    { value: "market_cap", label: "Market Cap", fmt: marketCapFormatter(currency) },
+    { value: "change_pct", label: "Day Change", fmt: (v) => show(v, pct) },
+    { value: "pos_52w", label: "52W Position", fmt: (v) => show(v, (n) => `${n.toFixed(0)}%`) },
+    { value: "relative_volume", label: "Rel Volume", fmt: (v) => show(v, (n) => `${n.toFixed(1)}x`) },
+    { value: "rsi", label: "RSI", fmt: (v) => show(v, (n) => n.toFixed(1)) },
+    { value: "adx", label: "ADX", fmt: (v) => show(v, (n) => n.toFixed(1)) },
+    { value: "perf_w", label: "1W Return", fmt: (v) => show(v, pct) },
+    { value: "perf_1m", label: "1M Return", fmt: (v) => show(v, pct) },
+    { value: "pe_ratio", label: "P/E", fmt: (v) => show(v, (n) => n.toFixed(1)) },
+    { value: "pb_ratio", label: "P/B", fmt: (v) => show(v, (n) => n.toFixed(2)) },
+    { value: "roe", label: "ROE", fmt: (v) => show(v, (n) => `${n.toFixed(1)}%`) },
+    { value: "dividend_yield", label: "Div Yield", fmt: (v) => show(v, (n) => `${n.toFixed(2)}%`) },
+  ];
+}
+
+export const MARKET_METRICS: MetricConfig[] = marketTreemapMetrics();
 
 export const MARKET_SIGNED_METRICS = new Set([
   "change_pct",

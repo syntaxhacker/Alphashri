@@ -745,6 +745,46 @@ describe("ScreenerPage", () => {
     expect(marketPanelProps.current?.initialView).toBe("table");
   });
 
+  it("forwards ?view=value to the Market panel and keeps it in the URL", async () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=market&view=value" });
+
+    await waitFor(() => expect(marketPanelProps.current?.initialView).toBe("value"), {
+      timeout: 10_000,
+    });
+    expect(currentRoute().path).toBe("/screener/market");
+    expect(currentSearchParams().view).toBe("value");
+  });
+
+  it("falls back to the table view for an unknown ?view=", async () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=market&view=bogus" });
+
+    await waitFor(() => expect(marketPanelProps.current?.initialView).toBe("table"), {
+      timeout: 10_000,
+    });
+  });
+
+  it("round-trips the Value view through ?view= on panel change", async () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=market" });
+
+    await waitFor(() => expect(marketPanelProps.current).not.toBeNull(), { timeout: 10_000 });
+    const onViewChange = marketPanelProps.current?.onViewChange as (v: string) => void;
+    expect(onViewChange).toBeTypeOf("function");
+    onViewChange("value");
+
+    expect(currentSearchParams().view).toBe("value");
+    expect(paramWrites.at(-1)?.params.view).toBe("value");
+    expect(paramWrites.at(-1)?.options?.replace).toBe(true);
+  });
+
   it("writes ?view= when the Market panel changes view", async () => {
     render(() => (
       <UIProvider>
@@ -1061,6 +1101,21 @@ describe("ScreenerPage", () => {
     expect(await screen.findByTestId("correlation-tab", undefined, { timeout: 10_000 })).toBeInTheDocument();
     expect(mountedTabPanels()).toEqual(["correlation-config-panel"]);
     expect(screen.queryByTestId("fno-tab-panel")).not.toBeInTheDocument();
+  });
+
+  it("labels the F&O tab and band as India-only but keeps the tool reachable", async () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>
+    ), { initialRoute: "/screener" });
+
+    // The strip is always visible; its F&O entry must not read as a US feature.
+    expect(screen.getByTestId("tab-fno")).toHaveTextContent("F&O (India)");
+
+    fireEvent.click(screen.getByTestId("tab-fno"));
+    expect(await screen.findByTestId("fno-tab-label")).toHaveTextContent("F&O Momentum (India)");
+    expect(await screen.findByTestId("fno-tab-panel")).toBeInTheDocument();
   });
 
   // LAYOUT_CONTRACT §1: primary workspace chrome (tab strip + toolbar) ≤96px.

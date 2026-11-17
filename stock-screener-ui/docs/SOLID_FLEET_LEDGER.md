@@ -27,7 +27,7 @@ clean, and a regression test that FAILS before the fix.
 | 5 | `@/ui` primitives (Accordion/Menu/Tree/Overlay) | 4 src | **IN FLIGHT** | new agent dispatched |
 | 6 | Report JSX `.map()` → `<For>` | NiftyDepthMap etc | **NO-OP** | agent proved all `.map()` build data, not JSX |
 | 7 | Screener JSX `.map()` → `<For>` | 5 files | **NO-OP** | agent proved Lists already use `<For>` |
-| 8 | `RangeToggle` + `Icons` | 2 | **DONE** | 323 pass; both had real defects |
+| 8 | `RangeToggle` + `Icons` | 2 | **DONE / REMOVED 2026-11** | 323 pass; both had real defects. `RangeToggle.tsx` later found dead (0 importers) and deleted. |
 | 9 | `FullscreenPatternList` `<For>`/`<Show>` | 1 | **DONE** | 9 pass |
 | 10 | `@/ui` primitives (Accordion/Menu/Tree/Overlay) | 4 src + 4 test | **DONE** | 107 pass; fixed bool-called-as-fn crash in Accordion |
 | 11 | `Collapse` + `PressureBars` destructure | 2 | **DONE** | guards green; 18 pass |
@@ -183,6 +183,10 @@ Measured every route at 1366x768: `documentElement.scrollHeight`, `scrollWidth -
 |---|---|---|---|
 | `/`, all 8 screener tabs, `/report`, `/report/index`, `/report/us`, `/patterns` both tabs, `/options`, `/backtest`, `/strategies`, `/settings`, `/heatmap`, `/agri`, `/orderflow`, `/sector`, `/replay`, `/admin` | 768/768 | 0 | clean (≤3px) |
 | `/bots` | **1047/768 → 768/768** | 0 | clean |
+
+> Historical row: `/report/us` (US Report) was removed on 2026-11-17. It is listed in the
+> measured row above because this sweep predates the removal; it is no longer a route.
+> See `docs/ROUTE_SURFACE_AUDIT.md`.
 
 `/bots` fix: card was not a flex column and its wrapper was `display:block`, so
 `fillContainer` had no containing block — the 919px table rendered outside a

@@ -620,3 +620,122 @@ describe("usePatternFullscreen stale marker vs displayed candle date", () => {
     expect(api.fullscreen()?.detectionAsOf).toBeNull();
   });
 });
+
+describe("usePatternFullscreen stored-first default (symbol dock)", () => {
+  // APLAPOLLO: the stored scan says Consolidation while live detection says
+  // Ascending Triangle. The dock must trust the stored scan.
+  const stored = {
+    ...makeHit(10, "2026-11-13"),
+    symbol: "APLAPOLLO",
+    pattern_id: "consolidation",
+    pattern_name: "Consolidation",
+  };
+  const live = {
+    ...makeHit(11, "2026-11-14"),
+    symbol: "APLAPOLLO",
+    pattern_id: "ascending_triangle",
+    pattern_name: "Ascending Triangle",
+  };
+
+  const chartFor = (hits: PatternHitDTO[]): ChartPayload => ({
+    ...chartPayload(1000, hits),
+    symbol: "APLAPOLLO",
+  });
+
+  const liveAwareChart = async (
+    _symbol: string,
+    _tf: string,
+    opts: number | { detectPatterns?: boolean } | undefined,
+  ) =>
+    chartFor(
+      typeof opts === "object" && opts?.detectPatterns ? [live] : [stored],
+    );
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(fetchPatternHit).mockResolvedValue(null as never);
+    vi.mocked(fetchQuotes).mockResolvedValue([
+      { symbol: "APLAPOLLO", close: 1000, change: 1 },
+    ]);
+  });
+
+  afterEach(() => {
+    hook?.unmount();
+    hook = undefined;
+    vi.clearAllMocks();
+  });
+
+  test("stored Consolidation is selected with one stored call and no live call", async () => {
+    vi.mocked(fetchSymbolChart).mockImplementation(liveAwareChart);
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("APLAPOLLO");
+    await settled(api);
+
+    expect(api.fullscreen()?.hit?.pattern_name).toBe("Consolidation");
+    const calls = vi.mocked(fetchSymbolChart).mock.calls;
+    expect(calls).toHaveLength(1);
+    expect(calls[0][2]).toEqual(expect.objectContaining({ detectPatterns: false }));
+  });
+
+  test("empty stored response triggers exactly one live fallback with Ascending Triangle", async () => {
+    vi.mocked(fetchSymbolChart)
+      .mockResolvedValueOnce(chartFor([]))
+      .mockResolvedValueOnce(chartFor([live]));
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("APLAPOLLO");
+    await settled(api);
+
+    expect(api.fullscreen()?.hit?.pattern_name).toBe("Ascending Triangle");
+    const calls = vi.mocked(fetchSymbolChart).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0][2]).toEqual(expect.objectContaining({ detectPatterns: false }));
+    expect(calls[1][2]).toEqual(expect.objectContaining({ detectPatterns: true }));
+  });
+
+  test("APLAPOLLO: stored hits win over live when both exist (one request)", async () => {
+    vi.mocked(fetchSymbolChart)
+      .mockResolvedValueOnce(chartFor([stored]))
+      .mockResolvedValueOnce(chartFor([live]));
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("APLAPOLLO");
+    await settled(api);
+
+    expect(api.fullscreen()?.hit?.pattern_name).toBe("Consolidation");
+    expect(api.fullscreen()?.hits).toHaveLength(1);
+    expect(api.fullscreen()?.hits[0].pattern_name).toBe("Consolidation");
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(1);
+  });
+
+  test("explicit detectPatterns: true still goes live immediately", async () => {
+    vi.mocked(fetchSymbolChart).mockImplementation(liveAwareChart);
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("APLAPOLLO", undefined, true);
+    await settled(api);
+
+    expect(api.fullscreen()?.hit?.pattern_name).toBe("Ascending Triangle");
+    const calls = vi.mocked(fetchSymbolChart).mock.calls;
+    expect(calls).toHaveLength(2); // candles phase, then live detection
+    expect(calls[1][2]).toEqual(expect.objectContaining({ detectPatterns: true }));
+  });
+
+  test("previewFromSymbol also defaults to stored-first", async () => {
+    vi.mocked(fetchSymbolChart).mockImplementation(liveAwareChart);
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.previewFromSymbol("APLAPOLLO");
+    await settled(api);
+
+    expect(api.fullscreen()?.pinned).toBe(false);
+    expect(api.fullscreen()?.hit?.pattern_name).toBe("Consolidation");
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(1);
+  });
+});

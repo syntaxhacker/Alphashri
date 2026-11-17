@@ -2575,7 +2575,7 @@ export const mockOptionDockUnderlying = {
   market_state: "open",
 };
 
-function optionDockChainBody(expiry: string) {
+function optionDockChainBody(expiry: string, withLevels = true) {
   const leg = (ltp: number, oi: number, iv: number | null, delta: number | null) => ({
     instrument_key: `NSE_FO|${oi}`,
     trading_symbol: `RELIANCE${expiry.replace(/-/g, "")}${oi}CE`,
@@ -2642,6 +2642,27 @@ function optionDockChainBody(expiry: string) {
     timestamp: "2026-11-16T11:20:00+05:30",
     summary: { pcr: 1.08, max_pain: 1420, total_ce_oi: 210_000, total_pe_oi: 226_000, dte: 10, atm_iv: 21.4 },
     chain,
+    // Five distinct strikes so every badge code renders once. `withLevels=false`
+    // reproduces a legacy payload for the "no level → no badge" regression.
+    levels: withLevels
+      ? {
+          spot: 1417.4,
+          step: 5,
+          thin: false,
+          call_wall: { strike: 1470, side: "above", strength: 0.2, oi: 95_000 },
+          put_wall: { strike: 1390, side: "below", strength: 0.25, oi: 88_000 },
+          max_pain: { strike: 1420, side: "at", strength: 0.3, payout: 1_250 },
+          gex: {
+            support: { strike: 1400, side: "below", strength: 0.4, net_gex: 1.2 },
+            resistance: { strike: 1450, side: "above", strength: 0.6, net_gex: -1.8 },
+            fuel_up: null,
+            fuel_down: null,
+            flip: 1420,
+            regime: "short",
+            degraded: false,
+          },
+        }
+      : undefined,
   };
 }
 
@@ -2662,6 +2683,8 @@ export async function setupOptionDockMocks(
     chainStatus?: number;
     /** `closed` keeps the dock from polling, so request counts stay exact. */
     marketState?: "open" | "closed" | "pre_open";
+    /** `false` omits the chain's `levels` block (legacy payload → no badges). */
+    levels?: boolean;
   } = {},
 ): Promise<OptionDockMocks> {
   const counts = { underlying: 0, chain: 0 };
@@ -2669,6 +2692,7 @@ export async function setupOptionDockMocks(
   let chainStatus = options.chainStatus ?? 200;
   const fno = options.fno ?? true;
   const marketState = options.marketState ?? "closed";
+  const withLevels = options.levels ?? true;
 
   const reset = () => {
     counts.underlying = 0;
@@ -2733,7 +2757,7 @@ export async function setupOptionDockMocks(
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(optionDockChainBody(expiry)),
+      body: JSON.stringify(optionDockChainBody(expiry, withLevels)),
     });
   });
 

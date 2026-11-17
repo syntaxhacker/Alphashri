@@ -6,6 +6,12 @@
 - **NEVER push directly to `develop` or `main`** — both are protected shared branches. All work goes through a short-lived feature branch (`feat/…`, `fix/…`, `chore/…`, `docs/…`) pushed to origin, then a PR targeting `develop` (or `develop` → `main` to release). No direct `git push origin develop` / `git push origin main`, ever.
 - **NEVER delete report artifacts** — anything under `reports/**` (figures, PNGs, HTML, CSV, JSON, scripts, notes) is kept, even after regeneration. Overwrite in place instead of `rm`-ing first. The user deletes their own reports.
 
+## Start here
+
+- **[`docs/AGENT_QUICKSTART.md`](./docs/AGENT_QUICKSTART.md)** — commands, folder map, unit/E2E/backend recipes, fixtures. Read this before exploring the tree.
+- **[`docs/MAP.md`](./docs/MAP.md)** — task → file location.
+- **[`TEST_RULES.md`](./TEST_RULES.md)** — test shape, mocks, guards.
+
 ## Tooling — edit files natively
 - Use the native `read` / `edit` / `write` tools for every file read or write. Do **not** shell out to `sed -i`, `python - <<EOF`, `cat >`, `perl -pi`, or `awk` to modify files.
 - The shell is for running things: build, tests, git, `grep`/`rg`, `find`. Locate with `grep`/`glob`, then `read` before `edit`.
@@ -108,6 +114,22 @@ Single source is `src/ui/palette.ts`; `src/tailwind.css` mirrors it (guarded by 
 - Reference the local `@/ui` types; use `className`/Tailwind utilities, never `sx`; `size="sm"` inputs/buttons, `size="xs"` badges/tables only
 - Tables — fin-app alignment is mandatory (text left, numbers right, badges/actions center; explicit `meta.align` per column, wrapper must match): rules + placement map in [TABLE_CHECKLIST.md](../TABLE_CHECKLIST.md)
 
+## Contrast rules (MANDATORY)
+
+- Use **`src/utils/contrast.ts`** for every filled cell, badge, chip or chart
+  label. Do not re-implement WCAG maths in a component.
+- **Text ≥ 4.5:1**, **meaningful graphics ≥ 3:1**. Decorative hairlines are
+  exempt. Never put text directly on a solid saturated fill — use
+  `pickTextColor(fill)` or a low-alpha tint + solid rail.
+- Run **`bun run contrast`** and add every new fill/tint/text pair to
+  `src/test/contrast.test.ts`. A filled cell you cannot read at 100% zoom is a
+  bug, not a style choice.
+- Follow **`docs/COLOR_SEMANTICS.md`** for side-vs-level token mapping and row
+  highlight patterns. Do not invent colours or reuse a token for a different
+  meaning.
+- Screenshot the full/empty/loading states at **1600 and 390** before calling a
+  colour change done.
+
 ## UI Revamp Rules (MANDATORY — read before touching any tab/page)
 Full rules: [UI_RULES.md](./UI_RULES.md). Checklist to tick for every revamp: [UI_CHECKLIST.md](./UI_CHECKLIST.md).
 Judgement rules for any screen: [docs/UX_PRINCIPLES.md](./docs/UX_PRINCIPLES.md) — in-flow over overlay, one surface per concept, no dead ends, keyboard parity, measure before claiming.
@@ -131,6 +153,14 @@ Judgement rules for any screen: [docs/UX_PRINCIPLES.md](./docs/UX_PRINCIPLES.md)
 - Config/constants/theme consolidated in `src/config/` (constants.ts, theme.ts, backtestDefaults.ts)
 - ECharts: never wrap chart container in `ScrollArea` — ECharts needs explicit dimensions via `flex: 1` on a flex parent
 - **List keys**: never use `symbol` alone as key — always composite (`${strategy_id}-${symbol}`) or unique ID. Positions can have same symbol across strategies.
+
+## Decoupling / no hardcoding
+- **One descriptor per concept.** Universes (India/US), currencies/units, cap tiers, exchange filters, market sources, labels and limits live in a config/registry — never as scattered `if (universe === …)` branches or duplicate literals.
+- **Derive display from data metadata.** A row carries `currency`/units; formatting (₹ vs $, Cr vs B) reads that, not the screen name.
+- **Inject, don't inline.** Backend adapters receive thresholds/exchanges/field maps from the descriptor; UI receives labels/options from the same source.
+- **One contract per payload.** Import shared types/pure modules across layers; do not restate a DTO or formula in a component.
+- **No magic route strings, IDs, keys or limits** in components/tests; use the constants/registry.
+- **Data is the same everywhere.** Centralize it (levels module, snapshot store, analytics client); a new consumer reuses it instead of re-deriving.
 
 ## Folder Structure
 ```
@@ -330,7 +360,7 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 - **Backend**: `api/value_scan/` — `tv_source.py` (scanner I/O), `scoring.py` (pure scoring), `filters.py` (pure filters/presets), `cache.py` (redis), `router.py` (`GET /api/value/scan`). Router is registered in `api_server_fastapi.py` in the standard try/except block.
 - **Data source**: TradingView public scanner, **markets**: `india` → `…/india/scan`, `usa` → `…/america/scan`, `global` → `…/global/scan` with an explicit country list.
 - **Scoring**: 0-100 = 4 sub-scores (value / quality / growth / health, 25 each), each **peer-relative to the row's own sector bucket** (median computed on the **full pre-gate frame** — computing medians after the gates makes the ranking self-referential). Sub-scores and peer medians travel in the row payload so the UI can explain a row without recomputing.
-- **Hard quality gates** (a name that fails is excluded, not just penalised): P/E band, EPS growth, ROE, positive FCF, D/E, market cap, volume, and price vs SMA200 (default ON = "cheap *and* basing"). Presets: `SERIOUS` (default) / `DEEP` / `GARP_VALUE` / `YIELD` / `TURNAROUND` / `NO_GATE`.
+- **Hard quality gates** (a name that fails is excluded, not just penalised): P/E band, EPS growth, ROE, positive FCF, D/E, market cap, volume, and price vs SMA200 (default ON = "cheap *and* basing"). Presets: `SERIOUS` / `DEEP` / `GARP_VALUE` / `YIELD` / `TURNAROUND` / `NO_GATE` — ids, labels, descriptions and gates live once in `api/value_scan/presets.json`; `api/value_scan/filters.py` loads its gates from there and `src/api/valuePresets.generated.ts` is generated from the same file by `scripts/gen_value_presets.py`. No preset is applied by default (UI selector starts empty, API `preset` param defaults to `None`).
 - **Field coverage (measured — `scripts/market/field_coverage.py`)**: `india` and `america` expose 53 usable columns. **Not available anywhere: `total_cash`, `total_cash_flow_ttm`, `enterprise_value`, `price_ebitda_ttm`, `price_enterprise_value_ebitda_ttm`, `price_target`, `analyst_rating`, `total_analyst_opinions`, `basic_average_shares`.** So: no net-cash filter (use `debt_to_equity_fq` + `current_ratio` + FCF), no EV multiples, no analyst target column in v1.
 - **`global` gotchas** (measured): `global` is **not** a stocks market — it returns 0 rows for stocks and only works for futures. Global stocks need an explicit country list (16 markets → ~88k names). The same company is listed on many exchanges (NVDA appeared 8+ times with different currencies and P/Es) and ~20% of rows are `type: "dr"` → **de-duplicate by root symbol, keep `type == "stock"`, keep the listing with the most non-null fundamentals**. Market cap on a foreign listing is already in the primary currency (USD) → no FX maths. Global fundamentals coverage is ~85-90% → the response carries `fields_complete` for a "partial fundamentals" badge.
 - **Performance invariants (unit-tested)**: exactly **1 HTTP request per market per cache window** — user filters are applied in Python, never pushed to the network. The redis cache stores the **scored frame per market** (NOT the filtered result; key must not include filters) with TTL 900 s (india) / 3600 s (usa/global), a `_try_acquire_lock` stampede guard and stale-while-revalidate.
@@ -668,5 +698,5 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - **`_filter_to_date_or_recent` timezone bug** — see [PRODUCTION.md](./PRODUCTION.md) (known production issue)
 - **TradingAgents auth**: `get_current_user` dependency has compatibility issues with this router (langgraph_sdk/chaining chainlit interference). All trading_agents endpoints use no auth or hardcoded user_id=3 for now.
 - **Analysis speed**: Multi-agent analysis takes 60-120s (15+ DeepSeek LLM calls). First analysis on any ticker is slow, subsequent requests are instant from file cache.
-- **`tsc` clusters still open** (327 errors as of 2026-11-16 18:10, was 369 on 2026-11-14 — re-measure, do not trust this number): `src/pages/**` beyond `report`, plus `components/options|sector|strategies|replay|backtest|news`. Re-measure with `npx tsc --noEmit 2>&1 | grep -c "error TS"`. Cleared clusters (`report`, `common`+`ui`, `paper-trading`+`bots`, `screener`+`patterns`, `utils`+`api`+`state`) each exposed real runtime defects — treat the remaining ones as bug hunts, not tidying.
+- **`tsc` clusters still open** (currently **322 errors**, verified by the build gate; must not rise): `src/pages/**` beyond `report`, plus `components/options|sector|strategies|replay|backtest|news`. Verify with `npx tsc --noEmit 2>&1 | grep -c "error TS"`. Cleared clusters (`report`, `common`+`ui`, `paper-trading`+`bots`, `screener`+`patterns`, `utils`+`api`+`state`) each exposed real runtime defects — treat the remaining ones as bug hunts, not tidying. Clean (0 errors): `market`, `config`, `options-dock`, `analytics` clusters — do not re-open.
 - **Index Report chart focus (LEVEL 1/2)** — specified in [docs/INDEX_REPORT_REDESIGN.md](./docs/INDEX_REPORT_REDESIGN.md) but not built. The walls card is now 5-column and 216px (was 475px single-column), so the chart is visible; the drawer and focus mode are still pending.

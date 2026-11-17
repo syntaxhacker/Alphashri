@@ -1,11 +1,20 @@
 import { describe, expect, test, vi } from "vitest";
 import { render, screen, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import { NumCell, TextCell, BadgeCell, SymbolCell } from "./tableCells";
+import { NumCell, TextCell, BadgeCell, SymbolCell, DashCell } from "./tableCells";
 
 function cls(el: Element) {
   return el.className?.toString() ?? "";
 }
+
+describe("DashCell", () => {
+  test("renders a dimmed en dash with the caller's testid", () => {
+    render(() => <DashCell testId="d" />);
+    const el = screen.getByTestId("d");
+    expect(el).toHaveTextContent("–");
+    expect(cls(el)).toContain("text-fin-text-muted");
+  });
+});
 
 describe("NumCell", () => {
   test("is mono and tabular — columns must not shift as values tick", () => {

@@ -2,7 +2,7 @@ import { Show, splitProps, type JSX } from "solid-js";
 import { ActionIcon, Box, CopyButton, Text, Tooltip, cn } from "@/ui";
 import { IconChartCandle, IconCheck, IconCopy, IconExternalLink, IconChartArea } from "./Icons";
 import { tradingViewSymbol } from "@/config/tvSymbols";
-import { useSymbolDock } from "./symbolDockContext";
+import { isUsMarket, useSymbolDock, type SymbolDockMode } from "./symbolDockContext";
 
 // `solid-js` does not re-export JSX.CSSProperties from its package root.
 type CSSProperties = JSX.CSSProperties;
@@ -82,8 +82,9 @@ export interface SymbolLinkProps {
  *   action (a focusable button) and the `↗` affordance is the TradingView link.
  * - When `tvLink=false` and `onTextClick` is provided, the text renders as a button
  *   with the custom click handler (ClickableSymbol use case).
- * - Trailing chart icon → the in-app right-side chart (`onOpen`); the host
- *   decides whether that is a dock, a widget or a route. Controlled by `showChart`.
+ * - Trailing chart icon → the in-app right-side chart (`onOpen`, else the dock);
+ *   a US `market` is forwarded to the dock so it routes to `?market=usa`.
+ *   Controlled by `showChart`.
  * - Hover → `onPreview`; the host debounces and decides whether a preview is
  *   allowed (e.g. desktop only, and not while a chart is pinned).
  *
@@ -122,7 +123,26 @@ export function SymbolLink(props: SymbolLinkProps) {
   const stopPropagation = () => local.stopPropagation ?? true;
   const label = () => String(local.symbol ?? "");
   const dock = useSymbolDock();
-  const openHandler = () => local.onOpen ?? dock.open;
+  // Only US markets change the dock call: the provider ignores `market` for
+  // India, so forwarding NSE would be noise and would break hosts/mocks that
+  // assert the established `open(symbol)` / `open(symbol, "options")` shape.
+  const openDock = (symbol: string, nextMode?: SymbolDockMode) => {
+    const market = isUsMarket(local.market) ? local.market : undefined;
+    if (market === undefined) {
+      if (nextMode === undefined) dock.open(symbol);
+      else dock.open(symbol, nextMode);
+      return;
+    }
+    if (nextMode === undefined) dock.open(symbol, "chart", market);
+    else dock.open(symbol, nextMode, market);
+  };
+  const openInApp = (symbol: string) => {
+    if (local.onOpen) {
+      local.onOpen(symbol);
+      return;
+    }
+    openDock(symbol);
+  };
   // Hover no longer opens the chart. A symbol only opens on click; pages that
   // want a preview opt in explicitly with onPreview.
   const previewHandler = () => local.onPreview;
@@ -153,7 +173,7 @@ export function SymbolLink(props: SymbolLinkProps) {
     if (local.onTextClick) {
       local.onTextClick(label(), event);
     } else {
-      openHandler()(label());
+      openInApp(label());
     }
   };
 
@@ -260,7 +280,7 @@ export function SymbolLink(props: SymbolLinkProps) {
         </Tooltip>
       </Show>
 
-      <Show when={(local.showChart ?? true) && openHandler()}>
+      <Show when={(local.showChart ?? true) && openInApp}>
         <Box
           component="button"
           type="button"
@@ -269,7 +289,7 @@ export function SymbolLink(props: SymbolLinkProps) {
           data-testid={local.chartTestId ?? `symbol-chart-${label()}`}
           onClick={(event) => {
             stop(event);
-            openHandler()(label());
+            openInApp(label());
           }}
           className="inline-flex h-[18px] w-[18px] flex-shrink-0 cursor-pointer items-center justify-center rounded-[4px] border-0 bg-transparent p-0 text-fin-text-muted hover:bg-white/[0.08] hover:text-fin-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-fin-primary)]"
         >
@@ -286,7 +306,7 @@ export function SymbolLink(props: SymbolLinkProps) {
             data-testid={`symbol-options-${label()}`}
             onClick={(event) => {
               stop(event);
-              dock.open(label(), "options");
+              openDock(label(), "options");
             }}
             className="inline-flex h-[18px] w-[18px] flex-shrink-0 cursor-pointer items-center justify-center rounded-[4px] border-0 bg-transparent p-0 text-fin-text-muted hover:bg-white/[0.08] hover:text-fin-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-fin-primary)]"
           >

@@ -62,7 +62,11 @@ vi.mock("@/api/reportNifty", () => ({
 }));
 
 import * as api from "@/api/reportNifty";
-import { createNiftyReportStore, startNiftyReportEffects } from "./niftyReportStore";
+import {
+  createNiftyReportStore,
+  GENERIC_POLL_MS,
+  startNiftyReportEffects,
+} from "./niftyReportStore";
 import type { NiftyReportStore } from "./niftyReportStore";
 
 function liveReport(): NiftyReport {
@@ -252,5 +256,57 @@ describe("createNiftyReportStore", () => {
     });
 
     dispose();
+  });
+
+  test("generic live poll skips a tick while the initial load is in flight", async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveLive!: (report: NiftyReport) => void;
+      const livePending = new Promise<NiftyReport>((resolve) => {
+        resolveLive = resolve;
+      });
+      vi.mocked(api.fetchOptionsLive).mockReturnValue(livePending);
+      vi.mocked(api.fetchOptionsTape).mockResolvedValue(
+        null as unknown as Awaited<ReturnType<typeof api.fetchOptionsTape>>,
+      );
+      vi.mocked(api.fetchOptionsBursts).mockResolvedValue([]);
+      vi.mocked(api.fetchOptionsReplayDates).mockResolvedValue([]);
+      vi.mocked(api.fetchOptionsExpiries).mockResolvedValue([]);
+
+      const { store, dispose } = build();
+      // Select the generic symbol before bootstrap finishes so the pending
+      // load is the generic triple, not the NIFTY one-shot path.
+      store.selection.handleSymbolChange("SENSEX");
+
+      // Bootstrap sets booted() -> true: the generic load starts (deferred) and
+      // the first poll tick is armed for +GENERIC_POLL_MS.
+      await vi.advanceTimersByTimeAsync(0);
+
+      // fetchOptionsLive/fetchOptionsTape only run inside load()/runPoll(), so
+      // they mark a full triple (bursts also has an independent 30s poll).
+      const expectSingleTriple = () => {
+        expect(api.fetchOptionsLive).toHaveBeenCalledTimes(1);
+        expect(api.fetchOptionsTape).toHaveBeenCalledTimes(1);
+      };
+      expectSingleTriple();
+
+      // Poll tick lands while load() is still in flight — it must not launch a
+      // second live/tape/bursts triple.
+      await vi.advanceTimersByTimeAsync(GENERIC_POLL_MS);
+      expectSingleTriple();
+      expect(store.data.loading()).toBe(true);
+
+      // Resolving the load lets the re-armed poll tick run a fresh triple.
+      resolveLive(liveReport());
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(GENERIC_POLL_MS);
+
+      expect(api.fetchOptionsLive).toHaveBeenCalledTimes(2);
+      expect(api.fetchOptionsTape).toHaveBeenCalledTimes(2);
+
+      dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

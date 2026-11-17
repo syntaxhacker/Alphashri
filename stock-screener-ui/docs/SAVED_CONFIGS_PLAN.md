@@ -1,6 +1,7 @@
 # Saved user configs — design plan (P1: Market screener filters)
 
-Status: **plan, not implemented.** No source file was modified by this document.
+Status: **shipped.** P1 `market.filters` and the `table.*` scopes in §8 are live (2026-11-16).
+This document is retained as the design record; paths below point at the current worktree.
 Owner surface: Screener → Market tab (`/screener`).
 
 ---
@@ -114,16 +115,18 @@ Postgres note: `sa.JSON()` maps to `json`. `JSONB` would be marginally better fo
 
 ### 2.4 Scope registry + per-scope schema
 
-New package `api/user_configs/`:
+Flat module `api/user_configs.py` (no `api/user_configs/` package):
 
 ```
-api/user_configs/__init__.py
-api/user_configs/registry.py    # SCOPE_REGISTRY, ScopeSpec
-api/user_configs/schemas.py     # MarketFiltersV1 + envelope models
-api/user_configs/router.py      # APIRouter(prefix="/api/user-configs", tags=["user-configs"])
+api/user_configs.py
+  ScopeSpec, SCOPE_REGISTRY          # scope registry (market.filters + dynamic table.<id>)
+  MarketFiltersV1, TablePrefsV1      # per-scope schemas
+  ConfigEnvelope, PutConfigRequest,
+  DeleteResponse                     # envelope models
+  router = APIRouter(prefix="/api/user-configs", tags=["user-configs"])
 ```
 
-`registry.py`:
+`api/user_configs.py`:
 
 ```python
 @dataclass(frozen=True)
@@ -194,9 +197,9 @@ Schema rules (`MarketFiltersV1`, Pydantic v2):
 
 ### 2.5 Endpoints
 
-Base: `api/user_configs/router.py`, `router = APIRouter(prefix="/api/user-configs", tags=["user-configs"])`.
+Base: `api/user_configs.py`, `router = APIRouter(prefix="/api/user-configs", tags=["user-configs"])`.
 Auth: `Depends(get_current_user)` on every route (`api/auth.py:162`). Mounted in `api_server_fastapi.py` with
-`_include_api("api.user_configs.router", "router", "user-configs", msg="✅ User configs API loaded at /api/user-configs")`
+`_include_api("api.user_configs", "router", "user-configs", msg="✅ User configs API loaded at /api/user-configs")`
 next to the replay block (~line 1325), plus a `{"name": "user-configs", "description": "Per-user saved screen state (one default per scope)."}` entry in `OPENAPI_TAGS` (~line 811). All handlers need `summary=`.
 
 #### `GET /api/user-configs/{scope}`
@@ -269,9 +272,8 @@ Request:
 | File | Responsibility |
 |---|---|
 | `src/api/userConfigs.ts` | `getUserConfig(scope)`, `putUserConfig(scope, config, version, ifMatch?)`, `deleteUserConfig(scope)`. `fetchWithAuth` (`state/auth.ts:81`), `ensureOk` copied from `src/api/screeners.ts:8`. Throws a typed `UserConfigError { status, code }` so the store can distinguish 401 / 409 / 422 / network. |
-| `src/state/savedConfigScopes.ts` | **The registry.** `SavedConfigScope<T> { scope, version, defaults(), parse(raw), serialize(value) }` + `SCOPES: Record<string, SavedConfigScope<any>>`. |
-| `src/components/market/marketConfigScope.ts` | `marketFiltersScope`: the pure adapter (`defaults`, `parse`, `serialize`) between `{universe, filters: MarketFilterState}` and the wire payload. No JSX, no fetch — this is where the Set↔array and enum-sanitizing logic lives and is unit-tested. |
-| `src/state/savedConfig.ts` | Per-scope Solid store: `hydrate`, `scheduleSave`, `flush`, `forget`, `status`, `error`, `baseRevision`, generation counter. Module-level `createSubscriber` + `useStoreSubscription`, matching `src/state/auth.ts` / `src/state/replay.ts`. |
+| `src/state/savedConfig.ts:46-64` | **Registry + store in one module** (there is no separate registry file). `SavedConfigScope<T> { scope, version, defaults(), parse(raw), serialize(value) }`, `SCOPES: Record<string, SavedConfigScope<any>>` (`:59`) and `registerSavedConfigScope()` (`:61`); the scope owner registers itself at import time. Also the per-scope Solid store: `hydrate`, `scheduleSave`, `flush`, `forget`, `status`, `error`, generation counter — module-level `createSubscriber` + `useStoreSubscription`, matching `src/state/auth.ts`. |
+| `src/components/market/useMarketConfig.ts:174` | `marketConfigScope`: the pure adapter (`defaults`, `parse`, `serialize`) registered into `SCOPES` above, between `{universe, filters: MarketFilterState}` and the wire payload. No JSX, no fetch — this is where the Set↔array and enum-sanitizing logic lives; tested in `src/components/market/useMarketConfig.test.ts`. The `useMarketConfig()` hook in the same file binds that store to the panel. |
 | `src/components/market/MarketScreenerPanel.tsx` | Wire-up only: hydrate on mount, subscribe, push changes, gate the universe-reset effect. |
 
 Adding a screen later: one `SavedConfigScope` file + one row in `SCOPES`. No store, API, or backend change.
@@ -450,7 +452,7 @@ Run: `.venv/bin/python -m pytest tests/api/test_user_configs.py tests/contract/t
 8. GET returns an unparseable payload ⇒ defaults + one warning, no DELETE issued
 9. generation counter: scope A → B → A, responses out of order ⇒ the A response is the one applied
 
-`src/components/market/marketConfigScope.test.ts` (new):
+`src/components/market/useMarketConfig.test.ts`:
 - `Set` ↔ array round-trip for `capTiers`
 - unknown key dropped; unknown tier filtered without losing the valid ones
 - `version` mismatch ⇒ `parse` returns `null`
@@ -463,9 +465,9 @@ Run: `.venv/bin/python -m pytest tests/api/test_user_configs.py tests/contract/t
 - PUT 500 ⇒ "Filters not saved" chip; `market-result-count` unchanged (failure does not blank the table)
 - 401 ⇒ no chip, table unaffected
 
-Run: `npx vitest run src/state/savedConfig.test.ts src/components/market/marketConfigScope.test.ts src/components/market/MarketScreenerPanel.test.tsx`
+Run: `npx vitest run src/state/savedConfig.test.ts src/components/market/useMarketConfig.test.ts src/components/market/MarketScreenerPanel.test.tsx`
 
-### 5.3 E2E — `tests/e2e/market-saved-filters.spec.ts` (new)
+### 5.3 E2E — `tests/e2e/saved-configs.spec.ts`
 
 Uses `setupApiMocks` + `loginAsTestUser` (`tests/e2e/market-screener.spec.ts:1-20`).
 **Integration gap to close first:** `tests/mocks/apiResponses.ts` must answer `/api/user-configs/market.filters` (GET → defaults envelope, PUT → echo, DELETE → ok). Without it the request falls through the catch-all and pollutes the console-error collector.
@@ -475,7 +477,7 @@ Uses `setupApiMocks` + `loginAsTestUser` (`tests/e2e/market-screener.spec.ts:1-2
 3. clear all filters → reload ⇒ no chips (write happened; read did not resurrect)
 4. `<1024 px` viewport: reopen the filter drawer after a reload ⇒ the drawer shows the applied values (overlay round-trip, `TEST_SCENARIOS.md` §2.11)
 
-Run: `npx playwright test tests/e2e/market-saved-filters.spec.ts --workers=4 --output=/tmp/pw-saved-configs`
+Run: `npx playwright test tests/e2e/saved-configs.spec.ts --workers=4 --output=/tmp/pw-saved-configs`
 
 ### 5.4 Scenario coverage (`docs/TEST_SCENARIOS.md`)
 

@@ -1,5 +1,6 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 import { Box, Button, Text, ToolbarRow } from "@/ui";
+import { FilterStatusRow } from "@/components/common/FilterStatusRow";
 import { PATTERN_CHIP_BG } from "@/ui/palette";
 import { IconX } from "@/ui/icons";
 import { DEFAULT_PATTERN_FILTERS } from "@/state/chartPatterns";
@@ -271,7 +272,8 @@ export interface AppliedFiltersProps {
 /**
  * Inline summary of the active filters, grouped by filter family and each value
  * removable with its close button — so the modal never has to be reopened just
- * to drop one filter. Renders nothing when no filters are applied.
+ * to drop one filter. Mounts a fixed-height placeholder row when no filters are
+ * applied so the results table never shifts vertically.
  */
 export function AppliedFilters(props: AppliedFiltersProps) {
   const allChips = createMemo(() => buildAppliedFilterChips(props.filters, props.patterns));
@@ -294,84 +296,75 @@ export function AppliedFilters(props: AppliedFiltersProps) {
   });
 
   return (
-    <Show when={allChips().length > 0}>
-      <Box data-testid="patterns-applied-filters" className="min-w-0">
-        <ToolbarRow
-          gap={4}
-          wrap={false}
-          className="min-w-0"
-          style={{ "overflow-x": expanded() ? "auto" : "hidden" }}
-        >
-          <Text c="dimmed" fw={700} className="text-[9px] tracking-wide uppercase">
-            Active
-          </Text>
-          <For each={groups()}>
-            {(group) => {
-              const multi = group.items.length > 1;
-              return (
-                <Box
-                  data-testid={`patterns-applied-group-${group.group.toLowerCase()}`}
-                  className="inline-flex min-w-0 items-center gap-[4px] pl-[2px]"
-                >
-                  <Show when={multi}>
-                    <Text c="dimmed" fw={600} className="text-[9px] tracking-wide uppercase">
-                      {`${group.group}s`}
-                    </Text>
-                  </Show>
-                  <For each={group.items}>
-                    {(chip) => (
-                      <span
-                        data-testid={`patterns-applied-filter-${chip.id}`}
-                        className="inline-flex items-center gap-[4px] whitespace-nowrap rounded-fin border border-transparent px-2 py-1 text-xs text-fin-text"
-                        style={{ "background-color": PATTERN_CHIP_BG }}
+    <FilterStatusRow
+      testId="patterns-applied-filters"
+      hasFilters={allChips().length > 0}
+      onClearAll={() => props.resetFilters()}
+      clearAllTestId="patterns-applied-clear-all"
+      className="min-w-0"
+    >
+      <ToolbarRow gap={4} wrap={false} className="min-w-0">
+        <Text c="dimmed" fw={700} className="text-[9px] tracking-wide uppercase">
+          Active
+        </Text>
+        <For each={groups()}>
+          {(group) => {
+            const multi = group.items.length > 1;
+            return (
+              <Box
+                data-testid={`patterns-applied-group-${group.group.toLowerCase()}`}
+                className="inline-flex min-w-0 items-center gap-[4px] pl-[2px]"
+              >
+                <Show when={multi}>
+                  <Text c="dimmed" fw={600} className="text-[9px] tracking-wide uppercase">
+                    {`${group.group}s`}
+                  </Text>
+                </Show>
+                <For each={group.items}>
+                  {(chip) => (
+                    <span
+                      data-testid={`patterns-applied-filter-${chip.id}`}
+                      className="inline-flex items-center gap-[4px] whitespace-nowrap rounded-fin border border-transparent px-2 py-0.5 text-xs text-fin-text"
+                      style={{ "background-color": PATTERN_CHIP_BG }}
+                    >
+                      {multi ? chip.label : `${chip.group}: ${chip.label}`}
+                      <button
+                        type="button"
+                        aria-label={`Remove ${multi ? chip.label : `${chip.group}: ${chip.label}`}`}
+                        data-testid={`patterns-applied-filter-${chip.id}-remove`}
+                        className="inline-flex cursor-pointer items-center justify-center rounded-sm p-0.5 leading-none hover:bg-white/10"
+                        onClick={() => props.setFilter(chip.key, chip.nextValue)}
                       >
-                        {multi ? chip.label : `${chip.group}: ${chip.label}`}
-                        <button
-                          type="button"
-                          aria-label={`Remove ${multi ? chip.label : `${chip.group}: ${chip.label}`}`}
-                          data-testid={`patterns-applied-filter-${chip.id}-remove`}
-                          className="inline-flex cursor-pointer items-center justify-center rounded-sm p-0.5 leading-none hover:bg-white/10"
-                          onClick={() => props.setFilter(chip.key, chip.nextValue)}
-                        >
-                          <IconX size={12} stroke={2.5} />
-                        </button>
-                      </span>
-                    )}
-                  </For>
-                </Box>
-              );
-            }}
-          </For>
-          <Show when={overflowCount() > 0 && !expanded()}>
-            <Button
-              size="xs"
-              variant="subtle"
-              onClick={() => setExpanded(true)}
-              data-testid="patterns-applied-overflow"
-            >
-              +{overflowCount()}
-            </Button>
-          </Show>
-          <Show when={expanded()}>
-            <Button
-              size="xs"
-              variant="subtle"
-              onClick={() => setExpanded(false)}
-              className="text-[9px] tracking-wide uppercase"
-            >
-              Collapse
-            </Button>
-          </Show>
+                        <IconX size={12} stroke={2.5} />
+                      </button>
+                    </span>
+                  )}
+                </For>
+              </Box>
+            );
+          }}
+        </For>
+        <Show when={overflowCount() > 0 && !expanded()}>
           <Button
             size="xs"
             variant="subtle"
-            onClick={() => props.resetFilters()}
-            data-testid="patterns-applied-clear-all"
+            onClick={() => setExpanded(true)}
+            data-testid="patterns-applied-overflow"
           >
-            Clear all
+            +{overflowCount()}
           </Button>
-        </ToolbarRow>
-      </Box>
-    </Show>
+        </Show>
+        <Show when={expanded()}>
+          <Button
+            size="xs"
+            variant="subtle"
+            onClick={() => setExpanded(false)}
+            className="text-[9px] tracking-wide uppercase"
+          >
+            Collapse
+          </Button>
+        </Show>
+      </ToolbarRow>
+    </FilterStatusRow>
   );
 }

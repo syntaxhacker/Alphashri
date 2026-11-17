@@ -2,15 +2,16 @@ import { Show, For } from "solid-js";
 import { Box, Collapse, Text, UnstyledButton, useDisclosure } from "@/ui";
 import { IconChevronDown } from "@/ui/icons";
 import type { PatternHitDTO } from "@/types/chartPatterns";
+import type { ChartMarket } from "@/utils/chart/time";
 import { formatChartTimestamp } from "./datetime";
-import { formatPrice } from "./shared";
+import { formatChartPrice } from "./chartFormat";
 
 /**
  * Collapsible audit list of the swing pivots that define the pattern, so a
  * trader can manually verify each turn against the chart. Renders nothing when
  * the hit carries no pivots (older persisted rows).
  */
-export function PivotList(props: { pivots?: PatternHitDTO["pivots"] }) {
+export function PivotList(props: { pivots?: PatternHitDTO["pivots"]; market?: ChartMarket }) {
   const [opened, { toggle }] = useDisclosure(false);
   return (
     <Show when={props.pivots?.length}>
@@ -44,7 +45,7 @@ export function PivotList(props: { pivots?: PatternHitDTO["pivots"] }) {
                   c="text.secondary"
                   data-testid={`patterns-detail-pivot-${i()}`}
                 >
-                  {formatChartTimestamp(pivot.t)} · {formatPrice(pivot.price)} · {pivot.kind === "low" ? "Low" : "High"}
+                  {formatChartTimestamp(pivot.t)} · {formatChartPrice(pivot.price, props.market)} · {pivot.kind === "low" ? "Low" : "High"}
                 </Text>
               )}
             </For>

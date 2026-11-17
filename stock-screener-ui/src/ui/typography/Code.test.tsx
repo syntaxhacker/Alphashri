@@ -29,6 +29,6 @@ describe("Code", () => {
   it("applies a colored background via color", () => {
     render(() => <Code data-testid="c" block color="info">npm install</Code>);
     expect(screen.getByTestId("c")).toHaveStyle(`background-color: ${palette.INFO}`);
-    expect(screen.getByTestId("c")).toHaveStyle("color: white");
+    expect(screen.getByTestId("c")).toHaveStyle(`color: ${palette.BG}`);
   });
 });

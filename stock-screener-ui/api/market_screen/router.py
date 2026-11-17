@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -10,18 +11,27 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from api.auth import get_current_user
 from .snapshot import MAX_LIMIT, MAX_SYMBOLS, build_snapshot, select_rows
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/market", tags=["market"])
+
+# Fixed so an upstream error string can never reach a 502 response.
+_MARKET_SOURCE_UNAVAILABLE_DETAIL = (
+    "market_source_unavailable: upstream market data temporarily unavailable"
+)
 
 
 @router.get(
     "/snapshot",
-    summary="NSE market snapshot for the one-page screener",
+    summary="Market snapshot (NSE / US) for the one-page screener",
     dependencies=[Depends(get_current_user)],
 )
 async def market_snapshot(
     universe: str = Query(
         default="all_equity",
-        description="Universe: all_equity (default), nifty50, nifty500 or nse_fo.",
+        description=(
+            "Universe: all_equity (default), nifty50, nifty500, nse_fo or us "
+            "(US large/mid/small caps listed on NASDAQ/NYSE/AMEX)."
+        ),
     ),
     limit: int = Query(
         default=MAX_LIMIT,
@@ -84,8 +94,9 @@ async def market_snapshot(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # upstream TV failure without a cached fallback
+        logger.exception("market snapshot upstream failure universe=%s", universe)
         raise HTTPException(
-            status_code=502, detail=f"market_source_unavailable: {exc}"
+            status_code=502, detail=_MARKET_SOURCE_UNAVAILABLE_DETAIL
         ) from exc
 
     if wanted:

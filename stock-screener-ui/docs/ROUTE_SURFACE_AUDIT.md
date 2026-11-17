@@ -6,94 +6,120 @@ Inventory of where every page route lives, plus an exact rename plan for the `*2
 - Evidence date: 2026-11-14
 - Method: read `src/App.tsx` in full, resolved every lazy specifier with `test -e`, grep with
   `grep -rn … --include=*.ts --include=*.tsx | grep -v node_modules`.
-- State: **current worktree**, after the standalone `/heatmap` page was removed. The Heatmap UI
-  that survived lives in `src/components/heatmap/` and is rendered by the Screener's Market tab
-  (`MarketMapView`). See `docs/DELETION_LOG.md` for the deletion record.
+- State: **current worktree**, re-verified against `src/App.tsx` on 2026-11-17. The standalone
+  `/heatmap` page was removed. The Heatmap UI that survived lives in `src/components/heatmap/` and
+  is rendered by the Screener's Market tab (`MarketMapView`). See `docs/DELETION_LOG.md` for the
+  deletion record. **`/report/us` (US Report) was removed on 2026-11-17** and has no row and no
+  `<Route>` in `App.tsx`; the counts below reflect that.
+- Since the 2026-11-14 audit snapshot recorded in Parts 2–4, every lazy route was migrated to
+  resolve under `src/pages/` (7 are thin `index.tsx` barrels re-exporting from `src/components/`),
+  the `*2` renames were executed, and the root/`screener` routes changed shape. Part 1 and all
+  counts below are **current**; Parts 2–4 remain the historical audit/rename plan.
 
 ---
 
 ## Part 1 — Route → component origin
 
-`src/App.tsx` has **29 `<Route path=…>` elements**: **27** point at a named lazy component,
-**2** are inline `<Navigate>` redirects with no component home.
+`src/App.tsx` has **30 `<Route path=…>` elements**: **27** point at a named lazy component,
+**1** is `RootRedirect` (`/`), and **2** are inline `<Navigate>` redirects with no component home.
+All 27 lazy specifiers use `./pages/...` — **0** import directly from `./components/`. Seven of
+those 27 are thin `index.tsx` barrels that re-export a component still physically defined in
+`src/components/` (shown as `src/pages` → `src/components` in the "home" column).
+
+"defining file (resolved)" follows the lazy specifier to the file that actually defines or
+re-exports the component; `→` marks a page barrel that forwards to its component home.
 
 | # | route path | component | defining file (resolved) | home | notes |
 |---|---|---|---|---|---|
-| 1 | `/` | `ScreenerContainer` | `src/pages/screener/ScreenerContainer.tsx` | `src/pages` | direct `.then(m => m.ScreenerContainer)` |
-| 2 | `/backtest` | `BacktestPage` | `src/components/backtest/BacktestPage.tsx` | `src/components` | via barrel `src/components/backtest/index.ts` |
-| 3 | `/experiments` | `ExperimentsPage` | `src/components/experiments/ExperimentsPage.tsx` | `src/components` | **no barrel** in `components/experiments/` |
-| 4 | `/paper` | `PaperTradingView` | `src/components/paper-trading/PaperTradingView2.tsx` | `src/components` | via barrel `paper-trading/index.ts`; file has the `2` suffix, export name does not |
-| 5 | `/replay` | `ReplayPage` | `src/components/replay/ReplayPage.tsx` | `src/components` | via barrel `replay/index.ts` |
-| 6 | `/strategy-runner` | `StrategyRunnerPage` | `src/components/strategy-runner/StrategyRunnerPage.tsx` | `src/components` | via barrel `strategy-runner/index.ts` |
-| 7 | `/sector` | `SectorPage` | `src/components/sector/SectorPage2.tsx` | `src/components` | direct import; file has the `2` suffix, export is `SectorPage` |
-| 8 | `/strategies` | `StrategiesContainer` | `src/pages/strategies/StrategiesContainer.tsx` | `src/pages` | — |
-| 9 | `/bots` | `BotsPage` | `src/components/bots/BotsPage.tsx` | `src/components` | barrel is `components/bots/components.ts` (**not** `index.ts`) |
-| 10 | `/options` | `OptionsContainer` | `src/pages/options/OptionsContainer.tsx` | `src/pages` | — |
-| 11 | `/report/nifty` | *(inline)* | — | — | `component={() => <Navigate href="/report/index" />}` |
-| 12 | `/report/index` | `NiftyReportPage` | `src/pages/report/NiftyReportShell.tsx` | `src/pages` | variable name ≠ export name (`NiftyReportShell`) |
-| 13 | `/report/us` | `UsReportPage` | `src/pages/report/us/UsReportPage.tsx` | `src/pages` | — |
-| 14 | `/settings` | `SettingsPage` | `src/pages/settings/SettingsPage.tsx` | `src/pages` | — |
-| 15 | `/news` | `NewsPage` | `src/pages/NewsPage.tsx` | `src/pages` | default export |
-| 16 | `/admin` | `AdminPage` | `src/pages/AdminPage.tsx` | `src/pages` | default export |
-| 17 | `/agri` | `AgriContainer` | `src/pages/agri/AgriContainer.tsx` | `src/pages` | 6-line container; renders `./AgriPage` |
-| 18 | `/orderflow` | `OrderFlowPage` | `src/pages/orderflow/OrderFlowPage.tsx` | `src/pages` | — |
-| 19 | `/patterns` | `PatternsContainer` | `src/pages/patterns/PatternsContainer.tsx` | `src/pages` | also has a `default` export |
-| 20 | `/report` | `ReportContainer` | `src/pages/report/ReportContainer.tsx` | `src/pages` | — |
-| 21 | `/report/profit` | `ProfitabilityPage` | `src/pages/report/Profitability.tsx` | `src/pages` | file name (`Profitability`) ≠ export name |
-| 22 | `/poc/kit` | `KitPoc` | `src/pages/poc/KitPoc.tsx` | `src/pages` | — |
-| 23 | `/poc/smc` | `SmcPoc` | `src/pages/poc/SmcPoc.tsx` | `src/pages` | default export |
-| 24 | `/poc/smc-trades` | `SmcTrades` | `src/pages/poc/SmcTrades.tsx` | `src/pages` | 10-line shim over `@/components/replay/core/ReplayShell` |
-| 25 | `/poc/tick-replay` | `TickReplay` | `src/pages/poc/TickReplay.tsx` | `src/pages` | 11-line shim over `@/components/replay/core/ReplayShell` |
-| 26 | `/poc/replay` | `ReplayIndexPage` | `src/pages/poc/ReplayIndexPage.tsx` | `src/pages` | default export |
-| 27 | `/poc/replay/:strategyId` | `ReplayStrategyPage` | `src/pages/poc/ReplayStrategyPage.tsx` | `src/pages` | param route; default export |
-| 28 | `/chart/:symbol?` | `ChartView` | `src/pages/chart/ChartView.tsx` | `src/pages` | optional param; default export |
-| 29 | `*` | *(inline)* | — | — | catch-all `<Navigate href="/" />` |
+| 1 | `/` | `RootRedirect` (inline fn) | `src/App.tsx:47-61` | `src/App.tsx` | named function returning `<Navigate>` to `/screener`; back-compat `?tab=` → path alias |
+| 2 | `/screener/:tab?` | `ScreenerContainer` | `src/pages/screener/ScreenerContainer.tsx` | `src/pages` | direct `.then(m => m.ScreenerContainer)`; was `/screener` at audit time |
+| 3 | `/backtest` | `BacktestPage` | `src/pages/backtest/index.tsx` → `src/components/backtest` | `src/pages` → `src/components` | page barrel re-export; direct import at audit time |
+| 4 | `/experiments` | `ExperimentsPage` | `src/pages/experiments/index.tsx` → `src/components/experiments/ExperimentsPage` | `src/pages` → `src/components` | page barrel re-export; direct import at audit time |
+| 5 | `/paper` | `PaperTradingView` | `src/pages/paper/index.tsx` → `src/components/paper-trading` | `src/pages` → `src/components` | page barrel re-export; `PaperTradingView2` renamed to `PaperTradingView` |
+| 6 | `/replay` | `ReplayPage` | `src/pages/replay/index.tsx` → `src/components/replay` | `src/pages` → `src/components` | page barrel re-export; direct import at audit time |
+| 7 | `/strategy-runner` | `StrategyRunnerPage` | `src/pages/strategy-runner/index.tsx` → `src/components/strategy-runner` | `src/pages` → `src/components` | page barrel re-export; direct import at audit time |
+| 8 | `/sector` | `SectorPage` | `src/pages/sector/index.tsx` → `src/components/sector/SectorPage` | `src/pages` → `src/components` | page barrel re-export; `SectorPage2` renamed to `SectorPage` |
+| 9 | `/strategies` | `StrategiesContainer` | `src/pages/strategies/StrategiesContainer.tsx` | `src/pages` | — |
+| 10 | `/bots` | `BotsPage` | `src/pages/bots/index.tsx` → `src/components/bots/components` | `src/pages` → `src/components` | page barrel; component barrel is `components.ts` (**not** `index.ts`) |
+| 11 | `/options/analytics/:symbol` | `OptionsAnalyticsPage` | `src/pages/options/OptionsAnalyticsPage.tsx` | `src/pages` | default export; **added since the audit** |
+| 12 | `/options` | `OptionsContainer` | `src/pages/options/OptionsContainer.tsx` | `src/pages` | — |
+| 13 | `/report/nifty` | *(inline)* | — | — | `component={() => <Navigate href="/report/index" />}` |
+| 14 | `/report/index` | `NiftyReportPage` | `src/pages/report/NiftyReportShell.tsx` | `src/pages` | variable name ≠ export name (`NiftyReportShell`) |
+| 15 | `/settings` | `SettingsPage` | `src/pages/settings/SettingsPage.tsx` | `src/pages` | — |
+| 16 | `/news` | `NewsPage` | `src/pages/NewsPage.tsx` | `src/pages` | default export |
+| 17 | `/admin` | `AdminPage` | `src/pages/AdminPage.tsx` | `src/pages` | default export |
+| 18 | `/agri` | `AgriContainer` | `src/pages/agri/AgriContainer.tsx` | `src/pages` | 5-line container; renders `./AgriPage` |
+| 19 | `/orderflow` | `OrderFlowPage` | `src/pages/orderflow/OrderFlowPage.tsx` | `src/pages` | — |
+| 20 | `/patterns` | `PatternsContainer` | `src/pages/patterns/PatternsContainer.tsx` | `src/pages` | also has a `default` export |
+| 21 | `/report` | `ReportContainer` | `src/pages/report/ReportContainer.tsx` | `src/pages` | — |
+| 22 | `/report/profit` | `ProfitabilityPage` | `src/pages/report/Profitability.tsx` | `src/pages` | file name (`Profitability`) ≠ export name |
+| 23 | `/poc/kit` | `KitPoc` | `src/pages/poc/KitPoc.tsx` | `src/pages` | — |
+| 24 | `/poc/smc` | `SmcPoc` | `src/pages/poc/SmcPoc.tsx` | `src/pages` | default export |
+| 25 | `/poc/smc-trades` | `SmcTrades` | `src/pages/poc/SmcTrades.tsx` | `src/pages` | shim over `@/components/replay/core/ReplayShell` |
+| 26 | `/poc/tick-replay` | `TickReplay` | `src/pages/poc/TickReplay.tsx` | `src/pages` | shim over `@/components/replay/core/ReplayShell` |
+| 27 | `/poc/replay` | `ReplayIndexPage` | `src/pages/poc/ReplayIndexPage.tsx` | `src/pages` | default export |
+| 28 | `/poc/replay/:strategyId` | `ReplayStrategyPage` | `src/pages/poc/ReplayStrategyPage.tsx` | `src/pages` | param route; default export |
+| 29 | `/chart/:symbol?` | `ChartView` | `src/pages/chart/ChartView.tsx` | `src/pages` | optional param; default export |
+| 30 | `*` | *(inline)* | — | — | catch-all `<Navigate href="/screener" />` (was `/` at audit time) |
+
+`/report/us` (US Report), present at earlier revisions, was removed on 2026-11-17 — it has no row
+above and no `<Route>` in `src/App.tsx`.
 
 ### Summary counts
 
 | bucket | count |
 |---|---|
-| `<Route path=…>` total | **29** |
-| resolving to `src/pages/**` | **20** |
-| resolving to `src/components/**` | **7** |
+| `<Route path=…>` total | **30** |
+| resolving to `src/pages/**` (lazy imports) | **27** |
+| direct imports from `src/components/**` | **0** (7 of the 27 page modules are barrels re-exporting from components) |
+| inline named function component (`RootRedirect`, `/`) | **1** |
 | inline `<Navigate>` (no component) | **2** |
 
-The 7 `src/components/**` routes, explicitly:
+The 7 routes that imported straight from `src/components/**` at the 2026-11-14 audit no longer do
+so. Each now resolves through a thin `src/pages/<name>/index.tsx` barrel that re-exports the same
+component; the audit-time specifier and its current replacement are:
 
-| route path | module specifier in `src/App.tsx` |
-|---|---|
-| `/sector` | `./components/sector/SectorPage2` |
-| `/backtest` | `./components/backtest` (barrel) |
-| `/experiments` | `./components/experiments/ExperimentsPage` |
-| `/paper` | `./components/paper-trading` (barrel) |
-| `/replay` | `./components/replay` (barrel) |
-| `/strategy-runner` | `./components/strategy-runner` (barrel) |
-| `/bots` | `./components/bots/components` (barrel) |
+| route path | audit-time specifier | current specifier in `src/App.tsx` | re-exports from |
+|---|---|---|---|
+| `/sector` | `./components/sector/SectorPage2` | `./pages/sector` | `@/components/sector/SectorPage` |
+| `/backtest` | `./components/backtest` (barrel) | `./pages/backtest` | `@/components/backtest` |
+| `/experiments` | `./components/experiments/ExperimentsPage` | `./pages/experiments` | `@/components/experiments/ExperimentsPage` |
+| `/paper` | `./components/paper-trading` (barrel) | `./pages/paper` | `@/components/paper-trading` |
+| `/replay` | `./components/replay` (barrel) | `./pages/replay` | `@/components/replay` |
+| `/strategy-runner` | `./components/strategy-runner` (barrel) | `./pages/strategy-runner` | `@/components/strategy-runner` |
+| `/bots` | `./components/bots/components` (barrel) | `./pages/bots` | `@/components/bots/components` |
 
 Verification:
 
 ```bash
-grep -c "<Route path=" src/App.tsx                                    # 29
+grep -c "<Route path=" src/App.tsx                                    # 30
 grep -c "lazy(() => import" src/App.tsx                               # 27
-grep "lazy(() => import" src/App.tsx | grep -c "\./pages/"            # 20
-grep "lazy(() => import" src/App.tsx | grep -c "\./components/"       # 7
+grep "lazy(() => import" src/App.tsx | grep -c "\./pages/"            # 27
+grep "lazy(() => import" src/App.tsx | grep -c "\./components/"       # 0
 
-# every lazy specifier resolves (no MISSING printed)
+# every lazy specifier resolves (no MISSING printed); bare page dirs use index.tsx barrels
 grep -o 'import("[^"]*"' src/App.tsx | sed 's/import("\.\///;s/"$//' | while read m; do
-  test -e "src/$m.tsx" || test -e "src/$m.ts" || test -e "src/$m/index.ts" \
-    || echo "MISSING src/$m"; done
+  test -e "src/$m.tsx" || test -e "src/$m.ts" || test -e "src/$m/index.tsx" \
+    || test -e "src/$m/index.ts" || echo "MISSING src/$m"; done
 ```
 
-Note: `src/components/sector/`, `src/components/experiments/`, `src/components/auth/` and
-`src/components/news/` have **no barrel**. Barrels that exist: `backtest/index.ts`,
+Note: seven lazy specifiers point at a bare page directory (`./pages/{sector,backtest,experiments,
+paper,replay,strategy-runner,bots}`); each resolves to an `index.tsx` barrel that re-exports the
+component from `src/components/`. The component dirs `sector/`, `experiments/`, `auth/` and `news/`
+have **no barrel**. Component barrels that still exist: `backtest/index.ts`,
 `paper-trading/index.ts`, `replay/index.ts`, `strategy-runner/index.ts`, `screener/index.ts`,
 `strategies/index.ts`, `patterns/index.ts`, `common/index.ts`, `bots/components.ts`.
 
 ---
 
-## Part 2 — `*2` rename plan
+## Part 2 — `*2` rename plan (historical — executed since the audit)
 
-Trailing-digit files under `src` (excluding `node_modules`): **11 `.tsx`, 0 `.ts`**.
+The 11 source + 12 test `*2` files listed below no longer exist in `src`; the renames were carried
+out after this 2026-11-14 audit. This part is retained as the rename plan and its importer/collision
+analysis. Counts and `file:line` references below are the **audit-time** snapshot, not the current
+worktree (where `find src \( -name "*2.tsx" -o -name "*2.ts" \)` returns 0).
+
+Trailing-digit files under `src` at audit time (excluding `node_modules`): **11 `.tsx`, 0 `.ts`**.
 
 ```bash
 find src -name "*2.tsx" -o -name "*2.ts" | grep -v node_modules | wc -l   # 11
@@ -369,8 +395,11 @@ Legend: **(a)** tests importing by relative path · **(b)** barrel re-exports ·
 
 ## Corrections to the task brief
 
-1. **"~7 routes under `src/components/`"** — exactly **7** (table in Part 1). The route list is 29
-   entries but only 27 components, because two entries are inline `<Navigate>`.
+1. **"~7 routes under `src/components/`"** — at the 2026-11-14 audit, exactly **7** routes imported
+   straight from `src/components/**` (table in Part 1). **Current worktree: 0** — all 27 lazy routes
+   resolve under `./pages/` (7 through thin barrels that re-export from components). The route list
+   is **30** entries: 27 lazy components, 1 inline named component (`RootRedirect`), and 2 inline
+   `<Navigate>` redirects.
 2. **Part 3's grep is incomplete** — it misses the two dynamic `import()` inversions in
    `src/components/screener/ScreenerPage.tsx:33,51`. Real totals are **7 sites / 6 files**.
 3. **"every importer"** — the `tests/` half returns **0 hits for all 11 basenames**; no `*2` module
@@ -379,8 +408,9 @@ Legend: **(a)** tests importing by relative path · **(b)** barrel re-exports ·
 5. **Sibling *stem* tests exist** for four of them (`LoginForm.test.ts`, `PaperHistoryTable.test.ts`,
    `PaperPositionsTable.test.ts`, `SectorPage.test.ts`). They are `.ts`, so no rename collides — but
    `LoginForm.test.ts:2` imports the module being renamed and must be edited.
-6. **`docs/MAP.md` documents the current `2`-suffix policy** ("do not rename; barrels re-export
-   under the clean name"). This document supersedes it only if the rename is actually executed.
+6. **`docs/MAP.md` documented the old `2`-suffix policy** ("do not rename; barrels re-export under
+   the clean name"). The rename **has since been executed** — no `*2` files remain in `src` — so
+   this document supersedes that note; `docs/MAP.md` may still be stale on that point.
 
 ---
 
@@ -403,15 +433,15 @@ None.
 
 ```bash
 # Part 1 — routes
-grep -c "<Route path=" src/App.tsx                                    # 29
+grep -c "<Route path=" src/App.tsx                                    # 30
 grep -c "lazy(() => import" src/App.tsx                               # 27
-grep "lazy(() => import" src/App.tsx | grep -c "\./pages/"            # 20
-grep "lazy(() => import" src/App.tsx | grep -c "\./components/"       # 7
+grep "lazy(() => import" src/App.tsx | grep -c "\./pages/"            # 27
+grep "lazy(() => import" src/App.tsx | grep -c "\./components/"       # 0
 grep -o 'import("[^"]*"' src/App.tsx | sed 's/import("\.\///;s/"$//' | while read m; do
-  test -e "src/$m.tsx" || test -e "src/$m.ts" || test -e "src/$m/index.ts" \
-    || echo "MISSING src/$m"; done                                     # no output
+  test -e "src/$m.tsx" || test -e "src/$m.ts" || test -e "src/$m/index.tsx" \
+    || test -e "src/$m/index.ts" || echo "MISSING src/$m"; done        # no output
 
-# Part 2 — *2 surface
+# Part 2 — *2 surface (AUDIT-TIME counts; current worktree returns 0 for every *2 file)
 find src -name "*2.tsx" -o -name "*2.ts" | grep -v node_modules | sort  # 11 (+0 .ts)
 find src -name "*2.test.tsx" | grep -v node_modules | wc -l             # 11
 find src -name "*.render.test.tsx" | grep -v node_modules               # 1 → 12 test files

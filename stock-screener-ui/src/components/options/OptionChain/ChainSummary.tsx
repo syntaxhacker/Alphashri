@@ -1,6 +1,7 @@
 import { Text, RingProgress } from "@/ui";
 import { Box } from "@/ui";
 import { createMemo } from "solid-js";
+import { pcrTone } from "@/config/optionsMath";
 import { CompactPanel, CompactStatGrid } from "../../common/compact";
 
 interface ChainSummaryProps {
@@ -62,7 +63,14 @@ export function computeStats(strikeMatrix: StrikeRow[], summary: Summary | undef
 }
 
 export function computePcrColor(pcr: number): string {
-  return pcr > 1.2 ? "success" : pcr < 0.7 ? "error" : "primary";
+  const tone = pcrTone(pcr);
+  return tone === "bullish" ? "success" : tone === "bearish" ? "error" : "primary";
+}
+
+/** The bias label reads the same tone as the colour — one PCR, one verdict. */
+export function pcrBiasLabel(pcr: number): string {
+  const tone = pcrTone(pcr);
+  return tone === "bullish" ? "Bullish bias" : tone === "bearish" ? "Bearish bias" : "Neutral";
 }
 
 export function ChainSummary(props: ChainSummaryProps) {
@@ -95,7 +103,7 @@ export function ChainSummary(props: ChainSummaryProps) {
                 {stats().pcr.toFixed(2)}
               </Text>
               <Text size="sm" className={pcrTextClass()} fw={600}>
-                {stats().pcr > 1 ? "Bullish bias" : "Bearish bias"}
+                {pcrBiasLabel(stats().pcr)}
               </Text>
             </Box>
 

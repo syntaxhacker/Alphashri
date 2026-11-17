@@ -88,6 +88,71 @@ function Stat(props: { label: string; value: string; color?: string }) {
   );
 }
 
+/**
+ * Report-wide level key: CW (call wall / resistance, red), PW (put wall /
+ * support, green) and MP (max pain, amber). The coloured dot carries the code;
+ * the label sits on the panel surface, never on a saturated fill.
+ */
+function WallsLevelsLegend(props: {
+  callWall: number | null;
+  putWall: number | null;
+  maxPain: number | null;
+  skeleton?: boolean;
+}) {
+  const items = () => [
+    {
+      code: "CW",
+      title: "CW · call wall — highest-OI call strike; resistance defended by call writers",
+      color: palette.LEVEL_CALL_WALL,
+      value: props.callWall,
+    },
+    {
+      code: "PW",
+      title: "PW · put wall — highest-OI put strike; support defended by put writers",
+      color: palette.LEVEL_PUT_WALL,
+      value: props.putWall,
+    },
+    {
+      code: "MP",
+      title: "MP · max pain — the strike where the most options expire worthless",
+      color: palette.LEVEL_MAX_PAIN,
+      value: props.maxPain,
+    },
+  ];
+  return (
+    <div
+      data-testid="nifty-walls-levels-legend"
+      class="flex flex-wrap items-center"
+      style={{
+        gap: `${REPORT_PAD.xs}px`,
+        "font-size": `${REPORT_FONT.micro}px`,
+        "line-height": REPORT_LINE_HEIGHT.tight,
+        color: palette.TEXT_MUTED,
+      }}
+    >
+      <For each={items()}>{(item, i) => (
+        <>
+          <Show when={i() > 0}>
+            <span aria-hidden="true">·</span>
+          </Show>
+          <span
+            data-testid={`nifty-walls-levels-legend-${item.code.toLowerCase()}`}
+            title={item.title}
+            class="inline-flex items-center gap-[4px] whitespace-nowrap"
+          >
+            <span
+              aria-hidden="true"
+              class="inline-block shrink-0 rounded-full w-[6px] h-[6px]"
+              style={{ "background-color": item.color }}
+            />
+            <span class="tabular-nums">{item.code} {props.skeleton ? "—" : fmtNum(item.value)}</span>
+          </span>
+        </>
+      )}</For>
+    </div>
+  );
+}
+
 function toneColor(tone: "positive" | "warning" | "negative" | "muted"): string {
   switch (tone) {
     case "positive":
@@ -178,7 +243,10 @@ function WallPlaceholderRow(props: { side: "CALL" | "PUT" }) {
 }
 
 function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number }) {
-  const color = props.side === "CALL" ? palette.NEGATIVE : palette.POSITIVE;
+  const color = props.side === "CALL" ? palette.LEVEL_CALL_WALL : palette.LEVEL_PUT_WALL;
+  // OI is side-coded (CE blue / PE orange), never bullish/bearish — the wall
+  // colour above is for the level, not the size of its open interest.
+  const oiBarColor = props.side === "CALL" ? palette.OI_CALL : palette.OI_PUT;
   const maxOi = createMemo(() => wallsMaxOi(props.rows));
   const sideKey = props.side.toLowerCase();
   // Three rows always: the missing ones are reserved slots, so a one-wall
@@ -353,7 +421,7 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
                   style={{
                     width: `${Math.min(100, (row.oi / maxOi()) * 100)}%`,
                     height: "100%",
-                    "background-color": color,
+                    "background-color": oiBarColor,
                     opacity: 0.55,
                     transition: "width 280ms cubic-bezier(.22,1,.36,1)",
                   }}
@@ -550,7 +618,7 @@ function MiniHistory(props: { walls: WallsPayload }) {
           {fmtPct(props.walls.tracked_call_erosion_30m)}
         </Text>
       </div>
-      <Sparkline values={callValues()} width={420} height={18} color={palette.NEGATIVE} testId="walls-card-call-spark" animate responsive />
+      <Sparkline values={callValues()} width={420} height={18} color={palette.OI_CALL} testId="walls-card-call-spark" animate responsive />
       <div class="flex items-center justify-between" style={{ "align-items": "center", "justify-content": "space-between" }}>
         <Text size="xs" span style={{ color: palette.TEXT_MUTED }}>put OI · 30m Δ</Text>
         <Text
@@ -566,7 +634,7 @@ function MiniHistory(props: { walls: WallsPayload }) {
           {fmtPct(props.walls.tracked_put_build_30m)}
         </Text>
       </div>
-      <Sparkline values={putValues()} width={420} height={18} color={palette.POSITIVE} testId="walls-card-put-spark" animate responsive />
+      <Sparkline values={putValues()} width={420} height={18} color={palette.OI_PUT} testId="walls-card-put-spark" animate responsive />
     </div>
   );
 }
@@ -654,6 +722,9 @@ function WallsSkeleton(props: { emptyText: string }) {
           <SkeletonStat />
           <SkeletonStat />
           <SkeletonStat />
+        </div>
+        <div style={{ "margin-top": `${REPORT_PAD.xs}px` }}>
+          <WallsLevelsLegend callWall={null} putWall={null} maxPain={null} skeleton />
         </div>
         <Text
           size="xs"
@@ -944,6 +1015,13 @@ export function NiftyWallsCardInner(props: {
               label="GEX"
               value={walls()!.gex_degraded ? "n/a" : fmtNum(walls()!.net_gex, 1)}
               color={walls()!.gex_degraded ? palette.TEXT_MUTED : palette.TEXT_COLOR}
+            />
+          </div>
+          <div style={{ "margin-top": `${REPORT_PAD.xs}px` }}>
+            <WallsLevelsLegend
+              callWall={walls()!.call_wall?.strike ?? null}
+              putWall={walls()!.put_wall?.strike ?? null}
+              maxPain={walls()!.max_pain ?? null}
             />
           </div>
 

@@ -6,6 +6,19 @@ import { UIProvider } from "@/ui";
 
 const fetchUnderlying = vi.fn();
 const fetchChain = vi.fn();
+const fetchAnalytics = vi.fn();
+const fetchDashboard = vi.fn();
+const refreshAnalyticsSpy = vi.fn();
+
+vi.mock("../../api/optionsAnalytics", async () => {
+  const actual = await vi.importActual<typeof import("../../api/optionsAnalytics")>(
+    "../../api/optionsAnalytics",
+  );
+  return {
+    ...actual,
+    fetchAnalytics: (...args: unknown[]) => fetchAnalytics(...args),
+  };
+});
 
 vi.mock("../../api/optionsDock", async () => {
   const actual = await vi.importActual<typeof import("../../api/optionsDock")>("../../api/optionsDock");
@@ -13,6 +26,25 @@ vi.mock("../../api/optionsDock", async () => {
     ...actual,
     fetchUnderlying: (...args: unknown[]) => fetchUnderlying(...args),
     fetchChain: (...args: unknown[]) => fetchChain(...args),
+  };
+});
+
+vi.mock("../../api/optionsDashboard", async () => {
+  const actual = await vi.importActual<typeof import("../../api/optionsDashboard")>(
+    "../../api/optionsDashboard",
+  );
+  return { ...actual, fetchDashboard: (...args: unknown[]) => fetchDashboard(...args) };
+});
+
+// Keep the real store (loadAnalytics/abortAnalytics/state) and swap only the
+// refresh entry point so the strip's callback can be asserted in isolation.
+vi.mock("../../state/optionsAnalytics", async () => {
+  const actual = await vi.importActual<typeof import("../../state/optionsAnalytics")>(
+    "../../state/optionsAnalytics",
+  );
+  return {
+    ...actual,
+    refreshAnalytics: (...args: unknown[]) => refreshAnalyticsSpy(...args),
   };
 });
 
@@ -29,10 +61,24 @@ vi.mock("../../utils/loadEcharts", () => ({
 }));
 
 import { OptionDockError, type OptionDockChain, type UnderlyingInfo } from "../../api/optionsDock";
-import { OptionsDockPanel, expiryLabel } from "./OptionsDockPanel";
+import {
+  CHART_BAND_HEIGHT,
+  OptionsDockPanel,
+  PAYOFF_BAND_HEIGHT,
+  bandHeight,
+  expiryLabel,
+} from "./OptionsDockPanel";
 import { CHAIN_SCROLL_SETTLE_MS } from "./OptionChainTable";
 import { buildPayoff } from "./PayoffPanel";
-import { __resetOptionsDock, addLeg, open, optionsDockState, refresh, setOptionsDockState } from "../../state/optionsDock";
+import { __resetOptionsDock, addLeg, open, optionsDockState, refresh, setExpiry, setOptionsDockState } from "../../state/optionsDock";
+import {
+  __analyticsCache,
+  __resetAnalytics,
+  optionsAnalyticsState,
+  setOptionsAnalyticsState,
+} from "../../state/optionsAnalytics";
+import { __resetDashboard } from "../../state/optionsDashboard";
+import { fullFixture } from "../options-dashboard/fixtures";
 
 function listing(overrides: Partial<UnderlyingInfo> = {}): UnderlyingInfo {
   return {
@@ -97,16 +143,52 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  refreshAnalyticsSpy.mockResolvedValue(null);
   localStorage.clear();
   (window as any).__E2E_MOCK_MARKET_OPEN__ = false;
   __resetOptionsDock();
+  __resetAnalytics();
+  __resetDashboard();
   fetchUnderlying.mockResolvedValue(listing());
   fetchChain.mockImplementation(async (_symbol: string, expiry: string) => chain(expiry));
+  fetchDashboard.mockImplementation(async (symbol: string) => ({
+    ...fullFixture(),
+    // DockPillarsView only paints a payload for the symbol it asked for.
+    symbol: String(symbol ?? "NIFTY").toUpperCase(),
+  }));
+  fetchAnalytics.mockImplementation(async (symbol: string) => ({
+    symbol: symbol.toUpperCase(),
+    spot: 24031.5,
+    asOf: null,
+    quotesLive: true,
+    expiries: [],
+    term: [],
+    surface: { strikes: [], expiries: [], iv: [], missing: [] },
+    levels: {
+      callWall: null,
+      putWall: null,
+      maxPain: 24000,
+      gex: { support: null, resistance: null, fuelUp: null, fuelDown: null },
+    },
+    probability: {
+      model: null,
+      flatPop: null,
+      skewPop: null,
+      expectedPnl: null,
+      sigma: null,
+      density: [],
+      quantiles: { p05: null, p25: null, p50: null, p75: null, p95: null },
+      cone: [],
+    },
+    warnings: [],
+  }));
 });
 
 afterEach(() => {
   cleanup();
   __resetOptionsDock();
+  __resetAnalytics();
+  __resetDashboard();
   delete (window as any).__E2E_MOCK_MARKET_OPEN__;
   vi.unstubAllGlobals();
 });
@@ -494,6 +576,165 @@ describe("OptionsDockPanel", () => {
     // The payoff's fixed height is untouched by the chain cap.
     expect(payoff.style.height).toBe("206px");
   });
+
+  test("the payoff band leads with the five-tab strip and keeps every payoff testid", async () => {
+    open("NIFTY");
+    await flush();
+    addLeg({ side: "buy", type: "CE", strike: 24100, premium: 67.7 });
+    renderPanel();
+
+    await waitFor(() => expect(screen.getByTestId("analytics-tab-strip")).toBeInTheDocument());
+    expect(screen.getAllByRole("tab")).toHaveLength(5);
+    expect(screen.getByTestId("analytics-tab-payoff")).toHaveAttribute("aria-selected", "true");
+
+    // The tab strip is the band's only 22px header: the embedded payoff panel
+    // must not add a second one (and its hairline) on top of it.
+    const band = screen.getByTestId("options-analytics-band");
+    const headers = band.querySelectorAll('[data-testid^="dock-section-"]');
+    expect(headers).toHaveLength(1);
+    expect(headers[0]).toBe(screen.getByTestId("dock-section-analytics"));
+    expect(screen.queryByTestId("dock-section-payoff")).not.toBeInTheDocument();
+
+    expect(screen.getByTestId("options-payoff")).toBeInTheDocument();
+    expect(screen.getByTestId("options-pop")).toBeInTheDocument();
+    expect(screen.getByTestId("options-breakevens")).toBeInTheDocument();
+    expect(screen.getByTestId("options-payoff-footer")).toBeInTheDocument();
+  });
+
+  test("opening, switching expiry and editing legs trigger no analytics request", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+    expect(fetchAnalytics).not.toHaveBeenCalled();
+
+    setExpiry("2026-04-02");
+    await flush();
+    await fireEvent.click(screen.getByTestId("options-ce-24100"));
+    await waitFor(() => expect(screen.getByTestId("analytics-tab-strip")).toBeInTheDocument());
+    expect(fetchAnalytics).not.toHaveBeenCalled();
+
+    await fireEvent.click(screen.getByTestId("analytics-tab-smile"));
+    await waitFor(() => expect(fetchAnalytics).toHaveBeenCalledTimes(1));
+  });
+
+  test("closing the dock aborts analytics while keeping the cache", async () => {
+    open("NIFTY");
+    await flush();
+    addLeg({ side: "buy", type: "CE", strike: 24100, premium: 67.7 });
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("analytics-tab-strip")).toBeInTheDocument());
+
+    await fireEvent.click(screen.getByTestId("analytics-tab-term"));
+    await waitFor(() => expect(optionsAnalyticsState.status).toBe("ready"));
+    expect(__analyticsCache.get("NIFTY")).toBeDefined();
+
+    await fireEvent.click(screen.getByTestId("options-close"));
+    expect(fetchAnalytics).toHaveBeenCalledTimes(1);
+    expect(__analyticsCache.get("NIFTY")).toBeDefined();
+  });
+
+  test("the analytics shell shows persistent context and switches expiry in place", async () => {
+    open("NIFTY");
+    await flush();
+    addLeg({ side: "buy", type: "CE", strike: 24100, premium: 67.7 });
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("analytics-tab-strip")).toBeInTheDocument());
+
+    expect(screen.getByTestId("analytics-context")).toHaveTextContent(
+      "NIFTY · 26 MAR · 2d · spot ₹24,031.5 · IV 13.8%",
+    );
+    expect(screen.getByTestId("analytics-expiry-2026-03-26")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    // The band keeps its fixed height: the shell scrolls its chips, never wraps.
+    const band = screen.getByTestId("options-analytics-band").parentElement!;
+    expect(band.style.height).toBe("206px");
+
+    await fireEvent.click(screen.getByTestId("analytics-expiry-2026-04-02"));
+    expect(optionsDockState.expiry).toBe("2026-04-02");
+    await waitFor(() =>
+      expect(screen.getByTestId("analytics-expiry-2026-04-02")).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      ),
+    );
+  });
+
+  test("sizes the chart tabs taller than PAYOFF so the smile chrome fits", async () => {
+    open("NIFTY");
+    await flush();
+    addLeg({ side: "buy", type: "CE", strike: 24100, premium: 67.7 });
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("analytics-tab-strip")).toBeInTheDocument());
+
+    const band = () => screen.getByTestId("options-analytics-band").parentElement!;
+    expect(band().style.height).toBe(PAYOFF_BAND_HEIGHT);
+
+    // Smile chrome is 58px and the plot needs its own room, so the chart tabs
+    // take a taller band. happy-dom's CSS parser drops `clamp()`, so the branch
+    // is asserted through the pure helper; the DOM carries the px payoff value.
+    expect(CHART_BAND_HEIGHT).toBe("clamp(320px, 42vh, 400px)");
+    expect(bandHeight("payoff")).toBe(PAYOFF_BAND_HEIGHT);
+    for (const tab of ["smile", "term", "surface", "prob"] as const) {
+      expect(bandHeight(tab)).toBe(CHART_BAND_HEIGHT);
+      await fireEvent.click(screen.getByTestId(`analytics-tab-${tab}`));
+      expect(band()).toBeInTheDocument();
+    }
+
+    await fireEvent.click(screen.getByTestId("analytics-tab-payoff"));
+    expect(band().style.height).toBe(PAYOFF_BAND_HEIGHT);
+  });
+
+  test("maximized chart tabs drop the fixed band height and fill the dock", async () => {
+    open("NIFTY");
+    await flush();
+    addLeg({ side: "buy", type: "CE", strike: 24100, premium: 67.7 });
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("analytics-tab-strip")).toBeInTheDocument());
+
+    await fireEvent.click(screen.getByTestId("analytics-tab-smile"));
+    await fireEvent.click(screen.getByTestId("options-maximize"));
+
+    const band = screen.getByTestId("options-analytics-band").parentElement!;
+    expect(band.style.height).toBe("");
+    expect(band.className).toContain("flex-1");
+  });
+});
+
+describe("OptionsDockPanel — analytics refresh", () => {
+  const revealBand = async () => {
+    open("NIFTY");
+    await flush();
+    addLeg({ side: "buy", type: "CE", strike: 24100, premium: 67.7 });
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("analytics-tab-strip")).toBeInTheDocument());
+  };
+
+  test("the analytics band renders a refresh control", async () => {
+    await revealBand();
+    const button = screen.getByTestId("analytics-refresh");
+    expect(button).toBeInTheDocument();
+    expect(button).toHaveAttribute("aria-label", "Refresh analytics");
+  });
+
+  test("clicking refresh calls refreshAnalytics exactly once", async () => {
+    await revealBand();
+    await fireEvent.click(screen.getByTestId("analytics-refresh"));
+    expect(refreshAnalyticsSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("refreshing subscribes to the store and disables the control", async () => {
+    await revealBand();
+    const button = screen.getByTestId("analytics-refresh");
+    expect(button).toBeEnabled();
+
+    setOptionsAnalyticsState("refreshing", true);
+    expect(button).toBeDisabled();
+
+    setOptionsAnalyticsState("refreshing", false);
+    expect(button).toBeEnabled();
+  });
 });
 
 describe("OptionsDockPanel — narrow one-sided chain", () => {
@@ -843,5 +1084,221 @@ describe("OptionsDockPanel — center on ATM", () => {
     );
     const header = screen.getByTestId("dock-section-chain");
     expect(header.className).not.toContain("flex-wrap");
+  });
+});
+
+describe("OptionsDockPanel — in-dock pillars", () => {
+  // The pillars chunk pulls ECharts and four panel modules: a cold import costs
+  // ~2.8s here, well past waitFor's 1s default.
+  const PILLARS_WAIT = { timeout: 5_000 };
+
+  const renderWithLeg = async () => {
+    open("NIFTY");
+    await flush();
+    addLeg({ side: "buy", type: "CE", strike: 24100, premium: 67.7 });
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("analytics-pillars-open")).toBeInTheDocument());
+  };
+
+  test("the pillars button renders the four pillars in the dock and never navigates", async () => {
+    const hrefBefore = window.location.href;
+    await renderWithLeg();
+
+    await fireEvent.click(screen.getByTestId("analytics-pillars-open"));
+    await waitFor(() => expect(screen.getByTestId("pillar-volatility")).toBeInTheDocument(), PILLARS_WAIT);
+
+    // No route hop: the dock stays the surface.
+    expect(window.location.href).toBe(hrefBefore);
+    expect(screen.queryByTestId("analytics-dashboard-link")).not.toBeInTheDocument();
+
+    for (const key of ["volatility", "positioning", "dealer", "liquidity"]) {
+      expect(screen.getByTestId(`dock-pillar-tab-${key}`)).toBeInTheDocument();
+    }
+
+    // Chain / strategy / legs / payoff make room for the charts.
+    expect(screen.queryByTestId("options-chain-section")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("options-strategy")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("options-leg-count")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("options-analytics-band")).not.toBeInTheDocument();
+
+    // Opened for chart room: the dock auto-maximizes.
+    expect(screen.getByTestId("options-dock").className).toContain("fixed inset-0");
+  });
+
+  test("one dashboard read per open, zero when reopened from the cache", async () => {
+    await renderWithLeg();
+
+    await fireEvent.click(screen.getByTestId("analytics-pillars-open"));
+    await waitFor(() => expect(screen.getByTestId("pillar-volatility")).toBeInTheDocument(), PILLARS_WAIT);
+    expect(fetchDashboard).toHaveBeenCalledTimes(1);
+
+    await fireEvent.click(screen.getByTestId("dock-pillars-back"));
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+
+    await fireEvent.click(screen.getByTestId("analytics-pillars-open"));
+    await waitFor(() => expect(screen.getByTestId("pillar-volatility")).toBeInTheDocument(), PILLARS_WAIT);
+    // The store's LRU already holds NIFTY: the second open is free.
+    expect(fetchDashboard).toHaveBeenCalledTimes(1);
+  });
+
+  test("Back returns to the chain and restores the dock size", async () => {
+    await renderWithLeg();
+
+    await fireEvent.click(screen.getByTestId("analytics-pillars-open"));
+    await waitFor(() => expect(screen.getByTestId("dock-pillars-back")).toBeInTheDocument(), PILLARS_WAIT);
+
+    await fireEvent.click(screen.getByTestId("dock-pillars-back"));
+
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+    expect(screen.queryByTestId("dock-pillars")).not.toBeInTheDocument();
+    const root = screen.getByTestId("options-dock");
+    expect(root.className).toContain("overflow-y-auto");
+    expect(root.className).not.toContain("fixed inset-0");
+  });
+
+  test("the strip and the four pillars are reachable with zero legs", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-payoff-placeholder")).toBeInTheDocument());
+
+    // The placeholder keeps its testid and caption; the strip sits above it, so
+    // market analytics do not require a position.
+    const placeholder = screen.getByTestId("options-payoff-placeholder");
+    const strip = screen.getByTestId("analytics-tab-strip");
+    expect(placeholder.contains(strip)).toBe(true);
+    expect(placeholder).toHaveTextContent("add a leg to see the payoff");
+    expect(screen.getByTestId("analytics-tab-payoff")).toHaveAttribute("aria-selected", "true");
+
+    // A chain-only tab needs no leg…
+    await fireEvent.click(screen.getByTestId("analytics-tab-smile"));
+    await waitFor(() => expect(screen.getByTestId("smile-chart")).toBeInTheDocument());
+
+    // …and the pillars open from the same strip with zero legs.
+    await fireEvent.click(screen.getByTestId("analytics-pillars-open"));
+    await waitFor(() => expect(screen.getByTestId("pillar-volatility")).toBeInTheDocument(), PILLARS_WAIT);
+  });
+
+  test("the header maximize toggle is disabled while the pillars are open", async () => {
+    await renderWithLeg();
+    await fireEvent.click(screen.getByTestId("analytics-pillars-open"));
+    await waitFor(() => expect(screen.getByTestId("dock-pillars-back")).toBeInTheDocument(), PILLARS_WAIT);
+
+    const toggle = screen.getByTestId("options-maximize");
+    expect(toggle).toBeDisabled();
+
+    // Even a forced activation cannot shrink the charts out from under them.
+    await fireEvent.click(toggle);
+    expect(screen.getByTestId("options-dock").className).toContain("fixed inset-0");
+  });
+
+  test("Back returns focus to the strip button that opened the pillars", async () => {
+    await renderWithLeg();
+    const opener = screen.getByTestId("analytics-pillars-open");
+    opener.focus();
+    expect(document.activeElement).toBe(opener);
+
+    await fireEvent.click(opener);
+    await waitFor(() => expect(screen.getByTestId("dock-pillars-back")).toBeInTheDocument(), PILLARS_WAIT);
+
+    await fireEvent.click(screen.getByTestId("dock-pillars-back"));
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+    // Not `<body>`: the button that opened the view owns focus again.
+    expect(document.activeElement).toBe(screen.getByTestId("analytics-pillars-open"));
+  });
+
+  test("the maximized dock is a labelled dialog that locks both scrollers", async () => {
+    const main = document.createElement("div");
+    main.id = "app-main";
+    document.body.appendChild(main);
+
+    try {
+      open("NIFTY");
+      renderPanel();
+      await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+
+      await fireEvent.click(screen.getByTestId("options-maximize"));
+      const root = screen.getByTestId("options-dock");
+      expect(root).toHaveAttribute("role", "dialog");
+      expect(root).toHaveAttribute("aria-label", "Options dock");
+      expect(root).toHaveAttribute("aria-modal", "true");
+      // `<body>` alone is not the page scroller.
+      expect(document.body.style.overflow).toBe("hidden");
+      expect(main.style.overflow).toBe("hidden");
+
+      await fireEvent.click(screen.getByTestId("options-maximize"));
+      expect(root).not.toHaveAttribute("role", "dialog");
+      expect(root).not.toHaveAttribute("aria-modal");
+      expect(document.body.style.overflow).not.toBe("hidden");
+      expect(main.style.overflow).not.toBe("hidden");
+    } finally {
+      main.remove();
+    }
+  });
+
+  test("no chain fetch fires while the pillars are open, and Back only re-arms", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
+      open("NIFTY");
+      renderPanel();
+      await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+
+      const before = fetchChain.mock.calls.length;
+      await fireEvent.click(screen.getByTestId("analytics-pillars-open"));
+      await waitFor(() => expect(screen.getByTestId("dock-pillars-back")).toBeInTheDocument(), PILLARS_WAIT);
+
+      // Six cadences' worth of time with the chain off screen.
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(fetchChain.mock.calls.length).toBe(before);
+
+      // Back costs nothing: the last frame is already the truth on screen, and
+      // the timer is the next thing that reads the chain.
+      await fireEvent.click(screen.getByTestId("dock-pillars-back"));
+      await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+      expect(fetchChain.mock.calls.length).toBe(before);
+
+      await vi.advanceTimersByTimeAsync(10_000);
+      await waitFor(() => expect(fetchChain.mock.calls.length).toBe(before + 1));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("an expiry picked in the pillars is the one the chain lands on", async () => {
+    // The dock's listing owns 26 MAR / 02 APR; make the dashboard payload list
+    // the same contracts so the controlled expiry is a real choice.
+    fetchDashboard.mockImplementation(async (symbol: string) => {
+      const base = fullFixture();
+      return {
+        ...base,
+        symbol: String(symbol ?? "NIFTY").toUpperCase(),
+        expiries: base.expiries.map((entry, index) => ({
+          ...entry,
+          date: index === 0 ? "2026-03-26" : "2026-04-02",
+        })),
+      };
+    });
+
+    await renderWithLeg();
+    await fireEvent.click(screen.getByTestId("analytics-pillars-open"));
+    await waitFor(() => expect(screen.getByTestId("pillar-volatility")).toBeInTheDocument(), PILLARS_WAIT);
+
+    // The far contract is picked inside the pillars.
+    await fireEvent.click(screen.getByTestId("dock-pillars-expiry-2026-04-02"));
+    expect(optionsDockState.expiry).toBe("2026-04-02");
+
+    await fireEvent.click(screen.getByTestId("dock-pillars-back"));
+    await waitFor(() => expect(screen.getByTestId("options-expiry-select")).toBeInTheDocument());
+    expect(screen.getByTestId("options-expiry-select")).toHaveValue("2026-04-02");
+
+    // Re-entering keeps the same contract selected instead of resetting to front.
+    await fireEvent.click(screen.getByTestId("analytics-pillars-open"));
+    await waitFor(
+      () => expect(screen.getByTestId("dock-pillars-expiry-2026-04-02")).toBeInTheDocument(),
+      PILLARS_WAIT,
+    );
+    expect(screen.getByTestId("dock-pillars-expiry-2026-04-02")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("dock-pillars-expiry-2026-03-26")).toHaveAttribute("aria-pressed", "false");
   });
 });

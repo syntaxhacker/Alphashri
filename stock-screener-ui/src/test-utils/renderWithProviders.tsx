@@ -20,9 +20,3 @@ export function renderWithProviders(
     wrapper: (props) => <UIProvider>{props.children}</UIProvider>,
   });
 }
-
-export function renderWithRouter(ui: () => JSX.Element): ReturnType<typeof render> {
-  return render(ui, {
-    wrapper: (props) => <UIProvider>{props.children}</UIProvider>,
-  });
-}

@@ -28,12 +28,12 @@ const DeepValueTab = lazy(() => import("../value/ValuePanel").then((m) => ({ def
 const FnoScreenerTab = lazy(() =>
   import("./FnoScreenerTab").then((m) => ({ default: m.FnoScreenerTab })),
 );
-/** The three Market panel layouts, addressable as `?view=`. */
-const MARKET_VIEWS = ["table", "map", "movers"] as const;
+/** The Market panel layouts, addressable as `?view=`. */
+const MARKET_VIEWS = ["table", "map", "movers", "value"] as const;
 type MarketView = (typeof MARKET_VIEWS)[number];
 
 function parseMarketView(raw: string | null): MarketView {
-  return raw === "map" || raw === "movers" ? raw : "table";
+  return raw && (MARKET_VIEWS as readonly string[]).includes(raw) ? (raw as MarketView) : "table";
 }
 
 interface MarketTabProps {
@@ -351,7 +351,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
                     data-testid="fno-tab-label"
                     className="w-[148px] flex-shrink-0 hidden md:block"
                   >
-                    F&O Momentum
+                    F&O Momentum (India)
                   </Text>
                 </Show>
               }>
@@ -384,7 +384,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
                   Deep Value
                 </Tabs.Tab>
                 <Tabs.Tab value="fno" leftSection={<IconChartCandle size={14} />} data-testid="tab-fno" style={TAB_STRIP_STYLE}>
-                  F&O
+                  F&O (India)
                 </Tabs.Tab>
                 {/* `onFocus` is not on `UITabProps` (shared type) but `Tab`
                     forwards unknown props to the DOM, so the focus path still
@@ -449,6 +449,8 @@ export function ScreenerPage(props: ScreenerPageProps) {
                   p={0}
                   className="min-w-0 min-h-0 flex flex-col overflow-hidden bg-fin-surface"
                 >
+                  {/* Always-mounted 24px band: status, warning notes and the first
+                      filter all live here, so none of them can shift the table. */}
                   <ScreenerInlineFilters
                     activeScreener={props.activeScreener}
                     status={props.status}

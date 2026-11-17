@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
-import { buildValueColumns, isInAppChartExchange } from "./valueColumns";
+import { buildChartHref, buildValueColumns, isInAppChartExchange } from "./valueColumns";
 import type { ValueRow } from "../../api/valueScan";
 
 function row(overrides: Partial<ValueRow> = {}): ValueRow {
@@ -117,7 +117,7 @@ describe("buildValueColumns symbol cell — in-app text / TV ↗ inversion", () 
     await fireEvent.click(text);
 
     expect(onSymbolClick).toHaveBeenCalledTimes(1);
-    expect(onSymbolClick).toHaveBeenCalledWith("RELIANCE");
+    expect(onSymbolClick).toHaveBeenCalledWith("RELIANCE", "NSE");
     expect(openSpy).not.toHaveBeenCalled();
     expect(rowClick).not.toHaveBeenCalled();
   });
@@ -138,31 +138,32 @@ describe("buildValueColumns symbol cell — in-app text / TV ↗ inversion", () 
     expect(onSymbolClick).not.toHaveBeenCalled();
   });
 
-  it("a NASDAQ row keeps the TV link and never wires the in-app chart handler", async () => {
+  it("a US row renders the in-app chart button and keeps TV on the ↗ action", async () => {
     const onSymbolClick = vi.fn();
     renderNameCell(onSymbolClick, vi.fn(), {
-      symbol: "AAPL",
-      name: "Apple Inc",
-      exchange: "NASDAQ",
+      symbol: "BRK.B",
+      name: "Berkshire Hathaway",
+      exchange: "NYSE",
     });
 
-    const text = screen.getByTestId("value-name-AAPL");
-    expect(text.tagName).toBe("A");
-    expect(text).toHaveAttribute(
-      "href",
-      "https://www.tradingview.com/chart/?symbol=NASDAQ%3AAAPL",
-    );
+    // The text itself is the in-app action; the original symbol (with its dot)
+    // reaches the handler so the caller can build `/chart/BRK.B?market=usa`.
+    const text = screen.getByTestId("value-name-BRK.B");
+    expect(text.tagName).toBe("BUTTON");
     await fireEvent.click(text);
-    expect(onSymbolClick).not.toHaveBeenCalled();
+    expect(onSymbolClick).toHaveBeenCalledTimes(1);
+    expect(onSymbolClick).toHaveBeenCalledWith("BRK.B", "NYSE");
 
-    const external = screen.getByTestId("symbol-tv-AAPL");
+    const external = screen.getByTestId("symbol-tv-BRK.B");
     expect(external.tagName).toBe("A");
     expect(external).toHaveAttribute(
       "href",
-      "https://www.tradingview.com/chart/?symbol=NASDAQ%3AAAPL",
+      "https://www.tradingview.com/chart/?symbol=NYSE%3ABRK.B",
     );
     expect(external).toHaveAttribute("target", "_blank");
     expect(external.getAttribute("rel")).toContain("noopener");
+    await fireEvent.click(external);
+    expect(onSymbolClick).toHaveBeenCalledTimes(1);
   });
 
   it("no handler leaves the body as a TV link, not an in-app button", () => {
@@ -174,13 +175,36 @@ describe("buildValueColumns symbol cell — in-app text / TV ↗ inversion", () 
 });
 
 describe("isInAppChartExchange", () => {
-  it("accepts NSE/BSE/NSI case-insensitively and rejects other markets", () => {
-    expect(isInAppChartExchange("NSE")).toBe(true);
-    expect(isInAppChartExchange(" bse ")).toBe(true);
-    expect(isInAppChartExchange("NSI")).toBe(true);
-    expect(isInAppChartExchange("NASDAQ")).toBe(false);
-    expect(isInAppChartExchange("NYSE")).toBe(false);
+  it("accepts India and US exchanges case-insensitively", () => {
+    for (const exchange of ["NSE", " bse ", "NSI", "NASDAQ", "NYSE", " amex "]) {
+      expect(isInAppChartExchange(exchange)).toBe(true);
+    }
+  });
+
+  it("rejects unknown exchanges and missing values", () => {
     expect(isInAppChartExchange("LON")).toBe(false);
+    expect(isInAppChartExchange("TSX")).toBe(false);
+    expect(isInAppChartExchange("")).toBe(false);
     expect(isInAppChartExchange(undefined)).toBe(false);
+  });
+});
+
+describe("buildChartHref", () => {
+  it("adds market=usa for US exchanges", () => {
+    expect(buildChartHref("AAPL", "NASDAQ")).toBe("/chart/AAPL?market=usa");
+    expect(buildChartHref("MSFT", " nyse ")).toBe("/chart/MSFT?market=usa");
+    expect(buildChartHref("BRK.B", "AMEX")).toBe("/chart/BRK.B?market=usa");
+  });
+
+  it("keeps India and unknown exchanges on the plain route", () => {
+    expect(buildChartHref("RELIANCE", "NSE")).toBe("/chart/RELIANCE");
+    expect(buildChartHref("TCS", " bse ")).toBe("/chart/TCS");
+    expect(buildChartHref("VOD", "LON")).toBe("/chart/VOD");
+    expect(buildChartHref("ACME", undefined)).toBe("/chart/ACME");
+  });
+
+  it("preserves the original symbol instead of the provider form", () => {
+    expect(buildChartHref("BRK.B", "NASDAQ")).toBe("/chart/BRK.B?market=usa");
+    expect(buildChartHref("BRK.B", "NASDAQ")).not.toContain("BRK-B");
   });
 });

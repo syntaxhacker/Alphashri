@@ -1,0 +1,174 @@
+"""Universe descriptors for GET /api/market/snapshot.
+
+Every per-universe literal lives here: the TradingView source and field set,
+currency/units, cap-tier definition, exchange/type filters and which NSE tag
+sets (if any) apply. Snapshot adapters read the spec instead of branching on
+the universe name, so a new universe is one registry entry.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+from api.tv import USA_EXCHANGES
+
+#: Dashboard screener frame (the exact current row contract).
+COLUMNS = [
+    "name",
+    "description",
+    "sector",
+    "exchange",
+    "close",
+    "change",
+    "relative_volume_10d_calc",
+    "market_cap_basic",
+    "RSI",
+    "ADX",
+    "SMA20",
+    "SMA50",
+    "SMA200",
+    "Perf.W",
+    "Perf.1M",
+    "price_52_week_high",
+    "price_52_week_low",
+    # Fundamentals ride along in the same scan; the treemap colours by them.
+    "price_earnings_ttm",
+    "price_book_fq",
+    "dividend_yield_recent",
+    "return_on_equity",
+    "update_mode",
+]
+
+#: The US scan adds ``type`` so funds/ETFs can be dropped locally as well.
+US_COLUMNS = [*COLUMNS, "type"]
+
+TYPE_STOCK_FILTER = {"left": "type", "operation": "equal", "right": "stock"}
+NSE_EXCHANGE_FILTER = {"left": "exchange", "operation": "equal", "right": "NSE"}
+
+#: TradingView types preferred/DR lines, coupon notes, bonds and OP LP units as
+#: ``stock`` with the *parent's* cap, so they survive the type filter. A slash in
+#: the ticker marks a preferred class; the name tokens catch instruments without
+#: one. Dots (BRK.B), "Class" and "Series" stay so class/tracking shares survive;
+#: "Bond" needs a year suffix so issuers like "Our Bond, Inc." are not dropped.
+US_EXCLUDE_SYMBOL_PATTERN = r"/"
+US_EXCLUDE_NAME_PATTERN = (
+    r"Depositary|Depository|Pfd|Preferred (Shs|Shares|Stock)|"
+    r"Repr 1/|Cum Conv|Dep Shs|"
+    r"\bNotes?\b|\bDebentures?\b|\bbonds?\s+\d{4}|\bOP,?\s*LP\b"
+)
+
+
+@dataclass(frozen=True)
+class CapTierSpec:
+    """How market cap maps to a cap tier.
+
+    ``rank`` tiers are relative to the returned universe (India: ranks
+    1-100/101-250/251-500). ``absolute`` tiers use native-cap thresholds in
+    billions (US: >=200 mega, >=10 large, >=2 mid, >=0.3 small). Missing cap
+    always falls back to ``fallback``.
+    """
+
+    mode: str
+    ranks: tuple[tuple[int, str], ...] = ()
+    absolute: tuple[tuple[float, str], ...] = ()
+    fallback: str = "micro"
+
+
+@dataclass(frozen=True)
+class UniverseSpec:
+    """One universe's source, units, filters and output contract."""
+
+    tv_market: str
+    columns: tuple[str, ...]
+    currency: str
+    cap_tiers: CapTierSpec
+    #: output field -> native-cap scale; ``None`` means emit a JSON null.
+    mcap_outputs: tuple[tuple[str, float | None], ...]
+    server_filters: tuple[dict[str, Any], ...] = ()
+    #: Local exchange hygiene (US drops OTC/foreign listings).
+    allowed_exchanges: frozenset[str] | None = None
+    require_stock_type: bool = False
+    #: Local regex hygiene, applied to the TV ticker (`name`) and description.
+    #: Matched case-insensitively; matching rows are dropped, not penalised.
+    exclude_symbol_pattern: str | None = None
+    exclude_name_pattern: str | None = None
+    #: Ticker-based universes resolve their members from chart_patterns.
+    tickers: bool = False
+    #: NSE F&O/ETF tag sets only apply to the India universes.
+    use_nse_tags: bool = False
+
+
+RANK_TIERS = CapTierSpec(
+    mode="rank",
+    ranks=((100, "large"), (250, "mid"), (500, "small")),
+)
+USD_TIERS = CapTierSpec(
+    mode="absolute",
+    absolute=(
+        (200.0, "mega"),
+        (10.0, "large"),
+        (2.0, "mid"),
+        (0.3, "small"),
+    ),
+)
+
+_SCAN_UNIVERSES: dict[str, UniverseSpec] = {
+    "all_equity": UniverseSpec(
+        tv_market="india",
+        columns=tuple(COLUMNS),
+        currency="INR",
+        cap_tiers=RANK_TIERS,
+        mcap_outputs=(("market_cap_cr", 1e7),),
+        server_filters=(TYPE_STOCK_FILTER, NSE_EXCHANGE_FILTER),
+        use_nse_tags=True,
+    ),
+    "us": UniverseSpec(
+        tv_market="america",
+        columns=tuple(US_COLUMNS),
+        currency="USD",
+        cap_tiers=USD_TIERS,
+        # Never fabricate a rupee figure for a USD-quoted listing.
+        mcap_outputs=(("market_cap_cr", None), ("marketCapUsdB", 1e9)),
+        server_filters=(TYPE_STOCK_FILTER,),
+        allowed_exchanges=frozenset(USA_EXCHANGES),
+        require_stock_type=True,
+        exclude_symbol_pattern=US_EXCLUDE_SYMBOL_PATTERN,
+        exclude_name_pattern=US_EXCLUDE_NAME_PATTERN,
+    ),
+}
+
+#: Nifty/NSE-FO universes share one spec; members come from get_universe().
+_TICKER_SPEC = UniverseSpec(
+    tv_market="india",
+    columns=tuple(COLUMNS),
+    currency="INR",
+    cap_tiers=RANK_TIERS,
+    mcap_outputs=(("market_cap_cr", 1e7),),
+    tickers=True,
+    use_nse_tags=True,
+)
+_TICKER_UNIVERSES = ("nifty50", "nifty500", "nse_fo")
+
+UNIVERSES: dict[str, UniverseSpec] = {
+    **_SCAN_UNIVERSES,
+    **{name: _TICKER_SPEC for name in _TICKER_UNIVERSES},
+}
+
+ALLOWED_UNIVERSES = tuple(UNIVERSES)
+
+#: Every cap-tier id used by any universe, derived from the specs (rank labels,
+#: absolute-threshold labels and each spec's fallback) so downstream validators
+#: cannot drift from the registry when a universe or tier is added. The union is
+#: ordered by first appearance; the US adds ``mega`` ahead of large/mid/small/micro.
+ALL_CAP_TIERS: tuple[str, ...] = tuple(
+    dict.fromkeys(
+        label
+        for spec in UNIVERSES.values()
+        for label in (
+            *(tier for _, tier in spec.cap_tiers.ranks),
+            *(tier for _, tier in spec.cap_tiers.absolute),
+            spec.cap_tiers.fallback,
+        )
+    )
+)

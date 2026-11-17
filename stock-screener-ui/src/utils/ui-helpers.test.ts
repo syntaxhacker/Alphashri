@@ -6,6 +6,7 @@ import {
   formatCurrencyCompact,
   formatPercentage,
   formatPnl,
+  formatSignedPnl,
   formatDateTimeHuman,
   formatDateTimeCompact,
   formatTradeTime,
@@ -29,6 +30,7 @@ import {
   normalizeTime,
 } from "./ui-helpers";
 import { POSITIVE, NEGATIVE, MARKER_TP, MARKER_SL, MARKER_EOD, EXIT_DEFAULT } from "../config/colors";
+import { currencyFor, type CurrencyCode } from "../config/currency";
 import { THOUSANDS_K_CASES } from "./ui-helpers.test-fixtures";
 
 describe("formatCurrency", () => {
@@ -571,5 +573,40 @@ describe("formatTimeAgo", () => {
 
   test("handles future dates", () => {
     expect(formatTimeAgo(new Date(now.getTime() + 60_000).toISOString())).toBe("just now");
+  });
+});
+
+describe("currency-aware formatting", () => {
+  test("INR stays byte-identical to the prior hardcoded output", () => {
+    expect(formatCurrency(1000)).toBe("₹1000");
+    expect(formatCurrency(1234.567, 2)).toBe("₹1234.57");
+    expect(formatCurrency(1234.567, 2, "INR")).toBe("₹1234.57");
+    expect(formatCurrencyCompact(1500)).toBe("₹1.5K");
+    expect(formatCurrencyCompact(100000)).toBe("₹1.0L");
+    expect(formatCurrencyCompact(10000000)).toBe("₹1.0Cr");
+    expect(formatPnl(5000)).toBe("+₹5.0K");
+    expect(formatSignedPnl(1500)).toBe("+₹1.5K");
+    expect(formatSignedPnl(-100000)).toBe("₹-1.0L");
+  });
+
+  test("USD uses $ with en-US grouping and billion compacts", () => {
+    expect(formatCurrency(1234.5, 2, "USD")).toBe("$1,234.50");
+    expect(formatCurrency(1234567, 0, "USD")).toBe("$1,234,567");
+    expect(formatCurrencyCompact(1200000000, "USD")).toBe("$1.2B");
+    expect(formatCurrencyCompact(1500, "USD")).toBe("$1.5K");
+    expect(formatPnl(5000, "USD")).toBe("+$5.0K");
+    expect(formatPnl(-3000, "USD")).toBe("$-3.0K");
+    expect(formatSignedPnl(1200000000, "USD")).toBe("+$1.2B");
+  });
+
+  test("unknown, null and missing currency codes default to INR", () => {
+    expect(currencyFor().code).toBe("INR");
+    expect(currencyFor(null).code).toBe("INR");
+    expect(currencyFor("GBP").code).toBe("INR");
+    expect(currencyFor(" inr ").code).toBe("INR");
+    expect(currencyFor("usd").code).toBe("USD");
+    expect(formatCurrency(1000, 0, undefined)).toBe("₹1000");
+    expect(formatCurrency(1000, 0, "GBP" as CurrencyCode)).toBe("₹1000");
+    expect(formatCurrencyCompact(1500, "GBP" as CurrencyCode)).toBe("₹1.5K");
   });
 });

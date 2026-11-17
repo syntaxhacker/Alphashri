@@ -13,6 +13,8 @@ import { Box, Text } from "@/ui";
  */
 export function DockSection(props: {
   title: string;
+  /** Replaces the title/meta row (the analytics strip owns its own labels). */
+  header?: JSX.Element;
   /** Right-hand meta: a badge, a count, an amount. Never a second title. */
   meta?: JSX.Element;
   testId?: string;
@@ -44,18 +46,29 @@ export function DockSection(props: {
     >
       <Box
         data-testid={props.headerTestId}
-        className="flex h-[22px] shrink-0 items-center justify-between gap-2 bg-fin-surface-alt/40 px-2"
+        className={`flex h-[22px] shrink-0 items-center justify-between gap-2 bg-fin-surface-alt/40${
+          props.header ? "" : " px-2"
+        }`}
       >
-        <Text
-          size="xs"
-          fw={700}
-          className="truncate font-mono uppercase tracking-[0.06em] text-fin-text-muted"
-          style={{ "font-size": "10px", "line-height": "1.1" }}
+        <Show
+          when={props.header}
+          fallback={
+            <>
+              <Text
+                size="xs"
+                fw={700}
+                className="truncate font-mono uppercase tracking-[0.06em] text-fin-text-muted"
+                style={{ "font-size": "10px", "line-height": "1.1" }}
+              >
+                {props.title}
+              </Text>
+              <Show when={props.meta}>
+                <Box className="flex shrink-0 items-center gap-2">{props.meta}</Box>
+              </Show>
+            </>
+          }
         >
-          {props.title}
-        </Text>
-        <Show when={props.meta}>
-          <Box className="flex shrink-0 items-center gap-2">{props.meta}</Box>
+          {props.header}
         </Show>
       </Box>
 

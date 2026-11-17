@@ -2,9 +2,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, within, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createSignal } from "solid-js";
+import * as palette from "@/ui/palette";
 import { OptionChainTable, findAtmIndex } from "./OptionChainTable";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
+
+const normColor = (s: string) => s.toLowerCase().replace(/\s/g, "");
+const hexToRgb = (hex: string) => {
+  const h = hex.replace("#", "");
+  return `rgb(${parseInt(h.slice(0, 2), 16)}, ${parseInt(h.slice(2, 4), 16)}, ${parseInt(h.slice(4, 6), 16)})`;
+};
+const rgbTriple = (hex: string) => normColor(hexToRgb(hex)).replace(/^rgb\(|\)$/g, "");
 
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
@@ -236,7 +246,7 @@ describe("OptionChainTable", () => {
   });
 
   describe("moneyness coloring", () => {
-    it("applies green tint to ITM calls", () => {
+    it("applies the blue call-side cue to ITM calls", () => {
       const strikeMatrix = [
         {
           strike: 24000,
@@ -249,7 +259,7 @@ describe("OptionChainTable", () => {
       expect(screen.getByTestId("options-chain-row-24000")).toBeInTheDocument();
     });
 
-    it("applies red tint to ITM puts", () => {
+    it("applies the orange put-side cue to ITM puts", () => {
       const strikeMatrix = [
         {
           strike: 25000,
@@ -491,7 +501,7 @@ describe("OptionChainTable", () => {
   });
 
   describe("CE-vs-PE dominance micro-bar", () => {
-    it("renders a stacked green/red split of strike OI in the strike cell", () => {
+    it("renders a stacked blue/orange split of strike OI in the strike cell", () => {
       const strikeMatrix = [
         {
           strike: 24500,
@@ -585,6 +595,84 @@ describe("OptionChainTable", () => {
       const row = screen.getByTestId("options-chain-row-24500");
       expect(within(row).getByText("0")).toBeInTheDocument();
       expect(within(row).queryByText(/▲/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("side-coded OI colours", () => {
+    const matrix = () => [
+      {
+        strike: 24500,
+        ce: makeContract({ strike: 24500, market_data: { oi: 100000, prev_oi: 90000, volume: 20000, ltp: 120, bid_price: 119, ask_price: 121 } }),
+        pe: makeContract({ strike: 24500, type: "PE", market_data: { oi: 40000, prev_oi: 38000, volume: 8000, ltp: 60, bid_price: 59, ask_price: 61 } }),
+      },
+    ];
+
+    it("uses OI_CALL/OI_PUT with a solid 2px rail over a ≤14% tint", () => {
+      render(() => <OptionChainTable {...defaultProps} spotPrice={24500} strikeMatrix={matrix()} />);
+      const ceBar = screen.getByTestId("options-oi-bar-CE-24500");
+      const peBar = screen.getByTestId("options-oi-bar-PE-24500");
+      const ceRail = screen.getByTestId("options-oi-rail-CE-24500");
+      const peRail = screen.getByTestId("options-oi-rail-PE-24500");
+
+      expect([palette.OI_CALL.toLowerCase(), hexToRgb(palette.OI_CALL)]).toContain(
+        normColor(ceRail.style.backgroundColor),
+      );
+      expect([palette.OI_PUT.toLowerCase(), hexToRgb(palette.OI_PUT)]).toContain(
+        normColor(peRail.style.backgroundColor),
+      );
+      expect(ceRail.style.width).toBe("2px");
+      expect(peRail.style.width).toBe("2px");
+
+      const ceBg = normColor(ceBar.style.backgroundColor);
+      const peBg = normColor(peBar.style.backgroundColor);
+      expect(ceBg).toContain(rgbTriple(palette.OI_CALL));
+      expect(peBg).toContain(rgbTriple(palette.OI_PUT));
+      expect(ceBg).toContain("0.14");
+      expect(peBg).toContain("0.14");
+    });
+
+    it("tints the call/put row halves with OI_CALL/OI_PUT, never legacy green/red", () => {
+      render(() => <OptionChainTable {...defaultProps} spotPrice={24500} strikeMatrix={matrix()} />);
+      const bg = normColor(screen.getByTestId("options-chain-row-24500").style.background);
+      expect(bg).toContain(rgbTriple(palette.OI_CALL));
+      expect(bg).toContain(rgbTriple(palette.OI_PUT));
+      expect(bg).not.toContain("63,185,80");
+      expect(bg).not.toContain("248,81,73");
+    });
+
+    it("keeps OI numbers on surface ink over the side tint", () => {
+      render(() => <OptionChainTable {...defaultProps} spotPrice={24500} strikeMatrix={matrix()} />);
+      const oiNumber = screen.getByText("1.0L");
+      expect([palette.TEXT.toLowerCase(), hexToRgb(palette.TEXT)]).toContain(
+        normColor(oiNumber.style.color),
+      );
+      const oiCell = oiNumber.closest('[title^="OI "]') as HTMLElement | null;
+      expect(oiCell).not.toBeNull();
+      expect(normColor(oiCell!.style.backgroundColor)).toContain(rgbTriple(palette.OI_CALL));
+    });
+
+    it("paints the CE/PE dominance bar with side tokens", () => {
+      render(() => <OptionChainTable {...defaultProps} spotPrice={24500} strikeMatrix={matrix()} />);
+      const bar = screen.getByTestId("options-dominance-24500");
+      expect(bar.children).toHaveLength(2);
+      expect([palette.OI_CALL.toLowerCase(), hexToRgb(palette.OI_CALL)]).toContain(
+        normColor((bar.children[0] as HTMLElement).style.backgroundColor),
+      );
+      expect([palette.OI_PUT.toLowerCase(), hexToRgb(palette.OI_PUT)]).toContain(
+        normColor((bar.children[1] as HTMLElement).style.backgroundColor),
+      );
+    });
+
+    it("keeps chain sources free of raw hex/rgba colour literals", () => {
+      for (const rel of [
+        "src/components/options/OptionChain/OptionChainTable.tsx",
+        "src/components/options/OptionChain/OptionChainPanel.tsx",
+        "src/components/options/OptionChain/chainStyles.ts",
+      ]) {
+        const source = readFileSync(resolve(process.cwd(), rel), "utf8");
+        expect(source.match(/#[0-9a-fA-F]{6}\b/g), `raw hex in ${rel}`).toBeNull();
+        expect(source.match(/\brgba?\(/g), `raw rgb()/rgba() in ${rel}`).toBeNull();
+      }
     });
   });
 });

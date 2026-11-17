@@ -129,13 +129,13 @@ export function OptionChainPanel(props: OptionChainPanelProps) {
               <TabsPanel value="table" data-testid="options-chain-table-panel">
                 <Stack spacing={1} className="w-full">
                   <ChainSummary strikeMatrix={props.strikeMatrix} spotPrice={props.spotPrice} selectedExpiry={props.selectedExpiry} summary={props.summary} />
-                  <OptionChainTable strikeMatrix={props.strikeMatrix} filters={props.filters} spotPrice={props.spotPrice} onRowClick={(contract) => console.log("clicked", contract)} />
+                  <OptionChainTable strikeMatrix={props.strikeMatrix} filters={props.filters} spotPrice={props.spotPrice} onRowClick={() => {}} />
                 </Stack>
               </TabsPanel>
 
               <TabsPanel value="analysis" data-testid="options-chain-analysis-panel">
                 <Box className="w-full">
-                  <OIAnalysis strikeMatrix={props.strikeMatrix} spotPrice={props.spotPrice} />
+                  <OIAnalysis strikeMatrix={props.strikeMatrix} spotPrice={props.spotPrice} summary={props.summary} />
                 </Box>
               </TabsPanel>
             </Tabs>

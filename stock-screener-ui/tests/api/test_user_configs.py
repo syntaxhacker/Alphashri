@@ -26,6 +26,13 @@ from api_server_fastapi import app  # noqa: E402
 from db.database import get_db  # noqa: E402
 from db.models import User, UserSavedConfig  # noqa: E402
 
+# These fixtures normally arrive from tests/api/conftest.py. Re-export them as
+# module-local fixtures so resolution never depends on whether that conftest was
+# attached during collection: a root-level test collected first can otherwise
+# leave this module without db/auth_client (and with the root `client`, whose
+# bare app has no user-configs route -> 404 instead of the expected 401).
+from tests.api.conftest import auth_client, client, db, test_engine  # noqa: E402,F401
+
 SCOPE = "market.filters"
 URL = f"/api/user-configs/{SCOPE}"
 
@@ -221,6 +228,21 @@ class TestRoundTrip:
         assert response.json()["detail"] == "unknown_key"
         assert db.query(UserSavedConfig).count() == 0
 
+    def test_value_view_round_trips_through_put_get(self, user_client, db):
+        # The Market Value view saves `view: "value"`; the write path must accept
+        # it and the read path must return it unchanged (it used to 422).
+        payload = SAMPLE | {"view": "value"}
+        put = user_client.put(URL, json={"config": payload, "version": 1})
+        assert put.status_code == 200
+        assert put.json()["config"]["view"] == "value"
+
+        got = user_client.get(URL)
+        assert got.status_code == 200
+        assert got.json()["saved"] is True
+        assert got.json()["config"] == payload
+        db.expire_all()
+        assert db.query(UserSavedConfig).one().config["view"] == "value"
+
 
 class TestValidation:
     @pytest.mark.parametrize(
@@ -240,6 +262,14 @@ class TestValidation:
     )
     def test_out_of_range_or_unknown_values_are_422(self, user_client, db, config):
         response = user_client.put(URL, json={"config": config})
+        assert response.status_code == 422
+        assert response.json()["detail"] == "invalid_config"
+        assert db.query(UserSavedConfig).count() == 0
+
+    @pytest.mark.parametrize("view", ["grid", "values", "Value", ""])
+    def test_unknown_view_is_still_422(self, user_client, db, view):
+        # Adding "value" must not open the gate to arbitrary strings.
+        response = user_client.put(URL, json={"config": _with(view=view)})
         assert response.status_code == 422
         assert response.json()["detail"] == "invalid_config"
         assert db.query(UserSavedConfig).count() == 0
@@ -299,6 +329,88 @@ class TestValidation:
         assert body["detail"] == "config_too_large"
         assert body["max_bytes"] == 16384
         assert db.query(UserSavedConfig).count() == 0
+
+
+class TestUniverseRegistryDerivation:
+    """Universe and cap-tier ids come from the market-screen registry, not copies."""
+
+    def test_us_round_trips_with_all_filters(self, user_client, db):
+        from api.market_screen.config import ALLOWED_UNIVERSES
+
+        assert "us" in ALLOWED_UNIVERSES
+        payload = _with(
+            universe="us",
+            capTiers=["large", "small"],
+            sectors=["Technology", "Healthcare"],
+            priceMin=25.0,
+            priceMax=800.0,
+            dayChangeMin=-5.0,
+            dayChangeMax=12.0,
+            mcapMinCr=500.0,
+            mcapMaxCr=90000.0,
+            rsiMin=30.0,
+            rsiMax=70.0,
+            relVolMin=1.2,
+            relVolMax=8.0,
+            aboveSma200=True,
+            sort="day_desc",
+            view="movers",
+        )
+        put = user_client.put(URL, json={"config": payload, "version": 1})
+        assert put.status_code == 200
+        assert put.json()["config"] == payload
+        got = user_client.get(URL)
+        assert got.status_code == 200
+        assert got.json()["saved"] is True
+        assert got.json()["config"] == payload
+        db.expire_all()
+        assert db.query(UserSavedConfig).one().config == payload
+
+    def test_unknown_universe_is_rejected(self, user_client, db):
+        response = user_client.put(URL, json={"config": _with(universe="nasdaq")})
+        assert response.status_code == 422
+        assert response.json()["detail"] == "invalid_config"
+        assert db.query(UserSavedConfig).count() == 0
+
+    def test_four_legacy_india_universes_unchanged(self, user_client):
+        for universe in ("all_equity", "nifty500", "nifty50", "nse_fo"):
+            payload = _with(universe=universe)
+            assert user_client.put(URL, json={"config": payload}).status_code == 200
+            assert user_client.get(URL).json()["config"] == payload
+
+    def test_cap_tiers_derive_from_registry(self, user_client):
+        import api.user_configs as uc
+        from api.market_screen.config import ALL_CAP_TIERS
+
+        assert uc.CAP_TIERS == frozenset(ALL_CAP_TIERS)
+        assert uc.CAP_TIERS == {"mega", "large", "mid", "small", "micro"}
+        for tier in ALL_CAP_TIERS:
+            assert user_client.put(
+                URL, json={"config": _with(capTiers=[tier])}
+            ).status_code == 200, tier
+        assert user_client.put(
+            URL, json={"config": _with(capTiers=["huge"])}
+        ).status_code == 422
+
+    def test_types_track_registry_for_openapi(self):
+        from typing import get_args
+
+        import api.user_configs as uc
+        from api.market_screen.config import ALLOWED_UNIVERSES, ALL_CAP_TIERS
+
+        assert set(get_args(uc.MarketUniverse)) == set(ALLOWED_UNIVERSES)
+        assert set(get_args(uc.CapTier)) == set(ALL_CAP_TIERS)
+        schema = uc.MarketFiltersV1.model_json_schema()
+        assert set(schema["properties"]["universe"]["enum"]) == set(ALLOWED_UNIVERSES)
+        assert "us" in schema["properties"]["universe"]["enum"]
+
+    def test_view_literal_tracks_all_frontend_modes(self):
+        from typing import get_args
+
+        import api.user_configs as uc
+
+        # Mirrors MARKET_VIEW_OPTIONS / MarketViewMode in useMarketConfig.ts.
+        assert set(get_args(uc.MarketView)) == {"table", "map", "movers", "value"}
 
 
 class TestHostileStoredRow:

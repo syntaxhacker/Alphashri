@@ -109,7 +109,7 @@ export function BacktestChartTabs(props: BacktestChartTabsProps) {
         data-testid="chart-tabs-content"
         style={{ "min-height": 0, "min-width": 0, position: "relative", overflow: "hidden" }}
       >
-        {selectedSymbol ? (
+        {sym ? (
           <BacktestChart
             symbol={props.selectedSymbol}
             chartData={currentChartData}

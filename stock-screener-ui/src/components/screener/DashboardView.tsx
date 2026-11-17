@@ -21,10 +21,14 @@ import type {
   ScreenerDashboardResponse,
   ScreenerDashboardRow,
 } from "../../types/screenerDashboard";
+import {
+  marketUniverseDescriptor,
+  type MarketUniverseDescriptor,
+} from "@/config/marketUniverses";
+import { currencyFor } from "../../config/currency";
 import { CompactPanel } from "../common/compact";
 import {
   formatCurrency,
-  formatNumber,
   formatPercentage,
   formatTimeOnly,
   getPnLTextColor,
@@ -106,6 +110,33 @@ export function dashboardRowMcapCr(row: ScreenerDashboardRow): number | null {
   const rupees = finiteOrNull(row.market_cap);
   if (rupees != null) return rupees / 1e7;
   return finiteOrNull(row.market_cap_cr);
+}
+
+/** Market cap in the descriptor's own unit, read from the field it declares. */
+export function dashboardRowMarketCap(
+  row: ScreenerDashboardRow,
+  descriptor: MarketUniverseDescriptor,
+): number | null {
+  if (descriptor.mcapField === "marketCapUsdB") return finiteOrNull(row.marketCapUsdB);
+  return dashboardRowMcapCr(row);
+}
+
+/** Exact price with the descriptor's currency; INR stays ungrouped (legacy bytes). */
+export function formatDashboardPrice(
+  value: number | null,
+  descriptor: MarketUniverseDescriptor,
+): string {
+  return value != null ? formatCurrency(value, 2, descriptor.currency) : "—";
+}
+
+/** `₹1.2K Cr` / `$250 B` — symbol + compact number + the descriptor's cap unit. */
+export function formatDashboardMCap(
+  value: number | null,
+  descriptor: MarketUniverseDescriptor,
+): string {
+  if (value === null) return "—";
+  const spec = currencyFor(descriptor.currency);
+  return `${spec.symbol}${spec.compact(value)} ${descriptor.capUnit}`;
 }
 
 function sortDashboardRows(
@@ -230,18 +261,22 @@ function groupSymbols(group: CardGroup): string[] {
   return out.slice(0, 500);
 }
 
-function RowDetail(props: { row: ScreenerDashboardRow; panelId: string }) {
+function RowDetail(props: {
+  row: ScreenerDashboardRow;
+  panelId: string;
+  descriptor: MarketUniverseDescriptor;
+}) {
   const high52w = dashboardRowHigh52w(props.row);
-  const mcap = dashboardRowMcapCr(props.row);
+  const mcap = dashboardRowMarketCap(props.row, props.descriptor);
   const items: Array<{ label: string; value: string; testid: string }> = [
     {
       label: "52W high",
-      value: high52w != null ? formatCurrency(high52w, 2) : "—",
+      value: formatDashboardPrice(high52w, props.descriptor),
       testid: "high52w",
     },
     {
       label: "ATR",
-      value: finiteOrNull(props.row.atr) != null ? formatCurrency(props.row.atr as number, 2) : "—",
+      value: formatDashboardPrice(finiteOrNull(props.row.atr), props.descriptor),
       testid: "atr",
     },
     {
@@ -251,12 +286,12 @@ function RowDetail(props: { row: ScreenerDashboardRow; panelId: string }) {
     },
     {
       label: "VWAP",
-      value: finiteOrNull(props.row.vwap) != null ? formatCurrency(props.row.vwap as number, 2) : "—",
+      value: formatDashboardPrice(finiteOrNull(props.row.vwap), props.descriptor),
       testid: "vwap",
     },
     {
       label: "Mkt cap",
-      value: mcap != null ? `₹${formatNumber(mcap)} Cr` : "—",
+      value: formatDashboardMCap(mcap, props.descriptor),
       testid: "mcap",
     },
     {
@@ -295,6 +330,7 @@ function DashboardCard(props: {
   group: CardGroup;
   query: string;
   expanded: boolean;
+  descriptor: MarketUniverseDescriptor;
   onToggleExpanded: () => void;
   onOpenSymbol?: (symbol: string) => void;
   onOpenScan?: (panelId: string, symbols: string[]) => void;
@@ -466,7 +502,7 @@ function DashboardCard(props: {
                     className="flex flex-shrink-0 flex-col items-end"
                   >
                     <Text size="xs" ta="right" span lh={1.1} className="tabular-nums">
-                      {formatCurrency(row.close, 2)}
+                      {formatDashboardPrice(row.close, props.descriptor)}
                     </Text>
                     <Text
                       size="xs"
@@ -498,7 +534,7 @@ function DashboardCard(props: {
                   </ActionIcon>
                 </Box>
                 <Show when={isOpen()}>
-                  <RowDetail row={row} panelId={activePanel()!.id} />
+                  <RowDetail row={row} panelId={activePanel()!.id} descriptor={props.descriptor} />
                 </Show>
               </Box>
             );
@@ -539,6 +575,7 @@ function DashboardCard(props: {
 
 export function DashboardView(props: DashboardViewProps) {
   const universe = () => props.universe ?? "nifty500";
+  const descriptor = () => marketUniverseDescriptor(universe());
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal<string | null>(null);
   const [data, setData] = createSignal<ScreenerDashboardResponse | null>(null);
@@ -825,6 +862,7 @@ export function DashboardView(props: DashboardViewProps) {
                           group={group}
                           query={query()}
                           expanded={expanded()}
+                          descriptor={descriptor()}
                           onToggleExpanded={handleToggleExpanded}
                           onOpenSymbol={props.onOpenSymbol}
                           onOpenScan={props.onOpenScan}

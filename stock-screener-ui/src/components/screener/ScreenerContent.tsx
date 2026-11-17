@@ -113,6 +113,10 @@ export function ScreenerContent(props: Props) {
   const showError = () => !!props.error && !showLoading();
   const showEmpty = () => !showLoading() && !showError() && !hasResults();
 
+  // Loading / error / empty are mutually-exclusive content states: each replaces
+  // the table region rather than sitting above it. Unlike the inline-filter band,
+  // none is an additive 0↔N row that pushes a visible table down, so no height
+  // reservation is needed here — they are transient by design.
   return (
     <Show when={!showLoading()} fallback={<ScreenerLoading />}>
       <Show when={!showError()} fallback={<ScreenerErrorPanel error={props.error ?? ""} onRefresh={props.onRefresh} />}>

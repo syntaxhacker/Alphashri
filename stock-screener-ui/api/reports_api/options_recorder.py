@@ -49,6 +49,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
+from api.options_conventions import NEAR_BAND_PCT
 from api.reports_api._numeric import safe_float, safe_int
 from api.reports_api._time import today_str as _today_str
 from fastapi import APIRouter
@@ -83,9 +84,8 @@ EXPIRY_TTL_SEC = 3600.0
 #: Hard ceiling on the configured symbol list (rate-budget guard).
 MAX_SYMBOLS = 3
 DEFAULT_SYMBOLS = "SENSEX,RELIANCE"
-#: ``walls_near`` band as a share of spot (1%). NIFTY uses a fixed ±300 pts,
-#: which is meaningless for SENSEX (~84k) and enormous for a stock (~1.3k).
-NEAR_BAND_PCT = 0.01
+# ``walls_near`` band (1% of spot) is owned by api.options_conventions; NIFTY's
+# fixed ±300 pts is meaningless for SENSEX (~84k) and huge for a stock (~1.3k).
 #: Optional off-switch (the recorder is additive; disabling must be trivial).
 ENABLED = os.getenv("OPTIONS_RECORDER_ENABLED", "1") != "0"
 #: Seconds a chain/expiry/candle call waits for a limiter token.

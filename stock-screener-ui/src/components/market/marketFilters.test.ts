@@ -3,12 +3,15 @@ import "@testing-library/jest-dom/vitest";
 import { describe, expect, test } from "vitest";
 import {
   buildMarketFilterChips,
+  capTierOptions,
   countActiveMarketFilters,
   countByCapTier,
   defaultMarketFilters,
   filterMarketRows,
   filterOnlyMarketRows,
+  marketSectorOptions,
   marketSectors,
+  resetUniverseSpecificFilters,
   sortMarketRows,
   MARKET_SORT_OPTIONS,
   type MarketFilterState,
@@ -506,6 +509,150 @@ describe("search index", () => {
       expect(filterMarketRows(rows, filters(q))).toHaveLength(1);
     }
     expect(filterMarketRows(rows, filters("absent"))).toHaveLength(0);
+  });
+});
+
+describe("universe descriptors in filters", () => {
+  const US_ROWS: MarketRow[] = [
+    row("NVDA", {
+      currency: "USD",
+      marketCapCr: null,
+      marketCapUsdB: 46200,
+      capTier: "large",
+      sector: "Semiconductors",
+    }),
+    row("LLY", {
+      currency: "USD",
+      marketCapCr: null,
+      marketCapUsdB: 7800,
+      capTier: "mid",
+      sector: "Pharmaceuticals",
+    }),
+    row("SMALL", {
+      currency: "USD",
+      marketCapCr: null,
+      marketCapUsdB: 0.5,
+      capTier: "small",
+      sector: "Software",
+    }),
+  ];
+
+  test("US cap-tier labels carry the $B thresholds; India keeps bare names", () => {
+    expect(capTierOptions("us").map((o) => o.label)).toEqual([
+      "Mega ≥200B",
+      "Large 10–200B",
+      "Mid 2–10B",
+      "Small 0.3–2B",
+      "Micro <0.3B",
+    ]);
+    expect(capTierOptions("all_equity").map((o) => o.label)).toEqual([
+      "Large",
+      "Mid",
+      "Small",
+      "Micro",
+    ]);
+  });
+
+  test("MCap chips use the descriptor's unit, not a hardcoded ₹ Cr", () => {
+    expect(buildMarketFilterChips(filters({ mcapMinCr: 10 }), "us")).toEqual([
+      { key: "mcap", label: "MCap ≥ 10 B" },
+    ]);
+    expect(buildMarketFilterChips(filters({ mcapMinCr: 5000 }))).toEqual([
+      { key: "mcap", label: "MCap ≥ 5000 Cr" },
+    ]);
+    expect(countActiveMarketFilters(filters({ mcapMaxCr: 200 }), "us")).toBe(1);
+  });
+
+  test("cap-tier chips show the US threshold", () => {
+    const chips = buildMarketFilterChips(filters({ capTiers: new Set(["large"]) }), "us");
+    expect(chips).toEqual([{ key: "capTier:large", label: "Cap: Large 10–200B" }]);
+  });
+
+  test("US mcap bounds filter on marketCapUsdB, not the null rupee field", () => {
+    expect(symbols(filterMarketRows(US_ROWS, filters({ mcapMinCr: 10000 })))).toEqual([
+      "NVDA",
+    ]);
+    expect(symbols(filterMarketRows(US_ROWS, filters({ mcapMaxCr: 2 })))).toEqual(["SMALL"]);
+  });
+
+  test("mcap_desc sorts US rows by $B", () => {
+    expect(sortMarketRows(US_ROWS, "mcap_desc").map((r) => r.symbol)).toEqual([
+      "NVDA",
+      "LLY",
+      "SMALL",
+    ]);
+  });
+
+  test("sector options are derived from the loaded US rows only", () => {
+    expect(marketSectorOptions(US_ROWS)).toEqual([
+      { value: "Pharmaceuticals", label: "Pharmaceuticals" },
+      { value: "Semiconductors", label: "Semiconductors" },
+      { value: "Software", label: "Software" },
+    ]);
+    expect(marketSectorOptions(US_ROWS).map((o) => o.value)).not.toContain("Banking");
+  });
+
+  test("reset drops unit-bound and India-specific filters but keeps unit-neutral ones", () => {
+    const before = filters({
+      priceMin: 100,
+      mcapMinCr: 5000,
+      capTiers: new Set(["large"]),
+      sectors: ["IT"],
+      fnoOnly: true,
+      etfOnly: true,
+      rsiMin: 40,
+      relVolMax: 5,
+      aboveSma200: true,
+      dayChangeMin: -2,
+      sort: "relvol_desc",
+    });
+    const after = resetUniverseSpecificFilters(before, "us");
+    expect(after.priceMin).toBeNull();
+    expect(after.mcapMinCr).toBeNull();
+    expect(after.capTiers.size).toBe(0);
+    expect(after.sectors).toEqual([]);
+    expect(after.fnoOnly).toBe(false);
+    expect(after.etfOnly).toBe(true);
+    expect(after.rsiMin).toBe(40);
+    expect(after.relVolMax).toBe(5);
+    expect(after.aboveSma200).toBe(true);
+    expect(after.dayChangeMin).toBe(-2);
+    expect(after.sort).toBe("relvol_desc");
+  });
+
+  test("reset clears fnoOnly in either direction but keeps ETF", () => {
+    const indiaToUs = resetUniverseSpecificFilters(
+      filters({ fnoOnly: true, etfOnly: true }),
+      "us",
+    );
+    expect(indiaToUs.fnoOnly).toBe(false);
+    expect(indiaToUs.etfOnly).toBe(true);
+
+    const usToIndia = resetUniverseSpecificFilters(
+      filters({ fnoOnly: true, etfOnly: true }),
+      "all_equity",
+    );
+    expect(usToIndia.fnoOnly).toBe(false);
+    expect(usToIndia.etfOnly).toBe(true);
+  });
+
+  test("a US reset leaves no active F&O chip behind", () => {
+    const after = resetUniverseSpecificFilters(filters({ fnoOnly: true }), "us");
+    expect(buildMarketFilterChips(after, "us").map((c) => c.key)).not.toContain("fno");
+  });
+
+  test("a persisted F&O filter emits no chip in the US universe, but still does in India", () => {
+    // A saved `universe=us` config can carry `fnoOnly: true` from the F&O rail
+    // that no longer exists in the US. The descriptor — not the filter field —
+    // decides whether that affordance is real.
+    expect(buildMarketFilterChips(filters({ fnoOnly: true }), "us").map((c) => c.key)).not.toContain(
+      "fno",
+    );
+    expect(countActiveMarketFilters(filters({ fnoOnly: true }), "us")).toBe(0);
+    expect(buildMarketFilterChips(filters({ fnoOnly: true }), "all_equity").map((c) => c.key)).toContain(
+      "fno",
+    );
+    expect(countActiveMarketFilters(filters({ fnoOnly: true }), "all_equity")).toBe(1);
   });
 });
 

@@ -14,6 +14,15 @@ import { getPnLTextColor } from "@/utils/ui-helpers";
  * not line up across surfaces.
  */
 
+/** Dimmed en-dash placeholder for a missing value in a dense table. */
+export function DashCell(props: { testId?: string; title?: string }): JSX.Element {
+  return (
+    <Text size="xs" c="dimmed" data-testid={props.testId} title={props.title}>
+      –
+    </Text>
+  );
+}
+
 /** Numeric value: mono, tabular, optional sign colouring. */
 export function NumCell(props: {
   value: number | null | undefined;

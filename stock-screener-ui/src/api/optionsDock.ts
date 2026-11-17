@@ -12,11 +12,15 @@
 
 import { fetchWithAuth } from "../state/auth";
 import { API_BASE } from "./config";
+import { finiteNumber } from "./wireParse";
 
 const OPTIONS_BASE = `${API_BASE}/api/options`;
 
 /** One retry at most, and only for a failure that can plausibly succeed again. */
 const RETRY_DELAY_MS = 250;
+/** Overall deadline for a single attempt. A hung upstream must reach the UI as
+ * a typed timeout (and its Retry banner), never as an eternal `loading` state. */
+export const REQUEST_TIMEOUT_MS = 10_000;
 
 export interface DockExpiry {
   date: string;
@@ -37,7 +41,7 @@ export interface UnderlyingInfo {
   marketState: "open" | "closed" | "pre_open";
 }
 
-export type DockErrorKind = "not_fno" | "auth" | "rate_limited" | "upstream" | "network";
+export type DockErrorKind = "not_fno" | "auth" | "rate_limited" | "upstream" | "network" | "timeout";
 
 export class OptionDockError extends Error {
   readonly kind: DockErrorKind;
@@ -75,6 +79,41 @@ export interface ChainRow {
   pe: ChainLeg;
 }
 
+/** One labelled strike level from the chain's `levels` block. */
+export interface ChainLevel {
+  strike: number;
+  side: "above" | "below" | null;
+  /** 0..1 within its family. `null` when the denominator is 0 — never 0. */
+  strength: number | null;
+  /** OI for walls, payout for max pain, net GEX for gamma levels. */
+  oi: number | null;
+  payout: number | null;
+  netGex: number | null;
+}
+
+export interface OptionChainGexLevels {
+  support: ChainLevel | null;
+  resistance: ChainLevel | null;
+  fuelUp: ChainLevel | null;
+  fuelDown: ChainLevel | null;
+  flip: number | null;
+  regime: string | null;
+  degraded: boolean | null;
+}
+
+/** Top-level levels object added by `/api/options/chain` (see docs/OPTIONS_LEVELS_CONTRACT.md). */
+export interface OptionChainLevels {
+  spot: number | null;
+  step: number | null;
+  thin: boolean | null;
+  callWall: ChainLevel | null;
+  putWall: ChainLevel | null;
+  callWalls: ChainLevel[];
+  putWalls: ChainLevel[];
+  maxPain: ChainLevel | null;
+  gex: OptionChainGexLevels;
+}
+
 export interface OptionDockChain {
   expiry: string;
   spot: number;
@@ -85,6 +124,8 @@ export interface OptionDockChain {
   spotChangePct: number | null;
   rows: ChainRow[];
   asOf: string | null;
+  /** `null` for a legacy payload with no levels block. */
+  levels?: OptionChainLevels | null;
 }
 
 interface RawMarketData {
@@ -117,12 +158,44 @@ interface RawChainRow {
   pe?: RawContract | null;
 }
 
+interface RawChainLevel {
+  strike?: unknown;
+  side?: unknown;
+  strength?: unknown;
+  oi?: unknown;
+  payout?: unknown;
+  net_gex?: unknown;
+}
+
+interface RawGexLevels {
+  support?: unknown;
+  resistance?: unknown;
+  fuel_up?: unknown;
+  fuel_down?: unknown;
+  flip?: unknown;
+  regime?: unknown;
+  degraded?: unknown;
+}
+
+interface RawLevels {
+  spot?: unknown;
+  step?: unknown;
+  thin?: unknown;
+  call_wall?: unknown;
+  put_wall?: unknown;
+  call_walls?: unknown;
+  put_walls?: unknown;
+  max_pain?: unknown;
+  gex?: RawGexLevels | null;
+}
+
 interface RawChainResponse {
   expiry?: unknown;
   spot?: unknown;
   timestamp?: unknown;
   spot_change_pct?: unknown;
   chain?: unknown;
+  levels?: unknown;
   summary?: { pcr?: unknown } | null;
 }
 
@@ -137,36 +210,27 @@ interface RawUnderlyingResponse {
   expiries?: unknown;
 }
 
-function num(value: unknown): number | null {
-  if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  if (typeof value === "string" && value.trim() !== "") {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
-
 /** OI/volume legitimately default to 0; IV and greeks never do. */
 function count(value: unknown): number {
-  return num(value) ?? 0;
+  return finiteNumber(value) ?? 0;
 }
 
 function leg(raw: RawContract | null | undefined): ChainLeg {
   const market = raw?.market_data ?? null;
   const greeks = raw?.option_greeks ?? null;
   return {
-    ltp: num(market?.ltp),
+    ltp: finiteNumber(market?.ltp),
     oi: count(market?.oi),
     prevOi: count(market?.prev_oi),
     volume: count(market?.volume),
-    iv: num(greeks?.iv),
-    delta: num(greeks?.delta),
-    gamma: num(greeks?.gamma),
-    theta: num(greeks?.theta),
-    vega: num(greeks?.vega),
-    pop: num(greeks?.pop),
-    bid: num(market?.bid_price),
-    ask: num(market?.ask_price),
+    iv: finiteNumber(greeks?.iv),
+    delta: finiteNumber(greeks?.delta),
+    gamma: finiteNumber(greeks?.gamma),
+    theta: finiteNumber(greeks?.theta),
+    vega: finiteNumber(greeks?.vega),
+    pop: finiteNumber(greeks?.pop),
+    bid: finiteNumber(market?.bid_price),
+    ask: finiteNumber(market?.ask_price),
     instrumentKey: String(raw?.instrument_key ?? ""),
   };
 }
@@ -181,7 +245,7 @@ function normalizeExpiry(raw: unknown): DockExpiry | null {
     weekly: Boolean(row.weekly),
     dteDays: count(row.dte_days),
     lotSize: count(row.lot_size),
-    tickSize: num(row.tick_size) ?? 0.05,
+    tickSize: finiteNumber(row.tick_size) ?? 0.05,
   };
 }
 
@@ -199,10 +263,58 @@ export function normalizeUnderlying(raw: RawUnderlyingResponse | null | undefine
     exchange: String(raw?.exchange ?? "NSE").toUpperCase(),
     fno: raw?.fno !== false && expiries.length > 0,
     instrumentKey: String(raw?.instrument_key ?? ""),
-    spot: num(raw?.spot) ?? 0,
+    spot: finiteNumber(raw?.spot) ?? 0,
     expiries,
     defaultExpiry,
     marketState,
+  };
+}
+
+/**
+ * A level is a plain object; every field is read with `finiteNumber()` so an absent
+ * strength/payout/OI stays `null`. No level object ever becomes `{}` or `0`.
+ */
+function normalizeLevel(raw: unknown): ChainLevel | null {
+  if (!raw || typeof raw !== "object") return null;
+  const row = raw as RawChainLevel;
+  const strike = finiteNumber(row.strike);
+  if (strike == null) return null;
+  return {
+    strike,
+    side: row.side === "above" || row.side === "below" ? row.side : null,
+    strength: finiteNumber(row.strength),
+    oi: finiteNumber(row.oi),
+    payout: finiteNumber(row.payout),
+    netGex: finiteNumber(row.net_gex),
+  };
+}
+
+function normalizeLevels(raw: unknown): OptionChainLevels | null {
+  if (!raw || typeof raw !== "object") return null;
+  const row = raw as RawLevels;
+  const gex = row.gex && typeof row.gex === "object" ? row.gex : null;
+  const walls = (value: unknown): ChainLevel[] =>
+    Array.isArray(value)
+      ? value.map(normalizeLevel).filter((level): level is ChainLevel => level != null)
+      : [];
+  return {
+    spot: finiteNumber(row.spot),
+    step: finiteNumber(row.step),
+    thin: typeof row.thin === "boolean" ? row.thin : null,
+    callWall: normalizeLevel(row.call_wall),
+    putWall: normalizeLevel(row.put_wall),
+    callWalls: walls(row.call_walls),
+    putWalls: walls(row.put_walls),
+    maxPain: normalizeLevel(row.max_pain),
+    gex: {
+      support: normalizeLevel(gex?.support),
+      resistance: normalizeLevel(gex?.resistance),
+      fuelUp: normalizeLevel(gex?.fuel_up),
+      fuelDown: normalizeLevel(gex?.fuel_down),
+      flip: finiteNumber(gex?.flip),
+      regime: typeof gex?.regime === "string" ? gex.regime : null,
+      degraded: typeof gex?.degraded === "boolean" ? gex.degraded : null,
+    },
   };
 }
 
@@ -225,15 +337,15 @@ export function normalizeChain(raw: RawChainResponse | null | undefined): Option
   const rows: ChainRow[] = [];
   if (Array.isArray(raw?.chain)) {
     for (const item of raw.chain as RawChainRow[]) {
-      const strike = num(item?.strike);
+      const strike = finiteNumber(item?.strike);
       if (strike == null) continue;
       rows.push({ strike, ce: leg(item?.ce), pe: leg(item?.pe) });
     }
   }
   rows.sort((a, b) => a.strike - b.strike);
 
-  const spot = num(raw?.spot) ?? 0;
-  const summaryPcr = num(raw?.summary?.pcr);
+  const spot = finiteNumber(raw?.spot) ?? 0;
+  const summaryPcr = finiteNumber(raw?.summary?.pcr);
   const ceOi = rows.reduce((sum, row) => sum + row.ce.oi, 0);
   const peOi = rows.reduce((sum, row) => sum + row.pe.oi, 0);
   const pcr = ceOi > 0 ? peOi / ceOi : summaryPcr;
@@ -243,9 +355,10 @@ export function normalizeChain(raw: RawChainResponse | null | undefined): Option
     spot,
     pcr: pcr != null && Number.isFinite(pcr) ? pcr : null,
     atmIv: atmIvOf(rows, spot),
-    spotChangePct: num(raw?.spot_change_pct),
+    spotChangePct: finiteNumber(raw?.spot_change_pct),
     rows,
     asOf: typeof raw?.timestamp === "string" ? raw.timestamp : null,
+    levels: normalizeLevels(raw?.levels),
   };
 }
 
@@ -304,23 +417,69 @@ function isRetryable(error: OptionDockError): boolean {
   return error.kind === "network" || (error.kind === "upstream" && (error.status == null || error.status >= 500));
 }
 
-async function requestJson<T>(
+/** A raceable deadline. `cancel()` must run on every settled attempt so a
+ * resolved fetch does not leave a timer that can reject an already-finished
+ * request (fake timers make that leak visible). */
+function deadline(): { promise: Promise<never>; cancel: () => void } {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const promise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new OptionDockError("timeout", "The options service took too long to respond"));
+    }, REQUEST_TIMEOUT_MS);
+  });
+  return {
+    promise,
+    cancel: () => {
+      if (timer != null) clearTimeout(timer);
+    },
+  };
+}
+
+export async function requestJson<T>(
   url: string,
   signal: AbortSignal | undefined,
   fallbackMessage: string,
 ): Promise<T | null> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     if (signal?.aborted) return null;
+
+    // Each attempt owns its signal: the deadline can abort the losing fetch
+    // without touching a signal shared with other callers. The caller's signal
+    // is linked to it, so cancelling the dock still cancels the in-flight call.
+    const attemptController = new AbortController();
+    const onCallerAbort = () => attemptController.abort();
+    signal?.addEventListener("abort", onCallerAbort, { once: true });
+    if (signal?.aborted) {
+      signal.removeEventListener("abort", onCallerAbort);
+      return null;
+    }
+
+    const timer = deadline();
     let response: Response;
     try {
-      response = await fetchWithAuth(url, signal ? { signal } : {});
+      // The deadline is a separate race arm so a hung fetch — one that ignores
+      // abort — still surfaces as a typed timeout.
+      response = await Promise.race([
+        fetchWithAuth(url, { signal: attemptController.signal }),
+        timer.promise,
+      ]);
     } catch (error) {
+      if (error instanceof OptionDockError && error.kind === "timeout") {
+        // Stop the losing fetch instead of letting it run to completion.
+        attemptController.abort();
+        // A caller abort must keep its abort semantics, not become a timeout.
+        if (signal?.aborted) return null;
+        throw error;
+      }
       if (isAbort(error) || signal?.aborted) return null;
       if (attempt === 0) {
         await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
         continue;
       }
       throw new OptionDockError("network", "Could not reach the options service");
+    } finally {
+      signal?.removeEventListener("abort", onCallerAbort);
+      timer.cancel();
     }
     if (!response.ok) {
       const failure = await toDockError(response, fallbackMessage);

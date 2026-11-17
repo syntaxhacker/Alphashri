@@ -2,9 +2,9 @@
 
 No FastAPI, no network, no DB — every function takes and returns plain
 dicts/lists so ``/api/options/chain`` and the Nifty report can reuse one
-formula set. The GEX constants and algorithm mirror
-``api/reports_api/nifty.compute_gex``; the anti-drift test in
-``tests/api/test_options_levels.py`` fails when the two diverge.
+formula set. The GEX constants are imported from the single owner
+:mod:`api.options_conventions` (also used by ``api/reports_api/nifty``); the
+anti-drift test in ``tests/api/test_options_levels.py`` fails if they diverge.
 """
 
 from __future__ import annotations
@@ -13,6 +13,17 @@ import math
 import statistics
 from collections import Counter
 from typing import Any, Iterable, Optional, TypedDict
+
+from api.options_conventions import (
+    DEFAULT_LOT_SIZE,
+    GEX_FLIP_MAX_DIST_PCT,
+    GEX_LEVEL_MAX_DIST_PCT,
+    GEX_LEVEL_MIN_SHARE,
+    NEAR_BAND_PCT,
+    THIN_MAX_SINGLE_SHARE,
+    THIN_MIN_ROWS,
+    THIN_MIN_TOTAL_OI,
+)
 
 
 class Strike(TypedDict):
@@ -25,15 +36,10 @@ class Strike(TypedDict):
     pe_gamma: float
 
 
-# Keep in lockstep with api/reports_api/nifty.py (the anti-drift test pins this).
-GEX_LEVEL_MIN_SHARE = 0.10
-GEX_LEVEL_MAX_DIST_PCT = 0.05
-GEX_FLIP_MAX_DIST_PCT = 0.05
-
-WALL_NEAR_DIST_PCT = 0.01
-THIN_MIN_TOTAL_OI = 50_000
-THIN_MIN_ROWS = 5
-THIN_MAX_SINGLE_SHARE = 0.4
+# GEX / thin / near constants are owned by api.options_conventions and imported
+# above. ``WALL_NEAR_DIST_PCT`` stays as the public name used by the report
+# wrappers; it is the 1% near band, not the 0.25% wall-erosion band.
+WALL_NEAR_DIST_PCT = NEAR_BAND_PCT
 
 
 def _f(value: Any, default: float = 0.0) -> float:
@@ -149,7 +155,8 @@ def _gex_level(entry: Optional[dict], side: str) -> Optional[dict]:
              "side": side} if entry else None)
 
 
-def compute_gex(strikes: list[Strike], spot: float, lot_size: int = 65) -> dict:
+def compute_gex(strikes: list[Strike], spot: float,
+                lot_size: int = DEFAULT_LOT_SIZE) -> dict:
     """Simplified dealer gamma exposure per strike, in Cr per point.
 
     ``lot_size`` is accepted for backwards compatibility but **not applied**:

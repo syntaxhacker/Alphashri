@@ -72,6 +72,7 @@ function marketRow(symbol: string, marketCapCr: number, change: number) {
     pos_52w: 0.6,
     fno: true,
     etf: false,
+    exchange: "NSE",
   };
 }
 

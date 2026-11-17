@@ -99,6 +99,14 @@ describe("CompactPanel", () => {
     expect(screen.getByText("Rich Title")).toBeInTheDocument();
     expect(screen.getByText("Rich Desc")).toBeInTheDocument();
   });
+
+  it("merges titleClassName onto the string title element", () => {
+    render(() => (<CompactPanel title="Truncate me" titleClassName="max-sm:truncate">
+        Content
+      </CompactPanel>),
+    );
+    expect(screen.getByText("Truncate me").className).toContain("max-sm:truncate");
+  });
 });
 
 describe("CompactStat", () => {

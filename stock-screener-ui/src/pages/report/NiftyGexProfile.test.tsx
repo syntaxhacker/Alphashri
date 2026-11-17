@@ -15,6 +15,7 @@ import {
   gexProfileStats,
   gexSideCopy,
   gexSideLevels,
+  gexLevelTone,
   gexTone,
   nearestStrikeIndex,
   selectGexBand,
@@ -338,6 +339,21 @@ describe("format helpers", () => {
     expect(gexTone(0)).toBe(palette.TEXT_MUTED);
     expect(gexTone(null)).toBe(palette.TEXT_MUTED);
   });
+
+  test("gexLevelTone uses the level tokens for SUP/RES, not the gamma sign", () => {
+    expect(gexLevelTone({ strike: 22600, netGex: 12, kind: "support", side: "below" })).toBe(
+      palette.LEVEL_SUPPORT,
+    );
+    expect(gexLevelTone({ strike: 22800, netGex: 11, kind: "resistance", side: "above" })).toBe(
+      palette.LEVEL_RESISTANCE,
+    );
+    expect(gexLevelTone({ strike: 22500, netGex: -20, kind: "fuel", side: "below" })).toBe(
+      palette.TERM_GAMMA_NEG,
+    );
+    expect(gexLevelTone(null)).toBe(palette.TEXT_MUTED);
+    expect(palette.LEVEL_SUPPORT).toBe(palette.POSITIVE_COLOR);
+    expect(palette.LEVEL_RESISTANCE).toBe(palette.NEGATIVE_COLOR);
+  });
 });
 
 describe("gexSideLevels (spot-relative)", () => {
@@ -518,6 +534,37 @@ describe("NiftyGexProfile render", () => {
     expect(chart).toBeInTheDocument();
     expect(chart.querySelector("svg")).not.toBeNull();
     expect(screen.queryByText("No per-strike GEX profile")).not.toBeInTheDocument();
+  });
+
+  test("renders the SUP / RES level legend with level-token dots", () => {
+    render(() => <NiftyGexProfile gex={gex()} spot={22700} />, { wrapper: TestWrapper });
+    const legend = screen.getByTestId("nifty-gex-profile-levels-legend");
+    expect(legend).toHaveTextContent("SUP 22,600");
+    expect(legend).toHaveTextContent("RES");
+
+    const sup = screen.getByTestId("nifty-gex-profile-level-legend-sup");
+    const res = screen.getByTestId("nifty-gex-profile-level-legend-res");
+    expect((sup.firstElementChild as HTMLElement)).toHaveStyle({
+      backgroundColor: palette.LEVEL_SUPPORT,
+    });
+    expect((res.firstElementChild as HTMLElement)).toHaveStyle({
+      backgroundColor: palette.LEVEL_RESISTANCE,
+    });
+    expect(sup.getAttribute("title")).toContain("support");
+    expect(res.getAttribute("title")).toContain("resistance");
+  });
+
+  test("labels a positive-gamma strike above spot with the RES code", () => {
+    const bothSides = gex({
+      strikes: [
+        { strike: 22600, callGex: 1, putGex: 0, netGex: 12 },
+        { strike: 22700, callGex: 5, putGex: -3, netGex: -2 },
+        { strike: 22800, callGex: 9, putGex: -2, netGex: 8 },
+      ],
+      zeroCross: 22650,
+    });
+    render(() => <NiftyGexProfile gex={bothSides} spot={22700} />, { wrapper: TestWrapper });
+    expect(screen.getByTestId("nifty-gex-profile-level-legend-res")).toHaveTextContent("RES 22,800");
   });
 
   test("names the gamma support/resistance strikes and explains the profile", () => {

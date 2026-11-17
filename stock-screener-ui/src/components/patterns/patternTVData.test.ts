@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
 import type { ChartCandle, PatternHitDTO, TrendLine } from "@/types/chartPatterns";
 import { buildPatternTVData, PATTERN_TV_COLORS, toTVTime } from "./patternTVData";
+import { TZ_US } from "@/utils/chart/time";
 import { makeIRCONHit, makeTrendLine } from "./patternTestFixtures";
 
 function candle(t: string, o: number, c: number, v = 1000): ChartCandle {
@@ -228,5 +229,50 @@ describe("buildPatternTVData", () => {
     expect(noHit.lines).toEqual([]);
     expect(noHit.markers).toEqual([]);
     expect(noHit.candles).toHaveLength(CANDLES.length);
+  });
+
+  it("pins naive candle times to the supplied market zone, not IST", () => {
+    const naive: ChartCandle[] = [
+      { t: "2026-11-16T14:49:00", o: 100, h: 101, l: 99, c: 100, v: 1 },
+      { t: "2026-11-16T14:50:00", o: 100, h: 101, l: 99, c: 101, v: 1 },
+    ];
+    const withUs = buildPatternTVData({ candles: naive, hit: null, timeZone: TZ_US });
+    expect(withUs.candles.map((c) => c.time)).toEqual([
+      Date.UTC(2026, 10, 16, 19, 49, 0) / 1000,
+      Date.UTC(2026, 10, 16, 19, 50, 0) / 1000,
+    ]);
+    // Default remains the IST wall clock — India is byte-identical.
+    expect(buildPatternTVData({ candles: naive, hit: null }).candles[0]?.time).toBe(
+      toTVTime("2026-11-16T14:49:00"),
+    );
+  });
+
+  it("honours an explicit US offset regardless of the timeZone prop", () => {
+    const offset: ChartCandle[] = [
+      { t: "2026-11-16T14:49:00-05:00", o: 100, h: 101, l: 99, c: 100, v: 1 },
+    ];
+    const expected = Date.UTC(2026, 10, 16, 19, 49, 0) / 1000;
+    expect(buildPatternTVData({ candles: offset, hit: null }).candles[0]?.time).toBe(expected);
+    expect(buildPatternTVData({ candles: offset, hit: null, timeZone: TZ_US }).candles[0]?.time).toBe(expected);
+  });
+
+  it("flags only a partial last candle; completed candles carry no flag", () => {
+    const completed = buildPatternTVData({ candles: CANDLES, hit: null });
+    expect(completed.candles.every((c) => c.isPartial == null)).toBe(true);
+
+    const last = CANDLES[CANDLES.length - 1]!;
+    const withPartial: ChartCandle[] = [
+      ...CANDLES.slice(0, -1),
+      { ...last, is_partial: true },
+    ];
+    const out = buildPatternTVData({ candles: withPartial, hit: null });
+    expect(out.candles[out.candles.length - 1]?.isPartial).toBe(true);
+    expect(out.candles.slice(0, -1).every((c) => c.isPartial == null)).toBe(true);
+  });
+
+  it("ignores a stale partial flag on a bar that is no longer the last", () => {
+    const stale: ChartCandle[] = [{ ...CANDLES[0]!, is_partial: true }, ...CANDLES.slice(1)];
+    const out = buildPatternTVData({ candles: stale, hit: null });
+    expect(out.candles.every((c) => c.isPartial == null)).toBe(true);
   });
 });

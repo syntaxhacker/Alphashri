@@ -230,9 +230,11 @@ class TestIvValidity:
     @pytest.mark.parametrize("iv,expected", [
         (20.0, True),
         (60.0, True),
+        (80.0, True),
+        (100.0, True),
         (0, False),
         (117.0, False),
-        (60.1, False),
+        (100.1, False),
         (float("nan"), False),
         (float("inf"), False),
     ])

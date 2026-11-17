@@ -41,6 +41,10 @@ export interface ScreenerDashboardRow {
   market_cap?: number | null;
   /** Alias for `market_cap`. */
   market_cap_cr?: number | null;
+  /** Row's quote currency; USD rows carry their cap in `marketCapUsdB`. */
+  currency?: string | null;
+  /** Market cap in $ billions (US rows). */
+  marketCapUsdB?: number | null;
 }
 
 export interface ScreenerDashboardPanel {

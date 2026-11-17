@@ -7,10 +7,16 @@ import {
   EXIT_DEFAULT,
 } from "../config/colors";
 import { formatChartTimeLabel } from "@/utils/chart/time";
+import { currencyFor, type CurrencyCode } from "../config/currency";
 
-export function formatCurrency(amount: number | undefined | null, precision: number = 0): string {
+export function formatCurrency(
+  amount: number | undefined | null,
+  precision: number = 0,
+  currency: CurrencyCode = "INR",
+): string {
   if (amount === undefined || amount === null || isNaN(amount)) return "0";
-  return `₹${amount.toFixed(precision)}`;
+  const spec = currencyFor(currency);
+  return `${spec.symbol}${spec.formatFixed(amount, precision)}`;
 }
 
 export function formatCurrencyIN(amount: number | undefined | null): string {
@@ -33,18 +39,23 @@ export function formatNumber(value: number | undefined | null): string {
   return `${sign}${absValue.toFixed(0)}`;
 }
 
-export function formatCurrencyCompact(amount: number | undefined | null): string {
-  return `₹${formatNumber(amount ?? 0)}`;
+export function formatCurrencyCompact(
+  amount: number | undefined | null,
+  currency: CurrencyCode = "INR",
+): string {
+  const spec = currencyFor(currency);
+  return `${spec.symbol}${spec.compact(amount ?? 0)}`;
 }
 
-export function formatPnl(value: number): string {
+export function formatPnl(value: number, currency: CurrencyCode = "INR"): string {
   const sign = value >= 0 ? "+" : "";
-  return `${sign}₹${(value / 1000).toFixed(1)}K`;
+  return `${sign}${currencyFor(currency).symbol}${(value / 1000).toFixed(1)}K`;
 }
 
-export function formatSignedPnl(value: number): string {
+export function formatSignedPnl(value: number, currency: CurrencyCode = "INR"): string {
   const sign = value >= 0 ? "+" : "";
-  return `${sign}₹${formatNumber(value)}`;
+  const spec = currencyFor(currency);
+  return `${sign}${spec.symbol}${spec.compact(value)}`;
 }
 
 /** Returns "—" for missing or non-finite values instead of throwing on toFixed. */

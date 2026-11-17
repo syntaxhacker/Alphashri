@@ -67,7 +67,13 @@ vi.mock("@/ui", async () => {
   return mockSolidUi({ SegmentedControl, Chip });
 });
 
-import { DashboardView } from "./DashboardView";
+import {
+  DashboardView,
+  dashboardRowMarketCap,
+  formatDashboardMCap,
+  formatDashboardPrice,
+} from "./DashboardView";
+import { marketUniverseDescriptor } from "@/config/marketUniverses";
 
 const renderWithProvider = (ui: JSX.Element) => render(() => <UIProvider>{ui}</UIProvider>);
 
@@ -730,5 +736,115 @@ describe("DashboardView embedded", () => {
     expect(screen.getByTestId("dashboard-refresh")).toBeInTheDocument();
     expect(screen.getByTestId("screener-dashboard")).toHaveTextContent("500 stocks · as of");
     expect(screen.getByTestId("dashboard-toolbar")).toBeInTheDocument();
+  });
+});
+
+describe("DashboardView currency descriptor", () => {
+  const india = marketUniverseDescriptor("nifty500");
+  const usa = marketUniverseDescriptor("us");
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+  });
+
+  function currencyPayload(universe: string, row: ScreenerDashboardRow): ScreenerDashboardResponse {
+    return {
+      universe,
+      as_of: "2026-11-16T10:00:00+05:30",
+      total: 1,
+      sections: [
+        {
+          id: "movers",
+          title: "Market Movers",
+          panels: [
+            {
+              id: "gainers",
+              title: "Top gainers",
+              metric_label: "Change %",
+              qualify: 1,
+              rows: [row],
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  it("keeps India price and mcap formatting byte-identical", async () => {
+    mockFetchScreenerDashboard.mockResolvedValue(
+      currencyPayload(
+        "nifty500",
+        row({
+          symbol: "INDIAGLYCO",
+          close: 382.7,
+          rsi: 62.4,
+          vwap: 375.5,
+          atr: 8.25,
+          price_52_week_high: 410.0,
+          market_cap_cr: 1200,
+        }),
+      ),
+    );
+    renderWithProvider(<DashboardView universe="nifty500" />);
+    const rowEl = await screen.findByTestId("dashboard-row-gainers-INDIAGLYCO");
+    expect(rowEl).toHaveTextContent("₹382.70");
+
+    fireEvent.click(screen.getByTestId("dashboard-row-expand-gainers-INDIAGLYCO"));
+    const detail = await screen.findByTestId("dashboard-row-detail-gainers-INDIAGLYCO");
+    expect(detail).toHaveTextContent("₹410.00");
+    expect(detail).toHaveTextContent("₹8.25");
+    expect(detail).toHaveTextContent("₹375.50");
+    expect(detail).toHaveTextContent("₹1.2K Cr");
+  });
+
+  it("renders $ prices and a $…B mcap for a USD row in the us universe", async () => {
+    mockFetchScreenerDashboard.mockResolvedValue(
+      currencyPayload(
+        "us",
+        row({
+          symbol: "AAPL",
+          close: 189.5,
+          currency: "USD",
+          marketCapUsdB: 250,
+          rsi: 62.4,
+          vwap: 187.5,
+          atr: 2.25,
+          price_52_week_high: 200.0,
+        }),
+      ),
+    );
+    renderWithProvider(<DashboardView universe="us" />);
+    const rowEl = await screen.findByTestId("dashboard-row-gainers-AAPL");
+    expect(rowEl).toHaveTextContent("$189.50");
+    expect(rowEl).not.toHaveTextContent("₹");
+
+    fireEvent.click(screen.getByTestId("dashboard-row-expand-gainers-AAPL"));
+    const detail = await screen.findByTestId("dashboard-row-detail-gainers-AAPL");
+    expect(detail).toHaveTextContent("$200.00");
+    expect(detail).toHaveTextContent("$2.25");
+    expect(detail).toHaveTextContent("$187.50");
+    expect(detail).toHaveTextContent("$250 B");
+    expect(detail).not.toHaveTextContent("₹");
+    expect(detail).not.toHaveTextContent("Cr");
+  });
+
+  it("reads the cap from the descriptor's field and formats per currency", () => {
+    const usRow = row({ marketCapUsdB: 2950, market_cap_cr: 999, currency: "USD" });
+    const inrRow = row({ market_cap_cr: 1200, marketCapUsdB: 2950 });
+
+    expect(dashboardRowMarketCap(usRow, usa)).toBe(2950);
+    expect(dashboardRowMarketCap(inrRow, india)).toBe(1200);
+    expect(formatDashboardPrice(382.7, india)).toBe("₹382.70");
+    expect(formatDashboardPrice(189.5, usa)).toBe("$189.50");
+    expect(formatDashboardMCap(null, usa)).toBe("—");
+    expect(formatDashboardMCap(250, usa)).toBe("$250 B");
+    expect(formatDashboardMCap(2950, usa)).toBe("$3.0K B");
+    expect(formatDashboardMCap(1200, india)).toBe("₹1.2K Cr");
   });
 });

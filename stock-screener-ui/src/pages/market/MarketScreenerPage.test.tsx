@@ -2,19 +2,60 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor } from "@solidjs/testing-library";
+import type { JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 
 vi.setConfig({ testTimeout: 15000 });
+
+// MarketScreenerPanel calls useNavigate; render has no Router. Mock it at the
+// module edge while preserving the rest of the router's exports.
+vi.mock("@solidjs/router", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return { ...actual, useNavigate: () => vi.fn() };
+});
+
 import { MarketScreenerPage } from "./MarketScreenerPage";
 import { useMarketSnapshotSolid } from "../../components/market/useMarketSnapshotSolid";
 import type { MarketRow } from "../../types/marketScreener";
 import type { UseMarketSnapshotResult } from "../../components/market/useMarketSnapshotSolid";
+import { defaultMarketConfig, serializeMarketConfig } from "../../components/market/useMarketConfig";
+import type { ScreenerDashboardResponse } from "../../types/screenerDashboard";
+import { fetchScreenerDashboard } from "../../api/screenerDashboard";
+import { getUserConfig, putUserConfig, deleteUserConfig } from "../../api/userConfigs";
 
 vi.mock("../../components/market/useMarketSnapshotSolid", () => ({
   useMarketSnapshotSolid: vi.fn(),
 }));
 
 const mockUseMarketSnapshot = vi.mocked(useMarketSnapshotSolid);
+
+const mockLookupPatterns = vi.hoisted(() => vi.fn());
+vi.mock("../../api/patternLookup", () => ({
+  PATTERN_LOOKUP_MAX_SYMBOLS: 500,
+  lookupPatterns: mockLookupPatterns,
+}));
+
+vi.mock("../../api/screenerDashboard", () => ({ fetchScreenerDashboard: vi.fn() }));
+const mockFetchDashboard = vi.mocked(fetchScreenerDashboard);
+
+vi.mock("../../api/userConfigs", () => ({
+  getUserConfig: vi.fn(),
+  putUserConfig: vi.fn(),
+  deleteUserConfig: vi.fn(),
+  UserConfigError: class UserConfigError extends Error {
+    status = 0;
+    code = "";
+    payload = undefined;
+  },
+}));
+const mockGetUserConfig = vi.mocked(getUserConfig);
+const mockPutUserConfig = vi.mocked(putUserConfig);
+const mockDeleteUserConfig = vi.mocked(deleteUserConfig);
+
+vi.mock("../../utils/loadEcharts", () => {
+  const chart = { setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn(), on: vi.fn() };
+  return { loadEcharts: vi.fn(async () => ({ init: vi.fn(() => chart) })) };
+});
 
 function row(symbol: string, overrides: Partial<MarketRow> = {}): MarketRow {
   return {
@@ -37,6 +78,10 @@ function row(symbol: string, overrides: Partial<MarketRow> = {}): MarketRow {
     high52w: 120,
     low52w: 60,
     pos52w: 66,
+    peRatio: null,
+    pbRatio: null,
+    dividendYield: null,
+    roe: null,
     fno: false,
     etf: false,
     ...overrides,
@@ -108,15 +153,8 @@ function hookResult(overrides: Partial<UseMarketSnapshotResult> = {}): UseMarket
   };
 }
 
-// The @/ui Box/Flex/... stubs from src/pages/solidTestStubs.tsx render as
-// intrinsic elements; page tests exercise page wiring, not the theme runtime.
-vi.mock("@/ui", async (importOriginal) => {
-  const { uiLayoutStub } = await import("@/pages/solidTestStubs");
-  return uiLayoutStub(await importOriginal<Record<string, unknown>>());
-});
-
-function r(jsx: unknown) {
-  return render(() => <UIProvider>{jsx as never}</UIProvider>);
+function r(jsx: () => JSX.Element) {
+  return render(() => <UIProvider>{jsx()}</UIProvider>);
 }
 
 afterEach(cleanup);
@@ -124,11 +162,39 @@ afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
   mockUseMarketSnapshot.mockReturnValue(hookResult());
+  mockLookupPatterns.mockResolvedValue({
+    timeframe: "1D",
+    session: "2026-11-16",
+    source: "stored",
+    data_through: "2026-11-14",
+    items: [],
+  });
+  mockFetchDashboard.mockResolvedValue({
+    sections: [],
+    universe: "nifty500",
+    as_of: new Date().toISOString(),
+    total: 0,
+  } as ScreenerDashboardResponse);
+  mockGetUserConfig.mockResolvedValue({
+    scope: "market.filters",
+    version: 1,
+    saved: false,
+    updated_at: null,
+    config: serializeMarketConfig(defaultMarketConfig()),
+  });
+  mockPutUserConfig.mockImplementation(async (_scope, config) => ({
+    scope: "market.filters",
+    version: 1,
+    saved: true,
+    updated_at: "2026-11-15T09:41:22.192Z",
+    config,
+  }));
+  mockDeleteUserConfig.mockResolvedValue({ scope: "market.filters", deleted: true });
 });
 
 describe("MarketScreenerPage", () => {
   test("renders the market screener shell with rows", () => {
-    r(<MarketScreenerPage />);
+    r(() => <MarketScreenerPage />);
     expect(screen.getByTestId("market-screener")).toBeInTheDocument();
     expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
     expect(screen.getByTestId("market-row-MPHASIS")).toBeInTheDocument();
@@ -142,7 +208,7 @@ describe("MarketScreenerPage", () => {
     mockUseMarketSnapshot.mockReturnValue(
       hookResult({ isLoading: () => true, rows: () => [], total: () => 0, snapshot: () => null }),
     );
-    r(<MarketScreenerPage />);
+    r(() => <MarketScreenerPage />);
     expect(screen.getByTestId("market-skeleton")).toBeInTheDocument();
     expect(screen.queryByTestId("market-grid")).not.toBeInTheDocument();
   });
@@ -158,7 +224,7 @@ describe("MarketScreenerPage", () => {
         refresh,
       }),
     );
-    r(<MarketScreenerPage />);
+    r(() => <MarketScreenerPage />);
     expect(screen.getByTestId("market-error")).toBeInTheDocument();
     expect(screen.getByTestId("market-error-message")).toHaveTextContent("snapshot 503");
     fireEvent.click(screen.getByTestId("market-retry"));
@@ -170,7 +236,7 @@ describe("MarketScreenerPage", () => {
     mockUseMarketSnapshot.mockReturnValue(
       hookResult({ error: () => new Error("refresh 503"), refresh }),
     );
-    r(<MarketScreenerPage />);
+    r(() => <MarketScreenerPage />);
     expect(screen.getByTestId("market-error-banner")).toBeInTheDocument();
     expect(screen.getByTestId("market-error-banner-message")).toHaveTextContent("refresh 503");
     expect(screen.getByTestId("market-grid")).toBeInTheDocument();
@@ -180,8 +246,8 @@ describe("MarketScreenerPage", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  test("switching universe resets filters and search", async () => {
-    r(<MarketScreenerPage />);
+  test("switching universe keeps unit-neutral filters but clears search", async () => {
+    r(() => <MarketScreenerPage />);
     const rsiInput = screen
       .getByTestId("market-filter-rsi-min")
       .querySelector("input") as HTMLInputElement;
@@ -193,19 +259,18 @@ describe("MarketScreenerPage", () => {
     const combobox = screen.getByTestId("market-universe-select").querySelector('[role="combobox"]') as HTMLInputElement;
     fireEvent.focus(combobox);
     fireEvent.mouseDown(await screen.findByRole("option", { name: "F&O" }));
-    await waitFor(() =>
-      expect(screen.queryByTestId("market-filter-chip-rsi")).not.toBeInTheDocument(),
-    );
+    await waitFor(() => expect(mockUseMarketSnapshot.mock.calls.at(-1)?.[0]()).toBe("nse_fo"));
+    expect(screen.getByTestId("market-filter-chip-rsi")).toBeInTheDocument();
     expect(screen.queryByTestId("market-filter-chip-search")).not.toBeInTheDocument();
     expect(screen.getByTestId("market-search")).toHaveValue("");
     expect(
       (screen.getByTestId("market-filter-rsi-min").querySelector("input") as HTMLInputElement).value,
-    ).toBe("");
-    expect(screen.getByTestId("market-result-count")).toHaveTextContent("3 / 3");
+    ).toBe("58");
+    expect(screen.getByTestId("market-result-count")).toHaveTextContent("1 / 3");
   });
 
   test("RSI filter reduces the rows and updates the count + chip", async () => {
-    r(<MarketScreenerPage />);
+    r(() => <MarketScreenerPage />);
     const input = screen
       .getByTestId("market-filter-rsi-min")
       .querySelector("input") as HTMLInputElement;
@@ -220,7 +285,7 @@ describe("MarketScreenerPage", () => {
   });
 
   test("cap tier + RSI combined filters narrow to zero rows and reset restores", async () => {
-    r(<MarketScreenerPage />);
+    r(() => <MarketScreenerPage />);
     const input = screen
       .getByTestId("market-filter-rsi-min")
       .querySelector("input") as HTMLInputElement;
@@ -238,7 +303,7 @@ describe("MarketScreenerPage", () => {
   });
 
   test("search narrows rows via the deferred query", async () => {
-    r(<MarketScreenerPage />);
+    r(() => <MarketScreenerPage />);
     fireEvent.input(screen.getByTestId("market-search"), { target: { value: "reliance" } });
     await waitFor(() =>
       expect(screen.queryByTestId("market-row-MPHASIS")).not.toBeInTheDocument(),
@@ -249,7 +314,7 @@ describe("MarketScreenerPage", () => {
   });
 
   test("removing the search chip restores the rows", async () => {
-    r(<MarketScreenerPage />);
+    r(() => <MarketScreenerPage />);
     fireEvent.input(screen.getByTestId("market-search"), { target: { value: "reliance" } });
     await waitFor(() =>
       expect(screen.queryByTestId("market-row-MPHASIS")).not.toBeInTheDocument(),
@@ -260,7 +325,7 @@ describe("MarketScreenerPage", () => {
   });
 
   test("reset button clears filters and search", async () => {
-    r(<MarketScreenerPage />);
+    r(() => <MarketScreenerPage />);
     const input = screen
       .getByTestId("market-filter-rsi-min")
       .querySelector("input") as HTMLInputElement;
@@ -278,7 +343,7 @@ describe("MarketScreenerPage", () => {
   });
 
   test("universe select drives useMarketSnapshot", async () => {
-    r(<MarketScreenerPage />);
+    r(() => <MarketScreenerPage />);
     const combobox = screen.getByTestId("market-universe-select").querySelector('[role="combobox"]') as HTMLInputElement;
     fireEvent.focus(combobox);
     fireEvent.mouseDown(await screen.findByRole("option", { name: "F&O" }));
@@ -289,18 +354,18 @@ describe("MarketScreenerPage", () => {
 
   test("delayed update mode shows the Delayed badge, not Live", () => {
     mockUseMarketSnapshot.mockReturnValue(hookResult({ updateMode: () => "delayed_15m" }));
-    r(<MarketScreenerPage />);
+    r(() => <MarketScreenerPage />);
     expect(screen.getByTestId("market-mode-badge")).toHaveTextContent("Delayed");
   });
 
   test("row click selects it (selected styling hook fires without crashing)", async () => {
-    r(<MarketScreenerPage />);
+    r(() => <MarketScreenerPage />);
     fireEvent.click(screen.getByTestId("market-row-RELIANCE"));
     expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
   });
 
   test("rail collapse hides the rail panel", async () => {
-    r(<MarketScreenerPage />);
+    r(() => <MarketScreenerPage />);
     expect(screen.getByTestId("market-rail-panel")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("market-rail-collapse"));
     expect(screen.queryByTestId("market-rail-panel")).not.toBeInTheDocument();
