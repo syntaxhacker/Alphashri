@@ -1,6 +1,6 @@
 import { Show, createMemo } from "solid-js";
 import type { JSX } from "solid-js";
-import { Box, Button } from "@/ui";
+import { Box, Button, useMediaQuery } from "@/ui";
 import * as palette from "@/ui/palette";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { AnimatedValue } from "@/components/common/AnimatedValue";
@@ -107,8 +107,47 @@ const TAPE_BADGE_STYLE: JSX.CSSProperties = {
   "white-space": "nowrap",
 };
 
+/** Verdict-wrap geometry. Narrow screens stack the chips and the plan line
+ *  instead of clipping them mid-word; desktop keeps the original 24px row. */
+export function verdictWrapLayout(narrow: boolean) {
+  return {
+    wrap: narrow,
+    direction: narrow ? ("column" as const) : ("row" as const),
+    height: narrow ? "auto" : "24px",
+    minHeight: "24px",
+    overflow: narrow ? "visible" : "hidden",
+  };
+}
+
+/** The plan headline is a deliberate single line with ellipsis on desktop.
+ *  On a phone it wraps instead — an ellipsis cut through a number is a
+ *  misleading readout, not a truncation strategy. */
+export function planHeadlineStyle(narrow: boolean): JSX.CSSProperties {
+  return narrow
+    ? {
+        ...PLAN_HEADLINE_STYLE,
+        "white-space": "normal",
+        overflow: "visible",
+        "text-overflow": "clip",
+        "line-height": "1.2",
+      }
+    : { ...PLAN_HEADLINE_STYLE };
+}
+
+// The verdict strip owns its own layout; these overrides let it wrap its
+// compact cells two-per-row on a phone without editing that component.
+const VERDICT_NARROW_OVERRIDES = [
+  "max-[600px]:[&_[data-testid='nifty-verdict-strip']]:flex-wrap",
+  "max-[600px]:[&_[data-testid='nifty-verdict-strip']]:h-auto",
+  "max-[600px]:[&_[data-testid='nifty-verdict-strip']]:overflow-visible",
+  "max-[600px]:[&_[data-testid='nifty-verdict-strip']>*]:flex-none",
+  "max-[600px]:[&_[data-testid='nifty-verdict-strip']>*]:w-1/2",
+].join(" ");
+
 export function ReportDecisionStrip() {
   const store = useNiftyReport();
+  const narrow = useMediaQuery("(max-width: 600px)");
+  const wrapLayout = () => verdictWrapLayout(narrow());
 
   const report = () => store.data.report();
   const metrics = () => store.data.metrics();
@@ -298,7 +337,7 @@ export function ReportDecisionStrip() {
           data-testid="nifty-plan-headline"
           title={`${summary.action} · confidence ${summary.confidence}%`}
           className="min-w-0"
-          style={{ ...PLAN_HEADLINE_STYLE, color: planTone() }}
+          style={{ ...planHeadlineStyle(narrow()), color: planTone() }}
         >
           {summary.headline}
         </Box>
@@ -515,7 +554,12 @@ export function ReportDecisionStrip() {
         </Box>
         <Box
           data-testid="nifty-verdict-wrap"
-          className="flex items-center gap-1 min-w-0 h-6 overflow-hidden"
+          className={`flex gap-1 min-w-0 ${wrapLayout().direction === "column" ? "flex-col items-stretch flex-wrap py-0.5" : "flex-nowrap items-center"} ${VERDICT_NARROW_OVERRIDES}`}
+          style={{
+            height: wrapLayout().height,
+            "min-height": wrapLayout().minHeight,
+            overflow: wrapLayout().overflow,
+          }}
         >
           <Box className="flex-[1_1_0] min-w-0 flex">
             <NiftyVerdictStrip report={report()!} mode="context" />
@@ -558,7 +602,7 @@ export function ReportDecisionStrip() {
       <Show when={!isDesk()}>
         <Box
           data-testid="nifty-context-rail"
-          className="flex items-stretch gap-0.5 w-full max-w-full min-w-0 shrink-0"
+          className="flex items-stretch gap-0.5 w-full max-w-full min-w-0 shrink-0 max-[600px]:flex-col max-[600px]:[&>*]:flex-none max-[600px]:[&>*]:w-full"
         >
           <Show when={planLine != null}>
             <Box className="flex-[38_1_0] min-w-0 flex [&>*]:w-full [&>*]:min-w-0">

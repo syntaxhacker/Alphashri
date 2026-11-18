@@ -6,6 +6,20 @@ import * as palette from "@/ui/palette";
 
 export type DeskDockKey = "flow" | "setup" | "alerts" | "market" | "strips" | "analytics";
 
+/** Dock tab-bar geometry. A phone wraps tabs onto a second row and drops the
+ *  keyboard-only hint, so no tab (including DATA) is unreachable off-screen. */
+export function dockLayout(narrow: boolean) {
+  return {
+    wrap: narrow,
+    direction: "row" as const,
+    height: narrow ? "auto" : "26px",
+    minHeight: "26px",
+    overflowX: narrow ? "visible" : "auto",
+    overflowY: narrow ? "visible" : "hidden",
+    showHint: !narrow,
+  };
+}
+
 export interface DeskDockTab {
   key: DeskDockKey;
   label: string;
@@ -31,6 +45,7 @@ export function DeskDock(props: {
 }) {
   const active = () => props.active;
   const mobile = useMediaQuery("(max-width: 600px)");
+  const layout = () => dockLayout(mobile());
   const activeTab = () => props.tabs.find((tab) => tab.key === active()) ?? null;
 
   const toggle = (key: DeskDockKey) => props.onActiveChange(active() === key ? null : key);
@@ -67,7 +82,7 @@ export function DeskDock(props: {
           style={{
             padding: "1px 3px",
             "background-color": palette.NEGATIVE,
-            color: "#fff",
+            color: palette.TEXT_ON_ACCENT,
             "font-size": "7.5px",
             "font-weight": 800,
             "line-height": 1,
@@ -83,16 +98,18 @@ export function DeskDock(props: {
     <>
       <div
         data-testid="desk-dock"
-        class="sticky bottom-0 z-20 flex items-center gap-[2px] h-[26px] min-h-[26px] px-1 overflow-x-auto overflow-y-hidden"
+        class={`sticky bottom-0 z-20 flex shrink-0 items-center gap-[2px] px-1 ${layout().wrap ? "flex-wrap h-auto min-h-[26px] py-0.5 overflow-x-visible overflow-y-visible" : "h-[26px] min-h-[26px] overflow-x-auto overflow-y-hidden"}`}
         style={{
           "background-color": palette.TERM_HEADER,
           "border-top": `1px solid ${palette.TERM_BORDER}`,
         }}
       >
         <For each={props.tabs}>{(tab) => tabButton(tab, active() === tab.key)}</For>
-        <span class="ml-auto pr-1 whitespace-nowrap text-[7.5px]" style={{ color: palette.TEXT_MUTED }}>
-          ALT+1..{props.tabs.length} · ESC
-        </span>
+        <Show when={layout().showHint}>
+          <span class="ml-auto pr-1 whitespace-nowrap text-[7.5px]" style={{ color: palette.TEXT_MUTED }}>
+            ALT+1..{props.tabs.length} · ESC
+          </span>
+        </Show>
       </div>
 
       <Show when={activeTab()}>
@@ -122,7 +139,7 @@ export function DeskDock(props: {
           >
             <div class="flex flex-col h-full min-h-0">
               <div
-                class="flex items-center gap-[2px] h-[24px] min-h-[24px] px-1 border-b border-fin-border"
+                class="flex items-center gap-[2px] h-[24px] min-h-[24px] px-1 border-b border-fin-border overflow-x-auto"
                 style={{ "background-color": palette.TERM_HEADER }}
               >
                 <For each={props.tabs}>

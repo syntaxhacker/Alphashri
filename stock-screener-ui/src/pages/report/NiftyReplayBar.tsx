@@ -1,5 +1,5 @@
 import { createMemo, For, Show } from "solid-js";
-import { Button, Text } from "@/ui";
+import { Button, Text, useMediaQuery } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { NiftyReplay } from "@/types/niftyReport";
 import type { ReplayCoverage } from "./niftyReplayCoverage";
@@ -119,6 +119,21 @@ function ReplayCoverageStrip(props: {
   );
 }
 
+/** Replay bar geometry. Narrow screens wrap the readouts onto extra rows so a
+ *  value is never cut mid-number; desktop keeps the original single 24px row. */
+export function replayBarLayout(narrow: boolean) {
+  return {
+    wrap: narrow,
+    direction: "row" as const,
+    height: narrow ? "auto" : "24px",
+    minHeight: "24px",
+    overflowX: narrow ? "visible" : "hidden",
+    whiteSpace: "nowrap",
+    gapX: "16px",
+    gapY: narrow ? "2px" : "0",
+  };
+}
+
 interface NiftyReplayBarProps {
   replay: NiftyReplay;
   replayIndex: number;
@@ -135,6 +150,8 @@ interface NiftyReplayBarProps {
  * updates, so tick/stream pushes never rebuild the ~250-380 segment boxes.
  */
 export function NiftyReplayBar(props: NiftyReplayBarProps) {
+  const narrow = useMediaQuery("(max-width: 600px)");
+  const layout = () => replayBarLayout(narrow());
   const replay = () => props.replay;
   const replayIndex = () => props.replayIndex;
   const segments = createMemo(() => buildReplaySegments(replay(), props.coverage));
@@ -201,9 +218,13 @@ export function NiftyReplayBar(props: NiftyReplayBarProps) {
     <div
       data-testid="nifty-replay-bar"
       title={barTitle() || undefined}
-      class="flex items-center gap-4 whitespace-nowrap w-full max-w-full min-w-0 shrink-0 overflow-hidden"
+      class={`flex items-center whitespace-nowrap w-full max-w-full min-w-0 shrink-0 ${layout().wrap ? "flex-wrap" : "flex-nowrap"}`}
       style={{
-        height: "24px",
+        height: layout().height,
+        "min-height": layout().minHeight,
+        "column-gap": layout().gapX,
+        "row-gap": layout().gapY,
+        overflow: layout().overflowX,
         "border-top": `1px solid ${palette.TERM_BORDER}`,
         "padding-left": "8px",
         "padding-right": "8px",

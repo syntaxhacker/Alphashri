@@ -51,8 +51,11 @@ const DESK_TOGGLE_DATA: { value: string; label: string }[] = [
 const EXPIRY_SELECT_CLASS = "w-[104px] min-w-[104px] max-w-[104px] flex-none";
 const SYMBOL_SELECT_CLASS = "w-[116px] min-w-[116px] max-w-[116px] flex-none";
 
-const TOOLBAR_CLASS =
-  "flex items-center gap-1.5 flex-nowrap overflow-x-auto px-2 py-1 min-h-[30px] w-full max-w-full min-w-0 shrink-0 [&>*]:flex-none [&_[data-testid='nifty-updated-at']]:leading-[20px]";
+// Narrow screens wrap the primary controls onto a second row instead of
+// hiding them behind a horizontal scrollbar (a dead end for touch/keyboard).
+// The desktop single-row contract is preserved by the min-[1200px] variants.
+export const TOOLBAR_CLASS =
+  "flex flex-wrap items-center gap-1.5 px-2 py-1 min-h-[30px] w-full max-w-full min-w-0 shrink-0 [&>*]:flex-none min-[1200px]:flex-nowrap min-[1200px]:overflow-x-auto [&_[data-testid='nifty-updated-at']]:leading-[20px]";
 
 const GENERIC_EXPIRY_NOTE_STYLE: JSX.CSSProperties = {
   "font-size": "9px",
@@ -187,7 +190,7 @@ export function ReportToolbar(_props: { onOpenSymbol?: (s: string) => void }) {
             history = nearest expiry
           </span>
         </Show>
-        <Box className="flex-1 min-w-[8px]" />
+        <Box className="hidden min-[1200px]:block flex-1 min-w-[8px]" />
         <Suspense fallback={<Box style={SIM_BUTTON_FALLBACK_STYLE} />}>
           <SimDesk
             symbol={symbol()}

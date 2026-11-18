@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, For, Show, onCleanup } from "solid-js";
-import { Text } from "@/ui";
+import { Text, useMediaQuery } from "@/ui";
 import * as palette from "@/ui/palette";
 import { LocalPanelModal } from "./LocalPanelModal";
 import {
@@ -38,6 +38,20 @@ interface NiftyIntelStripProps {
 }
 
 type Status = "loading" | "ready" | "error";
+
+/** Intel-strip geometry. Desktop keeps the original 24px row but scrolls
+ *  horizontally instead of clipping the tail of a value; a phone wraps the
+ *  readouts onto extra rows. */
+export function intelStripLayout(narrow: boolean) {
+  return {
+    wrap: narrow,
+    direction: "row" as const,
+    height: narrow ? "auto" : "24px",
+    minHeight: "24px",
+    overflowX: narrow ? ("visible" as const) : ("auto" as const),
+    whiteSpace: "nowrap",
+  };
+}
 
 /** `FII` when the flows are today's, `FII·23` when they are a prior session's. */
 function sessionTag(label: string, flowDate: string | null, session: string): string {
@@ -251,6 +265,8 @@ function IntelBody(props: { intel: NiftyIntel; eod?: boolean }) {
  * the last good data and only the first failure shows `INTEL unavailable`.
  */
 export function NiftyIntelStrip(props: NiftyIntelStripProps) {
+  const narrow = useMediaQuery("(max-width: 600px)");
+  const layout = () => intelStripLayout(narrow());
   const [intelState, setIntel] = createSignal<NiftyIntel | null>(null);
   const [status, setStatus] = createSignal<Status>("loading");
   const [open, setOpen] = createSignal(false);
@@ -342,13 +358,17 @@ export function NiftyIntelStrip(props: NiftyIntelStripProps) {
         tabIndex={0}
         aria-label="Open Nifty intel — FII/DII, ΔOI, max pain, PCR and news"
         data-state={status()}
-        style={{ "height": "24px", "min-height": "24px" }}
+        style={{
+          "height": layout().height,
+          "min-height": layout().minHeight,
+          "overflow-x": layout().overflowX,
+        }}
         title={`Session ${data().date || INTEL_DASH} · expiry ${data().expiry || INTEL_DASH}${
           eod() ? " · latest session, not this frame" : ""
         }`}
         onClick={openModal}
         onKeyDown={onKeyDown}
-        class="flex items-center gap-1.5 h-[24px] min-h-[24px] shrink-0 px-2 border border-fin-border rounded-[4px] bg-fin-surface cursor-pointer overflow-hidden whitespace-nowrap font-mono hover:border-fin-text-muted focus-visible:outline-1 focus-visible:outline-fin-positive focus-visible:outline-offset-0"
+        class={`flex items-center gap-1 shrink-0 px-2 border border-fin-border rounded-[4px] bg-fin-surface cursor-pointer whitespace-nowrap font-mono hover:border-fin-text-muted focus-visible:outline-1 focus-visible:outline-fin-positive focus-visible:outline-offset-0 ${layout().wrap ? "flex-wrap h-auto min-h-[24px] py-0.5" : "h-[24px] min-h-[24px]"}`}
       >
         <span class="font-bold shrink-0 text-[11px] tracking-[0.08em]" style={{ color: palette.TEXT_MUTED }}>
           INTEL
