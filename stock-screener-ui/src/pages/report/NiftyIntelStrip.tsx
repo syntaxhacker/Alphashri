@@ -63,8 +63,8 @@ function Field(props: {
       class="inline-flex items-baseline gap-1 shrink-0 min-w-0"
       style={{ color: palette.TEXT_MUTED }}
     >
-      <span class="text-[9px] tracking-[0.04em]">{props.label}</span>
-      <span class="font-bold text-[10.5px] font-mono tabular-nums whitespace-nowrap" style={{ "color": props.tone }}>
+      <span class="text-[11px] tracking-[0.04em]">{props.label}</span>
+      <span class="font-bold text-[11px] font-mono tabular-nums whitespace-nowrap" style={{ "color": props.tone }}>
         {props.value}
       </span>
     </div>
@@ -210,7 +210,7 @@ function IntelBody(props: { intel: NiftyIntel; eod?: boolean }) {
                   class="flex items-baseline gap-1 py-[3px] border-b border-fin-border min-w-0"
                 >
                   <span
-                    class="shrink-0 w-[92px] text-[9px] font-mono tabular-nums"
+                    class="shrink-0 w-[92px] text-[11px] font-mono tabular-nums"
                     style={{ color: palette.TEXT_MUTED }}
                   >
                     {item.published}
@@ -350,7 +350,7 @@ export function NiftyIntelStrip(props: NiftyIntelStripProps) {
         onKeyDown={onKeyDown}
         class="flex items-center gap-1.5 h-[24px] min-h-[24px] shrink-0 px-2 border border-fin-border rounded-[4px] bg-fin-surface cursor-pointer overflow-hidden whitespace-nowrap font-mono hover:border-fin-text-muted focus-visible:outline-1 focus-visible:outline-fin-positive focus-visible:outline-offset-0"
       >
-        <span class="font-bold shrink-0 text-[9px] tracking-[0.08em]" style={{ color: palette.TEXT_MUTED }}>
+        <span class="font-bold shrink-0 text-[11px] tracking-[0.08em]" style={{ color: palette.TEXT_MUTED }}>
           INTEL
         </span>
         <Field
@@ -374,16 +374,16 @@ export function NiftyIntelStrip(props: NiftyIntelStripProps) {
           title="Official change in OI — call / put units (contracts × lot size)"
           class="flex items-baseline gap-1 shrink-0"
         >
-          <span class="text-[9px] tracking-[0.04em]" style={{ color: palette.TEXT_MUTED }}>
+          <span class="text-[11px] tracking-[0.04em]" style={{ color: palette.TEXT_MUTED }}>
             ΔOI (official) C
           </span>
-          <span class="font-bold text-[10.5px] font-mono tabular-nums" style={{ color: oiTone(data().dce_oi, "call", palette) }}>
+          <span class="font-bold text-[11px] font-mono tabular-nums" style={{ color: oiTone(data().dce_oi, "call", palette) }}>
             {fmtIntelOi(data().dce_oi)}
           </span>
-          <span class="text-[9px]" style={{ color: palette.TEXT_MUTED, opacity: 0.8 }}>
+          <span class="text-[11px]" style={{ color: palette.TEXT_MUTED, opacity: 0.8 }}>
             / P
           </span>
-          <span class="font-bold text-[10.5px] font-mono tabular-nums" style={{ color: oiTone(data().dpe_oi, "put", palette) }}>
+          <span class="font-bold text-[11px] font-mono tabular-nums" style={{ color: oiTone(data().dpe_oi, "put", palette) }}>
             {fmtIntelOi(data().dpe_oi)}
           </span>
         </div>
@@ -395,12 +395,12 @@ export function NiftyIntelStrip(props: NiftyIntelStripProps) {
         <div
           data-testid="nifty-intel-news"
           title={data().news.length ? data().news.map((n) => n.heading).join("\n") : "No headlines"}
-          class="text-[10px] font-mono tabular-nums shrink-0"
+          class="text-[11px] font-mono tabular-nums shrink-0"
           style={{ color: palette.TEXT_MUTED }}
         >
           {data().news.length ? `${data().news.length} news` : "no news"}
         </div>
-        <span aria-hidden class="ml-auto shrink-0 text-[10px]" style={{ color: palette.TEXT_MUTED }}>
+        <span aria-hidden class="ml-auto shrink-0 text-[11px]" style={{ color: palette.TEXT_MUTED }}>
           ▸
         </span>
       </div>

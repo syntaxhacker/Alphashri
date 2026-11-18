@@ -4,7 +4,7 @@ import { ActionIcon, useMediaQuery } from "@/ui";
 import { IconX } from "@/components/common/Icons";
 import * as palette from "@/ui/palette";
 
-export type DeskDockKey = "flow" | "setup" | "alerts" | "market";
+export type DeskDockKey = "flow" | "setup" | "alerts" | "market" | "strips" | "analytics";
 
 export interface DeskDockTab {
   key: DeskDockKey;

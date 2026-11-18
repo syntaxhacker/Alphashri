@@ -107,7 +107,7 @@ function PanelSkeleton(props: { h: number }) {
   );
 }
 
-export function ReportWorkspace() {
+export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
   const store = useNiftyReport();
 
   const isDesk = () => store.ui.isDesk();
@@ -245,6 +245,7 @@ export function ReportWorkspace() {
           );
         },
       },
+      ...(props.secondaryTabs ?? []),
     ];
   });
 
@@ -252,7 +253,8 @@ export function ReportWorkspace() {
     <>
       <Box
         data-testid="nifty-main-row"
-        className={`grid grid-cols-1 ${isDesk() ? "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,420px)]" : "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,624px)]"} grid-rows-[minmax(0,1fr)] gap-0 items-stretch w-full max-w-full min-w-0 flex-auto min-h-[300px] overflow-hidden`}
+        data-chart-primary={isDesk() && chartSize() === "fill" ? "true" : undefined}
+        className={`grid grid-cols-1 ${isDesk() ? "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,420px)]" : "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,624px)]"} grid-rows-[minmax(0,1fr)] gap-0 items-stretch w-full max-w-full min-w-0 flex-1 min-h-[300px] overflow-hidden`}
         style={{
           "max-height":
             isDesk() && chartSize() !== "fill" ? `${chartRowHeight()}px` : undefined,

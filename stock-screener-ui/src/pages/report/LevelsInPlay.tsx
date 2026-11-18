@@ -90,6 +90,9 @@ function confluenceLabel(
 
 function LevelInline(props: { side: "CE" | "PE"; level: LevelRead | null; rowLabel: string }) {
   const tone = props.side === "CE" ? palette.TERM_CE : palette.TERM_PE;
+  // A level AT spot is a barrier: a call wall caps (red), a put wall holds (green).
+  const atColor = props.side === "CE" ? palette.NEGATIVE : palette.POSITIVE;
+  const atTint = props.side === "CE" ? palette.TINT_NEGATIVE : palette.TINT_POSITIVE;
   const testId = `levels-${props.side.toLowerCase()}-${props.rowLabel}`;
   if (!props.level) {
     return (
@@ -139,9 +142,9 @@ function LevelInline(props: { side: "CE" | "PE"; level: LevelRead | null; rowLab
           "font-size": `${REPORT_FONT.sm}px`,
           "font-weight": 800,
           "line-height": 1,
-          color: props.level!.tag === "AT" ? palette.NEGATIVE : tone,
-          "background-color": props.level!.tag === "AT" ? palette.TINT_NEGATIVE : palette.SURFACE_ALT,
-          border: `1px solid ${props.level!.tag === "AT" ? palette.NEGATIVE : "transparent"}`,
+          color: props.level!.tag === "AT" ? atColor : tone,
+          "background-color": props.level!.tag === "AT" ? atTint : palette.SURFACE_ALT,
+          border: `1px solid ${props.level!.tag === "AT" ? atColor : "transparent"}`,
           "border-radius": "2px",
           padding: "0 3px",
         }}
@@ -155,7 +158,7 @@ function LevelInline(props: { side: "CE" | "PE"; level: LevelRead | null; rowLab
           "font-weight": 800,
           "letter-spacing": "0.2px",
           "line-height": 1,
-          color: props.level!.tag === "AT" ? palette.NEGATIVE : props.level!.tag === "NEAR" ? tone : palette.TEXT_MUTED,
+          color: props.level!.tag === "AT" ? atColor : props.level!.tag === "NEAR" ? tone : palette.TEXT_MUTED,
         }}
       >
         {props.level!.tag}

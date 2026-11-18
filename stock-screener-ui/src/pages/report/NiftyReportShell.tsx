@@ -1,8 +1,9 @@
-import { ErrorBoundary, Show, Suspense, lazy } from "solid-js";
+import { ErrorBoundary, Show, Suspense, createMemo, lazy } from "solid-js";
 import { Box } from "@/ui";
 import * as palette from "@/ui/palette";
 import { EmptyState, ErrorAlert, InlineLoader } from "@/components/common/states";
 import { ReportProvider, useNiftyReport } from "./ReportContext";
+import type { DeskDockTab } from "./DeskDock";
 import { ReportToolbar } from "./ReportToolbar";
 
 // Each report section owns its own lazy boundary: the shell chrome (toolbar,
@@ -61,6 +62,40 @@ function PanelSkeleton(props: { h: number }) {
 
 function ReportBody() {
   const store = useNiftyReport();
+  const isDesk = () => store.ui.isDesk();
+
+  // The desk surface keeps only the decision strip and the chart above the
+  // fold. Low-frequency bands that used to stack above the chart are one dock
+  // click away instead; research mode keeps its expanded reading layout.
+  const secondaryTabs = createMemo<DeskDockTab[]>(() => {
+    if (!isDesk()) return [];
+    return [
+      {
+        key: "strips",
+        label: "DESK",
+        summary: <span>walls · breadth</span>,
+        get content() {
+          return (
+            <Suspense fallback={<PanelSkeleton h={200} />}>
+              <ReportStrips />
+            </Suspense>
+          );
+        },
+      },
+      {
+        key: "analytics",
+        label: "DATA",
+        summary: <span>tape · flow</span>,
+        get content() {
+          return (
+            <Suspense fallback={<PanelSkeleton h={200} />}>
+              <ReportAnalytics />
+            </Suspense>
+          );
+        },
+      },
+    ];
+  });
 
   return (
     <Box
@@ -103,14 +138,15 @@ function ReportBody() {
         }
       >
         <Box
-          class="flex-1 min-h-0 flex flex-col gap-1 overflow-auto"
+          data-testid="nifty-report-content"
+          class={`flex-1 min-h-0 flex flex-col gap-1 ${isDesk() ? "overflow-hidden" : "overflow-auto"}`}
           style={{
             flex: 1,
             "min-height": "0px",
             display: "flex",
             "flex-direction": "column",
             gap: "4px",
-            overflow: "auto",
+            overflow: isDesk() ? "hidden" : "auto",
             padding: "4px",
           }}
         >
@@ -119,21 +155,23 @@ function ReportBody() {
               <ReportDecisionStrip />
             </Suspense>
           </ErrorBoundary>
-          <ErrorBoundary fallback={(err) => <SectionError name="desk strips" error={err} />}>
-            <Suspense fallback={<PanelSkeleton h={150} />}>
-              <ReportStrips />
-            </Suspense>
-          </ErrorBoundary>
           <ErrorBoundary fallback={(err) => <SectionError name="workspace" error={err} />}>
             <Suspense fallback={<PanelSkeleton h={320} />}>
-              <ReportWorkspace />
+              <ReportWorkspace secondaryTabs={secondaryTabs()} />
             </Suspense>
           </ErrorBoundary>
-          <ErrorBoundary fallback={(err) => <SectionError name="analytics" error={err} />}>
-            <Suspense fallback={<PanelSkeleton h={200} />}>
-              <ReportAnalytics />
-            </Suspense>
-          </ErrorBoundary>
+          <Show when={!isDesk()}>
+            <ErrorBoundary fallback={(err) => <SectionError name="desk strips" error={err} />}>
+              <Suspense fallback={<PanelSkeleton h={150} />}>
+                <ReportStrips />
+              </Suspense>
+            </ErrorBoundary>
+            <ErrorBoundary fallback={(err) => <SectionError name="analytics" error={err} />}>
+              <Suspense fallback={<PanelSkeleton h={200} />}>
+                <ReportAnalytics />
+              </Suspense>
+            </ErrorBoundary>
+          </Show>
         </Box>
       </Show>
 

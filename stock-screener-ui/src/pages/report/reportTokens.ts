@@ -6,7 +6,7 @@
 
 // Font sizes (px) — stepwise scale for report density
 export const REPORT_FONT = {
-  micro: 10,    // smallest labels, badges, timestamps
+  micro: 11,    // smallest labels, badges, timestamps
   xs: 11,       // section labels, table headers, chips
   xsPlus: 11.5, // intermediate: sequence/read/signal body copy
   sm: 12,       // body values, stat values, table cells

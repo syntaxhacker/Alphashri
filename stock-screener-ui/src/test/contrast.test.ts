@@ -115,6 +115,26 @@ describe("contrast — every semantic tint behind text", () => {
   });
 });
 
+describe("contrast — report level/OI tint pairs", () => {
+  it("keeps the walls new-OI cell ink readable at both ends of its alpha ramp", () => {
+    // newOiTint tints with LEVEL_MAX_PAIN between 6% and 12% over the panel.
+    for (const [name, alpha] of [["min", 0.06], ["max", 0.12]] as const) {
+      const bg = compositeOver(LEVEL_MAX_PAIN, SURFACE, alpha);
+      for (const [inkName, ink] of [["POSITIVE", POSITIVE], ["NEGATIVE", NEGATIVE], ["TEXT", TEXT]] as const) {
+        const ratio = contrastRatio(ink, bg);
+        expect(ratio, `${inkName} on LEVEL_MAX_PAIN@${name}=${alpha} = ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(AA_TEXT);
+      }
+    }
+  });
+
+  it("keeps an AT level's side ink readable on its own tint", () => {
+    const putAt = compositeOver(POSITIVE, SURFACE, 0.12);
+    const callAt = compositeOver(NEGATIVE, SURFACE, 0.12);
+    expect(contrastRatio(POSITIVE, putAt)).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(contrastRatio(NEGATIVE, callAt)).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+});
+
 describe("contrast — hostile input never throws", () => {
   const bad = [undefined, null, 42, {}, Number.NaN] as unknown as string[];
 

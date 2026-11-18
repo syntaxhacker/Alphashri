@@ -85,7 +85,6 @@ export function ReportAnalytics() {
 
   const report = () => store.data.report();
   const mode = () => store.selection.mode();
-  const isDesk = () => store.ui.isDesk();
   const tape = () => store.data.tape();
   const tapeRows = () => store.data.tapeRows();
   const migrationRows = () => tapeRows() as unknown as WallMigrationRow[];
@@ -168,7 +167,7 @@ export function ReportAnalytics() {
   const formatGexRes = (strike: number) => formatGexLevel(strike, gexTopRes()?.netGex ?? 0);
 
   return (
-    <Show when={!isDesk()}>
+    <>
       <CompactPanel flush title="OI · tick tape" testId="nifty-tape-panel" style={TAPE_PANEL_STYLE}>
         <Show
           when={tape() && tapeRows().length > 0}
@@ -436,6 +435,6 @@ export function ReportAnalytics() {
           </Box>
         </div>
       </Box>
-    </Show>
+    </>
   );
 }

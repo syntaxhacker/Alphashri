@@ -1,4 +1,5 @@
 import * as palette from "@/ui/palette";
+import { alpha } from "@/utils/color";
 import { formatReportNum, formatReportCompact, REPORT_MINUS, formatReportPct } from "./reportFormat";
 import type { WallsEvent, WallsRow } from "@/api/reportNifty";
 
@@ -55,8 +56,10 @@ export const fmtSignedOI = (value: number | null | undefined): string =>
 export const newOiTint = (value: number | null | undefined, rows: WallsRow[]): string => {
   if (value == null || !Number.isFinite(value) || value === 0) return "transparent";
   const max = Math.max(1, ...rows.map((row) => Math.abs(row.new_oi ?? 0)));
-  const alpha = 0.06 + 0.16 * Math.min(1, Math.abs(value) / max);
-  return value > 0 ? `rgba(22,163,74,${alpha})` : `rgba(220,38,38,${alpha})`;
+  // New OI is a magnitude, not a direction: one level token tints both signs.
+  // Capped at 12% — beyond that the cell's POSITIVE/NEGATIVE ink drops below 4.5:1.
+  const strength = 0.06 + 0.06 * Math.min(1, Math.abs(value) / max);
+  return alpha(palette.LEVEL_MAX_PAIN, strength);
 };
 
 /**

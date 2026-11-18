@@ -64,7 +64,7 @@ const DECISION_CELL_STYLE: JSX.CSSProperties = {
 };
 
 const DECISION_LABEL_STYLE: JSX.CSSProperties = {
-  "font-size": `${REPORT_FONT.xs - 1}px`,
+  "font-size": `${REPORT_FONT.micro}px`,
   "line-height": REPORT_LINE_HEIGHT.snug,
   "letter-spacing": REPORT_LETTER_SPACING.wide,
   "text-transform": "uppercase",
@@ -88,7 +88,7 @@ const CONTEXT_CELL_STYLE: JSX.CSSProperties = {
 };
 
 const CONTEXT_LABEL_STYLE: JSX.CSSProperties = {
-  "font-size": `${REPORT_FONT.xs - 1}px`,
+  "font-size": `${REPORT_FONT.micro}px`,
   "line-height": REPORT_LINE_HEIGHT.snug,
   "letter-spacing": REPORT_LETTER_SPACING.normal,
   "text-transform": "uppercase",
@@ -177,7 +177,7 @@ export function DecisionChip(props: {
         size="xs"
         fw={700}
         c="dimmed"
-        style={{ "font-size": "9px", "letter-spacing": "0.05em" }}
+        style={{ "font-size": "11px", "letter-spacing": "0.05em" }}
       >
         {props.label}
       </Text>
@@ -186,7 +186,7 @@ export function DecisionChip(props: {
         size="xs"
         fw={700}
         style={{
-          "font-size": "9px",
+          "font-size": "11px",
           color: props.tone ?? palette.TEXT,
           "font-variant-numeric": "tabular-nums",
         }}
@@ -346,7 +346,7 @@ export function wallTag(
           "flex-shrink": 0,
         }}
       />
-      <Text size="xs" span fw={700} style={{ "font-size": "9px", color }}>
+      <Text size="xs" span fw={700} style={{ "font-size": "11px", color }}>
         {code}
       </Text>
     </span>
@@ -435,7 +435,7 @@ export function legChangeCell(leg: NiftyStrike["ce"], legHue: string): JSX.Eleme
         {pointsText}
       </Text>
       <Show when={pctText}>
-        <Text size="xs" span c="dimmed" style={{ "font-size": "10px" }}>
+        <Text size="xs" span c="dimmed" style={{ "font-size": "11px" }}>
           {" "}
           {pctText}
         </Text>
