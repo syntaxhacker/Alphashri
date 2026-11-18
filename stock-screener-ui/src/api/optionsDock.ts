@@ -11,6 +11,7 @@
  */
 
 import { fetchWithAuth } from "../state/auth";
+import { ApiError, retryAfterMsOf, type ApiErrorKind } from "./apiError";
 import { API_BASE } from "./config";
 import { finiteNumber } from "./wireParse";
 
@@ -41,19 +42,23 @@ export interface UnderlyingInfo {
   marketState: "open" | "closed" | "pre_open";
 }
 
-export type DockErrorKind = "not_fno" | "auth" | "rate_limited" | "upstream" | "network" | "timeout";
+export type DockErrorKind = Extract<
+  ApiErrorKind,
+  "not_fno" | "auth" | "rate_limited" | "upstream" | "network" | "timeout"
+>;
 
-export class OptionDockError extends Error {
-  readonly kind: DockErrorKind;
-  readonly status: number | null;
-  readonly retryAfterMs: number | null;
+/** Kept as a named export for existing panels; now a shared-contract subclass. */
+export class OptionDockError extends ApiError {
+  declare readonly kind: DockErrorKind;
 
-  constructor(kind: DockErrorKind, message: string, status: number | null = null, retryAfterMs: number | null = null) {
-    super(message);
+  constructor(
+    kind: DockErrorKind,
+    message: string,
+    status: number | null = null,
+    retryAfterMs: number | null = null,
+  ) {
+    super(message, status, retryAfterMs, kind);
     this.name = "OptionDockError";
-    this.kind = kind;
-    this.status = status;
-    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -360,15 +365,6 @@ export function normalizeChain(raw: RawChainResponse | null | undefined): Option
     asOf: typeof raw?.timestamp === "string" ? raw.timestamp : null,
     levels: normalizeLevels(raw?.levels),
   };
-}
-
-function retryAfterMsOf(response: Response): number | null {
-  const header = response.headers?.get?.("Retry-After");
-  if (header) {
-    const seconds = Number(header);
-    if (Number.isFinite(seconds) && seconds >= 0) return Math.round(seconds * 1000);
-  }
-  return null;
 }
 
 async function readDetail(response: Response): Promise<{ code: string; detail: string }> {

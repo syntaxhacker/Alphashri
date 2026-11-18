@@ -419,8 +419,8 @@ export function TradingViewChart(props: TradingViewChartProps) {
       /* Candle bodies must be directional. `MARKER_BORDER` is the white
        * outline for entry/exit markers, and painting a bullish body with it
        * rendered a solid white block on the black chart; the bearish colour
-       * was `SCALE_BLUE[6]` (#35598A), a near-black step of the sequential
-       * ramp that has nothing to do with direction. */
+       * was `SCALE_BLUE[6]`, a near-black step of the sequential ramp that
+       * says nothing about direction. */
       bull: nt ? palette.NT_CANDLE_BULL : palette.POSITIVE,
       bear: nt ? palette.NT_CANDLE_BEAR : palette.NEGATIVE,
       volMuted: withAlpha(palette.TEXT_MUTED, 0.3),

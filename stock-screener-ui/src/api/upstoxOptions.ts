@@ -1,6 +1,7 @@
 import { fetchWithAuth } from "../state/auth";
 
 import { API_BASE } from "@/api/config";
+import { ApiError, retryAfterMsOf } from "./apiError";
 import { dedupeInFlight } from "./requestDedupe";
 
 export interface OptionGreeks {
@@ -129,25 +130,14 @@ export type PositioningResponse = import("../utils/positioning").PositioningData
   mode?: string;
 };
 
-export class PositioningApiError extends Error {
-  status: number;
-  /** Only set for 429, from the Retry-After header; null otherwise. */
-  retryAfterMs: number | null;
-  constructor(message: string, status: number, retryAfterMs: number | null = null) {
-    super(message);
-    this.name = "PositioningApiError";
-    this.status = status;
-    this.retryAfterMs = retryAfterMs;
-  }
-}
+/** Kept as a named export for existing panels; now a shared-contract subclass. */
+export class PositioningApiError extends ApiError {
+  declare readonly status: number;
 
-function retryAfterMsOf(response: Response): number | null {
-  const header = response.headers?.get?.("Retry-After");
-  if (header) {
-    const seconds = Number(header);
-    if (Number.isFinite(seconds) && seconds >= 0) return Math.round(seconds * 1000);
+  constructor(message: string, status: number, retryAfterMs: number | null = null) {
+    super(message, status, retryAfterMs);
+    this.name = "PositioningApiError";
   }
-  return null;
 }
 
 export async function getPositioning(

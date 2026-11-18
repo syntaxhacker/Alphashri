@@ -10,6 +10,7 @@ vi.mock("../state/auth", () => ({
 }));
 
 import { fetchWithAuth } from "../state/auth";
+import { ApiError } from "./apiError";
 import {
   fetchNews,
   fetchArticle,
@@ -101,24 +102,55 @@ describe("fetchNews", () => {
     expect(result).toEqual([]);
   });
 
-  it("returns empty array on non-ok response", async () => {
+  it("throws a typed ApiError (401/unauthorized) on a non-ok response", async () => {
     mockedFetch.mockResolvedValue({
       ok: false,
-      statusText: "Not Found",
-      json: async () => ({}),
+      status: 401,
+      json: async () => ({ detail: "Session expired" }),
     } as Response);
 
-    const result = await fetchNews();
+    const err = await fetchNews().catch((e: unknown) => e);
 
-    expect(result).toEqual([]);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ status: 401, kind: "unauthorized", message: "Session expired" });
   });
 
-  it("returns empty array on network error", async () => {
+  it("throws a typed ApiError (network) on transport failure", async () => {
     mockedFetch.mockRejectedValue(new Error("Network error"));
 
-    const result = await fetchNews();
+    const err = await fetchNews().catch((e: unknown) => e);
 
-    expect(result).toEqual([]);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ kind: "network" });
+    expect((err as ApiError).message).toBe("Network error");
+  });
+
+  it("rethrows an AbortError unchanged instead of swallowing it", async () => {
+    const abort = new DOMException("Aborted", "AbortError");
+    mockedFetch.mockRejectedValue(abort);
+
+    await expect(fetchNews()).rejects.toBe(abort);
+  });
+
+  it("forwards an AbortSignal to fetchWithAuth when one is supplied", async () => {
+    mockedFetch.mockResolvedValue({ ok: true, json: async () => ({ items: [] }) } as Response);
+    const controller = new AbortController();
+
+    await fetchNews(undefined, 25, controller.signal);
+
+    expect(mockedFetch.mock.calls[0][1]).toEqual({ signal: controller.signal });
+  });
+
+  it("returns byte-identical success data with a signal supplied", async () => {
+    const items = [
+      { id: 1, title: "News 1" },
+      { id: 2, title: "News 2" },
+    ];
+    mockedFetch.mockResolvedValue({ ok: true, json: async () => ({ items }) } as Response);
+
+    const result = await fetchNews(undefined, 50, new AbortController().signal);
+
+    expect(result).toEqual(items);
   });
 });
 

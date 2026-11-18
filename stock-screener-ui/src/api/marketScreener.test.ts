@@ -16,6 +16,7 @@ import { MARKET_ROW_CAP, MARKET_SYMBOL_CAP } from "../config/apiLimits";
 import { MARKET_UNIVERSE_DESCRIPTORS } from "../config/marketUniverses";
 import type { MarketSnapshot } from "../types/marketScreener";
 import { fetchWithAuth } from "../state/auth";
+import { ApiError } from "./apiError";
 
 vi.mock("../state/auth", () => ({
   fetchWithAuth: vi.fn(),
@@ -846,5 +847,33 @@ describe("snapshot cache (sessionStorage)", () => {
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw as string) as Record<string, unknown>;
     expect(Object.keys(parsed).sort()).toEqual(["asOf", "rows", "total", "universe", "updateMode"]);
+  });
+});
+
+describe("fetchMarketSnapshot typed errors", () => {
+  test("a 401 throws an ApiError with status and unauthorized kind", async () => {
+    mockFetchWithAuth.mockResolvedValue(
+      new Response(JSON.stringify({ detail: "Not authenticated" }), { status: 401 }),
+    );
+
+    const error = await fetchMarketSnapshot().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(401);
+    expect((error as ApiError).kind).toBe("unauthorized");
+    expect((error as ApiError).message).toBe("Not authenticated");
+  });
+
+  test("a 429 carries retryAfterMs from the Retry-After header", async () => {
+    mockFetchWithAuth.mockResolvedValue(
+      new Response(JSON.stringify({ detail: "Slow down" }), {
+        status: 429,
+        headers: { "Retry-After": "15" },
+      }),
+    );
+
+    const error = await fetchMarketSnapshot().catch((e: unknown) => e);
+    expect((error as ApiError).status).toBe(429);
+    expect((error as ApiError).kind).toBe("rate_limited");
+    expect((error as ApiError).retryAfterMs).toBe(15_000);
   });
 });

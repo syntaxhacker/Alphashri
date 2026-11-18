@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 vi.mock("../state/auth", async () => (await import("./apiTestMocks")).fetchWithAuthModuleMock());
 
 import { fetchWithAuth } from "../state/auth";
+import { ApiError } from "./apiError";
 import {
   QueueFullError,
   buildPatternsQuery,
@@ -555,5 +556,41 @@ describe("startScan extended body + 429 fallbacks", () => {
     expect(err.name).toBe("QueueFullError");
     expect(err.queueSize).toBeNull();
     expect(err.maxQueue).toBeNull();
+  });
+});
+
+describe("typed API errors (getJson / startScan)", () => {
+  it("(c) a 401 from getJson throws an ApiError with kind unauthorized (not network)", async () => {
+    mockedFetch.mockResolvedValue(errorResponse(401, { detail: "Session expired" }));
+
+    const err = await fetchTimeframes().catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ status: 401, kind: "unauthorized", message: "Session expired" });
+  });
+
+  it("a 401 from startScan throws the same typed ApiError", async () => {
+    mockedFetch.mockResolvedValue(errorResponse(401, { detail: "Session expired" }));
+
+    const err = await startScan({ universe: "nifty500", timeframe: "1D" }).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ status: 401, kind: "unauthorized" });
+    expect((err as ApiError).message).toBe("Session expired");
+  });
+
+  it("a 500 from getJson is kind server (not network)", async () => {
+    mockedFetch.mockResolvedValue(errorResponse(500, { detail: "boom" }));
+
+    const err = await fetchTimeframes().catch((e: unknown) => e);
+
+    expect(err).toMatchObject({ status: 500, kind: "server" });
+  });
+
+  it("(d) a successful getJson returns byte-identical data", async () => {
+    const payload = { timeframes: [{ id: "1D", label: "1D" }] };
+    mockedFetch.mockResolvedValue(okResponse(payload));
+
+    await expect(fetchTimeframes()).resolves.toEqual(payload.timeframes);
   });
 });
