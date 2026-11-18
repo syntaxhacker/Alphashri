@@ -17,6 +17,7 @@ Usage:
     df = fetch_candles_for_timeframe("INFY", "15m", lookback_bars=60)
 """
 
+import logging
 import math
 import sys
 from pathlib import Path
@@ -24,6 +25,8 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 _BASE = str(Path(__file__).parent.parent)
 sys.path.insert(0, str(Path(_BASE).parent))  # for upstox_trader
@@ -324,7 +327,11 @@ def fetch_candles_for_timeframe(
                     api, sym, df, today_str,
                     include_partial_today=bool(include_partial_today),
                 )
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "candle fetch failed symbol=%s timeframe=%s from=%s to=%s error=%s",
+            symbol, timeframe, eff_from, eff_to, exc,
+        )
         return None
 
     if df is None or df.empty:
@@ -479,7 +486,14 @@ def _fetch_historical_window(
             to_date=to_date,
             from_date=from_date,
         )
-    except Exception:
+    except Exception as exc:
+        # An expired token / rate-limit / bad payload used to look identical
+        # to "no candles" to every caller. Keep fail-soft, but leave an
+        # operator-visible trail with the symbol and window that failed.
+        logger.warning(
+            "historical window fetch failed symbol=%s tf=%s from=%s to=%s error=%s",
+            symbol, tf_minutes, from_date, to_date, exc,
+        )
         return None
 
 

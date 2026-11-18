@@ -6,6 +6,7 @@ import {
   loadLesson,
   saveLesson,
   summarizeDay,
+  todaySessionDate,
   tradePnl,
   tradePnlPct,
   uniqueDays,
@@ -29,7 +30,7 @@ const CONVICTION_TONE: Record<Conviction, string> = {
 };
 
 export function DiaryStrip(props: DiaryStripProps) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todaySessionDate();
   const [day, setDay] = createSignal(today);
   const [lesson, setLesson] = createSignal(loadLesson(today));
   const [draftExits, setDraftExits] = createSignal<Record<string, string>>({});

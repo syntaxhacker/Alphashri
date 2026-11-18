@@ -1,6 +1,6 @@
 import { createEffect, onCleanup } from "solid-js";
 import { getAccessToken } from "../../state/auth";
-import { isMarketClosedToday } from "../../state/holidays";
+import { isMarketOpenNow } from "../../state/holidays";
 import { readSseStream } from "../../api/sse";
 import { API_BASE } from "@/api/config";
 import { getPaperTradingState, setPositions } from "../../state/paperTrading";
@@ -16,7 +16,7 @@ export interface LivePriceEvent {
 
 export function LivePriceUpdater() {
   createEffect(() => {
-    if (isMarketClosedToday()) return;
+    if (!isMarketOpenNow()) return;
 
     const controller = new AbortController();
     const prices: Record<string, LivePriceEvent> = {};

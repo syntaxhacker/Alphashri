@@ -1,4 +1,4 @@
-import { For, Show, type JSX } from "solid-js";
+import { For, Show, createSignal, onMount, onCleanup, type JSX } from "solid-js";
 import {
   Card,
   Text,
@@ -23,7 +23,7 @@ import { formatNumber as formatNumberShared, formatSignedPnl, getPnLTextColor } 
 import { SideBadge, ExitReasonBadge } from "../common/BadgeComponents";
 import { TanStackTable } from "../common/TanStackTable";
 import type { TableColumnDef as ColumnDef } from "../common/TanStackTable";
-import { isMarketClosedToday } from "../../state/holidays";
+import { isMarketOpenNow, getHolidayState } from "../../state/holidays";
 
 import {
   TINT_TEST_TRADE,
@@ -35,6 +35,24 @@ import {
 
 const STAT_LABEL: JSX.CSSProperties = { "font-size": "10px", "letter-spacing": "0.04em", "text-transform": "uppercase" };
 const SECTION_LABEL: JSX.CSSProperties = { "font-size": "10px", "letter-spacing": "0.06em", "text-transform": "uppercase" };
+const SESSION_CLOSED_DETAIL = "Closed at 15:30 IST · Opens 09:15 IST";
+const MARKET_CLOSED_RECHECK_MS = 60_000;
+
+/** Re-check the session clock so a tab left open past 15:30 flips to closed. */
+export function useMarketClockTick() {
+  const [tick, setTick] = createSignal(0);
+  onMount(() => {
+    const id = window.setInterval(() => setTick((n) => n + 1), MARKET_CLOSED_RECHECK_MS);
+    onCleanup(() => window.clearInterval(id));
+  });
+  return tick;
+}
+
+/** A holiday keeps its description; any other closure explains the session bounds. */
+export function marketClosedReason(now: Date = new Date()): string {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(now);
+  return getHolidayState().holidays.find((h) => h.date === today)?.description ?? SESSION_CLOSED_DETAIL;
+}
 
 function StatLine(props: { label: string; value: JSX.Element; tone?: string }) {
   return (
@@ -395,7 +413,12 @@ interface BotActionButtonsProps {
 }
 
 export function BotActionButtons(props: BotActionButtonsProps) {
-  const marketClosed = () => isMarketClosedToday();
+  const clockTick = useMarketClockTick();
+  const marketClosed = () => {
+    clockTick();
+    return !isMarketOpenNow();
+  };
+  const closedLabel = () => `Market closed — ${marketClosedReason()}`;
 
   return (
     <Group gap="xs" align="center">
@@ -411,7 +434,7 @@ export function BotActionButtons(props: BotActionButtonsProps) {
       <Show when={props.bot.running}
         fallback={
           <Tooltip
-            label="Market closed — cannot start bot"
+            label={closedLabel()}
             disabled={!marketClosed()}
           >
             <span>
@@ -420,7 +443,7 @@ export function BotActionButtons(props: BotActionButtonsProps) {
                 color="success"
                 onClick={() => props.onStart(props.bot.id)}
                 disabled={!props.bot.is_active || marketClosed()}
-                title={marketClosed() ? "Market closed" : "Start Bot"}
+                title={marketClosed() ? closedLabel() : "Start Bot"}
                 data-testid={`start-bot-btn-${props.bot.id}`}
               >
                 <IconPlayerPlay size={16} />

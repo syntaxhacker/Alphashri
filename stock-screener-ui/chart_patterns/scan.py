@@ -525,7 +525,14 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
     for hit in hits:
         try:
             record = _hit_to_dict(hit)
-        except Exception:
+        except Exception as exc:
+            # A detector hit that cannot be serialized currently vanishes
+            # without a trace, so the job reports fewer patterns than the
+            # detector actually found. Keep fail-soft, make it observable.
+            logger.warning(
+                "scan %s: dropped unserializable hit symbol=%s type=%s error=%s",
+                job_id, symbol, type(hit).__name__, exc,
+            )
             continue
         if from_part and str(record.get("end_date") or "")[:10] < from_part:
             continue
@@ -1011,6 +1018,24 @@ def run_job(job_id: str) -> None:
             False, candles_cached, candles_fetched, prefilter_dropped, max_date,
             reused=reused,
         )
+        if total > 0 and failed >= total:
+            # Every symbol errored (expired token, rate limit, broken feed).
+            # Reporting "completed, 0 patterns" here is a confident lie, and
+            # the fresh-scan gate would reuse it as success all session long.
+            # A failed job is excluded from reuse by latest_completed_job().
+            error_msg = (
+                f"all {failed}/{total} symbols failed during fetch/detect; "
+                "no data produced (upstream auth, rate limit or feed failure)"
+            )
+            logger.warning("scan %s: %s", job_id, error_msg)
+            jobs_mod.update_state(
+                job_id, status="failed", error=error_msg[:500],
+                done=done, failed=failed, skipped=skipped, no_hits=no_hits,
+                reused=reused, data_through=max_date, finished_at=_now(),
+                provenance=_done_provenance,
+                params={**params, "reused": reused, "provenance": _done_provenance},
+            )
+            return
         _done_state: dict = {
             "status": "completed", "done": done, "failed": failed,
             "skipped": skipped, "no_hits": no_hits, "reused": reused,

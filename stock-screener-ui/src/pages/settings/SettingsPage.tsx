@@ -14,7 +14,7 @@ import {
 } from "../../api/brokers";
 import { addNotification } from "../../state/store/notificationsSlice";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import { subscribeToHolidays, isMarketClosedToday } from "../../state/holidays";
+import { subscribeToHolidays, isMarketOpenNow } from "../../state/holidays";
 
 // Inline Solid twin of src/hooks/useMarketTickerEnabled (which is still React).
 // v2: the v1 key was written automatically with its opt-in default on first
@@ -66,7 +66,7 @@ export function SettingsPage() {
   });
   usePolling(
     () => {
-      if (isMarketClosedToday()) return;
+      if (!isMarketOpenNow()) return;
       void fetchStatus();
     },
     60000,

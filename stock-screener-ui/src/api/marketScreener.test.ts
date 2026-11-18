@@ -13,6 +13,7 @@ import {
   writeCachedMarketSnapshot,
 } from "./marketScreener";
 import { MARKET_ROW_CAP, MARKET_SYMBOL_CAP } from "../config/apiLimits";
+import { MARKET_UNIVERSE_DESCRIPTORS } from "../config/marketUniverses";
 import type { MarketSnapshot } from "../types/marketScreener";
 import { fetchWithAuth } from "../state/auth";
 
@@ -58,15 +59,24 @@ describe("buildMarketSnapshotUrl", () => {
     }
   });
 
-  test("the first Market dropdown offers USA alongside the NSE universes", () => {
+  test("the first Market dropdown offers USA alongside every registered NSE universe", () => {
+    // The dropdown is a projection of the canonical registry: assert that
+    // contract, not a frozen list, so adding a universe cannot break this test
+    // but silently dropping one still can.
+    const dropdownValues = MARKET_UNIVERSES.map((option) => option.value);
+    const registryValues = MARKET_UNIVERSE_DESCRIPTORS.map((descriptor) => descriptor.value);
+
+    expect(new Set(dropdownValues).size).toBe(dropdownValues.length); // no duplicate ids
+    expect([...dropdownValues].sort()).toEqual([...registryValues].sort()); // no dropped/extra ids
+    for (const descriptor of MARKET_UNIVERSE_DESCRIPTORS) {
+      expect(MARKET_UNIVERSES).toContainEqual({
+        value: descriptor.value,
+        label: descriptor.label,
+      });
+    }
+
+    // Original intent: USA is offered alongside the NSE universes.
     expect(MARKET_UNIVERSES).toContainEqual({ value: "us", label: "USA" });
-    expect(MARKET_UNIVERSES.map((option) => option.value)).toEqual([
-      "all_equity",
-      "nifty500",
-      "nifty50",
-      "nse_fo",
-      "us",
-    ]);
   });
 
   test("force=true is only sent when requested", () => {

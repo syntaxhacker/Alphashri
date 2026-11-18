@@ -16,6 +16,7 @@ import * as palette from "@/ui/palette";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { Icon } from "../../components/common/Icons";
 import { EChart } from "@/components/common/EChart";
+import { agriDateDaysAgo } from "./agriDates";
 
 const COMMODITY_OPTIONS: AgriCommodity[] = [
   { key: "rice", label: "Rice" },
@@ -99,15 +100,9 @@ export function AgriPage() {
   const series = createMemo(() => prices()?.series ?? []);
 
   const latest = () => snapshot()?.modal ?? null;
-  const prev7d = createMemo(() =>
-    nearestOnOrBefore(series(), new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)),
-  );
-  const prev30d = createMemo(() =>
-    nearestOnOrBefore(series(), new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)),
-  );
-  const prev180d = createMemo(() =>
-    nearestOnOrBefore(series(), new Date(Date.now() - 180 * 86400000).toISOString().slice(0, 10)),
-  );
+  const prev7d = createMemo(() => nearestOnOrBefore(series(), agriDateDaysAgo(7)));
+  const prev30d = createMemo(() => nearestOnOrBefore(series(), agriDateDaysAgo(30)));
+  const prev180d = createMemo(() => nearestOnOrBefore(series(), agriDateDaysAgo(180)));
   const chg7d = () => (latest() != null ? pctChange(latest() as number, prev7d()) : null);
   const chg30d = () => (latest() != null ? pctChange(latest() as number, prev30d()) : null);
   const chg180d = () => (latest() != null ? pctChange(latest() as number, prev180d()) : null);

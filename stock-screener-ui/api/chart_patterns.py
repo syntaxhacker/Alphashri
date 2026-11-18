@@ -10,6 +10,7 @@ import asyncio
 import dataclasses
 import json
 import logging
+import numbers
 import os
 import queue as _queue
 import re
@@ -293,17 +294,32 @@ def _close_bar_date(df) -> Optional[str]:
     """IST calendar date of the frame's last bar, or ``None`` when unavailable.
 
     Read from the same frame that produced the returned candles/close — never
-    from a pattern's start/end date or scan/request time. A frame without a
-    datetime index has no bar date to report; it is not invented.
+    from a pattern's start/end date or scan/request time. ``frame_last_date``
+    converts a timestamp-like last index into the IST session date, so a daily
+    bar stamped 18:30 UTC belongs to the *next* calendar day. No ``DatetimeIndex``
+    type gate: a copied/merged frame can carry a parseable timestamp index, and
+    a frame with a usable last bar must never silently lose its date.
     """
     if df is None or getattr(df, "empty", True):
         return None
-    if not isinstance(getattr(df, "index", None), pd.DatetimeIndex):
+    index = getattr(df, "index", None)
+    if index is None or len(index) == 0:
+        return None
+    if isinstance(index[-1], numbers.Number):
+        # A numeric/Range index has no timestamp — `pd.Timestamp(1)` would
+        # invent a 1970 date. A usable timestamp string/datetime is accepted.
         return None
     try:
-        return candles.frame_last_date(df)
-    except Exception:
+        bar_date = candles.frame_last_date(df)
+    except Exception as exc:  # noqa: BLE001 - a label must never fail a chart
+        _chart_logger.warning("close_bar_date: frame_last_date failed: %s", exc)
         return None
+    if bar_date is None:
+        _chart_logger.warning(
+            "close_bar_date: no IST session date for frame index=%s len=%d",
+            type(getattr(df, "index", None)).__name__, len(df),
+        )
+    return bar_date
 
 
 def _remember_frame(key, df, last_close, day_change) -> None:
@@ -569,6 +585,7 @@ def _chart_empty_payload(symbol: str, timeframe: str, *, reason: str, note: str)
         "candles": [],
         "overlays": [],
         "trend_lines": [],
+        "close_bar_date": None,
         "error": reason,
         "note": note,
     }
@@ -619,6 +636,7 @@ def _stale_chart_fallback(
         # This fallback serves the frame as-is (no tape append), so detection and
         # display share a date; the field is kept for a uniform payload shape.
         "detection_as_of": as_of,
+        "close_bar_date": _close_bar_date(df),
         "note": f"served last cached frame (through {as_of}); {reason}",
     }
 
@@ -3198,6 +3216,9 @@ async def get_symbol_chart(
                 "overlays": overlays,
                 "trend_lines": trend_lines,
                 "cached": True,
+                # Same displayed frame that produced `series`, so the bar date
+                # describes the last candle even when today's tape was appended.
+                "close_bar_date": _close_bar_date(display_df),
             }
             # Freshness describes the displayed series (which may include today's
             # tape bar), so a synthesized bar clears ``stale``; detection and its
@@ -3379,6 +3400,7 @@ async def get_symbol_chart(
         "candles": series,
         "overlays": overlays,
         "trend_lines": trend_lines,
+        "close_bar_date": _close_bar_date(display_df),
     }
     # Every successful chart answer carries the same freshness keys — a plain
     # network fetch is no more "current by assumption" than a forced refresh or
