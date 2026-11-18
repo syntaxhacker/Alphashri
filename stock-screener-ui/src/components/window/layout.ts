@@ -49,9 +49,9 @@ export function clampToCanvas(
   const ch = Math.max(0, finite(canvas.h));
   const mw = Math.max(1, finite(minSize.w, DEFAULT_MIN_SIZE.w));
   const mh = Math.max(1, finite(minSize.h, DEFAULT_MIN_SIZE.h));
+  const bar = Math.max(1, finite(titleBarH, TITLE_BAR_H));
   const w = Math.max(mw, finite(rect.w, mw));
   const h = Math.max(mh, finite(rect.h, mh));
-  const bar = Math.max(1, finite(titleBarH, TITLE_BAR_H));
   return {
     x: within(finite(rect.x), -(w - MIN_VISIBLE_X), cw - MIN_VISIBLE_X),
     y: within(finite(rect.y), 0, Math.max(0, ch - bar)),
@@ -137,6 +137,9 @@ export function fitAllToScreen(
   const maxY = Math.max(...rects.map((r) => r.y + r.h));
   const spanW = Math.max(1, maxX - minX);
   const spanH = Math.max(1, maxY - minY);
+  /* Never shrink below a legible title bar + a visible sliver of content. */
+  const fitMinW = Math.min(minSize.w, Math.max(120, Math.round(cw * 0.6)));
+  const fitMinH = Math.min(minSize.h, Math.max(80, Math.round(ch * 0.3)));
   const scale = Math.min(
     1,
     Math.max(0.1, (cw - 2 * FIT_PADDING) / spanW),
@@ -152,11 +155,19 @@ export function fitAllToScreen(
         {
           x: FIT_PADDING + (rect.x - minX) * scale,
           y: FIT_PADDING + (rect.y - minY) * scale,
-          w: Math.max(minSize.w, rect.w * scale),
-          h: Math.max(minSize.h, rect.h * scale),
+          /*
+           * Deliberately *not* floored at `minSize`. That is the minimum a
+           * window may be dragged to interactively (240px); honouring it here
+           * made the scaler a no-op — three 583px windows computed a 117px
+           * width, got floored back to 240, and still overflowed a 358px
+           * canvas. Fit-all exists to make everything visible, so it may
+           * shrink below the interactive floor, down to a usable sliver.
+           */
+          w: Math.max(fitMinW, rect.w * scale),
+          h: Math.max(fitMinH, rect.h * scale),
         },
         canvas,
-        minSize,
+        { w: fitMinW, h: fitMinH },
       ),
       z: index + 1,
       maximized: false,

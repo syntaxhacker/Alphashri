@@ -2,6 +2,7 @@ import { createEffect, createSignal, For, onCleanup, onMount, type Accessor } fr
 import { Box, Menu, MenuDropdown, MenuItem, MenuTarget, Select, Text, ToolbarRow } from "@/ui";
 import type { DockPanelContext } from "../../components/dock/types";
 import type { CanvasSize } from "../../components/window/layout";
+import { fitAllToScreen } from "../../components/window/layout";
 import { WindowManager } from "../../components/window/WindowManager";
 import type { WindowLayout, WindowState } from "../../components/window/types";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
@@ -121,6 +122,10 @@ export function HomePage(props: HomePageProps) {
   const context: Accessor<DockPanelContext> = () => HOME_PANEL_CONTEXT;
   const [pickerValue, setPickerValue] = createSignal("");
   const [canvasSize, setCanvasSize] = createSignal<CanvasSize | undefined>(props.canvas);
+  const [liveMessage, setLiveMessage] = createSignal("");
+  const [presetOpen, setPresetOpen] = createSignal(false);
+  const [presetTrigger, setPresetTrigger] = createSignal<HTMLButtonElement>();
+  const announce = (message: string) => setLiveMessage(message);
   homeCanvas = props.canvas;
 
   // The store normally seeds after the canvas is measured. If hydration beat
@@ -131,6 +136,67 @@ export function HomePage(props: HomePageProps) {
     if (!isDefaultHomeSeed(config())) return;
     reseeded = true;
     setConfig(defaultHomeConfig(canvasSize()));
+  });
+
+  /*
+   * Re-fit every tab when the canvas shrinks. Windows are stored in canvas
+   * pixels, so a desk arranged at 1600 keeps 583px-wide windows when the
+   * viewport drops to 390 — they hang far outside the canvas and cannot be
+   * grabbed back with the mouse. Only shrinking re-fits: growing leaves the
+   * user's arrangement alone rather than re-flowing a desk they just tuned.
+   */
+  let lastCanvas = { w: 0, h: 0 };
+  createEffect(() => {
+    const size = canvasSize();
+    if (!size || !hydrated()) return;
+    const previous = lastCanvas;
+    lastCanvas = { w: size.w, h: size.h };
+    if (previous.w === 0 || size.w >= previous.w) return;
+    const current = config();
+    /*
+     * Below this width a preserved relative arrangement is unusable: a
+     * two-column desk scales to overlapping 215px windows stacked on top of
+     * each other (see the 390px screenshot), because there is no room left
+     * for the original spacing. Tile to a single column instead so every
+     * window is visible and reachable.
+     */
+    const NARROW_TILE_W = 620;
+    const tileVertical = (windows: WindowState[]): WindowState[] => {
+      if (windows.length === 0) return [];
+      const gap = 8;
+      const n = windows.length;
+      const availH = Math.max(1, size.h - gap * (n + 1));
+      const slotH = Math.max(90, Math.floor(availH / n));
+      return windows.map((window, index) => ({
+        ...window,
+        w: Math.max(1, size.w - gap * 2),
+        h: Math.min(slotH, Math.max(90, size.h - gap * 2)),
+        x: gap,
+        y: gap + index * (slotH + gap),
+        z: index + 1,
+      }));
+    };
+    const fitLayout = (windows: WindowState[]): WindowState[] =>
+      size.w < NARROW_TILE_W
+        ? tileVertical(windows)
+        : fitAllToScreen(windows, size).map((window) => {
+            const w = Math.min(window.w, size.w);
+            const h = Math.min(window.h, size.h);
+            return {
+              ...window,
+              w,
+              h,
+              x: Math.max(0, Math.min(window.x, Math.max(0, size.w - w))),
+              y: Math.max(0, Math.min(window.y, Math.max(0, size.h - h))),
+            };
+          });
+    setConfig({
+      layouts: current.layouts.map((layout) => ({
+        ...layout,
+        windows: fitLayout(layout.windows),
+      })),
+      active: current.active,
+    });
   });
 
   const activeLayout = (): WindowLayout =>
@@ -163,10 +229,13 @@ export function HomePage(props: HomePageProps) {
     if (!created) return;
     setActiveWindows([...windows.map((w) => ({ ...w })), created]);
     setPickerValue("");
+    announce(`${created.title} window added`);
   };
 
-  const switchTab = (name: string) =>
+  const switchTab = (name: string) => {
     setConfig({ ...config(), active: name });
+    announce(`${name} layout selected`);
+  };
 
   const newScreen = () => {
     const name = nextScreenName(config().layouts);
@@ -175,12 +244,14 @@ export function HomePage(props: HomePageProps) {
       layouts: [...config().layouts.map((layout) => ({ ...layout })), { name, windows: [] }],
       active: name,
     });
+    announce(`${name} screen created`);
   };
 
   const applyPresetToDesk = (id: string) => {
     const preset = PRESETS.find((candidate) => candidate.id === id);
     if (!preset) return;
     setConfig(applyPreset(config(), preset, canvasSize() ?? props.canvas));
+    announce(`${preset.label} preset applied`);
   };
 
   return (
@@ -215,12 +286,22 @@ export function HomePage(props: HomePageProps) {
             </button>
           )}
         </For>
-        <Menu data-testid="home-presets-menu">
+        <Menu
+          data-testid="home-presets-menu"
+          opened={presetOpen()}
+          onChange={(open) => {
+            setPresetOpen(open);
+            // The dropdown unmounts on close; without this, focus falls to <body>.
+            if (!open) presetTrigger()?.focus();
+          }}
+        >
           <MenuTarget>
             <button
+              ref={(el) => setPresetTrigger(el)}
               type="button"
               data-testid="home-preset-menu-trigger"
               aria-label="Layout presets"
+              aria-expanded={presetOpen()}
               class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
             >
               Presets
@@ -260,6 +341,15 @@ export function HomePage(props: HomePageProps) {
         }}
         canvas={props.canvas}
       />
+
+      <div
+        data-testid="home-live"
+        class="sr-only"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {liveMessage()}
+      </div>
     </Box>
   );
 }
