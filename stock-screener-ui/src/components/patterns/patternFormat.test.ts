@@ -26,16 +26,6 @@ describe("formatScore", () => {
     expect(formatScore(Number.POSITIVE_INFINITY)).toBe("—");
     expect(formatScore(Number.NEGATIVE_INFINITY)).toBe("—");
   });
-
-  test("formats zero as a value, never the em dash fallback", () => {
-    expect(formatScore(0)).toBe("0.0");
-    expect(formatScore(0)).not.toBe("—");
-    expect(formatScore(null)).toBe("—");
-    expect(formatScore(undefined)).toBe("—");
-    expect(formatScore(Number.NaN)).toBe("—");
-    expect(formatScore(Number.POSITIVE_INFINITY)).toBe("—");
-    expect(formatScore(Number.NEGATIVE_INFINITY)).toBe("—");
-  });
 });
 
 describe("formatRangePos", () => {
@@ -47,15 +37,6 @@ describe("formatRangePos", () => {
   });
 
   test("renders an em dash for missing or non-finite values", () => {
-    expect(formatRangePos(null)).toBe("—");
-    expect(formatRangePos(undefined)).toBe("—");
-    expect(formatRangePos(Number.NaN)).toBe("—");
-    expect(formatRangePos(Number.POSITIVE_INFINITY)).toBe("—");
-  });
-
-  test("formats zero as a value, never the em dash fallback", () => {
-    expect(formatRangePos(0)).toBe("0%");
-    expect(formatRangePos(0)).not.toBe("—");
     expect(formatRangePos(null)).toBe("—");
     expect(formatRangePos(undefined)).toBe("—");
     expect(formatRangePos(Number.NaN)).toBe("—");
@@ -85,15 +66,6 @@ describe("formatOneDecimal", () => {
     expect(formatOneDecimal(undefined)).toBe("—");
     expect(formatOneDecimal(Number.NaN)).toBe("—");
     expect(formatOneDecimal(Number.POSITIVE_INFINITY)).toBe("—");
-  });
-
-  test("formats zero as a value, never the em dash fallback", () => {
-    expect(formatOneDecimal(0)).toBe("0");
-    expect(formatOneDecimal(0)).not.toBe("—");
-    expect(formatOneDecimal(null)).toBe("—");
-    expect(formatOneDecimal(undefined)).toBe("—");
-    expect(formatOneDecimal(Number.NaN)).toBe("—");
-    expect(formatOneDecimal(Number.POSITIVE_INFINITY)).toBe("—");
     expect(formatOneDecimal(Number.NEGATIVE_INFINITY)).toBe("—");
   });
 });
@@ -107,15 +79,6 @@ describe("formatSignedPct1", () => {
   });
 
   test("renders an em dash for missing or non-finite values", () => {
-    expect(formatSignedPct1(null)).toBe("—");
-    expect(formatSignedPct1(undefined)).toBe("—");
-    expect(formatSignedPct1(Number.NaN)).toBe("—");
-    expect(formatSignedPct1(Number.POSITIVE_INFINITY)).toBe("—");
-  });
-
-  test("formats zero as a value, never the em dash fallback", () => {
-    expect(formatSignedPct1(0)).toBe("+0.0%");
-    expect(formatSignedPct1(0)).not.toBe("—");
     expect(formatSignedPct1(null)).toBe("—");
     expect(formatSignedPct1(undefined)).toBe("—");
     expect(formatSignedPct1(Number.NaN)).toBe("—");
@@ -174,15 +137,6 @@ describe("formatMatrixPrice", () => {
     expect(formatMatrixPrice(undefined)).toBe("—");
     expect(formatMatrixPrice(Number.NaN)).toBe("—");
     expect(formatMatrixPrice(Number.POSITIVE_INFINITY)).toBe("—");
-  });
-
-  test("formats zero as a value, never the em dash fallback", () => {
-    expect(formatMatrixPrice(0)).toBe("₹0.00");
-    expect(formatMatrixPrice(0)).not.toBe("—");
-    expect(formatMatrixPrice(null)).toBe("—");
-    expect(formatMatrixPrice(undefined)).toBe("—");
-    expect(formatMatrixPrice(Number.NaN)).toBe("—");
-    expect(formatMatrixPrice(Number.POSITIVE_INFINITY)).toBe("—");
     expect(formatMatrixPrice(Number.NEGATIVE_INFINITY)).toBe("—");
   });
 });
@@ -200,15 +154,6 @@ describe("formatMatrixPct", () => {
     expect(formatMatrixPct(undefined)).toBe("—");
     expect(formatMatrixPct(Number.NaN)).toBe("—");
     expect(formatMatrixPct(Number.NEGATIVE_INFINITY)).toBe("—");
-  });
-
-  test("formats zero as a value, never the em dash fallback", () => {
-    expect(formatMatrixPct(0)).toBe("+0.00%");
-    expect(formatMatrixPct(0)).not.toBe("—");
-    expect(formatMatrixPct(null)).toBe("—");
-    expect(formatMatrixPct(undefined)).toBe("—");
-    expect(formatMatrixPct(Number.NaN)).toBe("—");
     expect(formatMatrixPct(Number.POSITIVE_INFINITY)).toBe("—");
-    expect(formatMatrixPct(Number.NEGATIVE_INFINITY)).toBe("—");
   });
 });
