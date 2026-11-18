@@ -1,6 +1,7 @@
 import { fetchWithAuth } from "../state/auth";
 
 import { API_BASE } from "@/api/config";
+import { dedupeInFlight } from "./requestDedupe";
 
 export interface OptionGreeks {
   delta: number;
@@ -130,11 +131,23 @@ export type PositioningResponse = import("../utils/positioning").PositioningData
 
 export class PositioningApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  /** Only set for 429, from the Retry-After header; null otherwise. */
+  retryAfterMs: number | null;
+  constructor(message: string, status: number, retryAfterMs: number | null = null) {
     super(message);
     this.name = "PositioningApiError";
     this.status = status;
+    this.retryAfterMs = retryAfterMs;
   }
+}
+
+function retryAfterMsOf(response: Response): number | null {
+  const header = response.headers?.get?.("Retry-After");
+  if (header) {
+    const seconds = Number(header);
+    if (Number.isFinite(seconds) && seconds >= 0) return Math.round(seconds * 1000);
+  }
+  return null;
 }
 
 export async function getPositioning(
@@ -142,12 +155,25 @@ export async function getPositioning(
   expiryDate: string,
   mode = "since_open",
 ): Promise<PositioningResponse> {
-  const params = new URLSearchParams({ expiry: expiryDate, mode });
-  const res = await fetchWithAuth(
-    `${API_BASE}/api/options/positioning/${underlying}?${params.toString()}`,
-  );
-  if (!res.ok) throw new PositioningApiError("Failed to fetch positioning", res.status);
-  return res.json();
+  const key = `positioning\u0000${underlying.toUpperCase()}\u0000${expiryDate}\u0000${mode}`;
+  const result = await dedupeInFlight(key, async (signal) => {
+    const params = new URLSearchParams({ expiry: expiryDate, mode });
+    const res = await fetchWithAuth(
+      `${API_BASE}/api/options/positioning/${underlying}?${params.toString()}`,
+      { signal },
+    );
+    if (!res.ok) {
+      if (res.status === 429) {
+        throw new PositioningApiError("Failed to fetch positioning", 429, retryAfterMsOf(res));
+      }
+      throw new PositioningApiError("Failed to fetch positioning", res.status);
+    }
+    return (await res.json()) as PositioningResponse;
+  });
+  // A caller that aborted its own signal never observes a flight result; the
+  // component's cancelled guard already handles that path.
+  if (result === null) throw new PositioningApiError("Positioning request cancelled", 0);
+  return result;
 }
 
 export async function getUnderlyings(): Promise<Underlying[]> {

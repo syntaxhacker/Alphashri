@@ -4,7 +4,7 @@ import { Box, Loader, Select, Text, ToolbarRow } from "@/ui";
 import type { HeatmapStock } from "@/api/heatmap";
 import type { StockMover } from "@/types/sector";
 import type { MarketRow } from "@/types/marketScreener";
-import type { SectorMarket, SectorViewMode } from "@/state/sector";
+import type { SectorViewMode } from "@/state/sector";
 import {
   loadSectorData,
   setHeatmapMetric,
