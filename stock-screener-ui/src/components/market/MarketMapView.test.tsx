@@ -369,6 +369,19 @@ describe("MarketMapView — one Size by control, ranked tiles", () => {
     expect(greenChannel(gain.itemStyle.color)).toBeGreaterThan(greenChannel(loss.itemStyle.color));
   });
 
+  test("colourBy decouples the fill from the size metric", async () => {
+    const rows = [
+      { ...row("SMALL", 10, 20), change: 5 },
+      { ...row("BIG", 200, 90), change: -1 },
+    ];
+    await renderMap(() => <MarketMapView rows={rows} sizeBy="market_cap" colorBy="rsi" />);
+    const big = tiles().find((d) => d.name === "BIG")!;
+    expect(big.value).toBe(200 * 1e7);
+    expect(big.metricNumeric).toBe(90);
+    expect(screen.getByTestId("market-map-color-label")).toHaveTextContent("RSI");
+    expect(screen.getByTestId("market-map-size-note")).toHaveTextContent("Market Cap");
+  });
+
   test("(e) the legend names the selected metric and its min..max", async () => {
     const rows = [
       { ...row("A", 100, 55), change: -4.8, perf1m: 29.3 },

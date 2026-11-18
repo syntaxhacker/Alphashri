@@ -4,11 +4,34 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/te
 import { createMemo, type Accessor } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@/ui";
+import { fetchNiftyExpiries, fetchOptionsExpiries } from "@/api/reportNifty";
 import type { DockPanelContext } from "../../dock/types";
 import { WindowManager } from "../WindowManager";
 import { WINDOW_PANELS } from "../panelRegistry";
 import { HOME_PANELS } from "../../../pages/home/homePanels";
 import { OPTIONS_POSITIONING_PANEL } from "./optionsPositioning";
+
+vi.mock("@/api/reportNifty", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/api/reportNifty")>();
+  return {
+    ...actual,
+    fetchNiftyExpiries: vi.fn(),
+    fetchOptionsExpiries: vi.fn(),
+  };
+});
+
+const fetchNiftyExpiriesMock = vi.mocked(fetchNiftyExpiries);
+const fetchOptionsExpiriesMock = vi.mocked(fetchOptionsExpiries);
+
+/** Dates relative to today so "nearest" stays correct whenever CI runs. */
+const isoAfter = (days: number) => {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+};
+const nearExpiry = () => isoAfter(3);
+const farExpiry = () => isoAfter(21);
+const expiriesFixture = () => [{ date: nearExpiry() }, { date: farExpiry() }];
 
 const fetchMock = vi.fn();
 
@@ -99,7 +122,10 @@ function renderWindow(overrides: Partial<DockPanelContext> = {}) {
   ));
 }
 
-const urls = () => fetchMock.mock.calls.map((call) => String(call[0]));
+const urls = () =>
+  fetchMock.mock.calls
+    .map((call) => String(call[0]))
+    .filter((url) => url.includes("/api/options/positioning/"));
 
 beforeEach(() => {
   vi.stubGlobal("matchMedia", (query: string) => ({
@@ -114,6 +140,10 @@ beforeEach(() => {
   }));
   localStorage.clear();
   fetchMock.mockReset();
+  fetchNiftyExpiriesMock.mockReset();
+  fetchOptionsExpiriesMock.mockReset();
+  fetchNiftyExpiriesMock.mockImplementation(async () => expiriesFixture());
+  fetchOptionsExpiriesMock.mockImplementation(async () => [nearExpiry(), farExpiry()]);
   vi.stubGlobal("fetch", fetchMock);
 });
 
@@ -139,20 +169,32 @@ describe("options.positioning window panel — owned fetch stays in PositioningP
     expect(await screen.findByTestId("positioning-verdict")).toBeInTheDocument();
 
     const expiryInput = screen.getByTestId("options-positioning-expiry-input");
-    fireEvent.input(expiryInput, { target: { value: "2026-12-04" } });
+    fireEvent.input(within(expiryInput).getByRole("combobox"), {
+      target: { value: farExpiry() },
+    });
 
-    await waitFor(() => expect(urls().some((u) => u.includes("expiry=2026-12-04"))).toBe(true));
+    await waitFor(() => expect(urls().some((u) => u.includes(`expiry=${farExpiry()}`))).toBe(true));
     expect(urls().at(-1)).toContain("/api/options/positioning/NIFTY?");
     expect(urls().at(-1)).toContain("mode=since_open");
   });
 
-  it("(c) no expiry renders the component's empty state without fetching or crashing", () => {
+  it("(c) no listed expiries renders the component's empty state without fetching or crashing", async () => {
+    fetchNiftyExpiriesMock.mockResolvedValue([]);
     renderWindow({ expiry: undefined });
 
+    expect(await screen.findByTestId("options-positioning-expiry-empty")).toBeInTheDocument();
     expect(screen.getByTestId("options-positioning-empty")).toBeInTheDocument();
     expect(screen.getByTestId("positioning-panel")).toBeInTheDocument();
     expect(screen.queryByTestId("positioning-error")).not.toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(urls()).toHaveLength(0);
+  });
+
+  it("(empty-action) the empty state's expiry field is present with an honest hint", async () => {
+    fetchNiftyExpiriesMock.mockResolvedValue([]);
+    renderWindow({ expiry: undefined });
+
+    expect(await screen.findByTestId("options-positioning-expiry-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("options-positioning-expiry-input")).toBeInTheDocument();
   });
 
   it("(d) a 401 renders a distinguishable Upstox-connection state", async () => {
@@ -228,5 +270,28 @@ describe("options.positioning window panel — in-window controls and registrati
   it("(f) the panel is registered in the window registry and the home picker", () => {
     expect(WINDOW_PANELS.map((spec) => spec.id)).toContain("options.positioning");
     expect(HOME_PANELS.map((spec) => spec.id)).toContain("options.positioning");
+  });
+});
+
+describe("options.positioning — expiry picker", () => {
+  it("(a) the select is populated from listings and defaults to nearest", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(fixture()));
+    renderWindow({ expiry: undefined });
+    const picker = await screen.findByTestId("options-positioning-expiry-picker");
+    await waitFor(() =>
+      expect(within(picker).getAllByRole("option")).toHaveLength(2),
+    );
+    expect(within(picker).getByRole("combobox")).toHaveValue(nearExpiry());
+    expect(fetchNiftyExpiriesMock).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(urls().some((u) => u.includes(`expiry=${nearExpiry()}`))).toBe(true));
+  });
+
+  it("(e) a context expiry is honoured over the nearest default", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(fixture()));
+    renderWindow({ expiry: farExpiry() });
+    const picker = await screen.findByTestId("options-positioning-expiry-picker");
+    await waitFor(() => expect(within(picker).getAllByRole("option")).toHaveLength(2));
+    expect(within(picker).getByRole("combobox")).toHaveValue(farExpiry());
+    expect(urls().some((u) => u.includes(`expiry=${farExpiry()}`))).toBe(true);
   });
 });

@@ -197,6 +197,19 @@ describe("sector.heatmap window panel", () => {
     expect(screen.queryByTestId("sector-heatmap-view")).not.toBeInTheDocument();
   });
 
+  it("(empty-action) the empty state offers an enabled Retry button", async () => {
+    ctl.fetchSectorPerformance.mockResolvedValueOnce({
+      ...SECTOR_RESPONSE,
+      sectors: [],
+      top_stock_movers: [],
+    });
+
+    renderPanel();
+
+    await waitFor(() => expect(screen.getByTestId("sector-heatmap-empty")).toBeInTheDocument());
+    expect(screen.getByTestId("sector-heatmap-empty-retry")).toBeEnabled();
+  });
+
   it("(e) stock view maps the store's movers and a click opens the symbol dock", async () => {
     renderPanel();
     await waitFor(() => expect(screen.getByTestId("sector-tile-Energy")).toBeInTheDocument());

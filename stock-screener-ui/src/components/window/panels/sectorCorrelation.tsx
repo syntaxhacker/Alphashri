@@ -168,11 +168,19 @@ function SectorCorrelationPanel() {
             fallback={
               <Box
                 data-testid="window-sector-correlation-empty"
-                className="flex min-h-0 min-w-0 flex-1 items-center justify-center p-2"
+                className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-2 p-2"
               >
                 <Text size="xs" c="dimmed">
                   No correlation data available.
                 </Text>
+                <button
+                  type="button"
+                  class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
+                  data-testid="window-sector-correlation-empty-retry"
+                  onClick={() => void fetchCorrelationData()}
+                >
+                  Retry
+                </button>
               </Box>
             }
           >

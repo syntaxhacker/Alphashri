@@ -7,6 +7,7 @@ import { OPTIONS_CHAIN_PANEL } from "../../components/window/panels/optionsChain
 import { OPTIONS_POSITIONING_PANEL } from "../../components/window/panels/optionsPositioning";
 import { PATTERN_RESULTS_PANEL } from "../../components/window/panels/patternResults";
 import { SECTOR_CORRELATION_PANEL } from "../../components/window/panels/sectorCorrelation";
+import { SECTOR_DETAIL_PANEL } from "../../components/window/panels/sectorDetail";
 import { SECTOR_HEATMAP_PANEL } from "../../components/window/panels/sectorHeatmap";
 import { SECTOR_MOVERS_PANEL } from "../../components/window/panels/sectorMovers";
 import { SECTOR_TABLE_PANEL } from "../../components/window/panels/sectorTable";
@@ -55,6 +56,7 @@ export const HOME_PANELS: DockPanelSpec[] = [
   OPTIONS_POSITIONING_PANEL,
   PATTERN_RESULTS_PANEL,
   SECTOR_CORRELATION_PANEL,
+  SECTOR_DETAIL_PANEL,
   SECTOR_HEATMAP_PANEL,
   SECTOR_TABLE_PANEL,
   SECTOR_MOVERS_PANEL,

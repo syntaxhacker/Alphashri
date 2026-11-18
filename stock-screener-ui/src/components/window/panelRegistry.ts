@@ -7,6 +7,7 @@ import { MARKET_HEATMAP_PANEL } from "./panels/marketHeatmap";
 import { NEWS_FEED_PANEL } from "./panels/newsFeed";
 import { PATTERN_RESULTS_PANEL } from "./panels/patternResults";
 import { SECTOR_CORRELATION_PANEL } from "./panels/sectorCorrelation";
+import { SECTOR_DETAIL_PANEL } from "./panels/sectorDetail";
 import { SECTOR_HEATMAP_PANEL } from "./panels/sectorHeatmap";
 import { SECTOR_MOVERS_PANEL } from "./panels/sectorMovers";
 import { SECTOR_TABLE_PANEL } from "./panels/sectorTable";
@@ -22,6 +23,7 @@ export const WINDOW_PANELS: DockPanelSpec[] = [
   OPTIONS_POSITIONING_PANEL,
   PATTERN_RESULTS_PANEL,
   SECTOR_CORRELATION_PANEL,
+  SECTOR_DETAIL_PANEL,
   SECTOR_HEATMAP_PANEL,
   SECTOR_TABLE_PANEL,
   SECTOR_MOVERS_PANEL,

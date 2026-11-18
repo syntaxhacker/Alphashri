@@ -236,6 +236,15 @@ describe("sector.rotation window panel", () => {
     expect(screen.queryByTestId("rotation-rrg-chart")).not.toBeInTheDocument();
   });
 
+  it("(empty-action) the empty state offers an enabled Retry button", async () => {
+    ctl.fetchRotationOverview.mockResolvedValueOnce({ ...RESPONSE, rows: [] });
+
+    renderPanel();
+
+    await waitFor(() => expect(screen.getByTestId("sector-rotation-empty")).toBeInTheDocument());
+    expect(screen.getByTestId("sector-rotation-empty-retry")).toBeEnabled();
+  });
+
   it("(c) a fetch failure renders its message", async () => {
     ctl.fetchRotationOverview.mockRejectedValueOnce(new Error("rotation feed exploded"));
 

@@ -61,6 +61,14 @@ describe("news.feed window panel", () => {
     );
   });
 
+  test("(empty-action) the empty feed exposes an enabled refresh action", async () => {
+    newsMock.fetchNews.mockResolvedValueOnce([]);
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("news-empty")).toBeInTheDocument());
+
+    expect(screen.getByTestId("news-feed-refresh-btn")).toBeEnabled();
+  });
+
   test("(empty) an empty feed renders the explicit empty message", async () => {
     newsMock.fetchNews.mockResolvedValueOnce([]);
     renderPanel();

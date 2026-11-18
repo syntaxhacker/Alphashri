@@ -1,4 +1,4 @@
-import { createSignal, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 import type { Accessor } from "solid-js";
 import { Anchor, Box, Button, Text, TextInput, ToolbarRow } from "@/ui";
 import { DEFAULT_RATE_LIMIT_RETRY_MS } from "@/state/optionsDock";
@@ -11,6 +11,7 @@ import {
 } from "@/api/optionsDock";
 import { OptionChainTable } from "../../options-dock/OptionChainTable";
 import type { DockPanelContext, DockPanelSpec } from "../../dock/types";
+import { ExpirySelect, useExpiryPicker } from "./expiryPicker";
 
 type ChainStatus = "loading" | "ready" | "empty" | "error";
 
@@ -101,7 +102,8 @@ function OptionsChainWindow(props: { context: Accessor<DockPanelContext> }) {
   const [symbol, setSymbol] = createSignal(
     (props.context().symbol ?? "NIFTY").trim().toUpperCase() || "NIFTY",
   );
-  const [expiry, setExpiry] = createSignal((props.context().expiry ?? "").trim());
+  const picker = useExpiryPicker(symbol, props.context);
+  const expiry = picker.expiry;
   const [status, setStatus] = createSignal<ChainStatus>(
     expiry() ? "loading" : "empty",
   );
@@ -182,7 +184,10 @@ function OptionsChainWindow(props: { context: Accessor<DockPanelContext> }) {
     }
   };
 
-  onMount(() => {
+  // Symbol and expiry are the only inputs to the chain flight. When the picker
+  // resolves its default (or the user picks another date) this re-runs once;
+  // Retry calls load() explicitly and keeps the same key.
+  createEffect(() => {
     void load();
   });
   onCleanup(() => {
@@ -193,17 +198,9 @@ function OptionsChainWindow(props: { context: Accessor<DockPanelContext> }) {
   });
 
   const onSymbolChange = (value: string) => {
-    const next = value.trim().toUpperCase();
+    const next = value.trim().toUpperCase() || "NIFTY";
     if (next === symbol()) return;
     setSymbol(next);
-    void load();
-  };
-
-  const onExpiryChange = (value: string) => {
-    const next = value.trim();
-    if (next === expiry()) return;
-    setExpiry(next);
-    void load();
   };
 
   return (
@@ -228,14 +225,14 @@ function OptionsChainWindow(props: { context: Accessor<DockPanelContext> }) {
           value={symbol()}
           onChange={onSymbolChange}
         />
-        <TextInput
-          aria-label="Expiry"
-          data-testid="options-chain-expiry-input"
-          size="xs"
-          w={130}
-          placeholder="YYYY-MM-DD"
-          value={expiry()}
-          onChange={onExpiryChange}
+        <ExpirySelect
+          model={picker}
+          ariaLabel="Expiry"
+          controlTestId="options-chain-expiry-input"
+          pickerTestId="options-chain-expiry-picker"
+          loadingTestId="options-chain-expiry-loading"
+          errorTestId="options-chain-expiry-error"
+          emptyTestId="options-chain-expiry-empty"
         />
         <Show when={status() === "ready"}>
           <Text size="xs" c="dimmed">
@@ -251,8 +248,21 @@ function OptionsChainWindow(props: { context: Accessor<DockPanelContext> }) {
       </Show>
 
       <Show when={status() === "empty"}>
-        <Box data-testid="options-chain-empty" className="px-2 py-1 text-[10px] text-fin-text-muted">
-          No strikes listed for {symbol() || "—"} {expiry() || "— choose an expiry in this window"}
+        <Box
+          data-testid="options-chain-empty"
+          className="flex flex-col gap-1 px-2 py-1 text-[11px] text-fin-text-muted"
+        >
+          <Text size="xs" c="dimmed">
+            No strikes listed for {symbol() || "—"} {expiry() || "— choose an expiry in this window"}
+          </Text>
+          <Button
+            size="xs"
+            variant="subtle"
+            data-testid="options-chain-empty-retry"
+            onClick={() => void load()}
+          >
+            Retry
+          </Button>
         </Box>
       </Show>
 

@@ -154,6 +154,20 @@ describe("sector table + interval movers HOME desk panels", () => {
     expect(screen.queryByTestId("interval-movers-table")).not.toBeInTheDocument();
   });
 
+  it("(empty-action) the empty states offer an enabled Retry button", async () => {
+    ctl.fetchSectorPerformance.mockResolvedValueOnce({
+      ...SECTOR_RESPONSE,
+      sectors: [],
+      top_stock_movers: [],
+    });
+
+    renderPanels(["sector.table", "sector.movers"]);
+
+    await waitFor(() => expect(screen.getByTestId("sector-table-empty")).toBeInTheDocument());
+    expect(screen.getByTestId("sector-table-empty-retry")).toBeEnabled();
+    expect(screen.getByTestId("sector-movers-empty-retry")).toBeEnabled();
+  });
+
   it("(d) a fetch failure renders its message in both panels", async () => {
     ctl.fetchSectorPerformance.mockRejectedValueOnce(new Error("sector feed exploded"));
 

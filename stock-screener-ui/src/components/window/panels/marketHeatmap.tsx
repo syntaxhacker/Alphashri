@@ -1,5 +1,5 @@
 import { Show, createEffect, createMemo, createSignal, on, onCleanup, onMount, type Accessor } from "solid-js";
-import { ActionIcon, Box, Select, Text, ToolbarRow } from "@/ui";
+import { ActionIcon, Box, Button, Select, Text, ToolbarRow } from "@/ui";
 import type { CurrencyCode } from "@/config/currency";
 import { MARKET_UNIVERSE_DESCRIPTORS, marketUniverseDescriptor } from "@/config/marketUniverses";
 import type { MarketUniverse } from "@/types/marketScreener";
@@ -7,10 +7,13 @@ import type { DockPanelSpec } from "../../dock/types";
 import { useSymbolDock } from "../../common/symbolDockContext";
 import { MarketMapView } from "../../market/MarketMapView";
 import {
-  DEFAULT_MARKET_SIZE_METRIC,
+  DEFAULT_HEATMAP_COLOR_METRIC,
+  DEFAULT_HEATMAP_SIZE_METRIC,
   isMarketSizeMetric,
   MARKET_COLOR_SCALE_NOTE,
   marketMetricOptions,
+  toTreemapRow,
+  usableSizeMetrics,
   type MarketSizeMetric,
 } from "../../market/marketTreemap";
 import type { UseMarketSnapshotResult } from "../../market/useMarketSnapshotSolid";
@@ -85,7 +88,8 @@ function MarketHeatmapPanel(props: { data: Accessor<Record<string, unknown> | un
     ageSec: () => live()?.ageSec() ?? null,
     warming: () => live()?.warming() ?? false,
   };
-  const [sizeBy, setSizeBy] = createSignal<MarketSizeMetric>(DEFAULT_MARKET_SIZE_METRIC);
+  const [sizeBy, setSizeBy] = createSignal<MarketSizeMetric>(DEFAULT_HEATMAP_SIZE_METRIC);
+  const [colorBy, setColorBy] = createSignal<MarketSizeMetric>(DEFAULT_HEATMAP_COLOR_METRIC);
 
   const currency = () => marketUniverseDescriptor(universe()).currency;
   const rows = () => snapshot.rows();
@@ -98,8 +102,35 @@ function MarketHeatmapPanel(props: { data: Accessor<Record<string, unknown> | un
   const formatCount = (count: number) =>
     count.toLocaleString(marketUniverseDescriptor(universe()).priceLocale);
   const metricOptions = createMemo(() => marketMetricOptions(currency()));
-  const activeMetricLabel = () =>
-    metricOptions().find((option) => option.value === sizeBy())?.label ?? sizeBy();
+  const treemapRows = createMemo(() => filteredRows().map((row) => toTreemapRow(row, currency())));
+  const sizeOptions = createMemo(() => usableSizeMetrics(treemapRows(), metricOptions()));
+  // Data can drop the selected size field (a filtered-out universe or a fresh
+  // snapshot). Fall back for rendering so no option is silently substituted.
+  const effectiveSizeBy = createMemo<MarketSizeMetric>(() => {
+    const current = sizeBy();
+    if (sizeOptions().some((option) => option.value === current && !option.disabled)) return current;
+    const first = sizeOptions()[0]?.value;
+    return isMarketSizeMetric(first) ? first : current;
+  });
+  const labelFor = (metric: MarketSizeMetric) =>
+    metricOptions().find((option) => option.value === metric)?.label ?? metric;
+  // A native <select> falls back to its first option when option nodes are
+  // replaced (the snapshot arrives after the first render). Re-apply the
+  // controlled value once the new nodes are in the DOM.
+  const sizeOptionSignature = createMemo(() =>
+    sizeOptions()
+      .map((option) => (option.disabled ? "0" : "1"))
+      .join(""),
+  );
+  let sizeSelectWrap: HTMLDivElement | undefined;
+  createEffect(
+    on(sizeOptionSignature, () => {
+      queueMicrotask(() => {
+        const native = sizeSelectWrap?.querySelector("select");
+        if (native && native.value !== effectiveSizeBy()) native.value = effectiveSizeBy();
+      });
+    }),
+  );
   const staleLabel = () => {
     const age = snapshot.ageSec();
     if (age == null) return "Stale data";
@@ -112,10 +143,15 @@ function MarketHeatmapPanel(props: { data: Accessor<Record<string, unknown> | un
     patchFilters(resetUniverseSpecificFilters(filters(), value as MarketUniverse));
     setUniverse(value as MarketUniverse);
   };
-  const chooseMetric = (value: string | null) => {
+  const chooseSizeMetric = (value: string | null) => {
     if (!isMarketSizeMetric(value)) return;
     setSizeBy(value);
   };
+  const chooseColorMetric = (value: string | null) => {
+    if (!isMarketSizeMetric(value)) return;
+    setColorBy(value);
+  };
+  const clearFilters = () => setFilters(defaultMarketFilters(universe()));
 
   return (
     <Box data-testid="market-heatmap-panel" className="flex h-full min-h-0 flex-col">
@@ -137,16 +173,34 @@ function MarketHeatmapPanel(props: { data: Accessor<Record<string, unknown> | un
             data-testid="market-heatmap-universe"
           />
           <Text size="xs" c="dimmed" className="whitespace-nowrap">
-            Size &amp; colour:
+            Size by
+          </Text>
+          <Box
+            ref={(el: HTMLDivElement) => (sizeSelectWrap = el)}
+            className="flex"
+            title="Metrics with no non-zero value in this snapshot cannot size tiles"
+          >
+            <Select
+              size="xs"
+              w={112}
+              value={effectiveSizeBy()}
+              onChange={chooseSizeMetric}
+              data={sizeOptions()}
+              aria-label="Size the heatmap by"
+              data-testid="market-heatmap-metric"
+            />
+          </Box>
+          <Text size="xs" c="dimmed" className="whitespace-nowrap">
+            Colour by
           </Text>
           <Select
             size="xs"
-            w={132}
-            value={sizeBy()}
-            onChange={chooseMetric}
+            w={112}
+            value={colorBy()}
+            onChange={chooseColorMetric}
             data={metricOptions()}
-            aria-label="Size and colour metric"
-            data-testid="market-heatmap-metric"
+            aria-label="Colour the heatmap by"
+            data-testid="market-heatmap-color-metric"
           />
           <HeatmapFiltersControl
             filters={filters()}
@@ -172,7 +226,7 @@ function MarketHeatmapPanel(props: { data: Accessor<Record<string, unknown> | un
         </ToolbarRow>
         <Box className="px-2 pb-1" data-testid="market-heatmap-encoding-row">
           <Text size="xs" c="dimmed" className="truncate" data-testid="market-heatmap-encoding">
-            Size = {activeMetricLabel()} · Colour = {activeMetricLabel()} ({LEGEND_DIRECTION}) ·{" "}
+            Size = {labelFor(effectiveSizeBy())} · Colour = {labelFor(colorBy())} ({LEGEND_DIRECTION}) ·{" "}
             <span data-testid="heatmap-filter-count">
               {formatCount(filteredRows().length)} of {formatCount(total())}
             </span>
@@ -202,21 +256,30 @@ function MarketHeatmapPanel(props: { data: Accessor<Record<string, unknown> | un
                   fallback={
                     <Box
                       data-testid="market-heatmap-empty"
-                      className="flex h-full min-h-0 items-center justify-center p-2"
+                      className="flex h-full min-h-0 flex-col items-center justify-center gap-2 p-2"
                     >
                       <Text size="xs" c="dimmed">
                         {rows().length > 0
                           ? "No stocks match these filters."
                           : "No stocks in this snapshot."}
                       </Text>
+                      <Button
+                        size="xs"
+                        variant="subtle"
+                        data-testid="market-heatmap-empty-action"
+                        onClick={() => (rows().length > 0 ? clearFilters() : snapshot.refresh(true))}
+                      >
+                        {rows().length > 0 ? "Clear filters" : "Refresh snapshot"}
+                      </Button>
                     </Box>
                   }
                 >
                   <MarketMapView
                     rows={filteredRows()}
                     currency={currency()}
-                    sizeBy={sizeBy()}
+                    sizeBy={effectiveSizeBy()}
                     onSizeByChange={setSizeBy}
+                    colorBy={colorBy()}
                     showSizeControl={false}
                     onSymbolClick={(symbol) => dock.open(symbol)}
                   />
@@ -239,6 +302,14 @@ function MarketHeatmapPanel(props: { data: Accessor<Record<string, unknown> | un
             >
               <Text size="xs" fw={600}>Market snapshot unavailable</Text>
               <Text size="xs" c="dimmed">{error().message}</Text>
+              <Button
+                size="xs"
+                variant="subtle"
+                data-testid="market-heatmap-error-retry"
+                onClick={() => snapshot.refresh(true)}
+              >
+                Retry
+              </Button>
             </Box>
           )}
         </Show>

@@ -11,14 +11,16 @@ import { WINDOW_PANEL_TYPES } from "../panelRegistry";
 const ctl = vi.hoisted(() => ({
   state: null as unknown as ChartPatternsState,
   dockOpen: vi.fn(),
+  triggerScan: vi.fn(),
 }));
 
 vi.mock("@/state/chartPatterns", () => ({
   getChartPatternsState: () => ctl.state,
   subscribe: () => () => {},
+  ensureCatalogLoaded: vi.fn(() => Promise.resolve()),
   selectTimeframe: vi.fn(),
   selectUniverse: vi.fn(),
-  triggerScan: vi.fn(),
+  triggerScan: ctl.triggerScan,
   setTimeframe: vi.fn(),
   setFilter: vi.fn(),
   resetFilters: vi.fn(),
@@ -151,6 +153,15 @@ describe("patterns.results window panel", () => {
     expect(screen.getByTestId("patterns-results-empty")).toHaveTextContent("No patterns");
     expect(screen.queryByTestId("patterns-list")).not.toBeInTheDocument();
     expect(screen.queryByTestId("patterns-results-loading")).not.toBeInTheDocument();
+  });
+
+  it("(empty-action) the empty state offers an enabled Scan button", () => {
+    renderPanel();
+
+    const action = screen.getByTestId("patterns-results-empty-action");
+    expect(action).toBeEnabled();
+    fireEvent.click(action);
+    expect(ctl.triggerScan).toHaveBeenCalledTimes(1);
   });
 
   it("(c) a store error renders its message, not a blank box", () => {

@@ -11,6 +11,7 @@ import {
 } from "../../options-dock/analytics/AnalyticsTabStrip";
 import type { AnalyticsTab } from "../../options-dock/analytics/types";
 import type { DockPanelContext, DockPanelSpec } from "../../dock/types";
+import { ExpirySelect, useExpiryPicker } from "./expiryPicker";
 
 type ChainStatus = "loading" | "ready" | "empty" | "error";
 
@@ -66,7 +67,9 @@ function OptionsAnalyticsWindow(props: { context: Accessor<DockPanelContext> }) 
   const [symbol, setSymbol] = createSignal(
     (props.context().symbol ?? "NIFTY").trim().toUpperCase() || "NIFTY",
   );
-  const [expiryOverride, setExpiryOverride] = createSignal((props.context().expiry ?? "").trim());
+  const picker = useExpiryPicker(symbol, props.context);
+  const expiryOverride = picker.expiry;
+  const setExpiryOverride = picker.setExpiry;
   const [chainRetry, setChainRetry] = createSignal(0);
   const [tab, setTab] = createSignal<AnalyticsTab>("term");
 
@@ -160,11 +163,6 @@ function OptionsAnalyticsWindow(props: { context: Accessor<DockPanelContext> }) 
     if (next !== symbol()) setSymbol(next);
   };
 
-  const onExpiryChange = (value: string) => {
-    const next = value.trim();
-    if (next !== expiryOverride()) setExpiryOverride(next);
-  };
-
   const stripContext = (): AnalyticsStripContext => ({
     symbol: symbol(),
     expiry: selectedExpiry()
@@ -213,14 +211,14 @@ function OptionsAnalyticsWindow(props: { context: Accessor<DockPanelContext> }) 
           value={symbol()}
           onChange={onSymbolChange}
         />
-        <TextInput
-          aria-label="Expiry"
-          data-testid="options-analytics-expiry-input"
-          size="xs"
-          w={130}
-          placeholder="YYYY-MM-DD"
-          value={expiryOverride()}
-          onChange={onExpiryChange}
+        <ExpirySelect
+          model={picker}
+          ariaLabel="Expiry"
+          controlTestId="options-analytics-expiry-input"
+          pickerTestId="options-analytics-expiry-picker"
+          loadingTestId="options-analytics-expiry-loading"
+          errorTestId="options-analytics-expiry-error"
+          emptyTestId="options-analytics-expiry-empty"
         />
         <Show when={spot() > 0}>
           <Text size="xs" c="dimmed">
@@ -243,11 +241,19 @@ function OptionsAnalyticsWindow(props: { context: Accessor<DockPanelContext> }) 
       <Show when={!symbol()}>
         <Box
           data-testid="options-analytics-empty-symbol"
-          className="flex min-h-0 flex-1 items-center justify-center px-2"
+          className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-2"
         >
           <Text size="xs" c="dimmed">
             Enter a symbol to load options analytics.
           </Text>
+          <Button
+            size="xs"
+            variant="subtle"
+            data-testid="options-analytics-empty-action"
+            onClick={() => setSymbol("NIFTY")}
+          >
+            Use NIFTY
+          </Button>
         </Box>
       </Show>
 
@@ -263,9 +269,19 @@ function OptionsAnalyticsWindow(props: { context: Accessor<DockPanelContext> }) 
       <Show when={chainStatus() === "empty"}>
         <Box
           data-testid="options-analytics-chain-empty"
-          className="shrink-0 px-2 py-1 text-[10px] text-fin-text-muted"
+          className="flex shrink-0 flex-col gap-1 px-2 py-1 text-[11px] text-fin-text-muted"
         >
-          No strikes listed for {symbol() || "—"} {selectedExpiry() || "— choose an expiry"}
+          <Text size="xs" c="dimmed">
+            No strikes listed for {symbol() || "—"} {selectedExpiry() || "— choose an expiry"}
+          </Text>
+          <Button
+            size="xs"
+            variant="subtle"
+            data-testid="options-analytics-chain-empty-retry"
+            onClick={() => setChainRetry((count) => count + 1)}
+          >
+            Retry
+          </Button>
         </Box>
       </Show>
 
@@ -310,11 +326,14 @@ function OptionsAnalyticsWindow(props: { context: Accessor<DockPanelContext> }) 
               {strip()}
               <Box
                 data-testid="options-analytics-payoff-empty"
-                className="flex min-h-0 flex-1 items-center justify-center px-2"
+                className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-2"
               >
                 <Text size="xs" c="dimmed">
                   Payoff needs a position — build legs in the Options dock.
                 </Text>
+                <Anchor href="/options" data-testid="options-analytics-payoff-open-dock">
+                  Open Options dock
+                </Anchor>
               </Box>
             </Box>
           </Match>

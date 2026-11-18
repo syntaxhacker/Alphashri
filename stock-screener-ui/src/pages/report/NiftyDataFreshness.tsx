@@ -1,8 +1,12 @@
 import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
-import { parseIstTimestampMs } from "./niftyDataFreshness";
-import { computeNiftyFreshness, type FreshnessBurst, type NiftyFreshnessInput } from "./niftyFreshness";
+import { dataFreshness, type DataFreshnessInput } from "./niftyDataFreshness";
+import {
+  computeNiftyFreshness,
+  type FreshnessBurst,
+  type NiftyFreshnessInput,
+} from "./niftyFreshness";
 
 interface NiftyDataFreshnessProps {
   report?: {
@@ -37,41 +41,25 @@ export function NiftyDataFreshness(props: NiftyDataFreshnessProps) {
     onCleanup(() => clearInterval(id));
   });
 
-  // Compute the newest backend timestamp from report/tape/bursts
-  const lastBackendMs = createMemo(() => {
-    const effectiveSessionDate =
-      props.sessionDate ?? props.report?.market?.session_date ?? props.tape?.date ?? null;
-
-    const reportTs =
-      parseIstTimestampMs(props.report?.market?.as_of, effectiveSessionDate) ??
-      parseIstTimestampMs(props.report?.fetchedAt, effectiveSessionDate);
-
-    // The tape is monotone: the newest row is the last one, so parse only it.
-    // An empty tape yields no timestamp.
-    const tapeRows = props.tape?.rows;
-    const lastRow =
-      tapeRows != null && tapeRows.length > 0 ? tapeRows[tapeRows.length - 1] : null;
-    const tapeTs = lastRow ? parseIstTimestampMs(lastRow?.t, effectiveSessionDate) : null;
-
-    let burstTs: number | null = null;
-    for (const b of props.bursts ?? []) {
-      const ts = parseIstTimestampMs(b?.t, effectiveSessionDate);
-      if (ts !== null && (burstTs === null || ts > burstTs)) burstTs = ts;
-    }
-
-    // Newest of all sources
-    const candidates = [reportTs, tapeTs, burstTs].filter(
-      (v): v is number => v !== null && Number.isFinite(v),
-    );
-    return candidates.length > 0 ? Math.max(...candidates) : null;
-  });
+  // The tape is the freshness authority: a freshly fetched report must not
+  // hide a feed that stopped hours ago.
+  const authoritative = createMemo(() =>
+    dataFreshness({
+      nowMs: nowMs(),
+      marketOpen: props.marketOpen,
+      sessionDate: props.sessionDate,
+      report: props.report,
+      tape: props.tape,
+      bursts: props.bursts,
+    } satisfies DataFreshnessInput),
+  );
 
   const freshness = createMemo(() =>
     computeNiftyFreshness({
       nowMs: nowMs(),
-      lastBackendMs: lastBackendMs(),
       marketOpen: props.marketOpen,
       bursts: props.bursts,
+      authoritative: authoritative(),
     } satisfies NiftyFreshnessInput),
   );
 

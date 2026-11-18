@@ -16,6 +16,8 @@ const CANVAS: CanvasSize = { w: 1280, h: 800 };
 /** Path + query are the contract: a wrong universe or cap would no longer match. */
 const SNAPSHOT_URL = /\/api\/market\/snapshot\?universe=all_equity&limit=4000$/;
 const CHAIN_URL = /\/api\/options\/chain\//;
+/** The options panels now pick an expiry from the real listing instead of a text field. */
+const EXPIRIES_URL = /\/api\/(reports\/nifty\/expiries|options\/expiries\/)/;
 
 const MARKET_SNAPSHOT_PAYLOAD = {
   as_of: "2026-11-19T10:00:00+05:30",
@@ -25,6 +27,7 @@ const MARKET_SNAPSHOT_PAYLOAD = {
   rows: [],
 };
 const CHAIN_PAYLOAD = { expiry: "2026-11-26", spot: 24000, chain: [] };
+const EXPIRIES_PAYLOAD = { expiries: [{ date: "2026-11-26" }, { date: "2026-12-03" }] };
 
 function jsonResponse(body: unknown): Response {
   return {
@@ -46,6 +49,7 @@ function makeFetchMock() {
   const mock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     if (SNAPSHOT_URL.test(url)) return jsonResponse(MARKET_SNAPSHOT_PAYLOAD);
+    if (EXPIRIES_URL.test(url)) return jsonResponse(EXPIRIES_PAYLOAD);
     if (CHAIN_URL.test(url)) return jsonResponse(CHAIN_PAYLOAD);
     unexpected.push(url);
     throw new Error(`Unexpected network request in HomePage unit test: ${url}`);
@@ -286,10 +290,12 @@ describe("HOME window desk", () => {
     expect(withinToolbar.queryByTestId("home-expiry-input")).not.toBeInTheDocument();
     expect(withinToolbar.queryByLabelText("Symbol")).not.toBeInTheDocument();
     expect(withinToolbar.queryByLabelText("Expiry")).not.toBeInTheDocument();
-    // The inputs live in the options-chain window body, not the app chrome.
+    // The controls live in the options-chain window body, not the app chrome.
+    // The expiry is a picker fed from the exchange listing, so it carries the
+    // same testid but a different element type than the old text field.
     expect(screen.getByTestId("options-chain-window")).toHaveTextContent("CHAIN");
-    expect(screen.getByLabelText("Symbol")).toHaveAttribute("data-testid", "options-chain-symbol-input");
-    expect(screen.getByLabelText("Expiry")).toHaveAttribute("data-testid", "options-chain-expiry-input");
+    expect(screen.getByTestId("options-chain-symbol-input")).toBeInTheDocument();
+    expect(screen.getByTestId("options-chain-expiry-input")).toBeInTheDocument();
   });
 
   it("(chrome) picker, layout tabs, Fit all and Lock stay present and keyboard reachable", () => {

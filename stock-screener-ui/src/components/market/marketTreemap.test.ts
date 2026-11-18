@@ -29,6 +29,7 @@ import {
   marketTileColor,
   marketTileTextColor,
   marketTreemapMetrics,
+  usableSizeMetrics,
   robustColorBounds,
   toTreemapRow,
 } from "./marketTreemap";
@@ -365,6 +366,20 @@ describe("the single Size by selector", () => {
   test("market cap stays in the list but is no longer the default driver", () => {
     expect(MARKET_SIZE_METRIC_VALUES).toContain("market_cap");
     expect(DEFAULT_MARKET_SIZE_METRIC).not.toBe("market_cap");
+  });
+
+  test("a metric with no finite non-zero value is disabled for size; negatives still size", () => {
+    const stock = {
+      ...toTreemapRow(base),
+      change_pct: -3,
+      rsi: 0,
+      perf_w: null,
+    } as HeatmapStock;
+    const sized = usableSizeMetrics([stock], marketMetricOptions());
+    expect(sized.find((o) => o.value === "change_pct")?.disabled).toBeFalsy();
+    expect(sized.find((o) => o.value === "rsi")?.disabled).toBe(true);
+    expect(sized.find((o) => o.value === "perf_w")?.disabled).toBe(true);
+    expect(usableSizeMetrics([], marketMetricOptions()).every((o) => !o.disabled)).toBe(true);
   });
 
   test("accepts currency-specific cap metrics without changing the option list", () => {

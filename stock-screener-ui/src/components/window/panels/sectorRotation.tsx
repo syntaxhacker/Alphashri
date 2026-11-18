@@ -43,10 +43,13 @@ function SectorRotationPanel(props: { ctx: Accessor<DockPanelContext> }) {
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   const [selectedId, setSelectedId] = createSignal<string | null>(null);
+  const [retryTick, setRetryTick] = createSignal(0);
 
   createEffect(() => {
     const m = market();
     const k = kind();
+    // Retry re-runs this effect without changing the group selector.
+    retryTick();
     const controller = new AbortController();
     onCleanup(() => controller.abort());
     setLoading(true);
@@ -136,11 +139,19 @@ function SectorRotationPanel(props: { ctx: Accessor<DockPanelContext> }) {
           <Box
             data-testid="sector-rotation-error"
             role="alert"
-            className="flex min-h-0 flex-1 items-center justify-center p-3 text-center"
+            className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-3 text-center"
           >
             <Text size="xs" c="error">
               {error()}
             </Text>
+            <button
+              type="button"
+              class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
+              data-testid="sector-rotation-error-retry"
+              onClick={() => setRetryTick((n) => n + 1)}
+            >
+              Retry
+            </button>
           </Box>
         </Match>
         <Match when={loading() || !data()}>
@@ -157,11 +168,19 @@ function SectorRotationPanel(props: { ctx: Accessor<DockPanelContext> }) {
         <Match when={rows().length === 0}>
           <Box
             data-testid="sector-rotation-empty"
-            className="flex min-h-0 flex-1 items-center justify-center p-2"
+            className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-2"
           >
             <Text size="xs" c="dimmed">
               No {kind()} rotation groups.
             </Text>
+            <button
+              type="button"
+              class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
+              data-testid="sector-rotation-empty-retry"
+              onClick={() => setRetryTick((n) => n + 1)}
+            >
+              Retry
+            </button>
           </Box>
         </Match>
         <Match when={true}>

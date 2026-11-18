@@ -8,6 +8,7 @@ import { NiftyDeskGuide } from "./NiftyDeskGuide";
 import { NiftyPositionsDrawer } from "./NiftyPositionsDrawer";
 import { NiftyReplayBar } from "./NiftyReplayBar";
 import { NiftyUpdatedLabel } from "./NiftyUpdatedLabel";
+import { wsBadgeLabel } from "./niftyFreshness";
 import { useNiftyReport } from "./ReportContext";
 
 // The SIM desk owns the largest non-chart bundle (builder, payoff, runs). It
@@ -232,9 +233,13 @@ export function ReportToolbar(_props: { onOpenSymbol?: (s: string) => void }) {
           />
         </Show>
         <Show when={isStale()}>
-          <span data-testid="nifty-stale-badge" style={STALE_BADGE_STYLE}>
+          <span
+            data-testid="nifty-stale-badge"
+            style={STALE_BADGE_STYLE}
+            title="WebSocket feed disconnected — data age is reported separately by the DATA badge"
+          >
             <Text size="xs" fw={700} c="warning" span>
-              STALE {staleMins()}m
+              {wsBadgeLabel(staleMins())}
             </Text>
           </span>
         </Show>

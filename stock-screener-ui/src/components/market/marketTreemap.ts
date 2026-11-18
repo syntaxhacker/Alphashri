@@ -150,9 +150,31 @@ export function marketMetricOptions(currency?: CurrencyCode): MarketMetricOption
 }
 
 /**
- * The single "Size by" dropdown. Every value here is a real `MarketRow` field
- * carried through `toTreemapRow`; none of them chooses a colour. Day change is
- * the default, market cap stays as an option, and each tile's area is |value|.
+ * Tile area is |value|, so a negative metric is still drawable. A field with no
+ * finite non-zero value anywhere in the snapshot cannot produce a tile: mark
+ * it disabled in Size by (the option stays so a controlled select keeps its
+ * value across refreshes). It stays selectable for Colour by, where a flat or
+ * missing distribution still gets an honest cividis fill.
+ */
+export function usableSizeMetrics(
+  stocks: HeatmapStock[],
+  options: MarketMetricOption[],
+): MarketMetricOption[] {
+  if (!stocks.length) return options;
+  return options.map((option) => {
+    const usable = stocks.some((stock) => {
+      const value = getRawMetricValue(stock, option.value);
+      return value !== null && Math.abs(value) > 0;
+    });
+    return usable ? option : { ...option, disabled: true };
+  });
+}
+
+/**
+ * The selectable metric vocabulary shared by Size by and Colour by. Every
+ * value here is a real `MarketRow` field carried through `toTreemapRow`; tile
+ * area is |value| when a metric sizes the map. Day change is the default for
+ * direct map renders, market cap for the window panel's size control.
  * This is the persisted `colorBy` wire set. The original five keep their order
  * for backwards compatibility; the seven fundamental/trend fields were added
  * so every visible dropdown option is selectable and restorable.
@@ -173,6 +195,9 @@ export const MARKET_SIZE_METRIC_VALUES = [
 ] as const;
 export type MarketSizeMetric = (typeof MARKET_SIZE_METRIC_VALUES)[number];
 export const DEFAULT_MARKET_SIZE_METRIC: MarketSizeMetric = "change_pct";
+/** The window panel splits the encodings: a true magnitude for area, momentum for hue. */
+export const DEFAULT_HEATMAP_SIZE_METRIC: MarketSizeMetric = "market_cap";
+export const DEFAULT_HEATMAP_COLOR_METRIC: MarketSizeMetric = "change_pct";
 
 const SIZE_METRICS = new Set<string>(MARKET_SIZE_METRIC_VALUES);
 

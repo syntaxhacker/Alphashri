@@ -3,6 +3,7 @@ import type { Accessor } from "solid-js";
 import { Box, Text, TextInput, ToolbarRow } from "@/ui";
 import { PositioningPanel } from "../../options/Positioning/PositioningPanel";
 import type { DockPanelContext, DockPanelSpec } from "../../dock/types";
+import { ExpirySelect, useExpiryPicker } from "./expiryPicker";
 
 /**
  * Window-sized positioning surface. It owns only an underlying and an expiry:
@@ -16,16 +17,12 @@ function OptionsPositioningWindow(props: { context: Accessor<DockPanelContext> }
   const [underlying, setUnderlying] = createSignal(
     (props.context().symbol ?? "NIFTY").trim().toUpperCase() || "NIFTY",
   );
-  const [expiry, setExpiry] = createSignal((props.context().expiry ?? "").trim());
+  const picker = useExpiryPicker(underlying, props.context);
+  const expiry = picker.expiry;
 
   const onUnderlyingChange = (value: string) => {
     const next = value.trim().toUpperCase() || "NIFTY";
     if (next !== underlying()) setUnderlying(next);
-  };
-
-  const onExpiryChange = (value: string) => {
-    const next = value.trim();
-    if (next !== expiry()) setExpiry(next);
   };
 
   return (
@@ -50,14 +47,14 @@ function OptionsPositioningWindow(props: { context: Accessor<DockPanelContext> }
           value={underlying()}
           onChange={onUnderlyingChange}
         />
-        <TextInput
-          aria-label="Expiry"
-          data-testid="options-positioning-expiry-input"
-          size="xs"
-          w={130}
-          placeholder="YYYY-MM-DD"
-          value={expiry()}
-          onChange={onExpiryChange}
+        <ExpirySelect
+          model={picker}
+          ariaLabel="Expiry"
+          controlTestId="options-positioning-expiry-input"
+          pickerTestId="options-positioning-expiry-picker"
+          loadingTestId="options-positioning-expiry-loading"
+          errorTestId="options-positioning-expiry-error"
+          emptyTestId="options-positioning-expiry-empty"
         />
       </ToolbarRow>
 

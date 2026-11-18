@@ -1,7 +1,8 @@
-import { createMemo, Show } from "solid-js";
+import { createMemo, onMount, Show } from "solid-js";
 import { Box, Button, Loader, Select, Text, ToolbarRow } from "@/ui";
 import { useStoreSubscription } from "@/hooks/useStoreSubscription";
 import {
+  ensureCatalogLoaded,
   getChartPatternsState,
   selectTimeframe,
   selectUniverse,
@@ -19,6 +20,16 @@ function PatternResultsPanel() {
     version();
     return getChartPatternsState();
   });
+
+  // The window can be opened on a desk where the patterns page never mounted,
+  // so its registries are still empty. Trigger the store's single-flight
+  // bootstrap rather than duplicating the metadata fetch here.
+  onMount(() => {
+    void ensureCatalogLoaded();
+  });
+  const registryReady = createMemo(
+    () => state().timeframes.length > 0 && state().universes.length > 0,
+  );
 
   // Both selects read the store's own registries — a new timeframe or universe
   // appears here without this panel knowing its id.
@@ -42,27 +53,38 @@ function PatternResultsPanel() {
     <Box data-testid="patterns-results-panel" className="flex h-full min-h-0 min-w-0 flex-col">
       <Box className="shrink-0 border-b border-fin-border" data-testid="patterns-results-toolbar">
         <ToolbarRow gap={8} wrap={false} clip className="h-8 px-2">
-          <Select
-            size="xs"
-            w={104}
-            value={state().timeframe}
-            onChange={(value) => value && selectTimeframe(value)}
-            data={timeframeOptions()}
-            aria-label="Pattern timeframe"
-            data-testid="patterns-results-timeframe"
-          />
-          <Select
-            size="xs"
-            w={128}
-            value={state().universe}
-            onChange={(value) => value && selectUniverse(value)}
-            data={universeOptions()}
-            aria-label="Pattern universe"
-            data-testid="patterns-results-universe"
-          />
+          <Show
+            when={registryReady()}
+            fallback={
+              <Box className="flex items-center gap-2" data-testid="patterns-results-catalog-loading">
+                <Loader size="xs" />
+                <Text size="xs" c="dimmed">Loading pattern catalog…</Text>
+              </Box>
+            }
+          >
+            <Select
+              size="xs"
+              w={104}
+              value={state().timeframe}
+              onChange={(value) => value && selectTimeframe(value)}
+              data={timeframeOptions()}
+              aria-label="Pattern timeframe"
+              data-testid="patterns-results-timeframe"
+            />
+            <Select
+              size="xs"
+              w={128}
+              value={state().universe}
+              onChange={(value) => value && selectUniverse(value)}
+              data={universeOptions()}
+              aria-label="Pattern universe"
+              data-testid="patterns-results-universe"
+            />
+          </Show>
           <Button
             size="xs"
             variant="default"
+            disabled={!registryReady()}
             onClick={() => void triggerScan()}
             data-testid="patterns-results-scan"
           >
@@ -93,6 +115,14 @@ function PatternResultsPanel() {
             >
               <Text size="xs" fw={600}>Patterns unavailable</Text>
               <Text size="xs" c="error">{state().error}</Text>
+              <Button
+                size="xs"
+                variant="subtle"
+                onClick={() => void ensureCatalogLoaded(true)}
+                data-testid="patterns-results-error-retry"
+              >
+                Retry
+              </Button>
             </Box>
           }
         >
@@ -113,9 +143,18 @@ function PatternResultsPanel() {
               fallback={
                 <Box
                   data-testid="patterns-results-empty"
-                  className="flex min-h-0 flex-1 items-center justify-center p-2"
+                  className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-2"
                 >
                   <Text size="xs" c="dimmed">No patterns — run a scan</Text>
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    disabled={!registryReady()}
+                    onClick={() => void triggerScan()}
+                    data-testid="patterns-results-empty-action"
+                  >
+                    Scan
+                  </Button>
                 </Box>
               }
             >

@@ -11,6 +11,7 @@ import {
   type ChainRow,
   type OptionDockChain,
 } from "@/api/optionsDock";
+import { fetchNiftyExpiries, fetchOptionsExpiries } from "@/api/reportNifty";
 import type { DockPanelContext } from "../../dock/types";
 import { WindowManager } from "../WindowManager";
 import { WINDOW_PANELS } from "../panelRegistry";
@@ -22,7 +23,31 @@ vi.mock("@/api/optionsDock", async (importOriginal) => {
   return { ...actual, fetchChain: vi.fn() };
 });
 
+vi.mock("@/api/reportNifty", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/api/reportNifty")>();
+  return {
+    ...actual,
+    fetchNiftyExpiries: vi.fn(),
+    fetchOptionsExpiries: vi.fn(),
+  };
+});
+
 const fetchChainMock = vi.mocked(fetchChain);
+const fetchNiftyExpiriesMock = vi.mocked(fetchNiftyExpiries);
+const fetchOptionsExpiriesMock = vi.mocked(fetchOptionsExpiries);
+
+/** Dates relative to today so "nearest" stays correct whenever CI runs. */
+const isoAfter = (days: number) => {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+};
+const nearExpiry = () => isoAfter(3);
+const farExpiry = () => isoAfter(21);
+const expiriesFixture = () => [
+  { date: nearExpiry() },
+  { date: farExpiry() },
+];
 
 function leg(ltp: number): ChainLeg {
   return {
@@ -101,6 +126,13 @@ beforeEach(() => {
     dispatchEvent: vi.fn(),
   }));
   fetchChainMock.mockReset();
+  fetchNiftyExpiriesMock.mockReset();
+  fetchOptionsExpiriesMock.mockReset();
+  fetchNiftyExpiriesMock.mockImplementation(async () => expiriesFixture());
+  fetchOptionsExpiriesMock.mockImplementation(async () => [
+    nearExpiry(),
+    farExpiry(),
+  ]);
 });
 
 afterEach(() => {
@@ -144,6 +176,14 @@ describe("options.chain window panel — real chain data", () => {
     expect(screen.queryByTestId("options-chain-loading")).not.toBeInTheDocument();
     expect(screen.queryByTestId("options-chain-error")).not.toBeInTheDocument();
     expect(screen.queryByTestId("options-chain-table")).not.toBeInTheDocument();
+  });
+
+  it("(empty-action) the empty state offers an enabled Retry button", async () => {
+    fetchChainMock.mockResolvedValue(makeChain([]));
+    renderWindow();
+
+    await waitFor(() => expect(screen.getByTestId("options-chain-empty")).toBeInTheDocument());
+    expect(screen.getByTestId("options-chain-empty-retry")).toBeEnabled();
   });
 
   it("(b) a 401 surfaces the typed auth state, not a blank box", async () => {
@@ -216,9 +256,13 @@ describe("options.chain failure behaviour", () => {
     renderWindow();
 
     expect(screen.getByTestId("options-chain-loading")).toBeInTheDocument();
-    fireEvent.input(screen.getByTestId("options-chain-expiry-input"), {
-      target: { value: "2026-12-04" },
-    });
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("options-chain-expiry-input")).getByRole("combobox"),
+      ).toBeEnabled(),
+    );
+    const expirySelect = within(screen.getByTestId("options-chain-expiry-input")).getByRole("combobox");
+    fireEvent.input(expirySelect, { target: { value: farExpiry() } });
     rejectFirst(new DOMException("Aborted", "AbortError"));
 
     await waitFor(() =>
@@ -288,22 +332,25 @@ describe("options.chain — two-window request count", () => {
 
 describe("options.chain window panel — in-window control", () => {
   it("(c) the expiry control lives inside the window, not the page toolbar", async () => {
-    // No context expiry: any control must come from the window itself.
-    renderWindow({ expiry: undefined });
+    fetchChainMock.mockResolvedValue(fixture());
+    renderWindow();
     const body = screen.getByTestId("window-body-chain");
     const expiryInput = within(body).getByTestId("options-chain-expiry-input");
 
     expect(body).toContainElement(expiryInput);
     expect(screen.queryByTestId("home-expiry-input")).not.toBeInTheDocument();
-    expect(screen.getByTestId("options-chain-empty")).toBeInTheDocument();
-    expect(fetchChainMock).not.toHaveBeenCalled();
 
-    fetchChainMock.mockResolvedValue(fixture());
-    fireEvent.input(expiryInput, { target: { value: "2026-12-04" } });
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("options-chain-expiry-input")).getByRole("combobox"),
+      ).toBeEnabled(),
+    );
+    const expirySelect = within(screen.getByTestId("options-chain-expiry-input")).getByRole("combobox");
+    fireEvent.input(expirySelect, { target: { value: farExpiry() } });
     await waitFor(() =>
       expect(fetchChainMock).toHaveBeenCalledWith(
         "NIFTY",
-        "2026-12-04",
+        farExpiry(),
         expect.any(AbortSignal),
       ),
     );
@@ -312,5 +359,99 @@ describe("options.chain window panel — in-window control", () => {
   it("(c) the panel is registered in the window picker and the window registry", () => {
     expect(WINDOW_PANELS.map((spec) => spec.id)).toContain("options.chain");
     expect(HOME_PANELS.map((spec) => spec.id)).toContain("options.chain");
+  });
+});
+
+describe("options.chain — expiry picker", () => {
+  it("(a) the select is populated from real listings and defaults to the nearest expiry", async () => {
+    fetchChainMock.mockResolvedValue(fixture());
+    renderWindow({ expiry: undefined });
+
+    const picker = await screen.findByTestId("options-chain-expiry-picker");
+    await waitFor(() =>
+      expect(within(picker).getAllByRole("option")).toHaveLength(2),
+    );
+    const select = within(picker).getByRole("combobox");
+    expect(within(select).getAllByRole("option").map((o) => o.getAttribute("value"))).toEqual([
+      nearExpiry(),
+      farExpiry(),
+    ]);
+    expect(select).toHaveValue(nearExpiry());
+    expect(fetchNiftyExpiriesMock).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(fetchChainMock).toHaveBeenCalledWith(
+        "NIFTY",
+        nearExpiry(),
+        expect.any(AbortSignal),
+      ),
+    );
+  });
+
+  it("(b) choosing an expiry refetches the chain with that date", async () => {
+    fetchChainMock.mockResolvedValue(fixture());
+    renderWindow({ expiry: undefined });
+    const picker = await screen.findByTestId("options-chain-expiry-picker");
+    await waitFor(() => expect(within(picker).getAllByRole("option")).toHaveLength(2));
+
+    fireEvent.input(within(picker).getByRole("combobox"), {
+      target: { value: farExpiry() },
+    });
+
+    await waitFor(() =>
+      expect(fetchChainMock).toHaveBeenCalledWith(
+        "NIFTY",
+        farExpiry(),
+        expect.any(AbortSignal),
+      ),
+    );
+  });
+
+  it("(d) a failed expiries request renders an error with Retry, not an empty select", async () => {
+    fetchChainMock.mockResolvedValue(fixture());
+    fetchNiftyExpiriesMock
+      .mockRejectedValueOnce(new Error("expiry service down"))
+      .mockImplementation(async () => expiriesFixture());
+    renderWindow({ expiry: undefined });
+
+    const error = await screen.findByTestId("options-chain-expiry-error");
+    expect(error).toHaveTextContent(/expiry service down/i);
+    const retry = within(error).getByRole("button", { name: /retry/i });
+    expect(retry).toBeEnabled();
+    expect(fetchChainMock).not.toHaveBeenCalled();
+
+    fireEvent.click(retry);
+    await waitFor(() => expect(fetchNiftyExpiriesMock).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.queryByTestId("options-chain-expiry-error")).not.toBeInTheDocument(),
+    );
+    expect(within(screen.getByTestId("options-chain-expiry-picker")).getAllByRole("option")).toHaveLength(2);
+  });
+
+  it("(e) a context expiry is honoured and not overwritten by the default", async () => {
+    fetchChainMock.mockResolvedValue(fixture());
+    renderWindow({ expiry: farExpiry() });
+
+    const picker = await screen.findByTestId("options-chain-expiry-picker");
+    await waitFor(() => expect(within(picker).getAllByRole("option")).toHaveLength(2));
+    expect(within(picker).getByRole("combobox")).toHaveValue(farExpiry());
+    expect(fetchChainMock).toHaveBeenCalledWith(
+      "NIFTY",
+      farExpiry(),
+      expect.any(AbortSignal),
+    );
+    expect(fetchChainMock).not.toHaveBeenCalledWith(
+      "NIFTY",
+      nearExpiry(),
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("(f) no expiries for the symbol renders an explanatory state", async () => {
+    fetchNiftyExpiriesMock.mockResolvedValue([]);
+    renderWindow({ expiry: undefined });
+
+    const empty = await screen.findByTestId("options-chain-expiry-empty");
+    expect(empty).toHaveTextContent(/no expiries listed/i);
+    expect(fetchChainMock).not.toHaveBeenCalled();
   });
 });

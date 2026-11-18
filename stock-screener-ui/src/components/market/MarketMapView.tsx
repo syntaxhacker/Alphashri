@@ -18,6 +18,7 @@ import {
   type StockTreemapStyle,
 } from "@/components/heatmap/stockTreemap";
 import { loadEcharts } from "@/utils/loadEcharts";
+import { getRawMetricValue } from "@/components/heatmap/heatmapUtils";
 import * as palette from "@/ui/palette";
 import {
   DEFAULT_MARKET_SIZE_METRIC,
@@ -43,9 +44,14 @@ export interface MarketMapViewProps {
   onSymbolClick?: (symbol: string) => void;
   /** Quote currency of the current universe. Defaults to India. */
   currency?: CurrencyCode;
-  /** Persisted sizing metric; day change when absent. Colour is never chosen here. */
+  /** Persisted sizing metric; day change when absent. */
   sizeBy?: MarketSizeMetric;
   onSizeByChange?: (metric: MarketSizeMetric) => void;
+  /**
+   * Hue source. When absent it tracks `sizeBy`, preserving the single-metric
+   * callers; the window panel passes its own Colour by selection instead.
+   */
+  colorBy?: MarketSizeMetric;
   /**
    * The panel owns the single Size by control in its Vis toolbar. Direct renders
    * (the viz's own unit tests) still show one; the panel passes false so there
@@ -91,6 +97,7 @@ export interface VisRenderProps {
   currency?: CurrencyCode;
   sizeBy?: MarketSizeMetric;
   onSizeByChange?: (metric: MarketSizeMetric) => void;
+  colorBy?: MarketSizeMetric;
   showSizeControl?: boolean;
 }
 
@@ -120,16 +127,16 @@ type TreemapDatum = {
 };
 
 /**
- * Owns the ECharts lifecycle. The shared builder owns area and tile order;
- * this canvas paints the fill from the tile's SELECTED metric value, so label,
- * size and colour all describe the same number. It reads `metricNumeric` by
- * datum rather than by array index, so recolouring cannot shift onto the wrong
- * stock when a sizing option drops a row with no value.
+ * Owns the ECharts lifecycle. The shared builder owns area and tile order from
+ * the size metric; this canvas repaints each fill from the colour metric's own
+ * value, looked up by symbol so a size/drop cannot shift a colour onto the
+ * wrong stock. Area and hue are independent; both legends name their source.
  */
 function MarketTreemapCanvas(props: {
   built: ReturnType<typeof buildStockTreemapOption>;
   stocks: MarketTreemapRow[];
   metric: MarketSizeMetric;
+  colorMetric: MarketSizeMetric;
   metrics: MetricConfig[];
   onSymbolClick?: (symbol: string) => void;
   onSizeChange?: (width: number, height: number) => void;
@@ -141,23 +148,32 @@ function MarketTreemapCanvas(props: {
   let observer: ResizeObserver | null = null;
 
   const input = () => props.stocks as HeatmapStock[];
-  const colorDomain = createMemo(() => marketColorDomain(input(), props.metric));
+  const colorDomain = createMemo(() => marketColorDomain(input(), props.colorMetric));
+  const colorValues = createMemo(() => {
+    const bySymbol = new Map<string, number | null>();
+    for (const stock of props.stocks) {
+      bySymbol.set(stock.symbol, getRawMetricValue(stock, props.colorMetric));
+    }
+    return bySymbol;
+  });
+  const colorConfig = createMemo(() => resolveStockMetric(props.metrics, props.colorMetric));
+  const sizeConfig = createMemo(() => resolveStockMetric(props.metrics, props.metric));
   const option = createMemo(() => {
     const { min, max } = colorDomain();
     const data = (props.built.series[0].data as unknown as TreemapDatum[]).map((datum) => {
-      const raw = Number(datum.metricNumeric);
-      const value = Number.isFinite(raw) ? raw : 0;
+      const raw = colorValues().get(String(datum.name));
+      const value = raw != null && Number.isFinite(raw) ? raw : Number.NaN;
       return {
         ...datum,
-        itemStyle: { ...datum.itemStyle, color: marketTileColor(props.metric, value, min, max) },
-        label: { ...datum.label, color: marketTileTextColor(props.metric, value, min, max) },
+        metricNumeric: value,
+        metricLabel: colorConfig().label,
+        metricValue: safeFmt(colorConfig(), raw ?? Number.NaN),
+        itemStyle: { ...datum.itemStyle, color: marketTileColor(props.colorMetric, value, min, max) },
+        label: { ...datum.label, color: marketTileTextColor(props.colorMetric, value, min, max) },
       };
     });
     return { ...props.built, series: [{ ...props.built.series[0], data }] };
   });
-
-  const colorMetric = createMemo(() => resolveStockMetric(props.metrics, props.metric));
-  const sizeMetric = createMemo(() => resolveStockMetric(props.metrics, props.metric));
 
   const handleClick = (params: { name?: string }) => {
     if (params?.name) props.onSymbolClick?.(params.name);
@@ -212,10 +228,10 @@ function MarketTreemapCanvas(props: {
           data-testid="market-map-legend"
         >
           <Text size="xs" fw={600} data-testid="market-map-color-label">
-            {colorMetric().label}
+            {colorConfig().label}
           </Text>
           <Text size="xs" c="dimmed" className="whitespace-nowrap" data-testid="market-map-size-note">
-            size: {sizeMetric().label}
+            size: {sizeConfig().label}
           </Text>
           <Text size="xs" c="dimmed" className="whitespace-nowrap" data-testid="market-map-color-direction">
             {MARKET_COLOR_SCALE_NOTE}
@@ -227,7 +243,7 @@ function MarketTreemapCanvas(props: {
                 width: "12px",
                 height: "12px",
                 "background-color": marketTileColor(
-                  props.metric,
+                  props.colorMetric,
                   colorDomain().min,
                   colorDomain().min,
                   colorDomain().max,
@@ -237,7 +253,7 @@ function MarketTreemapCanvas(props: {
             />
             <Text size="xs">
               {colorDomain().clampedLow ? "≤" : ""}
-              {safeFmt(colorMetric(), colorDomain().min)}
+              {safeFmt(colorConfig(), colorDomain().min)}
             </Text>
             <Box
               className="flex-1 max-w-[120px] h-[8px] rounded-[4px]"
@@ -249,7 +265,7 @@ function MarketTreemapCanvas(props: {
                 width: "12px",
                 height: "12px",
                 "background-color": marketTileColor(
-                  props.metric,
+                  props.colorMetric,
                   colorDomain().max,
                   colorDomain().min,
                   colorDomain().max,
@@ -258,7 +274,7 @@ function MarketTreemapCanvas(props: {
               }}
             />
             <Text size="xs">
-              {safeFmt(colorMetric(), colorDomain().max)}
+              {safeFmt(colorConfig(), colorDomain().max)}
               {colorDomain().clampedHigh ? "≥" : ""}
             </Text>
           </Box>
@@ -296,6 +312,21 @@ export function MarketMapView(props: MarketMapViewProps) {
     ),
   );
   const metric = () => localMetric();
+  const initialColor: MarketSizeMetric = isMarketSizeMetric(props.colorBy)
+    ? props.colorBy
+    : initialMetric;
+  const [localColor, setLocalColor] = createSignal<MarketSizeMetric>(initialColor);
+  createEffect(
+    on(
+      () => props.colorBy,
+      (value) => {
+        if (!isMarketSizeMetric(value)) return;
+        if (value !== localColor()) setLocalColor(value);
+      },
+    ),
+  );
+  // A caller with no Colour by still gets the old single-metric behaviour.
+  const colorMetric = () => (isMarketSizeMetric(props.colorBy) ? localColor() : metric());
 
   const stocks = createMemo(() => (props.rows ?? EMPTY).map((row) => toTreemapRow(row, props.currency)));
   // The builder resolves the selected metric from this list: it must carry every
@@ -363,6 +394,7 @@ export function MarketMapView(props: MarketMapViewProps) {
         built={built()}
         stocks={stocks()}
         metric={metric()}
+        colorMetric={colorMetric()}
         metrics={metrics()}
         onSymbolClick={props.onSymbolClick}
         onSizeChange={(width, height) => {

@@ -148,11 +148,19 @@ function SectorHeatmapPanel() {
               fallback={
                 <Box
                   data-testid="sector-heatmap-empty"
-                  className="flex min-h-0 flex-1 items-center justify-center p-2"
+                  className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-2"
                 >
                   <Text size="xs" c="dimmed">
                     No {state().viewMode} data for this market.
                   </Text>
+                  <button
+                    type="button"
+                    class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
+                    data-testid="sector-heatmap-empty-retry"
+                    onClick={() => void loadSectorData(state().market)}
+                  >
+                    Retry
+                  </button>
                 </Box>
               }
             >

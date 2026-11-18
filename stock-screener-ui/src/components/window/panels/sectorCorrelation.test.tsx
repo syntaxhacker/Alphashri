@@ -186,6 +186,19 @@ describe("sector.correlation HOME desk panel", () => {
     expect(screen.queryByTestId("window-sector-correlation-heatmap")).not.toBeInTheDocument();
   });
 
+  it("(empty-action) the empty state offers an enabled Retry button", async () => {
+    ctl.fetchWithAuth.mockResolvedValueOnce(
+      okResponse({ ...RESPONSE, sectors: [], sector_names: [], correlation_matrix: [] }),
+    );
+
+    renderPanel();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("window-sector-correlation-empty")).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("window-sector-correlation-empty-retry")).toBeEnabled();
+  });
+
   it("(e) a fetch failure renders its message", async () => {
     ctl.fetchWithAuth.mockResolvedValueOnce({
       ok: false,
