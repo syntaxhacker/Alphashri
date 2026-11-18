@@ -15,6 +15,7 @@ import {
   candlesFromSpotPoints,
   candlesFromTape,
   clipToAsOf,
+  effectiveSessionDate,
   isOnSession,
   pickFreshestCandles,
   sessionDateOf,
@@ -310,7 +311,7 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
    *  series from the previous completed session (the first cold fetch) while
    *  the tape already belongs to today; mixing them drew two days with an
    *  overnight jump. Everything below is scoped to this date. */
-  const sessionDate = () => sessionDateOf(report());
+  const sessionDate = () => effectiveSessionDate(report());
 
   // Generic underlyings (SENSEX/RELIANCE) have no candle endpoint today: the
   // fast options-live payload and `?candles=1` both return an empty intraday
