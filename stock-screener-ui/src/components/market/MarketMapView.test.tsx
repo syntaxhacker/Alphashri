@@ -12,8 +12,17 @@ import {
   VIS_RENDERERS,
   type VisMode,
 } from "./MarketMapView";
-import { marketLerpRgb, marketTileColor, toTreemapRow, type MarketSizeMetric } from "./marketTreemap";
-import { getStockMetricRange } from "@/components/heatmap/stockTreemap";
+import {
+  buildSectorTreemapOption,
+  estimatedTileWidthPx,
+  marketLerpRgb,
+  marketTileColor,
+  MARKET_SIZE_METRICS,
+  MIN_LABEL_WIDTH_PX,
+  toTreemapRow,
+  type MarketSizeMetric,
+} from "./marketTreemap";
+import { buildStockTreemapOption, getStockMetricRange } from "@/components/heatmap/stockTreemap";
 import { SCALE_BLUE } from "@/ui/palette";
 import { relativeLuminance } from "@/utils/contrast";
 import type { MarketRow } from "../../types/marketScreener";
@@ -376,6 +385,105 @@ describe("MarketMapView — one Size by control, ranked tiles", () => {
   });
 });
 
+/** 3,592-row snapshot is ~2,000+ sub-10px tiles in a 740x765 window. */
+describe("flat heatmap label legibility", () => {
+  const manyRows = (count: number) =>
+    Array.from({ length: count }, (_, i) => row(`S${String(i).padStart(4, "0")}`, 100 + i, 50));
+
+  /** happy-dom has no layout engine; pin the canvas box before the component mounts. */
+  function stubCanvasSize(width: number, height: number): () => void {
+    const proto = HTMLElement.prototype as unknown as Record<string, PropertyDescriptor | undefined>;
+    const originals = new Map(
+      ["clientWidth", "clientHeight"].map((key) => [key, Object.getOwnPropertyDescriptor(proto, key)]),
+    );
+    Object.defineProperty(proto, "clientWidth", { configurable: true, get: () => width });
+    Object.defineProperty(proto, "clientHeight", { configurable: true, get: () => height });
+    return () => {
+      for (const [key, descriptor] of originals) {
+        if (descriptor) Object.defineProperty(proto, key, descriptor);
+        else delete proto[key];
+      }
+    };
+  }
+
+  /** 3 huge tiles keep a label; the other 3,589 are slivers that must not. */
+  const denseRows = (): MarketRow[] => [
+    { ...row("MEGA", 100, 50), change: 1000 },
+    { ...row("LARGE", 110, 50), change: 800 },
+    { ...row("MID", 120, 50), change: 600 },
+    ...Array.from({ length: 3589 }, (_, i) => ({
+      ...row(`S${String(i).padStart(4, "0")}`, 200 + i, 50),
+      change: 0.5 + (i % 20) * 0.1,
+    })),
+  ];
+
+  test("(a) 3,592 tiles at 740x765: full symbol or no label, never a truncated stub", async () => {
+    const restore = stubCanvasSize(740, 765);
+    try {
+      await renderMap(() => <MarketMapView rows={denseRows()} />);
+      await vi.waitFor(() => expect(tiles().some((d) => d.label.show === false)).toBe(true));
+      const data = tiles();
+      expect(data).toHaveLength(3592); // flat map is never silently capped
+      const formatter = (captured.option.series[0] as any).label.formatter as (p: any) => string;
+      const suppressed = data.filter((d) => d.label.show === false);
+      const labelled = data.filter((d) => d.label.show !== false);
+      expect(suppressed.length).toBeGreaterThan(0);
+      expect(labelled.length).toBeGreaterThan(0);
+      for (const tile of data) {
+        if (tile.label.show === false) continue;
+        const text = formatter({ name: tile.name, data: tile });
+        expect(text).toContain(tile.name); // the full symbol, not "OMP…"
+        expect(text).toContain(tile.metricValue); // the full value
+        expect(text).not.toMatch(/…|\.\.\./); // no ellipsis stub at any size
+      }
+    } finally {
+      restore();
+    }
+  });
+
+  test("(c) unlabelled tiles keep distinct fills, full tooltip names and click identity", async () => {
+    const restore = stubCanvasSize(740, 765);
+    try {
+      await renderMap(() => <MarketMapView rows={denseRows()} />);
+      const suppressed = tiles().filter((d) => d.label.show === false);
+      expect(suppressed.length).toBeGreaterThan(1);
+      const fills = new Set(suppressed.map((d) => d.itemStyle.color as string));
+      expect(fills.size).toBeGreaterThan(1); // colour still encodes the value
+      expect([...fills].every((color) => /^rgb\(\d+,\d+,\d+\)$/.test(color))).toBe(true);
+      const sample = suppressed[0]!;
+      const tooltip = (captured.option.tooltip as any).formatter({ data: sample }) as string;
+      expect(tooltip).toContain(sample.name); // hover still identifies the stock
+      expect(sample.name).toMatch(/^S\d{4}$/); // click forwards this exact symbol
+    } finally {
+      restore();
+    }
+  });
+
+  test("(b) a tile below the label-width threshold paints no label at all", async () => {
+    await renderMap(() => <MarketMapView rows={manyRows(2000)} />);
+    const small = tiles()[0]!;
+    const total = tiles().reduce((sum: number, d: Tile) => sum + d.value, 0);
+    expect(estimatedTileWidthPx(small.value, total)).toBeLessThan(MIN_LABEL_WIDTH_PX);
+    // The whole ECharts label block is off — no "S…" stub can be painted.
+    expect(small.label.show).toBe(false);
+    // Colour, tooltip datum and click identity survive the suppression.
+    expect(small.itemStyle.color).toBeTruthy();
+    expect(small.name).toMatch(/^S\d{4}$/);
+    expect(small.metricValue).toBe("+1.0%");
+  });
+
+  test("(c) a tile above the threshold keeps its full symbol", async () => {
+    await renderMap(() => <MarketMapView rows={[row("RELIANCE", 100, 55)]} />);
+    const big = tiles()[0]!;
+    expect(estimatedTileWidthPx(big.value, big.value)).toBeGreaterThanOrEqual(MIN_LABEL_WIDTH_PX);
+    expect(big.label.show).toBe(true);
+    const formatter = (captured.option.series[0] as any).label.formatter;
+    const text = formatter({ name: big.name, data: big });
+    expect(text).toContain("RELIANCE");
+    expect(text).not.toContain("…");
+  });
+});
+
 describe("market view vocabulary", () => {
   test("offers the Value view alongside table/vis/movers", () => {
     expect(MARKET_VIEW_OPTIONS.map((o) => o.value)).toEqual(["table", "vis", "movers", "value"]);
@@ -473,5 +581,72 @@ describe("MarketMapView — cividis legend states direction", () => {
     const bar = screen.getByTestId("market-map-color-range").querySelector("div[style*='linear-gradient']") as HTMLElement;
     expect(bar.getAttribute("style")).toContain("#00224e");
     expect(bar.getAttribute("style")).toContain("#fee838");
+  });
+});
+
+/** Audit: cividis has no zero anchor, so the legend must say what hue encodes. */
+describe("MarketMapView — legend honesty audit", () => {
+  const flatRows = () => [
+    { ...row("LOSS", 100, 55), change: -5 },
+    { ...row("GAIN", 200, 60), change: 5 },
+  ];
+  const outlierRows = () => [
+    { ...row("VIVIDEL", 100, 55), change: -43 },
+    { ...row("DOWN5", 110, 55), change: -5 },
+    { ...row("FLAT", 120, 55), change: 0 },
+    { ...row("UP5", 130, 55), change: 5 },
+    { ...row("MELSTAR", 140, 55), change: 12026 },
+  ];
+
+  test("(a) the legend names the active metric and its clamped low..high bounds", async () => {
+    await renderMap(() => <MarketMapView rows={outlierRows()} />);
+    expect(screen.getByTestId("market-map-color-label")).toHaveTextContent("Day Change");
+    const range = screen.getByTestId("market-map-color-range");
+    expect(range).toHaveTextContent("≤");
+    expect(range).toHaveTextContent("≥");
+    expect(range).not.toHaveTextContent("12026");
+    expect(screen.getByTestId("market-map-color-clamp-note")).toHaveTextContent(/saturat/i);
+    // The scale note is part of an honest legend, not an optional extra.
+    expect(screen.getByTestId("market-map-color-direction")).toHaveTextContent(/position in range/i);
+  });
+
+  test("(c) the legend states hue = position in range, not gain/loss", async () => {
+    await renderMap(() => <MarketMapView rows={flatRows()} />);
+    const direction = screen.getByTestId("market-map-color-direction");
+    expect(direction).toHaveTextContent("low → high");
+    expect(direction).toHaveTextContent(/position in range/i);
+    expect(direction).toHaveTextContent(/not gain\/loss/i);
+    expect(screen.getByTestId("market-map-legend")).not.toHaveTextContent(/green|red/i);
+  });
+});
+
+/** The flat-only gate must not leak into the two shared treemap callers. */
+describe("shared-code guard — NSE heatmap and sector treemap stay byte-identical", () => {
+  const guardStyle = {
+    borderDark: "#000",
+    borderLight: "#fff",
+    label: { fontSize: 11, fontWeight: 600 as const, lineHeight: 1 },
+    changePositive: "#0f0",
+    changeNegative: "#f00",
+    sortTilesByValueDesc: false,
+  };
+  const stocks = [
+    toTreemapRow({ ...row("A1", 100, 50), change: 4 }),
+    toTreemapRow({ ...row("A2", 100, 50), change: 2 }),
+    toTreemapRow({ ...row("B1", 100, 50), sector: "IT", change: 6 }),
+  ];
+  const replacer = (_key: string, value: unknown) => (typeof value === "function" ? "[fn]" : value);
+
+  // Frozen before the flat-map gate existed. The NSE heatmap calls the shared
+  // builder directly; the sector treemap calls it through the wrapper. Neither
+  // may inherit the flat map's label.show override or a new fill/order.
+  const FLAT_BEFORE = `{"tooltip":{"trigger":"item","backgroundColor":"#1F242D","borderColor":"#2C313B","textStyle":{"color":"#E8E8E8"},"formatter":"[fn]"},"series":[{"type":"treemap","sort":false,"top":0,"left":0,"right":0,"bottom":0,"roam":false,"nodeClick":false,"squareRatio":1,"label":{"show":true,"formatter":"[fn]","fontSize":11,"fontWeight":600,"lineHeight":1},"breadcrumb":{"show":false},"itemStyle":{"borderColor":"#000","borderWidth":1,"gapWidth":0},"levels":[{"itemStyle":{"borderColor":"#000","borderWidth":0,"gapWidth":0}},{"itemStyle":{"borderColorSaturation":0.6,"gapWidth":0,"borderWidth":1}}],"data":[{"name":"A1","value":4,"path":"A1","nameFull":"A1","sector":"Energy","price":100,"change":4,"mcap":1000000000,"pe":null,"metricLabel":"Day Change","metricValue":"+4.0%","metricNumeric":4,"label":{"color":"#F0F6FC"},"itemStyle":{"color":"rgb(20,149,89)"}},{"name":"A2","value":2,"path":"A2","nameFull":"A2","sector":"Energy","price":100,"change":2,"mcap":1000000000,"pe":null,"metricLabel":"Day Change","metricValue":"+2.0%","metricNumeric":2,"label":{"color":"#F0F6FC"},"itemStyle":{"color":"rgb(28,163,102)"}},{"name":"B1","value":6,"path":"B1","nameFull":"B1","sector":"IT","price":100,"change":6,"mcap":1000000000,"pe":null,"metricLabel":"Day Change","metricValue":"+6.0%","metricNumeric":6,"label":{"color":"#F0F6FC"},"itemStyle":{"color":"rgb(14,138,79)"}}]}]}`;
+  const SECTOR_BEFORE = `{"tooltip":{"trigger":"item","backgroundColor":"#1F242D","borderColor":"#2C313B","textStyle":{"color":"#E8E8E8"},"formatter":"[fn]"},"series":[{"type":"treemap","sort":false,"top":0,"left":0,"right":0,"bottom":0,"roam":false,"nodeClick":false,"squareRatio":1,"label":{"show":true,"formatter":"[fn]","fontSize":11,"fontWeight":600,"lineHeight":1},"breadcrumb":{"show":false},"itemStyle":{"borderColor":"#000","borderWidth":1,"gapWidth":0},"levels":[{"itemStyle":{"borderColor":"#000","borderWidth":0,"gapWidth":0}},{"itemStyle":{"borderColor":"#2C313B","borderWidth":1,"gapWidth":1},"upperLabel":{"show":true,"height":18,"color":"#E8E8E8","fontWeight":"bold","formatter":"{b}"}},{"itemStyle":{"borderColorSaturation":0.6,"gapWidth":0,"borderWidth":1}}],"data":[{"name":"Energy","value":6,"sectorParent":true,"stockCount":2,"children":[{"name":"A1","value":4,"path":"A1","nameFull":"A1","sector":"Energy","price":100,"change":4,"mcap":1000000000,"pe":null,"metricLabel":"Day Change","metricValue":"+4.0%","metricNumeric":4,"label":{"color":"#F0F6FC","show":true},"itemStyle":{"color":"rgb(20,149,89)"}},{"name":"A2","value":2,"path":"A2","nameFull":"A2","sector":"Energy","price":100,"change":2,"mcap":1000000000,"pe":null,"metricLabel":"Day Change","metricValue":"+2.0%","metricNumeric":2,"label":{"color":"#F0F6FC","show":true},"itemStyle":{"color":"rgb(28,163,102)"}}],"label":{"show":false,"color":"#E8E8E8"},"itemStyle":{"color":"#1F242D"}},{"name":"IT","value":6,"sectorParent":true,"stockCount":1,"children":[{"name":"B1","value":6,"path":"B1","nameFull":"B1","sector":"IT","price":100,"change":6,"mcap":1000000000,"pe":null,"metricLabel":"Day Change","metricValue":"+6.0%","metricNumeric":6,"label":{"color":"#F0F6FC","show":true},"itemStyle":{"color":"rgb(14,138,79)"}}],"label":{"show":false,"color":"#E8E8E8"},"itemStyle":{"color":"#1F242D"}}]}]}`;
+
+  test("(d) the NSE flat builder and the sector wrapper emit byte-identical options", () => {
+    const flat = buildStockTreemapOption(stocks, "change_pct", MARKET_SIZE_METRICS, true, guardStyle, "metric");
+    const nested = buildSectorTreemapOption(stocks, "change_pct", MARKET_SIZE_METRICS, true, guardStyle);
+    expect(JSON.stringify(flat, replacer)).toBe(FLAT_BEFORE);
+    expect(JSON.stringify(nested.option, replacer)).toBe(SECTOR_BEFORE);
   });
 });

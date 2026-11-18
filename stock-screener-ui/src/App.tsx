@@ -11,6 +11,7 @@ import { AppLayout } from "./components/layout/AppLayout";
 import { NewsWebSocketProvider } from "./state/newsWebSocket";
 import { loadHolidays } from "./state/holidays";
 
+const HomePage = lazy(() => import("./pages/home/HomePage"));
 const ScreenerContainer = lazy(() => import("./pages/screener/ScreenerContainer").then(m => ({ default: m.ScreenerContainer })));
 const SectorPage = lazy(() => import("./pages/sector").then(m => ({ default: m.SectorPage })));
 const StrategiesContainer = lazy(() => import("./pages/strategies/StrategiesContainer").then(m => ({ default: m.StrategiesContainer })));
@@ -126,6 +127,7 @@ function AppContent() {
       <Show when={auth.isAuthenticated} fallback={<AuthScreen />}>
         <Router root={Shell}>
           <Route path="/" component={RootRedirect} />
+          <Route path="/home" component={HomePage} />
           <Route path="/screener/:tab?" component={ScreenerContainer} />
           <Route path="/backtest" component={BacktestPage} />
           <Route path="/experiments" component={ExperimentsPage} />

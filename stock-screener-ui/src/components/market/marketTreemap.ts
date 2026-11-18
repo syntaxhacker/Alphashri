@@ -414,6 +414,13 @@ export function marketColorRampCss(): string {
   return `linear-gradient(to right, ${CIVIDIS_STOPS.join(", ")})`;
 }
 
+/**
+ * Cividis is sequential: hue is the value's position in the clamped domain,
+ * never a gain/loss pole. Both legends print this one string so they cannot
+ * drift apart, and a loss and a gain near the midpoint read alike by design.
+ */
+export const MARKET_COLOR_SCALE_NOTE = "low → high · position in range, not gain/loss";
+
 // ----- Nested sector → stocks treemap --------------------------------------
 
 /**
@@ -548,6 +555,26 @@ export function stockTileLabelVisible(
   heightPx?: number,
 ): boolean {
   return estimatedTileWidthPx(value, totalValue, widthPx, heightPx) >= MIN_LABEL_WIDTH_PX;
+}
+
+/**
+ * The flat map uses the nested map's exact gate and area proxy: a tile that
+ * cannot fit its symbol gets `label.show = false`, so ECharts paints nothing
+ * instead of an ellipsised stub. The datum's name, fill, tooltip and click
+ * target are untouched, and every label keeps the inherited full-symbol
+ * formatter — no short/ellipsis variant exists for either map.
+ */
+export function suppressTinyFlatLabels<
+  T extends { value: number; label?: Record<string, unknown> },
+>(tiles: T[], widthPx?: number, heightPx?: number): T[] {
+  const total = tiles.reduce((sum, tile) => sum + tile.value, 0);
+  return tiles.map((tile) => ({
+    ...tile,
+    label: {
+      ...tile.label,
+      show: stockTileLabelVisible(tile.value, total, widthPx, heightPx),
+    },
+  }));
 }
 
 /** `toTreemapRow` stores a null sector as "—"; normalise that and blank strings. */

@@ -600,8 +600,6 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
           return { ...f, aboveSma200: false };
         case "fno":
           return { ...f, fnoOnly: false };
-        case "etf":
-          return { ...f, etfOnly: false };
         case "sector":
           return { ...f, sectors: [] };
         default:

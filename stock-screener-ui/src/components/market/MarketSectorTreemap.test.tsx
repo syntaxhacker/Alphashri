@@ -285,3 +285,49 @@ describe("MarketSectorTreemap — identical cividis colours in both treemaps", (
     expect(bar.getAttribute("style")).toContain("#fee838");
   });
 });
+
+/** Audit: both surfaces must read the same honest scale, including when empty. */
+describe("MarketSectorTreemap — legend honesty audit", () => {
+  const outlierRows = () => [
+    { ...row("VIVIDEL", "Energy", -43), perf1m: -43 },
+    { ...row("DOWN5", "Energy", -5), perf1m: -5 },
+    { ...row("FLAT", "Energy", 0), perf1m: 0 },
+    { ...row("UP5", "IT", 5), perf1m: 5 },
+    { ...row("MELSTAR", "IT", 12026), perf1m: 12026 },
+  ];
+
+  test("(a)+(b) both treemaps name the active metric and identical clamped bounds", async () => {
+    await renderTreemap(outlierRows(), vi.fn(), "perf_1m");
+    const sectorLegend = screen.getByTestId("market-sector-map-legend");
+    const sectorRange = screen.getByTestId("market-sector-map-color-range");
+    expect(screen.getByTestId("market-sector-map-color-label")).toHaveTextContent("1M Return");
+    expect(sectorRange).toHaveTextContent("≤");
+    expect(sectorRange).toHaveTextContent("≥");
+    expect(sectorLegend).not.toHaveTextContent("12026");
+    expect(screen.getByTestId("market-sector-map-color-direction")).toHaveTextContent(/position in range/i);
+
+    captured.option = null;
+    render(() => <UIProvider><MarketMapView rows={outlierRows()} sizeBy="perf_1m" /></UIProvider>);
+    await vi.waitFor(() => expect(captured.option).toBeTruthy());
+    expect(screen.getByTestId("market-map-color-range").textContent?.trim()).toBe(
+      sectorRange.textContent?.trim(),
+    );
+    expect(screen.getByTestId("market-map-color-direction").textContent?.trim()).toBe(
+      screen.getByTestId("market-sector-map-color-direction").textContent?.trim(),
+    );
+  });
+
+  test("(c) both legends state hue = position in range, not gain/loss", async () => {
+    await renderTreemap([row("A", "Energy", -5), row("B", "IT", 5)]);
+    const direction = screen.getByTestId("market-sector-map-color-direction");
+    expect(direction).toHaveTextContent("low → high");
+    expect(direction).toHaveTextContent(/position in range/i);
+    expect(direction).toHaveTextContent(/not gain\/loss/i);
+    expect(screen.getByTestId("market-sector-map-legend")).not.toHaveTextContent(/green|red/i);
+  });
+
+  test("(b) both treemaps hide the legend when there are no rows", async () => {
+    await renderTreemap([]);
+    expect(screen.queryByTestId("market-sector-map-legend")).not.toBeInTheDocument();
+  });
+});

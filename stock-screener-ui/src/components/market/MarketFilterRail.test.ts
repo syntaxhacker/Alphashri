@@ -95,6 +95,40 @@ describe("MarketFilterRail cap-tier labels", () => {
     expect(screen.getByText("Large 10–200B (2)")).toBeInTheDocument();
   });
 
+  test("India renders an ETF group with its count; the US rail has no ETF tier", () => {
+    const india = render(() =>
+      createComponent(MarketFilterRail, {
+        filters: defaultMarketFilters(),
+        onChange: () => {},
+        sectors: [],
+        tierCounts: { large: 3, mid: 2, small: 1, micro: 4, etf: 2 },
+      }),
+    );
+    expect(screen.getByTestId("market-cap-etf")).toBeInTheDocument();
+    expect(screen.getByText("ETF (2)")).toBeInTheDocument();
+    // ETF sits in its own band, after the four size tiers — not in the size ladder.
+    const sizes = ["market-cap-large", "market-cap-mid", "market-cap-small", "market-cap-micro"].map(
+      (id) => screen.getByTestId(id),
+    );
+    const etf = screen.getByTestId("market-cap-etf");
+    for (const size of sizes) {
+      expect(size.compareDocumentPosition(etf) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+    india.unmount();
+
+    render(() =>
+      createComponent(MarketFilterRail, {
+        filters: defaultMarketFilters(),
+        onChange: () => {},
+        sectors: [],
+        currency: "USD",
+        tierCounts: { etf: 2 },
+      }),
+    );
+    expect(screen.queryByTestId("market-cap-etf")).toBeNull();
+    expect(screen.queryByText("ETF (2)")).toBeNull();
+  });
+
   test("counts stay reactive when the snapshot's tierCounts changes", () => {
     // The rail is mounted once; a snapshot refresh (or India → US hydration)
     // replaces tierCounts without recreating the tier options. The label must
@@ -134,7 +168,7 @@ describe("MarketFilterRail F&O toggle is India-only", () => {
     expect(screen.getByTestId("market-filter-fno")).toBeInTheDocument();
   });
 
-  test("USD hides the F&O toggle but keeps ETF", () => {
+  test("USD hides the F&O toggle; ETF is a tier, not a second control", () => {
     render(() =>
       createComponent(MarketFilterRail, {
         filters: { ...defaultMarketFilters(), fnoOnly: true },
@@ -144,7 +178,7 @@ describe("MarketFilterRail F&O toggle is India-only", () => {
       }),
     );
     expect(screen.queryByTestId("market-filter-fno")).toBeNull();
-    expect(screen.getByTestId("market-filter-etf")).toBeInTheDocument();
+    expect(screen.queryByTestId("market-filter-etf")).toBeNull();
   });
 
   test("hasFnoAffordance keys off the quote currency alone", () => {

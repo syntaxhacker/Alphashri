@@ -1,9 +1,12 @@
 import type { MarketRow, MarketUniverse } from "../../types/marketScreener";
 import {
+  CAP_TIER_KEYS,
   capTierLabel as descriptorCapTierLabel,
   marketCapOf,
   marketCapUnitLabel,
   marketUniverseDescriptor,
+  type CapTierKey,
+  type CapTierRange,
 } from "../../config/marketUniverses";
 
 export type MarketSortKey =
@@ -31,8 +34,9 @@ export const MARKET_SORT_OPTIONS: { value: MarketSortKey; label: string }[] = [
   { value: "symbol_asc", label: "Symbol A–Z" },
 ];
 
-export const CAP_TIERS = ["mega", "large", "mid", "small", "micro"] as const;
-export type CapTier = (typeof CAP_TIERS)[number];
+/** Derived from the descriptor registries — never a second hand-maintained list. */
+export const CAP_TIERS: readonly CapTierKey[] = CAP_TIER_KEYS;
+export type CapTier = CapTierKey;
 
 export interface MarketFilterState {
   search: string;
@@ -56,7 +60,6 @@ export interface MarketFilterState {
   aboveSma50: boolean;
   aboveSma200: boolean;
   fnoOnly: boolean;
-  etfOnly: boolean;
   /** Exact sector match set; empty = all sectors. */
   sectors: string[];
   sort: MarketSortKey;
@@ -84,7 +87,6 @@ export function defaultMarketFilters(
     aboveSma50: false,
     aboveSma200: false,
     fnoOnly: false,
-    etfOnly: false,
     sectors: [],
     sort: DEFAULT_MARKET_SORT,
   };
@@ -167,7 +169,6 @@ export function filterOnlyMarketRows(
     if (filters.aboveSma50 && !isAboveSma(row.close, row.sma50)) return false;
     if (filters.aboveSma200 && !isAboveSma(row.close, row.sma200)) return false;
     if (filters.fnoOnly && !row.fno) return false;
-    if (filters.etfOnly && !row.etf) return false;
     if (filters.sectors.length > 0 && !filters.sectors.includes(row.sector ?? "")) return false;
     return true;
   });
@@ -195,16 +196,24 @@ export function marketSectorOptions(rows: MarketRow[]): { value: string; label: 
   return marketSectors(rows).map((sector) => ({ value: sector, label: sector }));
 }
 
+export interface CapTierOption {
+  value: CapTier;
+  label: string;
+  /** Class tiers are not size rungs; the rail renders them in their own group. */
+  category: boolean;
+}
+
 /** Cap-tier labels from the descriptor: bare in India, thresholded in the US. */
-export function capTierOptions(
-  universe: MarketUniverse = "all_equity",
-): { value: CapTier; label: string }[] {
+export function capTierOptions(universe: MarketUniverse = "all_equity"): CapTierOption[] {
   const descriptor = marketUniverseDescriptor(universe);
   // Only tiers the active descriptor actually defines: India has no mega cap.
-  return (Object.keys(descriptor.capTiers) as CapTier[]).map((tier) => ({
-    value: tier,
-    label: descriptorCapTierLabel(tier, descriptor),
-  }));
+  return (Object.entries(descriptor.capTiers) as [CapTier, CapTierRange][]).map(
+    ([tier, range]) => ({
+      value: tier,
+      label: descriptorCapTierLabel(tier, descriptor),
+      category: range.category === true,
+    }),
+  );
 }
 
 /**
@@ -229,8 +238,6 @@ export function resetUniverseSpecificFilters(
     aboveSma200: filters.aboveSma200,
     // F&O is an NSE/BSE-only universe; a leftover switch would hide every US row.
     fnoOnly: false,
-    // ETFs are listed in both India and the US, so the choice survives a switch.
-    etfOnly: filters.etfOnly,
     sort: filters.sort,
   };
 }
@@ -327,7 +334,6 @@ export function buildMarketFilterChips(
   if (filters.aboveSma50) chips.push({ key: "sma50", label: "Above SMA 50" });
   if (filters.aboveSma200) chips.push({ key: "sma200", label: "Above SMA 200" });
   if (filters.fnoOnly && universeHasFno(universe)) chips.push({ key: "fno", label: "F&O only" });
-  if (filters.etfOnly) chips.push({ key: "etf", label: "ETF only" });
   for (const sector of filters.sectors) {
     if (!sector) continue;
     chips.push({ key: `sector:${sector}`, label: `Sector: ${sector}` });

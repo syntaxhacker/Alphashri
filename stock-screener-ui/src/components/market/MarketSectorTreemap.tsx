@@ -24,6 +24,7 @@ import {
   isMarketSizeMetric,
   marketColorDomain,
   marketColorRampCss,
+  MARKET_COLOR_SCALE_NOTE,
   marketMetricOptions,
   marketTileColor,
   marketTileTextColor,
@@ -149,72 +150,74 @@ function SectorTreemapCanvas(props: {
           style={{ height: "100%", width: "100%" }}
         />
       </Box>
-      <Box
-        className="flex items-center gap-2 px-2 h-8 flex-shrink-0 border-t border-fin-border"
-        data-testid={`${props.testId}-legend`}
-      >
-        <Text size="xs" fw={600} data-testid={`${props.testId}-color-label`}>
-          {colorMetric().label}
-        </Text>
-        <Text size="xs" c="dimmed" className="whitespace-nowrap">
-          size: {sizeMetric().label}
-        </Text>
-        <Text size="xs" c="dimmed" className="whitespace-nowrap" data-testid={`${props.testId}-color-direction`}>
-          low → high
-        </Text>
-        <Box className="flex items-center gap-2" data-testid={`${props.testId}-color-range`}>
-          <Box
-            className="size-3 rounded"
-            style={{
-              width: "12px",
-              height: "12px",
-              "background-color": marketTileColor(
-                props.metric,
-                colorDomain().min,
-                colorDomain().min,
-                colorDomain().max,
-              ),
-              "border-radius": "2px",
-            }}
-          />
-          <Text size="xs">
-            {colorDomain().clampedLow ? "≤" : ""}
-            {safeFmt(colorMetric(), colorDomain().min)}
+      <Show when={props.stocks.length > 0}>
+        <Box
+          className="flex items-center gap-2 px-2 h-8 flex-shrink-0 border-t border-fin-border"
+          data-testid={`${props.testId}-legend`}
+        >
+          <Text size="xs" fw={600} data-testid={`${props.testId}-color-label`}>
+            {colorMetric().label}
           </Text>
-          <Box
-            className="flex-1 max-w-[120px] h-[8px] rounded-[4px]"
-            style={{ background: marketColorRampCss() }}
-          />
-          <Box
-            className="size-3 rounded"
-            style={{
-              width: "12px",
-              height: "12px",
-              "background-color": marketTileColor(
-                props.metric,
-                colorDomain().max,
-                colorDomain().min,
-                colorDomain().max,
-              ),
-              "border-radius": "2px",
-            }}
-          />
-          <Text size="xs">
-            {safeFmt(colorMetric(), colorDomain().max)}
-            {colorDomain().clampedHigh ? "≥" : ""}
+          <Text size="xs" c="dimmed" className="whitespace-nowrap">
+            size: {sizeMetric().label}
           </Text>
+          <Text size="xs" c="dimmed" className="whitespace-nowrap" data-testid={`${props.testId}-color-direction`}>
+            {MARKET_COLOR_SCALE_NOTE}
+          </Text>
+          <Box className="flex items-center gap-2" data-testid={`${props.testId}-color-range`}>
+            <Box
+              className="size-3 rounded"
+              style={{
+                width: "12px",
+                height: "12px",
+                "background-color": marketTileColor(
+                  props.metric,
+                  colorDomain().min,
+                  colorDomain().min,
+                  colorDomain().max,
+                ),
+                "border-radius": "2px",
+              }}
+            />
+            <Text size="xs">
+              {colorDomain().clampedLow ? "≤" : ""}
+              {safeFmt(colorMetric(), colorDomain().min)}
+            </Text>
+            <Box
+              className="flex-1 max-w-[120px] h-[8px] rounded-[4px]"
+              style={{ background: marketColorRampCss() }}
+            />
+            <Box
+              className="size-3 rounded"
+              style={{
+                width: "12px",
+                height: "12px",
+                "background-color": marketTileColor(
+                  props.metric,
+                  colorDomain().max,
+                  colorDomain().min,
+                  colorDomain().max,
+                ),
+                "border-radius": "2px",
+              }}
+            />
+            <Text size="xs">
+              {safeFmt(colorMetric(), colorDomain().max)}
+              {colorDomain().clampedHigh ? "≥" : ""}
+            </Text>
+          </Box>
+          <Show when={colorDomain().clampedLow || colorDomain().clampedHigh}>
+            <Text
+              size="xs"
+              c="dimmed"
+              className="whitespace-nowrap"
+              data-testid={`${props.testId}-color-clamp-note`}
+            >
+              saturates past bounds
+            </Text>
+          </Show>
         </Box>
-        <Show when={colorDomain().clampedLow || colorDomain().clampedHigh}>
-          <Text
-            size="xs"
-            c="dimmed"
-            className="whitespace-nowrap"
-            data-testid={`${props.testId}-color-clamp-note`}
-          >
-            saturates past bounds
-          </Text>
-        </Show>
-      </Box>
+      </Show>
     </Box>
   );
 }

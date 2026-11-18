@@ -16,6 +16,7 @@ import {
   sectorOf,
   shortTreemapSymbol,
   stockTileLabelVisible,
+  suppressTinyFlatLabels,
   MARKET_SIZE_METRICS,
   MARKET_SIZE_METRIC_VALUES,
   isMarketSizeMetric,
@@ -1171,5 +1172,31 @@ describe("cividis market ramp — measured spec", () => {
     expect(getMetricColor(0.5, 0, 1)).not.toBe(specRgb("#fee838"));
     // ...while the MARKET ramp has moved off that green/red pair entirely.
     expect(marketTileColor("perf_1m", 43, -43, 43)).toBe(specRgb("#fee838"));
+  });
+});
+
+/** The flat map had no gate at all while the nested map had one. */
+describe("flat heatmap uses the sector label gate", () => {
+  const tiles = () => [
+    { name: "HUGE", value: 1000, label: { color: "ink" } },
+    { name: "TINY", value: 0.2, label: { color: "paper" } },
+  ];
+
+  test("(b) a flat sliver hides its whole label block at 740x765", () => {
+    const out = suppressTinyFlatLabels(tiles(), 740, 765);
+    const tiny = out.find((tile) => tile.name === "TINY")!;
+    expect(stockTileLabelVisible(0.2, 1000.2, 740, 765)).toBe(false);
+    expect((tiny.label as Record<string, unknown>).show).toBe(false);
+    expect((tiny.label as Record<string, unknown>).formatter).toBeUndefined();
+    expect(tiny.name).toBe("TINY"); // full identity for tooltip + click
+    expect(tiny.label.color).toBe("paper"); // recolour survived as well
+  });
+
+  test("(c) a flat tile above MIN_LABEL_WIDTH_PX keeps its label on", () => {
+    const out = suppressTinyFlatLabels(tiles(), 740, 765);
+    const huge = out.find((tile) => tile.name === "HUGE")!;
+    expect(stockTileLabelVisible(1000, 1000.2, 740, 765)).toBe(true);
+    expect((huge.label as Record<string, unknown>).show).toBe(true);
+    expect((huge.label as Record<string, unknown>).formatter).toBeUndefined(); // inherited full-symbol formatter
   });
 });

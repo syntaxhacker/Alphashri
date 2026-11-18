@@ -142,7 +142,6 @@ export function parseMarketConfig(raw: unknown): MarketConfigValue | null {
   filters.aboveSma50 = flat.aboveSma50 === true;
   filters.aboveSma200 = flat.aboveSma200 === true;
   filters.fnoOnly = flat.fnoOnly === true;
-  filters.etfOnly = flat.etfOnly === true;
   filters.sort =
     typeof flat.sort === "string" && SORTS.has(flat.sort)
       ? (flat.sort as MarketSortKey)
@@ -179,7 +178,6 @@ export function serializeMarketConfig(value: MarketConfigValue): Record<string, 
     aboveSma50: f.aboveSma50,
     aboveSma200: f.aboveSma200,
     fnoOnly: f.fnoOnly,
-    etfOnly: f.etfOnly,
     sectors: [...f.sectors],
     sort: f.sort,
     view: value.view,

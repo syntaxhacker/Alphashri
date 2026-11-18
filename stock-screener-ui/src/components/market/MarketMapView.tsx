@@ -24,10 +24,12 @@ import {
   isMarketSizeMetric,
   marketColorDomain,
   marketColorRampCss,
+  MARKET_COLOR_SCALE_NOTE,
   marketMetricOptions,
   marketTileColor,
   marketTileTextColor,
   marketTreemapMetrics,
+  suppressTinyFlatLabels,
   toTreemapRow,
   type MarketSizeMetric,
   type MarketTreemapRow,
@@ -130,6 +132,7 @@ function MarketTreemapCanvas(props: {
   metric: MarketSizeMetric;
   metrics: MetricConfig[];
   onSymbolClick?: (symbol: string) => void;
+  onSizeChange?: (width: number, height: number) => void;
 }) {
   let chartEl: HTMLDivElement | undefined;
   let chart: any = null;
@@ -161,6 +164,9 @@ function MarketTreemapCanvas(props: {
   };
 
   onMount(() => {
+    if (chartEl && chartEl.clientWidth > 0 && chartEl.clientHeight > 0) {
+      props.onSizeChange?.(chartEl.clientWidth, chartEl.clientHeight);
+    }
     void loadEcharts().then((lib) => {
       if (disposed || !lib || !chartEl) return;
       chart = lib.init(chartEl, undefined, { renderer: "canvas" });
@@ -170,6 +176,7 @@ function MarketTreemapCanvas(props: {
         observer = new ResizeObserver((entries) => {
           const rect = entries[entries.length - 1]?.contentRect;
           if (!rect || rect.width <= 0 || rect.height <= 0 || resizeFrame) return;
+          props.onSizeChange?.(rect.width, rect.height);
           resizeFrame = requestAnimationFrame(() => {
             resizeFrame = 0;
             chart?.resize();
@@ -211,7 +218,7 @@ function MarketTreemapCanvas(props: {
             size: {sizeMetric().label}
           </Text>
           <Text size="xs" c="dimmed" className="whitespace-nowrap" data-testid="market-map-color-direction">
-            low → high
+            {MARKET_COLOR_SCALE_NOTE}
           </Text>
           <Box className="flex items-center gap-2" data-testid="market-map-color-range">
             <Box
@@ -277,6 +284,8 @@ export function MarketMapView(props: MarketMapViewProps) {
     ? props.sizeBy
     : DEFAULT_MARKET_SIZE_METRIC;
   const [localMetric, setLocalMetric] = createSignal<MarketSizeMetric>(initialMetric);
+  const [chartWidth, setChartWidth] = createSignal<number | undefined>(undefined);
+  const [chartHeight, setChartHeight] = createSignal<number | undefined>(undefined);
   createEffect(
     on(
       () => props.sizeBy,
@@ -294,16 +303,23 @@ export function MarketMapView(props: MarketMapViewProps) {
   // silently falls back to the first metric's area.
   const metrics = createMemo(() => marketTreemapMetrics(props.currency));
   const metricOptions = createMemo(() => marketMetricOptions(props.currency));
-  const built = createMemo(() =>
-    buildStockTreemapOption(
+  const built = createMemo(() => {
+    const option = buildStockTreemapOption(
       stocks(),
       metric(),
       metrics(),
       colorScheme() === "dark",
       TREEMAP_STYLE,
       "metric",
-    ),
-  );
+    );
+    return {
+      ...option,
+      series: [{
+        ...option.series[0],
+        data: suppressTinyFlatLabels(option.series[0].data, chartWidth(), chartHeight()),
+      }],
+    };
+  });
   // The counter reads the builder's own output, not the filtered row list: a
   // row with no drawable area must not be reported as a tile on the map.
   const tileCount = createMemo(() => (built().series[0].data as unknown[]).length);
@@ -349,6 +365,10 @@ export function MarketMapView(props: MarketMapViewProps) {
         metric={metric()}
         metrics={metrics()}
         onSymbolClick={props.onSymbolClick}
+        onSizeChange={(width, height) => {
+          if (chartWidth() !== width) setChartWidth(width);
+          if (chartHeight() !== height) setChartHeight(height);
+        }}
       />
     </Box>
   );

@@ -133,6 +133,14 @@ describe("MARKET_UNIVERSE_DESCRIPTORS", () => {
     expect(usa.capTiers.small!.min).toBe(usa.capTiers.micro!.max);
   });
 
+  test("India exposes an unbounded etf tier as its own group; US has none", () => {
+    // ETFs have no market cap — the tier is a class, never a size on the ladder.
+    expect(india.capTiers.etf).toEqual({ min: null, max: null, category: true });
+    expect(usa.capTiers.etf).toBeUndefined();
+    expect(capTierLabel("etf", india)).toBe("ETF");
+    expect(capTierLabel("etf", usa)).toBe("ETF");
+  });
+
   test("symbol, locale and cap unit never drift from the currency registry", () => {
     for (const d of MARKET_UNIVERSE_DESCRIPTORS) {
       const spec = CURRENCIES[d.currency];

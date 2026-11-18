@@ -183,7 +183,6 @@ describe("us universe", () => {
     const config = defaultMarketConfig({ universe: "us" });
     expect(config.filters).toEqual(defaultMarketFilters("us"));
     expect(config.filters.fnoOnly).toBe(false);
-    expect(config.filters.etfOnly).toBe(false);
     expect(config.filters.sectors).toEqual([]);
     expect(config.filters.mcapMinCr).toBeNull();
   });
@@ -295,7 +294,6 @@ describe("serialize", () => {
       "aboveSma50",
       "aboveSma200",
       "fnoOnly",
-      "etfOnly",
       "sectors",
       "sort",
       "view",

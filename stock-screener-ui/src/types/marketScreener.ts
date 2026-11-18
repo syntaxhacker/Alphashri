@@ -1,5 +1,7 @@
 /** Market Screener — snapshot contract shared by api/hooks/components. */
 
+import type { CapTierKey } from "../config/marketUniverses";
+
 export type MarketUniverse =
   | "all_equity"
   | "nifty500"
@@ -11,7 +13,8 @@ export type MarketUniverse =
   | "nse_fo"
   | "us";
 
-export type MarketCapTier = "mega" | "large" | "mid" | "small" | "micro";
+/** Derived from the descriptor registries; never a second literal vocabulary. */
+export type MarketCapTier = CapTierKey;
 
 export interface MarketRow {
   symbol: string;

@@ -1528,6 +1528,38 @@ describe("MarketScreenerPanel — universe-aware columns, rail and reset", () =>
     await fireEvent.click(within(option).getByRole("checkbox"));
   }
 
+  test("ticking the ETF tier filters the grid to ETFs", async () => {
+    const ETF_ROWS: MarketRow[] = [
+      row("NIFTYBEES", {
+        name: "Nifty BeES",
+        capTier: "etf",
+        etf: true,
+        marketCapCr: null,
+        sector: null,
+      }),
+      row("GOLDBEES", {
+        name: "Gold BeES",
+        capTier: "etf",
+        etf: true,
+        marketCapCr: null,
+        sector: null,
+      }),
+      row("RELIANCE", { capTier: "large", etf: false, marketCapCr: 900000 }),
+    ];
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: ETF_ROWS, total: ETF_ROWS.length }));
+    r(() => <MarketScreenerPanel />);
+
+    expect(screen.getByTestId("market-row-NIFTYBEES")).toBeInTheDocument();
+    expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("market-cap-etf"));
+
+    expect(screen.getByTestId("market-filter-chip-capTier:etf")).toHaveTextContent("Cap: ETF");
+    expect(screen.getByTestId("market-row-NIFTYBEES")).toBeInTheDocument();
+    expect(screen.getByTestId("market-row-GOLDBEES")).toBeInTheDocument();
+    expect(screen.queryByTestId("market-row-RELIANCE")).toBeNull();
+  });
+
   test("USA switches the MCAP header to $B and rows to $", async () => {
     mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: US_ROWS, total: US_ROWS.length }));
     r(() => <MarketScreenerPanel />);
@@ -1551,16 +1583,15 @@ describe("MarketScreenerPanel — universe-aware columns, rail and reset", () =>
 
     await selectUniverse("USA");
 
-    // The US rail has no F&O affordance; ETF remains available in both universes.
+    // The US rail has no F&O affordance and no ETF tier — US scan is stock-only.
     expect(screen.queryByTestId("market-filter-fno")).toBeNull();
-    expect(screen.getByTestId("market-filter-etf")).toBeInTheDocument();
+    expect(screen.queryByTestId("market-cap-etf")).toBeNull();
     expect(screen.queryByTestId("market-filter-chip-fno")).toBeNull();
 
     fireEvent.click(screen.getByTestId("market-cap-large"));
     setNumber("market-filter-price-min", "100");
     setNumber("market-filter-mcap-min", "100");
     await selectSector("IT");
-    fireEvent.click(screen.getByTestId("market-filter-etf"));
 
     // Unit-neutral conditions that must survive the switch.
     setNumber("market-filter-day-min", "-5");
@@ -1584,8 +1615,8 @@ describe("MarketScreenerPanel — universe-aware columns, rail and reset", () =>
     for (const key of ["capTier:large", "price", "mcap", "sector:IT", "fno"]) {
       expect(screen.queryByTestId(`market-filter-chip-${key}`)).toBeNull();
     }
-    // ETF is listed in both universes, so its filter survives the switch.
-    for (const key of ["day", "rsi", "sma20", "etf"]) {
+    // Unit-neutral conditions survive the switch.
+    for (const key of ["day", "rsi", "sma20"]) {
       expect(screen.getByTestId(`market-filter-chip-${key}`)).toBeInTheDocument();
     }
     await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Vis"));
