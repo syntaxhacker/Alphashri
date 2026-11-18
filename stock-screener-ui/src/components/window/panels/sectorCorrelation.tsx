@@ -176,10 +176,18 @@ function SectorCorrelationPanel() {
               </Box>
             }
           >
-            <Box className="flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-hidden p-1">
+            {/*
+              * Side-by-side when the window is wide enough. Stacking two
+              * charts in a 396px window gave the heatmap ~200px, and ECharts
+              * cannot fit an n×n grid plus both label axes in that — it
+              * collapsed the plot to a 100px sliver with clipped sector
+              * names. A row split gives each chart the full height and half
+              * the width, which is the shape both of them want.
+              */}
+            <Box className="grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-1 overflow-auto p-1 min-[520px]:grid-cols-2">
               <Box
                 data-testid="window-sector-correlation-heatmap"
-                className="flex min-h-0 min-w-0 flex-[2] flex-col overflow-hidden"
+                className="flex min-h-[300px] min-w-0 flex-col overflow-hidden"
               >
                 <Text size="xs" fw={700} className="shrink-0">
                   Cross-Sector Correlation
@@ -195,7 +203,7 @@ function SectorCorrelationPanel() {
               </Box>
               <Box
                 data-testid="window-sector-correlation-beta"
-                className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+                className="flex min-h-[220px] min-w-0 flex-col overflow-hidden"
               >
                 <Text size="xs" fw={700} className="shrink-0">
                   Sector Beta vs Benchmark
