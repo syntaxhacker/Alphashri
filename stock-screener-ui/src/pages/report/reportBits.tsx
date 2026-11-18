@@ -5,6 +5,7 @@
  * symbol-avatar, data-positive, data-points, data-fallback, data-symbol).
  */
 import { createEffect, createSignal, Show, type JSX } from "solid-js";
+import { Button } from "@/ui";
 import { SCALE_BLUE, SCALE_CYAN, SCALE_GREEN, SCALE_ORANGE, SCALE_PINK, SCALE_VIOLET, TEXT } from "@/ui/palette";
 import { REPORT_FONT } from "./reportTokens";
 
@@ -220,6 +221,54 @@ export function LocalEmptyState(props: { testId?: string; title: string; descrip
     <div data-testid={props.testId} class="flex flex-col items-center justify-center gap-1 py-4 px-2 text-center">
       <span class="text-[11px] font-semibold leading-tight text-fin-text">{props.title}</span>
       <span class="text-[11px] leading-snug text-fin-text-muted">{props.description}</span>
+    </div>
+  );
+}
+
+/**
+ * One row standing in for several low-frequency read-only bands. The content
+ * stays mounted while collapsed — only its rendered height is removed — so a
+ * disclosure never takes a metric out of the page tree.
+ */
+export function LiveTapeDisclosure(props: {
+  open: boolean;
+  onToggle: () => void;
+  children: JSX.Element;
+  testId?: string;
+}) {
+  const open = () => props.open;
+  return (
+    <div
+      data-testid={props.testId ?? "nifty-live-tape-disclosure"}
+      data-open={open() ? "true" : "false"}
+      class="flex flex-col gap-1 w-full min-w-0 shrink-0"
+    >
+      <Button
+        data-testid="nifty-live-tape-toggle"
+        type="button"
+        size="xs"
+        variant="default"
+        aria-expanded={open()}
+        aria-controls="nifty-live-tape-content"
+        onClick={() => props.onToggle()}
+        className="h-7 min-h-7 w-full justify-start px-2 rounded-[2px] text-[11px] font-extrabold uppercase tracking-[0.08em] text-fin-text-muted"
+      >
+        <span data-testid="nifty-live-tape-chevron" aria-hidden="true" class="mr-2 text-[11px]">
+          {open() ? "▾" : "▸"}
+        </span>
+        <span>LIVE TAPE</span>
+        <span class="ml-auto font-normal normal-case tracking-normal text-[11px] text-fin-text-muted">
+          {open() ? "hide bands" : "breadth · 10s · erosion"}
+        </span>
+      </Button>
+      <div
+        id="nifty-live-tape-content"
+        data-testid="nifty-live-tape-content"
+        class="flex flex-col gap-1 w-full min-w-0"
+        style={{ display: open() ? "flex" : "none" }}
+      >
+        {props.children}
+      </div>
     </div>
   );
 }

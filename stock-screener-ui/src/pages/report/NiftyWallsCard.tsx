@@ -813,6 +813,9 @@ export function NiftyWallsCardInner(props: {
   /** Opens the deeper pressure desk (phase plane + selected-wall path). */
   onOpenDesk?: () => void;
   emptyText?: string;
+  /** Collapse the five-column band to a one-glance summary; the full detail
+   *  stays mounted and is reachable through the EXPAND affordance. */
+  compact?: boolean;
   /** Optional dense levels rows (e.g. LevelsInPlayContent) rendered inside
    *  this same card, after the walls grid. */
   levels?: JSX.Element;
@@ -849,8 +852,26 @@ export function NiftyWallsCardInner(props: {
   if (!walls()) {
     return (
       <LocalCompactPanel title="WALLS" testId="nifty-walls-card" flush>
-        <WallsSkeleton emptyText={props.emptyText ?? "No walls data."} />
-        <WallsLevelsBlock levels={props.levels} />
+        <Show
+          when={props.compact === true}
+          fallback={
+            <>
+              <WallsSkeleton emptyText={props.emptyText ?? "No walls data."} />
+              <WallsLevelsBlock levels={props.levels} />
+            </>
+          }
+        >
+          <div
+            data-testid="nifty-walls-compact-summary"
+            class="flex items-center h-14 min-h-14 px-2 text-[11px] text-fin-text-muted"
+          >
+            WALLS · {props.emptyText ?? "No walls data."}
+          </div>
+          <div data-testid="nifty-walls-compact-detail" style={{ display: "none" }}>
+            <WallsSkeleton emptyText={props.emptyText ?? "No walls data."} />
+            <WallsLevelsBlock levels={props.levels} />
+          </div>
+        </Show>
       </LocalCompactPanel>
     );
   }
@@ -919,6 +940,79 @@ export function NiftyWallsCardInner(props: {
       }
       style={{ "border-top": "none" }}
     >
+      <Show when={props.compact === true}>
+        <div
+          data-testid="nifty-walls-compact-summary"
+          class="flex flex-col justify-center gap-[2px] w-full min-w-0 shrink-0 h-14 min-h-14 px-2 font-mono"
+        >
+          <div class="flex items-center gap-3 min-w-0 whitespace-nowrap overflow-hidden">
+            <Text
+              size="xs"
+              span
+              style={{
+                "font-size": `${REPORT_FONT.xs}px`,
+                "font-weight": REPORT_FONT_WEIGHT.extrabold,
+                color: stateColor(),
+              }}
+            >
+              {walls()!.state.replace("_", " ")}
+            </Text>
+            <Text
+              size="xs"
+              span
+              style={{ "font-size": `${REPORT_FONT.xs}px`, color: palette.TEXT_MUTED }}
+            >
+              {dteLabel()} · {walls()!.expiry ?? "—"} · tape {walls()!.freshness.last_t.slice(11, 16)}
+            </Text>
+            <Text
+              size="xs"
+              span
+              style={{ "font-size": `${REPORT_FONT.xs}px`, color: palette.TEXT_MUTED }}
+            >
+              CW {fmtNum(walls()!.call_wall?.strike)} · PW {fmtNum(walls()!.put_wall?.strike)}
+            </Text>
+          </div>
+          <div class="flex items-center gap-3 min-w-0 whitespace-nowrap overflow-hidden">
+            <Text size="xs" span style={{ "font-size": `${REPORT_FONT.xs}px`, color: palette.TEXT_MUTED }}>
+              SPOT {fmtNum(walls()!.spot, 2)}
+            </Text>
+            <Text size="xs" span style={{ "font-size": `${REPORT_FONT.xs}px`, color: palette.TEXT_MUTED }}>
+              MP {fmtNum(walls()!.max_pain)}
+            </Text>
+            <Text
+              size="xs"
+              span
+              style={{ "font-size": `${REPORT_FONT.xs}px`, color: pinColor() }}
+            >
+              PIN {walls()!.pin_distance_pts > 0 ? "+" : ""}
+              {fmtNum(walls()!.pin_distance_pts, 0)} ({walls()!.pin_distance_pct.toFixed(2)}%)
+            </Text>
+            <Text
+              size="xs"
+              span
+              style={{
+                "font-size": `${REPORT_FONT.xs}px`,
+                color: walls()!.gex_degraded ? palette.TEXT_MUTED : palette.TEXT_COLOR,
+              }}
+            >
+              GEX {walls()!.gex_degraded ? "n/a" : fmtNum(walls()!.net_gex, 1)}
+            </Text>
+            <Show when={showAlert() && alert()}>
+              <Text
+                size="xs"
+                span
+                style={{ "font-size": `${REPORT_FONT.xs}px`, "font-weight": REPORT_FONT_WEIGHT.extrabold, color: palette.NEGATIVE }}
+              >
+                WALL BREAK {fmtNum(alert()!.wall)} · {fmtNum(alert()!.spot, 1)}
+              </Text>
+            </Show>
+          </div>
+        </div>
+      </Show>
+      <div
+        data-testid="nifty-walls-compact-detail"
+        style={{ display: props.compact === true ? "none" : "contents" }}
+      >
       <div
         // The five-column band is the point of this card: at the xs variant it
         // stacked CALL/PUT/READ/history into one column and grew to 475px,
@@ -1240,6 +1334,7 @@ export function NiftyWallsCardInner(props: {
         <MiniHistory walls={walls()!} />
       </div>
       <WallsLevelsBlock levels={props.levels} />
+      </div>
     </LocalCompactPanel>
   );
 }
