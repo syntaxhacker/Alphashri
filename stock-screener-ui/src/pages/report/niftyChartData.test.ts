@@ -640,6 +640,23 @@ describe("effectiveSessionDate", () => {
     ).toHaveLength(1);
   });
 
+  test("an explicit report.date always wins over the newest data session", () => {
+    // Replay / EOD / previous-day views pin `report.date` deliberately; a
+    // fallback that "helpfully" jumped to the newest candles would silently
+    // break the replay playhead and the two-day-chart guard.
+    const report = {
+      date: "2026-10-12",
+      market: { session_date: "2026-10-12" },
+      intraday: [],
+      candles: [candle("2026-10-11T15:00:00+05:30")],
+    } as unknown as NiftyReport;
+    expect(effectiveSessionDate(report)).toBe("2026-10-12");
+    // The previous-session rows are dropped, not adopted.
+    expect(
+      selectBaseCandles({ intraday: [], candles: report.candles }, [], "2026-10-12"),
+    ).toHaveLength(0);
+  });
+
   test("returns the pinned date untouched when there is no pinned session", () => {
     expect(
       effectiveSessionDate({

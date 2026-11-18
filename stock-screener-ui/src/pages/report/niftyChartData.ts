@@ -55,6 +55,10 @@ export function effectiveSessionDate(
   pinned: string = sessionDateOf(report),
 ): string {
   if (!pinned) return pinned;
+  // An explicit `report.date` is the user's chosen session (replay / EOD /
+  // previous-day view) and is authoritative — never second-guess it. Only the
+  // exchange calendar gate's `market.session_date` can run ahead of the data.
+  if (report.date) return pinned;
   const rows = [...(report.intraday ?? []), ...(report.candles ?? [])];
   if (rows.length === 0) return pinned;
   if (rows.some((c) => isOnSession(c.time, pinned))) return pinned;
