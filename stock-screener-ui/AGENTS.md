@@ -563,6 +563,15 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - **Review gate.** The main agent reviews the diff, fills integration gaps, then runs the full affected suite + `oxlint` + `bun run build` + the UI guards before committing. Agents never commit.
 - **Free model pool:** owned by `SUBAGENT_RULES.md §9` — use the pool listed there, one model per independent scope.
 
+### Subagent wait policy (MANDATORY)
+- Never `sleep`, poll, or repeatedly inspect a running subagent's files/processes. It reports automatically when it finishes.
+- While an agent runs, do independent work. If nothing is independent, end the turn.
+- A backgrounded shell is not a reason to poll either; wait for its completion notification.
+
+### Browser / screenshot policy (MANDATORY)
+- Never resize or emulate the user's live browser/page (`resize_page`, `emulate` viewport). Leave their viewport exactly as-is.
+- Viewport checks belong in Playwright's isolated browser; screenshots of the live browser are taken only at its current size.
+
 ### Comment policy
 - Comments explain **why**, never **what**. No narration (`// set the value`), no docstrings that restate the signature, no changelog comments.
 - Keep a comment only where the code is surprising: a non-obvious constraint, a workaround, an ordering/protocol requirement.
