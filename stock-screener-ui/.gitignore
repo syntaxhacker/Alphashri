@@ -30,6 +30,9 @@ coverage
 # Database files
 *.db
 *.db-journal
+# SQLite WAL mode sidecars (db/alphashri.db runs in WAL mode)
+*.db-wal
+*.db-shm
 
 # Python
 __pycache__/
