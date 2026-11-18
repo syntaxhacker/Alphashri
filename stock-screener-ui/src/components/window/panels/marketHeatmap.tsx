@@ -100,6 +100,12 @@ function MarketHeatmapPanel(props: { data: Accessor<Record<string, unknown> | un
   const metricOptions = createMemo(() => marketMetricOptions(currency()));
   const activeMetricLabel = () =>
     metricOptions().find((option) => option.value === sizeBy())?.label ?? sizeBy();
+  const staleLabel = () => {
+    const age = snapshot.ageSec();
+    if (age == null) return "Stale data";
+    if (age < 60) return `Stale data · ${Math.round(age)}s old`;
+    return `Stale data · ${Math.round(age / 60)}m old`;
+  };
 
   const chooseUniverse = (value: string | null) => {
     if (!value || !UNIVERSE_VALUES.has(value)) return;
@@ -171,6 +177,17 @@ function MarketHeatmapPanel(props: { data: Accessor<Record<string, unknown> | un
               {formatCount(filteredRows().length)} of {formatCount(total())}
             </span>
           </Text>
+          <Show when={snapshot.stale() || !!snapshot.error()}>
+            <Text
+              size="xs"
+              c="warning"
+              fw={600}
+              data-testid="market-heatmap-stale"
+              className="whitespace-nowrap"
+            >
+              {staleLabel()}
+            </Text>
+          </Show>
         </Box>
       </Box>
       <Box className="flex flex-1 min-h-0 flex-col">

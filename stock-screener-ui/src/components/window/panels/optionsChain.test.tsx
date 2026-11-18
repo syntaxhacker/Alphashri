@@ -194,6 +194,66 @@ function mountTwoChains(contexts: DockPanelContext[]) {
   ));
 }
 
+describe("options.chain failure behaviour", () => {
+  it("(a) a 500 renders the error state, not the empty state", async () => {
+    fetchChainMock.mockRejectedValue(
+      new OptionDockError("upstream", "Options service error", 500),
+    );
+    renderWindow();
+
+    const error = await screen.findByTestId("options-chain-error");
+    expect(error).toHaveAttribute("data-kind", "upstream");
+    expect(error).toHaveTextContent("Options service error");
+    expect(screen.queryByTestId("options-chain-empty")).not.toBeInTheDocument();
+  });
+
+  it("(c) an aborted superseded request renders no error flash", async () => {
+    let rejectFirst!: (reason: unknown) => void;
+    fetchChainMock.mockImplementationOnce(
+      () => new Promise((_resolve, reject) => { rejectFirst = reject; }),
+    );
+    fetchChainMock.mockImplementation(async () => fixture());
+    renderWindow();
+
+    expect(screen.getByTestId("options-chain-loading")).toBeInTheDocument();
+    fireEvent.input(screen.getByTestId("options-chain-expiry-input"), {
+      target: { value: "2026-12-04" },
+    });
+    rejectFirst(new DOMException("Aborted", "AbortError"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("options-strike-cell-24000")).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId("options-chain-error")).not.toBeInTheDocument();
+  });
+
+  it("(d) a 401 offers the broker-connect action", async () => {
+    fetchChainMock.mockRejectedValue(
+      new OptionDockError("auth", "Reconnect Upstox in Settings", 401),
+    );
+    renderWindow();
+
+    const connect = await screen.findByTestId("options-chain-connect");
+    expect(connect).toHaveTextContent("Connect broker in Settings");
+    expect(connect).toHaveAttribute("href", "/settings");
+    expect(screen.getByTestId("options-chain-error")).toHaveAttribute("data-kind", "auth");
+  });
+
+  it("(e) a 429 shows the wait and disables immediate retry", async () => {
+    fetchChainMock.mockRejectedValue(
+      new OptionDockError("rate_limited", "Rate limited", 429, 8000),
+    );
+    renderWindow();
+
+    const error = await screen.findByTestId("options-chain-error");
+    expect(error).toHaveAttribute("data-kind", "rate_limited");
+    expect(error).toHaveTextContent("retry in 8s");
+    const retry = within(error).getByRole("button", { name: /retry/i });
+    expect(retry).toBeDisabled();
+    expect(retry).toHaveTextContent("Retry in 8s");
+  });
+});
+
 describe("options.chain — two-window request count", () => {
   it("same symbol+expiry: two windows join one chain fetch", async () => {
     fetchChainMock.mockResolvedValue(fixture());

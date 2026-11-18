@@ -1,6 +1,7 @@
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import type { Accessor } from "solid-js";
-import { Box, Button, Text, TextInput, ToolbarRow } from "@/ui";
+import { Anchor, Box, Button, Text, TextInput, ToolbarRow } from "@/ui";
+import { DEFAULT_RATE_LIMIT_RETRY_MS } from "@/state/optionsDock";
 import {
   OptionDockError,
   fetchChain,
@@ -109,12 +110,25 @@ function OptionsChainWindow(props: { context: Accessor<DockPanelContext> }) {
   const [levels, setLevels] = createSignal<OptionChainLevels | null>(null);
   const [chainExpiry, setChainExpiry] = createSignal<string | null>(null);
   const [failure, setFailure] = createSignal<ChainFailure | null>(null);
+  const [retryReady, setRetryReady] = createSignal(true);
 
   let requestId = 0;
   let heldFlight: ChainFlight | null = null;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  const clearRetryTimer = () => {
+    if (retryTimer != null) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+  };
+  const rateLimited = () => failure()?.kind === "rate_limited";
+  const retryWaitSeconds = () =>
+    Math.ceil((failure()?.retryAfterMs ?? DEFAULT_RATE_LIMIT_RETRY_MS) / 1000);
 
   const load = async () => {
     const id = ++requestId;
+    clearRetryTimer();
+    setRetryReady(true);
     releaseChain(heldFlight);
     heldFlight = null;
     const sym = symbol().trim().toUpperCase();
@@ -158,6 +172,13 @@ function OptionsChainWindow(props: { context: Accessor<DockPanelContext> }) {
       setLevels(null);
       setChainExpiry(null);
       setStatus("error");
+      if (cause instanceof OptionDockError && cause.kind === "rate_limited") {
+        setRetryReady(false);
+        retryTimer = setTimeout(() => {
+          retryTimer = null;
+          setRetryReady(true);
+        }, cause.retryAfterMs ?? DEFAULT_RATE_LIMIT_RETRY_MS);
+      }
     }
   };
 
@@ -166,6 +187,7 @@ function OptionsChainWindow(props: { context: Accessor<DockPanelContext> }) {
   });
   onCleanup(() => {
     requestId += 1;
+    clearRetryTimer();
     releaseChain(heldFlight);
     heldFlight = null;
   });
@@ -247,12 +269,22 @@ function OptionsChainWindow(props: { context: Accessor<DockPanelContext> }) {
             </Text>
             <Text size="xs" c="dimmed">
               {error().message}
-              {error().retryAfterMs != null
-                ? ` · retry in ${Math.ceil(error().retryAfterMs! / 1000)}s`
+              {rateLimited() || error().retryAfterMs != null
+                ? ` · retry in ${retryWaitSeconds()}s`
                 : ""}
             </Text>
-            <Button size="xs" variant="subtle" onClick={() => void load()}>
-              Retry
+            <Show when={error().kind === "auth"}>
+              <Anchor href="/settings" data-testid="options-chain-connect">
+                Connect broker in Settings
+              </Anchor>
+            </Show>
+            <Button
+              size="xs"
+              variant="subtle"
+              disabled={rateLimited() && !retryReady()}
+              onClick={() => void load()}
+            >
+              {rateLimited() && !retryReady() ? `Retry in ${retryWaitSeconds()}s` : "Retry"}
             </Button>
           </Box>
         )}

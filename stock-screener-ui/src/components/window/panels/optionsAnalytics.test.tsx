@@ -268,6 +268,87 @@ describe("options.analytics window panel — states", () => {
   });
 });
 
+describe("options.analytics failure behaviour", () => {
+  it("(a) a chain 500 renders the error state, not the empty state", async () => {
+    fetchChain.mockImplementation(() =>
+      Promise.reject(new OptionDockError("upstream", "Options service error", 500)),
+    );
+    renderWindow();
+
+    const error = await screen.findByTestId("options-analytics-chain-error");
+    expect(error).toHaveAttribute("data-kind", "upstream");
+    expect(error).toHaveTextContent("Options service error");
+    expect(screen.queryByTestId("options-analytics-chain-empty")).not.toBeInTheDocument();
+  });
+
+  it("(b) a failed chain refresh marks already-loaded analytics as stale", async () => {
+    renderWindow();
+    await waitFor(() =>
+      expect(screen.getByTestId("term-metric-front-value")).toHaveTextContent("12.4"),
+    );
+    expect(screen.queryByTestId("options-analytics-stale")).not.toBeInTheDocument();
+
+    fetchChain.mockImplementation(() =>
+      Promise.reject(new OptionDockError("upstream", "Options service error", 500)),
+    );
+    fireEvent.input(screen.getByTestId("options-analytics-expiry-input"), {
+      target: { value: "2026-11-19" },
+    });
+
+    await screen.findByTestId("options-analytics-chain-error");
+    expect(screen.getByTestId("options-analytics-stale")).toHaveTextContent(
+      "showing last available analytics",
+    );
+    expect(screen.getByTestId("term-metric-front-value")).toHaveTextContent("12.4");
+  });
+
+  it("(c) an aborted superseded chain fetch renders no error flash", async () => {
+    let rejectFirst!: (reason: unknown) => void;
+    fetchChain.mockImplementationOnce(
+      () => new Promise((_resolve, reject) => { rejectFirst = reject; }),
+    );
+    fetchChain.mockImplementation(async () => chainPayload());
+    renderWindow();
+
+    expect(screen.getByTestId("options-analytics-chain-loading")).toBeInTheDocument();
+    fireEvent.input(screen.getByTestId("options-analytics-expiry-input"), {
+      target: { value: "2026-11-19" },
+    });
+    rejectFirst(new DOMException("Aborted", "AbortError"));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("options-analytics-chain-loading")).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId("options-analytics-chain-error")).not.toBeInTheDocument();
+  });
+
+  it("(d) a 401 offers the broker-connect action", async () => {
+    fetchChain.mockImplementation(() =>
+      Promise.reject(new OptionDockError("auth", "Reconnect Upstox in Settings", 401)),
+    );
+    renderWindow();
+
+    const connect = await screen.findByTestId("options-analytics-connect");
+    expect(connect).toHaveTextContent("Connect broker in Settings");
+    expect(connect).toHaveAttribute("href", "/settings");
+    expect(screen.getByTestId("options-analytics-chain-error")).toHaveAttribute("data-kind", "auth");
+  });
+
+  it("(e) a 429 shows the wait and disables immediate retry", async () => {
+    fetchChain.mockImplementation(() =>
+      Promise.reject(new OptionDockError("rate_limited", "Rate limited", 429, 8000)),
+    );
+    renderWindow();
+
+    const error = await screen.findByTestId("options-analytics-chain-error");
+    expect(error).toHaveAttribute("data-kind", "rate_limited");
+    expect(error).toHaveTextContent("retry in 8s");
+    const retry = within(error).getByRole("button", { name: /retry/i });
+    expect(retry).toBeDisabled();
+    expect(retry).toHaveTextContent("Retry in 8s");
+  });
+});
+
 describe("options.analytics window panel — controls and sizing", () => {
   it("(d) the chart container is flex-sized, never a fixed-height box", async () => {
     renderWindow();

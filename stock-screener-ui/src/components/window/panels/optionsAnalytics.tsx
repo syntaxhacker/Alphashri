@@ -1,6 +1,7 @@
 import { Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import type { Accessor } from "solid-js";
-import { Box, Button, Text, TextInput, ToolbarRow } from "@/ui";
+import { Anchor, Box, Button, Text, TextInput, ToolbarRow } from "@/ui";
+import { DEFAULT_RATE_LIMIT_RETRY_MS } from "@/state/optionsDock";
 import { OptionDockError, fetchChain, type ChainRow } from "@/api/optionsDock";
 import { optionsAnalyticsState, refreshAnalytics } from "@/state/optionsAnalytics";
 import { AnalyticsPanel, type AnalyticsContentTab } from "../../options-dock/analytics/AnalyticsPanel";
@@ -74,6 +75,18 @@ function OptionsAnalyticsWindow(props: { context: Accessor<DockPanelContext> }) 
   const [spot, setSpot] = createSignal(0);
   const [atmIv, setAtmIv] = createSignal<number | null>(null);
   const [failure, setFailure] = createSignal<ChainFailure | null>(null);
+  const [retryReady, setRetryReady] = createSignal(true);
+
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  const clearRetryTimer = () => {
+    if (retryTimer != null) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+  };
+  const rateLimited = () => failure()?.kind === "rate_limited";
+  const retryWaitSeconds = () =>
+    Math.ceil((failure()?.retryAfterMs ?? DEFAULT_RATE_LIMIT_RETRY_MS) / 1000);
 
   // The store is shared; a frame painted for another symbol is not this view's
   // data. That guard also keeps the strip's expiry chips from borrowing NIFTY.
@@ -89,7 +102,12 @@ function OptionsAnalyticsWindow(props: { context: Accessor<DockPanelContext> }) 
     const exp = selectedExpiry();
     void chainRetry();
     const active = new AbortController();
-    onCleanup(() => active.abort());
+    clearRetryTimer();
+    setRetryReady(true);
+    onCleanup(() => {
+      active.abort();
+      clearRetryTimer();
+    });
 
     if (!sym || !exp) {
       setChainStatus("empty");
@@ -123,8 +141,19 @@ function OptionsAnalyticsWindow(props: { context: Accessor<DockPanelContext> }) 
         setSpot(0);
         setAtmIv(null);
         setChainStatus("error");
+        if (cause instanceof OptionDockError && cause.kind === "rate_limited") {
+          setRetryReady(false);
+          retryTimer = setTimeout(() => {
+            retryTimer = null;
+            setRetryReady(true);
+          }, cause.retryAfterMs ?? DEFAULT_RATE_LIMIT_RETRY_MS);
+        }
       });
   });
+
+  // The chain and the analytics payload are separate flights. A failed chain
+  // refresh must not leave the last analytics frame looking current.
+  const showChainStale = () => chainStatus() === "error" && analyticsData() != null;
 
   const onSymbolChange = (value: string) => {
     const next = value.trim().toUpperCase();
@@ -200,6 +229,17 @@ function OptionsAnalyticsWindow(props: { context: Accessor<DockPanelContext> }) 
         </Show>
       </ToolbarRow>
 
+      <Show when={showChainStale()}>
+        <Box
+          data-testid="options-analytics-stale"
+          className="shrink-0 border-b border-fin-border px-2 py-1"
+        >
+          <Text size="xs" c="warning">
+            Chain refresh failed · showing last available analytics
+          </Text>
+        </Box>
+      </Show>
+
       <Show when={!symbol()}>
         <Box
           data-testid="options-analytics-empty-symbol"
@@ -242,12 +282,22 @@ function OptionsAnalyticsWindow(props: { context: Accessor<DockPanelContext> }) 
             </Text>
             <Text size="xs" c="dimmed">
               {error().message}
-              {error().retryAfterMs != null
-                ? ` · retry in ${Math.ceil(error().retryAfterMs! / 1000)}s`
+              {rateLimited() || error().retryAfterMs != null
+                ? ` · retry in ${retryWaitSeconds()}s`
                 : ""}
             </Text>
-            <Button size="xs" variant="subtle" onClick={() => setChainRetry((count) => count + 1)}>
-              Retry
+            <Show when={error().kind === "auth"}>
+              <Anchor href="/settings" data-testid="options-analytics-connect">
+                Connect broker in Settings
+              </Anchor>
+            </Show>
+            <Button
+              size="xs"
+              variant="subtle"
+              disabled={rateLimited() && !retryReady()}
+              onClick={() => setChainRetry((count) => count + 1)}
+            >
+              {rateLimited() && !retryReady() ? `Retry in ${retryWaitSeconds()}s` : "Retry"}
             </Button>
           </Box>
         )}

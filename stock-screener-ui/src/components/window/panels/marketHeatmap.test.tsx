@@ -17,6 +17,8 @@ const ctl = vi.hoisted(() => ({
   options: null as unknown as Record<string, unknown>,
   fetches: [] as string[],
   errorOnUniverse: null as string | null,
+  stale: false,
+  ageSec: null as number | null,
   refresh: vi.fn(),
   dockOpen: vi.fn(),
   chart: null as unknown as { handlers: Record<string, (payload: unknown) => void> },
@@ -58,8 +60,8 @@ vi.mock("../../market/useMarketSnapshotSolid", async () => {
         error,
         refresh: ctl.refresh,
         lastUpdated: () => null,
-        stale: () => false,
-        ageSec: () => null,
+        stale: () => ctl.stale,
+        ageSec: () => ctl.ageSec,
         warming: () => false,
       };
     },
@@ -146,6 +148,8 @@ beforeEach(() => {
   ctl.setError(null);
   ctl.fetches = [];
   ctl.errorOnUniverse = null;
+  ctl.stale = false;
+  ctl.ageSec = null;
   ctl.refresh.mockClear();
   ctl.dockOpen.mockClear();
 });
@@ -316,6 +320,36 @@ describe("market.heatmap window panel", () => {
     await waitFor(() => expect(screen.getByTestId("market-heatmap-refresh")).toBeInTheDocument());
     fireEvent.click(screen.getByTestId("market-heatmap-refresh"));
     expect(ctl.refresh).toHaveBeenCalledWith(true);
+  });
+
+  it("(a) a 500 renders the error state, not the empty state", () => {
+    ctl.setError(new Error("Market snapshot failed (HTTP 500)"));
+    renderPanel();
+
+    expect(screen.getByTestId("market-heatmap-error")).toBeInTheDocument();
+    expect(screen.queryByTestId("market-heatmap-empty")).not.toBeInTheDocument();
+  });
+
+  it("(b) a stale snapshot is marked stale with its age instead of looking fresh", () => {
+    ctl.setRows([row("RELIANCE", 1)]);
+    ctl.stale = true;
+    ctl.ageSec = 180;
+    renderPanel();
+
+    const marker = screen.getByTestId("market-heatmap-stale");
+    expect(marker).toHaveTextContent("Stale data");
+    expect(marker).toHaveTextContent("3m old");
+  });
+
+  it("(b2) a failed refresh over earlier data shows both the error and the staleness marker", () => {
+    ctl.setRows([row("RELIANCE", 1)]);
+    ctl.setError(new Error("snapshot exploded"));
+    ctl.stale = true;
+    ctl.ageSec = 120;
+    renderPanel();
+
+    expect(screen.getByTestId("market-heatmap-error")).toHaveTextContent("snapshot exploded");
+    expect(screen.getByTestId("market-heatmap-stale")).toHaveTextContent("2m old");
   });
 
   it("(ctx-f) a universe change that errors keeps the error state, not a blank box", async () => {
