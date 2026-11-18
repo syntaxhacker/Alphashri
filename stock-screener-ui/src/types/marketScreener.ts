@@ -1,6 +1,15 @@
 /** Market Screener — snapshot contract shared by api/hooks/components. */
 
-export type MarketUniverse = "all_equity" | "nifty500" | "nifty50" | "nse_fo" | "us";
+export type MarketUniverse =
+  | "all_equity"
+  | "nifty500"
+  | "nifty200"
+  | "nifty100"
+  | "nifty50"
+  | "banknifty"
+  | "sensex"
+  | "nse_fo"
+  | "us";
 
 export type MarketCapTier = "mega" | "large" | "mid" | "small" | "micro";
 

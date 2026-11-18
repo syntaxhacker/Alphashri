@@ -68,6 +68,10 @@ export const MARKET_UNIVERSE_DESCRIPTORS: readonly MarketUniverseDescriptor[] = 
   { value: "all_equity", label: "All NSE", ...INDIA },
   { value: "nifty500", label: "Nifty 500", ...INDIA },
   { value: "nifty50", label: "Nifty 50", ...INDIA },
+  { value: "nifty100", label: "NIFTY 100", ...INDIA },
+  { value: "nifty200", label: "NIFTY 200", ...INDIA },
+  { value: "banknifty", label: "Bank Nifty", ...INDIA },
+  { value: "sensex", label: "Sensex", ...INDIA },
   { value: "nse_fo", label: "F&O", ...INDIA },
   {
     value: "us",

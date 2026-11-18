@@ -24,7 +24,12 @@ import { DEFAULT_MARKET_UNIVERSE } from "../../api/marketScreener";
 import { MARKET_UNIVERSE_DESCRIPTORS } from "../../config/marketUniverses";
 import type { MarketUniverse } from "../../types/marketScreener";
 import { isRecord, parseStringList } from "../../utils/persistedConfig";
-import { MARKET_VIEW_OPTIONS, type MarketViewMode } from "./MarketMapView";
+import { normalizeMarketView, type MarketViewMode } from "./MarketMapView";
+import {
+  DEFAULT_MARKET_SIZE_METRIC,
+  isMarketSizeMetric,
+  type MarketSizeMetric,
+} from "./marketTreemap";
 import {
   CAP_TIERS,
   DEFAULT_MARKET_SORT,
@@ -42,6 +47,12 @@ export interface MarketConfigValue {
   /** `search` is always `""` here — it is never restored or saved. */
   filters: MarketFilterState;
   view: MarketViewMode;
+  /**
+   * The map's single sizing metric, carried on the legacy `colorBy` wire field
+   * so saved configs keep restoring without a migration. Colour is no longer
+   * selected: tiles are always green/red by day change.
+   */
+  colorBy?: MarketSizeMetric;
 }
 
 /** One registry drives the dropdown, the parser and the default filters. */
@@ -49,7 +60,6 @@ const UNIVERSES: ReadonlySet<string> = new Set(
   MARKET_UNIVERSE_DESCRIPTORS.map((descriptor) => descriptor.value),
 );
 const SORTS: ReadonlySet<string> = new Set(MARKET_SORT_OPTIONS.map((o) => o.value));
-const VIEWS: ReadonlySet<string> = new Set(MARKET_VIEW_OPTIONS.map((o) => o.value));
 const TIERS: ReadonlySet<string> = new Set(CAP_TIERS);
 
 /** Server-side caps, mirrored so a hostile payload cannot ship NaN geometry. */
@@ -85,13 +95,16 @@ function parseCapTiers(raw: unknown): Set<string> {
 }
 
 export function defaultMarketConfig(
-  overrides: Partial<Pick<MarketConfigValue, "universe" | "view">> = {},
+  overrides: Partial<Pick<MarketConfigValue, "universe" | "view" | "colorBy">> = {},
 ): MarketConfigValue {
   const universe = overrides.universe ?? DEFAULT_MARKET_UNIVERSE;
   return {
     universe,
     filters: defaultMarketFilters(universe),
     view: overrides.view ?? "table",
+    colorBy: isMarketSizeMetric(overrides.colorBy)
+      ? overrides.colorBy
+      : DEFAULT_MARKET_SIZE_METRIC,
   };
 }
 
@@ -136,12 +149,14 @@ export function parseMarketConfig(raw: unknown): MarketConfigValue | null {
       : DEFAULT_MARKET_SORT;
   filters.search = "";
 
-  const view =
-    typeof flat.view === "string" && VIEWS.has(flat.view)
-      ? (flat.view as MarketViewMode)
-      : "table";
+  // A saved `map` predates the Vis rename; normalize it here rather than with
+  // a stored-config migration so old payloads keep hydrating to a live view.
+  const view = normalizeMarketView(flat.view);
+  const colorBy = isMarketSizeMetric(flat.colorBy)
+    ? flat.colorBy
+    : DEFAULT_MARKET_SIZE_METRIC;
 
-  return { universe, filters, view };
+  return { universe, filters, view, colorBy };
 }
 
 /** Value -> wire payload. `search` and every non-persisted field stay out. */
@@ -168,6 +183,7 @@ export function serializeMarketConfig(value: MarketConfigValue): Record<string, 
     sectors: [...f.sectors],
     sort: f.sort,
     view: value.view,
+    colorBy: isMarketSizeMetric(value.colorBy) ? value.colorBy : DEFAULT_MARKET_SIZE_METRIC,
   };
 }
 

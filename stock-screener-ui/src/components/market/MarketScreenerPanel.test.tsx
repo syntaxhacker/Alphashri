@@ -12,6 +12,8 @@ import { getUserConfig, putUserConfig, deleteUserConfig } from "../../api/userCo
 import * as marketFilters from "./marketFilters";
 import { defaultMarketConfig, serializeMarketConfig } from "./useMarketConfig";
 import type { MarketRow } from "../../types/marketScreener";
+import { NARROW_TREEMAP_MAX_WIDTH } from "./marketTreemap";
+import type { ValueRow, ValueScanResponse } from "../../api/valueScan";
 import type { ScreenerDashboardResponse } from "../../types/screenerDashboard";
 import { SymbolDockContext, type SymbolDockApi } from "../common/symbolDockContext";
 
@@ -67,10 +69,12 @@ vi.mock("../../api/patternLookup", () => ({
 // happy-dom has no 2D canvas context: the real treemap's async init can land
 // after an unmount and then throws from zrender's dispose. The map's DOM is what
 // these tests assert, so the renderer is stubbed out.
-vi.mock("../../utils/loadEcharts", () => {
-  const chart = { setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn(), on: vi.fn() };
-  return { loadEcharts: vi.fn(async () => ({ init: vi.fn(() => chart) })) };
-});
+const echartsStub = vi.hoisted(() => ({
+  chart: { setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn(), on: vi.fn() },
+}));
+vi.mock("../../utils/loadEcharts", () => ({
+  loadEcharts: vi.fn(async () => ({ init: vi.fn(() => echartsStub.chart) })),
+}));
 
 function row(symbol: string, overrides: Partial<MarketRow> = {}): MarketRow {
   return {
@@ -470,19 +474,22 @@ describe("MarketScreenerPanel — non-blocking filters", () => {
   });
 });
 
-describe("MarketScreenerPanel — the sort control lives on the map", () => {
-  test("the rail offers sectors only; the map owns the sort", async () => {
+describe("MarketScreenerPanel — the table owns sorting, the map only sizes", () => {
+  test("the rail and the map both have no sort control; the Vis toolbar owns Size by", async () => {
     r(() => <MarketScreenerPanel />);
     const rail = screen.getByTestId("market-filter-rail");
     expect(within(rail).queryByTestId("market-filter-sort")).toBeNull();
     expect(within(rail).getByTestId("market-filter-sector")).toBeInTheDocument();
 
-    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Map"));
-    expect(screen.getByTestId("market-map-sort")).toBeInTheDocument();
+    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Vis"));
+    expect(screen.queryByTestId("market-map-sort")).toBeNull();
+    expect(screen.getByTestId("market-map-toolbar").querySelectorAll("select")).toHaveLength(0);
+    expect(screen.getByTestId("market-vis-toolbar")).toHaveTextContent("Size by");
+    expect(screen.getByTestId("market-vis-toolbar").querySelectorAll("select")).toHaveLength(1);
     await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Table"));
   });
 
-  test("changing the map sort updates filters.sort and the map's colour", async () => {
+  test("changing the size metric never writes into the table's sort", async () => {
     const rows = [
       row("RELIANCE", { marketCapCr: 1_000_000, rsi: 20 }),
       row("MPHASIS", { marketCapCr: 10_000, rsi: 80 }),
@@ -490,27 +497,24 @@ describe("MarketScreenerPanel — the sort control lives on the map", () => {
     mockUseMarketSnapshot.mockReturnValue(hookResult({ rows, total: rows.length }));
     r(() => <MarketScreenerPanel />);
     const toggle = screen.getByTestId("market-view-toggle");
-    await fireEvent.click(within(toggle).getByText("Map"));
+    await fireEvent.click(within(toggle).getByText("Vis"));
 
     const metric = () =>
       (screen.getByTestId("market-map-metric").querySelector("select") as HTMLSelectElement).value;
-    const sortValue = () =>
-      (screen.getByTestId("market-map-sort").querySelector("select") as HTMLSelectElement).value;
-    expect(metric()).toBe("market_cap");
+    expect(metric()).toBe("change_pct");
 
-    fireEvent.input(screen.getByTestId("market-map-sort").querySelector("select")!, {
-      target: { value: "rsi_desc" },
+    fireEvent.input(screen.getByTestId("market-map-metric").querySelector("select")!, {
+      target: { value: "rsi" },
     });
-    // One owner: filters.sort. The sort select and the colour both read it back.
-    expect(sortValue()).toBe("rsi_desc");
     expect(metric()).toBe("rsi");
 
-    // Rendered table order is NOT asserted here: TanStackTable re-sorts whatever
-    // array it receives by its own `initialState` (market_cap_cr desc), so a row
-    // order assertion would pass with or without this wiring. Header sort →
-    // filters.sort is a separate task; until then filters.sort drives the map's
-    // colour only.
     await fireEvent.click(within(toggle).getByText("Table"));
+    // The table keeps its own persisted sort (market cap desc); the map's
+    // single dropdown is local to the map and has no reverse bridge.
+    expect(document.getElementById("paper-tanstack-header-market_cap_cr")).toHaveAttribute(
+      "aria-sort",
+      "descending",
+    );
     expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
   });
 });
@@ -577,6 +581,35 @@ describe("MarketScreenerPanel — Movers view", () => {
     expect(screen.queryByTestId("market-search")).not.toBeInTheDocument();
     expect(screen.queryByTestId("market-filter-rail")).not.toBeInTheDocument();
     expect(screen.getByTestId("market-view-toggle")).toBeInTheDocument();
+  });
+
+  test("the Vis tab renders the registry default heatmap", async () => {
+    r(() => <MarketScreenerPanel />);
+    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Vis"));
+    expect(await screen.findByTestId("market-map-view")).toBeInTheDocument();
+    expect(screen.getByTestId("market-map-canvas")).toBeInTheDocument();
+  });
+
+  test("the Vis selector reaches both registered visualizations", async () => {
+    r(() => <MarketScreenerPanel />);
+    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Vis"));
+    expect(await screen.findByTestId("market-vis-selector")).toBeInTheDocument();
+
+    const selector = screen.getByTestId("market-vis-selector");
+    expect(within(selector).getByText("Heatmap")).toHaveAttribute("aria-pressed", "true");
+    expect(within(selector).getByText("Sector treemap")).toBeInTheDocument();
+
+    fireEvent.click(within(selector).getByText("Sector treemap"));
+    expect(await screen.findByTestId("market-sector-map-view")).toBeInTheDocument();
+    expect(screen.queryByTestId("market-map-view")).not.toBeInTheDocument();
+    expect(within(screen.getByTestId("market-vis-selector")).getByText("Sector treemap")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    fireEvent.click(within(screen.getByTestId("market-vis-selector")).getByText("Heatmap"));
+    expect(await screen.findByTestId("market-map-view")).toBeInTheDocument();
+    expect(screen.queryByTestId("market-sector-map-view")).not.toBeInTheDocument();
   });
 
   test("switching to Movers clears the search; Table comes back empty", async () => {
@@ -687,7 +720,7 @@ describe("MarketScreenerPanel — symbol allowlist", () => {
     const before = screen.getByTestId("market-grid");
     const toggle = screen.getByTestId("market-view-toggle");
 
-    await fireEvent.click(within(toggle).getByText("Map"));
+    await fireEvent.click(within(toggle).getByText("Vis"));
     // Mounted but hidden: losing the node would reset TanStack's sort state.
     expect(screen.getByTestId("market-grid")).toBe(before);
 
@@ -795,7 +828,7 @@ describe("MarketScreenerPanel — PATTERNS column", () => {
     await waitFor(() => expect(mockLookupPatterns).toHaveBeenCalledTimes(1), { timeout: 3000 });
 
     const toggle = screen.getByTestId("market-view-toggle");
-    await fireEvent.click(within(toggle).getByText("Map"));
+    await fireEvent.click(within(toggle).getByText("Vis"));
     await fireEvent.click(within(toggle).getByText("Table"));
 
     // The window is identical, so the cached answers are still current.
@@ -926,14 +959,14 @@ describe("MarketScreenerPanel — saved filters", () => {
   test("a ?view= from the URL beats the saved view; the saved filters still apply", async () => {
     withSaved(savedPayload({ view: "table" }));
 
-    r(() => <MarketScreenerPanel initialView="map" />);
+    r(() => <MarketScreenerPanel initialView="vis" />);
 
     await waitFor(() =>
       expect(screen.getByTestId("market-filter-chip-sector:IT")).toBeInTheDocument(),
     );
     // `table` renders too (hidden), so assert the toggle's pressed state.
     const toggle = screen.getByTestId("market-view-toggle");
-    expect(within(toggle).getByText("Map").closest("button")?.getAttribute("aria-pressed")).toBe(
+    expect(within(toggle).getByText("Vis").closest("button")?.getAttribute("aria-pressed")).toBe(
       "true",
     );
   });
@@ -1045,6 +1078,105 @@ describe("MarketScreenerPanel — saved filters", () => {
     expect(screen.queryByText("SECTOR")).toBeNull();
   }, 15000);
 
+  /**
+   * The table-prefs GET and the market.filters GET race on every mount. A saved
+   * non-default table sort makes the map-sort mirror patch filters before the
+   * saved market config lands; that write closes the store latch, so the saved
+   * universe/filters are discarded and overwritten with mount defaults.
+   */
+  describe("with a saved non-default table sort (table prefs GET wins the race)", () => {
+    const RACE_ROWS: MarketRow[] = [row("RELIANCE", { sector: "IT", rsi: 62 })];
+    let resolveMarketGet: (value: unknown) => void;
+
+    function savedConfig() {
+      return {
+        scope: "market.filters",
+        version: 1,
+        saved: true,
+        updated_at: "2026-11-15T09:41:22.192Z",
+        config: serializeMarketConfig({
+          universe: "nifty50",
+          filters: {
+            ...defaultMarketConfig().filters,
+            rsiMin: 60,
+            aboveSma20: true,
+            sort: "rsi_desc",
+          },
+          view: "table",
+          colorBy: "change_pct",
+        }),
+      };
+    }
+
+    beforeEach(() => {
+      mockUseMarketSnapshot.mockReturnValue(
+        hookResult({ rows: RACE_ROWS, total: RACE_ROWS.length }),
+      );
+      let resolve!: (value: unknown) => void;
+      const marketGet = new Promise((res) => {
+        resolve = res;
+      });
+      resolveMarketGet = resolve;
+      mockGetUserConfig.mockImplementation(async (scope: string) => {
+        if (scope === "table.market.grid") {
+          return {
+            scope,
+            version: 1,
+            saved: true,
+            updated_at: "2026-11-15T09:42:00.192Z",
+            config: { sorting: [{ id: "rsi", desc: true }], order: [], hidden: [] },
+          } as never;
+        }
+        return marketGet as never;
+      });
+    });
+
+    /** Render, let the table-prefs mirror run, then let the saved GET land. */
+    async function hydrateWithRace() {
+      r(() => <MarketScreenerPanel />);
+      await waitFor(() =>
+        expect(document.getElementById("paper-tanstack-header-rsi")).toHaveAttribute(
+          "aria-sort",
+          "descending",
+        ),
+      );
+      // One macrotask is enough for the mirror's `patchFilters` + autosave.
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      resolveMarketGet(savedConfig());
+      // Let the GET settle and the hydration batch flush into the panel.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+
+    test("the saved universe survives even when the table sort mirror lands first", async () => {
+      await hydrateWithRace();
+
+      // Fails on the buggy code: the mirror's pre-hydration write closes the
+      // latch, so nifty50 is discarded and the snapshot stays on all_equity.
+      expect(mockUseMarketSnapshot.mock.calls.at(-1)?.[0]()).toBe("nifty50");
+      expect(
+        within(screen.getByTestId("market-universe-select")).getByRole("combobox"),
+      ).toHaveValue("Nifty 50");
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      expect(
+        mockPutUserConfig.mock.calls.some(
+          ([scope, config]) =>
+            scope === "market.filters" &&
+            (config as Record<string, unknown>).universe === "all_equity",
+        ),
+      ).toBe(false);
+    }, 10000);
+
+    test("numeric bounds and SMA toggles survive the same pre-hydration write", async () => {
+      await hydrateWithRace();
+
+      // Both are persisted fields; neither may be replaced by mount defaults
+      // just because the table's derived sort arrived before the GET did.
+      expect(screen.getByTestId("market-filter-chip-rsi")).toHaveTextContent("RSI ≥ 60");
+      expect(screen.getByTestId("market-filter-chip-sma20")).toBeInTheDocument();
+      expect(screen.getByTestId("market-filter-count")).toHaveTextContent("2");
+    });
+  });
+
   test("a 401 disables the feature silently: no chip, defaults applied", async () => {
     mockGetUserConfig.mockRejectedValue(Object.assign(new Error("unauthorized"), { status: 401 }));
 
@@ -1073,8 +1205,6 @@ describe("MarketScreenerPanel — persisted table sort (table.market.grid)", () 
       el.getAttribute("data-testid"),
     );
   const header = (id: string) => document.getElementById(`paper-tanstack-header-${id}`);
-  const mapSortValue = () =>
-    (screen.getByTestId("market-map-sort").querySelector("select") as HTMLSelectElement).value;
 
   beforeEach(() => {
     mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: SORT_ROWS, total: SORT_ROWS.length }));
@@ -1139,30 +1269,56 @@ describe("MarketScreenerPanel — persisted table sort (table.market.grid)", () 
     expect(mockPutUserConfig.mock.calls.map(([scope]) => scope)).not.toContain("table.market.grid");
   }, 10000);
 
-  test("choosing day_asc in the map drives the table to day_change ascending", async () => {
+  test("a saved table sort survives hydration; the map has no sort to mirror", async () => {
+    // The table owns the sort. On reload its saved TanStack sort must drive the
+    // grid; the map no longer carries a second, competing sort control.
+    withSavedTableSorting([{ id: "rsi", desc: true }]);
+    r(() => <MarketScreenerPanel />);
+
+    await waitFor(() => expect(header("rsi")).toHaveAttribute("aria-sort", "descending"));
+    await waitFor(() =>
+      expect(rowOrder()).toEqual(["market-row-SMALLCAP", "market-row-MIDCAP", "market-row-BIGCAP"]),
+    );
+    const toggle = screen.getByTestId("market-view-toggle");
+    await fireEvent.click(within(toggle).getByText("Vis"));
+    expect(screen.queryByTestId("market-map-sort")).toBeNull();
+    expect(screen.getByTestId("market-vis-toolbar").querySelectorAll("select")).toHaveLength(1);
+    await fireEvent.click(within(toggle).getByText("Table"));
+  });
+
+  test("ascending RSI still sorts the table and the map keeps its single control", async () => {
+    r(() => <MarketScreenerPanel />);
+    // RSI is numeric: first click descends, second ascends. The table keeps
+    // that direction without needing a map enum for it.
+    fireEvent.click(header("rsi")!);
+    fireEvent.click(header("rsi")!);
+    expect(header("rsi")).toHaveAttribute("aria-sort", "ascending");
+
+    const toggle = screen.getByTestId("market-view-toggle");
+    await fireEvent.click(within(toggle).getByText("Vis"));
+    expect(screen.queryByTestId("market-map-sort")).toBeNull();
+    expect(screen.getByTestId("market-vis-toolbar").querySelectorAll("select")).toHaveLength(1);
+    await fireEvent.click(within(toggle).getByText("Table"));
+  });
+
+  test("the map has no sort control that could write back into the table", async () => {
     r(() => <MarketScreenerPanel />);
     const toggle = screen.getByTestId("market-view-toggle");
-    await fireEvent.click(within(toggle).getByText("Map"));
+    await fireEvent.click(within(toggle).getByText("Vis"));
+    expect(screen.queryByTestId("market-map-sort")).toBeNull();
 
-    fireEvent.input(screen.getByTestId("market-map-sort").querySelector("select")!, {
-      target: { value: "day_asc" },
+    fireEvent.input(screen.getByTestId("market-map-metric").querySelector("select")!, {
+      target: { value: "rsi" },
     });
     await fireEvent.click(within(toggle).getByText("Table"));
 
-    expect(header("day_change")).toHaveAttribute("aria-sort", "ascending");
-    await waitFor(() =>
-      expect(rowOrder()).toEqual(["market-row-BIGCAP", "market-row-MIDCAP", "market-row-SMALLCAP"]),
-    );
-    await waitFor(
-      () =>
-        expect(
-          mockPutUserConfig.mock.calls.some(([scope]) => scope === "table.market.grid"),
-        ).toBe(true),
-      { timeout: 4000 },
-    );
+    // The table keeps its own persisted sort (mcap desc); the map's only
+    // dropdown sizes tiles and must not mutate table.market.grid.
+    expect(header("day_change")).not.toHaveAttribute("aria-sort", "ascending");
+    await waitFor(() => expect(rowOrder()[0]).toBe("market-row-BIGCAP"));
   });
 
-  test("a header click persists the sort and mirrors it into the map dropdown", async () => {
+  test("a header click persists the table sort", async () => {
     r(() => <MarketScreenerPanel />);
     await waitFor(() => expect(rowOrder()[0]).toBe("market-row-BIGCAP"));
 
@@ -1171,8 +1327,8 @@ describe("MarketScreenerPanel — persisted table sort (table.market.grid)", () 
     expect(header("day_change")).toHaveAttribute("aria-sort", "descending");
 
     const toggle = screen.getByTestId("market-view-toggle");
-    await fireEvent.click(within(toggle).getByText("Map"));
-    await waitFor(() => expect(mapSortValue()).toBe("day_desc"));
+    await fireEvent.click(within(toggle).getByText("Vis"));
+    expect(screen.queryByTestId("market-map-sort")).toBeNull();
     await fireEvent.click(within(toggle).getByText("Table"));
 
     await waitFor(
@@ -1190,6 +1346,100 @@ describe("MarketScreenerPanel — persisted table sort (table.market.grid)", () 
       desc: true,
     });
   }, 10000);
+});
+
+describe("MarketScreenerPanel — persisted column prefs (table.market.grid)", () => {
+  const COL_ROWS: MarketRow[] = [
+    row("RELIANCE", { marketCapCr: 100, rsi: 80 }),
+    row("MPHASIS", { marketCapCr: 900, rsi: 50 }),
+  ];
+  const headerIds = () =>
+    Array.from(document.querySelectorAll(".paper-tanstack-header-cell")).map(
+      (el) => el.id.replace("paper-tanstack-header-", ""),
+    );
+
+  beforeEach(() => {
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: COL_ROWS, total: COL_ROWS.length }));
+  });
+
+  function withSavedTablePrefs(prefs: {
+    sorting?: { id: string; desc: boolean }[];
+    order?: string[];
+    hidden?: string[];
+  }) {
+    mockGetUserConfig.mockImplementation(async (scope: string) => {
+      if (scope === "table.market.grid") {
+        return {
+          scope,
+          version: 1,
+          saved: true,
+          updated_at: "2026-11-15T09:41:22.192Z",
+          config: {
+            sorting: prefs.sorting ?? [],
+            order: prefs.order ?? [],
+            hidden: prefs.hidden ?? [],
+          },
+        } as never;
+      }
+      return {
+        scope: "market.filters",
+        version: 1,
+        saved: false,
+        updated_at: null,
+        config: serializeMarketConfig(defaultMarketConfig()),
+      } as never;
+    });
+  }
+
+  test("saved hidden/order reach TanStackTable as columnPrefs on hydration", async () => {
+    // Fails on the current code: column controls are never enabled, so neither
+    // the picker nor the hidden/order prefs ever reach the table.
+    withSavedTablePrefs({
+      hidden: ["rsi"],
+      order: [
+        "name", "symbol", "sector", "close", "day_change", "perf_w", "perf_1m",
+        "pos_52w", "adx", "relative_volume", "market_cap_cr", "cap_tier", "patterns",
+      ],
+    });
+    r(() => <MarketScreenerPanel />);
+
+    expect(screen.getByTestId("table-column-controls")).toBeInTheDocument();
+    expect(screen.getByTestId("table-column-picker-trigger")).toBeInTheDocument();
+    // RSI is hidden by the saved prefs, and NAME leads the reordered layout.
+    await waitFor(() => expect(document.getElementById("paper-tanstack-header-rsi")).toBeNull());
+    expect(document.getElementById("paper-tanstack-header-name")).toBeInTheDocument();
+    expect(headerIds()[0]).toBe("name");
+    // SYMBOL is the row identity: locked in the picker, so it cannot be hidden.
+    fireEvent.click(screen.getByTestId("table-column-picker-trigger"));
+    expect(screen.getByTestId("table-column-picker-toggle-symbol")).toBeDisabled();
+  });
+
+  test("hiding a column in the picker persists hidden to table.market.grid", async () => {
+    r(() => <MarketScreenerPanel />);
+    fireEvent.click(screen.getByTestId("table-column-picker-trigger"));
+    fireEvent.click(screen.getByTestId("table-column-picker-toggle-adx"));
+
+    await waitFor(
+      () =>
+        expect(
+          mockPutUserConfig.mock.calls.some(([scope]) => scope === "table.market.grid"),
+        ).toBe(true),
+      { timeout: 4000 },
+    );
+    const put = mockPutUserConfig.mock.calls.find(([scope]) => scope === "table.market.grid")!;
+    expect((put[1] as Record<string, unknown>).hidden).toContain("adx");
+  }, 10000);
+
+  test("sort and column changes never write filter/sort/column params to the URL", async () => {
+    window.history.replaceState({}, "", "/screener?view=table");
+    r(() => <MarketScreenerPanel />);
+
+    fireEvent.click(document.getElementById("paper-tanstack-header-day_change")!);
+    const params = new URLSearchParams(window.location.search);
+    // Only the shell's `?view=` survives; no filter/sort/column param is added.
+    expect([...params.keys()].sort()).toEqual(["view"]);
+    expect(params.get("view")).toBe("table");
+  });
 });
 
 describe("MarketScreenerPanel — chart dock outlet layout", () => {
@@ -1317,9 +1567,9 @@ describe("MarketScreenerPanel — universe-aware columns, rail and reset", () =>
     setNumber("market-filter-rsi-min", "50");
     fireEvent.click(screen.getByTestId("market-filter-above-sma20"));
     const toggle = screen.getByTestId("market-view-toggle");
-    await fireEvent.click(within(toggle).getByText("Map"));
-    fireEvent.input(screen.getByTestId("market-map-sort").querySelector("select")!, {
-      target: { value: "rsi_desc" },
+    await fireEvent.click(within(toggle).getByText("Vis"));
+    fireEvent.input(screen.getByTestId("market-map-metric").querySelector("select")!, {
+      target: { value: "rsi" },
     });
     await fireEvent.click(within(toggle).getByText("Table"));
 
@@ -1338,10 +1588,10 @@ describe("MarketScreenerPanel — universe-aware columns, rail and reset", () =>
     for (const key of ["day", "rsi", "sma20", "etf"]) {
       expect(screen.getByTestId(`market-filter-chip-${key}`)).toBeInTheDocument();
     }
-    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Map"));
+    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Vis"));
     expect(
-      (screen.getByTestId("market-map-sort").querySelector("select") as HTMLSelectElement).value,
-    ).toBe("rsi_desc");
+      (screen.getByTestId("market-map-metric").querySelector("select") as HTMLSelectElement).value,
+    ).toBe("rsi");
   });
 
   test("a saved us config restores its filters without a reset", async () => {
@@ -1409,10 +1659,19 @@ describe("MarketScreenerPanel — universe-aware columns, rail and reset", () =>
     await selectUniverse("USA");
 
     const toggle = screen.getByTestId("market-view-toggle");
-    await fireEvent.click(within(toggle).getByText("Map"));
-    // The cap legend is the one chart-free surface that carries the map's
-    // currency: an INR descriptor reads marketCapCr (null on USD rows) → "0".
-    expect(screen.getByTestId("market-map").textContent ?? "").toMatch(/\$[\d,.]+B/);
+    await fireEvent.click(within(toggle).getByText("Vis"));
+    // Size by Market Cap: the tile's own label must price a USD row in $B.
+    // An INR descriptor reads marketCapCr (null on USD rows) → "0".
+    fireEvent.input(screen.getByTestId("market-map-metric").querySelector("select")!, {
+      target: { value: "market_cap" },
+    });
+    await waitFor(() => {
+      const option = echartsStub.chart.setOption.mock.calls.at(-1)?.[0] as
+        | { series?: Array<{ data?: Array<{ metricValue?: string }> }> }
+        | undefined;
+      const values = (option?.series?.[0]?.data ?? []).map((d) => d.metricValue ?? "");
+      expect(values.some((v) => /\$[\d,.]+B/.test(v))).toBe(true);
+    });
     await fireEvent.click(within(toggle).getByText("Table"));
   });
 });
@@ -1616,6 +1875,100 @@ describe("MarketScreenerPanel — chart icon routes by exchange", () => {
 describe("MarketScreenerPanel — embedded Value view", () => {
   const toggle = () => screen.getByTestId("market-view-toggle");
   const choose = (label: string) => fireEvent.click(within(toggle()).getByText(label));
+
+  const valueRow = (symbol: string, exchange: string): ValueRow => ({
+    symbol,
+    name: `${symbol} Ltd`,
+    exchange,
+    currency: "INR",
+    price: 100,
+    change: 0.5,
+    mcap_bn: 10,
+    rev_bn: 5,
+    pe: 9,
+    ps: 1,
+    pb: 1,
+    fcf_yield: 4,
+    div_yield: 1,
+    roe: 12,
+    gross_margin: 30,
+    op_margin: 15,
+    rev_yoy: 5,
+    eps_yoy: 4,
+    debt_to_equity: 0.2,
+    current_ratio: 1.5,
+    rsi: 45,
+    vs_200dma: 1,
+    off_52w_high: -10,
+    score: 70,
+    subscores: { value: 70, quality: 70, growth: 70, health: 70 },
+    peer: { bucket: "Banks", pe_median: 11, roe_median: 10, fcf_yield_median: 3 },
+    flags: [],
+    derived: {
+      fcf_yield: 4,
+      earnings_yield: 10,
+      vs_200dma: 1,
+      off_52w_high: -10,
+      distorted_pe: false,
+    },
+  });
+
+  const valueResponse = (rows: ValueRow[]): ValueScanResponse => ({
+    market: "india",
+    currency: "INR",
+    as_of: "2026-11-17T10:00:00+05:30",
+    scanned: rows.length,
+    matched: rows.length,
+    fields_complete: true,
+    filters_applied: {},
+    warnings: [],
+    rows,
+    sectors: [],
+  });
+
+  const renderWithDock = (open: SymbolDockApi["open"], jsx: () => JSX.Element) => {
+    const dockValue: SymbolDockApi = {
+      preview: () => {},
+      endPreview: () => {},
+      open,
+      close: () => {},
+      pinned: false,
+      setOutlet: () => {},
+      symbol: () => null,
+      mode: () => "chart",
+    };
+    render(() => (
+      <UIProvider>
+        <SymbolDockContext.Provider value={dockValue}>{jsx()}</SymbolDockContext.Provider>
+      </UIProvider>
+    ));
+  };
+
+  test("clicking a chart-eligible Value row opens the same symbol dock as the table", async () => {
+    const open = vi.fn();
+    mockValueScan.mockResolvedValue(valueResponse([valueRow("RELIANCE", "NSE")]));
+    renderWithDock(open, () => <MarketScreenerPanel initialView="value" />);
+    await screen.findByTestId("value-row-RELIANCE", {}, { timeout: 3000 });
+
+    fireEvent.click(screen.getByTestId("value-row-RELIANCE"));
+
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open).toHaveBeenCalledWith("RELIANCE");
+    expect(routerMocks.navigate).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("value-detail-RELIANCE")).not.toBeInTheDocument();
+  });
+
+  test("a Value row with no in-app chart keeps its detail drawer and never opens the dock", async () => {
+    const open = vi.fn();
+    mockValueScan.mockResolvedValue(valueResponse([valueRow("VOD", "LSE")]));
+    renderWithDock(open, () => <MarketScreenerPanel initialView="value" />);
+    await screen.findByTestId("value-row-VOD", {}, { timeout: 3000 });
+
+    fireEvent.click(screen.getByTestId("value-row-VOD"));
+
+    expect(open).not.toHaveBeenCalled();
+    expect(screen.getByTestId("value-detail-VOD")).toBeInTheDocument();
+  });
 
   test("initialView=value starts in the Value view", async () => {
     r(() => <MarketScreenerPanel initialView="value" />);
@@ -1853,6 +2206,183 @@ describe("MarketScreenerPanel — manual refresh is a forced scan", () => {
 
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(refresh.mock.calls[0][0]).not.toBe(true);
+  });
+});
+
+describe("MarketScreenerPanel — map sizing metric (colorBy wire field)", () => {
+  const metricValue = () =>
+    (screen.getByTestId("market-map-metric").querySelector("select") as HTMLSelectElement).value;
+  const savedColorByIs = (value: string): boolean =>
+    mockPutUserConfig.mock.calls.some(
+      ([scope, config]) =>
+        scope === "market.filters" && (config as Record<string, unknown>).colorBy === value,
+    );
+  const backToTable = () =>
+    fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Table"));
+
+  test("a saved colorBy restores into the map's metric select after hydration", async () => {
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: ROWS, total: ROWS.length }));
+    mockGetUserConfig.mockResolvedValue({
+      scope: "market.filters",
+      version: 1,
+      saved: true,
+      updated_at: "2026-11-15T09:41:22.192Z",
+      config: serializeMarketConfig({
+        ...defaultMarketConfig({ universe: "nifty500" }),
+        view: "vis",
+        colorBy: "rsi",
+      }),
+    });
+
+    r(() => <MarketScreenerPanel />);
+    await screen.findByTestId("market-map");
+
+    // The restored colour wins over the sort-derived seed (mcap_desc ->
+    // market_cap). A select still on market_cap means colorBy never reached the
+    // map.
+    await waitFor(() => expect(metricValue()).toBe("rsi"));
+    await backToTable();
+  });
+
+  test("changing the colour metric persists it in the saved market config", async () => {
+    r(() => <MarketScreenerPanel />);
+    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Vis"));
+
+    fireEvent.input(screen.getByTestId("market-map-metric").querySelector("select")!, {
+      target: { value: "rsi" },
+    });
+
+    await waitFor(() => expect(savedColorByIs("rsi")).toBe(true), { timeout: 4000 });
+    await backToTable();
+  }, 10000);
+
+  test("changing the colour metric never refetches the snapshot", async () => {
+    const refresh = vi.fn();
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ refresh }));
+    r(() => <MarketScreenerPanel />);
+
+    const snapshotOptions = mockUseMarketSnapshot.mock.calls[0]?.[1] as
+      | { enabled?: () => boolean }
+      | undefined;
+    await waitFor(() => expect(snapshotOptions?.enabled?.()).toBe(true));
+    const callsAfterHydration = mockUseMarketSnapshot.mock.calls.length;
+
+    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Vis"));
+    fireEvent.input(screen.getByTestId("market-map-metric").querySelector("select")!, {
+      target: { value: "relative_volume" },
+    });
+
+    // Wiring proof first: the choice must actually reach the panel (fails on
+    // unwired code), otherwise a no-refetch assertion passes trivially.
+    await waitFor(() => expect(savedColorByIs("relative_volume")).toBe(true), { timeout: 4000 });
+
+    // Colour is a pure paint change: the enabled gate and the hook subscription
+    // stay put, and no forced refresh is issued.
+    expect(snapshotOptions?.enabled?.()).toBe(true);
+    expect(mockUseMarketSnapshot).toHaveBeenCalledTimes(callsAfterHydration);
+    expect(refresh).not.toHaveBeenCalled();
+    await backToTable();
+  }, 10000);
+});
+
+describe("MarketScreenerPanel — one hoisted Size by control in Vis mode", () => {
+  const openVis = async () => {
+    r(() => <MarketScreenerPanel />);
+    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Vis"));
+  };
+  const sizeSelect = () =>
+    screen.getByTestId("market-map-metric").querySelector("select") as HTMLSelectElement;
+  const lastOption = () =>
+    echartsStub.chart.setOption.mock.calls.at(-1)?.[0] as
+      | { series?: Array<{ data?: Array<{ metricLabel?: string; children?: Array<{ metricLabel?: string }> }> }> }
+      | undefined;
+  const switchViz = async (label: string) => {
+    await fireEvent.click(within(screen.getByTestId("market-vis-selector")).getByText(label));
+  };
+
+  test("exactly one Size by control lives in the Vis toolbar and drives both renderers", async () => {
+    await openVis();
+    expect(screen.getAllByTestId("market-map-metric")).toHaveLength(1);
+    expect(
+      within(screen.getByTestId("market-vis-toolbar")).getByTestId("market-map-metric"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("market-map-toolbar").querySelectorAll("select")).toHaveLength(0);
+
+    fireEvent.input(sizeSelect(), { target: { value: "rsi" } });
+    await waitFor(() => expect(lastOption()?.series?.[0]?.data?.[0]?.metricLabel).toBe("RSI"));
+
+    await switchViz("Sector treemap");
+    expect(screen.getByTestId("market-sector-map-view")).toBeInTheDocument();
+    expect(screen.getAllByTestId("market-map-metric")).toHaveLength(1);
+    await waitFor(() =>
+      expect(lastOption()?.series?.[0]?.data?.[0]?.children?.[0]?.metricLabel).toBe("RSI"),
+    );
+  });
+
+  test("the selected size survives a viz switch", async () => {
+    await openVis();
+    fireEvent.input(sizeSelect(), { target: { value: "market_cap" } });
+    expect(sizeSelect().value).toBe("market_cap");
+
+    await switchViz("Sector treemap");
+    expect(screen.getByTestId("market-sector-map-view")).toBeInTheDocument();
+    expect(sizeSelect().value).toBe("market_cap");
+
+    await switchViz("Heatmap");
+    expect(screen.getByTestId("market-map-view")).toBeInTheDocument();
+    expect(sizeSelect().value).toBe("market_cap");
+  });
+});
+
+describe("MarketScreenerPanel — Vis toolbar at phone width (390px)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  function phoneViewport() {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes(`max-width: ${NARROW_TREEMAP_MAX_WIDTH - 1}px`),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+  }
+
+  async function openVisAt390() {
+    phoneViewport();
+    r(() => <MarketScreenerPanel />);
+    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Vis"));
+    return screen.getByTestId("market-vis-toolbar");
+  }
+
+  test("renders one viz selector and one Size by control, wrapping without a fixed row height", async () => {
+    const toolbar = await openVisAt390();
+    expect(within(toolbar).getAllByTestId("market-vis-selector")).toHaveLength(1);
+    expect(within(toolbar).getAllByTestId("market-map-metric")).toHaveLength(1);
+    // Wrapping (not clipping) is what keeps the controls from colliding on a
+    // phone; the fixed 36px row is what used to overlap mid-word labels.
+    expect(toolbar).toHaveClass("flex-wrap");
+    expect(toolbar).not.toHaveClass("flex-nowrap");
+    expect(toolbar).not.toHaveClass("h-9");
+    expect(within(toolbar).queryByText("Visualization")).toBeNull();
+    const sizeLabel = within(toolbar).getByText("Size by");
+    expect(sizeLabel).toBeInTheDocument();
+    expect(sizeLabel).toHaveClass("whitespace-nowrap");
+  });
+
+  test("the wide toolbar keeps its single row, helper label and one Size by control", async () => {
+    r(() => <MarketScreenerPanel />);
+    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Vis"));
+    const toolbar = screen.getByTestId("market-vis-toolbar");
+    expect(within(toolbar).getByText("Visualization")).toBeInTheDocument();
+    expect(toolbar).toHaveClass("h-9");
+    expect(within(toolbar).getAllByTestId("market-map-metric")).toHaveLength(1);
+    expect(within(toolbar).getAllByTestId("market-vis-selector")).toHaveLength(1);
   });
 });
 

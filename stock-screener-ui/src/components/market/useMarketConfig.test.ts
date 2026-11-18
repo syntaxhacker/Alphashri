@@ -29,6 +29,7 @@ describe("market.filters registry entry", () => {
       universe: "all_equity",
       filters: defaultMarketFilters(),
       view: "table",
+      colorBy: "change_pct",
     });
   });
 });
@@ -105,6 +106,50 @@ describe("parse — tolerance and rejection", () => {
   });
 });
 
+describe("map sizing metric (stored on the colorBy wire field)", () => {
+  test("defaults to day change", () => {
+    expect(defaultMarketConfig().colorBy).toBe("change_pct");
+    expect(serializeMarketConfig(defaultMarketConfig()).colorBy).toBe("change_pct");
+  });
+
+  test.each(["change_pct", "relative_volume", "rsi", "pos_52w", "market_cap"] as const)(
+    "%s persists through serialize -> parse",
+    (metric) => {
+      const value = defaultMarketConfig({ view: "vis", colorBy: metric });
+      const wire = JSON.parse(JSON.stringify(serializeMarketConfig(value)));
+      expect(wire.colorBy).toBe(metric);
+      const parsed = parseMarketConfig(wire)!;
+      expect(parsed.colorBy).toBe(metric);
+      expect(parsed.view).toBe("vis");
+    },
+  );
+
+  // Regression: this assertion used to claim `pe_ratio` was rejected because
+  // it was not a metric when the test was written. P/E (and the other six
+  // fundamental/trend fields) are now real, user-selectable size metrics, so
+  // the payload must restore them, not fall back to day change.
+  test.each(["adx", "perf_w", "perf_1m", "pe_ratio", "pb_ratio", "roe", "dividend_yield"] as const)(
+    "%s is a valid sizing metric and restores through parse",
+    (metric) => {
+      const parsed = parseMarketConfig(payload({ colorBy: metric, rsiMin: 55 }))!;
+      expect(parsed.colorBy, `${metric} was rejected`).toBe(metric);
+      expect(parsed.filters.rsiMin).toBe(55);
+    },
+  );
+
+  test("a genuinely unknown sizing metric falls back to day change without losing filters", () => {
+    const parsed = parseMarketConfig(payload({ colorBy: "not_a_metric", rsiMin: 55 }))!;
+    expect(parsed.colorBy).toBe("change_pct");
+    expect(parsed.filters.rsiMin).toBe(55);
+  });
+
+  test("a sizing metric inside the nested sketch restores too", () => {
+    const nested = payload({ colorBy: "pos_52w" });
+    const parsed = parseMarketConfig({ universe: "nifty500", filters: nested })!;
+    expect(parsed.colorBy).toBe("pos_52w");
+  });
+});
+
 describe("us universe", () => {
   test("the saved-config parser accepts universe=us", () => {
     const parsed = parseMarketConfig(payload({ universe: "us" }));
@@ -113,7 +158,7 @@ describe("us universe", () => {
   });
 
   test("a US config round-trips through the v1 flat wire payload", () => {
-    const value = defaultMarketConfig({ universe: "us", view: "map" });
+    const value = defaultMarketConfig({ universe: "us", view: "vis" });
     value.filters = {
       ...value.filters,
       capTiers: new Set(["large", "mid"]),
@@ -125,7 +170,7 @@ describe("us universe", () => {
     };
     const parsed = parseMarketConfig(JSON.parse(JSON.stringify(serializeMarketConfig(value))))!;
     expect(parsed.universe).toBe("us");
-    expect(parsed.view).toBe("map");
+    expect(parsed.view).toBe("vis");
     expect(parsed.filters.mcapMinCr).toBe(2);
     expect(parsed.filters.mcapMaxCr).toBe(100);
     expect(parsed.filters.priceMin).toBe(50);
@@ -211,6 +256,13 @@ describe("value view", () => {
   test("an unknown view falls back to table", () => {
     expect(parseMarketConfig(payload({ view: "bogus" }))?.view).toBe("table");
   });
+
+  test("a saved legacy view=map hydrates to vis, and serialize never writes map back", () => {
+    const parsed = parseMarketConfig(payload({ view: "map", rsiMin: 55 }))!;
+    expect(parsed.view).toBe("vis");
+    expect(parsed.filters.rsiMin).toBe(55);
+    expect(serializeMarketConfig(parsed).view).toBe("vis");
+  });
 });
 
 describe("serialize", () => {
@@ -247,13 +299,14 @@ describe("serialize", () => {
       "sectors",
       "sort",
       "view",
+      "colorBy",
     ]) {
       expect(wire).toHaveProperty(key);
     }
   });
 
   test("a full value survives a serialize -> parse round-trip", () => {
-    const value = defaultMarketConfig({ universe: "nse_fo", view: "map" });
+    const value = defaultMarketConfig({ universe: "nse_fo", view: "vis" });
     value.filters = {
       ...value.filters,
       capTiers: new Set(["large", "small"]),
@@ -275,7 +328,7 @@ describe("serialize", () => {
 
     const parsed = parseMarketConfig(serializeMarketConfig(value))!;
     expect(parsed.universe).toBe("nse_fo");
-    expect(parsed.view).toBe("map");
+    expect(parsed.view).toBe("vis");
     expect([...parsed.filters.capTiers].sort()).toEqual(["large", "small"]);
     expect(parsed.filters.sectors).toEqual(["IT", "Energy"]);
     expect(parsed.filters.mcapMaxCr).toBe(90000);

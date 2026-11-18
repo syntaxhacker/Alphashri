@@ -15,6 +15,12 @@ export const MARKET_SNAPSHOT_TIMEOUT_MS = 15_000;
 export const MARKET_SNAPSHOT_WARMING_HINT_MS = 4_000;
 /** Auto-refresh cadence while the selected universe's cash session is live. */
 export const MARKET_LIVE_POLL_MS = 5_000;
+/**
+ * Closed-market cadence, matched to the server's 60s snapshot TTL: one refresh
+ * per cache window still picks up the final print after 15:30 without firing
+ * twelve times for data that cannot change.
+ */
+export const MARKET_CLOSED_POLL_MS = 60_000;
 
 export interface UseMarketSnapshotResult {
   snapshot: () => MarketSnapshot | null;
@@ -84,20 +90,34 @@ export function useMarketSnapshotSolid(
     setNonce((n) => n + 1);
   };
 
-  // Auto-refresh only while the selected universe's cash session is live. The
-  // timer may tick off-hours; the fetch is what is gated, so no request leaves
-  // the browser outside market hours. `universe()` is tracked so a switch
-  // re-arms against the new market instead of the previous one.
+  // Re-arm after every tick so a session flip is picked up at the next boundary.
+  // Live uses MARKET_LIVE_POLL_MS; a closed session drops to the server's cache
+  // TTL instead of firing a no-op request every 5s for the rest of the day.
+  // `universe()` is tracked so a switch re-arms against the new market at once.
   createEffect(() => {
     if (!enabled()) return;
     const u = universe();
-    const intervalId = window.setInterval(() => {
-      // A still-running request is never queued behind the tick: the next tick
-      // re-checks, and a hung fetch cannot pile up parallel scans.
-      if (!enabled() || isLoading() || !isLiveUniverse(u)) return;
-      refresh();
-    }, MARKET_LIVE_POLL_MS);
-    onCleanup(() => window.clearInterval(intervalId));
+    let disposed = false;
+    let timer: number | undefined;
+    const arm = () => {
+      if (disposed) return;
+      const cadence = isLiveUniverse(u) ? MARKET_LIVE_POLL_MS : MARKET_CLOSED_POLL_MS;
+      timer = window.setTimeout(() => {
+        // A still-running request is skipped; the next tick re-checks, so a
+        // hung fetch cannot pile up parallel scans.
+        if (!enabled() || isLoading()) {
+          arm();
+          return;
+        }
+        refresh();
+        arm();
+      }, cadence);
+    };
+    arm();
+    onCleanup(() => {
+      disposed = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    });
   });
 
   createEffect(() => {

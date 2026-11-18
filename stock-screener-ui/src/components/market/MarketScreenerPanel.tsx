@@ -10,6 +10,7 @@ import {
   on,
   onCleanup,
   onMount,
+  untrack,
   type JSX,
 } from "solid-js";
 import { useNavigate } from "@solidjs/router";
@@ -18,10 +19,12 @@ import {
   Button,
   Badge,
   Paper,
+  SegmentedControl,
   Select,
   Skeleton,
   Text,
   TextInput,
+  ToolbarRow,
   Tooltip,
   ActionIcon,
   Loader,
@@ -51,7 +54,21 @@ import { buildMarketColumns } from "./marketColumns";
 import { usePatternSummary } from "./usePatternSummary";
 import { alpha, PRIMARY } from "@/ui/palette";
 import { MarketFilterRail } from "./MarketFilterRail";
-import { MarketMapView, MarketViewToggle, type MarketViewMode } from "./MarketMapView";
+import {
+  MarketViewToggle,
+  VIS_OPTIONS,
+  VIS_RENDERERS,
+  normalizeMarketView,
+  type MarketViewMode,
+  type VisMode,
+} from "./MarketMapView";
+import {
+  DEFAULT_MARKET_SIZE_METRIC,
+  isMarketSizeMetric,
+  marketMetricOptions,
+  NARROW_TREEMAP_MAX_WIDTH,
+  type MarketSizeMetric,
+} from "./marketTreemap";
 import { marketUniverseToValueMarket } from "@/config/valueMarketMapping";
 import { TanStackTable } from "../common/TanStackTable";
 import { FilterStatusRow } from "../common/FilterStatusRow";
@@ -155,7 +172,11 @@ export function sortEntryToMarketSort(sorting: SortEntry[]): MarketSortKey | nul
   }
 }
 
-/** Reverse of `sortEntryToMarketSort`: a dropdown choice drives the table. */
+/**
+ * Pure inverse of `sortEntryToMarketSort`. Kept as the documented mapping, but
+ * the panel no longer uses it to drive the table: the map dropdown is local to
+ * the map and the table sort has a single owner (table.market.grid).
+ */
 export function marketSortToSortEntry(sort: MarketSortKey): SortEntry | null {
   switch (sort) {
     case "mcap_desc":
@@ -202,17 +223,12 @@ function MarketGrid(props: {
   getRowTestId: (row: MarketRow) => string;
   onVisibleRowsChange?: (rows: MarketRow[]) => void;
   onSortedRowsChange?: (rows: MarketRow[]) => void;
-  onTableSortChange?: (sorting: SortEntry[]) => void;
 }) {
-  const { prefs, setSorting } = useTablePrefs("market.grid");
+  const { prefs, setSorting, setColumnPrefs } = useTablePrefs("market.grid");
   // Empty saved prefs keep the historical first-load order; the store writes
   // only after a real sort change, so the default is never persisted on mount.
   const sorting = (): SortEntry[] =>
     prefs().sorting.length > 0 ? prefs().sorting : DEFAULT_TABLE_SORTING;
-  const handleSortingChange = (next: SortEntry[]) => {
-    setSorting(next);
-    props.onTableSortChange?.(next);
-  };
   return (
     <TanStackTable
       data={props.data}
@@ -225,8 +241,14 @@ function MarketGrid(props: {
       minTableWidth={1000}
       enableSorting
       stickyHeader
+      tableId="market.grid"
+      enableColumnControls
+      columnPrefs={{ order: prefs().order, hidden: prefs().hidden }}
+      onColumnPrefsChange={({ order, hidden }) => setColumnPrefs({ order, hidden })}
+      // SYMBOL identifies the row; hiding it would leave an anonymous row.
+      lockVisible={["symbol"]}
       sorting={sorting()}
-      onSortingChange={handleSortingChange}
+      onSortingChange={setSorting}
       onRowClick={props.onRowClick}
       getRowStyle={props.getRowStyle}
       getRowTestId={props.getRowTestId}
@@ -272,16 +294,22 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   const [filters, setFilters] = createSignal<MarketFilterState>(defaultMarketFilters());
   const [railCollapsed, setRailCollapsed] = createSignal(false);
   const [drawerOpen, setDrawerOpen] = createSignal(false);
-  const [viewMode, setViewMode] = createSignal<MarketViewMode>(props.initialView ?? "table");
+  const [viewMode, setViewMode] = createSignal<MarketViewMode>(normalizeMarketView(props.initialView));
+  // The Vis tab renders through the registry. The selector writes this signal;
+  // it is intentionally local state — a viz choice is not a saved config, and
+  // must never echo back through save()/scheduleSave().
+  const [visMode, setVisMode] = createSignal<VisMode>(VIS_OPTIONS[0]!.value);
+  const [sizeBy, setSizeBy] = createSignal<MarketSizeMetric>(DEFAULT_MARKET_SIZE_METRIC);
   // Value is a view, not a separate page: every Market filter lives in this
   // component's signals, so switching back restores the table as it was.
   const showMarketChrome = () => viewMode() !== "movers" && viewMode() !== "value";
   const [selectedSymbol, setSelectedSymbol] = createSignal<string | null>(null);
   const dock = useSymbolDock();
   const navigate = useNavigate();
-  // Shares the ref-counted store with MarketGrid so the map dropdown and the
-  // header write one authoritative, persisted `table.market.grid` sort.
-  const { setSorting: setTableSorting } = useTablePrefs("market.grid");
+  // Shares the same ref-counted store instance as MarketGrid. The table's
+  // TanStack sort is the single source of truth; the map/snapshot enum is derived
+  // from it below (one-way) instead of being bridged in both directions.
+  const { prefs: tablePrefs } = useTablePrefs("market.grid");
 
   // Only the toolbar's stale badge subscribes to the clock: a snapshot ages
   // past 15 minutes while the tab sits open and no new data will arrive to
@@ -314,6 +342,9 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
       setUniverse(value.universe);
       setFilters(restoredFilters);
       setViewMode(value.view);
+      // The saved field is still called `colorBy` on the wire; it now seeds the
+      // single sizing metric, not a colour choice.
+      setSizeBy(value.colorBy ?? DEFAULT_MARKET_SIZE_METRIC);
     });
   };
   const savedConfig = useMarketConfig({
@@ -371,6 +402,9 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   };
   const isNarrow = useMediaQuery("(max-width: 1023px)");
   const isWide = useMediaQuery("(min-width: 1400px)");
+  // The Vis toolbar shares the treemap's narrow threshold: below it the helper
+  // label is dropped and controls wrap into their own rows instead of colliding.
+  const visToolbarCompact = useMediaQuery(`(max-width: ${NARROW_TREEMAP_MAX_WIDTH - 1}px)`);
 
   const { rows, total, updateMode, asOf, isLoading, error, refresh, stale: cachedStale, ageSec, warming } =
     useMarketSnapshotSolid(universe, {
@@ -412,6 +446,8 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
         filters: filters(),
         // `search` is session-local by design and never travels.
         view: viewMode(),
+        // Wire field name is unchanged; the value is the sizing metric.
+        colorBy: sizeBy(),
       }),
       (value) => savedConfig.save({ ...value }),
       { defer: true },
@@ -495,18 +531,38 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   const patchFilters = (patch: Partial<MarketFilterState>) =>
     setFilters((f) => ({ ...f, ...patch }));
 
-  // Best-effort bridge, never a second source of truth: header clicks persist to
-  // table prefs and only mirror into filters.sort when a key exists for them.
-  const onTableSortChange = (next: SortEntry[]) => {
-    const mapped = sortEntryToMarketSort(next);
+  // One-way: the table owns the sort, the map/snapshot only need a MarketSortKey.
+  // Mirror table -> filters.sort when the table sort actually changes. The stable
+  // signature keeps hydration of an empty config (and the map's own writes) from
+  // firing a redundant patch. `untrack` keeps the effect dependent only on that
+  // signature, not on the table store's version signal (which bumps on hydrate
+  // and on our own writes) — the re-entrancy class fixed in chartPatterns.ts.
+  const tableSortForMap = createMemo(() =>
+    JSON.stringify(
+      (tablePrefs().sorting.length > 0 ? tablePrefs().sorting : DEFAULT_TABLE_SORTING).map(
+        (s) => [s.id, s.desc],
+      ),
+    ),
+  );
+  // The table-prefs GET can win the race against the saved market.filters GET.
+  // A `patchFilters` before configReady() closes the config store's latch, so
+  // the restored universe and every filter are discarded and a mount-default
+  // PUT overwrites them. Seeding with the default signature keeps an empty prefs
+  // object from clobbering the filters' own restored sort.
+  let appliedTableSort: string | null = JSON.stringify(
+    DEFAULT_TABLE_SORTING.map((s) => [s.id, s.desc]),
+  );
+  createEffect(() => {
+    const signature = tableSortForMap();
+    if (!configReady() || signature === appliedTableSort) return;
+    const sorting = untrack(() => tablePrefs().sorting);
+    if (sorting.length === 0) return;
+    appliedTableSort = signature;
+    const mapped = sortEntryToMarketSort(sorting);
+    // Ascending RSI (and any other direction without an enum) maps to null.
+    // Skip it: the map keeps its last defined sort instead of becoming null.
     if (mapped) patchFilters({ sort: mapped });
-  };
-
-  const onMapSortChange = (sort: MarketSortKey) => {
-    patchFilters({ sort });
-    const entry = marketSortToSortEntry(sort);
-    if (entry) setTableSorting([entry]);
-  };
+  });
 
   const resetFilters = () => {
     setFilters(defaultMarketFilters());
@@ -997,7 +1053,11 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                   </Box>
                 }
               >
-                <ValueView embedded market={marketUniverseToValueMarket(universe()) ?? "india"} />
+                <ValueView
+                  embedded
+                  market={marketUniverseToValueMarket(universe()) ?? "india"}
+                  onOpenSymbol={selectAndOpen}
+                />
               </Suspense>
             </Box>
           ) : viewMode() === "movers" ? (
@@ -1051,7 +1111,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                     data-patterns-loading={patterns.loading() ? "true" : undefined}
                     data-testid="market-table-region"
                     className={
-                      viewMode() === "map"
+                      viewMode() === "vis"
                         ? "hidden"
                         : "flex-1 min-w-0 min-h-0 flex flex-col"
                     }
@@ -1066,17 +1126,55 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                       getRowTestId={getRowTestId}
                       onVisibleRowsChange={setVisibleRows}
                       onSortedRowsChange={setSortedRows}
-                      onTableSortChange={onTableSortChange}
                     />
                   </Box>
-                  <Show when={viewMode() === "map"}>
-                    <MarketMapView
-                      rows={filteredRows()}
-                      onSymbolClick={selectAndOpen}
-                      sort={filters().sort}
-                      onSortChange={onMapSortChange}
-                      currency={currency()}
-                    />
+                  <Show when={viewMode() === "vis"}>
+                    <ToolbarRow
+                      gap={8}
+                      wrap
+                      className={
+                        visToolbarCompact()
+                          ? "px-2 py-1 flex-shrink-0 border-b border-fin-border"
+                          : "px-2 h-9 flex-shrink-0 border-b border-fin-border"
+                      }
+                      data-testid="market-vis-toolbar"
+                    >
+                      <Show when={!visToolbarCompact()}>
+                        <Text size="xs" c="dimmed" className="whitespace-nowrap">
+                          Visualization
+                        </Text>
+                      </Show>
+                      <SegmentedControl
+                        value={visMode()}
+                        onChange={(value) => setVisMode(value as VisMode)}
+                        data={VIS_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                        size="xs"
+                        data-testid="market-vis-selector"
+                      />
+                      <Text size="xs" c="dimmed" className="whitespace-nowrap">
+                        Size by
+                      </Text>
+                      <Select
+                        size="xs"
+                        w={128}
+                        className="min-w-[128px]"
+                        value={sizeBy()}
+                        onChange={(value: string | null) => {
+                          if (isMarketSizeMetric(value)) setSizeBy(value);
+                        }}
+                        data={marketMetricOptions(currency())}
+                        aria-label="Size the map by"
+                        data-testid="market-map-metric"
+                      />
+                    </ToolbarRow>
+                    {VIS_RENDERERS[visMode()]({
+                      rows: filteredRows(),
+                      onSymbolClick: selectAndOpen,
+                      currency: currency(),
+                      sizeBy: sizeBy(),
+                      onSizeByChange: setSizeBy,
+                      showSizeControl: false,
+                    })}
                   </Show>
                 </Show>
               }
