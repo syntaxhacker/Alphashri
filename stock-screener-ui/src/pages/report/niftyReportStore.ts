@@ -66,6 +66,7 @@ import {
   saveStoredFlip,
   sessionTone,
 } from "./niftyFlowRead";
+import { parseIstTimestampMs } from "./niftyDataFreshness";
 import type { FlipWatchState, FlowLastFlip, OiPoint } from "./niftyFlowRead";
 import {
   TREND_EMA_SPAN,
@@ -843,9 +844,18 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
 
   const touchNow = () => setNowMs(Date.now());
 
-  const markUpdated = () => {
+  const markUpdated = (source?: { as_of?: string | null; fetched_at?: string | null }) => {
+    /*
+     * "Updated" means data-through, not fetch time. Using `Date.now()` here
+     * labelled a payload as current the instant it arrived, so a feed that had
+     * stopped three hours ago still read "Updated <now>". The payload carries
+     * its own stamps; fall back to the wall clock only when neither exists.
+     */
+    const dataMs =
+      parseIstTimestampMs(source?.as_of ?? null) ??
+      parseIstTimestampMs(source?.fetched_at ?? null);
     const now = Date.now();
-    setUpdatedAtMs(now);
+    setUpdatedAtMs(dataMs ?? now);
     setNowMs(now);
   };
 
@@ -1003,7 +1013,10 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
           setSensex(null);
           setSensexError(null);
           setSensexLoading(false);
-          markUpdated();
+          markUpdated({
+            as_of: nextReport.market?.as_of ?? null,
+            fetched_at: nextReport.fetchedAt ?? null,
+          });
         });
         if (activeMode === "live" && (!nextReport.intraday || nextReport.intraday.length === 0)) {
           void fetchOptionsLiveCandles(activeSymbol, undefined, controller.signal)
@@ -1111,7 +1124,10 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
         }
         if (tapeData) setTape(tapeData);
         setBursts(burstData as OiBurst[]);
-        markUpdated();
+        markUpdated({
+          as_of: nextNiftyReport.market?.as_of ?? null,
+          fetched_at: (nextNiftyReport as { fetchedAt?: string | null }).fetchedAt ?? null,
+        });
       });
     } catch (loadError) {
       if (currentRequestId !== requestId || controller.signal.aborted) return;
@@ -1759,7 +1775,10 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
             setSensex(null);
             setSensexError(null);
             setSensexLoading(false);
-            markUpdated();
+            markUpdated({
+              as_of: optionsReport.market?.as_of ?? null,
+              fetched_at: (optionsReport as { fetchedAt?: string | null }).fetchedAt ?? null,
+            });
           });
         } catch (pollError) {
           if (!alive || currentRequestId !== requestId || controller.signal.aborted) return;
@@ -1886,7 +1905,10 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
       if (symbol() !== "NIFTY") return;
       if (!pushed) return;
       setReport(pushed);
-      setUpdatedAtMs(Date.now());
+      markUpdated({
+        as_of: pushed.market?.as_of ?? null,
+        fetched_at: (pushed as { fetchedAt?: string | null }).fetchedAt ?? null,
+      });
     });
 
     createEffect(() => {
@@ -1894,7 +1916,9 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
       if (symbol() !== "NIFTY") return;
       if (!pushed) return;
       setTape(pushed);
-      setUpdatedAtMs(Date.now());
+      // A tape frame's own newest row is its data-through time.
+      const newestRow = [...(pushed.rows ?? [])].reverse().find((row) => row?.t);
+      markUpdated({ as_of: newestRow?.t ?? null });
     });
 
     createEffect(() => {
@@ -1903,7 +1927,10 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
       if (!pushed) return;
       setSensex(pushed);
       setSensexError(null);
-      setUpdatedAtMs(Date.now());
+      markUpdated({
+        as_of: pushed.market?.as_of ?? null,
+        fetched_at: (pushed as { fetchedAt?: string | null }).fetchedAt ?? null,
+      });
     });
 
     useNiftyBurstStream(
