@@ -42,6 +42,9 @@ export function WindowManager(props: WindowManagerProps) {
   const canvas = (): CanvasSize => props.canvas ?? measured();
   const [focusedId, setFocusedId] = createSignal<string | null>(null);
   const [locked, setLocked] = createSignal(props.lockedInitially ?? false);
+  const [liveMessage, setLiveMessage] = createSignal("");
+  const announce = (message: string) => setLiveMessage(message);
+  const titleOf = (id: string) => props.layout.windows.find((w) => w.id === id)?.title ?? id;
 
   onMount(() => {
     if (props.canvas) {
@@ -80,17 +83,27 @@ export function WindowManager(props: WindowManagerProps) {
     emit(props.layout.windows.map((w) => (w.id === id ? change(w) : w)));
 
   const updateRect = (id: string, rect: Rect) => patch(id, (w) => ({ ...w, ...rect }));
-  const toggleMinimize = (id: string) => patch(id, (w) => ({ ...w, minimized: !w.minimized }));
+  const toggleMinimize = (id: string) => {
+    const title = titleOf(id);
+    const wasMinimized = props.layout.windows.find((w) => w.id === id)?.minimized === true;
+    patch(id, (w) => ({ ...w, minimized: !w.minimized }));
+    announce(`${title} ${wasMinimized ? "restored" : "minimized"}`);
+  };
   const toggleMaximize = (id: string) => {
-    const target = props.layout.windows.find((w) => w.id === id);
+    const title = titleOf(id);
+    const wasMaximized = props.layout.windows.find((w) => w.id === id)?.maximized === true;
     emit(
-      target?.maximized
+      wasMaximized
         ? restore(props.layout.windows, id)
         : maximize(props.layout.windows, id, canvas()),
     );
+    announce(`${title} ${wasMaximized ? "restored down" : "maximized"}`);
   };
-  const close = (id: string) =>
+  const close = (id: string) => {
+    const title = titleOf(id);
     emit(props.layout.windows.filter((w) => w.id !== id));
+    announce(`${title} closed`);
+  };
 
   const popOut = (id: string) => {
     const target = props.layout.windows.find((w) => w.id === id);
@@ -98,7 +111,10 @@ export function WindowManager(props: WindowManagerProps) {
     openPanelPopOut(byId().get(target.type), target.title, props.context());
   };
 
-  const fitAll = () => emit(fitAllToScreen(props.layout.windows, canvas()));
+  const fitAll = () => {
+    emit(fitAllToScreen(props.layout.windows, canvas()));
+    announce("All windows fitted to screen");
+  };
 
   return (
     <div data-testid="window-manager" class="flex h-full min-h-0 w-full flex-col">
@@ -124,7 +140,11 @@ export function WindowManager(props: WindowManagerProps) {
           aria-pressed={locked()}
           title="Lock or unlock window positions"
           class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
-          onClick={() => setLocked((was) => !was)}
+          onClick={() => {
+            const next = !locked();
+            setLocked(next);
+            announce(`Window positions ${next ? "locked" : "unlocked"}`);
+          }}
         >
           {locked() ? "Unlock" : "Lock"}
         </button>
@@ -157,10 +177,20 @@ export function WindowManager(props: WindowManagerProps) {
                 onMaximize={toggleMaximize}
                 onClose={close}
                 onPopOut={popOut}
+                onAnnounce={announce}
               />
             );
           }}
         </Index>
+      </div>
+
+      <div
+        data-testid="window-manager-live"
+        class="sr-only"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {liveMessage()}
       </div>
     </div>
   );

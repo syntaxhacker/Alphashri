@@ -33,6 +33,7 @@ export interface WindowProps {
   onMaximize: (id: string) => void;
   onClose: (id: string) => void;
   onPopOut: (id: string) => void;
+  onAnnounce?: (message: string) => void;
 }
 
 const HANDLE_CLASS: Record<ResizeDir, string> = {
@@ -154,6 +155,13 @@ export function Window(props: WindowProps) {
         minSize(),
       );
     props.onRectChange(props.state.id, next);
+    // The geometry helpers already enforce the floors; say what they produced so
+    // a screen-reader user hears the new position instead of only seeing it move.
+    props.onAnnounce?.(
+      event.shiftKey
+        ? `${props.state.title} resized to width ${next.w}, height ${next.h}`
+        : `${props.state.title} moved to x ${next.x}, y ${next.y}`,
+    );
   };
 
   const titleButton = (
@@ -219,11 +227,12 @@ export function Window(props: WindowProps) {
       data-focused={props.focused || undefined}
       data-minimized={props.state.minimized || undefined}
       data-maximized={props.state.maximized || undefined}
-      role="dialog"
+      role="region"
       aria-label={props.state.title}
       tabindex="0"
-      class={`flex flex-col overflow-hidden border bg-fin-surface shadow-2xl ${
-        props.focused ? "border-fin-primary" : "border-fin-border"
+      class={`flex flex-col overflow-hidden bg-fin-surface shadow-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary ${
+        // The width change keeps "which window is active" readable without colour.
+        props.focused ? "border-2 border-fin-primary" : "border border-fin-border"
       }`}
       style={{
         position: "absolute",
