@@ -1552,6 +1552,8 @@ _include_api("api.options_underlying", "router", "options underlying", msg="✅ 
 
 _include_api("api.options_analytics", "router", "options analytics", msg="✅ Options analytics API loaded at /api/options/analytics")
 
+_include_api("api.options_contract_chart", "router", "options contract chart", msg="✅ Options contract chart API loaded at /api/options/contract-chart")
+
 _include_api("api.options_screener", "router", "F&O screener", msg="✅ F&O screener API loaded at /api/options/screener")
 
 _include_api("api.fyers_bridge", "router", "fyers bridge", msg="✅ Fyers bridge API loaded at /api/fyers-bridge")

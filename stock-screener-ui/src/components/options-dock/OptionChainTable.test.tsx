@@ -308,7 +308,7 @@ describe("OptionChainTable — narrow one-sided layout", () => {
     expect(screen.getByTestId("options-atm-marker-24000")).toBeInTheDocument();
   });
 
-  it("drops the 428px floor so the 5-column table fits a 390px sheet", () => {
+  it("drops the wide floor so the 5-column table fits a 390px sheet", () => {
     narrowViewport();
     render(() => (
       <UIProvider>
@@ -317,12 +317,12 @@ describe("OptionChainTable — narrow one-sided layout", () => {
     ));
 
     const table = screen.getByTestId("options-chain") as HTMLElement;
-    expect(table.style.minWidth).toBe("250px");
-    expect(table.style.minWidth).not.toBe("428px");
+    expect(table.style.minWidth).toBe("262px");
+    expect(table.style.minWidth).not.toBe("452px");
     expect(screen.getByTestId("options-chain-table")).toBeInTheDocument();
   });
 
-  it("keeps all nine columns and the 428px floor at ≥640px even when a side is passed", () => {
+  it("keeps all nine columns and the wide floor at ≥640px even when a side is passed", () => {
     render(() => (
       <UIProvider>
         <OptionChainTable rows={ROWS} spot={24000} side="CE" />
@@ -330,7 +330,7 @@ describe("OptionChainTable — narrow one-sided layout", () => {
     ));
 
     expect(columnIdsOf()).toHaveLength(9);
-    expect((screen.getByTestId("options-chain") as HTMLElement).style.minWidth).toBe("428px");
+    expect((screen.getByTestId("options-chain") as HTMLElement).style.minWidth).toBe("452px");
     expect(screen.getByTestId("options-ce-24000")).toBeInTheDocument();
     expect(screen.getByTestId("options-pe-24000")).toBeInTheDocument();
   });
