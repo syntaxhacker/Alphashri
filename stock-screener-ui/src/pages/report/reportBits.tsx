@@ -6,6 +6,7 @@
  */
 import { createEffect, createSignal, Show, type JSX } from "solid-js";
 import { SCALE_BLUE, SCALE_CYAN, SCALE_GREEN, SCALE_ORANGE, SCALE_PINK, SCALE_VIOLET, TEXT } from "@/ui/palette";
+import { REPORT_FONT } from "./reportTokens";
 
 const AVATAR_TINTS = [
   SCALE_BLUE[6],
@@ -61,7 +62,7 @@ export function LocalSymbolAvatar(props: { symbol: string; name?: string; logo?:
       <Show
         when={showImg()}
         fallback={
-          <span class="text-[10px] font-bold leading-none" style={{ "font-size": `${size() * 0.45}px`, "color": TEXT, "line-height": 1 }}>
+          <span class="text-[11px] font-bold leading-none" style={{ "font-size": `${Math.max(REPORT_FONT.micro, size() * 0.45)}px`, "color": TEXT, "line-height": 1 }}>
             {initialsFor(props.symbol)}
           </span>
         }
@@ -163,13 +164,23 @@ export function LocalCompactPanel(props: {
       style={props.style}
     >
       <div class="flex items-center justify-between gap-2 px-2 py-1 border-b border-fin-border bg-fin-surface shrink-0">
-        <span class="text-[10px] font-bold uppercase tracking-[0.08em] text-fin-primary">
+        <span class="text-[11px] font-bold uppercase tracking-[0.08em] text-fin-primary">
           {"· "}
           {props.title}
         </span>
         <Show when={props.action}>{props.action}</Show>
       </div>
-      <div class={`flex flex-col min-h-0 overflow-auto${props.flush ? "" : " gap-1 p-[6px]"}`}>
+      {/*
+        * The body must own the leftover height. Without `flex-1` a panel that
+        * asks its content to fill (the chart, any canvas/table) collapsed to
+        * the content's intrinsic height — the NIFTY chart rendered 30px tall
+        * inside a 300px panel because `[&_[data-compact-card-content]]:flex-1`
+        * targeted an attribute this component never emitted.
+        */}
+      <div
+        data-compact-card-content=""
+        class={`flex flex-col flex-1 min-h-0 overflow-auto${props.flush ? "" : " gap-1 p-[6px]"}`}
+      >
         {props.children}
       </div>
     </div>
@@ -188,7 +199,7 @@ export function LocalCompactStat(props: {
       data-testid={props.testId}
       class="flex flex-col items-center justify-center text-center gap-0.5 bg-fin-surface border border-fin-border rounded-[4px] px-1 py-1.5 min-w-0"
     >
-      <span class="text-[9px] uppercase tracking-[0.06em] leading-[1.1] text-fin-text-muted">
+      <span class="text-[11px] uppercase tracking-[0.06em] leading-[1.1] text-fin-text-muted">
         {props.label}
       </span>
       <span
@@ -198,7 +209,7 @@ export function LocalCompactStat(props: {
         {props.value}
       </span>
       <Show when={props.hint}>
-        <span class="text-[9px] leading-[1.1] text-fin-text-muted">{props.hint}</span>
+        <span class="text-[11px] leading-[1.1] text-fin-text-muted">{props.hint}</span>
       </Show>
     </div>
   );
@@ -208,7 +219,7 @@ export function LocalEmptyState(props: { testId?: string; title: string; descrip
   return (
     <div data-testid={props.testId} class="flex flex-col items-center justify-center gap-1 py-4 px-2 text-center">
       <span class="text-[11px] font-semibold leading-tight text-fin-text">{props.title}</span>
-      <span class="text-[9px] leading-snug text-fin-text-muted">{props.description}</span>
+      <span class="text-[11px] leading-snug text-fin-text-muted">{props.description}</span>
     </div>
   );
 }
