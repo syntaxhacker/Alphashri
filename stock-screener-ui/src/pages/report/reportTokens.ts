@@ -47,18 +47,6 @@ export const REPORT_RADIUS = {
   px: (step: "sm" | "md" | "lg"): number => REPORT_RADIUS[step],
 } as const;
 
-// Common composite tokens for frequent patterns
-// Note: REPORT_PAD.sm = 4px (not 8px). Use REPORT_PAD.md for 8px horizontal padding.
-export const REPORT_CELL_PADDING = {
-  vertical: REPORT_PAD.xs,   // 2px
-  horizontal: REPORT_PAD.sm, // 4px
-} as const;
-
-export const REPORT_HEADER_CELL_PADDING = {
-  vertical: REPORT_PAD.xs,   // 2px
-  horizontal: REPORT_PAD.sm, // 4px
-} as const;
-
 // Line heights (unitless, relative to fontSize)
 export const REPORT_LINE_HEIGHT = {
   tight: 1.1,

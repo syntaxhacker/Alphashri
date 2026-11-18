@@ -1,9 +1,6 @@
-import { createSignal } from "solid-js";
 import type { Accessor } from "solid-js";
 import { Box, Text } from "@/ui";
-import { DockHost } from "./DockHost";
-import { normalizeLayout } from "./layout";
-import type { DockLayout, DockPanelContext, DockPanelSpec } from "./types";
+import type { DockPanelContext, DockPanelSpec } from "./types";
 
 /**
  * Proof-of-contract harness: three report panels rendered through DockHost,
@@ -56,42 +53,3 @@ export const REPORT_PANELS: DockPanelSpec[] = [
     ),
   },
 ];
-
-export function ReportDockDemo(props: {
-  stacked?: boolean;
-  onLayoutChange?: (layout: DockLayout) => void;
-}) {
-  const [context] = createSignal<DockPanelContext>({
-    symbol: "NIFTY",
-    market: "india",
-    timeframe: "1m",
-    expiry: "2026-11-26",
-  });
-  const [layout, setLayout] = createSignal<DockLayout>(
-    normalizeLayout(
-      {
-        panes: [
-          { id: "report.chart", size: 1 },
-          { id: "report.walls", size: 0.42 },
-          { id: "report.breadth", size: 0.3 },
-        ],
-        hidden: [],
-      },
-      REPORT_PANELS,
-    ),
-  );
-  const apply = (next: DockLayout) => {
-    setLayout(next);
-    props.onLayoutChange?.(next);
-  };
-
-  return (
-    <DockHost
-      specs={REPORT_PANELS}
-      layout={layout()}
-      context={context}
-      onLayoutChange={apply}
-      stacked={props.stacked}
-    />
-  );
-}

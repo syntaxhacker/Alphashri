@@ -2,7 +2,6 @@ import type { DockLayout, DockPanelSpec } from "./types";
 
 export const MIN_PANE_SIZE = 0.1;
 export const MAX_PANE_SIZE = 4;
-export const DEFAULT_PANE_SIZE = 1;
 export const LAYOUT_WIRE_VERSION = 1;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
