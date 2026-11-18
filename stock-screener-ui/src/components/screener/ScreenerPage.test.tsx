@@ -5,6 +5,8 @@ import { configure } from "@testing-library/dom";
 import type { JSX } from "solid-js";
 import "@testing-library/jest-dom/vitest";
 import { ScreenerPage } from "./ScreenerPage";
+import * as ScreenerPageModule from "./ScreenerPage";
+import { MARKET_VIEW_OPTIONS } from "../market/MarketMapView";
 import { UIProvider } from "@/ui";
 import { fetchMarketSnapshot } from "../../api/marketScreener";
 import type { Stock } from "../../types";
@@ -758,6 +760,53 @@ describe("ScreenerPage", () => {
     expect(currentSearchParams().view).toBe("value");
   });
 
+  it("accepts the canonical ?view=vis from the registry", async () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=market&view=vis" });
+
+    await waitFor(() => expect(marketPanelProps.current?.initialView).toBe("vis"), {
+      timeout: 10_000,
+    });
+    expect(currentSearchParams().view).toBe("vis");
+  });
+
+  it("resolves a legacy ?view=map to the canonical vis view", async () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=market&view=map" });
+
+    await waitFor(() => expect(marketPanelProps.current?.initialView).toBe("vis"), {
+      timeout: 10_000,
+    });
+    // The retired id is canonicalised before the shell writes the URL back.
+    expect(currentSearchParams().view).toBe("vis");
+  });
+
+  it("never emits the legacy map id back to the URL", async () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=market" });
+
+    await waitFor(() => expect(marketPanelProps.current).not.toBeNull(), { timeout: 10_000 });
+    const onViewChange = marketPanelProps.current?.onViewChange as (v: string) => void;
+    onViewChange("map");
+
+    expect(currentSearchParams().view).toBe("vis");
+    expect(paramWrites.at(-1)?.params.view).toBe("vis");
+    expect(paramWrites.at(-1)?.options?.replace).toBe(true);
+  });
+
+  it("derives its view ids from the canonical registry", () => {
+    const viewIds = (ScreenerPageModule as unknown as Record<string, unknown>).MARKET_VIEW_IDS;
+    expect(viewIds).toEqual(MARKET_VIEW_OPTIONS.map((o) => o.value));
+    expect(viewIds).toContain("vis");
+    expect(viewIds).not.toContain("map");
+  });
+
   it("falls back to the table view for an unknown ?view=", async () => {
     render(() => (
       <UIProvider>
@@ -794,10 +843,10 @@ describe("ScreenerPage", () => {
     await waitFor(() => expect(marketPanelProps.current).not.toBeNull(), { timeout: 10_000 });
     const onViewChange = marketPanelProps.current?.onViewChange;
     expect(onViewChange).toBeTypeOf("function");
-    (onViewChange as (v: string) => void)("map");
+    (onViewChange as (v: string) => void)("vis");
 
-    expect(currentSearchParams().view).toBe("map");
-    expect(paramWrites.at(-1)?.params.view).toBe("map");
+    expect(currentSearchParams().view).toBe("vis");
+    expect(paramWrites.at(-1)?.params.view).toBe("vis");
     expect(paramWrites.at(-1)?.options?.replace).toBe(true);
   });
 

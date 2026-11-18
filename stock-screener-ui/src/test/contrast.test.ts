@@ -18,7 +18,8 @@ import {
   TEXT_MUTED,
   WARNING,
 } from "@/ui/palette";
-import { compositeOver, contrastRatio, pickTextColor } from "@/utils/contrast";
+import { compositeOver, contrastRatio, parseColor, pickTextColor } from "@/utils/contrast";
+import * as palette from "@/ui/palette";
 
 const AA_TEXT = 4.5;
 const AA_GRAPHIC = 3;
@@ -111,5 +112,54 @@ describe("contrast — every semantic tint behind text", () => {
     expect(ratio, `${fg} on ${bg} = ${ratio.toFixed(2)}:1, need >= ${min}:1`).toBeGreaterThanOrEqual(
       min,
     );
+  });
+});
+
+describe("contrast — hostile input never throws", () => {
+  const bad = [undefined, null, 42, {}, Number.NaN] as unknown as string[];
+
+  it("parseColor returns a safe default instead of throwing", () => {
+    for (const value of bad) {
+      expect(() => parseColor(value), String(value)).not.toThrow();
+      expect(parseColor(value), String(value)).toEqual({ r: 0, g: 0, b: 0 });
+    }
+  });
+
+  it("pickTextColor returns a safe default for bad input instead of throwing", () => {
+    for (const value of bad) {
+      expect(() => pickTextColor(value), String(value)).not.toThrow();
+      expect(pickTextColor(value), String(value)).toBe(TEXT);
+    }
+  });
+
+  it("still picks correctly for real colours", () => {
+    expect(pickTextColor(OI_CALL)).toBe(BG);
+    expect(pickTextColor(BG)).toBe(TEXT);
+  });
+});
+
+/**
+ * Cividis mid-tones are the hardest fills on the market map: the ramp crosses
+ * the luminance band where neither off-white nor near-black ink is comfortable.
+ * These are the measured matplotlib stops with the documented stop-8 adjustment.
+ */
+const CIVIDIS_STOPS: readonly string[] =
+  (palette as unknown as { CIVIDIS_STOPS?: readonly string[] }).CIVIDIS_STOPS ?? [];
+
+describe("contrast — cividis market ramp is fully labelable", () => {
+  it("picks a label ink clearing 4.5:1 for all 17 stops", () => {
+    expect(CIVIDIS_STOPS, "palette must export the 17 cividis stops").toHaveLength(17);
+    for (const [i, fill] of CIVIDIS_STOPS.entries()) {
+      const ink = pickTextColor(fill, "#FFFFFF");
+      const ratio = contrastRatio(ink, fill);
+      expect(ratio, `stop ${i} ${fill}: ${ink} = ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(AA_TEXT);
+    }
+  });
+
+  it("the substituted stop 8 clears with both inks; matplotlib's exact mid does not", () => {
+    expect(CIVIDIS_STOPS[8], "stop 8 must be the measured substitution").toBe("#797674");
+    expect(contrastRatio("#FFFFFF", "#797674")).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(contrastRatio("#000000", "#797674")).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(contrastRatio("#FFFFFF", "#7d7c78")).toBeLessThan(AA_TEXT);
   });
 });

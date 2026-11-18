@@ -1,9 +1,9 @@
-import { For, Show, createMemo, createSignal, type JSX } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, type JSX } from "solid-js";
 import { usePolling } from "@/hooks/usePolling";
 import { Box, Text, Skeleton } from "@/ui";
 import * as palette from "@/ui/palette";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import { subscribeToHolidays, isMarketClosedToday, getHolidayState } from "../../state/holidays";
+import { subscribeToHolidays, isMarketOpenNow, getHolidayState } from "../../state/holidays";
 
 // Inlined from hooks/useMarketTickerEnabled (still on React); same v2 storage
 // key and on-by-default behaviour so existing profiles keep their setting.
@@ -38,6 +38,10 @@ import { API_ENDPOINTS } from "../../api/config";
 
 const MARKET_TICKER_API = API_ENDPOINTS.MARKET_TICKER;
 const POLL_INTERVAL_MS = 300000; // 5 minutes
+/** Local re-check so the label flips at 09:15 / 15:30 without a network poll. */
+const MARKET_STATUS_RECHECK_MS = 60000;
+/** A closure away from a holiday still has a reason: the session boundaries. */
+const SESSION_CLOSED_DETAIL = "Closed at 15:30 IST · Opens 09:15 IST";
 
 const PRIORITY_ORDER = ["^NSEI", "^NSEBANK", "GC=F", "SI=F", "CL=F", "USDINR=X"];
 
@@ -274,13 +278,26 @@ function findTodayHoliday() {
 
 /**
  * Single source of truth for "is the exchange open right now?" — the sidebar
- * status dot and the tape must never disagree, and both need the holiday that
- * explains a closure.
+ * status dot and the tape must never disagree. `isMarketClosedToday()` only
+ * knows about holidays; the session clock lives in `isMarketOpenNow()`.
  */
 function useMarketState() {
-  useStoreSubscription(subscribeToHolidays);
-  const closed = isMarketClosedToday();
-  return { closed, holiday: closed ? findTodayHoliday() : null };
+  const version = useStoreSubscription(subscribeToHolidays);
+  const [clockTick, setClockTick] = createSignal(0);
+  createEffect(() => {
+    const id = window.setInterval(() => setClockTick((n) => n + 1), MARKET_STATUS_RECHECK_MS);
+    onCleanup(() => window.clearInterval(id));
+  });
+  const closed = createMemo(() => {
+    version();
+    clockTick();
+    return !isMarketOpenNow();
+  });
+  const detail = createMemo(() => {
+    if (!closed()) return null;
+    return findTodayHoliday()?.description ?? SESSION_CLOSED_DETAIL;
+  });
+  return { closed, detail };
 }
 
 /**
@@ -290,9 +307,8 @@ function useMarketState() {
  */
 export function MarketStatus(props: { compact?: boolean }) {
   const compact = () => props.compact ?? false;
-  const { closed, holiday } = useMarketState();
-  const label = () => (closed ? "Market closed" : "Market live");
-  const detail = () => (closed ? holiday?.description : null);
+  const { closed, detail } = useMarketState();
+  const label = () => (closed() ? "Market closed" : "Market live");
   const title = () => (detail() ? `${label()} · ${detail()}` : label());
 
   return (
@@ -315,7 +331,7 @@ export function MarketStatus(props: { compact?: boolean }) {
           height: "6px",
           "border-radius": "50%",
           "flex-shrink": "0",
-          "background-color": closed ? palette.TEXT_MUTED : palette.POSITIVE,
+          "background-color": closed() ? palette.TEXT_MUTED : palette.POSITIVE,
         }}
       />
       <Show when={!compact()}>
@@ -350,7 +366,7 @@ export function MarketTicker(props: MarketTickerProps) {
   const variant = () => props.variant ?? "full";
   const [enabled] = createSignal(readTickerEnabled());
   const [data, setData] = createSignal<MarketTickerData | null>(null);
-  const { closed, holiday } = useMarketState();
+  const { closed, detail } = useMarketState();
   // Ordering is derived from the fetched payload only: tooltip/hover renders
   // must not re-sort the tape.
   const sortedSymbols = createMemo(() => {
@@ -359,7 +375,7 @@ export function MarketTicker(props: MarketTickerProps) {
   });
 
   const fetchTicker = async () => {
-    if (isMarketClosedToday()) return;
+    if (!isMarketOpenNow()) return;
     try {
       const response = await fetch(MARKET_TICKER_API, { priority: "low" });
       if (!response.ok) {
@@ -373,7 +389,7 @@ export function MarketTicker(props: MarketTickerProps) {
   };
 
   usePolling(fetchTicker, POLL_INTERVAL_MS, {
-    enabled: enabled() && !closed,
+    enabled: enabled() && !closed(),
     immediate: true,
     skipIfRunning: false,
   });
@@ -383,10 +399,10 @@ export function MarketTicker(props: MarketTickerProps) {
       {/* A closed exchange has no tape to poll: state the reason instead of
           leaving skeletons (or a blank flex row) sitting in the header. */}
       <Show
-        when={!closed}
+        when={!closed()}
         fallback={
           <Show when={variant() !== "tape"}>
-            <TickerStatus label="Market closed" detail={holiday?.description} />
+            <TickerStatus label="Market closed" detail={detail()} />
           </Show>
         }
       >

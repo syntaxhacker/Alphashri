@@ -1633,3 +1633,35 @@ describe("query coalescing and same-query reload", () => {
     expect(mocked.fetchResults).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("filter actions vs re-entrant URL sync", () => {
+  it("a stale applyFilters fired during a filter action's patch cannot revert the change", async () => {
+    // The patterns URL sync re-parses the not-yet-written URL on a store
+    // notification and calls applyFilters with the previous filter values.
+    // Arm exactly one such re-entrant call for the chip-removal action.
+    let armed = false;
+    const unsub = subscribe(() => {
+      if (!armed) return;
+      armed = false;
+      applyFilters({ direction: ["bearish"], min_avg_volume_10d: 150 });
+    });
+    try {
+      setFilter("direction", ["bearish"]);
+      await flush();
+      expect(getChartPatternsState().filters.direction).toEqual(["bearish"]);
+
+      armed = true;
+      setFilter("direction", []);
+      // Old code: the re-entrant applyFilters reverts state to ["bearish"]
+      // and the load below issues a stale query. Fixed code keeps [].
+      expect(getChartPatternsState().filters.direction).toEqual([]);
+      await flush();
+      const lastQuery = mocked.fetchResults.mock.calls.at(-1)?.[0] as
+        | { direction?: string[] }
+        | undefined;
+      expect(lastQuery?.direction).toEqual([]);
+    } finally {
+      unsub();
+    }
+  });
+});

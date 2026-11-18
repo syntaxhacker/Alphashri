@@ -35,6 +35,7 @@ from api.market_screen import snapshot as snapshot_mod  # noqa: E402
 from api.market_screen.router import _MARKET_SOURCE_UNAVAILABLE_DETAIL  # noqa: E402
 from api.market_screen.config import (  # noqa: E402
     TYPE_STOCK_FILTER,
+    UNSERVABLE_UNIVERSES,
     US_COLUMNS,
     US_EXCLUDE_NAME_PATTERN,
     US_EXCLUDE_SYMBOL_PATTERN,
@@ -105,6 +106,28 @@ def _clear_disk_stale() -> None:
     if _STALE_DIR.exists():
         shutil.rmtree(_STALE_DIR)
     _STALE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _worker_stale_dir(tmp_path_factory):
+    """Give each worker its own disk-stale snapshot directory.
+
+    ``snapshot._STALE_DIR`` is a fixed repo path. Under xdist every worker
+    clears it around each test while other workers write/read snapshots there,
+    so one worker deletes or contaminates another's cache. Patching both module
+    bindings to a worker-private temp dir removes the shared state without
+    changing production code; ``tmp_path_factory`` also cleans it up.
+    """
+    global _STALE_DIR
+    original = snapshot_mod._STALE_DIR
+    worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
+    _STALE_DIR = tmp_path_factory.mktemp(f"market_screen_stale_{worker}")
+    snapshot_mod._STALE_DIR = _STALE_DIR
+    try:
+        yield _STALE_DIR
+    finally:
+        snapshot_mod._STALE_DIR = original
+        _STALE_DIR = original
 
 
 @pytest.fixture(scope="module")
@@ -194,7 +217,9 @@ def test_dropped_fields_absent_from_response(client, mock_tv):
     assert len(row) == len(EXPECTED_RELIANCE_ROW)
 
 
-@pytest.mark.parametrize("universe", ["nifty50", "nifty500", "nse_fo"])
+@pytest.mark.parametrize(
+    "universe", ["nifty50", "nifty100", "nifty200", "nifty500", "nse_fo"]
+)
 def test_other_universes_route_to_tickers(client, mock_tv, universe):
     from chart_patterns.universes import get_universe
     from api.tv import to_tv_ticker
@@ -214,6 +239,76 @@ def test_invalid_universe_400(client, mock_tv):
     resp = client.get("/api/market/snapshot?universe=forex")
     assert resp.status_code == 400
     assert "unknown universe" in resp.json()["detail"]
+
+
+def _frontend_descriptor_ids() -> set[str]:
+    """Parse the `value:` literals out of the frontend universe registry.
+
+    The dropdown is derived from MARKET_UNIVERSE_DESCRIPTORS, so a backend id the
+    frontend never shipped (or a frontend id the backend rejects) is exactly the
+    drift this guard exists to catch.
+    """
+    source = (ROOT / "src/config/marketUniverses.ts").read_text(encoding="utf-8")
+    block = source.split("MARKET_UNIVERSE_DESCRIPTORS", 1)[1].split("const BY_VALUE", 1)[0]
+    return set(re.findall(r'value:\s*"([a-z0-9_]+)"', block))
+
+
+def test_frontend_universe_ids_match_backend_allowlist():
+    frontend_ids = _frontend_descriptor_ids()
+    new_ids = {"nifty100", "nifty200", "banknifty", "sensex"}
+    assert new_ids <= frontend_ids, f"frontend registry missing {new_ids - frontend_ids}"
+    assert frontend_ids <= set(ALLOWED_UNIVERSES), (
+        f"frontend ids rejected by backend: {frontend_ids - set(ALLOWED_UNIVERSES)}"
+    )
+    assert new_ids <= set(ALLOWED_UNIVERSES)
+    assert frontend_ids == set(ALLOWED_UNIVERSES), (
+        "frontend descriptors and backend allowlist drifted: "
+        f"only frontend={frontend_ids - set(ALLOWED_UNIVERSES)}, "
+        f"only backend={set(ALLOWED_UNIVERSES) - frontend_ids}"
+    )
+
+
+def test_banknifty_and_sensex_reuse_the_india_spec():
+    from api.market_screen.config import UNIVERSES
+
+    for uid in ("banknifty", "sensex"):
+        assert UNIVERSES[uid] == UNIVERSES["nifty50"]
+        assert UNIVERSES[uid].tickers
+        assert UNIVERSES[uid].currency == "INR"
+        assert UNIVERSES[uid].mcap_outputs == (("market_cap_cr", 1e7),)
+
+
+def test_indices_is_excluded_from_market_screener_with_reason():
+    """Chart patterns resolve indices; the equity snapshot cannot shape them."""
+    reason = UNSERVABLE_UNIVERSES["indices"].lower()
+    assert "index" in reason and "equity" in reason
+    assert "indices" not in ALLOWED_UNIVERSES
+    assert "indices" not in _frontend_descriptor_ids()
+
+    from chart_patterns.universes import get_universe
+
+    assert get_universe("indices"), "the pattern universe still resolves its members"
+
+
+def test_documented_universe_ids_match_backend_allowlist(client):
+    """Swagger's `universe` description must list every registry id.
+
+    Read the served OpenAPI schema, not a private router constant, so this
+    guards the artifact users actually see when the registry gains a universe.
+    """
+    schema = client.get("/openapi.json").json()
+    params = schema["paths"]["/api/market/snapshot"]["get"]["parameters"]
+    universe = next(p for p in params if p["name"] == "universe")
+    description = universe["description"]
+
+    for uid in ALLOWED_UNIVERSES:
+        assert re.search(rf"\b{re.escape(uid)}\b", description), (
+            f"universe {uid!r} missing from documented description: {description!r}"
+        )
+    for unservable in UNSERVABLE_UNIVERSES:
+        assert re.search(rf"\b{re.escape(unservable)}\b", description)
+        assert "unsupported" in description.lower()
+    assert "UNSERVABLE_UNIVERSES" in description
 
 
 def test_limit_bounds(client, mock_tv):

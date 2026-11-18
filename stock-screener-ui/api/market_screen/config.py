@@ -138,7 +138,7 @@ _SCAN_UNIVERSES: dict[str, UniverseSpec] = {
     ),
 }
 
-#: Nifty/NSE-FO universes share one spec; members come from get_universe().
+#: Constituent/NSE-FO universes share one spec; members come from get_universe().
 _TICKER_SPEC = UniverseSpec(
     tv_market="india",
     columns=tuple(COLUMNS),
@@ -148,7 +148,9 @@ _TICKER_SPEC = UniverseSpec(
     tickers=True,
     use_nse_tags=True,
 )
-_TICKER_UNIVERSES = ("nifty50", "nifty500", "nse_fo")
+_TICKER_UNIVERSES = (
+    "nifty50", "nifty100", "nifty200", "nifty500", "banknifty", "sensex", "nse_fo",
+)
 
 UNIVERSES: dict[str, UniverseSpec] = {
     **_SCAN_UNIVERSES,
@@ -156,6 +158,27 @@ UNIVERSES: dict[str, UniverseSpec] = {
 }
 
 ALLOWED_UNIVERSES = tuple(UNIVERSES)
+
+#: Universes chart-patterns can resolve but this equity snapshot must not expose.
+#: ``indices`` members are index instruments whose real identifiers are Upstox
+#: ``NSE_INDEX|…`` / ``BSE_INDEX|…`` keys (chart_patterns.indices.INDEX_KEYS); the
+#: snapshot resolves tickers through ``to_tv_ticker``, a cash-equity normaliser
+#: that prefixes ``NSE:`` for every id (``SENSEX`` -> ``NSE:SENSEX``, not
+#: ``BSE:SENSEX``). The equity COLUMNS contract (market cap, P/E, P/B, ROE,
+#: relative volume, sector) is also null for index instruments, so every row
+#: would fall to the ``micro`` cap tier and the treemap would have nothing to
+#: size or colour. There is no index data path in this endpoint, so exposing the
+#: option in the dropdown would ship a dead control. The reason lives here, next
+#: to the registry that decides what the snapshot serves, so the parity guard
+#: can assert the exclusion instead of trusting a comment in the UI.
+UNSERVABLE_UNIVERSES: dict[str, str] = {
+    "indices": (
+        "index instruments are not served by the equity TradingView snapshot: "
+        "to_tv_ticker prefixes NSE for every id (SENSEX needs BSE) and the "
+        "equity COLUMNS (market cap, fundamentals, relative volume, sector) "
+        "are null for indices, so cap tiers and the treemap break"
+    ),
+}
 
 #: Every cap-tier id used by any universe, derived from the specs (rank labels,
 #: absolute-threshold labels and each spec's fallback) so downstream validators

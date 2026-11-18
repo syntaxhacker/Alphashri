@@ -316,12 +316,33 @@ export function setFilters(filters: PatternFilters): void {
   patch({ filters });
 }
 
+/**
+ * `patch()` notifies subscribers synchronously. The patterns URL-sync
+ * subscriber re-parses the URL on that notification — before its own write has
+ * landed — and calls `applyFilters()` with the *previous* filter values. Left
+ * unchecked, that re-entrant call reverts the change the user just made, so the
+ * `loadResults()` immediately below reads the old `state.filters` and issues a
+ * stale query (chip disappears/grid never refreshes). Filter actions ignore
+ * `applyFilters()` while their patch is notifying; the URL sync settles on the
+ * new URL in its own follow-up pass.
+ */
+let filterActionNotifying = false;
+
+function patchFilterAction(partial: Partial<ChartPatternsState>): void {
+  filterActionNotifying = true;
+  try {
+    patch(partial);
+  } finally {
+    filterActionNotifying = false;
+  }
+}
+
 /** Set one filter-rail value and reload the visible results/summary. */
 export function setFilter<K extends keyof PatternFilters>(
   key: K,
   value: PatternFilters[K],
 ): void {
-  patch({ filters: { ...state.filters, [key]: value }, error: null });
+  patchFilterAction({ filters: { ...state.filters, [key]: value }, error: null });
   void loadResults({ offset: 0 });
   void loadSummary();
 }
@@ -333,24 +354,27 @@ export function setFilter<K extends keyof PatternFilters>(
  */
 export function setComputeTrendlines(value: boolean): void {
   if (value === state.computeTrendlines) return;
-  patch({ computeTrendlines: value, error: null });
+  patchFilterAction({ computeTrendlines: value, error: null });
   void loadResults({ offset: 0 });
   void loadSummary();
 }
 
 /** Clear all filters back to defaults and reload results/summary. */
 export function resetFilters(): void {
-  patch({ filters: { ...DEFAULT_PATTERN_FILTERS }, error: null });
+  patchFilterAction({ filters: { ...DEFAULT_PATTERN_FILTERS }, error: null });
   void loadResults({ offset: 0 });
   void loadSummary();
 }
 
 /**
  * Apply a partial filter patch, merged onto `DEFAULT_PATTERN_FILTERS` (so
- * unspecified keys reset), then reload results/summary. Used by presets.
+ * unspecified keys reset), then reload results/summary. Used by presets and by
+ * the URL sync; re-entrant calls during another filter action's patch are
+ * ignored (see `filterActionNotifying`).
  */
 export function applyFilters(filters: Partial<PatternFilters>): void {
-  patch({ filters: { ...DEFAULT_PATTERN_FILTERS, ...filters }, error: null });
+  if (filterActionNotifying) return;
+  patchFilterAction({ filters: { ...DEFAULT_PATTERN_FILTERS, ...filters }, error: null });
   void loadResults({ offset: 0 });
   void loadSummary();
 }

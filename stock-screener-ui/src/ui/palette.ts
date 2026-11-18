@@ -209,6 +209,31 @@ export const RAMP_NEUTRAL = "#20262E";
 export const RAMP_RED = "#D0454C";
 export const RAMP_STRONG_RED = "#A82932";
 
+// Legacy market-map green/red ramp. Kept exported for callers/tests that still
+// import it, but the Market heatmap no longer paints with it — see CIVIDIS_STOPS.
+// The shared RAMP_* stops above remain byte-pinned by the NSE/sector snapshots.
+export const MARKET_RAMP_STRONG_GREEN = "#3FD48A";
+export const MARKET_RAMP_NEUTRAL = "#606A76";
+export const MARKET_RAMP_RED = "#E86E78";
+export const MARKET_RAMP_STRONG_RED = "#FF939B";
+
+// Market heatmap ramp: cividis, matplotlib's CVD-optimised sequential map,
+// sampled at cm.cividis(i/16) for i=0..16. One ramp for BOTH signed and unsigned
+// metrics — luminance rises at every step, so magnitude always reads as
+// intensity and no hue has to be decoded. The legend states low → high because
+// a sequential ramp has no zero anchor.
+//
+// Stop 8 is the sole measured substitution. matplotlib's exact mid `#7d7c78`
+// (L=0.2013) sits at the ink crossover: 4.18:1 with #FFF and 5.03:1 with #000,
+// and under the off-white/near-black pair it leaves no comfortable label ink.
+// `#797674` (L=0.1828) clears 4.51:1 with #FFF and 4.66:1 with #000, and stays
+// strictly between stops 7 (0.1621) and 9 (0.2454) in luminance.
+export const CIVIDIS_STOPS = [
+  "#00224e", "#002e6a", "#1a386f", "#32436d", "#434e6c", "#535a6d", "#61656f", "#6f7073",
+  "#797674",
+  "#8c8878", "#9b9476", "#aba072", "#bcae6c", "#cdbb63", "#dec958", "#f0d846", "#fee838",
+] as const;
+
 // Sector rotation (RRG quadrants + rotation status) — muted, never neon.
 export const ROTATION_LEADING = "#4C9A8F";
 export const ROTATION_IMPROVING = "#5B8DEF";

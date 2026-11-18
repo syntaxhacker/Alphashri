@@ -21,7 +21,7 @@ Three properties drive the design:
   stale tab sent back then matched and its write silently won.
 
 ``market.filters`` v1 is a flat object — ``universe``, the market filter fields,
-``sort`` and ``view`` at the same level — because the frontend adapter composes
+``sort``, ``view`` and ``colorBy`` at the same level — because the frontend adapter composes
 one payload from two signals (``universe`` + ``filters``) and the wire shape
 stays a plain object either side of that join.
 
@@ -70,10 +70,32 @@ MarketSortKey = Literal[
     "pos_52w_desc",
     "symbol_asc",
 ]
-#: Kept in lockstep with the frontend ``MARKET_VIEW_OPTIONS`` (``MarketViewMode``).
-#: Runtime-only Literal, so this list is not an OpenAPI enum, but the saved-config
-#: write path still rejects anything outside it with ``invalid_config``.
-MarketView = Literal["table", "map", "movers", "value"]
+#: Accepts every id in the frontend ``MARKET_VIEW_OPTIONS`` (``MarketViewMode`` in
+#: MarketMapView.tsx) plus the legacy ``map`` id. The frontend renamed ``map`` to
+#: ``vis`` and now writes only canonical ids, but saved rows and ``?view=map``
+#: links still carry the old spelling (normalised to ``vis`` on read), so ``map``
+#: stays accepted on write.
+#: ``tests/api/test_user_configs.py`` parses the TS registry to prove every
+#: frontend id is covered. Runtime-only Literal (not an OpenAPI enum), but the
+#: saved-config write path rejects anything outside it with ``invalid_config``.
+MarketView = Literal["table", "map", "movers", "value", "vis"]
+#: Mirrors ``MARKET_SIZE_METRIC_VALUES`` (marketTreemap.ts), the persisted
+#: "Size by" wire set. The first five keep their order for backward compatibility.
+#: ``tests/api/test_user_configs.py`` parses the TS declaration to prove parity.
+MarketColorBy = Literal[
+    "change_pct",
+    "relative_volume",
+    "rsi",
+    "pos_52w",
+    "market_cap",
+    "adx",
+    "perf_w",
+    "perf_1m",
+    "pe_ratio",
+    "pb_ratio",
+    "roe",
+    "dividend_yield",
+]
 
 CAP_TIERS: frozenset[str] = frozenset(ALL_CAP_TIERS)
 
@@ -109,6 +131,7 @@ class MarketFiltersV1(BaseModel):
     etfOnly: bool = False
     sort: MarketSortKey = "mcap_desc"
     view: MarketView = "table"
+    colorBy: MarketColorBy = "change_pct"
 
     @field_validator("sectors", "capTiers")
     @classmethod

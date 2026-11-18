@@ -186,7 +186,9 @@ test.describe("Saved screen state — market.filters", () => {
     // … while the saved universe and sector still land.
     await expect(page.locator(SECTOR_CHIP_IT)).toBeVisible();
     await expect(page.locator(UNIVERSE_COMBO)).toHaveValue("Nifty 500");
-    await expect(page).toHaveURL(/view=map/);
+    // Legacy `?view=map` normalises to the canonical `vis`, which is what gets
+    // written back — the URL still owns the layout instead of the saved `table`.
+    await expect(page).toHaveURL(/view=vis/);
   });
 
   test("a cleared sector does not resurrect after a reload", async ({ page }) => {

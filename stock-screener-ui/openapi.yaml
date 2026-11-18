@@ -7066,13 +7066,13 @@ paths:
         GZipMiddleware still compresses against the request''s ``Accept-Encoding``.'
       operationId: market_snapshot_api_market_snapshot_get
       parameters:
-      - description: 'Universe: all_equity (default), nifty50, nifty500, nse_fo or us (US large/mid/small caps listed on NASDAQ/NYSE/AMEX).'
+      - description: 'Universe: all_equity (default), us (US large/mid/small caps listed on NASDAQ/NYSE/AMEX), nifty50, nifty100, nifty200, nifty500, banknifty, sensex, nse_fo. indices is intentionally unsupported (see UNSERVABLE_UNIVERSES in api/market_screen/config.py for why).'
         in: query
         name: universe
         required: false
         schema:
           default: all_equity
-          description: 'Universe: all_equity (default), nifty50, nifty500, nse_fo or us (US large/mid/small caps listed on NASDAQ/NYSE/AMEX).'
+          description: 'Universe: all_equity (default), us (US large/mid/small caps listed on NASDAQ/NYSE/AMEX), nifty50, nifty100, nifty200, nifty500, banknifty, sensex, nse_fo. indices is intentionally unsupported (see UNSERVABLE_UNIVERSES in api/market_screen/config.py for why).'
           title: Universe
           type: string
       - description: Max rows returned (1..4000).
@@ -10647,13 +10647,23 @@ paths:
       description: 'Serve the day''s per-minute OI tape with derived deltas.
 
 
-        NOTE: past minutes are NEVER backfilled — rows exist only for minutes
+        Rows exist for minutes the recorder was alive during market hours. A
 
-        the recorder was alive during market hours, so gaps stay gaps. A
+        minute lost to a transient upstream failure is RETRIED inside its own
 
-        missing/empty tape yields a 404 ``{is_trading_day: False}`` envelope.
+        minute (up to :data:`TAPE_FETCH_ATTEMPTS`) and, if still missing, may be
 
-        See :func:`derive_tape_rows` for the per-row formulas.
+        reconstructed from the 10-second chain feed — such a row carries
+
+        ``backfilled: true`` and ``source: "chain10s"`` and omits what that feed
+
+        cannot prove (walls, GEX, IV; ``max_pain`` is ``null`` with the computed
+
+        value in ``max_pain_computed``). Nothing is ever fabricated as a recorded
+
+        minute. A missing/empty tape yields a 404 ``{is_trading_day: False}``
+
+        envelope. See :func:`derive_tape_rows` for the per-row formulas.
 
 
         Per-row ``chain`` snapshots are trimmed to the strikes the report UI can

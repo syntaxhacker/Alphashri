@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@solidjs/testing-library";
+import { render, screen, cleanup, fireEvent, waitFor, within } from "@solidjs/testing-library";
 import type { JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 
@@ -159,6 +159,7 @@ function r(jsx: () => JSX.Element) {
 }
 
 afterEach(cleanup);
+afterEach(() => window.history.replaceState({}, "", "/screener"));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -357,6 +358,23 @@ describe("MarketScreenerPage", () => {
     mockUseMarketSnapshot.mockReturnValue(hookResult({ updateMode: () => "delayed_15m" }));
     r(() => <MarketScreenerPage />);
     expect(screen.getByTestId("market-mode-badge")).toHaveTextContent("Delayed");
+  });
+
+  test("?view=map (legacy) parses to vis and renders the heatmap", async () => {
+    window.history.replaceState({}, "", "/screener?view=map");
+    r(() => <MarketScreenerPage />);
+    await waitFor(() => expect(screen.getByTestId("market-map-view")).toBeInTheDocument());
+    const toggle = screen.getByTestId("market-view-toggle");
+    expect(within(toggle).getByText("Vis").closest("button")).toHaveAttribute("aria-pressed", "true");
+    expect(within(toggle).queryByText("Map")).not.toBeInTheDocument();
+  });
+
+  test("?view=vis works and renders the heatmap", async () => {
+    window.history.replaceState({}, "", "/screener?view=vis");
+    r(() => <MarketScreenerPage />);
+    await waitFor(() => expect(screen.getByTestId("market-map-view")).toBeInTheDocument());
+    const toggle = screen.getByTestId("market-view-toggle");
+    expect(within(toggle).getByText("Vis").closest("button")).toHaveAttribute("aria-pressed", "true");
   });
 
   test("row click selects it (selected styling hook fires without crashing)", async () => {
