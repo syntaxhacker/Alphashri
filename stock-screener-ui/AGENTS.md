@@ -139,6 +139,12 @@ Judgement rules for any screen: [docs/UX_PRINCIPLES.md](./docs/UX_PRINCIPLES.md)
 4. **No nested bordered cards**; one border per section, inner separation via dividers. Panels/charts fill their flex container (`autoSize`, no fixed heights in flex panels).
 5. **Verify visually, not just build.** After any UI change: `bun run build && bun run lint`, then a chrome-devtools screenshot at a real viewport in empty/loading/full states, then run the guard suite listed once in `SUBAGENT_RULES.md §8` (do not keep a second copy here) plus the feature's unit tests and its E2E spec.
    Build/lint do NOT catch alignment bugs — the screenshot is part of the definition of done.
+   **DEFAULT TO VISUAL CHECKS FOR DATA-DRIVEN UI — do not wait to be asked.** Green unit/lint/tsc/E2E is not evidence that a screen works. On 2026-11-18 the Market heatmap's colour-by feature shipped 323 passing tests, a clean build, clean lint and `tsc 321` while **selecting any non-default metric threw `Cannot read properties of undefined (reading 'trim')` and blanked the whole screener**. Every test fed day-change-shaped inputs; the crash needed a 0–1 metric *and* a real render. `AGENTS.md` already said the screen must be verified — it was still skipped, so treat it as a hard gate, not advice:
+   - **Screenshot every state of the control you touched**, not just the default: for a selector/dropdown, one shot per option. A default-only shot is what hid this bug.
+   - **`read` the PNG back and look at it.** A screenshot you never opened proves nothing. Check that tiles/labels/legend show *plausible* values, not just that pixels exist — "every tile reads 1%" and "counter says 13, 12 tiles drawn" are only visible by eye.
+   - **Distrust a suspiciously small PNG** (the crashing frame was 45KB vs ~105KB for working ones) and any error text in the frame (`hit an error`, `undefined`, `NaN`).
+   - **Exercise the non-default branches explicitly**: every option in a metric/mode selector, empty result, and a value that is 0/negative/undefined in the data. Those are where the branch-only bugs live.
+   - A crash found by eye that the suite missed means the suite has a **missing range case** — add the regression test (per `TEST_RULES.md §0`, prove it fails first), do not just fix the crash.
 6. **A page is not "done" until it is measured, not eyeballed.** The Index Report chrome was 800px above the chart (walls card 475px) with the chart permanently below the fold, and it survived review because nothing measured it. If a fix claims "now it fits", take the `getBoundingClientRect()` numbers before/after and put them in the commit message.
 
 ## State Management
@@ -213,6 +219,7 @@ src/
 - Single source of truth for IST timezone: `config.IST` (root `config.py`, re-exported in `stock-screener-ui/config.py`)
 - Use `datetime.now(config.IST)` everywhere, never `datetime.now()` without tz
 - Pandas date filtering: use `pd.Timestamp(date_str, tz=config.IST)` not raw strings — Timestamp vs string comparison raises TypeError
+- **Daily bars are stamped 18:30 UTC of the PREVIOUS calendar day** (IST midnight = 18:30Z the day before). Never format `df.index[-1]`'s UTC date for display — it names the wrong session. Convert to IST first: `frame_last_date()` and `fmt_date()` are the correct references. This produced a live "charts show two-day-old data" report on 2026-11-18 when the data was one session old.
 - `fetch_intraday_data_v3` for today, `fetch_historical_data_v3` for past dates
 - API routes in `stock-screener-ui/api/`, DB models in `db/models.py`
 - **Trades endpoint** (`/api/paper/trades`): queries PostgreSQL first, falls back to journal files. The `get_trades` and `_get_trades_from_db` functions handle this.
@@ -597,6 +604,26 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - `Trade.to_dict()` includes all columns including `bot_id`, `peak_price`, `low_price`
 - Position model has NO `peak_price`/`low_price` — restore defaults to `entry_price`. Position HAS `strategy_type`, `peak_price`, `low_price`, `metadata_json` columns (added in snapshot-to-DB migration).
 
+## Changelog (MANDATORY)
+
+- **One file per day:** `changelog/YYYY-MM-DD.md` (newest first in `changelog/README.md`). There is no monolithic root changelog.
+- Every completed task or PR appends to **today's** file under `Added`, `Changed`, `Fixed`, `Removed`, `Data / Ops`.
+- Mention user-facing behavior, data/recorder changes, migrations and deliberate non-changes; do not duplicate the full commit message.
+- Update it before the final response or commit. A task is not complete until the day’s changelog and `reports/index.html` are both current.
+- If a change is intentionally not recorded (e.g. private scratch), say why in the entry.
+
+## Reports Index (MANDATORY)
+
+- **`reports/index.html` is the single entry point.** Whenever a report HTML is added, renamed or removed under `reports/**`, regenerate it:
+  ```bash
+  .venv/bin/python scripts/market/reports_index.py
+  .venv/bin/python scripts/market/reports_index.py --check
+  ```
+- **Never hand-edit `reports/index.html`.** The scanner owns titles, groups, source windows and links; extend its registry in `scripts/market/reports_index.py` if a new report needs custom metadata.
+- A new report is not done until the index `--check` passes, every link resolves, and the index renders at 1600 and 390 with no overflow.
+- If a report must stay out of the index, add an explicit exclusion in the scanner and say why; do not silently leave a dead/orphan HTML.
+- **Never delete report artifacts** — overwrite in place; the user removes their own reports.
+
 ## Stock EDA Reports (research skill)
 
 - Reusable procedure for producing a volume / big-player / fundamentals EDA report for any NSE ticker:
@@ -689,6 +716,34 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
   `(theta × days + vega × IV-gap × bleed) / delta` — typically 0.05–0.15 ATR/day for an 11-DTE ATM
   call, but expensive when you pay a big vol premium (use a spread, not a naked put).
 - Tests: `.venv/bin/python -m pytest .prime/agent/skills/position-probability/tests -q` (15, offline).
+
+## Failure modes (read before debugging "wrong data")
+
+- Never let a failure surface as `None`/`0`/empty — blanket-`except` and silently-`None` fields hide it. Log with context, keep it observable; a `None` field is a failure, not a cue to fall back.
+- Avoid confusing an empty result with a failed one: a job where every unit failed is `failed`, never `completed`, and a gate must not reuse "0 results" as success.
+- Measure cache staleness in sessions, not calendar days.
+- Never trust a type annotation for a payload shape — verify against the live response.
+- Verify a suspected upstream failure against the raw source before concluding "no data".
+- A green suite proves the code, not the screen: render data-driven screens and look.
+
+## Timezone / date helpers
+
+- Reuse these; do not fork (several competing copies exist).
+- Backend: `config.IST` (only constant); `frame_last_date()` (IST session date of a frame's last bar), `fmt_date()` (IST display date).
+- Frontend: `TZ_IST`, `sessionDateKey()`, `istChartTime` (Intl, explicit `timeZone`), `istClock`.
+- Two open/closed implementations: `isMarketOpenIst()` (holiday-unaware) vs `isMarketOpenNow()` (holiday + session window). Use the holiday-aware one for user-facing gates; `isMarketClosedToday()` answers only "is today a holiday".
+
+## Backend ↔ frontend vocabulary parity (MANDATORY)
+
+When a backend `Literal` mirrors a frontend registry (`colorBy`, universes, views), a frontend widening silently breaks writes — add a parity test that parses the TS source and asserts the backend accepts every frontend id. Extend the existing pattern in `tests/api/test_user_configs.py`; don't hand-maintain a second list. Keep legacy ids accepted on write (old saved rows) and normalise on read.
+
+## When the running process is stale
+
+`start.sh` runs without `--reload`. After editing `api/**`, run `./start.sh restart` before testing or debugging — the source can be correct while the server runs old code. Confirm with a real request, not by reading the file. Symptom: an error lists values that no longer exist in the source.
+
+## Gates are only trustworthy with lanes quiet
+
+Run test/typecheck/E2E gates when no other lane is writing; re-run before believing a red result. A failure that passes in isolation, or whose count changes between runs, is a concurrent edit — verify before fixing.
 
 ## Known Issues / Deferred
 - **Replay system name→ID migration** (Phase 3) — deferred, known limitation
