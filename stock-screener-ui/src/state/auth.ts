@@ -4,6 +4,7 @@
 
 import { createSubscriber } from "./createSubscriber";
 
+import { apiErrorFromResponse } from "@/api/apiError";
 import { API_BASE } from "@/api/config";
 const TOKEN_KEY = "alphashri_token";
 const REFRESH_TOKEN_KEY = "alphashri_refresh_token";
@@ -360,3 +361,21 @@ export async function apiFetch(url: string, options?: RequestInit): Promise<any>
   }
   return response.json();
 }
+
+/**
+ * Typed JSON variant of `fetchWithAuth` for direct callers that need a
+ * status-aware error. Additive: `fetchWithAuth` still returns a bare Response
+ * and the token refresh / storage / redirect flow is untouched.
+ */
+export async function fetchJsonWithAuth<T>(
+  url: string,
+  options?: RequestInit,
+  fallback: string = "Request failed",
+): Promise<T> {
+  const response = await fetchWithAuth(url, options);
+  if (!response.ok) throw await apiErrorFromResponse(response, fallback);
+  return (await response.json()) as T;
+}
+
+/** Build a shared typed error from a non-ok Response without another request. */
+export const toApiError = apiErrorFromResponse;

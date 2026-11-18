@@ -13,6 +13,7 @@
  */
 
 import { createSubscriber } from "./createSubscriber";
+import { asApiError, isAbortError, type ApiError } from "../api/apiError";
 import { fetchSectorPerformance } from "../api/sector";
 import type { SectorAlert } from "../components/sector/sectorUtils";
 import type { SectorResponse } from "../types/sector";
@@ -33,6 +34,8 @@ export interface SectorState {
   data: SectorResponse | null;
   loading: boolean;
   error: string | null;
+  /** Typed failure detail for status-aware Retry. Additive; `error` stays a string. */
+  apiError: ApiError | null;
   market: SectorMarket;
   activeTab: SectorTab;
   alerts: SectorAlert[];
@@ -63,6 +66,7 @@ function initialState(): SectorState {
     data: null,
     loading: true,
     error: null,
+    apiError: null,
     market: "india",
     activeTab: readTabFromUrl(),
     alerts: [],
@@ -123,8 +127,8 @@ export function setLoading(loading: boolean): void {
   patch({ loading });
 }
 
-export function setError(error: string | null): void {
-  patch({ error });
+export function setError(error: string | null, apiError: ApiError | null = null): void {
+  patch({ error, apiError });
 }
 
 /**
@@ -139,7 +143,11 @@ export async function loadSectorData(market: SectorMarket = state.market): Promi
     setSectorData(response);
     setError(null);
   } catch (err) {
-    setError(err instanceof Error ? err.message : "Failed to fetch sector performance");
+    if (isAbortError(err)) return;
+    setError(
+      err instanceof Error ? err.message : "Failed to fetch sector performance",
+      asApiError(err, "Failed to fetch sector performance"),
+    );
   } finally {
     setLoading(false);
   }
