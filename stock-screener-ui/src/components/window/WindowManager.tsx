@@ -73,8 +73,11 @@ export function WindowManager(props: WindowManagerProps) {
     emit(raiseToFront(props.layout.windows, id));
   };
 
+  // Untouched windows keep their object identity. A focus or a single rect commit
+  // then re-renders one frame instead of all of them: every sibling's `state` prop
+  // stays referentially equal, so Solid skips its reactive updates.
   const patch = (id: string, change: (win: WindowState) => WindowState) =>
-    emit(props.layout.windows.map((w) => (w.id === id ? change(w) : { ...w })));
+    emit(props.layout.windows.map((w) => (w.id === id ? change(w) : w)));
 
   const updateRect = (id: string, rect: Rect) => patch(id, (w) => ({ ...w, ...rect }));
   const toggleMinimize = (id: string) => patch(id, (w) => ({ ...w, minimized: !w.minimized }));
@@ -87,7 +90,7 @@ export function WindowManager(props: WindowManagerProps) {
     );
   };
   const close = (id: string) =>
-    emit(props.layout.windows.filter((w) => w.id !== id).map((w) => ({ ...w })));
+    emit(props.layout.windows.filter((w) => w.id !== id));
 
   const popOut = (id: string) => {
     const target = props.layout.windows.find((w) => w.id === id);
@@ -134,23 +137,29 @@ export function WindowManager(props: WindowManagerProps) {
         class="relative min-h-0 w-full flex-1 overflow-hidden"
       >
         <Index each={props.layout.windows}>
-          {(win) => (
-            <Window
-              state={win()}
-              canvas={canvas()}
-              spec={byId().get(win().type)}
-              context={props.context}
-              focused={focusedId() === win().id}
-              locked={locked()}
-              settingsSlot={props.settingsSlot?.(win())}
-              onFocus={focus}
-              onRectChange={updateRect}
-              onMinimize={toggleMinimize}
-              onMaximize={toggleMaximize}
-              onClose={close}
-              onPopOut={popOut}
-            />
-          )}
+          {(win) => {
+            // A raw `props.settingsSlot?.(win())` in JSX is a getter re-evaluated
+            // by both `<Show>` and the child span, so one window render invoked
+            // the host's factory twice. The memo calls it once per real change.
+            const slot = createMemo(() => props.settingsSlot?.(win()));
+            return (
+              <Window
+                state={win()}
+                canvas={canvas()}
+                spec={byId().get(win().type)}
+                context={props.context}
+                focused={focusedId() === win().id}
+                locked={locked()}
+                settingsSlot={slot()}
+                onFocus={focus}
+                onRectChange={updateRect}
+                onMinimize={toggleMinimize}
+                onMaximize={toggleMaximize}
+                onClose={close}
+                onPopOut={popOut}
+              />
+            );
+          }}
         </Index>
       </div>
     </div>

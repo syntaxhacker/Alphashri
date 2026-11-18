@@ -21,7 +21,7 @@ import {
   type CanvasSize,
   type Rect,
 } from "../../components/window/layout";
-import { WINDOW_PANEL_TYPES } from "../../components/window/panelRegistry";
+import { getPanelSpec, WINDOW_PANEL_TYPES } from "../../components/window/panelRegistry";
 import type { WindowLayout, WindowState } from "../../components/window/types";
 
 /** Group labels come from the panel's source page, not from a HOME-specific id. */
@@ -68,6 +68,74 @@ export const HOME_WINDOW_SCOPE = "window.home";
 export const HOME_WINDOW_VERSION = 1;
 export const DEFAULT_LAYOUT_NAMES = ["Main", "Blank", "Macro"] as const;
 const DEFAULT_CANVAS: CanvasSize = { w: 1280, h: 800 };
+
+/**
+ * A preset is geometry only: which registered panel goes in which grid cell.
+ * Column widths and per-column row heights are fractions of the measured canvas,
+ * so the same preset fills a laptop and a wide desk without a pixel literal.
+ */
+export interface PresetColumn {
+  width: number;
+  rows: number[];
+}
+
+export interface PresetCell {
+  panel: string;
+  column: number;
+  row: number;
+}
+
+export interface HomePreset {
+  id: string;
+  label: string;
+  columns: PresetColumn[];
+  cells: PresetCell[];
+}
+
+const TWO_COLUMNS: PresetColumn[] = [
+  { width: 0.58, rows: [1] },
+  { width: 0.42, rows: [0.5, 0.5] },
+];
+
+/** Adding a desk is data: append an entry here, never touch the menu component. */
+export const PRESETS: HomePreset[] = [
+  {
+    id: "trading",
+    label: "Trading",
+    columns: TWO_COLUMNS,
+    cells: [
+      { panel: "market.heatmap", column: 0, row: 0 },
+      { panel: "options.chain", column: 1, row: 0 },
+      { panel: "options.positioning", column: 1, row: 1 },
+    ],
+  },
+  {
+    id: "research",
+    label: "Research",
+    columns: TWO_COLUMNS,
+    cells: [
+      { panel: "patterns.results", column: 0, row: 0 },
+      { panel: "sector.rotation", column: 1, row: 0 },
+      { panel: "sector.correlation", column: 1, row: 1 },
+    ],
+  },
+  {
+    id: "macro",
+    label: "Macro",
+    columns: TWO_COLUMNS,
+    cells: [
+      { panel: "sector.heatmap", column: 0, row: 0 },
+      { panel: "sector.table", column: 1, row: 0 },
+      { panel: "news.feed", column: 1, row: 1 },
+    ],
+  },
+  {
+    id: "minimal",
+    label: "Minimal",
+    columns: [{ width: 1, rows: [1] }],
+    cells: [{ panel: "market.heatmap", column: 0, row: 0 }],
+  },
+];
 
 /**
  * Two-column first-run desk. The chain keeps the first cascade slot so a
@@ -239,4 +307,95 @@ export function nextScreenName(layouts: WindowLayout[]): string {
   const taken = new Set(layouts.map((layout) => slug(layout.name ?? "")));
   while (taken.has(slug(`Screen ${ordinal}`))) ordinal += 1;
   return `Screen ${ordinal}`;
+}
+
+const finite = (value: unknown, fallback = 0): number =>
+  typeof value === "number" && Number.isFinite(value) ? value : fallback;
+
+/** Proportional split with a gutter; rounding slack goes to the last cell. */
+function splitSpan(total: number, weights: readonly number[], gutter: number): number[] {
+  const usable = Math.max(0, total - gutter * Math.max(0, weights.length - 1));
+  const sum = weights.reduce((acc, weight) => acc + Math.max(0, finite(weight)), 0);
+  if (sum <= 0 || weights.length === 0) return weights.map(() => 0);
+  const sizes = weights.map((weight) => Math.round((usable * Math.max(0, finite(weight))) / sum));
+  const head = sizes.slice(0, -1).reduce((acc, size) => acc + size, 0);
+  sizes[sizes.length - 1] = Math.max(0, usable - head);
+  return sizes;
+}
+
+function presetTabName(label: string, layouts: WindowLayout[]): string {
+  const taken = new Set(layouts.map((layout) => slug(layout.name ?? "")));
+  const base = slug(label) ? label : "Preset";
+  if (!taken.has(slug(base))) return base;
+  let ordinal = 2;
+  while (taken.has(slug(`${base} ${ordinal}`))) ordinal += 1;
+  return `${base} ${ordinal}`;
+}
+
+/**
+ * Resolve a preset into windows against the live canvas. Every rect comes from
+ * the grid split (canvas fractions + gutter), so cells cannot overlap and never
+ * leave the canvas. Titles come from the panel registry — presets own no labels.
+ */
+export function presetWindows(preset: HomePreset, canvas: CanvasSize): WindowState[] {
+  const w = Math.max(0, finite(canvas.w, DEFAULT_CANVAS.w));
+  const h = Math.max(0, finite(canvas.h, DEFAULT_CANVAS.h));
+  const gutter = Math.max(SEED_INSET, Math.round(w * 0.012));
+  const innerW = Math.max(0, w - FIT_PADDING * 2);
+  const innerH = Math.max(0, h - FIT_PADDING * 2);
+
+  const widths = splitSpan(innerW, preset.columns.map((column) => column.width), gutter);
+  let cursorX = FIT_PADDING;
+  const grid: Rect[][] = preset.columns.map((column, columnIndex) => {
+    const heights = splitSpan(innerH, column.rows, gutter);
+    let y = FIT_PADDING;
+    const rows = heights.map((height) => {
+      const rect: Rect = { x: cursorX, y, w: widths[columnIndex] ?? 0, h: height };
+      y += height + gutter;
+      return rect;
+    });
+    cursorX += (widths[columnIndex] ?? 0) + gutter;
+    return rows;
+  });
+
+  return preset.cells.flatMap((cell, ordinal) => {
+    const rect = grid[cell.column]?.[cell.row];
+    if (!rect) return [];
+    const spec = getPanelSpec(cell.panel);
+    return [{
+      id: `${cell.panel}-${ordinal + 1}`,
+      type: cell.panel,
+      title: spec?.title ?? cell.panel,
+      ...clampToCanvas({ x: rect.x, y: rect.y, w: rect.w, h: rect.h }, { w, h }),
+      z: ordinal + 1,
+      minimized: false,
+      maximized: false,
+    }];
+  });
+}
+
+/**
+ * Apply a preset to a NEW tab and switch to it. Overwriting the current tab
+ * would destroy a saved desk with no way back — switching tabs is the undo, so
+ * the old tab (and every other tab) stays byte-identical. Unknown panel types
+ * are removed by the same normalizer that guards persisted layouts.
+ */
+export function applyPreset(
+  config: HomeWindowConfig,
+  preset: HomePreset | undefined,
+  canvas: CanvasSize = DEFAULT_CANVAS,
+): HomeWindowConfig {
+  if (!preset) return config;
+  const name = presetTabName(preset.label, config.layouts);
+  const draft: HomeWindowConfig = {
+    layouts: [
+      ...config.layouts.map((layout) => ({
+        ...layout,
+        windows: layout.windows.map((window) => ({ ...window })),
+      })),
+      { name, windows: presetWindows(preset, canvas) },
+    ],
+    active: name,
+  };
+  return normalizeHomeConfig(serializeHomeConfig(draft), canvas) ?? draft;
 }

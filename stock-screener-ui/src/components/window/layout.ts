@@ -105,9 +105,11 @@ export function resizeRect(
 
 /** Raise a window above every other one; ties resolve in array order. */
 export function raiseToFront(windows: WindowState[], id: string): WindowState[] {
-  if (!windows.some((w) => w.id === id)) return windows.map((w) => ({ ...w }));
+  if (!windows.some((w) => w.id === id)) return windows;
   const maxZ = windows.reduce((max, w) => Math.max(max, finite(w.z)), 0);
-  return windows.map((w) => (w.id === id ? { ...w, z: maxZ + 1 } : { ...w }));
+  // Only the raised window gets a new object: siblings keep identity so the desk
+  // does not re-render eight frames for one focus.
+  return windows.map((w) => (w.id === id ? { ...w, z: maxZ + 1 } : w));
 }
 
 /**
@@ -246,12 +248,12 @@ export function serializeLayout(layout: WindowLayout): string {
  * is what makes restore byte-exact without a second shadow rect in the payload.
  */
 export function maximize(windows: WindowState[], id: string, canvas: CanvasSize): WindowState[] {
-  if (finite(canvas.w) <= 0 || finite(canvas.h) <= 0) return windows.map((w) => ({ ...w }));
-  return windows.map((w) => (w.id === id ? { ...w, maximized: true } : { ...w }));
+  if (finite(canvas.w) <= 0 || finite(canvas.h) <= 0) return windows;
+  return windows.map((w) => (w.id === id ? { ...w, maximized: true } : w));
 }
 
 export function restore(windows: WindowState[], id: string): WindowState[] {
-  return windows.map((w) => (w.id === id ? { ...w, maximized: false } : { ...w }));
+  return windows.map((w) => (w.id === id ? { ...w, maximized: false } : w));
 }
 
 export function geometryOf(state: WindowState, canvas: CanvasSize): Rect {

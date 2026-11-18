@@ -1,5 +1,5 @@
 import { createEffect, createSignal, For, onCleanup, onMount, type Accessor } from "solid-js";
-import { Box, Select, Text, ToolbarRow } from "@/ui";
+import { Box, Menu, MenuDropdown, MenuItem, MenuTarget, Select, Text, ToolbarRow } from "@/ui";
 import type { DockPanelContext } from "../../components/dock/types";
 import type { CanvasSize } from "../../components/window/layout";
 import { WindowManager } from "../../components/window/WindowManager";
@@ -14,6 +14,7 @@ import {
   type SavedConfigTransport,
 } from "../../state/savedConfig";
 import {
+  applyPreset,
   createWindowFor,
   defaultHomeConfig,
   HOME_PANEL_CONTEXT,
@@ -25,12 +26,10 @@ import {
   normalizeHomeConfig,
   PAGE_LABEL,
   PAGE_ORDER,
+  PRESETS,
   serializeHomeConfig,
   type HomeWindowConfig,
 } from "./homePanels";
-
-export const HOME_DOCK_SCOPE = HOME_WINDOW_SCOPE;
-export const HOME_DOCK_VERSION = HOME_WINDOW_VERSION;
 
 const slug = (name: string): string =>
   name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -178,6 +177,12 @@ export function HomePage(props: HomePageProps) {
     });
   };
 
+  const applyPresetToDesk = (id: string) => {
+    const preset = PRESETS.find((candidate) => candidate.id === id);
+    if (!preset) return;
+    setConfig(applyPreset(config(), preset, canvasSize() ?? props.canvas));
+  };
+
   return (
     <Box data-testid="home-page" className="flex h-full min-h-0 flex-col gap-2 p-4">
       <ToolbarRow data-testid="home-toolbar">
@@ -210,6 +215,30 @@ export function HomePage(props: HomePageProps) {
             </button>
           )}
         </For>
+        <Menu data-testid="home-presets-menu">
+          <MenuTarget>
+            <button
+              type="button"
+              data-testid="home-preset-menu-trigger"
+              aria-label="Layout presets"
+              class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
+            >
+              Presets
+            </button>
+          </MenuTarget>
+          <MenuDropdown data-testid="home-preset-menu-dropdown">
+            <For each={PRESETS}>
+              {(preset) => (
+                <MenuItem
+                  data-testid={`home-preset-${preset.id}`}
+                  onClick={() => applyPresetToDesk(preset.id)}
+                >
+                  {preset.label}
+                </MenuItem>
+              )}
+            </For>
+          </MenuDropdown>
+        </Menu>
         <button
           type="button"
           data-testid="home-new-screen"
