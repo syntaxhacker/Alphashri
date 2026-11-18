@@ -28,6 +28,7 @@ import pandas as pd
 
 from .. import features as F
 from .common import (
+    calendar_day_gap,
     flat_line_points,
     get_swings,
     make_hit,
@@ -64,14 +65,9 @@ def _calendar_days(df: pd.DataFrame, start: int, end: int) -> int:
     """Calendar-day span of the bar window ``[start, end]`` (bar count fallback).
 
     ``base_days`` is labelled (and filtered) in days, but windows are scanned
-    in bars; on intraday frames a 120-bar base is hours, not days. Mirrors the
-    ``_bar_gap_days`` helper in ``detectors/reversal.py``.
+    in bars; on intraday frames a 120-bar base is hours, not days.
     """
-    try:
-        span = abs(float((df.index[int(end)] - df.index[int(start)]).days))
-        return int(span)
-    except (AttributeError, TypeError, IndexError, ValueError):
-        return int(abs(int(end) - int(start)))
+    return int(calendar_day_gap(df, end, start))
 
 
 def _tightness(range_pct: float, range_max: float) -> float:

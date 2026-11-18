@@ -7,6 +7,7 @@ Redis. All helpers accept the module-level session factory so tests can point
 from __future__ import annotations
 
 import json
+import math
 from typing import Any, Iterable, Optional
 
 from sqlalchemy import case, func, literal
@@ -64,22 +65,24 @@ def _with_params(row_dict: dict, raw) -> dict:
     return row_dict
 
 
-def _coalesce_num(value) -> float:
-    """Coerce ``value`` to float, returning 0.0 for None/NaN/Inf/garbage."""
+def _finite_or_none(value) -> float | None:
+    """float(value) or None for None/NaN/Inf/garbage."""
     if value is None:
-        return 0.0
+        return None
     try:
         out = float(value)
     except (TypeError, ValueError):
-        return 0.0
-    try:
-        import math
-
-        if not math.isfinite(out):
-            return 0.0
-    except Exception:
-        return 0.0
+        return None
+    # Reject NaN/Inf so non-finite floats never reach the DB/JSON layer.
+    if not math.isfinite(out):
+        return None
     return out
+
+
+def _coalesce_num(value) -> float:
+    """Coerce ``value`` to float, returning 0.0 for None/NaN/Inf/garbage."""
+    out = _finite_or_none(value)
+    return 0.0 if out is None else out
 
 
 def breakout_score(dto: dict) -> float:
@@ -1047,21 +1050,7 @@ def get_symbol_detail(
 
 
 def _num(value: Any) -> Optional[float]:
-    if value is None:
-        return None
-    try:
-        out = float(value)
-    except (TypeError, ValueError):
-        return None
-    try:
-        # Reject NaN/Inf so non-finite floats never reach the DB/JSON layer.
-        import math
-
-        if not math.isfinite(out):
-            return None
-    except Exception:
-        return None
-    return out
+    return _finite_or_none(value)
 
 
 def _int(value: Any) -> Optional[int]:

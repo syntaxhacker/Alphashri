@@ -19,9 +19,10 @@ from .common import (
     mean_price as mean_price_fn,
     pivot_markers,
     register,
+    scan_windows,
     segment_points,
+    shift_line_to_bound,
     get_swings,
-    window_slice,
 )
 
 LOOKBACK = 150
@@ -88,23 +89,10 @@ def _shift_line(df: pd.DataFrame, slope: float, intercept: float, x0: int, x1: i
                 side: str) -> tuple[float, float]:
     """Translate a line so it bounds every candle within ``[x0, x1]``.
 
-    Keeps the slope and shifts the intercept by the smallest amount needed, so an
-    upper line ends at/above every high and a lower line at/below every low. Used
-    by the flag pole so a pivot-pair line that an intermediate wick pokes through
-    is nudged into a true boundary.
+    Used by the flag pole so a pivot-pair line that an intermediate wick pokes
+    through is nudged into a true boundary (no rounding margin here).
     """
-    x0, x1 = int(x0), int(x1)
-    if x1 < x0:
-        return float(slope), float(intercept)
-    xs = np.arange(x0, x1 + 1, dtype=float)
-    line = slope * xs + intercept
-    if side == "upper":
-        delta = float(np.max(df["high"].to_numpy(dtype=float)[x0 : x1 + 1] - line))
-        intercept += max(delta, 0.0)
-    else:
-        delta = float(np.max(line - df["low"].to_numpy(dtype=float)[x0 : x1 + 1]))
-        intercept -= max(delta, 0.0)
-    return float(slope), float(intercept)
+    return shift_line_to_bound(df, slope, intercept, x0, x1, side)
 
 
 def _breakout_pos(df: pd.DataFrame, x_from: int, breakout: float, direction: str):
@@ -146,8 +134,7 @@ def _channel_once(df: pd.DataFrame, ctx: dict, start: int, end: int, ascending: 
     if eu is None or el is None:
         return None
 
-    def val(env, x):
-        return _line_val(env, x)
+    val = _line_val
 
     span = _drawn_span(eu, el)
     if span is None:
@@ -242,18 +229,7 @@ def _channel_once(df: pd.DataFrame, ctx: dict, start: int, end: int, ascending: 
 
 
 def _channel_impl(df: pd.DataFrame, ctx: dict, ascending: bool) -> list:
-    hits = []
-    seen = set()
-    for lookback in WINDOWS:
-        win = window_slice(df, lookback, 30)
-        if win is None:
-            continue
-        start, end = win
-        hit = _channel_once(df, ctx, start, end, ascending)
-        if hit is not None and (hit.start_date, hit.end_date) not in seen:
-            seen.add((hit.start_date, hit.end_date))
-            hits.append(hit)
-    return hits
+    return scan_windows(df, ctx, 30, _channel_once, WINDOWS, ascending=ascending)
 
 
 def detect_ascending_channel(df: pd.DataFrame, ctx: dict | None = None) -> list:
@@ -522,8 +498,7 @@ def _find_pennant(df: pd.DataFrame, ctx: dict | None = None):
             if cx1 - cx0 < 4:
                 continue
 
-            def val(env, x):
-                return env["q0"] + env["slope"] * (x - env["x0"])
+            val = _line_val
 
             w_start = val(eu, cx0) - val(el, cx0)
             w_end = val(eu, cx1) - val(el, cx1)
@@ -586,11 +561,8 @@ def detect_pennant(df: pd.DataFrame, ctx: dict | None = None) -> list:
     eu, el = best["eu"], best["el"]
     cx0, cx1 = best["cx0"], best["cx1"]
 
-    def val(env, x):
-        return env["q0"] + env["slope"] * (x - env["x0"])
-
-    up_q0, up_q1 = val(eu, cx0), val(eu, cx1)
-    lo_q0, lo_q1 = val(el, cx0), val(el, cx1)
+    up_q0, up_q1 = _line_val(eu, cx0), _line_val(eu, cx1)
+    lo_q0, lo_q1 = _line_val(el, cx0), _line_val(el, cx1)
     # Quality signal: how cleanly the consolidation highs/lows trend.
     xs = np.arange(cx0, cx1 + 1, dtype=float)
     _, _, r2u = F.linreg_fit(xs, df["high"].iloc[cx0 : cx1 + 1].to_numpy(dtype=float))
@@ -650,8 +622,7 @@ def _rectangle_once(df: pd.DataFrame, ctx: dict, start: int, end: int):
         return None
     x0, x1 = span
 
-    def val(env, x):
-        return _line_val(env, x)
+    val = _line_val
 
     mp = mean_price_fn(df, x0, x1)
     if mp <= 0:
@@ -731,18 +702,7 @@ def detect_rectangle(df: pd.DataFrame, ctx: dict | None = None) -> list:
     height.
     """
     ctx = ctx or {}
-    hits = []
-    seen = set()
-    for lookback in WINDOWS:
-        win = window_slice(df, lookback, 40)
-        if win is None:
-            continue
-        start, end = win
-        hit = _rectangle_once(df, ctx, start, end)
-        if hit is not None and (hit.start_date, hit.end_date) not in seen:
-            seen.add((hit.start_date, hit.end_date))
-            hits.append(hit)
-    return hits
+    return scan_windows(df, ctx, 40, _rectangle_once, WINDOWS)
 
 
 # ---------------------------------------------------------------------------
@@ -768,8 +728,7 @@ def _triangle_once(df: pd.DataFrame, ctx: dict, start: int, end: int, ascending:
     if x1 - x0 < 10:
         return None
 
-    def val(env, x):
-        return env["q0"] + env["slope"] * (x - env["x0"])
+    val = _line_val
 
     mp = mean_price_fn(df, x0, x1)
     if mp <= 0:
@@ -837,18 +796,7 @@ def _triangle_once(df: pd.DataFrame, ctx: dict, start: int, end: int, ascending:
 
 
 def _triangle_impl(df: pd.DataFrame, ctx: dict, ascending: bool) -> list:
-    hits = []
-    seen = set()
-    for lookback in WINDOWS:
-        win = window_slice(df, lookback, 30)
-        if win is None:
-            continue
-        start, end = win
-        hit = _triangle_once(df, ctx, start, end, ascending)
-        if hit is not None and (hit.start_date, hit.end_date) not in seen:
-            seen.add((hit.start_date, hit.end_date))
-            hits.append(hit)
-    return hits
+    return scan_windows(df, ctx, 30, _triangle_once, WINDOWS, ascending=ascending)
 
 
 def detect_ascending_triangle(df: pd.DataFrame, ctx: dict | None = None) -> list:

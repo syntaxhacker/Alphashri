@@ -39,21 +39,6 @@ export function mapTrendlines(trendlines: Trendline[] | undefined, times: string
     if (!byDay.has(day)) byDay.set(day, i);
   });
 
-  const nearest = (t: string): number | undefined => {
-    const target = parseEngineTimestamp(t);
-    if (Number.isNaN(target)) return undefined;
-    let best = -1;
-    let bestDiff = Number.POSITIVE_INFINITY;
-    parsed.forEach((value, i) => {
-      const diff = Math.abs(value - target);
-      if (diff < bestDiff) {
-        bestDiff = diff;
-        best = i;
-      }
-    });
-    return best >= 0 ? best : undefined;
-  };
-
   const mapped: AxisPoint[][] = [];
   for (const line of trendlines) {
     const points: AxisPoint[] = [];
@@ -62,7 +47,9 @@ export function mapTrendlines(trendlines: Trendline[] | undefined, times: string
       // Only fall back to a day match for date-only strings (legacy overlays); a
       // timed string must never collapse onto the first candle of the day.
       if (index === undefined && point.t.length <= 10) index = byDay.get(point.t.slice(0, 10));
-      if (index === undefined) index = nearest(point.t);
+      if (index === undefined) {
+        index = nearestIndexForTimestamp(parseEngineTimestamp(point.t), parsed);
+      }
       if (index !== undefined && index >= 0) points.push({ index, price: point.price });
     }
     if (points.length > 0) mapped.push(points);

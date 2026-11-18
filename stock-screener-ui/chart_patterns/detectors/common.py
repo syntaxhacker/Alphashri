@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable
 
+import numpy as np
 import pandas as pd
 
 from .. import features as F
@@ -398,6 +399,80 @@ def _fit_pair(
     return fit_window_pair(df, ctx, start, max_pivots=max_pivots)
 
 
+def shift_line_to_bound(
+    df: pd.DataFrame,
+    slope: float,
+    intercept: float,
+    x0: int,
+    x1: int,
+    side: str,
+    margin: float = 0.0,
+) -> tuple[float, float]:
+    """Translate a line's intercept so it bounds every candle in ``[x0, x1]``.
+
+    The slope is preserved and the line is moved by the smallest amount needed,
+    so an upper line ends at/above every high and a lower line at/below every low.
+
+    ``margin`` is a deliberate per-caller constant, not a tunable: reversal
+    patterns pass ``1e-4`` because their overlays are serialised at 4 decimals
+    and a reconstructed line must still be a true envelope, while continuation
+    patterns pass ``0.0``. Both values are load-bearing — changing either one
+    moves emitted prices.
+    """
+    x0, x1 = int(x0), int(x1)
+    if x1 < x0:
+        return float(slope), float(intercept)
+    xs = np.arange(x0, x1 + 1, dtype=float)
+    line = slope * xs + intercept
+    if side == "upper":
+        delta = float(np.max(df["high"].to_numpy(dtype=float)[x0 : x1 + 1] - line))
+        intercept += max(delta, 0.0) + margin
+    else:
+        delta = float(np.max(line - df["low"].to_numpy(dtype=float)[x0 : x1 + 1]))
+        intercept -= max(delta, 0.0) + margin
+    return float(slope), float(intercept)
+
+
+def calendar_day_gap(df: pd.DataFrame, x0: int, x1: int) -> float:
+    """Calendar-day distance between two bar positions (bar count as fallback).
+
+    Cheaper and more meaningful than bar counts when comparing pivots across
+    holidays: an earlier date can be fewer bars away than a later one.
+    """
+    try:
+        return abs(float((df.index[int(x0)] - df.index[int(x1)]).days))
+    except (AttributeError, TypeError, IndexError, ValueError):
+        return float(abs(int(x0) - int(x1)))
+
+
+def scan_windows(
+    df: pd.DataFrame,
+    ctx: dict,
+    min_bars: int,
+    once: Callable,
+    lookbacks: tuple[int, ...],
+    **once_kwargs,
+) -> list:
+    """Run ``once`` over each trailing window, keeping the first hit per span.
+
+    Detectors scan several lookbacks so a recent structure is not masked by a
+    longer trend. The dedupe key is the hit's ``(start_date, end_date)``, and
+    the first window to produce a span wins, so ordering is significant.
+    """
+    hits: list = []
+    seen: set = set()
+    for lookback in lookbacks:
+        win = window_slice(df, lookback, min_bars)
+        if win is None:
+            continue
+        start, end = win
+        hit = once(df, ctx, start, end, **once_kwargs)
+        if hit is not None and (hit.start_date, hit.end_date) not in seen:
+            seen.add((hit.start_date, hit.end_date))
+            hits.append(hit)
+    return hits
+
+
 def pattern_end(
     H: list[tuple[int, float]],
     L: list[tuple[int, float]],
@@ -601,7 +676,7 @@ def make_hit(
 
     start_pos = int(max(0, min(start_pos, len(df) - 1)))
     end_pos = int(max(0, min(end_pos, len(df) - 1)))
-    close = df["close"].astype(float)
+    close = df["close"]
 
     return PatternHit(
         pattern_id=pattern_id,
