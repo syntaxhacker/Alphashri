@@ -8,10 +8,13 @@ import { AnimatedValue } from "@/components/common/AnimatedValue";
 import { CompactPanel, CompactStat, CompactStatGrid } from "@/components/common/compact";
 
 import { LevelsInPlayContent } from "./LevelsInPlay";
+import { NiftyGammaStrip } from "./NiftyGammaStrip";
 import { NiftyGammaTime } from "./NiftyGammaTime";
+import { NiftyIntelStrip } from "./NiftyIntelStrip";
 import { NiftyIvStraddle } from "./NiftyIvStraddle";
 import { NiftyParticipantFlow } from "./NiftyParticipantFlow";
 import { NiftyPnlAttribution } from "./NiftyPnlAttribution";
+import { SetupRadarStrip } from "./SetupRadarStrip";
 import { NiftyStructureShifts } from "./NiftyStructureShifts";
 import { NiftyTapeTable } from "./NiftyTapeTable";
 import {
@@ -85,6 +88,11 @@ export function ReportAnalytics() {
 
   const report = () => store.data.report();
   const mode = () => store.selection.mode();
+  const symbol = () => store.selection.symbol();
+  const expiry = () => store.selection.expiry();
+  const date = () => store.selection.date();
+  const setup = () => store.data.setup();
+  const preMove = () => store.data.preMove();
   const isDesk = () => store.ui.isDesk();
   const tape = () => store.data.tape();
   const tapeRows = () => store.data.tapeRows();
@@ -169,6 +177,37 @@ export function ReportAnalytics() {
 
   return (
     <Show when={!isDesk()}>
+      {/* Ranked volume + structural shifts are flow evidence, not reference:
+          they sit first in the below-chart stack, side by side when there is
+          room. Each panel keeps a single border, so the row uses a real gap. */}
+      <Box
+        data-testid="nifty-flow-evidence-row"
+        className="grid grid-cols-1 gap-1 items-stretch w-full max-w-full min-w-0 shrink-0"
+        classList={{
+          "min-[1200px]:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]": report()?.structure != null,
+        }}
+      >
+        <CompactPanel
+          flush
+          padded={false}
+          testId="nifty-unusual-panel-wrap"
+          style={UNUSUAL_PANEL_STYLE}
+        >
+          <NiftyUnusualVolume
+            strikes={report()?.strikes ?? []}
+            spot={report()?.spot ?? 0}
+            updatedAtMs={mode() === "live" ? updatedAtMs() : null}
+            nextUpdateAtMs={nextUpdateAtMs()}
+          />
+        </CompactPanel>
+
+        <Show when={report()?.structure != null}>
+          <Box data-testid="nifty-signals-row" className="flex min-w-0 items-stretch">
+            <NiftyStructureShifts structure={report()?.structure} />
+          </Box>
+        </Show>
+      </Box>
+
       <CompactPanel flush title="OI · tick tape" testId="nifty-tape-panel" style={TAPE_PANEL_STYLE}>
         <Show
           when={tape() && tapeRows().length > 0}
@@ -191,7 +230,7 @@ export function ReportAnalytics() {
 
       <Box
         data-testid="nifty-flow-row"
-        className="grid grid-cols-1 min-[1200px]:grid-cols-2 gap-0 items-start w-full max-w-full min-w-0 shrink-0"
+        className="grid grid-cols-1 min-[1200px]:grid-cols-2 gap-1 items-start w-full max-w-full min-w-0 shrink-0"
       >
         <Box className="min-w-0">
           <NiftyWallMigration rows={migrationRows()} />
@@ -203,7 +242,7 @@ export function ReportAnalytics() {
 
       <div
         data-testid="nifty-vol-row"
-        class="grid grid-cols-1 gap-0 items-start w-full max-w-full min-w-0 shrink-0"
+        class="grid grid-cols-1 gap-1 items-start w-full max-w-full min-w-0 shrink-0"
         classList={{ "min-[1200px]:grid-cols-2": mode() === "live" }}
       >
         <Box className="min-w-0">
@@ -219,6 +258,42 @@ export function ReportAnalytics() {
           </Box>
         </Show>
       </div>
+
+      {/* Reference rail: conditional probability, participant flow and gamma —
+          kept below the chart because none of it changes the next trade. */}
+      <Box
+        data-testid="nifty-reference-rail"
+        className="flex flex-col min-[1200px]:flex-row items-stretch gap-1 w-full max-w-full min-w-0 shrink-0"
+      >
+        <Show when={symbol() === "NIFTY"}>
+          <Box
+            data-testid="nifty-intel-cell"
+            className="min-w-0 flex min-[1200px]:flex-[34_1_0] [&>*]:w-full [&>*]:min-w-0"
+          >
+            <NiftyIntelStrip
+              date={mode() === "eod" ? date() || null : null}
+              expiry={expiry() === "nearest" ? null : expiry()}
+              eod={mode() === "eod"}
+            />
+          </Box>
+        </Show>
+        <Box
+          data-testid="nifty-gamma-cell"
+          className="min-w-0 flex min-[1200px]:flex-[28_1_0] [&>*]:w-full [&>*]:min-w-0"
+        >
+          <NiftyGammaStrip
+            gex={gexForDisplay()}
+            positioning={report()?.positioning}
+            spot={report()?.spot ?? 0}
+          />
+        </Box>
+        <Box
+          data-testid="nifty-setup-cell"
+          className="min-w-0 flex min-[1200px]:flex-[38_1_0] [&>*]:w-full [&>*]:min-w-0"
+        >
+          <SetupRadarStrip read={setup()} preMove={preMove()} />
+        </Box>
+      </Box>
 
       <Box
         data-testid="nifty-detail"
@@ -238,7 +313,7 @@ export function ReportAnalytics() {
           <Box className="flex items-baseline" style={DETAIL_HEAD_LEFT_STYLE}>
             <span style={DETAIL_HEAD_TITLE_STYLE}>Session detail</span>
             <span style={DETAIL_HEAD_SUB_STYLE}>
-              Session forensics · OI bursts, structure, volume, levels, straddle, gamma, flow, P&amp;L
+              Session forensics · straddle, gamma, levels, flow, P&amp;L
             </span>
           </Box>
           <span style={DETAIL_HEAD_ACTION_STYLE}>
@@ -277,36 +352,9 @@ export function ReportAnalytics() {
             </Box>
           </Box>
 
-          <Box
-            data-testid="nifty-signals-grid"
-            className="grid grid-cols-1 min-[1200px]:grid-cols-2 items-start gap-0 w-full max-w-full min-w-0"
-          >
-            <CompactPanel
-              flush
-              padded={false}
-              testId="nifty-unusual-panel-wrap"
-              style={UNUSUAL_PANEL_STYLE}
-            >
-              <NiftyUnusualVolume
-                strikes={report()?.strikes ?? []}
-                spot={report()?.spot ?? 0}
-                updatedAtMs={mode() === "live" ? updatedAtMs() : null}
-                nextUpdateAtMs={nextUpdateAtMs()}
-              />
-            </CompactPanel>
-
-            <Show when={report()?.structure != null}>
-              <Box
-                data-testid="nifty-signals-row"
-                className="flex min-[1200px]:contents flex-wrap items-stretch gap-1 min-w-0"
-              >
-                <NiftyStructureShifts structure={report()?.structure} />
-              </Box>
-            </Show>
-
-            <Show
-              when={report()?.gex}
-              fallback={
+          <Show
+            when={report()?.gex}
+            fallback={
                 <CompactPanel
                   flush
                   title="Next-session levels"
@@ -429,7 +477,6 @@ export function ReportAnalytics() {
                 </Box>
               </CompactPanel>
             </Show>
-          </Box>
 
           <Box data-testid="nifty-levels-in-play" className="min-w-0">
             <LevelsInPlayContent report={report()} sensex={store.data.sensex()} />

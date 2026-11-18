@@ -21,9 +21,6 @@ import {
 } from "./NiftyVerdictStrip";
 import { NiftyFlowWindows } from "./NiftyFlowWindows";
 import { IndexMoversStrip } from "./IndexMoversStrip";
-import { NiftyIntelStrip } from "./NiftyIntelStrip";
-import { NiftyGammaStrip } from "./NiftyGammaStrip";
-import { SetupRadarStrip } from "./SetupRadarStrip";
 import { gexFlipAtSpot } from "./niftyGex";
 import { buildDeskPlan } from "./deskPlan";
 import { summarizeDeskPlan } from "./deskPlanSummary";
@@ -122,7 +119,6 @@ export function ReportDecisionStrip() {
   const symbol = () => store.selection.symbol();
   const mode = () => store.selection.mode();
   const expiry = () => store.selection.expiry();
-  const date = () => store.selection.date();
 
   const regime = () => report()?.regime ?? null;
 
@@ -223,6 +219,25 @@ export function ReportDecisionStrip() {
   const pcrSeries = createMemo(() => tapeRows().map((row) => row.pcr_oi));
 
   const maxPainSeries = createMemo(() => tapeRows().map((row) => row.max_pain));
+
+  // The backend does not ship a previous close, so the header change is
+  // measured from the session open (`ohlc.open`) and says so — a "change"
+  // against an invented prev-close would be a lie on every gap day.
+  const sessionChange = createMemo(() => {
+    const current = report();
+    const open = current?.ohlc?.open ?? 0;
+    if (!current || open <= 0 || !Number.isFinite(current.spot)) return null;
+    const pts = current.spot - open;
+    return { pts, pct: (pts / open) * 100 };
+  });
+
+  const changeTone = () => {
+    const change = sessionChange();
+    if (!change) return palette.TEXT_MUTED;
+    if (change.pts > 0) return palette.POSITIVE;
+    if (change.pts < 0) return palette.NEGATIVE;
+    return palette.TEXT_MUTED;
+  };
 
   const setupSummary = () => {
     const gates = setup().gates;
@@ -343,6 +358,14 @@ export function ReportDecisionStrip() {
         <Box className="flex flex-wrap min-[1200px]:flex-nowrap items-stretch min-w-0 min-h-[28px]">
           <Box data-testid="nifty-decision-stats" className="flex flex-wrap flex-auto min-w-0">
             <DecisionCell
+              testId="nifty-stat-symbol"
+              label="Index"
+              value={symbol()}
+              hint={`${expiry() === "nearest" ? "nearest expiry" : expiry()} · ${mode() === "eod" ? "EOD" : "live"}`}
+              accent={palette.PRIMARY}
+              title="Underlying whose option chain this report was built from."
+            />
+            <DecisionCell
               testId="nifty-stat-spot"
               label="Spot"
               value={
@@ -360,6 +383,20 @@ export function ReportDecisionStrip() {
                   : "intraday range"
               }
               title="NIFTY 50 spot, with today's low–high range underneath."
+            />
+            <DecisionCell
+              testId="nifty-stat-change"
+              label="Change"
+              value={
+                sessionChange() ? formatSignedPoints(sessionChange()!.pts) : "—"
+              }
+              hint={
+                sessionChange()
+                  ? `${sessionChange()!.pct >= 0 ? "+" : ""}${sessionChange()!.pct.toFixed(2)}% vs open`
+                  : "vs session open"
+              }
+              accent={changeTone()}
+              title="Session change against today's open — the report carries no previous close, so this is deliberately not labelled day-change."
             />
             <DecisionCell
               testId="nifty-stat-regime"
@@ -555,41 +592,15 @@ export function ReportDecisionStrip() {
         />
       </Show>
 
-      <Show when={!isDesk()}>
+      {/* Non-desk keeps one plan line under the verdict; intel/gamma/setup are
+          reference content and live below the chart in the analytics rail. */}
+      <Show when={!isDesk() && planLine != null}>
         <Box
-          data-testid="nifty-context-rail"
-          className="flex items-stretch gap-0.5 w-full max-w-full min-w-0 shrink-0"
+          data-testid="nifty-plan-row"
+          className="flex items-center w-full max-w-full min-w-0 shrink-0 [&>*]:w-full [&>*]:min-w-0"
         >
-          <Show when={planLine != null}>
-            <Box className="flex-[38_1_0] min-w-0 flex [&>*]:w-full [&>*]:min-w-0">
-              {planLine}
-            </Box>
-          </Show>
-          <Show when={symbol() === "NIFTY"}>
-            <Box
-              data-testid="nifty-intel-cell"
-              className="flex-[34_1_0] min-w-0 flex [&>*]:w-full [&>*]:min-w-0"
-            >
-              <NiftyIntelStrip
-                date={mode() === "eod" ? date() || null : null}
-                expiry={expiry() === "nearest" ? null : expiry()}
-                eod={mode() === "eod"}
-              />
-            </Box>
-          </Show>
-          <Box
-            data-testid="nifty-gamma-cell"
-            className="flex-[28_1_0] min-w-0 flex [&>*]:w-full [&>*]:min-w-0"
-          >
-            <NiftyGammaStrip
-              gex={gexForDisplay()}
-              positioning={report()?.positioning}
-              spot={report()?.spot ?? 0}
-            />
-          </Box>
+          {planLine}
         </Box>
-
-        <SetupRadarStrip read={setup()} preMove={preMove()} />
       </Show>
     </Show>
   );

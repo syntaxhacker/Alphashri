@@ -1,9 +1,12 @@
 import { ErrorBoundary, Show, Suspense, lazy } from "solid-js";
 import { Box } from "@/ui";
 import * as palette from "@/ui/palette";
+import type { NiftyFutures, NiftyItmPeFlow } from "@/types/niftyReport";
 import { EmptyState, ErrorAlert, InlineLoader } from "@/components/common/states";
 import { ReportProvider, useNiftyReport } from "./ReportContext";
 import { ReportToolbar } from "./ReportToolbar";
+import { NiftyFuturesPanel } from "./NiftyFuturesPanel";
+import { NiftyItmPeFlowPanel } from "./NiftyItmPeFlow";
 
 // Each report section owns its own lazy boundary: the shell chrome (toolbar,
 // date controls) paints from this small chunk while the heavy panels stream in
@@ -56,6 +59,38 @@ function PanelSkeleton(props: { h: number }) {
         "border-radius": "2px",
       }}
     />
+  );
+}
+
+/**
+ * Futures positioning and ITM put flow sit side by side directly above the
+ * chart: they answer "who is positioned how" before the price panel answers
+ * "where did it go". A block that is absent (older backend) is not painted at
+ * all — an empty placeholder row above the chart is worse than no row.
+ */
+export function ReportFlowRow(props: {
+  futures: NiftyFutures | null;
+  itm: NiftyItmPeFlow | null;
+  spot: number;
+}) {
+  const hasFutures = () => props.futures != null;
+  const hasItm = () => props.itm != null;
+
+  return (
+    <Show when={hasFutures() || hasItm()}>
+      <Box
+        data-testid="nifty-flow-above-chart"
+        class="grid grid-cols-1 gap-1 w-full max-w-full min-w-0 shrink-0"
+        classList={{ "min-[1200px]:grid-cols-2": hasFutures() && hasItm() }}
+      >
+        <Show when={hasFutures()}>
+          <NiftyFuturesPanel futures={props.futures} />
+        </Show>
+        <Show when={hasItm()}>
+          <NiftyItmPeFlowPanel flow={props.itm} spot={props.spot} />
+        </Show>
+      </Box>
+    </Show>
   );
 }
 
@@ -119,14 +154,25 @@ function ReportBody() {
               <ReportDecisionStrip />
             </Suspense>
           </ErrorBoundary>
-          <ErrorBoundary fallback={(err) => <SectionError name="desk strips" error={err} />}>
-            <Suspense fallback={<PanelSkeleton h={150} />}>
-              <ReportStrips />
-            </Suspense>
+          <ErrorBoundary fallback={(err) => <SectionError name="flow panels" error={err} />}>
+            <Show when={store.data.report()}>
+              {(current) => (
+                <ReportFlowRow
+                  futures={current().futures ?? null}
+                  itm={current().itm_pe_flow ?? null}
+                  spot={current().spot}
+                />
+              )}
+            </Show>
           </ErrorBoundary>
           <ErrorBoundary fallback={(err) => <SectionError name="workspace" error={err} />}>
             <Suspense fallback={<PanelSkeleton h={320} />}>
               <ReportWorkspace />
+            </Suspense>
+          </ErrorBoundary>
+          <ErrorBoundary fallback={(err) => <SectionError name="desk strips" error={err} />}>
+            <Suspense fallback={<PanelSkeleton h={150} />}>
+              <ReportStrips />
             </Suspense>
           </ErrorBoundary>
           <ErrorBoundary fallback={(err) => <SectionError name="analytics" error={err} />}>

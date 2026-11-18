@@ -15,11 +15,17 @@ import type {
   NiftyEmaSeries,
   NiftyFlowLeg,
   NiftyFlowWindow,
+  NiftyFutures,
+  NiftyFuturesPoint,
+  NiftyFuturesRegime,
   NiftyGex,
   NiftyGexLevel,
   NiftyGexLevels,
   NiftyGexStrike,
   NiftyIntradayCandle,
+  NiftyItmPeFlow,
+  NiftyItmPeFlowPoint,
+  NiftyItmPeStrike,
   NiftyIvSurface,
   NiftyIvSurfacePoint,
   NiftyMarketBlock,
@@ -471,6 +477,80 @@ function normalizeStructure(raw: unknown): NiftyStructureShift[] | undefined {
   return raw.map(normalizeStructureShift);
 }
 
+const FUTURES_REGIMES = [
+  "long_buildup",
+  "short_buildup",
+  "long_unwinding",
+  "short_covering",
+  "neutral",
+] as const satisfies readonly NiftyFuturesRegime[];
+
+function normalizeFuturesPoint(raw: unknown): NiftyFuturesPoint {
+  const row = (raw ?? {}) as Record<string, unknown>;
+  return {
+    t: String(row.t ?? row.time ?? ""),
+    close: safeNum(row.close),
+    oi: safeNum(row.oi),
+    volume: safeNum(row.volume),
+  };
+}
+
+/**
+ * `futures` block — a present block stays present even when its series is
+ * still empty, so the desk can tell "feed connected, no bars yet" from
+ * "this deployment has no futures feed" (absent → null → panel hidden).
+ */
+export function normalizeFutures(raw: unknown): NiftyFutures | null {
+  const f = asBlock(raw);
+  if (!f) return null;
+  const regime = coerceVerdict(f.regime, FUTURES_REGIMES) as NiftyFuturesRegime | null;
+  const asOf = f.as_of ?? f.asOf;
+  return {
+    symbol: String(f.symbol ?? ""),
+    instrument_key: String(f.instrument_key ?? f.instrumentKey ?? ""),
+    expiry: String(f.expiry ?? ""),
+    series: (Array.isArray(f.series) ? f.series : []).map(normalizeFuturesPoint),
+    change_pts: nullNum(f.change_pts ?? f.changePts),
+    oi_change: nullNum(f.oi_change ?? f.oiChange),
+    regime: regime ?? "neutral",
+    as_of: typeof asOf === "string" && asOf ? asOf : null,
+  };
+}
+
+/** Share is derived when the backend omits it: never print a blank ratio. */
+function normalizeItmPePoint(raw: unknown): NiftyItmPeFlowPoint {
+  const row = (raw ?? {}) as Record<string, unknown>;
+  const itm = safeNum(row.itm_pe_vol ?? row.itmPeVol);
+  const total = safeNum(row.total_pe_vol ?? row.totalPeVol);
+  const share = nullNum(row.share_pct ?? row.sharePct);
+  return {
+    t: String(row.t ?? row.time ?? ""),
+    itm_pe_vol: itm,
+    total_pe_vol: total,
+    share_pct: share ?? (total > 0 ? (itm / total) * 100 : 0),
+    spot: safeNum(row.spot),
+  };
+}
+
+/** `itm_pe_flow` block — absent → null (panel hidden), present → empty state. */
+export function normalizeItmPeFlow(raw: unknown): NiftyItmPeFlow | null {
+  const block = asBlock(raw);
+  if (!block) return null;
+  const asOf = block.as_of ?? block.asOf;
+  return {
+    series: (Array.isArray(block.series) ? block.series : []).map(normalizeItmPePoint),
+    top: (Array.isArray(block.top) ? block.top : []).map((entry): NiftyItmPeStrike => {
+      const row = (entry ?? {}) as Record<string, unknown>;
+      return {
+        strike: safeNum(row.strike),
+        volume: safeNum(row.volume),
+        oi: safeNum(row.oi),
+      };
+    }),
+    as_of: typeof asOf === "string" && asOf ? asOf : null,
+  };
+}
+
 /** 1-minute intraday candles — absent/non-array → undefined. */
 export function normalizeIntraday(raw: unknown): NiftyIntradayCandle[] | undefined {
   if (!Array.isArray(raw)) return undefined;
@@ -599,6 +679,8 @@ export function normalizeReport(raw: Record<string, unknown>): NiftyReport {
     positioning: normalizePositioning(raw.positioning),
     structure: normalizeStructure(raw.structure),
     iv_surface: normalizeIvSurface(raw.iv_surface ?? raw.ivSurface),
+    futures: normalizeFutures(raw.futures),
+    itm_pe_flow: normalizeItmPeFlow(raw.itm_pe_flow ?? raw.itmPeFlow),
   };
 }
 
