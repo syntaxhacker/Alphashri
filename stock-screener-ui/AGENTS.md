@@ -570,6 +570,15 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - **Review gate.** The main agent reviews the diff, fills integration gaps, then runs the full affected suite + `oxlint` + `bun run build` + the UI guards before committing. Agents never commit.
 - **Free model pool:** owned by `SUBAGENT_RULES.md §9` — use the pool listed there, one model per independent scope.
 
+### CPU budget — check before heavy tests (MANDATORY)
+Vitest spawns a worker per file and a worker pool can saturate the box; a stranded worker once held **8.4 GB** and pushed an 8-core machine to **3% idle / load 72**, which silently turns every other gate into a timeout.
+
+- **Before** running a full suite, `bun run test`, Playwright, or anything that fans out: check `cat /proc/loadavg` and `top -bn1 | grep "^%Cpu"`.
+- **Required floor: ≥30% idle** (or load average below core count). If it is lower, **wait** — sleep in short increments (10–20 s) up to a minute — and re-check before starting. Report the number you waited for.
+- Prefer targeted runs (`npx vitest run <file>`, `-p no:xdist`) over full sweeps; that is the cheap way to stay under the budget.
+- **After** any cancelled or failed test run, confirm nothing was orphaned: `pgrep -af "vitest|pytest|playwright"`. A cancelled lane's worker keeps consuming CPU and memory and will corrupt the next run's timing.
+- Never run two full suites concurrently (across lanes too), and never run Playwright at `--workers` above what idle CPU can absorb.
+
 ### Comment policy
 - Comments explain **why**, never **what**. No narration (`// set the value`), no docstrings that restate the signature, no changelog comments.
 - Keep a comment only where the code is surprising: a non-obvious constraint, a workaround, an ordering/protocol requirement.
