@@ -1,4 +1,4 @@
-import { Show, createEffect, createMemo, createSignal, on, onMount, type Accessor } from "solid-js";
+import { Show, createEffect, createMemo, createSignal, on, onCleanup, onMount, type Accessor } from "solid-js";
 import { ActionIcon, Box, Select, Text, ToolbarRow } from "@/ui";
 import type { CurrencyCode } from "@/config/currency";
 import { MARKET_UNIVERSE_DESCRIPTORS, marketUniverseDescriptor } from "@/config/marketUniverses";
@@ -13,7 +13,12 @@ import {
   marketMetricOptions,
   type MarketSizeMetric,
 } from "../../market/marketTreemap";
-import { useMarketSnapshotSolid } from "../../market/useMarketSnapshotSolid";
+import type { UseMarketSnapshotResult } from "../../market/useMarketSnapshotSolid";
+import {
+  acquireMarketSnapshot,
+  releaseMarketSnapshot,
+  type MarketSnapshotEntry,
+} from "./marketSnapshotHub";
 import {
   defaultMarketFilters,
   filterMarketRows,
@@ -38,17 +43,48 @@ function MarketHeatmapPanel(props: { data: Accessor<Record<string, unknown> | un
   const dock = useSymbolDock();
   const view = createMemo(() => readUniverse(props.data()));
   const [universe, setUniverse] = createSignal<MarketUniverse>(view());
-  // One-shot mount latch, the window's analogue of MarketScreenerPanel's
-  // configReady: the snapshot hook never fires before a live window mounts us.
-  const [mounted, setMounted] = createSignal(false);
-  onMount(() => setMounted(true));
   // A saved window config arriving later stays authoritative.
   createEffect(on(view, (value) => setUniverse(value)));
 
-  const snapshot = useMarketSnapshotSolid(() => universe(), {
-    enabled: () => mounted(),
-    deferCacheUntilEnabled: true,
+  // The snapshot hook is shared across windows showing the same universe. The
+  // revision signal re-points this panel's facade when the shared entry changes.
+  const [revision, setRevision] = createSignal(0);
+  let entry: MarketSnapshotEntry | null = null;
+  const attach = () => {
+    const next = acquireMarketSnapshot(universe(), { deferCacheUntilEnabled: true });
+    if (next === entry) {
+      // acquire() already took a ref; the effect and onMount both call attach.
+      releaseMarketSnapshot(next);
+      return;
+    }
+    releaseMarketSnapshot(entry);
+    entry = next;
+    setRevision((n) => n + 1);
+  };
+  onMount(attach);
+  createEffect(on(universe, () => attach()));
+  onCleanup(() => {
+    releaseMarketSnapshot(entry);
+    entry = null;
   });
+  const live = () => {
+    revision();
+    return entry?.hook;
+  };
+  const snapshot: UseMarketSnapshotResult = {
+    snapshot: () => live()?.snapshot() ?? null,
+    rows: () => live()?.rows() ?? [],
+    total: () => live()?.total() ?? 0,
+    updateMode: () => live()?.updateMode() ?? null,
+    asOf: () => live()?.asOf() ?? null,
+    isLoading: () => live()?.isLoading() ?? false,
+    error: () => live()?.error() ?? null,
+    refresh: (force) => live()?.refresh(force),
+    lastUpdated: () => live()?.lastUpdated() ?? null,
+    stale: () => live()?.stale() ?? false,
+    ageSec: () => live()?.ageSec() ?? null,
+    warming: () => live()?.warming() ?? false,
+  };
   const [sizeBy, setSizeBy] = createSignal<MarketSizeMetric>(DEFAULT_MARKET_SIZE_METRIC);
 
   const currency = () => marketUniverseDescriptor(universe()).currency;

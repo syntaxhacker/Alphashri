@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
+import { createMemo, type Accessor } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@/ui";
 import type { DockPanelContext } from "../../dock/types";
@@ -166,6 +167,51 @@ describe("options.positioning window panel — owned fetch stays in PositioningP
       "Connect Upstox in Settings",
     );
     expect(screen.queryByTestId("positioning-verdict")).not.toBeInTheDocument();
+  });
+});
+
+function DirectPositioning(props: { ctx: Accessor<DockPanelContext> }) {
+  const data = createMemo(() => OPTIONS_POSITIONING_PANEL.data?.(props.ctx));
+  return <>{OPTIONS_POSITIONING_PANEL.mount(props.ctx, { data, commands: {} })}</>;
+}
+
+function mountTwoPositioning(contexts: DockPanelContext[]) {
+  return render(() => (
+    <UIProvider>
+      {contexts.map((context) => (
+        <DirectPositioning ctx={() => context} />
+      ))}
+    </UIProvider>
+  ));
+}
+
+describe("options.positioning — two-window request count", () => {
+  it("same underlying+expiry: two windows join one positioning fetch", async () => {
+    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(fixture())));
+    mountTwoPositioning([
+      { symbol: "NIFTY", expiry: "2026-11-26" },
+      { symbol: "NIFTY", expiry: "2026-11-26" },
+    ]);
+
+    await waitFor(() =>
+      expect(screen.getAllByTestId("positioning-verdict")).toHaveLength(2),
+    );
+    expect(urls()).toHaveLength(1);
+  });
+
+  it("different expiry: two windows fetch two positionings", async () => {
+    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(fixture())));
+    mountTwoPositioning([
+      { symbol: "NIFTY", expiry: "2026-11-26" },
+      { symbol: "NIFTY", expiry: "2026-12-04" },
+    ]);
+
+    await waitFor(() =>
+      expect(screen.getAllByTestId("positioning-verdict")).toHaveLength(2),
+    );
+    expect(urls()).toHaveLength(2);
+    expect(urls().some((u) => u.includes("expiry=2026-11-26"))).toBe(true);
+    expect(urls().some((u) => u.includes("expiry=2026-12-04"))).toBe(true);
   });
 });
 

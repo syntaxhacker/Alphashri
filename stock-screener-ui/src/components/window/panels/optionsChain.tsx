@@ -6,6 +6,7 @@ import {
   fetchChain,
   type ChainRow,
   type OptionChainLevels,
+  type OptionDockChain,
 } from "@/api/optionsDock";
 import { OptionChainTable } from "../../options-dock/OptionChainTable";
 import type { DockPanelContext, DockPanelSpec } from "../../dock/types";
@@ -39,6 +40,53 @@ const failureOf = (cause: unknown): ChainFailure => {
   };
 };
 
+interface ChainFlight {
+  key: string;
+  promise: Promise<OptionDockChain | null>;
+  controller: AbortController;
+  refs: number;
+  settled: boolean;
+}
+
+const flights = new Map<string, ChainFlight>();
+
+/**
+ * Windows asking for the same symbol+expiry share one in-flight request. Each
+ * panel still owns its symbol/expiry controls; only the identical flight is
+ * coalesced. A settled entry is dropped so Retry really refetches, and the last
+ * subscriber leaving aborts a request nobody is waiting for any more.
+ */
+function acquireChain(symbol: string, expiry: string): ChainFlight {
+  const key = `${symbol}\u0000${expiry}`;
+  let flight = flights.get(key);
+  if (!flight) {
+    const controller = new AbortController();
+    const promise = fetchChain(symbol, expiry, controller.signal);
+    flight = { key, promise, controller, refs: 0, settled: false };
+    flights.set(key, flight);
+    const created = flight;
+    const settle = () => {
+      created.settled = true;
+      if (flights.get(key) === created) flights.delete(key);
+    };
+    // `.finally()` would return a second promise that rejects with the original
+    // error; nobody observes it, so a failed chain would surface as an unhandled
+    // rejection. Handle both outcomes on the same promise instead.
+    void promise.then(settle, settle);
+  }
+  flight.refs += 1;
+  return flight;
+}
+
+function releaseChain(flight: ChainFlight | null): void {
+  if (!flight) return;
+  flight.refs -= 1;
+  if (flight.refs <= 0 && !flight.settled) {
+    flight.controller.abort();
+    if (flights.get(flight.key) === flight) flights.delete(flight.key);
+  }
+}
+
 /**
  * The narrowest real chain surface: the shared `OptionChainTable` (columns and
  * cell semantics included) plus one `fetchChain` flight. It never mounts the
@@ -63,17 +111,16 @@ function OptionsChainWindow(props: { context: Accessor<DockPanelContext> }) {
   const [failure, setFailure] = createSignal<ChainFailure | null>(null);
 
   let requestId = 0;
-  let controller: AbortController | null = null;
+  let heldFlight: ChainFlight | null = null;
 
   const load = async () => {
     const id = ++requestId;
-    controller?.abort();
+    releaseChain(heldFlight);
+    heldFlight = null;
     const sym = symbol().trim().toUpperCase();
     const exp = expiry().trim();
 
     if (!sym || !exp) {
-      if (id !== requestId) return;
-      controller = null;
       setRows([]);
       setSpot(0);
       setLevels(null);
@@ -83,15 +130,14 @@ function OptionsChainWindow(props: { context: Accessor<DockPanelContext> }) {
       return;
     }
 
-    const active = new AbortController();
-    controller = active;
+    const flight = acquireChain(sym, exp);
+    heldFlight = flight;
     setStatus("loading");
     setFailure(null);
 
     try {
-      const chain = await fetchChain(sym, exp, active.signal);
-      if (id !== requestId || active.signal.aborted) return;
-      controller = null;
+      const chain = await flight.promise;
+      if (id !== requestId || flight.controller.signal.aborted) return;
       setSpot(chain?.spot ?? 0);
       setLevels(chain?.levels ?? null);
       setChainExpiry(chain?.expiry || exp);
@@ -105,8 +151,7 @@ function OptionsChainWindow(props: { context: Accessor<DockPanelContext> }) {
       setFailure(null);
       setStatus("ready");
     } catch (cause) {
-      if (id !== requestId || active.signal.aborted) return;
-      controller = null;
+      if (id !== requestId || flight.controller.signal.aborted) return;
       setFailure(failureOf(cause));
       setRows([]);
       setSpot(0);
@@ -121,7 +166,8 @@ function OptionsChainWindow(props: { context: Accessor<DockPanelContext> }) {
   });
   onCleanup(() => {
     requestId += 1;
-    controller?.abort();
+    releaseChain(heldFlight);
+    heldFlight = null;
   });
 
   const onSymbolChange = (value: string) => {

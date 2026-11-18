@@ -102,6 +102,26 @@ afterEach(() => {
   resetSectorState();
 });
 
+describe("sector — two-window request count", () => {
+  it("two table windows share one /api/sector fetch", async () => {
+    renderPanels(["sector.table", "sector.table"]);
+
+    await waitFor(() =>
+      expect(screen.getAllByTestId("sector-row-energy")).toHaveLength(2),
+    );
+    expect(ctl.fetchSectorPerformance).toHaveBeenCalledTimes(1);
+  });
+
+  it("two heatmap windows share one /api/sector fetch", async () => {
+    renderPanels(["sector.heatmap", "sector.heatmap"]);
+
+    await waitFor(() =>
+      expect(screen.getAllByTestId("sector-heatmap-panel")).toHaveLength(2),
+    );
+    expect(ctl.fetchSectorPerformance).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("sector table + interval movers HOME desk panels", () => {
   it("(a) the table renders a sector row from the mocked sector response", async () => {
     renderPanels(["sector.table"]);

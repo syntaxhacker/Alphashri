@@ -129,6 +129,55 @@ afterEach(() => {
   cleanup();
 });
 
+function TwoRotations(props: { ctxs: Accessor<DockPanelContext>[] }) {
+  return (
+    <>
+      {props.ctxs.map((ctx) => {
+        const data = createMemo(() => getPanelSpec("sector.rotation")?.data?.(ctx));
+        const spec = getPanelSpec("sector.rotation")!;
+        return <span>{spec.mount(ctx, { data, commands: {} })}</span>;
+      })}
+    </>
+  );
+}
+
+function renderTwoRotations(contexts: DockPanelContext[]) {
+  return render(() => (
+    <UIProvider>
+      <TwoRotations ctxs={contexts.map((c) => () => c)} />
+    </UIProvider>
+  ));
+}
+
+describe("sector.rotation — two-window request count", () => {
+  it("same market+kind: two windows join one rotation fetch", async () => {
+    renderTwoRotations([{ market: "india" }, { market: "india" }]);
+
+    await waitFor(() =>
+      expect(screen.getAllByTestId("sector-rotation-panel")).toHaveLength(2),
+    );
+    await waitFor(() =>
+      expect(screen.getAllByText("Information Technology")).toHaveLength(2),
+    );
+    expect(ctl.fetchRotationOverview).toHaveBeenCalledTimes(1);
+  });
+
+  it("different market: two windows fetch two rotations", async () => {
+    renderTwoRotations([{ market: "india" }, { market: "america" }]);
+
+    await waitFor(() =>
+      expect(screen.getAllByTestId("sector-rotation-panel")).toHaveLength(2),
+    );
+    await waitFor(() =>
+      expect(screen.getAllByText("Information Technology")).toHaveLength(2),
+    );
+    expect(ctl.fetchRotationOverview).toHaveBeenCalledTimes(2);
+    expect(
+      ctl.fetchRotationOverview.mock.calls.map((c) => c[0]?.market).sort(),
+    ).toEqual(["america", "india"]);
+  });
+});
+
 describe("sector.rotation window panel", () => {
   it("(a) renders a sector label from the mocked rotation response", async () => {
     renderPanel();

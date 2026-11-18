@@ -1,18 +1,14 @@
-import { createMemo, onCleanup, onMount, Show, type Accessor } from "solid-js";
+import { createMemo, onCleanup, onMount, Show } from "solid-js";
+import type { Accessor } from "solid-js";
 import { Box, Loader, Select, Text, ToolbarRow } from "@/ui";
-import { useStoreSubscription } from "@/hooks/useStoreSubscription";
 import type { HeatmapStock } from "@/api/heatmap";
 import type { StockMover } from "@/types/sector";
 import type { MarketRow } from "@/types/marketScreener";
-import type { SectorViewMode } from "@/state/sector";
+import type { SectorMarket, SectorViewMode } from "@/state/sector";
 import {
-  configurePolling,
-  getSectorState,
   loadSectorData,
-  resetSectorState,
   setHeatmapMetric,
   setViewMode,
-  subscribe,
 } from "@/state/sector";
 import { CompactToggle } from "../../sector/CompactToggle";
 import { SectorHeatmapView } from "../../sector/SectorHeatmapView";
@@ -20,36 +16,16 @@ import { SECTOR_STOCK_METRICS } from "../../heatmap/stockTreemap";
 import { toTreemapRow } from "../../market/marketTreemap";
 import { useSymbolDock } from "../../common/symbolDockContext";
 import type { DockPanelContext, DockPanelSpec } from "../../dock/types";
+import {
+  attachSectorPanel,
+  detachSectorPanel,
+  useSectorPanelState,
+} from "./sectorPanelStore";
 
 const VIEW_OPTIONS = [
   { value: "sector", label: "Sectors" },
   { value: "stock", label: "Stocks" },
 ] as const;
-
-/**
- * The store is shared by every open sector panel, so a single panel must not
- * reset it on unmount. These two counters keep one load and one poll alive while
- * at least one panel is mounted, and tear the store down only on the last exit.
- */
-let mounts = 0;
-let inflight: Promise<void> | null = null;
-
-function attach(): void {
-  mounts += 1;
-  // Repeating the same (tab, market) is a no-op in the store — two panels never
-  // stack intervals or fire two initial requests.
-  configurePolling("dashboard", getSectorState().market);
-  const current = getSectorState();
-  if (current.data || current.error || inflight) return;
-  inflight = loadSectorData(current.market).finally(() => {
-    inflight = null;
-  });
-}
-
-function detach(): void {
-  mounts = Math.max(0, mounts - 1);
-  if (mounts === 0) resetSectorState();
-}
 
 /**
  * `top_stock_movers` carries only symbol/change. Supply the converter's input
@@ -92,11 +68,7 @@ function toHeatmapStocks(movers: StockMover[]): HeatmapStock[] {
 
 function SectorHeatmapPanel() {
   const dock = useSymbolDock();
-  const version = useStoreSubscription(subscribe);
-  const state = createMemo(() => {
-    version();
-    return getSectorState();
-  });
+  const state = useSectorPanelState();
   const stocks = createMemo(() => toHeatmapStocks(state().data?.top_stock_movers ?? []));
   const hasContent = createMemo(() =>
     state().viewMode === "stock"
@@ -104,8 +76,8 @@ function SectorHeatmapPanel() {
       : (state().data?.sectors.length ?? 0) > 0,
   );
 
-  onMount(attach);
-  onCleanup(detach);
+  onMount(attachSectorPanel);
+  onCleanup(detachSectorPanel);
 
   return (
     <Box

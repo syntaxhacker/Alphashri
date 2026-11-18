@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
+import { createMemo, type Accessor } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@/ui";
 import {
@@ -175,6 +176,53 @@ describe("options.chain window panel — real chain data", () => {
     expect(error).toHaveAttribute("data-kind", "rate_limited");
     expect(error).toHaveTextContent("Rate limited");
     expect(error).not.toHaveAttribute("data-kind", "auth");
+  });
+});
+
+function DirectChain(props: { ctx: Accessor<DockPanelContext> }) {
+  const data = createMemo(() => OPTIONS_CHAIN_PANEL.data?.(props.ctx));
+  return <>{OPTIONS_CHAIN_PANEL.mount(props.ctx, { data, commands: {} })}</>;
+}
+
+function mountTwoChains(contexts: DockPanelContext[]) {
+  return render(() => (
+    <UIProvider>
+      {contexts.map((context) => (
+        <DirectChain ctx={() => context} />
+      ))}
+    </UIProvider>
+  ));
+}
+
+describe("options.chain — two-window request count", () => {
+  it("same symbol+expiry: two windows join one chain fetch", async () => {
+    fetchChainMock.mockResolvedValue(fixture());
+    mountTwoChains([
+      { symbol: "NIFTY", expiry: "2026-11-26" },
+      { symbol: "NIFTY", expiry: "2026-11-26" },
+    ]);
+
+    await waitFor(() =>
+      expect(screen.getAllByTestId("options-strike-cell-24000")).toHaveLength(2),
+    );
+    expect(fetchChainMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("different expiry: two windows fetch two chains", async () => {
+    fetchChainMock.mockResolvedValue(fixture());
+    mountTwoChains([
+      { symbol: "NIFTY", expiry: "2026-11-26" },
+      { symbol: "NIFTY", expiry: "2026-12-04" },
+    ]);
+
+    await waitFor(() =>
+      expect(screen.getAllByTestId("options-strike-cell-24000")).toHaveLength(2),
+    );
+    expect(fetchChainMock).toHaveBeenCalledTimes(2);
+    expect(fetchChainMock.mock.calls.map((c) => c[1]).sort()).toEqual([
+      "2026-11-26",
+      "2026-12-04",
+    ]);
   });
 });
 

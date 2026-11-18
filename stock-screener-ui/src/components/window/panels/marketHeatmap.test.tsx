@@ -152,6 +152,38 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
+describe("market.heatmap — two-window request count", () => {
+  it("same universe: two windows share one snapshot poller", async () => {
+    ctl.setRows([row("RELIANCE", 1)]);
+    render(() => (
+      <UIProvider>
+        <MountSpec />
+        <MountSpec />
+      </UIProvider>
+    ));
+
+    await waitFor(() =>
+      expect(screen.getAllByTestId("market-heatmap-panel")).toHaveLength(2),
+    );
+    expect(ctl.fetches).toHaveLength(1);
+  });
+
+  it("two windows keep independent universe controls", async () => {
+    ctl.setRows([row("RELIANCE", 1)]);
+    render(() => (
+      <UIProvider>
+        <MountSpec />
+        <MountSpec />
+      </UIProvider>
+    ));
+
+    const selects = screen.getAllByTestId("market-heatmap-universe");
+    expect(selects).toHaveLength(2);
+    fireEvent.input(selects[0].querySelector("select")!, { target: { value: "nifty50" } });
+    await waitFor(() => expect(ctl.fetches.at(-1)).toContain("universe=nifty50"));
+  });
+});
+
 describe("market.heatmap window panel", () => {
   it("(a) mounts the real market-map-view with rows from the snapshot", async () => {
     ctl.setRows([row("RELIANCE", 1.2), row("TCS", -0.8)]);

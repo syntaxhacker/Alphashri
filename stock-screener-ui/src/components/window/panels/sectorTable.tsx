@@ -1,73 +1,24 @@
-import { createMemo, onCleanup, onMount, Show, type Accessor } from "solid-js";
+import { createMemo, onCleanup, onMount, Show } from "solid-js";
+import type { Accessor } from "solid-js";
 import { Box, Loader, Text, ToolbarRow } from "@/ui";
-import { useStoreSubscription } from "@/hooks/useStoreSubscription";
-import type { SectorMarket, SectorState } from "@/state/sector";
-import {
-  configurePolling,
-  getSectorState,
-  loadSectorData,
-  resetSectorState,
-  setMarket,
-  subscribe,
-} from "@/state/sector";
+import { loadSectorData } from "@/state/sector";
+import type { SectorMarket } from "@/state/sector";
 import { SectorTable } from "../../sector/SectorTable";
 import { CompactToggle } from "../../sector/CompactToggle";
 import type { DockPanelContext, DockPanelSpec } from "../../dock/types";
+import {
+  attachSectorPanel,
+  detachSectorPanel,
+  switchSectorMarket,
+  useSectorPanelState,
+} from "./sectorPanelStore";
+
+export { attachSectorPanel, detachSectorPanel, switchSectorMarket, useSectorPanelState };
 
 const MARKET_OPTIONS = [
   { value: "india", label: "India" },
   { value: "america", label: "America" },
 ] as const;
-
-/**
- * Every sector window reads one store. The heatmap owns the same ref-counted
- * pattern in its own module; these two panels share one counter between them,
- * so adding either window adds neither a load nor a poll of its own.
- */
-let mounts = 0;
-let inflight: Promise<void> | null = null;
-let primed = false;
-
-export function attachSectorPanel(): void {
-  mounts += 1;
-  // Same-key configurePolling is a no-op in the store — no stacked intervals.
-  configurePolling("dashboard", getSectorState().market);
-  const current = getSectorState();
-  if (current.data || current.error || inflight) return;
-  // `loading` starts true before any request exists. Only a primed panel can
-  // treat it as an in-flight request; a fresh panel-only desk must still load.
-  if (primed && current.loading) return;
-  primed = true;
-  inflight = loadSectorData(current.market).finally(() => {
-    inflight = null;
-  });
-}
-
-export function detachSectorPanel(): void {
-  mounts = Math.max(0, mounts - 1);
-  if (mounts === 0) {
-    primed = false;
-    resetSectorState();
-  }
-}
-
-export function switchSectorMarket(market: SectorMarket): void {
-  if (getSectorState().market === market) return;
-  setMarket(market);
-  configurePolling("dashboard", market);
-  inflight = loadSectorData(market).finally(() => {
-    inflight = null;
-  });
-}
-
-/** Same subscribe + snapshot shape the heatmap panel uses. */
-export function useSectorPanelState(): Accessor<SectorState> {
-  const version = useStoreSubscription(subscribe);
-  return createMemo(() => {
-    version();
-    return getSectorState();
-  });
-}
 
 function SectorTablePanel() {
   const state = useSectorPanelState();

@@ -10,6 +10,7 @@ import {
 } from "solid-js";
 import { Box, Loader, Select, Text, ToolbarRow } from "@/ui";
 import { fetchRotationOverview } from "@/api/rotation";
+import { dedupeInFlight } from "@/api/requestDedupe";
 import type {
   RotationKind,
   RotationOverviewResponse,
@@ -50,15 +51,23 @@ function SectorRotationPanel(props: { ctx: Accessor<DockPanelContext> }) {
     onCleanup(() => controller.abort());
     setLoading(true);
     setError(null);
-    fetchRotationOverview({
-      market: m,
-      kind: k,
-      minMembers: 1,
-      limit: 48,
-      signal: controller.signal,
-    })
+    // Only identical (market, kind) flights are joined. Each window keeps its
+    // own selects and its own AbortController, so two windows showing different
+    // rotation groups still issue two independent requests.
+    void dedupeInFlight(
+      `rotation\u0000${m}\u0000${k}`,
+      (signal) =>
+        fetchRotationOverview({
+          market: m,
+          kind: k,
+          minMembers: 1,
+          limit: 48,
+          signal,
+        }),
+      controller.signal,
+    )
       .then((response) => {
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || response === null) return;
         setData(response);
       })
       .catch((err: unknown) => {
