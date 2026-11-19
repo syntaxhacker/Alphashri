@@ -1072,6 +1072,7 @@ OPENAPI_TAGS = [
     {"name": "value", "description": "Deep Value screener (India / USA / Global)."},
     {"name": "market", "description": "NSE market snapshot powering the one-page screener."},
     {"name": "events", "description": "Event Radar: scheduled corporate catalysts and intraday tripwires."},
+    {"name": "catalysts", "description": "Home Monitor: ranked scheduled and breaking market catalysts."},
     {"name": "sector", "description": "Sector rotation and sector-level analytics."},
     {"name": "rotation", "description": "Market rotation analytics."},
     {"name": "correlation", "description": "Cross-asset correlation matrices."},
@@ -1720,8 +1721,13 @@ _include_api("api.reports_api.nifty", "router", "Nifty Report", msg="✅ Nifty R
 
 _include_api("api.reports_api.nifty_ws", "router", "Nifty WS", msg="✅ Nifty WS API loaded at /ws/nifty/report + /ws/nifty/bursts")
 
+_include_api("api.reports_api.fyers_ws", "router", "Fyers ticks WS", msg="✅ Fyers ticks WS loaded at /ws/fyers/ticks")
+
 # --- Event Radar ---
 _include_api("api.event_radar.router", "router", "event radar", msg="✅ Event radar API loaded at /api/events")
+
+# --- Home Monitor ---
+_include_api("api.catalyst_radar.router", "router", "catalyst radar", msg="✅ Catalyst radar API loaded at /api/catalysts")
 
 if __name__ == '__main__':
     port = config.PORT
