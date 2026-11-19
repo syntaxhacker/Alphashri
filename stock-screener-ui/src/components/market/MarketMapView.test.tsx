@@ -584,7 +584,7 @@ describe("robust colour domain in the flat map", () => {
 });
 
 /** Cividis is sequential: without a stated direction a negative value looks "cool" for the wrong reason. */
-describe("MarketMapView — cividis legend states direction", () => {
+describe("MarketMapView — viridis legend states direction", () => {
   test("(e) the legend reads low → high and never claims green/red", async () => {
     const rows = [row("A", 100, 55), row("B", 200, 70)];
     await renderMap(() => <MarketMapView rows={rows} />);
@@ -592,12 +592,12 @@ describe("MarketMapView — cividis legend states direction", () => {
     expect(screen.getByTestId("market-map-color-direction")).toHaveTextContent("low → high");
     expect(legend).not.toHaveTextContent(/green|red/i);
     const bar = screen.getByTestId("market-map-color-range").querySelector("div[style*='linear-gradient']") as HTMLElement;
-    expect(bar.getAttribute("style")).toContain("#00224e");
-    expect(bar.getAttribute("style")).toContain("#fee838");
+    expect(bar.getAttribute("style")).toContain("#440154");
+    expect(bar.getAttribute("style")).toContain("#fde725");
   });
 });
 
-/** Audit: cividis has no zero anchor, so the legend must say what hue encodes. */
+/** Audit: viridis has no zero anchor, so the legend must say what hue encodes. */
 describe("MarketMapView — legend honesty audit", () => {
   const flatRows = () => [
     { ...row("LOSS", 100, 55), change: -5 },

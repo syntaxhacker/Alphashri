@@ -13,7 +13,7 @@ import {
   BORDER,
   CREAM,
   BROWN_DARK,
-  CIVIDIS_STOPS,
+  VIRIDIS_STOPS,
   SURFACE_ALT,
   TEXT,
   TEXT_ON_ACCENT,
@@ -154,7 +154,7 @@ export function marketMetricOptions(currency?: CurrencyCode): MarketMetricOption
  * finite non-zero value anywhere in the snapshot cannot produce a tile: mark
  * it disabled in Size by (the option stays so a controlled select keeps its
  * value across refreshes). It stays selectable for Colour by, where a flat or
- * missing distribution still gets an honest cividis fill.
+ * missing distribution still gets an honest viridis fill.
  */
 export function usableSizeMetrics(
   stocks: HeatmapStock[],
@@ -350,20 +350,20 @@ function hexToRgb(hex: string): Rgb {
 
 /**
  * Market-local stops. The shared RAMP_* stops are byte-pinned by the NSE and
- * sector builder snapshots, so the market map owns its own ramp. Cividis is
- * monotone in luminance across all 17 stops: low → dark blue, high → yellow.
+ * sector builder snapshots, so the market map owns its own ramp. Viridis is
+ * monotone in luminance across all 17 stops: low → deep purple, high → yellow.
  */
-const CIVIDIS_RGB: Rgb[] = CIVIDIS_STOPS.map(hexToRgb);
-const CIVIDIS_LAST = CIVIDIS_RGB.length - 1;
+const VIRIDIS_RGB: Rgb[] = VIRIDIS_STOPS.map(hexToRgb);
+const VIRIDIS_LAST = VIRIDIS_RGB.length - 1;
 
 /** t is the 0..100 position on the ramp; NaN degrades to the mid stop. */
 export function marketLerpRgb(t: number): string {
-  if (!Number.isFinite(t)) return `rgb(${CIVIDIS_RGB[8]!.join(",")})`;
-  const scaled = (Math.min(Math.max(t, 0), 100) / 100) * CIVIDIS_LAST;
-  const index = Math.min(Math.floor(scaled), CIVIDIS_LAST - 1);
+  if (!Number.isFinite(t)) return `rgb(${VIRIDIS_RGB[8]!.join(",")})`;
+  const scaled = (Math.min(Math.max(t, 0), 100) / 100) * VIRIDIS_LAST;
+  const index = Math.min(Math.floor(scaled), VIRIDIS_LAST - 1);
   const p = scaled - index;
-  const a = CIVIDIS_RGB[index]!;
-  const b = CIVIDIS_RGB[index + 1]!;
+  const a = VIRIDIS_RGB[index]!;
+  const b = VIRIDIS_RGB[index + 1]!;
   const r = Math.round(a[0] + p * (b[0] - a[0]));
   const g = Math.round(a[1] + p * (b[1] - a[1]));
   const blue = Math.round(a[2] + p * (b[2] - a[2]));
@@ -371,7 +371,7 @@ export function marketLerpRgb(t: number): string {
 }
 
 /**
- * Linear position in [min,max] → the SAME cividis ramp for every metric.
+ * Linear position in [min,max] → the SAME viridis ramp for every metric.
  * `getMetricColor`'s shared `norm()` is a log scale that divides by zero below
  * 1 and is left alone; the market ramp computes its position locally. Zero is
  * not a neutral anchor — a value's position is all that decides its fill.
@@ -429,18 +429,18 @@ export function marketTileTextColor(
   minOrMax: number,
   max?: number,
 ): string {
-  // Every cividis stop clears 4.5:1 with the better ink; the substituted mid
-  // clears with BOTH, so the crossover no longer depends on which ink wins.
+  // Every viridis stop clears 4.5:1 with the better ink, so the label never
+  // lands on an unreadable mid-tone.
   return pickTextColor(marketTileColor(metricOrValue, valueOrMin, minOrMax, max), TEXT_ON_ACCENT);
 }
 
 /** The exact 17-stop ramp used by the tiles, for the legend swatch. */
 export function marketColorRampCss(): string {
-  return `linear-gradient(to right, ${CIVIDIS_STOPS.join(", ")})`;
+  return `linear-gradient(to right, ${VIRIDIS_STOPS.join(", ")})`;
 }
 
 /**
- * Cividis is sequential: hue is the value's position in the clamped domain,
+ * Viridis is sequential: hue is the value's position in the clamped domain,
  * never a gain/loss pole. Both legends print this one string so they cannot
  * drift apart, and a loss and a gain near the midpoint read alike by design.
  */

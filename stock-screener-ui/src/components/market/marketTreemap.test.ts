@@ -41,7 +41,7 @@ import { currencyFor } from "@/config/currency";
 import {
   BG,
   SURFACE,
-  CIVIDIS_STOPS,
+  VIRIDIS_STOPS,
   MARKET_RAMP_NEUTRAL,
   MARKET_RAMP_STRONG_GREEN,
   MARKET_RAMP_STRONG_RED,
@@ -440,7 +440,7 @@ describe("tile area and emitted order follow the selected metric", () => {
   });
 });
 
-describe("every metric paints with the cividis ramp, never a new hue", () => {
+describe("every metric paints with the viridis ramp, never a new hue", () => {
   const ranges: Array<[string, number, number, number]> = [
     ["bounded sub-1 range", 0.5, 0.2, 0.9],
     ["0..1 range", 0.5, 0, 1],
@@ -453,7 +453,7 @@ describe("every metric paints with the cividis ramp, never a new hue", () => {
   const INK = /^#[0-9a-fA-F]{6}$/;
 
   test.each(MARKET_SIZE_METRIC_VALUES)(
-    "%s stays inside the cividis ramp for hostile ranges",
+    "%s stays inside the viridis ramp for hostile ranges",
     (metric) => {
       for (const [label, value, min, max] of ranges) {
         const fill = marketTileColor(metric, value, min, max);
@@ -481,9 +481,9 @@ describe("every metric paints with the cividis ramp, never a new hue", () => {
     expect(gain).toBe(marketSignedMetricColor(5, -5, 5));
   });
 
-  test("the legend gradient is the 17-stop cividis ramp", () => {
+  test("the legend gradient is the 17-stop viridis ramp", () => {
     const css = marketColorRampCss();
-    for (const stop of CIVIDIS_STOPS) expect(css, `${stop} missing from the legend`).toContain(stop);
+    for (const stop of VIRIDIS_STOPS) expect(css, `${stop} missing from the legend`).toContain(stop);
     for (const stop of [MARKET_RAMP_STRONG_RED, MARKET_RAMP_NEUTRAL, MARKET_RAMP_STRONG_GREEN]) {
       expect(css).not.toContain(stop);
     }
@@ -1094,15 +1094,14 @@ describe("market ramp — intensity grows with magnitude", () => {
 });
 
 /**
- * The measured cividis spec: matplotlib `cm.cividis(i/16)` for i=0..16, with
- * stop 8 substituted (see palette.ts for the measured contrast). Kept as
+ * The measured viridis spec: matplotlib `cm.viridis(i/16)` for i=0..16. Kept as
  * literals here so the ramp cannot drift from the gallery without a deliberate
  * edit to this spec — the old green/red ramp must fail every test below.
  */
-const CIVIDIS_SPEC = [
-  "#00224e", "#002e6a", "#1a386f", "#32436d", "#434e6c", "#535a6d", "#61656f", "#6f7073",
-  "#797674",
-  "#8c8878", "#9b9476", "#aba072", "#bcae6c", "#cdbb63", "#dec958", "#f0d846", "#fee838",
+const VIRIDIS_SPEC = [
+  "#440154", "#48186a", "#472d7b", "#424086", "#3b528b", "#33638d", "#2c728e", "#26828e",
+  "#21918c",
+  "#1fa088", "#28ae80", "#3fbc73", "#5ec962", "#84d44b", "#addc30", "#d8e219", "#fde725",
 ] as const;
 
 const specRgb = (hex: string): string => {
@@ -1110,10 +1109,10 @@ const specRgb = (hex: string): string => {
   return `rgb(${parseInt(h.slice(0, 2), 16)},${parseInt(h.slice(2, 4), 16)},${parseInt(h.slice(4, 6), 16)})`;
 };
 
-describe("cividis market ramp — measured spec", () => {
+describe("viridis market ramp — measured spec", () => {
   test("(a) relative luminance rises strictly at every one of the 17 anchors", () => {
-    const anchors = CIVIDIS_SPEC.map((_, i) => marketLerpRgb((i * 100) / 16));
-    expect(anchors).toEqual(CIVIDIS_SPEC.map(specRgb));
+    const anchors = VIRIDIS_SPEC.map((_, i) => marketLerpRgb((i * 100) / 16));
+    expect(anchors).toEqual(VIRIDIS_SPEC.map(specRgb));
     const lightness = anchors.map(relativeLuminance);
     for (let i = 1; i < lightness.length; i++) {
       expect(lightness[i], `stop ${i - 1} ${anchors[i - 1]} → stop ${i} ${anchors[i]}`).toBeGreaterThan(
@@ -1124,7 +1123,7 @@ describe("cividis market ramp — measured spec", () => {
     // just the raw ramp — sample the signed domain at each anchor.
     const min = -43;
     const max = 43;
-    const throughTile = CIVIDIS_SPEC.map((_, i) =>
+    const throughTile = VIRIDIS_SPEC.map((_, i) =>
       relativeLuminance(marketTileColor("perf_1m", min + (i / 16) * (max - min), min, max)),
     );
     for (let i = 1; i < throughTile.length; i++) {
@@ -1132,28 +1131,27 @@ describe("cividis market ramp — measured spec", () => {
     }
   });
 
-  test("(b) every stop gets a label ink at >= 4.5:1 — stop 8 clears with BOTH inks", () => {
-    for (let i = 0; i < CIVIDIS_SPEC.length; i++) {
+  test("(b) every stop gets a label ink at >= 4.5:1", () => {
+    for (let i = 0; i < VIRIDIS_SPEC.length; i++) {
       // Use the ramp the app actually emits, not the frozen spec literals.
       const fill = marketLerpRgb((i * 100) / 16);
       const ink = pickTextColor(fill, TEXT_ON_ACCENT);
       const ratio = contrastRatio(ink, fill);
       expect(ratio, `stop ${i} ${fill}: ${ink} = ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
     }
-    // The substituted stop must clear with either ink, so the crossover no
-    // longer depends on which one pickTextColor happens to choose.
-    expect(marketLerpRgb(50), "ramp midpoint must be the substituted stop 8").toBe(specRgb("#797674"));
-    const fixed = specRgb(CIVIDIS_SPEC[8]!);
-    expect(contrastRatio(TEXT_ON_ACCENT, fixed), `white on ${fixed}`).toBeGreaterThanOrEqual(4.5);
-    expect(contrastRatio(BG, fixed), `black on ${fixed}`).toBeGreaterThanOrEqual(4.5);
-    // matplotlib's exact mid is the reason for the substitution.
-    expect(contrastRatio(TEXT_ON_ACCENT, "rgb(125,124,120)")).toBeLessThan(4.5);
+    // The midpoint is the tightest stop on this ramp; assert it clears with
+    // the ink `pickTextColor` actually picks. Viridis needs no substitution —
+    // unlike cividis, whose exact mid `#7d7c78` fell below 4.5:1 with white.
+    expect(marketLerpRgb(50), "ramp midpoint must be viridis stop 8").toBe(specRgb("#21918c"));
+    const mid = specRgb(VIRIDIS_SPEC[8]!);
+    const midInk = pickTextColor(mid, TEXT_ON_ACCENT);
+    expect(contrastRatio(midInk, mid), `${midInk} on ${mid}`).toBeGreaterThanOrEqual(4.5);
   });
 
   test("signed and unsigned metrics use the SAME sequential position → ramp mapping", () => {
     const signedMin = -43;
     const signedMax = 43;
-    for (let i = 0; i < CIVIDIS_SPEC.length; i++) {
+    for (let i = 0; i < VIRIDIS_SPEC.length; i++) {
       const value = signedMin + (i / 16) * (signedMax - signedMin);
       expect(marketTileColor("perf_1m", value, signedMin, signedMax), `signed anchor ${i}`).toBe(
         marketLerpRgb((i * 100) / 16),
@@ -1161,7 +1159,7 @@ describe("cividis market ramp — measured spec", () => {
     }
     // An unsigned metric maps its own [min,max] onto the identical ramp: low →
     // dark blue, high → yellow. Zero is no longer a neutral anchor.
-    for (let i = 0; i < CIVIDIS_SPEC.length; i++) {
+    for (let i = 0; i < VIRIDIS_SPEC.length; i++) {
       const value = 10 + (i / 16) * 90;
       expect(marketTileColor("rsi", value, 10, 100), `unsigned anchor ${i}`).toBe(
         marketLerpRgb((i * 100) / 16),
@@ -1174,7 +1172,7 @@ describe("cividis market ramp — measured spec", () => {
     const values = [-43, -5, 0, 5, 12026];
     const stocks = values.map((v, i) => ({ symbol: `S${i}`, perf_1m: v } as unknown as HeatmapStock));
     const domain = marketColorDomain(stocks, "perf_1m");
-    expect(marketTileColor("perf_1m", 12026, domain.min, domain.max)).toBe(specRgb("#fee838"));
+    expect(marketTileColor("perf_1m", 12026, domain.min, domain.max)).toBe(specRgb("#fde725"));
     expect(domain.clampedHigh).toBe(true);
     expect(domain.max).toBeLessThan(100);
     const lum = (v: number) => relativeLuminance(marketTileColor("perf_1m", v, domain.min, domain.max));
@@ -1188,9 +1186,9 @@ describe("cividis market ramp — measured spec", () => {
     // the market map changes ramp. The market ramp is local for this reason.
     expect(getSignedMetricColor(-2.5, -2.5, 1.25)).toBe("rgb(168,41,50)");
     expect(getSignedMetricColor(1.25, -2.5, 1.25)).toBe("rgb(24,155,95)");
-    expect(getMetricColor(0.5, 0, 1)).not.toBe(specRgb("#fee838"));
+    expect(getMetricColor(0.5, 0, 1)).not.toBe(specRgb("#fde725"));
     // ...while the MARKET ramp has moved off that green/red pair entirely.
-    expect(marketTileColor("perf_1m", 43, -43, 43)).toBe(specRgb("#fee838"));
+    expect(marketTileColor("perf_1m", 43, -43, 43)).toBe(specRgb("#fde725"));
   });
 });
 

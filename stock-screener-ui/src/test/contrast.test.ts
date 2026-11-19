@@ -159,27 +159,27 @@ describe("contrast — hostile input never throws", () => {
 });
 
 /**
- * Cividis mid-tones are the hardest fills on the market map: the ramp crosses
- * the luminance band where neither off-white nor near-black ink is comfortable.
- * These are the measured matplotlib stops with the documented stop-8 adjustment.
+ * The market map's mid-tones are the hardest fills: the ramp crosses the
+ * luminance band where neither off-white nor near-black ink is comfortable.
+ * These are the measured matplotlib viridis stops — no substitution is needed
+ * because every stop clears 4.5:1 with at least one of the two inks.
  */
-const CIVIDIS_STOPS: readonly string[] =
-  (palette as unknown as { CIVIDIS_STOPS?: readonly string[] }).CIVIDIS_STOPS ?? [];
+const VIRIDIS_STOPS: readonly string[] =
+  (palette as unknown as { VIRIDIS_STOPS?: readonly string[] }).VIRIDIS_STOPS ?? [];
 
-describe("contrast — cividis market ramp is fully labelable", () => {
+describe("contrast — viridis market ramp is fully labelable", () => {
   it("picks a label ink clearing 4.5:1 for all 17 stops", () => {
-    expect(CIVIDIS_STOPS, "palette must export the 17 cividis stops").toHaveLength(17);
-    for (const [i, fill] of CIVIDIS_STOPS.entries()) {
+    expect(VIRIDIS_STOPS, "palette must export the 17 viridis stops").toHaveLength(17);
+    for (const [i, fill] of VIRIDIS_STOPS.entries()) {
       const ink = pickTextColor(fill, "#FFFFFF");
       const ratio = contrastRatio(ink, fill);
       expect(ratio, `stop ${i} ${fill}: ${ink} = ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(AA_TEXT);
     }
   });
 
-  it("the substituted stop 8 clears with both inks; matplotlib's exact mid does not", () => {
-    expect(CIVIDIS_STOPS[8], "stop 8 must be the measured substitution").toBe("#797674");
-    expect(contrastRatio("#FFFFFF", "#797674")).toBeGreaterThanOrEqual(AA_TEXT);
-    expect(contrastRatio("#000000", "#797674")).toBeGreaterThanOrEqual(AA_TEXT);
-    expect(contrastRatio("#FFFFFF", "#7d7c78")).toBeLessThan(AA_TEXT);
+  it("matches matplotlib cm.viridis exactly, so the ramp cannot drift", () => {
+    expect(VIRIDIS_STOPS[0]).toBe("#440154");
+    expect(VIRIDIS_STOPS[8]).toBe("#21918c");
+    expect(VIRIDIS_STOPS[16]).toBe("#fde725");
   });
 });

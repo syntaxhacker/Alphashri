@@ -210,28 +210,26 @@ export const RAMP_RED = "#D0454C";
 export const RAMP_STRONG_RED = "#A82932";
 
 // Legacy market-map green/red ramp. Kept exported for callers/tests that still
-// import it, but the Market heatmap no longer paints with it — see CIVIDIS_STOPS.
+// import it, but the Market heatmap no longer paints with it — see VIRIDIS_STOPS.
 // The shared RAMP_* stops above remain byte-pinned by the NSE/sector snapshots.
 export const MARKET_RAMP_STRONG_GREEN = "#3FD48A";
 export const MARKET_RAMP_NEUTRAL = "#606A76";
 export const MARKET_RAMP_RED = "#E86E78";
 export const MARKET_RAMP_STRONG_RED = "#FF939B";
 
-// Market heatmap ramp: cividis, matplotlib's CVD-optimised sequential map,
-// sampled at cm.cividis(i/16) for i=0..16. One ramp for BOTH signed and unsigned
-// metrics — luminance rises at every step, so magnitude always reads as
-// intensity and no hue has to be decoded. The legend states low → high because
-// a sequential ramp has no zero anchor.
+// Market heatmap ramp: viridis, matplotlib's perceptually uniform sequential
+// map, sampled at cm.viridis(i/16) for i=0..16. One ramp for BOTH signed and
+// unsigned metrics — luminance rises at every step, so magnitude always reads
+// as intensity and no hue has to be decoded. The legend states low → high
+// because a sequential ramp has no zero anchor.
 //
-// Stop 8 is the sole measured substitution. matplotlib's exact mid `#7d7c78`
-// (L=0.2013) sits at the ink crossover: 4.18:1 with #FFF and 5.03:1 with #000,
-// and under the off-white/near-black pair it leaves no comfortable label ink.
-// `#797674` (L=0.1828) clears 4.51:1 with #FFF and 4.66:1 with #000, and stays
-// strictly between stops 7 (0.1621) and 9 (0.2454) in luminance.
-export const CIVIDIS_STOPS = [
-  "#00224e", "#002e6a", "#1a386f", "#32436d", "#434e6c", "#535a6d", "#61656f", "#6f7073",
-  "#797674",
-  "#8c8878", "#9b9476", "#aba072", "#bcae6c", "#cdbb63", "#dec958", "#f0d846", "#fee838",
+// Unlike cividis, viridis needs no substituted stop: every one of the 17 stops
+// clears 4.5:1 against at least one of the two label inks on its own (the
+// tightest is stop 7 `#21918c`-adjacent `#26828e` at 4.67:1 with near-black).
+export const VIRIDIS_STOPS = [
+  "#440154", "#48186a", "#472d7b", "#424086", "#3b528b", "#33638d", "#2c728e", "#26828e",
+  "#21918c",
+  "#1fa088", "#28ae80", "#3fbc73", "#5ec962", "#84d44b", "#addc30", "#d8e219", "#fde725",
 ] as const;
 
 // Sector rotation (RRG quadrants + rotation status) — muted, never neon.

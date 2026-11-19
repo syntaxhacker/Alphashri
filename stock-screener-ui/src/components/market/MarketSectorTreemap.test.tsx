@@ -238,8 +238,8 @@ describe("robust colour domain in the nested map", () => {
 });
 
 /** Both canvases call the same helper, so a signed and an unsigned value must paint identically. */
-describe("MarketSectorTreemap — identical cividis colours in both treemaps", () => {
-  test("(c) the same value + metric paints the same cividis fill in flat and sector maps", async () => {
+describe("MarketSectorTreemap — identical viridis colours in both treemaps", () => {
+  test("(c) the same value + metric paints the same viridis fill in flat and sector maps", async () => {
     const rows = [
       { ...row("GAIN", "Energy", -4.8), perf1m: 29.3, rsi: 82 },
       { ...row("LOSS", "IT", 2.1), perf1m: -12.9, rsi: 18 },
@@ -260,9 +260,9 @@ describe("MarketSectorTreemap — identical cividis colours in both treemaps", (
     );
     expect(flatSigned.GAIN).toBe(sectorSigned.GAIN);
     expect(flatSigned.LOSS).toBe(sectorSigned.LOSS);
-    // GAIN is the domain maximum, so cividis paints it yellow — never the old
+    // GAIN is the domain maximum, so viridis paints it yellow — never the old
     // strong-green fill the shared heatmap ramp used for a +29.3% move.
-    expect(flatSigned.GAIN).toBe("rgb(254,232,56)");
+    expect(flatSigned.GAIN).toBe("rgb(253,231,37)");
 
     // Now an unsigned metric — the identical mapping must hold there too.
     captured.option = null;
@@ -281,8 +281,8 @@ describe("MarketSectorTreemap — identical cividis colours in both treemaps", (
     expect(screen.getByTestId("market-sector-map-color-direction")).toHaveTextContent("low → high");
     expect(screen.getByTestId("market-sector-map-legend")).not.toHaveTextContent(/green|red/i);
     const bar = screen.getByTestId("market-sector-map-color-range").querySelector("div[style*='linear-gradient']") as HTMLElement;
-    expect(bar.getAttribute("style")).toContain("#00224e");
-    expect(bar.getAttribute("style")).toContain("#fee838");
+    expect(bar.getAttribute("style")).toContain("#440154");
+    expect(bar.getAttribute("style")).toContain("#fde725");
   });
 });
 
