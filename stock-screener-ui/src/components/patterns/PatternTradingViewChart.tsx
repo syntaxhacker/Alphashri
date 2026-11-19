@@ -55,9 +55,9 @@ function clampWidth(w?: number): LineWidth {
 /** Stable empty set so the visibility effect never sees a new reference. */
 const EMPTY_HIDDEN: ReadonlySet<string> = new Set<string>();
 
-/** Candle bodies are directional; `MARKER_BORDER` is a marker outline, not a fill. */
-const CANDLE_UP = palette.POSITIVE;
-const CANDLE_DOWN = palette.NEGATIVE;
+/** Candle scheme from the chart options, reused to fade a still-forming bar. */
+const CANDLE_UP = palette.MARKER_BORDER;
+const CANDLE_DOWN = palette.SCALE_BLUE[6] ?? palette.NEGATIVE;
 const PARTIAL_OPACITY = 0.4;
 
 function visibleMarkers(markers: TVMarker[], hidden: ReadonlySet<string>): TVMarker[] {
