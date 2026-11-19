@@ -7,6 +7,12 @@ export interface WindowState {
   z: number;
   minimized?: boolean;
   maximized?: boolean;
+  /**
+   * Panel-owned, JSON-safe settings. Additive: layouts saved before this field
+   * existed load unchanged, and a panel that never reads it pays nothing.
+   * Unknown/removed panel types simply leave their bag unread.
+   */
+  settings?: Record<string, unknown>;
 }
 
 export interface WindowLayout {

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor, within } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@/ui";
@@ -390,5 +390,58 @@ describe("HOME window desk", () => {
     expect(normalized).not.toBeNull();
     expect(normalized!.layouts[0].windows.map((w) => w.id)).toEqual(["real"]);
     expect(normalized!.layouts[0].windows[0].type).toBe("sector.table");
+  });
+});
+
+describe("HOME panel settings persistence", () => {
+  const metric = () =>
+    screen.getByTestId("market-heatmap-metric").querySelector("select") as HTMLSelectElement;
+
+  it("(e) rapid metric changes produce one debounced save, not one per change", async () => {
+    const { transport, put } = makeTransport();
+    mountHome(transport);
+    await screen.findByTestId("market-heatmap-panel");
+
+    const before = put.mock.calls.length;
+    fireEvent.input(metric(), { target: { value: "rsi" } });
+    fireEvent.input(metric(), { target: { value: "pe_ratio" } });
+    fireEvent.input(metric(), { target: { value: "pb_ratio" } });
+
+    await waitFor(() => expect(put.mock.calls.length).toBe(before + 1), { timeout: 2500 });
+    const saved = put.mock.lastCall![1] as unknown as HomeWindowConfig;
+    expect(saved.layouts[0].windows[0].settings?.sizeBy).toBe("pb_ratio");
+  });
+
+  it("(f) each tab keeps its own heatmap settings across a tab switch", async () => {
+    const saved = config(
+      [
+        {
+          name: "Main",
+          windows: [{
+            ...win({ id: "hm-main", type: "market.heatmap", title: "HEATMAP" }),
+            settings: { sizeBy: "rsi" },
+          }],
+        },
+        {
+          name: "Blank",
+          windows: [{
+            ...win({ id: "hm-blank", type: "market.heatmap", title: "HEATMAP 2" }),
+            settings: { sizeBy: "pe_ratio" },
+          }],
+        },
+      ],
+      "Main",
+    );
+    const { transport } = makeTransport(saved);
+    mountHome(transport);
+
+    await screen.findByTestId("market-heatmap-panel");
+    expect(metric().value).toBe("rsi");
+
+    fireEvent.click(screen.getByTestId("home-layout-tab-blank"));
+    await waitFor(() => expect(metric().value).toBe("pe_ratio"));
+
+    fireEvent.click(screen.getByTestId("home-layout-tab-main"));
+    await waitFor(() => expect(metric().value).toBe("rsi"));
   });
 });

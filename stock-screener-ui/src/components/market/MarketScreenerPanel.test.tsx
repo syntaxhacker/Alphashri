@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, cleanup, within, waitFor } from "@solidjs/testing-library";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { createSignal, type JSX } from "solid-js";
+import { createMemo, createSignal, type JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import { MarketScreenerPanel, marketSortToSortEntry, sortEntryToMarketSort } from "./MarketScreenerPanel";
 import { valueScan } from "../../api/valueScan";
@@ -12,7 +12,8 @@ import { getUserConfig, putUserConfig, deleteUserConfig } from "../../api/userCo
 import * as marketFilters from "./marketFilters";
 import { defaultMarketConfig, serializeMarketConfig } from "./useMarketConfig";
 import type { MarketRow } from "../../types/marketScreener";
-import { NARROW_TREEMAP_MAX_WIDTH } from "./marketTreemap";
+import { marketMetricOptions, NARROW_TREEMAP_MAX_WIDTH } from "./marketTreemap";
+import { getPanelSpec } from "../window/panelRegistry";
 import type { ValueRow, ValueScanResponse } from "../../api/valueScan";
 import type { ScreenerDashboardResponse } from "../../types/screenerDashboard";
 import { SymbolDockContext, type SymbolDockApi } from "../common/symbolDockContext";
@@ -516,6 +517,52 @@ describe("MarketScreenerPanel — the table owns sorting, the map only sizes", (
       "descending",
     );
     expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
+  });
+});
+
+describe("MarketScreenerPanel ↔ market heatmap — one metric control", () => {
+  function HeatmapWindow() {
+    const spec = getPanelSpec("market.heatmap")!;
+    const ctx = () => ({ market: "india" }) as never;
+    const data = createMemo(() => spec.data?.(ctx()));
+    return <>{spec.mount(ctx(), { data, commands: spec.commands ?? {} })}</>;
+  }
+
+  const optionsOf = (select: HTMLSelectElement) =>
+    Array.from(select.querySelectorAll("option")).map((o) => {
+      const option = o as HTMLOptionElement;
+      return { value: option.value, label: option.textContent, disabled: option.disabled };
+    });
+
+  it("both surfaces expose exactly one Size by control with the same shared-registry options", async () => {
+    r(() => (
+      <>
+        <MarketScreenerPanel />
+        <HeatmapWindow />
+      </>
+    ));
+    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Vis"));
+
+    const pageToolbar = screen.getByTestId("market-vis-toolbar");
+    const panel = screen.getByTestId("market-heatmap-panel");
+    // The page owns one dropdown; the panel owns one (plus its universe select).
+    expect(pageToolbar.querySelectorAll("select")).toHaveLength(1);
+    expect(panel.querySelectorAll("select")).toHaveLength(2);
+    expect(screen.queryByTestId("market-heatmap-color-metric")).toBeNull();
+
+    const pageSelect = screen
+      .getByTestId("market-map-metric")
+      .querySelector("select") as HTMLSelectElement;
+    const panelSelect = screen
+      .getByTestId("market-heatmap-metric")
+      .querySelector("select") as HTMLSelectElement;
+    const expected = marketMetricOptions("INR").map((option) => ({
+      value: option.value,
+      label: option.label,
+      disabled: false,
+    }));
+    expect(optionsOf(pageSelect)).toEqual(expected);
+    expect(optionsOf(panelSelect)).toEqual(expected);
   });
 });
 

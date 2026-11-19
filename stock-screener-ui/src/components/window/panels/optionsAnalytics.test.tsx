@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@/ui";
+import { BROKER_AUTH_ACTION } from "@/components/common/BrokerAuthNotice";
 import { fetchNiftyExpiries, fetchOptionsExpiries } from "@/api/reportNifty";
 import type { DockPanelContext } from "../../dock/types";
 import { WindowManager } from "../WindowManager";
@@ -376,7 +377,7 @@ describe("options.analytics failure behaviour", () => {
     renderWindow();
 
     const connect = await screen.findByTestId("options-analytics-connect");
-    expect(connect).toHaveTextContent("Connect broker in Settings");
+    expect(connect).toHaveTextContent(BROKER_AUTH_ACTION);
     expect(connect).toHaveAttribute("href", "/settings");
     expect(screen.getByTestId("options-analytics-chain-error")).toHaveAttribute("data-kind", "auth");
   });

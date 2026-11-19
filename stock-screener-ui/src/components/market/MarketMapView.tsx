@@ -48,8 +48,8 @@ export interface MarketMapViewProps {
   sizeBy?: MarketSizeMetric;
   onSizeByChange?: (metric: MarketSizeMetric) => void;
   /**
-   * Hue source. When absent it tracks `sizeBy`, preserving the single-metric
-   * callers; the window panel passes its own Colour by selection instead.
+   * Hue source. Both the screener page and the window panel omit it so colour
+   * tracks `sizeBy`; the single-metric behaviour is the shared control model.
    */
   colorBy?: MarketSizeMetric;
   /**

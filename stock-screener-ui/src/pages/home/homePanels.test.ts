@@ -158,3 +158,64 @@ describe("home saved-layout degradation", () => {
     expect(windows.every((win) => WINDOW_PANEL_TYPES.has(win.type))).toBe(true);
   });
 });
+
+describe("home window panel settings", () => {
+  const CANVAS: CanvasSize = { w: 1280, h: 800 };
+
+  it("(a) a window's panel settings survive a serialize -> parse round-trip", () => {
+    const base = defaultHomeConfig(CANVAS);
+    const settings = { sizeBy: "rsi", colorBy: "pe_ratio", universe: "nifty50" };
+    base.layouts[0].windows[0] = { ...base.layouts[0].windows[0], settings } as WindowState;
+
+    const wire = serializeHomeConfig(base);
+    const roundTrip = normalizeHomeConfig(wire, CANVAS);
+
+    expect(roundTrip).not.toBeNull();
+    expect(roundTrip!.layouts[0].windows[0].settings).toEqual(settings);
+    // Geometry still round-trips byte-exact alongside the bag.
+    expect(roundTrip).toEqual(base);
+  });
+
+  it("(b) an old saved layout with no settings loads unchanged", () => {
+    const base = defaultHomeConfig(CANVAS);
+    const wire = serializeHomeConfig(base) as {
+      layouts: { windows: Record<string, unknown>[] }[];
+    };
+    const windowsOnWire = wire.layouts[0].windows;
+    expect(windowsOnWire.every((w) => !("settings" in w))).toBe(true);
+
+    const parsed = normalizeHomeConfig(wire, CANVAS);
+    expect(parsed).toEqual(base);
+    expect(parsed!.layouts[0].windows.every((w) => w.settings === undefined)).toBe(true);
+  });
+
+  it("(c) a malformed settings bag is dropped while the window is kept", () => {
+    const raw = {
+      v: 1,
+      active: "Main",
+      layouts: [{
+        name: "Main",
+        windows: [
+          {
+            id: "hm-string", type: "market.heatmap", title: "HEATMAP",
+            x: 10, y: 10, w: 500, h: 400, z: 1,
+            settings: "not-an-object",
+          },
+          {
+            id: "hm-json", type: "market.heatmap", title: "HEATMAP 2",
+            x: 10, y: 10, w: 500, h: 400, z: 2,
+            settings: { ok: 1, fn: () => 1, nested: { nan: Number.NaN, keep: "yes" } },
+          },
+        ],
+      }],
+    };
+
+    const parsed = normalizeHomeConfig(raw, CANVAS);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.layouts[0].windows).toHaveLength(2);
+    // The non-object bag is dropped whole; the window itself survives.
+    expect(parsed!.layouts[0].windows[0].settings).toBeUndefined();
+    // Non-JSON values (function, NaN) are stripped; the rest survives.
+    expect(parsed!.layouts[0].windows[1].settings).toEqual({ ok: 1, nested: { keep: "yes" } });
+  });
+});

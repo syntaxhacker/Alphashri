@@ -7,13 +7,10 @@ import type { DockPanelSpec } from "../../dock/types";
 import { useSymbolDock } from "../../common/symbolDockContext";
 import { MarketMapView } from "../../market/MarketMapView";
 import {
-  DEFAULT_HEATMAP_COLOR_METRIC,
-  DEFAULT_HEATMAP_SIZE_METRIC,
+  DEFAULT_MARKET_SIZE_METRIC,
   isMarketSizeMetric,
   MARKET_COLOR_SCALE_NOTE,
   marketMetricOptions,
-  toTreemapRow,
-  usableSizeMetrics,
   type MarketSizeMetric,
 } from "../../market/marketTreemap";
 import type { UseMarketSnapshotResult } from "../../market/useMarketSnapshotSolid";
@@ -25,8 +22,10 @@ import {
 import {
   defaultMarketFilters,
   filterMarketRows,
+  MARKET_SORT_OPTIONS,
   resetUniverseSpecificFilters,
   type MarketFilterState,
+  type MarketSortKey,
 } from "../../market/marketFilters";
 import { HeatmapFiltersControl } from "./heatmapFilters";
 
@@ -42,12 +41,94 @@ function readUniverse(data: Record<string, unknown> | undefined): MarketUniverse
   return (data?.universe ?? HEATMAP_UNIVERSE) as MarketUniverse;
 }
 
-function MarketHeatmapPanel(props: { data: Accessor<Record<string, unknown> | undefined> }) {
+const SORT_KEYS = new Set<string>(MARKET_SORT_OPTIONS.map((option) => option.value));
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+const finiteOrNull = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) ? value : null;
+const boolOr = (value: unknown, fallback: boolean): boolean =>
+  typeof value === "boolean" ? value : fallback;
+const stringList = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+
+/** The panel-owned slice of the window bag. Unknown keys (e.g. a removed
+ * `colorBy` from an older build) are ignored here, not written back. */
+export interface PersistedHeatmapSettings {
+  universe?: MarketUniverse;
+  sizeBy?: MarketSizeMetric;
+  filters?: MarketFilterState;
+}
+
+export function parseHeatmapSettings(raw: unknown): PersistedHeatmapSettings {
+  if (!isRecord(raw)) return {};
+  const out: PersistedHeatmapSettings = {};
+  const universe = typeof raw.universe === "string" && UNIVERSE_VALUES.has(raw.universe)
+    ? (raw.universe as MarketUniverse)
+    : undefined;
+  if (universe) out.universe = universe;
+  if (isMarketSizeMetric(raw.sizeBy)) out.sizeBy = raw.sizeBy;
+
+  const rf = raw.filters;
+  if (isRecord(rf)) {
+    const base = defaultMarketFilters(universe ?? HEATMAP_UNIVERSE);
+    out.filters = {
+      ...base,
+      search: typeof rf.search === "string" ? rf.search : base.search,
+      capTiers: new Set(stringList(rf.capTiers)),
+      priceMin: finiteOrNull(rf.priceMin),
+      priceMax: finiteOrNull(rf.priceMax),
+      dayChangeMin: finiteOrNull(rf.dayChangeMin),
+      dayChangeMax: finiteOrNull(rf.dayChangeMax),
+      mcapMinCr: finiteOrNull(rf.mcapMinCr),
+      mcapMaxCr: finiteOrNull(rf.mcapMaxCr),
+      rsiMin: finiteOrNull(rf.rsiMin),
+      rsiMax: finiteOrNull(rf.rsiMax),
+      relVolMin: finiteOrNull(rf.relVolMin),
+      relVolMax: finiteOrNull(rf.relVolMax),
+      aboveSma20: boolOr(rf.aboveSma20, false),
+      aboveSma50: boolOr(rf.aboveSma50, false),
+      aboveSma200: boolOr(rf.aboveSma200, false),
+      fnoOnly: boolOr(rf.fnoOnly, false),
+      sectors: stringList(rf.sectors),
+      sort: typeof rf.sort === "string" && SORT_KEYS.has(rf.sort)
+        ? (rf.sort as MarketSortKey)
+        : base.sort,
+    };
+  }
+  return out;
+}
+
+/** A Set is not JSON-safe; send it as an array and let the parser rebuild it. */
+export function serializeFilters(filters: MarketFilterState): Record<string, unknown> {
+  return { ...filters, capTiers: [...filters.capTiers] };
+}
+
+export function serializeHeatmapSettings(input: {
+  universe: MarketUniverse;
+  sizeBy: MarketSizeMetric;
+  filters: MarketFilterState;
+}): Record<string, unknown> {
+  return {
+    universe: input.universe,
+    sizeBy: input.sizeBy,
+    filters: serializeFilters(input.filters),
+  };
+}
+
+function MarketHeatmapPanel(props: {
+  data: Accessor<Record<string, unknown> | undefined>;
+  settings?: Accessor<Record<string, unknown>>;
+  onSettingsChange?: (patch: Record<string, unknown>) => void;
+}) {
   const dock = useSymbolDock();
+  const stored = createMemo(() => parseHeatmapSettings(props.settings?.()));
   const view = createMemo(() => readUniverse(props.data()));
-  const [universe, setUniverse] = createSignal<MarketUniverse>(view());
-  // A saved window config arriving later stays authoritative.
-  createEffect(on(view, (value) => setUniverse(value)));
+  const [universe, setUniverse] = createSignal<MarketUniverse>(stored().universe ?? view());
+  // A late data arrival is authoritative only when the window bag carries no
+  // universe of its own — one saved value per concept.
+  createEffect(on(view, (value) => {
+    if (stored().universe === undefined) setUniverse(value);
+  }));
 
   // The snapshot hook is shared across windows showing the same universe. The
   // revision signal re-points this panel's facade when the shared entry changes.
@@ -88,49 +169,39 @@ function MarketHeatmapPanel(props: { data: Accessor<Record<string, unknown> | un
     ageSec: () => live()?.ageSec() ?? null,
     warming: () => live()?.warming() ?? false,
   };
-  const [sizeBy, setSizeBy] = createSignal<MarketSizeMetric>(DEFAULT_HEATMAP_SIZE_METRIC);
-  const [colorBy, setColorBy] = createSignal<MarketSizeMetric>(DEFAULT_HEATMAP_COLOR_METRIC);
+  const [sizeBy, setSizeBy] = createSignal<MarketSizeMetric>(
+    stored().sizeBy ?? DEFAULT_MARKET_SIZE_METRIC,
+  );
 
   const currency = () => marketUniverseDescriptor(universe()).currency;
   const rows = () => snapshot.rows();
-  const [filters, setFilters] = createSignal<MarketFilterState>(defaultMarketFilters(universe()));
-  const patchFilters = (patch: Partial<MarketFilterState>) =>
-    setFilters((prev) => ({ ...prev, ...patch }));
+  const [filters, setFilters] = createSignal<MarketFilterState>(
+    stored().filters ?? defaultMarketFilters(universe()),
+  );
+  const report = (patch: Record<string, unknown>) => props.onSettingsChange?.(patch);
+  const patchFilters = (patch: Partial<MarketFilterState>) => {
+    const next = { ...filters(), ...patch };
+    setFilters(next);
+    report({ filters: serializeFilters(next) });
+  };
+  // A late hydration or a tab switch swaps this already-mounted panel's bag.
+  // Applying it here (without reporting) keeps the save path one-way.
+  createEffect(on(stored, (value) => {
+    if (value.universe !== undefined && value.universe !== universe()) setUniverse(value.universe);
+    if (value.sizeBy !== undefined && value.sizeBy !== sizeBy()) setSizeBy(value.sizeBy);
+    if (value.filters !== undefined) setFilters(value.filters);
+  }));
   const filteredRows = createMemo(() => filterMarketRows(rows(), filters()));
   const etfCount = createMemo(() => filteredRows().filter((row) => row.etf).length);
   const total = () => Math.max(snapshot.total(), rows().length);
   const formatCount = (count: number) =>
     count.toLocaleString(marketUniverseDescriptor(universe()).priceLocale);
+  // The screener page and this panel share one vocabulary: a single Size by
+  // control whose metric owns both tile area and colour. No local list, no
+  // data-aware disable step — the registry is the only source of options.
   const metricOptions = createMemo(() => marketMetricOptions(currency()));
-  const treemapRows = createMemo(() => filteredRows().map((row) => toTreemapRow(row, currency())));
-  const sizeOptions = createMemo(() => usableSizeMetrics(treemapRows(), metricOptions()));
-  // Data can drop the selected size field (a filtered-out universe or a fresh
-  // snapshot). Fall back for rendering so no option is silently substituted.
-  const effectiveSizeBy = createMemo<MarketSizeMetric>(() => {
-    const current = sizeBy();
-    if (sizeOptions().some((option) => option.value === current && !option.disabled)) return current;
-    const first = sizeOptions()[0]?.value;
-    return isMarketSizeMetric(first) ? first : current;
-  });
   const labelFor = (metric: MarketSizeMetric) =>
     metricOptions().find((option) => option.value === metric)?.label ?? metric;
-  // A native <select> falls back to its first option when option nodes are
-  // replaced (the snapshot arrives after the first render). Re-apply the
-  // controlled value once the new nodes are in the DOM.
-  const sizeOptionSignature = createMemo(() =>
-    sizeOptions()
-      .map((option) => (option.disabled ? "0" : "1"))
-      .join(""),
-  );
-  let sizeSelectWrap: HTMLDivElement | undefined;
-  createEffect(
-    on(sizeOptionSignature, () => {
-      queueMicrotask(() => {
-        const native = sizeSelectWrap?.querySelector("select");
-        if (native && native.value !== effectiveSizeBy()) native.value = effectiveSizeBy();
-      });
-    }),
-  );
   const staleLabel = () => {
     const age = snapshot.ageSec();
     if (age == null) return "Stale data";
@@ -140,18 +211,17 @@ function MarketHeatmapPanel(props: { data: Accessor<Record<string, unknown> | un
 
   const chooseUniverse = (value: string | null) => {
     if (!value || !UNIVERSE_VALUES.has(value)) return;
-    patchFilters(resetUniverseSpecificFilters(filters(), value as MarketUniverse));
+    const nextFilters = resetUniverseSpecificFilters(filters(), value as MarketUniverse);
+    setFilters(nextFilters);
     setUniverse(value as MarketUniverse);
+    report({ universe: value, filters: serializeFilters(nextFilters) });
   };
   const chooseSizeMetric = (value: string | null) => {
     if (!isMarketSizeMetric(value)) return;
     setSizeBy(value);
+    report({ sizeBy: value });
   };
-  const chooseColorMetric = (value: string | null) => {
-    if (!isMarketSizeMetric(value)) return;
-    setColorBy(value);
-  };
-  const clearFilters = () => setFilters(defaultMarketFilters(universe()));
+  const clearFilters = () => patchFilters(defaultMarketFilters(universe()));
 
   return (
     <Box data-testid="market-heatmap-panel" className="flex h-full min-h-0 flex-col">
@@ -175,32 +245,14 @@ function MarketHeatmapPanel(props: { data: Accessor<Record<string, unknown> | un
           <Text size="xs" c="dimmed" className="whitespace-nowrap">
             Size by
           </Text>
-          <Box
-            ref={(el: HTMLDivElement) => (sizeSelectWrap = el)}
-            className="flex"
-            title="Metrics with no non-zero value in this snapshot cannot size tiles"
-          >
-            <Select
-              size="xs"
-              w={112}
-              value={effectiveSizeBy()}
-              onChange={chooseSizeMetric}
-              data={sizeOptions()}
-              aria-label="Size the heatmap by"
-              data-testid="market-heatmap-metric"
-            />
-          </Box>
-          <Text size="xs" c="dimmed" className="whitespace-nowrap">
-            Colour by
-          </Text>
           <Select
             size="xs"
             w={112}
-            value={colorBy()}
-            onChange={chooseColorMetric}
+            value={sizeBy()}
+            onChange={chooseSizeMetric}
             data={metricOptions()}
-            aria-label="Colour the heatmap by"
-            data-testid="market-heatmap-color-metric"
+            aria-label="Size the heatmap by"
+            data-testid="market-heatmap-metric"
           />
           <HeatmapFiltersControl
             filters={filters()}
@@ -226,7 +278,7 @@ function MarketHeatmapPanel(props: { data: Accessor<Record<string, unknown> | un
         </ToolbarRow>
         <Box className="px-2 pb-1" data-testid="market-heatmap-encoding-row">
           <Text size="xs" c="dimmed" className="truncate" data-testid="market-heatmap-encoding">
-            Size = {labelFor(effectiveSizeBy())} · Colour = {labelFor(colorBy())} ({LEGEND_DIRECTION}) ·{" "}
+            {"Size & Colour = "}{labelFor(sizeBy())} ({LEGEND_DIRECTION}) ·{" "}
             <span data-testid="heatmap-filter-count">
               {formatCount(filteredRows().length)} of {formatCount(total())}
             </span>
@@ -277,9 +329,8 @@ function MarketHeatmapPanel(props: { data: Accessor<Record<string, unknown> | un
                   <MarketMapView
                     rows={filteredRows()}
                     currency={currency()}
-                    sizeBy={effectiveSizeBy()}
-                    onSizeByChange={setSizeBy}
-                    colorBy={colorBy()}
+                    sizeBy={sizeBy()}
+                    onSizeByChange={(value) => chooseSizeMetric(value)}
                     showSizeControl={false}
                     onSymbolClick={(symbol) => dock.open(symbol)}
                   />
@@ -328,5 +379,11 @@ export const MARKET_HEATMAP_PANEL: DockPanelSpec = {
   singleton: true,
   requires: [],
   data: () => ({ universe: HEATMAP_UNIVERSE, currency: HEATMAP_CURRENCY }),
-  mount: (_ctx, api) => <MarketHeatmapPanel data={api.data} />,
+  mount: (_ctx, api) => (
+    <MarketHeatmapPanel
+      data={api.data}
+      settings={api.settings}
+      onSettingsChange={api.onSettingsChange}
+    />
+  ),
 };

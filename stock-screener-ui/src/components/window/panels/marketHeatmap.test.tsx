@@ -5,6 +5,7 @@ import { createMemo, type Accessor } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@/ui";
 import { MARKET_UNIVERSE_DESCRIPTORS } from "@/config/marketUniverses";
+import { marketMetricOptions } from "../../market/marketTreemap";
 import type { DockPanelContext } from "../../dock/types";
 import type { MarketRow, MarketUniverse } from "../../../types/marketScreener";
 import { getPanelSpec, WINDOW_PANEL_TYPES } from "../panelRegistry";
@@ -238,19 +239,19 @@ describe("market.heatmap window panel", () => {
     expect(ctl.refresh).toHaveBeenCalledWith(true);
   });
 
-  it("(e) exactly two independent metric controls exist inside the window", async () => {
+  it("(e) exactly one metric control exists inside the window", async () => {
     ctl.setRows([row("RELIANCE", 1)]);
     renderPanel();
 
     await waitFor(() => expect(screen.getByTestId("market-map-view")).toBeInTheDocument());
     const panel = screen.getByTestId("market-heatmap-panel");
     expect(screen.getAllByTestId("market-heatmap-metric")).toHaveLength(1);
-    expect(screen.getAllByTestId("market-heatmap-color-metric")).toHaveLength(1);
+    expect(screen.queryByTestId("market-heatmap-color-metric")).not.toBeInTheDocument();
     expect(screen.queryByTestId("market-map-metric")).not.toBeInTheDocument();
-    // One universe selector + a Size by and a Colour by selector.
-    expect(panel.querySelectorAll("select")).toHaveLength(3);
+    // One universe selector + one Size by selector; Colour by is gone by design.
+    expect(panel.querySelectorAll("select")).toHaveLength(2);
     expect(panel).toHaveTextContent(/Size by/);
-    expect(panel).toHaveTextContent(/Colour by/);
+    expect(panel).not.toHaveTextContent(/Colour by/);
   });
 
   it("(f) clicking a tile opens the symbol dock", async () => {
@@ -302,20 +303,18 @@ describe("market.heatmap window panel", () => {
     expect(screen.getByTestId("market-heatmap-encoding")).toHaveTextContent("4 of 4");
   });
 
-  it("(ctx-c) the encoding subtitle names both metrics and follows a size change", async () => {
+  it("(ctx-c) the encoding subtitle names the single shared metric and follows a size change", async () => {
     ctl.setRows([row("RELIANCE", 1)]);
     renderPanel();
 
     await waitFor(() => expect(screen.getByTestId("market-map-view")).toBeInTheDocument());
     const subtitle = screen.getByTestId("market-heatmap-encoding");
-    expect(subtitle).toHaveTextContent("Size = Market Cap");
-    expect(subtitle).toHaveTextContent("Colour = Day Change");
+    expect(subtitle).toHaveTextContent("Size & Colour = Day Change");
     expect(subtitle).toHaveTextContent("low → high");
 
-    fireEvent.input(metricSelect(), { target: { value: "change_pct" } });
+    fireEvent.input(metricSelect(), { target: { value: "rsi" } });
 
-    await waitFor(() => expect(subtitle).toHaveTextContent("Size = Day Change"));
-    expect(subtitle).toHaveTextContent("Colour = Day Change");
+    await waitFor(() => expect(subtitle).toHaveTextContent("Size & Colour = RSI"));
   });
 
   it("(ctx-d) the context bar survives loading, empty and error states", async () => {
@@ -324,7 +323,6 @@ describe("market.heatmap window panel", () => {
 
     expect(screen.getByTestId("market-heatmap-universe")).toBeInTheDocument();
     expect(screen.getByTestId("market-heatmap-metric")).toBeInTheDocument();
-    expect(screen.getByTestId("market-heatmap-color-metric")).toBeInTheDocument();
     expect(screen.getByTestId("market-heatmap-error")).toHaveTextContent("snapshot exploded");
     expect(screen.queryByTestId("market-map-view")).not.toBeInTheDocument();
   });
@@ -385,96 +383,92 @@ describe("market.heatmap window panel", () => {
   });
 });
 
-describe("market.heatmap — two independent encodings", () => {
+describe("market.heatmap — one shared metric encoding", () => {
   const sizeSelect = () =>
     screen.getByTestId("market-heatmap-metric").querySelector("select") as HTMLSelectElement;
-  const colorSelect = () =>
-    screen.getByTestId("market-heatmap-color-metric").querySelector("select") as HTMLSelectElement;
   const tiles = () => (ctl.option?.series?.[0]?.data ?? []) as Array<Record<string, any>>;
   const variedRows = (): MarketRow[] => [
     { ...row("SMALL", 1), marketCapCr: 10_000, rsi: 20 },
     { ...row("BIG", 2), marketCapCr: 200_000, rsi: 90 },
   ];
   const optionsOf = (select: HTMLSelectElement) =>
-    Array.from(select.querySelectorAll("option")).map((o) => (o as HTMLOptionElement).value);
+    Array.from(select.querySelectorAll("option")).map((o) => {
+      const option = o as HTMLOptionElement;
+      return { value: option.value, label: option.textContent, disabled: option.disabled };
+    });
 
-  it("(d) the default Size by and Colour by controls carry different metrics", async () => {
+  it("(d) the Size by options come straight from the shared registry", async () => {
     ctl.setRows(variedRows());
     renderPanel();
 
     await waitFor(() => expect(screen.getByTestId("market-map-view")).toBeInTheDocument());
-    expect(sizeSelect().value).not.toBe(colorSelect().value);
-    expect(sizeSelect().value).toBe("market_cap");
-    expect(colorSelect().value).toBe("change_pct");
+    const expected = marketMetricOptions("INR").map((option) => ({
+      value: option.value,
+      label: option.label,
+      disabled: false,
+    }));
+    expect(optionsOf(sizeSelect())).toEqual(expected);
   });
 
-  it("(b) the subtitle names both encodings and follows either control", async () => {
+  it("(c) the single control is the only select that can size or colour the map", async () => {
     ctl.setRows(variedRows());
     renderPanel();
 
     await waitFor(() => expect(screen.getByTestId("market-map-view")).toBeInTheDocument());
-    const subtitle = screen.getByTestId("market-heatmap-encoding");
-    expect(subtitle).toHaveTextContent("Size = Market Cap");
-    expect(subtitle).toHaveTextContent("Colour = Day Change");
-
-    fireEvent.input(colorSelect(), { target: { value: "rsi" } });
-    await waitFor(() => expect(subtitle).toHaveTextContent("Colour = RSI"));
-    expect(subtitle).toHaveTextContent("Size = Market Cap");
-
-    fireEvent.input(sizeSelect(), { target: { value: "change_pct" } });
-    await waitFor(() => expect(subtitle).toHaveTextContent("Size = Day Change"));
-    expect(subtitle).toHaveTextContent("Colour = RSI");
+    expect(screen.getAllByTestId("market-heatmap-metric")).toHaveLength(1);
+    expect(screen.queryByTestId("market-heatmap-color-metric")).toBeNull();
+    expect(screen.queryByTestId("market-map-metric")).toBeNull();
+    expect(screen.getByTestId("market-heatmap-panel").querySelectorAll("select")).toHaveLength(2);
+    expect(sizeSelect()).toHaveAccessibleName("Size the heatmap by");
   });
 
-  it("(a) changing Colour by repaints tiles without changing their sizes", async () => {
+  it("(b) changing the size metric changes the emitted tile areas and the fill follows it", async () => {
     ctl.setRows(variedRows());
     renderPanel();
 
     await waitFor(() => expect(tiles()).toHaveLength(2));
     const areas = () => tiles().map((d) => `${d.name}:${d.value}`).join(",");
-    const values = () => tiles().map((d) => `${d.name}:${d.metricNumeric}`).join(",");
     const beforeAreas = areas();
-    const beforeValues = values();
 
-    fireEvent.input(colorSelect(), { target: { value: "rsi" } });
+    fireEvent.input(sizeSelect(), { target: { value: "rsi" } });
+
     await waitFor(() => expect(screen.getByTestId("market-map-color-label")).toHaveTextContent("RSI"));
-
-    expect(sizeSelect().value).toBe("market_cap");
-    expect(areas()).toBe(beforeAreas);
-    expect(values()).not.toBe(beforeValues);
+    expect(sizeSelect().value).toBe("rsi");
+    expect(areas()).not.toBe(beforeAreas);
+    // The one selection owns both encodings: the size note and the legend agree.
+    expect(screen.getByTestId("market-map-size-note")).toHaveTextContent("RSI");
+    expect(tiles().find((d) => d.name === "BIG")!.value).toBe(90);
   });
 
-  it("(c) the legend names the colour metric independently of the size note", async () => {
+  it("(a) the default matches the page: Day Change drives both size and colour", async () => {
     ctl.setRows(variedRows());
     renderPanel();
 
     await waitFor(() => expect(screen.getByTestId("market-map-view")).toBeInTheDocument());
-    const label = screen.getByTestId("market-map-color-label");
-    const sizeNote = screen.getByTestId("market-map-size-note");
-    expect(label).toHaveTextContent("Day Change");
-    expect(sizeNote).toHaveTextContent("Market Cap");
-
-    fireEvent.input(colorSelect(), { target: { value: "rsi" } });
-    await waitFor(() => expect(label).toHaveTextContent("RSI"));
-    expect(sizeNote).toHaveTextContent("Market Cap");
+    expect(sizeSelect().value).toBe("change_pct");
+    expect(screen.getByTestId("market-heatmap-encoding")).toHaveTextContent(
+      "Size & Colour = Day Change",
+    );
+    expect(screen.getByTestId("market-map-color-label")).toHaveTextContent("Day Change");
+    expect(screen.getByTestId("market-map-size-note")).toHaveTextContent("Day Change");
   });
 
-  it("(e) an all-null metric is disabled in Size by but stays selectable for Colour by", async () => {
+  it("(e) the size select keeps its value when a universe switch rebuilds the options", async () => {
     ctl.setRows(variedRows());
     renderPanel();
 
     await waitFor(() => expect(screen.getByTestId("market-map-view")).toBeInTheDocument());
-    const disabled = (select: HTMLSelectElement, value: string) =>
-      Array.from(select.querySelectorAll("option")).find((o) => (o as HTMLOptionElement).value === value)
-        ?.disabled;
-    expect(optionsOf(sizeSelect())).toContain("perf_w");
-    expect(disabled(sizeSelect(), "perf_w")).toBe(true);
-    expect(disabled(colorSelect(), "perf_w")).toBe(false);
+    fireEvent.input(sizeSelect(), { target: { value: "rsi" } });
+    await waitFor(() => expect(sizeSelect().value).toBe("rsi"));
 
-    cleanup();
-    ctl.setRows([{ ...row("A", 1), perfW: 4 }]);
-    renderPanel();
-    await waitFor(() => expect(screen.getByTestId("market-map-view")).toBeInTheDocument());
-    expect(disabled(sizeSelect(), "perf_w")).toBe(false);
+    // A USD universe rebuilds metricOptions(), replacing every <option> node.
+    // The native select must stay on RSI, not fall back to option 0 (Day Change)
+    // while the panel label still claims RSI — the label/control disagreement.
+    const universe = screen.getByTestId("market-heatmap-universe").querySelector("select") as HTMLSelectElement;
+    fireEvent.input(universe, { target: { value: "us" } });
+
+    await waitFor(() => expect(ctl.universe()).toBe("us"));
+    expect(sizeSelect().value).toBe("rsi");
+    expect(sizeSelect().selectedIndex).toBe(2);
   });
 });

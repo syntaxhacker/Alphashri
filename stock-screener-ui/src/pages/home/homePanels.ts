@@ -208,6 +208,59 @@ export interface HomeWindowConfig {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+  if (!isRecord(value)) return false;
+  const proto = Object.getPrototypeOf(value) as unknown;
+  return proto === Object.prototype || proto === null;
+};
+
+/**
+ * A settings bag crosses an untrusted boundary (saved config is editable and
+ * may come from an older build). Keep only JSON scalars, arrays and plain
+ * objects; strip functions, symbols, bigints, NaN/Infinity, Dates, Sets, Maps,
+ * class instances and `undefined`. Depth/key/byte budgets bound a broken bag.
+ * What is stripped is never written back — the unit tests name every case.
+ */
+const SETTINGS_MAX_BYTES = 2048;
+const SETTINGS_MAX_DEPTH = 6;
+const SETTINGS_MAX_KEYS = 48;
+
+function jsonSafe(value: unknown, depth: number): unknown {
+  if (depth > SETTINGS_MAX_DEPTH) return undefined;
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  if (Array.isArray(value)) {
+    return value
+      .slice(0, SETTINGS_MAX_KEYS)
+      .map((item) => jsonSafe(item, depth + 1))
+      .filter((item) => item !== undefined);
+  }
+  if (isPlainObject(value)) {
+    const out: Record<string, unknown> = {};
+    let kept = 0;
+    for (const key of Object.keys(value)) {
+      if (kept >= SETTINGS_MAX_KEYS) break;
+      const safe = jsonSafe(value[key], depth + 1);
+      if (safe !== undefined) {
+        out[key] = safe;
+        kept += 1;
+      }
+    }
+    return out;
+  }
+  return undefined;
+}
+
+export function sanitizeSettingsBag(raw: unknown): Record<string, unknown> | undefined {
+  const safe = jsonSafe(raw, 0);
+  if (!isPlainObject(safe)) return undefined;
+  try {
+    return JSON.stringify(safe).length <= SETTINGS_MAX_BYTES ? safe : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 const slug = (name: string): string =>
   name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
@@ -281,8 +334,22 @@ export function normalizeHomeConfig(
       : fallbackName;
     if (names.has(name)) continue;
     names.add(name);
+    // `parseLayout` owns geometry only; capture the panel-owned bag by window
+    // id first (first wins, matching parseLayout's duplicate-id rule) and put
+    // it back after the generic parser has clamped the rects.
+    const bags = new Map<string, Record<string, unknown>>();
+    const rawWindows = Array.isArray(entry.windows) ? entry.windows : [];
+    for (const raw of rawWindows) {
+      if (!isRecord(raw) || typeof raw.id !== "string" || bags.has(raw.id)) continue;
+      const bag = sanitizeSettingsBag(raw.settings);
+      if (bag) bags.set(raw.id, bag);
+    }
     const parsed = parseLayout({ windows: entry.windows, name }, WINDOW_PANEL_TYPES, canvas);
-    layouts.push(parsed ?? { name, windows: [] });
+    const windows = (parsed?.windows ?? []).map((win) => {
+      const bag = bags.get(win.id);
+      return bag ? { ...win, settings: bag } : win;
+    });
+    layouts.push({ name, windows });
   }
   if (layouts.length === 0) return null;
 
@@ -296,9 +363,19 @@ export function serializeHomeConfig(config: HomeWindowConfig): Record<string, un
   return {
     v: HOME_WINDOW_VERSION,
     active: config.active,
-    layouts: config.layouts.map((layout) =>
-      JSON.parse(serializeLayout(layout)) as Record<string, unknown>,
-    ),
+    layouts: config.layouts.map((layout) => {
+      const wire = JSON.parse(serializeLayout(layout)) as {
+        windows: Record<string, unknown>[];
+        [key: string]: unknown;
+      };
+      // serializeLayout writes geometry only; re-inject each panel's sanitized
+      // bag in window order (serializeLayout never filters windows).
+      wire.windows = wire.windows.map((entry, index) => {
+        const bag = sanitizeSettingsBag(layout.windows[index]?.settings);
+        return bag ? { ...entry, settings: bag } : entry;
+      });
+      return wire;
+    }),
   };
 }
 

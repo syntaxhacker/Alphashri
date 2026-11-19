@@ -83,6 +83,13 @@ export function WindowManager(props: WindowManagerProps) {
     emit(props.layout.windows.map((w) => (w.id === id ? change(w) : w)));
 
   const updateRect = (id: string, rect: Rect) => patch(id, (w) => ({ ...w, ...rect }));
+  /**
+   * A panel settings patch goes through the same `emit` as a rect commit, so it
+   * inherits the one debounced PUT in the saved-config store. Sibling windows
+   * keep their object identity; only the target window gets a new bag.
+   */
+  const updateSettings = (id: string, patchBag: Record<string, unknown>) =>
+    patch(id, (w) => ({ ...w, settings: { ...w.settings, ...patchBag } }));
   const toggleMinimize = (id: string) => {
     const title = titleOf(id);
     const wasMinimized = props.layout.windows.find((w) => w.id === id)?.minimized === true;
@@ -171,6 +178,7 @@ export function WindowManager(props: WindowManagerProps) {
                 focused={focusedId() === win().id}
                 locked={locked()}
                 settingsSlot={slot()}
+                onSettingsChange={updateSettings}
                 onFocus={focus}
                 onRectChange={updateRect}
                 onMinimize={toggleMinimize}

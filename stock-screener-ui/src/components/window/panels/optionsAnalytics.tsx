@@ -3,6 +3,7 @@ import type { Accessor } from "solid-js";
 import { Anchor, Box, Button, Text, TextInput, ToolbarRow } from "@/ui";
 import { DEFAULT_RATE_LIMIT_RETRY_MS } from "@/state/optionsDock";
 import { OptionDockError, fetchChain, type ChainRow } from "@/api/optionsDock";
+import { BrokerAuthNotice, isBrokerAuthKind } from "@/components/common/BrokerAuthNotice";
 import { optionsAnalyticsState, refreshAnalytics } from "@/state/optionsAnalytics";
 import { AnalyticsPanel, type AnalyticsContentTab } from "../../options-dock/analytics/AnalyticsPanel";
 import {
@@ -22,7 +23,6 @@ interface ChainFailure {
 }
 
 const FAILURE_LABEL: Record<string, string> = {
-  auth: "Broker connection needed",
   rate_limited: "Rate limited by the options service",
   not_fno: "No listed options for this symbol",
   network: "Could not reach the options service",
@@ -293,19 +293,23 @@ function OptionsAnalyticsWindow(props: { context: Accessor<DockPanelContext> }) 
             role="alert"
             className="m-2 flex shrink-0 flex-col gap-1 border border-fin-border p-2"
           >
-            <Text size="xs" fw={700}>
-              {FAILURE_LABEL[error().kind] ?? FAILURE_LABEL.unknown}
-            </Text>
-            <Text size="xs" c="dimmed">
-              {error().message}
-              {rateLimited() || error().retryAfterMs != null
-                ? ` · retry in ${retryWaitSeconds()}s`
-                : ""}
-            </Text>
-            <Show when={error().kind === "auth"}>
-              <Anchor href="/settings" data-testid="options-analytics-connect">
-                Connect broker in Settings
-              </Anchor>
+            <Show
+              when={isBrokerAuthKind(error().kind)}
+              fallback={
+                <>
+                  <Text size="xs" fw={700}>
+                    {FAILURE_LABEL[error().kind] ?? FAILURE_LABEL.unknown}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {error().message}
+                    {rateLimited() || error().retryAfterMs != null
+                      ? ` · retry in ${retryWaitSeconds()}s`
+                      : ""}
+                  </Text>
+                </>
+              }
+            >
+              <BrokerAuthNotice connectTestId="options-analytics-connect" />
             </Show>
             <Button
               size="xs"

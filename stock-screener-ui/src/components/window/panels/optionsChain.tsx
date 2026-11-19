@@ -1,6 +1,6 @@
 import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 import type { Accessor } from "solid-js";
-import { Anchor, Box, Button, Text, TextInput, ToolbarRow } from "@/ui";
+import { Box, Button, Text, TextInput, ToolbarRow } from "@/ui";
 import { DEFAULT_RATE_LIMIT_RETRY_MS } from "@/state/optionsDock";
 import {
   OptionDockError,
@@ -10,6 +10,7 @@ import {
   type OptionDockChain,
 } from "@/api/optionsDock";
 import { OptionChainTable } from "../../options-dock/OptionChainTable";
+import { BrokerAuthNotice, isBrokerAuthKind } from "@/components/common/BrokerAuthNotice";
 import type { DockPanelContext, DockPanelSpec } from "../../dock/types";
 import { ExpirySelect, useExpiryPicker } from "./expiryPicker";
 
@@ -22,7 +23,6 @@ interface ChainFailure {
 }
 
 const FAILURE_LABEL: Record<string, string> = {
-  auth: "Broker connection needed",
   rate_limited: "Rate limited by the options service",
   not_fno: "No listed options for this symbol",
   network: "Could not reach the options service",
@@ -274,19 +274,23 @@ function OptionsChainWindow(props: { context: Accessor<DockPanelContext> }) {
             role="alert"
             className="m-2 flex flex-col gap-1 border border-fin-border p-2"
           >
-            <Text size="xs" fw={700}>
-              {FAILURE_LABEL[error().kind] ?? FAILURE_LABEL.unknown}
-            </Text>
-            <Text size="xs" c="dimmed">
-              {error().message}
-              {rateLimited() || error().retryAfterMs != null
-                ? ` · retry in ${retryWaitSeconds()}s`
-                : ""}
-            </Text>
-            <Show when={error().kind === "auth"}>
-              <Anchor href="/settings" data-testid="options-chain-connect">
-                Connect broker in Settings
-              </Anchor>
+            <Show
+              when={isBrokerAuthKind(error().kind)}
+              fallback={
+                <>
+                  <Text size="xs" fw={700}>
+                    {FAILURE_LABEL[error().kind] ?? FAILURE_LABEL.unknown}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {error().message}
+                    {rateLimited() || error().retryAfterMs != null
+                      ? ` · retry in ${retryWaitSeconds()}s`
+                      : ""}
+                  </Text>
+                </>
+              }
+            >
+              <BrokerAuthNotice connectTestId="options-chain-connect" />
             </Show>
             <Button
               size="xs"

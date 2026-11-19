@@ -259,6 +259,33 @@ export function Select(props: UISelectProps) {
 
   const [focused, setFocused] = createSignal(false);
 
+  let selectEl: HTMLSelectElement | undefined;
+  let appliedDefault: string | undefined;
+  /**
+   * Solid writes `value={}` on a <select> as a property, but its effect tracks
+   * only that expression — not the option list. Options rebuilt after the value
+   * leave the control on option 0, and an unmatched value blanks the selection.
+   * Re-apply while tracking both inputs; ignore values with no matching option.
+   * Effects run after the option nodes are inserted, which is also what lets an
+   * uncontrolled `defaultValue` match.
+   */
+  createEffect(() => {
+    const el = selectEl;
+    if (!el) return;
+    const available = options();
+    if (!isControlled()) {
+      const initial = known.defaultValue == null ? undefined : String(known.defaultValue);
+      if (initial != null && initial !== appliedDefault) {
+        el.value = initial;
+        appliedDefault = initial;
+      }
+      return;
+    }
+    const desired = String(known.value ?? "");
+    if (!available.some((option) => option.value === desired)) return;
+    if (el.value !== desired) el.value = desired;
+  });
+
   /** A closed native <select> has no "open" event; focus is the closest stable signal. */
   const tone = createMemo(() => (isError() ? "error" : focused() ? "active" : "idle") as "idle" | "active" | "error");
   const hasValue = createMemo(() => (known.value ?? known.defaultValue) != null && (known.value ?? known.defaultValue) !== "");
@@ -280,9 +307,9 @@ export function Select(props: UISelectProps) {
       {known.leftSection && <span className="shrink-0 text-fin-text-muted text-xs">{known.leftSection}</span>}
       <div className="relative min-w-0 flex-1">
         <select
+          ref={(el) => (selectEl = el)}
           id={inputId}
           name={known.name as string | undefined}
-          value={isControlled() ? String(known.value ?? "") : known.defaultValue != null ? String(known.defaultValue) : undefined}
           onInput={handleChange}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}

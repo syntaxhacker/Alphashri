@@ -4,6 +4,10 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/te
 import { createMemo, type Accessor } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@/ui";
+import {
+  BROKER_AUTH_ACTION,
+  BROKER_AUTH_MESSAGE,
+} from "@/components/common/BrokerAuthNotice";
 import { fetchNiftyExpiries, fetchOptionsExpiries } from "@/api/reportNifty";
 import type { DockPanelContext } from "../../dock/types";
 import { WindowManager } from "../WindowManager";
@@ -202,12 +206,8 @@ describe("options.positioning window panel — owned fetch stays in PositioningP
     renderWindow();
 
     expect(await screen.findByTestId("positioning-error")).toBeInTheDocument();
-    expect(screen.getByTestId("positioning-error")).toHaveTextContent(
-      "Upstox connection required to load positioning.",
-    );
-    expect(screen.getByTestId("positioning-connect")).toHaveTextContent(
-      "Connect Upstox in Settings",
-    );
+    expect(screen.getByTestId("positioning-error")).toHaveTextContent(BROKER_AUTH_MESSAGE);
+    expect(screen.getByTestId("positioning-connect")).toHaveTextContent(BROKER_AUTH_ACTION);
     expect(screen.queryByTestId("positioning-verdict")).not.toBeInTheDocument();
   });
 });

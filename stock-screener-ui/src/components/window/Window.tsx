@@ -1,7 +1,7 @@
 import { createMemo, createSignal, For, onCleanup, Show, untrack } from "solid-js";
 import type { Accessor, JSX } from "solid-js";
 import { Text } from "@/ui";
-import type { DockPanelContext, DockPanelSpec } from "../dock/types";
+import type { DockPanelApi, DockPanelContext, DockPanelSpec } from "../dock/types";
 import {
   clampToCanvas,
   DEFAULT_MIN_SIZE,
@@ -27,6 +27,7 @@ export interface WindowProps {
   locked: boolean;
   minSize?: MinSize;
   settingsSlot?: JSX.Element;
+  onSettingsChange?: (id: string, patch: Record<string, unknown>) => void;
   onFocus: (id: string) => void;
   onRectChange: (id: string, rect: Rect) => void;
   onMinimize: (id: string) => void;
@@ -66,7 +67,15 @@ export function Window(props: WindowProps) {
   const [dragRect, setDragRect] = createSignal<Rect | null>(null);
   const current = createMemo(() => dragRect() ?? geometryOf(props.state, props.canvas));
   const data = createMemo(() => spec()?.data?.(props.context));
-  const api = { data, commands: spec()?.commands ?? {} };
+  // The bag lives on the window state, so it is reactive across a save echo, a
+  // late hydration and a tab switch that swaps this window's identity in place.
+  const settings = createMemo(() => props.state.settings ?? {});
+  const api: DockPanelApi = {
+    data,
+    commands: spec()?.commands ?? {},
+    settings,
+    onSettingsChange: (patch) => props.onSettingsChange?.(props.state.id, patch),
+  };
 
   let gesture: {
     mode: "move" | "resize";

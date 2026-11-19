@@ -5,6 +5,10 @@ import { createMemo, type Accessor } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@/ui";
 import {
+  BROKER_AUTH_ACTION,
+  BROKER_AUTH_MESSAGE,
+} from "@/components/common/BrokerAuthNotice";
+import {
   OptionDockError,
   fetchChain,
   type ChainLeg,
@@ -196,9 +200,7 @@ describe("options.chain window panel — real chain data", () => {
       expect(screen.getByTestId("options-chain-error")).toBeInTheDocument(),
     );
     expect(screen.getByTestId("options-chain-error")).toHaveAttribute("data-kind", "auth");
-    expect(screen.getByTestId("options-chain-error")).toHaveTextContent(
-      "Reconnect Upstox in Settings",
-    );
+    expect(screen.getByTestId("options-chain-error")).toHaveTextContent(BROKER_AUTH_MESSAGE);
     expect(screen.queryByTestId("options-chain-empty")).not.toBeInTheDocument();
     expect(screen.queryByTestId("options-chain-table")).not.toBeInTheDocument();
   });
@@ -278,7 +280,7 @@ describe("options.chain failure behaviour", () => {
     renderWindow();
 
     const connect = await screen.findByTestId("options-chain-connect");
-    expect(connect).toHaveTextContent("Connect broker in Settings");
+    expect(connect).toHaveTextContent(BROKER_AUTH_ACTION);
     expect(connect).toHaveAttribute("href", "/settings");
     expect(screen.getByTestId("options-chain-error")).toHaveAttribute("data-kind", "auth");
   });
