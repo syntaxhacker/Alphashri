@@ -134,3 +134,57 @@ export function buildPatternOverlay(
 
   return { lines, markLines };
 }
+
+/** Honest empty-result copy: the requested lookback, not a guess at a hit. */
+export function patternNoHitLabel(tf: string, lookbackBars: number): string {
+  return `up to ${lookbackBars} × ${tf} bars · no pattern`;
+}
+
+export interface PatternScanAnnotation {
+  /** Short label for the in-chart badge. */
+  label: string;
+  /** A dot on the last displayed bar marking the scan event — never a hit. */
+  marker: {
+    time: string;
+    value: number;
+    shape: "circle";
+    color: string;
+    position: "aboveBar";
+    size: number;
+    text: string;
+  };
+  /** Displayed bars inside the requested window (the detector owns its own feed). */
+  windowBars: number;
+}
+
+/**
+ * A completed scan with no hit still has something true to show: the window it
+ * covered and the fact that it ran. The marker is pinned to the last displayed
+ * bar so it reads as an annotation of the scan, not as a detected pivot or a
+ * breakout — no price level is invented when the detector found nothing.
+ */
+export function buildPatternScanAnnotation(params: {
+  candles: Array<{ time: string; close: number }>;
+  timeframe: string;
+  lookbackBars: number;
+  hitCount: number;
+  markerColor: string;
+}): PatternScanAnnotation | null {
+  const { candles, timeframe, lookbackBars, hitCount, markerColor } = params;
+  if (hitCount > 0 || !Array.isArray(candles)) return null;
+  const last = candles[candles.length - 1];
+  if (!last || typeof last.close !== "number" || !Number.isFinite(last.close)) return null;
+  return {
+    label: patternNoHitLabel(timeframe, lookbackBars),
+    windowBars: Math.min(Math.max(0, lookbackBars), candles.length),
+    marker: {
+      time: last.time,
+      value: last.close,
+      shape: "circle",
+      color: markerColor,
+      position: "aboveBar",
+      size: 2,
+      text: "",
+    },
+  };
+}

@@ -235,6 +235,11 @@ export function LiveTapeDisclosure(props: {
   onToggle: () => void;
   children: JSX.Element;
   testId?: string;
+  /** Optional copy overrides so the one disclosure primitive can front more
+   *  than the tape band without growing a second collapse widget. */
+  label?: string;
+  openHint?: string;
+  closedHint?: string;
 }) {
   const open = () => props.open;
   return (
@@ -256,9 +261,9 @@ export function LiveTapeDisclosure(props: {
         <span data-testid="nifty-live-tape-chevron" aria-hidden="true" class="mr-2 text-[11px]">
           {open() ? "▾" : "▸"}
         </span>
-        <span>LIVE TAPE</span>
+        <span>{props.label ?? "LIVE TAPE"}</span>
         <span class="ml-auto font-normal normal-case tracking-normal text-[11px] text-fin-text-muted">
-          {open() ? "hide bands" : "breadth · 10s · erosion"}
+          {open() ? (props.openHint ?? "hide bands") : (props.closedHint ?? "breadth · 10s · erosion")}
         </span>
       </Button>
       <div

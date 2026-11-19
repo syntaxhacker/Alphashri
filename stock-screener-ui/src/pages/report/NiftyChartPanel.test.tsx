@@ -9,6 +9,7 @@ import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
 import {
   CHART_HEIGHTS,
+  MOBILE_CHART_TARGET,
   NiftyChartPanel,
   LevelLegend,
   buildMarkLines,
@@ -19,6 +20,7 @@ import {
   mergeCollidingLabels,
 } from "./NiftyChartPanel";
 import type { NiftyGex, NiftyReport } from "@/types/niftyReport";
+import { detectPatterns } from "@/api/chartPatterns";
 
 vi.mock("@/components/chart/TradingViewChart", async () => {
   const { onMount } = await import("solid-js");
@@ -28,7 +30,13 @@ vi.mock("@/components/chart/TradingViewChart", async () => {
       markLines?: { label: { formatter: string } }[];
       emaData?: unknown[];
       fitMarkLines?: boolean;
-      touchMarkers?: { time: string; value: number }[];
+      touchMarkers?: {
+        time: string;
+        value: number;
+        shape?: string;
+        color?: string;
+        text?: string;
+      }[];
     }) => {
       onMount(() => {
         panelMocks.tvMounts += 1;
@@ -47,6 +55,9 @@ vi.mock("@/components/chart/TradingViewChart", async () => {
           data-emas={props.emaData?.length ?? 0}
           data-fit-marklines={props.fitMarkLines ? "1" : "0"}
           data-touch-markers={props.touchMarkers?.length ?? 0}
+          data-touch-details={(props.touchMarkers ?? [])
+            .map((m) => `${m.shape ?? "circle"}:${m.color ?? ""}:${m.text ?? ""}`)
+            .join("|")}
         />
       );
     },
@@ -210,6 +221,19 @@ describe("NiftyChartPanel", () => {
     // Dense layout: levels are on the chart, no legend row in the panel.
     expect(screen.queryByTestId("nifty-level-legend")).not.toBeInTheDocument();
     expect(screen.queryByTestId("nifty-chart-empty")).not.toBeInTheDocument();
+  });
+
+  test("mobile chart contract: the fill body declares the >=240px target", () => {
+    expect(MOBILE_CHART_TARGET).toBe(240);
+    r(() => <NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />);
+    const wrap = screen.getByTestId("nifty-chart-wrap");
+    expect(wrap).toHaveAttribute("data-fill", "1");
+    expect(wrap).toHaveAttribute("data-mobile-chart-min", String(MOBILE_CHART_TARGET));
+    // No fixed pixel height on the flex body — the row grows after the flow
+    // band collapses, and the body fills it via flex-1 / min-h-0.
+    expect(wrap.className).toContain("flex-1");
+    expect(wrap.className).toContain("min-h-0");
+    expect(wrap.style.height).toBe("");
   });
 
   test("default fills; size toggle pins S 180px → XL 760px", async () => {
@@ -1115,6 +1139,111 @@ describe("NiftyChartPanel three-way chart source", () => {
     r(() => <NiftyChartPanel report={sourceReport()} mode="live" view="chart" />);
     expect(within(toggle()).getByRole("button", { name: "OFFLINE" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("nifty-chart-offline-empty")).toBeInTheDocument();
+  });
+});
+
+describe("NiftyChartPanel PATTERNS visible result", () => {
+  const toggle = () => screen.getByTestId("nifty-chart-source");
+  const choose = async (label: "LIVE" | "PATTERNS" | "OFFLINE") => {
+    await userEvent.setup().click(within(toggle()).getByRole("button", { name: label }));
+  };
+  const withCandles = () =>
+    mockReport({
+      candles: [
+        { time: "2026-10-12T09:15:00", open: 25600, high: 25650, low: 25580, close: 25620, volume: 1000 },
+        { time: "2026-10-12T09:16:00", open: 25620, high: 25680, low: 25600, close: 25640, volume: 1100 },
+        { time: "2026-10-12T09:20:00", open: 25640, high: 25700, low: 25610, close: 25680, volume: 1200 },
+      ],
+    });
+  const chart = () => screen.getByTestId("tradingview-chart");
+  const wrap = () => screen.getByTestId("nifty-chart-wrap");
+  const scanAndWait = async () => {
+    await userEvent.setup().click(screen.getByTestId("nifty-patterns-scan"));
+    const strip = await screen.findByTestId("nifty-patterns-strip");
+    expect(strip).toHaveAttribute("data-status", "ready");
+    return strip;
+  };
+
+  test("(a) entering PATTERNS with no prior scan states it is not scanned yet and keeps the run affordance", async () => {
+    r(() => <NiftyChartPanel report={withCandles()} mode="live" view="chart" />);
+    await choose("PATTERNS");
+    const empty = screen.getByTestId("nifty-patterns-empty");
+    expect(empty).toHaveTextContent(/not scanned yet/i);
+    expect(screen.getByTestId("nifty-patterns-run")).toBeInTheDocument();
+    // The detector is on-demand: switching source does not fire a request.
+    expect(detectPatterns).not.toHaveBeenCalled();
+  });
+
+  test("(b) a no-pattern result states the lookback and result legibly, not in a 9px whisper", async () => {
+    vi.mocked(detectPatterns).mockResolvedValueOnce({
+      symbol: "NIFTY",
+      timeframe: "1m",
+      data_through: "2026-10-12 15:30:00",
+      hits: [],
+      count: 0,
+    });
+    r(() => <NiftyChartPanel report={withCandles()} mode="live" view="chart" />);
+    await choose("PATTERNS");
+    const strip = await scanAndWait();
+    expect(strip).toHaveTextContent(/no pattern/i);
+    expect(strip.textContent).toMatch(/150[\s\S]*bars/i);
+    expect(strip).toHaveStyle({ "font-size": "11px" });
+    const badge = screen.getByTestId("nifty-patterns-chart-badge");
+    expect(badge).toHaveTextContent(/150.*1m.*no pattern/i);
+    expect(strip.title).toContain("2026-10-12 15:30:00");
+  });
+
+  test("(c) a no-pattern scan still changes chart input: one annotation marker, no fabricated levels", async () => {
+    vi.mocked(detectPatterns).mockResolvedValueOnce({
+      symbol: "NIFTY",
+      timeframe: "1m",
+      data_through: null,
+      hits: [],
+      count: 0,
+    });
+    r(() => <NiftyChartPanel report={withCandles()} mode="live" view="chart" />);
+    const baseline = chart().getAttribute("data-touch-details") ?? "";
+    const baseMarks = Number(chart().getAttribute("data-marklines") ?? 0);
+    const baseCount = Number(chart().getAttribute("data-touch-markers") ?? 0);
+
+    await choose("PATTERNS");
+    await scanAndWait();
+    expect(chart().getAttribute("data-touch-markers")).toBe(String(baseCount + 1));
+    expect(chart().getAttribute("data-touch-details") ?? "").not.toBe(baseline);
+    expect(chart().getAttribute("data-touch-details")).toContain(`circle:${palette.TEXT_MUTED}`);
+    // No hit means no breakout/target/stop lines — nothing is presented as a signal.
+    expect(Number(chart().getAttribute("data-marklines"))).toBe(baseMarks);
+    expect(wrap()).toHaveAttribute("data-pattern-source", "none");
+    expect(wrap()).toHaveAttribute("data-pattern-overlays", "0");
+  });
+
+  test("(d) a hit still renders exactly one overlay's worth of marks and no no-pattern marker", async () => {
+    r(() => <NiftyChartPanel report={withCandles()} mode="live" view="chart" />);
+    const baseMarks = Number(chart().getAttribute("data-marklines") ?? 0);
+    await choose("PATTERNS");
+    await scanAndWait();
+    const labels = chart().getAttribute("data-markline-labels") ?? "";
+    for (const code of ["P▸BRK", "P▸TGT", "P▸SL"]) {
+      expect(labels.split(code)).toHaveLength(2);
+    }
+    expect(Number(chart().getAttribute("data-marklines"))).toBe(baseMarks + 3);
+    expect(chart().getAttribute("data-touch-details") ?? "").not.toContain(`circle:${palette.TEXT_MUTED}`);
+    expect(wrap()).toHaveAttribute("data-pattern-source", "hit");
+    expect(wrap()).toHaveAttribute("data-pattern-overlays", "1");
+  });
+
+  test("(e) LIVE and OFFLINE emit no scan annotation and never call the detector", async () => {
+    r(() => <NiftyChartPanel report={withCandles()} mode="live" view="chart" />);
+    expect(chart().getAttribute("data-touch-details") ?? "").toBe("");
+    expect(wrap()).toHaveAttribute("data-pattern-source", "off");
+    await choose("OFFLINE");
+    expect(chart().getAttribute("data-touch-details") ?? "").toBe("");
+    expect(wrap()).toHaveAttribute("data-pattern-source", "off");
+    await choose("LIVE");
+    expect(chart().getAttribute("data-touch-details") ?? "").toBe("");
+    expect(wrap()).toHaveAttribute("data-pattern-source", "off");
+    expect(screen.queryByTestId("nifty-patterns-chart-badge")).not.toBeInTheDocument();
+    expect(detectPatterns).not.toHaveBeenCalled();
   });
 });
 

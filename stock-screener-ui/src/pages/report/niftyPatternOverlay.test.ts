@@ -1,5 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { buildPatternOverlay, epochSeconds, type PatternHitLike } from "./niftyPatternOverlay";
+import {
+  buildPatternOverlay,
+  buildPatternScanAnnotation,
+  epochSeconds,
+  patternNoHitLabel,
+  type PatternHitLike,
+} from "./niftyPatternOverlay";
 import * as palette from "@/ui/palette";
 
 /** 5 one-minute candles, 10:46 → 10:50 IST. */
@@ -94,5 +100,37 @@ describe("buildPatternOverlay", () => {
 
   test("returns nothing without candles", () => {
     expect(buildPatternOverlay(HIT, [])).toEqual({ lines: [], markLines: [] });
+  });
+});
+
+describe("buildPatternScanAnnotation", () => {
+  const bars = [
+    { time: "2026-10-26T10:48:00+05:30", close: 22580 },
+    { time: "2026-10-26T10:49:00+05:30", close: 22585 },
+    { time: "2026-10-26T10:50:00+05:30", close: 22590 },
+  ];
+  const args = { candles: bars, timeframe: "1m", lookbackBars: 150, markerColor: palette.TEXT_MUTED };
+
+  test("a no-result scan annotates the last chart bar without inventing a level", () => {
+    const out = buildPatternScanAnnotation({ ...args, hitCount: 0 });
+    expect(out).not.toBeNull();
+    expect(out!.marker).toMatchObject({
+      time: bars[bars.length - 1].time,
+      value: 22590,
+      shape: "circle",
+      color: palette.TEXT_MUTED,
+      text: "",
+    });
+    expect(out!.label).toBe(patternNoHitLabel("1m", 150));
+    expect(out!.label).toMatch(/no pattern/i);
+    expect(out!.label).toMatch(/150/);
+  });
+
+  test("a hit gets no scan annotation — the real pattern overlay owns the marks", () => {
+    expect(buildPatternScanAnnotation({ ...args, hitCount: 1 })).toBeNull();
+  });
+
+  test("no chart bars means no annotation", () => {
+    expect(buildPatternScanAnnotation({ ...args, candles: [], hitCount: 0 })).toBeNull();
   });
 });
