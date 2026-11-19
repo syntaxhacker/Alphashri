@@ -89,7 +89,17 @@ def _build_prewarm_screeners(screeners) -> list:
 PREWARM_SCREENERS = _build_prewarm_screeners([
     "trending", "buyer_interest", "high_momentum", "nifty_movers", "52w_high", "price_surge",
 ])
-PREWARM_INTERVAL = 60
+# How often the loop wakes to check staleness. The actual recompute cadence is
+# fresh_ttl - PREWARM_INTERVAL (see the task below), so this is the *poll*, not
+# the cost. Env-tunable so a constrained box can slow it without a code change.
+PREWARM_INTERVAL = int(os.environ.get("PREWARM_INTERVAL_SEC", "60"))
+# Spread the six screeners across the interval instead of firing them in one
+# burst. Unstaggered, all six compute in the same tick: six TradingView fetches
+# plus up to 6 × MAX_WORKERS(20) = 120 threads at once, every ~4 minutes. That
+# burst is what shows up as a ~500ms /api/market/snapshot and as GIL contention
+# in unrelated endpoints. Each screener now gets its own slot, so at most one
+# heavy job is in flight at a time.
+PREWARM_STAGGER_SEC = float(os.environ.get("PREWARM_STAGGER_SEC", "10"))
 
 # The 52W sweep makes ~200 sequential Upstox calls (~100s), so the lock must
 # outlive the compute: the 30s default expires mid-flight and lets a second
@@ -106,7 +116,12 @@ async def screener_prewarm_task():
         try:
             if _is_market_hours():
                 from cache.redis_client import make_cache_key, cache_ttl, stale_while_revalidate
-                for screener_id in PREWARM_SCREENERS:
+                for index, screener_id in enumerate(PREWARM_SCREENERS):
+                    # Stagger: the first screener starts immediately, each
+                    # subsequent one waits a slot. Keeps at most one heavy
+                    # compute in flight instead of six at once.
+                    if index and PREWARM_STAGGER_SEC > 0:
+                        await asyncio.sleep(PREWARM_STAGGER_SEC)
                     cache_key = make_cache_key("screener", "upstox", "intraday", screener_id)
                     ttl = cache_ttl(cache_key)
                     if ttl is None or ttl < PREWARM_INTERVAL:
@@ -699,6 +714,36 @@ def _spawn_task(label: str, factory, *, started: str = "🔄 {label} started", f
         return None
 
 
+# Bound on how long lifespan shutdown waits for cancelled background tasks.
+# A cancelled Task cannot cancel work already dispatched to asyncio.to_thread()
+# (e.g. the event-radar SEC EDGAR request has a 30s socket timeout), so an
+# unbounded gather would let one stuck worker hold shutdown open indefinitely.
+# 5s is long enough for a cooperative task to observe cancellation and run its
+# finally-block cleanup, but far shorter than any upstream socket timeout.
+_SHUTDOWN_CANCEL_TIMEOUT_SEC = 5.0
+
+
+async def _shutdown_cancel_and_wait(*tasks, timeout: float = _SHUTDOWN_CANCEL_TIMEOUT_SEC):
+    """Cancel the given tasks and await them within a bounded shutdown budget."""
+    live = [t for t in tasks if t is not None]
+    for task in live:
+        task.cancel()
+    if not live:
+        return
+    try:
+        await asyncio.wait_for(
+            asyncio.gather(*live, return_exceptions=True),
+            timeout=timeout,
+        )
+    except asyncio.TimeoutError:
+        remaining = sum(1 for t in live if not t.done())
+        if remaining:
+            print(
+                f"⚠️ Shutdown: {remaining} background task(s) did not stop "
+                f"within {timeout:.0f}s"
+            )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print(f'🚀 Alphashri API starting...')
@@ -722,6 +767,13 @@ async def lifespan(app: FastAPI):
     _nifty_spot_task = None
     _nifty_md_task = None
     _market_snapshot_task = None
+    # Started outside the "already-cancelled" list below; initialise so a
+    # CI_MODE or failed-startup path can reach shutdown without NameError.
+    _nifty_futures_task = None
+    _sensex_futures_task = None
+    _options_recorder_task = None
+    _tick_tape_task = None
+    _event_radar_task = None
     ci = _ci_mode()
     redis_connected = False
     try:
@@ -815,6 +867,12 @@ async def lifespan(app: FastAPI):
 
             from api.reports_api.nifty import nifty_snapshot_task, SNAPSHOT_REFRESH_SEC
             _nifty_snapshot_task = _spawn_task("Nifty snapshot refresh", nifty_snapshot_task, started=f"📸 Nifty snapshot refresh task started ({SNAPSHOT_REFRESH_SEC:.0f}s)", failed="⚠️ Nifty snapshot refresh failed: {e}")
+
+            from api.reports_api.nifty_futures import start_nifty_futures_task
+            _nifty_futures_task = _spawn_task("Nifty futures recorder", start_nifty_futures_task, started="📈 Nifty futures/basis recorder started", failed="⚠️ Nifty futures recorder failed: {e}")
+
+            from api.reports_api.sensex_futures import start_sensex_futures_task
+            _sensex_futures_task = _spawn_task("Sensex futures recorder", start_sensex_futures_task, started="📈 Sensex futures/basis recorder started", failed="⚠️ Sensex futures recorder failed: {e}")
 
             from api.reports_api.options_recorder import start_options_recorder_task
             _options_recorder_task = _spawn_task("Options recorder (SENSEX/RELIANCE)", start_options_recorder_task, started="📼 Options recorder (SENSEX/RELIANCE) started", failed="⚠️ Options recorder failed: {e}")
@@ -921,6 +979,15 @@ async def lifespan(app: FastAPI):
         _market_snapshot_task.cancel()
     if _digest_task:
         _digest_task.cancel()
+    # Five tasks were started above but never cancelled. Cancel them and wait
+    # within a bounded budget so a stuck to_thread worker cannot hang shutdown.
+    await _shutdown_cancel_and_wait(
+        _event_radar_task,
+        _nifty_futures_task,
+        _sensex_futures_task,
+        _options_recorder_task,
+        _tick_tape_task,
+    )
     try:
         from api import orderflow_journal
         orderflow_journal.close_all()
