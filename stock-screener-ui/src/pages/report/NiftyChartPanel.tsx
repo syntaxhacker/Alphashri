@@ -7,6 +7,7 @@ import { LocalCompactPanel } from "./reportBits";
 import { EmptyCompact } from "@/components/common/states";
 import { NiftyDepthMap } from "./NiftyDepthMap";
 import { useNiftyPatternScan } from "./useNiftyPatternScan";
+import { readChartSource, persistChartSource, type ChartSource } from "./niftyReportStore";
 import { buildPatternOverlay } from "./niftyPatternOverlay";
 import { wallEventOverlay, type WallBurstLike } from "./niftyWallEventOverlay";
 import { fillCandleGaps } from "./niftyCandles";
@@ -103,6 +104,13 @@ const CHART_SIZE_OPTIONS: { value: string; label: string }[] = [
   { value: "m", label: "M" },
   { value: "l", label: "L" },
   { value: "xl", label: "XL" },
+];
+
+/** Which series the chart visualises. Distinct from the chart/depth `view`. */
+const CHART_SOURCE_OPTIONS: { value: string; label: string }[] = [
+  { value: "live", label: "LIVE" },
+  { value: "patterns", label: "PATTERNS" },
+  { value: "offline", label: "OFFLINE" },
 ];
 
 /** What the chart level tags mean. GEX tags exist in live mode only. */
@@ -274,6 +282,20 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
   const { state: patternScan, scan: scanPatterns } = useNiftyPatternScan();
   // Default ON: a scan that returns a pattern should draw it. The chip toggles.
   const [drawPattern, setDrawPattern] = createSignal(true);
+
+  /** Three-way source. Owned here (not in the store's `view`) so switching
+   *  never remounts the panel or refetches — the store's `view` is chart/depth. */
+  const [chartSource, setChartSource] = createSignal<ChartSource>(readChartSource());
+  createEffect(() => persistChartSource(chartSource()));
+  const handleSourceChange = (v: string) => {
+    if (v === "live" || v === "patterns" || v === "offline") setChartSource(v);
+  };
+  const isOffline = () => chartSource() === "offline";
+  /** OFFLINE is the recorded/replay frame: clip exactly at the playhead. The
+   *  other two modes show the full streamed series (no replay cutoff). */
+  const effectiveAsOf = () => (isOffline() ? asOf() : undefined);
+  const offlineUnavailable = () => isOffline() && !asOf();
+
   const handleTfChange = (v: string) => {
     const next = v as ChartTimeframe;
     if (props.onTimeframeChange) props.onTimeframeChange(next);
@@ -326,7 +348,10 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
   const chartInputsSig = createMemo(() =>
     [
       sessionDate(),
-      asOf() ?? "",
+      effectiveAsOf() ?? "",
+      // Source is part of the key so switching Live↔Offline recomputes the
+      // clip even when every other input is byte-identical.
+      String(chartSource()),
       String(chartTf()),
       candleSeriesSig(report().intraday ?? []),
       candleSeriesSig(report().candles ?? []),
@@ -340,6 +365,8 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
   /** 1-minute intraday candles when present, else the 15-min EOD candles —
    *  each resampled to the selected timeframe (1m passes through). */
   const chartCandles = createMemo(() => {
+    // OFFLINE with no replay frame has no recorded series to draw.
+    if (offlineUnavailable()) return [];
     const sig = chartInputsSig();
     if (chartCache?.sig === sig) return chartCache.data;
 
@@ -347,9 +374,9 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
       const spot = candlesFromSpotPoints(spotPoints() ?? [], sessionDate());
       const tapeBars = candlesFromTape(tape()?.rows ?? [], sessionDate());
       const base = pickFreshestCandles(report(), spot, tapeBars, sessionDate());
-      // The REST snapshot carries the whole day. On replay, stop at the
-      // playhead so the chart cannot show candles from the future.
-      const clipped = clipToAsOf(base, asOf());
+      // The REST snapshot carries the whole day. Only the OFFLINE (recorded)
+      // source stops at the playhead; LIVE/PATTERNS show the full stream.
+      const clipped = clipToAsOf(base, effectiveAsOf());
       // Repair poisoned bars and re-fill dropped minutes from the tape BEFORE
       // resampling: a 0.00 close or a five-minute hole otherwise blows up the
       // price scale / prints a fake jump. The tape is session-scoped too, so a
@@ -366,6 +393,10 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
   createEffect(() => {
     if (chartCandles().length > 0) setCandlesEverShown(true);
   });
+
+  /** OFFLINE with no recorded frames (or a frame with no candles) gets an
+   *  explicit empty state instead of a blank chart. */
+  const offlineEmpty = () => isOffline() && (!asOf() || chartCandles().length === 0);
 
   /** EMA9 (warning) + EMA20 (primary), recomputed on the displayed candles so
    *  the overlays always match the selected timeframe. The backend `emas`
@@ -386,7 +417,12 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
    */
   const patternOverlay = createMemo(() => {
     const scan = patternScan();
-    if (!drawPattern() || scan.status !== "ready" || scan.tf !== chartTf()) return null;
+    if (
+      chartSource() !== "patterns" ||
+      !drawPattern() ||
+      scan.status !== "ready" ||
+      scan.tf !== chartTf()
+    ) return null;
     const hit = scan.hits[0];
     if (!hit) return null;
     return buildPatternOverlay(hit, chartCandles());
@@ -465,7 +501,7 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
   return (
     <LocalCompactPanel
       title={
-        <span style={{ display: "inline-flex", "align-items": "center", gap: "6px" }}>
+        <span style={{ display: "inline-flex", "align-items": "center", gap: "6px", "white-space": "nowrap", "flex-shrink": 0 }}>
           {view() === "depth" ? `${symbol()} depth map` : `${symbol()} chart`}
           <Show when={wallOverlay().markers.length > 0}>
             <Text
@@ -484,11 +520,22 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
         </span>
       }
       testId="nifty-chart-panel"
-      class="[&_[data-compact-card-content]]:flex-1 [&_[data-compact-card-content]]:min-h-0"
+      class="[&_[data-compact-card-content]]:flex-1 [&_[data-compact-card-content]]:min-h-0 [&_[data-compact-card-content]]:overflow-hidden"
       style={{ "min-width": "0px", "min-height": "0px", height: "100%", overflow: "hidden", display: "flex", "flex-direction": "column" }}
       action={
         view() === "chart" ? (
-          <div class="flex items-center" style={{ gap: "4px" }}>
+          // The five control groups are wider than a phone panel. Scrolling
+          // them inside the header keeps the title on one line — otherwise the
+          // title wraps to three lines, the header eats 48px and the chart
+          // body collapses to a 24px sliver.
+          <div class="flex flex-1 min-w-0 items-center justify-end overflow-x-auto" style={{ gap: "4px" }}>
+            <SegmentedControl
+              data-testid="nifty-chart-source"
+              value={chartSource()}
+              onChange={handleSourceChange}
+              data={CHART_SOURCE_OPTIONS}
+              size="xs"
+            />
             <SegmentedControl
               data-testid="nifty-tf-toggle"
               value={chartTf()}
@@ -547,12 +594,33 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
           "min-height": "0px",
         }}
       >
-        <Show when={chartCandles().length === 0}>
-          <EmptyCompact
-            data-testid="nifty-chart-empty"
-            title="No intraday candles"
-            description="Showing option-chain levels only."
-          />
+        {/* The empty card is taller than a short mobile body. A flex-1 slot
+            gives it the panel's height budget and scrolls internally instead
+            of spilling over the pattern footer / side tabs; on a tall panel
+            it centres in the freed chart area rather than leaving a black band. */}
+        <Show when={offlineEmpty()}>
+          <div
+            data-testid="nifty-chart-offline-slot"
+            class="flex flex-1 min-h-0 items-center justify-center overflow-auto"
+          >
+            <EmptyCompact
+              data-testid="nifty-chart-offline-empty"
+              title="No recorded data"
+              description={`No recorded replay frames for ${sessionDate()}. Switch to LIVE for the streamed series.`}
+            />
+          </div>
+        </Show>
+        <Show when={!offlineEmpty() && chartCandles().length === 0}>
+          <div
+            data-testid="nifty-chart-empty-slot"
+            class="flex flex-1 min-h-0 items-center justify-center overflow-auto"
+          >
+            <EmptyCompact
+              data-testid="nifty-chart-empty"
+              title="No intraday candles"
+              description="Showing option-chain levels only."
+            />
+          </div>
         </Show>
         <Show when={chartCandles().length > 0 || candlesEverShown()}>
           <div
@@ -560,7 +628,7 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
             data-fill={chartHeight() == null ? "1" : undefined}
             data-mp-touches={mpTouches().length}
             data-flip-marker={flipMarker().length > 0 ? "1" : "0"}
-            class="w-full max-w-full min-w-0 shrink-0 overflow-hidden"
+            class="w-full max-w-full min-w-0 shrink-0 overflow-hidden flex-1 min-h-0"
             style={{
               ...(chartHeight() == null ? undefined : { height: `${chartHeight()}px` }),
               display: chartCandles().length > 0 ? "flex" : "none",
@@ -579,6 +647,21 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
               {...(chartHeight() != null ? { height: chartHeight()! } : {})}
               fitMarkLines
             />
+          </div>
+        </Show>
+        <Show when={chartSource() === "patterns" && patternScan().status === "idle"}>
+          <div class="flex items-center" style={{ gap: "6px", "min-height": "18px", "padding-top": "2px" }}>
+            <Text size="xs" c="dimmed" span>No pattern scan yet —</Text>
+            <Button
+              data-testid="nifty-patterns-run"
+              size="xs"
+              variant="subtle"
+              onClick={() => scanPatterns(chartTf())}
+              title={`Run the chart-pattern detector on ${symbol()} ${chartTf()}`}
+              style={{ height: "18px", "min-height": "18px", padding: "0 6px", "font-weight": 800 }}
+            >
+              Run {chartTf()} scan
+            </Button>
           </div>
         </Show>
       </div>

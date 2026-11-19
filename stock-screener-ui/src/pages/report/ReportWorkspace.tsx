@@ -254,7 +254,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
       <Box
         data-testid="nifty-main-row"
         data-chart-primary={isDesk() && chartSize() === "fill" ? "true" : undefined}
-        className={`grid grid-cols-1 ${isDesk() ? "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,420px)]" : "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,624px)]"} grid-rows-[minmax(0,1fr)] gap-0 items-stretch w-full max-w-full min-w-0 flex-1 min-h-[300px] overflow-hidden`}
+        className={`grid grid-cols-1 ${isDesk() ? "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,420px)]" : "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,624px)]"} grid-rows-[minmax(0,1fr)_minmax(0,120px)] min-[1200px]:grid-rows-[minmax(0,1fr)] gap-0 items-stretch w-full max-w-full min-w-0 flex-1 min-h-[300px] overflow-hidden`}
         style={{
           "max-height":
             isDesk() && chartSize() !== "fill" ? `${chartRowHeight()}px` : undefined,
@@ -365,7 +365,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
                 </For>
                 <Text className="ml-auto mr-5 text-[7.5px] text-fin-text-muted">OI change</Text>
               </Box>
-              <Box data-testid="nifty-heatmap-wrap" className="flex-1 min-h-0 min-w-0 flex">
+              <Box data-testid="nifty-heatmap-wrap" className="flex-1 min-h-0 min-w-0 flex overflow-auto">
                 <Suspense fallback={<PanelSkeleton h={220} />}>
                   <NiftyOiHeatmap
                     rows={store.data.tapeRows()}
