@@ -644,17 +644,30 @@ export function suppressTinyFlatLabels<
   const total = tiles.reduce((sum, tile) => sum + tile.value, 0);
   return tiles.map((tile) => {
     const side = estimatedTileHeightPx(tile.value, total, widthPx, heightPx);
-    const visible = side >= MIN_LABEL_WIDTH_PX && side >= MIN_LABEL_HEIGHT_PX;
-    // Between the one-line and two-line floors the value is dropped rather
-    // than clipped: ECharts would paint `+0.|`, which reads as a real number.
-    const oneLine = !visible && side >= MIN_LABEL_LINE_HEIGHT_PX && side >= MIN_LABEL_WIDTH_PX;
+    const twoLine = side >= MIN_LABEL_WIDTH_PX && side >= MIN_LABEL_HEIGHT_PX;
+    const oneLine = !twoLine && side >= MIN_LABEL_LINE_HEIGHT_PX && side >= MIN_LABEL_WIDTH_PX;
     return {
       ...tile,
       label: {
         ...tile.label,
-        show: visible || oneLine,
+        show: twoLine || oneLine,
+        /*
+         * Between the one-line and two-line floors, abbreviate to the existing
+         * 6-char convention instead of letting ECharts clip the value line to
+         * a fragment (`+0.|`), which reads as a real number. Below the one-line
+         * floor nothing is painted at all — "no label rather than a stub".
+         *
+         * Known limitation: the width here is the √area proxy, which cannot
+         * predict a squarified tile's true aspect ratio, so a few wide-and-short
+         * tiles still ellipsise a long ticker (`KOTAKB…`). Fixing that properly
+         * needs the post-layout rect, which ECharts does not expose to a label
+         * formatter.
+         */
         ...(oneLine
-          ? { formatter: (p: { name?: string }) => `{sym|${p.name ?? ""}}` }
+          ? {
+              formatter: (p: { name?: string }) =>
+                `{sym|${shortTreemapSymbol(p.name ?? "")}}`,
+            }
           : {}),
       },
     };
