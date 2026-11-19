@@ -203,7 +203,6 @@ class TableSortV1(BaseModel):
     id: str = Field(min_length=1, max_length=64)
     desc: bool = False
 
-
 class TablePrefsV1(BaseModel):
     """Column preferences shared by every ``table.<id>`` scope.
 
@@ -233,6 +232,52 @@ TABLE_FIELD_NAMES: frozenset[str] = frozenset(TablePrefsV1.model_fields)
 #: the width of ``user_saved_configs.scope`` (VARCHAR(64)). SQLite ignores the
 #: length, but Postgres rejects a longer value, so the bound is enforced here.
 TABLE_SCOPE_RE = re.compile(r"^table\.[a-z0-9][a-z0-9._-]{0,57}$")
+
+
+class HomeWindowLayoutV1(BaseModel):
+    """One named desk tab: its windows, each with geometry and panel settings.
+
+    Deliberately permissive — this is the desk's own layout document, and a
+    panel owns the shape of its `settings` bag (the frontend validates against
+    the panel's schema and strips unknown keys before writing). The bounds here
+    are about the *blob*: a window cannot claim enormous geometry and a layout
+    cannot hold thousands of windows.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    name: str = Field(default="Main", max_length=64)
+    windows: list[dict[str, Any]] = Field(default_factory=list, max_length=64)
+
+
+class HomeWindowV1(BaseModel):
+    """The ``window.home`` scope: named desk tabs plus which one is active.
+
+    Before this existed the desk posted here and received ``404 unknown_scope``,
+    which the client treats as "config API absent — stay quiet". So the desk
+    appeared to save and silently persisted nothing, geometry included.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    #: Layout-document version marker the client stamps on every write. It is
+    #: not used for routing (the envelope carries `version`) but rejecting it
+    #: would 422 every desk save, which is how this was caught.
+    v: int = Field(default=1, ge=1, le=99)
+    active: str = Field(default="Main", max_length=64)
+    layouts: list[HomeWindowLayoutV1] = Field(default_factory=list, max_length=32)
+
+
+WINDOW_FIELD_NAMES: frozenset[str] = frozenset(HomeWindowV1.model_fields)
+
+
+def default_home_window_payload() -> dict[str, Any]:
+    return HomeWindowV1().model_dump()
+
+
+def _unknown_window_keys(config: dict[str, Any]) -> list[str]:
+    """Keys this scope must never store. Panels own their own `settings` bag."""
+    return sorted(set(config) - WINDOW_FIELD_NAMES)
 
 
 def default_table_prefs_payload() -> dict[str, Any]:
@@ -282,6 +327,17 @@ SCOPE_REGISTRY: dict[str, ScopeSpec] = {
         default=default_market_filters_payload,
         max_bytes=MAX_CONFIG_BYTES,
         unknown_keys=_unknown_market_keys,
+    ),
+    # The HOME desk. Geometry plus each window's panel settings; without an
+    # entry here every save 404s as `unknown_scope`, which the client treats as
+    # "API absent" and swallows — the desk looked like it persisted and did not.
+    "window.home": ScopeSpec(
+        scope="window.home",
+        version=1,
+        schema=HomeWindowV1,
+        default=default_home_window_payload,
+        max_bytes=MAX_CONFIG_BYTES,
+        unknown_keys=_unknown_window_keys,
     ),
 }
 

@@ -557,16 +557,43 @@ class TestUniverseRegistryDerivation:
 
     def test_cap_tiers_derive_from_registry(self, user_client):
         import api.user_configs as uc
-        from api.market_screen.config import ALL_CAP_TIERS
+        from api.market_screen.config import ALL_CAP_TIERS, RANK_TIERS
 
         assert uc.CAP_TIERS == frozenset(ALL_CAP_TIERS)
-        assert uc.CAP_TIERS == {"mega", "large", "mid", "small", "micro"}
+        # Guard against shrinkage without freezing the vocabulary: the India
+        # rank ladder and its fallback are the size tiers every consumer needs.
+        required = {label for _, label in RANK_TIERS.ranks} | {RANK_TIERS.fallback}
+        assert required <= uc.CAP_TIERS
         for tier in ALL_CAP_TIERS:
             assert user_client.put(
                 URL, json={"config": _with(capTiers=[tier])}
             ).status_code == 200, tier
         assert user_client.put(
             URL, json={"config": _with(capTiers=["huge"])}
+        ).status_code == 422
+
+    def test_saved_config_accepts_every_tier_the_snapshot_can_emit(self, user_client):
+        import api.user_configs as uc
+        from api.market_screen.config import UNIVERSES
+
+        # The saved-filter allowlist must cover the rail's whole vocabulary,
+        # including class tiers (ETFs carry no cap but are still selectable).
+        emitted = {
+            label
+            for spec in UNIVERSES.values()
+            for label in (
+                *(tier for _, tier in spec.cap_tiers.ranks),
+                *(tier for _, tier in spec.cap_tiers.absolute),
+                spec.cap_tiers.fallback,
+                *((spec.cap_tiers.non_equity_tier,) if spec.cap_tiers.non_equity_tier else ()),
+            )
+        }
+        assert emitted == uc.CAP_TIERS
+        for tier in sorted(emitted):
+            response = user_client.put(URL, json={"config": _with(capTiers=[tier])})
+            assert response.status_code == 200, (tier, response.json())
+        assert user_client.put(
+            URL, json={"config": _with(capTiers=["not_a_tier"])}
         ).status_code == 422
 
     def test_types_track_registry_for_openapi(self):
@@ -1337,3 +1364,83 @@ class TestForwardCompatibleTableReads:
         assert response.status_code == 422
         assert response.json()["detail"] == "unknown_key"
         assert db.query(UserSavedConfig).count() == 0
+
+
+WINDOW_HOME_URL = "/api/user-configs/window.home"
+
+
+class TestWindowHomeScope:
+    """The HOME desk must actually persist.
+
+    `window.home` was never added to `SCOPE_REGISTRY`, so every save 404'd as
+    `unknown_scope`. The client treats 404 as "config API absent — stay quiet",
+    so the desk looked like it saved and silently persisted nothing: geometry,
+    panel settings, named tabs, all lost on reload.
+    """
+
+    def test_scope_is_registered(self):
+        from api.user_configs import SCOPE_REGISTRY
+
+        assert "window.home" in SCOPE_REGISTRY
+
+    def test_a_desk_layout_round_trips(self, user_client):
+        payload = {
+            "active": "Main",
+            "layouts": [
+                {
+                    "name": "Main",
+                    "windows": [
+                        {
+                            "id": "market.heatmap-1",
+                            "type": "market.heatmap",
+                            "title": "MARKET HEATMAP",
+                            "x": 8,
+                            "y": 8,
+                            "w": 600,
+                            "h": 400,
+                            "z": 1,
+                            "settings": {"universe": "nifty50", "sizeBy": "rsi"},
+                        }
+                    ],
+                }
+            ],
+        }
+        put = user_client.put(WINDOW_HOME_URL, json={"config": payload, "version": 1})
+        assert put.status_code == 200, put.text
+
+        get = user_client.get(WINDOW_HOME_URL)
+        assert get.status_code == 200, get.text
+        stored = get.json()["config"]
+        assert stored["active"] == "Main"
+        window = stored["layouts"][0]["windows"][0]
+        assert window["settings"] == {"universe": "nifty50", "sizeBy": "rsi"}
+
+    def test_a_default_read_is_not_a_404(self, user_client):
+        # An empty scope must answer with the default payload, not `unknown_scope`.
+        get = user_client.get(WINDOW_HOME_URL)
+        assert get.status_code == 200, get.text
+        assert get.json()["saved"] is False
+
+    def test_an_oversized_layout_is_rejected(self, user_client):
+        payload = {
+            "active": "Main",
+            "layouts": [
+                {
+                    "name": "Main",
+                    "windows": [
+                        {"id": f"w{i}", "type": "sector.table", "x": 0, "y": 0, "w": 10, "h": 10, "z": i}
+                        for i in range(80)
+                    ],
+                }
+            ],
+        }
+        put = user_client.put(WINDOW_HOME_URL, json={"config": payload, "version": 1})
+        assert put.status_code == 422, put.text
+
+    def test_the_client_version_marker_is_accepted(self, user_client):
+        # The frontend stamps `v` on every desk write. Rejecting it 422'd every
+        # save with `unknown_key: ["v"]` — the desk still persisted nothing.
+        payload = {"v": 1, "active": "Main", "layouts": [{"name": "Main", "windows": []}]}
+        put = user_client.put(WINDOW_HOME_URL, json={"config": payload, "version": 1})
+        assert put.status_code == 200, put.text
+        assert put.json()["config"]["v"] == 1
