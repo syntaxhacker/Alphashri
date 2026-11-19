@@ -271,13 +271,16 @@ function VerdictCell(props: VerdictCellProps) {
         >
           {props.primaryNode ?? props.primary}
         </Text>
+        {/* The compact context row gives each detail ~47px. A 9px ellipsis cut
+            a number mid-digits, so the detail lives in the cell tooltip and in
+            this screen-reader-only node — never as a visible fragment. */}
         <Text
           data-testid={`${props.testId}-secondary`}
           size="xs"
           c="dimmed"
           span
-          truncate
-          style={{ "font-size": "9px", "line-height": "1.2", "min-width": "0" }}
+          className="sr-only"
+          style={{ "font-size": "11px", "line-height": "1.2", "min-width": "0" }}
         >
           {props.secondary}
         </Text>
@@ -319,8 +322,13 @@ function VerdictCell(props: VerdictCellProps) {
         size="xs"
         c="dimmed"
         span
-        truncate
-        style={{ "font-size": "10px", "line-height": "1.3" }}
+        style={{
+          "font-size": "11px",
+          "line-height": "1.2",
+          "min-width": "0",
+          "white-space": "normal",
+          "overflow-wrap": "anywhere",
+        }}
       >
         {props.secondary}
       </Text>

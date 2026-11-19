@@ -112,10 +112,14 @@ export function DecisionCell(props: {
   title?: string;
   valueSize?: number;
 }) {
+  // The dash lives on the value node, so the reason has to travel with it —
+  // a cell-level tooltip alone leaves a bare "—" unexplained on hover.
+  const help = () =>
+    props.title ? `${props.title} — ${props.hint}` : `${props.label}: ${props.hint}`;
   return (
     <Box
       data-testid={props.testId}
-      title={props.title ? `${props.title} — ${props.hint}` : `${props.label}: ${props.hint}`}
+      title={help()}
       className={DECISION_CELL_CLASS}
       style={DECISION_CELL_STYLE}
     >
@@ -131,6 +135,7 @@ export function DecisionCell(props: {
           ...(props.valueSize != null ? { "font-size": `${props.valueSize}px` } : {}),
         }}
         data-testid={`${props.testId}-value`}
+        title={help()}
       >
         {props.value}
       </Text>
@@ -142,9 +147,15 @@ export function ContextCell(props: {
   testId: string;
   label: string;
   value: JSX.Element;
+  title?: string;
 }) {
   return (
-    <Box data-testid={props.testId} className={CONTEXT_CELL_CLASS} style={CONTEXT_CELL_STYLE}>
+    <Box
+      data-testid={props.testId}
+      title={props.title}
+      className={CONTEXT_CELL_CLASS}
+      style={CONTEXT_CELL_STYLE}
+    >
       <Text span size="xs" fw={700} c="dimmed" style={CONTEXT_LABEL_STYLE}>
         {props.label}
       </Text>
@@ -161,6 +172,9 @@ export function DecisionChip(props: {
   value: string;
   onClick: () => void;
   tone?: string;
+  /** Full explanation, including why a value may be an em dash. */
+  help?: string;
+  ariaLabel?: string;
 }) {
   return (
     <Button
@@ -168,7 +182,8 @@ export function DecisionChip(props: {
       size="sm"
       variant="subtle"
       onClick={() => props.onClick()}
-      title={`${props.label} — ${props.value}`}
+      title={props.help ?? `${props.label} — ${props.value}`}
+      aria-label={props.ariaLabel ?? `${props.label}: ${props.value}`}
       className="min-w-0 h-[20px] px-1 py-0 gap-[3px] rounded-[4px] whitespace-nowrap border-l"
       style={{ border: `1px solid ${palette.TERM_BORDER}` }}
     >

@@ -1,7 +1,7 @@
-import { For, Show, Suspense, createEffect, createMemo, lazy } from "solid-js";
+import { For, Show, Suspense, createEffect, createMemo, createSignal, lazy } from "solid-js";
 import type { JSX } from "solid-js";
 
-import { ActionIcon, Box, Button, Text } from "@/ui";
+import { ActionIcon, Box, Button, Text, useMediaQuery } from "@/ui";
 import * as palette from "@/ui/palette";
 import { hexToRgba } from "@/utils/color";
 import type { NiftyStrike } from "@/types/niftyReport";
@@ -11,6 +11,7 @@ import type { DeskDockTab } from "./DeskDock";
 import { useNiftyReport } from "./ReportContext";
 import type { HeatMetric } from "./niftyReportStore";
 import { NiftyOiChain, getNiftyOiColumns } from "./reportCells";
+import { LiveTapeDisclosure } from "./reportBits";
 
 // The chart, greeks, skew and heatmap are the heavy panels of the workspace.
 // Each gets its own lazy boundary so the chain/table chrome paints first and a
@@ -36,6 +37,15 @@ const NiftyOiHeatmap = lazy(() =>
 const CHART_HEIGHTS = { s: 180, m: 320, l: 520, xl: 760 } as const;
 const CHART_ROW_CHROME = 48;
 const FILL_MAX_HEIGHT = 300;
+
+// The desktop chart is the largest block, but 77% of the viewport leaves the
+// dock a 26px stub. The content grid settles it near 56% (496px at 890px tall,
+// 538px at 950px), and 58vh is the hard ceiling for tall viewports — both well
+// above the ~380px where a candle chart stops being readable. A viewport cap
+// keeps the flex-1/min-h-0 chain intact; no fixed height is set on a flex panel.
+const DESK_CHART_ROW_SHARE = "0.56";
+const DESK_CHART_ROW_MAX_CLASS = "min-[1200px]:max-h-[58vh]";
+const CHART_FILL_CHAIN = "flex-1 min-h-0";
 
 const ANALYTICS_CELL_CLASS = "min-w-0 min-h-0 flex flex-col [&>*]:flex-1 [&>*]:min-h-0";
 
@@ -77,6 +87,84 @@ const HEAT_METRICS: HeatMetric[] = ["oi", "volume", "premium"];
 const HEATMAP_EXPAND_CLASS =
   "absolute top-0 right-0 w-[22px] h-[18px] min-w-[22px] px-0 py-0 leading-[18px] text-[11px] z-[3]";
 
+// A 57px treemap is noise. On a phone the side row becomes just the tab strip
+// plus this summary, and the heatmap moves to the existing full-view drawer.
+// Static literals so Tailwind emits both variants.
+const MOBILE_GRID_DEFAULT = "max-[600px]:grid-rows-[minmax(0,1fr)_minmax(0,96px)]";
+const MOBILE_GRID_HEATMAP = "max-[600px]:grid-rows-[minmax(0,1fr)_minmax(0,56px)]";
+
+const MOBILE_HEAT_METRIC_STYLE: JSX.CSSProperties = {
+  height: "22px",
+  "min-height": "22px",
+  "min-width": "30px",
+  "padding-left": "4px",
+  "padding-right": "4px",
+  "padding-top": "0",
+  "padding-bottom": "0",
+  "font-size": "11px",
+  "line-height": "1.2",
+};
+
+const MOBILE_HEAT_OPEN_STYLE: JSX.CSSProperties = {
+  height: "22px",
+  "min-height": "22px",
+  "padding-left": "6px",
+  "padding-right": "6px",
+  "font-size": "11px",
+  "line-height": "1.2",
+};
+
+function MobileHeatmapSummary(props: {
+  open: boolean;
+  onToggle: () => void;
+  metric: HeatMetric;
+  onMetric: (metric: HeatMetric) => void;
+  onOpenFull: () => void;
+}) {
+  return (
+    <LiveTapeDisclosure
+      open={props.open}
+      onToggle={props.onToggle}
+      testId="nifty-heatmap-mobile-disclosure"
+      label="OI HEATMAP"
+      openHint="hide"
+      closedHint="tap for view options"
+    >
+      <Box
+        data-testid="nifty-heatmap-metric-toggle"
+        className="flex flex-wrap items-center gap-1 px-2 pb-1"
+      >
+        <For each={HEAT_METRICS}>
+          {(metric) => (
+            <Button
+              data-testid={`nifty-heatmap-metric-${metric}`}
+              size="sm"
+              variant={props.metric === metric ? "filled" : "subtle"}
+              aria-pressed={props.metric === metric}
+              title={metricTitle(metric)}
+              onClick={() => props.onMetric(metric)}
+              style={MOBILE_HEAT_METRIC_STYLE}
+            >
+              {metricLabel(metric)}
+            </Button>
+          )}
+        </For>
+        <Button
+          data-testid="nifty-heatmap-expand"
+          size="sm"
+          variant="subtle"
+          aria-label="Expand the OI heatmap"
+          title="Expand the OI heatmap"
+          onClick={props.onOpenFull}
+          style={MOBILE_HEAT_OPEN_STYLE}
+        >
+          FULL VIEW ↗
+        </Button>
+      </Box>
+    </LiveTapeDisclosure>
+  );
+}
+
 function metricLabel(metric: HeatMetric): string {
   return metric === "oi" ? "OI" : metric === "volume" ? "VOL" : "PREM";
 }
@@ -109,11 +197,14 @@ function PanelSkeleton(props: { h: number }) {
 
 export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
   const store = useNiftyReport();
+  const isMobile = useMediaQuery("(max-width: 600px)");
+  const [heatOpen, setHeatOpen] = createSignal(false);
 
   const isDesk = () => store.ui.isDesk();
   const sideTab = () => store.ui.sideTab();
   const chartSize = () => store.ui.chartSize();
   const heatMetric = () => store.ui.heatMetric();
+  const mobileHeatmap = () => isDesk() && isMobile() && sideTab() === "heatmap";
 
   const chartRowHeight = createMemo(() => {
     const size = chartSize();
@@ -254,7 +345,9 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
       <Box
         data-testid="nifty-main-row"
         data-chart-primary={isDesk() && chartSize() === "fill" ? "true" : undefined}
-        className={`grid grid-cols-1 ${isDesk() ? "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,420px)]" : "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,624px)]"} grid-rows-[minmax(0,1fr)_minmax(0,120px)] min-[1200px]:grid-rows-[minmax(0,1fr)] gap-0 items-stretch w-full max-w-full min-w-0 flex-1 min-h-[300px] overflow-hidden`}
+        data-chart-row-share={isDesk() ? DESK_CHART_ROW_SHARE : undefined}
+        data-chart-chain={CHART_FILL_CHAIN}
+        className={`grid grid-cols-1 ${isDesk() ? "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,420px)]" : "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,624px)]"} grid-rows-[minmax(0,1fr)_minmax(0,120px)] ${mobileHeatmap() ? MOBILE_GRID_HEATMAP : MOBILE_GRID_DEFAULT} min-[1200px]:grid-rows-[minmax(0,1fr)] gap-0 items-stretch w-full max-w-full min-w-0 flex-1 min-h-[300px] overflow-hidden${isDesk() ? ` ${DESK_CHART_ROW_MAX_CLASS}` : ""}`}
         style={{
           "max-height":
             isDesk() && chartSize() !== "fill" ? `${chartRowHeight()}px` : undefined,
@@ -344,52 +437,65 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
               data-testid="nifty-chart-side-heatmap"
               className="relative flex-auto min-h-0 min-w-0 flex flex-col"
             >
-              <Box
-                data-testid="nifty-heatmap-metric-toggle"
-                className="flex gap-0.5 items-center h-[18px] shrink-0 px-0.5 mb-[1px]"
-              >
-                <For each={HEAT_METRICS}>
-                  {(metric) => (
-                    <Button
-                      data-testid={`nifty-heatmap-metric-${metric}`}
-                      size="sm"
-                      variant={heatMetric() === metric ? "filled" : "subtle"}
-                      aria-pressed={heatMetric() === metric}
-                      title={metricTitle(metric)}
-                      onClick={() => store.ui.setHeatMetric(metric)}
-                      style={HEAT_METRIC_STYLE}
-                    >
-                      {metricLabel(metric)}
-                    </Button>
-                  )}
-                </For>
-                <Text className="ml-auto mr-5 text-[7.5px] text-fin-text-muted">OI change</Text>
-              </Box>
-              <Box data-testid="nifty-heatmap-wrap" className="flex-1 min-h-0 min-w-0 flex overflow-auto">
-                <Suspense fallback={<PanelSkeleton h={220} />}>
-                  <NiftyOiHeatmap
-                    rows={store.data.tapeRows()}
-                    bucketMin={1}
-                    widthPts={store.data.metrics()?.heatmapWidthPts ?? 250}
-                    viewBoxHeight={240}
+              <Show
+                when={!isMobile()}
+                fallback={
+                  <MobileHeatmapSummary
+                    open={heatOpen()}
+                    onToggle={() => setHeatOpen((v) => !v)}
                     metric={heatMetric()}
-                    startTime={store.data.intradayStart()}
-                    flipAt={store.data.flipAt()}
+                    onMetric={(m) => store.ui.setHeatMetric(m)}
+                    onOpenFull={() => store.ui.setHeatExpand(true)}
                   />
-                </Suspense>
-              </Box>
-              <Button
-                data-testid="nifty-heatmap-expand"
-                size="sm"
-                variant="subtle"
-                aria-label="Expand the OI heatmap"
-                title="Expand the OI heatmap"
-                onClick={() => store.ui.setHeatExpand(true)}
-                className={HEATMAP_EXPAND_CLASS}
-                style={{ "background-color": palette.TERM_HEADER }}
+                }
               >
-                ⤢
-              </Button>
+                <Box
+                  data-testid="nifty-heatmap-metric-toggle"
+                  className="flex gap-0.5 items-center h-[18px] shrink-0 px-0.5 mb-[1px]"
+                >
+                  <For each={HEAT_METRICS}>
+                    {(metric) => (
+                      <Button
+                        data-testid={`nifty-heatmap-metric-${metric}`}
+                        size="sm"
+                        variant={heatMetric() === metric ? "filled" : "subtle"}
+                        aria-pressed={heatMetric() === metric}
+                        title={metricTitle(metric)}
+                        onClick={() => store.ui.setHeatMetric(metric)}
+                        style={HEAT_METRIC_STYLE}
+                      >
+                        {metricLabel(metric)}
+                      </Button>
+                    )}
+                  </For>
+                  <Text className="ml-auto mr-5 text-[7.5px] text-fin-text-muted">OI change</Text>
+                </Box>
+                <Box data-testid="nifty-heatmap-wrap" className="flex-1 min-h-0 min-w-0 flex overflow-auto">
+                  <Suspense fallback={<PanelSkeleton h={220} />}>
+                    <NiftyOiHeatmap
+                      rows={store.data.tapeRows()}
+                      bucketMin={1}
+                      widthPts={store.data.metrics()?.heatmapWidthPts ?? 250}
+                      viewBoxHeight={240}
+                      metric={heatMetric()}
+                      startTime={store.data.intradayStart()}
+                      flipAt={store.data.flipAt()}
+                    />
+                  </Suspense>
+                </Box>
+                <Button
+                  data-testid="nifty-heatmap-expand"
+                  size="sm"
+                  variant="subtle"
+                  aria-label="Expand the OI heatmap"
+                  title="Expand the OI heatmap"
+                  onClick={() => store.ui.setHeatExpand(true)}
+                  className={HEATMAP_EXPAND_CLASS}
+                  style={{ "background-color": palette.TERM_HEADER }}
+                >
+                  ⤢
+                </Button>
+              </Show>
             </Box>
           </Show>
         </Box>

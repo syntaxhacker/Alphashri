@@ -73,7 +73,11 @@ function Field(props: {
   return (
     <div
       data-testid={props.testId}
-      title={props.title}
+      title={
+        props.value === INTEL_DASH
+          ? `${props.title ?? props.label} — no value in this snapshot`
+          : props.title
+      }
       class="inline-flex items-baseline gap-1 shrink-0 min-w-0"
       style={{ color: palette.TEXT_MUTED }}
     >
@@ -328,6 +332,7 @@ export function NiftyIntelStrip(props: NiftyIntelStripProps) {
     <div
       data-testid="nifty-intel-strip"
       data-state="unavailable"
+      title="Institutional-flow snapshot unavailable — the intel feed failed, so no value is shown instead of a stale estimate."
       style={{ "height": "24px", "min-height": "24px" }}
       class="flex items-center h-[24px] min-h-[24px] shrink-0 px-2 border border-fin-border rounded-[4px] bg-fin-surface overflow-hidden"
     >
@@ -341,6 +346,7 @@ export function NiftyIntelStrip(props: NiftyIntelStripProps) {
     <div
       data-testid="nifty-intel-strip"
       data-state="loading"
+      title="Loading the institutional-flow snapshot — values appear once the feed responds."
       style={{ "height": "24px", "min-height": "24px" }}
       class="flex items-center h-[24px] min-h-[24px] shrink-0 px-2 border border-fin-border rounded-[4px] bg-fin-surface overflow-hidden"
     >
@@ -356,7 +362,7 @@ export function NiftyIntelStrip(props: NiftyIntelStripProps) {
         data-testid="nifty-intel-strip"
         role="button"
         tabIndex={0}
-        aria-label="Open Nifty intel — FII/DII, ΔOI, max pain, PCR and news"
+        aria-label="Open institutional flows — foreign and domestic net flows, open-interest change, max pain, put/call ratio and news"
         data-state={status()}
         style={{
           "height": layout().height,
@@ -425,7 +431,11 @@ export function NiftyIntelStrip(props: NiftyIntelStripProps) {
         </span>
       </div>
 
-      <LocalPanelModal open={open()} title="Nifty intel — FII/DII · ΔOI · news" onClose={() => setOpen(false)}>
+      <LocalPanelModal
+        open={open()}
+        title="Institutional flows — foreign & domestic · open-interest change · news"
+        onClose={() => setOpen(false)}
+      >
         <IntelBody intel={data()} eod={eod()} />
       </LocalPanelModal>
     </>

@@ -1,6 +1,6 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { createEffect, createMemo, createSignal, For, Show, untrack } from "solid-js";
-import { ActionIcon, Button, SegmentedControl, Text } from "@/ui";
+import { ActionIcon, Button, SegmentedControl, Text, useMediaQuery } from "@/ui";
 import * as palette from "@/ui/palette";
 import { TradingViewChart } from "@/components/chart/TradingViewChart";
 import { useFyersTickStream, type FyersTick } from "@/hooks/useFyersTickStream";
@@ -303,6 +303,8 @@ interface NiftyChartPanelProps {
  * tick-driven is passed in.
  */
 export function NiftyChartPanel(props: NiftyChartPanelProps) {
+  const isMobile = useMediaQuery("(max-width: 600px)");
+  const [controlsOpen, setControlsOpen] = createSignal(false);
   const report = () => props.report;
   const mode = () => props.mode;
   const view = () => props.view;
@@ -702,6 +704,59 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
     ...(scanAnnotation() ? [scanAnnotation()!.marker] : []),
   ]);
 
+  const sourceToggle = () => (
+    <SegmentedControl
+      data-testid="nifty-chart-source"
+      value={chartSource()}
+      onChange={handleSourceChange}
+      data={CHART_SOURCE_OPTIONS}
+      size="xs"
+    />
+  );
+  const secondaryControls = () => (
+    <>
+      <SegmentedControl
+        data-testid="nifty-tf-toggle"
+        value={chartTf()}
+        onChange={handleTfChange}
+        data={CHART_TF_OPTIONS}
+        size="xs"
+      />
+      <Button
+        data-testid="nifty-patterns-scan"
+        size="xs"
+        variant="subtle"
+        onClick={() => scanPatterns(chartTf())}
+        disabled={patternScan().status === "loading"}
+        title={`Run the chart-pattern detector on ${symbol()} ${chartTf()}`}
+        style={{ "min-width": "0px", "padding-left": "6px", "padding-right": "6px", "padding-top": "0px", "padding-bottom": "0px", "height": "20px", "font-size": "9px", "font-weight": 800, "letter-spacing": "0.06em" }}
+      >
+        {patternScan().status === "loading" ? "…" : "PATTERNS"}
+      </Button>
+      <SegmentedControl
+        data-testid="nifty-chart-size"
+        value={chartSize()}
+        onChange={handleSizeChange}
+        data={CHART_SIZE_OPTIONS}
+        size="xs"
+      />
+      <Show when={props.onExpand}>
+        <ActionIcon
+          data-testid="nifty-chart-expand"
+          aria-label="Expand chart fullscreen"
+          title="Fullscreen (F)"
+          size={20}
+          onClick={props.onExpand}
+          style={{ padding: "1px", color: palette.TEXT_MUTED }}
+        >
+          <Text span size="xs" fw={700} style={{ "font-size": "13px", "line-height": 1 }}>
+            ⤢
+          </Text>
+        </ActionIcon>
+      </Show>
+    </>
+  );
+
   return (
     <LocalCompactPanel
       title={
@@ -739,62 +794,52 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
         </span>
       }
       testId="nifty-chart-panel"
-      class="[&_[data-compact-card-content]]:flex-1 [&_[data-compact-card-content]]:min-h-0 [&_[data-compact-card-content]]:overflow-hidden"
+      class="[&_[data-compact-card-content]]:flex-1 [&_[data-compact-card-content]]:min-h-0 [&_[data-compact-card-content]]:overflow-hidden max-[600px]:[&_[data-compact-card-content]]:p-0 max-[600px]:[&_[data-compact-card-content]]:gap-0"
       style={{ "min-width": "0px", "min-height": "0px", height: "100%", overflow: "hidden", display: "flex", "flex-direction": "column" }}
       action={
         view() === "chart" ? (
-          // The five control groups are wider than a phone panel. Scrolling
-          // them inside the header keeps the title on one line — otherwise the
-          // title wraps to three lines, the header eats 48px and the chart
-          // body collapses to a 24px sliver.
-          <div class="flex flex-1 min-w-0 items-center justify-end overflow-x-auto" style={{ gap: "4px" }}>
-            <SegmentedControl
-              data-testid="nifty-chart-source"
-              value={chartSource()}
-              onChange={handleSourceChange}
-              data={CHART_SOURCE_OPTIONS}
-              size="xs"
-            />
-            <SegmentedControl
-              data-testid="nifty-tf-toggle"
-              value={chartTf()}
-              onChange={handleTfChange}
-              data={CHART_TF_OPTIONS}
-              size="xs"
-            />
-            <Button
-              data-testid="nifty-patterns-scan"
-              size="xs"
-              variant="subtle"
-              onClick={() => scanPatterns(chartTf())}
-              disabled={patternScan().status === "loading"}
-              title={`Run the chart-pattern detector on ${symbol()} ${chartTf()}`}
-              style={{ "min-width": "0px", "padding-left": "6px", "padding-right": "6px", "padding-top": "0px", "padding-bottom": "0px", "height": "20px", "font-size": "9px", "font-weight": 800, "letter-spacing": "0.06em" }}
+          <Show
+            when={isMobile()}
+            fallback={
+              // Desktop keeps the original single row; no mobile-only rule
+              // reaches it.
+              <div class="flex flex-1 min-w-0 items-center justify-end overflow-x-auto" style={{ gap: "4px" }}>
+                {sourceToggle()}
+                {secondaryControls()}
+              </div>
+            }
+          >
+            <div
+              data-testid="nifty-chart-controls-mobile"
+              className="flex flex-col items-stretch min-w-0"
+              style={{ gap: "2px" }}
             >
-              {patternScan().status === "loading" ? "…" : "PATTERNS"}
-            </Button>
-            <SegmentedControl
-              data-testid="nifty-chart-size"
-              value={chartSize()}
-              onChange={handleSizeChange}
-              data={CHART_SIZE_OPTIONS}
-              size="xs"
-            />
-            <Show when={props.onExpand}>
-              <ActionIcon
-                data-testid="nifty-chart-expand"
-                aria-label="Expand chart fullscreen"
-                title="Fullscreen (F)"
-                size={20}
-                onClick={props.onExpand}
-                style={{ padding: "1px", color: palette.TEXT_MUTED }}
-              >
-                <Text span size="xs" fw={700} style={{ "font-size": "13px", "line-height": 1 }}>
-                  ⤢
-                </Text>
-              </ActionIcon>
-            </Show>
-          </div>
+              <div className="flex items-center justify-end min-w-0" style={{ gap: "4px" }}>
+                <div className="shrink-0">{sourceToggle()}</div>
+                <Button
+                  data-testid="nifty-chart-controls-more"
+                  size="xs"
+                  variant="subtle"
+                  aria-expanded={controlsOpen()}
+                  aria-controls="nifty-chart-controls-extra"
+                  onClick={() => setControlsOpen((v) => !v)}
+                  style={{ height: "26px", "min-height": "26px", "min-width": "44px", padding: "0 5px", "font-size": "11px", "font-weight": 800 }}
+                >
+                  {controlsOpen() ? "LESS ▴" : "MORE ▾"}
+                </Button>
+              </div>
+              <Show when={controlsOpen()}>
+                <div
+                  id="nifty-chart-controls-extra"
+                  data-testid="nifty-chart-controls-extra"
+                  className="flex flex-wrap items-center justify-end min-w-0"
+                  style={{ gap: "4px", "padding-top": "2px" }}
+                >
+                  {secondaryControls()}
+                </div>
+              </Show>
+            </div>
+          </Show>
         ) : undefined
       }
     >

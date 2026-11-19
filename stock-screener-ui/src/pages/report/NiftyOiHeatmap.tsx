@@ -508,11 +508,11 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
         <div
           data-testid="nifty-heatmap-legend"
           aria-label="Heatmap legend"
-          class="flex flex-wrap items-center gap-x-[10px] gap-y-[2px] min-h-5 shrink-0 px-[6px] py-[2px] border-b border-fin-border bg-white/[0.03] text-[10px] leading-[1.2] font-mono text-fin-text-muted"
+          class="flex flex-wrap items-center gap-x-[10px] gap-y-[2px] min-h-5 shrink-0 px-[6px] py-[2px] border-b border-fin-border bg-white/[0.03] text-[11px] leading-[1.1] font-mono text-fin-text-muted"
         >
           <span
             data-testid="nifty-heatmap-legend-title"
-            class="text-[9px] tracking-[0.08em] opacity-60"
+            class="text-[11px] tracking-[0.08em] opacity-60"
           >
             HEATMAP
           </span>
@@ -545,7 +545,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
         <div
           data-testid="nifty-heatmap-read"
           title="Strongest OI builds on this tape, in plain English"
-          class="px-[6px] mt-[2px] shrink-0 text-[10px] leading-[1.2] font-mono text-fin-text whitespace-nowrap overflow-hidden text-ellipsis"
+          class="px-[6px] mt-[2px] shrink-0 text-[11px] leading-[1.2] font-mono text-fin-text whitespace-normal break-words"
         >
           {readText() || (metric() === "volume" ? "no traded volume yet" : metric() === "premium" ? "no premium move yet" : "no ΔOI build yet")}
         </div>
@@ -664,9 +664,10 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
             <text
               data-testid="nifty-heatmap-strike-label"
               x={PAD_L - 6}
-              y={rowOf(s) * cellH() + cellH() / 2 + 3.5}
+              y={rowOf(s) * cellH() + cellH() / 2}
               text-anchor="end"
-              font-size="10"
+              dominant-baseline="middle"
+              font-size="11"
               fill="currentColor"
               opacity={0.65}
             >
@@ -676,11 +677,12 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
           {/* Y-axis caption */}
           <text
             data-testid="nifty-heatmap-oi-label"
-            x={10}
+            x={14}
             y={gridH() / 2}
-            transform={`rotate(-90 10 ${gridH() / 2})`}
+            transform={`rotate(-90 14 ${gridH() / 2})`}
             text-anchor="middle"
-            font-size="9"
+            dominant-baseline="middle"
+            font-size="11"
             fill="currentColor"
             opacity={0.8}
             font-family={MONO}
@@ -691,9 +693,10 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
           <text
             data-testid="nifty-heatmap-time-axis"
             x={PAD_L - 4}
-            y={VB_H() - 8}
+            y={VB_H() - 10}
             text-anchor="end"
-            font-size="9"
+            dominant-baseline="middle"
+            font-size="11"
             fill="currentColor"
             opacity={0.8}
             font-family={MONO}
@@ -709,9 +712,10 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
               <text
                 data-testid="nifty-heatmap-time-label"
                 x={isFirst ? PAD_L : isLast ? VB_W - 2 : xOf(bi)}
-                y={VB_H() - 8}
+                y={VB_H() - 10}
                 text-anchor={isFirst ? "start" : isLast ? "end" : "middle"}
-                font-size="10"
+                dominant-baseline="middle"
+                font-size="11"
                 fill="currentColor"
                 opacity={0.9}
                 font-family={MONO}
@@ -744,7 +748,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
         <Show when={hoverCell() && hover() !== null}>
           <div
             data-testid="nifty-heatmap-hover"
-            class="absolute right-1 top-[14px] px-1 py-[1px] border border-fin-border rounded-[3px] text-[9px] font-mono text-fin-text whitespace-nowrap pointer-events-none z-[3]"
+            class="absolute right-1 top-[14px] px-1 py-[1px] border border-fin-border rounded-[3px] text-[11px] leading-[1.2] font-mono text-fin-text whitespace-nowrap pointer-events-none z-[3]"
             style={{ "background-color": TERM_HEADER, "border-color": TERM_BORDER }}
           >
             {buckets()[hover()!.bucket]?.label ?? ""} · {formatNumberIN(hover()!.strike)} · CE{" "}

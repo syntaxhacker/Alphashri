@@ -25,6 +25,14 @@ const ReportOverlays = lazy(() =>
   import("./ReportOverlays").then((m) => ({ default: m.ReportOverlays })),
 );
 
+// Desktop desk surface: strip / chart / dock. The chart track is 70fr so it
+// lands at ~56% of the viewport after the fixed chrome (~174px above the row);
+// the dock track keeps ~210px so an open drawer and the 26px tab bar both fit.
+// The chart row also carries its own 58vh cap for tall viewports. Mobile keeps
+// the flex-column flow unchanged.
+const DESK_CONTENT_GRID_CLASS =
+  "min-[1200px]:grid min-[1200px]:grid-rows-[auto_minmax(0,70fr)_minmax(0,30fr)]";
+
 function SectionError(props: { name: string; error: unknown }) {
   return (
     <Box
@@ -139,7 +147,7 @@ function ReportBody() {
       >
         <Box
           data-testid="nifty-report-content"
-          class={`flex-1 min-h-0 flex flex-col gap-1 ${isDesk() ? "overflow-hidden" : "overflow-auto"}`}
+          class={`flex-1 min-h-0 flex flex-col gap-1 ${isDesk() ? `overflow-hidden ${DESK_CONTENT_GRID_CLASS}` : "overflow-auto"}`}
           style={{
             flex: 1,
             "min-height": "0px",

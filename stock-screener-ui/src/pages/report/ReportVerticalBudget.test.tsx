@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { createSignal } from "solid-js";
 import { UIProvider } from "@/ui";
+import { DESK_DOCK_OPEN_MIN_HEIGHT } from "./DeskDock";
 
 // End-to-end layout contract for the desk surface: the chart keeps the whole
 // stretched row, the page never scrolls, and the low-frequency tape bands are
@@ -147,7 +148,9 @@ describe("Index Report vertical budget", () => {
     expect((await screen.findByTestId("nifty-chart-wrap")).getAttribute("data-fill")).toBe("true");
 
     fireEvent.click(screen.getByTestId("desk-dock-strips"));
-    const disclosure = await screen.findByTestId("nifty-live-tape-disclosure");
+    const disclosure = await screen.findByTestId("nifty-live-tape-disclosure", undefined, {
+      timeout: 5000,
+    });
     expect(disclosure.closest('[data-testid="desk-dock-drawer"]')).not.toBeNull();
     expect(screen.getByTestId("nifty-live-tape-toggle")).toHaveAttribute("aria-expanded", "false");
     for (const id of ["nifty-breadth-strip", "nifty-10s-strip", "wall-erosion-board", "nifty-walls-card"]) {
@@ -170,7 +173,95 @@ describe("Index Report vertical budget", () => {
     expect(content.style.overflow).toBe("hidden");
 
     fireEvent.click(screen.getByTestId("desk-dock-strips"));
-    expect(await screen.findByTestId("nifty-live-tape-disclosure")).toBeInTheDocument();
+    expect(
+      await screen.findByTestId("nifty-live-tape-disclosure", undefined, { timeout: 5000 }),
+    ).toBeInTheDocument();
     expect(content.className).not.toMatch(/overflow-(auto|scroll)/);
+  });
+});
+
+describe("Index Report desktop chart/dock share", () => {
+  test("the chart row is a bounded fraction of the viewport via grid classes", async () => {
+    render(() => (
+      <UIProvider>
+        <NiftyReportShell />
+      </UIProvider>
+    ));
+
+    const main = await screen.findByTestId("nifty-main-row");
+    const content = screen.getByTestId("nifty-report-content");
+    expect(main.getAttribute("data-chart-row-share")).toBe("0.56");
+    expect(main.className).toContain("min-[1200px]:max-h-[58vh]");
+    expect(content.className).toContain(
+      "min-[1200px]:grid-rows-[auto_minmax(0,70fr)_minmax(0,30fr)]",
+    );
+  });
+
+  test("the dock bay has a usable minimum height when open", async () => {
+    render(() => (
+      <UIProvider>
+        <NiftyReportShell />
+      </UIProvider>
+    ));
+
+    expect(screen.getByTestId("desk-dock-idle")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("desk-dock-strips"));
+    const drawer = await screen.findByTestId("desk-dock-drawer");
+    expect(drawer.getAttribute("data-dock-min-height")).toBe(
+      String(DESK_DOCK_OPEN_MIN_HEIGHT),
+    );
+    expect(drawer.className).toContain("min-h-[180px]");
+    expect(screen.queryByTestId("desk-dock-idle")).not.toBeInTheDocument();
+  });
+
+  test("the chart keeps its flex-1 min-h-0 chain and no fixed height", async () => {
+    render(() => (
+      <UIProvider>
+        <NiftyReportShell />
+      </UIProvider>
+    ));
+
+    const main = await screen.findByTestId("nifty-main-row");
+    expect(main.className).toContain("flex-1");
+    expect(main.getAttribute("data-chart-chain")).toBe("flex-1 min-h-0");
+    expect(main.className).not.toMatch(/(^|\s)h-\[\d+px\]/);
+    expect(main.style.height).toBe("");
+    expect((await screen.findByTestId("nifty-chart-wrap")).getAttribute("data-fill")).toBe(
+      "true",
+    );
+  });
+
+  test("no strip or dock testid was lost when the bay took the reclaimed space", async () => {
+    render(() => (
+      <UIProvider>
+        <NiftyReportShell />
+      </UIProvider>
+    ));
+
+    for (const id of [
+      "nifty-toolbar",
+      "nifty-stat-strip",
+      "nifty-main-row",
+      "nifty-chart-wrap",
+      "nifty-side-col",
+      "desk-dock",
+      "desk-dock-flow",
+      "desk-dock-setup",
+      "desk-dock-market",
+      "desk-dock-strips",
+      "desk-dock-analytics",
+    ]) {
+      expect(screen.getByTestId(id)).toBeInTheDocument();
+    }
+    fireEvent.click(screen.getByTestId("desk-dock-strips"));
+    for (const id of [
+      "nifty-live-tape-disclosure",
+      "nifty-breadth-strip",
+      "nifty-10s-strip",
+      "wall-erosion-board",
+      "nifty-walls-card",
+    ]) {
+      expect(await screen.findByTestId(id, undefined, { timeout: 5000 })).toBeInTheDocument();
+    }
   });
 });

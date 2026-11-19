@@ -1,4 +1,4 @@
-import { Show, createMemo } from "solid-js";
+import { Show, createMemo, createSignal } from "solid-js";
 import type { JSX } from "solid-js";
 import { Box, Button, useMediaQuery } from "@/ui";
 import * as palette from "@/ui/palette";
@@ -31,6 +31,7 @@ import type { PlanInput } from "./deskPlanSummary";
 import { pinHint, pinRisk } from "./niftyPin";
 import { resolveWallBoard } from "./niftyWallsFormat";
 import { useNiftyReport } from "./ReportContext";
+import { LiveTapeDisclosure } from "./reportBits";
 
 const formatInt = (value: number): string => formatNumberIN(value);
 
@@ -43,7 +44,7 @@ const DECISION_STRIP_STYLE: JSX.CSSProperties = {
 
 const INDIA_VIX_STYLE: JSX.CSSProperties = {
   "flex-shrink": 0,
-  "font-size": "9px",
+  "font-size": "11px",
   "font-weight": 700,
   "letter-spacing": "0.06em",
   color: palette.TEXT_MUTED,
@@ -71,12 +72,14 @@ const PLAN_BAR_STYLE: JSX.CSSProperties = {
 };
 
 const PLAN_HEADLINE_STYLE: JSX.CSSProperties = {
-  flex: 1,
+  // Content-sized, not flex:1 — a stretched headline shoves confidence to the
+  // far edge of the strip. Natural width keeps the qualifier beside the claim.
+  flex: "0 1 auto",
   "min-width": 0,
   overflow: "hidden",
   "text-overflow": "ellipsis",
   "white-space": "nowrap",
-  "font-size": "12px",
+  "font-size": "16px",
   "font-weight": 700,
   "letter-spacing": "0.02em",
   "font-family": palette.MONO,
@@ -84,13 +87,12 @@ const PLAN_HEADLINE_STYLE: JSX.CSSProperties = {
 };
 
 const PLAN_CONFIDENCE_STYLE: JSX.CSSProperties = {
-  "font-size": "9px",
+  "font-size": "11px",
   "font-weight": 700,
   color: palette.TEXT_MUTED,
   "font-variant-numeric": "tabular-nums",
   "white-space": "nowrap",
   "flex-shrink": 0,
-  opacity: 0.8,
 };
 
 const TAPE_BADGE_STYLE: JSX.CSSProperties = {
@@ -100,7 +102,7 @@ const TAPE_BADGE_STYLE: JSX.CSSProperties = {
   "padding-top": "1px",
   "padding-bottom": "1px",
   "border-radius": "3px",
-  "font-size": "9px",
+  "font-size": "11px",
   "font-weight": 800,
   "letter-spacing": "0.03em",
   "font-family": palette.MONO,
@@ -148,6 +150,12 @@ export function ReportDecisionStrip() {
   const store = useNiftyReport();
   const narrow = useMediaQuery("(max-width: 600px)");
   const wrapLayout = () => verdictWrapLayout(narrow());
+  // SESSION/15m/5m flow stacks to ~144px on a phone. Collapse it behind the
+  // same disclosure the tape bands use so the chart row keeps that height.
+  const [flowOpen, setFlowOpen] = createSignal(false);
+  // The verdict/plan chips stack to ~69px on a phone and duplicate the regime
+  // and plan already in the stat grid — collapse them behind the same primitive.
+  const [verdictOpen, setVerdictOpen] = createSignal(false);
 
   const report = () => store.data.report();
   const metrics = () => store.data.metrics();
@@ -263,11 +271,45 @@ export function ReportDecisionStrip() {
 
   const maxPainSeries = createMemo(() => tapeRows().map((row) => row.max_pain));
 
-  const setupSummary = () => {
+  const setupCounts = createMemo(() => {
     const gates = setup().gates;
-    const passed = gates.filter((gate) => gate.pass).length;
-    return `${passed}/${gates.length} · ${preMove().state}`;
+    return { passed: gates.filter((gate) => gate.pass).length, total: gates.length };
+  });
+
+  const setupSummary = () => `${setupCounts().passed} of ${setupCounts().total} · ${preMove().state}`;
+
+  const setupHelp = () => {
+    const { passed, total } = setupCounts();
+    const state = preMove().state;
+    const meaning =
+      state === "quiet"
+        ? "no setup is armed"
+        : state === "armed"
+          ? "conditions are lined up"
+          : state === "watch"
+            ? "a setup is forming"
+            : "the pre-move state is not available";
+    return `Setup checks: ${passed} of ${total} passed. The checks are COIL, TREND, RVOL, LEVEL, WALL, GAMMA and FUEL. Pre-move "${state}" means ${meaning}. Opens the Setup tab with every check.`;
   };
+
+  const gammaChipHelp = () => {
+    if (gexDegraded()) {
+      return "Dealer gamma is unavailable in this report: option greeks are missing from the snapshot, so no regime or flip strike can be shown.";
+    }
+    const regime =
+      gexForDisplay()?.regime === "short"
+        ? "short (moves are amplified)"
+        : gexForDisplay()?.regime === "long"
+          ? "long (moves are dampened)"
+          : "flat";
+    const flip = gammaFlip();
+    return flip != null
+      ? `Dealer gamma is ${regime}. The flip at ${formatInt(flip)} is the strike where cumulative dealer gamma crosses zero at spot.`
+      : `Dealer gamma is ${regime}. The value is a dash because the profile does not cross zero at spot, so there is no flip strike to show.`;
+  };
+
+  const INTEL_CHIP_HELP =
+    "Institutional flows: FII means foreign institutional investors and DII means domestic institutional investors — their net cash flows. The Intel panel shows a dash with a reason when no snapshot is available or its fetch failed. Opens the market panel.";
 
   const planSummary = createMemo(() => {
     const current = report();
@@ -333,16 +375,18 @@ export function ReportDecisionStrip() {
         style={PLAN_ONELINER_STYLE}
       >
         <span aria-hidden style={{ ...PLAN_BAR_STYLE, "background-color": planTone() }} />
-        <Box
-          data-testid="nifty-plan-headline"
-          title={`${summary.action} · confidence ${summary.confidence}%`}
-          className="min-w-0"
-          style={{ ...planHeadlineStyle(narrow()), color: planTone() }}
-        >
-          {summary.headline}
-        </Box>
-        <Box data-testid="nifty-plan-confidence" title="Weighted confidence behind the active side" className="shrink-0" style={PLAN_CONFIDENCE_STYLE}>
-          {summary.confidence}%
+        <Box className="flex items-center gap-1 min-w-0 flex-1">
+          <Box
+            data-testid="nifty-plan-headline"
+            title={`${summary.action} · confidence ${summary.confidence}%`}
+            className="min-w-0"
+            style={{ ...planHeadlineStyle(narrow()), color: planTone() }}
+          >
+            {summary.headline}
+          </Box>
+          <Box data-testid="nifty-plan-confidence" title="Weighted confidence behind the active side" className="shrink-0" style={PLAN_CONFIDENCE_STYLE}>
+            confidence {summary.confidence}%
+          </Box>
         </Box>
         <Show when={badge}>
           {(current) => (
@@ -372,6 +416,38 @@ export function ReportDecisionStrip() {
 
   const planLine = planOneLiner();
 
+  const verdictContent = () => (
+    <Box
+      data-testid="nifty-verdict-wrap"
+      className={`flex gap-1 min-w-0 ${wrapLayout().direction === "column" ? "flex-col items-stretch flex-wrap py-0.5" : "flex-nowrap items-center"} ${VERDICT_NARROW_OVERRIDES}`}
+      style={{
+        height: wrapLayout().height,
+        "min-height": wrapLayout().minHeight,
+        overflow: wrapLayout().overflow,
+      }}
+    >
+      {/* The conclusion leads: headline + confidence first, then the evidence
+          chips (SESSION / VIX / STRENGTH) that explain it. */}
+      <Show when={isDesk() && planLine != null}>
+        <Box className="flex-[1.5_1_0] min-w-0 [&>*]:w-full [&>*]:min-w-0">
+          {planLine}
+        </Box>
+      </Show>
+      <Box className="flex-[1_1_0] min-w-0 flex">
+        <NiftyVerdictStrip report={report()!} mode="context" />
+      </Box>
+      <Show when={symbol() !== "NIFTY"}>
+        <span
+          data-testid="nifty-india-vix-label"
+          title="VIX source: INDIA_VIX — this is India VIX, not a US VIX."
+          style={INDIA_VIX_STYLE}
+        >
+          INDIA VIX
+        </span>
+      </Show>
+    </Box>
+  );
+
   return (
     <Show when={report()}>
       <Box
@@ -380,7 +456,10 @@ export function ReportDecisionStrip() {
         style={DECISION_STRIP_STYLE}
       >
         <Box className="flex flex-wrap min-[1200px]:flex-nowrap items-stretch min-w-0 min-h-[28px]">
-          <Box data-testid="nifty-decision-stats" className="flex flex-wrap flex-auto min-w-0">
+          <Box
+            data-testid="nifty-decision-stats"
+            className="flex flex-wrap flex-auto min-w-0 [&_[data-testid$='-value']]:text-right"
+          >
             <DecisionCell
               testId="nifty-stat-spot"
               label="Spot"
@@ -412,7 +491,7 @@ export function ReportDecisionStrip() {
             />
             <DecisionCell
               testId="nifty-stat-flip"
-              label="γ flip"
+              label="Dealer gamma flip"
               value={
                 gexDegraded()
                   ? "n/a"
@@ -422,13 +501,13 @@ export function ReportDecisionStrip() {
               }
               hint={
                 gexDegraded()
-                  ? "no option greeks in this snapshot"
+                  ? "no dealer gamma snapshot — option greeks are missing"
                   : flipDelta() != null
                     ? `spot ${formatSignedPoints(flipDelta()!)}`
-                    : "no zero-γ cross"
+                    : "no dealer gamma cross at spot, so no flip strike"
               }
               accent={palette.TERM_FLIP}
-              title="Gamma flip (GEX zero-γ): strike where cumulative dealer gamma crosses zero at spot. Above it dealers damp moves; below it they amplify. Hint is spot minus the flip."
+              title="Dealer gamma flip: the strike where cumulative dealer gamma crosses zero at spot. Above it dealers damp moves; below it they amplify. The hint is spot minus the flip."
             />
             <DecisionCell
               testId="nifty-stat-call-wall"
@@ -480,11 +559,11 @@ export function ReportDecisionStrip() {
               {(fuel) => (
                 <DecisionCell
                   testId="nifty-squeeze-fuel"
-                  label="Squeeze"
-                  value="FUEL ↑"
+                  label="Squeeze fuel"
+                  value="Building ↑"
                   hint={`${fuel().strike} call wall is ${fuel().sentiment === "SC" ? "short-covering" : "unwinding"} — a break above it accelerates`}
                   accent={palette.WARNING}
-                  title="Squeeze fuel: price is pinned under the call wall and that wall's call OI is being covered (SC/LU). Writers are buying back the ceiling, so a break above it is fuel, not a cap. Inverse of a defended wall (SB)."
+                  title="Squeeze fuel: price is pinned under the call wall and that wall's call OI is being covered (short-covering / long unwind). Writers are buying back the ceiling, so a break above it is fuel, not a cap. The opposite is a defended wall."
                 />
               )}
             </Show>
@@ -492,7 +571,7 @@ export function ReportDecisionStrip() {
           <Box data-testid="nifty-context-stats" className="flex items-stretch shrink-0 ml-auto">
             <ContextCell
               testId="nifty-stat-pcr-oi"
-              label="PCR (OI)"
+              label="Put/call ratio · open interest"
               value={
                 <>
                   <AnimatedValue value={report()?.pcrOi ?? 0} format={format2dp} />
@@ -503,11 +582,13 @@ export function ReportDecisionStrip() {
                   />
                 </>
               }
+              title="Put/call ratio by open interest — outstanding contracts still held. Open interest is accumulated positioning; compare it with the put/call ratio by traded volume, which is today's flow."
             />
             <ContextCell
               testId="nifty-stat-pcr-vol"
-              label="PCR (Vol)"
+              label="Put/call ratio · volume"
               value={<AnimatedValue value={report()?.pcrVol ?? 0} format={format2dp} />}
+              title="Put/call ratio by traded volume — contracts traded this session. Volume is short-term flow; compare it with the put/call ratio by open interest, which is accumulated positioning."
             />
             <ContextCell
               testId="nifty-stat-max-pain"
@@ -522,25 +603,30 @@ export function ReportDecisionStrip() {
                   />
                 </>
               }
+              title="Max pain — the strike where the most option contracts would expire worthless. Writers tend to pin price there into expiry; it is a magnet, not a forecast."
             />
           </Box>
           <Show when={isDesk()}>
             <Box className="flex items-center gap-0.5 shrink-0 pl-1">
               <DecisionChip
                 testId="nifty-chip-setup"
-                label="SETUP"
+                label="Setup checks"
                 value={setupSummary()}
                 onClick={() => store.ui.setDeskDockTab("setup")}
+                help={setupHelp()}
+                ariaLabel="Setup checks — open the Setup tab with all seven checks"
               />
               <DecisionChip
                 testId="nifty-chip-intel"
-                label="INTEL"
-                value="FII/DII"
+                label="Institutional flows"
+                value="FII / DII"
                 onClick={() => store.ui.setDeskDockTab("market")}
+                help={INTEL_CHIP_HELP}
+                ariaLabel="Institutional flows — open the market panel for FII and DII net flows"
               />
               <DecisionChip
                 testId="nifty-chip-gamma"
-                label="Γ"
+                label="Dealer gamma"
                 value={
                   gexDegraded()
                     ? "n/a"
@@ -548,46 +634,53 @@ export function ReportDecisionStrip() {
                 }
                 onClick={() => store.ui.setGammaOpen(true)}
                 tone={gexForDisplay()?.regime === "short" ? palette.NEGATIVE : palette.POSITIVE}
+                help={gammaChipHelp()}
+                ariaLabel="Dealer gamma — open the dealer gamma profile"
               />
             </Box>
           </Show>
         </Box>
-        <Box
-          data-testid="nifty-verdict-wrap"
-          className={`flex gap-1 min-w-0 ${wrapLayout().direction === "column" ? "flex-col items-stretch flex-wrap py-0.5" : "flex-nowrap items-center"} ${VERDICT_NARROW_OVERRIDES}`}
-          style={{
-            height: wrapLayout().height,
-            "min-height": wrapLayout().minHeight,
-            overflow: wrapLayout().overflow,
-          }}
-        >
-          <Box className="flex-[1_1_0] min-w-0 flex">
-            <NiftyVerdictStrip report={report()!} mode="context" />
-          </Box>
-          <Show when={symbol() !== "NIFTY"}>
-            <span
-              data-testid="nifty-india-vix-label"
-              title="VIX source: INDIA_VIX — this is India VIX, not a US VIX."
-              style={INDIA_VIX_STYLE}
-            >
-              INDIA VIX
-            </span>
-          </Show>
-          <Show when={isDesk() && planLine != null}>
-            <Box className="flex-[1.2_1_0] min-w-0 [&>*]:w-full [&>*]:min-w-0">
-              {planLine}
-            </Box>
-          </Show>
-        </Box>
+        <Show when={narrow()} fallback={verdictContent()}>
+          <LiveTapeDisclosure
+            open={verdictOpen()}
+            onToggle={() => setVerdictOpen((v) => !v)}
+            testId="nifty-verdict-disclosure"
+            label="VERDICT / PLAN"
+            openHint="hide"
+            closedHint="regime · plan"
+          >
+            {verdictContent()}
+          </LiveTapeDisclosure>
+        </Show>
       </Box>
 
       <Show when={flowReport()}>
         {(flow) => (
-          <NiftyFlowWindows
-            report={flow()}
-            lastFlip={lastFlip()}
-            showSessionValue={symbol() === "NIFTY"}
-          />
+          <Show
+            when={narrow()}
+            fallback={
+              <NiftyFlowWindows
+                report={flow()}
+                lastFlip={lastFlip()}
+                showSessionValue={symbol() === "NIFTY"}
+              />
+            }
+          >
+            <LiveTapeDisclosure
+              open={flowOpen()}
+              onToggle={() => setFlowOpen((v) => !v)}
+              testId="nifty-flow-windows-disclosure"
+              label="FLOW WINDOWS"
+              openHint="hide"
+              closedHint="session · 15m · 5m"
+            >
+              <NiftyFlowWindows
+                report={flow()}
+                lastFlip={lastFlip()}
+                showSessionValue={symbol() === "NIFTY"}
+              />
+            </LiveTapeDisclosure>
+          </Show>
         )}
       </Show>
 
