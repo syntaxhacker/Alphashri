@@ -37,6 +37,7 @@ import {
   REPORT_FONT_WEIGHT,
   REPORT_LETTER_SPACING,
   REPORT_LINE_HEIGHT,
+  REPORT_SECTION_ATTR,
   REPORT_STRIP_METRICS,
   groupCellGap,
 } from "./reportTokens";
@@ -56,7 +57,7 @@ const INDIA_VIX_STYLE: JSX.CSSProperties = {
   "font-weight": 700,
   "letter-spacing": "0.06em",
   color: palette.TEXT_MUTED,
-  border: `1px solid ${palette.TERM_BORDER}`,
+  "background-color": palette.alpha(palette.TERM_BORDER, 0.18),
   "border-radius": "3px",
   "padding-left": "2px",
   "padding-right": "2px",
@@ -65,9 +66,10 @@ const INDIA_VIX_STYLE: JSX.CSSProperties = {
   "white-space": "nowrap",
 };
 
+// A tint instead of a second border: the oneliner sits inside the bordered
+// stat strip, so a 1px card border there would be a card-inside-card.
 const PLAN_ONELINER_STYLE: JSX.CSSProperties = {
-  "border-color": palette.TERM_BORDER,
-  "background-color": palette.TERM_HEADER,
+  "background-color": palette.alpha(palette.TERM_BORDER, 0.18),
 };
 
 const PLAN_BAR_STYLE: JSX.CSSProperties = {
@@ -87,7 +89,7 @@ const PLAN_HEADLINE_STYLE: JSX.CSSProperties = {
   overflow: "hidden",
   "text-overflow": "ellipsis",
   "white-space": "nowrap",
-  "font-size": "16px",
+  "font-size": `${REPORT_FONT.verdict}px`,
   "font-weight": 700,
   "letter-spacing": "0.02em",
   "font-family": palette.MONO,
@@ -442,7 +444,7 @@ export function ReportDecisionStrip() {
     return (
       <Box
         data-testid="nifty-plan-oneliner"
-        className="flex items-center gap-1 px-2 min-h-[20px] rounded-[4px] border w-full max-w-full min-w-0 shrink-0"
+        className="flex items-center gap-1 px-2 min-h-[20px] rounded-[4px] w-full max-w-full min-w-0 shrink-0"
         style={PLAN_ONELINER_STYLE}
       >
         <span aria-hidden style={{ ...PLAN_BAR_STYLE, "background-color": planTone() }} />
@@ -465,7 +467,14 @@ export function ReportDecisionStrip() {
               data-testid="nifty-plan-tape"
               data-conflict={current().conflict ? "true" : "false"}
               title={`Last 5 min ${current().up ? "+" : ""}${Math.round(current().delta)} pts — ${current().ratio.toFixed(1)}× the median 5-min move${current().conflict ? " · this OPPOSES the plan side" : ""}`}
-              style={{ ...TAPE_BADGE_STYLE, border: `1px solid ${current().tone}`, color: current().tone }}
+              style={{
+                ...TAPE_BADGE_STYLE,
+                // This badge lives inside the bordered stat strip; a second
+                // border would be a card-inside-card. The tone stays legible
+                // in the text while the fill is a tint of the same colour.
+                "background-color": palette.alpha(current().tone, 0.18),
+                color: current().tone,
+              }}
             >
               {current().conflict ? "⚠ " : ""}TAPE {current().up ? "↑" : "↓"} {current().ratio.toFixed(1)}×
             </span>
@@ -523,6 +532,7 @@ export function ReportDecisionStrip() {
     <Show when={report()}>
       <Box
         data-testid="nifty-stat-strip"
+        {...{ [REPORT_SECTION_ATTR]: true }}
         className="flex flex-col border border-[var(--desk-border)] rounded-[4px] overflow-hidden w-full max-w-full min-w-0 shrink-0 px-2"
         style={DECISION_STRIP_STYLE}
       >
@@ -542,7 +552,7 @@ export function ReportDecisionStrip() {
                     fallback={report()?.spot ?? 0}
                   />
                 }
-                valueSize={15}
+                valueSize={REPORT_FONT.xl}
                 hint={
                   dayRange()
                     ? `day ${formatNumberIN(Math.round(dayRange()!.low))}–${formatNumberIN(
@@ -752,11 +762,13 @@ export function ReportDecisionStrip() {
           <Show
             when={narrow()}
             fallback={
-              <NiftyFlowWindows
-                report={flow()}
-                lastFlip={lastFlip()}
-                showSessionValue={symbol() === "NIFTY"}
-              />
+              <Box {...{ [REPORT_SECTION_ATTR]: true }} className="contents">
+                <NiftyFlowWindows
+                  report={flow()}
+                  lastFlip={lastFlip()}
+                  showSessionValue={symbol() === "NIFTY"}
+                />
+              </Box>
             }
           >
             <LiveTapeDisclosure
@@ -778,11 +790,13 @@ export function ReportDecisionStrip() {
       </Show>
 
       <Show when={symbol() === "NIFTY" || symbol() === "SENSEX"}>
-        <IndexMoversStrip
-          index={symbol() === "NIFTY" ? "NIFTY" : "SENSEX"}
-          onExpand={store.ui.openMovers}
-          liveOnly={mode() === "eod" || report()?.market?.is_open === false}
-        />
+        <Box {...{ [REPORT_SECTION_ATTR]: true }} className="contents">
+          <IndexMoversStrip
+            index={symbol() === "NIFTY" ? "NIFTY" : "SENSEX"}
+            onExpand={store.ui.openMovers}
+            liveOnly={mode() === "eod" || report()?.market?.is_open === false}
+          />
+        </Box>
       </Show>
 
       <Show when={!isDesk()}>

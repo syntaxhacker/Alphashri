@@ -710,7 +710,7 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
       value={chartSource()}
       onChange={handleSourceChange}
       data={CHART_SOURCE_OPTIONS}
-      size="xs"
+      size="md"
     />
   );
   const secondaryControls = () => (
@@ -720,7 +720,7 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
         value={chartTf()}
         onChange={handleTfChange}
         data={CHART_TF_OPTIONS}
-        size="xs"
+        size="md"
       />
       <Button
         data-testid="nifty-patterns-scan"
@@ -729,7 +729,7 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
         onClick={() => scanPatterns(chartTf())}
         disabled={patternScan().status === "loading"}
         title={`Run the chart-pattern detector on ${symbol()} ${chartTf()}`}
-        style={{ "min-width": "0px", "padding-left": "6px", "padding-right": "6px", "padding-top": "0px", "padding-bottom": "0px", "height": "20px", "font-size": "9px", "font-weight": 800, "letter-spacing": "0.06em" }}
+        style={{ "min-width": "0px", "padding-left": "6px", "padding-right": "6px", "padding-top": "0px", "padding-bottom": "0px", "height": "20px", "font-size": "11px", "font-weight": 800, "letter-spacing": "0.06em" }}
       >
         {patternScan().status === "loading" ? "…" : "PATTERNS"}
       </Button>
@@ -738,7 +738,7 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
         value={chartSize()}
         onChange={handleSizeChange}
         data={CHART_SIZE_OPTIONS}
-        size="xs"
+        size="md"
       />
       <Show when={props.onExpand}>
         <ActionIcon
@@ -781,7 +781,7 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
             <Text
               data-testid="nifty-chart-event-badge"
               style={{
-                "font-size": "9px",
+                "font-size": "11px",
                 "font-weight": 700,
                 "letter-spacing": "0.4em",
                 "text-transform": "uppercase",

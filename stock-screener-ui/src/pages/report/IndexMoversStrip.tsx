@@ -218,7 +218,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
         <button
           type="button"
           data-testid="movers-expand"
-          class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-border text-fin-border bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 min-w-0 shrink-0 h-[20px] px-1 py-0 text-[11px] font-bold tracking-[0.08em] uppercase"
+          class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-text-muted text-fin-text-muted bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 min-w-0 shrink-0 h-[20px] px-1 py-0 text-[11px] font-bold tracking-[0.08em] uppercase"
           onClick={() => props.onExpand()}
           aria-label="Expand index movers"
           title="Expand index movers"
@@ -248,7 +248,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
                   </Text>
                   <button
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-border text-fin-border bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 px-2 py-0 text-[11px] font-bold ml-auto min-w-0"
+                    class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-text-muted text-fin-text-muted bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 px-2 py-0 text-[11px] font-bold ml-auto min-w-0"
                     onClick={() => void poll()}
                   >
                     Retry

@@ -6,6 +6,7 @@ import { hexToRgba } from "@/utils/color";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { PanelModal } from "@/components/common/PanelModal";
 import { useNiftyReport } from "./ReportContext";
+import { REPORT_FONT } from "./reportTokens";
 import { NiftyDeskPlan } from "./NiftyDeskPlan";
 import { NiftyGammaStrip } from "./NiftyGammaStrip";
 import { NiftyGexProfile } from "./NiftyGexProfile";
@@ -110,7 +111,7 @@ export function ReportOverlays() {
               style={{
                 flex: 1,
                 "min-width": "0px",
-                "font-size": "10px",
+                "font-size": `${REPORT_FONT.micro}px`,
                 "font-weight": 700,
                 "letter-spacing": "0.08em",
                 color: palette.TEXT_MUTED,
@@ -135,7 +136,7 @@ export function ReportOverlays() {
                     "padding-right": "6px",
                     "padding-top": "0px",
                     "padding-bottom": "0px",
-                    "font-size": "10px",
+                    "font-size": `${REPORT_FONT.micro}px`,
                     "line-height": 1.6,
                   }}
                 >
@@ -240,7 +241,7 @@ export function ReportOverlays() {
         <Box data-testid="nifty-pressure-expanded-body" className="flex flex-col gap-2 min-h-0">
           <Box
             data-testid="nifty-pressure-expanded-stats"
-            className="flex gap-2 flex-wrap text-[10px] text-fin-text-muted"
+            className="flex gap-2 flex-wrap text-[11px] text-fin-text-muted"
           >
             <span>median {formatNumberIN(Math.round(pressureRange().median))}</span>
             <span>peak {pressureRange().maxRatio.toFixed(1)}×</span>
@@ -264,7 +265,7 @@ export function ReportOverlays() {
         <Box data-testid="nifty-flowchart-expanded-body" className="flex flex-col gap-2 min-w-0">
           <Box
             data-testid="nifty-flowchart-expanded-stats"
-            className="flex gap-2 flex-wrap text-[10px] text-fin-text-muted"
+            className="flex gap-2 flex-wrap text-[11px] text-fin-text-muted"
           >
             <span>
               flow{" "}

@@ -3,6 +3,7 @@ import type { JSX } from "solid-js";
 import { ActionIcon, Box, useMediaQuery } from "@/ui";
 import { IconX } from "@/components/common/Icons";
 import * as palette from "@/ui/palette";
+import { pickTextColor } from "@/utils/contrast";
 
 export type DeskDockKey = "flow" | "setup" | "alerts" | "market" | "strips" | "analytics";
 
@@ -140,7 +141,12 @@ export function DeskDock(props: {
       >
         <span class="font-black text-[11px] tracking-[0.03em]">{help.label}</span>
         <Show when={tab.summary != null}>
-          <span class="text-[11px] text-fin-text-muted">{tab.summary}</span>
+          <span
+            class="text-[11px]"
+            style={{ color: selected ? pickTextColor(palette.PRIMARY) : palette.TEXT_MUTED }}
+          >
+            {tab.summary}
+          </span>
         </Show>
         <Show when={tab.badge != null && tab.badge > 0}>
           <span

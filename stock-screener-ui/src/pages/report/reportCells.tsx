@@ -196,9 +196,11 @@ export function DecisionChip(props: {
       onClick={() => props.onClick()}
       title={props.help ?? `${props.label} — ${props.value}`}
       aria-label={props.ariaLabel ?? `${props.label}: ${props.value}`}
-      className="min-w-0 h-[20px] px-1 py-0 gap-[3px] rounded-[4px] whitespace-nowrap border-l"
+      className="min-w-0 h-[20px] px-1 py-0 gap-[3px] rounded-[4px] whitespace-nowrap"
       style={{
-        border: `1px solid ${palette.TERM_BORDER}`,
+        // The strip already draws the section border; a chip border inside it
+        // is a card-inside-card. A tint keeps the chip readable as a control.
+        "background-color": palette.alpha(palette.TERM_BORDER, 0.18),
         ...(props.fill ? { flex: "1 1 0%", height: "100%" } : {}),
       }}
     >

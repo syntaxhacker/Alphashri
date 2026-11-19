@@ -11,12 +11,13 @@ import { Text, Tooltip } from "@/ui";
 import * as palette from "@/ui/palette";
 import { formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
 import type { SectorLeader, SectorLeaderBoard } from "../../types/report";
+import { REPORT_FONT } from "./reportTokens";
 
 /** One type treatment for every label / number on the strip, so a stat cell and
  *  a leader row cannot drift apart. Numbers are mono + tabular or the columns
  *  do not line up. */
 const STRIP_LABEL_STYLE = {
-  "font-size": "10px",
+  "font-size": `${REPORT_FONT.micro}px`,
   "font-weight": 700,
   "text-transform": "uppercase",
   "letter-spacing": "0.06em",
@@ -129,7 +130,7 @@ export function LeaderStrip(props: { leaders: SectorLeader[] | SectorLeaderBoard
         <Text c="dimmed" style={STRIP_LABEL_STYLE}>
           {props.label}
         </Text>
-        <Text c="dimmed" style={{ ...STRIP_VALUE_STYLE, "font-size": "10px" }}>
+        <Text c="dimmed" style={{ ...STRIP_VALUE_STYLE, "font-size": `${REPORT_FONT.micro}px` }}>
           {winners.length} up · {losers.length} down
         </Text>
       </div>

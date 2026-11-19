@@ -79,7 +79,7 @@ export function ReportStrips() {
           fallback={
             <Text
               data-testid="nifty-breadth-live-only"
-              className="flex items-center h-6 min-h-6 px-2 text-[10px] text-fin-text-muted tracking-[0.06em] uppercase"
+              className="flex items-center h-6 min-h-6 px-2 text-[11px] text-fin-text-muted tracking-[0.06em] uppercase"
             >
               BREADTH · live only
             </Text>
@@ -196,7 +196,7 @@ export function ReportStrips() {
                   <Box
                     data-testid="nifty-oi-critical-badge"
                     title={`${store.alerts.criticalCount()} critical burst${store.alerts.criticalCount() === 1 ? "" : "s"} — filtered first`}
-                    className="inline-flex items-center text-[9px] font-bold tracking-[0.08em] text-fin-negative border border-fin-negative rounded-[3px] px-1 py-[1px] whitespace-nowrap nifty-critical-pulse"
+                    className="inline-flex items-center text-[11px] font-bold tracking-[0.08em] text-fin-negative border border-fin-negative rounded-[3px] px-1 py-[1px] whitespace-nowrap nifty-critical-pulse"
                   >
                     CRITICAL {store.alerts.criticalCount()}
                   </Box>

@@ -14,6 +14,7 @@ import { useNiftyReport } from "./ReportContext";
 import type { HeatMetric } from "./niftyReportStore";
 import { NiftyOiChain, getNiftyOiColumns } from "./reportCells";
 import { LiveTapeDisclosure } from "./reportBits";
+import { REPORT_GUTTER } from "./reportTokens";
 
 // The chart, greeks, skew and heatmap are the heavy panels of the workspace.
 // Each gets its own lazy boundary so the chain/table chrome paints first and a
@@ -354,6 +355,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
     <>
       <Box
         data-testid="nifty-main-row"
+        data-left-edge={String(REPORT_GUTTER.inline)}
         data-chart-primary={isDesk() && chartSize() === "fill" ? "true" : undefined}
         data-chart-row-share={isDesk() ? DESK_CHART_ROW_SHARE : undefined}
         data-chart-chain={CHART_FILL_CHAIN}
@@ -518,6 +520,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
       <Show when={isDesk() && !isMobile()}>
         <Box
           data-testid="desk-insight-rail"
+          data-left-edge={String(REPORT_GUTTER.inline)}
           className="flex flex-col gap-1 shrink-0 w-full min-w-0 overflow-hidden"
           style={{ height: `${DESK_RAIL_HEIGHT_PX}px` }}
         >

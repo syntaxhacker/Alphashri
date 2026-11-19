@@ -6,6 +6,7 @@ import { cleanup, render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, test } from "vitest";
 import { UIProvider } from "@/ui";
 import {
+  BG,
   BORDER,
   PRIMARY,
   SURFACE,
@@ -63,7 +64,7 @@ function literalSizes(): Array<{ file: string; line: number; px: number }> {
 
 /** Tailwind `fin-*` utility → the palette token behind the CSS variable. */
 const FIN_TOKEN: Record<string, string> = {
-  "fin-bg": "#000000",
+  "fin-bg": BG,
   "fin-surface": SURFACE,
   "fin-border": BORDER,
   "fin-text": TEXT,

@@ -5,6 +5,11 @@ import { EmptyState, ErrorAlert, InlineLoader } from "@/components/common/states
 import { ReportProvider, useNiftyReport } from "./ReportContext";
 import type { DeskDockTab } from "./DeskDock";
 import { ReportToolbar } from "./ReportToolbar";
+import {
+  REPORT_GUTTER,
+  REPORT_SECTION_ALIGN,
+  REPORT_SECTION_ATTR,
+} from "./reportTokens";
 
 // Each report section owns its own lazy boundary: the shell chrome (toolbar,
 // date controls) paints from this small chunk while the heavy panels stream in
@@ -108,7 +113,7 @@ function ReportBody() {
   return (
     <Box
       data-testid="nifty-report-panel"
-      class="flex flex-col h-full min-h-0 w-full overflow-hidden"
+      class={`flex flex-col h-full min-h-0 w-full overflow-hidden ${REPORT_SECTION_ALIGN.panel}`}
       style={{
         display: "flex",
         "flex-direction": "column",
@@ -118,7 +123,14 @@ function ReportBody() {
         overflow: "hidden",
       }}
     >
-      <ReportToolbar />
+      <Box
+        {...{ [REPORT_SECTION_ATTR]: true }}
+        className="w-full shrink-0"
+        data-left-edge={String(REPORT_GUTTER.inline)}
+        style={{ "padding-left": `${REPORT_GUTTER.inline}px` }}
+      >
+        <ReportToolbar />
+      </Box>
 
       <Show when={store.data.error()}>
         <Box style={{ padding: "4px" }}>
@@ -147,15 +159,19 @@ function ReportBody() {
       >
         <Box
           data-testid="nifty-report-content"
-          class={`flex-1 min-h-0 flex flex-col gap-1 ${isDesk() ? `overflow-hidden ${DESK_CONTENT_GRID_CLASS}` : "overflow-auto"}`}
+          data-left-edge={String(REPORT_GUTTER.inline)}
+          class={`flex-1 min-h-0 flex flex-col gap-2 ${REPORT_SECTION_ALIGN.content} ${isDesk() ? `overflow-hidden ${DESK_CONTENT_GRID_CLASS}` : "overflow-auto"}`}
           style={{
             flex: 1,
             "min-height": "0px",
             display: "flex",
             "flex-direction": "column",
-            gap: "4px",
+            gap: `${REPORT_GUTTER.section}px`,
             overflow: isDesk() ? "hidden" : "auto",
-            padding: "4px",
+            // Keep the horizontal gutter that defines the shared left edge.
+            // The toolbar section keeps a 1px top hairline; a top inset one
+            // pixel short makes the measured section gap exactly 8px.
+            padding: `${REPORT_GUTTER.section - 1}px ${REPORT_GUTTER.inline}px ${REPORT_GUTTER.section}px`,
           }}
         >
           <ErrorBoundary fallback={(err) => <SectionError name="decision strip" error={err} />}>

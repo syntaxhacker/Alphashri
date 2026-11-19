@@ -35,6 +35,7 @@ import {
   gexRegimeText,
 } from "./reportCells";
 import { useNiftyReport } from "./ReportContext";
+import { REPORT_FONT } from "./reportTokens";
 
 const TAPE_PANEL_STYLE: JSX.CSSProperties = {
   "min-width": 0,
@@ -53,7 +54,7 @@ const DETAIL_STYLE: JSX.CSSProperties = { "background-color": palette.TERM_HEADE
 const DETAIL_HEAD_LEFT_STYLE: JSX.CSSProperties = { gap: "8px", "min-width": 0 };
 
 const DETAIL_HEAD_TITLE_STYLE: JSX.CSSProperties = {
-  "font-size": "10px",
+  "font-size": `${REPORT_FONT.micro}px`,
   "font-weight": 700,
   "letter-spacing": "0.08em",
   "text-transform": "uppercase",
@@ -62,7 +63,7 @@ const DETAIL_HEAD_TITLE_STYLE: JSX.CSSProperties = {
 };
 
 const DETAIL_HEAD_SUB_STYLE: JSX.CSSProperties = {
-  "font-size": "10px",
+  "font-size": `${REPORT_FONT.micro}px`,
   color: palette.TEXT_MUTED,
   "white-space": "nowrap",
   overflow: "hidden",
