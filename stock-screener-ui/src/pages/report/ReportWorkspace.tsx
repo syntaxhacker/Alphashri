@@ -6,8 +6,10 @@ import * as palette from "@/ui/palette";
 import { hexToRgba } from "@/utils/color";
 import type { NiftyStrike } from "@/types/niftyReport";
 
+import { BreadthStrip } from "./BreadthStrip";
 import { DeskDock } from "./DeskDock";
 import type { DeskDockTab } from "./DeskDock";
+import { NiftyWallsCard } from "./NiftyWallsCard";
 import { useNiftyReport } from "./ReportContext";
 import type { HeatMetric } from "./niftyReportStore";
 import { NiftyOiChain, getNiftyOiColumns } from "./reportCells";
@@ -46,6 +48,14 @@ const FILL_MAX_HEIGHT = 300;
 const DESK_CHART_ROW_SHARE = "0.56";
 const DESK_CHART_ROW_MAX_CLASS = "min-[1200px]:max-h-[58vh]";
 const CHART_FILL_CHAIN = "flex-1 min-h-0";
+
+// The dock used to grow a 354px drawer that stole height from the chart. That
+// reclaimed band is now a permanent rail: walls (CW/PW/MP/PIN) and breadth are
+// readable beside the chart with no click, and the drawer overlays the rail
+// instead of resizing the chart. At 890px the chart canvas measures 467px, so
+// 430px is the stated floor an open dock must never cross.
+export const DESK_CHART_FLOOR_PX = 430;
+const DESK_RAIL_HEIGHT_PX = 136;
 
 const ANALYTICS_CELL_CLASS = "min-w-0 min-h-0 flex flex-col [&>*]:flex-1 [&>*]:min-h-0";
 
@@ -347,6 +357,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
         data-chart-primary={isDesk() && chartSize() === "fill" ? "true" : undefined}
         data-chart-row-share={isDesk() ? DESK_CHART_ROW_SHARE : undefined}
         data-chart-chain={CHART_FILL_CHAIN}
+        data-chart-floor={isDesk() ? String(DESK_CHART_FLOOR_PX) : undefined}
         className={`grid grid-cols-1 ${isDesk() ? "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,420px)]" : "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,624px)]"} grid-rows-[minmax(0,1fr)_minmax(0,120px)] ${mobileHeatmap() ? MOBILE_GRID_HEATMAP : MOBILE_GRID_DEFAULT} min-[1200px]:grid-rows-[minmax(0,1fr)] gap-0 items-stretch w-full max-w-full min-w-0 flex-1 min-h-[300px] overflow-hidden${isDesk() ? ` ${DESK_CHART_ROW_MAX_CLASS}` : ""}`}
         style={{
           "max-height":
@@ -451,7 +462,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
               >
                 <Box
                   data-testid="nifty-heatmap-metric-toggle"
-                  className="flex gap-0.5 items-center h-[18px] shrink-0 px-0.5 mb-[1px]"
+                  className="flex gap-0.5 items-center h-[30px] min-h-[30px] shrink-0 px-0.5 mb-[1px]"
                 >
                   <For each={HEAT_METRICS}>
                     {(metric) => (
@@ -470,7 +481,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
                   </For>
                   <Text className="ml-auto mr-5 text-[7.5px] text-fin-text-muted">OI change</Text>
                 </Box>
-                <Box data-testid="nifty-heatmap-wrap" className="flex-1 min-h-0 min-w-0 flex overflow-auto">
+                <Box data-testid="nifty-heatmap-wrap" className="flex-1 min-h-0 min-w-0 flex overflow-hidden">
                   <Suspense fallback={<PanelSkeleton h={220} />}>
                     <NiftyOiHeatmap
                       rows={store.data.tapeRows()}
@@ -500,6 +511,45 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
           </Show>
         </Box>
       </Box>
+
+      {/* Desktop-only permanent desk rail. It occupies the band the dock drawer
+          used to steal, so walls (CW/PW/MP/PIN) and breadth stay visible while
+          the chart keeps its full canvas. Mobile keeps its own stacked flow. */}
+      <Show when={isDesk() && !isMobile()}>
+        <Box
+          data-testid="desk-insight-rail"
+          className="flex flex-col gap-1 shrink-0 w-full min-w-0 overflow-hidden"
+          style={{ height: `${DESK_RAIL_HEIGHT_PX}px` }}
+        >
+          <Box className="flex-1 min-h-0 min-w-0">
+            <NiftyWallsCard
+              testId="nifty-walls-card-rail"
+              compact
+              walls={store.walls.data()}
+              onExpand={() => store.walls.openDrawer()}
+              onOpenDesk={() => store.ui.setDeskOpen(true)}
+              emptyText={
+                store.selection.mode() === "eod"
+                  ? "No tape at this replay time."
+                  : "Waiting for walls data."
+              }
+            />
+          </Box>
+          <Show
+            when={store.selection.mode() === "live"}
+            fallback={
+              <Text
+                data-testid="nifty-breadth-live-only"
+                className="flex items-center h-6 min-h-6 px-2 text-[11px] text-fin-text-muted tracking-[0.06em] uppercase shrink-0"
+              >
+                BREADTH · live only
+              </Text>
+            }
+          >
+            <BreadthStrip data={store.data.breadth()} />
+          </Show>
+        </Box>
+      </Show>
 
       <Show when={isDesk()}>
         <DeskDock

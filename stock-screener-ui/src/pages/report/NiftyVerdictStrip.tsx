@@ -246,44 +246,52 @@ function VerdictCell(props: VerdictCellProps) {
       <div
         data-testid={props.testId}
         title={`${props.primary} — ${props.secondary}`}
-        class="flex items-center gap-[6px] min-w-0 overflow-hidden px-2 py-[2px]"
+        class="flex items-start gap-[6px] min-w-0 px-2 py-[2px]"
       >
         <div
           aria-hidden="true"
           data-testid={`${props.testId}-dot`}
           class="w-[6px] h-[6px] rounded-full shrink-0"
-          style={{ "background-color": props.accent }}
+          style={{ "background-color": props.accent, "margin-top": "5px" }}
         />
-        <Text
-          data-testid={`${props.testId}-primary`}
-          size="xs"
-          fw={700}
-          c={props.accent}
-          span
-          truncate
-          style={{
-            "font-size": "11px",
-            "line-height": "1.2",
-            "letter-spacing": "0.04em",
-            "min-width": "0",
-            "flex-shrink": "0",
-          }}
-        >
-          {props.primaryNode ?? props.primary}
-        </Text>
-        {/* The compact context row gives each detail ~47px. A 9px ellipsis cut
-            a number mid-digits, so the detail lives in the cell tooltip and in
-            this screen-reader-only node — never as a visible fragment. */}
-        <Text
-          data-testid={`${props.testId}-secondary`}
-          size="xs"
-          c="dimmed"
-          span
-          className="sr-only"
-          style={{ "font-size": "11px", "line-height": "1.2", "min-width": "0" }}
-        >
-          {props.secondary}
-        </Text>
+        {/*
+         * Two lines, both visible. The detail used to be `sr-only` because a
+         * 47px cell ellipsised it mid-digit — but hiding the evidence is worse
+         * than wrapping it: the verdict row is where a reader looks for *why*.
+         * The cell now wraps so `primary` and `secondary` each get a full line,
+         * and the row's height is driven by content rather than a fixed 24px.
+         */}
+        <div class="flex min-w-0 flex-col" style={{ gap: "1px" }}>
+          <Text
+            data-testid={`${props.testId}-primary`}
+            size="xs"
+            fw={700}
+            c={props.accent}
+            span
+            style={{
+              "font-size": "11px",
+              "line-height": "1.2",
+              "letter-spacing": "0.04em",
+              "min-width": "0",
+            }}
+          >
+            {props.primaryNode ?? props.primary}
+          </Text>
+          <Text
+            data-testid={`${props.testId}-secondary`}
+            size="xs"
+            c="dimmed"
+            span
+            style={{
+              "font-size": "11px",
+              "line-height": "1.2",
+              "min-width": "0",
+              "white-space": "normal",
+            }}
+          >
+            {props.secondary}
+          </Text>
+        </div>
       </div>
     );
   }

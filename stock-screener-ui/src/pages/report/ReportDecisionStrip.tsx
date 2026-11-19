@@ -32,6 +32,14 @@ import { pinHint, pinRisk } from "./niftyPin";
 import { resolveWallBoard } from "./niftyWallsFormat";
 import { useNiftyReport } from "./ReportContext";
 import { LiveTapeDisclosure } from "./reportBits";
+import {
+  REPORT_FONT,
+  REPORT_FONT_WEIGHT,
+  REPORT_LETTER_SPACING,
+  REPORT_LINE_HEIGHT,
+  REPORT_STRIP_METRICS,
+  groupCellGap,
+} from "./reportTokens";
 
 const formatInt = (value: number): string => formatNumberIN(value);
 
@@ -134,6 +142,69 @@ export function planHeadlineStyle(narrow: boolean): JSX.CSSProperties {
         "line-height": "1.2",
       }
     : { ...PLAN_HEADLINE_STYLE };
+}
+
+const GROUP_LABEL_STYLE: JSX.CSSProperties = {
+  "font-size": `${REPORT_FONT.micro}px`,
+  "font-weight": REPORT_FONT_WEIGHT.bold,
+  "letter-spacing": REPORT_LETTER_SPACING.wide,
+  "line-height": REPORT_LINE_HEIGHT.tight,
+  "text-transform": "uppercase",
+  "text-align": "left",
+  "white-space": "nowrap",
+  color: palette.TEXT_MUTED,
+};
+
+/** One labelled zone of the stat strip. The hairline sits inside the 8px
+ *  gutter (4px row gap + 1px rule + 3px inset), so cells never drift apart. */
+function StatGroup(props: {
+  testId: string;
+  label: string;
+  weight: number;
+  divider?: boolean;
+  cellsTestId?: string;
+  children: JSX.Element;
+}) {
+  const m = REPORT_STRIP_METRICS;
+  return (
+    <Box
+      data-testid={props.testId}
+      data-group-label={props.label}
+      className="flex flex-col min-w-0"
+      style={{
+        flex: `${props.weight} 1 0%`,
+        gap: `${m.cellGap}px`,
+        ...(props.divider
+          ? {
+              "border-left": `1px solid ${palette.TERM_BORDER}`,
+              "padding-left": `${m.groupInset}px`,
+            }
+          : {}),
+      }}
+    >
+      <span data-testid={`${props.testId}-label`} style={GROUP_LABEL_STYLE}>
+        {props.label}
+      </span>
+      <Box
+        data-testid={props.cellsTestId ?? `${props.testId}-cells`}
+        className="flex items-stretch flex-1 min-w-0"
+        style={{ gap: `${m.cellGap}px` }}
+      >
+        {props.children}
+      </Box>
+    </Box>
+  );
+}
+
+/** Contract used by the layout guards and by the browser measurement: the
+ *  largest edge-to-edge gap anywhere in the strip, in px. */
+export function statStripGaps() {
+  return {
+    withinGroup: REPORT_STRIP_METRICS.cellGap,
+    betweenGroups: groupCellGap(),
+    trailing: REPORT_STRIP_METRICS.outerPad,
+    cellHeight: REPORT_STRIP_METRICS.cellHeight,
+  };
 }
 
 // The verdict strip owns its own layout; these overrides let it wrap its
@@ -452,193 +523,215 @@ export function ReportDecisionStrip() {
     <Show when={report()}>
       <Box
         data-testid="nifty-stat-strip"
-        className="flex flex-col border border-[var(--desk-border)] rounded-[4px] overflow-hidden w-full max-w-full min-w-0 shrink-0"
+        className="flex flex-col border border-[var(--desk-border)] rounded-[4px] overflow-hidden w-full max-w-full min-w-0 shrink-0 px-2"
         style={DECISION_STRIP_STYLE}
       >
         <Box className="flex flex-wrap min-[1200px]:flex-nowrap items-stretch min-w-0 min-h-[28px]">
           <Box
             data-testid="nifty-decision-stats"
-            className="flex flex-wrap flex-auto min-w-0 [&_[data-testid$='-value']]:text-right"
+            className="flex flex-wrap flex-auto min-w-0 w-full [&_[data-testid$='-value']]:text-right"
+            style={{ gap: `${REPORT_STRIP_METRICS.groupRowGap}px` }}
           >
-            <DecisionCell
-              testId="nifty-stat-spot"
-              label="Spot"
-              value={
-                <NiftySpotValue
-                  live={mode() === "live"}
-                  fallback={report()?.spot ?? 0}
-                />
-              }
-              valueSize={15}
-              hint={
-                dayRange()
-                  ? `day ${formatNumberIN(Math.round(dayRange()!.low))}–${formatNumberIN(
-                      Math.round(dayRange()!.high),
-                    )}`
-                  : "intraday range"
-              }
-              title="NIFTY 50 spot, with today's low–high range underneath."
-            />
-            <DecisionCell
-              testId="nifty-stat-regime"
-              label="Regime"
-              value={
-                regime()?.verdict ? resolveRegimeLabel(regime()!.verdict, regime()) : "—"
-              }
-              hint={regimeDetail(regime())}
-              accent={regimeAccent(regime()?.verdict)}
-              title="Volatility regime: sell premium in a range (realised < implied), buy premium in expansion (realised > implied)."
-            />
-            <DecisionCell
-              testId="nifty-stat-flip"
-              label="Dealer gamma flip"
-              value={
-                gexDegraded()
-                  ? "n/a"
-                  : gammaFlip() != null
-                    ? formatInt(gammaFlip()!)
-                    : "—"
-              }
-              hint={
-                gexDegraded()
-                  ? "no dealer gamma snapshot — option greeks are missing"
-                  : flipDelta() != null
-                    ? `spot ${formatSignedPoints(flipDelta()!)}`
-                    : "no dealer gamma cross at spot, so no flip strike"
-              }
-              accent={palette.TERM_FLIP}
-              title="Dealer gamma flip: the strike where cumulative dealer gamma crosses zero at spot. Above it dealers damp moves; below it they amplify. The hint is spot minus the flip."
-            />
-            <DecisionCell
-              testId="nifty-stat-call-wall"
-              label="Max-OI call"
-              value={maxCallWall() ? formatInt(maxCallWall()!.strike) : "—"}
-              hint={
-                maxCallWall()
-                  ? `CE OI ${formatOiCr(maxCallWall()!.oi)}${
-                      maxCallDistance() != null && Number.isFinite(maxCallDistance()!)
-                        ? ` · ${maxCallDistance()! > 0 ? "+" : ""}${Math.round(maxCallDistance()!)} pts`
-                        : ""
-                    }`
-                  : "no call OI"
-              }
-              accent={palette.TERM_CE}
-              title="Heaviest OI across the chain (not the nearest strike). Max-OI call wall is the dealers' upside hedge; the distance from spot is shown next to the OI."
-            />
-            <DecisionCell
-              testId="nifty-stat-put-wall"
-              label="Max-OI put"
-              value={maxPutWall() ? formatInt(maxPutWall()!.strike) : "—"}
-              hint={
-                maxPutWall()
-                  ? `PE OI ${formatOiCr(maxPutWall()!.oi)}${
-                      maxPutDistance() != null && Number.isFinite(maxPutDistance()!)
-                        ? ` · ${maxPutDistance()! > 0 ? "+" : ""}${Math.round(maxPutDistance()!)} pts`
-                        : ""
-                    }`
-                  : "no put OI"
-              }
-              accent={palette.TERM_PE}
-              title="Heaviest OI across the chain (not the nearest strike). Max-OI put wall is the dealers' downside hedge; the distance from spot is shown next to the OI."
-            />
-            <DecisionCell
-              testId="nifty-stat-pin"
-              label="Pin risk"
-              value={pin() ? pin()!.level : "—"}
-              hint={pin() ? pinHint(pin()) : "spot / max pain missing"}
-              accent={
-                pin()?.level === "HIGH"
-                  ? palette.WARNING
-                  : pin()?.level === "MEDIUM"
-                    ? palette.TEXT
-                    : palette.TEXT_MUTED
-              }
-              title="Pin detection: a wall at spot AND max pain at least 100 pts on the far side means the market is being pinned into expiry. A break there is usually a sweep — sell the range, and only buy a break after two consecutive 1-min closes beyond the wall."
-            />
-            <Show when={squeezeFuel()}>
-              {(fuel) => (
-                <DecisionCell
-                  testId="nifty-squeeze-fuel"
-                  label="Squeeze fuel"
-                  value="Building ↑"
-                  hint={`${fuel().strike} call wall is ${fuel().sentiment === "SC" ? "short-covering" : "unwinding"} — a break above it accelerates`}
-                  accent={palette.WARNING}
-                  title="Squeeze fuel: price is pinned under the call wall and that wall's call OI is being covered (short-covering / long unwind). Writers are buying back the ceiling, so a break above it is fuel, not a cap. The opposite is a defended wall."
-                />
-              )}
-            </Show>
-          </Box>
-          <Box data-testid="nifty-context-stats" className="flex items-stretch shrink-0 ml-auto">
-            <ContextCell
-              testId="nifty-stat-pcr-oi"
-              label="Put/call ratio · open interest"
-              value={
-                <>
-                  <AnimatedValue value={report()?.pcrOi ?? 0} format={format2dp} />
-                  <Sparkline
-                    values={pcrSeries()}
-                    testId="nifty-pcr-spark"
-                    color={palette.TERM_CE}
+            <StatGroup testId="nifty-stat-group-price" label="PRICE" weight={3}>
+              <DecisionCell
+                testId="nifty-stat-spot"
+                label="Spot"
+                value={
+                  <NiftySpotValue
+                    live={mode() === "live"}
+                    fallback={report()?.spot ?? 0}
                   />
-                </>
-              }
-              title="Put/call ratio by open interest — outstanding contracts still held. Open interest is accumulated positioning; compare it with the put/call ratio by traded volume, which is today's flow."
-            />
-            <ContextCell
-              testId="nifty-stat-pcr-vol"
-              label="Put/call ratio · volume"
-              value={<AnimatedValue value={report()?.pcrVol ?? 0} format={format2dp} />}
-              title="Put/call ratio by traded volume — contracts traded this session. Volume is short-term flow; compare it with the put/call ratio by open interest, which is accumulated positioning."
-            />
-            <ContextCell
-              testId="nifty-stat-max-pain"
-              label="Max pain"
-              value={
-                <>
-                  <AnimatedValue value={report()?.maxPain ?? 0} format={formatInt} />
-                  <Sparkline
-                    values={maxPainSeries()}
-                    testId="nifty-maxpain-spark"
-                    color={palette.PRIMARY}
-                  />
-                </>
-              }
-              title="Max pain — the strike where the most option contracts would expire worthless. Writers tend to pin price there into expiry; it is a magnet, not a forecast."
-            />
-          </Box>
-          <Show when={isDesk()}>
-            <Box className="flex items-center gap-0.5 shrink-0 pl-1">
-              <DecisionChip
-                testId="nifty-chip-setup"
-                label="Setup checks"
-                value={setupSummary()}
-                onClick={() => store.ui.setDeskDockTab("setup")}
-                help={setupHelp()}
-                ariaLabel="Setup checks — open the Setup tab with all seven checks"
+                }
+                valueSize={15}
+                hint={
+                  dayRange()
+                    ? `day ${formatNumberIN(Math.round(dayRange()!.low))}–${formatNumberIN(
+                        Math.round(dayRange()!.high),
+                      )}`
+                    : "intraday range"
+                }
+                title="NIFTY 50 spot, with today's low–high range underneath."
               />
-              <DecisionChip
-                testId="nifty-chip-intel"
-                label="Institutional flows"
-                value="FII / DII"
-                onClick={() => store.ui.setDeskDockTab("market")}
-                help={INTEL_CHIP_HELP}
-                ariaLabel="Institutional flows — open the market panel for FII and DII net flows"
+              <DecisionCell
+                testId="nifty-stat-regime"
+                label="Regime"
+                value={
+                  regime()?.verdict ? resolveRegimeLabel(regime()!.verdict, regime()) : "—"
+                }
+                hint={regimeDetail(regime())}
+                accent={regimeAccent(regime()?.verdict)}
+                title="Volatility regime: sell premium in a range (realised < implied), buy premium in expansion (realised > implied)."
               />
-              <DecisionChip
-                testId="nifty-chip-gamma"
-                label="Dealer gamma"
+              <DecisionCell
+                testId="nifty-stat-flip"
+                label="Dealer gamma flip"
                 value={
                   gexDegraded()
                     ? "n/a"
-                    : `${gexForDisplay()?.regime === "short" ? "SHORT" : "LONG"} ${gammaFlip() != null ? formatInt(gammaFlip()!) : "—"}`
+                    : gammaFlip() != null
+                      ? formatInt(gammaFlip()!)
+                      : "—"
                 }
-                onClick={() => store.ui.setGammaOpen(true)}
-                tone={gexForDisplay()?.regime === "short" ? palette.NEGATIVE : palette.POSITIVE}
-                help={gammaChipHelp()}
-                ariaLabel="Dealer gamma — open the dealer gamma profile"
+                hint={
+                  gexDegraded()
+                    ? "no dealer gamma snapshot — option greeks are missing"
+                    : flipDelta() != null
+                      ? `spot ${formatSignedPoints(flipDelta()!)}`
+                      : "no dealer gamma cross at spot, so no flip strike"
+                }
+                accent={palette.TERM_FLIP}
+                title="Dealer gamma flip: the strike where cumulative dealer gamma crosses zero at spot. Above it dealers damp moves; below it they amplify. The hint is spot minus the flip."
               />
-            </Box>
-          </Show>
+            </StatGroup>
+
+            <StatGroup testId="nifty-stat-group-walls" label="WALLS" weight={4} divider>
+              <DecisionCell
+                testId="nifty-stat-call-wall"
+                label="Max-OI call"
+                value={maxCallWall() ? formatInt(maxCallWall()!.strike) : "—"}
+                hint={
+                  maxCallWall()
+                    ? `CE OI ${formatOiCr(maxCallWall()!.oi)}${
+                        maxCallDistance() != null && Number.isFinite(maxCallDistance()!)
+                          ? ` · ${maxCallDistance()! > 0 ? "+" : ""}${Math.round(maxCallDistance()!)} pts`
+                          : ""
+                      }`
+                    : "no call OI"
+                }
+                accent={palette.TERM_CE}
+                title="Heaviest OI across the chain (not the nearest strike). Max-OI call wall is the dealers' upside hedge; the distance from spot is shown next to the OI."
+              />
+              <DecisionCell
+                testId="nifty-stat-put-wall"
+                label="Max-OI put"
+                value={maxPutWall() ? formatInt(maxPutWall()!.strike) : "—"}
+                hint={
+                  maxPutWall()
+                    ? `PE OI ${formatOiCr(maxPutWall()!.oi)}${
+                        maxPutDistance() != null && Number.isFinite(maxPutDistance()!)
+                          ? ` · ${maxPutDistance()! > 0 ? "+" : ""}${Math.round(maxPutDistance()!)} pts`
+                          : ""
+                      }`
+                    : "no put OI"
+                }
+                accent={palette.TERM_PE}
+                title="Heaviest OI across the chain (not the nearest strike). Max-OI put wall is the dealers' downside hedge; the distance from spot is shown next to the OI."
+              />
+              <DecisionCell
+                testId="nifty-stat-pin"
+                label="Pin risk"
+                value={pin() ? pin()!.level : "—"}
+                hint={pin() ? pinHint(pin()) : "spot / max pain missing"}
+                accent={
+                  pin()?.level === "HIGH"
+                    ? palette.WARNING
+                    : pin()?.level === "MEDIUM"
+                      ? palette.TEXT
+                      : palette.TEXT_MUTED
+                }
+                title="Pin detection: a wall at spot AND max pain at least 100 pts on the far side means the market is being pinned into expiry. A break there is usually a sweep — sell the range, and only buy a break after two consecutive 1-min closes beyond the wall."
+              />
+              <ContextCell
+                testId="nifty-stat-max-pain"
+                label="Max pain"
+                value={
+                  <>
+                    <AnimatedValue value={report()?.maxPain ?? 0} format={formatInt} />
+                    <Sparkline
+                      values={maxPainSeries()}
+                      testId="nifty-maxpain-spark"
+                      color={palette.PRIMARY}
+                    />
+                  </>
+                }
+                title="Max pain — the strike where the most option contracts would expire worthless. Writers tend to pin price there into expiry; it is a magnet, not a forecast."
+              />
+            </StatGroup>
+
+            <StatGroup
+              testId="nifty-stat-group-volatility"
+              label="VOLATILITY"
+              weight={2.5}
+              divider
+              cellsTestId="nifty-context-stats"
+            >
+              <Show when={squeezeFuel()}>
+                {(fuel) => (
+                  <DecisionCell
+                    testId="nifty-squeeze-fuel"
+                    label="Squeeze fuel"
+                    value="Building ↑"
+                    hint={`${fuel().strike} call wall is ${fuel().sentiment === "SC" ? "short-covering" : "unwinding"} — a break above it accelerates`}
+                    accent={palette.WARNING}
+                    title="Squeeze fuel: price is pinned under the call wall and that wall's call OI is being covered (short-covering / long unwind). Writers are buying back the ceiling, so a break above it is fuel, not a cap. The opposite is a defended wall."
+                  />
+                )}
+              </Show>
+              <ContextCell
+                testId="nifty-stat-pcr-oi"
+                label="Put/call ratio · open interest"
+                value={
+                  <>
+                    <AnimatedValue value={report()?.pcrOi ?? 0} format={format2dp} />
+                    <Sparkline
+                      values={pcrSeries()}
+                      testId="nifty-pcr-spark"
+                      color={palette.TERM_CE}
+                    />
+                  </>
+                }
+                title="Put/call ratio by open interest — outstanding contracts still held. Open interest is accumulated positioning; compare it with the put/call ratio by traded volume, which is today's flow."
+              />
+              <ContextCell
+                testId="nifty-stat-pcr-vol"
+                label="Put/call ratio · volume"
+                value={<AnimatedValue value={report()?.pcrVol ?? 0} format={format2dp} />}
+                title="Put/call ratio by traded volume — contracts traded this session. Volume is short-term flow; compare it with the put/call ratio by open interest, which is accumulated positioning."
+              />
+            </StatGroup>
+
+            <Show when={isDesk()}>
+              <StatGroup
+                testId="nifty-stat-group-flow"
+                label="FLOW & ACTION"
+                weight={4}
+                divider
+              >
+                <DecisionChip
+                  testId="nifty-chip-setup"
+                  label="Setup checks"
+                  value={setupSummary()}
+                  onClick={() => store.ui.setDeskDockTab("setup")}
+                  help={setupHelp()}
+                  ariaLabel="Setup checks — open the Setup tab with all seven checks"
+                  fill
+                />
+                <DecisionChip
+                  testId="nifty-chip-intel"
+                  label="Institutional flows"
+                  value="FII / DII"
+                  onClick={() => store.ui.setDeskDockTab("market")}
+                  help={INTEL_CHIP_HELP}
+                  ariaLabel="Institutional flows — open the market panel for FII and DII net flows"
+                  fill
+                />
+                <DecisionChip
+                  testId="nifty-chip-gamma"
+                  label="Dealer gamma"
+                  value={
+                    gexDegraded()
+                      ? "n/a"
+                      : `${gexForDisplay()?.regime === "short" ? "SHORT" : "LONG"} ${gammaFlip() != null ? formatInt(gammaFlip()!) : "—"}`
+                  }
+                  onClick={() => store.ui.setGammaOpen(true)}
+                  tone={gexForDisplay()?.regime === "short" ? palette.NEGATIVE : palette.POSITIVE}
+                  help={gammaChipHelp()}
+                  ariaLabel="Dealer gamma — open the dealer gamma profile"
+                  fill
+                />
+              </StatGroup>
+            </Show>
+          </Box>
         </Box>
         <Show when={narrow()} fallback={verdictContent()}>
           <LiveTapeDisclosure

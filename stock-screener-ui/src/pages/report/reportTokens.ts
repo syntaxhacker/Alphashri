@@ -39,6 +39,26 @@ export const REPORT_PAD = {
 } as const;
 
 // Border radius (px)
+/**
+ * Decision-strip geometry. One source for the cell primitive and the group
+ * wrapper so the cell height and the inter-group gutter cannot drift apart.
+ * The 8px group gutter is spent as 4px row gap + 1px hairline + 3px inset.
+ */
+export const REPORT_STRIP_METRICS = {
+  cellHeight: 40,
+  cellGap: 4,
+  groupGap: 8,
+  groupRowGap: 4,
+  groupHairline: 1,
+  groupInset: 3,
+  outerPad: 8,
+} as const;
+
+export function groupCellGap(): number {
+  const m = REPORT_STRIP_METRICS;
+  return m.groupRowGap + m.groupHairline + m.groupInset;
+}
+
 export const REPORT_RADIUS = {
   sm: 4,   // chips, badges, inline pills
   md: 8,   // cards, panels, modals

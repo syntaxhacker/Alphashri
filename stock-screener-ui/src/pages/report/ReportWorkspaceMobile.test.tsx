@@ -17,6 +17,7 @@ const [report] = createSignal<any>({ spot: 25_000, strikes: [] });
 const mockStore = {
   data: {
     report,
+    breadth: () => ({ available: true, count: 1, up: 1, rows: [{ label: "NIFTY", last: 25_000, close: 24_900, change_pct: 0.4 }] }),
     oiScale: () => ({ maxCeOiChange: 1, maxPeOiChange: 1 }),
     atmStrike: () => null,
     oiWalls: () => null,
@@ -29,11 +30,13 @@ const mockStore = {
     metrics: () => null,
     intradayStart: () => null,
   },
-  walls: { data: () => null },
+  walls: { data: () => null, openDrawer: () => {}, closeDrawer: () => {} },
   selection: { mode: () => "live", symbol: () => "NIFTY" },
   replay: { frameT: () => null },
   ui: {
     isDesk: () => true,
+    setDeskOpen: () => {},
+    deskOpen: () => false,
     sideTab: () => "heatmap",
     chartSize: () => "fill",
     heatMetric: () => "oi",

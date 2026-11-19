@@ -6,11 +6,12 @@ import * as palette from "@/ui/palette";
 
 export type DeskDockKey = "flow" | "setup" | "alerts" | "market" | "strips" | "analytics";
 
-// The desktop dock is a real bottom bay, not a tab bar over a fixed overlay.
-// 180px leaves ~156px of body under the 24px drawer header — enough to read a
-// tape row or a walls card at a glance — while fitting beside a 58vh chart at
-// both 890px and 950px viewport heights.
+// The desktop drawer is now an overlay anchored above the tab bar: it never
+// enters the flex column, so opening a dock tab cannot steal height from the
+// chart. 180px is the usable body floor; the overlay is capped well below the
+// chart canvas so the candles stay visible behind it.
 export const DESK_DOCK_OPEN_MIN_HEIGHT = 180;
+export const DESK_DOCK_OVERLAY_HEIGHT = 220;
 
 /**
  * One vocabulary per dock tab. The tab labels are supplied by two parents, so
@@ -161,13 +162,17 @@ export function DeskDock(props: {
   };
 
   return (
-    <Box data-testid="desk-dock-region" class="flex flex-col min-w-0 min-h-0 w-full overflow-hidden">
+    <Box
+      data-testid="desk-dock-region"
+      data-dock-mode={mobile() ? "sheet" : "overlay"}
+      class={`flex flex-col min-w-0 min-h-0 w-full ${mobile() ? "overflow-hidden" : "relative overflow-visible"}`}
+    >
       <Show when={activeTab()}>
         <>
           <div
             data-testid="desk-dock-backdrop"
-            class={mobile() ? "fixed inset-0 z-40" : "hidden"}
-            style={mobile() ? { "background-color": "rgba(0,0,0,0.6)" } : undefined}
+            class={mobile() ? "fixed inset-0 z-40" : "fixed inset-0 z-20"}
+            style={{ "background-color": "rgba(0,0,0,0.6)" }}
             onClick={() => props.onActiveChange(null)}
           />
           <div
@@ -176,10 +181,11 @@ export function DeskDock(props: {
             data-dock-min-height={
               mobile() ? undefined : String(DESK_DOCK_OPEN_MIN_HEIGHT)
             }
+            data-dock-mode={mobile() ? undefined : "overlay"}
             class={
               mobile()
                 ? "fixed z-50 bottom-0 left-0 right-0 border-t border-fin-border"
-                : "relative z-10 flex-1 min-h-[180px] flex flex-col border-t border-fin-border"
+                : "absolute bottom-full left-0 right-0 z-30 flex flex-col min-h-[180px] border-t border-fin-border"
             }
             style={
               mobile()
@@ -199,6 +205,9 @@ export function DeskDock(props: {
                     "background-image": "none",
                     "border-top": `1px solid ${palette.TERM_BORDER}`,
                     "box-shadow": "0 -8px 24px rgba(0,0,0,0.45)",
+                    height: `${DESK_DOCK_OVERLAY_HEIGHT}px`,
+                    "max-height": "32vh",
+                    overflow: "hidden",
                   }
             }
             onClick={(e) => e.stopPropagation()}

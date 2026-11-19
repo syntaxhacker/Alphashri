@@ -46,7 +46,7 @@ function verdictReport() {
 }
 
 describe("verdict detail in the compact context row", () => {
-  test("the secondary detail is suppressed, not cut mid-number; full text and tooltip survive", () => {
+  test("the secondary detail is visible and wraps, never cut mid-number", () => {
     render(() => (
       <UIProvider>
         <NiftyVerdictStrip report={verdictReport()} mode="context" />
@@ -59,11 +59,14 @@ describe("verdict detail in the compact context row", () => {
 
     expect(secondary).toHaveTextContent(expected);
     expect(secondary.textContent).toBe(expected);
-    // A deliberate suppression, never a 47px ellipsis on a number.
-    expect(secondary).toHaveClass("sr-only");
+    // Visible and wrapping: the evidence must be readable, not hidden. Hiding
+    // it (the earlier `sr-only` fix) made the whole verdict row show no reason.
+    expect(secondary).not.toHaveClass("sr-only");
     expect(secondary.style.textOverflow).toBe("");
-    expect(secondary.style.whiteSpace).toBe("");
+    expect(secondary.style.whiteSpace).toBe("normal");
     expect(secondary.style.fontSize).toBe("11px");
+    // No fixed height may clip the second line.
+    expect(secondary.style.height).toBe("");
     expect(control).toHaveAttribute("title", expect.stringContaining(expected));
 
     // The primary verdict stays intact — only the detail line is dropped.
@@ -74,7 +77,7 @@ describe("verdict detail in the compact context row", () => {
       "nifty-verdict-vix-secondary",
     );
     expect(vixSecondary).toHaveTextContent("day 13.20–13.90");
-    expect(vixSecondary).toHaveClass("sr-only");
+    expect(vixSecondary).not.toHaveClass("sr-only");
   });
 
   test("the full strip keeps its detail as a wrapping line at 11px", () => {

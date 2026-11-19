@@ -819,6 +819,9 @@ export function NiftyWallsCardInner(props: {
   /** Optional dense levels rows (e.g. LevelsInPlayContent) rendered inside
    *  this same card, after the walls grid. */
   levels?: JSX.Element;
+  /** Override the panel testid when a second instance is promoted to a
+   *  permanent rail next to the dock's own copy of the strips. */
+  testId?: string;
 }) {
   const walls = () => props.walls;
   const [dismissed, setDismissed] = createSignal<string | null>(null);
@@ -851,7 +854,7 @@ export function NiftyWallsCardInner(props: {
 
   if (!walls()) {
     return (
-      <LocalCompactPanel title="WALLS" testId="nifty-walls-card" flush>
+      <LocalCompactPanel title="WALLS" testId={props.testId ?? "nifty-walls-card"} flush>
         <Show
           when={props.compact === true}
           fallback={
@@ -902,7 +905,7 @@ export function NiftyWallsCardInner(props: {
   return (
     <LocalCompactPanel
       title="WALLS"
-      testId="nifty-walls-card"
+      testId={props.testId ?? "nifty-walls-card"}
       action={
         <div class="flex items-center gap-1">
           {props.onOpenDesk ? (
