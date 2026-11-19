@@ -1,4 +1,3 @@
-import { REPORT_PANELS } from "../../components/dock/reportPanels";
 import type { DockPage, DockPanelContext, DockPanelSpec } from "../../components/dock/types";
 import { MARKET_HEATMAP_PANEL } from "../../components/window/panels/marketHeatmap";
 import { NEWS_FEED_PANEL } from "../../components/window/panels/newsFeed";
@@ -48,7 +47,6 @@ export const HOME_PANEL_CONTEXT: DockPanelContext = {
  * registry because the picker and the window manager both consume this list.
  */
 export const HOME_PANELS: DockPanelSpec[] = [
-  ...REPORT_PANELS,
   MARKET_HEATMAP_PANEL,
   NEWS_FEED_PANEL,
   OPTIONS_ANALYTICS_PANEL,

@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import { createSignal } from "solid-js";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@/ui";
 import { BG, PRIMARY, SURFACE, SURFACE_ALT } from "@/ui/palette";
 import { contrastRatio } from "@/utils/contrast";
@@ -27,7 +27,7 @@ const CONTEXT: () => DockPanelContext = () => ({
 
 const win = (over: Partial<WindowState> = {}): WindowState => ({
   id: "a",
-  type: "report.chart",
+  type: "sector.table",
   title: "CHART",
   x: 50,
   y: 50,
@@ -75,6 +75,17 @@ function renderDesk(windows: WindowState[]) {
   };
   return { getLayout: () => snapshot, root, rect };
 }
+
+beforeEach(() => {
+  // Real panel bodies mount here now; keep their sector fetch hermetic.
+  vi.stubGlobal("fetch", vi.fn(async () => ({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    json: () => Promise.resolve({ sectors: [], top_stock_movers: [], last_updated: "", market: "india" }),
+    text: () => Promise.resolve("{}"),
+  } as unknown as Response)));
+});
 
 afterEach(() => {
   cleanup();
@@ -124,7 +135,7 @@ describe("desk keyboard access", () => {
   it("(c) each window is a labelled region with a non-colour focused indicator", () => {
     const { root } = renderDesk([
       win(),
-      win({ id: "b", title: "WALLS", type: "report.walls", x: 400, z: 2 }),
+      win({ id: "b", title: "WALLS", type: "sector.movers", x: 400, z: 2 }),
     ]);
     expect(screen.getByRole("region", { name: "CHART" })).toBe(root("a"));
     expect(screen.getByRole("region", { name: "WALLS" })).toBe(root("b"));
@@ -139,7 +150,7 @@ describe("desk keyboard access", () => {
   it("(d) minimise / maximise / restore / close / fit-all announce state politely", () => {
     const { root } = renderDesk([
       win(),
-      win({ id: "b", title: "WALLS", type: "report.walls", x: 400, z: 2 }),
+      win({ id: "b", title: "WALLS", type: "sector.movers", x: 400, z: 2 }),
     ]);
     const live = screen.getByTestId("window-manager-live");
     expect(live).toHaveAttribute("aria-live", "polite");

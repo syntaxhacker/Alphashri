@@ -9,7 +9,7 @@ import type { CanvasSize } from "../../components/window/layout";
 import type { WindowLayout, WindowState } from "../../components/window/types";
 import type { SavedConfigTransport } from "../../state/savedConfig";
 import { HomePage } from "./HomePage";
-import { HOME_PANELS, type HomeWindowConfig } from "./homePanels";
+import { HOME_PANELS, normalizeHomeConfig, type HomeWindowConfig } from "./homePanels";
 
 const CANVAS: CanvasSize = { w: 1280, h: 800 };
 
@@ -18,6 +18,8 @@ const SNAPSHOT_URL = /\/api\/market\/snapshot\?universe=all_equity&limit=4000$/;
 const CHAIN_URL = /\/api\/options\/chain\//;
 /** The options panels now pick an expiry from the real listing instead of a text field. */
 const EXPIRIES_URL = /\/api\/(reports\/nifty\/expiries|options\/expiries\/)/;
+/** Sector windows are real registered panels now, so they fetch on mount. */
+const SECTOR_URL = /\/api\/sector\?market=india$/;
 
 const MARKET_SNAPSHOT_PAYLOAD = {
   as_of: "2026-11-19T10:00:00+05:30",
@@ -28,6 +30,12 @@ const MARKET_SNAPSHOT_PAYLOAD = {
 };
 const CHAIN_PAYLOAD = { expiry: "2026-11-26", spot: 24000, chain: [] };
 const EXPIRIES_PAYLOAD = { expiries: [{ date: "2026-11-26" }, { date: "2026-12-03" }] };
+const SECTOR_PAYLOAD = {
+  sectors: [],
+  top_stock_movers: [],
+  last_updated: "2026-11-19T10:00:00+05:30",
+  market: "india",
+};
 
 function jsonResponse(body: unknown): Response {
   return {
@@ -51,6 +59,7 @@ function makeFetchMock() {
     if (SNAPSHOT_URL.test(url)) return jsonResponse(MARKET_SNAPSHOT_PAYLOAD);
     if (EXPIRIES_URL.test(url)) return jsonResponse(EXPIRIES_PAYLOAD);
     if (CHAIN_URL.test(url)) return jsonResponse(CHAIN_PAYLOAD);
+    if (SECTOR_URL.test(url)) return jsonResponse(SECTOR_PAYLOAD);
     unexpected.push(url);
     throw new Error(`Unexpected network request in HomePage unit test: ${url}`);
   });
@@ -84,7 +93,7 @@ function envelope(
 
 const win = (over: Partial<WindowState>): WindowState => ({
   id: "w",
-  type: "report.chart",
+  type: "sector.table",
   title: "CHART",
   x: 24,
   y: 24,
@@ -177,10 +186,10 @@ describe("HOME window desk", () => {
 
     await screen.findByTestId("market-heatmap-panel");
     const seededX = left("options.chain-2");
-    await user.selectOptions(screen.getByLabelText("Add window"), "report.breadth");
+    await user.selectOptions(screen.getByLabelText("Add window"), "sector.detail");
 
-    await screen.findByTestId("demo-report-breadth");
-    expect(left("report.breadth-3") - seededX).toBe(24);
+    await screen.findByTestId("sector-detail-panel");
+    expect(left("sector.detail-3") - seededX).toBe(24);
 
     await waitFor(() => expect(put).toHaveBeenCalled(), { timeout: 2000 });
     const [scope, payload] = put.mock.lastCall!;
@@ -188,7 +197,7 @@ describe("HOME window desk", () => {
     const saved = payload as unknown as HomeWindowConfig;
     expect(saved.active).toBe("Main");
     expect(saved.layouts[0].windows.map((w) => w.type)).toEqual([
-      "market.heatmap", "options.chain", "report.breadth",
+      "market.heatmap", "options.chain", "sector.detail",
     ]);
   });
 
@@ -197,10 +206,10 @@ describe("HOME window desk", () => {
     const { transport, put } = makeTransport(
       config(
         [
-          { name: "Main", windows: [win({ id: "chart", type: "report.chart" })] },
+          { name: "Main", windows: [win({ id: "chart", type: "sector.table" })] },
           {
             name: "Blank",
-            windows: [win({ id: "walls", type: "report.walls", title: "WALLS" })],
+            windows: [win({ id: "walls", type: "sector.movers", title: "WALLS" })],
           },
         ],
         "Main",
@@ -208,30 +217,30 @@ describe("HOME window desk", () => {
     );
     mountHome(transport);
 
-    await screen.findByTestId("demo-report-chart");
-    expect(screen.queryByTestId("demo-report-walls")).not.toBeInTheDocument();
+    await screen.findByTestId("sector-table-panel");
+    expect(screen.queryByTestId("sector-movers-panel")).not.toBeInTheDocument();
 
     await user.click(screen.getByTestId("home-layout-tab-blank"));
-    expect(screen.getByTestId("demo-report-walls")).toBeInTheDocument();
-    expect(screen.queryByTestId("demo-report-chart")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sector-movers-panel")).toBeInTheDocument();
+    expect(screen.queryByTestId("sector-table-panel")).not.toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText("Add window"), "report.breadth");
-    await screen.findByTestId("demo-report-breadth");
+    await user.selectOptions(screen.getByLabelText("Add window"), "sector.detail");
+    await screen.findByTestId("sector-detail-panel");
 
     await user.click(screen.getByTestId("home-layout-tab-main"));
-    expect(screen.getByTestId("demo-report-chart")).toBeInTheDocument();
-    expect(screen.queryByTestId("demo-report-breadth")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sector-table-panel")).toBeInTheDocument();
+    expect(screen.queryByTestId("sector-detail-panel")).not.toBeInTheDocument();
 
     await user.click(screen.getByTestId("home-layout-tab-blank"));
-    expect(screen.getByTestId("demo-report-walls")).toBeInTheDocument();
-    expect(screen.getByTestId("demo-report-breadth")).toBeInTheDocument();
+    expect(screen.getByTestId("sector-movers-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("sector-detail-panel")).toBeInTheDocument();
 
     await waitFor(() => expect(put).toHaveBeenCalled(), { timeout: 2000 });
     const saved = put.mock.lastCall![1] as unknown as HomeWindowConfig;
     expect(saved.active).toBe("Blank");
     expect(saved.layouts.map((l) => l.name)).toEqual(["Main", "Blank"]);
     expect(saved.layouts[0].windows).toHaveLength(1);
-    expect(saved.layouts[1].windows.map((w) => w.type)).toEqual(["report.walls", "report.breadth"]);
+    expect(saved.layouts[1].windows.map((w) => w.type)).toEqual(["sector.movers", "sector.detail"]);
   });
 
   it("(degrade) saved unknown panel types are dropped and rects are clamped", async () => {
@@ -242,7 +251,7 @@ describe("HOME window desk", () => {
             name: "Main",
             windows: [
               win({ id: "ghost", type: "removed.panel", title: "GONE" }),
-              win({ id: "walls", type: "report.walls", title: "WALLS", x: 9999, y: -9999, w: -5, h: 0 }),
+              win({ id: "walls", type: "sector.movers", title: "WALLS", x: 9999, y: -9999, w: -5, h: 0 }),
             ],
           },
         ],
@@ -251,7 +260,7 @@ describe("HOME window desk", () => {
     );
     mountHome(transport);
 
-    await screen.findByTestId("demo-report-walls");
+    await screen.findByTestId("sector-movers-panel");
     expect(screen.queryByTestId("window-ghost")).not.toBeInTheDocument();
     const el = box("walls");
     expect(Number.parseFloat(el.style.left)).toBeLessThanOrEqual(CANVAS.w - 60);
@@ -262,15 +271,15 @@ describe("HOME window desk", () => {
   it("(new screen) 'New screen' creates and switches to a fresh empty workspace", async () => {
     const user = userEvent.setup();
     const { transport, put } = makeTransport(
-      config([{ name: "Main", windows: [win({ id: "chart", type: "report.chart" })] }], "Main"),
+      config([{ name: "Main", windows: [win({ id: "chart", type: "sector.table" })] }], "Main"),
     );
     mountHome(transport);
 
-    await screen.findByTestId("demo-report-chart");
+    await screen.findByTestId("sector-table-panel");
     await user.click(screen.getByTestId("home-new-screen"));
 
     expect(screen.getByTestId("home-layout-tab-screen-2")).toHaveAttribute("aria-selected", "true");
-    expect(screen.queryByTestId("demo-report-chart")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("sector-table-panel")).not.toBeInTheDocument();
     await waitFor(() => expect(put).toHaveBeenCalled(), { timeout: 2000 });
     const saved = put.mock.lastCall![1] as unknown as HomeWindowConfig;
     expect(saved.layouts.map((l) => l.name)).toEqual(["Main", "Screen 2"]);
@@ -335,15 +344,51 @@ describe("HOME window desk", () => {
     // No expiry in HOME context: the chain panel stays empty and never fetches.
     expect(requestedUrls().some((url) => CHAIN_URL.test(url))).toBe(false);
 
-    await user.selectOptions(screen.getByLabelText("Add window"), "report.breadth");
-    await screen.findByTestId("demo-report-breadth");
-    expect(screen.getByTestId("demo-report-breadth")).toHaveTextContent("BREADTH");
-    expect(screen.getByTestId("demo-report-breadth")).not.toHaveTextContent("2026-11-26");
+    await user.selectOptions(screen.getByLabelText("Add window"), "sector.detail");
+    await screen.findByTestId("sector-detail-panel");
+    expect(screen.getByTestId("sector-detail-panel")).toHaveTextContent("SECTOR DETAIL");
+    expect(screen.getByTestId("sector-detail-panel")).not.toHaveTextContent("2026-11-26");
   });
 
   it("(registry) HOME panels declare no external context requirements", () => {
     for (const spec of HOME_PANELS) {
       expect(spec.requires, spec.id).toEqual([]);
     }
+  });
+
+  it("(picker) the removed report stub panels are no longer offered", async () => {
+    const { transport } = makeTransport();
+    mountHome(transport);
+
+    await screen.findByTestId("market-heatmap-panel");
+    const optionValues = Array.from(
+      (screen.getByLabelText("Add window") as HTMLSelectElement).options,
+    ).map((option) => option.value);
+    for (const removed of ["report.chart", "report.walls", "report.breadth"]) {
+      expect(optionValues, removed).not.toContain(removed);
+    }
+    // Positive guard so the negative assertion cannot pass on an empty picker.
+    expect(optionValues).toContain("sector.table");
+    expect(optionValues).toContain("sector.movers");
+  });
+
+  it("(degrade) a saved layout naming a removed report stub drops it and keeps the rest", () => {
+    const raw = config(
+      [
+        {
+          name: "Main",
+          windows: [
+            win({ id: "stale-chart", type: "report.chart", title: "CHART" }),
+            win({ id: "real", type: "sector.table", title: "SECTOR PERFORMANCE" }),
+          ],
+        },
+      ],
+      "Main",
+    );
+
+    const normalized = normalizeHomeConfig(raw, CANVAS);
+    expect(normalized).not.toBeNull();
+    expect(normalized!.layouts[0].windows.map((w) => w.id)).toEqual(["real"]);
+    expect(normalized!.layouts[0].windows[0].type).toBe("sector.table");
   });
 });

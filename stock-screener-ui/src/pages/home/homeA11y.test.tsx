@@ -20,7 +20,10 @@ function jsonResponse(body: unknown): Response {
 }
 
 beforeEach(() => {
-  vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ rows: [], sectors: [], chain: [] })));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => jsonResponse({ rows: [], sectors: [], top_stock_movers: [], chain: [] })),
+  );
 });
 
 afterEach(() => {
@@ -124,8 +127,8 @@ describe("HOME desk keyboard and screen-reader access", () => {
 
     const live = screen.getByTestId("home-live");
     expect(live).toHaveAttribute("aria-live", "polite");
-    await user.selectOptions(screen.getByLabelText("Add window"), "report.breadth");
-    await screen.findByTestId("demo-report-breadth");
-    expect(live).toHaveTextContent(/BREADTH/);
+    await user.selectOptions(screen.getByLabelText("Add window"), "sector.detail");
+    await screen.findByTestId("sector-detail-panel");
+    expect(live).toHaveTextContent(/SECTOR DETAIL/);
   });
 });

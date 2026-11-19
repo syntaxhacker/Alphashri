@@ -1,4 +1,3 @@
-import { REPORT_PANELS } from "../dock/reportPanels";
 import { OPTIONS_ANALYTICS_PANEL } from "./panels/optionsAnalytics";
 import { OPTIONS_CHAIN_PANEL } from "./panels/optionsChain";
 import { OPTIONS_POSITIONING_PANEL } from "./panels/optionsPositioning";
@@ -15,7 +14,6 @@ import { SECTOR_ROTATION_PANEL } from "./panels/sectorRotation";
 
 /** Windows mount exactly the specs DockHost mounts — no parallel panel shape. */
 export const WINDOW_PANELS: DockPanelSpec[] = [
-  ...REPORT_PANELS,
   MARKET_HEATMAP_PANEL,
   NEWS_FEED_PANEL,
   OPTIONS_ANALYTICS_PANEL,

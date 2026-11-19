@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@/ui";
 import type { DockPanelContext } from "../dock/types";
 import { DEFAULT_MIN_SIZE, MIN_VISIBLE_X, type CanvasSize } from "./layout";
@@ -19,7 +19,7 @@ const CONTEXT: () => DockPanelContext = () => ({
 
 const win = (over: Partial<WindowState> = {}): WindowState => ({
   id: "a",
-  type: "report.chart",
+  type: "sector.table",
   title: "CHART",
   x: 50,
   y: 50,
@@ -84,6 +84,17 @@ function renderDesk(windows: WindowState[], opts: Partial<HarnessProps> = {}) {
   return { getLayout: () => snapshot, root, rect, onLayout };
 }
 
+beforeEach(() => {
+  // Real panel bodies mount here now; keep their sector fetch hermetic.
+  vi.stubGlobal("fetch", vi.fn(async () => ({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    json: () => Promise.resolve({ sectors: [], top_stock_movers: [], last_updated: "", market: "india" }),
+    text: () => Promise.resolve("{}"),
+  } as unknown as Response)));
+});
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -92,7 +103,7 @@ afterEach(() => {
 describe("WindowManager — focus and z-order", () => {
   it("(a) pointer-down on a window raises it to max z + 1", () => {
     const a = win({ id: "a", z: 1 });
-    const b = win({ id: "b", z: 4, title: "WALLS", type: "report.walls", x: 400 });
+    const b = win({ id: "b", z: 4, title: "WALLS", type: "sector.movers", x: 400 });
     const { root, getLayout } = renderDesk([a, b]);
 
     expect(root("a").style.zIndex).toBe("1");
@@ -193,16 +204,16 @@ describe("WindowManager — resize", () => {
 describe("WindowManager — minimize / maximize / close", () => {
   it("(d) minimize collapses to the title bar and restore returns the exact rect", () => {
     const { rect } = renderDesk([win({ x: 33, y: 77, w: 321, h: 199 })]);
-    expect(screen.getByTestId("demo-report-chart")).toBeInTheDocument();
+    expect(screen.getByTestId("sector-table-panel")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("window-minimize-a"));
-    expect(screen.queryByTestId("demo-report-chart")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("sector-table-panel")).not.toBeInTheDocument();
     expect(screen.getByTestId("window-title-a")).toBeInTheDocument();
     expect(screen.getByTestId("window-close-a")).toBeInTheDocument();
     expect(screen.getByLabelText(/Restore CHART/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("window-minimize-a"));
-    expect(screen.getByTestId("demo-report-chart")).toBeInTheDocument();
+    expect(screen.getByTestId("sector-table-panel")).toBeInTheDocument();
     expect(rect("a")).toEqual({ x: 33, y: 77, w: 321, h: 199 });
   });
 
@@ -217,7 +228,7 @@ describe("WindowManager — minimize / maximize / close", () => {
   });
 
   it("close removes the window but keeps the rest of the desk", () => {
-    const b = win({ id: "b", type: "report.walls", title: "WALLS", x: 400, z: 2 });
+    const b = win({ id: "b", type: "sector.movers", title: "WALLS", x: 400, z: 2 });
     const { getLayout } = renderDesk([win(), b]);
 
     fireEvent.click(screen.getByTestId("window-close-a"));
@@ -311,7 +322,7 @@ function realTitleButtonClick(id: string, action: "minimize" | "maximize" | "clo
 
 describe("WindowManager — a real pointer sequence reaches the title buttons", () => {
   it("minimize: the full pointer sequence toggles data-minimized and keeps focus-on-click", () => {
-    const b = win({ id: "b", type: "report.walls", title: "WALLS", x: 400, z: 4 });
+    const b = win({ id: "b", type: "sector.movers", title: "WALLS", x: 400, z: 4 });
     const { root } = renderDesk([win(), b]);
 
     const survived = realTitleButtonClick("a", "minimize");
@@ -331,7 +342,7 @@ describe("WindowManager — a real pointer sequence reaches the title buttons", 
   });
 
   it("close: the full pointer sequence removes the window", () => {
-    const b = win({ id: "b", type: "report.walls", title: "WALLS", x: 400, z: 2 });
+    const b = win({ id: "b", type: "sector.movers", title: "WALLS", x: 400, z: 2 });
     renderDesk([win(), b]);
 
     const survived = realTitleButtonClick("a", "close");

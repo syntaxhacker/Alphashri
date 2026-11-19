@@ -4,13 +4,17 @@ import {
   MARKET_METRICS,
   MAX_STOCKS_PER_SECTOR,
   MAX_STOCKS_PER_SECTOR_NARROW,
+  MIN_LABEL_HEIGHT_PX,
+  MIN_LABEL_LINE_HEIGHT_PX,
   MIN_LABEL_WIDTH_PX,
   NARROW_SYMBOL_MAX_CHARS,
   NARROW_TREEMAP_MAX_WIDTH,
   UNCLASSIFIED_SECTOR,
   buildSectorTreemapOption,
+  estimatedTileHeightPx,
   estimatedTileWidthPx,
   isNarrowTreemap,
+  marketTileLabelText,
   maxStocksPerSector,
   otherLabel,
   sectorOf,
@@ -1213,5 +1217,57 @@ describe("flat heatmap uses the sector label gate", () => {
     expect(stockTileLabelVisible(1000, 1000.2, 740, 765)).toBe(true);
     expect((huge.label as Record<string, unknown>).show).toBe(true);
     expect((huge.label as Record<string, unknown>).formatter).toBeUndefined(); // inherited full-symbol formatter
+  });
+});
+
+describe("height-aware label suppression", () => {
+  // Width alone let a short tile through: 40px wide passes the old 38px gate,
+  // but two lines need ~26px of height, so ECharts clipped the value to a
+  // fragment like `+0.|` — which reads as data and is not.
+  test("a tile wide enough but too short hides the label", () => {
+    expect(MIN_LABEL_HEIGHT_PX).toBeGreaterThan(MIN_LABEL_LINE_HEIGHT_PX);
+    // side length is the shared area proxy, so drive the gate directly
+    expect(stockTileLabelVisible(1, 1, MIN_LABEL_WIDTH_PX, 1)).toBe(false);
+    expect(MIN_LABEL_WIDTH_PX).toBeGreaterThanOrEqual(38);
+  });
+
+  test("a tile that clears both floors shows the label", () => {
+    const total = 1;
+    // value == total → side = √(W·H); pick a box that clears both floors
+    expect(stockTileLabelVisible(1, total, 200, 200)).toBe(true);
+    expect(estimatedTileHeightPx(1, total, 200, 200)).toBeGreaterThanOrEqual(
+      MIN_LABEL_HEIGHT_PX,
+    );
+  });
+
+  test("a tiny tile renders no label at all, never a fragment", () => {
+    expect(stockTileLabelVisible(0.2, 1000.2, 1600, 900)).toBe(false);
+  });
+
+  test("one line keeps the symbol and drops the value", () => {
+    const symbol = "RELIANCE";
+    const value = "+2.4%";
+    // Room for one line: symbol survives, value is dropped.
+    const oneLine = marketTileLabelText(MIN_LABEL_LINE_HEIGHT_PX, symbol, value);
+    expect(oneLine).toBe(`{sym|${symbol}}`);
+    expect(oneLine).not.toContain(value);
+  });
+
+  test("both lines render when the tile is tall enough", () => {
+    const text = marketTileLabelText(MIN_LABEL_HEIGHT_PX, "SBIN", "+2.4%");
+    expect(text).toBe("{sym|SBIN}\n{val|+2.4%}");
+  });
+
+  test("a tile below the one-line floor renders nothing", () => {
+    expect(marketTileLabelText(MIN_LABEL_LINE_HEIGHT_PX - 1, "SBIN", "+2.4%")).toBeNull();
+  });
+
+  test("no label is ever a truncated symbol", () => {
+    // The contract: either the whole symbol or null. A partial ticker is worse
+    // than none because it can read as a different company.
+    for (const side of [0, 5, 13, 20, 26, 60]) {
+      const text = marketTileLabelText(side, "BHARTIARTL", "+0.4%");
+      if (text !== null) expect(text).toContain("BHARTIARTL");
+    }
   });
 });

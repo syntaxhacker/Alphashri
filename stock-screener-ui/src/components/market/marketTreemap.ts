@@ -542,6 +542,16 @@ export const SECTOR_LABEL_MIN_WIDTH = 480;
  */
 export const MIN_LABEL_WIDTH_PX = 38;
 
+/**
+ * Vertical room a two-line label needs. The same 10px bold font on a ~11px
+ * line × 2 lines plus padding. Width alone was never enough: a 40×12 tile
+ * passes the 38px width gate but cannot fit two lines, so ECharts clipped the
+ * value to `+0.|` — a fragment that reads as data and is not.
+ */
+export const MIN_LABEL_HEIGHT_PX = 26;
+/** One line only fits once the tile is at least this tall. */
+export const MIN_LABEL_LINE_HEIGHT_PX = 14;
+
 /** Chart box used by the width proxy before the canvas reports its real size. */
 const FALLBACK_TREEMAP_WIDTH_PX = 1200;
 const FALLBACK_TREEMAP_HEIGHT_PX = 700;
@@ -564,6 +574,20 @@ export function estimatedTileWidthPx(
   widthPx?: number,
   heightPx?: number,
 ): number {
+  return estimatedTileHeightPx(value, totalValue, widthPx, heightPx);
+}
+
+/**
+ * A squarified treemap keeps leaves near-square, so one side length describes
+ * both dimensions. It is named for the axis it is used to gate, and the height
+ * gate reuses the same proxy.
+ */
+export function estimatedTileHeightPx(
+  value: number,
+  totalValue: number,
+  widthPx?: number,
+  heightPx?: number,
+): number {
   const w = widthPx && widthPx > 0 ? widthPx : FALLBACK_TREEMAP_WIDTH_PX;
   const h = heightPx && heightPx > 0 ? heightPx : FALLBACK_TREEMAP_HEIGHT_PX;
   if (!Number.isFinite(value) || !Number.isFinite(totalValue) || value <= 0 || totalValue <= 0) {
@@ -579,7 +603,32 @@ export function stockTileLabelVisible(
   widthPx?: number,
   heightPx?: number,
 ): boolean {
-  return estimatedTileWidthPx(value, totalValue, widthPx, heightPx) >= MIN_LABEL_WIDTH_PX;
+  const side = estimatedTileHeightPx(value, totalValue, widthPx, heightPx);
+  // Both dimensions must clear their floor. Width was the only check, so a
+  // short tile rendered a clipped second line instead of nothing.
+  return side >= MIN_LABEL_WIDTH_PX && side >= MIN_LABEL_HEIGHT_PX;
+}
+
+/**
+ * The label text for a tile, or `null` when it must paint nothing.
+ *
+ * Precedence is deliberate: a ticker without its percentage is still
+ * identifiable, while a percentage fragment (`+0.|`) identifies nothing and
+ * reads as a real value. So when only one line fits, keep the symbol.
+ */
+export function marketTileLabelText(
+  side: number,
+  symbol: string,
+  value: string,
+): string | null {
+  if (!Number.isFinite(side) || side <= 0) return null;
+  if (side >= MIN_LABEL_HEIGHT_PX) {
+    return `{sym|${symbol}}\n{val|${value}}`;
+  }
+  if (side >= MIN_LABEL_LINE_HEIGHT_PX) {
+    return `{sym|${symbol}}`;
+  }
+  return null;
 }
 
 /**
@@ -593,13 +642,23 @@ export function suppressTinyFlatLabels<
   T extends { value: number; label?: Record<string, unknown> },
 >(tiles: T[], widthPx?: number, heightPx?: number): T[] {
   const total = tiles.reduce((sum, tile) => sum + tile.value, 0);
-  return tiles.map((tile) => ({
-    ...tile,
-    label: {
-      ...tile.label,
-      show: stockTileLabelVisible(tile.value, total, widthPx, heightPx),
-    },
-  }));
+  return tiles.map((tile) => {
+    const side = estimatedTileHeightPx(tile.value, total, widthPx, heightPx);
+    const visible = side >= MIN_LABEL_WIDTH_PX && side >= MIN_LABEL_HEIGHT_PX;
+    // Between the one-line and two-line floors the value is dropped rather
+    // than clipped: ECharts would paint `+0.|`, which reads as a real number.
+    const oneLine = !visible && side >= MIN_LABEL_LINE_HEIGHT_PX && side >= MIN_LABEL_WIDTH_PX;
+    return {
+      ...tile,
+      label: {
+        ...tile.label,
+        show: visible || oneLine,
+        ...(oneLine
+          ? { formatter: (p: { name?: string }) => `{sym|${p.name ?? ""}}` }
+          : {}),
+      },
+    };
+  });
 }
 
 /** `toTreemapRow` stores a null sector as "—"; normalise that and blank strings. */

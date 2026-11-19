@@ -81,17 +81,12 @@ const OPTION_CHAIN = {
 };
 
 /**
- * The desk's picker is HOME_PANELS, not one registry alone. Derivation:
- * `src/pages/home/homePanels.ts` builds HOME_PANELS from REPORT_PANELS
- * (`src/components/dock/reportPanels.tsx`: CHART/WALLS/BREADTH) plus the nine
- * window specs listed in `src/components/window/panelRegistry.ts`. Titles below
- * are each spec's `title` field. The panel lanes removed paper.positions and
- * added patterns/sector/options specs; this list is read from that landed source.
+ * The desk's picker is HOME_PANELS. `src/pages/home/homePanels.ts` builds it
+ * from the real window specs in `src/components/window/panelRegistry.ts` — the
+ * blank proof-of-contract report stubs were removed from both the picker and
+ * the registry. Titles below are each spec's `title` field.
  */
 const EXPECTED_PICKER_PANELS: ReadonlyArray<{ id: string; title: string }> = [
-  { id: "report.chart", title: "CHART" },
-  { id: "report.walls", title: "WALLS" },
-  { id: "report.breadth", title: "BREADTH" },
   { id: "market.heatmap", title: "MARKET HEATMAP" },
   { id: "news.feed", title: "NEWS" },
   { id: "options.analytics", title: "OPTIONS ANALYTICS" },
@@ -99,6 +94,7 @@ const EXPECTED_PICKER_PANELS: ReadonlyArray<{ id: string; title: string }> = [
   { id: "options.positioning", title: "OPTIONS POSITIONING" },
   { id: "patterns.results", title: "PATTERNS" },
   { id: "sector.correlation", title: "SECTOR CORRELATION" },
+  { id: "sector.detail", title: "SECTOR DETAIL" },
   { id: "sector.heatmap", title: "SECTOR HEATMAP" },
   { id: "sector.table", title: "SECTOR PERFORMANCE" },
   { id: "sector.movers", title: "INTERVAL MOVERS" },
@@ -115,6 +111,25 @@ const SECTOR_RESPONSE = {
 
 async function mockHomeNetwork(page: Page): Promise<SeenUrls> {
   const seen: SeenUrls = { snapshot: [], chain: [], sector: [] };
+  // The options windows pick an expiry from the real listing rather than
+  // typing a date, so the desk needs a listing to pick from.
+  await page.route(apiRoute("reports/nifty/expiries"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ expiries: [{ date: CHAIN_EXPIRY }] }),
+    });
+  });
+  await page.route(apiRoute("options/expiries"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        underlying: "NIFTY",
+        expiries: [{ date: CHAIN_EXPIRY, weekly: true, days_to_expiry: 2 }],
+      }),
+    });
+  });
   await page.route(apiRoute("market/snapshot"), async (route) => {
     seen.snapshot.push(route.request().url());
     await route.fulfill({
@@ -129,6 +144,34 @@ async function mockHomeNetwork(page: Page): Promise<SeenUrls> {
       status: 200,
       contentType: "application/json",
       body: JSON.stringify(OPTION_CHAIN),
+    });
+  });
+  // The positioning panel fetches on mount now that it defaults to an expiry;
+  // without this the desk logs a 401 and the spec's console guard fails.
+  await page.route(apiRoute("options/positioning"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "ok",
+        underlying: "NIFTY",
+        expiry: CHAIN_EXPIRY,
+        spot: 24000.5,
+        lot_size: 50,
+        timestamp: new Date().toISOString(),
+        baseline: "since_open",
+        baseline_note: "Since open",
+        verdict: { label: "NEUTRAL", tone: "neutral", note: "" },
+        initiated_cr: 0,
+        lean_pct: 0,
+        state: { calls_cr: 0, puts_cr: 0, note: "" },
+        flow: { calls_cr: 0, puts_cr: 0, note: "" },
+        initiated: { bearish_cr: 0, bullish_cr: 0, note: "" },
+        split: { bearish_cr: 0, bearish_pct: 0, bullish_cr: 0, bullish_pct: 0 },
+        read: { pct: 0, readable_shares: 0, total_shares: 0 },
+        biggest_move: null,
+        rows: [],
+      }),
     });
   });
   await page.route(apiRoute("sector"), async (route) => {
@@ -362,9 +405,8 @@ test.describe("/home floating-window desk", () => {
       .poll(() => config.requests().some((url) => url.includes("/api/user-configs/window.home")))
       .toBe(true);
 
-    // The options window has no expiry in the desk context, so its empty state
-    // is real: choose one and assert the chain request hits the expected URL.
-    await page.getByTestId(`window-${CHAIN}`).getByTestId("options-chain-expiry-input").fill(CHAIN_EXPIRY);
+    // The options window defaults to the nearest listing and fetches that
+    // chain; choosing a different expiry must retarget the request.
     await expect
       .poll(() => seen.chain.some((url) => url.includes(`/api/options/chain/NIFTY?expiry=${CHAIN_EXPIRY}`)))
       .toBe(true);
@@ -396,12 +438,14 @@ test.describe("/home floating-window desk", () => {
     expect(actual).toHaveLength(EXPECTED_PICKER_PANELS.length);
   });
 
-  test("picker no longer offers the removed paper.positions panel", async ({ page }) => {
+  test("picker no longer offers removed panels (paper.positions, report stubs)", async ({ page }) => {
     const ids = (await pickerOptions(page)).map((option) => option.value);
     // The positive assertion keeps the negative one from passing on an empty list.
     expect(ids).toContain("sector.table");
     expect(ids).toContain("patterns.results");
-    expect(ids).not.toContain("paper.positions");
+    for (const removed of ["paper.positions", "report.chart", "report.walls", "report.breadth"]) {
+      expect(ids, removed).not.toContain(removed);
+    }
   });
 
   test("add a patterns panel: it renders its honest empty state", async ({ page }) => {
@@ -452,7 +496,10 @@ test.describe("/home floating-window desk", () => {
     await expect(panel).toBeVisible();
     await expect(panel).toHaveAttribute("aria-label", "OPTIONS POSITIONING");
     await expect(panel.getByTestId("options-positioning-window")).toBeVisible();
-    await expect(panel.getByTestId("options-positioning-empty")).toContainText("NIFTY");
+    // The panel now defaults to the nearest listing instead of asking the user
+    // to type a date, so it has a symbol and an expiry from the first frame.
+    await expect(panel.getByTestId("options-positioning-window")).toContainText("NIFTY");
+    await expect(panel.getByTestId("options-positioning-empty")).toHaveCount(0);
     await expect.poll(() => persistedMain(config)).toHaveLength(3);
   });
 
