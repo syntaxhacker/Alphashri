@@ -151,6 +151,13 @@ export function HomePage(props: HomePageProps) {
     if (!size || !hydrated()) return;
     const previous = lastCanvas;
     lastCanvas = { w: size.w, h: size.h };
+    /*
+     * Re-fit only when the canvas actually shrinks under an existing desk. A
+     * first measure is deliberately excluded: the saved layout was authored
+     * for some canvas and is honoured as written, and the seed is already
+     * built from the measured size. Re-fitting on first paint would rewrite
+     * every restored rect and break "the layout survives a reload".
+     */
     if (previous.w === 0 || size.w >= previous.w) return;
     const current = config();
     /*
