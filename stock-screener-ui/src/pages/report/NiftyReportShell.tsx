@@ -1,7 +1,8 @@
 import { ErrorBoundary, Show, Suspense, createMemo, lazy } from "solid-js";
-import { Box } from "@/ui";
+import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { EmptyState, ErrorAlert, InlineLoader } from "@/components/common/states";
+import { ReplayUnavailable } from "./BreadthStrip";
 import { ReportProvider, useNiftyReport } from "./ReportContext";
 import type { DeskDockTab } from "./DeskDock";
 import { ReportToolbar } from "./ReportToolbar";
@@ -44,8 +45,9 @@ function SectionError(props: { name: string; error: unknown }) {
     <Box
       data-testid="nifty-section-error"
       style={{
-        border: "1px solid " + palette.NEGATIVE,
+        "border-left": `2px solid ${palette.NEGATIVE}`,
         "border-radius": "2px",
+        "background-color": palette.TINT_NEGATIVE,
         padding: "4px 6px",
         "font-family": palette.MONO,
         "font-size": `${REPORT_FONT.micro}px`,
@@ -77,6 +79,10 @@ function PanelSkeleton(props: { h: number }) {
 function ReportBody() {
   const store = useNiftyReport();
   const isDesk = () => store.ui.isDesk();
+  const replayTime = createMemo(() => {
+    const t = store.replay.frameT?.();
+    return typeof t === "string" && t.length >= 16 ? t.slice(11, 16) : null;
+  });
 
   // The desk surface keeps only the decision strip and the chart above the
   // fold. Low-frequency bands that used to stack above the chart are one dock
@@ -132,6 +138,34 @@ function ReportBody() {
       >
         <ReportToolbar />
       </Box>
+
+      {/* One persistent legend for the whole replay surface: the numbers below
+          are sampled at the playhead, while the live-only bands are absent.
+          Per-panel labels alone cannot say this about the stat strip. */}
+      <Show when={store.selection.mode() === "eod"}>
+        <Box
+          data-testid="nifty-replay-mode-banner"
+          className="flex flex-wrap items-center gap-x-2 w-full min-w-0 shrink-0 min-h-6 px-2 py-[2px] text-[11px]"
+          style={{
+            "background-color": palette.SURFACE_ALT,
+            "border-left": `2px solid ${palette.PRIMARY}`,
+          }}
+        >
+          <Text
+            size="xs"
+            span
+            fw={800}
+            style={{ color: palette.PRIMARY, "letter-spacing": "0.08em", "white-space": "nowrap" }}
+          >
+            REPLAY{replayTime() ? ` ${replayTime()}` : ""}
+          </Text>
+          <Text size="xs" span style={{ color: palette.TEXT_MUTED }}>
+            Playhead values below · live-only bands
+          </Text>
+          <ReplayUnavailable noun="Movers" />
+          <ReplayUnavailable noun="Breadth" />
+        </Box>
+      </Show>
 
       <Show when={store.data.error()}>
         <Box style={{ padding: "4px" }}>

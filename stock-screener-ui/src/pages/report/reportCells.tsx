@@ -40,8 +40,8 @@ const REPLAY_STUB_REPORT = Object.freeze({}) as unknown as NiftyReport;
  *  itself — otherwise it renders as body copy inside the header strip. */
 const PANEL_TITLE_STYLE: JSX.CSSProperties = {
   "font-family": palette.MONO,
-  "font-size": `${REPORT_FONT.micro}px`,
-  "font-weight": REPORT_FONT_WEIGHT.bold,
+  "font-size": `${REPORT_FONT.body}px`,
+  "font-weight": REPORT_FONT_WEIGHT.medium,
   "letter-spacing": REPORT_LETTER_SPACING.wide,
   "text-transform": "uppercase",
   "line-height": REPORT_LINE_HEIGHT.tight,
@@ -60,11 +60,12 @@ export function ReportPanelTitle(props: { testId?: string; children: JSX.Element
 const DECISION_CELL_CLASS =
   "flex flex-col justify-center flex-[1_1_0] gap-[1px] min-w-[92px] md:min-w-[96px] px-1 py-0.5 border-l first:border-l-0 min-[1200px]:h-[40px]";
 const DECISION_CELL_STYLE: JSX.CSSProperties = {
-  "border-left": `1px solid ${palette.TERM_BORDER}`,
+  "border-left": `1px solid ${palette.alpha(palette.BORDER, 0.6)}`,
 };
 
 const DECISION_LABEL_STYLE: JSX.CSSProperties = {
-  "font-size": `${REPORT_FONT.micro}px`,
+  "font-size": `${REPORT_FONT.body}px`,
+  "font-weight": REPORT_FONT_WEIGHT.medium,
   "line-height": REPORT_LINE_HEIGHT.snug,
   "letter-spacing": REPORT_LETTER_SPACING.wide,
   "text-transform": "uppercase",
@@ -75,8 +76,8 @@ const DECISION_LABEL_STYLE: JSX.CSSProperties = {
 };
 
 const DECISION_VALUE_STYLE: JSX.CSSProperties = {
-  "font-size": `${REPORT_FONT.sm}px`,
-  "font-weight": REPORT_FONT_WEIGHT.bold,
+  "font-size": `${REPORT_FONT.body}px`,
+  "font-weight": REPORT_FONT_WEIGHT.semibold,
   "line-height": REPORT_LINE_HEIGHT.tight,
   "font-family": palette.MONO,
   "font-variant-numeric": "tabular-nums",
@@ -89,11 +90,12 @@ const DECISION_VALUE_STYLE: JSX.CSSProperties = {
 const CONTEXT_CELL_CLASS =
   "flex flex-col justify-center flex-[1_1_0] gap-[1px] min-w-[64px] px-1 py-0.5 border-l min-[1200px]:h-[40px]";
 const CONTEXT_CELL_STYLE: JSX.CSSProperties = {
-  "border-left": `1px solid ${palette.TERM_BORDER}`,
+  "border-left": `1px solid ${palette.alpha(palette.BORDER, 0.6)}`,
 };
 
 const CONTEXT_LABEL_STYLE: JSX.CSSProperties = {
-  "font-size": `${REPORT_FONT.micro}px`,
+  "font-size": `${REPORT_FONT.body}px`,
+  "font-weight": REPORT_FONT_WEIGHT.medium,
   "line-height": REPORT_LINE_HEIGHT.snug,
   "letter-spacing": REPORT_LETTER_SPACING.normal,
   "text-transform": "uppercase",
@@ -104,8 +106,8 @@ const CONTEXT_LABEL_STYLE: JSX.CSSProperties = {
 };
 
 const CONTEXT_VALUE_STYLE: JSX.CSSProperties = {
-  "font-size": `${REPORT_FONT.sm}px`,
-  "font-weight": REPORT_FONT_WEIGHT.bold,
+  "font-size": `${REPORT_FONT.body}px`,
+  "font-weight": REPORT_FONT_WEIGHT.semibold,
   "line-height": REPORT_LINE_HEIGHT.snug,
   "font-family": palette.MONO,
   "font-variant-numeric": "tabular-nums",
@@ -158,6 +160,7 @@ export function ContextCell(props: {
   label: string;
   value: JSX.Element;
   title?: string;
+  valueSize?: number;
 }) {
   return (
     <Box
@@ -169,7 +172,15 @@ export function ContextCell(props: {
       <Text span size="xs" fw={700} c="dimmed" style={CONTEXT_LABEL_STYLE}>
         {props.label}
       </Text>
-      <Text span fw={700} style={CONTEXT_VALUE_STYLE}>
+      <Text
+        span
+        fw={700}
+        data-testid={`${props.testId}-value`}
+        style={{
+          ...CONTEXT_VALUE_STYLE,
+          ...(props.valueSize != null ? { "font-size": `${props.valueSize}px` } : {}),
+        }}
+      >
         {props.value}
       </Text>
     </Box>
@@ -210,7 +221,7 @@ export function DecisionChip(props: {
         fw={700}
         c="dimmed"
         style={{
-          "font-size": `${REPORT_FONT.micro}px`,
+          "font-size": `${REPORT_FONT.body}px`,
           "letter-spacing": "0.05em",
           "text-align": "left",
         }}
@@ -223,10 +234,13 @@ export function DecisionChip(props: {
         fw={700}
         style={{
           flex: 1,
-          "font-size": `${REPORT_FONT.sm}px`,
+          "min-width": 0,
+          "font-size": `${REPORT_FONT.body}px`,
           color: props.tone ?? palette.TEXT,
           "font-variant-numeric": "tabular-nums",
           "text-align": "right",
+          overflow: "hidden",
+          "text-overflow": "ellipsis",
         }}
       >
         {props.value}
@@ -384,7 +398,12 @@ export function wallTag(
           "flex-shrink": 0,
         }}
       />
-      <Text size="xs" span fw={700} style={{ "font-size": "11px", color }}>
+      <Text
+        size="xs"
+        span
+        fw={700}
+        style={{ "font-size": `${REPORT_FONT.micro}px`, color }}
+      >
         {code}
       </Text>
     </span>
@@ -473,7 +492,7 @@ export function legChangeCell(leg: NiftyStrike["ce"], legHue: string): JSX.Eleme
         {pointsText}
       </Text>
       <Show when={pctText}>
-        <Text size="xs" span c="dimmed" style={{ "font-size": "11px" }}>
+        <Text size="xs" span c="dimmed" style={{ "font-size": `${REPORT_FONT.micro}px` }}>
           {" "}
           {pctText}
         </Text>
@@ -728,7 +747,7 @@ export function NiftyOiChain(props: NiftyOiChainProps) {
     <CompactPanel
       flush
       scrollable
-      title="Option-chain OI (±750 ATM)"
+      title={<ReportPanelTitle>Option-chain OI (±750 ATM)</ReportPanelTitle>}
       testId={props.panelTestId}
       action={
         <Show when={props.onExpand}>

@@ -251,8 +251,14 @@ function VerdictCell(props: VerdictCellProps) {
         <div
           aria-hidden="true"
           data-testid={`${props.testId}-dot`}
-          class="w-[6px] h-[6px] rounded-full shrink-0"
-          style={{ "background-color": props.accent, "margin-top": "5px" }}
+          class="w-[6px] h-[6px] shrink-0"
+          // `rounded-full` computes to a 3.3e7px radius on a 6px box. Clamp to
+          // half the width so the dot is a circle without an absurd radius.
+          style={{
+            "background-color": props.accent,
+            "border-radius": "3px",
+            "margin-top": "5px",
+          }}
         />
         {/*
          * Two lines, both visible. The detail used to be `sr-only` because a
@@ -306,8 +312,8 @@ function VerdictCell(props: VerdictCellProps) {
         <div
           aria-hidden="true"
           data-testid={`${props.testId}-dot`}
-          class="w-[6px] h-[6px] rounded-full shrink-0"
-          style={{ "background-color": props.accent }}
+          class="w-[6px] h-[6px] shrink-0"
+          style={{ "background-color": props.accent, "border-radius": "3px" }}
         />
         <Text
           data-testid={`${props.testId}-primary`}
@@ -406,7 +412,7 @@ export function NiftyVerdictStrip(props: NiftyVerdictStripProps) {
       data-testid="nifty-verdict-strip"
       class={
         mode() === "context"
-          ? "flex flex-nowrap items-center w-full min-w-0 min-h-6 overflow-hidden border-t border-[var(--desk-border)] [&>*]:border-l [&>*]:border-l-[var(--desk-border)] [&>*]:flex-[1_1_0] [&>*]:min-w-0 [&>*:first-of-type]:border-l-0"
+          ? "flex flex-nowrap items-stretch w-full min-w-0 min-h-6 overflow-hidden [&>*]:border-l [&>*]:border-l-[var(--desk-border)] [&>*]:flex-[1_1_0] [&>*]:min-w-0 [&>*:first-of-type]:border-l-0"
           : "contents"
       }
       style={{ "--desk-border": palette.TERM_BORDER } as JSX.CSSProperties}

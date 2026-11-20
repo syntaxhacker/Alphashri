@@ -4,24 +4,27 @@ import { ActionIcon, Box, useMediaQuery } from "@/ui";
 import { IconX } from "@/components/common/Icons";
 import * as palette from "@/ui/palette";
 import { pickTextColor } from "@/utils/contrast";
+import { REPORT_FONT } from "./reportTokens";
 
 export type DeskDockKey = "flow" | "setup" | "alerts" | "market" | "strips" | "analytics";
 
-// The desktop drawer is now an overlay anchored above the tab bar: it never
-// enters the flex column, so opening a dock tab cannot steal height from the
-// chart. 180px is the usable body floor; the overlay is capped well below the
-// chart canvas so the candles stay visible behind it.
+// The desktop drawer is an overlay anchored above the tab bar: it never enters
+// the flex column, so opening a dock tab cannot steal height from the chart.
 export const DESK_DOCK_OPEN_MIN_HEIGHT = 180;
 export const DESK_DOCK_OVERLAY_HEIGHT = 220;
+/** The bar is the handle for that 220px drawer; at 26px it read as a strip. */
+export const DESK_DOCK_BAR_HEIGHT = 40;
 
 /**
- * One vocabulary per dock tab. The tab labels are supplied by two parents, so
- * the plain-language name and its help live here — next to the button that
- * renders them — instead of being duplicated in each caller.
+ * One vocabulary per dock tab. Every tab reads `name focus: live value`, so a
+ * user can tell from the chrome which panel a click opens (not just the state
+ * the row happens to be in). Labels are shared with the drawer header.
  */
 interface DockHelp {
-  /** Plain-language label; never a Greek letter or a gamma acronym. */
+  /** Plain-language name; never a Greek letter or a gamma acronym. */
   label: string;
+  /** What the tab opens — always a panel-type noun, never a live value. */
+  shows: string;
   ariaLabel: string;
   title: string;
 }
@@ -29,38 +32,44 @@ interface DockHelp {
 export const DOCK_HELP: Record<DeskDockKey, DockHelp> = {
   flow: {
     label: "Delta",
+    shows: "positioning",
     ariaLabel: "Delta positioning tab — open the delta profile",
     title:
       "Delta positioning — where option writers are net long or short directional exposure. The value shows the current delta balance. Opens the delta profile.",
   },
   setup: {
     label: "Dealer gamma",
-    ariaLabel: "Dealer gamma tab — open the dealer gamma profile",
+    shows: "regime",
+    ariaLabel: "Dealer gamma regime tab — open the dealer gamma profile",
     title:
-      "Dealer gamma — long gamma dampens moves, short gamma amplifies them. The value shows the current regime. Opens the dealer gamma profile.",
+      "Dealer gamma regime — long gamma dampens moves, short gamma amplifies them. The value shows the current regime. Opens the dealer gamma profile.",
   },
   market: {
     label: "IV skew",
+    shows: "strikes",
     ariaLabel: "Implied volatility skew tab — open the IV skew chart",
     title:
-      "Implied volatility skew — option volatility across strikes. The value shows how many strikes are in the chain. Opens the IV skew chart.",
+      "Implied volatility skew across strikes. The value shows how many strikes are in the chain. Opens the IV skew chart.",
   },
   strips: {
     label: "Desk",
+    shows: "panels",
     ariaLabel: "Desk panels tab — open walls and breadth",
     title:
       "Desk panels — option walls and market breadth. Opens the walls and breadth panels.",
   },
   analytics: {
     label: "Data",
+    shows: "panels",
     ariaLabel: "Data panels tab — open tape and flow",
     title:
       "Data panels — the live trade tape and flow windows. Opens the tape and flow panels.",
   },
   alerts: {
     label: "Alerts",
-    ariaLabel: "Alerts tab — open the alert log",
-    title: "Alerts — option open-interest bursts and risk alerts. Opens the alert log.",
+    shows: "log",
+    ariaLabel: "Alerts log tab — open the alert log",
+    title: "Alerts log — option open-interest bursts and risk alerts. Opens the alert log.",
   },
 };
 
@@ -68,14 +77,13 @@ export function dockHelp(key: DeskDockKey): DockHelp {
   return DOCK_HELP[key];
 }
 
-/** Dock tab-bar geometry. A phone wraps tabs onto a second row and drops the
- *  keyboard-only hint, so no tab (including DATA) is unreachable off-screen. */
+/** A phone wraps tabs onto a second row and drops the keyboard hint. */
 export function dockLayout(narrow: boolean) {
   return {
     wrap: narrow,
     direction: "row" as const,
-    height: narrow ? "auto" : "26px",
-    minHeight: "26px",
+    height: narrow ? "auto" : `${DESK_DOCK_BAR_HEIGHT}px`,
+    minHeight: narrow ? "26px" : `${DESK_DOCK_BAR_HEIGHT}px`,
     overflowX: narrow ? "visible" : "auto",
     overflowY: narrow ? "visible" : "hidden",
     showHint: !narrow,
@@ -96,9 +104,8 @@ export interface DeskDockTab {
 }
 
 /**
- * Desk bottom dock — the low-frequency panels live here so the chart, chain
- * and walls own the first screen. The tab bar stays visible; one drawer opens
- * at a time; Alt+1..4 toggles, Esc closes (handled on window).
+ * Desk bottom dock — low-frequency panels live here; one drawer opens at a
+ * time. Alt+1..5 toggles, Esc closes (handled on window).
  */
 export function DeskDock(props: {
   tabs: DeskDockTab[];
@@ -125,37 +132,57 @@ export function DeskDock(props: {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const tabButton = (tab: DeskDockTab, selected: boolean) => {
+  // A getter, not a boolean: the bar renders once, so a captured boolean would
+  // freeze every tab in its initial (inactive) state while the drawer updated.
+  const tabButton = (tab: DeskDockTab, index: number, isSelected: () => boolean) => {
     const help = dockHelp(tab.key);
+    const selectedInk = () => pickTextColor(palette.PRIMARY);
+    const subInk = () => (isSelected() ? selectedInk() : palette.TEXT_MUTED);
     return (
       <button
         data-testid={`desk-dock-${tab.key}`}
         data-dock-tab={tab.key}
+        data-dock-open={isSelected() ? "true" : "false"}
         type="button"
-        aria-pressed={selected}
+        aria-pressed={isSelected()}
         aria-label={help.ariaLabel}
         title={help.title}
         onClick={() => toggle(tab.key)}
-        class={`flex items-center gap-1 min-w-0 shrink-0 h-[24px] px-1.5 py-0 rounded-sm whitespace-nowrap ${selected ? "bg-fin-primary text-fin-bg" : "bg-fin-surface-alt text-fin-text"}`}
-        style={{ "font-size": "11px", "font-weight": 800, "letter-spacing": "0.02em" }}
+        class="flex items-center gap-1 min-w-0 shrink-0 h-[32px] px-2 py-0 rounded-sm whitespace-nowrap"
+        style={{
+          "background-color": isSelected() ? palette.PRIMARY : palette.SURFACE_ALT,
+          color: isSelected() ? selectedInk() : palette.TEXT,
+          // Shape as well as colour: an inset rail survives colour-blindness.
+          "box-shadow": isSelected() ? `inset 0 3px 0 ${palette.BG}` : "none",
+          "font-size": `${REPORT_FONT.body}px`,
+          "font-weight": 800,
+          "letter-spacing": "0.02em",
+        }}
       >
-        <span class="font-black text-[11px] tracking-[0.03em]">{help.label}</span>
+        <span class="inline-flex items-center gap-1 whitespace-nowrap">
+          <span class="font-semibold" style={{ color: subInk() }} aria-hidden="true">
+            {index + 1}
+          </span>{" "}
+          <span>{help.label}</span>{" "}
+          <span style={{ color: subInk() }}>{help.shows}</span>
+        </span>
         <Show when={tab.summary != null}>
-          <span
-            class="text-[11px]"
-            style={{ color: selected ? pickTextColor(palette.PRIMARY) : palette.TEXT_MUTED }}
-          >
+          <span class="font-normal" style={{ color: subInk() }}>
+            {": "}
             {tab.summary}
           </span>
         </Show>
-        <Show when={tab.badge != null && tab.badge > 0}>
+        <span class="font-bold" style={{ color: subInk() }} aria-hidden="true">
+          {isSelected() ? "▾" : "▸"}
+        </span>
+        <Show when={tab.badge != null && tab.badge! > 0}>
           <span
             class="inline-flex items-center justify-center shrink-0 whitespace-nowrap min-w-[18px] h-[18px] rounded-[9px]"
             style={{
               padding: "1px 3px",
               "background-color": palette.NEGATIVE,
               color: palette.TEXT_ON_ACCENT,
-              "font-size": "11px",
+              "font-size": `${REPORT_FONT.body}px`,
               "font-weight": 800,
               "line-height": 1,
             }}
@@ -184,9 +211,7 @@ export function DeskDock(props: {
           <div
             id="desk-dock-drawer"
             data-testid="desk-dock-drawer"
-            data-dock-min-height={
-              mobile() ? undefined : String(DESK_DOCK_OPEN_MIN_HEIGHT)
-            }
+            data-dock-min-height={mobile() ? undefined : String(DESK_DOCK_OPEN_MIN_HEIGHT)}
             data-dock-mode={mobile() ? undefined : "overlay"}
             class={
               mobile()
@@ -196,10 +221,10 @@ export function DeskDock(props: {
             style={
               mobile()
                 ? {
-                    "left": "0",
-                    "right": "0",
-                    "width": "auto",
-                    "height": "100%",
+                    left: "0",
+                    right: "0",
+                    width: "auto",
+                    height: "100%",
                     "max-height": "100%",
                     "background-color": palette.TERM_BG,
                     "background-image": "none",
@@ -220,23 +245,40 @@ export function DeskDock(props: {
           >
             <div class="flex flex-col h-full min-h-0">
               <div
-                class="flex items-center gap-[2px] h-[24px] min-h-[24px] px-1 border-b border-fin-border overflow-x-auto"
+                class="flex items-center gap-1 h-[26px] min-h-[26px] px-2 border-b border-fin-border overflow-x-auto"
                 style={{ "background-color": palette.TERM_HEADER }}
               >
                 <For each={props.tabs}>
-                {(tab) => (
-                  <button
-                    type="button"
-                    aria-label={dockHelp(tab.key).ariaLabel}
-                    title={dockHelp(tab.key).title}
-                    class={`flex items-center gap-1 min-w-0 shrink-0 h-[24px] px-1.5 py-0 rounded-sm whitespace-nowrap ${active() === tab.key ? "bg-fin-primary text-fin-bg" : "bg-fin-surface-alt text-fin-text"}`}
-                    onClick={() => props.onActiveChange(tab.key)}
-                    style={{ "font-size": "11px", "font-weight": 800, "letter-spacing": "0.02em" }}
-                  >
-                    {dockHelp(tab.key).label}
-                  </button>
-                )}
-              </For>
+                  {(tab) => (
+                    <button
+                      type="button"
+                      aria-label={dockHelp(tab.key).ariaLabel}
+                      title={dockHelp(tab.key).title}
+                      class="flex items-center gap-1 min-w-0 shrink-0 h-[24px] px-2 py-0 rounded-sm whitespace-nowrap"
+                      style={{
+                        "background-color":
+                          active() === tab.key ? palette.PRIMARY : palette.SURFACE_ALT,
+                        color:
+                          active() === tab.key ? pickTextColor(palette.PRIMARY) : palette.TEXT,
+                        "font-size": `${REPORT_FONT.body}px`,
+                        "font-weight": 800,
+                      }}
+                      onClick={() => props.onActiveChange(tab.key)}
+                    >
+                      <span>{dockHelp(tab.key).label}</span>{" "}
+                      <span
+                        style={{
+                          color:
+                            active() === tab.key
+                              ? pickTextColor(palette.PRIMARY)
+                              : palette.TEXT_MUTED,
+                        }}
+                      >
+                        {dockHelp(tab.key).shows}
+                      </span>
+                    </button>
+                  )}
+                </For>
                 <ActionIcon
                   size="small"
                   aria-label="Close desk dock"
@@ -263,23 +305,42 @@ export function DeskDock(props: {
           class="flex-1 min-h-0 flex items-center justify-center px-2"
         >
           <span class="text-[11px]" style={{ color: palette.TEXT_MUTED }}>
-            DESK BAY · <For each={props.tabs}>{(tab) => <span>{dockHelp(tab.key).label} · </span>}</For>
-            open a tab (ALT+1..{props.tabs.length})
+            Select a desk panel below · ALT+1..{props.tabs.length} to toggle · ESC to close
           </span>
         </div>
       </Show>
 
       <div
         data-testid="desk-dock"
-        class={`sticky bottom-0 z-20 mt-auto flex shrink-0 items-center gap-[2px] px-1 ${layout().wrap ? "flex-wrap h-auto min-h-[26px] py-0.5 overflow-x-visible overflow-y-visible" : "h-[26px] min-h-[26px] overflow-x-auto overflow-y-hidden"}`}
+        data-dock-open={active() ? "true" : "false"}
+        class={`sticky bottom-0 z-20 mt-auto flex shrink-0 items-center gap-1 px-2 ${layout().wrap ? "flex-wrap h-auto min-h-[26px] py-0.5 overflow-x-visible overflow-y-visible" : "overflow-x-auto overflow-y-hidden"}`}
         style={{
           "background-color": palette.TERM_HEADER,
           "border-top": `1px solid ${palette.TERM_BORDER}`,
+          height: layout().wrap ? "auto" : `${DESK_DOCK_BAR_HEIGHT}px`,
+          "min-height": layout().wrap ? "26px" : `${DESK_DOCK_BAR_HEIGHT}px`,
         }}
       >
-        <For each={props.tabs}>{(tab) => tabButton(tab, active() === tab.key)}</For>
+        <span
+          class="shrink-0 whitespace-nowrap font-black tracking-[0.08em] text-[11px]"
+          style={{ color: palette.TEXT, "padding-right": "8px" }}
+        >
+          DESK BAY
+        </span>
+        <For each={props.tabs}>
+          {(tab, index) => tabButton(tab, index(), () => active() === tab.key)}
+        </For>
         <Show when={layout().showHint}>
-          <span class="ml-auto pr-1 whitespace-nowrap text-[11px]" style={{ color: palette.TEXT_MUTED }}>
+          <span
+            data-testid="desk-dock-hint"
+            class="ml-auto shrink-0 whitespace-nowrap text-[11px] font-normal"
+            style={{
+              color: palette.TEXT_MUTED,
+              "padding-left": "8px",
+              "border-left": `1px solid ${palette.TERM_BORDER}`,
+              "font-size": `${REPORT_FONT.micro}px`,
+            }}
+          >
             ALT+1..{props.tabs.length} · ESC
           </span>
         </Show>

@@ -85,7 +85,8 @@ interface HeatCell {
 
 interface OiHeatmap {
   buckets: HeatBucket[];
-  /** Ascending, within spot ± widthPts of the last row's spot. */
+  /** Ascending, within spot ± widthPts of the last row's spot, capped to
+   * `maxStrikes` around spot so a pane cannot show more rows than it can label. */
   strikes: number[];
   cells: HeatCell[];
   /** Largest |ΔOI| across all cells (0 when there is no data). */
@@ -94,6 +95,10 @@ interface OiHeatmap {
   empty: boolean;
   /** Field the cells colour (OI change / volume / premium change). */
   metric: "oi" | "volume" | "premium";
+  /** Displayed half-window: strikes on each side of the nearest-to-spot row. */
+  windowHalf: number;
+  /** Largest distance in points from reference spot to a displayed strike. */
+  windowPts: number;
 }
 
 interface HeatmapOptions {
@@ -113,6 +118,11 @@ interface HeatmapOptions {
    * buckets instead of being silently compressed out of the left edge.
    */
   startTime?: string | null;
+  /**
+   * Hard cap on displayed strike rows. A narrow pane cannot label 40 strikes
+   * at the 11px floor, so the window is centred on spot instead of smearing.
+   */
+  maxStrikes?: number;
 }
 
 /** Plot geometry (viewBox) shared with the flow strip below the heatmap. */
@@ -187,7 +197,10 @@ export function buildOiHeatmap(
   const widthPts = opts.widthPts ?? 500;
   const touchTol = opts.touchTol ?? MAX_PAIN_TOUCH_TOL;
   const metric = opts.metric ?? "oi";
-  const empty: OiHeatmap = { buckets: [], strikes: [], cells: [], maxAbs: 0, empty: true, metric };
+  const empty: OiHeatmap = {
+    buckets: [], strikes: [], cells: [], maxAbs: 0, empty: true, metric,
+    windowHalf: 0, windowPts: 0,
+  };
 
   const asc = (rows ?? [])
     .filter((r) => r && typeof r.t === "string" && r.t.length > 0)
@@ -214,8 +227,27 @@ export function buildOiHeatmap(
       if (Number.isFinite(s) && s > 0 && Math.abs(s - refSpot) <= widthPts) universe.add(s);
     }
   }
-  const strikes = [...universe].sort((a, b) => a - b);
-  if (strikes.length === 0) return empty;
+  const allStrikes = [...universe].sort((a, b) => a - b);
+  if (allStrikes.length === 0) return empty;
+
+  // A pane of this width can only label ~11–21 rows at the 11px floor. Keep
+  // the strikes nearest spot rather than letting a wide chain become a smear.
+  const maxStrikes = Math.max(1, opts.maxStrikes ?? 21);
+  let strikes = allStrikes;
+  if (allStrikes.length > maxStrikes) {
+    let nearest = 0;
+    for (let i = 1; i < allStrikes.length; i++) {
+      if (Math.abs(allStrikes[i] - refSpot) < Math.abs(allStrikes[nearest] - refSpot)) nearest = i;
+    }
+    const start = Math.max(0, Math.min(allStrikes.length - maxStrikes, nearest - Math.floor((maxStrikes - 1) / 2)));
+    strikes = allStrikes.slice(start, start + maxStrikes);
+  }
+  const windowHalf = Math.floor((strikes.length - 1) / 2);
+  const windowPts = Math.max(
+    refSpot - strikes[0],
+    strikes[strikes.length - 1] - refSpot,
+    0,
+  );
 
   // Time buckets anchored at the session's first candle when the caller passes
   // `startTime`; otherwise at the first tape row's minute. Padding the axis
@@ -367,7 +399,7 @@ export function buildOiHeatmap(
     }
   }
 
-  return { buckets, strikes, cells, maxAbs, empty: false, metric };
+  return { buckets, strikes, cells, maxAbs, empty: false, metric, windowHalf, windowPts };
 }
 
 interface HeatmapRead {

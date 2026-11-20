@@ -1,6 +1,7 @@
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { Text, Button, Badge } from "@/ui";
+import { ReplayUnavailable } from "./BreadthStrip";
 import { LocalCompactPanel } from "./reportBits";
 import { Sparkline } from "@/components/common/Sparkline";
 import * as palette from "@/ui/palette";
@@ -60,7 +61,7 @@ function Stat(props: { label: string; value: string; color?: string }) {
         span
         fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
         style={{
-          "font-size": `${REPORT_FONT.micro}px`,
+          "font-size": `${REPORT_FONT.body}px`,
           "line-height": REPORT_LINE_HEIGHT.tight,
           color: palette.TEXT_MUTED,
           "letter-spacing": REPORT_LETTER_SPACING.wide,
@@ -259,10 +260,10 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
   return (
     <div data-testid={`nifty-walls-${sideKey}`} class="min-w-0">
       <div
-        class="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] border-b border-solid pb-[4px] mb-[4px]"
+        class="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] pb-[4px] mb-[4px]"
         style={{
           "column-gap": `${REPORT_PAD.xs}px`,
-          "border-bottom": `1px solid ${palette.BORDER}`,
+          "border-bottom": `1px solid ${palette.alpha(palette.BORDER, 0.6)}`,
           "padding-bottom": `${REPORT_PAD.xs}px`,
           "margin-bottom": `${REPORT_PAD.xs}px`,
         }}
@@ -360,7 +361,7 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
                     span
                     fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
                     style={{
-                      "font-size": `${REPORT_FONT.micro}px`,
+                      "font-size": `${REPORT_FONT.body}px`,
                       "font-weight": REPORT_FONT_WEIGHT.extrabold,
                       color: cellColor,
                       "margin-left": `${REPORT_PAD.xs}px`,
@@ -370,7 +371,7 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
                     {view.arrow}
                   </Text>
                 </Show>
-                <span style={{ "font-size": `${REPORT_FONT.micro}px`, "margin-left": "3px", color: palette.TEXT_MUTED }}>
+                <span style={{ "font-size": `${REPORT_FONT.body}px`, "margin-left": "3px", color: palette.TEXT_MUTED }}>
                   {wallCode(props.side === "CALL", wallSide(row.strike, props.spot), false)}
                 </span>
               </div>
@@ -385,7 +386,7 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
                 }
                 data-testid={`nifty-walls-${props.side.toLowerCase()}-${row.strike}-flow`}
                 style={{
-                  "font-size": `${REPORT_FONT.micro}px`,
+                  "font-size": `${REPORT_FONT.body}px`,
                   "line-height": REPORT_LINE_HEIGHT.tight,
                   color: flowToneColor(flowTone(row.flow)),
                   "font-weight": REPORT_FONT_WEIGHT.bold,
@@ -671,7 +672,7 @@ function WallsLevelsBlock(props: { levels?: JSX.Element }) {
   return (
     <div
       style={{
-        "border-top": `1px solid ${palette.BORDER}`,
+        "border-top": `1px solid ${palette.alpha(palette.BORDER, 0.6)}`,
         "padding-top": `${REPORT_PAD.sm}px`,
         "min-width": 0,
       }}
@@ -690,7 +691,7 @@ function WallsLevelsBlock(props: { levels?: JSX.Element }) {
  *  side, so the skeleton body lands on the same height as the populated one.
  *  The READ/SEQ and tracked-history bands are reserved at 96px so they can
  *  never collapse below the live bands. */
-function WallsSkeleton(props: { emptyText: string }) {
+function WallsSkeleton(props: { emptyText: string; replayUnavailable?: boolean }) {
   return (
     <div
       data-testid="nifty-walls-skeleton"
@@ -726,17 +727,24 @@ function WallsSkeleton(props: { emptyText: string }) {
         <div style={{ "margin-top": `${REPORT_PAD.xs}px` }}>
           <WallsLevelsLegend callWall={null} putWall={null} maxPain={null} skeleton />
         </div>
-        <Text
-          size="xs"
-          span
-          style={{
-            "font-size": `${REPORT_FONT.xs}px`,
-            color: palette.TEXT_MUTED,
-            "margin-top": `${REPORT_PAD.xs}px`,
-          }}
+        <Show
+          when={props.replayUnavailable}
+          fallback={
+            <Text
+              size="xs"
+              span
+              style={{
+                "font-size": `${REPORT_FONT.xs}px`,
+                color: palette.TEXT_MUTED,
+                "margin-top": `${REPORT_PAD.xs}px`,
+              }}
+            >
+              {props.emptyText}
+            </Text>
+          }
         >
-          {props.emptyText}
-        </Text>
+          <ReplayUnavailable noun="Walls" />
+        </Show>
       </div>
 
       <WallTable side="CALL" rows={[]} spot={0} />
@@ -747,7 +755,7 @@ function WallsSkeleton(props: { emptyText: string }) {
         style={{
           "min-height": `${WALLS_RESERVED_H}px`,
           "min-width": 0,
-          "border-left": `1px solid ${palette.BORDER}`,
+          "border-left": `1px solid ${palette.alpha(palette.BORDER, 0.6)}`,
           "padding-left": `${REPORT_PAD.sm}px`,
           display: "flex",
           "flex-direction": "column",
@@ -813,6 +821,9 @@ export function NiftyWallsCardInner(props: {
   /** Opens the deeper pressure desk (phase plane + selected-wall path). */
   onOpenDesk?: () => void;
   emptyText?: string;
+  /** Replay cannot reconstruct the tape: use the one shared "not captured"
+   *  treatment and drop the permanently hidden skeleton from the DOM. */
+  unavailableInReplay?: boolean;
   /** Collapse the five-column band to a one-glance summary; the full detail
    *  stays mounted and is reachable through the EXPAND affordance. */
   compact?: boolean;
@@ -853,27 +864,43 @@ export function NiftyWallsCardInner(props: {
   });
 
   if (!walls()) {
+    const emptyText = () => props.emptyText ?? "No walls data.";
     return (
-      <LocalCompactPanel title="WALLS" testId={props.testId ?? "nifty-walls-card"} flush>
+      <LocalCompactPanel
+        title="WALLS"
+        testId={props.testId ?? "nifty-walls-card"}
+        flush
+        class="[&>div:first-child]:bg-fin-surface-alt"
+        style={{ "border-width": "0px", "background-color": palette.SURFACE }}
+      >
         <Show
           when={props.compact === true}
           fallback={
             <>
-              <WallsSkeleton emptyText={props.emptyText ?? "No walls data."} />
+              <WallsSkeleton emptyText={emptyText()} replayUnavailable={props.unavailableInReplay} />
               <WallsLevelsBlock levels={props.levels} />
             </>
           }
         >
           <div
             data-testid="nifty-walls-compact-summary"
-            class="flex items-center h-14 min-h-14 px-2 text-[11px] text-fin-text-muted"
+            class={`flex items-center px-2 text-[11px] text-fin-text-muted ${props.unavailableInReplay ? "h-6 min-h-6" : "h-14 min-h-14"}`}
           >
-            WALLS · {props.emptyText ?? "No walls data."}
+            <Show
+              when={props.unavailableInReplay}
+              fallback={<Text size="xs" span style={{ "font-size": `${REPORT_FONT.xs}px`, color: palette.TEXT_MUTED }}>{`WALLS · ${emptyText()}`}</Text>}
+            >
+              <ReplayUnavailable noun="Walls" />
+            </Show>
           </div>
-          <div data-testid="nifty-walls-compact-detail" style={{ display: "none" }}>
-            <WallsSkeleton emptyText={props.emptyText ?? "No walls data."} />
-            <WallsLevelsBlock levels={props.levels} />
-          </div>
+          {/* In replay this detail is permanently display:none — a skeleton
+              that can never be opened is dead DOM, so don't mount it. */}
+          <Show when={!props.unavailableInReplay}>
+            <div data-testid="nifty-walls-compact-detail" style={{ display: "none" }}>
+              <WallsSkeleton emptyText={emptyText()} />
+              <WallsLevelsBlock levels={props.levels} />
+            </div>
+          </Show>
         </Show>
       </LocalCompactPanel>
     );
@@ -941,7 +968,8 @@ export function NiftyWallsCardInner(props: {
           </Button>
         </div>
       }
-      style={{ "border-top": "none" }}
+      class="[&>div:first-child]:bg-fin-surface-alt"
+      style={{ "border-width": "0px", "background-color": palette.SURFACE }}
     >
       <Show when={props.compact === true}>
         <div
@@ -1037,8 +1065,8 @@ export function NiftyWallsCardInner(props: {
                 "font-weight": REPORT_FONT_WEIGHT.extrabold,
                 "letter-spacing": REPORT_LETTER_SPACING.wide,
                 color: stateColor(),
-                "background-color": "transparent",
-                border: `1px solid ${stateColor()}`,
+                "background-color": palette.alpha(stateColor(), 0.12),
+                border: "none",
                 "padding-left": `${REPORT_PAD.xs}px`,
                 "padding-right": `${REPORT_PAD.xs}px`,
               }}
@@ -1081,8 +1109,8 @@ export function NiftyWallsCardInner(props: {
                   "height": "17px",
                   "font-size": `${REPORT_FONT.xs}px`,
                   color: palette.WARNING,
-                  "background-color": "transparent",
-                  border: `1px solid ${palette.WARNING}`,
+                  "background-color": palette.alpha(palette.WARNING, 0.12),
+                  border: "none",
                   "padding-left": `${REPORT_PAD.xs}px`,
                   "padding-right": `${REPORT_PAD.xs}px`,
                 }}
@@ -1293,7 +1321,7 @@ export function NiftyWallsCardInner(props: {
             <SequenceLine events={events()} />
           </div>
 
-          <div style={{ "min-width": 0, "border-left": `1px solid ${palette.BORDER}`, "padding-left": `${REPORT_PAD.sm}px` }}>
+          <div style={{ "min-width": 0, "border-left": `1px solid ${palette.alpha(palette.BORDER, 0.6)}`, "padding-left": `${REPORT_PAD.sm}px` }}>
             <Text
               size="xs"
               span

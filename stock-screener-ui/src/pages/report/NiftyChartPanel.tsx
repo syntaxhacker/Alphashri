@@ -14,7 +14,11 @@ import {
   buildPatternScanAnnotation,
   patternNoHitLabel,
 } from "./niftyPatternOverlay";
-import { REPORT_FONT } from "./reportTokens";
+import {
+  REPORT_FONT,
+  REPORT_CONTROL_LABEL_CLASS,
+  REPORT_CONTROL_LABEL_STYLE,
+} from "./reportTokens";
 import { wallEventOverlay, type WallBurstLike } from "./niftyWallEventOverlay";
 import { fillCandleGaps } from "./niftyCandles";
 import {
@@ -346,7 +350,9 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
 
   /** Fyers is a chart-lane feed: it updates the last candle, not the option
    *  chain / walls, and only the underlyings the WS endpoint accepts. */
-  const fyersEnabled = () => chartSource() === "live" && isFyersUnderlying(symbol());
+  // Replay is orthogonal to the chart source: a live tick feed into a
+  // historical frame would keep walking the last bar past the playhead.
+  const fyersEnabled = () => chartSource() === "live" && isFyersUnderlying(symbol()) && !asOf();
   const fyers = useFyersTickStream({
     symbols: () => [symbol()],
     enabled: fyersEnabled,
@@ -435,9 +441,10 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
     return { state: "connecting", label: "FYERS LINK…", color: palette.TEXT_MUTED, title: `${title} REST poll is the fallback.` };
   };
 
-  /** OFFLINE is the recorded/replay frame: clip exactly at the playhead. The
-   *  other two modes show the full streamed series (no replay cutoff). */
-  const effectiveAsOf = () => (isOffline() ? asOf() : undefined);
+  /** Replay is orthogonal to the chart source: whichever candle pipeline feeds
+   *  the chart, a supplied playhead stops it from drawing future candles. The
+   *  parent passes `undefined` outside EOD, so live mode is unchanged. */
+  const effectiveAsOf = () => asOf() ?? undefined;
   const offlineUnavailable = () => isOffline() && !asOf();
 
   const handleTfChange = (v: string) => {
@@ -520,8 +527,9 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
       const spot = candlesFromSpotPoints(feed.spot ?? [], sessionDate());
       const tapeBars = candlesFromTape(feed.tape?.rows ?? [], sessionDate());
       const base = pickFreshestCandles(feed.report, spot, tapeBars, sessionDate());
-      // The REST snapshot carries the whole day. Only the OFFLINE (recorded)
-      // source stops at the playhead; LIVE/PATTERNS show the full stream.
+      // The REST snapshot carries the whole day. Any poll replaying history
+      // (including one arriving while LIVE/PATTERNS is selected) is cut here,
+      // before gap-filling/resampling can turn it into post-playhead bars.
       const clipped = clipToAsOf(base, effectiveAsOf());
       // Repair poisoned bars and re-fill dropped minutes from the tape BEFORE
       // resampling: a 0.00 close or a five-minute hole otherwise blows up the
@@ -711,6 +719,8 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
       onChange={handleSourceChange}
       data={CHART_SOURCE_OPTIONS}
       size="md"
+      className={REPORT_CONTROL_LABEL_CLASS}
+      style={REPORT_CONTROL_LABEL_STYLE}
     />
   );
   const secondaryControls = () => (
@@ -721,6 +731,8 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
         onChange={handleTfChange}
         data={CHART_TF_OPTIONS}
         size="md"
+        className={REPORT_CONTROL_LABEL_CLASS}
+        style={REPORT_CONTROL_LABEL_STYLE}
       />
       <Button
         data-testid="nifty-patterns-scan"
@@ -739,6 +751,8 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
         onChange={handleSizeChange}
         data={CHART_SIZE_OPTIONS}
         size="md"
+        className={REPORT_CONTROL_LABEL_CLASS}
+        style={REPORT_CONTROL_LABEL_STYLE}
       />
       <Show when={props.onExpand}>
         <ActionIcon

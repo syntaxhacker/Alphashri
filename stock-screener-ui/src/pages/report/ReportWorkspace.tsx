@@ -3,7 +3,6 @@ import type { JSX } from "solid-js";
 
 import { ActionIcon, Box, Button, Text, useMediaQuery } from "@/ui";
 import * as palette from "@/ui/palette";
-import { hexToRgba } from "@/utils/color";
 import type { NiftyStrike } from "@/types/niftyReport";
 
 import { BreadthStrip } from "./BreadthStrip";
@@ -57,6 +56,11 @@ const CHART_FILL_CHAIN = "flex-1 min-h-0";
 // 430px is the stated floor an open dock must never cross.
 export const DESK_CHART_FLOOR_PX = 430;
 const DESK_RAIL_HEIGHT_PX = 136;
+// Replay keeps only the walls summary in this rail (breadth/movers are absent),
+// so the extra row is dead space — give it back to the chart. The populated
+// compact card is taller than the unavailable one and needs its own reserve.
+const DESK_RAIL_REPLAY_HEIGHT_PX = 84;
+const DESK_RAIL_REPLAY_WALLS_HEIGHT_PX = 112;
 
 const ANALYTICS_CELL_CLASS = "min-w-0 min-h-0 flex flex-col [&>*]:flex-1 [&>*]:min-h-0";
 
@@ -258,7 +262,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
   const getOiRowStyle = (row: NiftyStrike): JSX.CSSProperties | undefined => {
     const atm = store.data.atmStrike();
     return atm !== null && row.strike === atm
-      ? { background: hexToRgba(palette.TERM_FLIP, 0.08) }
+      ? { background: palette.alpha(palette.TERM_FLIP, 0.08) }
       : undefined;
   };
 
@@ -401,8 +405,11 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
           <Show when={isDesk()}>
             <Box
               data-testid="nifty-side-tabs"
-              className="flex items-center gap-0.5 h-5 min-h-5 px-0.5 border-b border-[var(--desk-border)]"
-              style={{ "background-color": palette.TERM_HEADER }}
+              className="flex items-center gap-0.5 h-5 min-h-5 px-0.5"
+              style={{
+                "background-color": palette.TERM_HEADER,
+                "border-bottom": `1px solid ${palette.alpha(palette.BORDER, 0.6)}`,
+              }}
             >
               <Button
                 data-testid="nifty-side-tab-chain"
@@ -522,7 +529,13 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
           data-testid="desk-insight-rail"
           data-left-edge={String(REPORT_GUTTER.inline)}
           className="flex flex-col gap-1 shrink-0 w-full min-w-0 overflow-hidden"
-          style={{ height: `${DESK_RAIL_HEIGHT_PX}px` }}
+          style={{
+            height: `${store.selection.mode() !== "eod"
+              ? DESK_RAIL_HEIGHT_PX
+              : store.walls.data()
+                ? DESK_RAIL_REPLAY_WALLS_HEIGHT_PX
+                : DESK_RAIL_REPLAY_HEIGHT_PX}px`,
+          }}
         >
           <Box className="flex-1 min-h-0 min-w-0">
             <NiftyWallsCard
@@ -531,24 +544,13 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
               walls={store.walls.data()}
               onExpand={() => store.walls.openDrawer()}
               onOpenDesk={() => store.ui.setDeskOpen(true)}
-              emptyText={
-                store.selection.mode() === "eod"
-                  ? "No tape at this replay time."
-                  : "Waiting for walls data."
-              }
+              emptyText="Waiting for walls data."
+              unavailableInReplay={store.selection.mode() === "eod"}
             />
           </Box>
-          <Show
-            when={store.selection.mode() === "live"}
-            fallback={
-              <Text
-                data-testid="nifty-breadth-live-only"
-                className="flex items-center h-6 min-h-6 px-2 text-[11px] text-fin-text-muted tracking-[0.06em] uppercase shrink-0"
-              >
-                BREADTH · live only
-              </Text>
-            }
-          >
+          {/* Replay has no breadth snapshot. It is named once by the mode banner
+              instead of holding a 24px empty band in the permanent rail. */}
+          <Show when={store.selection.mode() === "live"}>
             <BreadthStrip data={store.data.breadth()} />
           </Show>
         </Box>

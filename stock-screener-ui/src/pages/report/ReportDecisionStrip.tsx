@@ -53,7 +53,7 @@ const DECISION_STRIP_STYLE: JSX.CSSProperties = {
 
 const INDIA_VIX_STYLE: JSX.CSSProperties = {
   "flex-shrink": 0,
-  "font-size": "11px",
+  "font-size": `${REPORT_FONT.micro}px`,
   "font-weight": 700,
   "letter-spacing": "0.06em",
   color: palette.TEXT_MUTED,
@@ -81,6 +81,24 @@ const PLAN_BAR_STYLE: JSX.CSSProperties = {
   "flex-shrink": 0,
 };
 
+/** The verdict is a decision surface, not a 24px line: claim, confidence and
+ *  the evidence behind them share one tinted block. */
+export const VERDICT_BLOCK_HEIGHT = 48;
+/** Widest inline gap allowed between the claim and the evidence it rests on. */
+export const VERDICT_EVIDENCE_GAP = 8;
+
+/** A neutral plan emits `confidence: 0` as a sentinel for "no directional call",
+ *  not as a measured 0% (a non-neutral plan is always >= 20). Rendering it as a
+ *  meter makes a no-trade read look like a confidently worthless one. */
+export function planConfidenceLabel(confidence: number | null | undefined) {
+  const computed =
+    typeof confidence === "number" && Number.isFinite(confidence) && confidence > 0;
+  return {
+    computed,
+    text: computed ? `confidence ${confidence}%` : "not computed · no directional call",
+  };
+}
+
 const PLAN_HEADLINE_STYLE: JSX.CSSProperties = {
   // Content-sized, not flex:1 — a stretched headline shoves confidence to the
   // far edge of the strip. Natural width keeps the qualifier beside the claim.
@@ -89,16 +107,16 @@ const PLAN_HEADLINE_STYLE: JSX.CSSProperties = {
   overflow: "hidden",
   "text-overflow": "ellipsis",
   "white-space": "nowrap",
-  "font-size": `${REPORT_FONT.verdict}px`,
-  "font-weight": 700,
+  "font-size": `${REPORT_FONT.display}px`,
+  "font-weight": REPORT_FONT_WEIGHT.bold,
   "letter-spacing": "0.02em",
   "font-family": palette.MONO,
   "font-variant-numeric": "tabular-nums",
 };
 
 const PLAN_CONFIDENCE_STYLE: JSX.CSSProperties = {
-  "font-size": "11px",
-  "font-weight": 700,
+  "font-size": `${REPORT_FONT.micro}px`,
+  "font-weight": REPORT_FONT_WEIGHT.bold,
   color: palette.TEXT_MUTED,
   "font-variant-numeric": "tabular-nums",
   "white-space": "nowrap",
@@ -112,21 +130,21 @@ const TAPE_BADGE_STYLE: JSX.CSSProperties = {
   "padding-top": "1px",
   "padding-bottom": "1px",
   "border-radius": "3px",
-  "font-size": "11px",
-  "font-weight": 800,
+  "font-size": `${REPORT_FONT.micro}px`,
+  "font-weight": REPORT_FONT_WEIGHT.extrabold,
   "letter-spacing": "0.03em",
   "font-family": palette.MONO,
   "white-space": "nowrap",
 };
 
 /** Verdict-wrap geometry. Narrow screens stack the chips and the plan line
- *  instead of clipping them mid-word; desktop keeps the original 24px row. */
+ *  instead of clipping them mid-word; desktop gives the decision a 48px block. */
 export function verdictWrapLayout(narrow: boolean) {
   return {
     wrap: narrow,
     direction: narrow ? ("column" as const) : ("row" as const),
-    height: narrow ? "auto" : "24px",
-    minHeight: "24px",
+    height: narrow ? "auto" : `${VERDICT_BLOCK_HEIGHT}px`,
+    minHeight: narrow ? "24px" : `${VERDICT_BLOCK_HEIGHT}px`,
     overflow: narrow ? "visible" : "hidden",
   };
 }
@@ -147,8 +165,8 @@ export function planHeadlineStyle(narrow: boolean): JSX.CSSProperties {
 }
 
 const GROUP_LABEL_STYLE: JSX.CSSProperties = {
-  "font-size": `${REPORT_FONT.micro}px`,
-  "font-weight": REPORT_FONT_WEIGHT.bold,
+  "font-size": `${REPORT_FONT.body}px`,
+  "font-weight": REPORT_FONT_WEIGHT.medium,
   "letter-spacing": REPORT_LETTER_SPACING.wide,
   "line-height": REPORT_LINE_HEIGHT.tight,
   "text-transform": "uppercase",
@@ -437,64 +455,81 @@ export function ReportDecisionStrip() {
     return { up, conflict, ratio: speed.ratio, delta: speed.delta, tone };
   });
 
-  const planOneLiner = createMemo(() => {
-    const summary = planSummary();
-    const badge = tapeBadge();
-    if (!summary) return null;
-    return (
-      <Box
-        data-testid="nifty-plan-oneliner"
-        className="flex items-center gap-1 px-2 min-h-[20px] rounded-[4px] w-full max-w-full min-w-0 shrink-0"
-        style={PLAN_ONELINER_STYLE}
-      >
-        <span aria-hidden style={{ ...PLAN_BAR_STYLE, "background-color": planTone() }} />
-        <Box className="flex items-center gap-1 min-w-0 flex-1">
-          <Box
-            data-testid="nifty-plan-headline"
-            title={`${summary.action} · confidence ${summary.confidence}%`}
-            className="min-w-0"
-            style={{ ...planHeadlineStyle(narrow()), color: planTone() }}
-          >
-            {summary.headline}
-          </Box>
-          <Box data-testid="nifty-plan-confidence" title="Weighted confidence behind the active side" className="shrink-0" style={PLAN_CONFIDENCE_STYLE}>
-            confidence {summary.confidence}%
+  const planConfidence = createMemo(() => planConfidenceLabel(planSummary()?.confidence));
+
+  /** The claim: verdict state on top, its qualifier underneath. Stacking keeps
+   *  the evidence a few px away instead of a confidence string stretching the
+   *  gap; both stay in one parent so the qualifier can never be stranded. */
+  const planClaim = () => (
+    <Show when={planSummary()}>
+      {(summary) => (
+        <Box
+          data-testid="nifty-plan-oneliner"
+          className="flex items-center gap-2 min-w-0 shrink-0"
+          style={{ ...PLAN_ONELINER_STYLE, width: narrow() ? "100%" : "auto" }}
+        >
+          <Box className="flex flex-col min-w-0" style={{ gap: "2px" }}>
+            <Box
+              data-testid="nifty-plan-headline"
+              title={`${summary().action} · ${planConfidence().text}`}
+              className="min-w-0"
+              style={{ ...planHeadlineStyle(narrow()), color: planTone() }}
+            >
+              {summary().headline}
+            </Box>
+            <Box
+              data-testid="nifty-plan-confidence"
+              data-confidence-computed={planConfidence().computed ? "true" : "false"}
+              title={
+                planConfidence().computed
+                  ? "Weighted confidence behind the active side"
+                  : "No directional call, so there is no confidence to compute"
+              }
+              className="shrink-0"
+              style={PLAN_CONFIDENCE_STYLE}
+            >
+              {planConfidence().text}
+            </Box>
           </Box>
         </Box>
-        <Show when={badge}>
-          {(current) => (
-            <span
-              data-testid="nifty-plan-tape"
-              data-conflict={current().conflict ? "true" : "false"}
-              title={`Last 5 min ${current().up ? "+" : ""}${Math.round(current().delta)} pts — ${current().ratio.toFixed(1)}× the median 5-min move${current().conflict ? " · this OPPOSES the plan side" : ""}`}
-              style={{
-                ...TAPE_BADGE_STYLE,
-                // This badge lives inside the bordered stat strip; a second
-                // border would be a card-inside-card. The tone stays legible
-                // in the text while the fill is a tint of the same colour.
-                "background-color": palette.alpha(current().tone, 0.18),
-                color: current().tone,
-              }}
-            >
-              {current().conflict ? "⚠ " : ""}TAPE {current().up ? "↑" : "↓"} {current().ratio.toFixed(1)}×
-            </span>
-          )}
-        </Show>
-        <Button
-          data-testid="nifty-plan-reasons-button"
-          size="xs"
-          variant="subtle"
-          aria-label="Open the full two-sided desk plan"
-          title="Open the full two-sided desk plan (E)"
-          onClick={store.ui.openPlanReasons}
-        >
-          ▸
-        </Button>
-      </Box>
-    );
-  });
+      )}
+    </Show>
+  );
 
-  const planLine = planOneLiner();
+  /** Trailing controls follow the evidence, so the claim reads as the cause and
+   *  the chips as its proof. Kept as a fragment for the non-desk context rail. */
+  const planControls = () => (
+    <>
+      <Show when={tapeBadge()}>
+        {(current) => (
+          <span
+            data-testid="nifty-plan-tape"
+            data-conflict={current().conflict ? "true" : "false"}
+            title={`Last 5 min ${current().up ? "+" : ""}${Math.round(current().delta)} pts — ${current().ratio.toFixed(1)}× the median 5-min move${current().conflict ? " · this OPPOSES the plan side" : ""}`}
+            style={{
+              ...TAPE_BADGE_STYLE,
+              // Inside the bordered stat strip: a second border would be a
+              // card-inside-card, so the tone lives in text and tint only.
+              "background-color": palette.alpha(current().tone, 0.18),
+              color: current().tone,
+            }}
+          >
+            {current().conflict ? "⚠ " : ""}TAPE {current().up ? "↑" : "↓"} {current().ratio.toFixed(1)}×
+          </span>
+        )}
+      </Show>
+      <Button
+        data-testid="nifty-plan-reasons-button"
+        size="xs"
+        variant="subtle"
+        aria-label="Open the full two-sided desk plan"
+        title="Open the full two-sided desk plan (E)"
+        onClick={store.ui.openPlanReasons}
+      >
+        ▸
+      </Button>
+    </>
+  );
 
   const verdictContent = () => (
     <Box
@@ -506,15 +541,48 @@ export function ReportDecisionStrip() {
         overflow: wrapLayout().overflow,
       }}
     >
-      {/* The conclusion leads: headline + confidence first, then the evidence
-          chips (SESSION / VIX / STRENGTH) that explain it. */}
-      <Show when={isDesk() && planLine != null}>
-        <Box className="flex-[1.5_1_0] min-w-0 [&>*]:w-full [&>*]:min-w-0">
-          {planLine}
+      {/* One decision surface: a tone rail, the claim, a divider, then the
+          evidence chips that justify it. Nothing here is 1000px apart. */}
+      <Box
+        data-testid="nifty-verdict-block"
+        className={`flex items-center min-w-0 flex-1 rounded-[4px] px-2 ${narrow() ? "flex-col items-stretch py-1" : "flex-nowrap"}`}
+        style={{
+          "align-self": "stretch",
+          "background-color": palette.alpha(palette.TERM_BORDER, 0.18),
+          gap: narrow() ? undefined : `${VERDICT_EVIDENCE_GAP}px`,
+        }}
+      >
+        <span
+          aria-hidden="true"
+          data-testid="nifty-verdict-rail"
+          style={{ ...PLAN_BAR_STYLE, "background-color": planTone() }}
+        />
+        <Show when={isDesk()}>
+          {planClaim()}
+          <span
+            aria-hidden="true"
+            data-testid="nifty-verdict-divider"
+            className="shrink-0"
+            style={{
+              width: "1px",
+              "align-self": "stretch",
+              "margin-top": "6px",
+              "margin-bottom": "6px",
+              "background-color": palette.TERM_BORDER,
+            }}
+          />
+        </Show>
+        <Box data-testid="nifty-verdict-evidence" className="flex flex-1 min-w-0 items-stretch gap-2">
+          <span className="shrink-0 self-center" style={GROUP_LABEL_STYLE}>
+            Evidence
+          </span>
+          <Box className="flex flex-1 min-w-0">
+            <NiftyVerdictStrip report={report()!} mode="context" />
+          </Box>
         </Box>
-      </Show>
-      <Box className="flex-[1_1_0] min-w-0 flex">
-        <NiftyVerdictStrip report={report()!} mode="context" />
+        <Show when={isDesk()}>
+          <Box className="flex items-center gap-1 shrink-0">{planControls()}</Box>
+        </Show>
       </Box>
       <Show when={symbol() !== "NIFTY"}>
         <span
@@ -552,7 +620,7 @@ export function ReportDecisionStrip() {
                     fallback={report()?.spot ?? 0}
                   />
                 }
-                valueSize={REPORT_FONT.xl}
+                valueSize={REPORT_FONT.value}
                 hint={
                   dayRange()
                     ? `day ${formatNumberIN(Math.round(dayRange()!.low))}–${formatNumberIN(
@@ -599,6 +667,7 @@ export function ReportDecisionStrip() {
                 testId="nifty-stat-call-wall"
                 label="Max-OI call"
                 value={maxCallWall() ? formatInt(maxCallWall()!.strike) : "—"}
+                valueSize={REPORT_FONT.value}
                 hint={
                   maxCallWall()
                     ? `CE OI ${formatOiCr(maxCallWall()!.oi)}${
@@ -654,6 +723,7 @@ export function ReportDecisionStrip() {
                     />
                   </>
                 }
+                valueSize={REPORT_FONT.value}
                 title="Max pain — the strike where the most option contracts would expire worthless. Writers tend to pin price there into expiry; it is a magnet, not a forecast."
               />
             </StatGroup>
@@ -804,9 +874,12 @@ export function ReportDecisionStrip() {
           data-testid="nifty-context-rail"
           className="flex items-stretch gap-0.5 w-full max-w-full min-w-0 shrink-0 max-[600px]:flex-col max-[600px]:[&>*]:flex-none max-[600px]:[&>*]:w-full"
         >
-          <Show when={planLine != null}>
+          <Show when={planSummary() != null}>
             <Box className="flex-[38_1_0] min-w-0 flex [&>*]:w-full [&>*]:min-w-0">
-              {planLine}
+              <Box className="flex items-center gap-1 min-w-0">
+                {planClaim()}
+                {planControls()}
+              </Box>
             </Box>
           </Show>
           <Show when={symbol() === "NIFTY"}>

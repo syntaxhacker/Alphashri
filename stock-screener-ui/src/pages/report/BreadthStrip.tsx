@@ -3,6 +3,28 @@ import { formatNumberIN } from "@/utils/ui-helpers";
 import * as palette from "@/ui/palette";
 import type { BreadthPayload } from "@/api/reportNifty";
 
+/** The one phrase used for every band replay cannot reconstruct. Living here
+ *  (the leaf strip) keeps every consumer off a lazy chunk and avoids a cycle:
+ *  walls, movers and the strips all render this same component. */
+export const REPLAY_UNAVAILABLE_TEXT = "Not captured in replay";
+
+export function ReplayUnavailable(props: {
+  noun: string;
+  testId?: string;
+  className?: string;
+}) {
+  return (
+    <span
+      data-testid={props.testId ?? `replay-unavailable-${props.noun.toLowerCase().replace(/\s+/g, "-")}`}
+      data-replay-unavailable="true"
+      class={`inline-flex items-center min-w-0 whitespace-nowrap pl-2 text-[11px] font-semibold tracking-[0.06em] text-fin-text-muted ${props.className ?? ""}`}
+      style={{ "border-left": `1px solid ${palette.alpha(palette.BORDER, 0.6)}` }}
+    >
+      <span class="uppercase">{props.noun}</span> · {REPLAY_UNAVAILABLE_TEXT}
+    </span>
+  );
+}
+
 /**
  * Five-index breadth as one 24px band: NIFTY / BANK / MID / SMALL / BROAD with
  * their day %, plus "n/5 up". A narrow rally (index up, smallcaps red) is the
@@ -30,8 +52,11 @@ export function BreadthStrip(props: { data: BreadthPayload | null }) {
           </span>
           <span
             data-testid="nifty-breadth-count"
-            class="inline-flex items-center shrink-0 px-2 font-extrabold tabular-nums border-l border-fin-border"
-            style={{ color: data().up >= 3 ? palette.POSITIVE : data().up === 0 ? palette.NEGATIVE : palette.WARNING }}
+            class="inline-flex items-center shrink-0 px-2 font-extrabold tabular-nums"
+            style={{
+              color: data().up >= 3 ? palette.POSITIVE : data().up === 0 ? palette.NEGATIVE : palette.WARNING,
+              "border-left": `1px solid ${palette.alpha(palette.BORDER, 0.6)}`,
+            }}
           >
             {data().up}/{priced().length} up
           </span>
@@ -43,8 +68,11 @@ export function BreadthStrip(props: { data: BreadthPayload | null }) {
                 <span
                   data-testid={`nifty-breadth-${r.label.toLowerCase()}`}
                   title={`${r.label}: ${r.last ? formatNumberIN(r.last) ?? "—" : "—"} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`}
-                  class="inline-flex items-center gap-1 shrink-0 px-2 text-[11px] border-l border-fin-border"
-                  style={{ color: palette.TEXT_MUTED }}
+                  class="inline-flex items-center gap-1 shrink-0 px-2 text-[11px]"
+                  style={{
+                    color: palette.TEXT_MUTED,
+                    "border-left": `1px solid ${palette.alpha(palette.BORDER, 0.6)}`,
+                  }}
                 >
                   {r.label}
                   <b style={{ color: tone, "font-weight": 800, "font-variant-numeric": "tabular-nums" }}>

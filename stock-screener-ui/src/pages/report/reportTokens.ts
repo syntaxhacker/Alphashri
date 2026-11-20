@@ -3,24 +3,56 @@
  * All hardcoded fontSize, row height, padding, and radius values in the report
  * surface should reference these tokens instead of raw numbers.
  */
+import type { JSX } from "solid-js";
 
-// Font sizes (px) — four steps only: 11 micro / 12 body / 15 anchor / 16 verdict.
-// The old xsPlus/md/lg names survive as aliases so existing callers keep compiling,
-// but they no longer introduce extra steps (11.5/13/14) into the rendered scale.
+// Font sizes (px) — one four-step ladder for the whole report surface:
+// display > value > body > micro. Every legacy name below is an alias of one
+// of those four steps, so an unmigrated caller cannot reintroduce a fifth size
+// (or make the 11px floor the page default again).
 export const REPORT_FONT = {
-  micro: 11,    // smallest labels, badges, timestamps
-  xs: 11,       // section labels, table headers, chips (alias of micro)
-  xsPlus: 11,   // legacy alias of micro
-  sm: 12,       // body values, stat values, table cells
-  md: 12,       // legacy alias of sm
-  lg: 15,       // legacy alias of xl
-  xl: 15,       // anchor numbers (spot in decision strip)
-  verdict: 16,  // the session verdict headline — the one step above an anchor
+  display: 23, // the single verdict headline on the page (22–24)
+  value: 17,   // primary numbers a trader reads first (16–18)
+  body: 13,    // labels, table cells, panel titles (13–14)
+  micro: 11,   // axis ticks, hints, timestamps — the hard 11px floor
+
+  // Legacy aliases → nearest canonical step. Kept so callers that have not
+  // migrated to the named steps still compile without widening the scale.
+  xs: 13,      // body
+  xsPlus: 13,  // body
+  sm: 13,      // body
+  md: 13,      // body
+  lg: 17,      // value
+  xl: 17,      // value
+  verdict: 23, // display
+
   /** Helper: return the exact px value for a given step */
   px: (
-    step: "micro" | "xs" | "xsPlus" | "sm" | "md" | "lg" | "xl" | "verdict",
+    step:
+      | "display"
+      | "value"
+      | "body"
+      | "micro"
+      | "xs"
+      | "xsPlus"
+      | "sm"
+      | "md"
+      | "lg"
+      | "xl"
+      | "verdict",
   ): number => REPORT_FONT[step],
 } as const;
+
+/**
+ * SegmentedControl and Button paint font-size as an inline style on their
+ * inner elements, so a plain utility cannot promote a control label. The body
+ * step travels as a CSS variable and the `!` utility wins over that inline
+ * size without changing the control's box height.
+ */
+export const REPORT_FONT_BODY_VAR = "--report-font-body";
+export const REPORT_CONTROL_LABEL_CLASS = "[&>button]:[font-size:var(--report-font-body)]!";
+export const REPORT_CONTROL_LABEL_STYLE = {
+  [REPORT_FONT_BODY_VAR]: `${REPORT_FONT.body}px`,
+} as JSX.CSSProperties;
 
 // Row heights (px) — vertical rhythm for tables and dense lists
 export const REPORT_ROW = {
