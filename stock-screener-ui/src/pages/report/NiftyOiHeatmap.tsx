@@ -1,5 +1,5 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
-import { Text } from "@/ui";
+import { Button } from "@/ui";
 import {
   alpha,
   HEATMAP_FLIP,
@@ -15,13 +15,21 @@ import {
   WARNING,
 } from "@/ui/palette";
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
+import { EmptyState, injectCollapseRule } from "@/components/common/states";
+import { isMarketOpenNow } from "@/state/holidays";
+import { istClock } from "@/utils/marketClock";
 import {
   HEATMAP_PAD_L,
   HEATMAP_VB_W,
   buildOiHeatmap,
+  heatmapCoverage,
+  heatmapEmptyKind,
   heatmapReadText,
+  heatmapSessionDate,
+  istToday,
   readHeatmap,
   tapeSignature,
+  type HeatmapEmptyKind,
   type HeatmapTapeRow,
 } from "./niftyOiHeatmap";
 import { gexFlipAtSpot } from "./niftyGex";
@@ -211,6 +219,15 @@ interface NiftyOiHeatmapProps {
   startTime?: string | null;
   /** Last 5m sign flip (ISO). Draws a dashed vertical guide at that time. */
   flipAt?: string | null;
+  /** Why the plot is empty. Derived from the tape + session clock otherwise
+   *  (see `heatmapEmptyKind`). */
+  emptyKind?: HeatmapEmptyKind;
+  /** Recovery action for the failed state; omitted when nothing can retry. */
+  onRetry?: () => void;
+  /** Retry label for callers whose recovery is not a fetch retry. */
+  retryLabel?: string;
+  /** Hide the retry action even on a failed state (read-only surfaces). */
+  hideRetry?: boolean;
 }
 
 /**
@@ -522,15 +539,121 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
     setHover({ bucket, strike });
   };
 
+  /**
+   * Why this pane is blank. Three different facts, three different reads:
+   * the feed failed (ours, retry), the market is shut (expected, nothing to
+   * record yet), or the session holds no chain (not fixable from here).
+   */
+  const emptyKind = createMemo<HeatmapEmptyKind>(() => {
+    if (props.emptyKind) return props.emptyKind;
+    const sessionDate = heatmapSessionDate(props.rows);
+    // A tape stamped on an earlier calendar day is a finished session, so the
+    // live/closed branch does not apply to it.
+    const pastSession = sessionDate !== null && sessionDate !== istToday();
+    return heatmapEmptyKind({
+      hasTape: props.rows.length > 0,
+      hasChain: props.rows.some((row) => !!row.chain && Object.keys(row.chain).length > 0),
+      marketOpen: isMarketOpenNow(),
+      pastSession,
+      minutes: istClock().minutes,
+    });
+  });
+
+  // What the session actually recorded — a diagnosis instead of a shrug.
+  const coverage = createMemo(() => heatmapCoverage(props.rows));
+
+  const EMPTY_COPY: Record<HeatmapEmptyKind, { title: string; description: string; hint: string }> = {
+    "no-data": {
+      title: "No option-chain tape",
+      // Carries the phrase the pane used to show, inside a real sentence.
+      description: "no tape chain — the recorder saved spot only for this session.",
+      hint: "Pick another session",
+    },
+    "market-closed": {
+      title: "Market closed",
+      description: "Tape recording starts at the 09:15 IST open.",
+      hint: "",
+    },
+    failed: {
+      title: "Heatmap feed failed",
+      description: "The chain request returned nothing usable during a live session.",
+      // A local retry renders below when the caller wires one; otherwise the
+      // recoverable path is the page-level ErrorAlert banner, so name it.
+      hint: "Retry from the page banner",
+    },
+  };
+  const emptyCopy = () => EMPTY_COPY[emptyKind()];
+  const coverageText = () => {
+    const c = coverage();
+    if (c.rows === 0) return "0 tape rows";
+    const window = c.first && c.last ? `${c.first}–${c.last}` : "";
+    return `${c.rows} tape rows · ${c.chainRows} with chain${c.strikes > 0 ? ` · ${c.strikes} strikes` : ""}${window ? ` · ${window}` : ""}`;
+  };
+  const canRetry = () => emptyKind() === "failed" && !props.hideRetry && Boolean(props.onRetry);
+
   return (
     <Show
       when={!(model().empty || nCols() === 0 || nRows() === 0)}
       fallback={
-        <div data-testid="nifty-heatmap-empty" class="py-4 text-center">
-          <Text size="xs" c="dimmed" data-testid="nifty-heatmap-empty-text">
-            no tape chain
-          </Text>
-        </div>
+        <>
+          {/*
+           * The side column's panel is `flex-auto` (ReportWorkspace), so an
+           * empty heatmap reserved the entire chart row's height to show one
+           * card. These rules let it shrink to what it renders and hand the
+           * reclaimed rows back to the page. Injected into the head because a
+           * `<style>` child would show up in the panel's own text content.
+           */}
+          {injectCollapseRule(
+            "heatmap",
+            `[data-testid="nifty-chart-side-heatmap"]:has([data-testid="nifty-heatmap-empty"]){flex:0 0 auto !important;}` +
+              `[data-testid="nifty-heatmap-wrap"]:has([data-testid="nifty-heatmap-empty"]){flex:0 0 auto !important;}`,
+          )}
+          <div
+            data-testid="nifty-heatmap-empty"
+            class="w-full min-w-0 shrink-0 self-start border border-fin-border rounded-[2px] font-mono overflow-hidden"
+            style={{ "background-color": TERM_HEADER }}
+          >
+          <div
+            class="flex items-center gap-2 px-2 py-1 border-b border-fin-border text-[11px] leading-[16px] text-fin-text-muted"
+            style={{ "background-color": alpha(TERM_HEADER, 0.9) }}
+          >
+            <span
+              data-testid="nifty-heatmap-legend-title"
+              class="text-[11px] tracking-[0.08em] text-fin-text whitespace-nowrap"
+              title="OI change heatmap"
+            >
+              HEATMAP
+            </span>
+            <span data-testid="nifty-heatmap-empty-state" class="text-[11px] whitespace-nowrap">
+              {emptyKind().replace("-", " ")}
+            </span>
+            <span class="ml-auto text-[11px] whitespace-nowrap tabular-nums font-mono" title="What this session recorded">
+              {coverageText()}
+            </span>
+          </div>
+          <EmptyState
+            kind={emptyKind()}
+            layout="row"
+            className="px-2 py-1.5"
+            title={emptyCopy().title}
+            description={emptyCopy().description}
+            descriptionTestId="nifty-heatmap-empty-text"
+            hint={emptyCopy().hint}
+            action={
+              canRetry() ? (
+                <Button
+                  data-testid="nifty-heatmap-retry"
+                  size="xs"
+                  variant="outline"
+                  onClick={() => props.onRetry?.()}
+                >
+                  {props.retryLabel ?? "Retry"}
+                </Button>
+              ) : undefined
+            }
+          />
+          </div>
+        </>
       }
     >
       {/* Fill the FLOW band's flexible cell: the SVG grows into the slack left by the

@@ -4,6 +4,8 @@ import { Text, Button, Badge } from "@/ui";
 import { ReplayUnavailable } from "./BreadthStrip";
 import { LocalCompactPanel } from "./reportBits";
 import { Sparkline } from "@/components/common/Sparkline";
+import { EmptyState, injectCollapseRule } from "@/components/common/states";
+import { isMarketOpenNow } from "@/state/holidays";
 import * as palette from "@/ui/palette";
 import type { WallsEvent, WallsPayload, WallsRow } from "@/api/reportNifty";
 import {
@@ -824,6 +826,14 @@ export function NiftyWallsCardInner(props: {
   /** Replay cannot reconstruct the tape: use the one shared "not captured"
    *  treatment and drop the permanently hidden skeleton from the DOM. */
   unavailableInReplay?: boolean;
+  /** The session was recorded but the walls snapshot is absent — the recorder
+   *  did not persist this band. Distinct from "the fetch failed". */
+  noDataRecorded?: boolean;
+  /** Forces/rejects the failed state. Omitted, it is derived from the session
+   *  clock: a null payload during a live session IS the failed state. */
+  loadFailed?: boolean;
+  /** Recovery action for the failed state only. */
+  onRetry?: () => void;
   /** Collapse the five-column band to a one-glance summary; the full detail
    *  stays mounted and is reachable through the EXPAND affordance. */
   compact?: boolean;
@@ -865,11 +875,68 @@ export function NiftyWallsCardInner(props: {
 
   if (!walls()) {
     const emptyText = () => props.emptyText ?? "No walls data.";
+    /**
+     * Three emptinesses, one row each. The rail is a fixed-height band, so the
+     * row is dense — but it carries a glyph, a title and an explanation, and a
+     * retry when the failure is ours. `emptyText` stays on the description so
+     * callers that pass copy still see it rendered.
+     */
+    const emptyReason = (): "no-data" | "market-closed" | "failed" => {
+      // Replay has no snapshot and the recorder did not write this band: both
+      // are "not captured", never a fetch failure.
+      if (props.unavailableInReplay || props.noDataRecorded || props.loadFailed === false) return "no-data";
+      // Market shut: nothing to read yet. This is the clock, not a fault.
+      if (!isMarketOpenNow()) return "market-closed";
+      // Live session and the request came back empty. `walls === null` inside
+      // market hours IS the failed state; there is no separate signal a caller
+      // could have passed, so it must not silently read as "quiet".
+      return "failed";
+    };
+    const emptyCopy = (): { kind: "no-data" | "market-closed" | "failed"; title: string; description: string; hint: string } => {
+      switch (emptyReason()) {
+        case "market-closed":
+          return {
+            kind: "market-closed",
+            title: "Walls not recorded yet",
+            description: emptyText(),
+            hint: "Opens 09:15 IST",
+          };
+        case "failed":
+          return {
+            kind: "failed",
+            title: "Walls request failed",
+            description: "The walls snapshot came back empty during a live session.",
+            hint: props.onRetry ? "Retry re-reads the snapshot" : "",
+          };
+        case "no-data":
+        default:
+          return {
+            kind: "no-data",
+            title: props.unavailableInReplay ? "Walls not captured" : "No walls snapshot",
+            description: emptyText(),
+            hint: props.unavailableInReplay ? "live-only band" : "",
+          };
+      }
+    };
+    const retry = () =>
+      emptyReason() === "failed" && props.onRetry ? (
+        <Button
+          data-testid="nifty-walls-retry"
+          size="xs"
+          variant="outline"
+          onClick={() => props.onRetry?.()}
+          className="min-w-0"
+          style={{ "font-size": `${REPORT_FONT.micro}px`, "padding-left": `${REPORT_PAD.sm}px`, "padding-right": `${REPORT_PAD.sm}px` }}
+        >
+          Retry
+        </Button>
+      ) : undefined;
     return (
       <LocalCompactPanel
         title="WALLS"
         testId={props.testId ?? "nifty-walls-card"}
         flush
+        action={retry()}
         class="[&>div:first-child]:bg-fin-surface-alt"
         style={{ "border-width": "0px", "background-color": palette.SURFACE }}
       >
@@ -882,16 +949,26 @@ export function NiftyWallsCardInner(props: {
             </>
           }
         >
-          <div
-            data-testid="nifty-walls-compact-summary"
-            class={`flex items-center px-2 text-[11px] text-fin-text-muted ${props.unavailableInReplay ? "h-6 min-h-6" : "h-14 min-h-14"}`}
-          >
-            <Show
-              when={props.unavailableInReplay}
-              fallback={<Text size="xs" span style={{ "font-size": `${REPORT_FONT.xs}px`, color: palette.TEXT_MUTED }}>{`WALLS · ${emptyText()}`}</Text>}
-            >
-              <ReplayUnavailable noun="Walls" />
-            </Show>
+          {/*
+           * The rail's height is fixed by its consumer (ReportWorkspace, not
+           * this lane's file). An empty band must not keep paying for a 112px
+           * reserve, so this rule lets the rail shrink to the row it actually
+           * renders. Injected into the head because a `<style>` child would
+           * show up in the rail's own text.
+           */}
+          {injectCollapseRule(
+            "walls-rail",
+            `[data-testid="desk-insight-rail"]:has([data-testid="nifty-walls-card-rail"] [data-empty-kind]){height:auto !important;}`,
+          )}
+          <div data-testid="nifty-walls-compact-summary" class="px-1 py-1">
+            <EmptyState
+              kind={emptyCopy().kind}
+              layout="row"
+              title={emptyCopy().title}
+              description={emptyCopy().description}
+              hint={emptyCopy().hint}
+              data-testid="nifty-walls-compact-summary-text"
+            />
           </div>
           {/* In replay this detail is permanently display:none — a skeleton
               that can never be opened is dead DOM, so don't mount it. */}
@@ -900,6 +977,10 @@ export function NiftyWallsCardInner(props: {
               <WallsSkeleton emptyText={emptyText()} />
               <WallsLevelsBlock levels={props.levels} />
             </div>
+          </Show>
+          {/* Replay keeps the one phrase the mode banner already established. */}
+          <Show when={props.unavailableInReplay}>
+            <ReplayUnavailable noun="Walls" className="sr-only" />
           </Show>
         </Show>
       </LocalCompactPanel>

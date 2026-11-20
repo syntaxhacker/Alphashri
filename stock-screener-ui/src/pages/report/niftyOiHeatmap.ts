@@ -130,6 +130,104 @@ export const HEATMAP_VB_W = 1000;
 export const HEATMAP_PAD_L = 64;
 
 /**
+ * Why the plot has nothing to draw. One empty state for three different facts
+ * is what made the pane read as a shrug:
+ *   no-data       — the recorder saved the session without a chain snapshot.
+ *   market-closed — nothing to record yet (clock, not a fault).
+ *   failed        — the tape feed returned nothing during a live session, which
+ *                   is a fetched-nothing result, not a quiet market.
+ * Pure, so the component can call it once per empty render.
+ *
+ * `minutes` is IST minute-of-day. The 09:20 grace window keeps the first five
+ * minutes of a live session from being mislabelled as a feed failure.
+ */
+export type HeatmapEmptyKind = "no-data" | "market-closed" | "failed";
+
+export const HEATMAP_FEED_GRACE_MINUTES = 9 * 60 + 20;
+
+export function heatmapEmptyKind(args: {
+  hasTape: boolean;
+  hasChain: boolean;
+  marketOpen: boolean;
+  /** True when the tape belongs to an already-finished session (replay/EOD).
+   *  The clock is then irrelevant: a closed market cannot explain a gap in a
+   *  session that has already been recorded. */
+  pastSession?: boolean;
+  /** IST minute-of-day for "now"; omit to skip the grace-window branch. */
+  minutes?: number;
+}): HeatmapEmptyKind {
+  // A tape with rows but no chain snapshot is a *source* gap, not a clock gap:
+  // the recorder was writing spot but never persisted a chain.
+  if (args.hasTape && !args.hasChain) return "no-data";
+  // A recorded session that is over has nothing to do with today's clock;
+  // "market closed" would send the reader to wait for an open that will not
+  // fill a session that was already captured.
+  if (args.pastSession) return "no-data";
+  if (!args.marketOpen) return "market-closed";
+  if (args.minutes != null && args.minutes < HEATMAP_FEED_GRACE_MINUTES) return "market-closed";
+  // Live session, past the grace window, and the tape has no rows at all: the
+  // fetch returned nothing. Rendering that as "quiet market" is the exact
+  // failure mode that hides a broken feed.
+  return "failed";
+}
+
+/** IST calendar date (`YYYY-MM-DD`) of a tape stamp, or null when unusable. */
+export function heatmapSessionDate(rows: HeatmapTapeRow[]): string | null {
+  for (let i = rows.length - 1; i >= 0; i -= 1) {
+    const t = rows[i]?.t;
+    if (typeof t === "string" && t.length >= 10) return t.slice(0, 10);
+  }
+  return null;
+}
+
+/** Today's IST calendar date — the anchor `heatmapSessionDate` is compared to. */
+export function istToday(now: Date = new Date()): string {
+  // en-CA formats as YYYY-MM-DD, which is exactly the tape stamp's prefix.
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(now);
+}
+
+export interface HeatmapCoverage {
+  /** Tape rows handed to the builder. */
+  rows: number;
+  /** Rows that actually carried a chain snapshot. */
+  chainRows: number;
+  /** Distinct strikes seen across the tape's chains. */
+  strikes: number;
+  /** First / last tape minute as HH:MM (empty when the tape is empty). */
+  first: string;
+  last: string;
+}
+
+/**
+ * What the session actually recorded. "47 spot rows, zero chain rows" and "no
+ * rows at all" are different diagnoses (recorder wrote spot only vs recorder
+ * never ran), and either is more useful to the reader than the word "empty".
+ */
+export function heatmapCoverage(rows: HeatmapTapeRow[]): HeatmapCoverage {
+  const strikes = new Set<number>();
+  let chainRows = 0;
+  for (const row of rows) {
+    if (!row || !row.chain || typeof row.chain !== "object") continue;
+    const keys = Object.keys(row.chain);
+    if (keys.length === 0) continue;
+    chainRows += 1;
+    for (const key of keys) {
+      const strike = Number(key);
+      if (Number.isFinite(strike) && strike > 0) strikes.add(strike);
+    }
+  }
+  const stamped = rows.filter((row) => row && typeof row.t === "string" && row.t.length > 0);
+  const sorted = [...stamped].sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
+  return {
+    rows: rows.length,
+    chainRows,
+    strikes: strikes.size,
+    first: sorted.length > 0 ? heatTimeLabel(sorted[0].t) : "",
+    last: sorted.length > 0 ? heatTimeLabel(sorted[sorted.length - 1].t) : "",
+  };
+}
+
+/**
  * The heatmap's time axis: which wall-clock bucket each tape minute falls
  * into. The flow strip positions its ticks with the SAME map, so a 09:36
  * burst lands under the 09:36 heatmap column instead of at "1/3 of the

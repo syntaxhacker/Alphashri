@@ -43,6 +43,30 @@ export function InlineLoader(props: InlineLoaderProps) {
 export type EmptyStateKind = "no-data" | "market-closed" | "failed";
 export type EmptyStateTone = "muted" | "info" | "warning" | "error";
 
+/**
+ * Collapse rules are injected into `document.head` rather than rendered as a
+ * `<style>` child: a style node inside a panel would be read by `innerText`
+ * assertions and pollute the band's copy. One sheet per selector, keyed by its
+ * own id, mounted once per document. Returns `null` so it is a legal JSX child
+ * (`{injectCollapseRule(...)}` scoped to the markup that needs it).
+ */
+const COLLAPSE_SHEETS = new Set<string>();
+
+export function injectCollapseRule(id: string, css: string): null {
+  if (typeof document === "undefined") return null;
+  if (COLLAPSE_SHEETS.has(id)) return null;
+  if (document.getElementById(`fin-empty-collapse-${id}`)) {
+    COLLAPSE_SHEETS.add(id);
+    return null;
+  }
+  const sheet = document.createElement("style");
+  sheet.id = `fin-empty-collapse-${id}`;
+  sheet.textContent = css;
+  document.head.appendChild(sheet);
+  COLLAPSE_SHEETS.add(id);
+  return null;
+}
+
 const EMPTY_TONE_INK: Record<EmptyStateTone, string> = {
   muted: palette.TEXT_MUTED,
   info: palette.INFO,
@@ -118,9 +142,7 @@ export function EmptyState(props: EmptyStateProps) {
       data-empty-layout={row() ? "row" : "stack"}
       class={cn(
         "flex min-w-0 font-mono",
-        row()
-          ? "items-center gap-1.5 px-1"
-          : "flex-col items-center justify-center gap-1 px-2 py-2 text-center",
+        row() ? "items-start gap-1.5 px-1" : "flex-col items-center justify-center gap-1 px-2 py-2 text-center",
         props.className,
       )}
       style={{ display: "flex", "min-width": 0 }}
@@ -135,6 +157,7 @@ export function EmptyState(props: EmptyStateProps) {
           width: row() ? "18px" : "32px",
           height: row() ? "18px" : "32px",
           "flex-shrink": 0,
+          "margin-top": row() ? "1px" : undefined,
           "border-radius": "2px",
           // A tint + hairline rail, never text on a saturated fill.
           border: `1px solid ${palette.alpha(ink(), 0.4)}`,
@@ -145,13 +168,23 @@ export function EmptyState(props: EmptyStateProps) {
         {props.icon ?? fallbackGlyph()}
       </Box>
       <div
-        class={row() ? "flex items-center gap-1.5 min-w-0" : "flex flex-col items-center gap-0.5 min-w-0"}
-        style={{ display: "flex", "min-width": 0 }}
+        class={cn(
+          "flex flex-wrap min-w-0",
+          row() ? "items-baseline gap-x-1.5 gap-y-0.5" : "flex-col items-center gap-1",
+        )}
+        style={{
+          display: "flex",
+          "min-width": 0,
+          "align-items": row() ? "baseline" : "center",
+          gap: row() ? "6px 6px" : "4px",
+          "flex": row() ? "1 1 auto" : "0 0 auto",
+          "flex-wrap": "wrap",
+        }}
       >
         <Text
           span
           fw={600}
-          className="min-w-0"
+          className="min-w-0 shrink-0"
           style={{
             "font-size": "12px",
             "line-height": "1.25",
@@ -165,15 +198,17 @@ export function EmptyState(props: EmptyStateProps) {
           <Text
             span
             data-testid={props.descriptionTestId}
+            // One flowing line when the band is wide (the 1764px rail), wraps
+            // internally when it is narrow (the 420px heatmap pane) — the same
+            // element, no second layout branch.
             className="min-w-0"
             style={{
               "font-size": "11px",
               "line-height": "1.35",
+              "flex": "0 1 auto",
               "max-width": row() ? undefined : "46ch",
               color: palette.TEXT_MUTED,
-              "white-space": row() ? "nowrap" : "normal",
-              overflow: "hidden",
-              "text-overflow": row() ? "ellipsis" : undefined,
+              "white-space": "normal",
             }}
           >
             {description()}
@@ -182,11 +217,12 @@ export function EmptyState(props: EmptyStateProps) {
         <Show when={props.hint}>
           <Text
             span
+            className="shrink-0"
             style={{
               "font-size": "11px",
               "line-height": "1.35",
               color: palette.TEXT_MUTED,
-              "white-space": row() ? "nowrap" : "normal",
+              "white-space": "nowrap",
             }}
           >
             {props.hint}
