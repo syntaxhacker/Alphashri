@@ -80,11 +80,11 @@ const TICKER_HEIGHT = "22px";
 
 /** Every item is the same three-track grid, so label / price / change share a
  *  baseline and a column across the whole tape. The change track is a fixed
- *  82px even though the text is plain (no pill): `+9.30 (0.22%)` and
- *  `−511.20 (−0.92%)` then line up from item to item. */
+ *  128px so an 11px `+116.30 (0.46%)` / `−1234.56 (−12.34%)` plus its arrow
+ *  fits without clipping and still lines up from item to item. */
 const TICKER_GRID = {
   display: "grid",
-  "grid-template-columns": "minmax(56px, auto) minmax(64px, 1fr) 82px",
+  "grid-template-columns": "minmax(56px, auto) minmax(64px, 1fr) 128px",
   "align-items": "center",
   "column-gap": "6px",
   "flex-shrink": "0",
@@ -123,7 +123,7 @@ function TickerItem(props: TickerItemProps) {
         size="sm"
         fw={600}
         c="dimmed"
-        style={{ "font-size": "9.5px", "line-height": "1.1", "white-space": "nowrap" }}
+        style={{ "font-size": "11px", "line-height": "1.1", "white-space": "nowrap" }}
       >
         {label()}
       </Text>
@@ -145,8 +145,8 @@ function TickerItem(props: TickerItemProps) {
           maximumFractionDigits: 2,
         })}
       </Text>
-      {/* Plain coloured change — no pill, no icon box. The 9px arrow is an
-          inline glyph inside the fixed 82px track so the sign never shifts
+      {/* Plain coloured change — no pill, no icon box. The arrow is an
+          inline glyph inside the fixed 128px track so the sign never shifts
           the numerals. */}
       <Box
         component="span"
@@ -155,7 +155,7 @@ function TickerItem(props: TickerItemProps) {
         className="flex items-center justify-end gap-[2px] min-w-0 overflow-hidden whitespace-nowrap font-mono"
         style={{ color: tone(), "font-variant-numeric": "tabular-nums" }}
       >
-        <Box component="span" aria-hidden className="text-[9px] leading-none">
+        <Box component="span" aria-hidden className="text-[11px] leading-none">
           {isPositive() ? "▲" : "▼"}
         </Box>
         <Text
@@ -163,7 +163,7 @@ function TickerItem(props: TickerItemProps) {
           span
           fw={700}
           style={{
-            "font-size": "9.5px",
+            "font-size": "11px",
             "line-height": "1.1",
             color: tone(),
             "font-family": palette.MONO,
@@ -237,7 +237,7 @@ function TickerErrorState() {
       px="sm"
       style={{ display: "flex", "align-items": "center", height: TICKER_HEIGHT }}
     >
-      <Text size="sm" c="dimmed" style={{ "font-size": "9.5px", "line-height": "1.2" }}>
+      <Text size="sm" c="dimmed" style={{ "font-size": "11px", "line-height": "1.2" }}>
         Market data unavailable
       </Text>
     </Box>
@@ -256,12 +256,12 @@ function TickerStatus(props: { label: string; detail?: string | null }) {
         className="size-6 rounded-full flex-shrink-0"
         style={{ "background-color": palette.TEXT_MUTED }}
       />
-      <Text size="sm" fw={600} c="dimmed" style={{ "font-size": "9.5px", "line-height": "1.2" }}>{props.label}</Text>
+      <Text size="sm" fw={600} c="dimmed" style={{ "font-size": "11px", "line-height": "1.2" }}>{props.label}</Text>
       <Show when={props.detail}>
         <Text
           size="sm"
           c="dimmed"
-          style={{ "font-size": "9.5px", "line-height": "1.2" }}
+          style={{ "font-size": "11px", "line-height": "1.2" }}
           className="opacity-75 min-w-0 overflow-hidden truncate"
         >
           · {props.detail}
@@ -335,14 +335,14 @@ export function MarketStatus(props: { compact?: boolean }) {
         }}
       />
       <Show when={!compact()}>
-        <Text size="sm" fw={600} c="dimmed" style={{ "font-size": "9.5px", "line-height": "1.2", "white-space": "nowrap" }}>
+        <Text size="sm" fw={600} c="dimmed" style={{ "font-size": "11px", "line-height": "1.2", "white-space": "nowrap" }}>
           {label()}
         </Text>
         <Show when={detail()}>
           <Text
             size="sm"
             c="dimmed"
-            style={{ "font-size": "9.5px", "line-height": "1.2" }}
+            style={{ "font-size": "11px", "line-height": "1.2" }}
             className="opacity-75 min-w-0 overflow-hidden truncate"
           >
             · {detail()}

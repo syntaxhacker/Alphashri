@@ -65,4 +65,30 @@ describe("SegmentedControl — view switch", () => {
     setData(["a", "b", "c"]);
     expect(screen.getAllByRole("button")).toHaveLength(3);
   });
+
+  test("labels stay at or above the 11px legibility floor in every size", () => {
+    const sizes = ["xs", "sm", "md", "lg", "xl"] as const;
+    for (const size of sizes) {
+      render(() => <SegmentedControl data={["alpha", "beta"]} size={size} data-testid={`floor-${size}`} />);
+    }
+    for (const size of sizes) {
+      const buttons = screen.getByTestId(`floor-${size}`).querySelectorAll("button");
+      expect(buttons).toHaveLength(2);
+      for (const button of buttons) {
+        const px = parseFloat((button as HTMLButtonElement).style.fontSize);
+        expect(px, `${size} label font size`).toBeGreaterThanOrEqual(11);
+      }
+    }
+  });
+
+  test("renders every option of a four-item view toggle", () => {
+    render(() => <SegmentedControl data={["NIFTY", "SENSEX", "Chart", "Depth"]} data-testid="seg-four" />);
+    const track = screen.getByTestId("seg-four");
+    expect([...track.querySelectorAll("button")].map((b) => b.textContent)).toEqual([
+      "NIFTY",
+      "SENSEX",
+      "Chart",
+      "Depth",
+    ]);
+  });
 });

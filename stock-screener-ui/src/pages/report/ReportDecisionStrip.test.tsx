@@ -102,12 +102,8 @@ describe("decision strip — labels and help", () => {
 
   test("the open-interest and volume ratios say how they differ on screen", () => {
     renderStrip();
-    expect(screen.getByTestId("nifty-stat-pcr-oi")).toHaveTextContent(
-      "Put/call ratio · open interest",
-    );
-    expect(screen.getByTestId("nifty-stat-pcr-vol")).toHaveTextContent(
-      "Put/call ratio · volume",
-    );
+    expect(screen.getByTestId("nifty-stat-pcr-oi")).toHaveTextContent("P/C ratio · OI");
+    expect(screen.getByTestId("nifty-stat-pcr-vol")).toHaveTextContent("P/C ratio · volume");
   });
 
   test("a dash on the gamma flip carries a specific reason, even on the value node", () => {
@@ -195,5 +191,91 @@ describe("report label lane — source guards", () => {
       false,
     );
     expect(source).toContain("Dealer gamma");
+  });
+});
+
+describe("decision strip — stat labels fit without a mid-word ellipsis", () => {
+  // Measured live at 1920×890 with scrollWidth vs clientWidth: the PCR label
+  // cells are 148px and the flip label cell 116px, both at the 11px floor.
+  // The long forms were 193/151/124px and clipped; the short forms below
+  // measure equal to their client width. Cap the character count so a future
+  // long label cannot silently reintroduce the cut.
+  const PCR_MAX_CHARS = 18; // "P/C ratio · volume"
+  const FLIP_MAX_CHARS = 10; // "Gamma flip"
+  const ELLIPSIS = /[…]|\.\.\./;
+
+  const labelOf = (id: string) => screen.getByTestId(id).children[0] as HTMLElement;
+
+  test("(a) the PCR labels are short enough to render untruncated at 11px", () => {
+    renderStrip();
+    for (const [id, expected] of [
+      ["nifty-stat-pcr-oi", "P/C ratio · OI"],
+      ["nifty-stat-pcr-vol", "P/C ratio · volume"],
+    ] as const) {
+      const label = labelOf(id);
+      expect(label.textContent, `${id} rendered label`).toBe(expected);
+      expect(label.textContent!.length, `${id} label length`).toBeLessThanOrEqual(PCR_MAX_CHARS);
+      expect(label.textContent, `${id} must show no ellipsis`).not.toMatch(ELLIPSIS);
+      expect(label.style.fontSize, `${id} must keep the 11px floor`).toBe("11px");
+      expect(label.style.textOverflow, `${id} ellipsis style unchanged`).toBe("ellipsis");
+    }
+  });
+
+  test("(b) the flip label is short enough to render untruncated at 11px", () => {
+    renderStrip();
+    const label = labelOf("nifty-stat-flip");
+    expect(label.textContent).toBe("Gamma flip");
+    expect(label.textContent!.length).toBeLessThanOrEqual(FLIP_MAX_CHARS);
+    expect(label.textContent).not.toMatch(ELLIPSIS);
+    expect(label.style.fontSize).toBe("11px");
+    expect(label.style.textOverflow).toBe("ellipsis");
+  });
+
+  test("(c) each shortened label keeps its full text in a title", () => {
+    renderStrip();
+    expect(screen.getByTestId("nifty-stat-pcr-oi").getAttribute("title")).toContain(
+      "Put/call ratio · open interest",
+    );
+    expect(screen.getByTestId("nifty-stat-pcr-vol").getAttribute("title")).toContain(
+      "Put/call ratio · volume",
+    );
+    expect(screen.getByTestId("nifty-stat-flip").getAttribute("title")).toContain(
+      "Dealer gamma flip",
+    );
+  });
+
+  test("(d) every nifty-stat-* testid is still present", () => {
+    renderStrip();
+    for (const id of [
+      "nifty-stat-strip",
+      "nifty-stat-group-price",
+      "nifty-stat-group-price-label",
+      "nifty-stat-group-price-cells",
+      "nifty-stat-spot",
+      "nifty-stat-spot-value",
+      "nifty-stat-regime",
+      "nifty-stat-regime-value",
+      "nifty-stat-flip",
+      "nifty-stat-flip-value",
+      "nifty-stat-group-walls",
+      "nifty-stat-group-walls-label",
+      "nifty-stat-group-walls-cells",
+      "nifty-stat-call-wall",
+      "nifty-stat-call-wall-value",
+      "nifty-stat-put-wall",
+      "nifty-stat-put-wall-value",
+      "nifty-stat-pin",
+      "nifty-stat-pin-value",
+      "nifty-stat-max-pain",
+      "nifty-stat-group-volatility",
+      "nifty-stat-group-volatility-label",
+      "nifty-stat-pcr-oi",
+      "nifty-stat-pcr-vol",
+      "nifty-stat-group-flow",
+      "nifty-stat-group-flow-label",
+      "nifty-stat-group-flow-cells",
+    ]) {
+      expect(screen.getByTestId(id), id).toBeInTheDocument();
+    }
   });
 });

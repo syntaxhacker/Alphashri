@@ -425,15 +425,15 @@ describe("MarketTicker", () => {
       expect(screen.getByTestId("ticker-gcf")).toBeInTheDocument();
     });
 
-    // One type scale for every item: 9.5px label, 11px tabular price.
+    // One type scale for every item: 11px label and 11px tabular price.
     for (const testId of ["ticker-nsei", "ticker-gcf"]) {
       const item = screen.getByTestId(testId);
       expect(item.children).toHaveLength(3);
       expect(item.style.getPropertyValue("grid-template-columns")).toBe(
-        "minmax(56px, auto) minmax(64px, 1fr) 82px",
+        "minmax(56px, auto) minmax(64px, 1fr) 128px",
       );
       expect(within(item).getByText(/Nifty 50|Gold/)).toHaveStyle({
-        fontSize: "9.5px",
+        fontSize: "11px",
       });
     }
     expect(screen.getByTestId("ticker-price-nsei")).toHaveStyle({

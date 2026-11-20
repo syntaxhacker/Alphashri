@@ -574,7 +574,7 @@ export function ReportDecisionStrip() {
               />
               <DecisionCell
                 testId="nifty-stat-flip"
-                label="Dealer gamma flip"
+                label="Gamma flip"
                 value={
                   gexDegraded()
                     ? "n/a"
@@ -679,7 +679,7 @@ export function ReportDecisionStrip() {
               </Show>
               <ContextCell
                 testId="nifty-stat-pcr-oi"
-                label="Put/call ratio · open interest"
+                label="P/C ratio · OI"
                 value={
                   <>
                     <AnimatedValue value={report()?.pcrOi ?? 0} format={format2dp} />
@@ -690,13 +690,13 @@ export function ReportDecisionStrip() {
                     />
                   </>
                 }
-                title="Put/call ratio by open interest — outstanding contracts still held. Open interest is accumulated positioning; compare it with the put/call ratio by traded volume, which is today's flow."
+                title="Put/call ratio · open interest — the ratio by open interest (outstanding contracts still held). Open interest is accumulated positioning; compare it with the put/call ratio by traded volume, which is today's flow."
               />
               <ContextCell
                 testId="nifty-stat-pcr-vol"
-                label="Put/call ratio · volume"
+                label="P/C ratio · volume"
                 value={<AnimatedValue value={report()?.pcrVol ?? 0} format={format2dp} />}
-                title="Put/call ratio by traded volume — contracts traded this session. Volume is short-term flow; compare it with the put/call ratio by open interest, which is accumulated positioning."
+                title="Put/call ratio · volume — the ratio by traded volume this session. Volume is short-term flow; compare it with the put/call ratio by open interest, which is accumulated positioning."
               />
             </StatGroup>
 

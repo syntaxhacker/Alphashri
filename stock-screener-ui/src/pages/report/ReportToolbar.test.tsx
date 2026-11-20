@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { beforeEach, describe, expect, test, vi } from "vitest";
-import { render, screen } from "@solidjs/testing-library";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { cleanup, render, screen } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { ReportToolbar } from "./ReportToolbar";
 
@@ -84,4 +84,29 @@ describe("ReportToolbar freshness indicators", () => {
     expect(wsBadge.textContent).not.toContain("STALE");
     expect(screen.getByTestId("nifty-updated-at")).toHaveTextContent("reconnecting");
   });
+
+  test("every view toggle keeps its testid, options and an 11px floor", () => {
+    (harness.store.selection as { hasRecordedHistory: () => boolean }).hasRecordedHistory = () => true;
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    const toggles: Record<string, string[]> = {
+      "nifty-index-toggle": ["NIFTY", "SENSEX"],
+      "nifty-mode-toggle": ["Live", "EOD"],
+      "nifty-view-toggle": ["Chart", "Depth"],
+      "nifty-desk-toggle": ["DESK", "RESEARCH"],
+    };
+    for (const [testid, options] of Object.entries(toggles)) {
+      const buttons = [...screen.getByTestId(testid).querySelectorAll("button")] as HTMLButtonElement[];
+      expect(buttons.map((b) => b.textContent), testid).toEqual(options);
+      for (const button of buttons) {
+        expect(parseFloat(button.style.fontSize), `${testid}: ${button.textContent}`).toBeGreaterThanOrEqual(11);
+      }
+    }
+  });
 });
+
+afterEach(cleanup);
