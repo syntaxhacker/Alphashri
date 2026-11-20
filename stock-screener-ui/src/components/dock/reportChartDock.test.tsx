@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@solidjs/testing-library";
-import userEvent from "@testing-library/user-event";
+import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@/ui";
@@ -87,7 +86,6 @@ describe("report.chart through the dock host", () => {
   });
 
   it("(c) onTimeframeChange fires through the dock and reaches the parent", async () => {
-    const user = userEvent.setup();
     const onTimeframeChange = vi.fn();
     render(() => (
       <UIProvider>
@@ -95,7 +93,7 @@ describe("report.chart through the dock host", () => {
       </UIProvider>
     ));
 
-    await user.click(screen.getByRole("button", { name: "5m" }));
+    fireEvent.click(screen.getByRole("button", { name: "5m" }));
     await waitFor(() => expect(onTimeframeChange).toHaveBeenCalledWith("5m"));
   });
 

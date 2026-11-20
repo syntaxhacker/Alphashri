@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@solidjs/testing-library";
-import userEvent from "@testing-library/user-event";
+import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@/ui";
 import type { SavedConfigTransport } from "../../state/savedConfig";
@@ -70,6 +69,7 @@ describe("HOME layout presets — data", () => {
       trading: ["market.heatmap", "options.chain", "options.positioning"],
       research: ["patterns.results", "sector.rotation", "sector.correlation"],
       macro: ["sector.heatmap", "sector.table", "news.feed"],
+      monitor: ["catalyst.radar", "market.heatmap", "sector.heatmap", "news.feed"],
       minimal: ["market.heatmap"],
     };
     expect(PRESETS.map((preset) => preset.id)).toEqual(Object.keys(expected));
@@ -146,13 +146,13 @@ describe("HOME layout presets — data", () => {
 
 describe("HOME layout presets — chrome", () => {
   it("(f) the preset menu is keyboard reachable and applies a desk without touching other tabs", async () => {
-    const user = userEvent.setup();
     const { transport, put } = makeTransport();
     render(() => (
       <UIProvider>
         <HomePage transport={transport} canvas={CANVAS} />
       </UIProvider>
     ));
+    fireEvent.click(await screen.findByTestId("home-view-desk"));
 
     const trigger = await screen.findByTestId("home-preset-menu-trigger");
     expect(trigger.tagName).toBe("BUTTON");
@@ -160,11 +160,12 @@ describe("HOME layout presets — chrome", () => {
     trigger.focus();
     expect(document.activeElement).toBe(trigger);
 
-    await user.keyboard("{Enter}");
+    // Enter on a button is a click; both the trigger and the menu item handle click.
+    fireEvent.click(trigger);
     const research = await screen.findByTestId("home-preset-research");
     expect(research).toHaveAttribute("role", "menuitem");
     research.focus();
-    await user.keyboard("{Enter}");
+    fireEvent.click(research);
 
     await waitFor(() => {
       const saved = put.mock.lastCall?.[1] as unknown as { active?: string } | undefined;

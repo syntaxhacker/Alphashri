@@ -10,6 +10,8 @@ import {
   defaultHomeConfig,
   HOME_PANELS,
   normalizeHomeConfig,
+  PRESETS,
+  presetWindows,
   serializeHomeConfig,
 } from "./homePanels";
 
@@ -49,11 +51,59 @@ describe("home picker panels", () => {
     });
   });
 
+  it("(f) registers the catalyst radar without a context requirement", () => {
+    expect(getPanelSpec("catalyst.radar")?.title).toBe("CATALYST RADAR");
+    expect(HOME_PANELS.find((spec) => spec.id === "catalyst.radar")?.requires).toEqual([]);
+    expect(WINDOW_PANEL_TYPES.has("catalyst.radar")).toBe(true);
+    expect(createWindowFor("catalyst.radar", 1)).toMatchObject({
+      type: "catalyst.radar",
+      title: "CATALYST RADAR",
+    });
+  });
+
   it("(e) the removed paper.positions panel is no longer pickable", () => {
     expect(HOME_PANELS.map((spec) => spec.id)).not.toContain("paper.positions");
     expect(WINDOW_PANEL_TYPES.has("paper.positions")).toBe(false);
     expect(getPanelSpec("paper.positions")).toBeUndefined();
     expect(createWindowFor("paper.positions", 1)).toBeNull();
+  });
+});
+
+describe("monitor desk preset", () => {
+  const monitor = () => PRESETS.find((preset) => preset.id === "monitor");
+  const MONITOR_TYPES = ["catalyst.radar", "market.heatmap", "sector.heatmap", "news.feed"];
+
+  it("(a) exists as a desk layout over radar, price/sector and news", () => {
+    expect(monitor()?.label).toBe("Monitor");
+    expect(monitor()?.cells.map((cell) => cell.panel)).toEqual(MONITOR_TYPES);
+    expect(MONITOR_TYPES.every((type) => getPanelSpec(type) !== undefined)).toBe(true);
+  });
+
+  it("(b) resolves every cell to a real, non-overlapping window on each canvas", () => {
+    const preset = monitor();
+    expect(preset).toBeDefined();
+    for (const canvas of CANVASES) {
+      const windows = presetWindows(preset!, canvas);
+      expect(windows.map((win) => win.type), `types at ${canvas.w}`).toEqual(MONITOR_TYPES);
+      for (const win of windows) {
+        expect(win.x, `${win.type} x at ${canvas.w}`).toBeGreaterThanOrEqual(0);
+        expect(win.y, `${win.type} y at ${canvas.w}`).toBeGreaterThanOrEqual(0);
+        expect(win.x + win.w, `${win.type} right edge at ${canvas.w}`).toBeLessThanOrEqual(canvas.w);
+        expect(win.y + win.h, `${win.type} bottom edge at ${canvas.h}`).toBeLessThanOrEqual(canvas.h);
+      }
+      for (let i = 0; i < windows.length; i += 1) {
+        for (let j = i + 1; j < windows.length; j += 1) {
+          expect(overlaps(windows[i], windows[j]), `${windows[i].type} / ${windows[j].type} at ${canvas.w}`)
+            .toBe(false);
+        }
+      }
+    }
+  });
+
+  it("(c) preset ids are unique so a saved tab name maps to one layout", () => {
+    const ids = PRESETS.map((preset) => preset.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(new Set(PRESETS.map((preset) => preset.label)).size).toBe(PRESETS.length);
   });
 });
 

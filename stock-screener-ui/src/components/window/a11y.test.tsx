@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
-import userEvent from "@testing-library/user-event";
 import { createSignal } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@/ui";
@@ -18,6 +17,17 @@ import { WindowManager } from "./WindowManager";
 import type { WindowLayout, WindowState } from "./types";
 
 const CANVAS: CanvasSize = { w: 1280, h: 800 };
+
+/** DOM order of focusable controls — the sequence user-event's `tab()` walked. */
+const TABBABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const tabbables = () => Array.from(document.querySelectorAll<HTMLElement>(TABBABLE));
+function focusNext(from: HTMLElement): HTMLElement {
+  const order = tabbables();
+  const next = order[order.indexOf(from) + 1];
+  if (!next) throw new Error("No next tabbable element");
+  next.focus();
+  return next;
+}
 const CONTEXT: () => DockPanelContext = () => ({
   symbol: "NIFTY",
   market: "india",
@@ -94,19 +104,19 @@ afterEach(() => {
 
 describe("desk keyboard access", () => {
   it("(a) Tab from a focused window reaches every title-bar button", async () => {
-    const user = userEvent.setup();
     renderDesk([win()]);
     const root = screen.getByTestId("window-a");
     root.focus();
     expect(document.activeElement).toBe(root);
 
+    let focused = root;
     for (const id of [
       "window-popout-a",
       "window-minimize-a",
       "window-maximize-a",
       "window-close-a",
     ]) {
-      await user.tab();
+      focused = focusNext(focused);
       expect(document.activeElement, `Tab reaches ${id}`).toBe(screen.getByTestId(id));
     }
   });

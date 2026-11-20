@@ -1,13 +1,13 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
-import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@/ui";
 import type { UserConfig } from "../../api/userConfigs";
 import type { CanvasSize } from "../../components/window/layout";
 import type { WindowLayout, WindowState } from "../../components/window/types";
 import type { SavedConfigTransport } from "../../state/savedConfig";
+import { __resetCatalystStore } from "../../state/catalystStore";
 import { HomePage } from "./HomePage";
 import { HOME_PANELS, normalizeHomeConfig, type HomeWindowConfig } from "./homePanels";
 
@@ -20,6 +20,10 @@ const CHAIN_URL = /\/api\/options\/chain\//;
 const EXPIRIES_URL = /\/api\/(reports\/nifty\/expiries|options\/expiries\/)/;
 /** Sector windows are real registered panels now, so they fetch on mount. */
 const SECTOR_URL = /\/api\/sector\?market=india$/;
+/** The Monitor is the default surface; the feed always sends the sector explicitly. */
+const CATALYST_URL = /\/api\/catalysts\/today\?market=india&sector=all$/;
+const NEWS_URL = /\/api\/news\?limit=50$/;
+const NEWS_SOURCES_URL = /\/api\/news\/sources$/;
 
 const MARKET_SNAPSHOT_PAYLOAD = {
   as_of: "2026-11-19T10:00:00+05:30",
@@ -36,6 +40,30 @@ const SECTOR_PAYLOAD = {
   last_updated: "2026-11-19T10:00:00+05:30",
   market: "india",
 };
+const CATALYST_PAYLOAD = {
+  as_of: "2026-11-19T11:13:00+05:30",
+  market: {
+    nifty: { last: 25304.2, change_pct: 0.3 },
+    sensex: { last: 82300, change_pct: 0.4 },
+    vix: 16.31,
+  },
+  sector: {
+    id: "all",
+    label: "MARKET",
+    change_pct: 0.3,
+    relative_strength_pct: 0.0,
+    breadth: { advancing: 1793, declining: 1698, total: 3586 },
+  },
+  available_sectors: [
+    { id: "all", label: "MARKET", count: 3589 },
+    { id: "technology-services", label: "TECHNOLOGY SERVICES", count: 195 },
+  ],
+  rows: [],
+  counts: { high: 2, medium: 1, low: 0, total: 3 },
+  warnings: [],
+};
+const NEWS_PAYLOAD = { items: [] };
+const NEWS_SOURCES_PAYLOAD = { sources: [] };
 
 function jsonResponse(body: unknown): Response {
   return {
@@ -45,6 +73,16 @@ function jsonResponse(body: unknown): Response {
     json: () => Promise.resolve(body),
     text: () => Promise.resolve(JSON.stringify(body)),
   } as unknown as Response;
+}
+
+/** Write the value outside Solid's tracker, then notify both native listeners. */
+function selectOption(el: HTMLElement, value: string) {
+  const select = el as HTMLSelectElement;
+  const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set;
+  if (setter) setter.call(select, value);
+  else select.value = value;
+  select.dispatchEvent(new Event("input", { bubbles: true }));
+  select.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 /**
@@ -60,6 +98,9 @@ function makeFetchMock() {
     if (EXPIRIES_URL.test(url)) return jsonResponse(EXPIRIES_PAYLOAD);
     if (CHAIN_URL.test(url)) return jsonResponse(CHAIN_PAYLOAD);
     if (SECTOR_URL.test(url)) return jsonResponse(SECTOR_PAYLOAD);
+    if (CATALYST_URL.test(url)) return jsonResponse(CATALYST_PAYLOAD);
+    if (NEWS_SOURCES_URL.test(url)) return jsonResponse(NEWS_SOURCES_PAYLOAD);
+    if (NEWS_URL.test(url)) return jsonResponse(NEWS_PAYLOAD);
     unexpected.push(url);
     throw new Error(`Unexpected network request in HomePage unit test: ${url}`);
   });
@@ -76,6 +117,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   // The snapshot hook persists rows in sessionStorage; start every test cold.
   sessionStorage.clear();
+  __resetCatalystStore();
 });
 
 function envelope(
@@ -126,6 +168,11 @@ function mountHome(transport: SavedConfigTransport, canvas: CanvasSize = CANVAS)
   ));
 }
 
+/** Monitor is the default surface; desk tests opt in explicitly. */
+function goDesk() {
+  fireEvent.click(screen.getByTestId("home-view-desk"));
+}
+
 const VIEWPORT = { w: window.innerWidth, h: window.innerHeight };
 /** Live shell: the viewport is larger than the window canvas (sidebar + toolbar). */
 function stubViewport(w: number, h: number) {
@@ -139,6 +186,7 @@ const requestedUrls = () => fetchMock.mock.calls.map(([url]) => String(url));
 
 afterEach(() => {
   cleanup();
+  __resetCatalystStore();
   stubViewport(VIEWPORT.w, VIEWPORT.h);
   vi.unstubAllGlobals();
   expect(unexpectedUrls, `unexpected network calls: ${unexpectedUrls.join(", ")}`).toEqual([]);
@@ -148,9 +196,11 @@ describe("HOME window desk", () => {
   it("(seed) first visit shows a non-empty Main desk with named layout tabs", async () => {
     const { transport } = makeTransport();
     mountHome(transport);
+    goDesk();
 
     // The empty state only appears after the mocked snapshot fetch has settled.
-    await screen.findByTestId("market-heatmap-empty");
+    await screen.findByTestId("market-heatmap-panel", {}, { timeout: 5000 });
+    await screen.findByTestId("market-heatmap-empty", {}, { timeout: 5000 });
     expect(screen.getByTestId("market-heatmap-panel")).toBeInTheDocument();
     expect(screen.getByTestId("options-chain-window")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
@@ -168,6 +218,7 @@ describe("HOME window desk", () => {
     const canvas = { w: 1740, h: 765 };
     const { transport } = makeTransport();
     mountHome(transport, canvas);
+    goDesk();
 
     await screen.findByTestId("market-heatmap-panel");
     for (const id of ["market.heatmap-1", "options.chain-2"]) {
@@ -180,13 +231,13 @@ describe("HOME window desk", () => {
   });
 
   it("(add) the picker adds a window at a cascaded offset and persists it", async () => {
-    const user = userEvent.setup();
     const { transport, put } = makeTransport();
     mountHome(transport);
+    goDesk();
 
     await screen.findByTestId("market-heatmap-panel");
     const seededX = left("options.chain-2");
-    await user.selectOptions(screen.getByLabelText("Add window"), "sector.detail");
+    selectOption(screen.getByLabelText("Add window"), "sector.detail");
 
     await screen.findByTestId("sector-detail-panel");
     expect(left("sector.detail-3") - seededX).toBe(24);
@@ -202,7 +253,6 @@ describe("HOME window desk", () => {
   });
 
   it("(h) named layout tabs persist and restore their windows separately", async () => {
-    const user = userEvent.setup();
     const { transport, put } = makeTransport(
       config(
         [
@@ -216,22 +266,23 @@ describe("HOME window desk", () => {
       ),
     );
     mountHome(transport);
+    goDesk();
 
     await screen.findByTestId("sector-table-panel");
     expect(screen.queryByTestId("sector-movers-panel")).not.toBeInTheDocument();
 
-    await user.click(screen.getByTestId("home-layout-tab-blank"));
+    fireEvent.click(screen.getByTestId("home-layout-tab-blank"));
     expect(screen.getByTestId("sector-movers-panel")).toBeInTheDocument();
     expect(screen.queryByTestId("sector-table-panel")).not.toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText("Add window"), "sector.detail");
+    selectOption(screen.getByLabelText("Add window"), "sector.detail");
     await screen.findByTestId("sector-detail-panel");
 
-    await user.click(screen.getByTestId("home-layout-tab-main"));
+    fireEvent.click(screen.getByTestId("home-layout-tab-main"));
     expect(screen.getByTestId("sector-table-panel")).toBeInTheDocument();
     expect(screen.queryByTestId("sector-detail-panel")).not.toBeInTheDocument();
 
-    await user.click(screen.getByTestId("home-layout-tab-blank"));
+    fireEvent.click(screen.getByTestId("home-layout-tab-blank"));
     expect(screen.getByTestId("sector-movers-panel")).toBeInTheDocument();
     expect(screen.getByTestId("sector-detail-panel")).toBeInTheDocument();
 
@@ -259,6 +310,7 @@ describe("HOME window desk", () => {
       ),
     );
     mountHome(transport);
+    goDesk();
 
     await screen.findByTestId("sector-movers-panel");
     expect(screen.queryByTestId("window-ghost")).not.toBeInTheDocument();
@@ -269,14 +321,14 @@ describe("HOME window desk", () => {
   });
 
   it("(new screen) 'New screen' creates and switches to a fresh empty workspace", async () => {
-    const user = userEvent.setup();
     const { transport, put } = makeTransport(
       config([{ name: "Main", windows: [win({ id: "chart", type: "sector.table" })] }], "Main"),
     );
     mountHome(transport);
+    goDesk();
 
     await screen.findByTestId("sector-table-panel");
-    await user.click(screen.getByTestId("home-new-screen"));
+    fireEvent.click(screen.getByTestId("home-new-screen"));
 
     expect(screen.getByTestId("home-layout-tab-screen-2")).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByTestId("sector-table-panel")).not.toBeInTheDocument();
@@ -290,10 +342,12 @@ describe("HOME window desk", () => {
   it("(chrome) toolbar has no free-text context inputs and a plain HOME title", () => {
     const { transport } = makeTransport();
     mountHome(transport);
+    goDesk();
 
     const toolbar = screen.getByTestId("home-toolbar");
     expect(toolbar).toHaveTextContent("HOME");
-    expect(toolbar).not.toHaveTextContent("DESK");
+    expect(toolbar).toHaveTextContent("Monitor");
+    expect(toolbar).toHaveTextContent("Desk");
     const withinToolbar = within(toolbar);
     expect(withinToolbar.queryByTestId("home-symbol-input")).not.toBeInTheDocument();
     expect(withinToolbar.queryByTestId("home-expiry-input")).not.toBeInTheDocument();
@@ -310,6 +364,7 @@ describe("HOME window desk", () => {
   it("(chrome) picker, layout tabs, Fit all and Lock stay present and keyboard reachable", () => {
     const { transport } = makeTransport();
     mountHome(transport);
+    goDesk();
 
     expect(screen.getByLabelText("Add window").tagName).toBe("SELECT");
     for (const id of [
@@ -331,9 +386,9 @@ describe("HOME window desk", () => {
   });
 
   it("(no context) adding a window still renders the panel with no context input", async () => {
-    const user = userEvent.setup();
     const { transport } = makeTransport();
     mountHome(transport);
+    goDesk();
 
     await screen.findByTestId("market-heatmap-panel");
     const withinToolbar = within(screen.getByTestId("home-toolbar"));
@@ -344,7 +399,7 @@ describe("HOME window desk", () => {
     // No expiry in HOME context: the chain panel stays empty and never fetches.
     expect(requestedUrls().some((url) => CHAIN_URL.test(url))).toBe(false);
 
-    await user.selectOptions(screen.getByLabelText("Add window"), "sector.detail");
+    selectOption(screen.getByLabelText("Add window"), "sector.detail");
     await screen.findByTestId("sector-detail-panel");
     expect(screen.getByTestId("sector-detail-panel")).toHaveTextContent("SECTOR DETAIL");
     expect(screen.getByTestId("sector-detail-panel")).not.toHaveTextContent("2026-11-26");
@@ -359,6 +414,7 @@ describe("HOME window desk", () => {
   it("(picker) the removed report stub panels are no longer offered", async () => {
     const { transport } = makeTransport();
     mountHome(transport);
+    goDesk();
 
     await screen.findByTestId("market-heatmap-panel");
     const optionValues = Array.from(
@@ -393,6 +449,71 @@ describe("HOME window desk", () => {
   });
 });
 
+describe("HOME monitor", () => {
+  it("(default) Monitor is the first surface: pulse bar, session plan, no window manager", async () => {
+    const { transport } = makeTransport();
+    mountHome(transport);
+
+    expect(screen.getByTestId("home-monitor-view")).toBeInTheDocument();
+    expect(screen.getByTestId("home-pulse-bar")).toBeInTheDocument();
+    expect(screen.getByTestId("home-session-plan")).toBeInTheDocument();
+    expect(screen.getByTestId("home-view-monitor")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("home-view-desk")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByTestId("window-manager-canvas")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("home-layout-tabs")).not.toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("pulse-refresh")).toHaveTextContent("LIVE"),
+    );
+  });
+
+  it("(toggle) Desk mounts the window manager and Monitor unmounts it", async () => {
+    const { transport } = makeTransport();
+    mountHome(transport);
+    goDesk();
+
+    expect(await screen.findByTestId("window-manager-canvas")).toBeInTheDocument();
+    expect(screen.getByTestId("home-layout-tabs")).toBeInTheDocument();
+    expect(screen.queryByTestId("home-monitor-view")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("home-pulse-bar")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("home-view-monitor"));
+    expect(screen.getByTestId("home-monitor-view")).toBeInTheDocument();
+    expect(screen.queryByTestId("window-manager-canvas")).not.toBeInTheDocument();
+  });
+
+  it("(preserve) toggling to Monitor and back keeps the saved desk and writes nothing", async () => {
+    const saved = config(
+      [{ name: "Main", windows: [win({ id: "chart", type: "sector.table" })] }],
+      "Main",
+    );
+    const { transport, put } = makeTransport(saved);
+    mountHome(transport);
+    goDesk();
+
+    expect(await screen.findByTestId("sector-table-panel")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("home-view-monitor"));
+    expect(screen.queryByTestId("sector-table-panel")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("home-view-desk"));
+    expect(await screen.findByTestId("sector-table-panel")).toBeInTheDocument();
+    expect(put).not.toHaveBeenCalled();
+  });
+
+  it("(no writes) Monitor does not persist a window layout it never rendered", async () => {
+    const { transport, put } = makeTransport();
+    mountHome(transport);
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringMatching(CATALYST_URL),
+        expect.anything(),
+      ),
+    );
+    expect(put).not.toHaveBeenCalled();
+  });
+});
+
 describe("HOME panel settings persistence", () => {
   const metric = () =>
     screen.getByTestId("market-heatmap-metric").querySelector("select") as HTMLSelectElement;
@@ -400,6 +521,7 @@ describe("HOME panel settings persistence", () => {
   it("(e) rapid metric changes produce one debounced save, not one per change", async () => {
     const { transport, put } = makeTransport();
     mountHome(transport);
+    goDesk();
     await screen.findByTestId("market-heatmap-panel");
 
     const before = put.mock.calls.length;
@@ -434,6 +556,7 @@ describe("HOME panel settings persistence", () => {
     );
     const { transport } = makeTransport(saved);
     mountHome(transport);
+    goDesk();
 
     await screen.findByTestId("market-heatmap-panel");
     expect(metric().value).toBe("rsi");

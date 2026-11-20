@@ -1,9 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor, within } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import type { JSX } from "solid-js";
-import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { UIProvider } from "@/ui";
 import { NiftyChartPanel } from "./NiftyChartPanel";
@@ -242,7 +241,7 @@ describe("NiftyChartPanel — Fyers tick stream wiring", () => {
     expect(within(toggle()).getByRole("button", { name: "LIVE" })).toHaveAttribute("aria-pressed", "true");
     expect(feed()).toBeInTheDocument();
 
-    await userEvent.setup().click(within(toggle()).getByRole("button", { name: "PATTERNS" }));
+    fireEvent.click(within(toggle()).getByRole("button", { name: "PATTERNS" }));
     expect(within(toggle()).getByRole("button", { name: "PATTERNS" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByTestId("nifty-fyers-feed")).not.toBeInTheDocument();
     expect(screen.getByTestId("nifty-chart-wrap")).toBeInTheDocument();

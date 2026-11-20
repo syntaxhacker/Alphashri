@@ -1,16 +1,4 @@
 import type { DockPage, DockPanelContext, DockPanelSpec } from "../../components/dock/types";
-import { MARKET_HEATMAP_PANEL } from "../../components/window/panels/marketHeatmap";
-import { NEWS_FEED_PANEL } from "../../components/window/panels/newsFeed";
-import { OPTIONS_ANALYTICS_PANEL } from "../../components/window/panels/optionsAnalytics";
-import { OPTIONS_CHAIN_PANEL } from "../../components/window/panels/optionsChain";
-import { OPTIONS_POSITIONING_PANEL } from "../../components/window/panels/optionsPositioning";
-import { PATTERN_RESULTS_PANEL } from "../../components/window/panels/patternResults";
-import { SECTOR_CORRELATION_PANEL } from "../../components/window/panels/sectorCorrelation";
-import { SECTOR_DETAIL_PANEL } from "../../components/window/panels/sectorDetail";
-import { SECTOR_HEATMAP_PANEL } from "../../components/window/panels/sectorHeatmap";
-import { SECTOR_MOVERS_PANEL } from "../../components/window/panels/sectorMovers";
-import { SECTOR_TABLE_PANEL } from "../../components/window/panels/sectorTable";
-import { SECTOR_ROTATION_PANEL } from "../../components/window/panels/sectorRotation";
 import {
   CASCADE_STEP,
   FIT_PADDING,
@@ -21,7 +9,11 @@ import {
   type CanvasSize,
   type Rect,
 } from "../../components/window/layout";
-import { getPanelSpec, WINDOW_PANEL_TYPES } from "../../components/window/panelRegistry";
+import {
+  getPanelSpec,
+  WINDOW_PANELS,
+  WINDOW_PANEL_TYPES,
+} from "../../components/window/panelRegistry";
 import type { WindowLayout, WindowState } from "../../components/window/types";
 
 /** Group labels come from the panel's source page, not from a HOME-specific id. */
@@ -46,20 +38,7 @@ export const HOME_PANEL_CONTEXT: DockPanelContext = {
  * would have to be typed into the app chrome. Ids stay aligned with the window
  * registry because the picker and the window manager both consume this list.
  */
-export const HOME_PANELS: DockPanelSpec[] = [
-  MARKET_HEATMAP_PANEL,
-  NEWS_FEED_PANEL,
-  OPTIONS_ANALYTICS_PANEL,
-  OPTIONS_CHAIN_PANEL,
-  OPTIONS_POSITIONING_PANEL,
-  PATTERN_RESULTS_PANEL,
-  SECTOR_CORRELATION_PANEL,
-  SECTOR_DETAIL_PANEL,
-  SECTOR_HEATMAP_PANEL,
-  SECTOR_TABLE_PANEL,
-  SECTOR_MOVERS_PANEL,
-  SECTOR_ROTATION_PANEL,
-].map((spec) => ({
+export const HOME_PANELS: DockPanelSpec[] = WINDOW_PANELS.map((spec) => ({
   ...spec,
   requires: [],
 }));
@@ -97,6 +76,17 @@ const TWO_COLUMNS: PresetColumn[] = [
   { width: 0.42, rows: [0.5, 0.5] },
 ];
 
+/**
+ * The radar carries the row list and its inline detail, so it gets the wide
+ * column plus enough height for a detail row to open without scrolling the
+ * whole pane away. Price and sector context stack beside it, news anchors the
+ * bottom where a headline is readable at a glance.
+ */
+const MONITOR_COLUMNS: PresetColumn[] = [
+  { width: 0.58, rows: [0.62, 0.38] },
+  { width: 0.42, rows: [0.55, 0.45] },
+];
+
 /** Adding a desk is data: append an entry here, never touch the menu component. */
 export const PRESETS: HomePreset[] = [
   {
@@ -126,6 +116,17 @@ export const PRESETS: HomePreset[] = [
     cells: [
       { panel: "sector.heatmap", column: 0, row: 0 },
       { panel: "sector.table", column: 1, row: 0 },
+      { panel: "news.feed", column: 1, row: 1 },
+    ],
+  },
+  {
+    id: "monitor",
+    label: "Monitor",
+    columns: MONITOR_COLUMNS,
+    cells: [
+      { panel: "catalyst.radar", column: 0, row: 0 },
+      { panel: "market.heatmap", column: 0, row: 1 },
+      { panel: "sector.heatmap", column: 1, row: 0 },
       { panel: "news.feed", column: 1, row: 1 },
     ],
   },

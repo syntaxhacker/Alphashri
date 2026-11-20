@@ -1,5 +1,7 @@
-import { createEffect, createSignal, For, onCleanup, onMount, type Accessor } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type Accessor } from "solid-js";
 import { Box, Menu, MenuDropdown, MenuItem, MenuTarget, Select, Text, ToolbarRow } from "@/ui";
+import { HomeMonitorView } from "../../components/home/HomeMonitorView";
+import { SessionPulseBar } from "../../components/home/SessionPulseBar";
 import type { DockPanelContext } from "../../components/dock/types";
 import type { CanvasSize } from "../../components/window/layout";
 import { fitAllToScreen } from "../../components/window/layout";
@@ -34,6 +36,8 @@ import {
 
 const slug = (name: string): string =>
   name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+type HomeView = "monitor" | "desk";
 
 /** Last canvas reported by WindowManager; the store reads it when hydration settles. */
 let homeCanvas: CanvasSize | undefined;
@@ -121,18 +125,22 @@ export function HomePage(props: HomePageProps) {
   const { config, setConfig, hydrated } = useHomeWindowConfig({ transport: props.transport });
   const context: Accessor<DockPanelContext> = () => HOME_PANEL_CONTEXT;
   const [pickerValue, setPickerValue] = createSignal("");
+  const [view, setView] = createSignal<HomeView>("monitor");
   const [canvasSize, setCanvasSize] = createSignal<CanvasSize | undefined>(props.canvas);
   const [liveMessage, setLiveMessage] = createSignal("");
   const [presetOpen, setPresetOpen] = createSignal(false);
   const [presetTrigger, setPresetTrigger] = createSignal<HTMLButtonElement>();
   const announce = (message: string) => setLiveMessage(message);
   homeCanvas = props.canvas;
+  // Read once per view change, not once per JSX expression that needs the mode.
+  const isDesk = createMemo(() => view() === "desk");
 
   // The store normally seeds after the canvas is measured. If hydration beat
   // that measurement, replace the conservative seed once — never a saved desk.
+  // Monitor never owns a desk, so it must not write a saved layout either.
   let reseeded = false;
   createEffect(() => {
-    if (reseeded || !hydrated() || !canvasSize()) return;
+    if (!isDesk() || reseeded || !hydrated() || !canvasSize()) return;
     if (!isDefaultHomeSeed(config())) return;
     reseeded = true;
     setConfig(defaultHomeConfig(canvasSize()));
@@ -151,6 +159,8 @@ export function HomePage(props: HomePageProps) {
     if (!size || !hydrated()) return;
     const previous = lastCanvas;
     lastCanvas = { w: size.w, h: size.h };
+    // Monitor renders a fixed grid, not a canvas: tracking is read-only here.
+    if (!isDesk()) return;
     /*
      * Re-fit only when the canvas actually shrinks under an existing desk. A
      * first measure is deliberately excluded: the saved layout was authored
@@ -206,10 +216,14 @@ export function HomePage(props: HomePageProps) {
     });
   });
 
-  const activeLayout = (): WindowLayout =>
-    config().layouts.find((layout) => layout.name === config().active)
-    ?? config().layouts[0]
-    ?? { name: "Main", windows: [] };
+  // Panel data ticks replace config(); without a memo every one of the
+  // consumers below (props getters and handlers alike) re-runs this find.
+  const activeLayout: Accessor<WindowLayout> = createMemo(() => {
+    const current = config();
+    return current.layouts.find((layout) => layout.name === current.active)
+      ?? current.layouts[0]
+      ?? { name: "Main", windows: [] };
+  });
 
   const setActiveWindows = (windows: WindowState[]) =>
     setConfig({
@@ -219,14 +233,17 @@ export function HomePage(props: HomePageProps) {
       ),
     });
 
-  const pickerOptions = () =>
+  // Pure derivation over module constants: computed on first read and reused.
+  // The Select prop getter is read by several of its own computations, so an
+  // unmemoised function sorted and mapped the panel list several times per mount.
+  const pickerOptions = createMemo(() =>
     [...HOME_PANELS]
       .sort((a, b) => PAGE_ORDER.indexOf(a.page) - PAGE_ORDER.indexOf(b.page))
       .map((spec) => ({
         value: spec.id,
         label: spec.title,
         group: PAGE_LABEL[spec.page],
-      }));
+      })));
 
   const addWindow = (id: string) => {
     if (!id) return;
@@ -267,87 +284,134 @@ export function HomePage(props: HomePageProps) {
         <Text size="sm" fw={700}>
           HOME
         </Text>
-        <Select
-          aria-label="Add window"
-          data-testid="home-panel-picker"
-          placeholder="Add a window…"
-          size="sm"
-          w={220}
-          value={pickerValue()}
-          data={pickerOptions()}
-          onChange={(value) => addWindow(value ?? "")}
-        />
+        <div
+          data-testid="home-view-toggle"
+          role="group"
+          aria-label="Home view"
+          class="flex items-center gap-1"
+        >
+          <button
+            type="button"
+            data-testid="home-view-monitor"
+            aria-pressed={!isDesk()}
+            class={`rounded-sm border px-2 text-[11px] ${
+              !isDesk()
+                ? "border-fin-primary bg-fin-surface-alt text-fin-text"
+                : "border-fin-border text-fin-text-muted hover:bg-fin-surface-alt"
+            }`}
+            onClick={() => setView("monitor")}
+          >
+            Monitor
+          </button>
+          <button
+            type="button"
+            data-testid="home-view-desk"
+            aria-pressed={isDesk()}
+            class={`rounded-sm border px-2 text-[11px] ${
+              isDesk()
+                ? "border-fin-primary bg-fin-surface-alt text-fin-text"
+                : "border-fin-border text-fin-text-muted hover:bg-fin-surface-alt"
+            }`}
+            onClick={() => setView("desk")}
+          >
+            Desk
+          </button>
+        </div>
+        <Show when={isDesk()}>
+          <Select
+            aria-label="Add window"
+            data-testid="home-panel-picker"
+            placeholder="Add a window…"
+            size="sm"
+            w={220}
+            value={pickerValue()}
+            data={pickerOptions()}
+            onChange={(value) => addWindow(value ?? "")}
+          />
+        </Show>
       </ToolbarRow>
 
-      <ToolbarRow data-testid="home-layout-tabs">
-        <For each={config().layouts}>
-          {(layout) => (
-            <button
-              type="button"
-              data-testid={`home-layout-tab-${slug(layout.name ?? "")}`}
-              aria-selected={config().active === layout.name}
-              class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt aria-selected:border-fin-primary"
-              onClick={() => switchTab(layout.name ?? "Main")}
-            >
-              {layout.name}
-            </button>
-          )}
-        </For>
-        <Menu
-          data-testid="home-presets-menu"
-          opened={presetOpen()}
-          onChange={(open) => {
-            setPresetOpen(open);
-            // The dropdown unmounts on close; without this, focus falls to <body>.
-            if (!open) presetTrigger()?.focus();
+      <Show when={!isDesk()}>
+        <SessionPulseBar />
+      </Show>
+
+      <Show when={isDesk()}>
+        <ToolbarRow data-testid="home-layout-tabs">
+          <For each={config().layouts}>
+            {(layout) => (
+              <button
+                type="button"
+                data-testid={`home-layout-tab-${slug(layout.name ?? "")}`}
+                aria-selected={config().active === layout.name}
+                class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt aria-selected:border-fin-primary"
+                onClick={() => switchTab(layout.name ?? "Main")}
+              >
+                {layout.name}
+              </button>
+            )}
+          </For>
+          <Menu
+            data-testid="home-presets-menu"
+            opened={presetOpen()}
+            onChange={(open) => {
+              setPresetOpen(open);
+              // The dropdown unmounts on close; without this, focus falls to <body>.
+              if (!open) presetTrigger()?.focus();
+            }}
+          >
+            <MenuTarget>
+              <button
+                ref={(el) => setPresetTrigger(el)}
+                type="button"
+                data-testid="home-preset-menu-trigger"
+                aria-label="Layout presets"
+                aria-expanded={presetOpen()}
+                class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
+              >
+                Presets
+              </button>
+            </MenuTarget>
+            <MenuDropdown data-testid="home-preset-menu-dropdown">
+              <For each={PRESETS}>
+                {(preset) => (
+                  <MenuItem
+                    data-testid={`home-preset-${preset.id}`}
+                    onClick={() => applyPresetToDesk(preset.id)}
+                  >
+                    {preset.label}
+                  </MenuItem>
+                )}
+              </For>
+            </MenuDropdown>
+          </Menu>
+          <button
+            type="button"
+            data-testid="home-new-screen"
+            class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
+            onClick={newScreen}
+          >
+            + New screen
+          </button>
+        </ToolbarRow>
+      </Show>
+
+      <Show when={!isDesk()}>
+        <HomeMonitorView />
+      </Show>
+
+      <Show when={isDesk()}>
+        <WindowManager
+          layout={activeLayout()}
+          context={context}
+          onLayoutChange={(next) => setActiveWindows(next.windows)}
+          onCanvasChange={(size) => {
+            if (canvasSize()?.w === size.w && canvasSize()?.h === size.h) return;
+            homeCanvas = size;
+            setCanvasSize(size);
           }}
-        >
-          <MenuTarget>
-            <button
-              ref={(el) => setPresetTrigger(el)}
-              type="button"
-              data-testid="home-preset-menu-trigger"
-              aria-label="Layout presets"
-              aria-expanded={presetOpen()}
-              class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
-            >
-              Presets
-            </button>
-          </MenuTarget>
-          <MenuDropdown data-testid="home-preset-menu-dropdown">
-            <For each={PRESETS}>
-              {(preset) => (
-                <MenuItem
-                  data-testid={`home-preset-${preset.id}`}
-                  onClick={() => applyPresetToDesk(preset.id)}
-                >
-                  {preset.label}
-                </MenuItem>
-              )}
-            </For>
-          </MenuDropdown>
-        </Menu>
-        <button
-          type="button"
-          data-testid="home-new-screen"
-          class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
-          onClick={newScreen}
-        >
-          + New screen
-        </button>
-      </ToolbarRow>
-
-      <WindowManager
-        layout={activeLayout()}
-        context={context}
-        onLayoutChange={(next) => setActiveWindows(next.windows)}
-        onCanvasChange={(size) => {
-          if (canvasSize()?.w === size.w && canvasSize()?.h === size.h) return;
-          homeCanvas = size;
-          setCanvasSize(size);
-        }}
-        canvas={props.canvas}
-      />
+          canvas={props.canvas}
+        />
+      </Show>
 
       <div
         data-testid="home-live"
