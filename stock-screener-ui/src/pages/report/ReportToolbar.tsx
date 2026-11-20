@@ -9,6 +9,7 @@ import { NiftyPositionsDrawer } from "./NiftyPositionsDrawer";
 import { NiftyReplayBar } from "./NiftyReplayBar";
 import { NiftyUpdatedLabel } from "./NiftyUpdatedLabel";
 import { wsBadgeLabel } from "./niftyFreshness";
+import { REPORT_FONT } from "./reportTokens";
 import { useNiftyReport } from "./ReportContext";
 
 // The SIM desk owns the largest non-chart bundle (builder, payoff, runs). It
@@ -59,7 +60,7 @@ export const TOOLBAR_CLASS =
   "flex flex-wrap items-center gap-1.5 px-2 py-1 min-h-[30px] w-full max-w-full min-w-0 shrink-0 [&>*]:flex-none min-[1200px]:flex-nowrap min-[1200px]:overflow-x-auto [&_[data-testid='nifty-updated-at']]:leading-[20px]";
 
 const GENERIC_EXPIRY_NOTE_STYLE: JSX.CSSProperties = {
-  "font-size": "9px",
+  "font-size": `${REPORT_FONT.micro}px`,
   "font-weight": 700,
   "letter-spacing": "0.04em",
   color: palette.TEXT_MUTED,

@@ -10,6 +10,7 @@ import {
   minuteLabel,
   minuteOfDay,
 } from "./niftyReplayCoverage";
+import { REPORT_FONT } from "./reportTokens";
 
 /** A replay frame timestamp as a wall-clock "HH:MM" label (e.g. "10:31").
  *  Accepts ISO instants ("2026-10-10T10:31:00+05:30") and bare "10:31". */
@@ -318,7 +319,7 @@ export function NiftyReplayBar(props: NiftyReplayBarProps) {
             "white-space": "nowrap",
             "flex-shrink": "0",
             cursor: "help",
-            "font-size": "9px",
+            "font-size": `${REPORT_FONT.micro}px`,
             opacity: 0.72,
           }}
         >

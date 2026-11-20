@@ -6,6 +6,7 @@ import { ReportProvider, useNiftyReport } from "./ReportContext";
 import type { DeskDockTab } from "./DeskDock";
 import { ReportToolbar } from "./ReportToolbar";
 import {
+  REPORT_FONT,
   REPORT_GUTTER,
   REPORT_SECTION_ALIGN,
   REPORT_SECTION_ATTR,
@@ -47,7 +48,7 @@ function SectionError(props: { name: string; error: unknown }) {
         "border-radius": "2px",
         padding: "4px 6px",
         "font-family": palette.MONO,
-        "font-size": "10px",
+        "font-size": `${REPORT_FONT.micro}px`,
         "line-height": "1.4",
         "letter-spacing": "0.02em",
         color: palette.TEXT,

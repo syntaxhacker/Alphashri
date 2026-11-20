@@ -14,7 +14,7 @@ import { useNiftyReport } from "./ReportContext";
 import type { HeatMetric } from "./niftyReportStore";
 import { NiftyOiChain, getNiftyOiColumns } from "./reportCells";
 import { LiveTapeDisclosure } from "./reportBits";
-import { REPORT_GUTTER } from "./reportTokens";
+import { REPORT_FONT, REPORT_GUTTER } from "./reportTokens";
 
 // The chart, greeks, skew and heatmap are the heavy panels of the workspace.
 // Each gets its own lazy boundary so the chain/table chrome paints first and a
@@ -69,7 +69,7 @@ const SIDE_TAB_STYLE: JSX.CSSProperties = {
   "padding-right": "4.8px",
   "padding-top": "0",
   "padding-bottom": "0",
-  "font-size": "9px",
+  "font-size": `${REPORT_FONT.micro}px`,
   "font-weight": 800,
   "letter-spacing": "0.4px",
 };
@@ -80,7 +80,7 @@ const HEAT_METRIC_STYLE: JSX.CSSProperties = {
   "padding-right": "3px",
   "padding-top": "0",
   "padding-bottom": "0",
-  "font-size": "8.5px",
+  "font-size": `${REPORT_FONT.micro}px`,
   "line-height": 1.4,
 };
 
@@ -481,7 +481,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
                       </Button>
                     )}
                   </For>
-                  <Text className="ml-auto mr-5 text-[7.5px] text-fin-text-muted">OI change</Text>
+                  <Text className="ml-auto mr-5 text-[11px] text-fin-text-muted">OI change</Text>
                 </Box>
                 <Box data-testid="nifty-heatmap-wrap" className="flex-1 min-h-0 min-w-0 flex overflow-hidden">
                   <Suspense fallback={<PanelSkeleton h={220} />}>
