@@ -97,6 +97,38 @@ export function groupCellGap(): number {
 }
 
 /**
+ * Border-box minimums for the strip cells. At the promoted 13px body step a
+ * mono readout such as `BUY PREMIUM · RV > IV` needs 165px and the label
+ * `P/C ratio · volume` needs 135px; the 11px-era 96px cell cannot hold either.
+ * Each value is the measured text plus the 8px inset and 1px hairline, so an
+ * ellipsis can only fire on a genuinely longer string, not on a real readout.
+ * Group weights below are tuned to the sum of these minimums.
+ */
+export const REPORT_STRIP_CELL_MIN = {
+  spot: 92,
+  regime: 182,
+  flip: 99,
+  callWall: 103,
+  putWall: 96,
+  pin: 71,
+  maxPain: 110,
+  squeezeFuel: 114,
+  pcrOi: 110,
+  pcrVol: 148,
+  chipSetup: 178,
+  chipIntel: 178,
+  chipGamma: 196,
+} as const;
+
+/** Flex weights sized to carry the cell minimums above on a 1764px strip. */
+export const REPORT_STRIP_GROUP_WEIGHT = {
+  price: 3,
+  walls: 3.1,
+  volatility: 3,
+  flow: 4.35,
+} as const;
+
+/**
  * The desk surface has one gutter: 4px between inline items, 8px between
  * sections, 16px outside the surface. A section is one bordered/readable band,
  * not every nested cell — dividers inside a section stay at `inline`.

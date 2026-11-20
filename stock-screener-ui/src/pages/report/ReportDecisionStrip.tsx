@@ -38,6 +38,8 @@ import {
   REPORT_LETTER_SPACING,
   REPORT_LINE_HEIGHT,
   REPORT_SECTION_ATTR,
+  REPORT_STRIP_CELL_MIN,
+  REPORT_STRIP_GROUP_WEIGHT,
   REPORT_STRIP_METRICS,
   groupCellGap,
 } from "./reportTokens";
@@ -610,9 +612,14 @@ export function ReportDecisionStrip() {
             className="flex flex-wrap flex-auto min-w-0 w-full [&_[data-testid$='-value']]:text-right"
             style={{ gap: `${REPORT_STRIP_METRICS.groupRowGap}px` }}
           >
-            <StatGroup testId="nifty-stat-group-price" label="PRICE" weight={3}>
+            <StatGroup
+              testId="nifty-stat-group-price"
+              label="PRICE"
+              weight={REPORT_STRIP_GROUP_WEIGHT.price}
+            >
               <DecisionCell
                 testId="nifty-stat-spot"
+                minWidth={REPORT_STRIP_CELL_MIN.spot}
                 label="Spot"
                 value={
                   <NiftySpotValue
@@ -632,6 +639,7 @@ export function ReportDecisionStrip() {
               />
               <DecisionCell
                 testId="nifty-stat-regime"
+                minWidth={REPORT_STRIP_CELL_MIN.regime}
                 label="Regime"
                 value={
                   regime()?.verdict ? resolveRegimeLabel(regime()!.verdict, regime()) : "—"
@@ -642,6 +650,7 @@ export function ReportDecisionStrip() {
               />
               <DecisionCell
                 testId="nifty-stat-flip"
+                minWidth={REPORT_STRIP_CELL_MIN.flip}
                 label="Gamma flip"
                 value={
                   gexDegraded()
@@ -662,9 +671,15 @@ export function ReportDecisionStrip() {
               />
             </StatGroup>
 
-            <StatGroup testId="nifty-stat-group-walls" label="WALLS" weight={4} divider>
+            <StatGroup
+              testId="nifty-stat-group-walls"
+              label="WALLS"
+              weight={REPORT_STRIP_GROUP_WEIGHT.walls}
+              divider
+            >
               <DecisionCell
                 testId="nifty-stat-call-wall"
+                minWidth={REPORT_STRIP_CELL_MIN.callWall}
                 label="Max-OI call"
                 value={maxCallWall() ? formatInt(maxCallWall()!.strike) : "—"}
                 valueSize={REPORT_FONT.value}
@@ -682,6 +697,7 @@ export function ReportDecisionStrip() {
               />
               <DecisionCell
                 testId="nifty-stat-put-wall"
+                minWidth={REPORT_STRIP_CELL_MIN.putWall}
                 label="Max-OI put"
                 value={maxPutWall() ? formatInt(maxPutWall()!.strike) : "—"}
                 hint={
@@ -698,6 +714,7 @@ export function ReportDecisionStrip() {
               />
               <DecisionCell
                 testId="nifty-stat-pin"
+                minWidth={REPORT_STRIP_CELL_MIN.pin}
                 label="Pin risk"
                 value={pin() ? pin()!.level : "—"}
                 hint={pin() ? pinHint(pin()) : "spot / max pain missing"}
@@ -712,6 +729,7 @@ export function ReportDecisionStrip() {
               />
               <ContextCell
                 testId="nifty-stat-max-pain"
+                minWidth={REPORT_STRIP_CELL_MIN.maxPain}
                 label="Max pain"
                 value={
                   <>
@@ -731,7 +749,7 @@ export function ReportDecisionStrip() {
             <StatGroup
               testId="nifty-stat-group-volatility"
               label="VOLATILITY"
-              weight={2.5}
+              weight={REPORT_STRIP_GROUP_WEIGHT.volatility}
               divider
               cellsTestId="nifty-context-stats"
             >
@@ -739,6 +757,7 @@ export function ReportDecisionStrip() {
                 {(fuel) => (
                   <DecisionCell
                     testId="nifty-squeeze-fuel"
+                    minWidth={REPORT_STRIP_CELL_MIN.squeezeFuel}
                     label="Squeeze fuel"
                     value="Building ↑"
                     hint={`${fuel().strike} call wall is ${fuel().sentiment === "SC" ? "short-covering" : "unwinding"} — a break above it accelerates`}
@@ -749,6 +768,7 @@ export function ReportDecisionStrip() {
               </Show>
               <ContextCell
                 testId="nifty-stat-pcr-oi"
+                minWidth={REPORT_STRIP_CELL_MIN.pcrOi}
                 label="P/C ratio · OI"
                 value={
                   <>
@@ -764,6 +784,7 @@ export function ReportDecisionStrip() {
               />
               <ContextCell
                 testId="nifty-stat-pcr-vol"
+                minWidth={REPORT_STRIP_CELL_MIN.pcrVol}
                 label="P/C ratio · volume"
                 value={<AnimatedValue value={report()?.pcrVol ?? 0} format={format2dp} />}
                 title="Put/call ratio · volume — the ratio by traded volume this session. Volume is short-term flow; compare it with the put/call ratio by open interest, which is accumulated positioning."
@@ -774,11 +795,12 @@ export function ReportDecisionStrip() {
               <StatGroup
                 testId="nifty-stat-group-flow"
                 label="FLOW & ACTION"
-                weight={4}
+                weight={REPORT_STRIP_GROUP_WEIGHT.flow}
                 divider
               >
                 <DecisionChip
                   testId="nifty-chip-setup"
+                  minWidth={REPORT_STRIP_CELL_MIN.chipSetup}
                   label="Setup checks"
                   value={setupSummary()}
                   onClick={() => store.ui.setDeskDockTab("setup")}
@@ -788,6 +810,7 @@ export function ReportDecisionStrip() {
                 />
                 <DecisionChip
                   testId="nifty-chip-intel"
+                  minWidth={REPORT_STRIP_CELL_MIN.chipIntel}
                   label="Institutional flows"
                   value="FII / DII"
                   onClick={() => store.ui.setDeskDockTab("market")}
@@ -797,6 +820,7 @@ export function ReportDecisionStrip() {
                 />
                 <DecisionChip
                   testId="nifty-chip-gamma"
+                  minWidth={REPORT_STRIP_CELL_MIN.chipGamma}
                   label="Dealer gamma"
                   value={
                     gexDegraded()

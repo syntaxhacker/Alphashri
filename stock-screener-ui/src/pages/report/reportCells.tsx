@@ -123,6 +123,7 @@ export function DecisionCell(props: {
   accent?: string;
   title?: string;
   valueSize?: number;
+  minWidth?: number;
 }) {
   // The dash lives on the value node, so the reason has to travel with it —
   // a cell-level tooltip alone leaves a bare "—" unexplained on hover.
@@ -133,7 +134,10 @@ export function DecisionCell(props: {
       data-testid={props.testId}
       title={help()}
       className={DECISION_CELL_CLASS}
-      style={DECISION_CELL_STYLE}
+      style={{
+        ...DECISION_CELL_STYLE,
+        ...(props.minWidth != null ? { "min-width": `${props.minWidth}px` } : {}),
+      }}
     >
       <Text span size="xs" fw={700} c="dimmed" style={DECISION_LABEL_STYLE}>
         {props.label}
@@ -161,13 +165,17 @@ export function ContextCell(props: {
   value: JSX.Element;
   title?: string;
   valueSize?: number;
+  minWidth?: number;
 }) {
   return (
     <Box
       data-testid={props.testId}
       title={props.title}
       className={CONTEXT_CELL_CLASS}
-      style={CONTEXT_CELL_STYLE}
+      style={{
+        ...CONTEXT_CELL_STYLE,
+        ...(props.minWidth != null ? { "min-width": `${props.minWidth}px` } : {}),
+      }}
     >
       <Text span size="xs" fw={700} c="dimmed" style={CONTEXT_LABEL_STYLE}>
         {props.label}
@@ -198,6 +206,7 @@ export function DecisionChip(props: {
   ariaLabel?: string;
   /** Fill a stat-group cell slot instead of keeping an intrinsic width. */
   fill?: boolean;
+  minWidth?: number;
 }) {
   return (
     <Button
@@ -212,6 +221,11 @@ export function DecisionChip(props: {
         // The strip already draws the section border; a chip border inside it
         // is a card-inside-card. A tint keeps the chip readable as a control.
         "background-color": palette.alpha(palette.TERM_BORDER, 0.18),
+        // Button's px-3 wins over the class-level px-1; the label and the
+        // value both need that room back at the 13px body step.
+        "padding-left": "4px",
+        "padding-right": "4px",
+        ...(props.minWidth != null ? { "min-width": `${props.minWidth}px` } : {}),
         ...(props.fill ? { flex: "1 1 0%", height: "100%" } : {}),
       }}
     >
