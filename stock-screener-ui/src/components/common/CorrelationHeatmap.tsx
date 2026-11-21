@@ -262,7 +262,7 @@ export function CorrelationHeatmap(props: CorrelationHeatmapProps) {
         style={{ opacity: hasData() ? 1 : 0 }}
       />
       <Show when={props.isLoading}>
-        <Flex pos="absolute" top={0} right={0} bottom={0} left={0} justify="center" align="center" style={{ "z-index": 1 }}>
+        <Flex pos="absolute" top={0} right={0} bottom={0} left={0} justify="center" align="center" style={{ "z-index": 1, "pointer-events": "none" }}>
           <Stack align="center" gap="xs">
             <Loader size="sm" />
             <Text size="sm" c="dimmed">
@@ -272,7 +272,7 @@ export function CorrelationHeatmap(props: CorrelationHeatmapProps) {
         </Flex>
       </Show>
       <Show when={!props.isLoading && !hasData()}>
-        <Flex pos="absolute" top={0} right={0} bottom={0} left={0} justify="center" align="center">
+        <Flex pos="absolute" top={0} right={0} bottom={0} left={0} justify="center" align="center" style={{ "pointer-events": "none" }}>
           <Text size="sm" c="dimmed">
             No correlation data available
           </Text>
