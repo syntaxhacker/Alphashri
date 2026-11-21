@@ -537,6 +537,22 @@ be useful — which is how tests stop being run at all. Local = the touched file
 `npx vitest run --changed`). The full pass belongs to CI (20 shards × 4 workers). Run it
 locally only for a `develop → main` release check.
 
+**Scope the test run to the change, not to the suite.** "Verify" does not mean "run everything":
+
+| Change | Run this |
+|---|---|
+| One source file edited | `npx vitest run <that file's test>` + `npx tsc --noEmit \| grep -c "error TS"` (must not rise) + `npx oxlint <dir>` |
+| Config / docs / JSON only (`knip.json`, `AGENTS.md`, a `.md`) | **No test run.** Validate the file parses and, if it drives tooling, run that tool once (`npx knip`, `--frozen-lockfile` check). Nothing under `src/` changed, so a suite run proves nothing. |
+| A file deleted | Run the specs that imported it (grep for the path first), not the suite. The deleted spec's own cases are the only legitimate drop in the total. |
+| Dependency removed from `package.json` | `bun install --frozen-lockfile` (must pass) + `bun run build` + one import smoke of the affected module. Do **not** run the suite. |
+| A shared module (`src/ui/`, `src/state/`, a store) | Its own directory's suite only — `npx vitest run src/ui/` etc. |
+| Test infrastructure (`test-utils/`, `vitest.config.ts`, `setupFiles`) | `npx vitest run src/test/` — this one is a genuine exception, since everything depends on it |
+
+Corollary for subagents: state the **narrow** command in the brief and require the exact count
+back — never "run the suite to be safe". A 10k-case run while other agents are writing is also
+worthless as evidence, because a difference may come from their edits (this happened: three
+full-suite runs reported three different totals, none attributable).
+
 **Note**: Use `npx vitest run <file>` for tests using `vi.mock` — `bun test` does not support `vi.mock`.
 ```bash
 npx vitest run src/components/common/SymbolAutocomplete.test.tsx  # use vitest for vi.mock tests
