@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { ReportToolbar } from "./ReportToolbar";
 
@@ -94,7 +94,7 @@ describe("ReportToolbar freshness indicators", () => {
     ));
 
     const toggles: Record<string, string[]> = {
-      "nifty-index-toggle": ["NIFTY", "SENSEX"],
+      "nifty-index-toggle": ["NIFTY", "SENSEX", "RELIANCE"],
       "nifty-mode-toggle": ["Live", "EOD"],
       "nifty-view-toggle": ["Chart", "Depth"],
       "nifty-desk-toggle": ["DESK", "RESEARCH"],
@@ -106,6 +106,45 @@ describe("ReportToolbar freshness indicators", () => {
         expect(parseFloat(button.style.fontSize), `${testid}: ${button.textContent}`).toBeGreaterThanOrEqual(11);
       }
     }
+  });
+
+  test("exactly one control chooses the underlying, and it drives the symbol", () => {
+    (harness.store.selection as { hasRecordedHistory: () => boolean }).hasRecordedHistory = () => true;
+    const handleSymbolChange = vi.fn();
+    (harness.store.selection as { handleSymbolChange: (v: string) => void }).handleSymbolChange =
+      handleSymbolChange;
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    // The redesign removed the second control (a symbol Select backed by the
+    // unconsumed `index` signal). One selector must remain, and it must be the
+    // segmented control that writes the `symbol` every panel reads.
+    expect(screen.queryByTestId("nifty-symbol-select")).toBeNull();
+    expect(screen.queryByTestId("nifty-index-select")).toBeNull();
+
+    const indexControls = [...document.querySelectorAll<HTMLElement>("[data-value]")].filter(
+      (el) => ["NIFTY", "SENSEX", "RELIANCE"].includes(el.dataset.value ?? ""),
+    );
+    expect(indexControls.length).toBe(3);
+    expect(new Set(indexControls.map((el) => el.closest("[data-testid]")?.getAttribute("data-testid"))))
+      .toEqual(new Set(["nifty-index-toggle"]));
+
+    // The only remaining Select in the toolbar is the expiry picker (the
+    // combobox is its inner field) — the removed duplicate was a symbol Select,
+    // so no second combobox may exist.
+    const comboboxes = screen.getAllByRole("combobox");
+    expect(comboboxes).toHaveLength(1);
+    expect(screen.getByTestId("nifty-expiry-select").contains(comboboxes[0])).toBe(true);
+
+    const control = screen.getByTestId("nifty-index-toggle");
+    const reliance = [...control.querySelectorAll("button")].find(
+      (button) => button.textContent === "RELIANCE",
+    ) as HTMLButtonElement;
+    fireEvent.click(reliance);
+    expect(handleSymbolChange).toHaveBeenCalledWith("RELIANCE");
   });
 });
 

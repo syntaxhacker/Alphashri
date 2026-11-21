@@ -96,25 +96,29 @@ describe("IndexMoversStrip", () => {
     await waitFor(() => expect(screen.getByText("STALE")).toBeInTheDocument(), { timeout: 10000 });
   });
 
-  it("renders live-only message for EOD/replay", () => {
+  it("collapses the strip in EOD/replay instead of faking a live-only row", () => {
     render(() =>
       <IndexMoversStrip index="NIFTY" onExpand={onExpand} liveOnly />);
 
-    expect(screen.getByText("MOVERS")).toBeInTheDocument();
-    expect(screen.getByText("· live only")).toBeInTheDocument();
+    // Replay has no movers feed; the page's replay banner names it once for all
+    // live-only bands, so the strip renders nothing rather than an empty 24px row.
+    expect(screen.queryByTestId("movers-strip")).toBeNull();
+    expect(screen.queryByText("MOVERS")).toBeNull();
     expect(mockFetchIndexMovers).not.toHaveBeenCalled();
   });
 
-  it("shows the live-only message when the liveOnly prop signal flips", () => {
+  it("shows and hides the strip as the liveOnly prop signal flips", async () => {
+    mockFetchIndexMovers.mockResolvedValue(createMockResponse());
     const [liveOnlySig, setLiveOnlySig] = createSignal(false);
     render(() =>
       <IndexMoversStrip index="NIFTY" onExpand={onExpand} liveOnly={liveOnlySig()} />);
 
-    expect(screen.queryByText("· live only")).toBeNull();
+    await waitFor(() => expect(screen.getByTestId("movers-strip")).toBeInTheDocument(), { timeout: 10000 });
+    expect(screen.getByText(/MOVERS · NIFTY 50/)).toBeInTheDocument();
 
     setLiveOnlySig(true);
 
-    expect(screen.getByText("· live only")).toBeInTheDocument();
+    expect(screen.queryByTestId("movers-strip")).toBeNull();
   });
 
   it("shows error state when fetch fails", async () => {

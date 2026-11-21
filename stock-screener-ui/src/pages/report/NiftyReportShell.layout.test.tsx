@@ -17,6 +17,11 @@ const mockStore = {
     loading: () => false,
     booted: () => true,
   },
+  // #197's shell reads these three; they were absent from #195's mock, so the
+  // shell threw while resolving the replay label before any section painted.
+  ui: { isDesk: () => false },
+  replay: { frameT: () => undefined },
+  selection: { mode: () => "live" },
 };
 
 vi.mock("./ReportContext", () => ({

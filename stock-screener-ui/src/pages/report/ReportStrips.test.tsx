@@ -81,14 +81,20 @@ describe("ReportStrips", () => {
     expect(screen.getByTestId("walls-stub")).toBeInTheDocument();
   });
 
-  test("renders the breadth band in live mode and its live-only line in eod", async () => {
-    mode[1]("eod");
+  test("renders the breadth band in live mode and its replay-unavailable line in eod", async () => {
+    mode[1]("live");
     render(() => <ReportStrips />);
-    const liveOnly = screen.getByTestId("nifty-breadth-live-only");
-    expect(liveOnly).toHaveTextContent("BREADTH · live only");
-    // The placeholder keeps the band's 24px height, so switching modes never
-    // shifts the strips below it.
-    expect(liveOnly.className).toContain("h-6");
+    expect(screen.getByTestId("nifty-breadth-strip")).toBeInTheDocument();
+
+    mode[1]("eod");
+    const liveOnly = await screen.findByTestId("nifty-breadth-live-only");
+    // One phrase is shared by every band replay cannot reconstruct.
+    expect(liveOnly).toHaveTextContent(/Breadth · Not captured in replay/i);
+    expect(liveOnly).toHaveAttribute("data-replay-unavailable", "true");
+    // The wrapper keeps the band's 24px height, so switching modes never shifts
+    // the strips below it.
+    expect(liveOnly.parentElement?.className).toContain("h-6");
+    expect(liveOnly.parentElement?.className).toContain("min-h-6");
     expect(screen.queryByTestId("nifty-breadth-strip")).not.toBeInTheDocument();
   });
 });

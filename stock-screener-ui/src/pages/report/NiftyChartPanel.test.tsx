@@ -1089,18 +1089,20 @@ describe("NiftyChartPanel three-way chart source", () => {
       />
     ));
     const chart = () => screen.getByTestId("tradingview-chart");
-    // LIVE: full streamed series (3 bars), no overlay.
-    expect(chart()).toHaveAttribute("data-candles", "3");
+    // Every source is clipped at the playhead while one is supplied: replay is
+    // orthogonal to which pipeline feeds the chart, so LIVE must not draw the
+    // 09:20 bar that has not happened yet. Only the overlay distinguishes them.
+    expect(chart()).toHaveAttribute("data-candles", "2");
     const baseMarks = Number(chart().getAttribute("data-marklines"));
 
-    // PATTERNS: same series + the pattern overlay levels.
+    // PATTERNS: same clipped series + the pattern overlay levels.
     await choose("PATTERNS");
     await userEvent.setup().click(screen.getByTestId("nifty-patterns-scan"));
     expect(await screen.findByTestId("nifty-patterns-strip")).toHaveAttribute("data-status", "ready");
-    expect(chart()).toHaveAttribute("data-candles", "3");
+    expect(chart()).toHaveAttribute("data-candles", "2");
     expect(Number(chart().getAttribute("data-marklines"))).toBeGreaterThan(baseMarks);
 
-    // OFFLINE: recorded/replay series clipped at the playhead (2 bars), overlay gone.
+    // OFFLINE: recorded/replay series clipped at the playhead, overlay gone.
     await choose("OFFLINE");
     expect(chart()).toHaveAttribute("data-candles", "2");
     expect(Number(chart().getAttribute("data-marklines"))).toBe(baseMarks);
@@ -1108,7 +1110,7 @@ describe("NiftyChartPanel three-way chart source", () => {
     // Switching sources never remounts the chart engine.
     expect(panelMocks.tvMounts).toBe(1);
     await choose("LIVE");
-    expect(chart()).toHaveAttribute("data-candles", "3");
+    expect(chart()).toHaveAttribute("data-candles", "2");
     expect(panelMocks.tvMounts).toBe(1);
   });
 

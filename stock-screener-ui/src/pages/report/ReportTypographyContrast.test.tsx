@@ -83,13 +83,21 @@ describe("Index Report typography floor — owned files", () => {
     ).toEqual([]);
   });
 
-  test("(e) the type scale uses at most four distinct sizes", () => {
+  test("(e) the type scale stays closed — canonical ladder plus the dense-table step", () => {
     const tokens = Object.entries(REPORT_FONT)
       .filter(([, value]) => typeof value === "number")
       .map(([, value]) => value as number);
     const sizes = new Set([...tokens, ...literalSizes().map(({ px }) => px)]);
-    expect([...sizes].sort((a, b) => a - b)).toEqual([11, 12, 15, 16]);
-    expect(sizes.size).toBeLessThanOrEqual(4);
+
+    // The canonical ladder is REPORT_FONT's micro 11 / body 13 / value 17 /
+    // display 23. 12px survives only as the dense-table step (OI chain
+    // expander, pressure-desk readouts), so the owned files may emit one size
+    // beyond the ladder — never a sixth, and never anything new.
+    const DENSE_TABLE_STEP = 12;
+    const ladder = [...new Set([...tokens, DENSE_TABLE_STEP])].sort((a, b) => a - b);
+
+    expect([...sizes].sort((a, b) => a - b)).toEqual(ladder);
+    expect(sizes.size).toBeLessThanOrEqual(ladder.length);
   });
 });
 

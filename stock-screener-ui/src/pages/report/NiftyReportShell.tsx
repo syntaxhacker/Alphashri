@@ -6,6 +6,7 @@ import { ReplayUnavailable } from "./BreadthStrip";
 import { ReportProvider, useNiftyReport } from "./ReportContext";
 import { NiftyFuturesPanel } from "./NiftyFuturesPanel";
 import { NiftyItmPeFlowPanel } from "./NiftyItmPeFlow";
+import type { NiftyFutures, NiftyItmPeFlow } from "@/types/niftyReport";
 import type { DeskDockTab } from "./DeskDock";
 import { ReportToolbar } from "./ReportToolbar";
 import {
@@ -41,6 +42,38 @@ const ReportOverlays = lazy(() =>
 // the flex-column flow unchanged.
 const DESK_CONTENT_GRID_CLASS =
   "min-[1200px]:grid min-[1200px]:grid-rows-[auto_minmax(0,70fr)_minmax(0,30fr)]";
+
+/**
+ * Futures basis and ITM premium flow sit above the chart because both explain
+ * the same question the chart answers: *why* did spot move. A block the payload
+ * does not carry is not painted at all — a placeholder row above the chart is
+ * worse than no row.
+ */
+function ReportFlowRow(props: {
+  futures: NiftyFutures | null;
+  itm: NiftyItmPeFlow | null;
+  spot: number;
+}) {
+  const hasFutures = () => props.futures != null;
+  const hasItm = () => props.itm != null;
+
+  return (
+    <Show when={hasFutures() || hasItm()}>
+      <Box
+        data-testid="nifty-flow-above-chart"
+        className="grid grid-cols-1 gap-1 w-full max-w-full min-w-0 shrink-0"
+        classList={{ "min-[1200px]:grid-cols-2": hasFutures() && hasItm() }}
+      >
+        <Show when={hasFutures()}>
+          <NiftyFuturesPanel futures={props.futures} />
+        </Show>
+        <Show when={hasItm()}>
+          <NiftyItmPeFlowPanel flow={props.itm} spot={props.spot} />
+        </Show>
+      </Box>
+    </Show>
+  );
+}
 
 function SectionError(props: { name: string; error: unknown }) {
   return (
@@ -216,29 +249,18 @@ function ReportBody() {
               <ReportDecisionStrip />
             </Suspense>
           </ErrorBoundary>
+          <ErrorBoundary fallback={(err) => <SectionError name="flow panels" error={err} />}>
+            <ReportFlowRow
+              futures={store.data.report()?.futures ?? null}
+              itm={store.data.report()?.itm_pe_flow ?? null}
+              spot={store.data.report()?.spot ?? 0}
+            />
+          </ErrorBoundary>
           <ErrorBoundary fallback={(err) => <SectionError name="workspace" error={err} />}>
             <Suspense fallback={<PanelSkeleton h={320} />}>
               <ReportWorkspace secondaryTabs={secondaryTabs()} />
             </Suspense>
           </ErrorBoundary>
-          {/* Futures basis and ITM premium flow only exist on a NIFTY report
-              whose payload carries them; render nothing rather than an empty
-              pair of panels when the feed omits them. */}
-          <Show when={store.data.report()?.futures || store.data.report()?.itm_pe_flow}>
-            {(current) => (
-              <ErrorBoundary fallback={(err) => <SectionError name="flow panels" error={err} />}>
-                <Suspense fallback={<PanelSkeleton h={200} />}>
-                  <div className="flex min-w-0 w-full flex-col gap-2">
-                    <NiftyFuturesPanel futures={current().futures ?? null} />
-                    <NiftyItmPeFlowPanel
-                      flow={current().itm_pe_flow ?? null}
-                      spot={current().spot}
-                    />
-                  </div>
-                </Suspense>
-              </ErrorBoundary>
-            )}
-          </Show>
           <Show when={!isDesk()}>
             <ErrorBoundary fallback={(err) => <SectionError name="desk strips" error={err} />}>
               <Suspense fallback={<PanelSkeleton h={150} />}>

@@ -85,7 +85,7 @@ vi.mock("./reportBits", () => ({
 }));
 
 import { ReportDecisionStrip, statStripGaps } from "./ReportDecisionStrip";
-import { REPORT_STRIP_METRICS, groupCellGap } from "./reportTokens";
+import { REPORT_STRIP_METRICS, REPORT_FONT, groupCellGap } from "./reportTokens";
 
 function mount() {
   return render(() => (
@@ -220,23 +220,33 @@ describe("Index Report decision strip — grouped geometry", () => {
     }
   });
 
-  test("(d) no value font-size below 12px; the primary value is 15px and unique", () => {
+  test("(d) no value is below the body step; the value step is the primary numeric read", () => {
     mount();
     const strip = screen.getByTestId("nifty-stat-strip");
     const valueNodes = Array.from(strip.querySelectorAll('[data-testid$="-value"]')) as HTMLElement[];
     const sizes = valueNodes.map((el) => Number.parseFloat(el.style.fontSize));
     expect(sizes.length).toBeGreaterThan(0);
-    for (const size of sizes) expect(size).toBeGreaterThanOrEqual(12);
+    for (const size of sizes) expect(size).toBeGreaterThanOrEqual(REPORT_FONT.body);
 
     const spot = screen.getByTestId("nifty-stat-spot-value");
-    expect(spot.style.fontSize).toBe("15px");
-    expect(sizes.filter((size) => size === 15)).toHaveLength(1);
+    expect(spot.style.fontSize).toBe(`${REPORT_FONT.value}px`);
+    // The value step is reserved for the three primary numeric reads.
+    const promoted = valueNodes
+      .filter((el) => Number.parseFloat(el.style.fontSize) === REPORT_FONT.value)
+      .map((el) => el.getAttribute("data-testid"));
+    expect(promoted).toEqual([
+      "nifty-stat-spot-value",
+      "nifty-stat-call-wall-value",
+      "nifty-stat-max-pain-value",
+    ]);
 
     // Chips render their values as the last inline span, without a -value id.
     for (const id of ["nifty-chip-setup", "nifty-chip-intel", "nifty-chip-gamma"]) {
       const chip = screen.getByTestId(id);
       const value = chip.children[chip.children.length - 1] as HTMLElement;
-      expect(Number.parseFloat(value.style.fontSize), id).toBeGreaterThanOrEqual(12);
+      expect(Number.parseFloat(value.style.fontSize), id).toBeGreaterThanOrEqual(
+        REPORT_FONT.body,
+      );
     }
   });
 
