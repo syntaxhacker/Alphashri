@@ -23,7 +23,7 @@ export type { OptionLeg, OptionType, Side };
 
 export type Outlook = "bullish" | "bearish" | "neutral";
 
-export interface ChainSideQuote {
+interface ChainSideQuote {
   ltp: number;
   oi: number;
   iv: number | null;

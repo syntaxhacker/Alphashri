@@ -31,7 +31,7 @@ export interface SingleFlightState<T> {
 
 export type SingleFlightFetcher<T> = (symbol: string, signal: AbortSignal) => Promise<T | null>;
 
-export interface CreateSingleFlightOptions<T> {
+interface CreateSingleFlightOptions<T> {
   /** Max payloads kept in the module LRU. Default 5. */
   cacheSize?: number;
   /** Default read path; `load(key, fetcher)` may override it per call. */

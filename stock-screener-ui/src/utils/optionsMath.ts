@@ -30,7 +30,7 @@ export interface PayoffPoint {
   pnl: number;
 }
 
-export interface PayoffResult {
+interface PayoffResult {
   points: PayoffPoint[];
   breakevens: number[];
   maxProfit: number | null;

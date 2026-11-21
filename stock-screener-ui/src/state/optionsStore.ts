@@ -23,7 +23,7 @@ export interface OptionsFilters {
   sortOrder: "asc" | "desc";
 }
 
-export interface OptionPosition extends Position {}
+interface OptionPosition extends Position {}
 
 interface OptionsStore {
   selectedUnderlying: string;

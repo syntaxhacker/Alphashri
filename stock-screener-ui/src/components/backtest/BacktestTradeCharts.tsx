@@ -50,7 +50,7 @@ function deriveSLTP(
     : null;
 
   const st = (strategyType || "").toUpperCase();
-  const h52 = (entry?.trade as unknown as Record<string, number> | undefined)?.["52w_high"];
+  const h52 = entry?.trade?.["52w_high"];
   if (st.includes("52W_CHASER") && h52) sl = h52;
 
   return { sl, tp };
@@ -90,7 +90,7 @@ function tradeLevels(
     push(t.s1, PIVOT_S1, "S1");
     push(t.r2, PIVOT_R1, "R2");
     push(t.s2, PIVOT_S1, "S2");
-    push((t as unknown as Record<string, number>)["52w_high"], PIVOT_52W_HIGH, "52W");
+    push(t["52w_high"], PIVOT_52W_HIGH, "52W");
   }
   push(trade.entry_price, palette.PRIMARY, "Entry");
   push(trade.exit_price, trade.pnl >= 0 ? palette.POSITIVE : palette.NEGATIVE, "Exit");

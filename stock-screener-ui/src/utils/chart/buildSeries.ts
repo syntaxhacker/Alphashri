@@ -2,22 +2,37 @@ import { CANDLESTICK_ITEM_STYLE } from "../chartUtils";
 import { VOLUME_BULLISH, VOLUME_BEARISH } from "../../config/colors";
 import type { ChartColors, MarkLineData, MarkAreaItem } from "./types";
 
+/** A normalised candle row. */
+export interface SeriesCandle {
+  open: number;
+  close: number;
+  high: number;
+  low: number;
+  volume: number;
+}
+
+/** The renderer also accepts pre-built OHLC tuples and — when holidays insert
+ *  gaps — placeholder string rows, so the union is deliberate. */
+export type SeriesCandleInput = SeriesCandle | (number | string)[];
+
+/** Each ECharts series carries a different shape and the test suite indexes it
+ *  untyped, so the element type stays loose; the candle side is typed above. */
 interface SeriesResult {
   series: any[];
 }
 
-function toOHLC(c: any): [number, number, number, number] {
+function toOHLC(c: SeriesCandleInput): [number, number, number, number] {
   if (Array.isArray(c)) return c as [number, number, number, number];
   return [c.open, c.close, c.low, c.high];
 }
 
-function getVolume(c: any, i: number): [number, number, number] {
+function getVolume(c: SeriesCandleInput, i: number): [number, number, number] {
   if (Array.isArray(c)) return [i, 0, 0];
   return [i, c.volume, c.close >= c.open ? 1 : -1];
 }
 
 export function buildSeries(
-  candles: any[],
+  candles: SeriesCandleInput[],
   colors: ChartColors,
   showVolume: boolean,
   markLines?: MarkLineData[],
@@ -70,7 +85,7 @@ export function buildSeries(
       xAxisIndex: 1,
       yAxisIndex: 1,
       itemStyle: {
-        color: (params: any) =>
+        color: (params: { data: [number, number, number] }) =>
           params.data[2] === 1 ? VOLUME_BULLISH : VOLUME_BEARISH,
       },
       z: 1,

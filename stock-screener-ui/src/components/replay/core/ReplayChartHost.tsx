@@ -252,7 +252,7 @@ export default function ReplayChartHost(props: ReplayChartHostProps) {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, rect.width, H);
         const t2x = (t: number) => chart.timeScale().timeToCoordinate(t as Time);
-        const p2y = (p: number) => (cs as unknown as { priceToCoordinate: (v: number) => number | null }).priceToCoordinate(p);
+        const p2y = (p: number) => cs.priceToCoordinate(p);
         ctx.font = "600 10px monospace";
         for (const t of shown) {
           // endT must be an exact bar time (exchange-style: forming bar while open)

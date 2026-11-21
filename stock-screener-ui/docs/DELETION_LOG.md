@@ -1,5 +1,35 @@
 # Code Deletion Log
 
+## 2026-11-21 — ChatPopup feature removed (never mounted)
+
+`ChatPopup` was documented in `AGENTS.md` as a shipped surface but no page ever
+rendered `<ChatPopup />`: its only importer was its own spec, and its Markdown
+renderer's only importer was `ChatPopup` itself. The `/api/trading-agents/*`
+endpoints stay — they are simply no longer consumed by a UI.
+
+### Deleted
+
+- `src/components/common/ChatPopup.tsx` — floating action button, full-screen
+  expand, history sidebar, SSE stream/progress UI (no mount point)
+- `src/components/common/ChatPopup.test.tsx` — its 14 tests (the whole spec)
+- `src/components/common/Markdown.tsx` — markdown renderer whose sole consumer
+  was `ChatPopup` (had no test of its own)
+
+### Kept (still used)
+
+- `src/test/no-react.test.ts` still matches `import Markdown from "react-markdown"`;
+  that is a forbidden-React guard fixture, unrelated to the deleted component.
+
+### Reported, not acted on (other owners)
+
+- `marked` (^18.2.0 in `package.json`) now has **no importer in `src/`** — the
+  package is only referenced by `SOLID_MIGRATION.md`'s migration table. It should
+  be removed from `package.json` by whoever owns that file. Deliberate non-change.
+- `knip.json` lists neither file in its `ignore` array, so nothing to drop there.
+- `test_cases/_shared.md`, `test_cases/auth-layout.md`, `docs/COMPONENT_AUDIT.md`,
+  `docs/patterns/observer.md` still mention ChatPopup/Markdown.tsx; those paths
+  were outside this deletion's file scope and are left for a docs pass.
+
 ## 2026-11-14 — Standalone Heatmap page removed
 
 The `/heatmap` route was a second surface for data the Screener already renders

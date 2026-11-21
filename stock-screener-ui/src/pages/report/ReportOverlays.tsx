@@ -16,6 +16,7 @@ import { NiftyIvSkew } from "./NiftyIvSkew";
 import { NiftyOiHeatmap } from "./NiftyOiHeatmap";
 import { NiftyFlowStrip } from "./NiftyFlowStrip";
 import { NiftyPressureLane } from "./NiftyPressureLane";
+import { IndexMoversModal } from "./IndexMoversModal";
 import { NiftyFlowChart } from "./NiftyFlowChart";
 import { buildFlowSeries } from "./niftyFlowSeries";
 import { NiftyOiChain, getNiftyOiColumns } from "./reportCells";
@@ -57,6 +58,15 @@ export function ReportOverlays() {
 
   return (
     <>
+      {/* The movers strip's EXPAND button sets `moversOpen`, but nothing was
+          rendering this modal, so the button silently did nothing. Mounting it
+          here (with the shell's other overlays) closes that dead end. */}
+      <IndexMoversModal
+        open={ui.moversOpen()}
+        onClose={() => ui.setMoversOpen(false)}
+        index={store.selection.symbol() === "SENSEX" ? "SENSEX" : "NIFTY"}
+      />
+
       <PanelModal
         open={ui.planOpen()}
         title="Desk plan — reasons"

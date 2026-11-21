@@ -22,7 +22,7 @@ export interface User {
   created_at: string;
 }
 
-export interface AuthState {
+interface AuthState {
   isAuthenticated: boolean;
   user: User | null;
   loading: boolean;
@@ -77,7 +77,7 @@ function base64UrlDecode(segment: string): string | null {
 }
 
 /** JWT `exp` as epoch milliseconds, or null when the token carries no decodable `exp`. */
-export function getTokenExpiry(token: string | null): number | null {
+function getTokenExpiry(token: string | null): number | null {
   if (!token) return null;
   const payload = token.split(".")[1];
   if (!payload) return null;
@@ -342,11 +342,6 @@ function refreshTokensOnce(): Promise<boolean> {
     refreshInFlight = null;
   });
   return refreshInFlight;
-}
-
-// Initialize auth state on load
-export function initAuth(): void {
-  checkAuth();
 }
 
 // Export fetchWithAuth for use in other API modules

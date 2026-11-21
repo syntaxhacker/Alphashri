@@ -99,7 +99,7 @@ SolidJS 1.9 + Vite 8 + Tailwind CSS 4 + TypeScript. Backend: FastAPI (Python).
 - **Providers**: Chat uses OpenRouter free model (`openai/gpt-oss-20b:free`) if DeepSeek key not available. Analysis uses DeepSeek via LiteLLM (`deepseek/deepseek-chat`).
 - **No auth required** on chat, analyze, and stream endpoints (get_current_user had compatibility issues with this router). Conversation history endpoints use hardcoded user_id=3.
 - **Chat history**: Conversations and messages stored in `chat_conversations`/`chat_messages` tables. CRUD endpoints at `/api/trading-agents/conversations`.
-- **Chat Popup** (`src/components/common/ChatPopup.tsx`): Floating action button, expandable to full screen, history sidebar, markdown rendering via `marked`.
+- **No UI consumer**: the Chat Popup (`ChatPopup.tsx`, its `Markdown.tsx` renderer and tests) was removed on 2026-11-21 — these endpoints are currently called only by curl/tests, so a missing caller is expected.
 
 ## Tailwind 4 Financial Theme Rules
 Single source is `src/ui/palette.ts`; `src/tailwind.css` mirrors it (guarded by `theme-single-source.test.ts`).
@@ -539,7 +539,7 @@ locally only for a `develop → main` release check.
 
 **Note**: Use `npx vitest run <file>` for tests using `vi.mock` — `bun test` does not support `vi.mock`.
 ```bash
-npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.mock tests
+npx vitest run src/components/common/SymbolAutocomplete.test.tsx  # use vitest for vi.mock tests
 ```
 
 ### Backend Test Gotchas

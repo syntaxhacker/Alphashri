@@ -728,7 +728,7 @@ export function buildSectorTreemapOption(
     isDark,
     { ...style, sortTilesByValueDesc: false },
     "metric",
-  ) as unknown as SectorTreemapOption;
+  );
 
   const tiles = (flat.series[0].data ?? []) as SectorTreemapTile[];
   const groups = new Map<string, SectorTreemapTile[]>();
@@ -822,9 +822,8 @@ export function buildSectorTreemapOption(
     };
   }).sort(bySizeThenName);
 
-  const levels = Array.isArray((flat.series[0] as unknown as { levels?: unknown[] }).levels)
-    ? ((flat.series[0] as unknown as { levels: unknown[] }).levels)
-    : [];
+  const flatLevels = flat.series[0].levels;
+  const levels: unknown[] = Array.isArray(flatLevels) ? flatLevels : [];
   const option: SectorTreemapOption = {
     ...flat,
     series: [{

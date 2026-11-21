@@ -96,9 +96,6 @@ export const initialPaperTradingState: PaperTradingState = {
   dashboardAnalyticsLoading: false,
 };
 
-// Additional type for the view state
-export type PaperViewState = "live" | "history" | "analytics" | "activity" | "aggregated";
-
 // Current state (mutable)
 let state: PaperTradingState = { ...initialPaperTradingState };
 

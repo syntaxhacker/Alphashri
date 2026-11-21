@@ -33,18 +33,18 @@ import {
 } from "../utils/optionsStrategies";
 import { isDerivativesOpenIst } from "../utils/marketClock";
 
-export const FOCUSED_POLL_MS = 10_000;
-export const BACKGROUND_POLL_MS = 30_000;
+const FOCUSED_POLL_MS = 10_000;
+const BACKGROUND_POLL_MS = 30_000;
 /** Distinct `(symbol, expiry)` frames kept in memory. */
-export const MAX_FRAMES = 3;
+const MAX_FRAMES = 3;
 /** Distinct symbols tracked as open; the oldest stops polling first. */
-export const MAX_OPEN_SYMBOLS = 5;
+const MAX_OPEN_SYMBOLS = 5;
 export const MAX_LEGS = 4;
 export const DEFAULT_RATE_LIMIT_RETRY_MS = 8_000;
 const MAX_PERSISTED_SYMBOLS = 20;
 
-export type OptionsDockMode = "chart" | "options";
-export type OptionsDockStatus = "idle" | "loading" | "ready" | "error" | "empty";
+type OptionsDockMode = "chart" | "options";
+type OptionsDockStatus = "idle" | "loading" | "ready" | "error" | "empty";
 
 /** A leg the user owns: the pure-maths shape plus the contract it belongs to. */
 export interface DockLeg extends OptionLeg {
@@ -57,7 +57,7 @@ export interface DockLeg extends OptionLeg {
   fromPreset?: boolean;
 }
 
-export interface NewDockLeg {
+interface NewDockLeg {
   side: OptionLeg["side"];
   type: OptionLeg["type"];
   strike: number;
@@ -67,7 +67,7 @@ export interface NewDockLeg {
   expiry?: string;
 }
 
-export interface OptionsDockPause {
+interface OptionsDockPause {
   retryAfterMs: number;
   /** Wall-clock deadline, so the countdown can tick instead of repeating the
    * first 429's `retryAfterMs` forever. */
@@ -75,7 +75,7 @@ export interface OptionsDockPause {
   reason: "rate_limited";
 }
 
-export interface OptionsDockState {
+interface OptionsDockState {
   symbol: string | null;
   mode: OptionsDockMode;
   expiries: DockExpiry[];
@@ -176,7 +176,7 @@ function isDockLeg(value: unknown): value is DockLeg {
   );
 }
 
-export function loadPersistedLegs(symbol: string): DockLeg[] {
+function loadPersistedLegs(symbol: string): DockLeg[] {
   const store = storage();
   if (!store) return [];
   try {
@@ -741,10 +741,6 @@ export function addLeg(leg: NewDockLeg): boolean {
 
 export function removeLeg(key: string): void {
   setLegs(optionsDockState.legs.filter((leg) => leg.key !== key));
-}
-
-export function clearLegs(): void {
-  setLegs([]);
 }
 
 export function setLegLots(key: string, lots: number): void {

@@ -76,7 +76,11 @@ const NUMERIC_LIMITS: Record<string, [number, number]> = {
   relVolMax: [0, 1000],
 };
 
-const NUMERIC_KEYS = Object.keys(NUMERIC_LIMITS) as (keyof MarketFilterState)[];
+/** The `number | null` members only — writing a filter is only valid for these. */
+type NumericFilterKey = {
+  [K in keyof MarketFilterState]: MarketFilterState[K] extends number | null ? K : never;
+}[keyof MarketFilterState];
+const NUMERIC_KEYS = Object.keys(NUMERIC_LIMITS) as NumericFilterKey[];
 
 function parseNumber(raw: unknown, key: string): number | null {
   if (typeof raw !== "number" || !Number.isFinite(raw)) return null;
@@ -134,7 +138,7 @@ export function parseMarketConfig(raw: unknown): MarketConfigValue | null {
 
   const filters = defaultMarketFilters(universe);
   for (const key of NUMERIC_KEYS) {
-    (filters as unknown as Record<string, number | null>)[key] = parseNumber(flat[key], key);
+    filters[key] = parseNumber(flat[key], key);
   }
   filters.capTiers = parseCapTiers(flat.capTiers);
   filters.sectors = parseStringList(flat.sectors);

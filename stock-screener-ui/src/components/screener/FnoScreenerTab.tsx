@@ -147,14 +147,11 @@ export function FnoScreenerTab() {
   const backendIssue = createMemo(() => {
     const d = data();
     if (!d || d.errors.length === 0) return null;
-    // `FnoScreenerResponse.errors` is typed `string[]`, but the backend returns
-    // `[{symbol, stage, error}]` (see `api/options_screener.py`). Read it
-    // structurally so either shape surfaces a message instead of `undefined`.
-    const first = d.errors[0] as unknown as
-      | string
-      | { error?: string; symbol?: string; stage?: string }
-      | null
-      | undefined;
+    // `FnoScreenerResponse.errors` carries `{symbol, stage, error}` objects
+    // (see `api/options_screener.py`); an older payload used bare strings.
+    // Read it structurally so either shape surfaces a message instead of
+    // `undefined`.
+    const first = d.errors[0];
     if (typeof first === "string") return first || d.warnings[0] || "Upstream options data unavailable";
     return first?.error || d.warnings[0] || "Upstream options data unavailable";
   });

@@ -11,13 +11,40 @@ import {
 } from "../../config/colors";
 
 export interface TradeLevels {
-  levelHigh: any;
-  levelLow: any;
+  levelHigh: number | undefined;
+  levelLow: number | undefined;
+  /** Left loose on purpose: `src/components/backtest/zoomToTrade.ts` passes this
+   *  into a boolean flag (`entryDate !== exitDate && level52wHigh`), so narrowing
+   *  it to `number | undefined` raises a tsc error in a file this change does
+   *  not own. */
   level52wHigh: any;
 }
 
+/** The reference levels a trade may carry — chart payloads use several aliases. */
+export interface TradeLevelSource {
+  or_high?: number;
+  or_low?: number;
+  r1?: number;
+  s1?: number;
+  "52w_high"?: number;
+}
+
+/** Horizontal reference lines share one ECharts line-series shape. */
+export interface LevelLineSeries {
+  id: string;
+  name: string;
+  type: "line";
+  data: (number | null | undefined)[];
+  showSymbol: boolean;
+  connectNulls: boolean;
+  silent: boolean;
+  z: number;
+  lineStyle: { color: string; width: number; type: string };
+  tooltip: { show: boolean };
+}
+
 /** Extract the reference levels carried on a trade (OR high/low + 52W high). */
-export function extractTradeLevels(selectedTrade: any): TradeLevels {
+export function extractTradeLevels(selectedTrade: TradeLevelSource): TradeLevels {
   return {
     levelHigh: selectedTrade.or_high ?? selectedTrade.r1 ?? selectedTrade["52w_high"],
     levelLow: selectedTrade.or_low ?? selectedTrade.s1,
@@ -25,8 +52,19 @@ export function extractTradeLevels(selectedTrade: any): TradeLevels {
   };
 }
 
+/** Entry marker produced by the chart renderer; only `price` is read here. */
+export interface EntryMarkerPrice {
+  price: number;
+}
+
+/** Exit marker carries the closed trade, whose `exit_reason` picks the colour. */
+export interface ExitMarkerPrice {
+  price: number;
+  trade?: { exit_reason?: string };
+}
+
 export function buildHighlightEntryMarker(
-  entryMarker: any,
+  entryMarker: EntryMarkerPrice,
   entryIdx: number,
   tradeIndex: number,
   fontSizes: Record<string, number>,
@@ -58,13 +96,13 @@ export function buildHighlightEntryMarker(
 }
 
 export function buildHighlightExitMarker(
-  exitMarker: any,
+  exitMarker: ExitMarkerPrice | undefined,
   exitIdx: number | undefined,
   fontSizes: Record<string, number>,
 ) {
   if (!exitMarker || exitIdx === undefined) return null;
 
-  const exitReason = (exitMarker.trade as any).exit_reason;
+  const exitReason = exitMarker.trade?.exit_reason;
   const exitColor = exitReason === "TP" ? MARKER_TP : exitReason === "SL" ? MARKER_SL : MARKER_EOD;
 
   return {
@@ -94,8 +132,8 @@ export function buildHighlightExitMarker(
 }
 
 export function build52wHighSeries(
-  level52wHighData: any[],
-  level52wHigh: any,
+  level52wHighData: (number | null | undefined)[],
+  level52wHigh: number | undefined,
   fontSizes: Record<string, number>,
 ) {
   return {
@@ -128,9 +166,9 @@ export function build52wHighSeries(
 }
 
 export function buildOrLevelSeries(
-  levelHighData: any[],
-  levelLowData: any[],
-): any[] {
+  levelHighData: (number | null | undefined)[],
+  levelLowData: (number | null | undefined)[],
+): LevelLineSeries[] {
   return [
     {
       id: "selected-or-high",

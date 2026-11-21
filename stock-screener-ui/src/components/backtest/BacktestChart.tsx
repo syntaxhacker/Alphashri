@@ -150,7 +150,7 @@ function buildLevelLines(chartData: SymbolChartData): MarkLineData[] {
 
   if (week52.length > 0) {
     for (const w of week52) {
-      push((w as unknown as Record<string, number>)["52w_high"], PIVOT_52W_HIGH, "52W");
+      push(w["52w_high"], PIVOT_52W_HIGH, "52W");
     }
   } else if (pivots.length > 0) {
     const p = pivots.slice(-1)[0];

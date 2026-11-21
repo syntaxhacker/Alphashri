@@ -12,7 +12,7 @@ export { subscribe, notify };
 export let symbols: string[] = [];
 export let timeframe: "daily" | "intraday" = "daily";
 export let period = 90;
-export let periodUnit: "days" | "minutes" = "days";
+let periodUnit: "days" | "minutes" = "days";
 export let matrix: number[][] | null = null;
 export let normalized: Record<string, CorrelationDataPoint[]> | null = null;
 export let meta: { start_date: string; end_date: string; data_points: number } | null = null;

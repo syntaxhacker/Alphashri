@@ -13,18 +13,9 @@
  */
 
 import { fetchAnalytics, type OptionsAnalytics } from "../api/optionsAnalytics";
-import {
-  createSingleFlightStore,
-  type SingleFlightError,
-  type SingleFlightState,
-  type SingleFlightStatus,
-} from "./createSingleFlightStore";
+import { createSingleFlightStore } from "./createSingleFlightStore";
 
 export const MAX_CACHED_SYMBOLS = 5;
-
-export type AnalyticsStatus = SingleFlightStatus;
-export type AnalyticsError = SingleFlightError;
-export type OptionsAnalyticsState = SingleFlightState<OptionsAnalytics>;
 
 const store = createSingleFlightStore<OptionsAnalytics>({
   cacheSize: MAX_CACHED_SYMBOLS,

@@ -1,5 +1,4 @@
 import { Match, Show, Suspense, Switch, createEffect, createMemo, createSignal, lazy, onCleanup, onMount } from "solid-js";
-import type { Component } from "solid-js";
 import { useParams, useNavigate, useSearchParams } from "@solidjs/router";
 import { Box, Stack, Paper, Tabs, Text, Select, Skeleton } from "@/ui";
 import { IconTable, IconChartDots, IconSettings, IconCoins, IconChartCandle, IconWorld } from "./icons";
@@ -21,11 +20,7 @@ const GroupPerformancePanel = lazy(() =>
 import { SelectionBar } from "./SelectionBar";
 import { ScreenerInlineFilters } from "./ScreenerInlineFilters";
 import { ErrorBoundary } from "../common/ErrorBoundary";
-import {
-  MARKET_VIEW_OPTIONS,
-  normalizeMarketView,
-  type MarketViewMode,
-} from "../market/MarketMapView";
+import { MARKET_VIEW_OPTIONS, normalizeMarketView } from "../market/MarketMapView";
 
 const CorrelationTab = lazy(() => import("./CorrelationTab").then((m) => ({ default: m.CorrelationTab })));
 const ScreenerConfigView = lazy(() => import("./ScreenerConfigView").then((m) => ({ default: m.ScreenerConfigView })));
@@ -36,22 +31,12 @@ const FnoScreenerTab = lazy(() =>
 /** Market view ids addressable as `?view=`, derived from the canonical registry. */
 export const MARKET_VIEW_IDS = MARKET_VIEW_OPTIONS.map((o) => o.value);
 
-interface MarketTabProps {
-  initialView?: MarketViewMode;
-  onViewChange?: (view: MarketViewMode) => void;
-  onOpenScan?: (panelId: string, symbols: string[]) => void;
-  /** Symbols captured from a Dashboard "Open scan" — the table narrows to these names. */
-  symbolAllowlist?: string[] | null;
-  /** Clears the captured symbols (universe change / leaving the Market tab). */
-  onClearSymbolAllowlist?: () => void;
-}
-
-// MarketScreenerPage is a pass-through to the Market panel, whose view props are
-// optional. Typed here so the shell owns the URL contract without waiting on the
-// panel's own signature.
+// The Market panel owns the prop contract (`MarketScreenerPanelProps`), and the
+// route is a thin pass-through to it, so the lazy import is typed directly
+// rather than re-declared here — a second copy could silently drift.
 const MarketTab = lazy(() =>
   import("../../pages/market/MarketScreenerPage").then((m) => ({ default: m.MarketScreenerPage })),
-) as unknown as Component<MarketTabProps>;
+);
 import {
   setSymbols,
   setTimeframe,
@@ -247,10 +232,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
   // Warm the Market chunk once the browser is idle after mount; hover/focus
   // on the tab does the same sooner. Never blocks the initial load.
   onMount(() => {
-    const w = window as unknown as {
-      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
-      cancelIdleCallback?: (id: number) => void;
-    };
+    const w = window;
     if (typeof w.requestIdleCallback === "function") {
       const id = w.requestIdleCallback(prefetchMarketTab, { timeout: 2500 });
       onCleanup(() => w.cancelIdleCallback?.(id));
