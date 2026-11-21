@@ -58,14 +58,13 @@ export default function NtChart(props: NtChartProps) {
       upColor: palette.NT_CANDLE_BULL, downColor: palette.NT_CANDLE_BEAR,
       borderVisible: false, wickVisible: true,
     });
-    seriesRef = cs as unknown as ISeriesApi<"Candlestick">;
+    seriesRef = cs;
     if (showVolume) {
       const vs = chart.addSeries(HistogramSeries, {
         priceScaleId: "", priceFormat: { type: "volume" }, color: "rgba(120,120,120,0.3)",
       });
-      volRef = vs as unknown as ISeriesApi<"Histogram">;
-      (vs as unknown as { priceScale: () => { applyOptions: (o: unknown) => void } })
-        .priceScale().applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
+      volRef = vs;
+      vs.priceScale().applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
     } else {
       volRef = null;
     }
@@ -87,8 +86,8 @@ export default function NtChart(props: NtChartProps) {
   // data update — full setData on every bars identity change
   createEffect(() => {
     const bars = props.bars;
-    const cs = seriesRef as unknown as { setData: (d: unknown[]) => void } | null;
-    const vs = volRef as unknown as { setData: (d: unknown[]) => void } | null;
+    const cs = seriesRef;
+    const vs = volRef;
     const chart = chartRef;
     if (!cs || !chart) return;
     cs.setData(bars.map((b) => ({

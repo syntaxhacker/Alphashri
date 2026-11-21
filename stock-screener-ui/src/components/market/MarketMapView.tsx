@@ -119,13 +119,6 @@ const TREEMAP_STYLE: StockTreemapStyle = {
   sortTilesByValueDesc: true,
 };
 
-type TreemapDatum = {
-  itemStyle?: Record<string, unknown>;
-  label?: Record<string, unknown>;
-  metricNumeric?: number;
-  [key: string]: unknown;
-};
-
 /**
  * Owns the ECharts lifecycle. The shared builder owns area and tile order from
  * the size metric; this canvas repaints each fill from the colour metric's own
@@ -160,7 +153,7 @@ function MarketTreemapCanvas(props: {
   const sizeConfig = createMemo(() => resolveStockMetric(props.metrics, props.metric));
   const option = createMemo(() => {
     const { min, max } = colorDomain();
-    const data = (props.built.series[0].data as unknown as TreemapDatum[]).map((datum) => {
+    const data = props.built.series[0].data.map((datum) => {
       const raw = colorValues().get(String(datum.name));
       const value = raw != null && Number.isFinite(raw) ? raw : Number.NaN;
       return {

@@ -46,6 +46,12 @@ export interface FnoScreenerRow {
   move_2pct_est: number;
 }
 
+export interface FnoScreenerError {
+  symbol?: string;
+  stage?: string;
+  error?: string;
+}
+
 export interface FnoScreenerResponse {
   status: "ok";
   as_of: string;
@@ -56,7 +62,11 @@ export interface FnoScreenerResponse {
   matched: number;
   stale: boolean;
   warnings: string[];
-  errors: string[];
+  /**
+   * The route emits `{symbol, stage, error}` objects (`api/options_screener.py`);
+   * an older shape used bare strings, so both are accepted.
+   */
+  errors: Array<string | FnoScreenerError>;
   rows: FnoScreenerRow[];
 }
 

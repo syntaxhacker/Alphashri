@@ -12,6 +12,8 @@ export interface LivePriceEvent {
   ltp: number;
   ltq?: string | number;
   ts?: string;
+  /** Forward-compatible: absent on today's frames, present if the stream scopes a tick to one strategy. */
+  strategy_id?: number | null;
 }
 
 export function LivePriceUpdater() {
@@ -32,7 +34,7 @@ export function LivePriceUpdater() {
 
       const state = getPaperTradingState();
       // Strategy-aware: if the price event carries strategy_id, only update matching strategies.
-      const priceStrategyId = (price as unknown as { strategy_id?: number | null })?.strategy_id;
+      const priceStrategyId = price.strategy_id;
       const updated = state.positions.map((pos: PaperPosition) => {
         if (pos.symbol !== symbol) return pos;
         if (priceStrategyId != null && pos.strategy_id !== priceStrategyId) return pos;

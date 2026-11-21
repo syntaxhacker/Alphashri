@@ -178,7 +178,7 @@ function sanitizeTestIdValue(value: string | number): string {
 }
 
 function getCompositeRowId(pos: PaperPosition): string {
-  const strat = pos.strategy_id ?? (pos as unknown as { id?: string | number }).id ?? 0;
+  const strat = pos.strategy_id ?? pos.id ?? 0;
   return `${sanitizeTestIdValue(strat)}-${sanitizeTestIdValue(pos.symbol)}`;
 }
 

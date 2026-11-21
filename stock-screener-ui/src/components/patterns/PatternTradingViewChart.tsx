@@ -148,7 +148,7 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
       borderVisible: true,
       wickVisible: true,
     });
-    candleSeries = candles as unknown as ISeriesApi<"Candlestick">;
+    candleSeries = candles;
 
     const volume = created.addSeries(HistogramSeries, {
       color: withAlpha(palette.TEXT_MUTED, 0.3),
@@ -157,8 +157,8 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
       lastValueVisible: false,
       priceLineVisible: false,
     });
-    volumeSeries = volume as unknown as ISeriesApi<"Histogram">;
-    (volume as unknown as ISeriesApi<"Histogram">).priceScale().applyOptions({
+    volumeSeries = volume;
+    volume.priceScale().applyOptions({
       scaleMargins: { top: 0.85, bottom: 0 },
     });
 
@@ -174,10 +174,7 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
     });
     ro.observe(containerEl);
 
-    const ts = created.timeScale() as unknown as {
-      subscribeVisibleLogicalRangeChange?: (h: () => void) => void;
-      unsubscribeVisibleLogicalRangeChange?: (h: () => void) => void;
-    };
+    const ts = created.timeScale();
     if (typeof ts.subscribeVisibleLogicalRangeChange === "function") {
       const onRedraw = () => requestAnimationFrame(drawEndLabels);
       ts.subscribeVisibleLogicalRangeChange(onRedraw);
@@ -334,9 +331,7 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, rect.width, rect.height);
     if (rect.width === 0 || rect.height === 0) return;
-    const ts = chart.timeScale() as unknown as {
-      timeToCoordinate?: (t: unknown) => number | null;
-    };
+    const ts = chart.timeScale();
     if (typeof ts.timeToCoordinate !== "function") return;
     ctx.font = "600 11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
     ctx.textBaseline = "middle";
@@ -344,10 +339,8 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
     const placed: { x: number; y: number; w: number; h: number }[] = [];
     data().lines.forEach((line, i) => {
       if (!line.labelEligible || hiddenRef.has(line.name)) return;
-      const series = lineSeries[i] as unknown as
-        | { priceToCoordinate?: (p: number) => number | null }
-        | undefined;
-      if (!series || typeof series.priceToCoordinate !== "function") return;
+      const series = lineSeries[i];
+      if (!series) return;
       const anchor = line.labelAt === "start" ? line.points[0] : line.points[line.points.length - 1];
       if (!anchor) return;
       const x = ts.timeToCoordinate?.(anchor.time as never);

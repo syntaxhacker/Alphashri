@@ -24,11 +24,7 @@ import { ScreenerTable } from "./ScreenerTable";
 import { SelectionBar } from "./SelectionBar";
 import { createScreener, updateScreener, deleteScreener } from "../../api/screeners";
 import { loadScreeners } from "../../api/index";
-import {
-  approachingStocksOf,
-  buildScreenerPreviewUrl,
-  type ScreenerFilterDefault,
-} from "@/api/screenerQuery";
+import { approachingStocksOf, buildScreenerPreviewUrl } from "@/api/screenerQuery";
 import type { Stock } from "../../types";
 
 const ALL_COLUMNS = [
@@ -196,7 +192,7 @@ export function ScreenerConfigView(props: Props) {
     const url = buildScreenerPreviewUrl({
       screener: props.activeScreener,
       columns: columns(),
-      filters: filterArr() as unknown as ScreenerFilterDefault[] | undefined,
+      filters: filterArr(),
     });
     previewAbort?.abort();
     const controller = new AbortController();

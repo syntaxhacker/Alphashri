@@ -43,7 +43,7 @@ export default function OverlayCanvas(props: OverlayCanvasProps) {
     canvas.style.height = `${height}px`;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, rect.width, height);
-    const px = series as unknown as { priceToCoordinate: (v: number) => number | null };
+    const px = series;
     props.draw(ctx, {
       timeToX: (t: number) => chart.timeScale().timeToCoordinate(t as Time),
       priceToY: (p: number) => px.priceToCoordinate(p),
