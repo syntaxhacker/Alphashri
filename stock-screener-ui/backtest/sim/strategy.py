@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from .model import InstrumentId, OrderSide, Quantity
+from .model import OrderSide, Quantity
 
 __all__ = [
     "StrategyConfig",
@@ -74,8 +74,6 @@ class StrategyConfig:
 def _instrument_key(value: Any) -> Any:
     if value is None:
         return None
-    if isinstance(value, InstrumentId):
-        return str(value)
     return str(value)
 
 
