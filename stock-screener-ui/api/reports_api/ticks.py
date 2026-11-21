@@ -22,6 +22,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, Query
 
 from api.reports_api._time import now_iso as _now_iso
+from api.reports_api.report_io import read_jsonl
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -88,25 +89,9 @@ def start_tick_tape_task() -> Optional[asyncio.Task]:
 
 
 def _read_day(date_str: str) -> list[dict]:
-    path = _dir() / f"{date_str}.jsonl"
-    if not path.exists():
-        return []
-    out: list[dict] = []
-    try:
-        with open(path) as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    row = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(row, dict) and row.get("spot"):
-                    out.append(row)
-    except OSError:
-        return []
-    return out
+    return read_jsonl(
+        _dir() / f"{date_str}.jsonl", predicate=lambda row: bool(row.get("spot"))
+    )
 
 
 def _epoch(t: str) -> float:

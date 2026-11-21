@@ -234,19 +234,9 @@ export function largestMoves(walls: ReadonlyArray<PressureWall>): {
   return { oi, premium };
 }
 
+/** Backend-token spelling of the same read as the quadrant label. */
 export function flowText(flow: WallsFlow | null | undefined): string {
-  switch (flow) {
-    case "WRITERS_COVERING":
-      return "sellers covering";
-    case "LONG_BUILD":
-      return "buyers building";
-    case "WRITERS_ADDING":
-      return "sellers building";
-    case "LONG_UNWIND":
-      return "buyers unwinding";
-    default:
-      return "flow unread";
-  }
+  return quadrantFlowText(flowQuadrant(flow));
 }
 
 /** Headline flow on the desk is the 30m phase-plane read, not the backend's

@@ -11,18 +11,23 @@ import pandas as pd
 
 from .. import features as F
 from .common import (
-    _fit_pair,
+    breakout_pos,
+    envelope_common_span,
     envelope_pair,
+    envelope_tolerance,
+    envelope_value,
+    fit_window_pair,
     flat_line_points,
+    get_swings,
     iso_ts,
     make_hit,
     mean_price as mean_price_fn,
     pivot_markers,
+    pivots_in,
     register,
     scan_windows,
     segment_points,
     shift_line_to_bound,
-    get_swings,
 )
 
 LOOKBACK = 150
@@ -48,25 +53,6 @@ PENNANT_CONVERGE_MID = 0.85  # end width must also be < 85% of the mid-span widt
 PENNANT_MAX_DRIFT = 0.04  # net consolidation drift vs its start price
 
 
-def _line_val(env: dict, x) -> float:
-    """Value of a fitted envelope line at bar position ``x``."""
-    return env["q0"] + env["slope"] * (x - env["x0"])
-
-
-def _drawn_span(eu: dict, el: dict, min_span: int = 10):
-    """Common x-overlap over which **both** envelope boundaries are drawn.
-
-    Detectors must draw both edges over the same span; otherwise one boundary
-    extends into empty air past the other (and past the breakout), which is the
-    reported channel/flag/pennant viewing bug.
-    """
-    x0 = max(int(eu["x0"]), int(el["x0"]))
-    x1 = min(int(eu["x1"]), int(el["x1"]))
-    if x1 - x0 < min_span:
-        return None
-    return x0, x1
-
-
 def _broke_opposite(df: pd.DataFrame, level: float, direction: str, atr_val: float,
                     tol_mult: float = 0.25) -> bool:
     """True when the last close pierced the boundary *opposite* the pattern.
@@ -85,33 +71,19 @@ def _broke_opposite(df: pd.DataFrame, level: float, direction: str, atr_val: flo
     return last < level - tol
 
 
-def _shift_line(df: pd.DataFrame, slope: float, intercept: float, x0: int, x1: int,
-                side: str) -> tuple[float, float]:
-    """Translate a line so it bounds every candle within ``[x0, x1]``.
-
-    Used by the flag pole so a pivot-pair line that an intermediate wick pokes
-    through is nudged into a true boundary (no rounding margin here).
-    """
-    return shift_line_to_bound(df, slope, intercept, x0, x1, side)
-
-
-def _breakout_pos(df: pd.DataFrame, x_from: int, breakout: float, direction: str):
-    """First position at/after ``x_from`` whose close crosses ``breakout``.
-
-    Lets ``end_pos`` reach the bar that actually broke the line instead of a
-    stale window end far past it. Returns ``None`` when price never crossed.
-    """
-    if df is None or df.empty or breakout <= 0:
+def _fit_envelopes(df: pd.DataFrame, ctx: dict, start: int):
+    """Pivot pair and ATR-validated envelopes shared by the window scanners."""
+    pair = fit_window_pair(df, ctx, start, max_pivots=None)
+    if pair is None:
         return None
-    close = df["close"].to_numpy(dtype=float)
-    lo = max(0, int(x_from))
-    for i in range(lo, len(close)):
-        if direction == "bearish":
-            if close[i] < breakout:
-                return i
-        elif close[i] > breakout:
-            return i
-    return None
+    H, L, (_, _, r2u), (_, _, r2l) = pair
+    atr_val = F.atr_value(df)
+    if atr_val <= 0:
+        return None
+    eu, el = envelope_pair(df, H, L, atr_val)
+    if eu is None or el is None:
+        return None
+    return H, L, eu, el, atr_val, r2u, r2l
 
 
 # ---------------------------------------------------------------------------
@@ -122,33 +94,26 @@ def _breakout_pos(df: pd.DataFrame, x_from: int, breakout: float, direction: str
 def _channel_once(df: pd.DataFrame, ctx: dict, start: int, end: int, ascending: bool):
     if end <= 0:
         return None
-    pair = _fit_pair(df, ctx, start, max_pivots=None)
-    if pair is None:
+    setup = _fit_envelopes(df, ctx, start)
+    if setup is None:
         return None
-    H, L, (_, _, r2u), (_, _, r2l) = pair
-    atr_val = F.atr_value(df)
-    if atr_val <= 0:
-        return None
-    tol = 0.25 * atr_val
-    eu, el = envelope_pair(df, H, L, atr_val)
-    if eu is None or el is None:
-        return None
+    H, L, eu, el, atr_val, r2u, r2l = setup
+    tol = envelope_tolerance(atr_val)
+    val = envelope_value
 
-    val = _line_val
-
-    span = _drawn_span(eu, el)
+    span = envelope_common_span(eu, el)
     if span is None:
         return None
     x0, x1 = span
     # Re-fit each boundary to the pivots *inside* the shared leg so the drawn
     # lines start/end on real pivots of that leg (not floating in empty air).
-    H2 = [(p, q) for p, q in H if x0 <= p <= x1]
-    L2 = [(p, q) for p, q in L if x0 <= p <= x1]
+    H2 = pivots_in(H, x0, x1)
+    L2 = pivots_in(L, x0, x1)
     if len(H2) >= 2 and len(L2) >= 2:
         eu2 = F.envelope_line(df, H2, "upper", tol)
         el2 = F.envelope_line(df, L2, "lower", tol)
         if eu2 is not None and el2 is not None:
-            span2 = _drawn_span(eu2, el2)
+            span2 = envelope_common_span(eu2, el2)
             if span2 is not None:
                 eu, el, (x0, x1) = eu2, el2, span2
 
@@ -194,7 +159,7 @@ def _channel_once(df: pd.DataFrame, ctx: dict, start: int, end: int, ascending: 
         pid, opposite, direction = "descending_channel", hi, "bearish"
     # Let ``end_pos`` reach the bar that actually broke the line (so status and
     # bars_ago reflect the breakout, not a stale window end past it).
-    bp = _breakout_pos(df, x1, breakout, direction)
+    bp = breakout_pos(df, x1, breakout, direction)
     end_pos = x1 if bp is None else max(x1, bp)
     def _boundary(env: dict) -> list[dict]:
         # Structural end (x1) first, then the breakout bar: both edges span the
@@ -358,8 +323,8 @@ def _flag_hit(df, best, pid, bullish, ctx):
     # then nudge it outward so an intermediate wick cannot poke through.
     pole_pivots = highs if bullish else lows
     side = "upper" if bullish else "lower"
-    window = [(p, q) for p, q in pole_pivots if pstart <= p <= pend]
-    env = F.envelope_line(df, window, side, 0.25 * atr_val) if len(window) >= 2 else None
+    window = pivots_in(pole_pivots, pstart, pend)
+    env = F.envelope_line(df, window, side, envelope_tolerance(atr_val)) if len(window) >= 2 else None
     if env is not None:
         ps, pi = env["slope"], env["intercept"]
         px0, px1 = int(env["x0"]), int(env["x1"])
@@ -373,7 +338,7 @@ def _flag_hit(df, best, pid, bullish, ctx):
         aq0, aq1 = float(df["low"].iloc[pstart]), float(best["pole_low"])
         ps = (aq1 - aq0) / (px1 - px0) if px1 > px0 else 0.0
         pi = aq0 - ps * px0
-    ps, pi = _shift_line(df, ps, pi, px0, px1, side)
+    ps, pi = shift_line_to_bound(df, ps, pi, px0, px1, side)
     pole_line = segment_points(
         df, px0, F.line_value(ps, pi, px0), px1, F.line_value(ps, pi, px1)
     )
@@ -483,8 +448,8 @@ def _find_pennant(df: pd.DataFrame, ctx: dict | None = None):
             if fdrift > PENNANT_MAX_DRIFT:
                 continue
             search_start = max(0, fstart - 3)
-            H = [(p, q) for p, q in highs_all if search_start <= p <= fend]
-            L = [(p, q) for p, q in lows_all if search_start <= p <= fend]
+            H = pivots_in(highs_all, search_start, fend)
+            L = pivots_in(lows_all, search_start, fend)
             if len(H) < 2 or len(L) < 2:
                 continue
             eu, el = envelope_pair(df, H, L, atr_val)
@@ -493,12 +458,12 @@ def _find_pennant(df: pd.DataFrame, ctx: dict | None = None):
             # Common span: within it each envelope provably bounds its own side,
             # so the drawn lines never cut through price and the breakout level
             # equals the upper line's value at its right endpoint.
-            cx0 = max(eu["x0"], el["x0"])
-            cx1 = min(eu["x1"], el["x1"])
-            if cx1 - cx0 < 4:
+            span = envelope_common_span(eu, el, min_span=4)
+            if span is None:
                 continue
+            cx0, cx1 = span
 
-            val = _line_val
+            val = envelope_value
 
             w_start = val(eu, cx0) - val(el, cx0)
             w_end = val(eu, cx1) - val(el, cx1)
@@ -561,8 +526,8 @@ def detect_pennant(df: pd.DataFrame, ctx: dict | None = None) -> list:
     eu, el = best["eu"], best["el"]
     cx0, cx1 = best["cx0"], best["cx1"]
 
-    up_q0, up_q1 = _line_val(eu, cx0), _line_val(eu, cx1)
-    lo_q0, lo_q1 = _line_val(el, cx0), _line_val(el, cx1)
+    up_q0, up_q1 = envelope_value(eu, cx0), envelope_value(eu, cx1)
+    lo_q0, lo_q1 = envelope_value(el, cx0), envelope_value(el, cx1)
     # Quality signal: how cleanly the consolidation highs/lows trend.
     xs = np.arange(cx0, cx1 + 1, dtype=float)
     _, _, r2u = F.linreg_fit(xs, df["high"].iloc[cx0 : cx1 + 1].to_numpy(dtype=float))
@@ -607,22 +572,16 @@ def detect_pennant(df: pd.DataFrame, ctx: dict | None = None) -> list:
 def _rectangle_once(df: pd.DataFrame, ctx: dict, start: int, end: int):
     if end <= 0:
         return None
-    pair = _fit_pair(df, ctx, start, max_pivots=None)
-    if pair is None:
+    setup = _fit_envelopes(df, ctx, start)
+    if setup is None:
         return None
-    H, L, (_, _, r2u), (_, _, r2l) = pair
-    atr_val = F.atr_value(df)
-    if atr_val <= 0:
-        return None
-    eu, el = envelope_pair(df, H, L, atr_val)
-    if eu is None or el is None:
-        return None
-    span = _drawn_span(eu, el)
+    H, L, eu, el, atr_val, r2u, r2l = setup
+    span = envelope_common_span(eu, el)
     if span is None:
         return None
     x0, x1 = span
 
-    val = _line_val
+    val = envelope_value
 
     mp = mean_price_fn(df, x0, x1)
     if mp <= 0:
@@ -661,7 +620,7 @@ def _rectangle_once(df: pd.DataFrame, ctx: dict, start: int, end: int):
     # break (default, long geometry), lower edge on a genuine downside break
     # (short geometry). An inside-range reading stays the default upward.
     last = float(df["close"].iloc[-1])
-    tol = 0.25 * atr_val
+    tol = envelope_tolerance(atr_val)
     if last < sup - tol:
         breakout, opposite, direction = sup, res, "bearish"
     else:
@@ -713,22 +672,16 @@ def detect_rectangle(df: pd.DataFrame, ctx: dict | None = None) -> list:
 def _triangle_once(df: pd.DataFrame, ctx: dict, start: int, end: int, ascending: bool):
     if end <= 0:
         return None
-    pair = _fit_pair(df, ctx, start, max_pivots=None)
-    if pair is None:
+    setup = _fit_envelopes(df, ctx, start)
+    if setup is None:
         return None
-    H, L, (_, _, r2u), (_, _, r2l) = pair
-    atr_val = F.atr_value(df)
-    if atr_val <= 0:
+    H, L, eu, el, atr_val, r2u, r2l = setup
+    common_span = envelope_common_span(eu, el)
+    if common_span is None:
         return None
-    eu, el = envelope_pair(df, H, L, atr_val)
-    if eu is None or el is None:
-        return None
-    x0 = max(eu["x0"], el["x0"])
-    x1 = min(eu["x1"], el["x1"])
-    if x1 - x0 < 10:
-        return None
+    x0, x1 = common_span
 
-    val = _line_val
+    val = envelope_value
 
     mp = mean_price_fn(df, x0, x1)
     if mp <= 0:

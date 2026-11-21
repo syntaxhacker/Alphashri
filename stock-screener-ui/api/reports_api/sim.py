@@ -7,8 +7,6 @@ Nothing is interpolated or fetched live.
 
 from __future__ import annotations
 
-import json
-import re
 from collections import Counter
 from datetime import date as _date
 from datetime import datetime, time, timedelta
@@ -20,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 import config
 from api.reports_api._dates import validate_date
+from api.reports_api.report_io import read_jsonl, symbol_or_400
 from options_paper import structures, tape
 from options_paper.spec import get_lot
 from options_paper.structure_engine import ExecSpec, run_specs
@@ -30,9 +29,6 @@ router = APIRouter(prefix="/api/reports/sim", tags=["report-sim"])
 
 # stock-screener-ui/api/reports_api/sim.py -> parents[2] == stock-screener-ui
 DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "experiments" / "data"
-
-#: Underlying names seen in F&O: RELIANCE, BAJAJ-AUTO, M&M, NIFTYNXT50.
-_SYMBOL_RE = re.compile(r"^[A-Z0-9][A-Z0-9&_-]{0,23}$")
 
 FILL_MODEL = (
     "entries fill on the next recorded minute; exits fill at the bar close; "
@@ -205,13 +201,7 @@ def _symbol(underlying: str) -> str:
     The value lands in a filesystem path, so the charset is enforced rather
     than trusted: ``..`` / ``/`` / whitespace can never leave ``DATA_ROOT``.
     """
-    symbol = str(underlying or "").strip().upper()
-    if not _SYMBOL_RE.match(symbol):
-        raise HTTPException(
-            status_code=400,
-            detail=f"bad symbol: {underlying!r}, want a symbol like NIFTY/RELIANCE",
-        )
-    return symbol
+    return symbol_or_400(underlying, noun="symbol")
 
 
 def _missing(date_str: str, message: str) -> HTTPException:
@@ -232,24 +222,7 @@ def _tape_path(symbol: str, date_str: str) -> Path:
 
 def _read_jsonl(path: Path) -> list[dict]:
     """Parsed JSON-object lines; ``[]`` when missing, blank lines skipped."""
-    if not path.exists():
-        return []
-    out: list[dict] = []
-    try:
-        with path.open() as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    row = json.loads(line)
-                except (json.JSONDecodeError, ValueError):
-                    continue
-                if isinstance(row, dict):
-                    out.append(row)
-    except OSError:
-        return []
-    return out
+    return read_jsonl(path)
 
 
 def _generic_ticks(path: Path) -> list[Tick]:

@@ -643,6 +643,50 @@ class TestPolyfitValues:
         assert np.asarray(coeffs).tolist() == pytest.approx([2.0, 2.0], abs=1e-6)
 
 
+class TestQuadraticFit:
+    def test_concave_up_vertex(self):
+        x = np.arange(7)
+        y = (x - 3.0) ** 2 + 2.0
+        fitted, coeffs, r2, vertex = F.quadratic_fit(y)
+        assert len(fitted) == len(y)
+        assert np.asarray(coeffs).tolist() == pytest.approx([1.0, -6.0, 11.0], abs=1e-8)
+        assert vertex == pytest.approx(3.0)
+        assert 0.0 <= r2 <= 1.0
+        assert r2 == pytest.approx(1.0)
+
+    def test_concave_down_vertex(self):
+        x = np.arange(7)
+        y = -(x - 3.0) ** 2 + 10.0
+        fitted, coeffs, r2, vertex = F.quadratic_fit(y)
+        assert len(fitted) == len(y)
+        assert np.asarray(coeffs).tolist() == pytest.approx([-1.0, 6.0, 1.0], abs=1e-8)
+        assert vertex == pytest.approx(3.0)
+        assert 0.0 <= r2 <= 1.0
+
+    def test_noisy_series_reports_r2_in_unit_interval(self):
+        rng = np.random.default_rng(7)
+        x = np.arange(11)
+        y = 0.5 * (x - 5.0) ** 2 + 1.0 + rng.normal(0.0, 1.0, len(x))
+        fitted, _coeffs, r2, vertex = F.quadratic_fit(y)
+        assert len(fitted) == len(y)
+        assert 0.0 <= r2 <= 1.0
+        assert 0.0 < vertex < 10.0
+
+    def test_empty_input_does_not_raise(self):
+        fitted, coeffs, r2, vertex = F.quadratic_fit([])
+        assert len(fitted) == 0
+        assert len(coeffs) == 3
+        assert 0.0 <= r2 <= 1.0
+        assert vertex == pytest.approx(0.0)  # len(y)/2 fallback
+
+    def test_short_input_does_not_raise(self):
+        fitted, coeffs, r2, vertex = F.quadratic_fit([1.0, 2.0])
+        assert np.asarray(fitted).tolist() == [1.0, 2.0]
+        assert np.asarray(coeffs).tolist() == pytest.approx([0.0, 0.0, 1.5])
+        assert 0.0 <= r2 <= 1.0
+        assert vertex == pytest.approx(1.0)  # near-zero lead -> midpoint fallback
+
+
 # ---------------------------------------------------------------------------
 # last_n / between
 # ---------------------------------------------------------------------------
@@ -713,6 +757,74 @@ class TestSwingPivots:
     def test_default_window_needs_five_points(self):
         # Peak at index 2 within [0..4] is a pivot with the defaults (2, 2).
         assert F.find_swing_highs(pd.Series([1.0, 2.0, 5.0, 2.0, 1.0])) == [2]
+
+
+def _scalar_pivot_indices(values, left: int, right: int, kind: str) -> list[int]:
+    arr = np.asarray(values, dtype=float)
+    n = len(arr)
+    if n < left + right + 1:
+        return []
+    out: list[int] = []
+    for i in range(left, n - right):
+        window = arr[i - left : i + right + 1]
+        centre = arr[i]
+        if kind == "high":
+            if centre < window.max():
+                continue
+            if centre > arr[i - 1] or centre > arr[i + 1]:
+                out.append(i)
+        else:
+            if centre > window.min():
+                continue
+            if centre < arr[i - 1] or centre < arr[i + 1]:
+                out.append(i)
+    return out
+
+
+class TestPivotIndices:
+    @pytest.mark.parametrize("kind", ["high", "low"])
+    def test_random_parity_with_scalar_reference(self, kind):
+        rng = np.random.default_rng(20241121)
+        for trial in range(40):
+            n = int(rng.integers(0, 60))
+            values = np.round(100.0 + np.cumsum(rng.normal(0.0, 1.5, n)))
+            left = int(rng.integers(1, 4))
+            right = int(rng.integers(1, 4))
+            expected = _scalar_pivot_indices(values, left, right, kind)
+            assert F.pivot_indices(values, left, right, kind) == expected, (
+                f"kind={kind} trial={trial} n={n} left={left} right={right}"
+            )
+            assert F._pivot_indices(values, left, right, kind) == expected
+
+    def test_inclusive_window_plateau(self):
+        values = [1.0, 5.0, 5.0, 4.0, 1.0]
+        assert F.pivot_indices(values, 1, 1, "high") == [1, 2]
+        assert F._pivot_indices(values, 1, 1, "high") == [1, 2]
+
+    def test_short_and_empty_input(self):
+        assert F.pivot_indices([1.0, 2.0, 3.0], 2, 2) == []
+        assert F.pivot_indices([], 2, 2) == []
+
+    def test_non_high_kind_behaves_as_low(self):
+        values = [3.0, 2.0, 1.0, 2.0, 3.0]
+        assert F.pivot_indices(values, 1, 1, "low") == [2]
+        assert F.pivot_indices(values, 1, 1, "other") == [2]
+
+    def test_nan_tolerant_accepts_window_containing_nan(self):
+        values = np.array([1.0, 3.0, np.nan, 2.0, 1.0])
+        # i=1 and i=3 have a NaN in their window but still beat a neighbour;
+        # i=2 is NaN itself so no strict-neighbour comparison succeeds.
+        assert F.pivot_indices(values, 1, 1, "high", nan_tolerant=True) == [1, 3]
+        # Strict windows reject every NaN window regardless of neighbours.
+        assert F.pivot_indices(values, 1, 1, "high", nan_tolerant=False) == []
+
+    def test_nan_tolerant_low(self):
+        values = np.array([5.0, 3.0, np.nan, 2.0, 4.0])
+        assert F.pivot_indices(values, 1, 1, "low", nan_tolerant=True) == [1, 3]
+
+    def test_legacy_pivot_indices_keeps_nan_tolerant_semantics(self):
+        values = np.array([1.0, 3.0, np.nan, 2.0, 1.0])
+        assert F._pivot_indices(values, 1, 1, "high") == [1, 3]
 
 
 class TestSwingPointsAndPivotFrame:

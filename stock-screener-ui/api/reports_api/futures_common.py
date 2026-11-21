@@ -35,6 +35,7 @@ from typing import Any, Awaitable, Callable, Optional
 import httpx
 
 import config
+from api.reports_api.report_io import read_jsonl
 
 logger = logging.getLogger(__name__)
 
@@ -302,22 +303,7 @@ def build_rows(candles: list[dict], instrument_key: str, expiry: str,
 # --------------------------------------------------------------------------- #
 def _read_jsonl(path: Path) -> list[dict]:
     """Every parseable object in ``path`` (empty when missing/corrupt)."""
-    out: list[dict] = []
-    try:
-        with open(path) as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    value = json.loads(line)
-                except (json.JSONDecodeError, ValueError):
-                    continue
-                if isinstance(value, dict):
-                    out.append(value)
-    except OSError:
-        pass
-    return out
+    return read_jsonl(path)
 
 
 def _write_jsonl_atomic(path: Path, rows: list[dict]) -> None:

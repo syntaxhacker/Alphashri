@@ -2,7 +2,9 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { afterEach, describe, expect, test } from "vitest";
+import type { NiftyReplayMeta } from "@/api/reportNifty";
 import type { NiftyReport, NiftyStrike } from "@/types/niftyReport";
+import { REPLAY_STUB_REPORT, replayFromMeta as replayFromMetaShared } from "./niftyReplay";
 import { setLiveTick } from "./niftyStreamSolid";
 import {
   ContextCell,
@@ -19,6 +21,7 @@ import {
   getNiftyOiColumns,
   gexRegimeText,
   oiBurstLogHeight,
+  replayFromMeta,
   setupBannerHeadline,
 } from "./reportCells";
 
@@ -92,6 +95,55 @@ describe("formatOiCr", () => {
     expect(formatOiCr(null)).toBe("—");
     expect(formatOiCr(undefined)).toBe("—");
     expect(formatOiCr(Number.NaN)).toBe("—");
+  });
+});
+
+describe("replayFromMeta", () => {
+  const meta: NiftyReplayMeta = {
+    date: "2026-11-20",
+    count: 99,
+    interval_sec: 60,
+    gap_reasons: { "chain-failed": 2 },
+    frames: [
+      { t: "2026-11-20T09:15:00+05:30", spot: 24_500 },
+      { t: "2026-11-20T09:16:00+05:30", spot: 24_510 },
+    ],
+  };
+
+  test("maps the meta payload using the shared stub report object", () => {
+    const shared = replayFromMetaShared(meta);
+    expect(shared).toEqual({
+      date: "2026-11-20",
+      count: 2,
+      interval_sec: 60,
+      gap_reasons: { "chain-failed": 2 },
+      snapshots: [
+        {
+          t: "2026-11-20T09:15:00+05:30",
+          fetched_at: "",
+          report: REPLAY_STUB_REPORT,
+          sensex: null,
+        },
+        {
+          t: "2026-11-20T09:16:00+05:30",
+          fetched_at: "",
+          report: REPLAY_STUB_REPORT,
+          sensex: null,
+        },
+      ],
+    });
+    expect(shared.snapshots.every((frame) => frame.report === REPLAY_STUB_REPORT)).toBe(true);
+
+    const fromCells = replayFromMeta(meta);
+    expect(fromCells).toEqual(shared);
+    expect(fromCells.snapshots[0].report).toBe(shared.snapshots[0].report);
+  });
+
+  test("count comes from frames, and absent gap reasons stay absent", () => {
+    const replay = replayFromMeta({ ...meta, frames: [], gap_reasons: undefined });
+    expect(replay.count).toBe(0);
+    expect(replay.snapshots).toEqual([]);
+    expect(replay.gap_reasons).toBeUndefined();
   });
 });
 

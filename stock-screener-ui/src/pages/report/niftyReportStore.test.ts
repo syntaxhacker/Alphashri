@@ -1,7 +1,9 @@
 import { createRoot } from "solid-js";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
+import type { NiftyReplayMeta } from "@/api/reportNifty";
 import type { NiftyReport } from "@/types/niftyReport";
+import { REPLAY_STUB_REPORT } from "./niftyReplay";
 
 const { showErrorMock } = vi.hoisted(() => ({ showErrorMock: vi.fn() }));
 vi.mock("@/ui/notifications", () => ({ showError: showErrorMock }));
@@ -398,5 +400,47 @@ describe("createNiftyReportStore", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  test("EOD replay meta maps frames with the shared stub report identity", async () => {
+    const meta: NiftyReplayMeta = {
+      date: "2026-11-18",
+      count: 99,
+      interval_sec: 30,
+      gap_reasons: { timeout: 4 },
+      frames: [
+        { t: "2026-11-18T10:00:00+05:30", spot: 24_500 },
+        { t: "2026-11-18T10:01:00+05:30", spot: 24_510 },
+      ],
+    };
+    vi.mocked(api.fetchNiftyReplayMeta).mockResolvedValue(meta);
+    vi.mocked(api.fetchNiftyReplayFrame).mockResolvedValue(null);
+    vi.mocked(api.fetchNiftyByDate).mockResolvedValue(liveReport());
+
+    let store!: NiftyReportStore;
+    let dispose!: () => void;
+    createRoot((disposeRoot) => {
+      dispose = disposeRoot;
+      store = createNiftyReportStore();
+      store.selection.setMode("eod");
+      store.selection.setDate(meta.date);
+      startNiftyReportEffects(store);
+    });
+
+    await vi.waitFor(() => {
+      expect(store.replay.replay()).not.toBeNull();
+    });
+    const replay = store.replay.replay()!;
+    expect(replay.date).toBe(meta.date);
+    expect(replay.count).toBe(2);
+    expect(replay.interval_sec).toBe(30);
+    expect(replay.gap_reasons).toEqual({ timeout: 4 });
+    expect(replay.snapshots.map((frame) => frame.t)).toEqual(meta.frames.map((f) => f.t));
+    expect(replay.snapshots.every((frame) => frame.fetched_at === "" && frame.sensex === null)).toBe(
+      true,
+    );
+    expect(replay.snapshots.every((frame) => frame.report === REPLAY_STUB_REPORT)).toBe(true);
+
+    dispose();
   });
 });

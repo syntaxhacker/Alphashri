@@ -33,6 +33,7 @@ from typing import Any, Optional
 from fastapi import APIRouter
 
 import config
+from api.reports_api.report_io import read_jsonl
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -232,25 +233,9 @@ def _write_last(block: dict[str, Any], at: float) -> None:
 
 def read_history(date_str: str) -> list[dict[str, Any]]:
     """Parse one day's history file (oldest first); ``[]`` when absent."""
-    path = HISTORY_DIR / f"{date_str}.jsonl"
-    if not path.exists():
-        return []
-    out: list[dict[str, Any]] = []
-    try:
-        with open(path) as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    row = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(row, dict) and row.get("t"):
-                    out.append(row)
-    except OSError:
-        return []
-    return out
+    return read_jsonl(
+        HISTORY_DIR / f"{date_str}.jsonl", predicate=lambda row: bool(row.get("t"))
+    )
 
 
 def refresh(force: bool = False) -> dict[str, Any]:

@@ -8,6 +8,7 @@ import * as palette from "@/ui/palette";
 import * as heatmapModule from "./niftyOiHeatmap";
 import { buildOiHeatmap, heatmapReadText, readHeatmap, type HeatmapTapeRow } from "./niftyOiHeatmap";
 import { HEATMAP_FLIP, HEATMAP_SPOT, NiftyOiHeatmap } from "./NiftyOiHeatmap";
+import { clockLabel, clockMinutes } from "./tapeRange";
 import { chainAt, isoAt, r } from "./reportTestFixtures";
 
 afterEach(() => {
@@ -177,6 +178,27 @@ describe("buildOiHeatmap", () => {
     expect(m.buckets.map((b) => b.startLabel)).toEqual(["09:15", "09:20"]);
     // The representative label stays the last row of the bucket.
     expect(m.buckets[0].label).toBe("09:19");
+  });
+});
+
+describe("shared tape clock helpers", () => {
+  test("bucket labels and axis starts match the shared tape clock", () => {
+    const rows = [
+      row(isoAt(0), 25750, chainAt(STRIKES, 1000, 1000)),
+      row(isoAt(5), 25760, chainAt(STRIKES, 1000, 1000)),
+      row(isoAt(10), 25770, chainAt(STRIKES, 1000, 1000)),
+    ];
+    const m = buildOiHeatmap(rows, { bucketMin: 5 });
+    expect(m.buckets.map((b) => b.label)).toEqual(rows.map((r) => clockLabel(r.t)));
+    expect(m.buckets.map((b) => b.startLabel)).toEqual(["09:15", "09:20", "09:25"]);
+  });
+
+  test("an out-of-range clock does not invent a bucket position", () => {
+    const rows = [row("2026-10-23T99:00:00+05:30", 25750, chainAt(STRIKES, 1000, 1000))];
+    const m = buildOiHeatmap(rows, { bucketMin: 5 });
+    expect(clockMinutes("99:00")).toBeNull();
+    expect(m.buckets[0].startLabel).toBe("00:00");
+    expect(m.buckets[0].label).toBe("99:00");
   });
 });
 

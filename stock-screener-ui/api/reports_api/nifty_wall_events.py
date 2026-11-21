@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Optional
 
 from api.reports_api._numeric import safe_opt_float
+from api.reports_api.report_io import read_jsonl
 
 WALL_PROX_PTS = 15.0
 TEST_MIN_FRAMES = 10
@@ -74,23 +75,7 @@ def event_key(event: dict[str, Any]) -> tuple[str, str, str, float]:
 def read_events(date_str: str,
                 path: Optional[Path | str] = None) -> list[dict[str, Any]]:
     """Persisted events for ``date_str`` (oldest first); never raises."""
-    target = events_path(date_str, path)
-    out: list[dict[str, Any]] = []
-    try:
-        with open(target) as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    row = json.loads(line)
-                except (json.JSONDecodeError, ValueError):
-                    continue
-                if isinstance(row, dict):
-                    out.append(row)
-    except OSError:
-        return []
-    return out
+    return read_jsonl(events_path(date_str, path))
 
 
 def persist_events(events: Iterable[dict[str, Any]], date_str: str,

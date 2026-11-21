@@ -1,7 +1,7 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import type { AlertSeverity, MarketAlert } from "@/components/notifications/MarketAlertCard";
 import type { NiftyBurstNews, NiftyTapeRow } from "@/types/niftyReport";
-import { hhmmToMinutes, minutesToHhmm } from "./tapeRange";
+import { clockLabel, hhmmToMinutes, minutesToHhmm } from "./tapeRange";
 
 /**
  * Nifty OI-burst detection — pure, client-side, no store.
@@ -805,12 +805,7 @@ export function detectOiBursts(rows: NiftyTapeRow[], opts: DetectOptions = {}): 
 
 /** IST HH:MM for a tape timestamp (ISO or bare HH:MM). */
 export function burstTimeLabel(t: string): string {
-  if (!t) return "--:--";
-  if (t.includes("T")) {
-    const time = t.split("T")[1] ?? "";
-    return time.slice(0, 5) || "--:--";
-  }
-  return t.slice(0, 5);
+  return clockLabel(t);
 }
 
 function compact(v: number): string {

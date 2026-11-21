@@ -152,34 +152,31 @@ function rewardRisk(
   return Math.round((reward / risk) * 100) / 100;
 }
 
-/** Structural levels below the trigger: pivots, fuel-down, put walls, max pain. */
-function downCandidates(report: NiftyReport, levels: Levels): number[] {
+/** Structural target levels for one direction, in the order they are considered. */
+function sideCandidates(report: NiftyReport, levels: Levels, direction: "up" | "down"): number[] {
   const pivots = report.pivots ?? null;
   const gexLevels = report.gex?.levels;
-  return [
-    pivots?.s1,
-    pivots?.s2,
-    pivots?.s3,
-    gexLevels?.fuelDown?.strike,
-    ...levels.putWalls,
-    levels.maxPain,
-    levels.sessionLow,
-  ].filter((level): level is number => typeof level === "number" && Number.isFinite(level));
-}
-
-/** Structural levels above the trigger: pivots, GEX resistance/fuel-up, call walls. */
-function upCandidates(report: NiftyReport, levels: Levels): number[] {
-  const pivots = report.pivots ?? null;
-  const gexLevels = report.gex?.levels;
-  return [
-    pivots?.r1,
-    pivots?.r2,
-    pivots?.r3,
-    gexLevels?.resistance?.strike,
-    gexLevels?.fuelUp?.strike,
-    ...levels.callWalls,
-    levels.maxPain,
-  ].filter((level): level is number => typeof level === "number" && Number.isFinite(level));
+  const raw: Array<number | null | undefined> =
+    direction === "down"
+      ? [
+          pivots?.s1,
+          pivots?.s2,
+          pivots?.s3,
+          gexLevels?.fuelDown?.strike,
+          ...levels.putWalls,
+          levels.maxPain,
+          levels.sessionLow,
+        ]
+      : [
+          pivots?.r1,
+          pivots?.r2,
+          pivots?.r3,
+          gexLevels?.resistance?.strike,
+          gexLevels?.fuelUp?.strike,
+          ...levels.callWalls,
+          levels.maxPain,
+        ];
+  return raw.filter((level): level is number => typeof level === "number" && Number.isFinite(level));
 }
 
 function emptyEntry(trigger: string): DeskEntry {
@@ -193,17 +190,24 @@ function emptyEntry(trigger: string): DeskEntry {
   };
 }
 
-/** Bear primary: a 1-min close below support / the session low. */
-function bearBreakEntry(report: NiftyReport, levels: Levels): DeskEntry {
-  const trigger = levels.downsideBreak;
+/** Primary: a 1-min close through the break level in the trade's direction.
+ *  Bear breaks use the lower of support/session low; bull breaks the first
+ *  resistance above spot, never a level below it. */
+function breakEntry(report: NiftyReport, levels: Levels, direction: "up" | "down"): DeskEntry {
+  const trigger = direction === "down" ? levels.downsideBreak : levels.resistance;
   if (trigger === null) return emptyEntry("wait for pivots/GEX levels to print");
 
-  const stop = round2(trigger + stopBuffer(trigger));
-  const target = pickTarget(trigger, stop, downCandidates(report, levels), "down");
-  const source = trigger === levels.sessionLow ? "below session low" : "below support";
+  const stop = round2(trigger + (direction === "down" ? 1 : -1) * stopBuffer(trigger));
+  const target = pickTarget(trigger, stop, sideCandidates(report, levels, direction), direction);
+  const triggerText =
+    direction === "down"
+      ? `1-min close below ${fmtDeskNum(trigger)} (${
+          trigger === levels.sessionLow ? "below session low" : "below support"
+        })`
+      : `1-min close above ${fmtDeskNum(trigger)}`;
   return {
     kind: "break",
-    trigger: `1-min close below ${fmtDeskNum(trigger)} (${source})`,
+    trigger: triggerText,
     triggerLevel: trigger,
     stop,
     target,
@@ -211,56 +215,28 @@ function bearBreakEntry(report: NiftyReport, levels: Levels): DeskEntry {
   };
 }
 
-/** Bear counter-case: rejection at the nearest resistance above spot. */
-function bearRejectionEntry(report: NiftyReport, levels: Levels): DeskEntry | null {
-  const trigger = levels.resistance;
+/** Counter-case: rejection at resistance (bear) or a failed breakdown at
+ *  support (bull), targeting the opposite structural level when it is closer. */
+function counterEntry(report: NiftyReport, levels: Levels, direction: "up" | "down"): DeskEntry | null {
+  const trigger = direction === "down" ? levels.resistance : levels.support;
   if (trigger === null) return null;
 
-  const stop = round2(trigger + stopBuffer(trigger));
-  const target =
-    levels.support !== null && levels.support < trigger
-      ? levels.support
-      : pickTarget(trigger, stop, downCandidates(report, levels), "down");
+  const stop = round2(trigger + (direction === "down" ? 1 : -1) * stopBuffer(trigger));
+  const opposite = direction === "down" ? levels.support : levels.resistance;
+  const oppositePays =
+    opposite !== null && (direction === "down" ? opposite < trigger : opposite > trigger);
+  const target = oppositePays
+    ? opposite
+    : pickTarget(trigger, stop, sideCandidates(report, levels, direction), direction);
+  const kind: "rejection" | "failed_breakdown" =
+    direction === "down" ? "rejection" : "failed_breakdown";
+  const triggerText =
+    direction === "down"
+      ? `reject ${fmtDeskNum(trigger)}`
+      : `failed breakdown at ${fmtDeskNum(trigger)}`;
   return {
-    kind: "rejection",
-    trigger: `reject ${fmtDeskNum(trigger)}`,
-    triggerLevel: trigger,
-    stop,
-    target,
-    rr: rewardRisk(trigger, stop, target),
-  };
-}
-
-/** Bull primary: a 1-min close above the nearest resistance. Never below spot. */
-function bullBreakEntry(report: NiftyReport, levels: Levels): DeskEntry {
-  const trigger = levels.resistance;
-  if (trigger === null) return emptyEntry("wait for pivots/GEX levels to print");
-
-  const stop = round2(trigger - stopBuffer(trigger));
-  const target = pickTarget(trigger, stop, upCandidates(report, levels), "up");
-  return {
-    kind: "break",
-    trigger: `1-min close above ${fmtDeskNum(trigger)}`,
-    triggerLevel: trigger,
-    stop,
-    target,
-    rr: rewardRisk(trigger, stop, target),
-  };
-}
-
-/** Bull counter-case: support fails, price reclaims it. */
-function bullFailedBreakdownEntry(report: NiftyReport, levels: Levels): DeskEntry | null {
-  const trigger = levels.support;
-  if (trigger === null) return null;
-
-  const stop = round2(trigger - stopBuffer(trigger));
-  const target =
-    levels.resistance !== null && levels.resistance > trigger
-      ? levels.resistance
-      : pickTarget(trigger, stop, upCandidates(report, levels), "up");
-  return {
-    kind: "failed_breakdown",
-    trigger: `failed breakdown at ${fmtDeskNum(trigger)}`,
+    kind,
+    trigger: triggerText,
     triggerLevel: trigger,
     stop,
     target,
@@ -333,12 +309,9 @@ function buildSide(
   const ratioIv = readVol(report).ratio;
   const active = planBias === (isBear ? "bearish" : "bullish");
 
-  const primary = isBear
-    ? bearBreakEntry(report, levels)
-    : bullBreakEntry(report, levels);
-  const alternate = isBear
-    ? bearRejectionEntry(report, levels)
-    : bullFailedBreakdownEntry(report, levels);
+  const direction = isBear ? "down" : "up";
+  const primary = breakEntry(report, levels, direction);
+  const alternate = counterEntry(report, levels, direction);
 
   const reasons = [
     trendReason(report, side, levels.spot),

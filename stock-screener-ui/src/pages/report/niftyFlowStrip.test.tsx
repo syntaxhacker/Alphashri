@@ -366,6 +366,15 @@ describe("NiftyFlowStrip render", () => {
     expect(late).toBeLessThan(96);
   });
 
+  test("ISO stamps and invalid clocks keep their old axis positions", () => {
+    expect(flowTickPct("2026-10-26T09:15:00+05:30")).toBe("0%");
+    expect(flowTickPct("2026-10-26T15:40:00+05:30")).toBe("100%");
+    expect(flowTickPct("")).toBe("50%");
+    expect(flowTickPct("not-a-time")).toBe("50%");
+    expect(flowTickPct("9:30")).toBe("50%");
+    expect(flowTickPct("24:00")).toBe("50%");
+  });
+
   test("hover titles carry time and label", () => {
     const rows = [base({ t: hm(0) }), base({ t: hm(1), put_doi: 2_500_000 })];
     r(() => <NiftyFlowStrip {...{ rows: rows }} />);

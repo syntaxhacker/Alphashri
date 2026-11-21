@@ -36,6 +36,7 @@ import { gexFlipAtSpot } from "./niftyGex";
 import { REPORT_MINUS, formatReportCompact } from "./reportFormat";
 import { REPORT_FONT } from "./reportTokens";
 import type { NiftyGex } from "@/types/niftyReport";
+import { hhmmToMinutes } from "./tapeRange";
 
 export { HEATMAP_CE, HEATMAP_FLIP, HEATMAP_MP, HEATMAP_PE, HEATMAP_SPOT } from "@/ui/palette";
 
@@ -142,12 +143,9 @@ function cellOpacity(sign: string, intensity: number): number {
 
 /** HH:MM → minutes since midnight (null when the label is malformed). */
 function clockMinutes(label: string): number | null {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(label);
-  if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  if (!Number.isFinite(h) || !Number.isFinite(min) || h > 23 || min > 59) return null;
-  return h * 60 + min;
+  // Only bare HH:MM: the shared parser is start-anchored and would read "09:15:30".
+  if (!/^(\d{1,2}):(\d{2})$/.test(label)) return null;
+  return hhmmToMinutes(label);
 }
 
 function LegendItem(props: { item: LegendItemDef }) {

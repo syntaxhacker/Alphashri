@@ -18,6 +18,7 @@ from typing import Iterable, Sequence
 
 import numpy as np
 import pandas as pd
+from numpy.lib.stride_tricks import sliding_window_view
 
 OHLCV_COLUMNS = ["open", "high", "low", "close", "volume"]
 
@@ -211,26 +212,49 @@ def normalize_ohlcv(df: pd.DataFrame | None) -> pd.DataFrame | None:
 # ---------------------------------------------------------------------------
 
 
-def _pivot_indices(values: np.ndarray, left: int, right: int, kind: str) -> list[int]:
-    n = len(values)
-    out: list[int] = []
+def pivot_indices(
+    values,
+    left: int = 2,
+    right: int = 2,
+    kind: str = "high",
+    nan_tolerant: bool = False,
+) -> list[int]:
+    """Fractal positions where ``values[i]`` beats its ``[i-left, i+right]`` window.
+
+    ``nan_tolerant=False`` uses the strict-window rule: a NaN window fails the
+    extremum comparison. ``nan_tolerant=True`` mirrors
+    ``trendlines._swing_pivots``: such a window is accepted outright and the
+    strict-neighbour test still decides.
+    """
+    arr = np.asarray(values, dtype=float)
+    n = len(arr)
     if n < left + right + 1:
-        return out
-    for i in range(left, n - right):
-        window = values[i - left : i + right + 1]
-        centre = values[i]
+        return []
+    win = sliding_window_view(arr, left + right + 1)
+    centre = arr[left : n - right]
+    prev = arr[left - 1 : n - right - 1]
+    next_ = arr[left + 1 : n - right + 1]
+    if nan_tolerant:
+        has_nan = np.any(np.isnan(win), axis=1)
         if kind == "high":
-            if centre < window.max():
-                continue
-            # must be strictly above at least one neighbour (rejects all-flat)
-            if centre > values[i - 1] or centre > values[i + 1]:
-                out.append(i)
+            cond1 = has_nan | (centre >= np.max(win, axis=1))
+            cond2 = (centre > prev) | (centre > next_)
         else:
-            if centre > window.min():
-                continue
-            if centre < values[i - 1] or centre < values[i + 1]:
-                out.append(i)
-    return out
+            cond1 = has_nan | (centre <= np.min(win, axis=1))
+            cond2 = (centre < prev) | (centre < next_)
+    elif kind == "high":
+        cond1 = centre >= np.max(win, axis=1)
+        cond2 = (centre > prev) | (centre > next_)
+    else:
+        cond1 = centre <= np.min(win, axis=1)
+        cond2 = (centre < prev) | (centre < next_)
+    return (np.flatnonzero(cond1 & cond2) + left).tolist()
+
+
+def _pivot_indices(values: np.ndarray, left: int, right: int, kind: str) -> list[int]:
+    # Legacy scalar behaviour treated a NaN window as non-rejecting, which is
+    # the NaN-tolerant mode; keep it for find_swing_highs/lows callers.
+    return pivot_indices(values, left, right, kind, nan_tolerant=True)
 
 
 def find_swing_highs(high: pd.Series, left: int = 2, right: int = 2) -> list[int]:
@@ -373,6 +397,18 @@ def r2_of(y: Sequence[float], fitted: Sequence[float]) -> float:
         return 1.0
     ss_res = float(((ys - fs) ** 2).sum())
     return float(min(1.0, max(0.0, 1.0 - ss_res / ss_tot)))
+
+
+def quadratic_fit(y: Sequence[float]) -> tuple[np.ndarray, np.ndarray, float, float]:
+    """Fit ``y`` against its own index; return ``(fitted, coeffs, r2, vertex)``."""
+    xs = np.arange(len(y), dtype=float)
+    fitted, coeffs = polyfit_values(y, degree=2, x=xs)
+    r2 = r2_of(y, fitted)
+    if len(coeffs) >= 3 and abs(float(coeffs[0])) > 1e-12:
+        vertex = -float(coeffs[1]) / (2.0 * float(coeffs[0]))
+    else:
+        vertex = len(y) / 2.0
+    return fitted, coeffs, r2, vertex
 
 
 def curvature_sign(coeffs: Sequence[float]) -> int:

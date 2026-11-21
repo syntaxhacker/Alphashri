@@ -481,42 +481,14 @@ def _resample(df: pd.DataFrame, tf_minutes: int) -> pd.DataFrame:
     midnight: the index is converted to IST before ``resample`` and back to its
     original timezone after, so 2h/3h/3min bins align with the NSE session open.
     """
-    rule = _resample_rule(int(tf_minutes))
-    if df is None or df.empty:
-        return df
-    agg = {
-        "open": "first",
-        "high": "max",
-        "low": "min",
-        "close": "last",
-        "volume": "sum",
-    }
-    available = {k: v for k, v in agg.items() if k in df.columns}
-    if "close" not in available:
-        return df
-    orig_tz = df.index.tz
-    try:
-        if orig_tz is None:
-            ist_index = df.index.tz_localize("UTC").tz_convert("Asia/Kolkata")
-        else:
-            ist_index = df.index.tz_convert("Asia/Kolkata")
-    except Exception:
-        ist_index = df.index
-    work = df.copy()
-    work.index = ist_index
-    out = work.resample(rule, label="left", closed="left").agg(available)
-    out = out.dropna(subset=["close"])
-    try:
-        if orig_tz is None:
-            out.index = out.index.tz_convert("UTC").tz_localize(None)
-        else:
-            out.index = out.index.tz_convert(orig_tz)
-    except Exception:
-        pass
-    return out
+    return _resample_ohlcv(
+        df, _resample_rule(int(tf_minutes)), label="left", closed="left"
+    )
 
 
-def _resample_ohlcv(df: pd.DataFrame, rule: str) -> pd.DataFrame:
+def _resample_ohlcv(
+    df: pd.DataFrame, rule: str, *, label: str = "right", closed: str = "right"
+) -> pd.DataFrame:
     """Resample an OHLCV frame to a pandas offset rule anchored to IST.
 
     ``rule`` is a raw pandas offset alias (e.g. ``"W-FRI"`` for weekly
@@ -547,7 +519,7 @@ def _resample_ohlcv(df: pd.DataFrame, rule: str) -> pd.DataFrame:
         ist_index = df.index
     work = df.copy()
     work.index = ist_index
-    out = work.resample(rule, label="right", closed="right").agg(available)
+    out = work.resample(rule, label=label, closed=closed).agg(available)
     out = out.dropna(subset=["close"])
     try:
         if orig_tz is None:
