@@ -41,6 +41,7 @@ export interface ReplayStateHandle {
   reset: () => void;
   setSelectedSymbol: (symbol: string) => void;
   setStrategyFilter: (filter: string) => void;
+  setHighlightedTrade: (tradeId: number | null) => void;
   loadSymbols: () => Promise<string[]>;
 }
 
@@ -175,6 +176,10 @@ export function useReplayState(): ReplayStateHandle {
     reset,
     setSelectedSymbol: rs.setSelectedSymbol,
     setStrategyFilter: rs.setStrategyFilter,
+    // ReplayPage calls this on both chart and row trade clicks; the store has
+    // always exported it, the handle just never surfaced it, so any trade click
+    // threw "replay.setHighlightedTrade is not a function" and blanked the page.
+    setHighlightedTrade: rs.setHighlightedTrade,
     loadSymbols,
   };
 }
