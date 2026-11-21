@@ -1,6 +1,9 @@
 {
   "entry": ["src/main.tsx", "tests/**/*.ts"],
   "project": ["src/**/*.ts", "src/**/*.tsx"],
+  "ignoreDependencies": [
+    "dukascopy-node"
+  ],
   "ignore": [
     "src/**/*.test.ts",
     "src/api/index.ts",
