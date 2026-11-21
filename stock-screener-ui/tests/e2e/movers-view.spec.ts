@@ -37,11 +37,11 @@ test.describe("Screener - Market movers view (dashboard folded into Market)", ()
   test("tab=dashboard redirects to market view=movers", async ({ page }) => {
     await page.goto("/screener?tab=dashboard");
 
-    await expect(page.getByTestId("screener-dashboard")).toBeVisible({ timeout: 10000 });
-    await expect(page).toHaveURL(
-      /screener(\/market)?\?view=movers/,
-      { timeout: 10000 },
-    );
+    // The dashboard was folded into Market, so this URL redirects: asserting
+    // that both the dashboard renders AND the URL changed is unsatisfiable.
+    // The redirect is the contract.
+    await expect(page).toHaveURL(/screener(\/market)?\?view=movers/, { timeout: 10000 });
+    await expect(page.getByTestId("market-tab-panel")).toBeVisible({ timeout: 10000 });
   });
 
   test("the Dashboard tab button no longer exists", async ({ page }) => {
