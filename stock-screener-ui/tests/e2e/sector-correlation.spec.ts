@@ -74,9 +74,9 @@ test.describe("Sector Correlation & Rotation", () => {
     await expect(table).toContainText("NIFTY 50");
     await expect(table).toContainText("NIFTY BANK");
 
-    // Switch to US - use the market select control
-    await page.getByTestId("market-segment").click();
-    await page.getByRole("option", { name: "US" }).click();
+    // Switch to US. market-segment is a non-searchable Select -> native
+    // <select>, so there is no role=option popup to open.
+    await page.getByTestId("market-segment").locator("select").selectOption({ label: "US" });
 
     // US sector ETFs should appear in table
     await expect(table).toContainText("SPY");
@@ -91,9 +91,8 @@ test.describe("Sector Correlation & Rotation", () => {
     const table = page.locator('[data-testid="relative-strength-table"]');
     await expect(table).toBeVisible({ timeout: 10000 });
 
-    // Change lookback to 1M
-    await page.getByTestId("lookback-segment").click();
-    await page.getByRole("option", { name: "1M" }).click();
+    // Change lookback to 1M (also a native <select>)
+    await page.getByTestId("lookback-segment").locator("select").selectOption({ label: "1M" });
 
     // Data should still render
     await expect(table).toBeVisible();
