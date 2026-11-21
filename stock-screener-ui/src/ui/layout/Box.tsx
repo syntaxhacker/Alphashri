@@ -2,14 +2,7 @@ import { splitProps } from "solid-js";
 import type { JSX } from "solid-js";
 import { cn } from "../cn";
 import type { UIBoxProps } from "../types";
-
-const sp = (v: unknown) => {
-  if (v == null) return undefined;
-  if (typeof v === "number") return `${v}px`;
-  const m: Record<string, string> = { xs: "4px", sm: "8px", md: "16px", lg: "24px", xl: "32px" };
-  return (m[v as string] ?? v) as string;
-};
-const toSz = (v: unknown) => (typeof v === "number" ? `${v}px` : (v as string | undefined));
+import { sp, toSz } from "./spacing";
 
 const BOX_KNOWN = [
   "children", "className", "style", "id", "data-testid", "onClick", "onMouseEnter", "onMouseLeave",

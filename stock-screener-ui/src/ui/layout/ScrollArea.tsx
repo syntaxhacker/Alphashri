@@ -1,8 +1,7 @@
 import { splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UIScrollAreaProps } from "../types";
-
-const toSz = (v: unknown): string | undefined => (typeof v === "number" ? `${v}px` : (v as string | undefined));
+import { toSz } from "./spacing";
 
 const SCROLL_AREA_KNOWN = [
   "children", "className", "style", "id", "data-testid", "h", "w", "onScroll", "onScrollPositionChange",
