@@ -202,7 +202,10 @@ describe("HOME window desk", () => {
     await screen.findByTestId("market-heatmap-panel", {}, { timeout: 5000 });
     await screen.findByTestId("market-heatmap-empty", {}, { timeout: 5000 });
     expect(screen.getByTestId("market-heatmap-panel")).toBeInTheDocument();
-    expect(screen.getByTestId("options-chain-window")).toBeInTheDocument();
+    // Every desk window is a lazy chunk with its own boundary, so a settled
+    // heatmap says nothing about the options window. Await it on its own or the
+    // assertion races the dynamic import on a loaded runner.
+    expect(await screen.findByTestId("options-chain-window")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringMatching(SNAPSHOT_URL),
       expect.anything(),

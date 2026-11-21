@@ -1,7 +1,7 @@
 import { test, expect, Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
-import { selectSymbolAndRun, waitForBacktestResult } from "./helpers/backtestHelpers";
+import { mockSymbolSearch, selectSymbolAndRun, waitForBacktestResult } from "./helpers/backtestHelpers";
 
 const strategyVariations = [
   { id: "orb-default", name: "ORB Best", strategy_type: "ORB" },
@@ -750,15 +750,17 @@ test.describe("Backtest - Timeframe Switching (All Strategies)", () => {
 test.describe("Backtest - Chart Zoom", () => {
   test("should display zoom select with options", async ({ page }) => {
     await runBacktestForStrategy(page, "ORB");
-    const zoomSelect = page.locator('[data-testid="chart-zoom-select"]');
+    // The zoom control is a non-searchable <Select>, which renders a native
+    // <select> — there is no custom `role="listbox"` popup to open. Assert the
+    // real contract: the option set the control exposes.
+    const zoomSelect = page.locator('[data-testid="chart-zoom-select"] select');
     await expect(zoomSelect).toBeVisible();
-    await zoomSelect.click({ force: true });
-    await expect(page.getByRole("listbox")).toBeVisible({ timeout: 5000 });
-    for (const label of ["All", "30D", "7D", "1D"]) {
-      await expect(page.getByRole("option", { name: label, exact: true })).toBeVisible({
-        timeout: 5000,
-      });
-    }
+    const values = await zoomSelect.locator("option").evaluateAll((opts) =>
+      opts.map((o) => (o as HTMLOptionElement).textContent?.trim()),
+    );
+    expect(values).toEqual(["All", "30D", "7D", "1D"]);
+    await zoomSelect.selectOption({ label: "7D" });
+    await expect(zoomSelect).toHaveValue("7d");
   });
 
   test("should support zoom interaction on chart", async ({ page }) => {
@@ -970,6 +972,9 @@ test.describe("Backtest - Error Scenarios", () => {
   test("should display error when backtest API fails", async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);
+    // The search must answer the ?q= query, or the dropdown offers nothing to
+    // click and symbol selection never completes.
+    await mockSymbolSearch(page);
     await page.route(apiRoute("backtest/strategies"), async (route) => {
       await route.fulfill({
         status: 200,
@@ -1018,11 +1023,7 @@ test.describe("Backtest - Error Scenarios", () => {
     });
 
     await page.goto("/backtest");
-    const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-    await symbolSelect.click({ force: true });
-    await page.keyboard.type("RELIANCE");
-    await page.locator('[role="option"]').first().click({ timeout: 5000 });
-    await page.locator('[data-testid="run-backtest-btn"]').click();
+    await selectSymbolAndRun(page, "RELIANCE");
     await expect(page.locator('[data-testid="backtest-error"]')).toBeVisible({ timeout: 10000 });
   });
 
