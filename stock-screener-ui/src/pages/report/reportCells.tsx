@@ -24,12 +24,10 @@ import {
   REPORT_LETTER_SPACING,
   REPORT_LINE_HEIGHT,
 } from "./reportTokens";
-import { fetchLiveSensex } from "@/api/reportNifty";
 import type { NiftyReplayMeta } from "@/api/reportNifty";
 import type {
   NiftyReplay,
   NiftyReport,
-  NiftySensex,
   NiftyStrike,
 } from "@/types/niftyReport";
 
@@ -546,33 +544,6 @@ export function replayFromMeta(meta: NiftyReplayMeta): NiftyReplay {
       sensex: null,
     })),
   };
-}
-
-const SENSEX_REQUEST_TIMEOUT_MS = 10_000;
-
-export class SensexTimeoutError extends Error {
-  constructor() {
-    super("Sensex data request timed out");
-    this.name = "SensexTimeoutError";
-  }
-}
-
-export async function fetchSensexWithTimeout(
-  controller: AbortController,
-): Promise<NiftySensex> {
-  let timedOut = false;
-  const timer = window.setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, SENSEX_REQUEST_TIMEOUT_MS);
-  try {
-    return await fetchLiveSensex(controller.signal);
-  } catch (error) {
-    if (timedOut) throw new SensexTimeoutError();
-    throw error;
-  } finally {
-    window.clearTimeout(timer);
-  }
 }
 
 export function findAtmStrike(strikes: NiftyStrike[], spot: number): number | null {
