@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { JobDTO, PatternHitDTO, PatternSummary } from "../types/chartPatterns";
+import { ApiError } from "../api/apiError";
 
 vi.mock("../api/chartPatterns", async () => {
   const actual = await vi.importActual<typeof import("../api/chartPatterns")>("../api/chartPatterns");
@@ -1663,5 +1664,43 @@ describe("filter actions vs re-entrant URL sync", () => {
     } finally {
       unsub();
     }
+  });
+});
+
+describe("typed API errors", () => {
+  it("a 401 from loadSummary surfaces status + kind and keeps the string error", async () => {
+    mocked.fetchSummary.mockRejectedValueOnce(new ApiError("Session expired", 401));
+
+    await loadSummary();
+    await flush();
+
+    const state = getChartPatternsState();
+    expect(state.apiError).toMatchObject({ status: 401, kind: "unauthorized" });
+    expect(state.error).toBe("Session expired");
+    expect(state.apiError?.message).toBe(state.error);
+  });
+
+  it("a 429 from loadResults carries retryAfterMs from the header", async () => {
+    mocked.fetchResults.mockRejectedValueOnce(new ApiError("Slow down", 429, 4000));
+
+    await loadResults({ offset: 0 });
+    await flush();
+
+    expect(getChartPatternsState().apiError).toMatchObject({
+      status: 429,
+      kind: "rate_limited",
+      retryAfterMs: 4000,
+    });
+  });
+
+  it("an abort is a silent no-op", async () => {
+    mocked.fetchSummary.mockRejectedValueOnce(new DOMException("Aborted", "AbortError"));
+
+    await loadSummary();
+    await flush();
+
+    const state = getChartPatternsState();
+    expect(state.apiError).toBeNull();
+    expect(state.error).toBeNull();
   });
 });

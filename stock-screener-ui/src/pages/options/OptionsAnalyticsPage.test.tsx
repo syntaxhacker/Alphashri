@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { MemoryRouter, Route, createMemoryHistory } from "@solidjs/router";
+import { BROKER_AUTH_ACTION } from "@/components/common/BrokerAuthNotice";
 import type { OptionsDashboardData } from "../../types/optionsDashboard";
 
 const h = vi.hoisted(() => ({
@@ -220,7 +221,7 @@ describe("OptionsAnalyticsPage — error and empty states", () => {
     renderPage();
 
     const link = await screen.findByTestId("analytics-reconnect");
-    expect(link).toHaveTextContent("Reconnect Upstox");
+    expect(link).toHaveTextContent(BROKER_AUTH_ACTION);
     expect(link).toHaveAttribute("href", "/settings");
 
     const retry = screen.getByTestId("analytics-retry");
@@ -229,7 +230,7 @@ describe("OptionsAnalyticsPage — error and empty states", () => {
     expect(h.refreshDashboard).toHaveBeenCalledTimes(1);
   });
 
-  it("does not show the Reconnect Upstox link for a generic error", async () => {
+  it("does not show the broker reconnect link for a generic error", async () => {
     h.setState({ status: "error", error: { kind: "upstream", message: "Service unavailable" } });
     renderPage();
 

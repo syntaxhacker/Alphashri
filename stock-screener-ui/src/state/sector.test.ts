@@ -18,6 +18,7 @@ vi.mock("./holidays", () => ({
   subscribeToHolidays: () => () => {},
 }));
 
+import { ApiError } from "../api/apiError";
 import * as sector from "./sector";
 
 describe("sector store (hoisted out of SectorPage)", () => {
@@ -80,5 +81,41 @@ describe("sector store (hoisted out of SectorPage)", () => {
     // Page unmount tears the store's polling/timers down.
     sector.resetSectorState();
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("surfaces a 401 as a typed error while keeping the string error for panels", async () => {
+    sector.resetSectorState();
+    mockFetchSectorPerformance.mockRejectedValueOnce(new ApiError("Session expired", 401));
+
+    await sector.loadSectorData("india");
+
+    const state = sector.getSectorState();
+    expect(state.apiError).toMatchObject({ status: 401, kind: "unauthorized" });
+    expect(state.error).toBe("Session expired");
+    expect(state.apiError?.message).toBe(state.error);
+  });
+
+  it("carries retryAfterMs from a 429", async () => {
+    sector.resetSectorState();
+    mockFetchSectorPerformance.mockRejectedValueOnce(new ApiError("Slow down", 429, 7000));
+
+    await sector.loadSectorData("india");
+
+    expect(sector.getSectorState().apiError).toMatchObject({
+      status: 429,
+      kind: "rate_limited",
+      retryAfterMs: 7000,
+    });
+  });
+
+  it("treats an abort as a silent no-op", async () => {
+    sector.resetSectorState();
+    mockFetchSectorPerformance.mockRejectedValueOnce(new DOMException("Aborted", "AbortError"));
+
+    await sector.loadSectorData("india");
+
+    const state = sector.getSectorState();
+    expect(state.apiError).toBeNull();
+    expect(state.error).toBeNull();
   });
 });

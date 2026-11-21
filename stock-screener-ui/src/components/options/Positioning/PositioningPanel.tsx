@@ -1,9 +1,9 @@
 import { createEffect, createSignal, onCleanup, Show } from "solid-js";
-import { Stack } from "@/ui";
-import { Box } from "@/ui";
-import { Anchor, Button, Skeleton, Text } from "@/ui";
-import { getPositioning, PositioningApiError } from "../../../api/upstoxOptions";
+import { Box, Button, Skeleton, Stack, Text } from "@/ui";
+import { getPositioning } from "../../../api/upstoxOptions";
+import { ApiError } from "@/api/apiError";
 import { DEFAULT_RATE_LIMIT_RETRY_MS } from "@/state/optionsDock";
+import { BrokerAuthNotice, isBrokerAuthKind } from "@/components/common/BrokerAuthNotice";
 import type {
   PositioningData,
   PositioningMode,
@@ -29,8 +29,8 @@ export function PositioningPanel(props: PositioningPanelProps) {
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<{
     message: string;
-    status?: number;
-    retryAfterMs?: number | null;
+    kind: string | null;
+    retryAfterMs: number | null;
   } | null>(null);
   const [retryReady, setRetryReady] = createSignal(true);
   const [attempt, setAttempt] = createSignal(0);
@@ -71,18 +71,16 @@ export function PositioningPanel(props: PositioningPanelProps) {
       },
       (err: unknown) => {
         if (cancelled) return;
-        const status =
-          err instanceof PositioningApiError
-            ? err.status
-            : (err as { status?: number } | null)?.status;
-        const retryAfterMs =
-          status === 429 && err instanceof PositioningApiError ? err.retryAfterMs : null;
+        // The typed error kind — never a status boolean from another fetch and
+        // never a message string — decides whether this is an auth state.
+        const kind = err instanceof ApiError ? err.kind : null;
+        const retryAfterMs = kind === "rate_limited" && err instanceof ApiError ? err.retryAfterMs : null;
         setError({
           message: err instanceof Error ? err.message : "Failed to fetch positioning",
-          status,
+          kind,
           retryAfterMs,
         });
-        if (status === 429) {
+        if (kind === "rate_limited") {
           const waitMs = retryAfterMs ?? DEFAULT_RATE_LIMIT_RETRY_MS;
           setRetryReady(false);
           retryTimer = setTimeout(() => {
@@ -99,8 +97,8 @@ export function PositioningPanel(props: PositioningPanelProps) {
     });
   });
 
-  const isUnauthorized = () => error()?.status === 401;
-  const isRateLimited = () => error()?.status === 429;
+  const isUnauthorized = () => isBrokerAuthKind(error()?.kind);
+  const isRateLimited = () => error()?.kind === "rate_limited";
   const errorKind = () =>
     isUnauthorized() ? "auth" : isRateLimited() ? "rate_limited" : "upstream";
   const retryWaitSeconds = () =>
@@ -139,17 +137,17 @@ export function PositioningPanel(props: PositioningPanelProps) {
           role="alert"
           className="flex flex-col gap-[64px]"
         >
-          <Text size="sm" className="text-fin-negative">
-            {isUnauthorized()
-              ? "Upstox connection required to load positioning."
-              : isRateLimited()
-                ? `Rate limited by the options service · retry in ${retryWaitSeconds()}s`
-                : error()?.message}
-          </Text>
-          <Show when={isUnauthorized()}>
-            <Anchor href="/settings" data-testid="positioning-connect">
-              Connect Upstox in Settings
-            </Anchor>
+          <Show
+            when={isUnauthorized()}
+            fallback={
+              <Text size="sm" className="text-fin-negative">
+                {isRateLimited()
+                  ? `Rate limited by the options service · retry in ${retryWaitSeconds()}s`
+                  : error()?.message}
+              </Text>
+            }
+          >
+            <BrokerAuthNotice connectTestId="positioning-connect" size="sm" />
           </Show>
           <Box>
             <Button

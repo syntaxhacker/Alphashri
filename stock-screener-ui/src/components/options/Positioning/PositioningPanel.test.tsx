@@ -3,6 +3,10 @@ import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import { PositioningPanel } from "./PositioningPanel";
+import {
+  BROKER_AUTH_ACTION,
+  BROKER_AUTH_MESSAGE,
+} from "@/components/common/BrokerAuthNotice";
 import { getPositioning, PositioningApiError } from "../../../api/upstoxOptions";
 import { fetchWithAuth } from "../../../state/auth";
 import { DEFAULT_RATE_LIMIT_RETRY_MS } from "@/state/optionsDock";
@@ -123,11 +127,11 @@ describe("PositioningPanel", () => {
     render(() => <PositioningPanel {...props} />);
     const box = await screen.findByTestId("positioning-error");
     expect(box).toHaveAttribute("data-kind", "auth");
-    expect(box).toHaveTextContent("Upstox connection required to load positioning.");
+    expect(box).toHaveTextContent(BROKER_AUTH_MESSAGE);
     expect(box).not.toHaveTextContent("Rate limited");
     const link = screen.getByTestId("positioning-connect");
     expect(link).toBeInTheDocument();
-    expect(link).toHaveTextContent("Connect Upstox in Settings");
+    expect(link).toHaveTextContent(BROKER_AUTH_ACTION);
     expect(link).toHaveAttribute("href", "/settings");
     const retry = screen.getByTestId("positioning-retry");
     expect(retry).toBeEnabled();
