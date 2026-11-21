@@ -14,13 +14,13 @@ every record.
 
 Install once per process, after logging is configured::
 
-    from api.orderflow_logging import install_error_redaction
+    from api.log_redaction import install_error_redaction
     install_error_redaction()
 """
 
 import logging
 
-from api.orderflow_adapters.base import redact_sensitive
+from api.broker_hub.adapters.base import redact_sensitive
 
 #: Loggers that are known to echo raw broker/transport failures.
 _WATCHED_LOGGERS = (

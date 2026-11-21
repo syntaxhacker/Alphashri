@@ -7,7 +7,7 @@ export { VALUE_PRESETS, PRESET_IDS, type ValuePresetName } from "./valuePresets.
 
 const VALUE_SCAN_API = `${API_BASE}/api/value/scan`;
 
-export type ValueMarket = "india" | "usa" | "global";
+export type ValueMarket = "india" | "usa";
 
 export interface ValueSubscores {
   value: number;
@@ -112,7 +112,6 @@ export interface ValueFilters {
 export const VALUE_MARKETS: { value: ValueMarket; label: string }[] = [
   { value: "india", label: "INDIA" },
   { value: "usa", label: "USA" },
-  { value: "global", label: "GLOBAL" },
 ];
 
 function setNumberParam(params: URLSearchParams, key: string, value: number | undefined): void {

@@ -5,6 +5,7 @@
     "dukascopy-node"
   ],
   "ignore": [
+    "poc/**",
     "src/**/*.test.ts",
     "src/api/index.ts",
     "src/api/news.ts",

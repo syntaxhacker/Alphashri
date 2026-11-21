@@ -73,7 +73,7 @@ def _fetch_option_chain(fyers_symbol: str) -> Optional[dict]:
     the combined ``"APP_ID:TOKEN"`` form is only for the data socket.
     """
     try:
-        from api.orderflow_recorder import recorder_token
+        from api.broker_hub import recorder_token
 
         combined = recorder_token("fyers_tbt")
         if not combined:

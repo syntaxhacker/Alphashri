@@ -47,6 +47,7 @@ import {
   resetUniverseSpecificFilters,
   sortMarketRows,
   universeHasFno,
+  clearMarketFilterChip,
   type MarketFilterState,
   type MarketSortKey,
 } from "./marketFilters";
@@ -574,42 +575,10 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
       setSearch("");
       return;
     }
-    setFilters((f) => {
-      if (key.startsWith("capTier:")) {
-        const tier = key.slice("capTier:".length);
-        const next = new Set(f.capTiers);
-        next.delete(tier);
-        return { ...f, capTiers: next };
-      }
-      switch (key) {
-        case "price":
-          return { ...f, priceMin: null, priceMax: null };
-        case "day":
-          return { ...f, dayChangeMin: null, dayChangeMax: null };
-        case "mcap":
-          return { ...f, mcapMinCr: null, mcapMaxCr: null };
-        case "rsi":
-          return { ...f, rsiMin: null, rsiMax: null };
-        case "relvol":
-          return { ...f, relVolMin: null, relVolMax: null };
-        case "sma20":
-          return { ...f, aboveSma20: false };
-        case "sma50":
-          return { ...f, aboveSma50: false };
-        case "sma200":
-          return { ...f, aboveSma200: false };
-        case "fno":
-          return { ...f, fnoOnly: false };
-        case "sector":
-          return { ...f, sectors: [] };
-        default:
-          if (key.startsWith("sector:")) {
-            const name = key.slice("sector:".length);
-            return { ...f, sectors: f.sectors.filter((s) => s !== name) };
-          }
-          return f;
-      }
-    });
+    // One owner for chip removal: `clearMarketFilterChip` covers every key,
+    // including the value-filter chips and the deep-value preset, so this no
+    // longer needs a parallel switch that silently ignored unknown keys.
+    setFilters((f) => clearMarketFilterChip(f, key));
   };
 
   const handleToggleRail = (event?: MouseEvent) => {

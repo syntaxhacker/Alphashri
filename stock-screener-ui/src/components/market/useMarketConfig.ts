@@ -74,6 +74,17 @@ const NUMERIC_LIMITS: Record<string, [number, number]> = {
   rsiMax: [0, 100],
   relVolMin: [0, 1000],
   relVolMax: [0, 1000],
+  // Value filters. Bounds are deliberately generous: these are ratios and
+  // percentages, and a legitimate distressed name can be an extreme outlier.
+  peMax: [-1000, 10_000],
+  psMax: [-1000, 10_000],
+  pbMax: [-1000, 10_000],
+  roeMin: [-1000, 1000],
+  divYieldMin: [-100, 100],
+  fcfYieldMin: [-100, 100],
+  debtToEquityMax: [-100, 10_000],
+  revYoyMin: [-1000, 10_000],
+  epsYoyMin: [-10_000, 10_000],
 };
 
 /** The `number | null` members only — writing a filter is only valid for these. */

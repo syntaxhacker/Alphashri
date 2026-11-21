@@ -3,7 +3,6 @@ import { PatternImageManager } from "../components/patterns/PatternImageManager"
 import { LLMStatsPanel } from "./admin/LLMStatsPanel";
 import { Admin52wRangePanel } from "./admin/Admin52wRangePanel";
 import { NewsQueuePanel } from "./admin/NewsQueuePanel";
-import { OrderFlowJournalPanel } from "./admin/OrderFlowJournalPanel";
 import { AdminPatternTimeframesPanel } from "./admin/AdminPatternTimeframesPanel";
 
 /** Panels own their own scroll; the tab panel only supplies the flex box. */
@@ -33,7 +32,6 @@ export default function AdminPage() {
             <Tabs.List data-testid="admin-tabs">
               <Tabs.Tab value="llm">LLM stats</Tabs.Tab>
               <Tabs.Tab value="52w" data-testid="admin-tab-52w">52W range batch</Tabs.Tab>
-              <Tabs.Tab value="orderflow" data-testid="admin-tab-orderflow">Order Flow data</Tabs.Tab>
               <Tabs.Tab value="news-queue" data-testid="admin-tab-news-queue">News Queue</Tabs.Tab>
               <Tabs.Tab value="pattern-timeframes" data-testid="admin-tab-pattern-timeframes">Pattern timeframes</Tabs.Tab>
               <Tabs.Tab value="pattern-images" data-testid="admin-tab-pattern-images">Pattern images</Tabs.Tab>
@@ -45,9 +43,6 @@ export default function AdminPage() {
         </Tabs.Panel>
         <Tabs.Panel value="52w" className={PANEL_CLASS}>
           <Box className={PANEL_BODY_CLASS}><Admin52wRangePanel /></Box>
-        </Tabs.Panel>
-        <Tabs.Panel value="orderflow" data-testid="admin-tab-panel-orderflow" className={PANEL_CLASS}>
-          <Box className={PANEL_BODY_CLASS}><OrderFlowJournalPanel /></Box>
         </Tabs.Panel>
         <Tabs.Panel value="news-queue" className={PANEL_CLASS}>
           <Box className={PANEL_BODY_CLASS}><NewsQueuePanel /></Box>

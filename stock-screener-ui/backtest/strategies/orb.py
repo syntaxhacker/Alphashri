@@ -12,6 +12,7 @@ Backtest behavior aligned to paper-trading flow:
 
 import sys
 import os
+import math
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List
 
@@ -69,6 +70,34 @@ if _project_root_dir not in sys.path:
 from trading.orb_utils import calculate_or_levels as utils_calculate_or_levels
 
 
+def resolve_cooldown_bars(params: Dict, timeframe: int) -> int:
+    """Resolve the effective ORB cooldown in bars from a raw params dict.
+
+    An explicit ``cooldown_bars`` is used verbatim (backwards compatible).
+    Otherwise ``cooldown_minutes`` is converted via ``timeframe``; when
+    neither key is present the legacy default of 3 bars applies. Zero means
+    no cooldown. Kept pure so callers can convert before building ORBConfig,
+    which only accepts ``cooldown_bars``.
+    """
+    if 'cooldown_bars' in params:
+        cooldown_bars = int(params['cooldown_bars'])
+        if cooldown_bars < 0:
+            raise ValueError(f"cooldown_bars must be >= 0, got {cooldown_bars}")
+        return cooldown_bars
+
+    if 'cooldown_minutes' in params:
+        cooldown_minutes = float(params['cooldown_minutes'])
+        if cooldown_minutes < 0:
+            raise ValueError(f"cooldown_minutes must be >= 0, got {cooldown_minutes}")
+        if cooldown_minutes == 0:
+            return 0
+        if timeframe <= 0:
+            raise ValueError(f"timeframe must be > 0 to convert cooldown_minutes, got {timeframe}")
+        return max(1, math.ceil(cooldown_minutes / timeframe))
+
+    return 3
+
+
 def run_single_stock_backtest(args):
     """Run backtest for a single stock in isolation."""
     symbol, params, days, access_token = args if len(args) == 4 else (*args, None)
@@ -86,7 +115,7 @@ def run_single_stock_backtest(args):
         timeframe = int(params.get('timeframe', '5'))
         include_costs = bool(params.get('include_costs', True))
         enable_shorts = bool(params.get('enable_shorts', False))
-        cooldown_bars = int(params.get('cooldown_bars', 3))
+        cooldown_bars = resolve_cooldown_bars(params, timeframe)
         breakout_buffer_pct = float(params.get('breakout_buffer_pct', 0.3))
 
         venue = Venue("SIMULATED")

@@ -334,3 +334,91 @@ kept separate.
 - `scripts/backtest_levels.py` and `scripts/eda_session_corr.py` still share
   an identical yfinance `fetch()`/`_clean()` pair; consolidating them needs a
   yfinance helper module, which was out of proportion to the 14 lines saved.
+## 2026-11-22 — Order Flow purged; Deep Value folded into the Market table
+
+Two removals in one pass. Nothing was deleted under `reports/**`, and
+`experiments/data/orderflow_journal` (2.0 GB, gitignored) was removed at the
+owner's explicit direction.
+
+### Order Flow — removed entirely
+
+The feature was not wanted. The page, its admin panel, its backend pipeline, its
+journal, and its static HTML page are gone.
+
+**Frontend:** `src/pages/orderflow/` (page + 2 specs), `public/orderflow/index.html`
+(114 KB, no inbound links), the `/orderflow` route and lazy import in `App.tsx`,
+the rail entry in `NavbarNested.tsx`, and `src/api/orderflowJournal.ts` (orphaned
+once its endpoint went).
+
+**Admin:** the `Order Flow data` tab and `OrderFlowJournalPanel` in `AdminPage.tsx`,
+its three `OrderFlowJournal*` types, the `/api/admin/orderflow-journal` endpoint,
+and its allowlist row in `src/test/table-structure.test.ts`.
+
+**Backend:** `orderflow_recorder.py`, `orderflow_stream.py`, `orderflow_journal.py`,
+`orderflow_json.py`, `orderflow_pool.py`, `orderflow_signals.py`,
+`orderflow_adapter_hub.py`, `orderflow_symbols.py`, `orderflow_adapters/`,
+`fyers_bridge.py` (zero frontend consumers), and their lifespan wiring (recorder
+task spawn/cancel, journal `close_all()`, `/ws/orderflow` router), plus 12 test
+files and 2 scripts.
+
+#### Kept, because it is not order-flow-specific
+
+`api/orderflow_adapter_hub.py`, `orderflow_adapters/` and `orderflow_symbols.py`
+were a **process-wide broker connection manager** — one live Fyers socket, many
+subscribers — that the **Index Report LIVE chart depends on**
+(`api/reports_api/fyers_ws.py`). They were moved to `api/broker_hub/`
+(`hub.py`, `adapters/`, `symbols.py`, plus `tokens.py` for `recorder_token` and the
+Tick normaliser in `adapters/upstox.py`), and only then were the originals deleted.
+Two dependencies had to be relocated first or the purge would have broken things:
+
+- `api/broker_hub/adapters/upstox.py` imported `_normalize_tick` from
+  `api/orderflow_stream.py` — deleting that module would have broken `broker_hub`
+  and therefore the Index Report chart.
+- `api/fyers_options.py` imported `recorder_token` from `api/orderflow_recorder.py`
+  inside a `try/except` that returns `None` — deleting it would have made every
+  Fyers option-chain fetch silently return `None`, with no error anywhere.
+
+The gate was: `pytest tests/api/test_fyers_ws.py` (9), the three broker tests
+(102), and Playwright `nifty-report.spec.ts` (4) all green **before** any deletion.
+
+`api/orderflow_logging.py` was also kept and renamed `api/log_redaction.py`: it is
+a general credential-redaction logging filter (scrubs `set-cookie`/`cf-ray`/bearer
+blobs from `websockets`, `fyers_apiv3` and uvicorn), not order-flow-only. Its guard
+test was restored as `tests/test_log_redaction.py` (12 tests) because deleting the
+test would have left a security control unguarded.
+
+Tests that guard the shared layer were **moved, not deleted**:
+`test_orderflow_adapter_hub.py` → `test_broker_hub.py`,
+`test_orderflow_adapter_base.py` → `test_broker_adapters.py`,
+`test_orderflow_adapter_fyers.py` → `test_broker_adapter_fyers.py`. All assertions kept.
+
+### Deep Value — folded into the Market table as filters
+
+The standalone tab is retired. Its fields now ride on the market row, and its
+selection UI is a filter set on the Market table.
+
+- **No second fetch.** `api/market_screen/config.py` `COLUMNS` gained
+  `price_sales_ratio`, `free_cash_flow_ttm`, `total_revenue`, `net_income`,
+  `debt_to_equity_fq`, `current_ratio`, `gross_margin_ttm`, `operating_margin_ttm`,
+  `total_revenue_yoy_growth_ttm`, `earnings_per_share_diluted_yoy_growth_ttm`. US
+  inherits them via `US_COLUMNS`. `fcf_yield` is derived server-side.
+  `wire.py` needed no change (it derives fields from row keys).
+- **Measured payload cost:** at the 4,000-row cap, +10 fields/row = raw JSON
+  1.67 MiB → 2.50 MiB (**+50%**), gzip 26.4 KiB → 32.4 KiB (**+22%**). The columnar
+  wire format is barely affected.
+- **Filters are client-side**, extending the existing `filterOnlyMarketRows`
+  predicate (no second pass): `peMax`, `psMax`, `pbMax`, `roeMin`, `divYieldMin`,
+  `fcfYieldMin`, `debtToEquityMax`, `revYoyMin`, `epsYoyMin`. A `null` row value
+  is excluded when its bound is active and included when the filter is off.
+  A one-click deep-value preset sets `peMax 15 / roeMin 15 / fcfYieldMin 0 /
+  debtToEquityMax 1.5`.
+- **`global` is retired** from `ValueMarket`; only `india` and `usa` remain. With
+  that, `MappedValueMarket` and `ValueMarket` became the same union, so
+  `valueMarketMapping.test.ts` now asserts equality instead of divergence.
+- `?tab=deepvalue` **redirects** to the Market tab's `view=value`, following the
+  existing `?tab=dashboard` → `?view=movers` pattern.
+- `tests/e2e/deep-value.spec.ts` was **deleted**: all four of its tests targeted
+  only the retired panel, and one asserted a `preset=DEEP` API call that no longer
+  exists (the preset is now client-side state). Retargeting would have duplicated
+  `market-value-view.spec.ts`. That spec's own "Deep Value tab still exists" test
+  was replaced with a redirect assertion.

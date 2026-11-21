@@ -160,6 +160,16 @@ interface RawMarketRow {
   pb_ratio?: unknown;
   dividend_yield?: unknown;
   roe?: unknown;
+  ps_ratio?: unknown;
+  fcf_yield?: unknown;
+  revenue?: unknown;
+  net_income?: unknown;
+  debt_to_equity?: unknown;
+  current_ratio?: unknown;
+  gross_margin?: unknown;
+  operating_margin?: unknown;
+  rev_yoy?: unknown;
+  eps_yoy?: unknown;
   fno?: unknown;
   etf?: unknown;
 }
@@ -216,6 +226,18 @@ export function mapMarketRow(raw: RawMarketRow | null | undefined): MarketRow {
     pbRatio: finiteNumber(r.pb_ratio),
     dividendYield: finiteNumber(r.dividend_yield),
     roe: finiteNumber(r.roe),
+    psRatio: finiteNumber(r.ps_ratio),
+    // Derived server-side from FCF / market cap; null where the source has no
+    // FCF coverage (India reports ~3.5%, the US ~85-90%).
+    fcfYield: finiteNumber(r.fcf_yield),
+    revenue: finiteNumber(r.revenue),
+    netIncome: finiteNumber(r.net_income),
+    debtToEquity: finiteNumber(r.debt_to_equity),
+    currentRatio: finiteNumber(r.current_ratio),
+    grossMargin: finiteNumber(r.gross_margin),
+    operatingMargin: finiteNumber(r.operating_margin),
+    revYoy: finiteNumber(r.rev_yoy),
+    epsYoy: finiteNumber(r.eps_yoy),
     fno: toBool(r.fno),
     etf: toBool(r.etf),
   };

@@ -5,9 +5,12 @@ import {
   buildMarketFilterChips,
   CAP_TIERS,
   capTierOptions,
+  clearMarketFilterChip,
   countActiveMarketFilters,
   countByCapTier,
+  deepValuePresetActive,
   defaultMarketFilters,
+  DEEP_VALUE_PRESET,
   filterMarketRows,
   filterOnlyMarketRows,
   marketSectorOptions,
@@ -49,6 +52,16 @@ function row(symbol: string, overrides: Partial<MarketRow> = {}): MarketRow {
     pbRatio: null,
     dividendYield: null,
     roe: null,
+    psRatio: null,
+    fcfYield: null,
+    revenue: null,
+    netIncome: null,
+    debtToEquity: null,
+    currentRatio: null,
+    grossMargin: null,
+    operatingMargin: null,
+    revYoy: null,
+    epsYoy: null,
     fno: false,
     etf: false,
     ...overrides,
@@ -757,5 +770,184 @@ describe("filter benchmark", () => {
     // eslint-disable-next-line no-console
     console.log(`filterMarketRows median=${median.toFixed(2)}ms samples=${samples.map((s) => s.toFixed(2)).join(",")}`);
     expect(median).toBeLessThan(10);
+  });
+});
+
+const VALUE_FIELDS = [
+  "peMax",
+  "psMax",
+  "pbMax",
+  "roeMin",
+  "divYieldMin",
+  "fcfYieldMin",
+  "debtToEquityMax",
+  "revYoyMin",
+  "epsYoyMin",
+] as const;
+
+const VALUE_CHIP_KEYS = [
+  "pe",
+  "ps",
+  "pb",
+  "roe",
+  "divYield",
+  "fcfYield",
+  "debtToEquity",
+  "revYoy",
+  "epsYoy",
+] as const;
+
+const FIELD_BY_CHIP: Record<(typeof VALUE_CHIP_KEYS)[number], (typeof VALUE_FIELDS)[number]> = {
+  pe: "peMax",
+  ps: "psMax",
+  pb: "pbMax",
+  roe: "roeMin",
+  divYield: "divYieldMin",
+  fcfYield: "fcfYieldMin",
+  debtToEquity: "debtToEquityMax",
+  revYoy: "revYoyMin",
+  epsYoy: "epsYoyMin",
+};
+
+describe("value filters", () => {
+  const VALUE_ROWS: MarketRow[] = [
+    row("CHEAP", {
+      peRatio: 12,
+      psRatio: 1.5,
+      pbRatio: 2,
+      roe: 18,
+      dividendYield: 2.5,
+      fcfYield: 5,
+      debtToEquity: 0.8,
+      revYoy: 12,
+      epsYoy: 20,
+    }),
+    row("PRICEY", {
+      peRatio: 40,
+      psRatio: 8,
+      pbRatio: 9,
+      roe: 8,
+      dividendYield: 0.2,
+      fcfYield: -1,
+      debtToEquity: 2.5,
+      revYoy: 3,
+      epsYoy: -5,
+    }),
+    row("UNKNOWN"),
+  ];
+
+  const BOUNDS: Partial<MarketFilterState> = {
+    peMax: 18,
+    psMax: 2,
+    pbMax: 3,
+    roeMin: 15,
+    divYieldMin: 1,
+    fcfYieldMin: 0,
+    debtToEquityMax: 1.5,
+    revYoyMin: 10,
+    epsYoyMin: 10,
+  };
+
+  test("every value bound is off by default", () => {
+    const defaults = defaultMarketFilters();
+    for (const field of VALUE_FIELDS) expect(defaults[field]).toBeNull();
+    expect(symbols(filterOnlyMarketRows(VALUE_ROWS, defaults))).toEqual([
+      "CHEAP",
+      "PRICEY",
+      "UNKNOWN",
+    ]);
+  });
+
+  test("each active bound filters only its own field", () => {
+    for (const field of VALUE_FIELDS) {
+      expect(symbols(filterOnlyMarketRows(VALUE_ROWS, filters({ [field]: BOUNDS[field] })))).toEqual([
+        "CHEAP",
+      ]);
+    }
+  });
+
+  test("a row with a null field is excluded while that bound is active, included when off", () => {
+    const blank = [row("BLANK")];
+    for (const field of VALUE_FIELDS) {
+      expect(filterOnlyMarketRows(blank, filters({ [field]: BOUNDS[field] }))).toEqual([]);
+    }
+    expect(filterOnlyMarketRows(blank, filters())).toHaveLength(1);
+  });
+
+  test("value bounds are unit-neutral and survive a universe reset", () => {
+    const after = resetUniverseSpecificFilters(filters(BOUNDS), "us");
+    for (const field of VALUE_FIELDS) expect(after[field]).toBe(BOUNDS[field]);
+  });
+
+  test("each active value bound emits its own removable chip and raises the count", () => {
+    const f = filters(BOUNDS);
+    const chips = buildMarketFilterChips(f);
+    expect(chips.map((c) => c.key)).toEqual([...VALUE_CHIP_KEYS]);
+    expect(chips.map((c) => c.label)).toEqual([
+      "P/E ≤ 18",
+      "P/S ≤ 2",
+      "P/B ≤ 3",
+      "ROE ≥ 15%",
+      "Div yield ≥ 1%",
+      "FCF yield ≥ 0%",
+      "D/E ≤ 1.5",
+      "Rev growth ≥ 10%",
+      "EPS growth ≥ 10%",
+    ]);
+    expect(countActiveMarketFilters(f)).toBe(VALUE_FIELDS.length);
+
+    for (const chip of chips) {
+      const field = FIELD_BY_CHIP[chip.key as (typeof VALUE_CHIP_KEYS)[number]];
+      const cleared = clearMarketFilterChip(f, chip.key);
+      expect(cleared[field]).toBeNull();
+      // Removing one bound leaves the others intact.
+      const others = VALUE_FIELDS.filter((other) => other !== field);
+      for (const other of others) expect(cleared[other]).toBe(BOUNDS[other]);
+    }
+  });
+
+  test("an undefined value bound emits no chip and cannot throw", () => {
+    const f = filters({ peMax: undefined as unknown as null });
+    expect(() => buildMarketFilterChips(f)).not.toThrow();
+    expect(buildMarketFilterChips(f)).toEqual([]);
+    expect(countActiveMarketFilters(f)).toBe(0);
+  });
+
+  test("the deep value preset is the documented one-click bundle", () => {
+    expect(DEEP_VALUE_PRESET).toEqual({
+      peMax: 15,
+      roeMin: 15,
+      fcfYieldMin: 0,
+      debtToEquityMax: 1.5,
+    });
+  });
+
+  test("the preset chip appears only for the whole bundle and clears all four bounds", () => {
+    const f = filters(DEEP_VALUE_PRESET);
+    expect(deepValuePresetActive(f)).toBe(true);
+    const chips = buildMarketFilterChips(f);
+    expect(chips.some((c) => c.key === "deepValue")).toBe(true);
+    expect(chips.find((c) => c.key === "deepValue")?.label).toBe("Deep value preset");
+
+    const cleared = clearMarketFilterChip(f, "deepValue");
+    expect(cleared.peMax).toBeNull();
+    expect(cleared.roeMin).toBeNull();
+    expect(cleared.fcfYieldMin).toBeNull();
+    expect(cleared.debtToEquityMax).toBeNull();
+    // Untouched bounds survive the preset removal.
+    expect(cleared.psMax).toBeNull();
+
+    const tweaked = filters({ ...DEEP_VALUE_PRESET, peMax: 12 });
+    expect(deepValuePresetActive(tweaked)).toBe(false);
+    expect(buildMarketFilterChips(tweaked).some((c) => c.key === "deepValue")).toBe(false);
+  });
+
+  test("removing an individual preset bound drops the preset chip but keeps the rest", () => {
+    const f = filters(DEEP_VALUE_PRESET);
+    const after = clearMarketFilterChip(f, "pe");
+    expect(after.peMax).toBeNull();
+    expect(after.roeMin).toBe(15);
+    expect(deepValuePresetActive(after)).toBe(false);
+    expect(buildMarketFilterChips(after).some((c) => c.key === "deepValue")).toBe(false);
   });
 });

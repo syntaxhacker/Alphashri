@@ -74,7 +74,7 @@ SolidJS 1.9 + Vite 8 + Tailwind CSS 4 + TypeScript. Backend: FastAPI (Python).
 - **Virtual env**: `.venv/` (created with `uv venv --python 3.12.13`)
 - **Package manager**: `uv` (faster than pip) — install deps with `uv pip install -r <requirements.txt>`
 - **Dependencies**: `../requirements.txt` (root) + `api/requirements.txt` (API-specific)
-- **Note**: `nautilus-trader` in `api/requirements.txt` requires Rust toolchain — install separately if needed
+- **Note**: `nautilus-trader` is **no longer a dependency** (removed 2026-11-22). Backtests run on the pure-Python engine in `backtest/sim/`; `BACKTEST_ENGINE=nautilus` is opt-in A/B and requires reinstalling the package.
 - **`start.sh`**: auto-activates `.venv` before starting uvicorn; always use `./start.sh` to run both services. Logs saved to `logs/alphashri.log`.
 - **Start with DeepSeek**: pass env vars inline to use DeepSeek for TradingAgents analysis:
   ```bash
@@ -227,6 +227,14 @@ src/
 - **Local dev data**: prod DB can be dumped to local SQLite via `python scripts/dump_prod_to_local.py`. Note: trades have `user_id=1` in prod, local user may be different — update `user_id` after dump.
 - **Trading costs**: `backtest/costs.py:calculate_trading_costs()` is the single source of truth. Both `runner_signals.py` and `paper_portfolio.py` use it — never use flat `trade_value * 0.0006`.
 - **Background screener tasks** (prewarm + 52W range batch) are started in the lifespan and gated to market hours. The 52W batch now does a prompt initial run shortly after `start.sh` (during market hours) rather than waiting the full interval — see the dedicated 52W section for agent behavior around this.
+
+## Backtest Engine (`backtest/sim`)
+
+- Backtests no longer use `nautilus_trader`. `backtest/sim/` registers the 14 `nautilus_trader.*` module paths the strategies import, so no strategy file changed. ~890 lines replace a ~600 MB Cython dependency.
+- `BACKTEST_ENGINE` is read once when `backtest/strategies/__init__.py` is imported: `sim` (default) or `nautilus` (opt-in A/B). A `nautilus` request without the package raises a named `RuntimeError` instead of silently leaving strategies unavailable.
+- Semantics the engine must keep: fill at the signal bar's **close**, one `on_bar` per frame row in index order, `ts_event` = raw index nanoseconds with **no** timezone conversion (`get_ist_time()` converts later), and each strategy's own same-bar SL/TP priority.
+- Parity is guarded by `tests/test_backtest_shim_parity.py` (both engines in separate subprocesses over one frozen frame, field-by-field diff, plus an IST session-window assertion). The real-engine leg skips when the package is absent, so the shim invariants still run.
+- `pyarrow` is still required (`scripts/wall_replay/hist_convert.py`); it was never a nautilus-only dependency.
 
 ## Signal Generator Architecture
 

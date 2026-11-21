@@ -80,7 +80,7 @@ class FakeWebSocket:
 
 
 def _hub_harness(monkeypatch):
-    from api.orderflow_adapter_hub import AdapterHub
+    from api.broker_hub.hub import AdapterHub
 
     adapters: dict[str, FakeAdapter] = {}
     calls = {"factory": 0}

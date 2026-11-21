@@ -38,8 +38,8 @@ from typing import Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 import config
-from api.orderflow_adapter_hub import get_hub
-from api.orderflow_symbols import from_broker_symbol
+from api.broker_hub import get_hub
+from api.broker_hub import from_broker_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -204,7 +204,7 @@ class _ClientSession:
     def on_error(self, error: object) -> None:
         if self.closed.is_set():
             return
-        from api.orderflow_adapters.base import sanitize_adapter_error
+        from api.broker_hub import sanitize_adapter_error
 
         try:
             self.q.put_nowait(("error", sanitize_adapter_error(BROKER, error), time.time()))
@@ -327,7 +327,7 @@ class _ClientSession:
             try:
                 await asyncio.to_thread(self.subscribe)
             except Exception as exc:  # noqa: BLE001
-                from api.orderflow_adapters.base import sanitize_adapter_error
+                from api.broker_hub import sanitize_adapter_error
 
                 await self.send_status(
                     "reconnecting", "resubscribe_failed", sanitize_adapter_error(BROKER, exc)
@@ -370,7 +370,7 @@ class _ClientSession:
             try:
                 await asyncio.to_thread(self.subscribe)
             except Exception as exc:  # noqa: BLE001
-                from api.orderflow_adapters.base import sanitize_adapter_error
+                from api.broker_hub import sanitize_adapter_error
 
                 await self.send_status(
                     "disconnected", "connect_failed", sanitize_adapter_error(BROKER, exc)

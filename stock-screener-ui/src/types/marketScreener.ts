@@ -52,6 +52,19 @@ export interface MarketRow {
   pbRatio: number | null;
   dividendYield: number | null;
   roe: number | null;
+  /** Value-filter fundamentals; nullable on purpose — coverage is market-dependent. */
+  psRatio: number | null;
+  /** Free cash flow / market cap, derived server-side. Null when either is absent. */
+  fcfYield: number | null;
+  revenue: number | null;
+  netIncome: number | null;
+  debtToEquity: number | null;
+  currentRatio: number | null;
+  grossMargin: number | null;
+  operatingMargin: number | null;
+  /** Year-over-year growth in revenue / diluted EPS, in percent. */
+  revYoy: number | null;
+  epsYoy: number | null;
   fno: boolean;
   etf: boolean;
 }

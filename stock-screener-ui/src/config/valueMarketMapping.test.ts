@@ -44,8 +44,11 @@ describe("market identity guards", () => {
     expectTypeOf<MappedValueMarket>().toEqualTypeOf<ChartMarket>();
   });
 
-  test("a mapped market stays a valid value-scan market but never GLOBAL", () => {
+  test("a mapped market stays a valid value-scan market", () => {
     expectTypeOf<MappedValueMarket>().toMatchTypeOf<ValueMarket>();
-    expectTypeOf<MappedValueMarket>().not.toEqualTypeOf<ValueMarket>();
+    // These were deliberately different unions while ValueMarket still carried
+    // "global". With global retired both are exactly "india" | "usa", so they
+    // are now identical on purpose — a future divergence should fail here.
+    expectTypeOf<MappedValueMarket>().toEqualTypeOf<ValueMarket>();
   });
 });

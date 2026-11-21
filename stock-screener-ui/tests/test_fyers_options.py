@@ -156,7 +156,7 @@ class TestFetch:
         monkeypatch.setitem(sys.modules, "fyers_apiv3.fyersModel", sub)
 
     def test_splits_combined_token_for_fyers_model(self, monkeypatch):
-        import api.orderflow_recorder as recorder
+        import api.broker_hub as recorder
 
         monkeypatch.setattr(recorder, "recorder_token", lambda _b: "APP-100:SECRET-XYZ")
         seen: dict = {}
@@ -171,7 +171,7 @@ class TestFetch:
         assert seen["data"]["symbol"] == "NSE:NIFTY50-INDEX"
 
     def test_api_error_returns_none(self, monkeypatch):
-        import api.orderflow_recorder as recorder
+        import api.broker_hub as recorder
 
         monkeypatch.setattr(recorder, "recorder_token", lambda _b: "APP:TOK")
         self._install_fake_sdk(
@@ -180,13 +180,13 @@ class TestFetch:
         assert fyers_options._fetch_option_chain("NSE:NIFTY50-INDEX") is None
 
     def test_missing_token_returns_none(self, monkeypatch):
-        import api.orderflow_recorder as recorder
+        import api.broker_hub as recorder
 
         monkeypatch.setattr(recorder, "recorder_token", lambda _b: None)
         assert fyers_options._fetch_option_chain("NSE:NIFTY50-INDEX") is None
 
     def test_bare_token_without_app_id_returns_none(self, monkeypatch):
-        import api.orderflow_recorder as recorder
+        import api.broker_hub as recorder
 
         monkeypatch.setattr(recorder, "recorder_token", lambda _b: "JUSTATOKEN")
         assert fyers_options._fetch_option_chain("NSE:NIFTY50-INDEX") is None

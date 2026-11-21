@@ -9,8 +9,8 @@ import logging
 
 import pytest
 
-from api.orderflow_adapters.base import redact_sensitive
-from api.orderflow_logging import RedactBrokerErrorBlob, install_error_redaction
+from api.broker_hub.adapters.base import redact_sensitive
+from api.log_redaction import RedactBrokerErrorBlob, install_error_redaction
 
 RAW = (
     "Handshake status 403 Forbidden -+-+- {'date': 'Thu, 17 Sep 2026 07:31:03 GMT', "
@@ -78,7 +78,7 @@ class TestRedactFilter:
 
 class TestInstall:
     def test_installs_on_root_handlers_and_watched_loggers(self):
-        import api.orderflow_logging as mod
+        import api.log_redaction as mod
 
         root = logging.getLogger()
         handler = logging.NullHandler()
@@ -98,7 +98,7 @@ class TestInstall:
             mod._reset_for_tests()
 
     def test_is_idempotent(self):
-        import api.orderflow_logging as mod
+        import api.log_redaction as mod
 
         handler = logging.NullHandler()
         logging.getLogger().addHandler(handler)

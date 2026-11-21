@@ -37,9 +37,6 @@ fastembed>=0.4.0
 langchain-litellm>=0.6.0
 langchain-openrouter>=0.2.0
 
-# Backtesting
-nautilus-trader>=1.0.0
-
 # Testing
 pytest>=7.0.0
 pytest-asyncio>=0.21.0

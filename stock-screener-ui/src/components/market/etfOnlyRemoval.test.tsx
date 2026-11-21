@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { createComponent } from "solid-js";
-import { cleanup, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, test } from "vitest";
 import { MarketFilterRail } from "./MarketFilterRail";
 import {
@@ -43,6 +43,16 @@ function row(symbol: string, etf: boolean, capTier = "mid"): MarketRow {
     pbRatio: null,
     dividendYield: null,
     roe: null,
+    psRatio: null,
+    fcfYield: null,
+    revenue: null,
+    netIncome: null,
+    debtToEquity: null,
+    currentRatio: null,
+    grossMargin: null,
+    operatingMargin: null,
+    revYoy: null,
+    epsYoy: null,
     fno: false,
     etf,
   };
@@ -67,6 +77,17 @@ const RAIL_CONTROL_FOR: Record<string, string> = {
   aboveSma200: "market-filter-above-sma200",
   fnoOnly: "market-filter-fno",
   sectors: "market-filter-sector",
+  // Value filters live inside the collapsed "Value" band; the test expands it
+  // before asserting, so these ids must match the rail's own test ids.
+  peMax: "market-filter-peMax",
+  psMax: "market-filter-psMax",
+  pbMax: "market-filter-pbMax",
+  roeMin: "market-filter-roeMin",
+  divYieldMin: "market-filter-divYieldMin",
+  fcfYieldMin: "market-filter-fcfYieldMin",
+  debtToEquityMax: "market-filter-debtToEquityMax",
+  revYoyMin: "market-filter-revYoyMin",
+  epsYoyMin: "market-filter-epsYoyMin",
 };
 
 describe("etfOnly removal — no hidden ETF filter", () => {
@@ -100,6 +121,9 @@ describe("etfOnly removal — no hidden ETF filter", () => {
     );
 
     // Every mapped control is actually rendered.
+    // The Value band is collapsed by default, so expand it first — otherwise
+    // its nine controls legitimately are not in the document.
+    fireEvent.click(screen.getByTestId("market-value-toggle"));
     for (const [key, id] of Object.entries(RAIL_CONTROL_FOR)) {
       expect(screen.getByTestId(id), `no rail control for filter key ${key}`).toBeInTheDocument();
     }

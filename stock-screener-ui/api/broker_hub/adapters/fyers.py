@@ -7,7 +7,7 @@ back to ``SymbolUpdate`` quote fields when a message carries no depth. The
 this module imports (and registers) even when the SDK is not installed.
 
 The 50-level TBT (protobuf) feed is a different endpoint/envelope and is
-represented by :class:`FyersTbtAdapter`; see :mod:`api.orderflow_adapters.base`
+represented by :class:`FyersTbtAdapter`; see :mod:`api.broker_hub.adapters.base`
 for the normalized tick contract.
 
 Fyers symbol format is ``"NSE:SBIN-EQ"``; indices are ``"NSE:NIFTY50-INDEX"``.
@@ -19,13 +19,13 @@ import logging
 import os
 from typing import Callable, Optional
 
-from api.orderflow_adapters.base import (
+from api.broker_hub.adapters.base import (
     OrderFlowAdapter,
     make_depth,
     register_adapter,
     sanitize_adapter_error,
 )
-from api.orderflow_symbols import fyers_symbol  # noqa: F401  (re-exported)
+from api.broker_hub.symbols import fyers_symbol  # noqa: F401  (re-exported)
 
 logger = logging.getLogger(__name__)
 
