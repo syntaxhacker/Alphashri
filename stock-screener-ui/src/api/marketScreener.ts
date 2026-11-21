@@ -352,6 +352,13 @@ export async function fetchMarketSnapshot(
   if (params.format === "columns" && !isPlainSnapshotPayload(payload)) {
     return decodeColumnarSnapshot(payload);
   }
+  // A 200 without either envelope used to map to an empty snapshot, so a proxy
+  // error page or a truncated body rendered as "no rows for this universe".
+  if (!isPlainSnapshotPayload(payload)) {
+    console.error(
+      `[api] Market snapshot returned no rows array (universe=${params.universe ?? DEFAULT_MARKET_UNIVERSE}, status=${response.status})`,
+    );
+  }
   return mapMarketSnapshot(payload as RawMarketSnapshot);
 }
 
@@ -426,20 +433,31 @@ export async function fetchQuotes(symbols: string[], init?: RequestInit): Promis
   );
   const merged: MarketQuote[] = [];
   const seen = new Set<string>();
+  const failedBatches: number[] = [];
   let firstError: unknown;
-  for (const outcome of outcomes) {
+  for (let i = 0; i < outcomes.length; i += 1) {
+    const outcome = outcomes[i];
     if (outcome.status === "fulfilled") {
       for (const quote of outcome.value) {
         if (seen.has(quote.symbol)) continue;
         seen.add(quote.symbol);
         merged.push(quote);
       }
-    } else if (firstError === undefined) {
-      firstError = outcome.reason;
+    } else {
+      failedBatches.push(i);
+      if (firstError === undefined) firstError = outcome.reason;
     }
   }
   if (merged.length === 0 && firstError !== undefined) {
     throw firstError;
+  }
+  // A partial set is returned on purpose, but the dropped symbols must not look
+  // like a symbol with no quote: the dock would silently omit live prices.
+  if (failedBatches.length > 0) {
+    console.warn(
+      `[api] Market quotes: ${failedBatches.length}/${batches.length} batches failed, returning ${merged.length}/${clean.length} symbols`,
+      firstError,
+    );
   }
   return merged;
 }
