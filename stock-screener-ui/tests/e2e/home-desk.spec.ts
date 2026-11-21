@@ -11,6 +11,26 @@ import { collectConsoleErrors } from "./helpers/flowsB";
 import { setupNewsMocks } from "./helpers/newsHelpers";
 
 /**
+ * The patterns window bootstraps its catalog and results from
+ * `/api/chart-patterns` on mount. Without a mock it reaches whatever backend
+ * the run happens to have, which is why this panel showed an honest empty
+ * state locally and an error banner on a CI runner with an empty DB.
+ */
+async function mockChartPatterns(page: Page) {
+  const empty = (body: object) => async (route: { fulfill: (r: object) => Promise<void> }) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+  };
+  await page.route(apiRoute("chart-patterns/timeframes"), empty({ timeframes: [{ id: "1d", label: "1D" }] }));
+  await page.route(apiRoute("chart-patterns/universes"), empty({ universes: [{ id: "nifty50", label: "NIFTY 50" }], default: "nifty50" }));
+  await page.route(apiRoute("chart-patterns/patterns"), empty({ families: [], patterns: [] }));
+  await page.route(apiRoute("chart-patterns/results"), empty({ hits: [], total: 0, scanned: 0, as_of: null }));
+  await page.route(apiRoute("chart-patterns/jobs"), empty({ jobs: [] }));
+  await page.route(apiRoute("chart-patterns/scan"), empty({ job_id: null, status: "completed" }));
+  await page.route(apiRoute("chart-patterns/health"), empty({ ok: true }));
+  await page.route(apiRoute("chart-patterns/market-status"), empty({ open: false, session: null }));
+}
+
+/**
  * /home — the floating-window desk. Everything is mocked at the network
  * boundary: the seeded panels own their data paths (market snapshot + options
  * chain) and the desk owns its layout (`window.home`).
@@ -415,6 +435,7 @@ test.describe("/home floating-window desk", () => {
     await setupNewsMocks(page);
     config = await setupHomeConfigMocks(page);
     seen = await mockHomeNetwork(page);
+    await mockChartPatterns(page);
     await page.goto("/");
     await page.getByTestId("nav-home").click();
     await expect(page).toHaveURL(/\/home$/);
