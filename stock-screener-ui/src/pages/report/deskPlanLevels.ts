@@ -63,30 +63,18 @@ export function topWall(list: NiftyWall[] | undefined | null): NiftyWall | null 
   return best;
 }
 
-/** Highest level strictly below `level` (nearest support / next target down). */
-function nearestBelow(
+/** Nearest finite positive level strictly below or above `level`. */
+function nearestLevel(
   levels: Array<number | null | undefined>,
   level: number,
+  side: "below" | "above",
 ): number | null {
   let best: number | null = null;
   for (const raw of levels) {
     const n = positive(raw);
-    if (n === null || n >= level) continue;
-    if (best === null || n > best) best = n;
-  }
-  return best;
-}
-
-/** Lowest level strictly above `level` (nearest resistance / next target up). */
-function nearestAbove(
-  levels: Array<number | null | undefined>,
-  level: number,
-): number | null {
-  let best: number | null = null;
-  for (const raw of levels) {
-    const n = positive(raw);
-    if (n === null || n <= level) continue;
-    if (best === null || n < best) best = n;
+    if (n === null) continue;
+    if (side === "below" ? n >= level : n <= level) continue;
+    if (best === null || (side === "below" ? n > best : n < best)) best = n;
   }
   return best;
 }
@@ -159,17 +147,19 @@ export function computeLevels(report: NiftyReport): Levels {
   const support =
     spot === null
       ? null
-      : nearestBelow(
+      : nearestLevel(
           [pivots?.s1, gexLevels?.fuelDown?.strike, ...putWalls, session.low, maxPain],
           spot,
+          "below",
         );
 
   const resistance =
     spot === null
       ? null
-      : nearestAbove(
+      : nearestLevel(
           [pivots?.r1, gexLevels?.resistance?.strike, ...callWalls, maxPain, session.high],
           spot,
+          "above",
         );
 
   // A downside break needs the weaker of the two: price has already traded the

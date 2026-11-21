@@ -7,6 +7,7 @@ import { UIProvider } from "@/ui";
 import { MarketAlertRow } from "@/components/notifications/MarketAlertCard";
 import type { NiftyTapeRow } from "@/types/niftyReport";
 import type { OiBurst, OiSignal } from "./niftyOiBursts";
+import { clockLabel } from "./tapeRange";
 import {
   NIFTY_LOT_SIZE,
   OI_BURST_MIN_ABS,
@@ -359,6 +360,18 @@ describe("burstTimeLabel", () => {
     expect(burstTimeLabel("2026-10-13T14:03:00+05:30")).toBe("14:03");
     expect(burstTimeLabel("14:03")).toBe("14:03");
     expect(burstTimeLabel("")).toBe("--:--");
+  });
+
+  test("delegates to the shared tape clock label for every stamp shape", () => {
+    const stamps = [
+      "2026-10-13T14:03:00+05:30",
+      "14:03",
+      "14:03:22",
+      "2026-10-13T",
+      "nope",
+      "",
+    ];
+    for (const stamp of stamps) expect(burstTimeLabel(stamp)).toBe(clockLabel(stamp));
   });
 });
 

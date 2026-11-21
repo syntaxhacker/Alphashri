@@ -34,6 +34,8 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Query
 
+from api.reports_api.report_io import read_jsonl
+
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 WINDOW_PTS = float(os.getenv("CHAIN10S_WINDOW_PTS", "750"))
@@ -413,25 +415,7 @@ def start_chain10s_task() -> Optional[asyncio.Task]:
 
 
 def _read_day(date_str: str) -> list[dict]:
-    path = _dir() / f"{date_str}.jsonl"
-    if not path.exists():
-        return []
-    out: list[dict] = []
-    try:
-        with open(path) as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    row = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(row, dict):
-                    out.append(row)
-    except OSError:
-        return []
-    return out
+    return read_jsonl(_dir() / f"{date_str}.jsonl")
 
 
 def summarise_snapshots(newest: list[dict],

@@ -141,3 +141,13 @@ export function clockMinutes(t: string | null | undefined): number | null {
   }
   return null;
 }
+
+/** IST HH:MM label for a tape stamp (ISO with `T`, or a bare clock). */
+export function clockLabel(t: string | null | undefined): string {
+  if (!t) return "--:--";
+  if (t.includes("T")) {
+    const time = t.split("T")[1] ?? "";
+    return time.slice(0, 5) || "--:--";
+  }
+  return t.slice(0, 5);
+}

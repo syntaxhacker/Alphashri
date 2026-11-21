@@ -72,6 +72,21 @@ describe("pressureDesk", () => {
     expect(quadrantFlowText(null)).toBe("flow unread");
   });
 
+  it("derives the backend-token text from the quadrant vocabulary", () => {
+    const flows = [
+      "LONG_BUILD",
+      "WRITERS_ADDING",
+      "WRITERS_COVERING",
+      "LONG_UNWIND",
+      "UNKNOWN",
+    ] as const;
+    for (const flow of flows) {
+      expect(flowText(flow)).toBe(quadrantFlowText(flowQuadrant(flow)));
+    }
+    expect(flowText(null)).toBe(quadrantFlowText(flowQuadrant(null)));
+    expect(flowText(undefined)).toBe(quadrantFlowText(flowQuadrant(undefined)));
+  });
+
   it("turns a row into a pressure wall with percent units", () => {
     const wall = toPressureWall("CALL", row());
     expect(wall.key).toBe("CALL-25000");

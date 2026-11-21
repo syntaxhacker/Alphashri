@@ -35,7 +35,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import statistics
 from datetime import datetime
 from pathlib import Path
@@ -61,6 +60,7 @@ from api.reports_api.nifty_bursts import (
     session_trend,
 )
 from api.reports_api.nifty_fuel import basis_text, fuel_state, structure_evidence
+from api.reports_api.report_io import read_jsonl, read_jsonl_tail, symbol_or_400
 
 router = APIRouter(prefix="/api/reports/options", tags=["options-history"])
 
@@ -74,9 +74,6 @@ SNAPSHOTS_DIR = "options_snapshots"
 
 #: The generic tape/chain10s are recorded per minute / per 10 seconds.
 TAPE_INTERVAL_SEC = 60
-
-#: Underlying names seen in F&O: RELIANCE, BAJAJ-AUTO, M&M, NIFTYNXT50.
-_SYMBOL_RE = re.compile(r"^[A-Z0-9][A-Z0-9&_-]{0,23}$")
 
 # --- blasts (10-second chain) — adaptive thresholds ----------------------------
 #: A blast must be unusual *for this session*: ``max(floor, k × median)``.
@@ -111,13 +108,7 @@ def _symbol(underlying: str) -> str:
     The value lands in a filesystem path, so the charset is enforced rather
     than trusted: ``..`` / ``/`` / whitespace can never leave ``DATA_ROOT``.
     """
-    symbol = str(underlying or "").strip().upper()
-    if not _SYMBOL_RE.match(symbol):
-        raise HTTPException(
-            status_code=400,
-            detail=f"bad underlying: {underlying!r}, want a symbol like NIFTY/RELIANCE",
-        )
-    return symbol
+    return symbol_or_400(underlying, noun="underlying")
 
 
 def _path(kind: str, symbol: str, date_str: str, suffix: str = ".jsonl") -> Path:
@@ -126,24 +117,7 @@ def _path(kind: str, symbol: str, date_str: str, suffix: str = ".jsonl") -> Path
 
 def _read_jsonl(path: Path) -> list[dict]:
     """Parsed JSON-object lines; ``[]`` when missing, blank lines skipped."""
-    if not path.exists():
-        return []
-    out: list[dict] = []
-    try:
-        with open(path) as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    row = json.loads(line)
-                except (json.JSONDecodeError, ValueError):
-                    continue
-                if isinstance(row, dict):
-                    out.append(row)
-    except OSError:
-        return []
-    return out
+    return read_jsonl(path)
 
 
 def _read_jsonl_tail(path: Path, max_bytes: int = 1_500_000) -> list[dict]:
@@ -154,32 +128,7 @@ def _read_jsonl_tail(path: Path, max_bytes: int = 1_500_000) -> list[dict]:
     snapshots was pure waste. The first line of a tail read is almost always
     partial, so it is dropped unless the read started at 0. Never raises.
     """
-    if not path.exists():
-        return []
-    try:
-        with open(path, "rb") as fh:
-            fh.seek(0, os.SEEK_END)
-            size = fh.tell()
-            start = max(0, size - max_bytes)
-            fh.seek(start)
-            data = fh.read()
-    except OSError:
-        return []
-    lines = data.split(b"\n")
-    if start > 0:
-        lines = lines[1:]
-    out: list[dict] = []
-    for raw in lines:
-        raw = raw.strip()
-        if not raw:
-            continue
-        try:
-            row = json.loads(raw)
-        except (json.JSONDecodeError, ValueError):
-            continue
-        if isinstance(row, dict):
-            out.append(row)
-    return out
+    return read_jsonl_tail(path, max_bytes=max_bytes)
 
 
 def _read_json(path: Path) -> Optional[dict]:

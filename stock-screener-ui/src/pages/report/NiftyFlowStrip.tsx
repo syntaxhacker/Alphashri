@@ -11,6 +11,7 @@ import {
   type FlowTapeRow,
 } from "./niftyFlowStrip";
 import { DERIVATIVES_CLOSE_MIN, SESSION_START_MIN } from "@/utils/marketClock";
+import { clockMinutes } from "./tapeRange";
 
 export { FLOW_BEAR, FLOW_BULL, FLOW_STRUCT };
 
@@ -24,12 +25,9 @@ const FLOW_SESSION_END_MIN = DERIVATIVES_CLOSE_MIN;
 
 /** `"10:33"` / `"2026-10-19T10:33:00+05:30"` → minute of day, else null. */
 function flowMinuteOfDay(t: string): number | null {
-  const m = /(?:^|[T ])(\d{2}):(\d{2})/.exec(t || "");
-  if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  if (!Number.isFinite(h) || !Number.isFinite(min) || h > 23 || min > 59) return null;
-  return h * 60 + min;
+  // Two-digit hours only — the shared parser also accepts "9:30" and loose matches.
+  if (!/(?:^|[T ])(\d{2}):(\d{2})/.test(t || "")) return null;
+  return clockMinutes(t);
 }
 
 /**

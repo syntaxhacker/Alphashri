@@ -16,6 +16,7 @@ import { MAX_PAIN_TOUCH_TOL, maxPainTouches } from "./maxPainTouches";
 import { formatReportNum } from "./reportFormat";
 import { safeNumNull } from "@/utils/reportParsers";
 import { chainLeg, chainMetric, type ChainMap } from "./chainTuple";
+import { clockLabel as tapeClockLabel, clockMinutes } from "./tapeRange";
 
 /** Minimal tape-row surface this builder reads — deliberately local so the
  *  component never depends on another agent's in-flight file. */
@@ -236,22 +237,11 @@ export function heatmapCoverage(rows: HeatmapTapeRow[]): HeatmapCoverage {
 
 /** IST wall-clock HH:MM for an ISO stamp or a bare HH:MM. */
 function heatTimeLabel(t: string): string {
-  if (!t) return "--:--";
-  if (t.includes("T")) {
-    const time = t.split("T")[1] ?? "";
-    return time.slice(0, 5) || "--:--";
-  }
-  return t.slice(0, 5);
+  return tapeClockLabel(t);
 }
 
 function heatMinutes(t: string): number | null {
-  const label = heatTimeLabel(t);
-  const m = /^(\d{1,2}):(\d{2})/.exec(label);
-  if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  if (!Number.isFinite(h) || !Number.isFinite(min) || h > 23 || min > 59) return null;
-  return h * 60 + min;
+  return clockMinutes(heatTimeLabel(t));
 }
 
 /** Minutes-since-midnight → zero-padded HH:MM (wraps past midnight). */

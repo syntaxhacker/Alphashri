@@ -390,6 +390,39 @@ describe("buildDeskPlan — bearish tape", () => {
     expect(plan.bull.rr).toBeGreaterThanOrEqual(1.5);
   });
 
+  test("both directions keep their entry and counter-case numbers", () => {
+    expect({
+      kind: plan.bear.entryKind,
+      triggerLevel: plan.bear.triggerLevel,
+      stop: plan.bear.stop,
+      target: plan.bear.target,
+    }).toEqual({
+      kind: "break",
+      triggerLevel: 22_690,
+      stop: 22_708.15,
+      target: 22_650,
+    });
+    expect({
+      kind: plan.bull.entryKind,
+      triggerLevel: plan.bull.triggerLevel,
+      stop: plan.bull.stop,
+      target: plan.bull.target,
+    }).toEqual({
+      kind: "break",
+      triggerLevel: 22_900,
+      stop: 22_881.68,
+      target: 23_000,
+    });
+    expect(plan.bear.alternate?.kind).toBe("rejection");
+    expect(plan.bear.alternate?.trigger).toBe("reject 22,900");
+    expect(plan.bear.alternate?.stop).toBeCloseTo(22_918.32, 2);
+    expect(plan.bear.alternate?.target).toBe(22_700);
+    expect(plan.bull.alternate?.kind).toBe("failed_breakdown");
+    expect(plan.bull.alternate?.trigger).toBe("failed breakdown at 22,700");
+    expect(plan.bull.alternate?.stop).toBeCloseTo(22_681.84, 2);
+    expect(plan.bull.alternate?.target).toBe(22_900);
+  });
+
   test("reasons are ordered by weight and every tag appears", () => {
     expect(plan.bear.reasons.map((r) => r.tag)).toEqual([...DESK_REASON_TAGS]);
     expect(plan.bull.reasons.map((r) => r.tag)).toEqual([...DESK_REASON_TAGS]);
@@ -651,5 +684,51 @@ describe("buildDeskPlan — stale candles vs fresh day-OHLC (2026-10-21 live bug
     expect(plan.bull.entryTrigger).toContain("close above 22,810");
     expect(plan.bull.target).toBe(22_900);
     expect(plan.bull.rr).toBeGreaterThanOrEqual(1.5);
+  });
+});
+
+describe("deskPlanLevels — nearest level selection", () => {
+  test("null, NaN and negative candidates are ignored on both sides", () => {
+    const plan = buildDeskPlan(
+      baseReport({
+        spot: 25_000,
+        maxPain: 25_050,
+        ohlc: { open: 25_000, high: 25_000, low: 25_000, close: 25_000 },
+        pivots: {
+          type: "classic",
+          pp: 25_000,
+          r1: Number.NaN,
+          r2: -100,
+          r3: 26_000,
+          s1: Number.NaN,
+          s2: -200,
+          s3: 24_000,
+          prev: { date: "2026-10-20", high: 25_000, low: 25_000, close: 25_000 },
+        },
+        gex: {
+          strikes: [],
+          netTotal: 0,
+          regime: "flat",
+          topPositive: [],
+          topNegative: [],
+          zeroCross: null,
+          levels: {
+            support: { strike: 24_800, netGex: 1 },
+            resistance: { strike: 25_200, netGex: 1 },
+            fuelDown: null,
+            fuelUp: null,
+          },
+        },
+        walls: {
+          calls: [{ strike: 25_100, oi: 100 }],
+          puts: [{ strike: 24_900, oi: 100 }],
+        },
+      }),
+    );
+
+    expect(plan.resistance).toBe(25_050);
+    expect(plan.support).toBe(24_900);
+    expect(plan.bull.triggerLevel).toBe(25_050);
+    expect(plan.bear.triggerLevel).toBe(24_900);
   });
 });

@@ -37,7 +37,6 @@ import type {
   BreadthPayload,
   Chain10sSummaryPoint,
   NiftyBlast,
-  NiftyReplayMeta,
   WallsPayload,
 } from "@/api/reportNifty";
 import { fetchPositions } from "@/api/paperTrading";
@@ -54,6 +53,7 @@ import type {
   NiftyTape,
 } from "@/types/niftyReport";
 import { isDerivativesOpenIst } from "@/utils/marketClock";
+import { REPLAY_STUB_REPORT, replayFromMeta } from "./niftyReplay";
 import { usePolling } from "@/hooks/usePolling";
 import { useDeskHotkeys } from "@/hooks/useDeskHotkeys";
 import type { DeskChartTimeframe } from "@/hooks/useDeskHotkeys";
@@ -130,7 +130,6 @@ export type DeskOverlayKey =
 export const NIFTY_DESK_MODE_KEY = "nifty.deskMode";
 
 const SIDE_TAB_KEY = "nifty.sideTab";
-const REPLAY_STUB_REPORT = Object.freeze({}) as unknown as NiftyReport;
 const STALE_AFTER_MS = 90_000;
 const REPLAY_PLAY_MS = 700;
 const SENSEX_REQUEST_TIMEOUT_MS = 10_000;
@@ -418,21 +417,6 @@ export function persistChartSource(value: ChartSource): void {
 
 function replayDatesFor(symbol: ReportSymbol, signal?: AbortSignal): Promise<string[]> {
   return symbol === "NIFTY" ? fetchNiftyReplayDates(signal) : fetchOptionsReplayDates(symbol, signal);
-}
-
-function replayFromMeta(meta: NiftyReplayMeta): NiftyReplay {
-  return {
-    date: meta.date,
-    count: meta.frames.length,
-    interval_sec: meta.interval_sec,
-    gap_reasons: meta.gap_reasons,
-    snapshots: meta.frames.map((frame) => ({
-      t: frame.t,
-      fetched_at: "",
-      report: REPLAY_STUB_REPORT,
-      sensex: null,
-    })),
-  };
 }
 
 async function fetchSensexWithinTimeout(controller: AbortController): Promise<NiftySensex> {

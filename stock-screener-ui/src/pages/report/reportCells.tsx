@@ -24,14 +24,9 @@ import {
   REPORT_LETTER_SPACING,
   REPORT_LINE_HEIGHT,
 } from "./reportTokens";
-import type { NiftyReplayMeta } from "@/api/reportNifty";
-import type {
-  NiftyReplay,
-  NiftyReport,
-  NiftyStrike,
-} from "@/types/niftyReport";
+import type { NiftyReport, NiftyStrike } from "@/types/niftyReport";
 
-const REPLAY_STUB_REPORT = Object.freeze({}) as unknown as NiftyReport;
+export { replayFromMeta } from "./niftyReplay";
 
 /** Flush panel header label. CompactPanel styles only *string* titles, so a JSX
  *  title (label + badges + control on one line) has to carry the same treatment
@@ -529,21 +524,6 @@ export function formatGexLevel(strike: number, netGex: number): string {
 
 export function oiBurstLogHeight(count: number): number {
   return Math.min(22 + count * 20 + 18, 140);
-}
-
-export function replayFromMeta(meta: NiftyReplayMeta): NiftyReplay {
-  return {
-    date: meta.date,
-    count: meta.frames.length,
-    interval_sec: meta.interval_sec,
-    gap_reasons: meta.gap_reasons,
-    snapshots: meta.frames.map((f) => ({
-      t: f.t,
-      fetched_at: "",
-      report: REPLAY_STUB_REPORT,
-      sensex: null,
-    })),
-  };
 }
 
 export function findAtmStrike(strikes: NiftyStrike[], spot: number): number | null {
