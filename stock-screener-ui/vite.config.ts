@@ -64,6 +64,15 @@ export default defineConfig(({ mode }) => {
           '**/test-results/**',
           '**/playwright-report/**',
           '**/coverage/**',
+          // SQLite lives in the repo and the API/bots write it continuously.
+          // Vite does not run these through the module graph, so every WAL
+          // checkpoint arrives as a full `page reload db/alphashri.db-wal` —
+          // the dev app restarted itself every time a bot persisted a tick.
+          '**/db/**',
+          '**/*.db',
+          '**/*.db-wal',
+          '**/*.db-shm',
+          '**/*.db-journal',
         ],
       },
       proxy: {
