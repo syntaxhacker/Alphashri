@@ -2,14 +2,8 @@ import { splitProps } from "solid-js";
 import type { JSX } from "solid-js";
 import { cn } from "../cn";
 import type { UICardProps } from "../types";
+import { sp, toSz } from "./spacing";
 
-const sp = (v: unknown): string | undefined => {
-  if (v == null) return undefined;
-  if (typeof v === "number") return `${v}px`;
-  const m: Record<string, string> = { xs: "4px", sm: "8px", md: "16px", lg: "24px", xl: "32px" };
-  return (m[v as string] ?? v) as string;
-};
-const toSz = (v: unknown): string | undefined => (typeof v === "number" ? `${v}px` : (v as string | undefined));
 const rad = (v: unknown): string | undefined => {
   if (v == null) return undefined;
   if (typeof v === "number") return `${v}px`;

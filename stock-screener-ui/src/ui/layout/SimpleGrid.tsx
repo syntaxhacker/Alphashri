@@ -1,13 +1,7 @@
 import { splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UISimpleGridProps } from "../types";
-
-const sp = (v: unknown): string | undefined => {
-  if (v == null) return undefined;
-  if (typeof v === "number") return `${v}px`;
-  const m: Record<string, string> = { xs: "4px", sm: "8px", md: "16px", lg: "24px", xl: "32px" };
-  return (m[v as string] ?? v) as string;
-};
+import { sp } from "./spacing";
 
 export function SimpleGrid(props: UISimpleGridProps & Record<string, unknown>) {
   const [known, rest] = splitProps(props, [

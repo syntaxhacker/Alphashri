@@ -1,4 +1,5 @@
 import type { WindowLayout, WindowState } from "./types";
+import { isRecord } from "@/utils/isRecord";
 
 export interface Rect { x: number; y: number; w: number; h: number; }
 export interface CanvasSize { w: number; h: number; }
@@ -30,9 +31,6 @@ const within = (value: number, lo: number, hi: number): number => {
   const upper = Math.max(lo, hi);
   return Math.min(upper, Math.max(lo, value));
 };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /**
  * Rectangles stay partly off-canvas on purpose (that is the desktop model), but
