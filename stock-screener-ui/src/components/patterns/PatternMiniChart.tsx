@@ -1,4 +1,4 @@
-import { createEffect, createMemo, onCleanup, onMount } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import type * as ECharts from "echarts";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
 import type { ChartCandle, PatternHitDTO, TrendLine, Trendline, TrendlinesView } from "@/types/chartPatterns";
@@ -17,6 +17,9 @@ export interface PatternMiniChartProps {
 const NO_CANDLES: ChartCandle[] = [];
 const NO_TRENDLINES: Trendline[] = [];
 const NO_STANDALONE: TrendLine[] = [];
+
+// Start the chart just before its card scrolls into view so it is ready on paint.
+const MINI_CHART_ROOT_MARGIN = "200px";
 
 // The fallback sketch's category axis only depends on the point count, and the
 // same few lengths repeat across every card in a grid — build each once.
@@ -37,10 +40,14 @@ function categoryAxis(length: number): string[] {
 export function PatternMiniChart(props: PatternMiniChartProps) {
   let chartEl: HTMLDivElement | undefined;
   let chart: ECharts.ECharts | undefined;
+  let observer: IntersectionObserver | undefined;
   let disposed = false;
   // `loadEcharts()` is async: without a token a slow first call could land
   // after a newer one and overwrite it with a stale option.
   let applyToken = 0;
+  // The results grid mounts far more cards than are on screen at once; defer
+  // ECharts work until a card is near the viewport.
+  const [visible, setVisible] = createSignal(false);
 
   // Per-row work stays lazy and is keyed on the hit's data references, so a
   // re-render that carries an equal hit does no filtering or option building.
@@ -49,7 +56,7 @@ export function PatternMiniChart(props: PatternMiniChartProps) {
     () => (props.hit.trendlines ?? NO_TRENDLINES).filter((line) => line.length > 0),
   );
 
-  const option = createMemo<Record<string, unknown>>(() => {
+  function option(): Record<string, unknown> {
     const hit = props.hit;
     const candleWindow = candles();
     const lines = trendlines();
@@ -97,22 +104,42 @@ export function PatternMiniChart(props: PatternMiniChartProps) {
       yAxis: { type: "value", show: false, scale: true },
       series,
     };
-  });
+  }
 
   async function applyOption(next: Record<string, unknown>) {
     const token = ++applyToken;
     const lib = await loadEcharts();
-    if (disposed || !chartEl || !lib || token !== applyToken) return;
+    if (disposed || !chartEl || !lib || !visible() || token !== applyToken) return;
     if (!chart) chart = lib.init(chartEl, null) as ECharts.ECharts;
     chart.setOption(next, true);
     chart.resize();
   }
 
   createEffect(() => {
+    // Build the option only once visible so offscreen cards skip that work too.
+    if (!visible()) return;
     void applyOption(option());
   });
 
   onMount(() => {
+    const el = chartEl;
+    if (el && typeof IntersectionObserver !== "undefined") {
+      observer = new IntersectionObserver(
+        (entries) => {
+          if (disposed || visible()) return;
+          if (entries.some((entry) => entry.isIntersecting)) {
+            setVisible(true);
+            observer?.unobserve(el);
+          }
+        },
+        { rootMargin: MINI_CHART_ROOT_MARGIN },
+      );
+      observer.observe(el);
+    } else {
+      // Environments without IntersectionObserver (e.g. JSDOM) render immediately.
+      setVisible(true);
+    }
+
     const handleResize = () => chart?.resize();
     window.addEventListener("resize", handleResize);
     onCleanup(() => window.removeEventListener("resize", handleResize));
@@ -120,6 +147,8 @@ export function PatternMiniChart(props: PatternMiniChartProps) {
 
   onCleanup(() => {
     disposed = true;
+    observer?.disconnect();
+    observer = undefined;
     chart?.dispose();
     chart = undefined;
   });

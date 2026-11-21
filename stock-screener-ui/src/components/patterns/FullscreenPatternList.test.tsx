@@ -65,6 +65,13 @@ describe("sortHitsNewest", () => {
     expect(newestHit([OLD, NEW, MID])?.id).toBe(33);
     expect(newestHit([])).toBeNull();
   });
+
+  test("does not mutate the input array", () => {
+    const input = [OLD, NEW, MID];
+    const original = [...input];
+    expect(sortHitsNewest(input).map((h) => h.id)).toEqual([33, 22, 11]);
+    expect(input).toEqual(original);
+  });
 });
 
 describe("FullscreenPatternList", () => {
@@ -77,6 +84,23 @@ describe("FullscreenPatternList", () => {
     expect(screen.getByText("Patterns (1)")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent("Bull Flag");
     expect(screen.queryByTestId("patterns-fullscreen-list-item-1")).not.toBeInTheDocument();
+  });
+
+  test("keeps newest-first order when input order and activeKey change", () => {
+    const [hits, setHits] = createSignal<PatternHitDTO[]>([MID, OLD, NEW]);
+    const [activeKey, setActiveKey] = createSignal<string | null>(null);
+    render(() => (
+      <FullscreenPatternList hits={hits()} activeKey={activeKey()} onSelect={vi.fn()} />
+    ));
+    expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent("Bull Flag");
+
+    setHits([OLD, NEW, MID]);
+    expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent("Bull Flag");
+    expect(screen.queryByTestId("patterns-fullscreen-list-item-1")).not.toBeInTheDocument();
+
+    setActiveKey("33");
+    expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent("Bull Flag");
+    expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveAttribute("data-selected", "true");
   });
 
   test("marks the active row selected", () => {

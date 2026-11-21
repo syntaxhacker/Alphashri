@@ -27,7 +27,18 @@ export function PatternGrid(props: PatternGridProps) {
   const cols = createMemo(() => (isWide() ? 4 : isDesktop() ? 3 : isTablet() ? 2 : 1));
 
   const trendlinesView = () => props.trendlinesView ?? "both";
-  const activeHit = () => props.activeHit ?? null;
+  const activeIdentity = createMemo(() => {
+    const hit = props.activeHit ?? null;
+    return hit
+      ? {
+          symbol: hit.symbol,
+          timeframe: hit.timeframe,
+          pattern_id: hit.pattern_id,
+          start_date: hit.start_date,
+          end_date: hit.end_date,
+        }
+      : null;
+  });
 
   /**
    * Identity of the docked hit, resolved once per active change instead of
@@ -35,7 +46,7 @@ export function PatternGrid(props: PatternGridProps) {
    * Field equality matches `fullscreenDedupeKey` without the join.
    */
   const isActive = (hit: PatternHitDTO): boolean => {
-    const active = activeHit();
+    const active = activeIdentity();
     if (!active) return false;
     return (
       active.symbol === hit.symbol &&

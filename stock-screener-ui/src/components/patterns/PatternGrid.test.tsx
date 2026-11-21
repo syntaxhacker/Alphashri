@@ -60,6 +60,34 @@ describe("PatternGrid", () => {
     expect(cards[0]).not.toHaveAttribute("data-selected");
   });
 
+  test("marks only the exact hit across symbol, timeframe, pattern, start and end", () => {
+    const base = makeHit({
+      id: 1,
+      symbol: "EXACT",
+      timeframe: "1D",
+      pattern_id: "falling_wedge",
+      start_date: "2026-01-01",
+      end_date: "2026-02-01",
+    });
+    const hits = [
+      base,
+      makeHit({ id: 2, symbol: "OTHER", timeframe: "1D", pattern_id: "falling_wedge", start_date: "2026-01-01", end_date: "2026-02-01" }),
+      makeHit({ id: 3, symbol: "EXACT", timeframe: "1W", pattern_id: "falling_wedge", start_date: "2026-01-01", end_date: "2026-02-01" }),
+      makeHit({ id: 4, symbol: "EXACT", timeframe: "1D", pattern_id: "flag", pattern_name: "Flag", start_date: "2026-01-01", end_date: "2026-02-01" }),
+      makeHit({ id: 5, symbol: "EXACT", timeframe: "1D", pattern_id: "falling_wedge", start_date: "2026-01-02", end_date: "2026-02-01" }),
+      makeHit({ id: 6, symbol: "EXACT", timeframe: "1D", pattern_id: "falling_wedge", start_date: "2026-01-01", end_date: "2026-02-02" }),
+    ];
+
+    render(() => <PatternGrid hits={hits} activeHit={base} onSelect={vi.fn()} />);
+
+    const cards = screen.getAllByTestId("patterns-card");
+    expect(cards).toHaveLength(6);
+    expect(cards[0]).toHaveAttribute("data-selected", "true");
+    for (let i = 1; i < cards.length; i += 1) {
+      expect(cards[i]).not.toHaveAttribute("data-selected");
+    }
+  });
+
   test("renders two hits with the same symbol+pattern+timeframe without duplicate keys", () => {
     const warnings: string[] = [];
     const origError = console.error;

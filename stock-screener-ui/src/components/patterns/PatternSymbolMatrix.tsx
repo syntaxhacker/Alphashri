@@ -237,10 +237,20 @@ export function PatternSymbolMatrix(props: PatternSymbolMatrixProps) {
         }
         const hits = [...byTimeframe.values()];
         if (hits.length === 0) return [];
-        const best = [...hits].sort(compareConviction)[0] ?? null;
+        // Linear best-of preserves sort's stable first-on-tie without a second array.
+        let best: PatternHitDTO | null = null;
+        for (const hit of hits) {
+          if (!best || compareConviction(hit, best) < 0) best = hit;
+        }
         return [{ ...row, hits, best, hit_count: hits.length }];
       })
       .sort((a, b) => (a.best && b.best ? compareConviction(a.best, b.best) : a.best ? -1 : 1));
+  });
+
+  const chipHitsBySymbol = createMemo(() => {
+    const bySymbol = new Map<string, PatternHitDTO[]>();
+    for (const row of visibleRows()) bySymbol.set(row.symbol, sortHits(row.hits));
+    return bySymbol;
   });
 
   const onRowClick = (row: PatternMatrixRow) => {
@@ -320,7 +330,7 @@ export function PatternSymbolMatrix(props: PatternSymbolMatrixProps) {
         // Chips are badges, not text — centred like every other badge column.
         meta: { align: "center" },
         cell: (ctx) => {
-          const ordered = sortHits(ctx.row.original.hits);
+          const ordered = chipHitsBySymbol().get(ctx.row.original.symbol) ?? [];
           const shown = ordered.slice(0, MAX_CHIPS);
           const extra = ordered.length - shown.length;
           return (

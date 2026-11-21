@@ -181,49 +181,40 @@ let inFlightQuerySig: string | null = null;
  */
 let displayedQuerySig: string | null = null;
 
-/**
- * Keep streamed hits in the active result order: `newest` = freshest bars
- * first (`bars_ago` asc), `range_pos` = consolidation position desc,
- * `breakout` = breakout-conviction score desc, `distance` = closest to the
- * trigger (absolute distance asc, nulls last) and anything else =
- * `confidence` desc (server default).
- *
- * Keys + nulls-last + `id DESC` tie-break mirror the server's order_by
- * (store.py) so the final order matches `GET /results` deterministically.
- */
-export function sortStreamedHits(hits: PatternHitDTO[], sort: string | undefined): PatternHitDTO[] {
-  const ordered = [...hits];
-  // The stream arrives in worker-completion order, so the client must sort.
+type HitComparator = (a: PatternHitDTO, b: PatternHitDTO) => number;
+
+// Only base patterns have a horizontal trigger box; anything else has no
+// meaningful distance and sorts last.
+function distanceOf(hit: PatternHitDTO): number | null {
+  return hit.pattern_id === "consolidation" || (hit.base_days ?? 0) > 0
+    ? triggerDistancePct(hit)
+    : null;
+}
+
+// Single source for the keys / nulls-last / id DESC tie-breaks used by both the
+// one-shot sort and the incremental merge so they cannot drift apart.
+function comparatorForSort(sort: string | undefined): HitComparator {
   const byId = (a: PatternHitDTO, b: PatternHitDTO) => (b.id ?? 0) - (a.id ?? 0);
   if (sort === "newest") {
-    ordered.sort(
-      (a, b) =>
-        (a.bars_ago ?? 0) - (b.bars_ago ?? 0) ||
-        (b.confidence ?? 0) - (a.confidence ?? 0) ||
-        byId(a, b),
-    );
-  } else if (sort === "range_pos") {
-    ordered.sort(
-      (a, b) =>
-        (b.range_pos ?? -Infinity) - (a.range_pos ?? -Infinity) ||
-        (b.confidence ?? 0) - (a.confidence ?? 0) ||
-        byId(a, b),
-    );
-  } else if (sort === "breakout") {
-    ordered.sort(
-      (a, b) =>
-        (b.breakout_score ?? -Infinity) - (a.breakout_score ?? -Infinity) ||
-        (b.confidence ?? 0) - (a.confidence ?? 0) ||
-        byId(a, b),
-    );
-  } else if (sort === "distance") {
-    // Only base patterns have a horizontal trigger box; anything else has no
-    // meaningful distance and sorts last.
-    const distanceOf = (hit: PatternHitDTO) =>
-      hit.pattern_id === "consolidation" || (hit.base_days ?? 0) > 0
-        ? triggerDistancePct(hit)
-        : null;
-    ordered.sort((a, b) => {
+    return (a, b) =>
+      (a.bars_ago ?? 0) - (b.bars_ago ?? 0) ||
+      (b.confidence ?? 0) - (a.confidence ?? 0) ||
+      byId(a, b);
+  }
+  if (sort === "range_pos") {
+    return (a, b) =>
+      (b.range_pos ?? -Infinity) - (a.range_pos ?? -Infinity) ||
+      (b.confidence ?? 0) - (a.confidence ?? 0) ||
+      byId(a, b);
+  }
+  if (sort === "breakout") {
+    return (a, b) =>
+      (b.breakout_score ?? -Infinity) - (a.breakout_score ?? -Infinity) ||
+      (b.confidence ?? 0) - (a.confidence ?? 0) ||
+      byId(a, b);
+  }
+  if (sort === "distance") {
+    return (a, b) => {
       const da = distanceOf(a);
       const db = distanceOf(b);
       if (da == null && db == null) {
@@ -236,11 +227,48 @@ export function sortStreamedHits(hits: PatternHitDTO[], sort: string | undefined
         (b.confidence ?? 0) - (a.confidence ?? 0) ||
         byId(a, b)
       );
-    });
-  } else {
-    ordered.sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0) || byId(a, b));
+    };
   }
-  return ordered;
+  return (a, b) => (b.confidence ?? 0) - (a.confidence ?? 0) || byId(a, b);
+}
+
+/**
+ * Keep streamed hits in the active result order: `newest` = freshest bars
+ * first (`bars_ago` asc), `range_pos` = consolidation position desc,
+ * `breakout` = breakout-conviction score desc, `distance` = closest to the
+ * trigger (absolute distance asc, nulls last) and anything else =
+ * `confidence` desc (server default).
+ *
+ * Keys + nulls-last + `id DESC` tie-break mirror the server's order_by
+ * (store.py) so the final order matches `GET /results` deterministically.
+ */
+export function sortStreamedHits(hits: PatternHitDTO[], sort: string | undefined): PatternHitDTO[] {
+  // The stream arrives in worker-completion order, so the client must sort.
+  return [...hits].sort(comparatorForSort(sort));
+}
+
+/**
+ * Fold an unsorted batch into a list already sorted by `sort` without
+ * re-sorting the accumulated list. Stable on ties (`> 0`, never `<= 0`) so the
+ * result matches one stable sort of the concatenation.
+ */
+export function mergeStreamedHits(
+  existingSorted: PatternHitDTO[],
+  batch: PatternHitDTO[],
+  sort: string | undefined,
+): PatternHitDTO[] {
+  const cmp = comparatorForSort(sort);
+  const sortedBatch = [...batch].sort(cmp);
+  const merged: PatternHitDTO[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < existingSorted.length && j < sortedBatch.length) {
+    if (cmp(existingSorted[i], sortedBatch[j]) > 0) merged.push(sortedBatch[j++]);
+    else merged.push(existingSorted[i++]);
+  }
+  while (i < existingSorted.length) merged.push(existingSorted[i++]);
+  while (j < sortedBatch.length) merged.push(sortedBatch[j++]);
+  return merged;
 }
 
 /**
@@ -618,8 +646,10 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
     const batch = pendingItems;
     pendingItems = [];
     if (batch.length === 0) return;
-    const next = replaceOnFirstItem ? batch : [...state.results, ...batch];
-    patch({ results: sortStreamedHits(next, uiSort) });
+    // `state.results` is already ordered by `uiSort`; a same-query reload's
+    // first batch replaces the stale list instead of merging into it.
+    const base = replaceOnFirstItem ? [] : state.results;
+    patch({ results: mergeStreamedHits(base, batch, uiSort) });
     if (replaceOnFirstItem) replaceOnFirstItem = false;
   };
   const scheduleFlush = (): void => {
