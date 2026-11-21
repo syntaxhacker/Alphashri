@@ -115,10 +115,15 @@ def _unwrap(outcomes: list) -> tuple[list, int]:
     values: list = []
     failed = 0
     for outcome in outcomes or []:
-        try:
+        # Fast path for the (ok, value) pair _apply_one always produces; the
+        # guard keeps _unwrap tolerant of malformed outcomes from custom pools.
+        if type(outcome) is tuple and len(outcome) == 2:
             ok, value = outcome
-        except (TypeError, ValueError):
-            ok, value = False, None
+        else:
+            try:
+                ok, value = outcome
+            except (TypeError, ValueError):
+                ok, value = False, None
         if ok:
             values.append(value)
         else:
@@ -164,7 +169,7 @@ def run_symbols_with_mode(
     on fork platforms. Any pool error falls back (processes → threads →
     sequential). Never raises.
     """
-    syms = [str(s) for s in (symbols or [])]
+    syms = [s if isinstance(s, str) else str(s) for s in (symbols or [])]
     n = len(syms)
     if n == 0:
         return [], "sequential"

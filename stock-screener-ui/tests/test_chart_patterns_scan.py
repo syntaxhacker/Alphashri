@@ -2338,6 +2338,26 @@ def test_auto_parent_only_writes_at_threshold(cp_store, monkeypatch):
     assert any(c[0] == "save_hits_batch" for c in store_write_calls), "parent must flush hits"
 
 
+def test_source_sig_precomputed_values_match_default(cp_store):
+    """Passing the caller's session date/detector sig must not change the hash.
+
+    ``_process_symbol`` now forwards values it already computed so the frame
+    digest avoids a second timezone conversion; the result must be identical
+    to the four-argument form used by stored-hit comparisons.
+    """
+    df = _make_df(80)
+    last_date = scan.candles.frame_last_date(df)
+    detector_sig = scan._detector_signature()
+    expected = scan._source_sig(df, "1D", 40, True)
+    assert scan._source_sig(
+        df, "1D", 40, True, detector_sig=detector_sig, last_date=last_date
+    ) == expected
+    # Proves the forwarded date is actually used, not ignored.
+    assert scan._source_sig(
+        df, "1D", 40, True, detector_sig=detector_sig, last_date="2000-01-01"
+    ) != expected
+
+
 def test_auto_cancellation_still_works(cp_store, monkeypatch):
     """Cancellation stops the auto process path; no symbol work, old hits intact."""
     if not parallel.supports_processes():

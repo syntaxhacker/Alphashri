@@ -57,8 +57,14 @@ def _fast_normalize(df: pd.DataFrame) -> pd.DataFrame | None:
         if not (idx.is_unique and idx.is_monotonic_increasing):
             return None
         block = frame[F.OHLCV_COLUMNS]
-        if block.isna().any().any():
+        # One numeric pass in place of pandas' isna().any().any(); a NaN must
+        # still fall through so the defensive path decides the row layout.
+        if np.isnan(block.to_numpy(dtype=float, copy=False)).any():
             return None
+        # astype's copy keyword is deprecated in pandas 4; an all-float64 block
+        # needs no cast and the detector only reads it, so keep the no-copy path.
+        if block.dtypes.eq("float64").all():
+            return block
         return block.astype(float)
     except Exception:
         return None
@@ -87,7 +93,9 @@ def window_signature(df: pd.DataFrame | None, lookback_bars: int | None = None) 
         if window is None or window.empty:
             return None
         h = hashlib.sha1()
-        h.update(window[list(F.OHLCV_COLUMNS)].to_numpy(dtype=float).tobytes())
+        # _trendline_window always returns OHLCV columns in contract order,
+        # so re-selecting them would only allocate a duplicate block.
+        h.update(window.to_numpy(dtype=float).tobytes())
         h.update(np.asarray(window.index.asi8, dtype=np.int64).tobytes())
         return f"{len(window)}:{h.hexdigest()[:16]}"
     except Exception:
@@ -191,14 +199,10 @@ def detect_trendlines(df: pd.DataFrame | None, lookback_bars: int | None = None)
     high = norm["high"].to_numpy(dtype=float)
     low = norm["low"].to_numpy(dtype=float)
     try:
-        highs = [
-            (p, float(high[p]))
-            for p in F.pivot_indices(high, order, order, "high", nan_tolerant=True)
-        ]
-        lows = [
-            (p, float(low[p]))
-            for p in F.pivot_indices(low, order, order, "low", nan_tolerant=True)
-        ]
+        hi_pos = F.pivot_indices(high, order, order, "high", nan_tolerant=True)
+        lo_pos = F.pivot_indices(low, order, order, "low", nan_tolerant=True)
+        highs = list(zip(hi_pos, high[hi_pos].tolist()))
+        lows = list(zip(lo_pos, low[lo_pos].tolist()))
     except Exception:
         return dict(empty)
 
