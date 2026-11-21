@@ -182,8 +182,12 @@ export function urlToPayload(searchParams: URLSearchParams): BacktestConfigPaylo
 }
 
 export function useBacktestQueryParams() {
-  useStoreSnapshot(subscribe, getBacktestState);
-  const state = () => getBacktestState();
+  // `useStoreSnapshot` returns the reactive memo; reading `getBacktestState()`
+  // directly returns a plain snapshot with no dependency, so the hydration
+  // effect below would run once (variations still empty) and never re-run when
+  // they arrive — silently leaving the default symbols in place and dropping
+  // every URL parameter. Bind the memo instead.
+  const state = useStoreSnapshot(subscribe, getBacktestState);
   let pendingPayload: BacktestConfigPayload | null = null;
   let syncDone = false;
 
