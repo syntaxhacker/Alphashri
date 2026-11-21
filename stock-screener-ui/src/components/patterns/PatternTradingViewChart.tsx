@@ -339,8 +339,10 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
     const placed: { x: number; y: number; w: number; h: number }[] = [];
     data().lines.forEach((line, i) => {
       if (!line.labelEligible || hiddenRef.has(line.name)) return;
-      const series = lineSeries[i];
-      if (!series) return;
+      // Keep the runtime guard: test doubles and future library builds may omit
+      // the coordinate mapper, and the label pass must not throw without it.
+      const series: { priceToCoordinate?: (p: number) => number | null } | undefined = lineSeries[i];
+      if (!series || typeof series.priceToCoordinate !== "function") return;
       const anchor = line.labelAt === "start" ? line.points[0] : line.points[line.points.length - 1];
       if (!anchor) return;
       const x = ts.timeToCoordinate?.(anchor.time as never);
