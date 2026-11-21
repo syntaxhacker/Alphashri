@@ -64,7 +64,9 @@ export const MARKET_VIEW_OPTIONS = [
   { value: "table", label: "Table" },
   { value: "vis", label: "Vis" },
   { value: "movers", label: "Movers" },
-  { value: "value", label: "Value" },
+  // Distinct from the rail's "Value filters": this view is the full Deep Value
+  // panel (own universe selector, scores, sector summary), not a filter set.
+  { value: "value", label: "Deep Value" },
 ] as const;
 
 export type MarketViewMode = (typeof MARKET_VIEW_OPTIONS)[number]["value"];

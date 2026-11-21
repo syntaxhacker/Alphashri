@@ -508,9 +508,12 @@ describe("flat heatmap label legibility", () => {
 });
 
 describe("market view vocabulary", () => {
-  test("offers the Value view alongside table/vis/movers", () => {
+  test("offers the Deep Value view alongside table/vis/movers", () => {
     expect(MARKET_VIEW_OPTIONS.map((o) => o.value)).toEqual(["table", "vis", "movers", "value"]);
-    expect(MARKET_VIEW_OPTIONS.find((o) => o.value === "value")?.label).toBe("Value");
+    // Labelled "Deep Value", not "Value": the rail also has a "Value filters"
+    // band, and two controls called "Value" with different meanings is exactly
+    // the ambiguity this label exists to remove.
+    expect(MARKET_VIEW_OPTIONS.find((o) => o.value === "value")?.label).toBe("Deep Value");
   });
 
   test("the view toggle is labelled Vis, never Map", () => {
@@ -521,11 +524,11 @@ describe("market view vocabulary", () => {
     expect(within(toggle).queryByText("Map")).not.toBeInTheDocument();
   });
 
-  test("the toggle selects the Value view", () => {
+  test("the toggle selects the Deep Value view", () => {
     const onChange = vi.fn();
     render(() => <MarketViewToggle value="value" onChange={onChange} />);
     const toggle = screen.getByTestId("market-view-toggle").querySelector("button, input");
-    expect(screen.getByText("Value")).toBeInTheDocument();
+    expect(screen.getByText("Deep Value")).toBeInTheDocument();
     expect(toggle).toBeTruthy();
   });
 });

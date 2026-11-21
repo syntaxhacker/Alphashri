@@ -343,14 +343,21 @@ function boundChip(
   return { key, label: `${label} ${direction === "min" ? "≥" : "≤"} ${fmtNum(value)}${unit}` };
 }
 
-/** One-click bundle mirroring the retired Deep Value tab's "serious" gates. */
+/**
+ * One-click bundle mirroring the retired Deep Value tab's "serious" gates.
+ *
+ * `fcfYieldMin` is deliberately NOT in the preset. TradingView carries
+ * `free_cash_flow_ttm` for only ~6% of Indian names (measured: 3 of 50), so
+ * including it reduced the preset to 24 matches out of 3,593 — the filter was
+ * doing almost all the narrowing on missing data rather than on bad companies.
+ * It stays available as its own filter for markets that do report FCF.
+ */
 export const DEEP_VALUE_PRESET: Pick<
   MarketFilterState,
-  "peMax" | "roeMin" | "fcfYieldMin" | "debtToEquityMax"
+  "peMax" | "roeMin" | "debtToEquityMax"
 > = {
   peMax: 15,
   roeMin: 15,
-  fcfYieldMin: 0,
   debtToEquityMax: 1.5,
 };
 
@@ -358,7 +365,6 @@ export function deepValuePresetActive(filters: MarketFilterState): boolean {
   return (
     filters.peMax === DEEP_VALUE_PRESET.peMax &&
     filters.roeMin === DEEP_VALUE_PRESET.roeMin &&
-    filters.fcfYieldMin === DEEP_VALUE_PRESET.fcfYieldMin &&
     filters.debtToEquityMax === DEEP_VALUE_PRESET.debtToEquityMax
   );
 }
