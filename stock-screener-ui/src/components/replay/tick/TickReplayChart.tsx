@@ -78,7 +78,9 @@ export default function TickReplayChart(props: TickReplayChartProps) {
     }
     onCleanup(() => {
       createSeriesMarkers(series as any, []);
-      for (const l of lines) series.removePriceLine(l);
+      // A test double or a future lightweight-charts build may lack the method,
+      // so keep the guard the double-cast used to hide.
+      for (const l of lines) series.removePriceLine?.(l);
     });
   });
 

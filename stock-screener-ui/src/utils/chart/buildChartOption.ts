@@ -27,7 +27,19 @@ export interface ChartOption {
   yAxis: Array<Record<string, unknown>>;
   dataZoom: Array<Record<string, unknown>>;
   axisPointer?: { link: Array<{ xAxisIndex: string }> };
-  series: Array<Record<string, unknown> & { name?: string; type?: string; markLine?: any }>;
+  series: Array<ChartOptionSeries>;
+}
+
+/** `markLine` is present only on the candle series and is read back to append
+ *  live-position lines; the payload itself stays ECharts-shaped. */
+export interface ChartOptionSeries extends Record<string, unknown> {
+  name?: string;
+  type?: string;
+  markLine?: {
+    symbol: string[];
+    data: Array<Record<string, unknown>>;
+    label: Record<string, unknown>;
+  };
 }
 
 export function buildChartOption(input: ChartInput): ChartOption {

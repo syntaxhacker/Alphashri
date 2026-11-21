@@ -1,7 +1,28 @@
 import type { UnifiedLivePosition, MarkLineData } from "./types";
 import { MARKER_ENTRY, MARKER_BORDER, MARKER_SL, MARKER_TP } from "../../config/colors";
 
-export function buildLivePositionMarker(pos: UnifiedLivePosition, candleIdx: number): any[] {
+/** Scatter-series bag for the live-position marker. */
+export interface LivePositionMarkerSeries {
+  name: string;
+  type: "scatter";
+  data: [
+    {
+      value: [number, number];
+      itemStyle: { color: string; borderColor: string; borderWidth: number };
+      symbol: string;
+      symbolSize: number;
+      trade: UnifiedLivePosition;
+      isLive: true;
+    },
+  ];
+  symbolSize: number;
+  z: number;
+}
+
+export function buildLivePositionMarker(
+  pos: UnifiedLivePosition,
+  candleIdx: number,
+): LivePositionMarkerSeries[] {
   return [
     {
       name: "LIVE",

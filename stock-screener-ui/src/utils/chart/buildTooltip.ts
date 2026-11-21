@@ -1,6 +1,6 @@
 import type { HolidayMap } from "../chartUtils";
 import { getCandleFromParams } from "../chartUtils";
-import type { UnifiedTrade } from "./types";
+import type { UnifiedTrade, UnifiedLivePosition } from "./types";
 import {
   POSITIVE,
   NEGATIVE,
@@ -11,6 +11,18 @@ import {
   TRADING_RED,
   WARNING,
 } from "../../config/colors";
+
+/** One ECharts tooltip param entry: a candle point, or a marker carrying a
+ *  trade / live position. `trade` is the external ECharts payload, so it is
+ *  `unknown` here and narrowed at the branch that proves which one it is. */
+export interface TooltipParam {
+  seriesType?: string;
+  dataIndex?: number;
+  data?: {
+    isLive?: boolean;
+    trade?: unknown;
+  };
+}
 
 export function buildTooltip(
   candles: {
@@ -27,13 +39,13 @@ export function buildTooltip(
   extendedTimeData?: string[],
   hasGaps?: boolean,
   holidayMap?: HolidayMap,
-): (params: any) => string {
-  return function (params: any) {
+): (params: TooltipParam[] | null | undefined) => string {
+  return function (params: TooltipParam[] | null | undefined) {
     if (!params || !params.length) return "";
 
     for (const p of params) {
-      if (p.data?.isLive && p.data?.trade) {
-        const pos = p.data.trade;
+      if (p.data?.isLive && p.data.trade) {
+        const pos = p.data.trade as UnifiedLivePosition;
         const pnl = pos.pnl ?? 0;
         const pnlPct = pos.pnl_pct ?? 0;
         const pnlColor = pnl >= 0 ? POSITIVE : NEGATIVE;
@@ -43,7 +55,7 @@ export function buildTooltip(
       }
 
       if (p.data?.trade) {
-        const t: UnifiedTrade = p.data.trade;
+        const t = p.data.trade as UnifiedTrade;
         const pnlColor = (t.pnl ?? 0) >= 0 ? POSITIVE : NEGATIVE;
         const pnl = t.pnl ?? 0;
         const costs = t.costs ?? 0;
@@ -58,10 +70,10 @@ export function buildTooltip(
     }
 
     if (hasGaps && extendedTimeData) {
-      const candle = params.find((p: any) => p.seriesType === "candlestick");
+      const candle = params.find((p) => p.seriesType === "candlestick");
       if (candle) {
         const idx = candle.dataIndex;
-        const label = extendedTimeData[idx];
+        const label = idx !== undefined ? extendedTimeData[idx] : undefined;
         if (label?.includes("[")) {
           const parts = label.match(/(\S+)\s+\[(\w+)\]/);
           const hDate = parts ? parts[1] : label;
