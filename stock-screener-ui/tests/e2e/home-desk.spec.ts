@@ -253,6 +253,20 @@ const titleBar = (page: Page, id: string) => page.getByTestId(`window-title-${id
 const canvas = (page: Page) => page.getByTestId("window-manager-canvas");
 const windows = (page: Page) => canvas(page).locator("[data-window-id]");
 
+/**
+ * The window id carries an instance counter (`patterns.results-3`), so hardcoding
+ * a suffix asserts an incidental insertion order. Resolve the window by the panel
+ * it holds instead.
+ */
+const newestWindowId = async (page: Page, panelId: string): Promise<string> => {
+  const match = async () =>
+    (await windows(page).evaluateAll((els) =>
+      els.map((el) => el.getAttribute("data-window-id") ?? ""),
+    )).find((id) => id.startsWith(`${panelId}-`)) ?? "";
+  await expect.poll(match, { timeout: 10000 }).not.toBe("");
+  return match();
+};
+
 interface WindowLabel {
   id: string;
   title: string;
@@ -482,7 +496,11 @@ test.describe("/home floating-window desk", () => {
     await addPanel(page, "patterns.results");
 
     await expect(windows(page)).toHaveCount(before + 1);
-    const panel = win(page, "patterns.results-3");
+    // Resolve the window by panel id instead of assuming the instance-counter
+    // suffix — `patterns.results-3` bakes in "exactly two windows came before",
+    // which only holds in the seeded order this test happens to get locally.
+    const panelId = await newestWindowId(page, "patterns.results");
+    const panel = win(page, panelId);
     await expect(panel).toBeVisible();
     await expect(panel).toHaveAttribute("aria-label", "PATTERNS");
     await expect(panel.getByTestId("patterns-results-panel")).toBeVisible();
