@@ -30,12 +30,12 @@ export interface ChartOption {
   series: Array<ChartOptionSeries>;
 }
 
-/** `markLine` is present only on the candle series and is read back to append
- *  live-position lines; the payload itself stays ECharts-shaped. */
+/** Declared non-optional (though only the candle series actually sets it) so
+ *  untyped callers can read `series[0].markLine.data` without narrowing. */
 export interface ChartOptionSeries extends Record<string, unknown> {
   name?: string;
   type?: string;
-  markLine?: {
+  markLine: {
     symbol: string[];
     data: Array<Record<string, unknown>>;
     label: Record<string, unknown>;
@@ -96,7 +96,7 @@ export function buildChartOption(input: ChartInput): ChartOption {
         }
 
         const candleData = input.candles.map((c) => [c.open, c.close, c.low, c.high]);
-        const extCandleData: any[] = [];
+        const extCandleData: (number[] | string[])[] = [];
         let ci = 0;
         for (let i = 0; i < extendedTimeData.length; i++) {
           if (extendedTimeData[i].includes("[")) {
@@ -158,8 +158,8 @@ export function buildChartOption(input: ChartInput): ChartOption {
     input.candles,
   );
 
-  let liveSeries: any[] = [];
-  let liveMarkLines: any[] = [];
+  let liveSeries: ReturnType<typeof buildLivePositionMarker> = [];
+  let liveMarkLines: MarkLineData[] = [];
   if (input.livePosition && times.length > 0) {
     let liveCandleIdx = -1;
     const entryTime = input.livePosition.entry_time || "";
@@ -210,7 +210,7 @@ export function buildChartOption(input: ChartInput): ChartOption {
 
   const markLineValues = liveMarkLines.map((l) => l.yAxis).filter(Boolean);
   if (markLineValues.length > 0 && input.candles.length > 0) {
-    const prices = input.candles.flatMap((c: any) => [c.open, c.high, c.low, c.close]);
+    const prices = input.candles.flatMap((c) => [c.open, c.high, c.low, c.close]);
     const dataMin = Math.min(...prices);
     const dataMax = Math.max(...prices);
     const dataRange = dataMax - dataMin;
