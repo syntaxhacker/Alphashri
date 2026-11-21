@@ -1,5 +1,6 @@
 import { Show } from "solid-js";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
+import { IconChartLine } from "@/components/common/Icons";
 import { Box } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { ChainLevel, ChainLeg, ChainRow, OptionChainLevels } from "@/api/optionsDock";
@@ -29,31 +30,70 @@ function fmtIv(value: number | null): string {
 
 const CELL = "block w-full font-mono tabular-nums text-[10px] leading-none";
 
-/** A clickable price cell: buy on click, sell on shift-click. */
-function PriceCell(props: {
+/** Opens the per-contract chart. Native `<button>` gives Enter/Space parity. */
+function ChartButton(props: {
   leg: ChainLeg;
   optionType: "CE" | "PE";
   strike: number;
-  onPick?: (strike: number, type: "CE" | "PE", leg: ChainLeg, side: "buy" | "sell") => void;
-  align?: "right" | "left";
+  onChart: (strike: number, type: "CE" | "PE", leg: ChainLeg) => void;
 }) {
-  const label = () =>
-    `${props.optionType === "CE" ? "Call" : "Put"} ${props.strike} · buy · shift-click to sell`;
+  const label = () => `View ${props.strike} ${props.optionType} premium chart`;
   return (
     <Box
       component="button"
       type="button"
       aria-label={label()}
       title={label()}
-      data-testid={`options-${props.optionType.toLowerCase()}-${props.strike}`}
+      data-testid={`options-${props.optionType.toLowerCase()}-${props.strike}-chart`}
       onClick={(event: MouseEvent) => {
         event.stopPropagation();
-        props.onPick?.(props.strike, props.optionType, props.leg, event.shiftKey ? "sell" : "buy");
+        props.onChart(props.strike, props.optionType, props.leg);
       }}
-      className={`${CELL} cursor-pointer border-0 bg-transparent p-0 text-fin-text hover:text-fin-primary`}
-      style={{ "text-align": props.align ?? "right" }}
+      className="inline-flex h-[14px] w-[14px] shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
     >
-      {props.leg.ltp == null ? DASH : props.leg.ltp.toFixed(1)}
+      <IconChartLine size={12} />
+    </Box>
+  );
+}
+
+/** A clickable price cell: buy on click, sell on shift-click. */
+function PriceCell(props: {
+  leg: ChainLeg;
+  optionType: "CE" | "PE";
+  strike: number;
+  onPick?: (strike: number, type: "CE" | "PE", leg: ChainLeg, side: "buy" | "sell") => void;
+  onChart?: (strike: number, type: "CE" | "PE", leg: ChainLeg) => void;
+  align?: "right" | "left";
+}) {
+  const label = () =>
+    `${props.optionType === "CE" ? "Call" : "Put"} ${props.strike} · buy · shift-click to sell`;
+  return (
+    <Box className="flex w-full min-w-0 items-center justify-end gap-1">
+      <Box
+        component="button"
+        type="button"
+        aria-label={label()}
+        title={label()}
+        data-testid={`options-${props.optionType.toLowerCase()}-${props.strike}`}
+        onClick={(event: MouseEvent) => {
+          event.stopPropagation();
+          props.onPick?.(props.strike, props.optionType, props.leg, event.shiftKey ? "sell" : "buy");
+        }}
+        className="min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 font-mono tabular-nums text-[10px] leading-none text-fin-text hover:text-fin-primary"
+        style={{ "text-align": props.align ?? "right" }}
+      >
+        {props.leg.ltp == null ? DASH : props.leg.ltp.toFixed(1)}
+      </Box>
+      <Show when={props.onChart}>
+        {(onChart) => (
+          <ChartButton
+            leg={props.leg}
+            optionType={props.optionType}
+            strike={props.strike}
+            onChart={onChart()}
+          />
+        )}
+      </Show>
     </Box>
   );
 }
@@ -268,6 +308,8 @@ export interface ChainColumnHandlers {
   /** Strike nearest spot, or null when there is no quote — drives the ATM marker. */
   atmStrike: () => number | null;
   onPick?: (strike: number, type: "CE" | "PE", leg: ChainLeg, side: "buy" | "sell") => void;
+  /** Opens the per-contract chart beside the LTP, without adding a leg. */
+  onChart?: (strike: number, type: "CE" | "PE", leg: ChainLeg) => void;
   /** Restrict the narrow layout to one side plus the strike. Default: all nine. */
   side?: "CE" | "PE";
   /** Precomputed once per table render — never derive levels inside a cell. */
@@ -307,7 +349,7 @@ export function chainColumns(handlers: ChainColumnHandlers): TableColumnDef<Chai
     {
       id: "ce_ltp",
       header: "LTP",
-      size: 52,
+      size: 64,
       meta: { align: "right" },
       accessorFn: (row) => row.ce.ltp,
       cell: ({ row }) => (
@@ -316,6 +358,7 @@ export function chainColumns(handlers: ChainColumnHandlers): TableColumnDef<Chai
           optionType="CE"
           strike={row.original.strike}
           onPick={handlers.onPick}
+          onChart={handlers.onChart}
         />
       ),
     },
@@ -351,7 +394,7 @@ export function chainColumns(handlers: ChainColumnHandlers): TableColumnDef<Chai
     {
       id: "pe_ltp",
       header: "LTP",
-      size: 52,
+      size: 64,
       meta: { align: "right" },
       accessorFn: (row) => row.pe.ltp,
       cell: ({ row }) => (
@@ -360,6 +403,7 @@ export function chainColumns(handlers: ChainColumnHandlers): TableColumnDef<Chai
           optionType="PE"
           strike={row.original.strike}
           onPick={handlers.onPick}
+          onChart={handlers.onChart}
         />
       ),
     },

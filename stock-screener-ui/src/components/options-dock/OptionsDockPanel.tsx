@@ -34,6 +34,7 @@ import {
   suspendPolling,
 } from "@/state/optionsDock";
 import type { ChainLeg } from "@/api/optionsDock";
+import type { ContractChartSelection } from "./contract/ContractChartPanel";
 import {
   CHAIN_NARROW_QUERY,
   DEFAULT_CHAIN_SORTING,
@@ -79,6 +80,14 @@ const AnalyticsPanel = lazy(() =>
 const DockPillarsView = lazy(() =>
   import("./analytics/DockPillarsView").then((module) => ({ default: module.DockPillarsView })),
 );
+
+// Contract charts pull a chart engine too, so they stay out of the chain chunk.
+const ContractChartPanel = lazy(() =>
+  import("./contract/ContractChartPanel").then((module) => ({ default: module.ContractChartPanel })),
+);
+
+/** What the chain hands the chart: the contract itself, not a leg. */
+export type ContractChartTarget = ContractChartSelection;
 
 /** `2026-03-26` → `26 MAR`. */
 function shortDate(date: string): string {
@@ -211,11 +220,15 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
   // The pillars replace the chain in place; they never navigate to the
   // standalone dashboard route, so the dock (and its legs) stay put.
   const [pillarsOpen, setPillarsOpen] = createSignal(false);
+  const [contractChart, setContractChart] = createSignal<ContractChartTarget | null>(null);
   let restoreMaximize = false;
   /** Set for exactly one maximize transition, so entering pillars does not
    * capture the strip button as the generic restore target (it is detached). */
   let enteringPillars = false;
   let pillarsTrigger: HTMLElement | null = null;
+  // Same contract for the chart: the chain button detaches with the chain.
+  let enteringContract = false;
+  let restoreMaximizeContract = false;
 
   const openPillars = () => {
     if (pillarsOpen()) return;
@@ -305,6 +318,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
     abortAnalytics();
     // Unmounting mid-pillars must not leave the chain suspended forever.
     if (pillarsOpen()) resumePolling();
+    if (contractChart()) resumePolling();
   });
 
   onMount(() => {
@@ -322,7 +336,8 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
       ) {
         return;
       }
-      if (maximized() && !pillarsOpen()) setMaximized(false);
+      if (contractChart()) closeContractChart();
+      else if (maximized() && !pillarsOpen()) setMaximized(false);
       else if (pillarsOpen()) closePillars();
       else {
         abortAnalytics();
@@ -338,11 +353,13 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
   createEffect(() => {
     const m = maximized();
     if (m && !wasMaximized) {
-      // Entering the pillars detaches the button that opened them; capturing it
-      // would leave a dead node. `closePillars` owns that restore instead.
-      const viaPillars = enteringPillars;
+      // Entering the pillars or a contract chart detaches the button that
+      // opened them; capturing it would leave a dead node. Their close
+      // handlers own that restore instead.
+      const viaOverlay = enteringPillars || enteringContract;
       enteringPillars = false;
-      if (viaPillars) {
+      enteringContract = false;
+      if (viaOverlay) {
         restoreTarget = null;
       } else {
         const active = document.activeElement as HTMLElement | null;
@@ -352,7 +369,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
       if (root) root.setAttribute("aria-modal", "true");
       setScrollLock(true);
       const restoreButton = document.querySelector<HTMLElement>('[data-testid="options-maximize"]');
-      if (!viaPillars && restoreButton) restoreButton.focus({ preventScroll: true });
+      if (!viaOverlay && restoreButton) restoreButton.focus({ preventScroll: true });
       else root?.focus({ preventScroll: true });
     } else if (!m && wasMaximized) {
       const root = document.querySelector<HTMLElement>('[data-testid="options-dock"]');
@@ -377,6 +394,44 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
   const symbol = () => optionsDockState.symbol ?? "—";
   const chain = () => optionsDockState.chain;
   const spot = () => chain()?.spot ?? optionsDockState.underlying?.spot ?? 0;
+
+  const openContractChart = (strike: number, type: "CE" | "PE", leg: ChainLeg) => {
+    if (contractChart()) return;
+    restoreMaximizeContract = maximized();
+    setContractChart({
+      instrumentKey: leg.instrumentKey ?? "",
+      symbol: symbol(),
+      expiry: optionsDockState.expiry ?? "",
+      strike,
+      side: type,
+      ltp: leg.ltp,
+      spot: spot(),
+    });
+    // Only a real (false → true) transition runs the maximize effect, which is
+    // the only consumer of this flag.
+    enteringContract = !maximized();
+    setMaximized(true);
+    // The chain is off screen; a poll would spend the options slice on a table
+    // nobody can see.
+    suspendPolling();
+  };
+
+  const closeContractChart = () => {
+    const target = contractChart();
+    if (!target) return;
+    const restore = restoreMaximizeContract;
+    restoreMaximizeContract = false;
+    setContractChart(null);
+    setMaximized(restore);
+    resumePolling();
+    // Solid has re-rendered the chain by now, so the originating button is a
+    // fresh node: find it by the contract it describes.
+    const trigger =
+      document.querySelector<HTMLElement>(
+        `[data-testid="options-${target.side.toLowerCase()}-${target.strike}-chart"]`,
+      ) ?? document.querySelector<HTMLElement>('[data-testid="options-chain-center"]');
+    trigger?.focus?.({ preventScroll: true });
+  };
   const selectedExpiry = createMemo(() =>
     optionsDockState.expiries.find((entry) => entry.date === optionsDockState.expiry) ?? null,
   );
@@ -651,15 +706,23 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                 <IconRefresh size={12} />
               </Box>
             </Tooltip>
-            <Tooltip label={pillarsOpen() ? "Back to chain first" : maximized() ? "Restore" : "Maximize"}>
+            <Tooltip
+              label={
+                pillarsOpen() || contractChart()
+                  ? "Back to chain first"
+                  : maximized()
+                    ? "Restore"
+                    : "Maximize"
+              }
+            >
               <Box
                 component="button"
                 type="button"
                 aria-label={maximized() ? "Restore options dock" : "Maximize options dock"}
                 data-testid="options-maximize"
-                // The pillars own the full-screen size; un-maximizing here would
-                // shrink the charts. Back to chain is the only exit.
-                disabled={pillarsOpen()}
+                // The pillars and the contract chart own the full-screen size;
+                // un-maximizing here would shrink the chart. Back is the exit.
+                disabled={pillarsOpen() || contractChart() !== null}
                 onClick={() => setMaximized((v) => !v)}
                 className="inline-flex h-[22px] w-[22px] items-center justify-center border-0 bg-transparent p-0 text-fin-text-muted hover:text-fin-primary disabled:cursor-not-allowed disabled:opacity-40"
               >
@@ -691,7 +754,14 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
       {/* ---------------------------------------------------------------- */}
       {/* Body                                                             */}
       {/* ---------------------------------------------------------------- */}
-      <Show when={!pillarsOpen() && optionsDockState.status === "error" && optionsDockState.error}>
+      <Show
+        when={
+          !pillarsOpen() &&
+          !contractChart() &&
+          optionsDockState.status === "error" &&
+          optionsDockState.error
+        }
+      >
         <Box
           className="flex flex-1 flex-col items-center justify-center gap-1 px-4 text-center"
           data-testid="options-dock-error"
@@ -717,7 +787,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
         </Box>
       </Show>
 
-      <Show when={!pillarsOpen() && optionsDockState.status === "empty"}>
+      <Show when={!pillarsOpen() && !contractChart() && optionsDockState.status === "empty"}>
         <Box
           className="flex flex-1 flex-col items-center justify-center gap-1 px-4 text-center"
           data-testid="options-dock-empty"
@@ -762,127 +832,136 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
             </Show>
           }
         >
-          <DockSection
-            title={
-              selectedExpiry()
-                ? `CHAIN · ${symbol()} ${shortDate(selectedExpiry()!.date)}`
-                : `CHAIN · ${symbol()}`
-            }
-            testId="options-chain-section"
-            headerTestId="dock-section-chain"
-            className="min-h-[160px]"
-            fill
-            padded={false}
-            separated={false}
-            meta={
-              <Box className="flex items-center gap-2">
-                <Tooltip label="Center on at-the-money strike">
-                  <ActionIcon
-                    variant="transparent"
-                    data-testid="options-chain-center"
-                    aria-label="Center on at-the-money strike"
-                    className="text-fin-text-muted hover:text-fin-primary"
-                    onClick={() => setChainCenterNonce((n) => n + 1)}
-                  >
-                    <IconTarget size={12} />
-                  </ActionIcon>
-                </Tooltip>
-                <Show when={!isStrikeOrder()}>
-                  <Tooltip label="Reset to strike order">
-                    <Box
-                      component="button"
-                      type="button"
-                      aria-label="Reset to strike order"
-                      data-testid="options-chain-reset-sort"
-                      onClick={() => setChainSorting([...DEFAULT_CHAIN_SORTING])}
-                      className="inline-flex h-[20px] shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap border border-fin-border bg-transparent px-1 font-mono text-[9px] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
-                      style={{ "border-radius": "4px" }}
+          {/* Hidden, not unmounted, while a contract chart is open: the table
+              keeps its scroll offset, so Back lands where the user left. */}
+          <Box
+            data-testid="options-dock-body"
+            className="contents"
+            style={contractChart() ? { display: "none" } : undefined}
+          >
+            <DockSection
+              title={
+                selectedExpiry()
+                  ? `CHAIN · ${symbol()} ${shortDate(selectedExpiry()!.date)}`
+                  : `CHAIN · ${symbol()}`
+              }
+              testId="options-chain-section"
+              headerTestId="dock-section-chain"
+              className="min-h-[160px]"
+              fill
+              padded={false}
+              separated={false}
+              meta={
+                <Box className="flex items-center gap-2">
+                  <Tooltip label="Center on at-the-money strike">
+                    <ActionIcon
+                      variant="transparent"
+                      data-testid="options-chain-center"
+                      aria-label="Center on at-the-money strike"
+                      className="text-fin-text-muted hover:text-fin-primary"
+                      onClick={() => setChainCenterNonce((n) => n + 1)}
                     >
-                      <IconRotate size={12} />
-                      <span className="hidden sm:inline">Strike</span>
-                    </Box>
+                      <IconTarget size={12} />
+                    </ActionIcon>
                   </Tooltip>
-                </Show>
-                <Show when={isNarrow()}>
-                  <ChainSideToggle value={chainSide()} onChange={setChainSide} />
-                </Show>
-                <Text size="xs" c="dimmed" className="font-mono tabular-nums" style={{ "font-size": "9px" }}>
-                  {chain()!.rows.length} strikes
-                </Text>
-              </Box>
-            }
-          >
-            {/* The strip is the chain's own stat row: outside the header it read
-                as one more captionless band in the column. */}
-            <SummaryStrip
-              rows={chain()!.rows}
-              spot={spot()}
-              pcr={chain()!.pcr}
-              atmIv={chain()!.atmIv}
-              dteDays={selectedExpiry()?.dteDays ?? 0}
-              dteYears={dteYears()}
-            />
-            <Show when={optionsDockState.error && optionsDockState.status !== "error"}>
-              <Box
-                data-testid="options-dock-error"
-                className="flex h-[26px] shrink-0 items-center gap-2 overflow-hidden border-l-[3px] bg-fin-surface-alt px-2"
-                style={{ "border-left-color": bannerColor(optionsDockState.error!) }}
-              >
-                <Text
-                  size="xs"
-                  fw={600}
-                  className="min-w-0 flex-1 truncate font-mono"
-                  style={{ "font-size": "10px", color: bannerColor(optionsDockState.error!) }}
-                >
-                  {bannerMessage(optionsDockState.error!, retrySeconds())}
-                </Text>
-                <Box
-                  component="button"
-                  type="button"
-                  aria-label="Retry option chain refresh"
-                  data-testid="options-dock-retry"
-                  onClick={() => void refresh()}
-                  className="inline-flex h-[20px] shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 font-mono text-[10px] font-semibold hover:underline"
-                  style={{ color: bannerColor(optionsDockState.error!) }}
-                >
-                  Retry
+                  <Show when={!isStrikeOrder()}>
+                    <Tooltip label="Reset to strike order">
+                      <Box
+                        component="button"
+                        type="button"
+                        aria-label="Reset to strike order"
+                        data-testid="options-chain-reset-sort"
+                        onClick={() => setChainSorting([...DEFAULT_CHAIN_SORTING])}
+                        className="inline-flex h-[20px] shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap border border-fin-border bg-transparent px-1 font-mono text-[9px] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
+                        style={{ "border-radius": "4px" }}
+                      >
+                        <IconRotate size={12} />
+                        <span className="hidden sm:inline">Strike</span>
+                      </Box>
+                    </Tooltip>
+                  </Show>
+                  <Show when={isNarrow()}>
+                    <ChainSideToggle value={chainSide()} onChange={setChainSide} />
+                  </Show>
+                  <Text size="xs" c="dimmed" className="font-mono tabular-nums" style={{ "font-size": "9px" }}>
+                    {chain()!.rows.length} strikes
+                  </Text>
                 </Box>
-              </Box>
-            </Show>
-            <OptionChainTable
-              rows={chain()!.rows}
-              spot={spot()}
-              side={chainSide()}
-              expiry={optionsDockState.expiry}
-              centerNonce={chainCenterNonce()}
-              loading={optionsDockState.refreshing && chain()!.rows.length === 0}
-              onPick={handlePick}
-              sorting={chainSorting()}
-              onSortingChange={setChainSorting}
+              }
+            >
+              {/* The strip is the chain's own stat row: outside the header it read
+                  as one more captionless band in the column. */}
+              <SummaryStrip
+                rows={chain()!.rows}
+                spot={spot()}
+                pcr={chain()!.pcr}
+                atmIv={chain()!.atmIv}
+                dteDays={selectedExpiry()?.dteDays ?? 0}
+                dteYears={dteYears()}
+              />
+              <Show when={optionsDockState.error && optionsDockState.status !== "error"}>
+                <Box
+                  data-testid="options-dock-error"
+                  className="flex h-[26px] shrink-0 items-center gap-2 overflow-hidden border-l-[3px] bg-fin-surface-alt px-2"
+                  style={{ "border-left-color": bannerColor(optionsDockState.error!) }}
+                >
+                  <Text
+                    size="xs"
+                    fw={600}
+                    className="min-w-0 flex-1 truncate font-mono"
+                    style={{ "font-size": "10px", color: bannerColor(optionsDockState.error!) }}
+                  >
+                    {bannerMessage(optionsDockState.error!, retrySeconds())}
+                  </Text>
+                  <Box
+                    component="button"
+                    type="button"
+                    aria-label="Retry option chain refresh"
+                    data-testid="options-dock-retry"
+                    onClick={() => void refresh()}
+                    className="inline-flex h-[20px] shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 font-mono text-[10px] font-semibold hover:underline"
+                    style={{ color: bannerColor(optionsDockState.error!) }}
+                  >
+                    Retry
+                  </Box>
+                </Box>
+              </Show>
+              <OptionChainTable
+                rows={chain()!.rows}
+                spot={spot()}
+                side={chainSide()}
+                expiry={optionsDockState.expiry}
+                centerNonce={chainCenterNonce()}
+                loading={optionsDockState.refreshing && chain()!.rows.length === 0}
+                onPick={handlePick}
+                onChart={openContractChart}
+                sorting={chainSorting()}
+                onSortingChange={setChainSorting}
+              />
+            </DockSection>
+            <StrategyControl />
+            <LegBuilder
+              legs={legs()}
+              netPremium={netPremium()}
+              currentExpiry={optionsDockState.expiry}
             />
-          </DockSection>
-          <StrategyControl />
-          <LegBuilder
-            legs={legs()}
-            netPremium={netPremium()}
-            currentExpiry={optionsDockState.expiry}
-          />
-          <Show
-            when={bandVisible()}
-            fallback={
-              // Stripe above the caption so the four pillars open with zero legs;
-              // PAYOFF itself stays a placeholder until there is something to price.
-              <DockSection title="PAYOFF" testId="options-payoff-placeholder">
-                {renderStrip()}
-                <Text size="xs" c="dimmed">
-                  {formatDte(selectedExpiry()?.dteDays ?? 0)} · add a leg to see the
-                  payoff
-                </Text>
-              </DockSection>
-            }
-          >
-            {renderBand()}
-          </Show>
+            <Show
+              when={bandVisible()}
+              fallback={
+                // Stripe above the caption so the four pillars open with zero legs;
+                // PAYOFF itself stays a placeholder until there is something to price.
+                <DockSection title="PAYOFF" testId="options-payoff-placeholder">
+                  {renderStrip()}
+                  <Text size="xs" c="dimmed">
+                    {formatDte(selectedExpiry()?.dteDays ?? 0)} · add a leg to see the
+                    payoff
+                  </Text>
+                </DockSection>
+              }
+            >
+              {renderBand()}
+            </Show>
+          </Box>
         </Show>
       </Show>
 
@@ -908,6 +987,29 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
             onExpiry={setExpiry}
           />
         </Suspense>
+      </Show>
+
+      {/* One contract's chart, in place of the chain. Back is the only exit and
+          returns to the same expiry, legs and scroll position. */}
+      <Show when={contractChart()}>
+        {(target) => (
+          <Suspense
+            fallback={
+              <Box
+                className="flex flex-1 flex-col items-center justify-center gap-1"
+                data-testid="options-contract-chart-loading"
+              >
+                <Text size="xs" c="dimmed">
+                  Loading chart…
+                </Text>
+              </Box>
+            }
+          >
+            <Box className="flex min-h-0 flex-1 flex-col" data-testid="options-contract-chart">
+              <ContractChartPanel selection={target()} onBack={closeContractChart} />
+            </Box>
+          </Suspense>
+        )}
       </Show>
     </Box>
   );

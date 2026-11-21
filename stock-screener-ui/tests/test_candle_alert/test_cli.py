@@ -55,23 +55,20 @@ def test_main_quote_failure_returns_error(quotes, capsys):
 def test_tick_fires_once_per_close(quotes):
     now = datetime(2026, 11, 17, 14, 59, 30, tzinfo=UTC)
     fired = set()
-    with patch.object(cli, "in_alert_window", return_value=True), \
-         patch.object(cli, "close_epoch", return_value=1234567), \
-         patch.object(cli, "notify") as send:
+    with patch.object(cli, "notify") as send:
         first = cli.tick(now, quotes, fired)
         second = cli.tick(now, quotes, fired)
 
-    assert len(first) == 2
+    assert len(first) == 1
+    assert first[0][0] == "1H"
     assert second == []
-    assert send.call_count == 2
+    assert send.call_count == 1
     assert "closes at" in first[0][1]
 
 
 def test_tick_without_notify_still_returns_alerts(quotes):
     now = datetime(2026, 11, 17, 3, 59, 30, tzinfo=UTC)
-    with patch.object(cli, "in_alert_window", return_value=True), \
-         patch.object(cli, "close_epoch", return_value=7654321), \
-         patch.object(cli, "notify") as send:
+    with patch.object(cli, "notify") as send:
         alerts = cli.tick(now, quotes, set(), emit=False)
 
     assert len(alerts) == 2

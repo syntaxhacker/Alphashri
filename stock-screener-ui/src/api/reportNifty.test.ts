@@ -20,6 +20,8 @@ import {
   fetchOptionsTapeStatus,
   fetchOptionsWalls,
   normalizeBurst,
+  normalizeFutures,
+  normalizeItmPeFlow,
   normalizeReport,
   normalizeSensex,
   normalizeTapeRow,
@@ -199,6 +201,59 @@ describe("normalizeReport (snake_case backend -> camelCase panel)", () => {
     expect(rep.gex!.zeroCross).toBeNull();
     expect(rep.gex!.strikes).toEqual([]);
     expect(rep.gex!.topPositive).toEqual([]);
+  });
+
+  test("futures absent stays null so the panel can be omitted", () => {
+    expect(normalizeReport(snakeReport).futures).toBeNull();
+  });
+
+  test("maps the snake_case futures block and coerces an unknown regime", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      futures: {
+        symbol: "NIFTY-FUT",
+        instrument_key: "NSE_FO|NIFTY26NOVFUT",
+        expiry: "2026-11-26",
+        series: [
+          { t: "2026-11-17T09:15:00+05:30", close: 25980.5, oi: 11200000, volume: 1200 },
+        ],
+        change_pts: 12.6,
+        oi_change: 280000,
+        regime: "LONG BUILDUP",
+        as_of: "2026-11-17T09:30:00+05:30",
+      },
+    });
+    expect(rep.futures).toEqual({
+      symbol: "NIFTY-FUT",
+      instrument_key: "NSE_FO|NIFTY26NOVFUT",
+      expiry: "2026-11-26",
+      series: [{ t: "2026-11-17T09:15:00+05:30", close: 25980.5, oi: 11200000, volume: 1200 }],
+      change_pts: 12.6,
+      oi_change: 280000,
+      regime: "long_buildup",
+      as_of: "2026-11-17T09:30:00+05:30",
+    });
+  });
+
+  test("a futures block with no recognisable regime reads neutral, not blank", () => {
+    const fut = normalizeFutures({ series: [] });
+    expect(fut).not.toBeNull();
+    expect(fut!.regime).toBe("neutral");
+    expect(fut!.change_pts).toBeNull();
+  });
+
+  test("itm_pe_flow absent stays null and derives a missing share", () => {
+    expect(normalizeReport(snakeReport).itm_pe_flow).toBeNull();
+
+    const flow = normalizeItmPeFlow({
+      series: [{ t: "10:05", itm_pe_vol: 25000, total_pe_vol: 100000, spot: 25980 }],
+      top: [{ strike: 26100, volume: 50000, oi: 210000 }],
+    });
+    expect(flow).not.toBeNull();
+    expect(flow!.series[0].share_pct).toBeCloseTo(25, 6);
+    expect(flow!.series[0].spot).toBe(25980);
+    expect(flow!.top).toEqual([{ strike: 26100, volume: 50000, oi: 210000 }]);
+    expect(flow!.as_of).toBeNull();
   });
 });
 

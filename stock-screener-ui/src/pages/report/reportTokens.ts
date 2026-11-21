@@ -106,6 +106,8 @@ export function groupCellGap(): number {
  */
 export const REPORT_STRIP_CELL_MIN = {
   spot: 92,
+  symbol: 78,
+  change: 96,
   regime: 182,
   flip: 99,
   callWall: 103,

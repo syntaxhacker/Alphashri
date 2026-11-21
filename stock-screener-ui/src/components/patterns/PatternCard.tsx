@@ -18,6 +18,7 @@ import {
   hitLastPrice,
 } from "./patternFormat";
 import { changeChartColor, qualityLabel as qualityLabelFor } from "./patternTone";
+import { triggerLevels } from "./triggerDistance";
 import { PatternMiniChart } from "./PatternMiniChart";
 
 export interface PatternCardProps {
@@ -64,38 +65,6 @@ function Metric(props: { label: string; value: string }) {
   );
 }
 
-/**
- * Box edges for the neutral `consolidation` pattern. The detector stores the
- * upper edge as `breakout_level` and draws the two flat box edges as the
- * boundary trendlines (upper first, lower second). Prefer the lower trendline
- * price, then the lowest pivot low, then the (ATR-capped) stop, so older
- * persisted hits without trendlines still show a sensible range.
- */
-function consolidationBounds(hit: PatternHitDTO): { lo: number | null; hi: number | null } {
-  const prices = (hit.trendlines ?? [])
-    .filter((line) => line.length > 0)
-    .map((line) => line[0]?.price)
-    .filter((p): p is number => typeof p === "number" && Number.isFinite(p));
-
-  const pivotHighs = (hit.pivots ?? [])
-    .filter((p) => p.kind !== "low")
-    .map((p) => p.price)
-    .filter((p): p is number => typeof p === "number" && Number.isFinite(p));
-  const hi =
-    prices.length > 0 ? Math.max(...prices) : pivotHighs.length > 0 ? Math.max(...pivotHighs) : null;
-  const below = hi == null ? prices : prices.filter((p) => p < hi);
-  const pivotLows = (hit.pivots ?? [])
-    .filter((p) => p.kind !== "high")
-    .map((p) => p.price)
-    .filter((p): p is number => typeof p === "number" && Number.isFinite(p) && (hi == null || p < hi));
-
-  let lo: number | null = null;
-  if (below.length > 0) lo = Math.min(...below);
-  else if (pivotLows.length > 0) lo = Math.min(...pivotLows);
-
-  return { lo, hi };
-}
-
 /** One pattern result card in the grid. */
 export function PatternCard(props: PatternCardProps) {
   const hit = () => props.hit;
@@ -108,7 +77,11 @@ export function PatternCard(props: PatternCardProps) {
   const baseDays = createMemo(() => hit().base_days ?? 0);
   const isConsolidation = createMemo(() => hit().pattern_id === "consolidation" || baseDays() > 0);
   const missingCandles = () => (hit().candles ?? []).length === 0;
-  const bounds = createMemo(() => (isConsolidation() ? consolidationBounds(hit()) : null));
+  const bounds = createMemo(() => {
+    if (!isConsolidation()) return null;
+    const { upper, lower } = triggerLevels(hit());
+    return { lo: lower, hi: upper };
+  });
   const triggerDistance = createMemo(() => {
     if (!isConsolidation() || bounds()?.hi == null || lastPrice() <= 0) return null;
     return ((lastPrice() - bounds()!.hi!) / bounds()!.hi!) * 100;

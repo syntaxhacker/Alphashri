@@ -364,6 +364,25 @@ export function ReportDecisionStrip() {
 
   const maxPainSeries = createMemo(() => tapeRows().map((row) => row.max_pain));
 
+  // The backend does not ship a previous close, so the header change is measured
+  // from the session open (`ohlc.open`) and says so — a "change" against an
+  // invented prev-close would be a lie on every gap day.
+  const sessionChange = createMemo(() => {
+    const current = report();
+    const open = current?.ohlc?.open ?? 0;
+    if (!current || open <= 0 || !Number.isFinite(current.spot)) return null;
+    const pts = current.spot - open;
+    return { pts, pct: (pts / open) * 100 };
+  });
+
+  const changeTone = () => {
+    const change = sessionChange();
+    if (!change) return palette.TEXT_MUTED;
+    if (change.pts > 0) return palette.POSITIVE;
+    if (change.pts < 0) return palette.NEGATIVE;
+    return palette.TEXT_MUTED;
+  };
+
   const setupCounts = createMemo(() => {
     const gates = setup().gates;
     return { passed: gates.filter((gate) => gate.pass).length, total: gates.length };
@@ -617,6 +636,28 @@ export function ReportDecisionStrip() {
               label="PRICE"
               weight={REPORT_STRIP_GROUP_WEIGHT.price}
             >
+              <DecisionCell
+                testId="nifty-stat-symbol"
+                minWidth={REPORT_STRIP_CELL_MIN.symbol}
+                label="Index"
+                value={symbol()}
+                hint={`${expiry() === "nearest" ? "nearest expiry" : expiry()} · ${mode() === "eod" ? "EOD" : "live"}`}
+                accent={palette.PRIMARY}
+                title="Underlying whose option chain this report was built from."
+              />
+              <DecisionCell
+                testId="nifty-stat-change"
+                minWidth={REPORT_STRIP_CELL_MIN.change}
+                label="Change"
+                value={sessionChange() ? formatSignedPoints(sessionChange()!.pts) : "—"}
+                hint={
+                  sessionChange()
+                    ? `${sessionChange()!.pct >= 0 ? "+" : ""}${sessionChange()!.pct.toFixed(2)}% vs open`
+                    : "vs session open"
+                }
+                accent={changeTone()}
+                title="Session change against today's open — the report carries no previous close, so this is deliberately not labelled day-change."
+              />
               <DecisionCell
                 testId="nifty-stat-spot"
                 minWidth={REPORT_STRIP_CELL_MIN.spot}

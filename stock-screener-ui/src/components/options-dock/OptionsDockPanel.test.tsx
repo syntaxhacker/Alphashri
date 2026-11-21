@@ -9,6 +9,45 @@ const fetchChain = vi.fn();
 const fetchAnalytics = vi.fn();
 const fetchDashboard = vi.fn();
 const refreshAnalyticsSpy = vi.fn();
+const suspendPollingSpy = vi.fn();
+const resumePollingSpy = vi.fn();
+
+// The contract chart is another lane's chunk; the dock is what these tests own.
+vi.mock("./contract/ContractChartPanel", () => ({
+  ContractChartPanel: (props: {
+    selection: { strike: number; side: string };
+    onBack: () => void;
+  }) => (
+    <div
+      data-testid="contract-chart-stub"
+      data-strike={props.selection.strike}
+      data-side={props.selection.side}
+    >
+      <button type="button" data-testid="contract-chart-back" onClick={() => props.onBack()}>
+        Back
+      </button>
+    </div>
+  ),
+}));
+
+// Spy on the poll seams while keeping the real store behaviour for every other
+// export the panel and these tests use.
+vi.mock("../../state/optionsDock", async () => {
+  const actual = await vi.importActual<typeof import("../../state/optionsDock")>(
+    "../../state/optionsDock",
+  );
+  return {
+    ...actual,
+    suspendPolling: () => {
+      suspendPollingSpy();
+      actual.suspendPolling();
+    },
+    resumePolling: () => {
+      resumePollingSpy();
+      actual.resumePolling();
+    },
+  };
+});
 
 vi.mock("../../api/optionsAnalytics", async () => {
   const actual = await vi.importActual<typeof import("../../api/optionsAnalytics")>(
@@ -754,7 +793,7 @@ describe("OptionsDockPanel — narrow one-sided chain", () => {
     expect(screen.getByTestId("options-ce-24000")).toBeInTheDocument();
     expect(screen.queryByTestId("options-pe-24000")).not.toBeInTheDocument();
     expect(screen.getByTestId("options-atm-marker-24000")).toBeInTheDocument();
-    expect((screen.getByTestId("options-chain") as HTMLElement).style.minWidth).toBe("250px");
+    expect((screen.getByTestId("options-chain") as HTMLElement).style.minWidth).toBe("262px");
   });
 
   test("switching to PE swaps the columns but keeps the strike/ATM row and selected legs", async () => {
@@ -788,7 +827,7 @@ describe("OptionsDockPanel — narrow one-sided chain", () => {
     expect(screen.queryByTestId("options-chain-side-ce")).not.toBeInTheDocument();
     expect(screen.queryByTestId("options-chain-side-pe")).not.toBeInTheDocument();
     expect(columnIdsOf()).toHaveLength(9);
-    expect((screen.getByTestId("options-chain") as HTMLElement).style.minWidth).toBe("428px");
+    expect((screen.getByTestId("options-chain") as HTMLElement).style.minWidth).toBe("452px");
     expect(screen.getByTestId("options-ce-24000")).toBeInTheDocument();
     expect(screen.getByTestId("options-pe-24000")).toBeInTheDocument();
   });
@@ -1300,5 +1339,159 @@ describe("OptionsDockPanel — in-dock pillars", () => {
     );
     expect(screen.getByTestId("dock-pillars-expiry-2026-04-02")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("dock-pillars-expiry-2026-03-26")).toHaveAttribute("aria-pressed", "false");
+  });
+});
+
+describe("OptionsDockPanel — per-contract chart", () => {
+  const renderWithChain = async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+  };
+
+  const openChart = async (testId = "options-ce-24000-chart") => {
+    await renderWithChain();
+    await fireEvent.click(screen.getByTestId(testId));
+    await waitFor(() => expect(screen.getByTestId("options-contract-chart")).toBeInTheDocument());
+  };
+
+  const rowOrder = () =>
+    Array.from(document.querySelectorAll('[data-testid^="options-chain-row-"]')).map((el) =>
+      el.getAttribute("data-testid"),
+    );
+
+  test("a chart click covers the chain and hands the contract to the panel", async () => {
+    await openChart();
+
+    // The chain stays mounted (its scroll survives) but is off screen.
+    expect((screen.getByTestId("options-dock-body") as HTMLElement).style.display).toBe("none");
+    const stub = screen.getByTestId("contract-chart-stub");
+    expect(stub).toHaveAttribute("data-strike", "24000");
+    expect(stub).toHaveAttribute("data-side", "CE");
+    // Opened for chart room, and no leg was added on the way in.
+    expect(screen.getByTestId("options-dock").className).toContain("fixed inset-0");
+    expect(optionsDockState.legs).toHaveLength(0);
+  });
+
+  test("Back restores the chain scroll offset", async () => {
+    await renderWithChain();
+    const scroller = screen.getByTestId("options-chain").closest(".paper-tanstack-scroll") as HTMLElement;
+    scroller.scrollTop = 120;
+
+    await fireEvent.click(screen.getByTestId("options-ce-24000-chart"));
+    await waitFor(() => expect(screen.getByTestId("contract-chart-stub")).toBeInTheDocument());
+    await fireEvent.click(screen.getByTestId("contract-chart-back"));
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+
+    expect(scroller.scrollTop).toBe(120);
+  });
+
+  test("Back restores the chain with the expiry, legs and sort untouched", async () => {
+    await renderWithChain();
+    await fireEvent.click(screen.getByTestId("options-ce-24100"));
+    const oiHeader = screen
+      .getAllByRole("columnheader")
+      .find((h) => h.id === "paper-tanstack-header-ce_oi")!;
+    fireEvent.click(oiHeader);
+    await waitFor(() => expect(rowOrder()[0]).toBe("options-chain-row-24100"));
+
+    setExpiry("2026-04-02");
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+    await waitFor(() => expect(rowOrder()[0]).toBe("options-chain-row-24100"));
+
+    await fireEvent.click(screen.getByTestId("options-pe-24000-chart"));
+    await waitFor(() => expect(screen.getByTestId("contract-chart-stub")).toBeInTheDocument());
+
+    await fireEvent.click(screen.getByTestId("contract-chart-back"));
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+    expect((screen.getByTestId("options-dock-body") as HTMLElement).style.display).not.toBe("none");
+
+    expect(optionsDockState.expiry).toBe("2026-04-02");
+    expect(optionsDockState.legs).toHaveLength(1);
+    expect(screen.getByTestId("options-expiry-select")).toHaveValue("2026-04-02");
+    // Still in the CE-OI order the user chose, not back to the strike ladder.
+    expect(rowOrder()[0]).toBe("options-chain-row-24100");
+    // Back to the dock size the chart inherited from.
+    expect(screen.getByTestId("options-dock").className).toContain("overflow-y-auto");
+  });
+
+  test("Back returns focus to the chart button that opened it", async () => {
+    await openChart();
+    await fireEvent.click(screen.getByTestId("contract-chart-back"));
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+
+    expect(document.activeElement).toBe(screen.getByTestId("options-ce-24000-chart"));
+  });
+
+  test("Escape closes the chart before the dock", async () => {
+    const onClose = vi.fn();
+    open("NIFTY");
+    render(() => (
+      <UIProvider>
+        <OptionsDockPanel onClose={onClose} />
+      </UIProvider>
+    ));
+    await waitFor(() => expect(screen.getByTestId("options-ce-24000-chart")).toBeInTheDocument());
+    await fireEvent.click(screen.getByTestId("options-ce-24000-chart"));
+    await waitFor(() => expect(screen.getByTestId("contract-chart-stub")).toBeInTheDocument());
+
+    await fireEvent.keyDown(screen.getByTestId("options-dock"), { key: "Escape" });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("options-contract-chart")).not.toBeInTheDocument();
+    expect(screen.getByTestId("options-chain-table")).toBeInTheDocument();
+
+    await fireEvent.keyDown(screen.getByTestId("options-dock"), { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  test("suspends the chain poll on open and resumes it once on Back", async () => {
+    await openChart();
+    expect(suspendPollingSpy).toHaveBeenCalledTimes(1);
+    expect(resumePollingSpy).not.toHaveBeenCalled();
+
+    await fireEvent.click(screen.getByTestId("contract-chart-back"));
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+    expect(resumePollingSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("unmounting with the chart open does not leave the chain suspended", async () => {
+    await openChart();
+    expect(suspendPollingSpy).toHaveBeenCalledTimes(1);
+
+    cleanup();
+    expect(resumePollingSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("narrow opens the active side's contract", async () => {
+    narrowViewport();
+    await renderWithChain();
+    expect(screen.getByTestId("options-chain-side-ce")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("options-ce-24000-chart")).toBeInTheDocument();
+    expect(screen.queryByTestId("options-pe-24000-chart")).not.toBeInTheDocument();
+
+    await fireEvent.click(screen.getByTestId("options-chain-side-pe"));
+    await fireEvent.click(screen.getByTestId("options-pe-24000-chart"));
+    await waitFor(() => expect(screen.getByTestId("contract-chart-stub")).toBeInTheDocument());
+    expect(screen.getByTestId("contract-chart-stub")).toHaveAttribute("data-side", "PE");
+  });
+
+  test("no chain fetch fires while the chart is open, and the poll resumes after Back", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
+      await openChart();
+      const before = fetchChain.mock.calls.length;
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(fetchChain.mock.calls.length).toBe(before);
+
+      await fireEvent.click(screen.getByTestId("contract-chart-back"));
+      await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+      await vi.advanceTimersByTimeAsync(10_000);
+      await waitFor(() => expect(fetchChain.mock.calls.length).toBe(before + 1));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

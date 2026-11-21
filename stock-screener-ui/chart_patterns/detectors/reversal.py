@@ -28,6 +28,7 @@ import pandas as pd
 from .. import features as F
 from .common import (
     _fit_pair,
+    calendar_day_gap,
     curve_points,
     flat_line_points,
     iso_ts,
@@ -36,6 +37,7 @@ from .common import (
     pivot_markers,
     register,
     segment_points,
+    shift_line_to_bound,
     get_swings,
     window_slice,
 )
@@ -60,31 +62,17 @@ def _window(df: pd.DataFrame, lookback: int = LOOKBACK, min_bars: int = 30):
     return window_slice(df, lookback, min_bars)
 
 
+#: Reversal overlays are serialised at 4 decimals (``segment_points``), so the
+#: drawn line needs a constant lift to remain a true envelope after rounding.
+#: Continuation patterns pass no margin; both values are load-bearing.
+_BOUND_MARGIN = 1e-4
+
+
 def _bound(
     df: pd.DataFrame, slope: float, intercept: float, x0: int, x1: int, side: str
 ) -> tuple[float, float]:
-    """Shift a line's intercept so it bounds every candle within ``[x0, x1]``.
-
-    The slope is preserved and the line is translated by the smallest amount
-    needed, so an upper line ends up at/above every high and a lower line at/below
-    every low. This keeps the drawn boundary from cutting through candles.
-    """
-    x0 = int(x0)
-    x1 = int(x1)
-    if x1 < x0:
-        return float(slope), float(intercept)
-    # Serialised overlay prices are rounded to 4 decimals (``segment_points``);
-    # a constant margin keeps the drawn (reconstructed) line a true envelope.
-    margin = 1e-4
-    xs = np.arange(x0, x1 + 1, dtype=float)
-    line = slope * xs + intercept
-    if side == "upper":
-        delta = float(np.max(df["high"].to_numpy(dtype=float)[x0 : x1 + 1] - line))
-        intercept += max(delta, 0.0) + margin
-    else:
-        delta = float(np.max(line - df["low"].to_numpy(dtype=float)[x0 : x1 + 1]))
-        intercept -= max(delta, 0.0) + margin
-    return float(slope), float(intercept)
+    """Shift a line so it bounds every candle within ``[x0, x1]`` (reversal margin)."""
+    return shift_line_to_bound(df, slope, intercept, x0, x1, side, margin=_BOUND_MARGIN)
 
 
 def _breakout_pos(
@@ -331,10 +319,7 @@ def _wedge_candidate(df: pd.DataFrame, ctx: dict, start: int, falling: bool):
 
 def _bar_gap_days(df: pd.DataFrame, x0: int, x1: int) -> float:
     """Calendar-day distance between two bar positions (bar count as fallback)."""
-    try:
-        return abs(float((df.index[int(x0)] - df.index[int(x1)]).days))
-    except (AttributeError, TypeError):
-        return float(abs(int(x0) - int(x1)))
+    return calendar_day_gap(df, x0, x1)
 
 
 def _wedge_impl(df: pd.DataFrame, ctx: dict, falling: bool) -> list:

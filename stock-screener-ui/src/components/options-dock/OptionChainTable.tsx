@@ -21,8 +21,8 @@ export const DEFAULT_CHAIN_SORTING: SortEntry[] = [{ id: "strike", desc: false }
 /** Below Tailwind's `sm` the chain drops to a one-sided 5-column layout. */
 export const CHAIN_NARROW_QUERY = "(max-width: 639px)";
 
-/** 5 columns × their declared sizes (54+38+34+52+72) — fits a 390px sheet. */
-const NARROW_MIN_TABLE_WIDTH = 250;
+/** 5 columns × their declared sizes (54+38+34+64+72) — fits a 390px sheet. */
+const NARROW_MIN_TABLE_WIDTH = 262;
 
 /** TanStackTable's `dense` rows are `--tbl-row-h: 18px` (the sticky header excluded). */
 const CHAIN_ROW_HEIGHT = 18;
@@ -99,6 +99,8 @@ export function OptionChainTable(props: {
   /** Selected side for the narrow layout; ignored at ≥640px. */
   side?: "CE" | "PE";
   onPick?: (strike: number, type: "CE" | "PE", leg: ChainLeg, side: "buy" | "sell") => void;
+  /** Opens the per-contract chart; keeps the LTP button a pure buy/sell pick. */
+  onChart?: (strike: number, type: "CE" | "PE", leg: ChainLeg) => void;
   /** Controlled sorting. When omitted the table owns it, seeded to strike asc. */
   sorting?: SortEntry[];
   onSortingChange?: (next: SortEntry[]) => void;
@@ -286,6 +288,9 @@ export function OptionChainTable(props: {
       narrow: narrow(),
       badgeFor: (strike) => badgeMap().get(strike),
       onPick: (strike, type, leg, side) => props.onPick?.(strike, type, leg, side),
+      onChart: props.onChart
+        ? (strike, type, leg) => props.onChart?.(strike, type, leg)
+        : undefined,
     }),
   );
 
@@ -305,7 +310,7 @@ export function OptionChainTable(props: {
         bare
         enableSorting
         stickyHeader
-        minTableWidth={narrow() ? NARROW_MIN_TABLE_WIDTH : 428}
+        minTableWidth={narrow() ? NARROW_MIN_TABLE_WIDTH : 452}
         dataTestId="options-chain"
         ariaLabel="Option chain"
         loading={props.loading}
