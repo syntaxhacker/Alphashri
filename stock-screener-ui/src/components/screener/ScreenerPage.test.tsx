@@ -111,10 +111,9 @@ const currentRoute = () =>
 /** The live query string as the component sees it. */
 const currentSearchParams = () => currentRoute().search;
 
-/** The five tab bodies; only the active one may be in the DOM. */
+/** The tab bodies; only the active one may be in the DOM. Correlation and config share one testid. */
 const TAB_PANEL_TESTIDS = [
   "screener-panel",
-  "deep-value-panel",
   "fno-tab-panel",
   "market-tab-panel",
   "correlation-config-panel",
@@ -855,8 +854,7 @@ describe("ScreenerPage", () => {
         <ScreenerPage {...defaultProps} />
       </UIProvider>), { initialRoute: "/" });
     expect(valueScanSpy).not.toHaveBeenCalled();
-    // Inactive panels are not in the DOM at all, so their contents cannot mount.
-    expect(screen.queryByTestId("deep-value-panel")).not.toBeInTheDocument();
+    // Inactive views are not in the DOM at all, so their contents cannot mount.
     expect(screen.queryByTestId("value-panel")).not.toBeInTheDocument();
 
     await waitFor(() => expect(mockFetchMarketSnapshot).toHaveBeenCalledTimes(1), {
@@ -866,21 +864,34 @@ describe("ScreenerPage", () => {
     expect(screen.queryByTestId("value-panel")).not.toBeInTheDocument();
   });
 
-  it("fetches the value scan only when the Deep Value tab is opened, and remounts on re-entry", async () => {
+  it("fetches the value scan when the Market value view mounts, and refetches on a fresh mount", async () => {
+    // The default Market table view does not mount the value panel or scan.
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>), { initialRoute: "/" });
+      </UIProvider>), { initialRoute: "/?tab=market" });
     expect(valueScanSpy).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("value-panel")).not.toBeInTheDocument();
+    await waitFor(() => expect(mockFetchMarketSnapshot).toHaveBeenCalledTimes(1), {
+      timeout: 10_000,
+    });
+    expect(valueScanSpy).not.toHaveBeenCalled();
+    cleanup();
 
-    fireEvent.click(screen.getByTestId("tab-deepvalue"));
+    // The value view owns the scan: mounting it fetches exactly once.
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=market&view=value" });
     await waitFor(() => expect(valueScanSpy).toHaveBeenCalledTimes(1), { timeout: 10_000 });
     expect(await screen.findByTestId("value-panel", undefined, { timeout: 10_000 })).toBeInTheDocument();
+    cleanup();
 
-    // Switching away unmounts; coming back remounts and refetches
-    fireEvent.click(screen.getByTestId("tab-market"));
-    expect(screen.queryByTestId("value-panel")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("tab-deepvalue"));
+    // A fresh mount refetches — the panel is not cached across mounts.
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=market&view=value" });
     await waitFor(() => expect(valueScanSpy).toHaveBeenCalledTimes(2), { timeout: 10_000 });
   });
 
@@ -994,13 +1005,25 @@ describe("ScreenerPage", () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>), { initialRoute: "/screener/deepvalue" });
+      </UIProvider>), { initialRoute: "/screener/correlation" });
 
-    expect(await screen.findByTestId("value-panel", undefined, { timeout: 10_000 })).toBeInTheDocument();
+    expect(await screen.findByTestId("correlation-tab", undefined, { timeout: 10_000 })).toBeInTheDocument();
     // Already canonical: no redirect, no query write.
     expect(pathNavigations).toHaveLength(0);
     expect(paramWrites).toHaveLength(0);
-    expect(currentRoute().path).toBe("/screener/deepvalue");
+    expect(currentRoute().path).toBe("/screener/correlation");
+  });
+
+  it("redirects ?tab=deepvalue to the Market value view", async () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=deepvalue" });
+
+    await waitFor(() => expect(currentRoute().path).toBe("/screener/market"), { timeout: 10_000 });
+    expect(currentSearchParams().view).toBe("value");
+    expect(currentSearchParams().tab).toBeUndefined();
+    expect(pathNavigations.at(-1)?.options?.replace).toBe(true);
   });
 
   it("Compare pushes correlation params, which are dropped when leaving the tab", async () => {
@@ -1073,8 +1096,9 @@ describe("ScreenerPage", () => {
     expect(await screen.findByTestId("screener-table-approaching")).toBeInTheDocument();
     expect(await screen.findByTestId("group-performance-panel")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("tab-deepvalue"));
-    expect(await screen.findByTestId("value-panel", undefined, { timeout: 10_000 })).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("tab-fno"));
+    expect(await screen.findByTestId("fno-tab-panel")).toBeInTheDocument();
+    expect(await screen.findByTestId("fno-screener-tab")).toBeInTheDocument();
     // Inactive tab bodies are removed from the DOM; only the active panel remains.
     expect(screen.queryByTestId("screener-panel")).not.toBeInTheDocument();
     expect(screen.queryByTestId("screener-table-approaching")).not.toBeInTheDocument();
@@ -1094,40 +1118,41 @@ describe("ScreenerPage", () => {
     expect(mountedTabPanels()).toEqual(["screener-panel"]);
     expect((screen.getByTestId("screener-panel") as HTMLElement).style.display).not.toBe("none");
 
-    fireEvent.click(screen.getByTestId("tab-deepvalue"));
-    expect(await screen.findByTestId("deep-value-panel")).toBeInTheDocument();
-    expect(mountedTabPanels()).toEqual(["deep-value-panel"]);
-    expect((screen.getByTestId("deep-value-panel") as HTMLElement).style.display).not.toBe("none");
+    fireEvent.click(screen.getByTestId("tab-fno"));
+    expect(await screen.findByTestId("fno-tab-panel")).toBeInTheDocument();
+    expect(mountedTabPanels()).toEqual(["fno-tab-panel"]);
+    expect((screen.getByTestId("fno-tab-panel") as HTMLElement).style.display).not.toBe("none");
   });
 
   it("mounts the Market panel (and its screener) only while the Market tab is active", async () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>), { initialRoute: "/?tab=deepvalue" });
-    expect(await screen.findByTestId("value-panel")).toBeInTheDocument();
+      </UIProvider>), { initialRoute: "/?tab=fno" });
+    expect(await screen.findByTestId("fno-tab-panel")).toBeInTheDocument();
     expect(screen.queryByTestId("market-tab-panel")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("tab-market"));
     expect(await screen.findByTestId("market-tab-panel")).toBeInTheDocument();
     expect(await screen.findByTestId("market-screener", undefined, { timeout: 10_000 })).toBeInTheDocument();
     expect(mountedTabPanels()).toEqual(["market-tab-panel"]);
-    expect(screen.queryByTestId("deep-value-panel")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("fno-tab-panel")).not.toBeInTheDocument();
   });
 
-  it("mounts the deep value, F&O and correlation panels on their tab only", async () => {
+  it("mounts the market, F&O and correlation panels on their tab only", async () => {
     render(() => (
       <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </UIProvider>), { initialRoute: "/?tab=deepvalue" });
-    expect(await screen.findByTestId("deep-value-panel")).toBeInTheDocument();
-    expect(await screen.findByTestId("value-panel")).toBeInTheDocument();
+      </UIProvider>), { initialRoute: "/?tab=market" });
+    expect(await screen.findByTestId("market-tab-panel")).toBeInTheDocument();
+    expect(await screen.findByTestId("market-screener", undefined, { timeout: 10_000 })).toBeInTheDocument();
+    expect(mountedTabPanels()).toEqual(["market-tab-panel"]);
 
     fireEvent.click(screen.getByTestId("tab-fno"));
     expect(await screen.findByTestId("fno-tab-panel")).toBeInTheDocument();
     expect(await screen.findByTestId("fno-screener-tab")).toBeInTheDocument();
     expect(mountedTabPanels()).toEqual(["fno-tab-panel"]);
-    expect(screen.queryByTestId("deep-value-panel")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("market-tab-panel")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("tab-correlation"));
     expect(await screen.findByTestId("correlation-config-panel")).toBeInTheDocument();

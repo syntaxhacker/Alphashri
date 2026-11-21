@@ -86,19 +86,20 @@ unauthenticated login screen. "Store" names a module under `src/state/`; "API" a
 ### 3.2 Screening & market data
 
 #### Screener — `/screener/:tab?`
-**What:** The main workspace; six tabs, with the old Dashboard folded into Market's `movers` view.
+**What:** The main workspace; five tabs, with the old Dashboard and Deep Value folded into Market's `movers` and `value` views.
 **Entry:** [`ScreenerContainer.tsx`](../src/pages/screener/ScreenerContainer.tsx) → [`ScreenerPage.tsx`](../src/components/screener/ScreenerPage.tsx).
 **Store:** [`state/index.ts`](../src/state/index.ts) via [`useScreenerState.ts`](../src/hooks/useScreenerState.ts) · **API:** [`screeners.ts`](../src/api/screeners.ts), [`screenerDashboard.ts`](../src/api/screenerDashboard.ts) · **Backend:** `GET /api/screener` + `/api/screeners` declared directly in [`api_server_fastapi.py`](../api_server_fastapi.py); scan logic in [`api/screener_api/screener_scan.py`](../api/screener_api/screener_scan.py).
 
 | Tab (`/screener/<tab>`) | Component | Store / API | Backend |
 | --- | --- | --- | --- |
 | `screener` (default content) | [`ScreenerContent.tsx`](../src/components/screener/ScreenerContent.tsx) + [`ScreenerTable.tsx`](../src/components/screener/ScreenerTable.tsx) | `state/index.ts` · [`screeners.ts`](../src/api/screeners.ts) | [`api_server_fastapi.py`](../api_server_fastapi.py) `/api/screener` |
-| `deepvalue` | [`ValuePanel.tsx`](../src/components/value/ValuePanel.tsx) (component lives in `components/value/`, not `components/screener/`) | local Solid signals · [`valueScan.ts`](../src/api/valueScan.ts), presets in [`valuePresets.generated.ts`](../src/api/valuePresets.generated.ts) | [`api/value_scan/router.py`](../api/value_scan/router.py) `/api/value/scan` |
+| `market?view=value` (was `deepvalue`) | [`ValuePanel.tsx`](../src/components/value/ValuePanel.tsx) embedded by [`MarketScreenerPanel.tsx`](../src/components/market/MarketScreenerPanel.tsx); the Value filter band + one-click preset are in [`MarketFilterRail.tsx`](../src/components/market/MarketFilterRail.tsx) | local Solid signals · [`valueScan.ts`](../src/api/valueScan.ts), presets in [`valuePresets.generated.ts`](../src/api/valuePresets.generated.ts) | [`api/value_scan/router.py`](../api/value_scan/router.py) `/api/value/scan` |
 | `fno` | [`FnoScreenerTab.tsx`](../src/components/screener/FnoScreenerTab.tsx) | local signals · [`fnoScreener.ts`](../src/api/fnoScreener.ts) | [`api/options_screener.py`](../api/options_screener.py) `/api/options/screener` |
 | `market` (bare `/screener`) | [`MarketScreenerPage.tsx`](../src/pages/market/MarketScreenerPage.tsx) → [`MarketMapView.tsx`](../src/components/market/MarketMapView.tsx) | local signals · [`marketScreener.ts`](../src/api/marketScreener.ts) | [`api/market_screen/router.py`](../api/market_screen/router.py) `/api/market`, `/api/market/snapshot` |
 | `correlation` | [`CorrelationTab.tsx`](../src/components/screener/CorrelationTab.tsx), [`CorrelationMatrix.tsx`](../src/components/screener/CorrelationMatrix.tsx) | [`correlation.ts`](../src/state/correlation.ts) · [`correlation.ts`](../src/api/correlation.ts) | [`api/correlation.py`](../api/correlation.py) `/api/correlation/` |
 | `config` | [`ScreenerConfigView.tsx`](../src/components/screener/ScreenerConfigView.tsx) | `state/index.ts` · [`screeners.ts`](../src/api/screeners.ts) | `/api/screeners` CRUD in [`api_server_fastapi.py`](../api_server_fastapi.py) |
 | `dashboard` (legacy) | Redirected to `market?view=movers` | — | — |
+| `deepvalue` (legacy) | Redirected to `market?view=value` | — | — |
 
 #### Sector — `/sector`
 **What:** Sector rotation matrix, RRG, heatmap, movers and sector correlation.
@@ -311,13 +312,16 @@ Toast stylesheet import in [`main.tsx`](../src/main.tsx) is also guarded
 [`api/reports_api/options_report.py`](../api/reports_api/options_report.py), with live spot/tape
 arriving over `niftyStreamSolid.ts` → `/ws/nifty/report`.
 
-**B. Run a screener tab (`/screener/deepvalue`)**
-`ScreenerPage.tsx` `<Switch>` matches `isValueTab()` → lazy `ValuePanel.tsx` → local signals +
+**B. Open Deep Value (`/screener?view=value`)**
+`ScreenerPage.tsx` forwards `?view=value` to the Market tab →
+[`MarketScreenerPanel.tsx`](../src/components/market/MarketScreenerPanel.tsx) mounts the lazy
+[`ValuePanel.tsx`](../src/components/value/ValuePanel.tsx) in `embedded` mode →
 [`hooks/useValueScanSolid.ts`](../src/components/value/useValueScanSolid.ts) →
 [`api/valueScan.ts`](../src/api/valueScan.ts) `GET /api/value/scan?market=…` →
 [`api/value_scan/router.py`](../api/value_scan/router.py) → TradingView scanner via
-`tv_source.py`, scored by `scoring.py`, cached per-market in Redis (`cache.py`). Filters are
-applied in Python after the fetch; the cache key never includes filters.
+`tv_source.py`, scored by `scoring.py`, cached per-market in Redis (`cache.py`). The Value
+band in [`MarketFilterRail.tsx`](../src/components/market/MarketFilterRail.tsx) supplies the
+bounds and one-click preset; legacy `?tab=deepvalue` / `/screener/deepvalue` URLs redirect here.
 
 **C. Live P&L on `/paper`**
 [`PaperTradingView.tsx`](../src/components/paper-trading/PaperTradingView.tsx) mounts
@@ -334,7 +338,7 @@ subscribers. Falls back to polling when the stream drops.
 
 - **Routes** are not in a config file — all 31 are inline `<Route>` elements in [`src/App.tsx`](../src/App.tsx). Guard: [`src/test/routes.test.ts`](../src/test/routes.test.ts).
 - **Seven page folders are stubs.** The actual components live under `src/components/`; the `pages/<name>/index.tsx` files only re-export: [`sector`](../src/pages/sector/index.tsx), [`backtest`](../src/pages/backtest/index.tsx), [`bots`](../src/pages/bots/index.tsx), [`experiments`](../src/pages/experiments/index.tsx), [`paper`](../src/pages/paper/index.tsx), [`replay`](../src/pages/replay/index.tsx), [`strategy-runner`](../src/pages/strategy-runner/index.tsx).
-- **Screener tab panels are not co-located with the tab strip.** Deep Value lives in [`components/value/`](../src/components/value/ValuePanel.tsx) and Market in [`pages/market/`](../src/pages/market/MarketScreenerPage.tsx), while Correlation/Config/F&O live in `components/screener/`.
+- **Screener tab panels are not co-located with the tab strip.** Market lives in [`pages/market/`](../src/pages/market/MarketScreenerPage.tsx), while Correlation/Config/F&O live in `components/screener/`. Deep Value is no longer a tab — its panel in [`components/value/`](../src/components/value/ValuePanel.tsx) is mounted by the Market `value` view.
 - **Some screens are docked panels, not pages.** The catalyst radar is registered in [`panelRegistry.ts`](../src/components/window/panelRegistry.ts) and mounted by Home's `WindowManager`, not by a route.
 - **There is no standalone `/heatmap` route** and no `src/pages/heatmap/` directory (removed 2026-11-14); the treemap is shared, rendered by [`MarketMapView.tsx`](../src/components/market/MarketMapView.tsx) over [`marketTreemap.ts`](../src/components/market/marketTreemap.ts).
 - **No `src/patterns/` directory** (old GoF demos deleted). Chart-pattern UI is [`components/patterns/`](../src/components/patterns/PatternGrid.tsx); route code is [`pages/patterns/`](../src/pages/patterns/PatternsPage.tsx); Tabler SVG icons used by `@/ui` are [`ui/icons.tsx`](../src/ui/icons.tsx), while generic app icons are [`components/common/Icons.tsx`](../src/components/common/Icons.tsx).

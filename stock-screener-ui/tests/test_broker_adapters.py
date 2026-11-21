@@ -2,13 +2,13 @@
 
 import pytest
 
-from api.orderflow_adapters import (
+from api.broker_hub.adapters import (
     OrderFlowAdapter,
     available_adapters,
     get_adapter,
     make_depth,
 )
-from api.orderflow_adapters.upstox import UpstoxAdapter
+from api.broker_hub.adapters.upstox import UpstoxAdapter
 
 
 class TestRegistry:
@@ -100,7 +100,7 @@ class TestErrorSanitization:
     )
 
     def test_strips_header_blob_and_cookie(self):
-        from api.orderflow_adapters.base import strip_error_noise
+        from api.broker_hub.adapters.base import strip_error_noise
 
         cleaned = strip_error_noise(self.RAW_403)
         assert cleaned == "Handshake status 403 Forbidden"
@@ -109,13 +109,13 @@ class TestErrorSanitization:
         assert "set-cookie" not in cleaned
 
     def test_truncates_unknown_long_tails(self):
-        from api.orderflow_adapters.base import strip_error_noise
+        from api.broker_hub.adapters.base import strip_error_noise
 
         cleaned = strip_error_noise("x" * 5000)
         assert len(cleaned) == 200
 
     def test_plain_messages_pass_through(self):
-        from api.orderflow_adapters.base import strip_error_noise
+        from api.broker_hub.adapters.base import strip_error_noise
 
         assert strip_error_noise("fyers quote socket unavailable: timeout") == (
             "fyers quote socket unavailable: timeout"
@@ -133,18 +133,18 @@ class TestErrorSanitization:
         ],
     )
     def test_auth_errors_detected(self, message):
-        from api.orderflow_adapters.base import is_auth_error
+        from api.broker_hub.adapters.base import is_auth_error
 
         assert is_auth_error(message) is True
 
     def test_non_auth_errors_not_flagged(self):
-        from api.orderflow_adapters.base import is_auth_error
+        from api.broker_hub.adapters.base import is_auth_error
 
         assert is_auth_error("connection reset by peer") is False
         assert is_auth_error("") is False
 
     def test_auth_error_becomes_an_instruction(self):
-        from api.orderflow_adapters.base import sanitize_adapter_error
+        from api.broker_hub.adapters.base import sanitize_adapter_error
 
         out = sanitize_adapter_error("fyers_tbt", self.RAW_403)
         assert "Fyers TBT session expired" in out
@@ -154,20 +154,20 @@ class TestErrorSanitization:
         assert "-+-+-" not in out
 
     def test_non_auth_error_is_returned_clean(self):
-        from api.orderflow_adapters.base import sanitize_adapter_error
+        from api.broker_hub.adapters.base import sanitize_adapter_error
 
         assert sanitize_adapter_error("fyers", "quote socket unavailable: timeout") == (
             "quote socket unavailable: timeout"
         )
 
     def test_empty_error_still_yields_a_line(self):
-        from api.orderflow_adapters.base import sanitize_adapter_error
+        from api.broker_hub.adapters.base import sanitize_adapter_error
 
         assert sanitize_adapter_error("fyers", "") != ""
 
     def test_sanitizer_is_idempotent(self):
         """Adapters sanitize, then the hub/bridge does — it must not nest."""
-        from api.orderflow_adapters.base import sanitize_adapter_error
+        from api.broker_hub.adapters.base import sanitize_adapter_error
 
         once = sanitize_adapter_error("fyers_tbt", self.RAW_403)
         twice = sanitize_adapter_error("fyers_tbt", once)

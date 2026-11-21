@@ -40,7 +40,6 @@ const navItems = [
   { label: "Strategy Runner", icon: IconAdjustments, link: "/strategy-runner" },
   { label: "Sector Analysis", icon: IconBuildingFactory, link: "/sector" },
   { label: "Agri Prices", icon: IconLeaf, link: "/agri" },
-  { label: "Order Flow", icon: IconChartCandle, link: "/orderflow" },
   { label: "Patterns", icon: IconChartCandle, link: "/patterns" },
   { label: "Reports", icon: IconReportAnalytics, link: "/report" },
   { label: "Strategies", icon: IconChartBar, link: "/strategies" },

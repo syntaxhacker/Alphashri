@@ -217,22 +217,14 @@ for (const vp of [
       await expect(page.getByTestId("value-table")).toHaveCount(0);
     });
 
-    test("Deep Value tab still exists and owns its own panel", async ({ page }) => {
+    test("the retired Deep Value tab redirects to the Market value view", async ({ page }) => {
+      // Deep Value is no longer a tab: it is the Market table's `value` view with
+      // its filter rail. A legacy ?tab=deepvalue URL must land there, not 404 and
+      // not show a standalone panel.
       await page.goto("/?tab=deepvalue");
-      await expect(page.getByTestId("tab-deepvalue")).toBeVisible();
-      await expect(page.getByTestId("tab-deepvalue")).toHaveText("Deep Value");
-      await expect(page.getByTestId("deep-value-panel")).toBeVisible();
-      await expect(page.getByTestId("value-table")).toBeVisible();
-      await expect(page.getByTestId("value-row-SBILIFE")).toBeVisible();
-      // The standalone tab keeps its own market selector (the embedded one does not).
-      await expect(page.getByTestId("value-market-tabs")).toBeVisible();
-
-      // Both surfaces can coexist across navigation without one removing the other.
-      await openMarket(page, "&view=value");
+      await expect(page.getByTestId("tab-deepvalue")).toHaveCount(0);
       await expect(page.getByTestId("market-value-region")).toBeVisible();
-      await page.getByTestId("tab-deepvalue").click();
-      await expect(page.getByTestId("deep-value-panel")).toBeVisible();
-      await expect(page.getByTestId("market-value-region")).toHaveCount(0);
+      await expect(page).toHaveURL(/view=value/);
     });
 
     test("?view=value round-trips through the URL", async ({ page }) => {

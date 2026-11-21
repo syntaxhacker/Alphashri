@@ -29,7 +29,6 @@ const ChartView = lazy(() => import("./pages/chart/ChartView"));
 const NewsPage = lazy(() => import("./pages/NewsPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const AgriContainer = lazy(() => import("./pages/agri/AgriContainer").then(m => ({ default: m.AgriContainer })));
-const OrderFlowPage = lazy(() => import("./pages/orderflow/OrderFlowPage").then(m => ({ default: m.OrderFlowPage })));
 const PatternsContainer = lazy(() => import("./pages/patterns/PatternsContainer").then(m => ({ default: m.PatternsContainer })));
 const ReportContainer = lazy(() => import("./pages/report/ReportContainer").then(m => ({ default: m.ReportContainer })));
 const ProfitabilityPage = lazy(() => import("./pages/report/Profitability").then(m => ({ default: m.ProfitabilityPage })));
@@ -145,7 +144,6 @@ function AppContent() {
           <Route path="/news" component={NewsPage} />
           <Route path="/admin" component={AdminPage} />
           <Route path="/agri" component={AgriContainer} />
-          <Route path="/orderflow" component={OrderFlowPage} />
           <Route path="/patterns" component={PatternsContainer} />
           <Route path="/report" component={ReportContainer} />
           <Route path="/report/profit" component={ProfitabilityPage} />

@@ -56,6 +56,16 @@ export interface MarketFilterState {
   rsiMax: number | null;
   relVolMin: number | null;
   relVolMax: number | null;
+  /** Value/fundamental bounds. Ratios and percentages are unit-neutral. */
+  peMax: number | null;
+  psMax: number | null;
+  pbMax: number | null;
+  roeMin: number | null;
+  divYieldMin: number | null;
+  fcfYieldMin: number | null;
+  debtToEquityMax: number | null;
+  revYoyMin: number | null;
+  epsYoyMin: number | null;
   aboveSma20: boolean;
   aboveSma50: boolean;
   aboveSma200: boolean;
@@ -83,6 +93,15 @@ export function defaultMarketFilters(
     rsiMax: null,
     relVolMin: null,
     relVolMax: null,
+    peMax: null,
+    psMax: null,
+    pbMax: null,
+    roeMin: null,
+    divYieldMin: null,
+    fcfYieldMin: null,
+    debtToEquityMax: null,
+    revYoyMin: null,
+    epsYoyMin: null,
     aboveSma20: false,
     aboveSma50: false,
     aboveSma200: false,
@@ -165,6 +184,15 @@ export function filterOnlyMarketRows(
     if (!inRange(marketCapOf(row), filters.mcapMinCr, filters.mcapMaxCr)) return false;
     if (!inRange(row.rsi, filters.rsiMin, filters.rsiMax)) return false;
     if (!inRange(row.relativeVolume, filters.relVolMin, filters.relVolMax)) return false;
+    if (!inRange(row.peRatio, null, filters.peMax)) return false;
+    if (!inRange(row.psRatio, null, filters.psMax)) return false;
+    if (!inRange(row.pbRatio, null, filters.pbMax)) return false;
+    if (!inRange(row.roe, filters.roeMin, null)) return false;
+    if (!inRange(row.dividendYield, filters.divYieldMin, null)) return false;
+    if (!inRange(row.fcfYield, filters.fcfYieldMin, null)) return false;
+    if (!inRange(row.debtToEquity, null, filters.debtToEquityMax)) return false;
+    if (!inRange(row.revYoy, filters.revYoyMin, null)) return false;
+    if (!inRange(row.epsYoy, filters.epsYoyMin, null)) return false;
     if (filters.aboveSma20 && !isAboveSma(row.close, row.sma20)) return false;
     if (filters.aboveSma50 && !isAboveSma(row.close, row.sma50)) return false;
     if (filters.aboveSma200 && !isAboveSma(row.close, row.sma200)) return false;
@@ -233,6 +261,17 @@ export function resetUniverseSpecificFilters(
     rsiMax: filters.rsiMax,
     relVolMin: filters.relVolMin,
     relVolMax: filters.relVolMax,
+    // Ratios and growth rates carry no currency/cap unit, so a universe switch
+    // must not silently drop them.
+    peMax: filters.peMax,
+    psMax: filters.psMax,
+    pbMax: filters.pbMax,
+    roeMin: filters.roeMin,
+    divYieldMin: filters.divYieldMin,
+    fcfYieldMin: filters.fcfYieldMin,
+    debtToEquityMax: filters.debtToEquityMax,
+    revYoyMin: filters.revYoyMin,
+    epsYoyMin: filters.epsYoyMin,
     aboveSma20: filters.aboveSma20,
     aboveSma50: filters.aboveSma50,
     aboveSma200: filters.aboveSma200,
@@ -293,6 +332,37 @@ function rangeChip(
   return { key, label: `${label} ≤ ${fmtNum(max)}${unit}` };
 }
 
+function boundChip(
+  key: string,
+  label: string,
+  value: number | null | undefined,
+  direction: "min" | "max",
+  unit = "",
+): MarketFilterChip | null {
+  if (!has(value)) return null;
+  return { key, label: `${label} ${direction === "min" ? "≥" : "≤"} ${fmtNum(value)}${unit}` };
+}
+
+/** One-click bundle mirroring the retired Deep Value tab's "serious" gates. */
+export const DEEP_VALUE_PRESET: Pick<
+  MarketFilterState,
+  "peMax" | "roeMin" | "fcfYieldMin" | "debtToEquityMax"
+> = {
+  peMax: 15,
+  roeMin: 15,
+  fcfYieldMin: 0,
+  debtToEquityMax: 1.5,
+};
+
+export function deepValuePresetActive(filters: MarketFilterState): boolean {
+  return (
+    filters.peMax === DEEP_VALUE_PRESET.peMax &&
+    filters.roeMin === DEEP_VALUE_PRESET.roeMin &&
+    filters.fcfYieldMin === DEEP_VALUE_PRESET.fcfYieldMin &&
+    filters.debtToEquityMax === DEEP_VALUE_PRESET.debtToEquityMax
+  );
+}
+
 /**
  * Removable chips for the active filters. Sort is a view control, not a
  * filter, so it is deliberately excluded.
@@ -330,6 +400,18 @@ export function buildMarketFilterChips(
   );
   push(rangeChip("rsi", "RSI", filters.rsiMin, filters.rsiMax, ""));
   push(rangeChip("relvol", "RelVol", filters.relVolMin, filters.relVolMax, ""));
+  push(boundChip("pe", "P/E", filters.peMax, "max"));
+  push(boundChip("ps", "P/S", filters.psMax, "max"));
+  push(boundChip("pb", "P/B", filters.pbMax, "max"));
+  push(boundChip("roe", "ROE", filters.roeMin, "min", "%"));
+  push(boundChip("divYield", "Div yield", filters.divYieldMin, "min", "%"));
+  push(boundChip("fcfYield", "FCF yield", filters.fcfYieldMin, "min", "%"));
+  push(boundChip("debtToEquity", "D/E", filters.debtToEquityMax, "max"));
+  push(boundChip("revYoy", "Rev growth", filters.revYoyMin, "min", "%"));
+  push(boundChip("epsYoy", "EPS growth", filters.epsYoyMin, "min", "%"));
+  if (deepValuePresetActive(filters)) {
+    chips.push({ key: "deepValue", label: "Deep value preset" });
+  }
   if (filters.aboveSma20) chips.push({ key: "sma20", label: "Above SMA 20" });
   if (filters.aboveSma50) chips.push({ key: "sma50", label: "Above SMA 50" });
   if (filters.aboveSma200) chips.push({ key: "sma200", label: "Above SMA 200" });
@@ -347,4 +429,76 @@ export function countActiveMarketFilters(
   universe: MarketUniverse = "all_equity",
 ): number {
   return buildMarketFilterChips(filters, universe).length;
+}
+
+/**
+ * Pure chip → state mapping. The panel's `removeChip` owns the same switch today;
+ * routing it through this function keeps every chip (including the value bounds
+ * and the preset) removable without a second hand-maintained key list.
+ */
+export function clearMarketFilterChip(
+  filters: MarketFilterState,
+  key: string,
+): MarketFilterState {
+  if (key === "search") return { ...filters, search: "" };
+  if (key.startsWith("capTier:")) {
+    const tier = key.slice("capTier:".length);
+    const next = new Set(filters.capTiers);
+    next.delete(tier);
+    return { ...filters, capTiers: next };
+  }
+  switch (key) {
+    case "price":
+      return { ...filters, priceMin: null, priceMax: null };
+    case "day":
+      return { ...filters, dayChangeMin: null, dayChangeMax: null };
+    case "mcap":
+      return { ...filters, mcapMinCr: null, mcapMaxCr: null };
+    case "rsi":
+      return { ...filters, rsiMin: null, rsiMax: null };
+    case "relvol":
+      return { ...filters, relVolMin: null, relVolMax: null };
+    case "pe":
+      return { ...filters, peMax: null };
+    case "ps":
+      return { ...filters, psMax: null };
+    case "pb":
+      return { ...filters, pbMax: null };
+    case "roe":
+      return { ...filters, roeMin: null };
+    case "divYield":
+      return { ...filters, divYieldMin: null };
+    case "fcfYield":
+      return { ...filters, fcfYieldMin: null };
+    case "debtToEquity":
+      return { ...filters, debtToEquityMax: null };
+    case "revYoy":
+      return { ...filters, revYoyMin: null };
+    case "epsYoy":
+      return { ...filters, epsYoyMin: null };
+    case "deepValue":
+      return {
+        ...filters,
+        peMax: null,
+        roeMin: null,
+        fcfYieldMin: null,
+        debtToEquityMax: null,
+      };
+    case "sma20":
+      return { ...filters, aboveSma20: false };
+    case "sma50":
+      return { ...filters, aboveSma50: false };
+    case "sma200":
+      return { ...filters, aboveSma200: false };
+    case "fno":
+      return { ...filters, fnoOnly: false };
+    case "sector":
+      return { ...filters, sectors: [] };
+    default:
+      if (key.startsWith("sector:")) {
+        const name = key.slice("sector:".length);
+        return { ...filters, sectors: filters.sectors.filter((s) => s !== name) };
+      }
+      return filters;
+  }
 }

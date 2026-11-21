@@ -1,19 +1,26 @@
-import { For, Show, type JSX } from "solid-js";
+import { createEffect, createSignal, For, Show, type JSX } from "solid-js";
 import {
   Box,
+  Button,
   Checkbox,
   Divider,
   MultiSelect,
+  NumberInput,
   Switch,
   Text,
   ActionIcon,
   Tooltip,
 } from "@/ui";
-import { IconChevronLeft, IconFilter } from "../common/Icons";
+import { IconChevronDown, IconChevronLeft, IconChevronUp, IconFilter } from "../common/Icons";
 import { RangeInput } from "../common/RangeInput";
 import { currencyFor, type CurrencyCode } from "@/config/currency";
 import { descriptorForCurrency } from "@/config/marketUniverses";
-import { capTierOptions, universeHasFno, type MarketFilterState } from "./marketFilters";
+import {
+  capTierOptions,
+  DEEP_VALUE_PRESET,
+  universeHasFno,
+  type MarketFilterState,
+} from "./marketFilters";
 
 /** One size for every band label in the rail — header included. */
 const SECTION_LABEL = "text-[10px] uppercase tracking-[0.06em]";
@@ -84,8 +91,48 @@ function ToggleGroup(props: { children?: JSX.Element }) {
   return <Box className="flex flex-col gap-1">{props.children}</Box>;
 }
 
+type ValueFilterKey =
+  | "peMax"
+  | "psMax"
+  | "pbMax"
+  | "roeMin"
+  | "divYieldMin"
+  | "fcfYieldMin"
+  | "debtToEquityMax"
+  | "revYoyMin"
+  | "epsYoyMin";
+
+interface ValueFieldDef {
+  key: ValueFilterKey;
+  label: string;
+  suffix?: string;
+  min?: number;
+  step?: number;
+}
+
+const VALUE_FIELDS: readonly ValueFieldDef[] = [
+  { key: "peMax", label: "P/E ≤", min: 0, step: 0.5 },
+  { key: "psMax", label: "P/S ≤", min: 0, step: 0.1 },
+  { key: "pbMax", label: "P/B ≤", min: 0, step: 0.1 },
+  { key: "roeMin", label: "ROE ≥", suffix: "%", min: -100, step: 1 },
+  { key: "divYieldMin", label: "Div yield ≥", suffix: "%", min: 0, step: 0.1 },
+  { key: "fcfYieldMin", label: "FCF yield ≥", suffix: "%", min: -100, step: 0.1 },
+  { key: "debtToEquityMax", label: "D/E ≤", min: 0, step: 0.1 },
+  { key: "revYoyMin", label: "Rev growth ≥", suffix: "%", step: 1 },
+  { key: "epsYoyMin", label: "EPS growth ≥", suffix: "%", step: 1 },
+];
+
+/** In-progress keystrokes ("1.", "-") are not bounds; an empty field is "off". */
+function toBound(raw: number | string): number | null {
+  if (raw === "" || raw == null) return null;
+  const n = typeof raw === "number" ? raw : Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
 export function MarketFilterRail(props: MarketFilterRailProps) {
   const filters = () => props.filters;
+  // Collapsed on purpose: the default Market rail keeps its original silhouette.
+  const [valueOpen, setValueOpen] = createSignal(false);
   const tierCounts = () => props.tierCounts;
   const collapseLabel = () => props.collapseLabel ?? "Collapse filters";
   const capTierOpts = () => capTierOptions(descriptorForCurrency(props.currency).value);
@@ -250,6 +297,81 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
           testId="market-filter-relvol"
         />
       </RailSection>
+
+      <Divider />
+
+      <Box role="group" aria-label="Value filters" className="flex flex-col gap-1">
+        <button
+          type="button"
+          data-testid="market-value-toggle"
+          aria-expanded={valueOpen()}
+          aria-controls="market-value-fields"
+          onClick={() => setValueOpen((open) => !open)}
+          className="flex items-center justify-between w-full"
+        >
+          <Text fw={600} c="dimmed" className="text-[11px]">
+            Value
+          </Text>
+          <Show when={valueOpen()} fallback={<IconChevronDown size={12} />}>
+            <IconChevronUp size={12} />
+          </Show>
+        </button>
+
+        <Show when={valueOpen()}>
+          <Box
+            id="market-value-fields"
+            data-testid="market-value-fields"
+            className="flex flex-col gap-2 pt-1"
+          >
+            <For each={VALUE_FIELDS}>
+              {(def) => {
+                const [raw, setRaw] = createSignal(
+                  filters()[def.key] == null ? "" : String(filters()[def.key]),
+                );
+                let committed: number | null = filters()[def.key];
+                // Presets and chip removals move the filter from outside this
+                // field; follow them without stomping an in-progress keystroke.
+                createEffect(() => {
+                  const bound = filters()[def.key];
+                  if (bound === committed) return;
+                  committed = bound;
+                  setRaw(bound == null ? "" : String(bound));
+                });
+                return (
+                  <NumberInput
+                    size="xs"
+                    label={def.label}
+                    suffix={def.suffix}
+                    min={def.min}
+                    step={def.step}
+                    hideControls
+                    placeholder="Any"
+                    value={raw()}
+                    data-testid={`market-filter-${def.key}`}
+                    onChange={(next) => {
+                      const text = typeof next === "string" ? next : String(next);
+                      setRaw(text);
+                      const bound = toBound(next);
+                      if (bound === committed) return;
+                      committed = bound;
+                      props.onChange({ [def.key]: bound } as Partial<MarketFilterState>);
+                    }}
+                  />
+                );
+              }}
+            </For>
+
+            <Button
+              size="xs"
+              variant="outline"
+              data-testid="market-value-preset"
+              onClick={() => props.onChange(DEEP_VALUE_PRESET)}
+            >
+              Deep value preset
+            </Button>
+          </Box>
+        </Show>
+      </Box>
 
       <Divider />
 

@@ -1,7 +1,7 @@
 import { Match, Show, Suspense, Switch, createEffect, createMemo, createSignal, lazy, onCleanup, onMount } from "solid-js";
 import { useParams, useNavigate, useSearchParams } from "@solidjs/router";
 import { Box, Stack, Paper, Tabs, Text, Select, Skeleton } from "@/ui";
-import { IconTable, IconChartDots, IconSettings, IconCoins, IconChartCandle, IconWorld } from "./icons";
+import { IconTable, IconChartDots, IconSettings, IconChartCandle, IconWorld } from "./icons";
 import * as state from "../../state";
 import { ScreenerHeader } from "./ScreenerHeader";
 // ScreenerContent pulls the table + its whole module tree — heavy module
@@ -24,7 +24,6 @@ import { MARKET_VIEW_OPTIONS, normalizeMarketView } from "../market/MarketMapVie
 
 const CorrelationTab = lazy(() => import("./CorrelationTab").then((m) => ({ default: m.CorrelationTab })));
 const ScreenerConfigView = lazy(() => import("./ScreenerConfigView").then((m) => ({ default: m.ScreenerConfigView })));
-const DeepValueTab = lazy(() => import("../value/ValuePanel").then((m) => ({ default: m.ValuePanel })));
 const FnoScreenerTab = lazy(() =>
   import("./FnoScreenerTab").then((m) => ({ default: m.FnoScreenerTab })),
 );
@@ -119,7 +118,6 @@ const TAB_OWNED_PARAMS: Readonly<Record<string, readonly string[]>> = {
 /** Tabs addressable as `/screener/<tab>`. `dashboard` is the folded legacy tab. */
 const KNOWN_TABS = new Set([
   "screener",
-  "deepvalue",
   "fno",
   "market",
   "correlation",
@@ -174,7 +172,6 @@ export function ScreenerPage(props: ScreenerPageProps) {
   };
   const activeTab = createMemo(() => pathTab() ?? legacyTab() ?? "market");
   const marketView = () => normalizeMarketView(firstParam(searchParams.view));
-  const isValueTab = () => activeTab() === "deepvalue";
   const isMarketTab = () => activeTab() === "market";
   const isFnoTab = () => activeTab() === "fno";
 
@@ -227,6 +224,13 @@ export function ScreenerPage(props: ScreenerPageProps) {
   createEffect(() => {
     if (activeTab() !== "dashboard") return;
     navigateToTab(legacyTabPath("market"), searchForTab("market"), { view: "movers" }, { replace: true });
+  });
+
+  // Deep Value folded into Market as its `value` view. Its id is retired from
+  // KNOWN_TABS, so the raw param/segment is read instead of `activeTab()`.
+  createEffect(() => {
+    if (firstParam(searchParams.tab) !== "deepvalue" && firstParam(params.tab) !== "deepvalue") return;
+    navigateToTab(legacyTabPath("market"), searchForTab("market"), { view: "value" }, { replace: true });
   });
 
   // Warm the Market chunk once the browser is idle after mount; hover/focus
@@ -318,37 +322,31 @@ export function ScreenerPage(props: ScreenerPageProps) {
           className="flex items-center gap-2 h-[28px] min-h-[28px] max-h-[28px] flex-shrink-0 overflow-hidden flex-nowrap border-b border-fin-border"
         >
           <Box className="flex items-center gap-2 min-w-0 flex-1">
-            <Show when={isValueTab()} fallback={
-              <Show when={isMarketTab()} fallback={
-                <Show when={isFnoTab()} fallback={
-                  <Select
-                    value={props.activeScreener}
-                    onChange={(v) => v && props.onScreenerChange(v)}
-                    data={screenerSelectData()}
-                    size="xs"
-                    w={148}
-                    data-testid="screener-select"
-                    comboboxProps={{ withinPortal: true }}
-                    aria-label="Screener"
-                  />
-                }>
-                  <Text
-                    size="xs"
-                    fw={600}
-                    data-testid="fno-tab-label"
-                    className="w-[148px] flex-shrink-0 hidden md:block"
-                  >
-                    F&O Momentum (India)
-                  </Text>
-                </Show>
+            <Show when={isMarketTab()} fallback={
+              <Show when={isFnoTab()} fallback={
+                <Select
+                  value={props.activeScreener}
+                  onChange={(v) => v && props.onScreenerChange(v)}
+                  data={screenerSelectData()}
+                  size="xs"
+                  w={148}
+                  data-testid="screener-select"
+                  comboboxProps={{ withinPortal: true }}
+                  aria-label="Screener"
+                />
               }>
-                <Text size="xs" fw={600} data-testid="market-tab-label" className="w-[148px] flex-shrink-0">
-                  Market
+                <Text
+                  size="xs"
+                  fw={600}
+                  data-testid="fno-tab-label"
+                  className="w-[148px] flex-shrink-0 hidden md:block"
+                >
+                  F&O Momentum (India)
                 </Text>
               </Show>
             }>
-              <Text size="xs" fw={600} data-testid="deep-value-tab-label">
-                Deep Value
+              <Text size="xs" fw={600} data-testid="market-tab-label" className="w-[148px] flex-shrink-0">
+                Market
               </Text>
             </Show>
             <Tabs
@@ -366,9 +364,6 @@ export function ScreenerPage(props: ScreenerPageProps) {
               >
                 <Tabs.Tab value="screener" leftSection={<IconTable size={14} />} data-testid="tab-screener" style={TAB_STRIP_STYLE}>
                   Screener
-                </Tabs.Tab>
-                <Tabs.Tab value="deepvalue" leftSection={<IconCoins size={14} />} data-testid="tab-deepvalue" style={TAB_STRIP_STYLE}>
-                  Deep Value
                 </Tabs.Tab>
                 <Tabs.Tab value="fno" leftSection={<IconChartCandle size={14} />} data-testid="tab-fno" style={TAB_STRIP_STYLE}>
                   F&O (India)
@@ -396,7 +391,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
             </Tabs>
           </Box>
           <Box className="flex-shrink-0 flex items-center flex-nowrap ml-auto">
-            <Show when={!isValueTab() && !isMarketTab() && !isFnoTab()}>
+            <Show when={!isMarketTab() && !isFnoTab()}>
               <ScreenerHeader
                 status={props.status}
                 isLoading={props.isLoading}
@@ -460,17 +455,6 @@ export function ScreenerPage(props: ScreenerPageProps) {
                     <SelectionBar onCompare={handleCompare} />
                   </Box>
                 </Paper>
-              </div>
-            </Match>
-            <Match when={isValueTab()}>
-              <div
-                data-testid="deep-value-panel"
-                class="min-w-0 min-h-0 overflow-auto"
-                style={{ display: "flex", flex: 1 }}
-              >
-                <Suspense fallback={<PanelFallback />}>
-                  <DeepValueTab />
-                </Suspense>
               </div>
             </Match>
             <Match when={isFnoTab()}>

@@ -67,10 +67,6 @@ vi.mock("./admin/AdminPatternTimeframesPanel", () => ({
   AdminPatternTimeframesPanel: () => <div data-testid="admin-pattern-timeframes-panel-mock" />,
 }));
 
-vi.mock("./admin/OrderFlowJournalPanel", () => ({
-  OrderFlowJournalPanel: () => <div data-testid="orderflow-journal-panel-mock" />,
-}));
-
 vi.mock("../components/patterns/PatternImageManager", () => ({
   PatternImageManager: () => <div data-testid="pattern-image-manager-mock" />,
 }));

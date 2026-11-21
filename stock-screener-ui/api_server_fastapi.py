@@ -60,7 +60,6 @@ from api.news_routes import (
 )
 from api.news.news_poller import _init_news_modules
 from api.bots_api.bot_operations import bot_auto_recovery_task
-from api.orderflow_recorder import recorder_task
 
 _news_available = False
 _llm_available = False
@@ -753,7 +752,6 @@ async def lifespan(app: FastAPI):
     _prefetch_task = None
     _recovery_task = None
     _db_backup_task = None
-    _orderflow_recorder_task = None
     _patterns_task = None
     _watch_task = None
     _dashboard_task = None
@@ -838,8 +836,6 @@ async def lifespan(app: FastAPI):
             _recovery_task = _spawn_task("Bot auto-recovery", bot_auto_recovery_task, started="🔄 Bot auto-recovery task started", failed="⚠️ Bot auto-recovery task failed: {e}")
 
             _db_backup_task = _spawn_task("DB backup", db_backup_task, started="💾 DB backup task started", failed="⚠️ DB backup task failed: {e}")
-
-            _orderflow_recorder_task = _spawn_task("Order-flow recorder", recorder_task, started="🎙️ Order-flow recorder task started", failed="⚠️ Order-flow recorder task failed: {e}")
 
             _patterns_task = _spawn_task("Chart-patterns", chart_patterns_bootstrap_task, started="📐 Chart-patterns background task started", failed="⚠️ Chart-patterns task failed: {e}")
 
@@ -949,7 +945,7 @@ async def lifespan(app: FastAPI):
     # Scrub credential-adjacent values from broker/transport error logs. Called
     # here (not at import) because uvicorn configures its handlers first.
     try:
-        from api.orderflow_logging import install_error_redaction
+        from api.log_redaction import install_error_redaction
 
         install_error_redaction()
     except Exception as e:
@@ -967,8 +963,6 @@ async def lifespan(app: FastAPI):
         _recovery_task.cancel()
     if _db_backup_task:
         _db_backup_task.cancel()
-    if _orderflow_recorder_task:
-        _orderflow_recorder_task.cancel()
     if _patterns_task:
         _patterns_task.cancel()
     if _watch_task:
@@ -988,11 +982,6 @@ async def lifespan(app: FastAPI):
         _options_recorder_task,
         _tick_tape_task,
     )
-    try:
-        from api import orderflow_journal
-        orderflow_journal.close_all()
-    except Exception:
-        pass
     if _touch_task:
         _touch_task.cancel()
     if _nifty_tape_task:
@@ -1063,7 +1052,6 @@ OPENAPI_TAGS = [
     {"name": "options-recorder", "description": "Options tick recorder control."},
     {"name": "options-history", "description": "Historical options data."},
     {"name": "options-screener", "description": "F&O momentum OTM options screener."},
-    {"name": "fyers-bridge", "description": "Fyers option chain, expiries and futures bridge."},
     {"name": "report-sim", "description": "Strategy simulator over recorded option tape (replay + live as-of)."},
     {"name": "market-ticker", "description": "Live index and commodity ticker data."},
     {"name": "symbols", "description": "Symbol search and instrument lookup."},
@@ -1102,7 +1090,7 @@ Market data, screener, paper-trading and bot APIs for Indian (NSE) and US market
 
 ## Notes
 - Base URL in local development: `http://localhost:8765`.
-- WebSocket routes (`/ws/orderflow`, `/ws/nifty/*`) are not represented in this schema.
+- WebSocket routes (`/ws/nifty/*`) are not represented in this schema.
 - Endpoints marked with a padlock require a bearer token.
 """
 
@@ -1624,8 +1612,6 @@ _include_api("api.options_contract_chart", "router", "options contract chart", m
 
 _include_api("api.options_screener", "router", "F&O screener", msg="✅ F&O screener API loaded at /api/options/screener")
 
-_include_api("api.fyers_bridge", "router", "fyers bridge", msg="✅ Fyers bridge API loaded at /api/fyers-bridge")
-
 _include_api("api.premium_tracker", "router", "premium tracker", msg="✅ Premium Tracker API loaded at /api/options/premium-tracker")
 
 _include_api("api.news_charts", "router", "news charts", msg="✅ News Charts API loaded at /api/news")
@@ -1695,13 +1681,6 @@ _include_api("api.correlation", "router", "correlation", msg="✅ Correlation AP
 _include_api("api.trading_agents", "router", "TradingAgents", msg="✅ TradingAgents API loaded at /api/trading-agents")
 
 _include_api("api.poc_nq", "router", "POC NQ", msg="✅ POC NQ API loaded at /api/poc/nq")
-
-try:
-    from api.orderflow_stream import router as orderflow_router
-    app.include_router(orderflow_router)
-    print("✅ Order Flow bridge loaded at /ws/orderflow")
-except Exception as e:
-    print(f"⚠️ Could not load Order Flow bridge: {e}")
 
 _include_api("api.screener_api.dashboard", "router", "screener dashboard", msg="✅ Screener Dashboard API loaded at /api/screener/dashboard")
 

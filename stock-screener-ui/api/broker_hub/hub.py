@@ -30,7 +30,7 @@ import threading
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
-from api.orderflow_symbols import from_broker_symbol, normalize_symbol
+from api.broker_hub.symbols import from_broker_symbol, normalize_symbol
 
 TickCallback = Callable[[str, dict], None]
 ErrorCallback = Callable[[object], None]
@@ -295,7 +295,7 @@ class AdapterHub:
 
 
 def _default_adapter_factory(broker: str, token: str):
-    from api.orderflow_adapters import get_adapter
+    from api.broker_hub.adapters import get_adapter
 
     adapter_cls = get_adapter(broker)
     if adapter_cls is None:

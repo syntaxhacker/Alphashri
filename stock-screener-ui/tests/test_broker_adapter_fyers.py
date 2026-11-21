@@ -5,8 +5,8 @@ from unittest import mock
 
 import pytest
 
-from api.orderflow_adapters import available_adapters, get_adapter
-from api.orderflow_adapters.fyers import (
+from api.broker_hub.adapters import available_adapters, get_adapter
+from api.broker_hub.adapters.fyers import (
     FyersAdapter,
     FyersTbtAdapter,
     _default_socket_factory,
@@ -473,7 +473,7 @@ class TestInPlaceSubscribe:
             adapter.subscribe_symbol("ITC")
 
     def test_base_adapter_refuses_in_place_subscribe_by_default(self):
-        from api.orderflow_adapters.base import OrderFlowAdapter
+        from api.broker_hub.adapters.base import OrderFlowAdapter
 
         class Minimal(OrderFlowAdapter):
             name = "minimal"
@@ -722,7 +722,7 @@ class TestForeignQuoteRejection:
     """
 
     def _adapter(self):
-        from api.orderflow_adapters import get_adapter
+        from api.broker_hub.adapters import get_adapter
         a = get_adapter("fyers_tbt")()
         a.remember_quote({
             "symbol": "NSE:NETWEB-EQ",
@@ -750,7 +750,7 @@ class TestForeignQuoteRejection:
 
     def test_book_range_is_respected(self):
         """A quote inside the book must still be merged."""
-        from api.orderflow_adapters import get_adapter
+        from api.broker_hub.adapters import get_adapter
         a = get_adapter("fyers_tbt")()
         a.remember_quote({"symbol": "NSE:NETWEB-EQ", "ltp": 4770.0,
                           "vol_traded_today": 284455, "avg_trade_price": 4769.0,

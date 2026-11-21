@@ -415,6 +415,14 @@ def _shape_rows(rows: list[dict[str, Any]], *, universe: str = "all_equity") -> 
         pos_52w: float | None = None
         if close is not None and low is not None and high is not None and high != low:
             pos_52w = (close - low) / (high - low) * 100.0
+        fcf = _num(raw.get("free_cash_flow_ttm"))
+        # Ship the ratio, not two raw numbers: divide only when both operands are
+        # finite and non-zero, so a missing/zero cap never yields inf or NaN.
+        fcf_yield = (
+            fcf / mcap
+            if fcf is not None and mcap is not None and fcf != 0 and mcap != 0
+            else None
+        )
         mcap_fields = {
             field: (mcap / scale) if (mcap is not None and scale is not None) else None
             for field, scale in spec.mcap_outputs
@@ -454,6 +462,17 @@ def _shape_rows(rows: list[dict[str, Any]], *, universe: str = "all_equity") -> 
             "pb_ratio": _num(raw.get("price_book_fq")),
             "dividend_yield": _num(raw.get("dividend_yield_recent")),
             "roe": _num(raw.get("return_on_equity")),
+            # Value-filter fields (null when TV has no coverage for the market).
+            "ps_ratio": _num(raw.get("price_sales_ratio")),
+            "fcf_yield": fcf_yield,
+            "revenue": _num(raw.get("total_revenue")),
+            "net_income": _num(raw.get("net_income")),
+            "debt_to_equity": _num(raw.get("debt_to_equity_fq")),
+            "current_ratio": _num(raw.get("current_ratio")),
+            "gross_margin": _num(raw.get("gross_margin_ttm")),
+            "operating_margin": _num(raw.get("operating_margin_ttm")),
+            "rev_yoy": _num(raw.get("total_revenue_yoy_growth_ttm")),
+            "eps_yoy": _num(raw.get("earnings_per_share_diluted_yoy_growth_ttm")),
             "fno": (sym in _FNO_SYMBOLS) if spec.use_nse_tags else False,
             "etf": is_etf,
             "currency": spec.currency,

@@ -9,7 +9,7 @@ that impossible.
 
 import pytest
 
-from api.orderflow_adapter_hub import AdapterHub
+from api.broker_hub.hub import AdapterHub
 
 
 class FakeAdapter:

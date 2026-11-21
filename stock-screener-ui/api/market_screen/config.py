@@ -37,6 +37,17 @@ COLUMNS = [
     "price_book_fq",
     "dividend_yield_recent",
     "return_on_equity",
+    # Value filters ride along in the same scan; coverage is market-dependent.
+    "price_sales_ratio",
+    "free_cash_flow_ttm",
+    "total_revenue",
+    "net_income",
+    "debt_to_equity_fq",
+    "current_ratio",
+    "gross_margin_ttm",
+    "operating_margin_ttm",
+    "total_revenue_yoy_growth_ttm",
+    "earnings_per_share_diluted_yoy_growth_ttm",
     "update_mode",
 ]
 
