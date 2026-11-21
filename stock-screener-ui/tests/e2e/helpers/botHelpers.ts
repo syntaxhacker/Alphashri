@@ -65,10 +65,15 @@ export async function gotoPaperAndSelectFirstBot(page: Page) {
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
 
   await page.waitForSelector('[data-testid="bot-select"]', { state: "visible", timeout: 10000 });
-  await page.locator('[data-testid="bot-select"]').click();
-  await expect(page.getByRole("option").first()).toBeVisible({ timeout: 5000 });
-  await page.keyboard.press("ArrowDown");
-  await page.keyboard.press("Enter");
+  // bot-select is a non-searchable Select, which renders a native <select>:
+  // there is no role=option popup to wait for. Pick the first real bot value.
+  const botSelect = page.locator('[data-testid="bot-select"] select');
+  await expect(botSelect).toBeVisible({ timeout: 5000 });
+  const firstValue = await botSelect
+    .locator("option")
+    .first()
+    .getAttribute("value");
+  if (firstValue) await botSelect.selectOption(firstValue);
 
   await page.getByTestId("tab-live").click();
 }

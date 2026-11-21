@@ -153,8 +153,12 @@ export async function selectSymbolFromMultiselect(
   symbol: string = "RELIANCE",
   delay: number = 50,
 ) {
-  const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-  await symbolSelect.click({ force: true });
+  // Click the <input>, not the wrapper div: the wrapper click lands on padding,
+  // leaves focus on <body> and never opens the listbox (aria-expanded stays
+  // false), so the typed keys go nowhere and no option ever appears.
+  const searchInput = page.locator('[data-testid="symbol-multiselect"] input');
+  await searchInput.click();
+  await expect(page.locator('[data-part="multiselect-listbox"]')).toBeVisible({ timeout: 5000 });
   await page.keyboard.type(symbol, { delay });
   // The dropdown renders a "No symbols found" placeholder (role=option)
   // before the 300 ms search debounce resolves; match the real row by text
