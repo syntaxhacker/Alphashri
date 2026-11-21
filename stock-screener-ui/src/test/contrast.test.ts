@@ -135,6 +135,22 @@ describe("contrast — report level/OI tint pairs", () => {
   });
 });
 
+describe("contrast — Index Report strip controls", () => {
+  it("MOVERS EXPAND ink and border clear AA on the movers strip", () => {
+    // The button is transparent on bg-fin-surface; the old text/border token
+    // was fin-border (BORDER) at 1.39:1 — invisible against the strip.
+    expect(contrastRatio(TEXT_MUTED, SURFACE)).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(contrastRatio(TEXT_MUTED, SURFACE)).toBeGreaterThanOrEqual(AA_GRAPHIC);
+  });
+
+  it("active dock sub-label ink clears AA on the amber tab fill", () => {
+    // The inactive muted ink measures 1.06:1 on PRIMARY; the readable ink is
+    // chosen by the same pickTextColor helper the rest of the palette uses.
+    expect(pickTextColor(PRIMARY)).toBe(BG);
+    expect(contrastRatio(pickTextColor(PRIMARY), PRIMARY)).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+});
+
 describe("contrast — hostile input never throws", () => {
   const bad = [undefined, null, 42, {}, Number.NaN] as unknown as string[];
 

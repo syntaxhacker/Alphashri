@@ -6,24 +6,51 @@ import { render, screen, within, fireEvent, cleanup } from "@solidjs/testing-lib
 import { BotSelector } from "./BotSelector";
 import type { BotSummary } from "../../types/paperTrading";
 import { BORDER_COLOR, POSITIVE_COLOR } from "@/ui/palette";
+import { fetchHolidays } from "../../api/holidays_api";
+import { loadHolidays, resetHolidays } from "../../state/holidays";
 
-const { mockIsMarketClosedToday } = vi.hoisted(() => ({
-  mockIsMarketClosedToday: vi.fn().mockReturnValue(false),
+// Fixed IST instants injected into the real session helper. The holiday-only
+// helper stays holiday-only so the after-hours regressions fail on the old code.
+const { clock } = vi.hoisted(() => ({
+  clock: { now: new Date("2026-11-16T05:30:00Z") }, // Monday 11:00 IST
 }));
 
 const holidayListeners = new Set<() => void>();
 
-vi.mock("../../state/holidays", () => ({
-  subscribeToHolidays: vi.fn((cb: () => void) => {
-    holidayListeners.add(cb);
-    return () => holidayListeners.delete(cb);
-  }),
-  getHolidayState: vi.fn(() => ({ loaded: true, loading: false, holidays: [], tradingDates: new Set(), clearingDates: new Set() })),
-  isMarketClosedToday: mockIsMarketClosedToday,
+vi.mock("../../api/holidays_api", () => ({
+  fetchHolidays: vi.fn(async () => []),
+  fetchHolidayCheck: vi.fn(),
 }));
+
+vi.mock("../../state/holidays", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../state/holidays")>();
+  const istDate = (now: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(now);
+  return {
+    ...actual,
+    subscribeToHolidays: vi.fn((cb: () => void) => {
+      holidayListeners.add(cb);
+      return () => holidayListeners.delete(cb);
+    }),
+    // Fresh snapshot each read: the component's memo compares by reference.
+    getHolidayState: () => ({ ...actual.getHolidayState() }),
+    isMarketClosedToday: (now?: Date) => actual.isTradingHoliday(istDate(now ?? clock.now)),
+    isMarketOpenNow: (now?: Date) => actual.isMarketOpenNow(now ?? clock.now),
+  };
+});
 
 function notifyHolidays() {
   for (const cb of holidayListeners) cb();
+}
+
+function setClock(utcIso: string) {
+  clock.now = new Date(utcIso);
+}
+
+async function setHoliday(date: string, description: string) {
+  vi.mocked(fetchHolidays).mockResolvedValueOnce([{ date, description, type: "trading" }]);
+  resetHolidays();
+  await loadHolidays();
 }
 
 const runningBot: BotSummary = {
@@ -63,7 +90,10 @@ const runningNoPidBot: BotSummary = {
 };
 
 beforeEach(() => {
-  mockIsMarketClosedToday.mockReturnValue(false);
+  setClock("2026-11-16T05:30:00Z"); // Monday 11:00 IST — open
+  delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+  vi.mocked(fetchHolidays).mockResolvedValue([]);
+  resetHolidays();
 });
 
 afterEach(() => {
@@ -205,7 +235,7 @@ describe("BotSelector", () => {
   });
 
   test("start button disabled when market is closed", () => {
-    mockIsMarketClosedToday.mockReturnValue(true);
+    setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST — after the close
     render(() => (
       <BotSelector
         bots={[stoppedBot]}
@@ -219,7 +249,7 @@ describe("BotSelector", () => {
   });
 
   test("start button shows tooltip when market closed", async () => {
-    mockIsMarketClosedToday.mockReturnValue(true);
+    setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST — after the close
     render(() => (
       <BotSelector
         bots={[stoppedBot]}
@@ -231,13 +261,13 @@ describe("BotSelector", () => {
     ));
     const startBtn = screen.getByTestId("start-bot-btn");
     // The Solid Tooltip wraps its child in an element that carries the aria-label; hover that node.
-    const tooltipWrap = startBtn.closest('[aria-label="Market closed — cannot start bot"]') as HTMLElement;
+    const tooltipWrap = startBtn.closest('[aria-label^="Market closed"]') as HTMLElement;
     fireEvent.mouseEnter(tooltipWrap);
-    expect(await screen.findByText("Market closed — cannot start bot")).toBeInTheDocument();
+    expect(await screen.findByText(/Market closed — Closed at 15:30 IST/)).toBeInTheDocument();
   });
 
   test("start button not disabled when market open", () => {
-    mockIsMarketClosedToday.mockReturnValue(false);
+    setClock("2026-11-16T05:30:00Z"); // Monday 11:00 IST — open
     render(() => (
       <BotSelector
         bots={[stoppedBot]}
@@ -473,7 +503,7 @@ describe("BotSelector", () => {
   });
 
   test("start button reflects market open/close transitions", () => {
-    mockIsMarketClosedToday.mockReturnValue(false);
+    setClock("2026-11-16T05:30:00Z"); // Monday 11:00 IST — open
     render(() => (
       <BotSelector
         bots={[stoppedBot]}
@@ -484,8 +514,59 @@ describe("BotSelector", () => {
       />
     ));
     expect(screen.getByTestId("start-bot-btn")).not.toBeDisabled();
-    mockIsMarketClosedToday.mockReturnValue(true);
+    setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST — after the close
     notifyHolidays();
     expect(screen.getByTestId("start-bot-btn")).toBeDisabled();
+  });
+});
+
+// Fixed-instant regressions: the holiday-only helper said "open" at 17:11,
+// so these cases fail on the old code and pass only with the session helper.
+describe("BotSelector — session guard with fixed timestamps", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const renderStopped = () => render(() => (
+    <BotSelector
+      bots={[stoppedBot]}
+      selectedBotId="2"
+      onSelectBot={vi.fn()}
+      onToggleBot={vi.fn()}
+      onRefresh={vi.fn()}
+    />
+  ));
+
+  it("17:11 IST on a weekday disables Start", () => {
+    setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST
+    renderStopped();
+    expect(screen.getByTestId("start-bot-btn")).toBeDisabled();
+  });
+
+  it("11:00 IST on a weekday enables Start", () => {
+    setClock("2026-11-16T05:30:00Z"); // Monday 11:00 IST
+    renderStopped();
+    expect(screen.getByTestId("start-bot-btn")).not.toBeDisabled();
+  });
+
+  it("a holiday at 11:00 IST disables Start and keeps the holiday reason", async () => {
+    setClock("2026-01-26T05:30:00Z"); // Republic Day, Monday 11:00 IST
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(clock.now);
+    await setHoliday("2026-01-26", "Republic Day");
+    renderStopped();
+    const startBtn = screen.getByTestId("start-bot-btn");
+    expect(startBtn).toBeDisabled();
+    const tooltipWrap = startBtn.closest('[aria-label^="Market closed"]') as HTMLElement;
+    fireEvent.mouseEnter(tooltipWrap);
+    expect(await screen.findByText(/Republic Day/)).toBeInTheDocument();
+  });
+
+  it("__E2E_MOCK_MARKET_OPEN__ enables Start at 17:11 IST", () => {
+    setClock("2026-11-16T11:41:00Z");
+    (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
+    renderStopped();
+    expect(screen.getByTestId("start-bot-btn")).not.toBeDisabled();
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
   });
 });

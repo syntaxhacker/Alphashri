@@ -102,7 +102,7 @@ vi.mock("../../state/paperTrading", () => ({
 
 vi.mock("../../state/holidays", () => ({
   subscribeToHolidays: vi.fn(() => () => {}),
-  isMarketClosedToday: vi.fn().mockReturnValue(false),
+  isMarketOpenNow: vi.fn(() => true),
 }));
 
 vi.mock("../../api/paperTrading", () => ({

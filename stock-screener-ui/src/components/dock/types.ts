@@ -27,6 +27,19 @@ export interface DockPanelApi<D extends object = Record<string, unknown>> {
   data: Accessor<D | undefined>;
   /** Empty object when the page supplied no commands — never assume one exists. */
   commands: DockPanelCommands;
+  /**
+   * Read side of the persisted settings channel: this window's own settings
+   * bag. The window manager supplies a reactive accessor so a late hydration
+   * or a tab switch can re-seed a panel that is already mounted. A host that
+   * does not persist settings supplies an empty accessor; never assume keys.
+   */
+  settings?: Accessor<Record<string, unknown>>;
+  /**
+   * Write side of the same channel. A panel reports a partial patch; the host
+   * merges it into this window's bag and saves through its existing debounced
+   * layout path. No second timer lives in the panel.
+   */
+  onSettingsChange?: (patch: Record<string, unknown>) => void;
 }
 
 export interface DockPanelSpec<D extends object = Record<string, unknown>> {
