@@ -17,6 +17,15 @@ const COIL_COPY: Record<CoilState, string> = {
   EXPANDING: "trend underway",
 };
 
+/** The verdict row allots one equal-width cell to four signals. The full state
+ *  word ("EXPANDING") plus the RV/IV pair cannot share that cell at 11px, so
+ *  the compact cell uses short words and keeps the full state in its tooltip. */
+const COMPACT_STATE_LABEL: Record<CoilState, string> = {
+  COIL: "COIL",
+  NORMAL: "NORM",
+  EXPANDING: "EXPAND",
+};
+
 /** Status-dot / text accent per state. */
 const COIL_ACCENT: Record<CoilState, string> = {
   COIL: palette.WARNING,
@@ -127,7 +136,7 @@ export function NiftyCoilGauge(props: NiftyCoilGaugeProps) {
       <div
         data-testid="nifty-coil-gauge"
         title={`${state() ?? "—"} — ${hint()} · ${rvIv()}`}
-        class="flex items-center gap-[6px] min-w-0 overflow-hidden px-2 py-[2px]"
+        class="flex items-center gap-1 min-w-0 overflow-hidden px-1 py-[2px]"
       >
         <div
           aria-hidden="true"
@@ -140,15 +149,14 @@ export function NiftyCoilGauge(props: NiftyCoilGaugeProps) {
           fw={700}
           c={accent()}
           span
-          truncate
           style={{
             "font-size": "11px",
             "line-height": 1.2,
-            "letter-spacing": "0.04em",
-            "min-width": 0,
+            "white-space": "nowrap",
+            "flex-shrink": 0,
           }}
         >
-          {state() ?? "—"}
+          {state() ? COMPACT_STATE_LABEL[state()!] : "—"}
         </Text>
         <Text
           data-testid="nifty-coil-ratio"
@@ -161,6 +169,7 @@ export function NiftyCoilGauge(props: NiftyCoilGaugeProps) {
             "line-height": 1.2,
             "font-variant-numeric": "tabular-nums",
             "white-space": "nowrap",
+            "flex-shrink": 0,
           }}
         >
           {ratioText()}
@@ -170,12 +179,12 @@ export function NiftyCoilGauge(props: NiftyCoilGaugeProps) {
           size="xs"
           c="dimmed"
           span
-          truncate
           style={{
-            "font-size": "9px",
+            "font-size": "11px",
             "line-height": 1.2,
             "font-variant-numeric": "tabular-nums",
-            "min-width": 0,
+            "white-space": "nowrap",
+            "flex-shrink": 0,
           }}
         >
           {rvIv()}
@@ -191,7 +200,7 @@ export function NiftyCoilGauge(props: NiftyCoilGaugeProps) {
       class="flex flex-col justify-center min-w-0 overflow-hidden px-[12px] py-[6px]"
       style={{ "border-left": `1px solid ${palette.TERM_BORDER}` }}
     >
-      <div class="flex items-center gap-[6px] min-w-0">
+      <div class="flex items-center gap-1 min-w-0">
         <div
           aria-hidden="true"
           class="w-[6px] h-[6px] rounded-full shrink-0"
@@ -203,11 +212,11 @@ export function NiftyCoilGauge(props: NiftyCoilGaugeProps) {
           fw={700}
           c={accent()}
           span
-          truncate
           style={{
             "font-size": "11px",
             "line-height": 1.3,
-            "letter-spacing": "0.04em",
+            "white-space": "nowrap",
+            "flex-shrink": 0,
           }}
         >
           {state() ?? "—"}
@@ -219,7 +228,7 @@ export function NiftyCoilGauge(props: NiftyCoilGaugeProps) {
           c="dimmed"
           span
           style={{
-            "font-size": "10px",
+            "font-size": "11px",
             "line-height": 1.3,
             "font-variant-numeric": "tabular-nums",
             "white-space": "nowrap",
@@ -233,8 +242,12 @@ export function NiftyCoilGauge(props: NiftyCoilGaugeProps) {
         size="xs"
         c="dimmed"
         span
-        truncate
-        style={{ "font-size": "10px", "line-height": 1.3 }}
+        style={{
+          "font-size": "11px",
+          "line-height": 1.3,
+          "white-space": "normal",
+          "overflow-wrap": "anywhere",
+        }}
       >
         {hint()}
       </Text>
@@ -243,11 +256,12 @@ export function NiftyCoilGauge(props: NiftyCoilGaugeProps) {
         size="xs"
         c="dimmed"
         span
-        truncate
         style={{
-          "font-size": "10px",
+          "font-size": "11px",
           "line-height": 1.3,
           "font-variant-numeric": "tabular-nums",
+          "white-space": "nowrap",
+          "flex-shrink": 0,
         }}
       >
         {rvIv()}

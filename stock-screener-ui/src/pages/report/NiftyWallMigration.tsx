@@ -3,6 +3,7 @@ import { createMemo, For, Show } from "solid-js";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { LocalCompactPanel, LocalEmptyState } from "./reportBits";
+import { REPORT_FONT } from "./reportTokens";
 import {
   buildWallMigration,
   type WallMigrationBucket,
@@ -205,10 +206,10 @@ export function NiftyWallMigration(props: NiftyWallMigrationProps) {
             aria-label="Call wall, put wall, max pain, ATM and spot over time"
             class="w-full h-[180px] block min-w-0"
           >
-            <text x={4} y={PAD_T + 8} font-size="9" fill={palette.TEXT_MUTED}>
+            <text x={4} y={PAD_T + 8} font-size={`${REPORT_FONT.micro}`} fill={palette.TEXT_MUTED}>
               {formatWallStrike(geometry().hi)}
             </text>
-            <text x={4} y={SVG_H - PAD_B} font-size="9" fill={palette.TEXT_MUTED}>
+            <text x={4} y={SVG_H - PAD_B} font-size={`${REPORT_FONT.micro}`} fill={palette.TEXT_MUTED}>
               {formatWallStrike(geometry().lo)}
             </text>
             <For each={buckets()}>{(b, i) => (
@@ -216,7 +217,7 @@ export function NiftyWallMigration(props: NiftyWallMigrationProps) {
                 <text
                   x={geometry().xs[i()]}
                   y={SVG_H - 4}
-                  font-size="9"
+                  font-size={`${REPORT_FONT.micro}`}
                   fill={palette.TEXT_MUTED}
                   text-anchor="middle"
                 >
@@ -243,7 +244,7 @@ export function NiftyWallMigration(props: NiftyWallMigrationProps) {
                   data-testid={`${s.testId}-label`}
                   x={SVG_W - 2}
                   y={Math.min(Math.max(geometry().yOf(v) + 3, PAD_T + 6), SVG_H - PAD_B)}
-                  font-size="10"
+                  font-size={`${REPORT_FONT.micro}`}
                   font-weight={700}
                   fill={s.color}
                   text-anchor="end"

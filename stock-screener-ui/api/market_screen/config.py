@@ -44,6 +44,11 @@ COLUMNS = [
 US_COLUMNS = [*COLUMNS, "type"]
 
 TYPE_STOCK_FILTER = {"left": "type", "operation": "equal", "right": "stock"}
+# TV types NSE ETFs as `fund`, not `stock` (GOLDBEES, NIFTYBEES, …). All NSE must
+# carry them so the rail's ETF-only view has rows to select. `in_range` with a
+# string list is the scanner's multi-value allowlist; `equal` with a list is a
+# 400, and dropping the type filter would admit every other NSE instrument type.
+NSE_TYPE_FILTER = {"left": "type", "operation": "in_range", "right": ["stock", "fund"]}
 NSE_EXCHANGE_FILTER = {"left": "exchange", "operation": "equal", "right": "NSE"}
 
 #: TradingView types preferred/DR lines, coupon notes, bonds and OP LP units as
@@ -66,13 +71,17 @@ class CapTierSpec:
     ``rank`` tiers are relative to the returned universe (India: ranks
     1-100/101-250/251-500). ``absolute`` tiers use native-cap thresholds in
     billions (US: >=200 mega, >=10 large, >=2 mid, >=0.3 small). Missing cap
-    always falls back to ``fallback``.
+    always falls back to ``fallback``. Non-equity instruments (NSE ETFs are
+    typed ``fund``) carry no market cap by design; ``non_equity_tier`` keeps
+    them out of the size ranking so ``micro`` still means a small company
+    rather than "not a company".
     """
 
     mode: str
     ranks: tuple[tuple[int, str], ...] = ()
     absolute: tuple[tuple[float, str], ...] = ()
     fallback: str = "micro"
+    non_equity_tier: str | None = None
 
 
 @dataclass(frozen=True)
@@ -102,6 +111,7 @@ class UniverseSpec:
 RANK_TIERS = CapTierSpec(
     mode="rank",
     ranks=((100, "large"), (250, "mid"), (500, "small")),
+    non_equity_tier="etf",
 )
 USD_TIERS = CapTierSpec(
     mode="absolute",
@@ -120,7 +130,7 @@ _SCAN_UNIVERSES: dict[str, UniverseSpec] = {
         currency="INR",
         cap_tiers=RANK_TIERS,
         mcap_outputs=(("market_cap_cr", 1e7),),
-        server_filters=(TYPE_STOCK_FILTER, NSE_EXCHANGE_FILTER),
+        server_filters=(NSE_TYPE_FILTER, NSE_EXCHANGE_FILTER),
         use_nse_tags=True,
     ),
     "us": UniverseSpec(
@@ -138,7 +148,7 @@ _SCAN_UNIVERSES: dict[str, UniverseSpec] = {
     ),
 }
 
-#: Nifty/NSE-FO universes share one spec; members come from get_universe().
+#: Constituent/NSE-FO universes share one spec; members come from get_universe().
 _TICKER_SPEC = UniverseSpec(
     tv_market="india",
     columns=tuple(COLUMNS),
@@ -148,7 +158,9 @@ _TICKER_SPEC = UniverseSpec(
     tickers=True,
     use_nse_tags=True,
 )
-_TICKER_UNIVERSES = ("nifty50", "nifty500", "nse_fo")
+_TICKER_UNIVERSES = (
+    "nifty50", "nifty100", "nifty200", "nifty500", "banknifty", "sensex", "nse_fo",
+)
 
 UNIVERSES: dict[str, UniverseSpec] = {
     **_SCAN_UNIVERSES,
@@ -157,10 +169,34 @@ UNIVERSES: dict[str, UniverseSpec] = {
 
 ALLOWED_UNIVERSES = tuple(UNIVERSES)
 
-#: Every cap-tier id used by any universe, derived from the specs (rank labels,
-#: absolute-threshold labels and each spec's fallback) so downstream validators
-#: cannot drift from the registry when a universe or tier is added. The union is
-#: ordered by first appearance; the US adds ``mega`` ahead of large/mid/small/micro.
+#: Universes chart-patterns can resolve but this equity snapshot must not expose.
+#: ``indices`` members are index instruments whose real identifiers are Upstox
+#: ``NSE_INDEX|…`` / ``BSE_INDEX|…`` keys (chart_patterns.indices.INDEX_KEYS); the
+#: snapshot resolves tickers through ``to_tv_ticker``, a cash-equity normaliser
+#: that prefixes ``NSE:`` for every id (``SENSEX`` -> ``NSE:SENSEX``, not
+#: ``BSE:SENSEX``). The equity COLUMNS contract (market cap, P/E, P/B, ROE,
+#: relative volume, sector) is also null for index instruments, so every row
+#: would fall to the ``micro`` cap tier and the treemap would have nothing to
+#: size or colour. There is no index data path in this endpoint, so exposing the
+#: option in the dropdown would ship a dead control. The reason lives here, next
+#: to the registry that decides what the snapshot serves, so the parity guard
+#: can assert the exclusion instead of trusting a comment in the UI.
+UNSERVABLE_UNIVERSES: dict[str, str] = {
+    "indices": (
+        "index instruments are not served by the equity TradingView snapshot: "
+        "to_tv_ticker prefixes NSE for every id (SENSEX needs BSE) and the "
+        "equity COLUMNS (market cap, fundamentals, relative volume, sector) "
+        "are null for indices, so cap tiers and the treemap break"
+    ),
+}
+
+#: Every cap-tier id any universe can emit, derived from the specs (rank labels,
+#: absolute-threshold labels, each fallback and any class tier) so downstream
+#: validators cannot drift from the registry when a universe or tier is added.
+#: The union is ordered by first appearance; the US adds ``mega``. A class tier
+#: such as ``etf`` is included because the rail offers it as a selectable tier
+#: (rendered apart from the size ladder): a saved ``capTiers`` filter must accept
+#: exactly the values the rail can emit, or saving an ETF view would 422.
 ALL_CAP_TIERS: tuple[str, ...] = tuple(
     dict.fromkeys(
         label
@@ -169,6 +205,7 @@ ALL_CAP_TIERS: tuple[str, ...] = tuple(
             *(tier for _, tier in spec.cap_tiers.ranks),
             *(tier for _, tier in spec.cap_tiers.absolute),
             spec.cap_tiers.fallback,
+            *((spec.cap_tiers.non_equity_tier,) if spec.cap_tiers.non_equity_tier else ()),
         )
     )
 )

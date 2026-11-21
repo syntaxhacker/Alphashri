@@ -83,7 +83,10 @@ export function resolveCloseSeries(
     close: last?.c ?? null,
     changePct:
       last && prev && prev.c ? ((last.c - prev.c) / prev.c) * 100 : null,
-    barDate: last?.t ?? null,
+    // Store a canonical session key, never the raw UTC instant: a daily bar is
+    // stamped 18:30Z of the previous calendar day and formatting its date part
+    // directly labels the session one day early.
+    barDate: sessionDateKey(last?.t ?? null, timeZone),
     source: "chart",
     isPartial,
   };

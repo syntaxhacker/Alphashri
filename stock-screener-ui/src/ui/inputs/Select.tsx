@@ -24,14 +24,67 @@ function pruneDetachedMenus() {
   }
 }
 
-type SelectOption = { value: string; label: string; disabled?: boolean };
+type SelectOption = { value: string; label: string; disabled?: boolean; group?: string };
 
 function normalizeOptions(data: UISelectProps["data"]): SelectOption[] {
   if (!data) return [];
   return data.map((item) =>
-    typeof item === "string" ? { value: item, label: item } : { value: item.value, label: item.label, disabled: item.disabled },
+    typeof item === "string"
+      ? { value: item, label: item }
+      : { value: item.value, label: item.label, disabled: item.disabled, group: item.group },
   );
 }
+
+/**
+ * A run of consecutive options sharing a `group`, or a single ungrouped option
+ * (`label == null`). Consecutive runs are kept separate so an interleaved
+ * ungrouped option cannot silently merge two groups that only share a name.
+ * Ungrouped options render as bare <option>/<li> — no wrapper, so callers that
+ * never set `group` keep byte-identical DOM.
+ */
+type RenderGroup = { label?: string; options: SelectOption[] };
+
+function groupOptions(options: SelectOption[]): RenderGroup[] {
+  const groups: RenderGroup[] = [];
+  let current: RenderGroup | undefined;
+  for (const opt of options) {
+    if (opt.group == null || opt.group === "") {
+      groups.push({ options: [opt] });
+      current = undefined;
+      continue;
+    }
+    if (!current || current.label !== opt.group) {
+      current = { label: opt.group, options: [] };
+      groups.push(current);
+    }
+    current.options.push(opt);
+  }
+  return groups;
+}
+
+/** Listbox rows: headers are presentation-only and carry no flat option index. */
+type ListRow =
+  | { kind: "header"; label: string }
+  | { kind: "option"; option: SelectOption; flatIndex: number };
+
+function toListRows(groups: RenderGroup[]): ListRow[] {
+  const rows: ListRow[] = [];
+  let flatIndex = 0;
+  for (const grp of groups) {
+    if (grp.label != null) rows.push({ kind: "header", label: grp.label });
+    for (const option of grp.options) {
+      rows.push({ kind: "option", option, flatIndex });
+      flatIndex += 1;
+    }
+  }
+  return rows;
+}
+
+const nativeOption = (opt: SelectOption) => (
+  <option value={opt.value} disabled={opt.disabled || undefined}>
+    {opt.label}
+  </option>
+);
 
 function textOf(node: unknown): string {
   if (node == null || typeof node === "boolean") return "";
@@ -175,6 +228,7 @@ export function Select(props: UISelectProps) {
     known.h != null ? (typeof known.h === "number" ? `${known.h}px` : known.h) : undefined,
   );
   const options = createMemo(() => (known.data && known.data.length > 0 ? normalizeOptions(known.data) : optionsFromChildren(known.children)));
+  const groupedOptions = createMemo(() => groupOptions(options()));
   const isError = createMemo(() => Boolean(known.error));
   let rootEl: HTMLDivElement | undefined;
   const isControlled = createMemo(
@@ -205,6 +259,33 @@ export function Select(props: UISelectProps) {
 
   const [focused, setFocused] = createSignal(false);
 
+  let selectEl: HTMLSelectElement | undefined;
+  let appliedDefault: string | undefined;
+  /**
+   * Solid writes `value={}` on a <select> as a property, but its effect tracks
+   * only that expression — not the option list. Options rebuilt after the value
+   * leave the control on option 0, and an unmatched value blanks the selection.
+   * Re-apply while tracking both inputs; ignore values with no matching option.
+   * Effects run after the option nodes are inserted, which is also what lets an
+   * uncontrolled `defaultValue` match.
+   */
+  createEffect(() => {
+    const el = selectEl;
+    if (!el) return;
+    const available = options();
+    if (!isControlled()) {
+      const initial = known.defaultValue == null ? undefined : String(known.defaultValue);
+      if (initial != null && initial !== appliedDefault) {
+        el.value = initial;
+        appliedDefault = initial;
+      }
+      return;
+    }
+    const desired = String(known.value ?? "");
+    if (!available.some((option) => option.value === desired)) return;
+    if (el.value !== desired) el.value = desired;
+  });
+
   /** A closed native <select> has no "open" event; focus is the closest stable signal. */
   const tone = createMemo(() => (isError() ? "error" : focused() ? "active" : "idle") as "idle" | "active" | "error");
   const hasValue = createMemo(() => (known.value ?? known.defaultValue) != null && (known.value ?? known.defaultValue) !== "");
@@ -226,9 +307,9 @@ export function Select(props: UISelectProps) {
       {known.leftSection && <span className="shrink-0 text-fin-text-muted text-xs">{known.leftSection}</span>}
       <div className="relative min-w-0 flex-1">
         <select
+          ref={(el) => (selectEl = el)}
           id={inputId}
           name={known.name as string | undefined}
-          value={isControlled() ? String(known.value ?? "") : known.defaultValue != null ? String(known.defaultValue) : undefined}
           onInput={handleChange}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
@@ -250,11 +331,15 @@ export function Select(props: UISelectProps) {
             <option disabled value="">{known.nothingFoundMessage ?? "No options"}</option>
           </Show>
           <Show when={options().length > 0}>
-            <For each={options()}>{(opt) => (
-              <option value={opt.value} disabled={opt.disabled || undefined}>
-                {opt.label}
-              </option>
-            )}</For>
+            <For each={groupedOptions()}>{(grp) =>
+              grp.label != null ? (
+                <optgroup label={grp.label}>
+                  <For each={grp.options}>{(opt) => nativeOption(opt)}</For>
+                </optgroup>
+              ) : (
+                <For each={grp.options}>{(opt) => nativeOption(opt)}</For>
+              )
+            }</For>
           </Show>
         </select>
         <Chevron rotated={focused()} />
@@ -336,6 +421,11 @@ function SearchableSelect(props: {
       (o) => o.label.toLowerCase().includes(query().toLowerCase()) || o.value.toLowerCase().includes(query().toLowerCase()),
     ),
   );
+  // Grouping runs on the *filtered* options, so a group whose every option was
+  // searched away produces no header at all — no dangling empty categories.
+  // `highlighted` still indexes `filtered()` directly: headers live only in
+  // this render model and are never reachable by the arrow keys.
+  const listRows = createMemo(() => toListRows(groupOptions(filtered())));
   const selectedLabel = createMemo(() => props.options.find((o) => o.value === props.value)?.label);
   // A committed value outlives the query, so the label has to lose the input to
   // the query while the user is typing — otherwise every keystroke is written to
@@ -471,6 +561,37 @@ function SearchableSelect(props: {
     onCleanup(() => liveMenus.delete(menu));
   };
 
+  const renderListRow = (row: ListRow): JSX.Element => {
+    if (row.kind === "header") {
+      return (
+        <li role="presentation" data-part="select-group-header" className="px-3 py-2 text-xs font-medium text-fin-text-muted select-none">
+          {row.label}
+        </li>
+      );
+    }
+    const opt = row.option;
+    const i = row.flatIndex;
+    return (
+      <li
+        role="option"
+        aria-selected={opt.value === props.value}
+        aria-disabled={opt.disabled || props.disabled || undefined}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          if (!opt.disabled && !props.disabled) handleSelect(opt.value);
+        }}
+        className={cn(
+          "px-3 py-2 text-xs cursor-pointer select-none",
+          opt.value === props.value ? "bg-fin-primary text-white" : "",
+          highlighted() === i ? "bg-fin-surface-alt" : "",
+          opt.disabled ? "text-fin-text-muted opacity-50" : "",
+        )}
+      >
+        {opt.label}
+      </li>
+    );
+  };
+
   const Listbox = () => (
     <ul
       ref={(el) => (listboxEl = el)}
@@ -497,25 +618,7 @@ function SearchableSelect(props: {
           {props.nothingFoundMessage ?? "No options"}
         </li>
       ) : (
-        <For each={filtered()}>{(opt, i) => (
-          <li
-            role="option"
-            aria-selected={opt.value === props.value}
-            aria-disabled={opt.disabled || props.disabled || undefined}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              if (!opt.disabled && !props.disabled) handleSelect(opt.value);
-            }}
-            className={cn(
-              "px-3 py-2 text-xs cursor-pointer select-none",
-              opt.value === props.value ? "bg-fin-primary text-white" : "",
-              highlighted() === i() ? "bg-fin-surface-alt" : "",
-              opt.disabled ? "text-fin-text-muted opacity-50" : "",
-            )}
-          >
-            {opt.label}
-          </li>
-        )}</For>
+        <For each={listRows()}>{(row) => renderListRow(row)}</For>
       )}
     </ul>
   );

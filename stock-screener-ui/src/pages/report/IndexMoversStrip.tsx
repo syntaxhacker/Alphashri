@@ -13,7 +13,7 @@ interface IndexMoversStripProps {
   index: "NIFTY" | "SENSEX";
   /** Called when user clicks EXPAND. */
   onExpand: () => void;
-  /** Optional: when in EOD/replay mode, strip shows "live only" message. */
+  /** Optional: in EOD/replay the band has no data: collapse it instead of reserving 24px; the mode banner declares the absence */
   liveOnly?: boolean;
   /** Loading/error states from parent (optional override). */
   loading?: boolean;
@@ -94,9 +94,9 @@ function MoverSection(props: { rows: IndexMoverRow[]; isGainer: boolean }) {
 }
 
 /**
- * Compact movers strip — always visible under WINDOWS, above WALLS.
+ * Compact movers strip — visible in live mode under WINDOWS, above WALLS.
  * Shows top 3 gainers + bottom 3 losers, one line, EXPAND button.
- * EOD/replay: "MOVERS · live only" (no fake rows).
+ * EOD/replay: collapsed (no empty band, no fake rows).
  * RELIANCE: parent should not render this component.
  */
 export function IndexMoversStrip(props: IndexMoversStripProps) {
@@ -159,7 +159,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
   const stripChrome = (children: JSX.Element) => (
     <div
       data-testid="movers-strip"
-      class="flex items-center h-[24px] min-h-[24px] px-2 border-t border-fin-border border-b border-fin-border bg-fin-surface font-mono text-[11px]"
+      class="flex items-center h-[24px] min-h-[24px] px-2 bg-fin-surface font-mono text-[11px]"
     >
       {children}
     </div>
@@ -172,7 +172,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
   const dataView = () => (
     <div
       data-testid="movers-strip"
-      class="flex items-center justify-between gap-2 h-[24px] min-h-[24px] px-2 border-t border-fin-border border-b border-fin-border bg-fin-surface font-mono text-[11px] whitespace-nowrap overflow-hidden shrink-0"
+      class="flex items-center justify-between gap-2 h-[24px] min-h-[24px] px-2 bg-fin-surface font-mono text-[11px] whitespace-nowrap overflow-hidden shrink-0"
     >
       <span class="inline-flex items-center gap-1 min-w-0 flex-auto">
         <Text
@@ -193,7 +193,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
             losers past the strip's `overflow: hidden`. */}
         <span
           class="shrink-0 self-center mx-[2px] h-[10px] w-[1px] min-w-[1px]"
-          style={{ "background-color": palette.TERM_BORDER }}
+          style={{ "background-color": palette.alpha(palette.BORDER, 0.6) }}
         />
 
         {/* Losers */}
@@ -205,9 +205,9 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
         <Show when={isStale()}>
           <Tooltip label={`Data is stale (${data()?.as_of})`} position="bottom-start">
             <span
-              class="inline-flex items-center gap-1 px-[2px] py-[1px] rounded-sm text-[10px] font-bold tracking-[0.05em] whitespace-nowrap"
+              class="inline-flex items-center gap-1 px-[2px] py-[1px] rounded-sm text-[11px] font-bold tracking-[0.05em] whitespace-nowrap"
               style={{
-                border: `1px solid ${palette.WARNING}`,
+                "background-color": palette.alpha(palette.WARNING, 0.12),
                 color: palette.WARNING,
               }}
             >
@@ -218,7 +218,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
         <button
           type="button"
           data-testid="movers-expand"
-          class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-border text-fin-border bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 min-w-0 shrink-0 h-[20px] px-1 py-0 text-[10px] font-bold tracking-[0.08em] uppercase"
+          class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-text-muted text-fin-text-muted bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 min-w-0 shrink-0 h-[20px] px-1 py-0 text-[11px] font-bold tracking-[0.08em] uppercase"
           onClick={() => props.onExpand()}
           aria-label="Expand index movers"
           title="Expand index movers"
@@ -248,7 +248,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
                   </Text>
                   <button
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-border text-fin-border bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 px-2 py-0 text-[10px] font-bold ml-auto min-w-0"
+                    class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-text-muted text-fin-text-muted bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 px-2 py-0 text-[11px] font-bold ml-auto min-w-0"
                     onClick={() => void poll()}
                   >
                     Retry
@@ -274,17 +274,9 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
         </Show>
       }
     >
-      <div
-        data-testid="movers-strip"
-        class="flex items-center justify-center h-[24px] min-h-[24px] px-2 border-t border-fin-border border-b border-fin-border bg-fin-surface font-mono text-[11px] text-fin-text-muted"
-      >
-        <Text span size="xs" fw={700} c="dimmed" style={{ "letter-spacing": "0.1em" }}>
-          MOVERS
-        </Text>
-        <Text span size="xs" c="dimmed" className="ml-4 italic" style={{ "font-size": `${REPORT_FONT.xs}px` }}>
-          · live only
-        </Text>
-      </div>
+      {/* Replay has no movers feed. The mode banner names MOVERS as unavailable
+          once for every live-only band; an empty 24px strip adds no information. */}
+      {null}
     </Show>
   );
 }

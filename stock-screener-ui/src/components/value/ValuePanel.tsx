@@ -27,7 +27,13 @@ import {
 import { ValueFilters as ValueFilterBar } from "./ValueFilters";
 import { ValueTable } from "./ValueTable";
 import { ValueDetailDrawer } from "./ValueDetailDrawer";
-import { VALUE_CSV_HEADERS, buildChartHref, escapeCsvCell, valueRowToCsvRow } from "./valueColumns";
+import {
+  VALUE_CSV_HEADERS,
+  buildChartHref,
+  escapeCsvCell,
+  isInAppChartExchange,
+  valueRowToCsvRow,
+} from "./valueColumns";
 
 interface ValuePanelProps {
   initialFilters?: Partial<ValueFilters>;
@@ -41,6 +47,12 @@ interface ValuePanelProps {
   market?: ValueMarket;
   /** Hide the self-contained market selector. Implied by `embedded`. */
   hideMarketSelect?: boolean;
+  /**
+   * Host-owned chart opener (the Market panel's dock). Only used by an embedded
+   * panel for rows with an in-app chart; everywhere else the detail drawer owns
+   * the row click. The standalone tab omits it and needs no dock provider.
+   */
+  onOpenSymbol?: (symbol: string) => void;
 }
 
 const PRESET_OPTIONS = Object.entries(VALUE_PRESETS).map(([value, meta]) => ({
@@ -71,9 +83,28 @@ export function ValuePanel(props: ValuePanelProps) {
     setFilters((f) => ({ ...f, ...p }));
   };
 
+  const canOpenInHost = (exchange: string | undefined): boolean =>
+    props.embedded === true &&
+    typeof props.onOpenSymbol === "function" &&
+    isInAppChartExchange(exchange);
+
   const handleRowClick = (row: ValueRow): void => {
-    setSelected(row);
+    if (canOpenInHost(row.exchange)) {
+      // A previous row's drawer must not float over the dock opened here.
+      setSelected(null);
+      props.onOpenSymbol!(row.symbol);
+    } else {
+      setSelected(row);
+    }
     props.onRowClick?.(row);
+  };
+
+  const handleSymbolClick = (symbol: string, exchange: string | undefined): void => {
+    if (canOpenInHost(exchange)) {
+      props.onOpenSymbol!(symbol);
+      return;
+    }
+    navigate(buildChartHref(symbol, exchange));
   };
 
   const exportCsv = (): void => {
@@ -217,10 +248,10 @@ export function ValuePanel(props: ValuePanelProps) {
             rows={rows()}
             loading={isLoading()}
             onRowClick={handleRowClick}
-            // Exchange-gated in buildValueColumns: NSE/BSE/NSI and US listings
-            // wire this to the in-app chart; buildChartHref adds `?market=usa`
-            // for US rows so the chart picks the US provider.
-            onSymbolClick={(sym, exchange) => navigate(buildChartHref(sym, exchange))}
+            // Exchange-gated in buildValueColumns: in-app-chart rows reach the
+            // host dock when embedded, otherwise buildChartHref adds
+            // `?market=usa` for US rows so the chart picks the US provider.
+            onSymbolClick={handleSymbolClick}
           />
         </Show>
 

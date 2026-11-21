@@ -11,8 +11,13 @@ import { collectConsoleErrors } from "./helpers/flowsB";
  *
  *   large : RELIANCE (rsi 62, fno) · TCS (rsi 45, fno) · HDFCBANK (rsi 55)
  *   mid   : PERSISTENT (rsi 71, fno) · COFORGE (rsi 38)
- *   small : KPITTECH (rsi 52) · NIFTYBEES (rsi 48, etf)
- *   micro : MICROCO (rsi 22) · LIQUIDBEES (rsi 50, etf)
+ *   small : KPITTECH (rsi 52)
+ *   micro : MICROCO (rsi 22)
+ *   class : NIFTYBEES (rsi 48) · LIQUIDBEES (rsi 50)
+ *
+ * The ETFs are production-shaped: `cap_tier: "etf"` (a class, not a size rung)
+ * with a null market cap. They sort last in the default mcap_desc grid and only
+ * the ETF tier selects them.
  *
  * `update_mode` is "streaming" so the mode badge renders "Live". The screener
  * mounts at "/", so tests navigate to "/?tab=market".
@@ -26,9 +31,9 @@ const MOCK_ROWS = [
   { symbol: "PERSISTENT", name: "Persistent Systems", sector: "IT", exchange: "NSE", close: 5120.0, change: 2.1, relative_volume: 2.4, market_cap_cr: 78000, cap_tier: "mid", rsi: 71, adx: 31, pos_52w: 0.88, fno: true, etf: false },
   { symbol: "COFORGE", name: "Coforge", sector: "IT", exchange: "NSE", close: 6890.5, change: -1.3, relative_volume: 1.5, market_cap_cr: 41000, cap_tier: "mid", rsi: 38, adx: 19, pos_52w: 0.42, fno: false, etf: false },
   { symbol: "KPITTECH", name: "KPIT Technologies", sector: "IT", exchange: "NSE", close: 1834.75, change: 0.9, relative_volume: 1.3, market_cap_cr: 32000, cap_tier: "small", rsi: 52, adx: 24, pos_52w: 0.66, fno: false, etf: false },
-  { symbol: "NIFTYBEES", name: "Nippon India ETF Nifty BeES", sector: "ETF", exchange: "NSE", close: 264.1, change: 0.5, relative_volume: 0.7, market_cap_cr: 18000, cap_tier: "small", rsi: 48, adx: 18, pos_52w: 0.57, fno: false, etf: true },
+  { symbol: "NIFTYBEES", name: "Nippon India ETF Nifty BeES", sector: "ETF", exchange: "NSE", close: 264.1, change: 0.5, relative_volume: 0.7, market_cap_cr: null, cap_tier: "etf", rsi: 48, adx: 18, pos_52w: 0.57, fno: false, etf: true },
   { symbol: "MICROCO", name: "Micro Co", sector: "Services", exchange: "NSE", close: 87.6, change: -2.2, relative_volume: 3.1, market_cap_cr: 900, cap_tier: "micro", rsi: 22, adx: 33, pos_52w: 0.18, fno: false, etf: false },
-  { symbol: "LIQUIDBEES", name: "Nippon India ETF Liquid BeES", sector: "ETF", exchange: "NSE", close: 1130.2, change: 0.01, relative_volume: 0.3, market_cap_cr: 15000, cap_tier: "micro", rsi: 50, adx: 12, pos_52w: 0.51, fno: false, etf: true },
+  { symbol: "LIQUIDBEES", name: "Nippon India ETF Liquid BeES", sector: "ETF", exchange: "NSE", close: 1130.2, change: 0.01, relative_volume: 0.3, market_cap_cr: null, cap_tier: "etf", rsi: 50, adx: 12, pos_52w: 0.51, fno: false, etf: true },
 ];
 
 const ALL_SYMBOLS = MOCK_ROWS.map((row) => row.symbol);
@@ -201,6 +206,33 @@ test.describe("Market Screener tab", () => {
     await expect(page.locator('[data-testid="market-active-chips"]')).toBeVisible();
   });
 
+  test("ETF tier keeps only ETF rows, labels the chip and shows the class group", async ({ page }) => {
+    await openMarketTab(page);
+
+    await page.locator('[data-testid="market-cap-etf"]').click();
+
+    // Derive the contract from the payload: this is the tier the fixture rows
+    // actually carry, not a hardcoded count that drifts with the fixture.
+    const etfSymbols = MOCK_ROWS.filter((row) => row.cap_tier === "etf").map((row) => row.symbol);
+    expect(etfSymbols.length).toBeGreaterThan(0);
+    for (const symbol of etfSymbols) {
+      await expect(page.locator(`[data-testid="market-row-${symbol}"]`)).toBeVisible();
+    }
+    for (const symbol of ALL_SYMBOLS.filter((s) => !etfSymbols.includes(s))) {
+      await expect(page.locator(`[data-testid="market-row-${symbol}"]`)).toHaveCount(0);
+    }
+    await expect(page.locator('[data-testid^="market-row-"]')).toHaveCount(etfSymbols.length);
+    await expect(page.locator('[data-testid="market-result-count"]')).toContainText(
+      `${etfSymbols.length} / ${MOCK_ROWS.length}`,
+    );
+    await expect(page.locator('[data-testid="market-filter-chip-capTier:etf"]')).toContainText(
+      "Cap: ETF",
+    );
+    await expect(
+      page.getByTestId("market-filter-rail").getByText("Instrument class", { exact: true }),
+    ).toBeVisible();
+  });
+
   test("active filter row is fixed: applying/removing a filter never shifts the table", async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 900 });
     await openMarketTab(page);
@@ -268,7 +300,7 @@ test.describe("Market Screener tab", () => {
     await page.locator('[data-testid="market-rail-toggle"]').click();
     const drawer = page.locator('[data-testid="market-filter-drawer"]');
     await expect(drawer).toBeVisible();
-    for (const tier of ["large", "mid", "small", "micro"]) {
+    for (const tier of ["large", "mid", "small", "micro", "etf"]) {
       await page.locator(`[data-testid="market-cap-${tier}"]`).click();
     }
     await page.locator('[data-testid="market-filter-above-sma20"]').click();

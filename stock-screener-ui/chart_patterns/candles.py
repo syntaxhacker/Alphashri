@@ -289,11 +289,14 @@ def _read_cached(
                 if is_daily:
                     # Completed daily sessions are immutable. A frame that
                     # reaches the last completed session stays valid for the
-                    # whole session, and we additionally tolerate a frame up
-                    # to 3 calendar days behind (weekend / one-session lag) so
-                    # a cache stamped to an earlier session is still served
-                    # instead of refetching. Anything older (or stamped ahead
-                    # of the last completed session) is rejected as stale.
+                    # whole session; we also tolerate a frame exactly one
+                    # completed session behind (the official daily feed lags
+                    # the tape, and a Fri->Mon bridge is one session).
+                    #
+                    # The old rule tolerated 3 *calendar* days, which cannot
+                    # distinguish a weekend bridge from two genuinely missing
+                    # sessions (a Monday frame served on Thursday). Count
+                    # sessions instead: a 2+ session-old frame is stale.
                     meta_session = meta.get("session")
                     if meta_session != session:
                         try:
@@ -304,10 +307,17 @@ def _read_cached(
                             )
                         except (ValueError, TypeError):
                             return None
-                        if meta_date is None:
+                        if meta_date is None or meta_date > ref_date:
                             return None
-                        lag = (ref_date - meta_date).days
-                        if lag < 0 or lag > 3:
+                        lag_sessions = 0
+                        cursor = ref_date
+                        while cursor > meta_date:
+                            lag_sessions += 1
+                            prev = previous_trading_day(cursor)
+                            if prev is None or prev >= cursor:
+                                return None
+                            cursor = prev
+                        if lag_sessions > 1:
                             return None
                 else:
                     from trading import utils as trading_utils
@@ -980,6 +990,11 @@ def frame_last_date(df: pd.DataFrame) -> Optional[str]:
     if df is None or df.empty:
         return None
     try:
+        # pd.Timestamp(1) is 1970-01-01, so a plain RangeIndex/int index would
+        # silently produce a confident (and wrong) 1970 session date. Candle
+        # frames always carry a timestamp-like index; never invent one.
+        if pd.api.types.is_numeric_dtype(df.index.dtype):
+            return None
         ts = pd.Timestamp(df.index[-1])
         if ts.tz is None:
             ts = ts.tz_localize("UTC")

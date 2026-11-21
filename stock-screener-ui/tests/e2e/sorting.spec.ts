@@ -35,6 +35,7 @@ const MARKET_ROWS = [
   marketRow("MKT_UP", 9000, 9),
   marketRow("MKT_MID", 900, 4),
   marketRow("MKT_DOWN", 100, -3),
+  { ...marketRow("MKT_ETF", null, 1), cap_tier: "etf", etf: true, sector: "ETF" },
 ];
 
 function row(symbol: string, to52wHigh: number, score: number, volume: number) {
@@ -57,7 +58,7 @@ function row(symbol: string, to52wHigh: number, score: number, volume: number) {
   };
 }
 
-function marketRow(symbol: string, marketCapCr: number, change: number) {
+function marketRow(symbol: string, marketCapCr: number | null, change: number) {
   return {
     symbol,
     name: symbol,
@@ -313,8 +314,20 @@ test.describe("Table sorting — market grid", () => {
     await expect(day).toHaveAttribute("aria-sort", "ascending");
     await expect.poll(() => marketRowOrder(page)).toEqual([
       "market-row-MKT_DOWN",
+      "market-row-MKT_ETF",
       "market-row-MKT_MID",
       "market-row-MKT_UP",
+    ]);
+  });
+
+  test("default mcap_desc puts the null-cap ETF row last", async ({ page }) => {
+    await openMarket(page);
+    await expect(page.locator('[data-testid^="market-row-"]')).toHaveCount(MARKET_ROWS.length);
+    await expect.poll(() => marketRowOrder(page)).toEqual([
+      "market-row-MKT_UP",
+      "market-row-MKT_MID",
+      "market-row-MKT_DOWN",
+      "market-row-MKT_ETF",
     ]);
   });
 

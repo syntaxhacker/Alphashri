@@ -579,8 +579,8 @@ Rendered as `±1σ 245` with the arithmetic in the tooltip
 (`24 031.5 × 13.8 % × √(2/365) = 245.5`).
 
 > **Two servers currently disagree.** `/api/options/chain` returns `summary.expected_move.range` as
-> an arithmetic 1σ; the generic report path uses a **0.61 × straddle** convention that is *not* 1σ
-> (documented in `.prime/agent/skills/position-probability/SKILL.md:228`). This component computes
+> an arithmetic 1σ; the generic report path uses a **0.61 × straddle** convention that is *not* 1σ —
+> reading it as 1σ understates the market's implied range by roughly half. This component computes
 > its own 1σ from `(spot, ATM IV, T)` and shows the formula — it reads **neither** field.
 
 ### 5.4 Greeks aggregation

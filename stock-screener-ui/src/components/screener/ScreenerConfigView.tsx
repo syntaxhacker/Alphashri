@@ -110,6 +110,47 @@ const EMPTY_FORM: ScreenerForm = {
   defaultSortDirection: "desc",
 };
 
+type FilterEntry = { key: string; default: unknown };
+
+/**
+ * The screener payload's `filters` is not type-guaranteed at runtime: the
+ * `/api/screeners` route emits a dict while `profile_meta.filters` is an array.
+ * Normalise both to `{key, default}` entries; a two-value array is a range.
+ */
+function normalizeScreenerFilters(filters: unknown): FilterEntry[] {
+  const out: FilterEntry[] = [];
+  const pushPair = (key: string, pair: unknown) => {
+    if (Array.isArray(pair) && pair.length === 2) {
+      out.push({ key: `${key}_min`, default: pair[0] });
+      out.push({ key: `${key}_max`, default: pair[1] });
+    } else if (pair !== undefined && pair !== null) {
+      out.push({ key, default: pair });
+    }
+  };
+
+  if (Array.isArray(filters)) {
+    for (const filter of filters) {
+      if (!filter || typeof filter !== "object") continue;
+      const key = (filter as { key?: unknown }).key;
+      if (typeof key !== "string" || !key) continue;
+      const range = (filter as { rangeDefault?: unknown }).rangeDefault;
+      if (Array.isArray(range) && range.length === 2) {
+        pushPair(key, range);
+      } else if ((filter as { default?: unknown }).default !== undefined) {
+        out.push({ key, default: (filter as { default: unknown }).default });
+      }
+    }
+    return out;
+  }
+
+  if (filters !== null && typeof filters === "object") {
+    for (const [key, value] of Object.entries(filters)) {
+      if (key) pushPair(key, value);
+    }
+  }
+  return out;
+}
+
 export function ScreenerConfigView(props: Props) {
   const [createModalOpen, setCreateModalOpen] = createSignal(false);
   const [editModalOpen, setEditModalOpen] = createSignal(false);
@@ -135,25 +176,15 @@ export function ScreenerConfigView(props: Props) {
     ],
   );
 
-  // `profile_meta.filters` is an ARRAY of `ProfileFilter` (`{key,label,type,default,
-  // rangeDefault?}`), not a record. Iterating it with `Object.entries` yielded
-  // `0={...}`/`1={...}` query params, so the preview was never actually filtered.
-  // Range filters carry their pair on `rangeDefault` and are sent as `<key>_min`
-  // / `<key>_max`, matching what `_passes_profile_filters` reads.
-  const filterArr = createMemo(() => {
-    const out: { key: string; default: unknown }[] = [];
-    for (const filter of activeOption()?.filters ?? []) {
-      if (!filter?.key) continue;
-      const range = (filter as { rangeDefault?: unknown }).rangeDefault;
-      if (Array.isArray(range) && range.length === 2) {
-        out.push({ key: `${filter.key}_min`, default: range[0] });
-        out.push({ key: `${filter.key}_max`, default: range[1] });
-      } else if (filter.default !== undefined) {
-        out.push({ key: filter.key, default: filter.default });
-      }
-    }
-    return out;
-  });
+  // `activeOption().filters` is whatever `GET /api/screeners` returned: a plain
+  // `{key: default}` dict (built with `{f['key']: f.get('default') for f in
+  // filter_list}` in `get_screeners`). Older saved configs and `profile_meta`
+  // carry an ARRAY of `ProfileFilter` (`{key,label,type,default,rangeDefault?}`)
+  // instead, so both shapes are accepted here. A range pair (array value, or
+  // `rangeDefault` on an array entry) is sent as `<key>_min`/`<key>_max`,
+  // matching `_passes_profile_filters`; empty values are dropped so no `key=`
+  // with a blank default is sent. Anything else yields no filters.
+  const filterArr = createMemo(() => normalizeScreenerFilters(activeOption()?.filters));
 
   // Config preview: load once per screener selection (debounced, NOT on
   // every filter keystroke — too many loaders). Manual reload via ↻ button.

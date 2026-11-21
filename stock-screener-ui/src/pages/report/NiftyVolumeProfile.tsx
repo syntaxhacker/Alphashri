@@ -3,6 +3,7 @@ import { createMemo, For, Show } from "solid-js";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { LocalCompactPanel } from "./reportBits";
+import { REPORT_FONT } from "./reportTokens";
 import {
   buildVolumeProfile,
   formatProfileCompact,
@@ -55,6 +56,9 @@ export function NiftyVolumeProfile(props: NiftyVolumeProfileProps) {
   const maxScale = createMemo(() => Math.max(maxVol(), maxOi()));
   const rowH = createMemo(() => Math.min(24, Math.max(8, 200 / Math.max(points().length, 1))));
   const svgH = createMemo(() => points().length * rowH() + 8);
+  // A 11px strike label needs ~13px of vertical room in this fixed viewBox;
+  // thin the labels on dense profiles instead of shrinking the type again.
+  const labelEvery = createMemo(() => Math.max(1, Math.ceil(13 / rowH())));
 
   return (
     <Show
@@ -205,16 +209,18 @@ export function NiftyVolumeProfile(props: NiftyVolumeProfileProps) {
                         opacity={0.85}
                       />
                     </Show>
-                    <text
-                      x={CENTER}
-                      y={y + h / 2 + 3}
-                      text-anchor="middle"
-                      font-size="8"
-                      fill={isAtm ? palette.TERM_FLIP : palette.TEXT_MUTED}
-                      font-weight={isAtm || isTop ? 700 : 400}
-                    >
-                      {formatNumberIN(p.strike)}
-                    </text>
+                    <Show when={i() % labelEvery() === 0}>
+                      <text
+                        x={CENTER}
+                        y={y + h / 2 + 3}
+                        text-anchor="middle"
+                        font-size={`${REPORT_FONT.micro}`}
+                        fill={isAtm ? palette.TERM_FLIP : palette.TEXT_MUTED}
+                        font-weight={isAtm || isTop ? 700 : 400}
+                      >
+                        {formatNumberIN(p.strike)}
+                      </text>
+                    </Show>
                   </g>
                 );
               }}</For>

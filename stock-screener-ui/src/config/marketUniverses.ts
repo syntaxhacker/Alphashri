@@ -15,7 +15,6 @@ import { CURRENCIES, currencyFor } from "./currency";
 export type MarketCurrency = "INR" | "USD";
 export type MarketCapUnit = "Cr" | "B";
 export type MarketCapField = "marketCapCr" | "marketCapUsdB";
-export type CapTierKey = "mega" | "large" | "mid" | "small" | "micro";
 
 /** Bounds are in the descriptor's cap unit. `null` means unbounded on that side. */
 export interface CapTierRange {
@@ -23,6 +22,8 @@ export interface CapTierRange {
   min: number | null;
   /** Exclusive upper bound. */
   max: number | null;
+  /** Instrument class, not a size rung (e.g. ETFs): never order it with sizes. */
+  category?: boolean;
 }
 
 export interface MarketUniverseDescriptor {
@@ -39,21 +40,33 @@ export interface MarketUniverseDescriptor {
   capTiers: Readonly<Partial<Record<CapTierKey, CapTierRange>>>;
 }
 
-const RANK_TIERS: Readonly<Partial<Record<CapTierKey, CapTierRange>>> = {
+const RANK_TIERS = {
   large: { min: null, max: null },
   mid: { min: null, max: null },
   small: { min: null, max: null },
   micro: { min: null, max: null },
-};
+  // A class, not a size: ETFs carry no market cap and sit outside the ladder.
+  etf: { min: null, max: null, category: true },
+} satisfies Record<string, CapTierRange>;
 
 /** US absolute caps in $B: ≥200 mega, 10–200 large, 2–10 mid, 0.3–2 small, <0.3 micro. */
-const USD_TIERS: Readonly<Partial<Record<CapTierKey, CapTierRange>>> = {
+const USD_TIERS = {
   mega: { min: 200, max: null },
   large: { min: 10, max: 200 },
   mid: { min: 2, max: 10 },
   small: { min: 0.3, max: 2 },
   micro: { min: null, max: 0.3 },
-};
+} satisfies Record<string, CapTierRange>;
+
+/**
+ * The vocabulary has one source: the two tier registries above. `CapTierKey`
+ * and `CAP_TIER_KEYS` are derived from their keys, so adding a tier to a
+ * descriptor cannot leave a second list behind.
+ */
+export type CapTierKey = keyof typeof RANK_TIERS | keyof typeof USD_TIERS;
+export const CAP_TIER_KEYS: readonly CapTierKey[] = [
+  ...new Set([...Object.keys(RANK_TIERS), ...Object.keys(USD_TIERS)]),
+] as CapTierKey[];
 
 const INDIA = {
   currency: CURRENCIES.INR.code,
@@ -68,6 +81,10 @@ export const MARKET_UNIVERSE_DESCRIPTORS: readonly MarketUniverseDescriptor[] = 
   { value: "all_equity", label: "All NSE", ...INDIA },
   { value: "nifty500", label: "Nifty 500", ...INDIA },
   { value: "nifty50", label: "Nifty 50", ...INDIA },
+  { value: "nifty100", label: "NIFTY 100", ...INDIA },
+  { value: "nifty200", label: "NIFTY 200", ...INDIA },
+  { value: "banknifty", label: "Bank Nifty", ...INDIA },
+  { value: "sensex", label: "Sensex", ...INDIA },
   { value: "nse_fo", label: "F&O", ...INDIA },
   {
     value: "us",
@@ -80,6 +97,15 @@ export const MARKET_UNIVERSE_DESCRIPTORS: readonly MarketUniverseDescriptor[] = 
     capTiers: USD_TIERS,
   },
 ];
+
+/** Class tiers across every descriptor, derived from their own `category` flag. */
+export const CATEGORY_CAP_TIERS: ReadonlySet<CapTierKey> = new Set(
+  MARKET_UNIVERSE_DESCRIPTORS.flatMap((descriptor) =>
+    Object.entries(descriptor.capTiers)
+      .filter(([, range]) => range.category)
+      .map(([tier]) => tier as CapTierKey),
+  ),
+);
 
 const BY_VALUE = new Map<MarketUniverse, MarketUniverseDescriptor>(
   MARKET_UNIVERSE_DESCRIPTORS.map((descriptor) => [descriptor.value, descriptor]),
@@ -148,8 +174,11 @@ function tierBound(bound: number, descriptor: MarketUniverseDescriptor): string 
 
 /** India keeps its bare labels; US labels carry the descriptor's thresholds. */
 export function capTierLabel(tier: string, descriptor: MarketUniverseDescriptor): string {
-  const name = tier.charAt(0).toUpperCase() + tier.slice(1);
   const range = descriptor.capTiers[tier as CapTierKey];
+  // A class tier has no size bounds; its uppercase acronym is its whole label.
+  const name = CATEGORY_CAP_TIERS.has(tier as CapTierKey)
+    ? tier.toUpperCase()
+    : tier.charAt(0).toUpperCase() + tier.slice(1);
   if (!range || (range.min === null && range.max === null)) return name;
   if (range.min !== null && range.max !== null) {
     return `${name} ${range.min}–${tierBound(range.max, descriptor)}`;

@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { createSignal } from "solid-js";
-import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { Select } from "./Select";
 
 afterEach(cleanup);
@@ -180,5 +180,173 @@ describe("Select — withinPortal={false} keeps the inline listbox", () => {
     fireEvent.mouseDown(row);
     fireEvent.click(row);
     expect(onChange).toHaveBeenCalledWith("nifty50");
+  });
+});
+
+const GROUPED_OPTIONS = [
+  { value: "mom_1", label: "Momentum 1", group: "Momentum" },
+  { value: "mom_2", label: "Momentum 2", group: "Momentum" },
+  { value: "trend_1", label: "Trend 1", group: "Trend" },
+  { value: "size_1", label: "Size 1", group: "Size" },
+];
+
+const headers = () => [...document.querySelectorAll<HTMLElement>('li[data-part="select-group-header"]')];
+const highlightedText = () =>
+  document.querySelector<HTMLElement>('li[role="option"].bg-fin-surface-alt')?.textContent?.trim();
+
+/** Grouped options are a new capability; a row that has no header cannot be "skipped". */
+describe("Select — grouped options", () => {
+  test("(a) native <select> nests each group's options in an <optgroup label>", () => {
+    const { container } = render(() => <Select data={GROUPED_OPTIONS} />);
+    const groups = [...container.querySelectorAll("optgroup")];
+    expect(groups.map((g) => g.getAttribute("label"))).toEqual(["Momentum", "Trend", "Size"]);
+    expect([...groups[0].querySelectorAll("option")].map((o) => (o as HTMLOptionElement).value)).toEqual([
+      "mom_1",
+      "mom_2",
+    ]);
+    expect([...groups[1].querySelectorAll("option")].map((o) => (o as HTMLOptionElement).value)).toEqual(["trend_1"]);
+    expect([...groups[2].querySelectorAll("option")].map((o) => (o as HTMLOptionElement).value)).toEqual(["size_1"]);
+    expect(container.querySelectorAll("select > option").length).toBe(0);
+  });
+
+  test("(b) listbox renders a non-selectable header, never role=option", async () => {
+    render(() => <Select searchable data={GROUPED_OPTIONS} aria-label="Grouped" />);
+    await openMenu();
+    expect(headers().length).toBe(3);
+    expect(headers().every((h) => h.getAttribute("role") === "presentation")).toBe(true);
+    expect(headers().some((h) => h.getAttribute("role") === "option")).toBe(false);
+    expect([...document.querySelectorAll('li[role="option"]')].length).toBe(4);
+  });
+
+  test("(c) ArrowDown from the last option of group A lands on the first of group B, skipping the header", async () => {
+    const onChange = vi.fn();
+    render(() => <Select searchable data={GROUPED_OPTIONS} onChange={onChange} aria-label="Grouped" />);
+    const combo = screen.getByRole("combobox");
+    fireEvent.focus(combo);
+    await screen.findByRole("listbox");
+
+    // The header has to exist as a non-option row — otherwise "skipping" it is vacuous.
+    expect(headers().map((h) => h.textContent?.trim())).toEqual(["Momentum", "Trend", "Size"]);
+
+    fireEvent.keyDown(combo, { key: "ArrowDown" });
+    fireEvent.keyDown(combo, { key: "ArrowDown" });
+    expect(highlightedText()).toBe("Momentum 2"); // last option of group A
+
+    fireEvent.keyDown(combo, { key: "ArrowDown" });
+    expect(highlightedText()).toBe("Trend 1"); // first option of group B, header skipped
+
+    fireEvent.keyDown(combo, { key: "Enter" });
+    expect(onChange).toHaveBeenCalledWith("trend_1");
+  });
+
+  test("(d) a search matching only group B drops group A's now-empty header", async () => {
+    render(() => <Select searchable data={GROUPED_OPTIONS} aria-label="Grouped" />);
+    const combo = screen.getByRole("combobox");
+    fireEvent.focus(combo);
+    await screen.findByRole("listbox");
+    (combo as HTMLInputElement).value = "trend";
+    fireEvent.input(combo);
+    expect(headers().map((h) => h.textContent?.trim())).toEqual(["Trend"]);
+    expect([...document.querySelectorAll('li[role="option"]')].map((li) => li.textContent?.trim())).toEqual([
+      "Trend 1",
+    ]);
+  });
+
+  test("(e) ungrouped callers keep the original DOM shape — same options, no optgroup or header", async () => {
+    const native = render(() => <Select data={UNIVERSES} />);
+    expect([...native.container.querySelectorAll("select option")].map((o) => o.textContent?.trim())).toEqual([
+      "All NSE",
+      "Nifty 500",
+      "Nifty 50",
+    ]);
+    expect(native.container.querySelectorAll("optgroup").length).toBe(0);
+    native.unmount();
+
+    render(() => <Select searchable data={UNIVERSES} aria-label="Ungrouped universe" />);
+    await openMenu();
+    const rows = [...document.querySelectorAll<HTMLElement>('li[role="option"]')];
+    expect(rows.map((r) => r.textContent?.trim())).toEqual(["All NSE", "Nifty 500", "Nifty 50"]);
+    expect(rows[0].className).toBe("px-3 py-2 text-xs cursor-pointer select-none");
+    expect(headers().length).toBe(0);
+  });
+});
+
+/**
+ * Solid writes `value={expr}` on a native <select> as a property, but its
+ * generated effect tracks only that expression — not the option list. A value
+ * arriving after the options, options rebuilt after the value, or an unmatched
+ * value (which the browser turns into a blank selection) all need the Select
+ * itself to move `el.value`.
+ */
+describe("Select — controlled value follows the signal", () => {
+  const native = (testId: string) =>
+    screen.getByTestId(testId).querySelector("select") as HTMLSelectElement;
+
+  test("(a) a value that arrives after the options render selects the right option", async () => {
+    const [value, setValue] = createSignal<string | null>(null);
+    render(() => <Select data={["a", "b", "c"]} value={value()} data-testid="late-value" />);
+    const select = native("late-value");
+    expect(select.options.length).toBe(3);
+
+    setValue("c");
+    await waitFor(() => expect(select.selectedIndex).toBe(2));
+    expect(select.value).toBe("c");
+  });
+
+  test("(b) changing the value prop moves the DOM selection", async () => {
+    const [value, setValue] = createSignal("a");
+    render(() => <Select data={["a", "b", "c"]} value={value()} data-testid="move-value" />);
+    const select = native("move-value");
+    expect(select.value).toBe("a");
+
+    setValue("b");
+    await waitFor(() => expect(select.value).toBe("b"));
+    expect(select.selectedIndex).toBe(1);
+  });
+
+  test("(c) a value with no matching option leaves the selection alone", async () => {
+    const [value, setValue] = createSignal("b");
+    render(() => <Select data={["a", "b"]} value={value()} data-testid="guard-value" />);
+    const select = native("guard-value");
+    expect(select.value).toBe("b");
+
+    setValue("no-such-option");
+    await waitFor(() => expect(select.value).toBe("b"));
+    expect(select.selectedIndex).toBe(1);
+
+    // The guard must not freeze the control: a later valid value still applies.
+    setValue("a");
+    await waitFor(() => expect(select.value).toBe("a"));
+  });
+
+  test("(d) the uncontrolled defaultValue path is unchanged", () => {
+    const onChange = vi.fn();
+    render(() => (
+      <Select
+        data={["a", "b", "c"]}
+        defaultValue="b"
+        onChange={onChange}
+        data-testid="uncontrolled-value"
+      />
+    ));
+    const select = native("uncontrolled-value");
+    expect(select.value).toBe("b");
+
+    fireEvent.input(select, { target: { value: "c" } });
+    expect(select.value).toBe("c");
+    expect(onChange).toHaveBeenCalledWith("c");
+  });
+
+  test("(e) a controlled value survives a rebuilt option list", async () => {
+    const [data, setData] = createSignal(["a", "b"]);
+    render(() => <Select data={data()} value="b" data-testid="rebuilt-value" />);
+    const select = native("rebuilt-value");
+    expect(select.value).toBe("b");
+
+    // Solid's <For> is keyed by reference: a fresh array replaces every option
+    // node, and the browser falls back to option 0 unless we re-apply the value.
+    setData(["x", "b", "y"]);
+    await waitFor(() => expect(select.value).toBe("b"));
+    expect(select.selectedIndex).toBe(1);
   });
 });

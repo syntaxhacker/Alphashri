@@ -1,12 +1,18 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@solidjs/testing-library";
+import { render, screen, fireEvent, waitFor, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { MemoryRouter, Route } from "@solidjs/router";
 import { SettingsPage } from "./SettingsPage";
 import { UIProvider } from "@/ui";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 import { setDensity } from "@/ui";
+import { fetchHolidays } from "../../api/holidays_api";
+import { loadHolidays, resetHolidays } from "../../state/holidays";
+
+// Fixed IST instants are injected into the real session helper; the holiday-only
+// helper stays holiday-only so the after-hours regressions fail on the old code.
+const clock = vi.hoisted(() => ({ now: new Date("2026-11-16T05:30:00Z") })); // Mon 11:00 IST
 
 // Mock modules using vi.hoisted
 const { mockGetBrokerStatus, mockConnectUpstox, mockConnectFyers, mockDisconnectUpstox, mockDisconnectFyers, mockAddNotification } =
@@ -31,10 +37,21 @@ vi.mock("../../state/store/notificationsSlice", () => ({
   addNotification: (...args: any[]) => mockAddNotification(...args),
 }));
 
-vi.mock("../../state/holidays", () => ({
-  subscribeToHolidays: vi.fn(() => () => {}),
-  isMarketClosedToday: vi.fn().mockReturnValue(false),
+vi.mock("../../api/holidays_api", () => ({
+  fetchHolidays: vi.fn(async () => []),
+  fetchHolidayCheck: vi.fn(),
 }));
+
+vi.mock("../../state/holidays", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../state/holidays")>();
+  const istDate = (now: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(now);
+  return {
+    ...actual,
+    isMarketClosedToday: (now?: Date) => actual.isTradingHoliday(istDate(now ?? clock.now)),
+    isMarketOpenNow: (now?: Date) => actual.isMarketOpenNow(now ?? clock.now),
+  };
+});
 
 // Stub BrokerConnectionCard so these page-level tests exercise SettingsPage's
 // broker wiring without pulling in the card's own broker API/polling stream.
@@ -336,5 +353,78 @@ describe("SettingsPage", () => {
     await waitFor(() => {
       expect(localStorage.getItem("alphashri_ui_density")).toBe("comfortable");
     });
+  });
+});
+
+async function setHoliday(date: string, description: string) {
+  vi.mocked(fetchHolidays).mockResolvedValueOnce([{ date, description, type: "trading" }]);
+  resetHolidays();
+  await loadHolidays();
+}
+
+describe("SettingsPage — broker-status poll session guard", () => {
+  const brokerStatus = {
+    connected: false,
+    broker: "upstox",
+    expires_in_hours: null,
+    expires_at: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupBrowserMocks();
+    localStorage.removeItem("alphashri_ui_density");
+    localStorage.removeItem("alphashri_show_market_ticker_v2");
+    setDensity("compact");
+    mockGetBrokerStatus.mockReset();
+    mockGetBrokerStatus.mockResolvedValue(brokerStatus);
+    vi.useFakeTimers();
+    clock.now = new Date("2026-11-16T05:30:00Z");
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+    vi.mocked(fetchHolidays).mockResolvedValue([]);
+    resetHolidays();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  async function mountAndRecordInitialCalls(): Promise<number> {
+    renderSettings();
+    await Promise.resolve();
+    await Promise.resolve();
+    return mockGetBrokerStatus.mock.calls.length;
+  }
+
+  it("skips the 60s broker poll at 17:11 IST on a weekday", async () => {
+    clock.now = new Date("2026-11-16T11:41:00Z"); // Monday 17:11 IST
+    expect(await mountAndRecordInitialCalls()).toBe(2);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(mockGetBrokerStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it("runs the 60s broker poll at 11:00 IST on a weekday", async () => {
+    expect(await mountAndRecordInitialCalls()).toBe(2);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(mockGetBrokerStatus).toHaveBeenCalledTimes(4);
+  });
+
+  it("skips the 60s broker poll on a holiday at 11:00 IST", async () => {
+    clock.now = new Date("2026-01-26T05:30:00Z"); // Republic Day, Monday 11:00 IST
+    await setHoliday("2026-01-26", "Republic Day");
+    expect(await mountAndRecordInitialCalls()).toBe(2);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(mockGetBrokerStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it("__E2E_MOCK_MARKET_OPEN__ runs the 60s poll even on a holiday at 11:00 IST", async () => {
+    clock.now = new Date("2026-01-26T05:30:00Z");
+    await setHoliday("2026-01-26", "Republic Day");
+    (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
+    expect(await mountAndRecordInitialCalls()).toBe(2);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(mockGetBrokerStatus).toHaveBeenCalledTimes(4);
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
   });
 });

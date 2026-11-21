@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createSignal } from "solid-js";
 import { cleanup, render, screen, within } from "@solidjs/testing-library";
 
+import * as palette from "@/ui/palette";
 import type { NiftyReport, NiftySensex, NiftyWall } from "@/types/niftyReport";
 import { LevelsInPlay, LevelsInPlayContent } from "./LevelsInPlay";
 
@@ -100,6 +101,31 @@ describe("LevelsInPlay", () => {
     expect(screen.getByTestId("levels-badge")).toHaveTextContent("DUAL RESISTANCE");
     expect(screen.getByTestId("levels-ce-NIFTY")).toHaveTextContent("24,700");
     expect(screen.getByTestId("levels-ce-SENSEX")).toHaveTextContent("79,600");
+  });
+
+  it("paints a level AT spot by side: put wall green (support), call wall red (resistance)", () => {
+    render(() => (
+      <LevelsInPlayContent
+        report={makeReport({
+          spot: 24_650,
+          walls: {
+            calls: [wall(24_655, 2_000_000)],
+            puts: [wall(24_645, 1_500_000)],
+          },
+        })}
+        sensex={null}
+      />
+    ));
+
+    const put = screen.getByTestId("levels-dist-NIFTY-PE");
+    const call = screen.getByTestId("levels-dist-NIFTY-CE");
+    expect(screen.getByTestId("levels-pe-NIFTY")).toHaveTextContent("AT");
+    expect(screen.getByTestId("levels-ce-NIFTY")).toHaveTextContent("AT");
+
+    expect(put).toHaveStyle({ color: palette.POSITIVE });
+    expect(put).toHaveStyle({ "background-color": palette.TINT_POSITIVE });
+    expect(call).toHaveStyle({ color: palette.NEGATIVE });
+    expect(call).toHaveStyle({ "background-color": palette.TINT_NEGATIVE });
   });
 
   it("formats distance as percent plus points and keeps the row dense", () => {

@@ -5,16 +5,34 @@ import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { BotStatusPanel } from "./BotStatusPanel";
 import type { BotConfig, BotStatus, BotTrade } from "../../types/bots";
+import { fetchHolidays } from "../../api/holidays_api";
+import { loadHolidays, resetHolidays } from "../../state/holidays";
+
+// Fixed IST instants injected into the real session helper; the holiday-only
+// helper stays holiday-only so the after-hours regressions fail on the old code.
+const clock = vi.hoisted(() => ({ now: new Date("2026-11-16T05:30:00Z") })); // Mon 11:00 IST
 
 vi.mock("../../state/bots", () => ({
   loadBotStatus: vi.fn(),
   loadBotTrades: vi.fn(),
 }));
 
-vi.mock("../../state/holidays", () => ({
-  subscribeToHolidays: vi.fn(() => () => {}),
-  isMarketClosedToday: vi.fn().mockReturnValue(false),
+vi.mock("../../api/holidays_api", () => ({
+  fetchHolidays: vi.fn(async () => []),
+  fetchHolidayCheck: vi.fn(),
 }));
+
+vi.mock("../../state/holidays", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../state/holidays")>();
+  const istDate = (now: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(now);
+  return {
+    ...actual,
+    subscribeToHolidays: vi.fn(() => () => {}),
+    isMarketClosedToday: (now?: Date) => actual.isTradingHoliday(istDate(now ?? clock.now)),
+    isMarketOpenNow: (now?: Date) => actual.isMarketOpenNow(now ?? clock.now),
+  };
+});
 
 import { loadBotStatus, loadBotTrades } from "../../state/bots";
 
@@ -108,13 +126,24 @@ const mockTrade: BotTrade = {
   is_test_data: false,
 };
 
+async function setHoliday(date: string, description: string) {
+  vi.mocked(fetchHolidays).mockResolvedValueOnce([{ date, description, type: "trading" }]);
+  resetHolidays();
+  await loadHolidays();
+}
+
 describe("BotStatusPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clock.now = new Date("2026-11-16T05:30:00Z"); // Monday 11:00 IST — open
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+    vi.mocked(fetchHolidays).mockResolvedValue([]);
+    resetHolidays();
   });
 
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
   });
 
   const defaultProps = {
@@ -263,5 +292,49 @@ describe("BotStatusPanel", () => {
     };
     renderWithProviders(() => <BotStatusPanel {...defaultProps} status={status} />);
     expect(screen.getByTestId("bot-last-update")).toBeInTheDocument();
+  });
+});
+
+// Fixed-instant regressions: the holiday-only helper said "open" at 17:11.
+describe("BotStatusPanel — session guard with fixed timestamps", () => {
+  const stoppedProps = {
+    bot: mockBot,
+    status: null,
+    trades: [],
+    onStart: vi.fn(),
+    onStop: vi.fn(),
+  };
+
+  it("17:11 IST on a weekday disables Start Bot", () => {
+    clock.now = new Date("2026-11-16T11:41:00Z"); // Monday 17:11 IST
+    renderWithProviders(() => <BotStatusPanel {...stoppedProps} />);
+    expect(screen.getByTestId("start-bot-btn")).toBeDisabled();
+  });
+
+  it("11:00 IST on a weekday enables Start Bot", () => {
+    clock.now = new Date("2026-11-16T05:30:00Z"); // Monday 11:00 IST
+    renderWithProviders(() => <BotStatusPanel {...stoppedProps} />);
+    expect(screen.getByTestId("start-bot-btn")).not.toBeDisabled();
+  });
+
+  it("a holiday at 11:00 IST keeps the holiday reason", async () => {
+    clock.now = new Date("2026-01-26T05:30:00Z"); // Republic Day, Monday 11:00 IST
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(clock.now);
+    await setHoliday("2026-01-26", "Republic Day");
+    renderWithProviders(() => <BotStatusPanel {...stoppedProps} />);
+    const startBtn = screen.getByTestId("start-bot-btn");
+    expect(startBtn).toBeDisabled();
+    const tooltipWrap = startBtn.closest('[aria-label^="Market closed"]') as HTMLElement;
+    fireEvent.mouseEnter(tooltipWrap);
+    expect(await screen.findByText(/Republic Day/)).toBeInTheDocument();
+  });
+
+  it("__E2E_MOCK_MARKET_OPEN__ enables Start Bot at 17:11 IST", () => {
+    clock.now = new Date("2026-11-16T11:41:00Z");
+    (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
+    renderWithProviders(() => <BotStatusPanel {...stoppedProps} />);
+    expect(screen.getByTestId("start-bot-btn")).not.toBeDisabled();
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
   });
 });

@@ -80,6 +80,22 @@ describe("NiftyIntelStrip — compact fields", () => {
     expect(await screen.findByTestId("nifty-intel-fii")).toHaveTextContent("—");
     expect(screen.getByTestId("nifty-intel-news")).toHaveTextContent("no news");
   });
+
+  test("a missing field explains its dash instead of showing a bare dash", async () => {
+    r(() => (
+      <NiftyIntelStrip
+        fetcher={vi.fn().mockResolvedValue(
+          intel({ fii_net: null, dii_net: null, dce_oi: null, dpe_oi: null, max_pain: null, pcr: null, news: [], unavailable: ["fii", "dii"] }),
+        )}
+      />
+    ));
+    const fii = await screen.findByTestId("nifty-intel-fii");
+    expect(fii).toHaveTextContent("—");
+    expect(fii).toHaveAttribute("title", expect.stringContaining("no value in this snapshot"));
+    expect(screen.getByTestId("nifty-intel-dii").getAttribute("title")).toContain(
+      "no value in this snapshot",
+    );
+  });
 });
 
 describe("NiftyIntelStrip — drawer", () => {
@@ -142,6 +158,9 @@ describe("NiftyIntelStrip — empty state", () => {
 
     expect(await screen.findByTestId("nifty-intel-unavailable")).toHaveTextContent("INTEL unavailable");
     expect(screen.getByTestId("nifty-intel-strip")).toHaveAttribute("data-state", "unavailable");
+    expect(screen.getByTestId("nifty-intel-strip").getAttribute("title")).toContain(
+      "the intel feed failed",
+    );
   });
 });
 

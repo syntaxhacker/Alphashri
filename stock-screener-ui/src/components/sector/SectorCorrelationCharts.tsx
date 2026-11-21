@@ -34,10 +34,30 @@ function createChart(getOption: () => Record<string, unknown>) {
   let chartEl: HTMLDivElement | undefined;
   let chart: ECharts.ECharts | undefined;
   let disposed = false;
+  let observer: ResizeObserver | null = null;
 
   async function applyOption(next: Record<string, unknown>) {
     const lib = await loadEcharts();
     if (disposed || !chartEl || !lib) return;
+    // ECharts latches the element size at `init`. A dock window mounts these
+    // charts inside a flex cell that has not been measured yet, so init ran at
+    // 0x0 and logged "Can't get DOM width or height" before laying out a
+    // squashed plot. Wait for a real box instead of initialising blind.
+    if (!chart && (chartEl.clientWidth === 0 || chartEl.clientHeight === 0)) {
+      observer?.disconnect();
+      if (typeof ResizeObserver !== "undefined") {
+        observer = new ResizeObserver(() => {
+          if (disposed || !chartEl) return;
+          if (chartEl.clientWidth > 0 && chartEl.clientHeight > 0) {
+            observer?.disconnect();
+            observer = null;
+            void applyOption(next);
+          }
+        });
+        observer.observe(chartEl);
+      }
+      return;
+    }
     if (!chart) chart = lib.init(chartEl, null) as ECharts.ECharts;
     chart.setOption(next, true);
     chart.resize();
@@ -55,6 +75,8 @@ function createChart(getOption: () => Record<string, unknown>) {
 
   onCleanup(() => {
     disposed = true;
+    observer?.disconnect();
+    observer = null;
     chart?.dispose();
     chart = undefined;
   });
@@ -62,6 +84,20 @@ function createChart(getOption: () => Record<string, unknown>) {
   return {
     setChartRef(el: HTMLDivElement) {
       chartEl = el;
+      // The element arrives before the browser has laid it out; observe it so
+      // a later size change is not lost when the first attempt bailed out.
+      if (!chart && el && typeof ResizeObserver !== "undefined") {
+        observer?.disconnect();
+        observer = new ResizeObserver(() => {
+          if (disposed || chart || !chartEl) return;
+          if (chartEl.clientWidth > 0 && chartEl.clientHeight > 0) {
+            observer?.disconnect();
+            observer = null;
+            void applyOption(getOption());
+          }
+        });
+        observer.observe(el);
+      }
     },
   };
 }

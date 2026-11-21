@@ -8,6 +8,7 @@ import { fetchPremiumTracker, type PremiumLeg } from "../../../api/premiumTracke
 import {
   loadPaperTrades,
   savePaperTrades,
+  todaySessionDate,
   newPaperTrade,
   updateTrade,
   type Conviction,
@@ -170,7 +171,7 @@ export function PremiumTrackerPanel(props: PremiumTrackerPanelProps) {
   const deleteSetup = (setupId: string) => setSetups((prev) => prev.filter((s) => s.id !== setupId));
 
   const paperFill = (setup: PaperSetup, info: { conviction: Conviction; plan: string }) => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todaySessionDate();
     const fills = setup.legs.map((leg) =>
       newPaperTrade({
         date: today,

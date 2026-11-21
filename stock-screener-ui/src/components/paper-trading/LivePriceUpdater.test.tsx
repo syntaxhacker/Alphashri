@@ -3,8 +3,14 @@ import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@solidjs/testing-library";
 import { LivePriceUpdater } from "./LivePriceUpdater";
+import { fetchHolidays } from "../../api/holidays_api";
+import { loadHolidays, resetHolidays } from "../../state/holidays";
 
 type SseFrame = { event: string; data: string };
+
+// Fixed IST instants are injected into the real session helper. The holiday-only
+// helper stays holiday-only so the after-hours regressions fail on the old code.
+const clock = vi.hoisted(() => ({ now: new Date("2026-11-16T05:30:00Z") })); // Mon 11:00 IST
 
 const frameHandlers: Array<(frame: SseFrame) => void> = [];
 
@@ -14,9 +20,21 @@ vi.mock("../../state/paperTrading", () => ({
   setPositions: vi.fn(),
 }));
 
-vi.mock("../../state/holidays", () => ({
-  isMarketClosedToday: vi.fn(() => false),
+vi.mock("../../api/holidays_api", () => ({
+  fetchHolidays: vi.fn(async () => []),
+  fetchHolidayCheck: vi.fn(),
 }));
+
+vi.mock("../../state/holidays", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../state/holidays")>();
+  const istDate = (now: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(now);
+  return {
+    ...actual,
+    isMarketClosedToday: (now?: Date) => actual.isTradingHoliday(istDate(now ?? clock.now)),
+    isMarketOpenNow: (now?: Date) => actual.isMarketOpenNow(now ?? clock.now),
+  };
+});
 
 vi.mock("../../state/auth", () => ({
   getAccessToken: vi.fn(() => "tok"),
@@ -61,12 +79,26 @@ function resetState() {
   setState({});
 }
 
+function setClock(utcIso: string) {
+  clock.now = new Date(utcIso);
+}
+
+async function setHoliday(date: string, description: string) {
+  vi.mocked(fetchHolidays).mockResolvedValueOnce([{ date, description, type: "trading" }]);
+  resetHolidays();
+  await loadHolidays();
+}
+
 describe("LivePriceUpdater", () => {
   beforeEach(() => {
     resetState();
     frameHandlers.length = 0;
     vi.clearAllMocks();
     vi.stubGlobal("fetch", mockFetch);
+    setClock("2026-11-16T05:30:00Z");
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+    vi.mocked(fetchHolidays).mockResolvedValue([]);
+    resetHolidays();
   });
 
   afterEach(() => {
@@ -455,5 +487,59 @@ describe("LivePriceUpdater", () => {
     // No stale intermediate value in the final state: every earlier price was
     // superseded by the last write.
     expect(new Set(calls.map((c: any) => c[0][0].current_price)).size).toBe(120);
+  });
+});
+
+// The stream is expensive to hold open: after the close it must never be opened.
+describe("LivePriceUpdater — market session guard", () => {
+  beforeEach(() => {
+    resetState();
+    frameHandlers.length = 0;
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", mockFetch);
+    setClock("2026-11-16T05:30:00Z");
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+    vi.mocked(fetchHolidays).mockResolvedValue([]);
+    resetHolidays();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("does not open the SSE stream at 17:11 IST on a weekday", () => {
+    setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST
+    render(() => <LivePriceUpdater />);
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(frameHandlers).toHaveLength(0);
+  });
+
+  it("opens the SSE stream at 11:00 IST on a weekday", async () => {
+    setClock("2026-11-16T05:30:00Z"); // Monday 11:00 IST
+    render(() => <LivePriceUpdater />);
+    await waitForStreamAttached();
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/paper/live/stream"),
+      expect.any(Object),
+    );
+  });
+
+  it("does not open the SSE stream on a holiday at 11:00 IST", async () => {
+    setClock("2026-01-26T05:30:00Z"); // Republic Day, Monday 11:00 IST
+    await setHoliday("2026-01-26", "Republic Day");
+    render(() => <LivePriceUpdater />);
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(frameHandlers).toHaveLength(0);
+  });
+
+  it("__E2E_MOCK_MARKET_OPEN__ opens the stream even on a holiday at 11:00 IST", async () => {
+    setClock("2026-01-26T05:30:00Z");
+    await setHoliday("2026-01-26", "Republic Day");
+    (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
+    render(() => <LivePriceUpdater />);
+    await waitForStreamAttached();
+    expect(mockFetch).toHaveBeenCalled();
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
   });
 });

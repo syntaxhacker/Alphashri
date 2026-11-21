@@ -6,26 +6,14 @@
 import { fetchWithAuth } from "../../state/auth";
 
 import { API_BASE } from "@/api/config";
-
-export interface ApiError {
-  detail?: string;
-  message?: string;
-}
+import { ApiError, apiErrorFromResponse, asApiError } from "../apiError";
 
 /**
- * Handle API errors uniformly
- * Attempts to parse error details from response, falls back to status text
+ * Handle API errors uniformly. Throws the shared typed error so panels can tell
+ * a 401 from a 500; `message` is still populated for existing string consumers.
  */
 export async function handleApiError(response: Response, defaultMessage: string): Promise<never> {
-  try {
-    const error: ApiError = await response.json();
-    throw new Error(error.detail || error.message || defaultMessage);
-  } catch (e) {
-    if (e instanceof SyntaxError) {
-      throw new Error(defaultMessage);
-    }
-    throw e;
-  }
+  throw await apiErrorFromResponse(response, defaultMessage);
 }
 
 /**
@@ -47,37 +35,33 @@ export async function jsonOrThrow<T>(
     return (await response.json()) as T;
   } catch (e) {
     if (e instanceof SyntaxError) {
-      throw new Error(defaultMessage);
+      throw new ApiError(defaultMessage, response.status);
     }
     throw e;
   }
 }
 
 /**
- * Fetch a URL and return its JSON body, or `fallback` on any failure.
+ * Fetch a URL and return its JSON body.
  *
- * Wraps `fetchWithAuth` plus the non-ok / parse-error handling so callers
- * that intentionally swallow errors (returning `[]`/`null` today) never have
- * to write a `try/catch` or `if (!response.ok)` block. Never throws.
+ * Failures now throw the shared typed `ApiError` instead of silently returning
+ * `fallback` — a failure must never look like an empty success. The legacy
+ * `_fallback` argument is ignored and kept only so existing call sites compile;
+ * there are no in-repo callers (it was only re-exported by `api/utils/index.ts`).
  */
 export async function safeGet<T>(
   url: string,
-  fallback: T,
+  _fallback: T,
   defaultMessage?: string,
   init?: RequestInit,
 ): Promise<T> {
+  let response: Response;
   try {
-    const response = await fetchWithAuth(url, init);
-    if (!response.ok) {
-      if (defaultMessage) {
-        console.error(defaultMessage);
-      }
-      return fallback;
-    }
-    return (await response.json()) as T;
-  } catch {
-    return fallback;
+    response = await fetchWithAuth(url, init);
+  } catch (error) {
+    throw asApiError(error, defaultMessage ?? "Request failed");
   }
+  return jsonOrThrow<T>(response, defaultMessage ?? "Request failed");
 }
 
 /**

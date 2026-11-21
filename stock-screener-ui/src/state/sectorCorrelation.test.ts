@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, test, vi, beforeEach } from "vitest";
 import type { SectorCorrelationResponse } from "../types/sector";
+import { ApiError } from "../api/apiError";
 
 // Mock the API module
 vi.mock("../api/sectorCorrelation", () => ({
@@ -127,6 +128,58 @@ describe("sectorCorrelation state", () => {
       await fetchCorrelationData();
 
       expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      apiModule.fetchSectorCorrelation = originalFetch;
+    });
+
+    test("a 401 surfaces a typed error while keeping the string error", async () => {
+      const mod = await import("./sectorCorrelation");
+      const apiModule = await import("../api/sectorCorrelation");
+      const originalFetch = apiModule.fetchSectorCorrelation;
+      apiModule.fetchSectorCorrelation = vi
+        .fn()
+        .mockRejectedValue(new ApiError("Session expired", 401)) as any;
+
+      await mod.fetchCorrelationData();
+
+      expect(mod.apiError).toMatchObject({ status: 401, kind: "unauthorized" });
+      expect(mod.error).toBe("Session expired");
+      expect(mod.apiError?.message).toBe(mod.error);
+
+      apiModule.fetchSectorCorrelation = originalFetch;
+    });
+
+    test("a 429 carries retryAfterMs from the header", async () => {
+      const mod = await import("./sectorCorrelation");
+      const apiModule = await import("../api/sectorCorrelation");
+      const originalFetch = apiModule.fetchSectorCorrelation;
+      apiModule.fetchSectorCorrelation = vi
+        .fn()
+        .mockRejectedValue(new ApiError("Slow down", 429, 6000)) as any;
+
+      await mod.fetchCorrelationData();
+
+      expect(mod.apiError).toMatchObject({
+        status: 429,
+        kind: "rate_limited",
+        retryAfterMs: 6000,
+      });
+
+      apiModule.fetchSectorCorrelation = originalFetch;
+    });
+
+    test("an abort is a silent no-op", async () => {
+      const mod = await import("./sectorCorrelation");
+      const apiModule = await import("../api/sectorCorrelation");
+      const originalFetch = apiModule.fetchSectorCorrelation;
+      apiModule.fetchSectorCorrelation = vi
+        .fn()
+        .mockRejectedValue(new DOMException("Aborted", "AbortError")) as any;
+
+      await mod.fetchCorrelationData();
+
+      expect(mod.apiError).toBeNull();
+      expect(mod.error).toBeNull();
 
       apiModule.fetchSectorCorrelation = originalFetch;
     });

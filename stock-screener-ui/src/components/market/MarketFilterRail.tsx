@@ -89,6 +89,11 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
   const tierCounts = () => props.tierCounts;
   const collapseLabel = () => props.collapseLabel ?? "Collapse filters";
   const capTierOpts = () => capTierOptions(descriptorForCurrency(props.currency).value);
+  // Class tiers are not rungs above micro: keep them out of the size ladder so
+  // the size checkboxes stay a contiguous, descending ladder. The split reads
+  // each descriptor entry's own flag, so a new class tier needs no rail edit.
+  const sizeTierOpts = () => capTierOpts().filter((t) => !t.category);
+  const categoryTierOpts = () => capTierOpts().filter((t) => t.category);
 
   // Read inside the JSX prop, not once per <For> item: a snapshot refresh (or an
   // India → US hydration) replaces tierCounts without recreating the options,
@@ -98,10 +103,10 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
     return count !== undefined ? `${tier.label} (${count})` : tier.label;
   };
 
-  const toggleTier = (tier: string, checked: boolean): void => {
+  const toggleTier = (tier: { value: string }, checked: boolean): void => {
     const next = new Set(filters().capTiers);
-    if (checked) next.add(tier);
-    else next.delete(tier);
+    if (checked) next.add(tier.value);
+    else next.delete(tier.value);
     props.onChange({ capTiers: next });
   };
 
@@ -161,16 +166,37 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
         />
 
         <ToggleGroup>
-          <For each={capTierOpts()}>{(tier) => (
+          <For each={sizeTierOpts()}>{(tier) => (
             <Checkbox
               size="xs"
               label={tierLabel(tier)}
               checked={filters().capTiers.has(tier.value)}
-              onChange={(e) => toggleTier(tier.value, (e.currentTarget as HTMLInputElement).checked)}
+              onChange={(e) => toggleTier(tier, (e.currentTarget as HTMLInputElement).checked)}
               data-testid={`market-cap-${tier.value}`}
             />
           )}</For>
         </ToggleGroup>
+
+        <Show when={categoryTierOpts().length > 0}>
+          <Box className="flex flex-col gap-1 pt-1">
+            <Text fw={600} c="dimmed" className={SECTION_LABEL}>
+              Instrument class
+            </Text>
+            <ToggleGroup>
+              <For each={categoryTierOpts()}>{(tier) => (
+                <Checkbox
+                  size="xs"
+                  label={tierLabel(tier)}
+                  checked={filters().capTiers.has(tier.value)}
+                  onChange={(e) =>
+                    toggleTier(tier, (e.currentTarget as HTMLInputElement).checked)
+                  }
+                  data-testid={`market-cap-${tier.value}`}
+                />
+              )}</For>
+            </ToggleGroup>
+          </Box>
+        </Show>
       </RailSection>
 
       <Divider />
@@ -253,11 +279,10 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
         </ToggleGroup>
       </RailSection>
 
-      <Divider />
-
-      <RailSection title="Instrument">
-        <ToggleGroup>
-          <Show when={hasFnoAffordance(props.currency)}>
+      <Show when={hasFnoAffordance(props.currency)}>
+        <Divider />
+        <RailSection title="Instrument">
+          <ToggleGroup>
             <Switch
               size="xs"
               label="F&O only"
@@ -265,16 +290,9 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
               onChange={(e) => props.onChange({ fnoOnly: (e.currentTarget as HTMLInputElement).checked })}
               data-testid="market-filter-fno"
             />
-          </Show>
-          <Switch
-            size="xs"
-            label="ETF only"
-            checked={filters().etfOnly}
-            onChange={(e) => props.onChange({ etfOnly: (e.currentTarget as HTMLInputElement).checked })}
-            data-testid="market-filter-etf"
-          />
-        </ToggleGroup>
-      </RailSection>
+          </ToggleGroup>
+        </RailSection>
+      </Show>
 
       <Divider />
 

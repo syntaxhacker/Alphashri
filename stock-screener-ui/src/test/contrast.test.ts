@@ -18,7 +18,8 @@ import {
   TEXT_MUTED,
   WARNING,
 } from "@/ui/palette";
-import { compositeOver, contrastRatio, pickTextColor } from "@/utils/contrast";
+import { compositeOver, contrastRatio, parseColor, pickTextColor } from "@/utils/contrast";
+import * as palette from "@/ui/palette";
 
 const AA_TEXT = 4.5;
 const AA_GRAPHIC = 3;
@@ -111,5 +112,90 @@ describe("contrast — every semantic tint behind text", () => {
     expect(ratio, `${fg} on ${bg} = ${ratio.toFixed(2)}:1, need >= ${min}:1`).toBeGreaterThanOrEqual(
       min,
     );
+  });
+});
+
+describe("contrast — report level/OI tint pairs", () => {
+  it("keeps the walls new-OI cell ink readable at both ends of its alpha ramp", () => {
+    // newOiTint tints with LEVEL_MAX_PAIN between 6% and 12% over the panel.
+    for (const [name, alpha] of [["min", 0.06], ["max", 0.12]] as const) {
+      const bg = compositeOver(LEVEL_MAX_PAIN, SURFACE, alpha);
+      for (const [inkName, ink] of [["POSITIVE", POSITIVE], ["NEGATIVE", NEGATIVE], ["TEXT", TEXT]] as const) {
+        const ratio = contrastRatio(ink, bg);
+        expect(ratio, `${inkName} on LEVEL_MAX_PAIN@${name}=${alpha} = ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(AA_TEXT);
+      }
+    }
+  });
+
+  it("keeps an AT level's side ink readable on its own tint", () => {
+    const putAt = compositeOver(POSITIVE, SURFACE, 0.12);
+    const callAt = compositeOver(NEGATIVE, SURFACE, 0.12);
+    expect(contrastRatio(POSITIVE, putAt)).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(contrastRatio(NEGATIVE, callAt)).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+});
+
+describe("contrast — Index Report strip controls", () => {
+  it("MOVERS EXPAND ink and border clear AA on the movers strip", () => {
+    // The button is transparent on bg-fin-surface; the old text/border token
+    // was fin-border (BORDER) at 1.39:1 — invisible against the strip.
+    expect(contrastRatio(TEXT_MUTED, SURFACE)).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(contrastRatio(TEXT_MUTED, SURFACE)).toBeGreaterThanOrEqual(AA_GRAPHIC);
+  });
+
+  it("active dock sub-label ink clears AA on the amber tab fill", () => {
+    // The inactive muted ink measures 1.06:1 on PRIMARY; the readable ink is
+    // chosen by the same pickTextColor helper the rest of the palette uses.
+    expect(pickTextColor(PRIMARY)).toBe(BG);
+    expect(contrastRatio(pickTextColor(PRIMARY), PRIMARY)).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+});
+
+describe("contrast — hostile input never throws", () => {
+  const bad = [undefined, null, 42, {}, Number.NaN] as unknown as string[];
+
+  it("parseColor returns a safe default instead of throwing", () => {
+    for (const value of bad) {
+      expect(() => parseColor(value), String(value)).not.toThrow();
+      expect(parseColor(value), String(value)).toEqual({ r: 0, g: 0, b: 0 });
+    }
+  });
+
+  it("pickTextColor returns a safe default for bad input instead of throwing", () => {
+    for (const value of bad) {
+      expect(() => pickTextColor(value), String(value)).not.toThrow();
+      expect(pickTextColor(value), String(value)).toBe(TEXT);
+    }
+  });
+
+  it("still picks correctly for real colours", () => {
+    expect(pickTextColor(OI_CALL)).toBe(BG);
+    expect(pickTextColor(BG)).toBe(TEXT);
+  });
+});
+
+/**
+ * The market map's mid-tones are the hardest fills: the ramp crosses the
+ * luminance band where neither off-white nor near-black ink is comfortable.
+ * These are the measured matplotlib viridis stops — no substitution is needed
+ * because every stop clears 4.5:1 with at least one of the two inks.
+ */
+const VIRIDIS_STOPS: readonly string[] =
+  (palette as unknown as { VIRIDIS_STOPS?: readonly string[] }).VIRIDIS_STOPS ?? [];
+
+describe("contrast — viridis market ramp is fully labelable", () => {
+  it("picks a label ink clearing 4.5:1 for all 17 stops", () => {
+    expect(VIRIDIS_STOPS, "palette must export the 17 viridis stops").toHaveLength(17);
+    for (const [i, fill] of VIRIDIS_STOPS.entries()) {
+      const ink = pickTextColor(fill, "#FFFFFF");
+      const ratio = contrastRatio(ink, fill);
+      expect(ratio, `stop ${i} ${fill}: ${ink} = ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(AA_TEXT);
+    }
+  });
+
+  it("matches matplotlib cm.viridis exactly, so the ramp cannot drift", () => {
+    expect(VIRIDIS_STOPS[0]).toBe("#440154");
+    expect(VIRIDIS_STOPS[8]).toBe("#21918c");
+    expect(VIRIDIS_STOPS[16]).toBe("#fde725");
   });
 });

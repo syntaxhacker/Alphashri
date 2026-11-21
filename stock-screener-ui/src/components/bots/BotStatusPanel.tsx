@@ -4,12 +4,14 @@ import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "../common/Icons";
 import type { BotConfig, BotStatus, BotTrade } from "../../types/bots";
 import { loadBotStatus, loadBotTrades } from "../../state/bots";
 import { StatusBadge } from "../common/BadgeComponents";
-import { subscribeToHolidays, isMarketClosedToday } from "../../state/holidays";
+import { subscribeToHolidays, isMarketOpenNow } from "../../state/holidays";
 import {
   PortfolioSummaryCard,
   StrategyStatusCard,
   PositionsTable,
   TradesTable,
+  useMarketClockTick,
+  marketClosedReason,
 } from "./BotHelpers";
 
 interface BotStatusPanelProps {
@@ -28,9 +30,11 @@ export function BotStatusPanel(props: BotStatusPanelProps) {
     const unsubscribe = subscribeToHolidays(() => setHolidaysTick((n) => n + 1));
     onCleanup(() => unsubscribe?.());
   });
+  const clockTick = useMarketClockTick();
   const marketClosed = createMemo(() => {
     holidaysTick();
-    return isMarketClosedToday();
+    clockTick();
+    return !isMarketOpenNow();
   });
 
   const status = () => props.status;
@@ -100,7 +104,10 @@ export function BotStatusPanel(props: BotStatusPanelProps) {
               <Show
                 when={status()?.running}
                 fallback={
-                  <Tooltip label="Market closed — cannot start bot" disabled={!marketClosed()}>
+                  <Tooltip
+                    label={`Market closed — ${marketClosedReason()}`}
+                    disabled={!marketClosed()}
+                  >
                     <span>
                       <Button
                         leftSection={<IconPlayerPlay size={14} />}

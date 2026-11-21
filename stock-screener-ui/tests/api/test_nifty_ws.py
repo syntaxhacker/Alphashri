@@ -436,3 +436,160 @@ def test_report_uses_live_path_when_md_live():
             frame = ws.receive_json()
     assert frame == {"type": "report", "data": report}
     live.assert_called_with("2026-10-29")
+
+
+# ---------------------------------------------------------------------------
+# SPOT source selection (NIFTY_SPOT_SOURCE)
+# ---------------------------------------------------------------------------
+
+
+def test_spot_source_defaults_to_v3(monkeypatch):
+    monkeypatch.delenv("NIFTY_SPOT_SOURCE", raising=False)
+    from api import options as options_module
+
+    assert nifty_ws_module._spot_source() == "v3"
+    assert options_module.spot_source() == "v3"
+    assert options_module.spot_request("v3")[1] == "/v3/market-quote/ohlc"
+
+
+def test_spot_source_invalid_value_falls_back_to_v3(monkeypatch):
+    monkeypatch.setenv("NIFTY_SPOT_SOURCE", "carrier-pigeon")
+    assert nifty_ws_module._spot_source() == "v3"
+
+
+def test_ws_spot_reads_the_pooled_md_feed_when_live(monkeypatch):
+    class _Md:
+        def is_live(self):
+            return True
+
+        def snapshot(self):
+            return {"spot": 22_755.0}
+
+    monkeypatch.setattr(nifty_report, "_nifty_md", lambda: _Md())
+    assert nifty_ws_module._ws_spot() == 22_755.0
+
+
+def test_ws_spot_is_zero_when_the_feed_is_not_live(monkeypatch):
+    class _Md:
+        def is_live(self):
+            return False
+
+        def snapshot(self):
+            return {"spot": 22_755.0}
+
+    monkeypatch.setattr(nifty_report, "_nifty_md", lambda: _Md())
+    assert nifty_ws_module._ws_spot() == 0.0
+    monkeypatch.setattr(nifty_report, "_nifty_md", lambda: None)
+    assert nifty_ws_module._ws_spot() == 0.0
+
+
+async def test_spot_tick_uses_ws_and_skips_rest_when_live(
+    _reset_spot_state, monkeypatch
+):
+    monkeypatch.setattr("trading.utils.is_derivatives_open", lambda *a, **k: True)
+    monkeypatch.setenv("NIFTY_SPOT_SOURCE", "ws")
+    monkeypatch.setattr(nifty_ws_module, "_ws_spot", lambda: 22_755.0)
+    rest_calls: list = []
+
+    async def _rest(underlying: str):
+        rest_calls.append(underlying)
+        return {"status": "ok", "underlying": underlying, "spot": 1.0}
+
+    monkeypatch.setattr("api.options.get_spot_price", _rest)
+    task = asyncio.create_task(nifty_ws_module.nifty_spot_tick_task(interval_sec=0.01))
+    try:
+        await asyncio.sleep(0.05)
+    finally:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+    assert nifty_ws_module.latest_spot()["spot"] == 22_755.0
+    assert rest_calls == []
+
+
+async def test_spot_tick_falls_back_to_rest_when_ws_is_not_live(
+    _reset_spot_state, monkeypatch
+):
+    monkeypatch.setattr("trading.utils.is_derivatives_open", lambda *a, **k: True)
+    monkeypatch.setenv("NIFTY_SPOT_SOURCE", "ws")
+    monkeypatch.setattr(nifty_ws_module, "_ws_spot", lambda: 0.0)
+    rest_calls: list = []
+
+    async def _rest(underlying: str):
+        rest_calls.append(underlying)
+        return {"status": "ok", "underlying": underlying, "spot": 22_700.0, "source": "v3"}
+
+    monkeypatch.setattr("api.options.get_spot_price", _rest)
+    task = asyncio.create_task(nifty_ws_module.nifty_spot_tick_task(interval_sec=0.01))
+    try:
+        await asyncio.sleep(0.05)
+    finally:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+    assert rest_calls and set(rest_calls) == {"NIFTY"}
+    assert nifty_ws_module.latest_spot()["spot"] == 22_700.0
+
+
+async def test_spot_tick_1s_tape_shape_is_unchanged(_reset_spot_state, monkeypatch):
+    """The tick persister still sees exactly {spot, ts, change_pct}."""
+    monkeypatch.setattr("trading.utils.is_derivatives_open", lambda *a, **k: True)
+    monkeypatch.delenv("NIFTY_SPOT_SOURCE", raising=False)
+
+    async def _ok(underlying: str):
+        return {"status": "ok", "underlying": underlying, "spot": 22_700.0, "source": "v3"}
+
+    monkeypatch.setattr("api.options.get_spot_price", _ok)
+    task = asyncio.create_task(nifty_ws_module.nifty_spot_tick_task(interval_sec=0.01))
+    try:
+        await asyncio.sleep(0.05)
+    finally:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+    assert set(nifty_ws_module.latest_spot()) == {"spot", "ts", "change_pct"}
+
+
+def test_breadth_keepwarm_switch(monkeypatch):
+    monkeypatch.delenv("NIFTY_BREADTH_HISTORY", raising=False)
+    monkeypatch.setenv("CI_MODE", "1")
+    assert nifty_ws_module._breadth_keepwarm_enabled() is False
+    monkeypatch.delenv("CI_MODE")
+    assert nifty_ws_module._breadth_keepwarm_enabled() is True
+    monkeypatch.setenv("NIFTY_BREADTH_HISTORY", "0")
+    assert nifty_ws_module._breadth_keepwarm_enabled() is False
+
+
+async def test_spot_tick_keeps_breadth_history_warm(
+    _reset_spot_state, monkeypatch
+):
+    """Breadth refreshes from the report loop, not only from a browser poll."""
+    monkeypatch.setattr("trading.utils.is_derivatives_open", lambda *a, **k: True)
+    monkeypatch.delenv("NIFTY_SPOT_SOURCE", raising=False)
+    monkeypatch.setattr(nifty_ws_module, "BREADTH_KEEPWARM_SEC", 0.0)
+    monkeypatch.setattr(nifty_ws_module, "_breadth_keepwarm_enabled", lambda: True)
+    refreshes: list = []
+
+    async def _ok(underlying: str):
+        return {"status": "ok", "underlying": underlying, "spot": 22_700.0}
+
+    monkeypatch.setattr("api.options.get_spot_price", _ok)
+    monkeypatch.setattr(
+        "api.reports_api.breadth.refresh", lambda *a, **k: refreshes.append(1)
+    )
+    task = asyncio.create_task(nifty_ws_module.nifty_spot_tick_task(interval_sec=0.01))
+    try:
+        await asyncio.sleep(0.05)
+    finally:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+    assert refreshes

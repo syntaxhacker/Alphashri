@@ -35,6 +35,7 @@ import {
   gexRegimeText,
 } from "./reportCells";
 import { useNiftyReport } from "./ReportContext";
+import { REPORT_FONT } from "./reportTokens";
 
 const TAPE_PANEL_STYLE: JSX.CSSProperties = {
   "min-width": 0,
@@ -53,7 +54,7 @@ const DETAIL_STYLE: JSX.CSSProperties = { "background-color": palette.TERM_HEADE
 const DETAIL_HEAD_LEFT_STYLE: JSX.CSSProperties = { gap: "8px", "min-width": 0 };
 
 const DETAIL_HEAD_TITLE_STYLE: JSX.CSSProperties = {
-  "font-size": "10px",
+  "font-size": `${REPORT_FONT.micro}px`,
   "font-weight": 700,
   "letter-spacing": "0.08em",
   "text-transform": "uppercase",
@@ -62,7 +63,7 @@ const DETAIL_HEAD_TITLE_STYLE: JSX.CSSProperties = {
 };
 
 const DETAIL_HEAD_SUB_STYLE: JSX.CSSProperties = {
-  "font-size": "10px",
+  "font-size": `${REPORT_FONT.micro}px`,
   color: palette.TEXT_MUTED,
   "white-space": "nowrap",
   overflow: "hidden",
@@ -85,7 +86,6 @@ export function ReportAnalytics() {
 
   const report = () => store.data.report();
   const mode = () => store.selection.mode();
-  const isDesk = () => store.ui.isDesk();
   const tape = () => store.data.tape();
   const tapeRows = () => store.data.tapeRows();
   const migrationRows = () => tapeRows() as unknown as WallMigrationRow[];
@@ -168,7 +168,7 @@ export function ReportAnalytics() {
   const formatGexRes = (strike: number) => formatGexLevel(strike, gexTopRes()?.netGex ?? 0);
 
   return (
-    <Show when={!isDesk()}>
+    <>
       <CompactPanel flush title="OI · tick tape" testId="nifty-tape-panel" style={TAPE_PANEL_STYLE}>
         <Show
           when={tape() && tapeRows().length > 0}
@@ -436,6 +436,6 @@ export function ReportAnalytics() {
           </Box>
         </div>
       </Box>
-    </Show>
+    </>
   );
 }

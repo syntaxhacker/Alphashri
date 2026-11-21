@@ -11,8 +11,6 @@
 
 export type TapeRange = 1 | 5 | 15;
 
-export const TAPE_RANGES: TapeRange[] = [1, 5, 15];
-
 /** Minutes-since-midnight for an ISO stamp (T or space) or a bare HH:MM(:SS). */
 export function tapeMinute(t: string): number | null {
   return hhmmToMinutes(t, { iso: true });

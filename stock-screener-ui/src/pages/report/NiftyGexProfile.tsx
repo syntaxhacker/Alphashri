@@ -20,6 +20,7 @@ import {
   gexRegimeAtSpot,
   type GexProfilePoint,
 } from "./niftyGex";
+import { REPORT_FONT } from "./reportTokens";
 
 /* The spot-relative regime/flip math lives in the pure `niftyGex` module so
    the desk plan, the tape and the heatmap can read the same numbers without
@@ -495,7 +496,7 @@ function GexLevelValue(props: { level: GexSideLevel | null }) {
         <span
           class="ml-[4px] whitespace-nowrap"
           style={{
-            "font-size": "9px",
+            "font-size": `${REPORT_FONT.micro}px`,
             "font-weight": 400,
             "color": palette.TEXT_MUTED,
           }}
@@ -659,7 +660,7 @@ export function NiftyGexProfile(props: NiftyGexProfileProps) {
         <div
           data-testid="nifty-gex-profile-levels-legend"
           class="flex flex-wrap items-center gap-[8px] w-full min-w-0"
-          style={{ "font-size": "9px", "line-height": "1.2", color: palette.TEXT_MUTED }}
+          style={{ "font-size": `${REPORT_FONT.micro}px`, "line-height": "1.2", color: palette.TEXT_MUTED }}
         >
           <span
             data-testid="nifty-gex-profile-level-legend-sup"

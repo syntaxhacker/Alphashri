@@ -142,7 +142,7 @@ export function NiftyFlowChart(props: NiftyFlowChartProps) {
 
   const emptyView = () => (
     <div data-testid="nifty-flowchart-empty" class="flex items-center justify-center" style={{ "height": `${height()}px` }}>
-      <span style={{ "font-size": "9px", "color": palette.TEXT_MUTED }}>no flow tape</span>
+      <span style={{ "font-size": "11px", "color": palette.TEXT_MUTED }}>no flow tape</span>
     </div>
   );
 
@@ -166,7 +166,7 @@ export function NiftyFlowChart(props: NiftyFlowChartProps) {
     <div data-testid="nifty-flowchart" class="w-full min-w-0 relative">
       <span
         aria-hidden
-        style={{ position: "absolute", left: 0, top: 0, "font-size": "9px", "letter-spacing": "0.06em", color: palette.TEXT_MUTED, "pointer-events": "none" }}
+        style={{ position: "absolute", left: 0, top: 0, "font-size": "11px", "letter-spacing": "0.06em", color: palette.TEXT_MUTED, "pointer-events": "none" }}
       >
         FLOW
       </span>
@@ -190,7 +190,7 @@ export function NiftyFlowChart(props: NiftyFlowChartProps) {
       <span
         data-testid="nifty-flowchart-last"
         title={`${points()[points().length - 1].t} · flow ${points()[points().length - 1].net.toFixed(2)}`}
-        style={{ position: "absolute", right: 0, top: "2px", "font-size": "9px", "font-weight": 800, "font-family": palette.MONO, color: palette.PRIMARY, "white-space": "nowrap" }}
+        style={{ position: "absolute", right: 0, top: "2px", "font-size": "11px", "font-weight": 800, "font-family": palette.MONO, color: palette.PRIMARY, "white-space": "nowrap" }}
       >
         {fmtFlow(points()[points().length - 1].net)}
       </span>
@@ -203,7 +203,7 @@ export function NiftyFlowChart(props: NiftyFlowChartProps) {
             "padding-left": "4px", "padding-right": "4px", "padding-top": "1px", "padding-bottom": "1px",
             "background-color": palette.TERM_HEADER,
             "border": `1px solid ${palette.TERM_BORDER}`, "border-radius": "3px",
-            "font-size": "9px", "font-family": palette.MONO, "color": palette.TEXT, "white-space": "nowrap", "pointer-events": "none",
+            "font-size": "11px", "font-family": palette.MONO, "color": palette.TEXT, "white-space": "nowrap", "pointer-events": "none",
           }}
         >
           {hoverPoint()!.t} · flow {fmtFlow(hoverPoint()!.net)} · {hoverPoint()!.regime ?? "—"} book Γ
@@ -215,7 +215,7 @@ export function NiftyFlowChart(props: NiftyFlowChartProps) {
             const pct = (xOf(i) / VB_W) * 100;
             const tr = pct > 92 ? "translateX(-100%)" : pct < 2 ? "none" : "translateX(-50%)";
             return (
-              <span style={{ position: "absolute", left: `${pct}%`, "transform": tr, "font-size": "9px", "line-height": "12px", color: palette.TEXT_MUTED, "font-family": palette.MONO, "white-space": "nowrap" }}>
+              <span style={{ position: "absolute", left: `${pct}%`, "transform": tr, "font-size": "11px", "line-height": "12px", color: palette.TEXT_MUTED, "font-family": palette.MONO, "white-space": "nowrap" }}>
                 {t}
               </span>
             );

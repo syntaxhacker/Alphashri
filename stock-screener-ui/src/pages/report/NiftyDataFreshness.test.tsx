@@ -27,11 +27,16 @@ function makeBurst(type: NiftyBurst["type"]): NiftyBurst {
   };
 }
 
-function renderFreshness(tapeSecondsAgo: number, marketOpen = true, bursts?: NiftyBurst[] | null) {
+function renderFreshness(
+  tapeSecondsAgo: number,
+  marketOpen = true,
+  bursts?: NiftyBurst[] | null,
+  report?: Parameters<typeof NiftyDataFreshness>[0]["report"],
+) {
   return render(() => (
     <UIProvider>
       <NiftyDataFreshness
-        report={null}
+        report={report ?? null}
         tape={{ date: "2026-11-03", rows: [{ t: isoSecondsAgo(tapeSecondsAgo) }] }}
         bursts={bursts}
         marketOpen={marketOpen}
@@ -41,6 +46,12 @@ function renderFreshness(tapeSecondsAgo: number, marketOpen = true, bursts?: Nif
   ));
 }
 
+function freshReport(asOf: string | null) {
+  return {
+    fetchedAt: isoSecondsAgo(0),
+    market: { is_open: true, session_date: "2026-11-03", as_of: asOf },
+  };
+}
 
 describe("NiftyDataFreshness", () => {
   test("fresh tape renders a DATA age badge", () => {
@@ -93,5 +104,29 @@ describe("NiftyDataFreshness", () => {
     const badge = screen.getByTestId("nifty-data-freshness");
     expect(badge).toHaveAttribute("data-state", "fresh");
     expect(badge).toHaveTextContent("DATA —");
+  });
+
+  test("a fresh fetched_at and as_of cannot mask a three-hour-old tape", () => {
+    renderFreshness(3 * 3600, true, [], freshReport(isoSecondsAgo(0)));
+    const badge = screen.getByTestId("nifty-data-freshness");
+    expect(badge).toHaveAttribute("data-state", "stale");
+    expect(badge).toHaveTextContent(/^STALE$/);
+    expect(badge.getAttribute("title")).toContain("tape is behind");
+  });
+
+  test("all-fresh data renders fresh with the TAPE age, not the fetch age", () => {
+    renderFreshness(30, true, [makeBurst("burst")], freshReport(isoSecondsAgo(0)));
+    const badge = screen.getByTestId("nifty-data-freshness");
+    expect(badge).toHaveAttribute("data-state", "fresh");
+    expect(badge.textContent).toMatch(/^DATA (2[5-9]|3[0-5])s$/);
+    expect(badge.textContent).not.toContain("STALE");
+  });
+
+  test("a report with no as_of is judged by tape age", () => {
+    renderFreshness(3 * 3600, true, [], freshReport(null));
+    const badge = screen.getByTestId("nifty-data-freshness");
+    expect(badge).toHaveAttribute("data-state", "stale");
+    expect(badge).toHaveTextContent("STALE");
+    expect(badge.getAttribute("title")).toContain("tape 3h");
   });
 });

@@ -15,9 +15,3 @@ export const IV_DELTA_BAND: readonly [number, number] = [0.15, 0.35];
 
 /** Upper bound of a believable IV print, in vol points. */
 export const IV_MAX_PCT = 100;
-
-/** Lower bound for the report surface (a sub-1% print is a dead strike). */
-export const SURFACE_IV_MIN_PCT = 1;
-
-/** Lower bound for the analytics engine (strictly positive). */
-export const IV_MIN_PCT = 0;

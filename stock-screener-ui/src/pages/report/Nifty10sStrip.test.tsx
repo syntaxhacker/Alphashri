@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, test } from "vitest";
 import { cleanup } from "@solidjs/testing-library";
+import * as palette from "@/ui/palette";
 import { Nifty10sStrip } from "./Nifty10sStrip";
 import type { OiPoint } from "./Nifty10sStrip";
 
@@ -85,6 +86,22 @@ describe("Nifty10sStrip", () => {
     expect(screen.getByTestId("nifty-10s-reason")).toHaveTextContent("calls unwound");
     expect(screen.getByTestId("nifty-10s-ce")).toHaveTextContent("−500K");
     expect(screen.getByTestId("nifty-10s-pe")).toHaveTextContent("+400K");
+  });
+
+  test("raw CE/PE OI deltas are side-coded, never bullish/bearish", () => {
+    render(() =>
+      <Nifty10sStrip
+        points={[pt("09:53:00", 2_000_000, 1_000_000), pt("09:53:10", 1_500_000, 1_400_000)]}
+      />,
+    );
+    // CE OI FELL and PE OI ROSE — the old code painted those green/red.
+    // OI is not directional: calls read blue, puts orange (COLOR_SEMANTICS.md).
+    const ce = screen.getByTestId("nifty-10s-ce");
+    const pe = screen.getByTestId("nifty-10s-pe");
+    expect(ce).toHaveStyle({ color: palette.TERM_CE });
+    expect(pe).toHaveStyle({ color: palette.TERM_PE });
+    expect(ce).not.toHaveStyle({ color: palette.POSITIVE });
+    expect(pe).not.toHaveStyle({ color: palette.NEGATIVE });
   });
 
   test("diffs a 10 s window even when the last two samples are identical", () => {

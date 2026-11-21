@@ -1,6 +1,7 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
-import { Text } from "@/ui";
+import { Button } from "@/ui";
 import {
+  alpha,
   HEATMAP_FLIP,
   HEATMAP_SPOT,
   HEATMAP_TOUCH_STROKE,
@@ -14,17 +15,26 @@ import {
   WARNING,
 } from "@/ui/palette";
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
+import { EmptyState, injectCollapseRule } from "@/components/common/states";
+import { isMarketOpenNow } from "@/state/holidays";
+import { istClock } from "@/utils/marketClock";
 import {
   HEATMAP_PAD_L,
   HEATMAP_VB_W,
   buildOiHeatmap,
+  heatmapCoverage,
+  heatmapEmptyKind,
   heatmapReadText,
+  heatmapSessionDate,
+  istToday,
   readHeatmap,
   tapeSignature,
+  type HeatmapEmptyKind,
   type HeatmapTapeRow,
 } from "./niftyOiHeatmap";
 import { gexFlipAtSpot } from "./niftyGex";
 import { REPORT_MINUS, formatReportCompact } from "./reportFormat";
+import { REPORT_FONT } from "./reportTokens";
 import type { NiftyGex } from "@/types/niftyReport";
 
 export { HEATMAP_CE, HEATMAP_FLIP, HEATMAP_MP, HEATMAP_PE, HEATMAP_SPOT } from "@/ui/palette";
@@ -209,6 +219,15 @@ interface NiftyOiHeatmapProps {
   startTime?: string | null;
   /** Last 5m sign flip (ISO). Draws a dashed vertical guide at that time. */
   flipAt?: string | null;
+  /** Why the plot is empty. Derived from the tape + session clock otherwise
+   *  (see `heatmapEmptyKind`). */
+  emptyKind?: HeatmapEmptyKind;
+  /** Recovery action for the failed state; omitted when nothing can retry. */
+  onRetry?: () => void;
+  /** Retry label for callers whose recovery is not a fetch retry. */
+  retryLabel?: string;
+  /** Hide the retry action even on a failed state (read-only surfaces). */
+  hideRetry?: boolean;
 }
 
 /**
@@ -223,7 +242,15 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
 
   const bucketMin = () => props.bucketMin ?? 5;
   const metric = () => props.metric ?? "oi";
-  const VB_H = () => props.viewBoxHeight ?? 180;
+  // A 1000-unit viewBox stretched into a 420px pane squashed 11px labels to
+  // ~5px wide / 17px tall. Once the box is measured, 1 unit = 1 CSS pixel so
+  // the 11px floor is real. Unmeasured (tests) keeps the legacy 1000-unit box.
+  const [vbW, setVbW] = createSignal(VB_W);
+  const [vbH, setVbH] = createSignal<number | null>(null);
+  const VB_H = () => vbH() ?? props.viewBoxHeight ?? 180;
+  // Keep the same 64-unit axis gutter in both unit and pixel modes: the
+  // rotated ΔOI caption lives there and a tighter gutter would cross labels.
+  const PAD = () => PAD_L;
 
   // `rowsForSig` is the array the model paints from. `rowsSig` refreshes it on
   // every frame (cheap signature computation) but the model memo tracks only
@@ -269,9 +296,9 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
 
   const nCols = () => buckets().length;
   const nRows = () => strikes().length;
-  const gridW = VB_W - PAD_L;
+  const gridW = () => vbW() - PAD();
   const gridH = () => VB_H() - PAD_B;
-  const cellW = createMemo(() => gridW / Math.max(1, nCols()));
+  const cellW = createMemo(() => gridW() / Math.max(1, nCols()));
   const cellH = createMemo(() => gridH() / Math.max(1, nRows()));
   // Empty models never paint, so the fallback bounds only keep the geometry
   // finite for the derived helpers below.
@@ -282,7 +309,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
     const clamped = Math.min(hi(), Math.max(lo(), v));
     return gridH() - ((clamped - lo()) / span()) * gridH();
   };
-  const xOf = (bi: number): number => PAD_L + bi * cellW() + cellW() / 2;
+  const xOf = (bi: number): number => PAD() + bi * cellW() + cellW() / 2;
 
   // Flow-flip guide: map the flip's HH:MM into the same bucket coordinate
   // system as the cells. Null when the stamp predates the plotted window.
@@ -372,7 +399,9 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
     const currentNRows = nRows();
     const currentCellW = cellW();
     const currentCellH = cellH();
+    const currentVBW = vbW();
     const currentVBH = VB_H();
+    const currentPAD = PAD();
     const canvas = canvasRef;
     const svg = svgRef;
     if (!canvas || !svg) return;
@@ -397,8 +426,8 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
       const styleH = `${height}px`;
       if (canvas.style.width !== styleW) canvas.style.width = styleW;
       if (canvas.style.height !== styleH) canvas.style.height = styleH;
-      ctx.setTransform(dpr * (width / VB_W), 0, 0, dpr * (height / currentVBH), 0, 0);
-      ctx.clearRect(0, 0, VB_W, currentVBH);
+      ctx.setTransform(dpr * (width / currentVBW), 0, 0, dpr * (height / currentVBH), 0, 0);
+      ctx.clearRect(0, 0, currentVBW, currentVBH);
       for (const c of currentCells) {
         // Padded buckets (before the tape's first row) have no spot and must
         // stay blank; a faint "flat" fill there would read as real quiet data.
@@ -410,7 +439,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
         ctx.globalAlpha = alpha;
         ctx.fillStyle = cellFill(c.sign);
         ctx.fillRect(
-          PAD_L + c.bucket * currentCellW,
+          currentPAD + c.bucket * currentCellW,
           row * currentCellH,
           Math.max(0.5, currentCellW - 0.5),
           Math.max(0.5, currentCellH - 0.5),
@@ -449,9 +478,15 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
     const svg = svgRef;
     if (!svg) return;
     const root = svg.parentElement;
-    const observer = new ResizeObserver(() => paint());
+    const measure = () => {
+      if (svg.clientWidth > 0) setVbW(svg.clientWidth);
+      if (svg.clientHeight > 0) setVbH(svg.clientHeight);
+      paint();
+    };
+    const observer = new ResizeObserver(measure);
     observer.observe(svg);
     if (root) observer.observe(root);
+    measure();
     onCleanup(() => observer.disconnect());
   });
 
@@ -462,6 +497,27 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
   // touch marks come from the model (any row inside a bucket counts).
   const read = createMemo(() => readHeatmap(model()));
   const readText = createMemo(() => heatmapReadText(read()));
+  const readFallback = createMemo(() =>
+    metric() === "volume" ? "no traded volume yet" : metric() === "premium" ? "no premium move yet" : "no ΔOI build yet",
+  );
+  const spotRead = createMemo(() => {
+    const r = read();
+    if (r.spot === null || r.maxPain === null || r.spotVsMaxPain === null) return null;
+    return {
+      spot: formatNumberIN(Math.round(r.spot)),
+      maxPain: formatNumberIN(Math.round(r.maxPain)),
+      relation: r.spotVsMaxPain.toUpperCase(),
+    };
+  });
+  const windowLabel = createMemo(() => {
+    const half = model().windowHalf;
+    return half > 0 ? `±${half} STRIKES` : `${nRows()} STRIKE${nRows() === 1 ? "" : "S"}`;
+  });
+  const windowTitle = createMemo(() => {
+    const m = model();
+    if (m.strikes.length === 0) return "Strike window";
+    return `Showing ${m.strikes.length} strikes nearest spot · ±${Math.round(m.windowPts)} pts · ${formatNumberIN(m.strikes[0])}–${formatNumberIN(m.strikes[m.strikes.length - 1])}. Wider chains are windowed so axis labels stay at the 11px floor.`;
+  });
 
   const hoverCell = createMemo(() => {
     const h = hover();
@@ -475,23 +531,129 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
     const cols = nCols();
     const rowsCount = nRows();
     if (rect.width <= 0 || cols === 0 || rowsCount === 0) return;
-    const vbX = ((event.clientX - rect.left) / rect.width) * VB_W;
+    const vbX = ((event.clientX - rect.left) / rect.width) * vbW();
     const vbY = ((event.clientY - rect.top) / rect.height) * VB_H();
-    const bucket = Math.max(0, Math.min(cols - 1, Math.floor((vbX - PAD_L) / cellW())));
+    const bucket = Math.max(0, Math.min(cols - 1, Math.floor((vbX - PAD()) / cellW())));
     const row = Math.max(0, Math.min(rowsCount - 1, Math.floor(vbY / cellH())));
     const strike = strikes()[rowsCount - 1 - row];
     setHover({ bucket, strike });
   };
 
+  /**
+   * Why this pane is blank. Three different facts, three different reads:
+   * the feed failed (ours, retry), the market is shut (expected, nothing to
+   * record yet), or the session holds no chain (not fixable from here).
+   */
+  const emptyKind = createMemo<HeatmapEmptyKind>(() => {
+    if (props.emptyKind) return props.emptyKind;
+    const sessionDate = heatmapSessionDate(props.rows);
+    // A tape stamped on an earlier calendar day is a finished session, so the
+    // live/closed branch does not apply to it.
+    const pastSession = sessionDate !== null && sessionDate !== istToday();
+    return heatmapEmptyKind({
+      hasTape: props.rows.length > 0,
+      hasChain: props.rows.some((row) => !!row.chain && Object.keys(row.chain).length > 0),
+      marketOpen: isMarketOpenNow(),
+      pastSession,
+      minutes: istClock().minutes,
+    });
+  });
+
+  // What the session actually recorded — a diagnosis instead of a shrug.
+  const coverage = createMemo(() => heatmapCoverage(props.rows));
+
+  const EMPTY_COPY: Record<HeatmapEmptyKind, { title: string; description: string; hint: string }> = {
+    "no-data": {
+      title: "No option-chain tape",
+      // Carries the phrase the pane used to show, inside a real sentence.
+      description: "no tape chain — the recorder saved spot only for this session.",
+      hint: "Pick another session",
+    },
+    "market-closed": {
+      title: "Market closed",
+      description: "Tape recording starts at the 09:15 IST open.",
+      hint: "",
+    },
+    failed: {
+      title: "Heatmap feed failed",
+      description: "The chain request returned nothing usable during a live session.",
+      // A local retry renders below when the caller wires one; otherwise the
+      // recoverable path is the page-level ErrorAlert banner, so name it.
+      hint: "Retry from the page banner",
+    },
+  };
+  const emptyCopy = () => EMPTY_COPY[emptyKind()];
+  const coverageText = () => {
+    const c = coverage();
+    if (c.rows === 0) return "0 tape rows";
+    const window = c.first && c.last ? `${c.first}–${c.last}` : "";
+    return `${c.rows} tape rows · ${c.chainRows} with chain${c.strikes > 0 ? ` · ${c.strikes} strikes` : ""}${window ? ` · ${window}` : ""}`;
+  };
+  const canRetry = () => emptyKind() === "failed" && !props.hideRetry && Boolean(props.onRetry);
+
   return (
     <Show
       when={!(model().empty || nCols() === 0 || nRows() === 0)}
       fallback={
-        <div data-testid="nifty-heatmap-empty" class="py-4 text-center">
-          <Text size="xs" c="dimmed" data-testid="nifty-heatmap-empty-text">
-            no tape chain
-          </Text>
-        </div>
+        <>
+          {/*
+           * The side column's panel is `flex-auto` (ReportWorkspace), so an
+           * empty heatmap reserved the entire chart row's height to show one
+           * card. These rules let it shrink to what it renders and hand the
+           * reclaimed rows back to the page. Injected into the head because a
+           * `<style>` child would show up in the panel's own text content.
+           */}
+          {injectCollapseRule(
+            "heatmap",
+            `[data-testid="nifty-chart-side-heatmap"]:has([data-testid="nifty-heatmap-empty"]){flex:0 0 auto !important;}` +
+              `[data-testid="nifty-heatmap-wrap"]:has([data-testid="nifty-heatmap-empty"]){flex:0 0 auto !important;}`,
+          )}
+          <div
+            data-testid="nifty-heatmap-empty"
+            class="w-full min-w-0 shrink-0 self-start border border-fin-border rounded-[2px] font-mono overflow-hidden"
+            style={{ "background-color": TERM_HEADER }}
+          >
+          <div
+            class="flex items-center gap-2 px-2 py-1 border-b border-fin-border text-[11px] leading-[16px] text-fin-text-muted"
+            style={{ "background-color": alpha(TERM_HEADER, 0.9) }}
+          >
+            <span
+              data-testid="nifty-heatmap-legend-title"
+              class="text-[11px] tracking-[0.08em] text-fin-text whitespace-nowrap"
+              title="OI change heatmap"
+            >
+              HEATMAP
+            </span>
+            <span data-testid="nifty-heatmap-empty-state" class="text-[11px] whitespace-nowrap">
+              {emptyKind().replace("-", " ")}
+            </span>
+            <span class="ml-auto text-[11px] whitespace-nowrap tabular-nums font-mono" title="What this session recorded">
+              {coverageText()}
+            </span>
+          </div>
+          <EmptyState
+            kind={emptyKind()}
+            layout="row"
+            className="px-2 py-1.5"
+            title={emptyCopy().title}
+            description={emptyCopy().description}
+            descriptionTestId="nifty-heatmap-empty-text"
+            hint={emptyCopy().hint}
+            action={
+              canRetry() ? (
+                <Button
+                  data-testid="nifty-heatmap-retry"
+                  size="xs"
+                  variant="outline"
+                  onClick={() => props.onRetry?.()}
+                >
+                  {props.retryLabel ?? "Retry"}
+                </Button>
+              ) : undefined
+            }
+          />
+          </div>
+        </>
       }
     >
       {/* Fill the FLOW band's flexible cell: the SVG grows into the slack left by the
@@ -504,50 +666,135 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
         data-testid="nifty-heatmap"
         class="w-full min-w-0 flex flex-col h-full min-h-[72px] relative"
       >
-        {/* Key for the cells and the overlay marks — a header bar above the plot. */}
+        {/* One header row, one hairline. The full swatch key folds into a KEY
+            disclosure; the colour ramp it explains stays visible as one bar. */}
         <div
           data-testid="nifty-heatmap-legend"
           aria-label="Heatmap legend"
-          class="flex flex-wrap items-center gap-x-[10px] gap-y-[2px] min-h-5 shrink-0 px-[6px] py-[2px] border-b border-fin-border bg-white/[0.03] text-[10px] leading-[1.2] font-mono text-fin-text-muted"
+          class="flex items-center gap-2 min-w-0 shrink-0 px-2 py-1 border-b border-fin-border text-[11px] leading-[16px] font-mono text-fin-text-muted"
+          style={{ "background-color": alpha(TERM_HEADER, 0.55) }}
         >
           <span
             data-testid="nifty-heatmap-legend-title"
-            class="text-[9px] tracking-[0.08em] opacity-60"
+            class="tracking-[0.08em] text-fin-text whitespace-nowrap shrink-0"
+            title="OI change heatmap"
+            style={{
+              "font-size": `${REPORT_FONT.body}px`,
+              "font-weight": 600,
+              "line-height": 1.2,
+            }}
           >
             HEATMAP
           </span>
-          <For each={LEGEND}>{(item) => <LegendItem item={item} />}</For>
-          <Show when={flipX()}>
-            {(flip) => (
+          <span
+            data-testid="nifty-heatmap-window"
+            class="shrink-0 px-1 rounded-[3px] text-[11px] whitespace-nowrap"
+            title={windowTitle()}
+            style={{ "background-color": alpha(TERM_HEADER, 0.9) }}
+          >
+            {windowLabel()}
+          </span>
+          <span
+            data-testid="nifty-heatmap-ramp"
+            class="flex-1 min-w-0 flex items-center gap-1"
+            title="Cell colour: net call-led (blue) → no ΔOI (grey) → net put-led (amber). Opacity scales with the larger leg's change."
+          >
+            <span class="shrink-0 text-[11px] whitespace-nowrap">CALL-LED</span>
+            <span
+              data-testid="nifty-heatmap-ramp-bar"
+              class="flex-1 min-w-0 h-[6px] rounded-[3px]"
+              style={{
+                "background": `linear-gradient(90deg, ${OI_CALL} 0%, ${alpha(TEXT_MUTED, 0.28)} 50%, ${OI_PUT} 100%)`,
+              }}
+            />
+            <span class="shrink-0 text-[11px] whitespace-nowrap">PUT-LED</span>
+          </span>
+          <details data-testid="nifty-heatmap-key" class="shrink-0">
+            <summary class="text-[11px] cursor-pointer whitespace-nowrap" title="Full heatmap key">
+              KEY
+            </summary>
+            <div class="flex flex-wrap gap-x-2 gap-y-1 pt-1 max-w-[400px]">
+              <For each={LEGEND}>{(item) => <LegendItem item={item} />}</For>
+              <Show when={flipX()}>
+                {(flip) => (
+                  <LegendItem
+                    item={{
+                      id: "flow-flip",
+                      color: WARNING,
+                      label: "flow flip",
+                      title: `Amber dashed vertical — persisted last 5m CE/PE flow sign flip (${flip().label})`,
+                      shape: "dashed",
+                    }}
+                  />
+                )}
+              </Show>
               <LegendItem
                 item={{
-                  id: "flow-flip",
-                  color: WARNING,
-                  label: "flow flip",
-                  title: `Amber dashed vertical — persisted last 5m CE/PE flow sign flip (${flip().label})`,
-                  shape: "dashed",
+                  id: "opacity",
+                  color: TEXT_MUTED,
+                  label: OPACITY_LABELS[metric()].label,
+                  title: OPACITY_LABELS[metric()].title,
+                  shape: "cell",
                 }}
               />
-            )}
-          </Show>
-          <LegendItem
-            item={{
-              id: "opacity",
-              color: TEXT_MUTED,
-              label: OPACITY_LABELS[metric()].label,
-              title: OPACITY_LABELS[metric()].title,
-              shape: "cell",
-            }}
-          />
+            </div>
+          </details>
         </div>
 
-        {/* Plain-English read of the tape — what the colours are actually saying. */}
+        {/* Labelled statement, not a prose sentence: the numbers are the
+            message. The plain-English sentence stays in sr-only for assistive
+            tech (and as the canonical description behind `title`). */}
         <div
           data-testid="nifty-heatmap-read"
-          title="Strongest OI builds on this tape, in plain English"
-          class="px-[6px] mt-[2px] shrink-0 text-[10px] leading-[1.2] font-mono text-fin-text whitespace-nowrap overflow-hidden text-ellipsis"
+          title={readText() || readFallback()}
+          class="px-2 py-1 shrink-0 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-[1.3] font-mono text-fin-text whitespace-normal break-words"
         >
-          {readText() || (metric() === "volume" ? "no traded volume yet" : metric() === "premium" ? "no premium move yet" : "no ΔOI build yet")}
+          <span
+            data-testid="nifty-heatmap-read-label"
+            class="shrink-0 text-[11px] tracking-[0.08em] text-fin-text-muted"
+          >
+            READ
+          </span>
+          <Show
+            when={spotRead()}
+            fallback={
+              <span class="text-[11px] text-fin-text-muted whitespace-nowrap">AWAITING CHAIN</span>
+            }
+          >
+            {(s) => (
+              <span
+                data-testid="nifty-heatmap-read-spot"
+                class="shrink-0 text-fin-text whitespace-nowrap"
+                title="Latest spot against the max-pain pin"
+                style={{
+                  "font-size": `${REPORT_FONT.body}px`,
+                  "font-weight": 600,
+                  "line-height": 1.2,
+                }}
+              >
+                SPOT {s().spot} <span class="text-fin-text-muted">{s().relation}</span> MP {s().maxPain}
+              </span>
+            )}
+          </Show>
+          <Show when={read().ceStrike !== null}>
+            <span
+              data-testid="nifty-heatmap-read-ce"
+              class="shrink-0 text-[11px] text-fin-text-muted whitespace-nowrap"
+              title="Strongest call-side ΔOI build on this tape"
+            >
+              CE {formatNumberIN(read().ceStrike as number)}
+            </span>
+          </Show>
+          <Show when={read().peStrike !== null}>
+            <span
+              data-testid="nifty-heatmap-read-pe"
+              class="shrink-0 text-[11px] text-fin-text-muted whitespace-nowrap"
+              title="Strongest put-side ΔOI build on this tape"
+            >
+              PE {formatNumberIN(read().peStrike as number)}
+            </span>
+          </Show>
+          <span class="sr-only">{readText() || readFallback()}</span>
         </div>
 
         {/* Cells paint on the canvas behind this SVG; the stretch mapping
@@ -558,7 +805,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
             svgRef = el;
           }}
           data-testid="nifty-heatmap-svg"
-          viewBox={`0 0 ${VB_W} ${VB_H()}`}
+          viewBox={`0 0 ${vbW()} ${VB_H()}`}
           width="100%"
           height="100%"
           preserveAspectRatio="none"
@@ -627,8 +874,8 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
             b.maxPain !== null ? (
               <line
                 data-testid="nifty-heatmap-maxpain"
-                x1={PAD_L + bi() * cellW()}
-                x2={PAD_L + (bi() + 1) * cellW()}
+                x1={PAD() + bi() * cellW()}
+                x2={PAD() + (bi() + 1) * cellW()}
                 y1={yOf(b.maxPain)}
                 y2={yOf(b.maxPain)}
                 stroke={LEVEL_MAX_PAIN}
@@ -647,8 +894,8 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
             return flip !== null ? (
               <line
                 data-testid="nifty-heatmap-flip"
-                x1={PAD_L + bi() * cellW()}
-                x2={PAD_L + (bi() + 1) * cellW()}
+                x1={PAD() + bi() * cellW()}
+                x2={PAD() + (bi() + 1) * cellW()}
                 y1={yOf(flip)}
                 y2={yOf(flip)}
                 stroke={HEATMAP_FLIP}
@@ -663,10 +910,11 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
           <For each={showAllStrikes() ? strikes() : strikeLabelEvery()}>{(s) => (
             <text
               data-testid="nifty-heatmap-strike-label"
-              x={PAD_L - 6}
-              y={rowOf(s) * cellH() + cellH() / 2 + 3.5}
+              x={PAD() - 6}
+              y={rowOf(s) * cellH() + cellH() / 2}
               text-anchor="end"
-              font-size="10"
+              dominant-baseline="middle"
+              font-size="11"
               fill="currentColor"
               opacity={0.65}
             >
@@ -676,11 +924,12 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
           {/* Y-axis caption */}
           <text
             data-testid="nifty-heatmap-oi-label"
-            x={10}
+            x={14}
             y={gridH() / 2}
-            transform={`rotate(-90 10 ${gridH() / 2})`}
+            transform={`rotate(-90 14 ${gridH() / 2})`}
             text-anchor="middle"
-            font-size="9"
+            dominant-baseline="middle"
+            font-size="11"
             fill="currentColor"
             opacity={0.8}
             font-family={MONO}
@@ -690,10 +939,11 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
           {/* X-axis caption */}
           <text
             data-testid="nifty-heatmap-time-axis"
-            x={PAD_L - 4}
-            y={VB_H() - 8}
+            x={PAD() - 4}
+            y={VB_H() - 10}
             text-anchor="end"
-            font-size="9"
+            dominant-baseline="middle"
+            font-size="11"
             fill="currentColor"
             opacity={0.8}
             font-family={MONO}
@@ -708,10 +958,11 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
             return (
               <text
                 data-testid="nifty-heatmap-time-label"
-                x={isFirst ? PAD_L : isLast ? VB_W - 2 : xOf(bi)}
-                y={VB_H() - 8}
+                x={isFirst ? PAD() : isLast ? vbW() - 2 : xOf(bi)}
+                y={VB_H() - 10}
                 text-anchor={isFirst ? "start" : isLast ? "end" : "middle"}
-                font-size="10"
+                dominant-baseline="middle"
+                font-size="11"
                 fill="currentColor"
                 opacity={0.9}
                 font-family={MONO}
@@ -744,7 +995,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
         <Show when={hoverCell() && hover() !== null}>
           <div
             data-testid="nifty-heatmap-hover"
-            class="absolute right-1 top-[14px] px-1 py-[1px] border border-fin-border rounded-[3px] text-[9px] font-mono text-fin-text whitespace-nowrap pointer-events-none z-[3]"
+            class="absolute right-1 top-[14px] px-1 py-[1px] border border-fin-border rounded-[3px] text-[11px] leading-[1.2] font-mono text-fin-text whitespace-nowrap pointer-events-none z-[3]"
             style={{ "background-color": TERM_HEADER, "border-color": TERM_BORDER }}
           >
             {buckets()[hover()!.bucket]?.label ?? ""} · {formatNumberIN(hover()!.strike)} · CE{" "}

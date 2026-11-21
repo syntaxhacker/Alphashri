@@ -603,3 +603,41 @@ describe("NiftyWallsExpanded", () => {
     expect(screen.queryByTestId("walls-map")).not.toBeInTheDocument();
   });
 });
+
+describe("NiftyWallsCard compact summary", () => {
+  it("shows the wall numbers in a short summary and keeps the full detail in the tree", () => {
+    render(() => (
+      <NiftyWallsCard walls={walls} onExpand={onExpand} compact />
+    ));
+
+    const summary = screen.getByTestId("nifty-walls-compact-summary");
+    expect(summary).toHaveTextContent("BREAK");
+    expect(summary).toHaveTextContent("74,096");
+    expect(summary).toHaveTextContent("73,900");
+    expect(summary).toHaveTextContent("74,000");
+    expect(summary).toHaveTextContent("73,500");
+    expect(summary.className).toContain("h-14");
+
+    // Nothing was deleted: the full five-column band and the levels block are
+    // still mounted, just collapsed behind the card's EXPAND affordance.
+    const detail = screen.getByTestId("nifty-walls-compact-detail");
+    expect(detail.style.display).toBe("none");
+    for (const id of ["nifty-walls-grid", "nifty-walls-call", "nifty-walls-alert", "nifty-walls-levels-legend"]) {
+      expect(detail.contains(screen.getByTestId(id))).toBe(true);
+    }
+  });
+
+  it("keeps the existing EXPAND affordance wired in compact mode", () => {
+    render(() => <NiftyWallsCard walls={walls} onExpand={onExpand} compact />);
+
+    fireEvent.click(screen.getByText("EXPAND"));
+    expect(onExpand).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders the expanded band by default when compact is not requested", () => {
+    render(() => <NiftyWallsCard walls={walls} onExpand={onExpand} />);
+
+    expect(screen.queryByTestId("nifty-walls-compact-summary")).not.toBeInTheDocument();
+    expect(screen.getByTestId("nifty-walls-grid")).toBeInTheDocument();
+  });
+});

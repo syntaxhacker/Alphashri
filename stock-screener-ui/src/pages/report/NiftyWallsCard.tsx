@@ -1,8 +1,11 @@
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { Text, Button, Badge } from "@/ui";
+import { ReplayUnavailable } from "./BreadthStrip";
 import { LocalCompactPanel } from "./reportBits";
 import { Sparkline } from "@/components/common/Sparkline";
+import { EmptyState, injectCollapseRule } from "@/components/common/states";
+import { isMarketOpenNow } from "@/state/holidays";
 import * as palette from "@/ui/palette";
 import type { WallsEvent, WallsPayload, WallsRow } from "@/api/reportNifty";
 import {
@@ -60,7 +63,7 @@ function Stat(props: { label: string; value: string; color?: string }) {
         span
         fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
         style={{
-          "font-size": `${REPORT_FONT.micro}px`,
+          "font-size": `${REPORT_FONT.body}px`,
           "line-height": REPORT_LINE_HEIGHT.tight,
           color: palette.TEXT_MUTED,
           "letter-spacing": REPORT_LETTER_SPACING.wide,
@@ -259,10 +262,10 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
   return (
     <div data-testid={`nifty-walls-${sideKey}`} class="min-w-0">
       <div
-        class="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] border-b border-solid pb-[4px] mb-[4px]"
+        class="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] pb-[4px] mb-[4px]"
         style={{
           "column-gap": `${REPORT_PAD.xs}px`,
-          "border-bottom": `1px solid ${palette.BORDER}`,
+          "border-bottom": `1px solid ${palette.alpha(palette.BORDER, 0.6)}`,
           "padding-bottom": `${REPORT_PAD.xs}px`,
           "margin-bottom": `${REPORT_PAD.xs}px`,
         }}
@@ -360,7 +363,7 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
                     span
                     fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
                     style={{
-                      "font-size": `${REPORT_FONT.micro}px`,
+                      "font-size": `${REPORT_FONT.body}px`,
                       "font-weight": REPORT_FONT_WEIGHT.extrabold,
                       color: cellColor,
                       "margin-left": `${REPORT_PAD.xs}px`,
@@ -370,7 +373,7 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
                     {view.arrow}
                   </Text>
                 </Show>
-                <span style={{ "font-size": `${REPORT_FONT.micro}px`, "margin-left": "3px", color: palette.TEXT_MUTED }}>
+                <span style={{ "font-size": `${REPORT_FONT.body}px`, "margin-left": "3px", color: palette.TEXT_MUTED }}>
                   {wallCode(props.side === "CALL", wallSide(row.strike, props.spot), false)}
                 </span>
               </div>
@@ -385,7 +388,7 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
                 }
                 data-testid={`nifty-walls-${props.side.toLowerCase()}-${row.strike}-flow`}
                 style={{
-                  "font-size": `${REPORT_FONT.micro}px`,
+                  "font-size": `${REPORT_FONT.body}px`,
                   "line-height": REPORT_LINE_HEIGHT.tight,
                   color: flowToneColor(flowTone(row.flow)),
                   "font-weight": REPORT_FONT_WEIGHT.bold,
@@ -671,7 +674,7 @@ function WallsLevelsBlock(props: { levels?: JSX.Element }) {
   return (
     <div
       style={{
-        "border-top": `1px solid ${palette.BORDER}`,
+        "border-top": `1px solid ${palette.alpha(palette.BORDER, 0.6)}`,
         "padding-top": `${REPORT_PAD.sm}px`,
         "min-width": 0,
       }}
@@ -690,7 +693,7 @@ function WallsLevelsBlock(props: { levels?: JSX.Element }) {
  *  side, so the skeleton body lands on the same height as the populated one.
  *  The READ/SEQ and tracked-history bands are reserved at 96px so they can
  *  never collapse below the live bands. */
-function WallsSkeleton(props: { emptyText: string }) {
+function WallsSkeleton(props: { emptyText: string; replayUnavailable?: boolean }) {
   return (
     <div
       data-testid="nifty-walls-skeleton"
@@ -726,17 +729,24 @@ function WallsSkeleton(props: { emptyText: string }) {
         <div style={{ "margin-top": `${REPORT_PAD.xs}px` }}>
           <WallsLevelsLegend callWall={null} putWall={null} maxPain={null} skeleton />
         </div>
-        <Text
-          size="xs"
-          span
-          style={{
-            "font-size": `${REPORT_FONT.xs}px`,
-            color: palette.TEXT_MUTED,
-            "margin-top": `${REPORT_PAD.xs}px`,
-          }}
+        <Show
+          when={props.replayUnavailable}
+          fallback={
+            <Text
+              size="xs"
+              span
+              style={{
+                "font-size": `${REPORT_FONT.xs}px`,
+                color: palette.TEXT_MUTED,
+                "margin-top": `${REPORT_PAD.xs}px`,
+              }}
+            >
+              {props.emptyText}
+            </Text>
+          }
         >
-          {props.emptyText}
-        </Text>
+          <ReplayUnavailable noun="Walls" />
+        </Show>
       </div>
 
       <WallTable side="CALL" rows={[]} spot={0} />
@@ -747,7 +757,7 @@ function WallsSkeleton(props: { emptyText: string }) {
         style={{
           "min-height": `${WALLS_RESERVED_H}px`,
           "min-width": 0,
-          "border-left": `1px solid ${palette.BORDER}`,
+          "border-left": `1px solid ${palette.alpha(palette.BORDER, 0.6)}`,
           "padding-left": `${REPORT_PAD.sm}px`,
           display: "flex",
           "flex-direction": "column",
@@ -813,9 +823,26 @@ export function NiftyWallsCardInner(props: {
   /** Opens the deeper pressure desk (phase plane + selected-wall path). */
   onOpenDesk?: () => void;
   emptyText?: string;
+  /** Replay cannot reconstruct the tape: use the one shared "not captured"
+   *  treatment and drop the permanently hidden skeleton from the DOM. */
+  unavailableInReplay?: boolean;
+  /** The session was recorded but the walls snapshot is absent — the recorder
+   *  did not persist this band. Distinct from "the fetch failed". */
+  noDataRecorded?: boolean;
+  /** Forces/rejects the failed state. Omitted, it is derived from the session
+   *  clock: a null payload during a live session IS the failed state. */
+  loadFailed?: boolean;
+  /** Recovery action for the failed state only. */
+  onRetry?: () => void;
+  /** Collapse the five-column band to a one-glance summary; the full detail
+   *  stays mounted and is reachable through the EXPAND affordance. */
+  compact?: boolean;
   /** Optional dense levels rows (e.g. LevelsInPlayContent) rendered inside
    *  this same card, after the walls grid. */
   levels?: JSX.Element;
+  /** Override the panel testid when a second instance is promoted to a
+   *  permanent rail next to the dock's own copy of the strips. */
+  testId?: string;
 }) {
   const walls = () => props.walls;
   const [dismissed, setDismissed] = createSignal<string | null>(null);
@@ -847,10 +874,115 @@ export function NiftyWallsCardInner(props: {
   });
 
   if (!walls()) {
+    const emptyText = () => props.emptyText ?? "No walls data.";
+    /**
+     * Three emptinesses, one row each. The rail is a fixed-height band, so the
+     * row is dense — but it carries a glyph, a title and an explanation, and a
+     * retry when the failure is ours. `emptyText` stays on the description so
+     * callers that pass copy still see it rendered.
+     */
+    const emptyReason = (): "no-data" | "market-closed" | "failed" => {
+      // Replay has no snapshot and the recorder did not write this band: both
+      // are "not captured", never a fetch failure.
+      if (props.unavailableInReplay || props.noDataRecorded || props.loadFailed === false) return "no-data";
+      // Market shut: nothing to read yet. This is the clock, not a fault.
+      if (!isMarketOpenNow()) return "market-closed";
+      // Live session and the request came back empty. `walls === null` inside
+      // market hours IS the failed state; there is no separate signal a caller
+      // could have passed, so it must not silently read as "quiet".
+      return "failed";
+    };
+    const emptyCopy = (): { kind: "no-data" | "market-closed" | "failed"; title: string; description: string; hint: string } => {
+      switch (emptyReason()) {
+        case "market-closed":
+          return {
+            kind: "market-closed",
+            title: "Walls not recorded yet",
+            description: emptyText(),
+            hint: "Opens 09:15 IST",
+          };
+        case "failed":
+          return {
+            kind: "failed",
+            title: "Walls request failed",
+            description: "The walls snapshot came back empty during a live session.",
+            hint: props.onRetry ? "Retry re-reads the snapshot" : "",
+          };
+        case "no-data":
+        default:
+          return {
+            kind: "no-data",
+            title: props.unavailableInReplay ? "Walls not captured" : "No walls snapshot",
+            description: emptyText(),
+            hint: props.unavailableInReplay ? "live-only band" : "",
+          };
+      }
+    };
+    const retry = () =>
+      emptyReason() === "failed" && props.onRetry ? (
+        <Button
+          data-testid="nifty-walls-retry"
+          size="xs"
+          variant="outline"
+          onClick={() => props.onRetry?.()}
+          className="min-w-0"
+          style={{ "font-size": `${REPORT_FONT.micro}px`, "padding-left": `${REPORT_PAD.sm}px`, "padding-right": `${REPORT_PAD.sm}px` }}
+        >
+          Retry
+        </Button>
+      ) : undefined;
     return (
-      <LocalCompactPanel title="WALLS" testId="nifty-walls-card" flush>
-        <WallsSkeleton emptyText={props.emptyText ?? "No walls data."} />
-        <WallsLevelsBlock levels={props.levels} />
+      <LocalCompactPanel
+        title="WALLS"
+        testId={props.testId ?? "nifty-walls-card"}
+        flush
+        action={retry()}
+        class="[&>div:first-child]:bg-fin-surface-alt"
+        style={{ "border-width": "0px", "background-color": palette.SURFACE }}
+      >
+        <Show
+          when={props.compact === true}
+          fallback={
+            <>
+              <WallsSkeleton emptyText={emptyText()} replayUnavailable={props.unavailableInReplay} />
+              <WallsLevelsBlock levels={props.levels} />
+            </>
+          }
+        >
+          {/*
+           * The rail's height is fixed by its consumer (ReportWorkspace, not
+           * this lane's file). An empty band must not keep paying for a 112px
+           * reserve, so this rule lets the rail shrink to the row it actually
+           * renders. Injected into the head because a `<style>` child would
+           * show up in the rail's own text.
+           */}
+          {injectCollapseRule(
+            "walls-rail",
+            `[data-testid="desk-insight-rail"]:has([data-testid="nifty-walls-card-rail"] [data-empty-kind]){height:auto !important;}`,
+          )}
+          <div data-testid="nifty-walls-compact-summary" class="px-1 py-1">
+            <EmptyState
+              kind={emptyCopy().kind}
+              layout="row"
+              title={emptyCopy().title}
+              description={emptyCopy().description}
+              hint={emptyCopy().hint}
+              data-testid="nifty-walls-compact-summary-text"
+            />
+          </div>
+          {/* In replay this detail is permanently display:none — a skeleton
+              that can never be opened is dead DOM, so don't mount it. */}
+          <Show when={!props.unavailableInReplay}>
+            <div data-testid="nifty-walls-compact-detail" style={{ display: "none" }}>
+              <WallsSkeleton emptyText={emptyText()} />
+              <WallsLevelsBlock levels={props.levels} />
+            </div>
+          </Show>
+          {/* Replay keeps the one phrase the mode banner already established. */}
+          <Show when={props.unavailableInReplay}>
+            <ReplayUnavailable noun="Walls" className="sr-only" />
+          </Show>
+        </Show>
       </LocalCompactPanel>
     );
   }
@@ -881,7 +1013,7 @@ export function NiftyWallsCardInner(props: {
   return (
     <LocalCompactPanel
       title="WALLS"
-      testId="nifty-walls-card"
+      testId={props.testId ?? "nifty-walls-card"}
       action={
         <div class="flex items-center gap-1">
           {props.onOpenDesk ? (
@@ -917,8 +1049,82 @@ export function NiftyWallsCardInner(props: {
           </Button>
         </div>
       }
-      style={{ "border-top": "none" }}
+      class="[&>div:first-child]:bg-fin-surface-alt"
+      style={{ "border-width": "0px", "background-color": palette.SURFACE }}
     >
+      <Show when={props.compact === true}>
+        <div
+          data-testid="nifty-walls-compact-summary"
+          class="flex flex-col justify-center gap-[2px] w-full min-w-0 shrink-0 h-14 min-h-14 px-2 font-mono"
+        >
+          <div class="flex items-center gap-3 min-w-0 whitespace-nowrap overflow-hidden">
+            <Text
+              size="xs"
+              span
+              style={{
+                "font-size": `${REPORT_FONT.xs}px`,
+                "font-weight": REPORT_FONT_WEIGHT.extrabold,
+                color: stateColor(),
+              }}
+            >
+              {walls()!.state.replace("_", " ")}
+            </Text>
+            <Text
+              size="xs"
+              span
+              style={{ "font-size": `${REPORT_FONT.xs}px`, color: palette.TEXT_MUTED }}
+            >
+              {dteLabel()} · {walls()!.expiry ?? "—"} · tape {walls()!.freshness.last_t.slice(11, 16)}
+            </Text>
+            <Text
+              size="xs"
+              span
+              style={{ "font-size": `${REPORT_FONT.xs}px`, color: palette.TEXT_MUTED }}
+            >
+              CW {fmtNum(walls()!.call_wall?.strike)} · PW {fmtNum(walls()!.put_wall?.strike)}
+            </Text>
+          </div>
+          <div class="flex items-center gap-3 min-w-0 whitespace-nowrap overflow-hidden">
+            <Text size="xs" span style={{ "font-size": `${REPORT_FONT.xs}px`, color: palette.TEXT_MUTED }}>
+              SPOT {fmtNum(walls()!.spot, 2)}
+            </Text>
+            <Text size="xs" span style={{ "font-size": `${REPORT_FONT.xs}px`, color: palette.TEXT_MUTED }}>
+              MP {fmtNum(walls()!.max_pain)}
+            </Text>
+            <Text
+              size="xs"
+              span
+              style={{ "font-size": `${REPORT_FONT.xs}px`, color: pinColor() }}
+            >
+              PIN {walls()!.pin_distance_pts > 0 ? "+" : ""}
+              {fmtNum(walls()!.pin_distance_pts, 0)} ({walls()!.pin_distance_pct.toFixed(2)}%)
+            </Text>
+            <Text
+              size="xs"
+              span
+              style={{
+                "font-size": `${REPORT_FONT.xs}px`,
+                color: walls()!.gex_degraded ? palette.TEXT_MUTED : palette.TEXT_COLOR,
+              }}
+            >
+              GEX {walls()!.gex_degraded ? "n/a" : fmtNum(walls()!.net_gex, 1)}
+            </Text>
+            <Show when={showAlert() && alert()}>
+              <Text
+                size="xs"
+                span
+                style={{ "font-size": `${REPORT_FONT.xs}px`, "font-weight": REPORT_FONT_WEIGHT.extrabold, color: palette.NEGATIVE }}
+              >
+                WALL BREAK {fmtNum(alert()!.wall)} · {fmtNum(alert()!.spot, 1)}
+              </Text>
+            </Show>
+          </div>
+        </div>
+      </Show>
+      <div
+        data-testid="nifty-walls-compact-detail"
+        style={{ display: props.compact === true ? "none" : "contents" }}
+      >
       <div
         // The five-column band is the point of this card: at the xs variant it
         // stacked CALL/PUT/READ/history into one column and grew to 475px,
@@ -940,8 +1146,8 @@ export function NiftyWallsCardInner(props: {
                 "font-weight": REPORT_FONT_WEIGHT.extrabold,
                 "letter-spacing": REPORT_LETTER_SPACING.wide,
                 color: stateColor(),
-                "background-color": "transparent",
-                border: `1px solid ${stateColor()}`,
+                "background-color": palette.alpha(stateColor(), 0.12),
+                border: "none",
                 "padding-left": `${REPORT_PAD.xs}px`,
                 "padding-right": `${REPORT_PAD.xs}px`,
               }}
@@ -984,8 +1190,8 @@ export function NiftyWallsCardInner(props: {
                   "height": "17px",
                   "font-size": `${REPORT_FONT.xs}px`,
                   color: palette.WARNING,
-                  "background-color": "transparent",
-                  border: `1px solid ${palette.WARNING}`,
+                  "background-color": palette.alpha(palette.WARNING, 0.12),
+                  border: "none",
                   "padding-left": `${REPORT_PAD.xs}px`,
                   "padding-right": `${REPORT_PAD.xs}px`,
                 }}
@@ -1196,7 +1402,7 @@ export function NiftyWallsCardInner(props: {
             <SequenceLine events={events()} />
           </div>
 
-          <div style={{ "min-width": 0, "border-left": `1px solid ${palette.BORDER}`, "padding-left": `${REPORT_PAD.sm}px` }}>
+          <div style={{ "min-width": 0, "border-left": `1px solid ${palette.alpha(palette.BORDER, 0.6)}`, "padding-left": `${REPORT_PAD.sm}px` }}>
             <Text
               size="xs"
               span
@@ -1240,6 +1446,7 @@ export function NiftyWallsCardInner(props: {
         <MiniHistory walls={walls()!} />
       </div>
       <WallsLevelsBlock levels={props.levels} />
+      </div>
     </LocalCompactPanel>
   );
 }

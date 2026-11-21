@@ -66,6 +66,7 @@ import {
   saveStoredFlip,
   sessionTone,
 } from "./niftyFlowRead";
+import { parseIstTimestampMs } from "./niftyDataFreshness";
 import type { FlipWatchState, FlowLastFlip, OiPoint } from "./niftyFlowRead";
 import {
   TREND_EMA_SPAN,
@@ -97,6 +98,7 @@ import type { TapeRange } from "./tapeRange";
 import { useNiftyBlasts } from "./useNiftyBlasts";
 import { useNiftyOiAlerts } from "./useNiftyOiAlerts";
 import { useNiftyReportStream, useNiftyBurstStream } from "./niftyStreamSolid";
+import { showError } from "@/ui/notifications";
 import { useReplayWalls } from "./useReplayWalls";
 import type { WallSnapshot } from "./NiftySqueezeRadar";
 import type { ChartSize, ChartTimeframe } from "./NiftyChartPanel";
@@ -401,6 +403,19 @@ function persist(key: string, value: string): void {
   }
 }
 
+/** What the report chart visualises: live stream, pattern overlay, or the recorded replay frame. */
+export type ChartSource = "live" | "patterns" | "offline";
+export const NIFTY_CHART_SOURCE_KEY = "nifty.chartSource";
+const CHART_SOURCE_VALUES: readonly ChartSource[] = ["live", "patterns", "offline"];
+
+export function readChartSource(): ChartSource {
+  return readStoredEnum<ChartSource>(NIFTY_CHART_SOURCE_KEY, CHART_SOURCE_VALUES, "live");
+}
+
+export function persistChartSource(value: ChartSource): void {
+  persist(NIFTY_CHART_SOURCE_KEY, value);
+}
+
 function replayDatesFor(symbol: ReportSymbol, signal?: AbortSignal): Promise<string[]> {
   return symbol === "NIFTY" ? fetchNiftyReplayDates(signal) : fetchOptionsReplayDates(symbol, signal);
 }
@@ -531,6 +546,9 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
   let wasOpenAtMount = isDerivativesOpenIst();
   let holidayToday = false;
   let autoEod = false;
+  // The live→EOD fallback is deliberate, but it must not be silent. Show one
+  // actionable toast per failed live attempt, not one per polling retry.
+  let liveAuthToastShown = false;
   const genericAutoEod = new Set<string>();
   let loadingInFlight = false;
   let requestId = 0;
@@ -843,9 +861,18 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
 
   const touchNow = () => setNowMs(Date.now());
 
-  const markUpdated = () => {
+  const markUpdated = (source?: { as_of?: string | null; fetched_at?: string | null }) => {
+    /*
+     * "Updated" means data-through, not fetch time. Using `Date.now()` here
+     * labelled a payload as current the instant it arrived, so a feed that had
+     * stopped three hours ago still read "Updated <now>". The payload carries
+     * its own stamps; fall back to the wall clock only when neither exists.
+     */
+    const dataMs =
+      parseIstTimestampMs(source?.as_of ?? null) ??
+      parseIstTimestampMs(source?.fetched_at ?? null);
     const now = Date.now();
-    setUpdatedAtMs(now);
+    setUpdatedAtMs(dataMs ?? now);
     setNowMs(now);
   };
 
@@ -1003,7 +1030,10 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
           setSensex(null);
           setSensexError(null);
           setSensexLoading(false);
-          markUpdated();
+          markUpdated({
+            as_of: nextReport.market?.as_of ?? null,
+            fetched_at: nextReport.fetchedAt ?? null,
+          });
         });
         if (activeMode === "live" && (!nextReport.intraday || nextReport.intraday.length === 0)) {
           void fetchOptionsLiveCandles(activeSymbol, undefined, controller.signal)
@@ -1011,6 +1041,8 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
               if (currentRequestId !== requestId) return;
               const intraday = withCandles.intraday;
               if (!intraday || intraday.length === 0) return;
+              baseIntraday = intraday;
+              if (withCandles.candles?.length) baseCandles = withCandles.candles;
               setReport((previous) =>
                 previous
                   ? {
@@ -1067,6 +1099,7 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
         (data.intraday?.length ?? 0) > 0 ? (data.intraday as typeof baseIntraday) : nextNiftyReport.intraday ?? [];
       baseCandles =
         (data.candles?.length ?? 0) > 0 ? (data.candles as typeof baseCandles) : nextNiftyReport.candles ?? [];
+      if (activeMode === "live") liveAuthToastShown = false;
       batch(() => {
         setReport(nextNiftyReport);
         if (activeMode === "live") {
@@ -1111,13 +1144,26 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
         }
         if (tapeData) setTape(tapeData);
         setBursts(burstData as OiBurst[]);
-        markUpdated();
+        markUpdated({
+          as_of: nextNiftyReport.market?.as_of ?? null,
+          fetched_at: (nextNiftyReport as { fetchedAt?: string | null }).fetchedAt ?? null,
+        });
       });
     } catch (loadError) {
       if (currentRequestId !== requestId || controller.signal.aborted) return;
       setNowMs(Date.now());
       const message = messageOf(loadError, "Failed to load Nifty report");
       if (activeMode === "live" && isAuthFailure(message)) {
+        if (!liveAuthToastShown) {
+          liveAuthToastShown = true;
+          const brokerToken = /upstox|broker|access token not configured/i.test(message);
+          showError(
+            "Live NIFTY unavailable",
+            brokerToken
+              ? "Live NIFTY unavailable: the Upstox token is missing or expired. Reconnect in Settings → Brokers to resume live data."
+              : `Live NIFTY unavailable: ${message}`,
+          );
+        }
         try {
           const dates = await fetchNiftyReplayDates(controller.signal);
           if (dates.length > 0) {
@@ -1252,12 +1298,11 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
 
   const handleSymbolChange = (value: string | null) => {
     const next: ReportSymbol = value === "SENSEX" || value === "RELIANCE" ? value : "NIFTY";
-    setSymbol(next);
-    setMode("live");
-    setDate("");
-    setExpiry("nearest");
-    replayFrameCache.clear();
-    setIndex("nifty");
+    // The load effect runs when the selection signals change. Cancel the old
+    // request first and group the writes, or the effect starts the new load
+    // and this handler immediately aborts that controller — leaving the page
+    // on the empty state until the user presses Refresh. This is exactly what
+    // happened after selecting SENSEX while the previous load was in flight.
     requestId += 1;
     requestController?.abort();
     requestController = null;
@@ -1265,24 +1310,33 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
     setLoading(false);
     sensexController?.abort();
     sensexController = null;
-    setReport(null);
-    setTape(null);
-    setBursts(null);
-    setWallsOpen(false);
-    setOiPoints([]);
-    setHistoryDates([]);
-    setStreamed([]);
-    setSensex(null);
-    setReplay(null);
-    setReplayIndex(0);
-    setReplayPlaying(false);
+    replayFrameCache.clear();
     baseIntraday = [];
     baseCandles = [];
-    setError(null);
+    batch(() => {
+      setSymbol(next);
+      setMode("live");
+      setDate("");
+      setExpiry("nearest");
+      setIndex("nifty");
+      setReport(null);
+      setTape(null);
+      setBursts(null);
+      setWallsOpen(false);
+      setOiPoints([]);
+      setHistoryDates([]);
+      setStreamed([]);
+      setSensex(null);
+      setReplay(null);
+      setReplayIndex(0);
+      setReplayPlaying(false);
+      setError(null);
+    });
   };
 
   const handleModeChange = (value: string) => {
     autoEod = false;
+    if (value !== "eod") liveAuthToastShown = false;
     setMode(value === "eod" ? "eod" : "live");
   };
 
@@ -1750,16 +1804,35 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
           if (!optionsReport) {
             throw new Error(`No ${activeSymbol} option-chain report available.`);
           }
-          baseIntraday = optionsReport.intraday ?? [];
-          baseCandles = optionsReport.candles ?? [];
+          if (optionsReport.intraday?.length) baseIntraday = optionsReport.intraday;
+          if (optionsReport.candles?.length) baseCandles = optionsReport.candles;
+          // The 15s chain poll is deliberately candle-free. Keep the last
+          // candle series instead of replacing it with ``intraday: []`` and
+          // letting the chart fall back to sparse 10s chain spot points.
+          const nextReport: NiftyReport = {
+            ...optionsReport,
+            ...(optionsReport.intraday?.length
+              ? {}
+              : baseIntraday.length
+                ? { intraday: baseIntraday }
+                : {}),
+            ...(optionsReport.candles?.length
+              ? {}
+              : baseCandles.length
+                ? { candles: baseCandles }
+                : {}),
+          };
           batch(() => {
-            setReport(optionsReport);
+            setReport(nextReport);
             if (tapeData) setTape(tapeData);
             setBursts(burstData as OiBurst[]);
             setSensex(null);
             setSensexError(null);
             setSensexLoading(false);
-            markUpdated();
+            markUpdated({
+              as_of: optionsReport.market?.as_of ?? null,
+              fetched_at: (optionsReport as { fetchedAt?: string | null }).fetchedAt ?? null,
+            });
           });
         } catch (pollError) {
           if (!alive || currentRequestId !== requestId || controller.signal.aborted) return;
@@ -1886,7 +1959,10 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
       if (symbol() !== "NIFTY") return;
       if (!pushed) return;
       setReport(pushed);
-      setUpdatedAtMs(Date.now());
+      markUpdated({
+        as_of: pushed.market?.as_of ?? null,
+        fetched_at: (pushed as { fetchedAt?: string | null }).fetchedAt ?? null,
+      });
     });
 
     createEffect(() => {
@@ -1894,7 +1970,9 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
       if (symbol() !== "NIFTY") return;
       if (!pushed) return;
       setTape(pushed);
-      setUpdatedAtMs(Date.now());
+      // A tape frame's own newest row is its data-through time.
+      const newestRow = [...(pushed.rows ?? [])].reverse().find((row) => row?.t);
+      markUpdated({ as_of: newestRow?.t ?? null });
     });
 
     createEffect(() => {
@@ -1903,7 +1981,10 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
       if (!pushed) return;
       setSensex(pushed);
       setSensexError(null);
-      setUpdatedAtMs(Date.now());
+      markUpdated({
+        as_of: pushed.market?.as_of ?? null,
+        fetched_at: (pushed as { fetchedAt?: string | null }).fetchedAt ?? null,
+      });
     });
 
     useNiftyBurstStream(

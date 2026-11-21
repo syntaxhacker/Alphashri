@@ -30,6 +30,7 @@ interface NavbarNestedProps {
 }
 
 const navItems = [
+  { label: "HOME", icon: IconAdjustments, link: "/home" },
   { label: "Screener", icon: IconChartLine, link: "/screener" },
   { label: "News", icon: IconNews, link: "/news" },
   { label: "Backtest", icon: IconChartLine, link: "/backtest" },

@@ -410,6 +410,61 @@ describe("PatternChartBody", () => {
     expect(screen.getByTestId("pattern-tv-stub")).toHaveAttribute("data-candle-count", "2");
   });
 
+  test("a null close_bar_date falls back to the last candle's IST session date, not its UTC date", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-18T06:00:00Z")); // 11:30 IST on 18 Nov
+    const candles: ChartCandle[] = [
+      { t: "2026-11-13T18:30:00+00:00", o: 3430, h: 3450, l: 3420, c: 3430, v: 900 },
+      { t: "2026-11-16T18:30:00+00:00", o: 3430, h: 3490, l: 3420, c: 3478, v: 1100 },
+    ];
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: null,
+      day_change_pct: null,
+      close_bar_date: null,
+    };
+    render(() => <PatternChartBody hit={hit} candles={candles} />);
+    // 18:30Z on 16 Nov is 00:00 IST on 17 Nov — the 17 Nov session.
+    expect(screen.getByTestId("patterns-close-label")).toHaveTextContent("17 NOV");
+    expect(screen.getByTestId("patterns-close-label")).not.toHaveTextContent("16 NOV");
+  });
+
+  test("the chart fallback stores a session key, not the raw UTC candle timestamp", () => {
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: null,
+      day_change_pct: null,
+      close_bar_date: null,
+    };
+    const series = resolveCloseSeries({
+      hit,
+      candles: [
+        { t: "2026-11-16T18:30:00+00:00", o: 100, h: 101, l: 99, c: 100, v: 900 },
+      ],
+    });
+    expect(series.source).toBe("chart");
+    expect(series.barDate).toBe("2026-11-17");
+    expect(series.barDate).not.toContain("T18:30");
+  });
+
+  test("an intraday bar keeps its own calendar day (no IST rollover off-by-one)", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-17T12:00:00Z")); // 17:30 IST on 17 Nov
+    const candles: ChartCandle[] = [
+      { t: "2026-11-17T09:45:00+00:00", o: 100, h: 101, l: 99, c: 100, v: 900 },
+    ];
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: null,
+      day_change_pct: null,
+      close_bar_date: null,
+    };
+    render(() => <PatternChartBody hit={hit} candles={candles} />);
+    // 09:45Z = 15:15 IST on 17 Nov — still the 17th, not the 18th.
+    expect(screen.getByTestId("patterns-close-label")).toHaveTextContent("17 NOV");
+    expect(screen.getByTestId("patterns-close-label")).not.toHaveTextContent("18 NOV");
+  });
+
   test("a partial last candle shows a (live) marker; a completed bar does not", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-11-16T12:00:00Z"));

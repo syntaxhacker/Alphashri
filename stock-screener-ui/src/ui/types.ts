@@ -395,7 +395,7 @@ export interface UISelectProps extends UIInputWrapperProps {
   value?: string | null;
   defaultValue?: string | null;
   onChange?: (value: string | null) => void;
-  data?: (string | { value: string; label: string; disabled?: boolean })[];
+  data?: (string | { value: string; label: string; disabled?: boolean; group?: string })[];
   searchable?: boolean;
   clearable?: boolean;
   leftSection?: JSX.Element;

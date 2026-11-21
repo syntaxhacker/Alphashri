@@ -113,6 +113,37 @@ python scripts/agent_options_check.py
 
 **Sizing:** 1 lot default; scale only a working range-sell (short straddle margin ≈ ₹1.9 L/lot on NIFTY at 23k).
 
+### 4.1 Continuous 5-second monitor at a level (15 s when quiet) — moneyness before P&L
+
+While a 0-DTE position is open, re-read these every **5 seconds** when spot is at
+a strike, wall, or max-pain level; every 15 seconds when price is quiet:
+
+1. **Spot vs strikes** — long leg ITM/ATM/OTM, short leg still OTM or at the wall.
+2. **Near-ATM CE/PE LTP** — 5-second, 15-second and 1-minute premium change.
+3. **OI wall / max pain / PCR** — is the level still defended?
+4. **Spread mark vs target/stop** — distance to the exit, not hope.
+
+Decision order:
+
+- **Long leg OTM and spot has lost the long strike → cut.** A small loss on dead
+  money is a good cut; do not wait for the premium stop.
+- **Credit spread: short strike still OTM and wall intact → hold/scalp.** Bank
+  15–25% of the credit (5–10 index points), trail 25% off the peak.
+- **Spot reclaims the short strike → exit immediately**, regardless of premium stop.
+- **0-DTE moneyness:** ATM/near-ATM only; long strike ITM/ATM, short strike
+  at/behind an OI wall. No OTM lottery tickets.
+- **Time:** no new entry after 14:45; flat by 15:10; CAS 15:15–15:30.
+
+**Tool hierarchy:** regime, TWAP, GEX, expansion and the SETUP flag come from
+`scripts/agent_options_check.py` + `scripts/desk_check.py`. Those are the primary
+signal. `top5` / `hero` are research horse races, not the primary signal.
+
+> **SENSEX caveat:** the TWAP/GEX/expansion desk tools are **NIFTY-only**. SENSEX
+> has `scripts/paper_sensex.py chain|levels` (max-pain/OI) but no TWAP/GEX. Do
+> not claim the SENSEX read has the same analytics.
+
+Worked example and the past-script audit: `docs/SENSEX_PAPER_LESSONS.md` §11–12.
+
 ---
 
 ## 5. Command cheat-sheet

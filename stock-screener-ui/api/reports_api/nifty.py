@@ -41,7 +41,9 @@ from api.options_math import put_call
 from api.reports_api._walls import as_report_walls as _as_report_walls
 from api.auth import get_current_user
 from api.reports_api._dates import validate_date
+from api.reports_api import _journal, _jsonl
 from api.reports_api._numeric import safe_float as _safe_float, safe_int as _safe_int
+from api.reports_api._tape_row import build_tape_row
 from api.reports_api._time import today_str as _today_str
 from api.reports_api.desk_trades import router as desk_trades_router
 from api.reports_api.nifty_intel import router as nifty_intel_router
@@ -199,6 +201,13 @@ def build_leg(market_data: dict, greeks: Optional[dict] = None,
     (delta, gamma, theta, vega, iv, rho). This keeps **all** of it so the
     snapshot log is a complete record and theta/vega are available later
     (previously only gamma/delta/iv survived).
+
+    ``buy_qty`` / ``sell_qty`` / ``last_trade_price`` / ``last_trade_qty`` are
+    ``None`` when Upstox did **not** send them. They used to be coerced to
+    ``0``, which reads as "nobody bought, nobody sold, no trade" on a chain
+    response that simply omits those fields — a dead field that looked real.
+    The keys stay present so an existing consumer keeps working; only the
+    bogus zero is gone.
     """
     md = market_data or {}
     ltp = _safe_float(md.get("ltp"))
@@ -221,6 +230,21 @@ def build_leg(market_data: dict, greeks: Optional[dict] = None,
         v = (g or {}).get(key)
         try:
             return float(v) if v is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    def _opt_int(key):
+        """``int`` when the field was actually served, else ``None``.
+
+        A missing order-book field is missing, not zero: ``0`` here is what
+        made an option-chain response (which carries no depth) look like a
+        leg with no buy/sell interest at all.
+        """
+        v = (md or {}).get(key)
+        if v is None:
+            return None
+        try:
+            return int(float(v))
         except (TypeError, ValueError):
             return None
 
@@ -247,10 +271,10 @@ def build_leg(market_data: dict, greeks: Optional[dict] = None,
         "ask_price": _opt_float("ask_price"),
         "bid_qty": _safe_int(md.get("bid_qty")),
         "ask_qty": _safe_int(md.get("ask_qty")),
-        "buy_qty": _safe_int(md.get("total_buy_quantity")),
-        "sell_qty": _safe_int(md.get("total_sell_quantity")),
+        "buy_qty": _opt_int("total_buy_quantity"),
+        "sell_qty": _opt_int("total_sell_quantity"),
         "last_trade_price": _opt_float("last_trade_price"),
-        "last_trade_qty": _safe_int(md.get("last_trade_qty")),
+        "last_trade_qty": _opt_int("last_trade_qty"),
     }
 
 
@@ -800,13 +824,36 @@ def build_timeline_skeleton(report: dict) -> list[dict]:
     ]
 
 
+def _last_tape_spot(date_str: str) -> Optional[float]:
+    """The day's latest reconciled tape spot (``None`` when no tape yet).
+
+    The tape is where a spot has already been cross-checked against the index
+    quote (:func:`reconcile_spot`), so it — not a fresh raw chain print — is
+    the reference a snapshot must agree with. Never raises.
+    """
+    try:
+        rows = read_tape(date_str)
+    except Exception:
+        return None
+    latest = max((r for r in rows if isinstance(r, dict)),
+                 key=lambda r: str(r.get("t") or ""), default=None)
+    return _finite((latest or {}).get("spot"))
+
+
 def _build_snapshot_dict(report: dict, date_str: str) -> dict:
     """Build the standard snapshot envelope from a live report.
 
     Shared by :func:`create_nifty_snapshot` and :func:`nifty_snapshot_task`
     so the snapshot structure is identical in both paths.
+
+    The spot is cross-checked against the day's tape. The per-minute recorder
+    reconciles its spot (chain vs index quote vs previous row) and writes THAT
+    to the tape, but this builder used to persist the raw chain print — so the
+    served snapshot could disagree with the tape it came from. A disagreement
+    larger than :data:`SPOT_CHAIN_DEV_MAX` adopts the tape value and keeps the
+    raw one as ``spot_raw``.
     """
-    return {
+    out = {
         **report,
         "mode": "snapshot",
         "date": date_str,
@@ -814,6 +861,16 @@ def _build_snapshot_dict(report: dict, date_str: str) -> dict:
         "source": "upstox-option-chain",
         "timeline": build_timeline_skeleton(report),
     }
+    spot = _finite(report.get("spot"))
+    tape_spot = _last_tape_spot(date_str)
+    if spot and tape_spot:
+        reconciled = reconcile_spot(spot, tape_spot, tape_spot)
+        if reconciled is not None and round(reconciled, 2) != round(spot, 2):
+            out.update({"spot": reconciled, "spot_raw": spot,
+                        "spot_source": "tape_reconciled",
+                        "timeline": build_timeline_skeleton(
+                            {**report, "spot": reconciled})})
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -859,13 +916,8 @@ def write_snapshot(date_str: str, data: dict) -> Path:
     can never observe a half-written snapshot. Blocking: callers on the event
     loop must use ``asyncio.to_thread``.
     """
-    SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
-    path = snapshot_path(date_str)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    with open(tmp, "w") as f:
-        json.dump(data, f, separators=(",", ":"))
-    os.replace(tmp, path)
-    return path
+    return _jsonl.write_json_atomic(snapshot_path(date_str), data,
+                                    separators=(",", ":"))
 
 
 # ---------------------------------------------------------------------------
@@ -2150,6 +2202,21 @@ TAPE_INTERVAL_SEC = 60
 # following minute.  The loop is wall-clock paced below, so a timed-out tick
 # leaves a short recovery window before the next scheduled attempt.
 TAPE_TICK_TIMEOUT_SEC = 55
+#: Attempts per minute, INSIDE the minute. A transient 502 at 09:15 used to
+#: cost the opening minute for the whole day: the failed fetch was journalled
+#: immediately and the next attempt was a full 60 s later, by which time the
+#: minute was gone. The first attempt is the normal path; the retries exist for
+#: a single dropped upstream call, not for a dead token (see the backoff cap).
+TAPE_FETCH_ATTEMPTS = int(os.getenv("NIFTY_TAPE_FETCH_ATTEMPTS", "3"))
+#: Sleep before retry N (2 s, 3 s). Short on purpose: the minute is only 60 s
+#: wide and the tick itself must finish inside it.
+TAPE_RETRY_BACKOFF_SEC: tuple[float, ...] = (2.0, 3.0)
+#: Retries stop once this much wall-clock has been spent, so a REST chain that
+#: takes ~50 s cannot push the retry past the tick timeout in ``_tape_tick``.
+TAPE_RETRY_MAX_SEC = float(os.getenv("NIFTY_TAPE_RETRY_MAX_SEC", "20"))
+#: Reconstruct missing TODAY minutes from the 10-second chain feed. Off with
+#: ``NIFTY_TAPE_BACKFILL=0``; a backfilled row is marked, never disguised.
+TAPE_BACKFILL_ENABLED = os.getenv("NIFTY_TAPE_BACKFILL", "1") != "0"
 
 
 def tape_path(date_str: str) -> Path:
@@ -2196,21 +2263,7 @@ def _gap_minutes_seen(date_str: str) -> set[str]:
     cached = _GAP_MINUTES.get(key)
     if cached is not None:
         return cached
-    seen: set[str] = set()
-    try:
-        with open(path) as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    t = json.loads(line).get("t")
-                except (json.JSONDecodeError, ValueError):
-                    continue
-                if isinstance(t, str) and t:
-                    seen.add(t[:16])
-    except OSError:
-        pass
+    seen = _journal.read_minute_keys(path)
     _GAP_MINUTES[key] = seen
     return seen
 
@@ -2232,20 +2285,9 @@ def _append_gap(date_str: str, t_iso: str, reason: str, detail: str = "") -> Non
     is journalled once — otherwise the coverage numbers claim more missing
     minutes than the session actually had.
     """
-    try:
-        minute = str(t_iso)[:16]
-        seen = _gap_minutes_seen(date_str)
-        if minute in seen:
-            return
-        TAPE_DIR.mkdir(parents=True, exist_ok=True)
-        entry = {"t": t_iso, "reason": reason}
-        if detail:
-            entry["detail"] = str(detail)[:200]
-        with open(gap_log_path(date_str), "a") as f:
-            f.write(json.dumps(entry) + "\n")
-        seen.add(minute)
-    except Exception:
-        pass
+    _journal.append_gap(gap_log_path(date_str), t_iso, reason, detail=detail,
+                        seen=_gap_minutes_seen(date_str),
+                        dedupe=_journal.MINUTE)
 
 
 def read_gap_reasons(date_str: str) -> dict:
@@ -2258,6 +2300,12 @@ def read_gap_reasons(date_str: str) -> dict:
     Days recorded before the journal existed simply have no file — the UI
     treats a missing journal as "reasons not recorded" and falls back to the
     coverage numbers alone.
+
+    A journalled minute may LATER be reconstructed from the 10-second chain
+    feed (see :func:`backfill_tape_from_chain10s`). The journal stays the
+    record of what the recorder failed to capture; the tape row's
+    ``backfilled: true`` is the record of what filled the hole. Neither is
+    rewritten — decide coverage from the rows, not from this count.
     """
     path = gap_log_path(date_str)
     if not path.exists():
@@ -2322,6 +2370,7 @@ def read_tape(date_str: str) -> list[dict]:
                     continue
     except OSError:
         return []
+    rows.sort(key=lambda r: str(r.get("t") or ""))
     if len(_TAPE_READ_CACHE) >= 8:
         _TAPE_READ_CACHE.clear()
     _TAPE_READ_CACHE[key] = (stat.st_mtime_ns, stat.st_size, rows)
@@ -2394,28 +2443,10 @@ def _tail_last_json_line(path: Path, chunk: int = 65536) -> Optional[dict]:
     These logs reach tens of MB by the close, and both the tape and snapshot
     writers only need the final line. Reading the whole file every minute was
     O(file) blocking work; this is O(1) (last ``chunk`` bytes, growing if the
-    last line is longer). Never raises.
+    last line is longer). Never raises. Shared with the generic recorder (see
+    :mod:`api.reports_api._jsonl`).
     """
-    try:
-        if not path.exists():
-            return None
-        with open(path, "rb") as f:
-            f.seek(0, os.SEEK_END)
-            size = f.tell()
-            window = min(chunk, size)
-            while True:
-                f.seek(size - window)
-                data = f.read(window)
-                lines = [ln for ln in data.split(b"\n") if ln.strip()]
-                if len(lines) >= (1 if window == size else 2) or window == size:
-                    break
-                window = min(window * 2, size)
-        if not lines:
-            return None
-        value = json.loads(lines[-1])
-        return value if isinstance(value, dict) else None
-    except Exception:
-        return None
+    return _jsonl.tail_last_json_line(path, chunk)
 
 
 #: Minutes already written to the day's replay log (in-process cache). The
@@ -2438,22 +2469,7 @@ def _snapshot_minutes(date_str: str) -> set[str]:
     cached = _SNAPSHOT_MINUTES.get(key)
     if cached is not None:
         return cached
-    seen: set[str] = set()
-    try:
-        with open(path) as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    value = json.loads(line)
-                except (json.JSONDecodeError, ValueError):
-                    continue
-                t = value.get("t") if isinstance(value, dict) else None
-                if isinstance(t, str) and t:
-                    seen.add(t[:16])
-    except OSError:
-        pass
+    seen = _journal.read_minute_keys(path)
     _SNAPSHOT_MINUTES[key] = seen
     return seen
 
@@ -2635,6 +2651,13 @@ def derive_tape_rows(raw_rows: list[dict]) -> list[dict]:
       - ``put_tick`` likewise for ``pe_vol``
       - ``pcr_doi  = pcr_oi - first.pcr_oi`` rounded 2dp
       - ``spot_flip = spot - flip`` rounded 2dp; None when ``flip`` is null
+      - ``ce_doi_interval`` / ``pe_doi_interval`` = OI change vs the PREVIOUS
+        row (the minute-over-minute flow), while ``call_doi``/``put_doi`` are
+        cumulative vs the day's first row. ``ce_oi_change_day`` /
+        ``pe_oi_change_day`` (recorded per row) are ``oi - prev_oi`` vs the
+        previous SESSION's close — three different questions, three keys.
+        Backfilled rows carry ``None`` for the day change (the 10-second feed
+        has no ``prev_oi``), never a fabricated zero.
     Raw keys are preserved; derived keys are added.
 
     The rows are SORTED by ``t`` before anything is differenced. The file is
@@ -2654,6 +2677,8 @@ def derive_tape_rows(raw_rows: list[dict]) -> list[dict]:
     out: list[dict] = []
     prev_ce_vol: Optional[int] = None
     prev_pe_vol: Optional[int] = None
+    prev_ce_oi: Optional[int] = None
+    prev_pe_oi: Optional[int] = None
     for i, r in enumerate(raw_rows):
         ce_oi = _safe_int(r.get("ce_oi"))
         pe_oi = _safe_int(r.get("pe_oi"))
@@ -2665,6 +2690,9 @@ def derive_tape_rows(raw_rows: list[dict]) -> list[dict]:
         # OI deltas vs the day's first row (whole contracts).
         call_doi = ce_oi - f_ce
         put_doi = pe_oi - f_pe
+        # Minute-over-minute OI flow, distinct from the vs-first cumulative.
+        ce_doi_interval = ce_oi - prev_ce_oi if prev_ce_oi is not None else 0
+        pe_doi_interval = pe_oi - prev_pe_oi if prev_pe_oi is not None else 0
         # Net build: put-side DOI minus call-side DOI.
         net = put_doi - call_doi
         # Net as % of absolute positioning flow; guarded against zero.
@@ -2693,10 +2721,14 @@ def derive_tape_rows(raw_rows: list[dict]) -> list[dict]:
         out.append({**r,
                     "call_doi": call_doi, "put_doi": put_doi,
                     "net": net, "net_pct": net_pct,
+                    "ce_doi_interval": ce_doi_interval,
+                    "pe_doi_interval": pe_doi_interval,
                     "call_tick": call_tick, "put_tick": put_tick,
                     "pcr_doi": pcr_doi, "spot_flip": spot_flip})
         prev_ce_vol = ce_vol
         prev_pe_vol = pe_vol
+        prev_ce_oi = ce_oi
+        prev_pe_oi = pe_oi
     return out
 
 
@@ -3014,19 +3046,236 @@ def reconcile_spot(chain_spot: float, index_spot: Optional[float],
 
 
 def _peek_last_tape_row(path: Path, minute: str) -> tuple[Optional[float], bool]:
-    """``(last row's spot, last row shares this minute)`` — never raises."""
-    last = _tail_last_json_line(path)
-    if not last:
+    """``(latest row's spot, latest row shares this minute)`` — never raises.
+
+    A backfill can insert an older minute before the live tail; the newest row
+    is the maximum timestamp, not necessarily the final line.
+    """
+    rows = read_tape(path.stem)
+    if not rows:
         return None, False
+    last = max(rows, key=lambda row: str(row.get("t") or ""))
     last_spot = _safe_float(last.get("spot")) or None
     return last_spot, str(last.get("t", ""))[:16] == minute
 
 
 def _append_tape_line(path: Path, row: dict) -> None:
-    """Append one JSON line to the day's tape (blocking; call via a thread)."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "a") as f:
-        f.write(json.dumps(row) + "\n")
+    """Append one JSON line to the day's tape (blocking; call via a thread).
+
+    Default ``json.dumps`` separators are part of the recorded bytes — every
+    existing NIFTY tape file and every fixture was written this way.
+    """
+    _jsonl.append_line(path, row)
+
+
+def tape_strikes_from_chain10s(cells: list) -> list[dict]:
+    """Report-shaped strikes from one slim 10-second chain frame.
+
+    Slim cells are ``[strike, ceLtp, ceOi, ceVol, peLtp, peOi, peVol]`` (see
+    ``chain10s.slim_rows``). A zero there means "not served", so it becomes
+    ``None`` — never a tradeable ₹0 premium. Pure; ``[]`` on junk input.
+    """
+    rows: list[dict] = []
+    for cell in cells or []:
+        if not isinstance(cell, (list, tuple)) or len(cell) < 7:
+            continue
+        strike = _safe_float(cell[0])
+        if strike <= 0:
+            continue
+
+        def _pos(value):
+            v = _safe_float(value)
+            return v if v > 0 else None
+
+        rows.append({
+            "strike": strike,
+            "ce": {"ltp": _pos(cell[1]), "oi": _safe_int(cell[2]),
+                   "volume": _safe_int(cell[3])},
+            "pe": {"ltp": _pos(cell[4]), "oi": _safe_int(cell[5]),
+                   "volume": _safe_int(cell[6])},
+        })
+    rows.sort(key=lambda r: r["strike"])
+    return rows
+
+
+def tape_row_from_chain10s_frame(frame: dict,
+                                 t_write: Optional[str] = None
+                                 ) -> Optional[dict]:
+    """One tape row reconstructed from a 10-second chain frame.
+
+    Only what the 10-second feed can actually prove is written: spot, chain
+    OI/volume totals, PCR, per-strike chain, ATM premiums, computed max pain.
+    Walls, GEX and IV are **not** derivable from the slim frame, so they stay
+    ``None`` / empty and the row says so (``backfilled``, ``source``,
+    ``backfill_note``) — a backfilled minute must never pass for a recorded
+    one. Returns ``None`` when the frame carries no usable spot/chain.
+    """
+    if not isinstance(frame, dict):
+        return None
+    t = frame.get("t")
+    spot = _safe_float(frame.get("spot"))
+    strikes = tape_strikes_from_chain10s(frame.get("rows") or [])
+    if not isinstance(t, str) or not t or spot <= 0 or not strikes:
+        return None
+    ce_oi = sum(_safe_int((r.get("ce") or {}).get("oi")) for r in strikes)
+    pe_oi = sum(_safe_int((r.get("pe") or {}).get("oi")) for r in strikes)
+    ce_vol = sum(_safe_int((r.get("ce") or {}).get("volume")) for r in strikes)
+    pe_vol = sum(_safe_int((r.get("pe") or {}).get("volume")) for r in strikes)
+    if ce_oi + pe_oi == 0:
+        return None
+    atm_strike, atm_ce_ltp, atm_pe_ltp = _atm_premium_snapshot(strikes, spot)
+    return {
+        "t": t,
+        "t_fetch": t,
+        "t_write": t_write or datetime.now(config.IST).isoformat(),
+        "spot": spot,
+        "ce_oi": ce_oi,
+        "pe_oi": pe_oi,
+        "ce_vol": ce_vol,
+        "pe_vol": pe_vol,
+        "pcr_oi": compute_pcr(pe_oi, ce_oi),
+        "pcr_vol": compute_pcr(pe_vol, ce_vol),
+        # ``max_pain`` on a recorded row is Upstox's official value; the slim
+        # frame only supports the computed one, so the official slot stays
+        # empty rather than mixing two definitions in one key.
+        "max_pain": None,
+        "max_pain_computed": compute_max_pain([
+            {"strike": r["strike"],
+             "ce_oi": _safe_int((r.get("ce") or {}).get("oi")),
+             "pe_oi": _safe_int((r.get("pe") or {}).get("oi"))}
+            for r in strikes
+        ]),
+        "flip": None,
+        "net_gex": None,
+        "gex_degraded": True,
+        "walls": {"calls": [], "puts": []},
+        "call_wall": None,
+        "put_wall": None,
+        "expiry": frame.get("expiry") or "",
+        "atm_strike": atm_strike,
+        "atm_ce_ltp": atm_ce_ltp,
+        "atm_pe_ltp": atm_pe_ltp,
+        "atm_ce_iv": None,
+        "atm_pe_iv": None,
+        "strikes_top": _strike_oi_snapshot(strikes, spot),
+        "chain": _premium_chain_snapshot(strikes, spot),
+        # prev_oi is not in the slim frame -> the day-change OI is unknown for
+        # this minute. ``None``, not ``0``: an unknown delta must not read as
+        # "no OI change".
+        "ce_oi_change_day": None,
+        "pe_oi_change_day": None,
+        "backfilled": True,
+        "source": "chain10s",
+        "backfill_note": ("reconstructed from 10s chain frames; "
+                          "walls/GEX/IV unavailable"),
+    }
+
+
+def _chain10s_minute_frames(date_str: str) -> dict[str, dict]:
+    """``{HH:MM: frame}`` for the day's 10-second snapshots (last frame wins).
+
+    A minute holds ~6 frames; the LAST one is the state the minute closed on,
+    which is the row a 1-minute recorder would have written. Read-only access
+    to the chain10s day file — this module never writes that feed. Never
+    raises (a missing/disabled poller simply yields no frames).
+    """
+    try:
+        from api.reports_api import chain10s
+
+        frames = chain10s._read_day(date_str)
+    except Exception:
+        return {}
+    per_minute: dict[str, dict] = {}
+    for frame in frames:
+        if not isinstance(frame, dict):
+            continue
+        t = frame.get("t")
+        if isinstance(t, str) and len(t) >= 16:
+            per_minute[t[:16]] = frame
+    return per_minute
+
+
+def _minute_gap(prev_minute: Optional[str], minute: str) -> Optional[int]:
+    """Whole minutes between two ``YYYY-MM-DDTHH:MM`` keys; ``None`` if bad."""
+    try:
+        prev = datetime.fromisoformat(str(prev_minute))
+        cur = datetime.fromisoformat(str(minute))
+    except (TypeError, ValueError):
+        return None
+    return int((cur - prev).total_seconds() // 60)
+
+
+async def backfill_tape_from_chain10s(date_str: str,
+                                      now: Optional[datetime] = None) -> int:
+    """Fill TODAY's missing tape minutes from the 10-second chain feed.
+
+    A transient failure used to leave a permanent hole: the tape is the
+    canonical record and nothing ever retried a past minute. The 10-second
+    poller keeps its own frames, so a missing minute can be reconstructed
+    (aggregates + per-strike chain only, see
+    :func:`tape_row_from_chain10s_frame`).
+
+    Rules: today only, never a minute that already has a row, never the
+    current in-progress minute (the recorder owns it), and never a full
+    report. Idempotent — a second call appends nothing. Returns the number of
+    rows appended.
+    """
+    if not TAPE_BACKFILL_ENABLED:
+        return 0
+    global _tape_backfills
+    ts = now or datetime.now(config.IST)
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=config.IST)
+    if date_str != ts.strftime("%Y-%m-%d"):
+        return 0
+    current_minute = ts.strftime("%Y-%m-%dT%H:%M")
+    frames = await asyncio.to_thread(_chain10s_minute_frames, date_str)
+    if not frames:
+        return 0
+    path = tape_path(date_str)
+    added = 0
+    appended: list[dict] = []
+    async with _tape_lock(date_str):
+        existing_rows = await asyncio.to_thread(read_tape, date_str)
+        existing = {str((r or {}).get("t") or "")[:16]
+                    for r in existing_rows if isinstance(r, dict)}
+        for minute in sorted(frames):
+            if minute in existing or minute >= current_minute:
+                continue
+            row = tape_row_from_chain10s_frame(frames[minute])
+            if row is None:
+                continue
+            appended.append(row)
+            existing.add(minute)
+            added += 1
+        if appended:
+            # Backfilled rows belong before the live tail. Appending them at
+            # EOF makes the next tick's tail read the oldest spot and every
+            # chart read a non-monotonic tape, so rewrite once, sorted.
+            ordered = [r for r in existing_rows if isinstance(r, dict)] + appended
+            ordered.sort(key=lambda r: str(r.get("t") or ""))
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(".jsonl.tmp")
+            await asyncio.to_thread(
+                tmp.write_text,
+                "".join(json.dumps(r) + "\n" for r in ordered),
+                encoding="utf-8",
+            )
+            await asyncio.to_thread(tmp.replace, path)
+    if added:
+        _tape_backfills += added
+        logger.warning("nifty tape: backfilled %d missing minute(s) for %s "
+                       "from the 10s chain feed", added, date_str)
+    return added
+
+
+#: A tick already running means a second caller must NOT start a parallel
+#: fetch/write: two overlapping ticks read the same "last row" and race the
+#: minute bucket. The recorder loop is sequential, but the HTTP burst feed and
+#: a watchdog can call a tick too.
+_TAPE_INFLIGHT = False
+#: Minutes appended from the 10-second chain feed (status / diagnostics).
+_tape_backfills: int = 0
 
 
 async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dict]:
@@ -3040,47 +3289,155 @@ async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dic
     are skipped (returns None). ALL exceptions are swallowed — returns the row
     on success, None otherwise — but a failure is LOGGED and journalled with
     its reason (an Upstox 401 must be visible, not a silent hole).
+
+    A failed fetch/validation is RETRIED inside the same minute
+    (:data:`TAPE_FETCH_ATTEMPTS`, 2-3 s backoff) before the minute is
+    journalled as a gap: one transient 502 at 09:15 used to lose the opening
+    minute for the whole day. A tick never overlaps another tick.
     """
+    global _TAPE_INFLIGHT, _tape_last_skip
+    if _TAPE_INFLIGHT:
+        _tape_last_skip = "in-flight"
+        return None
+    _TAPE_INFLIGHT = True
+    try:
+        return await _record_tape_tick_once(now)
+    finally:
+        _TAPE_INFLIGHT = False
+
+
+async def _record_tape_tick_once(now: Optional[datetime] = None
+                                 ) -> Optional[dict]:
+    """One tick's fetch -> validate -> retry -> write sequence."""
     global _tape_last_skip, _tape_last_error
     _tape_last_error = None
-    # ONE computation per minute serves both the light tape row and the full
-    # replay snapshot. This used to be two separate ``_compute_live`` passes
-    # (one light, one full), i.e. two chain fetches + two Sensex builds every
-    # minute; the extra pass bought nothing (the tape row reads aggregates that
-    # the full report already contains) and doubled the per-minute stall budget.
-    try:
-        report = await _compute_live(None, walkback_days=0, with_verdicts=True,
-                                     with_candles=True)
-    except Exception as exc:
-        # A dead upstream (401 / network) is a bad MINUTE, not a dead
-        # recorder: log it, journal it, and let the next tick try again.
-        _tape_last_skip = "chain-failed"
-        _tape_last_error = f"chain fetch failed: {type(exc).__name__}: {str(exc)[:160]}"
-        stamp, gdate = _tick_stamp(now)
-        _append_gap(gdate, stamp, "chain-failed", _err_detail(exc))
-        logger.warning("nifty tape: chain fetch failed (%s) — retrying next tick: %s",
-                       type(exc).__name__, exc)
+    # The row's timestamp is the FETCH START, not the time after a ~50 s
+    # build. The old stamp landed the row in the NEXT minute bucket whenever the
+    # build was slow (and made ``t`` lie about when the data was true).
+    ts = now or datetime.now(config.IST)
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=config.IST)
+    t_iso = ts.isoformat()
+    date_str = ts.strftime("%Y-%m-%d")
+    minute = t_iso[:16]
+    path = tape_path(date_str)
+
+    def _clock() -> datetime:
+        # A caller-supplied ``now`` is the tick's clock: retries must be
+        # deterministic in tests and must not consult the wall clock when the
+        # caller already pinned the minute.
+        if now is not None:
+            return now
+        return datetime.now(config.IST)
+
+    # Pre-flight peek: a tick whose minute is already on disk is a no-op, and
+    # knowing the previous row now feeds both the retry decision (its spot is
+    # the jump baseline) and the backfill gap test.
+    last_row = await asyncio.to_thread(_tail_last_json_line, path)
+    last_spot = _safe_float((last_row or {}).get("spot")) or None
+    last_minute = str((last_row or {}).get("t") or "")[:16] or None
+    if last_minute == minute:
+        _tape_last_skip = "same-minute"
         return None
+
+    attempts = max(1, int(TAPE_FETCH_ATTEMPTS))
+    started = time.monotonic()
+    reason: Optional[str] = None
+    detail = ""
+    report: Optional[dict] = None
+    for attempt in range(attempts):
+        report = None
+        reason = None
+        detail = ""
+        # ONE computation per minute serves both the light tape row and the full
+        # replay snapshot. This used to be two separate ``_compute_live`` passes
+        # (one light, one full), i.e. two chain fetches + two Sensex builds
+        # every minute; the extra pass bought nothing (the tape row reads
+        # aggregates that the full report already contains) and doubled the
+        # per-minute stall budget.
+        try:
+            report = await _compute_live(None, walkback_days=0,
+                                         with_verdicts=True, with_candles=True)
+        except Exception as exc:
+            reason, detail = "chain-failed", _err_detail(exc)
+            # The FIRST failure is the one an operator must see; retries are
+            # INFO so a dead token does not triple the per-minute log noise.
+            log = logger.warning if attempt == 0 else logger.info
+            log("nifty tape: chain fetch failed (%s) on attempt %d/%d: %s",
+                type(exc).__name__, attempt + 1, attempts, exc)
+        else:
+            if not has_usable_chain(report.get("strikes")):
+                # Includes the 09:15 opening tick: the chain is often not
+                # populated yet, which is exactly the minute worth retrying.
+                reason = "empty-chain"
+        if report is not None and reason is None:
+            try:
+                async with _tape_lock(date_str):
+                    row = await _write_tape_row(report, date_str, t_iso, ts,
+                                                path, minute)
+            except Exception as exc:
+                # A write error may have appended a partial line; never retry
+                # a write (a duplicate row is worse than one missing minute).
+                _tape_last_skip = "chain-failed"
+                _tape_last_error = (f"tape write failed: "
+                                    f"{type(exc).__name__}: {str(exc)[:160]}")
+                _append_gap(date_str, t_iso, "chain-failed", _err_detail(exc))
+                logger.warning("nifty tape: row write failed (%s): %s",
+                               type(exc).__name__, exc)
+                return None
+            if row is not None:
+                await _maybe_backfill(date_str, last_minute, minute, ts)
+                return row
+            reason = _tape_last_skip or "chain-failed"
+            if reason == "same-minute":
+                # Another tick won the minute while we were fetching.
+                return None
+            if reason == "chain-failed":
+                # A WRITE failure (already logged + journalled by the writer).
+                # Retrying could append the row twice, so it is not retried.
+                return None
+        # No retry when the minute already rolled over (the next tick owns the
+        # new minute), when the attempt budget is spent, or when retrying cannot
+        # finish inside the tick timeout.
+        if attempt + 1 >= attempts:
+            break
+        if _clock().strftime("%Y-%m-%dT%H:%M") != minute:
+            break
+        if time.monotonic() - started >= TAPE_RETRY_MAX_SEC:
+            break
+        delay = TAPE_RETRY_BACKOFF_SEC[min(attempt,
+                                           len(TAPE_RETRY_BACKOFF_SEC) - 1)]
+        await asyncio.sleep(delay)
+
+    # Exhausted: ONE journalled gap for the minute, with the last reason seen.
+    final_reason = reason or "chain-failed"
+    _tape_last_skip = final_reason
+    if final_reason == "spot-rejected":
+        global _tape_spot_rejections
+        _tape_spot_rejections += 1
+    elif final_reason == "chain-failed" and detail:
+        _tape_last_error = f"chain fetch failed after {attempts} attempt(s): {detail}"
+    _append_gap(date_str, t_iso, final_reason, detail)
+    logger.warning("nifty tape: minute %s lost after %d attempt(s) (%s)",
+                   minute, attempts, final_reason)
+    return None
+
+
+async def _maybe_backfill(date_str: str, last_minute: Optional[str],
+                          minute: str, ts: datetime) -> None:
+    """Reconstruct the minutes between ``last_minute`` and ``minute``.
+
+    A hole is the only trigger: the 10-second feed's day file is a few MB, so
+    it is not read on every healthy tick. Never raises.
+    """
+    gap = _minute_gap(last_minute, minute)
+    if last_minute is None or gap is None or gap < 2:
+        return
     try:
-        ts = now or datetime.now(config.IST)
-        if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=config.IST)
-        t_iso = ts.isoformat()
-        date_str = ts.strftime("%Y-%m-%d")
-        path = tape_path(date_str)
-        minute = t_iso[:16]
-        # Serialise the read-check + write per day: two ticks that both read
-        # "the last row is minute X" would both write minute X+1.
-        async with _tape_lock(date_str):
-            return await _write_tape_row(report, date_str, t_iso, ts, path, minute)
-    except Exception as exc:
-        _tape_last_skip = "chain-failed"
-        _tape_last_error = f"tape write failed: {type(exc).__name__}: {str(exc)[:160]}"
-        stamp, gdate = _tick_stamp(now)
-        _append_gap(gdate, stamp, "chain-failed", _err_detail(exc))
-        logger.warning("nifty tape: row write failed (%s) — retrying next tick: %s",
+        await backfill_tape_from_chain10s(date_str, now=ts)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("nifty tape: backfill failed (%s): %s",
                        type(exc).__name__, exc)
-        return None
 
 
 async def _write_tape_row(report: dict, date_str: str, t_iso: str, ts: datetime,
@@ -3112,90 +3469,30 @@ async def _write_tape_row(report: dict, date_str: str, t_iso: str, ts: datetime,
                 index_spot = None
         spot = reconcile_spot(spot_chain, index_spot, last_spot)
         if spot is None:
-            global _tape_spot_rejections
-            _tape_spot_rejections += 1
+            # The caller retries inside the minute; the gap is journalled only
+            # after the attempts are exhausted (see _record_tape_tick_once).
             _tape_last_skip = "spot-rejected"
-            _append_gap(date_str, t_iso, "spot-rejected")
             return None
         strikes = report.get("strikes", []) or []
-        ce_oi = sum(_safe_int((r.get("ce") or {}).get("oi")) for r in strikes)
-        pe_oi = sum(_safe_int((r.get("pe") or {}).get("oi")) for r in strikes)
         # An empty chain is a failed fetch, not a market state: writing it makes
         # the NEXT row difference into a fake +100M "burst".
         if not has_usable_chain(strikes):
             _tape_last_skip = "empty-chain"
-            _append_gap(date_str, t_iso, "empty-chain")
             return None
-        ce_vol = sum(_safe_int((r.get("ce") or {}).get("volume")) for r in strikes)
-        pe_vol = sum(_safe_int((r.get("pe") or {}).get("volume")) for r in strikes)
-        gex = report.get("gex", {}) or {}
-        # ATM premiums: anchored to the strike nearest spot with a tradeable
-        # premium, so a future burst can be scored in real rupees instead of
-        # index points. Only LTP is stored — the chain is not persisted.
-        atm_strike, atm_ce_ltp, atm_pe_ltp = _atm_premium_snapshot(strikes, spot)
-        # Per-minute GEX + ATM IV so the UI can chart cumulative net gamma and
-        # the ATM IV / straddle series without re-fetching history.
-        try:
-            from api.reports_api.nifty_verdicts import atm_ivs
-            atm_ce_iv, atm_pe_iv = atm_ivs(strikes, spot)
-        except Exception:
-            atm_ce_iv, atm_pe_iv = None, None
-        walls_near = (report.get("walls_near") or report.get("walls")
-                      or {"calls": [], "puts": []})
-        row = {
-            "t": t_iso,
-            "spot": spot,
-            "ce_oi": ce_oi,
-            "pe_oi": pe_oi,
-            "ce_vol": ce_vol,
-            "pe_vol": pe_vol,
-            "pcr_oi": _safe_float(report.get("pcr_oi")),
-            "pcr_vol": _safe_float(report.get("pcr_vol")),
-            "max_pain": _safe_float(report.get("max_pain")),
-            # The live report prefers Upstox's OFFICIAL max pain (sourced from a
-            # 30-min bucket) and only falls back to the computed value, but the
-            # row did not record which. The two disagree by a strike on 21 of 338
-            # rows (2026-10-22), so every "did price pin to max pain" study mixed
-            # two definitions. Store the computed value alongside the printed one.
-            "max_pain_computed": compute_max_pain([
-                {"strike": _safe_float(r.get("strike")) or 0.0,
-                 "ce_oi": _safe_int((r.get("ce") or {}).get("oi")),
-                 "pe_oi": _safe_int((r.get("pe") or {}).get("oi"))}
-                for r in strikes
-            ]) if strikes else None,
-            # A degraded GEX block (no gamma anywhere) is an OI proxy, not a
-            # gamma profile: its flip/net_gex are artefacts and are NOT written
-            # to the tape — a fabricated flip in the day's log is read back as
-            # a real gamma level by every consumer.
-            "flip": None if gex.get("degraded") else gex.get("zero_cross"),
-            "net_gex": None if gex.get("degraded") else gex.get("net_total"),
-            "gex_degraded": bool(gex.get("degraded")),
-            # The NEAR walls: the tape's wall consumers (the wall-migration
-            # detector, the squeeze detector) compare the wall strike
-            # minute-to-minute, so an unrestricted ranking makes the wall
-            # "migrate" whenever a far mega-wall outranks the near one —
-            # six spurious migrations in one afternoon (2026-10-22).
-            "walls": walls_near,
-            # Scalar top-of-book walls: the wall-change detector diffs TWO
-            # FRAMES (this row vs the previous minute), and digging the strike
-            # out of the ranked list on every diff is both slow and easy to get
-            # wrong. ``null`` when the chain had no walls (never 0).
-            "call_wall": _top_wall_strike(walls_near, "calls"),
-            "put_wall": _top_wall_strike(walls_near, "puts"),
-            "expiry": report.get("expiry", ""),
-            "atm_strike": atm_strike,
-            "atm_ce_ltp": atm_ce_ltp,
-            "atm_pe_ltp": atm_pe_ltp,
-            "atm_ce_iv": atm_ce_iv,
-            "atm_pe_iv": atm_pe_iv,
-            # ATM +/-3 strikes with both legs' OI — lets a future alert name the
-            # exact strike instead of only the index total.
-            "strikes_top": _strike_oi_snapshot(strikes, spot),
-            # EVERY strike: CE/PE LTP + OI + volume per strike. Lets the options
-            # paper engine mark a position at the contract it actually bought
-            # (the ATM drifts), and lets walls/PCR be rebuilt per strike later.
-            "chain": _premium_chain_snapshot(strikes, spot),
-        }
+        # The snapshot/replay envelope must carry the SAME spot the tape row
+        # reconciles to. It used to keep the raw chain value, so replay could
+        # disagree with the tape by hundreds of points on a bad upstream print
+        # (the 2026-10-14 corruption). ``spot_raw`` preserves what the chain
+        # said; the row itself is the reconciled value.
+        report_out = report
+        if round(spot, 2) != round(spot_chain, 2):
+            report_out = {**report, "spot": spot, "spot_raw": spot_chain,
+                          "spot_source": "tape_reconciled"}
+        # Field order / values are the frozen contract — see
+        # :func:`api.reports_api._tape_row.build_tape_row`, shared with the
+        # generic (SENSEX / stock) recorder.
+        row = build_tape_row(report, spot=spot, spot_chain=spot_chain,
+                             t_iso=t_iso)
         # Spot freeze: keep the cash-CAS flag from is_cas_window(ts), but
         # the index spot is frozen/fixed from 15:15 through the 15:40 F&O
         # close, so flag the whole 15:15-15:40 window as cas + spot_frozen.
@@ -3221,12 +3518,12 @@ async def _write_tape_row(report: dict, date_str: str, t_iso: str, ts: datetime,
         # (overwritten in place, never deleted).
         try:
             snapshot = {
-                **report,
+                **report_out,
                 "mode": "snapshot",
                 "date": date_str,
                 "snapshot_at": t_iso,
                 "source": "upstox-option-chain",
-                "timeline": build_timeline_skeleton(report),
+                "timeline": build_timeline_skeleton(report_out),
             }
             # ~150-200 KB with indent=2; encoding it on the loop was a visible
             # per-minute stall, so both encode and write happen in a thread.
@@ -3239,7 +3536,7 @@ async def _write_tape_row(report: dict, date_str: str, t_iso: str, ts: datetime,
         # single report computed above. Infallible: a snapshot failure must not
         # stop the light tape row.
         try:
-            await _append_minute_snapshot(date_str, t_iso, report)
+            await _append_minute_snapshot(date_str, t_iso, report_out)
         except Exception:
             pass
         _tape_last_skip = None
@@ -3258,8 +3555,9 @@ _tape_last_tick: Optional[str] = None
 #: Rows dropped because the spot could not be trusted (see reconcile_spot).
 _tape_spot_rejections: int = 0
 #: Why the last tick produced no row: "same-minute" (normal), "spot-rejected"
-#: (data quality) or "chain-failed" (a real error). Lets the status endpoint
-#: tell a deliberate skip apart from a failure.
+#: (data quality), "chain-failed"/"empty-chain" (a real error) or "in-flight"
+#: (a tick was already running). Lets the status endpoint tell a deliberate
+#: skip apart from a failure.
 _tape_last_skip: Optional[str] = None
 _tape_last_error: Optional[str] = None
 _tape_iterations: int = 0
@@ -3512,6 +3810,7 @@ def get_nifty_tape_status():
     return {"last_tick": _tape_last_tick, "last_error": _tape_last_error,
             "iterations": _tape_iterations, "interval_sec": TAPE_INTERVAL_SEC,
             "spot_rejections": _tape_spot_rejections,
+            "backfilled_minutes": _tape_backfills,
             "last_skip": _tape_last_skip}
 
 
@@ -3519,10 +3818,15 @@ def get_nifty_tape_status():
 def get_nifty_tape(date: Optional[str] = Query(default=None, description="Tape date YYYY-MM-DD (default: today)")):
     """Serve the day's per-minute OI tape with derived deltas.
 
-    NOTE: past minutes are NEVER backfilled — rows exist only for minutes
-    the recorder was alive during market hours, so gaps stay gaps. A
-    missing/empty tape yields a 404 ``{is_trading_day: False}`` envelope.
-    See :func:`derive_tape_rows` for the per-row formulas.
+    Rows exist for minutes the recorder was alive during market hours. A
+    minute lost to a transient upstream failure is RETRIED inside its own
+    minute (up to :data:`TAPE_FETCH_ATTEMPTS`) and, if still missing, may be
+    reconstructed from the 10-second chain feed — such a row carries
+    ``backfilled: true`` and ``source: "chain10s"`` and omits what that feed
+    cannot prove (walls, GEX, IV; ``max_pain`` is ``null`` with the computed
+    value in ``max_pain_computed``). Nothing is ever fabricated as a recorded
+    minute. A missing/empty tape yields a 404 ``{is_trading_day: False}``
+    envelope. See :func:`derive_tape_rows` for the per-row formulas.
 
     Per-row ``chain`` snapshots are trimmed to the strikes the report UI can
     read (:func:`_trim_tape_chains`) — the recorded file keeps every strike,

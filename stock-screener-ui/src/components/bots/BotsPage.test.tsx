@@ -58,10 +58,22 @@ vi.mock("../../hooks/useStoreSubscription", () => ({
   useStoreSubscription: vi.fn(),
 }));
 
-vi.mock("../../state/holidays", () => ({
-  subscribeToHolidays: vi.fn(),
-  isMarketClosedToday: vi.fn().mockReturnValue(false),
-}));
+// Fixed IST instant injected into the real session helper so bot pages render
+// the same "open" state they did before, without depending on the real clock.
+const clock = vi.hoisted(() => ({ now: new Date("2026-11-16T05:30:00Z") })); // Mon 11:00 IST
+
+vi.mock("../../state/holidays", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../state/holidays")>();
+  const istDate = (now: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(now);
+  return {
+    ...actual,
+    subscribeToHolidays: vi.fn(),
+    getHolidayState: () => ({ ...actual.getHolidayState() }),
+    isMarketClosedToday: (now?: Date) => actual.isTradingHoliday(istDate(now ?? clock.now)),
+    isMarketOpenNow: (now?: Date) => actual.isMarketOpenNow(now ?? clock.now),
+  };
+});
 
 import { BotsPage } from "./BotsPage";
 

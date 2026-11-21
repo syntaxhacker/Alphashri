@@ -9,6 +9,7 @@ import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
 import {
   CHART_HEIGHTS,
+  MOBILE_CHART_TARGET,
   NiftyChartPanel,
   LevelLegend,
   buildMarkLines,
@@ -19,6 +20,7 @@ import {
   mergeCollidingLabels,
 } from "./NiftyChartPanel";
 import type { NiftyGex, NiftyReport } from "@/types/niftyReport";
+import { detectPatterns } from "@/api/chartPatterns";
 
 vi.mock("@/components/chart/TradingViewChart", async () => {
   const { onMount } = await import("solid-js");
@@ -28,7 +30,13 @@ vi.mock("@/components/chart/TradingViewChart", async () => {
       markLines?: { label: { formatter: string } }[];
       emaData?: unknown[];
       fitMarkLines?: boolean;
-      touchMarkers?: { time: string; value: number }[];
+      touchMarkers?: {
+        time: string;
+        value: number;
+        shape?: string;
+        color?: string;
+        text?: string;
+      }[];
     }) => {
       onMount(() => {
         panelMocks.tvMounts += 1;
@@ -47,6 +55,9 @@ vi.mock("@/components/chart/TradingViewChart", async () => {
           data-emas={props.emaData?.length ?? 0}
           data-fit-marklines={props.fitMarkLines ? "1" : "0"}
           data-touch-markers={props.touchMarkers?.length ?? 0}
+          data-touch-details={(props.touchMarkers ?? [])
+            .map((m) => `${m.shape ?? "circle"}:${m.color ?? ""}:${m.text ?? ""}`)
+            .join("|")}
         />
       );
     },
@@ -67,8 +78,33 @@ vi.mock("./DepthChart", async () => {
   return { DepthChart: MockDepthChart };
 });
 
+vi.mock("@/api/chartPatterns", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/api/chartPatterns")>();
+  return {
+    ...actual,
+    detectPatterns: vi.fn(async () => ({
+      hits: [
+        {
+          pattern_id: "double-bottom",
+          pattern_name: "Double bottom",
+          direction: "bullish",
+          status: "confirmed",
+          breakout_level: 25650,
+          target: 25800,
+          stop: 25500,
+          confidence: 80,
+          bars_ago: 0,
+        },
+      ],
+    })),
+  };
+});
+
+const CHART_SOURCE_KEY = "nifty.chartSource";
+
 afterEach(() => {
   cleanup();
+  window.localStorage.removeItem(CHART_SOURCE_KEY);
   vi.clearAllMocks();
   panelMocks.tvMounts = 0;
   panelMocks.depthMounts = 0;
@@ -185,6 +221,19 @@ describe("NiftyChartPanel", () => {
     // Dense layout: levels are on the chart, no legend row in the panel.
     expect(screen.queryByTestId("nifty-level-legend")).not.toBeInTheDocument();
     expect(screen.queryByTestId("nifty-chart-empty")).not.toBeInTheDocument();
+  });
+
+  test("mobile chart contract: the fill body declares the >=240px target", () => {
+    expect(MOBILE_CHART_TARGET).toBe(240);
+    r(() => <NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />);
+    const wrap = screen.getByTestId("nifty-chart-wrap");
+    expect(wrap).toHaveAttribute("data-fill", "1");
+    expect(wrap).toHaveAttribute("data-mobile-chart-min", String(MOBILE_CHART_TARGET));
+    // No fixed pixel height on the flex body — the row grows after the flow
+    // band collapses, and the body fills it via flex-1 / min-h-0.
+    expect(wrap.className).toContain("flex-1");
+    expect(wrap.className).toContain("min-h-0");
+    expect(wrap.style.height).toBe("");
   });
 
   test("default fills; size toggle pins S 180px → XL 760px", async () => {
@@ -1006,5 +1055,252 @@ describe("mergeCollidingLabels", () => {
     // MP 22700 + CW 22705 are 5 pts apart → one gutter label, no duplicates.
     expect(labels.filter((l) => l.includes("MP 22,700") || l.includes("CW 22,705"))).toHaveLength(1);
     expect(labels.join(" ")).toContain("MP 22,700 · CW");
+  });
+});
+
+describe("NiftyChartPanel three-way chart source", () => {
+  const toggle = () => screen.getByTestId("nifty-chart-source");
+  const choose = async (label: "LIVE" | "PATTERNS" | "OFFLINE") => {
+    await userEvent.setup().click(within(toggle()).getByRole("button", { name: label }));
+  };
+  const sourceReport = () =>
+    mockReport({
+      candles: [
+        { time: "2026-10-12T09:15:00", open: 25600, high: 25650, low: 25580, close: 25620, volume: 1000 },
+        { time: "2026-10-12T09:16:00", open: 25620, high: 25680, low: 25600, close: 25640, volume: 1100 },
+        { time: "2026-10-12T09:20:00", open: 25640, high: 25700, low: 25610, close: 25680, volume: 1200 },
+      ],
+    });
+
+  test("(a) renders LIVE / PATTERNS / OFFLINE with exact labels", () => {
+    r(() => <NiftyChartPanel report={sourceReport()} mode="live" view="chart" />);
+    const buttons = within(toggle()).getAllByRole("button");
+    expect(buttons.map((b) => b.textContent)).toEqual(["LIVE", "PATTERNS", "OFFLINE"]);
+    expect(buttons[0]).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("(b) selecting each source changes the emitted candle / overlay input", async () => {
+    r(() => (
+      <NiftyChartPanel
+        report={sourceReport()}
+        mode="eod"
+        view="chart"
+        asOf="2026-10-12T09:16:00"
+      />
+    ));
+    const chart = () => screen.getByTestId("tradingview-chart");
+    // LIVE: full streamed series (3 bars), no overlay.
+    expect(chart()).toHaveAttribute("data-candles", "3");
+    const baseMarks = Number(chart().getAttribute("data-marklines"));
+
+    // PATTERNS: same series + the pattern overlay levels.
+    await choose("PATTERNS");
+    await userEvent.setup().click(screen.getByTestId("nifty-patterns-scan"));
+    expect(await screen.findByTestId("nifty-patterns-strip")).toHaveAttribute("data-status", "ready");
+    expect(chart()).toHaveAttribute("data-candles", "3");
+    expect(Number(chart().getAttribute("data-marklines"))).toBeGreaterThan(baseMarks);
+
+    // OFFLINE: recorded/replay series clipped at the playhead (2 bars), overlay gone.
+    await choose("OFFLINE");
+    expect(chart()).toHaveAttribute("data-candles", "2");
+    expect(Number(chart().getAttribute("data-marklines"))).toBe(baseMarks);
+
+    // Switching sources never remounts the chart engine.
+    expect(panelMocks.tvMounts).toBe(1);
+    await choose("LIVE");
+    expect(chart()).toHaveAttribute("data-candles", "3");
+    expect(panelMocks.tvMounts).toBe(1);
+  });
+
+  test("(c) PATTERNS with no scan shows the run affordance", async () => {
+    r(() => <NiftyChartPanel report={sourceReport()} mode="live" view="chart" />);
+    await choose("PATTERNS");
+    const run = screen.getByTestId("nifty-patterns-run");
+    expect(run).toBeInTheDocument();
+    expect(run).toHaveTextContent(/run/i);
+    expect(screen.queryByTestId("nifty-patterns-strip")).not.toBeInTheDocument();
+  });
+
+  test("(d) OFFLINE with no recording shows an honest empty state", async () => {
+    r(() => <NiftyChartPanel report={sourceReport()} mode="live" view="chart" />);
+    await choose("OFFLINE");
+    const empty = screen.getByTestId("nifty-chart-offline-empty");
+    expect(empty).toBeInTheDocument();
+    expect(empty).toHaveTextContent(/no recorded data/i);
+    expect(screen.queryByTestId("nifty-chart-empty")).not.toBeInTheDocument();
+    expect(screen.getByTestId("nifty-chart-wrap")).toHaveStyle({ display: "none" });
+  });
+
+  test("(e) source choice persists across a remount", async () => {
+    const first = r(() => <NiftyChartPanel report={sourceReport()} mode="live" view="chart" />);
+    await choose("OFFLINE");
+    expect(window.localStorage.getItem(CHART_SOURCE_KEY)).toBe("offline");
+    first.unmount();
+    r(() => <NiftyChartPanel report={sourceReport()} mode="live" view="chart" />);
+    expect(within(toggle()).getByRole("button", { name: "OFFLINE" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("nifty-chart-offline-empty")).toBeInTheDocument();
+  });
+});
+
+describe("NiftyChartPanel PATTERNS visible result", () => {
+  const toggle = () => screen.getByTestId("nifty-chart-source");
+  const choose = async (label: "LIVE" | "PATTERNS" | "OFFLINE") => {
+    await userEvent.setup().click(within(toggle()).getByRole("button", { name: label }));
+  };
+  const withCandles = () =>
+    mockReport({
+      candles: [
+        { time: "2026-10-12T09:15:00", open: 25600, high: 25650, low: 25580, close: 25620, volume: 1000 },
+        { time: "2026-10-12T09:16:00", open: 25620, high: 25680, low: 25600, close: 25640, volume: 1100 },
+        { time: "2026-10-12T09:20:00", open: 25640, high: 25700, low: 25610, close: 25680, volume: 1200 },
+      ],
+    });
+  const chart = () => screen.getByTestId("tradingview-chart");
+  const wrap = () => screen.getByTestId("nifty-chart-wrap");
+  const scanAndWait = async () => {
+    await userEvent.setup().click(screen.getByTestId("nifty-patterns-scan"));
+    const strip = await screen.findByTestId("nifty-patterns-strip");
+    expect(strip).toHaveAttribute("data-status", "ready");
+    return strip;
+  };
+
+  test("(a) entering PATTERNS with no prior scan states it is not scanned yet and keeps the run affordance", async () => {
+    r(() => <NiftyChartPanel report={withCandles()} mode="live" view="chart" />);
+    await choose("PATTERNS");
+    const empty = screen.getByTestId("nifty-patterns-empty");
+    expect(empty).toHaveTextContent(/not scanned yet/i);
+    expect(screen.getByTestId("nifty-patterns-run")).toBeInTheDocument();
+    // The detector is on-demand: switching source does not fire a request.
+    expect(detectPatterns).not.toHaveBeenCalled();
+  });
+
+  test("(b) a no-pattern result states the lookback and result legibly, not in a 9px whisper", async () => {
+    vi.mocked(detectPatterns).mockResolvedValueOnce({
+      symbol: "NIFTY",
+      timeframe: "1m",
+      data_through: "2026-10-12 15:30:00",
+      hits: [],
+      count: 0,
+    });
+    r(() => <NiftyChartPanel report={withCandles()} mode="live" view="chart" />);
+    await choose("PATTERNS");
+    const strip = await scanAndWait();
+    expect(strip).toHaveTextContent(/no pattern/i);
+    expect(strip.textContent).toMatch(/150[\s\S]*bars/i);
+    expect(strip).toHaveStyle({ "font-size": "11px" });
+    const badge = screen.getByTestId("nifty-patterns-chart-badge");
+    expect(badge).toHaveTextContent(/150.*1m.*no pattern/i);
+    expect(strip.title).toContain("2026-10-12 15:30:00");
+  });
+
+  test("(c) a no-pattern scan still changes chart input: one annotation marker, no fabricated levels", async () => {
+    vi.mocked(detectPatterns).mockResolvedValueOnce({
+      symbol: "NIFTY",
+      timeframe: "1m",
+      data_through: null,
+      hits: [],
+      count: 0,
+    });
+    r(() => <NiftyChartPanel report={withCandles()} mode="live" view="chart" />);
+    const baseline = chart().getAttribute("data-touch-details") ?? "";
+    const baseMarks = Number(chart().getAttribute("data-marklines") ?? 0);
+    const baseCount = Number(chart().getAttribute("data-touch-markers") ?? 0);
+
+    await choose("PATTERNS");
+    await scanAndWait();
+    expect(chart().getAttribute("data-touch-markers")).toBe(String(baseCount + 1));
+    expect(chart().getAttribute("data-touch-details") ?? "").not.toBe(baseline);
+    expect(chart().getAttribute("data-touch-details")).toContain(`circle:${palette.TEXT_MUTED}`);
+    // No hit means no breakout/target/stop lines — nothing is presented as a signal.
+    expect(Number(chart().getAttribute("data-marklines"))).toBe(baseMarks);
+    expect(wrap()).toHaveAttribute("data-pattern-source", "none");
+    expect(wrap()).toHaveAttribute("data-pattern-overlays", "0");
+  });
+
+  test("(d) a hit still renders exactly one overlay's worth of marks and no no-pattern marker", async () => {
+    r(() => <NiftyChartPanel report={withCandles()} mode="live" view="chart" />);
+    const baseMarks = Number(chart().getAttribute("data-marklines") ?? 0);
+    await choose("PATTERNS");
+    await scanAndWait();
+    const labels = chart().getAttribute("data-markline-labels") ?? "";
+    for (const code of ["P▸BRK", "P▸TGT", "P▸SL"]) {
+      expect(labels.split(code)).toHaveLength(2);
+    }
+    expect(Number(chart().getAttribute("data-marklines"))).toBe(baseMarks + 3);
+    expect(chart().getAttribute("data-touch-details") ?? "").not.toContain(`circle:${palette.TEXT_MUTED}`);
+    expect(wrap()).toHaveAttribute("data-pattern-source", "hit");
+    expect(wrap()).toHaveAttribute("data-pattern-overlays", "1");
+  });
+
+  test("(e) LIVE and OFFLINE emit no scan annotation and never call the detector", async () => {
+    r(() => <NiftyChartPanel report={withCandles()} mode="live" view="chart" />);
+    expect(chart().getAttribute("data-touch-details") ?? "").toBe("");
+    expect(wrap()).toHaveAttribute("data-pattern-source", "off");
+    await choose("OFFLINE");
+    expect(chart().getAttribute("data-touch-details") ?? "").toBe("");
+    expect(wrap()).toHaveAttribute("data-pattern-source", "off");
+    await choose("LIVE");
+    expect(chart().getAttribute("data-touch-details") ?? "").toBe("");
+    expect(wrap()).toHaveAttribute("data-pattern-source", "off");
+    expect(screen.queryByTestId("nifty-patterns-chart-badge")).not.toBeInTheDocument();
+    expect(detectPatterns).not.toHaveBeenCalled();
+  });
+});
+
+describe("NiftyChartPanel mobile flex chain", () => {
+  const withCandles = () => mockReport({ candles: candles3() });
+
+  test("(a) the fill chart wrap grows with flex-1/min-h-0 and pins no height", () => {
+    r(() => <NiftyChartPanel report={withCandles()} mode="live" view="chart" fillContainer />);
+    const wrap = screen.getByTestId("nifty-chart-wrap");
+    expect(wrap).toHaveClass("flex-1", "min-h-0");
+    expect(wrap).toHaveAttribute("data-fill", "1");
+    expect(wrap.style.flex).toBe("1 1 0%");
+    expect(wrap.style.minHeight).toBe("0px");
+    expect(wrap.style.height).toBe("");
+    expect(wrap).not.toHaveStyle({ maxHeight: "300px", minHeight: "260px" });
+  });
+
+  test("(b) the offline empty card sits in a constrained flex slot inside the panel", () => {
+    window.localStorage.setItem(CHART_SOURCE_KEY, "offline");
+    r(() => <NiftyChartPanel report={withCandles()} mode="live" view="chart" />);
+    const slot = screen.getByTestId("nifty-chart-offline-slot");
+    const empty = screen.getByTestId("nifty-chart-offline-empty");
+    expect(slot).toHaveClass("flex", "flex-1", "min-h-0", "overflow-auto");
+    expect(slot).toContainElement(empty);
+    expect(slot.parentElement).toBe(screen.getByTestId("nifty-chart-view"));
+    // The panel body owns the leftover height; the card never gets a pixel
+    // budget of its own, so it can neither overflow the panel nor push a
+    // sibling out of the way on a short (390px) row.
+    const body = screen.getByTestId("nifty-chart-panel").querySelector("[data-compact-card-content]");
+    expect(body).toHaveClass("flex-1", "min-h-0");
+    expect(body).toContainElement(slot);
+  });
+
+  test("(c) no overflow:auto ancestor clips the chart inside the panel", () => {
+    r(() => <NiftyChartPanel report={withCandles()} mode="live" view="chart" />);
+    const wrap = screen.getByTestId("nifty-chart-wrap");
+    const panel = screen.getByTestId("nifty-chart-panel");
+    // The body carries a legacy `overflow-auto` class from LocalCompactPanel;
+    // the panel overrides it at build time via an arbitrary descendant variant
+    // (in-browser: getComputedStyle(body).overflow === "hidden"). No ancestor
+    // sets an inline overflow that could clip the chart.
+    const override = "[&_[data-compact-card-content]]:overflow-hidden";
+    expect(panel.className).toContain(override);
+    let node: HTMLElement | null = wrap;
+    let sawBody = false;
+    while (node && node !== panel) {
+      expect(node.style.overflow).not.toBe("auto");
+      expect(node.style.overflowY).not.toBe("auto");
+      if (node.hasAttribute("data-compact-card-content")) {
+        sawBody = true;
+        expect(node).toHaveClass("overflow-auto");
+      } else {
+        expect(node.className).not.toMatch(/(^|\s)overflow-(auto|y-auto)(\s|$)/);
+      }
+      node = node.parentElement;
+    }
+    expect(sawBody).toBe(true);
+    expect(node).toBe(panel);
   });
 });

@@ -13,8 +13,10 @@ import {
   writeCachedMarketSnapshot,
 } from "./marketScreener";
 import { MARKET_ROW_CAP, MARKET_SYMBOL_CAP } from "../config/apiLimits";
+import { MARKET_UNIVERSE_DESCRIPTORS } from "../config/marketUniverses";
 import type { MarketSnapshot } from "../types/marketScreener";
 import { fetchWithAuth } from "../state/auth";
+import { ApiError } from "./apiError";
 
 vi.mock("../state/auth", () => ({
   fetchWithAuth: vi.fn(),
@@ -58,15 +60,24 @@ describe("buildMarketSnapshotUrl", () => {
     }
   });
 
-  test("the first Market dropdown offers USA alongside the NSE universes", () => {
+  test("the first Market dropdown offers USA alongside every registered NSE universe", () => {
+    // The dropdown is a projection of the canonical registry: assert that
+    // contract, not a frozen list, so adding a universe cannot break this test
+    // but silently dropping one still can.
+    const dropdownValues = MARKET_UNIVERSES.map((option) => option.value);
+    const registryValues = MARKET_UNIVERSE_DESCRIPTORS.map((descriptor) => descriptor.value);
+
+    expect(new Set(dropdownValues).size).toBe(dropdownValues.length); // no duplicate ids
+    expect([...dropdownValues].sort()).toEqual([...registryValues].sort()); // no dropped/extra ids
+    for (const descriptor of MARKET_UNIVERSE_DESCRIPTORS) {
+      expect(MARKET_UNIVERSES).toContainEqual({
+        value: descriptor.value,
+        label: descriptor.label,
+      });
+    }
+
+    // Original intent: USA is offered alongside the NSE universes.
     expect(MARKET_UNIVERSES).toContainEqual({ value: "us", label: "USA" });
-    expect(MARKET_UNIVERSES.map((option) => option.value)).toEqual([
-      "all_equity",
-      "nifty500",
-      "nifty50",
-      "nse_fo",
-      "us",
-    ]);
   });
 
   test("force=true is only sent when requested", () => {
@@ -836,5 +847,33 @@ describe("snapshot cache (sessionStorage)", () => {
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw as string) as Record<string, unknown>;
     expect(Object.keys(parsed).sort()).toEqual(["asOf", "rows", "total", "universe", "updateMode"]);
+  });
+});
+
+describe("fetchMarketSnapshot typed errors", () => {
+  test("a 401 throws an ApiError with status and unauthorized kind", async () => {
+    mockFetchWithAuth.mockResolvedValue(
+      new Response(JSON.stringify({ detail: "Not authenticated" }), { status: 401 }),
+    );
+
+    const error = await fetchMarketSnapshot().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(401);
+    expect((error as ApiError).kind).toBe("unauthorized");
+    expect((error as ApiError).message).toBe("Not authenticated");
+  });
+
+  test("a 429 carries retryAfterMs from the Retry-After header", async () => {
+    mockFetchWithAuth.mockResolvedValue(
+      new Response(JSON.stringify({ detail: "Slow down" }), {
+        status: 429,
+        headers: { "Retry-After": "15" },
+      }),
+    );
+
+    const error = await fetchMarketSnapshot().catch((e: unknown) => e);
+    expect((error as ApiError).status).toBe(429);
+    expect((error as ApiError).kind).toBe("rate_limited");
+    expect((error as ApiError).retryAfterMs).toBe(15_000);
   });
 });

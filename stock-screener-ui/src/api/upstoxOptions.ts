@@ -1,6 +1,8 @@
 import { fetchWithAuth } from "../state/auth";
 
 import { API_BASE } from "@/api/config";
+import { ApiError, retryAfterMsOf } from "./apiError";
+import { dedupeInFlight } from "./requestDedupe";
 
 export interface OptionGreeks {
   delta: number;
@@ -128,12 +130,13 @@ export type PositioningResponse = import("../utils/positioning").PositioningData
   mode?: string;
 };
 
-export class PositioningApiError extends Error {
-  status: number;
-  constructor(message: string, status: number) {
-    super(message);
+/** Kept as a named export for existing panels; now a shared-contract subclass. */
+export class PositioningApiError extends ApiError {
+  declare readonly status: number;
+
+  constructor(message: string, status: number, retryAfterMs: number | null = null) {
+    super(message, status, retryAfterMs);
     this.name = "PositioningApiError";
-    this.status = status;
   }
 }
 
@@ -142,12 +145,25 @@ export async function getPositioning(
   expiryDate: string,
   mode = "since_open",
 ): Promise<PositioningResponse> {
-  const params = new URLSearchParams({ expiry: expiryDate, mode });
-  const res = await fetchWithAuth(
-    `${API_BASE}/api/options/positioning/${underlying}?${params.toString()}`,
-  );
-  if (!res.ok) throw new PositioningApiError("Failed to fetch positioning", res.status);
-  return res.json();
+  const key = `positioning\u0000${underlying.toUpperCase()}\u0000${expiryDate}\u0000${mode}`;
+  const result = await dedupeInFlight(key, async (signal) => {
+    const params = new URLSearchParams({ expiry: expiryDate, mode });
+    const res = await fetchWithAuth(
+      `${API_BASE}/api/options/positioning/${underlying}?${params.toString()}`,
+      { signal },
+    );
+    if (!res.ok) {
+      if (res.status === 429) {
+        throw new PositioningApiError("Failed to fetch positioning", 429, retryAfterMsOf(res));
+      }
+      throw new PositioningApiError("Failed to fetch positioning", res.status);
+    }
+    return (await res.json()) as PositioningResponse;
+  });
+  // A caller that aborted its own signal never observes a flight result; the
+  // component's cancelled guard already handles that path.
+  if (result === null) throw new PositioningApiError("Positioning request cancelled", 0);
+  return result;
 }
 
 export async function getUnderlyings(): Promise<Underlying[]> {

@@ -1,0 +1,47 @@
+/* Shared report frame. Chart styles belong in the owning module's CSS. */
+.rv-shell {
+  background: var(--rv-bg);
+  color: var(--rv-text);
+  font: 13px/1.5 var(--rv-mono);
+  margin: 0 auto;
+  max-width: 1600px;
+  padding: 18px;
+}
+.rv-header { border-bottom: 1px solid var(--rv-border); margin-bottom: 16px; padding-bottom: 12px; }
+.rv-kicker { color: var(--rv-amber); font-size: 10px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+.rv-header h1 { font-size: 24px; font-weight: 650; letter-spacing: -.01em; margin: 6px 0 4px; }
+.rv-meta { color: var(--rv-muted); display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 11px; }
+.rv-report { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rv-lede, .rv-foot { color: var(--rv-muted); grid-column: 1 / -1; margin: 0; max-width: 150ch; }
+.rv-foot { border-top: 1px solid var(--rv-border); padding-top: 10px; }
+.rv-panel {
+  background: var(--rv-surface);
+  border: 1px solid var(--rv-border);
+  border-radius: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+.rv-span-2 { grid-column: span 2; }
+.rv-panel-head { border-bottom: 1px solid var(--rv-border); padding: 10px 13px 8px; }
+.rv-panel-head h3 { font-size: 13px; font-weight: 600; margin: 0; }
+.rv-subtitle { color: var(--rv-muted); font-size: 10.5px; margin: 3px 0 0; }
+.rv-chart { height: var(--rv-chart-height, 300px); min-width: 0; padding: 7px 9px 2px; }
+.rv-chart svg { display: block; height: 100%; width: 100%; overflow: visible; }
+.rv-legend { color: var(--rv-muted); display: flex; flex-wrap: wrap; font-size: 10.5px; gap: 3px 12px; padding: 0 13px 7px; }
+.rv-legend span { align-items: center; display: inline-flex; gap: 5px; white-space: nowrap; }
+.rv-legend i { border-radius: 2px; display: inline-block; height: 3px; width: 11px; }
+.rv-note { color: var(--rv-muted); font-size: 11.5px; margin: 0; padding: 0 13px 11px; }
+.rv-tip {
+  background: var(--rv-raised); border: 1px solid var(--rv-border); border-radius: 5px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.6); color: var(--rv-text); display: none;
+  font: 10.5px/1.5 var(--rv-mono); min-width: 140px; padding: 7px 9px;
+  pointer-events: none; position: fixed; z-index: 70;
+}
+.rv-tip .rv-tt { color: var(--rv-amber); font-weight: 600; margin-bottom: 2px; }
+.rv-tip .rv-tr { display: flex; gap: 14px; justify-content: space-between; }
+.rv-empty { color: var(--rv-red); font-size: 11px; padding: 22px 14px; }
+@media (max-width: 900px) {
+  .rv-report { grid-template-columns: minmax(0, 1fr); }
+  .rv-span-2 { grid-column: auto; }
+  .rv-shell { padding: 10px; }
+}

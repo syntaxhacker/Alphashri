@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, For, Show, onCleanup } from "solid-js";
-import { Text } from "@/ui";
+import { Text, useMediaQuery } from "@/ui";
 import * as palette from "@/ui/palette";
 import { LocalPanelModal } from "./LocalPanelModal";
 import {
@@ -39,6 +39,20 @@ interface NiftyIntelStripProps {
 
 type Status = "loading" | "ready" | "error";
 
+/** Intel-strip geometry. Desktop keeps the original 24px row but scrolls
+ *  horizontally instead of clipping the tail of a value; a phone wraps the
+ *  readouts onto extra rows. */
+export function intelStripLayout(narrow: boolean) {
+  return {
+    wrap: narrow,
+    direction: "row" as const,
+    height: narrow ? "auto" : "24px",
+    minHeight: "24px",
+    overflowX: narrow ? ("visible" as const) : ("auto" as const),
+    whiteSpace: "nowrap",
+  };
+}
+
 /** `FII` when the flows are today's, `FII·23` when they are a prior session's. */
 function sessionTag(label: string, flowDate: string | null, session: string): string {
   if (!flowDate || !session || flowDate === session) return label;
@@ -59,12 +73,16 @@ function Field(props: {
   return (
     <div
       data-testid={props.testId}
-      title={props.title}
+      title={
+        props.value === INTEL_DASH
+          ? `${props.title ?? props.label} — no value in this snapshot`
+          : props.title
+      }
       class="inline-flex items-baseline gap-1 shrink-0 min-w-0"
       style={{ color: palette.TEXT_MUTED }}
     >
-      <span class="text-[9px] tracking-[0.04em]">{props.label}</span>
-      <span class="font-bold text-[10.5px] font-mono tabular-nums whitespace-nowrap" style={{ "color": props.tone }}>
+      <span class="text-[11px] tracking-[0.04em]">{props.label}</span>
+      <span class="font-bold text-[11px] font-mono tabular-nums whitespace-nowrap" style={{ "color": props.tone }}>
         {props.value}
       </span>
     </div>
@@ -210,7 +228,7 @@ function IntelBody(props: { intel: NiftyIntel; eod?: boolean }) {
                   class="flex items-baseline gap-1 py-[3px] border-b border-fin-border min-w-0"
                 >
                   <span
-                    class="shrink-0 w-[92px] text-[9px] font-mono tabular-nums"
+                    class="shrink-0 w-[92px] text-[11px] font-mono tabular-nums"
                     style={{ color: palette.TEXT_MUTED }}
                   >
                     {item.published}
@@ -251,6 +269,8 @@ function IntelBody(props: { intel: NiftyIntel; eod?: boolean }) {
  * the last good data and only the first failure shows `INTEL unavailable`.
  */
 export function NiftyIntelStrip(props: NiftyIntelStripProps) {
+  const narrow = useMediaQuery("(max-width: 600px)");
+  const layout = () => intelStripLayout(narrow());
   const [intelState, setIntel] = createSignal<NiftyIntel | null>(null);
   const [status, setStatus] = createSignal<Status>("loading");
   const [open, setOpen] = createSignal(false);
@@ -312,6 +332,7 @@ export function NiftyIntelStrip(props: NiftyIntelStripProps) {
     <div
       data-testid="nifty-intel-strip"
       data-state="unavailable"
+      title="Institutional-flow snapshot unavailable — the intel feed failed, so no value is shown instead of a stale estimate."
       style={{ "height": "24px", "min-height": "24px" }}
       class="flex items-center h-[24px] min-h-[24px] shrink-0 px-2 border border-fin-border rounded-[4px] bg-fin-surface overflow-hidden"
     >
@@ -325,6 +346,7 @@ export function NiftyIntelStrip(props: NiftyIntelStripProps) {
     <div
       data-testid="nifty-intel-strip"
       data-state="loading"
+      title="Loading the institutional-flow snapshot — values appear once the feed responds."
       style={{ "height": "24px", "min-height": "24px" }}
       class="flex items-center h-[24px] min-h-[24px] shrink-0 px-2 border border-fin-border rounded-[4px] bg-fin-surface overflow-hidden"
     >
@@ -340,17 +362,21 @@ export function NiftyIntelStrip(props: NiftyIntelStripProps) {
         data-testid="nifty-intel-strip"
         role="button"
         tabIndex={0}
-        aria-label="Open Nifty intel — FII/DII, ΔOI, max pain, PCR and news"
+        aria-label="Open institutional flows — foreign and domestic net flows, open-interest change, max pain, put/call ratio and news"
         data-state={status()}
-        style={{ "height": "24px", "min-height": "24px" }}
+        style={{
+          "height": layout().height,
+          "min-height": layout().minHeight,
+          "overflow-x": layout().overflowX,
+        }}
         title={`Session ${data().date || INTEL_DASH} · expiry ${data().expiry || INTEL_DASH}${
           eod() ? " · latest session, not this frame" : ""
         }`}
         onClick={openModal}
         onKeyDown={onKeyDown}
-        class="flex items-center gap-1.5 h-[24px] min-h-[24px] shrink-0 px-2 border border-fin-border rounded-[4px] bg-fin-surface cursor-pointer overflow-hidden whitespace-nowrap font-mono hover:border-fin-text-muted focus-visible:outline-1 focus-visible:outline-fin-positive focus-visible:outline-offset-0"
+        class={`flex items-center gap-1 shrink-0 px-2 border border-fin-border rounded-[4px] bg-fin-surface cursor-pointer whitespace-nowrap font-mono hover:border-fin-text-muted focus-visible:outline-1 focus-visible:outline-fin-positive focus-visible:outline-offset-0 ${layout().wrap ? "flex-wrap h-auto min-h-[24px] py-0.5" : "h-[24px] min-h-[24px]"}`}
       >
-        <span class="font-bold shrink-0 text-[9px] tracking-[0.08em]" style={{ color: palette.TEXT_MUTED }}>
+        <span class="font-bold shrink-0 text-[11px] tracking-[0.08em]" style={{ color: palette.TEXT_MUTED }}>
           INTEL
         </span>
         <Field
@@ -374,16 +400,16 @@ export function NiftyIntelStrip(props: NiftyIntelStripProps) {
           title="Official change in OI — call / put units (contracts × lot size)"
           class="flex items-baseline gap-1 shrink-0"
         >
-          <span class="text-[9px] tracking-[0.04em]" style={{ color: palette.TEXT_MUTED }}>
+          <span class="text-[11px] tracking-[0.04em]" style={{ color: palette.TEXT_MUTED }}>
             ΔOI (official) C
           </span>
-          <span class="font-bold text-[10.5px] font-mono tabular-nums" style={{ color: oiTone(data().dce_oi, "call", palette) }}>
+          <span class="font-bold text-[11px] font-mono tabular-nums" style={{ color: oiTone(data().dce_oi, "call", palette) }}>
             {fmtIntelOi(data().dce_oi)}
           </span>
-          <span class="text-[9px]" style={{ color: palette.TEXT_MUTED, opacity: 0.8 }}>
+          <span class="text-[11px]" style={{ color: palette.TEXT_MUTED, opacity: 0.8 }}>
             / P
           </span>
-          <span class="font-bold text-[10.5px] font-mono tabular-nums" style={{ color: oiTone(data().dpe_oi, "put", palette) }}>
+          <span class="font-bold text-[11px] font-mono tabular-nums" style={{ color: oiTone(data().dpe_oi, "put", palette) }}>
             {fmtIntelOi(data().dpe_oi)}
           </span>
         </div>
@@ -395,17 +421,21 @@ export function NiftyIntelStrip(props: NiftyIntelStripProps) {
         <div
           data-testid="nifty-intel-news"
           title={data().news.length ? data().news.map((n) => n.heading).join("\n") : "No headlines"}
-          class="text-[10px] font-mono tabular-nums shrink-0"
+          class="text-[11px] font-mono tabular-nums shrink-0"
           style={{ color: palette.TEXT_MUTED }}
         >
           {data().news.length ? `${data().news.length} news` : "no news"}
         </div>
-        <span aria-hidden class="ml-auto shrink-0 text-[10px]" style={{ color: palette.TEXT_MUTED }}>
+        <span aria-hidden class="ml-auto shrink-0 text-[11px]" style={{ color: palette.TEXT_MUTED }}>
           ▸
         </span>
       </div>
 
-      <LocalPanelModal open={open()} title="Nifty intel — FII/DII · ΔOI · news" onClose={() => setOpen(false)}>
+      <LocalPanelModal
+        open={open()}
+        title="Institutional flows — foreign & domestic · open-interest change · news"
+        onClose={() => setOpen(false)}
+      >
         <IntelBody intel={data()} eod={eod()} />
       </LocalPanelModal>
     </>

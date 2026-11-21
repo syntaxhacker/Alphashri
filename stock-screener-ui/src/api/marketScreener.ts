@@ -4,6 +4,7 @@ import { finiteNumber, finiteText } from "./wireParse";
 import { MARKET_ROW_CAP, MARKET_SYMBOL_CAP } from "../config/apiLimits";
 import { MARKET_UNIVERSE_DESCRIPTORS } from "../config/marketUniverses";
 import type { MarketRow, MarketSnapshot, MarketUniverse } from "../types/marketScreener";
+import { apiErrorFromResponse } from "./apiError";
 
 const MARKET_API = `${API_BASE}/api/market`;
 
@@ -341,8 +342,7 @@ export async function fetchMarketSnapshot(
 ): Promise<MarketSnapshot> {
   const response = await fetchWithAuth(buildMarketSnapshotUrl(params), init);
   if (!response.ok) {
-    const err = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new Error(err?.detail || `Market snapshot failed (HTTP ${response.status})`);
+    throw await apiErrorFromResponse(response, `Market snapshot failed (HTTP ${response.status})`);
   }
   const payload = (await response.json()) as unknown;
   // A columnar body is decoded even when the caller did not ask for it — mapping
