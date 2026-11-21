@@ -338,6 +338,7 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 
 ## Market Research Scripts (TV scanner + yfinance)
 - `scripts/market/` — **read-only** market research tools. No API keys, no auth, no DB writes, no broker calls.
+- **`dukascopy-node` is a devDependency on purpose — do not delete it.** knip reports it as unused because the only consumers reach it from inside Python f-strings (`require('dukascopy-node')` in `scripts/smc_tick_eval.py:42`, `experiments/timeless_reversion.py:447`, `experiments/research/nq_lrl_liquidity/render_sep15_ict_audit.py`), which knip cannot parse. It is dev-only (research tooling, never imported by `src/`), which is why it lives in `devDependencies` and is listed under `ignoreDependencies` in `knip.json`. Removing it breaks the `timeless_reversion` family at default settings.
   - `tv_client.py` — shared client: TradingView scanner wrapper (`scan` / `scanner_frame`), options straddle-implied move (`implied_move`), earnings history (`earnings_table`)
   - `us_earnings.py` — earnings prints: est vs reported, surprise %, day-1/5d/20d reaction, per-name post-earnings drift tally ("does the market pay for beats?"), forward calendar + implied moves
   - `us_scorecard.py` — business quality + earnings quality + **peer-relative** value scorecard for ~110 US large caps. Deliberately no price/technical inputs (no SMA/RSI/gap) — it scores earnings history, margins, growth, FCF, cash, dividend and multiples *relative to each name's own peer bucket*
