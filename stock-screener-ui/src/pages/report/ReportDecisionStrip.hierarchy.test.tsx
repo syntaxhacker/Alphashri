@@ -118,9 +118,12 @@ vi.mock("./reportBits", () => ({
 import { UIProvider } from "@/ui";
 import {
   ReportDecisionStrip,
+  VERDICT_BLOCK_HEIGHT,
+  planConfidenceLabel,
   planHeadlineStyle,
   verdictWrapLayout,
 } from "./ReportDecisionStrip";
+import { REPORT_FONT } from "./reportTokens";
 
 function mount() {
   return render(() => (
@@ -155,15 +158,15 @@ describe("Index Report decision strip — conclusion before evidence", () => {
     expect(ids.indexOf("nifty-plan-confidence")).toBeLessThan(chips);
   });
 
-  test("(b) the headline is the largest text in the strip (≥ the 15px spot value)", () => {
+  test("(b) the headline is the largest text in the strip (≥ the value step)", () => {
     mount();
     const headline = screen.getByTestId("nifty-plan-headline");
     const px = Number.parseFloat(String(planHeadlineStyle(false)["font-size"]));
-    expect(px).toBeGreaterThanOrEqual(15);
-    expect(headline.style.fontSize).toBe("16px");
-    // One 24px row, single line — no extra row that could push page scroll.
+    expect(px).toBeGreaterThanOrEqual(REPORT_FONT.value);
+    expect(headline.style.fontSize).toBe(`${REPORT_FONT.display}px`);
+    // One fixed-height row, single line — no extra row that could push page scroll.
     expect(planHeadlineStyle(false)["white-space"]).toBe("nowrap");
-    expect(verdictWrapLayout(false).height).toBe("24px");
+    expect(verdictWrapLayout(false).height).toBe(`${VERDICT_BLOCK_HEIGHT}px`);
   });
 
   test("(c) confidence is labelled and adjacent to the headline at ≥11px", () => {
@@ -171,8 +174,12 @@ describe("Index Report decision strip — conclusion before evidence", () => {
     const headline = screen.getByTestId("nifty-plan-headline");
     const confidence = screen.getByTestId("nifty-plan-confidence");
     expect(confidence.parentElement).toBe(headline.parentElement);
-    expect(confidence.textContent).toContain("confidence 0%");
-    expect(Number.parseFloat(confidence.style.fontSize)).toBeGreaterThanOrEqual(11);
+    // A neutral plan emits confidence 0 as a sentinel for "no directional call".
+    expect(confidence.textContent).toBe(planConfidenceLabel(0).text);
+    expect(confidence.textContent).toContain("no directional call");
+    expect(Number.parseFloat(confidence.style.fontSize)).toBeGreaterThanOrEqual(
+      REPORT_FONT.micro,
+    );
     // The headline can no longer stretch and strand the qualifier at x1866.
     expect(planHeadlineStyle(false).flex).toBe("0 1 auto");
     expect(headline.style.flex).not.toBe("1");

@@ -73,6 +73,7 @@ vi.mock("./deskPlanSummary", () => ({ summarizeDeskPlan: () => null }));
 vi.mock("./niftyPin", () => ({ pinRisk: () => null, pinHint: () => "" }));
 
 import { ReportDecisionStrip } from "./ReportDecisionStrip";
+import { REPORT_FONT } from "./reportTokens";
 
 afterEach(cleanup);
 
@@ -196,17 +197,18 @@ describe("report label lane — source guards", () => {
 
 describe("decision strip — stat labels fit without a mid-word ellipsis", () => {
   // Measured live at 1920×890 with scrollWidth vs clientWidth: the PCR label
-  // cells are 148px and the flip label cell 116px, both at the 11px floor.
+  // cells are 148px and the flip label cell 116px at the canonical body step.
   // The long forms were 193/151/124px and clipped; the short forms below
   // measure equal to their client width. Cap the character count so a future
   // long label cannot silently reintroduce the cut.
   const PCR_MAX_CHARS = 18; // "P/C ratio · volume"
   const FLIP_MAX_CHARS = 10; // "Gamma flip"
   const ELLIPSIS = /[…]|\.\.\./;
+  const BODY_PX = `${REPORT_FONT.body}px`;
 
   const labelOf = (id: string) => screen.getByTestId(id).children[0] as HTMLElement;
 
-  test("(a) the PCR labels are short enough to render untruncated at 11px", () => {
+  test("(a) the PCR labels are short enough to render untruncated at the body step", () => {
     renderStrip();
     for (const [id, expected] of [
       ["nifty-stat-pcr-oi", "P/C ratio · OI"],
@@ -216,18 +218,18 @@ describe("decision strip — stat labels fit without a mid-word ellipsis", () =>
       expect(label.textContent, `${id} rendered label`).toBe(expected);
       expect(label.textContent!.length, `${id} label length`).toBeLessThanOrEqual(PCR_MAX_CHARS);
       expect(label.textContent, `${id} must show no ellipsis`).not.toMatch(ELLIPSIS);
-      expect(label.style.fontSize, `${id} must keep the 11px floor`).toBe("11px");
+      expect(label.style.fontSize, `${id} uses the canonical body step`).toBe(BODY_PX);
       expect(label.style.textOverflow, `${id} ellipsis style unchanged`).toBe("ellipsis");
     }
   });
 
-  test("(b) the flip label is short enough to render untruncated at 11px", () => {
+  test("(b) the flip label is short enough to render untruncated at the body step", () => {
     renderStrip();
     const label = labelOf("nifty-stat-flip");
     expect(label.textContent).toBe("Gamma flip");
     expect(label.textContent!.length).toBeLessThanOrEqual(FLIP_MAX_CHARS);
     expect(label.textContent).not.toMatch(ELLIPSIS);
-    expect(label.style.fontSize).toBe("11px");
+    expect(label.style.fontSize).toBe(BODY_PX);
     expect(label.style.textOverflow).toBe("ellipsis");
   });
 

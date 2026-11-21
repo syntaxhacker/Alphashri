@@ -4,7 +4,8 @@ import { TOOLBAR_CLASS } from "./ReportToolbar";
 import { replayBarLayout } from "./NiftyReplayBar";
 import { flowWindowsLayout } from "./NiftyFlowWindows";
 import { planHeadlineStyle, verdictWrapLayout } from "./ReportDecisionStrip";
-import { dockLayout } from "./DeskDock";
+import { VERDICT_BLOCK_HEIGHT } from "./ReportDecisionStrip";
+import { DESK_DOCK_BAR_HEIGHT, dockLayout } from "./DeskDock";
 import { intelStripLayout } from "./NiftyIntelStrip";
 
 /**
@@ -164,24 +165,24 @@ describe("desktop layout is unchanged (1600 × 950)", () => {
     });
   });
 
-  test("verdict wrap stays one 24px row and the headline keeps its ellipsis", () => {
+  test("verdict wrap stays one block row and the headline keeps its ellipsis", () => {
     expect(verdictWrapLayout(false)).toEqual({
       wrap: false,
       direction: "row",
-      height: "24px",
-      minHeight: "24px",
+      height: `${VERDICT_BLOCK_HEIGHT}px`,
+      minHeight: `${VERDICT_BLOCK_HEIGHT}px`,
       overflow: "hidden",
     });
     expect(planHeadlineStyle(false)["white-space"]).toBe("nowrap");
     expect(planHeadlineStyle(false).overflow).toBe("hidden");
   });
 
-  test("desk dock stays one 26px row with the shortcut hint", () => {
+  test("desk dock stays one bar row with the shortcut hint", () => {
     expect(dockLayout(false)).toEqual({
       wrap: false,
       direction: "row",
-      height: "26px",
-      minHeight: "26px",
+      height: `${DESK_DOCK_BAR_HEIGHT}px`,
+      minHeight: `${DESK_DOCK_BAR_HEIGHT}px`,
       overflowX: "auto",
       overflowY: "hidden",
       showHint: true,
