@@ -10,6 +10,9 @@ import { WindowManager } from "../WindowManager";
 import { WINDOW_PANELS } from "../panelRegistry";
 import { HOME_PANELS } from "../../../pages/home/homePanels";
 
+// The registry defers this module; load it so hoisted mocks are ready on first mount.
+await import("./optionsAnalytics");
+
 vi.mock("@/api/reportNifty", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/api/reportNifty")>();
   return {

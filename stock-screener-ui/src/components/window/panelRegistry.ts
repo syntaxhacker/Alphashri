@@ -1,19 +1,148 @@
-import { OPTIONS_ANALYTICS_PANEL } from "./panels/optionsAnalytics";
-import { OPTIONS_CHAIN_PANEL } from "./panels/optionsChain";
-import { OPTIONS_POSITIONING_PANEL } from "./panels/optionsPositioning";
 import type { DockPanelContext, DockPanelSpec } from "../dock/types";
-import { MARKET_HEATMAP_PANEL } from "./panels/marketHeatmap";
+import { CATALYST_RADAR_PANEL } from "./panels/catalystRadar";
+import { lazyPanelSpec } from "./panels/lazyPanel";
 import { NEWS_FEED_PANEL } from "./panels/newsFeed";
-import { PATTERN_RESULTS_PANEL } from "./panels/patternResults";
-import { SECTOR_CORRELATION_PANEL } from "./panels/sectorCorrelation";
-import { SECTOR_DETAIL_PANEL } from "./panels/sectorDetail";
-import { SECTOR_HEATMAP_PANEL } from "./panels/sectorHeatmap";
 import { SECTOR_MOVERS_PANEL } from "./panels/sectorMovers";
-import { SECTOR_TABLE_PANEL } from "./panels/sectorTable";
-import { SECTOR_ROTATION_PANEL } from "./panels/sectorRotation";
+
+/**
+ * Only the three Monitor panels are eager — they mount on the first paint of
+ * `/home`. Every desk/picker-only panel resolves its metadata synchronously but
+ * defers its component graph until a window actually mounts it.
+ */
+const MARKET_HEATMAP_PANEL = lazyPanelSpec(
+  {
+    id: "market.heatmap",
+    page: "screener",
+    title: "MARKET HEATMAP",
+    size: 1.2,
+    minWidth: 360,
+    singleton: true,
+    requires: [],
+    data: () => ({ universe: "all_equity", currency: "INR" }),
+  },
+  () => import("./panels/marketHeatmap").then((mod) => mod.MARKET_HEATMAP_PANEL),
+);
+
+const OPTIONS_ANALYTICS_PANEL = lazyPanelSpec(
+  {
+    id: "options.analytics",
+    page: "report",
+    title: "OPTIONS ANALYTICS",
+    size: 1,
+    minWidth: 420,
+    singleton: false,
+    requires: [],
+  },
+  () => import("./panels/optionsAnalytics").then((mod) => mod.OPTIONS_ANALYTICS_PANEL),
+);
+
+const OPTIONS_CHAIN_PANEL = lazyPanelSpec(
+  {
+    id: "options.chain",
+    page: "report",
+    title: "OPTIONS CHAIN",
+    size: 1,
+    minWidth: 360,
+    singleton: false,
+    requires: [],
+  },
+  () => import("./panels/optionsChain").then((mod) => mod.OPTIONS_CHAIN_PANEL),
+);
+
+const OPTIONS_POSITIONING_PANEL = lazyPanelSpec(
+  {
+    id: "options.positioning",
+    page: "report",
+    title: "OPTIONS POSITIONING",
+    size: 1,
+    minWidth: 360,
+    singleton: false,
+    requires: [],
+  },
+  () => import("./panels/optionsPositioning").then((mod) => mod.OPTIONS_POSITIONING_PANEL),
+);
+
+const PATTERN_RESULTS_PANEL = lazyPanelSpec(
+  {
+    id: "patterns.results",
+    page: "patterns",
+    title: "PATTERNS",
+    size: 1.2,
+    minWidth: 360,
+    singleton: true,
+    requires: [],
+  },
+  () => import("./panels/patternResults").then((mod) => mod.PATTERN_RESULTS_PANEL),
+);
+
+const SECTOR_CORRELATION_PANEL = lazyPanelSpec(
+  {
+    id: "sector.correlation",
+    page: "sector",
+    title: "SECTOR CORRELATION",
+    size: 1,
+    minWidth: 360,
+    singleton: false,
+    requires: [],
+  },
+  () => import("./panels/sectorCorrelation").then((mod) => mod.SECTOR_CORRELATION_PANEL),
+);
+
+const SECTOR_DETAIL_PANEL = lazyPanelSpec(
+  {
+    id: "sector.detail",
+    page: "sector",
+    title: "SECTOR DETAIL",
+    size: 1,
+    minWidth: 260,
+    singleton: false,
+    requires: [],
+  },
+  () => import("./panels/sectorDetail").then((mod) => mod.SECTOR_DETAIL_PANEL),
+);
+
+const SECTOR_HEATMAP_PANEL = lazyPanelSpec(
+  {
+    id: "sector.heatmap",
+    page: "sector",
+    title: "SECTOR HEATMAP",
+    size: 1,
+    minWidth: 320,
+    singleton: false,
+    requires: [],
+  },
+  () => import("./panels/sectorHeatmap").then((mod) => mod.SECTOR_HEATMAP_PANEL),
+);
+
+const SECTOR_TABLE_PANEL = lazyPanelSpec(
+  {
+    id: "sector.table",
+    page: "sector",
+    title: "SECTOR PERFORMANCE",
+    size: 1,
+    minWidth: 320,
+    singleton: false,
+    requires: [],
+  },
+  () => import("./panels/sectorTable").then((mod) => mod.SECTOR_TABLE_PANEL),
+);
+
+const SECTOR_ROTATION_PANEL = lazyPanelSpec(
+  {
+    id: "sector.rotation",
+    page: "sector",
+    title: "SECTOR ROTATION",
+    size: 1,
+    minWidth: 320,
+    singleton: false,
+    requires: [],
+  },
+  () => import("./panels/sectorRotation").then((mod) => mod.SECTOR_ROTATION_PANEL),
+);
 
 /** Windows mount exactly the specs DockHost mounts — no parallel panel shape. */
 export const WINDOW_PANELS: DockPanelSpec[] = [
+  CATALYST_RADAR_PANEL,
   MARKET_HEATMAP_PANEL,
   NEWS_FEED_PANEL,
   OPTIONS_ANALYTICS_PANEL,

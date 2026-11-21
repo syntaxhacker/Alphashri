@@ -267,10 +267,15 @@ export function restore(windows: WindowState[], id: string): WindowState[] {
   return windows.map((w) => (w.id === id ? { ...w, maximized: false } : w));
 }
 
+/** The restore rect — never reads the canvas, so a resize cannot invalidate it. */
+export function rectOf(state: WindowState): Rect {
+  return { x: state.x, y: state.y, w: state.w, h: state.h };
+}
+
 export function geometryOf(state: WindowState, canvas: CanvasSize): Rect {
   return state.maximized
     ? { x: 0, y: 0, w: Math.max(0, finite(canvas.w)), h: Math.max(0, finite(canvas.h)) }
-    : { x: state.x, y: state.y, w: state.w, h: state.h };
+    : rectOf(state);
 }
 
 /** A gesture that ends where it started must not push a no-op layout save. */

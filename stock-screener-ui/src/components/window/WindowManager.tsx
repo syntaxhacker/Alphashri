@@ -39,7 +39,16 @@ export function WindowManager(props: WindowManagerProps) {
   const [measured, setMeasured] = createSignal<CanvasSize>(
     props.canvas ?? DEFAULT_WINDOW_SIZE,
   );
-  const canvas = (): CanvasSize => props.canvas ?? measured();
+  const rawCanvas = (): CanvasSize => props.canvas ?? measured();
+  // A ResizeObserver can report the same box repeatedly (layout thrash, polyfills).
+  // Preserve the object identity when the numbers agree: every frame used to see
+  // a fresh canvas and re-run its geometry/style effects on every notification.
+  const canvas = createMemo<CanvasSize, CanvasSize>((prev) => {
+    const size = rawCanvas();
+    return prev && prev.w === size.w && prev.h === size.h ? prev : size;
+  }, rawCanvas());
+  // One stable accessor for all panels, even if the host swaps its own later.
+  const context: Accessor<DockPanelContext> = () => props.context();
   const [focusedId, setFocusedId] = createSignal<string | null>(null);
   const [locked, setLocked] = createSignal(props.lockedInitially ?? false);
   const [liveMessage, setLiveMessage] = createSignal("");
@@ -56,7 +65,8 @@ export function WindowManager(props: WindowManagerProps) {
         w: canvasEl?.clientWidth || (typeof window !== "undefined" ? window.innerWidth : 0) || 1280,
         h: canvasEl?.clientHeight || (typeof window !== "undefined" ? window.innerHeight : 0) || 800,
       };
-      setMeasured(size);
+      const prev = measured();
+      if (prev.w !== size.w || prev.h !== size.h) setMeasured(size);
       props.onCanvasChange?.(size);
     };
     update();
@@ -115,7 +125,7 @@ export function WindowManager(props: WindowManagerProps) {
   const popOut = (id: string) => {
     const target = props.layout.windows.find((w) => w.id === id);
     if (!target) return;
-    openPanelPopOut(byId().get(target.type), target.title, props.context());
+    openPanelPopOut(byId().get(target.type), target.title, context());
   };
 
   const fitAll = () => {
@@ -169,13 +179,16 @@ export function WindowManager(props: WindowManagerProps) {
             // by both `<Show>` and the child span, so one window render invoked
             // the host's factory twice. The memo calls it once per real change.
             const slot = createMemo(() => props.settingsSlot?.(win()));
+            // All eight memos evaluate the cheap comparison on a focus change,
+            // but only the two whose boolean flips notify their Window frame.
+            const focused = createMemo(() => focusedId() === win().id);
             return (
               <Window
                 state={win()}
-                canvas={canvas()}
+                canvas={canvas}
                 spec={byId().get(win().type)}
-                context={props.context}
-                focused={focusedId() === win().id}
+                context={context}
+                focused={focused()}
                 locked={locked()}
                 settingsSlot={slot()}
                 onSettingsChange={updateSettings}

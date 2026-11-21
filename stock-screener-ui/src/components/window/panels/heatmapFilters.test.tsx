@@ -8,6 +8,9 @@ import type { DockPanelContext } from "../../dock/types";
 import type { MarketRow } from "../../../types/marketScreener";
 import { getPanelSpec } from "../panelRegistry";
 
+// The registry defers this module; initialise its hoisted mocks before beforeEach.
+await import("./marketHeatmap");
+
 const ctl = vi.hoisted(() => ({
   setRows: null as unknown as (rows: MarketRow[]) => void,
   dockOpen: vi.fn(),

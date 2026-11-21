@@ -8,6 +8,9 @@ import { getSectorState, resetSectorState } from "@/state/sector";
 import type { DockPanelContext } from "../../dock/types";
 import { getPanelSpec, WINDOW_PANEL_TYPES } from "../panelRegistry";
 
+// The registry defers this module; load it so hoisted mocks are ready on first mount.
+await import("./sectorTable");
+
 const ctl = vi.hoisted(() => ({
   fetchSectorPerformance: vi.fn(),
   sibling: (id: string) => ({

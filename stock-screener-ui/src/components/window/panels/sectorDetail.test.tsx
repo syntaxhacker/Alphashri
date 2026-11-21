@@ -1,12 +1,15 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
-import { createMemo, type Accessor } from "solid-js";
+import { createMemo, Suspense, type Accessor } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@/ui";
 import { resetSectorState } from "@/state/sector";
 import type { DockPanelContext } from "../../dock/types";
 import { getPanelSpec, WINDOW_PANEL_TYPES } from "../panelRegistry";
+
+// The registry defers this module; load it so hoisted mocks are ready on first mount.
+await import("./sectorDetail");
 
 const ctl = vi.hoisted(() => ({
   fetchSectorPerformance: vi.fn(),
@@ -96,9 +99,9 @@ function MountSpec(props: { id: string }) {
   const spec = createMemo(() => getPanelSpec(props.id));
   const data = createMemo(() => spec()?.data?.(CTX));
   return (
-    <>
+    <Suspense fallback={<div data-testid="spec-loading" />}>
       {spec() ? spec()!.mount(CTX, { data, commands: spec()!.commands ?? {} }) : <div data-testid="missing-spec" />}
-    </>
+    </Suspense>
   );
 }
 
@@ -199,8 +202,11 @@ describe("sector.detail — HOME desk drilldown", () => {
     renderPanels(["sector.detail", "sector.table", "sector.movers"]);
 
     await waitFor(() => expect(screen.getByTestId("sector-detail-row-RELIANCE")).toBeInTheDocument());
-    expect(screen.getByTestId("sector-row-energy")).toBeInTheDocument();
-    expect(screen.getByTestId("interval-movers-table")).toBeInTheDocument();
+    // The desk panels are lazy: their component graph resolves after mount, so
+    // these two appear asynchronously. The assertion is the same — all three
+    // panels mount and share one fetch.
+    await waitFor(() => expect(screen.getByTestId("sector-row-energy")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("interval-movers-table")).toBeInTheDocument());
     expect(ctl.fetchSectorPerformance).toHaveBeenCalledTimes(1);
   });
 });

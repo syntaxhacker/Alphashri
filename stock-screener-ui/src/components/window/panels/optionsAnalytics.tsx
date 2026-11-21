@@ -2,7 +2,7 @@ import { Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup 
 import type { Accessor } from "solid-js";
 import { Anchor, Box, Button, Text, TextInput, ToolbarRow } from "@/ui";
 import { DEFAULT_RATE_LIMIT_RETRY_MS } from "@/state/optionsDock";
-import { OptionDockError, fetchChain, type ChainRow } from "@/api/optionsDock";
+import { OptionDockError, type ChainRow } from "@/api/optionsDock";
 import { BrokerAuthNotice, isBrokerAuthKind } from "@/components/common/BrokerAuthNotice";
 import { optionsAnalyticsState, refreshAnalytics } from "@/state/optionsAnalytics";
 import { AnalyticsPanel, type AnalyticsContentTab } from "../../options-dock/analytics/AnalyticsPanel";
@@ -13,6 +13,7 @@ import {
 import type { AnalyticsTab } from "../../options-dock/analytics/types";
 import type { DockPanelContext, DockPanelSpec } from "../../dock/types";
 import { ExpirySelect, useExpiryPicker } from "./expiryPicker";
+import { acquireChain, releaseChain, type ChainFlight } from "./optionsChain";
 
 type ChainStatus = "loading" | "ready" | "empty" | "error";
 
@@ -81,6 +82,7 @@ function OptionsAnalyticsWindow(props: { context: Accessor<DockPanelContext> }) 
   const [retryReady, setRetryReady] = createSignal(true);
 
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let heldFlight: ChainFlight | null = null;
   const clearRetryTimer = () => {
     if (retryTimer != null) {
       clearTimeout(retryTimer);
@@ -104,11 +106,11 @@ function OptionsAnalyticsWindow(props: { context: Accessor<DockPanelContext> }) 
     const sym = symbol();
     const exp = selectedExpiry();
     void chainRetry();
-    const active = new AbortController();
     clearRetryTimer();
     setRetryReady(true);
     onCleanup(() => {
-      active.abort();
+      releaseChain(heldFlight);
+      heldFlight = null;
       clearRetryTimer();
     });
 
@@ -121,11 +123,16 @@ function OptionsAnalyticsWindow(props: { context: Accessor<DockPanelContext> }) 
       return;
     }
 
+    // Join an identical in-flight chain fetch (a chain window on the same key)
+    // instead of spending a second request. The key includes symbol and expiry,
+    // so a different view still owns its own flight.
+    const flight = acquireChain(sym, exp);
+    heldFlight = flight;
     setChainStatus("loading");
     setFailure(null);
-    void fetchChain(sym, exp, active.signal)
+    void flight.promise
       .then((chain) => {
-        if (active.signal.aborted) return;
+        if (flight.controller.signal.aborted) return;
         setSpot(chain?.spot ?? 0);
         setAtmIv(chain?.atmIv ?? null);
         if (!chain || chain.rows.length === 0) {
@@ -138,7 +145,7 @@ function OptionsAnalyticsWindow(props: { context: Accessor<DockPanelContext> }) 
         setChainStatus("ready");
       })
       .catch((cause: unknown) => {
-        if (active.signal.aborted) return;
+        if (flight.controller.signal.aborted) return;
         setFailure(failureOf(cause));
         setRows([]);
         setSpot(0);

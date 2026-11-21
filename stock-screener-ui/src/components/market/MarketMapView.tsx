@@ -334,15 +334,21 @@ export function MarketMapView(props: MarketMapViewProps) {
   // silently falls back to the first metric's area.
   const metrics = createMemo(() => marketTreemapMetrics(props.currency));
   const metricOptions = createMemo(() => marketMetricOptions(props.currency));
-  const built = createMemo(() => {
-    const option = buildStockTreemapOption(
+  // Layout does not depend on the chart box; only the label gate does. Keeping
+  // them in separate memos stops a canvas resize (or the first size report)
+  // from re-running the full three-thousand-tile layout and colour pass.
+  const layout = createMemo(() =>
+    buildStockTreemapOption(
       stocks(),
       metric(),
       metrics(),
       colorScheme() === "dark",
       TREEMAP_STYLE,
       "metric",
-    );
+    ),
+  );
+  const built = createMemo(() => {
+    const option = layout();
     return {
       ...option,
       series: [{

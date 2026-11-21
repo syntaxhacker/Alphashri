@@ -642,14 +642,40 @@ export function suppressTinyFlatLabels<
   T extends { value: number; label?: Record<string, unknown> },
 >(tiles: T[], widthPx?: number, heightPx?: number): T[] {
   const total = tiles.reduce((sum, tile) => sum + tile.value, 0);
+  const sideOf = (tile: T) => estimatedTileHeightPx(tile.value, total, widthPx, heightPx);
+  const isTwoLine = (side: number) => side >= MIN_LABEL_WIDTH_PX && side >= MIN_LABEL_HEIGHT_PX;
+  const isOneLine = (side: number) =>
+    !(side >= MIN_LABEL_WIDTH_PX && side >= MIN_LABEL_HEIGHT_PX) &&
+    side >= MIN_LABEL_LINE_HEIGHT_PX &&
+    side >= MIN_LABEL_WIDTH_PX;
+
+  // Re-suppressing already-decorated tiles (a resize that moves no label across
+  // a threshold) must not allocate a new array and a new label for every tile.
+  // Comparing against the real inputs keeps this free of stale caches.
+  let needsChange = false;
+  for (const tile of tiles) {
+    const side = sideOf(tile);
+    const show = isTwoLine(side) || isOneLine(side);
+    const oneLine = isOneLine(side);
+    const hasFormatter = typeof tile.label?.formatter === "function";
+    if (tile.label?.show !== show || hasFormatter !== oneLine) {
+      needsChange = true;
+      break;
+    }
+  }
+  if (!needsChange) return tiles;
+
   return tiles.map((tile) => {
-    const side = estimatedTileHeightPx(tile.value, total, widthPx, heightPx);
-    const twoLine = side >= MIN_LABEL_WIDTH_PX && side >= MIN_LABEL_HEIGHT_PX;
-    const oneLine = !twoLine && side >= MIN_LABEL_LINE_HEIGHT_PX && side >= MIN_LABEL_WIDTH_PX;
+    const side = sideOf(tile);
+    const twoLine = isTwoLine(side);
+    const oneLine = isOneLine(side);
+    // Drop a formatter left by a previous one-line decision: otherwise a tile
+    // that grows back into two-line territory would keep the short formatter.
+    const { formatter: _previous, ...label } = tile.label ?? {};
     return {
       ...tile,
       label: {
-        ...tile.label,
+        ...label,
         show: twoLine || oneLine,
         /*
          * Between the one-line and two-line floors, abbreviate to the existing

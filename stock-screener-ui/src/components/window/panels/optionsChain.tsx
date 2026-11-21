@@ -42,7 +42,7 @@ const failureOf = (cause: unknown): ChainFailure => {
   };
 };
 
-interface ChainFlight {
+export interface ChainFlight {
   key: string;
   promise: Promise<OptionDockChain | null>;
   controller: AbortController;
@@ -58,7 +58,7 @@ const flights = new Map<string, ChainFlight>();
  * coalesced. A settled entry is dropped so Retry really refetches, and the last
  * subscriber leaving aborts a request nobody is waiting for any more.
  */
-function acquireChain(symbol: string, expiry: string): ChainFlight {
+export function acquireChain(symbol: string, expiry: string): ChainFlight {
   const key = `${symbol}\u0000${expiry}`;
   let flight = flights.get(key);
   if (!flight) {
@@ -80,7 +80,7 @@ function acquireChain(symbol: string, expiry: string): ChainFlight {
   return flight;
 }
 
-function releaseChain(flight: ChainFlight | null): void {
+export function releaseChain(flight: ChainFlight | null): void {
   if (!flight) return;
   flight.refs -= 1;
   if (flight.refs <= 0 && !flight.settled) {

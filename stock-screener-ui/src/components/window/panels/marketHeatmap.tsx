@@ -191,8 +191,16 @@ function MarketHeatmapPanel(props: {
     if (value.sizeBy !== undefined && value.sizeBy !== sizeBy()) setSizeBy(value.sizeBy);
     if (value.filters !== undefined) setFilters(value.filters);
   }));
-  const filteredRows = createMemo(() => filterMarketRows(rows(), filters()));
-  const etfCount = createMemo(() => filteredRows().filter((row) => row.etf).length);
+  // One materialised row list and one ETF tally from a single pass; a second
+  // `.filter` over an already-materialised array was a full extra traversal.
+  const filtered = createMemo(() => {
+    const list = filterMarketRows(rows(), filters());
+    let etfs = 0;
+    for (const row of list) if (row.etf) etfs += 1;
+    return { list, etfs };
+  });
+  const filteredRows = createMemo(() => filtered().list);
+  const etfCount = createMemo(() => filtered().etfs);
   const total = () => Math.max(snapshot.total(), rows().length);
   const formatCount = (count: number) =>
     count.toLocaleString(marketUniverseDescriptor(universe()).priceLocale);

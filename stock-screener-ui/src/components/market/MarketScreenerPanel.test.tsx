@@ -544,7 +544,8 @@ describe("MarketScreenerPanel ↔ market heatmap — one metric control", () => 
     await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Vis"));
 
     const pageToolbar = screen.getByTestId("market-vis-toolbar");
-    const panel = screen.getByTestId("market-heatmap-panel");
+    // The desk panel is lazy: its component graph resolves after mount.
+    const panel = await screen.findByTestId("market-heatmap-panel");
     // The page owns one dropdown; the panel owns one (plus its universe select).
     expect(pageToolbar.querySelectorAll("select")).toHaveLength(1);
     expect(panel.querySelectorAll("select")).toHaveLength(2);

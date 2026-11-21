@@ -8,6 +8,12 @@ import type { DockPanelContext } from "../dock/types";
 import type { CanvasSize } from "./layout";
 import { WINDOW_PANELS } from "./panelRegistry";
 import { WindowManager } from "./WindowManager";
+
+// The registry defers these modules; load them so their hoisted mocks are ready.
+await import("./panels/marketHeatmap");
+await import("./panels/optionsChain");
+await import("./panels/sectorTable");
+await import("./panels/newsFeed");
 import type { WindowState } from "./types";
 
 const ctl = vi.hoisted(() => ({ fetches: 0 }));

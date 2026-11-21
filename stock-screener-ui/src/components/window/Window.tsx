@@ -7,6 +7,7 @@ import {
   DEFAULT_MIN_SIZE,
   geometryOf,
   KEYBOARD_STEP,
+  rectOf,
   RESIZE_DIRS,
   resizeRect,
   sameRect,
@@ -20,7 +21,9 @@ import type { WindowState } from "./types";
 
 export interface WindowProps {
   state: WindowState;
-  canvas: CanvasSize;
+  /** Accessor, not a value: the desk passes one stable reference so a viewport
+   * resize cannot invalidate the restore-rect frames that do not use it. */
+  canvas: Accessor<CanvasSize>;
   spec?: DockPanelSpec;
   context: Accessor<DockPanelContext>;
   focused: boolean;
@@ -65,7 +68,15 @@ export function Window(props: WindowProps) {
   // a 120 Hz drag to one style write on this frame instead of an onLayoutChange
   // per event (which re-rendered all siblings and re-armed the 800 ms save timer).
   const [dragRect, setDragRect] = createSignal<Rect | null>(null);
-  const current = createMemo(() => dragRect() ?? geometryOf(props.state, props.canvas));
+  // Only a maximized frame needs the canvas. A restore-rect frame must keep its
+  // own reactive dependency set: reading canvas() for all eight windows made a
+  // single viewport resize re-run every frame's geometry and style effects.
+  const current = createMemo(() => {
+    const drag = dragRect();
+    if (drag) return drag;
+    const state = props.state;
+    return state.maximized ? geometryOf(state, props.canvas()) : rectOf(state);
+  });
   const data = createMemo(() => spec()?.data?.(props.context));
   // The bag lives on the window state, so it is reactive across a save echo, a
   // late hydration and a tab switch that swaps this window's identity in place.
@@ -111,11 +122,11 @@ export function Window(props: WindowProps) {
     if (gesture.mode === "move") {
       next = clampToCanvas(
         { x: origin.x + dx, y: origin.y + dy, w: origin.w, h: origin.h },
-        props.canvas,
+        props.canvas(),
         minSize(),
       );
     } else {
-      next = resizeRect(origin, gesture.dir, dx, dy, props.canvas, minSize());
+      next = resizeRect(origin, gesture.dir, dx, dy, props.canvas(), minSize());
     }
     gesture.last = next;
     setDragRect(next);
@@ -153,14 +164,14 @@ export function Window(props: WindowProps) {
     if (dx === 0 && dy === 0) return;
     event.preventDefault();
     // Keyboard always operates on committed layout, never an in-flight drag rect.
-    const rect = geometryOf(props.state, props.canvas);
+    const rect = geometryOf(props.state, props.canvas());
     const next = event.shiftKey
       // Size follows the arrow: Right/Down grow, Left/Up shrink. Using the
       // east/south edges keeps the top-left corner anchored while resizing.
-      ? resizeRect(rect, "es", dx, dy, props.canvas, minSize())
+      ? resizeRect(rect, "es", dx, dy, props.canvas(), minSize())
       : clampToCanvas(
         { x: rect.x + dx, y: rect.y + dy, w: rect.w, h: rect.h },
-        props.canvas,
+        props.canvas(),
         minSize(),
       );
     props.onRectChange(props.state.id, next);
