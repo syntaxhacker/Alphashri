@@ -17,6 +17,9 @@ on:
       # so a PR that touched only those landed with no checks at all.
       - 'stock-screener-ui/knip.json'
       - 'stock-screener-ui/test_cases/**'
+      # The reports index is generated and has its own --check gate, so a change
+      # to its scanner is a change to a verified artefact.
+      - 'stock-screener-ui/scripts/market/reports_index.py'
       - 'stock-screener-ui/package.json'
       - 'stock-screener-ui/bun.lock'
       - 'stock-screener-ui/vite.config.*'
