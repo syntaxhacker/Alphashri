@@ -15,7 +15,6 @@ import type {
 } from "../types/bots";
 import {
   listBots,
-  getBot,
   createBot,
   updateBot,
   startBot,
@@ -119,28 +118,6 @@ export async function loadBots(): Promise<void> {
   }
 }
 
-// Load a specific bot
-export async function loadBot(botId: string): Promise<void> {
-  setLoading("load", true);
-  setError(null);
-  try {
-    const bot = await getBot(botId);
-    state = {
-      ...state,
-      selectedBot: bot,
-      loading: setLoadingState<BotLoadingKey>(state.loading, "load", false),
-    };
-    notify();
-  } catch (error) {
-    state = {
-      ...state,
-      error: error instanceof Error ? error.message : "Failed to load bot",
-      loading: setLoadingState<BotLoadingKey>(state.loading, "load", false),
-    };
-    notify();
-  }
-}
-
 // Load bot status (live data)
 export async function loadBotStatus(botId: string): Promise<void> {
   setLoading("status", true);
@@ -182,7 +159,7 @@ export async function loadBotTrades(botId: string, strategyId?: string): Promise
 }
 
 // Load available strategies
-export async function loadAvailableStrategies(): Promise<void> {
+async function loadAvailableStrategies(): Promise<void> {
   setLoading("strategies", true);
   try {
     const strategies = await listAvailableStrategies();

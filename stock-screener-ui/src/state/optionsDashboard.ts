@@ -14,18 +14,9 @@
 
 import { fetchDashboard } from "../api/optionsDashboard";
 import type { OptionsDashboardData } from "../types/optionsDashboard";
-import {
-  createSingleFlightStore,
-  type SingleFlightError,
-  type SingleFlightState,
-  type SingleFlightStatus,
-} from "./createSingleFlightStore";
+import { createSingleFlightStore } from "./createSingleFlightStore";
 
 export const MAX_CACHED_SYMBOLS = 5;
-
-export type DashboardStatus = SingleFlightStatus;
-export type DashboardError = SingleFlightError;
-export type OptionsDashboardState = SingleFlightState<OptionsDashboardData>;
 
 const store = createSingleFlightStore<OptionsDashboardData>({
   cacheSize: MAX_CACHED_SYMBOLS,
@@ -33,7 +24,6 @@ const store = createSingleFlightStore<OptionsDashboardData>({
 });
 
 export const optionsDashboardState = store.state;
-export const setOptionsDashboardState = store.setState;
 
 /** Test/introspection hook — no UI reads this directly. */
 export const __dashboardCache = store.cache;
@@ -46,7 +36,5 @@ export const refreshDashboard = store.refresh;
 
 /** Cancel an in-flight read; the cache and the last painted frame survive. */
 export const abortDashboard = store.abort;
-
-export const clearDashboard = store.clear;
 
 export const __resetDashboard = store.reset;

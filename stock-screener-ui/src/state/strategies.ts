@@ -125,28 +125,6 @@ export async function loadInitialData(): Promise<void> {
   }
 }
 
-export async function loadStrategy(strategyId: number): Promise<void> {
-  setLoading(true);
-  setError(null);
-  try {
-    const result = await api.getStrategy(strategyId);
-    state = {
-      ...state,
-      selectedStrategy: result.strategy,
-      selectedVariations: result.variations,
-      isLoading: false,
-    };
-    notify();
-  } catch (error) {
-    state = {
-      ...state,
-      error: error instanceof Error ? error.message : "Failed to load strategy",
-      isLoading: false,
-    };
-    notify();
-  }
-}
-
 export async function createStrategy(data: StrategyCreate): Promise<StrategyConfig | null> {
   setLoading(true);
   setError(null);

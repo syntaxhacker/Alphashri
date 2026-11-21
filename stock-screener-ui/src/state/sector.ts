@@ -115,11 +115,7 @@ export function setStockSectorFilter(stockSectorFilter: string | null): void {
   patch({ stockSectorFilter });
 }
 
-export function setAlertList(alerts: SectorAlert[]): void {
-  patch({ alerts });
-}
-
-export function setSectorData(data: SectorResponse | null): void {
+function setSectorData(data: SectorResponse | null): void {
   patch({ data });
 }
 

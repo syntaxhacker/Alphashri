@@ -24,7 +24,7 @@ export const CATALYST_POLL_MS = 30_000;
 
 const FALLBACK_ERROR = "Failed to load today's catalysts";
 
-export interface CatalystStore {
+interface CatalystStore {
   /** Last good payload; `null` until the first successful response. */
   data: Accessor<CatalystToday | null>;
   /** True only while the first payload is on its way — a refresh keeps `data`. */

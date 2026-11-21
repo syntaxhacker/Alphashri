@@ -24,9 +24,9 @@ export interface TermPoint {
   iv: number;
 }
 
-export type TermMode = "atm" | "rr25" | "bf25";
+type TermMode = "atm" | "rr25" | "bf25";
 
-export interface SurfaceCell {
+interface SurfaceCell {
   /** Lattice strike the cell is plotted at (aligned across expiries). */
   strike: number;
   expiry: string;

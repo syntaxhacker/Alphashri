@@ -71,7 +71,6 @@ export function formatPercentage(
 
 /** Grouped integer/float formatting in the app's Indian locale. */
 export const formatNumberIN = (value: number): string => value.toLocaleString("en-IN");
-export const IN_LOCALE = "en-IN";
 
 // ===========================================
 // Date/Time Formatting

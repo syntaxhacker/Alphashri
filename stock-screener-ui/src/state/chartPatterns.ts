@@ -42,11 +42,11 @@ import { normalizeFilterArray, normalizeSymbolList } from "../api/queryParams";
 /** Poll cadence while a scan job is queued/running. */
 export const POLL_INTERVAL_MS = 2000;
 /** Coalesce streamed `onItem` appends into one store patch per flush window. */
-export const STREAM_FLUSH_MS = 50;
+const STREAM_FLUSH_MS = 50;
 export const DEFAULT_TIMEFRAME = "1D";
 /** Reserved universe id for a hand-picked symbol scan (no preset universe). */
 export const CUSTOM_UNIVERSE = "custom";
-export const DEFAULT_RESULTS_LIMIT = 200;
+const DEFAULT_RESULTS_LIMIT = 200;
 /**
  * A combo whose last completed scan is older than this (or that has never been
  * scanned) is considered stale and gets an automatic background refresh, even
@@ -300,14 +300,6 @@ function isTerminal(status: JobStatus): boolean {
 
 export function setTimeframes(timeframes: TFSpec[]): void {
   patch({ timeframes });
-}
-
-export function setUniverses(universes: Universe[]): void {
-  patch({ universes });
-}
-
-export function setPatterns(patterns: PatternDef[], families: PatternFamily[]): void {
-  patch({ patterns, families });
 }
 
 export function setTimeframe(timeframe: string): void {

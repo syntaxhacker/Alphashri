@@ -33,7 +33,7 @@ export type SavedConfigStatus = "idle" | "loading" | "ready" | "error" | "disabl
 /** `conflict` = another tab wrote; `invalid` = 422, do not retry the payload. */
 export type SavedConfigErrorCode = "not_saved" | "conflict" | "invalid" | null;
 
-export interface SavedConfigState<T> {
+interface SavedConfigState<T> {
   /** Effective value last applied to the UI; null until something was applied. */
   value: T | null;
   status: SavedConfigStatus;
@@ -79,7 +79,7 @@ const defaultTransport: SavedConfigTransport = {
   del: deleteUserConfig,
 };
 
-export interface HydrateOptions<T> {
+interface HydrateOptions<T> {
   /** Present-tense per-field override (URL / route params). Wins over the saved value. */
   override?: Partial<T> | null;
   /** Called with the effective value when the saved payload settles. */
