@@ -1,53 +1,92 @@
-import Typography from "@mui/material/Typography";
-import Box from "@mui/material/Box";
+import { splitProps } from "solid-js";
+import { cn } from "../cn";
+import * as palette from "../palette";
+import { pickTextColor } from "../../utils/contrast";
+import type { JSX } from "solid-js";
 import type { UICodeProps } from "../types";
 
-export function Code({ children, block, color, className, style, "data-testid": testId, id, ...rest }: UICodeProps) {
-  const sx: Record<string, unknown> = {
-    fontFamily: "monospace",
-    fontSize: "0.875em",
-    px: 0.75,
-    py: 0.25,
-    borderRadius: 1,
-    bgcolor: color ? (color as string) : "action.hover",
-    ...(color ? { color: "common.white" } : {}),
+const BG_MAP: Record<string, string> = {
+  primary: palette.PRIMARY,
+  secondary: palette.TEXT_MUTED,
+  success: palette.POSITIVE,
+  error: palette.NEGATIVE,
+  warning: palette.WARNING,
+  info: palette.INFO,
+  danger: palette.NEGATIVE,
+  dimmed: palette.TEXT_MUTED,
+  default: palette.TEXT,
+};
+
+function resolveColorValue(v: string | undefined): string | undefined {
+  if (!v) return undefined;
+  if (v.startsWith("#") || v.startsWith("rgb") || v.includes(".")) return v;
+  return BG_MAP[v];
+}
+
+const CODE_TAGS: Record<string, (props: any) => JSX.Element> = {
+  pre: (props) => <pre {...props} />,
+  code: (props) => <code {...props} />,
+};
+
+const CODE_KNOWN = [
+  "children", "className", "style", "id", "data-testid", "block", "color",
+] as const;
+// `title` (inherited via UIBaseProps) is intentionally omitted: it flows through
+// `rest` onto the DOM element as a native tooltip.
+
+export function Code(props: UICodeProps & Record<string, unknown>) {
+  const [known, rest] = splitProps(props, CODE_KNOWN);
+  const colorValue = resolveColorValue(known.color as string | undefined);
+
+  const baseStyle: Record<string, string | number | undefined> = {
+    "font-size": "0.875em",
+    padding: "2px 6px",
+    "border-radius": "1px",
+    ...(known.color != null
+      ? {
+          // White on the solid semantic fills is ~2.3–3.2:1; pick the readable
+          // ink for the actual fill instead of assuming a dark theme.
+          color: colorValue ? pickTextColor(colorValue) : palette.TEXT,
+          ...(colorValue ? { "background-color": colorValue } : {}),
+        }
+      : {}),
   };
 
-  if (block) {
+  const rootTag = known.block ? "pre" : "code";
+  const Root = CODE_TAGS[rootTag];
+
+  if (known.block) {
     return (
-      <Box
-        component="pre"
-        className={className}
-        style={style}
-        id={id}
-        data-testid={testId}
-        sx={{
-          ...sx,
+      <Root
+        className={cn(known.className, "font-mono")}
+        style={{
+          ...baseStyle,
           display: "block",
-          overflowX: "auto",
-          p: 1.5,
-          m: 0,
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
+          "overflow-x": "auto",
+          padding: "12px",
+          margin: 0,
+          "white-space": "pre-wrap",
+          "word-break": "break-word",
+          ...(known.style as Record<string, unknown> | undefined),
         }}
-        {...(rest as Record<string, unknown>)}
+        id={known.id}
+        data-testid={known["data-testid"]}
+        {...rest}
       >
-        <code>{children}</code>
-      </Box>
+        <code>{known.children}</code>
+      </Root>
     );
   }
 
   return (
-    <Typography
-      component="code"
-      className={className}
-      style={style}
-      id={id}
-      data-testid={testId}
-      sx={sx}
-      {...(rest as Record<string, unknown>)}
+    <Root
+      className={cn(known.className, "font-mono")}
+      style={{ ...baseStyle, ...(known.style as Record<string, unknown> | undefined) }}
+      id={known.id}
+      data-testid={known["data-testid"]}
+      {...rest}
     >
-      {children}
-    </Typography>
+      {known.children}
+    </Root>
   );
 }

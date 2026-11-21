@@ -1142,7 +1142,18 @@ def _minute_tape(day: str, n: int = 5) -> pd.DataFrame:
     )
 
 
-def test_1d_partial_appends_synthetic_bar_from_tape(monkeypatch, tmp_path):
+@pytest.fixture
+def clear_partial_cache():
+    """Isolate the in-memory synthetic-bar cache (keys on symbol + today, TTL
+    30s) so one partial-today test cannot hand the next a stale "AAA" bar."""
+    from chart_patterns import candles as candles_mod
+
+    candles_mod._PARTIAL_CACHE.clear()
+    yield
+    candles_mod._PARTIAL_CACHE.clear()
+
+
+def test_1d_partial_appends_synthetic_bar_from_tape(clear_partial_cache, monkeypatch, tmp_path):
     from chart_patterns import candles as candles_mod
 
     monkeypatch.setattr(candles_mod, "CACHE_DIR", tmp_path)
@@ -1177,7 +1188,7 @@ def test_1d_partial_appends_synthetic_bar_from_tape(monkeypatch, tmp_path):
     assert reread is not None and len(reread) == len(base)
 
 
-def test_1d_partial_empty_tape_appends_nothing(monkeypatch, tmp_path):
+def test_1d_partial_empty_tape_appends_nothing(clear_partial_cache, monkeypatch, tmp_path):
     from chart_patterns import candles as candles_mod
 
     monkeypatch.setattr(candles_mod, "CACHE_DIR", tmp_path)
@@ -1198,7 +1209,7 @@ def test_1d_partial_empty_tape_appends_nothing(monkeypatch, tmp_path):
     assert not getattr(got, "attrs", {}).get("partial_today", False)
 
 
-def test_1d_partial_official_bar_wins(monkeypatch, tmp_path):
+def test_1d_partial_official_bar_wins(clear_partial_cache, monkeypatch, tmp_path):
     from chart_patterns import candles as candles_mod
 
     monkeypatch.setattr(candles_mod, "CACHE_DIR", tmp_path)
@@ -1219,7 +1230,7 @@ def test_1d_partial_official_bar_wins(monkeypatch, tmp_path):
     assert not getattr(got, "attrs", {}).get("partial_today", False)
 
 
-def test_1d_without_flag_has_no_partial_bar(monkeypatch, tmp_path):
+def test_1d_without_flag_has_no_partial_bar(clear_partial_cache, monkeypatch, tmp_path):
     from chart_patterns import candles as candles_mod
 
     monkeypatch.setattr(candles_mod, "CACHE_DIR", tmp_path)

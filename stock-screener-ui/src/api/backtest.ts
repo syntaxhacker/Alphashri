@@ -172,12 +172,15 @@ export async function runBacktest(saveToHistory = false): Promise<BacktestRespon
             // API already built the chart data, use it directly
             setChartData(symbol, symbolChartData);
           } else if (data.candles && symbolChartData.trades) {
-            // Legacy: API returned raw trades, build chart data on frontend
+            // Legacy: API returned raw trades, build chart data on frontend.
+            // `params` is an untyped bucket, so narrow before use.
+            const orMinutes =
+              typeof state.params.or_minutes === "number" ? state.params.or_minutes : 45;
             const chartData = buildChartData(
               symbol,
               data.candles[symbol],
               symbolChartData.trades,
-              state.params.or_minutes || 45,
+              orMinutes,
             );
             setChartData(symbol, chartData);
           }

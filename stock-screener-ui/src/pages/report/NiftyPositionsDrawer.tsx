@@ -1,10 +1,9 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
-import Box from "@mui/material/Box";
-import type { ColumnDef } from "@tanstack/react-table";
+import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js";
+import type { JSX } from "solid-js";
 import { Button, Text } from "@/ui";
+import type { TableColumnDef } from "@/components/common/TanStackTable";
 import * as palette from "@/ui/palette";
-import { PanelModal } from "@/components/common/PanelModal";
+import { LocalPanelModal } from "./LocalPanelModal";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { formatSignedPnl, formatNumberIN } from "@/utils/ui-helpers";
 import type { PaperPosition } from "@/types/paperTrading";
@@ -17,6 +16,7 @@ import {
   sumBookGreeks,
 } from "./niftyPositions";
 import type { PositionRow } from "./niftyPositions";
+import { REPORT_FONT } from "./reportTokens";
 
 /** Open positions refresh while the drawer is up (STOP/TP can fire mid-read). */
 const POSITIONS_REFRESH_MS = 30_000;
@@ -44,37 +44,44 @@ function toneFor(value: number | null): string {
   return value > 0 ? palette.POSITIVE : palette.NEGATIVE;
 }
 
-const NUM = (v: number): ReactNode => (
-  <Text span size="xs" fw={500} sx={{ fontFamily: palette.MONO }}>
+/** Row access by accessorKey (the Solid table does not hand cells a getValue). */
+function rowCell(row: PositionRow, key: keyof PositionRow): PositionRow[keyof PositionRow] {
+  return row[key];
+}
+
+const NUM = (v: number): JSX.Element => (
+  <Text span size="xs" fw={500} style={{ "font-family": palette.MONO }}>
     {formatNumberIN(v)}
   </Text>
 );
 
-const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
+const POSITION_COLUMNS: TableColumnDef<PositionRow>[] = [
   {
+    id: "symbol",
     header: "Symbol",
     accessorKey: "symbol",
     size: 120,
     meta: { align: "left" },
     cell: (info) => (
-      <Text span size="xs" fw={700} title={String(info.getValue() ?? "")} sx={{ minWidth: 0 }}>
-        {String(info.getValue() ?? "—")}
+      <Text span size="xs" fw={700} title={String(rowCell(info.row.original, "symbol") ?? "")} style={{ "min-width": "0" }}>
+        {String(rowCell(info.row.original, "symbol") ?? "—")}
       </Text>
     ),
   },
   {
+    id: "opt",
     header: "Opt",
     accessorKey: "opt",
     size: 46,
     meta: { align: "center" },
     cell: (info) => {
-      const opt = info.getValue() as PositionRow["opt"];
+      const opt = rowCell(info.row.original, "opt") as PositionRow["opt"];
       return (
         <Text
           span
           size="xs"
           fw={700}
-          sx={{ color: opt === "CE" ? palette.TERM_CE : opt === "PE" ? palette.TERM_PE : palette.TEXT_MUTED }}
+          style={{ color: opt === "CE" ? palette.TERM_CE : opt === "PE" ? palette.TERM_PE : palette.TEXT_MUTED }}
         >
           {opt ?? "—"}
         </Text>
@@ -82,32 +89,34 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     },
   },
   {
+    id: "strike",
     header: "Strike",
     accessorKey: "strike",
     size: 74,
     meta: { align: "right" },
     cell: (info) => {
-      const strike = info.getValue() as number | null;
+      const strike = rowCell(info.row.original, "strike") as number | null;
       return (
-        <Text span size="xs" sx={{ fontFamily: palette.MONO }}>
+        <Text span size="xs" style={{ "font-family": palette.MONO }}>
           {strike === null ? "—" : formatNumberIN(strike)}
         </Text>
       );
     },
   },
   {
+    id: "side",
     header: "Side",
     accessorKey: "side",
     size: 52,
     meta: { align: "center" },
     cell: (info) => {
-      const side = String(info.getValue() ?? "");
+      const side = String(rowCell(info.row.original, "side") ?? "");
       return (
         <Text
           span
           size="xs"
           fw={700}
-          sx={{ color: side === "BUY" ? palette.POSITIVE : palette.NEGATIVE }}
+          style={{ color: side === "BUY" ? palette.POSITIVE : palette.NEGATIVE }}
         >
           {side || "—"}
         </Text>
@@ -115,107 +124,97 @@ const POSITION_COLUMNS: ColumnDef<PositionRow>[] = [
     },
   },
   {
+    id: "qty",
     header: "Qty",
     accessorKey: "qty",
     size: 58,
     meta: { align: "right" },
-    cell: (info) => NUM(Number(info.getValue()) || 0),
+    cell: (info) => NUM(Number(rowCell(info.row.original, "qty")) || 0),
   },
   {
+    id: "entry",
     header: "Entry",
     accessorKey: "entry",
     size: 72,
     meta: { align: "right" },
     cell: (info) => (
-      <Text span size="xs" sx={{ fontFamily: palette.MONO }}>
-        {formatRupees(Number(info.getValue()) || 0)}
+      <Text span size="xs" style={{ "font-family": palette.MONO }}>
+        {formatRupees(Number(rowCell(info.row.original, "entry")) || 0)}
       </Text>
     ),
   },
   {
+    id: "mark",
     header: "Mark",
     accessorKey: "mark",
     size: 72,
     meta: { align: "right" },
     cell: (info) => (
-      <Text span size="xs" sx={{ fontFamily: palette.MONO }}>
-        {formatRupees(Number(info.getValue()) || 0)}
+      <Text span size="xs" style={{ "font-family": palette.MONO }}>
+        {formatRupees(Number(rowCell(info.row.original, "mark")) || 0)}
       </Text>
     ),
   },
   {
+    id: "pnl",
     header: "P&L",
     accessorKey: "pnl",
     size: 86,
     meta: { align: "right" },
     cell: (info) => {
-      const pnl = Number(info.getValue()) || 0;
+      const pnl = Number(rowCell(info.row.original, "pnl")) || 0;
       return (
-        <Text span size="xs" fw={700} sx={{ color: toneFor(pnl), fontFamily: palette.MONO }}>
+        <Text span size="xs" fw={700} style={{ color: toneFor(pnl), "font-family": palette.MONO }}>
           {signedRupees(pnl)}
         </Text>
       );
     },
   },
   {
+    id: "stop",
     header: "Stop",
     accessorKey: "stop",
     size: 72,
     meta: { align: "right" },
     cell: (info) => (
-      <Text span size="xs" sx={{ color: palette.NEGATIVE, fontFamily: palette.MONO }}>
-        {formatRupees(Number(info.getValue()) || 0)}
+      <Text span size="xs" style={{ color: palette.NEGATIVE, "font-family": palette.MONO }}>
+        {formatRupees(Number(rowCell(info.row.original, "stop")) || 0)}
       </Text>
     ),
   },
   {
+    id: "target",
     header: "Target",
     accessorKey: "target",
     size: 72,
     meta: { align: "right" },
     cell: (info) => (
-      <Text span size="xs" sx={{ color: palette.POSITIVE, fontFamily: palette.MONO }}>
-        {formatRupees(Number(info.getValue()) || 0)}
+      <Text span size="xs" style={{ color: palette.POSITIVE, "font-family": palette.MONO }}>
+        {formatRupees(Number(rowCell(info.row.original, "target")) || 0)}
       </Text>
     ),
   },
 ];
 
-function GreekStat({ testId, label, value }: { testId: string; label: string; value: number | null }) {
+function GreekStat(props: { testId: string; label: string; value: number | null }) {
   return (
-    <Box
-      data-testid={testId}
-      title={`${label} — Σ chain greek × signed qty (missing legs skipped)`}
-      sx={{
-        display: "flex",
-        alignItems: "baseline",
-        justifyContent: "space-between",
-        gap: 0.5,
-        px: 0.75,
-        py: 0.25,
-        border: `1px solid ${palette.TERM_BORDER}`,
-        borderRadius: "4px",
-        bgcolor: palette.TERM_BG,
-        minWidth: 0,
-        fontVariantNumeric: "tabular-nums",
+    <div
+      data-testid={props.testId}
+      title={`${props.label} — Σ chain greek × signed qty (missing legs skipped)`}
+      class="flex items-baseline justify-between gap-1 px-2 py-[2px] border border-fin-border rounded-[4px] bg-fin-bg min-w-0 font-mono tabular-nums"
+      style={{
+        "border-color": palette.TERM_BORDER,
+        "background-color": palette.TERM_BG,
       }}
     >
-      <Box component="span" sx={{ fontSize: 9, color: palette.TEXT_MUTED, letterSpacing: "0.06em" }}>
-        {label}
-      </Box>
-      <Box
-        component="span"
-        sx={{
-          fontSize: 11,
-          fontWeight: 700,
-          color: toneFor(value),
-          fontFamily: palette.MONO,
-          whiteSpace: "nowrap",
-        }}
+      <span class="text-[11px] text-fin-text-muted tracking-[0.06em]">{props.label}</span>
+      <span
+        class="text-[11px] font-bold font-mono whitespace-nowrap"
+        style={{ color: toneFor(props.value) }}
       >
-        {formatGreek(value, label.includes("Δ") ? 1 : 2)}
-      </Box>
-    </Box>
+        {formatGreek(props.value, props.label.includes("Δ") ? 1 : 2)}
+      </span>
+    </div>
   );
 }
 
@@ -225,29 +224,25 @@ function GreekStat({ testId, label, value }: { testId: string; label: string; va
  * (symbol/opt/strike/side/qty/entry/mark/P&L/stop/target) and the book greeks
  * (Δ Γ Θ V) summed from the live chain, refreshed on open and every 30s.
  */
-export function NiftyPositionsDrawerInner({
-  positions,
-  strikes,
-  onRefresh,
-  refreshMs = POSITIONS_REFRESH_MS,
-}: NiftyPositionsDrawerProps) {
-  const [open, setOpen] = useState(false);
-  const rows = useMemo(() => buildPositionRows(positions), [positions]);
-  const netPnl = useMemo(() => netPositionPnl(positions), [positions]);
-  const greeks = useMemo(() => sumBookGreeks(positions, strikes), [positions, strikes]);
-  const count = rows.length;
-  const pnlTone = toneFor(netPnl);
+export function NiftyPositionsDrawer(props: NiftyPositionsDrawerProps) {
+  const [open, setOpen] = createSignal(false);
+  const refreshMs = () => props.refreshMs ?? POSITIONS_REFRESH_MS;
+  const rows = createMemo(() => buildPositionRows(props.positions));
+  const netPnl = createMemo(() => netPositionPnl(props.positions));
+  const greeks = createMemo(() => sumBookGreeks(props.positions, props.strikes));
+  const count = () => rows().length;
+  const pnlTone = () => toneFor(netPnl());
 
   // Refresh on open + while open. The panel owns the fetch; a refresh simply
   // re-renders this component with the new book.
-  useEffect(() => {
-    if (!open || !onRefresh) return;
-    void onRefresh();
-    const id = window.setInterval(() => void onRefresh(), refreshMs);
-    return () => window.clearInterval(id);
-  }, [open, onRefresh, refreshMs]);
+  createEffect(() => {
+    if (!open() || !props.onRefresh) return;
+    void props.onRefresh();
+    const id = window.setInterval(() => void props.onRefresh?.(), refreshMs());
+    onCleanup(() => window.clearInterval(id));
+  });
 
-  const openDrawer = useCallback(() => setOpen(true), []);
+  const openDrawer = () => setOpen(true);
 
   return (
     <>
@@ -256,135 +251,109 @@ export function NiftyPositionsDrawerInner({
         size="xs"
         variant="subtle"
         title={
-          count > 0
-            ? `${count} open paper position${count === 1 ? "" : "s"} · net ${formatSignedPnl(netPnl)} — click for the book and greeks`
+          count() > 0
+            ? `${count()} open paper position${count() === 1 ? "" : "s"} · net ${formatSignedPnl(netPnl())} — click for the book and greeks`
             : "No open paper positions — click for the paper book"
         }
         onClick={openDrawer}
       >
-        {count > 0 && (
-          <Box
-            component="span"
+        <Show when={count() > 0}>
+          <span
             data-testid="nifty-positions-dot"
-            aria-hidden
-            sx={{
-              width: 5,
-              height: 5,
-              borderRadius: "50%",
-              bgcolor: pnlTone,
-              mr: 0.5,
-              flexShrink: 0,
+            aria-hidden="true"
+            class="shrink-0"
+            style={{
+              "width": "5px",
+              "height": "5px",
+              "border-radius": "50%",
+              "background-color": pnlTone(),
+              "margin-right": "4px",
             }}
           />
-        )}
-        <Box component="span" sx={{ whiteSpace: "nowrap" }}>
-          POS {count}
+        </Show>
+        <span class="whitespace-nowrap">
+          POS {count()}
           {" · "}
-          <Box component="span" sx={{ color: pnlTone, fontVariantNumeric: "tabular-nums" }}>
-            {formatSignedPnl(netPnl)}
-          </Box>
-        </Box>
+          <span class="font-mono tabular-nums" style={{ color: pnlTone() }}>
+            {formatSignedPnl(netPnl())}
+          </span>
+        </span>
       </Button>
 
-      <PanelModal
-        open={open}
+      <LocalPanelModal
+        open={open()}
         variant="drawer"
         title="Paper positions — book & greeks"
         onClose={() => setOpen(false)}
       >
-        <Box
-          data-testid="nifty-positions-drawer"
-          sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}
-        >
-          <Box sx={{ display: "flex", alignItems: "baseline", gap: 1, minWidth: 0 }}>
+        <div data-testid="nifty-positions-drawer" class="flex flex-col gap-1 min-w-0">
+          <div class="flex items-baseline gap-1 min-w-0">
             <Text
               data-testid="nifty-positions-drawer-label"
               span
               size="xs"
               fw={700}
-              style={{ fontSize: 10, letterSpacing: "0.08em", color: palette.TEXT_MUTED }}
+              style={{ "font-size": `${REPORT_FONT.micro}px`, "letter-spacing": "0.08em", color: palette.TEXT_MUTED }}
             >
               PAPER POSITIONS
             </Text>
-            <Text span size="xs" c="dimmed" style={{ fontVariantNumeric: "tabular-nums" }}>
-              {count} open · net{" "}
-              <Box component="span" sx={{ color: pnlTone, fontWeight: 700 }}>
-                {formatSignedPnl(netPnl)}
-              </Box>
+            <Text span size="xs" c="dimmed" style={{ "font-variant-numeric": "tabular-nums" }}>
+              {count()} open · net{" "}
+              <span class="font-bold" style={{ color: pnlTone() }}>
+                {formatSignedPnl(netPnl())}
+              </span>
             </Text>
-          </Box>
+          </div>
 
-          <Box
+          <div
             data-testid="nifty-book-greeks"
-            sx={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-              gap: 0.5,
-              minWidth: 0,
-            }}
+            class="grid grid-cols-[repeat(4,minmax(0,1fr))] gap-1 min-w-0"
           >
-            <GreekStat testId="nifty-book-delta" label="Net Δ" value={greeks.delta} />
-            <GreekStat testId="nifty-book-gamma" label="Net Γ" value={greeks.gamma} />
-            <GreekStat testId="nifty-book-theta" label="Net Θ" value={greeks.theta} />
-            <GreekStat testId="nifty-book-vega" label="Net V" value={greeks.vega} />
-          </Box>
-          <Text size="xs" c="dimmed" style={{ fontSize: 9 }}>
-            Book greeks = Σ chain greek × signed qty · {greeks.legs} leg
-            {greeks.legs === 1 ? "" : "s"} matched · missing legs skipped
+            <GreekStat testId="nifty-book-delta" label="Net Δ" value={greeks().delta} />
+            <GreekStat testId="nifty-book-gamma" label="Net Γ" value={greeks().gamma} />
+            <GreekStat testId="nifty-book-theta" label="Net Θ" value={greeks().theta} />
+            <GreekStat testId="nifty-book-vega" label="Net V" value={greeks().vega} />
+          </div>
+          <Text size="xs" c="dimmed" style={{ "font-size": `${REPORT_FONT.micro}px` }}>
+            Book greeks = Σ chain greek × signed qty · {greeks().legs} leg
+            {greeks().legs === 1 ? "" : "s"} matched · missing legs skipped
           </Text>
 
-          {rows.length === 0 ? (
-            <Text data-testid="nifty-positions-empty" size="sm" c="dimmed">
-              No open paper positions
-            </Text>
-          ) : (
-            <Box
+          <Show
+            when={rows().length === 0}
+            fallback={
+            // The TanStackTable shared component renders its own bordered paper
+            // container; theme it to the desk surface via descendant selectors.
+            <div
               data-testid="nifty-positions-table-wrap"
-              sx={{
-                minWidth: 0,
-                "& .paper-tanstack-container": {
-                  bgcolor: `${palette.TERM_BG} !important`,
-                  border: "none !important",
-                },
-                "& .paper-tanstack-scroll": { bgcolor: `${palette.TERM_BG} !important` },
-                "& .paper-tanstack-table": { bgcolor: `${palette.TERM_BG} !important` },
-                "& .paper-tanstack-header-cell": {
-                  bgcolor: `${palette.TERM_HEADER} !important`,
-                  borderColor: `${palette.TERM_BORDER} !important`,
-                  color: `${palette.TEXT_MUTED} !important`,
-                  fontSize: "9px !important",
-                  letterSpacing: "0.05em",
-                },
-                "& .paper-tanstack-cell": {
-                  bgcolor: "transparent !important",
-                  borderColor: `${palette.TERM_BORDER} !important`,
-                  fontSize: "10px !important",
-                  fontFamily: `${palette.MONO} !important`,
-                  padding: "2px 8px !important",
-                  height: "22px !important",
-                  lineHeight: 1.1,
-                },
-              }}
+              class="min-w-0 [&_.paper-tanstack-container]:[background:var(--desk-bg)]! [&_.paper-tanstack-container]:[border:none]! [&_.paper-tanstack-scroll]:[background:var(--desk-bg)]! [&_.paper-tanstack-table]:[background:var(--desk-bg)]! [&_.paper-tanstack-header-cell]:[background:var(--desk-header)]! [&_.paper-tanstack-header-cell]:[border-color:var(--desk-border)]! [&_.paper-tanstack-header-cell]:[color:var(--desk-muted)]! [&_.paper-tanstack-header-cell]:text-[11px]! [&_.paper-tanstack-header-cell]:tracking-[0.05em]! [&_.paper-tanstack-cell]:bg-transparent! [&_.paper-tanstack-cell]:[border-color:var(--desk-border)]! [&_.paper-tanstack-cell]:text-[11px]! [&_.paper-tanstack-cell]:[font-family:var(--desk-mono)]! [&_.paper-tanstack-cell]:[padding:2px_8px]! [&_.paper-tanstack-cell]:h-[22px]! [&_.paper-tanstack-cell]:leading-[1.1]!"
+              style={{
+                "--desk-bg": palette.TERM_BG,
+                "--desk-header": palette.TERM_HEADER,
+                "--desk-border": palette.TERM_BORDER,
+                "--desk-muted": palette.TEXT_MUTED,
+                "--desk-mono": palette.MONO,
+              } as JSX.CSSProperties}
             >
               <TanStackTable<PositionRow>
-                data={rows}
+                data={rows()}
                 columns={POSITION_COLUMNS}
                 dataTestId="nifty-positions-table"
                 emptyMessage="No open paper positions"
                 enableSorting={false}
                 stickyHeader
                 dense
-                style={{ minWidth: 0 }}
+                style={{ "min-width": 0 }}
               />
-            </Box>
-          )}
-        </Box>
-      </PanelModal>
+            </div>
+            }
+          >
+            <Text data-testid="nifty-positions-empty" size="sm" c="dimmed">
+              No open paper positions
+            </Text>
+          </Show>
+        </div>
+      </LocalPanelModal>
     </>
   );
 }
-
-/** Memoised: the parent repaints on the ~1 s spot tick; the book (`positions`)
- *  only changes on its own refresh. */
-export const NiftyPositionsDrawer = memo(NiftyPositionsDrawerInner);
-NiftyPositionsDrawer.displayName = "NiftyPositionsDrawer";

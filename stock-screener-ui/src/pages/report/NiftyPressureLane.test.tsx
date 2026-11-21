@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, test } from "vitest";
 import { NiftyPressureLane } from "./NiftyPressureLane";
 import { buildPressure } from "./niftyPressure";
@@ -25,19 +25,19 @@ function series(ceLast = 0) {
 
 describe("NiftyPressureLane", () => {
   test("renders one bar group per minute plus the last-minute multiple", () => {
-    render(<NiftyPressureLane series={series(20_000_000)} />);
+    render(() => <NiftyPressureLane series={series(20_000_000)} />);
     const svg = screen.getByTestId("nifty-pressure-svg");
     expect(svg.querySelectorAll("rect").length).toBeGreaterThan(10);
     expect(screen.getByTestId("nifty-pressure-last")).toHaveTextContent("×");
   });
 
   test("shows the empty state without volume", () => {
-    render(<NiftyPressureLane series={buildPressure([])} />);
+    render(() => <NiftyPressureLane series={buildPressure([])} />);
     expect(screen.getByTestId("nifty-pressure-empty")).toBeInTheDocument();
   });
 
   test("hover reads the exact minute (time, CE, PE, multiple)", () => {
-    render(<NiftyPressureLane series={series(20_000_000)} showAxis />);
+    render(() => <NiftyPressureLane series={series(20_000_000)} showAxis />);
     const svg = screen.getByTestId("nifty-pressure-svg");
     // happy-dom has no layout: give the element a real box for the hit-test.
     svg.getBoundingClientRect = () =>
@@ -52,7 +52,7 @@ describe("NiftyPressureLane", () => {
   });
 
   test("renders an HH:MM axis when expanded", () => {
-    render(<NiftyPressureLane series={series(20_000_000)} showAxis />);
+    render(() => <NiftyPressureLane series={series(20_000_000)} showAxis />);
     const axis = screen.getByTestId("nifty-pressure-axis");
     expect(axis).toBeInTheDocument();
     // 13:20 start, every 30-min mark or the first/last label.

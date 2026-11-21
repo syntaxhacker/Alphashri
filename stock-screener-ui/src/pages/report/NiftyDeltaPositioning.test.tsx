@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { describe, expect, test } from "vitest";
+import type { JSX } from "solid-js";
+import { render, screen } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
 import {
@@ -24,11 +25,11 @@ import type {
   NiftyPositioningVerdict,
 } from "@/types/niftyReport";
 
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>{children}</UIProvider>;
+function TestWrapper(props: { children?: JSX.Element }) {
+  return <UIProvider>{props.children}</UIProvider>;
 }
 
-function r(jsx: React.ReactElement) {
+function r(jsx: () => JSX.Element) {
   return render(jsx, { wrapper: TestWrapper });
 }
 
@@ -67,7 +68,6 @@ function fullBlock(
   };
 }
 
-afterEach(cleanup);
 
 describe("fmtCr", () => {
   test("signs and groups positives with Indian grouping", () => {
@@ -176,7 +176,8 @@ describe("delta flip helpers", () => {
 
 describe("NiftyDeltaPositioning render", () => {
   test("full block: verdict, signed summary rows with formula tooltips", () => {
-    r(<NiftyDeltaPositioning positioning={fullBlock()} />);
+    r(() =>
+    <NiftyDeltaPositioning positioning={fullBlock()} />);
     const panel = screen.getByTestId("nifty-positioning-panel");
     expect(panel).toBeInTheDocument();
     expect(panel).toHaveTextContent("Delta positioning");
@@ -211,14 +212,16 @@ describe("NiftyDeltaPositioning render", () => {
   });
 
   test("delta flip stat carries the signed distance from spot", () => {
-    r(<NiftyDeltaPositioning positioning={fullBlock()} spot={25800} />);
+    r(() =>
+    <NiftyDeltaPositioning positioning={fullBlock()} spot={25800} />);
     const flip = screen.getByTestId("nifty-positioning-flip");
     expect(flip).toHaveTextContent("25,750");
     expect(flip).toHaveTextContent("-50 pts");
   });
 
   test("full block: draws the cumulative profile over the initiated flow", () => {
-    r(<NiftyDeltaPositioning positioning={fullBlock()} spot={25750} />);
+    r(() =>
+    <NiftyDeltaPositioning positioning={fullBlock()} spot={25750} />);
     const profile = screen.getByTestId("nifty-positioning-profile");
     expect(profile).toBeInTheDocument();
     const svg = profile.querySelector("svg");
@@ -243,7 +246,8 @@ describe("NiftyDeltaPositioning render", () => {
   });
 
   test("undefined block: dashes everywhere, empty table, no crash", () => {
-    r(<NiftyDeltaPositioning positioning={undefined} />);
+    r(() =>
+    <NiftyDeltaPositioning positioning={undefined} />);
     const panel = screen.getByTestId("nifty-positioning-panel");
     expect(panel).toBeInTheDocument();
     expect(screen.getByTestId("nifty-positioning-verdict")).toHaveTextContent(
@@ -271,11 +275,11 @@ describe("NiftyDeltaPositioning render", () => {
   });
 
   test("partial block: absent strikes still renders the panel safely", () => {
-    r(
+    r(() => (
       <NiftyDeltaPositioning
         positioning={fullBlock({ strikes: undefined as never, verdict: "balanced" })}
-      />,
-    );
+      />
+    ));
     expect(screen.getByTestId("nifty-positioning-panel")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-positioning-verdict")).toHaveTextContent(
       "BALANCED",
@@ -284,7 +288,8 @@ describe("NiftyDeltaPositioning render", () => {
   });
 
   test("empty strikes array renders the chart empty state", () => {
-    r(<NiftyDeltaPositioning positioning={fullBlock({ strikes: [] })} />);
+    r(() =>
+    <NiftyDeltaPositioning positioning={fullBlock({ strikes: [] })} />);
     expect(screen.getByTestId("nifty-positioning-profile")).toBeInTheDocument();
     expect(screen.getByText("No strike breakdown")).toBeInTheDocument();
     expect(
@@ -353,12 +358,12 @@ describe("delta profile", () => {
   test("a flip outside the band omits the flip marker", () => {
     // A whole-chain pivot can sit far outside the ±750 window; pinning the
     // marker to the nearest edge strike would claim a level that is not there.
-    r(
+    r(() => (
       <NiftyDeltaPositioning
         positioning={fullBlock({ deltaFlip: 20000 })}
         spot={25750}
-      />,
-    );
+      />
+    ));
     expect(
       screen.getByTestId("nifty-positioning-profile-marker-spot"),
     ).toBeInTheDocument();
@@ -381,7 +386,8 @@ describe("delta profile", () => {
     const block = fullBlock({
       strikes: [23000, 23100, 25000].map((s) => strikeRow(s, 1)),
     });
-    r(<NiftyDeltaPositioning positioning={block} spot={23_100} />);
+    r(() =>
+    <NiftyDeltaPositioning positioning={block} spot={23_100} />);
     expect(
       screen.getByTestId("nifty-positioning-profile-readout"),
     ).toHaveTextContent("23,000–23,100");

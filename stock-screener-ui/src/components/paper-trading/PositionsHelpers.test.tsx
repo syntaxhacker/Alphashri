@@ -13,10 +13,10 @@ describe("PositionsHelpers", () => {
   describe("nearBreakoutPct", () => {
     const baseItem: PaperScanItem = {
       symbol: "RELIANCE",
+      status: "watching",
       price: 2800,
       or_high: 2850,
       or_low: 2750,
-      high_52w: null,
     };
 
     it("returns 0 when price is at OR high", () => {
@@ -45,17 +45,17 @@ describe("PositionsHelpers", () => {
     });
 
     it("uses 52W high when OR levels unavailable", () => {
-      const item = { ...baseItem, or_high: null, or_low: null, high_52w: 3000 };
+      const item = { ...baseItem, or_high: undefined, or_low: undefined, high_52w: 3000 };
       expect(nearBreakoutPct(item)).toBeCloseTo(6.66, 1);
     });
 
     it("returns 9999 when all levels unavailable", () => {
-      const item = { ...baseItem, or_high: null, or_low: null, high_52w: null };
+      const item = { ...baseItem, or_high: undefined, or_low: undefined, high_52w: undefined };
       expect(nearBreakoutPct(item)).toBe(9999);
     });
 
     it("handles zero OR levels", () => {
-      const item = { ...baseItem, or_high: 0, or_low: 0, high_52w: null };
+      const item = { ...baseItem, or_high: 0, or_low: 0, high_52w: undefined };
       expect(nearBreakoutPct(item)).toBe(9999);
     });
 
@@ -72,22 +72,23 @@ describe("PositionsHelpers", () => {
 
   describe("formatNear", () => {
     it("formats valid percentage", () => {
-      const item: PaperScanItem = { symbol: "TEST", price: 2800, or_high: 2850, or_low: 2750 };
+      const item: PaperScanItem = { symbol: "TEST", status: "watching", price: 2800, or_high: 2850, or_low: 2750 };
       expect(formatNear(item)).toBe("1.75%");
     });
 
     it("returns dash for invalid values", () => {
       const item: PaperScanItem = {
         symbol: "TEST",
+        status: "watching",
         price: null as any,
-        or_high: null,
-        or_low: null,
+        or_high: undefined,
+        or_low: undefined,
       };
       expect(formatNear(item)).toBe("-");
     });
 
     it("returns dash for infinity", () => {
-      const item: PaperScanItem = { symbol: "TEST", price: 100, or_high: 0, or_low: 0 };
+      const item: PaperScanItem = { symbol: "TEST", status: "watching", price: 100, or_high: 0, or_low: 0 };
       expect(formatNear(item)).toBe("-");
     });
   });
@@ -202,24 +203,24 @@ describe("PositionsHelpers", () => {
 
   describe("nearBreakoutPct edge cases", () => {
     test("handles NaN price without crashing", () => {
-      const item = { symbol: "TEST", price: NaN as any, or_high: 2850, or_low: 2750 };
+      const item: PaperScanItem = { symbol: "TEST", status: "watching", price: NaN as any, or_high: 2850, or_low: 2750 };
       const result = nearBreakoutPct(item);
       expect(Number.isNaN(result) || result === 9999).toBe(true);
     });
 
     test("handles Infinity price without crashing", () => {
-      const item = { symbol: "TEST", price: Infinity, or_high: 2850, or_low: 2750 };
+      const item: PaperScanItem = { symbol: "TEST", status: "watching", price: Infinity, or_high: 2850, or_low: 2750 };
       const result = nearBreakoutPct(item);
       expect(Number.isFinite(result)).toBe(false);
     });
 
     test("handles orHigh/orLow both null with 52w_high = 0", () => {
-      const item = { symbol: "TEST", price: 2800, or_high: null, or_low: null, high_52w: 0 };
+      const item: PaperScanItem = { symbol: "TEST", status: "watching", price: 2800, or_high: undefined, or_low: undefined, high_52w: 0 };
       expect(nearBreakoutPct(item)).toBe(9999);
     });
 
     test("handles very large price values", () => {
-      const item = { symbol: "TEST", price: 1e10, or_high: 2850, or_low: 2750 };
+      const item: PaperScanItem = { symbol: "TEST", status: "watching", price: 1e10, or_high: 2850, or_low: 2750 };
       const result = nearBreakoutPct(item);
       expect(Number.isFinite(result)).toBe(true);
     });

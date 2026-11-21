@@ -4,10 +4,14 @@
 
 import { createSubscriber } from "./createSubscriber";
 
+import { apiErrorFromResponse } from "@/api/apiError";
 import { API_BASE } from "@/api/config";
 const TOKEN_KEY = "alphashri_token";
 const REFRESH_TOKEN_KEY = "alphashri_refresh_token";
 const USER_KEY = "alphashri_user";
+const REFRESH_ENDPOINT = "/api/auth/refresh";
+// Refresh ahead of expiry: a token with 5 minutes left cannot finish every in-flight call.
+const REFRESH_SKEW_MS = 300_000;
 
 // Types
 export interface User {
@@ -18,7 +22,7 @@ export interface User {
   created_at: string;
 }
 
-export interface AuthState {
+interface AuthState {
   isAuthenticated: boolean;
   user: User | null;
   loading: boolean;
@@ -61,6 +65,38 @@ export function clearTokens(): void {
   localStorage.removeItem(USER_KEY);
 }
 
+function base64UrlDecode(segment: string): string | null {
+  try {
+    const base64 = segment.replace(/-/g, "+").replace(/_/g, "/");
+    const remainder = base64.length % 4;
+    const padded = remainder === 0 ? base64 : base64 + "=".repeat(4 - remainder);
+    return atob(padded);
+  } catch {
+    return null;
+  }
+}
+
+/** JWT `exp` as epoch milliseconds, or null when the token carries no decodable `exp`. */
+function getTokenExpiry(token: string | null): number | null {
+  if (!token) return null;
+  const payload = token.split(".")[1];
+  if (!payload) return null;
+  const json = base64UrlDecode(payload);
+  if (!json) return null;
+  try {
+    const claims = JSON.parse(json) as { exp?: unknown };
+    return typeof claims.exp === "number" ? claims.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+function isExpiringSoon(token: string, now: number = Date.now()): boolean {
+  const expiry = getTokenExpiry(token);
+  // An opaque token has no provable deadline, so refreshing it on every call would loop.
+  return expiry !== null && expiry - now <= REFRESH_SKEW_MS;
+}
+
 export function getStoredUser(): User | null {
   const userStr = localStorage.getItem(USER_KEY);
   if (userStr) {
@@ -78,8 +114,7 @@ export function setStoredUser(user: User): void {
 }
 
 // API helper with auth
-async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
-  const token = getAccessToken();
+function withAuthHeaders(options: RequestInit, token: string | null): RequestInit {
   // FormData bodies must keep the browser-generated multipart Content-Type
   // (including its boundary); forcing application/json breaks file uploads.
   const isFormData =
@@ -93,7 +128,34 @@ async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Re
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  return fetch(url, { ...options, headers });
+  return { ...options, headers };
+}
+
+// Refreshing these would either recurse or spend a refresh token on a dying session.
+const NO_PROACTIVE_REFRESH = [REFRESH_ENDPOINT, "/api/auth/logout"];
+
+async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
+  const refreshable = !NO_PROACTIVE_REFRESH.some((path) => url.includes(path));
+  let proactiveRefreshSucceeded = false;
+
+  if (refreshable && getRefreshToken()) {
+    const token = getAccessToken();
+    if (!token || isExpiringSoon(token)) {
+      proactiveRefreshSucceeded = await refreshTokensOnce();
+    }
+  }
+
+  const response = await fetch(url, withAuthHeaders(options, getAccessToken()));
+
+  // A token minted seconds ago that is still rejected means the session is gone;
+  // refreshing again would just burn another rotation on the same failure.
+  if (response.status !== 401 || !refreshable || proactiveRefreshSucceeded) {
+    return response;
+  }
+  if (!getRefreshToken() || !(await refreshTokensOnce())) {
+    return response;
+  }
+  return fetch(url, withAuthHeaders(options, getAccessToken()));
 }
 
 // Auth API functions
@@ -224,7 +286,7 @@ export async function checkAuth(): Promise<boolean> {
       return true;
     } else {
       // Token invalid, try refresh
-      const refreshed = await refreshTokens();
+      const refreshed = await refreshTokensOnce();
       if (!refreshed) {
         clearTokens();
         updateState({
@@ -246,14 +308,14 @@ export async function checkAuth(): Promise<boolean> {
   }
 }
 
-async function refreshTokens(): Promise<boolean> {
+async function performRefresh(): Promise<boolean> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) {
     return false;
   }
 
   try {
-    const response = await fetch(`${API_BASE}/api/auth/refresh`, {
+    const response = await fetch(`${API_BASE}${REFRESH_ENDPOINT}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: refreshToken }),
@@ -271,9 +333,15 @@ async function refreshTokens(): Promise<boolean> {
   }
 }
 
-// Initialize auth state on load
-export function initAuth(): void {
-  checkAuth();
+// One in-flight refresh per tab: the refresh token rotates on use, so parallel
+// callers would race and all but the winner would be left with a dead token.
+let refreshInFlight: Promise<boolean> | null = null;
+
+function refreshTokensOnce(): Promise<boolean> {
+  refreshInFlight ??= performRefresh().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
 }
 
 // Export fetchWithAuth for use in other API modules
@@ -288,3 +356,21 @@ export async function apiFetch(url: string, options?: RequestInit): Promise<any>
   }
   return response.json();
 }
+
+/**
+ * Typed JSON variant of `fetchWithAuth` for direct callers that need a
+ * status-aware error. Additive: `fetchWithAuth` still returns a bare Response
+ * and the token refresh / storage / redirect flow is untouched.
+ */
+export async function fetchJsonWithAuth<T>(
+  url: string,
+  options?: RequestInit,
+  fallback: string = "Request failed",
+): Promise<T> {
+  const response = await fetchWithAuth(url, options);
+  if (!response.ok) throw await apiErrorFromResponse(response, fallback);
+  return (await response.json()) as T;
+}
+
+/** Build a shared typed error from a non-ok Response without another request. */
+export const toApiError = apiErrorFromResponse;

@@ -44,7 +44,7 @@ The State pattern (and FSM thinking in general) appears in nearly every layer of
 | **Workflow / Document Approval** | A document cycles through `draft → submitted → under_review → approved/rejected → published`. Transitions trigger email notifications, audit logs, and permission changes. |
 | **Game Character States** | A player character transitions between `idle → running → jumping → attacking → damaged → dead`. Each state restricts available animations and input handling. |
 | **Order Processing** | An e-commerce order moves through `pending → confirmed → processing → shipped → delivered → returned → cancelled`. Each transition may charge a payment, send an email, or update inventory. |
-| **React Router** | Route transitions are themselves state machines: `idle → loading → error → loaded → idle`. React Router v6 uses an FSM internally to manage navigation. |
+| **React Router** | Route transitions are themselves state machines: `idle → loading → error → loaded → idle`. React Router v6 uses an FSM internally to manage navigation. (Generic React example — this app routes with `@solidjs/router`.) |
 | **Bot Lifecycle (this codebase)** | `STOPPED → STARTING → RUNNING → STOPPING → STOPPED` with an `ERROR` escape hatch. See below for the full implementation. |
 | **Network Connectivity** | `online → offline → reconnecting → online`. The browser's `navigator.onLine` maps to a trivial FSM, but real apps often layer retry logic and backoff on top. |
 | **Authentication Flow** | `unauthenticated → authenticating → authenticated → expired → unauthenticated`. Token refresh is a sub-state machine. |
@@ -324,7 +324,7 @@ machine.registerHandler(BotState.RUNNING, new RunningHandler());
 1. **Import** `BotStateMachine` and `BotState` from `src/patterns/state/BotStateMachine.ts`.
 2. **Instantiate** with `new BotStateMachine()` (defaults to `STOPPED`).
 3. **Drive transitions** by calling `machine.transition(event)` in response to UI actions (start/stop buttons), WebSocket messages (`STARTED`, `STOPPED`), or error handlers (`ERROR`).
-4. **Subscribe** to state changes with `machine.onStateChange(callback)` to update React state, show notifications, or toggle UI elements.
+4. **Subscribe** to state changes with `machine.onStateChange(callback)` to update a signal, show notifications, or toggle UI elements.
 5. **Query** the machine before acting — e.g., disable the "Start" button when `!machine.canTransition("START")`.
 
 ### Mapping to BotStatus
@@ -378,13 +378,13 @@ Each machine is independent — instantiate two `BotStateMachine` instances. If 
 - **Mealy machine**: outputs depend on the current state *and* the input event. Our `transition(event)` return value (whether the transition succeeded) is Mealy-like.
 - Most real-world FSMs (including ours) are **hybrids** of both.
 
-**Q: How do you handle state machines in React?**
+**Q: How do you handle state machines in React? (generic React example — this app is Solid)**
 
 Options:
 1. `useReducer` + reducer that implements FSM transitions (good for simple machines).
 2. Dedicated FSM library like XState (good for complex, hierarchical machines).
-3. A custom Hook that wraps `BotStateMachine` and triggers re-renders via `onStateChange`.
-4. This codebase's approach: instantiate the machine externally, subscribe with `onStateChange` to update React state.
+3. A custom hook that wraps `BotStateMachine` and triggers re-renders via `onStateChange`.
+4. This codebase's approach: instantiate the machine externally, subscribe with `onStateChange`, and write the result into a signal so Solid's reactivity picks it up.
 
 **Q: How do you test a state machine?**
 
@@ -400,4 +400,4 @@ Options:
 - Log every transition with timestamps (our `onStateChange` does this).
 - Maintain a transition history array for debugging.
 - Generate a Mermaid or Graphviz diagram from the transition table automatically.
-- React DevTools can show the current state value from your hook.
+- React DevTools can show the current state value from your hook. (Generic React example — Solid has no DevTools state inspector for this; log the transition tuple instead.)

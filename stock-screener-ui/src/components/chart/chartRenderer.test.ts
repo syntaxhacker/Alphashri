@@ -4,7 +4,7 @@ import type { ORBZone } from "../../types/backtest";
 import { buildChartOption, buildORBLine, formatTooltip } from "./chartRenderer";
 import { CHART_BG, CHART_LIGHT_BG } from "../../config/colors";
 import { buildPivotSeries } from "../../utils/chartLineBuilders";
-import { formatTimeLabel } from "../../utils/chartTimeUtils";
+import { formatTimeLabel } from "@/utils/chart/time";
 
 const makeCandle = (overrides: Partial<PreviewCandle> = {}): PreviewCandle => ({
   time: "2025-10-24T09:15",

@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { Show, createEffect, createMemo, onCleanup } from "solid-js";
 import { Box, Loader, Flex, Stack, Text, useColorScheme } from "@/ui";
-import { useECharts } from "../../hooks/useECharts";
+import { loadEcharts } from "../../utils/loadEcharts";
 import {
   CREAM,
   BLACK,
@@ -19,6 +19,7 @@ import {
   CHART_LIGHT_BG,
 } from "../../config/colors";
 import { withAlpha } from "../../utils/color";
+import { contrastRatio } from "../../utils/contrast";
 
 const COLOR_STOPS = [
   { color: SECTOR_LIGHT_RED, pos: 0.0 },
@@ -54,14 +55,8 @@ function getTextColor(value: number): string {
   const g = Math.round(c1.g + (c2.g - c1.g) * local);
   const b = Math.round(c1.b + (c2.b - c1.b) * local);
 
-  const srgb = [r, g, b].map((c) => {
-    const s = c / 255;
-    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
-  });
-  const lum = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
-  const contrastWhite = 1.05 / (lum + 0.05);
-  const contrastBlack = (lum + 0.05) / 0.05;
-  return contrastWhite >= contrastBlack ? CREAM : BROWN_DARK;
+  const cell = `rgb(${r}, ${g}, ${b})`;
+  return contrastRatio(CREAM, cell) >= contrastRatio(BROWN_DARK, cell) ? CREAM : BROWN_DARK;
 }
 
 function chartColors(isDark: boolean) {
@@ -81,23 +76,33 @@ interface CorrelationHeatmapProps {
   valueFormatter?: (val: number) => string;
 }
 
-export function CorrelationHeatmap({
-  matrix,
-  symbols,
-  isLoading,
-  isDark: isDarkProp,
-  testId,
-  valueFormatter,
-}: CorrelationHeatmapProps) {
+export function CorrelationHeatmap(props: CorrelationHeatmapProps) {
   const { colorScheme } = useColorScheme();
-  const isDark = isDarkProp ?? colorScheme === "dark";
-  const { chartRef, setChartOption } = useECharts({ isDark });
-  const hasData = matrix && symbols && matrix.length > 0 && symbols.length > 0;
-  const colors = chartColors(isDark);
-  const fmt = valueFormatter ?? ((v: number) => Math.round(v * 100) + "%");
+  const isDark = () => props.isDark ?? colorScheme() === "dark";
+  const hasData = createMemo(
+    () => Boolean(props.matrix && props.symbols && props.matrix.length > 0 && props.symbols.length > 0),
+  );
+  const fmt = () => props.valueFormatter ?? ((v: number) => Math.round(v * 100) + "%");
 
-  useEffect(() => {
-    if (!hasData) return;
+  let chartDiv: HTMLDivElement | undefined;
+  /** Room a cell actually gets; drives label size and whether labels fit. */
+  const cellPx = () => {
+    const width = chartDiv?.clientWidth ?? 0;
+    const n = Math.max(1, props.symbols.length);
+    const labelRoom = Math.min(100, Math.max(56, Math.round(width * 0.24)));
+    return (width - labelRoom * 2) / n;
+  };
+  /** Below ~34px a cell cannot hold "87%" without it overlapping the border. */
+  const showCellLabels = () => cellPx() >= 34;
+  const cellLabelSize = () => (cellPx() >= 52 ? 14 : cellPx() >= 42 ? 12 : 11);
+  let chartInstance: any = null;
+
+  createEffect(() => {
+    if (!hasData()) return;
+    const colors = chartColors(isDark());
+    const symbols = props.symbols;
+    const matrix = props.matrix;
+    const format = fmt();
 
     const n = symbols.length;
     const heatmapData: any[] = [];
@@ -113,14 +118,25 @@ export function CorrelationHeatmap({
       }
     }
 
-    setChartOption({
+    const option = {
       backgroundColor: "transparent",
       tooltip: {
         position: "top" as const,
         formatter: (p: any) =>
           `${symbols[p.data.value[1]]} × ${symbols[p.data.value[0]]}<br/>Correlation: ${(p.data.value[2] * 100).toFixed(1)}%`,
       },
-      grid: { left: 100, right: 80, top: 10, bottom: 100 },
+      /*
+       * The label margins were fixed (100 left / 80 right). In a 285px dock
+       * window that reserved 180px and left ~15px per column for a 7-sector
+       * matrix, so the cells and their numbers mushed together. Scale the
+       * margins to the label text instead, and cap them so a wide panel still
+       * does not waste space.
+       */
+      grid: (() => {
+        const width = chartDiv?.clientWidth ?? 0;
+        const labelRoom = Math.min(100, Math.max(56, Math.round(width * 0.24)));
+        return { left: labelRoom, right: labelRoom, top: 10, bottom: labelRoom };
+      })(),
       xAxis: {
         type: "category" as const,
         data: symbols,
@@ -148,10 +164,10 @@ export function CorrelationHeatmap({
           type: "heatmap",
           data: heatmapData,
           label: {
-            show: true,
-            fontSize: 14,
+            show: showCellLabels(),
+            fontSize: cellLabelSize(),
             fontWeight: 700,
-            formatter: (p: any) => fmt(p.data.value[2]),
+            formatter: (p: any) => format(p.data.value[2]),
           },
           itemStyle: { borderColor: colors.border, borderWidth: 1 },
           emphasis: {
@@ -160,16 +176,93 @@ export function CorrelationHeatmap({
           },
         },
       ],
-    });
-  }, [hasData, matrix, symbols, setChartOption]);
+    };
 
-  const minHeight = hasData ? Math.max(300, symbols.length * 40 + 120) : 300;
+    let cancelled = false;
+    void loadEcharts().then((echartsLib) => {
+      if (cancelled || !echartsLib || !chartDiv) return;
+      if (!chartInstance) {
+        chartInstance = echartsLib.init(chartDiv, null);
+      }
+      chartInstance.setOption(option, true);
+      chartInstance.resize();
+      // Keep the last option so a container resize can re-apply the adaptive
+      // margins and label sizes; `resize()` alone would keep the geometry
+      // the container had when this effect ran.
+      lastOption = option;
+    });
+
+    onCleanup(() => {
+      cancelled = true;
+    });
+  });
+
+  let lastOption: Record<string, unknown> | null = null;
+
+  onCleanup(() => {
+    if (chartInstance) {
+      chartInstance.dispose();
+      chartInstance = null;
+    }
+  });
+
+  /*
+   * ECharts sizes itself from the div at `init` time and thereafter only on an
+   * explicit `resize()`. Listening to `window.resize` alone left the canvas at
+   * whatever size the div happened to have when it first mounted — inside a
+   * dock window that is a 100x520 sliver which never grows, so the matrix
+   * columns were clipped and the sector labels truncated. Observe the element.
+   */
+  let resizeObserver: ResizeObserver | null = null;
+  const observeChartDiv = (el: HTMLDivElement) => {
+    chartDiv = el;
+    resizeObserver?.disconnect();
+    if (typeof ResizeObserver === "undefined") return;
+    resizeObserver = new ResizeObserver(() => {
+      if (!chartInstance) return;
+      chartInstance.resize();
+      if (lastOption) {
+        const width = chartDiv?.clientWidth ?? 0;
+        const labelRoom = Math.min(100, Math.max(56, Math.round(width * 0.24)));
+        chartInstance.setOption(
+          { grid: { left: labelRoom, right: labelRoom, top: 10, bottom: labelRoom } },
+          false,
+        );
+      }
+    });
+    resizeObserver.observe(el);
+  };
+  onCleanup(() => {
+    resizeObserver?.disconnect();
+    resizeObserver = null;
+  });
+
+  const handleResize = () => chartInstance?.resize();
+  window.addEventListener("resize", handleResize);
+  onCleanup(() => window.removeEventListener("resize", handleResize));
+
+  /*
+   * The floor keeps a *stacked* layout from collapsing, but it must not force
+   * the canvas taller than the box it sits in: the dock renders this chart in
+   * a fixed-height cell, and `min-height: 520px` there made the matrix draw
+   * past the bottom of its own panel.
+   */
+  const minHeight = () => {
+    if (props.isLoading) return 300;
+    if (!hasData()) return 36;
+    return Math.min(300, props.symbols.length * 40 + 120);
+  };
 
   return (
-    <Box pos="relative" style={{ minHeight }}>
-      <Box data-testid={testId} ref={chartRef} style={{ minHeight, opacity: hasData ? 1 : 0 }} />
-      {isLoading && (
-        <Flex pos="absolute" inset={0} justify="center" align="center" style={{ zIndex: 1 }}>
+    <Box className="flex min-h-0 w-full flex-1 flex-col" style={{ "min-height": `${minHeight()}px` }}>
+      <Box
+        data-testid={props.testId}
+        ref={observeChartDiv}
+        className="relative min-h-0 w-full flex-1"
+        style={{ opacity: hasData() ? 1 : 0 }}
+      />
+      <Show when={props.isLoading}>
+        <Flex pos="absolute" top={0} right={0} bottom={0} left={0} justify="center" align="center" style={{ "z-index": 1, "pointer-events": "none" }}>
           <Stack align="center" gap="xs">
             <Loader size="sm" />
             <Text size="sm" c="dimmed">
@@ -177,14 +270,14 @@ export function CorrelationHeatmap({
             </Text>
           </Stack>
         </Flex>
-      )}
-      {!isLoading && !hasData && (
-        <Flex pos="absolute" inset={0} justify="center" align="center">
+      </Show>
+      <Show when={!props.isLoading && !hasData()}>
+        <Flex pos="absolute" top={0} right={0} bottom={0} left={0} justify="center" align="center" style={{ "pointer-events": "none" }}>
           <Text size="sm" c="dimmed">
             No correlation data available
           </Text>
         </Flex>
-      )}
+      </Show>
     </Box>
   );
 }

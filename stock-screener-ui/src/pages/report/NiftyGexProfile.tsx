@@ -1,9 +1,12 @@
+import { createMemo, Show } from "solid-js";
+import {
+  GEX_LEVEL_MAX_DIST_PCT,
+  GEX_LEVEL_MIN_SHARE,
+} from "@/config/reportAnalytics";
 import { formatNumberIN } from "@/utils/ui-helpers";
-import { memo, useMemo } from "react";
-import Box from "@mui/material/Box";
-import * as palette from "@/ui/palette";
-import { CompactPanel, CompactStat } from "@/components/common/compact";
 import { Text } from "@/ui";
+import * as palette from "@/ui/palette";
+import { LocalCompactPanel, LocalCompactStat } from "./reportBits";
 import { spotVsFlip } from "./NiftyGammaTime";
 import { MiniLineChart } from "@/components/common/charts/MiniLineChart";
 import type {
@@ -17,6 +20,7 @@ import {
   gexRegimeAtSpot,
   type GexProfilePoint,
 } from "./niftyGex";
+import { REPORT_FONT } from "./reportTokens";
 
 /* The spot-relative regime/flip math lives in the pure `niftyGex` module so
    the desk plan, the tape and the heatmap can read the same numbers without
@@ -263,11 +267,9 @@ interface GexSideLevels {
   above: GexSideLevel | null;
 }
 
-/** A level must carry at least this share of the profile's peak |netGex|. */
-export const GEX_LEVEL_MIN_SHARE = 0.1;
-
-/** A level farther than this share of spot is a wing, not an actionable level. */
-export const GEX_LEVEL_MAX_DIST_PCT = 0.05;
+// Gates are owned by config (mirrored from the Python owner, drift-guarded by
+// tests/api/test_options_conventions.py); re-exported for existing importers.
+export { GEX_LEVEL_MAX_DIST_PCT, GEX_LEVEL_MIN_SHARE };
 
 /**
  * Largest positive (pin) if any, else most negative (fuel), on one side.
@@ -415,6 +417,18 @@ export function gexTone(v: number | null): string {
 }
 
 /**
+ * A pin magnet is a level, not a gamma sign: SUP is green support, RES is red
+ * resistance, regardless of the sign of the gamma that creates it. Negative
+ * gamma is fuel on its own side and keeps the sign-based tone.
+ */
+export function gexLevelTone(level: GexSideLevel | null): string {
+  if (!level) return palette.TEXT_MUTED;
+  if (level.kind === "support") return palette.LEVEL_SUPPORT;
+  if (level.kind === "resistance") return palette.LEVEL_RESISTANCE;
+  return gexTone(level.netGex);
+}
+
+/**
  * Pure MiniLineChart prop builder (unit-testable). The plotted window is the
  * significance band from `selectGexBand`, widened to keep the flip level and
  * the strike nearest spot inside it. Markers:
@@ -473,212 +487,219 @@ interface NiftyGexProfileProps {
  * `22,600 (+142.30 Cr/pt)`. The magnitude is what separates a real wall from
  * a +0.07 Cr wing that only looked like one.
  */
-function GexLevelValue(level: GexSideLevel | null) {
-  if (!level) return GEX_DASH;
+function GexLevelValue(props: { level: GexSideLevel | null }) {
+  const level = () => props.level;
   return (
-    <>
-      {formatGexStrike(level.strike)}
-      <Box
-        component="span"
-        sx={{
-          fontSize: 9,
-          fontWeight: 400,
-          ml: 0.5,
-          color: "text.secondary",
-          whiteSpace: "nowrap",
-        }}
-      >
-        ({formatGexCr(level.netGex)})
-      </Box>
-    </>
+    <Show when={level()} fallback={<>{GEX_DASH}</>}>
+      <>
+        {formatGexStrike(level()!.strike)}
+        <span
+          class="ml-[4px] whitespace-nowrap"
+          style={{
+            "font-size": `${REPORT_FONT.micro}px`,
+            "font-weight": 400,
+            "color": palette.TEXT_MUTED,
+          }}
+        >
+          ({formatGexCr(level()!.netGex)})
+        </span>
+      </>
+    </Show>
   );
 }
 
-function NiftyGexProfileInner({ gex, spot }: NiftyGexProfileProps) {
-  const profile = useMemo(() => buildGexProfile(gex), [gex]);
-  const stats = useMemo(() => gexProfileStats(gex, spot), [gex, spot]);
-  const chart = useMemo(
-    () => buildGexChart(profile, stats, spot),
-    [profile, stats, spot],
+export function NiftyGexProfile(props: NiftyGexProfileProps) {
+  const gex = () => props.gex;
+  const spot = () => props.spot;
+  const profile = createMemo(() => buildGexProfile(gex()));
+  const stats = createMemo(() => gexProfileStats(gex(), spot()));
+  const chart = createMemo(
+    () => buildGexChart(profile(), stats(), spot()),
   );
-  const band = chart.band;
+  const band = () => chart().band;
 
-  const regimeText = stats.regime ? `${stats.regime} GAMMA` : GEX_DASH;
-  const regimeTone = gexTone(
-    stats.regime === "LONG" ? 1 : stats.regime === "SHORT" ? -1 : null,
+  const regimeText = () => (stats().regime ? `${stats().regime} GAMMA` : GEX_DASH);
+  const regimeTone = () =>
+    gexTone(stats().regime === "LONG" ? 1 : stats().regime === "SHORT" ? -1 : null);
+  const flipDistance = createMemo(
+    () => spotVsFlip(spot(), stats().zeroCross),
   );
-  const flipDistance = useMemo(
-    () => spotVsFlip(spot, stats.zeroCross),
-    [spot, stats.zeroCross],
-  );
-  const sides = useMemo(() => gexSideLevels(gex, spot), [gex, spot]);
-  const below = sides.below;
-  const above = sides.above;
-  const belowCopy = gexSideCopy(below, "below");
-  const aboveCopy = gexSideCopy(above, "above");
-  const regimeSentence =
-    stats.regime === "LONG"
+  const sides = createMemo(() => gexSideLevels(gex(), spot()));
+  const below = () => sides().below;
+  const above = () => sides().above;
+  const belowCopy = () => gexSideCopy(below(), "below");
+  const aboveCopy = () => gexSideCopy(above(), "above");
+  const regimeSentence = () =>
+    stats().regime === "LONG"
       ? "Dealers hold long gamma — the big peak is a magnet: dips there get bought, rallies get sold into."
-      : stats.regime === "SHORT"
+      : stats().regime === "SHORT"
         ? "Dealers are short gamma — the deep trough is fuel: a move through it accelerates instead of stalling."
         : "";
 
   return (
-    <CompactPanel
+    <LocalCompactPanel
       title="GEX profile"
       testId="nifty-gex-profile-panel"
-      sx={{
-        background: palette.TERM_BG,
-        border: `1px solid ${palette.TERM_BORDER}`,
-        borderColor: palette.TERM_BORDER,
-        borderRadius: 1,
+      style={{
+        "background-color": palette.TERM_BG,
+        "border": `1px solid ${palette.TERM_BORDER}`,
+        "border-color": palette.TERM_BORDER,
+        "border-radius": "8px",
       }}
     >
       {/* Tight stat row: plain grid instead of CompactStatGrid (whose
           wrapper padding costs ~12px). All three stats, labels, values and
           unit hints are unchanged — only the chrome shrinks. */}
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, width: "100%", minWidth: 0 }}>
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-            gap: 0.5,
-            width: "100%",
-            minWidth: 0,
-          }}
+      <div class="flex flex-col gap-[4px] w-full min-w-0">
+        <div
+          class="grid grid-cols-[repeat(4,minmax(0,1fr))] gap-[4px] w-full min-w-0"
         >
-          <CompactStat
-            data-testid="nifty-gex-profile-net"
+          <LocalCompactStat
+            testId="nifty-gex-profile-net"
             label="Net γ (book)"
-            tone={gexTone(stats.netTotal)}
-            valueSize="md"
-            value={formatGexCr(stats.netTotal)}
+            tone={gexTone(stats().netTotal) ?? undefined}
+            value={formatGexCr(stats().netTotal)}
             hint="Σ all strikes"
           />
-          <CompactStat
-            data-testid="nifty-gex-profile-zero"
+          <LocalCompactStat
+            testId="nifty-gex-profile-zero"
             label="Flip level"
-            valueSize="md"
-            value={formatGexStrike(stats.zeroCross)}
+            value={formatGexStrike(stats().zeroCross)}
             hint="zero γ"
           />
-          <CompactStat
-            data-testid="nifty-gex-profile-support"
-            label={belowCopy.label}
-            tone={gexTone(below?.netGex ?? null)}
-            valueSize="md"
-            value={GexLevelValue(below)}
-            hint={belowCopy.hint}
+          <LocalCompactStat
+            testId="nifty-gex-profile-support"
+            label={belowCopy().label}
+            tone={gexLevelTone(below())}
+            value={GexLevelValue({ level: below() })}
+            hint={belowCopy().hint}
           />
-          <CompactStat
-            data-testid="nifty-gex-profile-resist"
-            label={aboveCopy.label}
-            tone={gexTone(above?.netGex ?? null)}
-            valueSize="md"
-            value={GexLevelValue(above)}
-            hint={aboveCopy.hint}
+          <LocalCompactStat
+            testId="nifty-gex-profile-resist"
+            label={aboveCopy().label}
+            tone={gexLevelTone(above())}
+            value={GexLevelValue({ level: above() })}
+            hint={aboveCopy().hint}
           />
-        </Box>
+        </div>
 
         {/* What the profile means for the next move — the panel's whole point.
             The regime chip keeps `nifty-gex-profile-regime` for callers/tests. */}
-        <Box
+        <div
           data-testid="nifty-gex-profile-regime"
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 0.75,
-            flexWrap: "wrap",
-            minWidth: 0,
-          }}
+          class="flex items-center gap-[6px] flex-wrap min-w-0"
         >
           <Text
             size="xs"
             span
             fw={700}
             title="Regime = cumulative γ up to spot (the side of the flip spot trades on)"
-            sx={{
-              color: regimeTone,
-              border: `1px solid ${regimeTone}`,
-              borderRadius: 0.75,
-              px: 0.5,
-              py: 0.1,
-              whiteSpace: "nowrap",
+            className="whitespace-nowrap"
+            style={{
+              "color": regimeTone(),
+              "border": `1px solid ${regimeTone()}`,
+              "border-radius": "6px",
+              "padding": "4px 2px",
             }}
           >
-            {regimeText}
+            {regimeText()}
           </Text>
-          {regimeSentence && (
+          <Show when={regimeSentence()}>
             <Text
               size="xs"
               span
-              title={regimeSentence}
-              sx={{
-                color: "text.secondary",
-                minWidth: 0,
-                flex: 1,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
+              title={regimeSentence()}
+              className="min-w-0 flex-1 overflow-hidden truncate whitespace-nowrap"
+              style={{
+                "color": palette.TEXT_MUTED,
               }}
             >
-              {regimeSentence}
+              {regimeSentence()}
             </Text>
-          )}
-          {flipDistance && (
-            <Text size="xs" span c="dimmed" sx={{ whiteSpace: "nowrap" }}>
-              Spot {formatGexStrike(Number.isFinite(spot) ? spot : null)} · {flipDistance}
+          </Show>
+          <Show when={flipDistance()}>
+            <Text size="xs" span c="dimmed" className="whitespace-nowrap">
+              Spot {formatGexStrike(Number.isFinite(spot()) ? spot() : null)} · {flipDistance()}
             </Text>
-          )}
-        </Box>
+          </Show>
+        </div>
 
         {/* Why the chart only spans a slice of the strike list: Upstox quotes
             greeks for the near-money strikes only, so the far wings are dead
             zero points. Stating the coverage up front is what makes the plot
             readable — otherwise it looks like the profile is "missing". */}
-        {profile.length > 0 && band.length > 0 && (
+        <Show when={profile().length > 0 && band().length > 0}>
           <Text data-testid="nifty-gex-profile-coverage" size="xs" span c="dimmed">
-            {`band ${formatGexStrike(band[0].strike)}–${formatGexStrike(
-              band[band.length - 1].strike,
-            )} · ${chart.significant} of ${profile.length} strikes carry ≥${
+            {`band ${formatGexStrike(band()[0].strike)}–${formatGexStrike(
+              band()[band().length - 1].strike,
+            )} · ${chart().significant} of ${profile().length} strikes carry ≥${
               GEX_SIGNIFICANCE_SHARE * 100
             }% of peak γ`}
           </Text>
-        )}
+        </Show>
 
         {/* Explicit px height (never vh): ECharts/SVG need a non-zero fixed
             box, and vh balloons on tall monitors. 120px still resolves the
             single gamma-profile curve; the line spans the full inner box. */}
-        <Box sx={{ width: "100%", minWidth: 0 }}>
+        <div class="w-full min-w-0">
           <MiniLineChart
-            series={chart.series}
-            labels={chart.labels}
-            markers={chart.markers}
-            zeroLine={chart.zeroLine}
+            series={chart().series}
+            labels={chart().labels}
+            markers={chart().markers}
+            zeroLine={chart().zeroLine}
             scale="sqrt"
             height={120}
             formatValue={formatGexCr}
             testId="nifty-gex-profile-chart"
             emptyMessage="No per-strike GEX profile"
           />
-        </Box>
-        {profile.length > 0 && (
+        </div>
+        {/* Report-wide level key: the horizontal zero line splits dampening
+            (above) from amplifying (below); SUP/RES name the two pin magnets.
+            Dots carry the level colour, labels stay on the panel surface. */}
+        <div
+          data-testid="nifty-gex-profile-levels-legend"
+          class="flex flex-wrap items-center gap-[8px] w-full min-w-0"
+          style={{ "font-size": `${REPORT_FONT.micro}px`, "line-height": "1.2", color: palette.TEXT_MUTED }}
+        >
+          <span
+            data-testid="nifty-gex-profile-level-legend-sup"
+            title="SUP · support — positive-gamma pin magnet below spot (green). A negative-gamma strike below spot is fuel, never support."
+            class="inline-flex items-center gap-[4px] whitespace-nowrap"
+          >
+            <span
+              aria-hidden="true"
+              class="inline-block shrink-0 rounded-full w-[6px] h-[6px]"
+              style={{ "background-color": palette.LEVEL_SUPPORT }}
+            />
+            <span>SUP {formatGexStrike(below()?.kind === "support" ? below()!.strike : null)}</span>
+          </span>
+          <span
+            data-testid="nifty-gex-profile-level-legend-res"
+            title="RES · resistance — positive-gamma pin magnet above spot (red). A negative-gamma strike above spot is fuel, never resistance."
+            class="inline-flex items-center gap-[4px] whitespace-nowrap"
+          >
+            <span
+              aria-hidden="true"
+              class="inline-block shrink-0 rounded-full w-[6px] h-[6px]"
+              style={{ "background-color": palette.LEVEL_RESISTANCE }}
+            />
+            <span>RES {formatGexStrike(above()?.kind === "resistance" ? above()!.strike : null)}</span>
+          </span>
+        </div>
+        <Show when={profile().length > 0}>
           <Text
             data-testid="nifty-gex-profile-caption"
             size="xs"
             span
             c="dimmed"
             title="x: strike · y: net dealer gamma in ₹ Cr/pt on a sqrt scale (so the big walls don't flatten every other strike). Above the 0 line dealers dampen moves at that strike (magnet); below it they amplify them (fuel). SPOT / ZERO mark today's spot and the gamma flip. Support/resistance are positive-gamma pin magnets below/above spot; a negative-gamma strike is fuel on its own side, never support or resistance."
-            sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+            className="whitespace-nowrap overflow-hidden truncate"
           >
             x: strike · y: net γ (₹ Cr/pt, √ scale) · above 0 = dampening, below 0 = amplifying
           </Text>
-        )}
-      </Box>
-    </CompactPanel>
+        </Show>
+      </div>
+    </LocalCompactPanel>
   );
 }
-
-/** Memoised leaf panel — `gex` keeps identity between unrelated parent renders. */
-export const NiftyGexProfile = memo(NiftyGexProfileInner);
-NiftyGexProfile.displayName = "NiftyGexProfile";

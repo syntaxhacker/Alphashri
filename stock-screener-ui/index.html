@@ -7,6 +7,25 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      /*
+       * Paint the stored scheme before the bundle runs. `useColorScheme` sets
+       * `data-color-scheme` from an effect, which lands after the first paint —
+       * a dark-mode user saw a full white page on every load until it ran.
+       * Keys and fallback order mirror `src/ui/hooks.ts` exactly; this must stay
+       * a few lines of ES5 because it runs before anything is polyfilled.
+       */
+      (function () {
+        try {
+          var stored = localStorage.getItem("color-scheme") || localStorage.getItem("mui-color-scheme");
+          var scheme = stored === "light" || stored === "dark"
+            ? stored
+            : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+          document.documentElement.setAttribute("data-color-scheme", scheme);
+          document.documentElement.style.colorScheme = scheme;
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

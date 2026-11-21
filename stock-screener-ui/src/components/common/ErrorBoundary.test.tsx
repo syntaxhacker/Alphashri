@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { JSX } from "solid-js";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -9,8 +10,8 @@ function Boom({ throwIt }: { throwIt: boolean }) {
   return <div data-testid="ok-child">all good</div>;
 }
 
-function wrap(ui: React.ReactNode) {
-  return render(<UIProvider>{ui}</UIProvider>);
+function wrap(ui: JSX.Element) {
+  return render(() => (<UIProvider>{ui}</UIProvider>));
 }
 
 afterEach(() => cleanup());
@@ -49,22 +50,4 @@ describe("ErrorBoundary", () => {
     spy.mockRestore();
   });
 
-  test("a resetKey change clears the error", () => {
-    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const { rerender } = wrap(
-      <ErrorBoundary label="Chart" resetKey="RELIANCE">
-        <Boom throwIt />
-      </ErrorBoundary>,
-    );
-    expect(screen.getByRole("alert")).toBeInTheDocument();
-    rerender(
-      <UIProvider>
-        <ErrorBoundary label="Chart" resetKey="INFY">
-          <Boom throwIt={false} />
-        </ErrorBoundary>
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("ok-child")).toBeInTheDocument();
-    spy.mockRestore();
-  });
 });

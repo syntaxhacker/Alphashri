@@ -28,15 +28,21 @@ export interface SearchResponse {
  *
  * @param query - Search query (min 1 character)
  * @param limit - Maximum results to return (default 10)
+ * @param fnoOnly - Restrict results to F&O-enabled symbols
  * @returns Array of matching symbols
  */
-export async function searchSymbols(query: string, limit: number = 10): Promise<SymbolResult[]> {
+export async function searchSymbols(
+  query: string,
+  limit: number = 10,
+  fnoOnly: boolean = false,
+): Promise<SymbolResult[]> {
   if (!query || query.trim().length === 0) {
     return [];
   }
 
   try {
-    const url = `${SYMBOLS_BASE}/search?q=${encodeURIComponent(query.trim())}&limit=${limit}`;
+    const fnoParam = fnoOnly ? "&fno=true" : "";
+    const url = `${SYMBOLS_BASE}/search?q=${encodeURIComponent(query.trim())}&limit=${limit}${fnoParam}`;
     const response = await fetchWithAuth(url);
 
     if (!response.ok) {

@@ -394,6 +394,120 @@ class TestSymbolSearch:
                 assert 'HDFCBANK' in symbols
 
 
+class TestSymbolSearchFnoFilter:
+    """`fno=true` must offer only underlyings with real NSE_FO contracts.
+
+    Selecting a non-F&O stock in the simulator yields no expiries/chain, so the
+    search must exclude it instead of letting the user pick it.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _reset_fno_cache(self):
+        from api import symbols as symbols_api
+
+        symbols_api._FNO_CACHE.update(
+            {"source": None, "ts": 0.0, "symbols": frozenset()}
+        )
+        yield
+
+    @pytest.fixture
+    def fno_instruments(self):
+        return [
+            {
+                "trading_symbol": "TESTFNO",
+                "name": "Test F&O Ltd",
+                "isin": "INE000A01001",
+                "segment": "NSE_EQ",
+                "instrument_type": "EQ",
+                "exchange": "NSE",
+            },
+            {
+                "trading_symbol": "TESTFNO 100 CE 26 DEC 26",
+                "name": "Test F&O Ltd",
+                "isin": "",
+                "segment": "NSE_FO",
+                "asset_type": "EQUITY",
+                "instrument_type": "CE",
+                "underlying_symbol": "TESTFNO",
+                "asset_symbol": "TESTFNO",
+                "exchange": "NSE",
+            },
+            {
+                "trading_symbol": "TESTNOFNO",
+                "name": "Test No F&O Ltd",
+                "isin": "INE000A01002",
+                "segment": "NSE_EQ",
+                "instrument_type": "EQ",
+                "exchange": "NSE",
+            },
+        ]
+
+    def test_fno_true_returns_only_contract_backed_underlyings(
+        self, client, fno_instruments
+    ):
+        with patch("api_server_fastapi._instruments_cache", fno_instruments):
+            with patch("api_server_fastapi._instruments_loaded", True):
+                response = client.get("/api/symbols/search?q=TEST&fno=true")
+                assert response.status_code == 200
+                data = response.json()
+
+                assert [r["symbol"] for r in data["results"]] == ["TESTFNO"]
+                assert data["total"] == 1
+                assert data["source"] == "local"
+
+    def test_fno_omitted_still_returns_non_fno_symbols(self, client, fno_instruments):
+        with patch("api_server_fastapi._instruments_cache", fno_instruments):
+            with patch("api_server_fastapi._instruments_loaded", True):
+                response = client.get("/api/symbols/search?q=TEST")
+                assert response.status_code == 200
+                data = response.json()
+
+                symbols = [r["symbol"] for r in data["results"]]
+                assert set(symbols) == {"TESTFNO", "TESTNOFNO"}
+                assert data["total"] == 2
+
+    def test_fno_true_returns_zero_for_non_fno_query(self, client, fno_instruments):
+        with patch("api_server_fastapi._instruments_cache", fno_instruments):
+            with patch("api_server_fastapi._instruments_loaded", True):
+                response = client.get("/api/symbols/search?q=TESTNOFNO&fno=true")
+                assert response.status_code == 200
+                data = response.json()
+
+                assert data["results"] == []
+                assert data["total"] == 0
+
+    def test_fno_true_returns_empty_when_contracts_are_unavailable(self, client):
+        # Derivative rows exist but none prove an equity F&O underlying (no
+        # asset_type), so the endpoint must not silently return the EQ stock.
+        instruments = [
+            {
+                "trading_symbol": "TESTFNO",
+                "name": "Test F&O Ltd",
+                "isin": "INE000A01001",
+                "segment": "NSE_EQ",
+                "instrument_type": "EQ",
+                "exchange": "NSE",
+            },
+            {
+                "trading_symbol": "TESTFNO FUT",
+                "name": "Test F&O Ltd",
+                "isin": "",
+                "segment": "NSE_FO",
+                "instrument_type": "FUTSTK",
+                "exchange": "NSE",
+            },
+        ]
+
+        with patch("api_server_fastapi._instruments_cache", instruments):
+            with patch("api_server_fastapi._instruments_loaded", True):
+                response = client.get("/api/symbols/search?q=TEST&fno=true")
+                assert response.status_code == 200
+                data = response.json()
+
+                assert data["results"] == []
+                assert data["total"] == 0
+
+
 class TestTvSymbolNormalization:
     """Regression: bare suffixes (NS/BO/EQ) are not exchange suffixes.
 

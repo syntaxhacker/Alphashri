@@ -8,6 +8,7 @@ Call endpoint functions directly, passing every Query param explicitly
 """
 
 import asyncio
+import copy
 import json
 from datetime import datetime
 from unittest.mock import AsyncMock, call, patch
@@ -33,14 +34,20 @@ def _tmp_tape(tmp_path, monkeypatch):
     # The recorder also refreshes the day's snapshot file — it must NOT write
     # to the real experiments/data/nifty_reports/ directory from a test.
     monkeypatch.setattr(nifty, "SNAPSHOT_DIR", tmp_path / "day_snapshots")
+    # In-minute retries are real (2-3 s) in production; a test must not sleep.
+    monkeypatch.setattr(nifty, "TAPE_RETRY_BACKOFF_SEC", (0.0, 0.0))
     # The per-minute snapshot also pulls the Sensex context block; no network
     # in tests — it degrades to `sensex: null` on the snapshot line.
     monkeypatch.setattr(
         nifty, "_compute_sensex_live",
         AsyncMock(side_effect=RuntimeError("no sensex in tests")), raising=False)
     nifty._sensex_cache.clear()
+    nifty._GAP_MINUTES.clear()
+    nifty._TAPE_INFLIGHT = False
     yield tmp_path
     nifty._sensex_cache.clear()
+    nifty._GAP_MINUTES.clear()
+    nifty._TAPE_INFLIGHT = False
 
 
 def _raw(t, spot, ce_oi, pe_oi, ce_vol, pe_vol, pcr_oi, flip):
@@ -446,11 +453,14 @@ class TestTapeEndpoint:
             await record_nifty_tape_tick(now=_ist(9, 15))
             await record_nifty_tape_tick(now=_ist(9, 16))
         rows = derive_tape_rows(read_tape("2026-10-13"))
+        # The served rows are chain-trimmed; the pre-encoded body must still be
+        # byte-identical to what FastAPI's pipeline would render for them.
+        served = nifty._trim_tape_chains(rows)
         expected = JSONResponse(jsonable_encoder({
             "date": "2026-10-13",
             "interval_sec": nifty.TAPE_INTERVAL_SEC,
             "baseline_t": rows[0].get("t") if rows else None,
-            "rows": rows,
+            "rows": served,
         })).body
         resp = get_nifty_tape(date="2026-10-13")
         assert resp.status_code == 200
@@ -480,6 +490,202 @@ class TestTapeEndpoint:
         resp = get_nifty_tape(date="2026-10-13")
         assert resp.body == expected
         assert "héllo".encode("utf-8") in resp.body
+
+
+class TestTapeChainTrim:
+    """The served tape carries only the strikes the report UI can read.
+
+    ``GET /nifty/tape`` was 2,294,050 B for 254 rows, 85.7% of it the full
+    ~142-strike ``chain`` embedded in every row. The heatmap and the volume
+    profile never read outside spot ± 500 pts, so the served rows are trimmed;
+    the recorded file keeps every strike (the replay/research scripts read
+    arbitrary strikes from it).
+    """
+
+    @staticmethod
+    def _row(t: str, spot: float, strikes: dict, **extra) -> dict:
+        row = {
+            "t": t, "spot": spot, "ce_oi": 1_000, "pe_oi": 1_000,
+            "ce_vol": 10, "pe_vol": 10, "pcr_oi": 1.0, "pcr_vol": 1.0,
+            "max_pain": spot, "flip": None, "expiry": "2026-11-19",
+            "walls": {"calls": [], "puts": []}, "strikes_top": [],
+            "chain": strikes,
+        }
+        row.update(extra)
+        return row
+
+    @staticmethod
+    def _chain(spot: float, step: float = 50.0) -> dict:
+        """A recorded-looking 142-strike ladder around ``spot``.
+
+        The real tape carries ~142 strikes spanning far more than the visible
+        window (-4,400 / +2,650 pts around a 25,260 spot), which is why the
+        full chain dominated the payload.
+        """
+        low = int((spot - 4_000.0) // step)
+        high = int((spot + 3_050.0) // step)
+        return {
+            str(int(i * step)): [100.0, 120.0, 1_000_000 + i, 900_000 + i,
+                                 500_000 + i, 400_000 + i]
+            for i in range(low, high + 1)
+        }
+
+    def test_trims_to_the_ui_window_and_keeps_the_row_shape(self):
+        rows = [self._row("2026-11-16T09:15:00+05:30", 25_000.0,
+                          self._chain(25_000.0)),
+                self._row("2026-11-16T15:29:00+05:30", 25_100.0,
+                          self._chain(25_100.0))]
+        out = nifty._trim_tape_chains(nifty.derive_tape_rows(rows))
+        for row in out:
+            assert isinstance(row["chain"], dict)
+            assert row["chain_truncated"] is True
+            assert row["chain_center"] == row["spot"]
+            assert row["chain_window_pts"] == nifty.TAPE_CHAIN_WINDOW_PTS
+            assert len(row["chain"]) <= nifty.TAPE_CHAIN_MAX_STRIKES
+            # Every kept key is still a strike the heatmap can address.
+            for key in row["chain"]:
+                assert isinstance(row["chain"][key], list)
+                assert len(row["chain"][key]) == 6
+        # The heatmap's rendered universe (last spot ± 500) survives untouched
+        # in every row — that is the set of cells it will paint.
+        ref = out[-1]["spot"]
+        visible = {k for k in rows[-1]["chain"]
+                   if abs(float(k) - ref) <= nifty.TAPE_CHAIN_WINDOW_PTS}
+        for trimmed in out:
+            assert visible <= set(trimmed["chain"])
+
+    def test_the_trim_drops_most_of_the_payload(self):
+        """A 254-row day loses ≥70% of its JSON bytes."""
+        rows = [
+            self._row(f"2026-11-16T{h:02d}:{m:02d}:00+05:30",
+                      25_000.0 + (m % 7) * 5.0, self._chain(25_000.0 + (m % 7) * 5.0))
+            for h in (9, 10, 11, 12, 13, 14) for m in range(0, 60)
+        ][:254]
+        derived = nifty.derive_tape_rows(rows)
+        before = len(json.dumps({"rows": derived}, separators=(",", ":")).encode())
+        after = len(json.dumps({"rows": nifty._trim_tape_chains(derived)},
+                               separators=(",", ":")).encode())
+        assert after / before <= 0.30, f"{after} B of {before} B"
+        for row in nifty._trim_tape_chains(derived):
+            assert len(row["chain"]) <= nifty.TAPE_CHAIN_MAX_STRIKES
+
+    def test_wall_max_pain_and_atm_strikes_survive_outside_the_window(self):
+        """A named level far from spot is still named in the payload."""
+        spot = 25_000.0
+        far_call, far_put = 27_000.0, 23_000.0     # 2,000 pts out — well outside ±500
+        chain = self._chain(spot)
+        chain[str(int(far_call))] = [1.0, 1.0, 7_000_000, 1, 1, 1]
+        chain[str(int(far_put))] = [1.0, 1.0, 1, 8_000_000, 1, 1]
+        row = self._row(
+            "2026-11-16T10:00:00+05:30", spot, chain,
+            call_wall=far_call, put_wall=far_put,
+            walls={"calls": [{"strike": 26_500.0, "oi": 1}],
+                   "puts": [{"strike": 23_500.0, "oi": 1}]},
+            strikes_top=[{"strike": 26_000.0, "ce_oi": 1, "pe_oi": 1}],
+        )
+        out = nifty._trim_tape_chains([row])[0]
+        for strike in (far_call, far_put, 26_500.0, 23_500.0, 26_000.0):
+            assert str(int(strike)) in out["chain"]
+
+    def test_a_row_whose_spot_ran_away_keeps_its_own_band(self):
+        """A row is trimmed against ITS spot as well as the closing spot."""
+        morning_spot, close_spot = 24_500.0, 25_500.0
+        rows = [
+            self._row("2026-11-16T09:15:00+05:30", morning_spot,
+                      self._chain(morning_spot)),
+            self._row("2026-11-16T15:29:00+05:30", close_spot,
+                      self._chain(close_spot)),
+        ]
+        out = nifty._trim_tape_chains(rows)
+        band = nifty.TAPE_CHAIN_WINDOW_PTS
+        morning_visible = {k for k in rows[0]["chain"]
+                           if abs(float(k) - morning_spot) <= band}
+        assert morning_visible <= set(out[0]["chain"])
+        # ...and the closing row keeps the window the heatmap will render.
+        window = nifty.TAPE_CHAIN_WINDOW_PTS
+        close_visible = {k for k in rows[1]["chain"]
+                         if abs(float(k) - close_spot) <= window}
+        assert close_visible <= set(out[1]["chain"])
+
+    def test_rows_without_a_chain_are_untouched(self):
+        rows = [self._row("2026-11-16T09:15:00+05:30", 25_000.0, {})]
+        out = nifty._trim_tape_chains(rows)
+        assert out[0]["chain"] == {}
+        assert "chain_truncated" not in out[0]
+
+    def test_malformed_input_never_raises(self):
+        assert nifty._trim_tape_chains([]) == []
+        assert nifty._trim_tape_chains([None, "x", 5]) == []
+        rows = [{"t": "2026-11-16T09:15:00+05:30", "spot": 25_000.0,
+                 "chain": {"25000": [1, 2]}}]   # short tuple — keep, do not crash
+        assert nifty._trim_tape_chains(rows)[0]["chain"] == {"25000": [1, 2]}
+
+    def test_grows_the_day_wide_anchors_and_named_levels(self):
+        """Anchors survive in EVERY row, not just the row that named them.
+
+        The wall-migration detector and the participant-flow classifier rank
+        the whole chain per frame; a strike that is the day's heaviest wall in
+        one row must not vanish from the others.
+        """
+        deep_call, deep_put = 23_000.0, 27_000.0   # far outside both bands
+        rows = []
+        for i in range(4):
+            spot = 25_000.0 + i
+            chain = self._chain(spot)
+            # The far strikes are the day's heaviest OI, but only appear late.
+            if i >= 2:
+                chain[str(int(deep_call))] = [1.0, 1.0, 60_000_000, 1, 1, 1]
+                chain[str(int(deep_put))] = [1.0, 1.0, 1, 60_000_000, 1, 1]
+            rows.append(self._row(f"2026-11-16T09:1{i}:00+05:30", spot, chain))
+        out = nifty._trim_tape_chains(rows)
+        anchors = nifty._day_wide_anchor_strikes(rows)
+        assert str(int(deep_call)) in anchors
+        assert str(int(deep_put)) in anchors
+        # Row 0 never contained them, so they cannot be kept there; rows that
+        # had them DO keep them even though both are 2,000 pts from spot.
+        for row in out[2:]:
+            assert str(int(deep_call)) in row["chain"]
+            assert str(int(deep_put)) in row["chain"]
+
+    def test_no_visible_strike_is_lost_at_any_replay_playhead(self):
+        """Replay clips the tape at a playhead, so the window reference moves.
+
+        The heatmap's reference spot is the LAST visible row's spot — mid-day
+        in replay, not the close. A row band narrower than the window dropped
+        edge cells at most cuts; this asserts the invariant that made the two
+        constants equal.
+        """
+        rows = []
+        # A rising day: every row's spot is 60 pts above the previous one.
+        for i in range(24):
+            spot = 25_000.0 + i * 60.0
+            rows.append(self._row(f"2026-11-16T{9 + i // 60:02d}:{i % 60:02d}:00+05:30",
+                                  spot, self._chain(spot)))
+        out = nifty._trim_tape_chains(rows)
+        window = nifty.TAPE_CHAIN_WINDOW_PTS
+
+        def universe(rws: list[dict]) -> set[str]:
+            ref = next((r["spot"] for r in reversed(rws) if r.get("spot")), 0)
+            return {k for r in rws for k in r["chain"]
+                    if abs(float(k) - ref) <= window}
+
+        for cut in range(1, len(rows) + 1):
+            assert universe(rows[:cut]) <= universe(out[:cut]), f"cut {cut}"
+
+    async def test_endpoint_serves_trimmed_rows(self, _tmp_tape):
+        """The endpoint (not the recorder) is where the trim applies."""
+        with patch.object(nifty, "_compute_live",
+                          AsyncMock(return_value=_fake_report())):
+            await record_nifty_tape_tick(now=_ist(9, 15))
+        # The recorder writes the full chain...
+        recorded = read_tape("2026-10-13")[0]
+        assert len(recorded["chain"]) == 2
+        # ...and the endpoint serves the trimmed shape (2 strikes here, so no
+        # truncation — but the marker keys are never invented).
+        out = json.loads(get_nifty_tape(date="2026-10-13").body)
+        assert len(out["rows"]) == 1
+        assert set(out["rows"][0]["chain"]) == set(recorded["chain"])
+        assert "chain_truncated" not in out["rows"][0]
 
 
 class TestGapJournal:
@@ -532,3 +738,126 @@ class TestGapJournal:
                           AsyncMock(return_value=rep)):
             assert await record_nifty_tape_tick(now=_ist(9, 20)) is None
         assert nifty.read_gap_reasons("2026-10-13") == {"empty-chain": 1}
+
+
+# ---------------------------------------------------------------------------
+# Golden: the tape row is the on-disk contract. ``build_tape_row`` (shared with
+# the generic SENSEX / stock recorder) must produce the NIFTY row byte-for-byte,
+# including key order — the strings below were captured from the pre-refactor
+# ``nifty._write_tape_row``.
+# ---------------------------------------------------------------------------
+GOLDEN_REPORT = {
+    "expiry": "2026-10-15",
+    "spot": 25000.0,
+    "fetched_at": "2026-10-13T09:15:02+05:30",
+    "pcr_oi": 1.92,
+    "pcr_vol": 1.21,
+    "max_pain": 25000.0,
+    "walls": {"calls": [{"strike": 25100.0, "oi": 900}],
+              "puts": [{"strike": 24900.0, "oi": 950}]},
+    "walls_near": {"calls": [{"strike": 25000.0, "oi": 1000}],
+                   "puts": [{"strike": 25000.0, "oi": 2000}]},
+    "gex": {"zero_cross": 25100.0, "net_total": -1234.5, "degraded": False},
+    "strikes": [
+        {"strike": 24800.0,
+         "ce": {"ltp": 220.5, "oi": 800, "prev_oi": 780, "volume": 4000, "iv": 13.1},
+         "pe": {"ltp": 4.5, "oi": 1200, "prev_oi": 1100, "volume": 5000, "iv": 14.2}},
+        {"strike": 24900.0,
+         "ce": {"ltp": 140.0, "oi": 900, "prev_oi": 890, "volume": 4100, "iv": 12.8},
+         "pe": {"ltp": 12.0, "oi": 1500, "prev_oi": 1400, "volume": 5100, "iv": 13.9}},
+        {"strike": 25000.0,
+         "ce": {"ltp": 80.25, "oi": 1000, "prev_oi": 950, "volume": 5200, "iv": 12.5},
+         "pe": {"ltp": 25.5, "oi": 2000, "prev_oi": 1900, "volume": 6300, "iv": 13.5}},
+        {"strike": 25100.0,
+         "ce": {"ltp": 40.0, "oi": 700, "prev_oi": 700, "volume": 2200, "iv": 12.2},
+         "pe": {"ltp": 60.0, "oi": 900, "prev_oi": 880, "volume": 3300, "iv": 13.0}},
+        {"strike": 25200.0,
+         "ce": {"ltp": 15.0, "oi": 300, "prev_oi": 290, "volume": 900, "iv": 12.0},
+         "pe": {"ltp": 120.0, "oi": 400, "prev_oi": 380, "volume": 1200, "iv": 12.9}},
+    ],
+}
+
+GOLDEN_NORMAL = (
+    '{"t":"2026-10-13T09:15:00+05:30","t_fetch":"2026-10-13T09:15:00+05:30",'
+    '"t_write":"2026-10-13T09:15:03+05:30","spot":25000.0,"ce_oi":3700,'
+    '"pe_oi":6000,"ce_vol":16400,"pe_vol":20900,"ce_oi_change_day":90,'
+    '"pe_oi_change_day":340,"pcr_oi":1.92,"pcr_vol":1.21,"max_pain":25000.0,'
+    '"max_pain_computed":25000.0,"flip":25100.0,"net_gex":-1234.5,'
+    '"gex_degraded":false,"walls":{"calls":[{"strike":25000.0,"oi":1000}],'
+    '"puts":[{"strike":25000.0,"oi":2000}]},"call_wall":25000.0,'
+    '"put_wall":25000.0,"expiry":"2026-10-15","atm_strike":25000.0,'
+    '"atm_ce_ltp":80.25,"atm_pe_ltp":25.5,"atm_ce_iv":12.5,"atm_pe_iv":13.5,'
+    '"strikes_top":[{"strike":24800.0,"ce_oi":800,"pe_oi":1200},'
+    '{"strike":24900.0,"ce_oi":900,"pe_oi":1500},'
+    '{"strike":25000.0,"ce_oi":1000,"pe_oi":2000},'
+    '{"strike":25100.0,"ce_oi":700,"pe_oi":900},'
+    '{"strike":25200.0,"ce_oi":300,"pe_oi":400}],'
+    '"chain":{"25000":[80.25,25.5,1000.0,2000.0,5200.0,6300.0],'
+    '"24900":[140.0,12.0,900.0,1500.0,4100.0,5100.0],'
+    '"25100":[40.0,60.0,700.0,900.0,2200.0,3300.0],'
+    '"24800":[220.5,4.5,800.0,1200.0,4000.0,5000.0],'
+    '"25200":[15.0,120.0,300.0,400.0,900.0,1200.0]}}'
+)
+
+GOLDEN_RECONCILED = (
+    '{"t":"2026-10-13T09:16:00+05:30","t_fetch":"2026-10-13T09:16:00+05:30",'
+    '"t_write":"2026-10-13T09:15:03+05:30","spot":25010.0,"spot_raw":25250.0,'
+    '"ce_oi":3700,"pe_oi":6000,"ce_vol":16400,"pe_vol":20900,'
+    '"ce_oi_change_day":90,"pe_oi_change_day":340,"pcr_oi":1.92,"pcr_vol":1.21,'
+    '"max_pain":25000.0,"max_pain_computed":25000.0,"flip":25100.0,'
+    '"net_gex":-1234.5,"gex_degraded":false,'
+    '"walls":{"calls":[{"strike":25000.0,"oi":1000}],'
+    '"puts":[{"strike":25000.0,"oi":2000}]},"call_wall":25000.0,'
+    '"put_wall":25000.0,"expiry":"2026-10-15","atm_strike":25000.0,'
+    '"atm_ce_ltp":80.25,"atm_pe_ltp":25.5,"atm_ce_iv":12.5,"atm_pe_iv":13.5,'
+    '"strikes_top":[{"strike":24800.0,"ce_oi":800,"pe_oi":1200},'
+    '{"strike":24900.0,"ce_oi":900,"pe_oi":1500},'
+    '{"strike":25000.0,"ce_oi":1000,"pe_oi":2000},'
+    '{"strike":25100.0,"ce_oi":700,"pe_oi":900},'
+    '{"strike":25200.0,"ce_oi":300,"pe_oi":400}],'
+    '"chain":{"25000":[80.25,25.5,1000.0,2000.0,5200.0,6300.0],'
+    '"25100":[40.0,60.0,700.0,900.0,2200.0,3300.0],'
+    '"24900":[140.0,12.0,900.0,1500.0,4100.0,5100.0],'
+    '"25200":[15.0,120.0,300.0,400.0,900.0,1200.0],'
+    '"24800":[220.5,4.5,800.0,1200.0,4000.0,5000.0]}}'
+)
+
+
+class TestTapeRowGolden:
+    """Byte-identical NIFTY tape rows after the shared builder extraction."""
+
+    @pytest.fixture()
+    def _iso(self, monkeypatch):
+        from api.reports_api import _tape_row
+
+        monkeypatch.setattr(_tape_row, "now_iso",
+                            lambda: "2026-10-13T09:15:03+05:30")
+
+    async def _row(self, _tmp_tape, report, *, last_spot=None,
+                   minute="2026-10-13T09:15", hh=9, mm=15):
+        with patch.object(nifty, "_peek_last_tape_row",
+                          lambda p, m: (last_spot, False)), \
+             patch.object(nifty, "_append_tape_line", lambda p, r: None), \
+             patch.object(nifty, "write_snapshot",
+                          lambda d, s: _tmp_tape / "snap.json"), \
+             patch.object(nifty, "_append_minute_snapshot",
+                          AsyncMock(return_value=None)):
+            return await nifty._write_tape_row(
+                report, "2026-10-13", f"2026-10-13T{hh:02d}:{mm:02d}:00+05:30",
+                _ist(hh, mm), nifty.tape_path("2026-10-13"), minute)
+
+    async def test_normal_row_is_byte_identical(self, _tmp_tape, _iso):
+        row = await self._row(_tmp_tape, copy.deepcopy(GOLDEN_REPORT))
+        assert json.dumps(row, separators=(",", ":")) == GOLDEN_NORMAL
+        assert list(row) == list(json.loads(GOLDEN_NORMAL))
+
+    async def test_reconciled_row_is_byte_identical(self, _tmp_tape, _iso):
+        from api.options import get_spot_price
+
+        report = dict(copy.deepcopy(GOLDEN_REPORT), spot=25250.0)
+        with patch("api.options.get_spot_price",
+                   AsyncMock(return_value={"spot": 25010.0})):
+            row = await self._row(_tmp_tape, report, last_spot=25000.0,
+                                  minute="2026-10-13T09:16", mm=16)
+        assert json.dumps(row, separators=(",", ":")) == GOLDEN_RECONCILED
+        assert row["spot"] == 25010.0 and row["spot_raw"] == 25250.0

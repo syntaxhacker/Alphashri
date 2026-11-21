@@ -1,29 +1,30 @@
-import type { ReactNode } from "react";
-import Dialog from "@mui/material/Dialog";
-import IconButton from "@mui/material/IconButton";
-import Box from "@mui/material/Box";
-import useMediaQuery from "@mui/material/useMediaQuery";
-import { useTheme } from "@mui/material/styles";
-import { IconX } from "@tabler/icons-react";
-import { Text } from "@/ui";
+import { Show, createEffect, onCleanup, type JSX } from "solid-js";
+import { Portal } from "@/ui/layout/Portal";
+import { IconX } from "./Icons";
 import * as palette from "@/ui/palette";
+import { withAlpha } from "@/utils/color";
+import { Box, Text } from "@/ui";
+
+// `solid-js` does not re-export JSX.CSSProperties from its package root.
+type CSSProperties = JSX.CSSProperties;
+
 
 export interface PanelModalProps {
   open: boolean;
-  title: ReactNode;
+  title: JSX.Element;
   onClose: () => void;
-  children: ReactNode;
-  actions?: ReactNode;
-  /**
-   * `drawer` docks the shell to the right edge: full viewport height, fixed
-   * ~720px rail on desktop, square edge. Used by the gamma/positions read-outs
-   * so they read as a side panel rather than a second full-screen dialog.
-   */
+  children?: JSX.Element;
+  actions?: JSX.Element;
+  /** `drawer` docks the shell to the right edge: full viewport height, rail
+   *  pinned to `drawerWidth` (capped at 74vw) on desktop, square edge. Used by
+   *  the gamma/positions read-outs so they read as a side panel rather than a
+   *  second full-screen dialog. */
   variant?: "modal" | "drawer";
-  /**
-   * Desktop paper width in px. Defaults to the full-width 92vw shell; a
-   * compact dialog passes e.g. 1040 to cap a content-hugging panel.
-   */
+  /** Desktop drawer width in px. Defaults to 720; the paper is capped at
+   *  `min(drawerWidth, 74vw)` so the report stays visible beside the drawer. */
+  drawerWidth?: number;
+  /** Desktop paper width in px. Defaults to the full-width 92vw shell; a
+   *  compact dialog passes e.g. 1040 to cap a content-hugging panel. */
   maxWidth?: number;
   /** Hug the content (height auto) instead of filling 88vh. */
   autoHeight?: boolean;
@@ -31,167 +32,212 @@ export interface PanelModalProps {
   maxHeight?: string | number;
 }
 
+const DIALOG_SHADOW = palette.DIALOG_SHADOW;
+
 /**
  * Desk-mode shell: one panel at a time, 92vw × 88vh on desktop, full-screen on
  * phones. `autoHeight` switches to a centered content-hugging dialog (capped
- * by `maxHeight`). `Dialog` owns focus trap + `Esc` (via `onClose`); the body
- * is the only scroller so the title bar never leaves the viewport.
+ * by `maxHeight`). The body is the only scroller so the title bar never leaves
+ * the viewport.
  */
-export function PanelModal({
-  open,
-  title,
-  onClose,
-  children,
-  actions,
-  variant = "modal",
-  maxWidth,
-  autoHeight = false,
-  maxHeight = "80vh",
-}: PanelModalProps) {
-  const theme = useTheme();
-  const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
-  const isDrawer = variant === "drawer";
-  const compact = !isDrawer && autoHeight;
-  const width = maxWidth != null ? `min(${maxWidth}px, 92vw)` : "92vw";
+export function PanelModal(props: PanelModalProps) {
+  const isDrawer = () => props.variant === "drawer";
+  const compact = () => !isDrawer() && (props.autoHeight ?? false);
+  const maxHeight = () => props.maxHeight ?? "80vh";
+  const width = () =>
+    props.maxWidth != null ? `min(${props.maxWidth}px, 92vw)` : "92vw";
 
-  return (
-    <Dialog
-      data-testid="panel-modal"
-      data-variant={variant}
-      data-compact={compact ? "true" : undefined}
-      open={open}
-      onClose={onClose}
-      maxWidth={false}
-      fullScreen={fullScreen}
-      sx={
-        isDrawer
-          ? {
-              "& .MuiDialog-container": {
-                justifyContent: "flex-end",
-                alignItems: "stretch",
-                p: 0,
-              },
-            }
-          : undefined
-      }
-      slotProps={{
-        paper: {
-          sx: {
-            width: isDrawer
-              ? { xs: "100%", lg: 720 }
-              : compact
-                ? { xs: "100%", lg: width }
-                : { xs: "100%", lg: "92vw" },
-            maxWidth: isDrawer
-              ? { lg: 720 }
-              : compact && maxWidth != null
-                ? { lg: maxWidth }
-                : { lg: "92vw" },
-            height: isDrawer
-              ? { lg: "100%" }
-              : compact
-                ? "auto"
-                : { lg: "88vh" },
-            maxHeight: isDrawer
-              ? { lg: "100%" }
-              : compact
-                ? maxHeight
-                : { xs: "100%", lg: "88vh" },
-            m: isDrawer ? 0 : undefined,
-            bgcolor: palette.TERM_BG,
-            color: palette.TEXT,
-            border: `1px solid ${palette.TERM_BORDER}`,
-            borderRight: isDrawer ? "none" : `1px solid ${palette.TERM_BORDER}`,
-            borderRadius: isDrawer ? 0 : "4px",
-            boxShadow: palette.DIALOG_SHADOW,
+  createEffect(() => {
+    if (!props.open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") props.onClose();
+    };
+    document.addEventListener("keydown", handler);
+    onCleanup(() => document.removeEventListener("keydown", handler));
+  });
+
+  const handleBackdropClick = (e: MouseEvent) => {
+    if (e.target === e.currentTarget) props.onClose();
+  };
+
+  const maxHeightValue = () =>
+    typeof maxHeight() === "number" ? `${maxHeight()}px` : (maxHeight() as string);
+
+  const drawerPanelStyle: CSSProperties = {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: "100%",
+    "max-width": `min(${props.drawerWidth ?? 720}px, 74vw)`,
+    height: "100%",
+    "max-height": "100%",
+    "background-color": palette.TERM_BG,
+    color: palette.TEXT,
+    border: `1px solid ${palette.TERM_BORDER}`,
+    "border-right": "none",
+    "border-radius": 0,
+    "box-shadow": DIALOG_SHADOW,
+    display: "flex",
+    "flex-direction": "column",
+    overflow: "hidden",
+  };
+
+  const modalPanelStyle: CSSProperties = {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%, -50%)",
+    width: compact() ? "100%" : width(),
+    "max-width": compact() ? width() : undefined,
+    "max-height": compact() ? maxHeightValue() : "88vh",
+    height: compact() ? "auto" : "88vh",
+    "background-color": palette.TERM_BG,
+    color: palette.TEXT,
+    border: `1px solid ${palette.TERM_BORDER}`,
+    "border-radius": "4px",
+    "box-shadow": DIALOG_SHADOW,
+    display: "flex",
+    "flex-direction": "column",
+    overflow: "hidden",
+  };
+
+  const backdropStyle: CSSProperties = isDrawer()
+    ? { "background-color": withAlpha(palette.BG, 0.18) }
+    : { "background-color": withAlpha(palette.BG, 0.5) };
+
+  const titlebarStyle: CSSProperties = {
+    display: "flex",
+    "align-items": "center",
+    gap: "8px",
+    padding: "12px 16px",
+    "min-height": "36px",
+    "flex-shrink": 0,
+    "background-color": palette.TERM_HEADER,
+    "border-bottom": `1px solid ${palette.TERM_BORDER}`,
+  };
+
+  const titleStyle: CSSProperties = {
+    flex: 1,
+    "min-width": 0,
+    overflow: "hidden",
+    "text-overflow": "ellipsis",
+    "white-space": "nowrap",
+  };
+
+  const bodyStyle: CSSProperties = {
+    flex: compact() ? "0 1 auto" : 1,
+    "min-height": 0,
+    overflow: "auto",
+    padding: "8px",
+  };
+
+  const actionsStyle: CSSProperties = {
+    display: "flex",
+    "align-items": "center",
+    "justify-content": "flex-end",
+    gap: "8px",
+    padding: "12px 16px",
+    "flex-shrink": 0,
+    "border-top": `1px solid ${palette.TERM_BORDER}`,
+    "background-color": palette.TERM_HEADER,
+  };
+
+  const closeButtonStyle: CSSProperties = {
+    padding: "2px",
+    color: palette.TEXT_MUTED,
+    border: "none",
+    background: "none",
+    "border-radius": 0,
+    cursor: "pointer",
+  };
+
+  // Zero-arg render thunk: Solid's `Show` calls it lazily, which is what keeps
+  // the `<Portal>` out of `document.body` while the panel is closed (an eager
+  // element child is created outside the owning root and never disposed).
+  // `Show`'s types only accept a *parameterised* render function, so the thunk
+  // is passed as an Element.
+  const body = (() => (
+      <Portal>
+        <div
+          data-testid="panel-modal"
+          data-variant={props.variant ?? "modal"}
+          data-compact={compact() ? "true" : undefined}
+          style={{
+            position: "fixed",
+            inset: "0px",
+            "z-index": 50,
             display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-          },
-        },
-      }}
-    >
-      <Box
-        data-testid="panel-modal-titlebar"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 1,
-          px: 1.5,
-          minHeight: 36,
-          flexShrink: 0,
-          bgcolor: palette.TERM_HEADER,
-          borderBottom: `1px solid ${palette.TERM_BORDER}`,
-        }}
-      >
-        <Box
-          data-testid="panel-modal-title"
-          sx={{
-            flex: 1,
-            minWidth: 0,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
+            "justify-content": isDrawer() ? "flex-end" : "center",
+            "align-items": isDrawer() ? "stretch" : "center",
+            padding: isDrawer() ? 0 : "16px",
+            ...backdropStyle,
           }}
+          onClick={handleBackdropClick}
+          role="dialog"
+          aria-modal="true"
+          tabIndex={-1}
         >
-          {typeof title === "string" ? (
-            <Text
-              span
-              size="xs"
-              fw={700}
-              style={{
-                fontSize: 10,
-                lineHeight: 1.2,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                color: palette.TEXT_MUTED,
-              }}
+          <div
+            data-testid="panel-modal-panel"
+            style={isDrawer() ? drawerPanelStyle : modalPanelStyle}
+            className="flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Box
+              data-testid="panel-modal-titlebar"
+              style={titlebarStyle}
             >
-              {title}
-            </Text>
-          ) : (
-            title
-          )}
-        </Box>
-        <IconButton
-          data-testid="panel-modal-close"
-          aria-label="Close panel"
-          size="small"
-          onClick={onClose}
-          sx={{ p: "2px", color: palette.TEXT_MUTED, "&:hover": { color: palette.TEXT } }}
-        >
-          <IconX size={14} />
-        </IconButton>
-      </Box>
-      <Box
-        data-testid="panel-modal-body"
-        sx={{
-          flex: compact ? "0 1 auto" : 1,
-          minHeight: 0,
-          overflow: "auto",
-          p: 1,
-        }}
-      >
-        {children}
-      </Box>
-      {actions ? (
-        <Box
-          data-testid="panel-modal-actions"
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "flex-end",
-            gap: 1,
-            px: 1.5,
-            py: 1,
-            flexShrink: 0,
-            borderTop: `1px solid ${palette.TERM_BORDER}`,
-            bgcolor: palette.TERM_HEADER,
-          }}
-        >
-          {actions}
-        </Box>
-      ) : null}
-    </Dialog>
-  );
+              <Box
+                data-testid="panel-modal-title"
+                style={titleStyle}
+              >
+                {typeof props.title === "string" ? (
+                  <Text
+                    span
+                    size="xs"
+                    fw={700}
+                    style={{
+                      "font-size": "10px",
+                      "line-height": 1.2,
+                      "letter-spacing": "0.08em",
+                      "text-transform": "uppercase",
+                      color: palette.TEXT_MUTED,
+                    }}
+                  >
+                    {props.title as string}
+                  </Text>
+                ) : (
+                  props.title
+                )}
+              </Box>
+              <button
+                type="button"
+                data-testid="panel-modal-close"
+                aria-label="Close panel"
+                onClick={props.onClose}
+                style={closeButtonStyle}
+              >
+                <IconX size={14} />
+              </button>
+            </Box>
+            <Box
+              data-testid="panel-modal-body"
+              style={bodyStyle}
+            >
+              {props.children}
+            </Box>
+            <Show when={props.actions}>
+              <Box
+                data-testid="panel-modal-actions"
+                style={actionsStyle}
+              >
+                {props.actions}
+              </Box>
+            </Show>
+          </div>
+        </div>
+      </Portal>
+  )) as unknown as JSX.Element;
+
+  return <Show when={props.open}>{body}</Show>;
 }

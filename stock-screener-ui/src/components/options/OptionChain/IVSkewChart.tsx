@@ -1,96 +1,176 @@
-import { Text, useColorScheme, useTheme } from "@/ui";
-import Box from "@mui/material/Box";
-import { useMemo } from "react";
-import ReactECharts from "echarts-for-react";
-import { IV_AREA_START, IV_AREA_END, CHART_DROPDOWN } from "@/ui/palette";
+import { Text, useColorScheme } from "@/ui";
+import { Box } from "@/ui";
+import { createEffect, createMemo, onCleanup, onMount } from "solid-js";
+import type * as ECharts from "echarts";
+import * as palette from "@/ui/palette";
+import type { AnalyticsIvPoint } from "@/api/optionsAnalytics";
+import { smilePoints, type OptionSide } from "@/utils/optionsAnalyticsMath";
 import { CompactPanel } from "../../common/compact";
+import { loadEcharts } from "@/utils/loadEcharts";
 
-interface IVSkewChartProps {
-  strikeMatrix: Array<{ strike: number; ce: any; pe: any }>;
+interface SmileRow {
+  strike: number;
+  ce: any;
+  pe: any;
 }
 
-export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
-  const theme = useTheme();
+interface IVSkewChartProps {
+  strikeMatrix: SmileRow[];
+  spotPrice: number | null;
+}
+
+export interface SmileSeries {
+  strikes: number[];
+  /** One value per strike; `null` means no OTM quote on that side. Never 0. */
+  ce: Array<number | null>;
+  pe: Array<number | null>;
+}
+
+function ivPoints(rows: readonly SmileRow[], side: OptionSide): AnalyticsIvPoint[] {
+  return rows.map((row) => {
+    const leg = side === "CE" ? row.ce : row.pe;
+    return {
+      strike: row.strike,
+      moneyness: null,
+      iv: leg?.option_greeks?.iv ?? null,
+      delta: leg?.option_greeks?.delta ?? null,
+      oi: leg?.market_data?.oi ?? null,
+    };
+  });
+}
+
+/**
+ * OTM smile from the chain rows already on screen. CE and PE are separate
+ * series and a missing iv stays `null` — the old `ce?.iv || pe?.iv || 0` both
+ * mixed the two sides and drew a fake 0 where no quote existed.
+ */
+export function buildSmileSeries(rows: readonly SmileRow[], spot: number | null): SmileSeries {
+  const ce = smilePoints(ivPoints(rows, "CE"), spot ?? 0, "CE");
+  const pe = smilePoints(ivPoints(rows, "PE"), spot ?? 0, "PE");
+  const strikes = [...new Set([...ce, ...pe].map((p) => p.strike))].sort((a, b) => a - b);
+  const ceByStrike = new Map(ce.map((p) => [p.strike, p.iv]));
+  const peByStrike = new Map(pe.map((p) => [p.strike, p.iv]));
+  return {
+    strikes,
+    ce: strikes.map((k) => ceByStrike.get(k) ?? null),
+    pe: strikes.map((k) => peByStrike.get(k) ?? null),
+  };
+}
+
+export function IVSkewChart(props: IVSkewChartProps) {
   const { colorScheme } = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const isDark = () => colorScheme() === "dark";
 
-  const chartData = useMemo(() => {
-    return strikeMatrix
-      .map((s) => ({
-        strike: s.strike,
-        iv: s.ce?.option_greeks?.iv || s.pe?.option_greeks?.iv || 0,
-      }))
-      .filter((d) => d.iv > 0);
-  }, [strikeMatrix]);
+  let chartEl: HTMLDivElement | undefined;
+  let chart: ECharts.ECharts | undefined;
+  let disposed = false;
 
-  const option = {
-    backgroundColor: "transparent",
-    tooltip: {
-      trigger: "axis",
-      formatter: (params: any) => {
-        const data = params[0];
-        return `Strike: ${data.name}<br/>IV: ${data.value}%`;
-      },
-      backgroundColor: isDark ? CHART_DROPDOWN : "var(--mui-palette-background-paper)",
-      textStyle: {
-        color: isDark ? "var(--mui-palette-common-white)" : "var(--mui-palette-text-primary)",
-        fontSize: 12,
-      },
-    },
-    grid: {
-      top: 10,
-      left: 40,
-      right: 10,
-      bottom: 25,
-    },
-    xAxis: {
-      type: "category",
-      data: chartData.map((d) => d.strike),
-      axisLabel: { color: "var(--mui-palette-text-secondary)", fontSize: 12 },
-      axisLine: { lineStyle: { color: isDark ? "var(--mui-palette-divider)" : "var(--mui-palette-divider)" } },
-    },
-    yAxis: {
-      type: "value",
-      axisLabel: { color: "var(--mui-palette-text-secondary)", fontSize: 12, formatter: "{value}%" },
-      splitLine: {
-        lineStyle: { color: isDark ? "var(--mui-palette-divider)" : "var(--mui-palette-divider)", type: "dashed" },
-      },
-    },
-    series: [
-      {
-        data: chartData.map((d) => d.iv),
-        type: "line",
-        smooth: true,
-        symbol: "none",
-        lineStyle: { width: 3, color: (theme as any).palette?.primary?.main ?? "var(--mui-palette-primary-main)" },
-        areaStyle: {
-          color: {
-            type: "linear",
-            x: 0,
-            y: 0,
-            x2: 0,
-            y2: 1,
-            colorStops: [
-              { offset: 0, color: IV_AREA_START },
-              { offset: 1, color: IV_AREA_END },
-            ],
-          },
+  const smile = createMemo(() => buildSmileSeries(props.strikeMatrix, props.spotPrice));
+
+  async function applyOption(option: Record<string, unknown>) {
+    const lib = await loadEcharts();
+    if (disposed || !chartEl || !lib) return;
+    if (!chart) chart = lib.init(chartEl, null, { renderer: "svg" }) as ECharts.ECharts;
+    chart.setOption(option, true);
+    chart.resize();
+  }
+
+  createEffect(() => {
+    const { strikes, ce, pe } = smile();
+    const option = {
+      backgroundColor: "transparent",
+      tooltip: {
+        trigger: "axis",
+        formatter: (params: any) => {
+          const rows = Array.isArray(params) ? params : [params];
+          const strike = rows[0]?.axisValue ?? rows[0]?.name ?? "";
+          const lines = rows
+            .filter((p: any) => p.value != null)
+            .map((p: any) => `${p.seriesName}: ${Number(p.value).toFixed(1)}%`);
+          return lines.length ? `Strike: ${strike}<br/>${lines.join("<br/>")}` : `Strike: ${strike}`;
+        },
+        backgroundColor: isDark() ? palette.CHART_DROPDOWN : palette.SURFACE,
+        textStyle: {
+          color: isDark() ? palette.TEXT : palette.TOOLTIP_LIGHT_TEXT,
+          fontSize: 12,
         },
       },
-    ],
-  };
+      legend: {
+        data: ["Call OTM IV", "Put OTM IV"],
+        textStyle: { color: palette.TEXT_MUTED, fontSize: 12 },
+        bottom: 0,
+      },
+      grid: {
+        top: 10,
+        left: 40,
+        right: 10,
+        bottom: 25,
+      },
+      xAxis: {
+        type: "category",
+        data: strikes,
+        axisLabel: { color: palette.TEXT_MUTED, fontSize: 12 },
+        axisLine: { lineStyle: { color: palette.BORDER } },
+      },
+      yAxis: {
+        type: "value",
+        axisLabel: { color: palette.TEXT_MUTED, fontSize: 12, formatter: "{value}%" },
+        splitLine: {
+          lineStyle: { color: palette.BORDER, type: "dashed" },
+        },
+      },
+      series: [
+        {
+          name: "Call OTM IV",
+          type: "line",
+          smooth: true,
+          symbol: "none",
+          connectNulls: false,
+          data: ce,
+          lineStyle: { width: 3, color: palette.INFO },
+        },
+        {
+          name: "Put OTM IV",
+          type: "line",
+          smooth: true,
+          symbol: "none",
+          connectNulls: false,
+          data: pe,
+          lineStyle: { width: 3, color: palette.WARNING },
+        },
+      ],
+    };
+    void applyOption(option);
+  });
+
+  onMount(() => {
+    const handleResize = () => chart?.resize();
+    window.addEventListener("resize", handleResize);
+    onCleanup(() => window.removeEventListener("resize", handleResize));
+  });
+
+  onCleanup(() => {
+    disposed = true;
+    chart?.dispose();
+    chart = undefined;
+  });
 
   return (
     <CompactPanel className="iv-skew-chart-panel" data-testid="options-iv-skew-chart">
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }} className="iv-skew-header">
-        <Text size="sm" fw={800} c="primary" style={{ letterSpacing: "0.5px" }}>
-          VOLATILITY SMILE (IV SKEW)
+      <Box className="flex items-center justify-center w-full iv-skew-header" gap={1} p="sm">
+        <Text size="sm" fw={800} className="text-fin-primary" style={{ "letter-spacing": "0.5px" }}>
+          VOLATILITY SMILE (OTM IV)
         </Text>
-        <Text size="sm" c="dimmed">
-          Predicts market turbulence
+        <Text size="sm" className="text-fin-text-muted">
+          Calls and puts, missing quotes left blank
         </Text>
       </Box>
-      <ReactECharts option={option} style={{ height: "148px" }} opts={{ renderer: "svg" }} className="iv-skew-chart" />
+      <div
+        ref={(el) => (chartEl = el)}
+        className="iv-skew-chart"
+        data-testid="options-iv-skew-chart-canvas"
+        style={{ height: "148px", width: "100%" }}
+      />
     </CompactPanel>
   );
 }

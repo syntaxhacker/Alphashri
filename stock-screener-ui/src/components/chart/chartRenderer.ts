@@ -9,7 +9,7 @@ import type { PreviewCandle, PivotLevel } from "../../api/chartPreview";
 import type { ORBZone } from "../../types/backtest";
 import { theme } from "../../config/theme";
 import { buildPivotSeries } from "../../utils/chartLineBuilders";
-import { formatTimeLabel } from "../../utils/chartTimeUtils";
+import { formatTimeLabel } from "@/utils/chart/time";
 import { getCandleFromParams } from "../../utils/chartUtils";
 import {
   CHART_BG,

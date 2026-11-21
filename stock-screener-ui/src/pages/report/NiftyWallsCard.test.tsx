@@ -1,8 +1,10 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { createSignal } from "solid-js";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 
+import * as palette from "@/ui/palette";
 import type { WallsPayload } from "@/api/reportNifty";
 import type { NiftyReport } from "@/types/niftyReport";
 import { NiftyWallsCard } from "./NiftyWallsCard";
@@ -71,12 +73,32 @@ const walls: WallsPayload = {
   near: true,
   cross: true,
   calls: [
-    { strike: 74200, oi: 5923820, oi_open: 6123820, new_oi: -200000, new_oi_pct: -0.032, erosion_5m: -0.01, erosion_30m: -0.05, distance_pct: 0.14, tracked: false },
+    {
+      strike: 74200,
+      oi: 5923820,
+      oi_open: 6123820,
+      new_oi: -200000,
+      new_oi_pct: -0.032,
+      erosion_5m: -0.01,
+      erosion_30m: -0.034,
+      erosion_rate_30m: -0.0011,
+      vol_mult: 1.3,
+      prem_chg_5m: 0.012,
+      flow: "WRITERS_COVERING",
+      status: "ERODING",
+      fuel_score: 78,
+      fuel_parts: { erosion: 55, volume: 80, proximity: 75, gamma: 60, flow: 70 },
+      time_to_break_min: 4,
+      oi_history: [5_900_000, 5_923_820],
+      distance_pct: 0.14,
+      tracked: false,
+      nearest: true,
+    },
     { strike: 74000, oi: 8169120, oi_open: 6969120, new_oi: 1200000, new_oi_pct: 0.172, erosion_5m: -0.02, erosion_30m: -0.1388, distance_pct: -0.13, tracked: true },
   ],
   puts: [
     { strike: 73500, oi: 7940520, oi_open: 6740520, new_oi: 1200000, new_oi_pct: 0.178, erosion_5m: 0.04, erosion_30m: 0.18, distance_pct: -0.8, tracked: true },
-    { strike: 73700, oi: 5543550, oi_open: 5543550, new_oi: 0, new_oi_pct: 0, erosion_5m: 0.01, erosion_30m: 0.02, distance_pct: -0.53, tracked: false },
+    { strike: 73700, oi: 5543550, oi_open: 5543550, new_oi: 0, new_oi_pct: 0, erosion_5m: 0.01, erosion_30m: 0.02, distance_pct: -0.53, tracked: false, flow: "WRITERS_ADDING", status: "ERODING" },
   ],
   events: [
     {
@@ -232,7 +254,9 @@ describe("niftyWallsFormat helpers", () => {
 
 describe("NiftyWallsCard", () => {
   it("renders the live break, the wall rows and the expand action", () => {
-    render(<NiftyWallsCard walls={walls} onExpand={onExpand} />);
+    render(() => (
+    <NiftyWallsCard walls={walls} onExpand={onExpand} />
+  ));
 
     expect(screen.getByTestId("nifty-walls-card")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-walls-alert")).toHaveTextContent("WALL BREAK");
@@ -246,8 +270,59 @@ describe("NiftyWallsCard", () => {
     expect(onExpand).toHaveBeenCalledTimes(1);
   });
 
+  it("renders the one-line CW / PW / MP level legend with tooltips and level tokens", () => {
+    render(() => <NiftyWallsCard walls={walls} onExpand={onExpand} />);
+    const legend = screen.getByTestId("nifty-walls-levels-legend");
+    expect(legend).toHaveTextContent("CW 74,000");
+    expect(legend).toHaveTextContent("PW 73,500");
+    expect(legend).toHaveTextContent("MP 73,900");
+
+    const dot = (code: string) =>
+      screen.getByTestId(`nifty-walls-levels-legend-${code}`).firstElementChild as HTMLElement;
+    expect(dot("cw")).toHaveStyle({ backgroundColor: palette.LEVEL_CALL_WALL });
+    expect(dot("pw")).toHaveStyle({ backgroundColor: palette.LEVEL_PUT_WALL });
+    expect(dot("mp")).toHaveStyle({ backgroundColor: palette.LEVEL_MAX_PAIN });
+    for (const code of ["cw", "pw", "mp"]) {
+      expect(screen.getByTestId(`nifty-walls-levels-legend-${code}`).getAttribute("title")).toContain(
+        code.toUpperCase(),
+      );
+    }
+  });
+
+  it("reserves the level legend in the skeleton with dash placeholders", () => {
+    render(() => <NiftyWallsCard walls={null} onExpand={onExpand} />);
+    const legend = screen.getByTestId("nifty-walls-levels-legend");
+    expect(legend).toHaveTextContent("CW —");
+    expect(legend).toHaveTextContent("PW —");
+    expect(legend).toHaveTextContent("MP —");
+  });
+
+  it("side-codes call/put OI sparklines with OI_CALL / OI_PUT, not wall colours", () => {
+    render(() => <NiftyWallsCard walls={walls} onExpand={onExpand} />);
+    expect(
+      screen.getByTestId("walls-card-call-spark").querySelector("polyline")?.getAttribute("stroke"),
+    ).toBe(palette.OI_CALL);
+    expect(
+      screen.getByTestId("walls-card-put-spark").querySelector("polyline")?.getAttribute("stroke"),
+    ).toBe(palette.OI_PUT);
+    expect(palette.LEVEL_CALL_WALL).toBe(palette.NEGATIVE_COLOR);
+    expect(palette.LEVEL_PUT_WALL).toBe(palette.POSITIVE_COLOR);
+  });
+
+  it("opens the pressure desk from the card action", () => {
+    const onOpenDesk = vi.fn();
+    render(() => (
+    <NiftyWallsCard walls={walls} onExpand={onExpand} onOpenDesk={onOpenDesk} />
+  ));
+
+    fireEvent.click(screen.getByTestId("nifty-walls-desk"));
+    expect(onOpenDesk).toHaveBeenCalledTimes(1);
+  });
+
   it("dismisses the alert and persists the dismissal", () => {
-    render(<NiftyWallsCard walls={walls} onExpand={onExpand} />);
+    render(() => (
+    <NiftyWallsCard walls={walls} onExpand={onExpand} />
+  ));
 
     fireEvent.click(screen.getByText("dismiss"));
 
@@ -258,8 +333,8 @@ describe("NiftyWallsCard", () => {
   });
 
   it("parks the gamma/pin read on a non-expiry day", () => {
-    render(
-      <NiftyWallsCard
+    render(() => (
+    <NiftyWallsCard
         walls={{
           ...walls,
           state: "WALL_WATCH",
@@ -271,8 +346,8 @@ describe("NiftyWallsCard", () => {
           events: [],
         }}
         onExpand={onExpand}
-      />,
-    );
+      />
+  ));
 
     expect(screen.getByText("WALL WATCH")).toBeInTheDocument();
     expect(screen.getByText(/Non-expiry/)).toBeInTheDocument();
@@ -280,12 +355,12 @@ describe("NiftyWallsCard", () => {
   });
 
   it("shows the last break on an EOD frame whose live state has faded", () => {
-    render(
-      <NiftyWallsCard
+    render(() => (
+    <NiftyWallsCard
         walls={{ ...walls, state: "WATCH", alert: null, alert_eligible: false }}
         onExpand={onExpand}
-      />,
-    );
+      />
+  ));
 
     expect(screen.getByText("FIRST BREAK")).toBeInTheDocument();
     expect(screen.getByText(/14:25:48 · 74,000/)).toBeInTheDocument();
@@ -305,7 +380,9 @@ describe("NiftyWallsCard", () => {
         sensex={null}
       />
     );
-    render(<NiftyWallsCard walls={walls} onExpand={onExpand} levels={levels} />);
+    render(() => (
+    <NiftyWallsCard walls={walls} onExpand={onExpand} levels={levels} />
+  ));
 
     const card = screen.getByTestId("nifty-walls-card");
     expect(within(card).getByTestId("levels-row-NIFTY")).toBeInTheDocument();
@@ -314,11 +391,127 @@ describe("NiftyWallsCard", () => {
     // One card only: no second levels-in-play panel inside the walls card.
     expect(within(card).queryByTestId("levels-in-play")).toBeNull();
   });
+
+
+
+  it("lays the populated band out in five columns, not one", () => {
+    // Measured in the browser at 1366px: the xs single-column variant stacked
+    // CALL/PUT/READ/history and grew the card to 475px, which pushed the chart
+    // below the fold. The wide variant has to actually be applied.
+    render(() => <NiftyWallsCard walls={walls} onExpand={onExpand} />);
+    const grid = screen.getByTestId("nifty-walls-grid");
+    expect(grid.className).toContain("min-[1100px]:grid-cols-");
+    expect(grid.className).toContain("grid-cols-1");
+    // Guard the inline style too: an inline template would beat the variant.
+    expect(grid.getAttribute("style") ?? "").not.toContain("grid-template-columns");
+  });
+
+  it("renders a reserved skeleton instead of a one-line empty row when there is no payload", () => {
+    render(() => (
+    <NiftyWallsCard walls={null} onExpand={onExpand} />
+  ));
+
+    expect(screen.getByTestId("nifty-walls-card")).toBeInTheDocument();
+    const skeleton = screen.getByTestId("nifty-walls-skeleton");
+    expect(skeleton).toBeInTheDocument();
+
+    const callTable = within(skeleton).getByTestId("nifty-walls-call");
+    const putTable = within(skeleton).getByTestId("nifty-walls-put");
+    expect(within(callTable).getAllByTestId("nifty-walls-call-placeholder")).toHaveLength(3);
+    expect(within(putTable).getAllByTestId("nifty-walls-put-placeholder")).toHaveLength(3);
+    expect(callTable.querySelectorAll("[data-wall-row='true']")).toHaveLength(3);
+    expect(putTable.querySelectorAll("[data-wall-row='true']")).toHaveLength(3);
+
+    // The READ/SEQ and tracked-history bands stay reserved, so the card keeps
+    // its height; the old empty state was a single 44px line.
+    expect(screen.getByTestId("nifty-walls-skeleton-read")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-walls-skeleton-history")).toBeInTheDocument();
+    expect(screen.getByText("No walls data.")).toBeInTheDocument();
+  });
+
+  it("keeps the caller empty text visible in the skeleton", () => {
+    render(() => (
+    <NiftyWallsCard walls={null} onExpand={onExpand} emptyText="Waiting for walls data." />
+  ));
+
+    expect(screen.getByText("Waiting for walls data.")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-walls-skeleton")).toBeInTheDocument();
+  });
+
+  it("reserves three rows per side when the payload carries a single wall", () => {
+    render(() => (
+    <NiftyWallsCard
+        walls={{ ...walls, calls: [walls.calls[0]], puts: [walls.puts[0]] }}
+        onExpand={onExpand}
+      />
+  ));
+
+    const callTable = screen.getByTestId("nifty-walls-call");
+    expect(callTable.querySelectorAll("[data-wall-row='true']")).toHaveLength(3);
+    expect(within(callTable).getAllByTestId("nifty-walls-call-placeholder")).toHaveLength(2);
+
+    const putTable = screen.getByTestId("nifty-walls-put");
+    expect(putTable.querySelectorAll("[data-wall-row='true']")).toHaveLength(3);
+    expect(within(putTable).getAllByTestId("nifty-walls-put-placeholder")).toHaveLength(2);
+
+    // Every reserved cell is an em dash.
+    const placeholder = within(callTable).getAllByTestId("nifty-walls-call-placeholder")[0];
+    expect(within(placeholder).getAllByText("—").length).toBeGreaterThanOrEqual(6);
+    expect(placeholder).toHaveAttribute("data-placeholder", "true");
+  });
+
+  it("renders three rows with no reserved slots when the payload carries three walls", () => {
+    render(() => (
+    <NiftyWallsCard
+        walls={{
+          ...walls,
+          calls: [walls.calls[0], walls.calls[1], { ...walls.calls[0], strike: 73800 }],
+          puts: [walls.puts[0], walls.puts[1], { ...walls.puts[0], strike: 73300 }],
+        }}
+        onExpand={onExpand}
+      />
+  ));
+
+    const callTable = screen.getByTestId("nifty-walls-call");
+    expect(callTable.querySelectorAll("[data-wall-row='true']")).toHaveLength(3);
+    expect(within(callTable).queryAllByTestId("nifty-walls-call-placeholder")).toHaveLength(0);
+
+    const putTable = screen.getByTestId("nifty-walls-put");
+    expect(putTable.querySelectorAll("[data-wall-row='true']")).toHaveLength(3);
+    expect(within(putTable).queryAllByTestId("nifty-walls-put-placeholder")).toHaveLength(0);
+  });
+
+  it("marks the nearest row and shows the side-aware erosion arrow and flow suffix on each row", () => {
+    render(() => (
+    <NiftyWallsCard walls={walls} onExpand={onExpand} />
+  ));
+
+    const callTable = screen.getByTestId("nifty-walls-call");
+    expect(within(callTable).getByText("▲")).toBeInTheDocument();
+    expect(within(callTable).getByTestId("nifty-walls-call-74200-flow")).toHaveTextContent("WRITERS COVERING · vol 1.3×");
+
+    const putTable = screen.getByTestId("nifty-walls-put");
+    expect(within(putTable).getByText("▼")).toBeInTheDocument();
+    expect(within(putTable).getByTestId("nifty-walls-put-73700-flow")).toHaveTextContent("WRITERS ADDING · vol —");
+  });
+
+  it("updates the skeleton empty text when the emptyText prop signal changes", () => {
+    const [emptyTextSig, setEmptyTextSig] = createSignal("No walls data.");
+    render(() => <NiftyWallsCard walls={null} onExpand={onExpand} emptyText={emptyTextSig()} />);
+
+    expect(screen.getByText("No walls data.")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-walls-skeleton")).toBeInTheDocument();
+
+    setEmptyTextSig("Waiting for walls data.");
+
+    expect(screen.getByText("Waiting for walls data.")).toBeInTheDocument();
+    expect(screen.queryByText("No walls data.")).toBeNull();
+  });
 });
 
 describe("NiftyWallsExpanded", () => {
   it("renders all walls, the tracked history and the break sequence", () => {
-    render(<NiftyWallsExpanded open walls={walls} onClose={() => {}} />);
+    render(() => <NiftyWallsExpanded open walls={walls} onClose={() => {}} />);
 
     expect(screen.getByText("CALL WALLS")).toBeInTheDocument();
     expect(screen.getByText("PUT WALLS")).toBeInTheDocument();
@@ -334,7 +527,7 @@ describe("NiftyWallsExpanded", () => {
   });
 
   it("ladders strikes monotonically and keeps a width for every table column", () => {
-    render(<NiftyWallsExpanded open walls={walls} onClose={() => {}} />);
+    render(() => <NiftyWallsExpanded open walls={walls} onClose={() => {}} />);
 
     const ladder = screen.getByTestId("walls-ladder");
     expect(
@@ -356,13 +549,13 @@ describe("NiftyWallsExpanded", () => {
   });
 
   it("shows the last break when the live alert has faded", () => {
-    render(
+    render(() => (
       <NiftyWallsExpanded
         open
         walls={{ ...walls, state: "WATCH", alert: null, alert_eligible: false }}
         onClose={() => {}}
-      />,
-    );
+      />
+    ));
 
     expect(screen.getByTestId("walls-break")).toHaveTextContent("First break 74,000");
     expect(screen.getByTestId("walls-break")).toHaveTextContent("74,096");
@@ -371,14 +564,14 @@ describe("NiftyWallsExpanded", () => {
 
   it("opens on the strike-time wall map and still exposes the data view", () => {
     const onReplayBreak = vi.fn();
-    render(
+    render(() => (
       <NiftyWallsExpanded
         open
         walls={wallsWithMap}
         onClose={() => {}}
         onReplayBreak={onReplayBreak}
-      />,
-    );
+      />
+    ));
 
     expect(screen.getByTestId("walls-map")).toBeInTheDocument();
     expect(screen.getByTestId("walls-map-calls")).toBeInTheDocument();
@@ -408,5 +601,43 @@ describe("NiftyWallsExpanded", () => {
     fireEvent.click(screen.getByRole("button", { name: "DATA" }));
     expect(screen.getByText("CALL WALLS")).toBeInTheDocument();
     expect(screen.queryByTestId("walls-map")).not.toBeInTheDocument();
+  });
+});
+
+describe("NiftyWallsCard compact summary", () => {
+  it("shows the wall numbers in a short summary and keeps the full detail in the tree", () => {
+    render(() => (
+      <NiftyWallsCard walls={walls} onExpand={onExpand} compact />
+    ));
+
+    const summary = screen.getByTestId("nifty-walls-compact-summary");
+    expect(summary).toHaveTextContent("BREAK");
+    expect(summary).toHaveTextContent("74,096");
+    expect(summary).toHaveTextContent("73,900");
+    expect(summary).toHaveTextContent("74,000");
+    expect(summary).toHaveTextContent("73,500");
+    expect(summary.className).toContain("h-14");
+
+    // Nothing was deleted: the full five-column band and the levels block are
+    // still mounted, just collapsed behind the card's EXPAND affordance.
+    const detail = screen.getByTestId("nifty-walls-compact-detail");
+    expect(detail.style.display).toBe("none");
+    for (const id of ["nifty-walls-grid", "nifty-walls-call", "nifty-walls-alert", "nifty-walls-levels-legend"]) {
+      expect(detail.contains(screen.getByTestId(id))).toBe(true);
+    }
+  });
+
+  it("keeps the existing EXPAND affordance wired in compact mode", () => {
+    render(() => <NiftyWallsCard walls={walls} onExpand={onExpand} compact />);
+
+    fireEvent.click(screen.getByText("EXPAND"));
+    expect(onExpand).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders the expanded band by default when compact is not requested", () => {
+    render(() => <NiftyWallsCard walls={walls} onExpand={onExpand} />);
+
+    expect(screen.queryByTestId("nifty-walls-compact-summary")).not.toBeInTheDocument();
+    expect(screen.getByTestId("nifty-walls-grid")).toBeInTheDocument();
   });
 });

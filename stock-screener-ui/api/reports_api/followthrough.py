@@ -118,7 +118,11 @@ def _load_report(date_str: str, universe: str) -> dict:
     except Exception:
         pass
     try:
-        payload = breakouts_mod.compute_report(date_str, universe)
+        # Reuse the breakouts artifact (60 s in-process cache for today,
+        # immutable disk JSON for past dates) instead of launching a second
+        # full universe scan — /breakouts and /follow-through on the same
+        # date now share one compute.
+        payload = breakouts_mod.serve_report(date_str, universe)
         if isinstance(payload, dict):
             return payload
     except Exception:

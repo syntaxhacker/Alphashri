@@ -15,7 +15,7 @@ import {
   type LoadingState,
 } from "../utils/loading";
 
-export interface ExperimentConfig {
+interface ExperimentConfig {
   strategy: string;
   symbols: string[];
   tf: number;
@@ -47,7 +47,7 @@ export interface ExperimentsState {
   error: string | null;
 }
 
-export const initialExperimentState: ExperimentsState = {
+const initialExperimentState: ExperimentsState = {
   strategies: [],
 
   sessions: [],
@@ -228,7 +228,7 @@ export function setResults(results: ExperimentRun[] | null) {
   patchState({ results });
 }
 
-export function setSelectedRun(selectedRun: ExperimentRun | null) {
+function setSelectedRun(selectedRun: ExperimentRun | null) {
   patchState({ selectedRun });
 }
 

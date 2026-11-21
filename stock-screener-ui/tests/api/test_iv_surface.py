@@ -48,9 +48,10 @@ class TestPutSkew:
         assert surface["skew"]["strike_pe25"] == 23_100.0
         assert surface["skew"]["ce_25d_iv"] == pytest.approx(12.8)
         assert surface["skew"]["pe_25d_iv"] == pytest.approx(20.5)
-        # put wing minus call wing
-        assert surface["skew"]["skew_25d"] == pytest.approx(7.7)
-        assert surface["skew"]["skew_25d"] > 0
+        # call wing minus put wing (documented 25Δ RR convention); puts are
+        # richer here, so the signed RR is negative
+        assert surface["skew"]["skew_25d"] == pytest.approx(-7.7)
+        assert surface["skew"]["skew_25d"] < 0
 
     def test_atm_is_nearest_strike_to_spot(self):
         atm = iv_summary(_rows(), spot=23_347.0)["atm"]
@@ -75,7 +76,7 @@ class TestPutSkew:
                   for strike, (ce_d, ce_iv, pe_d, pe_iv) in flipped.items()}
         surface = iv_summary(_rows(weirds), spot=23_300.0)
         assert surface["skew"]["strike_pe25"] == 23_100.0
-        assert surface["skew"]["skew_25d"] == pytest.approx(7.7)
+        assert surface["skew"]["skew_25d"] == pytest.approx(-7.7)
 
 
 class TestMissingData:
@@ -107,7 +108,7 @@ class TestMissingData:
         assert surface["degraded"] is False
         assert surface["skew"]["strike_ce25"] == 23_500.0
         assert surface["skew"]["ce_25d_iv"] == pytest.approx(expected, abs=1e-3)
-        assert surface["skew"]["skew_25d"] == pytest.approx(20.5 - expected, abs=1e-3)
+        assert surface["skew"]["skew_25d"] == pytest.approx(expected - 20.5, abs=1e-3)
 
     def test_dead_legs_and_junk_rows_do_not_raise(self):
         rows = [

@@ -1,12 +1,16 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { NotificationsPanel } from "./NotificationsPanel";
 import { fetchSurges } from "../../api/notifications";
+import { createSignal } from "solid-js";
 import type { PriceSurgeEvent } from "../../types/notifications";
+import {
+  unreadSurgeCount,
+  resetSurgeAcknowledgement,
+} from "../../state/store/notificationsSlice";
 
 vi.mock("../../api/notifications", () => ({
   fetchSurges: vi.fn(),
@@ -31,6 +35,7 @@ function makeEvent(overrides: Partial<PriceSurgeEvent> = {}): PriceSurgeEvent {
 describe("NotificationsPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetSurgeAcknowledgement();
   });
 
   afterEach(() => {
@@ -39,14 +44,29 @@ describe("NotificationsPanel", () => {
 
   it("loads the first page when opened", async () => {
     mockedFetchSurges.mockResolvedValueOnce({ total: 1, events: [makeEvent()] });
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <NotificationsPanel opened onClose={vi.fn()} />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     expect(await screen.findByTestId("surge-card-1")).toBeInTheDocument();
     expect(mockedFetchSurges).toHaveBeenCalledWith(10, 0);
+  });
+
+  it("acknowledges today's alerts when the first page loads", async () => {
+    mockedFetchSurges.mockResolvedValueOnce({
+      total: 7094,
+      today_count: 4,
+      events: [makeEvent()],
+    });
+
+    render(() => (<UIProvider>
+        <NotificationsPanel opened onClose={vi.fn()} />
+      </UIProvider>),
+    );
+
+    expect(await screen.findByTestId("surge-card-1")).toBeInTheDocument();
+    expect(unreadSurgeCount(4)).toBe(0);
   });
 
   it("appends the next page without duplicating overlapping events", async () => {
@@ -56,14 +76,12 @@ describe("NotificationsPanel", () => {
         total: 3,
         events: [makeEvent({ id: 2, symbol: "TCS" }), makeEvent({ id: 3, symbol: "INFY" })],
       });
-    const user = userEvent.setup();
-    render(
-      <UIProvider>
+        render(() => (<UIProvider>
         <NotificationsPanel opened onClose={vi.fn()} />
-      </UIProvider>,
+      </UIProvider>),
     );
 
-    await user.click(await screen.findByTestId("surge-alerts-more"));
+    await fireEvent.click(await screen.findByTestId("surge-alerts-more"));
 
     expect(mockedFetchSurges).toHaveBeenCalledWith(10, 10);
     expect(await screen.findByTestId("surge-card-3")).toBeInTheDocument();
@@ -75,47 +93,81 @@ describe("NotificationsPanel", () => {
       .mockResolvedValueOnce({ total: 12, events: [makeEvent({ id: 1 })] })
       .mockResolvedValueOnce({ total: 12, events: [makeEvent({ id: 11 })] })
       .mockResolvedValueOnce({ total: 12, events: [makeEvent({ id: 1 })] });
-    const user = userEvent.setup();
-    const { rerender } = render(
-      <UIProvider>
-        <NotificationsPanel opened onClose={vi.fn()} />
-      </UIProvider>,
+    const [opened, setOpened] = createSignal(true);
+    render(() => (<UIProvider>
+        <NotificationsPanel opened={opened()} onClose={vi.fn()} />
+      </UIProvider>),
     );
 
-    await user.click(await screen.findByTestId("surge-alerts-more"));
+    await fireEvent.click(await screen.findByTestId("surge-alerts-more"));
     expect(await screen.findByTestId("surge-card-11")).toBeInTheDocument();
 
-    rerender(
-      <UIProvider>
-        <NotificationsPanel opened={false} onClose={vi.fn()} />
-      </UIProvider>,
-    );
-    rerender(
-      <UIProvider>
-        <NotificationsPanel opened onClose={vi.fn()} />
-      </UIProvider>,
-    );
+    setOpened(false);
+    setOpened(true);
 
-    expect(await screen.findByTestId("surge-card-1")).toBeInTheDocument();
-    expect(mockedFetchSurges).toHaveBeenLastCalledWith(10, 0);
+    await waitFor(() => {
+      expect(screen.getByTestId("surge-card-1")).toBeInTheDocument();
+      expect(mockedFetchSurges).toHaveBeenLastCalledWith(10, 0);
+    });
   });
 
   it("shows an error and retries the same page", async () => {
     mockedFetchSurges.mockRejectedValueOnce(new Error("Network error"));
-    const user = userEvent.setup();
-    render(
-      <UIProvider>
+        render(() => (<UIProvider>
         <NotificationsPanel opened onClose={vi.fn()} />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     expect(await screen.findByTestId("surge-alerts-error")).toBeInTheDocument();
     mockedFetchSurges.mockResolvedValueOnce({ total: 1, events: [makeEvent()] });
-    await user.click(screen.getByText("Retry"));
+    await fireEvent.click(screen.getByText("Retry"));
 
     expect(await screen.findByTestId("surge-card-1")).toBeInTheDocument();
     await waitFor(() => {
       expect(mockedFetchSurges).toHaveBeenCalledTimes(2);
     });
+  });
+
+  // The panel used to render a title bar with no exit — only a reload escaped.
+  it("closes via the × in the title bar", async () => {
+    mockedFetchSurges.mockResolvedValueOnce({ total: 0, events: [] });
+    const onClose = vi.fn();
+    render(() => (
+      <UIProvider>
+        <NotificationsPanel opened onClose={onClose} />
+      </UIProvider>
+    ));
+
+    const close = await screen.findByLabelText("close");
+    await fireEvent.click(close);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes via Escape", async () => {
+    mockedFetchSurges.mockResolvedValueOnce({ total: 0, events: [] });
+    const onClose = vi.fn();
+    render(() => (
+      <UIProvider>
+        <NotificationsPanel opened onClose={onClose} />
+      </UIProvider>
+    ));
+
+    await screen.findByText(/Surge Alerts/);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes via a backdrop click", async () => {
+    mockedFetchSurges.mockResolvedValueOnce({ total: 0, events: [] });
+    const onClose = vi.fn();
+    render(() => (
+      <UIProvider>
+        <NotificationsPanel opened onClose={onClose} />
+      </UIProvider>
+    ));
+
+    await screen.findByText(/Surge Alerts/);
+    await fireEvent.click(screen.getByRole("dialog"));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

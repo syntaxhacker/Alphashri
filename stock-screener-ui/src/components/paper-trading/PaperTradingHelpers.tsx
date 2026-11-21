@@ -1,7 +1,8 @@
-import { useCallback, useMemo } from "react";
+import { createMemo, Show, Switch, Match } from "solid-js";
 import dayjs from "dayjs";
-import { Flex, Tabs, Text, Group, Select } from "@/ui";
-import { IconActivity, IconChartDots, IconClipboardList, IconSettings, IconTimeline } from "@tabler/icons-react";
+import { Text, Select, Flex } from "@/ui";
+import { Tabs } from "@/ui";
+import { IconActivity, IconChartDots, IconClipboardList, IconSettings, IconTimeline } from "@/components/common/Icons";
 import { TradingDatePicker } from "../common/TradingDatePicker";
 import {
   getPaperTradingState,
@@ -34,67 +35,74 @@ import {
 } from "../../api/paperTrading";
 import { BotSelector } from "./BotSelector";
 
-export function usePaperViewActions(activeBotId: string | null) {
-  const handleViewChange = useCallback(
-    async (view: string | null) => {
-      if (!view) return;
+const normDate = (v: unknown): string => {
+  if (!v) return "";
+  if (v instanceof Date) {
+    if (Number.isNaN(v.getTime())) return "";
+    return dayjs(v).format("YYYY-MM-DD");
+  }
+  return String(v);
+};
+export function usePaperViewActions(getActiveBotId: () => string | null) {
+  const handleViewChange = async (view: string | null) => {
+    if (!view) return;
 
-      // Save current chart state before switching views
-      const prevState = getPaperTradingState();
-      const prevView = prevState.currentView;
-      if (prevView === "live") {
-        setChartDataLive(prevState.chartData);
-        setChartTimeframeLive(prevState.chartTimeframe);
-        setChartFromDateLive(prevState.chartFromDate);
-      } else if (prevView === "history") {
-        setChartDataHistory(prevState.chartData);
-        setChartTimeframeHistory(prevState.chartTimeframe);
-        setChartFromDateHistory(prevState.chartFromDate);
+    // Save current chart state before switching views
+    const prevState = getPaperTradingState();
+    const prevView = prevState.currentView;
+    if (prevView === "live") {
+      setChartDataLive(prevState.chartData);
+      setChartTimeframeLive(prevState.chartTimeframe);
+      setChartFromDateLive(prevState.chartFromDate);
+    } else if (prevView === "history") {
+      setChartDataHistory(prevState.chartData);
+      setChartTimeframeHistory(prevState.chartTimeframe);
+      setChartFromDateHistory(prevState.chartFromDate);
+    }
+
+    // Restore target view's chart state
+    if (view === "live") {
+      const s = getPaperTradingState();
+      setChartData(s.chartDataLive);
+      setChartTimeframe(s.chartTimeframeLive);
+      setChartFromDate(s.chartFromDateLive);
+    } else if (view === "history") {
+      const s = getPaperTradingState();
+      setChartData(s.chartDataHistory);
+      setChartTimeframe(s.chartTimeframeHistory);
+      setChartFromDate(s.chartFromDateHistory);
+    }
+
+    setPaperTradingView(view as PaperTradingView);
+
+    const activeBotId = getActiveBotId();
+    if (view === "live") {
+      if (activeBotId) refreshBotLiveData(activeBotId);
+      else refreshLiveData();
+    } else if (view === "history") {
+      stopLiveAutoRefresh();
+      const currentState = getPaperTradingState();
+      let fromStr = currentState.filterFromDate;
+      let toStr = currentState.filterToDate;
+      if (!fromStr && !toStr) {
+        fromStr = dayjs().format("YYYY-MM-DD");
+        toStr = fromStr;
+        setFilterFromDate(fromStr);
+        setFilterToDate(toStr);
       }
+      refreshHistoryData(currentState.filterBot || null, fromStr, toStr);
+    } else if (view === "settings") {
+      stopLiveAutoRefresh();
+      fetchStrategyConfig();
+    } else if (view === "activity") {
+      stopLiveAutoRefresh();
+    } else if (view === "aggregated") {
+      stopLiveAutoRefresh();
+    }
+  };
 
-      // Restore target view's chart state
-      if (view === "live") {
-        const s = getPaperTradingState();
-        setChartData(s.chartDataLive);
-        setChartTimeframe(s.chartTimeframeLive);
-        setChartFromDate(s.chartFromDateLive);
-      } else if (view === "history") {
-        const s = getPaperTradingState();
-        setChartData(s.chartDataHistory);
-        setChartTimeframe(s.chartTimeframeHistory);
-        setChartFromDate(s.chartFromDateHistory);
-      }
-
-      setPaperTradingView(view as PaperTradingView);
-
-      if (view === "live") {
-        if (activeBotId) refreshBotLiveData(activeBotId);
-        else refreshLiveData();
-      } else if (view === "history") {
-        stopLiveAutoRefresh();
-        const currentState = getPaperTradingState();
-        let fromStr = currentState.filterFromDate;
-        let toStr = currentState.filterToDate;
-        if (!fromStr && !toStr) {
-          fromStr = dayjs().format("YYYY-MM-DD");
-          toStr = fromStr;
-          setFilterFromDate(fromStr);
-          setFilterToDate(toStr);
-        }
-        refreshHistoryData(currentState.filterBot || null, fromStr, toStr);
-      } else if (view === "settings") {
-        stopLiveAutoRefresh();
-        fetchStrategyConfig();
-      } else if (view === "activity") {
-        stopLiveAutoRefresh();
-      } else if (view === "aggregated") {
-        stopLiveAutoRefresh();
-      }
-    },
-    [activeBotId],
-  );
-
-  const handleToggleBot = useCallback(async () => {
+  const handleToggleBot = async () => {
+    const activeBotId = getActiveBotId();
     if (activeBotId) {
       const currentState = getPaperTradingState();
       const botId = activeBotId;
@@ -107,14 +115,15 @@ export function usePaperViewActions(activeBotId: string | null) {
       else await startPaperBot();
       setTimeout(() => refreshLiveData(), 1000);
     }
-  }, [activeBotId]);
+  };
 
-  const handleRefresh = useCallback(async () => {
+  const handleRefresh = async () => {
+    const activeBotId = getActiveBotId();
     if (activeBotId) await refreshBotLiveData(activeBotId);
     else await refreshLiveData();
-  }, [activeBotId]);
+  };
 
-  const handleBotSelect = useCallback(async (botId: string) => {
+  const handleBotSelect = async (botId: string) => {
     if (!botId) {
       refreshLiveData();
     } else {
@@ -122,37 +131,32 @@ export function usePaperViewActions(activeBotId: string | null) {
       await refreshBotLiveData(botId);
       initBotAutoRefresh(botId);
     }
-  }, []);
+  };
 
   return { handleViewChange, handleToggleBot, handleRefresh, handleBotSelect };
 }
 
 export function useHistoryFilters() {
-  const handleFilterFromDate = useCallback((value: string) => {
+  const handleFilterFromDate = (value: string) => {
     setFilterFromDate(value || null);
     const s = getPaperTradingState();
     refreshHistoryData(s.filterBot || null, value || null, s.filterToDate);
-  }, []);
+  };
 
-  const handleFilterToDate = useCallback((value: string) => {
+  const handleFilterToDate = (value: string) => {
     setFilterToDate(value || null);
     const s = getPaperTradingState();
     refreshHistoryData(s.filterBot || null, s.filterFromDate, value || null);
-  }, []);
+  };
 
-  const handleFilterSymbol = useCallback((value: string | null) => {
+  const handleFilterSymbol = (value: string | null) => {
     setFilterSymbol(value);
-  }, []);
+  };
 
   return { handleFilterFromDate, handleFilterToDate, handleFilterSymbol };
 }
 
-export function LiveFilters({
-  activeBotId,
-  bots,
-  state: _state,
-  actions,
-}: {
+export function LiveFilters(props: {
   activeBotId: string | null;
   bots: BotSummary[];
   state: ReturnType<typeof getPaperTradingState>;
@@ -160,109 +164,92 @@ export function LiveFilters({
 }) {
   return (
     <BotSelector
-      bots={bots}
-      selectedBotId={activeBotId}
-      onSelectBot={actions.handleBotSelect}
-      onToggleBot={actions.handleToggleBot}
-      onRefresh={actions.handleRefresh}
+      bots={props.bots}
+      selectedBotId={props.activeBotId}
+      onSelectBot={props.actions.handleBotSelect}
+      onToggleBot={props.actions.handleToggleBot}
+      onRefresh={props.actions.handleRefresh}
     />
   );
 }
 
-export function HistoryFilters({
-  state,
-  filters,
-}: {
+/** Caption beside the input, fixed 150px — keeps the filter row on one line. */
+const DATE_FILTER_STYLE = {
+  "flex-direction": "row",
+  "align-items": "center",
+  "gap": "4px",
+  width: "150px",
+} as const;
+
+export function HistoryFilters(props: {
   state: ReturnType<typeof getPaperTradingState>;
   filters: ReturnType<typeof useHistoryFilters>;
 }) {
-  const symbols = useMemo(
-    () => [...new Set(state.trades.map((t: PaperTrade) => t.symbol))].sort(),
-    [state.trades],
-  );
-  const symbolOptions = useMemo(
-    () => symbols.map((s) => ({ value: s, label: s })),
-    [symbols],
-  );
-  const allOptions = useMemo(
-    () => [{ value: "", label: "All" }, ...symbolOptions],
-    [symbolOptions],
-  );
+  const symbols = createMemo(() => [...new Set(props.state.trades.map((t: PaperTrade) => t.symbol))].sort());
+  const symbolOptions = createMemo(() => symbols().map((s) => ({ value: s, label: s })));
+  const allOptions = createMemo(() => [{ value: "", label: "All" }, ...symbolOptions()]);
 
   return (
-    <Flex gap="xs" align="center" wrap="wrap">
-      <Group gap="xs" align="center">
-        <Text size="sm" c="dimmed">
-          From:
-        </Text>
-        <TradingDatePicker
-          value={state.filterFromDate || ""}
-          onChange={(v) => filters.handleFilterFromDate(v)}
-          data-testid="filter-from-date"
-          w={150}
-          placeholder="From"
-        />
-      </Group>
-      <Group gap="xs" align="center">
-        <Text size="sm" c="dimmed">
-          To:
-        </Text>
-        <TradingDatePicker
-          value={state.filterToDate || ""}
-          onChange={(v) => filters.handleFilterToDate(v)}
-          data-testid="filter-to-date"
-          w={150}
-          placeholder="To"
-        />
-      </Group>
-      <Group gap="xs" align="center">
-        <Text size="sm" c="dimmed">
-          Symbol:
-        </Text>
-        <Select
-          size="sm"
-          value={state.filterSymbol || ""}
-          onChange={filters.handleFilterSymbol}
-          data={allOptions}
-          data-testid="filter-symbol"
-          w={120}
-          clearable
-        />
-      </Group>
+    // One line: captions sit beside their control (a `flex-col` wrapper put the
+    // caption above and made the identity band 52px / two rows tall).
+    <Flex gap="xs" align="center" wrap="nowrap" className="min-w-0">
+      <TradingDatePicker
+        value={props.state.filterFromDate || ""}
+        onChange={(v) => props.filters.handleFilterFromDate(normDate(v))}
+        data-testid="filter-from-date"
+        placeholder="From"
+        className="shrink-0 [&_input]:py-[1px]"
+        style={DATE_FILTER_STYLE}
+      />
+      <TradingDatePicker
+        value={props.state.filterToDate || ""}
+        onChange={(v) => props.filters.handleFilterToDate(normDate(v))}
+        data-testid="filter-to-date"
+        placeholder="To"
+        className="shrink-0 [&_input]:py-[1px]"
+        style={DATE_FILTER_STYLE}
+      />
+      <Select
+        size="sm"
+        value={props.state.filterSymbol || ""}
+        onChange={props.filters.handleFilterSymbol}
+        data={allOptions()}
+        data-testid="filter-symbol"
+        w={120}
+        className="shrink-0 [&_select]:py-[3px]"
+        clearable
+      />
     </Flex>
   );
 }
 
-export function FiltersBar({
-  activeBotId,
-  bots,
-  state,
-  actions,
-  filters,
-}: {
+export function FiltersBar(props: {
   activeBotId: string | null;
   bots: BotSummary[];
   state: ReturnType<typeof getPaperTradingState>;
   actions: ReturnType<typeof usePaperViewActions>;
   filters: ReturnType<typeof useHistoryFilters>;
 }) {
-  if (state.currentView === "live")
-    return <LiveFilters activeBotId={activeBotId} bots={bots} state={state} actions={actions} />;
-  if (state.currentView === "history") return <HistoryFilters state={state} filters={filters} />;
-  return null;
+  return (
+    <Switch>
+      <Match when={props.state.currentView === "live"}>
+        <LiveFilters activeBotId={props.activeBotId} bots={props.bots} state={props.state} actions={props.actions} />
+      </Match>
+      <Match when={props.state.currentView === "history"}>
+        <HistoryFilters state={props.state} filters={props.filters} />
+      </Match>
+    </Switch>
+  );
 }
 
-export function PaperTradingTabs({
-  state,
-  onViewChange,
-}: {
+export function PaperTradingTabs(props: {
   state: ReturnType<typeof getPaperTradingState>;
   onViewChange: (view: string | null) => void;
 }) {
   return (
     <Tabs
-      value={state.currentView}
-      onChange={onViewChange}
+      value={props.state.currentView}
+      onChange={props.onViewChange}
       variant="default"
       className="paper-trading-tabs"
       id="paper-tabs"
@@ -271,19 +258,19 @@ export function PaperTradingTabs({
       <Tabs.List>
         <Tabs.Tab value="live" leftSection={<IconChartDots size={14} />} data-testid="tab-live">
           Positions
-          {state.positions.length > 0 && (
-            <Text span ml={4} size="sm" c="primary">
-              ({state.positions.length})
+          <Show when={props.state.positions.length > 0}>
+            <Text span ml={4} size="sm" c="primary" className="font-mono tabular-nums">
+              ({props.state.positions.length})
             </Text>
-          )}
+          </Show>
         </Tabs.Tab>
         <Tabs.Tab value="history" leftSection={<IconClipboardList size={14} />} data-testid="trade-history-tab">
           Trade History
-          {state.trades.length > 0 && (
-            <Text span ml={4} size="sm" c="primary">
-              ({state.trades.length})
+          <Show when={props.state.trades.length > 0}>
+            <Text span ml={4} size="sm" c="primary" className="font-mono tabular-nums">
+              ({props.state.trades.length})
             </Text>
-          )}
+          </Show>
         </Tabs.Tab>
         <Tabs.Tab value="settings" leftSection={<IconSettings size={14} />} data-testid="tab-settings">
           Settings

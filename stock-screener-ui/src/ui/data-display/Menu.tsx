@@ -1,232 +1,597 @@
-import * as React from "react";
-import MuiMenu from "@mui/material/Menu";
-import MuiMenuItem from "@mui/material/MenuItem";
-import Divider from "@mui/material/Divider";
-import Box from "@mui/material/Box";
+import { createContext, createEffect, createMemo, createSignal, onCleanup, Show, splitProps, untrack, useContext } from "solid-js";
+import type { JSX } from "solid-js";
+import { cn } from "../cn";
+import * as palette from "../palette";
 import type { UIMenuProps, UIMenuTargetProps, UIMenuDropdownProps, UIMenuItemProps } from "../types";
 
 type MenuContextValue = {
-  anchorEl: HTMLElement | null;
+  anchorEl: () => HTMLElement | null;
+  /** Fallback anchor when a menu is opened programmatically (no target click). */
+  containerEl: () => HTMLElement | null;
   setAnchorEl: (el: HTMLElement | null) => void;
-  open: boolean;
+  open: () => boolean;
   onClose: () => void;
   onOpen: (el: HTMLElement) => void;
   closeOnItemClick?: boolean;
-  position?: string;
-  offset?: number;
-  withArrow?: boolean;
-  shadow?: string;
-  trigger?: string;
+  position: () => string | undefined;
+  offset: () => number | undefined;
+  withArrow: () => boolean | undefined;
+  shadow: () => string | undefined;
+  trigger: () => string | undefined;
+  registerDropdownEl: (el: HTMLElement | null) => void;
+  unregisterDropdownEl: (el: HTMLElement | null) => void;
 };
 
-const MenuContext = React.createContext<MenuContextValue | null>(null);
+const MenuContext = createContext<MenuContextValue | null>(null);
 
 function useMenuContext() {
-  const ctx = React.useContext(MenuContext);
+  const ctx = useContext(MenuContext);
   if (!ctx) throw new Error("Menu compound components must be used within Menu");
   return ctx;
 }
 
-function positionToAnchorOrigin(pos?: string): { anchorOrigin: any; transformOrigin: any } {
-  switch (pos) {
-    case "top":
-      return { anchorOrigin: { vertical: "top", horizontal: "center" }, transformOrigin: { vertical: "bottom", horizontal: "center" } };
-    case "top-start":
-      return { anchorOrigin: { vertical: "top", horizontal: "left" }, transformOrigin: { vertical: "bottom", horizontal: "left" } };
-    case "top-end":
-      return { anchorOrigin: { vertical: "top", horizontal: "right" }, transformOrigin: { vertical: "bottom", horizontal: "right" } };
-    case "bottom-start":
-      return { anchorOrigin: { vertical: "bottom", horizontal: "left" }, transformOrigin: { vertical: "top", horizontal: "left" } };
-    case "bottom-end":
-      return { anchorOrigin: { vertical: "bottom", horizontal: "right" }, transformOrigin: { vertical: "top", horizontal: "right" } };
-    case "left":
-      return { anchorOrigin: { vertical: "center", horizontal: "left" }, transformOrigin: { vertical: "center", horizontal: "right" } };
-    case "right":
-      return { anchorOrigin: { vertical: "center", horizontal: "right" }, transformOrigin: { vertical: "center", horizontal: "left" } };
-    default:
-      return { anchorOrigin: { vertical: "bottom", horizontal: "left" }, transformOrigin: { vertical: "top", horizontal: "left" } };
-  }
+const DEFAULT_SHADOW = palette.DIALOG_SHADOW;
+
+/** Viewport gutter the dropdown may never cross. */
+const VIEWPORT_PAD = 8;
+/** Narrowest sensible dropdown; also the width estimate before measurement. */
+const MIN_MENU_W = 160;
+/** Shell vertical padding (`py-[4px]`) plus 1px top/bottom borders. */
+const SHELL_CHROME_Y = 8 + 2;
+
+type Side = "top" | "bottom" | "left" | "right";
+type Align = "start" | "center" | "end";
+
+export type MenuRect = Pick<DOMRect, "top" | "bottom" | "left" | "right" | "width" | "height">;
+
+export type MenuPlacement = {
+  top: number;
+  left: number;
+  maxHeight: number;
+  side: Side;
+};
+
+function parsePosition(position?: string): { side: Side; align: Align } {
+  const [sidePart, alignPart] = (position ?? "bottom-start").split("-");
+  const side: Side =
+    sidePart === "top" || sidePart === "left" || sidePart === "right" || sidePart === "bottom"
+      ? sidePart
+      : "bottom";
+  const align: Align = alignPart === "start" ? "start" : alignPart === "end" ? "end" : "center";
+  return { side, align };
 }
 
-export function Menu({
-  trigger,
-  opened,
-  onChange,
-  position,
-  offset,
-  withArrow,
-  shadow,
-  closeOnItemClick = true,
-  closeOnClickOutside,
-  loop,
-  children,
-  renderTarget,
-  className,
-  style,
-  "data-testid": testId,
-  ...rest
-}: UIMenuProps) {
-  const [internalAnchorEl, setInternalAnchorEl] = React.useState<HTMLElement | null>(null);
-  const isControlled = opened !== undefined;
-  const open = isControlled ? !!opened : !!internalAnchorEl;
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), Math.max(min, max));
 
-  const setAnchorEl = React.useCallback(
-    (el: HTMLElement | null) => {
-      setInternalAnchorEl(el);
-      onChange?.(!!el);
-    },
-    [onChange]
+/**
+ * Measured, viewport-clamped placement.
+ *
+ * A dropdown that only ever opens downward silently leaves the screen: the
+ * options dock's bottom-row menu at 1280×720 rendered all 12 items below the
+ * fold, and `overflow: hidden` made the last of them unreachable rather than
+ * merely scrolled out. So the side is chosen from the space actually free,
+ * `max-height` is bounded to that side, and both axes are clamped to a gutter.
+ */
+export function computeMenuPlacement(input: {
+  anchor: MenuRect;
+  viewport: { width: number; height: number };
+  menu: { width: number; height: number };
+  position?: string;
+  offset?: number;
+}): MenuPlacement {
+  const { anchor, viewport, menu } = input;
+  const gap = input.offset ?? 0;
+  const { side: preferred, align } = parsePosition(input.position);
+  // 0 means "not measurable yet" (pre-layout). Treating that as a real height
+  // would clamp the menu to nothing and keep it unmeasurable forever.
+  const naturalH = Math.max(0, menu.height);
+  const width = menu.width > 0 ? menu.width : MIN_MENU_W;
+  const maxLeft = Math.max(VIEWPORT_PAD, viewport.width - VIEWPORT_PAD - width);
+
+  if (preferred === "left" || preferred === "right") {
+    // Side-anchored menus (the rail's account menu) keep their side; flipping
+    // them horizontally would cover the trigger they hang off. They are only
+    // bounded vertically, and both the height and the top edge must give way.
+    const space = preferred === "right"
+      ? viewport.width - anchor.right - VIEWPORT_PAD - gap
+      : anchor.left - VIEWPORT_PAD - gap;
+    const boxWidth = Math.max(0, Math.min(width, space));
+    const left = preferred === "right" ? anchor.right + gap : anchor.left - gap - boxWidth;
+    const maxHeight = Math.max(0, viewport.height - VIEWPORT_PAD * 2);
+    const boxHeight = Math.min(naturalH > 0 ? naturalH : maxHeight, maxHeight);
+    return {
+      top: Math.round(clamp(verticalAlign(anchor, boxHeight, align, viewport), VIEWPORT_PAD, viewport.height - VIEWPORT_PAD - boxHeight)),
+      left: Math.round(clamp(left, VIEWPORT_PAD, maxLeft)),
+      maxHeight: Math.round(boxHeight),
+      side: preferred,
+    };
+  }
+
+  const spaceBelow = Math.max(0, viewport.height - anchor.bottom - VIEWPORT_PAD - gap);
+  const spaceAbove = Math.max(0, anchor.top - VIEWPORT_PAD - gap);
+  const prefersUp = preferred === "top";
+  const preferredSpace = prefersUp ? spaceAbove : spaceBelow;
+  const otherSpace = prefersUp ? spaceBelow : spaceAbove;
+  // Flip into the other side when the preferred one cannot hold the menu and
+  // the other one is genuinely roomier. In a short viewport neither side fits,
+  // and staying put would clamp the list to a few unusable pixels.
+  const openUp = naturalH > 0
+    ? (preferredSpace < naturalH && otherSpace > preferredSpace ? !prefersUp : prefersUp)
+    : spaceAbove > spaceBelow;
+  const sideSpace = openUp ? spaceAbove : spaceBelow;
+  // `max-height` is sized to the chosen side. Clamping `top` afterwards while
+  // keeping a full height is what silently pushed the last items off the edge.
+  const maxHeight = naturalH > 0 ? Math.min(naturalH, sideSpace) : sideSpace;
+  const top = openUp ? anchor.top - gap - maxHeight : anchor.bottom + gap;
+
+  return {
+    top: Math.round(clamp(top, VIEWPORT_PAD, viewport.height - VIEWPORT_PAD - maxHeight)),
+    left: Math.round(clamp(horizontalAlign(anchor, width, align), VIEWPORT_PAD, maxLeft)),
+    maxHeight: Math.round(maxHeight),
+    side: openUp ? "top" : "bottom",
+  };
+}
+
+function horizontalAlign(anchor: MenuRect, width: number, align: Align): number {
+  if (align === "start") return anchor.left;
+  if (align === "end") return anchor.right - width;
+  return anchor.left + anchor.width / 2 - width / 2;
+}
+
+function verticalAlign(anchor: MenuRect, height: number, align: Align, viewport: { height: number }): number {
+  if (align === "start") return anchor.top;
+  if (align === "end") return anchor.bottom - height;
+  return clamp(
+    anchor.top + anchor.height / 2 - height / 2,
+    VIEWPORT_PAD,
+    viewport.height - VIEWPORT_PAD - height,
   );
+}
 
-  const onClose = React.useCallback(() => {
+export function Menu(props: UIMenuProps) {
+  const [known, rest] = splitProps(props, [
+    "trigger",
+    "opened",
+    "onChange",
+    "position",
+    "offset",
+    "withArrow",
+    "shadow",
+    "closeOnItemClick",
+    "closeOnClickOutside",
+    "loop",
+    "children",
+    "renderTarget",
+    "className",
+    "style",
+    "id",
+    "data-testid",
+  ]);
+
+  const [internalAnchorEl, setInternalAnchorEl] = createSignal<HTMLElement | null>(null);
+  // The dropdown node the outside-click handler must treat as "inside". It is
+  // written by `MenuDropdown` only after that node has been inserted, so a
+  // construction pass that never reaches the DOM cannot win the slot.
+  const [dropdownElRef, setDropdownEl] = createSignal<HTMLElement | null>(null);
+  let wrapperEl: HTMLDivElement | undefined;
+  const containerEl = () => wrapperEl ?? null;
+
+  const isControlled = createMemo(() => known.opened !== undefined);
+  const open = createMemo(() => (isControlled() ? !!known.opened : !!internalAnchorEl()));
+
+  const setAnchorEl = (el: HTMLElement | null) => {
+    setInternalAnchorEl(el);
+    known.onChange?.(!!el);
+  };
+
+  const onClose = () => {
     setInternalAnchorEl(null);
-    onChange?.(false);
-  }, [onChange]);
+    known.onChange?.(false);
+  };
 
-  const onOpen = React.useCallback(
-    (el: HTMLElement) => {
-      setInternalAnchorEl(el);
-      onChange?.(true);
-    },
-    [onChange]
-  );
+  const onOpen = (el: HTMLElement) => {
+    setInternalAnchorEl(el);
+    known.onChange?.(true);
+  };
 
-  React.useEffect(() => {
-    if (isControlled && !opened) setInternalAnchorEl(null);
-  }, [isControlled, opened]);
+  createEffect(() => {
+    if (isControlled() && !known.opened) setInternalAnchorEl(null);
+  });
+
+  // `children` is a props getter: every read constructs a fresh element tree and
+  // runs the compound components' bodies. The old
+  // `typeof children === "function" ? children(...) : children` expression read
+  // the getter twice, so a second (never-inserted) dropdown tree was built and
+  // its ref registered last — the outside-click handler then compared an
+  // in-menu click against a detached node and closed the menu before the click
+  // landed. Read it exactly once, here, inside the provider's owner so the
+  // compound components still see the context and stay reactive.
+  const children = () => {
+    const value = known.children;
+    return typeof value === "function"
+      ? (value as unknown as (payload: { open: boolean; close: () => void }) => JSX.Element)({
+          open: open(),
+          close: onClose,
+        })
+      : value;
+  };
+
+  const registerDropdownEl = (el: HTMLElement | null) => {
+    if (!el) return;
+    setDropdownEl(el);
+  };
+
+  const unregisterDropdownEl = (el: HTMLElement | null) => {
+    if (!el) return;
+    setDropdownEl((current) => (current === el ? null : current));
+  };
+
+  createEffect(() => {
+    // Outside-dismiss is the default: a menu that stays open until Escape or a
+    // second target click reads as stuck. Callers opt out explicitly.
+    if (!open() || known.closeOnClickOutside === false) return;
+    const handleMousedown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      // A programmatically opened menu has no recorded target: treat the wrapper
+      // as the anchor, or the first click anywhere would dismiss it.
+      const anchor = internalAnchorEl() ?? containerEl();
+      const dropdown = dropdownElRef();
+      if (anchor && anchor.contains(target)) return;
+      if (dropdown && dropdown.contains(target)) return;
+      onClose();
+    };
+    document.addEventListener("mousedown", handleMousedown);
+    return () => document.removeEventListener("mousedown", handleMousedown);
+  });
+
+  createEffect(() => {
+    if (!open()) return;
+    const handleKeydown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeydown);
+    return () => document.removeEventListener("keydown", handleKeydown);
+  });
 
   const ctxValue: MenuContextValue = {
     anchorEl: internalAnchorEl,
+    containerEl,
     setAnchorEl,
     open,
     onClose,
     onOpen,
-    closeOnItemClick,
-    position,
-    offset,
-    withArrow,
-    shadow,
-    trigger,
+    closeOnItemClick: known.closeOnItemClick ?? true,
+    position: () => known.position,
+    offset: () => known.offset,
+    withArrow: () => known.withArrow,
+    shadow: () => known.shadow,
+    trigger: () => known.trigger,
+    registerDropdownEl,
+    unregisterDropdownEl,
   };
-
-  // trigger handling: hover vs click is delegated to MenuTarget; but if hover trigger, we need onMouseEnter logic
-  const isHover = trigger === "hover" || trigger === "click-hover";
 
   return (
     <MenuContext.Provider value={ctxValue}>
-      <Box
-        className={className}
-        style={style}
-        data-testid={testId}
-        sx={{ display: "inline-block" }}
-        {...(rest as any)}
-        {...(isHover
-          ? {
-              onMouseEnter: (e: React.MouseEvent) => {
-                // set anchor on hover if not already open
-              },
-            }
-          : {})}
+      <div
+        id={known.id}
+        ref={(el) => (wrapperEl = el)}
+        className={cn("ui-menu", "inline-block", known.className)}
+        style={known.style as Record<string, string | undefined>}
+        data-testid={known["data-testid"]}
+        {...(rest as Record<string, unknown>)}
       >
-        {typeof children === "function" ? (children as any)({ open, close: onClose }) : children}
-      </Box>
+        {children()}
+      </div>
     </MenuContext.Provider>
   );
 }
 
-export function MenuTarget({ children, className, style, "data-testid": testId, ...rest }: UIMenuTargetProps) {
+export function MenuTarget(props: UIMenuTargetProps) {
+  const [known, rest] = splitProps(props, [
+    "children",
+    "className",
+    "style",
+    "id",
+    "data-testid",
+    "onClick",
+    "onMouseEnter",
+  ]);
   const { setAnchorEl, anchorEl, open, onClose, trigger } = useMenuContext();
-  const child = React.Children.only(children as React.ReactElement<any>);
-  const isHover = trigger === "hover" || trigger === "click-hover";
-  const handleClick = (e: React.MouseEvent) => {
+  const isHover = createMemo(() => trigger() === "hover" || trigger() === "click-hover");
+
+  const handleClick = (e: MouseEvent) => {
     const target = e.currentTarget as HTMLElement;
-    if (open && anchorEl === target) {
+    if (open() && anchorEl() === target) {
       onClose();
     } else {
       setAnchorEl(target);
     }
-    (child.props as any)?.onClick?.(e);
+    known.onClick?.(e);
   };
-  const handleMouseEnter = (e: React.MouseEvent) => {
-    if (isHover) {
-      const target = e.currentTarget as HTMLElement;
-      if (!open) setAnchorEl(target);
-    }
-    (child.props as any)?.onMouseEnter?.(e);
-  };
-  // Detect if parent Menu has hover trigger by checking if child wants hover - we always provide both
-  return React.cloneElement(child, {
-    onClick: handleClick,
-    onMouseEnter: handleMouseEnter,
-    className: [className, (child.props as any).className].filter(Boolean).join(" ") || undefined,
-    style: { ...style, ...(child.props as any).style },
-  } as any);
-}
 
-export function MenuDropdown({ children, className, style, "data-testid": testId, ...rest }: UIMenuDropdownProps) {
-  const { anchorEl, open, onClose, position, offset, shadow } = useMenuContext();
-  const { anchorOrigin, transformOrigin } = positionToAnchorOrigin(position);
+  const handleMouseEnter = (e: MouseEvent) => {
+    if (isHover()) {
+      if (!open()) setAnchorEl(e.currentTarget as HTMLElement);
+    }
+    known.onMouseEnter?.(e);
+  };
+
   return (
-    <MuiMenu
-      anchorEl={anchorEl}
-      open={open}
-      onClose={onClose}
-      anchorOrigin={anchorOrigin}
-      transformOrigin={transformOrigin}
-      slotProps={{
-        paper: {
-          className,
-          style: style as any,
-          sx: {
-            ...(shadow ? { boxShadow: shadow } : {}),
-            ...(offset != null ? { mt: `${offset / 8}px` } : {}),
-            minWidth: 160,
-          },
-        },
-      }}
-      data-testid={testId}
-      {...(rest as any)}
+    <span
+      id={known.id}
+      data-testid={known["data-testid"]}
+      className={cn(known.className)}
+      style={known.style as Record<string, string | undefined>}
+      onClick={handleClick}
+      onMouseEnter={handleMouseEnter}
+      {...(rest as Record<string, unknown>)}
     >
-      <Box sx={{ py: 0.5 }}>{children}</Box>
-    </MuiMenu>
+      {known.children}
+    </span>
   );
 }
 
-export function MenuItem({ leftSection, rightSection, color, disabled, onClick, children, className, style, "data-testid": testId, ...rest }: UIMenuItemProps) {
+export function MenuDropdown(props: UIMenuDropdownProps) {
+  const [known, rest] = splitProps(props, ["children", "className", "style", "id", "data-testid"]);
+  const {
+    open,
+    position,
+    offset,
+    shadow,
+    withArrow,
+    anchorEl,
+    containerEl,
+    registerDropdownEl,
+    unregisterDropdownEl,
+  } = useMenuContext();
+
+  // `equals: false` so a re-created element is re-registered even when the new
+  // node compares equal; the previous node is unregistered by this effect's
+  // cleanup when `open` flips or the element changes.
+  const [dropdownEl, setDropdownEl] = createSignal<HTMLElement | null>(null, { equals: false });
+  const [placement, setPlacement] = createSignal<MenuPlacement | null>(null);
+  let innerEl: HTMLElement | undefined;
+
+  const naturalMenuHeight = (shell: HTMLElement | null): number => {
+    const shellHeight = shell?.getBoundingClientRect().height ?? 0;
+    // The inner element is the scroll container, so its `scrollHeight` is the
+    // full content height even after `max-height` has capped the shell. Using
+    // the shell alone would make a capped menu report its cap as its natural
+    // height, and it could never grow back when the viewport does.
+    const contentHeight = innerEl ? innerEl.scrollHeight + SHELL_CHROME_Y : 0;
+    return Math.max(shellHeight, contentHeight);
+  };
+
+  const place = () => {
+    // A queued re-measure or a scroll listener can fire after the menu closed.
+    if (!open()) return;
+    // A controlled menu can open with no recorded target (no click), so anchor
+    // to the menu wrapper rather than leaving the dropdown unpositioned.
+    const anchor = anchorEl() ?? containerEl();
+    if (!anchor) return;
+    const el = dropdownEl();
+    const anchorRect = anchor.getBoundingClientRect();
+    const next = computeMenuPlacement({
+      anchor: {
+        top: anchorRect.top,
+        bottom: anchorRect.bottom,
+        left: anchorRect.left,
+        right: anchorRect.right,
+        width: anchorRect.width,
+        height: anchorRect.height,
+      },
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      menu: { width: el?.getBoundingClientRect().width ?? 0, height: naturalMenuHeight(el) },
+      position: position(),
+      offset: offset() ?? 0,
+    });
+    // Placement runs twice per open (measure, then re-measure once `max-height`
+    // has been applied) — skip the second write when nothing moved.
+    const current = untrack(() => placement());
+    if (
+      current &&
+      current.top === next.top &&
+      current.left === next.left &&
+      current.maxHeight === next.maxHeight &&
+      current.side === next.side
+    ) {
+      return;
+    }
+    setPlacement(next);
+  };
+
+  createEffect(() => {
+    if (!open()) {
+      setPlacement(null);
+      return;
+    }
+    // `dropdownEl` is tracked: the node does not exist on the first pass, and
+    // measuring `null` would clamp the menu to a zero-height box.
+    if (!dropdownEl()) return;
+    place();
+    // `max-height` is only written once a placement exists, so the first pass
+    // measures the menu's natural size; the microtask re-measures the capped
+    // box, which is what keeps `top` consistent with the height it renders at.
+    queueMicrotask(place);
+  });
+
+  createEffect(() => {
+    const el = dropdownEl();
+    // `open` is tracked so closing unregisters: Solid never calls a ref with
+    // `null`, and `Show` unmounting does not dispose this component, so without
+    // this the outside-click handler keeps a detached node and treats a click
+    // inside the live menu as "outside".
+    if (!open() || !el) return;
+    registerDropdownEl(el);
+    onCleanup(() => unregisterDropdownEl(el));
+  });
+
+  createEffect(() => {
+    if (!open()) return;
+    // A scroll inside the menu itself must not move it; only an ancestor
+    // scroller (the dock, the page) relocating the target does.
+    const onMove = (e: Event) => {
+      const el = dropdownEl();
+      if (el && e.target instanceof Node && el.contains(e.target)) return;
+      place();
+    };
+    window.addEventListener("resize", onMove);
+    window.addEventListener("scroll", onMove, true);
+    onCleanup(() => {
+      window.removeEventListener("resize", onMove);
+      window.removeEventListener("scroll", onMove, true);
+    });
+  });
+
+  const maxHeight = () => placement()?.maxHeight;
+
+  const dropdownStyle = createMemo<Record<string, string | undefined>>(() => {
+    const p = placement();
+    return {
+      top: `${p?.top ?? 0}px`,
+      left: `${p?.left ?? 0}px`,
+      // Left unset on the measuring pass: a `max-height: 0px` shell collapses
+      // the box, and every later measurement would read zero too.
+      "max-height": p ? `${p.maxHeight}px` : undefined,
+      // `visibility` rather than `display` so the measuring pass still lays out.
+      visibility: p ? "visible" : "hidden",
+      "box-shadow": shadow() ?? DEFAULT_SHADOW,
+      ...(known.style as Record<string, string | undefined>),
+    };
+  });
+
+  return (
+    <Show when={open()}>
+      <div
+        id={known.id}
+        ref={(el) => setDropdownEl(el)}
+        role="menu"
+        className={cn(
+          "ui-menu-dropdown",
+          "fixed z-[100] min-w-[160px] bg-fin-surface border border-fin-border rounded-fin text-fin-text text-[14px] py-[4px] outline-none",
+          withArrow() ? "with-arrow" : "",
+          known.className,
+        )}
+        style={dropdownStyle()}
+        data-testid={known["data-testid"]}
+        {...(rest as Record<string, unknown>)}
+      >
+        <Show when={withArrow()}>
+          <div
+            className={cn(
+              "ui-menu-arrow absolute left-3 w-[12px] h-[12px] bg-fin-surface border-fin-border rotate-45",
+              placement()?.side === "top"
+                ? "-bottom-[7px] border-b border-r"
+                : "-top-[7px] border-t border-l",
+            )}
+            aria-hidden="true"
+          />
+        </Show>
+        <div
+          ref={(el) => (innerEl = el)}
+          className="ui-menu-dropdown-inner overflow-y-auto"
+          style={maxHeight() === undefined ? {} : { "max-height": `${Math.max(0, maxHeight()! - SHELL_CHROME_Y)}px` }}
+        >
+          {known.children}
+        </div>
+      </div>
+    </Show>
+  );
+}
+
+export function MenuItem(props: UIMenuItemProps) {
+  const [known, rest] = splitProps(props, [
+    "leftSection",
+    "rightSection",
+    "color",
+    "disabled",
+    "onClick",
+    "children",
+    "className",
+    "style",
+    "id",
+    "data-testid",
+  ]);
   const { onClose, closeOnItemClick } = useMenuContext();
-  const handleClick = (e: React.MouseEvent) => {
-    onClick?.();
+
+  const tone = createMemo(() => {
+    switch (known.color) {
+      case "success": return "fin-positive";
+      case "error":
+      case "danger": return "fin-negative";
+      case "warning": return "fin-warning";
+      case "info": return "fin-info";
+      case "secondary": return "fin-text-muted";
+      case "primary":
+      default: return "fin-primary";
+    }
+  });
+
+  const handleClick = () => {
+    if (known.disabled) return;
+    known.onClick?.();
     if (closeOnItemClick) onClose();
   };
+
+  const cls = createMemo(() =>
+    cn(
+      "ui-menu-item",
+      "flex w-full items-center gap-2 rounded-[4px] px-3 py-[6px] text-left text-[14px] border-none bg-transparent outline-none text-fin-text",
+      known.disabled
+        ? "text-fin-text-muted opacity-60 cursor-default"
+        : "cursor-pointer hover:bg-fin-surface-alt",
+      `text-${tone()}`,
+      known.className,
+    ),
+  );
+
   return (
-    <MuiMenuItem
-      disabled={!!disabled}
-      onClick={handleClick as any}
-      className={className}
-      style={style}
-      data-testid={testId}
-      sx={{
-        fontSize: 14,
-        gap: 1,
-        ...(color ? { color: color as string } : {}),
-      }}
-      {...(rest as any)}
+    <button
+      type="button"
+      role="menuitem"
+      id={known.id}
+      aria-disabled={known.disabled || undefined}
+      disabled={known.disabled}
+      className={cls()}
+      style={known.style as Record<string, string | undefined>}
+      data-testid={known["data-testid"]}
+      onClick={handleClick}
+      {...(rest as Record<string, unknown>)}
     >
-      {leftSection ? <Box component="span" sx={{ display: "inline-flex", mr: 0.5 }}>{leftSection}</Box> : null}
-      <Box component="span" sx={{ flex: 1 }}>{children}</Box>
-      {rightSection ? <Box component="span" sx={{ display: "inline-flex", ml: 0.5 }}>{rightSection}</Box> : null}
-    </MuiMenuItem>
+      <Show when={known.leftSection}>
+        <span className="ui-menu-item-section shrink-0">{known.leftSection}</span>
+      </Show>
+      <span className="flex-1 min-w-0 truncate">{known.children}</span>
+      <Show when={known.rightSection}>
+        <span className="ui-menu-item-section shrink-0">{known.rightSection}</span>
+      </Show>
+    </button>
   );
 }
 
 function MenuDivider(props: any) {
-  return <Divider {...props} />;
-}
-function MenuLabel({ children, ...rest }: any) {
+  const [local, rest] = splitProps(props, ["className", "style", "dataTestid"]);
   return (
-    <Box component="div" sx={{ px: 2, py: 0.5, fontSize: 11, fontWeight: 600, color: "text.secondary", textTransform: "uppercase" }} {...rest}>
-      {children}
-    </Box>
+    <hr
+      role="separator"
+      className={cn("ui-menu-divider", "border-0 border-t border-fin-border mx-3 my-[4px]", local.className)}
+      style={local.style}
+      data-testid={local.dataTestid}
+      {...rest}
+    />
+  );
+}
+
+function MenuLabel(props: any) {
+  const [local, rest] = splitProps(props, ["children", "className", "style"]);
+  return (
+    <div
+      className={cn("ui-menu-label", "px-3 py-[4px] text-[11px] font-semibold uppercase text-fin-text-muted", local.className)}
+      style={local.style}
+      {...rest}
+    >
+      {local.children}
+    </div>
   );
 }
 

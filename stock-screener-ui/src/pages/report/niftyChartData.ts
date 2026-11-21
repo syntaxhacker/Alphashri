@@ -36,6 +36,39 @@ export function sessionDateOf(
   return report.date || report.market?.session_date || "";
 }
 
+/**
+ * The session the candle data actually belongs to, else `sessionDateOf`'s
+ * pinned session.
+ *
+ * `market.session_date` is the exchange gate's calendar session, which before
+ * the open is *today* while the newest candles are still the previous one. The
+ * pinned date then matches nothing, `selectBaseCandles` filters the whole
+ * series away, and the chart silently fell back to two tape spots — a nearly
+ * empty chart on a normal pre-market load.
+ *
+ * Only when the pinned session has no rows at all do we trust the data's own
+ * newest session; if the pinned session has even one row the pinned date wins,
+ * so a genuinely stale feed still cannot be mixed with today's tape.
+ */
+export function effectiveSessionDate(
+  report: Pick<NiftyReport, "date" | "market" | "intraday" | "candles">,
+  pinned: string = sessionDateOf(report),
+): string {
+  if (!pinned) return pinned;
+  // An explicit `report.date` is the user's chosen session (replay / EOD /
+  // previous-day view) and is authoritative — never second-guess it. Only the
+  // exchange calendar gate's `market.session_date` can run ahead of the data.
+  if (report.date) return pinned;
+  const rows = [...(report.intraday ?? []), ...(report.candles ?? [])];
+  if (rows.length === 0) return pinned;
+  if (rows.some((c) => isOnSession(c.time, pinned))) return pinned;
+  const newest = rows.reduce(
+    (acc, c) => (c.time > acc ? c.time : acc),
+    rows[0].time,
+  );
+  return newest.slice(0, 10);
+}
+
 /** True when `time` belongs to `sessionDate` — or when no session is pinned. */
 export function isOnSession(time: string, sessionDate: string): boolean {
   return !sessionDate || time.startsWith(sessionDate);
@@ -145,6 +178,36 @@ function minuteKey(time: string): string {
 }
 
 /**
+ * Cheap content signature of a candle series: the count plus every
+ * timestamp and OHLC value, joined into one string. It changes only when
+ * the series content changes — never when a fresh-but-equal array arrives
+ * (a new poll carrying the same candles). Used to gate the expensive chart
+ * pipeline behind identity-stable dependencies.
+ */
+export function candleSeriesSig(candles: readonly CandleLike[]): string {
+  const parts: string[] = [String(candles.length)];
+  for (const c of candles) {
+    const volume = (c as { volume?: number }).volume;
+    parts.push(c.time, String(c.open), String(c.high), String(c.low), String(c.close), String(Number(volume ?? 0)));
+  }
+  return parts.join("|");
+}
+
+/**
+ * Cheap content signature of tape / spot points: the count plus every
+ * timestamp and spot. Changes only when the points change, never on a
+ * fresh-but-equal array identity. Both `TapeSpotPoint` and `SpotPoint`
+ * carry at least `{ t, spot }`.
+ */
+export function tapePointsSig(points: readonly { t: string; spot?: number | null }[]): string {
+  const parts: string[] = [String(points.length)];
+  for (const p of points) {
+    parts.push(p.t, p.spot == null ? "x" : String(p.spot));
+  }
+  return parts.join("|");
+}
+
+/**
  * Merge same-frequency candle sources by minute, first source wins.
  *
  * Winner-takes-all was the candle-loss bug: the 10-second chain feed only
@@ -251,15 +314,33 @@ export function pickFreshestCandles(
   // All three 1-minute sources are complementary, not alternatives. Merge
   // them by minute so a fresh but short spot series cannot discard the
   // morning's intraday history (and tape can fill a spot/feed hole).
-  const merged = mergeCandleSeries([
-    sessionIntraday,
-    spotCandles,
-    sessionTape,
-  ]);
-  if (merged.length > 0) return merged;
+  const merged = mergeCandleSeries([sessionIntraday, spotCandles, sessionTape]);
 
-  // EOD candles are 15-minute bars: only use them when there is no 1-minute
-  // source at all. Mixing them into a 1m chart would invent off-grid bars.
-  if (sessionCandles.length > 0) return sessionCandles;
-  return [];
+  // EOD candles are 15-minute bars: normally only a fallback when no 1-minute
+  // source exists. But a *token* 1-minute series must not beat a full session
+  // — pre-market the chain feed carries two stale spot minutes while the
+  // session series holds every bar, and returning the merge drew one giant
+  // candle instead of the day. Compare covered span, not row count, because
+  // the two sources have different bar widths.
+  if (sessionCandles.length > 0) {
+    if (merged.length === 0) return sessionCandles;
+    const spanMin = (rows: readonly CandleLike[]) => {
+      const first = rows[0]?.time;
+      const last = rows[rows.length - 1]?.time;
+      if (!first || !last) return 0;
+      const f = Date.parse(first);
+      const l = Date.parse(last);
+      return Number.isFinite(f) && Number.isFinite(l) ? (l - f) / 60_000 : 0;
+    };
+    const mergedSpan = spanMin(merged);
+    const sessionSpan = spanMin(sessionCandles);
+    // A merge covering under a fifth of the session is a handful of stray
+    // minutes, not a series — prefer the session bars. Above that the finer
+    // resolution wins, which is why sparse-but-real intraday still beats EOD.
+    if (mergedSpan === 0 || mergedSpan < sessionSpan * 0.2) {
+      return sessionCandles;
+    }
+  }
+
+  return merged;
 }

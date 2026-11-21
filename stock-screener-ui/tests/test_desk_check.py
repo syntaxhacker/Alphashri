@@ -90,14 +90,15 @@ def _ladder():
 
 def test_skew_25d_picks_nearest_in_band():
     # CE: 0.22 is |0.03| from 0.25 (nearest); PE: -0.28 is |0.03| from 0.25.
-    assert skew_25d(_ladder()) == pytest.approx(18.9 - 15.4)
+    # Convention: 25Δ RR = call IV - put IV (positive = calls rich).
+    assert skew_25d(_ladder()) == pytest.approx(15.4 - 18.9)
 
 
-def test_skew_25d_is_put_minus_call():
+def test_skew_25d_is_call_minus_put():
     rows = [
         {"strike": 22700, "ce": {"delta": 0.25, "iv": 14.0}, "pe": {"delta": -0.25, "iv": 18.0}},
     ]
-    assert skew_25d(rows) == pytest.approx(4.0)
+    assert skew_25d(rows) == pytest.approx(-4.0)
 
 
 def test_skew_25d_excludes_out_of_band_deltas():

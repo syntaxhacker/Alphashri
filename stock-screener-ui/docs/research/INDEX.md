@@ -27,5 +27,5 @@ Highest-value files to read first:
 - `agent_BP_draw.py` — the corrected liquidity-draw model
 
 ## Where to go next
-- **A different market:** [`../india_nify_plan.md`](../india_nify_plan.md) — the NIFTY port of this process.
+- **A different market:** [`../../india_nify_plan.md`](../../india_nify_plan.md) — the NIFTY port of this process.
 - **The loop doctrine:** the `non-stop` skill (`~/.config/opencode/skills/non-stop/`).

@@ -5,6 +5,7 @@ import type {
   StrategiesView,
   StrategyCreate,
   StrategyUpdate,
+  StrategyPerformance,
 } from "../types/strategies";
 import * as api from "../api/strategies";
 import { fetchWithAuth } from "./auth";
@@ -124,28 +125,6 @@ export async function loadInitialData(): Promise<void> {
   }
 }
 
-export async function loadStrategy(strategyId: number): Promise<void> {
-  setLoading(true);
-  setError(null);
-  try {
-    const result = await api.getStrategy(strategyId);
-    state = {
-      ...state,
-      selectedStrategy: result.strategy,
-      selectedVariations: result.variations,
-      isLoading: false,
-    };
-    notify();
-  } catch (error) {
-    state = {
-      ...state,
-      error: error instanceof Error ? error.message : "Failed to load strategy",
-      isLoading: false,
-    };
-    notify();
-  }
-}
-
 export async function createStrategy(data: StrategyCreate): Promise<StrategyConfig | null> {
   setLoading(true);
   setError(null);
@@ -235,18 +214,7 @@ export async function loadAllPerformance(): Promise<void> {
     const data = await response.json();
     const trades = data.trades || [];
 
-    const perfMap = new Map<
-      string,
-      {
-        strategy_id: number;
-        strategy_name: string;
-        total_trades: number;
-        winners: number;
-        losers: number;
-        total_pnl: number;
-        net_pnl: number;
-      }
-    >();
+    const perfMap = new Map<string, StrategyPerformance>();
 
     for (const t of trades) {
       const name = t.strategy_name || "Unknown";
@@ -257,6 +225,7 @@ export async function loadAllPerformance(): Promise<void> {
           total_trades: 0,
           winners: 0,
           losers: 0,
+          win_rate: 0,
           total_pnl: 0,
           net_pnl: 0,
         });

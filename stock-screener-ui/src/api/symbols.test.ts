@@ -91,6 +91,30 @@ describe("searchSymbols", () => {
     expect(calledUrl).toContain("limit=25");
   });
 
+  it("omits the fno flag by default", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ results: [], query: "TATA", total: 0 }),
+    } as Response);
+
+    await searchSymbols("TATA");
+
+    const calledUrl = mockedFetch.mock.calls[0][0] as string;
+    expect(calledUrl).not.toContain("fno");
+  });
+
+  it("appends fno=true only when fnoOnly is true", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ results: [], query: "TATA", total: 0 }),
+    } as Response);
+
+    await searchSymbols("TATA", 10, true);
+
+    const calledUrl = mockedFetch.mock.calls[0][0] as string;
+    expect(calledUrl).toContain("limit=10&fno=true");
+  });
+
   it("returns results array from response", async () => {
     const results = [
       { symbol: "TATASTEEL", name: "Tata Steel Limited" },

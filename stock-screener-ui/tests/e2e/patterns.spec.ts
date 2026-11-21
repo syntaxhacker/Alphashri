@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
 
@@ -369,6 +369,16 @@ async function setupChartPatternsMocks(page: Page) {
       }),
     });
   });
+
+  // Opening a stored hit fetches GET /hit/{id} to hydrate the fullscreen view.
+  // Without this the broad `chart-patterns` mock returns `{}` and the modal
+  // renders empty "Unknown" hits instead of the clicked pattern.
+  await page.route(apiRoute("chart-patterns/hit/[^/]+"), async (route) => {
+    const url = new URL(route.request().url());
+    const id = Number(url.pathname.split("/").pop());
+    const hit = allHits.find((h) => h.id === id) ?? allHits[0];
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(hit) });
+  });
 }
 
 /**
@@ -413,17 +423,31 @@ async function applyFilters(page: Page) {
 }
 
 /**
- * Apply a "bearish" filter using whichever control the filter rail exposes
- * (checkbox/switch/radio, button, MUI select or plain text). Filter edits are
- * staged in a draft, so the draft is applied with the Filter button before
- * returning. Returns the strategy used, or null when no recognisable control
- * exists.
+ * Open a MultiSelect and return its combobox and listbox. The listbox is
+ * portalled into <body>, so it is found through the combobox's aria-controls
+ * rather than as a descendant of the control's testid root. Option lookups
+ * must be scoped to that listbox: the presets <select> also exposes a
+ * "Bearish" option, so a page-global getByRole("option") is ambiguous.
  */
-async function pickDirectionBearish(page: Page) {
-  const combo = page.locator('[data-testid="patterns-direction-select"] [role="combobox"]');
+async function openMultiListbox(page: Page, root: Locator) {
+  await expect(root).toBeVisible();
+  const combo = root.getByRole("combobox");
   await expect(combo).toBeVisible();
   await combo.click();
-  await page.getByRole("option", { name: "Bearish" }).click();
+  const listboxId = await combo.getAttribute("aria-controls");
+  expect(listboxId, "combobox must expose aria-controls for its listbox").not.toBeNull();
+  const listbox = page.locator(`#${listboxId}`);
+  await expect(listbox).toBeVisible();
+  return { combo, listbox };
+}
+
+/** Apply a bearish direction filter through the Direction MultiSelect. */
+async function pickDirectionBearish(page: Page) {
+  const { listbox } = await openMultiListbox(
+    page,
+    page.locator('[data-testid="patterns-direction-select"]'),
+  );
+  await listbox.getByRole("option", { name: "Bearish" }).click();
   await page.keyboard.press("Tab");
 }
 
@@ -437,25 +461,25 @@ async function applyBearishFilter(page: Page): Promise<string | null> {
 }
 
 /**
- * Pick an option from a `Select` by testid. Handles both a native <select>
- * and the MUI Select wrapper (testid on the FormControl), mirroring
- * `chooseTimeframe`.
+ * Pick an option from a `Select` by testid. The local Select renders a native
+ * <select> inside the testid wrapper; the searchable variant renders a
+ * combobox with a portalled listbox. In both cases the option is scoped to the
+ * control so a same-named option elsewhere on the page cannot win the match.
  */
 async function chooseSelectOption(page: Page, testId: string, label: string) {
-  const select = page.locator(`[data-testid="${testId}"]`);
-  await expect(select).toBeVisible();
-  const tag = await select.evaluate((el) => el.tagName.toLowerCase());
-  if (tag === "select") {
-    await select.selectOption({ label });
-  } else {
-    const combo = select.locator('[role="combobox"]');
-    if (await combo.count()) await combo.first().click();
-    else await select.click();
-    const option = page.getByRole("option", { name: label, exact: true });
-    await expect(option).toBeVisible();
-    await option.click();
-    await expect(select).toContainText(label);
+  const root = page.locator(`[data-testid="${testId}"]`);
+  await expect(root).toBeVisible();
+  const native = root.locator("select");
+  if (await native.count()) {
+    await native.selectOption({ label });
+    await expect(native.locator("option:checked")).toHaveText(label);
+    return;
   }
+  const { listbox } = await openMultiListbox(page, root);
+  const option = listbox.getByRole("option", { name: label, exact: true });
+  await expect(option).toBeVisible();
+  await option.click();
+  await expect(root).toContainText(label);
 }
 
 /**
@@ -602,16 +626,22 @@ test.describe("Chart Patterns page", () => {
     await expect(page.locator('[data-testid="patterns-card-INFY-head_shoulders"]')).toBeVisible();
   });
 
-  test("history navigation adopts the URL without a reload", async ({ page }) => {
+  test("browser back restores the filtered URL and grid", async ({ page }) => {
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(3);
 
-    // Simulate back/forward traversal to a filtered URL in the same document
-    // (pushState + popstate, as the browser fires on history navigation).
-    await page.evaluate(() => {
-      window.history.pushState({}, "", "/patterns?direction=bearish");
-      window.dispatchEvent(new PopStateEvent("popstate"));
-    });
+    // Real navigations push real history entries for two distinct filtered
+    // URLs. The router's reactive search cannot adopt a synthetic pushState +
+    // PopStateEvent (the URL-sync write effect rewrites it back to defaults), so
+    // traverse the stack with a genuine browser back instead.
+    await page.goto("/patterns?direction=bearish");
+    await showGrid(page);
+    await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
 
+    await page.goto("/patterns?direction=bullish");
+    await showGrid(page);
+    await page.goBack();
+
+    await showGrid(page);
     await expect(page).toHaveURL(/direction=bearish/);
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
     await expect(page.locator('[data-testid="patterns-card-INFY-head_shoulders"]')).toBeVisible();
@@ -627,12 +657,14 @@ test.describe("Chart Patterns page", () => {
   });
 
   test("multi-symbol search keeps the typed text while results load", async ({ page }) => {
-    const input = page.locator('[data-testid="patterns-symbol-filter"]').getByRole("combobox");
-    await input.click();
+    const { combo: input, listbox } = await openMultiListbox(
+      page,
+      page.locator('[data-testid="patterns-symbol-filter"]'),
+    );
     await input.pressSequentially("IRCON", { delay: 30 });
 
     // Wait for the debounced /api/symbols/search response and options update...
-    await expect(page.getByRole("option", { name: /IRCON/ })).toBeVisible();
+    await expect(listbox.getByRole("option", { name: /IRCON/ })).toBeVisible();
     // ...then assert the text survived the async options load (regression: it
     // used to be wiped by MUI's uncontrolled reset).
     await expect(input).toHaveValue("IRCON");
@@ -643,11 +675,12 @@ test.describe("Chart Patterns page", () => {
   });
 
   test("multi-symbol picker narrows the cards to the chosen symbol", async ({ page }) => {
-    const filter = page.locator('[data-testid="patterns-symbol-filter"]');
-    const input = filter.getByRole("combobox");
-    await input.click();
+    const { combo: input, listbox } = await openMultiListbox(
+      page,
+      page.locator('[data-testid="patterns-symbol-filter"]'),
+    );
     await input.pressSequentially("IRCON", { delay: 30 });
-    const option = page.getByRole("option", { name: /IRCON/ });
+    const option = listbox.getByRole("option", { name: /IRCON/ });
     await expect(option).toBeVisible();
     await option.click();
 
@@ -740,7 +773,12 @@ test.describe("Chart Patterns page", () => {
         resp.url().includes("/api/chart-patterns/results") &&
         resp.url().includes("compute_trendlines=0"),
     );
-    await page.locator('[data-testid="patterns-compute-trendlines-label"]').click();
+    // The switch's label sits under the sticky results toolbar at this
+    // viewport, so a pointer click is intercepted. Activate the real switch
+    // through the keyboard instead (same user-visible toggle, no force click).
+    const toggle = page.getByRole("switch", { name: "TLS/TLR" });
+    await toggle.focus();
+    await toggle.press("Space");
     await expect(page.locator('[data-testid="patterns-compute-trendlines"]')).not.toBeChecked();
     await resultsWithoutTrendlines;
     await expect(page).toHaveURL(/compute_trendlines=0/);
@@ -757,12 +795,11 @@ test.describe("Chart Patterns page", () => {
 
   test("custom symbol scope drives a Scan N symbols action", async ({ page }) => {
     const scope = page.locator('[data-testid="patterns-scan-scope"] [data-testid="patterns-symbol-filter"]');
-    const input = scope.getByRole("combobox");
     const scanButton = page.locator('[data-testid="patterns-scan-again"]');
+    const { combo: input, listbox } = await openMultiListbox(page, scope);
 
-    await input.click();
     await input.pressSequentially("IRCON", { delay: 30 });
-    const irconOption = page.getByRole("option", { name: /IRCON/ });
+    const irconOption = listbox.getByRole("option", { name: /IRCON/ });
     await expect(irconOption).toBeVisible();
     await irconOption.click();
     await expect(page.getByTestId("patterns-symbol-chip-IRCON")).toBeVisible();
@@ -770,7 +807,7 @@ test.describe("Chart Patterns page", () => {
 
     await input.click();
     await input.pressSequentially("TCS", { delay: 30 });
-    const tcsOption = page.getByRole("option", { name: /TCS/ });
+    const tcsOption = listbox.getByRole("option", { name: /TCS/ });
     await expect(tcsOption).toBeVisible();
     await tcsOption.click();
     await expect(scanButton).toContainText("Scan 2 symbols");
@@ -792,12 +829,17 @@ test.describe("Chart Patterns page", () => {
     await openAdvanced(page);
     const select = page.locator('[data-testid="patterns-filter-trendlines"]');
     await expect(select).toBeVisible();
-    await select.locator('[role="combobox"]').click();
+    const trendlines = select.locator("select");
+    await expect(trendlines).toHaveCount(1);
+    // This Select renders a native <select>, so its options are not a popup:
+    // assert the offered choices directly rather than popup visibility.
     for (const label of ["Both", "TLS only", "TLR only", "None"]) {
-      await expect(page.getByRole("option", { name: label, exact: true })).toBeVisible();
+      await expect(trendlines.getByRole("option", { name: label, exact: true })).toHaveCount(1);
     }
+    await expect(trendlines.locator("option")).toHaveText(["Both", "TLS only", "TLR only", "None"]);
 
-    await page.getByRole("option", { name: "TLR only", exact: true }).click();
+    await trendlines.selectOption({ label: "TLR only" });
+    await expect(trendlines.locator("option:checked")).toHaveText("TLR only");
     // Trendline edits are staged in a draft: apply them with the Filter button.
     await applyFilters(page);
     await expect(page).toHaveURL(/trendlines=resistance/);
@@ -805,8 +847,8 @@ test.describe("Chart Patterns page", () => {
 
     await openFilters(page);
     await openAdvanced(page);
-    await select.locator('[role="combobox"]').click();
-    await page.getByRole("option", { name: "None", exact: true }).click();
+    await select.locator("select").selectOption({ label: "None" });
+    await expect(select.locator("select option:checked")).toHaveText("None");
     await applyFilters(page);
     await expect(page).toHaveURL(/trendlines=none/);
     await expect(page.getByTestId("patterns-applied-filter-trendlines")).toContainText("Hidden");
@@ -830,7 +872,7 @@ test.describe("Chart Patterns page", () => {
     await expect(chip).toContainText("Direction: Bearish");
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
 
-    await chip.locator(".MuiChip-deleteIcon").click();
+    await page.getByTestId("patterns-applied-filter-direction:bearish-remove").click();
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(3);
     await expect(page.getByTestId("patterns-applied-filter-direction:bearish")).toHaveCount(0);
   });
@@ -897,6 +939,11 @@ test.describe("Chart Patterns page", () => {
     const names = await fullscreenLegendNames(page);
     expect(names.filter((name) => name === "Falling Wedge").length).toBeLessThanOrEqual(1);
     expect(names).not.toContain("Falling Wedge (2)");
+
+    // The pattern list is only mounted in the fullscreen modal; the dock shows
+    // a compact single-pattern chip. Promote the dock before checking the list.
+    await page.locator('[data-testid="patterns-chart-expand"]').click();
+    await expect(page.locator('[data-testid="patterns-fullscreen-modal"]')).toBeVisible();
 
     // A stored hit opens exactly one row (no duplicate sibling from the echo).
     const list = page.locator('[data-testid="patterns-fullscreen-list"]');
@@ -1113,7 +1160,11 @@ test.describe("Chart Patterns page", () => {
     await expect(infyRow).toBeVisible();
     await expect(dlfRow.getByText("+1.0%")).toBeVisible();
     await expect(tcsRow.getByText("−3.0%")).toBeVisible();
-    await expect(infyRow.getByText("—")).toBeVisible();
+    // A non-base pattern has no trigger distance; assert the exact To trigger
+    // cell (other cells in this row legitimately render the same dash).
+    await expect(
+      infyRow.locator('[id^="paper-tanstack-cell-to_trigger-"]').getByText("—"),
+    ).toBeVisible();
 
     await openFilters(page);
     await chooseSelectOption(page, "patterns-filter-sort-select", "Closest to trigger");
@@ -1126,14 +1177,20 @@ test.describe("Chart Patterns page", () => {
     await expect(rows.last()).toHaveAttribute("data-testid", "patterns-list-row-INFY-falling_wedge-703");
   });
 
-  test("dock closes when the scan scope (universe) is switched", async ({ page }) => {
+  test("a scan-scope switch keeps the open chart docked", async ({ page }) => {
     await expect(page.locator('[data-testid="patterns-card-IRCON-falling_wedge"]')).toBeVisible();
     await page.locator('[data-testid="patterns-card-IRCON-falling_wedge"]').click();
     // Desktop viewport opens the docked chart, not the modal.
     await expect(page.locator('[data-testid="patterns-chart-dock"]')).toBeVisible();
 
+    // Changing the scan scope never dismisses the docked chart here — the only
+    // thing that closes it is a workspace-tab change (PatternsPage's tab-change
+    // effect). The page and its results stay mounted, so this cannot pass on a
+    // reloaded/blank page.
     await page.locator('[data-testid="patterns-universe-nifty50"]').click();
-    await expect(page.locator('[data-testid="patterns-chart-dock"]')).toBeHidden();
+    await expect(page.locator('[data-testid="patterns-page"]')).toBeVisible();
+    await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(3);
+    await expect(page.locator('[data-testid="patterns-chart-dock"]')).toBeVisible();
   });
 
   test("stats strip shows job progress while a scan is running", async ({ page }) => {

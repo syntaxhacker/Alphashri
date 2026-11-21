@@ -1,7 +1,7 @@
 import { NumberInput } from "@/ui";
 
 export interface FilterNumberProps {
-  value: number | null | undefined;
+  value?: number | null;
   onChange: (value: number | null) => void;
   min?: number;
   max?: number;
@@ -15,35 +15,26 @@ export interface FilterNumberProps {
  * Numeric filter input with the shared "empty clears the filter / partials
  * never become NaN" semantics used by every numeric control in the rail.
  */
-export function FilterNumber({
-  value,
-  onChange,
-  min,
-  max,
-  step,
-  placeholder = "Any",
-  testId,
-  disabled,
-}: FilterNumberProps) {
+export function FilterNumber(props: FilterNumberProps) {
   return (
     <NumberInput
-      value={value ?? ""}
+      value={props.value ?? ""}
       onChange={(next: number | string) => {
         if (next === "" || next == null) {
-          onChange(null);
+          props.onChange(null);
           return;
         }
         const numeric = Number(next);
         // Ignore in-progress partials ("-", "1.") — never store NaN.
-        if (!Number.isNaN(numeric)) onChange(numeric);
+        if (!Number.isNaN(numeric)) props.onChange(numeric);
       }}
-      min={min}
-      max={max}
-      step={step}
+      min={props.min}
+      max={props.max}
+      step={props.step}
       size="sm"
-      placeholder={placeholder}
-      data-testid={testId}
-      disabled={disabled}
+      placeholder={props.placeholder ?? "Any"}
+      data-testid={props.testId}
+      disabled={props.disabled}
     />
   );
 }

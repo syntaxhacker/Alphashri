@@ -5,18 +5,37 @@
  * it should use the warning (stale) colour.
  */
 
-import type { NiftyBurst } from "@/types/niftyReport";
-import { formatFreshnessAge } from "./niftyDataFreshness";
+import {
+  DATA_STALE_AFTER_MS,
+  formatFreshnessAge,
+  type DataFreshness,
+} from "./niftyDataFreshness";
+
+/** The only two fields freshness needs — lets both `NiftyBurst` and the
+ *  client-side `OiBurst` feed the same badge. */
+export interface FreshnessBurst {
+  t?: string | null;
+  type?: string | null;
+}
 
 export interface NiftyFreshnessInput {
   /** Current wall-clock time (epoch ms). */
   nowMs: number;
-  /** The newest backend timestamp from report/tape/bursts (epoch ms), or null if unavailable. */
-  lastBackendMs: number | null;
+  /**
+   * The newest backend timestamp from report/tape/bursts (epoch ms), or null if
+   * unavailable. Legacy fallback only — a `max()` of all sources lets a fresh
+   * `fetched_at` hide a tape that stopped hours ago.
+   */
+  lastBackendMs?: number | null;
   /** True when the NSE cash session is open. */
   marketOpen: boolean;
   /** Burst array — checked for `type === "data_stale"`. */
-  bursts?: NiftyBurst[] | null;
+  bursts?: FreshnessBurst[] | null;
+  /**
+   * Authoritative read from `dataFreshness()`. When supplied it decides the
+   * label and staleness; the tape is the freshness authority there.
+   */
+  authoritative?: DataFreshness | null;
 }
 
 export interface NiftyFreshnessOutput {
@@ -31,7 +50,7 @@ export interface NiftyFreshnessOutput {
 /**
  * Check if any burst signals stale data.
  */
-function hasDataStaleBurst(bursts?: NiftyBurst[] | null): boolean {
+function hasDataStaleBurst(bursts?: FreshnessBurst[] | null): boolean {
   if (!bursts || bursts.length === 0) return false;
   return bursts.some((b) => b?.type === "data_stale");
 }
@@ -42,12 +61,12 @@ function hasDataStaleBurst(bursts?: NiftyBurst[] | null): boolean {
  * Rules:
  * - Market closed → `CLOSED` (dim), never STALE.
  * - Market open & `data_stale` burst present → `STALE` (warning).
- * - Market open & last backend timestamp ≤ 120s ago → `DATA 42s` (dim).
- * - Market open & last backend timestamp > 120s ago → `STALE` (warning).
+ * - Market open & newest timestamp ≤ `DATA_STALE_AFTER_MS` ago → `DATA 42s` (dim).
+ * - Market open & newest timestamp > `DATA_STALE_AFTER_MS` ago → `STALE` (warning).
  * - Market open & no timestamp available → `DATA —` (dim).
  */
 export function computeNiftyFreshness(input: NiftyFreshnessInput): NiftyFreshnessOutput {
-  const { nowMs, lastBackendMs, marketOpen, bursts } = input;
+  const { nowMs, marketOpen, bursts } = input;
 
   // Market closed: always CLOSED, never stale
   if (!marketOpen) {
@@ -67,8 +86,19 @@ export function computeNiftyFreshness(input: NiftyFreshnessInput): NiftyFreshnes
     };
   }
 
+  // The shipped badge passes this in: dataFreshness() owns the data-age rule,
+  // this function only applies the two UI overrides above it.
+  if (input.authoritative) {
+    return {
+      label: input.authoritative.label,
+      isStale: input.authoritative.stale,
+      detail: input.authoritative.detail,
+    };
+  }
+
+  const lastBackendMs = input.lastBackendMs;
   // No timestamp available
-  if (lastBackendMs === null || !Number.isFinite(lastBackendMs)) {
+  if (lastBackendMs === null || lastBackendMs === undefined || !Number.isFinite(lastBackendMs)) {
     return {
       label: "DATA —",
       isStale: false,
@@ -77,7 +107,7 @@ export function computeNiftyFreshness(input: NiftyFreshnessInput): NiftyFreshnes
   }
 
   const ageMs = Math.max(0, nowMs - lastBackendMs);
-  const isStale = ageMs > 120_000; // 2 minutes
+  const isStale = ageMs > DATA_STALE_AFTER_MS;
 
   return {
     label: isStale ? "STALE" : `DATA ${formatFreshnessAge(ageMs)}`,
@@ -86,4 +116,12 @@ export function computeNiftyFreshness(input: NiftyFreshnessInput): NiftyFreshnes
       ? `Last update ${formatFreshnessAge(ageMs)} ago (tape stopped)`
       : `Last update ${formatFreshnessAge(ageMs)} ago`,
   };
+}
+
+/**
+ * The WS-outage badge names its own signal. Calling it "STALE" put a warning
+ * next to a fresh DATA badge during a reconnect, reading as a contradiction.
+ */
+export function wsBadgeLabel(staleMins: number): string {
+  return `WS DOWN ${Math.max(1, staleMins)}m`;
 }

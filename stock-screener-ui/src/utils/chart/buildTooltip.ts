@@ -1,6 +1,6 @@
 import type { HolidayMap } from "../chartUtils";
 import { getCandleFromParams } from "../chartUtils";
-import type { UnifiedTrade } from "./types";
+import type { UnifiedTrade, UnifiedLivePosition } from "./types";
 import {
   POSITIVE,
   NEGATIVE,
@@ -11,6 +11,18 @@ import {
   TRADING_RED,
   WARNING,
 } from "../../config/colors";
+
+/** One ECharts tooltip param entry: a candle point, or a marker carrying a
+ *  trade / live position. `trade` is the external ECharts payload, so it is
+ *  `unknown` here and narrowed at the branch that proves which one it is. */
+export interface TooltipParam {
+  seriesType?: string;
+  dataIndex?: number;
+  data?: {
+    isLive?: boolean;
+    trade?: unknown;
+  };
+}
 
 export function buildTooltip(
   candles: {
@@ -27,13 +39,13 @@ export function buildTooltip(
   extendedTimeData?: string[],
   hasGaps?: boolean,
   holidayMap?: HolidayMap,
-): (params: any) => string {
-  return function (params: any) {
+): (params: TooltipParam[] | null | undefined) => string {
+  return function (params: TooltipParam[] | null | undefined) {
     if (!params || !params.length) return "";
 
     for (const p of params) {
-      if (p.data?.isLive && p.data?.trade) {
-        const pos = p.data.trade;
+      if (p.data?.isLive && p.data.trade) {
+        const pos = p.data.trade as UnifiedLivePosition;
         const pnl = pos.pnl ?? 0;
         const pnlPct = pos.pnl_pct ?? 0;
         const pnlColor = pnl >= 0 ? POSITIVE : NEGATIVE;
@@ -43,14 +55,14 @@ export function buildTooltip(
       }
 
       if (p.data?.trade) {
-        const t: UnifiedTrade = p.data.trade;
+        const t = p.data.trade as UnifiedTrade;
         const pnlColor = (t.pnl ?? 0) >= 0 ? POSITIVE : NEGATIVE;
         const pnl = t.pnl ?? 0;
         const costs = t.costs ?? 0;
         const side = t.side ? ` | ${t.side}` : "";
         const reason = t.exit_reason || "Open";
-        const sl = t.sl_price ? `SL: ₹${t.sl_price.toFixed(2)}` : "";
-        const tp = t.tp_price ? `TP: ₹${t.tp_price.toFixed(2)}` : "";
+        const sl = t.stop_loss ? `SL: ₹${t.stop_loss.toFixed(2)}` : "";
+        const tp = t.take_profit ? `TP: ₹${t.take_profit.toFixed(2)}` : "";
         const slTp = [sl, tp].filter(Boolean).join(" | ");
         const slTpRow = slTp ? `<div style="display:flex;gap:12px;color:${MARKER_SL}">${slTp}</div>` : "";
         return `<div style="padding:6px 8px;font-family:monospace;font-size:12px;line-height:1.4"><div style="color:${MARKER_ENTRY};font-weight:bold;margin-bottom:4px">Trade #${t.id}${side} | ${reason}</div><div style="display:flex;gap:12px;margin-bottom:2px"><span>Entry: <b>₹${t.entry_price.toFixed(2)}</b></span><span>Exit: <b>₹${(t.exit_price ?? 0).toFixed(2)}</b></span><span>Qty: ${t.quantity}</span></div>${slTpRow}<div style="display:flex;gap:12px;margin-top:2px"><span style="color:${pnlColor};font-weight:bold">P&L: ${pnl >= 0 ? "+" : ""}₹${pnl.toFixed(0)}</span><span style="color:${CHART_MUTED}">Cost: ₹${costs.toFixed(0)}</span></div></div>`;
@@ -58,10 +70,10 @@ export function buildTooltip(
     }
 
     if (hasGaps && extendedTimeData) {
-      const candle = params.find((p: any) => p.seriesType === "candlestick");
+      const candle = params.find((p) => p.seriesType === "candlestick");
       if (candle) {
         const idx = candle.dataIndex;
-        const label = extendedTimeData[idx];
+        const label = idx !== undefined ? extendedTimeData[idx] : undefined;
         if (label?.includes("[")) {
           const parts = label.match(/(\S+)\s+\[(\w+)\]/);
           const hDate = parts ? parts[1] : label;

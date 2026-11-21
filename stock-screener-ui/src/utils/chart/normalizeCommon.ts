@@ -9,18 +9,22 @@ interface RawCandle {
   volume: number;
 }
 
-interface RawTrade {
+/** Minimal shape `mapTrades` needs — satisfied by every trade payload
+ *  (paper history, replay SSE closes) so callers never re-cast. */
+export interface MappableTrade {
   entry_price: number;
-  exit_price: number;
+  exit_price?: number;
   entry_time: string;
-  exit_time: string;
-  exit_reason: string;
+  exit_time?: string;
+  exit_reason?: string;
   quantity: number;
-  side: string;
-  net_pnl: number;
-  costs: number;
-  stop_loss: number;
-  take_profit: number;
+  side?: string;
+  net_pnl?: number;
+  costs?: number;
+  // Only the paper/history payloads carry SL/TP; replay closes come from an SSE
+  // event without them, so they must stay optional.
+  stop_loss?: number;
+  take_profit?: number;
 }
 
 export function mapCandles(candles: RawCandle[]): UnifiedCandle[] {
@@ -57,9 +61,9 @@ export function filterVisibleTrades<T extends { id: number }>(
   return trades;
 }
 
-export function mapTrades(
-  trades: RawTrade[],
-  getId: (t: RawTrade, idx: number) => number,
+export function mapTrades<T extends MappableTrade>(
+  trades: T[],
+  getId: (t: T, idx: number) => number,
 ): UnifiedTrade[] {
   return trades.map((t, idx) => ({
     id: getId(t, idx),
@@ -69,7 +73,7 @@ export function mapTrades(
     exit_time: t.exit_time,
     exit_reason: t.exit_reason,
     quantity: t.quantity,
-    side: t.side as "BUY" | "SELL",
+    side: t.side as UnifiedTrade["side"],
     pnl: t.net_pnl,
     costs: t.costs,
     stop_loss: t.stop_loss,

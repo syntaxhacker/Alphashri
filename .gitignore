@@ -59,10 +59,12 @@ wandb/
 data_cache/
 *.json
 !package.json
+!stock-screener-ui/knip.json
 !historical_sector_cycles/rotation_dashboard_data.json
 # nse_instruments.json is untracked — fetch with scripts/fetch_instruments.py
 *.html
 !stock-screener-ui/index.html
+!stock-screener-ui/tests/e2e/fixtures/tooltip-harness.html
 # Upstox token (explicitly listed)
 .upstox_token.json
 
@@ -101,3 +103,21 @@ mutants/
 !stock-screener-ui/tests/fixtures/*.json
 !stock-screener-ui/tests/indicators/fixtures/*.csv
 !stock-screener-ui/tests/indicators/fixtures/*.json
+
+# ---------------------------------------------------------------------------
+# Root-level caches and local residue
+# ---------------------------------------------------------------------------
+# The ignore rules for these lived only in stock-screener-ui/.gitignore, so a
+# `git add .` at the repo root could commit a 1 GB node_modules or test output.
+# `reports/` is deliberately ignored, not deleted: the artifacts stay on disk.
+node_modules/
+test-results/
+reports/
+venv/
+
+# SQLite WAL/SHM sidecars: live, transient, and unsafe to commit. The .db is
+# tracked for the QA fixture; these two are rewritten on every write.
+db/alphashri.db-shm
+db/alphashri.db-wal
+stock-screener-ui/db/alphashri.db-shm
+stock-screener-ui/db/alphashri.db-wal

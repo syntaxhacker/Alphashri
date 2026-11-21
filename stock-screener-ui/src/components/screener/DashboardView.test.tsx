@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
-import type { ReactElement } from "react";
+import { alpha, PRIMARY } from "@/ui/palette";
 import type { ScreenerDashboardResponse, ScreenerDashboardRow } from "../../types/screenerDashboard";
+import { createSignal, type JSX } from "solid-js";
 
 const mockFetchScreenerDashboard = vi.fn();
 
@@ -13,9 +13,69 @@ vi.mock("../../api/screenerDashboard", () => ({
   fetchScreenerDashboard: (...args: unknown[]) => mockFetchScreenerDashboard(...args),
 }));
 
-import { DashboardView } from "./DashboardView";
+// @/ui Menu is missing its `createSignal` import on this branch and crashes
+// at construction, so the whole @/ui module is stubbed with the repo's
+// pass-through twins (see src/patterns/solidUiMock.tsx). Everything else is
+// the real implementation.
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
+  const { For } = await import("solid-js");
+  // The repo's stubs are near-miss twins: they drop `data-testid` from
+  // SegmentedControl's root and Chip's onChange toggle. These match the real
+  // component contracts (role=group with data-testid; role=checkbox toggling).
+  const SegmentedControl = (props: any) => (
+    <div role="group" data-testid={props["data-testid"]} class={props.className} style={props.style} id={props.id}>
+      <For each={props.data ?? []}>
+        {(item: any) => (
+          <button
+            type="button"
+            aria-pressed={props.value === item.value}
+            data-value={item.value}
+            disabled={item.disabled}
+            onClick={() => {
+              if (!item.disabled) props.onChange?.(item.value);
+            }}
+          >
+            {item.label}
+          </button>
+        )}
+      </For>
+    </div>
+  );
+  const Chip = (props: any) => {
+    const checked = () => (props.checked !== undefined ? props.checked : props.defaultChecked ?? false);
+    return (
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={checked()}
+        disabled={props.disabled}
+        data-testid={props["data-testid"]}
+        className={props.className}
+        style={props.style}
+        id={props.id}
+        onClick={(e: any) => {
+          if (props.disabled) return;
+          props.onClick?.(e);
+          props.onChange?.(!checked());
+        }}
+      >
+        {props.children ?? props.label}
+      </button>
+    );
+  };
+  return mockSolidUi({ SegmentedControl, Chip });
+});
 
-const renderWithProvider = (ui: ReactElement) => render(<UIProvider>{ui}</UIProvider>);
+import {
+  DashboardView,
+  dashboardRowMarketCap,
+  formatDashboardMCap,
+  formatDashboardPrice,
+} from "./DashboardView";
+import { marketUniverseDescriptor } from "@/config/marketUniverses";
+
+const renderWithProvider = (ui: JSX.Element) => render(() => <UIProvider>{ui}</UIProvider>);
 
 function row(overrides: Partial<ScreenerDashboardRow> = {}): ScreenerDashboardRow {
   return {
@@ -145,34 +205,66 @@ describe("DashboardView", () => {
   });
 
   it("calls onOpenSymbol when a row is clicked", async () => {
-    const user = userEvent.setup();
     const onOpenSymbol = vi.fn();
     renderWithProvider(<DashboardView universe="nifty500" onOpenSymbol={onOpenSymbol} />);
     const rowEl = await screen.findByTestId("dashboard-row-gainers-INDIAGLYCO");
-    await user.click(rowEl);
+    fireEvent.click(rowEl);
     expect(onOpenSymbol).toHaveBeenCalledWith("INDIAGLYCO");
   });
 
-  it("calls onOpenScan with the panel id when Open scan is clicked", async () => {
-    const user = userEvent.setup();
+  it("calls onOpenScan with the panel id and deduped symbols", async () => {
     const onOpenScan = vi.fn();
     renderWithProvider(<DashboardView universe="nifty500" onOpenScan={onOpenScan} />);
     await screen.findByTestId("dashboard-card-gainers");
-    await user.click(screen.getByTestId("dashboard-open-scan-gainers"));
-    expect(onOpenScan).toHaveBeenCalledWith("gainers");
-    await user.click(screen.getByTestId("dashboard-open-scan-volume_surge"));
-    expect(onOpenScan).toHaveBeenCalledWith("volume_surge");
+    fireEvent.click(screen.getByTestId("dashboard-open-scan-gainers"));
+    expect(onOpenScan).toHaveBeenCalledWith("gainers", ["INDIAGLYCO", "RELIANCE"]);
+    fireEvent.click(screen.getByTestId("dashboard-open-scan-volume_surge"));
+    expect(onOpenScan).toHaveBeenCalledWith("volume_surge", ["INFY"]);
+  });
+
+  it("dedupes symbols across the group's panels", async () => {
+    const onOpenScan = vi.fn();
+    mockFetchScreenerDashboard.mockResolvedValue({
+      ...payload(),
+      sections: [
+        {
+          id: "movers",
+          title: "Market Movers",
+          panels: [
+            {
+              id: "gainers",
+              title: "Top gainers",
+              metric_label: "Change %",
+              qualify: 2,
+              rows: [row({ symbol: "RELIANCE" }), row({ symbol: "INDIAGLYCO" })],
+            },
+            {
+              id: "losers",
+              title: "Top losers",
+              metric_label: "Change %",
+              qualify: 2,
+              rows: [row({ symbol: "INDIAGLYCO" }), row({ symbol: "TATAMOTORS" })],
+            },
+          ],
+        },
+      ],
+    });
+    renderWithProvider(<DashboardView universe="nifty500" onOpenScan={onOpenScan} />);
+    await screen.findByTestId("dashboard-card-gainers_losers");
+    fireEvent.click(screen.getByTestId("dashboard-open-scan-gainers_losers"));
+    expect(onOpenScan).toHaveBeenCalledWith("gainers", [
+      "RELIANCE",
+      "INDIAGLYCO",
+      "TATAMOTORS",
+    ]);
   });
 
   it("re-fetches when the universe changes", async () => {
-    const { rerender } = renderWithProvider(<DashboardView universe="nifty500" />);
+    const [universe, setUniverse] = createSignal("nifty500");
+    render(() => <DashboardView universe={universe()} />);
     await screen.findByTestId("dashboard-card-gainers");
     expect(mockFetchScreenerDashboard).toHaveBeenCalledTimes(1);
-    rerender(
-      <UIProvider>
-        <DashboardView universe="nifty200" />
-      </UIProvider>,
-    );
+    setUniverse("nifty200");
     await waitFor(() => {
       expect(mockFetchScreenerDashboard).toHaveBeenCalledWith(
         "nifty200",
@@ -183,11 +275,10 @@ describe("DashboardView", () => {
   });
 
   it("re-fetches when Refresh is clicked", async () => {
-    const user = userEvent.setup();
     renderWithProvider(<DashboardView universe="nifty500" />);
     await screen.findByTestId("dashboard-card-gainers");
     expect(mockFetchScreenerDashboard).toHaveBeenCalledTimes(1);
-    await user.click(screen.getByTestId("dashboard-refresh"));
+    fireEvent.click(screen.getByTestId("dashboard-refresh"));
     await waitFor(() => {
       expect(mockFetchScreenerDashboard).toHaveBeenCalledTimes(2);
     });
@@ -223,6 +314,21 @@ describe("DashboardView", () => {
     const rowEl = await screen.findByTestId("dashboard-row-gainers-INDIAGLYCO");
     fireEvent.click(rowEl);
     expect(rowEl).toBeInTheDocument();
+  });
+
+  it("tints only the row matching selectedSymbol, and follows it reactively", async () => {
+    const [selected, setSelected] = createSignal<string | null>("RELIANCE");
+    renderWithProvider(<DashboardView universe="nifty500" selectedSymbol={selected()} />);
+    const reliance = await screen.findByTestId("dashboard-row-gainers-RELIANCE");
+    const glycols = screen.getByTestId("dashboard-row-gainers-INDIAGLYCO");
+    const tint = alpha(PRIMARY, 0.12).replace(/\s+/g, "");
+
+    expect(reliance.style.backgroundColor.replace(/\s+/g, "")).toBe(tint);
+    expect(glycols.style.backgroundColor).toBe("");
+
+    setSelected("INDIAGLYCO");
+    expect(glycols.style.backgroundColor.replace(/\s+/g, "")).toBe(tint);
+    expect(reliance.style.backgroundColor).toBe("");
   });
 });
 
@@ -297,7 +403,6 @@ describe("DashboardView round-2", () => {
   }
 
   it("merges gainers+losers into one card with a segmented toggle", async () => {
-    const user = userEvent.setup();
     mockFetchScreenerDashboard.mockResolvedValue(twoSidedPayload());
     renderWithProvider(<DashboardView universe="nifty500" />);
     expect(await screen.findByTestId("dashboard-card-gainers_losers")).toBeInTheDocument();
@@ -306,7 +411,7 @@ describe("DashboardView round-2", () => {
     // gainers shown by default
     expect(screen.getByTestId("dashboard-row-gainers-GAIN1")).toBeInTheDocument();
     expect(screen.queryByTestId("dashboard-row-losers-LOSE1")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Losers" }));
+    fireEvent.click(screen.getByRole("button", { name: "Losers" }));
     expect(screen.getByTestId("dashboard-row-losers-LOSE1")).toBeInTheDocument();
     expect(screen.queryByTestId("dashboard-row-gainers-GAIN1")).not.toBeInTheDocument();
   });
@@ -318,22 +423,20 @@ describe("DashboardView round-2", () => {
   });
 
   it("merges 52w high+low into one card with a toggle", async () => {
-    const user = userEvent.setup();
     mockFetchScreenerDashboard.mockResolvedValue(twoSidedPayload());
     renderWithProvider(<DashboardView universe="nifty500" />);
     expect(await screen.findByTestId("dashboard-card-near_52w_high_low")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-row-near_52w_high-HIGH1")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "52W low" }));
+    fireEvent.click(screen.getByRole("button", { name: "52W low" }));
     expect(screen.getByTestId("dashboard-row-near_52w_low-LOW1")).toBeInTheDocument();
     expect(screen.queryByTestId("dashboard-row-near_52w_high-HIGH1")).not.toBeInTheDocument();
   });
 
   it("show more refetches with a larger limit and toggles to show less", async () => {
-    const user = userEvent.setup();
     renderWithProvider(<DashboardView universe="nifty500" />);
     const more = await screen.findByTestId("dashboard-show-more-gainers");
     expect(more).toHaveTextContent("Show more");
-    await user.click(more);
+    fireEvent.click(more);
     await waitFor(() => {
       expect(mockFetchScreenerDashboard).toHaveBeenLastCalledWith(
         "nifty500",
@@ -342,7 +445,7 @@ describe("DashboardView round-2", () => {
       );
     });
     expect(screen.getByTestId("dashboard-show-more-gainers")).toHaveTextContent("Show less");
-    await user.click(screen.getByTestId("dashboard-show-more-gainers"));
+    fireEvent.click(screen.getByTestId("dashboard-show-more-gainers"));
     await waitFor(() => {
       expect(mockFetchScreenerDashboard).toHaveBeenLastCalledWith(
         "nifty500",
@@ -352,7 +455,6 @@ describe("DashboardView round-2", () => {
   });
 
   it("sort menu reorders rows client-side", async () => {
-    const user = userEvent.setup();
     const base = payload();
     mockFetchScreenerDashboard.mockResolvedValue({
       ...base,
@@ -383,37 +485,117 @@ describe("DashboardView round-2", () => {
         el.getAttribute("data-symbol"),
       );
     expect(symbols()[0]).toBe("AAA");
-    await user.click(screen.getByTestId("dashboard-sort-gainers"));
-    await user.click(await screen.findByTestId("dashboard-sort-gainers-change"));
+    fireEvent.click(screen.getByTestId("dashboard-sort-gainers"));
+    fireEvent.click(await screen.findByTestId("dashboard-sort-gainers-change"));
     await waitFor(() => {
       expect(symbols()[0]).toBe("BBB");
     });
   });
 
+  it("null metric sorts last in both directions and the toggle reverses order", async () => {
+    mockFetchScreenerDashboard.mockResolvedValue({
+      ...payload(),
+      sections: [
+        {
+          id: "movers",
+          title: "Market Movers",
+          panels: [
+            {
+              id: "gainers",
+              title: "Top gainers",
+              metric_label: "Change %",
+              qualify: 3,
+              rows: [
+                row({ symbol: "AAA", change: 1.0 }),
+                row({ symbol: "BBB", change: 5.0 }),
+                row({ symbol: "NULLY", change: Number.NaN }),
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    renderWithProvider(<DashboardView universe="nifty500" />);
+    await screen.findByTestId("dashboard-card-gainers");
+    const symbols = () =>
+      Array.from(
+        screen
+          .getByTestId("dashboard-card-rows-gainers")
+          .querySelectorAll('[data-testid^="dashboard-row-gainers-"]'),
+      ).map((el) => el.getAttribute("data-symbol"));
+
+    fireEvent.click(screen.getByTestId("dashboard-sort-gainers"));
+    fireEvent.click(await screen.findByTestId("dashboard-sort-gainers-change"));
+    await waitFor(() => expect(symbols()).toEqual(["BBB", "AAA", "NULLY"]));
+
+    const toggle = screen.getByTestId("dashboard-sort-direction-gainers");
+    expect(toggle).toHaveAttribute(
+      "aria-label",
+      "Sort descending — click to sort ascending",
+    );
+    fireEvent.click(toggle);
+    await waitFor(() => expect(symbols()).toEqual(["AAA", "BBB", "NULLY"]));
+    expect(toggle).toHaveAttribute(
+      "aria-label",
+      "Sort ascending — click to sort descending",
+    );
+  });
+
+  it("renders a literal null change as a dash without crashing the card", async () => {
+    mockFetchScreenerDashboard.mockResolvedValue({
+      ...payload(),
+      sections: [
+        {
+          id: "movers",
+          title: "Market Movers",
+          panels: [
+            {
+              id: "gainers",
+              title: "Top gainers",
+              metric_label: "Change %",
+              qualify: 2,
+              rows: [
+                row({ symbol: "NULLCHG", change: null as unknown as number }),
+                row({ symbol: "GOODCHG", change: 3.5 }),
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    renderWithProvider(<DashboardView universe="nifty500" />);
+    // The card renders (leaves loading) even though one metric is null.
+    expect(await screen.findByTestId("dashboard-card-gainers")).toBeInTheDocument();
+    expect(screen.queryByTestId("dashboard-loading")).not.toBeInTheDocument();
+    const nullRow = screen.getByTestId("dashboard-row-gainers-NULLCHG");
+    expect(nullRow).toHaveTextContent("—");
+    // The sibling row with a finite metric renders normally.
+    const goodRow = screen.getByTestId("dashboard-row-gainers-GOODCHG");
+    expect(goodRow).toHaveTextContent("+3.50%");
+  });
+
   it("search filters rows across cards", async () => {
-    const user = userEvent.setup();
     renderWithProvider(<DashboardView universe="nifty500" />);
     await screen.findByTestId("dashboard-row-gainers-INDIAGLYCO");
     const search = screen.getByTestId("dashboard-search");
-    await user.type(search, "reliance");
+    fireEvent.input(search, { target: { value: "reliance" } });
     await waitFor(() => {
       expect(screen.queryByTestId("dashboard-row-gainers-INDIAGLYCO")).not.toBeInTheDocument();
     });
     expect(screen.getByTestId("dashboard-row-gainers-RELIANCE")).toBeInTheDocument();
-    await user.clear(search);
-    await user.type(search, "no-such-symbol-xyz");
+    fireEvent.input(search, { target: { value: "" } });
+    fireEvent.input(search, { target: { value: "no-such-symbol-xyz" } });
     await waitFor(() => {
       expect(screen.getByTestId("dashboard-card-empty-gainers")).toBeInTheDocument();
     });
   });
 
   it("customize menu hides a panel and persists it", async () => {
-    const user = userEvent.setup();
     renderWithProvider(<DashboardView universe="nifty500" />);
     await screen.findByTestId("dashboard-card-gainers");
     expect(screen.getByTestId("dashboard-search")).toBeInTheDocument();
-    await user.click(screen.getByTestId("dashboard-customize-button"));
-    await user.click(await screen.findByTestId("dashboard-customize-gainers"));
+    fireEvent.click(screen.getByTestId("dashboard-customize-button"));
+    fireEvent.click(await screen.findByTestId("dashboard-customize-gainers"));
     await waitFor(() => {
       expect(screen.queryByTestId("dashboard-card-gainers")).not.toBeInTheDocument();
     });
@@ -425,7 +607,6 @@ describe("DashboardView round-2", () => {
   });
 
   it("row expand shows extra fields without calling onOpenSymbol", async () => {
-    const user = userEvent.setup();
     const onOpenSymbol = vi.fn();
     const base = payload();
     mockFetchScreenerDashboard.mockResolvedValue({
@@ -448,7 +629,7 @@ describe("DashboardView round-2", () => {
     });
     renderWithProvider(<DashboardView universe="nifty500" onOpenSymbol={onOpenSymbol} />);
     const expand = await screen.findByTestId("dashboard-row-expand-gainers-INDIAGLYCO");
-    await user.click(expand);
+    fireEvent.click(expand);
     const detail = await screen.findByTestId("dashboard-row-detail-gainers-INDIAGLYCO");
     expect(detail).toHaveTextContent("62.4");
     expect(detail).toHaveTextContent("₹410.00");
@@ -457,13 +638,12 @@ describe("DashboardView round-2", () => {
   });
 
   it("stale snapshot shows cached age and refresh bypasses it", async () => {
-    const user = userEvent.setup();
     const base = payload();
     mockFetchScreenerDashboard.mockResolvedValue({ ...base, cached: true, age_sec: 42 });
     renderWithProvider(<DashboardView universe="nifty500" />);
     const stale = await screen.findByTestId("dashboard-stale");
     expect(stale).toHaveTextContent("(cached 42s)");
-    await user.click(screen.getByTestId("dashboard-refresh"));
+    fireEvent.click(screen.getByTestId("dashboard-refresh"));
     await waitFor(() => {
       expect(mockFetchScreenerDashboard).toHaveBeenLastCalledWith(
         "nifty500",
@@ -474,12 +654,11 @@ describe("DashboardView round-2", () => {
   });
 
   it("liquidity chip toggles min market-cap and refetches", async () => {
-    const user = userEvent.setup();
     renderWithProvider(<DashboardView universe="nifty500" />);
     await screen.findByTestId("dashboard-card-gainers");
     const chip = screen.getByTestId("dashboard-liquidity-chip");
     expect(chip).toHaveTextContent("₹500 Cr+");
-    await user.click(chip);
+    fireEvent.click(chip);
     await waitFor(() => {
       expect(mockFetchScreenerDashboard).toHaveBeenLastCalledWith(
         "nifty500",
@@ -487,7 +666,7 @@ describe("DashboardView round-2", () => {
         expect.objectContaining({ minMarketCapCr: 0 }),
       );
     });
-    await user.click(screen.getByTestId("dashboard-liquidity-chip"));
+    fireEvent.click(screen.getByTestId("dashboard-liquidity-chip"));
     await waitFor(() => {
       expect(mockFetchScreenerDashboard).toHaveBeenLastCalledWith(
         "nifty500",
@@ -521,5 +700,151 @@ describe("DashboardView round-2", () => {
     expect(await screen.findByTestId("dashboard-card-near_52w")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-row-near_52w-OLD1")).toBeInTheDocument();
     expect(screen.queryByTestId("dashboard-toggle-near_52w_high_low")).not.toBeInTheDocument();
+  });
+});
+
+describe("DashboardView embedded", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.clear();
+    mockFetchScreenerDashboard.mockResolvedValue(payload());
+  });
+
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+  });
+
+  it("hides the as-of row and refresh button but keeps the toolbar", async () => {
+    renderWithProvider(<DashboardView universe="nifty500" embedded onOpenSymbol={() => {}} />);
+    await screen.findByTestId("dashboard-card-gainers");
+
+    expect(screen.getByTestId("screener-dashboard")).not.toHaveTextContent("as of");
+    expect(screen.queryByTestId("dashboard-refresh")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("dashboard-stale")).not.toBeInTheDocument();
+
+    expect(screen.getByTestId("dashboard-toolbar")).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-search")).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-customize")).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-section-movers")).toBeInTheDocument();
+  });
+
+  it("keeps the as-of row and refresh button when not embedded", async () => {
+    renderWithProvider(<DashboardView universe="nifty500" />);
+    await screen.findByTestId("dashboard-card-gainers");
+
+    expect(screen.getByTestId("dashboard-refresh")).toBeInTheDocument();
+    expect(screen.getByTestId("screener-dashboard")).toHaveTextContent("500 stocks · as of");
+    expect(screen.getByTestId("dashboard-toolbar")).toBeInTheDocument();
+  });
+});
+
+describe("DashboardView currency descriptor", () => {
+  const india = marketUniverseDescriptor("nifty500");
+  const usa = marketUniverseDescriptor("us");
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+  });
+
+  function currencyPayload(universe: string, row: ScreenerDashboardRow): ScreenerDashboardResponse {
+    return {
+      universe,
+      as_of: "2026-11-16T10:00:00+05:30",
+      total: 1,
+      sections: [
+        {
+          id: "movers",
+          title: "Market Movers",
+          panels: [
+            {
+              id: "gainers",
+              title: "Top gainers",
+              metric_label: "Change %",
+              qualify: 1,
+              rows: [row],
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  it("keeps India price and mcap formatting byte-identical", async () => {
+    mockFetchScreenerDashboard.mockResolvedValue(
+      currencyPayload(
+        "nifty500",
+        row({
+          symbol: "INDIAGLYCO",
+          close: 382.7,
+          rsi: 62.4,
+          vwap: 375.5,
+          atr: 8.25,
+          price_52_week_high: 410.0,
+          market_cap_cr: 1200,
+        }),
+      ),
+    );
+    renderWithProvider(<DashboardView universe="nifty500" />);
+    const rowEl = await screen.findByTestId("dashboard-row-gainers-INDIAGLYCO");
+    expect(rowEl).toHaveTextContent("₹382.70");
+
+    fireEvent.click(screen.getByTestId("dashboard-row-expand-gainers-INDIAGLYCO"));
+    const detail = await screen.findByTestId("dashboard-row-detail-gainers-INDIAGLYCO");
+    expect(detail).toHaveTextContent("₹410.00");
+    expect(detail).toHaveTextContent("₹8.25");
+    expect(detail).toHaveTextContent("₹375.50");
+    expect(detail).toHaveTextContent("₹1.2K Cr");
+  });
+
+  it("renders $ prices and a $…B mcap for a USD row in the us universe", async () => {
+    mockFetchScreenerDashboard.mockResolvedValue(
+      currencyPayload(
+        "us",
+        row({
+          symbol: "AAPL",
+          close: 189.5,
+          currency: "USD",
+          marketCapUsdB: 250,
+          rsi: 62.4,
+          vwap: 187.5,
+          atr: 2.25,
+          price_52_week_high: 200.0,
+        }),
+      ),
+    );
+    renderWithProvider(<DashboardView universe="us" />);
+    const rowEl = await screen.findByTestId("dashboard-row-gainers-AAPL");
+    expect(rowEl).toHaveTextContent("$189.50");
+    expect(rowEl).not.toHaveTextContent("₹");
+
+    fireEvent.click(screen.getByTestId("dashboard-row-expand-gainers-AAPL"));
+    const detail = await screen.findByTestId("dashboard-row-detail-gainers-AAPL");
+    expect(detail).toHaveTextContent("$200.00");
+    expect(detail).toHaveTextContent("$2.25");
+    expect(detail).toHaveTextContent("$187.50");
+    expect(detail).toHaveTextContent("$250 B");
+    expect(detail).not.toHaveTextContent("₹");
+    expect(detail).not.toHaveTextContent("Cr");
+  });
+
+  it("reads the cap from the descriptor's field and formats per currency", () => {
+    const usRow = row({ marketCapUsdB: 2950, market_cap_cr: 999, currency: "USD" });
+    const inrRow = row({ market_cap_cr: 1200, marketCapUsdB: 2950 });
+
+    expect(dashboardRowMarketCap(usRow, usa)).toBe(2950);
+    expect(dashboardRowMarketCap(inrRow, india)).toBe(1200);
+    expect(formatDashboardPrice(382.7, india)).toBe("₹382.70");
+    expect(formatDashboardPrice(189.5, usa)).toBe("$189.50");
+    expect(formatDashboardMCap(null, usa)).toBe("—");
+    expect(formatDashboardMCap(250, usa)).toBe("$250 B");
+    expect(formatDashboardMCap(2950, usa)).toBe("$3.0K B");
+    expect(formatDashboardMCap(1200, india)).toBe("₹1.2K Cr");
   });
 });

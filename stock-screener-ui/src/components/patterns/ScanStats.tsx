@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Box, Divider, Text, ToolbarRow } from "@/ui";
+import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { Box, Divider, Text } from "@/ui";
 import type { JobDTO, PatternSummary } from "@/types/chartPatterns";
 import { formatAgeLong, formatNumberIN } from "@/utils/ui-helpers";
 
@@ -71,44 +71,35 @@ function buildCells(summary: PatternSummary | null, job?: JobDTO | null): StatCe
   ];
 }
 
-/** Dense inline stat strip (~28px): `LABEL value` pairs separated by dividers, no Card. */
-export function ScanStats({ summary, job = null, onSelect }: ScanStatsProps) {
+/** Compact counters for the tab strip: `LABEL value` pairs separated by short
+ * dividers, one line, tail overflowing horizontally (never wrapping). Numbers
+ * are mono + tabular-nums so digits line up across cells. Height is capped to
+ * the 30px tab row it lives in. */
+export function ScanStats(props: ScanStatsProps) {
   // `relativeAge` derives from `Date.now()`, so without a tick it freezes until
   // the next store update. Re-render every 60s to keep "x min ago" fresh.
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 60_000);
-    return () => clearInterval(id);
-  }, []);
-  const cells = buildCells(summary, job);
+  const [tick, setTick] = createSignal(0);
+  onMount(() => {
+    const id = window.setInterval(() => setTick((t) => t + 1), 60_000);
+    onCleanup(() => window.clearInterval(id));
+  });
+
+  const cells = createMemo(() => {
+    // Subscribe to the minute tick so `relativeAge` recomputes from Date.now().
+    tick();
+    return buildCells(props.summary, props.job);
+  });
   const clickable = (key: StatCell["key"]): boolean =>
-    !!onSelect && (key === "confirmed" || key === "bull_bear");
-  const clickableSx = (key: StatCell["key"]) =>
-    clickable(key)
-      ? {
-          cursor: "pointer",
-          borderRadius: 0.5,
-          px: 0.25,
-          "&:hover": { bgcolor: "action.hover" },
-        }
-      : {};
+    !!props.onSelect && (key === "confirmed" || key === "bull_bear");
+
   return (
-    <Box
-      data-testid="patterns-stats"
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        minHeight: 18,
-        overflowX: "auto",
-        fontVariantNumeric: "tabular-nums",
-      }}
-    >
-      <ToolbarRow gap={0} wrap={false} style={{ overflowX: "auto" }}>
-        {cells.map((cell, index) => (
-          <Box key={cell.key} sx={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
-            {index > 0 ? (
-              <Divider orientation="vertical" sx={{ height: 16, mx: 1.5 }} />
-            ) : null}
+    <Box data-testid="patterns-stats" className="flex h-[30px] min-w-0 items-center gap-0 overflow-x-auto">
+      <For each={cells()}>
+        {(cell, index) => (
+          <Box className="flex shrink-0 items-baseline">
+            <Show when={index() > 0}>
+              <Divider orientation="vertical" style={{ height: "12px" }} className="mx-2 self-center" />
+            </Show>
             <Box
               data-testid={`patterns-stat-${cell.key}`}
               title={
@@ -119,58 +110,56 @@ export function ScanStats({ summary, job = null, onSelect }: ScanStatsProps) {
                     : undefined
               }
               onClick={
-                cell.key === "confirmed" && onSelect
-                  ? () => onSelect("confirmed")
+                cell.key === "confirmed" && props.onSelect
+                  ? () => props.onSelect?.("confirmed")
                   : undefined
               }
-              sx={[{
-                display: "flex",
-                alignItems: "baseline",
-                gap: 0.75,
-                whiteSpace: "nowrap",
-                minWidth: 0,
-              }, clickableSx(cell.key)]}
+              className={`flex items-baseline gap-1 whitespace-nowrap leading-none ${
+                clickable(cell.key)
+                  ? "cursor-pointer rounded-[4px] px-[2px] transition-colors hover:bg-fin-surface-alt"
+                  : ""
+              }`}
             >
-              <Text size="xs" c="dimmed" style={{ textTransform: "uppercase", fontSize: 10 }} fw={700} truncate>
+              <Text c="dimmed" fw={700} className="text-[9px] tracking-wide uppercase">
                 {cell.label}
               </Text>
-              <Text size="xs" fw={700} c={cell.tone ?? "text.primary"} style={{ fontSize: 10 }} truncate>
-                {cell.key === "bull_bear" && onSelect ? (
+              <Text
+                fw={700}
+                c={cell.tone ?? "default"}
+                className="font-mono tabular-nums text-[11px] text-right"
+              >
+                <Show when={cell.key === "bull_bear" && props.onSelect} fallback={cell.value}>
                   <>
-                    <Box
-                      component="span"
+                    <span
                       role="button"
                       data-testid="patterns-stat-bullish"
+                      className="hover:underline"
                       onClick={(event) => {
                         event.stopPropagation();
-                        onSelect("bullish");
+                        props.onSelect?.("bullish");
                       }}
-                      sx={{ "&:hover": { textDecoration: "underline" } }}
                     >
-                      {num(summary?.bullish)}
-                    </Box>
+                      {num(props.summary?.bullish)}
+                    </span>
                     {" / "}
-                    <Box
-                      component="span"
+                    <span
                       role="button"
                       data-testid="patterns-stat-bearish"
+                      className="hover:underline"
                       onClick={(event) => {
                         event.stopPropagation();
-                        onSelect("bearish");
+                        props.onSelect?.("bearish");
                       }}
-                      sx={{ "&:hover": { textDecoration: "underline" } }}
                     >
-                      {num(summary?.bearish)}
-                    </Box>
+                      {num(props.summary?.bearish)}
+                    </span>
                   </>
-                ) : (
-                  cell.value
-                )}
+                </Show>
               </Text>
             </Box>
           </Box>
-        ))}
-      </ToolbarRow>
+        )}
+      </For>
     </Box>
   );
 }

@@ -4,6 +4,9 @@ Covers the save/query round-trip (including scan-time ``trend_lines`` /
 ``trend_lines_sig``), cross-job dedupe, LIKE escaping, and job helpers.
 Uses the in-memory ``test_db_engine`` fixture — no ``*.db`` files.
 """
+import math
+from decimal import Decimal
+
 import pytest
 from sqlalchemy.orm import sessionmaker
 
@@ -91,6 +94,25 @@ def test_trend_lines_and_sig_round_trip(cp_store):
     assert items[0]["trend_lines_sig"] == "sig-123"
 
 
+def test_trend_lines_window_round_trip(cp_store):
+    """The trailing-window fingerprint survives the payload JSON round trip.
+
+    Read-side reuse keys on it: a row that loses it falls back to the legacy
+    signature-only gate, so a broken round trip silently disables the proof.
+    """
+    store.save_job({"job_id": "cpj_s2w", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
+    lines = [_line("support")]
+    store.save_hits("cpj_s2w", [_hit(
+        trend_lines=lines, trend_lines_sig="sig-123", trend_lines_window="400:deadbeefdeadbeef",
+    )])
+
+    items, total, _ = store.query_results({"job_id": "cpj_s2w"})
+
+    assert total == 1
+    assert items[0]["trend_lines"] == lines
+    assert items[0]["trend_lines_window"] == "400:deadbeefdeadbeef"
+
+
 def test_blank_trend_lines_yield_empty_and_none_sig(cp_store):
     store.save_job({"job_id": "cpj_s3", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
     store.save_hits("cpj_s3", [_hit()])
@@ -100,6 +122,7 @@ def test_blank_trend_lines_yield_empty_and_none_sig(cp_store):
     assert total == 1
     assert items[0]["trend_lines"] == []
     assert items[0]["trend_lines_sig"] is None
+    assert items[0]["trend_lines_window"] is None
 
 
 def test_dedupe_across_jobs_unfiltered(cp_store):
@@ -626,3 +649,91 @@ def test_summary_query_count_guard(cp_store, test_db_engine):
     assert len(statements) <= 4
     assert summary["patterns"] == 1
     assert summary["confirmed"] == 1
+
+
+# --- Regression pins for the extracted _finite_or_none coercion helper ---
+# store.py:68-85 defines _finite_or_none and _coalesce_num; store.py:1052-1053
+# defines _num as a thin delegate. The extraction must stay behaviour-preserving
+# for every input class below, including signed zero.
+
+
+def test_coalesce_num_and_num_delegate_to_finite_or_none(monkeypatch):
+    """Both helpers must route coercion through the one shared helper."""
+    calls = []
+
+    def sentinel(value):
+        calls.append(value)
+        return 2.5
+
+    monkeypatch.setattr(store, "_finite_or_none", sentinel)
+
+    assert store._coalesce_num("raw-a") == 2.5
+    assert store._num("raw-b") == 2.5
+    assert calls == ["raw-a", "raw-b"]
+
+
+def test_finite_or_none_keeps_zero_as_a_value():
+    """Zero is a real number here, never None/"missing"."""
+    assert store._finite_or_none(0) == 0.0
+    assert store._finite_or_none(0.0) == 0.0
+    assert store._finite_or_none(0) is not None
+    assert store._finite_or_none(0.0) is not None
+    assert store._finite_or_none(None) is None
+
+
+def test_coalesce_num_zero_and_invalid_inputs_return_positive_zero():
+    """0/0.0/"0"/False are valid zeros; garbage and non-finite values coalesce."""
+    for raw in (
+        0, 0.0, "0", False,              # valid inputs whose value is zero
+        None, "abc", float("nan"), float("inf"), float("-inf"),
+        Decimal("NaN"), "", [], {},      # missing / garbage / non-finite
+    ):
+        result = store._coalesce_num(raw)
+        assert result == 0.0, f"_coalesce_num({raw!r}) -> {result!r}"
+        assert math.copysign(1.0, result) == 1.0
+
+
+def test_coalesce_num_nonzero_inputs_are_unchanged():
+    for raw, expected in ((True, 1.0), ("  7 ", 7.0), (Decimal("1.5"), 1.5)):
+        assert store._coalesce_num(raw) == expected
+
+
+def test_num_returns_none_for_missing_and_non_finite():
+    for raw in (
+        None, "abc", float("nan"), float("inf"), float("-inf"),
+        Decimal("NaN"), "", [], {},
+    ):
+        assert store._num(raw) is None, f"_num({raw!r}) -> {store._num(raw)!r}"
+
+
+def test_num_returns_floats_for_valid_inputs():
+    for raw, expected in (
+        (0, 0.0), (0.0, 0.0), ("0", 0.0), (False, 0.0),
+        (True, 1.0), ("  7 ", 7.0), (Decimal("1.5"), 1.5),
+    ):
+        result = store._num(raw)
+        assert result == expected
+        assert isinstance(result, float)
+
+
+def test_zero_is_a_value_not_missing_for_both_helpers():
+    # MOST IMPORTANT PIN: zero is a value, not "missing". A truthiness check
+    # (`if not out:` / `return out or 0.0` / `return out or None`) still passes
+    # every non-zero case and breaks only these zero cases, so both helpers
+    # must assert it explicitly.
+    assert store._coalesce_num(0) == 0.0
+    assert store._num(0) == 0.0
+    assert store._finite_or_none(0) == 0.0
+    for raw in (0.0, "0", False):
+        assert store._coalesce_num(raw) == 0.0
+        assert store._num(raw) == 0.0
+
+
+def test_negative_zero_sign_survives_both_helpers():
+    # -0.0 == 0.0 is True, so a plain equality assert cannot detect sign loss.
+    # `if not out:` treats -0.0 as missing and returns +0.0; copysign catches it.
+    for helper in (store._finite_or_none, store._coalesce_num, store._num):
+        result = helper(-0.0)
+        assert math.copysign(1.0, result) == -1.0, (
+            f"{helper.__name__}(-0.0) lost its sign: {result!r}"
+        )

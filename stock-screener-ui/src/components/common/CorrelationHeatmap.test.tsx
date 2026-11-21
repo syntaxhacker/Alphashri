@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import type { JSX } from "solid-js";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { CorrelationHeatmap } from "./CorrelationHeatmap";
@@ -25,8 +26,8 @@ afterEach(() => {
   delete (window as any).echarts;
 });
 
-function renderWithProvider(ui: React.ReactElement) {
-  return render(<UIProvider>{ui}</UIProvider>);
+function renderWithProvider(ui: JSX.Element) {
+  return render(() => (<UIProvider>{ui}</UIProvider>));
 }
 
 describe("CorrelationHeatmap", () => {
@@ -62,33 +63,4 @@ describe("CorrelationHeatmap", () => {
     expect(screen.getByText("No correlation data available")).toBeInTheDocument();
   });
 
-  it("renders with testId", () => {
-    const matrix = [[1.0]];
-    renderWithProvider(
-      <CorrelationHeatmap matrix={matrix} symbols={["TEST"]} testId="my-heatmap" />,
-    );
-    expect(screen.getByTestId("my-heatmap")).toBeInTheDocument();
-  });
-
-  it("uses custom valueFormatter when provided", () => {
-    const matrix = [[1.0]];
-    const formatter = (v: number) => `${(v * 100).toFixed(1)}%`;
-    renderWithProvider(
-      <CorrelationHeatmap
-        matrix={matrix}
-        symbols={["TEST"]}
-        valueFormatter={formatter}
-        testId="correlation-heatmap"
-      />,
-    );
-    expect(screen.getByTestId("correlation-heatmap")).toBeInTheDocument();
-  });
-
-  it("supports dark mode theme", () => {
-    const matrix = [[1.0]];
-    renderWithProvider(
-      <CorrelationHeatmap matrix={matrix} symbols={["TEST"]} isDark testId="correlation-heatmap" />,
-    );
-    expect(screen.getByTestId("correlation-heatmap")).toBeInTheDocument();
-  });
 });

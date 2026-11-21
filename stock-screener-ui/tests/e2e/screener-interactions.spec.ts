@@ -18,23 +18,18 @@ test.describe("Screener - Interactions", () => {
     await copyBtn.click();
   });
 
-  test("should switch to heatmap view", async ({ page }) => {
+  // The screener's inline Table|Heatmap toggle was removed deliberately
+  // (3a557d12): the heatmap now lives on the HOME desk (`market.heatmap`) and
+  // is covered by home-desk.spec.ts. Keeping a test for a deleted control only
+  // produced a red suite. Assert the removal instead, so a re-introduction is
+  // noticed rather than silently accepted.
+  test("has no inline heatmap view (moved to the HOME desk)", async ({ page }) => {
     await page.goto("/?tab=screener");
-    await page.waitForSelector('[data-testid="app-shell"]', {
-      timeout: 10000,
-    });
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="screener-table"] tbody tr', { timeout: 10000 });
 
-    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
-      timeout: 10000,
-    });
-
-    await page.getByTestId("screener-view-toggle").getByText("Map", { exact: true }).click();
-
-    const heatmap = page.locator('[data-testid^="screener-heatmap-"]').first();
-    await expect(heatmap).toBeVisible({ timeout: 5000 });
-    await expect(
-      page.locator('[data-testid^="screener-heatmap-"][data-testid$="-metric"]').first(),
-    ).toBeVisible();
+    await expect(page.getByTestId("screener-view-toggle")).toHaveCount(0);
+    await expect(page.locator('[data-testid^="screener-heatmap-"]')).toHaveCount(0);
   });
 
   test("should navigate to chart on row click", async ({ page }) => {

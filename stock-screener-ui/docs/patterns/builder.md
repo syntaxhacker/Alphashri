@@ -42,9 +42,9 @@ The Builder pattern appears across languages and frameworks:
 | **Kotlin** | `buildString {}`, `buildList {}`, `buildMap {}` — type-safe builders via lambdas |
 | **Python** | `attrs` / `dataclasses` with builders, `requests.Session()` chaining |
 | **SQL** | Knex.js, QueryBuilder (Laravel), jOOQ — step-by-step query construction |
-| **React** | React Hook Form's fluent API, builder patterns for test data |
+| **React** | React Hook Form's fluent API, builder patterns for test data (generic React examples — this app is Solid) |
 | **Testing** | factory_bot (Rails), test data builders in Java (TestDataBuilder pattern) |
-| **HTML/XML** | DOM builders, JSX itself (`React.createElement` chaining) |
+| **HTML/XML** | DOM builders, JSX itself (`React.createElement` chaining; Solid's JSX compiles to component calls, not `createElement`) |
 | **ECharts** | Our `ChartOptionBuilder` — constructing chart options via `.withCandles().withPivotLevels().build()` |
 
 ### Java's StringBuilder

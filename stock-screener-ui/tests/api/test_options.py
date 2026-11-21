@@ -258,3 +258,151 @@ class TestOptionsEndpoints:
             assert "pcr" in summary
             assert "max_pain" in summary
             assert "expected_move" in summary
+
+
+class TestChainResponseContract:
+    """Key/type guard for the dock's fresh chain payload.
+
+    A stale API process served ``/chain`` without the freshness fields or the
+    ``levels`` block. Asserting the shape (never live numbers) makes such a
+    regression fail CI with no network or live Upstox data involved.
+    """
+
+    @staticmethod
+    def _mock_chain(expiry: str) -> dict:
+        """Upstox /option/chain-shaped payload; one leg has an invalid IV."""
+
+        def leg(iv: float, oi: int, suffix: str) -> dict:
+            return {
+                "instrument_key": f"NSE_FO|{suffix}",
+                "trading_symbol": f"INOXWIND{suffix}",
+                "expiry": expiry,
+                "market_data": {
+                    "ltp": 100.0, "oi": oi, "prev_oi": oi, "volume": 1_000,
+                    "bid_price": 99.0, "ask_price": 101.0, "close_price": 99.5,
+                },
+                "option_greeks": {
+                    "delta": 0.5, "gamma": 0.001, "vega": 10.0,
+                    "theta": -2.0, "iv": iv, "pop": 40.0,
+                },
+            }
+
+        rows = []
+        for strike, ce_oi, pe_oi, ce_iv, pe_iv in (
+            (24900, 1_000, 1_500, 15.0, 14.0),
+            (25000, 2_000, 2_500, 16.0, 0.0),
+            (25100, 1_500, 1_800, 17.0, 13.0),
+        ):
+            rows.append({
+                "strike_price": strike,
+                "pcr": 1.0,
+                "call_options": leg(ce_iv, ce_oi, f"{strike}CE"),
+                "put_options": leg(pe_iv, pe_oi, f"{strike}PE"),
+            })
+        return {"status": "success", "underlying_spot_price": 25_000, "data": rows}
+
+    def test_chain_response_freshness_levels_iv_valid_and_max_pain_source(
+        self, client: TestClient, monkeypatch
+    ):
+        from datetime import datetime, timedelta
+        from unittest.mock import AsyncMock, patch
+
+        import config
+
+        expiry = (datetime.now(config.IST).date() + timedelta(days=10)).isoformat()
+        # Avoid the 56 MB instrument master load; the stale incident used this symbol.
+        monkeypatch.setattr("api.options.get_instrument_key", lambda s: "NSE_EQ|INE0STUB")
+        with patch("api.options.fetch_upstox", new_callable=AsyncMock,
+                   return_value=self._mock_chain(expiry)):
+            response = client.get(
+                f"/api/options/chain/INOXWIND?expiry={expiry}&refresh=true"
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Freshness fields the stale process dropped.
+        assert data.get("market_state") in {"open", "closed", "pre_open"}
+        assert isinstance(data.get("quotes_live"), bool)
+        assert isinstance(data.get("session_date"), str) and len(data["session_date"]) == 10
+        assert isinstance(data.get("data_as_of"), str) and bool(data["data_as_of"])
+
+        # Levels block — snake_case on the wire; the dock maps it to camelCase.
+        levels = data.get("levels")
+        assert isinstance(levels, dict)
+        assert {"spot", "step", "thin", "call_wall", "put_wall", "call_walls",
+                "put_walls", "max_pain", "gex"} <= levels.keys()
+        gex = levels["gex"]
+        assert isinstance(gex, dict)
+        assert {"support", "resistance", "fuel_down", "fuel_up", "flip",
+                "regime", "degraded"} <= gex.keys()
+        # A level is either a labelled dict or null — never 0/{} (null allowed).
+        for key in ("call_wall", "put_wall", "max_pain"):
+            assert levels[key] is None or isinstance(levels[key], dict)
+        for key in ("support", "resistance"):
+            assert gex[key] is None or isinstance(gex[key], dict)
+
+        # Per-leg IV validity: present on every leg, and computed (both values
+        # occur in the mocked chain) rather than hardcoded true.
+        flags = []
+        for row in data["chain"]:
+            for side in ("ce", "pe"):
+                leg = row[side]
+                assert isinstance(leg.get("iv_valid"), bool), (row["strike"], side)
+                flags.append(leg["iv_valid"])
+                greeks = leg.get("option_greeks")
+                if greeks is not None:
+                    assert isinstance(greeks.get("iv_valid"), bool)
+        assert True in flags and False in flags
+
+        # summary.max_pain is sourced from levels.max_pain.strike, never
+        # recomputed with a different convention (rounding, abs, ...).
+        pain = levels["max_pain"]
+        assert pain is not None and "strike" in pain
+        assert data["summary"]["max_pain"] == pain["strike"]
+
+    def test_dock_expiry_list_contract(self, auth_client: TestClient, monkeypatch):
+        """The dock's expiry selector reads /api/options/underlying/{symbol}.expiries.
+
+        The chain response itself has no expiry list; E1 owns it. Each entry must
+        carry date/weekly/dte_days/lot_size/tick_size — a stale build returning
+        bare date strings would fail this.
+        """
+        from datetime import datetime, timedelta
+
+        from api import options_underlying as ou
+
+        base = datetime.now(ou.config.IST).date()
+        dates = [(base + timedelta(days=n)).isoformat() for n in (10, 30)]
+
+        async def fake_fetch(endpoint, params=None):
+            if endpoint == "/option/contract":
+                return {
+                    "status": "success",
+                    "data": [
+                        {"expiry": d, "weekly": i == 0, "lot_size": 65,
+                         "tick_size": 5.0, "instrument_type": "CE"}
+                        for i, d in enumerate(dates)
+                    ],
+                }
+            if endpoint == "/market-quote/ltp":
+                return {"status": "success", "data": {
+                    "NSE_INDEX|Nifty 50": {
+                        "last_price": 25_000,
+                        "instrument_token": "NSE_INDEX|Nifty 50",
+                    }
+                }}
+            raise AssertionError(f"unexpected endpoint {endpoint}")
+
+        monkeypatch.setattr(ou, "fetch_upstox", fake_fetch)
+        response = auth_client.get("/api/options/underlying/NIFTY")
+
+        assert response.status_code == 200
+        expiries = response.json()["expiries"]
+        assert isinstance(expiries, list) and expiries
+        for entry in expiries:
+            assert isinstance(entry["date"], str)
+            assert isinstance(entry["weekly"], bool)
+            assert isinstance(entry["dte_days"], int)
+            assert isinstance(entry["lot_size"], int)
+            assert isinstance(entry["tick_size"], (int, float))

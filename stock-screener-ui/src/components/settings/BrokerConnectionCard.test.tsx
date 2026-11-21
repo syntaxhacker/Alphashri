@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { screen, cleanup } from "@testing-library/react";
+import { screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { BrokerConnectionCard, formatExpiresIn, getStatusBadge } from "./BrokerConnectionCard";
 import type { BrokerStatus } from "../../api/brokers";
@@ -9,7 +9,6 @@ import { renderWithProviders } from "../../test-utils/renderWithProviders";
 
 beforeEach(() => setupBrowserMocks());
 afterEach(() => {
-  cleanup();
   vi.clearAllMocks();
 });
 
@@ -34,26 +33,28 @@ describe("BrokerConnectionCard helpers", () => {
 
   describe("getStatusBadge", () => {
     test("returns Unknown badge for null status", () => {
-      const badge = getStatusBadge(null);
-      renderWithProviders(badge);
+      renderWithProviders(() => getStatusBadge(null));
       expect(screen.getByText("Unknown")).toBeInTheDocument();
     });
 
     test("returns Disconnected badge when not connected", () => {
-      const badge = getStatusBadge({ connected: false, broker: "upstox", expires_in_hours: null, expires_at: null });
-      renderWithProviders(badge);
+      renderWithProviders(() =>
+        getStatusBadge({ connected: false, broker: "upstox", expires_in_hours: null, expires_at: null }),
+      );
       expect(screen.getByText("Disconnected")).toBeInTheDocument();
     });
 
     test("returns Connected badge when connected and not expired", () => {
-      const badge = getStatusBadge({ connected: true, broker: "upstox", expires_in_hours: 24, expires_at: new Date().toISOString() });
-      renderWithProviders(badge);
+      renderWithProviders(() =>
+        getStatusBadge({ connected: true, broker: "upstox", expires_in_hours: 24, expires_at: new Date().toISOString() }),
+      );
       expect(screen.getByText("Connected")).toBeInTheDocument();
     });
 
     test("returns Expired badge when connected but expires_in_hours is negative", () => {
-      const badge = getStatusBadge({ connected: true, broker: "upstox", expires_in_hours: -1, expires_at: new Date().toISOString() });
-      renderWithProviders(badge);
+      renderWithProviders(() =>
+        getStatusBadge({ connected: true, broker: "upstox", expires_in_hours: -1, expires_at: new Date().toISOString() }),
+      );
       expect(screen.getByText("Expired")).toBeInTheDocument();
     });
   });
@@ -69,64 +70,64 @@ describe("BrokerConnectionCard component", () => {
   };
 
   test("renders card with Upstox Connection title", () => {
-    renderWithProviders(<BrokerConnectionCard {...baseProps} />);
+    renderWithProviders(() => <BrokerConnectionCard {...baseProps} />);
     expect(screen.getByText("Upstox Connection")).toBeInTheDocument();
   });
 
   test("shows connect button when disconnected", () => {
-    renderWithProviders(
+    renderWithProviders(() => (
       <BrokerConnectionCard
         {...baseProps}
         status={{ connected: false, broker: "upstox", expires_in_hours: null, expires_at: null }}
-      />,
-    );
+      />
+    ));
     expect(screen.getByTestId("connect-upstox-btn")).toBeInTheDocument();
   });
 
   test("shows disconnect button when connected", () => {
-    renderWithProviders(
+    renderWithProviders(() => (
       <BrokerConnectionCard
         {...baseProps}
         status={{ connected: true, broker: "upstox", expires_in_hours: 24, expires_at: new Date().toISOString() }}
-      />,
-    );
+      />
+    ));
     expect(screen.getByTestId("disconnect-upstox-btn")).toBeInTheDocument();
   });
 
   test("shows expires text when connected with expires_in_hours", () => {
-    renderWithProviders(
+    renderWithProviders(() => (
       <BrokerConnectionCard
         {...baseProps}
         status={{ connected: true, broker: "upstox", expires_in_hours: 12.5, expires_at: new Date().toISOString() }}
-      />,
-    );
+      />
+    ));
     expect(screen.getByTestId("broker-expires-text")).toBeInTheDocument();
     expect(screen.getByText("Expires in 12h 30m")).toBeInTheDocument();
   });
 
   test("shows refresh button", () => {
-    renderWithProviders(<BrokerConnectionCard {...baseProps} />);
+    renderWithProviders(() => <BrokerConnectionCard {...baseProps} />);
     expect(screen.getByTestId("refresh-broker-status-btn")).toBeInTheDocument();
   });
 
   test("renders helper text when disconnected", () => {
-    renderWithProviders(
+    renderWithProviders(() => (
       <BrokerConnectionCard
         {...baseProps}
         status={{ connected: false, broker: "upstox", expires_in_hours: null, expires_at: null }}
-      />,
-    );
+      />
+    ));
     expect(screen.getByText("Connect your Upstox account to enable live trading")).toBeInTheDocument();
   });
 
   test("shows data-loading attribute on buttons when loading", () => {
-    renderWithProviders(
+    renderWithProviders(() => (
       <BrokerConnectionCard
         {...baseProps}
         loading={true}
         status={{ connected: true, broker: "upstox", expires_in_hours: 24, expires_at: new Date().toISOString() }}
-      />,
-    );
+      />
+    ));
     expect(screen.getByTestId("disconnect-upstox-btn")).toHaveAttribute("data-loading");
   });
 });

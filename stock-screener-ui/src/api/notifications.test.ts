@@ -50,6 +50,13 @@ describe("fetchSurges", () => {
     expect(result.total).toBe(3);
     expect(result.events[0].symbol).toBe("INFY");
   });
+
+  it("passes through the bounded today_count alongside the all-time total", async () => {
+    mockedApiFetch.mockResolvedValue({ total: 7094, today_count: 3, events: [] });
+    const result = await fetchSurges(1, 0);
+    expect(result.total).toBe(7094);
+    expect(result.today_count).toBe(3);
+  });
 });
 
 describe("recordSurge", () => {

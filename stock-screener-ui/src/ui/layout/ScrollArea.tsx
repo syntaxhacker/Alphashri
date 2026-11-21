@@ -1,25 +1,54 @@
-import MuiBox from "@mui/material/Box";
+import { splitProps } from "solid-js";
+import { cn } from "../cn";
 import type { UIScrollAreaProps } from "../types";
+import { toSz } from "./spacing";
 
-const toSz = (v: unknown) => (typeof v === "number" ? `${v}px` : (v as string | undefined));
+const SCROLL_AREA_KNOWN = [
+  "children", "className", "style", "id", "data-testid", "h", "w", "onScroll", "onScrollPositionChange",
+  // Legacy Mantine-compat props: swallowed so they never reach the DOM.
+  "type", "offsetScrollbars", "scrollbarSize", "scrollHideDelay",
+] as const;
 
 export const ScrollArea = Object.assign(
-  ({ children, className, style, id, "data-testid": testId, h, w, type, offsetScrollbars, scrollbarSize, scrollHideDelay, onScrollPositionChange, sx, ...rest }: UIScrollAreaProps & { onScrollPositionChange?: (pos: { x: number; y: number }) => void } & Record<string, unknown>) => {
-    void type; void offsetScrollbars; void scrollbarSize; void scrollHideDelay;
+  (props: UIScrollAreaProps & Record<string, unknown>) => {
+    const [known, rest] = splitProps(props, SCROLL_AREA_KNOWN);
+    void known.type; void known.offsetScrollbars; void known.scrollbarSize; void known.scrollHideDelay;
+
     return (
-      <MuiBox
-        id={id as string} className={className} style={style} data-testid={testId}
-        onScroll={(e) => {
-          if (onScrollPositionChange) {
-            const t = e.currentTarget as HTMLElement;
-            onScrollPositionChange({ x: t.scrollLeft, y: t.scrollTop });
-          }
-          (rest.onScroll as ((e: unknown) => void) | undefined)?.(e);
+      <div
+        id={known.id}
+        className={cn("overflow-auto", known.className)}
+        style={{
+          ...(known.style as Record<string, unknown> | undefined),
+          ...(known.h != null ? { height: toSz(known.h) } : {}),
+          ...(known.w != null ? { width: toSz(known.w) } : {}),
         }}
-        sx={{ overflow: "auto", ...(h != null && { height: toSz(h) }), ...(w != null && { width: toSz(w) }), ...(sx as object) }}
+        data-testid={known["data-testid"]}
+        onScroll={(e) => {
+          if (known.onScrollPositionChange) {
+            const t = e.currentTarget as HTMLElement;
+            known.onScrollPositionChange({ x: t.scrollLeft, y: t.scrollTop });
+          }
+          known.onScroll?.(e);
+        }}
         {...rest}
-      >{children}</MuiBox>
+      >
+        {known.children}
+      </div>
     );
   },
-  { Autosize: ({ children, ...rest }: UIScrollAreaProps & Record<string, unknown>) => <MuiBox sx={{ overflow: "auto" }} {...rest}>{children}</MuiBox> },
+  {
+    Autosize: (props: UIScrollAreaProps & Record<string, unknown>) => {
+      const [known, rest] = splitProps(props, ["children", "style", "className"] as const);
+      return (
+        <div
+          style={{ overflow: "auto", ...(known.style as Record<string, unknown> | undefined) }}
+          className={cn(known.className)}
+          {...rest}
+        >
+          {known.children}
+        </div>
+      );
+    },
+  },
 );

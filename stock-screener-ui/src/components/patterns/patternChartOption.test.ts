@@ -49,6 +49,46 @@ describe("buildPatternChartOption pivot markers", () => {
     expect(html).toContain("05 May 2026");
     expect(html).toContain("Pivot High: ₹104.00");
   });
+
+  it("formats a US pivot tooltip with $ and en-US grouping, never ₹", () => {
+    const option = buildPatternChartOption({
+      candles: CANDLES,
+      hit: HIT,
+      compact: false,
+      market: "usa",
+    });
+    const formatter = (option.tooltip as { formatter: (p: unknown) => string }).formatter;
+    const html = formatter([
+      {
+        axisValue: "2026-05-04T18:30:00+00:00",
+        seriesType: "scatter",
+        seriesName: "Pivot High",
+        marker: "",
+        value: [0, 1234567.5],
+      },
+    ]);
+    expect(html).toContain("Pivot High: $1,234,567.50");
+    expect(html).not.toContain("₹");
+  });
+
+  it("keeps the India tooltip byte-identical when market is omitted", () => {
+    const params = [
+      {
+        axisValue: "2026-05-04T18:30:00+00:00",
+        seriesType: "scatter",
+        seriesName: "Pivot High",
+        marker: "",
+        value: [0, 104],
+      },
+    ];
+    const htmlOf = (option: Record<string, unknown>) =>
+      (option.tooltip as { formatter: (p: unknown) => string }).formatter(params);
+    expect(
+      htmlOf(buildPatternChartOption({ candles: CANDLES, hit: HIT, compact: false })),
+    ).toBe(
+      htmlOf(buildPatternChartOption({ candles: CANDLES, hit: HIT, compact: false, market: "india" })),
+    );
+  });
 });
 
 describe("buildPatternChartOption sibling overlays", () => {

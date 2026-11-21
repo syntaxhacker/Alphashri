@@ -1,18 +1,8 @@
 // ReplayShell — strategy-agnostic replay host. Owns date/param state, fetch + abort,
 // playback clock, and delegates rendering to the existing core/tick components. All
 // strategy vocabulary (labels, endpoints, envelopes, captions) lives in the plugin.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Card from "@mui/material/Card";
-import Typography from "@mui/material/Typography";
-import Stack from "@mui/material/Stack";
-import Chip from "@mui/material/Chip";
-import TextField from "@mui/material/TextField";
-import MenuItem from "@mui/material/MenuItem";
-import Checkbox from "@mui/material/Checkbox";
-import FormControlLabel from "@mui/material/FormControlLabel";
+import { createSignal, createMemo, createEffect, For, Show, onCleanup, type JSX } from "solid-js";
+import { Button, Text, Select, TextInput, Checkbox, Box, Card, Stack } from "@/ui";
 import * as palette from "@/ui/palette";
 import { TZ_IST, TZ_IST_LABEL } from "@/config/constants";
 import {
@@ -24,7 +14,7 @@ import {
 import { useReplayClock } from "./useReplayClock";
 import ReplayChartHost, { type ReplayChartHandle } from "./ReplayChartHost";
 import ReplayControls from "./ReplayControls";
-import SymbolAutocomplete from "./SymbolAutocomplete";
+import SymbolAutocomplete from "@/components/common/SymbolAutocomplete";
 import type {
   ReplayParamSpec,
   ReplayParamValues,
@@ -51,51 +41,72 @@ function coerceParam(spec: ReplayParamSpec, raw: string): unknown {
 }
 
 /** Generic param control driven only by its spec — no strategy vocabulary. */
-function ParamControl({ spec, value, onChange }: {
-  spec: ReplayParamSpec;
-  value: unknown;
-  onChange: (v: unknown) => void;
-}) {
+function ParamControl(props: { spec: ReplayParamSpec; value: unknown; onChange: (v: unknown) => void }) {
+  const spec = props.spec;
+
   if (spec.options && spec.options.length > 0) {
     const numeric = spec.type === "int" || spec.type === "float";
-    const current = numeric ? String(Number.parseFloat(String(value))) : String(value ?? "");
     return (
-      <TextField size="small" select label={spec.label} value={current} sx={{ width: 140 }}
-        onChange={e => onChange(coerceParam(spec, e.target.value))}>
-        {spec.options.map(o => (
-          <MenuItem key={o} value={numeric ? String(Number.parseFloat(o)) : o}>{o}</MenuItem>
-        ))}
-      </TextField>
+      <Select
+        size="sm"
+        w={140}
+        label={spec.label}
+        value={numeric ? String(Number.parseFloat(String(props.value))) : String(props.value ?? "")}
+        onChange={(v) => props.onChange(coerceParam(spec, v ?? ""))}
+        data-testid={`replay-param-${spec.name}`}
+      >
+        <For each={spec.options}>{(o) => (
+          <option value={numeric ? String(Number.parseFloat(o)) : o}>
+            {o}
+          </option>
+        )}</For>
+      </Select>
     );
   }
   if (spec.type === "bool") {
     return (
-      <FormControlLabel
-        control={<Checkbox size="small" checked={Boolean(value)} onChange={(_, c) => onChange(c)} />}
-        label={spec.label}
-        sx={{ color: palette.TEXT_MUTED, "& .MuiFormControlLabel-label": { fontSize: 12 } }}
-      />
+      <Box style={{ display: "flex", "align-items": "center", gap: "4px", color: palette.TEXT_MUTED, "font-size": "12px" }}>
+        <Checkbox
+          size="sm"
+          label={spec.label}
+          checked={Boolean(props.value)}
+          onChange={(e) => props.onChange(e.currentTarget.checked)}
+        />
+      </Box>
     );
   }
   if (spec.type === "symbol") {
     return (
       <SymbolAutocomplete
-        value={String(value ?? "")}
+        value={String(props.value ?? "")}
         label={spec.label}
-        onChange={onChange}
+        onChange={props.onChange}
         testid={`replay-symbol-${spec.name}`}
       />
     );
   }
   if (spec.type === "int" || spec.type === "float") {
     return (
-      <TextField size="small" type="number" label={spec.label} value={value == null ? "" : String(value)} sx={{ width: 140 }}
-        onChange={e => onChange(coerceParam(spec, e.target.value))} />
+      <TextInput
+        size="sm"
+        type="number"
+        label={spec.label}
+        value={props.value == null ? "" : String(props.value)}
+        w={140}
+        onChange={(v) => props.onChange(coerceParam(spec, v))}
+        data-testid={`replay-param-${spec.name}`}
+      />
     );
   }
   return (
-    <TextField size="small" label={spec.label} value={String(value ?? "")} sx={{ width: 140 }}
-      onChange={e => onChange(e.target.value)} />
+    <TextInput
+      size="sm"
+      label={spec.label}
+      value={String(props.value ?? "")}
+      w={140}
+      onChange={(v) => props.onChange(coerceParam(spec, v))}
+      data-testid={`replay-param-${spec.name}`}
+    />
   );
 }
 
@@ -106,51 +117,62 @@ const fmtReviewTime = (ts: number) => {
   return `${t} ${day} ${TZ_IST_LABEL}`;
 };
 
-export default function ReplayShell({ plugin, headerExtra }: { plugin: ReplayStrategyPlugin; headerExtra?: ReactNode }) {
-  const [date, setDate] = useState(plugin.dates[0]);
-  const [params, setParams] = useState<ReplayParamValues>(() => initialParams(plugin));
-  const [raw, setRaw] = useState<any>(null);
-  const [bundle, setBundle] = useState<ReplayBundle | null>(null);
-  const [timeline, setTimeline] = useState<TimelineData | null>(null);
-  const [loading, setLoading] = useState(plugin.runMode !== "manual");
-  const [runNonce, setRunNonce] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1);
-  const hostRef = useRef<ReplayChartHandle>(null);
+export default function ReplayShell(props: { plugin: ReplayStrategyPlugin; headerExtra?: JSX.Element }) {
+  const plugin = () => props.plugin;
+  const [date, setDate] = createSignal(plugin().dates[0]);
+  const [params, setParams] = createSignal<ReplayParamValues>(initialParams(plugin()));
+  const [raw, setRaw] = createSignal<any>(null);
+  const [bundle, setBundle] = createSignal<ReplayBundle | null>(null);
+  const [timeline, setTimeline] = createSignal<TimelineData | null>(null);
+  const [loading, setLoading] = createSignal(plugin().runMode !== "manual");
+  const [runNonce, setRunNonce] = createSignal(0);
+  const [playing, setPlaying] = createSignal(false);
+  const [speed, setSpeed] = createSignal(1);
+  let hostRef: ReplayChartHandle | undefined;
 
-  const manual = plugin.runMode === "manual";
+  const manual = () => plugin().runMode === "manual";
 
-  const setParam = useCallback((name: string, value: unknown) => {
-    setParams(prev => ({ ...prev, [name]: value }));
-  }, []);
+  const setParam = (name: string, value: unknown) => {
+    setParams((prev) => ({ ...prev, [name]: value }));
+  };
 
-  const candles = timeline?.candles ?? EMPTY_BARS;
-  const barSeconds = timeline?.barSeconds ?? 60;
-  const t0 = candles.length ? candles[0].time : 0;
-  const tEnd = candles.length ? candles[candles.length - 1].time + barSeconds : 0;
+  const candles = () => timeline()?.candles ?? EMPTY_BARS;
+  const barSeconds = () => timeline()?.barSeconds ?? 60;
+  const t0 = () => (candles().length ? candles()[0].time : 0);
+  const tEnd = () => (candles().length ? candles()[candles().length - 1].time + barSeconds() : 0);
 
-  const onTick = useCallback((now: number) => { hostRef.current?.paint(now); }, []);
-  const onEnd = useCallback(() => setPlaying(false), []);
+  const onTick = (now: number) => hostRef?.paint(now);
+  const onEnd = () => setPlaying(false);
 
-  const { clock, clockRef, jump } = useReplayClock({ t0, tEnd, playing, speed, onTick, onEnd });
+  const { clock, clockRef, jump } = useReplayClock({
+    t0,
+    tEnd,
+    playing,
+    speed,
+    onTick,
+    onEnd,
+  });
 
   // Manual plugins only fetch on an explicit Run (runNonce); auto plugins refetch on
   // date/param change. Stringifying params keeps the key value-stable across renders.
-  const fetchKey = manual
-    ? `manual:${runNonce}`
-    : `auto:${plugin.id}:${date}:${JSON.stringify(params)}`;
+  const fetchKey = () =>
+    manual()
+      ? `manual:${runNonce()}`
+      : `auto:${plugin().id}:${date()}:${JSON.stringify(params())}`;
 
-  useEffect(() => {
-    if (manual && runNonce === 0) return;
+  createEffect(() => {
+    const key = fetchKey();
+    void key;
+    if (manual() && runNonce() === 0) return;
     const ac = new AbortController();
     setLoading(true);
     setPlaying(false);
     jump(0);
-    const query = new URLSearchParams({ date });
-    for (const spec of plugin.params) query.set(spec.name, String(params[spec.name] ?? spec.default));
-    const request: Promise<any> = plugin.load
-      ? plugin.load({ date, params, signal: ac.signal })
-      : fetch(`${plugin.endpoint}?${query.toString()}`, { signal: ac.signal })
+    const query = new URLSearchParams({ date: date() });
+    for (const spec of plugin().params) query.set(spec.name, String(params()[spec.name] ?? spec.default));
+    const request: Promise<any> = plugin().load
+      ? plugin().load!({ date: date(), params: params(), signal: ac.signal })
+      : fetch(`${plugin().endpoint}?${query.toString()}`, { signal: ac.signal })
           .then(r => {
             if (r.ok === false) throw new Error(`HTTP ${r.status}`);
             return r.json();
@@ -159,8 +181,8 @@ export default function ReplayShell({ plugin, headerExtra }: { plugin: ReplayStr
       .then(j => {
         if (ac.signal.aborted) return;
         setRaw(j);
-        setBundle(plugin.normalize(j));
-        if (plugin.mode === "timeline" && plugin.timeline) setTimeline(plugin.timeline(j));
+        setBundle(plugin().normalize(j));
+        if (plugin().mode === "timeline" && plugin().timeline) setTimeline(plugin().timeline!(j));
       })
       .catch((e) => {
         if (ac.signal.aborted || (e && e.name === "AbortError")) return;
@@ -172,164 +194,154 @@ export default function ReplayShell({ plugin, headerExtra }: { plugin: ReplayStr
         });
       })
       .finally(() => { if (!ac.signal.aborted) setLoading(false); });
-    return () => ac.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchKey]);
+    onCleanup(() => ac.abort());
+  });
 
-  const trades = bundle?.trades ?? EMPTY_TRADES;
+  const trades = () => bundle()?.trades ?? EMPTY_TRADES;
 
-  const revealed = useMemo(
-    () => (bundle ? bundle.trades.filter(t => t.time <= clock) : []),
-    [bundle, clock],
-  );
-  const closed = useMemo(
-    () => revealed.filter(t => t.exit_time <= clock),
-    [revealed, clock],
-  );
-  const net = closed.reduce((a, t) => a + t.pnl, 0);
+  const revealed = createMemo(() => (bundle() ? bundle()!.trades.filter(t => t.time <= clock()) : []));
+  const closed = createMemo(() => revealed().filter(t => t.exit_time <= clock()));
+  const net = () => closed().reduce((a, t) => a + t.pnl, 0);
 
   // Initialize at the END of the session so the chart opens with the full day visible
   // (previously it seeded the first bar and showed a near-empty chart). Pressing Play
   // rewinds to the first bar via onPlayToggle and replays progressively.
-  useEffect(() => {
-    if (timeline && timeline.candles.length && clockRef.current <= 0) {
-      jump(tEnd);
-      hostRef.current?.fitContent();
+  createEffect(() => {
+    const tl = timeline();
+    if (tl && tl.candles.length && clockRef.current <= 0) {
+      jump(tEnd());
+      hostRef?.fitContent();
     }
-  }, [timeline, tEnd, clockRef, jump]);
+  });
 
-  const onPlayToggle = useCallback(() => {
-    if (clockRef.current >= tEnd) jump(t0);
-    setPlaying(p => !p);
-  }, [clockRef, tEnd, t0, jump]);
+  const onPlayToggle = () => {
+    if (clockRef.current >= tEnd()) jump(t0());
+    setPlaying((p) => !p);
+  };
 
-  const levels = useMemo(
-    () => timeline?.levels ?? { or_high: 0, or_low: 0, or_end: 0 },
-    [timeline?.levels],
-  );
+  const levels = () => timeline()?.levels ?? { or_high: 0, or_low: 0, or_end: 0 };
 
-  const zones = useMemo(
-    () => (plugin.card?.zones && raw ? plugin.card.zones(raw) : []),
-    [plugin, raw],
-  );
-  const trends = useMemo(
-    () => (plugin.card?.trends && raw ? plugin.card.trends(raw) : []),
-    [plugin, raw],
-  );
+  const zones = createMemo(() => (plugin().card?.zones && raw() ? plugin().card!.zones!(raw()) : []));
+  const trends = createMemo(() => (plugin().card?.trends && raw() ? plugin().card!.trends!(raw()) : []));
 
-  const paramControls = plugin.params.map(spec => (
-    <ParamControl key={spec.name} spec={spec} value={params[spec.name]}
-      onChange={v => setParam(spec.name, v)} />
+  const paramControls = () => plugin().params.map(spec => (
+    <ParamControl spec={spec} value={params()[spec.name]} onChange={v => setParam(spec.name, v)} />
   ));
 
-  const runButton = manual ? (
-    <Button size="small" variant="contained" onClick={() => setRunNonce(n => n + 1)} disabled={loading}>
+  const runButton = () => manual() ? (
+    <Button size="sm" variant="filled" onClick={() => setRunNonce(n => n + 1)} disabled={loading()}>
       Run
     </Button>
   ) : null;
-  const showRunHint = manual && runNonce === 0;
+  const showRunHint = () => manual() && runNonce() === 0;
 
   return (
-    <Box sx={{ p: 1, width: "100%" }} data-testid={plugin.mode === "timeline" ? "tick-replay" : "replay-strategy"}>
-      <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", mb: 0.5 }}>
-        <Typography variant="h6" sx={{ color: "#E5E7EB" }}>{plugin.label}</Typography>
-        {headerExtra}
+    <Box p="sm" w="100%" data-testid={plugin().mode === "timeline" ? "tick-replay" : "replay-strategy"}>
+      <Stack direction="row" gap="sm" mb="xs" align="center" wrap>
+        <Text fw={600} style={{ "font-size": "1.125rem", color: palette.REPLAY_CHART_TEXT }}>{plugin().label}</Text>
+        {props.headerExtra}
       </Stack>
-      {(plugin.subtitle || plugin.summary) && (
-        <Typography variant="caption" sx={{ color: "#9CA3AF", display: "block", mb: 1 }}>
-          {plugin.subtitle}{plugin.summary?.(bundle ?? EMPTY_BUNDLE, raw)}
-        </Typography>
-      )}
-      <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap", alignItems: "center" }}>
-        {plugin.dates.map(d => (
-          <Chip key={d} size="small" label={d} onClick={() => setDate(d)}
-            sx={{ bgcolor: d === date ? "#2563EB" : "#1F2937", color: "#E5E7EB", cursor: "pointer", fontWeight: d === date ? 700 : 400 }} />
-        ))}
-      </Stack>
-      {showRunHint && (
-        <Typography variant="caption" sx={{ color: palette.TEXT_MUTED, display: "block", mb: 1 }}>
-          Choose a symbol / date, then press Run
-        </Typography>
-      )}
-
-      {plugin.mode === "timeline" ? (
-        <>
-          <ReplayControls
-            playing={playing}
-            loading={loading}
-            disabled={loading || !candles.length}
-            speed={speed}
-            t0={t0}
-            tEnd={tEnd}
-            clock={clock}
-            closedCount={closed.length}
-            revealedCount={revealed.length}
-            net={net}
-            error={bundle?.error}
-            onPlayToggle={onPlayToggle}
-            onSpeedChange={setSpeed}
-            onJump={jump}
+      <Show when={plugin().subtitle || plugin().summary}>
+        <Text size="xs" style={{ color: palette.REPLAY_CHART_MUTED, display: "block", "margin-bottom": "8px" }}>
+          {plugin().subtitle}{plugin().summary?.(bundle() ?? EMPTY_BUNDLE, raw())}
+        </Text>
+      </Show>
+      <Stack direction="row" gap="sm" mb="sm" align="center" wrap>
+        <For each={plugin().dates}>{(d) => (
+          <Button
+            size="xs"
+            variant="subtle"
+            onClick={() => setDate(d)}
+            style={{ "background-color": d === date() ? palette.STACK_MOMENTUM : palette.REPLAY_CHIP_BG, color: palette.REPLAY_CHART_TEXT, cursor: "pointer", "font-weight": d === date() ? 700 : 400, "border-radius": "4px" }}
           >
-            {runButton}
-            {paramControls}
-          </ReplayControls>
-          <Card elevation={0} sx={{ bgcolor: palette.NT_BG, border: `1px solid ${palette.NT_GRID}`, overflow: "hidden", mb: 2 }}>
-            <ReplayChartHost
-              ref={hostRef}
-              bars={candles}
-              subs={timeline?.subs ?? EMPTY_BARS}
-              vwap={timeline?.vwap ?? EMPTY_VWAP}
-              levels={levels}
-              trades={trades}
-              height={420}
-              barSeconds={barSeconds}
-              clock={clock}
-              playing={playing}
-            />
-          </Card>
-          <Card elevation={0} sx={{ bgcolor: palette.NT_BG, border: `1px solid ${palette.NT_GRID}`, overflow: "hidden" }}>
-            <Box sx={{ p: 1, bgcolor: "#111", borderBottom: `1px solid ${palette.NT_GRID}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <Typography variant="subtitle2" sx={{ color: palette.PRIMARY }}>
-                Trades — {closed.length} closed · net {net > 0 ? "+" : ""}{net.toFixed(1)} pts
-              </Typography>
-              <Chip size="small" label={`${revealed.length - closed.length} open`} sx={{ bgcolor: "#1F2937", color: "#9CA3AF" }} />
-            </Box>
-            <ReplayTradeTable trades={revealed} clock={clock} onSelectTime={(t) => jump(t)} />
-          </Card>
-        </>
-      ) : (
-        <>
-          {manual && (
-            <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: "center" }}>
-              {runButton}
+            {d}
+          </Button>
+        )}</For>
+      </Stack>
+      <Show when={showRunHint()}>
+        <Text size="xs" style={{ color: palette.TEXT_MUTED, display: "block", "margin-bottom": "8px" }}>
+          Choose a symbol / date, then press Run
+        </Text>
+      </Show>
+
+      <Show
+        when={plugin().mode === "timeline"}
+        fallback={
+          <>
+            <Stack direction="row" gap="sm" mb="sm" align="center" wrap>
+              {paramControls()}
+              {!plugin().panel && <Button size="xs" variant="subtle" disabled style={{ "background-color": palette.REPLAY_CHIP_BG, color: palette.POSITIVE, "border-radius": "4px" }}>{trades().length} trades</Button>}
+              {loading() && <Button size="xs" variant="subtle" disabled style={{ "background-color": palette.REPLAY_CHIP_BG, color: palette.PRIMARY, "border-radius": "4px" }}>loading ticks…</Button>}
+              {bundle()?.error && <Button size="xs" variant="subtle" disabled style={{ "background-color": palette.REPLAY_CHIP_BG_ERROR, color: palette.REPLAY_CHIP_TEXT_ERROR, "border-radius": "4px" }}>{bundle()?.error}</Button>}
+              <Show when={manual()}>
+                <div class="ml-auto">{runButton()}</div>
+              </Show>
             </Stack>
-          )}
-          <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap", alignItems: "center" }}>
-            {paramControls}
-            {!plugin.panel && <Chip size="small" label={`${trades.length} trades`} sx={{ bgcolor: "#1F2937", color: palette.POSITIVE }} />}
-            {loading && <Chip size="small" label="loading ticks…" sx={{ bgcolor: "#1F2937", color: palette.PRIMARY }} />}
-            {bundle?.error && <Chip size="small" label={bundle.error} color="error" />}
-          </Stack>
-          {plugin.panel?.(bundle ?? EMPTY_BUNDLE, raw)}
-          {!loading && trades.length === 0 && (
-            <Box sx={{ p: 1, color: palette.TEXT_MUTED, fontSize: 12 }}>No trades in this view.</Box>
-          )}
-          {trades.map((tr, i) => (
-            <TradeReplayCard
-              key={`${tr.time}-${tr.side}-${i}`}
-              bars={bundle?.bars ?? EMPTY_BARS}
-              trade={tr}
-              index={i}
-              zones={zones}
-              trends={trends}
-              timeLabel={fmtReviewTime}
-              explainer={plugin.card?.explainer ? (t) => plugin.card!.explainer!(t, raw) : undefined}
-              fitPaddingBeforeMin={plugin.card?.fitPaddingBeforeMin}
-              fitPaddingAfterMin={plugin.card?.fitPaddingAfterMin}
-            />
-          ))}
-        </>
-      )}
+            {plugin().panel?.(bundle() ?? EMPTY_BUNDLE, raw())}
+            {!loading() && trades().length === 0 && (
+              <Box p="sm" style={{ color: palette.TEXT_MUTED, "font-size": "12px" }}>No trades in this view.</Box>
+            )}
+            <For each={trades()}>{(tr, i) => (
+              <TradeReplayCard
+                bars={bundle()?.bars ?? EMPTY_BARS}
+                trade={tr}
+                index={i()}
+                zones={zones()}
+                trends={trends()}
+                timeLabel={fmtReviewTime}
+                explainer={plugin().card?.explainer ? (t) => plugin().card!.explainer!(t, raw()) : undefined}
+                fitPaddingBeforeMin={plugin().card?.fitPaddingBeforeMin}
+                fitPaddingAfterMin={plugin().card?.fitPaddingAfterMin}
+              />
+            )}</For>
+          </>
+        }
+      >
+        <ReplayControls
+          playing={playing()}
+          loading={loading()}
+          disabled={loading() || !candles().length}
+          speed={speed()}
+          t0={t0()}
+          tEnd={tEnd()}
+          clock={clock()}
+          closedCount={closed().length}
+          revealedCount={revealed().length}
+          net={net()}
+          error={bundle()?.error}
+          onPlayToggle={onPlayToggle}
+          onSpeedChange={(v) => setSpeed(v)}
+          onJump={jump}
+        >
+          {runButton()}
+          {paramControls()}
+        </ReplayControls>
+        <Card bg={palette.NT_BG} style={{ border: `1px solid ${palette.NT_GRID}`, overflow: "hidden", "margin-bottom": "16px" }}>
+          <ReplayChartHost
+            ref={(h) => (hostRef = h)}
+            bars={candles()}
+            subs={timeline()?.subs ?? EMPTY_BARS}
+            vwap={timeline()?.vwap ?? EMPTY_VWAP}
+            levels={levels()}
+            trades={trades()}
+            height={420}
+            barSeconds={barSeconds()}
+            clock={clock()}
+            playing={playing()}
+          />
+        </Card>
+        <Card bg={palette.NT_BG} style={{ border: `1px solid ${palette.NT_GRID}`, overflow: "hidden" }}>
+          <Box p="sm" style={{ "background-color": palette.REPLAY_BG, "border-bottom": `1px solid ${palette.NT_GRID}`, display: "flex", "justify-content": "space-between", "align-items": "center" }}>
+            <Text size="xs" fw={700} style={{ color: palette.PRIMARY }}>
+              Trades — {closed().length} closed · net {net() > 0 ? "+" : ""}{net().toFixed(1)} pts
+            </Text>
+            <Button size="xs" variant="subtle" disabled style={{ "background-color": palette.REPLAY_CHIP_BG, color: palette.REPLAY_CHART_MUTED, "border-radius": "4px" }}>
+              {revealed().length - closed().length} open
+            </Button>
+          </Box>
+          <ReplayTradeTable trades={revealed()} clock={clock()} onSelectTime={(t) => jump(t)} />
+        </Card>
+      </Show>
     </Box>
   );
 }

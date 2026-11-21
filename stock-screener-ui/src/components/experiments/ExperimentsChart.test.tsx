@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { ExperimentsChart } from "./ExperimentsChart";
@@ -28,7 +27,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function Wrapper({ children }: { children: React.ReactNode }) {
+function Wrapper({ children }: { children: JSX.Element }) {
   return <UIProvider>{children}</UIProvider>;
 }
 
@@ -131,7 +130,7 @@ describe("ExperimentsChart", () => {
   });
 
   it("renders empty state when no run is selected", () => {
-    render(<ExperimentsChart />, { wrapper: Wrapper });
+    render(() => (<ExperimentsChart />), { wrapper: Wrapper });
     expect(screen.getByTestId("experiments-chart")).toBeInTheDocument();
     expect(
       screen.getByText("Select a run to view its chart"),
@@ -143,7 +142,7 @@ describe("ExperimentsChart", () => {
       selectedRun: makeRun(),
       chartData: makeChartData(),
     });
-    render(<ExperimentsChart />, { wrapper: Wrapper });
+    render(() => (<ExperimentsChart />), { wrapper: Wrapper });
     expect(
       screen.getByTestId("experiments-chart-symbol-select"),
     ).toBeInTheDocument();
@@ -157,7 +156,7 @@ describe("ExperimentsChart", () => {
       selectedRun: makeRun(),
       chartData: makeChartData(),
     });
-    render(<ExperimentsChart />, { wrapper: Wrapper });
+    render(() => (<ExperimentsChart />), { wrapper: Wrapper });
     expect(screen.getByTestId("trading-chart-mock")).toBeInTheDocument();
     expect(screen.getByTestId("experiments-chart-body")).toBeInTheDocument();
   });
@@ -168,7 +167,7 @@ describe("ExperimentsChart", () => {
       chartData: null,
       loading: { strategies: false, sessions: false, chart: true },
     });
-    render(<ExperimentsChart />, { wrapper: Wrapper });
+    render(() => (<ExperimentsChart />), { wrapper: Wrapper });
     expect(screen.getByTestId("experiments-chart-loading")).toBeInTheDocument();
   });
 
@@ -177,24 +176,21 @@ describe("ExperimentsChart", () => {
       selectedRun: makeRun(),
       chartData: null,
     });
-    render(<ExperimentsChart />, { wrapper: Wrapper });
+    render(() => (<ExperimentsChart />), { wrapper: Wrapper });
     expect(screen.getByTestId("experiments-chart-empty")).toBeInTheDocument();
   });
 
   it("calls fetchRunChart when the symbol changes", async () => {
-    const user = userEvent.setup();
-    currentState = makeState({
+        currentState = makeState({
       selectedRun: makeRun(),
       chartData: makeChartData(),
     });
-    render(<ExperimentsChart />, { wrapper: Wrapper });
+    render(() => (<ExperimentsChart />), { wrapper: Wrapper });
 
-    const outer = screen.getByTestId("experiments-chart-symbol-select");
-    const { within } = await import("@testing-library/react");
-    const combo = within(outer).getByRole("combobox");
-    await user.click(combo);
+    const combo = screen.getByRole("combobox");
+    fireEvent.focus(combo);
     const option = await screen.findByRole("option", { name: "RELIANCE" });
-    await user.click(option);
+    fireEvent.mouseDown(option);
 
     const { fetchRunChart } = await import("../../state/experiments");
     expect(fetchRunChart).toHaveBeenCalledWith(3, "RELIANCE");

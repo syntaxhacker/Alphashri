@@ -162,6 +162,27 @@ def _is_trading_day(d: date) -> bool:
         return True
 
 
+def _now_ist() -> datetime:
+    """The single clock read for session math (tests freeze this one seam)."""
+    from trading.timezone import IST
+
+    return datetime.now(IST)
+
+
+def previous_trading_day(d: date) -> Optional[date]:
+    """Most recent NSE session strictly before ``d``.
+
+    Walks back over weekends and trading holidays; ``None`` when no session is
+    found within a year (a broken holiday calendar, never a real date).
+    """
+    cursor = d - timedelta(days=1)
+    for _ in range(365):
+        if _is_trading_day(cursor):
+            return cursor
+        cursor -= timedelta(days=1)
+    return None
+
+
 def _last_completed_session(now: Optional[datetime] = None) -> date:
     """Last NSE session whose 15:30 IST close has passed.
 
@@ -174,7 +195,7 @@ def _last_completed_session(now: Optional[datetime] = None) -> date:
     from trading.utils import MARKET_CLOSE
 
     if now is None:
-        now = datetime.now(IST)
+        now = _now_ist()
     if isinstance(now, datetime):
         today = now.date()
         try:
@@ -191,12 +212,47 @@ def _last_completed_session(now: Optional[datetime] = None) -> date:
         after_close = True
     if _is_trading_day(today) and after_close:
         return today
-    d = today - timedelta(days=1)
-    for _ in range(365):
-        if _is_trading_day(d):
-            return d
-        d -= timedelta(days=1)
-    return d
+    return previous_trading_day(today) or (today - timedelta(days=1))
+
+
+def current_session_date(now: Optional[datetime] = None) -> Optional[date]:
+    """IST date of today's session, or ``None`` on a weekend/trading holiday.
+
+    Deliberately not derived from :func:`_last_completed_session`: that helper
+    only advances at the 15:30 close, so on a live Monday it still names the
+    previous Friday. A chart wants "is there a session today", which is true all
+    through the trading day.
+    """
+    today = _now_ist() if now is None else now
+    if isinstance(today, datetime):
+        today = today.date()
+    return today if _is_trading_day(today) else None
+
+
+def missing_today_bar(df: pd.DataFrame) -> bool:
+    """True when a daily frame ends on the last completed session, not today.
+
+    This is the append gate for the display edge, and it is deliberately *not*
+    ``as_of < _last_completed_session()``: that helper only advances at the
+    15:30 close, so on a live Monday it still names the previous Friday and a
+    Friday frame looks complete for the whole session — the chart then served
+    Friday until 15:30.
+
+    Restricted to a one-session gap (``previous_trading_day``, so the
+    Friday→Monday and holiday-bridge cases qualify). A frame further back is a
+    lagging feed: appending one isolated bar would draw a hole under a chart
+    that then claims to be current, so the stale frame is served as stale and
+    the background refresh closes the gap. False on a weekend/holiday (no
+    session) and when the frame already ends today (no duplicate). Never raises.
+    """
+    if df is None or getattr(df, "empty", True):
+        return False
+    session = current_session_date()
+    last = frame_last_date(df)
+    if session is None or not last:
+        return False
+    previous = previous_trading_day(session)
+    return previous is not None and last == previous.isoformat()
 
 
 def _cache_path(tf_id: str, symbol: str, as_of_date: Optional[str] = None,
@@ -233,11 +289,14 @@ def _read_cached(
                 if is_daily:
                     # Completed daily sessions are immutable. A frame that
                     # reaches the last completed session stays valid for the
-                    # whole session, and we additionally tolerate a frame up
-                    # to 3 calendar days behind (weekend / one-session lag) so
-                    # a cache stamped to an earlier session is still served
-                    # instead of refetching. Anything older (or stamped ahead
-                    # of the last completed session) is rejected as stale.
+                    # whole session; we also tolerate a frame exactly one
+                    # completed session behind (the official daily feed lags
+                    # the tape, and a Fri->Mon bridge is one session).
+                    #
+                    # The old rule tolerated 3 *calendar* days, which cannot
+                    # distinguish a weekend bridge from two genuinely missing
+                    # sessions (a Monday frame served on Thursday). Count
+                    # sessions instead: a 2+ session-old frame is stale.
                     meta_session = meta.get("session")
                     if meta_session != session:
                         try:
@@ -248,10 +307,17 @@ def _read_cached(
                             )
                         except (ValueError, TypeError):
                             return None
-                        if meta_date is None:
+                        if meta_date is None or meta_date > ref_date:
                             return None
-                        lag = (ref_date - meta_date).days
-                        if lag < 0 or lag > 3:
+                        lag_sessions = 0
+                        cursor = ref_date
+                        while cursor > meta_date:
+                            lag_sessions += 1
+                            prev = previous_trading_day(cursor)
+                            if prev is None or prev >= cursor:
+                                return None
+                            cursor = prev
+                        if lag_sessions > 1:
                             return None
                 else:
                     from trading import utils as trading_utils
@@ -793,11 +859,14 @@ def fetch_for_timeframe(
 
 
 def _today_is_session() -> bool:
-    """True when today (IST) is an NSE trading day."""
+    """True when today (IST) is an NSE trading day.
+
+    Fail-open on a clock/holiday-calendar failure (the pre-existing behaviour):
+    this only decides whether to *attempt* a tape fetch, and a fabricated empty
+    session is worse than one wasted call.
+    """
     try:
-        from datetime import datetime as _dt
-        from trading.timezone import IST
-        return _is_trading_day(_dt.now(IST).date())
+        return current_session_date() is not None
     except Exception:
         return True
 
@@ -826,6 +895,40 @@ def _cached_synthetic_today(api, symbol: str) -> Optional[pd.DataFrame]:
     return synth
 
 
+def _synthetic_bar_in_progress(bar: Optional[pd.DataFrame]) -> bool:
+    """True when a tape-synthesized bar belongs to a session still trading.
+
+    ``_last_completed_session()`` advances to today at the 15:30 IST close, so a
+    bar dated after it can only be an in-progress session. Once the close has
+    passed the bar is final and no longer partial. Never raises.
+    """
+    if bar is None or getattr(bar, "empty", True):
+        return False
+    session = frame_last_date(bar)
+    if not session:
+        return False
+    try:
+        last_done = _last_completed_session().isoformat()
+    except Exception:
+        return False
+    return bool(session > last_done)
+
+
+def with_partial_today(
+    df: pd.DataFrame, symbol: str, api_client=None,
+    partial_bar: Optional[pd.DataFrame] = None,
+) -> Optional[pd.DataFrame]:
+    """Public entry point for appending today's synthetic bar for display.
+
+    The base frame is only read; the returned merged frame is flagged with
+    ``partial_today`` (a synthetic bar was appended) and
+    ``partial_today_in_progress`` (the session is still trading). The synthetic
+    bar is never written to the disk cache — that write happens before this
+    step in :func:`fetch_for_timeframe`. Never raises.
+    """
+    return _with_partial_today(df, symbol, api_client, partial_bar)
+
+
 def _with_partial_today(
     df: pd.DataFrame, symbol: str, api_client=None,
     partial_bar: Optional[pd.DataFrame] = None,
@@ -837,7 +940,8 @@ def _with_partial_today(
     directly and no per-symbol intraday tape call is made. Otherwise the bar is
     synthesized from today's 1-minute tape (legacy path). The official daily
     bar wins; the merged frame is flagged via ``df.attrs["partial_today"]`` and
-    must never be written to the disk cache. Never raises.
+    ``df.attrs["partial_today_in_progress"]`` and must never be written to the
+    disk cache. Never raises.
     """
     if df is None or df.empty:
         return df
@@ -867,6 +971,7 @@ def _with_partial_today(
         return df
     try:
         merged.attrs["partial_today"] = True
+        merged.attrs["partial_today_in_progress"] = _synthetic_bar_in_progress(bar)
     except Exception:
         pass
     return merged
@@ -885,6 +990,11 @@ def frame_last_date(df: pd.DataFrame) -> Optional[str]:
     if df is None or df.empty:
         return None
     try:
+        # pd.Timestamp(1) is 1970-01-01, so a plain RangeIndex/int index would
+        # silently produce a confident (and wrong) 1970 session date. Candle
+        # frames always carry a timestamp-like index; never invent one.
+        if pd.api.types.is_numeric_dtype(df.index.dtype):
+            return None
         ts = pd.Timestamp(df.index[-1])
         if ts.tz is None:
             ts = ts.tz_localize("UTC")

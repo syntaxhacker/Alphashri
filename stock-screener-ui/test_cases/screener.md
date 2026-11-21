@@ -31,19 +31,6 @@
 - [x] Clears selected symbols when switching to correlation or config tab
 - [x] useScreenerSort resets sort column/direction on activeScreener change
 
-## ScreenerNav
-- [x] Renders all options from props
-- [x] Marks active screener as selected (checked radio)
-- [x] Calls onChange with option id when clicked
-- [x] Renders tooltip when option has description
-- [x] Handles options without descriptions (no tooltip)
-- [x] Supports controlled state change via re-render
-- [x] Renders correct data-options-count attribute
-- [x] Handles single option
-- [x] Handles empty options array gracefully
-- [x] Renders with a different active screener
-- [x] Each option has unique test ID
-
 ## ScreenerHeader
 - [x] Renders title and status text
 - [x] Calls onRefresh when refresh button clicked
@@ -188,17 +175,6 @@
 - [x] Apply Filters button triggers fetchData
 - [x] Sort button shows default sort column with direction arrow
 - [x] Calling sort toggles direction on same column
-
-## ScreenerSummary
-- [x] buildSummaryItems returns items with string values
-- [x] buildSummaryItems returns items with numeric values
-- [x] buildSummaryItems handles empty array
-- [x] buildSummaryItems handles single item
-- [x] getTone returns theme color variable when color is set
-- [x] getTone returns default text color when color is undefined
-- [x] getTone returns default text color when color is not set
-- [x] Renders CompactStatGrid with CompactStat items
-- [x] Generates sequential test IDs based on index
 
 ## SelectionBar
 - [x] Renders when selectedSymbols length > 0

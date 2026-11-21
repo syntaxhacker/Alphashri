@@ -29,6 +29,14 @@ except ImportError:
     UPSTOX_SDK_AVAILABLE = False
 
 
+#: NSE_EQ instrument types that are tradeable equity series rather than the
+#: plain ``EQ`` series. ``SM``/``ST``/``SZ`` are SME listings, ``BE``/``BZ``
+#: trade-to-trade, ``IV``/``RR`` are InvIT/REIT units, and ``E1`` is a
+#: part-paid listing series. Government paper (``SG``/``GS``/``TB``) is
+#: deliberately absent so a bond key can never leak into an equity path.
+EQUITY_FALLBACK_TYPES = ('BE', 'BZ', 'SM', 'ST', 'SZ', 'IV', 'RR', 'E1')
+
+
 class RateLimitExceeded(Exception):
     """Legacy exception — no longer raised by _request (queued rate limiter).
     Kept for backwards-compat with callers that catch it in except clauses."""
@@ -220,6 +228,18 @@ class UpstoxAPI(BaseAPIClient):
                         instrument.get('strike_price') == strike_price and
                         expiry_ts and
                         datetime.fromtimestamp(expiry_ts / 1000).strftime('%Y-%m-%d') == expiry_date):
+                    return instrument.get('instrument_key')
+
+        # Non-``EQ`` equity series are still NSE equities: SME (SM/ST/SZ),
+        # trade-to-trade (BE/BZ), InvIT/REIT units (IV/RR) and part-paid (E1).
+        # The strict EQ pass above runs first, so a symbol listed as both keeps
+        # resolving to EQ. Without this pass their charts returned `no_data`
+        # (e.g. PRIZOR as SM, QUINTEGRA as BE) even though they are live symbols.
+        if instrument_type == 'EQ':
+            for instrument in self.instruments:
+                if (instrument.get('trading_symbol') == clean_symbol and
+                        instrument.get('segment') == exchange and
+                        instrument.get('instrument_type') in EQUITY_FALLBACK_TYPES):
                     return instrument.get('instrument_key')
 
         self._log(f"❌ Instrument key for '{clean_symbol}' (original: '{symbol}') not found with the specified criteria.")

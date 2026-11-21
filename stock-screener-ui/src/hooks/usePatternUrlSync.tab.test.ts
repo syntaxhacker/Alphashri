@@ -1,24 +1,79 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { useSearchParams } from "@solidjs/router";
 import {
   parsePatternParams,
   buildPatternParams,
+  usePatternUrlSync,
   type UsePatternUrlSyncArgs,
 } from "./usePatternUrlSync";
 import { DEFAULT_PATTERN_FILTERS } from "../state/chartPatterns";
-import {
-  urlSyncSetSearchParams as setSearchParams,
-  setMockUrl,
-  urlSyncArgsBase,
-  registerUrlSyncTestHarness,
-  renderPatternUrlSync,
-} from "./testFixtures";
+import { renderSolidHookReactive } from "../test-utils/solidRenderHook";
 
-vi.mock("react-router-dom", () => ({
+vi.mock("@solidjs/router", () => ({
   useSearchParams: vi.fn(() => [new URLSearchParams(), vi.fn()]),
 }));
 
-registerUrlSyncTestHarness();
+const mockedUseSearchParams = vi.mocked(useSearchParams);
+
+// ---- local URL-sync harness (the shared React fixtures are gone) ----------
+/** The single params object the mocked `useSearchParams` always hands out
+ * (mutated in place: the hook captures the tuple once at mount). */
+const mockParams = new URLSearchParams();
+
+/** Point the mocked useSearchParams at the given query string. */
+function setMockUrl(url: string): void {
+  const next = new URLSearchParams(url);
+  for (const key of Array.from(mockParams.keys())) mockParams.delete(key);
+  for (const [key, value] of next) mockParams.append(key, value);
+  mockedUseSearchParams.mockReturnValue([
+    mockParams,
+    setSearchParams,
+  ] as never);
+}
+
+/** Write spy that behaves like the router: the URL now reports what was written. */
+const setSearchParams = vi.fn((next: URLSearchParams) => {
+  setMockUrl(next.toString());
+});
+
+/** Base args shared by the URL-sync suites. */
+function urlSyncArgsBase() {
+  return {
+    universe: "",
+    timeframe: "1D",
+    lookbackBars: null,
+    filters: { ...DEFAULT_PATTERN_FILTERS },
+    setUniverse: vi.fn(),
+    setTimeframe: vi.fn(),
+    setLookbackBars: vi.fn(),
+    setComputeTrendlines: vi.fn(),
+    applyFilters: vi.fn(),
+  };
+}
+
+let activeHook: { dispose: () => void } | undefined;
+
+/** Mount with live props: `rerender(next)` re-runs the effects that read it. */
+function renderPatternUrlSync(args: UsePatternUrlSyncArgs) {
+  const handle = renderSolidHookReactive(
+    (props: UsePatternUrlSyncArgs) => usePatternUrlSync(props),
+    { initialProps: args },
+  );
+  activeHook = handle;
+  return handle;
+}
+
+beforeEach(() => {
+  setSearchParams.mockClear();
+  setMockUrl("");
+});
+
+afterEach(() => {
+  activeHook?.dispose();
+  activeHook = undefined;
+  vi.clearAllMocks();
+});
 
 function makeArgs(overrides: Partial<UsePatternUrlSyncArgs> = {}): UsePatternUrlSyncArgs {
   return {

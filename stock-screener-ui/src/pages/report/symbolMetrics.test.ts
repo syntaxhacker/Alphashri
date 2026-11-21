@@ -1,6 +1,16 @@
 import { describe, expect, test } from "vitest";
-import { symbolMetrics, maxPainTouchTol, pinEdgeHigh, pinEdgeMedium, pinPainPts, wallMaxDist, wallMinOi, levelMaxDist, heatmapWidthPts, atmWindowPts, flowNoiseFor, squeezeRangePts, squeezePriceBreakPts, squeezeAtWallPts, TEST_FIXTURES } from "./symbolMetrics";
+import { symbolMetrics, maxPainTouchTol, pinEdgeHigh, pinEdgeMedium, pinPainPts, wallMaxDist, wallMinOi, levelMaxDist, heatmapWidthPts, atmWindowPts, flowNoiseFor, squeezeRangePts, squeezePriceBreakPts, squeezeAtWallPts } from "./symbolMetrics";
 import type { NiftyReport, NiftyStrike, NiftyWall } from "@/types/niftyReport";
+
+/** Symbol calibration fixtures — kept test-local, not exported from production. */
+const TEST_FIXTURES = {
+  /** SENSEX: ~79,000 spot, 100-pt strike step, lot 20 */
+  sensex: { spot: 79_000, strikeStep: 100, lotSize: 20 },
+  /** RELIANCE: ~1,400 spot, 50-pt strike step, lot 500 */
+  reliance: { spot: 1_400, strikeStep: 50, lotSize: 500 },
+  /** NIFTY: ~22,800 spot, 50-pt strike step, lot 65 */
+  nifty: { spot: 22_800, strikeStep: 50, lotSize: 65 },
+} as const;
 
 function makeReport(overrides: Partial<NiftyReport> = {}): NiftyReport {
   const spot = overrides.spot ?? 22_800;

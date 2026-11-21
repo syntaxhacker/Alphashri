@@ -60,8 +60,10 @@ test.describe("Deep Value tab", () => {
         (req) => req.url().includes("/api/value/scan") && req.url().includes("preset="),
         { timeout: 15000 },
       ),
-      page.locator('[data-testid="value-preset-select"]').click(),
-      page.getByRole("option", { name: /DEEP/i }).click(),
+      // Native <select>: choose the option, do not click a role=option element.
+      page
+        .locator('[data-testid="value-preset-select"] select')
+        .selectOption({ label: "Deep" }),
     ]);
     expect(request.url()).toContain("preset=DEEP");
   });

@@ -5,12 +5,12 @@ import type { OverlayCoord } from "./OverlayCanvas";
 import type { ReplayTrade, ReplayTrend, ReplayZone } from "./types";
 
 export const ZONE_STYLE: Record<ReplayZone["kind"], { fill: string; stroke: string }> = {
-  supply: { fill: "rgba(168,85,247,0.18)", stroke: palette.NT_TREND },
-  demand: { fill: "rgba(168,85,247,0.18)", stroke: palette.NT_TREND },
-  "fvg-bull": { fill: palette.NT_FVG_BULL_FILL, stroke: palette.NT_FVG_BULL_STROKE },
-  "fvg-bear": { fill: palette.NT_FVG_BEAR_FILL, stroke: palette.NT_FVG_BEAR_STROKE },
-  ifvg: { fill: palette.NT_IFVG_FILL, stroke: palette.NT_IFVG_STROKE },
-  lrl: { fill: "rgba(0,0,0,0)", stroke: palette.NT_TREND },
+  supply: { "fill": "rgba(168,85,247,0.18)", "stroke": palette.NT_TREND },
+  demand: { "fill": "rgba(168,85,247,0.18)", "stroke": palette.NT_TREND },
+  "fvg-bull": { "fill": palette.NT_FVG_BULL_FILL, "stroke": palette.NT_FVG_BULL_STROKE },
+  "fvg-bear": { "fill": palette.NT_FVG_BEAR_FILL, "stroke": palette.NT_FVG_BEAR_STROKE },
+  ifvg: { "fill": palette.NT_IFVG_FILL, "stroke": palette.NT_IFVG_STROKE },
+  lrl: { "fill": "rgba(0,0,0,0)", "stroke": palette.NT_TREND },
 };
 
 export function drawZoneBox(

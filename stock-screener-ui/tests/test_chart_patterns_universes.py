@@ -43,6 +43,35 @@ def fixture_instruments(tmp_path):
     universes.set_instruments_path(None)
 
 
+# Static universes must never contain a symbol the NSE cash feed cannot quote.
+# Source: niftyindices.com/IndexConstituent/ind_niftybanklist.csv and the
+# BSE Sensex 30 (Wikipedia + TradingView "BSE Sensex" membership, agreeing).
+BANKNIFTY_EXPECTED = [
+    "AUBANK", "AXISBANK", "BANKBARODA", "CANBK", "FEDERALBNK", "HDFCBANK",
+    "ICICIBANK", "IDFCFIRSTB", "INDUSINDBK", "KOTAKBANK", "PNB", "SBIN",
+    "UNIONBANK", "YESBANK",
+]
+SENSEX_EXPECTED = [
+    "ADANIPORTS", "ASIANPAINT", "AXISBANK", "BAJFINANCE", "BAJAJFINSV", "BEL",
+    "BHARTIARTL", "ETERNAL", "HCLTECH", "HDFCBANK", "HINDUNILVR", "ICICIBANK",
+    "INDIGO", "INFY", "ITC", "KOTAKBANK", "LT", "M&M", "MARUTI", "NTPC",
+    "POWERGRID", "RELIANCE", "SBIN", "SUNPHARMA", "TCS", "TATASTEEL", "TECHM",
+    "TITAN", "TRENT", "ULTRACEMCO",
+]
+
+
+def _canonical_eq_symbols() -> set[str]:
+    """Read the checked-in instruments file directly, ignoring test overrides."""
+    records = json.loads(universes._CANONICAL.read_text(encoding="utf-8"))
+    return {
+        str(record["trading_symbol"]).upper()
+        for record in records
+        if record.get("segment") == "NSE_EQ"
+        and record.get("instrument_type") == "EQ"
+        and record.get("trading_symbol")
+    }
+
+
 def test_all_equity_filters_segment_and_type(fixture_instruments):
     assert universes.get_universe("all_equity") == ["RELIANCE", "TCS"]
 
@@ -60,10 +89,47 @@ def test_nifty_lists_are_static_and_case_insensitive(fixture_instruments):
     assert len(universes.get_universe("nifty500")) >= 500
 
 
+@pytest.mark.parametrize("uid", ["nifty100", "nifty200"])
+def test_new_market_index_universes_resolve_to_tv_tickers(uid):
+    """Registered market id -> full constituent list -> non-empty TV tickers."""
+    from api.market_screen.config import UNIVERSES
+    from api.tv import to_tv_ticker
+
+    assert uid in UNIVERSES
+    assert UNIVERSES[uid].tickers
+    symbols = universes.get_universe(uid)
+    assert len(symbols) >= 100
+    assert all(to_tv_ticker(s) for s in symbols)
+
+
+def test_banknifty_universe_returns_expected_nse_bank_names():
+    assert universes.get_universe("banknifty") == BANKNIFTY_EXPECTED
+    assert universes.get_universe("BANKNIFTY") == BANKNIFTY_EXPECTED
+
+
+def test_sensex_universe_returns_only_nse_resolvable_symbols():
+    symbols = universes.get_universe("sensex")
+    assert symbols == SENSEX_EXPECTED
+    assert len(symbols) == 30
+    # TradingView's BSE ticker is NSE:M_M; the NSE cash symbol is M&M.
+    assert "M&M" in symbols
+    assert "M_M" not in symbols
+
+
+def test_new_universe_symbols_are_nse_eq_in_the_instruments_file():
+    eq = _canonical_eq_symbols()
+    for uid in ("banknifty", "sensex"):
+        missing = [s for s in universes.get_universe(uid) if s not in eq]
+        assert not missing, f"{uid} symbols absent from NSE_EQ/EQ: {missing}"
+
+
 def test_list_universes_shape(fixture_instruments):
     listing = universes.list_universes()
     ids = [u["id"] for u in listing]
-    assert ids == ["all_equity", "nse_fo", "indices", "nifty50", "nifty100", "nifty200", "nifty500"]
+    assert ids == [
+        "all_equity", "nse_fo", "indices", "nifty50", "nifty100", "nifty200",
+        "nifty500", "banknifty", "sensex",
+    ]
     by_id = {u["id"]: u for u in listing}
     assert by_id["all_equity"]["count"] == 2
     assert by_id["nse_fo"]["count"] == 2

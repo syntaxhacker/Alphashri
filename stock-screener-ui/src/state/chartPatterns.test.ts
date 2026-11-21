@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { JobDTO, PatternHitDTO, PatternSummary } from "../types/chartPatterns";
+import { ApiError } from "../api/apiError";
 
 vi.mock("../api/chartPatterns", async () => {
   const actual = await vi.importActual<typeof import("../api/chartPatterns")>("../api/chartPatterns");
@@ -819,12 +820,12 @@ describe("stale async responses", () => {
       releaseSlow = resolve;
     });
     mocked.streamResults
-      .mockImplementationOnce(async (_query, handlers) => {
+      .mockImplementationOnce(async (_query, handlers = {}) => {
         await slowGate;
         handlers.onItem?.({ id: 1, symbol: "STALE", pattern_id: "flag" } as never);
         handlers.onDone?.();
       })
-      .mockImplementationOnce(async (_query, handlers) => {
+      .mockImplementationOnce(async (_query, handlers = {}) => {
         handlers.onMeta?.({ total: 7, summary: SUMMARY, data_through: "2026-10-01" });
         handlers.onDone?.();
       });
@@ -851,11 +852,11 @@ describe("stale async responses", () => {
       releaseSlow = resolve;
     });
     mocked.streamResults
-      .mockImplementationOnce(async (_query, handlers) => {
+      .mockImplementationOnce(async (_query, handlers = {}) => {
         await slowGate;
         handlers.onError?.(new Error("slow boom"));
       })
-      .mockImplementationOnce(async (_query, handlers) => {
+      .mockImplementationOnce(async (_query, handlers = {}) => {
         handlers.onError?.(new Error("fast stream down"));
       });
     mocked.fetchResults.mockResolvedValueOnce({
@@ -1418,7 +1419,7 @@ describe("scan lifecycle extras", () => {
     mocked.startScan.mockClear();
     await triggerScan(true);
     expect(mocked.startScan).toHaveBeenCalledTimes(1);
-    const req = mocked.startScan.mock.calls[0][0] as Record<string, unknown>;
+    const req = mocked.startScan.mock.calls[0][0] as unknown as Record<string, unknown>;
     expect(req["symbols"]).toBeUndefined();
     expect(req["lookback_bars"]).toBe(250);
     expect(req["force"]).toBe(true);
@@ -1563,7 +1564,7 @@ describe("query coalescing and same-query reload", () => {
 
   it("a same-query reload keeps existing results until new items arrive", async () => {
     let releaseFirst!: () => void;
-    mocked.streamResults.mockImplementation(async (_query, handlers) => {
+    mocked.streamResults.mockImplementation(async (_query, handlers = {}) => {
       await new Promise<void>((resolve) => {
         releaseFirst = resolve;
       });
@@ -1580,7 +1581,7 @@ describe("query coalescing and same-query reload", () => {
     expect(getChartPatternsState().results.map((r) => r.symbol)).toEqual(["IRCON", "TCS"]);
 
     let releaseSecond!: () => void;
-    mocked.streamResults.mockImplementation(async (_query, handlers) => {
+    mocked.streamResults.mockImplementation(async (_query, handlers = {}) => {
       await new Promise<void>((resolve) => {
         releaseSecond = resolve;
       });
@@ -1613,7 +1614,7 @@ describe("query coalescing and same-query reload", () => {
       })
       .mockResolvedValue({ items: [], total: 0, summary: SUMMARY, data_through: "2026-09-30" });
     // Restore the pinned "stream unavailable" behaviour for this test.
-    mocked.streamResults.mockImplementation(async (_query, handlers) => {
+    mocked.streamResults.mockImplementation(async (_query, handlers = {}) => {
       handlers.onError?.(new Error("stream unavailable"));
     });
 
@@ -1631,5 +1632,75 @@ describe("query coalescing and same-query reload", () => {
     expect(getChartPatternsState().results).toEqual([]);
     expect(mocked.streamResults).toHaveBeenCalledTimes(2);
     expect(mocked.fetchResults).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("filter actions vs re-entrant URL sync", () => {
+  it("a stale applyFilters fired during a filter action's patch cannot revert the change", async () => {
+    // The patterns URL sync re-parses the not-yet-written URL on a store
+    // notification and calls applyFilters with the previous filter values.
+    // Arm exactly one such re-entrant call for the chip-removal action.
+    let armed = false;
+    const unsub = subscribe(() => {
+      if (!armed) return;
+      armed = false;
+      applyFilters({ direction: ["bearish"], min_avg_volume_10d: 150 });
+    });
+    try {
+      setFilter("direction", ["bearish"]);
+      await flush();
+      expect(getChartPatternsState().filters.direction).toEqual(["bearish"]);
+
+      armed = true;
+      setFilter("direction", []);
+      // Old code: the re-entrant applyFilters reverts state to ["bearish"]
+      // and the load below issues a stale query. Fixed code keeps [].
+      expect(getChartPatternsState().filters.direction).toEqual([]);
+      await flush();
+      const lastQuery = mocked.fetchResults.mock.calls.at(-1)?.[0] as
+        | { direction?: string[] }
+        | undefined;
+      expect(lastQuery?.direction).toEqual([]);
+    } finally {
+      unsub();
+    }
+  });
+});
+
+describe("typed API errors", () => {
+  it("a 401 from loadSummary surfaces status + kind and keeps the string error", async () => {
+    mocked.fetchSummary.mockRejectedValueOnce(new ApiError("Session expired", 401));
+
+    await loadSummary();
+    await flush();
+
+    const state = getChartPatternsState();
+    expect(state.apiError).toMatchObject({ status: 401, kind: "unauthorized" });
+    expect(state.error).toBe("Session expired");
+    expect(state.apiError?.message).toBe(state.error);
+  });
+
+  it("a 429 from loadResults carries retryAfterMs from the header", async () => {
+    mocked.fetchResults.mockRejectedValueOnce(new ApiError("Slow down", 429, 4000));
+
+    await loadResults({ offset: 0 });
+    await flush();
+
+    expect(getChartPatternsState().apiError).toMatchObject({
+      status: 429,
+      kind: "rate_limited",
+      retryAfterMs: 4000,
+    });
+  });
+
+  it("an abort is a silent no-op", async () => {
+    mocked.fetchSummary.mockRejectedValueOnce(new DOMException("Aborted", "AbortError"));
+
+    await loadSummary();
+    await flush();
+
+    const state = getChartPatternsState();
+    expect(state.apiError).toBeNull();
+    expect(state.error).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import { createEffect, createMemo, createSignal, Show } from "solid-js";
+import type { JSX } from "solid-js";
 import { Alert, Box, SegmentedControl, Text, ToolbarRow } from "@/ui";
 import { formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
 import type {
@@ -13,15 +13,100 @@ import { buildPatternTVData } from "./patternTVData";
 import { selectLastN } from "./selectLastN";
 import { PatternChartLegend } from "./PatternChartLegend";
 import { PatternTradingViewChart } from "./PatternTradingViewChart";
+import { FullscreenPatternList, fullscreenHitKey } from "./FullscreenPatternList";
 import { KeyPointLegend } from "./KeyPointLegend";
 import { PivotList } from "./PatternPivotList";
 import { QualityBadge } from "./QualityBadge";
 import { StatusBadge } from "./StatusBadge";
 import { displayStatusForHit } from "./patternDisplayStatus";
-import { formatPrice } from "./shared";
-import { FullscreenPatternList, fullscreenHitKey } from "./FullscreenPatternList";
+import { formatChartPrice } from "./chartFormat";
 import { KEY_POINTS_LEGEND_NAME, PIVOT_LEGEND_NAME } from "@/config/patterns";
-import { TEXT_MUTED, WARNING } from "@/ui/palette";
+import {
+  MARKET_TIME_ZONE,
+  sessionDateKey,
+  type ChartMarket,
+} from "@/utils/chart/time";
+import { PRIMARY, TEXT_MUTED, WARNING } from "@/ui/palette";
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** Calendar-only `YYYY-MM-DD` → `13 Nov` — no timezone math on a session key. */
+function formatDayMonthKey(key: string): string {
+  const [, month, day] = key.split("-");
+  const name = MONTHS[Number(month) - 1] ?? month;
+  return `${day} ${name}`;
+}
+
+/** Session key for "today" in the chart's market zone. */
+function todayKey(timeZone: string): string {
+  return sessionDateKey(new Date().toISOString(), timeZone) ?? "";
+}
+
+/** `13 Nov` within the current year, `13 Nov 2025` for an older bar. */
+function barDateLabel(value: string, timeZone: string): string {
+  const key = sessionDateKey(value, timeZone);
+  if (!key) return value.toUpperCase();
+  const base = formatDayMonthKey(key);
+  const year = key.slice(0, 4);
+  return (year === todayKey(timeZone).slice(0, 4) ? base : `${base} ${year}`).toUpperCase();
+}
+
+export interface CloseSeries {
+  close: number | null;
+  changePct: number | null;
+  barDate: string | null;
+  source: "hit" | "chart";
+  /** The displayed bar is today's partial bar built from the live tape. */
+  isPartial: boolean;
+}
+
+/**
+ * Choose one source for the displayed close *and* its change: a hit enrichment
+ * only wins when it carries a complete pair whose `close_bar_date` proves the
+ * bar is not older than the chart's last candle. `end_date` is the pattern
+ * formation date, not the close's bar date, so it is never used as a proxy.
+ * Without that date (or without a chart bar to compare) the drawn series wins;
+ * a partial enrichment never mixes with a chart bar.
+ */
+export function resolveCloseSeries(
+  params: {
+    hit: Pick<PatternHitDTO, "last_close" | "day_change_pct" | "close_bar_date">;
+    candles: ChartCandle[];
+  },
+  timeZone: string = MARKET_TIME_ZONE.india,
+): CloseSeries {
+  const { hit, candles } = params;
+  const last = candles.length ? candles[candles.length - 1] : null;
+  const prev = candles.length > 1 ? candles[candles.length - 2] : null;
+  const isPartial = last?.is_partial === true;
+  const chart: CloseSeries = {
+    close: last?.c ?? null,
+    changePct:
+      last && prev && prev.c ? ((last.c - prev.c) / prev.c) * 100 : null,
+    // Store a canonical session key, never the raw UTC instant: a daily bar is
+    // stamped 18:30Z of the previous calendar day and formatting its date part
+    // directly labels the session one day early.
+    barDate: sessionDateKey(last?.t ?? null, timeZone),
+    source: "chart",
+    isPartial,
+  };
+
+  const hasPair = hit.last_close != null && hit.day_change_pct != null;
+  const hitKey = sessionDateKey(hit.close_bar_date, timeZone);
+  const chartKey = sessionDateKey(last?.t ?? null, timeZone);
+  if (!hasPair || !hitKey) return chart;
+  if (chartKey && hitKey < chartKey) return chart;
+
+  return {
+    close: hit.last_close ?? null,
+    changePct: hit.day_change_pct ?? null,
+    barDate: hit.close_bar_date ?? null,
+    source: "hit",
+    // The hit's dated pair describes the same bar as the chart's last candle,
+    // so the partial flag still applies to the label we render.
+    isPartial: chartKey != null && hitKey === chartKey ? isPartial : false,
+  };
+}
 
 export interface PatternChartBodyProps {
   hit: PatternHitDTO | null;
@@ -44,8 +129,18 @@ export interface PatternChartBodyProps {
   trendlinesView?: TrendlinesView;
   /** As-of replay cutoff (ISO local datetime, null = live). */
   asOf?: string | null;
+  /** A fetch is in flight with no candles yet — loading is not "no data". */
+  loading?: boolean;
+  /** Chart endpoint failure code, shown under the empty state. */
+  chartError?: string | null;
+  /** Human-readable reason for an empty chart. */
+  chartNote?: string | null;
+  /** Live quote from the market snapshot. The LTP line is omitted when null. */
+  livePrice?: number | null;
+  /** Day change % paired with `livePrice`. */
+  liveChange?: number | null;
   /** Right-hand panel content when no pattern is selected (page empty state). */
-  emptyState?: ReactNode;
+  emptyState?: JSX.Element;
   /**
    * Fill the flex parent (page layout) instead of sizing to the modal viewport.
    * The fullscreen modal keeps its `calc(100vh - 72px)` body height.
@@ -56,6 +151,18 @@ export interface PatternChartBodyProps {
    * of the modal's 80/20 side-by-side split, and tighten the padding.
    */
   docked?: boolean;
+  /**
+   * Exchange whose session defines axis/session dates. `usa` resolves to
+   * America/New_York; `india` (the default) stays Asia/Kolkata. An explicit
+   * `timeZone` wins over `market`.
+   */
+  market?: ChartMarket;
+  /** IANA zone override for the session key and naive-timestamp parsing. */
+  timeZone?: string;
+  /** Source badge text from the chart payload (`feed`), e.g. "Yahoo". */
+  feedLabel?: string;
+  /** Delay badge text from the chart payload (`delay_label`), e.g. "~1 min". */
+  delayLabel?: string;
 }
 
 /**
@@ -63,83 +170,159 @@ export interface PatternChartBodyProps {
  * audit list. Intentionally leaves vertical room free so future panels (levels,
  * trade plan, checklist) can be added without touching the chart layout.
  */
-function FullscreenPanel({
-  hit,
-  hits,
-  onSelectHit,
-  candles = [],
-}: {
+function SectionLabel(props: { children?: JSX.Element; action?: JSX.Element }) {
+  return (
+    <Box className="flex items-center justify-between gap-2">
+      <Text
+        size="xs"
+        fw={700}
+        c="dimmed"
+        style={{ "font-size": "10px", "text-transform": "uppercase", "letter-spacing": "0.4px" }}
+      >
+        {props.children}
+      </Text>
+      {props.action}
+    </Box>
+  );
+}
+
+function FullscreenPanel(props: {
   hit: PatternHitDTO;
   hits?: PatternHitDTO[];
   onSelectHit?: (hit: PatternHitDTO) => void;
   candles?: ChartCandle[];
+  docked?: boolean;
+  livePrice?: number | null;
+  liveChange?: number | null;
+  market?: ChartMarket;
+  timeZone: string;
 }) {
-  // Live-detected hits carry no enrichment, so fall back to the chart's own
-  // last two candles for Last close / Day.
-  const lastCandle = candles.length ? candles[candles.length - 1] : null;
-  const prevCandle = candles.length > 1 ? candles[candles.length - 2] : null;
-  const dayChange =
-    hit.day_change_pct ??
-    (lastCandle && prevCandle && prevCandle.c
-      ? ((lastCandle.c - prevCandle.c) / prevCandle.c) * 100
-      : null);
-  const lastClose = hit.last_close ?? lastCandle?.c ?? null;
-  const activeKey = fullscreenHitKey(hit);
+  // Enrichment is only as fresh as the frame it was captured on; the drawn
+  // candles are the authority whenever the hit cannot be dated or is older.
+  const series = createMemo(() =>
+    resolveCloseSeries({ hit: props.hit, candles: props.candles ?? [] }, props.timeZone),
+  );
+  const closeLabel = () => {
+    const barDate = series().barDate;
+    if (!barDate) return "CLOSE";
+    const key = sessionDateKey(barDate, props.timeZone);
+    const isPrev = key != null && key !== todayKey(props.timeZone);
+    return `${isPrev ? "PREV CLOSE" : "CLOSE"} · ${barDateLabel(barDate, props.timeZone)}`;
+  };
+  const activeKey = () => fullscreenHitKey(props.hit);
 
   return (
     <Box
       data-testid="patterns-fullscreen-panel"
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 1.5,
-        minWidth: 0,
-        height: "100%",
-        overflowY: "auto",
-      }}
+      className="flex h-full min-w-0 flex-col overflow-y-auto"
     >
-      {hits && onSelectHit ? (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-          <FullscreenPatternList hits={hits} activeKey={activeKey} onSelect={onSelectHit} />
-          <Box sx={{ borderTop: "1px solid", borderColor: "divider" }} />
+      <Box className="flex flex-col gap-3 px-3 py-3">
+        <Box className="flex items-start justify-between gap-2">
+          <Box className="flex min-w-0 flex-col gap-1">
+            <Box className="flex items-baseline gap-2">
+              <Text fw={700} className="truncate text-[13px] leading-none">
+                {props.hit.symbol}
+              </Text>
+              <Text size="xs" c="dimmed" className="whitespace-nowrap text-[10px]">
+                {props.hit.timeframe} · {props.hit.bars_ago} bar{props.hit.bars_ago === 1 ? "" : "s"} ago
+              </Text>
+            </Box>
+            <Text size="xs" c="dimmed" className="truncate text-[11px]">
+              {props.hit.pattern_name}
+            </Text>
+          </Box>
+          <Box className="flex flex-shrink-0 items-center gap-1">
+            <StatusBadge status={props.hit.status} display={displayStatusForHit(props.hit)} />
+            <QualityBadge quality={props.hit.quality} />
+          </Box>
         </Box>
-      ) : null}
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-        <ToolbarRow gap={4} wrap>
-          <StatusBadge status={hit.status} display={displayStatusForHit(hit)} />
-          <QualityBadge quality={hit.quality} />
-        </ToolbarRow>
-        <Text size="xs" c="dimmed" truncate>
-          {hit.symbol} · {hit.timeframe} · {hit.bars_ago} bar{hit.bars_ago === 1 ? "" : "s"} ago
-        </Text>
-        <ToolbarRow justify="space-between" gap={4}>
-          <Text size="xs" c="dimmed">
-            Last close
-          </Text>
-          <Text size="sm" fw={600}>
-            {formatPrice(lastClose)}
-          </Text>
-        </ToolbarRow>
-        <ToolbarRow justify="space-between" gap={4}>
-          <Text size="xs" c="dimmed">
-            Day
-          </Text>
-          <Text size="xs" c={getPnLTextColor(dayChange ?? 0)}>
-            {dayChange != null ? formatPercentage(dayChange, 2) : "—"}
-          </Text>
-        </ToolbarRow>
+
+        <Box className="flex items-end justify-between gap-3">
+          <Box className="flex min-w-0 flex-col gap-1">
+            <Text
+              size="xs"
+              c="dimmed"
+              className="text-[10px] uppercase tracking-[0.4px]"
+              data-testid="patterns-close-label"
+            >
+              {closeLabel()}
+              <Show when={series().isPartial}>
+                <span
+                  data-testid="patterns-close-partial"
+                  className="ml-1 normal-case tracking-normal"
+                  style={{ color: WARNING }}
+                >
+                  (live)
+                </span>
+              </Show>
+            </Text>
+            <Box className="flex min-w-0 items-baseline gap-2">
+              <Text fw={600} className="font-mono tabular-nums text-[18px] leading-none">
+                {formatChartPrice(series().close, props.market)}
+              </Text>
+              <Text
+                size="xs"
+                fw={600}
+                className="font-mono tabular-nums text-[11px]"
+                c={getPnLTextColor(series().changePct ?? 0)}
+              >
+                {series().changePct != null ? formatPercentage(series().changePct!, 2) : "—"}
+              </Text>
+            </Box>
+            <Show when={props.livePrice != null}>
+              <Box className="flex min-w-0 items-baseline gap-2" data-testid="patterns-ltp-line">
+                <Text size="xs" c="dimmed" className="text-[10px] uppercase tracking-[0.4px]">
+                  LTP
+                </Text>
+                <Text fw={600} className="font-mono tabular-nums text-[14px] leading-none">
+                  {formatChartPrice(props.livePrice!, props.market)}
+                </Text>
+                <Text
+                  size="xs"
+                  fw={600}
+                  className="font-mono tabular-nums text-[11px]"
+                  c={props.liveChange != null ? getPnLTextColor(props.liveChange) : undefined}
+                  data-testid="patterns-ltp-change"
+                >
+                  {props.liveChange != null ? formatPercentage(props.liveChange, 2) : "—"}
+                </Text>
+              </Box>
+            </Show>
+          </Box>
+          <Show when={props.hit.confidence != null}>
+            <Box className="flex w-28 flex-shrink-0 flex-col items-end gap-1">
+              <Text size="xs" c="dimmed" className="text-[10px] uppercase tracking-[0.4px]">
+                Confidence <span className="font-mono tabular-nums text-fin-text">{props.hit.confidence}%</span>
+              </Text>
+              <Box
+                className="h-[3px] w-full rounded-full overflow-hidden"
+                style={{
+                  width: `${Math.max(0, Math.min(100, props.hit.confidence ?? 0))}%`,
+                  "background-color": PRIMARY,
+                }}
+              />
+            </Box>
+          </Show>
+        </Box>
       </Box>
 
-      {hit.notes ? (
-        <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 1 }}>
-          <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
-            {hit.notes}
+      <Show when={!props.docked && props.hits && props.onSelectHit}>
+        <Box className="border-t border-fin-border px-3 py-2">
+          <FullscreenPatternList hits={props.hits!} activeKey={activeKey()} onSelect={props.onSelectHit!} />
+        </Box>
+      </Show>
+
+      <Show when={props.hit.notes}>
+        <Box className="flex flex-col gap-1 border-t border-fin-border px-3 py-2">
+          <SectionLabel>Notes</SectionLabel>
+          <Text size="xs" c="dimmed" className="text-[11px]" style={{ "overflow-wrap": "anywhere" }}>
+            {props.hit.notes}
           </Text>
         </Box>
-      ) : null}
+      </Show>
 
-      <KeyPointLegend hit={hit} />
-      <PivotList pivots={hit.pivots} />
+      <KeyPointLegend hit={props.hit} />
+      <PivotList pivots={props.hit.pivots} market={props.market} />
     </Box>
   );
 }
@@ -150,97 +333,105 @@ function FullscreenPanel({
  * `buildPatternTVData(...).lines` the chart draws, so swatch colours always
  * match the rendered lines.
  */
-function FullscreenTV({
-  hit,
-  candles,
-  overlays,
-  trendLines,
-  trendlinesView = "both",
-  historyHits,
-}: {
+function FullscreenTV(props: {
   hit: PatternHitDTO | null;
   candles: ChartCandle[];
   overlays?: PatternOverlay[];
   trendLines?: TrendLine[];
   trendlinesView?: TrendlinesView;
   historyHits?: PatternHitDTO[];
+  chartError?: string | null;
+  chartNote?: string | null;
+  loading?: boolean;
+  market?: ChartMarket;
+  timeZone: string;
 }) {
-  const data = useMemo(
-    () => buildPatternTVData({ candles, hit, overlays, trendLines, trendlinesView, historyHits }),
-    [candles, hit, overlays, trendLines, trendlinesView, historyHits],
+  const trendlinesView = () => props.trendlinesView ?? "both";
+  const data = createMemo(() =>
+    buildPatternTVData({
+      candles: props.candles,
+      hit: props.hit,
+      overlays: props.overlays,
+      trendLines: props.trendLines,
+      trendlinesView: trendlinesView(),
+      historyHits: props.historyHits,
+      timeZone: props.timeZone,
+    }),
   );
-  const levelEntries = useMemo(
-    () => data.levels.map((level) => ({ name: level.title, color: level.color })),
-    [data.levels],
+  const levelEntries = createMemo(() =>
+    data().levels.map((level) => ({ name: level.title, color: level.color })),
   );
-  const markerEntries = useMemo(() => {
-    const hasPivots = data.markers.some((marker) => marker.group !== "keypoints");
-    const hasKeys = data.markers.some((marker) => marker.group === "keypoints");
+  const markerEntries = createMemo(() => {
+    const hasPivots = data().markers.some((marker) => marker.group !== "keypoints");
+    const hasKeys = data().markers.some((marker) => marker.group === "keypoints");
     return [
       ...(hasPivots ? [{ name: PIVOT_LEGEND_NAME, color: TEXT_MUTED }] : []),
       ...(hasKeys ? [{ name: KEY_POINTS_LEGEND_NAME, color: WARNING }] : []),
     ];
-  }, [data.markers]);
+  });
 
   // Per-series show/hide via the legend. Reset whenever the inspected pattern
   // (or symbol) changes so toggles don't leak between charts.
-  const [hidden, setHidden] = useState<ReadonlySet<string>>(
-    () => new Set<string>([PIVOT_LEGEND_NAME]),
+  const [hidden, setHidden] = createSignal<ReadonlySet<string>>(
+    new Set<string>([PIVOT_LEGEND_NAME]),
   );
-  useEffect(() => {
+  createEffect(() => {
+    // Track the inspected pattern identity so toggles reset per chart.
+    void props.hit?.symbol;
+    void props.hit?.pattern_id;
+    void props.hit?.start_date;
     setHidden(new Set<string>([PIVOT_LEGEND_NAME]));
-  }, [hit?.symbol, hit?.pattern_id, hit?.start_date]);
-  const toggle = useCallback((name: string) => {
+  });
+  const toggle = (name: string) => {
     setHidden((prev) => {
       const next = new Set(prev);
       if (next.has(name)) next.delete(name);
       else next.add(name);
       return next;
     });
-  }, []);
+  };
 
   return (
     <Box
-      sx={{
-        position: "relative",
-        width: "100%",
-        flex: 1,
-        height: { xs: "60vh", lg: "100%" },
-        minHeight: 360,
-        border: "1px solid",
-        borderColor: "divider",
-        borderRadius: 1,
-        bgcolor: "background.default",
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-      }}
+      className="relative flex h-[60vh] min-h-[360px] w-full flex-1 flex-col overflow-hidden rounded-fin border border-fin-border bg-fin-bg lg:h-full"
     >
       <PatternChartLegend
-        lines={data.lines}
-        levels={levelEntries}
-        markers={markerEntries}
-        hidden={hidden}
+        lines={data().lines}
+        levels={levelEntries()}
+        markers={markerEntries()}
+        hidden={hidden()}
         onToggle={toggle}
       />
-      <Box sx={{ flex: 1, minHeight: 0, display: "flex" }}>
+      <Box className="flex min-h-0 flex-1">
         <PatternTradingViewChart
-          hit={hit}
-          candles={candles}
-          overlays={overlays}
-          trendLines={trendLines}
-          trendlinesView={trendlinesView}
-          historyHits={historyHits}
-          hiddenNames={hidden}
+          hit={props.hit}
+          candles={props.candles}
+          overlays={props.overlays}
+          trendLines={props.trendLines}
+          trendlinesView={trendlinesView()}
+          historyHits={props.historyHits}
+          hiddenNames={hidden()}
+          market={props.market}
+          timeZone={props.timeZone}
         />
       </Box>
-      {candles.length === 0 ? (
-        <Box sx={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <Show when={props.candles.length === 0 && !props.loading}>
+        <Box className="absolute inset-0 flex flex-col items-center justify-center gap-1 px-4 text-center">
           <Text size="sm" c="dimmed">
             No chart data
           </Text>
+          <Show when={props.chartNote}>
+            <Text size="xs" c="dimmed" data-testid="chart-empty-note">
+              {props.chartNote}
+            </Text>
+          </Show>
+          <Show when={props.chartError}>
+            <Text size="xs" c="dimmed" data-testid="chart-empty-reason" className="font-mono opacity-70">
+              {props.chartError}
+            </Text>
+          </Show>
         </Box>
-      ) : null}
+      </Show>
     </Box>
   );
 }
@@ -251,69 +442,64 @@ function FullscreenTV({
  * meta/pattern panel. The TV chart is mounted by the caller (it needs a live
  * ref and is cheap to keep mounted inside this body).
  */
-export function PatternChartBody({
-  hit,
-  candles,
-  hits,
-  onSelectHit,
-  overlays,
-  trendLines,
-  trendlinesView = "both",
-  asOf = null,
-  emptyState,
-  fill = false,
-  docked = false,
-}: PatternChartBodyProps) {
-  const asOfLabel = typeof asOf === "string" && asOf !== "" ? asOf.replace("T", " ") : null;
-  const [historyCount, setHistoryCount] = useState(3);
-  const historyHits = useMemo(
-    () => selectLastN(hits ?? [], historyCount, true),
-    [hits, historyCount],
-  );
+export function PatternChartBody(props: PatternChartBodyProps) {
+  const timeZone = () => props.timeZone ?? MARKET_TIME_ZONE[props.market ?? "india"];
+  const asOfLabel = () => {
+    const asOf = props.asOf;
+    return typeof asOf === "string" && asOf !== "" ? asOf.replace("T", " ") : null;
+  };
+  const [historyCount, setHistoryCount] = createSignal(3);
+  const historyHits = createMemo(() => selectLastN(props.hits ?? [], historyCount(), true));
+  const docked = () => props.docked ?? false;
+  const fill = () => props.fill ?? false;
+  // The side panel only exists when there is a hit or an explicit empty state.
+  // Without it the chart must own the full width instead of keeping an 80%
+  // basis next to a 20% dead column (docked mode is unaffected).
+  const showPanel = () => props.hit || props.emptyState;
 
   return (
     <Box
       data-testid="patterns-chart-body"
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        minHeight: 0,
-        minWidth: 0,
-        ...(fill ? { flex: 1 } : {}),
-      }}
+      className={`flex min-h-0 min-w-0 flex-col ${fill() ? "flex-1" : ""}`}
     >
-      {asOfLabel ? (
-        <Box sx={{ px: 2, pt: 2 }}>
+      <Show when={asOfLabel()}>
+        <Box className="px-4 pt-4">
           <Alert color="info" data-testid="patterns-fullscreen-asof-banner">
-            {`Viewing as of ${asOfLabel}`}
+            {`Viewing as of ${asOfLabel()}`}
           </Alert>
         </Box>
-      ) : null}
+      </Show>
       <Box
-        sx={{
-          display: "flex",
-          flexDirection: docked ? "column" : { xs: "column", lg: "row" },
-          gap: docked ? 1 : 2,
-          p: docked ? 1 : 2,
-          minHeight: 0,
-          ...(fill
-            ? { flex: 1 }
-            : docked
-              ? {}
-              : { height: { xs: "auto", lg: "calc(100vh - 72px)" } }),
-        }}
+        className={
+          docked()
+            ? "flex min-h-0 flex-col gap-2 p-2"
+            : fill()
+              ? "flex min-h-0 flex-1 flex-col gap-4 p-4 lg:flex-row"
+              : "flex min-h-0 flex-col gap-4 p-4 h-auto lg:h-[calc(100vh-72px)] lg:flex-row"
+        }
       >
         <Box
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            flex: docked ? "1 1 auto" : { xs: "1 1 auto", lg: "0 0 80%" },
-            minWidth: 0,
-            minHeight: 0,
-          }}
+          data-testid="patterns-chart-column"
+          className={`flex min-h-0 min-w-0 flex-col ${
+            docked()
+              ? "flex-[1_1_auto]"
+              : showPanel()
+                ? "flex-[1_1_auto] lg:flex-[0_0_80%]"
+                : "flex-1"
+          }`}
         >
-          <ToolbarRow justify="flex-start" gap={6} style={{ paddingBottom: 4 }}>
+          <ToolbarRow justify="flex-start" gap={6} style={{ "padding-bottom": "4px" }}>
             <Text size="xs" c="dimmed">History</Text>
+            <Show when={props.feedLabel || props.delayLabel}>
+              <Text
+                size="xs"
+                c="dimmed"
+                data-testid="patterns-feed-badge"
+                className="text-[10px] uppercase tracking-[0.4px]"
+              >
+                {[props.feedLabel, props.delayLabel].filter(Boolean).join(" · ")}
+              </Text>
+            </Show>
             <SegmentedControl
               size="xs"
               data={[
@@ -321,36 +507,50 @@ export function PatternChartBody({
                 { value: "3", label: "3" },
                 { value: "5", label: "5" },
               ]}
-              value={String(historyCount)}
+              value={String(historyCount())}
               onChange={(value) => setHistoryCount(Number(value))}
               data-testid="patterns-history-count"
             />
           </ToolbarRow>
           <FullscreenTV
-            hit={hit}
-            candles={candles}
-            overlays={overlays}
-            trendLines={trendLines}
-            trendlinesView={trendlinesView}
-            historyHits={historyHits}
+            hit={props.hit}
+            candles={props.candles}
+            overlays={props.overlays}
+            trendLines={props.trendLines}
+            trendlinesView={props.trendlinesView}
+            historyHits={historyHits()}
+            chartError={props.chartError}
+            chartNote={props.chartNote}
+            loading={props.loading}
+            market={props.market}
+            timeZone={timeZone()}
           />
         </Box>
 
-        {hit || emptyState ? (
+        <Show when={showPanel()}>
           <Box
-            sx={{
-              flex: docked ? "0 1 34%" : { xs: "1 1 auto", lg: "1 1 0" },
-              minWidth: 0,
-              minHeight: 0,
-            }}
+            data-testid="patterns-chart-panel-column"
+            className={`min-h-0 min-w-0 ${
+              docked() ? "flex-[0_1_34%]" : "flex-[1_1_auto] lg:flex-[1_1_0]"
+            }`}
           >
-            {hit ? (
-              <FullscreenPanel hit={hit} hits={hits} onSelectHit={onSelectHit} candles={candles} />
-            ) : (
-              emptyState
-            )}
+            <Show when={props.hit} fallback={props.emptyState}>
+              {(h) => (
+                <FullscreenPanel
+                  hit={h()}
+                  hits={props.hits}
+                  onSelectHit={props.onSelectHit}
+                  candles={props.candles}
+                  docked={docked()}
+                  livePrice={props.livePrice}
+                  liveChange={props.liveChange}
+                  market={props.market}
+                  timeZone={timeZone()}
+                />
+              )}
+            </Show>
           </Box>
-        ) : null}
+        </Show>
       </Box>
     </Box>
   );

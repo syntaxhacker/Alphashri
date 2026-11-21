@@ -1,4 +1,3 @@
-import { memo } from "react";
 import {
   IconChartLine,
   IconChartDots,
@@ -12,17 +11,17 @@ import {
   IconNews,
   IconShield,
   IconPlayerPlay,
-  IconLayoutGrid,
   IconChartCandle,
   IconAdjustments,
   IconFlask,
   IconReportAnalytics,
   IconLeaf,
-} from "@tabler/icons-react";
+} from "../common/Icons";
+import { For, Show, createMemo } from "solid-js";
 import { Box, Group, ScrollArea, Stack, ActionIcon, Divider, useColorScheme } from "@/ui";
 import { NavbarLinksGroup } from "./NavbarLinksGroup";
 import { UserButton } from "./UserButton";
-import { useAuth } from "../auth/AuthProvider2";
+import { useAuth } from "../auth/AuthProvider";
 
 interface NavbarNestedProps {
   activePath: string;
@@ -31,7 +30,8 @@ interface NavbarNestedProps {
 }
 
 const navItems = [
-  { label: "Screener", icon: IconChartLine, link: "/" },
+  { label: "HOME", icon: IconAdjustments, link: "/home" },
+  { label: "Screener", icon: IconChartLine, link: "/screener" },
   { label: "News", icon: IconNews, link: "/news" },
   { label: "Backtest", icon: IconChartLine, link: "/backtest" },
   { label: "Experiments", icon: IconFlask, link: "/experiments" },
@@ -40,7 +40,6 @@ const navItems = [
   { label: "Strategy Runner", icon: IconAdjustments, link: "/strategy-runner" },
   { label: "Sector Analysis", icon: IconBuildingFactory, link: "/sector" },
   { label: "Agri Prices", icon: IconLeaf, link: "/agri" },
-  { label: "Heatmap", icon: IconLayoutGrid, link: "/heatmap" },
   { label: "Order Flow", icon: IconChartCandle, link: "/orderflow" },
   { label: "Patterns", icon: IconChartCandle, link: "/patterns" },
   { label: "Reports", icon: IconReportAnalytics, link: "/report" },
@@ -48,51 +47,40 @@ const navItems = [
   { label: "Bots", icon: IconRobot, link: "/bots" },
   { label: "Options", icon: IconChartArea, link: "/options" },
   { label: "Index Report", icon: IconChartArea, link: "/report/index" },
-  { label: "US Report", icon: IconChartLine, link: "/report/us" },
   { label: "Settings", icon: IconSettings, link: "/settings" },
   { label: "Admin", icon: IconShield, link: "/admin" },
 ];
 
-export const NavbarNested = memo(function NavbarNested({
-  activePath,
-  collapsed,
-  onMobileNavigate,
-}: NavbarNestedProps) {
+export function NavbarNested(props: NavbarNestedProps) {
   const { colorScheme, toggleColorScheme } = useColorScheme();
-  const { user } = useAuth();
+  const auth = useAuth();
 
-  const visibleNavItems = navItems.filter((item) => item.label !== "Admin" || user?.is_admin);
-
-  const themeToggle = (
-    <ActionIcon
-      variant="subtle"
-      size="sm"
-      onClick={toggleColorScheme}
-      aria-label="Toggle color scheme"
-      data-testid="theme-toggle-btn"
-    >
-      {colorScheme === "dark" ? <IconSun size={16} /> : <IconMoon size={16} />}
-    </ActionIcon>
+  const visibleNavItems = createMemo(() =>
+    navItems.filter((item) => item.label !== "Admin" || auth.user?.is_admin),
   );
 
-  const links = visibleNavItems.map((item) => (
-    <NavbarLinksGroup
-      key={item.label}
-      icon={item.icon}
-      label={item.label}
-      link={item.link}
-      active={activePath === item.link}
-      collapsed={collapsed}
-      onNavigate={onMobileNavigate}
-    />
-  ));
+  // `/screener/<tab>` is the same rail entry: tab paths share the screener link.
+  const isActive = (link: string) =>
+    props.activePath === link ||
+    (link === "/screener" && props.activePath.startsWith("/screener"));
 
   return (
-    <Box data-testid="sidemenu" id="navbar-nested" sx={{ display: "flex", flexDirection: "column", flexGrow: 1, minHeight: 0 }}>
-      <Box sx={{ flexGrow: 1, minHeight: 0, overflow: "hidden" }} id="navbar-links" data-testid="navbar-links">
+    <Box data-testid="sidemenu" id="navbar-nested" className="flex flex-col flex-1 min-h-0">
+      <Box className="flex-1 min-h-0 overflow-hidden" id="navbar-links" data-testid="navbar-links">
         <ScrollArea h="100%" type="scroll">
           <Stack gap={1} p={1}>
-            {links}
+            <For each={visibleNavItems()}>
+              {(item) => (
+                <NavbarLinksGroup
+                  icon={item.icon}
+                  label={item.label}
+                  link={item.link}
+                  active={isActive(item.link)}
+                  collapsed={props.collapsed}
+                  onNavigate={props.onMobileNavigate}
+                />
+              )}
+            </For>
           </Stack>
         </ScrollArea>
       </Box>
@@ -100,20 +88,45 @@ export const NavbarNested = memo(function NavbarNested({
       <Divider />
 
       <Box p={1} id="navbar-footer" data-testid="navbar-footer">
-        {collapsed ? (
-          // A 64px rail cannot hold the user row and the theme toggle side by
-          // side; stacking them centered keeps both inside the rail.
+        <Show
+          when={props.collapsed}
+          fallback={
+            <Group justify="space-between" px={1}>
+              <UserButton />
+              <Group gap={1}>
+                <ActionIcon
+                  variant="subtle"
+                  size="sm"
+                  onClick={toggleColorScheme}
+                  aria-label="Toggle color scheme"
+                  data-testid="theme-toggle-btn"
+                >
+                  <Show when={colorScheme() === "dark"} fallback={<IconMoon size={16} />}>
+                    <IconSun size={16} />
+                  </Show>
+                </ActionIcon>
+              </Group>
+            </Group>
+          }
+        >
+          {/* A 64px rail cannot hold the user row and the theme toggle side by
+              side; stacking them centered keeps both inside the rail. */}
           <Stack align="center" gap={0.5}>
             <UserButton collapsed />
-            {themeToggle}
+            <ActionIcon
+              variant="subtle"
+              size="sm"
+              onClick={toggleColorScheme}
+              aria-label="Toggle color scheme"
+              data-testid="theme-toggle-btn"
+            >
+              <Show when={colorScheme() === "dark"} fallback={<IconMoon size={16} />}>
+                <IconSun size={16} />
+              </Show>
+            </ActionIcon>
           </Stack>
-        ) : (
-          <Group justify="space-between" px={1}>
-            <UserButton />
-            <Group gap={1}>{themeToggle}</Group>
-          </Group>
-        )}
+        </Show>
       </Box>
     </Box>
   );
-});
+}

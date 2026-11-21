@@ -1,11 +1,15 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { UIProvider } from "@/ui";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { DEFAULT_PATTERN_FILTERS } from "@/state/chartPatterns";
 import type { PatternDef, PatternFilters } from "@/types/chartPatterns";
 import { AppliedFilters, buildAppliedFilterChips } from "./AppliedFilters";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
+  return mockSolidUi();
+});
 
 const PATTERNS: PatternDef[] = [
   { pattern_id: "double_bottom", name: "Double Bottom", family: "reversal", direction: "bullish", description: "" },
@@ -13,10 +17,6 @@ const PATTERNS: PatternDef[] = [
 
 function makeFilters(overrides: Partial<PatternFilters> = {}): PatternFilters {
   return { ...DEFAULT_PATTERN_FILTERS, ...overrides };
-}
-
-function r(ui: React.ReactElement) {
-  return render(ui, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
 }
 
 afterEach(() => cleanup());
@@ -207,22 +207,22 @@ describe("buildAppliedFilterChips", () => {
 });
 
 describe("AppliedFilters", () => {
-  test("renders nothing when no filters are applied", () => {
-    const { container } = r(
-      <AppliedFilters filters={makeFilters({ min_avg_volume_10d: null })} patterns={PATTERNS} setFilter={vi.fn()} resetFilters={vi.fn()} />,
+  test("keeps a fixed-height placeholder row when no filters are applied", () => {
+    const { container } = render(() =>       <AppliedFilters filters={makeFilters({ min_avg_volume_10d: null })} patterns={PATTERNS} setFilter={vi.fn()} resetFilters={vi.fn()} />,
     );
-    expect(container).toBeEmptyDOMElement();
+    const row = screen.getByTestId("patterns-applied-filters");
+    expect(row).toBeInTheDocument();
+    expect(row).toHaveClass("h-6");
+    expect(container).not.toBeEmptyDOMElement();
   });
 
   test("shows a chip per applied filter", () => {
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ direction: ["bullish"], quality: "strong", min_rr: 2 })}
         patterns={PATTERNS}
         setFilter={vi.fn()}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     expect(screen.getByText("Direction: Bullish")).toBeInTheDocument();
     expect(screen.getByText("Quality: Strong")).toBeInTheDocument();
     expect(screen.getByText("R:R: ≥ 2")).toBeInTheDocument();
@@ -230,89 +230,102 @@ describe("AppliedFilters", () => {
 
   test("removing an array chip drops only that value", () => {
     const setFilter = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ direction: ["bullish", "bearish"] })}
         patterns={PATTERNS}
         setFilter={setFilter}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     const chip = screen.getByTestId("patterns-applied-filter-direction:bullish");
-    fireEvent.click(chip.querySelector(".MuiChip-deleteIcon") as Element);
+    fireEvent.click(chip.querySelector("[data-testid$='-remove']") as Element);
     expect(setFilter).toHaveBeenCalledWith("direction", ["bearish"]);
   });
 
   test("removing a scalar chip clears it", () => {
     const setFilter = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ quality: "strong" })}
         patterns={PATTERNS}
         setFilter={setFilter}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     const chip = screen.getByTestId("patterns-applied-filter-quality:strong");
-    fireEvent.click(chip.querySelector(".MuiChip-deleteIcon") as Element);
+    fireEvent.click(chip.querySelector("[data-testid$='-remove']") as Element);
     expect(setFilter).toHaveBeenCalledWith("quality", null);
   });
 
   test("Clear all resets every filter", () => {
     const resetFilters = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ status: ["failed"] })}
         patterns={PATTERNS}
         setFilter={vi.fn()}
         resetFilters={resetFilters}
-      />,
-    );
+      />);
     fireEvent.click(screen.getByTestId("patterns-applied-clear-all"));
     expect(resetFilters).toHaveBeenCalledTimes(1);
   });
 
   test("clicking the trendlines chip resets the view to both", () => {
     const setFilter = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ trendlines: "none" })}
         patterns={PATTERNS}
         setFilter={setFilter}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     expect(screen.getByText("Trendlines: Hidden")).toBeInTheDocument();
     const chip = screen.getByTestId("patterns-applied-filter-trendlines");
-    fireEvent.click(chip.querySelector(".MuiChip-deleteIcon") as Element);
+    fireEvent.click(chip.querySelector("[data-testid$='-remove']") as Element);
     expect(setFilter).toHaveBeenCalledWith("trendlines", "both");
   });
 
   test("shows the TLS/TLR trendline labels", () => {
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ trendlines: "support" })}
         patterns={PATTERNS}
         setFilter={vi.fn()}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     expect(screen.getByText("Trendlines: TLS only")).toBeInTheDocument();
     cleanup();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ trendlines: "resistance" })}
         patterns={PATTERNS}
         setFilter={vi.fn()}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     expect(screen.getByText("Trendlines: TLR only")).toBeInTheDocument();
   });
 
-  test("shows one chip per active filter across all groups", () => {
-    r(
-      <AppliedFilters
+  test("shows one chip per active filter across all groups (within the visible cap)", () => {
+    render(() =>       <AppliedFilters
+        filters={makeFilters({
+          family: ["reversal"],
+          pattern_id: ["double_bottom"],
+          direction: ["bullish"],
+          status: ["confirmed"],
+          quality: "strong",
+          formed_within_bars: 5,
+        })}
+        patterns={PATTERNS}
+        setFilter={vi.fn()}
+        resetFilters={vi.fn()}
+      />);
+    for (const text of [
+      "Family: Reversal",
+      "Pattern: Double Bottom",
+      "Direction: Bullish",
+      "Status: Confirmed",
+      "Quality: Strong",
+      "Formed: within 5 bars",
+    ]) {
+      expect(screen.getByText(text)).toBeInTheDocument();
+    }
+  });
+
+  test("collapses to a +N overflow chip beyond the visible cap", () => {
+    render(() =>       <AppliedFilters
         filters={makeFilters({
           family: ["reversal"],
           pattern_id: ["double_bottom"],
@@ -321,43 +334,22 @@ describe("AppliedFilters", () => {
           quality: "strong",
           formed_within_bars: 5,
           volume_confirmed: true,
-          min_rr: 2,
-          symbol: "RELIANCE",
-          min_base_days: 90,
-          max_range_pct: 20,
-          max_52w_gap: 3,
-          sort: "newest",
-          trendlines: "none",
         })}
         patterns={PATTERNS}
         setFilter={vi.fn()}
         resetFilters={vi.fn()}
-      />,
-    );
-    for (const text of [
-      "Family: Reversal",
-      "Pattern: Double Bottom",
-      "Direction: Bullish",
-      "Status: Confirmed",
-      "Quality: Strong",
-      "Formed: within 5 bars",
-      "Volume: Confirmed",
-      "R:R: ≥ 2",
-      "Symbol: RELIANCE",
-      "Base: ≥ 90d",
-      "Range: ≤ 20%",
-      "52W: gap ≤ 3%",
-      "Sort: Latest formed",
-      "Trendlines: Hidden",
-    ]) {
-      expect(screen.getByText(text)).toBeInTheDocument();
-    }
+      />);
+    // 7 chips > cap of 6 -> 6 inline, "+1" overflow.
+    expect(screen.getByTestId("patterns-applied-overflow")).toHaveTextContent("+1");
+    expect(screen.queryByText("Volume: Confirmed")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("patterns-applied-overflow"));
+    expect(screen.getByText("Volume: Confirmed")).toBeInTheDocument();
+    expect(screen.queryByTestId("patterns-applied-overflow")).not.toBeInTheDocument();
   });
 
   test("removing family / pattern / status chips drops only that value", () => {
     const setFilter = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({
           family: ["reversal", "continuation"],
           pattern_id: ["double_bottom"],
@@ -366,23 +358,22 @@ describe("AppliedFilters", () => {
         patterns={PATTERNS}
         setFilter={setFilter}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-family:reversal").querySelector(
-        ".MuiChip-deleteIcon",
+        "[data-testid$='-remove']",
       ) as Element,
     );
     expect(setFilter).toHaveBeenCalledWith("family", ["continuation"]);
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-pattern_id:double_bottom").querySelector(
-        ".MuiChip-deleteIcon",
+        "[data-testid$='-remove']",
       ) as Element,
     );
     expect(setFilter).toHaveBeenCalledWith("pattern_id", []);
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-status:confirmed").querySelector(
-        ".MuiChip-deleteIcon",
+        "[data-testid$='-remove']",
       ) as Element,
     );
     expect(setFilter).toHaveBeenCalledWith("status", ["forming"]);
@@ -395,11 +386,9 @@ describe("AppliedFilters", () => {
     ["symbol", "patterns-applied-filter-symbol:RELIANCE", "symbol", null],
     ["min_base_days", "patterns-applied-filter-min_base_days", "min_base_days", null],
     ["max_range_pct", "patterns-applied-filter-max_range_pct", "max_range_pct", null],
-    ["max_52w_gap", "patterns-applied-filter-max_52w_gap", "max_52w_gap", null],
   ])("removing the %s chip clears it", (_name, testId, key, next) => {
     const setFilter = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({
           formed_within_bars: 5,
           volume_confirmed: true,
@@ -412,27 +401,24 @@ describe("AppliedFilters", () => {
         patterns={PATTERNS}
         setFilter={setFilter}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     fireEvent.click(
-      screen.getByTestId(testId).querySelector(".MuiChip-deleteIcon") as Element,
+      screen.getByTestId(testId).querySelector("[data-testid$='-remove']") as Element,
     );
     expect(setFilter).toHaveBeenCalledWith(key, next);
   });
 
   test("removing the sort chip resets to confidence", () => {
     const setFilter = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ sort: "newest" })}
         patterns={PATTERNS}
         setFilter={setFilter}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-sort:newest").querySelector(
-        ".MuiChip-deleteIcon",
+        "[data-testid$='-remove']",
       ) as Element,
     );
     expect(setFilter).toHaveBeenCalledWith("sort", "confidence");
@@ -440,18 +426,16 @@ describe("AppliedFilters", () => {
 
   test("removing the range-pos chip clears it", () => {
     const setFilter = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ min_range_pos: 80 })}
         patterns={PATTERNS}
         setFilter={setFilter}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     expect(screen.getByText("Range: pos ≥ 80%")).toBeInTheDocument();
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-min_range_pos").querySelector(
-        ".MuiChip-deleteIcon",
+        "[data-testid$='-remove']",
       ) as Element,
     );
     expect(setFilter).toHaveBeenCalledWith("min_range_pos", null);
@@ -459,25 +443,23 @@ describe("AppliedFilters", () => {
 
   test("shows and removes the score and breakout chips", () => {
     const setFilter = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ min_confidence: 70, min_breakout_score: 60 })}
         patterns={PATTERNS}
         setFilter={setFilter}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     expect(screen.getByText("Score: ≥ 70")).toBeInTheDocument();
     expect(screen.getByText("Breakout: ≥ 60")).toBeInTheDocument();
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-min_confidence").querySelector(
-        ".MuiChip-deleteIcon",
+        "[data-testid$='-remove']",
       ) as Element,
     );
     expect(setFilter).toHaveBeenCalledWith("min_confidence", null);
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-min_breakout_score").querySelector(
-        ".MuiChip-deleteIcon",
+        "[data-testid$='-remove']",
       ) as Element,
     );
     expect(setFilter).toHaveBeenCalledWith("min_breakout_score", null);
@@ -485,32 +467,28 @@ describe("AppliedFilters", () => {
 
   test("removing the range_pos sort chip resets to confidence", () => {
     const setFilter = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ sort: "range_pos" })}
         patterns={PATTERNS}
         setFilter={setFilter}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     expect(screen.getByText("Sort: Near breakout")).toBeInTheDocument();
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-sort:range_pos").querySelector(
-        ".MuiChip-deleteIcon",
+        "[data-testid$='-remove']",
       ) as Element,
     );
     expect(setFilter).toHaveBeenCalledWith("sort", "confidence");
   });
 
   test("groups the volume chips under one label (no repeated prefix)", () => {
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ min_rel_volume: 1.5, min_volume_m: 5 })}
         patterns={PATTERNS}
         setFilter={vi.fn()}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     const group = screen.getByTestId("patterns-applied-group-volume");
     expect(within(group).getByText("Volumes")).toBeInTheDocument();
     expect(within(group).getByText("rel vol ≥ 1.5")).toBeInTheDocument();
@@ -518,16 +496,14 @@ describe("AppliedFilters", () => {
   });
 
   test("does not render the default 10d avg volume floor as a removable chip", () => {
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters()}
         patterns={PATTERNS}
         setFilter={vi.fn()}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     expect(screen.queryByTestId("patterns-applied-filter-min_avg_volume_10d")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("patterns-applied-filters")).not.toBeInTheDocument();
+    expect(screen.getByTestId("patterns-applied-filters")).toHaveClass("h-6");
   });
 
   test.each([
@@ -536,16 +512,14 @@ describe("AppliedFilters", () => {
     ["min_avg_volume_10d", "patterns-applied-filter-min_avg_volume_10d", "min_avg_volume_10d", null],
   ])("removing the %s chip clears it", (_name, testId, key, next) => {
     const setFilter = vi.fn();
-    r(
-      <AppliedFilters
+    render(() =>       <AppliedFilters
         filters={makeFilters({ min_rel_volume: 1.5, min_volume_m: 5, min_avg_volume_10d: 250 })}
         patterns={PATTERNS}
         setFilter={setFilter}
         resetFilters={vi.fn()}
-      />,
-    );
+      />);
     fireEvent.click(
-      screen.getByTestId(testId).querySelector(".MuiChip-deleteIcon") as Element,
+      screen.getByTestId(testId).querySelector("[data-testid$='-remove']") as Element,
     );
     expect(setFilter).toHaveBeenCalledWith(key, next);
   });

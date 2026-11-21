@@ -19,8 +19,8 @@
  * keys listed below.
  */
 
-import { useEffect, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { createEffect } from "solid-js";
+import { useSearchParams } from "@solidjs/router";
 import type { PatternFilters, TrendlinesView } from "../types/chartPatterns";
 import { DEFAULT_PATTERN_FILTERS, DEFAULT_TIMEFRAME } from "../state/chartPatterns";
 import type { IndexGroup } from "../config/indexGroups";
@@ -63,7 +63,42 @@ export interface PatternUrlState {
   filters: PatternFilters;
 }
 
-export interface UsePatternUrlSyncArgs extends PatternUrlState {
+/**
+ * A value the hook can read either as a plain snapshot or as an accessor.
+ *
+ * Solid components run once, so a hook that destructures plain props can never
+ * observe a later state change. Call sites pass their store state as accessors
+ * (`() => store.universe`) so the effects below track it; plain values keep
+ * working for one-shot use and for `renderSolidHookReactive` harnesses.
+ */
+export type UrlSyncSource<T> = T | (() => T);
+
+/** Read a `UrlSyncSource` inside a reactive context (this is what tracks it). */
+function readSource<T>(source: UrlSyncSource<T>): T {
+  return typeof source === "function" ? (source as () => T)() : source;
+}
+
+/** Read an optional `UrlSyncSource`, preserving `undefined`. */
+function readOptional<T>(source: UrlSyncSource<T | undefined> | undefined): T | undefined {
+  return source === undefined ? undefined : readSource<T | undefined>(source);
+}
+
+export interface UsePatternUrlSyncArgs {
+  universe: UrlSyncSource<string>;
+  timeframe: UrlSyncSource<string>;
+  selectedTimeframes?: UrlSyncSource<string[] | undefined>;
+  lookbackBars: UrlSyncSource<number | null>;
+  /** Omitted (compute) is the default; only `false` is written. */
+  computeTrendlines?: UrlSyncSource<boolean | undefined>;
+  /** Active workspace tab; only `watch` is written (`scan` is the default). */
+  tab?: UrlSyncSource<"scan" | "watch" | undefined>;
+  /** Results view; `list`/`grid` are written (`matrix` is the default). */
+  view?: UrlSyncSource<"matrix" | "list" | "grid" | undefined>;
+  /** Index group; `big`/`others` are written (`all` is the default). */
+  indexGroup?: UrlSyncSource<IndexGroup | undefined>;
+  /** Open index-members drawer for this index id. */
+  members?: UrlSyncSource<string | null | undefined>;
+  filters: UrlSyncSource<PatternFilters>;
   setUniverse: (universe: string) => void;
   setTimeframe: (timeframe: string) => void;
   setSelectedTimeframes?: (timeframes: string[]) => void;
@@ -403,167 +438,199 @@ export function usePatternUrlSync({
   applyFilters,
 }: UsePatternUrlSyncArgs): void {
   const [searchParams, setSearchParams] = useSearchParams();
-  const didReadRef = useRef(false);
+  // Plain flags, not refs: Solid needs no mutable box for non-reactive state,
+  // and `.current` does not exist here.
+  let didRead = false;
   // Parsed selection from the initial URL (null when the URL carried none).
-  const parsedRef = useRef<ParsedPatternParams | null>(null);
+  let parsedParams: ParsedPatternParams | null = null;
   // Becomes true once the store has adopted the parsed selection, so the first
   // write reflects the applied state instead of clobbering the incoming params.
-  const hydratedRef = useRef(false);
+  let hydrated = false;
   // Skip the very first write commit (initial defaults) — only real changes write.
-  const firstRunRef = useRef(true);
+  let firstRun = true;
   // Serialized URL this hook last wrote (or last observed). A `searchParams`
   // change to anything else is external navigation (back/forward, manual edit)
   // and must be adopted rather than clobbered.
-  const lastWrittenRef = useRef<string | null>(null);
+  let lastWritten: string | null = null;
 
-  useEffect(() => {
-    if (didReadRef.current) return;
-    didReadRef.current = true;
+  createEffect(() => {
+    if (didRead) return;
+    didRead = true;
 
     const parsed = parsePatternParams(searchParams);
     if (!hasAnyPatternParam(parsed)) {
-      hydratedRef.current = true;
+      hydrated = true;
       return;
     }
 
-    parsedRef.current = parsed;
-    if (parsed.universe && parsed.universe !== universe) setUniverse(parsed.universe);
-    const currentSelection = selectedTimeframes ?? [timeframe];
+    parsedParams = parsed;
+    if (parsed.universe && parsed.universe !== readSource(universe)) setUniverse(parsed.universe);
+    const currentSelection = readOptional(selectedTimeframes) ?? [readSource(timeframe)];
     if (parsed.timeframes) {
       if (!filterValuesEqual(currentSelection, parsed.timeframes)) {
         if (setSelectedTimeframes) setSelectedTimeframes(parsed.timeframes);
         else setTimeframe(parsed.timeframes[0]);
       }
-    } else if (parsed.timeframe && parsed.timeframe !== timeframe) {
+    } else if (parsed.timeframe && parsed.timeframe !== readSource(timeframe)) {
       setTimeframe(parsed.timeframe);
     }
-    if (parsed.lookback != null && parsed.lookback !== lookbackBars) setLookbackBars(parsed.lookback);
+    if (parsed.lookback != null && parsed.lookback !== readSource(lookbackBars)) {
+      setLookbackBars(parsed.lookback);
+    }
     if (
       parsed.computeTrendlines != null &&
-      parsed.computeTrendlines !== computeTrendlines
+      parsed.computeTrendlines !== readOptional(computeTrendlines)
     ) {
       setComputeTrendlines?.(parsed.computeTrendlines);
     }
-    if (parsed.tab != null && parsed.tab !== tab) setTab?.(parsed.tab);
-    if (parsed.view != null && parsed.view !== view) setView?.(parsed.view);
-    if (parsed.indexGroup != null && parsed.indexGroup !== indexGroup) {
+    if (parsed.tab != null && parsed.tab !== readOptional(tab)) setTab?.(parsed.tab);
+    if (parsed.view != null && parsed.view !== readOptional(view)) setView?.(parsed.view);
+    if (parsed.indexGroup != null && parsed.indexGroup !== readOptional(indexGroup)) {
       setIndexGroup?.(parsed.indexGroup);
     }
-    if (parsed.members != null && parsed.members !== members) setMembers?.(parsed.members);
+    if (parsed.members != null && parsed.members !== readOptional(members)) {
+      setMembers?.(parsed.members);
+    }
+    const currentFilters = readSource(filters) as Record<string, unknown>;
     const filtersDiffer = Object.entries(parsed.filters).some(([key, value]) => {
-      const current = (filters as Record<string, unknown>)[key];
-      return !filterValuesEqual(current, value);
+      return !filterValuesEqual(currentFilters[key], value);
     });
     if (filtersDiffer) applyFilters(parsed.filters);
     // Intentionally mount-only: read the URL once, then let changes write back.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  });
 
-  useEffect(() => {
-    if (firstRunRef.current) {
-      firstRunRef.current = false;
+  createEffect(() => {
+    // Read every source up front: a Solid effect only re-runs for what it
+    // actually read, and the first commit below returns early.
+    const universeValue = readSource(universe);
+    const timeframeValue = readSource(timeframe);
+    const selected = readOptional(selectedTimeframes);
+    const lookback = readSource(lookbackBars);
+    const compute = readOptional(computeTrendlines);
+    const tabValue = readOptional(tab);
+    const viewValue = readOptional(view);
+    const indexGroupValue = readOptional(indexGroup);
+    const membersValue = readOptional(members);
+    const filtersValue = readSource(filters);
+
+    if (firstRun) {
+      firstRun = false;
+      // Seed the "last known URL" with what we just read, so the pending-change
+      // guard below does not trip on the initial commit.
+      lastWritten = searchParams.toString();
       return;
     }
-    if (!hydratedRef.current) {
-      const parsed = parsedRef.current;
+    // An external navigation (back/forward, manual edit) is pending adoption in
+    // the effect below: writing now would clobber the incoming URL.
+    if (searchParams.toString() !== lastWritten) return;
+    if (!hydrated) {
+      const parsed = parsedParams;
       if (!parsed) {
-        hydratedRef.current = true;
+        hydrated = true;
       } else {
-        const universeOk = !parsed.universe || universe === parsed.universe;
-        const timeframeOk = !parsed.timeframe || timeframe === parsed.timeframe;
+        const universeOk = !parsed.universe || universeValue === parsed.universe;
+        const timeframeOk = !parsed.timeframe || timeframeValue === parsed.timeframe;
         const timeframesOk =
           !parsed.timeframes ||
-          filterValuesEqual(selectedTimeframes ?? [timeframe], parsed.timeframes);
-        const lookbackOk = parsed.lookback == null || lookbackBars === parsed.lookback;
+          filterValuesEqual(selected ?? [timeframeValue], parsed.timeframes);
+        const lookbackOk = parsed.lookback == null || lookback === parsed.lookback;
         const computeOk =
           parsed.computeTrendlines == null ||
-          (computeTrendlines ?? true) === parsed.computeTrendlines;
-        const tabOk = parsed.tab == null || (tab ?? "scan") === parsed.tab;
-        const viewOk = parsed.view == null || (view ?? "matrix") === parsed.view;
+          (compute ?? true) === parsed.computeTrendlines;
+        const tabOk = parsed.tab == null || (tabValue ?? "scan") === parsed.tab;
+        const viewOk = parsed.view == null || (viewValue ?? "matrix") === parsed.view;
         const indexGroupOk =
-          parsed.indexGroup == null || (indexGroup ?? "all") === parsed.indexGroup;
-        const membersOk = parsed.members == null || (members ?? null) === parsed.members;
+          parsed.indexGroup == null || (indexGroupValue ?? "all") === parsed.indexGroup;
+        const membersOk = parsed.members == null || (membersValue ?? null) === parsed.members;
         const filtersOk = Object.entries(parsed.filters).every(([key, value]) => {
-          const current = (filters as Record<string, unknown>)[key];
+          const current = (filtersValue as Record<string, unknown>)[key];
           return filterValuesEqual(current, value);
         });
         if (!(universeOk && timeframeOk && timeframesOk && lookbackOk && computeOk && tabOk && viewOk && indexGroupOk && membersOk && filtersOk)) return; // wait for adoption
-        hydratedRef.current = true;
+        hydrated = true;
       }
     }
 
     const next = buildPatternParams({
-      universe,
-      timeframe,
-      selectedTimeframes: selectedTimeframes ?? [timeframe],
-      lookbackBars,
-      computeTrendlines,
-      tab,
-      view,
-      indexGroup,
-      members,
-      filters,
+      universe: universeValue,
+      timeframe: timeframeValue,
+      selectedTimeframes: selected ?? [timeframeValue],
+      lookbackBars: lookback,
+      computeTrendlines: compute,
+      tab: tabValue,
+      view: viewValue,
+      indexGroup: indexGroupValue,
+      members: membersValue,
+      filters: filtersValue,
     });
     // Preserve unrelated params (e.g. the screener's `?screener=`) untouched.
     for (const [key, value] of searchParams.entries()) {
       if (!PATTERN_PARAM_KEYS.has(key)) next.append(key, value);
     }
     const nextString = next.toString();
-    lastWrittenRef.current = nextString;
+    lastWritten = nextString;
     if (nextString === searchParams.toString()) return;
     setSearchParams(next, { replace: true });
     // Intentionally keyed on the synced state; `searchParams`/`setSearchParams`
     // are read imperatively and would re-trigger on every navigation.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [universe, timeframe, selectedTimeframes, lookbackBars, computeTrendlines, tab, view, indexGroup, members, filters]);
+  });
 
   // Back/forward (or manual) navigation: once hydrated, adopt a URL that
   // differs from what this hook last wrote. Setter calls are diffed against
   // current state so adopting an equivalent URL is a no-op, and the write
   // effect above converges instead of looping (`next === searchParams`).
-  useEffect(() => {
-    if (!hydratedRef.current) return;
-    const current = searchParams.toString();
-    if (current === lastWrittenRef.current) return;
-    lastWrittenRef.current = current;
+  createEffect(() => {
+    // Read first so the effect subscribes even before it is hydrated.
+    const universeValue = readSource(universe);
+    const timeframeValue = readSource(timeframe);
+    const selected = readOptional(selectedTimeframes);
+    const lookback = readSource(lookbackBars);
+    const compute = readOptional(computeTrendlines);
+    const tabValue = readOptional(tab);
+    const viewValue = readOptional(view);
+    const indexGroupValue = readOptional(indexGroup);
+    const membersValue = readOptional(members);
+    const filtersValue = readSource(filters) as Record<string, unknown>;
 
+    if (!hydrated) return;
+    const currentSearch = searchParams.toString();
+    if (currentSearch === lastWritten) return;
+    lastWritten = currentSearch;
     const parsed = parsePatternParams(searchParams);
-    if (parsed.universe && parsed.universe !== universe) setUniverse(parsed.universe);
+    if (parsed.universe && parsed.universe !== universeValue) setUniverse(parsed.universe);
     if (parsed.timeframes) {
-      if (!filterValuesEqual(selectedTimeframes ?? [timeframe], parsed.timeframes)) {
+      if (!filterValuesEqual(selected ?? [timeframeValue], parsed.timeframes)) {
         if (setSelectedTimeframes) setSelectedTimeframes(parsed.timeframes);
-        else if (parsed.timeframes[0] !== timeframe) setTimeframe(parsed.timeframes[0]);
+        else if (parsed.timeframes[0] !== timeframeValue) setTimeframe(parsed.timeframes[0]);
       }
-    } else if (parsed.timeframe && parsed.timeframe !== timeframe) {
+    } else if (parsed.timeframe && parsed.timeframe !== timeframeValue) {
       setTimeframe(parsed.timeframe);
     }
-    if ((parsed.lookback ?? null) !== (lookbackBars ?? null)) {
+    if ((parsed.lookback ?? null) !== (lookback ?? null)) {
       setLookbackBars(parsed.lookback);
     }
-    if (parsed.computeTrendlines != null && parsed.computeTrendlines !== (computeTrendlines ?? true)) {
+    if (parsed.computeTrendlines != null && parsed.computeTrendlines !== (compute ?? true)) {
       setComputeTrendlines?.(parsed.computeTrendlines);
     }
-    if (parsed.tab != null && parsed.tab !== (tab ?? "scan")) {
+    if (parsed.tab != null && parsed.tab !== (tabValue ?? "scan")) {
       setTab?.(parsed.tab);
     }
-    if (parsed.view != null && parsed.view !== (view ?? "matrix")) {
+    if (parsed.view != null && parsed.view !== (viewValue ?? "matrix")) {
       setView?.(parsed.view);
     }
-    if (parsed.indexGroup != null && parsed.indexGroup !== (indexGroup ?? "all")) {
+    if (parsed.indexGroup != null && parsed.indexGroup !== (indexGroupValue ?? "all")) {
       setIndexGroup?.(parsed.indexGroup);
     }
-    if (parsed.members !== (members ?? null)) {
+    if (parsed.members !== (membersValue ?? null)) {
       setMembers?.(parsed.members);
     }
     const entries = Object.entries(parsed.filters);
     if (entries.length > 0) {
       const differs = entries.some(([key, value]) => {
-        const currentValue = (filters as Record<string, unknown>)[key];
-        return !filterValuesEqual(currentValue, value);
+        return !filterValuesEqual(filtersValue[key], value);
       });
       if (differs) applyFilters(parsed.filters);
     }
     // Intentionally keyed on the URL; state/setters are read imperatively.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  });
 }

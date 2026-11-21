@@ -1,9 +1,30 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
+  return {
+    ...mockSolidUi(),
+    // The shared stub drops `loading`/`disabled`; the real ActionIcon forwards
+    // both (spinner + disabled). Keep that contract observable here.
+    ActionIcon: (props: any) => (
+      <button
+        type="button"
+        data-testid={props["data-testid"]}
+        aria-label={props["aria-label"]}
+        aria-busy={props.loading ? "true" : undefined}
+        disabled={Boolean(props.loading || props.disabled)}
+        onClick={props.onClick}
+        className={props.className}
+      >
+        {props.children}
+      </button>
+    ),
+  };
+});
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { UIProvider } from "@/ui";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { PatternFullscreenView } from "./PatternFullscreenView";
 
@@ -11,8 +32,7 @@ vi.mock("./PatternTradingViewChart", () => ({
   PatternTradingViewChart: () => <div data-testid="patterns-tv-chart" />,
 }));
 
-// Native-select stub so the fullscreen TF wiring is deterministic (the real MUI
-// Select needs popup interaction). Testids + onChange contracts preserved.
+// Native-select stub so the fullscreen TF wiring is deterministic (the real Select needs popup interaction). Testids + onChange contracts preserved.
 vi.mock("./ChartTimeframeSelect", () => ({
   ChartTimeframeSelect: ({ timeframes, value, onChange }: any) => {
     const source =
@@ -25,7 +45,7 @@ vi.mock("./ChartTimeframeSelect", () => ({
         onChange={(e) => onChange(e.target.value)}
       >
         {source.map((tf: any) => (
-          <option key={tf.id} value={tf.id}>
+          <option value={tf.id}>
             {tf.label || tf.id}
           </option>
         ))}
@@ -60,19 +80,17 @@ const HIT: PatternHitDTO = {
   notes: "Higher lows into a falling wedge.",
   last_close: 113.4,
   day_change_pct: 1.2,
+  close_bar_date: "2026-09-26",
   pivots: [{ t: "2026-05-04", price: 108, kind: "low" }],
 };
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
 
 describe("PatternFullscreenView", () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => cleanup());
 
   test("renders the TV chart and the right data panel without a level row", () => {
-    r(<PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
+    render(() => <PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
 
     expect(screen.getByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-tv-chart")).toBeInTheDocument();
@@ -82,32 +100,128 @@ describe("PatternFullscreenView", () => {
     // Meta lives in the panel; the breakout/target/stop/rr/confidence row is gone.
     expect(screen.getByTestId("patterns-status-confirmed")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-quality-strong")).toBeInTheDocument();
-    expect(screen.getByText("Last close")).toBeInTheDocument();
-    expect(screen.getByText("Day")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-close-label")).toBeInTheDocument();
+    expect(screen.getByText(/1\.20%/)).toBeInTheDocument();
     expect(screen.queryByText("Target")).toBeNull();
     expect(screen.queryByText("Stop")).toBeNull();
     expect(screen.queryByText("R:R")).toBeNull();
-    expect(screen.queryByText("Confidence")).toBeNull();
+    
+  });
+
+  test("livePrice/liveChange render the LTP line in both the modal and the dock", () => {
+    const modal = render(() => (
+      <PatternFullscreenView
+        opened
+        onClose={vi.fn()}
+        hit={HIT}
+        candles={[]}
+        livePrice={2986}
+        liveChange={-12.94}
+      />
+    ));
+    expect(screen.getByTestId("patterns-ltp-line")).toHaveTextContent("₹2986.00");
+    expect(screen.getByTestId("patterns-ltp-change")).toHaveTextContent("-12.94%");
+    modal.unmount();
+    cleanup();
+
+    render(() => (
+      <PatternFullscreenView
+        opened
+        docked
+        onClose={vi.fn()}
+        hit={HIT}
+        candles={[]}
+        livePrice={2986}
+        liveChange={-12.94}
+      />
+    ));
+    expect(screen.getByTestId("patterns-chart-dock")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-ltp-line")).toHaveTextContent("₹2986.00");
+  });
+
+  test("dock refresh button calls onRefresh and disables while loading", () => {
+    const onRefresh = vi.fn();
+    const [loading, setLoading] = createSignal(false);
+    render(() => (
+      <PatternFullscreenView
+        opened
+        docked
+        onClose={vi.fn()}
+        hit={HIT}
+        candles={[]}
+        onRefresh={onRefresh}
+        loading={loading()}
+      />
+    ));
+    const refresh = screen.getByTestId("patterns-dock-refresh");
+    expect(refresh).toBeEnabled();
+    fireEvent.click(refresh);
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+
+    setLoading(true);
+    expect(screen.getByTestId("patterns-dock-refresh")).toBeDisabled();
+    expect(screen.getByTestId("patterns-dock-refresh")).toHaveAttribute("aria-busy", "true");
+  });
+
+  test("loading with no candles does not claim there is no chart data", () => {
+    render(() => (
+      <PatternFullscreenView opened docked onClose={vi.fn()} hit={null} symbol="IRCON" candles={[]} loading />
+    ));
+    // A spinner in the toolbar is not permission to say "No chart data".
+    expect(screen.queryByText("No chart data")).toBeNull();
+  });
+
+  test("shows the endpoint reason when the chart has no candles", () => {
+    render(() => (
+      <PatternFullscreenView
+        opened
+        onClose={vi.fn()}
+        hit={null}
+        symbol="QUINTEGRA"
+        candles={[]}
+        chartError="no_data"
+        chartNote="no candles for QUINTEGRA 1D in session 2026-11-15"
+      />
+    ));
+    expect(screen.getByText("No chart data")).toBeInTheDocument();
+    expect(screen.getByTestId("chart-empty-note")).toHaveTextContent(
+      "no candles for QUINTEGRA 1D in session 2026-11-15",
+    );
+    expect(screen.getByTestId("chart-empty-reason")).toHaveTextContent("no_data");
   });
 
   test("keeps the collapsible pivot list in the panel", () => {
-    r(<PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
+    render(() => <PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
     expect(screen.getByTestId("patterns-detail-pivots")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-detail-pivots-toggle")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-key-point-legend")).toHaveTextContent("L1 Swing low");
   });
 
   test("renders nothing but the TV chart when no hit is selected", () => {
-    r(<PatternFullscreenView opened onClose={vi.fn()} hit={null} candles={[]} />);
+    render(() => <PatternFullscreenView opened onClose={vi.fn()} hit={null} candles={[]} />);
     expect(screen.getByTestId("patterns-tv-chart")).toBeInTheDocument();
     expect(screen.queryByTestId("patterns-fullscreen-panel")).toBeNull();
+  });
+
+  test("no hit: the fullscreen chart fills the width with no empty side column", () => {
+    render(() => <PatternFullscreenView opened onClose={vi.fn()} hit={null} candles={[]} />);
+    const column = screen.getByTestId("patterns-chart-column");
+    expect(column).toHaveClass("flex-1");
+    expect(column.className).not.toContain("lg:flex-[0_0_80%]");
+    expect(screen.queryByTestId("patterns-chart-panel-column")).toBeNull();
+  });
+
+  test("with a hit: the fullscreen keeps the 80/20 split", () => {
+    render(() => <PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
+    const column = screen.getByTestId("patterns-chart-column");
+    expect(column.className).toContain("lg:flex-[0_0_80%]");
+    expect(screen.getByTestId("patterns-chart-panel-column")).toBeInTheDocument();
   });
 
   test("renders the tradingview chart with a legend above it", () => {
     const t = "2026-09-26T09:15:00+05:30";
     const candles = [{ t, o: 100, h: 115, l: 98, c: 112, v: 1000 }];
-    r(
-      <PatternFullscreenView
+    render(() =>       <PatternFullscreenView
         opened
         onClose={vi.fn()}
         hit={{
@@ -117,8 +231,7 @@ describe("PatternFullscreenView", () => {
           ],
         }}
         candles={candles}
-      />,
-    );
+      />);
 
     expect(screen.getByTestId("patterns-tv-chart")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-chart-legend")).toBeInTheDocument();
@@ -134,8 +247,7 @@ describe("PatternFullscreenView", () => {
   test("legend entries toggle the series on/off", () => {
     const t = "2026-09-26T09:15:00+05:30";
     const candles = [{ t, o: 100, h: 115, l: 98, c: 112, v: 1000 }];
-    r(
-      <PatternFullscreenView
+    render(() =>       <PatternFullscreenView
         opened
         onClose={vi.fn()}
         hit={{
@@ -145,8 +257,7 @@ describe("PatternFullscreenView", () => {
           ],
         }}
         candles={candles}
-      />,
-    );
+      />);
 
     const item = screen.getByTestId("patterns-chart-legend-item-TLS");
     expect(item).toHaveAttribute("aria-pressed", "true");
@@ -158,27 +269,29 @@ describe("PatternFullscreenView", () => {
   });
 
   test("renders nothing when closed", () => {
-    r(<PatternFullscreenView opened={false} onClose={vi.fn()} hit={HIT} candles={[]} />);
+    render(() => <PatternFullscreenView opened={false} onClose={vi.fn()} hit={HIT} candles={[]} />);
     expect(screen.queryByTestId("patterns-fullscreen-modal")).toBeNull();
     expect(screen.queryByTestId("patterns-tv-chart")).toBeNull();
   });
 
   test("shows the empty state without candles", () => {
-    r(<PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
+    render(() => <PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
     expect(screen.getByText("No chart data")).toBeInTheDocument();
   });
 
   test("forwards onClose to the dialog close button", () => {
     const onClose = vi.fn();
-    r(<PatternFullscreenView opened onClose={onClose} hit={HIT} candles={[]} />);
+    render(() => <PatternFullscreenView opened onClose={onClose} hit={HIT} candles={[]} />);
     fireEvent.click(screen.getByLabelText("close"));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   test("renders the title, meta, notes and last-close/day values in the panel", () => {
-    r(<PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
+    render(() => <PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
     expect(screen.getByText("IRCON · Falling Wedge")).toBeInTheDocument();
-    expect(screen.getByText("IRCON · 1D · 2 bars ago")).toBeInTheDocument();
+    expect(screen.getAllByText("IRCON").length).toBeGreaterThan(0);
+    expect(screen.getByText(/2 bars ago/)).toBeInTheDocument();
+    
     expect(screen.getByText("Higher lows into a falling wedge.")).toBeInTheDocument();
     expect(screen.getByText(/113\.40/)).toBeInTheDocument();
     expect(screen.getByText(/1\.20%/)).toBeInTheDocument();
@@ -186,30 +299,27 @@ describe("PatternFullscreenView", () => {
 
   test("renders the timeframe selector and fires onTimeframeChange", async () => {
     const onTimeframeChange = vi.fn();
-    r(
-      <PatternFullscreenView
+    render(() =>       <PatternFullscreenView
         opened
         onClose={vi.fn()}
         hit={HIT}
         candles={[]}
         timeframe="1D"
         timeframes={[
-          { id: "1D", label: "1D", minutes: 1440, native: "days/1", source_tf: null, max_lookback_days: 730, min_bars: 60 },
-          { id: "1h", label: "1h", minutes: 60, native: "hours/1", source_tf: null, max_lookback_days: 365, min_bars: 60 },
+          { id: "1D", label: "1D", minutes: 1440, native: true, source_tf: null, max_lookback_days: 730, min_bars: 60 },
+          { id: "1h", label: "1h", minutes: 60, native: true, source_tf: null, max_lookback_days: 365, min_bars: 60 },
         ]}
         onTimeframeChange={onTimeframeChange}
-      />,
-    );
+      />);
     const select = screen.getByTestId("patterns-fullscreen-timeframe");
     expect(select).toBeInTheDocument();
     expect(screen.getByTestId("patterns-timeframe-select")).toHaveValue("1D");
-    await userEvent.selectOptions(screen.getByTestId("patterns-timeframe-select"), "1h");
+    await fireEvent.change(screen.getByTestId("patterns-timeframe-select"), { target: { value: "1h" } });
     expect(onTimeframeChange).toHaveBeenCalledWith("1h");
   });
 
   test("shows a loader while the fullscreen timeframe reloads", () => {
-    r(
-      <PatternFullscreenView
+    render(() =>       <PatternFullscreenView
         opened
         onClose={vi.fn()}
         hit={HIT}
@@ -218,38 +328,34 @@ describe("PatternFullscreenView", () => {
         timeframes={[]}
         onTimeframeChange={vi.fn()}
         loading
-      />,
-    );
+      />);
     expect(screen.getByTestId("patterns-fullscreen-loading")).toBeInTheDocument();
   });
 
   test("hides the timeframe selector when the TF props are absent", () => {
-    r(<PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
+    render(() => <PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
     expect(screen.queryByTestId("patterns-fullscreen-timeframe")).not.toBeInTheDocument();
 
     cleanup();
     // onTimeframeChange without a timeframe: still hidden.
-    r(
-      <PatternFullscreenView
+    render(() =>       <PatternFullscreenView
         opened
         onClose={vi.fn()}
         hit={HIT}
         candles={[]}
         onTimeframeChange={vi.fn()}
-      />,
-    );
+      />);
     expect(screen.queryByTestId("patterns-fullscreen-timeframe")).not.toBeInTheDocument();
 
     cleanup();
     // timeframe without a handler: still hidden.
-    r(
-      <PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} timeframe="1D" />,
+    render(() =>       <PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} timeframe="1D" />,
     );
     expect(screen.queryByTestId("patterns-fullscreen-timeframe")).not.toBeInTheDocument();
   });
 
   test("omits the patterns list when hits/onSelectHit are absent", () => {
-    r(<PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
+    render(() => <PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
     expect(screen.queryByTestId("patterns-fullscreen-list")).not.toBeInTheDocument();
   });
 });
@@ -278,16 +384,14 @@ describe("PatternFullscreenView patterns list (single-select)", () => {
   };
 
   test("renders the list newest-first above the active-pattern meta", () => {
-    r(
-      <PatternFullscreenView
+    render(() =>       <PatternFullscreenView
         opened
         onClose={vi.fn()}
         hit={NEW}
         hits={[OLD, NEW]}
         onSelectHit={vi.fn()}
         candles={[]}
-      />,
-    );
+      />);
     expect(screen.getByTestId("patterns-fullscreen-list")).toBeInTheDocument();
     expect(screen.getByText("Patterns (1)")).toBeInTheDocument();
     // Only the newest pattern is listed.
@@ -306,16 +410,14 @@ describe("PatternFullscreenView patterns list (single-select)", () => {
   test("docked variant renders the rail beside the results, not a modal", async () => {
     const onClose = vi.fn();
     const onMaximize = vi.fn();
-    r(
-      <PatternFullscreenView
+    render(() =>       <PatternFullscreenView
         opened
         docked
         onClose={onClose}
         onMaximize={onMaximize}
         hit={HIT}
         candles={[]}
-      />,
-    );
+      />);
 
     expect(screen.getByTestId("patterns-chart-dock")).toBeInTheDocument();
     expect(screen.queryByTestId("patterns-fullscreen-modal")).toBeNull();
@@ -323,17 +425,16 @@ describe("PatternFullscreenView patterns list (single-select)", () => {
     expect(screen.getByTestId("patterns-fullscreen-panel")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-tv-chart")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByTestId("patterns-chart-close"));
+    fireEvent.click(screen.getByTestId("patterns-chart-close"));
     expect(onClose).toHaveBeenCalledTimes(1);
-    await userEvent.click(screen.getByTestId("patterns-chart-expand"));
+    fireEvent.click(screen.getByTestId("patterns-chart-expand"));
     expect(onMaximize).toHaveBeenCalledTimes(1);
   });
 
   test("docked variant renders the prev/next stepper with a position label", async () => {
     const onPrev = vi.fn();
     const onNext = vi.fn();
-    r(
-      <PatternFullscreenView
+    render(() =>       <PatternFullscreenView
         opened
         docked
         onClose={vi.fn()}
@@ -342,18 +443,16 @@ describe("PatternFullscreenView patterns list (single-select)", () => {
         positionLabel="3 / 48"
         hit={HIT}
         candles={[]}
-      />,
-    );
+      />);
     expect(screen.getByTestId("patterns-chart-position")).toHaveTextContent("3 / 48");
-    await userEvent.click(screen.getByTestId("patterns-chart-prev"));
-    await userEvent.click(screen.getByTestId("patterns-chart-next"));
+    fireEvent.click(screen.getByTestId("patterns-chart-prev"));
+    fireEvent.click(screen.getByTestId("patterns-chart-next"));
     expect(onPrev).toHaveBeenCalledTimes(1);
     expect(onNext).toHaveBeenCalledTimes(1);
   });
 
   test("the modal keeps the prev/next stepper when maximized", () => {
-    r(
-      <PatternFullscreenView
+    render(() =>       <PatternFullscreenView
         opened
         onClose={vi.fn()}
         onPrev={vi.fn()}
@@ -361,8 +460,7 @@ describe("PatternFullscreenView patterns list (single-select)", () => {
         positionLabel="2 / 9"
         hit={HIT}
         candles={[]}
-      />,
-    );
+      />);
     expect(screen.getByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-chart-position")).toHaveTextContent("2 / 9");
     expect(screen.getByTestId("patterns-chart-prev")).toBeInTheDocument();
@@ -371,8 +469,7 @@ describe("PatternFullscreenView patterns list (single-select)", () => {
 
   test("docked replay shows a Live control that clears the as-of", async () => {
     const onLive = vi.fn();
-    r(
-      <PatternFullscreenView
+    render(() =>       <PatternFullscreenView
         opened
         docked
         onClose={vi.fn()}
@@ -380,30 +477,27 @@ describe("PatternFullscreenView patterns list (single-select)", () => {
         onLive={onLive}
         hit={HIT}
         candles={[]}
-      />,
-    );
-    await userEvent.click(screen.getByTestId("patterns-chart-live"));
+      />);
+    fireEvent.click(screen.getByTestId("patterns-chart-live"));
     expect(onLive).toHaveBeenCalledTimes(1);
   });
 
   test("docked variant hides the expand control when no maximize handler is given", () => {
-    r(<PatternFullscreenView opened docked onClose={vi.fn()} hit={HIT} candles={[]} />);
+    render(() => <PatternFullscreenView opened docked onClose={vi.fn()} hit={HIT} candles={[]} />);
     expect(screen.getByTestId("patterns-chart-dock")).toBeInTheDocument();
     expect(screen.queryByTestId("patterns-chart-expand")).toBeNull();
   });
 
   test("clicking the row selects the newest hit", () => {
     const onSelectHit = vi.fn();
-    r(
-      <PatternFullscreenView
+    render(() =>       <PatternFullscreenView
         opened
         onClose={vi.fn()}
         hit={NEW}
         hits={[OLD, NEW]}
         onSelectHit={onSelectHit}
         candles={[]}
-      />,
-    );
+      />);
     fireEvent.click(screen.getByTestId("patterns-fullscreen-list-item-0"));
     expect(onSelectHit).toHaveBeenCalledTimes(1);
     expect(onSelectHit).toHaveBeenCalledWith(NEW);

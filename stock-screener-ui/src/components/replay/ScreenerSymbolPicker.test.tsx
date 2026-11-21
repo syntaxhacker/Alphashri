@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { ScreenerSymbolPicker } from "./ScreenerSymbolPicker";
@@ -30,14 +29,14 @@ const MOCK_STOCKS = {
 };
 
 function renderPicker(props?: { symbols?: string[]; onAddSymbols?: any }) {
-  return render(
+  return render(() => (
     <UIProvider>
       <ScreenerSymbolPicker
         symbols={props?.symbols ?? []}
         onAddSymbols={props?.onAddSymbols ?? vi.fn()}
       />
-    </UIProvider>,
-  );
+    </UIProvider>
+  ));
 }
 
 describe("ScreenerSymbolPicker", () => {
@@ -52,28 +51,25 @@ describe("ScreenerSymbolPicker", () => {
   });
 
   it("opens modal on Load button click", async () => {
-    const user = userEvent.setup();
     renderPicker();
-    await user.click(screen.getByTestId("screener-picker-btn"));
+    await fireEvent.click(screen.getByTestId("screener-picker-btn"));
     expect(screen.getByTestId("screener-picker-modal")).toBeInTheDocument();
   });
 
   it("shows screener select and load button in modal", async () => {
-    const user = userEvent.setup();
     renderPicker();
-    await user.click(screen.getByTestId("screener-picker-btn"));
+    await fireEvent.click(screen.getByTestId("screener-picker-btn"));
     expect(screen.getByTestId("screener-select")).toBeInTheDocument();
     expect(screen.getByTestId("screener-load-btn")).toBeInTheDocument();
   });
 
   it("loads and displays stocks from screener", async () => {
-    const user = userEvent.setup();
     mockFetchWithAuth.mockResolvedValueOnce(
       new Response(JSON.stringify(MOCK_STOCKS), { status: 200 }),
     );
     renderPicker();
-    await user.click(screen.getByTestId("screener-picker-btn"));
-    await user.click(screen.getByTestId("screener-load-btn"));
+    await fireEvent.click(screen.getByTestId("screener-picker-btn"));
+    await fireEvent.click(screen.getByTestId("screener-load-btn"));
     expect(await screen.findByTestId("screener-stock-list")).toBeInTheDocument();
     expect(screen.getByTestId("stock-check-RELIANCE")).toBeInTheDocument();
     expect(screen.getByTestId("stock-check-TCS")).toBeInTheDocument();
@@ -83,43 +79,40 @@ describe("ScreenerSymbolPicker", () => {
   });
 
   it("shows All and Touched checkboxes", async () => {
-    const user = userEvent.setup();
     mockFetchWithAuth.mockResolvedValueOnce(
       new Response(JSON.stringify(MOCK_STOCKS), { status: 200 }),
     );
     renderPicker();
-    await user.click(screen.getByTestId("screener-picker-btn"));
-    await user.click(screen.getByTestId("screener-load-btn"));
+    await fireEvent.click(screen.getByTestId("screener-picker-btn"));
+    await fireEvent.click(screen.getByTestId("screener-load-btn"));
     expect(await screen.findByTestId("screener-select-all")).toBeInTheDocument();
     expect(screen.getByTestId("screener-select-touched")).toBeInTheDocument();
   });
 
   it("selects all stocks when All checkbox is checked", async () => {
-    const user = userEvent.setup();
     mockFetchWithAuth.mockResolvedValueOnce(
       new Response(JSON.stringify(MOCK_STOCKS), { status: 200 }),
     );
     renderPicker();
-    await user.click(screen.getByTestId("screener-picker-btn"));
-    await user.click(screen.getByTestId("screener-load-btn"));
+    await fireEvent.click(screen.getByTestId("screener-picker-btn"));
+    await fireEvent.click(screen.getByTestId("screener-load-btn"));
     await screen.findByTestId("screener-select-all");
-    await user.click(screen.getByTestId("screener-select-all"));
+    await fireEvent.click(screen.getByTestId("screener-select-all"));
     expect(screen.getByTestId("screener-add-btn")).not.toBeDisabled();
     expect(screen.getByText(/5 of 5 selected/)).toBeInTheDocument();
   });
 
   it("calls onAddSymbols with selected stocks", async () => {
     const onAddSymbols = vi.fn();
-    const user = userEvent.setup();
     mockFetchWithAuth.mockResolvedValueOnce(
       new Response(JSON.stringify(MOCK_STOCKS), { status: 200 }),
     );
     renderPicker({ onAddSymbols });
-    await user.click(screen.getByTestId("screener-picker-btn"));
-    await user.click(screen.getByTestId("screener-load-btn"));
+    await fireEvent.click(screen.getByTestId("screener-picker-btn"));
+    await fireEvent.click(screen.getByTestId("screener-load-btn"));
     await screen.findByTestId("screener-select-all");
-    await user.click(screen.getByTestId("screener-select-all"));
-    await user.click(screen.getByTestId("screener-add-btn"));
+    await fireEvent.click(screen.getByTestId("screener-select-all"));
+    await fireEvent.click(screen.getByTestId("screener-add-btn"));
     expect(onAddSymbols).toHaveBeenCalledWith(
       expect.arrayContaining(["RELIANCE", "TCS", "INFY", "TATACOMM", "HDFCBANK"]),
     );
@@ -127,16 +120,15 @@ describe("ScreenerSymbolPicker", () => {
 
   it("filters out already-selected symbols", async () => {
     const onAddSymbols = vi.fn();
-    const user = userEvent.setup();
     mockFetchWithAuth.mockResolvedValueOnce(
       new Response(JSON.stringify(MOCK_STOCKS), { status: 200 }),
     );
     renderPicker({ symbols: ["RELIANCE", "TCS"], onAddSymbols });
-    await user.click(screen.getByTestId("screener-picker-btn"));
-    await user.click(screen.getByTestId("screener-load-btn"));
+    await fireEvent.click(screen.getByTestId("screener-picker-btn"));
+    await fireEvent.click(screen.getByTestId("screener-load-btn"));
     await screen.findByTestId("screener-select-all");
-    await user.click(screen.getByTestId("screener-select-all"));
-    await user.click(screen.getByTestId("screener-add-btn"));
+    await fireEvent.click(screen.getByTestId("screener-select-all"));
+    await fireEvent.click(screen.getByTestId("screener-add-btn"));
     expect(onAddSymbols).toHaveBeenCalledWith(
       expect.not.arrayContaining(["RELIANCE", "TCS"]),
     );
@@ -146,22 +138,20 @@ describe("ScreenerSymbolPicker", () => {
   });
 
   it("shows error state on fetch failure", async () => {
-    const user = userEvent.setup();
     mockFetchWithAuth.mockRejectedValueOnce(new Error("Network error"));
     renderPicker();
-    await user.click(screen.getByTestId("screener-picker-btn"));
-    await user.click(screen.getByTestId("screener-load-btn"));
+    await fireEvent.click(screen.getByTestId("screener-picker-btn"));
+    await fireEvent.click(screen.getByTestId("screener-load-btn"));
     expect(await screen.findByTestId("screener-error")).toBeInTheDocument();
   });
 
   it("shows empty state when no stocks returned", async () => {
-    const user = userEvent.setup();
     mockFetchWithAuth.mockResolvedValueOnce(
       new Response(JSON.stringify({ approaching: [], touched: [] }), { status: 200 }),
     );
     renderPicker();
-    await user.click(screen.getByTestId("screener-picker-btn"));
-    await user.click(screen.getByTestId("screener-load-btn"));
+    await fireEvent.click(screen.getByTestId("screener-picker-btn"));
+    await fireEvent.click(screen.getByTestId("screener-load-btn"));
     expect(await screen.findByTestId("screener-empty")).toBeInTheDocument();
   });
 });

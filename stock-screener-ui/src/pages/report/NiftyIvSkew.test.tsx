@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { describe, expect, test } from "vitest";
+import type { JSX } from "solid-js";
+import { render, screen } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { NiftyStrike } from "@/types/niftyReport";
@@ -20,13 +21,11 @@ import {
   nearestIvPoint,
 } from "./NiftyIvSkew";
 
-afterEach(cleanup);
-
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>{children}</UIProvider>;
+function TestWrapper(props: { children?: JSX.Element }) {
+  return <UIProvider>{props.children}</UIProvider>;
 }
 
-function r(jsx: React.ReactElement) {
+function r(jsx: () => JSX.Element) {
   return render(jsx, { wrapper: TestWrapper });
 }
 
@@ -131,11 +130,13 @@ describe("ivSkewStats", () => {
   });
 
   test("25Δ anchors use the strike closest to |delta| 0.25", () => {
+    // Convention: 25Δ RR = call IV - put IV (positive = calls rich), so a
+    // put-rich fixture like this one reads negative.
     expect(legIvAtDelta(CHAIN, "ce", 0.25)).toBe(16.5);
     expect(legIvAtDelta(CHAIN, "pe", 0.25)).toBe(20.5);
     expect(stats.call25).toBe(16.5);
     expect(stats.put25).toBe(20.5);
-    expect(stats.rr25).toBeCloseTo(4.0, 10);
+    expect(stats.rr25).toBeCloseTo(-4.0, 10);
   });
 
   test("missing deltas / IV degrade to null rather than 0", () => {
@@ -180,9 +181,9 @@ describe("formatters + read", () => {
     expect(formatVolPts(null)).toBe(IV_DASH);
   });
 
-  test("skew tone follows the richer wing (orange puts / blue calls)", () => {
-    expect(ivSkewTone(2)).toBe(palette.TERM_PE);
-    expect(ivSkewTone(-2)).toBe(palette.TERM_CE);
+  test("skew tone follows the richer wing (blue calls / orange puts)", () => {
+    expect(ivSkewTone(2)).toBe(palette.TERM_CE);
+    expect(ivSkewTone(-2)).toBe(palette.TERM_PE);
     expect(ivSkewTone(0)).toBe(palette.TEXT_MUTED);
     expect(ivSkewTone(null)).toBe(palette.TEXT_MUTED);
   });
@@ -197,6 +198,9 @@ describe("formatters + read", () => {
       "25Δ wings flat — no directional vol bid",
     );
     expect(ivSkewRead({ ...stats, rr25: -2 })).toBe(
+      "25Δ puts 2.0 vp over calls — downside hedging is bid",
+    );
+    expect(ivSkewRead({ ...stats, rr25: 2 })).toBe(
       "25Δ calls 2.0 vp over puts — upside calls are richer",
     );
     expect(ivSkewRead({ ...stats, rr25: null })).toBeNull();
@@ -258,7 +262,8 @@ describe("buildIvSkewChart", () => {
 
 describe("NiftyIvSkew render", () => {
   test("renders all four stats, the read line and the coverage caption", () => {
-    r(<NiftyIvSkew strikes={CHAIN} spot={25750} />);
+    r(() =>
+    <NiftyIvSkew strikes={CHAIN} spot={25750} />);
     const panel = screen.getByTestId("nifty-iv-skew-panel");
     expect(panel).toBeInTheDocument();
     expect(panel).toHaveTextContent("IV skew");
@@ -267,7 +272,7 @@ describe("NiftyIvSkew render", () => {
     expect(screen.getByTestId("nifty-iv-skew-atm")).toHaveTextContent(
       "CE 18.0% · PE 19.0%",
     );
-    expect(screen.getByTestId("nifty-iv-skew-rr")).toHaveTextContent("+4.0 vp");
+    expect(screen.getByTestId("nifty-iv-skew-rr")).toHaveTextContent("-4.0 vp");
     expect(screen.getByTestId("nifty-iv-skew-put")).toHaveTextContent("20.5%");
     expect(screen.getByTestId("nifty-iv-skew-call")).toHaveTextContent("16.5%");
     expect(screen.getByTestId("nifty-iv-skew-read")).toHaveTextContent(
@@ -280,14 +285,16 @@ describe("NiftyIvSkew render", () => {
   });
 
   test("legend explains the leg hues and ATM", () => {
-    r(<NiftyIvSkew strikes={CHAIN} spot={25750} />);
+    r(() =>
+    <NiftyIvSkew strikes={CHAIN} spot={25750} />);
     expect(screen.getByText("CALL IV")).toBeInTheDocument();
     expect(screen.getByText("PUT IV")).toBeInTheDocument();
     expect(screen.getByText("ATM")).toBeInTheDocument();
   });
 
   test("no strikes renders dashes and the chart empty state", () => {
-    r(<NiftyIvSkew strikes={[]} spot={25750} />);
+    r(() =>
+    <NiftyIvSkew strikes={[]} spot={25750} />);
     expect(screen.getByTestId("nifty-iv-skew-atm")).toHaveTextContent(IV_DASH);
     expect(screen.getByTestId("nifty-iv-skew-rr")).toHaveTextContent(IV_DASH);
     expect(screen.getByText("No IV in this expiry")).toBeInTheDocument();
@@ -296,7 +303,8 @@ describe("NiftyIvSkew render", () => {
   });
 
   test("undefined props do not crash", () => {
-    r(<NiftyIvSkew />);
+    r(() =>
+    <NiftyIvSkew />);
     expect(screen.getByTestId("nifty-iv-skew-panel")).toBeInTheDocument();
     expect(screen.getByText("No IV in this expiry")).toBeInTheDocument();
   });

@@ -13,7 +13,7 @@ import {
 } from "@/ui/palette";
 import type { DisplayTone } from "./patternDisplayStatus";
 
-/** Semantic badge colours (MUI palette tokens). */
+/** Semantic badge colours (FIN palette tokens). */
 export type BadgeTone = "success" | "info" | "error" | "warning" | "primary" | "default";
 /** Text/`c` tones understood by `@/ui` Text. */
 export type TextTone = "success" | "error" | "dimmed";

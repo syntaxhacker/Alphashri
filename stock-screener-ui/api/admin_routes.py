@@ -224,6 +224,11 @@ def _run_52w_batch_subprocess(skip_existing: bool, redis: bool, limit: int, skip
         cmd.append("--redis")
     if limit > 0:
         cmd.extend(["--limit", str(limit)])
+    # Keep the batch off the interactive `api` slice: its ~60/min would otherwise
+    # consume half of api's 120/min and leave the screener cold path starved.
+    child_env = os.environ.copy()
+    child_env["UPSTOX_RL_CONSUMER"] = os.environ.get("UPSTOX_52W_RL_CONSUMER", "scan52w")
+    child_env.setdefault("UPSTOX_RL_CAP_SCAN52W", "60")
     try:
         proc = subprocess.Popen(
             cmd,
@@ -231,6 +236,7 @@ def _run_52w_batch_subprocess(skip_existing: bool, redis: bool, limit: int, skip
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
+            env=child_env,
         )
     except Exception as e:
         # Launch failure must not leave a stale "running" status behind.

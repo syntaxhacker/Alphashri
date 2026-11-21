@@ -130,6 +130,12 @@ atm_ce_iv, atm_pe_iv = atm_ivs(rows, spot)
 skew = pe_iv - ce_iv        # positive = puts richer than calls
 ```
 
+Note: this `control.skew` is the **ATM** skew (put − call) and a different metric
+from the 25Δ risk reversal. The 25Δ RR uses the unified analytics convention
+`call IV − put IV` (positive = calls rich) in `api/options_iv.py`,
+`api/reports_api/iv_surface.py` and the report IV-skew panel, so its sign is the
+opposite of the ATM `control.skew` on a put-rich market.
+
 The regime block's `iv` is the **mean of the available ATM IVs**:
 `(ce_iv + pe_iv) / 2` (`_avg_iv`).
 

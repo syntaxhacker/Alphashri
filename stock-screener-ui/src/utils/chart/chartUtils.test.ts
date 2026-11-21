@@ -124,8 +124,8 @@ describe("getCandleFromParams", () => {
     const result = getCandleFromParams(params, candles);
     expect(result).not.toBeNull();
     expect(result?.candle).toEqual(candles[0]);
-    expect(result.change.change).toBe("5.00");
-    expect(result.change.changeColor).toBe(BULLISH);
+    expect(result?.change.change).toBe("5.00");
+    expect(result?.change.changeColor).toBe(BULLISH);
   });
 
   it("handles bearish candle", () => {

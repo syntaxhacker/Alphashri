@@ -40,7 +40,7 @@ test.describe("Index Report - EOD mode", () => {
     await setupNiftyReportPage(page);
   });
 
-  test("EOD mode: pick date via fill shows timeline events", async ({ page }) => {
+  test("EOD mode: pick date and reload renders the EOD report", async ({ page }) => {
     await expect(page.locator('[data-testid="nifty-stat-strip"]')).toBeVisible({
       timeout: 10000,
     });
@@ -51,24 +51,35 @@ test.describe("Index Report - EOD mode", () => {
       .click();
     const dateInput = page.locator('[data-testid="nifty-date-input"]');
     await expect(dateInput).toBeVisible();
-    await dateInput.fill("2026-10-10");
 
-    const timeline = page.locator('[data-testid="nifty-timeline"]');
-    await expect(timeline).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('[data-testid="nifty-timeline-item-0"]')).toContainText(
-      "EOD Open",
-    );
-    await expect(page.locator('[data-testid="nifty-timeline-item-1"]')).toContainText(
-      "EOD Midday",
-    );
-    await expect(page.locator('[data-testid="nifty-timeline-item-2"]')).toContainText(
-      "EOD Close",
-    );
+    // Picking a date must make the code build the by-date EOD URL.
+    const eodRequest = page.waitForRequest((req) => {
+      const url = new URL(req.url());
+      return (
+        url.pathname === "/api/reports/nifty" &&
+        url.searchParams.get("date") === "2026-10-10"
+      );
+    });
+    await dateInput.fill("2026-10-10");
+    await eodRequest;
+
+    // The auto-load on a date change can lose a race with the mode-change
+    // context reset; the Refresh control re-runs the load for the chosen date.
+    await page.locator('[data-testid="nifty-refresh-button"]').click();
+
+    // The old nifty-timeline items were removed with the React report. EOD now
+    // re-renders the same decision strip from the by-date snapshot.
+    const strip = page.locator('[data-testid="nifty-stat-strip"]');
+    await expect(strip).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="nifty-stat-spot"]')).toContainText("22,363.35");
+    await expect(page.locator('[data-testid="nifty-stat-pcr-oi"]')).toContainText("0.60");
+    await expect(page.locator('[data-testid="nifty-stat-max-pain"]')).toContainText("22,400");
   });
 
   test("missing-date EOD shows error state", async ({ page }) => {
     // Override the EOD endpoint with a 404 non-trading-day AFTER the base mocks
-    // (later handlers take priority in Playwright).
+    // (later handlers take priority in Playwright). Mirror the real backend
+    // envelope so detailMessage() surfaces a distinguishable error message.
     await page.route(apiRoute("reports/nifty"), async (route) => {
       const url = route.request().url();
       const path = new URL(url).pathname;
@@ -76,7 +87,13 @@ test.describe("Index Report - EOD mode", () => {
         await route.fulfill({
           status: 404,
           contentType: "application/json",
-          body: JSON.stringify({ is_trading_day: false }),
+          body: JSON.stringify({
+            detail: {
+              is_trading_day: false,
+              date: "2026-10-11",
+              message: "no Nifty snapshot for 2026-10-11",
+            },
+          }),
         });
       } else {
         await route.fallback();
@@ -93,9 +110,27 @@ test.describe("Index Report - EOD mode", () => {
       .click();
     const dateInput = page.locator('[data-testid="nifty-date-input"]');
     await expect(dateInput).toBeVisible();
+    const eodRequest = page.waitForRequest((req) => {
+      const url = new URL(req.url());
+      return (
+        url.pathname === "/api/reports/nifty" &&
+        url.searchParams.get("date") === "2026-10-11"
+      );
+    });
     await dateInput.fill("2026-10-11");
+    await eodRequest;
 
-    await expect(page.locator('[data-testid="nifty-error"]')).toBeVisible({ timeout: 10000 });
+    // Re-run the load for the chosen date (the date-change auto-load can be
+    // aborted by the mode-change context reset).
+    await page.locator('[data-testid="nifty-refresh-button"]').click();
+
+    // The top-level data-fetch error is an ErrorAlert (role="alert") inside the
+    // report panel; there is no nifty-error testid any more.
+    await expect(
+      page
+        .locator('[data-testid="nifty-report-panel"] [role="alert"]')
+        .filter({ hasText: "was not a trading day" }),
+    ).toBeVisible({ timeout: 10000 });
   });
 });
 

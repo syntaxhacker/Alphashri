@@ -125,8 +125,9 @@ def _trade_item(t) -> dict:
     }
 
 
+# Sync `def`: the trade query + aggregation run on the anyio worker pool.
 @router.get("/dashboard/analytics")
-async def get_dashboard_analytics(
+def get_dashboard_analytics(
     preset: str = "30D",
     from_date: Optional[str] = None,
     to_date: Optional[str] = None,

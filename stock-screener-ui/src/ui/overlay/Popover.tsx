@@ -1,197 +1,262 @@
-import * as React from "react";
-import MuiPopover from "@mui/material/Popover";
-import Box from "@mui/material/Box";
-import type { UIPopoverProps, UIPopoverTargetProps, UIPopoverDropdownProps } from "../types";
+import { Show, createContext, createEffect, createMemo, createSignal, splitProps, useContext } from "solid-js";
+import { cn } from "../cn";
+import type {
+  UIPopoverProps,
+  UIPopoverTargetProps,
+  UIPopoverDropdownProps,
+} from "../types";
+
+type PopoverProps = UIPopoverProps;
 
 type PopoverContextValue = {
-  anchorEl: HTMLElement | null;
+  anchorEl: () => HTMLElement | null;
   setAnchorEl: (el: HTMLElement | null) => void;
-  open: boolean;
+  open: () => boolean;
   onClose?: () => void;
   onChange?: (open: boolean) => void;
-  position?: string;
-  offset?: number;
-  withArrow?: boolean;
-  width?: number | string;
-  shadow?: string;
-  controlledOpen?: boolean;
+  position: () => string | undefined;
+  offset: () => number | undefined;
+  withArrow: () => boolean | undefined;
+  width: () => number | string | undefined;
+  shadow: () => string | undefined;
+  controlledOpen: () => boolean | undefined;
+  closeOnClickOutside: () => boolean;
 };
 
-const PopoverContext = React.createContext<PopoverContextValue | null>(null);
+const PopoverContext = createContext<PopoverContextValue | null>(null);
 
 function usePopoverContext() {
-  const ctx = React.useContext(PopoverContext);
+  const ctx = useContext(PopoverContext);
   if (!ctx) throw new Error("Popover compound components must be used within Popover");
   return ctx;
 }
 
-function positionToAnchorOrigin(pos?: string): { anchorOrigin: any; transformOrigin: any } {
-  switch (pos) {
-    case "top":
-      return { anchorOrigin: { vertical: "top", horizontal: "center" }, transformOrigin: { vertical: "bottom", horizontal: "center" } };
-    case "top-start":
-      return { anchorOrigin: { vertical: "top", horizontal: "left" }, transformOrigin: { vertical: "bottom", horizontal: "left" } };
-    case "top-end":
-      return { anchorOrigin: { vertical: "top", horizontal: "right" }, transformOrigin: { vertical: "bottom", horizontal: "right" } };
-    case "bottom":
-      return { anchorOrigin: { vertical: "bottom", horizontal: "center" }, transformOrigin: { vertical: "top", horizontal: "center" } };
-    case "bottom-start":
-      return { anchorOrigin: { vertical: "bottom", horizontal: "left" }, transformOrigin: { vertical: "top", horizontal: "left" } };
-    case "bottom-end":
-      return { anchorOrigin: { vertical: "bottom", horizontal: "right" }, transformOrigin: { vertical: "top", horizontal: "right" } };
-    case "left":
-      return { anchorOrigin: { vertical: "center", horizontal: "left" }, transformOrigin: { vertical: "center", horizontal: "right" } };
-    case "right":
-      return { anchorOrigin: { vertical: "center", horizontal: "right" }, transformOrigin: { vertical: "center", horizontal: "left" } };
-    default:
-      return { anchorOrigin: { vertical: "bottom", horizontal: "center" }, transformOrigin: { vertical: "top", horizontal: "center" } };
-  }
+const SHADOW_MAP: Record<string, string> = {
+  sm: "shadow-sm",
+  md: "shadow-md",
+  lg: "shadow-lg",
+  xl: "shadow-xl",
+};
+
+function paddingSize(v: number | string): string {
+  if (typeof v === "number") return `${v * 8}px`;
+  const m: Record<string, string> = { xs: "4px", sm: "8px", md: "16px", lg: "24px", xl: "32px" };
+  return m[v] ?? String(v);
 }
 
-export function Popover({
-  children,
-  opened,
-  onClose,
-  onChange,
-  position,
-  withArrow,
-  width,
-  shadow,
-  offset,
-  trapFocus,
-  closeOnClickOutside,
-  middlewares,
-  keepMounted,
-  className,
-  style,
-  "data-testid": testId,
-  ...rest
-}: UIPopoverProps) {
-  const [internalAnchorEl, setInternalAnchorEl] = React.useState<HTMLElement | null>(null);
-  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false);
+export function Popover(props: PopoverProps) {
+  const [known, rest] = splitProps(props, [
+    "children",
+    "opened",
+    "onClose",
+    "onChange",
+    "position",
+    "withArrow",
+    "width",
+    "shadow",
+    "offset",
+    "trapFocus",
+    "closeOnClickOutside",
+    "middlewares",
+    "keepMounted",
+    "className",
+    "style",
+    "id",
+    "data-testid",
+  ]);
 
-  const isControlled = opened !== undefined;
-  const open = isControlled ? !!opened : uncontrolledOpen;
+  const [internalAnchorEl, setInternalAnchorEl] = createSignal<HTMLElement | null>(null);
+  const [uncontrolledOpen, setUncontrolledOpen] = createSignal(false);
 
-  // For uncontrolled mode, children will set anchorEl via PopoverTarget click;
-  // we sync open state based on anchorEl presence if not controlled
-  React.useEffect(() => {
-    if (!isControlled) {
-      setUncontrolledOpen(!!internalAnchorEl);
+  const isControlled = createMemo(() => known.opened !== undefined);
+  const open = createMemo(() => (isControlled() ? !!known.opened : uncontrolledOpen()));
+
+  // Uncontrolled: open tracks anchorEl presence.
+  createEffect(() => {
+    if (!isControlled()) {
+      setUncontrolledOpen(!!internalAnchorEl());
     }
-  }, [internalAnchorEl, isControlled]);
+  });
 
-  const handleClose = React.useCallback(() => {
-    if (isControlled) {
-      onChange?.(false);
-      onClose?.();
+  const handleClose = () => {
+    if (isControlled()) {
+      known.onChange?.(false);
+      known.onClose?.();
     } else {
       setInternalAnchorEl(null);
       setUncontrolledOpen(false);
-      onChange?.(false);
-      onClose?.();
+      known.onChange?.(false);
+      known.onClose?.();
     }
-  }, [isControlled, onClose, onChange]);
+  };
 
-  const setAnchorEl = React.useCallback(
-    (el: HTMLElement | null) => {
-      setInternalAnchorEl(el);
-      if (!isControlled) {
-        setUncontrolledOpen(!!el);
-      }
-    },
-    [isControlled]
-  );
-
-  // If controlled and opened is false, clear anchorEl so popover can close
-  React.useEffect(() => {
-    if (isControlled && !opened) {
-      // keep anchorEl for positioning reference but MUI requires anchorEl to close; we keep it but open=false
+  const setAnchorEl = (el: HTMLElement | null) => {
+    setInternalAnchorEl(el);
+    if (!isControlled()) {
+      setUncontrolledOpen(!!el);
     }
-  }, [isControlled, opened]);
+  };
 
-  // Collect children: expect PopoverTarget and PopoverDropdown
-  // We render them via context; actual PopoverDropdown will render MuiPopover using anchorEl
+  // Controlled: when closed, clear anchorEl so the dropdown can remount cleanly.
+  createEffect(() => {
+    if (isControlled() && !known.opened) {
+      setInternalAnchorEl(null);
+    }
+  });
+
   const ctxValue: PopoverContextValue = {
     anchorEl: internalAnchorEl,
     setAnchorEl,
     open,
     onClose: handleClose,
-    onChange,
-    position,
-    offset,
-    withArrow,
-    width,
-    shadow,
-    controlledOpen: opened,
+    onChange: known.onChange,
+    position: () => known.position,
+    offset: () => known.offset,
+    withArrow: () => known.withArrow,
+    width: () => known.width,
+    shadow: () => known.shadow,
+    controlledOpen: () => known.opened,
+    closeOnClickOutside: () => known.closeOnClickOutside ?? true,
   };
 
   return (
     <PopoverContext.Provider value={ctxValue}>
-      <Box
-        className={className}
-        style={style}
-        data-testid={testId}
-        sx={{ display: "inline-block" }}
-        {...(rest as any)}
+      <span
+        id={known.id}
+        data-testid={known["data-testid"]}
+        className={cn("inline-block", known.className)}
+        style={{ display: "inline-block", ...(known.style as Record<string, string | undefined>) }}
+        {...(rest as Record<string, unknown>)}
       >
-        {children as any}
-      </Box>
+        {typeof known.children === "function"
+          ? known.children({
+              ref: internalAnchorEl,
+              toggle: () => setAnchorEl(internalAnchorEl()),
+              close: handleClose,
+              opened: open(),
+            })
+          : known.children}
+      </span>
     </PopoverContext.Provider>
   );
 }
 
-export function PopoverTarget({ children, className, style }: UIPopoverTargetProps) {
+export function PopoverTarget(props: UIPopoverTargetProps) {
+  const [known, rest] = splitProps(props, ["children", "className", "style", "id", "data-testid", "onClick"]);
   const { setAnchorEl, anchorEl, open, controlledOpen, onChange } = usePopoverContext();
-  const child = React.Children.only(children as React.ReactElement<any>);
-  const handleClick = (e: React.MouseEvent) => {
+
+  const handleClick = (e: MouseEvent) => {
     const target = e.currentTarget as HTMLElement;
-    if (controlledOpen !== undefined) {
-      // Controlled (Mantine-style): toggle via onChange.
+    if (controlledOpen() !== undefined) {
       setAnchorEl(target);
-      onChange?.(!open);
-    } else if (open && anchorEl === target) {
+      onChange?.(!open());
+    } else if (open() && anchorEl() === target) {
       setAnchorEl(null);
     } else {
       setAnchorEl(target);
     }
-    (child.props as any)?.onClick?.(e);
+    known.onClick?.(e);
   };
-  return React.cloneElement(child, {
-    ref: (child as any).ref,
-    onClick: handleClick,
-    className: [className, (child.props as any).className].filter(Boolean).join(" ") || undefined,
-    style: { ...style, ...(child.props as any).style },
-  } as any);
-}
 
-export function PopoverDropdown({ children, className, style }: UIPopoverDropdownProps) {
-  const { anchorEl, open, onClose, position, offset, width, shadow } = usePopoverContext();
-  const { anchorOrigin, transformOrigin } = positionToAnchorOrigin(position);
   return (
-    <MuiPopover
-      open={open}
-      anchorEl={anchorEl}
-      onClose={onClose}
-      anchorOrigin={anchorOrigin}
-      transformOrigin={transformOrigin}
-      slotProps={{
-        paper: {
-          className,
-          style: style as any,
-          sx: {
-            ...(width != null ? { width: typeof width === "number" ? `${width}px` : width } : {}),
-            ...(shadow ? { boxShadow: shadow } : {}),
-            ...(offset != null ? { mt: `${offset}px` } : {}),
-            p: 1.5,
-          },
-        },
-      }}
+    <span
+      id={known.id}
+      data-testid={known["data-testid"]}
+      className={cn("inline-block", known.className)}
+      style={{ display: "inline-block", ...(known.style as Record<string, string | undefined>) }}
+      onClick={handleClick}
+      {...(rest as Record<string, unknown>)}
     >
-      <Box>{children}</Box>
-    </MuiPopover>
+      {known.children}
+    </span>
   );
 }
 
-Popover.Target = PopoverTarget;
-Popover.Dropdown = PopoverDropdown;
+export function PopoverDropdown(props: UIPopoverDropdownProps & { p?: number | string }) {
+  const [known, rest] = splitProps(props, ["children", "className", "style", "p"]);
+  const { anchorEl, open, onClose, position, offset, width, shadow, closeOnClickOutside } =
+    usePopoverContext();
+  const [placeEl, setPlaceEl] = createSignal<HTMLDivElement | undefined>(undefined);
+  const [place, setPlace] = createSignal<Record<string, string | undefined>>({});
+
+  createEffect(() => {
+    const anchor = anchorEl();
+    if (!open() || !anchor || !placeEl()) return;
+    const rect = anchor.getBoundingClientRect();
+    const off = offset() ?? 0;
+    const vpW = window.innerWidth;
+    const vpH = window.innerHeight;
+    let s: Record<string, string | undefined> = { position: "fixed" };
+    switch (position()) {
+      case "top":
+        s = { position: "fixed", bottom: `${vpH - rect.top + off}px`, left: `${rect.left + rect.width / 2}px`, transform: "translateX(-50%)" };
+        break;
+      case "bottom":
+        s = { position: "fixed", top: `${rect.bottom + off}px`, left: `${rect.left + rect.width / 2}px`, transform: "translateX(-50%)" };
+        break;
+      case "top-start":
+        s = { position: "fixed", bottom: `${vpH - rect.top + off}px`, left: `${rect.left}px` };
+        break;
+      case "top-end":
+        s = { position: "fixed", bottom: `${vpH - rect.top + off}px`, right: `${vpW - rect.right}px` };
+        break;
+      case "bottom-start":
+        s = { position: "fixed", top: `${rect.bottom + off}px`, left: `${rect.left}px` };
+        break;
+      case "bottom-end":
+        s = { position: "fixed", top: `${rect.bottom + off}px`, right: `${vpW - rect.right}px` };
+        break;
+      case "left":
+        s = { position: "fixed", right: `${vpW - rect.left + off}px`, top: `${rect.top + rect.height / 2}px`, transform: "translateY(-50%)" };
+        break;
+      case "right":
+        s = { position: "fixed", left: `${rect.right + off}px`, top: `${rect.top + rect.height / 2}px`, transform: "translateX(-50%)" };
+        break;
+      default:
+        s = { position: "fixed", top: `${rect.bottom + off}px`, left: `${rect.left + rect.width / 2}px`, transform: "translateX(-50%)" };
+    }
+    const w = width();
+    if (w != null) {
+      s.width = typeof w === "number" ? `${w}px` : w;
+    }
+    setPlace(s);
+  });
+
+  createEffect(() => {
+    if (!open()) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose?.();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  });
+
+  createEffect(() => {
+    if (!open() || closeOnClickOutside() === false) return;
+    const onDoc = (e: MouseEvent) => {
+      const el = placeEl();
+      const anchor = anchorEl();
+      if (anchor && !anchor.contains(e.target as Node) && el && !el.contains(e.target as Node)) {
+        onClose?.();
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  });
+
+  const padStyle = known.p != null ? { padding: paddingSize(known.p) } : undefined;
+  const shadowClass = SHADOW_MAP[shadow() ?? ""] ?? "";
+
+  return (
+    <Show when={open()}>
+      <div
+        ref={(el) => setPlaceEl(el)}
+        className={cn("z-50 bg-fin-surface border border-fin-border rounded-sm overflow-auto", shadowClass, known.className)}
+        style={{ ...place(), ...padStyle, ...(known.style as Record<string, string | undefined>) }}
+        {...(rest as Record<string, unknown>)}
+      >
+        {known.children}
+      </div>
+    </Show>
+  );
+}

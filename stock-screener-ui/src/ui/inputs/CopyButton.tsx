@@ -1,46 +1,59 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { createEffect, createSignal } from "solid-js";
+import type { JSX } from "solid-js";
 
 interface UICopyButtonProps {
   value: string;
   timeout?: number;
-  children: (payload: { copied: boolean; copy: () => void }) => React.ReactNode;
+  children: (payload: { copied: boolean; copy: () => void }) => JSX.Element;
 }
 
-export function CopyButton({ value, timeout = 1000, children }: UICopyButtonProps) {
-  const [copied, setCopied] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+export function CopyButton(props: UICopyButtonProps) {
+  const [copied, setCopied] = createSignal(false);
+  let timer: ReturnType<typeof setTimeout> | null = null;
 
-  useEffect(() => {
+  createEffect(() => {
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
+      if (timer) clearTimeout(timer);
     };
-  }, []);
+  });
 
-  const copy = useCallback(async () => {
+  const flashCopied = () => {
+    if (timer) clearTimeout(timer);
+    setCopied(true);
+    timer = setTimeout(() => setCopied(false), props.timeout ?? 1000);
+  };
+
+  const copy = async () => {
     try {
       if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(value);
+        await navigator.clipboard.writeText(props.value);
       } else {
-        // Fallback for non-secure contexts
+        // Fallback for non-secure contexts.
         const ta = document.createElement("textarea");
-        ta.value = value;
+        ta.value = props.value;
         ta.style.position = "fixed";
         ta.style.opacity = "0";
         document.body.appendChild(ta);
+        ta.focus();
         ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
+        const ok = (() => {
+          try {
+            return document.execCommand("copy");
+          } finally {
+            document.body.removeChild(ta);
+          }
+        })();
+        if (!ok) return;
       }
-      setCopied(true);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setCopied(false), timeout);
+      flashCopied();
     } catch {
-      // Silently ignore clipboard errors; still toggle feedback
-      setCopied(true);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setCopied(false), timeout);
+      // An insecure context or a denied permission means nothing reached the
+      // clipboard; the confirmation label is the only feedback the caller has,
+      // so it must stay off.
+      if (timer) clearTimeout(timer);
+      setCopied(false);
     }
-  }, [value, timeout]);
+  };
 
-  return <>{children({ copied, copy })}</>;
+  return <>{props.children({ copied: copied(), copy })}</>;
 }

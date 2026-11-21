@@ -1,24 +1,49 @@
 // @vitest-environment happy-dom
+import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
+import { cleanup, render, screen, waitFor } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { MemoryRouter, Route, createMemoryHistory } from "@solidjs/router";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 
-const mockUseChartPatterns = vi.hoisted(() => vi.fn());
-const mockUsePatternUrlSync = vi.hoisted(() => vi.fn());
-const mockLoadCatalog = vi.hoisted(() => vi.fn());
 const pagePropsCapture = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
 
-vi.mock("@/hooks/useChartPatterns", () => ({
-  useChartPatterns: (...args: unknown[]) => mockUseChartPatterns(...args),
-}));
-
-vi.mock("@/hooks/usePatternUrlSync", () => ({
-  usePatternUrlSync: (...args: unknown[]) => mockUsePatternUrlSync(...args),
-}));
-
+// Store-shape mock: the container subscribes to the chart-patterns store
 vi.mock("@/state/chartPatterns", () => ({
-  loadCatalog: (...args: unknown[]) => mockLoadCatalog(...args),
+  subscribe: vi.fn(() => () => {}),
+  getChartPatternsState: vi.fn(),
+  loadCatalog: vi.fn(),
+  triggerReplayScan: vi.fn(),
+  selectTimeframe: vi.fn(),
+  selectTimeframes: vi.fn(),
+  selectUniverse: vi.fn(),
+  selectSymbols: vi.fn(),
+  setFilter: vi.fn(),
+  setLookbackBars: vi.fn(),
+  resetFilters: vi.fn(),
+  applyFilters: vi.fn(),
+  triggerScan: vi.fn(),
+  refresh: vi.fn(),
+  forceRefresh: vi.fn(),
+  setComputeTrendlines: vi.fn(),
+  DEFAULT_TIMEFRAME: "1D",
+  CUSTOM_UNIVERSE: "custom",
+  DEFAULT_PATTERN_FILTERS: {
+    family: [],
+    pattern_id: [],
+    direction: [],
+    status: [],
+    quality: null,
+    formed_within_bars: null,
+    volume_confirmed: null,
+    min_rr: null,
+    symbol: null,
+    symbols: [],
+    q: "",
+    min_base_days: null,
+    max_range_pct: null,
+    sort: "confidence",
+    trendlines: "both",
+  },
 }));
 
 vi.mock("./PatternsPage", () => ({
@@ -28,7 +53,16 @@ vi.mock("./PatternsPage", () => ({
   },
 }));
 
+import {
+  getChartPatternsState,
+  loadCatalog,
+  selectTimeframes,
+} from "@/state/chartPatterns";
 import { PatternsContainer } from "./PatternsContainer";
+
+const mockGetState = vi.mocked(getChartPatternsState);
+const mockLoadCatalog = vi.mocked(loadCatalog);
+const mockSelectTimeframes = vi.mocked(selectTimeframes);
 
 function makeHit(): PatternHitDTO {
   return {
@@ -68,7 +102,7 @@ const SUMMARY = {
   data_through: "2026-09-30",
 };
 
-function makeVm() {
+function makeState(overrides: Record<string, unknown> = {}) {
   return {
     timeframes: [{ id: "1D", label: "1D", minutes: 1440, native: "days/1", source_tf: null, max_lookback_days: 730, min_bars: 60 }],
     universes: [{ id: "nifty500", label: "Nifty 500", count: 500 }],
@@ -76,13 +110,9 @@ function makeVm() {
       { pattern_id: "falling_wedge", name: "Falling Wedge", family: "reversal", direction: "bullish", description: "…" },
     ],
     timeframe: "1D",
-    setTimeframe: vi.fn(),
     selectedTimeframes: ["1D"],
-    setSelectedTimeframes: vi.fn(),
     lookbackBars: null,
-    setLookbackBars: vi.fn(),
     universe: "nifty500",
-    setUniverse: vi.fn(),
     filters: {
       family: [],
       pattern_id: [],
@@ -100,13 +130,7 @@ function makeVm() {
       sort: "confidence",
       trendlines: "both",
     },
-    setFilter: vi.fn(),
-    resetFilters: vi.fn(),
-    applyFilters: vi.fn(),
     computeTrendlines: true,
-    setComputeTrendlines: vi.fn(),
-    customUniverse: "custom",
-    selectSymbols: vi.fn(),
     job: null,
     scanning: false,
     queuePosition: null,
@@ -116,51 +140,49 @@ function makeVm() {
     streaming: false,
     loading: false,
     error: null,
-    scan: vi.fn(),
-    refresh: vi.fn(),
-    forceRefresh: vi.fn(),
     lastScanAsOf: null,
     lastScanFrom: null,
+    ...overrides,
   };
+}
+
+function renderContainer(initialEntry = "/patterns") {
+  const history = createMemoryHistory();
+  history.set({ value: initialEntry, replace: true });
+  return render(() => (
+    <MemoryRouter history={history}>
+      <Route path="/patterns" component={PatternsContainer} />
+    </MemoryRouter>
+  ));
 }
 
 describe("PatternsContainer", () => {
   afterEach(() => cleanup());
 
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   test("bootstraps the catalog on each mount", () => {
     mockLoadCatalog.mockClear();
-    mockUseChartPatterns.mockReturnValue(makeVm());
-    render(<PatternsContainer />).unmount();
-    render(<PatternsContainer />).unmount();
+    mockGetState.mockReturnValue(makeState());
+    renderContainer();
+    cleanup();
+    renderContainer();
     expect(mockLoadCatalog).toHaveBeenCalledTimes(2);
   });
 
-  test("wires the hook state into URL sync", () => {
-    const vm = makeVm();
-    mockUseChartPatterns.mockReturnValue(vm);
-    mockUsePatternUrlSync.mockClear();
-    render(<PatternsContainer />);
-    expect(mockUsePatternUrlSync).toHaveBeenCalledTimes(1);
-    const args = mockUsePatternUrlSync.mock.calls[0][0] as Record<string, unknown>;
-    expect(args.universe).toBe(vm.universe);
-    expect(args.timeframe).toBe(vm.timeframe);
-    expect(args.lookbackBars).toBe(vm.lookbackBars);
-    expect(args.computeTrendlines).toBe(vm.computeTrendlines);
-    expect(args.filters).toBe(vm.filters);
-    expect(args.setUniverse).toBe(vm.setUniverse);
-    expect(args.setTimeframe).toBe(vm.setTimeframe);
-    expect(args.setLookbackBars).toBe(vm.setLookbackBars);
-    expect(args.setComputeTrendlines).toBe(vm.setComputeTrendlines);
-    expect(args.applyFilters).toBe(vm.applyFilters);
-    expect(args.tab).toBe("scan");
-    expect(typeof args.setTab).toBe("function");
+  test("adopts the timeframe from the URL on mount", async () => {
+    mockGetState.mockReturnValue(makeState({ selectedTimeframes: ["1D"], timeframe: "1D" }));
+    renderContainer("/patterns?tf=5m");
+    await waitFor(() => expect(mockSelectTimeframes).toHaveBeenCalledWith(["5m"]));
   });
 
   test("passes every view-model prop through to PatternsPage", () => {
-    const vm = makeVm();
-    mockUseChartPatterns.mockReturnValue(vm);
+    const vm = makeState();
+    mockGetState.mockReturnValue(vm);
     pagePropsCapture.current = null;
-    render(<PatternsContainer />);
+    renderContainer();
     expect(screen.getByTestId("patterns-page-stub")).toBeInTheDocument();
     const props = pagePropsCapture.current as unknown as Record<string, unknown>;
     const expectedKeys = [
@@ -182,48 +204,48 @@ describe("PatternsContainer", () => {
       "members", "setMembers",
     ];
     expect(Object.keys(props).sort()).toEqual([...expectedKeys].sort());
-    for (const key of expectedKeys) {
-      if (key === "scanReplay") {
-        expect(typeof props[key], `prop ${key}`).toBe("function");
-        continue;
-      }
-      if (key === "replayAsOf") {
-        expect(props[key], `prop ${key}`).toBe(vm.lastScanAsOf);
-        continue;
-      }
-      if (key === "tab") {
-        expect(props[key], `prop ${key}`).toBe("scan");
-        continue;
-      }
-      if (key === "setTab") {
-        expect(typeof props[key], `prop ${key}`).toBe("function");
-        continue;
-      }
-      if (key === "view") {
-        expect(props[key], `prop ${key}`).toBe("matrix");
-        continue;
-      }
-      if (key === "setView") {
-        expect(typeof props[key], `prop ${key}`).toBe("function");
-        continue;
-      }
-      if (key === "indexGroup") {
-        expect(props[key], `prop ${key}`).toBe("all");
-        continue;
-      }
-      if (key === "setIndexGroup") {
-        expect(typeof props[key], `prop ${key}`).toBe("function");
-        continue;
-      }
-      if (key === "members") {
-        expect(props[key], `prop ${key}`).toBeNull();
-        continue;
-      }
-      if (key === "setMembers") {
-        expect(typeof props[key], `prop ${key}`).toBe("function");
-        continue;
-      }
-      expect(props[key], `prop ${key}`).toBe(vm[key as keyof typeof vm] as unknown);
-    }
+
+    expect(props.timeframes).toBe(vm.timeframes);
+    expect(props.universes).toBe(vm.universes);
+    expect(props.patterns).toBe(vm.patterns);
+    expect(props.timeframe).toBe(vm.timeframe);
+    expect(props.selectedTimeframes).toBe(vm.selectedTimeframes);
+    expect(props.lookbackBars).toBe(vm.lookbackBars);
+    expect(props.universe).toBe(vm.universe);
+    expect(props.filters).toBe(vm.filters);
+    expect(props.computeTrendlines).toBe(vm.computeTrendlines);
+    expect(props.customUniverse).toBe("custom");
+    expect(props.job).toBe(vm.job);
+    expect(props.scanning).toBe(vm.scanning);
+    expect(props.queuePosition).toBe(vm.queuePosition);
+    expect(props.summary).toBe(vm.summary);
+    expect(props.results).toBe(vm.results);
+    expect(props.total).toBe(vm.total);
+    expect(props.streaming).toBe(vm.streaming);
+    expect(props.loading).toBe(vm.loading);
+    expect(props.error).toBe(vm.error);
+
+    expect(typeof props.setTimeframe).toBe("function");
+    expect(typeof props.setSelectedTimeframes).toBe("function");
+    expect(typeof props.setLookbackBars).toBe("function");
+    expect(typeof props.setUniverse).toBe("function");
+    expect(typeof props.setFilter).toBe("function");
+    expect(typeof props.resetFilters).toBe("function");
+    expect(typeof props.applyFilters).toBe("function");
+    expect(typeof props.setComputeTrendlines).toBe("function");
+    expect(typeof props.selectSymbols).toBe("function");
+    expect(typeof props.scan).toBe("function");
+    expect(typeof props.refresh).toBe("function");
+    expect(typeof props.forceRefresh).toBe("function");
+    expect(typeof props.scanReplay).toBe("function");
+    expect(props.replayAsOf).toBe(vm.lastScanAsOf);
+    expect(props.tab).toBe("scan");
+    expect(typeof props.setTab).toBe("function");
+    expect(props.view).toBe("matrix");
+    expect(typeof props.setView).toBe("function");
+    expect(props.indexGroup).toBe("all");
+    expect(typeof props.setIndexGroup).toBe("function");
+    expect(props.members).toBeNull();
+    expect(typeof props.setMembers).toBe("function");
   });
 });

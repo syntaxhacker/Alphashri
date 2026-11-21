@@ -1,17 +1,20 @@
-import type { StorybookConfig } from '@storybook/react-vite';
+import type { StorybookConfig } from "@storybook/html-vite";
+import { fileURLToPath, URL } from "node:url";
+import solid from "vite-plugin-solid";
 
 const config: StorybookConfig = {
-  "stories": [
-    "../src/**/*.mdx",
-    "../src/**/*.stories.@(js|jsx|mjs|ts|tsx)"
-  ],
-  "addons": [
-    "@chromatic-com/storybook",
-    "@storybook/addon-vitest",
-    "@storybook/addon-a11y",
-    "@storybook/addon-docs",
-    "@storybook/addon-onboarding"
-  ],
-  "framework": "@storybook/react-vite"
+  stories: ["../src/**/*.stories.tsx"],
+  framework: { name: "@storybook/html-vite", options: {} },
+  core: { disableTelemetry: true },
+  viteFinal: async (viteConfig) => {
+    viteConfig.plugins = [...(viteConfig.plugins ?? []), solid()];
+    viteConfig.resolve = {
+      ...viteConfig.resolve,
+      alias: { "@": fileURLToPath(new URL("../src", import.meta.url)) },
+      conditions: ["development", "browser"],
+    };
+    return viteConfig;
+  },
 };
+
 export default config;

@@ -1,6 +1,6 @@
 export { BotsPage } from "./BotsPage";
-export { BotConfigModal } from "./BotConfigModal2";
-export { BotStatusPanel } from "./BotStatusPanel2";
+export { BotConfigModal } from "./BotConfigModal";
+export { BotStatusPanel } from "./BotStatusPanel";
 export {
   PortfolioSummaryCard,
   StrategyStatusCard,

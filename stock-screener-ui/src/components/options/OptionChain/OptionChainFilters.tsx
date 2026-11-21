@@ -1,10 +1,7 @@
-import { Select, NumberInput } from "@/ui";
-import Box from "@mui/material/Box";
+import { Select, NumberInput, Box } from "@/ui";
+import { CHAIN_CONTROL_H, CHAIN_LABEL_CLASS, CHAIN_SELECT_CLASS } from "./controlClass";
 
-export function OptionChainFilters({
-  filters,
-  setFilters,
-}: {
+export function OptionChainFilters(props: {
   filters: any;
   setFilters: (f: any) => void;
 }) {
@@ -12,74 +9,70 @@ export function OptionChainFilters({
     <Box
       id="chain-filters"
       data-testid="options-chain-filters"
-      sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1, rowGap: 1 }}
+      className="flex items-center gap-2 flex-nowrap shrink-0 min-w-0"
     >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: "1 1 140px", maxWidth: 220 }}>
-        <Box component="span" sx={{ minWidth: 64, fontSize: "0.75rem", color: "text.secondary", flexShrink: 0 }}>
-          Type
-        </Box>
-        <Box sx={{ flex: 1, minWidth: 110, display: "flex", alignItems: "center" }}>
-          <Select
-            value={filters.optionType}
-            onChange={(val) => val && setFilters({ optionType: val as "CE" | "PE" | "BOTH" })}
-            data={[
-              { value: "BOTH", label: "Both CE/PE" },
-              { value: "CE", label: "Calls Only" },
-              { value: "PE", label: "Puts Only" },
-            ]}
-            data-testid="option-type-select"
-          />
-        </Box>
-      </Box>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: "1 1 120px", maxWidth: 200 }}>
-        <Box component="span" sx={{ minWidth: 64, fontSize: "0.75rem", color: "text.secondary", flexShrink: 0 }}>
-          Moneyness
-        </Box>
-        <Box sx={{ flex: 1, minWidth: 90, display: "flex", alignItems: "center" }}>
-          <Select
-            value={filters.moneyness}
-            onChange={(val) => val && setFilters({ moneyness: val as "ITM" | "OTM" | "ALL" })}
-            data={[
-              { value: "ALL", label: "All" },
-              { value: "ITM", label: "ITM" },
-              { value: "OTM", label: "OTM" },
-            ]}
-            data-testid="moneyness-select"
-          />
-        </Box>
-      </Box>
+      <label class="sr-only" for="option-type-select">Option type</label>
+      <Select
+        id="option-type-select"
+        value={props.filters.optionType}
+        onChange={(val) => val && props.setFilters({ optionType: val as "CE" | "PE" | "BOTH" })}
+        data={[
+          { value: "BOTH", label: "Both CE/PE" },
+          { value: "CE", label: "Calls Only" },
+          { value: "PE", label: "Puts Only" },
+        ]}
+        size="xs"
+        h={CHAIN_CONTROL_H}
+        w={124}
+        className={CHAIN_SELECT_CLASS}
+        leftSection={<span class={CHAIN_LABEL_CLASS}>Type</span>}
+        data-testid="option-type-select"
+      />
+      <label class="sr-only" for="moneyness-select">Moneyness</label>
+      <Select
+        id="moneyness-select"
+        value={props.filters.moneyness}
+        onChange={(val) => val && props.setFilters({ moneyness: val as "ITM" | "OTM" | "ALL" })}
+        data={[
+          { value: "ALL", label: "All" },
+          { value: "ITM", label: "ITM" },
+          { value: "OTM", label: "OTM" },
+        ]}
+        size="xs"
+        h={CHAIN_CONTROL_H}
+        w={112}
+        className={CHAIN_SELECT_CLASS}
+        leftSection={<span class={CHAIN_LABEL_CLASS}>Moneyness</span>}
+        data-testid="moneyness-select"
+      />
       <Box
         data-testid="options-strike-range-group"
-        sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1, rowGap: 1, flex: "1 1 200px", maxWidth: 340 }}
+        className="flex items-center gap-2 shrink-0"
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: "1 1 100px", maxWidth: 170 }}>
-          <Box component="span" sx={{ minWidth: 64, fontSize: "0.75rem", color: "text.secondary", flexShrink: 0 }}>
-            Strike Min
-          </Box>
-          <Box sx={{ flex: 1, minWidth: 80, display: "flex", alignItems: "center" }}>
-            <NumberInput
-              value={filters.strikeRange?.[0] ?? 0}
-              onChange={(val) =>
-                setFilters({ strikeRange: [val as number, filters.strikeRange?.[1] ?? 100000] })
-              }
-              data-testid="strike-min-input"
-            />
-          </Box>
-        </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: "1 1 100px", maxWidth: 170 }}>
-          <Box component="span" sx={{ minWidth: 40, fontSize: "0.75rem", color: "text.secondary", flexShrink: 0 }}>
-            Max
-          </Box>
-          <Box sx={{ flex: 1, minWidth: 80, display: "flex", alignItems: "center" }}>
-            <NumberInput
-              value={filters.strikeRange?.[1] ?? 100000}
-              onChange={(val) =>
-                setFilters({ strikeRange: [filters.strikeRange?.[0] ?? 0, val as number] })
-              }
-              data-testid="strike-max-input"
-            />
-          </Box>
-        </Box>
+        <label class="sr-only" for="strike-min-input">Strike Min</label>
+        <NumberInput
+          id="strike-min-input"
+          value={props.filters.strikeRange?.[0] ?? 0}
+          onChange={(val) =>
+            props.setFilters({ strikeRange: [val as number, props.filters.strikeRange?.[1] ?? 100000] })}
+          size="xs"
+          h={CHAIN_CONTROL_H}
+          w={132}
+          leftSection={<span class={CHAIN_LABEL_CLASS}>Strike Min</span>}
+          data-testid="strike-min-input"
+        />
+        <label class="sr-only" for="strike-max-input">Max</label>
+        <NumberInput
+          id="strike-max-input"
+          value={props.filters.strikeRange?.[1] ?? 100000}
+          onChange={(val) =>
+            props.setFilters({ strikeRange: [props.filters.strikeRange?.[0] ?? 0, val as number] })}
+          size="xs"
+          h={CHAIN_CONTROL_H}
+          w={108}
+          leftSection={<span class={CHAIN_LABEL_CLASS}>Max</span>}
+          data-testid="strike-max-input"
+        />
       </Box>
     </Box>
   );

@@ -6,6 +6,17 @@
 - **NEVER push directly to `develop` or `main`** — both are protected shared branches. All work goes through a short-lived feature branch (`feat/…`, `fix/…`, `chore/…`, `docs/…`) pushed to origin, then a PR targeting `develop` (or `develop` → `main` to release). No direct `git push origin develop` / `git push origin main`, ever.
 - **NEVER delete report artifacts** — anything under `reports/**` (figures, PNGs, HTML, CSV, JSON, scripts, notes) is kept, even after regeneration. Overwrite in place instead of `rm`-ing first. The user deletes their own reports.
 
+## Start here
+
+- **[`docs/AGENT_QUICKSTART.md`](./docs/AGENT_QUICKSTART.md)** — commands, folder map, unit/E2E/backend recipes, fixtures. Read this before exploring the tree.
+- **[`docs/MAP.md`](./docs/MAP.md)** — task → file location.
+- **[`TEST_RULES.md`](./TEST_RULES.md)** — test shape, mocks, guards.
+
+## Tooling — edit files natively
+- Use the native `read` / `edit` / `write` tools for every file read or write. Do **not** shell out to `sed -i`, `python - <<EOF`, `cat >`, `perl -pi`, or `awk` to modify files.
+- The shell is for running things: build, tests, git, `grep`/`rg`, `find`. Locate with `grep`/`glob`, then `read` before `edit`.
+- Bulk mechanical edits (a rename across 40 files) may use a checked-in script, but the script itself is written with the native tools and reviewed before it runs.
+
 ## 🛡️ Agent Git Safety (STRICT — ZERO EXCEPTIONS)
 **Destructive git is FORBIDDEN without explicit user `yes` in same turn:** `reset --hard`, `checkout --`, `restore`, `clean -fd`, `branch -D`, `push --force`, `stash` (push/pop/apply/clear/drop), `rebase`, `merge`, `cherry-pick`, `revert`, or any `HEAD`-moving command.
 
@@ -19,12 +30,36 @@
 - `git commit` locally is fine; only `git push` of a **feature branch** is allowed without asking. Pushing to shared branches requires explicit user approval and is normally a PR merge instead.
 - If already on `develop` with uncommitted work, create the feature branch (`git switch -c <type>/<name>`) before committing — never commit then push `develop`.
 
+**PR cycle (end-to-end, verified 2026-11-16):**
+1. Branch from the latest `develop`; never commit on `develop`/`main`.
+2. Pre-PR gate: `bun run lint`, `bun run build`, targeted unit + E2E for the touched areas, and `npx tsc --noEmit 2>&1 | grep -c "error TS"` (record the count; it must not rise).
+3. `git push -u origin <branch>`, then `gh pr create --base develop`. The body lists areas changed, behaviour changes (auth, migrations), verification commands/counts, and a test plan.
+4. Wait for checks. PR-to-`develop` runs **E2E Smoke (22)** + frontend unit/lint + 6 Python shards + GitGuardian; **E2E Full (20 shards) is skipped by CI for PR-to-develop**. For a large/feature-bundle PR, either dispatch the full suite once or state explicitly that smoke is the accepted gate.
+5. Merge with `gh pr merge <n> --merge` (preserves commit messages/measurements; do not squash a multi-commit bundle unless the user asks). Never `--admin`/bypass.
+6. `git switch develop && git pull --ff-only`; verify the merge commit and that the key files/fields actually landed.
+7. Delete the merged branch with `git branch -d <branch>` and `git push origin --delete <branch>` — only after step 6 verifies. An ancestor `feat/…` branch is also redundant; confirm before deleting it.
+8. One PR per branch. If a branch contains multiple independent features, ask whether to split; a single bundle PR is allowed only when the user explicitly says so, and its body must say that it is a bundle.
+
+**Release (develop → main; convention `v0.1.0`, `v0.2.0`):**
+1. Open a PR `develop` → `main`. PR-to-`main` runs the **full E2E suite (20 shards)** — wait for it, not just smoke.
+2. Merge with `gh pr merge <n> --merge` (keep the release merge commit).
+3. Tag the `main` merge commit (annotated, matching the existing style):
+   `git switch main && git pull --ff-only`
+   `git tag -a vX.Y.Z -m "Alphashri vX.Y.Z — <one-line summary>"`
+   `git push origin vX.Y.Z`
+4. Create the GitHub Release: `gh release create vX.Y.Z --title "Alphashri vX.Y.Z" --generate-notes` (target `main`; no binaries unless asked).
+5. Sync `main` back into `develop` through a `main` → `develop` PR; never commit or push directly to `develop`. Merge it after CI so develop contains the release merge/tag commit.
+6. Verify: `gh release list`, `git log --decorate -1 vX.Y.Z`, and both branches contain the release commit.
+7. Versioning is semver: features → minor, fixes → patch. Latest release: `v0.2.0` (2026-11-11).
+
+**Subagents may not touch branch state or GitHub:** no `git branch`, `switch`, `checkout`, `add`, `commit`, `push`, and no `gh pr create/merge`. A subagent that needs a branch stops and reports; the main agent is the only PR actor. A branch pushed by a subagent is a contract violation — surface it.
+
 **Subagent contract:** Agents launched via `Task` are read-only + edit (file writes allowed), but **STRICTLY FORBIDDEN** from any `bash` git command that can disturb other agents in same env p — including `stash` (push/pop/apply/clear/drop), `reset`, `checkout`, `restore`, `clean`, `rebase`, `merge`, `cherry-pick`, `revert`, `branch -D`, `push --force`. Allowed subagent git: `status`, `log --oneline`, `diff --stat` (read-only). If a subagent proposes `stash/reset/clean/checkout/rebase`, main agent must reject and surface to user.
 
 **Violation handling:** If destructive command is about to run, abort, report `blocked: <command>`, wait for explicit approval. On accidental `reset --hard`, run `git reflog --oneline | head` + `git fsck --lost-found` and report, do not auto-recover without user.
 
 ## Stack
-React 19 + Vite 8 + MUI 9.3.1 + Emotion + TypeScript. Backend: FastAPI (Python).
+SolidJS 1.9 + Vite 8 + Tailwind CSS 4 + TypeScript. Backend: FastAPI (Python).
 
 ## Commands
 - `./start.sh` — starts both API (uvicorn) and UI (vite) together, auto-activates `.venv`. Background mode (reload on, uses `watchfiles`). Modes: `dev` (foreground, reload), `prod` (foreground, no reload), `restart [prod]`, `stop`, `status`, `logs`, `bots start|stop|status`. During market hours the 52W range batch now runs a prompt initial job quickly after startup (see the 52W section). Logs to `logs/alphashri.log`.
@@ -64,32 +99,57 @@ React 19 + Vite 8 + MUI 9.3.1 + Emotion + TypeScript. Backend: FastAPI (Python).
 - **Providers**: Chat uses OpenRouter free model (`openai/gpt-oss-20b:free`) if DeepSeek key not available. Analysis uses DeepSeek via LiteLLM (`deepseek/deepseek-chat`).
 - **No auth required** on chat, analyze, and stream endpoints (get_current_user had compatibility issues with this router). Conversation history endpoints use hardcoded user_id=3.
 - **Chat history**: Conversations and messages stored in `chat_conversations`/`chat_messages` tables. CRUD endpoints at `/api/trading-agents/conversations`.
-- **Chat Popup** (`src/components/common/ChatPopup.tsx`): Floating action button, expandable to full screen, history sidebar, markdown rendering via `react-markdown`.
+- **No UI consumer**: the Chat Popup (`ChatPopup.tsx`, its `Markdown.tsx` renderer and tests) was removed on 2026-11-21 — these endpoints are currently called only by curl/tests, so a missing caller is expected.
 
-## MUI 9 Financial Theme Rules
-- Single source `src/ui/palette.ts` `FIN_*` (`FIN_PRIMARY #2563EB`, `FIN_POSITIVE #16A34A`, etc.) + layout tokens `FIN_HEADER_H 48`, `FIN_RADIUS 8`, `FIN_OUTER_PAD 16` — never hardcode hex outside palette
-- Theme `src/ui/muiTheme.ts` `muiTheme` (`contrastThreshold 4.5`, `shape 8`, `MuiPaper/Card` flat `elevation 0` + `1px divider` + `Dialog shadow 0 8px 32px`) — use `var(--mui-palette-*)` vars, never hardcode hex outside the palette
-- Use MUI wrappers from `src/ui/` (`Box/Flex/Stack/Group/Center/Grid/SimpleGrid/Paper/Card/ScrollArea` via `Box overflow:auto`) + `CompactPanel/CompactStat/CompactStatGrid` (`components/common/compact.tsx` `radius sm 8` `p sm 8` `gap sm 8`)
+## Tailwind 4 Financial Theme Rules
+Single source is `src/ui/palette.ts`; `src/tailwind.css` mirrors it (guarded by `theme-single-source.test.ts`).
+
+- **Never hardcode a hex outside `palette.ts`.** The guard scans every `.ts`/`.tsx` and fails on any `#RRGGBB`.
+- **Derive tints, never restate them:** `alpha(palette.POSITIVE, 0.12)`, not `"rgba(0,200,83,0.12)"`. Three separate green/red pairs had accumulated and disagreed about what "positive" means.
+- **Surface ramp** (each adjacent step ≥1.15:1, asserted): page `BG #000000` → panel `SURFACE #13161C` → raised `SURFACE_ALT #1F242D`, hairline `BORDER #2C313B`. Page == panel means the panel does not exist — that was the real cause of "everything looks the same".
+- **Radius** `4` (small) / `6` (controls) / `10` (large); `--radius-fin: 6px` is the control alias. **Control heights** `xs 24 · sm 30 · md 34 · lg 38`. **Type floor is 9px.** All four are guarded by `design-scale.test.ts` — see `SUBAGENT_RULES.md § 7.1`.
+- Use the local `@/ui` components (`Box/Flex/Stack/Group/Center/Grid/SimpleGrid/Paper/Card/ScrollArea`) + `CompactPanel/CompactStat/CompactStatGrid` (`components/common/compact.tsx`). They render semantic HTML + Tailwind.
 - 8pt grid: outer `16`, inner `8`, table `8px 12px 12px`, header `48`, gaps `xs4 sm8 md16` — no raw `6px` slop
 - `TanStackTable` `src/components/common/TanStackTable.tsx` `ROW_ESTIMATED 28` `cell 8/12/12` `sticky shadow` — dense but scannable (12px)
-- Reference MUI docs — never guess APIs; use `sx` prop, not global CSS; `size="sm"` inputs/buttons, `size="xs"` badges/tables only
+- Reference the local `@/ui` types; use `className`/Tailwind utilities, never `sx`; `size="sm"` inputs/buttons, `size="xs"` badges/tables only
 - Tables — fin-app alignment is mandatory (text left, numbers right, badges/actions center; explicit `meta.align` per column, wrapper must match): rules + placement map in [TABLE_CHECKLIST.md](../TABLE_CHECKLIST.md)
+
+## Contrast rules (MANDATORY)
+
+- Use **`src/utils/contrast.ts`** for every filled cell, badge, chip or chart
+  label. Do not re-implement WCAG maths in a component.
+- **Text ≥ 4.5:1**, **meaningful graphics ≥ 3:1**. Decorative hairlines are
+  exempt. Never put text directly on a solid saturated fill — use
+  `pickTextColor(fill)` or a low-alpha tint + solid rail.
+- Run **`bun run contrast`** and add every new fill/tint/text pair to
+  `src/test/contrast.test.ts`. A filled cell you cannot read at 100% zoom is a
+  bug, not a style choice.
+- Follow **`docs/COLOR_SEMANTICS.md`** for side-vs-level token mapping and row
+  highlight patterns. Do not invent colours or reuse a token for a different
+  meaning.
+- Screenshot the full/empty/loading states at **1600 and 390** before calling a
+  colour change done.
 
 ## UI Revamp Rules (MANDATORY — read before touching any tab/page)
 Full rules: [UI_RULES.md](./UI_RULES.md). Checklist to tick for every revamp: [UI_CHECKLIST.md](./UI_CHECKLIST.md).
-1. **`@/ui` is MUI, not Mantine.** Mantine-only props (`styles`, and historically `w`/`h`) are dropped. Never pass `styles={{...}}` (guard test fails). Inputs now honor `w`/`h`; when `w` is set the input stops being full-width.
-2. **Inputs default to `fullWidth`.** In a row, give each an explicit `w={n}` or wrap it in a flex cell (`<Box sx={{ flex: 1, minWidth: 0 }}>` + `style={{ width: "100%" }}`). Accidental full-width selects are a bug.
+Judgement rules for any screen: [docs/UX_PRINCIPLES.md](./docs/UX_PRINCIPLES.md) — in-flow over overlay, one surface per concept, no dead ends, keyboard parity, measure before claiming.
+1. **`@/ui` is local semantic HTML + Tailwind.** Mantine-only props (`styles`) are dropped. Never pass `styles={{...}}` (guard test fails). Inputs honor `w`/`h`; when `w` is set the input stops being full-width.
+2. **Inputs default to `fullWidth`.** In a row, give each an explicit `w={n}` or wrap it in a flex cell (`<Box className="flex-1 min-w-0">` + `style={{ width: "100%" }}`). Accidental full-width selects are a bug.
 3. **Control rows use `<ToolbarRow>`** (from `@/ui`) — it forces `align-items:center` + explicit gap. `Group` defaults to `align-items: stretch`; if used for controls, pass `align="center"`.
 4. **No nested bordered cards**; one border per section, inner separation via dividers. Panels/charts fill their flex container (`autoSize`, no fixed heights in flex panels).
-5. **Verify visually, not just build.** After any UI change: `bun run build && bun run lint`, then a chrome-devtools screenshot at a real viewport in empty/loading/full states, then the guards:
-   - `npx vitest run src/test/ui-guard.test.ts`
-   - `npx vitest run src/ui/inputs/inputs.w-h.test.tsx`
-   - the feature's unit tests + its E2E spec.
+5. **Verify visually, not just build.** After any UI change: `bun run build && bun run lint`, then a chrome-devtools screenshot at a real viewport in empty/loading/full states, then run the guard suite listed once in `SUBAGENT_RULES.md §8` (do not keep a second copy here) plus the feature's unit tests and its E2E spec.
    Build/lint do NOT catch alignment bugs — the screenshot is part of the definition of done.
+   **DEFAULT TO VISUAL CHECKS FOR DATA-DRIVEN UI — do not wait to be asked.** Green unit/lint/tsc/E2E is not evidence that a screen works. On 2026-11-18 the Market heatmap's colour-by feature shipped 323 passing tests, a clean build, clean lint and `tsc 321` while **selecting any non-default metric threw `Cannot read properties of undefined (reading 'trim')` and blanked the whole screener**. Every test fed day-change-shaped inputs; the crash needed a 0–1 metric *and* a real render. `AGENTS.md` already said the screen must be verified — it was still skipped, so treat it as a hard gate, not advice:
+   - **Screenshot every state of the control you touched**, not just the default: for a selector/dropdown, one shot per option. A default-only shot is what hid this bug.
+   - **`read` the PNG back and look at it.** A screenshot you never opened proves nothing. Check that tiles/labels/legend show *plausible* values, not just that pixels exist — "every tile reads 1%" and "counter says 13, 12 tiles drawn" are only visible by eye.
+   - **Distrust a suspiciously small PNG** (the crashing frame was 45KB vs ~105KB for working ones) and any error text in the frame (`hit an error`, `undefined`, `NaN`).
+   - **Exercise the non-default branches explicitly**: every option in a metric/mode selector, empty result, and a value that is 0/negative/undefined in the data. Those are where the branch-only bugs live.
+   - A crash found by eye that the suite missed means the suite has a **missing range case** — add the regression test (per `TEST_RULES.md §0`, prove it fails first), do not just fix the crash.
+6. **A page is not "done" until it is measured, not eyeballed.** The Index Report chrome was 800px above the chart (walls card 475px) with the chart permanently below the fold, and it survived review because nothing measured it. If a fix claims "now it fits", take the `getBoundingClientRect()` numbers before/after and put them in the commit message.
 
 ## State Management
 - All stores in `src/state/` — custom `createSubscriber` pattern + `useStoreSubscription` hook
-- Redux slices in `src/state/store/` (appSlice, notificationsSlice) — legacy, minimal usage
+- Solid `createStore` slices in `src/state/store/` (appSlice, notificationsSlice) — legacy, minimal usage
 - Never call `useState` for data that lives in a store
 
 ## Component Patterns
@@ -98,21 +158,34 @@ Full rules: [UI_RULES.md](./UI_RULES.md). Checklist to tick for every revamp: [U
 - Shared utilities: `formatNumber`, `formatSignedPnl`, `formatPercentage`, `formatCurrencyCompact`, `formatTimeOnly`, `formatElapsed`, `getPnLTextColor`, `getNextSortDirection`, `sortByField` in `src/utils/ui-helpers.ts`
 - Config/constants/theme consolidated in `src/config/` (constants.ts, theme.ts, backtestDefaults.ts)
 - ECharts: never wrap chart container in `ScrollArea` — ECharts needs explicit dimensions via `flex: 1` on a flex parent
-- **React keys**: never use `symbol` alone as key — always composite (`${strategy_id}-${symbol}`) or unique ID. Positions can have same symbol across strategies.
+- **List keys**: never use `symbol` alone as key — always composite (`${strategy_id}-${symbol}`) or unique ID. Positions can have same symbol across strategies.
+
+## Decoupling / no hardcoding
+- **One descriptor per concept.** Universes (India/US), currencies/units, cap tiers, exchange filters, market sources, labels and limits live in a config/registry — never as scattered `if (universe === …)` branches or duplicate literals.
+- **Derive display from data metadata.** A row carries `currency`/units; formatting (₹ vs $, Cr vs B) reads that, not the screen name.
+- **Inject, don't inline.** Backend adapters receive thresholds/exchanges/field maps from the descriptor; UI receives labels/options from the same source.
+- **One contract per payload.** Import shared types/pure modules across layers; do not restate a DTO or formula in a component.
+- **No magic route strings, IDs, keys or limits** in components/tests; use the constants/registry.
+- **Data is the same everywhere.** Centralize it (levels module, snapshot store, analytics client); a new consumer reuses it instead of re-deriving.
 
 ## Folder Structure
 ```
 src/
-  api/          # API layer (fetchWithAuth, endpoint functions)
+  api/          # one module per feature, typed calls over fetchWithAuth (src/state/auth.ts)
   assets/       # static assets (svg, images)
-  components/   # UI components organized by feature
-  config/       # constants.ts, theme.ts, backtestDefaults.ts
-  hooks/        # generic shared hooks (useAsyncData, useECharts, useStoreSubscription, useTableSort)
-  pages/        # page-level routing targets (chart, sector, settings, options, screener, strategies)
-  state/        # all state management (subscriber stores + redux in state/store/)
+  components/   # feature UI; common/ holds shared widgets (TanStackTable, tableCells, compact)
+  config/       # constants, theme, backtestDefaults, colors, patternCatalog, tvSymbols
+  hooks/        # useFetch, usePolling, useStoreSubscription, useScreenerState, useOptionsState, …
+  pages/        # route entry points (21 of 28 routes; 7 live under components/ — see docs/MAP.md)
+  state/        # createSubscriber stores; state/store/ holds Solid createStore slices
+  test/         # shared guard specs (style-keys, no-react, design-scale, …)
+  test-utils/   # shared render/test helpers
   types/        # TypeScript type definitions
-  utils/        # shared utilities (ui-helpers, chartUtils, notifications, runtime_utils)
+  ui/           # local design system (Box/Flex/Paper/inputs) + palette.ts = single colour source
+  utils/        # pure helpers (chartUtils, color, marketClock, reportParsers, …)
 ```
+
+**Agent navigation map: `docs/MAP.md`** — "to do X, go to Y", verified paths, and the two things named "patterns".
 
 ## Replay Trading
 - Components: `src/components/replay/` — page-level feature, uses SSE from `api/replay_api.py`
@@ -132,16 +205,21 @@ src/
   - Falls back to 20s polling on disconnect/error
 - **Price vs Polling**: WebSocket delivers first tick in ~30ms vs REST ~174ms. Live ticks stream at ~4/sec during market hours.
 
+## Behavioural guards (UI)
+- **Toasts**: `solid-notifications/index.css` must stay imported in `src/main.tsx`, and `.sn-*` must not be restyled. Details: [docs/NOTIFICATIONS.md](./docs/NOTIFICATIONS.md).
+- **Options dock sizing**: use flex for height, never percentage heights or `h-full` through a flex-stretched chain. Details: [docs/OPTIONS_CHAIN_COMPONENT_PLAN.md](./docs/OPTIONS_CHAIN_COMPONENT_PLAN.md).
+
 ## CSS
-- `style.css` purged `1651 → ~80` lines: flash animations + `box-sizing` + `body var(--mui-palette-*)` only; `divider` no longer used as text color (was grey wash — win/loss same)
+- `style.css` holds only flash animations + `box-sizing` + body tokens; `divider` is no longer used as text color (was grey wash — win/loss same)
 - Semantic P&L: `success #16A34A` / `error #DC2626` distinct, `toast` left-border `success/error/warning/info`, `table th` `paper + text.secondary`
 - Remove dead CSS classes when removing old components (verify with grep before deleting)
-- No CSS modules — global CSS with MUI `sx` overrides
+- No CSS modules — global CSS + Tailwind utilities; no `sx` overrides
 
 ## Backend (Python)
 - Single source of truth for IST timezone: `config.IST` (root `config.py`, re-exported in `stock-screener-ui/config.py`)
 - Use `datetime.now(config.IST)` everywhere, never `datetime.now()` without tz
 - Pandas date filtering: use `pd.Timestamp(date_str, tz=config.IST)` not raw strings — Timestamp vs string comparison raises TypeError
+- **Daily bars are stamped 18:30 UTC of the PREVIOUS calendar day** (IST midnight = 18:30Z the day before). Never format `df.index[-1]`'s UTC date for display — it names the wrong session. Convert to IST first: `frame_last_date()` and `fmt_date()` are the correct references. This produced a live "charts show two-day-old data" report on 2026-11-18 when the data was one session old.
 - `fetch_intraday_data_v3` for today, `fetch_historical_data_v3` for past dates
 - API routes in `stock-screener-ui/api/`, DB models in `db/models.py`
 - **Trades endpoint** (`/api/paper/trades`): queries PostgreSQL first, falls back to journal files. The `get_trades` and `_get_trades_from_db` functions handle this.
@@ -228,6 +306,7 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 
 ## Market Data Auth
 - **Market data endpoints** (`/api/chart/preview`, `/api/paper/chart`, `/api/backtest/run`) use `UpstoxAPI` with `UPSTOX_API_KEY`/`UPSTOX_API_SECRET` — **no OAuth broker token needed**
+- **`/api/market/snapshot` is app-auth protected** (route `Depends(get_current_user)`) so an anonymous `force=1` cannot trigger a full TV scan; the UI sends the normal bearer token. It is still **not** broker-OAuth gated.
 - **Options + broker endpoints** (`/api/options/*`, `/api/brokers/*`) require OAuth access token via `get_shared_broker_token('upstox')` — user must connect broker in Settings
 - **Live price streaming** (`/api/paper/live/stream`) also requires OAuth access token (uses `MarketDataStreamerV3` SDK)
 - Never gate market data behind broker OAuth check
@@ -259,6 +338,7 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 
 ## Market Research Scripts (TV scanner + yfinance)
 - `scripts/market/` — **read-only** market research tools. No API keys, no auth, no DB writes, no broker calls.
+- **`dukascopy-node` is a devDependency on purpose — do not delete it.** knip reports it as unused because the only consumers reach it from inside Python f-strings (`require('dukascopy-node')` in `scripts/smc_tick_eval.py:42`, `experiments/timeless_reversion.py:447`, `experiments/research/nq_lrl_liquidity/render_sep15_ict_audit.py`), which knip cannot parse. It is dev-only (research tooling, never imported by `src/`), which is why it lives in `devDependencies` and is listed under `ignoreDependencies` in `knip.json`. Removing it breaks the `timeless_reversion` family at default settings.
   - `tv_client.py` — shared client: TradingView scanner wrapper (`scan` / `scanner_frame`), options straddle-implied move (`implied_move`), earnings history (`earnings_table`)
   - `us_earnings.py` — earnings prints: est vs reported, surprise %, day-1/5d/20d reaction, per-name post-earnings drift tally ("does the market pay for beats?"), forward calendar + implied moves
   - `us_scorecard.py` — business quality + earnings quality + **peer-relative** value scorecard for ~110 US large caps. Deliberately no price/technical inputs (no SMA/RSI/gap) — it scores earnings history, margins, growth, FCF, cash, dividend and multiples *relative to each name's own peer bucket*
@@ -288,7 +368,7 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 - **Backend**: `api/value_scan/` — `tv_source.py` (scanner I/O), `scoring.py` (pure scoring), `filters.py` (pure filters/presets), `cache.py` (redis), `router.py` (`GET /api/value/scan`). Router is registered in `api_server_fastapi.py` in the standard try/except block.
 - **Data source**: TradingView public scanner, **markets**: `india` → `…/india/scan`, `usa` → `…/america/scan`, `global` → `…/global/scan` with an explicit country list.
 - **Scoring**: 0-100 = 4 sub-scores (value / quality / growth / health, 25 each), each **peer-relative to the row's own sector bucket** (median computed on the **full pre-gate frame** — computing medians after the gates makes the ranking self-referential). Sub-scores and peer medians travel in the row payload so the UI can explain a row without recomputing.
-- **Hard quality gates** (a name that fails is excluded, not just penalised): P/E band, EPS growth, ROE, positive FCF, D/E, market cap, volume, and price vs SMA200 (default ON = "cheap *and* basing"). Presets: `SERIOUS` (default) / `DEEP` / `GARP_VALUE` / `YIELD` / `TURNAROUND` / `NO_GATE`.
+- **Hard quality gates** (a name that fails is excluded, not just penalised): P/E band, EPS growth, ROE, positive FCF, D/E, market cap, volume, and price vs SMA200 (default ON = "cheap *and* basing"). Presets: `SERIOUS` / `DEEP` / `GARP_VALUE` / `YIELD` / `TURNAROUND` / `NO_GATE` — ids, labels, descriptions and gates live once in `api/value_scan/presets.json`; `api/value_scan/filters.py` loads its gates from there and `src/api/valuePresets.generated.ts` is generated from the same file by `scripts/gen_value_presets.py`. No preset is applied by default (UI selector starts empty, API `preset` param defaults to `None`).
 - **Field coverage (measured — `scripts/market/field_coverage.py`)**: `india` and `america` expose 53 usable columns. **Not available anywhere: `total_cash`, `total_cash_flow_ttm`, `enterprise_value`, `price_ebitda_ttm`, `price_enterprise_value_ebitda_ttm`, `price_target`, `analyst_rating`, `total_analyst_opinions`, `basic_average_shares`.** So: no net-cash filter (use `debt_to_equity_fq` + `current_ratio` + FCF), no EV multiples, no analyst target column in v1.
 - **`global` gotchas** (measured): `global` is **not** a stocks market — it returns 0 rows for stocks and only works for futures. Global stocks need an explicit country list (16 markets → ~88k names). The same company is listed on many exchanges (NVDA appeared 8+ times with different currencies and P/Es) and ~20% of rows are `type: "dr"` → **de-duplicate by root symbol, keep `type == "stock"`, keep the listing with the most non-null fundamentals**. Market cap on a foreign listing is already in the primary currency (USD) → no FX maths. Global fundamentals coverage is ~85-90% → the response carries `fields_complete` for a "partial fundamentals" badge.
 - **Performance invariants (unit-tested)**: exactly **1 HTTP request per market per cache window** — user filters are applied in Python, never pushed to the network. The redis cache stores the **scored frame per market** (NOT the filtered result; key must not include filters) with TTL 900 s (india) / 3600 s (usa/global), a `_try_acquire_lock` stampede guard and stale-while-revalidate.
@@ -436,7 +516,7 @@ See [PRODUCTION.md](./PRODUCTION.md) for infrastructure, deployment, Railway CLI
 ### CI E2E architecture (learnings — 2026-09)
 - **20 shards max.** GitHub Free allows **20 concurrent jobs**; the repo is public so `ubuntu-latest` = 4 vCPU/16 GB. More shards than 20 just queue. `--shard=N/20`, `workers: 4`.
 - **No `waitForTimeout`.** Use web-first assertions (`expect(...).toBeVisible()`), `expect.poll(...)`, `page.waitForResponse/Function`. Fixed sleeps are the #1 source of slowness and flakes.
-- **No pixel screenshot tests.** `toHaveScreenshot` was removed (env-sensitive, redundant with DOM assertions). Visual review happens in Storybook; wire Chromatic if automated visual diffing is needed.
+- **No pixel screenshot tests.** `toHaveScreenshot` was removed (env-sensitive, redundant with DOM assertions). There is no Storybook — visual review is `bun run dev` by eye; wire a visual-diff tool only if automated diffing is actually needed.
 - **No `globalSetup`.** `playwright.setup.ts` was deleted — it launched a browser to write a `storageState` file nothing read. Auth is seeded per-page via `loginAsTestUser` (`addInitScript`).
 - **Backend in CI**: set `CI_MODE=1` so `api_server_fastapi` skips news/Redis/background tasks and creates the SQLite schema from models (`SKIP_ALEMBIC=1` leaves it empty otherwise).
 - **Readiness probe**: `/health` also supports `HEAD`; wait with `wait-on http-get://127.0.0.1:8765/api/health` (plain `http://` uses HEAD).
@@ -458,9 +538,25 @@ be useful — which is how tests stop being run at all. Local = the touched file
 `npx vitest run --changed`). The full pass belongs to CI (20 shards × 4 workers). Run it
 locally only for a `develop → main` release check.
 
+**Scope the test run to the change, not to the suite.** "Verify" does not mean "run everything":
+
+| Change | Run this |
+|---|---|
+| One source file edited | `npx vitest run <that file's test>` + `npx tsc --noEmit \| grep -c "error TS"` (must not rise) + `npx oxlint <dir>` |
+| Config / docs / JSON only (`knip.json`, `AGENTS.md`, a `.md`) | **No test run.** Validate the file parses and, if it drives tooling, run that tool once (`npx knip`, `--frozen-lockfile` check). Nothing under `src/` changed, so a suite run proves nothing. |
+| A file deleted | Run the specs that imported it (grep for the path first), not the suite. The deleted spec's own cases are the only legitimate drop in the total. |
+| Dependency removed from `package.json` | `bun install --frozen-lockfile` (must pass) + `bun run build` + one import smoke of the affected module. Do **not** run the suite. |
+| A shared module (`src/ui/`, `src/state/`, a store) | Its own directory's suite only — `npx vitest run src/ui/` etc. |
+| Test infrastructure (`test-utils/`, `vitest.config.ts`, `setupFiles`) | `npx vitest run src/test/` — this one is a genuine exception, since everything depends on it |
+
+Corollary for subagents: state the **narrow** command in the brief and require the exact count
+back — never "run the suite to be safe". A 10k-case run while other agents are writing is also
+worthless as evidence, because a difference may come from their edits (this happened: three
+full-suite runs reported three different totals, none attributable).
+
 **Note**: Use `npx vitest run <file>` for tests using `vi.mock` — `bun test` does not support `vi.mock`.
 ```bash
-npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.mock tests
+npx vitest run src/components/common/SymbolAutocomplete.test.tsx  # use vitest for vi.mock tests
 ```
 
 ### Backend Test Gotchas
@@ -477,7 +573,7 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - See [MUTATION_TESTING.md](./MUTATION_TESTING.md) for advanced testing guide
 
 ## Agent Fleet / Subagent Routing
-- **Default subagent model: `opencode/nemotron-3.5-super-vl-free` ("Nemotron 3.5 Super VL Free", $0).** Use it for every subagent unless the user names a different model. Do not fall back to Muse.
+- **Default subagent model: `opencode/nemotron-3.5-super-vl-free` ("Nemotron 3.5 Super VL Free", $0).** Use it for every subagent unless the user names a different model. Model routing is owned by `SUBAGENT_RULES.md §9` — that section is authoritative; do not keep a second copy of the pool here.
 - Free-tier quota is finite — if a free model returns `Free usage limit reached`, report it and retry later or escalate that one agent, stating why.
 - Escalate a single agent to a stronger model **only** for correctness-critical work (adversarial verification, final holdout) and state why.
 - Long-running loop protocol (waves, ledger, gates, **fill-honesty audit**) lives in the **`non-stop`** skill.
@@ -489,7 +585,25 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - **Protected paths.** Never edit `db/alphashri.db`, `.github/workflows/test.yml`, or unrelated files already dirty in the worktree.
 - **Return contract.** Report changes, files touched, the exact test command with pass/fail counts, and anything not done. A report without test counts is rejected.
 - **Review gate.** The main agent reviews the diff, fills integration gaps, then runs the full affected suite + `oxlint` + `bun run build` + the UI guards before committing. Agents never commit.
-- **Free model pool:** `opencode/deepseek-v4.1-flash-free`, `opencode/nemotron-3.5-super-vl-free`, `openrouter/nvidia/nemotron-3.5-super-vl:free`, `opencode/crouton-alpha-free`. One model per independent scope.
+- **Free model pool:** owned by `SUBAGENT_RULES.md §9` — use the pool listed there, one model per independent scope.
+
+### CPU budget — check before heavy tests (MANDATORY)
+Vitest spawns a worker per file and a worker pool can saturate the box; a stranded worker once held **8.4 GB** and pushed an 8-core machine to **3% idle / load 72**, which silently turns every other gate into a timeout.
+
+- **Before** running a full suite, `bun run test`, Playwright, or anything that fans out: check `cat /proc/loadavg` and `top -bn1 | grep "^%Cpu"`.
+- **Required floor: ≥30% idle** (or load average below core count). If it is lower, **wait** — sleep in short increments (10–20 s) up to a minute — and re-check before starting. Report the number you waited for.
+- Prefer targeted runs (`npx vitest run <file>`, `-p no:xdist`) over full sweeps; that is the cheap way to stay under the budget.
+- **After** any cancelled or failed test run, confirm nothing was orphaned: `pgrep -af "vitest|pytest|playwright"`. A cancelled lane's worker keeps consuming CPU and memory and will corrupt the next run's timing.
+- Never run two full suites concurrently (across lanes too), and never run Playwright at `--workers` above what idle CPU can absorb.
+
+### Subagent wait policy (MANDATORY)
+- Never `sleep`, poll, or repeatedly inspect a running subagent's files/processes. It reports automatically when it finishes.
+- While an agent runs, do independent work. If nothing is independent, end the turn.
+- A backgrounded shell is not a reason to poll either; wait for its completion notification.
+
+### Browser / screenshot policy (MANDATORY)
+- Never resize or emulate the user's live browser/page (`resize_page`, `emulate` viewport). Leave their viewport exactly as-is.
+- Viewport checks belong in Playwright's isolated browser; screenshots of the live browser are taken only at its current size.
 
 ### Comment policy
 - Comments explain **why**, never **what**. No narration (`// set the value`), no docstrings that restate the signature, no changelog comments.
@@ -501,10 +615,10 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 
 - **Branch first:** on `develop`, `git switch -c <type>/<name>` before committing. Never commit then push `develop`.
 - **Size:** One logical change per commit, max ~80-120 lines / one `src/ui/*` group / one component family.
-- **Frequency:** After each green checkpoint (`bun run build` + `bun run lint` pass, or `build-storybook` pass for UI). Do not accumulate >30 min or >100 lines without a commit.
+- **Frequency:** After each green checkpoint (`bun run build` + `bun run lint` pass, or `bun run test` + `bun run typecheck` pass for UI). Do not accumulate >30 min or >100 lines without a commit.
 - **Format:** Conventional `type: scope` — `feat`, `fix`, `refactor`, `chore`. No `Co-authored-by` line unless user asks.
 - **Push policy:** `git push -u origin <feature-branch>` is allowed. Pushing `develop`/`main` requires explicit user approval and is normally a PR merge (`gh pr create --base develop`).
-- **Checkpoint type:** Use `wip:` prefix if not yet green: `wip: mui scaffold — Box/Stack`.
+- **Checkpoint type:** Use `wip:` prefix if not yet green: `wip: tailwind scaffold — Box/Stack`.
 - **Safety net:** Before any `reset`/`clean`, `git stash push -m "pre-<task>"` or commit — never lose working tree.
 - Lint + build must pass: `bun run lint && bun run build`
 
@@ -524,6 +638,26 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - Trade model columns: `notes` (String 500), `reason` (String 500), `peak_price` (Float), `low_price` (Float), `bot_id` (Integer FK)
 - `Trade.to_dict()` includes all columns including `bot_id`, `peak_price`, `low_price`
 - Position model has NO `peak_price`/`low_price` — restore defaults to `entry_price`. Position HAS `strategy_type`, `peak_price`, `low_price`, `metadata_json` columns (added in snapshot-to-DB migration).
+
+## Changelog (MANDATORY)
+
+- **One file per day:** `changelog/YYYY-MM-DD.md` (newest first in `changelog/README.md`). There is no monolithic root changelog.
+- Every completed task or PR appends to **today's** file under `Added`, `Changed`, `Fixed`, `Removed`, `Data / Ops`.
+- Mention user-facing behavior, data/recorder changes, migrations and deliberate non-changes; do not duplicate the full commit message.
+- Update it before the final response or commit. A task is not complete until the day’s changelog and `reports/index.html` are both current.
+- If a change is intentionally not recorded (e.g. private scratch), say why in the entry.
+
+## Reports Index (MANDATORY)
+
+- **`reports/index.html` is the single entry point.** Whenever a report HTML is added, renamed or removed under `reports/**`, regenerate it:
+  ```bash
+  .venv/bin/python scripts/market/reports_index.py
+  .venv/bin/python scripts/market/reports_index.py --check
+  ```
+- **Never hand-edit `reports/index.html`.** The scanner owns titles, groups, source windows and links; extend its registry in `scripts/market/reports_index.py` if a new report needs custom metadata.
+- A new report is not done until the index `--check` passes, every link resolves, and the index renders at 1600 and 390 with no overflow.
+- If a report must stay out of the index, add an explicit exclusion in the scanner and say why; do not silently leave a dead/orphan HTML.
+- **Never delete report artifacts** — overwrite in place; the user removes their own reports.
 
 ## Stock EDA Reports (research skill)
 
@@ -557,13 +691,41 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
   (yfinance said 29 Oct for Mankind Q2 FY27; the filing says 26 Oct).
 - Tests: `.venv/bin/python -m pytest .prime/agent/skills/earnings-history/tests -q`.
 
+## Failure modes (read before debugging "wrong data")
+
+- Never let a failure surface as `None`/`0`/empty — blanket-`except` and silently-`None` fields hide it. Log with context, keep it observable; a `None` field is a failure, not a cue to fall back.
+- Avoid confusing an empty result with a failed one: a job where every unit failed is `failed`, never `completed`, and a gate must not reuse "0 results" as success.
+- Measure cache staleness in sessions, not calendar days.
+- Never trust a type annotation for a payload shape — verify against the live response.
+- Verify a suspected upstream failure against the raw source before concluding "no data".
+- A green suite proves the code, not the screen: render data-driven screens and look.
+
+## Timezone / date helpers
+
+- Reuse these; do not fork (several competing copies exist).
+- Backend: `config.IST` (only constant); `frame_last_date()` (IST session date of a frame's last bar), `fmt_date()` (IST display date).
+- Frontend: `TZ_IST`, `sessionDateKey()`, `istChartTime` (Intl, explicit `timeZone`), `istClock`.
+- Two open/closed implementations: `isMarketOpenIst()` (holiday-unaware) vs `isMarketOpenNow()` (holiday + session window). Use the holiday-aware one for user-facing gates; `isMarketClosedToday()` answers only "is today a holiday".
+
+## Backend ↔ frontend vocabulary parity (MANDATORY)
+
+When a backend `Literal` mirrors a frontend registry (`colorBy`, universes, views), a frontend widening silently breaks writes — add a parity test that parses the TS source and asserts the backend accepts every frontend id. Extend the existing pattern in `tests/api/test_user_configs.py`; don't hand-maintain a second list. Keep legacy ids accepted on write (old saved rows) and normalise on read.
+
+## When the running process is stale
+
+`start.sh` runs without `--reload`. After editing `api/**`, run `./start.sh restart` before testing or debugging — the source can be correct while the server runs old code. Confirm with a real request, not by reading the file. Symptom: an error lists values that no longer exist in the source.
+
+## Gates are only trustworthy with lanes quiet
+
+Run test/typecheck/E2E gates when no other lane is writing; re-run before believing a red result. A failure that passes in isolation, or whose count changes between runs, is a concurrent edit — verify before fixing.
+
 ## Known Issues / Deferred
 - **Replay system name→ID migration** (Phase 3) — deferred, known limitation
-- **ExitReasonBadge**: doesn't color-code rich exit reasons (MANUAL_CLOSE, PnL-formatted strings like "Stop loss hit ₹1340.00") — falls to gray default
-- **ExitReasonBadge missing cases**: `FORCE_CLOSE`, `TRAILING_STOP`, `MAX_HOLDING`, `NEW_52W_HIGH` — all show as raw gray text
 - **Portfolio summary compact redesign** — mentioned but not started
 - **52W daily data caching** — fetches 400 days per chart request with no caching
 - **52W range batch progress in admin UI**: The first daily run refreshes all stale symbols (~5-15 min at 3 workers × 0.35s delay), so the progress bar is visible during that window. Subsequent hourly runs are fast (everything already fresh → no-op in ~1s). Use the admin panel's "Clear cache + DB" or adjust `SCREENER_52W_INTERVAL_SEC` to control freshness.
 - **`_filter_to_date_or_recent` timezone bug** — see [PRODUCTION.md](./PRODUCTION.md) (known production issue)
 - **TradingAgents auth**: `get_current_user` dependency has compatibility issues with this router (langgraph_sdk/chaining chainlit interference). All trading_agents endpoints use no auth or hardcoded user_id=3 for now.
 - **Analysis speed**: Multi-agent analysis takes 60-120s (15+ DeepSeek LLM calls). First analysis on any ticker is slow, subsequent requests are instant from file cache.
+- **`tsc` clusters still open** (currently **322 errors**, verified by the build gate; must not rise): `src/pages/**` beyond `report`, plus `components/options|sector|strategies|replay|backtest|news`. Verify with `npx tsc --noEmit 2>&1 | grep -c "error TS"`. Cleared clusters (`report`, `common`+`ui`, `paper-trading`+`bots`, `screener`+`patterns`, `utils`+`api`+`state`) each exposed real runtime defects — treat the remaining ones as bug hunts, not tidying. Clean (0 errors): `market`, `config`, `options-dock`, `analytics` clusters — do not re-open.
+- **Index Report chart focus (LEVEL 1/2)** — specified in [docs/INDEX_REPORT_REDESIGN.md](./docs/INDEX_REPORT_REDESIGN.md) but not built. The walls card is now 5-column and 216px (was 475px single-column), so the chart is visible; the drawer and focus mode are still pending.

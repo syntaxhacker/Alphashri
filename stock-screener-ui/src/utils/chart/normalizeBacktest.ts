@@ -1,4 +1,3 @@
-import type { SymbolChartData, ChartTrade } from "../../types/backtest";
 import dayjs from "dayjs";
 import type {
   ChartInput,
@@ -26,12 +25,76 @@ export function getBacktestZoomStartIndex(
   return idx >= 0 ? idx : 0;
 }
 
+/**
+ * `normalizeBacktest` reads only the candle/trade stream plus optional overlay
+ * series, and it is deliberately defensive: candle OHLC and the trade payload's
+ * secondary fields can be absent on legacy/degenerate payloads. Typing that
+ * subset keeps fixtures honest without fabricating the unused envelope.
+ */
+export interface BacktestNormalizeCandle {
+  time: string;
+  date?: string;
+  date_raw?: string;
+  time_str?: string;
+  open?: number;
+  high?: number;
+  low?: number;
+  close?: number;
+  volume?: number;
+}
+
+export interface BacktestNormalizeTrade {
+  type: "entry" | "exit";
+  trade_id: number;
+  candle_idx?: number;
+  time?: string;
+  trade: {
+    entry_price?: number;
+    exit_price?: number;
+    entry_time?: string;
+    exit_time?: string;
+    quantity?: number;
+    net_pnl?: number;
+    trading_costs?: number;
+    exit_reason?: string;
+    or_high?: number;
+    or_low?: number;
+    pp?: number;
+    r1?: number;
+    s1?: number;
+    r2?: number;
+    s2?: number;
+  };
+}
+
+export interface BacktestNormalizeInput {
+  candles: BacktestNormalizeCandle[];
+  trades: BacktestNormalizeTrade[];
+  symbol?: string;
+  visuals?: {
+    overlays?: Array<{
+      id: string;
+      label: string;
+      type: "line" | "box";
+      color: string;
+      dash?: number[];
+      levels?: Array<{ date?: string; value: number }>;
+      value?: number;
+    }>;
+    ema_series?: Array<{ label: string; color: string; data: number[] }>;
+  };
+  rsi?: { period: number; data: (number | null)[] };
+}
+
+/** Overlays are always materialized (empty array, not undefined) on this path. */
+export type BacktestChartInput = ChartInput & { markLines: MarkLineData[] };
+
 export function normalizeBacktest(
-  data: SymbolChartData,
+  data: BacktestNormalizeInput,
   isDark: boolean,
   holidays?: { date: string; type: string; description: string }[],
   highlightedTradeId?: number | null,
-): ChartInput {
+): BacktestChartInput {
   const rawCandles = data.candles || [];
   const candles: UnifiedCandle[] = rawCandles.map((c: any) => ({
     time: c.time,
@@ -45,8 +108,8 @@ export function normalizeBacktest(
   }));
 
   const trades: UnifiedTrade[] = [];
-  const entryMap = new Map<number, ChartTrade>();
-  const exitMap = new Map<number, ChartTrade>();
+  const entryMap = new Map<number, BacktestNormalizeTrade>();
+  const exitMap = new Map<number, BacktestNormalizeTrade>();
 
   for (const t of data.trades) {
     if (t.type === "entry") entryMap.set(t.trade_id, t);
@@ -55,17 +118,20 @@ export function normalizeBacktest(
 
   for (const [tradeId, entry] of entryMap) {
     const exit = exitMap.get(tradeId);
+    // A marker payload can be structurally incomplete (missing price/qty on
+    // legacy rows). Skip it rather than emitting NaN geometry downstream.
+    if (entry.trade.entry_price == null || entry.trade.quantity == null) continue;
     trades.push({
       id: tradeId,
       entry_price: entry.trade.entry_price,
-      exit_price: exit ? exit.trade.exit_price : undefined,
-      entry_time: entry.trade.entry_time || entry.time,
+      exit_price: exit?.trade.exit_price,
+      entry_time: entry.trade.entry_time || entry.time || "",
       exit_time: exit ? exit.trade.exit_time || exit.time : undefined,
-      exit_reason: exit ? exit.trade.exit_reason : undefined,
+      exit_reason: exit?.trade.exit_reason,
       quantity: entry.trade.quantity,
       side: "BUY",
-      pnl: exit ? exit.trade.net_pnl : undefined,
-      costs: exit ? exit.trade.trading_costs : undefined,
+      pnl: exit?.trade.net_pnl,
+      costs: exit?.trade.trading_costs,
       candle_idx: entry.candle_idx,
       exit_candle_idx: exit?.candle_idx,
     });
@@ -74,13 +140,14 @@ export function normalizeBacktest(
   const overlays: UnifiedOverlay[] = [];
   if (data.visuals?.overlays) {
     for (const overlay of data.visuals.overlays) {
+      const levels = overlay.levels ?? (overlay.value != null ? [{ value: overlay.value }] : []);
       overlays.push({
         id: overlay.id,
         label: overlay.label,
         type: overlay.type,
         color: overlay.color,
         dash: overlay.dash,
-        levels: overlay.levels || [{ value: overlay.value }],
+        levels,
         showLabel: false,
       });
     }

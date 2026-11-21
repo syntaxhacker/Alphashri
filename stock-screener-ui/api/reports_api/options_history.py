@@ -237,6 +237,10 @@ def get_options_tape(
     the formulas (``call_doi``/``put_doi``/``net``/``call_tick``/``pcr_doi``/
     ``spot_flip``) are identical. A missing/empty tape is a 404 envelope — the
     recorder only writes rows for minutes it was alive.
+
+    Per-row chains are trimmed by :func:`api.reports_api.nifty._trim_tape_chains`
+    (the same rule the NIFTY endpoint uses), so SENSEX's ~233-strike chain no
+    longer dominates the response; the recorded file keeps every strike.
     """
     symbol = _symbol(underlying)
     date_str = validate_date(date if isinstance(date, str) and date else _today())
@@ -245,9 +249,9 @@ def get_options_tape(
         raise _missing(date_str, f"no {symbol} tape for {date_str}")
     # Lazy: nifty is a heavy module (auth, intel routers) and this reader must
     # stay import-light for the API's startup path.
-    from api.reports_api.nifty import derive_tape_rows
+    from api.reports_api.nifty import derive_tape_rows, _trim_tape_chains
 
-    rows = derive_tape_rows(raw)
+    rows = _trim_tape_chains(derive_tape_rows(raw))
     return {
         "date": date_str,
         "interval_sec": TAPE_INTERVAL_SEC,

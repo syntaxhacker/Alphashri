@@ -5,9 +5,19 @@ import math
 import pytest
 import requests
 
-from api.tv import FRAME_LIMIT, GLOBAL_COUNTRIES, VALUE_COLUMNS
+import api.value_scan.tv_source as tv_source
+from api.tv import (
+    FRAME_LIMIT,
+    GLOBAL_COUNTRIES,
+    MARKET_CURRENCY as OWNED_MARKET_CURRENCY,
+    USA_EXCHANGES,
+    VALUE_COLUMNS,
+    resolve_market,
+)
 from api.value_scan.tv_source import (
+    MARKET_CURRENCY,
     TvSourceError,
+    _markets_for,
     fetch_frame,
     frame_summary,
 )
@@ -72,6 +82,64 @@ def _mock_post(monkeypatch, payload=None, status_code=200):
 
 def _payload(*entries):
     return {"data": entries, "totalCount": len(entries)}
+
+
+class TestSharedMarketResolution:
+    """The public->TV market alias lives in api.tv, not in value_scan."""
+
+    @pytest.mark.parametrize("market,segment", [
+        ("usa", "america"),
+        ("america", "america"),
+        ("india", "india"),
+        ("global", "global"),
+    ])
+    def test_markets_for_matches_shared_helper(self, market, segment):
+        assert resolve_market(market) == segment
+        expected = GLOBAL_COUNTRIES if market == "global" else [segment]
+        assert _markets_for(market) == expected
+
+    def test_markets_for_delegates_to_shared_helper(self, monkeypatch):
+        seen = []
+        real = tv_source.resolve_market
+
+        def spy(market):
+            seen.append(market)
+            return real(market)
+
+        monkeypatch.setattr(tv_source, "resolve_market", spy)
+        assert _markets_for("usa") == ["america"]
+        assert _markets_for("india") == ["india"]
+        assert seen == ["usa", "india"]
+
+    def test_global_does_not_resolve_through_helper(self, monkeypatch):
+        def unexpected(market):
+            raise AssertionError("global uses the country list, not resolve_market")
+
+        monkeypatch.setattr(tv_source, "resolve_market", unexpected)
+        assert _markets_for("global") == GLOBAL_COUNTRIES
+
+    def test_fetch_frame_body_markets_come_from_helper(self, monkeypatch):
+        calls = _mock_post(monkeypatch, _payload(_entry("AAPL")))
+        seen = []
+        real = tv_source.resolve_market
+
+        def spy(market):
+            seen.append(market)
+            return real(market)
+
+        monkeypatch.setattr(tv_source, "resolve_market", spy)
+        fetch_frame("usa")
+        assert seen == ["usa"]
+        assert calls[0]["url"] == "https://scanner.tradingview.com/america/scan"
+        assert calls[0]["json"]["markets"] == ["america"]
+
+    def test_currency_constant_is_the_single_owner(self):
+        assert MARKET_CURRENCY is OWNED_MARKET_CURRENCY
+        assert MARKET_CURRENCY == {
+            "india": "INR", "usa": "USD", "global": "mixed"}
+
+    def test_usa_exchanges_filter_is_shared(self):
+        assert USA_EXCHANGES == {"NASDAQ", "NYSE", "AMEX"}
 
 
 class TestFetchFrameUrlAndBody:

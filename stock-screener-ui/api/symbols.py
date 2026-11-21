@@ -3,7 +3,10 @@ Symbols API — symbol search and instrument loading.
 """
 
 import asyncio
+import json
 import sys
+import time
+from pathlib import Path
 from typing import Optional, Dict, Any, List
 
 from fastapi import APIRouter, Query
@@ -16,6 +19,11 @@ from api.tv import get_scanner_data, normalize_tv_symbol, to_tv_ticker
 
 _instruments_cache: List[Dict] = []
 _instruments_loaded = False
+
+#: F&O underlyings are re-derived hourly: the fallback source is the 43 MB
+#: Upstox instruments file and search runs on every keystroke.
+_FNO_CACHE: Dict[str, Any] = {"source": None, "ts": 0.0, "symbols": frozenset()}
+_FNO_TTL_SECONDS = 3600
 
 
 def _load_instruments():
@@ -41,6 +49,87 @@ def _load_instruments():
         print(f"⚠️ Failed to load instruments from database: {e}")
         _instruments_loaded = True
         return _instruments_cache
+
+
+def _instruments_json_path() -> Path:
+    return (
+        Path(__file__).resolve().parents[2]
+        / "upstox_trader"
+        / "config_and_utils"
+        / "nse_instruments.json"
+    )
+
+
+def _fno_symbols_from_records(records) -> set:
+    """Equity underlyings that actually have NSE_FO contracts.
+
+    Both CE and PE rows prove F&O membership; index derivatives are excluded
+    because they carry ``asset_type == "INDEX"``.
+    """
+    symbols: set = set()
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        if rec.get("segment") != "NSE_FO":
+            continue
+        asset_type = rec.get("asset_type") or rec.get("underlying_type")
+        if str(asset_type or "").upper() != "EQUITY":
+            continue
+        underlying = rec.get("underlying_symbol") or rec.get("asset_symbol")
+        underlying = str(underlying or "").strip().upper()
+        if underlying:
+            symbols.add(underlying)
+    return symbols
+
+
+def _has_fo_records(records) -> bool:
+    return any(
+        isinstance(rec, dict) and rec.get("segment") == "NSE_FO"
+        for rec in records or []
+    )
+
+
+def _load_fno_symbols_from_file() -> set:
+    """Parse the shared instruments file (the option-chain endpoints' source)."""
+    try:
+        with open(_instruments_json_path(), encoding="utf-8") as fh:
+            records = json.load(fh)
+    except Exception as exc:
+        print(f"⚠️ Failed to load F&O instruments: {exc}")
+        return set()
+    return _fno_symbols_from_records(records)
+
+
+def _fno_underlyings(instruments) -> frozenset:
+    """F&O equity underlyings known to the loaded instrument dataset.
+
+    The NSE_EQ-only cache contains no derivative rows, so in that case the
+    canonical instruments file is used. A dataset that *does* carry NSE_FO
+    rows but no usable equity contracts yields an empty set — callers must
+    return no results rather than fall back to non-F&O stocks.
+    """
+    now = time.monotonic()
+    cached = _FNO_CACHE.get("symbols")
+    if (
+        _FNO_CACHE.get("source") is instruments
+        and cached is not None
+        and now - _FNO_CACHE.get("ts", 0.0) < _FNO_TTL_SECONDS
+    ):
+        return cached
+
+    symbols = _fno_symbols_from_records(instruments)
+    if not symbols and not _has_fo_records(instruments):
+        symbols = _load_fno_symbols_from_file()
+
+    result = frozenset(symbols)
+    _FNO_CACHE.update({"source": instruments, "ts": now, "symbols": result})
+    return result
+
+
+def _current_instruments() -> List[Dict]:
+    _main = sys.modules.get('api_server_fastapi')
+    cache = _main._instruments_cache if _main and hasattr(_main, '_instruments_cache') else _instruments_cache
+    return cache if _main and hasattr(_main, '_instruments_loaded') and _main._instruments_loaded else _load_instruments()
 
 
 def _search_tv(q: str, limit: int = 10) -> list[dict]:
@@ -167,27 +256,38 @@ async def search_symbols(
     q: str = Query(..., min_length=1, description="Search query"),
     limit: int = Query(10, ge=1, le=50, description="Max results"),
     source: str = Query("local", description="Search source: 'local' (DB instruments, default), 'tv' (tradingview_screener lib via Query+col.like), 'auto' (prefer local, fallback to tv)"),
+    fno: bool = Query(False, description="Only return underlyings that have NSE_FO equity contracts"),
 ):
     # FastAPI supplies actual str for source via the Query default when using the router.
     # When calling this function directly from python (tests, scripts) the default value
     # is the Query(...) descriptor object itself — guard against it.
     if not isinstance(source, str):
         source = "local"
+    if not isinstance(fno, bool):
+        fno = False
     src = (source or "local").lower().strip()
     if src not in ("local", "tv", "auto"):
         src = "local"
 
+    instruments = [] if src == "tv" and not fno else _current_instruments()
+    # The file fallback parses ~45 MB; keep it off the event loop on first hit.
+    fno_symbols = (
+        await asyncio.to_thread(_fno_underlyings, instruments)
+        if fno
+        else frozenset()
+    )
+
     if src == "tv":
         tv_results = await asyncio.to_thread(_search_tv, q, limit)
+        if fno:
+            tv_results = [r for r in tv_results if str(r.get("symbol") or "").upper() in fno_symbols]
         qq = (q or "").strip()
         return {"results": tv_results, "query": qq, "total": len(tv_results), "source": "tv"}
 
-    _main = sys.modules.get('api_server_fastapi')
-    cache = _main._instruments_cache if _main and hasattr(_main, '_instruments_cache') else _instruments_cache
-    instruments = cache if _main and hasattr(_main, '_instruments_loaded') and _main._instruments_loaded else _load_instruments()
-
     if src == "auto" and (not instruments or len(instruments) == 0):
         tv_results = await asyncio.to_thread(_search_tv, q, limit)
+        if fno:
+            tv_results = [r for r in tv_results if str(r.get("symbol") or "").upper() in fno_symbols]
         qq = (q or "").strip()
         return {"results": tv_results, "query": qq, "total": len(tv_results), "source": "tv"}
 
@@ -203,8 +303,11 @@ async def search_symbols(
         if inst.get('segment') != 'NSE_EQ':
             continue
 
-        symbol = inst.get('trading_symbol', '')
-        name = inst.get('name', '')
+        symbol = inst.get('trading_symbol', '') or ''
+        name = inst.get('name', '') or ''
+
+        if fno and symbol.upper() not in fno_symbols:
+            continue
 
         symbol_match = query_lower in symbol.lower()
         name_match = query_lower in name.lower()

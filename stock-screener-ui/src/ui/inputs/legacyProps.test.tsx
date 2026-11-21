@@ -1,29 +1,22 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, cleanup } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { Select } from "./Select";
 import { MultiSelect } from "./MultiSelect";
 
-afterEach(cleanup);
-
 /**
  * Guard: legacy Mantine-ism props are accepted (backward compat) but must
- * never reach the DOM — React would warn about unknown attributes.
+ * never reach the DOM — Solid would not warn, but callers written against the
+ * old API rely on them being swallowed.
  */
-const LEGACY_ATTRS = [
-  "allowdeselect",
-  "maxdropdownheight",
-  "inputprops",
-  "comboboxprops",
-  "withinportal",
-];
+const LEGACY_ATTRS = ["allowdeselect", "maxdropdownheight", "inputprops", "comboboxprops", "withinportal"];
 
 describe("@/ui inputs — legacy Mantine props stripped", () => {
-  it("Select with legacy props renders without unknown-attribute warnings", () => {
+  it("Select with legacy props renders without leaking attributes to the DOM", () => {
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      const { container } = render(
+      const { container } = render(() => (
         <Select
           data={["a", "b"]}
           value="a"
@@ -35,8 +28,8 @@ describe("@/ui inputs — legacy Mantine props stripped", () => {
           leftSection={<span>L</span>}
           rightSection={<span>R</span>}
           data-testid="legacy-select"
-        />,
-      );
+        />
+      ));
       const html = container.innerHTML.toLowerCase();
       for (const attr of LEGACY_ATTRS) {
         expect(html, `leaked DOM attribute: ${attr}`).not.toContain(attr);
@@ -50,10 +43,10 @@ describe("@/ui inputs — legacy Mantine props stripped", () => {
     }
   });
 
-  it("MultiSelect with legacy props renders without unknown-attribute warnings", () => {
+  it("MultiSelect with legacy props renders without leaking attributes to the DOM", () => {
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      const { container } = render(
+      const { container } = render(() => (
         <MultiSelect
           data={["a", "b"]}
           value={["a"]}
@@ -62,8 +55,8 @@ describe("@/ui inputs — legacy Mantine props stripped", () => {
           comboboxProps={{ withinPortal: true }}
           withinPortal
           data-testid="legacy-multi"
-        />,
-      );
+        />
+      ));
       const html = container.innerHTML.toLowerCase();
       for (const attr of LEGACY_ATTRS) {
         expect(html, `leaked DOM attribute: ${attr}`).not.toContain(attr);

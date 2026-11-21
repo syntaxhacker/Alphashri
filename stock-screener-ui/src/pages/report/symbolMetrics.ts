@@ -9,6 +9,8 @@
  */
 
 import type { NiftyReport, NiftyStrike, NiftyWall } from "@/types/niftyReport";
+import { flowNoiseFor as baseFlowNoiseFor } from "./niftyFlowRead";
+import { maxPainTouchTol as baseMaxPainTouchTol } from "./maxPainTouches";
 
 export interface SymbolMetrics {
   /** Spot price from the report. */
@@ -149,7 +151,7 @@ export function symbolMetrics(report: NiftyReport): SymbolMetrics {
   const maxWallOi = computeMaxWallOi(report.walls);
 
   // Derived point thresholds (scale with strike step)
-  const maxPainTouchTol = Math.max(1, Math.round(strikeStep * 0.2));
+  const maxPainTouchTol = baseMaxPainTouchTol({ strikes });
   const pinEdgeHigh = strikeStep;
   const pinEdgeMedium = strikeStep * 2;
   const pinPainPts = strikeStep * 2;
@@ -165,7 +167,7 @@ export function symbolMetrics(report: NiftyReport): SymbolMetrics {
   // Flow noise: absolute floor (50k) + relative to total OI (0.1%)
   const flowNoise = DEFAULT_FLOW_NOISE;
   const flowNoiseRel = DEFAULT_FLOW_NOISE_REL;
-  const effectiveFlowNoise = Math.max(flowNoise, Math.round(totalOi * flowNoiseRel));
+  const effectiveFlowNoise = baseFlowNoiseFor({ strikes });
 
   // Squeeze radar: preserve NIFTY behavior in basis points of spot
   const squeezeRangeBps = Math.round((NIFTY_SQUEEZE_RANGE_PTS / NIFTY_REF_SPOT) * 10000);
@@ -204,9 +206,7 @@ export function symbolMetrics(report: NiftyReport): SymbolMetrics {
 }
 
 /** Backward-compatible helpers for callers that only need one metric. */
-export function maxPainTouchTol(report: NiftyReport): number {
-  return symbolMetrics(report).maxPainTouchTol;
-}
+export { baseMaxPainTouchTol as maxPainTouchTol, baseFlowNoiseFor as flowNoiseFor };
 export function pinEdgeHigh(report: NiftyReport): number {
   return symbolMetrics(report).pinEdgeHigh;
 }
@@ -231,9 +231,6 @@ export function heatmapWidthPts(report: NiftyReport): number {
 export function atmWindowPts(report: NiftyReport): number {
   return symbolMetrics(report).atmWindowPts;
 }
-export function flowNoiseFor(report: NiftyReport): number {
-  return symbolMetrics(report).effectiveFlowNoise;
-}
 export function squeezeRangePts(report: NiftyReport): number {
   return symbolMetrics(report).squeezeRangePts;
 }
@@ -243,25 +240,3 @@ export function squeezePriceBreakPts(report: NiftyReport): number {
 export function squeezeAtWallPts(report: NiftyReport): number {
   return symbolMetrics(report).squeezeAtWallPts;
 }
-
-/** Test fixtures for SENSEX and RELIANCE (not exported to production code). */
-export const TEST_FIXTURES = {
-  /** SENSEX: ~79,000 spot, 100-pt strike step, lot 20 */
-  sensex: {
-    spot: 79_000,
-    strikeStep: 100,
-    lotSize: 20,
-  },
-  /** RELIANCE: ~1,400 spot, 50-pt strike step, lot 500 */
-  reliance: {
-    spot: 1_400,
-    strikeStep: 50,
-    lotSize: 500,
-  },
-  /** NIFTY: ~22,800 spot, 50-pt strike step, lot 65 */
-  nifty: {
-    spot: 22_800,
-    strikeStep: 50,
-    lotSize: 65,
-  },
-} as const;

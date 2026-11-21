@@ -16,8 +16,10 @@ from .paper_api import router, _get_user_id
 from pathlib import Path
 
 
+# Sync `def`: the DB batch-reads and the per-bot paper-trader snapshot run on the
+# anyio worker pool instead of the event loop.
 @router.get("/aggregated")
-async def get_aggregated_dashboard(user: "User" = Depends(get_current_user)):
+def get_aggregated_dashboard(user: "User" = Depends(get_current_user)):
     user_id = _get_user_id(user)
     today = datetime.now(config.IST)
 

@@ -20,11 +20,22 @@ function isMultiDayLabel(value: string): boolean {
   return value.includes(" ") && value.substring(0, value.indexOf(" ")).includes("-");
 }
 
+/** Loose ECharts option bag: each field is a different nested shape and the
+ *  callers only ever assign/read a handful of known keys. */
+export type EChartsBag = Record<string, any>;
+
+/** Known axis fields, plus room for the rest of ECharts' axis option. */
+export interface ChartAxis extends EChartsBag {
+  data?: string[];
+  min?: number | string;
+  max?: number | string;
+}
+
 interface GridResult {
-  grids: any[];
-  xAxes: any[];
-  yAxes: any[];
-  dataZoom: any[];
+  grids: EChartsBag[];
+  xAxes: ChartAxis[];
+  yAxes: ChartAxis[];
+  dataZoom: EChartsBag[];
 }
 
 export function buildGrid(

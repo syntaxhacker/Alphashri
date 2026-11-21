@@ -831,7 +831,7 @@ def _theme_to_summary(theme: Theme, member_count: int) -> ThemeSummary:
 
 
 @router.get("/themes", response_model=ThemeListResponse)
-async def list_themes():
+def list_themes():
     """List active curated themes with member counts, sorted by name."""
     db = SessionLocal()
     try:
@@ -851,7 +851,7 @@ async def list_themes():
 
 
 @router.get("/themes/{slug}", response_model=ThemeDetailResponse)
-async def get_theme_detail(slug: str):
+def get_theme_detail(slug: str):
     """Theme detail + sorted constituent symbols. 404 for unknown slug."""
     db = SessionLocal()
     try:
@@ -913,7 +913,8 @@ async def get_group_performance(
 
         period_col = PERIOD_COLUMN_MAP[period]
         if classify == "theme":
-            info, slug_to_members = _load_theme_membership()
+            # DB-backed theme membership; keep the query off the event loop.
+            info, slug_to_members = await asyncio.to_thread(_load_theme_membership)
             groups = _aggregate_theme_groups(df, period_col, slug_to_members, info)
         else:
             groups = _aggregate_groups(df, classify, period_col)

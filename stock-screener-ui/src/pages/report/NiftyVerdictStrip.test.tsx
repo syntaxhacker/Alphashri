@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import * as palette from "@/ui/palette";
 
@@ -76,6 +76,7 @@ describe("normalizeReport verdict blocks (snake_case -> typed, null-safe)", () =
       pe_doi: -1_200_000,
       atm_ce_iv: 12.5,
       atm_pe_iv: 13.1,
+      put_skew: -2.4,
       skew: -2.4,
       gex_regime: "short",
       flow_bias: null,
@@ -309,7 +310,7 @@ describe("control verdict labels", () => {
         gex_regime: "short",
       },
     } as Record<string, unknown>);
-    render(<NiftyVerdictStrip report={report} />, { wrapper: UIProvider });
+    render(() => <UIProvider><NiftyVerdictStrip report={report} /></UIProvider>);
     const primary = screen.getByTestId("nifty-verdict-control-primary");
     // Exact, full string: the cell's CSS `truncate` may clip it visually on a
     // narrow strip, but the text node itself must carry every segment — a

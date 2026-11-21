@@ -5,7 +5,31 @@ from typing import Optional, Dict, Any, List
 from api.utils import _to_float, _sanitize_for_json
 
 
-MAX_WORKERS = 10
+#: Screener fan-out width.  Each worker resolves Upstox data through the queued
+#: rate limiter (``upstox_trader.queued_rate_limiter``), whose own pool is 20;
+#: a 10-worker fan-out left half that pool idle and roughly doubled cold scans
+#: (~96s for `trending`).  The Redis-backed limiter (120/min for the `api`
+#: slice) is the binding constraint on request *rate* — extra workers queue on
+#: ``acquire()`` rather than bypass it — so matching the two pools cannot
+#: self-inflict 429s.  Overridable via ``SCREENER_MAX_WORKERS``.
+DEFAULT_MAX_WORKERS = 20
+SCREENER_MAX_WORKERS_ENV_VAR = 'SCREENER_MAX_WORKERS'
+
+
+def resolve_max_workers(explicit: Optional[int] = None) -> int:
+    """Resolve fan-out width: explicit arg > env > default (20)."""
+    if explicit is not None:
+        return int(explicit)
+    try:
+        parsed = int(os.environ.get(SCREENER_MAX_WORKERS_ENV_VAR, ''))
+        if parsed > 0:
+            return parsed
+    except (TypeError, ValueError):
+        pass
+    return DEFAULT_MAX_WORKERS
+
+
+MAX_WORKERS = resolve_max_workers()
 
 
 def touched_52w_gap_threshold_pct() -> float:

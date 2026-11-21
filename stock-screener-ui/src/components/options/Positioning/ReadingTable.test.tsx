@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, afterEach } from "vitest";
-import { screen, within, cleanup } from "@testing-library/react";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
+import { render, screen, within, cleanup } from "@solidjs/testing-library";
 import { ReadingTable } from "./ReadingTable";
 import type { PositioningData } from "@/utils/positioning";
 
@@ -33,21 +32,21 @@ const mockData: PositioningData = {
 
 describe("ReadingTable", () => {
   test("renders all five reading rows", () => {
-    renderWithProviders(<ReadingTable data={mockData} />);
+    render(() => <ReadingTable data={mockData} />);
     for (const id of ["state", "flow", "initiated", "split", "read"]) {
       expect(screen.getByTestId(`positioning-reading-${id}`)).toBeInTheDocument();
     }
   });
 
   test("state row shows net value and note", () => {
-    renderWithProviders(<ReadingTable data={mockData} />);
+    render(() => <ReadingTable data={mockData} />);
     const row = screen.getByTestId("positioning-reading-state");
     expect(within(row).getByText("3,00,000 Cr")).toBeInTheDocument();
     expect(within(row).getByText("puts outweigh calls")).toBeInTheDocument();
   });
 
   test("flow and initiated rows show net values", () => {
-    renderWithProviders(<ReadingTable data={mockData} />);
+    render(() => <ReadingTable data={mockData} />);
     expect(
       within(screen.getByTestId("positioning-reading-flow")).getByText("-87,000 Cr"),
     ).toBeInTheDocument();
@@ -57,7 +56,7 @@ describe("ReadingTable", () => {
   });
 
   test("split row shows stacked bar total and leg breakdown", () => {
-    renderWithProviders(<ReadingTable data={mockData} />);
+    render(() => <ReadingTable data={mockData} />);
     const row = screen.getByTestId("positioning-reading-split");
     expect(within(row).getByText("92,506 Cr · 100%")).toBeInTheDocument();
     expect(
@@ -66,7 +65,7 @@ describe("ReadingTable", () => {
   });
 
   test("read row shows pct and share coverage", () => {
-    renderWithProviders(<ReadingTable data={mockData} />);
+    render(() => <ReadingTable data={mockData} />);
     const row = screen.getByTestId("positioning-reading-read");
     expect(within(row).getByText("+92.4%")).toBeInTheDocument();
     expect(within(row).getByText("1.2L of 1.3L shares readable")).toBeInTheDocument();
@@ -77,7 +76,7 @@ describe("ReadingTable", () => {
       ...mockData,
       flow: { calls_cr: null, puts_cr: null, note: "no flow" },
     };
-    renderWithProviders(<ReadingTable data={data} />);
+    render(() => <ReadingTable data={data} />);
     expect(
       within(screen.getByTestId("positioning-reading-flow")).getByText("—"),
     ).toBeInTheDocument();

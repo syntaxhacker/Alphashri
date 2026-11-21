@@ -22,6 +22,15 @@ import {
   ORB_AREA,
 } from "../../config/colors";
 
+/**
+ * `normalizeReplay` reads the candle/trade stream plus optional overlay series.
+ * The overlay bags are always materialized on the way out.
+ */
+export type ReplayChartInput = ChartInput & {
+  markAreas: MarkAreaItem[];
+  overlays: UnifiedOverlay[];
+};
+
 export function normalizeReplay(
   candles: ReplayCandle[],
   trades: ReplayTrade[],
@@ -41,11 +50,11 @@ export function normalizeReplay(
     show_52w_high?: boolean;
     show_ema?: boolean;
   },
-): ChartInput {
+): ReplayChartInput {
   const unifiedCandles = mapCandles(candles);
 
   const symbolTrades = trades.filter((t) => t.symbol === selectedSymbol);
-  const unifiedTrades = mapTrades(symbolTrades, (t) => (t as ReplayTrade).id);
+  const unifiedTrades = mapTrades(symbolTrades, (t) => t.id);
 
   const overlays: UnifiedOverlay[] = [];
   const rc = rawCandles || candles;

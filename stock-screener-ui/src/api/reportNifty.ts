@@ -3,6 +3,7 @@
  */
 
 import { fetchWithAuth } from "../state/auth";
+import { apiErrorFromResponse, asApiError, isAbortError } from "./apiError";
 import { safeNum } from "../utils/reportParsers";
 import type {
   NiftyBurst,
@@ -15,11 +16,19 @@ import type {
   NiftyEmaSeries,
   NiftyFlowLeg,
   NiftyFlowWindow,
+  NiftyFutures,
+  NiftyFuturesPoint,
+  NiftyFuturesRegime,
   NiftyGex,
   NiftyGexLevel,
   NiftyGexLevels,
   NiftyGexStrike,
   NiftyIntradayCandle,
+  NiftyItmPeFlow,
+  NiftyItmPeFlowPoint,
+  NiftyItmPeStrike,
+  NiftyIvSurface,
+  NiftyIvSurfacePoint,
   NiftyMarketBlock,
   NiftyOptionSide,
   NiftyPivots,
@@ -49,6 +58,37 @@ import type {
 import { API_BASE } from "./config";
 
 const NIFTY_API_BASE = `${API_BASE}/api/reports/nifty`;
+
+/**
+ * Optional report feeds resolve to `null`/`[]` so one dead endpoint cannot blank
+ * the page. That contract is fine — what is not fine is a 500 or a dropped
+ * connection being indistinguishable from "nothing recorded". Several of these
+ * are polled every 10-30 s, so log the first failure per endpoint (with its
+ * cause) and then every 20th, keeping a persistent outage visible without
+ * flooding a desk that stays open all day.
+ */
+const FAILURE_LOG_EVERY = 20;
+const reportedFailures = new Map<string, number>();
+
+function reportFetchFailure(scope: string, error: unknown, status?: number): void {
+  const detail =
+    status !== undefined
+      ? `HTTP ${status}`
+      : error instanceof Error
+        ? `${error.name}: ${error.message}`
+        : String(error);
+  const count = (reportedFailures.get(scope) ?? 0) + 1;
+  reportedFailures.set(scope, count);
+  if (count === 1 || count % FAILURE_LOG_EVERY === 0) {
+    const repeat = count === 1 ? "" : ` (${count} failures)`;
+    console.warn(`[api] ${scope} failed (${detail})${repeat}`);
+  }
+}
+
+/** A 404 is a legitimately absent resource; anything else is a broken feed. */
+function isMissingResource(status: number): boolean {
+  return status === 404;
+}
 
 /** Generic option-report namespace: one recorded history per underlying. */
 function optionsApiBase(symbol: string): string {
@@ -223,11 +263,67 @@ function normalizeControl(raw: unknown): NiftyControlBlock | undefined {
     pe_doi: nullNum(c.pe_doi ?? c.peDoi),
     atm_ce_iv: nullNum(c.atm_ce_iv ?? c.atmCeIv),
     atm_pe_iv: nullNum(c.atm_pe_iv ?? c.atmPeIv),
-    skew: nullNum(c.skew),
+    put_skew: nullNum(c.put_skew ?? c.skew),
+    skew: nullNum(c.skew ?? c.put_skew),
     gex_regime:
       typeof (c.gex_regime ?? c.gexRegime) === "string"
         ? String(c.gex_regime ?? c.gexRegime)
         : null,
+  };
+}
+
+/** `iv_surface` block — absent/empty → undefined, partial → null fields. */
+function normalizeIvSurface(raw: unknown): NiftyIvSurface | undefined {
+  const s = asBlock(raw);
+  if (!s) return undefined;
+  const atm = asBlock(s.atm);
+  const skew = asBlock(s.skew);
+  const coverage = asBlock(s.coverage);
+  const points = Array.isArray(s.points)
+    ? (s.points as Record<string, unknown>[]).map(
+        (p): NiftyIvSurfacePoint => ({
+          strike: safeNum(p.strike),
+          ce_iv: nullNum(p.ce_iv),
+          pe_iv: nullNum(p.pe_iv),
+          ce_delta: nullNum(p.ce_delta),
+          pe_delta: nullNum(p.pe_delta),
+        }),
+      )
+    : [];
+  return {
+    atm: atm
+      ? {
+          strike: nullNum(atm.strike),
+          ce_iv: nullNum(atm.ce_iv),
+          pe_iv: nullNum(atm.pe_iv),
+          avg_iv: nullNum(atm.avg_iv),
+        }
+      : null,
+    skew: skew
+      ? {
+          strike_ce25: nullNum(skew.strike_ce25),
+          ce_25d_iv: nullNum(skew.ce_25d_iv),
+          strike_pe25: nullNum(skew.strike_pe25),
+          pe_25d_iv: nullNum(skew.pe_25d_iv),
+          skew_25d: nullNum(skew.skew_25d),
+        }
+      : null,
+    term: Array.isArray(s.term)
+      ? (s.term as Record<string, unknown>[]).map((t) => ({
+          expiry: String(t.expiry ?? ""),
+          atm_iv: nullNum(t.atm_iv),
+        }))
+      : [],
+    coverage: coverage
+      ? {
+          rows: safeNum(coverage.rows),
+          with_ce_iv: safeNum(coverage.with_ce_iv),
+          with_pe_iv: safeNum(coverage.with_pe_iv),
+          with_delta: safeNum(coverage.with_delta),
+        }
+      : null,
+    degraded: typeof s.degraded === "boolean" ? s.degraded : null,
+    points,
   };
 }
 
@@ -413,6 +509,80 @@ function normalizeStructure(raw: unknown): NiftyStructureShift[] | undefined {
   return raw.map(normalizeStructureShift);
 }
 
+const FUTURES_REGIMES = [
+  "long_buildup",
+  "short_buildup",
+  "long_unwinding",
+  "short_covering",
+  "neutral",
+] as const satisfies readonly NiftyFuturesRegime[];
+
+function normalizeFuturesPoint(raw: unknown): NiftyFuturesPoint {
+  const row = (raw ?? {}) as Record<string, unknown>;
+  return {
+    t: String(row.t ?? row.time ?? ""),
+    close: safeNum(row.close),
+    oi: safeNum(row.oi),
+    volume: safeNum(row.volume),
+  };
+}
+
+/**
+ * `futures` block — a present block stays present even when its series is
+ * still empty, so the desk can tell "feed connected, no bars yet" from
+ * "this deployment has no futures feed" (absent → null → panel hidden).
+ */
+export function normalizeFutures(raw: unknown): NiftyFutures | null {
+  const f = asBlock(raw);
+  if (!f) return null;
+  const regime = coerceVerdict(f.regime, FUTURES_REGIMES) as NiftyFuturesRegime | null;
+  const asOf = f.as_of ?? f.asOf;
+  return {
+    symbol: String(f.symbol ?? ""),
+    instrument_key: String(f.instrument_key ?? f.instrumentKey ?? ""),
+    expiry: String(f.expiry ?? ""),
+    series: (Array.isArray(f.series) ? f.series : []).map(normalizeFuturesPoint),
+    change_pts: nullNum(f.change_pts ?? f.changePts),
+    oi_change: nullNum(f.oi_change ?? f.oiChange),
+    regime: regime ?? "neutral",
+    as_of: typeof asOf === "string" && asOf ? asOf : null,
+  };
+}
+
+/** Share is derived when the backend omits it: never print a blank ratio. */
+function normalizeItmPePoint(raw: unknown): NiftyItmPeFlowPoint {
+  const row = (raw ?? {}) as Record<string, unknown>;
+  const itm = safeNum(row.itm_pe_vol ?? row.itmPeVol);
+  const total = safeNum(row.total_pe_vol ?? row.totalPeVol);
+  const share = nullNum(row.share_pct ?? row.sharePct);
+  return {
+    t: String(row.t ?? row.time ?? ""),
+    itm_pe_vol: itm,
+    total_pe_vol: total,
+    share_pct: share ?? (total > 0 ? (itm / total) * 100 : 0),
+    spot: safeNum(row.spot),
+  };
+}
+
+/** `itm_pe_flow` block — absent → null (panel hidden), present → empty state. */
+export function normalizeItmPeFlow(raw: unknown): NiftyItmPeFlow | null {
+  const block = asBlock(raw);
+  if (!block) return null;
+  const asOf = block.as_of ?? block.asOf;
+  return {
+    series: (Array.isArray(block.series) ? block.series : []).map(normalizeItmPePoint),
+    top: (Array.isArray(block.top) ? block.top : []).map((entry): NiftyItmPeStrike => {
+      const row = (entry ?? {}) as Record<string, unknown>;
+      return {
+        strike: safeNum(row.strike),
+        volume: safeNum(row.volume),
+        oi: safeNum(row.oi),
+      };
+    }),
+    as_of: typeof asOf === "string" && asOf ? asOf : null,
+  };
+}
+
 /** 1-minute intraday candles — absent/non-array → undefined. */
 export function normalizeIntraday(raw: unknown): NiftyIntradayCandle[] | undefined {
   if (!Array.isArray(raw)) return undefined;
@@ -540,6 +710,9 @@ export function normalizeReport(raw: Record<string, unknown>): NiftyReport {
     reference: normalizeReference(raw.reference),
     positioning: normalizePositioning(raw.positioning),
     structure: normalizeStructure(raw.structure),
+    iv_surface: normalizeIvSurface(raw.iv_surface ?? raw.ivSurface),
+    futures: normalizeFutures(raw.futures),
+    itm_pe_flow: normalizeItmPeFlow(raw.itm_pe_flow ?? raw.itmPeFlow),
   };
 }
 
@@ -621,7 +794,13 @@ export async function fetchNiftyExpiries(
   const response = await fetchWithAuth(`${NIFTY_API_BASE}/expiries`, {
     signal,
   });
-  if (!response.ok) return [];
+  /*
+   * A failure is not an empty listing. Returning `[]` here made a 500 or an
+   * expired token render as "No expiries listed" — the panel then tells the
+   * user a truthful-looking lie about the exchange instead of surfacing the
+   * fault. Throw so the caller can show an error with Retry.
+   */
+  if (!response.ok) throw await apiErrorFromResponse(response, "Failed to load expiries");
   const data = await response.json().catch(() => ({}));
   return (data as { expiries?: NiftyExpiry[] }).expiries ?? [];
 }
@@ -810,11 +989,20 @@ export async function fetchNiftyReplay(
       `${NIFTY_API_BASE}/replay?date=${encodeURIComponent(date)}`,
       { signal },
     );
-    if (!response.ok) return null;
+    if (!response.ok) {
+      // A day with no recording is a legitimate 404 — not a broken feed.
+      if (!isMissingResource(response.status)) {
+        reportFetchFailure("nifty replay", null, response.status);
+      }
+      return null;
+    }
     const data = (await response.json().catch(() => null)) as
       | (Record<string, unknown> & { snapshots?: unknown })
       | null;
-    if (!data) return null;
+    if (!data) {
+      reportFetchFailure("nifty replay", "malformed payload");
+      return null;
+    }
     const raw = Array.isArray(data.snapshots) ? data.snapshots : [];
     const snapshots = raw
       .map(normalizeReplayFrame)
@@ -829,8 +1017,9 @@ export async function fetchNiftyReplay(
       snapshots,
       gap_reasons: normalizeReasonCounts(data.gap_reasons),
     };
-  } catch {
-    // Network failure or abort — treat like "no replay recorded".
+  } catch (error) {
+    // Abort is a silent no-op; anything else is a failed feed, not "no replay".
+    if (!isAbortError(error)) reportFetchFailure("nifty replay", error);
     return null;
   }
 }
@@ -858,11 +1047,19 @@ export async function fetchNiftyReplayMeta(
       `${NIFTY_API_BASE}/replay?date=${encodeURIComponent(date)}&meta=1`,
       { signal },
     );
-    if (!response.ok) return null;
+    if (!response.ok) {
+      if (!isMissingResource(response.status)) {
+        reportFetchFailure("nifty replay meta", null, response.status);
+      }
+      return null;
+    }
     const data = (await response.json().catch(() => null)) as
       | (Record<string, unknown> & { frames?: unknown })
       | null;
-    if (!data) return null;
+    if (!data) {
+      reportFetchFailure("nifty replay meta", "malformed payload");
+      return null;
+    }
     const frames = (Array.isArray(data.frames) ? data.frames : [])
       .map((f): NiftyReplayMetaFrame | null => {
         const row = (f ?? {}) as Record<string, unknown>;
@@ -877,7 +1074,8 @@ export async function fetchNiftyReplayMeta(
       frames,
       gap_reasons: normalizeReasonCounts(data.gap_reasons),
     };
-  } catch {
+  } catch (error) {
+    if (!isAbortError(error)) reportFetchFailure("nifty replay meta", error);
     return null;
   }
 }
@@ -893,13 +1091,19 @@ export async function fetchNiftyReplayFrame(
       `${NIFTY_API_BASE}/replay?date=${encodeURIComponent(date)}&t=${encodeURIComponent(t)}`,
       { signal },
     );
-    if (!response.ok) return null;
+    if (!response.ok) {
+      if (!isMissingResource(response.status)) {
+        reportFetchFailure("nifty replay frame", null, response.status);
+      }
+      return null;
+    }
     const data = (await response.json().catch(() => null)) as
       | { snapshot?: unknown }
       | null;
     if (!data) return null;
     return normalizeReplayFrame(data.snapshot);
-  } catch {
+  } catch (error) {
+    if (!isAbortError(error)) reportFetchFailure("nifty replay frame", error);
     return null;
   }
 }
@@ -929,11 +1133,15 @@ export async function fetchChain10s(
     if (date) qs.set("date", date);
     qs.set("limit", String(limit));
     const response = await fetchWithAuth(`${API_BASE}/api/reports/nifty/chain10s?${qs}`, { signal });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      reportFetchFailure("nifty chain10s", null, response.status);
+      return null;
+    }
     const data = (await response.json().catch(() => null)) as Chain10sPayload | null;
     if (!data || !Array.isArray(data.rows)) return null;
     return data;
-  } catch {
+  } catch (error) {
+    if (!isAbortError(error)) reportFetchFailure("nifty chain10s", error);
     return null;
   }
 }
@@ -973,10 +1181,16 @@ export async function fetchChain10sSummary(
     const qs = new URLSearchParams({ summary: "1", limit: String(limit) });
     if (date) qs.set("date", date);
     const response = await fetchWithAuth(`${API_BASE}/api/reports/nifty/chain10s?${qs}`, { signal });
-    if (!response.ok) return [];
+    if (!response.ok) {
+      // The 10 s chain is the OI strip's only source: a 500 here used to look
+      // exactly like a quiet session with no snapshots yet.
+      reportFetchFailure("nifty chain10s summary", null, response.status);
+      return [];
+    }
     const data = (await response.json().catch(() => null)) as Chain10sSummaryPayload | null;
     return Array.isArray(data?.summary) ? data.summary : [];
-  } catch {
+  } catch (error) {
+    if (!isAbortError(error)) reportFetchFailure("nifty chain10s summary", error);
     return [];
   }
 }
@@ -1013,10 +1227,17 @@ export async function fetchNiftyBlasts(
     const response = signal
       ? await fetchWithAuth(url, { signal })
       : await fetchWithAuth(url);
-    if (!response.ok) return [];
+    if (!response.ok) {
+      // Polled for alerts: a dead feed must not look like a quiet market.
+      if (!isMissingResource(response.status)) {
+        reportFetchFailure("nifty blasts", null, response.status);
+      }
+      return [];
+    }
     const data = (await response.json().catch(() => null)) as { blasts?: NiftyBlast[] } | null;
     return Array.isArray(data?.blasts) ? data.blasts : [];
-  } catch {
+  } catch (error) {
+    if (!isAbortError(error)) reportFetchFailure("nifty blasts", error);
     return [];
   }
 }
@@ -1052,10 +1273,16 @@ export async function fetchSpotBlasts(
     });
     if (date) qs.set("date", date);
     const response = await fetchWithAuth(`${API_BASE}/api/reports/nifty/spot-blasts?${qs}`);
-    if (!response.ok) return [];
+    if (!response.ok) {
+      if (!isMissingResource(response.status)) {
+        reportFetchFailure("nifty spot blasts", null, response.status);
+      }
+      return [];
+    }
     const data = (await response.json().catch(() => null)) as { blasts?: SpotBlast[] } | null;
     return Array.isArray(data?.blasts) ? data.blasts : [];
-  } catch {
+  } catch (error) {
+    reportFetchFailure("nifty spot blasts", error);
     return [];
   }
 }
@@ -1064,12 +1291,18 @@ export async function fetchSpotBlasts(
 export async function fetchNiftyReplayDates(signal?: AbortSignal): Promise<string[]> {
   try {
     const response = await fetchWithAuth(`${NIFTY_API_BASE}/replay/dates`, { signal });
-    if (!response.ok) return [];
+    if (!response.ok) {
+      // A 404 is an older backend without the endpoint; anything else is broken.
+      if (!isMissingResource(response.status)) {
+        reportFetchFailure("nifty replay dates", null, response.status);
+      }
+      return [];
+    }
     const data = (await response.json().catch(() => null)) as { dates?: unknown } | null;
     if (!data || !Array.isArray(data.dates)) return [];
     return data.dates.filter((d): d is string => typeof d === "string");
-  } catch {
-    // A missing endpoint (older backend) must not break the panel.
+  } catch (error) {
+    if (!isAbortError(error)) reportFetchFailure("nifty replay dates", error);
     return [];
   }
 }
@@ -1271,11 +1504,17 @@ export async function fetchOptionsTape(
       ? `${base}/tape?date=${encodeURIComponent(date)}`
       : `${base}/tape`;
     const response = await fetchWithAuth(url, { signal });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      if (!isMissingResource(response.status)) {
+        reportFetchFailure(`options tape (${symbol})`, null, response.status);
+      }
+      return null;
+    }
     const raw = await response.json().catch(() => null);
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
     return normalizeTapePayload(raw as Record<string, unknown>, date);
-  } catch {
+  } catch (error) {
+    if (!isAbortError(error)) reportFetchFailure(`options tape (${symbol})`, error);
     return null;
   }
 }
@@ -1297,12 +1536,16 @@ export async function fetchOptionsChain10s(
       `${optionsApiBase(symbol)}/chain10s?${qs}`,
       { signal },
     );
-    if (!response.ok) return [];
+    if (!response.ok) {
+      reportFetchFailure(`options chain10s (${symbol})`, null, response.status);
+      return [];
+    }
     const data = (await response.json().catch(() => null)) as
       | Chain10sSummaryPayload
       | null;
     return Array.isArray(data?.summary) ? data.summary : [];
-  } catch {
+  } catch (error) {
+    if (!isAbortError(error)) reportFetchFailure(`options chain10s (${symbol})`, error);
     return [];
   }
 }
@@ -1471,9 +1714,16 @@ export async function fetchNiftyBursts(
     : `${NIFTY_API_BASE}/bursts`;
   try {
     const response = await fetchWithAuth(url, { signal });
-    if (!response.ok) return [];
+    if (!response.ok) {
+      // The feed is additive but an outright failure is not "no alerts today".
+      if (!isMissingResource(response.status)) {
+        reportFetchFailure("nifty bursts", null, response.status);
+      }
+      return [];
+    }
     return parseBurstsPayload(await response.json().catch(() => null));
-  } catch {
+  } catch (error) {
+    if (!isAbortError(error)) reportFetchFailure("nifty bursts", error);
     return [];
   }
 }
@@ -1497,9 +1747,16 @@ export async function fetchOptionsBursts(
     const base = optionsApiBase(symbol);
     const url = date ? `${base}/bursts?date=${encodeURIComponent(date)}` : `${base}/bursts`;
     const response = await fetchWithAuth(url, { signal });
-    if (!response.ok) return [];
+    if (!response.ok) {
+      // A symbol with no recorder may legitimately 404; a 5xx is a broken feed.
+      if (!isMissingResource(response.status)) {
+        reportFetchFailure(`options bursts (${symbol})`, null, response.status);
+      }
+      return [];
+    }
     return parseBurstsPayload(await response.json().catch(() => null));
-  } catch {
+  } catch (error) {
+    if (!isAbortError(error)) reportFetchFailure(`options bursts (${symbol})`, error);
     return [];
   }
 }
@@ -1524,12 +1781,18 @@ export async function fetchOptionsBlasts(
       `${optionsApiBase(symbol)}/blasts?${qs}`,
       { signal },
     );
-    if (!response.ok) return [];
+    if (!response.ok) {
+      if (!isMissingResource(response.status)) {
+        reportFetchFailure(`options blasts (${symbol})`, null, response.status);
+      }
+      return [];
+    }
     const data = (await response.json().catch(() => null)) as
       | { blasts?: NiftyBlast[] }
       | null;
     return Array.isArray(data?.blasts) ? data.blasts : [];
-  } catch {
+  } catch (error) {
+    if (!isAbortError(error)) reportFetchFailure(`options blasts (${symbol})`, error);
     return [];
   }
 }
@@ -1544,11 +1807,17 @@ export async function fetchOptionsReplayDates(
       `${optionsApiBase(symbol)}/replay/dates`,
       { signal },
     );
-    if (!response.ok) return [];
+    if (!response.ok) {
+      if (!isMissingResource(response.status)) {
+        reportFetchFailure(`options replay dates (${symbol})`, null, response.status);
+      }
+      return [];
+    }
     const data = (await response.json().catch(() => null)) as { dates?: unknown } | null;
     if (!data || !Array.isArray(data.dates)) return [];
     return data.dates.filter((d): d is string => typeof d === "string");
-  } catch {
+  } catch (error) {
+    if (!isAbortError(error)) reportFetchFailure(`options replay dates (${symbol})`, error);
     return [];
   }
 }
@@ -1564,7 +1833,12 @@ export async function fetchOptionsReplay(
       `${optionsApiBase(symbol)}/replay?date=${encodeURIComponent(date)}`,
       { signal },
     );
-    if (!response.ok) return null;
+    if (!response.ok) {
+      if (!isMissingResource(response.status)) {
+        reportFetchFailure(`options replay (${symbol})`, null, response.status);
+      }
+      return null;
+    }
     const data = (await response.json().catch(() => null)) as
       | (Record<string, unknown> & { snapshots?: unknown })
       | null;
@@ -1583,7 +1857,8 @@ export async function fetchOptionsReplay(
       snapshots,
       gap_reasons: normalizeReasonCounts(data.gap_reasons),
     };
-  } catch {
+  } catch (error) {
+    if (!isAbortError(error)) reportFetchFailure(`options replay (${symbol})`, error);
     return null;
   }
 }
@@ -1599,7 +1874,12 @@ export async function fetchOptionsReplayMeta(
       `${optionsApiBase(symbol)}/replay?date=${encodeURIComponent(date)}&meta=1`,
       { signal },
     );
-    if (!response.ok) return null;
+    if (!response.ok) {
+      if (!isMissingResource(response.status)) {
+        reportFetchFailure(`options replay meta (${symbol})`, null, response.status);
+      }
+      return null;
+    }
     const data = (await response.json().catch(() => null)) as
       | (Record<string, unknown> & { frames?: unknown })
       | null;
@@ -1621,7 +1901,8 @@ export async function fetchOptionsReplayMeta(
       frames,
       gap_reasons: normalizeReasonCounts(data.gap_reasons),
     };
-  } catch {
+  } catch (error) {
+    if (!isAbortError(error)) reportFetchFailure(`options replay meta (${symbol})`, error);
     return null;
   }
 }
@@ -1638,18 +1919,30 @@ export async function fetchOptionsReplayFrame(
       `${optionsApiBase(symbol)}/replay?date=${encodeURIComponent(date)}&t=${encodeURIComponent(minute)}`,
       { signal },
     );
-    if (!response.ok) return null;
+    if (!response.ok) {
+      if (!isMissingResource(response.status)) {
+        reportFetchFailure(`options replay frame (${symbol})`, null, response.status);
+      }
+      return null;
+    }
     const data = (await response.json().catch(() => null)) as
       | { snapshot?: unknown }
       | null;
     if (!data) return null;
     return normalizeReplayFrame(data.snapshot);
-  } catch {
+  } catch (error) {
+    if (!isAbortError(error)) reportFetchFailure(`options replay frame (${symbol})`, error);
     return null;
   }
 }
 
-/** `GET …/snapshot?date=` — the recorded end-of-day report for that symbol. */
+/**
+ * `GET …/snapshot?date=` — the recorded end-of-day report for that symbol.
+ *
+ * A 404 is a real answer ("no snapshot recorded for that date") and the caller
+ * turns it into a visible banner. Anything else is a failed fetch and must not
+ * masquerade as that empty day.
+ */
 export async function fetchOptionsSnapshot(
   symbol: string,
   date: string,
@@ -1660,11 +1953,17 @@ export async function fetchOptionsSnapshot(
       `${optionsApiBase(symbol)}/snapshot?date=${encodeURIComponent(date)}`,
       { signal },
     );
-    if (!response.ok) return null;
+    if (!response.ok) {
+      if (!isMissingResource(response.status)) {
+        reportFetchFailure(`options snapshot (${symbol})`, null, response.status);
+      }
+      return null;
+    }
     const raw = await response.json().catch(() => null);
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
     return normalizeReport(raw as Record<string, unknown>);
-  } catch {
+  } catch (error) {
+    if (!isAbortError(error)) reportFetchFailure(`options snapshot (${symbol})`, error);
     return null;
   }
 }
@@ -1688,11 +1987,18 @@ export async function fetchOptionsTapeStatus(
     const response = await fetchWithAuth(`${optionsApiBase(symbol)}/tape/status`, {
       signal,
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      // A status probe that answers 5xx is "unknown", not "not recording".
+      if (!isMissingResource(response.status)) {
+        reportFetchFailure(`options tape status (${symbol})`, null, response.status);
+      }
+      return null;
+    }
     const data = await response.json().catch(() => null);
     if (!data || typeof data !== "object" || Array.isArray(data)) return null;
     return data as OptionsTapeStatus;
-  } catch {
+  } catch (error) {
+    if (!isAbortError(error)) reportFetchFailure(`options tape status (${symbol})`, error);
     return null;
   }
 }
@@ -1710,7 +2016,9 @@ export async function fetchOptionsExpiries(
       `${API_BASE}/api/options/expiries/${encodeURIComponent(symbol)}`,
       { signal },
     );
-    if (!response.ok) return [];
+    // Same rule as `fetchNiftyExpiries`: a failure must not read as an empty
+    // listing. Aborts stay silent so unmounting a window never flashes an error.
+    if (!response.ok) throw await apiErrorFromResponse(response, "Failed to load expiries");
     const data = (await response.json().catch(() => null)) as
       | { expiries?: { date?: unknown }[] }
       | null;
@@ -1718,14 +2026,34 @@ export async function fetchOptionsExpiries(
     return data.expiries
       .map((e) => (typeof e?.date === "string" ? e.date : ""))
       .filter((d) => d.length > 0);
-  } catch {
-    return [];
+  } catch (error) {
+    if (isAbortError(error)) throw error;
+    throw asApiError(error, "Failed to load expiries");
   }
 }
 
 // ---------------------------------------------------------------------------
 // Walls / 0-DTE pin state — backend-computed, the UI only renders it.
 // ---------------------------------------------------------------------------
+
+/** Writer/long behaviour on the wall, as classified by the backend. */
+export type WallsFlow =
+  | "WRITERS_COVERING"
+  | "LONG_UNWIND"
+  | "WRITERS_ADDING"
+  | "LONG_BUILD"
+  | "UNKNOWN";
+
+export type WallsStatus = "BREACHED" | "ERODING" | "BUILDING" | "STABLE";
+
+/** Sub-scores behind `fuel_score`; each a 0-100 share of its bucket. */
+export interface WallsFuelParts {
+  erosion: number;
+  volume: number;
+  proximity: number;
+  gamma: number;
+  flow: number;
+}
 
 export interface WallsRow {
   strike: number;
@@ -1737,7 +2065,32 @@ export interface WallsRow {
   new_oi_pct?: number | null;
   ltp?: number | null;
   erosion_5m?: number | null;
+  erosion_15m?: number | null;
   erosion_30m?: number | null;
+  erosion_60m?: number | null;
+  /** Erosion velocity, fraction of OI per minute (negative = unwinding). */
+  erosion_rate_30m?: number | null;
+  vol_5m?: number | null;
+  vol_30m?: number | null;
+  /** 5-minute volume as a multiple of its own 30-minute baseline. */
+  vol_mult?: number | null;
+  /** Same-side ATM premium change over 5 minutes, fraction. */
+  prem_chg_5m?: number | null;
+  /** Same-side premium change over 15 / 30 minutes, fraction. */
+  prem_chg_15m?: number | null;
+  prem_chg_30m?: number | null;
+  flow?: WallsFlow | null;
+  /** BREACHED/ERODING = wall is failing; BUILDING = wall is firming. */
+  status?: WallsStatus;
+  /** 0-100 "how imminent is the break" — NOT a P&L number. */
+  fuel_score?: number;
+  fuel_parts?: WallsFuelParts | null;
+  time_to_break_min?: number | null;
+  oi_history?: number[];
+  /** Same-side LTP per minute for the last 30 tape minutes; nulls are gaps. */
+  ltp_history?: (number | null)[];
+  /** Backend flags the nearest call/put wall so the UI can pin it. */
+  nearest?: boolean;
   distance_pts?: number | null;
   distance_pct?: number | null;
   tracked?: boolean;
@@ -1840,6 +2193,9 @@ export interface WallsPayload {
   cross: boolean;
   calls: WallsRow[];
   puts: WallsRow[];
+  /** Backend-picked nearest walls; absent on older snapshots. */
+  nearest_call?: WallsRow | null;
+  nearest_put?: WallsRow | null;
   events: WallsEvent[];
   history: WallsHistoryPoint[];
   /** Strike x time erosion/build grid; absent on old snapshots. */
@@ -1872,11 +2228,19 @@ export async function fetchOptionsWalls(
     const response = await fetchWithAuth(`${optionsApiBase(symbol)}/walls${qs ? `?${qs}` : ""}`, {
       signal,
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      // The decision strip's walls come from here: a 500 rendered as "no walls",
+      // which is indistinguishable from a quiet chain.
+      if (!isMissingResource(response.status)) {
+        reportFetchFailure(`options walls (${symbol})`, null, response.status);
+      }
+      return null;
+    }
     const data = await response.json().catch(() => null);
     if (!data || typeof data !== "object" || Array.isArray(data)) return null;
     return data as WallsPayload;
-  } catch {
+  } catch (error) {
+    if (!isAbortError(error)) reportFetchFailure(`options walls (${symbol})`, error);
     return null;
   }
 }

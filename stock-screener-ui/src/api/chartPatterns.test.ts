@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 vi.mock("../state/auth", async () => (await import("./apiTestMocks")).fetchWithAuthModuleMock());
 
 import { fetchWithAuth } from "../state/auth";
+import { ApiError } from "./apiError";
 import {
   QueueFullError,
   buildPatternsQuery,
@@ -293,6 +294,30 @@ describe("symbol endpoints", () => {
     expect(queryOf(url).get("lookback_bars")).toBe("120");
     expect(queryOf(url).get("compute_trendlines")).toBe("0");
   });
+
+  it("fetchSymbolChart appends market=usa only when market is set", async () => {
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "AAPL", candles: [], overlays: [] }));
+    await fetchSymbolChart("AAPL", "1D", { market: "usa" });
+    let url = mockedFetch.mock.calls[0][0] as string;
+    expect(url).toContain("/api/chart-patterns/symbol/AAPL/chart?");
+    expect(queryOf(url).get("market")).toBe("usa");
+    expect(queryOf(url).get("timeframe")).toBe("1D");
+
+    mockedFetch.mockClear();
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "IRCON", candles: [], overlays: [] }));
+    await fetchSymbolChart("IRCON", "1D", { computeTrendlines: true, detectPatterns: false });
+    url = mockedFetch.mock.calls[0][0] as string;
+    expect(queryOf(url).get("market")).toBeNull();
+  });
+
+  it("fetchSymbolChart keeps other params alongside market=usa", async () => {
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "AAPL", candles: [], overlays: [] }));
+    await fetchSymbolChart("AAPL", "5m", { market: "usa", limit: 200 });
+    const params = queryOf(mockedFetch.mock.calls[0][0] as string);
+    expect(params.get("market")).toBe("usa");
+    expect(params.get("timeframe")).toBe("5m");
+    expect(params.get("limit")).toBe("200");
+  });
 });
 
 describe("buildPatternsQuery missing serialization", () => {
@@ -401,6 +426,19 @@ describe("results/summary/symbol error messages", () => {
       },
     } as unknown as Response);
     await expect(fetchSymbolDetail("SBIN", "1D")).rejects.toThrow("Failed to load SBIN");
+  });
+
+  it("fetchSymbolChart sends refresh=1 only when refresh is true", async () => {
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "IRCON", candles: [], overlays: [] }));
+    await fetchSymbolChart("IRCON", "1D", { refresh: true });
+    let url = mockedFetch.mock.calls[0][0] as string;
+    expect(queryOf(url).get("refresh")).toBe("1");
+
+    mockedFetch.mockClear();
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "IRCON", candles: [], overlays: [] }));
+    await fetchSymbolChart("IRCON", "1D");
+    url = mockedFetch.mock.calls[0][0] as string;
+    expect(queryOf(url).get("refresh")).toBeNull();
   });
 
   it("fetchSymbolChart throws the server detail on failure", async () => {
@@ -518,5 +556,41 @@ describe("startScan extended body + 429 fallbacks", () => {
     expect(err.name).toBe("QueueFullError");
     expect(err.queueSize).toBeNull();
     expect(err.maxQueue).toBeNull();
+  });
+});
+
+describe("typed API errors (getJson / startScan)", () => {
+  it("(c) a 401 from getJson throws an ApiError with kind unauthorized (not network)", async () => {
+    mockedFetch.mockResolvedValue(errorResponse(401, { detail: "Session expired" }));
+
+    const err = await fetchTimeframes().catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ status: 401, kind: "unauthorized", message: "Session expired" });
+  });
+
+  it("a 401 from startScan throws the same typed ApiError", async () => {
+    mockedFetch.mockResolvedValue(errorResponse(401, { detail: "Session expired" }));
+
+    const err = await startScan({ universe: "nifty500", timeframe: "1D" }).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ status: 401, kind: "unauthorized" });
+    expect((err as ApiError).message).toBe("Session expired");
+  });
+
+  it("a 500 from getJson is kind server (not network)", async () => {
+    mockedFetch.mockResolvedValue(errorResponse(500, { detail: "boom" }));
+
+    const err = await fetchTimeframes().catch((e: unknown) => e);
+
+    expect(err).toMatchObject({ status: 500, kind: "server" });
+  });
+
+  it("(d) a successful getJson returns byte-identical data", async () => {
+    const payload = { timeframes: [{ id: "1D", label: "1D" }] };
+    mockedFetch.mockResolvedValue(okResponse(payload));
+
+    await expect(fetchTimeframes()).resolves.toEqual(payload.timeframes);
   });
 });

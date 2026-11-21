@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import {
   Group,
   Box,
@@ -11,8 +11,7 @@ import {
   Stack,
   Badge,
 } from "@/ui";
-import { useDebouncedValue } from "@/ui";
-import { IconPlayerPlay, IconPlayerStop, IconRotate, IconX } from "@tabler/icons-react";
+import { IconPlayerPlay, IconPlayerStop, IconRotate, IconX } from "../common/Icons";
 import { searchSymbols } from "../../api/symbols";
 import type { SymbolResult } from "../../api/symbols";
 import { ScreenerSymbolPicker } from "../replay/ScreenerSymbolPicker";
@@ -40,54 +39,53 @@ function getMaxDate(): string {
   return `${y}-${m}-${day}`;
 }
 
-export function StrategyRunnerConfig({
-  config,
-  bots,
-  isRunning,
-  progress,
-  setConfig,
-  loadBots,
-  startRunner,
-  stopRunner,
-  reset,
-}: Props) {
-  const maxDate = useMemo(() => getMaxDate(), []);
+export function StrategyRunnerConfig(props: Props) {
+  const maxDate = getMaxDate();
 
-  const [symbolSearch, setSymbolSearch] = useState("");
-  const [debouncedSymbolSearch] = useDebouncedValue(symbolSearch, 300);
-  const [symbolOptions, setSymbolOptions] = useState<{ value: string; label: string }[]>([]);
+  const [symbolSearch, setSymbolSearch] = createSignal("");
+  const [debouncedSymbolSearch, setDebouncedSymbolSearch] = createSignal("");
+  const [symbolOptions, setSymbolOptions] = createSignal<{ value: string; label: string }[]>([]);
 
-  useEffect(() => {
-    loadBots();
-  }, [loadBots]);
+  // Debounce locally; the shared useDebouncedValue hook captures a single
+  // value and is not reactive under Solid.
+  createEffect(() => {
+    const q = symbolSearch();
+    const timer = setTimeout(() => setDebouncedSymbolSearch(q), 300);
+    onCleanup(() => clearTimeout(timer));
+  });
 
-  useEffect(() => {
-    if (!debouncedSymbolSearch) {
+  onMount(() => {
+    void props.loadBots();
+  });
+
+  createEffect(() => {
+    const q = debouncedSymbolSearch();
+    if (!q) {
       setSymbolOptions([]);
       return;
     }
     let cancelled = false;
-    searchSymbols(debouncedSymbolSearch, 20).then((results: SymbolResult[]) => {
+    searchSymbols(q, 20).then((results: SymbolResult[]) => {
       if (!cancelled) {
         setSymbolOptions(results.map((r) => ({ value: r.symbol, label: `${r.symbol} - ${r.name}` })));
       }
     });
-    return () => { cancelled = true; };
-  }, [debouncedSymbolSearch]);
+    onCleanup(() => { cancelled = true; });
+  });
 
-  const allWatchlistSymbols = useMemo(
-    () => Array.from(new Set(bots.flatMap((b) => b.watchlist))),
-    [bots],
+  const allWatchlistSymbols = createMemo(() =>
+    Array.from(new Set(props.bots.flatMap((b) => b.watchlist))),
   );
 
   const handleAddAllSymbols = () => {
-    setConfig({ symbols: allWatchlistSymbols });
+    props.setConfig({ symbols: allWatchlistSymbols() });
   };
 
-  const progressPct =
-    progress.totalBots > 0
-      ? Math.round((progress.currentBot / progress.totalBots) * 100)
-      : 0;
+  const progressPct = createMemo(() =>
+    props.progress.totalBots > 0
+      ? Math.round((props.progress.currentBot / props.progress.totalBots) * 100)
+      : 0,
+  );
 
   return (
     <Box data-testid="sr-config-bar">
@@ -100,9 +98,9 @@ export function StrategyRunnerConfig({
             <MultiSelect
               size="sm"
               w={260}
-              data={bots.map((b) => ({ value: b.uuid, label: b.name }))}
-              value={config.bot_uuids}
-              onChange={(v) => setConfig({ bot_uuids: v })}
+              data={props.bots.map((b) => ({ value: b.uuid, label: b.name }))}
+              value={props.config.bot_uuids}
+              onChange={(v) => props.setConfig({ bot_uuids: v })}
               searchable
               clearable
               placeholder="Select bots..."
@@ -119,8 +117,8 @@ export function StrategyRunnerConfig({
               <TradingDatePicker
                 w={140}
                 maxDate={maxDate}
-                value={config.date}
-                onChange={(v) => setConfig({ date: v })}
+                value={props.config.date}
+                onChange={(v) => props.setConfig({ date: v })}
                 placeholder="From"
               />
             </Box>
@@ -131,8 +129,8 @@ export function StrategyRunnerConfig({
               <TradingDatePicker
                 w={140}
                 maxDate={maxDate}
-                value={config.end_date}
-                onChange={(v) => setConfig({ end_date: v })}
+                value={props.config.end_date}
+                onChange={(v) => props.setConfig({ end_date: v })}
                 placeholder="To"
               />
             </Box>
@@ -144,25 +142,25 @@ export function StrategyRunnerConfig({
             </Text>
             <Group gap={4} align="center">
               <ScreenerSymbolPicker
-                symbols={config.symbols}
-                onAddSymbols={(newSymbols) => setConfig({ symbols: [...config.symbols, ...newSymbols] })}
+                symbols={props.config.symbols}
+                onAddSymbols={(newSymbols) => props.setConfig({ symbols: [...props.config.symbols, ...newSymbols] })}
               />
               <MultiSelect
                 size="sm"
                 w={220}
-                data={symbolOptions}
-                value={config.symbols}
-                onChange={(v) => setConfig({ symbols: v })}
+                data={symbolOptions()}
+                value={props.config.symbols}
+                onChange={(v) => props.setConfig({ symbols: v })}
                 searchable
-                searchValue={symbolSearch}
-                onSearchChange={setSymbolSearch}
+                searchValue={symbolSearch()}
+                onSearchChange={(v) => setSymbolSearch(v)}
                 clearable
                 hidePickedOptions
                 placeholder="Search symbols..."
                 nothingFoundMessage="No symbols found"
                 maxDropdownHeight={200}
               />
-              {allWatchlistSymbols.length > 0 && (
+              <Show when={allWatchlistSymbols().length > 0}>
                 <Tooltip label="Add all watchlist symbols">
                   <ActionIcon
                     size="sm"
@@ -175,95 +173,103 @@ export function StrategyRunnerConfig({
                     </Text>
                   </ActionIcon>
                 </Tooltip>
-              )}
+              </Show>
             </Group>
-            {config.symbols.length > 0 && (
+            <Show when={props.config.symbols.length > 0}>
               <Box mt={4}>
-                {config.symbols.slice(0, 10).map((sym) => (
-                  <Badge
-                    key={sym}
-                    variant="outline"
-                    size="sm"
-                    mr={4}
-                    mb={4}
-                    rightSection={
-                      <IconX
-                        size={10}
-                        style={{ cursor: "pointer" }}
-                        onClick={() => setConfig({ symbols: config.symbols.filter((s) => s !== sym) })}
-                      />
-                    }
-                  >
-                    {sym}
-                  </Badge>
-                ))}
-                {config.symbols.length > 10 && (
+                <For each={props.config.symbols.slice(0, 10)}>
+                  {(sym) => (
+                    <Badge
+                      variant="outline"
+                      size="sm"
+                      className="mr-1 mb-1"
+                      rightSection={
+                        <ActionIcon
+                          size="xs"
+                          variant="transparent"
+                          color="secondary"
+                          className="cursor-pointer"
+                          onClick={() => props.setConfig({ symbols: props.config.symbols.filter((s) => s !== sym) })}
+                          aria-label={`Remove ${sym}`}
+                        >
+                          <IconX size={12} />
+                        </ActionIcon>
+                      }
+                    >
+                      {sym}
+                    </Badge>
+                  )}
+                </For>
+                <Show when={props.config.symbols.length > 10}>
                   <Text size="xs" c="dimmed" span>
-                    +{config.symbols.length - 10} more
+                    +{props.config.symbols.length - 10} more
                   </Text>
-                )}
+                </Show>
               </Box>
-            )}
+            </Show>
           </Box>
 
           <Box>
             <Text size="xs" fw={500} mb={2}>
               &nbsp;
             </Text>
-            {isRunning ? (
+            <Show
+              when={props.isRunning}
+              fallback={
+                <Group gap="xs" align="center">
+                  <Button
+                    size="sm"
+                    leftSection={<IconPlayerPlay size={16} />}
+                    disabled={props.config.bot_uuids.length === 0 || !props.config.date}
+                    onClick={props.startRunner}
+                    data-testid="sr-run-btn"
+                  >
+                    Run
+                  </Button>
+                  <Show when={props.config.date}>
+                    <Tooltip label="Reset">
+                      <ActionIcon
+                        size="sm"
+                        variant="subtle"
+                        color="secondary"
+                        onClick={props.reset}
+                      >
+                        <IconRotate size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Show>
+                </Group>
+              }
+            >
               <Button
                 size="sm"
                 color="error"
                 variant="filled"
                 leftSection={<IconPlayerStop size={16} />}
-                onClick={stopRunner}
+                onClick={props.stopRunner}
                 data-testid="sr-stop-btn"
               >
                 Stop
               </Button>
-            ) : (
-              <Group gap="xs" align="center">
-                <Button
-                  size="sm"
-                  leftSection={<IconPlayerPlay size={16} />}
-                  disabled={config.bot_uuids.length === 0 || !config.date}
-                  onClick={startRunner}
-                  data-testid="sr-run-btn"
-                >
-                  Run
-                </Button>
-                {config.date && (
-                  <Tooltip label="Reset">
-                    <ActionIcon
-                      size="sm"
-                      variant="subtle"
-                      color="secondary"
-                      onClick={reset}
-                    >
-                      <IconRotate size={16} />
-                    </ActionIcon>
-                  </Tooltip>
-                )}
-              </Group>
-            )}
+            </Show>
           </Box>
         </Group>
 
-        {isRunning && progress.totalBots > 0 && (
+        <Show when={props.isRunning && props.progress.totalBots > 0}>
           <Box>
             <Group gap="xs" align="center" mb={4}>
               <Text size="xs" c="dimmed">
-                {progress.currentBotName
-                  ? `Processing ${progress.currentBotName}`
+                {props.progress.currentBotName
+                  ? `Processing ${props.progress.currentBotName}`
                   : "Starting..."}
               </Text>
-              <Text size="xs" c="dimmed">
-                ({progress.currentBot}/{progress.totalBots})
+              <Text size="xs" c="dimmed" class="font-mono tabular-nums">
+                ({props.progress.currentBot}/{props.progress.totalBots})
               </Text>
             </Group>
-            <Progress value={progressPct} size="sm" animated />
+            <Progress value={progressPct()} size="sm" animated />
           </Box>
-        )}
+        </Show>
       </Stack>
     </Box>
   );

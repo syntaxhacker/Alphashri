@@ -1,4 +1,4 @@
-import type { ChartInput } from "./types";
+import type { ChartInput, MarkLineData } from "./types";
 import { buildGrid } from "./buildGrid";
 import { buildSeries } from "./buildSeries";
 import { buildTradeMarkers } from "./buildMarkers";
@@ -11,7 +11,38 @@ import { parseTimeToHHMM } from "../ui-helpers";
 import { CHART_DARK_OVERLAY, CHART_LIGHT_OVERLAY, CHART_CROSSHAIR } from "../../config/colors";
 import { theme } from "../../config/theme";
 
-export function buildChartOption(input: ChartInput): Record<string, unknown> {
+/**
+ * ECharts option document. The arrays are deliberately loose (`unknown` cells)
+ * because each series/axis carries a different shape, but the collection itself
+ * is typed so callers can index and assert without casting to `any`.
+ */
+export interface ChartOption {
+  backgroundColor: string;
+  animation: boolean;
+  title?: { text: string; left: string; textStyle: { color: string; fontSize: number } };
+  tooltip: Record<string, unknown>;
+  legend: Record<string, unknown>;
+  grid: Array<Record<string, unknown>>;
+  xAxis: Array<Record<string, unknown>>;
+  yAxis: Array<Record<string, unknown>>;
+  dataZoom: Array<Record<string, unknown>>;
+  axisPointer?: { link: Array<{ xAxisIndex: string }> };
+  series: Array<ChartOptionSeries>;
+}
+
+/** Declared non-optional (though only the candle series actually sets it) so
+ *  untyped callers can read `series[0].markLine.data` without narrowing. */
+export interface ChartOptionSeries extends Record<string, unknown> {
+  name?: string;
+  type?: string;
+  markLine: {
+    symbol: string[];
+    data: Array<Record<string, unknown>>;
+    label: Record<string, unknown>;
+  };
+}
+
+export function buildChartOption(input: ChartInput): ChartOption {
   const colors = getChartThemeColors(input.isDark, theme);
   const tooltipBg = input.isDark ? CHART_DARK_OVERLAY : CHART_LIGHT_OVERLAY;
 
@@ -65,7 +96,7 @@ export function buildChartOption(input: ChartInput): Record<string, unknown> {
         }
 
         const candleData = input.candles.map((c) => [c.open, c.close, c.low, c.high]);
-        const extCandleData: any[] = [];
+        const extCandleData: (number[] | string[])[] = [];
         let ci = 0;
         for (let i = 0; i < extendedTimeData.length; i++) {
           if (extendedTimeData[i].includes("[")) {
@@ -127,8 +158,8 @@ export function buildChartOption(input: ChartInput): Record<string, unknown> {
     input.candles,
   );
 
-  let liveSeries: any[] = [];
-  let liveMarkLines: any[] = [];
+  let liveSeries: ReturnType<typeof buildLivePositionMarker> = [];
+  let liveMarkLines: MarkLineData[] = [];
   if (input.livePosition && times.length > 0) {
     let liveCandleIdx = -1;
     const entryTime = input.livePosition.entry_time || "";
@@ -154,10 +185,10 @@ export function buildChartOption(input: ChartInput): Record<string, unknown> {
   }
 
   const allSeriesNames = [
-    ...series.series.map((s: any) => s.name),
-    ...liveSeries.map((s: any) => s.name),
-    ...markers.map((s: any) => s.name),
-    ...overlays.map((s: any) => s.name),
+    ...series.series.map((s) => s.name),
+    ...liveSeries.map((s) => s.name),
+    ...markers.map((s) => s.name),
+    ...overlays.map((s) => s.name),
   ];
 
   const tooltip = buildTooltip(input.candles, input.holidays, times, hasGaps, holidayMap);
@@ -179,7 +210,7 @@ export function buildChartOption(input: ChartInput): Record<string, unknown> {
 
   const markLineValues = liveMarkLines.map((l) => l.yAxis).filter(Boolean);
   if (markLineValues.length > 0 && input.candles.length > 0) {
-    const prices = input.candles.flatMap((c: any) => [c.open, c.high, c.low, c.close]);
+    const prices = input.candles.flatMap((c) => [c.open, c.high, c.low, c.close]);
     const dataMin = Math.min(...prices);
     const dataMax = Math.max(...prices);
     const dataRange = dataMax - dataMin;

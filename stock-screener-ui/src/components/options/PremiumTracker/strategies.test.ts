@@ -12,8 +12,22 @@ import {
 
 describe("strategy templates", () => {
   it("has exact buy template ids/names/sides", () => {
-    expect(BUY_STRATEGIES.map((t) => t.id)).toEqual(["long-call", "long-straddle", "bull-call-spread"]);
-    expect(BUY_STRATEGIES.map((t) => t.name)).toEqual(["Long Call", "Long Straddle", "Bull Call Spread"]);
+    expect(BUY_STRATEGIES.map((t) => t.id)).toEqual([
+      "long-call",
+      "long-put",
+      "long-straddle",
+      "long-strangle",
+      "bull-call-spread",
+      "bear-put-spread",
+    ]);
+    expect(BUY_STRATEGIES.map((t) => t.name)).toEqual([
+      "Long Call",
+      "Long Put",
+      "Long Straddle",
+      "Long Strangle",
+      "Bull Call Spread",
+      "Bear Put Spread",
+    ]);
     expect(BUY_STRATEGIES.every((t) => t.side === "BUY")).toBe(true);
   });
 
@@ -21,6 +35,19 @@ describe("strategy templates", () => {
     expect(SELL_STRATEGIES.map((t) => t.id)).toEqual(["bull-put-spread", "bear-call-spread", "iron-condor"]);
     expect(SELL_STRATEGIES.map((t) => t.name)).toEqual(["Bull Put Spread", "Bear Call Spread", "Iron Condor"]);
     expect(SELL_STRATEGIES.every((t) => t.side === "SELL")).toBe(true);
+  });
+});
+
+describe("bear-put-spread legs", () => {
+  it("buys the higher put and sells the lower put", () => {
+    const t = BUY_STRATEGIES.find((s) => s.id === "bear-put-spread");
+    expect(t).toBeDefined();
+    const legs = t!.build(25000, 50);
+    expect(legs).toHaveLength(2);
+    const buy = legs.find((l) => l.action === "BUY");
+    const sell = legs.find((l) => l.action === "SELL");
+    expect(buy).toMatchObject({ optionType: "PE", strike: 25000, qty: 1 });
+    expect(sell).toMatchObject({ optionType: "PE", strike: 24900, qty: 1 });
   });
 });
 

@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { screen, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { createSignal } from "solid-js";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { OptionsNav } from "./OptionsNav";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
+import { SymbolDockContext } from "@/components/common/symbolDockContext";
 
 afterEach(() => {
   cleanup();
@@ -12,32 +12,72 @@ afterEach(() => {
 });
 
 describe("OptionsNav", () => {
-  it("renders all three tabs", () => {
-    renderWithProviders(<OptionsNav activeTab="chain" onTabChange={vi.fn()} />);
+  it("renders all tabs", () => {
+    render(() => <OptionsNav activeTab="chain" onTabChange={vi.fn()} />);
     expect(screen.getByText("Option Chain")).toBeInTheDocument();
     expect(screen.getByText("Positions")).toBeInTheDocument();
     expect(screen.getByText("Premium")).toBeInTheDocument();
+    expect(screen.getByText("Simulator")).toBeInTheDocument();
     expect(screen.queryByText("Greeks")).not.toBeInTheDocument();
-  });
-
-  it("renders nav testid", () => {
-    renderWithProviders(<OptionsNav activeTab="chain" onTabChange={vi.fn()} />);
-    expect(screen.getByTestId("options-nav")).toBeInTheDocument();
   });
 
   it("has clickable tabs", async () => {
     const onTabChange = vi.fn();
-    renderWithProviders(<OptionsNav activeTab="chain" onTabChange={onTabChange} />);
-    await userEvent.click(screen.getByText("Positions"));
+    render(() => <OptionsNav activeTab="chain" onTabChange={onTabChange} />);
+    fireEvent.click(screen.getByText("Positions"));
     expect(onTabChange).toHaveBeenCalledWith("positions");
 
-    await userEvent.click(screen.getByText("Premium"));
+    fireEvent.click(screen.getByText("Premium"));
     expect(onTabChange).toHaveBeenCalledWith("premium");
   });
 
+  it("clicking Simulator tab emits simulator value", async () => {
+    const onTabChange = vi.fn();
+    render(() => <OptionsNav activeTab="premium" onTabChange={onTabChange} />);
+    fireEvent.click(screen.getByText("Simulator"));
+    expect(onTabChange).toHaveBeenCalledWith("simulator");
+  });
+
   it("marks active tab with correct value", () => {
-    renderWithProviders(<OptionsNav activeTab="positions" onTabChange={vi.fn()} />);
+    render(() => <OptionsNav activeTab="positions" onTabChange={vi.fn()} />);
     const tab = screen.getByTestId("nav-tab-positions");
     expect(tab).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("reacts to a signal-backed activeTab after mutation", () => {
+    const [activeTab, setActiveTab] = createSignal("chain");
+    render(() => <OptionsNav activeTab={activeTab()} onTabChange={vi.fn()} />);
+
+    expect(screen.getByTestId("nav-tab-chain")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("nav-tab-premium")).toHaveAttribute("aria-selected", "false");
+
+    setActiveTab("premium");
+
+    expect(screen.getByTestId("nav-tab-premium")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("nav-tab-chain")).toHaveAttribute("aria-selected", "false");
+  });
+
+  it("opens the options dock analytics instead of the standalone page", () => {
+    const open = vi.fn();
+    render(() => (
+      <SymbolDockContext.Provider
+        value={{
+          preview: vi.fn(),
+          endPreview: vi.fn(),
+          open,
+          close: vi.fn(),
+          pinned: false,
+          setOutlet: vi.fn(),
+        }}
+      >
+        <OptionsNav activeTab="chain" onTabChange={vi.fn()} />
+      </SymbolDockContext.Provider>
+    ));
+
+    const link = screen.getByTestId("options-analytics-link");
+    expect(link.tagName).toBe("BUTTON");
+    expect(link).not.toHaveAttribute("href");
+    fireEvent.click(link);
+    expect(open).toHaveBeenCalledWith("NIFTY", "options");
   });
 });

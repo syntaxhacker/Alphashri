@@ -9,7 +9,7 @@ import type {
 import { PATTERN_SERIES_COLORS } from "@/config/patterns";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
-import { toEpochSeconds as toTVTime } from "@/utils/chart/time";
+import { toEpochSeconds } from "@/utils/chart/time";
 import { createAxisIndex } from "./axisIndex";
 import { resolveVisibleStandalone } from "./standaloneLines";
 
@@ -23,7 +23,7 @@ import { resolveVisibleStandalone } from "./standaloneLines";
 export const PATTERN_TV_COLORS: string[] = PATTERN_SERIES_COLORS;
 
 /** @deprecated Use `@/utils/chart/time.toEpochSeconds` directly for new code. */
-export { toTVTime };
+export const toTVTime = toEpochSeconds;
 
 export interface TVCandle {
   time: number;
@@ -31,6 +31,8 @@ export interface TVCandle {
   high: number;
   low: number;
   close: number;
+  /** Backend flagged the last bar as still forming (live tape / delayed feed). */
+  isPartial?: boolean;
 }
 
 export interface TVVolume {
@@ -99,6 +101,12 @@ export interface BuildPatternTVDataInput {
   trendlinesView?: TrendlinesView;
   /** Last N hits (newest first) to draw as historical patterns. */
   historyHits?: PatternHitDTO[];
+  /**
+   * IANA zone used to pin *naive* candle timestamps. Defaults to IST; pass
+   * `TZ_US` for a US session. Timestamps with an explicit offset are always
+   * honoured as the true instant and are unaffected by this value.
+   */
+  timeZone?: string;
 }
 
 export interface BuildPatternTVDataResult {
@@ -138,6 +146,7 @@ export function buildPatternTVData({
   trendLines,
   trendlinesView = "both",
   historyHits = [],
+  timeZone,
 }: BuildPatternTVDataInput): BuildPatternTVDataResult {
   const empty: BuildPatternTVDataResult = { candles: [], volume: [], levels: [], lines: [], markers: [] };
   const times = candles.map((c) => c.t);
@@ -147,7 +156,7 @@ export function buildPatternTVData({
   const axis = createAxisIndex(times);
 
   /** Epoch per candle index; non-finite when the timestamp is unparseable. */
-  const epochs: number[] = times.map(toTVTime);
+  const epochs: number[] = times.map((t) => toEpochSeconds(t, timeZone));
   const epochAt = (index: number): number =>
     index >= 0 && index < epochs.length ? epochs[index]! : NaN;
 
@@ -159,18 +168,23 @@ export function buildPatternTVData({
     byEpoch.set(t, c);
   });
   const sortedEpochs = [...byEpoch.keys()].sort((a, b) => a - b);
-  const tvCandles: TVCandle[] = sortedEpochs.map((t) => {
-    const c = byEpoch.get(t) as ChartCandle;
-    return { time: t, open: c.o, high: c.h, low: c.l, close: c.c };
-  });
-  const volume: TVVolume[] = sortedEpochs.map((t) => {
-    const c = byEpoch.get(t) as ChartCandle;
-    return {
-      time: t,
-      value: c.v,
-      color: c.c >= c.o ? withAlpha(POSITIVE, 0.9) : withAlpha(NEGATIVE, 0.9),
-    };
-  });
+  const sortedCandles = sortedEpochs.map((t) => byEpoch.get(t) as ChartCandle);
+  const lastIndex = sortedCandles.length - 1;
+  const tvCandles: TVCandle[] = sortedCandles.map((c, i) => ({
+    time: sortedEpochs[i]!,
+    open: c.o,
+    high: c.h,
+    low: c.l,
+    close: c.c,
+    // Only the newest bar can still be forming; a stale flag on an older bar
+    // (e.g. after dedupe/reordering) must never restyle a completed candle.
+    ...(i === lastIndex && c.is_partial === true ? { isPartial: true } : {}),
+  }));
+  const volume: TVVolume[] = sortedCandles.map((c, i) => ({
+    time: sortedEpochs[i]!,
+    value: c.v,
+    color: c.c >= c.o ? withAlpha(POSITIVE, 0.9) : withAlpha(NEGATIVE, 0.9),
+  }));
 
   // Breakout/target/stop levels intentionally omitted: risk sizing is the
   // trader's job, not the pattern engine's.

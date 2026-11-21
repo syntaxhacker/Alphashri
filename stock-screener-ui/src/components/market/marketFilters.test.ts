@@ -3,17 +3,26 @@ import "@testing-library/jest-dom/vitest";
 import { describe, expect, test } from "vitest";
 import {
   buildMarketFilterChips,
+  CAP_TIERS,
+  capTierOptions,
   countActiveMarketFilters,
   countByCapTier,
   defaultMarketFilters,
   filterMarketRows,
   filterOnlyMarketRows,
+  marketSectorOptions,
   marketSectors,
+  resetUniverseSpecificFilters,
   sortMarketRows,
   MARKET_SORT_OPTIONS,
   type MarketFilterState,
 } from "./marketFilters";
 import type { MarketRow } from "../../types/marketScreener";
+import {
+  MARKET_UNIVERSE_DESCRIPTORS,
+  capTierLabel as descriptorCapTierLabel,
+  marketUniverseDescriptor,
+} from "../../config/marketUniverses";
 
 function row(symbol: string, overrides: Partial<MarketRow> = {}): MarketRow {
   return {
@@ -36,6 +45,10 @@ function row(symbol: string, overrides: Partial<MarketRow> = {}): MarketRow {
     high52w: 120,
     low52w: 60,
     pos52w: 66,
+    peRatio: null,
+    pbRatio: null,
+    dividendYield: null,
+    roe: null,
     fno: false,
     etf: false,
     ...overrides,
@@ -146,7 +159,6 @@ describe("filterMarketRows", () => {
       symbols(filterMarketRows(ROWS, filters({ capTiers: new Set(["mid", "small"]) }))),
     ).toEqual(["MIDCO", "SMALLCO"]);
     expect(filterMarketRows(ROWS, filters({ capTiers: new Set(["unknown"]) }))).toEqual([]);
-    // empty set = no filtering
     expect(filterMarketRows(ROWS, filters({ capTiers: new Set() }))).toHaveLength(4);
   });
 
@@ -167,7 +179,6 @@ describe("filterMarketRows", () => {
       "ETFCO",
       "MIDCO",
     ]);
-    // null price excluded when a bound is set
     const rows = [row("NOPRICE", { close: null })];
     expect(filterMarketRows(rows, filters({ priceMin: 1 }))).toEqual([]);
     expect(filterMarketRows(rows, filters())).toHaveLength(1);
@@ -240,21 +251,31 @@ describe("filterMarketRows", () => {
     expect(filterMarketRows(rows, filters({ aboveSma20: true }))).toEqual([]);
   });
 
-  test("F&O and ETF switches", () => {
+  test("F&O switch", () => {
     expect(symbols(filterMarketRows(ROWS, filters({ fnoOnly: true })))).toEqual([
       "LARGECO",
       "MIDCO",
     ]);
-    expect(symbols(filterMarketRows(ROWS, filters({ etfOnly: true })))).toEqual(["ETFCO"]);
-    expect(symbols(filterMarketRows(ROWS, filters({ fnoOnly: true, etfOnly: true })))).toEqual(
-      [],
-    );
   });
 
-  test("sector select is an exact match", () => {
-    expect(symbols(filterMarketRows(ROWS, filters({ sector: "IT" })))).toEqual(["MIDCO"]);
-    expect(filterMarketRows(ROWS, filters({ sector: "Energy" }))).toHaveLength(1);
-    expect(filterMarketRows(ROWS, filters({ sector: "Banking" }))).toEqual([]);
+  test("sector filter is an exact multi-select set", () => {
+    expect(symbols(filterMarketRows(ROWS, filters({ sectors: ["IT"] })))).toEqual(["MIDCO"]);
+    expect(symbols(filterMarketRows(ROWS, filters({ sectors: ["IT", "Pharma"] })))).toEqual([
+      "MIDCO",
+      "SMALLCO",
+    ]);
+    expect(symbols(filterMarketRows(ROWS, filters({ sectors: ["Energy", "Pharma"] })))).toEqual([
+      "LARGECO",
+      "SMALLCO",
+    ]);
+    expect(filterMarketRows(ROWS, filters({ sectors: ["Banking"] }))).toEqual([]);
+    expect(defaultMarketFilters().sectors).toEqual([]);
+    expect(symbols(filterMarketRows(ROWS, filters({ sectors: [] })))).toEqual([
+      "ETFCO",
+      "LARGECO",
+      "MIDCO",
+      "SMALLCO",
+    ]);
   });
 
   test("combinations compose (cap + RSI + change)", () => {
@@ -285,6 +306,54 @@ describe("filterMarketRows", () => {
 
   test("empty input yields empty output", () => {
     expect(filterMarketRows([], filters({ rsiMin: 10 }))).toEqual([]);
+  });
+});
+
+describe("ETF cap tier", () => {
+  const ETF_ROW = row("NIFTYBEES", {
+    name: "Nifty BeES",
+    sector: null,
+    etf: true,
+    capTier: "etf",
+    marketCapCr: null,
+  });
+  const MICRO_EQUITY = row("MICROCO", {
+    name: "Microcap Equity",
+    capTier: "micro",
+    marketCapCr: 150,
+    etf: false,
+  });
+
+  test("an ETF row (cap_tier 'etf', null cap) is a selectable tier and survives a tier filter that includes etf", () => {
+    expect(CAP_TIERS).toContain("etf");
+    const rows = [ETF_ROW, MICRO_EQUITY];
+    expect(symbols(filterMarketRows(rows, filters({ capTiers: new Set(["etf"]) })))).toEqual([
+      "NIFTYBEES",
+    ]);
+    expect(symbols(filterMarketRows(rows, filters({ capTiers: new Set(["etf", "large"]) })))).toEqual([
+      "NIFTYBEES",
+    ]);
+  });
+
+  test("a tier-selected ETF produces its cap-tier chip", () => {
+    const chips = buildMarketFilterChips(filters({ capTiers: new Set(["etf"]) }));
+    expect(chips.filter((chip) => chip.key.includes("etf"))).toEqual([
+      { key: "capTier:etf", label: "Cap: ETF" },
+    ]);
+  });
+
+  test("an ETF row is excluded when only micro is ticked; a genuine micro-cap equity stays micro", () => {
+    const rows = [ETF_ROW, MICRO_EQUITY];
+    expect(symbols(filterMarketRows(rows, filters({ capTiers: new Set(["micro"]) })))).toEqual([
+      "MICROCO",
+    ]);
+    // ETF is its own tier — never a relabelled micro-cap.
+    expect(capTierOptions("all_equity").map((o) => o.value)).toContain("etf");
+    expect(countByCapTier(rows)).toEqual({ etf: 1, micro: 1 });
+    expect(MICRO_EQUITY.capTier).toBe("micro");
+    expect(MICRO_EQUITY.marketCapCr).toBe(150);
+    expect(ETF_ROW.etf).toBe(true);
+    expect(ETF_ROW.marketCapCr).toBeNull();
   });
 });
 
@@ -330,6 +399,39 @@ describe("buildMarketFilterChips", () => {
     expect(countActiveMarketFilters(defaultMarketFilters())).toBe(0);
   });
 
+  // The RangeInput hands back `null`/`undefined` interchangeably when an end is
+  // cleared. A chip builder that only tests `=== null` let `undefined` reach
+  // `fmtNum`, which threw and blanked the whole panel behind the boundary.
+  test("a cleared range end never throws", () => {
+    const undef = filters({
+      priceMin: undefined as unknown as null,
+      priceMax: undefined as unknown as null,
+      dayChangeMin: undefined as unknown as null,
+      mcapMinCr: undefined as unknown as null,
+      rsiMin: undefined as unknown as null,
+      relVolMin: undefined as unknown as null,
+    });
+    expect(() => buildMarketFilterChips(undef)).not.toThrow();
+    expect(buildMarketFilterChips(undef)).toEqual([]);
+    expect(countActiveMarketFilters(undef)).toBe(0);
+  });
+
+  test("a half-cleared range still renders one bound", () => {
+    const chips = buildMarketFilterChips(
+      filters({ priceMin: 100, priceMax: undefined as unknown as null }),
+    );
+    const price = chips.find((c) => c.key === "price");
+    expect(price?.label).toBe("LTP ≥ 100");
+  });
+
+  test("a non-finite bound renders a dash instead of throwing", () => {
+    const chips = buildMarketFilterChips(
+      filters({ rsiMin: Number.NaN as unknown as null, rsiMax: 70 }),
+    );
+    expect(() => buildMarketFilterChips(chips.length ? filters({ rsiMax: 70 }) : filters({}))).not.toThrow();
+    expect(chips.find((c) => c.key === "rsi")?.label).toBe("RSI ≤ 70");
+  });
+
   test("every filter produces a removable chip", () => {
     const chips = buildMarketFilterChips(
       filters({
@@ -347,8 +449,7 @@ describe("buildMarketFilterChips", () => {
         aboveSma50: true,
         aboveSma200: true,
         fnoOnly: true,
-        etfOnly: true,
-        sector: "Energy",
+        sectors: ["Energy"],
       }),
     );
     const keys = chips.map((c) => c.key);
@@ -365,10 +466,26 @@ describe("buildMarketFilterChips", () => {
       "sma50",
       "sma200",
       "fno",
-      "etf",
-      "sector",
+      "sector:Energy",
     ]);
     expect(countActiveMarketFilters(filters({ rsiMin: 30, fnoOnly: true }))).toBe(2);
+  });
+
+  test("one chip per selected sector, each independently removable", () => {
+    const chips = buildMarketFilterChips(filters({ sectors: ["IT", "Pharma"] }));
+    expect(chips).toEqual([
+      { key: "sector:IT", label: "Sector: IT" },
+      { key: "sector:Pharma", label: "Sector: Pharma" },
+    ]);
+    expect(countActiveMarketFilters(filters({ sectors: ["IT", "Pharma"] }))).toBe(2);
+
+    const three = buildMarketFilterChips(filters({ sectors: ["IT", "Pharma", "Energy"] }));
+    // Per-sector keys: dropping one key removes exactly one chip. A single shared
+    // "sector" key would let the panel's remove-by-key wipe the whole selection.
+    const withoutPharma = three.filter((c) => c.key !== "sector:Pharma");
+    expect(withoutPharma).toHaveLength(three.length - 1);
+    expect(withoutPharma.map((c) => c.key)).toEqual(["sector:IT", "sector:Energy"]);
+    expect(withoutPharma.map((c) => c.label)).toEqual(["Sector: IT", "Sector: Energy"]);
   });
 
   test("one-sided ranges and sort exclusion", () => {
@@ -385,6 +502,28 @@ describe("buildMarketFilterChips", () => {
   test("chip labels are human readable", () => {
     const chips = buildMarketFilterChips(filters({ mcapMinCr: 5000, aboveSma200: true }));
     expect(chips.map((c) => c.label)).toEqual(["MCap ≥ 5000 Cr", "Above SMA 200"]);
+  });
+
+  // A persisted max is invisible without its own chip: the values are saved, so
+  // the user must be able to see and remove the ceiling that hides rows.
+  test("a max-only MCap bound renders its own chip and is removable by key", () => {
+    const chips = buildMarketFilterChips(filters({ mcapMaxCr: 90000 }));
+    expect(chips).toEqual([{ key: "mcap", label: "MCap ≤ 90000 Cr" }]);
+    expect(countActiveMarketFilters(filters({ mcapMaxCr: 90000 }))).toBe(1);
+  });
+
+  test("a max-only RelVol bound renders its own chip", () => {
+    const chips = buildMarketFilterChips(filters({ relVolMax: 3 }));
+    expect(chips).toEqual([{ key: "relvol", label: "RelVol ≤ 3" }]);
+  });
+
+  test("a two-ended MCap or RelVol range reads as one range chip", () => {
+    expect(buildMarketFilterChips(filters({ mcapMinCr: 5000, mcapMaxCr: 90000 }))).toEqual([
+      { key: "mcap", label: "MCap 5000–90000 Cr" },
+    ]);
+    expect(buildMarketFilterChips(filters({ relVolMin: 1.5, relVolMax: 6 }))).toEqual([
+      { key: "relvol", label: "RelVol 1.5–6" },
+    ]);
   });
 });
 
@@ -415,6 +554,173 @@ describe("search index", () => {
       expect(filterMarketRows(rows, filters(q))).toHaveLength(1);
     }
     expect(filterMarketRows(rows, filters("absent"))).toHaveLength(0);
+  });
+});
+
+describe("universe descriptors in filters", () => {
+  const US_ROWS: MarketRow[] = [
+    row("NVDA", {
+      currency: "USD",
+      marketCapCr: null,
+      marketCapUsdB: 46200,
+      capTier: "large",
+      sector: "Semiconductors",
+    }),
+    row("LLY", {
+      currency: "USD",
+      marketCapCr: null,
+      marketCapUsdB: 7800,
+      capTier: "mid",
+      sector: "Pharmaceuticals",
+    }),
+    row("SMALL", {
+      currency: "USD",
+      marketCapCr: null,
+      marketCapUsdB: 0.5,
+      capTier: "small",
+      sector: "Software",
+    }),
+  ];
+
+  test("capTierOptions emits every tier the descriptor declares, in order, with a label", () => {
+    for (const universe of MARKET_UNIVERSE_DESCRIPTORS.map((d) => d.value)) {
+      const descriptor = marketUniverseDescriptor(universe);
+      const declared = Object.keys(descriptor.capTiers);
+      const options = capTierOptions(universe);
+      expect(options.map((o) => o.value)).toEqual(declared);
+      for (const option of options) {
+        expect(option.label.trim().length).toBeGreaterThan(0);
+        expect(option.label).toBe(descriptorCapTierLabel(option.value, descriptor));
+      }
+    }
+  });
+
+  test("CAP_TIERS and the descriptor union are one vocabulary", () => {
+    const derived = [
+      ...new Set(MARKET_UNIVERSE_DESCRIPTORS.flatMap((d) => Object.keys(d.capTiers))),
+    ].sort();
+    expect([...CAP_TIERS].sort()).toEqual(derived);
+
+    // Guard against a genuinely dropped size tier without pinning names: the
+    // India descriptor must still carry at least four non-class size rungs.
+    const india = marketUniverseDescriptor("all_equity");
+    const sizeTiers = Object.entries(india.capTiers)
+      .filter(([, range]) => !range.category)
+      .map(([tier]) => tier);
+    expect(sizeTiers.length).toBeGreaterThanOrEqual(4);
+    for (const tier of sizeTiers) expect(CAP_TIERS).toContain(tier);
+  });
+
+  test("class tiers come from the descriptor flag, so adding one needs no rail edit", () => {
+    const india = marketUniverseDescriptor("all_equity");
+    const declaredClasses = Object.entries(india.capTiers)
+      .filter(([, range]) => range.category)
+      .map(([tier]) => tier);
+    expect(capTierOptions("all_equity").filter((o) => o.category).map((o) => o.value)).toEqual(
+      declaredClasses,
+    );
+    expect(declaredClasses.length).toBeGreaterThan(0);
+    expect(capTierOptions("us").some((o) => o.category)).toBe(false);
+  });
+
+  test("MCap chips use the descriptor's unit, not a hardcoded ₹ Cr", () => {
+    expect(buildMarketFilterChips(filters({ mcapMinCr: 10 }), "us")).toEqual([
+      { key: "mcap", label: "MCap ≥ 10 B" },
+    ]);
+    expect(buildMarketFilterChips(filters({ mcapMinCr: 5000 }))).toEqual([
+      { key: "mcap", label: "MCap ≥ 5000 Cr" },
+    ]);
+    expect(countActiveMarketFilters(filters({ mcapMaxCr: 200 }), "us")).toBe(1);
+  });
+
+  test("cap-tier chips show the US threshold", () => {
+    const chips = buildMarketFilterChips(filters({ capTiers: new Set(["large"]) }), "us");
+    expect(chips).toEqual([{ key: "capTier:large", label: "Cap: Large 10–200B" }]);
+  });
+
+  test("US mcap bounds filter on marketCapUsdB, not the null rupee field", () => {
+    expect(symbols(filterMarketRows(US_ROWS, filters({ mcapMinCr: 10000 })))).toEqual([
+      "NVDA",
+    ]);
+    expect(symbols(filterMarketRows(US_ROWS, filters({ mcapMaxCr: 2 })))).toEqual(["SMALL"]);
+  });
+
+  test("mcap_desc sorts US rows by $B", () => {
+    expect(sortMarketRows(US_ROWS, "mcap_desc").map((r) => r.symbol)).toEqual([
+      "NVDA",
+      "LLY",
+      "SMALL",
+    ]);
+  });
+
+  test("sector options are derived from the loaded US rows only", () => {
+    expect(marketSectorOptions(US_ROWS)).toEqual([
+      { value: "Pharmaceuticals", label: "Pharmaceuticals" },
+      { value: "Semiconductors", label: "Semiconductors" },
+      { value: "Software", label: "Software" },
+    ]);
+    expect(marketSectorOptions(US_ROWS).map((o) => o.value)).not.toContain("Banking");
+  });
+
+  test("reset drops unit-bound and India-specific filters but keeps unit-neutral ones", () => {
+    const before = filters({
+      priceMin: 100,
+      mcapMinCr: 5000,
+      capTiers: new Set(["large"]),
+      sectors: ["IT"],
+      fnoOnly: true,
+      rsiMin: 40,
+      relVolMax: 5,
+      aboveSma200: true,
+      dayChangeMin: -2,
+      sort: "relvol_desc",
+    });
+    const after = resetUniverseSpecificFilters(before, "us");
+    expect(after.priceMin).toBeNull();
+    expect(after.mcapMinCr).toBeNull();
+    expect(after.capTiers.size).toBe(0);
+    expect(after.sectors).toEqual([]);
+    expect(after.fnoOnly).toBe(false);
+    expect(after.rsiMin).toBe(40);
+    expect(after.relVolMax).toBe(5);
+    expect(after.aboveSma200).toBe(true);
+    expect(after.dayChangeMin).toBe(-2);
+    expect(after.sort).toBe("relvol_desc");
+  });
+
+  test("reset clears fnoOnly and cap tiers in either direction", () => {
+    const indiaToUs = resetUniverseSpecificFilters(
+      filters({ fnoOnly: true, capTiers: new Set(["etf"]) }),
+      "us",
+    );
+    expect(indiaToUs.fnoOnly).toBe(false);
+    expect(indiaToUs.capTiers.size).toBe(0);
+
+    const usToIndia = resetUniverseSpecificFilters(
+      filters({ fnoOnly: true, capTiers: new Set(["etf"]) }),
+      "all_equity",
+    );
+    expect(usToIndia.fnoOnly).toBe(false);
+    expect(usToIndia.capTiers.size).toBe(0);
+  });
+
+  test("a US reset leaves no active F&O chip behind", () => {
+    const after = resetUniverseSpecificFilters(filters({ fnoOnly: true }), "us");
+    expect(buildMarketFilterChips(after, "us").map((c) => c.key)).not.toContain("fno");
+  });
+
+  test("a persisted F&O filter emits no chip in the US universe, but still does in India", () => {
+    // A saved `universe=us` config can carry `fnoOnly: true` from the F&O rail
+    // that no longer exists in the US. The descriptor — not the filter field —
+    // decides whether that affordance is real.
+    expect(buildMarketFilterChips(filters({ fnoOnly: true }), "us").map((c) => c.key)).not.toContain(
+      "fno",
+    );
+    expect(countActiveMarketFilters(filters({ fnoOnly: true }), "us")).toBe(0);
+    expect(buildMarketFilterChips(filters({ fnoOnly: true }), "all_equity").map((c) => c.key)).toContain(
+      "fno",
+    );
+    expect(countActiveMarketFilters(filters({ fnoOnly: true }), "all_equity")).toBe(1);
   });
 });
 

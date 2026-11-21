@@ -23,6 +23,7 @@ export { List, ListItem } from "./typography/List";
 
 // Inputs
 export { Button } from "./inputs/Button";
+export { RangeSlider, Slider } from "./inputs/RangeSlider";
 export { ActionIcon } from "./inputs/ActionIcon";
 export { UnstyledButton } from "./inputs/UnstyledButton";
 export { TextInput } from "./inputs/TextInput";
@@ -76,6 +77,8 @@ export { DatePicker } from "./dates/DatePicker";
 
 // Theme & providers
 export { UIProvider, uiTheme } from "./theme";
+export { cn } from "./cn";
+export { alpha } from "./alpha";
 
 // Density (Comfortable | Compact table density, persisted to localStorage)
 export { DensityProvider, useDensity, setDensity, getStoredDensity, DENSITY_TOKENS, DENSITY_STORAGE_KEY, TABLE_ROW_PY_VAR } from "./density";
@@ -93,7 +96,7 @@ export { rem } from "./hooks";
 
 // Types
 export type {
-  UIBaseProps, UISize, UIColor, UITone, UIFontWeight, UIAlign, UIFlexDirection, UIFlexWrap,
+  UITheme, UIBaseProps, UISize, UIColor, UITone, UIFontWeight, UIAlign, UIFlexDirection, UIFlexWrap,
   UIJustify, UIAlignItems, UIGap, UIRadius, UIVariant,
   UIBoxProps, UIFlexProps, UIStackProps, UIGroupProps, UICenterProps,
   UIPaperProps, UICardProps, UIScrollAreaProps, UIDividerProps, UICollapseProps,

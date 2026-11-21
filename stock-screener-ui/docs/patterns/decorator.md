@@ -43,8 +43,8 @@ The Decorator pattern appears everywhere in software, often disguised under othe
 |---|---|---|
 | **API middleware** | Express/Koa middleware | Each middleware calls `next()` to delegate to the next layer |
 | **Stream I/O** | Node.js `.pipe()` chains | `readable.pipe(gzip).pipe(encrypt).pipe(writeStream)` |
-| **React HOCs** | `withRouter(connect(mapStateToProps)(Component))` | Each HOC wraps the component, adding props or behavior |
-| **React context** | Nested `<Provider>` components | Each provider wraps the tree, adding context value |
+| **React HOCs** | `withRouter(connect(mapStateToProps)(Component))` | Each HOC wraps the component, adding props or behavior (generic React example — this app is Solid) |
+| **React context** | Nested `<Provider>` components | Each provider wraps the tree, adding context value (generic React example — this app is Solid) |
 | **Java I/O** | `new BufferedInputStream(new FileInputStream(file))` | The canonical GoF example in Java's standard library |
 | **Python decorators** | `@staticmethod`, `@property`, `@cache` | Syntactic sugar for `fn = decorator(fn)` |
 | **TypeScript decorators** | `@Injectable()`, `@Component({…})` | Class/method decorators in Angular/NestJS |

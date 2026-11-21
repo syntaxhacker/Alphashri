@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+
+@theme {
+  /* Mirrors src/ui/palette.ts — theme-single-source.test.ts enforces this. */
+  --color-fin-bg: #000000;
+  --color-fin-surface: #13161c;
+  --color-fin-surface-alt: #1f242d;
+  --color-fin-border: #2c313b;
+  --color-fin-text: #e8e8e8;
+  --color-fin-text-muted: #9b9b9b;
+  --color-fin-primary: #d9902a;
+  --color-fin-positive: #2fa36b;
+  --color-fin-negative: #e5606a;
+  --color-fin-warning: #c9912f;
+  --color-fin-info: #4a8fd8;
+  /* Radius scale: controls = md, inner elements (tags, checkboxes) = sm,
+     modals/drawers = lg. Nothing else stays at 2px except hairline separators.
+     --radius-fin is the control alias, kept because every primitive uses it. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-fin: 6px;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@layer base {
+  /*
+   * Light theme. Every utility and primitive compiles to `var(--color-fin-*)`,
+   * so overriding the tokens is the whole theme. There was no block here, only a
+   * `color-scheme` hint in style.css — which is why the toolbar's theme toggle
+   * flipped the attribute and the app stayed black.
+   * The attribute is set on <html> by useColorScheme and, before first paint, by
+   * the bootstrap in index.html; both target :root.
+   */
+  :root[data-color-scheme="light"] {
+    --color-fin-bg: #f4f5f7;
+    --color-fin-surface: #ffffff;
+    --color-fin-surface-alt: #eef0f3;
+    --color-fin-border: #d3d8df;
+    --color-fin-text: #14171c;
+    --color-fin-text-muted: #5b6472;
+    --color-fin-primary: #9a5d05;
+    --color-fin-positive: #12724a;
+    --color-fin-negative: #b3261e;
+    --color-fin-warning: #7a560d;
+    --color-fin-info: #1f5fa8;
+  }
+
+  html,
+  body,
+  #app {
+    height: 100%;
+  }
+
+  body {
+    background: var(--color-fin-bg);
+    color: var(--color-fin-text);
+    font-family: var(--font-sans);
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  /*
+   * One focus ring for every native control. Components used to each re-invent
+   * `focus-visible:` (or omit it — 55 of 61 raw buttons had no focus state at
+   * all), so keyboard navigation was invisible on most of the app.
+   */
+  :is(button, a, [role="button"], summary):focus-visible,
+  :is(input, select, textarea):focus {
+    outline: 2px solid var(--color-fin-primary);
+    outline-offset: 1px;
+  }
+}

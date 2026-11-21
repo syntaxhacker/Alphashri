@@ -1,11 +1,6 @@
 import { describe, it, expect } from "vitest";
-import {
-  formatCost,
-  formatResponseTime,
-  formatDateTime,
-  truncateUrl,
-  getStatusColor,
-} from "./admin/RecentRunsTable";
+import { formatCost, formatResponseTime, formatDateTime, truncateUrl } from "./admin/formatters";
+import { getStatusColor } from "../utils/ui-helpers";
 
 describe("formatCost", () => {
   it("formats a positive cost with 4 decimal places", () => {

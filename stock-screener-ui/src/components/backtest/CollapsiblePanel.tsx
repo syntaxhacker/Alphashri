@@ -1,76 +1,88 @@
-// CollapsiblePanel — dense panel for the backtest right rail (MUI elements).
-import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
-import Chip from "@mui/material/Chip";
-import ButtonBase from "@mui/material/ButtonBase";
-import Divider from "@mui/material/Divider";
-import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
+import { Show } from "solid-js";
+import type { JSX } from "solid-js";
+// CollapsiblePanel — dense panel for the backtest right rail.
+import { Badge, Divider, Text, Box, Stack } from "@/ui";
+import * as palette from "@/ui/palette";
+import { IconChevronDown, IconChevronRight } from "@/components/common/Icons";
 import type { BacktestPanelId } from "./useBacktestLayout";
-
 interface CollapsiblePanelProps {
   id: BacktestPanelId;
   title: string;
-  badge?: React.ReactNode;
+  badge?: JSX.Element;
   open: boolean;
   onToggle: () => void;
-  children: React.ReactNode;
+  children: JSX.Element;
 }
 
-export function CollapsiblePanel({ id, title, badge, open, onToggle, children }: CollapsiblePanelProps) {
+export function CollapsiblePanel(props: CollapsiblePanelProps) {
   return (
     <Box
-      data-testid={`panel-${id}`}
-      data-open={open ? "true" : "false"}
-      sx={{
+      data-testid={`panel-${props.id}`}
+      data-open={props.open ? "true" : "false"}
+      className="flex flex-col min-h-0 min-w-0 border-t border-fin-border"
+      style={{
         display: "flex",
-        flexDirection: "column",
-        flex: open ? "1 1 0" : "0 0 auto",
-        minHeight: 0,
-        minWidth: 0,
-        borderTop: 1,
-        borderColor: "divider",
-        "&:first-of-type": { borderTop: 0 },
+        "flex-direction": "column",
+        flex: props.open ? "1 1 0" : "0 0 auto",
+        "min-height": 0,
+        "min-width": 0,
+        "border-top": `1px solid ${palette.BROWN}`,
+        "border-radius": "8px",
       }}
     >
-      <ButtonBase
-        onClick={onToggle}
-        aria-expanded={open}
-        aria-label={`${open ? "Collapse" : "Expand"} ${title}`}
-        sx={{
+      <button
+        type="button"
+        onClick={props.onToggle}
+        aria-expanded={props.open}
+        aria-label={`${props.open ? "Collapse" : "Expand"} ${props.title}`}
+        className="flex w-full items-center gap-1.5 px-1.5 h-7.5 rounded-fin transition-colors"
+        style={{
           width: "100%",
-          height: 30,
-          px: 1,
-          justifyContent: "flex-start",
-          bgcolor: open ? "action.selected" : "background.default",
-          "&:hover": { bgcolor: "action.hover" },
+          height: "30px",
+          "padding-left": "8px",
+          "padding-right": "8px",
+          "justify-content": "flex-start",
+          "background-color": props.open ? palette.SURFACE_ALT : palette.BG,
         }}
       >
-        <Stack direction="row" alignItems="center" spacing={0.75} sx={{ width: "100%" }}>
-          <Box sx={{ display: "grid", placeItems: "center", color: "text.secondary" }}>
-            {open ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+        <Stack direction="row" align="center" gap={0.75} className="w-full">
+          <Box className="place-items-center" style={{ display: "grid", "place-items": "center", color: palette.TEXT_MUTED }}>
+            {props.open ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
           </Box>
-          <Typography
-            variant="overline"
-            sx={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.6, flex: 1, textAlign: "left", color: "text.primary", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+          <Text
+            size="xs"
+            fw={700}
+            c="primary"
+            style={{
+              "font-size": "10px",
+              "font-weight": 700,
+              "letter-spacing": "0.6px",
+              flex: 1,
+              "text-align": "left",
+              "white-space": "nowrap",
+              overflow: "hidden",
+              "text-overflow": "ellipsis",
+            }}
           >
-            {title}
-          </Typography>
-          {badge != null && (
-            <Chip
-              size="small"
-              label={badge}
-              sx={{ height: 16, fontSize: 10, fontWeight: 700, bgcolor: "action.hover", "& .MuiChip-label": { px: 0.75 } }}
-            />
+            {props.title}
+          </Text>
+          {props.badge != null && (
+            <Badge
+              size="xs"
+              style={{ height: "16px", "font-size": "10px", "font-weight": 700, "background-color": palette.SURFACE_ALT }}
+              variant="light"
+            >
+              {props.badge}
+            </Badge>
           )}
         </Stack>
-      </ButtonBase>
+      </button>
       <Divider />
-      {open && (
-        <Box sx={{ flex: "1 1 auto", minHeight: 0, minWidth: 0, overflow: "auto", display: "flex", flexDirection: "column" }}>
-          {children}
-        </Box>
-      )}
+      <Show when={props.open}>
+        <div className="flex-1 min-h-0 min-w-0 overflow-auto flex flex-col">
+          {props.children}
+        </div>
+      </Show>
     </Box>
   );
 }

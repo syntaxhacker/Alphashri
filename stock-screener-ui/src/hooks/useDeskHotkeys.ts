@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { createEffect, onCleanup } from "solid-js";
 
 export type DeskChartTimeframe = "1m" | "5m" | "15m";
 
@@ -38,10 +38,12 @@ export function isTypingTarget(target: EventTarget | null): boolean {
  * callbacks via ref (never rebinds), removed on unmount. Returns nothing.
  */
 export function useDeskHotkeys(callbacks: DeskHotkeyCallbacks): void {
-  const ref = useRef(callbacks);
-  ref.current = callbacks;
+  // Solid components run once, so the callback object is captured by the
+  // closure below; callers pass a stable object literal from the component
+  // body (its members are live getters over the latest state).
+  const ref = { current: callbacks };
 
-  useEffect(() => {
+  createEffect(() => {
     let lastKey = "";
     let lastAt = 0;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -76,8 +78,6 @@ export function useDeskHotkeys(callbacks: DeskHotkeyCallbacks): void {
       lastAt = Date.now();
     };
     window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, []);
+    onCleanup(() => window.removeEventListener("keydown", onKeyDown));
+  });
 }

@@ -30,6 +30,8 @@ so returned lines are bit-for-bit equivalent.
 
 from __future__ import annotations
 
+import hashlib
+
 import numpy as np
 import pandas as pd
 from numpy.lib.stride_tricks import sliding_window_view
@@ -165,7 +167,10 @@ def _envelope_line(
         else:
             d = y - boundary[K]             # violation: price pierces below the line
         over = d > tol
-        viol[sl] = np.bincount(P, weights=over.astype(np.uint8), minlength=p1 - p0).astype(np.int64)
+        # P holds GLOBAL pair indices (np.arange(p0, p1)), so bincount would
+        # size the result to the global max index instead of this block - offset
+        # by p0 to get exactly p1-p0 counts that fit the viol[sl] slice.
+        viol[sl] = np.bincount(P - p0, weights=over.astype(np.uint8), minlength=p1 - p0).astype(np.int64)
         for k in range(p0, p1):
             key = (int(viol[k]), -int(span[k]))
             if best_key is None or key < best_key:
@@ -196,6 +201,73 @@ def _envelope_line(
         "viol": int(viol[best]),
         "worst": worst,
     }
+
+
+def window_signature(df: pd.DataFrame | None, lookback_bars: int | None = None) -> str | None:
+    """Signature of the exact trailing window :func:`detect_trendlines` reads.
+
+    The returned geometry depends only on that window (its length and OHLCV
+    bytes), not on the rest of the frame, so two frames with the same
+    signature produce the same lines. The length is embedded in the string so a
+    reader can reproduce the identical slice without knowing the scan's
+    ``lookback_bars``.
+
+    A trailing in-progress daily bar is dropped: it never exists on the read
+    path (``include_partial_today=False``) and the lines are a
+    completed-session read. Returns ``None`` when the frame cannot be
+    fingerprinted (callers must then recompute, never reuse).
+    """
+    if df is None or getattr(df, "empty", True):
+        return None
+    if (getattr(df, "attrs", {}) or {}).get("partial_today") and len(df) > 1:
+        df = df.iloc[:-1]
+    try:
+        window = _trendline_window(df, lookback_bars)
+        if window is None or window.empty:
+            return None
+        h = hashlib.sha1()
+        h.update(window[list(F.OHLCV_COLUMNS)].to_numpy(dtype=float).tobytes())
+        h.update(np.asarray(window.index.asi8, dtype=np.int64).tobytes())
+        return f"{len(window)}:{h.hexdigest()[:16]}"
+    except Exception:
+        return None
+
+
+def window_matches(signature: str | None, df: pd.DataFrame | None) -> bool:
+    """True when ``signature`` was computed from the window ``df`` ends with.
+
+    Uses the length embedded in the signature, so the scan's own
+    ``lookback_bars`` never has to travel with the stored lines.
+    """
+    if not signature or not isinstance(signature, str):
+        return False
+    try:
+        length = int(signature.split(":", 1)[0])
+    except (TypeError, ValueError):
+        return False
+    return window_signature(df, length) == signature
+
+
+def _trendline_window(df: pd.DataFrame | None, lookback_bars: int | None):
+    """Normalized frame sliced exactly as :func:`detect_trendlines` slices it."""
+    if df is None or getattr(df, "empty", True):
+        return None
+    try:
+        norm = _fast_normalize(df)
+        if norm is None:
+            norm = F.normalize_ohlcv(df)
+    except (ValueError, TypeError, KeyError, AttributeError):
+        return None
+    if norm is None or norm.empty:
+        return None
+    window = (
+        lookback_bars
+        if isinstance(lookback_bars, int) and lookback_bars > 0
+        else pattern_config.TRENDLINE_LOOKBACK_BARS
+    )
+    if len(norm) > window:
+        norm = norm.iloc[-window:]
+    return norm
 
 
 def _build_side(df: pd.DataFrame, pivots: list, env: dict, kind: str, atr: float) -> dict | None:
@@ -249,24 +321,9 @@ def detect_trendlines(df: pd.DataFrame | None, lookback_bars: int | None = None)
     raises on bad input: ``None``/empty/malformed frames yield both ``None``.
     """
     empty = {"support": None, "resistance": None}
-    if df is None or getattr(df, "empty", True):
-        return dict(empty)
-    try:
-        norm = _fast_normalize(df)
-        if norm is None:
-            norm = F.normalize_ohlcv(df)
-    except (ValueError, TypeError, KeyError, AttributeError):
-        return dict(empty)
+    norm = _trendline_window(df, lookback_bars)
     if norm is None or norm.empty:
         return dict(empty)
-
-    window = (
-        lookback_bars
-        if isinstance(lookback_bars, int) and lookback_bars > 0
-        else pattern_config.TRENDLINE_LOOKBACK_BARS
-    )
-    if len(norm) > window:
-        norm = norm.iloc[-window:]
 
     out: dict = {"support": None, "resistance": None}
     try:

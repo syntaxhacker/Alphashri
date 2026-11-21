@@ -1,4 +1,4 @@
-import { IconTrendingUp, IconTrendingDown, IconMinus } from "@tabler/icons-react";
+import { IconTrendingUp, IconTrendingDown, IconMinus } from "../common/Icons";
 
 export const SOURCE_COLORS: Record<string, string> = {
   moneycontrol: "primary",

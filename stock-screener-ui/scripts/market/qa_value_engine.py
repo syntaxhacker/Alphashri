@@ -53,7 +53,7 @@ _EXCHANGES = {
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--market", default="usa", choices=["india", "usa"])
-    ap.add_argument("--preset", default="SERIOUS")
+    ap.add_argument("--preset", default="SERIOUS", choices=sorted(vf.PRESETS))
     ap.add_argument("--top", type=int, default=25)
     ap.add_argument("--limit", type=int, default=1500)
     args = ap.parse_args()

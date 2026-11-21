@@ -1,100 +1,106 @@
-import MuiBadge from "@mui/material/Badge";
-import Box from "@mui/material/Box";
+import { splitProps, Show } from "solid-js";
+import { cn } from "../cn";
+import * as palette from "../palette";
 import type { UIIndicatorProps } from "../types";
 
-function mapColor(color: UIIndicatorProps["color"]): "primary" | "secondary" | "success" | "error" | "warning" | "info" | "default" {
-  if (!color) return "primary";
-  switch (color) {
-    case "success":
-      return "success";
-    case "error":
-    case "danger":
-      return "error";
-    case "warning":
-      return "warning";
-    case "info":
-      return "info";
-    case "secondary":
-      return "secondary";
-    case "primary":
-      return "primary";
-    default:
-      return "primary";
-  }
+const COLOR_MAIN: Record<string, string> = {
+  primary: palette.PRIMARY,
+  success: palette.POSITIVE_COLOR,
+  error: palette.NEGATIVE_COLOR,
+  danger: palette.NEGATIVE_COLOR,
+  warning: palette.WARNING,
+  info: palette.INFO,
+  secondary: palette.TEXT_MUTED,
+  default: palette.TEXT_MUTED,
+};
+
+function resolveColor(color: UIIndicatorProps["color"]): string {
+  if (!color) return palette.PRIMARY;
+  if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl")) return color;
+  return COLOR_MAIN[color] ?? palette.PRIMARY;
 }
 
-function mapAnchor(position: UIIndicatorProps["position"]): { vertical: "top" | "bottom"; horizontal: "left" | "right" } {
-  switch (position) {
-    case "top-start":
-      return { vertical: "top", horizontal: "left" };
-    case "bottom-start":
-      return { vertical: "bottom", horizontal: "left" };
-    case "bottom-end":
-      return { vertical: "bottom", horizontal: "right" };
-    case "top-end":
-    default:
-      return { vertical: "top", horizontal: "right" };
-  }
-}
+// ANCHOR values are px strings — Solid's setProperty drops unitless non-zero numbers.
+const ANCHOR: Record<string, { top?: string; right?: string; bottom?: string; left?: string }> = {
+  topStart: { top: "0px", left: "0px" },
+  bottomStart: { bottom: "0px", left: "0px" },
+  bottomEnd: { bottom: "0px", right: "0px" },
+  topEnd: { top: "0px", right: "0px" },
+};
 
-export function Indicator({
-  label,
-  color,
-  size,
-  offset,
-  disabled,
-  processing,
-  position,
-  children,
-  className,
-  style,
-  "data-testid": testId,
-  id,
-  ...rest
-}: UIIndicatorProps) {
-  if (disabled) return <>{children}</>;
-
-  const muiColor = mapColor(color);
-  const anchor = mapAnchor(position);
+export function Indicator(props: UIIndicatorProps) {
+  const [known, _rest] = splitProps(props, [
+    "label",
+    "color",
+    "size",
+    "offset",
+    "disabled",
+    "processing",
+    "position",
+    "children",
+    "className",
+    "style",
+    "data-testid",
+    "id",
+  ]);
 
   return (
-    <MuiBadge
-      badgeContent={label}
-      color={muiColor as never}
-      invisible={disabled}
-      overlap="circular"
-      anchorOrigin={anchor}
-      className={className}
-      style={style}
-      id={id}
-      data-testid={testId}
-      sx={{
-        "& .MuiBadge-badge": {
-          ...(size != null ? { minWidth: size, height: size, fontSize: size * 0.5 } : {}),
-          ...(offset != null ? { transform: `translate(${offset}px, -${offset}px)` } : {}),
-          ...(processing
-            ? {
-                "&::after": {
-                  content: '""',
-                  position: "absolute",
-                  inset: 0,
-                  borderRadius: "50%",
-                  border: 1,
-                  borderColor: "inherit",
-                  animation: "mui-indicator-ping 1.2s cubic-bezier(0,0,0.2,1) infinite",
-                },
-                "@keyframes mui-indicator-ping": {
-                  "75%, 100%": { transform: "scale(1.8)", opacity: 0 },
-                },
-              }
-            : {}),
-        },
-      }}
-      {...(rest as Record<string, unknown>)}
+    <Show
+      when={!known.disabled}
+      fallback={
+        // No dot when disabled, but the wrapper stays: dropping the testid too
+        // made the component impossible to assert on in either state.
+        <span
+          data-testid={known["data-testid"]}
+          id={known.id}
+          className={cn("relative inline-block shrink-0", known.className)}
+          style={known.style}
+        >
+          {known.children}
+        </span>
+      }
     >
-      <Box component="span" sx={{ display: "inline-flex" }}>
-        {children}
-      </Box>
-    </MuiBadge>
+      {(() => {
+        const col = resolveColor(known.color);
+        const dotSize = known.size ?? 8;
+        const anchor = ANCHOR[known.position ?? "top-end"] ?? ANCHOR["top-end"];
+        const transform =
+          known.offset != null ? `translate(${known.offset}px, ${-known.offset}px)` : undefined;
+
+        return (
+          <span
+            data-testid={known["data-testid"]}
+            id={known.id}
+            className={cn("relative inline-block shrink-0", known.className)}
+            style={known.style}
+          >
+            {known.children}
+            <span
+              className="absolute rounded-full flex items-center justify-center shrink-0"
+              style={{
+                ...anchor,
+                width: `${dotSize}px`,
+                height: `${dotSize}px`,
+                "background-color": col,
+                transform,
+                ...(known.label != null
+                  ? { color: palette.BG, "font-size": `${Math.max(6, dotSize * 0.5)}px`, "font-weight": 600 }
+                  : {}),
+              }}
+            >
+              {known.label != null ? (
+                <span style={{ position: "relative", "z-index": 1 }}>{known.label}</span>
+              ) : null}
+              {known.processing && (
+                <span
+                  className="animate-ping border shrink-0 absolute inset-0 rounded-full"
+                  style={{ "border-color": col, opacity: 0.5, "animation-duration": "1.2s" }}
+                />
+              )}
+            </span>
+          </span>
+        );
+      })()}
+    </Show>
   );
 }

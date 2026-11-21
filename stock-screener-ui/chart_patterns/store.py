@@ -7,9 +7,13 @@ Redis. All helpers accept the module-level session factory so tests can point
 from __future__ import annotations
 
 import json
+import logging
+import math
 from typing import Any, Iterable, Optional
 
 from sqlalchemy import case, func, literal
+
+logger = logging.getLogger(__name__)
 
 from db.database import SessionLocal
 
@@ -64,22 +68,24 @@ def _with_params(row_dict: dict, raw) -> dict:
     return row_dict
 
 
-def _coalesce_num(value) -> float:
-    """Coerce ``value`` to float, returning 0.0 for None/NaN/Inf/garbage."""
+def _finite_or_none(value) -> float | None:
+    """float(value) or None for None/NaN/Inf/garbage."""
     if value is None:
-        return 0.0
+        return None
     try:
         out = float(value)
     except (TypeError, ValueError):
-        return 0.0
-    try:
-        import math
-
-        if not math.isfinite(out):
-            return 0.0
-    except Exception:
-        return 0.0
+        return None
+    # Reject NaN/Inf so non-finite floats never reach the DB/JSON layer.
+    if not math.isfinite(out):
+        return None
     return out
+
+
+def _coalesce_num(value) -> float:
+    """Coerce ``value`` to float, returning 0.0 for None/NaN/Inf/garbage."""
+    out = _finite_or_none(value)
+    return 0.0 if out is None else out
 
 
 def breakout_score(dto: dict) -> float:
@@ -292,16 +298,8 @@ def latest_hits_by_symbol(
             sym = row.symbol
             if sym in by_symbol:
                 continue
-            dto = row.to_dict()
-            payload = {}
-            raw = row.payload_json
-            if isinstance(raw, str):
-                try:
-                    payload = json.loads(raw)
-                except (TypeError, ValueError):
-                    payload = {}
-            elif isinstance(raw, dict):
-                payload = dict(raw)
+            payload = _payload_dict(row.payload_json)
+            dto = row.to_dict(payload)
             source_sig = payload.get("source_sig")
             dto["source_sig"] = str(source_sig) if source_sig else None
             trend_lines = payload.get("trend_lines")
@@ -310,6 +308,9 @@ def latest_hits_by_symbol(
             trend_lines_sig = payload.get("trend_lines_sig")
             if trend_lines_sig:
                 dto["trend_lines_sig"] = str(trend_lines_sig)
+            trend_lines_window = payload.get("trend_lines_window")
+            if trend_lines_window:
+                dto["trend_lines_window"] = str(trend_lines_window)
             by_symbol[sym] = dto
         return by_symbol
     except Exception:
@@ -392,6 +393,7 @@ def _add_hit_rows(session, job_id: str, hits: Iterable[dict]) -> int:
             "pivots": hit.get("pivots") or [],
             "trend_lines": hit.get("trend_lines") or [],
             "trend_lines_sig": hit.get("trend_lines_sig") or "",
+            "trend_lines_window": hit.get("trend_lines_window") or "",
             "source_sig": hit.get("source_sig") or "",
         }
         row = PatternHit(
@@ -465,59 +467,63 @@ def save_hits_batch(entries: list[tuple[str, list[dict]]]) -> int:
         session.close()
 
 
+def _payload_dict(raw) -> dict:
+    """Parse a hit's ``payload_json`` once; accept an already-parsed dict too.
+
+    The read paths parse each row once and hand the dict to ``to_dict`` and all
+    four field helpers, replacing five ``json.loads`` calls per row.
+    """
+    if isinstance(raw, dict):
+        return raw
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw) if isinstance(raw, str) else {}
+    except (TypeError, ValueError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
 def _payload_trend_lines(raw) -> list:
     """Scan-time ``trend_lines`` carried in a hit's ``payload_json``.
 
-    ``PatternHit.to_dict`` only surfaces the legacy payload keys, so the store
-    re-attaches the scan-time lines here (read path follows the same
-    payload→dict route). Missing/blank/malformed values yield ``[]``.
+    ``raw`` is either the once-parsed payload dict or the raw column value;
+    missing/blank/malformed values yield ``[]``.
     """
-    if not raw:
-        return []
-    try:
-        payload = json.loads(raw) if isinstance(raw, str) else {}
-    except (TypeError, ValueError):
-        return []
-    if not isinstance(payload, dict):
-        return []
-    lines = payload.get("trend_lines") or []
+    lines = _payload_dict(raw).get("trend_lines") or []
     return list(lines) if isinstance(lines, list) else []
 
 
 def _payload_trend_lines_sig(raw) -> Optional[str]:
     """Scan-time ``trend_lines_sig`` carried in a hit's ``payload_json``.
 
-    Follows the same payload→dict route as ``_payload_trend_lines``.
-    Missing/blank/malformed values yield ``None`` (treated as stale).
+    Accepts the once-parsed payload dict. Missing/blank/malformed values yield
+    ``None`` (treated as stale).
     """
-    if not raw:
-        return None
-    try:
-        payload = json.loads(raw) if isinstance(raw, str) else {}
-    except (TypeError, ValueError):
-        return None
-    if not isinstance(payload, dict):
-        return None
-    sig = payload.get("trend_lines_sig")
+    sig = _payload_dict(raw).get("trend_lines_sig")
     return str(sig) if sig else None
 
 
 def _payload_source_sig(raw) -> Optional[str]:
     """``source_sig`` carried in a hit's ``payload_json``.
 
-    Follows the same payload→dict route as ``_payload_trend_lines``. Missing or
-    malformed values yield ``None`` (legacy rows never had a source signature).
+    Accepts the once-parsed payload dict. Missing or malformed values yield
+    ``None`` (legacy rows never had a source signature).
     """
-    if not raw:
-        return None
-    try:
-        payload = json.loads(raw) if isinstance(raw, str) else {}
-    except (TypeError, ValueError):
-        return None
-    if not isinstance(payload, dict):
-        return None
-    sig = payload.get("source_sig")
+    sig = _payload_dict(raw).get("source_sig")
     return str(sig) if sig else None
+
+
+def _payload_trend_lines_window(raw) -> Optional[str]:
+    """``trend_lines_window`` carried in a hit's ``payload_json``.
+
+    Fingerprints the trailing window the scan-time ``trend_lines`` were fitted
+    to. Accepts the once-parsed payload dict. Missing/blank/malformed values
+    yield ``None`` — legacy rows predate it, so a read cannot prove the stored
+    geometry still applies and falls back to the detector-signature gate.
+    """
+    window = _payload_dict(raw).get("trend_lines_window")
+    return str(window) if window else None
 
 
 def _apply_filters(query, filters: dict, session=None):
@@ -667,8 +673,12 @@ def _deduped_base(session, base):
     return session.query(PatternHit).filter(PatternHit.id.in_(ids_subq))
 
 
-def query_results(filters: dict, limit: int = 100, offset: int = 0):
+def query_results(filters: dict, limit: Optional[int] = 100, offset: int = 0):
     """Return ``(items, total, summary)`` for the given filters.
+
+    ``limit=None`` fetches every matching row (no ``LIMIT`` clause) — used by
+    the batch lookup, which caps each symbol *after* grouping so a single
+    high-volume symbol cannot starve the others out of the result set.
 
     Ordering is confidence-first by default. ``filters["sort"] == "newest"``
     instead surfaces the freshest formations first (``bars_ago`` ascending),
@@ -707,25 +717,29 @@ def query_results(filters: dict, limit: int = 100, offset: int = 0):
             )
         else:
             order_by = (PatternHit.confidence.desc().nullslast(), PatternHit.id.desc())
-        rows = (
-            base.order_by(*order_by)
-            .offset(max(0, int(offset)))
-            .limit(max(0, int(limit)))
-            .all()
-        )
+        query = base.order_by(*order_by).offset(max(0, int(offset)))
+        if limit is not None:
+            query = query.limit(max(0, int(limit)))
+        rows = query.all()
         items = []
         for row in rows:
-            dto = row.to_dict()
+            payload = _payload_dict(row.payload_json)
+            dto = row.to_dict(payload)
             dto["breakout_score"] = breakout_score(dto)
-            dto["trend_lines"] = _payload_trend_lines(row.payload_json)
-            dto["trend_lines_sig"] = _payload_trend_lines_sig(row.payload_json)
-            dto["source_sig"] = _payload_source_sig(row.payload_json)
+            dto["trend_lines"] = _payload_trend_lines(payload)
+            dto["trend_lines_sig"] = _payload_trend_lines_sig(payload)
+            dto["trend_lines_window"] = _payload_trend_lines_window(payload)
+            dto["source_sig"] = _payload_source_sig(payload)
             items.append(dto)
         _attach_52w_gaps(session, items)
 
         summary = _summary_for(session, filters, base, total)
         return items, total, summary
-    except Exception:
+    except Exception as exc:
+        # Fail-soft keeps the page rendering, but "0 patterns found" from a
+        # broken DB is indistinguishable from a real empty result without a
+        # log line. Keep the shape, make the failure observable.
+        logger.warning("pattern results query failed filters=%s error=%s", filters, exc)
         return [], 0, _empty_summary()
     finally:
         session.close()
@@ -852,6 +866,39 @@ def _last_scan_at(session, filters: dict) -> Optional[str]:
         return None
 
 
+def _last_scan_at_many(session, universe, tf_ids) -> dict:
+    """Latest completed ``finished_at`` per timeframe in ONE query.
+
+    The read-cache keys for /matrix (and the single-tf /summary and /lookup)
+    need the scan stamp for each requested timeframe. Asking ``_last_scan_at``
+    once per timeframe cost one DB round-trip each; one GROUP BY over the same
+    rows is equivalent and keeps the cache key exact.
+    """
+    result: dict = {}
+    if not tf_ids:
+        return result
+    try:
+        q = session.query(
+            PatternComputeJob.timeframe,
+            func.max(PatternComputeJob.finished_at),
+        ).filter(
+            PatternComputeJob.status == "completed",
+            PatternComputeJob.timeframe.in_(list(tf_ids)),
+        )
+        if universe:
+            q = q.filter(PatternComputeJob.universe == universe)
+        for tf, value in q.group_by(PatternComputeJob.timeframe).all():
+            if value is None:
+                result[tf] = None
+            elif hasattr(value, "isoformat"):
+                result[tf] = value.isoformat()
+            else:
+                result[tf] = str(value)
+        return result
+    except Exception:
+        return {}
+
+
 def _scanned_count(session, filters: dict, base) -> int:
     try:
         if filters.get("job_id"):
@@ -929,7 +976,8 @@ def compute_summary(filters: dict) -> dict:
             base = _deduped_base(session, base)
         total = base.count()
         return _summary_for(session, filters, base, total)
-    except Exception:
+    except Exception as exc:
+        logger.warning("pattern summary query failed filters=%s error=%s", filters, exc)
         return _empty_summary()
     finally:
         session.close()
@@ -960,10 +1008,12 @@ def get_symbol_detail(
                 best[key] = row
         patterns = []
         for row in best.values():
-            dto = row.to_dict()
+            payload = _payload_dict(row.payload_json)
+            dto = row.to_dict(payload)
             dto["breakout_score"] = breakout_score(dto)
-            dto["trend_lines"] = _payload_trend_lines(row.payload_json)
-            dto["trend_lines_sig"] = _payload_trend_lines_sig(row.payload_json)
+            dto["trend_lines"] = _payload_trend_lines(payload)
+            dto["trend_lines_sig"] = _payload_trend_lines_sig(payload)
+            dto["trend_lines_window"] = _payload_trend_lines_window(payload)
             patterns.append(dto)
         patterns.sort(
             key=lambda p: (
@@ -994,7 +1044,8 @@ def get_symbol_detail(
             "patterns_total": total_patterns,
             "patterns": patterns,
         }
-    except Exception:
+    except Exception as exc:
+        logger.warning("symbol detail query failed symbol=%s error=%s", symbol_u, exc)
         return {
             "symbol": symbol_u,
             "name": None,
@@ -1008,21 +1059,7 @@ def get_symbol_detail(
 
 
 def _num(value: Any) -> Optional[float]:
-    if value is None:
-        return None
-    try:
-        out = float(value)
-    except (TypeError, ValueError):
-        return None
-    try:
-        # Reject NaN/Inf so non-finite floats never reach the DB/JSON layer.
-        import math
-
-        if not math.isfinite(out):
-            return None
-    except Exception:
-        return None
-    return out
+    return _finite_or_none(value)
 
 
 def _int(value: Any) -> Optional[int]:

@@ -13,19 +13,13 @@
  */
 
 import type { ValueRow } from "../../api/valueScan";
+import { currencyFor } from "../../config/currency";
 
 /** Glyph the table prints for a missing value. */
 const VALUE_DASH = "–";
 
 /** Glyph the drawer and the score cell print for a missing value. */
 export const VALUE_NA = "n/a";
-
-/** Currency symbol for a market's quote currency. */
-function currencyPrefix(currency: string): string {
-  if (currency === "INR") return "₹";
-  if (currency === "USD") return "$";
-  return "";
-}
 
 /**
  * Signed percentage — `+1.2%` / `-0.8%` / `0.0%`.
@@ -64,7 +58,7 @@ export function formatValueMedian(
 
 /** Quoted price with the row's currency symbol — `₹1,234.50`. */
 export function formatValuePrice(row: ValueRow): string {
-  return `${currencyPrefix(row.currency)}${row.price.toLocaleString("en-US", {
+  return `${currencyFor(row.currency).symbol}${row.price.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -72,5 +66,5 @@ export function formatValuePrice(row: ValueRow): string {
 
 /** Market capitalisation in billions, prefixed with the currency symbol. */
 export function formatValueMcap(row: ValueRow): string {
-  return `${currencyPrefix(row.currency)}${row.mcap_bn.toFixed(1)}B`;
+  return `${currencyFor(row.currency).symbol}${row.mcap_bn.toFixed(1)}B`;
 }

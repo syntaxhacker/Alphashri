@@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
 
 const SRC = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 
-// No exceptions: Mantine `styles={{...}}` props are always dropped by the MUI wrappers.
+// No exceptions: the local `@/ui` components never use Mantine `styles={{...}}` props.
 const ALLOWLIST = new Set<string>();
 
 function walk(dir: string, out: string[] = []): string[] {

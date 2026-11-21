@@ -81,7 +81,7 @@ export function entryWeekday(t: Trade): string | null {
 
 export function sideEdge(trades: Trade[]): EdgeBucket[] {
   return bucketBy(trades, (t) => {
-    const side = ((t as unknown as { side?: string }).side || "LONG").toUpperCase();
+    const side = (t.side || "LONG").toUpperCase();
     return { key: side, label: side === "SHORT" ? "Short" : "Long", order: side === "SHORT" ? 1 : 0 };
   });
 }

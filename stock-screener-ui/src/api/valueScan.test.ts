@@ -2,6 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach } from "vitest";
 import { buildValueScanUrl, valueScan, VALUE_PRESETS } from "./valueScan";
+import { VALUE_ROW_CAP } from "../config/apiLimits";
 import { fetchWithAuth } from "../state/auth";
 
 vi.mock("../state/auth", () => ({
@@ -27,7 +28,7 @@ describe("buildValueScanUrl", () => {
     const url = buildValueScanUrl({});
     expect(url).toContain("/api/value/scan?");
     expect(url).toContain("market=india");
-    expect(url).toContain("limit=100");
+    expect(url).toContain(`limit=${VALUE_ROW_CAP}`);
   });
 
   test("sends preset, market, and numeric filters", () => {

@@ -28,6 +28,15 @@ export interface HeatmapTapeRow {
   flip?: number | null;
   walls?: { call?: number; put?: number } | null;
   chain?: ChainMap | null;
+  /** Payload marker: the served chain was trimmed (see the backend's
+   *  `_trim_tape_chains`). The builder reads only the strikes it renders, so
+   *  these are documentation — a row whose chain was shortened is not a row
+   *  with missing data. */
+  chain_truncated?: boolean;
+  /** Strike centre the served chain was trimmed around (the row's spot). */
+  chain_center?: number | null;
+  /** Kept window in points around `chain_center`. */
+  chain_window_pts?: number;
 }
 
 type HeatCellSign = "ce" | "pe" | "flat";
@@ -76,7 +85,8 @@ interface HeatCell {
 
 interface OiHeatmap {
   buckets: HeatBucket[];
-  /** Ascending, within spot ± widthPts of the last row's spot. */
+  /** Ascending, within spot ± widthPts of the last row's spot, capped to
+   * `maxStrikes` around spot so a pane cannot show more rows than it can label. */
   strikes: number[];
   cells: HeatCell[];
   /** Largest |ΔOI| across all cells (0 when there is no data). */
@@ -85,6 +95,10 @@ interface OiHeatmap {
   empty: boolean;
   /** Field the cells colour (OI change / volume / premium change). */
   metric: "oi" | "volume" | "premium";
+  /** Displayed half-window: strikes on each side of the nearest-to-spot row. */
+  windowHalf: number;
+  /** Largest distance in points from reference spot to a displayed strike. */
+  windowPts: number;
 }
 
 interface HeatmapOptions {
@@ -104,11 +118,114 @@ interface HeatmapOptions {
    * buckets instead of being silently compressed out of the left edge.
    */
   startTime?: string | null;
+  /**
+   * Hard cap on displayed strike rows. A narrow pane cannot label 40 strikes
+   * at the 11px floor, so the window is centred on spot instead of smearing.
+   */
+  maxStrikes?: number;
 }
 
 /** Plot geometry (viewBox) shared with the flow strip below the heatmap. */
 export const HEATMAP_VB_W = 1000;
 export const HEATMAP_PAD_L = 64;
+
+/**
+ * Why the plot has nothing to draw. One empty state for three different facts
+ * is what made the pane read as a shrug:
+ *   no-data       — the recorder saved the session without a chain snapshot.
+ *   market-closed — nothing to record yet (clock, not a fault).
+ *   failed        — the tape feed returned nothing during a live session, which
+ *                   is a fetched-nothing result, not a quiet market.
+ * Pure, so the component can call it once per empty render.
+ *
+ * `minutes` is IST minute-of-day. The 09:20 grace window keeps the first five
+ * minutes of a live session from being mislabelled as a feed failure.
+ */
+export type HeatmapEmptyKind = "no-data" | "market-closed" | "failed";
+
+export const HEATMAP_FEED_GRACE_MINUTES = 9 * 60 + 20;
+
+export function heatmapEmptyKind(args: {
+  hasTape: boolean;
+  hasChain: boolean;
+  marketOpen: boolean;
+  /** True when the tape belongs to an already-finished session (replay/EOD).
+   *  The clock is then irrelevant: a closed market cannot explain a gap in a
+   *  session that has already been recorded. */
+  pastSession?: boolean;
+  /** IST minute-of-day for "now"; omit to skip the grace-window branch. */
+  minutes?: number;
+}): HeatmapEmptyKind {
+  // A tape with rows but no chain snapshot is a *source* gap, not a clock gap:
+  // the recorder was writing spot but never persisted a chain.
+  if (args.hasTape && !args.hasChain) return "no-data";
+  // A recorded session that is over has nothing to do with today's clock;
+  // "market closed" would send the reader to wait for an open that will not
+  // fill a session that was already captured.
+  if (args.pastSession) return "no-data";
+  if (!args.marketOpen) return "market-closed";
+  if (args.minutes != null && args.minutes < HEATMAP_FEED_GRACE_MINUTES) return "market-closed";
+  // Live session, past the grace window, and the tape has no rows at all: the
+  // fetch returned nothing. Rendering that as "quiet market" is the exact
+  // failure mode that hides a broken feed.
+  return "failed";
+}
+
+/** IST calendar date (`YYYY-MM-DD`) of a tape stamp, or null when unusable. */
+export function heatmapSessionDate(rows: HeatmapTapeRow[]): string | null {
+  for (let i = rows.length - 1; i >= 0; i -= 1) {
+    const t = rows[i]?.t;
+    if (typeof t === "string" && t.length >= 10) return t.slice(0, 10);
+  }
+  return null;
+}
+
+/** Today's IST calendar date — the anchor `heatmapSessionDate` is compared to. */
+export function istToday(now: Date = new Date()): string {
+  // en-CA formats as YYYY-MM-DD, which is exactly the tape stamp's prefix.
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(now);
+}
+
+export interface HeatmapCoverage {
+  /** Tape rows handed to the builder. */
+  rows: number;
+  /** Rows that actually carried a chain snapshot. */
+  chainRows: number;
+  /** Distinct strikes seen across the tape's chains. */
+  strikes: number;
+  /** First / last tape minute as HH:MM (empty when the tape is empty). */
+  first: string;
+  last: string;
+}
+
+/**
+ * What the session actually recorded. "47 spot rows, zero chain rows" and "no
+ * rows at all" are different diagnoses (recorder wrote spot only vs recorder
+ * never ran), and either is more useful to the reader than the word "empty".
+ */
+export function heatmapCoverage(rows: HeatmapTapeRow[]): HeatmapCoverage {
+  const strikes = new Set<number>();
+  let chainRows = 0;
+  for (const row of rows) {
+    if (!row || !row.chain || typeof row.chain !== "object") continue;
+    const keys = Object.keys(row.chain);
+    if (keys.length === 0) continue;
+    chainRows += 1;
+    for (const key of keys) {
+      const strike = Number(key);
+      if (Number.isFinite(strike) && strike > 0) strikes.add(strike);
+    }
+  }
+  const stamped = rows.filter((row) => row && typeof row.t === "string" && row.t.length > 0);
+  const sorted = [...stamped].sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
+  return {
+    rows: rows.length,
+    chainRows,
+    strikes: strikes.size,
+    first: sorted.length > 0 ? heatTimeLabel(sorted[0].t) : "",
+    last: sorted.length > 0 ? heatTimeLabel(sorted[sorted.length - 1].t) : "",
+  };
+}
 
 /**
  * The heatmap's time axis: which wall-clock bucket each tape minute falls
@@ -159,6 +276,17 @@ function hasChain(row: HeatmapTapeRow): boolean {
   return !!c && typeof c === "object" && Object.keys(c).length > 0;
 }
 
+// Cheap content signature of a tape row array: row count, the last row's
+// timestamp and spot, plus its chain's strike keys. Equal content yields the
+// same signature, so a model memo keyed on it skips rebuilds when a tape tick
+// hands over a fresh-but-equal array.
+export function tapeSignature(rows: HeatmapTapeRow[]): string {
+  if (rows.length === 0) return "0";
+  const last = rows[rows.length - 1];
+  const keys = last.chain ? Object.keys(last.chain).sort().join(",") : "";
+  return `${rows.length}|${last.t}|${last.spot ?? ""}|${keys}`;
+}
+
 export function buildOiHeatmap(
   rows: HeatmapTapeRow[],
   opts: HeatmapOptions = {},
@@ -167,7 +295,10 @@ export function buildOiHeatmap(
   const widthPts = opts.widthPts ?? 500;
   const touchTol = opts.touchTol ?? MAX_PAIN_TOUCH_TOL;
   const metric = opts.metric ?? "oi";
-  const empty: OiHeatmap = { buckets: [], strikes: [], cells: [], maxAbs: 0, empty: true, metric };
+  const empty: OiHeatmap = {
+    buckets: [], strikes: [], cells: [], maxAbs: 0, empty: true, metric,
+    windowHalf: 0, windowPts: 0,
+  };
 
   const asc = (rows ?? [])
     .filter((r) => r && typeof r.t === "string" && r.t.length > 0)
@@ -194,8 +325,27 @@ export function buildOiHeatmap(
       if (Number.isFinite(s) && s > 0 && Math.abs(s - refSpot) <= widthPts) universe.add(s);
     }
   }
-  const strikes = [...universe].sort((a, b) => a - b);
-  if (strikes.length === 0) return empty;
+  const allStrikes = [...universe].sort((a, b) => a - b);
+  if (allStrikes.length === 0) return empty;
+
+  // A pane of this width can only label ~11–21 rows at the 11px floor. Keep
+  // the strikes nearest spot rather than letting a wide chain become a smear.
+  const maxStrikes = Math.max(1, opts.maxStrikes ?? 21);
+  let strikes = allStrikes;
+  if (allStrikes.length > maxStrikes) {
+    let nearest = 0;
+    for (let i = 1; i < allStrikes.length; i++) {
+      if (Math.abs(allStrikes[i] - refSpot) < Math.abs(allStrikes[nearest] - refSpot)) nearest = i;
+    }
+    const start = Math.max(0, Math.min(allStrikes.length - maxStrikes, nearest - Math.floor((maxStrikes - 1) / 2)));
+    strikes = allStrikes.slice(start, start + maxStrikes);
+  }
+  const windowHalf = Math.floor((strikes.length - 1) / 2);
+  const windowPts = Math.max(
+    refSpot - strikes[0],
+    strikes[strikes.length - 1] - refSpot,
+    0,
+  );
 
   // Time buckets anchored at the session's first candle when the caller passes
   // `startTime`; otherwise at the first tape row's minute. Padding the axis
@@ -347,7 +497,7 @@ export function buildOiHeatmap(
     }
   }
 
-  return { buckets, strikes, cells, maxAbs, empty: false, metric };
+  return { buckets, strikes, cells, maxAbs, empty: false, metric, windowHalf, windowPts };
 }
 
 interface HeatmapRead {

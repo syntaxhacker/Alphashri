@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, act } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { createSignal } from "solid-js";
+import { render, screen, waitFor, fireEvent } from "@solidjs/testing-library";
 import { IndexMoversStrip } from "./IndexMoversStrip";
 import { fetchIndexMovers, IndexMoversResponse } from "@/api/indexMovers";
 
@@ -39,11 +39,12 @@ describe("IndexMoversStrip", () => {
   });
 
   it("renders loading state initially", async () => {
-    let resolve: (v: IndexMoversResponse) => void;
-    const promise = new Promise<IndexMoversResponse>((r) => { resolve = r; });
+    let _resolve: (v: IndexMoversResponse) => void;
+    const promise = new Promise<IndexMoversResponse>((r) => { _resolve = r; });
     mockFetchIndexMovers.mockReturnValue(promise);
 
-    render(<IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
+    render(() =>
+      <IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
 
     expect(screen.getByTestId("movers-strip")).toBeInTheDocument();
     expect(screen.getByText("MOVERS")).toBeInTheDocument();
@@ -53,7 +54,8 @@ describe("IndexMoversStrip", () => {
   it("renders gainers and losers when data loads", async () => {
     mockFetchIndexMovers.mockResolvedValue(createMockResponse());
 
-    render(<IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
+    render(() =>
+      <IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
 
     await waitFor(() => expect(screen.getByText("HDFCBANK")).toBeInTheDocument(), { timeout: 10000 });
     await waitFor(() => expect(screen.getByText("TCS")).toBeInTheDocument(), { timeout: 10000 });
@@ -66,7 +68,8 @@ describe("IndexMoversStrip", () => {
   it("shows EXPAND button", async () => {
     mockFetchIndexMovers.mockResolvedValue(createMockResponse());
 
-    render(<IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
+    render(() =>
+      <IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
 
     await waitFor(() => expect(screen.getByTestId("movers-expand")).toBeInTheDocument(), { timeout: 10000 });
     expect(screen.getByTestId("movers-expand")).toHaveTextContent("EXPAND");
@@ -75,10 +78,11 @@ describe("IndexMoversStrip", () => {
   it("calls onExpand when EXPAND clicked", async () => {
     mockFetchIndexMovers.mockResolvedValue(createMockResponse());
 
-    render(<IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
+    render(() =>
+      <IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
 
     await waitFor(() => expect(screen.getByTestId("movers-expand")).toBeInTheDocument(), { timeout: 10000 });
-    await userEvent.click(screen.getByTestId("movers-expand"));
+    fireEvent.click(screen.getByTestId("movers-expand"));
 
     expect(onExpand).toHaveBeenCalledTimes(1);
   });
@@ -86,23 +90,42 @@ describe("IndexMoversStrip", () => {
   it("shows stale badge when data.stale is true", async () => {
     mockFetchIndexMovers.mockResolvedValue(createMockResponse({ stale: true }));
 
-    render(<IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
+    render(() =>
+      <IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
 
     await waitFor(() => expect(screen.getByText("STALE")).toBeInTheDocument(), { timeout: 10000 });
   });
 
-  it("renders live-only message for EOD/replay", () => {
-    render(<IndexMoversStrip index="NIFTY" onExpand={onExpand} liveOnly />);
+  it("collapses the strip in EOD/replay instead of faking a live-only row", () => {
+    render(() =>
+      <IndexMoversStrip index="NIFTY" onExpand={onExpand} liveOnly />);
 
-    expect(screen.getByText("MOVERS")).toBeInTheDocument();
-    expect(screen.getByText("· live only")).toBeInTheDocument();
+    // Replay has no movers feed; the page's replay banner names it once for all
+    // live-only bands, so the strip renders nothing rather than an empty 24px row.
+    expect(screen.queryByTestId("movers-strip")).toBeNull();
+    expect(screen.queryByText("MOVERS")).toBeNull();
     expect(mockFetchIndexMovers).not.toHaveBeenCalled();
+  });
+
+  it("shows and hides the strip as the liveOnly prop signal flips", async () => {
+    mockFetchIndexMovers.mockResolvedValue(createMockResponse());
+    const [liveOnlySig, setLiveOnlySig] = createSignal(false);
+    render(() =>
+      <IndexMoversStrip index="NIFTY" onExpand={onExpand} liveOnly={liveOnlySig()} />);
+
+    await waitFor(() => expect(screen.getByTestId("movers-strip")).toBeInTheDocument(), { timeout: 10000 });
+    expect(screen.getByText(/MOVERS · NIFTY 50/)).toBeInTheDocument();
+
+    setLiveOnlySig(true);
+
+    expect(screen.queryByTestId("movers-strip")).toBeNull();
   });
 
   it("shows error state when fetch fails", async () => {
     mockFetchIndexMovers.mockRejectedValue(new Error("Network error"));
 
-    render(<IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
+    render(() =>
+      <IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
 
     await waitFor(() => expect(screen.getByText("unavailable")).toBeInTheDocument(), { timeout: 10000 });
     expect(screen.getByText("Retry")).toBeInTheDocument();
@@ -111,7 +134,8 @@ describe("IndexMoversStrip", () => {
   it("shows MOVERS_UNAVAILABLE error correctly", async () => {
     mockFetchIndexMovers.mockRejectedValue(new Error("MOVERS_UNAVAILABLE"));
 
-    render(<IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
+    render(() =>
+      <IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
 
     await waitFor(() => expect(screen.getByText("unavailable")).toBeInTheDocument(), { timeout: 10000 });
   });
@@ -119,7 +143,8 @@ describe("IndexMoversStrip", () => {
   it("renders SENSEX 30 label correctly", async () => {
     mockFetchIndexMovers.mockResolvedValue(createMockResponse({ index: "SENSEX" }));
 
-    render(<IndexMoversStrip index="SENSEX" onExpand={onExpand} />);
+    render(() =>
+      <IndexMoversStrip index="SENSEX" onExpand={onExpand} />);
 
     await waitFor(() => expect(screen.getByTestId("movers-strip")).toBeInTheDocument(), { timeout: 10000 });
     // Text is split across elements, use regex on the container
@@ -138,48 +163,41 @@ describe("IndexMoversStrip", () => {
     it("polls every 30s in live mode", async () => {
       mockFetchIndexMovers.mockResolvedValue(createMockResponse());
 
-      render(<IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
+      render(() =>
+      <IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
 
       // Flush the initial effect/promise without waitFor (which stalls under
       // fake timers).
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(0);
-      });
+      await vi.advanceTimersByTimeAsync(0);
       expect(mockFetchIndexMovers).toHaveBeenCalledTimes(1);
       expect(screen.getByText("HDFCBANK")).toBeInTheDocument();
 
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(30_000);
-      });
+      await vi.advanceTimersByTimeAsync(30_000);
       expect(mockFetchIndexMovers).toHaveBeenCalledTimes(2);
     }, 10000);
 
     it("does not poll when liveOnly is true", async () => {
       mockFetchIndexMovers.mockResolvedValue(createMockResponse());
 
-      render(<IndexMoversStrip index="NIFTY" onExpand={onExpand} liveOnly />);
+      render(() =>
+      <IndexMoversStrip index="NIFTY" onExpand={onExpand} liveOnly />);
 
       expect(mockFetchIndexMovers).not.toHaveBeenCalled();
 
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(30_000);
-      });
+      await vi.advanceTimersByTimeAsync(30_000);
       expect(mockFetchIndexMovers).not.toHaveBeenCalled();
     });
 
     it("cleans up on unmount", async () => {
       mockFetchIndexMovers.mockResolvedValue(createMockResponse());
 
-      const { unmount } = render(<IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(0);
-      });
+      const { unmount } = render(() =>
+      <IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
+      await vi.advanceTimersByTimeAsync(0);
       expect(mockFetchIndexMovers).toHaveBeenCalledTimes(1);
 
       unmount();
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(30_000);
-      });
+      await vi.advanceTimersByTimeAsync(30_000);
       expect(mockFetchIndexMovers).toHaveBeenCalledTimes(1);
     });
   });

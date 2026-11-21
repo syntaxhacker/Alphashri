@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@solidjs/testing-library";
 import type { NiftyReport } from "@/types/niftyReport";
+import type { WallsPayload } from "@/api/reportNifty";
 import type { PreMovePoint } from "./niftyPreMoveHistory";
 import type { PreMoveScore } from "./niftyPreMove";
 import type { SetupRead } from "./niftySetup";
@@ -85,7 +86,7 @@ describe("NiftySqueezeRadar", () => {
   afterEach(() => cleanup());
 
   it("shows the nearest wall, distance, proximity and stage (NIFTY)", () => {
-    render(
+    render(() => (
       <NiftySqueezeRadar
         report={report({})}
         preMove={preMove}
@@ -95,15 +96,16 @@ describe("NiftySqueezeRadar", () => {
           { t: now - 120_000, side: "ce", strike: 22_700, oi: 8_500_000 },
           { t: now, side: "ce", strike: 22_700, oi: 8_300_000 },
         ]}
-      />,
-    );
+      />
+      ));
+
 
     expect(screen.getByTestId("nifty-squeeze-wall")).toHaveTextContent("22,700 CE");
     expect(screen.getByTestId("nifty-squeeze-wall")).toHaveTextContent("25 pts");
     expect(screen.getByTestId("nifty-squeeze-stage")).toHaveTextContent("ARMING");
     expect(screen.getByTestId("nifty-squeeze-proximity").textContent).toMatch(/^\d+%$/);
-    // 25/120 distance + 5/9 flow + 3/5 setup -> ~68%
-    expect(screen.getByTestId("nifty-squeeze-proximity")).toHaveTextContent("68%");
+    // 0.35×distance(79) + 0.20×flow(56) + 0.15×setup(60) + 0.30×erosion(0) -> 48%
+    expect(screen.getByTestId("nifty-squeeze-proximity")).toHaveTextContent("48%");
     // wall OI 8.5M -> 8.3M = erosion, shown as a green down-arrow.
     expect(screen.getByTestId("nifty-squeeze-wall-delta")).toHaveTextContent("▼");
     expect(screen.getByTestId("nifty-squeeze-wall-delta")).toHaveTextContent("2.0L");
@@ -112,7 +114,7 @@ describe("NiftySqueezeRadar", () => {
   });
 
   it("switches to the put wall when it is the nearer one", () => {
-    render(
+    render(() => (
       <NiftySqueezeRadar
         report={report({
           spot: 22_650,
@@ -124,22 +126,23 @@ describe("NiftySqueezeRadar", () => {
         preMove={preMove}
         setup={setup}
         history={history}
-      />,
-    );
+      />
+      ));
+
 
     expect(screen.getByTestId("nifty-squeeze-wall")).toHaveTextContent("22,600 PE");
     expect(screen.getByTestId("nifty-squeeze-wall")).toHaveTextContent("50 pts below");
   });
 
   it("renders the flow chips with their point values", () => {
-    render(<NiftySqueezeRadar report={report({})} preMove={preMove} setup={setup} history={history} />);
+    render(() => <NiftySqueezeRadar report={report({})} preMove={preMove} setup={setup} history={history} />);
     expect(screen.getByTestId("nifty-squeeze-chip-put-writing")).toHaveTextContent("puts sold +2");
     expect(screen.getByTestId("nifty-squeeze-chip-call-premium")).toHaveTextContent("calls bid +1");
     expect(screen.getByTestId("nifty-squeeze-armed")).toHaveTextContent("armed 0m");
   });
 
   it("does not arm on distance alone when flow and setup are empty", () => {
-    render(
+    render(() => (
       <NiftySqueezeRadar
         report={report({
           spot: 22_690,
@@ -151,12 +154,13 @@ describe("NiftySqueezeRadar", () => {
         preMove={{ ...preMove, score: 0, state: "quiet", components: [], reasons: [] }}
         setup={{ ...setup, state: "QUIET", score: 0, gates: setup.gates.map((g) => ({ ...g, pass: false })) }}
         history={history}
-      />,
-    );
+      />
+      ));
 
-    // ~46% proximity from distance alone, but no flow/setup edge -> QUIET.
+
+    // 0.35×distance(92) -> ~32%, no flow/setup edge -> QUIET.
     expect(screen.getByTestId("nifty-squeeze-stage")).toHaveTextContent("QUIET");
-    expect(screen.getByTestId("nifty-squeeze-proximity").textContent).toMatch(/^4[0-9]%$/);
+    expect(screen.getByTestId("nifty-squeeze-proximity").textContent).toMatch(/^3[0-9]%$/);
   });
 
   it("marks a fast move as TRIGGER even with no flow edge (NIFTY: 15-pt break)", () => {
@@ -168,19 +172,20 @@ describe("NiftySqueezeRadar", () => {
       { t: now - 10_000, score: 0, spot: 22_696, comps: [] },
       { t: now, score: 0, spot: 22_700, comps: [] },
     ];
-    render(
+    render(() => (
       <NiftySqueezeRadar
         report={report({ spot: 22_700 })}
         preMove={{ ...preMove, score: 0, state: "quiet", components: [], reasons: [] }}
         setup={{ ...setup, state: "QUIET", score: 0, gates: setup.gates.map((g) => ({ ...g, pass: false })) }}
         history={fast}
-      />,
-    );
+      />
+      ));
+
     expect(screen.getByTestId("nifty-squeeze-stage")).toHaveTextContent("TRIGGER");
   });
 
   it("reads QUIET with no flow edge and far walls", () => {
-    render(
+    render(() => (
       <NiftySqueezeRadar
         report={report({
           spot: 22_650,
@@ -192,8 +197,9 @@ describe("NiftySqueezeRadar", () => {
         preMove={{ ...preMove, score: 0, state: "quiet", components: [], reasons: [] }}
         setup={{ ...setup, state: "QUIET", score: 0, gates: setup.gates.map((g) => ({ ...g, pass: false })) }}
         history={[]}
-      />,
-    );
+      />
+      ));
+
 
     expect(screen.getByTestId("nifty-squeeze-stage")).toHaveTextContent("QUIET");
     expect(screen.getByTestId("nifty-squeeze-proximity")).toHaveTextContent("0%");
@@ -263,16 +269,84 @@ describe("NiftySqueezeRadar", () => {
   it("accepts pre-computed metrics prop (avoids re-deriving)", () => {
     const sensexReport = makeSensexReport();
     const metrics = symbolMetrics(sensexReport);
-    render(
+    render(() => (
       <NiftySqueezeRadar
         report={sensexReport}
         preMove={preMove}
         setup={setup}
         history={history}
         metrics={metrics}
-      />,
-    );
+      />
+      ));
+
     expect(screen.getByTestId("nifty-squeeze-wall")).toHaveTextContent("79,100 CE");
     expect(screen.getByTestId("nifty-squeeze-proximity").textContent).toMatch(/^\d+%$/);
+  });
+
+  it("moves to PRE-BLAST when the nearest wall is eroding in a SHORT regime", () => {
+    const walls = {
+      regime: "SHORT",
+      nearest_call: {
+        strike: 22_700,
+        oi: 8_300_000,
+        status: "ERODING",
+        fuel_score: 80,
+        vol_mult: 1.3,
+        erosion_30m: -0.034,
+        distance_pts: 25,
+      },
+    } as unknown as WallsPayload;
+
+    render(() => (
+      <NiftySqueezeRadar
+        report={report({})}
+        preMove={preMove}
+        setup={setup}
+        history={history}
+        walls={walls}
+      />
+      ));
+
+
+    expect(screen.getByTestId("nifty-squeeze-stage")).toHaveTextContent("PRE-BLAST");
+    expect(screen.getByTestId("squeeze-erosion")).toHaveTextContent(/DIST 79 · FLOW 56 · ERODE 80 · Γ SHORT/);
+    expect(screen.getByTestId("nifty-squeeze-wall")).toHaveTextContent(/-3\.4%\/30m/);
+  });
+
+  it("does not show PRE-BLAST for a LONG regime or low fuel", () => {
+    const strongWall = {
+      strike: 22_700,
+      oi: 8_300_000,
+      status: "ERODING",
+      fuel_score: 80,
+      vol_mult: 1.3,
+      erosion_30m: -0.034,
+      distance_pts: 25,
+    };
+
+    render(() => (
+      <NiftySqueezeRadar
+        report={report({})}
+        preMove={preMove}
+        setup={setup}
+        history={history}
+        walls={{ regime: "LONG", nearest_call: strongWall } as unknown as WallsPayload}
+      />
+      ));
+
+    expect(screen.getByTestId("nifty-squeeze-stage")).not.toHaveTextContent("PRE-BLAST");
+    cleanup();
+
+    render(() => (
+      <NiftySqueezeRadar
+        report={report({})}
+        preMove={preMove}
+        setup={setup}
+        history={history}
+        walls={{ regime: "SHORT", nearest_call: { ...strongWall, fuel_score: 40 } } as unknown as WallsPayload}
+      />
+      ));
+
+    expect(screen.getByTestId("nifty-squeeze-stage")).not.toHaveTextContent("PRE-BLAST");
   });
 });

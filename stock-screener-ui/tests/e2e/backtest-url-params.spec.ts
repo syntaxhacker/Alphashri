@@ -174,11 +174,11 @@ test.describe("Backtest - URL Query Params", () => {
 
     await expect(page.locator('[data-testid="chip-BHEL"]')).toBeVisible({ timeout: 10000 });
 
+    // toContainText reads textContent, which is always empty for an <input>;
+    // the selection lives in .value.
     await expect(
       page.locator('[data-testid="variation-select"] [role="combobox"]'),
-    ).toContainText(/52[Ww]/i, {
-      timeout: 5000,
-    });
+    ).toHaveValue(/52[Ww]/i, { timeout: 5000 });
   });
 
   test("should load variation by ID from URL params", async ({ page }) => {
@@ -188,9 +188,7 @@ test.describe("Backtest - URL Query Params", () => {
 
     await expect(
       page.locator('[data-testid="variation-select"] [role="combobox"]'),
-    ).toContainText(/Conservative/i, {
-      timeout: 5000,
-    });
+    ).toHaveValue(/Conservative/i, { timeout: 5000 });
   });
 
   test("should load custom params from URL params", async ({ page }) => {
@@ -233,13 +231,16 @@ test.describe("Backtest - URL Query Params", () => {
     await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
     await page.waitForLoadState("networkidle");
 
-    const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-    await symbolSelect.click({ force: true });
+    // Click the input, not the wrapper: a wrapper click lands on padding and
+    // never opens the listbox, so the typed keys go nowhere.
+    const searchInput = page.locator('[data-testid="symbol-multiselect"] input');
+    await searchInput.click();
+    await expect(page.locator('[data-part="multiselect-listbox"]')).toBeVisible({ timeout: 5000 });
     await page.keyboard.type("RELIANCE", { delay: 50 });
-    await expect(page.locator('[role="option"]').first()).toBeVisible({
-      timeout: 5000,
-    });
-    await page.locator('[role="option"]').first().click();
+    // Match the real row, not the "No symbols found" placeholder.
+    const option = page.locator('[role="option"]', { hasText: "RELIANCE" }).first();
+    await expect(option).toBeVisible({ timeout: 5000 });
+    await option.click();
 
     await expect
       .poll(async () => (await getUrlPayload(page))?.y as any, { timeout: 5000 })

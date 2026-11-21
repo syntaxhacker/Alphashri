@@ -1,126 +1,160 @@
-import * as React from "react";
-import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
+import { createContext, createMemo, Show, splitProps, useContext } from "solid-js";
+import { cn } from "../cn";
 import type { UITimelineProps, UITimelineItemProps } from "../types";
 
 type TimelineContextValue = {
-  active?: number;
-  bulletSize?: number | string;
-  color?: string;
-  lineWidth?: number;
-  reverseActive?: boolean;
-  align?: string;
-  itemCount: number;
+  bulletSize: () => number | string | undefined;
+  color: () => string | undefined;
+  lineWidth: () => number | undefined;
+  align: () => string | undefined;
+  itemCount: () => number;
 };
 
-const TimelineContext = React.createContext<TimelineContextValue>({ itemCount: 0 });
+const timelineDefaults: TimelineContextValue = {
+  bulletSize: () => undefined,
+  color: () => undefined,
+  lineWidth: () => undefined,
+  align: () => undefined,
+  itemCount: () => 0,
+};
+const TimelineContext = createContext<TimelineContextValue>(timelineDefaults);
 
-export function Timeline({
-  active,
-  bulletSize,
-  color,
-  align,
-  lineWidth,
-  reverseActive,
-  children,
-  className,
-  style,
-  "data-testid": testId,
-  ...rest
-}: UITimelineProps) {
-  const count = React.Children.count(children);
-  const ctx: TimelineContextValue = { active, bulletSize: bulletSize as any, color: color as any, lineWidth, reverseActive, align, itemCount: count };
+function useTimelineContext() {
+  return useContext(TimelineContext);
+}
+
+function toneColor(c?: string): string {
+  switch (c) {
+    case "success": return "fin-positive";
+    case "error":
+    case "danger": return "fin-negative";
+    case "warning": return "fin-warning";
+    case "info": return "fin-info";
+    case "secondary": return "fin-text-muted";
+    default: return "fin-primary";
+  }
+}
+
+export function Timeline(props: UITimelineProps) {
+  const [known, rest] = splitProps(props, [
+    "active",
+    "bulletSize",
+    "color",
+    "align",
+    "lineWidth",
+    "reverseActive",
+    "children",
+    "className",
+    "style",
+    "id",
+    "data-testid",
+  ]);
+
+  const itemCount = createMemo(() => {
+    const c = known.children;
+    return Array.isArray(c) ? c.length : c ? 1 : 0;
+  });
+
+  const ctx: TimelineContextValue = {
+    bulletSize: () => known.bulletSize,
+    color: () => known.color,
+    lineWidth: () => known.lineWidth,
+    align: () => known.align,
+    itemCount,
+  };
+
+  const cls = cn(
+    "ui-timeline",
+    "relative flex flex-col",
+    known.align === "right" ? "items-end" : "items-start",
+    known.className,
+  );
+
   return (
     <TimelineContext.Provider value={ctx}>
-      <Stack
-        className={className}
-        style={style}
-        data-testid={testId}
-        spacing={0}
-        sx={{ position: "relative", alignItems: align === "right" ? "flex-end" : "flex-start" }}
-        {...(rest as any)}
+      <ol
+        id={known.id}
+        className={cls}
+        style={known.style as Record<string, string | undefined>}
+        data-testid={known["data-testid"]}
+        {...(rest as Record<string, unknown>)}
       >
-        {children}
-      </Stack>
+        {known.children}
+      </ol>
     </TimelineContext.Provider>
   );
 }
 
-export function TimelineItem({
-  title,
-  bullet,
-  color: itemColor,
-  lineVariant,
-  active: itemActive,
-  children,
-  className,
-  style,
-  "data-testid": testId,
-  ...rest
-}: UITimelineItemProps) {
-  const ctx = React.useContext(TimelineContext);
-  // Determine active state: if parent active index is defined, compute per-item
-  // We need index: simplest is to rely on caller active but we don't have index here; use itemActive if provided
-  const isActive = itemActive ?? false;
-  const bulletSize = 20;
-  const lineW = ctx.lineWidth ?? 2;
-  const bulletBg = (itemColor as string) ?? (ctx.color as string) ?? "primary.main";
-  const isRight = ctx.align === "right";
+export function TimelineItem(props: UITimelineItemProps) {
+  const [known, rest] = splitProps(props, [
+    "title",
+    "bullet",
+    "color",
+    "lineVariant",
+    "active",
+    "children",
+    "className",
+    "style",
+    "id",
+    "data-testid",
+  ]);
+  const ctx = useTimelineContext();
 
-  const borderStyle = lineVariant === "dashed" ? "dashed" : lineVariant === "dotted" ? "dotted" : "solid";
+  const bs = createMemo(() => ctx.bulletSize() ?? 20);
+  const lineW = createMemo(() => ctx.lineWidth() ?? 2);
+  const tone = createMemo(() => toneColor((known.color as string) ?? (ctx.color() as string)));
+  const isRight = createMemo(() => ctx.align() === "right");
+  const size = createMemo(() => (typeof bs() === "number" ? `${bs()}px` : String(bs() ?? 16)));
+  const borderStyle = createMemo(() => {
+    const lv = known.lineVariant;
+    return lv === "dashed" ? "dashed" : lv === "dotted" ? "dotted" : "solid";
+  });
+
+  const bulletCls = createMemo(() =>
+    cn(
+      "ui-timeline-bullet",
+      "flex shrink-0 items-center justify-center rounded-full font-mono text-[10px]",
+      known.bullet ? `bg-fin-surface border-2 border-${tone()} text-${tone()}` : `bg-${tone()} text-white`,
+      `w-[${size()}] h-[${size()}]`,
+    ),
+  );
+  const lineCls = createMemo(() =>
+    cn(
+      "ui-timeline-line",
+      "shrink-0 mt-[4px]",
+      borderStyle() === "solid" || !known.lineVariant
+        ? `w-[${lineW()}px] bg-fin-border`
+        : `w-[${lineW()}px] border-l-[${lineW()}px] border-l-${borderStyle()} border-l-fin-border bg-transparent`,
+    ),
+  );
+  const itemCls = createMemo(() =>
+    cn(
+      "ui-timeline-item",
+      "flex gap-3 relative min-h-[56px]",
+      isRight() ? "flex-row-reverse text-right" : "flex-row text-left",
+      known.className,
+    ),
+  );
 
   return (
-    <Box
-      className={className}
-      style={style}
-      data-testid={testId}
-      sx={{
-        display: "flex",
-        flexDirection: isRight ? "row-reverse" : "row",
-        gap: 1.5,
-        position: "relative",
-        minHeight: 56,
-        textAlign: isRight ? "right" : "left",
-      }}
-      {...(rest as any)}
+    <li
+      id={known.id}
+      className={itemCls()}
+      style={known.style as Record<string, string | undefined>}
+      data-testid={known["data-testid"]}
+      {...(rest as Record<string, unknown>)}
     >
-      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", width: bulletSize, flexShrink: 0 }}>
-        <Box
-          sx={{
-            width: typeof bulletSize === "number" ? `${bulletSize}px` : bulletSize ?? 16,
-            height: typeof bulletSize === "number" ? `${bulletSize}px` : bulletSize ?? 16,
-            borderRadius: "50%",
-            bgcolor: bullet ? "background.paper" : bulletBg,
-            border: bullet ? `2px solid ${bulletBg}` : `2px solid ${bulletBg}`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 10,
-            color: bullet ? bulletBg : "common.white",
-            flexShrink: 0,
-            zIndex: 1,
-            opacity: isActive ? 1 : 1,
-          }}
-        >
-          {bullet}
-        </Box>
-        <Box
-          sx={{
-            flex: 1,
-            width: `${lineW}px`,
-            bgcolor: "divider",
-            borderLeft: lineVariant && lineVariant !== "solid" ? `${lineW}px ${borderStyle} divider` : undefined,
-            backgroundColor: lineVariant === "solid" || !lineVariant ? "divider" : "transparent",
-            mt: 0.5,
-            minHeight: 16,
-          }}
-        />
-      </Box>
-      <Box sx={{ flex: 1, pb: 2, display: "flex", flexDirection: "column", alignItems: isRight ? "flex-end" : "flex-start" }}>
-        {title ? <Box sx={{ fontWeight: 600, fontSize: 14, mb: 0.25 }}>{title}</Box> : null}
-        <Box sx={{ fontSize: 13, color: "text.secondary" }}>{children}</Box>
-      </Box>
-    </Box>
+      <div className="flex flex-col items-center" style={{ width: size() }}>
+        <div className={bulletCls()}>{known.bullet}</div>
+        <div className={lineCls()} />
+      </div>
+      <div className="flex-1 flex flex-col">
+        <Show when={known.title}>
+          <h3 className="ui-timeline-title font-semibold text-[14px] mb-[2px]">{known.title}</h3>
+        </Show>
+        <div className="ui-timeline-body text-[13px] text-fin-text-muted">{known.children}</div>
+      </div>
+    </li>
   );
 }
 

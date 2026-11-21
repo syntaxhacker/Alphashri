@@ -1,56 +1,49 @@
-import MuiSkeleton from "@mui/material/Skeleton";
+import { splitProps } from "solid-js";
+import { cn } from "../cn";
+import * as palette from "../palette";
 import type { UISkeletonProps } from "../types";
 
-export function Skeleton({
-  h,
-  w,
-  circle,
-  radius,
-  animate = true,
-  visible = true,
-  children,
-  className,
-  style,
-  "data-testid": testId,
-  id,
-  ...rest
-}: UISkeletonProps) {
-  if (!visible) {
-    return <>{children}</>;
-  }
+function radiusValue(radius: UISkeletonProps["radius"] | undefined): string | undefined {
+  if (radius == null) return undefined;
+  if (typeof radius === "number") return `${radius}px`;
+  const m: Record<string, string> = { xs: "4px", sm: "6px", md: "8px", lg: "12px", xl: "16px" };
+  return m[radius] ?? undefined;
+}
 
-  const sx: Record<string, unknown> = {
-    ...(h != null && { height: typeof h === "number" ? `${h}px` : h }),
-    ...(w != null && { width: typeof w === "number" ? `${w}px` : w }),
-    ...(radius != null
-      ? {
-          borderRadius:
-            typeof radius === "number"
-              ? `${radius}px`
-              : radius === "xs"
-                ? "4px"
-                : radius === "xl"
-                  ? "16px"
-                  : undefined,
-        }
-      : {}),
-  };
+export function Skeleton(props: UISkeletonProps) {
+  const [known, _rest] = splitProps(props, [
+    "h",
+    "w",
+    "circle",
+    "radius",
+    "animate",
+    "visible",
+    "children",
+    "className",
+    "style",
+    "data-testid",
+    "id",
+  ]);
 
-  // If children provided and skeleton visible, overlay skeleton over children area
-  const hasChildren = children != null;
+  if (!known.visible) return <>{known.children}</>;
+
+  const hh = known.h == null ? undefined : typeof known.h === "number" ? `${known.h}px` : known.h;
+  const ww = known.w == null ? undefined : typeof known.w === "number" ? `${known.w}px` : known.w;
+  const br = radiusValue(known.radius);
 
   return (
-    <MuiSkeleton
-      variant={circle ? "circular" : "rounded"}
-      animation={animate === false ? false : "pulse"}
-      className={className}
-      style={style}
-      id={id}
-      data-testid={testId}
-      sx={sx}
-      {...(rest as Record<string, unknown>)}
+    <div
+      data-testid={known["data-testid"]}
+      id={known.id}
+      className={cn(
+        "inline-block",
+        known.animate ? "animate-pulse" : undefined,
+        known.circle ? "rounded-full" : br ? undefined : "rounded-fin",
+        known.className,
+      )}
+      style={{ height: hh, width: ww, "border-radius": br, "background-color": palette.BORDER, ...known.style }}
     >
-      {hasChildren ? children : undefined}
-    </MuiSkeleton>
+      {known.children}
+    </div>
   );
 }

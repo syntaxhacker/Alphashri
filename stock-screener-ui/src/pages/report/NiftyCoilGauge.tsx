@@ -1,4 +1,4 @@
-import Box from "@mui/material/Box";
+import { createMemo } from "solid-js";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { NiftyRegimeBlock } from "@/types/niftyReport";
@@ -15,6 +15,15 @@ const COIL_COPY: Record<CoilState, string> = {
   COIL: "breakout risk",
   NORMAL: "baseline range",
   EXPANDING: "trend underway",
+};
+
+/** The verdict row allots one equal-width cell to four signals. The full state
+ *  word ("EXPANDING") plus the RV/IV pair cannot share that cell at 11px, so
+ *  the compact cell uses short words and keeps the full state in its tooltip. */
+const COMPACT_STATE_LABEL: Record<CoilState, string> = {
+  COIL: "COIL",
+  NORMAL: "NORM",
+  EXPANDING: "EXPAND",
 };
 
 /** Status-dot / text accent per state. */
@@ -105,51 +114,49 @@ interface NiftyCoilGaugeProps {
  * RV/IV underneath as the vol context. Everything is optional on the payload,
  * so a missing block renders dashes instead of NaN.
  */
-export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
-  const ratio = coilRatio(regime);
-  const state = coilState(ratio == null ? null : ratio * 100);
-  const accent = state ? COIL_ACCENT[state] : palette.TEXT_MUTED;
-  const ratioText = formatCoilRatio(ratio);
-  const hint = state
-    ? `${state.toLowerCase()}: range ${ratioText} baseline · ${COIL_COPY[state]}`
-    : "no range baseline";
-  const rvIv = `RV ${fmtVol(regime?.rv)} / IV ${fmtVol(regime?.iv)}`;
+export function NiftyCoilGauge(props: NiftyCoilGaugeProps) {
+  const ratio = createMemo(() => coilRatio(props.regime));
+  const state = createMemo(() => {
+    const r = ratio();
+    return coilState(r == null ? null : r * 100);
+  });
+  const accent = createMemo(() => {
+    const s = state();
+    return s ? COIL_ACCENT[s] : palette.TEXT_MUTED;
+  });
+  const ratioText = createMemo(() => formatCoilRatio(ratio()));
+  const hint = createMemo(() => {
+    const s = state();
+    return s ? `${s.toLowerCase()}: range ${ratioText()} baseline · ${COIL_COPY[s]}` : "no range baseline";
+  });
+  const rvIv = createMemo(() => `RV ${fmtVol(props.regime?.rv)} / IV ${fmtVol(props.regime?.iv)}`);
 
-  if (compact) {
+  if (props.compact) {
     return (
-      <Box
+      <div
         data-testid="nifty-coil-gauge"
-        title={`${state ?? "—"} — ${hint} · ${rvIv}`}
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 0.75,
-          minWidth: 0,
-          overflow: "hidden",
-          px: 1,
-          py: "2px",
-        }}
+        title={`${state() ?? "—"} — ${hint()} · ${rvIv()}`}
+        class="flex items-center gap-1 min-w-0 overflow-hidden px-1 py-[2px]"
       >
-        <Box
-          aria-hidden
-          sx={{
-            width: 6,
-            height: 6,
-            borderRadius: "50%",
-            bgcolor: accent,
-            flexShrink: 0,
-          }}
+        <div
+          aria-hidden="true"
+          class="w-[6px] h-[6px] rounded-full shrink-0"
+          style={{ "background-color": accent() }}
         />
         <Text
           data-testid="nifty-coil-state"
           size="xs"
           fw={700}
-          c={accent}
+          c={accent()}
           span
-          truncate
-          style={{ fontSize: 11, lineHeight: 1.2, letterSpacing: "0.04em", minWidth: 0 }}
+          style={{
+            "font-size": "11px",
+            "line-height": 1.2,
+            "white-space": "nowrap",
+            "flex-shrink": 0,
+          }}
         >
-          {state ?? "—"}
+          {state() ? COMPACT_STATE_LABEL[state()!] : "—"}
         </Text>
         <Text
           data-testid="nifty-coil-ratio"
@@ -158,70 +165,61 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
           c="dimmed"
           span
           style={{
-            fontSize: 11,
-            lineHeight: 1.2,
-            fontVariantNumeric: "tabular-nums",
-            whiteSpace: "nowrap",
+            "font-size": "11px",
+            "line-height": 1.2,
+            "font-variant-numeric": "tabular-nums",
+            "white-space": "nowrap",
+            "flex-shrink": 0,
           }}
         >
-          {ratioText}
+          {ratioText()}
         </Text>
         <Text
           data-testid="nifty-coil-rv-iv"
           size="xs"
           c="dimmed"
           span
-          truncate
           style={{
-            fontSize: 9,
-            lineHeight: 1.2,
-            fontVariantNumeric: "tabular-nums",
-            minWidth: 0,
+            "font-size": "11px",
+            "line-height": 1.2,
+            "font-variant-numeric": "tabular-nums",
+            "white-space": "nowrap",
+            "flex-shrink": 0,
           }}
         >
-          {rvIv}
+          {rvIv()}
         </Text>
-      </Box>
+      </div>
     );
   }
 
   return (
-    <Box
+    <div
       data-testid="nifty-coil-gauge"
-      title={`${state ?? "—"} — ${hint} · ${rvIv}`}
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        gap: "2px",
-        minWidth: 0,
-        overflow: "hidden",
-        px: 1.5,
-        py: 0.75,
-        borderLeft: `1px solid ${palette.TERM_BORDER}`,
-      }}
+      title={`${state() ?? "—"} — ${hint()} · ${rvIv()}`}
+      class="flex flex-col justify-center min-w-0 overflow-hidden px-[12px] py-[6px]"
+      style={{ "border-left": `1px solid ${palette.TERM_BORDER}` }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
-        <Box
-          aria-hidden
-          sx={{
-            width: 6,
-            height: 6,
-            borderRadius: "50%",
-            bgcolor: accent,
-            flexShrink: 0,
-          }}
+      <div class="flex items-center gap-1 min-w-0">
+        <div
+          aria-hidden="true"
+          class="w-[6px] h-[6px] rounded-full shrink-0"
+          style={{ "background-color": accent() }}
         />
         <Text
           data-testid="nifty-coil-state"
           size="xs"
           fw={700}
-          c={accent}
+          c={accent()}
           span
-          truncate
-          style={{ fontSize: 11, lineHeight: 1.3, letterSpacing: "0.04em" }}
+          style={{
+            "font-size": "11px",
+            "line-height": 1.3,
+            "white-space": "nowrap",
+            "flex-shrink": 0,
+          }}
         >
-          {state ?? "—"}
+          {state() ?? "—"}
         </Text>
         <Text
           data-testid="nifty-coil-ratio"
@@ -230,39 +228,44 @@ export function NiftyCoilGauge({ regime, compact }: NiftyCoilGaugeProps) {
           c="dimmed"
           span
           style={{
-            fontSize: 10,
-            lineHeight: 1.3,
-            fontVariantNumeric: "tabular-nums",
-            whiteSpace: "nowrap",
+            "font-size": "11px",
+            "line-height": 1.3,
+            "font-variant-numeric": "tabular-nums",
+            "white-space": "nowrap",
           }}
         >
-          {ratioText}
+          {ratioText()}
         </Text>
-      </Box>
+      </div>
       <Text
         data-testid="nifty-coil-hint"
         size="xs"
         c="dimmed"
         span
-        truncate
-        style={{ fontSize: 10, lineHeight: 1.3 }}
+        style={{
+          "font-size": "11px",
+          "line-height": 1.3,
+          "white-space": "normal",
+          "overflow-wrap": "anywhere",
+        }}
       >
-        {hint}
+        {hint()}
       </Text>
       <Text
         data-testid="nifty-coil-rv-iv"
         size="xs"
         c="dimmed"
         span
-        truncate
         style={{
-          fontSize: 10,
-          lineHeight: 1.3,
-          fontVariantNumeric: "tabular-nums",
+          "font-size": "11px",
+          "line-height": 1.3,
+          "font-variant-numeric": "tabular-nums",
+          "white-space": "nowrap",
+          "flex-shrink": 0,
         }}
       >
-        {rvIv}
+        {rvIv()}
       </Text>
-    </Box>
+    </div>
   );
 }

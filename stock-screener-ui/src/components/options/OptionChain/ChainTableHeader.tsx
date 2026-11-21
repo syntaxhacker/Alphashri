@@ -1,21 +1,46 @@
-import Box from "@mui/material/Box";
+import { Box } from "@/ui";
+import * as palette from "@/ui/palette";
 import type { ThemeType } from "./chainStyles";
+import { getStyles } from "./chainStyles";
+import type { CSSProperties } from "solid-js";
 
 interface ChainTableHeaderProps {
-  theme: ThemeType;
-  styles: ReturnType<typeof import("./chainStyles").getStyles>;
+  /** Accepted for API compatibility; unused by the header itself. */
+  theme?: ThemeType;
+  styles: ReturnType<typeof getStyles>;
 }
 
-export function ChainTableHeader({ theme, styles }: ChainTableHeaderProps) {
+export function ChainTableHeader(props: ChainTableHeaderProps) {
+  const headerCell = {
+    ...props.styles.headerCell,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    padding: 8,
+  } as CSSProperties;
   return (
-    <Box className="chain-table-header" sx={{ ...styles.header, display: "grid", gap: 1, p: 1 }} data-testid="options-chain-table-header">
-      <Box className="chain-header-cell chain-calls-header" sx={{ ...styles.headerCell, color: "success.main", bgcolor: "background.paper", display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+    <Box
+      className="chain-table-header"
+      style={{ ...props.styles.header, display: "grid", gap: "8px", padding: "8px" } as CSSProperties}
+      data-testid="options-chain-table-header"
+    >
+      <Box
+        className="chain-header-cell chain-calls-header"
+        style={{ ...headerCell, color: palette.POSITIVE, "background-color": palette.SURFACE } as CSSProperties}
+      >
         CALLS (CE)
       </Box>
-      <Box className="chain-header-cell chain-strike-header" sx={{ ...styles.headerCell, color: "warning.main", bgcolor: "background.paper", display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+      <Box
+        className="chain-header-cell chain-strike-header"
+        style={{ ...headerCell, color: palette.WARNING, "background-color": palette.SURFACE } as CSSProperties}
+      >
         STRIKE
       </Box>
-      <Box className="chain-header-cell chain-puts-header" sx={{ ...styles.headerCell, color: "error.main", bgcolor: "background.paper", display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+      <Box
+        className="chain-header-cell chain-puts-header"
+        style={{ ...headerCell, color: palette.NEGATIVE, "background-color": palette.SURFACE } as CSSProperties}
+      >
         PUTS (PE)
       </Box>
     </Box>

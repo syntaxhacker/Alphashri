@@ -1,12 +1,11 @@
 import { describe, expect, test } from "vitest";
 import type { ChainRow, ChainSide } from "./optionChainMetrics";
+import { formatLegChange, rowFlags } from "./optionChainMetrics";
 import {
   chainSummary,
-  formatLegChange,
   oiChangePct,
-  rowFlags,
   sortChainRows,
-} from "./optionChainMetrics";
+} from "./optionChainMetrics.testHelpers";
 
 const MINUS = "−";
 

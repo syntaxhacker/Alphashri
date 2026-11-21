@@ -1,4 +1,4 @@
-import { Select, Text } from "@/ui";
+import { Select, Text, Tooltip } from "@/ui";
 import { LOOKBACK_OPTIONS } from "@/config/patterns";
 
 /** Re-exported so existing imports from this module keep working. */
@@ -10,29 +10,41 @@ export interface LookbackSelectProps {
 }
 
 /** Lookback (in bars) selector for the Patterns scan bar. */
-export function LookbackSelect({ value, onChange }: LookbackSelectProps) {
+export function LookbackSelect(props: LookbackSelectProps) {
   const data = [
     { value: "auto", label: "Auto" },
     ...LOOKBACK_OPTIONS.map((n) => ({ value: String(n), label: String(n) })),
   ];
+  // `UISelectProps` has no `title` (it is never forwarded to the DOM), so the
+  // hint rides on a Tooltip wrapper instead of being silently dropped.
   return (
-    <Select
-      data={data}
-      value={value == null ? "auto" : String(value)}
-      onChange={(v) => {
-        if (v == null || v === "" || v === "auto") {
-          onChange(null);
-          return;
+    <Tooltip label="Bars of history the detector reads before forming a pattern (Auto = preset default)">
+      <Select
+        data={data}
+        value={props.value == null ? "auto" : String(props.value)}
+        onChange={(v) => {
+          if (v == null || v === "" || v === "auto") {
+            props.onChange(null);
+            return;
+          }
+          const n = Number(v);
+          if (Number.isFinite(n)) props.onChange(n);
+        }}
+        w={122}
+        size="xs"
+        leftSection={
+          <Text
+            size="xs"
+            c="dimmed"
+            className="font-mono uppercase"
+            style={{ "font-size": "10px", "letter-spacing": "0.06em" }}
+          >
+            Bars
+          </Text>
         }
-        const n = Number(v);
-        if (Number.isFinite(n)) onChange(n);
-      }}
-      w={122}
-      size="xs"
-      leftSection={<Text size="xs" c="dimmed" style={{ fontSize: 10 }}>Bars</Text>}
-      data-testid="patterns-lookback-select"
-      title="Bars of history the detector reads before forming a pattern (Auto = preset default)"
-      style={{ flexShrink: 0 }}
-    />
+        data-testid="patterns-lookback-select"
+        style={{ "flex-shrink": 0 }}
+      />
+    </Tooltip>
   );
 }

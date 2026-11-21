@@ -1,8 +1,13 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
-import { screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
+  return mockSolidUi();
+});
+
 import { ChainScrollActions } from "./ChainScrollActions";
 
 afterEach(() => {
@@ -12,18 +17,10 @@ afterEach(() => {
 
 describe("ChainScrollActions", () => {
   it("renders scroll action buttons", () => {
-    renderWithProviders(
-      <ChainScrollActions scrollToATM={vi.fn()} scrollToEdge={vi.fn()} />,
-    );
+    render(() => 
+      <ChainScrollActions scrollToATM={vi.fn()} scrollToEdge={vi.fn()} />);
     expect(screen.getByTestId("options-scroll-top-btn")).toBeInTheDocument();
     expect(screen.getByTestId("options-scroll-atm-btn")).toBeInTheDocument();
     expect(screen.getByTestId("options-scroll-bottom-btn")).toBeInTheDocument();
-  });
-
-  it("renders container", () => {
-    renderWithProviders(
-      <ChainScrollActions scrollToATM={vi.fn()} scrollToEdge={vi.fn()} />,
-    );
-    expect(screen.getByTestId("options-chain-scroll-actions")).toBeInTheDocument();
   });
 });

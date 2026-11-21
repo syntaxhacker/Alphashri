@@ -11,7 +11,7 @@ import { pushNotification, markNewSymbols } from "../utils/notifications";
 import { checkPriceSurges } from "../utils/surgeNotifications";
 import { abortPendingRequest, isAbortError } from "../hooks/useFetch";
 import { fetchWithAuth } from "../state/auth";
-import { isMarketClosedToday } from "../state/holidays";
+import { isMarketOpenNow } from "../state/holidays";
 
 // Render callback - set by notifications module
 let renderCallback: () => void = () => {};
@@ -262,14 +262,16 @@ export function setupAutoRefresh() {
   }
   // Intraday movers: refresh every 10s during market hours for live deltas
   const isIntradayMover = INTRADAY_PROFILES.has(state.activeScreener);
-  const isOpen = !isMarketClosedToday();
+  const isOpen = isMarketOpenNow();
   const intervalMs = isIntradayMover && isOpen ? 10_000 : state.autoRefreshSeconds * 1000;
   const interval = setInterval(() => {
     if (getBacktestState().currentView === "backtest") return;
     const params = new URLSearchParams(window.location.search);
-    const activeTab = params.get("tab");
+    // Tabs live in the path (`/screener/config`); the query form is the legacy one.
+    const pathTab = /^\/screener\/([^/]+)\/?$/.exec(window.location.pathname)?.[1] ?? null;
+    const activeTab = params.get("tab") ?? pathTab;
     if (activeTab === "config" || activeTab === "correlation") return;
-    if (isMarketClosedToday()) return;
+    if (!isMarketOpenNow()) return;
     if (state.data && !state.isLoading) {
       fetchData(
         state.data?.provider ?? "upstox",

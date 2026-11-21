@@ -10,6 +10,7 @@ from datetime import datetime
 
 import config
 from api.tv import get_scanner_data
+from db.database import SessionLocal
 
 from trading.week52_range_lookup import load_all_52w_ranges
 
@@ -22,6 +23,8 @@ from .screener_models import (
     is_likely_etf,
     is_plausible_52w_gap,
     is_within_52w_touch_gap,
+    min_52w_turnover_cr,
+    min_52w_volume_m,
     touched_52w_gap_threshold_pct,
 )
 from .screener_results import _profile_meta, _build_rationale, _summary_items_for
@@ -34,6 +37,61 @@ from .screener_scan import (
 )
 
 
+#: Gates that cannot run on the cold-start skeleton: both need live volume,
+#: which the stored 52W range snapshot does not carry. Reported to the client
+#: rather than applied against an assumed zero (which would empty the list).
+SKELETON_WARNING = (
+    'Live prices, volume and turnover are still loading — showing the stored '
+    '52-week closes. Volume filters (min_volume_m, min_turnover_cr) are pending, '
+    'so this list can shrink on the next refresh.'
+)
+
+
+def _pending_skeleton_filters(profile_filters) -> list[str]:
+    """Volume gates whose threshold is active but unverifiable before enrichment."""
+    pf = profile_filters or {}
+    pending = []
+    if _to_float(pf.get('min_volume_m'), min_52w_volume_m()) > 0:
+        pending.append('min_volume_m')
+    if _to_float(pf.get('min_turnover_cr'), min_52w_turnover_cr()) > 0:
+        pending.append('min_turnover_cr')
+    return pending
+
+
+def _last_bar_date(df) -> str | None:
+    """ISO date of the newest daily bar, used as the price's as-of stamp."""
+    try:
+        last = df.index[-1]
+        if hasattr(last, 'to_pydatetime'):
+            last = last.to_pydatetime()
+        if hasattr(last, 'date'):
+            return last.date().isoformat()
+        return str(last)[:10]
+    except Exception:
+        return None
+
+
+def _price_is_today(stock: dict) -> bool:
+    """True only when the displayed price is a live tick from today's session.
+
+    ``price_as_of`` alone is not proof: on the cold path it is the snapshot's
+    verification time, and the close inside it can be an older session's bar.
+    Daily-bar prices get their recency from bar statistics, not from this flag.
+    """
+    return bool(stock.get('ltp_fresh'))
+
+
+def _sort_touched(touched: list[dict]) -> None:
+    """Most recent touch first, then smallest gap; unknown days sink to the end."""
+    touched.sort(
+        key=lambda s: (
+            s.get('days_ago') is None,
+            _to_float(s.get('days_ago'), 0),
+            _to_float(s.get('to_52w_high'), 999),
+        )
+    )
+
+
 def _sync_stock_metrics(stock: dict, touched_gap_pct: float) -> None:
     """Recompute gap% and touched flag from high_52w vs LTP (upstox_price)."""
     gap = gap_pct_to_52w_high(
@@ -44,7 +102,9 @@ def _sync_stock_metrics(stock: dict, touched_gap_pct: float) -> None:
         return
     stock['to_52w_high'] = gap
     stock['touched_52w'] = is_within_52w_touch_gap(gap, touched_gap_pct)
-    if stock['touched_52w'] and stock.get('days_ago') is None:
+    # "Today" may only be claimed from a price we know is from today's session;
+    # a stored close from an older session must not be relabelled as 0 days ago.
+    if stock['touched_52w'] and stock.get('days_ago') is None and _price_is_today(stock):
         stock['days_ago'] = 0
 
 
@@ -113,6 +173,8 @@ def _enrich_top_with_ltp(stocks: list[dict], api, top_n: int, touched_gap_pct: f
             stock['upstox_price'] = round(ltp, 2)
             stock['broker_diff'] = broker_diff
             stock['ltp_fresh'] = True
+            # A live tick supersedes the stored-close as-of stamp.
+            stock.pop('price_as_of', None)
             near_high = (high_52w - recent_high) / high_52w < touched_gap_pct / 100
             if recent_high >= high_52w or near_high:
                 stock['touched_52w'] = True
@@ -148,6 +210,9 @@ def _fill_days_ago_from_upstox(stocks: list[dict], api, use_api: bool, touched_g
                 last_close = float(df['close'].iloc[-1])
                 if last_close > 0:
                     stock['upstox_price'] = round(last_close, 2)
+                    # Price came from a daily bar, not a live tick. Stamp the bar
+                    # date so the price's as-of is never implied to be now.
+                    stock['price_as_of'] = _last_bar_date(df)
                     _sync_stock_metrics(stock, touched_gap_pct)
             ltp = _to_float(stock.get('upstox_price'), 0)
             today_high = ltp if high_52w > 0 and ltp >= high_52w * 0.999 else None
@@ -162,34 +227,71 @@ def _fill_days_ago_from_upstox(stocks: list[dict], api, use_api: bool, touched_g
             continue
 
 
-def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=None):
-    screener = '52w_high'
-    warning = None
-    touched_gap_pct = touched_52w_gap_threshold_pct()
+def _load_range_price_as_of(symbols: list[str], ranges: dict | None = None) -> dict[str, str]:
+    """Verification timestamp of each stored range row, for the price's as-of.
 
-    ranges = load_all_52w_ranges()
-    if not ranges:
-        return {
-            'approaching': [],
-            'touched': [],
-            'last_updated': datetime.now().isoformat(),
-            'provider': provider,
-            'mode': mode,
-            'screener': screener,
-            'profile_meta': _profile_meta(screener),
-            'summary': [],
-            'warning': 'No 52-week range data. Run scripts/compute_52w_ranges_upstox.py --redis.',
-        }
+    The bulk payload now carries ``updated_at``, so the common case is a dict
+    lookup with no DB round-trip. Caches written before that field existed fall
+    back to a primary-key-scoped query for just the missing symbols (never a
+    full ``stock_52w_range`` scan per screener call). Output stays
+    ``{symbol: iso_timestamp}``.
+    """
+    wanted = set(symbols)
+    if not wanted:
+        return {}
+    out: dict[str, str] = {}
+    missing = set(wanted)
 
-    max_gap = _to_float(
-        profile_filters.get('max_52w_gap') if profile_filters else None,
-        10,
-    )
+    for sym in wanted:
+        info = ranges.get(sym) if ranges else None
+        if not isinstance(info, dict):
+            continue
+        ts = info.get("updated_at")
+        if isinstance(ts, str) and ts:
+            out[sym] = ts
+            missing.discard(sym)
+        elif hasattr(ts, "isoformat"):
+            out[sym] = ts.isoformat()
+            missing.discard(sym)
 
-    api, use_api = _create_upstox_api(provider)
+    if not missing:
+        return out
 
+    try:
+        from db.models.stock_52w_touch import Stock52WeekRange
+
+        db = SessionLocal()
+        try:
+            rows = (
+                db.query(Stock52WeekRange.symbol, Stock52WeekRange.updated_at)
+                .filter(Stock52WeekRange.symbol.in_(list(missing)))
+                .all()
+            )
+            for sym, ts in rows:
+                if ts is not None:
+                    out[sym] = ts.isoformat()
+        finally:
+            db.close()
+    except Exception:
+        pass
+    return out
+
+
+def _build_52w_candidates(ranges: dict, touched_gap_pct: float, max_gap: float, screener: str, api=None,
+                          price_as_of: dict | None = None, skeleton: bool = False) -> list[dict]:
+    """Shape stored 52W range rows into candidate rows.
+
+    ``api`` is optional and only used to drop unmappable symbols. Passing None
+    keeps this path free of broker/Upstox work (used by the cold-start skeleton).
+
+    ``price_as_of`` maps symbol -> stored-range verification time; it is reported
+    as the price's as-of, never used to claim a touch recency it cannot prove.
+
+    ``skeleton`` nulls the live-only metrics instead of emitting 0.0: the snapshot
+    carries no tape, and a real 0.0 renders as a genuine zero volume / 0.00% day.
+    """
+    price_as_of = price_as_of or {}
     candidates = []
-
     for symbol, info in ranges.items():
         high = _to_float(info.get('high'), 0)
         low = _to_float(info.get('low'), 0)
@@ -214,16 +316,17 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
             # emit an impossible gap (e.g. −10%/−20%).
             continue
         touched_52w = is_within_52w_touch_gap(to_52w_high, touched_gap_pct)
+        # Only a stored days_ago (or a real touch-history row, added later) may
+        # speak for recency. The snapshot timestamp proves when the row was
+        # verified, not which session its close came from, so it cannot claim 0.
+        days_ago = None
         stored_days = info.get('days_ago')
         if stored_days is not None:
             try:
                 days_ago = max(0, int(stored_days))
             except (TypeError, ValueError):
-                days_ago = 0 if touched_52w else None
-        elif touched_52w:
-            days_ago = 0
-        else:
-            days_ago = None
+                days_ago = None
+        as_of = price_as_of.get(symbol)
 
         if to_52w_high > max_gap and not touched_52w:
             continue
@@ -264,11 +367,109 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
             score,
             0.0,
         )
+        # The snapshot carries no tape. These are placeholders in _build_stock_data
+        # and a real 0.0 renders as a genuine zero volume / 0.00% day change, so
+        # null them out: the UI dashes nulls and sorts them last.
+        if skeleton:
+            for key in ('volume_m', 'turnover_cr', 'rsi', 'adx', 'day_change'):
+                stock_data[key] = None
         stock_data['low_52w'] = round(low, 2)
         stock_data['source'] = 'upstox'
         stock_data['rationale'] = _build_rationale(screener, stock_data)
+        # The displayed price is a stored close, never a live tick: say so, and
+        # say when it was captured, so the UI can label it instead of implying LTP.
+        stock_data['ltp_fresh'] = False
+        if as_of:
+            stock_data['price_as_of'] = as_of
 
         candidates.append(stock_data)
+    return candidates
+
+
+def build_52w_skeleton_data(profile_filters=None, provider='upstox', mode='historical'):
+    """Cheap cold-start payload built only from the stored 52W range snapshot.
+
+    No Upstox/TV calls: live LTP, day_change and volume are null until the full
+    compute (scheduled in the background by the endpoint) fills the cache. Volume
+    gates are therefore reported as ``pending_filters`` instead of being applied
+    against an assumed zero, which would silently shrink the list.
+    Returns None when there is no usable snapshot, so the caller can fall back to
+    a bounded wait instead of serving an empty screener.
+    """
+    screener = '52w_high'
+    touched_gap_pct = touched_52w_gap_threshold_pct()
+    ranges = load_all_52w_ranges()
+    if not ranges:
+        return None
+    max_gap = _to_float(
+        profile_filters.get('max_52w_gap') if profile_filters else None,
+        10,
+    )
+    price_as_of = _load_range_price_as_of(list(ranges.keys()), ranges)
+    candidates = _build_52w_candidates(
+        ranges, touched_gap_pct, max_gap, screener, api=None,
+        price_as_of=price_as_of, skeleton=True,
+    )
+    if not candidates:
+        return None
+
+    data = {'approaching': [], 'touched': []}
+    for sd in candidates:
+        data['touched' if sd.get('touched_52w') else 'approaching'].append(sd)
+    # Touched history is DB-only (two indexed queries), so the skeleton gets the
+    # same last_touched/days_ago memory as the full path at no network cost.
+    _enrich_with_touch_history(data, screener)
+
+    approaching = data['approaching']
+    touched = data['touched']
+    approaching.sort(key=lambda s: _to_float(s.get('to_52w_high'), 999))
+    _sort_touched(touched)
+
+    return {
+        'approaching': approaching,
+        'touched': touched,
+        'last_updated': datetime.now().isoformat(),
+        'provider': provider,
+        'mode': mode,
+        'screener': screener,
+        'profile_meta': _profile_meta(screener),
+        'summary': _summary_items_for(screener, approaching, touched),
+        'warning': SKELETON_WARNING,
+        'pending_filters': _pending_skeleton_filters(profile_filters),
+        'touched_gap_pct': touched_gap_pct,
+    }
+
+
+def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=None):
+    screener = '52w_high'
+    warning = None
+    touched_gap_pct = touched_52w_gap_threshold_pct()
+
+    ranges = load_all_52w_ranges()
+    if not ranges:
+        return {
+            'approaching': [],
+            'touched': [],
+            'last_updated': datetime.now().isoformat(),
+            'provider': provider,
+            'mode': mode,
+            'screener': screener,
+            'profile_meta': _profile_meta(screener),
+            'summary': [],
+            'warning': 'No 52-week range data. Run scripts/compute_52w_ranges_upstox.py --redis.',
+        }
+
+    max_gap = _to_float(
+        profile_filters.get('max_52w_gap') if profile_filters else None,
+        10,
+    )
+
+    api, use_api = _create_upstox_api(provider)
+
+    candidates = _build_52w_candidates(
+        ranges, touched_gap_pct, max_gap, screener, api,
+        price_as_of=_load_range_price_as_of(list(ranges.keys()), ranges),
+    )
 
     # Enrich candidates with real TV data (volume etc) BEFORE the vol filter,
     # so that min_volume_m etc in 52w profile work with actual volume from TV.
@@ -351,6 +552,7 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
     data['approaching'].sort(
         key=lambda s: (not s.get('has_live_data', True), _to_float(s.get('to_52w_high'), 999))
     )
+    _sort_touched(data['touched'])
 
     data['summary'] = _summary_items_for(screener, data['approaching'], data['touched'])
     return data

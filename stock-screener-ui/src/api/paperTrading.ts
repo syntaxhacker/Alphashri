@@ -39,7 +39,7 @@ import {
   setDashboardAnalyticsLoading,
 } from "../state/paperTrading";
 import { apiFetch } from "../state/auth";
-import { isMarketClosedToday } from "../state/holidays";
+import { isMarketOpenNow } from "../state/holidays";
 import {
   startPaperBot,
   stopPaperBot,
@@ -98,7 +98,6 @@ export async function fetchPositions(): Promise<PaperPosition[]> {
   try {
     const data = await apiFetch(`${API_BASE}/api/paper/positions`);
     const positions = data.positions || [];
-    console.log("[fetchPositions] raw response:", data, "positions[0]:", positions[0]);
     setPositions(positions);
     return positions;
   } catch (error) {
@@ -273,7 +272,7 @@ export async function fetchPaperChart(
 
 // Refresh all live data
 export async function refreshLiveData(): Promise<void> {
-  if (isMarketClosedToday()) return;
+  if (!isMarketOpenNow()) return;
   setLoading(true);
 
   try {
@@ -312,9 +311,7 @@ export async function refreshHistoryData(
   try {
     const limit = getLimitFromDateRange(fromDate, toDate);
     // If fromDate is provided, daysBack is ignored by fetchTrades (due to API logic)
-    await Promise.all([
-      fetchTrades(limit, botId, fromDate, toDate, fromDate ? 0 : daysBack),
-    ]);
+    await fetchTrades(limit, botId, fromDate, toDate, fromDate ? 0 : daysBack);
   } catch (error) {
     setError(error instanceof Error ? error.message : "Unknown error");
   } finally {

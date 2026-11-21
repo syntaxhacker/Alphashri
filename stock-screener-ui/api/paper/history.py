@@ -45,8 +45,10 @@ def _resolve_trade_bot_ids(trades: list) -> list:
     return trades
 
 
+# Sync `def`: the trade query, the delete and the notes patch all hit SQLite, so
+# FastAPI runs them on the anyio worker pool instead of the event loop.
 @router.get("/trades")
-async def get_trades(
+def get_trades(
     limit: int = 50,
     date: Optional[str] = None,
     from_date: Optional[str] = None,
@@ -159,7 +161,7 @@ def _get_trades_from_journals(
 
 
 @router.delete("/trades/{trade_id}")
-async def delete_trade(
+def delete_trade(
     trade_id: str,
     user: "User" = Depends(get_current_user)
 ):
@@ -193,7 +195,7 @@ class TradeNotesUpdate(BaseModel):
 
 
 @router.patch("/trades/{trade_id}")
-async def update_trade_notes(
+def update_trade_notes(
     trade_id: str,
     body: TradeNotesUpdate,
     user: "User" = Depends(get_current_user),

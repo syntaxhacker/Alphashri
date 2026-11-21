@@ -1,6 +1,6 @@
-import { Box, Text } from "@/ui";
-import { BORDER, MONO, TEXT_MUTED } from "@/ui/palette";
-import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
+import { Text } from "@/ui";
+import { FLOW_BEAR, FLOW_BULL, FLOW_STRUCT } from "@/ui/palette";
+import { createEffect, createMemo, createSignal, For, Show, onCleanup } from "solid-js";
 import {
   buildFlowEvents,
   clockLabel,
@@ -12,9 +12,7 @@ import {
 } from "./niftyFlowStrip";
 import { DERIVATIVES_CLOSE_MIN, SESSION_START_MIN } from "@/utils/marketClock";
 
-export const FLOW_BULL = "#16A34A";
-export const FLOW_BEAR = "#DC2626";
-export const FLOW_STRUCT = "#F59E0B";
+export { FLOW_BEAR, FLOW_BULL, FLOW_STRUCT };
 
 /** At most this many text labels; ticks always render for every event. */
 /** Text lane shows only the newest runs; the tooltip keeps the full history. */
@@ -83,53 +81,32 @@ const FLOW_LEGEND: { id: string; color: string; text: string; title: string }[] 
 
 function FlowLegend() {
   return (
-    <Box
+    <div
       data-testid="nifty-flowstrip-legend"
       aria-label="Flow strip legend"
-      sx={{
-        display: "flex",
-        flexWrap: "wrap",
-        alignItems: "center",
-        columnGap: "8px",
-        rowGap: "2px",
-        fontSize: 9,
-        lineHeight: 1.2,
-        fontFamily: MONO,
-        color: TEXT_MUTED,
-        px: 0.75,
-        py: 0.25,
-        borderBottom: `1px solid ${BORDER}`,
-        backgroundColor: "rgba(255,255,255,0.03)",
-      }}
+      class="flex flex-wrap items-center gap-x-2 gap-y-[2px] text-[11px] leading-[1.2] font-mono text-fin-text-muted px-[6px] py-[2px] border-b border-fin-border bg-white/[0.03]"
     >
-      <Box component="span" sx={{ fontSize: 9, letterSpacing: "0.08em", opacity: 0.6 }}>
+      <span class="text-[11px] tracking-[0.08em] opacity-60">
         FLOW
-      </Box>
-      {FLOW_LEGEND.map((item) => (
-        <Box
-          key={item.id}
-          component="span"
-          data-testid={`nifty-flowstrip-legend-${item.id}`}
-          title={item.title}
-          sx={{ display: "inline-flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap" }}
-        >
-          <Box
-            component="span"
-            data-testid={`nifty-flowstrip-legend-${item.id}-swatch`}
-            aria-hidden
-            sx={{
-              display: "inline-block",
-              flexShrink: 0,
-              width: 8,
-              height: 8,
-              borderRadius: "1px",
-              backgroundColor: item.color,
-            }}
-          />
-          <Box component="span">{item.text}</Box>
-        </Box>
-      ))}
-    </Box>
+      </span>
+      <For each={FLOW_LEGEND}>
+        {(item) => (
+          <span
+            data-testid={`nifty-flowstrip-legend-${item.id}`}
+            title={item.title}
+            class="inline-flex items-center gap-1 whitespace-nowrap"
+          >
+            <span
+              data-testid={`nifty-flowstrip-legend-${item.id}-swatch`}
+              aria-hidden
+              class="inline-block shrink-0 w-2 h-2 rounded-[1px]"
+              style={{ "background-color": item.color }}
+            />
+            <span>{item.text}</span>
+          </span>
+        )}
+      </For>
+    </div>
   );
 }
 
@@ -139,21 +116,22 @@ interface NiftyFlowStripProps {
   maxLabels?: number;
 }
 
-function NiftyFlowStripInner({ rows, burstThreshold, maxLabels = FLOW_MAX_LABELS }: NiftyFlowStripProps) {
-  const events = useMemo(
-    () => buildFlowEvents(rows, burstThreshold !== undefined ? { burstThreshold } : {}),
-    [rows, burstThreshold],
+export function NiftyFlowStrip(props: NiftyFlowStripProps) {
+  const rows = () => props.rows;
+  const maxLabels = () => props.maxLabels ?? FLOW_MAX_LABELS;
+  const events = createMemo(
+    () => buildFlowEvents(rows(), props.burstThreshold !== undefined ? { burstThreshold: props.burstThreshold } : {}),
   );
-  const buckets = useMemo(() => groupFlowRuns(events), [events]);
+  const buckets = createMemo(() => groupFlowRuns(events()));
 
   // Fit the one-line summary to the measured lane width. A character budget
   // (rather than CSS ellipsis) guarantees we never clip halfway through a
   // number: buckets are whole strings or they move into `+N earlier`.
-  const labelsRef = useRef<HTMLDivElement | null>(null);
-  const [maxChars, setMaxChars] = useState(FLOW_SUMMARY_MAX_CHARS);
+  let labelsRef: HTMLDivElement | undefined;
+  const [maxChars, setMaxChars] = createSignal(FLOW_SUMMARY_MAX_CHARS);
 
-  useEffect(() => {
-    const el = labelsRef.current;
+  createEffect(() => {
+    const el = labelsRef;
     if (!el) return;
     const measure = () => {
       const width = el.clientWidth;
@@ -165,136 +143,103 @@ function NiftyFlowStripInner({ rows, burstThreshold, maxLabels = FLOW_MAX_LABELS
       }
     };
     measure();
-    if (typeof ResizeObserver === "undefined") {
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    if (ro) {
+      ro.observe(el);
+      onCleanup(() => ro.disconnect());
+    } else {
       window.addEventListener("resize", measure);
-      return () => window.removeEventListener("resize", measure);
+      onCleanup(() => window.removeEventListener("resize", measure));
     }
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  });
 
-  const summary = useMemo(
-    () => summarizeFlowRuns(buckets, { maxLabels, maxChars }),
-    [buckets, maxLabels, maxChars],
+  const summary = createMemo(
+    () => summarizeFlowRuns(buckets(), { maxLabels: maxLabels(), maxChars: maxChars() }),
   );
-
-  if (events.length === 0) {
-    return (
-      <Box data-testid="nifty-flowstrip-empty" sx={{ py: 1, textAlign: "center" }}>
-        <Text size="xs" c="dimmed" data-testid="nifty-flowstrip-empty-text">
-          no flow events
-        </Text>
-      </Box>
-    );
-  }
 
   const leftPct = (t: string): string => flowTickPct(t);
   const sep = (
-    <Box
-      component="span"
+    <span
       aria-hidden
-      sx={{ flexShrink: 0, opacity: 0.45, color: TEXT_MUTED }}
+      class="shrink-0 opacity-45 text-fin-text-muted"
     >
       ·
-    </Box>
+    </span>
   );
 
-  return (
-    <Box data-testid="nifty-flowstrip" sx={{ width: "100%", minWidth: 0 }}>
+  const emptyView = () => (
+    <div data-testid="nifty-flowstrip-empty" class="py-2 text-center">
+      <Text size="xs" c="dimmed" data-testid="nifty-flowstrip-empty-text">
+        no flow events
+      </Text>
+    </div>
+  );
+
+  const stripView = () => (
+    <div data-testid="nifty-flowstrip" class="w-full min-w-0">
       <FlowLegend />
-      <Box data-testid="nifty-flowstrip-lane" sx={{ position: "relative", height: 28, width: "100%" }}>
+      <div data-testid="nifty-flowstrip-lane" class="relative h-7 w-full">
         {/* baseline */}
-        <Box
-          sx={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            top: 17,
-            height: 2,
-            opacity: 0.25,
-            backgroundColor: "currentColor",
-          }}
+        <div
+          class="absolute left-0 right-0 top-[17px] h-0.5 opacity-25 bg-current"
         />
-        {events.map((e, i) => (
-          <Box
-            key={`${e.t}-${e.kind}-${i}`}
-            data-testid="nifty-flow-tick"
-            data-kind={e.kind}
-            data-side={e.side}
-            title={`${clockLabel(e.t)} · ${e.label}`}
-            sx={{
-              position: "absolute",
-              left: leftPct(e.t),
-              top: 10,
-              width: 3,
-              height: 15,
-              transform: "translateX(-50%)",
-              borderRadius: 1,
-              backgroundColor: tickColor(e.side),
-            }}
-          />
-        ))}
-      </Box>
+        <For each={events()}>
+          {(e) => (
+            <div
+              data-testid="nifty-flow-tick"
+              data-kind={e.kind}
+              data-side={e.side}
+              title={`${clockLabel(e.t)} · ${e.label}`}
+              class="absolute top-[10px] w-[3px] h-[15px] -translate-x-1/2 rounded-[1px]"
+              style={{ "left": leftPct(e.t), "background-color": tickColor(e.side) }}
+            />
+          )}
+        </For>
+      </div>
       {/* One-line, run-aggregated summary. Ticks above keep every raw print;
           this row answers "what actually happened" instead of listing six
           near-identical Put unwind minutes in a row. */}
-      <Box
-        ref={labelsRef}
+      <div
+        ref={(el) => (labelsRef = el)}
         data-testid="nifty-flowstrip-labels"
-        title={summary.fullText}
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          columnGap: "6px",
-          minWidth: 0,
-          maxWidth: "100%",
-          overflow: "hidden",
-          whiteSpace: "nowrap",
-          fontFamily: MONO,
-          fontSize: 10,
-          lineHeight: 1.2,
-          color: TEXT_MUTED,
-          fontVariantNumeric: "tabular-nums",
-          px: 0.75,
-          py: 0.25,
-        }}
+        title={summary().fullText}
+        class="flex items-center gap-x-[6px] min-w-0 max-w-full overflow-hidden whitespace-nowrap font-mono text-[11px] leading-[1.2] text-fin-text-muted tabular-nums px-[6px] py-[2px]"
       >
-        {summary.showMarker && summary.hidden > 0 ? (
-          <Fragment>
-            <Box
-              component="span"
-              data-testid="nifty-flowstrip-more"
-              title={`${summary.hidden} older run${summary.hidden === 1 ? "" : "s"} hidden — ${summary.fullText}`}
-              sx={{ flexShrink: 0, opacity: 0.75 }}
-            >
-              +{summary.hidden} earlier
-            </Box>
-            {sep}
-          </Fragment>
-        ) : null}
-        {summary.visible.map((b, i) => (
-          <Fragment key={`${b.segment}-${b.start}-${i}`}>
-            {i > 0 ? sep : null}
-            <Box
-              component="span"
-              data-testid="nifty-flow-label"
-              data-kind={b.kind}
-              data-count={b.count}
-              data-total={Math.round(b.total)}
-              title={b.detail}
-              sx={{ flexShrink: 0, color: tickColor(b.side) }}
-            >
-              {b.label}
-            </Box>
-          </Fragment>
-        ))}
-      </Box>
-    </Box>
+        <Show when={summary().showMarker && summary().hidden > 0}>
+          <span
+            data-testid="nifty-flowstrip-more"
+            title={`${summary().hidden} older run${summary().hidden === 1 ? "" : "s"} hidden — ${summary().fullText}`}
+            class="shrink-0 opacity-75"
+          >
+            +{summary().hidden} earlier
+          </span>
+          {sep}
+        </Show>
+        <For each={summary().visible}>
+          {(b, i) => (
+            <>
+              <Show when={i() > 0}>{sep}</Show>
+              <span
+                data-testid="nifty-flow-label"
+                data-kind={b.kind}
+                data-count={b.count}
+                data-total={Math.round(b.total)}
+                title={b.detail}
+                class="shrink-0"
+                style={{ "color": tickColor(b.side) }}
+              >
+                {b.label}
+              </span>
+            </>
+          )}
+        </For>
+      </div>
+    </div>
+  );
+
+  return (
+    <Show when={events().length > 0} fallback={emptyView()}>
+      {stripView()}
+    </Show>
   );
 }
-
-/** Memoised: `rows` (the replay-filtered tape) is a stable memo between
- *  report frames, so the spot tick does not repaint the flow buckets. */
-export const NiftyFlowStrip = memo(NiftyFlowStripInner);
-NiftyFlowStrip.displayName = "NiftyFlowStrip";

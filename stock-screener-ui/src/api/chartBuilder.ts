@@ -56,6 +56,8 @@ interface RawTrade {
   // 52W Target strategy fields
   "52w_high_entry"?: number;
   trailing_active?: boolean;
+  /** Trade direction — "LONG" | "SHORT" (backend `base.py:344`). */
+  side?: string;
 }
 export function buildChartData(
   symbol: string,
@@ -359,8 +361,10 @@ export function chartTradesToTrades(chartTrades: ChartTrade[]): Trade[] {
       trades.push({
         entry_price: ct.trade.entry_price,
         exit_price: ct.trade.exit_price,
-        entry_time: ct.trade.entry_time,
-        exit_time: ct.trade.exit_time,
+        // The marker `time` is always present; `trade.entry_time` can be absent on
+        // open trades, and `Trade` requires both timestamps.
+        entry_time: ct.trade.entry_time ?? ct.time,
+        exit_time: ct.trade.exit_time ?? ct.time,
         quantity: ct.trade.quantity,
         gross_pnl: ct.trade.gross_pnl,
         gross_pnl_pct: ct.trade.gross_pnl_pct || 0,

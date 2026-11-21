@@ -1,7 +1,6 @@
-import { useCallback, useRef } from "react";
+import { createMemo, For } from "solid-js";
 import { SimpleGrid, useMediaQuery } from "@/ui";
 import type { PatternHitDTO, TrendlinesView } from "@/types/chartPatterns";
-import { fullscreenDedupeKey } from "@/hooks/usePatternFullscreen";
 import { PatternCard } from "./PatternCard";
 
 export interface PatternGridProps {
@@ -21,59 +20,49 @@ export interface PatternGridProps {
 }
 
 /** Responsive card grid of pattern hits (4-up on wide desktop). */
-// A host (PatternsPage) recreates its handler closures on every render, so wrap
-// them in stable identities here. That lets `React.memo(PatternCard)` bail out
-// when the underlying hit is unchanged even though the parent re-rendered.
-function useStableCallback<T extends (...args: any[]) => unknown>(
-  callback: T | undefined
-): T | undefined {
-  if (callback == null) return undefined;
-  const ref = useRef(callback);
-  ref.current = callback;
-  return useCallback((...args: any[]) => ref.current(...args), []) as unknown as T;
-}
-
-export function PatternGrid({
-  hits,
-  onSelect,
-  onExpand,
-  onShowMembers,
-  trendlinesView = "both",
-  activeHit = null,
-  onSymbolPreview,
-  onSymbolPreviewEnd,
-  onSymbolOpen,
-}: PatternGridProps) {
+export function PatternGrid(props: PatternGridProps) {
   const isWide = useMediaQuery("(min-width: 1400px)");
   const isDesktop = useMediaQuery("(min-width: 1200px)");
   const isTablet = useMediaQuery("(min-width: 900px)");
-  const cols = isWide ? 4 : isDesktop ? 3 : isTablet ? 2 : 1;
+  const cols = createMemo(() => (isWide() ? 4 : isDesktop() ? 3 : isTablet() ? 2 : 1));
 
-  const onSelectStable = useStableCallback(onSelect);
-  const onExpandStable = useStableCallback(onExpand);
-  const onShowMembersStable = useStableCallback(onShowMembers);
-  const onSymbolPreviewStable = useStableCallback(onSymbolPreview);
-  const onSymbolPreviewEndStable = useStableCallback(onSymbolPreviewEnd);
-  const onSymbolOpenStable = useStableCallback(onSymbolOpen);
+  const trendlinesView = () => props.trendlinesView ?? "both";
+  const activeHit = () => props.activeHit ?? null;
+
+  /**
+   * Identity of the docked hit, resolved once per active change instead of
+   * rebuilding a dedupe key per card (200 string allocations per render).
+   * Field equality matches `fullscreenDedupeKey` without the join.
+   */
+  const isActive = (hit: PatternHitDTO): boolean => {
+    const active = activeHit();
+    if (!active) return false;
+    return (
+      active.symbol === hit.symbol &&
+      active.timeframe === hit.timeframe &&
+      active.pattern_id === hit.pattern_id &&
+      active.start_date === hit.start_date &&
+      active.end_date === hit.end_date
+    );
+  };
 
   return (
-    <SimpleGrid cols={cols} spacing={16} data-testid="patterns-grid">
-      {hits.map((hit) => (
-        <PatternCard
-          key={hit.id ?? `${hit.symbol}-${hit.pattern_id}-${hit.timeframe}-${hit.start_date}`}
-          hit={hit}
-          selected={
-            activeHit ? fullscreenDedupeKey(activeHit) === fullscreenDedupeKey(hit) : false
-          }
-          onClick={onSelectStable}
-          onExpand={onExpandStable}
-          onShowMembers={onShowMembersStable}
-          trendlinesView={trendlinesView}
-          onSymbolPreview={onSymbolPreviewStable}
-          onSymbolPreviewEnd={onSymbolPreviewEndStable}
-          onSymbolOpen={onSymbolOpenStable}
-        />
-      ))}
+    <SimpleGrid cols={cols()} spacing={8} data-testid="patterns-grid" className="min-w-0">
+      <For each={props.hits}>
+        {(hit) => (
+          <PatternCard
+            hit={hit}
+            selected={isActive(hit)}
+            onClick={props.onSelect}
+            onExpand={props.onExpand}
+            onShowMembers={props.onShowMembers}
+            trendlinesView={trendlinesView()}
+            onSymbolPreview={props.onSymbolPreview}
+            onSymbolPreviewEnd={props.onSymbolPreviewEnd}
+            onSymbolOpen={props.onSymbolOpen}
+          />
+        )}
+      </For>
     </SimpleGrid>
   );
 }

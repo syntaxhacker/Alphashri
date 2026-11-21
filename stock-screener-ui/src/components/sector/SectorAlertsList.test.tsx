@@ -1,9 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { SectorAlertsList } from "./SectorAlertsList";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
 
 afterEach(() => {
   cleanup();
@@ -12,7 +11,7 @@ afterEach(() => {
 
 describe("SectorAlertsList", () => {
   it("shows empty state when no alerts", () => {
-    renderWithProviders(<SectorAlertsList alerts={[]} />);
+    render(() => <SectorAlertsList alerts={[]} />);
     expect(screen.getByText("Waiting for major movements...")).toBeInTheDocument();
   });
 
@@ -20,7 +19,7 @@ describe("SectorAlertsList", () => {
     const alerts = [
       { timestamp: "10:30:00", sector: "IT", direction: "SURGING" as const, delta: 1.5 },
     ];
-    renderWithProviders(<SectorAlertsList alerts={alerts} />);
+    render(() => <SectorAlertsList alerts={alerts} />);
     expect(screen.getByText(/10:30:00/)).toBeInTheDocument();
     expect(screen.getByText(/IT/)).toBeInTheDocument();
   });
@@ -29,7 +28,7 @@ describe("SectorAlertsList", () => {
     const alerts = [
       { timestamp: "10:30:00", sector: "IT", direction: "SURGING" as const, delta: 1.5 },
     ];
-    renderWithProviders(<SectorAlertsList alerts={alerts} />);
+    render(() => <SectorAlertsList alerts={alerts} />);
     expect(screen.getByText("SURGING (1.50%)")).toBeInTheDocument();
   });
 
@@ -37,7 +36,7 @@ describe("SectorAlertsList", () => {
     const alerts = [
       { timestamp: "10:30:00", sector: "Banking", direction: "DROPPING" as const, delta: -0.8 },
     ];
-    renderWithProviders(<SectorAlertsList alerts={alerts} />);
+    render(() => <SectorAlertsList alerts={alerts} />);
     expect(screen.getByText("DROPPING (-0.80%)")).toBeInTheDocument();
   });
 
@@ -46,7 +45,7 @@ describe("SectorAlertsList", () => {
       { timestamp: "10:30:00", sector: "IT", direction: "SURGING" as const, delta: 1.5 },
       { timestamp: "10:31:00", sector: "Banking", direction: "DROPPING" as const, delta: -0.8 },
     ];
-    renderWithProviders(<SectorAlertsList alerts={alerts} />);
+    render(() => <SectorAlertsList alerts={alerts} />);
     expect(screen.getByText("SURGING (1.50%)")).toBeInTheDocument();
     expect(screen.getByText("DROPPING (-0.80%)")).toBeInTheDocument();
   });
@@ -55,7 +54,7 @@ describe("SectorAlertsList", () => {
     const alerts = [
       { timestamp: "10:30:00", sector: "IT", direction: "SURGING" as const, delta: 1.5 },
     ];
-    renderWithProviders(<SectorAlertsList alerts={alerts} />);
+    render(() => <SectorAlertsList alerts={alerts} />);
     expect(screen.getByText("SURGING (1.50%)")).toBeInTheDocument();
     expect(screen.getByText(/SURGING/)).toBeInTheDocument();
   });
@@ -64,7 +63,7 @@ describe("SectorAlertsList", () => {
     const alerts = [
       { timestamp: "10:30:00", sector: "Banking", direction: "DROPPING" as const, delta: -0.8 },
     ];
-    renderWithProviders(<SectorAlertsList alerts={alerts} />);
+    render(() => <SectorAlertsList alerts={alerts} />);
     expect(screen.getByText("DROPPING (-0.80%)")).toBeInTheDocument();
     expect(screen.getByText(/DROPPING/)).toBeInTheDocument();
   });

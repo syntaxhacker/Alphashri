@@ -128,7 +128,7 @@ async def run_replay(request: ReplayRequest):
 
 
 @router.get("/symbols")
-async def get_available_symbols():
+def get_available_symbols():
     """Return the watchlist of symbols available for replay."""
     return {"symbols": _get_dynamic_watchlist()}
 
@@ -140,7 +140,7 @@ class ReplayConfigSaveRequest(BaseModel):
 
 
 @router.get("/configs")
-async def list_saved_configs(user=Depends(get_current_user)):
+def list_saved_configs(user=Depends(get_current_user)):
     """List all saved replay configs for the current user."""
     from db.database import SessionLocal
     from db.models import ReplaySavedConfig
@@ -159,7 +159,7 @@ async def list_saved_configs(user=Depends(get_current_user)):
 
 
 @router.post("/configs")
-async def save_config(data: ReplayConfigSaveRequest, user=Depends(get_current_user)):
+def save_config(data: ReplayConfigSaveRequest, user=Depends(get_current_user)):
     """Save a new replay config."""
     from db.database import SessionLocal
     from db.models import ReplaySavedConfig
@@ -191,7 +191,7 @@ async def save_config(data: ReplayConfigSaveRequest, user=Depends(get_current_us
 
 
 @router.delete("/configs/{config_id}")
-async def delete_config(config_id: int, user=Depends(get_current_user)):
+def delete_config(config_id: int, user=Depends(get_current_user)):
     """Delete a saved replay config."""
     from db.database import SessionLocal
     from db.models import ReplaySavedConfig

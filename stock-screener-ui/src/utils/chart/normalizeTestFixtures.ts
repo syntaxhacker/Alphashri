@@ -1,5 +1,17 @@
 // Shared builders for the normalize*.test.ts suites. Test-only.
 import { expect } from "vitest";
+import type { PaperChartData } from "../../types/paperTrading";
+import type {
+  ReplayEMAData,
+  ReplayORLevels,
+  ReplayPivotLevels,
+  Replay52WLevel,
+  ReplayTrade,
+} from "../../types/replay";
+import type {
+  BacktestNormalizeInput,
+  BacktestNormalizeTrade,
+} from "./normalizeBacktest";
 
 type Dict = Record<string, unknown>;
 
@@ -27,7 +39,7 @@ export const makeBacktestEntry = (
   tradeId = 1,
   candleIdx = 0,
   extra: Dict = {},
-) => ({
+): BacktestNormalizeTrade => ({
   type: "entry",
   trade: { entry_price: 100, entry_time: "09:30", quantity: 10, ...trade },
   trade_id: tradeId,
@@ -40,7 +52,7 @@ export const makeBacktestExit = (
   tradeId = 1,
   candleIdx = 3,
   extra: Dict = {},
-) => ({
+): BacktestNormalizeTrade => ({
   type: "exit",
   trade: {
     exit_price: 110,
@@ -55,19 +67,20 @@ export const makeBacktestExit = (
   ...extra,
 });
 
-export const entryExitPair = (tradeId = 1) => [
+export const entryExitPair = (tradeId = 1): BacktestNormalizeTrade[] => [
   makeBacktestEntry({}, tradeId, 0),
   makeBacktestExit({}, tradeId, 3),
 ];
 
 // Backtest data with a single highlighted entry carrying the given pivot fields.
-export const backtestPivotHighlight = (pivot: Dict = {}) => ({
-  candles: [] as unknown[],
+export const backtestPivotHighlight = (pivot: Dict = {}): BacktestNormalizeInput => ({
+  candles: [],
   trades: [makeBacktestEntry({ entry_price: 100, ...pivot })],
 });
 
-export const makeReplayTrade = (overrides: Dict = {}) => ({
+export const makeReplayTrade = (overrides: Dict = {}): ReplayTrade => ({
   id: 1,
+  strategy: "orb",
   symbol: "TEST",
   entry_price: 100,
   exit_price: 110,
@@ -77,13 +90,12 @@ export const makeReplayTrade = (overrides: Dict = {}) => ({
   quantity: 10,
   side: "BUY",
   pnl: 10,
+  net_pnl: 10,
   costs: 1,
-  candle_idx: 0,
-  exit_candle_idx: 2,
   ...overrides,
 });
 
-export const makeORLevels = (overrides: Dict = {}) => [
+export const makeORLevels = (overrides: Dict = {}): ReplayORLevels[] => [
   {
     symbol: "TEST",
     strategy: "orb",
@@ -91,11 +103,12 @@ export const makeORLevels = (overrides: Dict = {}) => [
     to_index: 8,
     or_high: 112,
     or_low: 98,
+    or_range_pct: 14.3,
     ...overrides,
   },
 ];
 
-export const makePivotLevels = (overrides: Dict = {}) => [
+export const makePivotLevels = (overrides: Dict = {}): ReplayPivotLevels[] => [
   {
     symbol: "TEST",
     strategy: "pivot",
@@ -110,7 +123,7 @@ export const makePivotLevels = (overrides: Dict = {}) => [
   },
 ];
 
-export const make52WLevels = (overrides: Dict = {}) => [
+export const make52WLevels = (overrides: Dict = {}): Replay52WLevel[] => [
   {
     symbol: "TEST",
     strategy: "52w",
@@ -122,8 +135,9 @@ export const make52WLevels = (overrides: Dict = {}) => [
   },
 ];
 
-export const makeEMADataMap = () => ({
+export const makeEMADataMap = (): Record<string, ReplayEMAData> => ({
   TEST: {
+    symbol: "TEST",
     ema_fast_period: 9,
     ema_slow_period: 21,
     timeframes: {
@@ -137,15 +151,18 @@ export const makeEMADataMap = () => ({
 
 export const makeEMADataMapWithTimeframes = (
   timeframes: Record<string, { ema_fast: number[]; ema_slow: number[] }>,
-) => ({
+): Record<string, ReplayEMAData> => ({
   TEST: {
+    symbol: "TEST",
     ema_fast_period: 9,
     ema_slow_period: 21,
     timeframes,
   },
 });
 
-export const makePaperData = (overrides: Dict = {}) => ({
+export const makePaperData = (overrides: Dict = {}): PaperChartData => ({
+  symbol: "TEST",
+  date: "2025-01-15",
   candles: [
     makeCandle(),
     makeCandle({ time: "2025-01-15T09:31:00", open: 105, high: 108, low: 103, close: 107, volume: 800 }),
@@ -153,6 +170,7 @@ export const makePaperData = (overrides: Dict = {}) => ({
   trades: [
     {
       trade_id: "1",
+      symbol: "TEST",
       entry_price: 100,
       exit_price: 110,
       entry_time: "2025-01-15T09:30:00",
@@ -161,10 +179,26 @@ export const makePaperData = (overrides: Dict = {}) => ({
       quantity: 10,
       side: "BUY",
       pnl: 10,
+      pnl_pct: 10,
       net_pnl: 10,
       costs: 1,
+      stop_loss: 0,
+      take_profit: 0,
+      peak_price: 110,
+      low_price: 100,
+      hold_duration_minutes: 5,
+      notes: "",
+      reason: "",
+      strategy_id: 1,
+      strategy_name: "TEST",
+      bot_id: null,
+      bot_name: null,
     },
   ],
+  orb_levels: null,
+  week52_levels: null,
+  pivot_levels: null,
+  current_position: null,
   ...overrides,
 });
 

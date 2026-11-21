@@ -1,150 +1,170 @@
-import Chip from "@mui/material/Chip";
-import Box from "@mui/material/Box";
-import { alpha, useTheme } from "@mui/material/styles";
-import { TEXT_MUTED, SCALE_DARK, TEXT } from "@/ui/palette";
+import { Show, splitProps } from "solid-js";
+import { cn } from "../cn";
+import * as palette from "../palette";
 import type { UIBadgeProps } from "../types";
 
-function mapColor(color: UIBadgeProps["color"]): string {
-  if (!color) return "primary";
-  switch (color) {
-    case "success":
-      return "success";
-    case "error":
-    case "danger":
-      return "error";
-    case "warning":
-      return "warning";
-    case "info":
-      return "info";
-    case "secondary":
-      return "secondary";
-    case "primary":
-      return "primary";
-    case "default":
-    case "neutral":
-    case "dimmed":
-      return "secondary";
-    default:
-      return "secondary";
-  }
+/**
+ * Badge = a status label, never a control. It is deliberately smaller than a
+ * Chip (16px vs 20px), shares the 4px radius, and carries no pointer cursor or
+ * hover fill so it can never be mistaken for something clickable.
+ * `variant="dot"` drops the pill chrome entirely — a dot plus inline text.
+ */
+const COLOR_MAIN: Record<string, string> = {
+  primary: palette.PRIMARY,
+  success: palette.POSITIVE_COLOR,
+  error: palette.NEGATIVE_COLOR,
+  danger: palette.NEGATIVE_COLOR,
+  warning: palette.WARNING,
+  info: palette.INFO,
+  secondary: palette.TEXT_MUTED,
+  default: palette.TEXT_MUTED,
+  neutral: palette.TEXT_MUTED,
+  dimmed: palette.TEXT_MUTED,
+};
+
+/**
+ * Filled badges invert: the tone becomes the background and the page colour
+ * becomes the foreground. `COLOR_MAIN` holds the fixed dark-theme anchors, so
+ * using it as a fill leaves near-white text on a mid-green/red and fails
+ * contrast in light mode (2.4–3.1:1). The fill therefore has to come from the
+ * theme token, which resolves to the same anchors on dark and to the darker
+ * light-theme tones where near-white text passes.
+ */
+const COLOR_FILL: Record<string, string> = {
+  primary: "var(--color-fin-primary)",
+  success: "var(--color-fin-positive)",
+  error: "var(--color-fin-negative)",
+  danger: "var(--color-fin-negative)",
+  warning: "var(--color-fin-warning)",
+  info: "var(--color-fin-info)",
+  secondary: "var(--color-fin-text-muted)",
+  default: "var(--color-fin-text-muted)",
+  neutral: "var(--color-fin-text-muted)",
+  dimmed: "var(--color-fin-text-muted)",
+};
+
+function resolveFill(color: UIBadgeProps["color"]): string {
+  if (!color) return COLOR_FILL.primary;
+  if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl")) return color;
+  return COLOR_FILL[color] ?? COLOR_FILL.primary;
 }
 
-function mapSize(size: UIBadgeProps["size"]): "small" | "medium" {
-  if (!size) return "small";
-  switch (size) {
-    case "xs":
-    case "sm":
-      return "small";
-    case "lg":
-    case "xl":
-      return "medium";
-    default:
-      return "small";
-  }
+type BadgeBox = { h: number; font: number; px: number };
+
+const BADGE_BOX: Record<string, BadgeBox> = {
+  xs: { h: 14, font: 9, px: 4 },
+  sm: { h: 16, font: 9, px: 5 },
+  md: { h: 18, font: 9, px: 6 },
+  lg: { h: 20, font: 10, px: 7 },
+  xl: { h: 22, font: 10, px: 8 },
+};
+
+function badgeBox(size: UIBadgeProps["size"]): BadgeBox {
+  return BADGE_BOX[String(size)] ?? BADGE_BOX.sm;
 }
 
-export function Badge({
-  children,
-  leftSection,
-  rightSection,
-  className,
-  style,
-  "data-testid": testId,
-  id,
-  variant,
-  color,
-  size,
-  radius,
-  fullWidth,
-  onClick,
-  onMouseEnter,
-  onMouseLeave,
-  ...rest
-}: UIBadgeProps) {
-  const theme = useTheme();
-  const muiColor = mapColor(color);
-  const muiSize = mapSize(size);
+function resolveColor(color: UIBadgeProps["color"]): string {
+  if (!color) return palette.PRIMARY;
+  if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl")) return color;
+  return COLOR_MAIN[color] ?? palette.PRIMARY;
+}
 
-  // Resolve palette color (fallback to secondary -> grey for default)
-  const palette: Record<string, { main: string; dark: string; contrastText: string }> = theme.palette as never;
-  const isDefault = color === "default" || color === "neutral" || color === "dimmed";
-  const grey = (theme.palette as any).grey;
-  const pal = isDefault
-    ? { main: grey?.[600] ?? TEXT_MUTED, dark: grey?.[700] ?? SCALE_DARK[4], contrastText: TEXT }
-    : ((palette[muiColor] as { main: string; dark: string; contrastText: string } | undefined) ?? palette.primary);
+function radiusValue(radius: UIBadgeProps["radius"] | undefined): string {
+  if (radius == null) return "4px";
+  if (typeof radius === "number") return `${radius}px`;
+  const m: Record<string, string> = { xs: "2px", sm: "4px", md: "4px", lg: "6px", xl: "8px" };
+  return m[radius] ?? "4px";
+}
 
-  const isFilled = variant === "filled" || variant === "white";
-  const isOutline = variant === "outline" || variant === "default";
+const DOT_SIZE = 5;
 
-  const sx: Record<string, unknown> = {
-    ...(fullWidth ? { width: "100%" } : {}),
-    ...(radius != null
-      ? {
-          borderRadius:
-            typeof radius === "number"
-              ? `${radius}px`
-              : radius === "xs"
-                ? "4px"
-                : radius === "sm"
-                  ? "6px"
-                  : radius === "md"
-                    ? "8px"
-                    : radius === "lg"
-                      ? "12px"
-                      : radius === "xl"
-                        ? "16px"
-                        : undefined,
-        }
-      : {}),
-    fontWeight: 600,
-    ...(style ? { ...style } : {}),
+export function Badge(props: UIBadgeProps) {
+  const [known, _rest] = splitProps(props, [
+    "children",
+    "leftSection",
+    "rightSection",
+    "className",
+    "style",
+    "data-testid",
+    "id",
+    "variant",
+    "color",
+    "size",
+    "radius",
+    "fullWidth",
+    "onClick",
+    "onMouseEnter",
+    "onMouseLeave",
+    "title",
+  ]);
+
+  const main = resolveColor(known.color);
+  const fill = resolveFill(known.color);
+  const isFilled = known.variant === "filled" || known.variant === "white";
+  const isOutline = known.variant === "outline";
+  const isDot = known.variant === "dot";
+  const box = badgeBox(known.size);
+
+  const shape = (): Record<string, string> => {
+    if (isDot) {
+      // Inline status: dot + text, no pill chrome at all.
+      return {
+        height: `${box.h}px`,
+        "border-radius": "0px",
+        "border-width": "0px",
+        "border-style": "none",
+        "background-color": "transparent",
+        "font-size": `${box.font}px`,
+        "font-weight": "600",
+        "line-height": "1",
+        "padding-left": "0px",
+        "padding-right": "0px",
+        cursor: "default",
+      };
+    }
+    return {
+      height: `${box.h}px`,
+      "border-radius": radiusValue(known.radius),
+      border: isOutline ? `1px solid ${main}` : "none",
+      "background-color": isFilled ? fill : isOutline ? "transparent" : palette.alpha(main, 0.12),
+      "font-size": `${box.font}px`,
+      "font-weight": "600",
+      "line-height": "1",
+      "padding-left": `${box.px}px`,
+      "padding-right": `${box.px}px`,
+      cursor: "default",
+    };
   };
 
-  if (isFilled) {
-    // WCAG AA: dark bg + light text, uses contrastThreshold 4.5 already in theme
-    Object.assign(sx, {
-      bgcolor: pal.dark,
-      color: pal.contrastText,
-      border: `1px solid ${pal.dark}`,
-    });
-  } else if (isOutline) {
-    Object.assign(sx, {
-      bgcolor: "transparent",
-      color: pal.main,
-      border: `1px solid ${pal.main}`,
-    });
-  } else {
-    // light / subtle / transparent / default light variant: tinted bg + the
-    // brighter palette shade so text stays readable on dark surfaces (WCAG AA).
-    Object.assign(sx, {
-      bgcolor: alpha(pal.main, 0.15),
-      color: pal.main,
-      border: `1px solid ${alpha(pal.main, 0.35)}`,
-    });
-  }
-
-  const label = (
-    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.75 }}>
-      {leftSection}
-      <span>{children}</span>
-      {rightSection}
-    </Box>
-  );
-
   return (
-    <Chip
-      label={label}
-      size={muiSize}
-      variant={isOutline ? "outlined" : "filled"}
-      className={className}
-      style={undefined}
-      id={id}
-      data-testid={testId}
-      onClick={onClick as never}
-      onMouseEnter={onMouseEnter as never}
-      onMouseLeave={onMouseLeave as never}
-      sx={sx}
-      {...(rest as Record<string, unknown>)}
-    />
+    <span
+      data-testid={known["data-testid"]}
+      id={known.id}
+      title={known.title}
+      className={cn(
+        "inline-flex items-center gap-1 whitespace-nowrap font-mono uppercase select-none tracking-[0.04em]",
+        known.fullWidth ? "w-full" : "shrink-0",
+        known.className,
+      )}
+      style={{ ...shape(), color: isFilled ? "var(--color-fin-bg)" : main, ...known.style }}
+      onClick={(e) => known.onClick?.(e)}
+      onMouseEnter={(e) => known.onMouseEnter?.(e)}
+      onMouseLeave={(e) => known.onMouseLeave?.(e)}
+    >
+      <Show when={isDot}>
+        <span
+          aria-hidden="true"
+          className="shrink-0 rounded-full"
+          style={{ width: `${DOT_SIZE}px`, height: `${DOT_SIZE}px`, "background-color": main }}
+        />
+      </Show>
+      <Show when={!isDot && known.leftSection != null}>
+        <span className="shrink-0">{known.leftSection}</span>
+      </Show>
+      <span>{known.children}</span>
+      <Show when={!isDot && known.rightSection != null}>
+        <span className="shrink-0">{known.rightSection}</span>
+      </Show>
+    </span>
   );
 }

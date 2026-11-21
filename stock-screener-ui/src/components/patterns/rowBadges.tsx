@@ -5,18 +5,22 @@
  * renders them identically.
  */
 
+import { createMemo, Show } from "solid-js";
 import { Badge } from "@/ui";
 import { formatChartTimestamp } from "./datetime";
 
 /** Backend `tags` on a row (F&O / ETF). Always an array of strings; missing/invalid → []. */
-export function rowTags(row: { tags?: unknown } | null | undefined): string[] {
-  const tags = row?.tags;
+// `tags` is not declared on `PatternHitDTO` / `WatchRow` (shared types, owned
+// elsewhere) even though the backend sets it on both, so the parameter accepts
+// any row object and reads the field structurally.
+export function rowTags(row: object | null | undefined): string[] {
+  const tags = (row as { tags?: unknown } | null | undefined)?.tags;
   if (!Array.isArray(tags)) return [];
   return tags.filter((t): t is string => typeof t === "string");
 }
 
 /** True when the backend `tags` array carries `tag`. Never throws on missing. */
-export function hasTag(row: { tags?: unknown } | null | undefined, tag: string): boolean {
+export function hasTag(row: object | null | undefined, tag: string): boolean {
   return rowTags(row).includes(tag);
 }
 
@@ -64,30 +68,31 @@ export interface PatternTagsProps {
  * F&O (info) / ETF (warning) badges rendered next to the symbol. Additive
  * only — rows without matching tags render nothing extra.
  */
-export function PatternTags({
-  tags,
-  symbol,
-  testIdPrefix,
-  showEtf = true,
-  compact = true,
-}: PatternTagsProps) {
-  const list = rowTags({ tags });
-  const fno = list.includes("F&O");
-  const etf = showEtf && list.includes("ETF");
-  if (!fno && !etf) return null;
-  const size = compact ? "xs" : "sm";
+export function PatternTags(props: PatternTagsProps) {
+  const list = createMemo(() => rowTags({ tags: props.tags }));
+  const fno = () => list().includes("F&O");
+  const etf = () => (props.showEtf ?? true) && list().includes("ETF");
+  const size = () => ((props.compact ?? true) ? "xs" : "sm");
   return (
     <>
-      {fno ? (
-        <Badge color="info" size={size} data-testid={`${testIdPrefix}-tag-fno-${symbol}`}>
+      <Show when={fno()}>
+        <Badge
+          color="info"
+          size={size()}
+          data-testid={`${props.testIdPrefix}-tag-fno-${props.symbol}`}
+        >
           {"F&O"}
         </Badge>
-      ) : null}
-      {etf ? (
-        <Badge color="warning" size={size} data-testid={`${testIdPrefix}-tag-etf-${symbol}`}>
+      </Show>
+      <Show when={etf()}>
+        <Badge
+          color="warning"
+          size={size()}
+          data-testid={`${props.testIdPrefix}-tag-etf-${props.symbol}`}
+        >
           ETF
         </Badge>
-      ) : null}
+      </Show>
     </>
   );
 }

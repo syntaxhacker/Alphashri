@@ -1,4 +1,7 @@
-import MuiLink from "@mui/material/Link";
+import { createMemo, splitProps } from "solid-js";
+import { cn } from "../cn";
+import * as palette from "../palette";
+import type { JSX } from "solid-js";
 import type { UIAnchorProps } from "../types";
 
 const sizeMap: Record<string, string> = {
@@ -9,80 +12,111 @@ const sizeMap: Record<string, string> = {
   xl: "1.25rem",
 };
 
-export function Anchor({
-  children,
-  href,
-  target,
-  underline,
-  onClick,
-  onMouseEnter,
-  onMouseLeave,
-  size,
-  fw,
-  c,
-  ta,
-  lh,
-  span,
-  truncate,
-  lineClamp,
-  inherit,
-  component,
-  className,
-  style,
-  "data-testid": testId,
-  id,
-  ...rest
-}: UIAnchorProps) {
-  const sx: Record<string, unknown> = {
-    cursor: "pointer",
-    ...(c != null && { color: c as string }),
-    ...(fw != null && { fontWeight: fw }),
-    ...(ta != null && { textAlign: ta }),
-    ...(lh != null && { lineHeight: lh }),
-    ...(size != null && { fontSize: sizeMap[size as string] ?? (size as string) }),
-  };
+const TONE_CLASS: Record<string, string> = {
+  primary: "text-fin-primary",
+  secondary: "text-fin-text-muted",
+  success: "text-fin-positive",
+  error: "text-fin-negative",
+  warning: "text-fin-warning",
+  info: "text-fin-primary",
+  danger: "text-fin-negative",
+  dimmed: "text-fin-text-muted",
+  default: "text-fin-text",
+};
 
-  if (truncate) {
-    Object.assign(sx, {
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-      whiteSpace: "nowrap",
-      display: "inline-block",
-      maxWidth: "100%",
-    });
-  }
-  if (lineClamp != null) {
-    Object.assign(sx, {
-      display: "-webkit-box",
-      WebkitLineClamp: lineClamp,
-      WebkitBoxOrient: "vertical" as const,
-      overflow: "hidden",
-    });
-  }
+const TONE_COLOR: Record<string, string> = {
+  primary: palette.PRIMARY,
+  secondary: palette.TEXT_MUTED,
+  success: palette.POSITIVE,
+  error: palette.NEGATIVE,
+  warning: palette.WARNING,
+  info: palette.INFO,
+  danger: palette.NEGATIVE,
+  dimmed: palette.TEXT_MUTED,
+  default: palette.TEXT,
+};
 
-  const underlineProp: "always" | "hover" | "none" =
-    underline === "always" ? "always" : underline === "never" ? "none" : "hover";
+function isLiteralColor(c: string): boolean {
+  return c.startsWith("#") || c.startsWith("rgb") || c.includes(".");
+}
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const LinkAny = MuiLink as any;
+const ANCHOR_TAGS: Record<string, (props: any) => JSX.Element> = {
+  a: (props) => <a {...props} />,
+  span: (props) => <span {...props} />,
+  div: (props) => <div {...props} />,
+};
+
+const ANCHOR_KNOWN = [
+  "children", "className", "style", "id", "data-testid", "onClick", "onMouseEnter", "onMouseLeave",
+  "href", "target", "underline", "size", "fw", "c", "ta", "lh", "span", "truncate", "lineClamp",
+  "inherit", "component",
+] as const;
+// `title` is intentionally omitted: it is a native tooltip and must flow through
+// `rest` onto the DOM element rather than being consumed here.
+
+export function Anchor(props: UIAnchorProps) {
+  const [known, rest] = splitProps(props, ANCHOR_KNOWN);
+  // `inherit` is kept for API parity — semantic elements inherit by default.
+  void known.inherit;
+
+  const derived = createMemo(() => {
+    const tone = known.c as string | undefined;
+    const cls = tone != null ? TONE_CLASS[tone] : undefined;
+    const underlineProp = known.underline === "always" ? "always" : known.underline === "never" ? "none" : "hover";
+    const o: Record<string, string | number | undefined> = { cursor: "pointer" };
+    if (tone != null) {
+      o.color = TONE_COLOR[tone] ?? (isLiteralColor(tone) ? tone : undefined);
+    }
+    if (known.fw != null) o["font-weight"] = known.fw;
+    if (known.ta != null) o["text-align"] = known.ta;
+    if (known.lh != null) o["line-height"] = known.lh;
+    if (known.size != null) o["font-size"] = sizeMap[known.size as string] ?? (known.size as string);
+
+    let underlineClass: string | undefined;
+    if (underlineProp === "always") {
+      o["text-decoration"] = "underline";
+    } else if (underlineProp === "none") {
+      o["text-decoration"] = "none";
+    } else {
+      // "hover": no underline by default, underline on hover.
+      o["text-decoration"] = "none";
+      underlineClass = "hover:underline";
+    }
+
+    if (known.truncate) {
+      o.overflow = "hidden";
+      o["text-overflow"] = "ellipsis";
+      o["white-space"] = "nowrap";
+      o.display = "inline-block";
+      o["max-width"] = "100%";
+    }
+
+    if (known.lineClamp != null) {
+      o.display = "-webkit-box";
+      o["webkit-line-clamp"] = known.lineClamp;
+      o.WebkitBoxOrient = "vertical";
+      o.overflow = "hidden";
+    }
+
+    return { cls, style: o, underlineClass };
+  });
+
+  const rootTag = (known.component ?? (known.span ? "span" : "a")) as string;
+  const Root = ANCHOR_TAGS[rootTag] ?? ANCHOR_TAGS["a"];
+
   return (
-    <LinkAny
-      href={href}
-      target={target}
-      underline={underlineProp}
-      component={(component as never) ?? (span ? "span" : "a")}
-      variant={inherit ? "inherit" : "body2"}
-      className={className}
-      style={style}
-      id={id}
-      data-testid={testId}
-      onClick={onClick as never}
-      onMouseEnter={onMouseEnter as never}
-      onMouseLeave={onMouseLeave as never}
-      sx={sx}
-      {...(rest as Record<string, unknown>)}
+    <Root
+      {...(rootTag === "a" ? { href: known.href, target: known.target } : {})}
+      className={cn(known.className, derived().cls, derived().underlineClass)}
+      style={{ ...derived().style, ...(known.style as Record<string, unknown> | undefined) }}
+      id={known.id}
+      data-testid={known["data-testid"]}
+      onClick={known.onClick}
+      onMouseEnter={known.onMouseEnter}
+      onMouseLeave={known.onMouseLeave}
+      {...rest}
     >
-      {children}
-    </LinkAny>
+      {known.children}
+    </Root>
   );
 }

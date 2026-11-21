@@ -1,8 +1,8 @@
-import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
+import { createStore, produce } from "solid-js/store";
 
 export type AppRouteView = "screener" | "backtest" | "paper" | "sector" | "strategies" | "bots";
 
-type AppState = {
+export type AppState = {
   currentView: AppRouteView;
 };
 
@@ -10,15 +10,18 @@ const initialState: AppState = {
   currentView: "screener",
 };
 
-const appSlice = createSlice({
-  name: "app",
-  initialState,
-  reducers: {
-    setCurrentView(state, action: PayloadAction<AppRouteView>) {
-      state.currentView = action.payload;
-    },
-  },
-});
+/**
+ * App-level UI state.
+ *
+ * A Solid store (not Redux): `setCurrentView` mutates through `produce`, so
+ * subscribers re-run only when the field they read actually changes.
+ */
+export const [appStore, setAppStore] = createStore<AppState>(initialState);
 
-export const { setCurrentView } = appSlice.actions;
-export const appReducer = appSlice.reducer;
+export function setCurrentView(view: AppRouteView): void {
+  setAppStore(
+    produce((s) => {
+      s.currentView = view;
+    }),
+  );
+}

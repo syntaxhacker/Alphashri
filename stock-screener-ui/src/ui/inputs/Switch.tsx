@@ -1,114 +1,214 @@
-import MuiSwitch from "@mui/material/Switch";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import FormGroup from "@mui/material/FormGroup";
-import Typography from "@mui/material/Typography";
-import Box from "@mui/material/Box";
-import { alpha } from "@mui/material/styles";
+import { createMemo, createSignal, splitProps } from "solid-js";
+import { cn } from "../cn";
 import type { UISwitchProps } from "../types";
-import * as palette from "../palette";
 
-function mapSize(size: UISwitchProps["size"]): "small" | "medium" {
-  switch (size) {
-    case "xs":
-    case "sm":
-      return "small";
-    case "md":
-    case "lg":
-    case "xl":
+type SwitchProps = UISwitchProps;
+
+type TrackBox = { w: number; h: number };
+
+/**
+ * A switch is a *track with a knob*: the geometry is fixed per size and the
+ * knob travel is derived from it, so it can never render as a checked square.
+ */
+const TRACK_BOX: Record<string, TrackBox> = {
+  xs: { w: 26, h: 14 },
+  sm: { w: 30, h: 16 },
+  md: { w: 36, h: 20 },
+  lg: { w: 36, h: 20 },
+  xl: { w: 36, h: 20 },
+};
+
+const KNOB_INSET = 1;
+const TRACK_BORDER = 1;
+
+function trackBox(size?: UISwitchProps["size"]): TrackBox {
+  return TRACK_BOX[String(size)] ?? { w: 36, h: 20 };
+}
+
+/** 36×20 track → 16px knob; both derived so no size can drift out of round. */
+function knobSide(box: TrackBox): number {
+  return box.h - TRACK_BORDER * 2 - KNOB_INSET * 2;
+}
+
+function knobTravel(box: TrackBox): number {
+  return box.w - TRACK_BORDER * 2 - KNOB_INSET * 2 - knobSide(box);
+}
+
+/**
+ * Theme tokens, not palette hexes: an inline style outranks the light-theme
+ * override in tailwind.css, so a hex here leaves the track dark on a white page.
+ */
+function toneColor(color?: UISwitchProps["color"]): string {
+  switch (color) {
+    case "error":
+    case "danger":
+      return "var(--color-fin-negative)";
+    case "warning":
+      return "var(--color-fin-warning)";
+    case "info":
+      return "var(--color-fin-info)";
+    case "secondary":
+      return "var(--color-fin-text-muted)";
+    case "success":
+      return "var(--color-fin-positive)";
     default:
-      return "medium";
+      return "var(--color-fin-primary)";
   }
 }
 
-export function Switch({
-  label,
-  checked,
-  defaultChecked,
-  onChange,
-  disabled,
-  size,
-  color,
-  onLabel: _onLabel,
-  offLabel: _offLabel,
-  description,
-  className,
-  style,
-  "data-testid": testId,
-  id,
-  children: _children,
-  onClick: _onClick,
-  onMouseEnter: _onMouseEnter,
-  onMouseLeave: _onMouseLeave,
-  ...rest
-}: UISwitchProps) {
-  const muiSize = mapSize(size);
-  const onTone =
-    color === "error" || color === "danger"
-      ? palette.NEGATIVE
-      : color === "info"
-        ? palette.PRIMARY
-        : palette.POSITIVE;
-  const switchSx = {
-    "& .MuiSwitch-switchBase": { color: palette.TEXT_MUTED },
-    "& .MuiSwitch-switchBase.Mui-checked": { color: onTone },
-    // The track must stay legible on the dark surface: a 1px border plus a
-    // muted fill. A bare `palette.BORDER` track reads as a floating dot.
-    "& .MuiSwitch-track": {
-      backgroundColor: alpha(palette.TEXT_MUTED, 0.22),
-      opacity: 1,
-      border: `1px solid ${palette.BORDER}`,
-      boxSizing: "border-box",
-    },
-    "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
-      backgroundColor: alpha(onTone, 0.45),
-      opacity: 1,
-    },
-    "& .MuiSwitch-switchBase.Mui-disabled + .MuiSwitch-track": { opacity: 0.35 },
+export function Switch(props: SwitchProps) {
+  const [known, _rest] = splitProps(props, [
+    "label",
+    "checked",
+    "defaultChecked",
+    "onChange",
+    "disabled",
+    "size",
+    "color",
+    "error",
+    "onLabel",
+    "offLabel",
+    "description",
+    "className",
+    "style",
+    "id",
+    "data-testid",
+    "children",
+    "onClick",
+    "onMouseEnter",
+    "onMouseLeave",
+  ]);
+
+  const isControlled = createMemo(() => known.checked !== undefined);
+  const [internal, setInternal] = createSignal(known.defaultChecked ?? false);
+  const [focused, setFocused] = createSignal(false);
+  const isOn = createMemo(() => (isControlled() ? known.checked === true : internal()));
+  const isError = createMemo(() => Boolean(known.error));
+
+  const handleChange = (e: Event & { currentTarget: HTMLInputElement; target: Element }) => {
+    const next = e.currentTarget.checked;
+    if (!isControlled()) setInternal(next);
+    known.onChange?.(e);
   };
 
-  const control = (
-    <MuiSwitch
-      checked={checked}
-      defaultChecked={defaultChecked}
-      onChange={onChange}
-      disabled={disabled}
-      size={muiSize}
-      color={(color === "error" || color === "danger" ? "error" : color === "info" || color === "success" || color === "success" ? "success" : "primary") as never}
-      id={id}
-      slotProps={{ input: { "data-testid": testId } as never } as never}
-      sx={[switchSx, ...(style ? [style as Record<string, unknown>] : [])]}
-      {...(rest as any)}
-    />
+  const trackStyle = createMemo<Record<string, string>>(() => {
+    const box = trackBox(known.size);
+    const tone = toneColor(known.color);
+    const fill = known.disabled
+      ? "var(--color-fin-surface-alt)"
+      : isOn()
+        ? tone
+        : "var(--color-fin-surface-alt)";
+    // A focused track darkens in its own tone: the frame used to stay amber no
+    // matter which tone the fill was, so `color="success"` read as two objects.
+    const border = isError()
+      ? "var(--color-fin-negative)"
+      : focused()
+        ? tone
+        : isOn() && !known.disabled
+          ? tone
+          : "var(--color-fin-border)";
+    return {
+      width: `${box.w}px`,
+      height: `${box.h}px`,
+      display: "inline-block",
+      position: "relative",
+      "flex-shrink": "0",
+      "border-radius": "9999px",
+      "border-width": "1px",
+      "border-style": "solid",
+      "border-color": border,
+      "box-shadow": focused() ? `0 0 0 1px ${tone}` : "none",
+      "background-color": fill,
+      transition: "background-color 120ms linear, border-color 120ms linear",
+      cursor: known.disabled ? "not-allowed" : "pointer",
+    };
+  });
+
+  const knobStyle = createMemo<Record<string, string>>(() => {
+    const box = trackBox(known.size);
+    return {
+      width: `${knobSide(box)}px`,
+      height: `${knobSide(box)}px`,
+      "border-radius": "9999px",
+      "background-color": isOn()
+        ? known.disabled
+          ? "var(--color-fin-text-muted)"
+          : "var(--color-fin-bg)"
+        : "var(--color-fin-text-muted)",
+      position: "absolute",
+      top: "50%",
+      left: `${KNOB_INSET}px`,
+      // The knob's position — not its colour — carries the state when disabled.
+      transform: `translateY(-50%) translateX(${isOn() ? knobTravel(box) : 0}px)`,
+      transition: "transform 120ms linear, background-color 120ms linear",
+      "pointer-events": "none",
+    };
+  });
+
+  const rootClass = createMemo(() =>
+    cn(
+      "inline-flex items-center gap-2 leading-none",
+      known.disabled ? "opacity-[0.45] cursor-not-allowed" : undefined,
+      known.className,
+    ),
   );
 
-  if (!label && !description) {
+  const control = (
+    <span
+      role="presentation"
+      data-part="switch-track"
+      className="relative inline-block shrink-0"
+      style={trackStyle()}
+    >
+      <input
+        type="checkbox"
+        role="switch"
+        checked={isOn()}
+        disabled={known.disabled}
+        id={known.id}
+        data-testid={known["data-testid"]}
+        // The native input is an invisible hit area; the global
+        // `:is(input, …):focus` outline would draw a second, amber frame over
+        // the track's own focused state on every mouse click.
+        className="absolute inset-0 z-10 m-0 h-full w-full cursor-pointer appearance-none bg-transparent opacity-0 outline-none focus-visible:outline-none disabled:cursor-not-allowed"
+        onChange={handleChange}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+      />
+      <span aria-hidden="true" data-part="switch-knob" style={knobStyle()} />
+    </span>
+  );
+
+  if (!known.label && !known.description) {
     return (
-      <Box className={className} data-testid={testId ? `${testId}-wrapper` : undefined} sx={style ? { display: "inline-flex" } : undefined}>
+      <span
+        className={cn("inline-flex items-center", known.disabled && "opacity-[0.45] cursor-not-allowed", known.className)}
+        data-testid={known["data-testid"] ? `${known["data-testid"]}-wrapper` : undefined}
+        style={known.style}
+      >
         {control}
-      </Box>
+      </span>
     );
   }
 
-  const labelNode = (
-    <Box sx={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
-      {label ? <Typography variant="body2" component="span">{label}</Typography> : null}
-      {description ? (
-        <Typography variant="caption" color="text.secondary" component="span">
-          {description}
-        </Typography>
-      ) : null}
-    </Box>
-  );
-
   return (
-    <FormGroup className={className} style={style} data-testid={testId ? `${testId}-group` : undefined}>
-      <FormControlLabel
-        control={control}
-        label={labelNode}
-        disabled={disabled}
-        data-testid={testId ? `${testId}-label` : undefined}
-        sx={{ m: 0, alignItems: description ? "flex-start" : "center" }}
-      />
-    </FormGroup>
+    <label
+      className={rootClass()}
+      style={known.style}
+      data-testid={known["data-testid"] ? `${known["data-testid"]}-group` : undefined}
+    >
+      {control}
+      <span className="flex flex-col gap-0.5">
+        {known.label ? (
+          <span className="text-[10px] font-mono uppercase tracking-[0.06em] text-fin-text-muted leading-none">
+            {known.label}
+          </span>
+        ) : null}
+        {known.description ? (
+          <span className="text-[10px] text-fin-text-muted leading-none">{known.description}</span>
+        ) : null}
+      </span>
+    </label>
   );
 }

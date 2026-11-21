@@ -10,9 +10,10 @@ Provides:
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-import asyncio
 import secrets
-import os
+import threading
+import time
+import weakref
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -42,6 +43,112 @@ security = HTTPBearer(
     scheme_name="bearerAuth",
     description="JWT access token from POST /api/auth/login (sent as 'Authorization: Bearer <token>').",
 )
+
+
+# --- Current-user cache -------------------------------------------------------
+# Every protected request re-read the same `users` row, which queued a worker
+# task (and a SQLite read) behind whatever the TV scans were doing. The row
+# changes only through PUT /api/auth/me, so a short TTL plus invalidation on
+# that endpoint (and on logout) removes one executor task per request.
+#
+# Entries are keyed by (user_id, token jti), not user_id alone: the token is what
+# proved the identity, so a cached row can never be served to a different
+# session, and a refreshed token is revalidated against the DB. A user can be
+# deactivated only by an ops write, which the TTL bounds.
+USER_CACHE_TTL_SECONDS = 45.0
+USER_CACHE_MAX_ENTRIES = 512
+
+_user_cache_lock = threading.Lock()
+# Partitioned by bind: one process can serve more than one database (the test
+# suite builds a fresh in-memory one per test), and a cached user row must never
+# leak across them. Keys are held weakly so a discarded engine drops its bucket.
+_user_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+
+
+def _cache_bucket(db: Session):
+    try:
+        bind = db.get_bind()
+    except Exception:
+        return None
+    if bind is None:
+        return None
+    try:
+        with _user_cache_lock:
+            bucket = _user_cache.get(bind)
+            if bucket is None:
+                bucket = {}
+                _user_cache[bind] = bucket
+            return bucket
+    except TypeError:
+        # Bind is not weak-referenceable; caching is optional, so skip it.
+        return None
+
+
+def _cached_user(db: Session, user_id: int, token_id: Optional[str]) -> Optional[User]:
+    bucket = _cache_bucket(db)
+    if bucket is None:
+        return None
+    key = (user_id, token_id)
+    with _user_cache_lock:
+        entry = bucket.get(key)
+        if entry is None:
+            return None
+        expires_at, user = entry
+        if expires_at <= time.monotonic():
+            bucket.pop(key, None)
+            return None
+        return user
+
+
+def _store_user(db: Session, user: User, token_id: Optional[str]) -> None:
+    bucket = _cache_bucket(db)
+    if bucket is None:
+        return
+    with _user_cache_lock:
+        if len(bucket) >= USER_CACHE_MAX_ENTRIES:
+            bucket.clear()
+        bucket[(user.id, token_id)] = (time.monotonic() + USER_CACHE_TTL_SECONDS, user)
+
+
+def _user_snapshot(row: User) -> User:
+    """Detached copy of a user row.
+
+    Detached on purpose: the cached instance must not be mutated or flushed by
+    whichever request happens to hold it.
+    """
+    return User(
+        id=row.id,
+        uuid=row.uuid,
+        email=row.email,
+        hashed_password=row.hashed_password,
+        display_name=row.display_name,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+        is_active=row.is_active,
+        is_admin=row.is_admin,
+        initial_capital=row.initial_capital,
+    )
+
+
+def invalidate_user_cache(user_id: Optional[int] = None, db: Optional[Session] = None) -> None:
+    """Drop one user (or every user when ``user_id`` is None) from the cache."""
+    with _user_cache_lock:
+        if db is not None:
+            buckets = []
+            try:
+                bucket = _user_cache.get(db.get_bind())
+                if bucket is not None:
+                    buckets.append(bucket)
+            except Exception:
+                pass
+        else:
+            buckets = list(_user_cache.values())
+        for bucket in buckets:
+            if user_id is None:
+                bucket.clear()
+            else:
+                for key in [k for k in bucket if k[0] == user_id]:
+                    bucket.pop(key, None)
 
 
 # Pydantic models
@@ -158,95 +265,78 @@ def decode_token(token: str) -> Optional[dict]:
         return None
 
 
-# Dependency for protected routes
-async def get_current_user(
+def _unauthorized(detail: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=detail,
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+# Dependency for protected routes.
+# Sync on purpose: FastAPI runs it on the anyio worker pool, so the user lookup
+# never touches the event loop. On a cache hit it performs no I/O at all.
+def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: Session = Depends(get_db)
 ) -> User:
     """Get current user from JWT token."""
     if credentials is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise _unauthorized("Not authenticated")
 
     token = credentials.credentials
     payload = decode_token(token)
 
     if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise _unauthorized("Invalid or expired token")
 
     if payload.get("type") != "access":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token type",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise _unauthorized("Invalid token type")
 
     user_id = payload.get("sub")
     if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token: missing subject",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise _unauthorized("Invalid token: missing subject")
     try:
         user_id = int(user_id)
     except (ValueError, TypeError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token: malformed subject",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise _unauthorized("Invalid token: malformed subject")
 
-    def _sync():
-        return db.query(User).filter(User.id == user_id, User.is_active == True).first()
-
-    user = await asyncio.to_thread(_sync)
+    token_id = payload.get("jti")
+    user = _cached_user(db, user_id, token_id)
     if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or inactive",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        row = db.query(User).filter(User.id == user_id, User.is_active == True).first()
+        if row is None:
+            raise _unauthorized("User not found or inactive")
+        user = _user_snapshot(row)
+        _store_user(db, user, token_id)
 
     return user
 
 
 # API Endpoints
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(
+def register(
     user_data: UserRegister,
     db: Session = Depends(get_db)
 ):
     """Register a new user."""
     hashed_password = hash_password(user_data.password)
 
-    def _sync():
-        existing_user = db.query(User).filter(User.email == user_data.email).first()
-        if existing_user:
-            return ("exists", None)
-        user = User(
-            email=user_data.email,
-            hashed_password=hashed_password,
-            display_name=user_data.display_name or user_data.email.split('@')[0],
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        return ("ok", user)
-
-    result, user = await asyncio.to_thread(_sync)
-    if result == "exists":
+    existing_user = db.query(User).filter(User.email == user_data.email).first()
+    if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
         )
+
+    user = User(
+        email=user_data.email,
+        hashed_password=hashed_password,
+        display_name=user_data.display_name or user_data.email.split('@')[0],
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
 
     # Create tokens
     access_token, _ = create_access_token(user.id)
@@ -260,29 +350,18 @@ async def register(
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(
+def login(
     credentials: UserLogin,
     db: Session = Depends(get_db)
 ):
     """Login and get tokens."""
-    def _sync():
-        return db.query(User).filter(User.email == credentials.email).first()
-
-    user = await asyncio.to_thread(_sync)
+    user = db.query(User).filter(User.email == credentials.email).first()
 
     if user is None or not verify_password(credentials.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise _unauthorized("Invalid email or password")
 
     if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User account is disabled",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise _unauthorized("User account is disabled")
 
     # Create tokens
     access_token, _ = create_access_token(user.id)
@@ -296,7 +375,7 @@ async def login(
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh_token(
+def refresh_token(
     refresh_data: RefreshRequest,
     db: Session = Depends(get_db)
 ):
@@ -312,24 +391,18 @@ async def refresh_token(
     jti = payload.get("jti")
     user_id = int(payload.get("sub"))
 
-    def _sync():
-        session = db.query(UserSession).filter(
-            UserSession.id == jti,
-            UserSession.user_id == user_id,
-            UserSession.revoked == False,
-        ).first()
-        if session is None:
-            return False
-        session.revoked = True
-        db.commit()
-        return True
-
-    found = await asyncio.to_thread(_sync)
-    if not found:
+    session = db.query(UserSession).filter(
+        UserSession.id == jti,
+        UserSession.user_id == user_id,
+        UserSession.revoked == False,
+    ).first()
+    if session is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Session not found or revoked",
         )
+    session.revoked = True
+    db.commit()
 
     # Create new tokens
     access_token, _ = create_access_token(user_id)
@@ -343,7 +416,7 @@ async def refresh_token(
 
 
 @router.post("/logout")
-async def logout(
+def logout(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ):
@@ -353,21 +426,25 @@ async def logout(
 
     payload = decode_token(credentials.credentials)
 
-    def _sync():
-        if payload and payload.get("type") == "refresh":
-            jti = payload.get("jti")
-            session = db.query(UserSession).filter(UserSession.id == jti).first()
-            if session:
-                session.revoked = True
-                db.commit()
+    if payload and payload.get("type") == "refresh":
+        jti = payload.get("jti")
+        session = db.query(UserSession).filter(UserSession.id == jti).first()
+        if session:
+            session.revoked = True
+            db.commit()
 
-    await asyncio.to_thread(_sync)
+    subject = payload.get("sub") if payload else None
+    if subject is not None:
+        try:
+            invalidate_user_cache(int(subject))
+        except (ValueError, TypeError):
+            pass
 
     return {"message": "Logged out successfully"}
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(
+def get_me(
     user: User = Depends(get_current_user)
 ):
     """Get current user info."""
@@ -375,22 +452,26 @@ async def get_me(
 
 
 @router.put("/me", response_model=UserResponse)
-async def update_me(
+def update_me(
     display_name: Optional[str] = None,
     initial_capital: Optional[float] = None,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Update current user settings."""
+    # Re-read the live row: `user` may be the cached snapshot, which must not be
+    # written back through this request's session.
+    row = db.query(User).filter(User.id == user.id).first()
+    if row is None:
+        raise _unauthorized("User not found or inactive")
+
     if display_name is not None:
-        user.display_name = display_name
+        row.display_name = display_name
     if initial_capital is not None:
-        user.initial_capital = initial_capital
+        row.initial_capital = initial_capital
 
-    def _sync():
-        db.commit()
-        db.refresh(user)
+    db.commit()
+    db.refresh(row)
+    invalidate_user_cache(row.id)
 
-    await asyncio.to_thread(_sync)
-
-    return UserResponse.model_validate(user)
+    return UserResponse.model_validate(row)

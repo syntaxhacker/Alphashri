@@ -1,7 +1,6 @@
-import { memo } from "react";
-import type { ReactNode } from "react";
-import Box from "@mui/material/Box";
-import Tooltip from "@mui/material/Tooltip";
+import type { JSX } from "solid-js";
+import { Show } from "solid-js";
+import { Tooltip, useMediaQuery } from "@/ui";
 import type { NiftyReport } from "@/types/niftyReport";
 import * as palette from "@/ui/palette";
 import { controlLabel } from "./NiftyVerdictStrip";
@@ -23,43 +22,50 @@ const TONE_COLOR: Record<FlowTone, string> = {
   flat: palette.TEXT_MUTED,
 };
 
-function Cell({
-  label,
-  tone,
-  value,
-  emphasis = false,
-  testId,
-}: {
+function Cell(props: {
   label: string;
   tone: FlowTone;
-  value: ReactNode;
+  value: JSX.Element;
   emphasis?: boolean;
   testId?: string;
 }) {
+  const emphasis = () => props.emphasis ?? false;
   return (
-    <Box
-      data-testid={testId}
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        gap: `${REPORT_PAD.sm}px`,
-        minWidth: 0,
-        pl: `${REPORT_PAD.md}px`,
-        pr: emphasis ? `${REPORT_PAD.sm}px` : 0,
-        bgcolor: emphasis ? palette.SURFACE_ALT : "transparent",
-        borderLeft: emphasis
-          ? `2px solid ${TONE_COLOR[tone]}`
+    <div
+      data-testid={props.testId}
+      class="flex items-center min-w-0"
+      style={{
+        "gap": `${REPORT_PAD.sm}px`,
+        "padding-left": `${REPORT_PAD.md}px`,
+        "padding-right": emphasis() ? `${REPORT_PAD.sm}px` : "0",
+        "background-color": emphasis() ? palette.SURFACE_ALT : "transparent",
+        "border-left": emphasis()
+          ? `2px solid ${TONE_COLOR[props.tone]}`
           : `1px solid ${palette.TERM_BORDER}`,
       }}
     >
-      <Box component="span" sx={{ color: palette.TEXT_MUTED, fontWeight: 700, letterSpacing: "0.06em", flexShrink: 0 }}>
-        {label}
-      </Box>
-      <Box component="span" sx={{ color: TONE_COLOR[tone], fontWeight: emphasis ? 800 : 700, whiteSpace: "nowrap" }}>
-        {value}
-      </Box>
-    </Box>
+      <span style={{ color: palette.TEXT_MUTED, "font-weight": 700, "letter-spacing": "0.06em", "flex-shrink": 0 }}>
+        {props.label}
+      </span>
+      <span style={{ color: TONE_COLOR[props.tone], "font-weight": emphasis() ? 800 : 700, "white-space": "nowrap" }}>
+        {props.value}
+      </span>
+    </div>
   );
+}
+
+/** Flow-window geometry. At 390 the three legs stack so no cell can draw over
+ *  another (the audit found SESSION text overlapping the 15m/5m values);
+ *  desktop keeps the original single 24px row. */
+export function flowWindowsLayout(narrow: boolean) {
+  return {
+    wrap: narrow,
+    direction: narrow ? ("column" as const) : ("row" as const),
+    height: narrow ? "auto" : `${REPORT_ROW.normal}px`,
+    minHeight: `${REPORT_ROW.normal}px`,
+    overflow: narrow ? "visible" : "hidden",
+    whiteSpace: "nowrap",
+  };
 }
 
 /**
@@ -71,97 +77,95 @@ function Cell({
  * disagrees — is the point: the old single label made the flip invisible and
  * read as a contradiction against the heatmap.
  */
-export const NiftyFlowWindows = memo(function NiftyFlowWindows({
-  report,
-  lastFlip = null,
-  showSessionValue = true,
-}: {
+export function NiftyFlowWindows(props: {
   report: NiftyReport;
   lastFlip?: FlowLastFlip | null;
   /** NIFTY's `control.flow_bias` is ₹ crore; generic underlyings use a
    *  different premium unit, so their session cell shows the verdict only. */
   showSessionValue?: boolean;
 }) {
-  const fw = report.flow_window;
-  const leg5 = fw?.["5m"];
-  const leg15 = fw?.["15m"];
-  const session = sessionTone(report.control?.verdict);
-  const flip = detectFlowFlip(leg5, leg15, session);
-  const leg5c = classifyFlowLeg(leg5);
-  const leg15c = classifyFlowLeg(leg15);
-  const sessionLabel = controlLabel(report.control?.verdict).replace(/^SESSION(?: FLOW)? · /, "");
-  const flipAt = leg5?.from ? String(leg5.from).slice(11, 16) : null;
-  const lastFlipAt = flowFlipClock(lastFlip?.at);
+  const narrow = useMediaQuery("(max-width: 600px)");
+  const layout = () => flowWindowsLayout(narrow());
+  const report = () => props.report;
+  const lastFlip = () => props.lastFlip ?? null;
+  const showSessionValue = () => props.showSessionValue ?? true;
+  const fw = () => report().flow_window;
+  const leg5 = () => fw()?.["5m"];
+  const leg15 = () => fw()?.["15m"];
+  const session = () => sessionTone(report().control?.verdict);
+  const flip = () => detectFlowFlip(leg5(), leg15(), session());
+  const leg5c = () => classifyFlowLeg(leg5());
+  const leg15c = () => classifyFlowLeg(leg15());
+  const sessionLabel = () => controlLabel(report().control?.verdict).replace(/^SESSION(?: FLOW)? · /, "");
+  const flipAt = () => (leg5()?.from ? String(leg5()!.from).slice(11, 16) : null);
+  const lastFlipAt = () => flowFlipClock(lastFlip()?.at);
 
   return (
-    <Box
+    <div
       data-testid="nifty-flow-windows"
       title="SESSION = premium flow (cumulative) · 15m/5m = CE/PE OI change. FLOW FLIP means the 5m leg disagrees with the 15m or the session."
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        gap: `${REPORT_PAD.md}px`,
-        height: REPORT_ROW.normal,
-        minHeight: REPORT_ROW.normal,
-        px: `${REPORT_PAD.md}px`,
-        borderTop: `1px solid ${palette.TERM_BORDER}`,
-        borderBottom: `1px solid ${palette.TERM_BORDER}`,
-        bgcolor: palette.TERM_HEADER,
-        fontFamily: palette.MONO,
-        fontSize: REPORT_FONT.xs,
-        whiteSpace: "nowrap",
-        overflow: "hidden",
-        flexShrink: 0,
+      class={`flex min-w-0 ${layout().direction === "column" ? "flex-col items-stretch" : "flex-row items-center"}`}
+      style={{
+        "gap": `${REPORT_PAD.md}px`,
+        "height": layout().height,
+        "min-height": layout().minHeight,
+        "padding-left": `${REPORT_PAD.md}px`,
+        "padding-right": `${REPORT_PAD.md}px`,
+        "border-top": `1px solid ${palette.TERM_BORDER}`,
+        "border-bottom": `1px solid ${palette.TERM_BORDER}`,
+        "background-color": palette.TERM_HEADER,
+        "font-family": palette.MONO,
+        "font-size": `${REPORT_FONT.xs}px`,
+        "white-space": "nowrap",
+        "overflow": layout().overflow,
+        "flex-shrink": 0,
       }}
     >
-      <Box component="span" sx={{ color: palette.TEXT_MUTED, fontWeight: 800, fontSize: REPORT_FONT.micro, letterSpacing: "0.1em" }}>
+      <span style={{ color: palette.TEXT_MUTED, "font-weight": 800, "font-size": `${REPORT_FONT.micro}px`, "letter-spacing": "0.1em" }}>
         WINDOWS
-      </Box>
+      </span>
 
       <Tooltip
-        title="CALL BID = CE build + PE unwind · PUT BID = CE unwind + PE build · BOTH BUILD/UNWIND = two-sided, no direction"
-        placement="bottom-start"
-        enterTouchDelay={0}
+        label="CALL BID = CE build + PE unwind · PUT BID = CE unwind + PE build · BOTH BUILD/UNWIND = two-sided, no direction"
+        position="bottom-start"
       >
-        <Box
-          component="span"
+        <span
           role="button"
           tabIndex={0}
           data-testid="flow-legend"
           aria-label="Flow window legend: CALL BID means call OI build plus put unwind; PUT BID means call unwind plus put build; BOTH BUILD or BOTH UNWIND is two-sided with no direction"
-          sx={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 14,
-            height: 14,
-            flexShrink: 0,
-            borderRadius: `${REPORT_RADIUS.sm}px`,
-            border: `1px solid ${palette.TERM_BORDER}`,
+          style={{
+            "display": "inline-flex",
+            "align-items": "center",
+            "justify-content": "center",
+            "width": "14px",
+            "height": "14px",
+            "flex-shrink": 0,
+            "border-radius": `${REPORT_RADIUS.sm}px`,
+            "border": `1px solid ${palette.TERM_BORDER}`,
             color: palette.TEXT_MUTED,
-            fontSize: REPORT_FONT.micro,
-            fontWeight: 800,
-            lineHeight: 1,
-            cursor: "help",
-            "&:hover, &:focus-visible": { color: palette.TEXT, borderColor: palette.TEXT_MUTED, outline: "none" },
+            "font-size": `${REPORT_FONT.micro}px`,
+            "font-weight": 800,
+            "line-height": 1,
+            "cursor": "help",
           }}
         >
           ?
-        </Box>
+        </span>
       </Tooltip>
 
       <Cell
         testId="flow-session"
         label="SESSION"
-        tone={session}
+        tone={session()}
         value={
           <>
-            {sessionLabel}
-            {showSessionValue ? (
-              <Box component="span" sx={{ color: palette.TEXT_MUTED, fontWeight: 500 }}>
-                {" "}{fmtFlowCr(report.control?.flow_bias)}
-              </Box>
-            ) : null}
+            {sessionLabel()}
+            <Show when={showSessionValue()}>
+              <span style={{ color: palette.TEXT_MUTED, "font-weight": 500 }}>
+                {" "}{fmtFlowCr(report().control?.flow_bias)}
+              </span>
+            </Show>
           </>
         }
       />
@@ -169,11 +173,11 @@ export const NiftyFlowWindows = memo(function NiftyFlowWindows({
       <Cell
         testId="flow-15m"
         label="15m"
-        tone={leg15c.tone}
+        tone={leg15c().tone}
         value={
           <>
-            CE {fmtFlowOi(leg15?.ce)} · PE {fmtFlowOi(leg15?.pe)}{" "}
-            <Box component="span" sx={{ color: TONE_COLOR[leg15c.tone], fontWeight: 800 }}>{leg15c.label}</Box>
+            CE {fmtFlowOi(leg15()?.ce)} · PE {fmtFlowOi(leg15()?.pe)}{" "}
+            <span style={{ color: TONE_COLOR[leg15c().tone], "font-weight": 800 }}>{leg15c().label}</span>
           </>
         }
       />
@@ -181,65 +185,73 @@ export const NiftyFlowWindows = memo(function NiftyFlowWindows({
       <Cell
         testId="flow-5m"
         label="5m"
-        tone={leg5c.tone}
+        tone={leg5c().tone}
         emphasis
         value={
           <>
-            CE {fmtFlowOi(leg5?.ce)} · PE {fmtFlowOi(leg5?.pe)}{" "}
-            <Box component="span" sx={{ color: TONE_COLOR[leg5c.tone], fontWeight: 800 }}>{leg5c.label}</Box>
+            CE {fmtFlowOi(leg5()?.ce)} · PE {fmtFlowOi(leg5()?.pe)}{" "}
+            <span style={{ color: TONE_COLOR[leg5c().tone], "font-weight": 800 }}>{leg5c().label}</span>
           </>
         }
       />
 
-      {flip.flipped ? (
-        <Box
+      <Show
+        when={flip().flipped}
+        fallback={
+          <div
+            data-testid="flow-aligned"
+            class="shrink-0"
+            style={{
+              "margin-left": "auto",
+              "color": palette.TEXT_MUTED,
+              "font-weight": 700,
+              "letter-spacing": "0.05em",
+            }}
+          >
+            ALIGNED
+          </div>
+        }
+      >
+        <div
           data-testid="flow-flip"
-          sx={{
-            ml: "auto",
-            display: "flex",
-            alignItems: "center",
-            gap: `${REPORT_PAD.sm}px`,
-            px: `${REPORT_PAD.sm}px`,
-            py: "1px",
+          class="flex items-center shrink-0"
+          style={{
+            "margin-left": "auto",
+            "gap": `${REPORT_PAD.sm}px`,
+            "padding-left": `${REPORT_PAD.sm}px`,
+            "padding-right": `${REPORT_PAD.sm}px`,
+            "padding-top": "1px",
+            "padding-bottom": "1px",
             color: palette.WARNING,
-            border: `1px solid ${palette.WARNING}`,
-            borderRadius: `${REPORT_RADIUS.sm}px`,
-            fontWeight: 800,
-            letterSpacing: "0.05em",
-            flexShrink: 0,
+            "border": `1px solid ${palette.WARNING}`,
+            "border-radius": `${REPORT_RADIUS.sm}px`,
+            "font-weight": 800,
+            "letter-spacing": "0.05em",
           }}
         >
-          FLOW FLIP{flipAt ? ` since ${flipAt}` : ""} · {flip.reason}
-        </Box>
-      ) : (
-        <Box
-          data-testid="flow-aligned"
-          sx={{ ml: "auto", color: palette.TEXT_MUTED, fontWeight: 700, letterSpacing: "0.05em", flexShrink: 0 }}
-        >
-          ALIGNED
-        </Box>
-      )}
+          FLOW FLIP{flipAt() ? ` since ${flipAt()}` : ""} · {flip().reason}
+        </div>
+      </Show>
 
-      {!flip.flipped && lastFlipAt ? (
-        <Box
-          component="span"
+      <Show when={!flip().flipped && lastFlipAt()}>
+        <span
           data-testid="flow-last-flip"
-          title={`Last 5m sign flip ${lastFlipAt}${lastFlip?.reason ? ` · ${lastFlip.reason}` : ""}`}
-          sx={{
+          title={`Last 5m sign flip ${lastFlipAt()}${lastFlip()?.reason ? ` · ${lastFlip()!.reason}` : ""}`}
+          style={{
             color: palette.TEXT_MUTED,
-            fontWeight: 700,
-            letterSpacing: "0.05em",
-            flexShrink: 0,
-            px: `${REPORT_PAD.sm}px`,
-            border: `1px solid ${palette.TERM_BORDER}`,
-            borderRadius: `${REPORT_RADIUS.sm}px`,
+            "font-weight": 700,
+            "letter-spacing": "0.05em",
+            "flex-shrink": 0,
+            "padding-left": `${REPORT_PAD.sm}px`,
+            "padding-right": `${REPORT_PAD.sm}px`,
+            "border": `1px solid ${palette.TERM_BORDER}`,
+            "border-radius": `${REPORT_RADIUS.sm}px`,
             opacity: 0.85,
           }}
         >
-          LAST FLOW FLIP {lastFlipAt}
-        </Box>
-      ) : null}
-    </Box>
+          LAST FLOW FLIP {lastFlipAt()}
+        </span>
+      </Show>
+    </div>
   );
-});
-NiftyFlowWindows.displayName = "NiftyFlowWindows";
+}

@@ -1,5 +1,7 @@
-import Box from "@mui/material/Box";
+import { Show } from "solid-js";
+import { Box } from "@/ui";
 import { Text, Badge } from "@/ui";
+import * as palette from "@/ui/palette";
 
 interface ChainFooterProps {
   theme: any;
@@ -7,27 +9,27 @@ interface ChainFooterProps {
   spotPrice: number | null;
 }
 
-export function ChainFooter({ spotPrice }: ChainFooterProps) {
+export function ChainFooter(props: ChainFooterProps) {
   return (
     <Box
-      className="chain-table-footer"
+      className="chain-table-footer flex items-center justify-center gap-[8px] p-[8px] flex-wrap w-full"
+      style={{ "background-color": palette.SURFACE, "flex-wrap": "wrap" }}
       data-testid="options-chain-table-footer"
-      sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, bgcolor: "background.paper", flexWrap: "wrap", width: "100%" }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1, flexWrap: "wrap", justifyContent: "center" }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }} data-testid="options-legend-itm">
-          <Box sx={{ width: 10, height: 10, borderRadius: 999, bgcolor: "success.main" }} />
-          <Text size="sm" c="dimmed">
+      <Box className="flex items-center gap-[8px] p-[8px] flex-wrap justify-center">
+        <Box className="flex items-center gap-[4px]" data-testid="options-legend-itm">
+          <Box style={{ width: "10px", height: "10px", "border-radius": "9999px", "background-color": palette.POSITIVE }} />
+          <Text size="sm" className="text-fin-text-muted">
             ITM (In The Money)
           </Text>
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }} data-testid="options-legend-atm">
-          <Box sx={{ width: 10, height: 10, borderRadius: 999, bgcolor: "warning.main" }} />
-          <Text size="sm" c="dimmed">
+        <Box className="flex items-center gap-[4px]" data-testid="options-legend-atm">
+          <Box style={{ width: "10px", height: "10px", "border-radius": "9999px", "background-color": palette.WARNING }} />
+          <Text size="sm" className="text-fin-text-muted">
             ATM (At The Money)
           </Text>
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }} data-testid="options-legend-badges">
+        <Box className="flex items-center gap-[8px] flex-wrap" data-testid="options-legend-badges">
           <Badge size="sm" variant="light" color="success">
             LB: Long Buildup
           </Badge>
@@ -42,14 +44,16 @@ export function ChainFooter({ spotPrice }: ChainFooterProps) {
           </Badge>
         </Box>
       </Box>
-      {spotPrice && (
-        <Text size="sm" fw={600} className="chain-spot-price" data-testid="options-chain-spot-price">
-          Spot:{" "}
-          <Text component="span" c="primary">
-            {spotPrice.toFixed(2)}
+      <Show when={props.spotPrice}>
+        {(spot) => (
+          <Text size="sm" fw={600} className="chain-spot-price" data-testid="options-chain-spot-price">
+            Spot:{" "}
+            <Text component="span" className="text-fin-primary">
+              {spot().toFixed(2)}
+            </Text>
           </Text>
-        </Text>
-      )}
+        )}
+      </Show>
     </Box>
   );
 }

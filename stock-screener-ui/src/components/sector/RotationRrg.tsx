@@ -1,15 +1,15 @@
-import { Fragment, useMemo } from "react";
+import { For, Show, createMemo } from "solid-js";
 import { Box, Text, Tooltip } from "@/ui";
-import { CREAM, MONO, TEXT, TEXT_MUTED } from "@/ui/palette";
+import { BG_COLOR, CREAM, ROTATION_IMPROVING, ROTATION_LAGGING, ROTATION_LEADING, ROTATION_WEAKENING, TEXT, TEXT_MUTED } from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import { formatPercentage } from "@/utils/ui-helpers";
 import type { RotationQuadrant, RotationRow } from "@/types/rotation";
 
 const QUADRANT_COLORS: Record<RotationQuadrant, string> = {
-  leading: "#4C9A8F",
-  improving: "#5B8DEF",
-  weakening: "#C9A227",
-  lagging: "#C05A5A",
+  leading: ROTATION_LEADING,
+  improving: ROTATION_IMPROVING,
+  weakening: ROTATION_WEAKENING,
+  lagging: ROTATION_LAGGING,
 };
 
 const QUADRANT_LABELS: Record<RotationQuadrant, string> = {
@@ -49,20 +49,14 @@ function dotRadius(row: RotationRow): number {
   return 4 + Math.min(5, Math.sqrt(Math.max(1, row.members)) * 0.55);
 }
 
-function Meta({ label, value }: { label: string; value: string }) {
+function Meta(props: { label: string; value: string }) {
   return (
     <>
-      <Text sx={{ fontSize: 9.5, lineHeight: 1.35, color: "text.secondary" }}>{label}</Text>
+      <Text className="text-[9.5px] leading-[1.35] text-fin-text-muted">{props.label}</Text>
       <Text
-        sx={{
-          fontSize: 9.5,
-          lineHeight: 1.35,
-          fontFamily: MONO,
-          textAlign: "right",
-          fontVariantNumeric: "tabular-nums",
-        }}
+        className="text-[9.5px] leading-[1.35] font-mono text-right tabular-nums"
       >
-        {value}
+        {props.value}
       </Text>
     </>
   );
@@ -74,72 +68,58 @@ export interface RotationRrgProps {
   onSelect: (id: string) => void;
 }
 
-export function RotationRrg({ rows, selectedId, onSelect }: RotationRrgProps) {
-  const xDomain = useMemo(() => domainOf(rows.map((r) => r.rs_pct)), [rows]);
-  const yDomain = useMemo(() => domainOf(rows.map((r) => r.mom_pct)), [rows]);
-  const x = (v: number) => scale(v, xDomain);
-  const y = (v: number) => scale(v, yDomain);
-  const cx = x(50);
-  const cy = y(50);
+export function RotationRrg(props: RotationRrgProps) {
+  const rows = () => props.rows;
+  const selectedId = () => props.selectedId;
+  const xDomain = createMemo(() => domainOf(rows().map((r) => r.rs_pct)));
+  const yDomain = createMemo(() => domainOf(rows().map((r) => r.mom_pct)));
+  const x = (v: number) => scale(v, xDomain());
+  const y = (v: number) => scale(v, yDomain());
 
   // Labels: the most extreme groups plus the selection, dropping any label
   // whose anchor sits on top of one already placed.
-  const labelledIds = useMemo(() => {
+  const labelledIds = createMemo(() => {
     const placed: { x: number; y: number }[] = [];
     const ids = new Set<string>();
-    const sorted = [...rows].sort((a, b) => extremity(b) - extremity(a));
+    const sorted = [...rows()].sort((a, b) => extremity(b) - extremity(a));
     for (const row of sorted) {
-      if (ids.size >= MAX_LABELS && row.id !== selectedId) continue;
-      const px = scale(row.rs_pct, xDomain);
-      const py = scale(row.mom_pct, yDomain);
+      if (ids.size >= MAX_LABELS && row.id !== selectedId()) continue;
+      const px = scale(row.rs_pct, xDomain());
+      const py = scale(row.mom_pct, yDomain());
       const collides = placed.some((p) => Math.abs(p.x - px) < 8 && Math.abs(p.y - py) < 7);
-      if (collides && row.id !== selectedId) continue;
+      if (collides && row.id !== selectedId()) continue;
       placed.push({ x: px, y: py });
       ids.add(row.id);
     }
     return ids;
-  }, [rows, selectedId, xDomain, yDomain]);
+  });
 
-  const counts = useMemo(() => {
+  const counts = createMemo(() => {
     const base: Record<RotationQuadrant, number> = {
       leading: 0,
       improving: 0,
       weakening: 0,
       lagging: 0,
     };
-    for (const row of rows) base[row.quadrant] += 1;
+    for (const row of rows()) base[row.quadrant] += 1;
     return base;
-  }, [rows]);
+  });
 
-  const xTicks = [xDomain.lo, 50, xDomain.hi];
-  const yTicks = [yDomain.lo, 50, yDomain.hi];
+  const xTicks = () => [xDomain().lo, 50, xDomain().hi];
+  const yTicks = () => [yDomain().lo, 50, yDomain().hi];
+  const cx = () => x(50);
+  const cy = () => y(50);
 
   return (
     <Box
       data-testid="rotation-rrg"
-      sx={{ display: "flex", flexDirection: "column", flex: 1, height: "100%", minHeight: 0, minWidth: 0 }}
+      className="flex flex-col flex-1 h-full min-h-0 min-w-0"
     >
-      <Box sx={{ flex: 1, minHeight: 0, display: "flex", gap: 0.75, p: 1, pb: 0.5 }}>
-        <Box
-          sx={{
-            width: 12,
-            flexShrink: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
+      <Box className="flex-1 min-h-0 flex gap-[6px] p-2 pb-[4px]">
+        <Box className="w-[12px] shrink-0 flex items-center justify-center">
           <Box
             component="span"
-            sx={{
-              writingMode: "vertical-rl",
-              transform: "rotate(180deg)",
-              fontSize: 9,
-              letterSpacing: 0.6,
-              textTransform: "uppercase",
-              color: TEXT_MUTED,
-              whiteSpace: "nowrap",
-            }}
+            className="writing-mode-vertical-rl rotate-180 text-[9px] tracking-[0.6px] uppercase text-fin-text-muted whitespace-nowrap"
           >
             Momentum
           </Box>
@@ -147,163 +127,128 @@ export function RotationRrg({ rows, selectedId, onSelect }: RotationRrgProps) {
 
         <Box
           data-testid="rotation-rrg-chart"
-          sx={{
-            position: "relative",
-            flex: 1,
-            minWidth: 0,
-            minHeight: 0,
-            border: 1,
-            borderColor: "divider",
-            borderRadius: 1,
-            overflow: "hidden",
-            bgcolor: "background.paper",
-          }}
+          className="relative flex-1 min-w-0 min-h-0 border border-fin-border rounded-[1px] overflow-hidden bg-fin-surface"
         >
-          {rows.length === 0 ? (
-            <Box
-              sx={{
-                position: "absolute",
-                inset: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Text sx={{ fontSize: 11, color: TEXT_MUTED }}>No rotation groups</Text>
-            </Box>
-          ) : (
+          <Show when={rows().length === 0} fallback={
             <>
               {/* Quadrant tints anchored to the scaled 50/50 split. */}
-              {(
-                [
-                  { key: "improving", left: 0, top: 0, w: cx, h: 100 - cy },
-                  { key: "leading", left: cx, top: 0, w: 100 - cx, h: 100 - cy },
-                  { key: "lagging", left: 0, top: 100 - cy, w: cx, h: cy },
-                  { key: "weakening", left: cx, top: 100 - cy, w: 100 - cx, h: cy },
-                ] as const
-              ).map(({ key, left, top, w, h }) => {
+              <For each={[
+                  { key: "improving" as RotationQuadrant, left: 0, top: 0, w: cx(), h: 100 - cy() },
+                  { key: "leading" as RotationQuadrant, left: cx(), top: 0, w: 100 - cx(), h: 100 - cy() },
+                  { key: "lagging" as RotationQuadrant, left: 0, top: 100 - cy(), w: cx(), h: cy() },
+                  { key: "weakening" as RotationQuadrant, left: cx(), top: 100 - cy(), w: 100 - cx(), h: cy() },
+                ]}>
+                {({ key, left, top, w, h }) => {
                 const color = QUADRANT_COLORS[key];
                 const topSide = top === 0;
                 const leftSide = left === 0;
                 return (
                   <Box
-                    key={key}
-                    sx={{
-                      position: "absolute",
+                    className="absolute pointer-events-none"
+                    style={{
                       left: `${left}%`,
                       top: `${top}%`,
                       width: `${w}%`,
                       height: `${h}%`,
-                      bgcolor: withAlpha(color, 0.055),
-                      pointerEvents: "none",
+                      "background-color": withAlpha(color, 0.055),
                     }}
                   >
                     <Box
                       component="span"
-                      sx={{
-                        position: "absolute",
+                      className="absolute font-bold tracking-[0.6px] whitespace-nowrap text-[8.5px]"
+                      style={{
                         top: topSide ? 5 : "auto",
                         bottom: topSide ? "auto" : 5,
                         left: leftSide ? 6 : "auto",
                         right: leftSide ? "auto" : 6,
-                        fontSize: 8.5,
-                        fontWeight: 700,
-                        letterSpacing: 0.6,
                         color: withAlpha(color, 0.95),
-                        whiteSpace: "nowrap",
                       }}
                     >
                       {QUADRANT_LABELS[key]}
                     </Box>
                   </Box>
                 );
-              })}
+                }}
+              </For>
 
               {/* Benchmark crosshair. */}
               <Box
-                sx={{
-                  position: "absolute",
+                className="absolute pointer-events-none"
+                style={{
                   top: 0,
                   bottom: 0,
-                  left: `${cx}%`,
-                  borderLeft: "1px dashed var(--mui-palette-divider)",
-                  pointerEvents: "none",
+                  left: `${cx()}%`,
+                  "border-left": "1px dashed var(--color-fin-border)",
                 }}
               />
               <Box
-                sx={{
-                  position: "absolute",
+                className="absolute pointer-events-none"
+                style={{
                   left: 0,
                   right: 0,
-                  bottom: `${cy}%`,
-                  borderTop: "1px dashed var(--mui-palette-divider)",
-                  pointerEvents: "none",
+                  bottom: `${cy()}%`,
+                  "border-top": "1px dashed var(--color-fin-border)",
                 }}
               />
 
-              {xTicks.map((tick) => {
-                const isLo = tick === xDomain.lo;
-                const isHi = tick === xDomain.hi;
+              <For each={xTicks()}>
+                {(tick) => {
+                const isLo = tick === xDomain().lo;
+                const isHi = tick === xDomain().hi;
                 return (
                   <Box
-                    key={`xt-${tick}`}
-                    sx={{
-                      position: "absolute",
+                    className="font-mono absolute pointer-events-none text-[9px] text-fin-text-muted tabular-nums"
+                    style={{
                       left: isLo ? 4 : isHi ? "auto" : `${x(tick)}%`,
                       right: isHi ? 4 : "auto",
-                      bottom: 3,
+                      bottom: "3px",
                       transform: isLo || isHi ? "none" : "translateX(-50%)",
-                      fontSize: 8,
-                      color: TEXT_MUTED,
-                      fontVariantNumeric: "tabular-nums",
-                      pointerEvents: "none",
                     }}
                   >
                     {Math.round(tick)}
                   </Box>
                 );
-              })}
-              {yTicks.map((tick) => {
-                const isLo = tick === yDomain.lo;
-                const isHi = tick === yDomain.hi;
+                }}
+              </For>
+              <For each={yTicks()}>
+                {(tick) => {
+                const isLo = tick === yDomain().lo;
+                const isHi = tick === yDomain().hi;
                 return (
                   <Box
-                    key={`yt-${tick}`}
-                    sx={{
-                      position: "absolute",
-                      right: 4,
+                    className="font-mono absolute pointer-events-none text-[9px] text-fin-text-muted tabular-nums"
+                    style={{
+                      right: "4px",
                       bottom: isLo ? 2 : isHi ? "auto" : `${y(tick)}%`,
                       top: isHi ? 2 : "auto",
                       transform: isLo || isHi ? "none" : "translateY(50%)",
-                      fontSize: 8,
-                      color: TEXT_MUTED,
-                      fontVariantNumeric: "tabular-nums",
-                      pointerEvents: "none",
                     }}
                   >
                     {Math.round(tick)}
                   </Box>
                 );
-              })}
+                }}
+              </For>
 
-              {rows.map((row, index) => {
+              <For each={rows()}>
+                {(row, index) => {
                 const color = QUADRANT_COLORS[row.quadrant];
-                const selected = row.id === selectedId;
+                const selected = row.id === selectedId();
                 const r = dotRadius(row) + (selected ? 2 : 0);
                 const px = x(row.rs_pct);
                 const py = y(row.mom_pct);
-                const below = (index % 2 === 1 || py > 80) && !selected && py > 6;
+                const below = (index() % 2 === 1 || py > 80) && !selected && py > 6;
                 const anchor =
                   px > 80 ? "translateX(-100%)" : px < 20 ? "none" : "translateX(-50%)";
                 return (
-                  <Fragment key={row.id}>
+                  <>
                     <Box
-                      sx={{
-                        position: "absolute",
+                      className="absolute"
+                      style={{
                         left: `${px}%`,
                         bottom: `${py}%`,
                         transform: "translate(-50%, 50%)",
-                        zIndex: selected ? 6 : 3,
+                        "z-index": selected ? 6 : 3,
                       }}
                     >
                       <Tooltip
@@ -311,21 +256,15 @@ export function RotationRrg({ rows, selectedId, onSelect }: RotationRrgProps) {
                         openDelay={120}
                         withArrow
                         label={
-                          <Box sx={{ minWidth: 148 }}>
-                            <Text sx={{ fontSize: 11, fontWeight: 700, lineHeight: 1.25 }}>
+                          <Box className="min-w-[148px]">
+                            <Text className="text-[11px] font-bold leading-[1.25]">
                               {row.name}
                             </Text>
-                            <Text sx={{ fontSize: 9.5, lineHeight: 1.3, color: "text.secondary" }}>
+                            <Text className="text-[9.5px] leading-[1.3] text-fin-text-muted">
                               {row.category || row.kind} · {row.members} members
                             </Text>
                             <Box
-                              sx={{
-                                display: "grid",
-                                gridTemplateColumns: "auto auto",
-                                columnGap: 1.5,
-                                rowGap: 0.25,
-                                mt: 0.5,
-                              }}
+                              className="grid grid-cols-[auto_auto] column-gap-[12px] row-gap-[2px] mt-1"
                             >
                               <Meta label="1D" value={formatPercentage(row.returns["1D"], 2, true)} />
                               <Meta label="1W" value={formatPercentage(row.returns["1W"], 2, true)} />
@@ -341,111 +280,78 @@ export function RotationRrg({ rows, selectedId, onSelect }: RotationRrgProps) {
                           component="button"
                           type="button"
                           aria-label={`${row.name} — ${QUADRANT_LABELS[row.quadrant]}`}
-                          onClick={() => onSelect(row.id)}
-                          sx={{
-                            display: "block",
+                          onClick={() => props.onSelect(row.id)}
+                          className="block rounded-full p-0 cursor-pointer transition-transform duration-[120ms] hover:scale-135 focus-visible:outline-[1px] focus-visible:outline-solid focus-visible:outline-offset-[2px] focus-visible:outline-fin-text"
+                          style={{
                             width: r * 2,
                             height: r * 2,
-                            p: 0,
-                            borderRadius: "50%",
                             border: selected
                               ? `1.5px solid ${CREAM}`
                               : `1px solid ${withAlpha(color, 0.9)}`,
-                            bgcolor: withAlpha(color, selected ? 1 : 0.9),
-                            boxShadow: selected
+                            "background-color": withAlpha(color, selected ? 1 : 0.9),
+                            "box-shadow": selected
                               ? `0 0 0 3px ${withAlpha(color, 0.25)}`
                               : "none",
-                            cursor: "pointer",
-                            transition: "transform 120ms ease",
-                            "&:hover": { transform: "scale(1.35)" },
-                            "&:focus-visible": { outline: `1px solid ${CREAM}`, outlineOffset: 2 },
                           }}
                         />
                       </Tooltip>
                     </Box>
-                    {labelledIds.has(row.id) ? (
+                    <Show when={labelledIds().has(row.id)}>
                       <Box
-                        sx={{
-                          position: "absolute",
+                        className="absolute pointer-events-none max-w-[132px] px-[2px] rounded-[0.5px]"
+                        style={{
                           left: `${px}%`,
                           ...(below
                             ? { top: `calc(${100 - py}% + ${r + 5}px)` }
                             : { bottom: `calc(${py}% + ${r + 5}px)` }),
                           transform: anchor,
-                          maxWidth: 132,
-                          pointerEvents: "none",
-                          zIndex: selected ? 5 : 2,
-                          px: 0.25,
-                          borderRadius: 0.5,
-                          bgcolor: selected
+                          "z-index": selected ? 5 : 2,
+                          "background-color": selected
                             ? "background.paper"
-                            : withAlpha("#000000", 0.38),
+                            : withAlpha(BG_COLOR, 0.38),
                         }}
                       >
                         <Text
-                          sx={{
-                            fontSize: 9.5,
-                            lineHeight: 1.2,
-                            fontWeight: selected ? 700 : 500,
-                            color: selected ? TEXT : TEXT_MUTED,
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
+                          className="text-[9.5px] leading-[1.2] whitespace-nowrap overflow-hidden text-ellipsis"
+                          style={{ "font-weight": selected ? 700 : 500, color: selected ? TEXT : TEXT_MUTED }}
                         >
                           {shortName(row.name)}
                         </Text>
                       </Box>
-                    ) : null}
-                  </Fragment>
+                    </Show>
+                  </>
                 );
-              })}
+                }}
+              </For>
             </>
-          )}
+          }>
+            <Box className="absolute inset-0 flex items-center justify-center">
+              <Text className="text-[11px] text-fin-text-muted">No rotation groups</Text>
+            </Box>
+          </Show>
         </Box>
       </Box>
 
       <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 1,
-          px: 1,
-          pb: 0.75,
-          minWidth: 0,
-        }}
+        className="flex items-center justify-between gap-2 px-2 pb-[6px] min-w-0"
       >
-        <Text sx={{ fontSize: 9, letterSpacing: 0.6, textTransform: "uppercase", color: TEXT_MUTED }}>
+        <Text className="text-[9px] tracking-[0.6px] uppercase text-fin-text-muted">
           RS 1M percentile
         </Text>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0, overflow: "hidden" }}>
-          {(["leading", "improving", "weakening", "lagging"] as RotationQuadrant[]).map((key) => (
-            <Box key={key} sx={{ display: "inline-flex", alignItems: "center", gap: 0.4 }}>
-              <Box
-                sx={{
-                  width: 5,
-                  height: 5,
-                  borderRadius: "50%",
-                  bgcolor: QUADRANT_COLORS[key],
-                  flexShrink: 0,
-                }}
-              />
-              <Text sx={{ fontSize: 8.5, fontWeight: 700, letterSpacing: 0.3, color: TEXT_MUTED }}>
+        <Box className="flex items-center gap-2 min-w-0 overflow-hidden">
+          <For each={["leading", "improving", "weakening", "lagging"] as RotationQuadrant[]}>
+            {(key) => (
+            <Box className="inline-flex items-center gap-[3.2px]">
+              <Box className="size-[5px] rounded-full shrink-0" style={{ "background-color": QUADRANT_COLORS[key] }} />
+              <Text className="text-[8.5px] font-bold tracking-[0.3px] text-fin-text-muted">
                 {QUADRANT_LABELS[key]}
               </Text>
-              <Text
-                sx={{
-                  fontSize: 9,
-                  fontWeight: 600,
-                  color: TEXT_MUTED,
-                  fontVariantNumeric: "tabular-nums",
-                }}
-              >
-                {counts[key]}
+              <Text className="font-mono text-[9px] font-semibold text-fin-text-muted tabular-nums">
+                {counts()[key]}
               </Text>
             </Box>
-          ))}
+            )}
+          </For>
         </Box>
       </Box>
     </Box>

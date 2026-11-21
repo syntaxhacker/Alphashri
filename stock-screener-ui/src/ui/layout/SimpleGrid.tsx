@@ -1,26 +1,31 @@
-import MuiBox from "@mui/material/Box";
+import { splitProps } from "solid-js";
+import { cn } from "../cn";
 import type { UISimpleGridProps } from "../types";
+import { sp } from "./spacing";
 
-const sp = (v: unknown) => {
-  if (v == null) return undefined;
-  if (typeof v === "number") return `${v}px`;
-  const m: Record<string, string> = { xs: "4px", sm: "8px", md: "16px", lg: "24px", xl: "32px" };
-  return (m[v as string] ?? v) as string;
-};
+export function SimpleGrid(props: UISimpleGridProps & Record<string, unknown>) {
+  const [known, rest] = splitProps(props, [
+    "children", "className", "style", "id", "data-testid", "cols", "spacing", "verticalSpacing", "type",
+  ] as const);
+  void known.type;
 
-export function SimpleGrid({ children, className, style, id, "data-testid": testId, cols, spacing, verticalSpacing, type, ...rest }: UISimpleGridProps & Record<string, unknown>) {
-  void type;
-  const n = typeof cols === "number" ? cols : 1;
+  const n = typeof known.cols === "number" ? known.cols : 1;
+
   return (
-    <MuiBox
-      id={id as string} className={className} style={style} data-testid={testId}
-      sx={{
+    <div
+      id={known.id}
+      className={cn(known.className)}
+      style={{
         display: "grid",
-        gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))`,
-        ...(spacing != null && { gap: sp(spacing) }),
-        ...(verticalSpacing != null && { rowGap: sp(verticalSpacing) }),
+        "grid-template-columns": `repeat(${n}, minmax(0, 1fr))`,
+        ...(known.spacing != null ? { gap: sp(known.spacing) } : {}),
+        ...(known.verticalSpacing != null ? { "row-gap": sp(known.verticalSpacing) } : {}),
+        ...(known.style as Record<string, unknown> | undefined),
       }}
+      data-testid={known["data-testid"]}
       {...rest}
-    >{children}</MuiBox>
+    >
+      {known.children}
+    </div>
   );
 }

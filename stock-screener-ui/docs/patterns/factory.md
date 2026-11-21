@@ -34,7 +34,7 @@ Factory Method appears across virtually every modern framework and library:
 
 | Context | Example |
 |---------|---------|
-| **React** | `React.createElement(type, props, children)` is a factory — it creates a virtual DOM element based on the `type` argument. JSX compiles to factory calls. |
+| **React** | `React.createElement(type, props, children)` is a factory — it creates a virtual DOM element based on the `type` argument. JSX compiles to factory calls. (Generic React example — this app is Solid, where JSX compiles to component functions instead.) |
 | **Browser DOM** | `document.createElement('div')` is the textbook Factory Method — the browser decides which concrete `HTMLElement` subclass to instantiate. |
 | **JDBC (Java)** | `DriverManager.getConnection(url)` returns a `Connection` without the caller knowing which driver class handles it. |
 | **Angular** | `ComponentFactoryResolver` creates component instances dynamically at runtime. |
@@ -69,7 +69,7 @@ Factory Method appears across virtually every modern framework and library:
 
 — Gang of Four, *Design Patterns* (1994)
 
-In this codebase: provide a central `StrategyParamPanelFactory` that decides which React component to render based on a `strategy_type` string, so that `StrategyForm.tsx` does not need to import or know about individual panel components.
+In this codebase: provide a central `StrategyParamPanelFactory` that decides which SolidJS panel component to render based on a `strategy_type` string, so that `StrategyForm.tsx` does not need to import or know about individual panel components.
 
 ---
 
@@ -115,7 +115,7 @@ This codebase adapts the pattern using a **registry + static factory** variation
        │ createPanel(type)
        ▼
 ┌──────────────────────────────┐
-│  StrategyParamPanel          │  ◄── Declarative React wrapper
+│  StrategyParamPanel          │  ◄── Declarative SolidJS wrapper
 │  (props: StrategyParamPanel  │
 │   Props)                     │
 └──────┬───────────────────────┘
@@ -126,8 +126,8 @@ This codebase adapts the pattern using a **registry + static factory** variation
 │  Panel   │ │OUT Panel │ │Panel     │ │Panel    │
 └──────────┘ └──────────┘ └──────────┘ └──────────┘
 
-All panels implement the contract:
-  (initialValues: StrategyFormData, isSwing: boolean) => JSX.Element
+All panels implement the contract (a SolidJS component):
+  Component<{ initialValues: StrategyFormData; isSwing: boolean; is52wChaser?: boolean }>
 ```
 
 The **Product** is `JSX.Element` (the panel component). The **Creator** is `StrategyParamPanelFactory`. Instead of subclassing, the factory uses a `Map` registry that serves the same role — subclasses "register" the product they want created for each type string.
@@ -190,6 +190,8 @@ And again at lines 342–353 to render the corresponding panel:
 )}
 ```
 
+SolidJS has no bare `{cond && <X/>}` guard in its idiomatic style — the repo uses `<Show when={...}>`, which unmounts the branch when the condition turns false.
+
 Every new strategy type required changes in **both** locations. The factory eliminates this duplication.
 
 ### Key Code Walkthrough
@@ -244,7 +246,7 @@ static createPanel(type, initialValues, isSwing): JSX.Element | null {
 
 The `null` return handles unknown types gracefully — the UI simply renders nothing instead of crashing. This is a **Null Object** variant for the missing-product case. The `is52wChaser` prop is derived from the type string at the factory level, keeping individual panels simpler.
 
-**5. Declarative wrapper** — a plain React component so consumers can use JSX:
+**5. Declarative wrapper** — a plain SolidJS component so consumers can use JSX:
 
 ```tsx
 export function StrategyParamPanel({ type, initialValues, isSwing }) {
@@ -252,7 +254,7 @@ export function StrategyParamPanel({ type, initialValues, isSwing }) {
 }
 ```
 
-This wrapper exists because React's JSX syntax expects components, not raw function calls. It makes usage in templates consistent and declarative.
+This wrapper exists because SolidJS's JSX compiles to component functions, not raw calls that hand back rendered elements — calling a factory directly inside JSX would be awkward and would bypass the component boundary. The wrapper makes usage in templates consistent and declarative.
 
 ### Mapping to the Existing Panels
 
@@ -304,7 +306,7 @@ StrategyParamPanelFactory.registerPanel("MY_CUSTOM", MyCustomPanel);
 | Concern                | Before (if/else chain)                    | After (factory)                   |
 |------------------------|-------------------------------------------|-----------------------------------|
 | Adding a new strategy  | Touch `StrategyForm.tsx` in 2+ places     | Call `registerPanel()` once       |
-| Panel selection logic  | Scattered across `useEffect`, `onChange`  | Centralised in one `Map`          |
+| Panel selection logic  | Scattered across `createMemo` guards      | Centralised in one `Map`          |
 | Testing panel creation | Implicit — only through form integration  | Explicit — unit test the factory  |
 | Open/Closed Principle  | Violated (form must change)               | Satisfied (new types are additive)|
 
@@ -358,7 +360,7 @@ A: No — it's a commonly used idiom but was never part of the GoF catalog. The 
 
 - Factory Method is the **most commonly used** GoF pattern in frameworks
 - It is the foundation of **dependency injection** and **inversion of control**
-- React's entire component model is built on factory-like patterns (JSX → `createElement`)
+- React's entire component model is built on factory-like patterns (JSX → `createElement`) — a generic React example; this app renders SolidJS components instead
 - The **registry variation** (this codebase) is often more practical than class hierarchies in dynamic languages
 
 ---

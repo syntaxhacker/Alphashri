@@ -1,8 +1,10 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { createSignal } from "solid-js";
+import { cleanup, render, screen } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
+import type { JSX } from "solid-js";
 
 import {
   COIL_MAX_PCT,
@@ -16,12 +18,12 @@ import type { NiftyRegimeBlock } from "@/types/niftyReport";
 
 afterEach(cleanup);
 
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>{children}</UIProvider>;
+function TestWrapper(props: { children?: JSX.Element }) {
+  return <UIProvider>{props.children}</UIProvider>;
 }
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: TestWrapper });
+function r(ui: () => JSX.Element) {
+  return render(() => <TestWrapper>{ui()}</TestWrapper>);
 }
 
 function regime(overrides: Partial<NiftyRegimeBlock> = {}): NiftyRegimeBlock {
@@ -77,7 +79,7 @@ describe("coil state mapping", () => {
 
 describe("NiftyCoilGauge", () => {
   test("renders COIL with ratio, hint and RV/IV context", () => {
-    r(<NiftyCoilGauge regime={regime()} />);
+    r(() => <NiftyCoilGauge regime={regime()} />);
 
     const gauge = screen.getByTestId("nifty-coil-gauge");
     expect(gauge).toHaveTextContent("COIL");
@@ -91,7 +93,7 @@ describe("NiftyCoilGauge", () => {
   });
 
   test("renders NORMAL for a baseline-sized range", () => {
-    r(<NiftyCoilGauge regime={regime({ range_pts: 100 })} />);
+    r(() => <NiftyCoilGauge regime={regime({ range_pts: 100 })} />);
     expect(screen.getByTestId("nifty-coil-state")).toHaveTextContent("NORMAL");
     expect(screen.getByTestId("nifty-coil-ratio")).toHaveTextContent("1.0x");
     expect(screen.getByTestId("nifty-coil-hint")).toHaveTextContent(
@@ -100,7 +102,7 @@ describe("NiftyCoilGauge", () => {
   });
 
   test("renders EXPANDING for an expanded range", () => {
-    r(<NiftyCoilGauge regime={regime({ range_pts: 150 })} />);
+    r(() => <NiftyCoilGauge regime={regime({ range_pts: 150 })} />);
     expect(screen.getByTestId("nifty-coil-state")).toHaveTextContent("EXPANDING");
     expect(screen.getByTestId("nifty-coil-ratio")).toHaveTextContent("1.5x");
     expect(screen.getByTestId("nifty-coil-hint")).toHaveTextContent(
@@ -109,7 +111,7 @@ describe("NiftyCoilGauge", () => {
   });
 
   test("dashes everything when the regime block is absent", () => {
-    r(<NiftyCoilGauge regime={undefined} />);
+    r(() => <NiftyCoilGauge regime={undefined} />);
     expect(screen.getByTestId("nifty-coil-state")).toHaveTextContent("—");
     expect(screen.getByTestId("nifty-coil-ratio")).toHaveTextContent("—");
     expect(screen.getByTestId("nifty-coil-hint")).toHaveTextContent(
@@ -118,5 +120,20 @@ describe("NiftyCoilGauge", () => {
     expect(screen.getByTestId("nifty-coil-rv-iv")).toHaveTextContent(
       "RV — / IV —",
     );
+  });
+
+  test("updates the state and ratio when the regime prop signal changes", () => {
+    const [regimeSig, setRegimeSig] = createSignal<NiftyRegimeBlock | undefined>(
+      regime({ range_pts: 50, range_baseline_pts: 100 }),
+    );
+    r(() => <NiftyCoilGauge regime={regimeSig()} />);
+
+    expect(screen.getByTestId("nifty-coil-state")).toHaveTextContent("COIL");
+    expect(screen.getByTestId("nifty-coil-ratio")).toHaveTextContent("0.5x");
+
+    setRegimeSig(regime({ range_pts: 150, range_baseline_pts: 100 }));
+
+    expect(screen.getByTestId("nifty-coil-state")).toHaveTextContent("EXPANDING");
+    expect(screen.getByTestId("nifty-coil-ratio")).toHaveTextContent("1.5x");
   });
 });

@@ -7,10 +7,16 @@ import {
   EXIT_DEFAULT,
 } from "../config/colors";
 import { formatChartTimeLabel } from "@/utils/chart/time";
+import { currencyFor, type CurrencyCode } from "../config/currency";
 
-export function formatCurrency(amount: number | undefined | null, precision: number = 0): string {
+export function formatCurrency(
+  amount: number | undefined | null,
+  precision: number = 0,
+  currency: CurrencyCode = "INR",
+): string {
   if (amount === undefined || amount === null || isNaN(amount)) return "0";
-  return `₹${amount.toFixed(precision)}`;
+  const spec = currencyFor(currency);
+  return `${spec.symbol}${spec.formatFixed(amount, precision)}`;
 }
 
 export function formatCurrencyIN(amount: number | undefined | null): string {
@@ -33,32 +39,38 @@ export function formatNumber(value: number | undefined | null): string {
   return `${sign}${absValue.toFixed(0)}`;
 }
 
-export function formatCurrencyCompact(amount: number | undefined | null): string {
-  return `₹${formatNumber(amount ?? 0)}`;
+export function formatCurrencyCompact(
+  amount: number | undefined | null,
+  currency: CurrencyCode = "INR",
+): string {
+  const spec = currencyFor(currency);
+  return `${spec.symbol}${spec.compact(amount ?? 0)}`;
 }
 
-export function formatPnl(value: number): string {
+export function formatPnl(value: number, currency: CurrencyCode = "INR"): string {
   const sign = value >= 0 ? "+" : "";
-  return `${sign}₹${(value / 1000).toFixed(1)}K`;
+  return `${sign}${currencyFor(currency).symbol}${(value / 1000).toFixed(1)}K`;
 }
 
-export function formatSignedPnl(value: number): string {
+export function formatSignedPnl(value: number, currency: CurrencyCode = "INR"): string {
   const sign = value >= 0 ? "+" : "";
-  return `${sign}₹${formatNumber(value)}`;
+  const spec = currencyFor(currency);
+  return `${sign}${spec.symbol}${spec.compact(value)}`;
 }
 
+/** Returns "—" for missing or non-finite values instead of throwing on toFixed. */
 export function formatPercentage(
-  value: number,
+  value: number | null | undefined,
   precision: number = 2,
   showSign: boolean = true,
 ): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
   const sign = showSign && value >= 0 ? "+" : "";
   return `${sign}${value.toFixed(precision)}%`;
 }
 
 /** Grouped integer/float formatting in the app's Indian locale. */
 export const formatNumberIN = (value: number): string => value.toLocaleString("en-IN");
-export const IN_LOCALE = "en-IN";
 
 // ===========================================
 // Date/Time Formatting
@@ -329,7 +341,12 @@ export function formatTimeOnly(isoStr: string): string {
 }
 
 export function formatDateHeader(date: string): string {
-  const dateObj = new Date(date);
+  // A bare YYYY-MM-DD is a calendar day, not an instant. `new Date("2026-03-20")`
+  // parses it as UTC midnight, which renders as the previous day west of UTC.
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  const dateObj = dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+    : new Date(date);
   return dateObj.toLocaleDateString("en-IN", {
     weekday: "short",
     day: "2-digit",
@@ -338,7 +355,7 @@ export function formatDateHeader(date: string): string {
 }
 
 // ============================================
-// MUI Color Helpers (for table cells)
+// PnL color helpers (for table cells)
 // ============================================
 
 export function getPnLTextColor(value: number): "success" | "error" {

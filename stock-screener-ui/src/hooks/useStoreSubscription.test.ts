@@ -1,10 +1,9 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi } from "vitest";
-import { renderHook, act, cleanup } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { useStoreSubscription } from "./useStoreSubscription";
+import { renderSolidHook } from "../test-utils/solidRenderHook";
 
 afterEach(() => {
-  cleanup();
   vi.clearAllMocks();
 });
 
@@ -13,7 +12,7 @@ describe("useStoreSubscription", () => {
     const unsubscribe = vi.fn();
     const subscribe = vi.fn().mockReturnValue(unsubscribe);
 
-    const { unmount } = renderHook(() => useStoreSubscription(subscribe));
+    const { unmount } = renderSolidHook(() => useStoreSubscription(subscribe));
 
     expect(subscribe).toHaveBeenCalledTimes(1);
     expect(typeof subscribe.mock.calls[0][0]).toBe("function");
@@ -31,23 +30,17 @@ describe("useStoreSubscription", () => {
       return unsubscribe;
     });
 
-    renderHook(() => useStoreSubscription(subscribe));
+    // The hook returns the invalidation counter; reading it is what a Solid
+    // component/memo does to pick up the store's notifications.
+    const { result } = renderSolidHook(() => useStoreSubscription(subscribe));
 
     expect(callback).not.toBeNull();
 
-    let renderCount = 0;
-    renderHook(() => {
-      useStoreSubscription(subscribe);
-      renderCount++;
-    });
+    const initialCount = result.current();
 
-    const initialCount = renderCount;
+    callback!();
 
-    act(() => {
-      callback!();
-    });
-
-    expect(renderCount).toBeGreaterThan(initialCount);
+    expect(result.current()).toBeGreaterThan(initialCount);
   });
 
   it("handles subscribe function changes", () => {
@@ -56,9 +49,12 @@ describe("useStoreSubscription", () => {
     const sub1 = vi.fn().mockReturnValue(unsub1);
     const sub2 = vi.fn().mockReturnValue(unsub2);
 
-    const { rerender, unmount } = renderHook(({ sub }) => useStoreSubscription(sub), {
-      initialProps: { sub: sub1 },
-    });
+    // A different subscribe function is an owner change: the old subscription
+    // is cleaned up and the new one is established.
+    const { rerender, unmount } = renderSolidHook(
+      (props: { sub: (cb: () => void) => () => void }) => useStoreSubscription(props.sub),
+      { initialProps: { sub: sub1 } },
+    );
 
     expect(sub1).toHaveBeenCalledTimes(1);
 

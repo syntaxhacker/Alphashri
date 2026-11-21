@@ -50,7 +50,7 @@ export interface BacktestState {
   error: string | null;
 }
 
-export const initialBacktestState: BacktestState = {
+const initialBacktestState: BacktestState = {
   currentView: "screener",
 
   strategies: [],

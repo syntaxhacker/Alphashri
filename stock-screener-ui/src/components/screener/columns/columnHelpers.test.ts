@@ -67,8 +67,8 @@ describe("rupeePrice", () => {
   it.each([
     [2450.5, "₹2450.50"],
     [0, "₹0.00"],
-    [null, "₹0.00"],
-    [undefined, "₹0.00"],
+    [null, "—"],
+    [undefined, "—"],
   ] as const)("%s -> %s", (v, exp) => expect(rupeePrice(v as any)).toBe(exp));
 });
 

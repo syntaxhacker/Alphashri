@@ -1,10 +1,10 @@
-import type { ReactNode } from "react";
+import type { JSX } from "solid-js";
 import { InlineLoader } from "./states";
 
 interface TableLoadingStateProps {
   message?: string;
   showSpinner?: boolean;
-  children?: ReactNode;
+  children?: JSX.Element;
 }
 
 /**
@@ -16,10 +16,15 @@ interface TableLoadingStateProps {
  * <TableLoadingState message="Loading positions..." />
  * <TableLoadingState showSpinner={false} message="Fetching data..." />
  */
-export function TableLoadingState({ message = "Loading...", showSpinner = true, children }: TableLoadingStateProps) {
+export function TableLoadingState(props: TableLoadingStateProps) {
   return (
-    <InlineLoader data-testid="table-loading-state" size="sm" message={message} showSpinner={showSpinner}>
-      {children}
+    <InlineLoader
+      data-testid="table-loading-state"
+      size="sm"
+      message={props.message ?? "Loading..."}
+      showSpinner={props.showSpinner ?? true}
+    >
+      {props.children}
     </InlineLoader>
   );
 }

@@ -1,79 +1,153 @@
-import TextField from "@mui/material/TextField";
+import { createMemo, createSignal, createUniqueId, splitProps } from "solid-js";
+import { cn } from "../cn";
 import type { UITextareaProps } from "../types";
-import { stripLegacyInputProps } from "./legacyProps";
 
-function mapSize(size?: UITextareaProps["size"]): "small" | "medium" {
-  return size === "xs" || size === "sm" ? "small" : "medium";
+/**
+ * Row height for 13px text. Two rows plus 8px block padding and the 1px borders
+ * land on 56px — comfortably taller than the 32px single-line field.
+ */
+const ROW_H = 19;
+
+function lineHeightOf(size?: UITextareaProps["size"]): number {
+  return size === "xs" ? 15 : ROW_H;
 }
 
-export function Textarea({
-  value,
-  defaultValue,
-  onChange,
-  autosize,
-  minRows,
-  maxRows,
-  resize,
-  label,
-  description,
-  error,
-  required,
-  disabled,
-  size,
-  placeholder,
-  className,
-  style,
-  "data-testid": testId,
-  w,
-  h,
-  ...rest
-}: UITextareaProps) {
-  const muiSize = mapSize(size);
-  const explicitWidth = w != null ? (typeof w === "number" ? `${w}px` : w) : undefined;
-  const explicitHeight = h != null ? (typeof h === "number" ? `${h}px` : h) : undefined;
-  const isError = Boolean(error);
-  const helperText = isError
-    ? typeof error === "string"
-      ? error
-      : String(error ?? "")
-    : (description as string | undefined);
+function fontOf(size?: UITextareaProps["size"]): string {
+  return size === "xs" ? "11px" : "13px";
+}
 
-  const effectiveMinRows = minRows ?? (autosize ? 2 : 3);
-  const effectiveMaxRows = maxRows;
+function resizeStyle(resize?: UITextareaProps["resize"], autosize?: boolean): string {
+  // Only an explicit autosize field hides the handle — the default keeps it so
+  // a textarea is always recognisable as a resizable multi-line control.
+  if (resize) return resize;
+  return autosize ? "none" : "vertical";
+}
+
+export function Textarea(props: UITextareaProps) {
+  const [known, _rest] = splitProps(props, [
+    "value",
+    "defaultValue",
+    "onChange",
+    "autosize",
+    "minRows",
+    "maxRows",
+    "resize",
+    "label",
+    "description",
+    "error",
+    "required",
+    "disabled",
+    "size",
+    "placeholder",
+    "className",
+    "style",
+    "data-testid",
+    "id",
+    "w",
+    "h",
+  ]);
+
+  const resolvedId = known.id ?? createUniqueId();
+  const [focused, setFocused] = createSignal(false);
+  const explicitWidth = createMemo(() =>
+    known.w != null ? (typeof known.w === "number" ? `${known.w}px` : known.w) : undefined,
+  );
+  const explicitHeight = createMemo(() =>
+    known.h != null ? (typeof known.h === "number" ? `${known.h}px` : known.h) : undefined,
+  );
+  const isError = createMemo(() => Boolean(known.error));
+  const helperText = createMemo(() =>
+    isError()
+      ? typeof known.error === "string"
+        ? known.error
+        : String(known.error ?? "")
+      : (known.description as string | undefined),
+  );
+
+  const effectiveMinRows = createMemo(() => known.minRows ?? 2);
+  const effectiveMaxRows = createMemo(() => known.maxRows);
+
+  const wrapperStyle = createMemo(() =>
+    explicitWidth() ? { width: explicitWidth()!, ...known.style } : (known.style ?? {}),
+  );
+
+  /**
+   * A textarea must read as a multi-line field at a glance: it is taller than a
+   * one-line input by default (≈56px at two rows) and keeps a visible resize
+   * handle, which single-line inputs never have.
+   */
+  const inputStyle = createMemo<Record<string, string>>(() => {
+    const lineHeight = lineHeightOf(known.size);
+    const border = isError() ? "var(--color-fin-negative)" : focused() ? "var(--color-fin-primary)" : "var(--color-fin-border)";
+    const rows = effectiveMinRows();
+    const natural = `${rows * lineHeight + 18}px`;
+    const height = explicitHeight() ?? natural;
+    return {
+      height,
+      "min-height": height,
+      "border-radius": "6px",
+      // Longhands, not the `border` shorthand: a `var()` inside the shorthand is
+      // not parsed by every DOM implementation, which silently drops the width.
+      "border-width": "1px",
+      "border-style": "solid",
+      "border-color": border,
+      "box-shadow": focused() ? `0 0 0 1px ${border}` : "none",
+      "background-color": known.disabled ? "var(--color-fin-surface-alt)" : "var(--color-fin-surface)",
+      color: "var(--color-fin-text)",
+      "font-size": fontOf(known.size),
+      "line-height": `${lineHeight}px`,
+      padding: "8px 10px",
+      "outline": "none",
+      resize: resizeStyle(known.resize, known.autosize),
+      "text-align": "left",
+      "vertical-align": "top",
+      ...(effectiveMaxRows() ? { "max-height": `${effectiveMaxRows()! * lineHeight + 18}px` } : {}),
+      ...(known.disabled ? { opacity: "0.45", cursor: "not-allowed" } : {}),
+    };
+  });
+  const wrapperTestId = known["data-testid"] ? `${known["data-testid"]}-field` : undefined;
+  const inputTestId = known["data-testid"];
+
+  const isControlled = createMemo(
+    () => known.value !== undefined || (known.onChange !== undefined && known.defaultValue === undefined),
+  );
 
   return (
-    <TextField
-      value={value}
-      defaultValue={defaultValue}
-      onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-      label={label as string | undefined}
-      placeholder={placeholder}
-      helperText={helperText}
-      error={isError}
-      required={required}
-      disabled={disabled}
-      size={muiSize}
-      fullWidth={explicitWidth == null}
-      multiline
-      minRows={effectiveMinRows}
-      maxRows={effectiveMaxRows}
-      className={className}
-      style={style as React.CSSProperties}
-      data-testid={testId ? `${testId}-field` : undefined}
-      slotProps={{
-        // testid belongs on the native textarea so getByTestId returns an
-        // editable element (typing, fill, clear all work on it)
-        htmlInput: testId ? ({ "data-testid": testId } as any) : undefined,
-      }}
-      sx={{
-        "& .MuiInputBase-inputMultiline": {
-          resize: resize ?? (autosize ? "none" : undefined),
-        },
-        "& .MuiInputBase-root": { bgcolor: "background.paper" },
-        width: explicitWidth,
-        ...(explicitHeight && { height: explicitHeight }),
-      }}
-      {...(stripLegacyInputProps(rest as Record<string, unknown>) as object)}
-    />
+    <div
+      data-testid={wrapperTestId}
+      className={cn("flex flex-col min-w-0 gap-1.5", explicitWidth() == null ? "w-full" : undefined, known.className)}
+      style={wrapperStyle()}
+    >
+      {known.label && (
+        <label htmlFor={resolvedId} className={cn("text-xs font-medium", isError() ? "text-fin-negative" : "text-fin-text")}>
+          {known.label}
+          {known.required && <span className="ml-1 text-fin-negative">*</span>}
+        </label>
+      )}
+      <textarea
+        id={resolvedId}
+        {...(isControlled() ? { value: String(known.value ?? "") } : {})}
+        onInput={(e) => known.onChange?.(e.currentTarget.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        placeholder={known.placeholder}
+        required={known.required}
+        disabled={known.disabled}
+        rows={effectiveMinRows()}
+        className={cn(
+          "block w-full min-w-0 bg-transparent placeholder:text-fin-text-muted",
+          known.disabled ? "cursor-not-allowed" : undefined,
+        )}
+        style={inputStyle()}
+        data-testid={inputTestId}
+      >
+        {/* A <textarea> has no value/defaultValue attribute: its initial text is
+            its own content, so the uncontrolled default has to be a child. */}
+        {isControlled() ? undefined : known.defaultValue}
+      </textarea>
+      {helperText() && (
+        <span className={cn("text-xs", isError() ? "text-fin-negative" : "text-fin-text-muted")}>{helperText()}</span>
+      )}
+    </div>
   );
 }

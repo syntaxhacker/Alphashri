@@ -183,14 +183,6 @@ describe("insertHolidayGaps", () => {
     expectReturnsOriginalDataWhenNoGaps();
   });
 
-  it("preserves all original candles", () => {
-    expectPreservesOriginalCandles();
-  });
-
-  it("returns original data when no gaps", () => {
-    expectReturnsOriginalDataWhenNoGaps();
-  });
-
   it("handles empty candles", () => {
     const result = insertHolidayGaps([], holidayMap);
     expect(result.extendedTimeData).toEqual([]);

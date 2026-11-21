@@ -11,6 +11,7 @@ from pathlib import Path as PathlibPath
 from contextlib import asynccontextmanager
 from datetime import datetime
 import asyncio
+import time
 
 _script_dir = PathlibPath(__file__).parent.absolute()
 _project_root = _script_dir.parent
@@ -46,6 +47,7 @@ from api.screener import (
     PROFILES_WITH_52W_BUCKETS, _profile_meta, _passes_profile_filters,
     _build_rationale, _to_float,
 )
+from api.slow_api import SlowAPIMiddleware
 from api.screener_api.screener_scan import _enrich_with_touch_history
 from db.database import SessionLocal
 from db.models import Stock52WeekTouch, Screener
@@ -73,8 +75,40 @@ else:
     _news_available, _llm_available, article_analyzer, fetch_news, fetch_article_content, NEWS_SOURCES = _init_news_modules()
 
 
-PREWARM_SCREENERS = ["trending", "buyer_interest", "high_momentum", "nifty_movers", "52w_high", "price_surge"]
-PREWARM_INTERVAL = 60
+def _build_prewarm_screeners(screeners) -> list:
+    """Default tab first, then the rest in order, de-duplicated.
+
+    The prewarm loop is sequential, so growing this list warms more screeners
+    on startup without raising the Upstox request *rate* — no extra
+    concurrency is introduced, only more queued work for the same workers.
+    """
+    ordered = ["trending"] + [s for s in screeners if s != "trending"]
+    return list(dict.fromkeys(ordered))
+
+
+PREWARM_SCREENERS = _build_prewarm_screeners([
+    "trending", "buyer_interest", "high_momentum", "nifty_movers", "52w_high", "price_surge",
+])
+# How often the loop wakes to check staleness. The actual recompute cadence is
+# fresh_ttl - PREWARM_INTERVAL (see the task below), so this is the *poll*, not
+# the cost. Env-tunable so a constrained box can slow it without a code change.
+PREWARM_INTERVAL = int(os.environ.get("PREWARM_INTERVAL_SEC", "60"))
+# Spread the six screeners across the interval instead of firing them in one
+# burst. Unstaggered, all six compute in the same tick: six TradingView fetches
+# plus up to 6 × MAX_WORKERS(20) = 120 threads at once, every ~4 minutes. That
+# burst is what shows up as a ~500ms /api/market/snapshot and as GIL contention
+# in unrelated endpoints. Each screener now gets its own slot, so at most one
+# heavy job is in flight at a time.
+PREWARM_STAGGER_SEC = float(os.environ.get("PREWARM_STAGGER_SEC", "10"))
+
+# The 52W sweep makes ~200 sequential Upstox calls (~100s), so the lock must
+# outlive the compute: the 30s default expires mid-flight and lets a second
+# request/prewarm start a duplicate sweep.
+SCREENER_LOCK_TTL = 300
+# How long a cold request without a range snapshot waits before answering 503.
+SCREENER_COLD_TIMEOUT = 8.0
+# How long a generic screener request waits for another worker's compute.
+SCREENER_WAIT_TIMEOUT = 15.0
 
 
 async def screener_prewarm_task():
@@ -82,16 +116,23 @@ async def screener_prewarm_task():
         try:
             if _is_market_hours():
                 from cache.redis_client import make_cache_key, cache_ttl, stale_while_revalidate
-                for screener_id in PREWARM_SCREENERS:
+                for index, screener_id in enumerate(PREWARM_SCREENERS):
+                    # Stagger: the first screener starts immediately, each
+                    # subsequent one waits a slot. Keeps at most one heavy
+                    # compute in flight instead of six at once.
+                    if index and PREWARM_STAGGER_SEC > 0:
+                        await asyncio.sleep(PREWARM_STAGGER_SEC)
                     cache_key = make_cache_key("screener", "upstox", "intraday", screener_id)
                     ttl = cache_ttl(cache_key)
                     if ttl is None or ttl < PREWARM_INTERVAL:
                         try:
-                            await stale_while_revalidate(
+                            _prewarmed, _ = await stale_while_revalidate(
                                 cache_key,
                                 lambda s=screener_id: _compute_screener("upstox", "intraday", s, {}),
                                 fresh_ttl=300,
+                                lock_ttl=SCREENER_LOCK_TTL,
                             )
+                            _remember_screener(cache_key, _prewarmed)
                         except Exception:
                             pass
             await asyncio.sleep(PREWARM_INTERVAL)
@@ -141,6 +182,13 @@ def _sanitize_52w_range_entry(info) -> dict | None:
             out["days_ago"] = max(0, int(days))
         except (TypeError, ValueError):
             pass
+    # Carry the verification time into the bulk payload so the screener can read
+    # a row's as-of without re-scanning stock_52w_range on every request.
+    ts = info.get("updated_at")
+    if isinstance(ts, str) and ts:
+        out["updated_at"] = ts
+    elif hasattr(ts, "isoformat"):
+        out["updated_at"] = ts.isoformat()
     return out
 
 
@@ -155,11 +203,35 @@ def _sanitize_52w_ranges_bulk(data: dict) -> dict:
 
 
 def _store_52w_ranges_in_redis(data: dict):
-    """Store 52W ranges per-symbol and as bulk JSON in Redis."""
+    """Store every 52W range in one bulk Redis key (no per-symbol churn).
+
+    The batch writes ~3k symbols hourly; one round-trip to the bulk key replaces
+    thousands of per-symbol SETs whose 10-minute TTL mostly missed anyway.
+    """
     from cache.redis_client import cache_set
     clean = _sanitize_52w_ranges_bulk(data)
-    for symbol, info in clean.items():
-        cache_set(f"52w_range:{symbol}", info, ttl=_52W_RANGE_CACHE_TTL)
+
+    # Stamp verification time once per batch from the freshly-persisted rows so
+    # entries that arrived from the scanner (no updated_at) still carry an as-of.
+    try:
+        from db.database import SessionLocal
+        from db.models.stock_52w_touch import Stock52WeekRange
+
+        db = SessionLocal()
+        try:
+            stamps = {
+                row.symbol: row.updated_at.isoformat()
+                for row in db.query(Stock52WeekRange.symbol, Stock52WeekRange.updated_at).all()
+                if row.updated_at is not None
+            }
+        finally:
+            db.close()
+        for symbol, entry in clean.items():
+            if "updated_at" not in entry and symbol in stamps:
+                entry["updated_at"] = stamps[symbol]
+    except Exception:
+        pass
+
     cache_set("52w_range:all", clean, ttl=_52W_RANGE_CACHE_TTL)
 
     # Also clear the paper trading 52W file cache
@@ -286,10 +358,16 @@ async def compute_52w_ranges_task():
                 if st in ("completed", "failed", None, "idle"):
                     break
 
-            from cache.redis_client import invalidate_screener_cache
+            if _52w_batch_changed_ranges(job) is False:
+                # Prompt startup runs usually skip every symbol (--skip-updated-today).
+                # Wiping the prewarmed screener cache then just forces a 100s cold
+                # recompute on the next request for no data benefit.
+                print("[52W Range] Batch updated 0 ranges; screener cache left intact")
+            else:
+                from cache.redis_client import invalidate_screener_cache
 
-            n = invalidate_screener_cache()
-            print(f"[52W Range] Scheduled batch done (status={job.get('status')}); screener cache keys cleared: {n}")
+                n = invalidate_screener_cache()
+                print(f"[52W Range] Scheduled batch done (status={job.get('status')}); screener cache keys cleared: {n}")
 
             # Also clear the paper trading 52W file cache
             import shutil
@@ -512,6 +590,119 @@ def _compute_screener(provider, mode, screener, profile_filters):
     return _sanitize_for_json(data)
 
 
+_WARMING_SCREENERS: set[str] = set()
+_WARM_TASKS: set[asyncio.Task] = set()
+
+# In-process fallback so a Redis outage degrades to a TTL cache instead of a
+# compute per request (with no Redis every cache_get misses, so every request
+# would look cold).
+_SCREENER_MEM_TTL = 300.0
+_SCREENER_MEM_MAX = 16
+_SCREENER_MEM: dict[str, tuple[object, float]] = {}
+
+
+def _screener_mem_get(cache_key: str):
+    entry = _SCREENER_MEM.get(cache_key)
+    if entry is None:
+        return None
+    payload, ts = entry
+    if time.monotonic() - ts > _SCREENER_MEM_TTL:
+        _SCREENER_MEM.pop(cache_key, None)
+        return None
+    return payload
+
+
+def _screener_mem_set(cache_key: str, payload) -> None:
+    if payload is None:
+        return
+    while len(_SCREENER_MEM) >= _SCREENER_MEM_MAX:
+        _SCREENER_MEM.pop(next(iter(_SCREENER_MEM)), None)
+    _SCREENER_MEM[cache_key] = (payload, time.monotonic())
+
+
+def _screener_probe(cache_key: str):
+    """Return ``(payload, redis_is_serving)``; payload is None when nothing is cached.
+
+    Runs off-loop (``to_thread``): the Redis probe may block on connect. The
+    availability *flag* is not consulted because it lags a few failures behind,
+    which would send the request back into a compute-per-request loop.
+    """
+    from cache.redis_client import cache_get, get_redis_client
+
+    client = get_redis_client()
+    if client is not None:
+        return cache_get(cache_key), True
+    return _screener_mem_get(cache_key), False
+
+
+def _remember_screener(cache_key: str, data) -> None:
+    """Mirror the payload into the process-local memo.
+
+    Written unconditionally (cheap, bounded): the memo is only *read* while Redis
+    is unavailable, so a healthy Redis never serves memo-stale data. Reading
+    ``is_cache_available()`` here would need a blocking probe on the event loop.
+    """
+    _screener_mem_set(cache_key, data)
+
+
+def _ensure_screener_warm(cache_key, provider, mode, screener, profile_filters) -> bool:
+    """Start at most one warm per cache key; returns whether one was started."""
+    if cache_key in _WARMING_SCREENERS:
+        return False
+    _WARMING_SCREENERS.add(cache_key)
+    task = _spawn_task(
+        "52w screener warm",
+        lambda: _warm_screener_cache(cache_key, provider, mode, screener, profile_filters),
+    )
+    if task is None:
+        _WARMING_SCREENERS.discard(cache_key)
+        return False
+    # The loop holds tasks weakly: without a strong reference the warm can be
+    # collected mid-flight and leave the cache cold forever.
+    _WARM_TASKS.add(task)
+    task.add_done_callback(_WARM_TASKS.discard)
+    return True
+
+
+async def _warm_screener_cache(cache_key, provider, mode, screener, profile_filters):
+    """Fill a cold screener cache off the request path."""
+    try:
+        from cache.redis_client import stale_while_revalidate
+
+        data, _ = await stale_while_revalidate(
+            cache_key,
+            lambda: _compute_screener(provider, mode, screener, profile_filters),
+            fresh_ttl=300,
+            lock_ttl=SCREENER_LOCK_TTL,
+        )
+        _remember_screener(cache_key, data)
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        print(f"⚠️ {screener} screener warm failed: {e}")
+    finally:
+        _WARMING_SCREENERS.discard(cache_key)
+
+
+def _52w_batch_changed_ranges(job: dict | None) -> bool | None:
+    """Whether a finished 52W batch changed range data; None when unknown.
+
+    A finished job with ok=0 is the common prompt-startup case (everything was
+    already refreshed today): the screener cache must not be wiped then.
+    """
+    if not isinstance(job, dict):
+        return None
+    if str(job.get("status") or "").lower() not in ("completed", "failed"):
+        return None
+    ok = job.get("ok")
+    if ok is None:
+        return None
+    try:
+        return int(ok) > 0
+    except (TypeError, ValueError):
+        return None
+
+
 def _spawn_task(label: str, factory, *, started: str = "🔄 {label} started", failed: str = "⚠️ {label} failed: {e}"):
     """Create a background task; return None on failure (matches existing fail-soft startup)."""
     try:
@@ -521,6 +712,36 @@ def _spawn_task(label: str, factory, *, started: str = "🔄 {label} started", f
     except Exception as e:
         print(failed.format(label=label, e=e))
         return None
+
+
+# Bound on how long lifespan shutdown waits for cancelled background tasks.
+# A cancelled Task cannot cancel work already dispatched to asyncio.to_thread()
+# (e.g. the event-radar SEC EDGAR request has a 30s socket timeout), so an
+# unbounded gather would let one stuck worker hold shutdown open indefinitely.
+# 5s is long enough for a cooperative task to observe cancellation and run its
+# finally-block cleanup, but far shorter than any upstream socket timeout.
+_SHUTDOWN_CANCEL_TIMEOUT_SEC = 5.0
+
+
+async def _shutdown_cancel_and_wait(*tasks, timeout: float = _SHUTDOWN_CANCEL_TIMEOUT_SEC):
+    """Cancel the given tasks and await them within a bounded shutdown budget."""
+    live = [t for t in tasks if t is not None]
+    for task in live:
+        task.cancel()
+    if not live:
+        return
+    try:
+        await asyncio.wait_for(
+            asyncio.gather(*live, return_exceptions=True),
+            timeout=timeout,
+        )
+    except asyncio.TimeoutError:
+        remaining = sum(1 for t in live if not t.done())
+        if remaining:
+            print(
+                f"⚠️ Shutdown: {remaining} background task(s) did not stop "
+                f"within {timeout:.0f}s"
+            )
 
 
 @asynccontextmanager
@@ -541,12 +762,18 @@ async def lifespan(app: FastAPI):
     _nifty_tape_task = None
     _nifty_snapshot_task = None
     _chain10s_task = None
-    _us_tape_task = None
     _nifty_stream_task = None
     _nifty_oi_task = None
     _nifty_spot_task = None
     _nifty_md_task = None
     _market_snapshot_task = None
+    # Started outside the "already-cancelled" list below; initialise so a
+    # CI_MODE or failed-startup path can reach shutdown without NameError.
+    _nifty_futures_task = None
+    _sensex_futures_task = None
+    _options_recorder_task = None
+    _tick_tape_task = None
+    _event_radar_task = None
     ci = _ci_mode()
     redis_connected = False
     try:
@@ -588,6 +815,13 @@ async def lifespan(app: FastAPI):
             from db.database import engine as _engine, Base as _Base
             from db.models.price_surge import PriceSurgeEvent
             _Base.metadata.create_all(bind=_engine, tables=[PriceSurgeEvent.__table__])
+            # `create_all` skips an existing table, including its indexes.
+            from sqlalchemy import text as _sql_text
+            with _engine.begin() as _conn:
+                _conn.execute(_sql_text(
+                    "CREATE INDEX IF NOT EXISTS ix_price_surge_events_created_at "
+                    "ON price_surge_events (created_at)"
+                ))
         except Exception:
             pass
         if not ci:
@@ -634,6 +868,12 @@ async def lifespan(app: FastAPI):
             from api.reports_api.nifty import nifty_snapshot_task, SNAPSHOT_REFRESH_SEC
             _nifty_snapshot_task = _spawn_task("Nifty snapshot refresh", nifty_snapshot_task, started=f"📸 Nifty snapshot refresh task started ({SNAPSHOT_REFRESH_SEC:.0f}s)", failed="⚠️ Nifty snapshot refresh failed: {e}")
 
+            from api.reports_api.nifty_futures import start_nifty_futures_task
+            _nifty_futures_task = _spawn_task("Nifty futures recorder", start_nifty_futures_task, started="📈 Nifty futures/basis recorder started", failed="⚠️ Nifty futures recorder failed: {e}")
+
+            from api.reports_api.sensex_futures import start_sensex_futures_task
+            _sensex_futures_task = _spawn_task("Sensex futures recorder", start_sensex_futures_task, started="📈 Sensex futures/basis recorder started", failed="⚠️ Sensex futures recorder failed: {e}")
+
             from api.reports_api.options_recorder import start_options_recorder_task
             _options_recorder_task = _spawn_task("Options recorder (SENSEX/RELIANCE)", start_options_recorder_task, started="📼 Options recorder (SENSEX/RELIANCE) started", failed="⚠️ Options recorder failed: {e}")
 
@@ -650,13 +890,6 @@ async def lifespan(app: FastAPI):
                 print("⏱️ 1s spot tick tape task started" if _tick_tape_task else "⏱️ 1s spot tick tape disabled")
             except Exception as e:
                 print(f"⚠️ 1s tick tape task failed: {e}")
-            try:
-                from api.reports_api.us_tape import start_us_tape_task
-                _us_tape_task = start_us_tape_task()
-                print("📼 US futures tape task started (NQ)")
-            except Exception as e:
-                print(f"⚠️ US tape task failed: {e}")
-                _us_tape_task = None
             from api.reports_api.nifty_stream import nifty_burst_watch_task
             _nifty_stream_task = _spawn_task("Nifty burst stream watcher", nifty_burst_watch_task, started="📡 Nifty burst stream watcher started", failed="⚠️ Nifty burst stream watcher failed: {e}")
             try:
@@ -746,6 +979,15 @@ async def lifespan(app: FastAPI):
         _market_snapshot_task.cancel()
     if _digest_task:
         _digest_task.cancel()
+    # Five tasks were started above but never cancelled. Cancel them and wait
+    # within a bounded budget so a stuck to_thread worker cannot hang shutdown.
+    await _shutdown_cancel_and_wait(
+        _event_radar_task,
+        _nifty_futures_task,
+        _sensex_futures_task,
+        _options_recorder_task,
+        _tick_tape_task,
+    )
     try:
         from api import orderflow_journal
         orderflow_journal.close_all()
@@ -759,13 +1001,6 @@ async def lifespan(app: FastAPI):
         _nifty_snapshot_task.cancel()
     if _chain10s_task:
         _chain10s_task.cancel()
-    if _us_tape_task:
-        _us_tape_task.cancel()
-    try:
-        from api.reports_api.us_tape import stop_us_tasks
-        stop_us_tasks()
-    except Exception:
-        pass
     if _nifty_stream_task:
         _nifty_stream_task.cancel()
     if _nifty_spot_task:
@@ -822,12 +1057,14 @@ OPENAPI_TAGS = [
     {"name": "reports", "description": "Generated market reports and delivery."},
     {"name": "reports-nifty", "description": "Nifty report, bursts, structure, positioning and verdicts."},
     {"name": "reports-nifty-intel", "description": "Nifty intelligence aggregates."},
-    {"name": "reports-us", "description": "US market reports and tape."},
     {"name": "options", "description": "Options chain, analytics and sentiment."},
     {"name": "options-report", "description": "Options report generation."},
     {"name": "options-walls", "description": "Options wall / gamma exposure levels."},
     {"name": "options-recorder", "description": "Options tick recorder control."},
     {"name": "options-history", "description": "Historical options data."},
+    {"name": "options-screener", "description": "F&O momentum OTM options screener."},
+    {"name": "fyers-bridge", "description": "Fyers option chain, expiries and futures bridge."},
+    {"name": "report-sim", "description": "Strategy simulator over recorded option tape (replay + live as-of)."},
     {"name": "market-ticker", "description": "Live index and commodity ticker data."},
     {"name": "symbols", "description": "Symbol search and instrument lookup."},
     {"name": "news", "description": "News feed, articles and sources."},
@@ -835,6 +1072,7 @@ OPENAPI_TAGS = [
     {"name": "value", "description": "Deep Value screener (India / USA / Global)."},
     {"name": "market", "description": "NSE market snapshot powering the one-page screener."},
     {"name": "events", "description": "Event Radar: scheduled corporate catalysts and intraday tripwires."},
+    {"name": "catalysts", "description": "Home Monitor: ranked scheduled and breaking market catalysts."},
     {"name": "sector", "description": "Sector rotation and sector-level analytics."},
     {"name": "rotation", "description": "Market rotation analytics."},
     {"name": "correlation", "description": "Cross-asset correlation matrices."},
@@ -843,6 +1081,7 @@ OPENAPI_TAGS = [
     {"name": "agri", "description": "Agri commodity endpoints."},
     {"name": "brokers", "description": "Broker connections and OAuth."},
     {"name": "replay", "description": "Historical replay engine."},
+    {"name": "user-configs", "description": "Per-user saved screen state (one default per scope)."},
     {"name": "experiments", "description": "Research experiment tracking."},
     {"name": "poc", "description": "POC / NQ strategy tooling."},
     {"name": "Order Flow", "description": "Order flow, depth and tape (incl. /ws WebSocket bridge)."},
@@ -895,6 +1134,31 @@ def _include_api(module_path: str, router_attr: str, label: str, msg: str | None
         return False
 
 
+# The saved-config PUT sends `If-Match` (base revision). It must be listed here
+# or the browser preflight fails before the request ever leaves the page. The
+# conditional/cache family is included as a group because the same client sends
+# `If-None-Match` on revalidation and intermediaries add `Cache-Control`/`Pragma`.
+CORS_ALLOW_METHODS = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+CORS_ALLOW_HEADERS = (
+    "Content-Type, Authorization, X-Requested-With, "
+    "If-Match, If-None-Match, If-Modified-Since, Cache-Control, Pragma"
+)
+# Without this the browser hides the revision and retry hint from JS, so the
+# client cannot read what it is supposed to send back in `If-Match`/backoff.
+CORS_EXPOSE_HEADERS = "ETag, Retry-After"
+
+
+def _add_vary_origin(response: Response) -> None:
+    """Append `Origin` to `Vary` without clobbering `Accept-Encoding` from GZip."""
+    vary = response.headers.get("vary")
+    if vary is None:
+        response.headers["Vary"] = "Origin"
+        return
+    tokens = [token.strip().lower() for token in vary.split(",")]
+    if "origin" not in tokens:
+        response.headers["Vary"] = f"{vary}, Origin"
+
+
 class DynamicCORSMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         origin = request.headers.get("origin")
@@ -903,13 +1167,17 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
                 response = Response(status_code=204)
                 response.headers["Access-Control-Allow-Origin"] = origin
                 response.headers["Access-Control-Allow-Credentials"] = "true"
-                response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-                response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+                response.headers["Access-Control-Allow-Methods"] = CORS_ALLOW_METHODS
+                response.headers["Access-Control-Allow-Headers"] = CORS_ALLOW_HEADERS
+                response.headers["Access-Control-Expose-Headers"] = CORS_EXPOSE_HEADERS
                 response.headers["Access-Control-Max-Age"] = "86400"
+                _add_vary_origin(response)
                 return response
             response = await call_next(request)
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Expose-Headers"] = CORS_EXPOSE_HEADERS
+            _add_vary_origin(response)
             return response
         return await call_next(request)
 
@@ -931,6 +1199,10 @@ app.add_middleware(
     compresslevel=5,
     exclude_content_types=DEFAULT_EXCLUDED_CONTENT_TYPES,
 )
+
+# Added last so it wraps CORS/GZip and measures the full request path. It is a
+# pure ASGI middleware, so SSE is observed by TTFB rather than body lifetime.
+app.add_middleware(SlowAPIMiddleware)
 
 
 @app.get("/health", tags=["health"], summary="Liveness probe")
@@ -1163,14 +1435,89 @@ async def get_screener_data(
     if min_cap_b is not None:
         profile_filters['min_cap_b'] = min_cap_b
 
-    from cache.redis_client import make_cache_key, stale_while_revalidate
-    cache_key = make_cache_key("screener", provider, mode, screener, **profile_filters)
-
-    data, status = await stale_while_revalidate(
-        cache_key,
-        lambda: _compute_screener(provider, mode, screener, profile_filters),
-        fresh_ttl=300,
+    from cache.redis_client import (
+        CacheWarming,
+        make_cache_key,
+        stale_while_revalidate,
     )
+    cache_key = make_cache_key("screener", provider, mode, screener, **profile_filters)
+    screener_id = screener.replace('builtin:', '') if screener.startswith('builtin:') else screener
+    lock_ttl = SCREENER_LOCK_TTL if screener_id == '52w_high' else 30
+
+    data = None
+    status = None
+
+    # One off-loop probe: is Redis serving, and is anything cached? Probing on the
+    # loop would block for the connect timeout, and the availability flag lags a
+    # few failures behind (which sends callers back into a compute per request).
+    cached_payload, redis_serving = await asyncio.to_thread(_screener_probe, cache_key)
+    cold = cached_payload is None
+    if not cold and not redis_serving:
+        # No Redis: nothing to single-flight on, so the memo *is* the cache.
+        data, status = cached_payload, "fresh"
+
+    if cold and screener_id == '52w_high':
+        # Cold start: the full compute makes ~200 sequential Upstox calls (~100s).
+        # Serve a skeleton built from the stored range snapshot immediately and
+        # fill the cache in the background instead of holding the request open.
+        from api.screener_api.screener_52w import build_52w_skeleton_data
+
+        skeleton = await asyncio.to_thread(
+            build_52w_skeleton_data, profile_filters, provider, mode
+        )
+        if skeleton is not None:
+            # Single-flight per key: one in-flight warm, shared by every tab and
+            # by the prewarm. Its result also lands in the memo for the no-Redis case.
+            _ensure_screener_warm(cache_key, provider, mode, screener, profile_filters)
+            skeleton['applied_profile_filters'] = profile_filters
+            skeleton['cache_status'] = 'warming'
+            skeleton['served_from_cache'] = False
+            skeleton['refreshing'] = True
+            skeleton['warming'] = True
+            response = JSONResponse(content=_sanitize_for_json(skeleton))
+            response.headers["X-Cache"] = "warming"
+            return response
+
+        # No snapshot to build from: bound the wait, then fail fast rather than
+        # hang. Both bounds live inside stale_while_revalidate: wait_timeout
+        # bounds waiting for another holder, compute_timeout bounds our own
+        # compute. On timeout the compute keeps running *under its lock*
+        # (shielded), so the cache still fills and no second sweep starts.
+        try:
+            data, status = await stale_while_revalidate(
+                cache_key,
+                lambda: _compute_screener(provider, mode, screener, profile_filters),
+                fresh_ttl=300,
+                lock_ttl=lock_ttl,
+                wait_timeout=SCREENER_COLD_TIMEOUT,
+                compute_timeout=SCREENER_COLD_TIMEOUT,
+            )
+        except (asyncio.TimeoutError, TimeoutError, CacheWarming):
+            raise HTTPException(
+                status_code=503,
+                detail="52w_high screener is still warming up; retry shortly",
+                headers={"Retry-After": "15"},
+            )
+        _remember_screener(cache_key, data)
+
+    if data is None:
+        try:
+            data, status = await stale_while_revalidate(
+                cache_key,
+                lambda: _compute_screener(provider, mode, screener, profile_filters),
+                fresh_ttl=300,
+                lock_ttl=lock_ttl,
+                # Long enough to coalesce a full warm compute: computing here as
+                # well would double the upstream load the lock exists to prevent.
+                wait_timeout=SCREENER_WAIT_TIMEOUT,
+            )
+        except CacheWarming:
+            raise HTTPException(
+                status_code=503,
+                detail="Screener is still warming up; retry shortly",
+                headers={"Retry-After": "15"},
+            )
+        _remember_screener(cache_key, data)
 
     data['cache_status'] = status
     data['served_from_cache'] = status != 'miss'
@@ -1183,27 +1530,19 @@ async def get_screener_data(
 
 @app.get("/api/52w-range", tags=["screener"], summary="52-week range for one symbol")
 async def get_52w_range(symbol: str = Query(...)):
-    """Get 52-week high/low for a single symbol. Checks Redis first, falls back to DB."""
-    from cache.redis_client import cache_get
+    """Get 52-week high/low for one symbol from the bulk range cache.
+
+    The per-symbol ``52w_range:{symbol}`` keys are gone: the bulk key already
+    holds every row, so there is one cached payload to read regardless of how
+    many symbols are requested.
+    """
     import asyncio
+    from trading.week52_range_lookup import get_52w_range as lookup_52w_range
 
-    cached = await asyncio.to_thread(lambda: cache_get(f"52w_range:{symbol}"))
-    if cached and isinstance(cached, dict):
-        entry = _sanitize_52w_range_entry(cached)
-        if entry:
-            return entry
-
-    from db.database import SessionLocal
-    from db.models.stock_52w_touch import Stock52WeekRange
-
-    db = SessionLocal()
-    try:
-        row = db.query(Stock52WeekRange).filter(Stock52WeekRange.symbol == symbol).first()
-        if row:
-            return {"high": row.high_52w, "low": row.low_52w, "close": row.close}
-        return {"error": "not_found", "symbol": symbol}
-    finally:
-        db.close()
+    entry = await asyncio.to_thread(lookup_52w_range, symbol)
+    if entry:
+        return entry
+    return {"error": "not_found", "symbol": symbol}
 
 
 @app.get("/api/52w-range/bulk", tags=["screener"], summary="52-week ranges for many symbols")
@@ -1277,6 +1616,14 @@ _include_api("api.market_screen.router", "router", "market screen", msg="✅ Mar
 
 _include_api("api.options", "router", "options", msg="✅ Options API loaded at /api/options")
 
+_include_api("api.options_underlying", "router", "options underlying", msg="✅ Options underlying API loaded at /api/options/underlying")
+
+_include_api("api.options_analytics", "router", "options analytics", msg="✅ Options analytics API loaded at /api/options/analytics")
+
+_include_api("api.options_contract_chart", "router", "options contract chart", msg="✅ Options contract chart API loaded at /api/options/contract-chart")
+
+_include_api("api.options_screener", "router", "F&O screener", msg="✅ F&O screener API loaded at /api/options/screener")
+
 _include_api("api.fyers_bridge", "router", "fyers bridge", msg="✅ Fyers bridge API loaded at /api/fyers-bridge")
 
 _include_api("api.premium_tracker", "router", "premium tracker", msg="✅ Premium Tracker API loaded at /api/options/premium-tracker")
@@ -1319,6 +1666,8 @@ except Exception as e:
 
 _include_api("api.replay_api", "router", "replay", msg="✅ Replay API loaded at /api/replay")
 
+_include_api("api.user_configs", "router", "user-configs", msg="✅ User configs API loaded at /api/user-configs")
+
 _include_api("api.strategy_runner_api", "router", "strategy runner", msg="✅ Strategy Runner API loaded at /api/strategy-runner")
 
 _include_api("api.reports_api.breadth", "router", "breadth", msg="✅ Breadth API loaded at /api/reports/breadth")
@@ -1334,6 +1683,8 @@ _include_api("api.reports_api.options_report", "router", "options report", msg="
 _include_api("api.reports_api.options_recorder", "router", "options recorder status", msg="✅ Options recorder status API loaded at /api/reports/options/recorder/status")
 
 _include_api("api.reports_api.options_history", "router", "options history", msg="✅ Options history API loaded at /api/reports/options/...")
+
+_include_api("api.reports_api.sim", "router", "report sim", msg="✅ Report sim API loaded at /api/reports/sim")
 
 _include_api("api.reports_api.options_walls", "router", "options walls", msg="✅ Options walls API loaded at /api/reports/options/{symbol}/walls")
 
@@ -1370,12 +1721,15 @@ _include_api("api.reports_api.digest", "router", "reports digest", msg="✅ Repo
 
 _include_api("api.reports_api.nifty", "router", "Nifty Report", msg="✅ Nifty Report API loaded at /api/reports/nifty")
 
-_include_api("api.reports_api.us", "router", "US Report", msg="✅ US Report API loaded at /api/reports/us")
-
 _include_api("api.reports_api.nifty_ws", "router", "Nifty WS", msg="✅ Nifty WS API loaded at /ws/nifty/report + /ws/nifty/bursts")
+
+_include_api("api.reports_api.fyers_ws", "router", "Fyers ticks WS", msg="✅ Fyers ticks WS loaded at /ws/fyers/ticks")
 
 # --- Event Radar ---
 _include_api("api.event_radar.router", "router", "event radar", msg="✅ Event radar API loaded at /api/events")
+
+# --- Home Monitor ---
+_include_api("api.catalyst_radar.router", "router", "catalyst radar", msg="✅ Catalyst radar API loaded at /api/catalysts")
 
 if __name__ == '__main__':
     port = config.PORT

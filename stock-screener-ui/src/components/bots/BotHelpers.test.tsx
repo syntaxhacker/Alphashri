@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import {
@@ -12,6 +12,7 @@ import {
   BotSummaryCell,
   getBotIndicatorColor,
 } from "./BotHelpers";
+import { BOT_RUNNING, BOT_STOPPED } from "../../config/colors";
 import type {
   PortfolioSummary,
   StrategyStatus,
@@ -19,14 +20,57 @@ import type {
   BotTrade,
   BotConfig,
 } from "../../types/bots";
+import { Router } from "@solidjs/router";
+import type { JSX } from "solid-js";
+import { fetchHolidays } from "../../api/holidays_api";
+import { loadHolidays, resetHolidays } from "../../state/holidays";
+
+// Fixed IST instants injected into the real session helper; the holiday-only
+// helper stays holiday-only so the after-hours regressions fail on the old code.
+const clock = vi.hoisted(() => ({ now: new Date("2026-11-16T05:30:00Z") })); // Mon 11:00 IST
+
+vi.mock("../../api/holidays_api", () => ({
+  fetchHolidays: vi.fn(async () => []),
+  fetchHolidayCheck: vi.fn(),
+}));
+
+vi.mock("../../state/holidays", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../state/holidays")>();
+  const istDate = (now: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(now);
+  return {
+    ...actual,
+    isMarketClosedToday: (now?: Date) => actual.isTradingHoliday(istDate(now ?? clock.now)),
+    isMarketOpenNow: (now?: Date) => actual.isMarketOpenNow(now ?? clock.now),
+  };
+});
+
+// Local equivalent of the shared renderWithProviders test helper, fixed for
+// Solid: solid-router renders no plain children, so tests mount through the
+// router's `root` prop instead.
+function renderWithProviders(ui: () => JSX.Element) {
+  return render(() => (
+    <Router root={() => <UIProvider>{ui()}</UIProvider>} />
+  ));
+}
+
+beforeEach(() => {
+  clock.now = new Date("2026-11-16T05:30:00Z"); // Monday 11:00 IST — open
+  delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+  vi.mocked(fetchHolidays).mockResolvedValue([]);
+  resetHolidays();
+});
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.useRealTimers();
 });
 
-function renderWithProviders(ui: React.ReactElement) {
-  return render(<UIProvider>{ui}</UIProvider>);
+async function setHoliday(date: string, description: string) {
+  vi.mocked(fetchHolidays).mockResolvedValueOnce([{ date, description, type: "trading" }]);
+  resetHolidays();
+  await loadHolidays();
 }
 
 const mockPortfolio: PortfolioSummary = {
@@ -98,6 +142,7 @@ const mockBot: BotConfig = {
   max_total_positions: 5,
   max_total_capital_pct: 0.5,
   max_daily_loss_pct: 0.03,
+  live_trading: false,
   strategies: [
     {
       id: "s1",
@@ -105,6 +150,7 @@ const mockBot: BotConfig = {
       strategy_type: "ORB",
       max_positions: 3,
       capital_allocation_pct: 0.5,
+      enable_shorts: false,
     },
   ],
   created_at: "2025-01-01T00:00:00Z",
@@ -115,7 +161,7 @@ const mockBot: BotConfig = {
 
 describe("PortfolioSummaryCard", () => {
   it("displays portfolio summary data", () => {
-    const { container } = renderWithProviders(<PortfolioSummaryCard portfolio={mockPortfolio} />);
+    const { container } = renderWithProviders(() => <PortfolioSummaryCard portfolio={mockPortfolio} />);
     const el = container.querySelector('[data-testid="portfolio-summary"]');
     expect(el).toBeInTheDocument();
   });
@@ -123,7 +169,7 @@ describe("PortfolioSummaryCard", () => {
 
 describe("StrategyStatusCard", () => {
   it("renders strategy card with data", () => {
-    const { container } = renderWithProviders(<StrategyStatusCard strategy={mockStrategy} isRunning={true} />);
+    const { container } = renderWithProviders(() => <StrategyStatusCard strategy={mockStrategy} isRunning={true} />);
     const el = container.querySelector('[data-testid="strategy-card"]');
     expect(el).toBeInTheDocument();
   });
@@ -131,7 +177,7 @@ describe("StrategyStatusCard", () => {
 
 describe("PositionsTable", () => {
   it("renders column headers", () => {
-    const { container } = renderWithProviders(<PositionsTable positions={[mockPosition]} />);
+    const { container } = renderWithProviders(() => <PositionsTable positions={[mockPosition]} />);
     const table = container.querySelector('[data-testid="bot-positions"]');
     expect(table).toBeInTheDocument();
     expect(table!.textContent).toContain("Strategy");
@@ -145,7 +191,7 @@ describe("PositionsTable", () => {
   });
 
   it("returns null when positions array is empty", () => {
-    const { container } = renderWithProviders(<PositionsTable positions={[]} />);
+    const { container } = renderWithProviders(() => <PositionsTable positions={[]} />);
     const el = container.querySelector('[data-testid="bot-positions"]');
     expect(el).toBeNull();
   });
@@ -153,13 +199,13 @@ describe("PositionsTable", () => {
 
 describe("TradesTable", () => {
   it("renders trade history table", () => {
-    const { container } = renderWithProviders(<TradesTable trades={[mockTrade]} onRefresh={vi.fn()} />);
+    const { container } = renderWithProviders(() => <TradesTable trades={[mockTrade]} onRefresh={vi.fn()} />);
     const el = container.querySelector('[data-testid="bot-trades"]');
     expect(el).toBeInTheDocument();
   });
 
   it("shows 'No trades yet' empty state", () => {
-    const { container } = renderWithProviders(<TradesTable trades={[]} onRefresh={vi.fn()} />);
+    const { container } = renderWithProviders(() => <TradesTable trades={[]} onRefresh={vi.fn()} />);
     const el = container.querySelector('[data-testid="bot-trades"]');
     expect(el).toBeInTheDocument();
     expect(screen.getByText("No trades yet")).toBeInTheDocument();
@@ -177,7 +223,7 @@ describe("BotActionButtons", () => {
   };
 
   it("shows action buttons with testids", () => {
-    const { container } = renderWithProviders(<BotActionButtons {...actionProps} />);
+    const { container } = renderWithProviders(() => <BotActionButtons {...actionProps} />);
     expect(container.querySelector(`[data-testid="view-bot-status-btn-${mockBot.id}"]`)).toBeInTheDocument();
     expect(container.querySelector(`[data-testid="start-bot-btn-${mockBot.id}"]`)).toBeInTheDocument();
     expect(container.querySelector(`[data-testid="edit-bot-btn-${mockBot.id}"]`)).toBeInTheDocument();
@@ -186,21 +232,23 @@ describe("BotActionButtons", () => {
 
   it("start button is disabled when bot is not active", () => {
     const inactiveBot = { ...mockBot, is_active: false };
-    const { container } = renderWithProviders(<BotActionButtons {...actionProps} bot={inactiveBot} />);
+    const { container } = renderWithProviders(() => <BotActionButtons {...actionProps} bot={inactiveBot} />);
     const btn = container.querySelector(`[data-testid="start-bot-btn-${inactiveBot.id}"]`);
     expect(btn).toBeInTheDocument();
+    expect(btn).toBeDisabled();
   });
 
   it("delete button is disabled when bot is running", () => {
     const runningBot = { ...mockBot, running: true };
-    const { container } = renderWithProviders(<BotActionButtons {...actionProps} bot={runningBot} />);
+    const { container } = renderWithProviders(() => <BotActionButtons {...actionProps} bot={runningBot} />);
     const btn = container.querySelector(`[data-testid="delete-bot-btn-${runningBot.id}"]`);
     expect(btn).toBeInTheDocument();
+    expect(btn).toBeDisabled();
   });
 
   it("shows stop button when bot is running", () => {
     const runningBot = { ...mockBot, running: true };
-    const { container } = renderWithProviders(<BotActionButtons {...actionProps} bot={runningBot} />);
+    const { container } = renderWithProviders(() => <BotActionButtons {...actionProps} bot={runningBot} />);
     const btn = container.querySelector(`[data-testid="stop-bot-btn-${runningBot.id}"]`);
     expect(btn).toBeInTheDocument();
   });
@@ -208,14 +256,65 @@ describe("BotActionButtons", () => {
 
 describe("BotSummaryCell", () => {
   it("shows strategy count and type badges", () => {
-    const { container } = renderWithProviders(<BotSummaryCell bot={mockBot} />);
+    const { container } = renderWithProviders(() => <BotSummaryCell bot={mockBot} />);
     expect(container.textContent).toContain("1 strategies");
   });
 });
 
 describe("getBotIndicatorColor", () => {
   it("returns correct colors", () => {
-    expect(getBotIndicatorColor(true)).toBeTruthy();
-    expect(getBotIndicatorColor(false)).toBeTruthy();
+    expect(getBotIndicatorColor(true)).toBe(BOT_RUNNING);
+    expect(getBotIndicatorColor(false)).toBe(BOT_STOPPED);
+  });
+});
+
+// Fixed-instant regressions: the holiday-only helper said "open" at 17:11,
+// so the after-hours case fails on the old code.
+describe("BotActionButtons — session guard with fixed timestamps", () => {
+  const actionProps = {
+    bot: mockBot,
+    onView: vi.fn(),
+    onStart: vi.fn(),
+    onStop: vi.fn(),
+    onEdit: vi.fn(),
+    onDelete: vi.fn(),
+  };
+  const startBtnId = `start-bot-btn-${mockBot.id}`;
+  const renderButtons = () => renderWithProviders(() => <BotActionButtons {...actionProps} />);
+
+  it("17:11 IST on a weekday disables Start and explains the session", () => {
+    clock.now = new Date("2026-11-16T11:41:00Z"); // Monday 17:11 IST
+    const { container } = renderButtons();
+    const btn = container.querySelector(`[data-testid="${startBtnId}"]`)!;
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute("title", expect.stringContaining("Closed at 15:30 IST"));
+  });
+
+  it("11:00 IST on a weekday enables Start", () => {
+    clock.now = new Date("2026-11-16T05:30:00Z"); // Monday 11:00 IST
+    const { container } = renderButtons();
+    const btn = container.querySelector(`[data-testid="${startBtnId}"]`)!;
+    expect(btn).not.toBeDisabled();
+    expect(btn).toHaveAttribute("title", "Start Bot");
+  });
+
+  it("a holiday at 11:00 IST keeps the holiday reason", async () => {
+    clock.now = new Date("2026-01-26T05:30:00Z"); // Republic Day, Monday 11:00 IST
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(clock.now);
+    await setHoliday("2026-01-26", "Republic Day");
+    const { container } = renderButtons();
+    const btn = container.querySelector(`[data-testid="${startBtnId}"]`)!;
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute("title", expect.stringContaining("Republic Day"));
+  });
+
+  it("__E2E_MOCK_MARKET_OPEN__ enables Start at 17:11 IST", () => {
+    clock.now = new Date("2026-11-16T11:41:00Z");
+    (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
+    const { container } = renderButtons();
+    const btn = container.querySelector(`[data-testid="${startBtnId}"]`)!;
+    expect(btn).not.toBeDisabled();
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
   });
 });

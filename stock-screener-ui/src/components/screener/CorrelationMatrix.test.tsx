@@ -1,29 +1,27 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
-import React from "react";
+import type { JSX } from "solid-js";
 
 vi.mock("../common/CorrelationHeatmap", () => ({
   CorrelationHeatmap: (props: any) => {
     const hasData =
       props.matrix && props.matrix.length > 0 && props.symbols && props.symbols.length > 0;
-    return React.createElement(
-      "div",
-      { "data-testid": props.testId },
-      props.isLoading && React.createElement("span", null, "Loading correlation data..."),
-      !props.isLoading &&
-        !hasData &&
-        React.createElement("span", null, "No correlation data available"),
+    return (
+      <div data-testid={props.testId}>
+        {props.isLoading ? <span>Loading correlation data...</span> : null}
+        {!props.isLoading && !hasData ? <span>No correlation data available</span> : null}
+      </div>
     );
   },
 }));
 
 import { CorrelationMatrix } from "./CorrelationMatrix";
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
+function r(jsx: JSX.Element) {
+  return render(() => <UIProvider>{jsx}</UIProvider>);
 }
 
 describe("CorrelationMatrix", () => {

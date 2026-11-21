@@ -1,17 +1,15 @@
-import { useEffect } from "react";
-import Typography from "@mui/material/Typography";
+import { For, Show, createEffect, createMemo, onCleanup, onMount } from "solid-js";
 import { Alert, Badge, Box, Stack, Text, ToolbarRow } from "@/ui";
-import { IconAlertCircle } from "@tabler/icons-react";
-import { useStoreSubscription } from "../../hooks/useStoreSubscription";
+import { BG_COLOR, BROWN } from "@/ui/palette";
+import { IconAlertCircle } from "../common/Icons";
 import {
   fetchSessions,
   fetchStrategies,
-  getExperimentState,
   selectSession,
   startPolling,
   stopPolling,
-  subscribe,
 } from "../../state/experiments";
+import { useExperimentState } from "./useExperimentState";
 import { ExperimentsConfig } from "./ExperimentsConfig";
 import { ExperimentsProgress } from "./ExperimentsProgress";
 import { ExperimentsResultsTable } from "./ExperimentsResultsTable";
@@ -36,73 +34,65 @@ const paneSx = {
   overflow: "hidden",
   display: "flex",
   flexDirection: "column",
-  border: 1,
-  borderColor: "divider",
-  borderRadius: 1,
-  bgcolor: "background.paper",
+  border: `1px solid ${BROWN}`,
+  borderRadius: 8,
+  backgroundColor: BG_COLOR,
 } as const;
 
 const paneHeaderSx = {
   display: "flex",
   alignItems: "center",
   gap: 0.5,
-  px: 1,
+  paddingLeft: 8,
   minHeight: 28,
-  borderBottom: 1,
-  borderColor: "divider",
+  borderBottom: `1px solid ${BROWN}`,
   flex: "0 0 auto",
 } as const;
 
 export function ExperimentsPage() {
-  useStoreSubscription(subscribe);
-  const state = getExperimentState();
+  const state = useExperimentState();
+  const activeSession = createMemo(() => state().activeSession);
 
-  useEffect(() => {
+  onMount(() => {
     void fetchStrategies();
     void fetchSessions();
-  }, []);
+  });
 
-  useEffect(() => {
-    if (state.activeSession) {
-      startPolling(state.activeSession);
+  createEffect(() => {
+    const active = activeSession();
+    if (active) {
+      startPolling(active);
     }
-    return () => stopPolling();
-  }, [state.activeSession]);
+    onCleanup(() => stopPolling());
+  });
 
   return (
     <Box
       data-testid="experiments-page"
-      sx={{
-        height: "100%",
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-        gap: 0.5,
-        p: 0.5,
-        overflow: "hidden",
-      }}
+      className="h-full min-h-0 flex flex-col gap-1 p-1 overflow-hidden"
+      style={{ height: "100%", "min-height": "0px", display: "flex", "flex-direction": "column", gap: "4px", padding: "4px", overflow: "hidden" }}
     >
       <ToolbarRow
         justify="space-between"
         gap={8}
-        style={{ minHeight: 28, flex: "0 0 auto" }}
+        style={{ "min-height": "28px", flex: "0 0 auto" }}
       >
-        <Box sx={{ display: "flex", alignItems: "baseline", gap: 1, minWidth: 0 }}>
-          <Typography variant="h6" fontWeight={700} sx={{ lineHeight: 1.2 }}>
+        <Box className="flex items-baseline gap-2 min-w-0" style={{ display: "flex", "align-items": "baseline", gap: "8px", "min-width": "0px" }}>
+          <Text size="sm" fw={700} style={{ "line-height": 1.2 }}>
             Experiments
-          </Typography>
+          </Text>
           <Text size="xs" c="dimmed">
-            {state.sessions.length} {state.sessions.length === 1 ? "session" : "sessions"}
+            {state().sessions.length} {state().sessions.length === 1 ? "session" : "sessions"}
           </Text>
         </Box>
-        {state.activeSession && (
+        <Show when={state().activeSession}>
           <Badge size="xs" variant="light" color="primary">
-            {state.activeSession}
+            {state().activeSession}
           </Badge>
-        )}
+        </Show>
       </ToolbarRow>
 
-      {state.error && (
+      <Show when={state().error}>
         <Alert
           data-testid="experiments-error"
           icon={<IconAlertCircle size={16} />}
@@ -110,21 +100,21 @@ export function ExperimentsPage() {
           color="error"
           variant="filled"
           withCloseButton
-          sx={{ flex: "0 0 auto" }}
+          style={{ flex: "0 0 auto" }}
         >
-          {state.error}
+          {state().error}
         </Alert>
-      )}
+      </Show>
 
       <Box
-        sx={{
+        className="shrink-0 overflow-auto border border-fin-border rounded-fin"
+        style={{
           flex: "0 0 auto",
-          maxHeight: "36vh",
+          "max-height": "36vh",
           overflow: "auto",
-          border: 1,
-          borderColor: "divider",
-          borderRadius: 1,
-          bgcolor: "background.paper",
+          border: `1px solid ${BROWN}`,
+          "border-radius": "8px",
+          "background-color": BG_COLOR,
         }}
         data-testid="experiments-config-scroll"
       >
@@ -132,59 +122,64 @@ export function ExperimentsPage() {
       </Box>
 
       <Box
-        sx={{
+        className="flex-1 min-h-0 grid gap-1 overflow-auto"
+        style={{
           flex: 1,
-          minHeight: 0,
+          "min-height": "0px",
           display: "grid",
-          gap: 0.5,
+          gap: "4px",
           overflow: "auto",
-          gridTemplateColumns: { xs: "1fr", lg: "280px minmax(0,1fr) minmax(0,1.25fr)" },
+          "grid-template-columns": "1fr",
         }}
       >
-        <Box sx={paneSx} data-testid="experiments-session-list">
-          <Box sx={paneHeaderSx}>
+        <Box style={paneSx} data-testid="experiments-session-list">
+          <Box style={paneHeaderSx}>
             <Text fw={600} size="sm">
               Sessions
             </Text>
-            <Box sx={{ flex: 1 }} />
+            <div className="flex-1" />
             <Text size="xs" c="dimmed">
-              {state.sessions.length}
+              {state().sessions.length}
             </Text>
           </Box>
-          <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 0.5 }}>
-            {state.sessions.length === 0 ? (
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
-                <Text size="sm" c="dimmed">
-                  No sessions yet
-                </Text>
-              </Box>
-            ) : (
-              <Stack gap={0.5} sx={{ alignItems: "stretch" }}>
-                {state.sessions.map((session) => {
-                  const active = session.session === state.activeSession;
+          <Box flex={1} className="min-h-0 overflow-auto p-1" style={{ flex: 1, "min-height": "0px", overflow: "auto", padding: "4px" }}>
+            <Show
+              when={state().sessions.length > 0}
+              fallback={
+                <Box className="flex items-center justify-center p-2" style={{ display: "flex", "align-items": "center", "justify-content": "center", padding: "8px" }}>
+                  <Text size="sm" c="dimmed">
+                    No sessions yet
+                  </Text>
+                </Box>
+              }
+            >
+              <Stack gap={0.5} align="stretch">
+                <For each={state().sessions}>{(session) => {
+                  const active = () => session.session === state().activeSession;
                   return (
                     <Box
-                      key={session.session}
                       data-testid={`experiments-session-${session.session}`}
                       onClick={() => void selectSession(session.session)}
-                      sx={{
+                      className={active() ? "bg-fin-primary/15" : "hover:bg-fin-surface-alt"}
+                      style={{
                         cursor: "pointer",
-                        borderRadius: 1,
-                        bgcolor: active ? "primary.light" : undefined,
-                        "&:hover": { bgcolor: active ? "primary.light" : "action.hover" },
-                        px: 1,
-                        py: 0.75,
+                        "border-radius": "8px",
+                        ...(active() ? { "background-color": "rgba(88, 166, 255, 0.15)" } : {}),
+                        "padding-left": "8px",
+                        "padding-right": "8px",
+                        "padding-top": "6px",
+                        "padding-bottom": "6px",
                         display: "flex",
-                        flexDirection: "column",
-                        gap: 0.5,
-                        alignItems: "stretch",
-                        textAlign: "left",
+                        "flex-direction": "column",
+                        gap: "4px",
+                        "align-items": "stretch",
+                        "text-align": "left",
                       }}
                     >
                       <Text size="sm" fw={500} truncate>
                         {session.session}
                       </Text>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                      <Box className="flex items-center gap-2 flex-wrap" style={{ display: "flex", "align-items": "center", gap: "8px", "flex-wrap": "wrap" }}>
                         <Badge size="xs" variant="light" color="primary">
                           {session.strategy}
                         </Badge>
@@ -204,25 +199,25 @@ export function ExperimentsPage() {
                       </Box>
                     </Box>
                   );
-                })}
+                }}</For>
               </Stack>
-            )}
+            </Show>
           </Box>
         </Box>
 
-        <Box sx={paneSx}>
-          <Box sx={paneHeaderSx}>
+        <Box style={paneSx}>
+          <Box style={paneHeaderSx}>
             <Text fw={600} size="sm">
               Results
             </Text>
           </Box>
-          <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 0.5, display: "flex", flexDirection: "column", gap: 0.5 }}>
+          <Box flex={1} className="min-h-0 overflow-auto p-1 flex flex-col gap-1" style={{ flex: 1, "min-height": "0px", overflow: "auto", padding: "4px", display: "flex", "flex-direction": "column", gap: "4px" }}>
             <ExperimentsProgress />
             <ExperimentsResultsTable />
           </Box>
         </Box>
 
-        <Box sx={paneSx} data-testid="experiments-chart-panel">
+        <Box style={paneSx} data-testid="experiments-chart-panel">
           <ExperimentsChart />
         </Box>
       </Box>

@@ -88,8 +88,41 @@ class AdapterHub:
         on_error: Optional[ErrorCallback] = None,
     ) -> Subscription:
         """Start streaming ``symbol`` for ``on_tick``, reusing the connection."""
+        return self._subscribe(broker, token, symbol, None, on_tick, on_error)
+
+    def subscribe_as(
+        self,
+        broker: str,
+        token: str,
+        app_symbol: str,
+        broker_symbol: str,
+        on_tick: TickCallback,
+        on_error: Optional[ErrorCallback] = None,
+    ) -> Subscription:
+        """Subscribe with an explicit wire symbol, routing ticks to ``app_symbol``.
+
+        ``_dispatch`` reverses the adapter's qualification with
+        ``from_broker_symbol``: it strips ``NSE:``/``-EQ`` but cannot rebuild an
+        index suffix from a bare name. Index underlyings therefore need the
+        adapter to subscribe ``NSE:NIFTY50-INDEX`` while listeners are keyed on
+        ``NIFTY50-INDEX``. Existing equity callers keep using :meth:`subscribe`.
+        """
+        return self._subscribe(
+            broker, token, app_symbol, broker_symbol, on_tick, on_error
+        )
+
+    def _subscribe(
+        self,
+        broker: str,
+        token: str,
+        symbol: str,
+        broker_symbol: Optional[str],
+        on_tick: TickCallback,
+        on_error: Optional[ErrorCallback] = None,
+    ) -> Subscription:
         broker_key = (broker or "").strip().lower()
         app_symbol = normalize_symbol(symbol)
+        wire_symbol = normalize_symbol(broker_symbol) if broker_symbol else app_symbol
         if not broker_key:
             raise ValueError("broker is required")
         if not app_symbol:
@@ -117,7 +150,7 @@ class AdapterHub:
                 entry.adapter = self._factory(broker_key, token)
                 try:
                     entry.adapter.connect(
-                        [app_symbol],
+                        [wire_symbol],
                         on_tick=self._make_sink(broker_key),
                         on_error=self._make_error_sink(broker_key),
                     )
@@ -126,7 +159,7 @@ class AdapterHub:
                     self._entries.pop(broker_key, None)
                     raise
             else:
-                self._grow(broker_key, entry, app_symbol, listener)
+                self._grow(broker_key, entry, app_symbol, wire_symbol, listener)
         return sub
 
     def unsubscribe(self, sub: Subscription) -> None:
@@ -167,7 +200,14 @@ class AdapterHub:
                 self._teardown(broker, self._entries[broker], force=True)
 
     # -- internals ----------------------------------------------------------
-    def _grow(self, broker: str, entry: _Entry, symbol: str, listener: _Listener) -> None:
+    def _grow(
+        self,
+        broker: str,
+        entry: _Entry,
+        symbol: str,
+        wire_symbol: str,
+        listener: _Listener,
+    ) -> None:
         """Attach a new symbol to an existing connection.
 
         Adapters that cannot grow in place would need a second socket — exactly
@@ -195,7 +235,7 @@ class AdapterHub:
             return
 
         try:
-            entry.adapter.subscribe_symbol(symbol)
+            entry.adapter.subscribe_symbol(wire_symbol)
         except BaseException as exc:  # noqa: BLE001 - surface, don't leak a phantom subscriber
             self._reject(listener, exc, entry, symbol)
             return

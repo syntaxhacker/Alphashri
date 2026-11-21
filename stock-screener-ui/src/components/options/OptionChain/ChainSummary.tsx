@@ -1,6 +1,7 @@
 import { Text, RingProgress } from "@/ui";
-import Box from "@mui/material/Box";
-import { useMemo } from "react";
+import { Box } from "@/ui";
+import { createMemo } from "solid-js";
+import { pcrTone } from "@/config/optionsMath";
 import { CompactPanel, CompactStatGrid } from "../../common/compact";
 
 interface ChainSummaryProps {
@@ -62,102 +63,85 @@ export function computeStats(strikeMatrix: StrikeRow[], summary: Summary | undef
 }
 
 export function computePcrColor(pcr: number): string {
-  return pcr > 1.2 ? "success" : pcr < 0.7 ? "error" : "primary";
+  const tone = pcrTone(pcr);
+  return tone === "bullish" ? "success" : tone === "bearish" ? "error" : "primary";
 }
 
-export function ChainSummary({
-  strikeMatrix,
-  spotPrice: _spotPrice,
-  selectedExpiry: _selectedExpiry,
-  summary,
-}: ChainSummaryProps) {
-  const stats = useMemo(() => computeStats(strikeMatrix, summary), [strikeMatrix, summary]);
+/** The bias label reads the same tone as the colour — one PCR, one verdict. */
+export function pcrBiasLabel(pcr: number): string {
+  const tone = pcrTone(pcr);
+  return tone === "bullish" ? "Bullish bias" : tone === "bearish" ? "Bearish bias" : "Neutral";
+}
 
-  const pcrColor = computePcrColor(stats.pcr);
-  const total = stats.totalCE_OI + stats.totalPE_OI || 1;
+export function ChainSummary(props: ChainSummaryProps) {
+  const stats = createMemo(() => computeStats(props.strikeMatrix, props.summary));
+
+  const pcrColor = () => computePcrColor(stats().pcr);
+  const total = () => stats().totalCE_OI + stats().totalPE_OI || 1;
+  const pcrTextClass = () =>
+    pcrColor() === "success" ? "text-fin-positive" : pcrColor() === "error" ? "text-fin-negative" : "text-fin-primary";
 
   return (
-    <Box sx={{ display: "flex", justifyContent: "center", width: "100%" }}>
+    <Box className="flex justify-center w-full">
       <CompactStatGrid data-testid="chain-summary">
         <CompactPanel data-testid="chain-summary-compact-row">
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexWrap: "wrap",
-              columnGap: 3,
-              rowGap: 1,
-              width: "100%",
-            }}
-          >
-            <Box
-              sx={{ display: "flex", alignItems: "center", gap: 1 }}
-              data-testid="options-chain-summary-pcr"
-            >
+          <Box className="flex items-center justify-center flex-wrap" style={{ "column-gap": "24px", "row-gap": "8px", width: "100%" }}>
+            <Box className="flex items-center gap-[8px]" data-testid="options-chain-summary-pcr">
               <RingProgress
                 size={44}
                 thickness={5}
                 roundCaps
                 sections={[
-                  { value: (stats.totalPE_OI / total) * 100, color: "error" },
-                  { value: (stats.totalCE_OI / total) * 100, color: "success" },
+                  { value: (stats().totalPE_OI / total()) * 100, color: "error" },
+                  { value: (stats().totalCE_OI / total()) * 100, color: "success" },
                 ]}
               />
-              <Text size="sm" c="dimmed" fw={600}>
+              <Text size="sm" className="text-fin-text-muted" fw={600}>
                 PCR
               </Text>
-              <Text size="sm" fw={700} c={pcrColor}>
-                {stats.pcr.toFixed(2)}
+              <Text size="sm" fw={700} className={pcrTextClass()}>
+                {stats().pcr.toFixed(2)}
               </Text>
-              <Text size="sm" c={pcrColor} fw={600}>
-                {stats.pcr > 1 ? "Bullish bias" : "Bearish bias"}
+              <Text size="sm" className={pcrTextClass()} fw={600}>
+                {pcrBiasLabel(stats().pcr)}
               </Text>
             </Box>
 
-            <Text size="sm" c="dimmed" aria-hidden="true">
+            <Text size="sm" className="text-fin-text-muted" aria-hidden="true">
               |
             </Text>
 
-            <Box
-              sx={{ display: "flex", alignItems: "center", gap: 1 }}
-              data-testid="options-chain-summary-range"
-            >
-              <Text size="sm" c="dimmed" fw={600}>
+            <Box className="flex items-center gap-[8px]" data-testid="options-chain-summary-range">
+              <Text size="sm" className="text-fin-text-muted" fw={600}>
                 Range
               </Text>
-              <Text size="sm" fw={700} c={stats.expectedMove ? "primary" : "dimmed"}>
-                {stats.expectedMove
-                  ? `${stats.expectedMove.lower} - ${stats.expectedMove.upper}`
+              <Text size="sm" fw={700} className={stats().expectedMove ? "text-fin-primary" : "text-fin-text-muted"}>
+                {stats().expectedMove
+                  ? `${stats().expectedMove.lower} - ${stats().expectedMove.upper}`
                   : "Data pending"}
               </Text>
-              <Box
-                sx={{ display: "flex", alignItems: "center", gap: 1 }}
-                data-testid="options-chain-support-resistance"
-              >
-                <Text size="sm" fw={700} c="error">
-                  RES {stats.resistanceStrike}
+              <Box className="flex items-center gap-[8px]" data-testid="options-chain-support-resistance">
+                <Text size="sm" fw={700} className="text-fin-negative">
+                  RES {stats().resistanceStrike}
                 </Text>
-                <Text size="sm" fw={700} c="success">
-                  SUP {stats.supportStrike}
+                <Text size="sm" fw={700} className="text-fin-positive">
+                  SUP {stats().supportStrike}
                 </Text>
               </Box>
             </Box>
 
-            <Text size="sm" c="dimmed" aria-hidden="true">
+            <Text size="sm" className="text-fin-text-muted" aria-hidden="true">
               |
             </Text>
 
-            <Box
-              sx={{ display: "flex", alignItems: "center", gap: 1 }}
-              data-testid="options-chain-summary-max-pain"
-            >
-              <Text size="sm" c="dimmed" fw={600}>
+            <Box className="flex items-center gap-[8px]" data-testid="options-chain-summary-max-pain">
+              <Text size="sm" className="text-fin-text-muted" fw={600}>
                 Max Pain
               </Text>
-              <Text size="sm" fw={700} c="warning">
-                {stats.maxPain}
-              </Text>            </Box>
+              <Text size="sm" fw={700} className="text-fin-warning">
+                {stats().maxPain}
+              </Text>
+            </Box>
           </Box>
         </CompactPanel>
       </CompactStatGrid>

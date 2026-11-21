@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
+import type { JSX } from "solid-js";
 import "@testing-library/jest-dom/vitest";
 import { ReportDeliveryStrip } from "./ReportDeliveryStrip";
 import { ReportEventsStrip } from "./ReportEventsStrip";
@@ -31,8 +32,8 @@ const eventsData = {
   symbols_total: 2,
 };
 
-function renderStrip(ui: React.ReactElement) {
-  return render(<UIProvider>{ui}</UIProvider>);
+function renderStrip(ui: JSX.Element) {
+  return render(() => <UIProvider>{ui}</UIProvider>);
 }
 
 describe("ReportDeliveryStrip", () => {
@@ -62,9 +63,8 @@ describe("ReportDeliveryStrip", () => {
 
   it("opens the symbol on click", async () => {
     const onOpen = vi.fn();
-    const { default: userEvent } = await import("@testing-library/user-event");
     renderStrip(<ReportDeliveryStrip data={deliveryData} loading={false} error={null} onOpenSymbol={onOpen} />);
-    await userEvent.click(screen.getByTestId("report-delivery-row-RELIANCE"));
+    fireEvent.click(screen.getByTestId("report-delivery-row-RELIANCE"));
     expect(onOpen).toHaveBeenCalledWith("RELIANCE");
     cleanup();
   });

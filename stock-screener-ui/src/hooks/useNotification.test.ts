@@ -1,10 +1,9 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, act, cleanup } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { useNotification } from "./useNotification";
+import { renderSolidHook } from "../test-utils/solidRenderHook";
 
 afterEach(() => {
-  cleanup();
   vi.clearAllMocks();
 });
 
@@ -26,7 +25,7 @@ describe("useNotification", () => {
   });
 
   it("returns show, success, and error functions", () => {
-    const { result } = renderHook(() => useNotification());
+    const { result } = renderSolidHook(() => useNotification());
 
     expect(typeof result.current.show).toBe("function");
     expect(typeof result.current.success).toBe("function");
@@ -35,11 +34,9 @@ describe("useNotification", () => {
 
   describe("show", () => {
     it("shows notification with title and message", () => {
-      const { result } = renderHook(() => useNotification());
+      const { result } = renderSolidHook(() => useNotification());
 
-      act(() => {
-        result.current.show({ title: "Test", message: "Test message" });
-      });
+      result.current.show({ title: "Test", message: "Test message" });
 
       expect(mockShowNotification).toHaveBeenCalledWith({
         title: "Test",
@@ -49,11 +46,9 @@ describe("useNotification", () => {
     });
 
     it("uses blue as default color", () => {
-      const { result } = renderHook(() => useNotification());
+      const { result } = renderSolidHook(() => useNotification());
 
-      act(() => {
-        result.current.show({ title: "Test", message: "Message" });
-      });
+      result.current.show({ title: "Test", message: "Message" });
 
       expect(mockShowNotification).toHaveBeenCalledWith(
         expect.objectContaining({ color: "blue" }),
@@ -61,11 +56,9 @@ describe("useNotification", () => {
     });
 
     it("uses custom color when provided", () => {
-      const { result } = renderHook(() => useNotification());
+      const { result } = renderSolidHook(() => useNotification());
 
-      act(() => {
-        result.current.show({ title: "Test", message: "Message", color: "red" });
-      });
+      result.current.show({ title: "Test", message: "Message", color: "red" });
 
       expect(mockShowNotification).toHaveBeenCalledWith(
         expect.objectContaining({ color: "red" }),
@@ -73,7 +66,7 @@ describe("useNotification", () => {
     });
 
     it("accepts all supported colors", () => {
-      const { result } = renderHook(() => useNotification());
+      const { result } = renderSolidHook(() => useNotification());
       const colors = [
         "blue",
         "green",
@@ -89,9 +82,7 @@ describe("useNotification", () => {
       ];
 
       colors.forEach((color) => {
-        act(() => {
-          result.current.show({ title: "Test", message: "Message", color });
-        });
+        result.current.show({ title: "Test", message: "Message", color });
         expect(mockShowNotification).toHaveBeenCalledWith(expect.objectContaining({ color }));
         mockShowNotification.mockClear();
       });
@@ -100,11 +91,9 @@ describe("useNotification", () => {
 
   describe("success", () => {
     it("shows notification with green color", () => {
-      const { result } = renderHook(() => useNotification());
+      const { result } = renderSolidHook(() => useNotification());
 
-      act(() => {
-        result.current.success("Success Title", "Success message");
-      });
+      result.current.success("Success Title", "Success message");
 
       expect(mockShowNotification).toHaveBeenCalledWith({
         title: "Success Title",
@@ -114,11 +103,9 @@ describe("useNotification", () => {
     });
 
     it("forwards title and message correctly", () => {
-      const { result } = renderHook(() => useNotification());
+      const { result } = renderSolidHook(() => useNotification());
 
-      act(() => {
-        result.current.success("Congratulations!", "Operation completed successfully");
-      });
+      result.current.success("Congratulations!", "Operation completed successfully");
 
       expect(mockShowNotification).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -131,11 +118,9 @@ describe("useNotification", () => {
 
   describe("error", () => {
     it("shows notification with red color", () => {
-      const { result } = renderHook(() => useNotification());
+      const { result } = renderSolidHook(() => useNotification());
 
-      act(() => {
-        result.current.error("Error Title", "Error message");
-      });
+      result.current.error("Error Title", "Error message");
 
       expect(mockShowNotification).toHaveBeenCalledWith({
         title: "Error Title",
@@ -145,11 +130,9 @@ describe("useNotification", () => {
     });
 
     it("forwards title and message correctly", () => {
-      const { result } = renderHook(() => useNotification());
+      const { result } = renderSolidHook(() => useNotification());
 
-      act(() => {
-        result.current.error("Failed", "Something went wrong");
-      });
+      result.current.error("Failed", "Something went wrong");
 
       expect(mockShowNotification).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -162,13 +145,13 @@ describe("useNotification", () => {
 
   describe("function stability", () => {
     it("functions remain stable across re-renders", () => {
-      const { result, rerender } = renderHook(() => useNotification());
+      // A Solid component body runs exactly once, so the hook never re-executes
+      // and the callbacks it returned keep their identity (no useCallback).
+      const { result } = renderSolidHook(() => useNotification());
 
       const show1 = result.current.show;
       const success1 = result.current.success;
       const error1 = result.current.error;
-
-      rerender();
 
       expect(result.current.show).toBe(show1);
       expect(result.current.success).toBe(success1);

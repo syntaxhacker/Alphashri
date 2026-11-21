@@ -228,6 +228,13 @@ def iv_metrics(chain) -> dict:
     25Δ is found by interpolating across *real* deltas; no BS approximation is
     used when deltas are present. If deltas are absent the 25Δ fields stay
     ``None`` (``reason='no_delta_greeks'``) rather than being guessed.
+
+    This board's ``risk_reversal`` deliberately uses 25Δ put − call (>0 = put
+    skew): that is the sign labelled in the India-board dashboard and stored in
+    its historical ``risk_reversal_skew`` series. It is the opposite of the
+    options-analytics / report RR (call − put, >0 = calls rich); the two are
+    separate subsystems. Do not flip this sign without also updating the
+    dashboard labels and the stored series.
     """
     chain = chain or {}
     strikes = _rows(chain)

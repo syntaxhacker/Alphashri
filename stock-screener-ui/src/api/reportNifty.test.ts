@@ -20,6 +20,8 @@ import {
   fetchOptionsTapeStatus,
   fetchOptionsWalls,
   normalizeBurst,
+  normalizeFutures,
+  normalizeItmPeFlow,
   normalizeReport,
   normalizeSensex,
   normalizeTapeRow,
@@ -199,6 +201,59 @@ describe("normalizeReport (snake_case backend -> camelCase panel)", () => {
     expect(rep.gex!.zeroCross).toBeNull();
     expect(rep.gex!.strikes).toEqual([]);
     expect(rep.gex!.topPositive).toEqual([]);
+  });
+
+  test("futures absent stays null so the panel can be omitted", () => {
+    expect(normalizeReport(snakeReport).futures).toBeNull();
+  });
+
+  test("maps the snake_case futures block and coerces an unknown regime", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      futures: {
+        symbol: "NIFTY-FUT",
+        instrument_key: "NSE_FO|NIFTY26NOVFUT",
+        expiry: "2026-11-26",
+        series: [
+          { t: "2026-11-17T09:15:00+05:30", close: 25980.5, oi: 11200000, volume: 1200 },
+        ],
+        change_pts: 12.6,
+        oi_change: 280000,
+        regime: "LONG BUILDUP",
+        as_of: "2026-11-17T09:30:00+05:30",
+      },
+    });
+    expect(rep.futures).toEqual({
+      symbol: "NIFTY-FUT",
+      instrument_key: "NSE_FO|NIFTY26NOVFUT",
+      expiry: "2026-11-26",
+      series: [{ t: "2026-11-17T09:15:00+05:30", close: 25980.5, oi: 11200000, volume: 1200 }],
+      change_pts: 12.6,
+      oi_change: 280000,
+      regime: "long_buildup",
+      as_of: "2026-11-17T09:30:00+05:30",
+    });
+  });
+
+  test("a futures block with no recognisable regime reads neutral, not blank", () => {
+    const fut = normalizeFutures({ series: [] });
+    expect(fut).not.toBeNull();
+    expect(fut!.regime).toBe("neutral");
+    expect(fut!.change_pts).toBeNull();
+  });
+
+  test("itm_pe_flow absent stays null and derives a missing share", () => {
+    expect(normalizeReport(snakeReport).itm_pe_flow).toBeNull();
+
+    const flow = normalizeItmPeFlow({
+      series: [{ t: "10:05", itm_pe_vol: 25000, total_pe_vol: 100000, spot: 25980 }],
+      top: [{ strike: 26100, volume: 50000, oi: 210000 }],
+    });
+    expect(flow).not.toBeNull();
+    expect(flow!.series[0].share_pct).toBeCloseTo(25, 6);
+    expect(flow!.series[0].spot).toBe(25980);
+    expect(flow!.top).toEqual([{ strike: 26100, volume: 50000, oi: 210000 }]);
+    expect(flow!.as_of).toBeNull();
   });
 });
 
@@ -1027,11 +1082,11 @@ describe("fetchNiftyReplay (recorded EOD minute frames)", () => {
         count: 1,
         interval_sec: 60,
         snapshots: [{ t: "10:33", report: snakeReport }],
-        gap_reasons: { "chain-failed": 41, timeout: 12, zero: 0, neg: -3, junk: "x" },
+        gap_reasons: { chainFailed: 41, timeout: 12, zero: 0, neg: -3, junk: "x" },
       }),
     } as unknown as Response);
     const replay = await fetchNiftyReplay("2026-10-19");
-    expect(replay!.gap_reasons).toEqual({ "chain-failed": 41, timeout: 12 });
+    expect(replay!.gap_reasons).toEqual({ chainFailed: 41, timeout: 12 });
   });
 
   test("leaves gap_reasons undefined when the day has no journal", async () => {
@@ -1392,7 +1447,7 @@ describe("generic options history (per-symbol endpoints)", () => {
         date: "2026-10-28",
         count: 1,
         interval_sec: 60,
-        gap_reasons: { "chain-failed": 2, timeout: 0 },
+        gap_reasons: { chainFailed: 2, timeout: 0 },
         snapshots: [{ t: "2026-10-28T10:05:00+05:30", fetched_at: "", report: snakeReport }],
       }),
     );
@@ -1405,7 +1460,7 @@ describe("generic options history (per-symbol endpoints)", () => {
     expect(replay?.snapshots).toHaveLength(1);
     expect(replay?.snapshots[0].report.spot).toBe(22363.35);
     expect(replay?.snapshots[0].sensex).toBeNull();
-    expect(replay?.gap_reasons).toEqual({ "chain-failed": 2 });
+    expect(replay?.gap_reasons).toEqual({ chainFailed: 2 });
 
     vi.mocked(fetchWithAuth).mockResolvedValueOnce(errorResponse());
     await expect(fetchOptionsReplay("RELIANCE", "2026-10-28")).resolves.toBeNull();
@@ -1511,8 +1566,12 @@ describe("generic options history (per-symbol endpoints)", () => {
     );
     expect(expiries).toEqual(["2026-10-29", "2026-11-26"]);
 
+    // A failed request must not read as "this symbol has no expiries" — that
+    // told the user a truthful-looking lie about the exchange listing.
     vi.mocked(fetchWithAuth).mockResolvedValueOnce(errorResponse());
-    await expect(fetchOptionsExpiries("RELIANCE")).resolves.toEqual([]);
+    await expect(fetchOptionsExpiries("RELIANCE")).rejects.toMatchObject({
+      status: 404,
+    });
   });
 
   test("fetchOptionsWalls builds the date-scoped URL and passes the payload through", async () => {

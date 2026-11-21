@@ -1,13 +1,19 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
-import { screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
+  return mockSolidUi();
+});
 import { OIAnalysis } from "./OIAnalysis";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
 
-vi.mock("echarts-for-react", () => ({
-  default: () => <div data-testid="mock-echarts">ECharts</div>,
+vi.mock("@/utils/loadEcharts", () => ({
+  loadEcharts: vi.fn(async () => ({
+    init: () => ({ setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn(), on: vi.fn() }),
+  })),
 }));
 
 vi.mock("./OptionAlerts", () => ({
@@ -48,23 +54,18 @@ function makeContract(overrides: any = {}) {
 }
 
 describe("OIAnalysis", () => {
-  it("renders OI analysis container", () => {
-    renderWithProviders(<OIAnalysis strikeMatrix={[]} spotPrice={24500} />);
-    expect(screen.getByTestId("oi-analysis")).toBeInTheDocument();
-  });
-
   it("renders OptionAlerts child component", () => {
-    renderWithProviders(<OIAnalysis strikeMatrix={[]} spotPrice={24500} />);
+    render(() => <OIAnalysis strikeMatrix={[]} spotPrice={24500} />);
     expect(screen.getByTestId("options-alerts")).toBeInTheDocument();
   });
 
   it("renders IV Skew chart", () => {
-    renderWithProviders(<OIAnalysis strikeMatrix={[]} spotPrice={24500} />);
+    render(() => <OIAnalysis strikeMatrix={[]} spotPrice={24500} />);
     expect(screen.getByTestId("options-iv-skew-chart")).toBeInTheDocument();
   });
 
   it("renders OI Spikes panel with INTENSITY title", () => {
-    renderWithProviders(<OIAnalysis strikeMatrix={[]} spotPrice={24500} />);
+    render(() => <OIAnalysis strikeMatrix={[]} spotPrice={24500} />);
     expect(screen.getByTestId("options-oi-spikes-panel")).toBeInTheDocument();
     expect(screen.getByText(/INTENSITY/)).toBeInTheDocument();
   });
@@ -87,7 +88,7 @@ describe("OIAnalysis", () => {
           pe: null,
         },
       ];
-      renderWithProviders(<OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} />);
+      render(() => <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} />);
       expect(screen.getByTestId("options-oi-spikes-list")).toBeInTheDocument();
       expect(screen.getAllByTestId(/options-oi-spike-/).length).toBeGreaterThan(0);
     });
@@ -109,7 +110,7 @@ describe("OIAnalysis", () => {
           pe: null,
         },
       ];
-      renderWithProviders(<OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} />);
+      render(() => <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} />);
       const spikes = screen.getAllByTestId(/options-oi-spike-/);
       expect(spikes.length).toBeGreaterThanOrEqual(1);
     });
@@ -124,7 +125,7 @@ describe("OIAnalysis", () => {
           pe: null,
         },
       ];
-      renderWithProviders(<OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} />);
+      render(() => <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} />);
       expect(screen.getByTestId("options-oi-spike-0")).toBeInTheDocument();
       expect(screen.getByTestId("options-oi-spike-0").textContent).toContain("CE");
       expect(screen.getByTestId("options-oi-spike-0").textContent).toContain("24000");
@@ -140,7 +141,7 @@ describe("OIAnalysis", () => {
           pe: null,
         },
       ];
-      renderWithProviders(<OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} />);
+      render(() => <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} />);
       expect(screen.getByTestId("options-oi-spike-0").textContent).toContain("200.0%");
     });
 
@@ -153,15 +154,30 @@ describe("OIAnalysis", () => {
         const s = 24000 + i * 50;
         return { strike: s, ce: makeContract(contract()), pe: null };
       });
-      renderWithProviders(<OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} />);
+      render(() => <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} />);
       const spikes = screen.queryAllByTestId(/options-oi-spike-/);
       expect(spikes.length).toBeLessThanOrEqual(6);
+    });
+
+    it("labels the volume/OI heuristic neutrally", () => {
+      const strikeMatrix = [
+        {
+          // ΔOI 10k vs volume 200k → ratio 20 > HIGH_TURNOVER_VOL_OI_RATIO
+          strike: 24000,
+          ce: makeContract({ market_data: { oi: 60000, prev_oi: 50000, volume: 200000 } }),
+          pe: null,
+        },
+      ];
+      render(() => <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} />);
+      const spike = screen.getByTestId("options-oi-spike-0");
+      expect(spike).toHaveTextContent("High churn");
+      expect(spike).not.toHaveTextContent("Speculative");
     });
   });
 
   describe("OI Distribution chart", () => {
     it("renders OI Distribution panel with chart title", () => {
-      renderWithProviders(<OIAnalysis strikeMatrix={[]} spotPrice={24500} />);
+      render(() => <OIAnalysis strikeMatrix={[]} spotPrice={24500} />);
       expect(screen.getByTestId("options-oi-distribution-panel")).toBeInTheDocument();
       expect(screen.getByText(/OI CHANGE DISTRIBUTION/)).toBeInTheDocument();
     });
@@ -178,14 +194,14 @@ describe("OIAnalysis", () => {
           }),
         },
       ];
-      renderWithProviders(<OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} />);
-      expect(screen.getAllByTestId("mock-echarts").length).toBeGreaterThanOrEqual(1);
+      render(() => <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} />);
+      expect(screen.getByTestId("options-oi-distribution-chart")).toBeInTheDocument();
     });
   });
 
   describe("Market Context panel", () => {
     it("renders MARKET CONTEXT panel", () => {
-      renderWithProviders(<OIAnalysis strikeMatrix={[]} spotPrice={24500} />);
+      render(() => <OIAnalysis strikeMatrix={[]} spotPrice={24500} />);
       expect(screen.getByTestId("options-oi-sentiment-panel")).toBeInTheDocument();
       expect(screen.getByText("MARKET CONTEXT")).toBeInTheDocument();
     });
@@ -200,8 +216,66 @@ describe("OIAnalysis", () => {
           pe: null,
         },
       ];
-      renderWithProviders(<OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} />);
+      render(() => <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} />);
       expect(screen.getByTestId("options-oi-sentiment-panel").textContent).toContain("24000");
     });
+  });
+
+  describe("real PCR read", () => {
+    it("uses summary.pcr for the tone, not the largest PE-vs-CE OI change", () => {
+      // A huge PE OI build is exactly what the old fake classifier called
+      // "Bullish" — a low summary PCR must still read bearish.
+      const strikeMatrix = [
+        {
+          strike: 25000,
+          ce: makeContract({ market_data: { oi: 1000, prev_oi: 900, volume: 100 } }),
+          pe: makeContract({ market_data: { oi: 200000, prev_oi: 100000, volume: 100000 } }),
+        },
+      ];
+      render(() => <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} summary={{ pcr: 0.5 }} />);
+      const read = screen.getByTestId("options-pcr-read");
+      expect(read).toHaveTextContent("0.50");
+      expect(read).toHaveTextContent("Bearish");
+      expect(read).not.toHaveTextContent("Bullish");
+    });
+
+    it("reads bullish from a high PCR even when the call OI change dominates", () => {
+      const strikeMatrix = [
+        {
+          strike: 25000,
+          ce: makeContract({ market_data: { oi: 200000, prev_oi: 100000, volume: 100000 } }),
+          pe: makeContract({ market_data: { oi: 1000, prev_oi: 900, volume: 100 } }),
+        },
+      ];
+      render(() => <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} summary={{ pcr: 1.5 }} />);
+      const read = screen.getByTestId("options-pcr-read");
+      expect(read).toHaveTextContent("1.50");
+      expect(read).toHaveTextContent("Bullish");
+      expect(read).not.toHaveTextContent("Bearish");
+    });
+
+    it("is neutral at 1.0 instead of inheriting the old > 1 bullish rule", () => {
+      render(() => <OIAnalysis strikeMatrix={[]} spotPrice={24500} summary={{ pcr: 1.0 }} />);
+      const read = screen.getByTestId("options-pcr-read");
+      expect(read).toHaveTextContent("1.00");
+      expect(read).toHaveTextContent("Neutral");
+    });
+
+    it("says the PCR is unavailable when no summary is present", () => {
+      render(() => <OIAnalysis strikeMatrix={[]} spotPrice={24500} />);
+      expect(screen.getByTestId("options-pcr-read")).toHaveTextContent("unavailable");
+    });
+  });
+
+  it("renders plain section labels without emoji", () => {
+    const strikeMatrix = [
+      {
+        strike: 24000,
+        ce: makeContract({ market_data: { oi: 150000, prev_oi: 50000, volume: 60000 } }),
+        pe: null,
+      },
+    ];
+    render(() => <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={24500} summary={{ pcr: 1.5 }} />);
+    expect(document.body.textContent ?? "").not.toMatch(/🔥|📊|💡/);
   });
 });

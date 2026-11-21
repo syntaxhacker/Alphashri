@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Float, DateTime
+from sqlalchemy import Column, String, Float, DateTime, Index
 
 import config
 
@@ -17,6 +17,12 @@ class PriceSurgeEvent(IdMixin, Base):
     screener_id = Column(String(50), nullable=False)
     screen_label = Column(String(100), nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(config.IST), nullable=False)
+
+    # The feed is read newest-first with a "today" filter, so the sort/filter
+    # column needs its own index (the default is a full scan + sort).
+    __table_args__ = (
+        Index("ix_price_surge_events_created_at", "created_at"),
+    )
 
     def to_dict(self) -> dict:
         dt = self.created_at

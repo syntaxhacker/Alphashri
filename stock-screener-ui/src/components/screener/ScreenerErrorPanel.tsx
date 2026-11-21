@@ -1,28 +1,28 @@
 import { Stack, Box, Text, Button } from "@/ui";
-import { IconAlertCircle } from "@tabler/icons-react";
+import { IconAlertCircle } from "./icons";
 
 interface ScreenerErrorPanelProps {
   error: string;
   onRefresh: () => void;
 }
 
-export function ScreenerErrorPanel({ error, onRefresh }: ScreenerErrorPanelProps) {
+export function ScreenerErrorPanel(props: ScreenerErrorPanelProps) {
   return (
     <Stack
       gap="sm"
       align="stretch"
       data-testid="screener-error-container"
-      sx={{ p: 1 }}
+      className="p-2"
     >
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+      <Box className="flex items-center justify-between gap-2">
+        <Box className="flex items-center gap-2">
           <IconAlertCircle size={18} />
           <Text fw={600} size="sm">
             Screener failed to load
           </Text>
         </Box>
         <Button
-          onClick={onRefresh}
+          onClick={props.onRefresh}
           variant="filled"
           color="error"
           size="sm"
@@ -32,7 +32,7 @@ export function ScreenerErrorPanel({ error, onRefresh }: ScreenerErrorPanelProps
         </Button>
       </Box>
       <Text size="sm" c="dimmed">
-        {error}
+        {props.error}
       </Text>
     </Stack>
   );

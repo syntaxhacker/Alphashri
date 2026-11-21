@@ -5,6 +5,8 @@
  * no runtime state lives here.
  */
 
+import type { ChartMarket } from "@/utils/chart/time";
+
 /** Timeframe registry entry (`chart_patterns/timeframes.py:TFSpec`). */
 export interface TFSpec {
   id: string;
@@ -164,6 +166,13 @@ export interface PatternHitDTO {
   last_close?: number | null;
   /** Latest bar change % for the symbol/timeframe (enriched). */
   day_change_pct?: number | null;
+  /**
+   * Session date of the bar `last_close`/`day_change_pct` were computed from.
+   * `end_date` is the pattern formation date, not the close's bar date — never
+   * use it as a proxy. Absent = the enrichment cannot be dated, so chart
+   * candles win. Added by the backend on enriched items (optional for old rows).
+   */
+  close_bar_date?: string | null;
   /** Consolidation base length in bars/days (`consolidation` pattern only). */
   base_days?: number;
   /** Consolidation range as a percentage of price (`consolidation` pattern only). */
@@ -229,6 +238,8 @@ export interface ChartCandle {
   l: number;
   c: number;
   v: number;
+  /** Today's daily bar built from the 1-min tape while the session is open. */
+  is_partial?: boolean;
 }
 
 /**
@@ -265,11 +276,33 @@ export interface ChartPayload {
    */
   as_of?: string | null;
   /**
+   * Completed-session frame date (`YYYY-MM-DD`) whose hits the detection ran on.
+   * The displayed candles can legitimately be newer — a 1D chart appends
+   * today's tape bar for display only, so `hits`/`bars_ago` stay pinned here.
+   */
+  detection_as_of?: string | null;
+  /**
    * Stale-first marker: a cached disk frame served while a background
    * refresh runs. Fresh wire responses omit these (or send `cached:false`).
    */
   cached?: boolean;
   stale?: boolean;
+  /**
+   * Machine-readable failure from the chart endpoint (`no_data`,
+   * `fetch_timeout`, `upstream_error`). Present with empty `candles`; the UI
+   * must show `note` instead of a blank chart.
+   */
+  error?: string | null;
+  /** Human-readable explanation that accompanies `error`. */
+  note?: string | null;
+  /** Data market: India uses Upstox, USA uses the provider registry. */
+  market?: ChartMarket;
+  /** Provider feed identifier (e.g. `yahoo`, `alpaca-iex`, `upstox`). */
+  feed?: string | null;
+  /** Honest latency label for the UI (e.g. `~1 min (forming)`). */
+  delay_label?: string | null;
+  /** US session date (`YYYY-MM-DD`, ET) for the returned candles. */
+  session_date?: string | null;
 }
 
 /** User-facing result filters (the filter rail). */

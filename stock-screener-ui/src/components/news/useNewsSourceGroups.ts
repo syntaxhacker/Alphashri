@@ -1,28 +1,34 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { createEffect, createMemo, createSignal } from "solid-js";
 import type { NewsItem } from "./news-types";
 
+type Accessor<T> = () => T;
+/** Accepts either a plain array or a signal accessor. */
+function asAccessor<T>(value: T | Accessor<T>): Accessor<T> {
+  return typeof value === "function" ? (value as Accessor<T>) : () => value;
+}
+
 interface UseNewsSourceGroupsOptions {
-  newsItems: NewsItem[];
+  newsItems: NewsItem[] | Accessor<NewsItem[]>;
   autoExpandCount?: number;
 }
 
 interface UseNewsSourceGroupsReturn {
-  groupedNewsItems: Record<string, NewsItem[]>;
-  sourceNames: string[];
-  expandedSources: Set<string>;
+  groupedNewsItems: () => Record<string, NewsItem[]>;
+  sourceNames: () => string[];
+  expandedSources: () => Set<string>;
   toggleSourceExpanded: (source: string) => void;
   expandAll: () => void;
 }
 
-export function useNewsSourceGroups({
-  newsItems,
-  autoExpandCount = 2,
-}: UseNewsSourceGroupsOptions): UseNewsSourceGroupsReturn {
-  const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
-  const hasInitialized = useRef(false);
+export function useNewsSourceGroups(options: UseNewsSourceGroupsOptions): UseNewsSourceGroupsReturn {
+  const { autoExpandCount = 2 } = options;
+  const newsItems = asAccessor(options.newsItems);
 
-  const groupedNewsItems = useMemo(() => {
-    return newsItems.reduce<Record<string, NewsItem[]>>((acc, item) => {
+  const [expandedSources, setExpandedSources] = createSignal<Set<string>>(new Set());
+  let hasInitialized = false;
+
+  const groupedNewsItems = createMemo(() => {
+    return newsItems().reduce<Record<string, NewsItem[]>>((acc, item) => {
       const source = item.source || "Unknown";
       if (!acc[source]) {
         acc[source] = [];
@@ -30,31 +36,33 @@ export function useNewsSourceGroups({
       acc[source].push(item);
       return acc;
     }, {});
-  }, [newsItems]);
+  });
 
-  const sourceNames = useMemo(() => {
-    return Object.keys(groupedNewsItems).sort((a, b) => {
-      const aItems = groupedNewsItems[a];
-      const bItems = groupedNewsItems[b];
+  const sourceNames = createMemo(() => {
+    return Object.keys(groupedNewsItems()).sort((a, b) => {
+      const aItems = groupedNewsItems()[a];
+      const bItems = groupedNewsItems()[b];
       const aTime = aItems[0]?.publishedAt || "";
       const bTime = bItems[0]?.publishedAt || "";
       return new Date(bTime).getTime() - new Date(aTime).getTime();
     });
-  }, [groupedNewsItems]);
+  });
 
   // Only auto-expand on first load, not on every refresh
-  useEffect(() => {
-    if (sourceNames.length > 0 && !hasInitialized.current) {
-      hasInitialized.current = true;
-      setExpandedSources(new Set(sourceNames.slice(0, autoExpandCount)));
+  createEffect(() => {
+    const names = sourceNames();
+    if (names.length > 0 && !hasInitialized) {
+      hasInitialized = true;
+      setExpandedSources(new Set(names.slice(0, autoExpandCount)));
     }
-  }, [sourceNames, autoExpandCount]);
+  });
 
   // Add any new sources to expanded set (don't remove existing ones)
-  useEffect(() => {
-    if (sourceNames.length > 0 && hasInitialized.current) {
+  createEffect(() => {
+    const names = sourceNames();
+    if (names.length > 0 && hasInitialized) {
       setExpandedSources((prev) => {
-        const newSources = sourceNames.filter((s) => !prev.has(s));
+        const newSources = names.filter((s) => !prev.has(s));
         if (newSources.length === 0) return prev;
         const next = new Set(prev);
         for (const s of newSources) {
@@ -65,7 +73,7 @@ export function useNewsSourceGroups({
         return next;
       });
     }
-  }, [sourceNames, autoExpandCount]);
+  });
 
   const toggleSourceExpanded = (source: string) => {
     setExpandedSources((prev) => {
@@ -80,7 +88,7 @@ export function useNewsSourceGroups({
   };
 
   const expandAll = () => {
-    setExpandedSources(new Set(sourceNames));
+    setExpandedSources(new Set(sourceNames()));
   };
 
   return {

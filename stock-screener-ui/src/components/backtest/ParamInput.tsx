@@ -1,37 +1,32 @@
-import { memo } from "react";
 import { Select, NumberInput, Checkbox } from "@/ui";
 import type { StrategyParam } from "../../types/backtest";
 
-export const ParamInput = memo(function ParamInput({
-  param,
-  value,
-  onChange,
-}: {
+export function ParamInput(props: {
   param: StrategyParam;
   value: any;
   onChange: (value: any) => void;
 }) {
-  const testId = `param-${param.key}`;
+  const testId = () => `param-${props.param.key}`;
 
-  if (param.type === "select") {
+  if (props.param.type === "select") {
     return (
       <Select
-        data-testid={testId}
-        value={value ?? param.default}
-        onChange={(v) => v && onChange(v)}
-        data={(param.options || []).map((opt) => ({ value: opt, label: opt }))}
+        data-testid={testId()}
+        value={props.value ?? props.param.default}
+        onChange={(v) => v && props.onChange(v)}
+        data={(props.param.options || []).map((opt) => ({ value: opt, label: opt }))}
         size="sm"
         w="100%"
       />
     );
   }
 
-  if (param.type === "boolean") {
+  if (props.param.type === "boolean") {
     return (
       <Checkbox
-        data-testid={testId}
-        checked={value ?? param.default}
-        onChange={(e) => onChange(e.currentTarget.checked)}
+        data-testid={testId()}
+        checked={props.value ?? props.param.default}
+        onChange={(e) => props.onChange(e.currentTarget.checked)}
         size="sm"
       />
     );
@@ -39,14 +34,14 @@ export const ParamInput = memo(function ParamInput({
 
   return (
     <NumberInput
-      data-testid={testId}
-      value={value ?? param.default}
-      onChange={(v) => onChange(Number(v))}
-      min={param.min}
-      max={param.max}
-      step={param.step ?? 1}
+      data-testid={testId()}
+      value={props.value ?? props.param.default}
+      onChange={(v) => props.onChange(Number(v))}
+      min={props.param.min}
+      max={props.param.max}
+      step={props.param.step ?? 1}
       size="sm"
       w="100%"
     />
   );
-});
+}

@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
-import { render, screen, within, cleanup } from "@testing-library/react";
+import { render, screen, within, cleanup } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
+import type { JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import {
   NiftyDepthMap,
@@ -26,48 +28,29 @@ const depthMocks = vi.hoisted(() => ({
   lastShouldSetOption: null as null | (() => boolean),
 }));
 
-vi.mock("echarts-for-react", async () => {
-  const React = await import("react");
-  // Faithful-enough stand-in: exposes getEchartsInstance via ref, fires
-  // onChartReady on mount (like the real async init), and records the
-  // shouldSetOption guard so tests can assert the auto-update path is off.
-  const MockECharts = React.forwardRef(function MockECharts(
-    props: {
-      option?: { series?: unknown[] };
-      onChartReady?: (instance: unknown) => void;
-      shouldSetOption?: () => boolean;
-    },
-    ref: React.Ref<{ getEchartsInstance: () => unknown }>,
-  ) {
-    const instance = React.useMemo(
-      () => ({ setOption: depthMocks.setOption, resize: depthMocks.resize }),
-      [],
-    );
-    const readyRef = React.useRef(props.onChartReady);
-    readyRef.current = props.onChartReady;
-    React.useEffect(() => {
+vi.mock("./DepthChart", async () => {
+  const { onMount } = await import("solid-js");
+  // Faithful-enough stand-in: records mount-time readiness and every imperative
+  // call so the panel's single-driver contract can be asserted.
+  const MockDepthChart = (props: {
+    option?: { series?: unknown[] };
+    onChartReady?: (instance: unknown) => void;
+    "data-series"?: number;
+  }) => {
+    const instance = { setOption: depthMocks.setOption, resize: depthMocks.resize };
+    onMount(() => {
       depthMocks.mounts += 1;
-      readyRef.current?.(instance);
-    }, [instance]);
-    React.useImperativeHandle(
-      ref,
-      () => ({ getEchartsInstance: () => instance }),
-      [instance],
-    );
-    depthMocks.lastShouldSetOption = props.shouldSetOption ?? null;
+      props.onChartReady?.(instance);
+    });
     return (
-      <div data-testid="nifty-depth-echarts" data-series={props.option?.series?.length ?? 0} />
+      <div data-testid="nifty-depth-echarts" data-series={props["data-series"] ?? props.option?.series?.length ?? 0} />
     );
-  });
-  return { default: MockECharts };
+  };
+  return { DepthChart: MockDepthChart };
 });
 
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>{children}</UIProvider>;
-}
-
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: TestWrapper });
+function r(ui: () => JSX.Element) {
+  return render(() => <UIProvider>{ui()}</UIProvider>);
 }
 
 function strikeAt(strike: number, ceOi: number, peOi: number, chg = 0) {
@@ -446,7 +429,7 @@ describe("buildDepthOption", () => {
   });
 
   test("at most 6 bar labels; only top-3 CE + top-3 PE labeled", () => {
-    const strikes = [];
+    const strikes: ReturnType<typeof strikeAt>[] = [];
     for (let s = 25000; s <= 26500; s += 50) {
       strikes.push(strikeAt(s, 1000 + s, 9000 - s));
     }
@@ -481,7 +464,7 @@ describe("buildDepthOption", () => {
 
 describe("NiftyDepthMap render", () => {
   test("happy path: stats, legend, chart and honesty note", () => {
-    r(<NiftyDepthMap report={mockReport()} />);
+    r(() => <NiftyDepthMap report={mockReport()} />);
     expect(screen.getByTestId("nifty-depthmap")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-depth-stats")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-depth-echarts")).toBeInTheDocument();
@@ -503,14 +486,14 @@ describe("NiftyDepthMap render", () => {
   });
 
   test("empty strikes shows empty state instead of chart", () => {
-    r(<NiftyDepthMap report={mockReport({ strikes: [] })} />);
+    r(() => <NiftyDepthMap report={mockReport({ strikes: [] })} />);
     expect(screen.getByTestId("nifty-depthmap")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-depth-empty")).toBeInTheDocument();
     expect(screen.queryByTestId("nifty-depth-echarts")).not.toBeInTheDocument();
   });
 
   test("empty candles shows dash placeholders in stats", () => {
-    r(<NiftyDepthMap report={mockReport({ candles: [] })} />);
+    r(() => <NiftyDepthMap report={mockReport({ candles: [] })} />);
     const stats = screen.getByTestId("nifty-depth-stats");
     expect(within(screen.getByTestId("nifty-depth-stat-hilo")).getByText("—")).toBeInTheDocument();
     expect(within(stats).getByTestId("nifty-depth-stat-chg")).toHaveTextContent("—");
@@ -519,7 +502,7 @@ describe("NiftyDepthMap render", () => {
 
 describe("NiftyDepthMap active gate", () => {
   test("active={false} renders the container but performs no ECharts work", () => {
-    r(<NiftyDepthMap report={mockReport()} active={false} />);
+    r(() => <NiftyDepthMap report={mockReport()} active={false} />);
     expect(screen.getByTestId("nifty-depthmap")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-depth-echarts")).toBeInTheDocument();
     expect(depthMocks.mounts).toBe(1);
@@ -527,39 +510,44 @@ describe("NiftyDepthMap active gate", () => {
     expect(depthMocks.resize).not.toHaveBeenCalled();
   });
 
-  test("automatic library updates are disabled — one manual driver only", () => {
-    r(<NiftyDepthMap report={mockReport()} />);
-    expect(typeof depthMocks.lastShouldSetOption).toBe("function");
-    expect(depthMocks.lastShouldSetOption?.()).toBe(false);
+  test("the chart never self-applies an option — the parent is the only driver", () => {
+    r(() => <NiftyDepthMap report={mockReport()} />);
+    // DepthChart applies nothing on its own; the single mount-time setOption
+    // came from the panel's driver effect, and `notMerge` keeps it exact.
+    expect(depthMocks.setOption).toHaveBeenCalledTimes(1);
+    expect(depthMocks.setOption.mock.calls[0]?.[1]).toEqual({ notMerge: true, lazyUpdate: false });
   });
 
   test("report change while hidden stays silent; activate resizes + catches up", () => {
-    const { rerender } = r(<NiftyDepthMap report={mockReport()} active={false} />);
+    const [report, setReport] = createSignal(mockReport());
+    const [active, setActive] = createSignal(false);
+    r(() => <NiftyDepthMap report={report()} active={active()} />);
     expect(depthMocks.setOption).not.toHaveBeenCalled();
     expect(depthMocks.resize).not.toHaveBeenCalled();
 
     // Report updates while hidden: still zero ECharts work.
-    rerender(<NiftyDepthMap report={mockReport({ spot: 25800 })} active={false} />);
+    setReport(mockReport({ spot: 25800 }));
     expect(depthMocks.setOption).not.toHaveBeenCalled();
     expect(depthMocks.resize).not.toHaveBeenCalled();
 
     // Flipping to active: exactly one resize + one setOption with latest.
-    rerender(<NiftyDepthMap report={mockReport({ spot: 25800 })} active />);
+    setActive(true);
     expect(depthMocks.resize).toHaveBeenCalledTimes(1);
     expect(depthMocks.setOption).toHaveBeenCalledTimes(1);
     expect(depthMocks.mounts).toBe(1);
   });
 
   test("active report change pushes the new option exactly once", () => {
-    const { rerender } = r(<NiftyDepthMap report={mockReport()} />);
+    const [report, setReport] = createSignal(mockReport());
+    r(() => <NiftyDepthMap report={report()} />);
     expect(depthMocks.setOption).toHaveBeenCalledTimes(1);
     expect(depthMocks.resize).toHaveBeenCalledTimes(1);
-    rerender(<NiftyDepthMap report={mockReport({ spot: 25800 })} />);
+    setReport(mockReport({ spot: 25800 }));
     expect(depthMocks.setOption).toHaveBeenCalledTimes(2);
   });
 
   test("the option is pushed with notMerge so a long-lived tab cannot accumulate", () => {
-    r(<NiftyDepthMap report={mockReport()} />);
+    r(() => <NiftyDepthMap report={mockReport()} />);
     // Second arg of the first setOption call: full replacement, no merge-mode
     // re-patching of ECharts' internal model on every 10s poll.
     expect(depthMocks.setOption.mock.calls[0]?.[1]).toEqual({
@@ -569,26 +557,28 @@ describe("NiftyDepthMap active gate", () => {
   });
 
   test("a report update does not re-layout the chart (resize is activation-only)", () => {
-    const { rerender } = r(<NiftyDepthMap report={mockReport()} />);
+    const [report, setReport] = createSignal(mockReport());
+    r(() => <NiftyDepthMap report={report()} />);
     expect(depthMocks.resize).toHaveBeenCalledTimes(1);
-    rerender(<NiftyDepthMap report={mockReport({ spot: 25800 })} />);
-    rerender(<NiftyDepthMap report={mockReport({ spot: 25810 })} />);
+    setReport(mockReport({ spot: 25800 }));
+    setReport(mockReport({ spot: 25810 }));
     expect(depthMocks.resize).toHaveBeenCalledTimes(1);
     expect(depthMocks.setOption).toHaveBeenCalledTimes(3);
   });
 
   test("a transient empty poll keeps the ECharts engine mounted", () => {
-    const { rerender } = r(<NiftyDepthMap report={mockReport()} />);
+    const [report, setReport] = createSignal(mockReport());
+    r(() => <NiftyDepthMap report={report()} />);
     expect(depthMocks.mounts).toBe(1);
 
-    rerender(<NiftyDepthMap report={mockReport({ strikes: [] })} />);
+    setReport(mockReport({ strikes: [] }));
     expect(screen.getByTestId("nifty-depth-empty")).toBeInTheDocument();
     // Engine stays mounted (hidden) instead of being disposed and re-inited on
     // the next poll — see the echarts-for-react unmount-before-`finished` leak.
     expect(screen.getByTestId("nifty-depth-echarts")).toBeInTheDocument();
     expect(depthMocks.mounts).toBe(1);
 
-    rerender(<NiftyDepthMap report={mockReport()} />);
+    setReport(mockReport());
     expect(screen.queryByTestId("nifty-depth-empty")).not.toBeInTheDocument();
     expect(depthMocks.mounts).toBe(1);
   });

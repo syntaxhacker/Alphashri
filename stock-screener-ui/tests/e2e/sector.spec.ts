@@ -278,8 +278,11 @@ test.describe("Sector Dashboard - Navigation State", () => {
 
   test("should navigate away from sector view to other views", async ({ page }) => {
     await gotoSector(page);
-    await page.locator('[data-testid="nav-screener"]').click();
+    // The sidebar renders labelled buttons, not `nav-*` testids (those exist
+    // only in a unit-test fixture), so the old locator clicked nothing and the
+    // URL never left /sector.
+    await page.getByRole("button", { name: "Screener", exact: true }).click();
     await expect(page.locator('[data-testid="app-shell"]')).toBeVisible({ timeout: 5000 });
-    expect(page.url()).not.toContain("/sector");
+    await expect(page).not.toHaveURL(/\/sector/, { timeout: 5000 });
   });
 });

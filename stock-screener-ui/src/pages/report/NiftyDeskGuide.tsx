@@ -1,9 +1,25 @@
-import { useCallback, useState } from "react";
-import Box from "@mui/material/Box";
-import { IconHelpCircle } from "@tabler/icons-react";
-import { Button } from "@/ui";
+import { createSignal, For } from "solid-js";
 import * as palette from "@/ui/palette";
-import { PanelModal } from "@/components/common/PanelModal";
+import { LocalPanelModal } from "./LocalPanelModal";
+import { REPORT_FONT } from "./reportTokens";
+
+const IconHelpCircle = (props: { size?: number }) => (
+  <svg
+    width={props.size ?? 14}
+    height={props.size ?? 14}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <circle cx="12" cy="12" r="10" />
+    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+    <path d="M12 17h.01" />
+  </svg>
+);
 
 /**
  * One-page desk glossary. Ten terms, three columns, no nested cards — the
@@ -68,91 +84,73 @@ interface NiftyDeskGuideProps {
  * Lives beside Refresh/Snapshot so the legend is one click from the surface
  * it explains; the modal reuses `PanelModal` (Esc + focus trap for free).
  */
-export function NiftyDeskGuide({ open: openProp, onOpenChange }: NiftyDeskGuideProps) {
-  const [internalOpen, setInternalOpen] = useState(false);
-  const open = openProp ?? internalOpen;
-  const setOpen = useCallback(
-    (next: boolean) => {
-      if (openProp === undefined) setInternalOpen(next);
-      onOpenChange?.(next);
-    },
-    [openProp, onOpenChange],
-  );
+export function NiftyDeskGuide(props: NiftyDeskGuideProps) {
+  const openProp = () => props.open;
+  const [internalOpen, setInternalOpen] = createSignal(false);
+  const open = () => openProp() ?? internalOpen();
+  const setOpen = (next: boolean) => {
+    if (openProp() === undefined) setInternalOpen(next);
+    props.onOpenChange?.(next);
+  };
 
   return (
     <>
-      <Button
+      <button
+        type="button"
         data-testid="nifty-help-button"
-        size="xs"
-        variant="subtle"
         aria-label="Desk guide"
         title="Desk guide"
         onClick={() => setOpen(true)}
-        sx={{ minWidth: 0, px: 0.5 }}
+        class="inline-flex items-center justify-center gap-1 rounded-fin p-1 bg-fin-surface-alt text-fin-text hover:bg-fin-surface text-xs transition-colors duration-150"
       >
         <IconHelpCircle size={14} />
-      </Button>
+      </button>
 
-      <PanelModal
-        open={open}
+      <LocalPanelModal
+        open={open()}
         title="Desk guide — read this once"
         onClose={() => setOpen(false)}
         autoHeight
         maxWidth={1040}
       >
-        <Box
+        <div
           data-testid="nifty-help-modal"
-          sx={{
-            display: "grid",
-            gridTemplateColumns: "minmax(0, 1fr)",
-            gap: "8px",
-            minWidth: 0,
-            fontVariantNumeric: "tabular-nums",
-            // Column rules sit inside the 3-col grid; the xs layout keeps only
-            // row rules so a single column never shows a stray left border.
-            "@media (min-width:900px)": {
-              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-              "& > *:not(:nth-of-type(3n+1))": {
-                borderLeft: `1px solid ${palette.TERM_BORDER}`,
-                pl: "8px",
-              },
-            },
-          }}
+          class="min-w-0 grid gap-2 tabular-nums grid-cols-[minmax(0,1fr)] min-[900px]:grid-cols-[repeat(3,minmax(0,1fr))]"
+          // Column rules sit inside the 3-col grid; the xs layout keeps only
+          // row rules so a single column never shows a stray left border.
+          style={{ "--term-border": palette.TERM_BORDER }}
         >
-          {DESK_GUIDE_ENTRIES.map((entry) => (
-            <Box
-              key={entry.term}
+          <For each={DESK_GUIDE_ENTRIES}>
+            {(entry, i) => (
+            <div
               data-testid={`nifty-help-entry-${entry.term.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`}
-              sx={{
-                minWidth: 0,
-                pt: "8px",
-                borderTop: `1px solid ${palette.TERM_BORDER}`,
+              class={`min-w-0 ${i() % 3 !== 0 ? "min-[900px]:border-l min-[900px]:border-l-[var(--term-border)] min-[900px]:pl-2" : ""}`}
+              style={{
+                "padding-top": "8px",
+                "border-top": `1px solid ${palette.TERM_BORDER}`,
               }}
             >
-              <Box
-                component="div"
-                sx={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  lineHeight: 1.2,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  color: palette.TEXT_MUTED,
-                  mb: "3px",
+              <div
+                style={{
+                  "font-size": `${REPORT_FONT.micro}px`,
+                  "font-weight": 700,
+                  "line-height": 1.2,
+                  "letter-spacing": "0.08em",
+                  "text-transform": "uppercase",
+                  "color": palette.TEXT_MUTED,
+                  "margin-bottom": "3px",
                 }}
               >
                 {entry.term}
-              </Box>
-              <Box
-                component="div"
-                sx={{ fontSize: 11, lineHeight: 1.35, color: palette.TEXT }}
-              >
+              </div>
+              <div style={{ "font-size": "11px", "line-height": 1.35, "color": palette.TEXT }}>
                 {entry.text}
-              </Box>
-            </Box>
-          ))}
-        </Box>
-      </PanelModal>
+              </div>
+            </div>
+            )}
+          </For>
+        </div>
+      </LocalPanelModal>
     </>
   );
 }

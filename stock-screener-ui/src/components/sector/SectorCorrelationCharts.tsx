@@ -1,10 +1,7 @@
-import { useEffect } from "react";
-import { Box, Stack } from "@/ui";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import Typography from "@mui/material/Typography";
-import Grid from "@mui/material/Grid";
-import { useECharts } from "../../hooks/useECharts";
+import { createEffect, onCleanup, onMount } from "solid-js";
+import type * as ECharts from "echarts";
+import { Box, Stack, Text } from "@/ui";
+import { loadEcharts } from "@/utils/loadEcharts";
 import type { SectorCorrelationResponse } from "../../types/sector";
 import {
   CHART_MUTED,
@@ -33,24 +30,90 @@ function chartColors(isDark: boolean) {
   };
 }
 
-export function SectorBetaChart({
-  sectors,
-  benchmark,
-  isDark,
-}: {
+function createChart(getOption: () => Record<string, unknown>) {
+  let chartEl: HTMLDivElement | undefined;
+  let chart: ECharts.ECharts | undefined;
+  let disposed = false;
+  let observer: ResizeObserver | null = null;
+
+  async function applyOption(next: Record<string, unknown>) {
+    const lib = await loadEcharts();
+    if (disposed || !chartEl || !lib) return;
+    // ECharts latches the element size at `init`. A dock window mounts these
+    // charts inside a flex cell that has not been measured yet, so init ran at
+    // 0x0 and logged "Can't get DOM width or height" before laying out a
+    // squashed plot. Wait for a real box instead of initialising blind.
+    if (!chart && (chartEl.clientWidth === 0 || chartEl.clientHeight === 0)) {
+      observer?.disconnect();
+      if (typeof ResizeObserver !== "undefined") {
+        observer = new ResizeObserver(() => {
+          if (disposed || !chartEl) return;
+          if (chartEl.clientWidth > 0 && chartEl.clientHeight > 0) {
+            observer?.disconnect();
+            observer = null;
+            void applyOption(next);
+          }
+        });
+        observer.observe(chartEl);
+      }
+      return;
+    }
+    if (!chart) chart = lib.init(chartEl, null) as ECharts.ECharts;
+    chart.setOption(next, true);
+    chart.resize();
+  }
+
+  createEffect(() => {
+    void applyOption(getOption());
+  });
+
+  onMount(() => {
+    const handleResize = () => chart?.resize();
+    window.addEventListener("resize", handleResize);
+    onCleanup(() => window.removeEventListener("resize", handleResize));
+  });
+
+  onCleanup(() => {
+    disposed = true;
+    observer?.disconnect();
+    observer = null;
+    chart?.dispose();
+    chart = undefined;
+  });
+
+  return {
+    setChartRef(el: HTMLDivElement) {
+      chartEl = el;
+      // The element arrives before the browser has laid it out; observe it so
+      // a later size change is not lost when the first attempt bailed out.
+      if (!chart && el && typeof ResizeObserver !== "undefined") {
+        observer?.disconnect();
+        observer = new ResizeObserver(() => {
+          if (disposed || chart || !chartEl) return;
+          if (chartEl.clientWidth > 0 && chartEl.clientHeight > 0) {
+            observer?.disconnect();
+            observer = null;
+            void applyOption(getOption());
+          }
+        });
+        observer.observe(el);
+      }
+    },
+  };
+}
+
+export function SectorBetaChart(props: {
   sectors: SectorCorrelationResponse["sectors"];
   benchmark: string;
   isDark: boolean;
 }) {
-  const { chartRef, setChartOption } = useECharts({ isDark });
-  const colors = chartColors(isDark);
+  const colors = chartColors(props.isDark);
 
-  useEffect(() => {
-    if (!sectors.length) return;
+  const chart = createChart(() => {
+    const sectors = props.sectors;
     const names = sectors.map((s) => s.name);
     const betas = sectors.map((s) => s.beta_vs_index);
-
-    setChartOption({
+    return {
       backgroundColor: "transparent",
       tooltip: {
         trigger: "axis" as const,
@@ -91,39 +154,37 @@ export function SectorBetaChart({
         shape: { x1: 0, y1: "50%", x2: "100%", y2: "50%" },
         style: { stroke: INDICATOR_LINE, lineDash: [4, 4], lineWidth: 1 },
       },
-    });
-  }, [sectors, setChartOption]);
+    } as Record<string, unknown>;
+  });
 
   return (
-    <Stack spacing={1} sx={{ width: "100%", height: "100%", p: 1, alignItems: "center", justifyContent: "center" }}>
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-        <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Benchmark: {benchmark} | Beta = 1.0 line</Typography>
+    <Stack spacing={1} className="w-full h-full p-2 flex items-center justify-center">
+      <Box className="flex items-center justify-center gap-2 p-2 w-full">
+        <Text size="xs" className="flex items-center justify-center">Benchmark: {props.benchmark} | Beta = 1.0 line</Text>
       </Box>
-      <Box sx={{ position: "relative", width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
-        <Box ref={chartRef} sx={{ width: "100%", height: "100%", opacity: sectors.length ? 1 : 0, display: "flex", alignItems: "center", justifyContent: "center" }} />
+      <Box className="relative w-full h-full flex items-center justify-center p-2">
+        <div
+          ref={(el) => chart.setChartRef(el)}
+          class="w-full h-full flex items-center justify-center"
+          style={{ opacity: props.sectors.length ? "1" : "0" }}
+        />
       </Box>
     </Stack>
   );
 }
 
-export function RotationTimeline({
-  sectors,
-  isDark,
-}: {
+export function RotationTimeline(props: {
   sectors: SectorCorrelationResponse["sectors"];
   isDark: boolean;
 }) {
-  const { chartRef, setChartOption } = useECharts({ isDark });
-  const colors = chartColors(isDark);
+  const colors = chartColors(props.isDark);
 
-  useEffect(() => {
-    if (!sectors.length) return;
-    const sorted = [...sectors].sort((a, b) => b.rank_change_1m - a.rank_change_1m);
+  const chart = createChart(() => {
+    const sorted = [...props.sectors].sort((a, b) => b.rank_change_1m - a.rank_change_1m);
     const names = sorted.map((s) => s.name);
     const changes = sorted.map((s) => s.rank_change_1m);
     const barColors = changes.map((c) => (c > 0 ? SECTOR_STRONG_GREEN : c < 0 ? SECTOR_STRONG_RED : TEXT_MUTED));
-
-    setChartOption({
+    return {
       backgroundColor: "transparent",
       tooltip: {
         trigger: "axis" as const,
@@ -157,16 +218,20 @@ export function RotationTimeline({
           },
         },
       ],
-    });
-  }, [sectors, setChartOption]);
+    } as Record<string, unknown>;
+  });
 
   return (
-    <Stack spacing={1} sx={{ width: "100%", height: "100%", p: 1, alignItems: "center", justifyContent: "center" }}>
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-        <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Positive = rank improved (sector gaining strength)</Typography>
+    <Stack spacing={1} className="w-full h-full p-2 flex items-center justify-center">
+      <Box className="flex items-center justify-center gap-2 p-2 w-full">
+        <Text size="xs" className="flex items-center justify-center">Positive = rank improved (sector gaining strength)</Text>
       </Box>
-      <Box sx={{ position: "relative", width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
-        <Box ref={chartRef} sx={{ width: "100%", height: "100%", opacity: sectors.length ? 1 : 0, display: "flex", alignItems: "center", justifyContent: "center" }} />
+      <Box className="relative w-full h-full flex items-center justify-center p-2">
+        <div
+          ref={(el) => chart.setChartRef(el)}
+          class="w-full h-full flex items-center justify-center"
+          style={{ opacity: props.sectors.length ? "1" : "0" }}
+        />
       </Box>
     </Stack>
   );

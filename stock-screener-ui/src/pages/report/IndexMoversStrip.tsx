@@ -1,15 +1,10 @@
-import { memo, useEffect, useState, useCallback, useRef } from "react";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Tooltip from "@mui/material/Tooltip";
-import { IconChevronRight } from "@tabler/icons-react";
-import { Text } from "@/ui";
+import { createEffect, createSignal, For, Show, onCleanup } from "solid-js";
+import type { JSX } from "solid-js";
+import { Loader, Text, Tooltip } from "@/ui";
+import { IconChevronRight } from "@/components/common/Icons";
 import * as palette from "@/ui/palette";
 import {
   REPORT_FONT,
-  REPORT_ROW,
-  REPORT_PAD,
-  REPORT_RADIUS,
 } from "./reportTokens";
 import { fetchIndexMovers, IndexMoversResponse, IndexMoverRow } from "@/api/indexMovers";
 
@@ -18,7 +13,7 @@ interface IndexMoversStripProps {
   index: "NIFTY" | "SENSEX";
   /** Called when user clicks EXPAND. */
   onExpand: () => void;
-  /** Optional: when in EOD/replay mode, strip shows "live only" message. */
+  /** Optional: in EOD/replay the band has no data: collapse it instead of reserving 24px; the mode banner declares the absence */
   liveOnly?: boolean;
   /** Loading/error states from parent (optional override). */
   loading?: boolean;
@@ -33,393 +28,255 @@ const ARROW_GAINER = "▲";
 const ARROW_LOSER = "▼";
 
 /** One mover line: symbol + % change. */
-function MoverItem({
-  row,
-  isGainer,
-}: {
-  row: IndexMoverRow;
-  isGainer: boolean;
-}) {
-  const arrow = isGainer ? ARROW_GAINER : ARROW_LOSER;
-  const color = isGainer ? GAINER_COLOR : LOSER_COLOR;
-  const signed = isGainer ? "+" : "";
+function MoverItem(props: { row: IndexMoverRow; isGainer: boolean }) {
+  const row = () => props.row;
+  const isGainer = () => props.isGainer;
+  const arrow = () => (isGainer() ? ARROW_GAINER : ARROW_LOSER);
+  const color = () => (isGainer() ? GAINER_COLOR : LOSER_COLOR);
+  const signed = () => (isGainer() ? "+" : "");
   return (
-    <Box
-      component="span"
-      sx={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "4px",
-        flexShrink: 0,
-        whiteSpace: "nowrap",
-      }}
+    <span
+      class="inline-flex items-center gap-1 shrink-0 whitespace-nowrap"
     >
       <Text
         span
         size="xs"
         fw={700}
         style={{
-          fontSize: VALUE_FONT,
-          fontVariantNumeric: "tabular-nums",
-          color,
-          fontFamily: palette.MONO,
+          "font-size": `${VALUE_FONT}px`,
+          "font-variant-numeric": "tabular-nums",
+          color: color(),
+          "font-family": palette.MONO,
         }}
       >
-        {arrow}
+        {arrow()}
       </Text>
       <Text
         span
         size="xs"
         fw={700}
         style={{
-          fontSize: VALUE_FONT,
-          fontVariantNumeric: "tabular-nums",
-          color,
-          fontFamily: palette.MONO,
+          "font-size": `${VALUE_FONT}px`,
+          "font-variant-numeric": "tabular-nums",
+          color: color(),
+          "font-family": palette.MONO,
         }}
       >
-        {row.symbol}
+        {row().symbol}
       </Text>
       <Text
         span
         size="xs"
         fw={700}
         style={{
-          fontSize: VALUE_FONT,
-          fontVariantNumeric: "tabular-nums",
-          color,
-          fontFamily: palette.MONO,
+          "font-size": `${VALUE_FONT}px`,
+          "font-variant-numeric": "tabular-nums",
+          color: color(),
+          "font-family": palette.MONO,
         }}
       >
-        {signed}{row.change_pct.toFixed(2)}%
+        {signed()}{row().change_pct.toFixed(2)}%
       </Text>
-    </Box>
+    </span>
   );
 }
 
 /** Gain/loss section (left or right). The per-symbol arrow already carries
  *  the direction, so the section no longer repeats it as a label. */
-function MoverSection({
-  rows,
-  isGainer,
-}: {
-  rows: IndexMoverRow[];
-  isGainer: boolean;
-}) {
+function MoverSection(props: { rows: IndexMoverRow[]; isGainer: boolean }) {
   return (
-    <Box
-      component="span"
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        gap: "8px",
-        flexShrink: 0,
-        minWidth: 0,
-      }}
-    >
-      {rows.map((row, i) => (
-        <MoverItem key={`${row.symbol}-${i}`} row={row} isGainer={isGainer} />
-      ))}
-    </Box>
+    <span class="flex items-center gap-2 min-w-0 shrink-0">
+      <For each={props.rows}>
+        {(row) => <MoverItem row={row} isGainer={props.isGainer} />}
+      </For>
+    </span>
   );
 }
 
 /**
- * Compact movers strip — always visible under WINDOWS, above WALLS.
+ * Compact movers strip — visible in live mode under WINDOWS, above WALLS.
  * Shows top 3 gainers + bottom 3 losers, one line, EXPAND button.
- * EOD/replay: "MOVERS · live only" (no fake rows).
+ * EOD/replay: collapsed (no empty band, no fake rows).
  * RELIANCE: parent should not render this component.
  */
-export const IndexMoversStrip = memo(function IndexMoversStrip({
-  index,
-  onExpand,
-  liveOnly = false,
-  loading: loadingProp,
-  error: errorProp,
-}: IndexMoversStripProps) {
-  const [data, setData] = useState<IndexMoversResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mountedRef = useRef(true);
+export function IndexMoversStrip(props: IndexMoversStripProps) {
+  const index = () => props.index;
+  const liveOnly = () => props.liveOnly ?? false;
+  const [data, setData] = createSignal<IndexMoversResponse | null>(null);
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+  let abortController: AbortController | null = null;
+  let mounted = true;
 
   // Poll every 30s in live mode
-  const poll = useCallback(async () => {
-    if (!mountedRef.current || liveOnly) return;
-    abortRef.current?.abort();
+  const poll = async () => {
+    if (!mounted || liveOnly()) return;
+    abortController?.abort();
     const controller = new AbortController();
-    abortRef.current = controller;
+    abortController = controller;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetchIndexMovers(index, 5, controller.signal);
-      if (!mountedRef.current || controller.signal.aborted) return;
+      const res = await fetchIndexMovers(index(), 5, controller.signal);
+      if (!mounted || controller.signal.aborted) return;
       setData(res);
     } catch (e) {
-      if (!mountedRef.current || controller.signal.aborted) return;
+      if (!mounted || controller.signal.aborted) return;
       if (e instanceof Error && e.message === "MOVERS_UNAVAILABLE") {
         setError("unavailable");
       } else {
         setError(e instanceof Error ? e.message : "Failed to load movers");
       }
     } finally {
-      if (mountedRef.current) setLoading(false);
+      if (mounted) setLoading(false);
     }
-  }, [index, liveOnly]);
+  };
 
   // Initial load + interval
-  useEffect(() => {
-    mountedRef.current = true;
-    if (!liveOnly) {
-      poll();
-      pollTimerRef.current = window.setInterval(poll, 30_000);
+  createEffect(() => {
+    // Track the index/liveOnly inputs so switching re-arms the poll.
+    index();
+    liveOnly();
+    mounted = true;
+    if (!liveOnly()) {
+      void poll();
+      const id = window.setInterval(() => void poll(), 30_000);
+      onCleanup(() => window.clearInterval(id));
     }
-    return () => {
-      mountedRef.current = false;
-      abortRef.current?.abort();
-      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
-    };
-  }, [poll, liveOnly]);
+    onCleanup(() => {
+      mounted = false;
+      abortController?.abort();
+    });
+  });
 
   // Use parent's loading/error if provided, else local
-  const isLoading = loadingProp ?? loading;
-  const isError = errorProp ?? error;
+  const isLoading = () => props.loading ?? loading();
+  const isError = () => props.error ?? error();
 
   // Stale detection: backend sets the `stale` flag
-  const isStale = data?.stale === true;
+  const isStale = () => data()?.stale === true;
 
-  // Live-only message
-  if (liveOnly) {
-    return (
-      <Box
-        data-testid="movers-strip"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: REPORT_ROW.normal,
-          px: REPORT_PAD.md,
-          borderTop: `1px solid ${palette.TERM_BORDER}`,
-          borderBottom: `1px solid ${palette.TERM_BORDER}`,
-          bgcolor: palette.TERM_HEADER,
-          fontFamily: palette.MONO,
-          fontSize: REPORT_FONT.xs,
-          color: palette.TEXT_MUTED,
-        }}
-      >
-        <Text span size="xs" fw={700} c="dimmed" style={{ letterSpacing: "0.1em" }}>
-          MOVERS
-        </Text>
-        <Text span size="xs" c="dimmed" sx={{ ml: 2, fontStyle: "italic" }}>
-          · live only
-        </Text>
-      </Box>
-    );
-  }
-
-  // Loading state
-  if (isLoading && !data) {
-    return (
-      <Box
-        data-testid="movers-strip"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          height: REPORT_ROW.normal,
-          px: REPORT_PAD.md,
-          borderTop: `1px solid ${palette.TERM_BORDER}`,
-          borderBottom: `1px solid ${palette.TERM_BORDER}`,
-          bgcolor: palette.TERM_HEADER,
-        }}
-      >
-        <Text span size="xs" fw={700} c="dimmed" style={{ letterSpacing: "0.1em" }}>
-          MOVERS
-        </Text>
-        <Box
-          component="span"
-          sx={{ ml: 2, display: "inline-flex", alignItems: "center", gap: 4 }}
-        >
-          <Box
-            sx={{
-              width: 12,
-              height: 12,
-              borderRadius: "50%",
-              border: `2px solid ${palette.TEXT_MUTED}`,
-              borderTopColor: palette.PRIMARY,
-              animation: "spin 0.8s linear infinite",
-              "@keyframes spin": { to: { transform: "rotate(360deg)" } },
-            }}
-          />
-          <Text span size="xs" c="dimmed">
-            loading…
-          </Text>
-        </Box>
-      </Box>
-    );
-  }
-
-  // Error state
-  if (isError && !data) {
-    return (
-      <Box
-        data-testid="movers-strip"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          height: REPORT_ROW.normal,
-          px: REPORT_PAD.md,
-          borderTop: `1px solid ${palette.TERM_BORDER}`,
-          borderBottom: `1px solid ${palette.TERM_BORDER}`,
-          bgcolor: palette.TERM_HEADER,
-        }}
-      >
-        <Text span size="xs" fw={700} c="dimmed" style={{ letterSpacing: "0.1em" }}>
-          MOVERS
-        </Text>
-        <Text span size="xs" c="error" sx={{ ml: 2 }}>
-          unavailable
-        </Text>
-        <Button
-          size="sm"
-          variant="subtle"
-          onClick={poll}
-          sx={{ ml: "auto", minWidth: 0, px: 1, fontSize: REPORT_FONT.micro }}
-        >
-          Retry
-        </Button>
-      </Box>
-    );
-  }
+  const stripChrome = (children: JSX.Element) => (
+    <div
+      data-testid="movers-strip"
+      class="flex items-center h-[24px] min-h-[24px] px-2 bg-fin-surface font-mono text-[11px]"
+    >
+      {children}
+    </div>
+  );
 
   // Render data
-  const gainers = data?.gainers ?? [];
-  const losers = data?.losers ?? [];
+  const gainers = () => data()?.gainers ?? [];
+  const losers = () => data()?.losers ?? [];
 
-  return (
-    <Box
+  const dataView = () => (
+    <div
       data-testid="movers-strip"
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: REPORT_PAD.md,
-        height: REPORT_ROW.normal,
-        minHeight: REPORT_ROW.normal,
-        px: REPORT_PAD.md,
-        borderTop: `1px solid ${palette.TERM_BORDER}`,
-        borderBottom: `1px solid ${palette.TERM_BORDER}`,
-        bgcolor: palette.TERM_HEADER,
-        fontFamily: palette.MONO,
-        fontSize: REPORT_FONT.xs,
-        whiteSpace: "nowrap",
-        overflow: "hidden",
-        flexShrink: 0,
-      }}
+      class="flex items-center justify-between gap-2 h-[24px] min-h-[24px] px-2 bg-fin-surface font-mono text-[11px] whitespace-nowrap overflow-hidden shrink-0"
     >
-      <Box
-        component="span"
-        sx={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: REPORT_PAD.sm,
-          minWidth: 0,
-          flex: "1 1 auto",
-        }}
-      >
+      <span class="inline-flex items-center gap-1 min-w-0 flex-auto">
         <Text
           span
           size="xs"
           fw={700}
           c="dimmed"
-          style={{ letterSpacing: "0.1em", flexShrink: 0 }}
+          className="shrink-0 tracking-[0.1em] text-[11px]"
+          style={{ color: palette.TEXT_MUTED }}
         >
-          MOVERS · {index} {index === "NIFTY" ? "50" : "30"}
+          MOVERS · {index()} {index() === "NIFTY" ? "50" : "30"}
         </Text>
 
         {/* Gainers */}
-        <MoverSection rows={gainers} isGainer={true} />
+        <MoverSection rows={gainers()} isGainer={true} />
 
         {/* Separator — fixed 1px: a stretched flex item would push the
             losers past the strip's `overflow: hidden`. */}
-        <Box
-          component="span"
-          sx={{
-            flex: "0 0 1px",
-            width: "1px",
-            minWidth: "1px",
-            height: 10,
-            alignSelf: "center",
-            bgcolor: palette.TERM_BORDER,
-            mx: REPORT_PAD.xs,
-          }}
+        <span
+          class="shrink-0 self-center mx-[2px] h-[10px] w-[1px] min-w-[1px]"
+          style={{ "background-color": palette.alpha(palette.BORDER, 0.6) }}
         />
 
         {/* Losers */}
-        <MoverSection rows={losers} isGainer={false} />
-      </Box>
+        <MoverSection rows={losers()} isGainer={false} />
+      </span>
 
       {/* Right side: EXPAND button + stale badge */}
-      <Box
-        component="span"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: REPORT_PAD.sm,
-          flexShrink: 0,
-        }}
-      >
-        {isStale && (
-          <Tooltip title={`Data is stale (${data?.as_of})`} placement="bottom-start">
-            <Box
-              component="span"
-              sx={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 2,
-                px: REPORT_PAD.xs,
-                py: "1px",
-                border: `1px solid ${palette.WARNING}`,
-                borderRadius: REPORT_RADIUS.sm,
+      <span class="flex items-center gap-1 shrink-0">
+        <Show when={isStale()}>
+          <Tooltip label={`Data is stale (${data()?.as_of})`} position="bottom-start">
+            <span
+              class="inline-flex items-center gap-1 px-[2px] py-[1px] rounded-sm text-[11px] font-bold tracking-[0.05em] whitespace-nowrap"
+              style={{
+                "background-color": palette.alpha(palette.WARNING, 0.12),
                 color: palette.WARNING,
-                fontSize: REPORT_FONT.micro,
-                fontWeight: 700,
-                letterSpacing: "0.05em",
               }}
             >
               STALE
-            </Box>
+            </span>
           </Tooltip>
-        )}
-        <Button
+        </Show>
+        <button
+          type="button"
           data-testid="movers-expand"
-          size="sm"
-          variant="subtle"
-          onClick={onExpand}
+          class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-text-muted text-fin-text-muted bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 min-w-0 shrink-0 h-[20px] px-1 py-0 text-[11px] font-bold tracking-[0.08em] uppercase"
+          onClick={() => props.onExpand()}
           aria-label="Expand index movers"
           title="Expand index movers"
-          sx={{
-            minWidth: 0,
-            px: REPORT_PAD.sm,
-            py: 0,
-            height: 20,
-            fontSize: REPORT_FONT.micro,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            border: `1px solid ${palette.TERM_BORDER}`,
-            borderRadius: REPORT_RADIUS.sm,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 2,
-          }}
         >
           EXPAND
           <IconChevronRight size={12} />
-        </Button>
-      </Box>
-    </Box>
+        </button>
+      </span>
+    </div>
   );
-});
 
-IndexMoversStrip.displayName = "IndexMoversStrip";
+  return (
+    <Show
+      when={liveOnly()}
+      fallback={
+        <Show
+          when={isLoading() && !data()}
+          fallback={
+            <Show when={isError() && !data()} fallback={dataView()}>
+              {stripChrome(
+                <>
+                  <Text span size="xs" fw={700} c="dimmed" style={{ "letter-spacing": "0.1em" }}>
+                    MOVERS
+                  </Text>
+                  <Text span size="xs" c="error" className="ml-2">
+                    unavailable
+                  </Text>
+                  <button
+                    type="button"
+                    class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-text-muted text-fin-text-muted bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 px-2 py-0 text-[11px] font-bold ml-auto min-w-0"
+                    onClick={() => void poll()}
+                  >
+                    Retry
+                  </button>
+                </>,
+              )}
+            </Show>
+          }
+        >
+          {stripChrome(
+            <>
+              <Text span size="xs" fw={700} c="dimmed" style={{ "letter-spacing": "0.1em" }}>
+                MOVERS
+              </Text>
+              <span class="ml-2 inline-flex items-center gap-1">
+                <Loader size="xs" color={palette.PRIMARY} />
+                <Text span size="xs" c="dimmed">
+                  loading…
+                </Text>
+              </span>
+            </>,
+          )}
+        </Show>
+      }
+    >
+      {/* Replay has no movers feed. The mode banner names MOVERS as unavailable
+          once for every live-only band; an empty 24px strip adds no information. */}
+      {null}
+    </Show>
+  );
+}

@@ -68,7 +68,7 @@ test.describe("UI Controls", () => {
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
     await page.getByTestId("tab-screener").click();
     // The screener error panel renders under testid "screener-error-container"
-    // with a "Retry" button ("screener-retry-btn"); there is no .MuiAlert-root.
+    // with a "Retry" button ("screener-retry-btn"); no legacy MUI alert remains.
     const errorElement = page.getByTestId("screener-error-container");
     await expect(errorElement).toBeVisible({ timeout: 5000 });
     await expect(errorElement).toContainText("Screener failed to load");

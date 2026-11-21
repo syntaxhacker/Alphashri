@@ -1,40 +1,57 @@
-import MuiGrid from "@mui/material/Grid";
+import { splitProps } from "solid-js";
+import { cn } from "../cn";
 import type { UIGridProps, UIGridColProps } from "../types";
+import { sp } from "./spacing";
 
-const sp = (v: unknown) => {
-  if (v == null) return undefined;
-  if (typeof v === "number") return `${v}px`;
-  const m: Record<string, string> = { xs: "4px", sm: "8px", md: "16px", lg: "24px", xl: "32px" };
-  return (m[v as string] ?? v) as string;
-};
+const GRID_KNOWN = [
+  "children", "className", "style", "id", "data-testid", "gutter", "columns", "grow",
+] as const;
 
-const spNum = (v: unknown) => {
-  if (v == null) return undefined;
-  if (typeof v === "number") return v / 8;
-  const m: Record<string, number> = { xs: 0.5, sm: 1, md: 2, lg: 3, xl: 4 };
-  return (m[v as string] ?? 1) as number;
-};
+export function GridCol(props: UIGridColProps & Record<string, unknown>) {
+  const [known, rest] = splitProps(props, [
+    "children", "className", "style", "id", "data-testid", "span", "offset", "order",
+  ] as const);
 
-export function GridCol({ children, className, style, id, "data-testid": testId, span, offset, order, ...rest }: UIGridColProps & Record<string, unknown>) {
-  const size = span != null && span !== "auto" && span !== "content" ? span : undefined;
+  const span = known.span;
+  const size = span != null && span !== "auto" && span !== "content" ? (span as number) : undefined;
+  const pct = size != null ? `${(size / 12) * 100}%` : undefined;
+
   return (
-    <MuiGrid
-      id={id as string} className={className} style={style} data-testid={testId}
-      size={size != null ? { xs: size } : undefined}
-      sx={{ ...(order != null && { order }), ...(offset != null && { ml: `${(Number(offset) / 12) * 100}%` }) }}
+    <div
+      id={known.id}
+      className={cn(known.className)}
+      style={{
+        ...(known.style as Record<string, unknown> | undefined),
+        ...(size != null ? { "flex-basis": pct, "max-width": pct } : {}),
+        ...(known.offset != null ? { "margin-left": `${(Number(known.offset) / 12) * 100}%` } : {}),
+        ...(known.order != null ? { order: known.order } : {}),
+      }}
+      data-testid={known["data-testid"]}
       {...rest}
-    >{children}</MuiGrid>
+    >
+      {known.children}
+    </div>
   );
 }
 
-export function Grid({ children, className, style, id, "data-testid": testId, gutter, columns, grow, ...rest }: UIGridProps & Record<string, unknown>) {
-  void columns; void grow;
+export function Grid(props: UIGridProps & Record<string, unknown>) {
+  const [known, rest] = splitProps(props, GRID_KNOWN);
+
   return (
-    <MuiGrid
-      container
-      id={id as string} className={className} style={style} data-testid={testId}
-      spacing={gutter != null ? spNum(gutter) : undefined} {...rest}
-    >{children}</MuiGrid>
+    <div
+      id={known.id}
+      className={cn(known.className)}
+      style={{
+        display: "grid",
+        ...(known.gutter != null ? { gap: sp(known.gutter) } : {}),
+        ...(known.style as Record<string, unknown> | undefined),
+      }}
+      data-testid={known["data-testid"]}
+      {...rest}
+    >
+      {known.children}
+    </div>
   );
 }
+
 Grid.Col = GridCol;

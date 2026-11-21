@@ -1,13 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
+import { Show, For, createEffect, createSignal, createMemo, onCleanup } from "solid-js";
 import {
   Modal, Stack, Text, Badge, Group, Button, Paper,
   ScrollArea, Loader, Center,
 } from "@/ui";
-import { IconTrendingDown, IconTrendingUp } from "@tabler/icons-react";
+import { IconTrendingDown, IconTrendingUp } from "../common/Icons";
 import { fetchSurges } from "../../api/notifications";
 import type { PriceSurgeEvent } from "../../types/notifications";
 import { formatTimeAgo } from "../../utils/ui-helpers";
 import { ErrorAlert } from "../common/states";
+import { unreadSurgeCount } from "../../state/store/notificationsSlice";
+import { resolveTodayCount, acknowledgeFromResponse } from "./surgeAlertCount";
 
 const PAGE_SIZE = 10;
 
@@ -17,34 +19,42 @@ export function mergeSurgeEvents(previous: PriceSurgeEvent[], next: PriceSurgeEv
   );
 }
 
-export function useSurgeAlertTotal(refreshKey: number = 0): number {
-  const [total, setTotal] = useState(0);
+/**
+ * Unread surge alerts for the current IST session. `refreshKey` may be a value
+ * or an accessor — the refetch re-arms whenever it changes. The all-time row
+ * count is never used here: it grows without bound and made the bell announce
+ * thousands of "surge alerts".
+ */
+export function useSurgeAlertTotal(refreshKey: number | (() => number) = 0): () => number {
+  const [todayCount, setTodayCount] = createSignal(0);
 
-  useEffect(() => {
+  createEffect(() => {
+    const key = typeof refreshKey === "function" ? refreshKey() : refreshKey;
+    void key;
     let active = true;
     fetchSurges(1, 0)
       .then((data) => {
-        if (active) setTotal(Number.isFinite(data.total) ? data.total : 0);
+        if (active) setTodayCount(resolveTodayCount(data));
       })
       .catch(() => {
-        if (active) setTotal(0);
+        if (active) setTodayCount(0);
       });
-    return () => {
+    onCleanup(() => {
       active = false;
-    };
-  }, [refreshKey]);
+    });
+  });
 
-  return total;
+  return createMemo(() => unreadSurgeCount(todayCount()));
 }
 
-export function NotificationsPanel({ opened, onClose }: { opened: boolean; onClose: () => void }) {
-  const [events, setEvents] = useState<PriceSurgeEvent[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [page, setPage] = useState(0);
+export function NotificationsPanel(props: { opened: boolean; onClose: () => void }) {
+  const [events, setEvents] = createSignal<PriceSurgeEvent[]>([]);
+  const [total, setTotal] = createSignal(0);
+  const [loading, setLoading] = createSignal(false);
+  const [loadError, setLoadError] = createSignal<string | null>(null);
+  const [page, setPage] = createSignal(0);
 
-  const load = useCallback(async (pageNum: number) => {
+  const load = async (pageNum: number) => {
     setLoading(true);
     setLoadError(null);
     try {
@@ -52,105 +62,110 @@ export function NotificationsPanel({ opened, onClose }: { opened: boolean; onClo
       const incoming = Array.isArray(data.events) ? data.events : [];
       setEvents((prev) => (pageNum === 0 ? incoming : mergeSurgeEvents(prev, incoming)));
       setTotal(Number.isFinite(data.total) ? data.total : 0);
+      // Viewing the first page acknowledges today's alerts — the bell label
+      // drops back to "Notifications" until new ones arrive.
+      if (pageNum === 0) acknowledgeFromResponse(data);
     } catch {
       setLoadError("Could not load surge alerts.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
-  useEffect(() => {
-    if (opened) {
+  createEffect(() => {
+    if (props.opened) {
       setPage(0);
-      load(0);
+      void load(0);
     }
-  }, [opened, load]);
+  });
 
-  const hasMore = events.length < total;
+  const hasMore = () => events().length < total();
 
   return (
     <Modal
-      opened={opened}
-      onClose={onClose}
-      title={`Surge Alerts (${total})`}
+      opened={props.opened}
+      onClose={props.onClose}
+      title={`Surge Alerts (${total()})`}
       size="sm"
     >
       <Stack gap="xs">
-        {events.length === 0 && !loading && !loadError && (
+        <Show when={events().length === 0 && !loading() && !loadError()}>
           <Center py="xl">
             <Text c="dimmed" size="sm">No surge alerts yet</Text>
           </Center>
-        )}
+        </Show>
 
-        {loadError && (
-          <ErrorAlert
-            title="Surge alerts unavailable"
-            message={loadError}
-            withRetry
-            onRetry={() => load(page)}
-            data-testid="surge-alerts-error"
-          />
-        )}
+        <Show when={loadError()}>
+          {(message) => (
+            <ErrorAlert
+              title="Surge alerts unavailable"
+              message={message()}
+              withRetry
+              onRetry={() => void load(page())}
+              data-testid="surge-alerts-error"
+            />
+          )}
+        </Show>
 
         <ScrollArea
           h={360}
-          sx={{ maxHeight: "70vh", minHeight: 180 }}
+          style={{ "max-height": "70vh", "min-height": "180px" }}
           data-testid="surge-alerts-scroll"
         >
           <Stack gap="xs">
-            {events.map((ev) => (
-              <SurgeCard key={ev.id} event={ev} />
-            ))}
+            <For each={events()}>{(ev) => <SurgeCard event={ev} />}</For>
           </Stack>
 
-          {hasMore && (
+          <Show when={hasMore()}>
             <Center py="md">
               <Button
                 variant="subtle"
                 size="xs"
                 onClick={() => {
-                  const next = page + 1;
+                  const next = page() + 1;
                   setPage(next);
-                  load(next);
+                  void load(next);
                 }}
-                loading={loading}
-                disabled={loading}
+                loading={loading()}
+                disabled={loading()}
                 data-testid="surge-alerts-more"
               >
                 Show more
               </Button>
             </Center>
-          )}
+          </Show>
 
-          {loading && events.length > 0 && (
+          <Show when={loading() && events().length > 0}>
             <Center py="md"><Loader size="sm" /></Center>
-          )}
+          </Show>
         </ScrollArea>
       </Stack>
     </Modal>
   );
 }
 
-function SurgeCard({ event }: { event: PriceSurgeEvent }) {
-  const isUp = event.direction === "up";
-  const color = isUp ? "success" : "error";
-  const sign = isUp ? "+" : "";
+function SurgeCard(props: { event: PriceSurgeEvent }) {
+  const isUp = () => props.event.direction === "up";
+  const color = () => (isUp() ? "success" : "error");
+  const sign = () => (isUp() ? "+" : "");
 
   return (
-    <Paper p="xs" data-testid={`surge-card-${event.id}`}>
+    <Paper p="xs" data-testid={`surge-card-${props.event.id}`}>
       <Group justify="space-between" align="center" gap={4}>
         <Group align="center" gap={4}>
-          {isUp ? <IconTrendingUp size={14} /> : <IconTrendingDown size={14} />}
-          <Text size="sm" fw={600}>{event.symbol}</Text>
-          <Text size="sm" c={color} fw={600}>{sign}{event.move_pct.toFixed(1)}%</Text>
+          <Show when={isUp()} fallback={<IconTrendingDown size={14} />}>
+            <IconTrendingUp size={14} />
+          </Show>
+          <Text size="sm" fw={600}>{props.event.symbol}</Text>
+          <Text size="sm" c={color()} fw={600}>{sign()}{props.event.move_pct.toFixed(1)}%</Text>
         </Group>
-        <Badge size="xs" variant="light" color="secondary">{event.screen_label}</Badge>
+        <Badge size="xs" variant="light" color="secondary">{props.event.screen_label}</Badge>
       </Group>
       <Group align="center" gap={4}>
-        {event.price != null && (
-          <Text size="xs" c="dimmed">₹{event.price.toFixed(2)}</Text>
-        )}
-        <Text size="xs" c="dimmed">{formatTimeAgo(event.created_at)}</Text>
+        <Show when={props.event.price != null}>
+          <Text size="xs" c="dimmed">₹{props.event.price!.toFixed(2)}</Text>
+        </Show>
+        <Text size="xs" c="dimmed">{formatTimeAgo(props.event.created_at)}</Text>
       </Group>
     </Paper>
   );

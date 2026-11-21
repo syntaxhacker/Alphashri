@@ -1,15 +1,12 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { UserButton } from "./UserButton";
-import { ThemeProvider } from "@mui/material/styles";
-import { muiTheme } from "@/ui/muiTheme";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
-function renderWithTheme(ui: React.ReactNode) {
-  return render(<ThemeProvider theme={muiTheme}>{ui}</ThemeProvider>);
+function renderWithTheme(ui: JSX.Element) {
+  return render(ui);
 }
 
 // Mock global window properties
@@ -34,12 +31,6 @@ describe("UserButton", () => {
     collapsed: false,
   };
 
-  it("renders user menu trigger button", () => {
-    renderWithTheme(<UserButton {...defaultProps} />);
-
-    expect(screen.getByTestId("user-menu-trigger")).toBeInTheDocument();
-  });
-
   it("displays user display name", () => {
     renderWithTheme(<UserButton {...defaultProps} />);
 
@@ -58,13 +49,6 @@ describe("UserButton", () => {
     expect(screen.getByTestId("user-avatar")).toBeInTheDocument();
   });
 
-  it("shows user info when not collapsed", () => {
-    renderWithTheme(<UserButton collapsed={false} />);
-
-    expect(screen.getByTestId("user-display-name")).toBeInTheDocument();
-    expect(screen.getByTestId("user-email")).toBeInTheDocument();
-  });
-
   it("hides user info when collapsed", () => {
     renderWithTheme(<UserButton collapsed={true} />);
 
@@ -73,13 +57,12 @@ describe("UserButton", () => {
   });
 
   it("renders logout button in dropdown after trigger click", async () => {
-    const user = userEvent.setup();
-    renderWithTheme(<UserButton {...defaultProps} />);
+        renderWithTheme(<UserButton {...defaultProps} />);
 
     // Dropdown is portal-based and hidden until click
     expect(screen.queryByText("Logout")).not.toBeInTheDocument();
 
-    await user.click(screen.getByTestId("user-menu-trigger"));
+    await fireEvent.click(screen.getByTestId("user-menu-trigger"));
 
     expect(await screen.findByRole("menu")).toBeInTheDocument();
     expect(screen.getByText("Logout")).toBeInTheDocument();
@@ -87,12 +70,11 @@ describe("UserButton", () => {
   });
 
   it("calls handleLogout when logout is clicked", async () => {
-    const user = userEvent.setup();
-    renderWithTheme(<UserButton {...defaultProps} />);
+        renderWithTheme(<UserButton {...defaultProps} />);
 
-    await user.click(screen.getByTestId("user-menu-trigger"));
+    await fireEvent.click(screen.getByTestId("user-menu-trigger"));
     const logoutBtn = await screen.findByText("Logout");
-    await user.click(logoutBtn);
+    await fireEvent.click(logoutBtn);
 
     expect(mockHandleLogout).toHaveBeenCalledTimes(1);
   });
@@ -116,14 +98,13 @@ describe("UserButton", () => {
   });
 
   it("does not throw when handleLogout is not defined", async () => {
-    const user = userEvent.setup();
-    delete window.handleLogout;
+        delete window.handleLogout;
 
     renderWithTheme(<UserButton {...defaultProps} />);
 
-    await user.click(screen.getByTestId("user-menu-trigger"));
+    await fireEvent.click(screen.getByTestId("user-menu-trigger"));
     const logoutBtn = await screen.findByText("Logout");
-    await expect(user.click(logoutBtn)).resolves.not.toThrow();
+    expect(() => fireEvent.click(logoutBtn)).not.toThrow();
     // Menu closes after item click
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });

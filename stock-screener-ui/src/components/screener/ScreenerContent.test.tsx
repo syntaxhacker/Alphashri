@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { ScreenerContent } from "./ScreenerContent";
-import type { ReactElement } from "react";
+import type { JSX } from "solid-js";
 import type { Stock } from "../../types";
 
 afterEach(() => {
@@ -12,16 +12,17 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-const renderWithProvider = (ui: ReactElement) =>
-  render(<UIProvider>{ui}</UIProvider>);
+const renderWithProvider = (ui: JSX.Element) =>
+  render(() => <UIProvider>{ui}</UIProvider>);
 
 vi.mock("./ScreenerSection", () => ({
-  ScreenerSection: ({ title, description, stocks, action }: any) => (
+  ScreenerSection: ({ title, description, stocks, action, tableId }: any) => (
     <div
       data-testid="screener-section"
       data-title={title}
       data-description={description || ""}
       data-symbols={(stocks || []).map((s: any) => s.symbol).join(",")}
+      data-table-id={tableId}
     >
       {action}
       {title}
@@ -47,6 +48,7 @@ vi.mock("./ScreenerErrorPanel", () => ({
 }));
 
 vi.mock("../../state", () => ({
+  subscribe: vi.fn(() => vi.fn()),
   screenerOptions: [
     { id: "trending", label: "Trending" },
     { id: "buyer_interest", label: "Buyer Interest" },
@@ -76,12 +78,10 @@ const defaultProps = {
   touchedStocks: [] as Stock[],
   isLoading: false,
   error: null as string | null,
-  totalStocks: 0,
   onRefresh: vi.fn(),
   onSymbolClick: vi.fn(),
   onSymbolHover: vi.fn(),
   activeScreener: "trending",
-  viewMode: "table" as const,
 };
 
 describe("ScreenerContent", () => {
@@ -90,7 +90,7 @@ describe("ScreenerContent", () => {
   });
 
   it("shows loading when isLoading is true", () => {
-    renderWithProvider(<ScreenerContent {...defaultProps} isLoading totalStocks={0} />);
+    renderWithProvider(<ScreenerContent {...defaultProps} isLoading />);
     expect(screen.getByTestId("screener-loading")).toBeInTheDocument();
   });
 
@@ -112,7 +112,7 @@ describe("ScreenerContent", () => {
     expect(screen.getByTestId("screener-error")).toHaveTextContent("Failed to fetch");
   });
 
-  it("shows empty state when totalStocks is 0", () => {
+  it("shows empty state when there are no rows", () => {
     renderWithProvider(<ScreenerContent {...defaultProps} />);
     expect(screen.getByTestId("screener-empty")).toBeInTheDocument();
   });
@@ -121,7 +121,6 @@ describe("ScreenerContent", () => {
     renderWithProvider(
       <ScreenerContent
         {...defaultProps}
-        totalStocks={3}
         approachingStocks={[
           mockStock("A"),
           mockStock("B"),
@@ -138,7 +137,6 @@ describe("ScreenerContent", () => {
       <ScreenerContent
         {...defaultProps}
         activeScreener="buyer_interest"
-        totalStocks={5}
         approachingStocks={[
           mockStock("A"),
           mockStock("B"),
@@ -152,24 +150,10 @@ describe("ScreenerContent", () => {
     expect(section).toHaveAttribute("data-title", "Buyer Interest (5)");
   });
 
-  it("has no description when custom labels are used", () => {
-    renderWithProvider(
-      <ScreenerContent
-        {...defaultProps}
-        activeScreener="buyer_interest"
-        totalStocks={2}
-        approachingStocks={[mockStock("A"), mockStock("B")]}
-      />,
-    );
-    const section = screen.getByTestId("screener-section");
-    expect(section).toHaveAttribute("data-description", "");
-  });
-
   it("renders touched section when touched stocks exist", () => {
     renderWithProvider(
       <ScreenerContent
         {...defaultProps}
-        totalStocks={3}
         approachingStocks={[
           mockStock("A"),
           mockStock("B"),
@@ -189,7 +173,6 @@ describe("ScreenerContent", () => {
     renderWithProvider(
       <ScreenerContent
         {...defaultProps}
-        totalStocks={2}
         approachingStocks={[mockStock("A"), mockStock("B")]}
         touchedStocks={[]}
       />,
@@ -211,15 +194,45 @@ describe("ScreenerContent", () => {
     expect(screen.getByTestId("screener-section")).toHaveAttribute("data-symbols", "F,P,R");
   });
 
-  it("renders copy-symbols actions for both sections", () => {
+  it("separates stacked sections with the 8px inner gap", () => {
     renderWithProvider(
       <ScreenerContent
         {...defaultProps}
         approachingStocks={[mockStock("A")]}
-        touchedStocks={[mockStock("C")]}
+        touchedStocks={[mockStock("B")]}
       />,
     );
-    expect(screen.getByTestId("copy-approaching-symbols")).toBeInTheDocument();
-    expect(screen.getByTestId("copy-touched-symbols")).toBeInTheDocument();
+    const stack = screen.getAllByTestId("screener-section")[0].parentElement as HTMLElement;
+    expect(stack.style.getPropertyValue("gap")).toBe("8px");
   });
+
+  it("gives each section a distinct tableId with the profile id and section key", () => {
+    renderWithProvider(
+      <ScreenerContent
+        {...defaultProps}
+        activeScreener="trending"
+        approachingStocks={[mockStock("A")]}
+        touchedStocks={[mockStock("B")]}
+      />,
+    );
+    const sections = screen.getAllByTestId("screener-section");
+    expect(sections[0]).toHaveAttribute("data-table-id", "screener.trending.approaching");
+    expect(sections[1]).toHaveAttribute("data-table-id", "screener.trending.touched");
+    expect(sections[0].getAttribute("data-table-id")).not.toBe(sections[1].getAttribute("data-table-id"));
+  });
+
+  it("scopes tableIds to the active profile", () => {
+    renderWithProvider(
+      <ScreenerContent
+        {...defaultProps}
+        activeScreener="52w_high"
+        approachingStocks={[mockStock("A")]}
+      />,
+    );
+    expect(screen.getByTestId("screener-section")).toHaveAttribute(
+      "data-table-id",
+      "screener.52w_high.approaching",
+    );
+  });
+
 });

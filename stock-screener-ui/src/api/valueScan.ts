@@ -1,17 +1,13 @@
 import { fetchWithAuth } from "../state/auth";
 import { API_BASE } from "@/api/config";
+import { VALUE_ROW_CAP } from "../config/apiLimits";
+import type { ValuePresetName } from "./valuePresets.generated";
+
+export { VALUE_PRESETS, PRESET_IDS, type ValuePresetName } from "./valuePresets.generated";
 
 const VALUE_SCAN_API = `${API_BASE}/api/value/scan`;
 
 export type ValueMarket = "india" | "usa" | "global";
-
-export type ValuePresetName =
-  | "SERIOUS"
-  | "DEEP"
-  | "GARP_VALUE"
-  | "YIELD"
-  | "TURNAROUND"
-  | "NO_GATE";
 
 export interface ValueSubscores {
   value: number;
@@ -113,15 +109,6 @@ export interface ValueFilters {
   sort?: string;
 }
 
-export const VALUE_PRESETS: Record<string, { label: string; description: string }> = {
-  SERIOUS: { label: "Serious", description: "Quality compounders at a fair price" },
-  DEEP: { label: "Deep", description: "Cheapest multiples, cigar-butt value" },
-  GARP_VALUE: { label: "GARP Value", description: "Growth at a reasonable price" },
-  YIELD: { label: "Yield", description: "Dividend + free-cash-flow yield" },
-  TURNAROUND: { label: "Turnaround", description: "Improving profitability, still cheap" },
-  NO_GATE: { label: "No gate", description: "No quality gates, pure ranking" },
-};
-
 export const VALUE_MARKETS: { value: ValueMarket; label: string }[] = [
   { value: "india", label: "INDIA" },
   { value: "usa", label: "USA" },
@@ -136,7 +123,7 @@ function setNumberParam(params: URLSearchParams, key: string, value: number | un
 export function buildValueScanUrl(filters: ValueFilters = {}): string {
   const params = new URLSearchParams();
   params.set("market", filters.market ?? "india");
-  params.set("limit", String(filters.limit ?? 100));
+  params.set("limit", String(filters.limit ?? VALUE_ROW_CAP));
   if (filters.preset) params.set("preset", filters.preset);
   setNumberParam(params, "max_pe", filters.max_pe);
   setNumberParam(params, "min_pe", filters.min_pe);

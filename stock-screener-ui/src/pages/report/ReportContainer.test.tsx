@@ -1,16 +1,16 @@
 // @vitest-environment happy-dom
-import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { describe, expect, test, vi, beforeEach } from "vitest";
+import { render, screen, waitFor, fireEvent } from "@solidjs/testing-library";
 import { configure } from "@testing-library/dom";
-import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, createMemoryHistory } from "@solidjs/router";
 import "@testing-library/jest-dom/vitest";
+import { Show, For } from "solid-js";
 import { UIProvider } from "@/ui";
 import { ReportContainer } from "./ReportContainer";
 import { fetchSymbolChart, fetchTimeframes } from "@/api/chartPatterns";
 
-// These tests mount the full report container (~4.4 s each). The 1 s default
-// findBy* timeout flakes under the parallel suite, where the tab bar can take
+// These tests mount the full report container. The 1 s default findBy*
+// timeout flakes under the parallel suite, where the tab bar can take
 // longer than that to appear.
 configure({ asyncUtilTimeout: 8000 });
 
@@ -35,26 +35,26 @@ vi.mock("@/api/chartPatterns", async (importOriginal) => {
 // The real fullscreen mounts lightweight-charts (no canvas in happy-dom);
 // stub it like the Patterns page tests do and assert the wiring instead.
 vi.mock("@/components/patterns/PatternFullscreenView", () => ({
-  PatternFullscreenView: ({ opened, onClose, hit, hits = [], onSelectHit }: any) => {
-    if (!opened) return null;
-    return (
+  PatternFullscreenView: (props: any) => (
+    <Show when={props.opened}>
       <div data-testid="patterns-fullscreen-modal">
-        <div data-testid="patterns-fullscreen-active-hit">{hit?.pattern_name}</div>
-        {(hits as any[]).map((h: any, i: number) => (
-          <button
-            key={i}
-            data-testid={`patterns-fullscreen-list-item-${i}`}
-            onClick={() => onSelectHit?.(h)}
-          >
-            {h.pattern_name}
-          </button>
-        ))}
-        <button data-testid="patterns-fullscreen-close" onClick={onClose}>
+        <div data-testid="patterns-fullscreen-active-hit">{props.hit?.pattern_name}</div>
+        <For each={props.hits ?? []}>
+          {(h: any, i) => (
+            <button
+              data-testid={`patterns-fullscreen-list-item-${i()}`}
+              onClick={() => props.onSelectHit?.(h)}
+            >
+              {h.pattern_name}
+            </button>
+          )}
+        </For>
+        <button data-testid="patterns-fullscreen-close" onClick={() => props.onClose?.()}>
           Close
         </button>
       </div>
-    );
-  },
+    </Show>
+  ),
 }));
 
 import {
@@ -93,13 +93,15 @@ const mockEmpty = {
 };
 
 function renderContainer() {
-  return render(
-    <MemoryRouter initialEntries={["/report"]}>
-      <UIProvider>
-        <ReportContainer />
-      </UIProvider>
-    </MemoryRouter>,
-  );
+  const history = createMemoryHistory();
+  history.set({ value: "/report" });
+  return render(() => (
+    <UIProvider>
+      <MemoryRouter history={history}>
+        <Route path="/report" component={ReportContainer} />
+      </MemoryRouter>
+    </UIProvider>
+  ));
 }
 
 describe("ReportContainer", () => {
@@ -114,14 +116,11 @@ describe("ReportContainer", () => {
     vi.mocked(fetchSymbolChart).mockResolvedValue({ candles: [], hits: [], trend_lines: [] } as never);
   });
 
-  afterEach(() => cleanup());
-
   test("row click opens the Patterns fullscreen chart for that symbol", async () => {
-    const user = userEvent.setup();
     renderContainer();
-    await user.click(await screen.findByTestId("report-tab-moves"));
+    fireEvent.click(await screen.findByTestId("report-tab-moves"));
     await screen.findByTestId("report-moves-gainers");
-    await user.click(screen.getByTestId("report-move-row-RELIANCE"));
+    fireEvent.click(screen.getByTestId("report-move-row-RELIANCE"));
     await waitFor(() =>
       expect(vi.mocked(fetchSymbolChart)).toHaveBeenCalledWith(
         "RELIANCE",
@@ -133,13 +132,12 @@ describe("ReportContainer", () => {
   }, 30_000);
 
   test("closing the fullscreen returns to the report", async () => {
-    const user = userEvent.setup();
     renderContainer();
-    await user.click(await screen.findByTestId("report-tab-moves"));
+    fireEvent.click(await screen.findByTestId("report-tab-moves"));
     await screen.findByTestId("report-moves-gainers");
-    await user.click(screen.getByTestId("report-move-row-RELIANCE"));
+    fireEvent.click(screen.getByTestId("report-move-row-RELIANCE"));
     await screen.findByTestId("patterns-fullscreen-modal");
-    await user.click(screen.getByTestId("patterns-fullscreen-close"));
+    fireEvent.click(screen.getByTestId("patterns-fullscreen-close"));
     await waitFor(() =>
       expect(screen.queryByTestId("patterns-fullscreen-modal")).not.toBeInTheDocument(),
     );

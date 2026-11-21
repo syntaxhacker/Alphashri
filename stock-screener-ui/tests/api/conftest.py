@@ -97,6 +97,71 @@ def db(test_engine) -> Generator[Session, None, None]:
     connection.close()
 
 
+@pytest.fixture(autouse=True)
+def _reset_option_caches():
+    """Option routes keep a process-level short-TTL cache.
+
+    Every API test stubs Upstox with its own payload for the same
+    symbol+expiry, so without a reset the second test is served the first
+    test's chain. Reset both caches around each test.
+    """
+    try:
+        from api.options import clear_option_chain_cache
+        from api.options_underlying import _cache as _underlying_cache, _locks
+    except Exception:  # pragma: no cover - options modules unavailable
+        yield
+        return
+
+    def _clear() -> None:
+        clear_option_chain_cache()
+        _underlying_cache.clear()
+        _locks.clear()
+
+    _clear()
+    yield
+    _clear()
+
+
+@pytest.fixture(autouse=True)
+def _reset_analytics_rate_limiter():
+    """The analytics limiter is process-level and each cold build spends
+    ``expiries`` tokens. Without a per-test reset, a file's worth of cold reads
+    exhausts the shared bucket and 429s unrelated tests.
+    """
+    try:
+        from api.rate_limit import analytics_limiter
+    except Exception:  # pragma: no cover - analytics module unavailable
+        yield
+        return
+
+    analytics_limiter.reset()
+    yield
+    analytics_limiter.reset()
+
+
+@pytest.fixture(autouse=True)
+def _stub_chain_snapshot_writer(monkeypatch):
+    """The live chain route now schedules a snapshot on every fresh poll.
+
+    ``record_chain_snapshot`` opens ``SessionLocal`` (the real SQLite file), so
+    API tests must never run it for real. Stub the imported name and clear the
+    process-local throttle between tests; tests that assert on the hook re-patch
+    it with their own recorder.
+    """
+    try:
+        from api import options as _options
+    except Exception:  # pragma: no cover - options modules unavailable
+        yield
+        return
+
+    monkeypatch.setattr(_options, "record_chain_snapshot", lambda payload: 0, raising=False)
+    if hasattr(_options, "_snapshot_last"):
+        _options._snapshot_last.clear()
+    yield
+    if hasattr(_options, "_snapshot_last"):
+        _options._snapshot_last.clear()
+
+
 @pytest.fixture(scope="function")
 def client(db: Session) -> TestClient:
     def override_get_db_for_client():
@@ -104,10 +169,13 @@ def client(db: Session) -> TestClient:
 
     app.dependency_overrides[get_db] = override_get_db_for_client
 
+    # No `with`: the app lifespan starts network-backed background tasks (Event
+    # Radar's EDGAR poll) whose to_thread workers cannot be cancelled at teardown.
+    test_client = TestClient(app)
     try:
-        with TestClient(app) as test_client:
-            yield test_client
+        yield test_client
     finally:
+        test_client.close()
         app.dependency_overrides.clear()
 
 
@@ -132,10 +200,13 @@ def auth_client(db: Session) -> TestClient:
     app.dependency_overrides[get_db] = override_get_db_for_client
     app.dependency_overrides[get_current_user] = override_get_current_user
 
+    # No `with`: see `client` — entering the lifespan once per test wedges
+    # TestClient.__exit__ on a blocking EDGAR socket in a thread-pool worker.
+    test_client = TestClient(app)
     try:
-        with TestClient(app) as test_client:
-            yield test_client
+        yield test_client
     finally:
+        test_client.close()
         app.dependency_overrides.clear()
 
 

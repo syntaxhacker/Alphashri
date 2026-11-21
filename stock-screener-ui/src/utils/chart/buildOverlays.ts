@@ -3,11 +3,11 @@ import { buildOverlayLineSeries } from "./overlayLine";
 
 /** Shared box-overlay skeleton: a thin dashed line with no tooltip or labels.
  *
- * `buildOverlays` and `buildBacktestChartOption` both painted box overlays with
- * this identical `buildOverlayLineSeries` skeleton; only the data mapping
- * differs (levels array + `extendSeriesData` here, `overlay.levels.top` via
- * `mapOverlayDateValues` there), so data stays with the caller and the
- * options object lives here.
+ * Historically `buildOverlays` and `buildBacktestChartOption` both painted box
+ * overlays with this identical `buildOverlayLineSeries` skeleton; only the data
+ * mapping differed (levels array + `extendSeriesData` here, `overlay.levels.top`
+ * via `mapOverlayDateValues` there). The backtest copy was removed as dead code
+ * in 2026-11; data still stays with the caller and the options object lives here.
  */
 export function buildOverlayBoxSeries(
   id: string,

@@ -1,4 +1,4 @@
-import { Box, Flex } from "@/ui";
+
 import type {
   ReplayTrade,
   ReplayChartOptions,
@@ -9,6 +9,8 @@ import type {
 } from "../../types/replay";
 import { ReplayChart } from "./ReplayChart";
 import { ReplayTradeLog } from "./ReplayTradeLog";
+import { Box, Flex } from "@/ui";
+type ChartHandle = { zoomToTrade: (entryTime: string, exitTime: string) => void } | null;
 
 interface ReplayMainViewProps {
   candlesBySymbol: Map<string, any[]>;
@@ -25,58 +27,42 @@ interface ReplayMainViewProps {
   strategyFilter: string | null;
   setStrategyFilter: (filter: string | null) => void;
   isRunning: boolean;
-  chartRef: React.RefObject<{ zoomToTrade: (entryTime: string, exitTime: string) => void } | null>;
+  chartRef: { current: ChartHandle };
   onTradeClick: (tradeId: number) => void;
   onTradeRowClick: (trade: ReplayTrade) => void;
 }
 
-export function ReplayMainView({
-  candlesBySymbol,
-  trades,
-  orLevels,
-  pivotLevels,
-  high52wLevels,
-  emaData,
-  selectedSymbol,
-  setSelectedSymbol,
-  chartOptions,
-  setChartOptions,
-  highlightedTradeId,
-  strategyFilter,
-  setStrategyFilter,
-  isRunning,
-  chartRef,
-  onTradeClick,
-  onTradeRowClick,
-}: ReplayMainViewProps) {
+export function ReplayMainView(props: ReplayMainViewProps) {
   return (
-    <Box style={{ flex: 1, minHeight: 0, minWidth: 0, height: "100%" }} data-testid="replay-main-view">
+    <Box style={{ flex: 1, "min-height": 0, "min-width": 0, height: "100%" }} data-testid="replay-main-view">
       <Flex gap="sm" h="100%">
-        <Box style={{ flex: "0 0 60%", minHeight: 0 }}>
+        <Box style={{ flex: "0 0 60%", "min-height": 0 }}>
           <ReplayChart
-            ref={chartRef}
-            candlesBySymbol={candlesBySymbol}
-            trades={trades}
-            orLevels={orLevels}
-            pivotLevels={pivotLevels}
-            high52wLevels={high52wLevels}
-            emaData={emaData}
-            selectedSymbol={selectedSymbol}
-            setSelectedSymbol={setSelectedSymbol}
-            chartOptions={chartOptions}
-            setChartOptions={setChartOptions}
-            highlightedTradeId={highlightedTradeId}
-            onTradeClick={onTradeClick}
+            ref={(handle) => {
+              props.chartRef.current = handle as ChartHandle;
+            }}
+            candlesBySymbol={props.candlesBySymbol}
+            trades={props.trades}
+            orLevels={props.orLevels}
+            pivotLevels={props.pivotLevels}
+            high52wLevels={props.high52wLevels}
+            emaData={props.emaData}
+            selectedSymbol={props.selectedSymbol ?? ""}
+            setSelectedSymbol={props.setSelectedSymbol}
+            chartOptions={props.chartOptions}
+            setChartOptions={props.setChartOptions}
+            highlightedTradeId={props.highlightedTradeId}
+            onTradeClick={props.onTradeClick}
           />
         </Box>
-        <Box style={{ flex: "1 1 40%", minHeight: 0, display: "flex", flexDirection: "column" }}>
+        <Box style={{ flex: "1 1 40%", "min-height": 0, display: "flex", "flex-direction": "column" }}>
           <ReplayTradeLog
-            trades={trades}
-            strategyFilter={strategyFilter}
-            setStrategyFilter={setStrategyFilter}
-            isRunning={isRunning}
-            highlightedTradeId={highlightedTradeId}
-            onTradeClick={onTradeRowClick}
+            trades={props.trades}
+            strategyFilter={props.strategyFilter ?? "ALL"}
+            setStrategyFilter={(f) => props.setStrategyFilter(f)}
+            isRunning={props.isRunning}
+            highlightedTradeId={props.highlightedTradeId}
+            onTradeClick={props.onTradeRowClick}
           />
         </Box>
       </Flex>

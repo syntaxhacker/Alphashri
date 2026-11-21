@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, fireEvent, cleanup, waitFor } from "@solidjs/testing-library";
 import ReplayShell from "./ReplayShell";
 import { getStrategy } from "../strategies";
 
@@ -33,6 +32,11 @@ vi.mock("lightweight-charts", () => ({
 
 const fetchMock = vi.fn();
 
+const searchSymbols = vi.fn();
+vi.mock("@/api/symbols", () => ({
+  searchSymbols: (...args: unknown[]) => searchSymbols(...args),
+}));
+
 beforeEach(() => {
   class ResizeObserverMock {
     observe = vi.fn();
@@ -59,6 +63,8 @@ beforeEach(() => {
   fetchMock.mockResolvedValue({
     json: () => Promise.resolve({ bars: [], trades: [] }),
   } as unknown as Response);
+  searchSymbols.mockReset();
+  searchSymbols.mockResolvedValue([{ symbol: "RELIANCE", name: "Reliance Industries" }]);
 });
 
 afterEach(() => {
@@ -69,9 +75,8 @@ afterEach(() => {
 
 describe("ReplayShell manual run mode", () => {
   test("does not fetch on mount or state change, then fetches once on Run", async () => {
-    const user = userEvent.setup();
     const plugin = getStrategy("orb")!;
-    render(<ReplayShell plugin={plugin} />);
+    render(() => <ReplayShell plugin={plugin} />);
 
     // hint + Run affordance render before any fetch
     expect(screen.getByText(/Choose a symbol \/ date, then press Run/)).toBeInTheDocument();
@@ -79,16 +84,62 @@ describe("ReplayShell manual run mode", () => {
     expect(fetchMock).not.toHaveBeenCalled();
 
     // changing the date (a fetch-key input) must NOT trigger an auto-fetch
-    await user.click(screen.getByText("2026-09-09"));
+    await fireEvent.click(screen.getByText("2026-09-09"));
     expect(fetchMock).not.toHaveBeenCalled();
 
     // explicit Run triggers exactly one fetch with the symbol param
-    await user.click(screen.getByRole("button", { name: "Run" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Run" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/api/poc/replay/orb"),
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(String(fetchMock.mock.calls[0][0])).toContain("symbol=RELIANCE");
+  });
+});
+
+/**
+ * The Replay page shell is `h-screen overflow-hidden` and its cards clip too, so
+ * an in-flow `absolute` list was cut off at the field's own height. The symbol
+ * field now uses the shared portalled autocomplete — pin that here so a
+ * re-duplicated local copy cannot silently regress.
+ */
+describe("ReplayShell symbol field — portalled list", () => {
+  const listbox = () => document.querySelector<HTMLElement>('[data-part="symbol-autocomplete-list"]');
+
+  test("renders the option list in a fixed portal, not as an absolute child", async () => {
+    const shell = render(() => (
+      <div style={{ height: "100vh", overflow: "hidden" }}>
+        <ReplayShell plugin={getStrategy("orb")!} />
+      </div>
+    ));
+
+    const input = screen.getByLabelText("Symbol");
+    await fireEvent.input(input, { target: { value: "RELI" } });
+    await waitFor(() => expect(searchSymbols).toHaveBeenCalledWith("RELI", 10));
+    await screen.findByText("RELIANCE");
+
+    const list = listbox()!;
+    expect(shell.container.contains(list)).toBe(false);
+    expect(list.style.position).toBe("fixed");
+  });
+
+  test("a mousedown inside the list keeps it open and the click commits", async () => {
+    render(() => (
+      <div style={{ height: "100vh", overflow: "hidden" }}>
+        <ReplayShell plugin={getStrategy("orb")!} />
+      </div>
+    ));
+
+    const input = screen.getByLabelText("Symbol");
+    await fireEvent.input(input, { target: { value: "RELI" } });
+    const option = await screen.findByText("RELIANCE");
+
+    fireEvent.mouseDown(option);
+    expect(listbox()).not.toBeNull();
+
+    fireEvent.click(option);
+    expect(input).toHaveValue("RELIANCE");
+    expect(listbox()).toBeNull();
   });
 });

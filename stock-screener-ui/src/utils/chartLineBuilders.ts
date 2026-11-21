@@ -1,5 +1,10 @@
 import { PIVOT_R1, PIVOT_PP, PIVOT_S1, CHART_AVG_ENTRY } from "../config/colors";
 
+/** Pivot tooltip formatter param: ECharts hands the hovered point. */
+interface PivotTooltipParam {
+  value: number | null;
+}
+
 export function buildPivotSeries(
   candles: Array<{ date: string }>,
   pivot_levels: Array<{ date: string; date_raw: string; pp: number; r1: number; s1: number }>,
@@ -36,7 +41,7 @@ export function buildPivotSeries(
       lineStyle: { color: PIVOT_R1, width: 1, type: "dashed" },
       tooltip: {
         show: true,
-        formatter: (params: any) =>
+        formatter: (params: PivotTooltipParam) =>
           params.value !== null
             ? `<span style="color:${PIVOT_R1}">R1: ₹${params.value.toFixed(2)}</span>`
             : "",
@@ -54,7 +59,7 @@ export function buildPivotSeries(
       lineStyle: { color: PIVOT_PP, width: 1, type: "dotted" },
       tooltip: {
         show: true,
-        formatter: (params: any) =>
+        formatter: (params: PivotTooltipParam) =>
           params.value !== null
             ? `<span style="color:${PIVOT_PP}">PP: ₹${params.value.toFixed(2)}</span>`
             : "",
@@ -72,7 +77,7 @@ export function buildPivotSeries(
       lineStyle: { color: PIVOT_S1, width: 1, type: "dashed" },
       tooltip: {
         show: true,
-        formatter: (params: any) =>
+        formatter: (params: PivotTooltipParam) =>
           params.value !== null
             ? `<span style="color:${PIVOT_S1}">S1: ₹${params.value.toFixed(2)}</span>`
             : "",
@@ -84,7 +89,7 @@ export function buildPivotSeries(
 export function buildWeek52Series(
   candles: Array<{ date: string }>,
   week52_levels: Array<{ date: string; "52w_high": number }>,
-  extendSeriesData: (data: any[]) => any[],
+  extendSeriesData: (data: (number | null)[]) => (number | null)[],
 ): any[] {
   if (!week52_levels || week52_levels.length === 0) return [];
   const data = extendSeriesData(
@@ -108,8 +113,8 @@ export function buildWeek52Series(
 }
 
 export function buildEmaSeries(
-  ema_series: Array<{ label: string; color: string; data: any[] }>,
-  extendSeriesData: (data: any[]) => any[],
+  ema_series: Array<{ label: string; color: string; data: (number | null)[] }>,
+  extendSeriesData: (data: (number | null)[]) => (number | null)[],
   legendData: string[],
 ): any[] {
   if (!ema_series?.length) return [];

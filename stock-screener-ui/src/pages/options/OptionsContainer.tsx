@@ -1,20 +1,22 @@
-import { useState } from "react";
-import Box from "@mui/material/Box";
+import { createSignal } from "solid-js";
+import { Box } from "@/ui";
 import { useOptionsState } from "../../hooks/useOptionsState";
 import { OptionsPage } from "../../components/options/OptionsPage";
 
 export function OptionsContainer() {
   const options = useOptionsState();
-  const [activeTab, setActiveTab] = useState<string>("chain");
+  const [activeTab, setActiveTab] = createSignal<string>("chain");
 
   return (
     <Box
       id="options-container"
       data-testid="options-container"
-      sx={{ px: 2, py: 1, height: "100%", minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column", width: "100%" }}
+      px={2}
+      py={1}
+      className="flex flex-col h-full w-full min-h-0 overflow-hidden"
     >
-      <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", width: "100%" }}>
-        <OptionsPage activeTab={activeTab} setActiveTab={setActiveTab} {...options} />
+      <Box className="flex flex-col h-full w-full min-h-0 overflow-hidden" style={{ flex: 1 }}>
+        <OptionsPage activeTab={activeTab()} setActiveTab={setActiveTab} {...options} />
       </Box>
     </Box>
   );

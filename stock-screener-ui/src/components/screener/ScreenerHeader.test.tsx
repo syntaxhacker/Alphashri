@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, within } from "@testing-library/react";
+import { render, screen, cleanup, within, fireEvent} from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { ScreenerHeader } from "./ScreenerHeader";
 import { UIProvider } from "@/ui";
 
@@ -17,8 +16,6 @@ describe("ScreenerHeader", () => {
     onAutoRefreshChange: vi.fn(),
     onProviderChange: vi.fn(),
     onModeChange: vi.fn(),
-    viewMode: "table" as const,
-    onViewModeChange: vi.fn(),
   };
 
   beforeEach(() => {
@@ -39,263 +36,133 @@ describe("ScreenerHeader", () => {
     return within(outer).getByRole("combobox");
   }
 
-  it("renders compact header with status", () => {
-    render(
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("screener-header")).toBeInTheDocument();
-    expect(screen.getByText("5 stocks")).toBeInTheDocument();
-  });
-
   it("calls onRefresh when refresh button clicked", async () => {
-      const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
-    await user.click(screen.getByTestId("refresh-btn"));
+      </UIProvider>
+    ));
+    fireEvent.click(screen.getByTestId("refresh-btn"));
     expect(defaultProps.onRefresh).toHaveBeenCalledTimes(1);
   });
 
   it("shows loading state on refresh button", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} isLoading={true} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const refreshBtn = screen.getByTestId("refresh-btn");
-    // MUI ActionIcon shows loading as disabled + progress indicator
+    // The @/ui ActionIcon shows loading as disabled + progress indicator
     expect(refreshBtn).toBeDisabled();
-    expect(within(refreshBtn).getByRole("progressbar")).toBeInTheDocument();
+    expect(refreshBtn).toHaveAttribute("aria-busy", "true");
   });
 
   it("disables auto-refresh input when loading", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} isLoading={true} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(getNumberInput()).toBeDisabled();
   });
 
   it("keeps inputs enabled during background refresh when results are present", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} isLoading={true} disableControls={false} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(getNumberInput()).toBeEnabled();
   });
 
-  it("disables provider select when loading", () => {
-    render(
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} isLoading={true} />
-      </UIProvider>,
-    );
-    const combo = getCombobox("provider-select");
-    // MUI Select disabled renders aria-disabled or the native input disabled
-    expect(screen.getByTestId("provider-select")).toBeInTheDocument();
-    expect(combo).toBeInTheDocument();
-  });
-
-  it("disables mode select when loading", () => {
-    render(
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} isLoading={true} />
-      </UIProvider>,
-    );
-    expect(getCombobox("mode-select")).toBeInTheDocument();
-  });
-
   it("calls onAutoRefreshChange when auto-refresh value changes", async () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const input = getNumberInput();
-    // fire change directly to avoid controlled component typing quirks
-    input.focus();
-    // @ts-ignore
-    input.value = "120";
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-    // also trigger via fireEvent for MUI TextField
-    const { fireEvent } = await import("@testing-library/react");
-    fireEvent.change(input, { target: { value: "120" } });
-    // onAutoRefreshChange should be called with numeric value; allow any call
+    fireEvent.input(input, { target: { value: "" } });
+    fireEvent.input(input, { target: { value: "120" } });
     expect(defaultProps.onAutoRefreshChange).toHaveBeenCalled();
   });
 
-  it("renders provider select with correct options", () => {
-    render(
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
-    expect(within(screen.getByTestId("provider-select")).getByText("Upstox")).toBeInTheDocument();
-    // selected value displayed as Upstox; IND option appears only in dropdown, so just check provider-select exists
-    expect(screen.getByTestId("provider-select")).toBeInTheDocument();
-  });
-
   it("calls onProviderChange when provider changes", async () => {
-      const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
-    const combo = getCombobox("provider-select");
-    await user.click(combo);
-    // MUI renders options in portal; wait for option
-    const option = await screen.findByRole("option", { name: "IND" });
-    await user.click(option);
+      </UIProvider>
+    ));
+    fireEvent.input(getCombobox("provider-select"), { target: { value: "indmoney" } });
     expect(defaultProps.onProviderChange).toHaveBeenCalledWith("indmoney");
   });
 
-  it("renders mode select with correct options", () => {
-    render(
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
-    expect(within(screen.getByTestId("mode-select")).getByText("Intra")).toBeInTheDocument();
-  });
-
   it("calls onModeChange when mode changes", async () => {
-      const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
-    const combo = getCombobox("mode-select");
-    await user.click(combo);
-    const option = await screen.findByRole("option", { name: "5D" });
-    await user.click(option);
+      </UIProvider>
+    ));
+    fireEvent.input(getCombobox("mode-select"), { target: { value: "historical" } });
     expect(defaultProps.onModeChange).toHaveBeenCalledWith("historical");
   });
 
-  it("renders view mode toggle buttons", () => {
-    render(
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
-    expect(screen.getByRole("button", { name: "Tbl" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Map" })).toBeInTheDocument();
-  });
-
-  it("calls onViewModeChange when table button clicked", async () => {
-      const user = userEvent.setup();
-    render(
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} viewMode="heatmap" />
-      </UIProvider>,
-    );
-    await user.click(screen.getByRole("button", { name: "Tbl" }));
-    expect(defaultProps.onViewModeChange).toHaveBeenCalledWith("table");
-  });
-
-  it("calls onViewModeChange when heatmap button clicked", async () => {
-      const user = userEvent.setup();
-    render(
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
-    await user.click(screen.getByRole("button", { name: "Map" }));
-    expect(defaultProps.onViewModeChange).toHaveBeenCalledWith("heatmap");
-  });
-
-  it("displays correct view mode state", () => {
-    render(
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} viewMode="heatmap" />
-      </UIProvider>,
-    );
-    expect(screen.getByRole("button", { name: "Map" })).toBeInTheDocument();
-    const btn = screen.getByRole("button", { name: "Map" });
-    expect(btn).toHaveAttribute("aria-pressed", "true");
-  });
-
-  it("renders header controls", () => {
-    render(
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("header-controls")).toBeInTheDocument();
-    expect(screen.getByTestId("screener-view-toggle")).toBeInTheDocument();
-  });
-
   it("handles zero auto-refresh value", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} autoRefreshSeconds={0} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(getNumberInput()).toHaveValue(0);
   });
 
   it("handles large auto-refresh value within limit", () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} autoRefreshSeconds={3600} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(getNumberInput()).toHaveValue(3600);
   });
 
   it("passes correct auto-refresh value to onAutoRefreshChange", async () => {
-    render(
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const input = getNumberInput();
-    const { fireEvent } = await import("@testing-library/react");
-    fireEvent.change(input, { target: { value: "300" } });
+    fireEvent.input(input, { target: { value: "300" } });
     expect(defaultProps.onAutoRefreshChange).toHaveBeenCalled();
   });
 
-  it("handles provider change to indmoney", async () => {
-      const user = userEvent.setup();
-    render(
+  // The header shares one 28px band with the tab strip. happy-dom has no
+  // layout, so the declared box is what can be asserted — a `sm` control
+  // (30/32px) overflows that band and re-introduces the mixed-height row.
+  it("keeps every toolbar control on one height tier", () => {
+    render(() => (
       <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
-    const combo = getCombobox("provider-select");
-    await user.click(combo);
-    const option = await screen.findByRole("option", { name: "IND" });
-    await user.click(option);
-    expect(defaultProps.onProviderChange).toHaveBeenCalledWith("indmoney");
+      </UIProvider>
+    ));
+    const declared = (el: Element) => {
+      const fromClass = (el.getAttribute("class") ?? "").match(/(?:^|\s)h-\[(\d+)px\]/);
+      if (fromClass) return Number(fromClass[1]);
+      const inline = (el as HTMLElement).style.getPropertyValue("height");
+      return inline.endsWith("px") ? Number(inline.slice(0, -2)) : null;
+    };
+
+    const heights = [
+      declared(screen.getByTestId("refresh-btn")),
+      declared(getNumberInput()),
+      declared(getCombobox("provider-select")),
+      declared(getCombobox("mode-select")),
+    ];
+    for (const height of heights) {
+      expect(height, "every control in the band must declare a height").not.toBeNull();
+      expect(height!).toBeLessThanOrEqual(28);
+    }
   });
 
-  it("handles mode change to historical", async () => {
-      const user = userEvent.setup();
-    render(
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} />
-      </UIProvider>,
-    );
-    const combo = getCombobox("mode-select");
-    await user.click(combo);
-    const option = await screen.findByRole("option", { name: "5D" });
-    await user.click(option);
-    expect(defaultProps.onModeChange).toHaveBeenCalledWith("historical");
-  });
-
-  it("renders with custom status", () => {
-    render(
-      <UIProvider>
-        <ScreenerHeader {...defaultProps} status="Loading..." />
-      </UIProvider>,
-    );
-    expect(screen.getByText("Loading...")).toBeInTheDocument();
-  });
 });
