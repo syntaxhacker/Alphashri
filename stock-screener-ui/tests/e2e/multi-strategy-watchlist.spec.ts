@@ -46,18 +46,24 @@ test.describe("Multi-Strategy System - History Filter", () => {
   test("should filter history by strategy", async ({ page }) => {
     await navigateToBot(page, botId);
     await page.getByTestId("trade-history-tab").click();
+    // The quick filter defaults to Today, and the mocked trades are dated
+    // 2026-03-02 — nothing matches today's date, so widen the window first.
+    // It is a SegmentedControl (buttons), not a <select>.
+    await page.getByTestId("quick-filter").getByRole("button", { name: "All" }).click();
+    await expect(page.getByTestId("history-panel")).toContainText("TCS", { timeout: 5000 });
 
     const strategyFilter = page.getByTestId("strategy-filter-select");
     await expect(strategyFilter).toBeVisible();
-    await strategyFilter.click();
-    await page.getByRole("option", { name: "ORB Conservative" }).click();
-    // Filter applied: selected strategy stays visible, the other strategy's trade drops out.
-    await expect(page.getByTestId("history-panel")).toContainText("ORB Conservative", {
-      timeout: 5000,
-    });
-    await expect(page.getByTestId("history-panel")).not.toContainText("ORB Aggressive", {
-      timeout: 5000,
-    });
+    // Non-searchable Select -> native <select>: select by label rather than
+    // opening a role=option popup that does not exist.
+    await strategyFilter.locator("select").selectOption({ label: "ORB Conservative" });
+    // Filter applied: only strategy 1's trade survives; the other strategy's
+    // trade (strategy_id 2 -> "SR Breakout" in this bot's config) drops out.
+    // Scope to the table body — every strategy name remains a legitimate
+    // <option> in the filter control, which is not trade content.
+    const tableBody = page.getByTestId("history-panel").locator("tbody");
+    await expect(tableBody).toContainText("TCS", { timeout: 5000 });
+    await expect(tableBody).not.toContainText("INFY", { timeout: 5000 });
   });
 });
 
