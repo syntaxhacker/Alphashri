@@ -80,6 +80,47 @@ def test_none_and_empty():
     assert detect_trendlines(pd.DataFrame()) == {"support": None, "resistance": None}
 
 
+def test_nan_bar_keeps_nan_tolerant_pivots_and_line_fields():
+    """A NaN in bar 0 admits an extra near-boundary pivot at bar 2.
+
+    The strict fractal scan would report 4 touches; the NaN-tolerant one used
+    by the detector reports 5. Both sides' exact line fields are pinned here.
+    """
+    support = _rising_support_df()
+    support.iloc[0, support.columns.get_loc("low")] = np.nan
+    assert detect_trendlines(support) == {
+        "support": {
+            "kind": "support",
+            "start_date": "2026-01-06T00:00:00+00:00",
+            "start_price": 101.0,
+            "end_date": "2026-02-20T00:00:00+00:00",
+            "end_price": 114.5,
+            "slope": 0.3,
+            "touches": 5,
+            "span_bars": 45,
+            "violations": 0,
+        },
+        "resistance": None,
+    }
+
+    resistance = _descending_resistance_df()
+    resistance.iloc[0, resistance.columns.get_loc("high")] = np.nan
+    assert detect_trendlines(resistance) == {
+        "support": None,
+        "resistance": {
+            "kind": "resistance",
+            "start_date": "2026-01-06T00:00:00+00:00",
+            "start_price": 199.0,
+            "end_date": "2026-02-20T00:00:00+00:00",
+            "end_price": 185.5,
+            "slope": -0.3,
+            "touches": 5,
+            "span_bars": 45,
+            "violations": 0,
+        },
+    }
+
+
 def test_default_lookback_constant_and_detection_still_works():
     assert pattern_config.TRENDLINE_LOOKBACK_BARS == 400
     res = detect_trendlines(_rising_support_df())

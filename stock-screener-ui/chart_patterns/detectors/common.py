@@ -251,6 +251,53 @@ def envelope_pair(
     )
 
 
+def envelope_tolerance(atr_val: float) -> float:
+    """Quarter-ATR slack that keeps an envelope clear of candle piercings."""
+    return 0.25 * float(atr_val)
+
+
+def envelope_value(env: dict, x: float) -> float:
+    """Value at ``x`` anchored on the fit's pivot, so it stays on the drawn edge.
+
+    Reconstructing from ``q0``/``x0`` avoids depending on a separately stored
+    intercept that could drift away from the boundary the detector actually drew.
+    """
+    return float(env["q0"]) + float(env["slope"]) * (float(x) - float(env["x0"]))
+
+
+def envelope_common_span(
+    upper: dict, lower: dict, min_span: int = 10
+) -> tuple[int, int] | None:
+    """Common x-range where both envelope boundaries are drawn.
+
+    A boundary extending past its pair is drawn into empty air, so overlaps
+    shorter than ``min_span`` are rejected instead of being clipped silently.
+    """
+    x0 = max(int(upper["x0"]), int(lower["x0"]))
+    x1 = min(int(upper["x1"]), int(lower["x1"]))
+    if x1 - x0 < min_span:
+        return None
+    return x0, x1
+
+
+def pivots_in(
+    pivots, start: int, end: int | None = None
+) -> list[tuple[int, float]]:
+    """Pivots within ``[start, end]`` in their original input order.
+
+    Callers use the first/last entry as the pattern ends, so reordering the
+    filtered tuples would change which pivots anchor the line.
+    """
+    out = []
+    for p, q in pivots:
+        if p < start:
+            continue
+        if end is not None and p > end:
+            continue
+        out.append((p, q))
+    return out
+
+
 def segment_points(df: pd.DataFrame, x0: int, q0: float, x1: int, q1: float) -> list[dict]:
     """Two-point line from explicit endpoint coordinates (pivot-anchored)."""
     return [
@@ -552,6 +599,55 @@ def compute_levels(
     if risk <= 0 or reward <= 0:
         return float(target), float(stop), 0.0
     return float(target), float(stop), float(reward / risk)
+
+
+def _first_cross(
+    df: pd.DataFrame,
+    x_from: int,
+    direction: str,
+    level_at: Callable[[int], float],
+) -> int | None:
+    """First bar at/after ``x_from`` whose close crosses the level from ``level_at``.
+
+    One scan keeps both crossover helpers identical on index bounds and strict
+    comparison, so a breakout bar cannot be off by one in only one of them.
+    """
+    close = df["close"].to_numpy(dtype=float)
+    for x in range(max(0, int(x_from)), len(close)):
+        level = level_at(x)
+        if direction == "bearish":
+            if close[x] < level:
+                return x
+        elif close[x] > level:
+            return x
+    return None
+
+
+def breakout_pos(
+    df: pd.DataFrame, x_from: int, level: float, direction: str
+) -> int | None:
+    """First close past a constant breakout level, else ``None``.
+
+    A non-positive level is not a tradeable boundary, so it never counts as a
+    cross even when prices themselves are negative.
+    """
+    if df is None or df.empty or level <= 0:
+        return None
+    return _first_cross(df, x_from, direction, lambda _: level)
+
+
+def line_breakout_pos(
+    df: pd.DataFrame, x_from: int, slope: float, intercept: float, direction: str
+) -> int | None:
+    """First close past a sloped boundary, else ``None``.
+
+    The level is evaluated at each bar; a rising or falling boundary must be
+    crossed where it actually sits. There is no positive-level guard here --
+    a crossing below zero is still a crossing.
+    """
+    return _first_cross(
+        df, x_from, direction, lambda x: F.line_value(slope, intercept, x)
+    )
 
 
 def classify_status(

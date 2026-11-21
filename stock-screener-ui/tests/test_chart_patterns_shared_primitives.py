@@ -125,9 +125,11 @@ def test_shift_line_to_bound_preserves_slope_exactly(side, margin):
 
 
 def test_reversal_bound_uses_margin_but_continuation_shift_does_not():
-    """Tie the wrappers to the primitive: this fails if margin is dropped from
-    the reversal path (``_BOUND_MARGIN`` -> 0 or ``+ margin`` removed), since
-    the reversal result would then equal the no-margin primitive exactly.
+    """Reversal passes a rounding margin; continuation calls the bare primitive.
+
+    Fails if the margin is dropped from the reversal path (``_BOUND_MARGIN`` ->
+    0 or ``+ margin`` removed), since its result would then equal the no-margin
+    primitive exactly.
     """
     from chart_patterns.detectors import continuation, reversal
 
@@ -139,8 +141,10 @@ def test_reversal_bound_uses_margin_but_continuation_shift_does_not():
     assert rev[0] == s
     assert rev[1] - plain[1] == pytest.approx(1e-4)
 
-    cont = continuation._shift_line(df, s, i0, 0, 4, "upper")
-    assert cont == plain
+    # No continuation wrapper: it uses the shared primitive's default (no margin).
+    assert not hasattr(continuation, "_shift_line")
+    assert continuation.shift_line_to_bound is shift_line_to_bound
+    assert continuation.shift_line_to_bound(df, s, i0, 0, 4, "upper") == plain
 
 
 # ---------------------------------------------------------------------------

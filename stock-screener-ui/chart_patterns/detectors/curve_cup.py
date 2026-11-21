@@ -23,18 +23,6 @@ from .common import (
 LOOKBACK = 140
 
 
-def _quad_fit(y: np.ndarray) -> tuple[np.ndarray, np.ndarray, float, float]:
-    """Fit y against its own index; return fitted, coeffs, r2, vertex-x."""
-    xs = np.arange(len(y), dtype=float)
-    fitted, coeffs = F.polyfit_values(y, degree=2, x=xs)
-    r2 = F.r2_of(y, fitted)
-    if len(coeffs) >= 3 and abs(float(coeffs[0])) > 1e-12:
-        vertex = -float(coeffs[1]) / (2.0 * float(coeffs[0]))
-    else:
-        vertex = len(y) / 2.0
-    return fitted, coeffs, r2, vertex
-
-
 def _outer_envelope_curve(
     fitted: np.ndarray,
     boundary: np.ndarray,
@@ -82,7 +70,7 @@ def detect_curve_bearish(df: pd.DataFrame, ctx: dict | None = None) -> list:
     y = df["close"].iloc[start : end + 1].to_numpy(dtype=float)
     if len(y) < 20:
         return []
-    fitted, coeffs, r2, vertex = _quad_fit(y)
+    fitted, coeffs, r2, vertex = F.quadratic_fit(y)
     a = float(coeffs[0])
     n = len(y)
     if a >= 0:
@@ -156,7 +144,7 @@ def detect_cup_handle(df: pd.DataFrame, ctx: dict | None = None) -> list:
     if cup_end - start < 25:
         return []
     y = df["close"].iloc[start : cup_end + 1].to_numpy(dtype=float)
-    fitted, coeffs, r2, vertex = _quad_fit(y)
+    fitted, coeffs, r2, vertex = F.quadratic_fit(y)
     if float(coeffs[0]) <= 0:
         return []
     m = len(y)

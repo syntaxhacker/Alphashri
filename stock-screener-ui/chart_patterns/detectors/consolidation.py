@@ -272,28 +272,6 @@ def _scan_of(df: pd.DataFrame) -> _BaseScan:
     return _BaseScan(df)
 
 
-def _swing_indices(values: np.ndarray, left: int, right: int, kind: str) -> list[int]:
-    """Vectorised ``features._pivot_indices`` (same pivots, same order).
-
-    ``_pivot_indices`` slices a 5-element window and calls ``.max()``/``.min()``
-    in a Python loop — ~1.5 µs per bar, ~0.7 ms per frame, and this detector
-    needs both sides. ``sliding_window_view`` does the same comparisons in two
-    vector ops. ``max``/``min`` are exact, so the pivot set is unchanged.
-    """
-    n = len(values)
-    if n < left + right + 1:
-        return []
-    win = np.lib.stride_tricks.sliding_window_view(values, left + right + 1)
-    centre = values[left : n - right]
-    prev_v = values[left - 1 : n - right - 1]
-    next_v = values[left + 1 : n - right + 1]
-    if kind == "high":
-        ok = (centre >= win.max(axis=1)) & ((centre > prev_v) | (centre > next_v))
-    else:
-        ok = (centre <= win.min(axis=1)) & ((centre < prev_v) | (centre < next_v))
-    return (np.flatnonzero(ok) + left).tolist()
-
-
 def _swings_from(scan: _BaseScan, ctx: dict | None):
     """``get_swings`` over the scan's arrays, written to the same ``ctx`` slot.
 
@@ -307,8 +285,8 @@ def _swings_from(scan: _BaseScan, ctx: dict | None):
         return cache[(2, 2)]
     high, low = scan.high, scan.low
     result = (
-        [(i, float(high[i])) for i in _swing_indices(high, 2, 2, "high")],
-        [(i, float(low[i])) for i in _swing_indices(low, 2, 2, "low")],
+        [(i, float(high[i])) for i in F.pivot_indices(high, 2, 2, "high")],
+        [(i, float(low[i])) for i in F.pivot_indices(low, 2, 2, "low")],
     )
     if ctx is not None:
         ctx.setdefault("_swings", {})[(2, 2)] = result

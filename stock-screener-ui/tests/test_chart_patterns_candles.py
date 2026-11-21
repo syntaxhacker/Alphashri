@@ -268,6 +268,58 @@ def test_resample_ohlcv_weekly_and_monthly():
 
 
 # ---------------------------------------------------------------------------
+# _resample delegates to _resample_ohlcv (left/left bins)
+# ---------------------------------------------------------------------------
+
+
+def _resample_sample_df(tz="UTC") -> pd.DataFrame:
+    """Small synthetic 5-minute OHLCV frame spanning several 15-minute bins."""
+    idx = pd.date_range("2026-09-01 03:45", periods=12, freq="5min", tz=tz)
+    base = [100.0 + i for i in range(len(idx))]
+    return pd.DataFrame(
+        {
+            "open": base,
+            "high": [b + 2.0 for b in base],
+            "low": [b - 2.0 for b in base],
+            "close": [b + 0.5 for b in base],
+            "volume": [1000.0 * (i + 1) for i in range(len(idx))],
+        },
+        index=idx,
+    )
+
+
+def test_resample_equals_resample_ohlcv_with_left_bins():
+    df = _resample_sample_df()
+    n = 15
+    got = candles_mod._resample(df, n)
+    expected = candles_mod._resample_ohlcv(
+        df, md._resample_rule(n), label="left", closed="left"
+    )
+    pd.testing.assert_frame_equal(got, expected)
+    # The delegation must actually thread the bin sides: default right/right
+    # buckets group the same rows differently, so the two cannot coincide.
+    assert not got.equals(candles_mod._resample_ohlcv(df, md._resample_rule(n)))
+
+
+@pytest.mark.parametrize("tz", ["UTC", "Asia/Kolkata", None])
+def test_resample_preserves_input_timezone(tz):
+    df = _resample_sample_df(tz)
+    out = candles_mod._resample(df, 15)
+    assert out.index.tz == df.index.tz
+    assert list(out.columns) == ["open", "high", "low", "close", "volume"]
+    assert not out.empty
+
+
+def test_resample_ohlcv_default_bin_sides_are_right():
+    """The generic resampler keeps its right/right default contract."""
+    df = _resample_sample_df()
+    rule = md._resample_rule(15)
+    default = candles_mod._resample_ohlcv(df, rule)
+    explicit = candles_mod._resample_ohlcv(df, rule, label="right", closed="right")
+    pd.testing.assert_frame_equal(default, explicit)
+
+
+# ---------------------------------------------------------------------------
 # Provenance
 # ---------------------------------------------------------------------------
 
