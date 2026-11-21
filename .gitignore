@@ -114,3 +114,10 @@ node_modules/
 test-results/
 reports/
 venv/
+
+# SQLite WAL/SHM sidecars: live, transient, and unsafe to commit. The .db is
+# tracked for the QA fixture; these two are rewritten on every write.
+db/alphashri.db-shm
+db/alphashri.db-wal
+stock-screener-ui/db/alphashri.db-shm
+stock-screener-ui/db/alphashri.db-wal
