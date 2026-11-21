@@ -6,6 +6,7 @@ so in-process resets cannot give the cases a clean slate. No network, no DB, no
 market data — the imports never reach an Upstox client.
 """
 
+import importlib.util
 import os
 import subprocess
 from pathlib import Path
@@ -14,6 +15,7 @@ import pytest
 
 _UI_DIR = Path(__file__).resolve().parents[1]
 _PYTHON = str(_UI_DIR / ".venv" / "bin" / "python")
+_NAUTILUS_INSTALLED = importlib.util.find_spec("nautilus_trader") is not None
 
 
 def _run_child(script: str, *, engine: str | None) -> subprocess.CompletedProcess:
@@ -38,27 +40,13 @@ def _assert_ok(proc: subprocess.CompletedProcess, label: str) -> None:
     )
 
 
-_UNSET_CHILD = r'''
-import backtest.sim as sim
-
-assert not sim.is_installed(), "shim must not be installed before importing strategies"
-from backtest.strategies import list_strategies
-
-assert not sim.is_installed(), "unset BACKTEST_ENGINE must not install the shim"
-ids = [row["id"] for row in list_strategies()]
-assert isinstance(ids, list)
-assert not sim.is_installed(), "listing strategies must not install the shim"
-print("UNSET_OK", len(ids))
-'''
-
-
 _SIM_CHILD = r'''
 import backtest.sim as sim
 
 assert not sim.is_installed(), "shim must start uninstalled in a fresh interpreter"
 from backtest.strategies import list_strategies
 
-assert sim.is_installed(), "BACKTEST_ENGINE=sim must install the shim"
+assert sim.is_installed(), "the default (and explicit sim) engine must install the shim"
 ids = [row["id"] for row in list_strategies()]
 assert len(ids) >= 18, f"expected >=18 strategies, got {len(ids)}: {ids}"
 
@@ -70,11 +58,23 @@ assert getattr(orb, "_NAUTILUS_AVAILABLE", False) is True, (
 print("SIM_OK", len(ids))
 '''
 
+_NAUTILUS_CHILD = r'''
+import backtest.sim as sim
 
-def test_unset_engine_does_not_install_shim():
-    proc = _run_child(_UNSET_CHILD, engine=None)
-    _assert_ok(proc, "unset")
-    assert "UNSET_OK" in proc.stdout
+from backtest.strategies import list_strategies
+
+assert not sim.is_installed(), "the real engine must never install the shim"
+ids = [row["id"] for row in list_strategies()]
+assert len(ids) >= 18, f"expected >=18 strategies, got {len(ids)}: {ids}"
+print("NAUTILUS_OK", len(ids))
+'''
+
+
+def test_default_engine_installs_shim():
+    """No env var: sim is the default, and it must not need any external package."""
+    proc = _run_child(_SIM_CHILD, engine=None)
+    _assert_ok(proc, "default")
+    assert "SIM_OK" in proc.stdout
 
 
 def test_sim_engine_installs_shim_and_exposes_strategies():
@@ -91,7 +91,18 @@ def test_invalid_engine_is_rejected():
     )
 
 
-def test_nautilus_engine_is_explicitly_accepted():
-    proc = _run_child(_UNSET_CHILD.replace("UNSET_OK", "NAUTILUS_OK"), engine="nautilus")
+@pytest.mark.skipif(not _NAUTILUS_INSTALLED, reason="nautilus_trader is not installed")
+def test_nautilus_engine_uses_the_real_package_when_installed():
+    proc = _run_child(_NAUTILUS_CHILD, engine="nautilus")
     _assert_ok(proc, "nautilus")
     assert "NAUTILUS_OK" in proc.stdout
+
+
+@pytest.mark.skipif(_NAUTILUS_INSTALLED, reason="nautilus_trader is installed")
+def test_nautilus_engine_fails_loudly_when_package_missing():
+    """A missing package must be a named error, not silent unavailability."""
+    proc = _run_child("import backtest.strategies", engine="nautilus")
+    assert proc.returncode != 0, "nautilus engine without the package must fail"
+    assert "requires nautilus_trader" in proc.stderr, (
+        f"expected a named error in stderr, got:\n{proc.stderr}"
+    )

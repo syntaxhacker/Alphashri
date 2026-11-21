@@ -9,6 +9,7 @@ Run:
     .venv/bin/python -m pytest tests/test_backtest_shim_parity.py -q
 """
 
+import importlib.util
 import json
 import math
 import os
@@ -314,12 +315,17 @@ def _real_nautilus_unavailable(info) -> bool:
         return False
     text = f"{payload.get('error') or ''}\n{payload.get('traceback') or ''}".lower()
     return "nautilus" in text and (
-        "not available" in text or "no module named" in text or "importerror" in text
+        "not available" in text
+        or "not installed" in text
+        or "no module named" in text
+        or "importerror" in text
     )
 
 
 def test_parity_against_real_nautilus(legs):
     """Same bars, same params: shim trades must equal nautilus trades field-by-field."""
+    if importlib.util.find_spec("nautilus_trader") is None:
+        pytest.skip("real nautilus not installed; parity baseline unavailable")
     real_info = legs["nautilus"]
     real = real_info["payload"]
     if _real_nautilus_unavailable(real_info):
