@@ -1,12 +1,14 @@
 """Latest prices and prior completed-candle closes for the candle-alert tool."""
 
 from dataclasses import dataclass
+from datetime import datetime
 import time
 
 import pandas as pd
 import yfinance
 
-from .config import SYMBOLS
+from .config import SYMBOLS, UTC, is_ist
+from .session import previous_4h_close_ist
 
 
 @dataclass(frozen=True)
@@ -54,21 +56,30 @@ def _fetch_one(ticker: str, label: str) -> Quote:
         prev_1h = float(close.iloc[-2])
         prev_1h_high = float(high.iloc[-2])
         prev_1h_low = float(low.iloc[-2])
-        # The last 1H bar is the forming candle; its 4H bucket is still open, so
-        # exclude everything from that bucket before taking the last closed 4H bar.
-        current_4h_bucket = close.index[-1].floor("4h")
-        completed = close.index < current_4h_bucket
-        resampled = close[completed].resample("4h", label="left", closed="left").last().dropna()
-        if resampled.empty:
-            raise QuoteFetchError(f"{label}: no 4H values from completed 1H bars")
-        prev_4h = float(resampled.iloc[-1])
-
-        prev_4h_high = float(
-            high[completed].resample("4h", label="left", closed="left").max().dropna().iloc[-1]
-        )
-        prev_4h_low = float(
-            low[completed].resample("4h", label="left", closed="left").min().dropna().iloc[-1]
-        )
+        # The last 1H bar is the forming candle; exclude its whole candle group so
+        # the comparison uses the last fully closed 4H bar.
+        if is_ist(label):
+            cutoff = previous_4h_close_ist(datetime.now(UTC))
+            completed_close = close[close.index < cutoff]
+            if completed_close.empty:
+                raise QuoteFetchError(f"{label}: no 4H values from completed 1H bars")
+            prev_4h = float(completed_close.iloc[-1])
+            window = completed_close.index[-4:]
+            prev_4h_high = float(high.loc[window].max())
+            prev_4h_low = float(low.loc[window].min())
+        else:
+            current_4h_bucket = close.index[-1].floor("4h")
+            completed = close.index < current_4h_bucket
+            resampled = close[completed].resample("4h", label="left", closed="left").last().dropna()
+            if resampled.empty:
+                raise QuoteFetchError(f"{label}: no 4H values from completed 1H bars")
+            prev_4h = float(resampled.iloc[-1])
+            prev_4h_high = float(
+                high[completed].resample("4h", label="left", closed="left").max().dropna().iloc[-1]
+            )
+            prev_4h_low = float(
+                low[completed].resample("4h", label="left", closed="left").min().dropna().iloc[-1]
+            )
     except QuoteFetchError:
         raise
     except Exception as exc:

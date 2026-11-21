@@ -167,7 +167,10 @@ def _envelope_line(
         else:
             d = y - boundary[K]             # violation: price pierces below the line
         over = d > tol
-        viol[sl] = np.bincount(P, weights=over.astype(np.uint8), minlength=p1 - p0).astype(np.int64)
+        # P holds GLOBAL pair indices (np.arange(p0, p1)), so bincount would
+        # size the result to the global max index instead of this block - offset
+        # by p0 to get exactly p1-p0 counts that fit the viol[sl] slice.
+        viol[sl] = np.bincount(P - p0, weights=over.astype(np.uint8), minlength=p1 - p0).astype(np.int64)
         for k in range(p0, p1):
             key = (int(viol[k]), -int(span[k]))
             if best_key is None or key < best_key:
@@ -318,24 +321,9 @@ def detect_trendlines(df: pd.DataFrame | None, lookback_bars: int | None = None)
     raises on bad input: ``None``/empty/malformed frames yield both ``None``.
     """
     empty = {"support": None, "resistance": None}
-    if df is None or getattr(df, "empty", True):
-        return dict(empty)
-    try:
-        norm = _fast_normalize(df)
-        if norm is None:
-            norm = F.normalize_ohlcv(df)
-    except (ValueError, TypeError, KeyError, AttributeError):
-        return dict(empty)
+    norm = _trendline_window(df, lookback_bars)
     if norm is None or norm.empty:
         return dict(empty)
-
-    window = (
-        lookback_bars
-        if isinstance(lookback_bars, int) and lookback_bars > 0
-        else pattern_config.TRENDLINE_LOOKBACK_BARS
-    )
-    if len(norm) > window:
-        norm = norm.iloc[-window:]
 
     out: dict = {"support": None, "resistance": None}
     try:

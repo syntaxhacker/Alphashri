@@ -9,11 +9,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from candle_alert.clock import close_epoch, in_alert_window
 from candle_alert.config import (
     DEFAULT_INTERVAL_SECONDS,
     DEFAULT_QUOTE_TTL_SECONDS,
-    TIMEFRAMES,
     UTC,
     tf_label,
 )
@@ -42,20 +40,23 @@ def parse_args(argv=None):
 def tick(now, quotes, fired, emit=True):
     """Fire every due alert once; returns the list of (timeframe, body) pairs."""
     rows = build_rows(quotes, now)
-    fired_alerts = []
-    for tf in TIMEFRAMES:
-        if not in_alert_window(tf, now):
+    groups = {}
+    for row in rows:
+        if not row["due"]:
             continue
-        key = (tf, close_epoch(tf, now))
+        key = (row["tf_label"], row["close_key"])
         if key in fired:
             continue
         fired.add(key)
-        body = render_notification_body(
-            [row for row in rows if row["tf_label"] == tf_label(tf)]
-        )
+        groups.setdefault(key, []).append(row)
+
+    fired_alerts = []
+    for (tf_name, _), group in groups.items():
+        body = render_notification_body(group)
         if emit:
-            notify(notification_title(tf_label(tf)), body)
-        fired_alerts.append((tf_label(tf), body))
+            title = notification_title(tf_name, labels=[(row["label"], "") for row in group])
+            notify(title, body)
+        fired_alerts.append((tf_name, body))
     return fired_alerts
 
 

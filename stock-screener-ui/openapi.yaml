@@ -774,6 +774,78 @@ components:
       - default_analysts
       title: ConfigResponse
       type: object
+    ContractCandle:
+      properties:
+        c:
+          title: C
+          type: number
+        h:
+          title: H
+          type: number
+        l:
+          title: L
+          type: number
+        o:
+          title: O
+          type: number
+        oi:
+          anyOf:
+          - type: integer
+          - type: number
+          - type: 'null'
+          description: Open interest after the bar.
+          title: Oi
+        t:
+          description: Bar open time, IST ISO-8601.
+          title: T
+          type: string
+        v:
+          anyOf:
+          - type: integer
+          - type: number
+          default: 0
+          description: Traded quantity in the minute.
+          title: V
+      required:
+      - t
+      - o
+      - h
+      - l
+      - c
+      title: ContractCandle
+      type: object
+    ContractChartResponse:
+      properties:
+        cached:
+          default: false
+          title: Cached
+          type: boolean
+        candles:
+          items:
+            $ref: '#/components/schemas/ContractCandle'
+          title: Candles
+          type: array
+        empty_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: '`no_trades` when the contract simply has no prints in the window.'
+          title: Empty Reason
+        instrument_key:
+          title: Instrument Key
+          type: string
+        interval:
+          title: Interval
+          type: string
+        source:
+          default: upstox
+          title: Source
+          type: string
+      required:
+      - instrument_key
+      - interval
+      title: ContractChartResponse
+      type: object
     DeleteResponse:
       properties:
         deleted:
@@ -8125,6 +8197,61 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
       summary: Get Option Chain
+      tags:
+      - options
+  /api/options/contract-chart:
+    get:
+      description: 'Read-only OHLCV + open-interest series for the contract whose `instrument_key` the option chain published (for example `NSE_FO|106407`). The current session comes from Upstox''s intraday endpoint and the prior `days - 1` sessions from the historical one. Serialisation always deduplicates and sorts ascending; an empty series is a successful answer with `empty_reason: "no_trades"`.'
+      operationId: get_contract_chart_api_options_contract_chart_get
+      parameters:
+      - description: NSE F&O contract key from the option chain.
+        in: query
+        name: instrument_key
+        required: true
+        schema:
+          description: NSE F&O contract key from the option chain.
+          title: Instrument Key
+          type: string
+      - description: 'Bar size: `1m`, `5m` or `15m`.'
+        in: query
+        name: interval
+        required: false
+        schema:
+          default: 1m
+          description: 'Bar size: `1m`, `5m` or `15m`.'
+          title: Interval
+          type: string
+      - description: Sessions to return, today included (1-3).
+        in: query
+        name: days
+        required: false
+        schema:
+          default: 2
+          description: Sessions to return, today included (1-3).
+          title: Days
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractChartResponse'
+          description: Successful Response
+        '400':
+          description: Malformed instrument key, interval or `days`.
+        '401':
+          description: Upstox token missing, expired or rejected.
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+        '502':
+          description: Upstox candle data unavailable.
+        '504':
+          description: Upstox candle request timed out.
+      summary: Minute premium candles for one option contract
       tags:
       - options
   /api/options/expiries/{underlying}:

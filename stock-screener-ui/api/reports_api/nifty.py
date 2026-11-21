@@ -956,6 +956,108 @@ def _rolling_oi(rows: list[dict], minutes: tuple[int, ...] = (5, 15)) -> dict:
     return out
 
 
+#: How many ITM strikes the flow block names (the heaviest incremental PE
+#: volume of the session). Five is what fits the panel's chips row.
+ITM_PE_TOP_N = 5
+
+
+def compute_itm_pe_flow(rows: Optional[list[dict]]) -> Optional[dict]:
+    """Per-minute incremental ITM put volume from the tape's per-strike chain.
+
+    Tape ``chain[strike]`` is ``[ce_ltp, pe_ltp, ce_oi, pe_oi, ce_vol, pe_vol]``
+    and the volume legs are session-cumulative, so the flow is the diff against
+    the previous tape row. A negative diff is a contract reset (feed re-seed),
+    not negative volume, so that strike is skipped for the minute rather than
+    subtracted. Same for a strike that the previous row did not carry: its
+    cumulative volume cannot be split into a single minute.
+
+    An ITM put is ``strike > spot`` (strict): a put struck exactly at spot is
+    not in the money yet. ``share_pct`` is ITM over ALL put volume for the
+    minute, so a shrinking share with a rising ITM volume is expanding
+    OTM-side activity, not fading ITM demand.
+
+    Returns ``None`` when no two consecutive rows can be diffed. Never raises.
+    """
+    try:
+        clean = [r for r in rows or []
+                 if isinstance(r, dict) and r.get("t")
+                 and isinstance(r.get("chain"), dict)]
+    except Exception:
+        return None
+    if len(clean) < 2:
+        return None
+    clean.sort(key=lambda r: str(r["t"]))
+    series: list[dict] = []
+    per_strike: dict[str, int] = {}
+    latest_oi: dict[str, int] = {}
+    prev: Optional[dict] = None
+    for row in clean:
+        chain = row["chain"]
+        for key, cell in chain.items():
+            if isinstance(cell, (list, tuple)) and len(cell) >= 6:
+                latest_oi[key] = _safe_int(cell[3])
+        spot = _safe_float(row.get("spot"))
+        if prev is not None and spot > 0:
+            prev_chain = prev["chain"]
+            itm = total = 0
+            for key, cell in chain.items():
+                if not isinstance(cell, (list, tuple)) or len(cell) < 6:
+                    continue
+                prior = prev_chain.get(key)
+                if not isinstance(prior, (list, tuple)) or len(prior) < 6:
+                    continue
+                delta = _safe_int(cell[5]) - _safe_int(prior[5])
+                if delta < 0:
+                    continue
+                total += delta
+                strike = _safe_float(key)
+                if strike > spot:
+                    itm += delta
+                    per_strike[key] = per_strike.get(key, 0) + delta
+            series.append({
+                "t": row["t"],
+                "itm_pe_vol": itm,
+                "total_pe_vol": total,
+                "share_pct": round(itm / total * 100.0, 2) if total else 0.0,
+                "spot": round(spot, 2),
+            })
+        prev = row
+    if not series:
+        return None
+    top = [
+        {"strike": int(_safe_float(key)), "volume": volume,
+         "oi": latest_oi.get(key, 0)}
+        for key, volume in sorted(per_strike.items(),
+                                  key=lambda kv: kv[1], reverse=True)[:ITM_PE_TOP_N]
+    ]
+    return {"series": series, "top": top, "as_of": clean[-1]["t"]}
+
+
+async def attach_futures_flow(report: dict, tape: Optional[list[dict]],
+                              for_date: Optional[str]) -> None:
+    """Attach ``futures`` / ``itm_pe_flow`` to ``report`` in place.
+
+    Both are TODAY-only: a replay/as-of frame is served ``null`` — the futures
+    feed is intraday and cannot be replayed, and today's tape is not the asked
+    date's tape. Never raises, so a dead futures feed cannot cost the report.
+    """
+    today = for_date or _today_str()
+    if today != _today_str():
+        report["futures"] = None
+        report["itm_pe_flow"] = None
+        return
+    try:
+        from api.reports_api.futures import get_nifty_futures_block
+
+        report["futures"] = await get_nifty_futures_block(today)
+    except Exception:
+        report["futures"] = None
+    try:
+        report["itm_pe_flow"] = compute_itm_pe_flow(tape)
+    except Exception:
+        report["itm_pe_flow"] = None
+
+
 def _self_iv_expiries(expiry: Optional[str],
                       rows: list[dict]) -> dict[str, list[dict]]:
     """Use the report's own chain as a one-point IV term map.
@@ -1016,6 +1118,9 @@ async def _attach_verdicts(report: dict, rows: list[dict], spot: float,
         pass
     # The tape is a growing JSONL (1.4 MB today); parse it in a worker thread.
     tape = await asyncio.to_thread(read_tape, today)
+    # Today-only reads the chain snapshot cannot prove: the futures OI regime
+    # behind the index move, and how much put volume is landing ITM.
+    await attach_futures_flow(report, tape, for_date)
     # 1-minute today candles when available, else the report's own spot candles.
     # Null-OHLC rows are dropped and missing minutes are filled from the tape as
     # one flat bar per minute (never one wide bar across the hole) — see
@@ -2079,6 +2184,11 @@ def get_nifty_report(date: Optional[str] = Query(default=None, description="Snap
         breadth = _breadth_block()
         if breadth is not None:
             data = {**data, "breadth": breadth}
+    else:
+        # Past snapshots predate these blocks: the keys must still be present
+        # (null) so the panel's typed read never falls through to `undefined`.
+        data.setdefault("futures", None)
+        data.setdefault("itm_pe_flow", None)
     return data
 
 
@@ -3901,6 +4011,10 @@ def _slim_replay_report(report: Optional[dict], window: float = 750.0) -> Option
                 and abs(_safe_float(s.get("strike")) - spot) <= window
             ]
         out.pop("emas", None)
+        # Recorded frames from before these blocks existed (and every frame of a
+        # past session) serve null, never today's live curve.
+        out.setdefault("futures", None)
+        out.setdefault("itm_pe_flow", None)
         return out
     except Exception:
         return report

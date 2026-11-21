@@ -41,6 +41,7 @@ describe("formatRangePos", () => {
     expect(formatRangePos(undefined)).toBe("—");
     expect(formatRangePos(Number.NaN)).toBe("—");
     expect(formatRangePos(Number.POSITIVE_INFINITY)).toBe("—");
+    expect(formatRangePos(Number.NEGATIVE_INFINITY)).toBe("—");
   });
 });
 
@@ -65,6 +66,7 @@ describe("formatOneDecimal", () => {
     expect(formatOneDecimal(undefined)).toBe("—");
     expect(formatOneDecimal(Number.NaN)).toBe("—");
     expect(formatOneDecimal(Number.POSITIVE_INFINITY)).toBe("—");
+    expect(formatOneDecimal(Number.NEGATIVE_INFINITY)).toBe("—");
   });
 });
 
@@ -81,6 +83,7 @@ describe("formatSignedPct1", () => {
     expect(formatSignedPct1(undefined)).toBe("—");
     expect(formatSignedPct1(Number.NaN)).toBe("—");
     expect(formatSignedPct1(Number.POSITIVE_INFINITY)).toBe("—");
+    expect(formatSignedPct1(Number.NEGATIVE_INFINITY)).toBe("—");
   });
 });
 
@@ -134,6 +137,7 @@ describe("formatMatrixPrice", () => {
     expect(formatMatrixPrice(undefined)).toBe("—");
     expect(formatMatrixPrice(Number.NaN)).toBe("—");
     expect(formatMatrixPrice(Number.POSITIVE_INFINITY)).toBe("—");
+    expect(formatMatrixPrice(Number.NEGATIVE_INFINITY)).toBe("—");
   });
 });
 
@@ -150,5 +154,6 @@ describe("formatMatrixPct", () => {
     expect(formatMatrixPct(undefined)).toBe("—");
     expect(formatMatrixPct(Number.NaN)).toBe("—");
     expect(formatMatrixPct(Number.NEGATIVE_INFINITY)).toBe("—");
+    expect(formatMatrixPct(Number.POSITIVE_INFINITY)).toBe("—");
   });
 });

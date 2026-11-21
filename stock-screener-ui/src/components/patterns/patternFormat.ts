@@ -7,14 +7,19 @@
 import { formatPercentage } from "@/utils/ui-helpers";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 
+/** Narrows to a present, finite number — zero is a valid value, not missing. */
+function isFiniteNumber(value: number | null | undefined): value is number {
+  return value != null && Number.isFinite(value);
+}
+
 /** Score (confidence-like): "—" when missing/non-finite, else one decimal. */
 export function formatScore(value: number | null | undefined): string {
-  return value == null || !Number.isFinite(value) ? "—" : value.toFixed(1);
+  return isFiniteNumber(value) ? value.toFixed(1) : "—";
 }
 
 /** Range position (0–100): "—" when missing/non-finite, else a whole percent. */
 export function formatRangePos(value: number | null | undefined): string {
-  return value == null || !Number.isFinite(value) ? "—" : `${Math.round(value)}%`;
+  return isFiniteNumber(value) ? `${Math.round(value)}%` : "—";
 }
 
 /**
@@ -22,7 +27,7 @@ export function formatRangePos(value: number | null | undefined): string {
  * "—" for missing/non-finite input so a half-streamed hit cannot print "NaN".
  */
 export function formatOneDecimal(value: number | null | undefined): string {
-  if (value == null || !Number.isFinite(value)) return "—";
+  if (!isFiniteNumber(value)) return "—";
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
@@ -31,7 +36,7 @@ export function formatOneDecimal(value: number | null | undefined): string {
  * "−0.8%". "—" when missing/non-finite.
  */
 export function formatSignedPct1(value: number | null | undefined): string {
-  if (value == null || !Number.isFinite(value)) return "—";
+  if (!isFiniteNumber(value)) return "—";
   return `${value >= 0 ? "+" : "−"}${Math.abs(value).toFixed(1)}%`;
 }
 
@@ -55,7 +60,7 @@ export function hitChangePct(
 
 /** Price → "—" when missing/non-finite, else ₹-prefixed with thousands separators and 2 decimals. */
 export function formatMatrixPrice(v: number | null | undefined): string {
-  if (v == null || !Number.isFinite(v)) return "—";
+  if (!isFiniteNumber(v)) return "—";
   return `₹${v.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -64,6 +69,6 @@ export function formatMatrixPrice(v: number | null | undefined): string {
 
 /** Signed two-decimal percentage: "—" when missing/non-finite. */
 export function formatMatrixPct(v: number | null | undefined): string {
-  if (v == null || !Number.isFinite(v)) return "—";
+  if (!isFiniteNumber(v)) return "—";
   return formatPercentage(v, 2);
 }

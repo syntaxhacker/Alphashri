@@ -579,6 +579,15 @@ Vitest spawns a worker per file and a worker pool can saturate the box; a strand
 - **After** any cancelled or failed test run, confirm nothing was orphaned: `pgrep -af "vitest|pytest|playwright"`. A cancelled lane's worker keeps consuming CPU and memory and will corrupt the next run's timing.
 - Never run two full suites concurrently (across lanes too), and never run Playwright at `--workers` above what idle CPU can absorb.
 
+### Subagent wait policy (MANDATORY)
+- Never `sleep`, poll, or repeatedly inspect a running subagent's files/processes. It reports automatically when it finishes.
+- While an agent runs, do independent work. If nothing is independent, end the turn.
+- A backgrounded shell is not a reason to poll either; wait for its completion notification.
+
+### Browser / screenshot policy (MANDATORY)
+- Never resize or emulate the user's live browser/page (`resize_page`, `emulate` viewport). Leave their viewport exactly as-is.
+- Viewport checks belong in Playwright's isolated browser; screenshots of the live browser are taken only at its current size.
+
 ### Comment policy
 - Comments explain **why**, never **what**. No narration (`// set the value`), no docstrings that restate the signature, no changelog comments.
 - Keep a comment only where the code is surprising: a non-obvious constraint, a workaround, an ordering/protocol requirement.

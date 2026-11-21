@@ -392,6 +392,67 @@ export interface NiftyStructureShift {
   level?: number | null;
 }
 
+/** Futures-positioning read: price vs OI decides the regime. */
+export type NiftyFuturesRegime =
+  | "long_buildup"
+  | "short_buildup"
+  | "long_unwinding"
+  | "short_covering"
+  | "neutral";
+
+/** One per-minute futures bar from the positioning feed. */
+export interface NiftyFuturesPoint {
+  t: string;
+  close: number;
+  oi: number;
+  volume: number;
+}
+
+/**
+ * `report.futures` — the cash index says nothing about positioning; this block
+ * carries the front-month future's price + OI so a price move can be told from
+ * a position being built or spent. Absent on payloads from before the feed.
+ */
+export interface NiftyFutures {
+  symbol: string;
+  instrument_key: string;
+  expiry: string;
+  series: NiftyFuturesPoint[];
+  /** 15-minute close change in points (null when the window is incomplete). */
+  change_pts: number | null;
+  /** 15-minute OI change in contracts. */
+  oi_change: number | null;
+  regime: NiftyFuturesRegime;
+  as_of: string | null;
+}
+
+/** One per-minute ITM put-volume point. */
+export interface NiftyItmPeFlowPoint {
+  t: string;
+  itm_pe_vol: number;
+  total_pe_vol: number;
+  /** ITM put volume as a share of all put volume, 0-100. */
+  share_pct: number;
+  spot: number;
+}
+
+/** Heaviest ITM put strike of the session. */
+export interface NiftyItmPeStrike {
+  strike: number;
+  volume: number;
+  oi: number;
+}
+
+/**
+ * `report.itm_pe_flow` — ITM puts are where hedges and stop-outs print, so
+ * their share of put volume is the hedging read the OI/CE-PE split misses.
+ */
+export interface NiftyItmPeFlow {
+  series: NiftyItmPeFlowPoint[];
+  top: NiftyItmPeStrike[];
+  as_of: string | null;
+}
+
 export interface NiftyReport {
   mode: NiftyReportMode;
   date: string;
@@ -442,6 +503,10 @@ export interface NiftyReport {
   structure?: NiftyStructureShift[];
   /** Backend-computed IV surface — preferred over re-deriving from `strikes`. */
   iv_surface?: NiftyIvSurface;
+  /** Front-month futures positioning — absent hides the futures panel. */
+  futures?: NiftyFutures | null;
+  /** Per-minute ITM put volume flow — absent hides the ITM flow panel. */
+  itm_pe_flow?: NiftyItmPeFlow | null;
 }
 
 /** Live Sensex context shown beside the Nifty report. */

@@ -4,6 +4,8 @@ import * as palette from "@/ui/palette";
 import { EmptyState, ErrorAlert, InlineLoader } from "@/components/common/states";
 import { ReplayUnavailable } from "./BreadthStrip";
 import { ReportProvider, useNiftyReport } from "./ReportContext";
+import { NiftyFuturesPanel } from "./NiftyFuturesPanel";
+import { NiftyItmPeFlowPanel } from "./NiftyItmPeFlow";
 import type { DeskDockTab } from "./DeskDock";
 import { ReportToolbar } from "./ReportToolbar";
 import {
@@ -219,6 +221,24 @@ function ReportBody() {
               <ReportWorkspace secondaryTabs={secondaryTabs()} />
             </Suspense>
           </ErrorBoundary>
+          {/* Futures basis and ITM premium flow only exist on a NIFTY report
+              whose payload carries them; render nothing rather than an empty
+              pair of panels when the feed omits them. */}
+          <Show when={store.data.report()?.futures || store.data.report()?.itm_pe_flow}>
+            {(current) => (
+              <ErrorBoundary fallback={(err) => <SectionError name="flow panels" error={err} />}>
+                <Suspense fallback={<PanelSkeleton h={200} />}>
+                  <div className="flex min-w-0 w-full flex-col gap-2">
+                    <NiftyFuturesPanel futures={current().futures ?? null} />
+                    <NiftyItmPeFlowPanel
+                      flow={current().itm_pe_flow ?? null}
+                      spot={current().spot}
+                    />
+                  </div>
+                </Suspense>
+              </ErrorBoundary>
+            )}
+          </Show>
           <Show when={!isDesk()}>
             <ErrorBoundary fallback={(err) => <SectionError name="desk strips" error={err} />}>
               <Suspense fallback={<PanelSkeleton h={150} />}>

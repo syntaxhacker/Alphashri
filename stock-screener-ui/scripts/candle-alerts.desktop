@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Alphashri Candle Alerts
+GenericName=Candle Close Alerts
+Comment=Countdown and alerts for 1H/4H candle closes
+Exec=/home/mysyntax/Documents/Alphashri/stock-screener-ui/scripts/candle-alerts-launch.sh
+Path=/home/mysyntax/Documents/Alphashri/stock-screener-ui
+Icon=candle-alerts
+Terminal=false
+Categories=Office;Finance;
+StartupNotify=true

@@ -560,7 +560,10 @@ def envelope_line(
         else:
             d = y - boundary[K]  # violation: price pierces below the line
         over = d > tol
-        viol[sl] = np.bincount(Pidx, weights=over.astype(np.uint8), minlength=p1 - p0).astype(np.int64)
+        # Pidx holds GLOBAL pair indices (np.arange(p0, p1)), so bincount would
+        # size the result to the global max index instead of this block - offset
+        # by p0 to get exactly p1-p0 counts that fit the viol[sl] slice.
+        viol[sl] = np.bincount(Pidx - p0, weights=over.astype(np.uint8), minlength=p1 - p0).astype(np.int64)
         for k in range(p0, p1):
             key = (int(viol[k]), -int(span[k]))
             if best_key is None or key < best_key:
