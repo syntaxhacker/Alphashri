@@ -360,6 +360,12 @@ Canonical source for model routing **and** concurrency — `AGENTS.md` and
   When that happens: the main agent finishes the task itself and says so.
 - Verify every agent claim. Reports have asserted success while the page was blank, the
   build broken, or a test failing.
+- **Read this section before the first dispatch, not after.** It is the only place the
+  model and the concurrency ceiling are defined, and `AGENTS.md` deliberately does not
+  restate them. Omitting `model` from a `subagent` call silently inherits the
+  session default — which is a *forbidden* model here — so "I didn't set a model" is
+  itself a rule violation, not a neutral default. State the model explicitly on every
+  call, or do not dispatch.
 
 ---
 
