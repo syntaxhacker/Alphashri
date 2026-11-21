@@ -141,22 +141,6 @@ function declaredHeightPx(el: Element): number | null {
 }
 
 // Mock child components to isolate ScreenerPage tests
-vi.mock("./ScreenerNav", () => ({
-  ScreenerNav: ({ options, activeScreener, onChange }: any) => (
-    <div
-      data-testid="screener-nav"
-      data-active={activeScreener}
-      data-options-count={options.length}
-    >
-      {options.map((opt: any) => (
-        <button data-testid={`nav-${opt.id}`} onClick={() => onChange(opt.id)}>
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  ),
-}));
-
 vi.mock("./ScreenerHeader", () => ({
   ScreenerHeader: (props: any) => (
     <div

@@ -52,25 +52,10 @@ export interface ScreenerPageProps extends ScreenerHeaderProps {
   error?: string | null;
 }
 
-export interface ScreenerNavProps {
-  options: ScreenerOption[];
-  activeScreener: string;
-  onChange: (id: string) => void;
-}
-
-export interface ScreenerSummaryProps {
-  summary: SummaryItem[];
-}
-
 export interface ScreenerEmptyProps {
   message?: string;
 }
 
 export interface ScreenerLoadingProps {
   message?: string;
-}
-
-export interface TradingListProps {
-  symbols: string[];
-  title?: string;
 }
