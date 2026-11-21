@@ -111,11 +111,29 @@ _DAILY_BACKFILL_LOOKBACK_DAYS = 10
 _client_cache = None
 
 
+def _reload_token_if_missing(client):
+    """Refresh a cached client whose auth handler was built before OAuth.
+
+    The API process can start before the user connects Upstox. The cached
+    client then keeps ``access_token=None`` forever, so chain endpoints that
+    build a fresh token keep working while candle fetches silently return
+    empty. A DB token arriving later must be picked up without a restart.
+    """
+    auth = getattr(client, "auth_handler", None)
+    if auth is None or getattr(auth, "access_token", None):
+        return client
+    try:
+        auth.load_token()
+    except Exception:
+        logger.debug("cached Upstox client token reload failed", exc_info=True)
+    return client
+
+
 def get_api_client():
     """Get an UpstoxAPI client. Tries env credentials first, falls back to DB token."""
     global _client_cache
     if _client_cache is not None:
-        return _client_cache
+        return _reload_token_if_missing(_client_cache)
 
     from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
     from backtest.utils import get_upstox_client_from_db
@@ -126,7 +144,7 @@ def get_api_client():
             api_secret=config.UPSTOX_API_SECRET,
             quiet=True,
         )
-        return _client_cache
+        return _reload_token_if_missing(_client_cache)
     except Exception:
         pass
 
@@ -135,7 +153,7 @@ def get_api_client():
         _client_cache = client[0] if client[0] else None
     else:
         _client_cache = client
-    return _client_cache
+    return _reload_token_if_missing(_client_cache) if _client_cache is not None else None
 
 
 def _lookback_days(spec_minutes: int, lookback_bars: int) -> int:

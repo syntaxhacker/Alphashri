@@ -452,6 +452,152 @@ components:
           title: Strategies
       title: BotUpdate
       type: object
+    CatalystCounts:
+      properties:
+        high:
+          default: 0
+          title: High
+          type: integer
+        low:
+          default: 0
+          title: Low
+          type: integer
+        medium:
+          default: 0
+          title: Medium
+          type: integer
+        total:
+          default: 0
+          title: Total
+          type: integer
+      title: CatalystCounts
+      type: object
+    CatalystRow:
+      description: One catalyst. ``headline`` is a real article title or ``None``.
+      properties:
+        confidence:
+          maximum: 1.0
+          minimum: 0.0
+          title: Confidence
+          type: number
+        event_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Event At
+        first_seen:
+          title: First Seen
+          type: string
+        headline:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Headline
+        invalidates:
+          items:
+            type: string
+          title: Invalidates
+          type: array
+        kind:
+          enum:
+          - news
+          - event
+          - positioning
+          title: Kind
+          type: string
+        move_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Move Pct
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        reasons:
+          items:
+            type: string
+          title: Reasons
+          type: array
+        rel_volume:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Rel Volume
+        score:
+          enum:
+          - high
+          - medium
+          - low
+          title: Score
+          type: string
+        sector:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sector
+        source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source
+        source_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Url
+        state:
+          enum:
+          - scheduled
+          - breaking
+          - confirmed
+          - fading
+          title: State
+          type: string
+        symbol:
+          title: Symbol
+          type: string
+      required:
+      - symbol
+      - kind
+      - first_seen
+      - state
+      - score
+      - confidence
+      title: CatalystRow
+      type: object
+    CatalystToday:
+      description: '``GET /api/catalysts/today`` payload.'
+      properties:
+        as_of:
+          title: As Of
+          type: string
+        available_sectors:
+          items:
+            $ref: '#/components/schemas/SectorOption'
+          title: Available Sectors
+          type: array
+        counts:
+          $ref: '#/components/schemas/CatalystCounts'
+        market:
+          $ref: '#/components/schemas/MarketIndices'
+        rows:
+          items:
+            $ref: '#/components/schemas/CatalystRow'
+          title: Rows
+          type: array
+        sector:
+          $ref: '#/components/schemas/SectorRead'
+        warnings:
+          items:
+            type: string
+          title: Warnings
+          type: array
+      required:
+      - as_of
+      title: CatalystToday
+      type: object
     ChainIvRow:
       properties:
         ceDelta:
@@ -872,6 +1018,20 @@ components:
           type: array
       title: HTTPValidationError
       type: object
+    IndexQuote:
+      properties:
+        change_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Change Pct
+        last:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Last
+      title: IndexQuote
+      type: object
     LegIn:
       properties:
         action:
@@ -897,6 +1057,23 @@ components:
       - opt
       - strike
       title: LegIn
+      type: object
+    MarketIndices:
+      properties:
+        nifty:
+          anyOf:
+          - $ref: '#/components/schemas/IndexQuote'
+          - type: 'null'
+        sensex:
+          anyOf:
+          - $ref: '#/components/schemas/IndexQuote'
+          - type: 'null'
+        vix:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Vix
+      title: MarketIndices
       type: object
     NewsQueueEnqueueRequest:
       properties:
@@ -1709,6 +1886,25 @@ components:
           title: Name
       title: ScreenerUpdate
       type: object
+    SectorBreadth:
+      properties:
+        advancing:
+          default: 0
+          minimum: 0.0
+          title: Advancing
+          type: integer
+        declining:
+          default: 0
+          minimum: 0.0
+          title: Declining
+          type: integer
+        total:
+          default: 0
+          minimum: 0.0
+          title: Total
+          type: integer
+      title: SectorBreadth
+      type: object
     SectorCorrelationResponse:
       properties:
         correlation_matrix:
@@ -1807,6 +2003,48 @@ components:
       - avg_adx
       - top_movers
       title: SectorItem
+      type: object
+    SectorOption:
+      description: One data-derived value in the Monitor sector selector.
+      properties:
+        count:
+          default: 0
+          title: Count
+          type: integer
+        id:
+          title: Id
+          type: string
+        label:
+          title: Label
+          type: string
+      required:
+      - id
+      - label
+      title: SectorOption
+      type: object
+    SectorRead:
+      properties:
+        breadth:
+          $ref: '#/components/schemas/SectorBreadth'
+        change_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Change Pct
+        id:
+          default: all
+          title: Id
+          type: string
+        label:
+          default: MARKET
+          title: Label
+          type: string
+        relative_strength_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Relative Strength Pct
+      title: SectorRead
       type: object
     SectorResponse:
       properties:
@@ -4660,6 +4898,47 @@ paths:
       summary: Invalidate Screener Cache Endpoint
       tags:
       - admin
+  /api/catalysts/today:
+    get:
+      description: Sector-level catalyst read for the Home Monitor. The NIFTY Auto constituents and their live move/relative volume/52-week state come from the existing market snapshot; headlines come from Google News RSS. A dead source is reported in `warnings` -- the endpoint still returns whatever it can verify and never fabricates a row.
+      operationId: catalysts_today_api_catalysts_today_get
+      parameters:
+      - description: Market id. v1 supports `india`.
+        in: query
+        name: market
+        required: false
+        schema:
+          default: india
+          description: Market id. v1 supports `india`.
+          title: Market
+          type: string
+      - description: '`all` or any sector id returned in `available_sectors`.'
+        in: query
+        name: sector
+        required: false
+        schema:
+          default: all
+          description: '`all` or any sector id returned in `available_sectors`.'
+          title: Sector
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalystToday'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Today's sector catalysts for the Home Monitor
+      tags:
+      - catalysts
   /api/chart-patterns/detect:
     post:
       description: 'Run the detector on ONE symbol now and return the hits.
@@ -13238,6 +13517,8 @@ tags:
   name: market
 - description: 'Event Radar: scheduled corporate catalysts and intraday tripwires.'
   name: events
+- description: 'Home Monitor: ranked scheduled and breaking market catalysts.'
+  name: catalysts
 - description: Sector rotation and sector-level analytics.
   name: sector
 - description: Market rotation analytics.

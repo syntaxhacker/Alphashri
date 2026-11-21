@@ -69,6 +69,28 @@ def _chain(symbol: str) -> list[dict]:
     return rows
 
 
+def _raw_chain(symbol: str) -> dict:
+    """The raw ``/option/chain`` shape the recorder now consumes."""
+    rows = []
+    for row in _chain(symbol):
+        ce, pe = row["ce"], row["pe"]
+        rows.append({
+            "strike_price": row["strike"],
+            "expiry": EXPIRY,
+            "call_options": {
+                "market_data": ce["market_data"],
+                "option_greeks": ce["option_greeks"],
+                "instrument_key": f"NSE_FO|CE-{symbol}-{row['strike']}",
+            },
+            "put_options": {
+                "market_data": pe["market_data"],
+                "option_greeks": pe["option_greeks"],
+                "instrument_key": f"NSE_FO|PE-{symbol}-{row['strike']}",
+            },
+        })
+    return {"underlying_spot_price": SPOTS[symbol], "data": rows}
+
+
 def _intraday_df(symbol: str, n: int = 60) -> pd.DataFrame:
     spot = SPOTS[symbol]
     start = pd.Timestamp(_today() + " 03:46", tz="UTC")
@@ -289,12 +311,11 @@ def test_recorder_snapshot_contains_analytics(symbol, mocked_live, monkeypatch,
     async def fake_expiries(sym):
         return {"underlying": sym, "expiries": [{"date": EXPIRY}]}
 
-    async def fake_chain(sym, expiry):
-        return {"status": "ok", "underlying": sym, "expiry": expiry,
-                "spot": SPOTS[sym], "chain": _chain(sym)}
+    async def fake_raw_chain(sym, expiry):
+        return _raw_chain(sym)
 
     monkeypatch.setattr(rec, "get_expiries", fake_expiries, raising=False)
-    monkeypatch.setattr(rec, "get_option_chain", fake_chain, raising=False)
+    monkeypatch.setattr(rec, "_fetch_raw_chain", fake_raw_chain, raising=False)
     monkeypatch.setattr(
         rec, "fetch_candles_for_timeframe",
         lambda s, timeframe="1m", **k: _daily_df()

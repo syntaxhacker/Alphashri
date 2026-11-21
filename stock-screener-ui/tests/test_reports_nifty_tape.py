@@ -8,6 +8,7 @@ Call endpoint functions directly, passing every Query param explicitly
 """
 
 import asyncio
+import copy
 import json
 from datetime import datetime
 from unittest.mock import AsyncMock, call, patch
@@ -33,14 +34,20 @@ def _tmp_tape(tmp_path, monkeypatch):
     # The recorder also refreshes the day's snapshot file — it must NOT write
     # to the real experiments/data/nifty_reports/ directory from a test.
     monkeypatch.setattr(nifty, "SNAPSHOT_DIR", tmp_path / "day_snapshots")
+    # In-minute retries are real (2-3 s) in production; a test must not sleep.
+    monkeypatch.setattr(nifty, "TAPE_RETRY_BACKOFF_SEC", (0.0, 0.0))
     # The per-minute snapshot also pulls the Sensex context block; no network
     # in tests — it degrades to `sensex: null` on the snapshot line.
     monkeypatch.setattr(
         nifty, "_compute_sensex_live",
         AsyncMock(side_effect=RuntimeError("no sensex in tests")), raising=False)
     nifty._sensex_cache.clear()
+    nifty._GAP_MINUTES.clear()
+    nifty._TAPE_INFLIGHT = False
     yield tmp_path
     nifty._sensex_cache.clear()
+    nifty._GAP_MINUTES.clear()
+    nifty._TAPE_INFLIGHT = False
 
 
 def _raw(t, spot, ce_oi, pe_oi, ce_vol, pe_vol, pcr_oi, flip):
@@ -731,3 +738,126 @@ class TestGapJournal:
                           AsyncMock(return_value=rep)):
             assert await record_nifty_tape_tick(now=_ist(9, 20)) is None
         assert nifty.read_gap_reasons("2026-10-13") == {"empty-chain": 1}
+
+
+# ---------------------------------------------------------------------------
+# Golden: the tape row is the on-disk contract. ``build_tape_row`` (shared with
+# the generic SENSEX / stock recorder) must produce the NIFTY row byte-for-byte,
+# including key order — the strings below were captured from the pre-refactor
+# ``nifty._write_tape_row``.
+# ---------------------------------------------------------------------------
+GOLDEN_REPORT = {
+    "expiry": "2026-10-15",
+    "spot": 25000.0,
+    "fetched_at": "2026-10-13T09:15:02+05:30",
+    "pcr_oi": 1.92,
+    "pcr_vol": 1.21,
+    "max_pain": 25000.0,
+    "walls": {"calls": [{"strike": 25100.0, "oi": 900}],
+              "puts": [{"strike": 24900.0, "oi": 950}]},
+    "walls_near": {"calls": [{"strike": 25000.0, "oi": 1000}],
+                   "puts": [{"strike": 25000.0, "oi": 2000}]},
+    "gex": {"zero_cross": 25100.0, "net_total": -1234.5, "degraded": False},
+    "strikes": [
+        {"strike": 24800.0,
+         "ce": {"ltp": 220.5, "oi": 800, "prev_oi": 780, "volume": 4000, "iv": 13.1},
+         "pe": {"ltp": 4.5, "oi": 1200, "prev_oi": 1100, "volume": 5000, "iv": 14.2}},
+        {"strike": 24900.0,
+         "ce": {"ltp": 140.0, "oi": 900, "prev_oi": 890, "volume": 4100, "iv": 12.8},
+         "pe": {"ltp": 12.0, "oi": 1500, "prev_oi": 1400, "volume": 5100, "iv": 13.9}},
+        {"strike": 25000.0,
+         "ce": {"ltp": 80.25, "oi": 1000, "prev_oi": 950, "volume": 5200, "iv": 12.5},
+         "pe": {"ltp": 25.5, "oi": 2000, "prev_oi": 1900, "volume": 6300, "iv": 13.5}},
+        {"strike": 25100.0,
+         "ce": {"ltp": 40.0, "oi": 700, "prev_oi": 700, "volume": 2200, "iv": 12.2},
+         "pe": {"ltp": 60.0, "oi": 900, "prev_oi": 880, "volume": 3300, "iv": 13.0}},
+        {"strike": 25200.0,
+         "ce": {"ltp": 15.0, "oi": 300, "prev_oi": 290, "volume": 900, "iv": 12.0},
+         "pe": {"ltp": 120.0, "oi": 400, "prev_oi": 380, "volume": 1200, "iv": 12.9}},
+    ],
+}
+
+GOLDEN_NORMAL = (
+    '{"t":"2026-10-13T09:15:00+05:30","t_fetch":"2026-10-13T09:15:00+05:30",'
+    '"t_write":"2026-10-13T09:15:03+05:30","spot":25000.0,"ce_oi":3700,'
+    '"pe_oi":6000,"ce_vol":16400,"pe_vol":20900,"ce_oi_change_day":90,'
+    '"pe_oi_change_day":340,"pcr_oi":1.92,"pcr_vol":1.21,"max_pain":25000.0,'
+    '"max_pain_computed":25000.0,"flip":25100.0,"net_gex":-1234.5,'
+    '"gex_degraded":false,"walls":{"calls":[{"strike":25000.0,"oi":1000}],'
+    '"puts":[{"strike":25000.0,"oi":2000}]},"call_wall":25000.0,'
+    '"put_wall":25000.0,"expiry":"2026-10-15","atm_strike":25000.0,'
+    '"atm_ce_ltp":80.25,"atm_pe_ltp":25.5,"atm_ce_iv":12.5,"atm_pe_iv":13.5,'
+    '"strikes_top":[{"strike":24800.0,"ce_oi":800,"pe_oi":1200},'
+    '{"strike":24900.0,"ce_oi":900,"pe_oi":1500},'
+    '{"strike":25000.0,"ce_oi":1000,"pe_oi":2000},'
+    '{"strike":25100.0,"ce_oi":700,"pe_oi":900},'
+    '{"strike":25200.0,"ce_oi":300,"pe_oi":400}],'
+    '"chain":{"25000":[80.25,25.5,1000.0,2000.0,5200.0,6300.0],'
+    '"24900":[140.0,12.0,900.0,1500.0,4100.0,5100.0],'
+    '"25100":[40.0,60.0,700.0,900.0,2200.0,3300.0],'
+    '"24800":[220.5,4.5,800.0,1200.0,4000.0,5000.0],'
+    '"25200":[15.0,120.0,300.0,400.0,900.0,1200.0]}}'
+)
+
+GOLDEN_RECONCILED = (
+    '{"t":"2026-10-13T09:16:00+05:30","t_fetch":"2026-10-13T09:16:00+05:30",'
+    '"t_write":"2026-10-13T09:15:03+05:30","spot":25010.0,"spot_raw":25250.0,'
+    '"ce_oi":3700,"pe_oi":6000,"ce_vol":16400,"pe_vol":20900,'
+    '"ce_oi_change_day":90,"pe_oi_change_day":340,"pcr_oi":1.92,"pcr_vol":1.21,'
+    '"max_pain":25000.0,"max_pain_computed":25000.0,"flip":25100.0,'
+    '"net_gex":-1234.5,"gex_degraded":false,'
+    '"walls":{"calls":[{"strike":25000.0,"oi":1000}],'
+    '"puts":[{"strike":25000.0,"oi":2000}]},"call_wall":25000.0,'
+    '"put_wall":25000.0,"expiry":"2026-10-15","atm_strike":25000.0,'
+    '"atm_ce_ltp":80.25,"atm_pe_ltp":25.5,"atm_ce_iv":12.5,"atm_pe_iv":13.5,'
+    '"strikes_top":[{"strike":24800.0,"ce_oi":800,"pe_oi":1200},'
+    '{"strike":24900.0,"ce_oi":900,"pe_oi":1500},'
+    '{"strike":25000.0,"ce_oi":1000,"pe_oi":2000},'
+    '{"strike":25100.0,"ce_oi":700,"pe_oi":900},'
+    '{"strike":25200.0,"ce_oi":300,"pe_oi":400}],'
+    '"chain":{"25000":[80.25,25.5,1000.0,2000.0,5200.0,6300.0],'
+    '"25100":[40.0,60.0,700.0,900.0,2200.0,3300.0],'
+    '"24900":[140.0,12.0,900.0,1500.0,4100.0,5100.0],'
+    '"25200":[15.0,120.0,300.0,400.0,900.0,1200.0],'
+    '"24800":[220.5,4.5,800.0,1200.0,4000.0,5000.0]}}'
+)
+
+
+class TestTapeRowGolden:
+    """Byte-identical NIFTY tape rows after the shared builder extraction."""
+
+    @pytest.fixture()
+    def _iso(self, monkeypatch):
+        from api.reports_api import _tape_row
+
+        monkeypatch.setattr(_tape_row, "now_iso",
+                            lambda: "2026-10-13T09:15:03+05:30")
+
+    async def _row(self, _tmp_tape, report, *, last_spot=None,
+                   minute="2026-10-13T09:15", hh=9, mm=15):
+        with patch.object(nifty, "_peek_last_tape_row",
+                          lambda p, m: (last_spot, False)), \
+             patch.object(nifty, "_append_tape_line", lambda p, r: None), \
+             patch.object(nifty, "write_snapshot",
+                          lambda d, s: _tmp_tape / "snap.json"), \
+             patch.object(nifty, "_append_minute_snapshot",
+                          AsyncMock(return_value=None)):
+            return await nifty._write_tape_row(
+                report, "2026-10-13", f"2026-10-13T{hh:02d}:{mm:02d}:00+05:30",
+                _ist(hh, mm), nifty.tape_path("2026-10-13"), minute)
+
+    async def test_normal_row_is_byte_identical(self, _tmp_tape, _iso):
+        row = await self._row(_tmp_tape, copy.deepcopy(GOLDEN_REPORT))
+        assert json.dumps(row, separators=(",", ":")) == GOLDEN_NORMAL
+        assert list(row) == list(json.loads(GOLDEN_NORMAL))
+
+    async def test_reconciled_row_is_byte_identical(self, _tmp_tape, _iso):
+        from api.options import get_spot_price
+
+        report = dict(copy.deepcopy(GOLDEN_REPORT), spot=25250.0)
+        with patch("api.options.get_spot_price",
+                   AsyncMock(return_value={"spot": 25010.0})):
+            row = await self._row(_tmp_tape, report, last_spot=25000.0,
+                                  minute="2026-10-13T09:16", mm=16)
+        assert json.dumps(row, separators=(",", ":")) == GOLDEN_RECONCILED
+        assert row["spot"] == 25010.0 and row["spot_raw"] == 25250.0

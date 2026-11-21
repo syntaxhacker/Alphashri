@@ -492,6 +492,65 @@ def test_symbol_detail_and_chart(cp_client, monkeypatch):
     assert c["overlays"] and c["overlays"][0]["pattern_id"] == "falling_wedge"
 
 
+def _make_daily_frame(last_ts: str) -> pd.DataFrame:
+    """Daily frame whose last bar is stamped ``last_ts`` (18:30Z = next IST session)."""
+    idx = pd.DatetimeIndex([
+        pd.Timestamp("2026-11-11T18:30:00+00:00"),
+        pd.Timestamp("2026-11-12T18:30:00+00:00"),
+        pd.Timestamp("2026-11-13T18:30:00+00:00"),
+        pd.Timestamp(last_ts),
+    ])
+    close = np.linspace(100.0, 104.0, len(idx))
+    return pd.DataFrame(
+        {"open": close, "high": close + 1.0, "low": close - 1.0,
+         "close": close, "volume": 1000.0},
+        index=idx,
+    )
+
+
+def test_close_bar_date_of_1830_utc_daily_bar_is_next_ist_day():
+    # 18:30 UTC of 16 Nov is 00:00 IST on 17 Nov — the 17 Nov session.
+    assert cp_api._close_bar_date(
+        _make_daily_frame("2026-11-16T18:30:00+00:00")
+    ) == "2026-11-17"
+
+
+def test_close_bar_date_accepts_parseable_timestamp_index():
+    # A copied/merged frame can carry a string timestamp index; its last bar is
+    # still usable, so date derivation must not silently give up on it.
+    df = _make_daily_frame("2026-11-16T18:30:00+00:00")
+    df.index = pd.Index([t.isoformat() for t in df.index])
+    assert cp_api._close_bar_date(df) == "2026-11-17"
+
+
+def test_close_bar_date_from_results_enrichment_path(cp_client, monkeypatch):
+    """The exact frame shape the enrichment tuple receives carries the IST date."""
+    store.save_job({
+        "job_id": "cpj_bardate", "universe": "nifty500", "timeframe": "1D",
+        "status": "completed", "total": 1, "done": 1,
+    })
+    store.save_hits("cpj_bardate", [_hit("IRCON")])
+    monkeypatch.setattr(
+        cp_api.candles, "fetch_for_timeframe",
+        lambda *a, **k: _make_daily_frame("2026-11-16T18:30:00+00:00"),
+    )
+    resp = cp_client.get("/api/chart-patterns/results", params={"job_id": "cpj_bardate"})
+    assert resp.status_code == 200
+    assert resp.json()["items"][0]["close_bar_date"] == "2026-11-17"
+
+
+def test_symbol_chart_reports_ist_close_bar_date(cp_client, monkeypatch):
+    """The chart payload must carry an IST bar date, not a raw UTC one."""
+    monkeypatch.setattr(
+        cp_api.candles, "fetch_for_timeframe",
+        lambda *a, **k: _make_daily_frame("2026-11-16T18:30:00+00:00"),
+    )
+    monkeypatch.setattr(cp_api.candles, "missing_today_bar", lambda *a, **k: False)
+    chart = cp_client.get("/api/chart-patterns/symbol/IRCON/chart", params={"timeframe": "1D"})
+    assert chart.status_code == 200
+    assert chart.json()["close_bar_date"] == "2026-11-17"
+
+
 def test_symbol_chart_overlays_include_pattern_dates(cp_client, monkeypatch):
     """Fullscreen overlays must carry start/end dates (dedupes the selection)."""
     store.save_hits("cpj_ovdates", [_hit("IRCON")])
@@ -2061,7 +2120,7 @@ def test_symbol_chart_without_detect_patterns_returns_stored_hits(cp_client, mon
     # cache serve; only the optional expected_as_of may additionally appear.
     assert set(body) - {"expected_as_of"} == {
         "symbol", "timeframe", "candles", "overlays", "trend_lines",
-        "as_of", "stale", "detection_as_of", "hits",
+        "as_of", "stale", "detection_as_of", "hits", "close_bar_date",
     }
     assert len(body["overlays"]) == 1
 
@@ -2930,7 +2989,7 @@ def test_symbol_chart_normal_path_unchanged(cp_client, monkeypatch, no_stale_fir
     assert "error" not in body and "note" not in body
     assert set(body) - {"expected_as_of"} == {
         "symbol", "timeframe", "candles", "overlays", "trend_lines",
-        "as_of", "stale", "detection_as_of", "hits",
+        "as_of", "stale", "detection_as_of", "hits", "close_bar_date",
     }
     assert body["hits"][0]["pattern_id"] == "falling_wedge"
     assert body["hits"][0]["source"] == "stored"
