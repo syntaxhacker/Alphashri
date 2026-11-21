@@ -2,7 +2,8 @@ import { createSignal, createMemo, Show } from "solid-js";
 import { ToolbarRow, Select, Button, Tooltip, Text } from "@/ui";
 import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@/components/common/Icons";
 import type { BotSummary } from "../../types/paperTrading";
-import { isMarketClosedToday, subscribeToHolidays, getHolidayState } from "../../state/holidays";
+import { isMarketOpenNow, subscribeToHolidays, getHolidayState } from "../../state/holidays";
+import { useMarketClockTick, marketClosedReason } from "../bots/BotHelpers";
 import { useStoreSnapshot } from "./storeSnapshot";
 import * as palette from "@/ui/palette";
 
@@ -31,10 +32,12 @@ export function BotSelector(props: BotSelectorProps) {
 
   const selectedBot = createMemo(() => props.bots.find((b) => b.id === props.selectedBotId) || null);
   const running = createMemo(() => selectedBot()?.running ?? false);
-  // holidaySnap() tracks the holidays store; re-evaluate when it notifies.
+  const clockTick = useMarketClockTick();
+  // holidaySnap() tracks the holiday store; clockTick() flips the session at 15:30.
   const marketClosed = createMemo(() => {
     holidaySnap();
-    return isMarketClosedToday();
+    clockTick();
+    return !isMarketOpenNow();
   });
 
   const dotBackground = () => !props.selectedBotId
@@ -94,7 +97,10 @@ export function BotSelector(props: BotSelectorProps) {
         <Show
           when={running()}
           fallback={
-            <Tooltip label="Market closed — cannot start bot" disabled={!marketClosed()}>
+            <Tooltip
+              label={`Market closed — ${marketClosedReason()}`}
+              disabled={!marketClosed()}
+            >
               <span>
                 {/* The @/ui Button binds `disabled` once at mount (its eager
                     `known.disabled || known.loading` read), so the two states

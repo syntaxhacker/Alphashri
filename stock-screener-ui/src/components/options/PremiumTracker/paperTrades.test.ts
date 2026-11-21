@@ -1,9 +1,19 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach } from "vitest";
-import { loadPaperTrades, savePaperTrades, newPaperTrade, tradePnl, tradePnlPct } from "./paperTrades";
+import { loadPaperTrades, savePaperTrades, newPaperTrade, todaySessionDate, tradePnl, tradePnlPct } from "./paperTrades";
 
 beforeEach(() => {
   localStorage.clear();
+});
+
+describe("todaySessionDate", () => {
+  it("keys a daily bar at 18:30Z to the next IST session", () => {
+    expect(todaySessionDate(Date.parse("2026-11-16T18:30:00Z"))).toBe("2026-11-17");
+  });
+
+  it("keeps an intraday IST bar on its own session date", () => {
+    expect(todaySessionDate(Date.parse("2026-11-17T09:20:00+05:30"))).toBe("2026-11-17");
+  });
 });
 
 describe("paperTrades store", () => {

@@ -195,7 +195,7 @@ export function IndexMoversModal(props: IndexMoversModalProps) {
           <Show when={isStale()}>
             <Tooltip label="Data is stale — quotes may be delayed">
               <span
-                class="inline-flex items-center gap-1 px-[2px] py-[1px] rounded-sm text-[10px] font-bold tracking-[0.05em] whitespace-nowrap"
+                class="inline-flex items-center gap-1 px-[2px] py-[1px] rounded-sm text-[11px] font-bold tracking-[0.05em] whitespace-nowrap"
                 style={{
                   border: `1px solid ${palette.WARNING}`,
                   color: palette.WARNING,
@@ -249,7 +249,7 @@ export function IndexMoversModal(props: IndexMoversModalProps) {
       {/* Footer meta */}
       <Show when={data()}>
         <div
-          class="flex items-center justify-between mt-2 pt-1 border-t border-fin-border font-mono text-[10px] text-fin-text-muted"
+          class="flex items-center justify-between mt-2 pt-1 border-t border-fin-border font-mono text-[11px] text-fin-text-muted"
         >
           <Text span size="xs" c="dimmed">
             Source: {data()!.source}

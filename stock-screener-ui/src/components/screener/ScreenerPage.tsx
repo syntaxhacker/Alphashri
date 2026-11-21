@@ -21,6 +21,11 @@ const GroupPerformancePanel = lazy(() =>
 import { SelectionBar } from "./SelectionBar";
 import { ScreenerInlineFilters } from "./ScreenerInlineFilters";
 import { ErrorBoundary } from "../common/ErrorBoundary";
+import {
+  MARKET_VIEW_OPTIONS,
+  normalizeMarketView,
+  type MarketViewMode,
+} from "../market/MarketMapView";
 
 const CorrelationTab = lazy(() => import("./CorrelationTab").then((m) => ({ default: m.CorrelationTab })));
 const ScreenerConfigView = lazy(() => import("./ScreenerConfigView").then((m) => ({ default: m.ScreenerConfigView })));
@@ -28,17 +33,12 @@ const DeepValueTab = lazy(() => import("../value/ValuePanel").then((m) => ({ def
 const FnoScreenerTab = lazy(() =>
   import("./FnoScreenerTab").then((m) => ({ default: m.FnoScreenerTab })),
 );
-/** The Market panel layouts, addressable as `?view=`. */
-const MARKET_VIEWS = ["table", "map", "movers", "value"] as const;
-type MarketView = (typeof MARKET_VIEWS)[number];
-
-function parseMarketView(raw: string | null): MarketView {
-  return raw && (MARKET_VIEWS as readonly string[]).includes(raw) ? (raw as MarketView) : "table";
-}
+/** Market view ids addressable as `?view=`, derived from the canonical registry. */
+export const MARKET_VIEW_IDS = MARKET_VIEW_OPTIONS.map((o) => o.value);
 
 interface MarketTabProps {
-  initialView?: MarketView;
-  onViewChange?: (view: MarketView) => void;
+  initialView?: MarketViewMode;
+  onViewChange?: (view: MarketViewMode) => void;
   onOpenScan?: (panelId: string, symbols: string[]) => void;
   /** Symbols captured from a Dashboard "Open scan" — the table narrows to these names. */
   symbolAllowlist?: string[] | null;
@@ -188,7 +188,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
     return raw && KNOWN_TABS.has(raw) ? raw : null;
   };
   const activeTab = createMemo(() => pathTab() ?? legacyTab() ?? "market");
-  const marketView = () => parseMarketView(firstParam(searchParams.view));
+  const marketView = () => normalizeMarketView(firstParam(searchParams.view));
   const isValueTab = () => activeTab() === "deepvalue";
   const isMarketTab = () => activeTab() === "market";
   const isFnoTab = () => activeTab() === "fno";
@@ -206,7 +206,9 @@ export function ScreenerPage(props: ScreenerPageProps) {
       if (raw == null) continue;
       const value = Array.isArray(raw) ? raw.join(",") : raw;
       if (value === "" || key === "tab" || ownedByAnotherTab(tab, key)) continue;
-      query.append(key, value);
+      // The view is owned by the Market tab; canonicalise it so a legacy
+      // `?view=map` link is never echoed back with the retired id.
+      query.append(key, key === "view" ? normalizeMarketView(value) : value);
     }
     return query.toString();
   };
@@ -312,7 +314,10 @@ export function ScreenerPage(props: ScreenerPageProps) {
         <ErrorBoundary label="Market screener">
           <MarketTab
             initialView={marketView()}
-            onViewChange={(v) => setSearchParams({ view: v === "table" ? null : v }, { replace: true })}
+            onViewChange={(v) => {
+              const view = normalizeMarketView(v);
+              setSearchParams({ view: view === "table" ? null : view }, { replace: true });
+            }}
             onOpenScan={handleOpenScan}
             symbolAllowlist={marketSymbols()}
             onClearSymbolAllowlist={() => setMarketSymbols([])}

@@ -30,11 +30,29 @@ vi.mock("../state/auth", () => ({
   apiFetch: vi.fn(),
 }));
 
-vi.mock("../state/holidays", () => ({
-  isMarketClosedToday: vi.fn().mockReturnValue(false),
+// Fixed IST instants injected into the real session helper; the holiday-only
+// helper stays holiday-only so the after-hours regressions fail on the old code.
+const clock = vi.hoisted(() => ({ now: new Date("2026-11-16T05:30:00Z") })); // Mon 11:00 IST
+
+vi.mock("../api/holidays_api", () => ({
+  fetchHolidays: vi.fn(async () => []),
+  fetchHolidayCheck: vi.fn(),
 }));
 
+vi.mock("../state/holidays", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../state/holidays")>();
+  const istDate = (now: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(now);
+  return {
+    ...actual,
+    isMarketClosedToday: (now?: Date) => actual.isTradingHoliday(istDate(now ?? clock.now)),
+    isMarketOpenNow: (now?: Date) => actual.isMarketOpenNow(now ?? clock.now),
+  };
+});
+
 import { apiFetch } from "../state/auth";
+import { fetchHolidays } from "../api/holidays_api";
+import { loadHolidays, resetHolidays } from "../state/holidays";
 import { describeNormalizeBotPortfolio, mockError } from "./apiTestMocks";
 import {
   normalizeBotPortfolio,
@@ -64,7 +82,17 @@ const mockedFetch = vi.mocked(apiFetch);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clock.now = new Date("2026-11-16T05:30:00Z"); // Monday 11:00 IST — open
+  delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+  vi.mocked(fetchHolidays).mockResolvedValue([]);
+  resetHolidays();
 });
+
+async function setHoliday(date: string, description: string) {
+  vi.mocked(fetchHolidays).mockResolvedValueOnce([{ date, description, type: "trading" }]);
+  resetHolidays();
+  await loadHolidays();
+}
 
 describeNormalizeBotPortfolio(normalizeBotPortfolio);
 
@@ -452,6 +480,48 @@ describe("refreshLiveData", () => {
     // so Promise.all resolves without throwing, and setError is not called
     expect(setError).not.toHaveBeenCalled();
     expect(setLoading).toHaveBeenCalledWith(false);
+  });
+
+  // Fixed-instant regressions: the holiday-only helper returned "open" at 17:11.
+  it("skips live refresh at 17:11 IST on a weekday", async () => {
+    clock.now = new Date("2026-11-16T11:41:00Z"); // Monday 17:11 IST
+    const { setLoading } = await import("../state/paperTrading");
+
+    await refreshLiveData();
+
+    expect(setLoading).not.toHaveBeenCalled();
+    expect(mockedFetch).not.toHaveBeenCalled();
+  });
+
+  it("refreshes live data at 11:00 IST on a weekday", async () => {
+    const { setLoading } = await import("../state/paperTrading");
+
+    await refreshLiveData();
+
+    expect(setLoading).toHaveBeenCalledWith(true);
+    expect(mockedFetch).toHaveBeenCalled();
+  });
+
+  it("skips live refresh on a holiday at 11:00 IST", async () => {
+    clock.now = new Date("2026-01-26T05:30:00Z"); // Republic Day, Monday 11:00 IST
+    await setHoliday("2026-01-26", "Republic Day");
+    const { setLoading } = await import("../state/paperTrading");
+
+    await refreshLiveData();
+
+    expect(setLoading).not.toHaveBeenCalled();
+  });
+
+  it("__E2E_MOCK_MARKET_OPEN__ refreshes live data at 17:11 IST", async () => {
+    clock.now = new Date("2026-11-16T11:41:00Z");
+    (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
+    const { setLoading } = await import("../state/paperTrading");
+
+    await refreshLiveData();
+
+    expect(setLoading).toHaveBeenCalledWith(true);
+    expect(mockedFetch).toHaveBeenCalled();
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
   });
 });
 

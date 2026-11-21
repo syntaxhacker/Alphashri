@@ -145,7 +145,7 @@ export function LocalPanelModal(props: LocalPanelModalProps) {
               >
                 {typeof props.title === "string" ? (
                   <span
-                    class="text-[10px] font-bold uppercase leading-[1.2] tracking-[0.08em]"
+                    class="text-[11px] font-bold uppercase leading-[1.2] tracking-[0.08em]"
                     style={{ color: palette.TEXT_MUTED }}
                   >
                     {props.title}

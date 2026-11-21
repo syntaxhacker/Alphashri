@@ -10,6 +10,7 @@ import {
 } from "./NiftyGexProfile";
 import { NiftyDeltaPositioning } from "./NiftyDeltaPositioning";
 import type { NiftyGex, NiftyPositioningBlock } from "@/types/niftyReport";
+import { REPORT_FONT } from "./reportTokens";
 
 interface NiftyGammaStripProps {
   /** The report's dealer-gamma profile. Absent renders dashes. */
@@ -34,7 +35,7 @@ function Sep() {
   return (
     <span
       aria-hidden
-      class="text-[10px] opacity-60 shrink-0"
+      class="text-[11px] opacity-60 shrink-0"
       style={{ color: palette.TEXT_MUTED }}
     >
       ·
@@ -50,16 +51,16 @@ function Field(props: { testId: string; label: string; value: string; title: str
       class="inline-flex items-baseline gap-[4px] flex-shrink min-w-0"
     >
       <span
-        class="text-[9px] tracking-[0.04em]"
-        style={{ "color": palette.TEXT_MUTED, "font-size": "9px", "letter-spacing": "0.04em" }}
+        class="text-[11px] tracking-[0.04em]"
+        style={{ "color": palette.TEXT_MUTED, "font-size": `${REPORT_FONT.micro}px`, "letter-spacing": "0.04em" }}
       >
         {props.label}
       </span>
       <span
-        class="text-[10.5px] font-bold tabular-nums whitespace-nowrap"
+        class="text-[11px] font-bold tabular-nums whitespace-nowrap"
         style={{
           "color": palette.TEXT,
-          "font-size": "10.5px",
+          "font-size": `${REPORT_FONT.micro}px`,
           "font-weight": 700,
           "font-variant-numeric": "tabular-nums",
           "white-space": "nowrap",
@@ -172,8 +173,8 @@ export function NiftyGammaStrip(props: NiftyGammaStripProps) {
       >
         <span
           title="Net dealer gamma across the book (₹ Cr per point)"
-          class="text-[10.5px] font-bold shrink-0"
-          style={{ "color": tone(), "font-size": "10.5px", "font-weight": 700, "flex-shrink": 0 }}
+          class="text-[11px] font-bold shrink-0"
+          style={{ "color": tone(), "font-size": `${REPORT_FONT.micro}px`, "font-weight": 700, "flex-shrink": 0 }}
         >
           Γ {netText()}
         </span>
@@ -186,8 +187,8 @@ export function NiftyGammaStrip(props: NiftyGammaStripProps) {
                 ? "Dealers short gamma — moves amplify"
                 : "Gamma regime flat"
           }
-          class="text-[10.5px] font-bold shrink-0"
-          style={{ "color": tone(), "font-size": "10.5px", "font-weight": 700, "flex-shrink": 0 }}
+          class="text-[11px] font-bold shrink-0"
+          style={{ "color": tone(), "font-size": `${REPORT_FONT.micro}px`, "font-weight": 700, "flex-shrink": 0 }}
         >
           {regimeLabel()}
         </span>
@@ -222,8 +223,8 @@ export function NiftyGammaStrip(props: NiftyGammaStripProps) {
         />
         <span
           aria-hidden
-          class="ml-auto text-[10px] shrink-0"
-          style={{ "color": palette.TEXT_MUTED, "font-size": "10px", "flex-shrink": 0 }}
+          class="ml-auto text-[11px] shrink-0"
+          style={{ "color": palette.TEXT_MUTED, "font-size": `${REPORT_FONT.micro}px`, "flex-shrink": 0 }}
         >
           ▸
         </span>
@@ -240,7 +241,7 @@ export function NiftyGammaStrip(props: NiftyGammaStripProps) {
           // The drawer is portalled outside the report panel, so the desk's
           // compact-panel skin must be re-scoped here — otherwise both panels
           // render their default full-size headers inside the rail.
-          class="flex flex-col gap-2 min-w-0 [&_[data-compact]]:bg-transparent! [&_[data-compact]]:[border:1px_solid_var(--desk-border)]! [&_[data-compact]]:[border-radius:4px]! [&_[data-compact]]:shadow-none! [&_[data-compact-header]]:min-h-[22px]! [&_[data-compact-header]]:[background-color:var(--desk-header)]! [&_[data-compact-header]]:[border-bottom:1px_solid_var(--desk-border)]! [&_[data-compact-header]_:where(h4,p,span,div)]:text-[10px]! [&_[data-compact-header]_:where(h4,p,span,div)]:uppercase! [&_[data-compact-header]_:where(h4,p,span,div)]:tracking-[0.07em]! [&_[data-compact-header]_:where(h4,p,span,div)]:[color:var(--desk-muted)]! [&_[data-compact-header]_:where(h4,p,span,div)]:font-bold! [&_[data-compact-header]_:where(h4,p,span,div)]:leading-[1.2]! [&_[data-compact-stat]]:bg-transparent! [&_[data-compact-stat]]:border-none! [&_[data-compact-stat]]:rounded-none! [&_[data-compact-stat]]:shadow-none! [&_[data-compact-stat]>*]:[padding:0]! [&_[data-compact-stat]>*]:gap-px! [&_[data-compact-stat]>*]:items-start! [&_[data-compact-stat]_:where(div,p,span,h4)]:text-left!"
+          class="flex flex-col gap-2 min-w-0 [&_[data-compact]]:bg-transparent! [&_[data-compact]]:[border:1px_solid_var(--desk-border)]! [&_[data-compact]]:[border-radius:4px]! [&_[data-compact]]:shadow-none! [&_[data-compact-header]]:min-h-[22px]! [&_[data-compact-header]]:[background-color:var(--desk-header)]! [&_[data-compact-header]]:[border-bottom:1px_solid_var(--desk-border)]! [&_[data-compact-header]_:where(h4,p,span,div)]:text-[11px]! [&_[data-compact-header]_:where(h4,p,span,div)]:uppercase! [&_[data-compact-header]_:where(h4,p,span,div)]:tracking-[0.07em]! [&_[data-compact-header]_:where(h4,p,span,div)]:[color:var(--desk-muted)]! [&_[data-compact-header]_:where(h4,p,span,div)]:font-bold! [&_[data-compact-header]_:where(h4,p,span,div)]:leading-[1.2]! [&_[data-compact-stat]]:bg-transparent! [&_[data-compact-stat]]:border-none! [&_[data-compact-stat]]:rounded-none! [&_[data-compact-stat]]:shadow-none! [&_[data-compact-stat]>*]:[padding:0]! [&_[data-compact-stat]>*]:gap-px! [&_[data-compact-stat]>*]:items-start! [&_[data-compact-stat]_:where(div,p,span,h4)]:text-left!"
           style={{
             "--desk-border": palette.TERM_BORDER,
             "--desk-header": palette.TERM_HEADER,

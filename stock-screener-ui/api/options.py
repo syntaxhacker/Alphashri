@@ -28,7 +28,13 @@ from api.options_conventions import IV_MAX
 
 router = APIRouter(prefix="/api/options", tags=["options"])
 
+logger = logging.getLogger(__name__)
+
 UPSTOX_BASE = "https://api.upstox.com/v2"
+#: V3 base for the OHLC quote endpoint. Not guessed: the bundled SDK calls
+#: ``/v3/market-quote/ohlc`` (``upstox_client.api.market_quote_v3_api``), and
+#: ``market_data.market_data.fetch_ohlc_batch`` already uses it in production.
+UPSTOX_BASE_V3 = "https://api.upstox.com/v3"
 # Must match api/brokers.py (the OAuth writer), which uses config.BASE_DIR. This
 # previously used a hand-counted chain of `.parent`s that resolved to
 # /home/mysyntax/Documents, so this reader picked up a stale .upstox_token.json
@@ -253,14 +259,70 @@ def get_upstox_token() -> str:
 #: network) is wedged and the tick must move on instead of stalling the loop.
 UPSTOX_TIMEOUT_SEC = 12.0
 
+#: Where the 1-second report SPOT poll reads from.
+#:
+#: ``v2`` is the deprecated ``/v2/market-quote/ohlc`` path — at 1 Hz that was
+#: ~1800 calls per 30 min of a 2000/30min budget, i.e. 90% of the allowance
+#: spent on the one number every other block already derives from.
+#: ``v3`` is the current endpoint (verified above). ``ws`` prefers the pooled
+#: ``nifty_md`` ``ltpc`` feed when it is live; :mod:`api.reports_api.nifty_ws`
+#: resolves that and falls back to the REST path here.
+SPOT_SOURCE_ENV = "NIFTY_SPOT_SOURCE"
+SPOT_SOURCES: tuple[str, ...] = ("ws", "v3", "v2")
+DEFAULT_SPOT_SOURCE = "v3"
 
-async def fetch_upstox(endpoint: str, params: Optional[dict] = None) -> dict:
+#: ``source -> (base, endpoint)``. Only REST sources have an entry.
+_SPOT_ENDPOINTS: dict[str, tuple[str, str]] = {
+    "v2": (UPSTOX_BASE, "/market-quote/ohlc"),
+    "v3": (UPSTOX_BASE_V3, "/v3/market-quote/ohlc"),
+}
+_spot_source_logged: Optional[str] = None
+
+
+def spot_source() -> str:
+    """Configured SPOT source: ``ws`` | ``v3`` | ``v2`` (default ``v3``).
+
+    An unknown value is not silently coerced: it warns and falls back to the
+    default so a typo cannot quietly re-enable the deprecated 1 Hz path.
+    """
+    raw = str(os.getenv(SPOT_SOURCE_ENV) or "").strip().lower()
+    if not raw:
+        return DEFAULT_SPOT_SOURCE
+    if raw not in SPOT_SOURCES:
+        logger.warning(
+            "%s=%r is not one of %s; using %s",
+            SPOT_SOURCE_ENV, raw, "/".join(SPOT_SOURCES), DEFAULT_SPOT_SOURCE,
+        )
+        return DEFAULT_SPOT_SOURCE
+    return raw
+
+
+def spot_request(source: str) -> tuple[str, str]:
+    """``(base, endpoint)`` for a REST spot read; ``ws`` maps to the default."""
+    return _SPOT_ENDPOINTS.get(source, _SPOT_ENDPOINTS[DEFAULT_SPOT_SOURCE])
+
+
+def _log_spot_source(source: str) -> None:
+    """Log the active spot source once per change (never raises)."""
+    global _spot_source_logged
+    if _spot_source_logged == source:
+        return
+    _spot_source_logged = source
+    if source == "v2":
+        logger.warning("nifty spot source: v2 (/v2/market-quote/ohlc is deprecated)")
+    else:
+        logger.info("nifty spot source: %s", source)
+
+
+async def fetch_upstox(
+    endpoint: str, params: Optional[dict] = None, base: Optional[str] = None
+) -> dict:
     # The token comes from SQLite. A cache hit is cheap, but a miss (or the
     # 30s refresh) is a synchronous query that must never run on the event
     # loop — under write contention that was a 5s freeze per call.
     from api.options import get_upstox_token as _get_token
     token = await asyncio.to_thread(_get_token)
-    url = f"{UPSTOX_BASE}{endpoint}"
+    url = f"{base or UPSTOX_BASE}{endpoint}"
 
     # Two layers on purpose:
     #  - httpx's timeout bounds connect/read per phase;
@@ -881,17 +943,59 @@ async def get_option_positions():
         raise HTTPException(status_code=500, detail=f"Failed to fetch positions: {str(e)}")
 
 
+def _spot_from_payload(data: Any) -> float:
+    """``last_price`` out of a v2/v3 OHLC payload (``0.0`` when absent)."""
+    try:
+        if isinstance(data, dict) and data.get("status") == "success" and data.get("data"):
+            row = next(iter(data["data"].values()))
+            return float(row.get("last_price") or 0)
+    except (AttributeError, TypeError, ValueError):
+        pass
+    return 0.0
+
+
 @router.get("/spot/{underlying}")
 async def get_spot_price(underlying: str):
     """Get current spot price for underlying."""
+    # Path is chosen by ``NIFTY_SPOT_SOURCE`` (default ``v3``); a failure on the
+    # preferred REST version falls through to the other so a single bad
+    # endpoint cannot blank the report's ticker. ``ws`` is resolved by
+    # :mod:`api.reports_api.nifty_ws` — a direct caller here gets the REST path.
     instrument_key = get_instrument_key(underlying)
-    try:
-        data = await fetch_upstox("/market-quote/ohlc", {"instrument_key": instrument_key, "interval": "1d"})
-        spot = 0
-        if data.get("status") == "success" and data.get("data"):
-            key = list(data["data"].keys())[0]
-            spot = data["data"][key].get("last_price", 0)
-        
-        return {"status": "ok", "underlying": underlying, "spot": spot}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch spot: {str(e)}")
+    source = spot_source()
+    rest_sources = ["v2"] if source == "v2" else ["v3", "v2"]
+    last_error: Optional[Exception] = None
+    for index, src in enumerate(rest_sources):
+        base, endpoint = spot_request(src)
+        try:
+            data = await fetch_upstox(
+                endpoint,
+                {"instrument_key": instrument_key, "interval": "1d"},
+                base=base,
+            )
+        except HTTPException as e:
+            if e.status_code == 401:
+                # The token is process-wide; retrying the other version cannot
+                # help and would mask an expired connection as a 500.
+                raise
+            last_error = e
+        except Exception as e:  # network / schema
+            last_error = e
+        else:
+            spot = _spot_from_payload(data)
+            _log_spot_source(src)
+            return {
+                "status": "ok",
+                "underlying": underlying,
+                "spot": spot,
+                "source": src,
+            }
+        if index + 1 < len(rest_sources):
+            # Per-call: the 1 Hz poller would make a warning here a flood. The
+            # active-source change is logged once by ``_log_spot_source``.
+            logger.debug(
+                "spot %s via %s failed (%s); trying %s",
+                underlying, src, last_error, rest_sources[index + 1],
+            )
+    _log_spot_source(rest_sources[0])
+    raise HTTPException(status_code=500, detail=f"Failed to fetch spot: {last_error}")

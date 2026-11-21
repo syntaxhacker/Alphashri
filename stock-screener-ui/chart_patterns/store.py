@@ -7,9 +7,12 @@ Redis. All helpers accept the module-level session factory so tests can point
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, Iterable, Optional
 
 from sqlalchemy import case, func, literal
+
+logger = logging.getLogger(__name__)
 
 from db.database import SessionLocal
 
@@ -729,7 +732,11 @@ def query_results(filters: dict, limit: Optional[int] = 100, offset: int = 0):
 
         summary = _summary_for(session, filters, base, total)
         return items, total, summary
-    except Exception:
+    except Exception as exc:
+        # Fail-soft keeps the page rendering, but "0 patterns found" from a
+        # broken DB is indistinguishable from a real empty result without a
+        # log line. Keep the shape, make the failure observable.
+        logger.warning("pattern results query failed filters=%s error=%s", filters, exc)
         return [], 0, _empty_summary()
     finally:
         session.close()
@@ -966,7 +973,8 @@ def compute_summary(filters: dict) -> dict:
             base = _deduped_base(session, base)
         total = base.count()
         return _summary_for(session, filters, base, total)
-    except Exception:
+    except Exception as exc:
+        logger.warning("pattern summary query failed filters=%s error=%s", filters, exc)
         return _empty_summary()
     finally:
         session.close()
@@ -1033,7 +1041,8 @@ def get_symbol_detail(
             "patterns_total": total_patterns,
             "patterns": patterns,
         }
-    except Exception:
+    except Exception as exc:
+        logger.warning("symbol detail query failed symbol=%s error=%s", symbol_u, exc)
         return {
             "symbol": symbol_u,
             "name": None,

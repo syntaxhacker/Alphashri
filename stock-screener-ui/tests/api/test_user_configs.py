@@ -10,6 +10,7 @@ The behavioural rules under test, in the order they bite:
 * ``If-Match`` is advisory — enforced only when the client sends it.
 """
 
+import re
 import sys
 from datetime import timedelta
 from pathlib import Path
@@ -57,6 +58,7 @@ DEFAULTS = {
     "sectors": [],
     "sort": "mcap_desc",
     "view": "table",
+    "colorBy": "change_pct",
 }
 
 SAMPLE = {
@@ -80,12 +82,72 @@ SAMPLE = {
     "sectors": ["IT", "Banking"],
     "sort": "relvol_desc",
     "view": "map",
+    "colorBy": "rsi",
 }
 
 
 def _with(**overrides) -> dict:
     """A full valid payload with selected fields overridden."""
     return {**DEFAULTS, **overrides}
+
+
+# The five values shipped before the "Size by" dropdown grew to twelve. A saved
+# payload carrying any of these must keep parsing after the Literal is widened.
+ORIGINAL_COLOR_BY_VALUES = ("change_pct", "relative_volume", "rsi", "pos_52w", "market_cap")
+# The seven fundamental/trend metrics the frontend added to the dropdown.
+NEW_COLOR_BY_VALUES = (
+    "adx",
+    "perf_w",
+    "perf_1m",
+    "pe_ratio",
+    "pb_ratio",
+    "roe",
+    "dividend_yield",
+)
+
+_MARKET_SIZE_VALUES_RE = re.compile(
+    r"MARKET_SIZE_METRIC_VALUES\s*=\s*\[(?P<body>.*?)\]\s*as\s+const", re.DOTALL
+)
+_QUOTED_STRING_RE = re.compile(r"""["']([^"']+)["']""")
+
+
+def _frontend_market_size_metric_values() -> list[str]:
+    """Read the frontend's canonical "Size by" allowlist straight from its source.
+
+    There is no generated JSON shared between the two layers, so parsing the TS
+    declaration is the only way to make the backend Literal provably track the
+    dropdown: a value added or removed on either side fails the parity test.
+    """
+    ts_path = ROOT / "src" / "components" / "market" / "marketTreemap.ts"
+    match = _MARKET_SIZE_VALUES_RE.search(ts_path.read_text())
+    assert match is not None, f"MARKET_SIZE_METRIC_VALUES not found in {ts_path}"
+    values = _QUOTED_STRING_RE.findall(match.group("body"))
+    assert values, f"no metric values parsed from {ts_path}"
+    return values
+
+
+# ``MARKET_VIEW_OPTIONS`` is an array of ``{ value, label }`` objects. Capture
+# only the ``value`` of each entry so the parity test reads the ids the frontend
+# actually writes, not the display labels.
+_MARKET_VIEW_OPTIONS_RE = re.compile(
+    r"MARKET_VIEW_OPTIONS\s*=\s*\[(?P<body>.*?)\]\s*as\s+const", re.DOTALL
+)
+_VIEW_VALUE_RE = re.compile(r"""value\s*:\s*["']([^"']+)["']""")
+
+
+def _frontend_market_view_ids() -> list[str]:
+    """Read the canonical view ids from the frontend registry's TS declaration.
+
+    The backend must accept every id the frontend can write. Parsing the source
+    (instead of hardcoding a second list in this test) is what makes an added
+    frontend view fail the parity check until the backend Literal is widened.
+    """
+    ts_path = ROOT / "src" / "components" / "market" / "MarketMapView.tsx"
+    match = _MARKET_VIEW_OPTIONS_RE.search(ts_path.read_text())
+    assert match is not None, f"MARKET_VIEW_OPTIONS not found in {ts_path}"
+    values = _VIEW_VALUE_RE.findall(match.group("body"))
+    assert values, f"no view ids parsed from {ts_path}"
+    return values
 
 
 def _make_user(db, user_id: int, email: str) -> User:
@@ -228,6 +290,16 @@ class TestRoundTrip:
         assert response.json()["detail"] == "unknown_key"
         assert db.query(UserSavedConfig).count() == 0
 
+    @pytest.mark.parametrize("metric", ["change_pct", "relative_volume", "rsi", "pos_52w", "market_cap"])
+    def test_map_color_by_round_trips_through_put_get(self, user_client, db, metric):
+        payload = SAMPLE | {"colorBy": metric}
+        put = user_client.put(URL, json={"config": payload, "version": 1})
+        assert put.status_code == 200
+        assert put.json()["config"]["colorBy"] == metric
+        assert user_client.get(URL).json()["config"]["colorBy"] == metric
+        db.expire_all()
+        assert db.query(UserSavedConfig).one().config["colorBy"] == metric
+
     def test_value_view_round_trips_through_put_get(self, user_client, db):
         # The Market Value view saves `view: "value"`; the write path must accept
         # it and the read path must return it unchanged (it used to 422).
@@ -242,6 +314,48 @@ class TestRoundTrip:
         assert got.json()["config"] == payload
         db.expire_all()
         assert db.query(UserSavedConfig).one().config["view"] == "value"
+
+
+class TestMarketViewValues:
+    """The ``view`` field: the renamed Vis id plus the legacy and canonical ids.
+
+    The frontend renamed ``map`` to ``vis``. The whole ``market.filters`` payload
+    must still save when the Vis tab is active — a stale backend Literal used to
+    reject the lot with ``invalid_config``/``literal_error``, discarding the
+    user's filters, sort and colour metric along with the view.
+    """
+
+    def test_vis_view_full_payload_saves(self, user_client, db):
+        # Exact 422 reproduction: a full payload written while the Vis tab is
+        # active. On the stale Literal this returns 422, not 200.
+        payload = SAMPLE | {"view": "vis"}
+        put = user_client.put(URL, json={"config": payload, "version": 1})
+        assert put.status_code == 200, put.text
+        assert put.json()["config"]["view"] == "vis"
+        assert user_client.get(URL).json()["config"] == payload
+        db.expire_all()
+        assert db.query(UserSavedConfig).one().config["view"] == "vis"
+
+    def test_legacy_map_view_still_saves(self, user_client):
+        # A saved row / legacy ``?view=map`` link still carries the old id; the
+        # backend must keep accepting it even though the frontend writes ``vis``.
+        payload = SAMPLE | {"view": "map"}
+        put = user_client.put(URL, json={"config": payload, "version": 1})
+        assert put.status_code == 200, put.text
+        assert put.json()["config"]["view"] == "map"
+
+    @pytest.mark.parametrize("view", ["table", "movers", "value"])
+    def test_canonical_views_still_save(self, user_client, view):
+        payload = SAMPLE | {"view": view}
+        put = user_client.put(URL, json={"config": payload, "version": 1})
+        assert put.status_code == 200, put.text
+        assert put.json()["config"]["view"] == view
+
+    def test_unknown_view_is_still_rejected(self, user_client, db):
+        response = user_client.put(URL, json={"config": _with(view="not_a_view")})
+        assert response.status_code == 422
+        assert response.json()["detail"] == "invalid_config"
+        assert db.query(UserSavedConfig).count() == 0
 
 
 class TestValidation:
@@ -270,6 +384,13 @@ class TestValidation:
     def test_unknown_view_is_still_422(self, user_client, db, view):
         # Adding "value" must not open the gate to arbitrary strings.
         response = user_client.put(URL, json={"config": _with(view=view)})
+        assert response.status_code == 422
+        assert response.json()["detail"] == "invalid_config"
+        assert db.query(UserSavedConfig).count() == 0
+
+    @pytest.mark.parametrize("metric", ["day_change", "PE", "", None, 1])
+    def test_unknown_color_by_is_422(self, user_client, db, metric):
+        response = user_client.put(URL, json={"config": _with(colorBy=metric)})
         assert response.status_code == 422
         assert response.json()["detail"] == "invalid_config"
         assert db.query(UserSavedConfig).count() == 0
@@ -331,6 +452,56 @@ class TestValidation:
         assert db.query(UserSavedConfig).count() == 0
 
 
+class TestColorByMetrics:
+    """The 12-value "Size by" allowlist and its backward-compatibility contract."""
+
+    @pytest.mark.parametrize("metric", NEW_COLOR_BY_VALUES)
+    def test_new_color_by_value_round_trips_through_put_get(self, user_client, db, metric):
+        # These seven used to 422 on save; each must now persist and restore.
+        payload = SAMPLE | {"colorBy": metric}
+        put = user_client.put(URL, json={"config": payload, "version": 1})
+        assert put.status_code == 200, put.text
+        assert put.json()["config"]["colorBy"] == metric
+
+        got = user_client.get(URL)
+        assert got.status_code == 200
+        assert got.json()["config"]["colorBy"] == metric
+        db.expire_all()
+        assert db.query(UserSavedConfig).one().config["colorBy"] == metric
+
+    @pytest.mark.parametrize("metric", ORIGINAL_COLOR_BY_VALUES)
+    def test_legacy_saved_color_by_still_parses(self, user_client, db, metric):
+        # A row written before the widening must still read as saved, not fall
+        # back to defaults with a warning.
+        db.add(
+            UserSavedConfig(
+                user_id=1, scope=SCOPE, name="", config=_with(colorBy=metric), version=1
+            )
+        )
+        db.commit()
+
+        body = user_client.get(URL).json()
+        assert body["saved"] is True, body
+        assert "warning" not in body
+        assert body["config"]["colorBy"] == metric
+
+    @pytest.mark.parametrize("metric", ["adx_uppercase", "day_change", "PE", ""])
+    def test_unknown_stored_color_by_falls_back_to_defaults(self, user_client, db, metric):
+        # Reads reject the unknown value too: the whole payload degrades to
+        # defaults with a warning, exactly as it did before the widening.
+        db.add(
+            UserSavedConfig(
+                user_id=1, scope=SCOPE, name="", config=_with(colorBy=metric), version=1
+            )
+        )
+        db.commit()
+
+        body = user_client.get(URL).json()
+        assert body["saved"] is False, body
+        assert body["warning"] == "invalid_saved_config"
+        assert body["config"] == DEFAULTS
+
+
 class TestUniverseRegistryDerivation:
     """Universe and cap-tier ids come from the market-screen registry, not copies."""
 
@@ -378,18 +549,51 @@ class TestUniverseRegistryDerivation:
             assert user_client.put(URL, json={"config": payload}).status_code == 200
             assert user_client.get(URL).json()["config"] == payload
 
+    @pytest.mark.parametrize("universe", ["banknifty", "sensex"])
+    def test_new_index_universes_do_not_422(self, user_client, universe):
+        response = user_client.put(URL, json={"config": _with(universe=universe)})
+        assert response.status_code == 200, response.json()
+        assert response.json()["config"]["universe"] == universe
+
     def test_cap_tiers_derive_from_registry(self, user_client):
         import api.user_configs as uc
-        from api.market_screen.config import ALL_CAP_TIERS
+        from api.market_screen.config import ALL_CAP_TIERS, RANK_TIERS
 
         assert uc.CAP_TIERS == frozenset(ALL_CAP_TIERS)
-        assert uc.CAP_TIERS == {"mega", "large", "mid", "small", "micro"}
+        # Guard against shrinkage without freezing the vocabulary: the India
+        # rank ladder and its fallback are the size tiers every consumer needs.
+        required = {label for _, label in RANK_TIERS.ranks} | {RANK_TIERS.fallback}
+        assert required <= uc.CAP_TIERS
         for tier in ALL_CAP_TIERS:
             assert user_client.put(
                 URL, json={"config": _with(capTiers=[tier])}
             ).status_code == 200, tier
         assert user_client.put(
             URL, json={"config": _with(capTiers=["huge"])}
+        ).status_code == 422
+
+    def test_saved_config_accepts_every_tier_the_snapshot_can_emit(self, user_client):
+        import api.user_configs as uc
+        from api.market_screen.config import UNIVERSES
+
+        # The saved-filter allowlist must cover the rail's whole vocabulary,
+        # including class tiers (ETFs carry no cap but are still selectable).
+        emitted = {
+            label
+            for spec in UNIVERSES.values()
+            for label in (
+                *(tier for _, tier in spec.cap_tiers.ranks),
+                *(tier for _, tier in spec.cap_tiers.absolute),
+                spec.cap_tiers.fallback,
+                *((spec.cap_tiers.non_equity_tier,) if spec.cap_tiers.non_equity_tier else ()),
+            )
+        }
+        assert emitted == uc.CAP_TIERS
+        for tier in sorted(emitted):
+            response = user_client.put(URL, json={"config": _with(capTiers=[tier])})
+            assert response.status_code == 200, (tier, response.json())
+        assert user_client.put(
+            URL, json={"config": _with(capTiers=["not_a_tier"])}
         ).status_code == 422
 
     def test_types_track_registry_for_openapi(self):
@@ -404,13 +608,48 @@ class TestUniverseRegistryDerivation:
         assert set(schema["properties"]["universe"]["enum"]) == set(ALLOWED_UNIVERSES)
         assert "us" in schema["properties"]["universe"]["enum"]
 
-    def test_view_literal_tracks_all_frontend_modes(self):
+    def test_market_filters_accept_new_universes_without_422(self):
+        import api.user_configs as uc
+
+        for uid in ("banknifty", "sensex"):
+            parsed = uc.MarketFiltersV1(universe=uid)
+            assert parsed.universe == uid
+
+    def test_view_literal_accepts_every_frontend_market_view(self):
         from typing import get_args
 
         import api.user_configs as uc
 
-        # Mirrors MARKET_VIEW_OPTIONS / MarketViewMode in useMarketConfig.ts.
-        assert set(get_args(uc.MarketView)) == {"table", "map", "movers", "value"}
+        backend = set(get_args(uc.MarketView))
+        frontend = _frontend_market_view_ids()
+        # Superset, not equality: the backend keeps the legacy ``map`` id for
+        # old saved rows while the frontend writes only canonical ids. What must
+        # never drift is the other direction — every id the frontend can write
+        # has to be accepted by the backend Literal.
+        assert set(frontend) <= backend, (
+            "MarketView is missing frontend view ids: "
+            f"only frontend={sorted(set(frontend) - backend)}"
+        )
+        assert "vis" in frontend, "the frontend registry no longer has the Vis id"
+        assert "map" in backend, "the legacy view id must stay accepted on write"
+
+    def test_color_by_literal_matches_frontend_market_size_metrics(self):
+        from typing import get_args
+
+        import api.user_configs as uc
+
+        backend = list(get_args(uc.MarketColorBy))
+        frontend = _frontend_market_size_metric_values()
+        # Compare the real TS declaration, not a second hardcoded copy: that
+        # copy is exactly what let the dropdown gain seven values unnoticed.
+        assert set(backend) == set(frontend), (
+            "MarketColorBy and MARKET_SIZE_METRIC_VALUES drifted: "
+            f"only backend={sorted(set(backend) - set(frontend))}, "
+            f"only frontend={sorted(set(frontend) - set(backend))}"
+        )
+        assert len(backend) == len(set(backend)), "duplicate in MarketColorBy"
+        assert len(frontend) == len(set(frontend)), "duplicate in MARKET_SIZE_METRIC_VALUES"
+        assert "colorBy" in uc.MarketFiltersV1.model_fields
 
 
 class TestHostileStoredRow:
@@ -1125,3 +1364,83 @@ class TestForwardCompatibleTableReads:
         assert response.status_code == 422
         assert response.json()["detail"] == "unknown_key"
         assert db.query(UserSavedConfig).count() == 0
+
+
+WINDOW_HOME_URL = "/api/user-configs/window.home"
+
+
+class TestWindowHomeScope:
+    """The HOME desk must actually persist.
+
+    `window.home` was never added to `SCOPE_REGISTRY`, so every save 404'd as
+    `unknown_scope`. The client treats 404 as "config API absent — stay quiet",
+    so the desk looked like it saved and silently persisted nothing: geometry,
+    panel settings, named tabs, all lost on reload.
+    """
+
+    def test_scope_is_registered(self):
+        from api.user_configs import SCOPE_REGISTRY
+
+        assert "window.home" in SCOPE_REGISTRY
+
+    def test_a_desk_layout_round_trips(self, user_client):
+        payload = {
+            "active": "Main",
+            "layouts": [
+                {
+                    "name": "Main",
+                    "windows": [
+                        {
+                            "id": "market.heatmap-1",
+                            "type": "market.heatmap",
+                            "title": "MARKET HEATMAP",
+                            "x": 8,
+                            "y": 8,
+                            "w": 600,
+                            "h": 400,
+                            "z": 1,
+                            "settings": {"universe": "nifty50", "sizeBy": "rsi"},
+                        }
+                    ],
+                }
+            ],
+        }
+        put = user_client.put(WINDOW_HOME_URL, json={"config": payload, "version": 1})
+        assert put.status_code == 200, put.text
+
+        get = user_client.get(WINDOW_HOME_URL)
+        assert get.status_code == 200, get.text
+        stored = get.json()["config"]
+        assert stored["active"] == "Main"
+        window = stored["layouts"][0]["windows"][0]
+        assert window["settings"] == {"universe": "nifty50", "sizeBy": "rsi"}
+
+    def test_a_default_read_is_not_a_404(self, user_client):
+        # An empty scope must answer with the default payload, not `unknown_scope`.
+        get = user_client.get(WINDOW_HOME_URL)
+        assert get.status_code == 200, get.text
+        assert get.json()["saved"] is False
+
+    def test_an_oversized_layout_is_rejected(self, user_client):
+        payload = {
+            "active": "Main",
+            "layouts": [
+                {
+                    "name": "Main",
+                    "windows": [
+                        {"id": f"w{i}", "type": "sector.table", "x": 0, "y": 0, "w": 10, "h": 10, "z": i}
+                        for i in range(80)
+                    ],
+                }
+            ],
+        }
+        put = user_client.put(WINDOW_HOME_URL, json={"config": payload, "version": 1})
+        assert put.status_code == 422, put.text
+
+    def test_the_client_version_marker_is_accepted(self, user_client):
+        # The frontend stamps `v` on every desk write. Rejecting it 422'd every
+        # save with `unknown_key: ["v"]` — the desk still persisted nothing.
+        payload = {"v": 1, "active": "Main", "layouts": [{"name": "Main", "windows": []}]}
+        put = user_client.put(WINDOW_HOME_URL, json={"config": payload, "version": 1})
+        assert put.status_code == 200, put.text
+        assert put.json()["config"]["v"] == 1

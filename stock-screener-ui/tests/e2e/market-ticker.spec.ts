@@ -141,8 +141,8 @@ test.describe("Market Ticker", () => {
 
     // Check loading state is shown - use try/catch since it may resolve quickly
     try {
-      const loadingTicker = page.locator('[data-testid="market-ticker"]');
-      const skeleton = loadingTicker.locator(".MuiSkeleton-root").first();
+      const loadingTicker = page.locator('[data-testid="market-ticker"].market-ticker-loading');
+      const skeleton = loadingTicker.locator("div.inline-block").first();
       await expect(skeleton).toBeVisible({ timeout: 500 });
     } catch {
       // Loading state may have passed already, which is fine

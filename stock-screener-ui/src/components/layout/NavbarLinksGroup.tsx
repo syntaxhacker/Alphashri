@@ -46,9 +46,10 @@ export function NavbarLinksGroup(props: NavbarLinksGroupProps) {
           <Text
             size="sm"
             style={{
-              "font-size": "10.5px",
+              "font-size": "11px",
               "font-family": palette.MONO,
               "letter-spacing": "0.06em",
+              "white-space": "nowrap",
               "text-transform": "uppercase",
               "font-weight": props.active ? 600 : 500,
               color: props.active ? palette.PRIMARY : undefined,

@@ -34,7 +34,10 @@ from api.auth import get_current_user  # noqa: E402
 from api.market_screen import snapshot as snapshot_mod  # noqa: E402
 from api.market_screen.router import _MARKET_SOURCE_UNAVAILABLE_DETAIL  # noqa: E402
 from api.market_screen.config import (  # noqa: E402
+    ALL_CAP_TIERS,
     TYPE_STOCK_FILTER,
+    UNIVERSES,
+    UNSERVABLE_UNIVERSES,
     US_COLUMNS,
     US_EXCLUDE_NAME_PATTERN,
     US_EXCLUDE_SYMBOL_PATTERN,
@@ -60,7 +63,7 @@ from api.market_screen.snapshot import (  # noqa: E402
 from api.tv.client import coerce_numeric  # noqa: E402
 
 ALL_EQUITY_FILTERS = [
-    {"left": "type", "operation": "equal", "right": "stock"},
+    {"left": "type", "operation": "in_range", "right": ["stock", "fund"]},
     {"left": "exchange", "operation": "equal", "right": "NSE"},
 ]
 
@@ -79,6 +82,26 @@ RELIANCE_ROW = {
     "return_on_equity": 9.01,
     "update_mode": "streaming",
 }
+
+
+def _etf_row(symbol: str, description: str, close: float):
+    """An NSE ETF row as TV shapes it: no cap and no fundamentals."""
+    return dict(
+        RELIANCE_ROW,
+        name=f"NSE:{symbol}",
+        description=description,
+        close=close,
+        market_cap_basic=None,
+        price_earnings_ttm=None,
+        price_book_fq=None,
+        dividend_yield_recent=None,
+        return_on_equity=None,
+    )
+
+
+GOLDBEES_ROW = _etf_row("GOLDBEES", "Nippon India ETF Gold BeES", 107.85)
+NIFTYBEES_ROW = _etf_row("NIFTYBEES", "Nippon India ETF Nifty 50 BeES", 287.89)
+
 
 EXPECTED_RELIANCE_ROW = {
     "symbol": "RELIANCE", "name": "Reliance Industries", "sector": "Energy", "exchange": "NSE",
@@ -105,6 +128,28 @@ def _clear_disk_stale() -> None:
     if _STALE_DIR.exists():
         shutil.rmtree(_STALE_DIR)
     _STALE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _worker_stale_dir(tmp_path_factory):
+    """Give each worker its own disk-stale snapshot directory.
+
+    ``snapshot._STALE_DIR`` is a fixed repo path. Under xdist every worker
+    clears it around each test while other workers write/read snapshots there,
+    so one worker deletes or contaminates another's cache. Patching both module
+    bindings to a worker-private temp dir removes the shared state without
+    changing production code; ``tmp_path_factory`` also cleans it up.
+    """
+    global _STALE_DIR
+    original = snapshot_mod._STALE_DIR
+    worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
+    _STALE_DIR = tmp_path_factory.mktemp(f"market_screen_stale_{worker}")
+    snapshot_mod._STALE_DIR = _STALE_DIR
+    try:
+        yield _STALE_DIR
+    finally:
+        snapshot_mod._STALE_DIR = original
+        _STALE_DIR = original
 
 
 @pytest.fixture(scope="module")
@@ -194,7 +239,9 @@ def test_dropped_fields_absent_from_response(client, mock_tv):
     assert len(row) == len(EXPECTED_RELIANCE_ROW)
 
 
-@pytest.mark.parametrize("universe", ["nifty50", "nifty500", "nse_fo"])
+@pytest.mark.parametrize(
+    "universe", ["nifty50", "nifty100", "nifty200", "nifty500", "nse_fo"]
+)
 def test_other_universes_route_to_tickers(client, mock_tv, universe):
     from chart_patterns.universes import get_universe
     from api.tv import to_tv_ticker
@@ -214,6 +261,76 @@ def test_invalid_universe_400(client, mock_tv):
     resp = client.get("/api/market/snapshot?universe=forex")
     assert resp.status_code == 400
     assert "unknown universe" in resp.json()["detail"]
+
+
+def _frontend_descriptor_ids() -> set[str]:
+    """Parse the `value:` literals out of the frontend universe registry.
+
+    The dropdown is derived from MARKET_UNIVERSE_DESCRIPTORS, so a backend id the
+    frontend never shipped (or a frontend id the backend rejects) is exactly the
+    drift this guard exists to catch.
+    """
+    source = (ROOT / "src/config/marketUniverses.ts").read_text(encoding="utf-8")
+    block = source.split("MARKET_UNIVERSE_DESCRIPTORS", 1)[1].split("const BY_VALUE", 1)[0]
+    return set(re.findall(r'value:\s*"([a-z0-9_]+)"', block))
+
+
+def test_frontend_universe_ids_match_backend_allowlist():
+    frontend_ids = _frontend_descriptor_ids()
+    new_ids = {"nifty100", "nifty200", "banknifty", "sensex"}
+    assert new_ids <= frontend_ids, f"frontend registry missing {new_ids - frontend_ids}"
+    assert frontend_ids <= set(ALLOWED_UNIVERSES), (
+        f"frontend ids rejected by backend: {frontend_ids - set(ALLOWED_UNIVERSES)}"
+    )
+    assert new_ids <= set(ALLOWED_UNIVERSES)
+    assert frontend_ids == set(ALLOWED_UNIVERSES), (
+        "frontend descriptors and backend allowlist drifted: "
+        f"only frontend={frontend_ids - set(ALLOWED_UNIVERSES)}, "
+        f"only backend={set(ALLOWED_UNIVERSES) - frontend_ids}"
+    )
+
+
+def test_banknifty_and_sensex_reuse_the_india_spec():
+    from api.market_screen.config import UNIVERSES
+
+    for uid in ("banknifty", "sensex"):
+        assert UNIVERSES[uid] == UNIVERSES["nifty50"]
+        assert UNIVERSES[uid].tickers
+        assert UNIVERSES[uid].currency == "INR"
+        assert UNIVERSES[uid].mcap_outputs == (("market_cap_cr", 1e7),)
+
+
+def test_indices_is_excluded_from_market_screener_with_reason():
+    """Chart patterns resolve indices; the equity snapshot cannot shape them."""
+    reason = UNSERVABLE_UNIVERSES["indices"].lower()
+    assert "index" in reason and "equity" in reason
+    assert "indices" not in ALLOWED_UNIVERSES
+    assert "indices" not in _frontend_descriptor_ids()
+
+    from chart_patterns.universes import get_universe
+
+    assert get_universe("indices"), "the pattern universe still resolves its members"
+
+
+def test_documented_universe_ids_match_backend_allowlist(client):
+    """Swagger's `universe` description must list every registry id.
+
+    Read the served OpenAPI schema, not a private router constant, so this
+    guards the artifact users actually see when the registry gains a universe.
+    """
+    schema = client.get("/openapi.json").json()
+    params = schema["paths"]["/api/market/snapshot"]["get"]["parameters"]
+    universe = next(p for p in params if p["name"] == "universe")
+    description = universe["description"]
+
+    for uid in ALLOWED_UNIVERSES:
+        assert re.search(rf"\b{re.escape(uid)}\b", description), (
+            f"universe {uid!r} missing from documented description: {description!r}"
+        )
+    for unservable in UNSERVABLE_UNIVERSES:
+        assert re.search(rf"\b{re.escape(unservable)}\b", description)
+        assert "unsupported" in description.lower()
+    assert "UNSERVABLE_UNIVERSES" in description
 
 
 def test_limit_bounds(client, mock_tv):
@@ -277,6 +394,77 @@ def test_pos_52w_nulls(client, mock_tv):
                   price_52_week_high=300.0, price_52_week_low=100.0)
     mock_tv.return_value = _frame([normal])
     assert client.get("/api/market/snapshot?force=true").json()["rows"][0]["pos_52w"] == 75.0
+
+
+def _tv_type_aware_scan(typed_rows):
+    """Mock scan_frame that applies the outgoing `type` filter server-side.
+
+    The real scanner types NSE ETFs as `fund`, so a `type == stock` filter never
+    returns them. Emulating that here keeps the test honest: a frame with the
+    ETF rows hard-coded would pass even with the exclusion filter restored.
+    """
+    def _scan(*args, **kwargs):
+        type_filter = next(
+            (f for f in (kwargs.get("filters") or []) if f.get("left") == "type"),
+            None,
+        )
+        allowed = None
+        if type_filter is not None:
+            right = type_filter.get("right")
+            if type_filter.get("operation") == "equal":
+                allowed = {right} if isinstance(right, str) else set(right)
+            elif type_filter.get("operation") == "in_range":
+                allowed = set(right)
+        return _frame([
+            row for row, tv_type in typed_rows
+            if allowed is None or tv_type in allowed
+        ])
+    return _scan
+
+
+def test_all_nse_includes_goldbees_and_etf_control(client, mock_tv):
+    """GOLDBEES and NIFTYBEES must survive the All NSE build as ETF rows."""
+    mock_tv.side_effect = _tv_type_aware_scan([
+        (RELIANCE_ROW, "stock"),
+        (GOLDBEES_ROW, "fund"),
+        (NIFTYBEES_ROW, "fund"),
+    ])
+    with patch("api.market_screen.snapshot._ETF_SYMBOLS", {"GOLDBEES", "NIFTYBEES"}):
+        body = client.get("/api/market/snapshot?universe=all_equity&limit=4000").json()
+
+    by_symbol = {row["symbol"]: row for row in body["rows"]}
+    assert {"RELIANCE", "GOLDBEES", "NIFTYBEES"} <= by_symbol.keys()
+    assert by_symbol["GOLDBEES"]["etf"] is True
+    assert by_symbol["NIFTYBEES"]["etf"] is True
+    assert by_symbol["GOLDBEES"]["close"] == 107.85
+
+
+def test_etf_rows_are_not_micro_cap(client, mock_tv):
+    """An ETF's missing market cap is not a small company's market cap.
+
+    The ETF is reclassified out of the size ranking; a capped equity ranked
+    past 500 still earns ``micro``. Without this, the rail's Micro filter returns
+    every ETF alongside genuine micro caps.
+    """
+    equities = [
+        dict(RELIANCE_ROW, name=f"NSE:SYM{i:04d}", market_cap_basic=(1000 - i) * 1e9)
+        for i in range(501)
+    ]
+    mock_tv.return_value = _frame([*equities, GOLDBEES_ROW])
+    with patch("api.market_screen.snapshot._ETF_SYMBOLS", {"GOLDBEES"}):
+        body = client.get("/api/market/snapshot?limit=4000").json()
+
+    by_symbol = {row["symbol"]: row for row in body["rows"]}
+    etf = by_symbol["GOLDBEES"]
+    assert etf["etf"] is True
+    assert etf["market_cap_cr"] is None
+    assert etf["cap_tier"] == "etf"
+    assert etf["cap_tier"] != "micro"
+
+    micro = by_symbol["SYM0500"]
+    assert micro["etf"] is False
+    assert micro["market_cap_cr"] is not None
+    assert micro["cap_tier"] == "micro"
 
 
 def test_fno_etf_tags_use_hoisted_sets(client):
@@ -1293,16 +1481,46 @@ def test_us_rows_are_usd_with_absolute_cap_tiers(client, mock_tv):
 
 
 def test_us_cap_tier_boundaries(client, mock_tv):
+    """Absolute thresholds are inclusive; a cap below the lowest one takes the
+    spec's fallback. Tiers, boundaries and the weakest tier all come from the
+    registry, so adding a tier needs no test edit.
+    """
+    spec = UNIVERSES["us"].cap_tiers
+    thresholds = spec.absolute  # ((minimum_billions, tier), ...) descending
+    assert thresholds, "US spec must declare absolute cap tiers"
+
+    # One row exactly at every boundary plus one deliberately below the lowest
+    # boundary, which exercises the fallback ("weakest") tier.
+    below = thresholds[-1][0] * 0.997
+    caps_b = [minimum for minimum, _ in thresholds] + [below]
     rows = [
-        _us_row("AT200", "NASDAQ", 200_000_000_000),
-        _us_row("AT10", "NASDAQ", 10_000_000_000),
-        _us_row("AT2", "NASDAQ", 2_000_000_000),
-        _us_row("AT03", "NASDAQ", 300_000_000),
-        _us_row("BELOW03", "NASDAQ", 299_000_000),
+        _us_row(f"BOUND{i:02d}", "NASDAQ", cap * 1e9)
+        for i, cap in enumerate(caps_b)
     ]
     mock_tv.return_value = _us_frame(rows)
     out = client.get("/api/market/snapshot?universe=us").json()["rows"]
-    assert [r["cap_tier"] for r in out] == ["mega", "large", "mid", "small", "micro"]
+    got_caps = [r["marketCapUsdB"] for r in out]
+    got_tiers = [r["cap_tier"] for r in out]
+
+    def expected_tier(cap_b):
+        for minimum, tier in thresholds:
+            if cap_b >= minimum:
+                return tier
+        return spec.fallback
+
+    # Boundary behaviour: each threshold is inclusive and the lowest cap falls
+    # back. Derived from the spec, not a frozen tier list.
+    assert got_tiers == [expected_tier(cap) for cap in got_caps]
+    # Registry membership: no emitted tier is made up.
+    assert set(got_tiers) <= set(ALL_CAP_TIERS)
+    # Descending size order: tiers follow the registry's threshold order, not
+    # the row order, so an inverted pair fails here.
+    rank = {tier: i for i, (_, tier) in enumerate(thresholds)}
+    rank[spec.fallback] = len(thresholds)
+    assert [rank[tier] for tier in got_tiers] == sorted(rank[tier] for tier in got_tiers)
+    # The deliberately weak tier is still exercised by the below-threshold row.
+    assert got_tiers[-1] == spec.fallback
+    assert got_caps[-1] < thresholds[-1][0]
 
 
 def test_us_drops_otc_foreign_and_funds(client, mock_tv):

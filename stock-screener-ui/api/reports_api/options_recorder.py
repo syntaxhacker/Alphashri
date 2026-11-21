@@ -11,24 +11,40 @@ Frozen on-disk contract (the history agent reads these)::
         {"t": ISO, "spot": float, "expiry": "YYYY-MM-DD",
          "rows": [[strike, ceLtp, ceOi, ceVol, peLtp, peOi, peVol], ...]}
 
+    experiments/data/options_chain10s_greeks/{SYMBOL}/{YYYY-MM-DD}.jsonl
+        {"t": ISO, "expiry": "YYYY-MM-DD", "spot": float,
+         "rows": [{"strike", "ce": {iv,delta,gamma,theta,vega}, "pe": {...}}]}
+        Same shape as ``nifty_chain10s_greeks``. Opt out with
+        ``OPTIONS_CHAIN10S_GREEKS=0``. No extra fetch — a projection of the
+        chain already in memory.
+
     experiments/data/options_tape/{SYMBOL}/{YYYY-MM-DD}.jsonl
         ONE raw tape row per minute with the NIFTY tape's field set plus
-        ``underlying`` (see :func:`_build_tape_row`).
+        ``underlying`` (see :func:`_build_tape_row`). Deduped per minute from
+        the file itself, so a restart mid-minute cannot double-write.
 
     experiments/data/options_snapshots/{SYMBOL}/{YYYY-MM-DD}.jsonl
-        {"t": ISO, "fetched_at": ISO, "report": <full report>, "sensex": null}
+        {"t": ISO, "fetched_at": ISO, "mode", "snapshot_at", "source",
+         "report": <full report>, "sensex": null}
+        The stamps sit on the line as well as inside the report, matching the
+        NIFTY replay log so one reader can serve both.
 
     experiments/data/options_snapshots/{SYMBOL}/{YYYY-MM-DD}.json
         Last snapshot report, written atomically (tmp + ``os.replace``).
 
     experiments/data/options_tape/{SYMBOL}/{YYYY-MM-DD}.gaps.jsonl
-        Optional skip journal: ``{"t", "symbol", "reason", "detail"?}``.
+    experiments/data/options_chain10s/{SYMBOL}/{YYYY-MM-DD}.gaps.jsonl
+        Optional skip journals: ``{"t", "symbol", "reason", "detail"?}``.
 
 Design rules (mirrors the NIFTY recorder, which is the reference):
 
 - **Additive.** No ``_compute_live`` / ``_live_cache``, no ``nifty_*`` writes,
   no DB, no changes to the NIFTY snapshot/tape/chain10s writers.
-- **One chain fetch per 10 s per symbol**, reused for the chain10s line, the
+- **One chain fetch per 10 s per symbol**, fetched RAW and parsed with
+  ``nifty.parse_chain_payload`` so a snapshot leg carries the same 24 fields
+  NIFTY records (bid/ask + qty, rho, pop, instrument_key, …). ``get_option_chain``
+  drops rho and the order-book quantities before the recorder ever sees them.
+  The one fetch is reused for the chain10s line, the greeks line, the
   per-minute tape row AND the per-minute replay frame (no second fetch).
 - **Rate budget.** Every expiry/chain/candle call takes a token from
   ``upstox_trader.rate_limiter`` under the ``options`` consumer slice
@@ -50,7 +66,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 from api.options_conventions import NEAR_BAND_PCT
-from api.reports_api._numeric import safe_float, safe_int
+from api.reports_api import _journal, _jsonl
+from api.reports_api._tape_row import build_tape_row
 from api.reports_api._time import today_str as _today_str
 from fastapi import APIRouter
 
@@ -64,6 +81,7 @@ router = APIRouter(prefix="/api/reports/options", tags=["options-recorder"])
 #: ``experiments/data`` — tests monkeypatch this to ``tmp_path``.
 DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "experiments" / "data"
 CHAIN10S_DIRNAME = "options_chain10s"
+CHAIN10S_GREEKS_DIRNAME = "options_chain10s_greeks"
 TAPE_DIRNAME = "options_tape"
 SNAPSHOT_DIRNAME = "options_snapshots"
 
@@ -88,6 +106,12 @@ DEFAULT_SYMBOLS = "SENSEX,RELIANCE"
 # fixed ±300 pts is meaningless for SENSEX (~84k) and huge for a stock (~1.3k).
 #: Optional off-switch (the recorder is additive; disabling must be trivial).
 ENABLED = os.getenv("OPTIONS_RECORDER_ENABLED", "1") != "0"
+#: 10 s greeks evidence file (separate dir; the 7-tuple chain10s contract stays).
+GREEKS_ENABLED = os.getenv("OPTIONS_CHAIN10S_GREEKS", "1") != "0"
+#: A hole longer than this multiple of the recorder interval is a chain10s gap.
+GAP_MULTIPLE = float(os.getenv("OPTIONS_RECORDER_GAP_MULTIPLE", "2"))
+#: Upper bound for gap journalling — a longer hole is a session boundary.
+GAP_MAX_SEC = float(os.getenv("OPTIONS_RECORDER_GAP_MAX_SEC", "3600"))
 #: Seconds a chain/expiry/candle call waits for a limiter token.
 RATE_ACQUIRE_TIMEOUT_SEC = 5.0
 
@@ -102,6 +126,10 @@ def chain10s_dir() -> Path:
     return DATA_ROOT / CHAIN10S_DIRNAME
 
 
+def chain10s_greeks_dir() -> Path:
+    return DATA_ROOT / CHAIN10S_GREEKS_DIRNAME
+
+
 def tape_dir() -> Path:
     return DATA_ROOT / TAPE_DIRNAME
 
@@ -112,6 +140,14 @@ def snapshot_dir() -> Path:
 
 def chain10s_path(symbol: str, date_str: str) -> Path:
     return chain10s_dir() / symbol / f"{date_str}.jsonl"
+
+
+def chain10s_greeks_path(symbol: str, date_str: str) -> Path:
+    return chain10s_greeks_dir() / symbol / f"{date_str}.jsonl"
+
+
+def chain10s_gap_path(symbol: str, date_str: str) -> Path:
+    return chain10s_dir() / symbol / f"{date_str}.gaps.jsonl"
 
 
 def tape_path(symbol: str, date_str: str) -> Path:
@@ -141,6 +177,13 @@ _expiry_cache: dict[str, dict] = {}
 _intraday_cache: dict[str, dict] = {}
 _lot_maps: Optional[dict] = None
 _gap_minutes: dict[str, set[str]] = {}
+#: Minutes already present in a day's tape file (loaded once per file), so a
+#: restart mid-minute — or any second writer — cannot duplicate the row.
+_tape_minutes: dict[str, set[str]] = {}
+#: Last successful chain10s write per symbol: ``{"mono": float, "iso": str}``.
+_last_chain10s: dict[str, dict] = {}
+#: ``(minute, reason)`` already journalled per chain10s gap file.
+_chain_gap_seen: dict[str, set[tuple[str, str]]] = {}
 
 _status: dict[str, Any] = {
     "last_tick": None,
@@ -172,7 +215,7 @@ def symbols() -> list[str]:
 def _sym_state(symbol: str) -> dict:
     state = _per_symbol.get(symbol)
     if state is None:
-        state = {"chain10s": 0, "tape": 0, "snapshots": 0,
+        state = {"chain10s": 0, "greeks": 0, "tape": 0, "snapshots": 0,
                  "last_tick": None, "last_error": None, "last_skip": None}
         _per_symbol[symbol] = state
     return state
@@ -185,6 +228,9 @@ def _reset_state() -> None:
     _expiry_cache.clear()
     _intraday_cache.clear()
     _gap_minutes.clear()
+    _tape_minutes.clear()
+    _last_chain10s.clear()
+    _chain_gap_seen.clear()
     _per_symbol.clear()
     _LAST_MINUTE.clear()
     _lot_maps = None
@@ -217,20 +263,30 @@ def status() -> dict:
 # --------------------------------------------------------------------------- #
 # small helpers
 # --------------------------------------------------------------------------- #
+def _ist(ts: Optional[datetime] = None) -> datetime:
+    """Aware IST wall clock; a naive input is assumed IST, not UTC."""
+    ts = ts or datetime.now(config.IST)
+    if ts.tzinfo is None:
+        return ts.replace(tzinfo=config.IST)
+    return ts.astimezone(config.IST)
+
+
+def _ist_iso(ts: Optional[datetime] = None) -> str:
+    return _ist(ts).isoformat()
+
+
 def _tick_stamp(now: Optional[datetime] = None) -> tuple[str, str]:
     """ISO stamp + ``YYYY-MM-DD`` for a tick (IST, tz-aware)."""
-    ts = now or datetime.now(config.IST)
-    if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=config.IST)
-    t_iso = ts.isoformat()
+    t_iso = _ist_iso(now)
     return t_iso, t_iso[:10]
 
 
-def _market_open() -> bool:
-    """Is the exchange open? Hour-window fallback on import failure.
+def _derivatives_open() -> bool:
+    """Is the F&O session open? Hour-window fallback on import failure.
 
     Options/F&O trading runs until 15:40 IST (DERIVATIVES_CLOSE), five minutes
     past the cash CAS — so the recorder stays open past cash-market close.
+    Also decides whether today's 0-DTE contract may be the nearest expiry.
     """
     try:
         from trading.utils import is_derivatives_open
@@ -238,6 +294,11 @@ def _market_open() -> bool:
         return bool(is_derivatives_open())
     except Exception:
         return 8 <= datetime.now(config.IST).hour <= 16
+
+
+def _market_open() -> bool:
+    """Is the exchange open? (the recorder loop's gate — see ``_derivatives_open``)."""
+    return _derivatives_open()
 
 
 def _advance_next_tick(next_tick: float, interval_sec: float,
@@ -274,51 +335,22 @@ def _window_for(spot: float) -> float:
 
 
 def _append_jsonl(path: Path, obj: dict) -> None:
-    """Append one compact JSON line (blocking; call via a thread)."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "a") as fh:
-        fh.write(json.dumps(obj, separators=(",", ":")) + "\n")
+    """Append one compact JSON line (blocking; call via a thread).
+
+    Kept as a module-level name: tests patch it to simulate a transient disk
+    error, and ``_append_tape_row`` must go through the patched function.
+    """
+    _jsonl.append_line(path, obj, separators=(",", ":"))
 
 
 def _write_json_atomic(path: Path, obj: dict) -> None:
     """Write a whole JSON file atomically (tmp + ``os.replace``)."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    with open(tmp, "w") as fh:
-        json.dump(obj, fh, separators=(",", ":"))
-    os.replace(tmp, path)
+    _jsonl.write_json_atomic(path, obj, separators=(",", ":"))
 
 
 def _tail_last_json_line(path: Path, chunk: int = 65536) -> Optional[dict]:
-    """Last complete JSON object in a growing JSONL file, reading the tail.
-
-    Same O(1) trick as ``nifty._tail_last_json_line``: these logs reach tens of
-    MB by the close and the minute-dedupe only needs the final line. Never
-    raises.
-    """
-    try:
-        if not path.exists():
-            return None
-        with open(path, "rb") as fh:
-            fh.seek(0, os.SEEK_END)
-            size = fh.tell()
-            if size <= 0:
-                return None
-            window = min(chunk, size)
-            lines: list[bytes] = []
-            while True:
-                fh.seek(size - window)
-                data = fh.read(window)
-                lines = [ln for ln in data.split(b"\n") if ln.strip()]
-                if len(lines) >= (1 if window == size else 2) or window == size:
-                    break
-                window = min(window * 2, size)
-        if not lines:
-            return None
-        value = json.loads(lines[-1])
-        return value if isinstance(value, dict) else None
-    except Exception:
-        return None
+    """Last complete JSON object in a growing JSONL file, reading the tail."""
+    return _jsonl.tail_last_json_line(path, chunk)
 
 
 def _gap_minutes_for(path: Path) -> set[str]:
@@ -327,22 +359,7 @@ def _gap_minutes_for(path: Path) -> set[str]:
     cached = _gap_minutes.get(key)
     if cached is not None:
         return cached
-    seen: set[str] = set()
-    try:
-        with open(path) as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    value = json.loads(line)
-                except (json.JSONDecodeError, ValueError):
-                    continue
-                t = value.get("t") if isinstance(value, dict) else None
-                if isinstance(t, str) and t:
-                    seen.add(t[:16])
-    except OSError:
-        pass
+    seen = _journal.read_minute_keys(path)
     _gap_minutes[key] = seen
     return seen
 
@@ -355,21 +372,57 @@ def _append_gap(symbol: str, date_str: str, t_iso: str, reason: str,
     not six), so the counts answer "which minutes are missing and why".
     Never raises.
     """
+    path = gap_log_path(symbol, date_str)
+    _journal.append_gap(path, t_iso, reason, seen=_gap_minutes_for(path),
+                        symbol=symbol, detail=detail,
+                        dedupe=_journal.MINUTE)
+
+
+def _append_chain_gap(symbol: str, date_str: str, t_iso: str, reason: str,
+                      detail: str = "") -> None:
+    """Journal one failed / missing chain10s poll (deduped per minute+reason).
+
+    The tape journal answers "why is this minute's row missing"; this one
+    answers the separate question "why is the 10 s series holed" — the two are
+    not the same outage (a slow chain fetch holes the 10 s series while the
+    minute row still lands). One entry per (minute, reason): the same minute
+    can fail for two different causes. Never raises.
+    """
+    path = chain10s_gap_path(symbol, date_str)
+    _journal.append_gap(path, t_iso, reason,
+                        seen=_chain_gap_seen.setdefault(str(path), set()),
+                        symbol=symbol, detail=detail,
+                        dedupe=_journal.MINUTE_REASON)
+
+
+def _tape_minutes_for(path: Path) -> set[str]:
+    """``{YYYY-MM-DDTHH:MM}`` already in this day's tape file (loaded once).
+
+    The old guard only compared the LAST line's minute, which cannot see a
+    duplicate written earlier (a restart, a second process, a retry after a
+    torn append). This reads the file once per session and then answers in
+    O(1); the file is ~5 MB by the close.
+    """
+    key = str(path)
+    seen = _tape_minutes.get(key)
+    if seen is not None:
+        return seen
+    seen = _journal.read_minute_keys(path)
+    _tape_minutes[key] = seen
+    return seen
+
+
+def _append_tape_row(path: Path, row: dict) -> None:
+    """Append the minute's tape row, retrying once on a transient write error.
+
+    The tape is a 1-minute series: losing this append costs the whole minute
+    because the next tick belongs to the next one. A retry is safe here
+    because the caller only marks the minute recorded after this returns.
+    """
     try:
-        minute = str(t_iso)[:16]
-        seen = _gap_minutes_for(gap_log_path(symbol, date_str))
-        if minute in seen:
-            return
-        entry: dict[str, Any] = {"t": t_iso, "symbol": symbol, "reason": reason}
-        if detail:
-            entry["detail"] = str(detail)[:200]
-        path = gap_log_path(symbol, date_str)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "a") as fh:
-            fh.write(json.dumps(entry) + "\n")
-        seen.add(minute)
-    except Exception:
-        pass
+        _append_jsonl(path, row)
+    except OSError:
+        _append_jsonl(path, row)
 
 
 # --------------------------------------------------------------------------- #
@@ -418,35 +471,67 @@ async def _fetch_expiries(symbol: str) -> dict:
     return await fn(symbol)
 
 
-async def _fetch_chain(symbol: str, expiry: str) -> dict:
-    """``api.options.get_option_chain`` (imported lazily, monkeypatch-friendly)."""
-    fn = globals().get("get_option_chain")
+async def _fetch_raw_chain(symbol: str, expiry: str) -> dict:
+    """Raw Upstox ``/option/chain`` payload for one underlying.
+
+    Deliberately NOT ``api.options.get_option_chain``: that route flattens each
+    leg through ``transform_option_contract``, which drops ``rho``, the
+    total buy/sell quantity and the last-trade fields — exactly the evidence
+    the snapshot is supposed to keep. This is one HTTP call, the same call the
+    route would have made (its chain TTL is 5 s), so the rate budget is
+    unchanged. Imported lazily so tests can patch what is captured.
+    """
+    fn = globals().get("fetch_upstox")
     if fn is None:
-        from api.options import get_option_chain as fn
-    return await fn(symbol, expiry)
+        from api.options import fetch_upstox as fn
+    key_fn = globals().get("get_instrument_key")
+    if key_fn is None:
+        from api.options import get_instrument_key as key_fn
+    return await fn("/option/chain", {
+        "instrument_key": key_fn(symbol),
+        "expiry_date": expiry,
+    })
+
+
+def _parse_chain(payload: dict) -> tuple[str, float, list[dict]]:
+    """``nifty.parse_chain_payload`` — the full 24-field leg shape.
+
+    Rows with no strike are dropped (a malformed payload would otherwise put a
+    ``strike 0`` row into max-pain and the walls ranking).
+    """
+    expiry, spot, rows = _nifty().parse_chain_payload(payload or {})
+    return expiry, spot, [r for r in rows if r.get("strike")]
 
 
 async def _nearest_expiry(symbol: str) -> Optional[str]:
-    """Nearest listed expiry for ``symbol`` (cached 1 h); ``None`` when absent."""
+    """Nearest listed expiry for ``symbol`` (cached 1 h); ``None`` when absent.
+
+    Same 0-DTE rule as the NIFTY recorder: today's contract is the nearest
+    expiry only while the derivatives session is open
+    (``nifty.pick_nearest_expiry``). The cache is keyed by
+    ``(symbol, today, include_today)`` — a plain symbol key let a cache set
+    during the session keep serving the 0-DTE expiry after the close.
+    """
+    today = _today_str()
+    include_today = _derivatives_open()
+    key = (symbol, today, include_today)
     now = time.monotonic()
-    hit = _expiry_cache.get(symbol)
+    hit = _expiry_cache.get(key)
     if hit and now - hit["ts"] < EXPIRY_TTL_SEC:
         return hit["expiry"]
     if not await _acquire_upstream():
         return hit["expiry"] if hit else None
     listing = await _fetch_expiries(symbol)
     expiries = (listing or {}).get("expiries") or []
-    expiry = ""
-    for item in expiries:
-        if isinstance(item, dict) and item.get("date"):
-            expiry = str(item["date"])
-            break
-        if isinstance(item, str) and item:
-            expiry = item
-            break
+    # ``pick_nearest_expiry`` reads dict entries; the listing may also carry
+    # plain date strings (a test double / older payload shape).
+    entries = [e if isinstance(e, dict) else {"date": str(e)}
+               for e in expiries if e]
+    chosen = _nifty().pick_nearest_expiry(entries, today, include_today)
+    expiry = str((chosen or {}).get("date") or "")
     if not expiry:
         return hit["expiry"] if hit else None
-    _expiry_cache[symbol] = {"ts": now, "expiry": expiry}
+    _expiry_cache[key] = {"ts": now, "expiry": expiry}
     return expiry
 
 
@@ -548,9 +633,8 @@ except Exception:  # pragma: no cover - import guard only
     fetch_candles_for_timeframe = None  # type: ignore[assignment]
 
 try:
-    from api.reports_api.nifty_verdicts import atm_ivs, ema_series
+    from api.reports_api.nifty_verdicts import ema_series
 except Exception:  # pragma: no cover - import guard only
-    atm_ivs = None  # type: ignore[assignment]
     ema_series = None  # type: ignore[assignment]
 
 
@@ -697,48 +781,103 @@ def _nifty():
     return nifty
 
 
-def _build_strikes(chain: list[dict]) -> list[dict]:
-    """``api.reports_api.options_report.build_strikes`` with a local fallback."""
+# --------------------------------------------------------------------------- #
+# chain10s + greeks evidence (both projections of the chain already fetched)
+# --------------------------------------------------------------------------- #
+def _note_chain10s_gap(symbol: str, date_str: str, t_iso: str) -> None:
+    """Journal a hole in the 10 s series (measured from the previous success).
+
+    A restart leaves no baseline, so restart downtime is not reported as a
+    poller gap — the session's own coverage still shows the hole.
+    """
+    last = _last_chain10s.get(symbol)
+    if not last:
+        return
+    elapsed = time.monotonic() - float(last.get("mono") or 0)
+    if GAP_MULTIPLE * INTERVAL_SEC < elapsed <= GAP_MAX_SEC:
+        _append_chain_gap(symbol, date_str, t_iso, "poll-gap",
+                          f"gap {elapsed:.0f}s > {GAP_MULTIPLE:g}x {INTERVAL_SEC:.0f}s")
+
+
+async def _write_chain10s(symbol: str, date_str: str, t_iso: str,
+                          expiry: str, spot: float,
+                          strikes: list[dict]) -> bool:
+    """Append the slim 10 s line (the frozen 7-tuple contract) for one poll."""
     try:
-        from api.reports_api.options_report import build_strikes
+        from api.reports_api.chain10s import slim_rows
 
-        return build_strikes(chain)
+        slim = slim_rows(strikes, spot, _window_for(spot))
+    except Exception as exc:
+        _append_chain_gap(symbol, date_str, t_iso, "chain10s-failed",
+                          _err_detail(exc))
+        return False
+    if not slim:
+        _append_chain_gap(symbol, date_str, t_iso, "empty-chain",
+                          "chain parsed but no strikes inside the window")
+        return False
+    _note_chain10s_gap(symbol, date_str, t_iso)
+    line = {"t": t_iso, "spot": round(float(spot), 2),
+            "expiry": expiry, "rows": slim}
+    try:
+        await asyncio.to_thread(_append_jsonl, chain10s_path(symbol, date_str), line)
+    except Exception as exc:
+        _append_chain_gap(symbol, date_str, t_iso, "chain10s-write-failed",
+                          _err_detail(exc))
+        return False
+    _last_chain10s[symbol] = {"mono": time.monotonic(), "iso": t_iso}
+    return True
+
+
+async def _write_greeks(symbol: str, date_str: str, t_iso: str, expiry: str,
+                        spot: float, strikes: list[dict]) -> bool:
+    """Append the 10 s greeks/IV line — the same shape as the NIFTY evidence file.
+
+    Optional (``OPTIONS_CHAIN10S_GREEKS=0``) and additive: the slim 7-tuple
+    snapshot is untouched. The chain is already in memory, so this is a
+    projection, never a fetch.
+    """
+    if not GREEKS_ENABLED:
+        return False
+    try:
+        from api.reports_api.chain10s import greeks_rows
+
+        rows = greeks_rows(strikes, spot, _window_for(spot))
+    except Exception as exc:
+        _append_chain_gap(symbol, date_str, t_iso, "greeks-failed",
+                          _err_detail(exc))
+        return False
+    if not rows:
+        return False
+    payload = {"t": t_iso, "expiry": expiry, "spot": round(float(spot), 2),
+               "rows": rows}
+    try:
+        await asyncio.to_thread(
+            _append_jsonl, chain10s_greeks_path(symbol, date_str), payload)
+    except Exception as exc:
+        # Evidence is additive: a full disk must not cost the snapshot/tape.
+        _append_chain_gap(symbol, date_str, t_iso, "greeks-write-failed",
+                          _err_detail(exc))
+        return False
+    return True
+
+
+def _futures_block(symbol: str, date_str: str) -> Optional[dict]:
+    """Newest local futures/basis row for the index, when that recorder exists.
+
+    Optional by design: the SENSEX futures recorder is a separate module and a
+    separate process. Gated on the import (so this file does not depend on it)
+    and resolved through THIS module's ``DATA_ROOT`` (so tests stay hermetic).
+    A local tail read, never a fetch.
+    """
+    if str(symbol or "").upper() != "SENSEX":
+        return None
+    try:
+        from api.reports_api import sensex_futures
+
+        dirname = str(getattr(sensex_futures, "DIRNAME", "sensex_futures"))
     except Exception:
-        pass
-    rows: list[dict] = []
-    for row in chain or []:
-        try:
-            strike = float((row or {}).get("strike") or 0)
-        except (TypeError, ValueError):
-            continue
-        if strike <= 0:
-            continue
-        rows.append({"strike": strike, "ce": _side(row.get("ce")),
-                     "pe": _side(row.get("pe"))})
-    rows.sort(key=lambda r: r["strike"])
-    return rows
-
-
-def _side(contract: Optional[dict]) -> dict:
-    """Minimal ``{ltp, oi, volume}`` leg when options_report is unavailable."""
-    md = (contract or {}).get("market_data") or {}
-    greeks = (contract or {}).get("option_greeks") or {}
-
-    return {
-        "ltp": safe_float(md.get("ltp")),
-        "close": safe_float(md.get("close_price")),
-        "oi": safe_int(md.get("oi")),
-        "prevOi": safe_int(md.get("prev_oi")),
-        "oiChange": 0,
-        "priceChange": 0.0,
-        "sentiment": "Neutral",
-        "volume": safe_int(md.get("volume")),
-        "delta": greeks.get("delta"),
-        "gamma": greeks.get("gamma"),
-        "theta": greeks.get("theta"),
-        "vega": greeks.get("vega"),
-        "iv": greeks.get("iv"),
-    }
+        return None
+    return _tail_last_json_line(DATA_ROOT / dirname / f"{date_str}.jsonl")
 
 
 def build_base_report(symbol: str, expiry: str, spot: float,
@@ -776,78 +915,32 @@ def build_base_report(symbol: str, expiry: str, spot: float,
     base["intraday"] = []
     base["emas"] = []
     base["ohlc"] = {"open": spot, "high": spot, "low": spot, "close": spot}
+    # Pure projection of the rows in memory (no fetch). Self-expiry only: the
+    # term structure needs other expiries' chains, which this recorder does not
+    # fetch, so ``iv_surface.term`` stays [] rather than inventing a curve.
+    try:
+        from api.reports_api.iv_surface import attach_iv_surface
+
+        attach_iv_surface(base, strikes)
+    except Exception:
+        pass
     return base
 
 
 # --------------------------------------------------------------------------- #
-# tape row (copied from nifty._write_tape_row, generic paths, no NIFTY writes)
+# tape row (the shared NIFTY builder + ``underlying``)
 # --------------------------------------------------------------------------- #
-def _build_tape_row(symbol: str, report: dict, spot: float, t_iso: str) -> dict:
-    """One tape row — the NIFTY field set plus ``underlying``.
+def _build_tape_row(symbol: str, report: dict, spot: float, t_iso: str,
+                    spot_chain: Optional[float] = None) -> dict:
+    """One tape row — the exact NIFTY field set, in the NIFTY field order.
 
     ``spot`` is the already-reconciled value (see :func:`_write_minute`), so the
-    ATM/wall/chain snapshots all derive from one trustworthy print.
+    ATM/wall/chain snapshots all derive from one trustworthy print. The builder
+    lives in :mod:`api.reports_api._tape_row` and is shared with
+    ``nifty._write_tape_row``; the only generic addition is ``underlying``.
     """
-    nifty = _nifty()
-    safe_int = nifty._safe_int
-    safe_float = nifty._safe_float
-    strikes = report.get("strikes") or []
-    gex = report.get("gex") or {}
-
-    ce_oi = sum(safe_int((r.get("ce") or {}).get("oi")) for r in strikes)
-    pe_oi = sum(safe_int((r.get("pe") or {}).get("oi")) for r in strikes)
-    ce_vol = sum(safe_int((r.get("ce") or {}).get("volume")) for r in strikes)
-    pe_vol = sum(safe_int((r.get("pe") or {}).get("volume")) for r in strikes)
-
-    atm_strike, atm_ce_ltp, atm_pe_ltp = nifty._atm_premium_snapshot(strikes, spot)
-    try:
-        fn = atm_ivs
-        if fn is None:
-            from api.reports_api.nifty_verdicts import atm_ivs as fn
-        atm_ce_iv, atm_pe_iv = fn(strikes, spot)
-    except Exception:
-        atm_ce_iv, atm_pe_iv = None, None
-
-    row = {
-        "t": t_iso,
-        "spot": spot,
-        "ce_oi": ce_oi,
-        "pe_oi": pe_oi,
-        "ce_vol": ce_vol,
-        "pe_vol": pe_vol,
-        "pcr_oi": safe_float(report.get("pcr_oi")),
-        "pcr_vol": safe_float(report.get("pcr_vol")),
-        "max_pain": safe_float(report.get("max_pain")),
-        # The live report prefers Upstox's OFFICIAL max pain; store the
-        # computed value beside it so "did price pin to max pain" studies never
-        # mix two definitions (mirrors the NIFTY tape).
-        "max_pain_computed": nifty.compute_max_pain([
-            {"strike": safe_float(r.get("strike")) or 0.0,
-             "ce_oi": safe_int((r.get("ce") or {}).get("oi")),
-             "pe_oi": safe_int((r.get("pe") or {}).get("oi"))}
-            for r in strikes
-        ]) if strikes else None,
-        # A degraded GEX block is an OI proxy, not a gamma profile: its flip /
-        # net_gex are artefacts and are not written into the day's log.
-        "flip": None if gex.get("degraded") else gex.get("zero_cross"),
-        "net_gex": None if gex.get("degraded") else gex.get("net_total"),
-        "gex_degraded": bool(gex.get("degraded")),
-        # NEAR walls: the wall-migration/squeeze detectors compare the wall
-        # strike minute-to-minute, so an unrestricted ranking would "migrate"
-        # whenever a far mega-wall outranks the near one.
-        "walls": report.get("walls_near") or report.get("walls")
-                 or {"calls": [], "puts": []},
-        "expiry": report.get("expiry", ""),
-        "atm_strike": atm_strike,
-        "atm_ce_ltp": atm_ce_ltp,
-        "atm_pe_ltp": atm_pe_ltp,
-        "atm_ce_iv": atm_ce_iv,
-        "atm_pe_iv": atm_pe_iv,
-        "strikes_top": nifty._strike_oi_snapshot(strikes, spot),
-        "chain": nifty._premium_chain_snapshot(strikes, spot),
-        "underlying": symbol,
-    }
-    return row
+    return build_tape_row(report, spot=spot, spot_chain=spot_chain,
+                          t_iso=t_iso, extra={"underlying": symbol})
 
 
 def _peek_last_tape(path: Path, minute: str) -> tuple[Optional[float], bool]:
@@ -874,7 +967,10 @@ async def _write_minute(symbol: str, report: dict, date_str: str,
     path = tape_path(symbol, date_str)
     minute = str(t_iso)[:16]
     last_spot, same_minute = await asyncio.to_thread(_peek_last_tape, path, minute)
-    if same_minute:
+    # The tail check catches the common case (two ticks in one minute); the
+    # day-file index also catches a duplicate written earlier in the minute
+    # (restart, second writer, retried append).
+    if same_minute or minute in await asyncio.to_thread(_tape_minutes_for, path):
         _sym_state(symbol)["last_skip"] = "same-minute"
         return None
 
@@ -903,20 +999,36 @@ async def _write_minute(symbol: str, report: dict, date_str: str,
         _append_gap(symbol, date_str, t_iso, "empty-chain")
         return None
 
-    row = _build_tape_row(symbol, report, spot, t_iso)
-    await asyncio.to_thread(_append_jsonl, path, row)
+    # The replay envelope must carry the SAME spot the tape row reconciles to
+    # (NIFTY parity): a raw chain print that reconciliation moved would make
+    # the replay disagree with the tape. ``spot_raw``/``spot_source`` preserve
+    # what the chain said.
+    report_out = report
+    if round(spot, 2) != round(spot_chain, 2):
+        report_out = {**report, "spot": spot, "spot_raw": spot_chain,
+                      "spot_source": "tape_reconciled"}
 
+    row = _build_tape_row(symbol, report, spot, t_iso, spot_chain=spot_chain)
+    await asyncio.to_thread(_append_tape_row, path, row)
+    _tape_minutes.setdefault(str(path), set()).add(minute)
+
+    # Same line shape as the NIFTY replay log: the stamps are on the LINE as
+    # well as inside the report so a consumer can classify a frame without
+    # walking into it.
     frame = {
         "t": t_iso,
         "fetched_at": report.get("fetched_at"),
-        "report": report,
+        "mode": report_out.get("mode", "snapshot"),
+        "snapshot_at": report_out.get("snapshot_at") or t_iso,
+        "source": report_out.get("source", "upstox-option-chain"),
+        "report": report_out,
         "sensex": None,
     }
     await asyncio.to_thread(_append_jsonl, snapshot_log_path(symbol, date_str), frame)
     await asyncio.to_thread(
         _write_json_atomic,
         snapshot_path(symbol, date_str),
-        {**report, "mode": "snapshot", "date": date_str,
+        {**report_out, "mode": "snapshot", "date": date_str,
          "snapshot_at": t_iso, "source": "upstox-option-chain"},
     )
 
@@ -936,7 +1048,7 @@ async def _record_symbol(symbol: str, ts: datetime) -> Optional[dict]:
     return ``None`` so the other symbols still record.
     """
     nifty = _nifty()
-    t_iso = ts.isoformat()
+    t_iso = _ist_iso(ts)
     date_str = t_iso[:10]
     state = _sym_state(symbol)
     state["last_tick"] = t_iso
@@ -954,43 +1066,50 @@ async def _record_symbol(symbol: str, ts: datetime) -> Optional[dict]:
         _append_gap(symbol, date_str, t_iso, "rate-limited")
         return None
 
-    resp = await _fetch_chain(symbol, expiry)
-    chain = (resp or {}).get("chain") or []
-    strikes = _build_strikes(chain)
+    try:
+        payload = await _fetch_raw_chain(symbol, expiry)
+        chain_expiry, spot, strikes = _parse_chain(payload)
+    except Exception as exc:
+        _append_chain_gap(symbol, date_str, t_iso, "chain-failed",
+                          _err_detail(exc))
+        raise
+    expiry = chain_expiry or expiry
     if not strikes:
         state["last_skip"] = "empty-chain"
         state["last_error"] = "empty option chain"
         _append_gap(symbol, date_str, t_iso, "empty-chain")
+        _append_chain_gap(symbol, date_str, t_iso, "empty-chain")
         return None
 
-    try:
-        spot = float((resp or {}).get("spot") or 0)
-    except (TypeError, ValueError):
-        spot = 0.0
+    # A chain print can arrive without its underlying quote; the route this
+    # replaced fell back to the spot endpoint, so keep that (one extra call
+    # only on a degraded payload, never on a normal tick).
+    if spot <= 0:
+        try:
+            from api.options import get_spot_price
 
-    lot = await asyncio.to_thread(lot_size, symbol, chain)
+            if await _acquire_upstream():
+                spot = float((await get_spot_price(symbol)).get("spot") or 0)
+        except Exception:
+            pass
+
+    lot = await asyncio.to_thread(lot_size, symbol, strikes)
     base = build_base_report(symbol, expiry, spot, strikes, lot)
 
     # 1. chain10s — every 10 s, slim rows (same shape as the NIFTY chain10s).
-    try:
-        from api.reports_api.chain10s import slim_rows
-
-        slim = slim_rows(strikes, spot, _window_for(spot))
-    except Exception:
-        slim = []
-    if slim:
-        line = {"t": t_iso, "spot": round(float(spot), 2),
-                "expiry": expiry, "rows": slim}
-        await asyncio.to_thread(
-            _append_jsonl, chain10s_path(symbol, date_str), line)
+    if await _write_chain10s(symbol, date_str, t_iso, expiry, spot, strikes):
         state["chain10s"] += 1
         _status["records"] = int(_status.get("records") or 0) + 1
+
+    # 2. greeks — the same poll projected into the NIFTY evidence-file shape.
+    if await _write_greeks(symbol, date_str, t_iso, expiry, spot, strikes):
+        state["greeks"] += 1
 
     LAST[symbol] = base
     state["last_skip"] = None
     state["last_error"] = None
 
-    # 2. per-minute tape row + replay frame derived from the SAME report.
+    # 3. per-minute tape row + replay frame derived from the SAME report.
     minute = t_iso[:16]
     if _minute_for(symbol) != minute:
         if not nifty.has_usable_chain(strikes):
@@ -1013,6 +1132,9 @@ async def _record_symbol(symbol: str, ts: datetime) -> Optional[dict]:
             await _enrich_report(symbol, base, intraday["bars"] or [])
         except Exception:
             pass
+        futures = await asyncio.to_thread(_futures_block, symbol, date_str)
+        if futures:
+            base["futures"] = futures
         row = await _write_minute(symbol, base, date_str, t_iso)
         if row is not None:
             _set_minute(symbol, minute)
@@ -1038,9 +1160,8 @@ async def record_tick(now: Optional[datetime] = None) -> dict:
     Returns ``{"t", "symbols": {SYM: "ok"|reason}, "records": int}`` — the
     per-symbol reason is useful for the status endpoint and for tests.
     """
-    ts = now or datetime.now(config.IST)
-    if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=config.IST)
+    ts = _ist(now)
+    t_iso = ts.isoformat()
     outcome: dict[str, str] = {}
     for symbol in symbols():
         try:
@@ -1051,7 +1172,7 @@ async def record_tick(now: Optional[datetime] = None) -> dict:
             outcome[symbol] = "timeout"
             _sym_state(symbol)["last_error"] = (
                 f"tick timed out after {SYMBOL_TIMEOUT_SEC:.0f}s")
-            _append_gap(symbol, ts.isoformat()[:10], ts.isoformat(), "timeout")
+            _append_gap(symbol, t_iso[:10], t_iso, "timeout")
             logger.warning("options recorder: %s tick timed out after %.0fs",
                            symbol, SYMBOL_TIMEOUT_SEC)
         except asyncio.CancelledError:
@@ -1059,15 +1180,14 @@ async def record_tick(now: Optional[datetime] = None) -> dict:
         except Exception as exc:
             outcome[symbol] = type(exc).__name__
             _sym_state(symbol)["last_error"] = _err_detail(exc)
-            _append_gap(symbol, ts.isoformat()[:10], ts.isoformat(),
-                        "tick-failed", _err_detail(exc))
+            _append_gap(symbol, t_iso[:10], t_iso, "tick-failed", _err_detail(exc))
             logger.warning("options recorder: %s tick failed (%s): %s",
                            symbol, type(exc).__name__, exc)
     _status["iterations"] = int(_status.get("iterations") or 0) + 1
-    _status["last_tick"] = ts.isoformat()
+    _status["last_tick"] = t_iso
     errors = [s.get("last_error") for s in _per_symbol.values() if s.get("last_error")]
     _status["last_error"] = errors[0] if errors else None
-    return {"t": ts.isoformat(), "symbols": outcome,
+    return {"t": t_iso, "symbols": outcome,
             "records": int(_status.get("records") or 0)}
 
 
@@ -1125,7 +1245,18 @@ async def _recorder_loop(interval_sec: float) -> None:
                             "options recorder: recovered after %d failed ticks",
                             _failure_streak)
                     _failure_streak = 0
-                next_tick = _advance_next_tick(next_tick, interval_sec,
+                # Back off while failing. A dead broker token makes every tick
+                # fail, and at a flat 10s cadence that produced 180 consecutive
+                # failed ticks — 180 timed-out chain fetches, all of which also
+                # hold the rate limiter. Cap at 2 minutes so recovery is still
+                # prompt once the token is refreshed.
+                effective_sec = interval_sec
+                if _failure_streak > 1:
+                    effective_sec = min(
+                        interval_sec * (2 ** min(_failure_streak - 1, 4)),
+                        max(interval_sec, 120.0),
+                    )
+                next_tick = _advance_next_tick(next_tick, effective_sec,
                                                loop.time())
                 await asyncio.sleep(max(0.0, next_tick - loop.time()))
             else:

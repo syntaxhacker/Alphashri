@@ -1,10 +1,11 @@
-import { Show, createMemo } from "solid-js";
+import { Show, createEffect, createMemo, createSignal } from "solid-js";
 
-import { Box, Button, Text } from "@/ui";
+import { Box, Button } from "@/ui";
+import * as palette from "@/ui/palette";
 import { CompactPanel } from "@/components/common/compact";
 import { MarketAlertLog, MarketAlertStack } from "@/components/notifications/MarketAlertCard";
 
-import { BreadthStrip } from "./BreadthStrip";
+import { BreadthStrip, ReplayUnavailable } from "./BreadthStrip";
 import { LevelsInPlayContent } from "./LevelsInPlay";
 import { Nifty10sStrip } from "./Nifty10sStrip";
 import { NiftyDeskPlan } from "./NiftyDeskPlan";
@@ -15,7 +16,9 @@ import { NiftyWallErosionBoard } from "./NiftyWallErosionBoard";
 import { NiftyWallsCard } from "./NiftyWallsCard";
 import { NiftyWallsExpanded } from "./NiftyWallsExpanded";
 import { useNiftyReport } from "./ReportContext";
+import { LiveTapeDisclosure } from "./reportBits";
 import { oiBurstLogHeight } from "./reportCells";
+import { REPORT_FONT } from "./reportTokens";
 import { flowNoiseFor } from "./symbolMetrics";
 import { OI_ALERT_TOAST_MAX } from "./useNiftyOiAlerts";
 
@@ -24,8 +27,15 @@ const EMPTY_WALL_HISTORY: WallSnapshot[] = [];
 export function ReportStrips() {
   const store = useNiftyReport();
 
+  // Desk mode keeps the tape bands behind one row. Replay starts with the same
+  // single collapsed heading: live-only bands have nothing to say there and a
+  // row of empty strips was the original "looks worse than before" complaint.
   const report = () => store.data.report();
   const mode = () => store.selection.mode();
+  const [tapeOpen, setTapeOpen] = createSignal(!store.ui.isDesk() && mode() === "live");
+  createEffect(() => {
+    setTapeOpen(!store.ui.isDesk() && mode() === "live");
+  });
   const symbol = () => store.selection.symbol();
   const wallsPayload = () => store.walls.data();
 
@@ -68,52 +78,55 @@ export function ReportStrips() {
       data-testid="nifty-report-strips"
       className="flex flex-col gap-1 w-full max-w-full min-w-0 shrink-0"
     >
-      <Show
-        when={mode() === "live"}
-        fallback={
-          <Text
-            data-testid="nifty-breadth-live-only"
-            className="flex items-center h-6 min-h-6 px-2 text-[10px] text-fin-text-muted tracking-[0.06em] uppercase"
-          >
-            BREADTH · live only
-          </Text>
-        }
+      <LiveTapeDisclosure
+        open={tapeOpen()}
+        onToggle={() => setTapeOpen((v) => !v)}
+        closedHint={mode() === "eod" ? "breadth · movers · hidden in replay" : undefined}
       >
-        <BreadthStrip data={store.data.breadth()} />
-      </Show>
-
-      <Nifty10sStrip points={store.data.scorePoints()} noise={flowNoise()} />
-
-      <Show when={!store.ui.isDesk()}>
-        <Show when={report()}>
-          {(current) => (
-            <NiftySqueezeRadar
-              report={current()}
-              preMove={store.data.preMove()}
-              setup={store.data.setup()}
-              history={store.data.preMoveHistory()}
-              wallHistory={wallHistory()}
-              spotMove1m={spotMove1m()}
-              metrics={store.data.metrics() ?? undefined}
-              walls={wallsPayload()}
-            />
-          )}
+        <Show
+          when={mode() === "live"}
+          fallback={
+            <div className="flex items-center h-6 min-h-6 px-2">
+              <ReplayUnavailable noun="Breadth" testId="nifty-breadth-live-only" />
+            </div>
+          }
+        >
+          <BreadthStrip data={store.data.breadth()} />
         </Show>
-      </Show>
 
-      <NiftyWallErosionBoard
-        walls={wallsPayload()}
-        symbol={symbol()}
-        asOf={replayAsOf()}
-      />
+        <Nifty10sStrip points={store.data.scorePoints()} noise={flowNoise()} />
+
+        <Show when={!store.ui.isDesk()}>
+          <Show when={report()}>
+            {(current) => (
+              <NiftySqueezeRadar
+                report={current()}
+                preMove={store.data.preMove()}
+                setup={store.data.setup()}
+                history={store.data.preMoveHistory()}
+                wallHistory={wallHistory()}
+                spotMove1m={spotMove1m()}
+                metrics={store.data.metrics() ?? undefined}
+                walls={wallsPayload()}
+              />
+            )}
+          </Show>
+        </Show>
+
+        <NiftyWallErosionBoard
+          walls={wallsPayload()}
+          symbol={symbol()}
+          asOf={replayAsOf()}
+        />
+      </LiveTapeDisclosure>
 
       <NiftyWallsCard
+        compact={store.ui.isDesk()}
         walls={wallsPayload()}
         onExpand={() => store.walls.openDrawer()}
         onOpenDesk={() => store.ui.setDeskOpen(true)}
-        emptyText={
-          mode() === "eod" ? "No tape at this replay time." : "Waiting for walls data."
-        }
+        emptyText="Waiting for walls data."
+        unavailableInReplay={mode() === "eod"}
         levels={
           symbol() === "NIFTY" ? (
             <LevelsInPlayContent report={report()} sensex={store.data.sensex()} />
@@ -176,6 +189,8 @@ export function ReportStrips() {
                   "align-items": "center",
                   gap: "4px",
                   "min-width": 0,
+                  "font-size": `${REPORT_FONT.body}px`,
+                  "line-height": 1.2,
                 }}
               >
                 <span>
@@ -188,7 +203,8 @@ export function ReportStrips() {
                   <Box
                     data-testid="nifty-oi-critical-badge"
                     title={`${store.alerts.criticalCount()} critical burst${store.alerts.criticalCount() === 1 ? "" : "s"} — filtered first`}
-                    className="inline-flex items-center text-[9px] font-bold tracking-[0.08em] text-fin-negative border border-fin-negative rounded-[3px] px-1 py-[1px] whitespace-nowrap nifty-critical-pulse"
+                    className="inline-flex items-center text-[11px] font-bold tracking-[0.08em] text-fin-negative rounded-[3px] px-1 py-[1px] whitespace-nowrap nifty-critical-pulse"
+                    style={{ "background-color": palette.TINT_NEGATIVE }}
                   >
                     CRITICAL {store.alerts.criticalCount()}
                   </Box>

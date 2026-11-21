@@ -3,6 +3,7 @@
  */
 
 import { fetchWithAuth } from "../state/auth";
+import { apiErrorFromResponse, asApiError, isAbortError } from "./apiError";
 import { safeNum } from "../utils/reportParsers";
 import type {
   NiftyBurst,
@@ -680,7 +681,13 @@ export async function fetchNiftyExpiries(
   const response = await fetchWithAuth(`${NIFTY_API_BASE}/expiries`, {
     signal,
   });
-  if (!response.ok) return [];
+  /*
+   * A failure is not an empty listing. Returning `[]` here made a 500 or an
+   * expired token render as "No expiries listed" — the panel then tells the
+   * user a truthful-looking lie about the exchange instead of surfacing the
+   * fault. Throw so the caller can show an error with Retry.
+   */
+  if (!response.ok) throw await apiErrorFromResponse(response, "Failed to load expiries");
   const data = await response.json().catch(() => ({}));
   return (data as { expiries?: NiftyExpiry[] }).expiries ?? [];
 }
@@ -1769,7 +1776,9 @@ export async function fetchOptionsExpiries(
       `${API_BASE}/api/options/expiries/${encodeURIComponent(symbol)}`,
       { signal },
     );
-    if (!response.ok) return [];
+    // Same rule as `fetchNiftyExpiries`: a failure must not read as an empty
+    // listing. Aborts stay silent so unmounting a window never flashes an error.
+    if (!response.ok) throw await apiErrorFromResponse(response, "Failed to load expiries");
     const data = (await response.json().catch(() => null)) as
       | { expiries?: { date?: unknown }[] }
       | null;
@@ -1777,8 +1786,9 @@ export async function fetchOptionsExpiries(
     return data.expiries
       .map((e) => (typeof e?.date === "string" ? e.date : ""))
       .filter((d) => d.length > 0);
-  } catch {
-    return [];
+  } catch (error) {
+    if (isAbortError(error)) throw error;
+    throw asApiError(error, "Failed to load expiries");
   }
 }
 

@@ -20,7 +20,7 @@ import { collectConsoleErrors } from "./helpers/flowsB";
  * has one unambiguous answer):
  *   IT      : TCS · PERSISTENT · COFORGE · KPITTECH
  *   Energy  : RELIANCE        Banks: HDFCBANK     Services: MICROCO
- *   ETF     : NIFTYBEES · LIQUIDBEES
+ *   ETF     : NIFTYBEES · LIQUIDBEES  (class tier, null cap → sorted last)
  */
 const SNAPSHOT_PATH = "/?tab=market";
 
@@ -31,16 +31,20 @@ const MOCK_ROWS = [
   { symbol: "PERSISTENT", name: "Persistent Systems", sector: "IT", close: 5120.0, change: 2.1, relative_volume: 2.4, market_cap_cr: 78000, cap_tier: "mid", rsi: 71, adx: 31, pos_52w: 0.88, fno: true, etf: false },
   { symbol: "COFORGE", name: "Coforge", sector: "IT", close: 6890.5, change: -1.3, relative_volume: 1.5, market_cap_cr: 41000, cap_tier: "mid", rsi: 38, adx: 19, pos_52w: 0.42, fno: false, etf: false },
   { symbol: "KPITTECH", name: "KPIT Technologies", sector: "IT", close: 1834.75, change: 0.9, relative_volume: 1.3, market_cap_cr: 32000, cap_tier: "small", rsi: 52, adx: 24, pos_52w: 0.66, fno: false, etf: false },
-  { symbol: "NIFTYBEES", name: "Nippon India ETF Nifty BeES", sector: "ETF", close: 264.1, change: 0.5, relative_volume: 0.7, market_cap_cr: 18000, cap_tier: "small", rsi: 48, adx: 18, pos_52w: 0.57, fno: false, etf: true },
+  { symbol: "NIFTYBEES", name: "Nippon India ETF Nifty BeES", sector: "ETF", close: 264.1, change: 0.5, relative_volume: 0.7, market_cap_cr: null, cap_tier: "etf", rsi: 48, adx: 18, pos_52w: 0.57, fno: false, etf: true },
   { symbol: "MICROCO", name: "Micro Co", sector: "Services", close: 87.6, change: -2.2, relative_volume: 3.1, market_cap_cr: 900, cap_tier: "micro", rsi: 22, adx: 33, pos_52w: 0.18, fno: false, etf: false },
-  { symbol: "LIQUIDBEES", name: "Nippon India ETF Liquid BeES", sector: "ETF", close: 1130.2, change: 0.01, relative_volume: 0.3, market_cap_cr: 15000, cap_tier: "micro", rsi: 50, adx: 12, pos_52w: 0.51, fno: false, etf: true },
+  { symbol: "LIQUIDBEES", name: "Nippon India ETF Liquid BeES", sector: "ETF", close: 1130.2, change: 0.01, relative_volume: 0.3, market_cap_cr: null, cap_tier: "etf", rsi: 50, adx: 12, pos_52w: 0.51, fno: false, etf: true },
 ];
 
 /** IT rows in the panel's default `mcap_desc` order — the sort must survive a reload. */
 const IT_ROW_IDS = ["TCS", "PERSISTENT", "COFORGE", "KPITTECH"].map((s) => `market-row-${s}`);
-/** Every row, `mcap_desc` — the panel's default sort, spelled out rather than implied by fixture order. */
+/**
+ * Every row, `mcap_desc` — the panel's default sort, spelled out rather than
+ * implied by fixture order. Null caps map to -∞, so the ETF class rows land
+ * after MICROCO (the smallest capped equity).
+ */
 const ALL_ROW_IDS = [
-  "RELIANCE", "HDFCBANK", "TCS", "PERSISTENT", "COFORGE", "KPITTECH", "NIFTYBEES", "LIQUIDBEES", "MICROCO",
+  "RELIANCE", "HDFCBANK", "TCS", "PERSISTENT", "COFORGE", "KPITTECH", "MICROCO", "NIFTYBEES", "LIQUIDBEES",
 ].map((s) => `market-row-${s}`);
 const LARGE_ROW_IDS = ["RELIANCE", "HDFCBANK", "TCS"].map((s) => `market-row-${s}`);
 
@@ -186,7 +190,9 @@ test.describe("Saved screen state — market.filters", () => {
     // … while the saved universe and sector still land.
     await expect(page.locator(SECTOR_CHIP_IT)).toBeVisible();
     await expect(page.locator(UNIVERSE_COMBO)).toHaveValue("Nifty 500");
-    await expect(page).toHaveURL(/view=map/);
+    // Legacy `?view=map` normalises to the canonical `vis`, which is what gets
+    // written back — the URL still owns the layout instead of the saved `table`.
+    await expect(page).toHaveURL(/view=vis/);
   });
 
   test("a cleared sector does not resurrect after a reload", async ({ page }) => {

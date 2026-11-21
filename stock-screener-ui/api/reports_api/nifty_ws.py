@@ -11,9 +11,10 @@ Endpoints (no prefix, paths are exact):
     (``{"type": "tick", "spot": ..., "ts": ..., "change_pct": ...}``)
     carries the live Nifty SPOT price: at most once per second, and only
     when the spot actually changed since the last tick sent to that
-    client. The spot is polled via REST (``api.options.get_spot_price``)
-    by the ``nifty_spot_tick_task`` background task — never a second
-    Upstox WebSocket (Upstox allows only ~2 WS connections, already used
+    client. The spot comes from ``NIFTY_SPOT_SOURCE`` (default ``v3``): the
+    pooled ``nifty_md`` ``ltpc`` feed when set to ``ws`` and live, otherwise
+    REST via ``api.options.get_spot_price`` — never a second Upstox
+    WebSocket (Upstox allows only ~2 WS connections, already used
     by the paper live stream + orderflow).
   - ``/ws/nifty/bursts`` — snapshot of recent burst events on connect, then
     each live event forwarded; a ``heartbeat`` after 25s of quiet.
@@ -31,6 +32,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import threading
 import time
 from typing import Optional
@@ -60,6 +62,67 @@ TICK_MIN_INTERVAL_SEC = 1.0
 SPOT_POLL_INTERVAL_SEC = 1.0
 #: Sleep between market-open checks when the market is closed.
 SPOT_CLOSED_SLEEP_SEC = 60.0
+
+#: Active SPOT source, logged once per change (``ws`` or the REST version).
+_spot_source_logged: Optional[str] = None
+
+#: Keep the breadth strip (and its history file) warm from the report's own
+#: background loop. The endpoint alone only refreshes while a report tab is
+#: open, so a desk that never loads the page lost the whole session. The
+#: breadth cache is shared, so this adds no quote call inside its 60s window.
+BREADTH_KEEPWARM_SEC = 60.0
+
+
+def _breadth_keepwarm_enabled() -> bool:
+    """Breadth keep-warm switch: ``NIFTY_BREADTH_HISTORY=0`` off, off in CI."""
+    try:
+        if os.getenv("CI_MODE") == "1":
+            return False
+        return os.getenv("NIFTY_BREADTH_HISTORY", "1") != "0"
+    except Exception:
+        return False
+
+
+def _spot_source() -> str:
+    """Configured SPOT source (``ws`` | ``v3`` | ``v2``; default ``v3``)."""
+    try:
+        from api.options import spot_source
+
+        return spot_source()
+    except Exception:
+        return "v3"
+
+
+def _log_spot_source(source: str) -> None:
+    """Say which source is feeding the 1s tick (once per change)."""
+    global _spot_source_logged
+    if _spot_source_logged == source:
+        return
+    _spot_source_logged = source
+    if source == "ws":
+        logger.info("nifty spot source: ws (nifty_md ltpc)")
+    elif source == "v2":
+        logger.warning("nifty spot source: v2 (/v2/market-quote/ohlc is deprecated)")
+    else:
+        logger.info("nifty spot source: %s", source)
+
+
+def _ws_spot() -> float:
+    """Nifty spot from the pooled ``nifty_md`` feed, or ``0.0`` when not live.
+
+    Uses the same module handle the report already reads (``nifty._nifty_md``)
+    so the socket is never duplicated — Upstox allows ~2 WS connections and
+    both are already spoken for.
+    """
+    try:
+        md = nifty_report._nifty_md()
+        if md is None or not bool(md.is_live()):
+            return 0.0
+        value = (md.snapshot() or {}).get("spot")
+        return float(value) if value is not None else 0.0
+    except Exception:
+        return 0.0
+
 
 
 # ---------------------------------------------------------------------------
@@ -133,6 +196,7 @@ async def nifty_spot_tick_task(interval_sec: float = SPOT_POLL_INTERVAL_SEC) -> 
         interval = SPOT_POLL_INTERVAL_SEC
     if interval <= 0:
         interval = SPOT_POLL_INTERVAL_SEC
+    next_breadth_at = time.monotonic() + BREADTH_KEEPWARM_SEC
     while True:
         try:
             try:
@@ -146,43 +210,70 @@ async def nifty_spot_tick_task(interval_sec: float = SPOT_POLL_INTERVAL_SEC) -> 
             if not market_open:
                 await asyncio.sleep(SPOT_CLOSED_SLEEP_SEC)
                 continue
-            try:
-                from api.options import get_spot_price
+            spot_value = 0.0
+            configured = _spot_source()
+            if configured == "ws":
+                spot_value = _ws_spot()
+                if spot_value > 0:
+                    _log_spot_source("ws")
+                else:
+                    logger.debug(
+                        "nifty spot tick: nifty_md is not live; falling back to REST"
+                    )
+            if spot_value <= 0:
+                try:
+                    from api.options import get_spot_price
 
-                data = await get_spot_price("NIFTY")
-            except asyncio.CancelledError:
-                raise
-            except Exception as e:
-                logger.debug("nifty spot tick: poll failed: %s", e)
-                data = None
-            try:
+                    data = await get_spot_price("NIFTY")
+                except asyncio.CancelledError:
+                    raise
+                except Exception as e:
+                    logger.debug("nifty spot tick: poll failed: %s", e)
+                    data = None
                 if isinstance(data, dict):
-                    spot = float(data.get("spot") or 0)
-                    if spot > 0:
-                        global _day_open, _day_open_date
-                        today = _ist_today()
-                        if _day_open_date != today:
-                            # New IST day: yesterday's baseline is stale, so
-                            # the first reading of today becomes the new
-                            # baseline (otherwise change_pct would be a
-                            # two-day change dressed up as today's).
-                            _day_open = None
-                            _day_open_date = today
-                        if _day_open is None:
-                            _day_open = spot
-                        try:
-                            change_pct = (
-                                ((spot - _day_open) / _day_open * 100.0)
-                                if _day_open
-                                else None
-                            )
-                        except Exception:
-                            change_pct = None
-                        _set_spot(spot, _ist_now_iso(), change_pct)
+                    try:
+                        spot_value = float(data.get("spot") or 0)
+                    except (TypeError, ValueError):
+                        spot_value = 0.0
+                    _log_spot_source(str(data.get("source") or configured))
+            try:
+                spot = spot_value
+                if spot > 0:
+                    global _day_open, _day_open_date
+                    today = _ist_today()
+                    if _day_open_date != today:
+                        # New IST day: yesterday's baseline is stale, so
+                        # the first reading of today becomes the new
+                        # baseline (otherwise change_pct would be a
+                        # two-day change dressed up as today's).
+                        _day_open = None
+                        _day_open_date = today
+                    if _day_open is None:
+                        _day_open = spot
+                    try:
+                        change_pct = (
+                            ((spot - _day_open) / _day_open * 100.0)
+                            if _day_open
+                            else None
+                        )
+                    except Exception:
+                        change_pct = None
+                    _set_spot(spot, _ist_now_iso(), change_pct)
             except asyncio.CancelledError:
                 raise
             except Exception as e:
                 logger.debug("nifty spot tick: store failed: %s", e)
+            if _breadth_keepwarm_enabled() and time.monotonic() >= next_breadth_at:
+                next_breadth_at = time.monotonic() + BREADTH_KEEPWARM_SEC
+                try:
+                    from api.reports_api import breadth as breadth_mod
+
+                    # The quote call is blocking; keep it off the event loop.
+                    asyncio.create_task(asyncio.to_thread(breadth_mod.refresh))
+                except asyncio.CancelledError:
+                    raise
+                except Exception as e:
+                    logger.debug("nifty spot tick: breadth refresh failed: %s", e)
             await asyncio.sleep(interval)
         except asyncio.CancelledError:
             raise

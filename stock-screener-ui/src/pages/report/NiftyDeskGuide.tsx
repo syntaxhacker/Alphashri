@@ -1,6 +1,7 @@
 import { createSignal, For } from "solid-js";
 import * as palette from "@/ui/palette";
 import { LocalPanelModal } from "./LocalPanelModal";
+import { REPORT_FONT } from "./reportTokens";
 
 const IconHelpCircle = (props: { size?: number }) => (
   <svg
@@ -131,7 +132,7 @@ export function NiftyDeskGuide(props: NiftyDeskGuideProps) {
             >
               <div
                 style={{
-                  "font-size": "10px",
+                  "font-size": `${REPORT_FONT.micro}px`,
                   "font-weight": 700,
                   "line-height": 1.2,
                   "letter-spacing": "0.08em",

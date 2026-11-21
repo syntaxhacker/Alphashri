@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 
 import type { NiftyReport } from "@/types/niftyReport";
 
+const { showErrorMock } = vi.hoisted(() => ({ showErrorMock: vi.fn() }));
+vi.mock("@/ui/notifications", () => ({ showError: showErrorMock }));
+
 vi.mock(import("@/utils/marketClock"), async (importOriginal) => {
   const actual = await importOriginal();
   return {
@@ -100,6 +103,7 @@ function build(): { store: NiftyReportStore; dispose: () => void } {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  showErrorMock.mockClear();
   vi.mocked(api.fetchLiveSensex).mockResolvedValue(
     null as unknown as Awaited<ReturnType<typeof api.fetchLiveSensex>>,
   );
@@ -221,6 +225,29 @@ describe("createNiftyReportStore", () => {
     dispose();
   });
 
+  test("live Upstox auth failure falls back to EOD with one actionable toast", async () => {
+    vi.mocked(api.fetchLiveNifty).mockRejectedValue(
+      new Error(
+        "Upstox access token not configured. Go to Settings to connect your Upstox account.",
+      ),
+    );
+    vi.mocked(api.fetchNiftyReplayDates).mockResolvedValue(["2026-11-19"]);
+    vi.mocked(api.fetchNiftyByDate).mockResolvedValue(liveReport());
+
+    const { store, dispose } = build();
+
+    await vi.waitFor(() => {
+      expect(store.selection.mode()).toBe("eod");
+    });
+
+    expect(store.selection.date()).toBe("2026-11-19");
+    expect(showErrorMock).toHaveBeenCalledTimes(1);
+    expect(String(showErrorMock.mock.calls[0]?.[1])).toContain("Settings → Brokers");
+    expect(store.data.error()).toBeNull();
+
+    dispose();
+  });
+
   test("switching symbol clears the previous report and forces live", async () => {
     const { store, dispose } = build();
 
@@ -242,6 +269,28 @@ describe("createNiftyReportStore", () => {
     dispose();
   });
 
+  test("switching symbol starts and keeps one generic live load", async () => {
+    const { store, dispose } = build();
+
+    await vi.waitFor(() => {
+      expect(store.data.report()).not.toBeNull();
+    });
+
+    vi.mocked(api.fetchOptionsLive).mockResolvedValue(liveReport());
+    store.selection.handleSymbolChange("SENSEX");
+
+    await vi.waitFor(() => {
+      expect(api.fetchOptionsLive).toHaveBeenCalled();
+    });
+    expect(vi.mocked(api.fetchOptionsLive).mock.calls.at(-1)?.[0]).toBe("SENSEX");
+
+    await vi.waitFor(() => {
+      expect(store.data.report()).not.toBeNull();
+    });
+
+    dispose();
+  });
+
   test("refresh re-runs the one-shot load", async () => {
     const { store, dispose } = build();
 
@@ -256,6 +305,47 @@ describe("createNiftyReportStore", () => {
     });
 
     dispose();
+  });
+
+  test("generic poll keeps the last candle series when the chain frame has none", async () => {
+    vi.useFakeTimers();
+    try {
+      const withBars = {
+        ...liveReport(),
+        intraday: [
+          {
+            time: "2026-11-19T09:15:00+05:30",
+            open: 100,
+            high: 101,
+            low: 99,
+            close: 100.5,
+          },
+        ],
+      } as NiftyReport;
+      vi.mocked(api.fetchOptionsLive).mockResolvedValueOnce(withBars);
+      vi.mocked(api.fetchOptionsTape).mockResolvedValue(
+        null as unknown as Awaited<ReturnType<typeof api.fetchOptionsTape>>,
+      );
+      vi.mocked(api.fetchOptionsBursts).mockResolvedValue([]);
+      vi.mocked(api.fetchOptionsReplayDates).mockResolvedValue([]);
+      vi.mocked(api.fetchOptionsExpiries).mockResolvedValue([]);
+
+      const { store, dispose } = build();
+      store.selection.handleSymbolChange("SENSEX");
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(store.data.report()?.intraday).toHaveLength(1);
+
+      vi.mocked(api.fetchOptionsLive).mockResolvedValue(liveReport());
+      await vi.advanceTimersByTimeAsync(GENERIC_POLL_MS);
+
+      expect(api.fetchOptionsLive).toHaveBeenCalledTimes(2);
+      expect(store.data.report()?.intraday).toHaveLength(1);
+
+      dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   test("generic live poll skips a tick while the initial load is in flight", async () => {

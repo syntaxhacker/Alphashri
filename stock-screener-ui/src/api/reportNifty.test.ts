@@ -1511,8 +1511,12 @@ describe("generic options history (per-symbol endpoints)", () => {
     );
     expect(expiries).toEqual(["2026-10-29", "2026-11-26"]);
 
+    // A failed request must not read as "this symbol has no expiries" — that
+    // told the user a truthful-looking lie about the exchange listing.
     vi.mocked(fetchWithAuth).mockResolvedValueOnce(errorResponse());
-    await expect(fetchOptionsExpiries("RELIANCE")).resolves.toEqual([]);
+    await expect(fetchOptionsExpiries("RELIANCE")).rejects.toMatchObject({
+      status: 404,
+    });
   });
 
   test("fetchOptionsWalls builds the date-scoped URL and passes the payload through", async () => {

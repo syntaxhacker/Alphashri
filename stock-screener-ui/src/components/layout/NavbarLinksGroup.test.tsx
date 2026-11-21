@@ -121,4 +121,20 @@ describe("NavbarLinksGroup", () => {
     // When collapsed, the component wraps content in Tooltip
     expect(navItem).toBeInTheDocument();
   });
+
+  it("keeps its label at or above the 11px legibility floor", () => {
+    render(() => (<UIProvider>
+        <NavbarLinksGroup {...defaultProps} />
+      </UIProvider>),
+    );
+
+    const navItem = screen.getByTestId("nav-screener");
+    const label = navItem.querySelector("p");
+    expect(label).not.toBeNull();
+    const el = label as HTMLElement;
+    const px = parseFloat(el.style.fontSize || getComputedStyle(el).fontSize);
+    expect(px).toBeGreaterThanOrEqual(11);
+    // Long labels must stay on one line so the icon and label keep aligning.
+    expect(el.style.whiteSpace).toBe("nowrap");
+  });
 });

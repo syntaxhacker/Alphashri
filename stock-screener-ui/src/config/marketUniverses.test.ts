@@ -17,13 +17,79 @@ const india = marketUniverseDescriptor("nifty50");
 const usa = marketUniverseDescriptor("us");
 
 describe("MARKET_UNIVERSE_DESCRIPTORS", () => {
-  test("covers all five universes with unique values and labels", () => {
+  test("covers every shipped universe with unique values and labels", () => {
     const values = MARKET_UNIVERSE_DESCRIPTORS.map((d) => d.value).sort();
     expect(values).toEqual(
-      (["all_equity", "nifty500", "nifty50", "nse_fo", "us"] as MarketUniverse[]).sort(),
+      (
+        [
+          "all_equity",
+          "nifty500",
+          "nifty50",
+          "nifty100",
+          "nifty200",
+          "nse_fo",
+          "us",
+          "banknifty",
+          "sensex",
+        ] as MarketUniverse[]
+      ).sort(),
     );
-    expect(new Set(MARKET_UNIVERSE_DESCRIPTORS.map((d) => d.value)).size).toBe(5);
-    expect(new Set(MARKET_UNIVERSE_DESCRIPTORS.map((d) => d.label)).size).toBe(5);
+    expect(new Set(MARKET_UNIVERSE_DESCRIPTORS.map((d) => d.value)).size).toBe(9);
+    expect(new Set(MARKET_UNIVERSE_DESCRIPTORS.map((d) => d.label)).size).toBe(9);
+  });
+
+  test("frontend descriptor ids match the backend ALLOWED_UNIVERSES registry", () => {
+    // Mirrors tests/api/test_market_screen.py::_frontend_descriptor_ids, which
+    // parses this file and compares it to the backend's ALLOWED_UNIVERSES.
+    const values = MARKET_UNIVERSE_DESCRIPTORS.map((d) => d.value).sort();
+    const expected = [
+      "all_equity",
+      "banknifty",
+      "nifty100",
+      "nifty200",
+      "nifty50",
+      "nifty500",
+      "nse_fo",
+      "sensex",
+      "us",
+    ];
+    expect(values).toEqual(expected);
+  });
+
+  test("nifty100 and nifty200 are labelled and reuse the India descriptor exactly", () => {
+    const expectedLabels: Record<string, string> = {
+      nifty100: "NIFTY 100",
+      nifty200: "NIFTY 200",
+    };
+    for (const [value, label] of Object.entries(expectedLabels)) {
+      const d = marketUniverseDescriptor(value);
+      expect(d.value).toBe(value);
+      expect(d.label).toBe(label);
+      expect(d.currency).toBe(india.currency);
+      expect(d.currencySymbol).toBe(india.currencySymbol);
+      expect(d.capUnit).toBe(india.capUnit);
+      expect(d.priceLocale).toBe(india.priceLocale);
+      expect(d.mcapField).toBe(india.mcapField);
+      expect(d.capTiers).toEqual(india.capTiers);
+    }
+  });
+
+  test("banknifty and sensex are labelled and reuse the India descriptor exactly", () => {
+    const expectedLabels: Record<string, string> = {
+      banknifty: "Bank Nifty",
+      sensex: "Sensex",
+    };
+    for (const [value, label] of Object.entries(expectedLabels)) {
+      const d = marketUniverseDescriptor(value);
+      expect(d.value).toBe(value);
+      expect(d.label).toBe(label);
+      expect(d.currency).toBe(india.currency);
+      expect(d.currencySymbol).toBe(india.currencySymbol);
+      expect(d.capUnit).toBe(india.capUnit);
+      expect(d.priceLocale).toBe(india.priceLocale);
+      expect(d.mcapField).toBe(india.mcapField);
+      expect(d.capTiers).toEqual(india.capTiers);
+    }
   });
 
   test("us is labelled USA and priced in USD", () => {
@@ -34,7 +100,9 @@ describe("MARKET_UNIVERSE_DESCRIPTORS", () => {
   });
 
   test("India descriptors share one INR/crore/rank-tier descriptor", () => {
-    for (const value of ["all_equity", "nifty500", "nifty50", "nse_fo"] as const) {
+    for (const value of [
+      "all_equity", "nifty500", "nifty50", "nse_fo", "banknifty", "sensex",
+    ] as const) {
       const d = marketUniverseDescriptor(value);
       expect(d.currency).toBe("INR");
       expect(d.currencySymbol).toBe("₹");
@@ -63,6 +131,14 @@ describe("MARKET_UNIVERSE_DESCRIPTORS", () => {
     expect(usa.capTiers.large!.min).toBe(usa.capTiers.mid!.max);
     expect(usa.capTiers.mid!.min).toBe(usa.capTiers.small!.max);
     expect(usa.capTiers.small!.min).toBe(usa.capTiers.micro!.max);
+  });
+
+  test("India exposes an unbounded etf tier as its own group; US has none", () => {
+    // ETFs have no market cap — the tier is a class, never a size on the ladder.
+    expect(india.capTiers.etf).toEqual({ min: null, max: null, category: true });
+    expect(usa.capTiers.etf).toBeUndefined();
+    expect(capTierLabel("etf", india)).toBe("ETF");
+    expect(capTierLabel("etf", usa)).toBe("ETF");
   });
 
   test("symbol, locale and cap unit never drift from the currency registry", () => {

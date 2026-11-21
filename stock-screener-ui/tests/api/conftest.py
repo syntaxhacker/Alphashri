@@ -169,10 +169,13 @@ def client(db: Session) -> TestClient:
 
     app.dependency_overrides[get_db] = override_get_db_for_client
 
+    # No `with`: the app lifespan starts network-backed background tasks (Event
+    # Radar's EDGAR poll) whose to_thread workers cannot be cancelled at teardown.
+    test_client = TestClient(app)
     try:
-        with TestClient(app) as test_client:
-            yield test_client
+        yield test_client
     finally:
+        test_client.close()
         app.dependency_overrides.clear()
 
 
@@ -197,10 +200,13 @@ def auth_client(db: Session) -> TestClient:
     app.dependency_overrides[get_db] = override_get_db_for_client
     app.dependency_overrides[get_current_user] = override_get_current_user
 
+    # No `with`: see `client` — entering the lifespan once per test wedges
+    # TestClient.__exit__ on a blocking EDGAR socket in a thread-pool worker.
+    test_client = TestClient(app)
     try:
-        with TestClient(app) as test_client:
-            yield test_client
+        yield test_client
     finally:
+        test_client.close()
         app.dependency_overrides.clear()
 
 

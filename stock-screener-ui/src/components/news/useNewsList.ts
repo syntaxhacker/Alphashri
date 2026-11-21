@@ -1,5 +1,6 @@
 import { createEffect, createMemo, createSignal, onMount } from "solid-js";
 import type { NewsItem, NewsSource } from "./news-types";
+import { asApiError, isAbortError, type ApiError } from "../../api/apiError";
 import { fetchNews, fetchNewsSources } from "../../api/news";
 
 type Accessor<T> = () => T;
@@ -25,19 +26,24 @@ export function useNewsList(options: UseNewsListOptions = {}) {
   const [selectedSource, setSelectedSource] = createSignal("all");
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
+  /** Typed failure detail for status-aware Retry. Additive; `error` stays a string. */
+  const [apiError, setApiError] = createSignal<ApiError | null>(null);
 
   const newsItems = createMemo(() => (wsNewsItems().length > 0 ? wsNewsItems() : localNewsItems()));
 
   const loadNews = async () => {
     setLoading(true);
     setError(null);
+    setApiError(null);
     try {
       const sourceParam = selectedSource() === "all" ? undefined : selectedSource();
       const items = await fetchNews(sourceParam, 50);
       if (wsNewsItems().length > 0 && addNewsItems) addNewsItems(items);
       else setLocalNewsItems(items);
     } catch (err) {
+      if (isAbortError(err)) return;
       setError(err instanceof Error ? err.message : "Failed to load news");
+      setApiError(asApiError(err, "Failed to load news"));
     } finally {
       setLoading(false);
     }
@@ -53,5 +59,14 @@ export function useNewsList(options: UseNewsListOptions = {}) {
     if (isOpen()) void loadNews();
   });
 
-  return { newsItems, sources, selectedSource, setSelectedSource, loading, error, loadNews };
+  return {
+    newsItems,
+    sources,
+    selectedSource,
+    setSelectedSource,
+    loading,
+    error,
+    apiError,
+    loadNews,
+  };
 }

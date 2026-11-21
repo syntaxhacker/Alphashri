@@ -12,9 +12,10 @@ type NormalizedItem = { value: string; label: string; disabled?: boolean };
 
 type SegBox = { item: number; font: number; px: number };
 
+// Labels read at 1x in dense toolbars; 9–10px was below the legibility floor.
 const SEG_BOX: Record<string, SegBox> = {
-  xs: { item: 20, font: 9, px: 6 },
-  sm: { item: 22, font: 10, px: 7 },
+  xs: { item: 20, font: 11, px: 6 },
+  sm: { item: 22, font: 11, px: 7 },
   md: { item: 24, font: 11, px: 8 },
   lg: { item: 28, font: 12, px: 10 },
   xl: { item: 32, font: 13, px: 12 },

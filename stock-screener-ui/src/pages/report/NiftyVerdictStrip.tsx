@@ -246,41 +246,58 @@ function VerdictCell(props: VerdictCellProps) {
       <div
         data-testid={props.testId}
         title={`${props.primary} — ${props.secondary}`}
-        class="flex items-center gap-[6px] min-w-0 overflow-hidden px-2 py-[2px]"
+        class="flex items-start gap-[6px] min-w-0 px-2 py-[2px]"
       >
         <div
           aria-hidden="true"
           data-testid={`${props.testId}-dot`}
-          class="w-[6px] h-[6px] rounded-full shrink-0"
-          style={{ "background-color": props.accent }}
-        />
-        <Text
-          data-testid={`${props.testId}-primary`}
-          size="xs"
-          fw={700}
-          c={props.accent}
-          span
-          truncate
+          class="w-[6px] h-[6px] shrink-0"
+          // `rounded-full` computes to a 3.3e7px radius on a 6px box. Clamp to
+          // half the width so the dot is a circle without an absurd radius.
           style={{
-            "font-size": "11px",
-            "line-height": "1.2",
-            "letter-spacing": "0.04em",
-            "min-width": "0",
-            "flex-shrink": "0",
+            "background-color": props.accent,
+            "border-radius": "3px",
+            "margin-top": "5px",
           }}
-        >
-          {props.primaryNode ?? props.primary}
-        </Text>
-        <Text
-          data-testid={`${props.testId}-secondary`}
-          size="xs"
-          c="dimmed"
-          span
-          truncate
-          style={{ "font-size": "9px", "line-height": "1.2", "min-width": "0" }}
-        >
-          {props.secondary}
-        </Text>
+        />
+        {/*
+         * Two lines, both visible. The detail used to be `sr-only` because a
+         * 47px cell ellipsised it mid-digit — but hiding the evidence is worse
+         * than wrapping it: the verdict row is where a reader looks for *why*.
+         * The cell now wraps so `primary` and `secondary` each get a full line,
+         * and the row's height is driven by content rather than a fixed 24px.
+         */}
+        <div class="flex min-w-0 flex-col" style={{ gap: "1px" }}>
+          <Text
+            data-testid={`${props.testId}-primary`}
+            size="xs"
+            fw={700}
+            c={props.accent}
+            span
+            style={{
+              "font-size": "11px",
+              "line-height": "1.2",
+              "letter-spacing": "0.04em",
+              "min-width": "0",
+            }}
+          >
+            {props.primaryNode ?? props.primary}
+          </Text>
+          <Text
+            data-testid={`${props.testId}-secondary`}
+            size="xs"
+            c="dimmed"
+            span
+            style={{
+              "font-size": "11px",
+              "line-height": "1.2",
+              "min-width": "0",
+              "white-space": "normal",
+            }}
+          >
+            {props.secondary}
+          </Text>
+        </div>
       </div>
     );
   }
@@ -295,8 +312,8 @@ function VerdictCell(props: VerdictCellProps) {
         <div
           aria-hidden="true"
           data-testid={`${props.testId}-dot`}
-          class="w-[6px] h-[6px] rounded-full shrink-0"
-          style={{ "background-color": props.accent }}
+          class="w-[6px] h-[6px] shrink-0"
+          style={{ "background-color": props.accent, "border-radius": "3px" }}
         />
         <Text
           data-testid={`${props.testId}-primary`}
@@ -319,8 +336,13 @@ function VerdictCell(props: VerdictCellProps) {
         size="xs"
         c="dimmed"
         span
-        truncate
-        style={{ "font-size": "10px", "line-height": "1.3" }}
+        style={{
+          "font-size": "11px",
+          "line-height": "1.2",
+          "min-width": "0",
+          "white-space": "normal",
+          "overflow-wrap": "anywhere",
+        }}
       >
         {props.secondary}
       </Text>
@@ -390,7 +412,7 @@ export function NiftyVerdictStrip(props: NiftyVerdictStripProps) {
       data-testid="nifty-verdict-strip"
       class={
         mode() === "context"
-          ? "flex flex-nowrap items-center w-full min-w-0 min-h-6 overflow-hidden border-t border-[var(--desk-border)] [&>*]:border-l [&>*]:border-l-[var(--desk-border)] [&>*]:flex-[1_1_0] [&>*]:min-w-0 [&>*:first-of-type]:border-l-0"
+          ? "flex flex-nowrap items-stretch w-full min-w-0 min-h-6 overflow-hidden [&>*]:border-l [&>*]:border-l-[var(--desk-border)] [&>*]:flex-[1_1_0] [&>*]:min-w-0 [&>*:first-of-type]:border-l-0"
           : "contents"
       }
       style={{ "--desk-border": palette.TERM_BORDER } as JSX.CSSProperties}

@@ -17,7 +17,11 @@ export type MappedValueMarket = ChartMarket;
 const UNIVERSE_TO_VALUE_MARKET: Readonly<Record<MarketUniverse, MappedValueMarket | null>> = {
   all_equity: "india",
   nifty500: "india",
+  nifty200: "india",
+  nifty100: "india",
   nifty50: "india",
+  banknifty: "india",
+  sensex: "india",
   nse_fo: "india",
   us: "usa",
 };

@@ -419,6 +419,15 @@ def _shape_rows(rows: list[dict[str, Any]], *, universe: str = "all_equity") -> 
             field: (mcap / scale) if (mcap is not None and scale is not None) else None
             for field, scale in spec.mcap_outputs
         }
+        is_etf = (sym in _ETF_SYMBOLS) if spec.use_nse_tags else False
+        non_equity_tier = spec.cap_tiers.non_equity_tier
+        # An ETF has AUM, not a market cap; ranking it by size would label every
+        # fund a micro-cap company and make the rail's Micro filter lie.
+        cap_tier = (
+            non_equity_tier
+            if is_etf and non_equity_tier is not None
+            else tier_by_index.get(index, spec.cap_tiers.fallback)
+        )
         row = {
             "symbol": symbol,
             "name": _text(raw.get("description")),
@@ -428,7 +437,7 @@ def _shape_rows(rows: list[dict[str, Any]], *, universe: str = "all_equity") -> 
             "change": _num(raw.get("change")),
             "relative_volume": _num(raw.get("relative_volume_10d_calc")),
             **mcap_fields,
-            "cap_tier": tier_by_index.get(index, spec.cap_tiers.fallback),
+            "cap_tier": cap_tier,
             "rsi": _num(raw.get("RSI")),
             "adx": _num(raw.get("ADX")),
             "sma20": _num(raw.get("SMA20")),
@@ -446,7 +455,7 @@ def _shape_rows(rows: list[dict[str, Any]], *, universe: str = "all_equity") -> 
             "dividend_yield": _num(raw.get("dividend_yield_recent")),
             "roe": _num(raw.get("return_on_equity")),
             "fno": (sym in _FNO_SYMBOLS) if spec.use_nse_tags else False,
-            "etf": (sym in _ETF_SYMBOLS) if spec.use_nse_tags else False,
+            "etf": is_etf,
             "currency": spec.currency,
         }
         shaped.append(row)

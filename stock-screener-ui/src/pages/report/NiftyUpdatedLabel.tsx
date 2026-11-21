@@ -30,7 +30,15 @@ export function NiftyUpdatedLabel(props: NiftyUpdatedLabelProps) {
     if (props.marketClosed) {
       return `Market closed${props.sessionDate ? ` · last session ${props.sessionDate}` : ""}`;
     }
-    return `Updated ${formatReportClock(shownMs())} · live (WS)`;
+    /*
+     * Only claim a live feed when one is actually arriving. The header used to
+     * say "· live (WS)" whenever the market was open, so during a WebSocket
+     * outage it sat next to the STALE badge asserting both that the data was
+     * stale and that it was live. On a trading surface that is the worst kind
+     * of wrong: the numbers look current and are not.
+     */
+    const suffix = props.isStale ? "· reconnecting" : "· live (WS)";
+    return `Updated ${formatReportClock(shownMs())} ${suffix}`;
   };
 
   return (

@@ -9,6 +9,7 @@ import type { NiftyReport } from "@/types/niftyReport";
 import { sortByField } from "@/utils/ui-helpers";
 import { formatReportNum, formatReportOiCr } from "./reportFormat";
 import { wallCode, wallSide } from "./niftyChartMath";
+import { REPORT_FONT } from "./reportTokens";
 
 /**
  * Depth-map view for the Nifty report (futures footprint + GEX layout reference).
@@ -314,7 +315,7 @@ export function buildDepthOption(report: NiftyReport): Record<string, unknown> {
   const ceDom = rows.filter((r) => r.ceOi > r.peOi).map((r) => [r.ceOi + r.peOi, keyOf(r.strike)]);
   const peDom = rows.filter((r) => r.peOi > r.ceOi).map((r) => [r.ceOi + r.peOi, keyOf(r.strike)]);
 
-  const axisLabel = { color: palette.CHART_MUTED, "font-size": "10px" };
+  const axisLabel = { color: palette.CHART_MUTED, "font-size": `${REPORT_FONT.micro}px` };
   const strikeFmt = (v: string | number) => fmtStrike(Number(v));
   const istFmt = (v: unknown) => formatIstTimeMs(Number(v));
   // Labeled level lines live on the candle series (grid 0): it owns the
@@ -438,7 +439,7 @@ export function buildDepthOption(report: NiftyReport): Record<string, unknown> {
         markLine: {
           symbol: "none",
           silent: true,
-          label: { "font-size": "10px", formatter: "{b}" },
+          label: { "font-size": `${REPORT_FONT.micro}px`, formatter: "{b}" },
           data: lineData,
         },
       },
@@ -468,7 +469,7 @@ export function buildDepthOption(report: NiftyReport): Record<string, unknown> {
         label: {
           show: true,
           position: "right",
-          "font-size": "9px",
+          "font-size": `${REPORT_FONT.micro}px`,
           color: palette.CHART_MUTED,
           formatter: (p: { value?: unknown }) => {
             const strike = Array.isArray(p.value) ? Number((p.value as number[])[1]) : NaN;

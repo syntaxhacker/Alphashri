@@ -24,12 +24,10 @@ import { Dynamic } from "solid-js/web";
 import { useParams } from "@solidjs/router";
 import {
   Alert,
-  Anchor,
   Box,
   Button,
   Center,
   Chip,
-  Group,
   Loader,
   Paper,
   Tab,
@@ -39,6 +37,7 @@ import {
   ToolbarRow,
 } from "@/ui";
 import { EXPIRY_CHIP_FOCUS } from "@/config/focusTokens";
+import { BrokerAuthNotice, isBrokerAuthKind } from "@/components/common/BrokerAuthNotice";
 import {
   abortDashboard,
   loadDashboard,
@@ -246,27 +245,20 @@ export default function OptionsAnalyticsPage(): JSX.Element {
             className="shrink-0"
           >
             <ToolbarRow justify="space-between">
-              <Text size="sm">{error().message}</Text>
-              <Group gap={8} align="center">
-                <Show when={error().kind === "auth"}>
-                  <Anchor
-                    href="/settings"
-                    size="sm"
-                    c="primary"
-                    data-testid="analytics-reconnect"
-                  >
-                    Reconnect Upstox
-                  </Anchor>
-                </Show>
-                <Button
-                  size="xs"
-                  variant="light"
-                  data-testid="analytics-retry"
-                  onClick={() => void refreshDashboard()}
-                >
-                  Retry
-                </Button>
-              </Group>
+              <Show
+                when={isBrokerAuthKind(error()?.kind)}
+                fallback={<Text size="sm">{error().message}</Text>}
+              >
+                <BrokerAuthNotice connectTestId="analytics-reconnect" size="sm" />
+              </Show>
+              <Button
+                size="xs"
+                variant="light"
+                data-testid="analytics-retry"
+                onClick={() => void refreshDashboard()}
+              >
+                Retry
+              </Button>
             </ToolbarRow>
           </Alert>
         )}

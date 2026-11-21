@@ -18,7 +18,14 @@ import type { ChartTimeframe } from "./NiftyChartPanel";
 export type PatternScanState =
   | { status: "idle" }
   | { status: "loading"; tf: ChartTimeframe }
-  | { status: "ready"; tf: ChartTimeframe; hits: PatternHitDTO[]; at: number }
+  | {
+      status: "ready";
+      tf: ChartTimeframe;
+      hits: PatternHitDTO[];
+      at: number;
+      /** Last detector bar date (IST), echoed so the UI can date the result. */
+      dataThrough: string | null;
+    }
   | { status: "error"; tf: ChartTimeframe; message: string };
 
 export const PATTERN_LOOKBACK_BARS = 150;
@@ -43,7 +50,13 @@ export function useNiftyPatternScan(): NiftyPatternScan {
       try {
         const res = await detectPatterns("NIFTY", tf, PATTERN_LOOKBACK_BARS);
         if (!alive) return;
-        setState({ status: "ready", tf, hits: res.hits, at: Date.now() });
+        setState({
+          status: "ready",
+          tf,
+          hits: res.hits,
+          at: Date.now(),
+          dataThrough: res.data_through ?? null,
+        });
       } catch (err) {
         if (!alive) return;
         setState({

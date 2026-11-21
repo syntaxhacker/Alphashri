@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
-import type { JSX } from "solid-js";
+import { ErrorBoundary, type JSX } from "solid-js";
 
 let mockSelectedSymbols: string[] = [];
 
@@ -55,11 +55,15 @@ vi.mock("../../api/index", () => ({
 }));
 
 const mockFetchWithAuth = vi.fn();
+const mockBuildScreenerPreviewUrl = vi.fn(
+  (opts: { screener?: string; filters?: unknown }) =>
+    `/api/screener/preview?screener=${opts?.screener ?? ""}`,
+);
 vi.mock("@/api/screenerQuery", () => ({
   // Reflect the argument: a constant mock let a preview fetch the wrong
-  // screener and still pass.
-  buildScreenerPreviewUrl: (opts: { screener?: string }) =>
-    `/api/screener/preview?screener=${opts?.screener ?? ""}`,
+  // screener and still pass. Captured so filter-shape tests can assert on the
+  // exact `{key, default}` entries handed to the URL builder.
+  buildScreenerPreviewUrl: (...args: any[]) => (mockBuildScreenerPreviewUrl as any)(...args),
   approachingStocksOf: (json: any) => json?.approaching ?? [],
 }));
 vi.mock("@/state/auth", () => ({
@@ -103,6 +107,7 @@ describe("ScreenerConfigView", () => {
     // Default: preview fetch never resolves so the loading skeleton persists.
     mockFetchWithAuth.mockReset();
     mockFetchWithAuth.mockReturnValue(new Promise(() => {}));
+    mockBuildScreenerPreviewUrl.mockClear();
   });
 
   afterEach(() => {
@@ -281,6 +286,105 @@ describe("ScreenerConfigView", () => {
       expect(screen.queryByTestId("preview-loading")).not.toBeInTheDocument();
     });
 
+  });
 
+  // `/api/screeners` returns `filters` as a dict (`{key: default}`), while the
+  // TS type says `ProfileFilter[]`. The preview must survive either shape.
+  describe("filter shape handling", () => {
+    const renderFilterShape = async (filters: unknown, withBoundary = false) => {
+      const options = [
+        { id: "shape-test", label: "Shape Test", columns: ["symbol", "score"], filters },
+      ] as unknown as ScreenerOption[];
+      vi.useFakeTimers();
+      try {
+        render(() => (
+          <UIProvider>
+            {withBoundary ? (
+              <ErrorBoundary fallback={<div data-testid="shape-error-boundary">crashed</div>}>
+                <ScreenerConfigView
+                  screenerOptions={options}
+                  activeScreener="shape-test"
+                  onScreenerChange={vi.fn()}
+                />
+              </ErrorBoundary>
+            ) : (
+              <ScreenerConfigView
+                screenerOptions={options}
+                activeScreener="shape-test"
+                onScreenerChange={vi.fn()}
+              />
+            )}
+          </UIProvider>
+        ));
+        await vi.advanceTimersByTimeAsync(500);
+      } finally {
+        vi.useRealTimers();
+      }
+    };
+
+    const lastPreviewFilters = (): unknown => {
+      const calls = mockBuildScreenerPreviewUrl.mock.calls;
+      return calls.length ? calls[calls.length - 1][0]?.filters : undefined;
+    };
+
+    it("(a) array of {key, default} still produces the same entries (regression)", async () => {
+      await renderFilterShape([
+        { key: "min_rsi", default: 30 },
+        { key: "min_adx", default: 15 },
+      ]);
+      expect(lastPreviewFilters()).toEqual([
+        { key: "min_rsi", default: 30 },
+        { key: "min_adx", default: 15 },
+      ]);
+    });
+
+    it("(b) dict of key -> value produces {key, default} entries", async () => {
+      await renderFilterShape({ min_surge_pct: 5, min_volume_m: 0.1 });
+      expect(lastPreviewFilters()).toEqual([
+        { key: "min_surge_pct", default: 5 },
+        { key: "min_volume_m", default: 0.1 },
+      ]);
+    });
+
+    it("(c) dict array-pair value produces <key>_min / <key>_max entries", async () => {
+      await renderFilterShape({ rsi_range: [30, 70], min_volume_m: 1 });
+      expect(lastPreviewFilters()).toEqual([
+        { key: "rsi_range_min", default: 30 },
+        { key: "rsi_range_max", default: 70 },
+        { key: "min_volume_m", default: 1 },
+      ]);
+    });
+
+    it("(c2) dict null value is skipped (no key= with empty default)", async () => {
+      await renderFilterShape({ rsi_range: null, min_volume_m: 1 });
+      expect(lastPreviewFilters()).toEqual([{ key: "min_volume_m", default: 1 }]);
+    });
+
+    it("(d) null / undefined / scalar filters yield [] and never throw", async () => {
+      for (const bad of [null, undefined, 42, "oops", true]) {
+        cleanup();
+        mockBuildScreenerPreviewUrl.mockClear();
+        await renderFilterShape(bad);
+        expect(lastPreviewFilters()).toEqual([]);
+      }
+    });
+
+    it("(e) every shape renders without hitting the error boundary", async () => {
+      const shapes: unknown[] = [
+        [{ key: "min_rsi", default: 30 }],
+        { min_surge_pct: 5 },
+        { rsi_range: [30, 70] },
+        null,
+        undefined,
+        42,
+      ];
+      for (const filters of shapes) {
+        cleanup();
+        mockBuildScreenerPreviewUrl.mockClear();
+        await renderFilterShape(filters, true);
+        expect(screen.getByTestId("screener-list-panel")).toBeInTheDocument();
+        expect(screen.queryByTestId("shape-error-boundary")).not.toBeInTheDocument();
+      }
+    });
   });
 });

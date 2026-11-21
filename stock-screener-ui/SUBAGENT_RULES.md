@@ -258,6 +258,15 @@ npx tsc --noEmit 2>&1 | grep -E '^src/<your scope>/' | wc -l   # before/after
 .venv/bin/python -m pytest <your test files> -q                # backend
 ```
 
+### 8.0 CPU budget — check before any test run that fans out
+
+A vitest worker pool can saturate the box: a stranded worker once held **8.4 GB** and drove an 8-core machine to **3% idle / load 72**, which makes every other gate time out and look like a real failure.
+
+- **Before** a multi-file suite, `bun run test`, or Playwright: check `cat /proc/loadavg` and `top -bn1 | grep "^%Cpu"`.
+- **Floor: ≥30% idle** (or load average < core count). Below that, **sleep 10–20 s and re-check**, up to a minute, then report the number you waited for. Do not start a heavy run on a saturated box.
+- **After** a cancelled or failed run: `pgrep -af "vitest|pytest|playwright"` — an orphaned worker keeps burning CPU and will skew the next run.
+- Never run a full suite concurrently with another lane, and never raise Playwright `--workers` beyond what idle CPU can take.
+
 Guards that must stay green when your scope touches them (canonical list — `AGENTS.md` points here):
 
 ```bash

@@ -11,11 +11,35 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from api.auth import get_current_user
+from .config import ALLOWED_UNIVERSES, UNIVERSES, UNSERVABLE_UNIVERSES
 from .snapshot import MAX_LIMIT, MAX_SYMBOLS, build_snapshot, select_rows
 from .wire import WIRE_FORMAT_COLUMNS, dumps, normalize_format, to_columnar
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/market", tags=["market"])
+
+_DEFAULT_UNIVERSE = "all_equity"
+
+
+def _universe_description() -> str:
+    """Build the Query docs from the registry so they cannot drift from it."""
+    options = []
+    for uid in ALLOWED_UNIVERSES:
+        label = uid
+        if uid == _DEFAULT_UNIVERSE:
+            label += " (default)"
+        if UNIVERSES[uid].currency == "USD":
+            label += " (US large/mid/small caps listed on NASDAQ/NYSE/AMEX)"
+        options.append(label)
+    excluded = ", ".join(sorted(UNSERVABLE_UNIVERSES))
+    return (
+        f"Universe: {', '.join(options)}. {excluded} is intentionally unsupported "
+        "(see UNSERVABLE_UNIVERSES in api/market_screen/config.py for why)."
+    )
+
+
+# Evaluated once at import time: FastAPI copies this into the OpenAPI schema.
+_UNIVERSE_DESCRIPTION = _universe_description()
 
 # Fixed so an upstream error string can never reach a 502 response.
 _MARKET_SOURCE_UNAVAILABLE_DETAIL = (
@@ -112,11 +136,8 @@ def _reset_encoded_cache() -> None:
 )
 async def market_snapshot(
     universe: str = Query(
-        default="all_equity",
-        description=(
-            "Universe: all_equity (default), nifty50, nifty500, nse_fo or us "
-            "(US large/mid/small caps listed on NASDAQ/NYSE/AMEX)."
-        ),
+        default=_DEFAULT_UNIVERSE,
+        description=_UNIVERSE_DESCRIPTION,
     ),
     limit: int = Query(
         default=MAX_LIMIT,

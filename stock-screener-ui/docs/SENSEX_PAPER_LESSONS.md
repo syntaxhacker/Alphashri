@@ -177,3 +177,75 @@ strategies lose. Today's live race (−₹5,800) agreed.
 **Implication:** Either (a) add realistic slippage/costs and re-test (likely worse),
 (b) find a real edge (higher timeframe, different instrument, lower-cost trading),
 or (c) accept SENSEX 1-min option scalping isn't viable and stop.
+
+---
+
+## 11. Continuous 5-second analysis at a level (15 s when quiet) — moneyness first, scalp second (2026-11-19)
+
+A paper position is not managed by watching P&L. While a 0-DTE position is open,
+re-read these four things every **5 seconds** when spot is at a strike, wall, or
+max-pain level; every 15 seconds when price is quiet:
+
+1. **Spot vs each strike** — is the long leg ITM, ATM, or OTM; is the short leg
+   still OTM or sitting on the wall?
+2. **Near-ATM CE/PE LTP** — the 5-second, 15-second and 1-minute premium change.
+3. **OI walls / max pain / PCR** — is the level still defended?
+4. **Spread mark vs target/stop** — distance to exit, not hope.
+
+**Decision order**
+
+- **Long leg has gone OTM and spot has lost the long strike → cut.** Do not
+  average, do not wait for the premium stop. The `82,900/83,000` bull call was
+  cut at **−6.55** when spot lost `82,900`; the mark kept falling to `35.45`
+  (another 5.3 points below the cut). The cut was right because the long strike
+  was no longer money, not because the P&L was red.
+- **Credit spread: short strike still OTM and the wall intact → hold/scalp.**
+  Bank 15–25% of the credit (or 5–10 index points), trail 25% off the peak.
+  The flipped `82,900/83,000` bear call was scalped at **+7.00** when the mark
+  fell from `40.75` to `33.75`; the short strike stayed OTM throughout.
+- **Spot reclaims the short strike → exit immediately**, regardless of the
+  premium stop. The short strike is the risk line, not the P&L line.
+- **0-DTE moneyness:** ATM/near-ATM only — never an OTM lottery. The long strike
+  must start ITM/ATM; the short strike should sit at/behind an OI wall.
+- **Time:** no new entries after **14:45**; flat by **15:10**; CAS runs
+  **15:15–15:30**.
+
+**RULE #11:** Read moneyness before P&L. A small loss on a dead long option is a
+good cut; a small profit on a live short spread is a scalp. The P&L number alone
+will keep you in the wrong trade.
+
+**Hero / pin lesson (14:51):** `prob-maxpain` only fires when spot is at least
+`zone` (60 pts) away from max pain. Spot `82,833` vs max pain `82,831` was a
+3-point pin — the hero system correctly gave **zero trades**. A forced ATM
+`82,800 CE` made **+₹79 net** (closed by the protective stop) but never had the
+₹700 hero target; forcing a hero into a tight pin is a scalp, not a hero.
+Also: a positive SL must sit **below current P&L** — setting SL `+100` while
+P&L was `+85` closed the trade immediately. Use a trail below the mark, not a
+stop above it.
+
+---
+
+## 12. Past-script audit — what actually has an edge
+
+| Script | What it does | What it says |
+|---|---|---|
+| `scripts/paper_sensex.py` | chain, levels, open/close, pnl, monitor, top5, hero; single-leg + range/scalp | the practical SENSEX paper tool; **no native debit-spread support** |
+| `scripts/paper_sensex_scalp_backtest.py` | 24-day 1-min momentum/range scalp grid | in-sample top: `momentum 5/10/300/-150` **+₹18,513**, 71% pos; `5/10/500/-200` **+₹23,403**, 71% pos — **in-sample only** |
+| `scripts/paper_sensex_walkforward.py` | 23-day walk-forward, pick on past / trade future | **−₹4,906**, 383 trades, **9/11 steps negative** — the scalp "edge" does not transfer |
+| `scripts/paper_sensex_realistic_backtest.py` | adds bid/ask, slippage, 30 s cadence, costs, expiry theta | the honest test; run this before believing any scalp config |
+| `scripts/paper_sensex_hourly_backtest.py` | 60-min variant over 121 days | `notrend-t900-sl200-on` +₹59,949, only 47% positive days — a different horizon, not the 1-min live edge |
+| `scripts/paper_sensex_orb_backtest.py` | ORB grid on 23 days | every tested ORB config is net negative; no ORB edge |
+| `scripts/agent_options_check.py` / `scripts/desk_check.py` | NIFTY one-minute checker / desk snapshot | useful levels and greeks, **NIFTY-only** |
+| `options_paper/*` | NIFTY paper engine (manual/live/sim/runner) | no SENSEX spread book; don't mix it with SENSEX paper trades |
+| `scripts/manual_monitor_5s.py` | 5-second NIFTY manual book monitor | manual NIFTY only, not SENSEX |
+
+**RULE #12:** Use the scalp backtests for structure, never as proof of profit.
+The walk-forward and realistic tests are the gate; the current SENSEX 1-min
+evidence says there is no durable edge. Keep it paper-only and keep the sample
+small until forward results say otherwise.
+
+**Tool limit:** the TWAP / GEX / expansion / SETUP desk read lives in
+`scripts/agent_options_check.py` and `scripts/desk_check.py`, and those are
+**NIFTY-only**. SENSEX has `scripts/paper_sensex.py chain|levels` (max-pain/OI)
+but no TWAP/GEX. `top5` / `hero` are research horse races, never the primary
+signal — do not present them as the desk read.

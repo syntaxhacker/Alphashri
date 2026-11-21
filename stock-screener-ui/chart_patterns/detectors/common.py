@@ -11,6 +11,8 @@ from typing import Callable
 
 import pandas as pd
 
+import config
+
 from .. import features as F
 
 # --- tunables (CONTRACT §2) -------------------------------------------------
@@ -135,13 +137,27 @@ PATTERN_MIN_BARS: dict[str, int] = {
 
 
 def fmt_date(ts) -> str:
-    """Human-readable index timestamp (kept short for display fields)."""
+    """Human-readable IST session timestamp (kept short for display fields).
+
+    Candle indexes are UTC: a daily bar stamped 18:30Z belongs to the *next*
+    IST session, so formatting the raw index labels the pattern a day early.
+    """
     try:
-        if ts.hour == 0 and ts.minute == 0 and ts.second == 0:
-            return ts.strftime("%Y-%m-%d")
-        return ts.strftime("%Y-%m-%d %H:%M")
-    except AttributeError:
+        stamp = pd.Timestamp(ts)
+        if stamp.tz is None:
+            stamp = stamp.tz_localize("UTC")
+        # Midnight in either zone marks a daily bar: the feed stamps daily bars
+        # at 18:30Z (IST midnight), older frames at 00:00Z.
+        daily = (
+            stamp.hour == 0 and stamp.minute == 0 and stamp.second == 0
+        )
+        stamp = stamp.tz_convert(config.IST)
+        daily = daily or (stamp.hour == 0 and stamp.minute == 0 and stamp.second == 0)
+    except (TypeError, ValueError, AttributeError):
         return str(ts)
+    if daily:
+        return stamp.strftime("%Y-%m-%d")
+    return stamp.strftime("%Y-%m-%d %H:%M")
 
 
 def iso_ts(ts) -> str:

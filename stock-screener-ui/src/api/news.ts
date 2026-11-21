@@ -14,6 +14,7 @@ import type {
   NewsArticle,
 } from "../components/news/news-types";
 import { fetchWithAuth } from "../state/auth";
+import { apiErrorFromResponse, asApiError, isAbortError } from "./apiError";
 import { jsonOrThrow } from "./utils/request";
 import { API_BASE, WS_BASE } from "./config";
 
@@ -23,19 +24,26 @@ import { API_BASE, WS_BASE } from "./config";
 export async function fetchNews(
   source: string | undefined = undefined,
   limit: number = 25,
+  signal?: AbortSignal,
 ): Promise<NewsItem[]> {
-  try {
-    let url = `${API_BASE}/api/news?limit=${limit}`;
-    if (source && source !== "all") {
-      url += `&source=${source}`;
-    }
-    const response = await fetchWithAuth(url);
-    const data: NewsResponse = await jsonOrThrow<NewsResponse>(response, "Failed to fetch news");
-    return data.items || [];
-  } catch (error) {
-    console.error("Failed to fetch news:", error);
-    return [];
+  let url = `${API_BASE}/api/news?limit=${limit}`;
+  if (source && source !== "all") {
+    url += `&source=${source}`;
   }
+  let response: Response;
+  try {
+    response = await fetchWithAuth(url, signal ? { signal } : undefined);
+  } catch (error) {
+    // Keep the original AbortError: consumers' `isAbortError` guard keys off
+    // `name === "AbortError"` and treats it as a silent no-op.
+    if (isAbortError(error)) throw error;
+    throw asApiError(error, "Failed to fetch news");
+  }
+  if (!response.ok) {
+    throw await apiErrorFromResponse(response, "Failed to fetch news");
+  }
+  const data: NewsResponse = await jsonOrThrow<NewsResponse>(response, "Failed to fetch news");
+  return data.items || [];
 }
 
 /**

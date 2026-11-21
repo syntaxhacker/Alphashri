@@ -186,7 +186,7 @@ test.describe("Screener - Error Handling", () => {
       const retryBtn = page.getByRole("button", {
         name: "Retry",
       });
-      const errorAlert = page.locator(".MuiAlert-root");
+      const errorAlert = page.getByTestId("screener-error-container");
       const count = (await retryBtn.count()) + (await errorAlert.count());
       expect(count).toBeGreaterThan(0);
     }
@@ -318,7 +318,7 @@ test.describe("Screener - Config Tab", () => {
     await page.waitForLoadState("networkidle");
     await page.fill('[data-testid="screener-name-input"]', "Test");
     const firstCol = page
-      .locator('[data-testid="create-screener-form"] .MuiFormControlLabel-label')
+      .locator('[data-testid="inline-form"] label')
       .first();
     await firstCol.click();
     await expect(page.locator('[data-testid="confirm-create-btn"]')).toBeEnabled();

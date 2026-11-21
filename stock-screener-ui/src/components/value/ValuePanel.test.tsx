@@ -279,6 +279,55 @@ describe("ValuePanel", () => {
     expect(screen.getByTestId("value-detail-sub-RELIANCE-value")).toBeInTheDocument();
   });
 
+  test("the standalone tab works with no dock provider: row click still opens the drawer", async () => {
+    // No SymbolDockProvider — exactly how the Deep Value tab mounts it. Even a
+    // mistakenly supplied host opener must be ignored outside embedded mode.
+    const onRowClick = vi.fn();
+    const onOpenSymbol = vi.fn();
+    r(<ValuePanel onRowClick={onRowClick} onOpenSymbol={onOpenSymbol} />);
+    await screen.findByTestId("value-row-RELIANCE");
+    fireEvent.click(screen.getByTestId("value-row-RELIANCE"));
+    expect(onRowClick).toHaveBeenCalledWith(expect.objectContaining({ symbol: "RELIANCE" }));
+    expect(onOpenSymbol).not.toHaveBeenCalled();
+    expect(screen.getByTestId("value-detail-RELIANCE")).toBeInTheDocument();
+    expect(routerMocks.navigate).not.toHaveBeenCalled();
+  });
+
+  test("an embedded chart-eligible row hands its symbol to the host instead of the drawer", async () => {
+    const onOpenSymbol = vi.fn();
+    r(<ValuePanel embedded market="india" onOpenSymbol={onOpenSymbol} />);
+    await screen.findByTestId("value-row-RELIANCE");
+
+    fireEvent.click(screen.getByTestId("value-row-RELIANCE"));
+
+    expect(onOpenSymbol).toHaveBeenCalledTimes(1);
+    expect(onOpenSymbol).toHaveBeenCalledWith("RELIANCE");
+    expect(screen.queryByTestId("value-detail-RELIANCE")).not.toBeInTheDocument();
+  });
+
+  test("an embedded row without an in-app chart keeps the detail drawer", async () => {
+    mockValueScan.mockResolvedValue(response([row("VOD", { exchange: "LSE" })]));
+    const onOpenSymbol = vi.fn();
+    r(<ValuePanel embedded market="india" onOpenSymbol={onOpenSymbol} />);
+    await screen.findByTestId("value-row-VOD");
+
+    fireEvent.click(screen.getByTestId("value-row-VOD"));
+
+    expect(onOpenSymbol).not.toHaveBeenCalled();
+    expect(screen.getByTestId("value-detail-VOD")).toBeInTheDocument();
+  });
+
+  test("an embedded chart-eligible symbol link uses the host opener, not navigation", async () => {
+    const onOpenSymbol = vi.fn();
+    r(<ValuePanel embedded market="india" onOpenSymbol={onOpenSymbol} />);
+    await screen.findByTestId("value-row-RELIANCE");
+
+    fireEvent.click(screen.getByTestId("value-name-RELIANCE"));
+
+    expect(onOpenSymbol).toHaveBeenCalledWith("RELIANCE");
+    expect(routerMocks.navigate).not.toHaveBeenCalled();
+  });
+
   test("a successful market switch renders the new market's rows only", async () => {
     r(<ValuePanel />);
     await screen.findByTestId("value-row-RELIANCE");

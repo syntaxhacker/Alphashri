@@ -49,9 +49,25 @@ vi.mock("../state/auth", () => ({
   fetchWithAuth: vi.fn(),
 }));
 
-vi.mock("../state/holidays", () => ({
-  isMarketClosedToday: vi.fn().mockReturnValue(false),
+// Fixed IST instants injected into the real session helper; the holiday-only
+// helper stays holiday-only so the after-hours regressions fail on the old code.
+const clock = vi.hoisted(() => ({ now: new Date("2026-11-16T05:30:00Z") })); // Mon 11:00 IST
+
+vi.mock("../api/holidays_api", () => ({
+  fetchHolidays: vi.fn(async () => []),
+  fetchHolidayCheck: vi.fn(),
 }));
+
+vi.mock("../state/holidays", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../state/holidays")>();
+  const istDate = (now: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(now);
+  return {
+    ...actual,
+    isMarketClosedToday: (now?: Date) => actual.isTradingHoliday(istDate(now ?? clock.now)),
+    isMarketOpenNow: (now?: Date) => actual.isMarketOpenNow(now ?? clock.now),
+  };
+});
 
 import { fetchWithAuth } from "../state/auth";
 import { fetchData, resetLoadingState, detectAutoRefreshChanges, setRenderCallback, setupAutoRefresh } from "./index";
@@ -61,13 +77,29 @@ import type { BacktestState } from "../state/backtest";
 import { isAbortError } from "../hooks/useFetch";
 import { detectAddedSymbols } from "../utils/runtime_utils";
 import { pushNotification, markNewSymbols } from "../utils/notifications";
+import { fetchHolidays } from "../api/holidays_api";
+import { loadHolidays, resetHolidays } from "../state/holidays";
 
 const mockedFetch = vi.mocked(fetchWithAuth);
 const mockedIsAbortError = vi.mocked(isAbortError);
 
+function setClock(utcIso: string) {
+  clock.now = new Date(utcIso);
+}
+
+async function setHoliday(date: string, description: string) {
+  vi.mocked(fetchHolidays).mockResolvedValueOnce([{ date, description, type: "trading" }]);
+  resetHolidays();
+  await loadHolidays();
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   setRenderCallback(() => {});
+  setClock("2026-11-16T05:30:00Z"); // Monday 11:00 IST — open
+  delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+  vi.mocked(fetchHolidays).mockResolvedValue([]);
+  resetHolidays();
 });
 
 describe("fetchData", () => {
@@ -325,5 +357,57 @@ describe("setupAutoRefresh", () => {
     setupAutoRefresh();
     expect(state.setAutoRefreshInterval).toHaveBeenCalled();
     vi.useRealTimers();
+  });
+
+  // Fixed-instant regressions: the holiday-only helper returned "open" at 17:11.
+  it("skips auto-refresh at 17:11 IST on a weekday", async () => {
+    vi.useFakeTimers();
+    setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST
+    setupAutoRefresh();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(mockedFetch).not.toHaveBeenCalled();
+  });
+
+  it("refreshes at 11:00 IST on a weekday", async () => {
+    vi.useFakeTimers();
+    setClock("2026-11-16T05:30:00Z"); // Monday 11:00 IST
+    setupAutoRefresh();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(mockedFetch).toHaveBeenCalled();
+  });
+
+  it("skips auto-refresh on a holiday at 11:00 IST", async () => {
+    vi.useFakeTimers();
+    setClock("2026-01-26T05:30:00Z"); // Republic Day, Monday 11:00 IST
+    await setHoliday("2026-01-26", "Republic Day");
+    setupAutoRefresh();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(mockedFetch).not.toHaveBeenCalled();
+  });
+
+  it("__E2E_MOCK_MARKET_OPEN__ refreshes at 17:11 IST", async () => {
+    vi.useFakeTimers();
+    setClock("2026-11-16T11:41:00Z");
+    (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
+    setupAutoRefresh();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(mockedFetch).toHaveBeenCalled();
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+  });
+
+  it("uses the 10s intraday cadence only while the session is open", () => {
+    const setIntervalSpy = vi.spyOn(globalThis, "setInterval");
+    (state as any).activeScreener = "intraday_5m";
+    try {
+      setClock("2026-11-16T05:30:00Z"); // 11:00 IST — open
+      setupAutoRefresh();
+      expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 10_000);
+      setClock("2026-11-16T11:41:00Z"); // 17:11 IST — closed
+      setupAutoRefresh();
+      expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 60_000);
+    } finally {
+      (state as any).activeScreener = "trending";
+      setIntervalSpy.mockRestore();
+    }
   });
 });

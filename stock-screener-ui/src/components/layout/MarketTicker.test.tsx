@@ -6,23 +6,62 @@ import { MarketTicker, MarketStatus } from "./MarketTicker";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
-import { isMarketClosedToday, getHolidayState } from "../../state/holidays";
+import { fetchHolidays } from "../../api/holidays_api";
+import { loadHolidays, resetHolidays } from "../../state/holidays";
 
 // Mock fetch
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-vi.mock("../../state/holidays", () => ({
-  // the hook expects an unsubscribe function back
-  subscribeToHolidays: vi.fn(() => () => {}),
-  isMarketClosedToday: vi.fn().mockReturnValue(false),
-  getHolidayState: vi.fn(() => ({ holidays: [] })),
+// Pin both clocks to the test instant, but keep the real IST boundary maths,
+// holiday lookup and E2E override. `isMarketClosedToday` is deliberately kept
+// holiday-only: the fixed-time regressions must fail while the ticker calls it.
+const clock = vi.hoisted(() => ({
+  now: new Date("2026-11-16T05:30:00Z"), // Monday 11:00 IST
 }));
+
+vi.mock("../../api/holidays_api", () => ({
+  fetchHolidays: vi.fn(async () => []),
+  fetchHolidayCheck: vi.fn(),
+}));
+
+vi.mock("../../state/holidays", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../state/holidays")>();
+  const istDate = (now: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(now);
+  return {
+    ...actual,
+    isMarketClosedToday: () => actual.isTradingHoliday(istDate(clock.now)),
+    isMarketOpenNow: (now?: Date) => actual.isMarketOpenNow(now ?? clock.now),
+  };
+});
+
+function setClock(utcIso: string) {
+  clock.now = new Date(utcIso);
+}
+
+/** Pin `new Date()` without faking timers, so waitFor/setInterval still run. */
+function freezeDate() {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(clock.now);
+}
+
+async function setHoliday(date: string, description: string) {
+  vi.mocked(fetchHolidays).mockResolvedValueOnce([
+    { date, description, type: "trading" },
+  ]);
+  resetHolidays();
+  await loadHolidays();
+  freezeDate(); // findTodayHoliday() derives the date from `new Date()`
+}
 
 describe("MarketTicker", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(isMarketClosedToday).mockReturnValue(false);
+    resetHolidays();
+    setClock("2026-11-16T05:30:00Z"); // Monday 11:00 IST — open
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+    vi.mocked(fetchHolidays).mockResolvedValue([]);
     // Component reads the enabled flag straight from localStorage (v2 key)
     localStorage.clear();
     setupBrowserMocks();
@@ -30,6 +69,7 @@ describe("MarketTicker", () => {
 
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
   });
 
   const mockTickerData = {
@@ -385,15 +425,15 @@ describe("MarketTicker", () => {
       expect(screen.getByTestId("ticker-gcf")).toBeInTheDocument();
     });
 
-    // One type scale for every item: 9.5px label, 11px tabular price.
+    // One type scale for every item: 11px label and 11px tabular price.
     for (const testId of ["ticker-nsei", "ticker-gcf"]) {
       const item = screen.getByTestId(testId);
       expect(item.children).toHaveLength(3);
       expect(item.style.getPropertyValue("grid-template-columns")).toBe(
-        "minmax(56px, auto) minmax(64px, 1fr) 82px",
+        "minmax(56px, auto) minmax(64px, 1fr) 128px",
       );
       expect(within(item).getByText(/Nifty 50|Gold/)).toHaveStyle({
-        fontSize: "9.5px",
+        fontSize: "11px",
       });
     }
     expect(screen.getByTestId("ticker-price-nsei")).toHaveStyle({
@@ -404,16 +444,9 @@ describe("MarketTicker", () => {
     });
   });
 
-  it("shows market-closed status instead of a tape on holidays", () => {
-    vi.mocked(isMarketClosedToday).mockReturnValue(true);
-    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
-    vi.mocked(getHolidayState).mockReturnValue({
-      holidays: [{ date: today, description: "Dussehra", type: "trading" }],
-      tradingDates: new Set<string>([today]),
-      clearingDates: new Set<string>(),
-      loaded: true,
-      loading: false,
-    });
+  it("shows market-closed status instead of a tape on holidays", async () => {
+    setClock("2026-01-26T05:30:00Z"); // Republic Day, Monday 11:00 IST
+    await setHoliday("2026-01-26", "Republic Day");
 
     render(() => (<UIProvider>
         <MarketTicker />
@@ -422,7 +455,7 @@ describe("MarketTicker", () => {
 
     expect(screen.getByTestId("market-ticker-status")).toBeInTheDocument();
     expect(screen.getByText("Market closed")).toBeInTheDocument();
-    expect(screen.getByText(/Dussehra/)).toBeInTheDocument();
+    expect(screen.getByText(/Republic Day/)).toBeInTheDocument();
     expect(screen.queryByTestId("market-ticker-loading")).not.toBeInTheDocument();
     expect(mockFetch).not.toHaveBeenCalled();
   });
@@ -444,7 +477,7 @@ describe("MarketTicker", () => {
   it("tape variant renders nothing when the market is closed", () => {
     // The sidebar owns the closed status; the main column must not reserve a
     // 22px strip for a tape that has nothing to show.
-    vi.mocked(isMarketClosedToday).mockReturnValue(true);
+    setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST — after the close
     render(() => (<UIProvider>
         <MarketTicker variant="tape" />
       </UIProvider>),
@@ -481,14 +514,20 @@ describe("MarketTicker", () => {
 describe("MarketStatus", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(isMarketClosedToday).mockReturnValue(false);
+    resetHolidays();
+    setClock("2026-11-16T05:30:00Z"); // Monday 11:00 IST — open
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+    vi.mocked(fetchHolidays).mockResolvedValue([]);
     setupBrowserMocks();
   });
 
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
 
   it("states the market is closed (dot + label) without a tape", () => {
-    vi.mocked(isMarketClosedToday).mockReturnValue(true);
+    setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST — after the close
     render(() => (<UIProvider>
         <MarketStatus />
       </UIProvider>),
@@ -499,7 +538,7 @@ describe("MarketStatus", () => {
   });
 
   it("hides the label but keeps the dot when compact (collapsed rail)", () => {
-    vi.mocked(isMarketClosedToday).mockReturnValue(true);
+    setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST — after the close
     render(() => (<UIProvider>
         <MarketStatus compact />
       </UIProvider>),
@@ -515,5 +554,88 @@ describe("MarketStatus", () => {
       </UIProvider>),
     );
     expect(screen.getByText("Market live")).toBeInTheDocument();
+  });
+});
+
+// Fixed-instant regression cases: the old holiday-only check happily said
+// "Market live" on every ordinary weekday, including three hours after close.
+describe("MarketStatus — real IST session", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetHolidays();
+    setClock("2026-11-16T05:30:00Z"); // Monday 11:00 IST
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+    vi.mocked(fetchHolidays).mockResolvedValue([]);
+    setupBrowserMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  const renderStatus = () => render(() => (<UIProvider><MarketStatus /></UIProvider>));
+
+  it("17:11 IST on a trading weekday is closed, with the session boundary in the tooltip", () => {
+    setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST
+    renderStatus();
+    expect(screen.getByText("Market closed")).toBeInTheDocument();
+    expect(screen.getByTestId("app-market-status")).toHaveAttribute(
+      "title",
+      expect.stringContaining("Closed at 15:30 IST"),
+    );
+  });
+
+  it("11:00 IST on a trading weekday is live", () => {
+    setClock("2026-11-16T05:30:00Z");
+    renderStatus();
+    expect(screen.getByText("Market live")).toBeInTheDocument();
+  });
+
+  it("09:14 IST is closed and says when the session opens", () => {
+    setClock("2026-11-16T03:44:00Z"); // Monday 09:14 IST
+    renderStatus();
+    expect(screen.getByText("Market closed")).toBeInTheDocument();
+    expect(screen.getByTestId("app-market-status")).toHaveAttribute(
+      "title",
+      expect.stringContaining("Opens 09:15 IST"),
+    );
+  });
+
+  it("09:15 IST is live", () => {
+    setClock("2026-11-16T03:45:00Z"); // Monday 09:15 IST
+    renderStatus();
+    expect(screen.getByText("Market live")).toBeInTheDocument();
+  });
+
+  it("15:30 IST is closed (the close is exclusive)", () => {
+    setClock("2026-11-16T10:00:00Z"); // Monday 15:30 IST
+    renderStatus();
+    expect(screen.getByText("Market closed")).toBeInTheDocument();
+  });
+
+  it("a holiday at 11:00 IST stays closed and keeps the holiday reason", async () => {
+    setClock("2026-01-26T05:30:00Z"); // Republic Day, Monday 11:00 IST
+    await setHoliday("2026-01-26", "Republic Day");
+    renderStatus();
+    expect(screen.getByText("Market closed")).toBeInTheDocument();
+    expect(screen.getByTestId("app-market-status")).toHaveAttribute(
+      "title",
+      expect.stringContaining("Republic Day"),
+    );
+  });
+
+  it("__E2E_MOCK_MARKET_OPEN__ forces live even at 17:11 IST", () => {
+    setClock("2026-11-16T11:41:00Z");
+    (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
+    renderStatus();
+    expect(screen.getByText("Market live")).toBeInTheDocument();
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+  });
+
+  it("does not fetch a tape at 17:11 IST", () => {
+    setClock("2026-11-16T11:41:00Z");
+    render(() => (<UIProvider><MarketTicker /></UIProvider>));
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });

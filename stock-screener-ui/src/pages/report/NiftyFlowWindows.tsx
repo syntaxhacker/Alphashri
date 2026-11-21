@@ -1,6 +1,6 @@
 import type { JSX } from "solid-js";
 import { Show } from "solid-js";
-import { Tooltip } from "@/ui";
+import { Tooltip, useMediaQuery } from "@/ui";
 import type { NiftyReport } from "@/types/niftyReport";
 import * as palette from "@/ui/palette";
 import { controlLabel } from "./NiftyVerdictStrip";
@@ -54,6 +54,20 @@ function Cell(props: {
   );
 }
 
+/** Flow-window geometry. At 390 the three legs stack so no cell can draw over
+ *  another (the audit found SESSION text overlapping the 15m/5m values);
+ *  desktop keeps the original single 24px row. */
+export function flowWindowsLayout(narrow: boolean) {
+  return {
+    wrap: narrow,
+    direction: narrow ? ("column" as const) : ("row" as const),
+    height: narrow ? "auto" : `${REPORT_ROW.normal}px`,
+    minHeight: `${REPORT_ROW.normal}px`,
+    overflow: narrow ? "visible" : "hidden",
+    whiteSpace: "nowrap",
+  };
+}
+
 /**
  * SESSION / 15m / 5m flow header.
  *
@@ -70,6 +84,8 @@ export function NiftyFlowWindows(props: {
    *  different premium unit, so their session cell shows the verdict only. */
   showSessionValue?: boolean;
 }) {
+  const narrow = useMediaQuery("(max-width: 600px)");
+  const layout = () => flowWindowsLayout(narrow());
   const report = () => props.report;
   const lastFlip = () => props.lastFlip ?? null;
   const showSessionValue = () => props.showSessionValue ?? true;
@@ -88,11 +104,11 @@ export function NiftyFlowWindows(props: {
     <div
       data-testid="nifty-flow-windows"
       title="SESSION = premium flow (cumulative) · 15m/5m = CE/PE OI change. FLOW FLIP means the 5m leg disagrees with the 15m or the session."
-      class="flex items-center min-w-0"
+      class={`flex min-w-0 ${layout().direction === "column" ? "flex-col items-stretch" : "flex-row items-center"}`}
       style={{
         "gap": `${REPORT_PAD.md}px`,
-        "height": `${REPORT_ROW.normal}px`,
-        "min-height": `${REPORT_ROW.normal}px`,
+        "height": layout().height,
+        "min-height": layout().minHeight,
         "padding-left": `${REPORT_PAD.md}px`,
         "padding-right": `${REPORT_PAD.md}px`,
         "border-top": `1px solid ${palette.TERM_BORDER}`,
@@ -101,7 +117,7 @@ export function NiftyFlowWindows(props: {
         "font-family": palette.MONO,
         "font-size": `${REPORT_FONT.xs}px`,
         "white-space": "nowrap",
-        "overflow": "hidden",
+        "overflow": layout().overflow,
         "flex-shrink": 0,
       }}
     >

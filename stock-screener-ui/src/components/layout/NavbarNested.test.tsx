@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import { Router } from "@solidjs/router";
+import { Route, Router } from "@solidjs/router";
 import { NavbarNested } from "./NavbarNested";
 import { AuthContext } from "../auth/AuthProvider";
 import * as hooks from "@/ui/hooks";
@@ -16,9 +16,9 @@ const mockUserAuth: any = {
   isAuthenticated: true,
 };
 
-/** Every route the rail renders for an admin (18 items incl. Admin). */
+/** Every route the rail renders for an admin (19 items incl. HOME and Admin). */
 const NAV_IDS =
-  /^nav-(screener|news|backtest|experiments|paper|replay|strategy-runner|sector|agri-prices|order-flow|patterns|reports|strategies|bots|options|index-report|settings|admin)$/;
+  /^nav-(home|screener|news|backtest|experiments|paper|replay|strategy-runner|sector|agri-prices|order-flow|patterns|reports|strategies|bots|options|index-report|settings|admin)$/;
 
 function renderNavbar(opts: {
   activePath?: string;
@@ -67,11 +67,12 @@ afterEach(() => {
 
 // ── Nav list contract ──
 describe("NavbarNested nav list contract", () => {
-  it("renders all 18 nav items for admin (enforces list maintenance)", () => {
+  it("renders all 19 nav items for admin (enforces list maintenance)", () => {
     renderNavbar({ auth: mockAdminAuth, activePath: "/" });
     const items = screen.getAllByTestId(/^nav-/);
-    expect(items).toHaveLength(18);
+    expect(items).toHaveLength(19);
     const navIds = items.map((el) => el.getAttribute("data-testid")).filter(Boolean);
+    expect(navIds).toContain("nav-home");
     expect(navIds).toContain("nav-screener");
     expect(navIds).toContain("nav-agri-prices");
     expect(navIds).toContain("nav-order-flow");
@@ -80,18 +81,19 @@ describe("NavbarNested nav list contract", () => {
     expect(navIds).toContain("nav-strategies");
     expect(navIds).toContain("nav-admin");
     // exact count: the full rail, including the Admin-only entry
-    expect(screen.getAllByTestId(NAV_IDS)).toHaveLength(18);
+    expect(screen.getAllByTestId(NAV_IDS)).toHaveLength(19);
   });
 
-  it("renders 17 items for non-admin (hides Admin)", () => {
+  it("renders 18 items for non-admin (hides Admin)", () => {
     renderNavbar({ auth: mockUserAuth });
-    expect(screen.getAllByTestId(NAV_IDS)).toHaveLength(17);
+    expect(screen.getAllByTestId(NAV_IDS)).toHaveLength(18);
     expect(screen.queryByTestId("nav-admin")).not.toBeInTheDocument();
   });
 
   it("renders expected testIds for all core routes", () => {
     renderNavbar({ auth: mockAdminAuth });
     const expected = [
+      "nav-home",
       "nav-screener",
       "nav-news",
       "nav-backtest",
@@ -112,6 +114,29 @@ describe("NavbarNested nav list contract", () => {
       "nav-admin",
     ];
     expected.forEach((id) => expect(screen.getByTestId(id)).toBeInTheDocument());
+  });
+
+  it("HOME entry is present, highlighted on /home, and navigates to /home", async () => {
+    render(() => (
+      <Router
+        root={(route) => (
+          <AuthContext.Provider value={mockAdminAuth}>
+            <NavbarNested activePath="/home" />
+            {route.children}
+          </AuthContext.Provider>
+        )}
+      >
+        <Route path="/home" component={() => <div data-testid="home-route-landed" />} />
+      </Router>
+    ));
+
+    const home = screen.getByTestId("nav-home");
+    expect(home).toBeInTheDocument();
+    expect(home).toHaveAttribute("aria-label", "HOME");
+    expect(home).toHaveAttribute("data-active", "true");
+
+    await fireEvent.click(home);
+    expect(await screen.findByTestId("home-route-landed")).toBeInTheDocument();
   });
 
   it("marks active path with data-active", () => {
@@ -231,7 +256,7 @@ describe("NavbarNested nav item accessible names", () => {
     expect(screen.queryByText("Screener")).not.toBeInTheDocument();
 
     const items = screen.getAllByTestId(NAV_IDS);
-    expect(items).toHaveLength(18);
+    expect(items).toHaveLength(19);
     for (const item of items) {
       const label = item.getAttribute("aria-label");
       expect(label).toBeTruthy();
@@ -254,7 +279,7 @@ describe("NavbarNested nav item accessible names", () => {
     renderNavbar({ collapsed: false, auth: mockAdminAuth });
 
     const items = screen.getAllByTestId(NAV_IDS);
-    expect(items).toHaveLength(18);
+    expect(items).toHaveLength(19);
     items.forEach((item) => expect(item).toHaveAttribute("aria-label"));
     // Visible labels still render alongside the accessible name.
     expect(screen.getByText("Screener")).toBeInTheDocument();

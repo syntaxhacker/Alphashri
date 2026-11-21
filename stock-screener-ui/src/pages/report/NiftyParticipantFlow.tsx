@@ -2,6 +2,7 @@ import { createMemo, For, Show } from "solid-js";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { LocalCompactPanel, LocalCompactStat, LocalEmptyState } from "./reportBits";
+import { REPORT_FONT } from "./reportTokens";
 import { buildParticipantFlow, type ParticipantFlowRow } from "./niftyParticipantFlow";
 
 /**
@@ -65,7 +66,7 @@ function LegBar(props: {
         span
         fw={700}
         c="dimmed"
-        style={{ "width": "22px", "flex-shrink": 0, "font-size": "10px" }}
+        style={{ "width": "22px", "flex-shrink": 0, "font-size": `${REPORT_FONT.micro}px` }}
       >
         {props.leg.toUpperCase()}
       </Text>

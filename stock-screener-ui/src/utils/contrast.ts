@@ -36,11 +36,18 @@ function parseRgb(raw: string): Rgb | null {
   };
 }
 
-/** Parse a hex or rgb()/rgba() colour; alpha must be composited first. */
+/**
+ * Parse a hex or rgb()/rgba() colour; alpha must be composited first.
+ *
+ * Total by design: a bad fill must degrade to black, never throw up the stack
+ * and blank a whole screen. Callers hand us values from caches and third-party
+ * option builders, so the string type is a hint, not a guarantee.
+ */
+const FALLBACK_RGB: Rgb = { r: 0, g: 0, b: 0 };
+
 export function parseColor(color: string): Rgb {
-  const parsed = parseHex(color) ?? parseRgb(color);
-  if (!parsed) throw new Error(`Unsupported colour: ${color}`);
-  return parsed;
+  const raw = typeof color === "string" ? color : "";
+  return parseHex(raw) ?? parseRgb(raw) ?? FALLBACK_RGB;
 }
 
 function channel(value: number): number {
@@ -87,5 +94,9 @@ export function pickTextColor(
   light: string = TEXT,
   dark: string = BG,
 ): string {
-  return contrastRatio(light, background) >= contrastRatio(dark, background) ? light : dark;
+  // An unparseable fill resolves to black, so the off-white anchor wins.
+  const bg = typeof background === "string" ? background : "";
+  const fgLight = typeof light === "string" ? light : TEXT;
+  const fgDark = typeof dark === "string" ? dark : BG;
+  return contrastRatio(fgLight, bg) >= contrastRatio(fgDark, bg) ? fgLight : fgDark;
 }

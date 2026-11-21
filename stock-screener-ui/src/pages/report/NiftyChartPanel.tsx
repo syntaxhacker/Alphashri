@@ -1,13 +1,24 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { createEffect, createMemo, createSignal, For, Show, untrack } from "solid-js";
-import { ActionIcon, Button, SegmentedControl, Text } from "@/ui";
+import { ActionIcon, Button, SegmentedControl, Text, useMediaQuery } from "@/ui";
 import * as palette from "@/ui/palette";
 import { TradingViewChart } from "@/components/chart/TradingViewChart";
+import { useFyersTickStream, type FyersTick } from "@/hooks/useFyersTickStream";
 import { LocalCompactPanel } from "./reportBits";
 import { EmptyCompact } from "@/components/common/states";
 import { NiftyDepthMap } from "./NiftyDepthMap";
-import { useNiftyPatternScan } from "./useNiftyPatternScan";
-import { buildPatternOverlay } from "./niftyPatternOverlay";
+import { PATTERN_LOOKBACK_BARS, useNiftyPatternScan } from "./useNiftyPatternScan";
+import { readChartSource, persistChartSource, type ChartSource } from "./niftyReportStore";
+import {
+  buildPatternOverlay,
+  buildPatternScanAnnotation,
+  patternNoHitLabel,
+} from "./niftyPatternOverlay";
+import {
+  REPORT_FONT,
+  REPORT_CONTROL_LABEL_CLASS,
+  REPORT_CONTROL_LABEL_STYLE,
+} from "./reportTokens";
 import { wallEventOverlay, type WallBurstLike } from "./niftyWallEventOverlay";
 import { fillCandleGaps } from "./niftyCandles";
 import {
@@ -15,6 +26,7 @@ import {
   candlesFromSpotPoints,
   candlesFromTape,
   clipToAsOf,
+  effectiveSessionDate,
   isOnSession,
   pickFreshestCandles,
   sessionDateOf,
@@ -40,6 +52,7 @@ import type {
   NiftyReportMode,
   NiftyTape,
 } from "@/types/niftyReport";
+import type { ReplayCandle } from "@/types/replay";
 
 /**
  * The panel's public surface. The pure chart maths lives in
@@ -78,6 +91,9 @@ const FILL_MIN_HEIGHT = 260;
  *  DESK row sizes itself to `chart body + CHART_ROW_CHROME` so the card never
  *  leaves a black void under a capped fill chart. */
 export const CHART_ROW_CHROME = 48;
+/** Mobile (390px) chart-body target. Reached by collapsing the SESSION/WINDOWS
+ *  flow band so the flex-1 main row grows; asserted by the layout contract test. */
+export const MOBILE_CHART_TARGET = 240;
 /** Collision estimate used by the fill layout (no fixed pixel height). */
 const FILL_LABEL_HEIGHT = 480;
 
@@ -103,6 +119,53 @@ const CHART_SIZE_OPTIONS: { value: string; label: string }[] = [
   { value: "l", label: "L" },
   { value: "xl", label: "XL" },
 ];
+
+/** Which series the chart visualises. Distinct from the chart/depth `view`. */
+const CHART_SOURCE_OPTIONS: { value: string; label: string }[] = [
+  { value: "live", label: "LIVE" },
+  { value: "patterns", label: "PATTERNS" },
+  { value: "offline", label: "OFFLINE" },
+];
+
+/** Mirrors the explicit underlyings in `/ws/fyers/ticks` (including its
+ *  aliases). Other symbols — notably RELIANCE — are rejected by that endpoint,
+ *  so opening a socket for them only produces an `unsupported_symbol` error. */
+const FYERS_UNDERLYINGS = new Set([
+  "NIFTY",
+  "NIFTY50",
+  "NIFTY50-INDEX",
+  "BANKNIFTY",
+  "BANKNIFTY-INDEX",
+  "SENSEX",
+  "SENSEX-INDEX",
+]);
+
+function isFyersUnderlying(symbol: string): boolean {
+  const key = symbol.trim().toUpperCase();
+  return FYERS_UNDERLYINGS.has(key) || key.includes(":");
+}
+
+/** Fold a tick into the *existing* last bar. A tick is a price update, not a
+ *  new minute: appending a bar per tick would draw one candle per second. */
+function overlayFyersTick(bars: ReplayCandle[], tick: FyersTick | null): ReplayCandle[] {
+  if (!tick || bars.length === 0) return bars;
+  const last = bars[bars.length - 1];
+  const tickMs =
+    typeof tick.ts === "number" ? tick.ts : Date.parse(String(tick.ts ?? ""));
+  const barMs = Date.parse(last.time);
+  if (!Number.isFinite(tickMs) || !Number.isFinite(barMs) || tickMs <= barMs) {
+    return bars;
+  }
+  const ltp = tick.ltp;
+  if (!Number.isFinite(ltp) || ltp <= 0) return bars;
+  const updated: ReplayCandle = {
+    ...last,
+    close: ltp,
+    high: Math.max(last.high, ltp),
+    low: Math.min(last.low, ltp),
+  };
+  return [...bars.slice(0, -1), updated];
+}
 
 /** What the chart level tags mean. GEX tags exist in live mode only. */
 interface LevelLegendProps {
@@ -244,6 +307,8 @@ interface NiftyChartPanelProps {
  * tick-driven is passed in.
  */
 export function NiftyChartPanel(props: NiftyChartPanelProps) {
+  const isMobile = useMediaQuery("(max-width: 600px)");
+  const [controlsOpen, setControlsOpen] = createSignal(false);
   const report = () => props.report;
   const mode = () => props.mode;
   const view = () => props.view;
@@ -273,6 +338,115 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
   const { state: patternScan, scan: scanPatterns } = useNiftyPatternScan();
   // Default ON: a scan that returns a pattern should draw it. The chip toggles.
   const [drawPattern, setDrawPattern] = createSignal(true);
+
+  /** Three-way source. Owned here (not in the store's `view`) so switching
+   *  never remounts the panel or refetches — the store's `view` is chart/depth. */
+  const [chartSource, setChartSource] = createSignal<ChartSource>(readChartSource());
+  createEffect(() => persistChartSource(chartSource()));
+  const handleSourceChange = (v: string) => {
+    if (v === "live" || v === "patterns" || v === "offline") setChartSource(v);
+  };
+  const isOffline = () => chartSource() === "offline";
+
+  /** Fyers is a chart-lane feed: it updates the last candle, not the option
+   *  chain / walls, and only the underlyings the WS endpoint accepts. */
+  // Replay is orthogonal to the chart source: a live tick feed into a
+  // historical frame would keep walking the last bar past the playhead.
+  const fyersEnabled = () => chartSource() === "live" && isFyersUnderlying(symbol()) && !asOf();
+  const fyers = useFyersTickStream({
+    symbols: () => [symbol()],
+    enabled: fyersEnabled,
+  });
+
+  /** While Fyers is live it is authoritative, so a REST poll that arrives with
+   *  a fresh (or briefly empty) candle series must not move the chart. The
+   *  snapshot is frozen on the live transition and released on drop — the poll
+   *  is the fallback, never the thing that leaves the desk with no data. */
+  interface CandleFeed {
+    report: Pick<NiftyReport, "intraday" | "candles">;
+    tape: Pick<NiftyTape, "rows"> | null;
+    spot: readonly SpotPoint[] | null;
+  }
+  const [frozenFeed, setFrozenFeed] = createSignal<CandleFeed | null>(null);
+  const currentFeed = (): CandleFeed => ({
+    report: report(),
+    tape: tape(),
+    spot: spotPoints(),
+  });
+  const candleFeed = (): CandleFeed => frozenFeed() ?? currentFeed();
+  const newestBarMs = (feed: CandleFeed): number => {
+    const times = [
+      feed.report.intraday?.at(-1)?.time,
+      feed.report.candles?.at(-1)?.time,
+      feed.spot?.at(-1)?.t,
+      feed.tape?.rows?.at(-1)?.t,
+    ];
+    let newest = 0;
+    for (const value of times) {
+      const ms = Date.parse(value ?? "");
+      if (Number.isFinite(ms) && ms > newest) newest = ms;
+    }
+    return newest;
+  };
+  createEffect(() => {
+    const authoritative = fyersEnabled() && fyers.isLive();
+    if (!authoritative) {
+      if (frozenFeed()) setFrozenFeed(null);
+      return;
+    }
+    const feed = currentFeed();
+    const frozen = frozenFeed();
+    const hasSeries =
+      (feed.report.intraday?.length ?? 0) > 0 ||
+      (feed.report.candles?.length ?? 0) > 0 ||
+      (feed.spot?.length ?? 0) > 0 ||
+      (feed.tape?.rows?.length ?? 0) > 0;
+    if (!hasSeries) return;
+    // A newer bar is a genuine session advance, not a poll overwriting the
+    // tick: accept it so the chart cannot stay pinned to a stale minute.
+    if (!frozen || newestBarMs(feed) > newestBarMs(frozen)) setFrozenFeed(feed);
+  });
+
+  /** A tick only matters while the stream is actually delivering; a cached
+   *  last tick from before a drop must not keep walking the last bar. */
+  const chartTick = (): FyersTick | null => {
+    if (!fyersEnabled() || !fyers.isLive()) return null;
+    const tick = fyers.lastTick(symbol());
+    return tick && Number.isFinite(tick.ltp) ? tick : null;
+  };
+  const tickSig = () => {
+    const tick = chartTick();
+    return tick ? `${tick.ltp}|${String(tick.ts ?? "")}` : "";
+  };
+
+  /** Header status for the chart-lane feed. Short on purpose: the mobile
+   *  header is one row and must not steal height from the 111px chart. The
+   *  tooltip names the other feed so the two WS labels cannot be confused. */
+  const feedView = (): { state: string; label: string; color: string; title: string } | null => {
+    if (!fyersEnabled()) return null;
+    const title =
+      "Fyers tick feed for this chart's last candle. The page header's 'live (WS)' is the separate Upstox report stream.";
+    if (fyers.isLive()) {
+      return { state: "live", label: "FYERS LIVE", color: palette.POSITIVE, title };
+    }
+    if (fyers.isReconnecting()) {
+      return { state: "reconnecting", label: "FYERS RECON", color: palette.WARNING, title: `${title} REST poll is the fallback.` };
+    }
+    if (fyers.isMarketClosed()) {
+      return { state: "market-closed", label: "FYERS CLOSED", color: palette.TEXT_MUTED, title: `${title} REST poll is the fallback.` };
+    }
+    if (fyers.isDisconnected()) {
+      return { state: "disconnected", label: "FYERS OFFLINE", color: palette.NEGATIVE, title: `${title} REST poll is the fallback.` };
+    }
+    return { state: "connecting", label: "FYERS LINK…", color: palette.TEXT_MUTED, title: `${title} REST poll is the fallback.` };
+  };
+
+  /** Replay is orthogonal to the chart source: whichever candle pipeline feeds
+   *  the chart, a supplied playhead stops it from drawing future candles. The
+   *  parent passes `undefined` outside EOD, so live mode is unchanged. */
+  const effectiveAsOf = () => asOf() ?? undefined;
+  const offlineUnavailable = () => isOffline() && !asOf();
+
   const handleTfChange = (v: string) => {
     const next = v as ChartTimeframe;
     if (props.onTimeframeChange) props.onTimeframeChange(next);
@@ -310,7 +484,7 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
    *  series from the previous completed session (the first cold fetch) while
    *  the tape already belongs to today; mixing them drew two days with an
    *  overnight jump. Everything below is scoped to this date. */
-  const sessionDate = () => sessionDateOf(report());
+  const sessionDate = () => effectiveSessionDate(report());
 
   // Generic underlyings (SENSEX/RELIANCE) have no candle endpoint today: the
   // fast options-live payload and `?candles=1` both return an empty intraday
@@ -325,12 +499,16 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
   const chartInputsSig = createMemo(() =>
     [
       sessionDate(),
-      asOf() ?? "",
+      effectiveAsOf() ?? "",
+      // Source is part of the key so switching Live↔Offline recomputes the
+      // clip even when every other input is byte-identical.
+      String(chartSource()),
       String(chartTf()),
-      candleSeriesSig(report().intraday ?? []),
-      candleSeriesSig(report().candles ?? []),
-      tapePointsSig(spotPoints() ?? []),
-      tapePointsSig(tape()?.rows ?? []),
+      tickSig(),
+      candleSeriesSig(candleFeed().report.intraday ?? []),
+      candleSeriesSig(candleFeed().report.candles ?? []),
+      tapePointsSig(candleFeed().spot ?? []),
+      tapePointsSig(candleFeed().tape?.rows ?? []),
     ].join("~"),
   );
 
@@ -339,24 +517,31 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
   /** 1-minute intraday candles when present, else the 15-min EOD candles —
    *  each resampled to the selected timeframe (1m passes through). */
   const chartCandles = createMemo(() => {
+    // OFFLINE with no replay frame has no recorded series to draw.
+    if (offlineUnavailable()) return [];
     const sig = chartInputsSig();
     if (chartCache?.sig === sig) return chartCache.data;
 
     const data = untrack(() => {
-      const spot = candlesFromSpotPoints(spotPoints() ?? [], sessionDate());
-      const tapeBars = candlesFromTape(tape()?.rows ?? [], sessionDate());
-      const base = pickFreshestCandles(report(), spot, tapeBars, sessionDate());
-      // The REST snapshot carries the whole day. On replay, stop at the
-      // playhead so the chart cannot show candles from the future.
-      const clipped = clipToAsOf(base, asOf());
+      const feed = candleFeed();
+      const spot = candlesFromSpotPoints(feed.spot ?? [], sessionDate());
+      const tapeBars = candlesFromTape(feed.tape?.rows ?? [], sessionDate());
+      const base = pickFreshestCandles(feed.report, spot, tapeBars, sessionDate());
+      // The REST snapshot carries the whole day. Any poll replaying history
+      // (including one arriving while LIVE/PATTERNS is selected) is cut here,
+      // before gap-filling/resampling can turn it into post-playhead bars.
+      const clipped = clipToAsOf(base, effectiveAsOf());
       // Repair poisoned bars and re-fill dropped minutes from the tape BEFORE
       // resampling: a 0.00 close or a five-minute hole otherwise blows up the
       // price scale / prints a fake jump. The tape is session-scoped too, so a
       // previous day's tape can never be appended to today's base.
       const filled = fillCandleGaps(clipped, {
-        tape: (tape()?.rows ?? []).filter((row) => isOnSession(row.t, sessionDate())),
+        tape: (feed.tape?.rows ?? []).filter((row) => isOnSession(row.t, sessionDate())),
       });
-      return resampleCandles(filled, CHART_TF_MINUTES[chartTf()]);
+      const bars = resampleCandles(filled, CHART_TF_MINUTES[chartTf()]);
+      // Overlay the live price on the final bar of the *displayed* timeframe.
+      // Same array length in, same array length out: no per-tick bar.
+      return overlayFyersTick(bars, chartTick());
     });
 
     chartCache = { sig, data };
@@ -365,6 +550,10 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
   createEffect(() => {
     if (chartCandles().length > 0) setCandlesEverShown(true);
   });
+
+  /** OFFLINE with no recorded frames (or a frame with no candles) gets an
+   *  explicit empty state instead of a blank chart. */
+  const offlineEmpty = () => isOffline() && (!asOf() || chartCandles().length === 0);
 
   /** EMA9 (warning) + EMA20 (primary), recomputed on the displayed candles so
    *  the overlays always match the selected timeframe. The backend `emas`
@@ -385,10 +574,71 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
    */
   const patternOverlay = createMemo(() => {
     const scan = patternScan();
-    if (!drawPattern() || scan.status !== "ready" || scan.tf !== chartTf()) return null;
+    if (
+      chartSource() !== "patterns" ||
+      !drawPattern() ||
+      scan.status !== "ready" ||
+      scan.tf !== chartTf()
+    ) return null;
     const hit = scan.hits[0];
     if (!hit) return null;
     return buildPatternOverlay(hit, chartCandles());
+  });
+
+  /** A no-result scan still annotates the chart: one muted dot on the last bar
+   *  marks that the window was examined. No level is drawn when nothing matched. */
+  const scanAnnotation = createMemo(() => {
+    const scan = patternScan();
+    if (
+      chartSource() !== "patterns" ||
+      scan.status !== "ready" ||
+      scan.hits.length > 0 ||
+      scan.tf !== chartTf()
+    ) return null;
+    return buildPatternScanAnnotation({
+      candles: chartCandles(),
+      timeframe: scan.tf,
+      lookbackBars: PATTERN_LOOKBACK_BARS,
+      hitCount: scan.hits.length,
+      markerColor: palette.TEXT_MUTED,
+    });
+  });
+
+  /** In-chart result badge. An overlay, not a stacked panel, so the 111px
+   *  mobile chart keeps its height. */
+  const scanBadge = createMemo(() => {
+    const scan = patternScan();
+    if (chartSource() !== "patterns" || scan.status !== "ready") return null;
+    const hit = scan.hits[0];
+    return {
+      text: hit
+        ? `${scan.tf} · ${hit.pattern_name} · ${Math.round(hit.confidence)}%`
+        : patternNoHitLabel(scan.tf, PATTERN_LOOKBACK_BARS),
+      color: hit
+        ? hit.direction === "bullish"
+          ? palette.POSITIVE
+          : hit.direction === "bearish"
+            ? palette.NEGATIVE
+            : palette.TEXT
+        : palette.TEXT,
+      title: hit
+        ? `${hit.pattern_id} · ${hit.status} · ${scan.tf}`
+        : `Scanned window: up to ${PATTERN_LOOKBACK_BARS} × ${scan.tf} bars · data through ${scan.dataThrough ?? "unknown"}`,
+    };
+  });
+
+  /** Chart-input observability: LIVE/OFFLINE never carry a pattern overlay. */
+  const patternSourceState = createMemo(() => {
+    const scan = patternScan();
+    if (chartSource() !== "patterns") return "off";
+    if (scan.status === "idle" || scan.status === "loading" || scan.status === "error") {
+      return scan.status;
+    }
+    return scan.hits.length > 0 ? "hit" : "none";
+  });
+  const patternOverlayCount = createMemo(() => {
+    const scan = patternScan();
+    return chartSource() === "patterns" && scan.status === "ready" && scan.hits.length > 0 ? 1 : 0;
   });
 
   const chartEmaData = createMemo(() => {
@@ -459,18 +709,93 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
     ...mpTouches().map((t) => ({ time: t.point.time, value: t.value })),
     ...wallOverlay().markers,
     ...flipMarker(),
+    ...(scanAnnotation() ? [scanAnnotation()!.marker] : []),
   ]);
+
+  const sourceToggle = () => (
+    <SegmentedControl
+      data-testid="nifty-chart-source"
+      value={chartSource()}
+      onChange={handleSourceChange}
+      data={CHART_SOURCE_OPTIONS}
+      size="md"
+      className={REPORT_CONTROL_LABEL_CLASS}
+      style={REPORT_CONTROL_LABEL_STYLE}
+    />
+  );
+  const secondaryControls = () => (
+    <>
+      <SegmentedControl
+        data-testid="nifty-tf-toggle"
+        value={chartTf()}
+        onChange={handleTfChange}
+        data={CHART_TF_OPTIONS}
+        size="md"
+        className={REPORT_CONTROL_LABEL_CLASS}
+        style={REPORT_CONTROL_LABEL_STYLE}
+      />
+      <Button
+        data-testid="nifty-patterns-scan"
+        size="xs"
+        variant="subtle"
+        onClick={() => scanPatterns(chartTf())}
+        disabled={patternScan().status === "loading"}
+        title={`Run the chart-pattern detector on ${symbol()} ${chartTf()}`}
+        style={{ "min-width": "0px", "padding-left": "6px", "padding-right": "6px", "padding-top": "0px", "padding-bottom": "0px", "height": "20px", "font-size": "11px", "font-weight": 800, "letter-spacing": "0.06em" }}
+      >
+        {patternScan().status === "loading" ? "…" : "PATTERNS"}
+      </Button>
+      <SegmentedControl
+        data-testid="nifty-chart-size"
+        value={chartSize()}
+        onChange={handleSizeChange}
+        data={CHART_SIZE_OPTIONS}
+        size="md"
+        className={REPORT_CONTROL_LABEL_CLASS}
+        style={REPORT_CONTROL_LABEL_STYLE}
+      />
+      <Show when={props.onExpand}>
+        <ActionIcon
+          data-testid="nifty-chart-expand"
+          aria-label="Expand chart fullscreen"
+          title="Fullscreen (F)"
+          size={20}
+          onClick={props.onExpand}
+          style={{ padding: "1px", color: palette.TEXT_MUTED }}
+        >
+          <Text span size="xs" fw={700} style={{ "font-size": "13px", "line-height": 1 }}>
+            ⤢
+          </Text>
+        </ActionIcon>
+      </Show>
+    </>
+  );
 
   return (
     <LocalCompactPanel
       title={
-        <span style={{ display: "inline-flex", "align-items": "center", gap: "6px" }}>
+        <span style={{ display: "inline-flex", "align-items": "center", gap: "6px", "white-space": "nowrap", "flex-shrink": 0 }}>
           {view() === "depth" ? `${symbol()} depth map` : `${symbol()} chart`}
+          <Show when={feedView()}>
+            {(view) => (
+              <Text
+                data-testid="nifty-fyers-feed"
+                data-state={view().state}
+                size="xs"
+                fw={700}
+                span
+                title={view().title}
+                style={{ color: view().color, "white-space": "nowrap" }}
+              >
+                {view().label}
+              </Text>
+            )}
+          </Show>
           <Show when={wallOverlay().markers.length > 0}>
             <Text
               data-testid="nifty-chart-event-badge"
               style={{
-                "font-size": "9px",
+                "font-size": "11px",
                 "font-weight": 700,
                 "letter-spacing": "0.4em",
                 "text-transform": "uppercase",
@@ -483,51 +808,52 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
         </span>
       }
       testId="nifty-chart-panel"
-      class="[&_[data-compact-card-content]]:flex-1 [&_[data-compact-card-content]]:min-h-0"
+      class="[&_[data-compact-card-content]]:flex-1 [&_[data-compact-card-content]]:min-h-0 [&_[data-compact-card-content]]:overflow-hidden max-[600px]:[&_[data-compact-card-content]]:p-0 max-[600px]:[&_[data-compact-card-content]]:gap-0"
       style={{ "min-width": "0px", "min-height": "0px", height: "100%", overflow: "hidden", display: "flex", "flex-direction": "column" }}
       action={
         view() === "chart" ? (
-          <div class="flex items-center" style={{ gap: "4px" }}>
-            <SegmentedControl
-              data-testid="nifty-tf-toggle"
-              value={chartTf()}
-              onChange={handleTfChange}
-              data={CHART_TF_OPTIONS}
-              size="xs"
-            />
-            <Button
-              data-testid="nifty-patterns-scan"
-              size="xs"
-              variant="subtle"
-              onClick={() => scanPatterns(chartTf())}
-              disabled={patternScan().status === "loading"}
-              title={`Run the chart-pattern detector on ${symbol()} ${chartTf()}`}
-              style={{ "min-width": "0px", "padding-left": "6px", "padding-right": "6px", "padding-top": "0px", "padding-bottom": "0px", "height": "20px", "font-size": "9px", "font-weight": 800, "letter-spacing": "0.06em" }}
+          <Show
+            when={isMobile()}
+            fallback={
+              // Desktop keeps the original single row; no mobile-only rule
+              // reaches it.
+              <div class="flex flex-1 min-w-0 items-center justify-end overflow-x-auto" style={{ gap: "4px" }}>
+                {sourceToggle()}
+                {secondaryControls()}
+              </div>
+            }
+          >
+            <div
+              data-testid="nifty-chart-controls-mobile"
+              className="flex flex-col items-stretch min-w-0"
+              style={{ gap: "2px" }}
             >
-              {patternScan().status === "loading" ? "…" : "PATTERNS"}
-            </Button>
-            <SegmentedControl
-              data-testid="nifty-chart-size"
-              value={chartSize()}
-              onChange={handleSizeChange}
-              data={CHART_SIZE_OPTIONS}
-              size="xs"
-            />
-            <Show when={props.onExpand}>
-              <ActionIcon
-                data-testid="nifty-chart-expand"
-                aria-label="Expand chart fullscreen"
-                title="Fullscreen (F)"
-                size={20}
-                onClick={props.onExpand}
-                style={{ padding: "1px", color: palette.TEXT_MUTED }}
-              >
-                <Text span size="xs" fw={700} style={{ "font-size": "13px", "line-height": 1 }}>
-                  ⤢
-                </Text>
-              </ActionIcon>
-            </Show>
-          </div>
+              <div className="flex items-center justify-end min-w-0" style={{ gap: "4px" }}>
+                <div className="shrink-0">{sourceToggle()}</div>
+                <Button
+                  data-testid="nifty-chart-controls-more"
+                  size="xs"
+                  variant="subtle"
+                  aria-expanded={controlsOpen()}
+                  aria-controls="nifty-chart-controls-extra"
+                  onClick={() => setControlsOpen((v) => !v)}
+                  style={{ height: "26px", "min-height": "26px", "min-width": "44px", padding: "0 5px", "font-size": "11px", "font-weight": 800 }}
+                >
+                  {controlsOpen() ? "LESS ▴" : "MORE ▾"}
+                </Button>
+              </div>
+              <Show when={controlsOpen()}>
+                <div
+                  id="nifty-chart-controls-extra"
+                  data-testid="nifty-chart-controls-extra"
+                  className="flex flex-wrap items-center justify-end min-w-0"
+                  style={{ gap: "4px", "padding-top": "2px" }}
+                >
+                  {secondaryControls()}
+                </div>
+              </Show>
+            </div>
+          </Show>
         ) : undefined
       }
     >
@@ -546,21 +872,46 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
           "min-height": "0px",
         }}
       >
-        <Show when={chartCandles().length === 0}>
-          <EmptyCompact
-            data-testid="nifty-chart-empty"
-            title="No intraday candles"
-            description="Showing option-chain levels only."
-          />
+        {/* The empty card is taller than a short mobile body. A flex-1 slot
+            gives it the panel's height budget and scrolls internally instead
+            of spilling over the pattern footer / side tabs; on a tall panel
+            it centres in the freed chart area rather than leaving a black band. */}
+        <Show when={offlineEmpty()}>
+          <div
+            data-testid="nifty-chart-offline-slot"
+            class="flex flex-1 min-h-0 items-center justify-center overflow-auto"
+          >
+            <EmptyCompact
+              data-testid="nifty-chart-offline-empty"
+              title="No recorded data"
+              description={`No recorded replay frames for ${sessionDate()}. Switch to LIVE for the streamed series.`}
+            />
+          </div>
+        </Show>
+        <Show when={!offlineEmpty() && chartCandles().length === 0}>
+          <div
+            data-testid="nifty-chart-empty-slot"
+            class="flex flex-1 min-h-0 items-center justify-center overflow-auto"
+          >
+            <EmptyCompact
+              data-testid="nifty-chart-empty"
+              title="No intraday candles"
+              description="Showing option-chain levels only."
+            />
+          </div>
         </Show>
         <Show when={chartCandles().length > 0 || candlesEverShown()}>
           <div
             data-testid="nifty-chart-wrap"
             data-fill={chartHeight() == null ? "1" : undefined}
+            data-mobile-chart-min={MOBILE_CHART_TARGET}
             data-mp-touches={mpTouches().length}
             data-flip-marker={flipMarker().length > 0 ? "1" : "0"}
-            class="w-full max-w-full min-w-0 shrink-0 overflow-hidden"
+            data-pattern-source={patternSourceState()}
+            data-pattern-overlays={patternOverlayCount()}
+            class="w-full max-w-full min-w-0 shrink-0 overflow-hidden flex-1 min-h-0"
             style={{
+              position: "relative",
               ...(chartHeight() == null ? undefined : { height: `${chartHeight()}px` }),
               display: chartCandles().length > 0 ? "flex" : "none",
               flex: chartHeight() == null ? "1" : undefined,
@@ -578,6 +929,53 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
               {...(chartHeight() != null ? { height: chartHeight()! } : {})}
               fitMarkLines
             />
+            <Show when={chartSource() === "patterns" && scanBadge()}>
+              {(badge) => (
+                <div
+                  data-testid="nifty-patterns-chart-badge"
+                  class="pointer-events-none absolute"
+                  title={badge().title}
+                  style={{
+                    top: "4px",
+                    left: "6px",
+                    "max-width": "calc(100% - 12px)",
+                    padding: "2px 5px",
+                    "font-family": palette.MONO,
+                    "font-size": `${REPORT_FONT.micro}px`,
+                    "font-weight": 700,
+                    "line-height": "13px",
+                    "white-space": "nowrap",
+                    overflow: "hidden",
+                    "text-overflow": "ellipsis",
+                    color: badge().color,
+                    background: palette.alpha(palette.SURFACE, 0.86),
+                    border: `1px solid ${palette.BORDER}`,
+                    "border-radius": "4px",
+                  }}
+                >
+                  {badge().text}
+                </div>
+              )}
+            </Show>
+          </div>
+        </Show>
+        <Show when={chartSource() === "patterns" && patternScan().status === "idle"}>
+          <div
+            data-testid="nifty-patterns-empty"
+            class="flex items-center"
+            style={{ gap: "6px", "min-height": "18px", "padding-top": "2px" }}
+          >
+            <Text size="xs" c="dimmed" span>Not scanned yet —</Text>
+            <Button
+              data-testid="nifty-patterns-run"
+              size="xs"
+              variant="subtle"
+              onClick={() => scanPatterns(chartTf())}
+              title={`Run the chart-pattern detector on ${symbol()} ${chartTf()}`}
+              style={{ height: "18px", "min-height": "18px", padding: "0 6px", "font-weight": 800 }}
+            >
+              Run {chartTf()} scan
+            </Button>
           </div>
         </Show>
       </div>
@@ -601,7 +999,7 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
                       firstHit.bars_ago === 0 ? "now" : `${firstHit.bars_ago} bars ago`
                     } · BRK ${lvl(firstHit.breakout_level)} · TGT ${lvl(firstHit.target)} · SL ${lvl(firstHit.stop)}`;
                   })()
-                : "No pattern in the scanned window"
+                : `No pattern found · up to ${PATTERN_LOOKBACK_BARS} × ${tf} bars · data through ${scan.dataThrough ?? "unknown"}`
               : scan.status === "error"
                 ? scan.message
                 : `Scanning ${symbol} ${tf}…`;
@@ -619,7 +1017,7 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
                 "padding-left": "4px",
                 "padding-right": "4px",
                 "font-family": palette.MONO,
-                "font-size": "9px",
+                "font-size": `${REPORT_FONT.micro}px`,
                 "white-space": "nowrap",
                 overflow: "hidden",
                 color: palette.TEXT_MUTED,
@@ -634,7 +1032,9 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
               ) : scan.status === "error" ? (
                 <span style={{ color: palette.NEGATIVE }}>{scan.message}</span>
               ) : scan.hits.length === 0 ? (
-                <span>no pattern</span>
+                <span style={{ color: palette.TEXT, "font-weight": 700 }}>
+                  no pattern · up to {PATTERN_LOOKBACK_BARS} × {tf} bars
+                </span>
               ) : (
                 <>
                   <span

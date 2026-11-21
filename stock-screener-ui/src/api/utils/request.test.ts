@@ -1,5 +1,13 @@
-import { describe, expect, test } from "vitest";
-import { buildUrl, handleApiError } from "./request";
+import { describe, expect, test, vi } from "vitest";
+import { fetchWithAuth } from "../../state/auth";
+import { ApiError } from "../apiError";
+import { buildUrl, handleApiError, jsonOrThrow, safeGet } from "./request";
+
+vi.mock("../../state/auth", () => ({
+  fetchWithAuth: vi.fn(),
+}));
+
+const mockedFetch = vi.mocked(fetchWithAuth);
 
 describe("buildUrl", () => {
   test("returns base URL when no params provided", () => {
@@ -103,5 +111,70 @@ describe("handleApiError", () => {
     });
 
     await expect(handleApiError(response, "Empty error")).rejects.toThrow("Empty error");
+  });
+
+  test("throws a typed ApiError that keeps the status and kind", async () => {
+    const response = new Response(JSON.stringify({ detail: "Session expired" }), { status: 401 });
+
+    const error = await handleApiError(response, "Default error").catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(401);
+    expect((error as ApiError).kind).toBe("unauthorized");
+    expect((error as ApiError).message).toBe("Session expired");
+  });
+});
+
+describe("jsonOrThrow typed errors", () => {
+  test("a 401 surfaces status and unauthorized kind", async () => {
+    const response = new Response(JSON.stringify({ detail: "Session expired" }), { status: 401 });
+    const error = await jsonOrThrow(response, "Request failed").catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(401);
+    expect((error as ApiError).kind).toBe("unauthorized");
+    expect((error as ApiError).message).toBe("Session expired");
+  });
+
+  test("a 429 carries retryAfterMs from the Retry-After header", async () => {
+    const response = new Response(JSON.stringify({ detail: "Slow down" }), {
+      status: 429,
+      headers: { "Retry-After": "9" },
+    });
+    const error = await jsonOrThrow(response, "Request failed").catch((e: unknown) => e);
+    expect((error as ApiError).status).toBe(429);
+    expect((error as ApiError).kind).toBe("rate_limited");
+    expect((error as ApiError).retryAfterMs).toBe(9000);
+  });
+
+  test("a malformed success body still carries the response status", async () => {
+    const response = new Response("not json", { status: 200 });
+    const error = await jsonOrThrow(response, "Bad payload").catch((e: unknown) => e);
+    expect((error as ApiError).status).toBe(200);
+    expect((error as ApiError).message).toBe("Bad payload");
+  });
+});
+
+describe("safeGet", () => {
+  test("throws a typed ApiError instead of returning the fallback on a 401", async () => {
+    mockedFetch.mockResolvedValue(new Response(JSON.stringify({ detail: "No token" }), { status: 401 }));
+    const error = await safeGet("https://example.test/data", [] as number[], "Fetch failed").catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(401);
+    expect((error as ApiError).kind).toBe("unauthorized");
+  });
+
+  test("throws a typed ApiError on a network failure instead of returning the fallback", async () => {
+    mockedFetch.mockRejectedValue(new TypeError("Failed to fetch"));
+    const error = await safeGet("https://example.test/data", [] as number[], "Fetch failed").catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).kind).toBe("network");
+  });
+
+  test("returns the parsed JSON on success", async () => {
+    mockedFetch.mockResolvedValue(new Response(JSON.stringify([1, 2]), { status: 200 }));
+    await expect(safeGet("https://example.test/data", [] as number[])).resolves.toEqual([1, 2]);
   });
 });

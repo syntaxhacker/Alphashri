@@ -2442,6 +2442,89 @@ export async function setupUserConfigMocks(
 }
 
 /**
+ * Saved desk layout (`/api/user-configs/window.home`). `setupUserConfigMocks`
+ * only serves `market.filters` / `table.*` and 404s every other scope, which
+ * disables persistence for the HOME desk. This helper keeps the scope's row in
+ * a page-scoped closure so a `page.reload()` truly re-reads the last PUT.
+ */
+export interface HomeConfigMockHandle {
+  /** Last persisted `window.home` payload (the PUT body's `config`), deep-cloned. */
+  stored: () => Record<string, unknown> | null;
+  /** Every payload the desk wrote, in order. */
+  puts: () => Record<string, unknown>[];
+  /** Exact URLs received by the mock (GET + PUT + DELETE). */
+  requests: () => string[];
+}
+
+export async function setupHomeConfigMocks(
+  page: import("@playwright/test").Page,
+): Promise<HomeConfigMockHandle> {
+  const scope = "window.home";
+  let saved: Record<string, unknown> | null = null;
+  let updatedAt: string | null = null;
+  const puts: Record<string, unknown>[] = [];
+  const requests: string[] = [];
+
+  const envelope = (config: Record<string, unknown>, isSaved: boolean) => ({
+    scope,
+    version: 1,
+    saved: isSaved,
+    updated_at: updatedAt,
+    config,
+  });
+  const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
+  await page.route(apiRoute("user-configs/window.home"), async (route) => {
+    const request = route.request();
+    requests.push(request.url());
+    const method = request.method();
+
+    if (method === "PUT") {
+      let body: Record<string, unknown> = {};
+      try {
+        body = (JSON.parse(request.postData() ?? "{}") as Record<string, unknown>) ?? {};
+      } catch {
+        body = {};
+      }
+      const config = isPlainObject(body.config) ? (body.config as Record<string, unknown>) : body;
+      puts.push(config);
+      saved = config;
+      updatedAt = new Date(Date.UTC(2026, 10, 19, 9, 0, puts.length)).toISOString();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(envelope(config, true)),
+      });
+      return;
+    }
+
+    if (method === "DELETE") {
+      saved = null;
+      updatedAt = null;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, scope, deleted: true }),
+      });
+      return;
+    }
+
+    // `saved: false` makes the store use the page's own seeded defaults.
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(envelope(saved ?? { v: 1, active: "Main", layouts: [] }, saved !== null)),
+    });
+  });
+
+  return {
+    stored: () => (saved ? clone(saved) : null),
+    puts: () => clone(puts),
+    requests: () => [...requests],
+  };
+}
+
+/**
  * Seed a saved row for a scope before navigation. Requires
  * `setupUserConfigMocks(page)` on the same page so the GET handler reads it.
  */

@@ -188,16 +188,18 @@ def test_daily_one_session_behind_served_from_cache(cache_dir, monkeypatch):
     assert got is not None and len(got) == len(df)
 
 
-def test_daily_three_days_behind_served_from_cache(cache_dir, monkeypatch):
-    """The tolerance is inclusive: a frame exactly 3 days behind is still served."""
+def test_daily_two_sessions_behind_rejected(cache_dir, monkeypatch):
+    """A frame more than one completed session behind is stale, even when it
+    is only 3 calendar days behind (the old calendar-day tolerance bug)."""
     df = _make_df()
     path = cache_dir / "1D" / "BBB.pkl"
     _write_entry(path, df, time.time(), "2026-10-03")
     _closed_market(monkeypatch)
+    monkeypatch.setattr("trading.utils.is_trading_holiday", lambda d: False)
     monkeypatch.setattr(
         candles_mod, "_last_completed_session", lambda now=None: date(2026, 10, 6)
     )
-    assert candles_mod._read_cached(path, True, is_daily=True) is not None
+    assert candles_mod._read_cached(path, True, is_daily=True) is None
 
 
 def test_daily_four_days_behind_rejected(cache_dir, monkeypatch):

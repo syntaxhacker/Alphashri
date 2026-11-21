@@ -28,6 +28,7 @@ import type {
 } from "../types/chartPatterns";
 import { fetchWithAuth } from "../state/auth";
 import type { ChartMarket } from "../utils/chart/time";
+import { apiErrorFromResponse } from "./apiError";
 import { API_BASE } from "./config";
 import { readSseStream } from "./sse";
 import { appendParams, buildQueryString } from "./queryParams";
@@ -141,8 +142,7 @@ async function readError(
 async function getJson<T>(url: string, fallback: string): Promise<T> {
   const response = await fetchWithAuth(url);
   if (!response.ok) {
-    const { detail } = await readError(response, fallback);
-    throw new Error(detail);
+    throw await apiErrorFromResponse(response, fallback);
   }
   return (await response.json()) as T;
 }
@@ -217,8 +217,7 @@ export async function startScan(req: ScanRequest): Promise<ScanResponse> {
     throw new QueueFullError(detail, body?.queue_size ?? null, body?.max_queue ?? null);
   }
   if (!response.ok) {
-    const { detail } = await readError(response, `Failed to start scan (${response.status})`);
-    throw new Error(detail);
+    throw await apiErrorFromResponse(response, `Failed to start scan (${response.status})`);
   }
 
   return (await response.json()) as ScanResponse;
@@ -249,8 +248,7 @@ export async function detectPatterns(
     body: JSON.stringify({ symbol, timeframe, lookback_bars }),
   });
   if (!response.ok) {
-    const { detail } = await readError(response, `Pattern check failed (${response.status})`);
-    throw new Error(detail);
+    throw await apiErrorFromResponse(response, `Pattern check failed (${response.status})`);
   }
   return (await response.json()) as DetectResponse;
 }

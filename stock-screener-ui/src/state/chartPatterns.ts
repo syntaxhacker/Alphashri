@@ -6,6 +6,7 @@
  */
 
 import { createSubscriber } from "./createSubscriber";
+import { ApiError, asApiError, isAbortError } from "../api/apiError";
 import { triggerDistancePct } from "../components/patterns/triggerDistance";
 import type {
   TFSpec,
@@ -116,6 +117,9 @@ export interface ChartPatternsState {
   detailChart: ChartPayload | null;
   loading: boolean;
   error: string | null;
+  /** Typed failure detail for status-aware Retry. Additive; `error` stays a string.
+   * Optional so existing panel test fixtures that build a full state literal still compile. */
+  apiError?: ApiError | null;
 }
 
 function createInitialState(): ChartPatternsState {
@@ -145,6 +149,7 @@ function createInitialState(): ChartPatternsState {
     detailChart: null,
     loading: false,
     error: null,
+    apiError: null,
   };
 }
 
@@ -253,12 +258,23 @@ export function getChartPatternsState(): ChartPatternsState {
 }
 
 function patch(partial: Partial<ChartPatternsState>): void {
-  state = { ...state, ...partial };
+  // Any patch that clears `error` also clears the typed detail, so a stale 401
+  // can never survive a later successful load. Failure patches carry both.
+  const next = "error" in partial ? { apiError: null, ...partial } : partial;
+  state = { ...state, ...next };
   notify();
 }
 
 function toMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
+}
+
+/** Additive typed detail alongside the string message every panel already reads. */
+function failurePatch(
+  error: unknown,
+  fallback: string,
+): Pick<ChartPatternsState, "error" | "apiError"> {
+  return { error: toMessage(error, fallback), apiError: asApiError(error, fallback) };
 }
 
 function startLoading(): void {
@@ -316,12 +332,33 @@ export function setFilters(filters: PatternFilters): void {
   patch({ filters });
 }
 
+/**
+ * `patch()` notifies subscribers synchronously. The patterns URL-sync
+ * subscriber re-parses the URL on that notification — before its own write has
+ * landed — and calls `applyFilters()` with the *previous* filter values. Left
+ * unchecked, that re-entrant call reverts the change the user just made, so the
+ * `loadResults()` immediately below reads the old `state.filters` and issues a
+ * stale query (chip disappears/grid never refreshes). Filter actions ignore
+ * `applyFilters()` while their patch is notifying; the URL sync settles on the
+ * new URL in its own follow-up pass.
+ */
+let filterActionNotifying = false;
+
+function patchFilterAction(partial: Partial<ChartPatternsState>): void {
+  filterActionNotifying = true;
+  try {
+    patch(partial);
+  } finally {
+    filterActionNotifying = false;
+  }
+}
+
 /** Set one filter-rail value and reload the visible results/summary. */
 export function setFilter<K extends keyof PatternFilters>(
   key: K,
   value: PatternFilters[K],
 ): void {
-  patch({ filters: { ...state.filters, [key]: value }, error: null });
+  patchFilterAction({ filters: { ...state.filters, [key]: value }, error: null });
   void loadResults({ offset: 0 });
   void loadSummary();
 }
@@ -333,24 +370,27 @@ export function setFilter<K extends keyof PatternFilters>(
  */
 export function setComputeTrendlines(value: boolean): void {
   if (value === state.computeTrendlines) return;
-  patch({ computeTrendlines: value, error: null });
+  patchFilterAction({ computeTrendlines: value, error: null });
   void loadResults({ offset: 0 });
   void loadSummary();
 }
 
 /** Clear all filters back to defaults and reload results/summary. */
 export function resetFilters(): void {
-  patch({ filters: { ...DEFAULT_PATTERN_FILTERS }, error: null });
+  patchFilterAction({ filters: { ...DEFAULT_PATTERN_FILTERS }, error: null });
   void loadResults({ offset: 0 });
   void loadSummary();
 }
 
 /**
  * Apply a partial filter patch, merged onto `DEFAULT_PATTERN_FILTERS` (so
- * unspecified keys reset), then reload results/summary. Used by presets.
+ * unspecified keys reset), then reload results/summary. Used by presets and by
+ * the URL sync; re-entrant calls during another filter action's patch are
+ * ignored (see `filterActionNotifying`).
  */
 export function applyFilters(filters: Partial<PatternFilters>): void {
-  patch({ filters: { ...DEFAULT_PATTERN_FILTERS, ...filters }, error: null });
+  if (filterActionNotifying) return;
+  patchFilterAction({ filters: { ...DEFAULT_PATTERN_FILTERS, ...filters }, error: null });
   void loadResults({ offset: 0 });
   void loadSummary();
 }
@@ -459,13 +499,35 @@ export async function loadCatalog(): Promise<void> {
       error: null,
     });
   } catch (error) {
-    patch({ error: toMessage(error, "Failed to load chart-pattern catalog") });
+    if (isAbortError(error)) return;
+    patch(failurePatch(error, "Failed to load chart-pattern catalog"));
   } finally {
     finishLoading();
   }
 
   await Promise.all([loadSummary(), loadResults({ offset: 0 }), loadActiveJobs()]);
   maybeAutoScan();
+}
+
+/**
+ * Single flight for the catalog bootstrap. The patterns page and any number of
+ * PATTERNS windows mount independently, so they must share one metadata fetch.
+ * A settled promise is kept: once the registries are here, reopening a window
+ * is a no-op. `force` is the explicit Retry path for a failed bootstrap.
+ *
+ * `loadCatalog()` never rejects (it records failures in `state.error`), so a
+ * settled promise is safe to cache on both the success and failure paths.
+ */
+let catalogBootstrap: Promise<void> | null = null;
+
+export function ensureCatalogLoaded(force = false): Promise<void> {
+  if (!force) {
+    if (catalogBootstrap) return catalogBootstrap;
+    if (state.timeframes.length > 0 && state.universes.length > 0) return Promise.resolve();
+  }
+  const promise = loadCatalog();
+  catalogBootstrap = promise;
+  return promise;
 }
 
 /**
@@ -652,7 +714,8 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
       displayedQuerySig = sig;
     } catch (error) {
       if (generation !== resultsGeneration) return;
-      patch({ streaming: false, error: toMessage(error, "Failed to load pattern results") });
+      if (isAbortError(error) || controller.signal.aborted) return;
+      patch({ streaming: false, ...failurePatch(error, "Failed to load pattern results") });
       inFlightQuerySig = null;
     }
   } finally {
@@ -674,7 +737,8 @@ export async function loadSummary(overrides: Partial<PatternsQuery> = {}): Promi
     patch({ summary, dataThrough: summary.data_through ?? state.dataThrough });
   } catch (error) {
     if (generation !== summaryGeneration) return;
-    patch({ error: toMessage(error, "Failed to load pattern summary") });
+    if (isAbortError(error)) return;
+    patch(failurePatch(error, "Failed to load pattern summary"));
   } finally {
     finishLoading();
   }
@@ -922,17 +986,21 @@ export async function triggerScan(
     });
     void pollJob(response.job_id);
   } catch (error) {
+    if (isAbortError(error)) return;
     if (error instanceof QueueFullError) {
       patch({
         scanning: false,
         error: error.message,
+        // The API raises QueueFullError only for 429; carry that status without
+        // changing the message the panel already renders.
+        apiError: new ApiError(error.message, 429),
         job: state.job
           ? { ...state.job, queue_position: null }
           : null,
       });
       return;
     }
-    patch({ scanning: false, error: toMessage(error, "Failed to start scan") });
+    patch({ scanning: false, ...failurePatch(error, "Failed to start scan") });
   }
 }
 
@@ -988,10 +1056,11 @@ export async function pollJob(jobId: string): Promise<void> {
       }
     } catch (error) {
       if (token !== pollToken) return;
+      if (isAbortError(error)) return;
       stopPolling();
       patch({
         scanning: false,
-        error: toMessage(error, "Lost connection while polling scan job"),
+        ...failurePatch(error, "Lost connection while polling scan job"),
       });
     }
   };
@@ -1113,7 +1182,8 @@ export async function loadSymbolDetail(symbol: string, timeframe?: string): Prom
     if (state.selectedSymbol !== symbol) return;
     patch({ detail, detailChart: chart, error: null });
   } catch (error) {
-    patch({ error: toMessage(error, `Failed to load ${symbol}`) });
+    if (isAbortError(error)) return;
+    patch(failurePatch(error, `Failed to load ${symbol}`));
   } finally {
     finishLoading();
   }
@@ -1130,6 +1200,7 @@ export function resetChartPatternsState(): void {
   inFlightQuerySig = null;
   displayedQuerySig = null;
   autoScanRequested.clear();
+  catalogBootstrap = null;
   state = createInitialState();
   notify();
 }

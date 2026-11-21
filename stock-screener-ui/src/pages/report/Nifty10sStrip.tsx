@@ -94,7 +94,7 @@ export function Nifty10sStrip(props: Nifty10sStripProps) {
         "border-radius": "4px",
         "background-color": palette.TERM_HEADER,
         "font-family": palette.MONO,
-        "font-size": "9px",
+        "font-size": "11px",
       }}
     >
       <span style={{ color: palette.TEXT_MUTED, "font-weight": 700, "letter-spacing": "0.08em", "flex-shrink": 0 }}>
@@ -102,13 +102,13 @@ export function Nifty10sStrip(props: Nifty10sStripProps) {
       </span>
       <span
         data-testid="nifty-10s-ce"
-        style={{ color: d60.ce < 0 ? palette.POSITIVE : palette.NEGATIVE, "font-weight": 800, "flex-shrink": 0 }}
+        style={{ color: palette.TERM_CE, "font-weight": 800, "flex-shrink": 0 }}
       >
         CE {fmtDelta(d60.ce)}
       </span>
       <span
         data-testid="nifty-10s-pe"
-        style={{ color: d60.pe > 0 ? palette.POSITIVE : palette.NEGATIVE, "font-weight": 800, "flex-shrink": 0 }}
+        style={{ color: palette.TERM_PE, "font-weight": 800, "flex-shrink": 0 }}
       >
         PE {fmtDelta(d60.pe)}
       </span>

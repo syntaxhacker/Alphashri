@@ -42,11 +42,8 @@ export interface SetupInput {
 
 /** Coil: current 30-min range vs the median 30-min range of the session. */
 export const COIL_MAX_RATIO = 0.7;
-/** Legacy wall gate constants (NIFTY-calibrated). Kept for backward compatibility. */
-export const WALL_MAX_DISTANCE = 100;
+/** Wall gate: minimum OI for a wall to be significant (contracts). */
 export const WALL_MIN_OI = 10_000_000;
-/** Legacy level gate constant (NIFTY-calibrated). Kept for backward compatibility. */
-export const LEVEL_MAX_DISTANCE = 60;
 
 function ema(values: number[], span: number): number {
   if (values.length === 0) return 0;
