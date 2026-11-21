@@ -164,7 +164,7 @@ export function CorrelationTab() {
   const isIntraday = () => store().timeframe === "intraday";
 
   return (
-    <Stack spacing={2} className="h-full w-full" data-testid="correlation-tab">
+    <Stack spacing={2} className="h-full w-full min-h-0" data-testid="correlation-tab">
       <CompactPanel title="Correlation Analysis" description="Analyze price correlation between symbols">
         <ToolbarRow gap={8} className="w-full">
           <MultiSelect
@@ -230,7 +230,9 @@ export function CorrelationTab() {
         </Show>
       </CompactPanel>
 
-      <Stack spacing={2} className="min-h-0 flex-1">
+      {/* The results stack must be able to shrink below its content height, or
+          it overflows upward and covers the controls in the panel above. */}
+      <Stack spacing={2} className="min-h-0 flex-1 overflow-hidden">
         <CompactPanel title="Correlation Matrix">
           <CorrelationMatrix matrix={store().matrix || []} symbols={store().symbols} isLoading={store().isLoading} />
         </CompactPanel>

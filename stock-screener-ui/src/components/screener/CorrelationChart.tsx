@@ -151,7 +151,7 @@ export function CorrelationChart(props: CorrelationChartProps) {
         style={{ opacity: hasData() ? "1" : "0", "min-height": hasData() || props.isLoading ? "300px" : "36px" }}
       />
       <Show when={props.isLoading}>
-        <Flex pos="absolute" inset={0} justify="center" align="center" className="z-[1] pointer-events-none">
+        <Flex pos="absolute" inset={0} justify="center" align="center" style={{ "z-index": 1, "pointer-events": "none" }}>
           <Stack align="center" gap="sm">
             <Loader size="sm" />
             <Text size="sm" c="dimmed">
@@ -164,7 +164,7 @@ export function CorrelationChart(props: CorrelationChartProps) {
           controls above, which is exactly what happened before pointer-events-none
           (the empty-state overlay sat over the correlation toolbar). */}
       <Show when={!props.isLoading && !hasData()}>
-        <Flex pos="absolute" inset={0} justify="center" align="center" className="pointer-events-none">
+        <Flex pos="absolute" inset={0} justify="center" align="center" style={{ "pointer-events": "none" }}>
           <Text size="sm" c="dimmed">
             No chart data available
           </Text>

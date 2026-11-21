@@ -127,6 +127,10 @@ describe("NiftyDataFreshness", () => {
     const badge = screen.getByTestId("nifty-data-freshness");
     expect(badge).toHaveAttribute("data-state", "stale");
     expect(badge).toHaveTextContent("STALE");
-    expect(badge.getAttribute("title")).toContain("tape 3h");
+    // The age is measured from Date.now() at render time, a few ms after the
+    // fixture timestamp was built, so exactly 3h truncates to "2h 59m" whenever
+    // that gap crosses a second boundary. Accept either side of the boundary
+    // rather than pinning a value the clock can move.
+    expect(badge.getAttribute("title")).toMatch(/tape (2h 59m|3h)/);
   });
 });
