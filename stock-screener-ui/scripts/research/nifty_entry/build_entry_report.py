@@ -150,7 +150,7 @@ FYERS_DATA = "https://api-t1.fyers.in/data"
 
 def fyers_token():
     try:
-        from api.orderflow_recorder import recorder_token
+        from api.broker_hub import recorder_token
         t = recorder_token("fyers_tbt")
         if not t or ":" not in t:
             return None

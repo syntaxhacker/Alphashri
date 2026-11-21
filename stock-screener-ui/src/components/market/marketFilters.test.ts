@@ -917,9 +917,11 @@ describe("value filters", () => {
     expect(DEEP_VALUE_PRESET).toEqual({
       peMax: 15,
       roeMin: 15,
-      fcfYieldMin: 0,
       debtToEquityMax: 1.5,
     });
+    // FCF is excluded on purpose: ~6% coverage on Indian names (measured 3/50)
+    // made it the filter doing nearly all the narrowing, on absent data.
+    expect("fcfYieldMin" in DEEP_VALUE_PRESET).toBe(false);
   });
 
   test("the preset chip appears only for the whole bundle and clears all four bounds", () => {

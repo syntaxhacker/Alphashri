@@ -2069,7 +2069,7 @@ describe("MarketScreenerPanel — embedded Value view", () => {
     r(() => <MarketScreenerPanel />);
     expect(screen.getByTestId("market-search")).toBeInTheDocument();
 
-    await choose("Value");
+    await choose("Deep Value");
 
     expect(await screen.findByTestId("value-panel", {}, { timeout: 3000 })).toBeInTheDocument();
     expect(screen.getByTestId("market-value-region")).toBeInTheDocument();
@@ -2088,7 +2088,7 @@ describe("MarketScreenerPanel — embedded Value view", () => {
     ]) {
       expect(screen.queryByTestId(id)).not.toBeInTheDocument();
     }
-    expect(within(toggle()).getByText("Value").closest("button")).toHaveAttribute(
+    expect(within(toggle()).getByText("Deep Value").closest("button")).toHaveAttribute(
       "aria-pressed",
       "true",
     );
@@ -2096,7 +2096,7 @@ describe("MarketScreenerPanel — embedded Value view", () => {
 
   test("the active Market universe drives the value scan market", async () => {
     r(() => <MarketScreenerPanel />);
-    await choose("Value");
+    await choose("Deep Value");
     await screen.findByTestId("value-panel", {}, { timeout: 3000 });
     await waitFor(() =>
       expect(mockValueScan).toHaveBeenCalledWith(
@@ -2127,7 +2127,7 @@ describe("MarketScreenerPanel — embedded Value view", () => {
     expect(screen.getByTestId("market-filter-chip-sma200")).toBeInTheDocument();
     const grid = screen.getByTestId("market-grid");
 
-    await choose("Value");
+    await choose("Deep Value");
     await screen.findByTestId("value-panel", {}, { timeout: 3000 });
     expect(screen.queryByTestId("market-grid")).not.toBeInTheDocument();
 
@@ -2146,7 +2146,7 @@ describe("MarketScreenerPanel — embedded Value view", () => {
     const search = screen.getByTestId("market-search") as HTMLInputElement;
     fireEvent.input(search, { target: { value: "reliance" } });
 
-    await choose("Value");
+    await choose("Deep Value");
     await screen.findByTestId("value-panel", {}, { timeout: 3000 });
     expect(onViewChange).toHaveBeenCalledWith("value");
 

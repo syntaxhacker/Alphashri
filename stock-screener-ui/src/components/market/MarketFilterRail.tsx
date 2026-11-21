@@ -9,9 +9,10 @@ import {
   Switch,
   Text,
   ActionIcon,
+  Indicator,
   Tooltip,
 } from "@/ui";
-import { IconChevronDown, IconChevronLeft, IconChevronUp, IconFilter } from "../common/Icons";
+import { IconChevronDown, IconChevronLeft, IconChevronUp, IconCurrencyDollar, IconFilter } from "../common/Icons";
 import { RangeInput } from "../common/RangeInput";
 import { currencyFor, type CurrencyCode } from "@/config/currency";
 import { descriptorForCurrency } from "@/config/marketUniverses";
@@ -133,6 +134,10 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
   const filters = () => props.filters;
   // Collapsed on purpose: the default Market rail keeps its original silhouette.
   const [valueOpen, setValueOpen] = createSignal(false);
+  // Collapsed sections hide their own state, so the header has to show that
+  // something inside is narrowing the table. Without it a user can leave a
+  // preset on and never see why rows disappeared.
+  const valueActiveCount = () => VALUE_FIELDS.filter((f) => filters()[f.key] != null).length;
   const tierCounts = () => props.tierCounts;
   const collapseLabel = () => props.collapseLabel ?? "Collapse filters";
   const capTierOpts = () => capTierOptions(descriptorForCurrency(props.currency).value);
@@ -300,6 +305,10 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
 
       <Divider />
 
+      {/* A collapsible band reads as a separator unless it advertises itself:
+          icon + "Value filters" + an active-count badge, at body size rather
+          than the 10px dim label the static sections use. The preset sits
+          OUTSIDE the collapse so the one-click path is never two clicks deep. */}
       <Box role="group" aria-label="Value filters" className="flex flex-col gap-1">
         <button
           type="button"
@@ -307,15 +316,31 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
           aria-expanded={valueOpen()}
           aria-controls="market-value-fields"
           onClick={() => setValueOpen((open) => !open)}
-          className="flex items-center justify-between w-full"
+          className="flex items-center justify-between w-full min-w-0 cursor-pointer"
         >
-          <Text fw={600} c="dimmed" className="text-[11px]">
-            Value
-          </Text>
+          <Box className="flex items-center gap-1 min-w-0">
+            <IconCurrencyDollar size={12} />
+            <Text fw={600} c={valueActiveCount() > 0 ? undefined : "dimmed"} className="text-[11px] whitespace-nowrap">
+              Value filters
+            </Text>
+            <Show when={valueActiveCount() > 0}>
+              <Indicator label={String(valueActiveCount())} color="primary" size={12} />
+            </Show>
+          </Box>
           <Show when={valueOpen()} fallback={<IconChevronDown size={12} />}>
             <IconChevronUp size={12} />
           </Show>
         </button>
+
+        <Button
+          size="xs"
+          variant="outline"
+          data-testid="market-value-preset"
+          onClick={() => props.onChange(DEEP_VALUE_PRESET)}
+          title="P/E ≤ 15 · ROE ≥ 15% · FCF yield > 0 · D/E ≤ 1.5"
+        >
+          Deep value preset
+        </Button>
 
         <Show when={valueOpen()}>
           <Box
@@ -360,15 +385,6 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
                 );
               }}
             </For>
-
-            <Button
-              size="xs"
-              variant="outline"
-              data-testid="market-value-preset"
-              onClick={() => props.onChange(DEEP_VALUE_PRESET)}
-            >
-              Deep value preset
-            </Button>
           </Box>
         </Show>
       </Box>
