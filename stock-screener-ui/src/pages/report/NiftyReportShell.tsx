@@ -34,6 +34,12 @@ const ReportAnalytics = lazy(() =>
 const ReportOverlays = lazy(() =>
   import("./ReportOverlays").then((m) => ({ default: m.ReportOverlays })),
 );
+// The pressure desk is a modal, so it cannot live inside a mode-gated section:
+// desk mode never mounts ReportStrips, and the walls rail there still has a
+// DESK button. Mounting it with the shell makes the button work in both modes.
+const NiftyPressureDesk = lazy(() =>
+  import("./NiftyPressureDesk").then((m) => ({ default: m.NiftyPressureDesk })),
+);
 
 // Desktop desk surface: strip / chart / dock. The chart track is 70fr so it
 // lands at ~56% of the viewport after the fixed chrome (~174px above the row);
@@ -279,6 +285,16 @@ function ReportBody() {
       <ErrorBoundary fallback={(err) => <SectionError name="overlays" error={err} />}>
         <Suspense fallback={null}>
           <ReportOverlays />
+        </Suspense>
+      </ErrorBoundary>
+
+      <ErrorBoundary fallback={(err) => <SectionError name="pressure desk" error={err} />}>
+        <Suspense fallback={null}>
+          <NiftyPressureDesk
+            open={store.ui.deskOpen()}
+            walls={store.walls.data()}
+            onClose={() => store.ui.setDeskOpen(false)}
+          />
         </Suspense>
       </ErrorBoundary>
     </Box>

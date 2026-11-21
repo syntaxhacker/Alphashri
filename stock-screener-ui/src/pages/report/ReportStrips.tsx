@@ -9,7 +9,6 @@ import { BreadthStrip, ReplayUnavailable } from "./BreadthStrip";
 import { LevelsInPlayContent } from "./LevelsInPlay";
 import { Nifty10sStrip } from "./Nifty10sStrip";
 import { NiftyDeskPlan } from "./NiftyDeskPlan";
-import { NiftyPressureDesk } from "./NiftyPressureDesk";
 import { NiftySqueezeRadar } from "./NiftySqueezeRadar";
 import type { WallSnapshot } from "./NiftySqueezeRadar";
 import { NiftyWallErosionBoard } from "./NiftyWallErosionBoard";
@@ -143,12 +142,6 @@ export function ReportStrips() {
             ? (at) => store.replay.breakAt(at)
             : undefined
         }
-      />
-
-      <NiftyPressureDesk
-        open={store.ui.deskOpen()}
-        walls={wallsPayload()}
-        onClose={() => store.ui.setDeskOpen(false)}
       />
 
       <Show when={!store.ui.isDesk()}>
