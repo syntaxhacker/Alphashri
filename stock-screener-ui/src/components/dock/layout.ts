@@ -1,11 +1,9 @@
 import type { DockLayout, DockPanelSpec } from "./types";
+import { isRecord } from "@/utils/isRecord";
 
 export const MIN_PANE_SIZE = 0.1;
 export const MAX_PANE_SIZE = 4;
 export const LAYOUT_WIRE_VERSION = 1;
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** Clamp a saved weight into the band a splitter can still meaningfully move. */
 export function clampSize(value: unknown): number {

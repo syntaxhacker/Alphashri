@@ -8,9 +8,7 @@
  */
 
 /** Cheap structural guard for a decoded JSON object (arrays are not records). */
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+export { isRecord } from "./isRecord";
 
 /** True only for a string with at least one non-whitespace character. */
 export function isNonEmptyString(value: unknown): value is string {

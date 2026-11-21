@@ -28,6 +28,7 @@ import {
   type MarketSortKey,
 } from "../../market/marketFilters";
 import { HeatmapFiltersControl } from "./heatmapFilters";
+import { isRecord } from "@/utils/isRecord";
 
 const HEATMAP_UNIVERSE: MarketUniverse = "all_equity";
 const HEATMAP_CURRENCY: CurrencyCode = "INR";
@@ -42,8 +43,6 @@ function readUniverse(data: Record<string, unknown> | undefined): MarketUniverse
 }
 
 const SORT_KEYS = new Set<string>(MARKET_SORT_OPTIONS.map((option) => option.value));
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 const finiteOrNull = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 const boolOr = (value: unknown, fallback: boolean): boolean =>

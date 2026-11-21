@@ -15,6 +15,7 @@ import {
   WINDOW_PANEL_TYPES,
 } from "../../components/window/panelRegistry";
 import type { WindowLayout, WindowState } from "../../components/window/types";
+import { isRecord } from "@/utils/isRecord";
 
 /** Group labels come from the panel's source page, not from a HOME-specific id. */
 export const PAGE_LABEL: Record<DockPage, string> = {
@@ -205,9 +206,6 @@ export interface HomeWindowConfig {
   layouts: WindowLayout[];
   active: string;
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> => {
   if (!isRecord(value)) return false;

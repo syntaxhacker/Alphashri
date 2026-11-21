@@ -5,6 +5,7 @@ import { MARKET_ROW_CAP, MARKET_SYMBOL_CAP } from "../config/apiLimits";
 import { MARKET_UNIVERSE_DESCRIPTORS } from "../config/marketUniverses";
 import type { MarketRow, MarketSnapshot, MarketUniverse } from "../types/marketScreener";
 import { apiErrorFromResponse } from "./apiError";
+import { isRecord } from "../utils/isRecord";
 
 const MARKET_API = `${API_BASE}/api/market`;
 
@@ -247,10 +248,6 @@ interface RawColumnarSnapshot {
 
 function malformedColumnar(reason: string): Error {
   return new Error(`Malformed columnar market snapshot: ${reason}`);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 /**
