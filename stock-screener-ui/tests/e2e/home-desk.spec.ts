@@ -24,8 +24,27 @@ async function mockChartPatterns(page: Page) {
   await page.route(apiRoute("chart-patterns/universes"), empty({ universes: [{ id: "nifty50", label: "NIFTY 50" }], default: "nifty50" }));
   await page.route(apiRoute("chart-patterns/patterns"), empty({ families: [], patterns: [] }));
   await page.route(apiRoute("chart-patterns/results"), empty({ hits: [], total: 0, scanned: 0, as_of: null }));
-  await page.route(apiRoute("chart-patterns/jobs"), empty({ jobs: [] }));
-  await page.route(apiRoute("chart-patterns/scan"), empty({ job_id: null, status: "completed" }));
+  // `?active=1` defeats a bare-path route, so match the query explicitly.
+  await page.route(/chart-patterns\/jobs(\?|$|\/)/, (route) =>
+    route.request().url().includes("active=1")
+      ? route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ jobs: [] }) })
+      : route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ job_id: "e2e-job", status: "completed", hits: 0 }),
+        }),
+  );
+  // A scan must resolve to a job that immediately reports completed. Returning
+  // a null job_id with status "completed" leaves the store polling a null id,
+  // `scanning` never clears, and the panel sits on "Scanning patterns…" — which
+  // is exactly how this failed on CI while passing locally.
+  // A scan must resolve to a job that immediately reports a TERMINAL status.
+  // `maybeAutoScan()` fires one as soon as an empty, unfiltered view mounts, so
+  // returning a queued/running job (or a null id) leaves the store polling
+  // forever, `scanning` never clears, and the panel sits on "Scanning
+  // patterns…" — which is exactly how this failed on CI while passing locally.
+  await page.route(apiRoute("chart-patterns/scan"), empty({ job_id: "e2e-job", status: "queued", queue_position: 1 }));
+  await page.route(/chart-patterns\/scan\//, empty({ job_id: "e2e-job", status: "completed", hits: 0 }));
   await page.route(apiRoute("chart-patterns/health"), empty({ ok: true }));
   await page.route(apiRoute("chart-patterns/market-status"), empty({ open: false, session: null }));
 }
