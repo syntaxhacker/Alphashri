@@ -12,6 +12,11 @@ on:
       - '.github/workflows/**'
       - 'stock-screener-ui/src/**'
       - 'stock-screener-ui/tests/**'
+      # A knip.json edit changes what the unused-code gate considers acceptable,
+      # and a test_cases/ edit is a test artefact. Neither triggered CI before,
+      # so a PR that touched only those landed with no checks at all.
+      - 'stock-screener-ui/knip.json'
+      - 'stock-screener-ui/test_cases/**'
       - 'stock-screener-ui/package.json'
       - 'stock-screener-ui/bun.lock'
       - 'stock-screener-ui/vite.config.*'
