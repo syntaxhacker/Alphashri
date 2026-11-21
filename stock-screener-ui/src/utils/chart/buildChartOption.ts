@@ -1,4 +1,4 @@
-import type { ChartInput } from "./types";
+import type { ChartInput, MarkLineData } from "./types";
 import { buildGrid } from "./buildGrid";
 import { buildSeries } from "./buildSeries";
 import { buildTradeMarkers } from "./buildMarkers";
@@ -185,10 +185,10 @@ export function buildChartOption(input: ChartInput): ChartOption {
   }
 
   const allSeriesNames = [
-    ...series.series.map((s: any) => s.name),
-    ...liveSeries.map((s: any) => s.name),
-    ...markers.map((s: any) => s.name),
-    ...overlays.map((s: any) => s.name),
+    ...series.series.map((s) => s.name),
+    ...liveSeries.map((s) => s.name),
+    ...markers.map((s) => s.name),
+    ...overlays.map((s) => s.name),
   ];
 
   const tooltip = buildTooltip(input.candles, input.holidays, times, hasGaps, holidayMap);
