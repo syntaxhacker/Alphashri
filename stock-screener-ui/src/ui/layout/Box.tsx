@@ -117,11 +117,32 @@ const BOX_TAGS: Record<string, (p: any) => JSX.Element> = {
   const Tag = BOX_TAGS[(known.component as string) ?? "div"] ?? BOX_TAGS["div"];
 
 
+  // Solid writes `style` straight to the DOM, so a bare number is emitted
+  // unitless (`width: 440`, `min-width: 320`). Those are invalid CSS and the
+  // browser drops them silently — which is how the backtest rail grew past its
+  // max-width until it starved the chart to 0px. Append `px` for the length
+  // properties that accept it; unitless properties (z-index, opacity, flex-grow,
+  // line-height, font-weight) and the unitless-legal zero are left alone.
+  const UNITLESS_PROPS = new Set([
+    "z-index", "opacity", "flex", "flex-grow", "flex-shrink", "font-weight",
+    "line-height", "order", "zoom", "column-count", "tab-size", "aspect-ratio",
+  ]);
+  const pxStyle = (style: Record<string, unknown> | undefined) => {
+    if (!style) return style;
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(style)) {
+      const kebab = key.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+      const unitless = UNITLESS_PROPS.has(kebab) || kebab.startsWith("--");
+      out[key] = typeof value === "number" && value !== 0 && !unitless ? `${value}px` : value;
+    }
+    return out;
+  };
+
   return (
     <Tag
       id={known.id}
       className={cn(known.className)}
-      style={{ ...styleObj, ...known.style }}
+      style={{ ...styleObj, ...pxStyle(known.style as Record<string, unknown>) }}
       data-testid={known["data-testid"]}
       onClick={known.onClick}
       onMouseEnter={known.onMouseEnter}
