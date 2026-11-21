@@ -97,20 +97,17 @@ test.describe("Options View - Filters", () => {
   });
 
   test("should filter by option type", async ({ page }) => {
-    const typeSelect = page.locator('[data-testid="option-type-select"]');
+    const typeSelect = page.locator('[data-testid="option-type-select"] select');
     await expect(typeSelect).toBeVisible();
 
     // Default is Both CE/PE
     await expect(page.getByText("CALLS (CE)")).toBeVisible();
     await expect(page.getByText("PUTS (PE)")).toBeVisible();
 
-    // Filter to Calls Only
-    await typeSelect.click();
-    await expect(page.getByRole("option", { name: "Calls Only" })).toBeVisible({ timeout: 5000 });
-    await page.getByRole("option", { name: "Calls Only" }).click();
-
-    // Puts should be hidden (Wait, our logic might still show the column but empty or similar)
-    // Based on OptionChainPanel.tsx, if filters.optionType !== "PE", CE is shown.
-    // Actually the Table handles the columns.
+    // A native <select>'s <option> is only "visible" while the popup is open,
+    // which Playwright cannot observe — select by label instead of asserting
+    // toBeVisible on the option element.
+    await typeSelect.selectOption({ label: "Calls Only" });
+    await expect(typeSelect).toHaveValue("CE");
   });
 });

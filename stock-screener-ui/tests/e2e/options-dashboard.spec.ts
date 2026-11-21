@@ -490,14 +490,15 @@ test.describe("Options Analytics dashboard", () => {
     await expect(page.getByTestId("options-analytics-page")).toBeVisible({ timeout: 15000 });
     await expect(page.getByTestId("analytics-symbol")).toHaveText("NIFTY");
 
-    // The error band carries clear Reconnect Upstox copy, a link into Settings
-    // where the broker is reconnected, and a Retry action.
+    // The error band carries the shared broker-auth message (single source:
+    // BROKER_AUTH_MESSAGE), a link into Settings, and a Retry action. The
+    // action is labelled "Open Settings" since the notice consolidated.
     const band = page.getByTestId("analytics-error");
     await expect(band).toBeVisible();
-    await expect(band).toContainText("Reconnect Upstox");
+    await expect(band).toContainText(/reconnect in Settings/i);
     const reconnect = page.getByTestId("analytics-reconnect");
     await expect(reconnect).toBeVisible();
-    await expect(reconnect).toHaveText("Reconnect Upstox");
+    await expect(reconnect).toHaveText(/open settings/i);
     await expect(reconnect).toHaveAttribute("href", "/settings");
     const retry = page.getByTestId("analytics-retry");
     await expect(retry).toBeVisible();
