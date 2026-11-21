@@ -20,6 +20,7 @@ const MOCK_ROWS = [
   { symbol: "HDFCBANK", name: "HDFC Bank", sector: "Banks", close: 1712.3, change: 0.6, relative_volume: 0.9, market_cap_cr: 1300000, cap_tier: "large", rsi: 55, adx: 25, pos_52w: 0.74, fno: false, etf: false },
   { symbol: "PERSISTENT", name: "Persistent Systems", sector: "IT", close: 5120.0, change: 2.1, relative_volume: 2.4, market_cap_cr: 78000, cap_tier: "mid", rsi: 71, adx: 31, pos_52w: 0.88, fno: true, etf: false },
   { symbol: "MICROCO", name: "Micro Co", sector: "Services", close: 87.6, change: -2.2, relative_volume: 3.1, market_cap_cr: 900, cap_tier: "micro", rsi: 22, adx: 33, pos_52w: 0.18, fno: false, etf: false },
+  { symbol: "NIFTYBEES", name: "Nippon India ETF Nifty BeES", sector: "ETF", close: 264.1, change: 0.5, relative_volume: 0.7, market_cap_cr: null, cap_tier: "etf", rsi: 48, adx: 18, pos_52w: 0.57, fno: false, etf: true },
 ];
 
 const US_MOCK_ROWS = [
@@ -154,6 +155,17 @@ for (const vp of [
       for (const id of MARKET_ONLY_CHROME) {
         await expect(page.getByTestId(id)).toHaveCount(0, { timeout: 5000 });
       }
+    });
+
+    test("the null-cap ETF row sorts last in the default mcap_desc grid", async ({ page }) => {
+      await openMarket(page);
+      await expect(page.locator('[data-testid^="market-row-"]')).toHaveCount(MOCK_ROWS.length);
+
+      const order = await page
+        .locator('[data-testid^="market-row-"]')
+        .evaluateAll((els) => els.map((el) => el.getAttribute("data-testid")));
+      expect(order[order.length - 1]).toBe("market-row-NIFTYBEES");
+      await expect(page.getByTestId("market-etf-NIFTYBEES")).toBeVisible();
     });
 
     test("Market universe drives the scan: USA → market=usa, All NSE → market=india", async ({

@@ -87,6 +87,7 @@ const OPTION_CHAIN = {
  * the registry. Titles below are each spec's `title` field.
  */
 const EXPECTED_PICKER_PANELS: ReadonlyArray<{ id: string; title: string }> = [
+  { id: "catalyst.radar", title: "CATALYST RADAR" },
   { id: "market.heatmap", title: "MARKET HEATMAP" },
   { id: "news.feed", title: "NEWS" },
   { id: "options.analytics", title: "OPTIONS ANALYTICS" },
@@ -127,6 +128,26 @@ async function mockHomeNetwork(page: Page): Promise<SeenUrls> {
       body: JSON.stringify({
         underlying: "NIFTY",
         expiries: [{ date: CHAIN_EXPIRY, weekly: true, days_to_expiry: 2 }],
+      }),
+    });
+  });
+  await page.route(apiRoute("catalysts/today"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        as_of: new Date().toISOString(),
+        market: { nifty: null, sensex: null, vix: null },
+        sector: {
+          id: "auto",
+          label: "NIFTY AUTO",
+          change_pct: null,
+          relative_strength_pct: null,
+          breadth: { advancing: 0, declining: 0, total: 0 },
+        },
+        rows: [],
+        counts: { high: 0, medium: 0, low: 0, total: 0 },
+        warnings: [],
       }),
     });
   });
@@ -349,6 +370,11 @@ async function addPanel(page: Page, panelId: string): Promise<void> {
   await page.getByTestId("home-panel-picker").locator("select").selectOption(panelId);
 }
 
+/** Monitor is the default surface; the desk spec opts in explicitly. */
+async function goDesk(page: Page): Promise<void> {
+  await page.getByTestId("home-view-desk").click();
+}
+
 function pickerOptions(page: Page): Promise<Array<{ value: string; label: string }>> {
   return page
     .getByTestId("home-panel-picker")
@@ -379,6 +405,7 @@ test.describe("/home floating-window desk", () => {
     await page.getByTestId("nav-home").click();
     await expect(page).toHaveURL(/\/home$/);
     await expect(page.getByTestId("home-page")).toBeVisible();
+    await goDesk(page);
     await expect(windows(page)).toHaveCount(2);
   });
 
@@ -708,6 +735,7 @@ test.describe("/home floating-window desk", () => {
 
     await page.reload();
     await expect(page.getByTestId("home-page")).toBeVisible();
+    await goDesk(page);
     await expect(windows(page)).toHaveCount(3);
 
     const reloaded = await geometry(win(page, HEATMAP));

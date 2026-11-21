@@ -175,7 +175,6 @@ number mismatch as a bug.
 | Max pain / PCR | `optionsMath.ts`, `api/options.py` | already computed |
 | GEX levels, walls | `api/reports_api/nifty.py` `_gex_levels`, `deskPlanLevels.ts` | support/resistance/fuel from net gamma |
 | IV/HV ratio | `api/premium_tracker.py` | ATM straddle only, no surface/history |
-| Event IV crush | `.prime/agent/skills/position-probability/scripts/iv_crush.py` | methodology to reuse |
 | Chart libs | `echarts` 6 (no `echarts-gl`) | true 3D needs a new dependency |
 
 **Gaps (P2+):** no IV history, no IV rank, no calibration — all gated on
