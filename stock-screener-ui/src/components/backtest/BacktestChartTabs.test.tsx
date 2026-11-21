@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import type { JSX } from "solid-js";
+import { createSignal } from "solid-js";
 import { describe, expect, test, afterEach, vi } from "vitest";
 import { render, screen, cleanup } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
@@ -77,5 +78,36 @@ describe("BacktestChartTabs chart branch", () => {
     renderTabs(null);
     expect(screen.getByTestId("chart-placeholder")).toBeInTheDocument();
     expect(screen.queryByTestId("echarts-container")).not.toBeInTheDocument();
+  });
+
+  // The store starts with `selectedChartSymbol: null` and only fills it in once
+  // results arrive, so the prop updates after mount. Both readings below are
+  // non-reactive snapshots that render the placeholder forever while the tab
+  // strip (which reads the prop reactively) shows the symbol as selected.
+  test("swaps the placeholder for the chart when the selection arrives after mount", () => {
+    const [selected, setSelected] = createSignal<string | null>(null);
+    render(
+      () => (
+        <BacktestChartTabs
+          symbols={["RELIANCE"]}
+          selectedSymbol={selected()}
+          onSymbolSelect={() => {}}
+          zoomValue="all"
+          onZoomChange={() => {}}
+          chartDataMap={new Map([["RELIANCE", chartData("RELIANCE")]])}
+          selectedTf={null}
+          onTfChange={() => {}}
+        />
+      ),
+      { wrapper: Wrapper },
+    );
+
+    expect(screen.getByTestId("chart-placeholder")).toBeInTheDocument();
+
+    setSelected("RELIANCE");
+
+    expect(screen.queryByTestId("chart-placeholder")).not.toBeInTheDocument();
+    expect(screen.getByTestId("echarts-container")).toHaveAttribute("data-symbol", "RELIANCE");
+    expect(screen.getByTestId("tv-chart")).toBeInTheDocument();
   });
 });

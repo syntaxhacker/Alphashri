@@ -53,8 +53,16 @@ export function BacktestChartTabs(props: BacktestChartTabsProps) {
     );
   }
 
-  const sym = props.selectedSymbol;
-  const currentChartData = sym ? props.chartDataMap.get(sym) : null;
+  // A plain `const sym = props.selectedSymbol` would freeze the value at mount.
+  // The store starts with `selectedChartSymbol: null` and only fills it in once
+  // results arrive (BacktestPage), so a snapshot read renders the placeholder
+  // forever — the tab strip reads the prop reactively and shows the symbol
+  // selected while the chart below still says "Select a symbol".
+  const sym = () => props.selectedSymbol;
+  const currentChartData = () => {
+    const s = sym();
+    return s ? (props.chartDataMap.get(s) ?? null) : null;
+  };
 
   return (
     <Box
@@ -109,11 +117,11 @@ export function BacktestChartTabs(props: BacktestChartTabsProps) {
         data-testid="chart-tabs-content"
         style={{ "min-height": 0, "min-width": 0, position: "relative", overflow: "hidden" }}
       >
-        {sym ? (
+        {sym() ? (
           <BacktestChart
-            symbol={props.selectedSymbol}
-            chartData={currentChartData}
-            isLoading={props.chartLoading && !currentChartData}
+            symbol={props.selectedSymbol!}
+            chartData={currentChartData()}
+            isLoading={props.chartLoading && !currentChartData()}
             onTradeClick={props.onTradeClick}
             holidays={props.holidays}
             zoomValue={props.zoomValue}
