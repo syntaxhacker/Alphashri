@@ -526,7 +526,12 @@ test.describe("/home floating-window desk", () => {
     await expect(panel).toHaveAttribute("aria-label", "PATTERNS");
     await expect(panel.getByTestId("patterns-results-panel")).toBeVisible();
     await expect(panel.getByTestId("patterns-results-toolbar")).toBeVisible();
-    await expect(panel.getByTestId("patterns-results-empty")).toBeVisible();
+    // A freshly-mounted panel bootstraps the catalog and results, so it can pass
+    // through the "Scanning patterns…" branch before settling. Assert on the
+    // settled state (which is what `toBeVisible` polls for) and confirm the
+    // transient branches are gone afterwards.
+    await expect(panel.getByTestId("patterns-results-empty")).toBeVisible({ timeout: 15000 });
+    await expect(panel.getByTestId("patterns-results-loading")).toHaveCount(0);
     await expect(panel.getByTestId("patterns-results-error")).toHaveCount(0);
     await expect.poll(() => persistedMain(config)).toHaveLength(3);
   });
