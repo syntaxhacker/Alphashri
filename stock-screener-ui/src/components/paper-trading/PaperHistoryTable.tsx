@@ -39,6 +39,7 @@ import {
   getPeriodFromDateRange,
 } from "../../utils/tradeHistoryUtils";
 import { useStoreSnapshot } from "./storeSnapshot";
+import { createNarrowMemo } from "./stableSelectors";
 type PaperTradingSnapshot = ReturnType<typeof getPaperTradingState>;
 
 function useQuickFilter(state: () => PaperTradingSnapshot) {
@@ -88,7 +89,10 @@ function HistoryFilters(props: {
   state: () => PaperTradingSnapshot;
 }) {
   const { handleQuickFilter, getCurrentPeriod } = useQuickFilter(props.state);
-  const bookFilters = createMemo(() => listBookFilters(props.state().trades));
+  const bookFilters = createNarrowMemo(
+    () => [props.state().trades] as const,
+    ([trades]) => listBookFilters(trades),
+  );
 
   return (
     <>
@@ -572,23 +576,41 @@ function HistoryList(props: {
 export function PaperHistoryTable() {
   const state = useStoreSnapshot(subscribeToPaperTrading, getPaperTradingState);
 
-  const filteredTrades = createMemo(() => {
-    const s = state();
-    let trades = [...s.trades];
-    if (s.filterSymbol) trades = trades.filter((t) => t.symbol === s.filterSymbol);
-    if (s.filterFromDate || s.filterToDate)
-      trades = filterByRange(trades, s.filterFromDate, s.filterToDate);
-    if (s.filterStrategy) trades = trades.filter((t) => t.strategy_id === s.filterStrategy);
-    if (s.filterBot) trades = trades.filter((t) => t.bot_id === s.filterBot);
-    const book = s.filterSource;
-    if (book && book !== "all") {
-      trades = trades.filter((t) => tradeMatchesBook(t, book));
-    }
-    return trades;
-  });
+  const filteredTrades = createNarrowMemo(
+    () => {
+      const s = state();
+      return [
+        s.trades,
+        s.filterSymbol,
+        s.filterFromDate,
+        s.filterToDate,
+        s.filterStrategy,
+        s.filterBot,
+        s.filterSource,
+      ] as const;
+    },
+    ([trades, filterSymbol, filterFromDate, filterToDate, filterStrategy, filterBot, filterSource]) => {
+      let result = [...trades];
+      if (filterSymbol) result = result.filter((t) => t.symbol === filterSymbol);
+      if (filterFromDate || filterToDate)
+        result = filterByRange(result, filterFromDate, filterToDate);
+      if (filterStrategy) result = result.filter((t) => t.strategy_id === filterStrategy);
+      if (filterBot) result = result.filter((t) => t.bot_id === filterBot);
+      if (filterSource && filterSource !== "all") {
+        result = result.filter((t) => tradeMatchesBook(t, filterSource));
+      }
+      return result;
+    },
+  );
 
-  const strategies = createMemo(() => getUniqueStrategies(state().trades));
-  const bots = createMemo(() => getUniqueBots(state().trades));
+  const strategies = createNarrowMemo(
+    () => [state().trades] as const,
+    ([trades]) => getUniqueStrategies(trades),
+  );
+  const bots = createNarrowMemo(
+    () => [state().trades] as const,
+    ([trades]) => getUniqueBots(trades),
+  );
 
   const handleSelectSymbol = async (
     symbol: string,
