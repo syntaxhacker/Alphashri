@@ -142,6 +142,7 @@ These guards are part of the Python suite; run them after touching conftests or 
 
 ## Related docs
 
+- [TESTING_INDEX.md](../docs/TESTING_INDEX.md) — authoritative test/performance docs and folders (start here)
 - [TEST_RULES.md](../TEST_RULES.md) — test shape, mocks, guards
 - [AGENT_QUICKSTART.md](../docs/AGENT_QUICKSTART.md) — commands and fixtures
 - [API_TEST_SCENARIOS.md](./API_TEST_SCENARIOS.md), [TEST_SCENARIOS.md](./TEST_SCENARIOS.md), [TEST_RESULTS.md](./TEST_RESULTS.md)

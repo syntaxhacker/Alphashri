@@ -5,6 +5,10 @@
 - **E2E**: Playwright (`tests/e2e/`)
 - **Backend**: pytest (`tests/`)
 
+## Docs index
+
+- [docs/TESTING_INDEX.md](./docs/TESTING_INDEX.md) — start here for the authoritative test/performance docs and folder map.
+
 ---
 
 ## 0. No weak tests — the rule that outranks everything else
