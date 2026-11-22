@@ -67,19 +67,21 @@ jobs:
           uv pip install --system --python 3.12 --no-deps tradingview-screener
         env:
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
-      # The suite already used -n 4 (xdist), so it was capped at the runner's
-      # 4 vCPU. Sharding across 12 jobs gives each shard its own 4 vCPU and
-      # keeps the ~9k selected unit/API tests inside the job timeout.
-      # Select by *excluding* the heavy categories: most tests are unmarked,
-      # so an inclusion filter (`unit and not slow`) silently dropped ~92% of
-      # the suite. Path-only integration/contract modules are tagged by the
-      # collection hook in tests/conftest.py so this filter catches them too.
+      # Tiered selection. PRs to develop/main run the fast known-green set
+      # (`unit and not slow`, ~660 tests) so the branch gate stays quick and
+      # meaningful. Push to main and the nightly schedule run the full
+      # exclusion selection (~9k tests): that is the debt alarm, not a PR gate.
+      # Most of the suite is unmarked, so the full tier must EXCLUDE the heavy
+      # categories rather than include `unit`; path-only integration/contract
+      # modules are tagged by the collection hook in tests/conftest.py.
+      # 12 shards x -n 4 keeps both tiers inside the 20-minute job timeout;
+      # `set -o pipefail` makes pytest collection errors fail the shard.
       - name: Collect and shard tests
         run: |
           set -e -o pipefail
           cd stock-screener-ui
           uv run --python 3.12 pytest -o addopts="" --collect-only -q \
-            -m "not (slow or slow_testcontainers or integration or contract or e2e or testcontainers or postgres)" \
+            -m "$MARKER_EXPR" \
             | grep '::' > /tmp/all-tests.txt
           COUNT=$(wc -l < /tmp/all-tests.txt)
           # Never shard an empty selection: grep can exit 1 on no matches, and
@@ -88,17 +90,20 @@ jobs:
             echo "::error::pytest collected no test node IDs; check the collection step."
             exit 1
           fi
-          # Guard: fail loudly if the selection expression ever regresses to
-          # an inclusion filter (or a bad marker) and silently drops coverage.
-          if (( COUNT < 8000 )); then
-            echo "::error::pytest selection collected only $COUNT tests (expected >= 8000). Check the -m expression in the Collect and shard tests step."
+          # Guard: fail loudly if the expression regresses to a filter that
+          # silently drops most tests (or stops excluding the heavy tiers).
+          if (( COUNT < MIN_COUNT )); then
+            echo "::error::pytest selection collected only $COUNT tests (expected >= $MIN_COUNT for '$MARKER_EXPR'). Check the marker expression in the Collect and shard tests step."
             exit 1
           fi
-          echo "selected $COUNT unit/API tests"
+          echo "selected $COUNT unit/API tests ($MARKER_EXPR; min $MIN_COUNT)"
           awk -v s=${{ matrix.shard }} -v n=12 '((NR-1) % n) == (s-1)' /tmp/all-tests.txt > /tmp/shard.txt
           echo "shard ${{ matrix.shard }}/12: $(wc -l < /tmp/shard.txt) of $COUNT tests"
           cp /tmp/shard.txt "$RUNNER_TEMP/shard.txt"
         env:
+          # PRs: fast known-green tier. main push / schedule: full debt alarm.
+          MARKER_EXPR: ${{ github.event_name == 'pull_request' && 'unit and not slow' || 'not (slow or slow_testcontainers or integration or contract or e2e or testcontainers or postgres)' }}
+          MIN_COUNT: ${{ github.event_name == 'pull_request' && 600 || 8000 }}
           JWT_SECRET_KEY: test-secret
           DATABASE_URL: sqlite:///./test.db
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
