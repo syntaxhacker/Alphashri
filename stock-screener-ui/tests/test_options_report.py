@@ -888,3 +888,58 @@ def test_timeline_names_the_symbol_not_nifty(mocked_upstream):
     assert events
     assert all("Nifty" not in e["detail"] for e in events)
     assert any("RELIANCE" in e["detail"] for e in events)
+
+
+# --------------------------------------------------------------- tape cache
+def _count_tape_parses(monkeypatch):
+    calls: list[str] = []
+    real = options_report._parse_tape
+
+    def counting(path):
+        calls.append(str(path))
+        return real(path)
+
+    monkeypatch.setattr(options_report, "_parse_tape", counting)
+    return calls
+
+
+def test_read_tape_reuses_parsed_rows_until_the_file_changes(monkeypatch):
+    today = datetime.now(config.IST).strftime("%Y-%m-%d")
+    _write_tape("RELIANCE", [{"t": f"{today}T09:20:00+05:30", "spot": 1400.0}])
+    calls = _count_tape_parses(monkeypatch)
+
+    first = options_report.read_tape("RELIANCE", today)
+    second = options_report.read_tape("RELIANCE", today)
+    assert first == second
+    assert len(calls) == 1                 # (mtime, size) unchanged -> no re-parse
+
+    path = options_report.tape_path("RELIANCE", today)
+    with open(path, "a") as fh:
+        fh.write(json.dumps({"t": f"{today}T09:21:00+05:30", "spot": 1401.0}) + "\n")
+    third = options_report.read_tape("RELIANCE", today)
+    assert len(calls) == 2                 # append invalidates the cached rows
+    assert len(third) == 2
+
+
+def test_repeated_live_calls_parse_the_tape_once(mocked_upstream, monkeypatch):
+    today = datetime.now(config.IST).strftime("%Y-%m-%d")
+    _write_tape("RELIANCE", [{"t": f"{today}T09:20:00+05:30", "spot": 1400.0}])
+    calls = _count_tape_parses(monkeypatch)
+
+    first = _live("RELIANCE", expiry=EXPIRY)
+    second = _live("RELIANCE", expiry=EXPIRY)
+    assert first["reference"] == second["reference"]
+    assert len(calls) == 1                 # chain/daily cached; tape no longer re-parsed
+
+
+def test_clear_cache_invalidates_the_tape_cache(monkeypatch):
+    today = datetime.now(config.IST).strftime("%Y-%m-%d")
+    _write_tape("RELIANCE", [{"t": f"{today}T09:20:00+05:30", "spot": 1400.0}])
+    calls = _count_tape_parses(monkeypatch)
+
+    options_report.read_tape("RELIANCE", today)
+    options_report.read_tape("RELIANCE", today)
+    assert len(calls) == 1
+    options_report.clear_cache()
+    options_report.read_tape("RELIANCE", today)
+    assert len(calls) == 2

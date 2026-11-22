@@ -87,6 +87,14 @@ def _round2(value: Any) -> float:
     return round(fv, 2) if fv is not None else 0.0
 
 
+def _date_label(value: Any) -> str:
+    """Bar timestamp -> ``YYYY-MM-DD`` (the fallback the eager formatter used)."""
+    try:
+        return value.strftime("%Y-%m-%d") if hasattr(value, "strftime") else str(value)[:10]
+    except Exception:
+        return ""
+
+
 def compute_metrics(nets: list[float]) -> dict:
     """Aggregate per-trade net P&L into table metrics. Never raises.
 
@@ -155,16 +163,24 @@ def _ema_cross_series(closes: list[float]) -> tuple[list[float], list[float]]:
 
     The EWM recursion only looks backwards, so the value at bar ``i`` is the
     same whether it is computed from ``closes[:i + 1]`` or from the full
-    series. Rebuilding both EMAs per bar made the scan quadratic (and paid
-    pandas' per-call overhead on every bar of every symbol).
+    series. Rebuilding both EMAs per bar made the scan quadratic. A plain
+    recursion produces identical values to pandas' ``adjust=False`` (both seed
+    with the first close) without paying ~0.5 ms of pandas dispatch per symbol
+    on a cache-miss universe scan.
     """
-    import pandas as pd
+    values = list(closes or [])
+    if not values:
+        return [], []
 
-    s = pd.Series(list(closes or []), dtype=float)
-    return (
-        s.ewm(span=12, adjust=False).mean().tolist(),
-        s.ewm(span=26, adjust=False).mean().tolist(),
-    )
+    def ema(span: int) -> list[float]:
+        alpha = 2.0 / (span + 1.0)
+        series = [float(values[0])]
+        append = series.append
+        for value in values[1:]:
+            append(alpha * float(value) + (1.0 - alpha) * series[-1])
+        return series
+
+    return ema(12), ema(26)
 
 
 def _signal_at(
@@ -231,13 +247,9 @@ def _frame_to_lists(df: Any) -> Optional[dict]:
             if col not in df.columns:
                 return None
         vols = df["volume"].tolist() if "volume" in df.columns else [0.0] * n
-        try:
-            dates = [
-                d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else str(d)[:10]
-                for d in df.index.tolist()
-            ]
-        except Exception:
-            dates = ["" for _ in range(n)]
+        # Keep the raw index: formatting every bar's date up front cost ~2 ms
+        # per frame while only bars that become signals ever read a label.
+        dates = getattr(df, "index", None)
         return {
             "open": [float(v) for v in df["open"].tolist()],
             "high": [float(v) for v in df["high"].tolist()],
@@ -251,12 +263,16 @@ def _frame_to_lists(df: Any) -> Optional[dict]:
 
 
 def _extract_trades(
-    symbol: str, lists: dict, strategy_id: str, hold_days: int, window_bars: int
+    symbol: str, lists: dict, strategy_id: str, hold_days: int, window_bars: int,
+    date_cache: Optional[dict[int, str]] = None,
 ) -> list[dict]:
     """Signal-bar trades inside the trailing ``window_bars`` window."""
     trades: list[dict] = []
     try:
         closes = lists["close"]
+        dates = lists.get("dates")
+        if date_cache is None:
+            date_cache = {}
         n = len(closes)
         start = max(26, n - window_bars)
         ema = lists.get("ema")
@@ -275,10 +291,16 @@ def _extract_trades(
                 qty = max(1, int(TRADE_NOTIONAL / entry))
                 gross = (exit_ - entry) * qty
                 cost = _trade_cost(entry, exit_, qty)
+                label = date_cache.get(i)
+                if label is None:
+                    label = (
+                        _date_label(dates[i]) if dates is not None and i < len(dates) else ""
+                    )
+                    date_cache[i] = label
                 trades.append({
                     "symbol": symbol,
                     "strategy": strategy_id,
-                    "entry_date": lists["dates"][i] if i < len(lists["dates"]) else "",
+                    "entry_date": label,
                     "entry": round(entry, 2),
                     "exit": round(exit_, 2),
                     "net": round(gross - cost, 2),
@@ -366,9 +388,13 @@ def _scan_symbol(symbol: str, window_bars: int) -> list[dict]:
         # One EMA pass per symbol, reused by the ema_cross strategy.
         lists["ema"] = _ema_cross_series(lists["close"])
         trades: list[dict] = []
+        # One label per signal bar, shared across the six strategy passes.
+        date_cache: dict[int, str] = {}
         for sid, spec in STRATEGIES.items():
             trades.extend(
-                _extract_trades(sym, lists, sid, int(spec["hold_days"]), window_bars)
+                _extract_trades(
+                    sym, lists, sid, int(spec["hold_days"]), window_bars, date_cache
+                )
             )
         return trades
     except Exception:
@@ -403,10 +429,18 @@ def compute_report(weeks: int, universe: str) -> dict:
         file_signals = _read_experiment_files()
     except Exception:
         file_signals = []
+    # Group in one pass: a comprehension per strategy rescanned the whole
+    # trade list six times. Bucket order still follows STRATEGIES, so the
+    # downstream sorting (which is stable) keeps the published ordering.
+    by_strategy: dict[str, list[dict]] = {sid: [] for sid in STRATEGIES}
+    for trade in all_trades:
+        bucket = by_strategy.get(str(trade.get("strategy")))
+        if bucket is not None:
+            bucket.append(trade)
     strategies: list[dict] = []
     live_signals: list[dict] = []
     for sid, spec in STRATEGIES.items():
-        mine = [t for t in all_trades if t.get("strategy") == sid]
+        mine = by_strategy[sid]
         m = compute_metrics([t.get("net", 0.0) for t in mine])
         holds = [t.get("hold_days", 0) for t in mine if isinstance(t.get("hold_days"), (int, float))]
         avg_hold = round(sum(holds) / len(holds), 1) if holds else 0.0

@@ -110,6 +110,11 @@ class TestEndpoint:
         assert second["cached"] is True
         assert second["strategies"] == first["strategies"]
 
+    def test_top_signals_ordered_by_net(self, client):
+        body = client.get("/api/reports/profitability?weeks=4&universe=nifty500").json()
+        nets = [sig["net"] for sig in body["top_signals"]]
+        assert nets == sorted(nets, reverse=True)
+
     def test_fail_soft_never_500(self, monkeypatch):
         import chart_patterns.candles as candles
         import chart_patterns.universes as univ
@@ -130,3 +135,68 @@ class TestEndpoint:
             assert body["strategies"]
             assert body["top_signals"] == []
         pb.clear_cache()
+
+
+class _CountingDate:
+    """Index value whose strftime is counted — proves dates are formatted lazily."""
+
+    def __init__(self, label: str, counter: list[int]):
+        self._label = label
+        self._counter = counter
+
+    def strftime(self, fmt: str) -> str:
+        self._counter[0] += 1
+        return self._label
+
+    def __str__(self) -> str:
+        return self._label
+
+
+def test_frame_to_lists_keeps_raw_index_without_formatting():
+    counter = [0]
+    df = _trend(120)
+    df.index = pd.Index([_CountingDate(f"2026-09-{i + 1:02d}", counter) for i in range(120)])
+    lists = pb._frame_to_lists(df)
+    assert counter[0] == 0
+    assert lists["dates"] is df.index
+    assert pb._date_label(df.index[0]) == "2026-09-01"
+    assert counter[0] == 1
+
+
+def test_compute_report_formats_dates_only_for_signal_bars(monkeypatch):
+    counter = [0]
+
+    def frame(seed: int):
+        df = _trend(120, start=100.0 + seed)
+        df.index = pd.Index(
+            [_CountingDate(f"2026-09-{i + 1:02d}", counter) for i in range(120)]
+        )
+        return df
+
+    frames = {"AAA": frame(0), "BBB": frame(1)}
+    import chart_patterns.candles as candles
+    import chart_patterns.universes as univ
+
+    monkeypatch.setattr(univ, "get_universe", lambda u: list(frames))
+    monkeypatch.setattr(
+        candles, "fetch_for_timeframe",
+        lambda sym, *a, **k: frames.get(str(sym).upper()),
+    )
+    monkeypatch.setattr(pb, "EXPERIMENT_FILES", [])
+    pb.clear_cache()
+    payload = pb.compute_report(4, "nifty500")
+
+    # 240 bars scanned; eager formatting would call strftime 240 times.
+    assert counter[0] < 120
+    labels = {f"2026-09-{i + 1:02d}" for i in range(120)}
+    assert payload["top_signals"]
+    assert all(sig["entry_date"] in labels for sig in payload["top_signals"])
+
+
+def test_ema_cross_series_matches_pandas_adjust_false():
+    closes = [100.0 + i * 0.37 + (i % 7) for i in range(300)]
+    e12, e26 = pb._ema_cross_series(closes)
+    series = pd.Series(closes, dtype=float)
+    assert e12 == pytest.approx(series.ewm(span=12, adjust=False).mean().tolist(), abs=1e-9)
+    assert e26 == pytest.approx(series.ewm(span=26, adjust=False).mean().tolist(), abs=1e-9)
+    assert pb._ema_cross_series([]) == ([], [])
