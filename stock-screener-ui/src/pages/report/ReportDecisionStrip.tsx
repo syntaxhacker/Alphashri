@@ -192,9 +192,15 @@ function StatGroup(props: {
     <Box
       data-testid={props.testId}
       data-group-label={props.label}
-      className="flex flex-col min-w-0"
+      className="flex flex-col"
       style={{
         flex: `${props.weight} 1 0%`,
+        // The weight is the group's cells' summed minimum, in px. Without this
+        // floor `min-w-0` lets the group shrink below its content and the cells
+        // spill into the next group — at 1280px `Regime` overlapped `Max-OI
+        // call`. With it the strip's `flex-wrap` moves whole groups to the next
+        // row instead of letting them overlap.
+        "min-width": `${props.weight}px`,
         gap: `${m.cellGap}px`,
         ...(props.divider
           ? {
