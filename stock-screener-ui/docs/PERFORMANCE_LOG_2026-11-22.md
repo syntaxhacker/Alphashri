@@ -63,6 +63,13 @@ unmeasured work is marked **in progress**.
 - **Local PR fast tier:** **686 passed, 3 skipped in 4m10s** (budget < 5m).
 - **Test-debt tracker:** `docs/TEST_DEBT.md` records fixed clusters, remaining
   source-gap/fixture clusters, policy and the fresh full-sweep command.
+- **Root auth fixture:** stopped entering the FastAPI lifespan per test;
+  setup p95 **407ms → 16ms** (96% lower) with 100 targeted tests passing.
+- **Screener dashboard cache:** identical universe/limit/mincap reads reuse the
+  client snapshot (30s, shorter than server TTL), with explicit refresh bypass
+  and no failure caching; 716 screener tests pass.
+- **Home desk cache:** unchanged catalyst/derived data is reused across layout
+  changes while current rows still update; 6 cache tests pass.
 
 ## Final state at 19:12 IST
 
