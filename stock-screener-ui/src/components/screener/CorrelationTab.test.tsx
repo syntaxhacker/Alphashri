@@ -48,10 +48,6 @@ vi.mock("../../state/correlation", () => ({
   fetchCorrelationData: (...args: any[]) => mockFetchCorrelationData(...args),
 }));
 
-vi.mock("../../hooks/useStoreSubscription", () => ({
-  useStoreSubscription: vi.fn(),
-}));
-
 vi.mock("./CorrelationMatrix", () => ({
   CorrelationMatrix: (props: any) => (
     <div data-testid="correlation-matrix" data-matrix={!!props.matrix} data-loading={props.isLoading}>

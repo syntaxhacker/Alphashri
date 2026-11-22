@@ -1,4 +1,4 @@
-import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { Show, createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
 import {
   Alert,
@@ -28,6 +28,7 @@ import {
 } from "../../state/correlation";
 import { searchSymbols } from "../../api/symbols";
 import type { SymbolResult } from "../../api/symbols";
+import { useStoreSnapshot } from "../../hooks/useStoreSubscription";
 import { CorrelationMatrix } from "./CorrelationMatrix";
 import { CorrelationChart } from "./CorrelationChart";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
@@ -67,22 +68,8 @@ function useDebouncedSignal(getValue: () => string, wait: number) {
   return debounced;
 }
 
-// src/hooks/useStoreSubscription.ts's useStoreSnapshot misses its createMemo
-// import, so the snapshot is inlined here with the same semantics.
-function useCorrelationSnapshot() {
-  const [tick, setTick] = createSignal(0);
-  createEffect(() => {
-    const unsubscribe = subscribe(() => setTick((n) => n + 1));
-    onCleanup(unsubscribe);
-  });
-  return createMemo(() => {
-    tick();
-    return { symbols, timeframe, period, matrix, normalized, meta, isLoading, error };
-  });
-}
-
 export function CorrelationTab() {
-  const store = useCorrelationSnapshot();
+  const store = useStoreSnapshot(subscribe, () => ({ symbols, timeframe, period, matrix, normalized, meta, isLoading, error }));
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [searchData, setSearchData] = createSignal<SymbolResult[]>([]);
