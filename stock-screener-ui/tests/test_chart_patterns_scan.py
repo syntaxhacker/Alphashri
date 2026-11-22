@@ -2134,12 +2134,17 @@ def test_default_stays_threads(cp_store, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def _auto_patch(monkeypatch, n: int) -> None:
+def _auto_patch(monkeypatch, n: int, threshold: int | None = None) -> None:
     """Wire `n` symbols with fake, instant fetch/detect; no network calls.
 
-    Callers that want a specific env override must set it (monkeypatch isolates
-    env per test, so a clean auto environment is the default at test entry).
+    `threshold` lowers scan.PROCESS_THRESHOLD so the at/above-threshold branch
+    is exercised with a small universe (the production default is 300). Monkeypatch
+    restores it after the test. Callers that want a specific env override must set
+    it (monkeypatch isolates env per test, so a clean auto environment is the
+    default at test entry).
     """
+    if threshold is not None:
+        monkeypatch.setattr(scan, "PROCESS_THRESHOLD", threshold)
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
         lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None,
@@ -2180,10 +2185,10 @@ def test_auto_below_threshold_uses_threads(cp_store, monkeypatch):
 
 
 def test_auto_at_threshold_uses_processes(cp_store, monkeypatch):
-    """300 symbols (>= threshold), nothing forced: process pool with spawn context."""
+    """20 symbols (>= lowered threshold), nothing forced: process pool with spawn context."""
     if not parallel.supports_processes():
         pytest.skip("spawn not available on this platform")
-    _auto_patch(monkeypatch, 300)
+    _auto_patch(monkeypatch, 20, threshold=20)
     _FakeProcessPool.instances.clear()
     _FakeThreadPool.instances.clear()
     monkeypatch.setattr(scan, "ProcessPoolExecutor", _FakeProcessPool)
@@ -2195,7 +2200,7 @@ def test_auto_at_threshold_uses_processes(cp_store, monkeypatch):
 
     row = store.get_job("cpj_auto_big")
     assert row["status"] == "completed"
-    assert row["done"] == 300
+    assert row["done"] == 20
     proc, thread = _pool_counts()
     assert proc == 1 and thread == 0
     assert _FakeProcessPool.instances[0].mp_context is not None
@@ -2205,7 +2210,7 @@ def test_auto_at_threshold_uses_processes(cp_store, monkeypatch):
 def test_env_zero_forces_threads_above_threshold(cp_store, monkeypatch):
     """PATTERN_SCAN_USE_PROCESSES=0 forces threads even for a large universe."""
     monkeypatch.setenv("PATTERN_SCAN_USE_PROCESSES", "0")
-    _auto_patch(monkeypatch, 400)
+    _auto_patch(monkeypatch, 40, threshold=20)
     _FakeProcessPool.instances.clear()
     _FakeThreadPool.instances.clear()
     monkeypatch.setattr(scan, "ProcessPoolExecutor", _FakeProcessPool)
@@ -2242,7 +2247,7 @@ def test_env_one_forces_processes_below_threshold(cp_store, monkeypatch):
 
 def test_param_false_forces_threads_above_threshold(cp_store, monkeypatch):
     """params use_processes=False forces threads even for a large universe."""
-    _auto_patch(monkeypatch, 400)
+    _auto_patch(monkeypatch, 40, threshold=20)
     _FakeProcessPool.instances.clear()
     _FakeThreadPool.instances.clear()
     monkeypatch.setattr(scan, "ProcessPoolExecutor", _FakeProcessPool)
@@ -2295,7 +2300,7 @@ def test_auto_parent_only_writes_at_threshold(cp_store, monkeypatch):
     monkeypatch.setattr(store, "save_hits_batch", recording_save_batch)
     monkeypatch.setattr(jobs, "update_state", recording_update)
 
-    _auto_patch(monkeypatch, 300)
+    _auto_patch(monkeypatch, 20, threshold=20)
     _FakeProcessPool.instances.clear()
     _FakeThreadPool.instances.clear()
     monkeypatch.setattr(scan, "ProcessPoolExecutor", _FakeProcessPool)
