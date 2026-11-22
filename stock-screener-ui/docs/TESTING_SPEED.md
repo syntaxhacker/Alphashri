@@ -208,9 +208,12 @@ bun run test:fast     # or: npx vitest run --dir src --changed
 
 Changed-only run of the frontend unit tests — a genuinely different job from
 `test:unit` (whole `src/` suite), not a duplicate. It uses vitest's own git
-awareness and exits 0 with "No test files found" when `src/` is clean. It is a
-local feedback tool; CI still runs the full suite. With `bun` absent, call the
-`npx` form directly.
+awareness and exits 0 with "No test files found" when `src/` is clean. With
+`bun` absent, call the `npx` form directly. In CI, PRs to `develop` run the
+changed tier with the PR base SHA passed explicitly
+(`--changed=<base SHA>`); PRs to `main`, pushes and nightly run the full `src/`
+suite. A guard fails the changed tier if it collects zero tests while the PR
+changes frontend sources/tests.
 
 CI's default remains the safe config. To experiment with threads locally:
 `NODE_OPTIONS=--max-old-space-size=8192 npx vitest run --dir src --pool=threads --execArgv=`
