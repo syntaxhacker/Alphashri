@@ -1,10 +1,53 @@
 """Tests for the single TradingView source of truth (`api.tv`)."""
 
+import logging
+import threading
+
 import pandas as pd
 import pytest
+import requests
 
 from api import tv
 from api.tv import client, status
+
+
+class _Response:
+    """Minimal requests.Response stand-in for transport tests."""
+
+    def __init__(self, code=200, payload=None):
+        self.status_code = code
+        self._payload = payload or {"data": []}
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise requests.HTTPError(
+                f"HTTP {self.status_code}", response=self
+            )
+
+    def json(self):
+        return self._payload
+
+
+class _Session:
+    """Scripted stand-in for the thread-local requests.Session."""
+
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.calls = []
+
+    def post(self, url, **kwargs):
+        self.calls.append((url, kwargs))
+        response = self.responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+
+def _use_session(monkeypatch, responses):
+    session = _Session(responses)
+    monkeypatch.setattr(client, "_get_session", lambda: session)
+    monkeypatch.setattr(client, "get_tv_cookies", lambda: None)
+    return session
 
 
 def test_symbols_round_trip():
@@ -141,3 +184,110 @@ def test_feed_status_empty():
         "rows": 0,
         "age_sec": None,
     }
+
+
+# --------------------------------------------------------------------------- #
+# Shared transport policy: thread-local session, bounded retry/backoff
+# --------------------------------------------------------------------------- #
+
+def test_get_session_is_reused_per_thread(monkeypatch):
+    monkeypatch.setattr(client._tls, "session", None, raising=False)
+    main = client._get_session()
+    assert isinstance(main, requests.Session)
+    assert client._get_session() is main
+
+    other = []
+    thread = threading.Thread(target=lambda: other.append(client._get_session()))
+    thread.start()
+    thread.join(5)
+    assert other and other[0] is not main
+
+
+def test_scan_raw_posts_through_session_with_40s_timeout(monkeypatch):
+    session = _use_session(monkeypatch, [_Response()])
+    client.scan_raw("india", {"markets": ["india"]})
+    assert len(session.calls) == 1
+    assert session.calls[0][1]["timeout"] == 40
+
+
+def test_scan_raw_401_refreshes_cookies_and_retries_once(monkeypatch):
+    session = _use_session(monkeypatch, [_Response(401), _Response()])
+    cookies_seen = []
+
+    def cookies():
+        cookies_seen.append("fresh" if len(cookies_seen) else "stale")
+        return {"sessionid": cookies_seen[-1]}
+
+    refreshes = []
+    monkeypatch.setattr(client, "get_tv_cookies", cookies)
+    monkeypatch.setattr(client, "refresh_tv_cookies", lambda: refreshes.append(True))
+
+    client.scan_raw("india", {})
+
+    assert len(session.calls) == 2
+    assert refreshes == [True]
+    assert cookies_seen == ["stale", "fresh"]
+    assert session.calls[0][1]["cookies"] == {"sessionid": "stale"}
+    assert session.calls[1][1]["cookies"] == {"sessionid": "fresh"}
+
+
+def test_scan_raw_403_refreshes_once_then_surfaces_second_403(monkeypatch):
+    session = _use_session(monkeypatch, [_Response(403), _Response(403)])
+    refreshes = []
+    monkeypatch.setattr(client, "refresh_tv_cookies", lambda: refreshes.append(True))
+
+    with pytest.raises(requests.HTTPError) as exc:
+        client.scan_raw("india", {})
+    assert exc.value.response.status_code == 403
+    assert len(session.calls) == 2
+    assert refreshes == [True]
+
+
+def test_scan_raw_429_uses_jittered_exponential_backoff(monkeypatch):
+    session = _use_session(monkeypatch, [_Response(429), _Response(429), _Response()])
+    delays = []
+    monkeypatch.setattr(client, "_sleep", delays.append)
+    monkeypatch.setattr(client, "_jitter", lambda low, high: high / 2)
+
+    client.scan_raw("india", {})
+
+    assert len(session.calls) == 3
+    assert delays == [0.25, 0.5]  # full jitter over 0.5s, then 1.0s ceilings
+
+
+def test_scan_raw_exhausted_5xx_retries_raise_last_error(monkeypatch):
+    session = _use_session(
+        monkeypatch, [_Response(500), _Response(503), _Response(500)]
+    )
+    delays = []
+    monkeypatch.setattr(client, "_sleep", delays.append)
+    monkeypatch.setattr(client, "_jitter", lambda low, high: high)
+
+    with pytest.raises(requests.HTTPError) as exc:
+        client.scan_raw("india", {})
+    assert exc.value.response.status_code == 500
+    assert len(session.calls) == 3
+    assert len(delays) == 2
+
+
+def test_scan_raw_does_not_retry_validation_errors(monkeypatch):
+    session = _use_session(monkeypatch, [_Response(422)])
+    delays = []
+    monkeypatch.setattr(client, "_sleep", delays.append)
+
+    with pytest.raises(requests.HTTPError):
+        client.scan_raw("india", {})
+    assert len(session.calls) == 1
+    assert not delays
+
+
+def test_scan_raw_never_logs_cookies(monkeypatch, caplog):
+    session = _use_session(monkeypatch, [_Response(401), _Response()])
+    monkeypatch.setattr(client, "get_tv_cookies", lambda: {"sessionid": "SECRET_VALUE"})
+    monkeypatch.setattr(client, "refresh_tv_cookies", lambda: None)
+
+    with caplog.at_level(logging.DEBUG):
+        client.scan_raw("india", {})
+
+    assert len(session.calls) == 2
+    assert "SECRET_VALUE" not in caplog.text
