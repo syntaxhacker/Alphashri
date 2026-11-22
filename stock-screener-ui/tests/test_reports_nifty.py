@@ -352,6 +352,40 @@ class TestReadCaches:
         assert path.stat().st_mtime_ns == original.st_mtime_ns
         assert read_snapshot("2026-11-02")["spot"] == 2.0
 
+    def test_derived_cache_invalidates_on_same_stamp_replace(self, _tmp_snapshots):
+        # The positioning/GEX projection is cached on the file stamp. An
+        # os.replace swap can reuse mtime_ns and size; only st_ino changes.
+        def report(ce_oi):
+            return {
+                "spot": 20_000.0,
+                "strikes": [
+                    {"strike": 20_000.0,
+                     "ce": {"oi": ce_oi, "gamma": 0.05},
+                     "pe": {"oi": 300_000, "gamma": 0.05}},
+                ],
+            }
+
+        path = _tmp_snapshots / "2026-11-02.json"
+        old = report(100_000)
+        write_snapshot("2026-11-02", old)
+        original = path.stat()
+        assert nifty._derived_snapshot("2026-11-02", old)["gex"]["net_total"] == -20.0
+
+        # Equal byte length but a different GEX; pin mtime_ns to the original.
+        new = report(200_000)
+        assert len(json.dumps(new, separators=(",", ":"))) == len(
+            json.dumps(old, separators=(",", ":")))
+        write_snapshot("2026-11-02", new)
+        replaced = path.stat()
+        assert replaced.st_ino != original.st_ino
+        assert replaced.st_size == original.st_size
+        os.utime(path, ns=(replaced.st_atime_ns, original.st_mtime_ns))
+        assert path.stat().st_mtime_ns == original.st_mtime_ns
+
+        derived = nifty._derived_snapshot("2026-11-02", new)
+        assert derived["gex"]["net_total"] == -10.0
+        assert derived["gex"] == nifty.compute_gex(new["strikes"], new["spot"])
+
     def test_get_reprojects_a_rewritten_snapshot(self, _tmp_snapshots,
                                                  monkeypatch):
         monkeypatch.setattr(nifty, "_nifty_md", lambda: None)
