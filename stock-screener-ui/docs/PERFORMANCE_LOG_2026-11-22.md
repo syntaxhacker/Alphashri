@@ -45,6 +45,13 @@ unmeasured work is marked **in progress**.
   formatting **331.9ms → 24–33ms (~10–13×)**; repeated tape reads
   **24.31ms → 0.03ms** via an mtime/size cache. 61 targeted tests pass; warm
   profitability benchmark PASS.
+- **Test structure:** removed the legacy `src/test/test-utils.tsx` shim,
+  added a no-return guard + README, and added `docs/TESTING_INDEX.md` plus
+  guards for Playwright placement, legacy helper imports and unit-style E2E
+  files. 99 frontend helper/consumer tests and 11 layout guards pass.
+- **Full-suite debt burned down:** news-poller over-mocking **7 → 0 failures**
+  (14 tests), ORB/config/db stale expectations **14 → 0** (204 tests), and
+  targeted coverage remained intact.
 
 ## Final state at 19:12 IST
 
