@@ -238,33 +238,36 @@ class _BaseScan:
         one vectorised pass. The largest qualifying ``cand`` wins (the
         descending loop this replaces broke at the first, i.e. largest, match).
         """
-        high = self.high[start:end]
-        low = self.low[start:end]
-        close = self.close[start:end]
         m_max = end - start
         if m_max < MIN_BARS:
             return int(end)
-        hi = np.maximum.accumulate(high)
-        lo = np.minimum.accumulate(low)
-        s0 = np.cumsum(close)
-        j = np.arange(m_max, dtype=float)
-        t0 = np.cumsum(j * close)
+        hi_m = m_max - BREAKOUT_MIN_BARS + 1
+        lo_m = MIN_BARS
+        if hi_m < lo_m:
+            return int(end)
+        high = self.high[start : start + hi_m]
+        low = self.low[start : start + hi_m]
+        close = self.close[start : start + hi_m]
+        hi = np.maximum.accumulate(high)[lo_m - 1 :]
+        lo = np.minimum.accumulate(low)[lo_m - 1 :]
+        s0 = np.cumsum(close)[lo_m - 1 :]
+        j_all = np.arange(hi_m, dtype=float)
+        t0 = np.cumsum(j_all * close)[lo_m - 1 :]
+        j = j_all[lo_m - 1 :]
         m = j + 1.0
         with np.errstate(divide="ignore", invalid="ignore"):
             mp = s0 / m
             range_pct = (hi - lo) / mp * 100.0
             # OLS slope on x = 0..m-1: sum((x-xbar)*y) / sum((x-xbar)^2).
-            slope = (t0 - (m - 1.0) * 0.5 * s0) / (m * (m * m - 1.0) / 12.0)
+            slope = (t0 - j * 0.5 * s0) / (m * (m * m - 1.0) / 12.0)
             ok = (hi > lo) & (mp > 0)
             ok &= (range_pct <= RANGE_MAX) & (range_pct >= MIN_RANGE_PCT)
             ok &= np.abs(slope * m / mp) <= NEAR_FLAT_MAX
-        ok &= m >= MIN_BARS
-        ok &= (m_max - j) >= BREAKOUT_MIN_BARS
-        ok &= (self._smax[start + 1 : end + 1] < lo - tol) | (
-            self._smin[start + 1 : end + 1] > hi + tol
+        ok &= (self._smax[start + lo_m : start + hi_m + 1] < lo - tol) | (
+            self._smin[start + lo_m : start + hi_m + 1] > hi + tol
         )
         hits = np.flatnonzero(ok)
-        return int(start + hits[-1]) if hits.size else int(end)
+        return int(start + lo_m - 1 + hits[-1]) if hits.size else int(end)
 
 
 def _scan_of(df: pd.DataFrame) -> _BaseScan:
@@ -340,24 +343,36 @@ def _range_bound_swings(
     A genuine base swings back and forth, testing each edge repeatedly.
     """
     start, end = int(start), int(end)
-    H = [(p, q) for p, q in highs if start <= p <= end]
-    L = [(p, q) for p, q in lows if start <= p <= end]
-    if not H or not L:
+    mid = start + (end - start) // 2
+    # One pass over each pivot list replaces the per-window list filters and
+    # ``count_touches`` walks. A negative tol reproduces ``count_touches``
+    # returning 0 for a non-positive ATR.
+    tol = TOUCH_TOL_ATR * atr_val if atr_val > 0 else -1.0
+    near = [[0, 0], [0, 0]]
+    has_h = has_l = False
+    for p, q in highs:
+        if start <= p <= end:
+            has_h = True
+            half = 0 if p < mid else 1
+            if abs(q - hi) <= tol:
+                near[0][half] += 1
+    for p, q in lows:
+        if start <= p <= end:
+            has_l = True
+            half = 0 if p < mid else 1
+            if abs(q - lo) <= tol:
+                near[1][half] += 1
+    if not has_h or not has_l:
         return False
     # Two-sided oscillation in **both halves**: each half must touch both edges.
     # A single touch per edge anywhere lets a V-shape or a drift masquerade as a
     # range: a V tests one edge in the first half and the other in the second
     # (KOTAKBANK 1D; DRREDDY 1D *and* 1h), so one half never touches both.
     # Genuine bases swing back and forth throughout and pass easily.
-    mid = start + (end - start) // 2
-    for seg_lo, seg_hi in ((start, mid - 1), (mid, end)):
+    for half, (seg_lo, seg_hi) in enumerate(((start, mid - 1), (mid, end))):
         if seg_hi < seg_lo:
             continue
-        seg_h = [(p, q) for p, q in H if seg_lo <= p <= seg_hi]
-        seg_l = [(p, q) for p, q in L if seg_lo <= p <= seg_hi]
-        if F.count_touches(seg_h, 0.0, hi, atr_val, tol_atr=TOUCH_TOL_ATR) < 1:
-            return False
-        if F.count_touches(seg_l, 0.0, lo, atr_val, tol_atr=TOUCH_TOL_ATR) < 1:
+        if near[0][half] < 1 or near[1][half] < 1:
             return False
     return True
 

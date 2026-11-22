@@ -248,6 +248,93 @@ describe("PatternSymbolMatrix", () => {
     expect(onSelect).toHaveBeenCalledWith(rowB.best);
   });
 
+  test("orders multi-hit rows by best conviction and selects that best hit", () => {
+    const onSelect = vi.fn();
+    const strong5m = makeHit({
+      id: 1,
+      symbol: "STR",
+      timeframe: "5m",
+      pattern_name: "Strong 5m",
+      confidence: 90,
+      bars_ago: 4,
+      range_pos: 90,
+    });
+    const strong1d = makeHit({
+      id: 2,
+      symbol: "STR",
+      timeframe: "1D",
+      pattern_name: "Strong 1D",
+      confidence: 40,
+      bars_ago: 1,
+    });
+    const mid5m = makeHit({ id: 3, symbol: "MID", timeframe: "5m", pattern_name: "Mid 5m", confidence: 80 });
+    const tie5m = makeHit({ id: 4, symbol: "TIE", timeframe: "5m", pattern_name: "Tie Alpha", confidence: 70, bars_ago: 1 });
+    const tie1d = makeHit({ id: 5, symbol: "TIE", timeframe: "1D", pattern_name: "Tie Beta", confidence: 70, bars_ago: 1 });
+    const rows = [
+      makeRow({ symbol: "STR", hits: [strong5m, strong1d] }),
+      makeRow({ symbol: "MID", hits: [mid5m] }),
+      makeRow({ symbol: "TIE", hits: [tie5m, tie1d] }),
+    ];
+
+    render(() => <PatternSymbolMatrix rows={rows} timeframes={["5m", "1D"]} onSelect={onSelect} />);
+
+    expect(screen.getAllByTestId(/patterns-matrix-row-/).map((el) => el.getAttribute("data-testid"))).toEqual([
+      "patterns-matrix-row-STR",
+      "patterns-matrix-row-MID",
+      "patterns-matrix-row-TIE",
+    ]);
+    fireEvent.click(screen.getByTestId("patterns-matrix-row-STR"));
+    expect(onSelect).toHaveBeenCalledWith(strong5m);
+    const cells = within(screen.getByTestId("patterns-matrix-row-STR")).getAllByRole("cell");
+    expect(cells[5]).toHaveTextContent("90.0");
+    expect(cells[6]).toHaveTextContent("90%");
+  });
+
+  test("equal conviction keeps the first hit as best while chips still sort by status", () => {
+    const onSelect = vi.fn();
+    const forming = makeHit({
+      id: 1,
+      symbol: "TIE",
+      timeframe: "5m",
+      pattern_name: "Tie Alpha",
+      status: "forming",
+      confidence: 70,
+      bars_ago: 1,
+    });
+    const confirmed = makeHit({
+      id: 2,
+      symbol: "TIE",
+      timeframe: "1D",
+      pattern_name: "Tie Beta",
+      status: "confirmed",
+      confidence: 70,
+      bars_ago: 1,
+    });
+    const row = makeRow({ symbol: "TIE", hits: [forming, confirmed] });
+
+    render(() => <PatternSymbolMatrix rows={[row]} timeframes={["5m", "1D"]} onSelect={onSelect} />);
+
+    fireEvent.click(screen.getByTestId("patterns-matrix-row-TIE"));
+    expect(onSelect).toHaveBeenCalledWith(forming);
+    const cells = within(screen.getByTestId("patterns-matrix-row-TIE")).getAllByRole("cell");
+    const chips = Array.from(cells[7].querySelectorAll("button")).map((el) => el.textContent);
+    expect(chips).toEqual(["Tie Beta 1D", "Tie Alpha 5m"]);
+  });
+
+  test("omits rows with no hits in the selected timeframes", () => {
+    const otherTf = makeHit({ id: 1, symbol: "OUT", timeframe: "1W", confidence: 99 });
+    const rows = [
+      makeRow({ symbol: "OUT", hits: [otherTf] }),
+      makeRow({ symbol: "EMPTY", hits: [] }),
+    ];
+
+    render(() => <PatternSymbolMatrix rows={rows} timeframes={["5m", "1D"]} onSelect={vi.fn()} />);
+
+    expect(screen.queryByTestId("patterns-matrix-row-OUT")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("patterns-matrix-row-EMPTY")).not.toBeInTheDocument();
+    expect(screen.getByText("No symbols match the current filters.")).toBeInTheDocument();
+  });
+
   test("keeps only the latest pattern per timeframe", () => {
     const hits = [
       makeHit({ id: 100, symbol: "CCC", timeframe: "5m", pattern_name: "Older", bars_ago: 5 }),

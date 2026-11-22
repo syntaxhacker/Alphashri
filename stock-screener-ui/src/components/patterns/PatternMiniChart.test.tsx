@@ -6,23 +6,23 @@ vi.mock("@/ui", async () => {
   return mockSolidUi();
 });
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { createSignal } from "solid-js";
 import { cleanup, render, screen, waitFor } from "@solidjs/testing-library";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
 import type { ChartCandle, PatternHitDTO, TrendLine, Trendline } from "@/types/chartPatterns";
 import { BOUNDARY_COLORS, buildPatternChartOption } from "./patternChartOption";
 import { PatternMiniChart } from "./PatternMiniChart";
 
-const { setChartOption } = vi.hoisted(() => ({ setChartOption: vi.fn() }));
+const { setChartOption, resizeChart, disposeChart, initChart, loadEchartsSpy } = vi.hoisted(() => {
+  const setChartOption = vi.fn();
+  const resizeChart = vi.fn();
+  const disposeChart = vi.fn();
+  const initChart = vi.fn(() => ({ setOption: setChartOption, resize: resizeChart, dispose: disposeChart }));
+  const loadEchartsSpy = vi.fn(async () => ({ init: initChart }));
+  return { setChartOption, resizeChart, disposeChart, initChart, loadEchartsSpy };
+});
 
-vi.mock("@/utils/loadEcharts", () => ({
-  loadEcharts: async () => ({
-    init: () => ({
-      setOption: setChartOption,
-      resize: vi.fn(),
-      dispose: vi.fn(),
-    }),
-  }),
-}));
+vi.mock("@/utils/loadEcharts", () => ({ loadEcharts: loadEchartsSpy }));
 
 vi.mock("./patternChartOption", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
@@ -30,6 +30,54 @@ vi.mock("./patternChartOption", async (importOriginal) => {
 });
 
 const buildMock = vi.mocked(buildPatternChartOption);
+
+// Controllable polyfill: existing tests auto-intersect on observe, the
+// deferral tests disable that and emit manually.
+class MockIntersectionObserver implements IntersectionObserver {
+  static instances: MockIntersectionObserver[] = [];
+  static autoIntersect = true;
+
+  readonly root = null;
+  readonly rootMargin = "";
+  readonly thresholds: ReadonlyArray<number> = [];
+  readonly targets: Element[] = [];
+  readonly callback: IntersectionObserverCallback;
+
+  readonly observe = vi.fn((target: Element) => {
+    this.targets.push(target);
+    if (MockIntersectionObserver.autoIntersect) this.emit(true);
+  });
+  readonly unobserve = vi.fn((target: Element) => {
+    const i = this.targets.indexOf(target);
+    if (i >= 0) this.targets.splice(i, 1);
+  });
+  readonly disconnect = vi.fn(() => {
+    this.targets.length = 0;
+  });
+  readonly takeRecords = vi.fn((): IntersectionObserverEntry[] => []);
+
+  constructor(callback: IntersectionObserverCallback, _options?: IntersectionObserverInit) {
+    this.callback = callback;
+    MockIntersectionObserver.instances.push(this);
+  }
+
+  emit(isIntersecting: boolean) {
+    const rect = {} as DOMRect;
+    const entries = this.targets.map(
+      (target) =>
+        ({
+          isIntersecting,
+          target,
+          intersectionRatio: isIntersecting ? 1 : 0,
+          boundingClientRect: rect,
+          intersectionRect: rect,
+          rootBounds: null,
+          time: 0,
+        }) as unknown as IntersectionObserverEntry,
+    );
+    if (entries.length) this.callback(entries, this);
+  }
+}
 
 function candle(t: string, o: number, c: number): ChartCandle {
   return { t, o, h: Math.max(o, c) + 1, l: Math.min(o, c) - 1, c, v: 1000 };
@@ -77,10 +125,18 @@ interface FallbackOption {
 
 describe("PatternMiniChart", () => {
   beforeEach(() => {
-    setChartOption.mockClear();
-    buildMock.mockClear();
+    for (const spy of [setChartOption, resizeChart, disposeChart, initChart, loadEchartsSpy, buildMock]) {
+      spy.mockClear();
+    }
+    buildMock.mockImplementation(() => ({ mocked: "mini-chart" } as never));
+    MockIntersectionObserver.instances = [];
+    MockIntersectionObserver.autoIntersect = true;
+    vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
   });
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
 
   test("renders the chart container", () => {
     render(() => <PatternMiniChart hit={makeHit()} />);
@@ -183,5 +239,76 @@ describe("PatternMiniChart", () => {
     expect(bearOption.series).toHaveLength(1);
     expect(bearOption.series[0].data).toEqual([110, 100]);
     expect(bearOption.series[0].lineStyle.color).toBe(NEGATIVE);
+  });
+
+  test("visible card applies the option once", async () => {
+    const hit = makeHit({ candles: [candle("2026-09-01", 100, 102)] });
+    render(() => <PatternMiniChart hit={hit} />);
+    await waitFor(() => expect(setChartOption).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(initChart).toHaveBeenCalledTimes(1);
+    expect(setChartOption).toHaveBeenCalledTimes(1);
+  });
+
+  test("initially hidden card does not init until it intersects", async () => {
+    MockIntersectionObserver.autoIntersect = false;
+    const hit = makeHit({ candles: [candle("2026-09-01", 100, 102)] });
+    render(() => <PatternMiniChart hit={hit} />);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.getByTestId("patterns-mini-chart-IRCON-falling_wedge")).toBeInTheDocument();
+    expect(buildMock).not.toHaveBeenCalled();
+    expect(loadEchartsSpy).not.toHaveBeenCalled();
+    expect(initChart).not.toHaveBeenCalled();
+    expect(setChartOption).not.toHaveBeenCalled();
+
+    MockIntersectionObserver.instances[0]!.emit(true);
+    await waitFor(() => expect(setChartOption).toHaveBeenCalledTimes(1));
+    expect(buildMock).toHaveBeenCalledTimes(1);
+    expect(initChart).toHaveBeenCalledTimes(1);
+  });
+
+  test("option updated while hidden is applied on reveal", async () => {
+    MockIntersectionObserver.autoIntersect = false;
+    let updateHit!: (hit: PatternHitDTO) => void;
+    buildMock.mockImplementation(
+      (input) => ({ version: input.candles[0]?.t ?? "none" } as never),
+    );
+    render(() => {
+      const [hit, setHit] = createSignal(makeHit({ candles: [candle("2026-09-01", 100, 102)] }));
+      updateHit = setHit;
+      return <PatternMiniChart hit={hit()} />;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(buildMock).not.toHaveBeenCalled();
+    expect(setChartOption).not.toHaveBeenCalled();
+
+    updateHit(makeHit({ candles: [candle("2026-09-02", 200, 205)] }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(buildMock).not.toHaveBeenCalled();
+    expect(setChartOption).not.toHaveBeenCalled();
+
+    MockIntersectionObserver.instances[0]!.emit(true);
+    await waitFor(() => expect(setChartOption).toHaveBeenCalledTimes(1));
+    expect(buildMock).toHaveBeenCalledTimes(1);
+    expect(setChartOption).toHaveBeenCalledWith({ version: "2026-09-02" }, true);
+  });
+
+  test("renders immediately when IntersectionObserver is unavailable", async () => {
+    vi.stubGlobal("IntersectionObserver", undefined);
+    const hit = makeHit({ candles: [candle("2026-09-01", 100, 102)] });
+    render(() => <PatternMiniChart hit={hit} />);
+    await waitFor(() => expect(setChartOption).toHaveBeenCalledTimes(1));
+    expect(initChart).toHaveBeenCalledTimes(1);
+    expect(MockIntersectionObserver.instances).toHaveLength(0);
+  });
+
+  test("cleanup disconnects the observer and disposes the chart", async () => {
+    const hit = makeHit({ candles: [candle("2026-09-01", 100, 102)] });
+    const view = render(() => <PatternMiniChart hit={hit} />);
+    await waitFor(() => expect(setChartOption).toHaveBeenCalledTimes(1));
+    const io = MockIntersectionObserver.instances[0]!;
+    view.unmount();
+    expect(io.disconnect).toHaveBeenCalledTimes(1);
+    expect(disposeChart).toHaveBeenCalledTimes(1);
   });
 });

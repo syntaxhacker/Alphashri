@@ -43,16 +43,18 @@ OHLCV_COLUMNS = ["open", "high", "low", "close", "volume"]
 
 _FRAME_CACHE_MAX = 32
 _ENVELOPE_ENTRY_MAX = 512
+_MEAN_ENTRY_MAX = 512
 
 
 class _FrameEntry:
-    __slots__ = ("ref", "token", "atr", "envelope")
+    __slots__ = ("ref", "token", "atr", "envelope", "means")
 
     def __init__(self, token: tuple) -> None:
         self.ref = None
         self.token = token
         self.atr: dict[int, float] = {}
         self.envelope: dict[tuple, dict | None] = {}
+        self.means: dict[tuple[int, int], float] = {}
 
 
 _FRAME_CACHE: "OrderedDict[int, _FrameEntry]" = OrderedDict()
@@ -511,6 +513,48 @@ def swing_extremes(
     return float(seg_high.iloc[hi_pos - start]), float(seg_low.iloc[lo_pos - start]), hi_pos, lo_pos
 
 
+def window_mean(df: pd.DataFrame, start: int, end: int) -> float:
+    """Mean close over the inclusive bar window, memoized per frame.
+
+    Detectors normalise slopes by the same window mean many times per pass
+    (channels, wedges, H&S candidates); the numpy slice avoids a pandas
+    ``iloc``/``astype`` chain on every call.
+    """
+    key = (int(start), int(end))
+    entry = _frame_entry(df)
+    if entry is not None:
+        cached = entry.means.get(key)
+        if cached is not None:
+            return cached
+    values = df["close"].to_numpy(dtype=float, copy=False)[start : end + 1]
+    value = float(values.mean())
+    if not np.isfinite(value) and bool(np.isnan(values).any()):
+        value = float(np.nanmean(values))
+    if entry is not None:
+        if len(entry.means) >= _MEAN_ENTRY_MAX:
+            entry.means.clear()
+        entry.means[key] = value
+    return value
+
+
+def _boundary_values(df: pd.DataFrame, side: str) -> np.ndarray:
+    """Current boundary column as a float64 array, without building a Series.
+
+    ``df[col].to_numpy()`` allocates a Series on every call (~16us) even when
+    nothing changed. The positional read returns the same block data in ~2us;
+    it still reads current values, so in-place edits and column reassignment are
+    both visible to the caller's byte hash.
+    """
+    col = "high" if side == "upper" else "low"
+    try:
+        values = df.values[:, df.columns.get_loc(col)]
+        if values.ndim == 1 and values.dtype == np.float64:
+            return values
+    except Exception:  # non-unique columns, mixed dtypes, custom frame subclass
+        pass
+    return df[col].to_numpy(dtype=float, copy=False)
+
+
 def envelope_line(
     df: pd.DataFrame,
     pivots: Iterable[tuple[int, float]],
@@ -536,7 +580,7 @@ def envelope_line(
     # loop. ``worst`` (max pierce depth) is reported for the winning pair only and
     # is recomputed once after selection, so it can never influence which pair
     # wins.
-    boundary = df["high"].to_numpy(dtype=float) if side == "upper" else df["low"].to_numpy(dtype=float)
+    boundary = _boundary_values(df, side)
     n = len(boundary)
     # Frame-scoped memo: detectors ask for the same boundary repeatedly within
     # one pass. The key includes the boundary's byte hash so an in-place price
@@ -546,9 +590,15 @@ def envelope_line(
     memo_key = None
     if entry is not None:
         try:
+            # ``P`` is already a list of (position, price) 2-tuples. A shallow
+            # tuple avoids ~40 int/float conversions per call; numpy scalars
+            # hash equal to their native counterparts, so this key is
+            # interchangeable with the old converted form.
+            pivot_key = tuple(P)
+            hash(pivot_key)  # reject unhashable pivot elements
             memo_key = (
                 side,
-                tuple((int(p), float(q)) for p, q in P),
+                pivot_key,
                 float(tol),
                 hash(boundary.tobytes()),
             )
@@ -574,8 +624,6 @@ def envelope_line(
     slopes = (Q1 - Q0) / span
     counts = span.astype(np.int64) + 1  # bars in [x0, x1], inclusive
     num_pairs = len(X0)
-    best_key = None
-    best = -1
     viol = np.zeros(num_pairs, dtype=np.int64)
     # Cell budget per block keeps peak memory bounded; blocks run in pair order
     # so the global first-wins tie-break is unchanged.
@@ -588,9 +636,10 @@ def envelope_line(
         Pidx = np.repeat(np.arange(p0, p1), b_counts)
         cell_idx = np.arange(b_total)
         starts = np.cumsum(b_counts) - b_counts
-        K = (X0[Pidx] + (cell_idx - np.repeat(starts, b_counts))).astype(np.int64)
+        X0p = X0[Pidx]
+        K = (X0p + (cell_idx - np.repeat(starts, b_counts))).astype(np.int64)
         Kf = K.astype(np.float64)
-        y = Q0[Pidx] + slopes[Pidx] * (Kf - X0[Pidx])
+        y = Q0[Pidx] + slopes[Pidx] * (Kf - X0p)
         if side == "upper":
             d = boundary[K] - y  # violation: price pierces above the line
         else:
@@ -599,14 +648,11 @@ def envelope_line(
         # Pidx holds GLOBAL pair indices (np.arange(p0, p1)), so bincount would
         # size the result to the global max index instead of this block - offset
         # by p0 to get exactly p1-p0 counts that fit the viol[sl] slice.
-        viol[sl] = np.bincount(Pidx - p0, weights=over.astype(np.uint8), minlength=p1 - p0).astype(np.int64)
-        for k in range(p0, p1):
-            key = (int(viol[k]), -int(span[k]))
-            if best_key is None or key < best_key:
-                best_key = key
-                best = k
-    if best < 0:
-        return None
+        viol[sl] = np.bincount(Pidx - p0, weights=over, minlength=p1 - p0).astype(np.int64)
+    # Winner: fewest violations, then longest span, then first pair in
+    # ``triu_indices`` order. lexsort's last key is primary; the pair index is
+    # the final tie-break, so this is the same strict-``<`` scan as before.
+    best = int(np.lexsort((np.arange(num_pairs), -span, viol))[0])
     # Winner's cells are contiguous ([start, start+count)), so its worst pierce
     # depth is one small vectorised reduction instead of per-row work.
     x0b = int(X0[best])

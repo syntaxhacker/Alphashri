@@ -143,7 +143,15 @@ def _wedge_envelopes(df: pd.DataFrame, ctx: dict, start: int, falling: bool):
     if falling:
         last = len(df) - 1
         L = L + [(last, float(df["low"].iloc[last]))]
-    eu = F.envelope_line(df, H, "upper", tol)
+    # Falling/rising wedge scans share the same swing highs for a window.
+    cache = ctx.setdefault("_wedge_env", {})
+    key = (id(df), int(start))
+    if key in cache:
+        cached = cache[key]
+        eu = dict(cached) if cached is not None else None
+    else:
+        eu = F.envelope_line(df, H, "upper", tol)
+        cache[key] = dict(eu) if eu is not None else None
     el = F.envelope_line(df, L, "lower", tol)
     if eu is None or el is None:
         return None
@@ -354,6 +362,8 @@ def _wedge_impl(df: pd.DataFrame, ctx: dict, falling: bool) -> list:
             -c["hit"].confidence,
         ),
     )
+    if support is resistance:
+        return [support["hit"]]
     blended = _build_wedge_hit(
         df,
         resistance["env"]["eu"],
@@ -704,6 +714,7 @@ def _hs_impl(df: pd.DataFrame, ctx: dict, inverse: bool) -> list:
     # position-separated; try each candidate left/right pair for the head.
     cand = sorted(primary, key=lambda t: t[1], reverse=not inverse)[:6]
     best = None
+    mean_price = mean_price_fn(df, start, end)
     for h in cand:
         lefts = [p for p in cand if p[0] < h[0] - 3]
         rights = [p for p in cand if p[0] > h[0] + 3]
@@ -711,7 +722,6 @@ def _hs_impl(df: pd.DataFrame, ctx: dict, inverse: bool) -> list:
             continue
         left = max(lefts, key=lambda t: t[1]) if not inverse else min(lefts, key=lambda t: t[1])
         right = max(rights, key=lambda t: t[1]) if not inverse else min(rights, key=lambda t: t[1])
-        mean_price = mean_price_fn(df, start, end)
         if mean_price <= 0:
             continue
         shoulder_diff = abs(left[1] - right[1]) / mean_price

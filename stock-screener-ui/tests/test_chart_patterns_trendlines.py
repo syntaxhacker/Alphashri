@@ -243,6 +243,22 @@ def test_window_signature_is_stable_and_length_tagged():
     assert len(digest) == 16
 
 
+def test_signature_and_lines_invariant_to_column_layout():
+    """Normalization guarantees OHLCV order regardless of source layout."""
+    df = _rising_support_df()
+    variants = [
+        df.rename(columns=str.upper),
+        df[["high", "low", "close", "open", "volume"]],
+        df.assign(oi=1.0)[["oi", "volume", "low", "high", "close", "open"]],
+        df.assign(volume=df["volume"].astype("int64")),
+    ]
+    expected_sig = window_signature(df)
+    expected_lines = detect_trendlines(df)
+    for variant in variants:
+        assert window_signature(variant) == expected_sig
+        assert detect_trendlines(variant) == expected_lines
+
+
 def test_window_signature_tracks_the_trailing_window_not_the_head():
     """Same tail, different head → same lines on the default window."""
     full = _rising_support_df(400)

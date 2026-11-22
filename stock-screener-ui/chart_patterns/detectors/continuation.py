@@ -73,17 +73,31 @@ def _broke_opposite(df: pd.DataFrame, level: float, direction: str, atr_val: flo
 
 def _fit_envelopes(df: pd.DataFrame, ctx: dict, start: int):
     """Pivot pair and ATR-validated envelopes shared by the window scanners."""
+    # Channels, rectangles and triangles fit the same (frame, window) envelopes.
+    cache = ctx.setdefault("_envelope_setups", {})
+    key = (id(df), int(start))
+    if key in cache:
+        setup = cache[key]
+        if setup is None:
+            return None
+        H, L, eu, el, atr_val, r2u, r2l = setup
+        return H, L, dict(eu), dict(el), atr_val, r2u, r2l
     pair = fit_window_pair(df, ctx, start, max_pivots=None)
     if pair is None:
+        cache[key] = None
         return None
     H, L, (_, _, r2u), (_, _, r2l) = pair
     atr_val = F.atr_value(df)
     if atr_val <= 0:
+        cache[key] = None
         return None
     eu, el = envelope_pair(df, H, L, atr_val)
     if eu is None or el is None:
+        cache[key] = None
         return None
-    return H, L, eu, el, atr_val, r2u, r2l
+    setup = (H, L, eu, el, atr_val, r2u, r2l)
+    cache[key] = setup
+    return setup
 
 
 # ---------------------------------------------------------------------------
@@ -109,7 +123,8 @@ def _channel_once(df: pd.DataFrame, ctx: dict, start: int, end: int, ascending: 
     # lines start/end on real pivots of that leg (not floating in empty air).
     H2 = pivots_in(H, x0, x1)
     L2 = pivots_in(L, x0, x1)
-    if len(H2) >= 2 and len(L2) >= 2:
+    # Equal lengths -> identical pivot tuples, so the refit is the same call.
+    if (len(H2) != len(H) or len(L2) != len(L)) and len(H2) >= 2 and len(L2) >= 2:
         eu2 = F.envelope_line(df, H2, "upper", tol)
         el2 = F.envelope_line(df, L2, "lower", tol)
         if eu2 is not None and el2 is not None:
@@ -439,12 +454,11 @@ def _find_pennant(df: pd.DataFrame, ctx: dict | None = None):
                 continue
             if (pole_high - flow) / pole_move > PENNANT_MAX_RETR:
                 continue
-            flag_change = abs(float(close[fend]) - float(close[fstart]))
+            fc0, fc1 = float(close[fstart]), float(close[fend])
+            flag_change = abs(fc1 - fc0)
             if flag_change > 0.22 * pole_move:
                 continue
-            fdrift = (float(close[fend]) - float(close[fstart])) / max(
-                float(close[fstart]), 1e-9
-            )
+            fdrift = (fc1 - fc0) / max(fc0, 1e-9)
             if fdrift > PENNANT_MAX_DRIFT:
                 continue
             search_start = max(0, fstart - 3)
@@ -698,21 +712,23 @@ def _triangle_once(df: pd.DataFrame, ctx: dict, start: int, end: int, ascending:
             return None
         if F.relative_slope(sl, span, mp) < 0.03:
             return None
-        if val(eu, x1) <= val(el, x1):
+        res_x1, sup_x1 = val(eu, x1), val(el, x1)
+        if res_x1 <= sup_x1:
             return None
-        breakout = val(eu, x1)
+        breakout = res_x1
         pid, opposite, direction = "ascending_triangle", None, "bullish"
-        notes = f"ascending triangle; resistance {val(eu, x1):.4g}, rising support slope {sl:.4g}"
+        notes = f"ascending triangle; resistance {res_x1:.4g}, rising support slope {sl:.4g}"
     else:
         if not F.is_horizontal(sl, span, mp, tol=0.04):
             return None
         if F.relative_slope(su, span, mp) > -0.03:
             return None
-        if val(eu, x1) <= val(el, x1):
+        res_x1, sup_x1 = val(eu, x1), val(el, x1)
+        if res_x1 <= sup_x1:
             return None
-        breakout = val(el, x1)
+        breakout = sup_x1
         pid, opposite, direction = "descending_triangle", None, "bearish"
-        notes = f"descending triangle; support {val(el, x1):.4g}, falling resistance slope {su:.4g}"
+        notes = f"descending triangle; support {sup_x1:.4g}, falling resistance slope {su:.4g}"
 
     if F.penetration_ratio(df, eu["slope"], eu["intercept"], x0, x1, "upper", atr_val) > PENETRATION_MAX:
         return None
@@ -720,7 +736,7 @@ def _triangle_once(df: pd.DataFrame, ctx: dict, start: int, end: int, ascending:
         return None
     # Bullish ascending triangle: if price closed back *below* the rising support
     # it resolved the wrong way — reject rather than label it an upside break.
-    if ascending and _broke_opposite(df, val(el, x1), "bullish", atr_val):
+    if ascending and _broke_opposite(df, sup_x1, "bullish", atr_val):
         return None
     r2 = min(r2u, r2l)
     if r2 < 0.5:

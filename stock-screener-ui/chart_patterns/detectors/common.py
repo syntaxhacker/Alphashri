@@ -178,9 +178,10 @@ def line_points(
     df: pd.DataFrame, slope: float, intercept: float, start: int, end: int
 ) -> list[dict]:
     """Two-point serialisation of a fitted trendline (start/end of pattern)."""
+    index = df.index
     return [
-        {"t": iso_ts(df.index[start]), "price": round(F.line_value(slope, intercept, start), 4)},
-        {"t": iso_ts(df.index[end]), "price": round(F.line_value(slope, intercept, end), 4)},
+        {"t": iso_ts(index[start]), "price": round(F.line_value(slope, intercept, start), 4)},
+        {"t": iso_ts(index[end]), "price": round(F.line_value(slope, intercept, end), 4)},
     ]
 
 
@@ -198,24 +199,25 @@ def pivot_line_points(
     the swing highs/lows at both ends, instead of a regression line that floats
     off them. Falls back to the fitted line when fewer than two pivots exist.
     """
+    index = df.index
     ordered = sorted(pivots, key=lambda t: t[0]) if pivots else []
     if len(ordered) >= 2:
         (x0, q0), (x1, q1) = ordered[0], ordered[-1]
         return [
-            {"t": iso_ts(df.index[int(x0)]), "price": round(float(q0), 4)},
-            {"t": iso_ts(df.index[int(x1)]), "price": round(float(q1), 4)},
+            {"t": iso_ts(index[int(x0)]), "price": round(float(q0), 4)},
+            {"t": iso_ts(index[int(x1)]), "price": round(float(q1), 4)},
         ]
     if ordered:
         x0 = int(ordered[0][0])
         return [
-            {"t": iso_ts(df.index[x0]), "price": round(float(ordered[0][1]), 4)},
-            {"t": iso_ts(df.index[int(end if end is not None else len(df) - 1)]), "price": round(float(ordered[0][1]), 4)},
+            {"t": iso_ts(index[x0]), "price": round(float(ordered[0][1]), 4)},
+            {"t": iso_ts(index[int(end if end is not None else len(df) - 1)]), "price": round(float(ordered[0][1]), 4)},
         ]
     xa = int(start if start is not None else 0)
     xb = int(end if end is not None else len(df) - 1)
     return [
-        {"t": iso_ts(df.index[xa]), "price": round(F.line_value(slope, intercept, xa), 4)},
-        {"t": iso_ts(df.index[xb]), "price": round(F.line_value(slope, intercept, xb), 4)},
+        {"t": iso_ts(index[xa]), "price": round(F.line_value(slope, intercept, xa), 4)},
+        {"t": iso_ts(index[xb]), "price": round(F.line_value(slope, intercept, xb), 4)},
     ]
 
 
@@ -300,9 +302,10 @@ def pivots_in(
 
 def segment_points(df: pd.DataFrame, x0: int, q0: float, x1: int, q1: float) -> list[dict]:
     """Two-point line from explicit endpoint coordinates (pivot-anchored)."""
+    index = df.index
     return [
-        {"t": iso_ts(df.index[int(x0)]), "price": round(float(q0), 4)},
-        {"t": iso_ts(df.index[int(x1)]), "price": round(float(q1), 4)},
+        {"t": iso_ts(index[int(x0)]), "price": round(float(q0), 4)},
+        {"t": iso_ts(index[int(x1)]), "price": round(float(q1), 4)},
     ]
 
 
@@ -319,13 +322,14 @@ def pivot_markers(
     Powers the on-chart pivot dots and the manual-audit list in the detail pane.
     """
     out: list[dict] = []
+    index = df.index
     for kind, pivots in (("high", highs), ("low", lows)):
         for p, q in pivots:
             if x0 is not None and p < x0:
                 continue
             if x1 is not None and p > x1:
                 continue
-            out.append({"t": iso_ts(df.index[int(p)]), "price": round(float(q), 4), "kind": kind})
+            out.append({"t": iso_ts(index[int(p)]), "price": round(float(q), 4), "kind": kind})
     out.sort(key=lambda d: d["t"])
     return out[:limit]
 
@@ -333,16 +337,18 @@ def pivot_markers(
 def flat_line_points(df: pd.DataFrame, price: float, start: int, end: int) -> list[dict]:
     """Horizontal guide (neckline / range edge) across two positions."""
     p = round(float(price), 4)
+    index = df.index
     return [
-        {"t": iso_ts(df.index[int(start)]), "price": p},
-        {"t": iso_ts(df.index[int(end)]), "price": p},
+        {"t": iso_ts(index[int(start)]), "price": p},
+        {"t": iso_ts(index[int(end)]), "price": p},
     ]
 
 
 def curve_points(df: pd.DataFrame, start: int, fitted) -> list[dict]:
     """Serialise a fitted curve (relative positions) as a polyline overlay."""
+    index = df.index
     return [
-        {"t": iso_ts(df.index[start + i]), "price": round(float(y), 4)}
+        {"t": iso_ts(index[start + i]), "price": round(float(y), 4)}
         for i, y in enumerate(fitted)
     ]
 
@@ -361,8 +367,12 @@ def get_swings(
         cache = ctx.setdefault("_swings", {})
         if key in cache:
             return cache[key]
-    highs = [(i, float(df["high"].iloc[i])) for i in F.find_swing_highs(df["high"], left, right)]
-    lows = [(i, float(df["low"].iloc[i])) for i in F.find_swing_lows(df["low"], left, right)]
+    high = df["high"]
+    low = df["low"]
+    high_v = high.to_numpy(dtype=float, copy=False)
+    low_v = low.to_numpy(dtype=float, copy=False)
+    highs = [(i, float(high_v[i])) for i in F.find_swing_highs(high, left, right)]
+    lows = [(i, float(low_v[i])) for i in F.find_swing_lows(low, left, right)]
     result = (highs, lows)
     if ctx is not None:
         ctx["_swings"][key] = result
@@ -390,7 +400,7 @@ def window_slice(
 
 def mean_price(df: pd.DataFrame, start: int, end: int) -> float:
     """Mean close over the inclusive window (price normaliser for slopes)."""
-    return float(df["close"].iloc[start : end + 1].astype(float).mean())
+    return F.window_mean(df, start, end)
 
 
 def line_width(su: float, iu: float, sl: float, il: float, x: float) -> float:
@@ -427,18 +437,26 @@ def fit_window_pair(
     Returns ``(highs, lows, upper_fit, lower_fit)`` or ``None`` when there are
     fewer than two pivots of either kind.
     """
+    # Channels, rectangles and triangles scan the same trailing windows; the
+    # pivot fit is a pure function of (frame, start, max_pivots), so the shared
+    # ``ctx`` can serve all three detectors from one OLS pass.
+    cache = ctx.setdefault("_fit_pairs", {})
+    cache_key = (int(start), max_pivots)
+    if cache_key in cache:
+        return cache[cache_key]
     highs, lows = get_swings(df, ctx)
     H = [(p, q) for p, q in highs if p >= start]
     L = [(p, q) for p, q in lows if p >= start]
     if len(H) < 2 or len(L) < 2:
-        return None
-    Hf = F.last_n(H, max_pivots) if max_pivots else H
-    Lf = F.last_n(L, max_pivots) if max_pivots else L
-    upper = F.fit_pivot_line(Hf)
-    lower = F.fit_pivot_line(Lf)
-    if upper is None or lower is None:
-        return None
-    return H, L, upper, lower
+        result = None
+    else:
+        Hf = F.last_n(H, max_pivots) if max_pivots else H
+        Lf = F.last_n(L, max_pivots) if max_pivots else L
+        upper = F.fit_pivot_line(Hf)
+        lower = F.fit_pivot_line(Lf)
+        result = None if upper is None or lower is None else (H, L, upper, lower)
+    cache[cache_key] = result
+    return result
 
 
 def _fit_pair(
@@ -488,10 +506,12 @@ def shift_line_to_bound(
     xs = np.arange(x0, x1 + 1, dtype=float)
     line = slope * xs + intercept
     if side == "upper":
-        delta = float(np.max(df["high"].to_numpy(dtype=float)[x0 : x1 + 1] - line))
+        boundary = df["high"].to_numpy(dtype=float, copy=False)[x0 : x1 + 1]
+        delta = float(np.max(boundary - line))
         intercept += max(delta, 0.0) + margin
     else:
-        delta = float(np.max(line - df["low"].to_numpy(dtype=float)[x0 : x1 + 1]))
+        boundary = df["low"].to_numpy(dtype=float, copy=False)[x0 : x1 + 1]
+        delta = float(np.max(line - boundary))
         intercept -= max(delta, 0.0) + margin
     return float(slope), float(intercept)
 
@@ -612,7 +632,7 @@ def _first_cross(
     One scan keeps both crossover helpers identical on index bounds and strict
     comparison, so a breakout bar cannot be off by one in only one of them.
     """
-    close = df["close"].to_numpy(dtype=float)
+    close = df["close"].to_numpy(dtype=float, copy=False)
     for x in range(max(0, int(x_from)), len(close)):
         level = level_at(x)
         if direction == "bearish":
@@ -650,6 +670,42 @@ def line_breakout_pos(
     )
 
 
+def _status_from_close(
+    close: np.ndarray,
+    breakout_level: float,
+    direction: str,
+    end_pos: int,
+    tol: float,
+) -> str:
+    """Status from an already-materialised close array (see ``classify_status``)."""
+    if close.size == 0:
+        return "forming"
+    last = float(close[-1])
+    line = float(breakout_level)
+    if line <= 0:
+        return "forming"
+
+    prior = close[int(end_pos) : -1]
+    if direction == "bearish":
+        crossed = last < line
+        distance = (line - last) / line * 100.0
+        returned = bool((prior < line).any()) if prior.size else False
+    else:  # bullish / neutral
+        crossed = last > line
+        distance = (last - line) / line * 100.0
+        returned = bool((prior > line).any()) if prior.size else False
+
+    if crossed:
+        return "confirmed"
+    if returned:
+        return "failed"
+    if distance >= -tol:
+        return "forming"
+    # Never crossed, never broke out, and price has drifted far past the line
+    # on the wrong side: a stale/unconfirmed setup, not a live formation.
+    return "failed"
+
+
 def classify_status(
     df: pd.DataFrame,
     breakout_level: float,
@@ -664,31 +720,13 @@ def classify_status(
     """
     if df is None or df.empty:
         return "forming"
-    last = float(df["close"].iloc[-1])
-    line = float(breakout_level)
-    if line <= 0:
-        return "forming"
-
-    if direction == "bearish":
-        crossed = last < line
-        distance = (line - last) / line * 100.0
-        prior = df["close"].iloc[int(end_pos) : -1]
-        returned = bool((prior < line).any()) if len(prior) else False
-    else:  # bullish / neutral
-        crossed = last > line
-        distance = (last - line) / line * 100.0
-        prior = df["close"].iloc[int(end_pos) : -1]
-        returned = bool((prior > line).any()) if len(prior) else False
-
-    if crossed:
-        return "confirmed"
-    if returned:
-        return "failed"
-    if distance >= -tol:
-        return "forming"
-    # Never crossed, never broke out, and price has drifted far past the line
-    # on the wrong side: a stale/unconfirmed setup, not a live formation.
-    return "failed"
+    return _status_from_close(
+        df["close"].to_numpy(dtype=float, copy=False),
+        breakout_level,
+        direction,
+        end_pos,
+        tol,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -779,8 +817,9 @@ def make_hit(
     target, stop, rr = compute_levels(
         direction, breakout_level, pattern_height, opposite_extreme, atr_val
     )
+    close = df["close"].to_numpy(dtype=float, copy=False)
     if status is None:
-        status = classify_status(df, breakout_level, direction, int(end_pos))
+        status = _status_from_close(close, breakout_level, direction, int(end_pos), PROXIMITY_PCT)
 
     quality, confidence = score_quality(touches, r2, volume_confirmed, quality_bonus)
     if quality == "marginal" and status == "forming":
@@ -788,7 +827,7 @@ def make_hit(
 
     start_pos = int(max(0, min(start_pos, len(df) - 1)))
     end_pos = int(max(0, min(end_pos, len(df) - 1)))
-    close = df["close"]
+    index = df.index
 
     return PatternHit(
         pattern_id=pattern_id,
@@ -798,10 +837,10 @@ def make_hit(
         status=status,
         quality=quality,
         confidence=round(float(confidence), 1),
-        start_date=fmt_date(df.index[start_pos]),
-        end_date=fmt_date(df.index[end_pos]),
-        start_price=round(float(close.iloc[start_pos]), 4),
-        end_price=round(float(close.iloc[end_pos]), 4),
+        start_date=fmt_date(index[start_pos]),
+        end_date=fmt_date(index[end_pos]),
+        start_price=round(float(close[start_pos]), 4),
+        end_price=round(float(close[end_pos]), 4),
         breakout_level=round(float(breakout_level), 4),
         target=round(float(target), 4),
         stop=round(float(stop), 4),

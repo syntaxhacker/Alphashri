@@ -310,9 +310,11 @@ function PatternsWorkspace(props: PatternsPageProps) {
       () => tfSelection(),
     );
   const sequencedResults = createMemo(() => {
-    if (!filters().sequence || (filters().pattern_id?.length ?? 0) < 2) return results();
+    const all = results();
+    const f = filters();
+    if (!f.sequence || (f.pattern_id?.length ?? 0) < 2) return all;
     const bySymbol = new Map<string, PatternHitDTO[]>();
-    for (const h of results()) {
+    for (const h of all) {
       const key = `${h.symbol}|${h.timeframe}`;
       const group = bySymbol.get(key);
       if (group) group.push(h);
@@ -320,15 +322,15 @@ function PatternsWorkspace(props: PatternsPageProps) {
     }
     const keep = new Set<number>();
     for (const group of bySymbol.values()) {
-      for (const h of matchSequence(group, filters().pattern_id, {
-        maxGapDays: filters().sequence_gap_days ?? 20,
-        maxBarsAgo: filters().sequence_max_bars ?? null,
-        stepStatuses: filters().sequence_step_status ?? [],
+      for (const h of matchSequence(group, f.pattern_id, {
+        maxGapDays: f.sequence_gap_days ?? 20,
+        maxBarsAgo: f.sequence_max_bars ?? null,
+        stepStatuses: f.sequence_step_status ?? [],
       })) {
         if (h.id != null) keep.add(h.id);
       }
     }
-    return results().filter((h) => h.id != null && keep.has(h.id));
+    return all.filter((h) => h.id != null && keep.has(h.id));
   });
 
   const hitsBySymbol = createMemo(() => {
@@ -345,26 +347,29 @@ function PatternsWorkspace(props: PatternsPageProps) {
   // narrow its rows to the filtered/sequenced symbols and show their hits.
   const matrixRows = createMemo(() => {
     const n = filters().history ?? 1;
-    return mergeMatrixQuotes(matrixData()?.rows ?? [], sequencedResults())
-      .filter((row) => hitsBySymbol().has(row.symbol))
-      .map((row) => ({
-        ...row,
-        hits: selectLastN(hitsBySymbol().get(row.symbol) ?? [], n),
-        hit_count: (hitsBySymbol().get(row.symbol) ?? []).length,
-      }));
+    const bySymbol = hitsBySymbol();
+    const data = matrixData();
+    return mergeMatrixQuotes(data?.rows ?? [], sequencedResults())
+      .filter((row) => bySymbol.has(row.symbol))
+      .map((row) => {
+        const hits = bySymbol.get(row.symbol) ?? [];
+        return { ...row, hits: selectLastN(hits, n), hit_count: hits.length };
+      });
   });
   const latestResults = createMemo(() => lastNHitsPerTimeframe(sequencedResults(), filters().history ?? 1));
   const activeIndexGroup = createMemo((): IndexGroup => universe() === "indices" ? indexGroup() : "all");
   const filteredLatest = createMemo(() => filterByIndexGroup(latestResults(), activeIndexGroup()));
   const filteredMatrixRows = createMemo(() => filterByIndexGroup(matrixRows(), activeIndexGroup()));
   const displaySummary = createMemo(() => {
-    if (!summary() || results().length < total()) return summary();
+    const base = summary();
+    if (!base || results().length < total()) return base;
+    const latest = filteredLatest();
     const patternCounts: Record<string, number> = {};
     const familyCounts: Record<string, number> = {};
     let confirmed = 0;
     let bullish = 0;
     let bearish = 0;
-    for (const hit of filteredLatest()) {
+    for (const hit of latest) {
       if (hit.status === "confirmed") confirmed += 1;
       if (hit.direction === "bullish") bullish += 1;
       if (hit.direction === "bearish") bearish += 1;
@@ -372,9 +377,9 @@ function PatternsWorkspace(props: PatternsPageProps) {
       familyCounts[hit.family] = (familyCounts[hit.family] ?? 0) + 1;
     }
     return {
-      ...(summary() as Record<string, unknown> | undefined),
-      patterns: filteredLatest().length,
-      in_view: filteredLatest().length,
+      ...(base as Record<string, unknown>),
+      patterns: latest.length,
+      in_view: latest.length,
       confirmed,
       bullish,
       bearish,
@@ -383,11 +388,12 @@ function PatternsWorkspace(props: PatternsPageProps) {
     };
   });
   const matrixTimeframes = createMemo(() => {
+    const data = matrixData();
     const used = new Set<string>();
-    for (const row of matrixData()?.rows ?? []) {
+    for (const row of data?.rows ?? []) {
       for (const tf of Object.keys(row.timeframes)) used.add(tf);
     }
-    return (matrixData()?.timeframes ?? []).filter((tf) => used.has(tf));
+    return (data?.timeframes ?? []).filter((tf) => used.has(tf));
   });
   const matrixVisibleTimeframes = createMemo(() => matrixTimeframes().filter((tf) => tfSelection().includes(tf)));
   const hasRows = createMemo(() => view() === "matrix" ? filteredMatrixRows().length > 0 : filteredLatest().length > 0);

@@ -14,6 +14,7 @@ import pytest
 
 from chart_patterns.detectors.common import (
     calendar_day_gap,
+    fit_window_pair,
     scan_windows,
     shift_line_to_bound,
 )
@@ -145,6 +146,21 @@ def test_reversal_bound_uses_margin_but_continuation_shift_does_not():
     assert not hasattr(continuation, "_shift_line")
     assert continuation.shift_line_to_bound is shift_line_to_bound
     assert continuation.shift_line_to_bound(df, s, i0, 0, 4, "upper") == plain
+
+
+def test_fit_window_pair_is_memoized_per_ctx_and_window():
+    idx = pd.date_range("2024-01-01", periods=12, freq="D", tz="UTC")
+    df = _frame(
+        idx,
+        12,
+        high=[100, 101, 105, 101, 100, 100, 101, 106, 101, 100, 100, 100],
+        low=[100, 99, 95, 99, 100, 100, 99, 94, 99, 100, 100, 100],
+    )
+    ctx = {}
+    first = fit_window_pair(df, ctx, 0, max_pivots=None)
+    assert first is not None
+    assert fit_window_pair(df, ctx, 0, max_pivots=None) is first
+    assert (0, None) in ctx["_fit_pairs"]
 
 
 # ---------------------------------------------------------------------------

@@ -130,7 +130,7 @@ def _frame_interior_digest(df) -> Optional[str]:
         return None
 
 
-def _frame_signature(df) -> Optional[str]:
+def _frame_signature(df, last_date: Optional[str] = None) -> Optional[str]:
     """Compact hash of the frame tail + interior that determines detection output.
 
     ``(frame_last_date, last_bar_timestamp, last_close, len(df), interior_digest)``.
@@ -138,11 +138,16 @@ def _frame_signature(df) -> Optional[str]:
     historical correction or backfill that leaves the last bar untouched.
     Two frames with the same signature produce the same detection result, so
     detection + trendlines can be skipped.
+
+    ``last_date`` lets the caller reuse the session date it already computed
+    for ``data_through``; a lookback slice never changes the last bar, so the
+    two values are identical and the extra timezone conversion is avoided.
     """
     if df is None or getattr(df, "empty", True):
         return None
     try:
-        last_date = candles.frame_last_date(df)
+        if last_date is None:
+            last_date = candles.frame_last_date(df)
         ts = pd.Timestamp(df.index[-1])
         if ts.tz is None:
             ts = ts.tz_localize("UTC")
@@ -164,7 +169,8 @@ def _frame_signature(df) -> Optional[str]:
 
 def _source_sig(
     df, timeframe: str, lookback_bars: Optional[int] = None,
-    compute_trendlines: bool = True,
+    compute_trendlines: bool = True, detector_sig: Optional[str] = None,
+    last_date: Optional[str] = None,
 ) -> Optional[str]:
     """Per-symbol source signature: frame + detector build + detection params.
 
@@ -173,12 +179,17 @@ def _source_sig(
     detector signature so a detector change forces recompute, and the params
     that alter the detection input (``lookback_bars``, ``compute_trendlines``).
     Universe/timeframe are enforced by the store query scope, not the hash.
+
+    ``detector_sig`` / ``last_date`` are optional precomputed values from the
+    caller; direct callers keep the original four-argument contract.
     """
-    frame_sig = _frame_signature(df)
+    frame_sig = _frame_signature(df, last_date=last_date)
     if not frame_sig:
         return None
+    if detector_sig is None:
+        detector_sig = _detector_signature()
     payload = (
-        f"{frame_sig}|{_detector_signature()}|{lookback_bars}|"
+        f"{frame_sig}|{detector_sig}|{lookback_bars}|"
         f"{bool(compute_trendlines)}|{timeframe}"
     )
     return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:16]
@@ -280,8 +291,9 @@ def _latest_record(records: list[dict]) -> dict:
         value = record.get("bars_ago")
         return value if isinstance(value, (int, float)) else float("inf")
 
-    floor = min(bars(record) for record in records)
-    pool = [record for record in records if bars(record) == floor]
+    keyed = [(bars(record), record) for record in records]
+    floor = min(value for value, _ in keyed)
+    pool = [record for value, record in keyed if value == floor]
     return max(
         pool,
         key=lambda record: (str(record.get("end_date") or ""), record.get("confidence") or 0),
@@ -482,7 +494,14 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
     # detector build + detection params match, skip detection + trendlines and
     # return the stored hit instead. A missing or legacy signature falls
     # through to a normal detect.
-    source_sig = _source_sig(df, timeframe, lookback_bars, compute_trendlines)
+    # The detector build signature is constant for the whole job; compute it
+    # once per symbol instead of once per hit. ``data_through`` already carries
+    # the frame's session date, so reuse it for the frame digest too.
+    detector_sig = _detector_signature()
+    source_sig = _source_sig(
+        df, timeframe, lookback_bars, compute_trendlines,
+        detector_sig=detector_sig, last_date=data_through,
+    )
     if prev_hit and source_sig:
         prev_sig = prev_hit.get("source_sig") if isinstance(prev_hit, dict) else None
         if prev_sig and prev_sig == source_sig:
@@ -521,6 +540,7 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
             scan_trend_lines = []
             trend_lines_window = None
 
+    trend_sig = config.trendline_signature() if (compute_trendlines and hits) else None
     enriched = []
     for hit in hits:
         try:
@@ -541,7 +561,7 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
         record.setdefault("timeframe", timeframe)
         record["trend_lines"] = list(scan_trend_lines)
         if compute_trendlines:
-            record["trend_lines_sig"] = config.trendline_signature()
+            record["trend_lines_sig"] = trend_sig
             if trend_lines_window:
                 record["trend_lines_window"] = trend_lines_window
         record["source_sig"] = source_sig

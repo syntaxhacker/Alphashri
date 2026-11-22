@@ -911,6 +911,18 @@ class TestSwingExtremes:
         assert F.swing_extremes(empty, 2, 5) == (0.0, 0.0, 2, 5)
 
 
+class TestWindowMean:
+    def test_matches_pandas_mean_over_inclusive_window(self):
+        df = make_frame([10.0, 20.0, 30.0, 40.0, 50.0])
+        assert F.window_mean(df, 1, 3) == pytest.approx(30.0)
+        assert F.window_mean(df, 0, 4) == pytest.approx(30.0)
+        assert F.window_mean(df, 2, 2) == pytest.approx(30.0)
+
+    def test_skips_nan_like_pandas_mean(self):
+        df = make_frame([10.0, np.nan, 30.0])
+        assert F.window_mean(df, 0, 2) == pytest.approx(20.0)
+
+
 class TestEnvelopeLine:
     def test_fewer_than_two_pivots(self):
         df = make_frame([100.0] * 5)
@@ -962,6 +974,16 @@ class TestEnvelopeLine:
             make_frame([10.0] * 5, spread=0.0, high=[12.0] * 5), pivots, "upper", 0.5
         )
         assert edited == fresh
+        assert edited["viol"] == 5
+
+    def test_memo_invalidated_by_column_reassignment(self):
+        # The boundary reader returns a view, but it re-reads the frame each
+        # call, so replacing the whole column must also refit the line.
+        df = make_frame([10.0] * 5, spread=0.0)
+        pivots = [(0, 10.0), (4, 10.0)]
+        assert F.envelope_line(df, pivots, "upper", 0.5)["viol"] == 0
+        df["high"] = 12.0
+        edited = F.envelope_line(df, pivots, "upper", 0.5)
         assert edited["viol"] == 5
 
     def test_matches_independent_scalar_reference_on_random_frames(self):

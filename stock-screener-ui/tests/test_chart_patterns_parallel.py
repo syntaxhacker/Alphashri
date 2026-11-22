@@ -119,6 +119,12 @@ def test_run_symbols_item_exception_becomes_none():
     ) == ["A", None, "C"]
 
 
+def test_unwrap_fast_path_preserves_malformed_tolerance():
+    """The tuple fast path must not change the legacy outcome contract."""
+    assert par._unwrap([(True, 1), (False, None), (True, 3)]) == ([1, None, 3], 1)
+    assert par._unwrap([1, (True, 2), "x"]) == ([None, 2, None], 2)
+
+
 def test_spawn_context_returns_usable_context():
     """``spawn_context`` yields a context able to start processes (Linux: spawn)."""
     ctx = par.spawn_context()
