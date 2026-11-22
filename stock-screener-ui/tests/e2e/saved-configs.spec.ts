@@ -295,7 +295,7 @@ test.describe("Saved screen state — market.filters", () => {
     );
 
     await openMarketTab(page);
-    await page.getByTestId("market-view-toggle").getByText("Value", { exact: true }).click();
+    await page.getByTestId("market-view-toggle").getByText("Deep Value", { exact: true }).click();
     await expect(page.getByTestId("market-value-region")).toBeVisible();
 
     expect((await valuePut).status()).toBe(200);
