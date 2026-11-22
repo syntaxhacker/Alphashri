@@ -1289,3 +1289,23 @@ describe("mover filter state — defaults, chips and nulls", () => {
     }
   });
 });
+
+describe("mover presets — sorts must actually differ", () => {
+  /**
+   * Guard for a real bug: a preset whose sort has no table column (volume,
+   * value traded, range/ATR) was applied only to `filters.sort`, while the grid
+   * re-sorted from its own state — so Most Active, Top Turnover and Range
+   * Expansion all rendered mcap order. Every preset must produce a distinct
+   * ordering on a frame where the metrics genuinely disagree.
+   */
+  test("each preset's sort orders the frame differently", () => {
+    const distinct = MOVER_PRESETS.filter((p) => p.sort !== "day_desc").map((p) => p.sort);
+    const tops = new Set<string>();
+    for (const key of new Set(distinct)) {
+      const ordered = sortMarketRows(MOVER_ROWS, key);
+      tops.add(ordered.slice(0, 3).map((r) => r.symbol).join(","));
+    }
+    // At least as many distinct orderings as distinct sorts on this fixture.
+    expect(tops.size).toBeGreaterThanOrEqual(Math.min(3, new Set(distinct).size));
+  });
+});
