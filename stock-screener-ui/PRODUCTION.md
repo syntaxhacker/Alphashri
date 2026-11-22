@@ -1,5 +1,7 @@
 # Production Deployment Guide
 
+> **Not the current setup:** Railway is not in use. The project is currently run personally/locally. The Railway material below is historical reference only; do not assume a hosted Railway backend, CLI, URL, or deployment check when planning work. See [AGENTS.md](./AGENTS.md) for the current rule.
+
 Production infrastructure, deployment, and debugging docs. See [AGENTS.md](./AGENTS.md) for dev rules.
 
 ## Known Production Issues

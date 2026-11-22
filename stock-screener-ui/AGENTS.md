@@ -224,7 +224,7 @@ src/
 - `fetch_intraday_data_v3` for today, `fetch_historical_data_v3` for past dates
 - API routes in `stock-screener-ui/api/`, DB models in `db/models.py`
 - **Trades endpoint** (`/api/paper/trades`): queries PostgreSQL first, falls back to journal files. The `get_trades` and `_get_trades_from_db` functions handle this.
-- **Chart endpoint** (`/api/paper/chart/{symbol}`): has a known timezone mismatch bug on production — `fetch_historical_data_v3` returns data with UTC index but filtering uses `config.IST` (UTC+5:30), causing 0 rows after date filter. Works locally because `railway run` may use different config. Investigate: compare `df_1m_full.index.tz` vs `config.IST` in the Docker container.
+- **Chart endpoint** (`/api/paper/chart/{symbol}`): has a known timezone mismatch bug in hosted runs — `fetch_historical_data_v3` returns data with UTC index but filtering uses `config.IST` (UTC+5:30), causing 0 rows after date filter. Works in some local runs because the runtime config differs. Investigate: compare `df_1m_full.index.tz` vs `config.IST` in the affected environment.
 - **Local dev data**: prod DB can be dumped to local SQLite via `python scripts/dump_prod_to_local.py`. Note: trades have `user_id=1` in prod, local user may be different — update `user_id` after dump.
 - **Trading costs**: `backtest/costs.py:calculate_trading_costs()` is the single source of truth. Both `runner_signals.py` and `paper_portfolio.py` use it — never use flat `trade_value * 0.0006`.
 - **Background screener tasks** (prewarm + 52W range batch) are started in the lifespan and gated to market hours. The 52W batch now does a prompt initial run shortly after `start.sh` (during market hours) rather than waiting the full interval — see the dedicated 52W section for agent behavior around this.
@@ -513,7 +513,9 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 
 ## Deployment & Production
 
-See [PRODUCTION.md](./PRODUCTION.md) for infrastructure, deployment, Railway CLI, logs, Redis, and post-push verification.
+**Railway is not in use.** Do not reference, propose, or plan around Railway, `railway` CLI, Railway URLs, or Railway deploy checks. The project is currently run personally/locally. The Railway sections in [PRODUCTION.md](./PRODUCTION.md) are historical notes only and must not be treated as the current architecture.
+
+GitHub Actions may be used for scheduled batch compute, but it cannot write to a local SQLite file. Any Actions-based refresh needs an explicitly agreed durable target (a remote Postgres/Redis/object store, a checked-in handoff, or a self-hosted runner on the personal machine) — never an assumed hosted backend.
 
 ## Testing
 - Frontend: vitest, files co-located as `*.test.ts` / `*.test.tsx`
