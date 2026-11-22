@@ -1,9 +1,15 @@
-# Order-Flow Broker Adapters
+# Broker Adapters (shared)
 
-Every broker adapter implements the same contract (`api/orderflow_adapters/base.py`)
+> These adapters were moved out of `api/orderflow_adapters/` into
+> `api/broker_hub/adapters/` on 2026-11-22, when the Order Flow feature was
+> removed. The layer itself was **not** order-flow-specific: it backs the
+> single shared Fyers socket that the Index Report's LIVE chart depends on
+> (`api/reports_api/fyers_ws.py` → `get_hub()`). See `docs/DELETION_LOG.md`.
+
+Every broker adapter implements the same contract (`api/broker_hub/adapters/base.py`)
 and emits the same normalized tick shape, so the journal, signal engine, recorder,
 and UI are broker-agnostic. Adapters self-register via `@register_adapter` and are
-imported from `api/orderflow_adapters/__init__.py`.
+imported from `api/broker_hub/adapters/__init__.py`.
 
 ## Broker matrix
 
@@ -39,7 +45,7 @@ imported from `api/orderflow_adapters/__init__.py`.
 
 ## How to add a broker adapter
 
-1. **Subclass the contract.** Create `api/orderflow_adapters/<broker>.py` and
+1. **Subclass the contract.** Create `api/broker_hub/adapters/<broker>.py` and
    implement `class <Broker>Adapter(OrderFlowAdapter)` with `name`,
    `depth_levels`, `max_symbols_per_connection`, `max_connections`,
    `has_order_counts`, plus `normalize(raw) -> [(broker_symbol, tick_data)]`.
@@ -51,7 +57,7 @@ imported from `api/orderflow_adapters/__init__.py`.
    default `socket_factory`) so the module imports and registers even when the
    SDK is absent. Make `socket_factory` injectable for tests.
 4. **Register and test.** Decorate with `@register_adapter`, make sure
-   `api/orderflow_adapters/__init__.py` imports the module, and add
+   `api/broker_hub/adapters/__init__.py` imports the module, and add
    `tests/test_orderflow_adapter_<broker>.py` covering the registry,
    `capabilities()`, depth/quote normalization, symbol mapping, and
    `connect()` via a fake socket (no network).

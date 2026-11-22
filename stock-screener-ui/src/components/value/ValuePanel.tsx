@@ -255,6 +255,13 @@ export function ValuePanel(props: ValuePanelProps) {
           />
         </Show>
 
+        <Show when={meta()?.fields_complete === false}>
+          <Text size="xs" c="dimmed" className="py-1" data-testid="value-fields-partial">
+            Partial fundamentals — some source fields are unavailable for this market; a dash means
+            not reported, not zero.
+          </Text>
+        </Show>
+
         <Divider />
         <ToolbarRow justify="space-between" data-testid="value-footer">
           <ToolbarRow gap={8}>

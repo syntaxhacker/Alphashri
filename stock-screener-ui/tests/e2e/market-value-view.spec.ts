@@ -103,7 +103,7 @@ async function pickUniverse(page: Page, label: string) {
   await page.getByRole("option", { name: label, exact: true }).click();
 }
 
-async function chooseView(page: Page, label: "Table" | "Value") {
+async function chooseView(page: Page, label: "Table" | "Deep Value") {
   await page.getByTestId("market-view-toggle").getByText(label, { exact: true }).click();
 }
 
@@ -143,7 +143,7 @@ for (const vp of [
       await openMarket(page);
       await expect(page.locator('[data-testid^="market-row-"]').first()).toBeVisible();
 
-      await chooseView(page, "Value");
+      await chooseView(page, "Deep Value");
       await indiaScan;
 
       await expect(page.getByTestId("market-value-region")).toBeVisible();
@@ -179,7 +179,7 @@ for (const vp of [
       await expect(combo).toHaveValue("USA");
 
       const usaScan = page.waitForResponse(valueScanResponse("usa"), { timeout: 20000 });
-      await chooseView(page, "Value");
+      await chooseView(page, "Deep Value");
       const usaRes = await usaScan;
       expect((await usaRes.json()).market).toBe("usa");
       await expect(page.getByTestId("value-table")).toBeVisible();
@@ -203,7 +203,7 @@ for (const vp of [
       const scan = page.waitForResponse((res) => res.url().includes(VALUE_SCAN), {
         timeout: 20000,
       });
-      await chooseView(page, "Value");
+      await chooseView(page, "Deep Value");
       await scan;
       await expect(page.getByTestId("value-table")).toBeVisible();
       await expect(page.getByTestId("market-search")).toHaveCount(0);
@@ -236,7 +236,7 @@ for (const vp of [
       await expect(page.getByTestId("market-table-region")).toBeVisible();
       await expect(page).not.toHaveURL(/[?&]view=value/);
 
-      await chooseView(page, "Value");
+      await chooseView(page, "Deep Value");
       await expect(page).toHaveURL(/[?&]view=value/);
       await expect(page.getByTestId("market-value-region")).toBeVisible();
     });

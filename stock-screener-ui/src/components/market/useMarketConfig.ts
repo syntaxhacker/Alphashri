@@ -74,6 +74,11 @@ const NUMERIC_LIMITS: Record<string, [number, number]> = {
   rsiMax: [0, 100],
   relVolMin: [0, 1000],
   relVolMax: [0, 1000],
+  // Sector-percentile gates are fractions of each row's own sector, not raw
+  // ratios: an out-of-band value cannot describe a rank and must read as unset.
+  pePctMax: [0, 1],
+  roePctMin: [0, 1],
+  dePctMax: [0, 1],
   // Value filters. Bounds are deliberately generous: these are ratios and
   // percentages, and a legitimate distressed name can be an extreme outlier.
   peMax: [-1000, 10_000],
@@ -189,6 +194,9 @@ export function serializeMarketConfig(value: MarketConfigValue): Record<string, 
     rsiMax: f.rsiMax ?? null,
     relVolMin: f.relVolMin ?? null,
     relVolMax: f.relVolMax ?? null,
+    pePctMax: f.pePctMax ?? null,
+    roePctMin: f.roePctMin ?? null,
+    dePctMax: f.dePctMax ?? null,
     aboveSma20: f.aboveSma20,
     aboveSma50: f.aboveSma50,
     aboveSma200: f.aboveSma200,

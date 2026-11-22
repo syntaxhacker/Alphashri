@@ -16,6 +16,7 @@ import {
   marketSectorOptions,
   marketSectors,
   resetUniverseSpecificFilters,
+  sectorPercentiles,
   sortMarketRows,
   MARKET_SORT_OPTIONS,
   type MarketFilterState,
@@ -914,10 +915,12 @@ describe("value filters", () => {
   });
 
   test("the deep value preset is the documented one-click bundle", () => {
+    // Sector percentiles, not absolute thresholds: a flat ROE >= 15 rejected
+    // SBIN (14.58) and NTPC (14.66) while admitting a 4200%-ROE one-off gain.
     expect(DEEP_VALUE_PRESET).toEqual({
-      peMax: 15,
-      roeMin: 15,
-      debtToEquityMax: 1.5,
+      pePctMax: 0.35,
+      roePctMin: 0.45,
+      dePctMax: 0.3,
     });
     // FCF is excluded on purpose: ~6% coverage on Indian names (measured 3/50)
     // made it the filter doing nearly all the narrowing, on absent data.
@@ -932,24 +935,101 @@ describe("value filters", () => {
     expect(chips.find((c) => c.key === "deepValue")?.label).toBe("Deep value preset");
 
     const cleared = clearMarketFilterChip(f, "deepValue");
-    expect(cleared.peMax).toBeNull();
-    expect(cleared.roeMin).toBeNull();
-    expect(cleared.fcfYieldMin).toBeNull();
-    expect(cleared.debtToEquityMax).toBeNull();
+    expect(cleared.pePctMax).toBeNull();
+    expect(cleared.roePctMin).toBeNull();
+    expect(cleared.dePctMax).toBeNull();
     // Untouched bounds survive the preset removal.
     expect(cleared.psMax).toBeNull();
+    expect(cleared.peMax).toBeNull();
 
-    const tweaked = filters({ ...DEEP_VALUE_PRESET, peMax: 12 });
+    const tweaked = filters({ ...DEEP_VALUE_PRESET, pePctMax: 0.2 });
     expect(deepValuePresetActive(tweaked)).toBe(false);
     expect(buildMarketFilterChips(tweaked).some((c) => c.key === "deepValue")).toBe(false);
   });
 
   test("removing an individual preset bound drops the preset chip but keeps the rest", () => {
     const f = filters(DEEP_VALUE_PRESET);
-    const after = clearMarketFilterChip(f, "pe");
-    expect(after.peMax).toBeNull();
-    expect(after.roeMin).toBe(15);
+    const after = clearMarketFilterChip(f, "pePct");
+    expect(after.pePctMax).toBeNull();
+    expect(after.roePctMin).toBe(0.45);
     expect(deepValuePresetActive(after)).toBe(false);
     expect(buildMarketFilterChips(after).some((c) => c.key === "deepValue")).toBe(false);
+  });
+});
+
+describe("sector percentile gates", () => {
+  // Five peers per bucket: PCT_MIN_BUCKET is 5, and the gate counts the row
+  // itself, so a 6-member bucket has a meaningful ascending rank.
+  const peers = (sector: string, pes: number[]): MarketRow[] =>
+    pes.map((pe, i) => row(`${sector}${i}`, { sector, peRatio: pe }));
+
+  test("ranks are within the row's own sector, not across the whole frame", () => {
+    const cheapInRichSector = row("CHEAPINRICH", { sector: "Tech", peRatio: 20 });
+    const samePeInCheapSector = row("SAMEPEINCHEAP", { sector: "Utilities", peRatio: 20 });
+    const rows = [
+      ...peers("Tech", [100, 200, 300, 400, 500]),
+      cheapInRichSector,
+      ...peers("Utilities", [5, 8, 10, 12, 15]),
+      samePeInCheapSector,
+    ];
+
+    const ranks = sectorPercentiles(rows, ["pe"]);
+    // P/E 20 is the cheapest of six Tech names but the dearest of six Utilities.
+    expect(ranks.get(cheapInRichSector)!.pe).toBeCloseTo(1 / 6);
+    expect(ranks.get(samePeInCheapSector)!.pe).toBe(1);
+
+    const kept = symbols(filterOnlyMarketRows(rows, filters({ pePctMax: 0.35 })));
+    expect(kept).toContain("CHEAPINRICH");
+    expect(kept).not.toContain("SAMEPEINCHEAP");
+  });
+
+  test("a bucket below PCT_MIN_BUCKET is unranked and its row IS dropped by an active gate", () => {
+    // Current, deliberate behaviour: sectorPercentiles skips thin buckets and
+    // filterOnlyMarketRows fails any row it cannot rank. This test pins that
+    // outcome (rather than the opposite) so a future change is visible.
+    const thin = row("THIN", { sector: "Thin", peRatio: 10 });
+    const rows = [
+      row("T0", { sector: "Thin", peRatio: 5 }),
+      row("T1", { sector: "Thin", peRatio: 15 }),
+      thin,
+      ...peers("Fat", [10, 20, 30, 40, 50]),
+    ];
+
+    expect(sectorPercentiles(rows, ["pe"]).get(thin)!.pe).toBeUndefined();
+    expect(symbols(filterOnlyMarketRows(rows, filters()))).toContain("THIN");
+    expect(symbols(filterOnlyMarketRows(rows, filters({ pePctMax: 0.5 })))).not.toContain("THIN");
+  });
+
+  test("ranks are computed before other predicates remove peers", () => {
+    const keep = row("KEEP", { name: "Keep me", sector: "Tech", peRatio: 30 });
+    const rows = [
+      keep,
+      ...[10, 20, 40, 50, 60].map((pe, i) =>
+        row(`DROP${i}`, { name: `Drop ${i}`, sector: "Tech", peRatio: pe }),
+      ),
+    ];
+
+    // The search removes every peer but KEEP. Its rank must still be 3/6 = 0.5
+    // over the pre-gate frame; a post-gate rank would be 1/1 = 1 and drop it.
+    expect(sectorPercentiles(rows, ["pe"]).get(rows[0])!.pe).toBeCloseTo(0.5);
+    expect(symbols(filterOnlyMarketRows(rows, filters({ pePctMax: 0.5, search: "keep" })))).toEqual([
+      "KEEP",
+    ]);
+  });
+
+  test("tied values share one rank rather than splitting arbitrarily", () => {
+    const tied = [0, 1, 2, 3, 4].map((i) => row(`TIE${i}`, { sector: "Tech", peRatio: 20 }));
+    const rich = row("RICH", { sector: "Tech", peRatio: 100 });
+    const rows = [...tied, rich];
+
+    const ranks = sectorPercentiles(rows, ["pe"]);
+    for (const t of tied) expect(ranks.get(t)!.pe).toBeCloseTo(5 / 6);
+    expect(ranks.get(rich)!.pe).toBe(1);
+
+    // All five ties cross a 0.85 gate together and none crosses a 0.80 gate.
+    expect(symbols(filterOnlyMarketRows(rows, filters({ pePctMax: 0.8 })))).toEqual([]);
+    expect(symbols(filterOnlyMarketRows(rows, filters({ pePctMax: 0.85 })))).toEqual(
+      symbols(tied),
+    );
   });
 });

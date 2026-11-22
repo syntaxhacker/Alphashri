@@ -32,7 +32,7 @@ function row(overrides: Partial<ValueRow> = {}): ValueRow {
     vs_200dma: 3.2,
     off_52w_high: -14.0,
     score: 78,
-    subscores: { value: 80, quality: 75, growth: 70, health: 82 },
+    subscores: { value: 20, quality: 19, growth: 17, health: 22 },
     peer: { bucket: "Refining", pe_median: 11.2, roe_median: 12.0, fcf_yield_median: 4.1 },
     flags: ["LOW_PE"],
     derived: {
