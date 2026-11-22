@@ -27,6 +27,7 @@ import os
 import sys
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -224,26 +225,41 @@ def fetch_whole_date(
     *,
     api_key: str,
     max_pages: int = 0,
+    workers: int = 1,
 ) -> tuple[list[dict[str, Any]], int, bool]:
-    """Page until ``offset + count >= total``; return (records, pages, capped)."""
-    records: list[dict[str, Any]] = []
-    pages = 0
-    offset = 0
-    capped = False
-    while offset < total:
-        if max_pages and pages >= max_pages:
-            capped = True
-            break
-        page = fetch_page(iso_day, offset, api_key=api_key)
-        pages += 1
-        if not page:
-            break
-        records.extend(page)
-        offset += len(page)
-        if len(page) < PAGE_SIZE:
-            # A short page before `total` means the API stopped early.
-            break
-    return records, pages, capped
+    """Fetch every offset for a date, optionally in parallel.
+
+    Offsets are independent, so a 16-page day can be fetched in four waves
+    instead of 16 serial round-trips. The caller still validates the total, so
+    a short/rate-limited page cannot masquerade as a complete date.
+    """
+    offsets = list(range(0, total, PAGE_SIZE))
+    capped = bool(max_pages and len(offsets) > max_pages)
+    if capped:
+        offsets = offsets[:max_pages]
+    if not offsets:
+        return [], 0, False
+
+    if workers <= 1 or len(offsets) == 1:
+        records: list[dict[str, Any]] = []
+        pages = 0
+        for offset in offsets:
+            page = fetch_page(iso_day, offset, api_key=api_key)
+            pages += 1
+            if not page:
+                break
+            records.extend(page)
+            if len(page) < PAGE_SIZE:
+                break
+        return records, pages, capped
+
+    with ThreadPoolExecutor(max_workers=min(8, max(2, workers))) as pool:
+        pages_by_offset = list(pool.map(
+            lambda offset: fetch_page(iso_day, offset, api_key=api_key),
+            offsets,
+        ))
+    records = [row for page in pages_by_offset for row in page]
+    return records, len(offsets), capped
 
 
 def _natural_key(row: dict[str, Any]) -> tuple[Any, ...]:
@@ -348,6 +364,7 @@ def collect_date(
     replace_date: bool = False,
     allow_empty: bool = False,
     max_pages: int = 0,
+    fetch_workers: int = 1,
     output_jsonl: Optional[str | Path] = None,
     run_id: Optional[str] = None,
     now: Optional[datetime] = None,
@@ -389,6 +406,7 @@ def collect_date(
             if total > 0:
                 records, pages, capped = fetch_whole_date(
                     iso_day, total, api_key=key, max_pages=max_pages,
+                    workers=fetch_workers,
                 )
             else:
                 records, pages, capped = [], 0, False
@@ -525,6 +543,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                     help="Treat a date with zero published rows as a valid holiday")
     ap.add_argument("--max-pages", type=int, default=0,
                     help="Safety cap on pages; hitting it marks the date partial")
+    ap.add_argument("--fetch-workers", type=int, default=4,
+                    help="Parallel page fetches per date (default 4; use 1 for strict serial)")
     ap.add_argument("--db", type=Path, default=None, help="Target SQLite path")
     args = ap.parse_args(argv)
 
@@ -554,6 +574,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             replace_date=args.replace_date,
             allow_empty=args.allow_empty,
             max_pages=args.max_pages,
+            fetch_workers=args.fetch_workers,
             output_jsonl=args.output_jsonl,
         )
     except CollectError as exc:
