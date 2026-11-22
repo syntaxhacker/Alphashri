@@ -629,7 +629,7 @@ export function HomeMonitorView() {
   // One catalyst lease for the whole view. A breakpoint swap unmounts every
   // region below; without a stable subscriber the shared store drops to zero,
   // aborts its poll and re-fetches the unchanged snapshot on every reflow.
-  const catalyst = { data: () => null, refresh: () => {} } as unknown as ReturnType<typeof useCatalystToday>;
+  const catalyst = useCatalystToday();
   const scope = (): HomeCacheScope => ({
     session: catalyst.data()?.as_of?.slice(0, 10) ?? "unknown",
     universe: MONITOR_CONTEXT.market,
