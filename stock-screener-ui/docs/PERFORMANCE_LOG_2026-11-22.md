@@ -25,6 +25,8 @@ unmeasured work is marked **in progress**.
   the covering index.
 - **Agri packaging:** 171 complete days / 1,108,145 rows / 20.0MB, all
   171 validated against `sync_refresh_assets`; 3 source-gap partial days skipped.
+- **Release naming:** sync accepts both prefixed local paths and flat GitHub
+  asset names; 31 sync tests pass. Monthly release upload started.
 - **Low-quality tests:** 2 genuinely dead tests removed; 41 stale tests fixed.
 - **Test budgets:** `perf/budgets.json`, pytest/Vitest timing artifacts,
   warning-only check; `AGENTS.md` last checked **2026-11-22**, next **2026-11-29**.

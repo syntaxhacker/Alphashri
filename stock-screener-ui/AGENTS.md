@@ -10,6 +10,7 @@
 
 - **[`docs/AGENT_QUICKSTART.md`](./docs/AGENT_QUICKSTART.md)** — commands, folder map, unit/E2E/backend recipes, fixtures. Read this before exploring the tree.
 - **[`docs/MAP.md`](./docs/MAP.md)** — task → file location.
+- **[`docs/AGRI_DATA_USAGE.md`](./docs/AGRI_DATA_USAGE.md)** — agri mandi data: sources, units, partial days, API/SQLite/release/sync rules. Read before touching agri data or `/agri`.
 - **[`TEST_RULES.md`](./TEST_RULES.md)** — test shape, mocks, guards.
 - **[`docs/PERFORMANCE.md`](./docs/PERFORMANCE.md)** — performance budgets, check cadence, measurement methodology.
 
@@ -517,6 +518,10 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 **Railway is not in use.** Do not reference, propose, or plan around Railway, `railway` CLI, Railway URLs, or Railway deploy checks. The project is currently run personally/locally. The Railway sections in [PRODUCTION.md](./PRODUCTION.md) are historical notes only and must not be treated as the current architecture.
 
 GitHub Actions may be used for scheduled batch compute, but it cannot write to a local SQLite file. Any Actions-based refresh needs an explicitly agreed durable target (a remote Postgres/Redis/object store, a checked-in handoff, or a self-hosted runner on the personal machine) — never an assumed hosted backend.
+
+## Agri data (mandi prices)
+- Read **[`docs/AGRI_DATA_USAGE.md`](./docs/AGRI_DATA_USAGE.md)** before touching agri data, `/agri`, or `/api/agri/*`. Be honest about sources, ₹/quintal + qtl units and partial days: a commodity missing from a partial day keeps its own latest date — never advance every key, never invent a price, MSP or OHLC.
+- **NEVER write to or delete `reports/agri/agri_prices.db`** by hand — it is a read-only local cache; only the importer/collector and `scripts/sync_refresh_assets.py` own writes.
 
 ## Testing
 - Frontend: vitest, files co-located as `*.test.ts` / `*.test.tsx`

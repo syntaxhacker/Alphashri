@@ -125,3 +125,5 @@ as tie-breakers). Deterministic 15-row stride sample per available
 - [data.gov.in — Current Daily Price of Various Commodities from Various Markets (Mandi)](https://www.data.gov.in/catalog/current-daily-price-various-commodities-various-markets-mandi) · API resource `9ef84268-d588-465a-a308-a864a43d0070`
 - [CEDA — Agri Market Data](https://agmarknet.ceda.ashoka.edu.in/) · [CEDA Data Portal](https://ceda.ashoka.edu.in/data-portal)
 - [Agmarknet Daily Price and Arrival Report (captcha)](https://agmarknet.gov.in/daily-price-and-arrival-report) · [eNAM](https://enam.gov.in/)
+
+For day-to-day querying, units, per-key freshness, release assets and sync commands, see [`AGRI_DATA_USAGE.md`](./AGRI_DATA_USAGE.md).
