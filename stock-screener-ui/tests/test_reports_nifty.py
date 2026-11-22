@@ -8,6 +8,7 @@ Call endpoint functions directly, passing every Query param explicitly
 
 import asyncio
 import json
+import os
 import time
 from unittest.mock import AsyncMock, patch
 
@@ -338,7 +339,17 @@ class TestReadCaches:
         assert first == data and second == data
         assert first is not second      # dict copies, never the cached object
 
+        # An atomic replace swaps the inode. Force the replacement to keep the
+        # original mtime_ns and size so st_ino is the only changed stamp — this
+        # is the collision a (mtime_ns, size)-only cache cannot detect.
+        path = _tmp_snapshots / "2026-11-02.json"
+        original = path.stat()
         write_snapshot("2026-11-02", {**data, "spot": 2.0})
+        replaced = path.stat()
+        assert replaced.st_ino != original.st_ino
+        assert replaced.st_size == original.st_size
+        os.utime(path, ns=(replaced.st_atime_ns, original.st_mtime_ns))
+        assert path.stat().st_mtime_ns == original.st_mtime_ns
         assert read_snapshot("2026-11-02")["spot"] == 2.0
 
     def test_get_reprojects_a_rewritten_snapshot(self, _tmp_snapshots,
