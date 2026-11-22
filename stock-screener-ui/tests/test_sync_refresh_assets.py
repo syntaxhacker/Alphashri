@@ -103,7 +103,7 @@ def write_52w_fixture(
     symbols: dict | None = None,
     write_payload: bool = True,
 ) -> tuple[Path, Path]:
-    symbols = symbols or {
+    symbols = symbols if symbols is not None else {
         "AAA": {"high": 110.0, "low": 80.0, "close": 100.0, "days_ago": 3},
         "BBB": {"high": 210.0, "low": 180.0, "close": 200.0, "days_ago": None},
     }
@@ -176,6 +176,60 @@ class TestManifestValidation:
         write_agri_fixture(tmp_path, arrivals_override=True)
         with pytest.raises(sync.ManifestError, match="arrivals_present"):
             _validated(tmp_path)
+
+    def test_non_finite_52w_value_is_rejected(self, tmp_path):
+        write_52w_fixture(
+            tmp_path,
+            symbols={"AAA": {"high": 110.0, "low": 80.0, "close": float("nan")}},
+        )
+        pair = next(item for item in sync.build_pairs(sync.list_local_assets(tmp_path)) if item.kind == "52w")
+        path = sync.materialize(pair.asset, tmp_path / "cache")
+        with pytest.raises(sync.ManifestError, match="non-finite"):
+            sync.validate_asset(pair, path)
+
+    def test_empty_52w_asset_is_rejected(self, tmp_path):
+        write_52w_fixture(tmp_path, symbols={})
+        pair = next(item for item in sync.build_pairs(sync.list_local_assets(tmp_path)) if item.kind == "52w")
+        path = sync.materialize(pair.asset, tmp_path / "cache")
+        with pytest.raises(sync.ManifestError, match="0 symbols"):
+            sync.validate_asset(pair, path)
+
+
+class TestRemoteAssetFreshness:
+    def test_remote_manifest_is_refreshed_before_checksum(self, tmp_path, monkeypatch):
+        write_52w_fixture(tmp_path / "assets")
+        local = next(
+            item
+            for item in sync.build_pairs(sync.list_local_assets(tmp_path / "assets"))
+            if item.kind == "52w"
+        )
+        remote = sync.AssetPair(
+            kind=local.kind,
+            as_of=local.as_of,
+            release=local.release,
+            asset=sync.ReleaseAsset(
+                release=local.release, name=local.asset.name, url="https://example.invalid/asset"
+            ),
+            manifest=sync.ReleaseAsset(
+                release=local.release,
+                name=local.manifest.name,
+                url="https://example.invalid/manifest",
+            ),
+        )
+        calls: list[tuple[str, bool]] = []
+
+        def fake_materialize(asset, cache_dir, token=None, force=False):
+            calls.append((asset.name, force))
+            return local.manifest.local_path if asset.name.endswith(".json") else local.asset.local_path
+
+        monkeypatch.setattr(sync, "materialize", fake_materialize)
+        validated = sync._download_and_validate(remote, tmp_path / "cache", None)
+
+        assert validated.kind == "52w"
+        manifest_forces = [force for name, force in calls if name.endswith(".json")]
+        asset_forces = [force for name, force in calls if not name.endswith(".json")]
+        assert manifest_forces == [True], calls
+        assert asset_forces == [False], calls
 
 
 class TestDryRun:

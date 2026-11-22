@@ -151,6 +151,14 @@ def write_ranges_json(path: str | Path, payload: dict) -> Path:
     return target
 
 
+def write_run_summary(path: str | Path, summary: dict) -> Path:
+    """Write the fetch outcome counts so callers can reject a partial publish."""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(summary, sort_keys=True) + "\n", encoding="utf-8")
+    return target
+
+
 def fetch_range_for_symbol(api, symbol: str, to_date: str | None) -> dict | None:
     from_date, to_str = _date_range(to_date)
     df = api.fetch_historical_data_v3(
@@ -297,6 +305,11 @@ def main() -> None:
             "Compute-only: write compact ranges JSON to PATH ('.gz' compresses). "
             "Implies --no-db --no-redis and skips the Redis job status."
         ),
+    )
+    parser.add_argument(
+        "--summary-json",
+        metavar="PATH",
+        help="Write {as_of, ok, failed, skipped, total} run counts to PATH",
     )
     parser.add_argument(
         "--no-db",
@@ -512,6 +525,18 @@ def main() -> None:
     if args.dry_run and all_ok:
         sym, entry = next(iter(all_ok.items()))
         print(f"Dry-run sample {sym}: {entry}")
+
+    if args.summary_json:
+        write_run_summary(
+            args.summary_json,
+            {
+                "as_of": _date_range(args.to_date)[1],
+                "ok": ok,
+                "failed": failed,
+                "skipped": skipped,
+                "total": len(symbols),
+            },
+        )
 
     elapsed = time.monotonic() - t0
     if JOB_STATUS_ENABLED:

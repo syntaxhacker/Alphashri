@@ -389,9 +389,21 @@ jobs:
               gh release create "$TAG" \
                 --title "Market data $MONTH" \
                 --notes "Automated daily refresh assets for $MONTH." \
-                --latest=false || true
+                --latest=false || echo "::warning::Could not create $TAG; a concurrent run may have won the race."
             fi
+            gh release view "$TAG" >/dev/null  # fail loudly if the tag still does not exist
+
             # shellcheck disable=SC2086
             gh release upload "$TAG" $FILES --clobber
-            echo "Uploaded to $TAG: $FILES"
+
+            PUBLISHED=$(gh release view "$TAG" --json assets --jq '.assets[].name')
+            # shellcheck disable=SC2086
+            for path in $FILES; do
+              name=$(basename "$path")
+              if ! printf '%s\n' "$PUBLISHED" | grep -Fqx "$name"; then
+                echo "::error::$TAG is missing $name after upload"
+                exit 1
+              fi
+            done
+            echo "Uploaded to $TAG: $FILES (verified)"
           done < build/releases.tsv
