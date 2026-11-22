@@ -84,6 +84,16 @@ CREATE TABLE IF NOT EXISTS {LEDGER_TABLE} (
 CREATE INDEX IF NOT EXISTS idx_agri_ledger_status ON {LEDGER_TABLE}(status, arrival_date);
 """
 
+# Kept out of SCHEMA_SQL on purpose: ``open_reader`` must not write to a cache
+# file. Writers (importer/collector) apply it on their next open, and existing
+# caches can be migrated explicitly with ``ensure_geo_index``. A cold
+# /api/agri/filters then reads geography metadata from this small covering index
+# instead of scanning every price row.
+GEO_INDEX_NAME: str = "idx_agri_geo"
+GEO_INDEX_SQL: str = (
+    f"CREATE INDEX IF NOT EXISTS {GEO_INDEX_NAME} ON {TABLE}(state, district, market)"
+)
+
 # Daily rows carry no arrivals; a null must never erase CKAN history. The
 # source columns travel with the row so a preserved arrival keeps its origin.
 _UPSERT_SQL: str = f"""
@@ -150,6 +160,11 @@ def _connect(path: Path, *, read_only: bool) -> sqlite3.Connection:
     if not read_only:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
+    else:
+        # The metadata scan walks a large index; memory-mapped reads let the OS
+        # page cache serve it without copying every page into SQLite's small
+        # per-connection cache. This is connection-local, never persisted.
+        conn.execute("PRAGMA mmap_size=2147483648")
     conn.execute("PRAGMA busy_timeout=5000")
     return conn
 
@@ -167,10 +182,16 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
     _migrate_columns(conn)
 
 
+def ensure_geo_index(conn: sqlite3.Connection) -> None:
+    """Apply the geography covering index to an existing cache (one-time migration)."""
+    conn.execute(GEO_INDEX_SQL)
+
+
 def open_writer(path: Optional[str | Path] = None) -> sqlite3.Connection:
     """Open (and initialise) the cache for import/collector writes."""
     conn = _connect(_resolve(path), read_only=False)
     ensure_schema(conn)
+    ensure_geo_index(conn)
     return conn
 
 
@@ -451,6 +472,33 @@ def cache_identity(conn: sqlite3.Connection) -> Optional[tuple[str, int, int, in
     return (path, *main, *wal)
 
 
+def _geo_scan_sql(conn: sqlite3.Connection) -> str:
+    """Pick the cheapest index that covers the three geography columns.
+
+    DISTINCT collapses duplicate tuples inside SQLite: one pass over a covering
+    index returns a few thousand rows instead of materialising every price row
+    in Python. Indexes whose leading columns are exactly the geography tuple
+    need no temporary B-tree and are preferred.
+    """
+    candidates: list[tuple[int, str]] = []
+    for info in conn.execute(f"PRAGMA index_list({TABLE})"):
+        name = str(info["name"] if isinstance(info, sqlite3.Row) else info[1])
+        partial = info["partial"] if isinstance(info, sqlite3.Row) else info[4]
+        if partial:
+            continue
+        quoted = '"' + name.replace('"', '""') + '"'
+        cols = [str(col[2]) for col in conn.execute(f"PRAGMA index_info({quoted})")]
+        if not {"state", "district", "market"} <= set(cols):
+            continue
+        rank = 0 if cols[:3] == ["state", "district", "market"] else 1
+        candidates.append((rank, name))
+    if not candidates:
+        return f"SELECT state, district, market FROM {TABLE}"
+    _, name = min(candidates)
+    quoted = '"' + name.replace('"', '""') + '"'
+    return f"SELECT DISTINCT state, district, market FROM {TABLE} INDEXED BY {quoted}"
+
+
 def _geo_meta(
     conn: sqlite3.Connection, cache_key: Optional[tuple[Any, ...]]
 ) -> tuple[Any, ...]:
@@ -464,9 +512,7 @@ def _geo_meta(
     markets: set[str] = set()
     state_districts: dict[str, set[str]] = {}
     district_markets: dict[str, set[str]] = {}
-    for state, district, market in conn.execute(
-        f"SELECT state, district, market FROM {TABLE}"
-    ):
+    for state, district, market in conn.execute(_geo_scan_sql(conn)):
         if state:
             states.add(state)
         if district:
@@ -581,6 +627,8 @@ __all__ = [
     "COLUMNS",
     "DEFAULT_DB_PATH",
     "DISTRICT_KEY_SEPARATOR",
+    "GEO_INDEX_NAME",
+    "GEO_INDEX_SQL",
     "LEDGER_TABLE",
     "PARTITION_STATUSES",
     "ROOT",
@@ -591,6 +639,7 @@ __all__ = [
     "count_rows",
     "date_range",
     "default_db_path",
+    "ensure_geo_index",
     "ensure_schema",
     "fetch_options",
     "fetch_geography",

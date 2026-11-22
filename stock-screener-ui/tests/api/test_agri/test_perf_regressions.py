@@ -81,9 +81,12 @@ def test_filters_scans_geography_once(agri_client: TestClient, monkeypatch: pyte
 
     monkeypatch.setattr(router_module.store, "open_reader", tracing)
     assert agri_client.get("/api/agri/filters").json()["ok"] is True
-    geo_queries = [sql for sql in statements if "SELECT state, district, market" in sql]
+    geo_queries = [sql for sql in statements if "state, district, market" in sql]
     assert len(geo_queries) == 1
-    assert not any("DISTINCT" in sql for sql in geo_queries)
+    # DISTINCT + a covering index collapses the 2.3M-row cache into a few
+    # thousand tuples inside SQLite instead of materialising every price row.
+    assert "DISTINCT" in geo_queries[0]
+    assert f'INDEXED BY "{store.GEO_INDEX_NAME}"' in geo_queries[0]
 
 
 def test_latest_date_per_key_seeks_instead_of_group_scan(db_conn, monkeypatch: pytest.MonkeyPatch):
@@ -151,3 +154,68 @@ def test_aggregate_daily_reads_each_field_once_per_row():
     # date once for bucketing + five fields once each; the old five-pass
     # version read ``market`` twice and every other field once.
     assert sum(counts.values()) <= 6 * 50
+
+
+def test_geo_scan_uses_leading_covering_index(db_conn):
+    sql = store._geo_scan_sql(db_conn)
+    assert sql == (
+        f"SELECT DISTINCT state, district, market FROM {store.TABLE} "
+        f'INDEXED BY "{store.GEO_INDEX_NAME}"'
+    )
+    plan = [str(row[3]) for row in db_conn.execute("EXPLAIN QUERY PLAN " + sql)]
+    assert len(plan) == 1
+    assert store.GEO_INDEX_NAME in plan[0]
+    assert "TEMP B-TREE" not in plan[0]
+
+
+def test_geo_scan_falls_back_to_any_covering_index(db_conn):
+    db_conn.execute(f"DROP INDEX {store.GEO_INDEX_NAME}")
+    sql = store._geo_scan_sql(db_conn)
+    assert "DISTINCT" in sql
+    assert "INDEXED BY" in sql
+    assert store.GEO_INDEX_NAME not in sql
+    assert "sqlite_autoindex" in sql
+
+
+def test_geo_scan_distinct_matches_full_scan(db_conn):
+    for day in ("2026-05-30", "2026-05-31"):
+        for state, district, market in (
+            ("Maharashtra", "Pune", "Pune APMC"),
+            ("Karnataka", "Bengaluru", "Bengaluru APMC"),
+            ("", "", ""),
+        ):
+            db_conn.execute(
+                f"INSERT INTO {store.TABLE} (date, state, district, market, commodity, commodity_key) "
+                "VALUES (?, ?, ?, ?, 'Onion', 'onion')",
+                (day, state, district, market),
+            )
+    db_conn.commit()
+    columns = "state, district, market"
+    full = sorted(tuple(row) for row in db_conn.execute(f"SELECT {columns} FROM {store.TABLE}"))
+    distinct = sorted(tuple(row) for row in db_conn.execute(store._geo_scan_sql(db_conn)))
+    assert distinct == sorted(set(full))
+    assert store.fetch_options(db_conn)["states"] == ["Karnataka", "Maharashtra"]
+    assert store.fetch_geography(db_conn)["state_districts"] == {
+        "Karnataka": ["Bengaluru"], "Maharashtra": ["Pune"],
+    }
+
+
+def test_filters_geography_metadata_is_read_once(agri_client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    statements: list[str] = []
+    real_open = store.open_reader
+
+    def tracing(path: Any = None):
+        conn = real_open(path)
+        conn.set_trace_callback(statements.append)
+        return conn
+
+    monkeypatch.setattr(router_module.store, "open_reader", tracing)
+    first = agri_client.get("/api/agri/filters").json()
+    assert first["ok"] is True
+    scans = [sql for sql in statements if "state, district, market" in sql]
+    assert len(scans) == 1
+
+    statements.clear()
+    second = agri_client.get("/api/agri/filters").json()
+    assert second == first
+    assert not [sql for sql in statements if "state, district, market" in sql]
