@@ -114,3 +114,25 @@ no pytest subprocess, no network:
 ```bash
 .venv/bin/python -m pytest tests/test_run_changed_mapping.py -q
 ```
+
+## Collection-time notes (`pytest.ini`)
+
+- Measured with `.venv/bin/python -m pytest --collect-only -q` from
+  `stock-screener-ui/`. Collection is ~13–23 s for ~9,230 node ids; wall time is
+  ~20–40 s and noisy while other lanes are editing tests.
+- `testpaths = tests` already restricts a bare `pytest` to `tests/`. Verified:
+  every collected node id is under `tests/`; `node_modules`, `.git`, `.venv`,
+  `experiments/data`, `reports`, `dist`, `coverage`, `logs`, `backups` and the
+  caches are **not** walked. The added `norecursedirs` entries (those trees plus
+  `htmlcov`, `cache`, `data`, `test-results`, `playwright-report`) are defensive
+  for explicit broad runs such as `pytest .`. A before/after node-id diff with
+  and without them is empty — no real test directory is excluded and the
+  expected collection-time delta is ~0.
+- The old `ignore =` block was invalid (pytest has no `ignore` ini option, only
+  the `--ignore` CLI flag) and silently did nothing. It was removed. The three
+  root-level `*_integration.py` modules are still excluded from CI by
+  `tests/conftest.py`, which tags them `pytest.mark.integration` for the `-m`
+  exclusion; no conftest change was needed.
+- `--import-mode=importlib` was tested via CLI override: identical 9,237 node
+  ids, no new warnings, no speedup (~46.6 s vs ~45.0 s wall). It was **not**
+  added; CI clears `addopts` anyway, so it would not affect the gate.
