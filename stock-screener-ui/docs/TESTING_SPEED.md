@@ -136,3 +136,83 @@ no pytest subprocess, no network:
 - `--import-mode=importlib` was tested via CLI override: identical 9,237 node
   ids, no new warnings, no speedup (~46.6 s vs ~45.0 s wall). It was **not**
   added; CI clears `addopts` anyway, so it would not affect the gate.
+
+## Frontend unit tests (vitest) — pool-speed investigation (2026-11-22)
+
+**Decision: keep the committed `vitest.config.ts` default** (`pool: "forks"`,
+`execArgv: ["--max-old-space-size=8192"]`, default isolation). No pool or
+isolation change was adopted for CI: `threads` cannot start with the current
+heap flag, `isolate: false` breaks a test, and `threads` with the flag cleared
+is only ~15–18% faster on a *quiet* box and still needs full-suite validation.
+
+### Tooling / environment
+
+- `bun` is **not installed** here; used the checked-in `node_modules/.bin/vitest`
+  4.1.0 on node v24.22.2 via `npx` 11.19.1. No installs, servers, API keys or
+  git writes were used.
+- The box has 2 visible CPUs. Most runs happened while other agents ran pytest:
+  loadavg 4.8–10.3, 0–9.5% idle — the repo's "≥30% idle" gate was not met, so
+  after waiting ~2 minutes the runs were interleaved so contention hit every
+  variant. A final quiet window (75% idle, loadavg ~2.3) gave the cleanest
+  numbers. **Contended wall times are a range; use the quiet pair for the
+  speedup estimate.**
+
+### Sample (10 files, 222 tests) — report / screener / paper
+
+`reportBits`, `pressureDesk`, `NiftyChartPanel`, screener `columns/base`,
+`CorrelationMatrix`, `ScreenerTable`, `ScreenerContainer`, paper
+`tradeHistoryUtils`, `LivePriceUpdater`, `PaperTradingView`. All runs used the
+same files and no coverage; variants are CLI overrides of the committed config.
+
+| Variant | Command override | Files / tests | Wall time |
+|---|---|---|---|
+| Current default | none | 10/10 files, 222/222 tests pass (7/7 runs) | contended: 86.6, 55.0, 58.4, 54.4, 36.4 s; quiet: 24.4, 27.9 s |
+| `threads`, unmodified config | `--pool=threads` | **0 tests, exit 1** (2/2 runs) | 14.5, 13.0 s (failed at worker start) |
+| `threads`, heap flag cleared | `--pool=threads --execArgv=` | 10/10 files, 222/222 tests pass (5/5 runs) | contended: 60.4, 25.0, 42.4 s; quiet: 20.1, 23.6 s |
+| No isolation | `--no-isolate` | **9/10 files, 221/222 tests** (2/2 runs) | 32.0, 27.5 s |
+
+Contended numbers are too noisy to conclude anything (2 of the 3 interleaved
+pairs had `threads` slower). In the two quiet, back-to-back pairs `threads` was
+consistently faster: 20.1 s vs 24.4 s (−18%) and 23.6 s vs 27.9 s (−15%), with
+222/222 tests passing both times. Vitest's own durations agree (18.8/21.9 s vs
+23.1/26.3 s). So the gain is real but modest — not enough to adopt a config
+that drops the 8 GB heap guard without full-suite proof.
+
+### Why each alternative was rejected
+
+- **`pool: "threads"` with the current config**: Node refuses the inherited
+  `execArgv` for worker threads —
+  `ERR_WORKER_INVALID_EXEC_ARGV: Initiated Worker with invalid execArgv flags:
+  --max-old-space-size=8192`. Every worker failed to start; zero tests ran.
+  Clearing the flag (`--execArgv=`) makes Solid/happy-dom pass with full
+  pass/fail parity and is ~15–18% faster on a quiet box, but that drops the
+  8 GB heap guard (worker threads cannot take that flag — it would have to
+  move to the parent `NODE_OPTIONS`) and only 10 of ~748 files were checked.
+  Not adopted for CI; keep it as a local experiment until the full suite is
+  validated.
+- **`isolate: false`**: fails deterministically, twice, in
+  `src/components/paper-trading/LivePriceUpdater.test.tsx > "does not open the
+  SSE stream on a holiday at 11:00 IST"` — `expected "vi.fn()" to not be called
+  at all, but actually been called 2 times` (a holidays fetch plus the SSE
+  fetch). Cross-file module/mock state leaks, so the sample is **not**
+  independent. Rejected; default isolation stays ON.
+- **`poolOptions` / `singleFork` tuning**: removed in vitest 4.1.0; the only
+  supported knobs are `pool`, `maxWorkers`, `fileParallelism`, `isolate`,
+  `execArgv`. No safe tuning was measured.
+
+### What was added: `test:fast`
+
+```bash
+bun run test:fast     # or: npx vitest run --dir src --changed
+```
+
+Changed-only run of the frontend unit tests — a genuinely different job from
+`test:unit` (whole `src/` suite), not a duplicate. It uses vitest's own git
+awareness and exits 0 with "No test files found" when `src/` is clean. It is a
+local feedback tool; CI still runs the full suite. With `bun` absent, call the
+`npx` form directly.
+
+CI's default remains the safe config. To experiment with threads locally:
+`NODE_OPTIONS=--max-old-space-size=8192 npx vitest run --dir src --pool=threads --execArgv=`
+(the parent-process heap flag keeps the memory guard). Validate pass/fail
+parity on the full suite before ever considering it for CI.

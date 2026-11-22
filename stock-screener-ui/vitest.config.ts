@@ -33,6 +33,9 @@ export default defineConfig({
         inline: [/solid-js/, /@solidjs/],
       },
     },
+    // forks + isolation stay the CI default: worker_threads reject the heap flag
+    // below (ERR_WORKER_INVALID_EXEC_ARGV), and isolate:false leaks state between
+    // test files. Measurements in docs/TESTING_SPEED.md.
     pool: "forks",
     execArgv: ["--max-old-space-size=8192"],
     coverage: {
