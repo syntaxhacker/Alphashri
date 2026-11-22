@@ -14,3 +14,8 @@ export const SENTIMENT_CONFIG: Record<string, { color: string; icon: typeof Icon
   BEARISH: { color: "error", icon: IconTrendingDown },
   NEUTRAL: { color: "secondary", icon: IconMinus },
 };
+
+/** Source ids, labels and group keys all compare through this one normalizer. */
+export function normalizeSourceName(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+}

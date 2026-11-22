@@ -4,10 +4,9 @@ import { ActionIcon, Box, Skeleton, Select, Stack, Text, ToolbarRow, Tooltip } f
 import * as palette from "@/ui/palette";
 import type { NewsItem } from "./news-types";
 import { NewsListContent } from "./NewsHelpers";
+import { normalizeSourceName } from "./news-constants";
 import { SentimentBadge } from "./SentimentBadge";
 import { ImpactScore } from "./ImpactScore";
-
-const normalizeSource = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
 
 interface NewsListProps {
   loading: boolean;
@@ -31,9 +30,9 @@ export function NewsList(props: NewsListProps) {
   const activeSourceName = () =>
     props.selectedSource === "all" ? "all" : (props.selectedSourceName ?? props.selectedSource);
   const visibleSourceNames = createMemo(() => {
-    const normalized = normalizeSource(activeSourceName());
+    const normalized = normalizeSourceName(activeSourceName());
     return props.sourceNames.filter(
-      (source) => activeSourceName() === "all" || normalizeSource(source) === normalized,
+      (source) => activeSourceName() === "all" || normalizeSourceName(source) === normalized,
     );
   });
   const newsItems = createMemo(() =>

@@ -38,15 +38,7 @@ export function useNewsSourceGroups(options: UseNewsSourceGroupsOptions): UseNew
     }, {});
   });
 
-  const sourceNames = createMemo(() => {
-    return Object.keys(groupedNewsItems()).sort((a, b) => {
-      const aItems = groupedNewsItems()[a];
-      const bItems = groupedNewsItems()[b];
-      const aTime = aItems[0]?.publishedAt || "";
-      const bTime = bItems[0]?.publishedAt || "";
-      return new Date(bTime).getTime() - new Date(aTime).getTime();
-    });
-  });
+  const sourceNames = createMemo(() => sortSourceNamesByLatest(groupedNewsItems()));
 
   // Only auto-expand on first load, not on every refresh
   createEffect(() => {
@@ -98,6 +90,24 @@ export function useNewsSourceGroups(options: UseNewsSourceGroupsOptions): UseNew
     toggleSourceExpanded,
     expandAll,
   };
+}
+
+/**
+ * Orders sources newest-first by their leading article. The timestamp parse is
+ * hoisted out of the comparator: a comparator runs O(n log n) times and parsed
+ * the same two dates repeatedly, so large feeds paid for it on every news tick.
+ */
+export function sortSourceNamesByLatest(
+  grouped: Record<string, NewsItem[]>,
+  toTime: (iso: string) => number = (iso) => new Date(iso).getTime(),
+): string[] {
+  const names = Object.keys(grouped);
+  const latestBySource = new Map<string, number>();
+  for (const source of names) {
+    latestBySource.set(source, toTime(grouped[source]?.[0]?.publishedAt || ""));
+  }
+  // Stable sort preserves insertion order for equal or unparseable timestamps.
+  return names.sort((a, b) => latestBySource.get(b)! - latestBySource.get(a)!);
 }
 
 export function getSourceOptions(
