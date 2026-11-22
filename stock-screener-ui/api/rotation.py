@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
+from dataclasses import replace
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
@@ -13,10 +14,10 @@ import pandas as pd
 import requests
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from api.tv import get_scanner_data, scan_raw, PERFORMANCE_FIELDS
-from tradingview_screener import Query as TVQuery, col
+from api.tv import scan_raw, PERFORMANCE_FIELDS
+from api.tv.cache import invalidate, scan_frame_cached
 
-from api.sector import _load_theme_membership
+from api.sector import SHARED_FRAMES, _load_theme_membership
 from config import IST
 
 router = APIRouter(prefix="/api/rotation", tags=["rotation"])
@@ -30,6 +31,8 @@ CACHE_TTL_SECONDS = 60
 FRAME_LIMIT = 3000
 MAX_GROUPS = 48
 
+#: The rotation view's columns are the shared group frame plus relative volume;
+#: the descriptor itself lives in api.sector (SHARED_FRAMES).
 ROTATION_COLUMNS = (
     "name",
     "sector",
@@ -50,6 +53,8 @@ BENCHMARKS = {
     "america": {"name": "S&P 500", "symbol": "AMEX:SPY", "vix": "CBOE:VIX"},
 }
 
+#: Last-seen frame snapshot (market -> (expires_at, frame)) for the read-only
+#: breadth getter. Scanning/TTL is owned by api.tv.cache, not by this dict.
 _frame_cache: Dict[str, Tuple[float, pd.DataFrame]] = {}
 _frame_lock = threading.Lock()
 _overview_cache: Dict[Tuple[str, str, str, int, int], Tuple[float, Dict[str, Any]]] = {}
@@ -113,25 +118,26 @@ def _finite(value: Any, default: float = 0.0) -> float:
 
 
 def _fetch_rotation_frame(market: str, limit: int = FRAME_LIMIT) -> pd.DataFrame:
-    query = TVQuery().select(*ROTATION_COLUMNS).set_markets(market)
-    if market == "india":
-        query = query.where(col("sector") != "", col("market_cap_basic") > 5_000_000_000)
-    else:
-        query = query.where(col("sector") != "")
-    query = query.order_by("market_cap_basic", ascending=False).limit(limit)
-    _, df = get_scanner_data(query)
-    return df
+    """Fetch through the shared gateway; no rotation-owned scan or TTL lock.
+
+    The default limit is the canonical 3,000-row frame shared with sector
+    groups. A non-default limit is a genuinely different query, so it gets its
+    own descriptor key in the same gateway cache.
+    """
+    descriptor = SHARED_FRAMES[market]
+    if limit != descriptor.limit:
+        descriptor = replace(descriptor, limit=limit)
+    return scan_frame_cached(descriptor, ttl_seconds=CACHE_TTL_SECONDS)
 
 
 def _get_frame(market: str) -> pd.DataFrame:
-    now = time.monotonic()
+    frame = _fetch_rotation_frame(market)
+    # Mirror the frame for the non-blocking breadth getter. The gateway owns
+    # every scan/TTL decision; this is only a last-seen snapshot, never read
+    # to decide whether to scan.
     with _frame_lock:
-        cached = _frame_cache.get(market)
-        if cached and cached[0] > now:
-            return cached[1].copy()
-        frame = _fetch_rotation_frame(market)
-        _frame_cache[market] = (now + CACHE_TTL_SECONDS, frame.copy())
-        return frame
+        _frame_cache[market] = (time.monotonic() + CACHE_TTL_SECONDS, frame)
+    return frame
 
 
 def _fetch_benchmark(market: str) -> Dict[str, Any]:
@@ -528,3 +534,5 @@ def clear_cache() -> None:
         _frame_cache.clear()
     with _overview_lock:
         _overview_cache.clear()
+    for descriptor in SHARED_FRAMES.values():
+        invalidate(descriptor)

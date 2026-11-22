@@ -1,4 +1,5 @@
 """Tests for api/screener_api/dashboard.py (mocked TV + mocked candles)."""
+import asyncio
 import json
 
 import pandas as pd
@@ -95,29 +96,18 @@ def _frame():
     )
 
 
-class _FakeQuery:
+class _FakeScan:
+    """Records the scan_frame calls made through the shared TV frame cache."""
     frame = None
     boom = False
+    calls = []
 
-    def __init__(self, *a, **k):
-        pass
 
-    def select(self, *a):
-        return self
-
-    def set_markets(self, *a):
-        return self
-
-    def limit(self, *a):
-        return self
-
-    last_kwargs = None
-
-    def get_scanner_data(self, **kwargs):
-        if _FakeQuery.boom:
-            raise RuntimeError("TV down")
-        _FakeQuery.last_kwargs = dict(kwargs)
-        return 0, _FakeQuery.frame
+def _fake_scan_frame(market, **kwargs):
+    if _FakeScan.boom:
+        raise RuntimeError("TV down")
+    _FakeScan.calls.append({"market": market, **kwargs})
+    return _FakeScan.frame
 
 
 def _candles(symbol, timeframe="1m", **kw):
@@ -129,18 +119,21 @@ def _candles(symbol, timeframe="1m", **kw):
 
 @pytest.fixture(autouse=True)
 def _clean(monkeypatch):
-    import tradingview_screener
+    import api.tv.cache as tv_cache
     import chart_patterns.candles as candles
     import chart_patterns.universes as universes
 
     dashboard.clear_cache()
-    _FakeQuery.frame = _frame()
-    _FakeQuery.boom = False
-    monkeypatch.setattr(tradingview_screener, "Query", _FakeQuery)
+    tv_cache.clear()
+    _FakeScan.frame = _frame()
+    _FakeScan.boom = False
+    _FakeScan.calls = []
+    monkeypatch.setattr(tv_cache, "scan_frame", _fake_scan_frame)
     monkeypatch.setattr(candles, "fetch_for_timeframe", _candles)
     monkeypatch.setattr(universes, "get_universe", lambda uid: list(UNIVERSE))
     yield
     dashboard.clear_cache()
+    tv_cache.clear()
 
 
 def _client():
@@ -227,7 +220,7 @@ def test_above_52w_high_excluded(monkeypatch):
         ],
         columns=COLS,
     )
-    _FakeQuery.frame = frame
+    _FakeScan.frame = frame
     monkeypatch.setattr(universes, "get_universe", lambda uid: ["IVY", "HAIR"])
     movers = _panels(_client().get("/api/screener/dashboard").json(), "movers")
     near = [r["symbol"] for r in movers["near_52w_high"]["rows"]]
@@ -279,7 +272,7 @@ def test_market_cap_floor(monkeypatch):
         ],
         columns=COLS,
     )
-    _FakeQuery.frame = frame
+    _FakeScan.frame = frame
     monkeypatch.setattr(universes, "get_universe", lambda uid: ["BIG", "SMALL"])
     client = _client()
     body = client.get("/api/screener/dashboard").json()
@@ -314,14 +307,33 @@ def test_cached_flag_on_second_hit():
 
 
 def test_dashboard_passes_tv_cookies(monkeypatch):
+    """The dashboard's shared scan path authenticates with TV cookies."""
+    import api.tv.cache as tv_cache
     import api.tv.client as tv_client
 
     monkeypatch.setattr(tv_client, "get_tv_cookies", lambda **kw: {"sessionid": "abc"})
-    _FakeQuery.last_kwargs = None
+    seen = {}
+
+    class _Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"data": []}
+
+    def _post(url, **kwargs):
+        seen.update(kwargs)
+        return _Resp()
+
+    monkeypatch.setattr(tv_client.requests, "post", _post)
+    # Run the real transport (the autouse fixture fakes it at the cache edge).
+    monkeypatch.setattr(tv_cache, "scan_frame", tv_client.scan_frame)
 
     _client().get("/api/screener/dashboard")
 
-    assert _FakeQuery.last_kwargs == {"cookies": {"sessionid": "abc"}}
+    assert seen["cookies"] == {"sessionid": "abc"}
+    assert seen["json"]["markets"] == ["india"]
+    assert seen["json"]["range"] == [0, dashboard.TV_LIMIT]
 
 
 def test_metric_formatting():
@@ -390,7 +402,7 @@ def test_normalize_spark_flat_and_empty():
 
 
 def test_empty_frame_gives_empty_sections():
-    _FakeQuery.frame = pd.DataFrame(columns=COLS)
+    _FakeScan.frame = pd.DataFrame(columns=COLS)
     body = _client().get("/api/screener/dashboard").json()
     assert body["total"] == 0
     assert body["sections"] == []
@@ -416,7 +428,7 @@ def test_nan_to_null():
 
 
 def test_tv_error_is_fail_soft():
-    _FakeQuery.boom = True
+    _FakeScan.boom = True
     r = _client().get("/api/screener/dashboard")
     assert r.status_code == 200
     assert r.json()["sections"] == []
@@ -435,24 +447,17 @@ def test_unknown_universe_is_fail_soft(monkeypatch):
 
 
 def _count_tv_scans(monkeypatch):
-    """Count upstream scanner calls without changing what the frame builder sees."""
-    calls = []
-    real = dashboard.get_scanner_data
-
-    def counting(query):
-        calls.append(query)
-        return real(query)
-
-    monkeypatch.setattr(dashboard, "get_scanner_data", counting)
-    return calls
+    """Return the recorder list for scan_frame calls through the shared cache."""
+    _FakeScan.calls.clear()
+    return _FakeScan.calls
 
 
 def test_filter_variants_share_one_tv_scan(monkeypatch):
     """Universe/limit/mincap are Python filters, not reasons to rescan TV.
 
-    The query in ``_fetch_tv_frame`` is the same full India frame for every
-    request. Caching only the built payload under a key that includes the
-    filters made each variant pay for a fresh upstream scan.
+    The descriptor is the same full India frame for every request. Caching only
+    the built payload under a key that includes the filters made each variant
+    pay for a fresh upstream scan.
     """
     calls = _count_tv_scans(monkeypatch)
     client = _client()
@@ -473,4 +478,22 @@ async def test_prewarm_shares_one_tv_scan(monkeypatch):
         limit=8, min_market_cap_cr=500.0)
 
     assert warmed == 2
+    assert len(calls) == 1
+
+
+async def test_concurrent_filter_variants_share_one_scan(monkeypatch):
+    """Concurrent UI filter variants (and prewarm) all reuse one TV frame."""
+    calls = _count_tv_scans(monkeypatch)
+    client = _client()
+    urls = [
+        "/api/screener/dashboard?universe=nifty500",
+        "/api/screener/dashboard?universe=nifty50",
+        "/api/screener/dashboard?universe=nifty500&limit=4",
+        "/api/screener/dashboard?universe=nifty500&min_market_cap_cr=0",
+    ]
+    await asyncio.gather(
+        *(asyncio.to_thread(client.get, url) for url in urls),
+        dashboard.run_dashboard_prewarm_once(),
+    )
+
     assert len(calls) == 1

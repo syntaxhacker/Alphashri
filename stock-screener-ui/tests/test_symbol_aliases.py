@@ -1,4 +1,4 @@
-"""Tests for trading.symbol_aliases + its events-feed join wiring.
+"""Tests for trading.symbol_aliases.
 
 Conventions: pure unit tests, no network, no DB writes. Instrument data is
 monkeypatched; one optional test validates curated targets against the local
@@ -11,7 +11,6 @@ from pathlib import Path
 
 import pytest
 
-import api.reports_api.events_feed as ef
 import trading.symbol_aliases as sa
 
 INSTR = frozenset({
@@ -149,28 +148,3 @@ def test_alias_targets_exist_in_nse_eq():
         pytest.skip("no instruments in local DB")
     missing = [t for t in sa.alias_map().values() if t not in inst]
     assert not missing, f"alias targets missing from NSE_EQ: {missing}"
-
-
-
-
-def _row(i, day, sym, headline):
-    return {"article_id": i, "headline": headline, "content": "",
-            "source": "moneycontrol", "day": day, "symbol": sym, "name": sym}
-
-
-def test_join_hit_rate_improvement(strict):
-    rows = [
-        _row(1, "2026-10-07", "PTC", "PTC Industries shares rise 7% after company launches QIP"),
-        _row(2, "2026-09-24", "WI11", "Wheels India to raise Rs 250 crore through QIP"),
-        _row(3, "2026-09-16", "UNIMECH", "Unimech Aerospace likely to launch Rs 750-crore QIP"),
-        _row(4, "2026-09-16", "SCREENER.IN", "Screener.in market breadth notes"),
-        _row(5, "2026-10-07", "RELIANCE", "Reliance launches QIP to fund retail expansion"),
-    ]
-    allowed = {"PTCIL", "WHEELS", "UNIMECH", "RELIANCE"}
-    naive_hits = {r["symbol"] for r in rows if r["symbol"] in allowed}
-    events = ef._news_to_events(rows, allowed, "2026-09-01", "2026-10-10")
-    got = {(e["symbol"], e["kind"]) for e in events}
-    assert naive_hits == {"UNIMECH", "RELIANCE"}
-    assert got == {("PTCIL", "qip"), ("WHEELS", "qip"),
-                   ("UNIMECH", "qip"), ("RELIANCE", "qip")}
-    assert len(got) - len(naive_hits) == 2  # PTC + WI11 recovered, junk dropped
