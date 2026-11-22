@@ -180,12 +180,10 @@ describe("NiftyDeskPlan", () => {
     expect(screen.getByTestId("desk-do-bear-stop")).toHaveTextContent("22,708");
     expect(screen.getByTestId("desk-do-bear-target")).toHaveTextContent("22,650");
     expect(screen.getByTestId("desk-do-bear-rr")).toHaveTextContent("2.2");
-    // The bull side is the counter-case: its break trigger is above spot.
     expect(screen.getByTestId("desk-do-bull-trigger")).toHaveTextContent("22,900");
     expect(screen.getByTestId("desk-do-bull-stop")).toHaveTextContent("22,882");
     expect(screen.getByTestId("desk-do-bull-target")).toHaveTextContent("23,000");
     expect(screen.getByTestId("desk-do-bull-rr")).toHaveTextContent("5.5");
-    // No nested stop/target cards — one inline stats row per side.
     expect(screen.getByTestId("desk-do-bear-stats")).toBeInTheDocument();
     expect(screen.queryByText(/5 reasons/)).not.toBeInTheDocument();
   });

@@ -52,7 +52,6 @@ def client(monkeypatch):
     ef.clear_cache()
 
 
-# --- keyword classification ---
 
 
 def test_classify_qip():
@@ -99,7 +98,6 @@ def test_classify_headline_wins_over_body_noise():
     assert ef.classify_news_kind("", "company launches QIP to raise funds") == "qip"
 
 
-# --- upcoming ---
 
 
 def test_upcoming_shape_and_sort(client, monkeypatch):
@@ -149,7 +147,6 @@ def test_upcoming_news_dedupes_duplicate_mentions(client, monkeypatch):
     assert news_ev[0]["name"] == "TATA CONSULTANCY SERV LT"
 
 
-# --- recent ---
 
 
 def test_recent_trailing_window(client, monkeypatch):
@@ -180,7 +177,6 @@ def test_recent_trailing_window(client, monkeypatch):
     assert any(e["kind"] == "update" for e in evs)
 
 
-# --- fail-soft + cache ---
 
 
 def test_fail_soft_yf_and_db_down(client, monkeypatch):
@@ -209,7 +205,6 @@ def test_mem_cache_second_hit_cached(client):
     assert r2.json()["events"] == r1.json()["events"]
 
 
-# --- regime (Nifty 50 vs 20DMA) ---
 
 
 def _regime_client(monkeypatch, closes):

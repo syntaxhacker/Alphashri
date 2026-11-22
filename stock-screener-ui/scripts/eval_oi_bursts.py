@@ -57,12 +57,11 @@ def signal_is_bullish(burst: dict) -> bool:
         return not burst["bearish"]
     building = (burst.get("delta") or 0) > 0
     if building:
-        return burst.get("side") != "call"  # call build -> puts, put build -> calls
-    return burst.get("side") == "call"  # call unwind -> calls, put unwind -> puts
+        return burst.get("side") != "call"
+    return burst.get("side") == "call"
 
 
 def flow_classified(burst: dict) -> bool:
-    """True when the burst carries a buyer/writer read, not the OI-only guess."""
     return isinstance(burst.get("bearish"), bool) and bool(burst.get("flow"))
 
 
@@ -112,7 +111,7 @@ def evaluate(dedupe_min: int):
                 if j >= len(rows):
                     continue
                 mv = rows[j]["spot"] - rows[i]["spot"]
-                signed = mv if bull else -mv  # > 0 means the signal was right
+                signed = mv if bull else -mv
                 moves[aligned][h].append(signed)
                 for t in THRESHOLDS:
                     cells[(aligned, t, h)][1] += 1

@@ -366,16 +366,12 @@ describe("createNiftyReportStore", () => {
       vi.mocked(api.fetchOptionsExpiries).mockResolvedValue([]);
 
       const { store, dispose } = build();
-      // Select the generic symbol before bootstrap finishes so the pending
-      // load is the generic triple, not the NIFTY one-shot path.
       store.selection.handleSymbolChange("SENSEX");
 
       // Bootstrap sets booted() -> true: the generic load starts (deferred) and
       // the first poll tick is armed for +GENERIC_POLL_MS.
       await vi.advanceTimersByTimeAsync(0);
 
-      // fetchOptionsLive/fetchOptionsTape only run inside load()/runPoll(), so
-      // they mark a full triple (bursts also has an independent 30s poll).
       const expectSingleTriple = () => {
         expect(api.fetchOptionsLive).toHaveBeenCalledTimes(1);
         expect(api.fetchOptionsTape).toHaveBeenCalledTimes(1);

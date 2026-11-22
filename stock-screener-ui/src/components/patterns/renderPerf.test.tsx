@@ -81,7 +81,6 @@ function budget(label: string, ms: number, limit: number): string {
   return `${label}: ${ms.toFixed(2)} ms (budget ${limit} ms)`;
 }
 
-/** 120 one-minute candles — the shape a real hit carries into the grid. */
 function makeCandles(count: number): ChartCandle[] {
   return Array.from({ length: count }, (_, i) => {
     const o = 100 + Math.sin(i / 7) * 5 + i * 0.05;
@@ -443,7 +442,6 @@ describe("render perf — 200-card grid (results limit)", () => {
     resetChartPatternsState();
   });
 
-  /** Wraps PatternCard so the test can count how many times a card actually renders. */
   interface CountingCardProps extends PatternCardProps {
     counter: { renders: number };
   }

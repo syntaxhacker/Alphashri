@@ -26,9 +26,6 @@ from chart_patterns import jobs, scan, store
 IST = pytest.importorskip("trading.timezone").IST
 
 
-# ---------------------------------------------------------------------------
-# helpers
-# ---------------------------------------------------------------------------
 
 
 def _daily_df(start: str = "2026-01-01", n: int = 100) -> pd.DataFrame:
@@ -116,9 +113,6 @@ def cp_client(test_db_engine):
         store.reset_session_factory()
 
 
-# ---------------------------------------------------------------------------
-# candles.parse_asof_datetime / truncate_frame_to
-# ---------------------------------------------------------------------------
 
 
 def test_parse_asof_datetime_date_only_is_ist_midnight():
@@ -150,9 +144,6 @@ def test_truncate_frame_to_compares_in_ist():
     assert out.index[-1] == pd.Timestamp("2026-09-30 06:00", tz="UTC")
 
 
-# ---------------------------------------------------------------------------
-# candles.fetch_for_timeframe: from_date passthrough + cache namespacing
-# ---------------------------------------------------------------------------
 
 
 def _patch_tf(monkeypatch):
@@ -230,9 +221,6 @@ def test_fetch_intraday_asof_time_namespaces_cache(monkeypatch, tmp_path):
     assert timed.exists() and timed != dated
 
 
-# ---------------------------------------------------------------------------
-# store date-range filter
-# ---------------------------------------------------------------------------
 
 
 def test_store_end_date_range_filter(cp_store):
@@ -266,9 +254,6 @@ def test_store_end_date_range_filter(cp_store):
     assert total_all == 3
 
 
-# ---------------------------------------------------------------------------
-# /results + /summary date params
-# ---------------------------------------------------------------------------
 
 
 def test_results_and_summary_date_params(cp_client):
@@ -311,9 +296,6 @@ def test_results_and_summary_date_params(cp_client):
     assert plain.json()["total"] == 2
 
 
-# ---------------------------------------------------------------------------
-# symbol chart as-of replay
-# ---------------------------------------------------------------------------
 
 
 def _live_hit_dict(end_date: str, pattern_id: str = "double_bottom") -> dict:
@@ -425,9 +407,6 @@ def test_chart_asof_invalid_date_422(cp_client):
     assert chart.status_code == 422
 
 
-# ---------------------------------------------------------------------------
-# as-of scan: params threading + cap
-# ---------------------------------------------------------------------------
 
 
 def test_scan_run_job_asof_window(cp_store, monkeypatch):

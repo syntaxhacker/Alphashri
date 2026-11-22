@@ -1,14 +1,4 @@
 #!/usr/bin/env python3
-"""Post-close pull: 5-second candles (+OI) for every recorded expiry symbol.
-
-Usage:
-    PYTHONPATH=. python scripts/fetch_expiry_history.py [--date YYYY-MM-DD]
-
-Reads experiments/data/expiry_snapshots/<DATE>/ticks_*.jsonl to discover symbols,
-pulls resolution=5S history with oi_flag=1, and writes one Parquet/PKL bundle:
-experiments/data/expiry_snapshots/<DATE>/candles_5s.pkl  {symbol: DataFrame}
-plus the underlying NIFTY index 5S candles under key "UNDERLYING".
-"""
 from __future__ import annotations
 
 import argparse

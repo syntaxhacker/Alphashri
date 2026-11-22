@@ -97,7 +97,6 @@ describe("buildIvSeries", () => {
     ]);
     expect(series.map((p) => p.t)).toEqual(["09:15", "09:17", "09:18"]);
     expect(series[0].iv).toBeCloseTo(13.5, 10);
-    // single live leg → that leg's value
     expect(series[1].iv).toBeCloseTo(12, 10);
     expect(series[2].iv).toBeCloseTo(15, 10);
   });

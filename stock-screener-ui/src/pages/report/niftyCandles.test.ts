@@ -51,7 +51,6 @@ describe("fillCandleGaps", () => {
       "2026-11-03T09:19:00+05:30",
       "2026-11-03T09:20:00+05:30",
     ]);
-    // filled bars are flat and volume-less
     expect(out[1]).toMatchObject({
       open: 23_695,
       high: 23_695,
@@ -59,9 +58,7 @@ describe("fillCandleGaps", () => {
       close: 23_695,
       volume: 0,
     });
-    // the poisoned bar never reaches the chart
     expect(out.some((c) => c.close === 0)).toBe(false);
-    // no giant range: the whole session stays inside a sane band
     const low = Math.min(...out.map((c) => c.low));
     const high = Math.max(...out.map((c) => c.high));
     expect(high - low).toBeLessThan(50);

@@ -12,8 +12,6 @@ import { createSignal } from "solid-js";
 import { getPnLTextColor } from "@/utils/ui-helpers";
 import { PatternChartBody, resolveCloseSeries } from "./PatternChartBody";
 
-// The TV chart mounts lightweight-charts (canvas) — stub it so the body can be
-// tested without a browser canvas, while still asserting the props forwarded.
 vi.mock("./PatternTradingViewChart", () => ({
   PatternTradingViewChart: ({
     hit,
@@ -281,7 +279,6 @@ describe("PatternChartBody", () => {
       <PatternChartBody hit={hit} candles={candles} livePrice={2986} liveChange={-12.94} />
     ));
 
-    // The dated daily close is untouched.
     expect(screen.getByTestId("patterns-close-label")).toHaveTextContent("13 NOV");
     expect(screen.getByText("₹3430.00")).toBeInTheDocument();
     expect(screen.getByText("-1.55%")).toBeInTheDocument();
@@ -323,7 +320,6 @@ describe("PatternChartBody", () => {
     expect(ltp).toHaveTextContent("₹2986.00");
     const change = screen.getByTestId("patterns-ltp-change");
     expect(change).toHaveTextContent("—");
-    // The buggy path passed `getPnLTextColor(props.liveChange ?? 0)` → getPnLTextColor(0) === "success".
     expect(getPnLTextColor(0)).toBe("success");
     expect(change).not.toHaveClass("text-fin-positive");
     expect(change).not.toHaveClass("text-fin-negative");
@@ -346,7 +342,6 @@ describe("PatternChartBody", () => {
     const change = screen.getByTestId("patterns-ltp-change");
     expect(change).toHaveTextContent("-12.94%");
     expect(getPnLTextColor(-12.94)).toBe("error");
-    // The dated daily close is untouched by the live line.
     expect(screen.getByText("₹3430.00")).toBeInTheDocument();
     expect(screen.getByText("-1.55%")).toBeInTheDocument();
   });

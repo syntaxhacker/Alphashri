@@ -123,9 +123,6 @@ def _has_state(ws, state):
     return any(f.get("state") == state for f in _frames(ws, "status"))
 
 
-# --------------------------------------------------------------------------- #
-# (a) One connection shared by two subscribers
-# --------------------------------------------------------------------------- #
 
 async def test_two_subscribers_share_one_hub_connection(monkeypatch):
     hub, adapters, calls = _hub_harness(monkeypatch)
@@ -146,9 +143,6 @@ async def test_two_subscribers_share_one_hub_connection(monkeypatch):
     await _stop(t1, t2)
 
 
-# --------------------------------------------------------------------------- #
-# (b) Disconnect releases; last release closes the connection
-# --------------------------------------------------------------------------- #
 
 async def test_disconnect_releases_subscription_and_last_release_closes(monkeypatch):
     hub, adapters, calls = _hub_harness(monkeypatch)
@@ -170,9 +164,6 @@ async def test_disconnect_releases_subscription_and_last_release_closes(monkeypa
     assert hub.active_brokers() == []
 
 
-# --------------------------------------------------------------------------- #
-# (c) A hub tick reaches the WebSocket client
-# --------------------------------------------------------------------------- #
 
 async def test_hub_tick_reaches_websocket_client(monkeypatch):
     hub, adapters, calls = _hub_harness(monkeypatch)
@@ -193,9 +184,6 @@ async def test_hub_tick_reaches_websocket_client(monkeypatch):
     await _stop(task)
 
 
-# --------------------------------------------------------------------------- #
-# (d) No token -> structured disconnected status, not silence
-# --------------------------------------------------------------------------- #
 
 async def test_no_token_sends_structured_disconnected_status(monkeypatch):
     hub, adapters, calls = _hub_harness(monkeypatch)
@@ -241,9 +229,6 @@ async def test_client_disconnect_without_ticks_releases_subscription(monkeypatch
     await asyncio.wait_for(task, timeout=1.0)
 
 
-# --------------------------------------------------------------------------- #
-# (e) Shutdown clears the subscription without hanging
-# --------------------------------------------------------------------------- #
 
 async def test_shutdown_clears_subscription_without_hanging(monkeypatch):
     hub, adapters, calls = _hub_harness(monkeypatch)
@@ -259,9 +244,6 @@ async def test_shutdown_clears_subscription_without_hanging(monkeypatch):
     await _stop(task)
 
 
-# --------------------------------------------------------------------------- #
-# Reconnect with backoff, surfaced as a state change
-# --------------------------------------------------------------------------- #
 
 async def test_upstream_error_surfaces_reconnecting_then_reconnects(monkeypatch):
     hub, adapters, calls = _hub_harness(monkeypatch)
@@ -282,9 +264,6 @@ async def test_upstream_error_surfaces_reconnecting_then_reconnects(monkeypatch)
     await _stop(task)
 
 
-# --------------------------------------------------------------------------- #
-# Router registration (via a real request, never app.routes introspection)
-# --------------------------------------------------------------------------- #
 
 def test_router_registered_on_app(monkeypatch):
     monkeypatch.setattr(fyers_ws, "_resolve_token", lambda: (None, "no_token"))

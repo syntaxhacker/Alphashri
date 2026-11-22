@@ -1,13 +1,4 @@
 #!/usr/bin/env python
-"""Pre-registered intraday-structure filters on the double-VWAP finalist.
-
-Eight hypotheses, fixed in advance.  Every feature is computed from the
-signal bar's CLOSE (bar i), prior bars, or the completed prior session --
-no future bar and no entry-bar open is used.  Filters only: the range/stop/
-target logic is the untouched baseline finalist.
-
-Run from repo root: .venv/bin/python scripts/research/double_vwap/agents/intraday_structure.py
-"""
 from __future__ import annotations
 
 import json
@@ -24,20 +15,17 @@ sys.path.insert(0, os.path.join(ROOT, "scripts", "research", "double_vwap"))
 import strategy as S  # noqa: E402
 
 OUTDIR = os.path.join(ROOT, "reports", "DOUBLE_VWAP", "agents")
-CUT = date(2026, 6, 23)          # IS <= CUT, OOS > CUT (60% day split)
+CUT = date(2026, 6, 23)
 COST = 1.1
 N_PERM = 1000
 SEED = 20261120
-FW_P = 0.05 / 8                  # Bonferroni for 8 pre-registered hypotheses
+FW_P = 0.05 / 8
 
 BASE_CFG = dict(range_src="or30", legs="A", stop_src="sigext",
                 stop_buf=30.0, target_a="rr1.75", sess_end=13 * 60)
 WDAY = ["Mon", "Tue", "Wed", "Thu", "Fri"]
 
 
-# --------------------------------------------------------------------------- #
-# stats
-# --------------------------------------------------------------------------- #
 def st(trades):
     if not trades:
         return dict(n=0, avgR=None, t=None, PF=None, win=None)
@@ -55,9 +43,6 @@ def block(trades):
                 OOS=st([t for t in trades if t["date"] > CUT]))
 
 
-# --------------------------------------------------------------------------- #
-# build rows: mirror S.collect but retain the signal-close context
-# --------------------------------------------------------------------------- #
 def build_rows():
     df = S.load()
     days = S.build_days(df)
@@ -86,7 +71,7 @@ def build_rows():
             h4=float(d.vol[i]) / med_vol if np.isfinite(med_vol) and med_vol > 0 else np.nan,
             h5=1 if ((side < 0 and d.on_vwap < c) or (side > 0 and d.on_vwap > c)) else 0,
             h6=1 if (np.isfinite(ny) and ((side < 0 and c > ny) or (side > 0 and c < ny))) else 0,
-            h7=None,                       # filled from completed prior session below
+            h7=None,
             h8=d.date.weekday(),
         )
         rows.append(dict(tr=tr, day=d, date=d.date, i=i, dr=dr, side=side,
@@ -110,13 +95,10 @@ def build_rows():
             lvl = pdh if r["side"] < 0 else pdl
             r["f"]["h7"] = 1 if abs(r["c"] - lvl) <= 0.25 * r["atr"] else 0
         r["tr"]["_wday"] = r["f"]["h8"]
-        r["tr"]["_bucket"] = r["f"]      # only for grouping; not used by stats
+        r["tr"]["_bucket"] = r["f"]
     return rows, days
 
 
-# --------------------------------------------------------------------------- #
-# grouping helpers
-# --------------------------------------------------------------------------- #
 def by_median(rows, key, small, large):
     vals = [r["f"][key] for r in rows if np.isfinite(r["f"][key])]
     m = float(np.median(vals))
@@ -204,9 +186,6 @@ def make_hypotheses(rows):
     ]
 
 
-# --------------------------------------------------------------------------- #
-# permutation test on the selected bucket's edge vs its complement
-# --------------------------------------------------------------------------- #
 def perm_test(sel_trades, rest_trades):
     rs = np.array([float(t["R"]) for t in sel_trades])
     rr = np.array([float(t["R"]) for t in rest_trades])
@@ -259,7 +238,6 @@ def main():
                                               if sel["IS"]["avgR"] is not None
                                               and sel["OOS"]["avgR"] is not None else None)))
 
-    # best qualifying split, else best selected bucket with n>=25
     cands = [r for r in report if r["improvement"]]
     fallback = [r for r in report if r["selected_n"] >= 25 and r["selected_avgR"] is not None]
     pool = cands if cands else fallback

@@ -46,9 +46,6 @@ describe("summarizeDeskPlan — bearish read", () => {
   });
 
   test("cut and target print whole index points, not the derived decimals", () => {
-    // Live tape: trigger 22,448 → stop = trigger + buffer (22,424.98) and a
-    // projected target (22,129.53). Every other level on the page is an
-    // integer, so the headline rounds; the reasons block keeps full precision.
     const rounded = summarizeDeskPlan(
       bearishPlan({
         bear: {

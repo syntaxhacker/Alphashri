@@ -59,9 +59,6 @@ RSS_SAMPLE = """<?xml version="1.0" encoding="UTF-8"?>
 """
 
 
-# --------------------------------------------------------------------------- #
-# Fixtures and helpers
-# --------------------------------------------------------------------------- #
 
 
 @pytest.fixture(autouse=True)
@@ -165,9 +162,6 @@ def sources(monkeypatch):
     return monkeypatch
 
 
-# --------------------------------------------------------------------------- #
-# HTTP contract
-# --------------------------------------------------------------------------- #
 
 
 def test_requires_auth(client):
@@ -400,9 +394,6 @@ def test_missing_snapshot_symbol_is_omitted(auth_client, sources):
     assert all(row["symbol"] != "MRF" for row in body["rows"])
 
 
-# --------------------------------------------------------------------------- #
-# Deterministic grading
-# --------------------------------------------------------------------------- #
 
 
 def test_grade_row_matrix():
@@ -507,9 +498,6 @@ def test_volume_and_breadth_can_confirm_without_a_move():
     assert breadth.confirmed is True
 
 
-# --------------------------------------------------------------------------- #
-# RSS parsing and request budget
-# --------------------------------------------------------------------------- #
 
 
 def test_parse_rss_reads_source_date_and_strips_suffix():
@@ -568,9 +556,6 @@ def test_news_queries_are_capped_and_start_with_the_sector():
     assert len(queries) == 1 + 2
 
 
-# --------------------------------------------------------------------------- #
-# Caching / single flight
-# --------------------------------------------------------------------------- #
 
 
 @pytest.mark.asyncio

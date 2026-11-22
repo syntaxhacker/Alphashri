@@ -37,7 +37,6 @@ from .common import (
     window_slice,
 )
 
-# Trailing windows (bars) scanned; the longest qualifying one is reported.
 WINDOWS = (30, 60, 90, 120, 180, 250)
 MIN_BARS = 20
 # Widest accepted base: a range wider than this is a trend, not a consolidation.
@@ -47,7 +46,6 @@ RANGE_MAX = float(os.environ.get("PATTERN_CONSOLIDATION_MAX_RANGE_PCT", "20.0"))
 MIN_RANGE_PCT = 1.5
 # Close must not drift more than 12% of price across the window (near-flat).
 NEAR_FLAT_MAX = 0.12
-# Last close must be inside the box, away from a mid-breakout at either edge.
 POS_MIN, POS_MAX = 15.0, 85.0
 TOUCH_TOL_ATR = 0.75
 # A trailing run of >= this many bars closing beyond the box (by more than
@@ -178,7 +176,6 @@ class _BaseScan:
     def window_base(
         self, start: int, end: int, w: int, check_pos: bool = True
     ) -> dict | None:
-        """Memoized :func:`_window_base` equivalent over the cached arrays."""
         box = self.metrics(start, end)
         if box is None:
             return None
@@ -216,7 +213,6 @@ class _BaseScan:
         return k
 
     def _trailing_base_end_slow(self, start: int, end: int, tol: float, k: int) -> int:
-        """Reference scan (non-finite prices or a non-trailing ``end``)."""
         close = self.close
         for cand in range(end - 1, start + MIN_BARS - 2, -1):
             base = self.metrics(start, cand)
@@ -271,7 +267,6 @@ class _BaseScan:
 
 
 def _scan_of(df: pd.DataFrame) -> _BaseScan:
-    """Fresh :class:`_BaseScan` for ``df`` (memo lives for one scan only)."""
     return _BaseScan(df)
 
 

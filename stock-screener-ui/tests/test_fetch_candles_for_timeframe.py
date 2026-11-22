@@ -24,9 +24,6 @@ from market_data.market_data import (
 from chart_patterns.timeframes import TIMEFRAME_IDS
 
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 def _sane_frame(index: pd.DatetimeIndex, base: float = 100.0) -> pd.DataFrame:
     """Deterministic OHLCV frame with sane relations (high>=max(o,c), ...)."""
@@ -124,9 +121,6 @@ def _make_api() -> MagicMock:
     return api
 
 
-# ---------------------------------------------------------------------------
-# Provider path per timeframe (explicit past window: historical only)
-# ---------------------------------------------------------------------------
 
 EXPECTED_HISTORICAL = {
     "1m": ("minutes", 1),
@@ -226,9 +220,6 @@ class TestProviderPath:
         assert df["volume"].iloc[0] == pytest.approx(bars["volume"].iloc[:3].sum())
 
 
-# ---------------------------------------------------------------------------
-# Today merge (native intraday with a window ending today)
-# ---------------------------------------------------------------------------
 
 class TestTodayMerge:
     def test_multi_day_window_merges_both_legs(self):
@@ -315,9 +306,6 @@ class TestTodayMerge:
         api.fetch_intraday_data_v3.assert_not_called()
 
 
-# ---------------------------------------------------------------------------
-# Synthetic partial-today bar on 1D
-# ---------------------------------------------------------------------------
 
 class TestPartialToday:
     def _history_and_tape(self):
@@ -398,9 +386,6 @@ class TestPartialToday:
         api.fetch_intraday_data_v3.assert_not_called()
 
 
-# ---------------------------------------------------------------------------
-# Window computation
-# ---------------------------------------------------------------------------
 
 class TestWindow:
     def test_lookback_bars_sizes_window(self):

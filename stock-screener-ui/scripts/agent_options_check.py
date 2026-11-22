@@ -42,7 +42,6 @@ EXCLUDED_TRADE_IDS = (3129,)
 
 
 def _tail(path: pathlib.Path, n: int, back: int) -> list:
-    """Last ``n`` JSON rows without reading the whole file (snapshots are 25 MB+)."""
     if not path.exists():
         return []
     with open(path, "rb") as f:

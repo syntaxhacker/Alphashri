@@ -4,7 +4,6 @@ import { For } from "solid-js";
 import { IndexMoversModal } from "./IndexMoversModal";
 import { fetchIndexMovers, IndexMoversResponse } from "@/api/indexMovers";
 
-// Mock the API
 vi.mock("@/api/indexMovers", () => ({
   fetchIndexMovers: vi.fn(),
 }));
@@ -69,7 +68,6 @@ describe("IndexMoversModal", () => {
     render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByTestId("panel-modal")).toBeInTheDocument(), { timeout: 10000 });
-    // Title is in panel-modal-title
     expect(screen.getByTestId("panel-modal-title")).toHaveTextContent("MOVERS · NIFTY 50");
   });
 
@@ -91,7 +89,6 @@ describe("IndexMoversModal", () => {
 
     await waitFor(() => expect(screen.getByTestId("movers-table")).toBeInTheDocument(), { timeout: 10000 });
     
-    // Click ALL tab
     fireEvent.click(screen.getByText("ALL"));
     
     await waitFor(() => expect(screen.getByText("HDFCBANK")).toBeInTheDocument(), { timeout: 10000 });
@@ -106,7 +103,6 @@ describe("IndexMoversModal", () => {
 
     await waitFor(() => expect(screen.getByTestId("movers-table")).toBeInTheDocument(), { timeout: 10000 });
 
-    // Click GAINERS tab
     fireEvent.click(screen.getByText("GAINERS"));
 
     await waitFor(() => expect(screen.getByText("HDFCBANK")).toBeInTheDocument(), { timeout: 10000 });
@@ -121,7 +117,6 @@ describe("IndexMoversModal", () => {
 
     await waitFor(() => expect(screen.getByTestId("movers-table")).toBeInTheDocument(), { timeout: 10000 });
 
-    // Click LOSERS tab
     fireEvent.click(screen.getByText("LOSERS"));
 
     await waitFor(() => expect(screen.getByText("TCS")).toBeInTheDocument(), { timeout: 10000 });
@@ -135,7 +130,6 @@ describe("IndexMoversModal", () => {
 
     await waitFor(() => expect(screen.getByTestId("movers-table")).toBeInTheDocument(), { timeout: 10000 });
 
-    // Check first row is highest gainer
     const rows = screen.getAllByRole("row");
     const firstDataRow = rows[1];
     expect(firstDataRow).toHaveTextContent("HDFCBANK");
@@ -197,12 +191,10 @@ describe("IndexMoversModal", () => {
     render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="SENSEX" />);
 
     await waitFor(() => expect(screen.getByTestId("panel-modal")).toBeInTheDocument(), { timeout: 10000 });
-    // Title is in panel-modal-title
     expect(screen.getByTestId("panel-modal-title")).toHaveTextContent("MOVERS · SENSEX 30");
   });
 
   it("contribution column shows — when missing", async () => {
-    // Response without contribution_pct
     const response = createMockResponse();
     response.gainers[0] = { ...response.gainers[0], contribution_pct: undefined };
     response.losers[0] = { ...response.losers[0], contribution_pct: undefined };
@@ -212,7 +204,6 @@ describe("IndexMoversModal", () => {
 
     await waitFor(() => expect(screen.getByTestId("movers-table")).toBeInTheDocument(), { timeout: 10000 });
 
-    // Should show — for missing contribution
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 });

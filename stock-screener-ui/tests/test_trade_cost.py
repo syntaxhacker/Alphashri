@@ -11,9 +11,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import trade_cost as tc
 
 
-# --------------------------------------------------------------------------
-# Fixtures: canned Upstox payloads (shapes per developer docs)
-# --------------------------------------------------------------------------
 
 MARGIN_OK = {
     "status": "success",
@@ -76,9 +73,6 @@ CHAIN = [
 ]
 
 
-# --------------------------------------------------------------------------
-# Live chain matching
-# --------------------------------------------------------------------------
 
 def test_match_chain_row_call():
     hit = tc.match_chain_row(CHAIN, opt="CE", strike=23000)
@@ -106,9 +100,6 @@ def test_match_chain_row_missing_side_returns_none():
     assert tc.match_chain_row(rows, opt="PE", strike=23000) is None
 
 
-# --------------------------------------------------------------------------
-# Margin normalisation
-# --------------------------------------------------------------------------
 
 def test_normalize_margin_ok():
     m = tc.normalize_margin_response(MARGIN_OK)
@@ -130,9 +121,6 @@ def test_normalize_margin_error_status_raises():
         tc.normalize_margin_response({"status": "error", "errors": [{"errorCode": "UDAPI1000"}]})
 
 
-# --------------------------------------------------------------------------
-# Brokerage normalisation
-# --------------------------------------------------------------------------
 
 def test_normalize_brokerage_sell_leg():
     b = tc.normalize_brokerage_response(BROKERAGE_SELL)
@@ -163,9 +151,6 @@ def test_normalize_brokerage_error_status_raises():
         tc.normalize_brokerage_response({"status": "error"})
 
 
-# --------------------------------------------------------------------------
-# Round-trip + comparison
-# --------------------------------------------------------------------------
 
 def test_round_trip_total_two_legs():
     assert tc.round_trip_total([{"total": 28.5}, {"total": 25.1}]) == pytest.approx(53.6)
@@ -192,9 +177,6 @@ def test_compare_match_verdict():
     assert c["verdict"] == "API and local match"
 
 
-# --------------------------------------------------------------------------
-# Instrument resolution (pure match, no DB)
-# --------------------------------------------------------------------------
 
 def test_match_instrument_spaced_format():
     row = tc.match_instrument(ROWS, opt="CE", strike=23000, expiry_iso="2026-12-29")
@@ -224,9 +206,6 @@ def test_spaced_symbol_format():
     assert tc.db_expiry_label("2026-10-27") == "27 OCT 26"
 
 
-# --------------------------------------------------------------------------
-# CLI: --exit-price
-# --------------------------------------------------------------------------
 
 def _patch_charge_apis(monkeypatch):
     """Pretend the token/instrument/margin/brokerage calls all succeed."""

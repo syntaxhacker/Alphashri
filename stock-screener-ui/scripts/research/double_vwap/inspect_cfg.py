@@ -1,8 +1,4 @@
 #!/usr/bin/env python
-"""Inspect / stress a candidate double-VWAP config on the cached Dukascopy bars.
-
-  .venv/bin/python scripts/research/double_vwap/inspect.py --preset chart
-"""
 from __future__ import annotations
 
 import argparse
@@ -20,10 +16,8 @@ PRESETS = {
     "chart": S.base_cfg(range_src="on", legs="AB", stop_src="range", stop_buf=10.0,
                         target_a="onvwap", target_b="onvwap", dir_filter="away_on",
                         require_untouched=True),
-    # the widest-sample version of the same idea
     "wide": S.base_cfg(range_src="or60", legs="A", stop_src="sigext", stop_buf=20.0,
                        target_a="mid", dir_filter="away_on"),
-    # the second-leg-only (NY VWAP continuation) version
     "legb": S.base_cfg(range_src="on", legs="B", stop_src="range", stop_buf=20.0,
                        target_b="onvwap"),
 }
@@ -79,7 +73,6 @@ def main():
     for y, sub in pd.DataFrame(trades).groupby(pd.to_datetime(pd.DataFrame(trades)["date"]).dt.year):
         print(f"  {y}: n={len(sub)} avgR={sub['R'].mean():+.3f} sum={sub['R'].sum():+.1f}")
 
-    # timing/level placebos live in validate.py (random-range, same geometry)
 
 
 if __name__ == "__main__":

@@ -41,7 +41,6 @@ DF, EXP = _load()
 TAIL = EXP["tail"]
 
 
-# ---- exact-ish (EMA / ATR) -------------------------------------------------
 def test_ema_matches_oracle():
     mx, mean, _ = _delta(ema(DF["close"], 21, full=True), EXP["ema_21"])
     assert mx < 1e-3, f"EMA maxΔ {mx}"
@@ -52,7 +51,6 @@ def test_atr_matches_oracle():
     assert mx < 0.05, f"ATR maxΔ {mx}"
 
 
-# ---- bounded-oscillator parity (RSI / ADX) ---------------------------------
 def test_rsi_matches_oracle():
     _, mean, n = _delta(rsi(DF["close"], 14, full=True), EXP["rsi_14"])
     assert n > TAIL - 20

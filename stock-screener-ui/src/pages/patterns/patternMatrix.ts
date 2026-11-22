@@ -1,10 +1,3 @@
-/**
- * patternMatrix.ts — Solid port of src/hooks/usePatternMatrix.ts.
- *
- * Fetches the symbol×timeframe matrix projection used by the results view.
- * 120ms debounce matches the React original so fast keystrokes don't trigger
- * a fetch per keystroke.
- */
 
 import { createEffect, createSignal, onCleanup } from "solid-js";
 import { fetchPatternMatrix } from "@/api/chartPatterns";
@@ -27,7 +20,6 @@ export function usePatternMatrix(
     const u = universe();
     const en = enabled();
     nonce(); // subscribe to manual reloads
-    // refreshKey is tracked so a completed scan re-fetches the matrix.
     const _key = refreshKey();
     const ids = timeframes().join(",");
     if (!en || !u) return;

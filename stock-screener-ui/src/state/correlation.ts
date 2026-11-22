@@ -1,7 +1,3 @@
-/**
- * Correlation state management
- */
-
 import { createSubscriber } from "./createSubscriber";
 import { fetchCorrelation } from "../api/correlation";
 import type { CorrelationDataPoint } from "../api/correlation";

@@ -8,14 +8,8 @@ import { PatternFullscreenView } from "@/components/patterns/PatternFullscreenVi
 
 const DailyReportPage = lazy(() => import("./DailyReportPage"));
 
-/** Minimal timeframe ladder when the registry fetch fails. */
 const FALLBACK_TIMEFRAMES: TFSpec[] = [{ id: "1D", label: "1D" } as TFSpec];
 
-/**
- * Thin route entry for `/report` — lazy-loads the daily report page and
- * hosts the shared fullscreen pattern chart, so a symbol click opens the
- * identical fullscreen used on the Patterns screen.
- */
 export function ReportContainer() {
   const [searchParams] = useSearchParams();
   const raw = searchParams.universe;
@@ -37,7 +31,6 @@ export function ReportContainer() {
         if (active && list.length > 0) setTimeframes(list);
       })
       .catch(() => {
-        /* non-fatal: keep the 1D fallback */
       });
     onCleanup(() => {
       active = false;

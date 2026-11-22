@@ -158,10 +158,6 @@ describe("PatternPresets", () => {
     expect(props.applyFilters).toHaveBeenCalledWith(savedFilters);
   });
 
-  /**
-   * The chip was uncontrolled: it lit on click and stayed lit after the filter
-   * it represents was cleared elsewhere in the rail.
-   */
   test("saved preset chip reflects the applied filters, not its last click", () => {
     localStorage.setItem(
       PATTERN_PRESETS_STORAGE_KEY,

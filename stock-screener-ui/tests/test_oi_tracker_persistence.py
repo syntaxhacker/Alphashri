@@ -43,9 +43,6 @@ def _reset_snapshots():
     oi_tracker._SNAPSHOTS = original
 
 
-# ---------------------------------------------------------------------------
-# (a) append + reload round-trip — 3 snapshots, 2 tickers, tmp_path root
-# ---------------------------------------------------------------------------
 
 
 def test_append_reload_round_trip(tmp_path):
@@ -81,9 +78,6 @@ def test_append_failure_returns_false_not_raise(tmp_path):
     assert oi_tracker._append("NIFTY", _snap("NIFTY", _iso(9, 20)), root=blocker) is False
 
 
-# ---------------------------------------------------------------------------
-# (b) hydration: sorted by ts, capped at MAX_SNAPS, today only
-# ---------------------------------------------------------------------------
 
 
 def test_hydrate_sorts_by_ts_and_caps_at_max_snaps(tmp_path, monkeypatch):
@@ -116,9 +110,6 @@ def test_hydrate_missing_root_is_noop(tmp_path):
     assert oi_tracker.history() == []
 
 
-# ---------------------------------------------------------------------------
-# (c) malformed lines are skipped
-# ---------------------------------------------------------------------------
 
 
 def test_load_day_skips_malformed_lines(tmp_path):
@@ -140,9 +131,6 @@ def test_load_day_skips_malformed_lines(tmp_path):
     assert snaps == [good]
 
 
-# ---------------------------------------------------------------------------
-# (d) retention: files older than keep_days are pruned
-# ---------------------------------------------------------------------------
 
 
 def test_prune_removes_files_older_than_keep_days(tmp_path):
@@ -163,9 +151,6 @@ def test_prune_removes_files_older_than_keep_days(tmp_path):
     assert oi_tracker._prune(root=tmp_path / "nope", keep_days=30, today=DAY_D) == 0
 
 
-# ---------------------------------------------------------------------------
-# (5) API contract: hydrated data flows through history()/latest()
-# ---------------------------------------------------------------------------
 
 
 def test_history_filters_hydrated_snapshots_by_ticker(tmp_path):

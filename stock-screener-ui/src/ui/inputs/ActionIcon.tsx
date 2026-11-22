@@ -134,7 +134,6 @@ function sizeStyle(size?: UIActionIconProps["size"]): { width?: string; height?:
  */
 function squareClasses(size?: UIActionIconProps["size"]): string {
   if (typeof size === "number") return "";
-  // `size` also accepts an arbitrary CSS length; only named steps have classes.
   const step = size && size in SIZE_CLASSES ? (size as UISize) : "xs";
   return SIZE_CLASSES[step];
 }

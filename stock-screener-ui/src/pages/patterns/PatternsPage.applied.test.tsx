@@ -8,18 +8,11 @@ import type { JSX } from "solid-js";
 import { createSignal, For, Show } from "solid-js";
 import { PatternsPage, type PatternsPageProps } from "./PatternsPage";
 
-// These page tests mount the real filter modal (@/ui Autocomplete + Select).
-// Under a full-suite run with 8 workers the multi-select interaction can exceed
-// the 5s default; the assertions are deterministic, so allow a slower machine.
 vi.setConfig({ testTimeout: 20_000 });
 
-// The @/ui Box/Flex/... stubs from src/pages/solidTestStubs.tsx render as
-// intrinsic elements; page tests exercise page wiring, not the theme runtime.
 vi.mock("@/ui", async (importOriginal) => {
   const { uiLayoutStub } = await import("@/pages/solidTestStubs");
   const stubbed = await uiLayoutStub(await importOriginal<Record<string, unknown>>());
-  // Menu stub: bare pass-throughs with an onSelect-fired button; the
-  // suite asserts page wiring, not Menu internals.
   const passthrough = (props: any) => <div>{props.children}</div>;
   const Item = (props: any) => (
     <button
@@ -51,8 +44,6 @@ vi.mock("@/ui", async (importOriginal) => {
   };
 });
 
-// IndexMembersDrawer pulls its own data path; this suite asserts page
-// wiring and filter staging, not the members drawer — render nothing.
 vi.mock("@/components/patterns/IndexMembersDrawer", () => ({
   IndexMembersDrawer: () => null,
 }));
@@ -79,7 +70,6 @@ vi.mock("@/api/patternImages", () => ({
   fetchPatternImages: (...args: unknown[]) => fetchPatternImages(...args),
 }));
 
-// Rendered-prop spies for the trendlines-view wiring tests.
 const gridTrendlinesViews = vi.hoisted(() => [] as unknown[]);
 const fullscreenTrendlinesViews = vi.hoisted(() => [] as unknown[]);
 // Records the `overlays` prop per fullscreen render (single-pattern contract:
@@ -549,7 +539,6 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
   test("loading with no results and no active scan shows the card skeleton", () => {
     r(<PatternsPage {...makeProps({ loading: true, results: [], total: 0 })} />);
     expect(screen.getByTestId("patterns-loading")).toBeInTheDocument();
-    // The fallback is a layout-matched card grid, not a centred spinner.
     expect(screen.getByTestId("patterns-skeleton-grid")).toBeInTheDocument();
     expect(screen.getAllByTestId("patterns-skeleton-card")).toHaveLength(8);
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
@@ -625,7 +614,6 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
     await waitFor(() =>
       expect(fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1h", { detectPatterns: true }),
     );
-    // Newest hit is promoted (not highest confidence); the new candles clear the empty state.
     await waitFor(() =>
       expect(screen.getByTestId("patterns-fullscreen-active-hit")).toHaveTextContent("Rising Wedge"),
     );
@@ -725,7 +713,6 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
       candles: [],
       overlays: [],
       trend_lines: [],
-      // Live detection returns the SAME pattern with no DB id.
       hits: [{ ...cardHit, id: null }],
     });
 
@@ -735,7 +722,6 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
     await waitFor(() =>
       expect(screen.getByTestId("patterns-fullscreen-active-hit")).toHaveTextContent("Ascending Channel"),
     );
-    // One row, not two: the id-carrying card hit and the id-less live hit are the same.
     expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent("Ascending Channel");
     expect(screen.queryByTestId("patterns-fullscreen-list-item-1")).not.toBeInTheDocument();
   });

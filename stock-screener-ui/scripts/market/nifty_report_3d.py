@@ -1,14 +1,4 @@
 #!/usr/bin/env python3
-"""NIFTY 3D report — positioning terrain, IV surface, futures path.
-
-Standalone WebGL page (Plotly) built from the recorded 2026-11-17 session:
-  * terrain  : 5-minute PE/CE volume increments and OI change by strike
-  * IV       : OTM IV surface from the report snapshots
-  * futures  : 1-minute close / OI path with the 11:45-12:00 buildup marked
-
-Everything is clipped to the tape's last minute (14:07). No forward filling
-of prices, no synthetic points.
-"""
 
 from __future__ import annotations
 
@@ -42,7 +32,6 @@ SESSION_START = 9 * 60 + 15
 SESSION_END = 14 * 60 + 7
 
 
-# ----------------------------------------------------------------- data load
 def minutes(ts: str) -> int:
     return int(ts[11:13]) * 60 + int(ts[14:16])
 
@@ -85,7 +74,6 @@ def nearest(rows: list[dict], target: int, tolerance: int = 3) -> dict | None:
 
 
 def carry(series: list[float | None]) -> list[float]:
-    """Nulls in the tape mean 'no print', not zero — hold the last cumulative."""
     out: list[float] = []
     last = None
     for v in series:
@@ -108,9 +96,8 @@ def field_matrix(tape: list[dict], idx: int) -> dict[int, list[float]]:
     }
 
 
-# ----------------------------------------------------------------- terrain
 def build_terrain(tape: list[dict]):
-    times = list(range(SESSION_START, SESSION_END - 1, BUCKET_MIN))  # 09:15 … 14:05
+    times = list(range(SESSION_START, SESSION_END - 1, BUCKET_MIN))
     stamps = [nearest(tape, t) for t in times]
     assert all(stamps), "tape does not cover every 5-minute boundary"
     row_idx = []
@@ -124,7 +111,7 @@ def build_terrain(tape: list[dict]):
     pe_oi = field_matrix(tape, 3)
     ce_oi = field_matrix(tape, 2)
 
-    labels = [hhmm(t) for t in times[1:]]  # label = bucket end
+    labels = [hhmm(t) for t in times[1:]]
     metrics: dict[str, list[list[float]]] = {k: [] for k in
                                              ("pe_vol", "ce_vol", "pe_oi", "ce_oi")}
     grounds = {"pe_vol": pe_vol, "ce_vol": ce_vol, "pe_oi": pe_oi, "ce_oi": ce_oi}
@@ -153,7 +140,6 @@ def build_terrain(tape: list[dict]):
     }
 
 
-# ----------------------------------------------------------------- IV surface
 def otm_iv(point: dict, strike: float, spot: float) -> float | None:
     d = strike - spot
     if abs(d) <= 25:
@@ -215,7 +201,6 @@ def build_iv(snaps: list[dict], tape: list[dict]):
     }
 
 
-# ----------------------------------------------------------------- futures
 FUT_REGIME = {
     "long_buildup": ("long buildup", "#2FA36B"),
     "short_buildup": ("short buildup", "#E5606A"),
@@ -274,7 +259,6 @@ def build_futures(candles: list[dict]):
         seg = [c for c in rows if start <= minutes(c["t"]) <= end]
         dp = by_min[end]["c"] - by_min[start]["c"]
         doi = by_min[end]["oi"] - by_min[start]["oi"]
-        # the start bar belongs to the preceding minute; the note's 350,220 excludes it
         vol = sum(c["v"] for c in seg if minutes(c["t"]) > start)
         return {
             "from": a, "to": b,
@@ -299,7 +283,6 @@ def build_futures(candles: list[dict]):
     }
 
 
-# ----------------------------------------------------------------- facts
 def build_facts(tape, terrain, iv, fut):
     times = terrain["times"]
     spot = terrain["spot"]
@@ -379,7 +362,6 @@ def build_facts(tape, terrain, iv, fut):
     }
 
 
-# ----------------------------------------------------------------- payload
 def build_payload():
     ctx, tape, snaps, candles = fixtures()
     terrain = build_terrain(tape)
@@ -421,7 +403,6 @@ def build_payload():
     }
 
 
-# ----------------------------------------------------------------- html
 TEMPLATE = r"""<!doctype html>
 <html lang="en">
 <head>
@@ -1153,7 +1134,6 @@ def render_html(payload: dict) -> str:
     return TEMPLATE.replace("__PAYLOAD__", compact)
 
 
-# ----------------------------------------------------------------- validate
 def validate(html: str, payload: dict) -> list[str]:
     notes = []
     checks = {

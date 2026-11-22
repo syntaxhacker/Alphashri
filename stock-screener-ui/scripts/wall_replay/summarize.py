@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""Aggregate every wall-replay session into one table + summary.md.
-
-Reads reports/WALL_REPLAY/state/<date>.json (written by gym.py) and the
-session notes. No look-ahead, no market data — pure accounting.
-"""
 
 from __future__ import annotations
 

@@ -17,10 +17,8 @@ import type {
 } from "@/types/niftyReport";
 import type { ReplayCandle } from "@/types/replay";
 
-/** A tape row carries at least a timestamp and a spot. */
 export type TapeSpotPoint = Pick<NiftyTapeRow, "t" | "spot">;
 
-/** A 10-second chain snapshot carries at least a timestamp and a spot. */
 export type SpotPoint = { t: string; spot?: number | null };
 
 /**
@@ -69,22 +67,10 @@ export function effectiveSessionDate(
   return newest.slice(0, 10);
 }
 
-/** True when `time` belongs to `sessionDate` — or when no session is pinned. */
 export function isOnSession(time: string, sessionDate: string): boolean {
   return !sessionDate || time.startsWith(sessionDate);
 }
 
-/**
- * Last-resort spot path — NOT true OHLC. It folds consecutive 1-minute
- * tape spots into bars where `high`/`low` never exceed the body (each bar
- * spans open→close only), so the chart draws a continuous line with no
- * wicks. Kept only for when the 10-second chain feed is absent; prefer
- * `candlesFromSpotPoints` whenever the 10 s snapshots are available. Rows
- * whose spot is not a finite positive number are skipped — and they do not
- * advance `prev`, so the next valid bar opens on the last valid spot.
- * Volume is always 0 (the tape carries no volume). Rows outside
- * `sessionDate` are dropped.
- */
 export function candlesFromTape(
   rows: readonly TapeSpotPoint[],
   sessionDate: string,
@@ -110,26 +96,10 @@ export function candlesFromTape(
     .filter((c): c is ReplayCandle => c !== null);
 }
 
-/**
- * Internal carrier for the spot-derived bars: they carry `volume: 0` (the
- * chain feed has no volume) but the declared return type is
- * `NiftyIntradayCandle` — `resampleCandles` normalises a missing volume to
- * 0 downstream, so hiding it here keeps one candle shape across sources.
- */
 interface SpotCandle extends NiftyIntradayCandle {
   volume: number;
 }
 
-/**
- * Build true 1-minute OHLC from the 10-second chain snapshots (6 points a
- * minute during a session): the minute's `open` is the first spot, `close`
- * the last, `high`/`low` the extremes — so wicks exist. Points are filtered
- * to `sessionDate`, non-finite / non-positive spots are dropped, and the
- * rest are sorted by `t` before grouping by minute key (`t.slice(0, 16)`),
- * so out-of-order input still forms one bar per minute. A single-point
- * minute is allowed (open = close = high = low); a minute with no valid
- * point produces no candle. Timestamps are emitted as `${minuteKey}:00`.
- */
 export function candlesFromSpotPoints(
   points: readonly SpotPoint[],
   sessionDate: string,

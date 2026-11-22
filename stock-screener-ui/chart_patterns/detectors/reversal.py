@@ -56,9 +56,6 @@ CONVERGE = 0.80  # end width must be < 80% of start width
 WEDGE_WINDOWS = (90, 150, 200)
 
 
-# ---------------------------------------------------------------------------
-# small local helpers
-# ---------------------------------------------------------------------------
 
 
 #: Reversal overlays are serialised at 4 decimals (``segment_points``), so the
@@ -70,7 +67,6 @@ _BOUND_MARGIN = 1e-4
 def _bound(
     df: pd.DataFrame, slope: float, intercept: float, x0: int, x1: int, side: str
 ) -> tuple[float, float]:
-    """Shift a line so it bounds every candle within ``[x0, x1]`` (reversal margin)."""
     return shift_line_to_bound(df, slope, intercept, x0, x1, side, margin=_BOUND_MARGIN)
 
 
@@ -114,9 +110,6 @@ def _bottom_line_points(
     ]
 
 
-# ---------------------------------------------------------------------------
-# Wedges
-# ---------------------------------------------------------------------------
 
 
 def _wedge_envelopes(df: pd.DataFrame, ctx: dict, start: int, falling: bool):
@@ -191,7 +184,6 @@ def _build_wedge_hit(
         return None
     cx0, cx1 = span
 
-    # --- detection geometry: common overlap (unchanged thresholds) ---------
     su, iu = _bound(df, eu["slope"], eu["intercept"], cx0, cx1, "upper")
     sl, il = _bound(df, el["slope"], el["intercept"], cx0, cx1, "lower")
 
@@ -221,7 +213,6 @@ def _build_wedge_hit(
     if r2 < MIN_R2:
         return None
 
-    # --- drawing: each boundary keeps its own real extreme pivot span ------
     # Re-bound over the *full* per-side span (not the overlap) so the line still
     # provably bounds price after being extended to its earliest pivot.
     su2, iu2 = _bound(df, eu["slope"], eu["intercept"], eu["x0"], eu["x1"], "upper")
@@ -286,7 +277,6 @@ def _build_wedge_hit(
 
 
 def _wedge_candidate(df: pd.DataFrame, ctx: dict, start: int, falling: bool):
-    """One window's full falling/rising wedge candidate, or ``None``."""
     env = _wedge_envelopes(df, ctx, start, falling)
     if env is None:
         return None
@@ -377,7 +367,6 @@ def _wedge_impl(df: pd.DataFrame, ctx: dict, falling: bool) -> list:
     )
     if blended is not None:
         return [blended]
-    # Blend did not form a valid wedge -> best single-window candidate.
     best = max(candidates, key=lambda c: c["hit"].confidence)
     return [best["hit"]]
 
@@ -408,9 +397,6 @@ def detect_rising_wedge(df: pd.DataFrame, ctx: dict | None = None) -> list:
     return _wedge_impl(df, ctx or {}, falling=False)
 
 
-# ---------------------------------------------------------------------------
-# Diamond bottom
-# ---------------------------------------------------------------------------
 
 
 def detect_diamond_bottom(df: pd.DataFrame, ctx: dict | None = None) -> list:
@@ -487,7 +473,6 @@ def detect_diamond_bottom(df: pd.DataFrame, ctx: dict | None = None) -> list:
     if r2 < MIN_R2:
         return []
 
-    # --- draw the four lens lines across the full half spans ---------------
     left0 = min(eu1["x0"], el1["x0"])
     right1 = max(eu2["x1"], el2["x1"])
     lu_s, lu_i = _bound(df, eu1["slope"], eu1["intercept"], left0, mid, "upper")
@@ -537,9 +522,6 @@ def detect_diamond_bottom(df: pd.DataFrame, ctx: dict | None = None) -> list:
     ]
 
 
-# ---------------------------------------------------------------------------
-# Double / triple bottoms
-# ---------------------------------------------------------------------------
 
 
 def _similarity_r2(a: float, b: float, mean_price: float, tol_pct: float = 4.0) -> float:
@@ -578,13 +560,11 @@ def _double_bottom_impl(df: pd.DataFrame, ctx: dict, tol_pct: float = 4.0) -> li
     atr_val = F.atr_value(df)
     if depth <= max(0.5 * atr_val, 0.5):
         return []
-    # price should be recovering toward the neckline, not collapsing
     if float(df["close"].iloc[end]) < base + 0.35 * depth:
         return []
     r2 = _similarity_r2(a[1], b[1], mean_price, tol_pct)
     if r2 < 0.5:
         return []
-    # end_pos reaches the neckline breakout bar (post-breakout inside the span).
     br = _breakout_pos(df, 0.0, neck, "bullish", b[0])
     end_pos = br if br is not None else b[0]
     trendlines = [
@@ -691,9 +671,6 @@ def detect_triple_bottom(df: pd.DataFrame, ctx: dict | None = None) -> list:
     ]
 
 
-# ---------------------------------------------------------------------------
-# Head & Shoulders
-# ---------------------------------------------------------------------------
 
 
 def _hs_impl(df: pd.DataFrame, ctx: dict, inverse: bool) -> list:
@@ -821,13 +798,9 @@ def detect_inverse_head_shoulders(df: pd.DataFrame, ctx: dict | None = None) -> 
     return _hs_impl(df, ctx or {}, inverse=True)
 
 
-# ---------------------------------------------------------------------------
-# Rounding bottom
-# ---------------------------------------------------------------------------
 
 
 def _poly_cup(df: pd.DataFrame, start: int, end: int):
-    """Fit close against bar index; return dict or None."""
     y = df["close"].iloc[start : end + 1].to_numpy(dtype=float)
     if len(y) < 15:
         return None
@@ -872,14 +845,13 @@ def detect_rounding_bottom(df: pd.DataFrame, ctx: dict | None = None) -> list:
     fitted = cup["fitted"]
     trough = float(fitted.min())
     hi, lo, _, _ = F.swing_extremes(df, start, end)
-    rim = float(hi)  # resistance envelope across the whole window
+    rim = float(hi)
     atr_val = F.atr_value(df)
     depth = rim - trough
     if depth <= max(0.6 * atr_val, 0.6):
         return []
     if rim <= trough:
         return []
-    # price should have climbed off the base toward the rim
     if float(df["close"].iloc[end]) < trough + 0.45 * (rim - trough):
         return []
     highs, lows = get_swings(df, ctx)
@@ -910,9 +882,6 @@ def detect_rounding_bottom(df: pd.DataFrame, ctx: dict | None = None) -> list:
     ]
 
 
-# ---------------------------------------------------------------------------
-# registration
-# ---------------------------------------------------------------------------
 
 register("falling_wedge", detect_falling_wedge)
 register("rising_wedge", detect_rising_wedge)

@@ -50,10 +50,6 @@ STRADDLE_LEGS = 2
 SINGLE_LEG = 1
 
 
-# ---------------------------------------------------------------------------
-# Small coercion helpers (never raise)
-# ---------------------------------------------------------------------------
-
 def _opt_float(value: Any) -> Optional[float]:
     """``float(value)`` or ``None`` — blank/garbage becomes ``None``."""
     if value is None or isinstance(value, bool):
@@ -148,10 +144,6 @@ def _trade_key(record: dict) -> Optional[str]:
     strategy = _opt_str(record.get("strategy")) or "trade"
     return f"{strategy}|{symbol}|{entry}"
 
-
-# ---------------------------------------------------------------------------
-# Journal / position parsing (pure)
-# ---------------------------------------------------------------------------
 
 def parse_journal_lines(lines: Iterable[str]) -> list[dict]:
     """Parse JSONL journal lines, skipping blank/corrupt/non-object entries.
@@ -273,10 +265,6 @@ def normalise_position(raw: Any) -> Optional[dict]:
     }
 
 
-# ---------------------------------------------------------------------------
-# Marker / summary builders (pure)
-# ---------------------------------------------------------------------------
-
 def _entry_marker(record: dict) -> Optional[dict]:
     entry_time = _opt_str(record.get("entry_time"))
     if not entry_time:
@@ -391,10 +379,6 @@ def collect_desk_trades(date_str: str,
         "summary": build_summary(records),
     }
 
-
-# ---------------------------------------------------------------------------
-# Route
-# ---------------------------------------------------------------------------
 
 @router.get("/nifty/desk-trades")
 def get_desk_trades(date: Optional[str] = Query(

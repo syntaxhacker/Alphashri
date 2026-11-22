@@ -115,7 +115,6 @@ class _FakeRequest:
         self.query_params = params or {}
 
 
-# ---------------- registry ----------------
 
 class TestRegistryAllEngines:
 
@@ -136,7 +135,6 @@ class TestRegistryAllEngines:
                 assert {"name", "label", "type", "default"} <= set(d)
 
 
-# ---------------- swing engines ----------------
 
 class TestSwingEngines:
 
@@ -179,7 +177,6 @@ class TestSwingEngines:
             assert result.extras["bars"] is ctx.bars
 
 
-# ---------------- intraday engines ----------------
 
 class TestIntradayEngines:
 
@@ -211,7 +208,6 @@ class TestIntradayEngines:
         assert getattr(registry.get("smc"), "load", None) is None
 
 
-# ---------------- tick engine ----------------
 
 class TestSmcChopEngine:
 
@@ -225,7 +221,6 @@ class TestSmcChopEngine:
         _assert_canonical(result.trades)
 
 
-# ---------------- generic endpoint ----------------
 
 class TestGenericEndpoint:
 

@@ -1,6 +1,3 @@
-/**
- * Stock symbol mentioned in an article
- */
 export interface NewsSymbol {
   name: string;
   code: string;
@@ -12,9 +9,6 @@ export interface NewsSymbol {
   match_method?: "exact" | "variation" | "fuzzy" | "none" | "blacklisted";
 }
 
-/**
- * News item interface - represents a single news article
- */
 export interface NewsItem {
   id: string;
   headline: string;
@@ -29,18 +23,12 @@ export interface NewsItem {
   symbols?: NewsSymbol[];
 }
 
-/**
- * News source configuration
- */
 export interface NewsSource {
   id: string;
   name: string;
   url: string;
 }
 
-/**
- * News API response
- */
 export interface NewsResponse {
   items: NewsItem[];
   source: string;
@@ -48,18 +36,12 @@ export interface NewsResponse {
   fetchedAt: string;
 }
 
-/**
- * Trade idea from LLM analysis
- */
 export interface TradeIdea {
   symbol: string;
   direction: "LONG" | "SHORT";
   reasoning: string;
 }
 
-/**
- * Article content response
- */
 export interface ArticleResponse extends NewsItem {
   error?: string;
   sentiment?: "BULLISH" | "BEARISH" | "NEUTRAL";
@@ -71,9 +53,6 @@ export interface ArticleResponse extends NewsItem {
   analysis_status?: "none" | "pending" | "processing" | "done" | "failed";
 }
 
-/**
- * Symbol mapping result
- */
 export interface SymbolMapping {
   original_code: string;
   trading_symbol: string | null;
@@ -83,9 +62,6 @@ export interface SymbolMapping {
   method: string;
 }
 
-/**
- * Chart data for a symbol
- */
 export interface SymbolChartData {
   symbol: string;
   trading_symbol: string;
@@ -101,9 +77,6 @@ export interface SymbolChartData {
   recent_news: NewsArticle[];
 }
 
-/**
- * Stored news article from database
- */
 export interface NewsArticle {
   id: number;
   url: string;
@@ -123,9 +96,6 @@ export interface NewsArticle {
   analysis_status?: "none" | "pending" | "processing" | "done" | "failed";
 }
 
-/**
- * News articles for symbol response
- */
 export interface SymbolArticlesResponse {
   symbol: string;
   trading_symbol: string | null;
@@ -135,9 +105,6 @@ export interface SymbolArticlesResponse {
   articles: NewsArticle[];
 }
 
-/**
- * News stats response
- */
 export interface NewsStatsResponse {
   total_articles: number;
   total_symbol_mentions: number;

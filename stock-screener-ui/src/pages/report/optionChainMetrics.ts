@@ -23,23 +23,18 @@
 interface ChainSentiment {
   type?: string;
   color?: string;
-  /** `LB` (long buildup), `SB` (short buildup), `SC`, `LU` or `Neutral`. */
   label?: string;
 }
 
-/** One leg (CE or PE) of a chain row. */
 export interface ChainSide {
   ltp?: number | null;
   /** Previous close, snake-case payload field. */
   close_price?: number | null;
-  /** Camel-case alias (`NiftyOptionSide.close`). */
   close?: number | null;
   oi?: number | null;
   prev_oi?: number | null;
-  /** Camel-case alias (`NiftyOptionSide.prevOi`). */
   prevOi?: number | null;
   oi_change?: number | null;
-  /** Camel-case alias (`NiftyOptionSide.oiChange`). */
   oiChange?: number | null;
   volume?: number | null;
   iv?: number | null;
@@ -48,25 +43,20 @@ export interface ChainSide {
   sentiment?: ChainSentiment | string | null;
 }
 
-/** One strike row of the option chain. */
 export interface ChainRow {
   strike: number;
   ce: ChainSide;
   pe: ChainSide;
 }
 
-/** Top OI walls — the arrays are already the desk's chosen wall strikes. */
 export interface ChainWalls {
   calls?: { strike: number }[] | null;
   puts?: { strike: number }[] | null;
 }
 
 interface LegChange {
-  /** `ltp - close_price`, in index/option points. */
   points: number;
-  /** Premium change as a percent of the previous close (`0` when close ≤ 0). */
   pct: number;
-  /** Display string, e.g. `−108.55 (−4.2%)`. */
   label: string;
 }
 
@@ -78,7 +68,6 @@ interface ChainRowFlags {
   itmPe: boolean;
 }
 
-/** U+2212 minus — matches the report's tabular number style. */
 const MINUS = "−";
 
 import { safeNum } from "@/utils/reportParsers";
@@ -91,7 +80,6 @@ function closePrice(leg: ChainSide): number {
   return safeNum(leg.close_price ?? leg.close);
 }
 
-/** Signed, fixed-decimal display — avoids `−0.00` on tiny negatives. */
 function signed(value: number, decimals: number): string {
   const rounded = Number(value.toFixed(decimals));
   const body = Math.abs(rounded).toFixed(decimals);
@@ -128,13 +116,6 @@ function wallStrikes(walls: { strike: number }[] | null | undefined): Set<number
   return levels;
 }
 
-/**
- * Badge flags for one strike.
- *
- * ATM is the strike within half a step of spot (default step 50 → ±25). An ITM
- * call sits below spot, an ITM put above; the exact ATM strike is neither.
- * Wall flags come from the supplied top-wall strikes.
- */
 export function rowFlags(
   row: ChainRow,
   spot: number,

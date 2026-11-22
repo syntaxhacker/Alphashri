@@ -48,16 +48,8 @@ interface ReportBreakoutTableProps {
    * derived client-side from `daily_closes` (min-max normalized). Rows without
    * daily closes always keep the payload spark. */
   sparkRange?: "intraday" | "5d";
-  /** Symbols the scan inspected. Printed once, on the scan's primary table —
-   * the date/universe already live in the identity band, so this panel never
-   * re-prints them. */
   scanned?: number;
-  /** Override for the scanned badge id (the page owns the historic
-   * `report-breakouts-scanned` name). */
   scannedTestId?: string;
-  /** Renders the scan-level spark-range control in this panel's header. Only
-   * one panel may own it — two controls would be two sources of truth for the
-   * same view switch. */
   showSparkRange?: boolean;
   onSparkRangeChange?: (range: "intraday" | "5d") => void;
 }

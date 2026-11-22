@@ -1,8 +1,3 @@
-/**
- * Shared API request helpers
- * Provides unified methods for making authenticated API calls
- */
-
 import { fetchWithAuth } from "../../state/auth";
 
 import { API_BASE } from "@/api/config";
@@ -64,9 +59,6 @@ export async function safeGet<T>(
   return jsonOrThrow<T>(response, defaultMessage ?? "Request failed");
 }
 
-/**
- * Build URL with query parameters
- */
 export function buildUrl(
   endpoint: string,
   params?: Record<string, string | number | boolean>,
@@ -84,9 +76,6 @@ export function buildUrl(
   return queryString ? `${API_BASE}${endpoint}?${queryString}` : `${API_BASE}${endpoint}`;
 }
 
-/**
- * Make a GET request with authentication
- */
 export async function apiGet<T>(
   endpoint: string,
   params?: Record<string, string | number | boolean>,
@@ -99,9 +88,6 @@ export async function apiGet<T>(
   return response.json();
 }
 
-/**
- * Make a POST request with authentication
- */
 export async function apiPost<T>(endpoint: string, data?: unknown): Promise<T> {
   const url = buildUrl(endpoint);
   const response = await fetchWithAuth(url, {
@@ -115,9 +101,6 @@ export async function apiPost<T>(endpoint: string, data?: unknown): Promise<T> {
   return response.json();
 }
 
-/**
- * Make a PUT request with authentication
- */
 export async function apiPut<T>(endpoint: string, data?: unknown): Promise<T> {
   const url = buildUrl(endpoint);
   const response = await fetchWithAuth(url, {
@@ -131,9 +114,6 @@ export async function apiPut<T>(endpoint: string, data?: unknown): Promise<T> {
   return response.json();
 }
 
-/**
- * Make a DELETE request with authentication
- */
 export async function apiDelete<T>(endpoint: string): Promise<T> {
   const url = buildUrl(endpoint);
   const response = await fetchWithAuth(url, {
@@ -145,9 +125,6 @@ export async function apiDelete<T>(endpoint: string): Promise<T> {
   return response.json();
 }
 
-/**
- * Make a POST request without body (for action endpoints like start/stop)
- */
 export async function apiPostAction<T>(
   endpoint: string,
   params?: Record<string, string | number | boolean>,

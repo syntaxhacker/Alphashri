@@ -86,7 +86,6 @@ def _fyers_symbol(ticker: str) -> str:
 
 def fetch_chain_for_expiry(model, symbol: str, expiry_epoch: int,
                            strikecount: int = 50, greeks: bool = True) -> dict:
-    """Fetch one option chain for a specific expiry epoch."""
     payload: dict = {"symbol": symbol, "strikecount": int(strikecount),
                      "timestamp": int(expiry_epoch)}
     if greeks:
@@ -98,7 +97,6 @@ def fetch_chain_for_expiry(model, symbol: str, expiry_epoch: int,
 
 
 def list_expiries(model, symbol: str) -> list[dict]:
-    """Known expiries for the symbol (nearest first), via a strikecount=1 chain."""
     resp = model.optionchain(data={"symbol": symbol, "strikecount": 1})
     if not isinstance(resp, dict) or resp.get("s") != "ok":
         raise RuntimeError(f"expiry list failed for {symbol}: {resp!r}")
@@ -133,7 +131,6 @@ def list_expiries(model, symbol: str) -> list[dict]:
 
 
 def nearest_expiry_on_or_after(expiries: list[dict], on_or_after: date) -> dict | None:
-    """Pick the first expiry whose date >= on_or_after."""
     for e in expiries:
         if not e["date"]:
             continue

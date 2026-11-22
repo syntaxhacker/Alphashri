@@ -1,4 +1,3 @@
-"""DB-backed pattern timeframe visibility, ordering and custom specs."""
 from __future__ import annotations
 
 import re
@@ -118,7 +117,6 @@ def _close(session) -> None:
 
 
 def ensure_configs(session=None) -> None:
-    """Insert defaults for missing built-in timeframes; never overwrite."""
     owns_session = session is None
     try:
         if session is None:

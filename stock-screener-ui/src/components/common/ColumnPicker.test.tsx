@@ -195,7 +195,6 @@ describe("ColumnPicker", () => {
     const top = Number.parseFloat(panel.style.top);
     const right = Number.parseFloat(panel.style.right);
     const maxHeight = Number.parseFloat(panel.style.maxHeight);
-    // Opened upwards, clamped to the space above, never off the top edge.
     expect(top).toBeGreaterThanOrEqual(8);
     expect(top + maxHeight).toBeLessThanOrEqual(vh - 38);
     expect(maxHeight).toBeLessThan(320);
@@ -223,7 +222,6 @@ describe("ColumnPicker", () => {
     await Promise.resolve();
 
     const panel = screen.getByTestId("table-column-picker");
-    // Gap below the trigger, and the full height is available.
     expect(Number.parseFloat(panel.style.top)).toBe(134);
     expect(Number.parseFloat(panel.style.maxHeight)).toBe(320);
   });

@@ -6,12 +6,10 @@ import { statusBadgeTone, statusLabel, type BadgeTone } from "./patternTone";
 
 export interface StatusBadgeProps {
   status: PatternStatus | string | null | undefined;
-  /** Derived display status (ARMED / BREAKOUT / …). Falls back to `status`. */
   display?: DisplayStatus | null;
   "data-testid"?: string;
 }
 
-/** `BREAKOUT` → `Breakout` — badges are sentence-case, the card pill is upper. */
 function titleCase(label: string): string {
   return label.charAt(0) + label.slice(1).toLowerCase();
 }
@@ -20,7 +18,6 @@ function toneToBadgeTone(tone: DisplayTone): BadgeTone {
   return tone === "neutral" ? "default" : tone;
 }
 
-/** Small semantic chip for a pattern detection status. */
 export function StatusBadge(props: StatusBadgeProps) {
   const [local] = splitProps(props, ["status", "display"]);
   const key = () => String(local.status ?? "").toLowerCase();

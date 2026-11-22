@@ -48,9 +48,6 @@ def _use_tmp_instruments(monkeypatch, tmp_path: Path, records: list[dict]) -> Pa
     return path
 
 
-# ---------------------------------------------------------------------------
-# Detection rules on the real instruments file
-# ---------------------------------------------------------------------------
 
 
 def test_real_file_counts_match_verified_rules():
@@ -127,9 +124,6 @@ def test_unknown_symbol_returns_empty():
     assert tags_mod.tags_for(None) == []  # str()'d, never raises
 
 
-# ---------------------------------------------------------------------------
-# Both tags, caching, failure modes
-# ---------------------------------------------------------------------------
 
 
 def test_symbol_in_both_universes_gets_both_tags(tmp_path, monkeypatch):
@@ -189,9 +183,6 @@ def test_missing_or_bad_instruments_file_never_raises(tmp_path, monkeypatch):
     assert tags_mod.tags_for("ANYTHING") == []
 
 
-# ---------------------------------------------------------------------------
-# Symbol normalization (shared helper)
-# ---------------------------------------------------------------------------
 
 
 def test_norm_symbol_case_and_blank():

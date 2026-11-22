@@ -97,9 +97,6 @@ def cp_client(test_db_engine):
         store.reset_session_factory()
 
 
-# ---------------------------------------------------------------------------
-# Enrichment fan-out
-# ---------------------------------------------------------------------------
 
 
 def test_enrich_fetches_concurrently(monkeypatch):
@@ -205,9 +202,6 @@ def test_enrich_missing_symbol_passthrough(monkeypatch):
     assert out[0]["trend_lines"] == []
 
 
-# ---------------------------------------------------------------------------
-# /watch snapshot fast-path
-# ---------------------------------------------------------------------------
 
 
 def _snapshot_payload() -> dict:

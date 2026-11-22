@@ -13,9 +13,6 @@ import pytest
 from scripts import agent_desk_manager as mgr
 
 
-# ---------------------------------------------------------------------------
-# Ledger parsing + plan resolution
-# ---------------------------------------------------------------------------
 
 LEDGER_TEXT = """
 ## 2026-10-21
@@ -90,9 +87,6 @@ def test_threat_levels_from_strikes():
     assert mgr.threat_levels({}) == {"ce": None, "pe": None}
 
 
-# ---------------------------------------------------------------------------
-# Leg identification
-# ---------------------------------------------------------------------------
 
 POSITIONS = [
     {"id": "a1", "opt": "CE", "strike": 23300.0, "direction": "SHORT",
@@ -123,9 +117,6 @@ def test_find_leg_refuses_an_ambiguous_match():
     assert mgr.find_leg(POSITIONS, "CE", 23300.0, direction="LONG") is None
 
 
-# ---------------------------------------------------------------------------
-# Package P&L net of costs
-# ---------------------------------------------------------------------------
 
 QUOTES = {
     ("CE", 23300.0): {"ltp": 42.0, "bid": 41.8, "ask": 42.2},
@@ -164,9 +155,6 @@ def test_package_pnl_skips_unpriced_legs():
                    "priced": 0, "open": 1}
 
 
-# ---------------------------------------------------------------------------
-# Closing + EOD verify (manual plumbing mocked)
-# ---------------------------------------------------------------------------
 
 def test_close_leg_books_the_right_leg_and_only_it(monkeypatch):
     positions = [dict(POSITIONS[0]), dict(POSITIONS[1])]
@@ -227,9 +215,6 @@ def test_flatten_and_verify_retries_then_clears(monkeypatch):
     assert state["calls"] == 2  # one retry, then verified flat
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
 
 def test_legs_arg_parser():
     assert mgr._legs_arg("22,700:pe") == {22700.0: "PE"}

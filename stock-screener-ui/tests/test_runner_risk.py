@@ -129,7 +129,6 @@ class TestFetchOrData:
         """For n=6 (multiple of 3), latest_price should be from candle at index n - (n%3) - 1 = 5 (last candle)."""
         import pandas as pd
         mock_fetcher = MagicMock()
-        # Create 6 candles
         sample_candles = [
             {'time': f'2026-04-09T09:{10+i*5:02d}:00', 'open': 100+i, 'high': 101+i, 'low': 99+i, 'close': 100.5+i}
             for i in range(6)
@@ -161,7 +160,6 @@ class TestFetchOrData:
         result = runner.fetch_or_data("RELIANCE")
         assert result is None
         captured = capsys.readouterr()
-        # Should log an error message
         assert "Error fetching OR for RELIANCE" in captured.out or "Error fetching OR for RELIANCE" in captured.err
 
 
@@ -184,7 +182,6 @@ class TestFetchDailyData:
         """Test successful processing of daily data."""
         import pandas as pd
         mock_fetcher = MagicMock()
-        # Ensure volume column exists
         mock_fetcher.upstox_api.fetch_historical_data_v3.return_value = simple_daily_df
 
         to_date = date.today()
@@ -192,7 +189,6 @@ class TestFetchDailyData:
         result = runner.fetch_daily_data("RELIANCE")
 
         assert result is not None
-        # Current price should be last close
         expected_current = simple_daily_df['close'].iloc[-1]
         assert result['current_price'] == expected_current
 
@@ -220,7 +216,6 @@ class TestFetchDailyData:
     def test_ma_calculations_with_sufficient_data(self):
         """Test MA50 and MA200 when enough data is available."""
         import pandas as pd
-        # Create 200 days of data
         dates = pd.date_range(end=date.today(), periods=200, tz=IST)
         closes = [100 + i*0.1 for i in range(200)]
         data = {
@@ -290,7 +285,6 @@ class TestFetchDailyData:
         captured = capsys.readouterr()
         assert "Error fetching daily data for RELIANCE" in captured.out or "Error fetching daily data for RELIANCE" in captured.err
 
-    # --- Intraday price override tests ---
 
     def test_overrides_current_price_with_intraday_data(self, simple_daily_df):
         """When intraday 1-min data is available, current_price should use the latest intraday close."""
@@ -306,7 +300,6 @@ class TestFetchDailyData:
 
         assert result is not None
         assert result['current_price'] == 152.75  # latest intraday close
-        # Daily fields should still be from daily data
         assert result['high_52w'] == simple_daily_df['high'].max()
         assert result['ma50'] == 0.0
 
@@ -383,11 +376,9 @@ class TestFetchPreviousDayData:
 
     def test_returns_none_if_df_empty_or_insufficient(self):
         mock_fetcher = MagicMock()
-        # Empty df
         mock_fetcher.upstox_api.fetch_historical_data_v3.return_value = MagicMock(empty=True)
         runner = MockRunner(data_fetcher=mock_fetcher, to_date=date.today())
         assert runner.fetch_previous_day_data("RELIANCE") is None
-        # Df with single row
         import pandas as pd
         df_single = pd.DataFrame({'close': [100]}, index=[pd.Timestamp(date.today(), tz=IST)])
         mock_fetcher.upstox_api.fetch_historical_data_v3.return_value = df_single
@@ -396,7 +387,6 @@ class TestFetchPreviousDayData:
     def test_returns_current_and_previous_h_l_c(self):
         """Test correct extraction of prev day's HLC and current price."""
         import pandas as pd
-        # Create df with 2 rows
         dates = pd.date_range(end=date.today(), periods=2, tz=IST)
         df = pd.DataFrame({
             'high': [101, 102],
@@ -463,7 +453,6 @@ class TestFetchEMAData:
     def test_computes_ema_correctly(self):
         """Test that EMA values are computed correctly using price series."""
         mock_fetcher = MagicMock()
-        # Create a series of constant closes = 100, length sufficient (e.g., 100)
         import pandas as pd
         closes = [100.0] * 100
         df = pd.DataFrame({'close': closes})
@@ -479,13 +468,11 @@ class TestFetchEMAData:
         assert result['ema_fast_prev'] == round(100.0, 2)
         assert result['ema_slow_current'] == round(100.0, 2)
         assert result['ema_slow_prev'] == round(100.0, 2)
-        # Also contains closes list
         assert result['closes'] == closes
 
     def test_ema_with_varying_prices(self):
         """Test EMA calculation with a simple price series."""
         mock_fetcher = MagicMock()
-        # Use a linearly increasing series
         import pandas as pd
         closes = [100.0 + i for i in range(50)]
         df = pd.DataFrame({'close': closes})

@@ -37,12 +37,10 @@ function formatDayMonthKey(key: string): string {
   return `${day} ${name}`;
 }
 
-/** Session key for "today" in the chart's market zone. */
 function todayKey(timeZone: string): string {
   return sessionDateKey(new Date().toISOString(), timeZone) ?? "";
 }
 
-/** `13 Nov` within the current year, `13 Nov 2025` for an older bar. */
 function barDateLabel(value: string, timeZone: string): string {
   const key = sessionDateKey(value, timeZone);
   if (!key) return value.toUpperCase();
@@ -102,8 +100,6 @@ export function resolveCloseSeries(
     changePct: hit.day_change_pct ?? null,
     barDate: hit.close_bar_date ?? null,
     source: "hit",
-    // The hit's dated pair describes the same bar as the chart's last candle,
-    // so the partial flag still applies to the label we render.
     isPartial: chartKey != null && hitKey === chartKey ? isPartial : false,
   };
 }
@@ -111,9 +107,7 @@ export function resolveCloseSeries(
 export interface PatternChartBodyProps {
   hit: PatternHitDTO | null;
   candles: ChartCandle[];
-  /** Detected patterns for the symbol (newest-first single-select list). */
   hits?: PatternHitDTO[];
-  /** Switch the chart to the selected single pattern (replaces the active hit). */
   onSelectHit?: (hit: PatternHitDTO) => void;
   /**
    * Kept for API compatibility; the parent passes an empty list so only the
@@ -125,31 +119,21 @@ export interface PatternChartBodyProps {
    * back to the hit's own `trend_lines` when absent/empty.
    */
   trendLines?: TrendLine[];
-  /** View-only filter for standalone support/resistance lines. */
   trendlinesView?: TrendlinesView;
-  /** As-of replay cutoff (ISO local datetime, null = live). */
   asOf?: string | null;
-  /** A fetch is in flight with no candles yet — loading is not "no data". */
   loading?: boolean;
   /** Chart endpoint failure code, shown under the empty state. */
   chartError?: string | null;
-  /** Human-readable reason for an empty chart. */
   chartNote?: string | null;
   /** Live quote from the market snapshot. The LTP line is omitted when null. */
   livePrice?: number | null;
-  /** Day change % paired with `livePrice`. */
   liveChange?: number | null;
-  /** Right-hand panel content when no pattern is selected (page empty state). */
   emptyState?: JSX.Element;
   /**
    * Fill the flex parent (page layout) instead of sizing to the modal viewport.
    * The fullscreen modal keeps its `calc(100vh - 72px)` body height.
    */
   fill?: boolean;
-  /**
-   * Docked (right-rail) layout: stack the chart above the meta column instead
-   * of the modal's 80/20 side-by-side split, and tighten the padding.
-   */
   docked?: boolean;
   /**
    * Exchange whose session defines axis/session dates. `usa` resolves to
@@ -165,11 +149,6 @@ export interface PatternChartBodyProps {
   delayLabel?: string;
 }
 
-/**
- * Narrow right-hand data column: symbol/pattern meta plus the collapsible pivot
- * audit list. Intentionally leaves vertical room free so future panels (levels,
- * trade plan, checklist) can be added without touching the chart layout.
- */
 function SectionLabel(props: { children?: JSX.Element; action?: JSX.Element }) {
   return (
     <Box className="flex items-center justify-between gap-2">
@@ -327,12 +306,6 @@ function FullscreenPanel(props: {
   );
 }
 
-/**
- * TradingView fullscreen chart: the lightweight-charts adapter with the compact
- * HTML legend above it. The legend entries come from the same
- * `buildPatternTVData(...).lines` the chart draws, so swatch colours always
- * match the rendered lines.
- */
 function FullscreenTV(props: {
   hit: PatternHitDTO | null;
   candles: ChartCandle[];

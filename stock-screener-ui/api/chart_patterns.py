@@ -76,10 +76,8 @@ def _json_response(payload) -> JSONResponse:
     return JSONResponse(content=_sanitize_for_json(payload))
 
 
-# ---------------------------------------------------------------------------
 # Frozen fallbacks (CONTRACT.md §1/§2) — used only if Agent 1's registries are
 # unavailable so this router stays functional during integration.
-# ---------------------------------------------------------------------------
 
 _FALLBACK_TIMEFRAMES = [
     {"id": "1m", "label": "1m", "minutes": 1, "native": True, "source_tf": None, "max_lookback_days": 30, "min_bars": 60},
@@ -147,7 +145,6 @@ _TS_CACHE: dict = {}
 _TS_CACHE_MAX = 8
 
 
-# ---------------------------------------------------------------------------
 # Short-TTL read cache (stale-scan-safe)
 #
 # ``/summary`` and ``/matrix`` re-query the store on every UI poll, but the
@@ -157,7 +154,6 @@ _TS_CACHE_MAX = 8
 # finishes, the key changes and the recompute runs immediately, so no
 # response can outlive the scan it was built from by more than the TTL.
 # ``/results`` is deliberately *not* cached (enrichment + fresh cards).
-# ---------------------------------------------------------------------------
 
 _READ_CACHE_TTL_SEC = 3.0
 #: Lookup answers are keyed on the scan stamp too, so a longer TTL is safe:
@@ -237,7 +233,6 @@ def _clear_read_caches() -> None:
     _clear_all_enrichment()
 
 
-# ---------------------------------------------------------------------------
 # Frame-scoped enrichment cache.
 #
 # A ``last_close``/``day_change_pct`` pair is only meaningful alongside the
@@ -254,7 +249,6 @@ def _clear_read_caches() -> None:
 # guard, a single (symbol, timeframe) slot let the last writer win, so a chart
 # request could leave a partial-session LTP next to completed-session detection
 # (KAYNES: 2,986 on 16-Nov vs 3,382 detected through 13-Nov).
-# ---------------------------------------------------------------------------
 
 _ENRICH_CACHE_TTL_SEC = float(os.environ.get("CHART_ENRICH_CACHE_TTL_SEC", "300.0"))
 _ENRICH_CACHE_MAX = 512
@@ -489,7 +483,6 @@ def _clear_all_enrichment() -> None:
         _known_frame.clear()
 
 
-# ---------------------------------------------------------------------------
 # Symbol chart fetch: hard timeout + negative cache for empty results.
 #
 # A missing/slow symbol (Upstox DNS failure, hung feed) must not hold
@@ -506,7 +499,6 @@ def _clear_all_enrichment() -> None:
 # frame's last session — never as current data. The read is local disk,
 # adds no network call, and never applies to historical/as-of namespaced
 # cache files.
-# ---------------------------------------------------------------------------
 
 #: Hard upper bound on one symbol-chart candle fetch (seconds). Env-overridable
 #: for deployments on slower feeds; 0 disables the cap.
@@ -685,7 +677,6 @@ def _log_refresh_result(symbol: str, timeframe: str, *, attempt: int,
     )
 
 
-# ---------------------------------------------------------------------------
 # Symbol chart fetch: stale-first serving + pattern-hit cache.
 #
 # For live ``GET /symbol/{symbol}/chart`` (no replay/as-of) the default
@@ -702,7 +693,6 @@ def _log_refresh_result(symbol: str, timeframe: str, *, attempt: int,
 # are cached per ``(symbol, timeframe, IST session)`` for ~5 minutes so a
 # fullscreen poll does not re-run the detector when nothing changed. Entries
 # never apply across sessions.
-# ---------------------------------------------------------------------------
 
 #: Largest default live-edge pickle the stale-first read will touch (bytes).
 _STALE_FIRST_MAX_BYTES = int(os.environ.get("CHART_STALE_FIRST_MAX_BYTES", str(16 * 1024 * 1024)))
@@ -1124,10 +1114,6 @@ def _store_pattern_block(symbol_u: str, timeframe: str, session: str, block: dic
         "trend_lines_sig": sig,
     }, frame_id)
 
-
-# ---------------------------------------------------------------------------
-# Resolvers
-# ---------------------------------------------------------------------------
 
 def _spec_to_dict(spec) -> dict:
     if isinstance(spec, dict):
@@ -1837,10 +1823,6 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
     return items
 
 
-# ---------------------------------------------------------------------------
-# Request models
-# ---------------------------------------------------------------------------
-
 class DetectRequest(BaseModel):
     """Single-symbol, synchronous pattern check (no job queue)."""
 
@@ -1920,10 +1902,6 @@ def _normalize_symbol_list(raw, cap: Optional[int] = None) -> list[str]:
             break
     return out
 
-
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
 
 @router.get("/timeframes")
 async def get_timeframes():
@@ -2246,10 +2224,6 @@ def _summary_filters(
         min_range_pos=min_range_pos, from_date=from_date, to_date=to_date,
     )
 
-
-# ---------------------------------------------------------------------------
-# SSE streaming (Patterns screen progressive render).
-# ---------------------------------------------------------------------------
 
 #: Defensive cap on streamed items per response (the ``limit`` query param is
 #: already bounded by ``RESULTS_MAX_LIMIT``; this guards programmatic callers
@@ -2830,7 +2804,6 @@ def _mark_partial_last(series: list, is_partial: bool) -> list:
     return series
 
 
-# ---------------------------------------------------------------------------
 # US-stock chart (market=usa).
 #
 # The provider/cache/session modules are imported lazily inside the handler so
@@ -2840,7 +2813,6 @@ def _mark_partial_last(series: list, is_partial: bool) -> list:
 # calendar); the NSE session, Upstox and the stored scan are never touched.
 # All failures are mapped to fixed error payloads — no upstream text reaches
 # the client.
-# ---------------------------------------------------------------------------
 
 _US_TIMEFRAMES = frozenset({"1m", "5m", "15m", "1h", "1D"})
 _US_UNAVAILABLE_DETAIL = "US market data temporarily unavailable"
@@ -3939,14 +3911,12 @@ async def get_matrix(
     return JSONResponse(content=payload)
 
 
-# ---------------------------------------------------------------------------
 # Batch pattern availability for the Market table.
 #
 # Same data path as ``/matrix`` and nothing else: one store read over stored
 # hits. No candle fetch, no detector, no upstream call — the table must never
 # turn a row render into a detection run. Symbols without a stored hit are
 # omitted (the client renders "—") rather than fabricated as "no patterns".
-# ---------------------------------------------------------------------------
 
 #: Store row cap per requested symbol. The query is deduped to the newest row
 #: per pattern identity and the catalogue tops out at 18 patterns, so this is

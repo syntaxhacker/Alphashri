@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""Autoresearch wave: exit/hold configurations for the wall-fade book.
-
-Runs each config on train / test / live with 6 workers, logs to
-reports/WALL_REPLAY/autoresearch/autoresearch.jsonl + experiments/worklog.md.
-
-Usage:
-    .venv/bin/python scripts/wall_replay/autoresearch_loop.py
-"""
 
 from __future__ import annotations
 

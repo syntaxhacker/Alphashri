@@ -6,9 +6,7 @@ import {
 export type Tone = "positive" | "negative" | "muted";
 
 export interface FmtInrOpts {
-  /** Decimal places, default 0. */
   decimals?: number;
-  /** Prefix a `+` for positive values, default false. */
   signed?: boolean;
 }
 

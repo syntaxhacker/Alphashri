@@ -25,9 +25,6 @@ _REAL_NIFTY = (
     / "india_board" / "data" / "oi_flow" / "NIFTY" / f"{DAY}.jsonl"
 )
 
-# ---------------------------------------------------------------------------
-# fixtures + synthetic snapshot builders
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture(autouse=True)
@@ -70,9 +67,6 @@ def _write_day(root: Path, ticker: str, snaps: list, day: str = DAY) -> Path:
     return base
 
 
-# ---------------------------------------------------------------------------
-# P1 — OI-burst continuation
-# ---------------------------------------------------------------------------
 
 
 def _p1_sequence(spot_cur=22600.0):
@@ -126,9 +120,6 @@ def test_p1_spread_filter_blocks_wide_spreads():
     assert rec["features"]["spread_ok"] is True
 
 
-# ---------------------------------------------------------------------------
-# P2 — absorption fade
-# ---------------------------------------------------------------------------
 
 
 def _p2_sequence(ce_oi_values):
@@ -166,9 +157,6 @@ def test_p2_sigma_boundary_fires_at_two_not_one():
     assert se.p2_absorption("nifty", _p2_sequence(one_sigma)) == []
 
 
-# ---------------------------------------------------------------------------
-# P3 — wall migration
-# ---------------------------------------------------------------------------
 
 
 def test_p3_fires_on_wall_change():
@@ -201,9 +189,6 @@ def test_p3_fires_on_sigma_oi_spike():
     assert ce[0]["features"]["delta_oi"] == 90.0
 
 
-# ---------------------------------------------------------------------------
-# P4 — expiry pin
-# ---------------------------------------------------------------------------
 
 
 def _p4_strikes():
@@ -257,9 +242,6 @@ def test_p4_requires_chain_expiry_day():
     assert se.p4_expiry_pin("nifty", snaps, chain=other, now=DAY_DT) is None
 
 
-# ---------------------------------------------------------------------------
-# robustness: legacy spot:None, malformed lines, no-raise
-# ---------------------------------------------------------------------------
 
 
 def test_spot_none_snapshots_do_not_raise():
@@ -306,9 +288,6 @@ def test_load_snapshots_treats_old_lines_as_spot_none(tmp_path):
     assert se._snap_spot(snaps[0]) is None
 
 
-# ---------------------------------------------------------------------------
-# dedupe / cooldown + run_once
-# ---------------------------------------------------------------------------
 
 
 def _wall_change_snaps():
@@ -355,9 +334,6 @@ def test_run_once_skips_non_session_days(tmp_path):
     assert counts == {"P1": 0, "P2": 0, "P3": 0, "P4": 0}
 
 
-# ---------------------------------------------------------------------------
-# integration — real persisted NIFTY snapshots
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.skipif(not _REAL_NIFTY.is_file(), reason="real NIFTY snapshot missing")

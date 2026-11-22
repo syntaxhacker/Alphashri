@@ -527,9 +527,6 @@ def test_force_bypasses_cache(client, mock_tv):
     assert first["stale"] is False and second["stale"] is False
 
 
-# --------------------------------------------------------------------------- #
-# Force cooldown: serial forced requests cannot each launch a TV scan
-# --------------------------------------------------------------------------- #
 
 def test_force_cooldown_two_immediate_calls_one_scan(client, mock_tv):
     """Two back-to-back forces: the second reuses the first scan's cached frame."""
@@ -595,9 +592,6 @@ def test_non_force_still_uses_ttl_not_force_cooldown(client, mock_tv):
     assert _force_last_at == {}  # non-force never arms the force cooldown
 
 
-# --------------------------------------------------------------------------- #
-# Live vs closed TTL: read-time freshness, blocking live refresh
-# --------------------------------------------------------------------------- #
 
 def _seed_entry(key, age_sec: float, *, expires_in: float = 60.0, symbol="SEEDED"):
     """Seed a memory entry whose ``stored_at`` is ``age_sec`` in the past."""
@@ -831,9 +825,6 @@ def test_live_upstream_failure_falls_back_to_memory_stale(client, mock_tv, monke
     assert body["rows"][0]["symbol"] == "SEEDED"
 
 
-# --------------------------------------------------------------------------- #
-# Optional `symbols` filter (live LTP quote fetch for the pattern dock)
-# --------------------------------------------------------------------------- #
 
 def test_symbols_filter_returns_exact_requested_rows_case_insensitive(client, mock_tv):
     rows = [
@@ -984,9 +975,6 @@ def test_build_snapshot_rejects_bad_universe():
         build_snapshot("forex")
 
 
-# --------------------------------------------------------------------------- #
-# Singleflight: N concurrent misses/force requests == one TV scan
-# --------------------------------------------------------------------------- #
 
 def test_singleflight_concurrent_misses_are_one_scan():
     """8 concurrent cold misses for the same key produce exactly 1 TV scan."""
@@ -1030,9 +1018,6 @@ def test_singleflight_force_requests_are_one_scan():
     assert all(r["cached"] is False and r["stale"] is False for r in results)
 
 
-# --------------------------------------------------------------------------- #
-# Stale-while-revalidate: disk snapshot on a cold start
-# --------------------------------------------------------------------------- #
 
 def test_cold_start_serves_disk_stale_snapshot():
     """No memory cache + disk snapshot -> immediate stale serve from disk,
@@ -1100,9 +1085,6 @@ def test_disk_stale_too_old_is_not_served():
     assert scan.call_count == 1
 
 
-# --------------------------------------------------------------------------- #
-# Disk-stale snapshot format: JSON only, no pickle
-# --------------------------------------------------------------------------- #
 
 def test_stale_path_is_json():
     """The stale path keeps its <universe>_<limit> shape, now with .json."""
@@ -1166,9 +1148,6 @@ def test_snapshot_source_has_no_pickle():
     assert "pickle" not in source
 
 
-# --------------------------------------------------------------------------- #
-# 401 / delayed cookie self-heal
-# --------------------------------------------------------------------------- #
 
 def test_401_self_heal_refreshes_cookies_and_retries_once():
     err = requests.HTTPError("401 Unauthorized")
@@ -1213,9 +1192,6 @@ def test_streaming_feed_triggers_no_cookie_heal():
     assert out["cached"] is False and out["stale"] is False
 
 
-# --------------------------------------------------------------------------- #
-# Background refresh must release its inflight slot (fail or succeed)
-# --------------------------------------------------------------------------- #
 
 @contextmanager
 def _gated_tv_scan():
@@ -1401,9 +1377,6 @@ def test_thread_start_failure_leaks_no_slot_and_still_serves_stale():
     assert _inflight == {}
 
 
-# --------------------------------------------------------------------------- #
-# US universe (NASDAQ/NYSE/AMEX stocks from the TradingView america scanner)
-# --------------------------------------------------------------------------- #
 
 AAPL_ROW = {
     "name": "NASDAQ:AAPL", "description": "Apple Inc",
@@ -1624,9 +1597,6 @@ def test_us_symbols_filter(client, mock_tv):
     assert body["rows"][0]["market_cap_cr"] is None
 
 
-# --------------------------------------------------------------------------- #
-# US hygiene: preferred/depositary lines typed ``stock`` with the parent's cap
-# --------------------------------------------------------------------------- #
 
 #: The 12 live-offender lines: the first three have no slash in the ticker and
 #: are caught by the description token; the rest are caught by the slash.
@@ -1800,9 +1770,6 @@ def test_india_unaffected_by_us_hygiene_patterns(client, mock_tv):
     assert [r["symbol"] for r in out] == ["RELIANCE"]
 
 
-# --------------------------------------------------------------------------- #
-# Hygiene universes scan the full frame, then truncate per request
-# --------------------------------------------------------------------------- #
 
 def test_us_small_limit_fetches_full_frame_then_hygienizes(client, mock_tv):
     """Hygiene runs on the full frame, then the response is capped.
@@ -1869,9 +1836,6 @@ def test_us_symbols_filter_with_small_limit_filters_before_cap(client, mock_tv):
     assert mock_tv.call_args.kwargs["limit"] == MAX_LIMIT
 
 
-# --------------------------------------------------------------------------- #
-# India scan-window ladder: bounded TV scans / cache entries per universe
-# --------------------------------------------------------------------------- #
 
 def _india_rows(n: int) -> list[dict]:
     return [dict(RELIANCE_ROW, name=f"NSE:SYM{i:04d}") for i in range(n)]

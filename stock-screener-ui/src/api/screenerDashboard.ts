@@ -1,7 +1,3 @@
-/**
- * Screener dashboard API client (StockEdge-style market overview).
- */
-
 import { fetchWithAuth } from "../state/auth";
 import { jsonOrThrow } from "./utils/request";
 import type { ScreenerDashboardResponse } from "../types/screenerDashboard";

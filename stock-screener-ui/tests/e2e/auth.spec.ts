@@ -87,14 +87,12 @@ test.describe("Authentication - Login", () => {
     await page.locator('[data-testid="login-password-input"]').fill("wrongpassword");
     await page.locator('[data-testid="login-submit-btn"]').click();
 
-    // Should show error message using data-testid
     await expect(page.locator('[data-testid="auth-error"]')).toBeVisible({ timeout: 5000 });
   });
 
   test("should validate email format", async ({ page }) => {
     await gotoLoginPage(page);
 
-    // Enter invalid email
     await page.locator('[data-testid="login-email-input"]').fill("invalid-email");
     await page.locator('[data-testid="login-password-input"]').fill("password123");
 
@@ -113,11 +111,8 @@ test.describe("Authentication - Login", () => {
   test("should require password field", async ({ page }) => {
     await gotoLoginPage(page);
 
-    // Enter only email
     await page.locator('[data-testid="login-email-input"]').fill("test@example.com");
-    // Leave password empty
 
-    // Click login
     await page.locator('[data-testid="login-submit-btn"]').click();
 
     const passwordInput = page.locator('[data-testid="login-password-input"]');
@@ -140,10 +135,8 @@ test.describe("Authentication - Register", () => {
   test("should switch to register form", async ({ page }) => {
     await gotoLoginPage(page);
 
-    // Click register link using data-testid
     await page.locator('[data-testid="register-link"]').click();
 
-    // Should show register form using data-testid
     await expect(page.locator('[data-testid="register-form"]')).toBeVisible();
     await expect(page.locator('[data-testid="display-name-input"]')).toBeVisible();
   });
@@ -203,7 +196,6 @@ test.describe("Authentication - Logout", () => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
-    // Should show user info
     await expect(page.locator('[data-testid="user-menu-trigger"]').first()).toContainText("TestUser");
     await expect(page.locator('[data-testid="user-menu-trigger"]').first()).toContainText(
       "test@alphashri.dev",
@@ -226,7 +218,6 @@ test.describe("Authentication - Logout", () => {
     await openUserMenu(page);
     await page.locator('[data-testid="logout-button"]').click();
 
-    // Should show login form using data-testid
     await expect(page.locator('[data-testid="login-form"]')).toBeVisible({ timeout: 5000 });
   });
 
@@ -234,7 +225,6 @@ test.describe("Authentication - Logout", () => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
-    // Click sign out
     await page.route(apiRoute("auth/logout"), async (route) => {
       await route.fulfill({ status: 200, body: "{}" });
     });
@@ -255,10 +245,8 @@ test.describe("Authentication - Session", () => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
-    // Refresh page
     await page.reload();
 
-    // Should still be logged in
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
     await expect(page.locator('[data-testid="app-shell"]')).toBeVisible();
   });

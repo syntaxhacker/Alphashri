@@ -19,11 +19,7 @@ import {
 import { sentimentNote, sentimentSign } from "./optionSentiment";
 import type { NiftyStrike } from "@/types/niftyReport";
 
-// The full report panel mounts in ~1.5-2 s alone; under the parallel suite a
-// 1 s findBy* budget flakes. 8 s keeps the assertion, not the timing.
 configure({ asyncUtilTimeout: 8000 });
-// The panel-mount case takes ~5 s alone; under 54 parallel files it exceeds
-// the 5 s default and fails as a timeout rather than a defect.
 vi.setConfig({ testTimeout: 20_000 });
 
 vi.mock("@/api/reportNifty", () => ({
@@ -44,8 +40,6 @@ vi.mock("@/api/reportNifty", () => ({
   snapshotNifty: vi.fn(),
 }));
 
-// Keep the panel on Live regardless of when the suite runs (a closed-market
-// default would otherwise switch it to EOD on nights/weekends).
 vi.mock("@/utils/marketClock", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/utils/marketClock")>()),
   isMarketOpenIst: () => true,
@@ -55,12 +49,10 @@ vi.mock("@/components/chart/TradingViewChart", () => ({
   TradingViewChart: () => <div data-testid="tradingview-chart" />,
 }));
 
-// The positions drawer loads the paper book on mount; never hit the network.
 vi.mock("@/api/paperTrading", () => ({
   fetchPositions: vi.fn().mockResolvedValue([]),
 }));
 
-// The intel strip owns its own fetch; keep this suite network-free.
 vi.mock("./niftyIntel", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./niftyIntel")>();
   return { ...actual, fetchNiftyIntel: vi.fn().mockRejectedValue(new Error("intel offline")) };
@@ -107,7 +99,6 @@ describe("buildUnusualRows", () => {
       strikeAt(25000, side(100_000, 10_000, "LB"), side(50_000, 50_000, "SB")),
       strikeAt(25100, side(90_000, 1_000, "LB"), side(1_000, 1_000, "SB")),
     ]);
-    // pool by volume: 100k, 90k, 50k, 1k — rank by ratio: 90, 10, 1, 1
     expect(rows.map((x) => x.key)).toEqual([
       "25100-CE",
       "25000-CE",
@@ -123,7 +114,6 @@ describe("buildUnusualRows", () => {
     const strikes = Array.from({ length: 20 }, (_, i) =>
       strikeAt(25000 + i * 100, side(10_000 + i * 1_000, 5_000, "LB"), side(9_000, 5_000, "SB")),
     );
-    // tiny far-OTM leg with an extreme ratio must not displace real volume
     strikes.push(strikeAt(29000, side(5, 1, "LB"), side(5, 1, "SB")));
     const rows = buildUnusualRows(strikes);
     expect(rows).toHaveLength(30);
@@ -139,7 +129,6 @@ describe("buildUnusualRows", () => {
     const zero = rows.find((x) => x.key === "25700-CE")!;
     expect(zero.volOi).toBeNull();
     expect(zero.rankKey).toBe(5_000);
-    // 5000 (volume fallback) outranks the 4.0 and 3.0 ratios
     expect(rows[0].key).toBe("25700-CE");
     expect(rows[0].rank).toBe(1);
   });
@@ -192,14 +181,10 @@ describe("unusual sentiment + ITM helpers", () => {
   });
 
   test("tone is the delta-exposure sign, matching backend class_sign", () => {
-    // CE: LB (buyers open) / SC (writers buy back) bullish; SB / LU bearish.
     expect(getUnusualSentimentTone("LB", "CE")).toBe(palette.POSITIVE);
     expect(getUnusualSentimentTone("SC", "CE")).toBe(palette.POSITIVE);
     expect(getUnusualSentimentTone("SB", "CE")).toBe(palette.NEGATIVE);
     expect(getUnusualSentimentTone("LU", "CE")).toBe(palette.NEGATIVE);
-    // PE: SB (writers open) / LU (buyers sell out) bullish; LB / SC bearish.
-    // A put short cover removes long-delta support; a put long unwind removes
-    // short-delta pressure. The old tone map had these two swapped.
     expect(getUnusualSentimentTone("SB", "PE")).toBe(palette.POSITIVE);
     expect(getUnusualSentimentTone("LU", "PE")).toBe(palette.POSITIVE);
     expect(getUnusualSentimentTone("LB", "PE")).toBe(palette.NEGATIVE);
@@ -209,8 +194,6 @@ describe("unusual sentiment + ITM helpers", () => {
   });
 
   test("tooltip explains the contract action and the directional read", () => {
-    // The two readings diverge only on the put wing: the action is a cover,
-    // the direction is bearish. The tooltip carries both.
     expect(sentimentNote("SC", "PE")).toBe(
       "put writers buying back · adds/supports short delta — bearish",
     );
@@ -235,8 +218,6 @@ describe("unusual sentiment + ITM helpers", () => {
 
   test("every column declares explicit meta.align and a fixed width", () => {
     const cols = getNiftyUnusualColumns(1000);
-    // 6, not 8: the leg is merged into the strike cell and Share moved to
-    // the focus strip, so the table fits a narrow panel.
     expect(cols.length).toBe(6);
     for (const col of cols) {
       const meta = (col as { meta?: { align?: string } }).meta;
@@ -276,7 +257,6 @@ describe("NiftyUnusualVolume render", () => {
     expect(screen.getByTestId("nifty-unusual-panel")).toHaveTextContent("Unusual volume");
     expect(screen.getByTestId("nifty-unusual-ce-vol")).toHaveTextContent("1.35M");
     expect(screen.getByTestId("nifty-unusual-pe-vol")).toHaveTextContent("900.00K");
-    // rank #1 is 25700-CE (ratio 2.5): share = 1.25M / 1.35M
     expect(screen.getByTestId("nifty-unusual-top-share")).toHaveTextContent("92.6%");
     expect(screen.getByTestId("nifty-unusual-caption")).toHaveTextContent("ranked by Vol÷OI");
   });
@@ -302,10 +282,8 @@ describe("NiftyUnusualVolume render", () => {
     expect(within(table).getByTestId("nifty-unusual-row-25800-CE")).toHaveTextContent("Short Cover");
     expect(within(table).getByTestId("nifty-unusual-row-25700-CE")).toHaveTextContent("Long Buildup");
     expect(within(table).getByTestId("nifty-unusual-row-25800-PE")).toHaveTextContent("Long Unwind");
-    // CE/PE pills + volume bars exist for every leg
     expect(within(table).getByTestId("nifty-unusual-bar-25800-CE")).toBeInTheDocument();
     expect(within(table).getByTestId("nifty-unusual-bar-25700-PE")).toBeInTheDocument();
-    // max-volume row fills its bar
     expect(within(table).getByTestId("nifty-unusual-bar-25700-CE")).toHaveStyle({ width: "100%" });
   });
 
@@ -322,7 +300,6 @@ describe("NiftyUnusualVolume render", () => {
     const table = screen.getByTestId("nifty-unusual-table");
     const big = within(table).getByTestId("nifty-unusual-bar-25700-CE");
     const small = within(table).getByTestId("nifty-unusual-bar-25800-CE");
-    // biggest leg fills 100% and is fully opaque (1); smaller leg fades.
     expect(Number(big.style.width.replace("%", ""))).toBeCloseTo(100, 5);
     expect(Number(big.style.opacity)).toBeCloseTo(1, 5);
     expect(Number(small.style.opacity)).toBeLessThan(Number(big.style.opacity));
@@ -341,7 +318,6 @@ describe("NiftyUnusualVolume render", () => {
     const ceRow = within(table).getByTestId("nifty-unusual-row-25700-CE");
     expect(ceRow).toHaveTextContent("5.00K");
     expect(ceRow).not.toHaveTextContent("NaN");
-    // sibling with OI shows a 2dp ratio
     expect(within(table).getByTestId("nifty-unusual-row-25700-PE")).toHaveTextContent("3.00");
   });
 
@@ -357,7 +333,6 @@ describe("NiftyUnusualVolume render", () => {
       "title",
       "Short Cover (PE) — put writers buying back · adds/supports short delta — bearish",
     );
-    // A put BUYER opening is the mirror: bearish, not “SB is bullish for puts”.
     expect(sentimentSign("LB", "PE")).toBe(-1);
     expect(sentimentSign("LU", "PE")).toBe(1);
   });
@@ -370,7 +345,6 @@ describe("NiftyUnusualVolume render", () => {
       />
     ));
     const table = screen.getByTestId("nifty-unusual-table");
-    // 25700 CE is ITM (below spot), 25700 PE is OTM
     const ceRow = within(table).getByTestId("nifty-unusual-row-25700-CE");
     expect(ceRow.style.background).toMatch(/rgba/);
     const peRow = within(table).getByTestId("nifty-unusual-row-25700-PE");
@@ -383,7 +357,6 @@ describe("NiftyUnusualVolume render", () => {
     expect(screen.getByText("No chain data")).toBeInTheDocument();
     expect(screen.queryByTestId(/^nifty-unusual-row-/)).not.toBeInTheDocument();
     expect(screen.getByTestId("nifty-unusual-top-share")).toHaveTextContent("—");
-    // no #1 leg → no focus strip
     expect(screen.queryByTestId("nifty-unusual-focus")).not.toBeInTheDocument();
   });
 });
@@ -394,7 +367,6 @@ describe("NiftyUnusualVolume focus strip", () => {
       strikeAt(25700, side(100_000, 10_000, "LB"), side(50_000, 50_000, "SB")),
       strikeAt(25800, side(90_000, 1_000, "SC"), side(1_000, 1_000, "LU")),
     ]);
-    // #1 is 25800-CE (ratio 90): 90k/1k, CE total 190k → 47.4%, +50 vs spot
     expect(formatUnusualFocus(rows[0], 25750)).toBe(
       "25,800 CE · VOL 90.00K · OI 1.00K · VOL÷OI 90.00x · SHARE 47.4% of CE vol · VS SPOT +50 pts · Short Cover",
     );
@@ -410,7 +382,6 @@ describe("NiftyUnusualVolume focus strip", () => {
       "25,800 PE · VOL 3.00K · OI 1.00K · VOL÷OI 3.00x · SHARE 75.0% of PE vol · VS SPOT +50 pts · Short Buildup",
     );
     const ce = rows.find((x) => x.key === "25700-CE")!;
-    // 25700 is below spot 25750 → negative distance
     expect(formatUnusualFocus(ce, 25750)).toContain("VS SPOT -50 pts");
     expect(formatUnusualFocus(ce, 25750)).toContain("Long Buildup");
   });
@@ -437,7 +408,6 @@ describe("NiftyUnusualVolume focus strip", () => {
     expect(focus).toHaveTextContent(
       "25,800 CE · VOL 90.00K · OI 1.00K · VOL÷OI 90.00x · SHARE 47.4% of CE vol · VS SPOT +50 pts · Short Cover",
     );
-    // strip sits between the head stats and the table
     const panel = screen.getByTestId("nifty-unusual-panel");
     const head = within(panel).getByTestId("nifty-unusual-head");
     const table = within(panel).getByTestId("nifty-unusual-table");

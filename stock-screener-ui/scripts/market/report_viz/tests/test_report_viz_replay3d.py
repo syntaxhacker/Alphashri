@@ -150,9 +150,6 @@ CASES = [
 ]
 
 
-# --------------------------------------------------------------------------- #
-# positioning_terrain_3d
-# --------------------------------------------------------------------------- #
 def test_positioning_terrain_carries_metric_label_and_unit():
     html = replay3d.positioning_terrain_3d(TERRAIN, spec=_stock_spec())
     payload = _payload(html)
@@ -253,9 +250,6 @@ def test_terrain_and_iv_reject_duplicate_strikes_and_unsorted_clocks():
         replay3d.iv_surface_3d(dict(IV, times=["10:00", "", "10:10", "10:15", "10:20"]), spec=_stock_spec())
 
 
-# --------------------------------------------------------------------------- #
-# iv_surface_3d
-# --------------------------------------------------------------------------- #
 def test_iv_surface_preserves_null_cells_and_reports_coverage():
     html = replay3d.iv_surface_3d(IV, spec=_stock_spec())
     payload = _payload(html)
@@ -320,9 +314,6 @@ def test_iv_surface_rejects_negative_values_and_bad_dimensions():
         replay3d.iv_surface_3d(dict(IV, z=[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]), spec=_stock_spec())
 
 
-# --------------------------------------------------------------------------- #
-# futures_path_3d
-# --------------------------------------------------------------------------- #
 def test_futures_path_keeps_gaps_and_regime_labels():
     html = replay3d.futures_path_3d(FUTURES, spec=_stock_spec())
     payload = _payload(html)
@@ -383,9 +374,6 @@ def test_futures_path_rejects_untimed_points_and_empty_axes():
         replay3d.futures_path_3d(backwards, spec=_stock_spec())
 
 
-# --------------------------------------------------------------------------- #
-# replay_heatmap
-# --------------------------------------------------------------------------- #
 def test_replay_heatmap_preserves_nulls_and_units():
     html = replay3d.replay_heatmap(HEAT, spec=_stock_spec())
     payload = _payload(html)
@@ -434,9 +422,6 @@ def test_replay_heatmap_rejects_bad_shape_and_unknown_time():
         )
 
 
-# --------------------------------------------------------------------------- #
-# replay_pe_focus
-# --------------------------------------------------------------------------- #
 def test_focus_strike_keeps_nulls_and_uses_spec_money():
     html = replay3d.replay_pe_focus(FOCUS, spec=_stock_spec())
     payload = _payload(html)
@@ -501,9 +486,6 @@ def test_payload_unit_overrides_travel_into_axis_labels():
     assert focus["volume_unit"] == "M units / bucket"
 
 
-# --------------------------------------------------------------------------- #
-# top_volume_strikes
-# --------------------------------------------------------------------------- #
 def test_top_volume_strikes_sorts_nulls_last_and_honours_limit():
     payload = _payload(replay3d.top_volume_strikes(TOP_VOLUME, spec=_stock_spec()))
     data = payload["data"]
@@ -550,9 +532,6 @@ def test_top_volume_strikes_rejects_negative_volume():
         )
 
 
-# --------------------------------------------------------------------------- #
-# event_annotations
-# --------------------------------------------------------------------------- #
 def test_event_annotations_carry_times_and_labels_only():
     html = replay3d.event_annotations(EVENTS, spec=_stock_spec())
     payload = _payload(html)
@@ -615,9 +594,6 @@ def test_event_annotations_rejects_bad_clocks_and_windows():
         )
 
 
-# --------------------------------------------------------------------------- #
-# asset + instrument-agnostic guards
-# --------------------------------------------------------------------------- #
 def test_asset_registers_all_seven_renderers_and_uses_core_helpers():
     js = ASSET.read_text()
     for name in CHART_NAMES:

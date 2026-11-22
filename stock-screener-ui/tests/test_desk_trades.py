@@ -59,9 +59,6 @@ def _write_positions(tmp_path, positions):
     return path
 
 
-# ---------------------------------------------------------------------------
-# Markers
-# ---------------------------------------------------------------------------
 
 def test_valid_entry_and_exit_markers():
     records = [
@@ -126,9 +123,6 @@ def test_opt_and_side_derived_when_fields_missing():
     assert markers[0]["side"] == "SHORT"
 
 
-# ---------------------------------------------------------------------------
-# Journal parsing
-# ---------------------------------------------------------------------------
 
 def test_malformed_lines_are_skipped(tmp_path):
     path = _write_journal(
@@ -162,9 +156,6 @@ def test_missing_journal_file_returns_empty(tmp_path):
     }
 
 
-# ---------------------------------------------------------------------------
-# Open positions
-# ---------------------------------------------------------------------------
 
 def test_open_positions_are_normalised_and_date_scoped(tmp_path):
     _write_positions(tmp_path, [
@@ -216,9 +207,6 @@ def test_normalise_position_rejects_unusable_rows():
     assert normalise_position({"opt": None, "strike": None}) is None
 
 
-# ---------------------------------------------------------------------------
-# Summary
-# ---------------------------------------------------------------------------
 
 def test_summary_sums_realised_pnl():
     records = [
@@ -277,9 +265,6 @@ def test_collect_combines_markers_open_and_summary(tmp_path):
     }
 
 
-# ---------------------------------------------------------------------------
-# Open book: expiry scoping + straddles
-# ---------------------------------------------------------------------------
 
 def test_open_positions_today_are_scoped_by_expiry_not_entry_date(tmp_path):
     today = "2026-10-22"
@@ -330,9 +315,6 @@ def test_opt_and_legs_are_derived_from_a_straddle_symbol():
     assert single["opt"] == "PE" and single["legs"] == 1
 
 
-# ---------------------------------------------------------------------------
-# Endpoint
-# ---------------------------------------------------------------------------
 
 @pytest.fixture()
 def desk_client(tmp_path, monkeypatch):

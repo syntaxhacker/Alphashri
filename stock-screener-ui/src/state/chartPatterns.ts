@@ -322,10 +322,6 @@ function isTerminal(status: JobStatus): boolean {
   return status === "completed" || status === "failed" || status === "cancelled";
 }
 
-// ---------------------------------------------------------------------------
-// Setters
-// ---------------------------------------------------------------------------
-
 export function setTimeframes(timeframes: TFSpec[]): void {
   patch({ timeframes });
 }
@@ -443,10 +439,6 @@ export function setSelectedSymbol(selectedSymbol: string | null): void {
   void loadSymbolDetail(selectedSymbol);
 }
 
-// ---------------------------------------------------------------------------
-// Query building
-// ---------------------------------------------------------------------------
-
 function baseQuery(): PatternsQuery {
   const custom = state.universe === CUSTOM_UNIVERSE;
   return {
@@ -481,10 +473,6 @@ function baseQuery(): PatternsQuery {
     compute_trendlines: state.computeTrendlines,
   };
 }
-
-// ---------------------------------------------------------------------------
-// Async loaders
-// ---------------------------------------------------------------------------
 
 /** Load timeframe registry, universes and pattern catalog, then initial data. */
 export async function loadCatalog(): Promise<void> {

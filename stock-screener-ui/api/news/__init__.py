@@ -1,7 +1,5 @@
-"""
-News API — WebSocket managers, background pollers, news endpoints, and WebSocket endpoints.
+"""Re-exports the combined router from api.news for backward compatibility.
 
-This module re-exports the combined router from api.news for backward compatibility.
 All implementation lives in the ``api.news`` sub-package.
 """
 

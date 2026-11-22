@@ -1,4 +1,3 @@
-"""Live market-session state, defined on each exchange's local DST-aware clock."""
 
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta

@@ -49,7 +49,6 @@ def _coerce_datetime(value):
 
 
 def _parse_params(raw) -> dict:
-    """Parse a ``params_json`` column value back into a params dict."""
     if raw is None:
         return {}
     if isinstance(raw, dict):
@@ -137,7 +136,6 @@ def _breakout_score_expr():
 
 
 def set_session_factory(factory) -> None:
-    """Point the store at a different sessionmaker (used by tests)."""
     global _session_factory
     _session_factory = factory
 
@@ -151,12 +149,8 @@ def _new_session():
     return _session_factory()
 
 
-# ---------------------------------------------------------------------------
-# Jobs
-# ---------------------------------------------------------------------------
 
 def save_job(job: dict) -> dict:
-    """Insert or update a job row. ``job`` must carry the ``job_id`` key."""
     job_id = job.get("job_id") or job.get("id")
     if not job_id:
         raise ValueError("job dict requires 'job_id'")
@@ -185,7 +179,6 @@ def save_job(job: dict) -> dict:
                 setattr(row, field, value)
             elif field in ("total", "done", "failed", "skipped") and job.get(field) is None:
                 setattr(row, field, 0)
-        # universe/timeframe are required; default from job if present
         if not row.universe:
             row.universe = job.get("universe") or ""
         if not row.timeframe:
@@ -235,7 +228,6 @@ def get_job(job_id: str) -> Optional[dict]:
 
 
 def latest_completed_job(universe: str, timeframe: str) -> Optional[dict]:
-    """Newest completed job for a universe/timeframe, else ``None``."""
     session = _new_session()
     try:
         row = (
@@ -333,9 +325,6 @@ def list_jobs(active_only: bool = False, limit: int = 50) -> list[dict]:
         session.close()
 
 
-# ---------------------------------------------------------------------------
-# Hits
-# ---------------------------------------------------------------------------
 
 def delete_hits_for(
     universe: str,
@@ -989,7 +978,6 @@ def get_symbol_detail(
     limit: Optional[int] = None,
     non_overlapping: bool = False,
 ) -> dict:
-    """Hits + counts for a single symbol (API enriches with candle fields)."""
     session = _new_session()
     symbol_u = str(symbol).upper()
     try:

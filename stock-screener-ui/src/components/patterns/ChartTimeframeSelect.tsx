@@ -5,7 +5,6 @@ import { FALLBACK_TIMEFRAMES } from "./TimeframeSelect";
 
 export interface ChartTimeframeSelectProps {
   timeframes: TFSpec[];
-  /** Active timeframe id (single-select — a chart shows one frame at a time). */
   value: string;
   onChange: (timeframe: string) => void;
 }
@@ -25,7 +24,6 @@ export function ChartTimeframeSelect(props: ChartTimeframeSelectProps) {
     source().map((tf) => ({ value: tf.id, label: tf.label || tf.id })),
   );
 
-  // Keep the active id selectable even if the ladder has not caught up yet.
   const dataWithValue = createMemo(() =>
     data().some((item) => item.value === props.value)
       ? data()

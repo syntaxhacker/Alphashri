@@ -1,11 +1,4 @@
 #!/usr/bin/env python3
-"""Summarize slow API requests captured by ``api.slow_api.SlowAPIMiddleware``.
-
-The middleware appends one JSON record per slow request to
-``logs/slow_api.jsonl`` and also writes a ``SLOW_API {...}`` line to the
-uvicorn log. This tool reads either source and reports the routes that are
-actually hurting, with p50/p95/max latency.
-"""
 from __future__ import annotations
 
 import argparse

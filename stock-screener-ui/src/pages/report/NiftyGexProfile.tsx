@@ -60,7 +60,6 @@ export type { GexProfilePoint } from "./niftyGex";
  * ZERO-gamma flip. Absent/empty data degrades to a friendly empty state.
  */
 
-/** Derived headline numbers for the panel's stat row. */
 interface GexProfileStats {
   netTotal: number | null;
   zeroCross: number | null;
@@ -69,24 +68,18 @@ interface GexProfileStats {
   troughStrike: number | null;
 }
 
-/** MiniLineChart-ready props for the profile chart. */
 interface GexChartProps {
   labels: string[];
   series: MiniSeries[];
   markers: MiniMarker[];
   zeroLine: boolean;
-  /** Strike window actually plotted (drives the coverage caption). */
   band: GexProfilePoint[];
-  /** Strikes at/above the significance cut in the whole profile. */
   significant: number;
 }
 
-/** Rendered for any absent numeric field so a cell never shows blank. */
 const GEX_DASH = "—";
 
 function num(v: unknown): number {
-  // `Number(null)` and `Number("")` are 0 — treat those as absent so a null
-  // leg is dropped instead of being plotted as a genuine zero exposure.
   if (v === null || v === undefined || v === "") return NaN;
   const n = Number(v);
   return Number.isFinite(n) ? n : NaN;
@@ -104,30 +97,12 @@ function num(v: unknown): number {
  */
 const GEX_SIGNIFICANCE_SHARE = 0.01;
 
-/** Result of picking the strike window worth plotting. */
 interface GexBand {
-  /** Contiguous slice of the profile (the plotted band). */
   points: GexProfilePoint[];
-  /** Significance cut in Cr/pt (`peak * share`). */
   threshold: number;
-  /** Strikes at/above the cut across the whole profile. */
   significant: number;
 }
 
-/**
- * Pick the strike band that actually carries dealer gamma.
- *
- * Upstox quotes greeks for a subset of strikes (mostly near the money); the
- * rest come back as a hard `0.0`, not as "no exposure". On top of that the
- * quoted far wings are near-zero noise. Plotting every listed strike drew a
- * flat line with a single spike — the chart looked broken because most of it
- * *was* dead space.
- *
- * The window is the first..last strike whose |netGex| reaches
- * `peak * minShare`; everything in between is kept (real flat spots included).
- * `include` forces context strikes — the gamma flip, the strike nearest spot —
- * into the window so their markers never fall off the plot.
- */
 export function selectGexBand(
   profile: GexProfilePoint[],
   opts: { minShare?: number; include?: (number | null | undefined)[] } = {},
@@ -160,7 +135,6 @@ export function selectGexBand(
   return { points: profile.slice(first, last + 1), threshold, significant };
 }
 
-/** The plotted band only (`selectGexBand(...).points`). */
 export function trimGexProfile(
   profile: GexProfilePoint[],
   opts: { minShare?: number; include?: (number | null | undefined)[] } = {},
@@ -243,11 +217,6 @@ export function gexProfileStats(gex: NiftyGex | undefined, spot: number): GexPro
   };
 }
 
-/**
- * Signed ₹ Cr **per point** label with 2 dp, e.g. `+12.34 Cr/pt` /
- * `-8.00 Cr/pt` / `—`. The unit belongs to the value: a stat row that also
- * carries a "Cr / pt" hint used to read "Cr Cr/pt".
- */
 export function formatGexCr(v: number | null): string {
   if (v == null || !Number.isFinite(v)) return GEX_DASH;
   return `${v > 0 ? "+" : ""}${v.toFixed(2)} Cr/pt`;

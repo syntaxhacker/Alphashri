@@ -229,9 +229,6 @@ def test_signature_changes_with_config(monkeypatch):
     assert pattern_config.trendline_signature() != base
 
 
-# ---------------------------------------------------------------------------
-# window_signature / window_matches: proving stored lines still apply.
-# ---------------------------------------------------------------------------
 
 
 def test_window_signature_is_stable_and_length_tagged():

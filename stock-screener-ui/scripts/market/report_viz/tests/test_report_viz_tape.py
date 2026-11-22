@@ -145,9 +145,7 @@ def test_asset_and_builders_hold_no_instrument_literals():
         assert banned not in source
 
 
-# ---------------------------------------------------------------------------
 # surface: nulls stay null, fill is opt-in, metric is configurable
-# ---------------------------------------------------------------------------
 def test_surface_keeps_missing_cells_blank():
     html = tape.tape_surface(SURFACE, spec=_spec())
     payload = _payload(html)
@@ -200,9 +198,6 @@ def test_surface_rejects_misaligned_grids(bad):
         tape.tape_surface(bad, spec=_spec())
 
 
-# ---------------------------------------------------------------------------
-# signed books, phases and clocks
-# ---------------------------------------------------------------------------
 def test_oi_change_preserves_signed_bars():
     data = {
         "strike": [24800.0, 24900.0, 25000.0],
@@ -238,9 +233,7 @@ def test_timeline_accepts_columnar_payload_and_legacy_dur():
     assert payload["data"]["duration"] == [15]
 
 
-# ---------------------------------------------------------------------------
 # units travel with the spec; series are never silently re-aligned
-# ---------------------------------------------------------------------------
 def test_units_follow_spec_for_sensex_and_a_stock():
     sensex = _spec(symbol="SENSEX", name="SENSEX", strike_step=100.0, lot_size=20)
     stock = _spec(
@@ -305,9 +298,7 @@ def test_spot_futures_accepts_legacy_fut_column():
     assert payload["data"]["futures"] == [101.0]
 
 
-# ---------------------------------------------------------------------------
 # missing numbers are gaps, never zero
-# ---------------------------------------------------------------------------
 def test_missing_oi_and_pcr_values_stay_null():
     data = {
         "t": ["09:15", "09:16", "09:17"],
@@ -351,9 +342,6 @@ def test_empty_series_renders_an_empty_panel():
     assert payload["data"]["basis"] == []
 
 
-# ---------------------------------------------------------------------------
-# volatility extras
-# ---------------------------------------------------------------------------
 def test_rv_iv_keeps_both_series_and_unit():
     data = {"t": ["09:45", "09:46"], "iv": [22.5, 22.1], "rv": [21.0, None]}
     payload = _payload(tape.rv_iv(data, spec=_spec()))
@@ -377,9 +365,6 @@ def test_straddle_sigma_factor_is_explicit_and_guarded():
         tape.straddle_1sigma(data, spec=_spec(), sigma_factor=0)
 
 
-# ---------------------------------------------------------------------------
-# panel chrome
-# ---------------------------------------------------------------------------
 def test_panel_chrome_passes_span_height_and_subtitle():
     html = tape.tape_timeline(PHASES, spec=_spec(), height=260, subtitle="session legs")
 

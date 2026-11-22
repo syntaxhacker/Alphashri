@@ -84,9 +84,6 @@ def asset(name: str) -> str:
     return (ASSET_DIR / name).read_text()
 
 
-# ---------------------------------------------------------------------------
-# ce_pe_net_positioning
-# ---------------------------------------------------------------------------
 
 
 def test_ce_pe_net_positioning_keeps_signed_values_and_gaps():
@@ -141,9 +138,6 @@ def test_ce_pe_net_positioning_defaults_to_spec_oi_unit_and_validates():
         ce_pe_net_positioning([{"t": "09:15", "ce": 1, "pe": 1}], spec=stock(), scale=0)
 
 
-# ---------------------------------------------------------------------------
-# ce_pe_divergence
-# ---------------------------------------------------------------------------
 
 
 def test_ce_pe_divergence_ranks_signed_bars_and_keeps_one_sided_nulls():
@@ -185,9 +179,6 @@ def test_ce_pe_divergence_rejects_empty_and_zero_limit():
         )
 
 
-# ---------------------------------------------------------------------------
-# pe_oi_heatmap
-# ---------------------------------------------------------------------------
 
 
 def test_pe_oi_heatmap_preserves_nulls_and_signed_cells():
@@ -229,9 +220,6 @@ def test_pe_oi_heatmap_validates_shape_and_all_blank_grid():
         pe_oi_heatmap(["09:15"], [82000], [[None]], spec=sensex())
 
 
-# ---------------------------------------------------------------------------
-# positioning_window_bars
-# ---------------------------------------------------------------------------
 
 
 def test_positioning_window_bars_sorts_descending_and_keeps_one_side_null():
@@ -276,9 +264,6 @@ def test_positioning_window_bars_rejects_empty():
         )
 
 
-# ---------------------------------------------------------------------------
-# volume_vs_net_oi
-# ---------------------------------------------------------------------------
 
 
 def test_volume_vs_net_oi_keeps_rows_and_bubble_oi():
@@ -314,9 +299,6 @@ def test_volume_vs_net_oi_rejects_empty_and_unplottable():
         )
 
 
-# ---------------------------------------------------------------------------
-# participant_class_stream
-# ---------------------------------------------------------------------------
 
 
 def test_participant_class_stream_uses_abs_magnitudes_and_gaps():
@@ -370,9 +352,6 @@ def test_participant_class_stream_validates_shape_and_empty():
         )
 
 
-# ---------------------------------------------------------------------------
-# participant_class_heatmap
-# ---------------------------------------------------------------------------
 
 
 def test_participant_class_heatmap_states_and_gap_columns():
@@ -408,9 +387,6 @@ def test_participant_class_heatmap_rejects_unknown_and_empty():
         )
 
 
-# ---------------------------------------------------------------------------
-# participant_focus
-# ---------------------------------------------------------------------------
 
 
 def test_participant_focus_defaults_to_nearest_present_strike_and_keeps_nulls():
@@ -475,9 +451,6 @@ def test_participant_focus_rejects_missing_strike_or_spot():
         )
 
 
-# ---------------------------------------------------------------------------
-# strike_terrain
-# ---------------------------------------------------------------------------
 
 
 def test_strike_terrain_keeps_put_minus_call_signed():
@@ -513,9 +486,6 @@ def test_strike_terrain_rejects_empty_and_missing_side():
         )
 
 
-# ---------------------------------------------------------------------------
-# wall_ladder
-# ---------------------------------------------------------------------------
 
 
 def test_wall_ladder_distances_are_signed_points_from_spot():
@@ -557,9 +527,6 @@ def test_wall_ladder_rejects_empty_and_no_levels():
         wall_ladder([{"t": "09:15", "spot": 100}], spec=stock())
 
 
-# ---------------------------------------------------------------------------
-# units travel with the spec
-# ---------------------------------------------------------------------------
 
 
 def test_sensex_and_stock_units_change_only_through_the_spec():
@@ -625,9 +592,6 @@ def test_builder_outputs_all_panel_names():
         assert payload(html)["data"] is not None
 
 
-# ---------------------------------------------------------------------------
-# browser asset
-# ---------------------------------------------------------------------------
 
 
 def test_positioning_asset_registers_all_ten_names():

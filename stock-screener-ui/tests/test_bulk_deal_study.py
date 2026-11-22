@@ -40,9 +40,6 @@ def raw_row(i, close, *, high=None, low=None, volume=1000.0, base=BASE):
             close - 2 if low is None else low, close, volume]
 
 
-# ---------------------------------------------------------------------------
-# volume z-score
-# ---------------------------------------------------------------------------
 
 
 def test_volume_zscore_hand_computed():
@@ -76,9 +73,6 @@ def test_volume_zscores_aligned_and_windowed():
     assert flat[4] is None
 
 
-# ---------------------------------------------------------------------------
-# forward metrics
-# ---------------------------------------------------------------------------
 
 
 def _series():
@@ -119,9 +113,6 @@ def test_forward_metrics_not_enough_candles_is_none():
     assert study.excursions([C(0, 100)], 0, 1) == (None, None)
 
 
-# ---------------------------------------------------------------------------
-# stop / target chronological walk
-# ---------------------------------------------------------------------------
 
 
 def test_stop_hit_first():
@@ -155,9 +146,6 @@ def test_stop_target_timeout_at_last_close():
     assert out["sessions_held"] == 2
 
 
-# ---------------------------------------------------------------------------
-# costs
-# ---------------------------------------------------------------------------
 
 
 def test_net_return_pct_applies_costs():
@@ -173,9 +161,6 @@ def test_net_return_pct_applies_costs():
     assert study.net_return_pct(None, exit_, qty) is None
 
 
-# ---------------------------------------------------------------------------
-# symbol resolution
-# ---------------------------------------------------------------------------
 
 
 def test_symbol_variants_order_and_dedupe():
@@ -221,9 +206,6 @@ def test_resolve_symbol_name_fallback():
     assert res["fyers_symbol"] == "NSE:SSWL-EQ"
 
 
-# ---------------------------------------------------------------------------
-# candle disk cache
-# ---------------------------------------------------------------------------
 
 
 def test_candle_cache_second_call_no_fetch(tmp_path):
@@ -272,9 +254,6 @@ def test_cached_provider_roundtrip(tmp_path):
     assert study.cached_provider(tmp_path, "NSE:BAR-EQ") is None
 
 
-# ---------------------------------------------------------------------------
-# cohort reader + gate
-# ---------------------------------------------------------------------------
 
 
 def test_captured_deals_empty_dir_is_empty(tmp_path):
@@ -349,9 +328,6 @@ def test_summarize_reports_n_per_horizon():
     assert s["ret_5"]["expectancy"] is None  # n < 20
 
 
-# ---------------------------------------------------------------------------
-# JSON safety + no-live-writes guard
-# ---------------------------------------------------------------------------
 
 
 def test_json_safe_nan_and_inf_become_none():

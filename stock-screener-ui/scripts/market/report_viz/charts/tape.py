@@ -54,9 +54,6 @@ _METRIC_LABELS = {
 }
 
 
-# ---------------------------------------------------------------------------
-# payload normalisation
-# ---------------------------------------------------------------------------
 def _columnar(
     data: Mapping[str, Any] | Sequence[Mapping[str, Any]],
     keys: Sequence[str],
@@ -94,7 +91,6 @@ def _columnar(
 def _alias(
     data: Mapping[str, Any] | Sequence[Mapping[str, Any]], target: str, alias: str
 ) -> Mapping[str, Any] | list[Mapping[str, Any]]:
-    """Accept a historical column name without rewriting the caller's object."""
     if isinstance(data, Mapping):
         if target in data or alias not in data:
             return data
@@ -159,9 +155,6 @@ def _title(title: Optional[str], fallback: str) -> str:
     return title or fallback
 
 
-# ---------------------------------------------------------------------------
-# 1-5 · the session tape
-# ---------------------------------------------------------------------------
 def tape_spot_futures(
     data: Any,
     *,
@@ -173,11 +166,6 @@ def tape_spot_futures(
     span: int = 1,
     height: Optional[int] = None,
 ) -> str:
-    """Spot and futures paths with optional high/low markers and levels.
-
-    ``data`` is ``{t, spot, futures}`` (``fut`` is accepted) plus optional
-    ``high``/``high_t``/``low``/``low_t`` and ``levels=[{label, value}]``.
-    """
     chart = "tape_spot_futures"
     data = _alias(data, "futures", "fut")
     cols = _columnar(data, ("t", "spot", "futures"), chart)
@@ -262,7 +250,6 @@ def tape_oi_pcr(
     span: int = 1,
     height: Optional[int] = None,
 ) -> str:
-    """Call/put open interest with the put-call ratio on a second axis."""
     chart = "tape_oi_pcr"
     cols = _columnar(data, ("t", "ce_oi", "pe_oi", "pcr"), chart)
     payload = {
@@ -300,7 +287,6 @@ def tape_volume(
     span: int = 1,
     height: Optional[int] = None,
 ) -> str:
-    """Call/put volume grouped by the caller's natural buckets."""
     chart = "tape_volume"
     cols = _columnar(data, ("labels", "ce", "pe"), chart)
     payload = {
@@ -336,7 +322,6 @@ def tape_walls(
     span: int = 1,
     height: Optional[int] = None,
 ) -> str:
-    """Spot against max pain and the call/put walls (step lines)."""
     chart = "tape_walls"
     cols = _columnar(data, ("t", "spot", "max_pain", "call_wall", "put_wall"), chart)
     payload = {
@@ -368,9 +353,6 @@ def tape_walls(
     )
 
 
-# ---------------------------------------------------------------------------
-# 6-9 · the 3D surface, strike books and the session ribbon
-# ---------------------------------------------------------------------------
 def _metric_label(metric: str) -> str:
     return _METRIC_LABELS.get(metric, metric.replace("_", " ").upper())
 
@@ -380,7 +362,6 @@ def _metric_unit(metric: str, spec: InstrumentSpec) -> str:
 
 
 def _forward_fill(row: Sequence[Any]) -> list[Any]:
-    """Carry the last observed cell forward; leading unknowns stay blank."""
     out: list[Any] = []
     previous: Any = None
     for value in row:
@@ -488,7 +469,6 @@ def tape_strikes(
     span: int = 1,
     height: Optional[int] = None,
 ) -> str:
-    """Largest strikes by call/put open interest."""
     chart = "tape_strikes"
     cols = _columnar(data, ("strike", "ce_oi", "pe_oi"), chart)
     payload = {
@@ -522,7 +502,6 @@ def tape_oi_change(
     span: int = 1,
     height: Optional[int] = None,
 ) -> str:
-    """Signed open-interest change per strike (bars keep their sign)."""
     chart = "tape_oi_change"
     cols = _columnar(data, ("strike", "ce_change", "pe_change"), chart)
     payload = {
@@ -587,9 +566,6 @@ def tape_timeline(
     )
 
 
-# ---------------------------------------------------------------------------
-# 10-11 · volatility extras
-# ---------------------------------------------------------------------------
 def rv_iv(
     data: Any,
     *,
@@ -641,7 +617,6 @@ def straddle_1sigma(
     span: int = 1,
     height: Optional[int] = None,
 ) -> str:
-    """Straddle-implied 1σ move against the realised move, in price points."""
     chart = "straddle_1sigma"
     cols = _columnar(data, ("t", "straddle", "realised"), chart)
     if sigma_factor <= 0:

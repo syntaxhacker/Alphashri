@@ -12,13 +12,11 @@ const ZERO = 22;
 
 export interface NiftyPressureLaneProps {
   series: PressureSeries;
-  /** Height in px (the SVG scales to it). */
   height?: number;
   /** Render an HH:MM axis under the bars (used by the expanded modal). */
   showAxis?: boolean;
 }
 
-/** Points worth labelling: every 30 minutes, plus the first and last. */
 function axisTicks(points: PressureSeries["points"]): Array<{ i: number; t: string }> {
   const out: Array<{ i: number; t: string }> = [];
   points.forEach((p, i) => {
@@ -29,7 +27,6 @@ function axisTicks(points: PressureSeries["points"]): Array<{ i: number; t: stri
     out.push({ i: 0, t: points[0].t });
     if (points.length > 1) out.push({ i: points.length - 1, t: points[points.length - 1].t });
   }
-  // Never crowd: keep at most 20 labels, always including the last.
   return out.length > 20 ? out.filter((_, idx) => idx % Math.ceil(out.length / 20) === 0) : out;
 }
 
@@ -41,20 +38,12 @@ interface PressureBarsProps {
   scaleMax: number;
 }
 
-/**
- * The static bar layer: burst band, median/zero rules and one bar group per
- * minute. Memoised so a mousemove (which only moves the crosshair) does not
- * re-reconcile hundreds of `<rect>` nodes.
- */
 function PressureBars(props: PressureBarsProps) {
   const scale = (v: number) => (Math.min(v, props.scaleMax) / props.scaleMax) * (ZERO - 3);
   const medianY = ZERO - scale(props.median);
   const burstY = ZERO - scale(props.median * PRESSURE_BURST_RATIO);
   return (
     <>
-      {/* Aggressor hatch: solid = BUY (premium richer than delta-implied),
-          striped = SELL (cheaper than implied). Side colour still identifies
-          CE (blue) vs PE (orange). */}
       <defs>
         <pattern id="pf-sell-ce" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
           <rect width="3" height="3" fill={palette.TERM_CE} opacity={0.18} />
@@ -65,7 +54,6 @@ function PressureBars(props: PressureBarsProps) {
           <line x1="0" y1="0" x2="0" y2="3" stroke={palette.TERM_PE} stroke-width="1.4" opacity={0.95} />
         </pattern>
       </defs>
-      {/* 2× burst band */}
       <rect
         x={PAD_L}
         y={burstY}
@@ -74,7 +62,6 @@ function PressureBars(props: PressureBarsProps) {
         fill={palette.WARNING}
         opacity={0.05}
       />
-      {/* props.median line */}
       <line
         x1={PAD_L}
         x2={PAD_L + props.gridW}
@@ -85,7 +72,6 @@ function PressureBars(props: PressureBarsProps) {
         stroke-dasharray="3 3"
         opacity={0.55}
       />
-      {/* zero line */}
       <line
         x1={PAD_L}
         x2={PAD_L + props.gridW}
@@ -143,18 +129,6 @@ function PressureBars(props: PressureBarsProps) {
   );
 }
 
-/**
- * Mirrored option-volume bars: CE up (blue), PE down (orange), with the 20-min
- * median as a solid line and the 2×/4× bursts shaded. A burst is a bar poking
- * out of the band — no numbers to read. The last minute is outlined and its
- * multiple is printed at the right.
- */
-/**
- * Mirrored option-volume bars: CE up (blue), PE down (orange), with the 20-min
- * median as a solid line and the 2×/4× bursts shaded. A burst is a bar poking
- * out of the band — no numbers to read. The last minute is outlined and its
- * multiple is printed at the right.
- */
 export function NiftyPressureLane(props: NiftyPressureLaneProps) {
   const [hover, setHover] = createSignal<number | null>(null);
   const series = () => props.series;

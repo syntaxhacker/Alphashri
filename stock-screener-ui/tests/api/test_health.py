@@ -18,7 +18,6 @@ import time
 
 import pytest
 
-# Add project root to path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
@@ -40,7 +39,6 @@ class TestHealthCheck:
         assert response.status_code == 200
         data = response.json()
 
-        # Verify response structure
         assert 'status' in data
         assert 'timestamp' in data
 
@@ -68,10 +66,8 @@ class TestHealthCheck:
 
         timestamp = data['timestamp']
 
-        # Verify it's a valid ISO timestamp
         try:
             parsed_time = datetime.fromisoformat(timestamp)
-            # Verify timestamp is recent (within last minute)
             time_diff = (datetime.now() - parsed_time).total_seconds()
             assert time_diff >= 0
             assert time_diff < 60  # Within last minute
@@ -101,7 +97,6 @@ class TestHealthCheck:
         load balancer and monitoring services.
         """
         response = client.get("/health")
-        # Should not return 401 Unauthorized
         assert response.status_code == 200
         assert response.status_code != 401
 
@@ -143,11 +138,9 @@ class TestHealthCheck:
         assert response.status_code == 200
         data = response.json()
 
-        # Should only have status and timestamp
         expected_keys = {'status', 'timestamp'}
         actual_keys = set(data.keys())
 
-        # Response should not have extra fields
         assert actual_keys.issubset(expected_keys), \
             f"Health check has unexpected fields: {actual_keys - expected_keys}"
 
@@ -174,12 +167,10 @@ class TestHealthCheck:
             response = client.get("/health")
             return response.status_code, response.json()
 
-        # Make 10 concurrent requests
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             futures = [executor.submit(check_health) for _ in range(10)]
             results = [f.result() for f in concurrent.futures.as_completed(futures)]
 
-        # All requests should succeed
         for status_code, data in results:
             assert status_code == 200
             assert data['status'] == 'ok'
@@ -190,15 +181,12 @@ class TestHealthCheck:
 
         Multiple calls should not change server state.
         """
-        # Get initial state
         response1 = client.get("/health")
         assert response1.status_code == 200
         timestamp1 = response1.json()['timestamp']
 
-        # Wait a bit
         time.sleep(0.1)
 
-        # Get second state
         response2 = client.get("/health")
         assert response2.status_code == 200
         timestamp2 = response2.json()['timestamp']
@@ -213,11 +201,9 @@ class TestHealthCheck:
 
         Health check should remain fast even when server is busy.
         """
-        # Simulate load by making multiple requests
         for _ in range(50):
             client.get("/health")
 
-        # Now check response time
         start_time = time.time()
         response = client.get("/health")
         end_time = time.time()
@@ -238,7 +224,6 @@ class TestHealthCheck:
         response = client.get("/health")
         assert response.status_code == 200
 
-        # Test /health/ (may also work)
         response = client.get("/health/")
         # Either 200 (works) or 404 (not found)
         assert response.status_code in [200, 404]
@@ -291,7 +276,6 @@ class TestHealthCheck:
         response = client.get("/health")
         assert response.status_code == 200
 
-        # Verify response is valid UTF-8
         content = response.content
         content.decode('utf-8')
 
@@ -304,6 +288,5 @@ class TestHealthCheck:
         response = client.get("/health")
         assert response.status_code == 200
 
-        # Response should be small
         content_length = len(response.content)
         assert content_length < 1000, "Health check response should be small"

@@ -1,24 +1,3 @@
-"""
-SR Breakout Benchmark — reads from cached data, no API calls.
-
-Parameters via environment variables:
-  SR_SL=1.0          Stop loss %
-  SR_TP=3.0          Take profit %
-  SR_BUFFER=0.1      Breakout buffer %
-  SR_PIVOT=classic   Pivot type: classic|fibonacci|camarilla
-  SR_MIN_HOUR=9      Min entry hour (skip earlier breakouts)
-  SR_MIN_MIN=15      Min entry minute
-  SR_MAX_HOUR=15     Max entry hour
-  SR_MAX_MIN=15      Max entry minute
-
-Outputs METRIC lines for autoresearch:
-  METRIC profit_factor=2.5
-  METRIC win_rate=35
-  METRIC total_pnl=150
-  METRIC total_trades=16
-  METRIC wins=6
-  METRIC losses=8
-"""
 
 import sys
 from pathlib import Path

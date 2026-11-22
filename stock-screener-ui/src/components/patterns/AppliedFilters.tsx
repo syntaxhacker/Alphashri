@@ -7,32 +7,19 @@ import { DEFAULT_PATTERN_FILTERS } from "@/state/chartPatterns";
 import type { PatternDef, PatternFilters } from "@/types/chartPatterns";
 import { FAMILY_LABELS } from "./shared";
 
-/** One removable chip in the applied-filters row. */
 export interface AppliedFilterChip {
   /** Stable identity for React keys / testids. */
   id: string;
-  /** Group label, e.g. "Direction". */
   group: string;
-  /** Value label, e.g. "Bullish". */
   label: string;
-  /** Filter key this chip edits. */
   key: keyof PatternFilters;
-  /** Value to write when the chip's close button is pressed. */
   nextValue: PatternFilters[keyof PatternFilters];
 }
 
-/** `"formed_within_bars"` → `"Formed Within Bars"`. */
 function titleCase(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-/**
- * Flatten the active filter set into one chip per applied value, each carrying
- * the value to write when its close button removes it. `symbols` / `q` are
- * intentionally omitted — they are already shown (and removable) inline by
- * `SymbolFilter` / `ResultsSearch` in the toolbar, so repeating them here would
- * duplicate the same control.
- */
 export function buildAppliedFilterChips(
   filters: PatternFilters,
   patterns: PatternDef[] = [],
@@ -240,7 +227,6 @@ export function buildAppliedFilterChips(
       nextValue: "confidence",
     });
   }
-  // View-only overlay toggle (client-side only): one chip that resets to Both.
   if (filters.trendlines && filters.trendlines !== "both") {
     chips.push({
       id: "trendlines",
@@ -258,23 +244,15 @@ export function buildAppliedFilterChips(
   return chips;
 }
 
-/** How many chips render inline before collapsing to a `+N` overflow chip. */
 const MAX_VISIBLE_CHIPS = 6;
 
 export interface AppliedFiltersProps {
   filters: PatternFilters;
-  /** Catalog, used to render pattern ids as readable names. */
   patterns?: PatternDef[];
   setFilter: (key: string, value: unknown) => void;
   resetFilters: () => void;
 }
 
-/**
- * Inline summary of the active filters, grouped by filter family and each value
- * removable with its close button — so the modal never has to be reopened just
- * to drop one filter. Mounts a fixed-height placeholder row when no filters are
- * applied so the results table never shifts vertically.
- */
 export function AppliedFilters(props: AppliedFiltersProps) {
   const allChips = createMemo(() => buildAppliedFilterChips(props.filters, props.patterns));
   const [expanded, setExpanded] = createSignal(false);
@@ -283,8 +261,6 @@ export function AppliedFilters(props: AppliedFiltersProps) {
   );
   const overflowCount = createMemo(() => allChips().length - visibleChips().length);
 
-  // Consecutive chips sharing a `group` render under one muted label, so
-  // "Pattern: A · Pattern: B · Pattern: C" becomes "Patterns  A  B  C".
   const groups = createMemo(() => {
     const next: Array<{ group: string; items: AppliedFilterChip[] }> = [];
     for (const chip of visibleChips()) {

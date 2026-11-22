@@ -889,9 +889,6 @@ def no_stale_first(monkeypatch):
     monkeypatch.setattr(cp_api, "_stale_first_frame", lambda *a, **k: None)
 
 
-# ---------------------------------------------------------------------------
-# lookback_bars (opt-in): forwarded into job params; out-of-range → 422.
-# ---------------------------------------------------------------------------
 
 
 def test_scan_with_lookback_bars_enqueues_param(cp_client, monkeypatch):
@@ -939,9 +936,6 @@ def test_scan_with_lookback_bars_too_large_422(cp_client, monkeypatch):
     assert "lookback_bars" in resp.json()["detail"]
 
 
-# ---------------------------------------------------------------------------
-# trend_lines attachment (standalone trendline detector).
-# ---------------------------------------------------------------------------
 
 
 def _fake_trendline(kind: str) -> dict:
@@ -1283,9 +1277,6 @@ def test_results_lookback_bars_spans_full_window(cp_client, monkeypatch):
     assert candles[-1]["t"] > candles[0]["t"], "the cap keeps the newest bars"
 
 
-# ---------------------------------------------------------------------------
-# symbol chart lookback_bars (fullscreen chart shows the entire window).
-# ---------------------------------------------------------------------------
 
 
 def test_symbol_chart_with_lookback_bars_forwards_and_returns_all(cp_client, monkeypatch):
@@ -1326,9 +1317,6 @@ def test_symbol_chart_without_lookback_bars_uses_default(cp_client, monkeypatch,
     assert len(chart.json()["candles"]) == 120
 
 
-# ---------------------------------------------------------------------------
-# compute_trendlines flag: standalone trendline work can be skipped.
-# ---------------------------------------------------------------------------
 
 
 def test_results_compute_trendlines_false_skips_detector(cp_client, monkeypatch):
@@ -1392,9 +1380,6 @@ def test_symbol_chart_compute_trendlines_false_skips_detector(cp_client, monkeyp
     assert chart.json()["trend_lines"] == []
 
 
-# ---------------------------------------------------------------------------
-# Missing coverage: scan param passthrough, lookback boundaries, 422s.
-# ---------------------------------------------------------------------------
 
 
 def test_scan_forwards_compute_trendlines_false(cp_client, monkeypatch):
@@ -1461,9 +1446,6 @@ def test_chart_limit_over_max_422(cp_client):
     assert resp.status_code == 422
 
 
-# ---------------------------------------------------------------------------
-# refresh flag: clear candle cache before enqueueing a forced scan.
-# ---------------------------------------------------------------------------
 
 
 def test_scan_refresh_universe_scope_clears_timeframe_cache(cp_client, monkeypatch):
@@ -1549,9 +1531,6 @@ def test_scan_without_refresh_does_not_clear_cache(cp_client, monkeypatch):
     assert "refresh" not in captured["params"]
 
 
-# ---------------------------------------------------------------------------
-# max_52w_gap filter: 52-week-high proximity backed by stock_52w_range.
-# ---------------------------------------------------------------------------
 
 
 def _seed_52w_ranges(engine, rows):
@@ -1638,9 +1617,6 @@ def test_results_items_carry_tags(cp_client, monkeypatch):
     assert by_symbol["AAA"]["tags"] == []
 
 
-# ---------------------------------------------------------------------------
-# min_range_pos filter + range_pos sort (consolidation base position).
-# ---------------------------------------------------------------------------
 
 
 def _hit_with_range_pos(symbol: str, range_pos) -> dict:
@@ -1974,9 +1950,6 @@ def test_symbol_chart_1d_empty_tape_has_no_partial_mark(cp_client, monkeypatch, 
 
 
 
-# ---------------------------------------------------------------------------
-# TV volume pre-filter params: /scan forwards min_rel_volume / min_volume_m.
-# ---------------------------------------------------------------------------
 
 
 def test_scan_forwards_volume_prefilter_params(cp_client, monkeypatch):
@@ -2020,9 +1993,6 @@ def test_scan_without_volume_params_omits_them(cp_client, monkeypatch):
     assert "min_volume_m" not in captured["params"]
 
 
-# ---------------------------------------------------------------------------
-# Live pattern detection: /symbol/{s}/chart?detect_patterns=1 adds `hits`.
-# ---------------------------------------------------------------------------
 
 
 def _live_hit(symbol: str = "IRCON"):
@@ -2245,9 +2215,6 @@ def test_aplapollo_stored_and_live_paths_are_distinguishable(cp_client, monkeypa
     assert on_body["hits"][0]["pattern_name"] != off_body["hits"][0]["pattern_name"]
 
 
-# ---------------------------------------------------------------------------
-# GET /hit/{hit_id}: fullscreen opens a single stored row (404 closes it).
-# ---------------------------------------------------------------------------
 
 
 def _seed_hit_row(job_id: str = "cpj_hit") -> int:
@@ -2432,9 +2399,6 @@ def test_sanitize_for_json_preserves_existing_behaviour(cp_client):
     json.dumps(result, allow_nan=False)
 
 
-# ---------------------------------------------------------------------------
-# GZip wire bytes (patterns read path)
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -2833,9 +2797,6 @@ def test_candle_fields_delegates_to_last_close_change(monkeypatch):
     assert fields == {"last_close": 110.0, "day_change_pct": 10.0, "history_bars": 2}
 
 
-# ---------------------------------------------------------------------------
-# Symbol chart fetch: hard timeout + negative cache for empty results.
-# ---------------------------------------------------------------------------
 
 
 def _hanging_fetch(symbol, timeframe, **kwargs):

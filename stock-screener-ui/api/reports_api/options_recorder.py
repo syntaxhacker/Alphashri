@@ -119,9 +119,6 @@ RATE_ACQUIRE_TIMEOUT_SEC = 5.0
 RATE_CONSUMER = "options"
 
 
-# --------------------------------------------------------------------------- #
-# paths (always resolved through DATA_ROOT so tests can redirect them)
-# --------------------------------------------------------------------------- #
 def chain10s_dir() -> Path:
     return DATA_ROOT / CHAIN10S_DIRNAME
 
@@ -166,9 +163,6 @@ def snapshot_path(symbol: str, date_str: str) -> Path:
     return snapshot_dir() / symbol / f"{date_str}.json"
 
 
-# --------------------------------------------------------------------------- #
-# state
-# --------------------------------------------------------------------------- #
 #: Latest full report per symbol (10 s cadence) — the history agent may read
 #: this instead of parsing the day file.
 LAST: dict[str, dict] = {}
@@ -260,9 +254,6 @@ def status() -> dict:
     }
 
 
-# --------------------------------------------------------------------------- #
-# small helpers
-# --------------------------------------------------------------------------- #
 def _ist(ts: Optional[datetime] = None) -> datetime:
     """Aware IST wall clock; a naive input is assumed IST, not UTC."""
     ts = ts or datetime.now(config.IST)
@@ -425,9 +416,6 @@ def _append_tape_row(path: Path, row: dict) -> None:
         _append_jsonl(path, row)
 
 
-# --------------------------------------------------------------------------- #
-# rate limiter (upstox_trader, "options" consumer)
-# --------------------------------------------------------------------------- #
 def _rate_limiter() -> Any:
     """Lazy singleton ``UpstoxRateLimiter(consumer="options")`` (None if absent)."""
     global _RATE_LIMITER, _RATE_LIMITER_READY
@@ -460,9 +448,6 @@ async def _acquire_upstream() -> bool:
         return True
 
 
-# --------------------------------------------------------------------------- #
-# upstream fetches
-# --------------------------------------------------------------------------- #
 async def _fetch_expiries(symbol: str) -> dict:
     """``api.options.get_expiries`` (imported lazily, monkeypatch-friendly)."""
     fn = globals().get("get_expiries")
@@ -535,9 +520,6 @@ async def _nearest_expiry(symbol: str) -> Optional[str]:
     return expiry
 
 
-# --------------------------------------------------------------------------- #
-# lot size (SENSEX 20 from AVAILABLE_UNDERLYINGS, stocks from NSE_FO contracts)
-# --------------------------------------------------------------------------- #
 def _instruments_path() -> Path:
     # api/reports_api/options_recorder.py -> parents[3] == repo root
     return (Path(__file__).resolve().parents[3]
@@ -624,9 +606,6 @@ def lot_size(symbol: str, chain: Optional[list[dict]] = None) -> int:
     return int(by_symbol.get(up) or 1)
 
 
-# --------------------------------------------------------------------------- #
-# intraday bars (replay chart) — at most one fetch per 120 s per symbol
-# --------------------------------------------------------------------------- #
 try:  # embedded for monkeypatching; the lazy import below is the fallback
     from market_data.market_data import fetch_candles_for_timeframe
 except Exception:  # pragma: no cover - import guard only
@@ -771,9 +750,6 @@ async def _intraday_block(symbol: str, spot: float) -> dict:
     }
 
 
-# --------------------------------------------------------------------------- #
-# report assembly
-# --------------------------------------------------------------------------- #
 def _nifty():
     """The NIFTY module — pure helpers are reused verbatim (lazy, cycle-free)."""
     from api.reports_api import nifty
@@ -781,9 +757,6 @@ def _nifty():
     return nifty
 
 
-# --------------------------------------------------------------------------- #
-# chain10s + greeks evidence (both projections of the chain already fetched)
-# --------------------------------------------------------------------------- #
 def _note_chain10s_gap(symbol: str, date_str: str, t_iso: str) -> None:
     """Journal a hole in the 10 s series (measured from the previous success).
 
@@ -927,9 +900,6 @@ def build_base_report(symbol: str, expiry: str, spot: float,
     return base
 
 
-# --------------------------------------------------------------------------- #
-# tape row (the shared NIFTY builder + ``underlying``)
-# --------------------------------------------------------------------------- #
 def _build_tape_row(symbol: str, report: dict, spot: float, t_iso: str,
                     spot_chain: Optional[float] = None) -> dict:
     """One tape row — the exact NIFTY field set, in the NIFTY field order.
@@ -1038,9 +1008,6 @@ async def _write_minute(symbol: str, report: dict, date_str: str,
     return row
 
 
-# --------------------------------------------------------------------------- #
-# one tick
-# --------------------------------------------------------------------------- #
 async def _record_symbol(symbol: str, ts: datetime) -> Optional[dict]:
     """Record one symbol at ``ts`` (chain10s always; tape/frame per minute).
 
@@ -1191,9 +1158,6 @@ async def record_tick(now: Optional[datetime] = None) -> dict:
             "records": int(_status.get("records") or 0)}
 
 
-# --------------------------------------------------------------------------- #
-# background loop
-# --------------------------------------------------------------------------- #
 async def _tick(interval_sec: float) -> dict:
     """One tick with timeout/error handling; a failure is a missing minute."""
     try:
@@ -1304,9 +1268,6 @@ async def start_options_recorder_task(interval_sec: Optional[float] = None) -> N
         raise
 
 
-# --------------------------------------------------------------------------- #
-# status endpoint (the history agent may also read ``status()`` directly)
-# --------------------------------------------------------------------------- #
 @router.get("/recorder/status")
 async def get_recorder_status() -> dict:
     """Recorder heartbeat: symbols, last tick, records written, per-symbol counts."""

@@ -5,22 +5,12 @@ import { LocalCompactPanel, LocalCompactStat, LocalEmptyState } from "./reportBi
 import { REPORT_FONT } from "./reportTokens";
 import { buildParticipantFlow, type ParticipantFlowRow } from "./niftyParticipantFlow";
 
-/**
- * Stacked horizontal bars of writer vs buyer flow per clock bucket.
- *
- * Each bucket shows two bars — calls (CE) and puts (PE) — split into
- * writers (red), buyers (green) and cover (teal, stacked on the buy side).
- * Segment widths are shares of that leg's bucket total; the signed net
- * imbalance (`buyers + cover − writers`) is printed per bucket and summed
- * in the header stats.
- */
 
 interface NiftyParticipantFlowProps {
   rows: ParticipantFlowRow[];
   bucketMin?: number;
 }
 
-/** Compact ₹: `2.69 Cr`, `18.4 L`, else Indian grouping. */
 export function formatFlowRupees(v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return "—";
   const sign = v < 0 ? "-" : v > 0 ? "+" : "";

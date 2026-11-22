@@ -379,7 +379,6 @@ test.describe("Options analytics", () => {
       )
       .toBe(true);
 
-    // Restore the band and verify a real canvas is painted on each analytics tab.
     await page.evaluate(() => {
       const list = document.querySelector('[data-testid="analytics-tabs-list"]') as HTMLElement;
       list.style.maxWidth = "";

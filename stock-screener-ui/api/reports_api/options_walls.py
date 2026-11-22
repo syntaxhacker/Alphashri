@@ -568,7 +568,6 @@ def compute_wall_state(
     drift_ok = mp_drift > DRIFT_MIN
     brk = bool(expiry_day and near and cross and erosion_ok and put_ok and drift_ok)
 
-    # --- freshness ---------------------------------------------------------
     try:
         now_dt = now or datetime.now(config.IST)
         age_sec = max(0.0, now_dt.timestamp() - last_epoch)
@@ -592,7 +591,6 @@ def compute_wall_state(
 
     events = _scan_events(rows, window_min, expiry_day)
 
-    # --- state -------------------------------------------------------------
     reasons: list[str] = []
     if dte is not None:
         reasons.append(f"{dte}-DTE")
@@ -662,7 +660,6 @@ def compute_wall_state(
             "reasons": reasons,
         }
 
-    # --- one-line story for the map header / READ panel -------------------
     read_parts: list[str] = []
     if call_strike:
         if call_erosion_window is not None:
@@ -689,7 +686,6 @@ def compute_wall_state(
         )
     read = " · ".join(read_parts)
 
-    # --- all walls (current top N, plus the nearest wall) -----------------
     def _flow_label(oi_5m: Optional[float], prem_5m: Optional[float]) -> str:
         """5-min OI sign + premium sign -> flow classification."""
         oi_down = oi_5m is not None and oi_5m < 0
@@ -884,7 +880,6 @@ def compute_wall_state(
         if call_strike else None
     )
 
-    # --- history for the expanded matrix ----------------------------------
     history: list[dict] = []
     for row in rows[-window_min:]:
         row_chain = _chain(row)

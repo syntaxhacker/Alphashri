@@ -35,10 +35,7 @@ export interface PanelModalProps {
 const DIALOG_SHADOW = palette.DIALOG_SHADOW;
 
 /**
- * Desk-mode shell: one panel at a time, 92vw × 88vh on desktop, full-screen on
- * phones. `autoHeight` switches to a centered content-hugging dialog (capped
- * by `maxHeight`). The body is the only scroller so the title bar never leaves
- * the viewport.
+ * The body is the only scroller so the title bar never leaves the viewport.
  */
 export function PanelModal(props: PanelModalProps) {
   const isDrawer = () => props.variant === "drawer";

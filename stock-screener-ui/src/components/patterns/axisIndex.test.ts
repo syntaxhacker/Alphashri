@@ -132,7 +132,6 @@ describe("axisIndex.mapStandaloneLine matches mapStandaloneLine", () => {
 
 describe("axisIndex.nearestIndex ties resolve to the earliest candle", () => {
   it("equidistant neighbours keep the earlier index", () => {
-    // Target 2026-05-04 10:15 is exactly between the two candles.
     const times = ["2026-05-04T09:15:00+05:30", "2026-05-04T11:15:00+05:30"];
     expect(createAxisIndex(times).nearestIndex(Date.parse("2026-05-04T10:15:00+05:30"))).toBe(0);
     // Same axis, reversed storage order: the earliest axis index is now the later candle.
@@ -160,14 +159,11 @@ describe("axisIndex.resolveIndex precedence", () => {
   it("exact beats day beats nearest", () => {
     const axis = createAxisIndex(CANDLES_ISO);
     expect(axis.resolveIndex(CANDLES_ISO[2]!)).toBe(2);
-    // Date-only string maps to the first candle of that day, not the nearest.
     expect(axis.resolveIndex("2026-05-06")).toBe(2);
     expect(axis.resolveIndex("garbage")).toBeUndefined();
   });
 
   it("a timed string never collapses onto the first candle of the day", () => {
-    // Two candles on one day: a 12:00 query is nearer the 14:00 candle, so a
-    // day-level collapse would wrongly land on index 0.
     const axis = createAxisIndex([
       "2026-05-06T09:15:00+05:30",
       "2026-05-06T14:00:00+05:30",

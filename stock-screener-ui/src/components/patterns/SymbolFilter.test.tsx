@@ -78,7 +78,6 @@ describe("SymbolFilter", () => {
     fireEvent.focus(combo);
     fireEvent.input(combo, { target: { value: "reli" } });
 
-    // Wait for the debounced search + options state update to land.
     await screen.findByRole("option", { name: /RELIANCE/ });
     // Regression: the input must keep the typed text after options resolve.
     expect(combo).toHaveValue("reli");

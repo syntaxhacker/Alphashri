@@ -21,7 +21,6 @@ describe("QualityBadge", () => {
 
   test("exposes the quality description as tooltip label", async () => {
     render(() => <QualityBadge quality="strong" />);
-    // The local Tooltip renders the label inside the bubble on hover.
     fireEvent.mouseOver(screen.getByTestId("patterns-quality-strong"));
     expect(await screen.findByText(QUALITY_INFO.strong.description)).toBeInTheDocument();
   });

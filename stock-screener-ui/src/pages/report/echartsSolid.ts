@@ -36,7 +36,6 @@ export function createECharts(options: { onChartClick?: (params: unknown) => voi
     const echartsLib = await loadEcharts();
     if (!el || cancelled || !echartsLib) return;
 
-    // Bind to a local so the non-null narrowing survives the closure.
     let instance = chart;
     if (!instance) {
       instance = echartsLib.init(el, null) as EChartsHandle;

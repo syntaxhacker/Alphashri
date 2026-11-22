@@ -18,15 +18,11 @@ import {
 import type { PositionRow } from "./niftyPositions";
 import { REPORT_FONT } from "./reportTokens";
 
-/** Open positions refresh while the drawer is up (STOP/TP can fire mid-read). */
 const POSITIONS_REFRESH_MS = 30_000;
 
 interface NiftyPositionsDrawerProps {
-  /** Open paper book; `null` before the first fetch (renders the empty state). */
   positions: PaperPosition[] | null;
-  /** Live option chain — the source for the book greeks. */
   strikes?: NiftyStrike[];
-  /** Reload the open book; called on open and every 30s while open. */
   onRefresh?: () => void | Promise<void>;
   /** Poll interval override (tests). */
   refreshMs?: number;

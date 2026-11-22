@@ -29,7 +29,6 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-# Add project root to path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
@@ -51,7 +50,6 @@ class TestBotCreationAndConfiguration:
         3. Verify configuration is correct
         4. Verify strategy association in database
         """
-        # Create strategy
         strategy = StrategyConfig(
             name="single_orb_strategy",
             strategy_type="ORB",
@@ -67,7 +65,6 @@ class TestBotCreationAndConfiguration:
         db.commit()
         db.refresh(strategy)
 
-        # Create bot
         response = client.post("/api/bots", json={
             "name": "Single Strategy Bot",
             "is_active": True,
@@ -100,7 +97,6 @@ class TestBotCreationAndConfiguration:
         3. Verify allocation percentages sum correctly
         4. Verify each strategy has correct parameters
         """
-        # Create three strategies
         strategies = []
         for i in range(3):
             strategy = StrategyConfig(
@@ -117,7 +113,6 @@ class TestBotCreationAndConfiguration:
             db.refresh(strategy)
             strategies.append(strategy)
 
-        # Create bot with all strategies
         response = client.post("/api/bots", json={
             "name": "Multi-Strategy Bot",
             "is_active": True,
@@ -147,11 +142,9 @@ class TestBotCreationAndConfiguration:
 
         assert len(bot["strategies"]) == 3
 
-        # Verify total allocation is 90%
         total_allocation = sum(s["capital_allocation_pct"] for s in bot["strategies"])
         assert abs(total_allocation - 0.9) < 1e-10
 
-        # Verify database associations
         bot_db = db.query(BotConfig).filter(BotConfig.uuid == bot["uuid"]).first()
         associations = db.execute(
             bot_strategies.select().where(bot_strategies.c.bot_id == bot_db.id)
@@ -161,7 +154,6 @@ class TestBotCreationAndConfiguration:
 
     def test_create_bot_rejects_over_allocation(self, client: TestClient, db: Session):
         """Test that bot creation fails when total allocation exceeds 100%."""
-        # Create two strategies
         strategy1 = StrategyConfig(
             name="alloc_test_1",
             strategy_type="ORB",
@@ -180,7 +172,6 @@ class TestBotCreationAndConfiguration:
         db.refresh(strategy1)
         db.refresh(strategy2)
 
-        # Try to create bot with allocation > 100%
         response = client.post("/api/bots", json={
             "name": "Over-allocated Bot",
             "is_active": True,
@@ -216,7 +207,6 @@ class TestBotCreationAndConfiguration:
 
         assert response1.status_code == 200
 
-        # Try to create second bot with same name
         response2 = client.post("/api/bots", json={
             "name": "Duplicate Name Bot",  # Same name
             "is_active": True,
@@ -241,7 +231,6 @@ class TestBotStartupFlow:
         4. Verify log file created
         5. Verify bot status shows running
         """
-        # Create strategy and bot
         strategy = StrategyConfig(
             name="startup_test_strategy",
             strategy_type="ORB",
@@ -275,7 +264,6 @@ class TestBotStartupFlow:
             mock_process.poll = Mock(return_value=None)  # Process running
             mock_start.return_value = mock_process
 
-            # Start bot in test mode
             start_response = client.post(
                 f"/api/bots/{bot['id']}/start",
                 params={"test_mode": True}
@@ -292,7 +280,6 @@ class TestBotStartupFlow:
 
     def test_bot_status_after_startup(self, client: TestClient, db: Session):
         """Test that bot status reflects running state after startup."""
-        # Create strategy and bot
         strategy = StrategyConfig(
             name="status_test_strategy",
             strategy_type="ORB",
@@ -348,7 +335,6 @@ class TestBotStartupFlow:
         3. Verify all strategies are loaded
         4. Verify strategy parameters are correct
         """
-        # Create strategies with different parameters
         strategies = []
         params = [
             {"sl_pct": 0.3, "tp_pct": 1.0},
@@ -368,7 +354,6 @@ class TestBotStartupFlow:
             db.refresh(strategy)
             strategies.append(strategy)
 
-        # Create bot
         bot_response = client.post("/api/bots", json={
             "name": "Initialization Test Bot",
             "strategies": [
@@ -383,10 +368,8 @@ class TestBotStartupFlow:
 
         bot = bot_response.json()
 
-        # Verify bot has both strategies
         assert len(bot["strategies"]) == 2
 
-        # Get bot details
         detail_response = client.get(f"/api/bots/{bot['id']}")
         detail_bot = detail_response.json()
 
@@ -403,7 +386,6 @@ class TestMultiStrategyCoordination:
         2. Verify global position limits enforced
         3. Verify capital allocations respected
         """
-        # Create strategies
         strategies = []
         for i in range(2):
             strategy = StrategyConfig(
@@ -417,7 +399,6 @@ class TestMultiStrategyCoordination:
             db.refresh(strategy)
             strategies.append(strategy)
 
-        # Create bot with shared portfolio constraints
         bot_response = client.post("/api/bots", json={
             "name": "Shared Portfolio Bot",
             "max_total_positions": 5,  # Global limit
@@ -438,7 +419,6 @@ class TestMultiStrategyCoordination:
 
         bot = bot_response.json()
 
-        # Verify global limits
         assert bot["max_total_positions"] == 5
 
         # Even though each strategy can have 3, total is limited to 5
@@ -454,7 +434,6 @@ class TestBotMonitoringFlow:
         2. Get bot logs
         3. Verify log format
         """
-        # Create strategy and bot
         strategy = StrategyConfig(
             name="logs_test_strategy",
             strategy_type="ORB",
@@ -480,7 +459,6 @@ class TestBotMonitoringFlow:
 
         # Mock log file
         with patch('api.bots_api.bot_operations._bot_logs', {bot['id']: Path("/tmp/test-bot.log")}):
-            # Create temporary log file
             log_content = "2026-03-03 10:00:00 [INFO] Bot started\n2026-03-03 10:00:01 [INFO] Scanning for signals\n"
 
             with patch('builtins.open', MagicMock(return_value=iter(log_content.splitlines(keepends=True)))):
@@ -498,7 +476,6 @@ class TestBotMonitoringFlow:
         2. Get portfolio status
         3. Verify portfolio structure
         """
-        # Create strategy and bot
         strategy = StrategyConfig(
             name="portfolio_test_strategy",
             strategy_type="ORB",
@@ -578,7 +555,6 @@ class TestBotShutdownFlow:
         2. Stop bot
         3. Verify process terminated
         """
-        # Create strategy and bot
         strategy = StrategyConfig(
             name="stop_test_strategy",
             strategy_type="ORB",
@@ -612,7 +588,6 @@ class TestBotShutdownFlow:
 
     def test_bot_status_after_stop(self, client: TestClient, db: Session):
         """Test that bot status shows not running after stop."""
-        # Create strategy and bot
         strategy = StrategyConfig(
             name="status_stop_strategy",
             strategy_type="ORB",
@@ -658,7 +633,6 @@ class TestBotDeletionFlow:
         3. Verify bot was stopped
         4. Verify bot deleted from database
         """
-        # Create strategy and bot
         strategy = StrategyConfig(
             name="delete_strategy",
             strategy_type="ORB",
@@ -690,7 +664,6 @@ class TestBotDeletionFlow:
                 assert delete_response.status_code == 200
                 mock_stop.assert_called_once()
 
-        # Verify bot deleted from database
         db_bot = db.query(BotConfig).filter(BotConfig.id == bot["id"]).first()
         assert db_bot is None
 
@@ -702,7 +675,6 @@ class TestBotDeletionFlow:
         3. Verify associations removed
         4. Verify strategies still exist
         """
-        # Create strategies
         strategies = []
         for i in range(2):
             strategy = StrategyConfig(
@@ -716,7 +688,6 @@ class TestBotDeletionFlow:
             db.refresh(strategy)
             strategies.append(strategy)
 
-        # Create bot
         bot_response = client.post("/api/bots", json={
             "name": "Association Delete Test Bot",
             "strategies": [
@@ -731,24 +702,20 @@ class TestBotDeletionFlow:
 
         bot = bot_response.json()
 
-        # Verify associations exist
         bot_db = db.query(BotConfig).filter(BotConfig.uuid == bot["uuid"]).first()
         associations = db.execute(
             bot_strategies.select().where(bot_strategies.c.bot_id == bot_db.id)
         ).fetchall()
         assert len(associations) == 2
 
-        # Delete bot
         delete_response = client.delete(f"/api/bots/{bot['id']}")
         assert delete_response.status_code == 200
 
-        # Verify associations removed
         associations = db.execute(
             bot_strategies.select().where(bot_strategies.c.bot_id == bot_db.id)
         ).fetchall()
         assert len(associations) == 0
 
-        # Verify strategies still exist
         for strategy in strategies:
             db_strategy = db.query(StrategyConfig).filter(
                 StrategyConfig.id == strategy.id
@@ -771,7 +738,6 @@ class TestResourceCleanup:
         2. Verify cleanup happens
         3. Verify can start new bot
         """
-        # Create strategy and bot
         strategy = StrategyConfig(
             name="crash_test_strategy",
             strategy_type="ORB",
@@ -842,7 +808,6 @@ class TestResourceCleanup:
 
         bot = bot_response.json()
 
-        # Try to start inactive bot
         start_response = client.post(
             f"/api/bots/{bot['id']}/start",
             params={"test_mode": True}
@@ -857,7 +822,6 @@ class TestBotConfigurationUpdates:
 
     def test_update_bot_name(self, client: TestClient, db: Session):
         """Test updating bot name."""
-        # Create strategy and bot
         strategy = StrategyConfig(
             name="update_name_strategy",
             strategy_type="ORB",
@@ -881,7 +845,6 @@ class TestBotConfigurationUpdates:
 
         bot = bot_response.json()
 
-        # Update name
         update_response = client.put(f"/api/bots/{bot['id']}", json={
             "name": "Updated Name"
         })
@@ -893,7 +856,6 @@ class TestBotConfigurationUpdates:
 
     def test_update_bot_strategies(self, client: TestClient, db: Session):
         """Test updating bot's strategy allocation."""
-        # Create strategies
         strategies = []
         for i in range(3):
             strategy = StrategyConfig(
@@ -921,7 +883,6 @@ class TestBotConfigurationUpdates:
 
         bot = bot_response.json()
 
-        # Update to use different strategies
         update_response = client.put(f"/api/bots/{bot['id']}", json={
             "strategies": [
                 {
@@ -944,7 +905,6 @@ class TestBotConfigurationUpdates:
 
     def test_update_bot_rejects_over_allocation(self, client: TestClient, db: Session):
         """Test that update fails if new allocation exceeds 100%."""
-        # Create strategies
         strategy1 = StrategyConfig(
             name="alloc_check_1",
             strategy_type="ORB",
@@ -963,7 +923,6 @@ class TestBotConfigurationUpdates:
         db.refresh(strategy1)
         db.refresh(strategy2)
 
-        # Create bot
         bot_response = client.post("/api/bots", json={
             "name": "Allocation Check Bot",
             "strategies": [
@@ -977,7 +936,6 @@ class TestBotConfigurationUpdates:
 
         bot = bot_response.json()
 
-        # Try to update with over-allocation
         update_response = client.put(f"/api/bots/{bot['id']}", json={
             "strategies": [
                 {

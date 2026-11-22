@@ -155,9 +155,7 @@ describe("formatDateTimeHuman", () => {
   });
 
   test("handles invalid input gracefully", () => {
-    // Invalid input produces NaN-based output, not '-'
     const result = formatDateTimeHuman("invalid");
-    // Just check it doesn't throw
     expect(typeof result).toBe("string");
   });
 });
@@ -185,7 +183,6 @@ describe("formatDateTimeCompact", () => {
 
 describe("formatTradeTime", () => {
   test("formats trade time with seconds", () => {
-    // Note: Result depends on local timezone, so just check format
     const result = formatTradeTime("2026-02-24T10:38:36Z");
     expect(result).toMatch(/\d{1,2} \w{3} \d{4}, \d{2}:\d{2}:\d{2}/);
   });

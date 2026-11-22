@@ -27,10 +27,6 @@ DIGEST_HOUR, DIGEST_MINUTE = 15, 45
 DIGEST_MINUTES = DIGEST_HOUR * 60 + DIGEST_MINUTE
 
 
-# ---------------------------------------------------------------------------
-# config helpers
-# ---------------------------------------------------------------------------
-
 def is_digest_enabled() -> bool:
     return os.getenv("REPORT_DIGEST_ENABLED", "1").lower() not in ("0", "false", "no")
 
@@ -38,10 +34,6 @@ def is_digest_enabled() -> bool:
 def get_digest_universe() -> str:
     return (os.getenv("REPORT_DIGEST_UNIVERSE", "nifty500") or "nifty500").strip().lower() or "nifty500"
 
-
-# ---------------------------------------------------------------------------
-# pure formatting
-# ---------------------------------------------------------------------------
 
 def _esc(value: Any) -> str:
     return html.escape(str(value), quote=False)
@@ -211,10 +203,6 @@ def format_digest(daily: Optional[dict], brk: Optional[dict], universe: str) -> 
     return text
 
 
-# ---------------------------------------------------------------------------
-# default fetchers (sync; mirror the endpoint logic without asyncio)
-# ---------------------------------------------------------------------------
-
 def _fetch_daily_payload(universe: str) -> Optional[dict]:
     try:
         from api.reports_api import market as _m
@@ -257,10 +245,6 @@ def build_digest(universe: str = "nifty500", fetchers: Optional[dict] = None) ->
         brk = None
     return format_digest(daily, brk, uni)
 
-
-# ---------------------------------------------------------------------------
-# telegram send (fail-soft)
-# ---------------------------------------------------------------------------
 
 def is_telegram_configured() -> bool:
     """Dynamic re-read (env first, config fallback) — not import-time values."""
@@ -308,10 +292,6 @@ def send_eod_digest(
     except Exception as e:
         return {"sent": False, "reason": f"send failed: {e}"}
 
-
-# ---------------------------------------------------------------------------
-# scheduler
-# ---------------------------------------------------------------------------
 
 def _is_trading_day(now: datetime) -> bool:
     if now.weekday() >= 5:
@@ -391,10 +371,6 @@ async def report_digest_task(
             except asyncio.CancelledError:
                 break
 
-
-# ---------------------------------------------------------------------------
-# manual endpoint (auth-protected)
-# ---------------------------------------------------------------------------
 
 try:
     from api.auth import get_current_user as _get_current_user

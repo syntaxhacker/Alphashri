@@ -197,7 +197,6 @@ def detect_wall_events(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
         cw = _level(row, "call")
         pw = _level(row, "put")
 
-        # ---- call wall test -> rejection or break ----
         if cw is not None and abs(cw - spot) <= WALL_PROX_PTS:
             j = i
             while j < n:
@@ -241,7 +240,6 @@ def detect_wall_events(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
             i = max(j, i + 1)
             continue
 
-        # ---- put wall test -> hold or break ----
         if pw is not None and abs(pw - spot) <= WALL_PROX_PTS:
             j = i
             while j < n:

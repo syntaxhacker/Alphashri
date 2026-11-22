@@ -47,19 +47,16 @@ def cfgs():
         # reference: our frozen OR30 fade, target 1.75R, entries to 13:00
         "ref_or30_rr1.75": S.base_cfg(range_src="or30", legs="A", stop_src="sigext",
                                       stop_buf=30.0, target_a="rr1.75", sess_end=13 * 60),
-        # his first entry: fade the sweep, target NY VWAP, done by 10:30
         "A_on_ny_1030": S.base_cfg(range_src="on", legs="A", stop_src="range",
                                    stop_buf=20.0, target_a="ny", sess_end=CUT_1030),
         "A_or30_ny_1030": S.base_cfg(range_src="or30", legs="A", stop_src="sigext",
                                      stop_buf=30.0, target_a="ny", sess_end=CUT_1030),
-        # his second entry: under NY VWAP, target untouched overnight VWAP
         "B_on_onvwap_1030": S.base_cfg(range_src="on", legs="B", stop_src="range",
                                        stop_buf=30.0, target_b="onvwap", sess_end=CUT_1030),
         "AB_on_1030": S.base_cfg(range_src="on", legs="AB", stop_src="range", stop_buf=20.0,
                                  target_a="ny", target_b="onvwap", sess_end=CUT_1030),
         "AB_or30_1030": S.base_cfg(range_src="or30", legs="AB", stop_src="sigext", stop_buf=30.0,
                                    target_a="ny", target_b="onvwap", sess_end=CUT_1030),
-        # cutoff effect on the reference
         "ref_or30_rr1.75_1030": S.base_cfg(range_src="or30", legs="A", stop_src="sigext",
                                            stop_buf=30.0, target_a="rr1.75", sess_end=CUT_1030),
     }

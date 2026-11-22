@@ -129,9 +129,6 @@ def reset_state(status: dict[str, Any], seen_cache: dict[str, set[str]],
     status.update(empty_status())
 
 
-# --------------------------------------------------------------------------- #
-# pure helpers
-# --------------------------------------------------------------------------- #
 def payload_data(payload: Any) -> Any:
     """Upstox envelopes wrap the body in ``data`` (or return it bare)."""
     if isinstance(payload, dict):
@@ -298,9 +295,6 @@ def build_rows(candles: list[dict], instrument_key: str, expiry: str,
     return rows
 
 
-# --------------------------------------------------------------------------- #
-# file I/O (always via a thread)
-# --------------------------------------------------------------------------- #
 def _read_jsonl(path: Path) -> list[dict]:
     """Every parseable object in ``path`` (empty when missing/corrupt)."""
     return read_jsonl(path)
@@ -377,9 +371,6 @@ def _append_jsonl(path: Path, rows: list[dict]) -> None:
             fh.write(json.dumps(row, separators=(",", ":")) + "\n")
 
 
-# --------------------------------------------------------------------------- #
-# upstream
-# --------------------------------------------------------------------------- #
 def get_token() -> str:
     """Shared Upstox token (DB → file). Empty string when unavailable."""
     try:
@@ -454,9 +445,6 @@ async def fetch_candles(rt: Runtime, instrument_key: str, token: str) -> list[di
     return parse_candles(payload)
 
 
-# --------------------------------------------------------------------------- #
-# term snapshot
-# --------------------------------------------------------------------------- #
 def _expiry_dates(listing: Any) -> list[str]:
     """Normalised expiry dates from ``api.options.get_expiries`` (sorted)."""
     raw = (listing or {}).get("expiries") if isinstance(listing, dict) else listing
@@ -541,9 +529,6 @@ async def write_term(now: datetime, rt: Runtime, ttl_sec: float) -> int:
     return len(fresh)
 
 
-# --------------------------------------------------------------------------- #
-# one tick
-# --------------------------------------------------------------------------- #
 async def _maybe_await(value: Any) -> Any:
     """Await ``value`` when it is awaitable (a spot hook may be sync or async)."""
     if inspect.isawaitable(value):
@@ -636,9 +621,6 @@ async def record_tick(now: Optional[datetime], rt: Runtime) -> dict:
     return outcome
 
 
-# --------------------------------------------------------------------------- #
-# background loop
-# --------------------------------------------------------------------------- #
 def market_open() -> bool:
     """Derivatives session gate; hour-window fallback on import failure."""
     try:

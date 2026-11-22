@@ -118,7 +118,6 @@ def window_matches(signature: str | None, df: pd.DataFrame | None) -> bool:
 
 
 def _trendline_window(df: pd.DataFrame | None, lookback_bars: int | None):
-    """Normalized frame sliced exactly as :func:`detect_trendlines` slices it."""
     if df is None or getattr(df, "empty", True):
         return None
     try:
@@ -140,7 +139,6 @@ def _trendline_window(df: pd.DataFrame | None, lookback_bars: int | None):
 
 
 def _build_side(df: pd.DataFrame, pivots: list, env: dict, kind: str, atr: float) -> dict | None:
-    """Serialise one envelope line, applying the touches/span guards."""
     try:
         slope = float(env["slope"])
         intercept = float(env["intercept"])

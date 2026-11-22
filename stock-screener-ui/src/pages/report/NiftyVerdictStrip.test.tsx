@@ -227,9 +227,6 @@ describe("verdict formatting helpers", () => {
   });
 
   test("controlDetail names the chain as the ΔOI source", () => {
-    // The INTEL strip prints Upstox's official ΔOI for the same session; the
-    // verdict strip's number is computed from our chain. One label over two
-    // sources made the two rows look like a contradiction.
     expect(
       controlDetail({
         verdict: "call_writers",
@@ -265,7 +262,6 @@ describe("resolveRegimeLabel (trend_buy follows the live RV/IV vote)", () => {
   });
 
   test("iv > rv reuses the sell-premium vocabulary (premium-rich tape)", () => {
-    // Live tape 2026-10-21: RV 12.5 < IV 15.0 rendered "BUY PREMIUM · RV > IV".
     expect(resolveRegimeLabel("trend_buy", block(12.5, 15.0))).toBe(
       "SELL PREMIUM · IV > RV",
     );
@@ -312,9 +308,6 @@ describe("control verdict labels", () => {
     } as Record<string, unknown>);
     render(() => <UIProvider><NiftyVerdictStrip report={report} /></UIProvider>);
     const primary = screen.getByTestId("nifty-verdict-control-primary");
-    // Exact, full string: the cell's CSS `truncate` may clip it visually on a
-    // narrow strip, but the text node itself must carry every segment — a
-    // shortened "SESSION · CALL…" would misread the session.
     expect(primary).toHaveTextContent("SESSION · CALL BUYING");
     expect(primary.textContent).toBe("SESSION · CALL BUYING");
   });

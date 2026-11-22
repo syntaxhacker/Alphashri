@@ -49,7 +49,6 @@ test.describe("Screener - Data Display", () => {
   test("should display approaching and touched sections", async ({ page }) => {
     await openScreenerTable(page);
 
-    // Just check that the table has rows
     const rowCount = await page.locator('[data-testid="screener-table"] tbody tr').count();
     expect(rowCount).toBeGreaterThan(0);
   });
@@ -59,7 +58,6 @@ test.describe("Screener - Data Display", () => {
       timeout: 15000,
     });
 
-    // Check for status text (contains last updated timestamp)
     const status = page.locator('[data-testid="screener-status"]');
     await expect(status).toBeVisible();
   });
@@ -265,7 +263,6 @@ test.describe("Screener - Config Tab", () => {
     });
     await openConfigTab(page);
 
-    // Check that "Active" badge is visible for Trending (default screener)
     const activeBadge = page.locator("text=Active");
     await expect(activeBadge).toBeVisible({
       timeout: 10000,

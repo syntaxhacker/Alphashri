@@ -18,8 +18,6 @@ vi.mock("@/api/reportSim", () => ({
   runSim: vi.fn(),
 }));
 
-// TanStackTable renders @/ui Box (broken at runtime). Stub it with a plain
-// table that honors dataTestId / cell renderers / getRowTestId.
 vi.mock("@/components/common/TanStackTable", () => ({
   TanStackTable: (props: any) => (
     <table data-testid={props.dataTestId}>

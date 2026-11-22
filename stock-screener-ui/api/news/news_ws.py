@@ -1,7 +1,3 @@
-"""
-WebSocket connection managers and endpoints for news and sector streams.
-"""
-
 import asyncio
 from datetime import datetime
 

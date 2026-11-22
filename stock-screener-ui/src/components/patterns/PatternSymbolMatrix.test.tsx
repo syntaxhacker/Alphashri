@@ -404,9 +404,7 @@ describe("PatternSymbolMatrix", () => {
     const { rowA, rowB } = fixtureRows();
     render(() => <PatternSymbolMatrix rows={[rowA, rowB]} timeframes={["5m", "1D", "1W"]} onSelect={vi.fn()} />);
     const table = screen.getByTestId("patterns-symbol-matrix");
-    // Symbol + LTP + Chg + 3 timeframes + Score + Pos + Patterns = 9 columns.
     expect(table.style.minWidth).toBe(`${Math.max(560, 9 * 72)}px`);
-    // fillContainer: the table scrolls inside the panel rather than widening the page.
     const panel = table.closest(".paper-tanstack-container") as HTMLElement;
     expect(panel.style.maxHeight).toBe("");
     expect(panel.style.flex).toContain("1 1 0%");
@@ -439,7 +437,6 @@ describe("PatternSymbolMatrix", () => {
     expect(header("LTP").style.textAlign).toBe("right");
     expect(header("Score").style.textAlign).toBe("right");
     expect(header("Pos %").style.textAlign).toBe("right");
-    // Timeframe glyph columns are centred.
     expect(header("5m").style.textAlign).toBe("center");
   });
 });

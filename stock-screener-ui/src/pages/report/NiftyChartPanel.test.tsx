@@ -218,7 +218,6 @@ describe("NiftyChartPanel", () => {
     expect(screen.getByTestId("nifty-chart-wrap")).toBeInTheDocument();
     expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-candles", "3");
     expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-fit-marklines", "1");
-    // Dense layout: levels are on the chart, no legend row in the panel.
     expect(screen.queryByTestId("nifty-level-legend")).not.toBeInTheDocument();
     expect(screen.queryByTestId("nifty-chart-empty")).not.toBeInTheDocument();
   });
@@ -239,7 +238,6 @@ describe("NiftyChartPanel", () => {
   test("default fills; size toggle pins S 180px → XL 760px", async () => {
     const user = userEvent.setup();
     r(() => <NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />);
-    // Default = "fill": no fixed height, autoSize chart.
     const wrap = screen.getByTestId("nifty-chart-wrap");
     expect(wrap).toHaveAttribute("data-fill", "1");
     expect(wrap).not.toHaveStyle({ height: "180px" });
@@ -248,7 +246,6 @@ describe("NiftyChartPanel", () => {
     expect(screen.getByTestId("nifty-chart-wrap")).not.toHaveAttribute("data-fill");
     await user.click(screen.getByRole("button", { name: "S" }));
     expect(screen.getByTestId("nifty-chart-wrap")).toHaveStyle({ height: "180px" });
-    // same candles, same overlays — only the height changed
     expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-candles", "3");
     expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-emas", "2");
   });
@@ -333,7 +330,6 @@ describe("NiftyChartPanel", () => {
     expect(screen.getByTestId("nifty-depth-view")).toHaveStyle({ display: "none" });
 
     setView("depth");
-    // Still exactly one mount each — switching only flips visibility.
     expect(panelMocks.depthMounts).toBe(1);
     expect(panelMocks.tvMounts).toBe(1);
     expect(screen.getByTestId("nifty-depth-view")).not.toHaveStyle({ display: "none" });
@@ -405,7 +401,6 @@ describe("NiftyChartPanel", () => {
   });
 
   test("marks bars whose close touches max pain and exposes the count", () => {
-    // closes are 25620 / 25640 / 25680 → only the last is within 10 pts.
     r(() => <NiftyChartPanel report={mockReport({ candles: candles3(), maxPain: 25680 })} mode="live" view="chart" />);
     expect(screen.getByTestId("nifty-chart-wrap")).toHaveAttribute("data-mp-touches", "1");
     expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-touch-markers", "1");
@@ -735,10 +730,6 @@ describe("NiftyChartPanel", () => {
     const chart = screen.getByTestId("tradingview-chart");
     // Morning 09:15/11:56 from intraday + fresh 12:20 from spot points.
     expect(chart).toHaveAttribute("data-candles", "3");
-    // The 12:20 candle should have the fresh spot data
-    // The last candle (12:20) should reflect the fresh spot ~25755-25760
-    // Since we only check the first candle attributes in the mock, verify count
-    // and that it didn't use the stale 11:56 intraday candle
     expect(Number(chart.getAttribute("data-first-open"))).toBe(25600);
     expect(Number(chart.getAttribute("data-first-close"))).toBe(25620);
   });
@@ -780,8 +771,6 @@ describe("NiftyChartPanel live GEX overlay", () => {
     expect(labels.some((l) => l.startsWith("GFUEL"))).toBe(false);
 
     r(() => <NiftyChartPanel report={report} mode="live" view="chart" />);
-    // The dense panel no longer renders the legend row; the exported
-    // component still decodes the same codes for callers.
     expect(screen.queryByTestId("nifty-level-legend")).not.toBeInTheDocument();
     r(() => <LevelLegend live gex={report.gex} spot={report.spot} />);
     const legend = screen.getByTestId("nifty-level-legend");
@@ -858,8 +847,6 @@ describe("NiftyChartPanel live GEX overlay", () => {
     expect(lines.find((l) => l.label.formatter === "CW 23,500")?.includeInScale).toBeFalsy();
 
     r(() => <NiftyChartPanel report={report} mode="live" view="chart" />);
-    // The dense panel no longer renders the legend row; the exported
-    // component still decodes the same codes for callers.
     expect(screen.queryByTestId("nifty-level-legend")).not.toBeInTheDocument();
     r(() => <LevelLegend live gex={report.gex} spot={report.spot} />);
     const legend = screen.getByTestId("nifty-level-legend");
@@ -883,8 +870,6 @@ describe("NiftyChartPanel live GEX overlay", () => {
     expect(labels).toContain("FLIP 23300");
 
     r(() => <NiftyChartPanel report={report} mode="live" view="chart" />);
-    // The dense panel no longer renders the legend row; the exported
-    // component still decodes the same codes for callers.
     expect(screen.queryByTestId("nifty-level-legend")).not.toBeInTheDocument();
     r(() => <LevelLegend live gex={report.gex} spot={report.spot} />);
     const legend = screen.getByTestId("nifty-level-legend");
@@ -905,8 +890,6 @@ describe("NiftyChartPanel live GEX overlay", () => {
     expect(gexLabels(report).some((l) => /FLIP|GSUP|GRES|GFUEL/.test(l))).toBe(false);
 
     r(() => <NiftyChartPanel report={report} mode="live" view="chart" />);
-    // The dense panel no longer renders the legend row; the exported
-    // component still decodes the same codes for callers.
     expect(screen.queryByTestId("nifty-level-legend")).not.toBeInTheDocument();
     r(() => <LevelLegend live gex={report.gex} spot={report.spot} />);
     const legend = screen.getByTestId("nifty-level-legend");

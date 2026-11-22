@@ -15,8 +15,6 @@ import { clockMinutes } from "./tapeRange";
 
 export { FLOW_BEAR, FLOW_BULL, FLOW_STRUCT };
 
-/** At most this many text labels; ticks always render for every event. */
-/** Text lane shows only the newest runs; the tooltip keeps the full history. */
 const FLOW_MAX_LABELS = 3;
 
 /** NSE derivatives session bounds — the strip's time axis, minute of day. */
@@ -25,7 +23,6 @@ const FLOW_SESSION_END_MIN = DERIVATIVES_CLOSE_MIN;
 
 /** `"10:33"` / `"2026-10-19T10:33:00+05:30"` → minute of day, else null. */
 function flowMinuteOfDay(t: string): number | null {
-  // Two-digit hours only — the shared parser also accepts "9:30" and loose matches.
   if (!/(?:^|[T ])(\d{2}):(\d{2})/.test(t || "")) return null;
   return clockMinutes(t);
 }

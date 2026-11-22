@@ -56,8 +56,6 @@ const ctl = vi.hoisted(() => {
   };
 });
 
-/* ---------------- transport mocks (count every request) ---------------- */
-
 vi.mock("@/api/marketScreener", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   fetchMarketSnapshot: vi.fn(async (params: { universe?: string }) => {
@@ -184,8 +182,6 @@ vi.mock("@/state/optionsAnalytics", () => ({
   loadAnalytics: vi.fn(),
 }));
 
-/* ---------------- render mocks (panels own the fetches, children own no data) ---------------- */
-
 vi.mock("../market/MarketMapView", () => ({ MarketMapView: () => <div data-testid="stub-market-map" /> }));
 vi.mock("../news/NewsList", () => ({ NewsList: () => <div data-testid="stub-news-list" /> }));
 vi.mock("../options-dock/OptionChainTable", () => ({ OptionChainTable: () => <div data-testid="stub-chain-table" /> }));
@@ -210,8 +206,6 @@ vi.mock("@/utils/loadEcharts", () => ({
 vi.mock("../common/symbolDockContext", () => ({
   useSymbolDock: () => ({ open: vi.fn(), preview: vi.fn(), endPreview: vi.fn() }),
 }));
-
-/* ---------------- harness ---------------- */
 
 const CANVAS: CanvasSize = { w: 1280, h: 900 };
 const CONTEXT: Accessor<DockPanelContext> = () => ({
@@ -327,8 +321,6 @@ describe("POLL RATE PROBE — 60s of simulated desk time", () => {
     expect(Object.keys(after).length).toBeGreaterThan(0);
   });
 });
-
-/* ---------------- lifecycle contracts ---------------- */
 
 async function mountSpecs(ids: string[]) {
   const registry = await import("./panelRegistry");

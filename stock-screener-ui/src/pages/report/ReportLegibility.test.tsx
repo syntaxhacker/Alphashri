@@ -59,17 +59,13 @@ describe("verdict detail in the compact context row", () => {
 
     expect(secondary).toHaveTextContent(expected);
     expect(secondary.textContent).toBe(expected);
-    // Visible and wrapping: the evidence must be readable, not hidden. Hiding
-    // it (the earlier `sr-only` fix) made the whole verdict row show no reason.
     expect(secondary).not.toHaveClass("sr-only");
     expect(secondary.style.textOverflow).toBe("");
     expect(secondary.style.whiteSpace).toBe("normal");
     expect(secondary.style.fontSize).toBe("11px");
-    // No fixed height may clip the second line.
     expect(secondary.style.height).toBe("");
     expect(control).toHaveAttribute("title", expect.stringContaining(expected));
 
-    // The primary verdict stays intact — only the detail line is dropped.
     expect(within(control).getByTestId("nifty-verdict-control-primary")).toHaveTextContent(
       "SESSION · CALL WRITING",
     );
@@ -108,7 +104,6 @@ describe("heatmap read + axis legibility", () => {
     r(() => <NiftyOiHeatmap rows={rows} bucketMin={5} widthPts={500} />);
     for (const el of screen.getAllByTestId("nifty-heatmap-strike-label")) {
       expect(el.getAttribute("font-size")).toBe("11");
-      // Vertically centred in its own row: no glyph sits under the next label.
       expect(el.getAttribute("dominant-baseline")).toBe("middle");
       expect(Number(el.getAttribute("y"))).toBeGreaterThan(0);
       expect(Number(el.getAttribute("y"))).toBeLessThan(150);
@@ -117,7 +112,6 @@ describe("heatmap read + axis legibility", () => {
     expect(oi).toHaveTextContent("ΔOI");
     expect(oi.getAttribute("font-size")).toBe("11");
     expect(oi.getAttribute("dominant-baseline")).toBe("middle");
-    // The rotated caption is moved off the SVG edge so no glyph is clipped.
     expect(Number(oi.getAttribute("x"))).toBeGreaterThanOrEqual(14);
     expect(screen.getByTestId("nifty-heatmap-time-axis").getAttribute("font-size")).toBe("11");
   });

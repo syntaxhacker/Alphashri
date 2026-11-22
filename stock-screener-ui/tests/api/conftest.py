@@ -36,7 +36,6 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-# Standard imports
 from db.database import Base, get_db
 from db.models import User, UserSession, StrategyConfig, BotConfig, bot_strategies
 from api.auth import (
@@ -276,7 +275,6 @@ def auth_headers(client: TestClient, db: Session, test_password: str) -> dict:
     Returns headers with Bearer token that can be used
     to access protected endpoints.
     """
-    # Create a unique test user for this fixture
     import random
     unique_id = random.randint(10000, 99999)
     user_data = {
@@ -285,10 +283,8 @@ def auth_headers(client: TestClient, db: Session, test_password: str) -> dict:
         "display_name": f"Auth Test User {unique_id}"
     }
 
-    # Register the user
     client.post("/api/auth/register", json=user_data)
 
-    # Then login
     response = client.post("/api/auth/login", json={
         "email": user_data["email"],
         "password": user_data["password"]
@@ -396,7 +392,6 @@ def revoked_refresh_token(db: Session, test_user: User) -> str:
     """
     token = create_refresh_token(test_user.id, db)
 
-    # Get the session and revoke it
     import jwt
     payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
     jti = payload["jti"]
@@ -504,9 +499,6 @@ def login_response_data(client: TestClient, test_user: User, test_password: str)
     return response.json()
 
 
-# ============================================================================
-# Utility API Fixtures (Chart, Symbols, News, Health)
-# ============================================================================
 
 @pytest.fixture
 def sample_candles_data():
@@ -521,7 +513,6 @@ def sample_candles_data():
         freq='1min'
     )
 
-    # Generate realistic price movement
     np.random.seed(42)
     base_price = 100.0
     prices = []
@@ -711,9 +702,6 @@ def sample_article_content():
     }
 
 
-# ============================================================================
-# Mock API Fixtures for External Services
-# ============================================================================
 
 @pytest.fixture
 def mock_trading_api(sample_candles_data):
@@ -728,9 +716,6 @@ def mock_trading_api(sample_candles_data):
     return mock_api
 
 
-# ============================================================================
-# Helper Functions for Utility API Tests
-# ============================================================================
 
 def create_chart_response(symbol: str = "TEST", candles_count: int = 10) -> dict:
     """
@@ -789,7 +774,6 @@ def assert_chart_response_structure(response: dict):
     assert 'pivot_levels' in response
     assert 'timeframe' in response
 
-    # Validate candle structure
     for candle in response.get('candles', []):
         assert 'time' in candle
         assert 'open' in candle
@@ -811,7 +795,6 @@ def assert_news_response_structure(response: dict):
     assert 'total' in response
     assert 'fetchedAt' in response
 
-    # Validate news item structure
     for item in response.get('items', []):
         assert 'title' in item
         assert 'url' in item
@@ -829,16 +812,12 @@ def assert_symbol_search_response_structure(response: dict):
     assert 'query' in response
     assert 'total' in response
 
-    # Validate result structure
     for result in response.get('results', []):
         assert 'symbol' in result
         assert 'name' in result
         assert 'isin' in result
 
 
-# ============================================================================
-# Strategy Management Fixtures
-# ============================================================================
 
 @pytest.fixture
 def sample_template_strategy(db: Session) -> StrategyConfig:
@@ -1128,9 +1107,6 @@ def mock_load_all_trades(sample_journal_data: List[Dict[str, Any]], monkeypatch:
     yield
 
 
-# ============================================================================
-# Bot Configuration Fixtures
-# ============================================================================
 
 @pytest.fixture
 def single_strategy_bot(db: Session, sample_template_strategy: StrategyConfig) -> BotConfig:
@@ -1149,7 +1125,6 @@ def single_strategy_bot(db: Session, sample_template_strategy: StrategyConfig) -
     db.add(bot)
     db.flush()
 
-    # Add strategy association
     db.execute(
         bot_strategies.insert().values(
             bot_id=bot.id,
@@ -1174,7 +1149,6 @@ def multi_strategy_bot(
     Returns:
         BotConfig: A bot configuration with multiple strategies.
     """
-    # Create a second template for multi-strategy bot
     second_tpl = StrategyConfig(
         name="Momentum Template",
         strategy_type="MOMENTUM",
@@ -1194,7 +1168,6 @@ def multi_strategy_bot(
     db.add(bot)
     db.flush()
 
-    # Add strategy associations
     db.execute(
         bot_strategies.insert().values(
             bot_id=bot.id,
@@ -1268,7 +1241,6 @@ def multiple_bots(db: Session, sample_template_strategy: StrategyConfig) -> List
         db.add(bot)
     db.flush()
 
-    # Add strategies to bots
     for i, bot in enumerate(bots):
         db.execute(
             bot_strategies.insert().values(

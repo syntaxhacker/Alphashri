@@ -1,10 +1,3 @@
-/**
- * Symbol Search API
- *
- * Generic API for searching stock symbols.
- * Used by autocomplete components throughout the UI.
- */
-
 import { fetchWithAuth } from "../state/auth";
 
 import { API_BASE } from "@/api/config";

@@ -114,9 +114,6 @@ def business_days(n, start=date(2026, 1, 5)):
     return days
 
 
-# ---------------------------------------------------------------------------
-# Loader: raw SQL and model-first paths, empty / missing table
-# ---------------------------------------------------------------------------
 
 def test_load_snapshots_raw_sql_filters_by_underlying_and_since(engine, conn):
     rows = chain("2026-01-05", 20000, 12) + chain("2026-01-06", 20100, 13)
@@ -173,9 +170,6 @@ def test_insufficient_history_still_emits(capsys):
     assert "12.00%" in out and "16.00%" in out
 
 
-# ---------------------------------------------------------------------------
-# ATM IV series, rank / percentile, realised vol (known values)
-# ---------------------------------------------------------------------------
 
 def test_iv_series_rank_percentile_and_realised_vol(engine, conn):
     days = business_days(30)
@@ -218,9 +212,6 @@ def test_realised_vol_needs_window_plus_one():
     assert oc.realised_vol(series + [{"spot": 121.0}], window=20) is not None
 
 
-# ---------------------------------------------------------------------------
-# Cone coverage + PIT histogram
-# ---------------------------------------------------------------------------
 
 def test_cone_coverage_counts_bands():
     # Make sigma constant (=1) across a growing spot by scaling IV inversely:
@@ -256,9 +247,6 @@ def test_pit_bins_extremes():
     assert cone["coverage68"] == 0.0 and cone["coverage95"] == 0.0
 
 
-# ---------------------------------------------------------------------------
-# Duplicate minutes and missing IV
-# ---------------------------------------------------------------------------
 
 def test_duplicate_minutes_keep_latest_observation(engine, conn):
     day = "2026-01-05"

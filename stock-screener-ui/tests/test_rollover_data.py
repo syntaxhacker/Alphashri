@@ -49,9 +49,6 @@ def _chain(expiry: str, *, ce: float = 0.0, pe: float = 0.0,
     }
 
 
-# ---------------------------------------------------------------------------
-# (a) rollover_pct maths (total + per-strike) incl. zero denominator -> None
-# ---------------------------------------------------------------------------
 
 def test_rollover_pct_total_and_per_strike():
     near = _chain("30-09-2026", ce=100.0, pe=100.0, flag="W")
@@ -110,9 +107,6 @@ def test_rollover_strike_union_keeps_one_sided_strikes():
     assert by_strike[110.0]["rollover_pct"] == 1.0
 
 
-# ---------------------------------------------------------------------------
-# (b) call / put rollover split
-# ---------------------------------------------------------------------------
 
 def test_rollover_call_put_split():
     near = _chain("30-09-2026", ce=100.0, pe=300.0)
@@ -128,9 +122,6 @@ def test_rollover_call_put_split():
     assert out["oi_shift_call"] == 200.0 and out["oi_shift_put"] == -200.0
 
 
-# ---------------------------------------------------------------------------
-# (c) classification boundary at 0.5
-# ---------------------------------------------------------------------------
 
 def test_classification_boundary_at_half():
     # Exactly 0.5 -> holding (strictly greater than 0.5 is required).
@@ -154,9 +145,6 @@ def test_classification_boundary_at_half():
     assert under["classification"] == "holding"
 
 
-# ---------------------------------------------------------------------------
-# (d) PCR term structure
-# ---------------------------------------------------------------------------
 
 def test_pcr_by_expiry_term_structure():
     near = {"expiry": "30-09-2026", "call_oi": 100.0, "put_oi": 200.0,
@@ -189,9 +177,6 @@ def test_pcr_falls_back_to_strike_sum_and_none_on_zero_calls():
     assert out2["28-10-2026"]["pcr"] is None
 
 
-# ---------------------------------------------------------------------------
-# (e) JSONL persist -> load round trip, malformed lines skipped
-# ---------------------------------------------------------------------------
 
 def _record(ticker: str, ts: str) -> dict:
     return {
@@ -237,9 +222,6 @@ def test_persist_failure_returns_false_not_raise(tmp_path):
     assert rollover_data.persist(_record("NIFTY", _iso(9, 20)), root=blocker) is False
 
 
-# ---------------------------------------------------------------------------
-# (f) rollover_series -> unavailable when the fetch raises
-# ---------------------------------------------------------------------------
 
 def test_rollover_series_unavailable_when_list_expiries_raises(monkeypatch):
     def boom(*_a, **_k):
@@ -306,9 +288,6 @@ def test_rollover_series_success_injects_expiry_meta(monkeypatch):
     assert set(out["pcr_by_expiry"]) == {"30-09-2026", "28-10-2026"}
 
 
-# ---------------------------------------------------------------------------
-# (g) basis_snapshot maps build_futures without recomputing basis
-# ---------------------------------------------------------------------------
 
 def test_basis_snapshot_maps_build_futures(monkeypatch):
     payload = {
@@ -352,9 +331,6 @@ def test_basis_snapshot_unavailable_on_error(monkeypatch):
     assert snap["unavailable"] is True
 
 
-# ---------------------------------------------------------------------------
-# (h) prune keeps recent days, removes old ones, never raises
-# ---------------------------------------------------------------------------
 
 def test_prune_removes_old_keeps_recent(tmp_path):
     from datetime import date, timedelta
@@ -377,9 +353,6 @@ def test_prune_removes_old_keeps_recent(tmp_path):
     assert rollover_data.prune(root=tmp_path / "nope", keep_days=180, today=day_d) == 0
 
 
-# ---------------------------------------------------------------------------
-# (i) ROLLOVER_INTERVAL_SEC override parsing
-# ---------------------------------------------------------------------------
 
 def test_interval_env_override(monkeypatch):
     monkeypatch.delenv("ROLLOVER_INTERVAL_SEC", raising=False)
@@ -399,9 +372,6 @@ def test_interval_env_override(monkeypatch):
     assert rollover_data.KEEP_DAYS == 180
 
 
-# ---------------------------------------------------------------------------
-# Scheduler safety: idempotent, market-hours gated, no real thread/network.
-# ---------------------------------------------------------------------------
 
 def test_ensure_started_is_idempotent_without_real_thread(monkeypatch):
     started: list[str] = []
@@ -439,9 +409,6 @@ def test_market_hours_and_post_1520_gating():
     assert rollover_data._is_post_1520(at(15, 19)) is False
 
 
-# ---------------------------------------------------------------------------
-# Post-close archival capture (late start / restart after 15:30)
-# ---------------------------------------------------------------------------
 
 
 def test_due_capture_runs_after_close_once_per_day(monkeypatch, tmp_path):

@@ -15,7 +15,6 @@ describe("TanStackTable width — TDD RED for dense layout", () => {
     const { container } = render(() => (<TanStackTable data={data as never} columns={cols as never} />));
     const table = container.querySelector("table") as HTMLTableElement;
     expect(table).toBeTruthy();
-    // should be 100% width and have a minWidth to enable horizontal scroll when dense
     expect(table.style.width).toBe("100%");
     // RED if no minWidth —dense tables overflow without scroll
     // solid sets the kebab-case "min-width" property, so read it via getPropertyValue

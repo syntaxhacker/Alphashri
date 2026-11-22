@@ -27,7 +27,6 @@ export interface NiftyFreshnessInput {
    * `fetched_at` hide a tape that stopped hours ago.
    */
   lastBackendMs?: number | null;
-  /** True when the NSE cash session is open. */
   marketOpen: boolean;
   /** Burst array — checked for `type === "data_stale"`. */
   bursts?: FreshnessBurst[] | null;
@@ -43,7 +42,6 @@ export interface NiftyFreshnessOutput {
   label: string;
   /** True when the badge should use warning colour (STALE). */
   isStale: boolean;
-  /** Tooltip detail. */
   detail: string;
 }
 
@@ -68,7 +66,6 @@ function hasDataStaleBurst(bursts?: FreshnessBurst[] | null): boolean {
 export function computeNiftyFreshness(input: NiftyFreshnessInput): NiftyFreshnessOutput {
   const { nowMs, marketOpen, bursts } = input;
 
-  // Market closed: always CLOSED, never stale
   if (!marketOpen) {
     return {
       label: "CLOSED",
@@ -77,7 +74,6 @@ export function computeNiftyFreshness(input: NiftyFreshnessInput): NiftyFreshnes
     };
   }
 
-  // data_stale burst forces STALE regardless of timestamp age
   if (hasDataStaleBurst(bursts)) {
     return {
       label: "STALE",
@@ -97,7 +93,6 @@ export function computeNiftyFreshness(input: NiftyFreshnessInput): NiftyFreshnes
   }
 
   const lastBackendMs = input.lastBackendMs;
-  // No timestamp available
   if (lastBackendMs === null || lastBackendMs === undefined || !Number.isFinite(lastBackendMs)) {
     return {
       label: "DATA —",

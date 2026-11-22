@@ -7,8 +7,6 @@ import type { PatternHitDTO } from "@/types/chartPatterns";
 import { For, Show, type JSX } from "solid-js";
 import { PatternsPage, type PatternsPageProps } from "./PatternsPage";
 
-// Menu stub: bare pass-throughs with an onSelect-fired button; the suite
-// asserts page wiring, not Menu internals.
 vi.mock("@/ui", async (importOriginal) => {
   const { uiLayoutStub } = await import("@/pages/solidTestStubs");
   const stubbed = await uiLayoutStub(await importOriginal<Record<string, unknown>>());
@@ -83,8 +81,6 @@ vi.mock("@/components/patterns/PatternGrid", () => ({
   ),
 }));
 
-// Dense list stub so the page default (list view) renders deterministically;
-// tests that need cards switch to the grid view first.
 vi.mock("@/components/patterns/PatternListView", () => ({
   PatternListView: (props: any) => (
     <div data-testid="patterns-list">
@@ -312,7 +308,6 @@ describe("PatternsPage fullscreen as-of replay", () => {
         fromDate: undefined,
       }),
     );
-    // Loading state is kept while the replay fetch is in flight.
     expect(screen.getByTestId("patterns-fullscreen-loading")).toBeInTheDocument();
 
     resolveReplay({
@@ -324,7 +319,6 @@ describe("PatternsPage fullscreen as-of replay", () => {
       hits: [oldConfident, newWeak],
     });
 
-    // Newest hit promoted; replay candles swapped in; banner shown.
     await waitFor(() =>
       expect(screen.getByTestId("patterns-fullscreen-modal")).toHaveTextContent("Rising Wedge"),
     );

@@ -178,7 +178,6 @@ def _get(client, symbol="AAPL", **params):
     return client.get(ROUTE.format(symbol=symbol), params=params)
 
 
-# --- success path ----------------------------------------------------------
 
 
 def test_usa_response_shape_and_tz_aware_candles(client, us_stack):
@@ -346,7 +345,6 @@ def test_usa_kept_forming_bar_flags_partial_tail(client, us_stack):
     assert candles[-1]["is_partial"] is True
 
 
-# --- validation / error mapping -------------------------------------------
 
 
 @pytest.mark.parametrize("bad_tf", ["30m", "2h", "1W", "1M", "5s", ""])
@@ -448,7 +446,6 @@ def test_usa_rate_limit_huge_retry_hint_is_capped(client, us_stack):
     assert int(resp.headers["retry-after"]) == cp_api._US_UPSTREAM_RETRY_CAP
 
 
-# --- symbol allowlist -------------------------------------------------------
 
 
 @pytest.mark.parametrize("bad_symbol", [
@@ -492,7 +489,6 @@ def test_usa_brk_b_keeps_dot(client, us_stack):
     us_stack.provider.candles.assert_called_once_with("BRK.B", "1m")
 
 
-# --- cold-only rate limit ---------------------------------------------------
 
 
 def test_usa_cold_fetch_spends_token_then_429(client, us_stack):
@@ -529,7 +525,6 @@ def test_unknown_market_400(client, us_stack):
     us_stack.registry.provider_for.assert_not_called()
 
 
-# --- India is unchanged ----------------------------------------------------
 
 
 @pytest.mark.parametrize("params", [{}, {"market": "india"}])

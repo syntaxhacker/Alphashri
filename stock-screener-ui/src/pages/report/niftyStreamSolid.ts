@@ -12,7 +12,6 @@ import { normalizeReport, normalizeSensex, normalizeTapeRow, normalizeBurst } fr
 import { getAccessToken } from "@/state/auth";
 import type { NiftyReport, NiftySensex, NiftyTape } from "@/types/niftyReport";
 
-/** Backoff schedule for a dropped socket: 1s, 2s, 4s … capped at 15s. */
 const MIN_RECONNECT_MS = 1_000;
 const MAX_RECONNECT_MS = 15_000;
 
@@ -33,7 +32,6 @@ function emitTick(): void {
   for (const listener of tickListeners) listener();
 }
 
-/** Replace the live tick. Identity changes each tick, so the snapshot is stable per render. */
 export function setLiveTick(tick: NiftySpotTick | null): void {
   liveTick = tick;
   emitTick();
@@ -46,7 +44,6 @@ function subscribeTick(listener: () => void): () => void {
   };
 }
 
-/** The ~1/second live spot tick, as a signal — only subscribers re-render. */
 export function useNiftySpotTick() {
   const [tick, setTick] = createSignal<NiftySpotTick | null>(liveTick);
   createEffect(() => {
@@ -63,7 +60,6 @@ export interface NiftyStreamHandlers {
   onDisconnect?: () => void;
 }
 
-/** Self-reconnecting WebSocket with the standard backoff and single-reconnect-per-failure semantics. */
 function useNiftyStreamCore(args: {
   url: () => string;
   enabled: () => boolean;
@@ -110,7 +106,6 @@ function useNiftyStreamCore(args: {
         try {
           onFrame(JSON.parse(String(event.data)));
         } catch {
-          /* ignore a malformed frame rather than dropping the stream */
         }
       };
 
@@ -135,13 +130,11 @@ function useNiftyStreamCore(args: {
       const socket = ws;
       ws = null;
       if (socket) {
-        // Detach first so close() itself cannot schedule a reconnect.
         socket.onclose = null;
         socket.onerror = null;
         try {
           socket.close();
         } catch {
-          /* already closed */
         }
       }
       onDisconnect?.();
@@ -296,7 +289,6 @@ export function useNiftyBurstStream(
       const parsed = normalizeBurst((raw ?? {}) as Record<string, unknown>);
       if (parsed && parsed.id) cbRef.current(parsed);
     } catch {
-      /* ignore a malformed event rather than dropping the stream */
     }
   }
 }

@@ -39,7 +39,6 @@ class Test52wCacheHelpers:
 
     def test_today_cache_within_ttl(self, cache_dir):
         _write_52w_cache("TODAY_SYM", 300.0, 100.0)
-        # Override date to today and cached_at to now
         now = datetime.now(config.IST)
         cache_file = cache_dir / "TODAY_SYM.json"
         data = {

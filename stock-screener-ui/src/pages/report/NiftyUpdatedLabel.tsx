@@ -5,16 +5,10 @@ import { useNiftySpotTick } from "./niftyStreamSolid";
 interface NiftyUpdatedLabelProps {
   marketClosed: boolean;
   sessionDate?: string | null;
-  /** Last report/tape frame time — moves ~30-60s, never per tick. */
   updatedAtMs: number | null;
   isStale: boolean;
 }
 
-/**
- * Header "Updated HH:MM:SS · live (WS)" label. Subscribes to the tick store
- * itself, so the ~1/second frame repaints only this label instead of bumping
- * `updatedAtMs` (which re-rendered every consumer) or the panel.
- */
 export function NiftyUpdatedLabel(props: NiftyUpdatedLabelProps) {
   const tick = useNiftySpotTick();
   const tickMs = () => {

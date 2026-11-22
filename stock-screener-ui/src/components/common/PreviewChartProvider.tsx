@@ -138,7 +138,6 @@ export function PreviewChartProvider(props: { children?: JSX.Element }) {
       hoverTimer = null;
     }
     hoverTimer = window.setTimeout(() => {
-      // Set visible state with symbol
       setHoverState({
         visible: true,
         symbol,
@@ -200,7 +199,6 @@ export function PreviewChartProvider(props: { children?: JSX.Element }) {
   };
 
   const toggleExpandedChart = (symbol: string) => {
-    // Prefetch the ECharts engine when the expanded panel opens.
     void loadEcharts();
     if (hoverTimer) {
       clearTimeout(hoverTimer);

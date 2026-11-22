@@ -27,13 +27,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
-# Add project root to path
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-# ============================================================================
-# Mock class definitions (module-level, no side effects)
-# ============================================================================
 
 class MockSignalType:
     LONG_ENTRY = "LONG_ENTRY"
@@ -47,7 +43,6 @@ class MockORBSignal:
         self.price = price
         self.stop_loss = stop_loss
         self.take_profit = take_profit
-        # Accept either 'direction' or 'signal_type' for direction
         self.direction = kwargs.get('direction') or kwargs.get('signal_type')
         self.or_high = kwargs.get('or_high')
         self.or_low = kwargs.get('or_low')
@@ -71,9 +66,6 @@ orb_signals_mock.create_entry_signal = mock_create_entry_signal
 orb_signals_mock.ORBSignalGenerator = MockORBSignalGenerator
 
 
-# ============================================================================
-# Session-scoped fixture for sys.modules mocking with cleanup
-# ============================================================================
 
 @pytest.fixture(scope="session", autouse=True)
 def mock_external_modules():
@@ -116,7 +108,6 @@ def mock_external_modules():
         'api.market_ticker',
     ]
     
-    # Save original state
     original_modules = {}
     for mod in missing_mods:
         if mod not in sys.modules:
@@ -131,12 +122,10 @@ def mock_external_modules():
     original_scanners = sys.modules.get('scanners', None)
     original_pivot_levels = sys.modules.get('scanners.pivot_levels', None)
     
-    # Apply mocks
     for mod in missing_mods:
         if mod not in sys.modules:
             sys.modules[mod] = MagicMock()
     
-    # Apply specific mocks (SignalType, etc)
     sys.modules['nautilus_trader.model.enums'].SignalType = MockSignalType
     
     # Mock scanners.pivot_levels
@@ -147,24 +136,20 @@ def mock_external_modules():
     
     yield
     
-    # Cleanup - restore original state for missing_mods
     for mod, original in original_modules.items():
         if original is None:
             # We added this mock, remove it
             if mod in sys.modules:
                 del sys.modules[mod]
         else:
-            # Restore original
             sys.modules[mod] = original
     
-    # Restore SignalType
     if 'nautilus_trader.model.enums' in sys.modules:
         if original_signal_type is not None:
             sys.modules['nautilus_trader.model.enums'].SignalType = original_signal_type
         elif hasattr(sys.modules['nautilus_trader.model.enums'], 'SignalType'):
             delattr(sys.modules['nautilus_trader.model.enums'], 'SignalType')
     
-    # Restore scanners
     if original_scanners is None:
         if 'scanners' in sys.modules:
             del sys.modules['scanners']
@@ -178,9 +163,6 @@ def mock_external_modules():
         sys.modules['scanners.pivot_levels'] = original_pivot_levels
 
 
-# ============================================================================
-# Database configuration
-# ============================================================================
 from db.database import Base, get_db
 
 TEST_DB_DIR = tempfile.mkdtemp()
@@ -200,29 +182,23 @@ def override_get_db():
     finally:
         db.close()
 
-# ============================================================================
-# Minimal FastAPI app with only the required routers
-# ============================================================================
 from db.models import User, StrategyConfig, BotConfig, bot_strategies, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument
 from api.auth import hash_password, create_access_token, create_refresh_token, JWT_SECRET_KEY, JWT_ALGORITHM, get_current_user
 
 app = FastAPI()
 
-# Auth router
 try:
     from api.auth import router as auth_router
     app.include_router(auth_router)
 except Exception as e:
     print(f"⚠️ Auth router not loaded: {e}")
 
-# Bots router
 try:
     from api.bots_api import router as bots_router
     app.include_router(bots_router)
 except Exception as e:
     print(f"⚠️ Bots router not loaded: {e}")
 
-# Strategies router
 try:
     from api.strategies import router as strategies_router
     app.include_router(strategies_router)
@@ -236,12 +212,8 @@ try:
 except Exception as e:
     print(f"⚠️ Paper trading router not loaded: {e}")
 
-# Override get_db globally (per-test override will replace this)
 app.dependency_overrides[get_db] = override_get_db
 
-# ============================================================================
-# Fixtures
-# ============================================================================
 
 @pytest.fixture(scope="function")
 def db() -> Generator[Session, None, None]:
@@ -336,9 +308,6 @@ def unauth_client(db: Session) -> TestClient:
         yield c
     app.dependency_overrides.clear()
 
-# ============================================================================
-# User fixtures
-# ============================================================================
 
 @pytest.fixture
 def test_password() -> str:
@@ -373,9 +342,6 @@ def auth_tokens(client: TestClient, test_user: User, test_password: str) -> Dict
 def auth_headers(auth_tokens: Dict[str, str]) -> Dict[str, str]:
     return {"Authorization": f"Bearer {auth_tokens['access_token']}"}
 
-# ============================================================================
-# Strategy fixtures
-# ============================================================================
 
 @pytest.fixture
 def template_strategy(db: Session) -> StrategyConfig:
@@ -431,9 +397,6 @@ def multiple_strategies(db: Session) -> List[StrategyConfig]:
         strategies.append(s)
     return strategies
 
-# ============================================================================
-# Bot fixtures
-# ============================================================================
 
 @pytest.fixture
 def test_bot(db: Session, multiple_strategies: List[StrategyConfig]) -> BotConfig:
@@ -482,9 +445,6 @@ def running_bot(db: Session, test_bot: BotConfig) -> Dict:
         }
     }
 
-# ============================================================================
-# Journal fixtures
-# ============================================================================
 
 @pytest.fixture
 def trade_journal(tmp_path) -> Path:
@@ -557,9 +517,6 @@ def sample_trades() -> List[Dict]:
         },
     ]
 
-# ============================================================================
-# Signal fixtures
-# ============================================================================
 
 @pytest.fixture
 def mock_signal_data():
@@ -605,9 +562,6 @@ def mock_positions() -> List[MockPosition]:
         MockPosition(symbol="TCS", quantity=50, entry_price=3800.0, current_price=3785.0, unrealized_pnl=-750.0, unrealized_pnl_pct=-0.39),
     ]
 
-# ============================================================================
-# Portfolio & snapshot fixtures
-# ============================================================================
 
 @pytest.fixture
 def mock_portfolio_state():

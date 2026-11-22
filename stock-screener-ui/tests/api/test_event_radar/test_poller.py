@@ -30,7 +30,6 @@ class TestMarketHours:
     @pytest.mark.parametrize(
         ("stamp", "expected"),
         [
-            # Thursday 2026-10-29
             (dt.datetime(2026, 10, 29, 13, 29, 59, tzinfo=UTC), False),
             (dt.datetime(2026, 10, 29, 13, 30, 0, tzinfo=UTC), True),
             (dt.datetime(2026, 10, 29, 17, 0, 0, tzinfo=UTC), True),
@@ -39,7 +38,6 @@ class TestMarketHours:
             # weekend
             (dt.datetime(2026, 10, 31, 15, 0, 0, tzinfo=UTC), False),  # Saturday
             (dt.datetime(2026, 11, 1, 15, 0, 0, tzinfo=UTC), False),  # Sunday
-            # Friday inside the window
             (dt.datetime(2026, 10, 30, 15, 0, 0, tzinfo=UTC), True),
         ],
     )

@@ -1,15 +1,4 @@
 #!/usr/bin/env python
-"""Pre-registered test: does causal daily / regime context improve the OR30 fade?
-
-Eight hypotheses, fixed in advance (no post-hoc additions, no threshold tuning
-beyond median, no stop/target/range changes). Daily closes come from yfinance;
-everything used for a session on date D is strictly from D-1 or earlier, so the
-features are knowable before the 09:30 ET entry decision.
-
-  .venv/bin/python scripts/research/double_vwap/agents/context_regime.py
-
-Writes reports/DOUBLE_VWAP/agents/context_regime.{json,md} only.
-"""
 from __future__ import annotations
 
 import bisect
@@ -28,15 +17,14 @@ import strategy as S  # noqa: E402
 
 OUTDIR = os.path.join(S.ROOT, "reports", "DOUBLE_VWAP", "agents")
 COST = 1.1
-IS_CUT = dt.date(2026, 6, 23)          # IS <= cut, OOS > cut (per task)
+IS_CUT = dt.date(2026, 6, 23)
 SEED = 42
 NSHUFFLE = 1000
-FW_ALPHA = 0.05 / 8                    # Bonferroni for 8 pre-registered tests
+FW_ALPHA = 0.05 / 8
 
 BASE_CFG = S.base_cfg(range_src="or30", legs="A", stop_src="sigext",
                       stop_buf=30.0, target_a="rr1.75", sess_end=13 * 60)
 
-# Pre-registered. id -> (short name, human definition, split description)
 HYPOTHESES = [
     (1, "vix_level", "VIX close on prior trading day (D-1)",
      "low vs high half of prior-day VIX close (median split)"),
@@ -57,11 +45,7 @@ HYPOTHESES = [
 ]
 
 
-# --------------------------------------------------------------------------- #
-# stats
-# --------------------------------------------------------------------------- #
 def mstats(trades):
-    """Same formulas as strategy.stats; n_days only affects Rm/tpd (not reported)."""
     return S.stats(trades, max(1, len(trades)))
 
 
@@ -80,18 +64,13 @@ def qualifies(st, baseline_avgR):
                 and st["IS"] > 0 and st["OOS"] > 0)
 
 
-# --------------------------------------------------------------------------- #
-# data
-# --------------------------------------------------------------------------- #
 def yfinance_daily(ticker):
-    """Return (dates, frame) of daily OHLC, or (None, None) if unavailable."""
     import yfinance as yf
     raw = yf.download(ticker, start="2025-10-01", end="2026-09-15", interval="1d",
                       auto_adjust=False, progress=False, threads=False)
     if raw is None or raw.empty:
         return None, None
     if isinstance(raw.columns, pd.MultiIndex):
-        # yf.download now returns (Price, Ticker) columns; keep this ticker.
         if ticker in raw.columns.get_level_values(-1):
             raw = raw.xs(ticker, axis=1, level=-1)
         else:
@@ -105,7 +84,6 @@ def yfinance_daily(ticker):
 
 
 def prior_idx(yf_dates, day):
-    """Index of last yfinance row strictly before `day`, or -1."""
     return bisect.bisect_left(yf_dates, day) - 1
 
 
@@ -120,11 +98,7 @@ def rth_slice(d):
     return m
 
 
-# --------------------------------------------------------------------------- #
-# feature computation -- all values are causal for the session's 09:30 entry
-# --------------------------------------------------------------------------- #
 def build_features(trades, days, day_dates, series):
-    """Return dict hid -> {date: value} (value None means unavailable)."""
     feat = {h[0]: {} for h in HYPOTHESES}
     vix_d, vix_f = series["vix"]
     es_d, es_f = series["es"]
@@ -162,18 +136,13 @@ def build_features(trades, days, day_dates, series):
         if pd_date is not None and (day - pd_date).days > 5:
             pd_date = None
 
-        # H1 VIX level
         feat[1][day] = float(vix_c[iv]) if iv >= 0 and vix_c is not None else None
-        # H2 VIX 1-day change
         feat[2][day] = (float(vix_c[iv] - vix_c[iv - 1])
                         if iv >= 1 and vix_c is not None else None)
-        # H3 VIX 60-day percentile (full 60-day window only)
         feat[3][day] = (float(100.0 * (vix_c[iv - 59:iv + 1] <= vix_c[iv]).mean())
                         if iv >= 59 and vix_c is not None else None)
-        # H4 NQ realized vol, 10 daily returns ending D-1
         feat[4][day] = (float(np.std(nq_ret[inn - 9:inn + 1], ddof=1))
                         if inn >= 9 and nq_ret is not None else None)
-        # H5 NQ overnight gap (abs), from 1m bars
         gap = np.nan
         d = bydate.get(day)
         if d is not None and pd_date is not None:
@@ -183,7 +152,6 @@ def build_features(trades, days, day_dates, series):
                 if pm.any():
                     gap = float(d.o[d.rth_start] - prev.c[pm][-1])
         feat[5][day] = float(abs(gap)) if np.isfinite(gap) else None
-        # H6 prior-day RTH range / ATR14
         ratio = np.nan
         if pd_date is not None and inn >= 0 and nq_atr is not None:
             prev = bydate.get(pd_date)
@@ -192,14 +160,12 @@ def build_features(trades, days, day_dates, series):
                 if pm.any() and np.isfinite(nq_atr[inn]) and nq_atr[inn] > 0:
                     ratio = float((prev.h[pm].max() - prev.l[pm].min()) / nq_atr[inn])
         feat[6][day] = float(ratio) if np.isfinite(ratio) else None
-        # H7 ES-NQ 20-day return correlation ending D-1
         corr = np.nan
         if inn >= 19 and ie >= 19 and nq_ret is not None and es_ret is not None:
             a, b = nq_ret[inn - 19:inn + 1], es_ret[ie - 19:ie + 1]
             if np.isfinite(a).all() and np.isfinite(b).all() and a.std() > 0 and b.std() > 0:
                 corr = float(np.corrcoef(a, b)[0, 1])
         feat[7][day] = float(corr) if np.isfinite(corr) else None
-        # H8 ES prior-day move sign vs NQ gap sign
         es_move = float(es_c[ie] - es_c[ie - 1]) if ie >= 1 and es_c is not None else np.nan
         if np.isfinite(gap) and np.isfinite(es_move) and gap != 0 and es_move != 0:
             feat[8][day] = "same" if np.sign(es_move) == np.sign(gap) else "opposite"
@@ -228,9 +194,6 @@ def signed_gaps(trades, days, day_dates):
     return out
 
 
-# --------------------------------------------------------------------------- #
-# splitting + hypothesis evaluation
-# --------------------------------------------------------------------------- #
 def evaluate(hid, name, definition, split_desc, feat, trades, baseline_avgR, gaps, series):
     hf = feat[hid]
     vals = {t["date"]: hf.get(t["date"]) for t in trades}
@@ -295,7 +258,6 @@ def series_available(hid, series):
 
 
 def permutation_p(bucket_trade_dates, trades, observed_avgR):
-    """Shuffle the binary membership labels among trades; one-sided p."""
     R = np.array([t["R"] for t in trades], float)
     member = np.array([t["date"] in bucket_trade_dates for t in trades])
     k = int(member.sum())
@@ -309,9 +271,6 @@ def permutation_p(bucket_trade_dates, trades, observed_avgR):
     return float(np.mean(means >= observed_avgR))
 
 
-# --------------------------------------------------------------------------- #
-# main
-# --------------------------------------------------------------------------- #
 def main():
     os.makedirs(OUTDIR, exist_ok=True)
     df = S.load()
@@ -360,7 +319,6 @@ def main():
               f"{'-' if res['threshold'] is None else format(res['threshold'], '.4f'):>9s} | {bs} "
               f"| sel={res['selected']} {'IMPROVES' if res['improves'] else '-'}")
 
-    # best split: highest avgR bucket with n>=25 among available hypotheses
     cands = []
     for r in results:
         for bn, st in r["buckets"].items():
@@ -371,7 +329,6 @@ def main():
         cands = [(max(st["avgR"] for r in results for st in r["buckets"].values()), 0, "", {})]
     _, best_hid, best_bn, best_st = cands[0]
     best_res = next(r for r in results if r["id"] == best_hid)
-    # recompute labels for the winning split to know its member dates
     _, best_labels = evaluate(best_hid, best_res["name"], best_res["definition"],
                               best_res["split"], feat, trades, base["avgR"], gaps, spec)
     member_dates = {day for day, lab in best_labels.items() if lab == best_bn}

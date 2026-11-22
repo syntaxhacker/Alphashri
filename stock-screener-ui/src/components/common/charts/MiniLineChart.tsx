@@ -128,7 +128,6 @@ export function buildAreaPath(
   const n = points.length;
   const stepX = n > 1 ? innerW / (n - 1) : 0;
   const baseline = (PAD_T + innerH).toFixed(1);
-  // Close from the last finite point back to the first finite point.
   let first = -1;
   let last = -1;
   for (let i = 0; i < n; i++) {
@@ -144,12 +143,9 @@ export function buildAreaPath(
 }
 
 /**
- * Dependency-free inline-SVG line/area chart for the Nifty analytics panels.
- *
  * Chosen over ECharts on purpose: these are static monitoring visuals, so a
  * full canvas charting instance (≈1 MB + a canvas context each) is not worth
- * the bundle/heap cost. SVG renders in the DOM, styles from palette tokens, and
- * a plain mouse-move drives the hover readout.
+ * the bundle/heap cost.
  */
 export function MiniLineChart(props: MiniLineChartProps) {
   const height = () => props.height ?? 180;

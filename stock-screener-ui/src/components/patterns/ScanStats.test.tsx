@@ -53,7 +53,6 @@ describe("ScanStats", () => {
   test("fits the 30px tab row in one non-wrapping line", () => {
     render(() => <ScanStats summary={SUMMARY} />);
     const strip = screen.getByTestId("patterns-stats");
-    // A wrapped or taller strip would push the tab row into a second band.
     expect(strip.className).toContain("h-[30px]");
     expect(strip.className).toContain("overflow-x-auto");
     expect(strip.className).not.toContain("flex-wrap");
@@ -149,7 +148,6 @@ describe("ScanStats", () => {
     render(() => <ScanStats summary={{ ...SUMMARY, last_scan_at: "2026-10-01T00:00:00Z" }} job={makeJob()} />);
     expect(screen.getByTestId("patterns-stat-scanned")).toHaveTextContent("360 / 1,081");
     expect(screen.getByTestId("patterns-stat-last_scan")).toHaveTextContent("running…");
-    // Non-progress cells still come from the summary.
     expect(screen.getByTestId("patterns-stat-confirmed")).toHaveTextContent("5");
   });
 

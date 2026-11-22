@@ -690,7 +690,6 @@ class FyersTbtAdapter(OrderFlowAdapter):
                 if on_error is not None:
                     on_error(sanitize_adapter_error(self.name, f"fyers quote socket unavailable: {exc}"))
 
-        # TBT socket (50-level depth)
         tbt = tbt_factory or _default_tbt_socket_factory
         self._tbt = tbt(
             access_token=token,

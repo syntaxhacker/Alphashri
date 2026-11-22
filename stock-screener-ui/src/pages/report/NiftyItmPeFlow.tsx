@@ -17,13 +17,11 @@ function clock(t: string): string {
   return t.length >= 16 ? t.slice(11, 16) : t;
 }
 
-/** Share of put volume that printed ITM; derives it when the field is absent. */
 export function itmShareOf(point: NiftyItmPeFlowPoint): number {
   if (Number.isFinite(point.share_pct)) return point.share_pct;
   return point.total_pe_vol > 0 ? (point.itm_pe_vol / point.total_pe_vol) * 100 : 0;
 }
 
-/** Session-wide share, from the summed legs rather than an average of ratios. */
 export function sessionShare(series: NiftyItmPeFlowPoint[]): number {
   let itm = 0;
   let total = 0;
@@ -34,11 +32,6 @@ export function sessionShare(series: NiftyItmPeFlowPoint[]): number {
   return total > 0 ? (itm / total) * 100 : 0;
 }
 
-/**
- * ITM put volume is where hedges and stop-outs print. The per-minute bars say
- * *when* protection was bought; the share line says whether it mattered against
- * the whole put book, which raw volume alone cannot.
- */
 export function NiftyItmPeFlowPanel(props: {
   flow: NiftyItmPeFlow | null;
   spot: number;

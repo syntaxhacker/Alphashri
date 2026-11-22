@@ -55,9 +55,6 @@ def sig(
     }
 
 
-# ---------------------------------------------------------------------------
-# forward_return
-# ---------------------------------------------------------------------------
 
 
 def test_forward_return_exact_boundaries():
@@ -96,9 +93,6 @@ def test_mae_mfe():
     assert eval_harness.max_favourable_excursion(100, []) is None
 
 
-# ---------------------------------------------------------------------------
-# stop / target ordering + R maths
-# ---------------------------------------------------------------------------
 
 
 def test_stop_touched_before_target_long():
@@ -188,9 +182,6 @@ def test_score_signal_trims_to_entry_ts_and_reports_none_without_candles():
     assert empty["fwd_15"] is None
 
 
-# ---------------------------------------------------------------------------
-# evaluate aggregation (hand-computed)
-# ---------------------------------------------------------------------------
 
 
 def test_evaluate_tiny_set_exact_expectancy():
@@ -223,9 +214,6 @@ def test_evaluate_without_candles_yields_unscored_signal():
     assert result["overall"]["expectancy"] is None
 
 
-# ---------------------------------------------------------------------------
-# feature ablation
-# ---------------------------------------------------------------------------
 
 
 def _ablation_signals():
@@ -271,9 +259,6 @@ def test_ablation_ignores_non_numeric_features():
     assert "flag" not in result["ablation"]
 
 
-# ---------------------------------------------------------------------------
-# evaluate_from_disk (injected history, caching, failure skipping)
-# ---------------------------------------------------------------------------
 
 
 def _log(root, ticker, *, side="LONG", entry=100.0, stop=95.0, target=110.0, when=None):
@@ -326,9 +311,6 @@ def test_evaluate_from_disk_uses_index_map(tmp_path):
     assert seen == ["NSE:NIFTY50-INDEX"]
 
 
-# ---------------------------------------------------------------------------
-# render_report
-# ---------------------------------------------------------------------------
 
 
 def test_render_report_contains_playbook_rows():

@@ -1,7 +1,3 @@
-/**
- * State management for Alphashri
- */
-
 import { createSubscriber } from "./createSubscriber";
 import type {
   ScreenerData,
@@ -28,35 +24,28 @@ export { subscribe, notifySubscribers };
 const { subscribe: subscribeToSelection, notify: notifySelectionSubscribers } = createSubscriber();
 export { subscribeToSelection };
 
-// Data state - initialize with empty structure to avoid null checks
 export let data: ScreenerData = { ...DEFAULT_SCREENER_DATA };
 export let isLoading = false;
 export let error: string | null = null;
 
-// Auto-refresh state
 export let autoRefreshInterval: ReturnType<typeof setInterval> | null = null;
 export let autoRefreshSeconds = DEFAULT_AUTO_REFRESH_SECONDS;
 
-// Sort state
 export let sortColumn: string | null = null;
 export let sortDirection: SortDirection = "desc";
 
-// Screener state
 export let screenerOptions: ScreenerOption[] = [];
 export let activeScreener = "52w_high";
 export let profileMetaById: Record<string, ProfileMeta> = {};
 export let profileFilters: Record<string, number | string> = {};
 
-// Notification state
 export let notifications: ChangeNotification[] = [];
 export let notifSeq = 1;
 export let notifPanelOpen = true;
 export let notifFilter: NotifFilter = "all";
 
-// Recent additions tracking
 export let recentAddedSymbols: Record<string, number> = {};
 
-// Setters
 export function setData(newData: ScreenerData) {
   data = newData;
   notifySubscribers();
@@ -149,7 +138,6 @@ export function setRecentAddedSymbols(symbols: Record<string, number>) {
   recentAddedSymbols = symbols;
 }
 
-// Row selection state
 export let selectedSymbols: string[] = [];
 
 export function toggleSymbolSelection(symbol: string) {

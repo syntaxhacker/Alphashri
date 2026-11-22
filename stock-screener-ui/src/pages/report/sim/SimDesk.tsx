@@ -128,9 +128,6 @@ export function SimDesk(props: SimDeskProps) {
   );
   const resultSpot = () => result()?.spot;
   const spot = () => finite(report()?.spot) ? report()!.spot : resultSpot() ?? 0;
-  // After the close there is nothing to poll: force the recorded-session view
-  // even if the parent report was manually left on Live. The time gate is the
-  // primary one — an EOD report's `is_open` can be absent on older snapshots.
   const marketClosed = () => !isDerivativesOpenIst() || report()?.market?.is_open === false;
   const effectiveMode = (): "live" | "eod" => (marketClosed() ? "eod" : props.mode);
   const runDate = () =>
@@ -145,7 +142,6 @@ export function SimDesk(props: SimDeskProps) {
         if (alive && rows.length > 0) setTemplates(rows);
       })
       .catch(() => {
-        // The local templates are enough; a failed fetch must not block the desk.
       });
     onCleanup(() => {
       alive = false;
@@ -187,7 +183,6 @@ export function SimDesk(props: SimDeskProps) {
   };
 
   createEffect(() => {
-    // Re-run when the panel opens or the scope changes.
     open();
     symbol();
     runDate();
@@ -197,7 +192,6 @@ export function SimDesk(props: SimDeskProps) {
   });
 
   createEffect(() => {
-    // Live polling, gated to the live session and the open panel.
     if (!open() || !live() || effectiveMode() !== "live") return;
     const id = window.setInterval(() => void run(), LIVE_REFRESH_MS);
     onCleanup(() => window.clearInterval(id));

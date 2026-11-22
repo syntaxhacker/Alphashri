@@ -1,16 +1,6 @@
-/**
- * Alert sounds + tab-title flash for OI bursts — no assets, no network.
- *
- * A trader watching the chart is not looking at the toast rail. A critical
- * burst (fresh selling / liquidation) has to be audible: a two-tone chirp for
- * critical, one soft blip for watch. Everything is best-effort — a blocked
- * AudioContext (autoplay policy) or a browser without Web Audio must never
- * break the alert path.
- */
 
 const MUTE_KEY = "nifty.alerts.muted";
 
-/** Persisted mute state. Missing/unreadable storage = sound ON. */
 export function alertsMuted(): boolean {
   try {
     return window.localStorage.getItem(MUTE_KEY) === "1";
@@ -23,7 +13,6 @@ export function setAlertsMuted(muted: boolean): void {
   try {
     window.localStorage.setItem(MUTE_KEY, muted ? "1" : "0");
   } catch {
-    /* private mode / quota — the in-memory toggle still works */
   }
 }
 
@@ -44,14 +33,11 @@ function audioContext(): AudioContext | null {
     }
   }
   if (ctx.state === "suspended") {
-    // Resumes only after a user gesture; a rejected promise is fine (the
-    // browser will honour the next gesture).
     void ctx.resume().catch(() => undefined);
   }
   return ctx;
 }
 
-/** Call from a click/keydown so the first alert after load can actually play. */
 export function unlockAlertAudio(): void {
   audioContext();
 }
@@ -78,10 +64,6 @@ function tone(
 
 export type AlertSoundSeverity = "critical" | "alert" | "watch";
 
-/**
- * `critical` = rising two-tone (hard to miss), `alert` = one mid blip,
- * `watch` = one soft low blip. No-op while muted or without Web Audio.
- */
 export function playAlertSound(severity: AlertSoundSeverity): void {
   if (alertsMuted()) return;
   const c = audioContext();
@@ -100,15 +82,8 @@ export function playAlertSound(severity: AlertSoundSeverity): void {
 const TITLE_PREFIX = "🔔 ";
 let titleBase = "";
 let titleTimer: number | undefined;
-/** The single live `focus` restore listener. Kept so a new flash can remove
- *  the previous one — otherwise every alert in an unfocused-then-focused tab
- *  left a listener (and its closure) behind for the life of the page. */
 let titleFocusRestore: (() => void) | null = null;
 
-/**
- * Prepend a bell + the alert to the tab title until the tab is looked at
- * again (or 30s passes). A user in another tab still sees the count.
- */
 export function flashAlertTitle(text: string, ms = 30_000): void {
   if (typeof document === "undefined") return;
   if (!document.title.startsWith(TITLE_PREFIX)) titleBase = document.title;

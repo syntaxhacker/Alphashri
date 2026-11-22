@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""Live desk card for the v3.11 wall rules. Run on demand — no background.
-
-Prints the walls, OI/volume confirmation, max pain, GEX and the current
-BREAK/FADE/WAIT signal with a copy-paste manual entry line.
-"""
 
 from __future__ import annotations
 
@@ -71,7 +66,6 @@ def main():
     print(f"  last closes {' / '.join(f'{c:,.1f}' for c in closes[-3:])}  EMA9 {e9:,.1f}  EMA20 {e20:,.1f}  VWAP30 {vw:,.1f}")
 
     sig = None
-    # break up
     if prev < res["strike"] <= spot and spot - res["strike"] >= 1:
         d = batch.oi5(rs, i, res["strike"], "CE")
         v = batch.vol5(rs, i, res["strike"], "CE")
@@ -82,7 +76,6 @@ def main():
             px = batch.px(r, entry_strike, "CE")
             sig = ("BREAK UP", "CE", entry_strike, px, mp < spot - 5,
                    f"OI 5m {_fmt(d)} · vol {v/1e6:.2f}M >= med {vm/1e6:.2f}M · room {room:.0f}")
-    # break down
     if sig is None and prev > sup["strike"] >= spot and sup["strike"] - spot >= 1:
         d = batch.oi5(rs, i, sup["strike"], "PE")
         v = batch.vol5(rs, i, sup["strike"], "PE")
@@ -93,14 +86,12 @@ def main():
             px = batch.px(r, entry_strike, "PE")
             sig = ("BREAK DOWN", "PE", entry_strike, px, mp > spot + 5,
                    f"OI 5m {_fmt(d)} · vol {v/1e6:.2f}M >= med {vm/1e6:.2f}M · room {room:.0f}")
-    # fade put
     if sig is None and streak(rs, i, sup["strike"], "put") >= 3 and corridor >= 30 and mp - spot >= 20:
         if 0 <= spot - sup["strike"] <= max(5, 0.5 * a) and closes[-1] > closes[-2] > closes[-3]:
             entry_strike = sup["strike"] - 50
             px = batch.px(r, entry_strike, "CE")
             sig = ("FADE PUT", "CE", entry_strike, px, False,
                    f"wall {streak(rs, i, sup['strike'], 'put')} cards · higher low · room {mp - spot:.0f}")
-    # fade call
     if sig is None and streak(rs, i, res["strike"], "call") >= 3 and corridor >= 30 and spot - mp >= 20:
         if 0 <= res["strike"] - spot <= max(5, 0.5 * a) and closes[-1] < closes[-2] < closes[-3]:
             entry_strike = res["strike"] + 50

@@ -42,7 +42,6 @@ test.describe("Market Ticker", () => {
   test("should display market ticker at the top of page", async ({ page }) => {
     await page.goto("/");
 
-    // Wait for market ticker to appear
     const ticker = page.locator('[data-testid="market-ticker"]');
     await expect(ticker).toBeVisible({ timeout: 10000 });
   });
@@ -50,7 +49,6 @@ test.describe("Market Ticker", () => {
   test("should display all 6 ticker items", async ({ page }) => {
     await page.goto("/");
 
-    // Wait for market ticker to appear
     const ticker = page.locator('[data-testid="market-ticker"]');
     await expect(ticker).toBeVisible({ timeout: 10000 });
 
@@ -62,7 +60,6 @@ test.describe("Market Ticker", () => {
   test("should display correct ticker labels", async ({ page }) => {
     await page.goto("/");
 
-    // Wait for market ticker
     const ticker = page.locator('[data-testid="market-ticker"]');
     await expect(ticker).toBeVisible({ timeout: 10000 });
 
@@ -74,7 +71,6 @@ test.describe("Market Ticker", () => {
   test("should display positive changes in green", async ({ page }) => {
     await page.goto("/");
 
-    // Wait for market ticker
     await page.waitForSelector('[data-testid="market-ticker"]', { timeout: 10000 });
 
     const ticker = page.locator('[data-testid="market-ticker"]');
@@ -84,7 +80,6 @@ test.describe("Market Ticker", () => {
   test("should display negative changes in red", async ({ page }) => {
     await page.goto("/");
 
-    // Wait for market ticker
     await page.waitForSelector('[data-testid="market-ticker"]', { timeout: 10000 });
 
     const ticker = page.locator('[data-testid="market-ticker"]');
@@ -94,7 +89,6 @@ test.describe("Market Ticker", () => {
   test("should display updated timestamp", async ({ page }) => {
     await page.goto("/");
 
-    // Wait for market ticker
     await page.waitForSelector('[data-testid="market-ticker"]', { timeout: 10000 });
 
     const ticker = page.locator('[data-testid="market-ticker"]');
@@ -113,7 +107,6 @@ test.describe("Market Ticker", () => {
 
     await page.goto("/");
 
-    // Wait for error state
     const ticker = page.locator('[data-testid="market-ticker"]');
     await expect(ticker).toBeVisible({ timeout: 10000 });
 
@@ -136,7 +129,6 @@ test.describe("Market Ticker", () => {
       });
     });
 
-    // Navigate and immediately check for loading
     const navigationPromise = page.goto("/");
 
     // Check loading state is shown - use try/catch since it may resolve quickly
@@ -148,7 +140,6 @@ test.describe("Market Ticker", () => {
       // Loading state may have passed already, which is fine
     }
 
-    // Resolve the route to continue
     resolveRoute();
     await navigationPromise;
   });

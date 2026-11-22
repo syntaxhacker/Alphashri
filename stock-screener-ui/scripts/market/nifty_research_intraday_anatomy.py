@@ -56,7 +56,6 @@ EVENT_MIN_PTS = 20.0
 EVENT_MIN_FAST = 28.0
 
 
-# --------------------------------------------------------------------- utils
 def read_jsonl(path: Path) -> list[dict]:
     if not path.exists():
         return []
@@ -113,7 +112,6 @@ def nearest(rows: list[dict], t: float, key: str = "t", max_gap: float = 3.0):
     return rows[i] if i is not None else None
 
 
-# ---------------------------------------------------------------------- load
 def load() -> dict:
     n_tape = [r for r in read_jsonl(P_NIFTY_TAPE) if within_clip(r["t"])]
     n_chain = [r for r in read_jsonl(P_NIFTY_CHAIN) if within_clip(r["t"])]
@@ -137,7 +135,6 @@ def load() -> dict:
     return out
 
 
-# ----------------------------------------------------------------- detection
 def zigzag(values: list[float], thresh: float) -> list[int]:
     pivots: list[int] = [0]
     direction = 0
@@ -318,7 +315,6 @@ def tag_events(events: list[dict], bars: list[dict]):
     return events
 
 
-# ------------------------------------------------------------------ contexts
 def spot_bars(data: dict) -> list[dict]:
     """1-minute spot bars. Futures are used only if the session actually has them."""
     if data["fut"]:
@@ -362,7 +358,6 @@ def series_by_minute(data):
 
 
 def bucket_volumes(data, t0: float, t1: float, ref_spot: float, width: float = 250.0):
-    """ITM/OTM cumulative-volume delta, books fixed at event start."""
     chain = data["n_chain"]
     times = data.get("_n_chain_t") or []
     if not chain:
@@ -426,7 +421,6 @@ def wall_state(data, t: float, spot: float, strikes: tuple | None = None):
 
 
 def intraday_itm_flow(data, width: float = 250.0) -> dict[int, list[float]]:
-    """Per-minute ITM option volume, attributed with *prior* moneyness."""
     per: dict[int, list[float]] = {}
     prev = None
     for snap in data["n_chain"]:
@@ -473,7 +467,6 @@ def chain_terrain(data, strike_lo: int, strike_hi: int, step: int = 50, every_mi
     return {"times": times, "strikes": grid, "net": net, "ce": ce, "pe": pe}
 
 
-# --------------------------------------------------------------- driver math
 DRIVERS = [
     ("wall", "Call/put wall rejection or breach", "Wall"),
     ("gamma", "Short-gamma amplification", "Gamma"),
@@ -484,7 +477,6 @@ DRIVERS = [
 
 
 def has_persistent_flip(tape: list[dict], t0: float, t1: float) -> bool:
-    """A GEX regime change that holds for five minutes, not a crossing near zero."""
     for j in range(1, len(tape)):
         tj = minutes(tape[j]["t"])
         if tj < t0 or tj > t1:
@@ -598,7 +590,6 @@ def build_analysis(data):
         implied = (n0 * iv_mean / 100.0) / math.sqrt(252 * 375) * math.sqrt(max(1, e["dur"])) if iv_mean else 0
         e["gamma_ratio"] = (abs(e["move"]) / implied) if implied else None
 
-        # ---------------- scores (only measurable drivers)
         scores, methods = {}, {}
 
         wall_score, wall_note = 0.0, "no wall within reach"
@@ -675,7 +666,6 @@ def build_analysis(data):
     return events, legs, rows, n0, vol_p90
 
 
-# ------------------------------------------------------------- explanations
 def explain(e: dict) -> str:
     direction = "rose" if e["move"] > 0 else "fell"
     ranked = sorted(e["scores"].items(), key=lambda kv: -kv[1])
@@ -740,7 +730,6 @@ def falsify(e: dict) -> str:
     }.get(top, "No falsifier attached.")
 
 
-# ------------------------------------------------------------------ payload
 def build_payload(data):
     events, legs, rows, n0, vol_p90 = build_analysis(data)
     bars = spot_bars(data)
@@ -948,7 +937,6 @@ def build_payload(data):
     return payload
 
 
-# ---------------------------------------------------------------- rendering
 def fmt(value, digits: int = 0, dash: str = "—") -> str:
     if value is None:
         return dash

@@ -131,19 +131,16 @@ class TestCorrelationComputation:
         # Diagonal should be 1.0
         for i in range(4):
             assert abs(corr_matrix[i][i] - 1.0) < 1e-6
-        # Symmetric
         for i in range(4):
             for j in range(4):
                 assert abs(corr_matrix[i][j] - corr_matrix[j][i]) < 1e-6
 
     def test_compute_correlation_matrix_insufficient_data(self):
-        # Only one sector
         dfs = {"A": make_price_df("A", [100, 101, 102], pd.date_range("2025-01-01", periods=3))}
         corr, symbols = _compute_correlation_matrix(dfs)
         assert corr is None
         assert symbols is None
 
-        # Empty
         corr, symbols = _compute_correlation_matrix({})
         assert corr is None
 
@@ -167,7 +164,6 @@ class TestCorrelationComputation:
         rs = _compute_relative_strength(dfs, "NIFTY 50")
         assert "NIFTY 50" in rs
         assert abs(rs["NIFTY 50"]["rs_1m"]) < 0.1  # benchmark should be ~0
-        # All sectors should have RS values
         for name in dfs:
             assert "rs_5d" in rs[name]
             assert "rs_1m" in rs[name]
@@ -251,11 +247,9 @@ class TestSectorCorrelationEndpoint:
         assert response.status_code == 422  # validation error
 
     def test_get_correlation_lookback_days_bounds(self, correlation_client):
-        # Too small
         response = correlation_client.get("/api/sector/correlation?lookback_days=10")
         assert response.status_code == 422
 
-        # Valid
         response = correlation_client.get("/api/sector/correlation?lookback_days=90")
         assert response.status_code in (200, 500)  # 200 if mocked, 500 if no data
 

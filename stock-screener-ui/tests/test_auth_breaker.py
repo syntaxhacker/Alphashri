@@ -26,9 +26,6 @@ def _clean_latch():
     fyers_data.note_auth_success()
 
 
-# ---------------------------------------------------------------------------
-# latch
-# ---------------------------------------------------------------------------
 
 def test_latch_set_and_clear():
     assert fyers_data.auth_failed() is False
@@ -64,9 +61,6 @@ def test_looks_like_auth_error(value, expected):
     assert fyers_data._looks_like_auth_error(value) is expected
 
 
-# ---------------------------------------------------------------------------
-# home snapshot: no doomed rebuilds while the latch is set
-# ---------------------------------------------------------------------------
 
 def test_snapshot_skips_rebuild_when_auth_failed(monkeypatch):
     calls = []
@@ -92,9 +86,6 @@ def test_snapshot_serves_last_good_flagged_when_auth_failed(monkeypatch):
     assert out["sections"]["leaders"], "last-good board is still served"
 
 
-# ---------------------------------------------------------------------------
-# sweeps abort early
-# ---------------------------------------------------------------------------
 
 def test_scan_aborts_early_when_token_dead(monkeypatch):
     import scan_data
@@ -127,9 +118,6 @@ def test_oi_tracker_sweep_aborts_when_token_dead(monkeypatch):
     assert len(attempts) < 10, f"oi sweep should abort early, attempted {len(attempts)}"
 
 
-# ---------------------------------------------------------------------------
-# hard rate-limit / Cloudflare 1015 ban handling
-# ---------------------------------------------------------------------------
 
 def test_rate_limit_latch_fails_fast_without_sleeping(monkeypatch):
     """A 1015-style ban must raise immediately, not sleep for minutes."""

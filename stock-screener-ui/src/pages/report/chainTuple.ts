@@ -18,26 +18,16 @@ export const CHAIN_PE_VOL = 5;
 /** Re-export the canonical tuple type (do not redefine). */
 export type ChainTuple = NiftyTapeChainTuple;
 
-/** Minimal chain surface accepted by the accessors. */
 export interface ChainMap {
   [strike: string]: ChainTuple | (number | null)[] | undefined;
 }
 
-/**
- * Coerces a value to a finite `number` or `null`.
- * Mirrors `safeNumNull` / `finiteOrNull` semantics used across the tape builders.
- */
 function toFinite(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
 
-/**
- * Reads one strike's leg from a chain map, with the same
- * `String(strike)` / `String(Math.round(strike))` fallback lookup used by
- * `niftyOiHeatmap.strikeOi`. Returns `null` for missing or non-finite fields.
- */
 export function chainLeg(
   chain: ChainMap | null | undefined,
   strike: number,
@@ -68,13 +58,6 @@ export function chainLeg(
   };
 }
 
-/**
- * Metric selector matching the heatmap's semantics:
- * - "oi"      → CE/PE OI  (indices 2, 3)
- * - "volume"  → CE/PE Vol (indices 4, 5)
- * - "premium" → CE/PE LTP (indices 0, 1)
- * Returns `{ ce: number | null; pe: number | null }`.
- */
 export function chainMetric(
   leg: ReturnType<typeof chainLeg>,
   metric: "oi" | "volume" | "premium",

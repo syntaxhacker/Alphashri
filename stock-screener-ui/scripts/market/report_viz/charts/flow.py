@@ -16,9 +16,6 @@ from ..page import panel
 from ..theme import palette
 
 
-# ---------------------------------------------------------------------------
-# payload helpers
-# ---------------------------------------------------------------------------
 
 
 def _number(value: Any, field: str) -> float:
@@ -81,9 +78,6 @@ def _unique(values: list[float], field: str) -> None:
         raise ValueError(f"{field} must be unique")
 
 
-# ---------------------------------------------------------------------------
-# 1. CE vs PE volume increments
-# ---------------------------------------------------------------------------
 
 
 def flow_stream(
@@ -181,9 +175,6 @@ def flow_stream(
     )
 
 
-# ---------------------------------------------------------------------------
-# 2. ITM PE share of PE volume
-# ---------------------------------------------------------------------------
 
 
 def flow_share(
@@ -247,9 +238,6 @@ def flow_share(
     )
 
 
-# ---------------------------------------------------------------------------
-# 3. PE volume by strike × time
-# ---------------------------------------------------------------------------
 
 
 def flow_heatmap(
@@ -340,9 +328,6 @@ def flow_heatmap(
     )
 
 
-# ---------------------------------------------------------------------------
-# 4. Top ITM PE strikes
-# ---------------------------------------------------------------------------
 
 
 def flow_top_itm(
@@ -357,7 +342,6 @@ def flow_top_itm(
     span: int = 1,
     height: int | None = None,
 ) -> str:
-    """Horizontal bars for the strikes that traded the most in-the-money puts."""
     divisor = _positive(scale, "scale")
     if limit is not None and limit <= 0:
         raise ValueError("limit must be positive or None")

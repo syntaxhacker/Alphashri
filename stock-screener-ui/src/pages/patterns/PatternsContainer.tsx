@@ -30,7 +30,6 @@ import { PatternsPage } from "./PatternsPage";
 import type { ReplayScanArgs } from "@/components/patterns/ReplayScanControl";
 import type { IndexGroup } from "@/config/indexGroups";
 
-/** Query keys the URL sync owns; everything else is left untouched on write. */
 const PATTERN_PARAM_KEYS = [
   "universe",
   "tf",
@@ -66,11 +65,6 @@ const PATTERN_PARAM_KEYS = [
   "members",
 ] as const;
 
-/**
- * Serialize state into a plain param object for @solidjs/router's
- * setSearchParams: a key set to null/""/an empty array is deleted from the URL
- * (see its mergeSearchString).
- */
 function buildParamsObject(
   state: {
     universe: string;
@@ -142,7 +136,6 @@ function buildParamsObject(
   return next;
 }
 
-/** Merge the owned keys over the existing query string (untouched otherwise). */
 function mergeWithSearch(
   search: string,
   owned: Record<string, string | string[] | null>,
@@ -194,7 +187,6 @@ export function PatternsContainer() {
   const loading = () => snapshot().loading;
   const error = () => snapshot().error;
 
-  // ---- Workspace tab (controlled for URL sync) ------------------------
   const [tab, setTab] = createSignal<"scan" | "watch">("scan");
   const [view, setView] = createSignal<"matrix" | "list" | "grid">("matrix");
   const [indexGroup, setIndexGroup] = createSignal<IndexGroup>("all");
@@ -203,7 +195,6 @@ export function PatternsContainer() {
   const [, setSearchParams] = useSearchParams();
   const location = useLocation();
 
-  // ---- URL sync: parse once on mount, push on change, adopt back/forward -
   let hydrated = false;
   let firstRun = true;
   let parsed: ParsedPatternParams | null = null;
@@ -267,7 +258,6 @@ export function PatternsContainer() {
   });
 
   createEffect(() => {
-    // Skip the first commit (initial defaults).
     const state = currentState();
     if (firstRun) {
       firstRun = false;
@@ -315,8 +305,6 @@ export function PatternsContainer() {
   });
 
   createEffect(() => {
-    // Back/forward (or manual) navigation: adopt a URL that differs from
-    // what this sync last wrote.
     const search = location.search;
     if (!hydrated) return;
     const merged = mergeWithSearch(search, buildParamsObject(currentState()));
@@ -358,7 +346,6 @@ export function PatternsContainer() {
   });
 
   createEffect(() => {
-    // Adopt a sane default when the store's timeframes arrive late.
     const list = timeframes();
     if (list.length === 0) return;
     if (list.some((tf) => tf.id === timeframe())) return;

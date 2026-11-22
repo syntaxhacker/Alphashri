@@ -52,12 +52,9 @@ BUCKET_MINUTES = 5
 EMPHASIS_STRIKE = 25500.0
 
 
-# ---------------------------------------------------------------------------
 # theme — single source of truth is the app palette, never a local hex
-# ---------------------------------------------------------------------------
 
 def load_palette() -> dict[str, str]:
-    """Pull the anchors this report needs out of ``src/ui/palette.ts``."""
     txt = PALETTE_FILE.read_text()
     wanted = {
         "PRIMARY": "amber",
@@ -79,9 +76,6 @@ def load_palette() -> dict[str, str]:
     return out
 
 
-# ---------------------------------------------------------------------------
-# loading
-# ---------------------------------------------------------------------------
 
 def read_jsonl(path: Path) -> list[dict]:
     rows: list[dict] = []
@@ -201,9 +195,6 @@ def futures_by_bucket(path: Path) -> dict[datetime, dict]:
     return out
 
 
-# ---------------------------------------------------------------------------
-# aggregation
-# ---------------------------------------------------------------------------
 
 def millions(value: float) -> float:
     return round(value / 1e6, 1)
@@ -245,9 +236,9 @@ def build_payload(date: str, chain_path: Path, tape_path: Path, futures_path: Pa
         minute_pe[minute] += d_pe
         strike_ce[strike] += d_ce
         strike_pe[strike] += d_pe
-        if strike < spot_ref:  # call is in the money
+        if strike < spot_ref:
             ce_itm_b[slot] += d_ce
-        if strike > spot_ref:  # put is in the money
+        if strike > spot_ref:
             pe_itm_b[slot] += d_pe
             minute_itm[minute] += d_pe
             strike_pe_itm[strike] += d_pe
@@ -265,7 +256,6 @@ def build_payload(date: str, chain_path: Path, tape_path: Path, futures_path: Pa
                 f"sum of minutes {children:.1f}"
             )
 
-    # ---- buckets -----------------------------------------------------------
     buckets = []
     for slot in grid:
         pe_total = pe_b[slot]
@@ -286,7 +276,6 @@ def build_payload(date: str, chain_path: Path, tape_path: Path, futures_path: Pa
             }
         )
 
-    # ---- strikes -----------------------------------------------------------
     strikes = []
     for strike in sorted(strike_pe):
         total_pe = strike_pe[strike]
@@ -350,7 +339,6 @@ def build_payload(date: str, chain_path: Path, tape_path: Path, futures_path: Pa
         for s in top_itm
     ]
 
-    # ---- summary numbers used in the prose --------------------------------
     def clip(lo: str, hi: str) -> list[dict]:
         return [b for b in buckets if lo <= b["t"] < hi]
 
@@ -507,9 +495,7 @@ def build_payload(date: str, chain_path: Path, tape_path: Path, futures_path: Pa
     }
 
 
-# ---------------------------------------------------------------------------
 # prose — every number below is read from the payload, never hand-typed
-# ---------------------------------------------------------------------------
 
 def bullets(payload: dict) -> list[str]:
     s = payload["summary"]
@@ -614,9 +600,6 @@ def chart_reads(payload: dict) -> dict[str, str]:
     }
 
 
-# ---------------------------------------------------------------------------
-# HTML
-# ---------------------------------------------------------------------------
 
 HTML_TEMPLATE = r"""<!doctype html>
 <html lang="en">

@@ -1,12 +1,4 @@
 #!/usr/bin/env python
-"""November NQ replay in the SNDK report style (matplotlib dark theme).
-
-One PNG per session (price + volume, premarket shaded, NY/ON VWAP, our trade
-lines/markers, his posted trades) plus an HTML gallery. Same palette and layout
-as reports/SNDK_STRATEGY.
-
-  .venv/bin/python scripts/research/double_vwap/nov_replay_sndk.py
-"""
 from __future__ import annotations
 
 import os
@@ -34,7 +26,7 @@ plt.rcParams.update({"figure.facecolor": BG, "axes.facecolor": BG, "text.color":
                      "axes.labelcolor": FG, "xtick.color": DIM, "ytick.color": DIM,
                      "axes.edgecolor": "#30363D", "savefig.facecolor": BG})
 
-T_OPEN, T_CLOSE = 7 * 60, 16 * 60   # plot window (07:00-16:00 ET)
+T_OPEN, T_CLOSE = 7 * 60, 16 * 60
 
 
 def plot_session(d, tag, our, his):

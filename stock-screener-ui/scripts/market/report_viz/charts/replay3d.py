@@ -216,9 +216,6 @@ def _side_color(side: str) -> str:
     return "var(--rv-muted)"
 
 
-# --------------------------------------------------------------------------- #
-# 1. Positioning terrain — time × strike × metric
-# --------------------------------------------------------------------------- #
 def _terrain_unit(override: Any, *, signed: bool, spec: InstrumentSpec, interval: str) -> str:
     if override:
         return str(override)
@@ -286,7 +283,6 @@ def positioning_terrain_3d(
     height: int = 480,
     css_class: str = "",
 ) -> str:
-    """Time × strike × metric surface; the metric catalogue travels with it."""
     times = _labels(data.get("times"), field="times")
     strikes = _strikes(data.get("strikes"), spec=spec)
     minutes = _minutes(data.get("minutes"), times=times)
@@ -370,9 +366,6 @@ def positioning_terrain_3d(
     )
 
 
-# --------------------------------------------------------------------------- #
-# 2. OTM IV surface — time × strike
-# --------------------------------------------------------------------------- #
 def iv_surface_3d(
     data: Mapping[str, Any],
     *,
@@ -469,9 +462,6 @@ def iv_surface_3d(
     )
 
 
-# --------------------------------------------------------------------------- #
-# 3. Futures path — time × OI × price
-# --------------------------------------------------------------------------- #
 def _futures_points(data: Mapping[str, Any], spec: InstrumentSpec) -> list[dict[str, Any]]:
     raw_points = data.get("points")
     if raw_points is not None:
@@ -573,7 +563,6 @@ def futures_path_3d(
     height: int = 460,
     css_class: str = "",
 ) -> str:
-    """One futures path: time on x, price on y, open interest on z."""
     points = _futures_points(data, spec)
     x: list[Optional[int]] = []
     for index, point in enumerate(points):
@@ -639,9 +628,6 @@ def futures_path_3d(
     )
 
 
-# --------------------------------------------------------------------------- #
-# 4. Replay heatmap — chain time × strike
-# --------------------------------------------------------------------------- #
 def _heatmap_unit(metric_id: str, override: Mapping[str, Any], data: Mapping[str, Any], spec: InstrumentSpec) -> str:
     if override.get("unit"):
         return str(override["unit"])
@@ -748,7 +734,6 @@ def replay_heatmap(
     height: int = 480,
     css_class: str = "",
 ) -> str:
-    """Strike × chain-time heatmap from the recorded snapshots."""
     times = _labels(data.get("times"), field="times")
     strikes = _strikes(data.get("strikes"), spec=spec)
     minutes = _minutes(data.get("minutes"), times=times)
@@ -819,9 +804,6 @@ def replay_heatmap(
     )
 
 
-# --------------------------------------------------------------------------- #
-# 5. Focus strike — premium / OI / volume path
-# --------------------------------------------------------------------------- #
 def replay_pe_focus(
     data: Mapping[str, Any],
     *,
@@ -833,7 +815,6 @@ def replay_pe_focus(
     height: int = 400,
     css_class: str = "",
 ) -> str:
-    """One strike's premium, open interest and volume through the replay."""
     strike = _number(data.get("strike"), field="strike", digits=spec.price_decimals)
     side_raw = data.get("side")
     if side_raw is None and "pe" in data:
@@ -935,9 +916,6 @@ def replay_pe_focus(
     )
 
 
-# --------------------------------------------------------------------------- #
-# 6. Highest-volume strikes
-# --------------------------------------------------------------------------- #
 def top_volume_strikes(
     data: Mapping[str, Any],
     *,
@@ -1029,9 +1007,6 @@ def top_volume_strikes(
     )
 
 
-# --------------------------------------------------------------------------- #
-# 7. Event annotations — ribbon of times and labels only
-# --------------------------------------------------------------------------- #
 def event_annotations(
     data: Mapping[str, Any],
     *,
@@ -1043,7 +1018,6 @@ def event_annotations(
     height: int = 220,
     css_class: str = "",
 ) -> str:
-    """An event ribbon over the replay window: times and labels, no measurements."""
     window_raw = data.get("window") or {}
     if not isinstance(window_raw, Mapping):
         raise ValueError("window: expected a mapping with open/close")

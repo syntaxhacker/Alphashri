@@ -133,7 +133,6 @@ describe("scaleValue / sqrt scale", () => {
         scale,
       );
       const d = buildLinePath(points, bounds, 100, 50, scale);
-      // "M x y L x y L x y" — the second vertex is the raw 100 point.
       return Number(d.split(" ").slice(2, 4)[1]);
     };
     // Linear puts 100 at 99% of the height; sqrt lifts it to 90%.

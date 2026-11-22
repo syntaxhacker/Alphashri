@@ -74,11 +74,6 @@ export interface MembersDrawerProps {
   symbolPy?: number;
 }
 
-/**
- * Presentational shell shared by the patterns index-members drawer and the
- * sector theme-members drawer. Data fetching, filtering and footer copy stay in
- * the surface wrappers; the drawer owns the frame, filter, states and rows.
- */
 export function MembersDrawer(props: MembersDrawerProps) {
   const pad = (n: number) => `${n * 8}px`;
   const closeIconSize = () => props.closeIconSize ?? 16;

@@ -116,10 +116,6 @@ function createInitialState(): OptionsDockState {
 
 export const [optionsDockState, setOptionsDockState] = createStore<OptionsDockState>(createInitialState());
 
-/* ------------------------------------------------------------------ */
-/* Frame cache + open-symbol LRU                                       */
-/* ------------------------------------------------------------------ */
-
 const frameCache = new Map<string, OptionDockChain>();
 const openSymbols: string[] = [];
 
@@ -146,10 +142,6 @@ function touchSymbol(symbol: string): void {
 /** Test/introspection hooks — no UI reads these. */
 export const __frames = frameCache;
 export const __openSymbols = openSymbols;
-
-/* ------------------------------------------------------------------ */
-/* Leg persistence                                                      */
-/* ------------------------------------------------------------------ */
 
 const LEGS_PREFIX = "options.legs.v1.";
 const LEGS_INDEX = "options.legs.v1.index";
@@ -222,10 +214,6 @@ function legKey(leg: { expiry: string; type: string; strike: number }): string {
   return `${leg.expiry}|${leg.type}|${leg.strike}`;
 }
 
-/* ------------------------------------------------------------------ */
-/* Requests, abort, polling                                            */
-/* ------------------------------------------------------------------ */
-
 /**
  * The listing (E1) and the chain (E2) are separate flights. A single shared
  * controller let an expiry switch abort the in-flight listing, leaving the dock
@@ -297,10 +285,6 @@ const statusError = (error: unknown): { kind: string; message: string } => {
   if (error instanceof Error) return { kind: "unknown", message: error.message };
   return { kind: "unknown", message: "Could not load the option chain" };
 };
-
-/* ------------------------------------------------------------------ */
-/* Chain reconciliation                                                */
-/* ------------------------------------------------------------------ */
 
 const LEG_NUMBER_FIELDS = [
   "ltp", "oi", "prevOi", "volume", "iv", "delta",
@@ -375,10 +359,6 @@ function patchLeg(
     setOptionsDockState("chain", "rows", index, side, "instrumentKey", next.instrumentKey);
   }
 }
-
-/* ------------------------------------------------------------------ */
-/* Actions                                                             */
-/* ------------------------------------------------------------------ */
 
 function setLegs(legs: DockLeg[]): void {
   setOptionsDockState("legs", legs);
@@ -748,10 +728,6 @@ export function setLegLots(key: string, lots: number): void {
   setLegs(optionsDockState.legs.map((leg) => (leg.key === key ? { ...leg, lots: next } : leg)));
 }
 
-/* ------------------------------------------------------------------ */
-/* Strategy presets                                                    */
-/* ------------------------------------------------------------------ */
-
 /**
  * The live frame in the shape `optionsStrategies` expects. `ltp: null` becomes 0
  * so the preset treats the strike as untradeable — inventing a premium would
@@ -894,10 +870,6 @@ export function netPremium(): number {
 export function currentChain(): OptionDockChain | null {
   return unwrap(optionsDockState.chain);
 }
-
-/* ------------------------------------------------------------------ */
-/* Visibility + teardown                                               */
-/* ------------------------------------------------------------------ */
 
 let visibilityBound = false;
 

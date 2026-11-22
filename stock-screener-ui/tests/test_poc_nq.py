@@ -89,7 +89,6 @@ def _patch_ifvg(canned):
     return p1, p2, p3
 
 
-# ---------------- get_tick_replay ----------------
 
 class TestGetTickReplay:
 
@@ -198,7 +197,6 @@ class TestGetTickReplay:
         assert res["hist_bars"] == 0
 
 
-# ---------------- get_smc_ifvg ----------------
 
 class TestGetSmcIfvg:
 
@@ -263,7 +261,6 @@ class TestGetSmcIfvg:
         assert "no ticks" in res["error"]
 
 
-# ---------------- get_nq ----------------
 
 class TestGetNq:
 

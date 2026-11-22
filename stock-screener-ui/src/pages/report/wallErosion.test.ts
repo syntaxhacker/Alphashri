@@ -212,8 +212,8 @@ describe("pickNearestWalls", () => {
     const walls = wallsPayload({
       spot: 73880,
       calls: [
-        { strike: 74100, oi: 100 }, // |220|
-        { strike: 74000, oi: 100 }, // |120|
+        { strike: 74100, oi: 100 },
+        { strike: 74000, oi: 100 },
       ],
     });
     expect(pickNearestWalls(walls).call?.strike).toBe(74000);
@@ -222,7 +222,7 @@ describe("pickNearestWalls", () => {
     const walls = wallsPayload({
       spot: 73880,
       calls: [
-        wallRow({ strike: 73000, distance_pts: -880 }), // below spot — not a candidate
+        wallRow({ strike: 73000, distance_pts: -880 }),
         wallRow({ strike: 74500, distance_pts: 620 }),
       ],
     });

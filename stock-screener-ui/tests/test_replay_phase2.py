@@ -14,9 +14,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 IST = timezone(timedelta(hours=5, minutes=30))
 
 
-# ============================================================================
-# Helpers
-# ============================================================================
 
 def _make_1m_candles(date_str: str, count: int = 375) -> pd.DataFrame:
     """Create synthetic 1-minute candles for a trading day."""
@@ -104,9 +101,6 @@ def _make_signal(symbol="RELIANCE", price=1005.0, signal_type="LONG_ENTRY"):
     )
 
 
-# ============================================================================
-# ReplayDataProvider Tests
-# ============================================================================
 
 class TestReplayDataProvider:
     """Tests for ReplayDataProvider data slicing and time-based filtering."""
@@ -222,9 +216,6 @@ class TestReplayDataProvider:
         assert all(result.index <= pd.Timestamp("2026-04-01", tz=IST))
 
 
-# ============================================================================
-# MultiStrategyRunner Replay Mode Tests
-# ============================================================================
 
 class TestRunnerReplayMode:
     """Tests for MultiStrategyRunner replay mode setup and clock injection."""
@@ -290,9 +281,6 @@ class TestRunnerReplayMode:
             MultiStrategyRunner._load_bot_config_by_uuid("not-found")
 
 
-# ============================================================================
-# execute_signal Replay Tests
-# ============================================================================
 
 class TestExecuteSignalReplay:
     """Tests for execute_signal() replay branch."""
@@ -493,9 +481,6 @@ class TestExecuteSignalReplay:
         assert persist_calls[0]["strategy_id"] == 1
 
 
-# ============================================================================
-# monitor_positions Replay Tests
-# ============================================================================
 
 class TestMonitorPositionsReplay:
     """Tests for monitor_positions() replay hooks — skips DB, Telegram, journal."""
@@ -674,9 +659,6 @@ class TestMonitorPositionsReplay:
         assert call_kwargs.kwargs.get("exit_time") == sim_time
 
 
-# ============================================================================
-# run_replay Integration Tests
-# ============================================================================
 
 class TestRunReplay:
     """Integration tests for the run_replay() method."""
@@ -961,9 +943,6 @@ class TestRunReplay:
         assert "error" in event_types
 
 
-# ============================================================================
-# Overlay Emission Tests (or_levels, pivot_levels, ema_series)
-# ============================================================================
 
 class TestOverlayEmissions:
     """Tests for overlay event emissions during scan_for_signals in replay mode."""
@@ -1112,9 +1091,6 @@ class TestOverlayEmissions:
         assert isinstance(ema_events[0]["timeframes"], dict)
 
 
-# ============================================================================
-# _emit_summary Tests
-# ============================================================================
 
 class TestEmitSummary:
     """Tests for _emit_summary helper."""
@@ -1180,9 +1156,6 @@ class TestEmitSummary:
         assert "ORB Best" in s["strategy_breakdown"]
 
 
-# ============================================================================
-# Swing Metadata & FORCE_CLOSE Tests
-# ============================================================================
 
 class TestReplaySwingAndForceClose:
     """Tests for swing strategy metadata and FORCE_CLOSE event emission."""
@@ -1286,9 +1259,6 @@ class TestReplaySwingAndForceClose:
         assert any(e["type"] == "error" for e in events)
 
 
-# ============================================================================
-# replay_api Tests
-# ============================================================================
 
 class TestReplayAPI:
     """Tests for the replay API endpoint."""
@@ -1328,9 +1298,6 @@ class TestReplayAPI:
         assert all(isinstance(s, str) for s in data["symbols"])
 
 
-# ============================================================================
-# _execute_signal_core Tests
-# ============================================================================
 
 class TestExecuteSignalCore:
     """Tests for _execute_signal_core and _execute_replay_signal."""
@@ -1559,9 +1526,6 @@ class TestExecuteSignalCore:
         assert event["quantity"] == 10
 
 
-# ============================================================================
-# TestReplayUtils
-# ============================================================================
 
 class TestReplayUtils:
     """Tests for trading/replay_utils.py utilities."""
@@ -1667,9 +1631,6 @@ class TestReplayUtils:
         assert "RELIANCE" in DEFAULT_WATCHLIST
 
 
-# ============================================================================
-# TestEmitOncePerSymbol
-# ============================================================================
 
 class TestEmitOncePerSymbol:
     """Tests for RunnerSignalsMixin._emit_once_per_symbol."""
@@ -1752,9 +1713,6 @@ class TestEmitOncePerSymbol:
         assert (1, "RELIANCE") in runner._test_emitted
 
 
-# ============================================================================
-# TestInitCommonFields
-# ============================================================================
 
 class TestInitCommonFields:
     """Tests for MultiStrategyRunner._init_common_fields."""

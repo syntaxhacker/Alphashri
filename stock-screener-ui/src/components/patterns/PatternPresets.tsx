@@ -4,13 +4,10 @@ import { IconX, IconBookmarkPlus } from "@/ui/icons";
 import { BUILTIN_PRESETS, type PatternPreset } from "@/config/patternCatalog";
 import type { PatternFilters } from "@/types/chartPatterns";
 
-/** localStorage key holding the user's saved filter presets. */
 export const PATTERN_PRESETS_STORAGE_KEY = "alphashri.patternPresets";
 
 export interface PatternPresetsProps {
-  /** Current filter rail value, snapshotted when the user saves a preset. */
   filters: PatternFilters;
-  /** Apply a partial filter patch (merged onto defaults) and reload. */
   applyFilters: (filters: Partial<PatternFilters>) => void;
 }
 
@@ -47,7 +44,6 @@ function sameValue(a: unknown, b: unknown): boolean {
   return a === b;
 }
 
-/** A preset chip is "on" while the rail still carries exactly that preset's filter patch. */
 function presetIsActive(current: PatternFilters, patch: Partial<PatternFilters>): boolean {
   return (Object.keys(patch) as Array<keyof PatternFilters>).every((key) =>
     sameValue(current[key], patch[key]),
@@ -57,10 +53,6 @@ function presetIsActive(current: PatternFilters, patch: Partial<PatternFilters>)
 const ICON_BUTTON_CLASS =
   "inline-flex size-6 items-center justify-center rounded border-0 bg-transparent p-0 text-fin-text-muted transition-colors hover:bg-fin-surface-alt hover:text-fin-text disabled:cursor-not-allowed disabled:opacity-50";
 
-/**
- * Compact PRESETS control for the filter rail: built-in preset chips, plus the
- * ability to save the current filters and re-apply/delete them later.
- */
 export function PatternPresets(props: PatternPresetsProps) {
   const [saved, setSaved] = createSignal<PatternPreset[]>(readSavedPresets());
   const [naming, setNaming] = createSignal(false);
@@ -78,7 +70,6 @@ export function PatternPresets(props: PatternPresetsProps) {
   const handleSave = (): void => {
     const trimmed = name().trim();
     if (!trimmed) return;
-    // Deep-clone so later filter-rail edits can't mutate the saved snapshot.
     const snapshot = JSON.parse(JSON.stringify(props.filters)) as PatternFilters;
     const preset: PatternPreset = { id: newPresetId(), name: trimmed, filters: snapshot };
     persist([...saved(), preset]);

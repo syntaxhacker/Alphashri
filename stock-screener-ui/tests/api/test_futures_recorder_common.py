@@ -49,9 +49,6 @@ def _isolated(tmp_path: Path, monkeypatch):
         mod._reset_state()
 
 
-# --------------------------------------------------------------------------- #
-# spec differences
-# --------------------------------------------------------------------------- #
 def test_search_params_differ_only_by_the_exchange_pin():
     assert nf._SPEC.search_params == {
         "query": "NIFTY",
@@ -119,9 +116,6 @@ async def test_sensex_no_contract_when_only_the_sibling_is_listed(monkeypatch):
     assert not sf.day_path(TODAY).exists()
 
 
-# --------------------------------------------------------------------------- #
-# wrappers resolve module globals per call
-# --------------------------------------------------------------------------- #
 async def test_patched_hooks_are_read_on_every_tick(tmp_path, monkeypatch):
     calls = {"token": 0, "term": 0, "spot": 0}
 
@@ -201,9 +195,6 @@ async def test_sensex_skips_the_live_spot_when_the_tape_covers_the_newest_minute
     assert row["spot"] == 82000.0
 
 
-# --------------------------------------------------------------------------- #
-# shared contract + term logic
-# --------------------------------------------------------------------------- #
 def test_contract_cache_keys_are_distinct():
     assert nf._SPEC.contract_cache_key == "nifty"
     assert sf._SPEC.contract_cache_key == "sensex"
@@ -312,9 +303,6 @@ def test_merge_rows_dedupes_sorts_and_refreshes_the_seen_cache(tmp_path):
     assert cache[str(path)] == {f"{TODAY}T09:15", f"{TODAY}T09:17"}
 
 
-# --------------------------------------------------------------------------- #
-# single-writer guard
-# --------------------------------------------------------------------------- #
 async def test_single_writer_guard_rejects_a_second_loop():
     async def _noop():
         return None

@@ -1,9 +1,3 @@
-"""
-Seed NSE/BSE market holidays for 2026.
-
-Source: NSE Trading Calendar 2026 + RBI clearing holidays.
-Run: python scripts/seed_holidays_2026.py
-"""
 
 from db.database import init_db
 from trading.holidays_seed import (

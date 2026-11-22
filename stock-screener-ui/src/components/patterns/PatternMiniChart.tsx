@@ -8,7 +8,6 @@ import { loadEcharts } from "@/utils/loadEcharts";
 
 export interface PatternMiniChartProps {
   hit: PatternHitDTO;
-  /** View-only filter for standalone support/resistance lines. */
   trendlinesView?: TrendlinesView;
 }
 
@@ -21,8 +20,6 @@ const NO_STANDALONE: TrendLine[] = [];
 // Start the chart just before its card scrolls into view so it is ready on paint.
 const MINI_CHART_ROOT_MARGIN = "200px";
 
-// The fallback sketch's category axis only depends on the point count, and the
-// same few lengths repeat across every card in a grid — build each once.
 const categoryAxisCache = new Map<number, string[]>();
 function categoryAxis(length: number): string[] {
   let axis = categoryAxisCache.get(length);
@@ -33,10 +30,6 @@ function categoryAxis(length: number): string[] {
   return axis;
 }
 
-/**
- * Compact inline candlestick for a card. Reuses the shared option builder so
- * the pattern geometry matches the detail / fullscreen views exactly.
- */
 export function PatternMiniChart(props: PatternMiniChartProps) {
   let chartEl: HTMLDivElement | undefined;
   let chart: ECharts.ECharts | undefined;
@@ -72,7 +65,6 @@ export function PatternMiniChart(props: PatternMiniChartProps) {
       }) as Record<string, unknown>;
     }
 
-    // No candle window: fall back to the boundary sketch (or start→end line).
     const series =
       lines.length > 0
         ? lines.map((line, i) => ({

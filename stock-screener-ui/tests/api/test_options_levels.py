@@ -33,9 +33,6 @@ def _terse(strike, ce_oi=1_000_000, pe_oi=1_000_000, gamma=0.001):
             "ce_gamma": gamma, "pe_gamma": gamma}
 
 
-# ---------------------------------------------------------------------------
-# Adapter
-# ---------------------------------------------------------------------------
 
 class TestNormalizeStrikes:
     def test_all_three_shapes_are_identical(self):
@@ -68,9 +65,6 @@ class TestNormalizeStrikes:
         assert normalize_strikes(None) == []
 
 
-# ---------------------------------------------------------------------------
-# Max pain
-# ---------------------------------------------------------------------------
 
 class TestMaxPain:
     def test_brute_force_fixture(self):
@@ -106,9 +100,6 @@ class TestMaxPain:
         assert ours == nifty.compute_max_pain(rows)
 
 
-# ---------------------------------------------------------------------------
-# GEX anti-drift — the six cases from tests/test_reports_nifty.py
-# ---------------------------------------------------------------------------
 
 def _case_support_resistance_fuel():
     rows = [_gex_row(22500, 0, 0, 0.002, 1_000_000),
@@ -233,9 +224,6 @@ class TestGexAntiDrift:
         assert ours["regime"] == "long"
 
 
-# ---------------------------------------------------------------------------
-# Null rules
-# ---------------------------------------------------------------------------
 
 class TestNullRules:
     def test_empty_chain(self):
@@ -305,9 +293,6 @@ class TestNullRules:
                 assert lvl["side"] is None
 
 
-# ---------------------------------------------------------------------------
-# Step / side / strength / shape / perf
-# ---------------------------------------------------------------------------
 
 class TestLevelsHelpers:
     @pytest.mark.parametrize("step", [2.5, 50.0])

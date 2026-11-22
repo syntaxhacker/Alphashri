@@ -25,9 +25,6 @@ from api.event_radar.contract import Anomaly
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
-# --------------------------------------------------------------------------- #
-# Synthetic bars
-# --------------------------------------------------------------------------- #
 
 
 def make_bars(
@@ -238,9 +235,6 @@ class TestCooldown:
         assert apply_cooldown([]) == []
 
 
-# --------------------------------------------------------------------------- #
-# Real-data regression (recorded ORCL tape, 2026-10-19 .. 2026-10-28)
-# --------------------------------------------------------------------------- #
 
 
 @pytest.fixture(scope="module")

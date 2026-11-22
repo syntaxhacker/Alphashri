@@ -1,14 +1,4 @@
 #!/usr/bin/env python3
-"""Build the NIFTY futures / price / OI / basis page for 2026-11-17.
-
-Reads the current-month 1-minute futures file and the spot tape, derives the
-session's 15-minute price/OI regimes, and writes a self-contained D3 page plus
-a machine-readable summary.
-
-Usage:
-    .venv/bin/python scripts/market/nifty_report_futures.py
-    .venv/bin/python scripts/market/nifty_report_futures.py --open
-"""
 
 from __future__ import annotations
 
@@ -148,7 +138,6 @@ def classify(dp: float, doi: float, price_threshold: float, oi_threshold: int) -
 
 
 def build_regimes(rows: list[dict], price_threshold: float, oi_threshold: int) -> list[dict]:
-    """Buckets run boundary-close to boundary-close, so 11:45 covers 11:46-12:00 flow."""
     buckets: list[dict] = []
     start_idx = 0
     start_price = rows[0]["o"]

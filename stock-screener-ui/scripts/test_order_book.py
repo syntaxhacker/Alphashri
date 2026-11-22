@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Test Upstox V2 Order Book API — what does get_order_book return?"""
 
 import json, sys, time, requests
 from pathlib import Path
@@ -7,7 +6,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "stock-screener-ui"))
 
-# Get token from DB first (broker_connections table), fallback to file
 from db.models.broker import get_shared_broker_token
 
 token_row = get_shared_broker_token("upstox")

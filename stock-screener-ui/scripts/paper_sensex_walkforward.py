@@ -1,17 +1,4 @@
 #!/usr/bin/env python3
-"""Walk-forward validation for SENSEX strategies (1-min cache).
-
-Walk-forward = the honest test: at each step, pick the best config using ONLY
-past days (train window), then evaluate it on the NEXT day (test). Roll forward.
-This shows what you'd ACTUALLY have made trading the backtest winner — instead
-of the in-sample "best of N" illusion.
-
-Strategy candidates: the 5 scalp configs (from paper_sensex_scalp_backtest) +
-range/reversion configs (from paper_sensex strategy_configs).
-
-Usage:
-  python3 scripts/paper_sensex_walkforward.py [--train 12] [--test 1] [--step 1]
-"""
 from __future__ import annotations
 
 import argparse
@@ -34,7 +21,6 @@ from datetime import datetime  # noqa: E402
 
 
 def scalp_day_pnl(cfg, rows, t_years):
-    """Reuse scalp backtest's per-day replay for a scalp config."""
     nets = []
     tr = _scalp.scalp_day(rows, cfg["style"], cfg["lb"], cfg["thr"],
                           cfg["target"], cfg["sl"], cooldown=2, eod_hm="15:20")
@@ -49,9 +35,7 @@ def range_day_pnl(cfg, rows, oi_sup, oi_res, t_years):
 
 
 def build_candidates():
-    """Scalp configs (from the scalp backtest grid) + range/reversion configs."""
     cands = []
-    # scalp family — the 5 that mattered
     for style in ["momentum", "range"]:
         for lb in [3, 5]:
             for thr in [10]:
@@ -61,7 +45,6 @@ def build_candidates():
                         "family": "scalp", "style": style, "lb": lb, "thr": thr,
                         "target": tgt, "sl": sl,
                     })
-    # range/reversion family
     for cfg in strategy_configs():
         cands.append({
             "name": cfg["name"], "family": "range", "config": cfg["name"],
@@ -89,9 +72,8 @@ def main():
     print(f"date range: {days[0][0]} .. {days[-1][0]}")
     print(f"Walk-forward: select best on train window, evaluate on next {args.test} day(s)\n")
 
-    # Precompute per-day P&L for every candidate × day
     print("precomputing per-day P&L...", file=sys.stderr)
-    day_pnl = {}   # (cand_name, date) -> (net, trades)
+    day_pnl = {}
     for c in cands:
         for date, rows in days:
             if c["family"] == "scalp":
@@ -100,20 +82,17 @@ def main():
                 day_pnl[(c["name"], date)] = range_day_pnl(c, rows, oi_sup, oi_res, t_years)
     print("precompute done", file=sys.stderr)
 
-    # Walk forward
     steps = []
     i = args.train
     while i + args.test <= n:
         train_dates = [d for d, _ in days[i - args.train:i]]
         test_dates = [d for d, _ in days[i:i + args.test]]
-        # pick best candidate by median day P&L on train
         scores = []
         for c in cands:
             nets = [day_pnl[(c["name"], d)][0] for d in train_dates]
             scores.append((statistics.median(nets) if nets else 0, c["name"]))
         scores.sort(reverse=True)
         best = scores[0][1]
-        # evaluate on test
         test_net = sum(day_pnl[(best, d)][0] for d in test_dates)
         test_trades = sum(day_pnl[(best, d)][1] for d in test_dates)
         steps.append({
@@ -133,7 +112,6 @@ def main():
         total_trades += s["test_trades"]
     print(f"\nTOTAL walk-forward net: {total_test:+,.0f}  ({total_trades} trades, {len(steps)} steps)")
 
-    # Baseline: in-sample 'best of all days' — the illusion we're testing against
     print("\n--- comparison: in-sample 'best of all days' ---")
     in_sample = []
     for c in cands:

@@ -1,7 +1,3 @@
-"""
-Background poller tasks: news prefetch, continuous polling, and sector polling.
-"""
-
 import asyncio
 import concurrent.futures
 import logging
@@ -267,13 +263,11 @@ async def news_poller_task():
 
             source_ids = [s['id'] for s in NEWS_SOURCES] if NEWS_SOURCES and isinstance(NEWS_SOURCES, list) else ['moneycontrol']
 
-            # Skip sources that consistently return nothing (tracked across cycles)
             if not hasattr(news_poller_task, '_dead_sources'):
                 news_poller_task._dead_sources = set()
             active_sources = [s for s in source_ids if s not in news_poller_task._dead_sources]
 
             async def _fetch_source(source_id: str) -> tuple:
-                """Fetch a single source with timeout."""
                 try:
                     items = await asyncio.wait_for(
                         asyncio.to_thread(fetch_news, source=source_id,
@@ -298,7 +292,6 @@ async def news_poller_task():
                     *[_fetch_source(s) for s in active_sources[_start:_start + _batch]]))
 
             async def _process_source(source_id: str, items: list, fetch_budget: dict):
-                """Process fetched items for a single source."""
                 key = f"_empty_count_{source_id}"
                 if not items:
                     count = getattr(news_poller_task, key, 0) + 1

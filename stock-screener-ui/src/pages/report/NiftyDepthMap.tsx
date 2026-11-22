@@ -43,13 +43,10 @@ import { REPORT_FONT } from "./reportTokens";
 
 export const DEPTH_WINDOW = 750;
 
-/** ±750 window at 50pt steps can hold at most 31 rows — cap enforced. */
 export const DEPTH_MAX_ROWS = 31;
 
-/** Level-tag dedupe radius in points (same rule as the report panel). */
 const LEVEL_DEDUPE_PTS = 25;
 
-/** Candle-only y-range padding on each side. */
 const CANDLE_PAD_PCT = 0.0015;
 
 interface DepthRow {
@@ -82,7 +79,6 @@ function fmtStrike(s: number): string {
   return formatReportNum(num(s));
 }
 
-/** Compact Indian OI labels: 2.50 Cr / 25.0L / 5.0k. */
 export function formatOiCompact(v: number): string {
   return formatReportOiCr(v, {
     lakh: 1,
@@ -92,7 +88,6 @@ export function formatOiCompact(v: number): string {
   });
 }
 
-/** Per-strike OI rows within ATM ±750, sorted ascending, capped at 31 rows. */
 export function buildDepthRows(report: NiftyReport): DepthRow[] {
   const strikes = Array.isArray(report?.strikes) ? report.strikes : [];
   const spot = num(report?.spot);
@@ -108,7 +103,6 @@ export function buildDepthRows(report: NiftyReport): DepthRow[] {
     "asc",
   );
   if (inWindow.length <= DEPTH_MAX_ROWS) return inWindow;
-  // Irregular/dense chains: keep the rows closest to spot, restore ordering.
   return inWindow
     .slice()
     .sort((a, b) => Math.abs(a.strike - spot) - Math.abs(b.strike - spot))
@@ -116,7 +110,6 @@ export function buildDepthRows(report: NiftyReport): DepthRow[] {
     .sort((a, b) => a.strike - b.strike);
 }
 
-/** Strike with the highest total (ce + pe) OI, over the full chain. Null-safe. */
 export function findOiPoc(report: NiftyReport): number | null {
   const strikes = Array.isArray(report?.strikes) ? report.strikes : [];
   let best: number | null = null;
@@ -132,7 +125,6 @@ export function findOiPoc(report: NiftyReport): number | null {
   return best;
 }
 
-/** Day hi/lo + last-vs-first-close change from report candles. Null-safe on empty. */
 export function dayStats(report: NiftyReport): DayStats {
   const empty: DayStats = { hi: null, lo: null, changePct: null, last: null };
   const candles = Array.isArray(report?.candles) ? report.candles : [];

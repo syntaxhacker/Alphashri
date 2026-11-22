@@ -20,9 +20,6 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 
-# =========================================================================
-# Helper: create a clean poller module patch environment
-# =========================================================================
 
 @pytest.fixture
 def poller_module():
@@ -37,9 +34,6 @@ def poller_module():
     }
 
 
-# =========================================================================
-# _do_prefetch_sync
-# =========================================================================
 
 class TestDoPrefetchSync:
     @patch('api.news.news_poller._get_module_vars')
@@ -131,7 +125,6 @@ class TestDoPrefetchSync:
 
         _do_prefetch_sync()
 
-        # Only the valid one should be saved
         assert mock_persistence.save_article.call_count == 1
 
     @patch('api.news.news_poller._get_module_vars')
@@ -161,9 +154,6 @@ class TestDoPrefetchSync:
         mock_persistence.save_article.assert_not_called()
 
 
-# =========================================================================
-# news_startup_prefetch
-# =========================================================================
 
 class TestNewsStartupPrefetch:
     @patch('api.news.news_poller._do_prefetch_sync')
@@ -191,9 +181,6 @@ class TestNewsStartupPrefetch:
         mock_prefetch.assert_not_called()
 
 
-# =========================================================================
-# news_poller_task — logic segments (with mocked sleep)
-# =========================================================================
 
 class TestNewsPollerLogic:
     @pytest.mark.asyncio
@@ -398,7 +385,6 @@ class TestNewsPollerLogic:
                 from api.news.news_poller import news_poller_task
                 await news_poller_task()
 
-            # Check broadcast types
             broadcast_calls = mock_ws.broadcast.call_args_list
             types = [c[0][0]["type"] for c in broadcast_calls]
 
@@ -447,9 +433,6 @@ class TestNewsPollerLogic:
                 mock_cache_del.assert_called()
 
 
-# =========================================================================
-# sector_poller_task
-# =========================================================================
 
 class TestSectorPoller:
     @pytest.mark.asyncio

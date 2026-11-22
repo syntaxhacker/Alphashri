@@ -50,7 +50,6 @@ interface LegendItemDef {
   color: string;
   label: string;
   title: string;
-  /** cell = filled square, line = solid stroke, dashed = dashed stroke, dot = round touch marker */
   shape: "cell" | "line" | "dashed" | "dot";
 }
 
@@ -141,7 +140,6 @@ function cellOpacity(sign: string, intensity: number): number {
   return 0.22 + 0.78 * Math.min(1, Math.max(0, intensity));
 }
 
-/** HH:MM → minutes since midnight (null when the label is malformed). */
 function clockMinutes(label: string): number | null {
   // Only bare HH:MM: the shared parser is start-anchored and would read "09:15:30".
   if (!/^(\d{1,2}):(\d{2})$/.test(label)) return null;
@@ -389,8 +387,6 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
   // page's largest cost. The canvas is sized to the SVG box in CSS pixels and
   // scaled by devicePixelRatio, so the same viewBox geometry stays crisp.
   createEffect(() => {
-    // Track the cells + geometry unconditionally so an empty → populated
-    // transition re-arms the paint (refs are plain lets, not reactive).
     const currentCells = cells();
     const currentBuckets = buckets();
     const currentStrikes = strikes();
@@ -664,8 +660,6 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
         data-testid="nifty-heatmap"
         class="w-full min-w-0 flex flex-col h-full min-h-[72px] relative"
       >
-        {/* One header row, one hairline. The full swatch key folds into a KEY
-            disclosure; the colour ramp it explains stays visible as one bar. */}
         <div
           data-testid="nifty-heatmap-legend"
           aria-label="Heatmap legend"

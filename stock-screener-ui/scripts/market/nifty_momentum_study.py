@@ -70,7 +70,6 @@ def load_day(path: pathlib.Path) -> pd.DataFrame:
         if c in df.columns
     ]
     df = df[keep]
-    # One row per minute; keep gaps visible so we can reject gappy forward windows.
     full = pd.date_range(df.index.min(), df.index.max(), freq="1min")
     df = df.reindex(full)
     df.index.name = "t"
@@ -117,7 +116,6 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
     out["atr14"] = out["absret"].rolling(14, min_periods=10).mean()
     out["rng5"] = spot.rolling(5, min_periods=3).max() - spot.rolling(5, min_periods=3).min()
     out["rng15"] = spot.rolling(15, min_periods=8).max() - spot.rolling(15, min_periods=8).min()
-    # Expansion vs the *prior* 30 minutes only (shift(1) kills lookahead).
     out["expansion5"] = out["rng5"] / out["rng5"].shift(1).rolling(30, min_periods=10).median()
     out["expansion15"] = out["rng15"] / out["rng15"].shift(1).rolling(30, min_periods=10).median()
     out["move5"] = (spot - spot.shift(5)).abs()
@@ -256,7 +254,6 @@ def main(argv=None) -> int:
         for idx, row in g.iterrows():
             print(f"  {str(idx):<28} n={int(row['count']):>4}  burst={row['event_rate']:.1%}")
 
-    # Simple, tradeable rules (no fitted weights).
     print("\nrules (burst):")
     rules = {
         "expansion5>=1.5": df["expansion5"] >= 1.5,
@@ -278,7 +275,6 @@ def main(argv=None) -> int:
             f"R={s['recall']:.1%}  lift={s['lift']:.2f}x"
         )
 
-    # Day-by-day stability of the best simple rule.
     best_mask = (df["expansion5"] >= 1.5) & (df["vol_ratio"] >= 1.5)
     print("\nper-day base vs rule (burst):")
     for day, g in df.groupby("date"):
@@ -291,7 +287,6 @@ def main(argv=None) -> int:
             f"range_med={g['fwd_rng'].median():.0f}"
         )
 
-    # Does expansion add anything beyond "the tape is already volatile"?
     print("\nexpansion5 >= 1.5, split by ATR quintile (burst rate):")
     atr_bucket = pd.qcut(df["atr14"], 5, duplicates="drop")
     for bucket, g in df.groupby(atr_bucket, observed=True):
@@ -303,7 +298,6 @@ def main(argv=None) -> int:
             f"exp>=1.5 {hot['burst'].mean():.1%} (n={len(hot)})"
         )
 
-    # Direction: does a move continue? (This is what makes a burst tradeable.)
     spot = df["spot"]
     sig5 = np.sign(spot - spot.shift(5))
     fwd_dir = np.sign(spot.shift(-args.horizon) - spot)

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Tk desktop window showing candle-close countdowns and firing the alerts."""
 
 import queue
 import sys

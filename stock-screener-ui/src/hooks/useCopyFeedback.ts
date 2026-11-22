@@ -7,9 +7,7 @@ export const COPY_FEEDBACK_MS = 3000;
 export interface CopyFeedback {
   copyMsg: () => string | null;
   copyFailed: () => boolean;
-  /** Copy rows as CSV using the given column map. */
   copyRows: (rows: readonly unknown[], columns: readonly CsvColumn[]) => Promise<void>;
-  /** Copy one symbol per line. */
   copySymbols: (rows: readonly unknown[]) => Promise<void>;
 }
 

@@ -73,9 +73,6 @@ def _wall(value):
     return value.replace(tzinfo=None) if value.tzinfo else value
 
 
-# ---------------------------------------------------------------------------
-# Idempotency / time bucketing
-# ---------------------------------------------------------------------------
 
 def test_same_minute_rerecord_is_idempotent(db):
     payload = _payload([24_900, 25_000, 25_100], ts=FIXTURE_TS)
@@ -126,9 +123,6 @@ def test_different_expiry_does_not_collide(db):
     assert len(_rows(db)) == 4
 
 
-# ---------------------------------------------------------------------------
-# Null / finite filtering
-# ---------------------------------------------------------------------------
 
 def test_null_iv_is_stored_as_null(db):
     payload = _payload([25_000], ts=FIXTURE_TS)
@@ -168,9 +162,6 @@ def test_nan_and_none_iv_degrade_to_null_not_zero(db):
     assert rows["PE"].iv == 0.0  # a genuine zero must survive
 
 
-# ---------------------------------------------------------------------------
-# Provenance columns
-# ---------------------------------------------------------------------------
 
 def test_quotes_live_session_date_and_iv_source_persisted(db):
     payload = _payload([25_000], ts=FIXTURE_TS, quotes_live=False)
@@ -193,9 +184,6 @@ def test_empty_chain_writes_nothing(db):
     assert _rows(db) == []
 
 
-# ---------------------------------------------------------------------------
-# Purge
-# ---------------------------------------------------------------------------
 
 def test_purge_removes_only_rows_older_than_n_days(db):
     now = datetime(2026, 11, 16, 15, 0, tzinfo=config.IST)
@@ -222,9 +210,6 @@ def test_purge_rejects_negative_days(db):
         purge_old_snapshots(days=-1, session=db)
 
 
-# ---------------------------------------------------------------------------
-# Migration + index
-# ---------------------------------------------------------------------------
 
 def test_migration_chain_is_valid():
     result = subprocess.run(
@@ -263,9 +248,6 @@ def test_all_declared_indexes_exist(db):
     } <= names
 
 
-# ---------------------------------------------------------------------------
-# Bulk insert timing
-# ---------------------------------------------------------------------------
 
 def test_300_row_insert_timing(db):
     strikes = [24_000 + i * 10 for i in range(150)]  # 150 strikes x CE/PE = 300
@@ -281,9 +263,6 @@ def test_300_row_insert_timing(db):
     print(f"SNAPSHOT_BULK_INSERT 300 rows in {elapsed * 1000:.2f} ms")
 
 
-# ---------------------------------------------------------------------------
-# Capture throttle (pure helpers used by the chain route)
-# ---------------------------------------------------------------------------
 
 class TestCaptureThrottle:
     @staticmethod

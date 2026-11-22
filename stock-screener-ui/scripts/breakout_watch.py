@@ -1,38 +1,4 @@
 #!/usr/bin/env python
-"""Long-consolidation breakout watch — run at/after the open.
-
-Two phases (mirrors how the edge actually appears: the breakout is a *crossing*
-of the box high, which can happen any time after 09:15, not at the open):
-
-  1. build   — (evening / pre-open) detect long bases on **completed** daily
-               bars and save each box's high/low. Fast to re-run.
-  2. watch   — (09:20 onward) batch LTP + time-adjusted intraday volume for
-               the watchlist and flag names trading **above their box high**
-               with vol_adj >= threshold. ``--loop N`` keeps re-checking
-               every N sec.
-
-Usage
------
-  # after close or before the open
-  python scripts/breakout_watch.py build --universe nifty500 --min-base-days 60
-
-  # at/after 09:20 (once)
-  python scripts/breakout_watch.py watch --min-rel-vol 0.7
-
-  # from 09:20 keep scanning every 60s
-  python scripts/breakout_watch.py watch --min-rel-vol 0.7 --loop 60
-
-Caveats
--------
-* TradingView's ``relative_volume_10d_calc`` is NOT time-of-day adjusted
-  (today's cumulative volume ÷ the full-day 10d average), so it reads ~0.0x
-  all morning and can only gate breakouts near the close. The watch therefore
-  gates on ``vol_adj`` — today's cumulative 1m-tape volume ÷ (10-day average
-  daily volume × session fraction) — but at 09:20 it is built on only a few
-  minutes of tape, noisier than the close. Consider 09:30-10:00.
-* A signal is a *candidate*, not advice: confirm price holds above the box high
-  and the volume is real. Use a stop back inside the box (base_low / the box).
-"""
 
 from __future__ import annotations
 
@@ -61,9 +27,6 @@ WATCH_FILE = ROOT / "experiments" / "data" / "breakout_watch.json"
 LTP_URL = "https://api.upstox.com/v3/market-quote/ltp"
 
 
-# --------------------------------------------------------------------------- #
-# phase 1 — build the box watchlist
-# --------------------------------------------------------------------------- #
 def _universe(name: str) -> list[str]:
     from chart_patterns import universes
 
@@ -76,12 +39,6 @@ def _universe(name: str) -> list[str]:
 
 
 def _find_long_base(df, min_days: int, max_range_pct: float):
-    """Longest range-bound base in the trailing window (oscillation-validated).
-
-    Unlike ``detect_consolidation`` this ignores the close's position in the box,
-    so a base whose price already sits near the top — the breakout candidates —
-    is still returned. A trailing breakout leg is trimmed first.
-    """
     n = len(df)
     if n < 30:
         return None
@@ -166,9 +123,6 @@ def cmd_build(args: argparse.Namespace) -> int:
     return 0
 
 
-# --------------------------------------------------------------------------- #
-# phase 2 — watch for the cross
-# --------------------------------------------------------------------------- #
 def _token() -> str | None:
     from scripts import upstox_common
 
@@ -211,7 +165,6 @@ def _batch_ltp(token: str, keys: list[str], chunk: int = 400) -> dict[str, float
 
 
 def _tape_prices(symbols: list[str], timeframe: str = "1m") -> dict[str, float]:
-    """Latest price from the market-data tape (API-key auth — no OAuth needed)."""
     from concurrent.futures import ThreadPoolExecutor
 
     def one(sym: str):

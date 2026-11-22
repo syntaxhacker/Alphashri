@@ -3,19 +3,13 @@ import { Box, Text } from "@/ui";
 import { PATTERN_LABELS } from "@/config/patternCatalog";
 
 export interface PatternImageProps {
-  /** Backend `pattern_id` whose image should be shown. */
   patternId: string;
-  /** Map of `pattern_id` → public image URL (from `fetchPatternImages`). */
   images: Record<string, string>;
-  /** Optional alt text; defaults to the catalog name / pattern id. */
   alt?: string;
-  /** Rendered height in px. Defaults to 120. */
   height?: number;
-  /** Show the pattern name inside the no-image placeholder (default true). */
   showPlaceholderLabel?: boolean;
 }
 
-/** Compact inline SVG shown when a pattern has no uploaded image. */
 function PatternPlaceholder(props: { label: string; showLabel: boolean }) {
   return (
     <Box
@@ -58,10 +52,6 @@ function PatternPlaceholder(props: { label: string; showLabel: boolean }) {
   );
 }
 
-/**
- * Render the uploaded reference image for a pattern, falling back to a compact
- * SVG placeholder when there is no image (or the image fails to load).
- */
 export function PatternImage(props: PatternImageProps) {
   const [errored, setErrored] = createSignal(false);
 

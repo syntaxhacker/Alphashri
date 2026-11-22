@@ -8,9 +8,6 @@ import pytest
 from decimal import Decimal, ROUND_HALF_UP
 
 
-# ---------------------------------------------------------------------------
-# DB model defaults
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 class TestStrategyConfigDefaults:
@@ -36,9 +33,6 @@ class TestStrategyConfigDefaults:
         assert sl < tp, f"SL ({sl}) must be less than TP ({tp})"
 
 
-# ---------------------------------------------------------------------------
-# Config dataclass defaults
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 class TestConfigLoaderDefaults:
@@ -61,9 +55,6 @@ class TestConfigLoaderDefaults:
         assert cfg.tp_pct == 3.0
 
 
-# ---------------------------------------------------------------------------
-# ORB signal generator SL/TP price computation
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 class TestORBSignalSLTP:
@@ -104,9 +95,6 @@ class TestORBSignalSLTP:
         assert gen.tp_pct == 2.5
 
 
-# ---------------------------------------------------------------------------
-# StrategyRunner passes config through
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 class TestStrategyRunnerConfig:
@@ -143,9 +131,6 @@ class TestStrategyRunnerConfig:
         assert runner.signal_generator.tp_pct == 5.0
 
 
-# ---------------------------------------------------------------------------
-# Backtest defaults consistency
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 class TestBacktestDefaults:
@@ -194,9 +179,6 @@ class TestBacktestDefaults:
         assert float(invalid['sl_pct']) >= float(invalid['tp_pct']), "Invalid config must have SL >= TP"
 
 
-# ---------------------------------------------------------------------------
-# CompletedTrade SL/TP propagation
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 class TestCompletedTradeSLTP:

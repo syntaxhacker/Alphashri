@@ -1,15 +1,4 @@
 #!/usr/bin/env python3
-"""Simple screen: stocks that broke out of a multi-week consolidation THIS WEEK.
-
-No backtest. For each stock:
-  - consolidation: the prior 20 sessions' high-low range <= 12%
-  - breakout: a close in the last 5 sessions above that 20-day high
-  - confirmation: volume > 1.5x the 20-day average, close above the 50-DMA
-Output: symbol, breakout date, consolidation range, volume ratio, % above level.
-
-Run:
-    .venv/bin/python scripts/breakout_screen.py
-"""
 
 from __future__ import annotations
 
@@ -20,10 +9,10 @@ import pandas as pd
 import yfinance as yf
 
 ROOT = Path(__file__).resolve().parents[1]
-LOOKBACK = 20          # consolidation window (sessions)
-MAX_RANGE = 0.12       # consolidation range <= 12%
+LOOKBACK = 20
+MAX_RANGE = 0.12
 VOL_MULT = 1.5
-LAST_N = 5             # "this week"
+LAST_N = 5
 
 
 def universe() -> list[str]:
@@ -69,7 +58,7 @@ def main():
                     "1w_%": round((r["Close"] / df["Close"].iloc[i - 5] - 1) * 100, 1),
                     "1m_%": round((r["Close"] / df["Close"].iloc[i - 21] - 1) * 100, 1),
                 })
-                break  # first breakout day only
+                break
     out = pd.DataFrame(rows)
     if out.empty:
         print("No breakouts in the last 5 sessions.")

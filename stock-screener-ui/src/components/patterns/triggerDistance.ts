@@ -1,10 +1,7 @@
 import type { PatternHitDTO } from "@/types/chartPatterns";
 
-/** The upper and lower edges of a pattern's trigger box. */
 export interface TriggerLevels {
-  /** Top edge of the box (resistance / breakout level). Null when unknown. */
   upper: number | null;
-  /** Bottom edge of the box (support level). Null when unknown. */
   lower: number | null;
 }
 

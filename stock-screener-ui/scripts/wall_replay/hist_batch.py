@@ -1,14 +1,4 @@
 #!/usr/bin/env python3
-"""Run the wall book on the USB historical archive (397 sessions, 2024-09 -> 2026-03).
-
-Same engine and config as `scripts/wall_replay/report.py` (AGGR): 1-pt break,
-OI >= 100k, ITM-50 strike, 20-min hold, +15% arm, 10% give-back, 15% stop,
-volume-at-the-wall, EOD 15:00, partial at the next wall.
-
-Usage:
-    .venv/bin/python scripts/wall_replay/hist_batch.py            # AGGR + sweep
-    .venv/bin/python scripts/wall_replay/hist_batch.py --no-sweep
-"""
 
 from __future__ import annotations
 
@@ -111,7 +101,6 @@ def main() -> None:
     print(fmt(s))
     print(f"  gross={s['gross']:+.0f} costs={s['costs']:.0f}")
 
-    # per month
     bym = defaultdict(list)
     for t in trades:
         bym[t["entry_time"][:7]].append(t)
@@ -119,7 +108,6 @@ def main() -> None:
     for m in sorted(bym):
         print(f"  {m} {fmt(curve_stats(bym[m]))}")
 
-    # by entry type / exit reason
     for key, label in (("why", "entry"), ("reason", "exit"), ("opt", "leg")):
         g = defaultdict(list)
         for t in trades:
@@ -128,7 +116,6 @@ def main() -> None:
         for k in sorted(g, key=lambda x: -sum(t["net"] for t in g[x])):
             print(f"  {k:12s} {fmt(curve_stats(g[k]))}")
 
-    # daily
     byd = defaultdict(list)
     for t in trades:
         byd[t["entry_time"][:10]].append(t)

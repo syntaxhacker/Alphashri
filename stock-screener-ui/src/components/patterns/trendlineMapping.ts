@@ -57,7 +57,6 @@ export function mapTrendlines(trendlines: Trendline[] | undefined, times: string
   return mapped;
 }
 
-/** Nearest candle index for an already-parsed timestamp. */
 function nearestIndexForTimestamp(target: number, parsed: number[]): number | undefined {
   if (Number.isNaN(target) || parsed.length === 0) return undefined;
   let best = -1;
@@ -102,9 +101,6 @@ export function mapTimeSegment(
 
   const parsed = times.map((t) => parseEngineTimestamp(t));
 
-  // Degenerate zero-span segment (start == end): no slope to interpolate.
-  // Dot-mark it at its instant when inside the window, matching the chart's
-  // single-point handling (pre-existing card/fullscreen fixtures use these).
   if (t1 === t0) {
     const i = nearestIndexForTimestamp(t0, parsed);
     if (i === undefined) return [];
@@ -128,7 +124,6 @@ export function mapTimeSegment(
   ];
 }
 
-/** Expand mapped points into a null-padded data array aligned to the x-axis. */
 export function pointsToSeriesData(points: AxisPoint[], length: number): Array<number | null> {
   const data: Array<number | null> = Array.from({ length }, () => null);
   for (const point of points) {

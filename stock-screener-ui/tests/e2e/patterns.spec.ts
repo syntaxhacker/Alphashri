@@ -12,9 +12,6 @@ import { apiRoute } from "../mocks/routeHelper";
  * No `waitForTimeout` — web-first assertions only.
  */
 
-// --------------------------------------------------------------------------- //
-// Realistic mock DTOs (CONTRACT §5)
-// --------------------------------------------------------------------------- //
 
 const mockTimeframes = {
   timeframes: [
@@ -613,7 +610,6 @@ test.describe("Chart Patterns page", () => {
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
     const filteredUrl = page.url();
 
-    // Navigate to the clean view: the grid restores to all hits.
     await page.goto("/patterns");
     await showGrid(page);
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(3);
@@ -663,7 +659,6 @@ test.describe("Chart Patterns page", () => {
     );
     await input.pressSequentially("IRCON", { delay: 30 });
 
-    // Wait for the debounced /api/symbols/search response and options update...
     await expect(listbox.getByRole("option", { name: /IRCON/ })).toBeVisible();
     // ...then assert the text survived the async options load (regression: it
     // used to be wiped by MUI's uncontrolled reset).
@@ -885,7 +880,6 @@ test.describe("Chart Patterns page", () => {
 
     await page.locator('[data-testid="patterns-applied-clear-all"]').click();
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(3);
-    // Clear all resets to defaults; only the default volume-floor chip remains.
     await expect(page.getByTestId("patterns-applied-filter-direction:bearish")).toHaveCount(0);
     await expect(page.locator('[data-testid="patterns-open-filters"]')).toHaveText("Filters");
   });

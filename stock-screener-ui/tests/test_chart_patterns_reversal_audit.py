@@ -45,9 +45,6 @@ BULLISH = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Synthetic frames
-# ---------------------------------------------------------------------------
 
 
 def frame(closes, spread: float = 0.5) -> pd.DataFrame:
@@ -157,9 +154,6 @@ GEOMETRIES = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Overlay geometry helpers
-# ---------------------------------------------------------------------------
 
 
 def _pos_by_iso(df):
@@ -204,9 +198,6 @@ def _hits(pid):
     return df, (detector(pid)(df, {}) or [])
 
 
-# ---------------------------------------------------------------------------
-# Direction + level sides
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("pid", sorted(REVERSAL))
@@ -227,9 +218,6 @@ def test_target_and_stop_sides(pid):
             assert hit.target < hit.breakout_level < hit.stop
 
 
-# ---------------------------------------------------------------------------
-# Drawn boundaries bound price and carry the breakout level
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("pid", sorted(REVERSAL))
@@ -291,9 +279,6 @@ def _end_iso(df, hit):
     )
 
 
-# ---------------------------------------------------------------------------
-# Status: confirmed / failed
-# ---------------------------------------------------------------------------
 
 
 def test_double_bottom_confirmed_on_breakout():
@@ -338,9 +323,6 @@ def test_inverse_head_shoulders_failed_after_crossback():
     assert hits and hits[0].status == "failed"
 
 
-# ---------------------------------------------------------------------------
-# Drawing audit: pivots, boundary anchors and per-pattern line sets
-# ---------------------------------------------------------------------------
 
 
 def _straight_seg(df, trend):

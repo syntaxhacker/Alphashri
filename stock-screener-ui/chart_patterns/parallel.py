@@ -60,7 +60,6 @@ def max_workers(cap: int = _MAX_WORKERS_CAP) -> int:
 
 
 def supports_processes() -> bool:
-    """True when the platform forks (auto-mode may pick processes)."""
     try:
         return hasattr(os, "fork")
     except Exception:
@@ -88,7 +87,6 @@ def spawn_context():
 
 
 def _resolve_workers(n: int, workers) -> int:
-    """Clamp ``workers`` to ``[1, n]``; default :func:`max_workers`."""
     try:
         w = int(workers) if workers is not None else max_workers()
     except (TypeError, ValueError):
@@ -111,7 +109,6 @@ def _apply_one(task) -> tuple:
 
 
 def _unwrap(outcomes: list) -> tuple[list, int]:
-    """Outcomes back to values (``None`` for failed items) + failure count."""
     values: list = []
     failed = 0
     for outcome in outcomes or []:

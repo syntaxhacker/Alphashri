@@ -39,9 +39,6 @@ OPEN_PATH = JOURNAL_DIR / "agent_positions.json"
 MANUAL_STRATEGY = "agent_discretionary"
 
 
-# ---------------------------------------------------------------------------
-# pure helpers (unit-tested)
-# ---------------------------------------------------------------------------
 def is_manual_trade(record) -> bool:
     """True when a journal/position record belongs to the MANUAL book.
 
@@ -77,11 +74,6 @@ def speed_at_entry(spots, entry_ts: dt.datetime) -> dict:
 
 
 def summarize(rows: list[dict]) -> dict:
-    """Per-verdict {n, total, avg} over closed rows + skip-SLOW counterfactual.
-
-    Rows with verdict ``"n/a"`` or ``net_pnl`` None (open positions) are
-    counted separately and excluded from the averages.
-    """
     groups: dict[str, dict] = {}
     skipped = 0
     for row in rows or []:
@@ -105,9 +97,7 @@ def summarize(rows: list[dict]) -> dict:
             "total_ex_slow": total_ex_slow, "skipped": skipped}
 
 
-# ---------------------------------------------------------------------------
 # loading (read-only)
-# ---------------------------------------------------------------------------
 def load_journal(date_str: str) -> list[dict]:
     path = JOURNAL_DIR / f"{date_str}.jsonl"
     if not path.exists():
@@ -130,9 +120,6 @@ def load_open() -> list[dict]:
         return []
 
 
-# ---------------------------------------------------------------------------
-# cli
-# ---------------------------------------------------------------------------
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="eval_entry_speed",
                                  description="Read-only SPEED-vs-PnL eval for today's manual entries.")
@@ -148,7 +135,7 @@ def main(argv=None) -> int:
     rows: list[dict] = []
     for trade in load_journal(date_str):
         if not is_manual_trade(trade):
-            continue  # coded entries excluded (by strategy, not by symbol)
+            continue
         entry_ts = parse_ts(trade.get("entry_time"))
         speed = speed_at_entry(spots, entry_ts) if entry_ts else speed_from_candles([])
         rows.append({
@@ -163,7 +150,7 @@ def main(argv=None) -> int:
         })
     for pos in load_open():
         if not is_manual_trade(pos):
-            continue  # open book here is discretionary-only; keep coded out
+            continue
         entry_ts = parse_ts(pos.get("entry_time"))
         speed = speed_at_entry(spots, entry_ts) if entry_ts else speed_from_candles([])
         strike = pos.get("strike")

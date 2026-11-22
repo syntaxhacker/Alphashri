@@ -1,7 +1,3 @@
-// SymbolAutocomplete — single-select NSE symbol search with free text entry.
-// Typing is debounced; a value is committed only on option select / Enter so
-// consumers are not refetched on every keystroke. Static extras (indices such
-// as NIFTY/BANKNIFTY) are merged ahead of API results.
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, splitProps, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
 import { TextInput } from "@/ui";
@@ -11,7 +7,6 @@ import { withAlpha } from "@/utils/color";
 
 type Option = SymbolResult | string;
 
-/** Gap between the field and the list, and the minimum viewport edge inset. */
 const MENU_GAP = 4;
 const MENU_PAD = 8;
 const MENU_MAX_HEIGHT = 240;

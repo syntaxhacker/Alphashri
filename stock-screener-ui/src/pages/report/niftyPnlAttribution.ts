@@ -17,7 +17,6 @@ import { safeNumNull } from "@/utils/reportParsers";
 type NiftyPnlOpt = "CE" | "PE";
 type NiftyPnlDirection = "long" | "short";
 
-/** One open leg. Everything numeric tolerates null/undefined (→ 0). */
 export interface NiftyPnlPosition {
   opt: NiftyPnlOpt;
   strike: number;
@@ -27,11 +26,9 @@ export interface NiftyPnlPosition {
   entry_spot: number;
   entry_iv?: number | null;
   entry_delta?: number | null;
-  /** Days since entry; defaults to `defaultElapsedDays` (else 0). */
   elapsed_days?: number | null;
 }
 
-/** Live greeks for one strike-leg, matched by opt + strike. */
 export interface NiftyPnlGreeks {
   opt: NiftyPnlOpt;
   strike: number;
@@ -50,9 +47,7 @@ interface NiftyLegAttribution {
   theta: number;
   residual: number;
   total: number;
-  /** Live premium, or null when the leg has no greek snapshot. */
   current: number | null;
-  /** True when no greek snapshot matched this leg (all parts 0). */
   missingGreeks: boolean;
 }
 
@@ -61,12 +56,6 @@ export interface NiftyPnlAttribution {
   total: number;
 }
 
-/**
- * Attribute every leg. A leg with no matching greek snapshot keeps
- * `missingGreeks: true` with all parts (and the total) at 0 — it must
- * never invent a move. A leg WITH a snapshot but partial greeks still
- * computes the total; unknown parts stay 0 and the residual absorbs them.
- */
 export function attributeNiftyPnl(
   positions: NiftyPnlPosition[] | null | undefined,
   greeks: NiftyPnlGreeks[] | null | undefined,

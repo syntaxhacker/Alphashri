@@ -1,10 +1,3 @@
-"""HTML panel/page assembly for the reusable report charts.
-
-A chart module only has to provide a browser function registered as
-``RV.charts[<name>]``.  :func:`panel` emits the panel chrome and the embedded
-payload; :func:`render_page` emits a standalone report with the shared D3 /
-Plotly runtime, palette and all chart assets.
-"""
 
 from __future__ import annotations
 
@@ -46,7 +39,6 @@ def _asset_text(suffix: str) -> str:
 
 
 def _json_for_script(value: Any) -> str:
-    """JSON safe inside an inline ``<script>`` element."""
     return (
         json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
         .replace("</", "<\\/")
@@ -116,7 +108,6 @@ def render_fragment(
     intro: str = "",
     footer: str = "",
 ) -> str:
-    """Panels for embedding in an existing page (D3/Plotly already loaded)."""
     body = "\n".join(panels)
     intro_html = f'<p class="rv-lede">{html.escape(intro)}</p>' if intro else ""
     footer_html = f'<p class="rv-foot">{html.escape(footer)}</p>' if footer else ""
@@ -132,7 +123,6 @@ def render_page(
     footer: str = "",
     extra_css: str = "",
 ) -> str:
-    """Standalone dark report using the shared chart runtime."""
     body = render_fragment(panels, spec=spec, intro=intro, footer=footer)
     css = palette_css()
     assets_css = _asset_text(".css")

@@ -7,11 +7,8 @@
  * the values here (and only here) on the UI side.
  */
 
-/** The desk's 25-delta convention for the skew wings. */
 export const IV_DELTA_TARGET = 0.25;
 
-/** A leg is a 25-delta wing only when its |delta| lands in this band. */
 export const IV_DELTA_BAND: readonly [number, number] = [0.15, 0.35];
 
-/** Upper bound of a believable IV print, in vol points. */
 export const IV_MAX_PCT = 100;

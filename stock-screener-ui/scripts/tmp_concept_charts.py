@@ -1,4 +1,3 @@
-"""Concept diagrams: FVG, iFVG, LRL + original strategy playbook. -> /tmp/opencode/concept_*.png"""
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -28,7 +27,6 @@ def style(ax, title, n):
         s.set_visible(False)
 
 
-# ---------- 1. FVG ----------
 fig, (a1, a2) = plt.subplots(1, 2, figsize=(11, 4.5))
 bull = [(10, 12, 9, 11), (11, 13, 10.5, 12.5), (14, 16, 13.8, 15.5),
         (15.5, 17, 15, 16.5), (16.5, 18, 16, 17.5)]
@@ -48,7 +46,6 @@ style(a2, "Bearish FVG (3-bar gap)", 5)
 fig.tight_layout()
 fig.savefig(f"{OUT}/concept_fvg.png", dpi=110)
 
-# ---------- 2. iFVG ----------
 fig, ax = plt.subplots(figsize=(11, 4.8))
 bars = [(10, 12, 9, 11), (11, 13, 10.5, 12.5), (14, 16, 13.8, 15.5),
         (15.5, 15.8, 13.5, 13.8), (13.8, 14, 11.5, 11.8),
@@ -67,7 +64,6 @@ style(ax, "Inverse FVG: failed auction flips polarity", 7)
 fig.tight_layout()
 fig.savefig(f"{OUT}/concept_ifvg.png", dpi=110)
 
-# ---------- 3. LRL ----------
 fig, ax = plt.subplots(figsize=(11, 4.8))
 np.random.seed(3)
 xs = np.arange(14)
@@ -91,22 +87,21 @@ style(ax, "Low-Resistance Liquidity: 3-4 stacked lows = stacked stop-losses", 14
 fig.tight_layout()
 fig.savefig(f"{OUT}/concept_lrl.png", dpi=110)
 
-# ---------- 4. Full playbook (short into LRL below) ----------
 fig, ax = plt.subplots(figsize=(12, 5.5))
 bars = [(50, 52, 49, 51), (51, 53, 50, 52.5), (52.5, 54, 52, 53.5),
         (53.5, 54.2, 51, 51.5), (51.5, 52, 49.5, 50),
         (50, 50.5, 48, 48.5), (48.5, 49, 47, 47.5),
         (47.5, 48, 46, 46.5), (46.5, 47, 45, 45.5), (45.5, 46, 44, 44.5)]
 candles(ax, bars, w=0.55)
-ax.plot([-0.5, 9.5], [47.5, 43.5], color="black", lw=1.8)  # LRL of lows
+ax.plot([-0.5, 9.5], [47.5, 43.5], color="black", lw=1.8)
 ax.text(7.6, 42.4, "LRL below = TARGET", fontsize=10, fontweight="bold", color="red")
 ax.axhspan(51, 52, xmin=0.28, xmax=0.5, color="gold", alpha=0.5)
 ax.text(2.6, 52.6, "highest-TF iFVG swept\n(30s+1m+2m => watch 2m)", fontsize=9, color="darkgoldenrod",
         fontweight="bold", bbox=dict(fc="lightyellow", ec="gold", alpha=0.9))
 ax.plot(4, 51.2, "v", color="red", ms=12)
 ax.text(4.15, 51.4, "SHORT", fontsize=10, fontweight="bold", color="red")
-ax.axhspan(51.2, 53.5, xmin=0.4, xmax=0.62, color="red", alpha=0.18)    # risk
-ax.axhspan(48.9, 51.2, xmin=0.4, xmax=0.62, color="green", alpha=0.18)  # reward
+ax.axhspan(51.2, 53.5, xmin=0.4, xmax=0.62, color="red", alpha=0.18)
+ax.axhspan(48.9, 51.2, xmin=0.4, xmax=0.62, color="green", alpha=0.18)
 ax.text(6.35, 52.3, "SL: above\nswing high", fontsize=9, color="red")
 ax.text(6.35, 49.7, "TP: 1R\n(risk $500 -> target $500)", fontsize=9, color="green")
 ax.text(0.2, 44.2, "prime window\n9:30-10:00am EST", fontsize=9, style="italic",

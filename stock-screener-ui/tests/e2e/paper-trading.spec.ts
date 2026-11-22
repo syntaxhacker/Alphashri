@@ -22,7 +22,6 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   test("@smoke should display paper trading view with tabs", async ({ page }) => {
     await navigateToPaperTrading(page);
 
-    // Verify tabs are visible
     await expect(page.getByTestId("tab-live")).toBeVisible();
     await expect(page.getByTestId("trade-history-tab")).toBeVisible();
     await expect(page.getByTestId("tab-settings")).toBeVisible();
@@ -31,7 +30,6 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   test("should display bot selector", async ({ page }) => {
     await navigateToPaperTrading(page);
 
-    // Verify bot select is visible
     await expect(page.locator('[data-testid="bot-select"]')).toBeVisible();
   });
 
@@ -70,7 +68,6 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   test("should show positions grouped by strategy panels", async ({ page }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    // Verify positions are visible in the container
     await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("TCS", {
       timeout: 5000,
     });
@@ -96,7 +93,6 @@ test.describe("Paper Trading - Strategy Tabs", () => {
 
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    // Verify empty state is shown
     await expect(page.locator('[data-testid="positions-empty"]')).toBeVisible();
     await expect(page.locator('[data-testid="positions-empty"]')).toContainText(
       "No open positions",
@@ -134,7 +130,6 @@ test.describe("Paper Trading - API Polling", () => {
 
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    // Verify portfolio API was called
     expect(portfolioApiCalled).toBe(true);
   });
 
@@ -148,7 +143,6 @@ test.describe("Paper Trading - API Polling", () => {
 
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    // Verify scan API was called
     expect(scanApiCalled).toBe(true);
   });
 });
@@ -195,7 +189,6 @@ test.describe("Paper Trading - Bot Controls", () => {
 
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    // Verify Start Bot button is visible
     await expect(page.locator('[data-testid="start-bot-btn"]')).toBeVisible();
   });
 
@@ -217,7 +210,6 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   test("should show all positions in strategy panels", async ({ page }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    // Verify both positions are visible (all positions shown by default)
     await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("TCS");
     await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("INFY");
   });

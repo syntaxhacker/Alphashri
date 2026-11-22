@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""Run the NiftyMaxPain bot over every recorded tape day and print metrics.
-
-Replays the *actual strategy* through ``Strategy.run`` (same engine, costs and
-exit rules as the live paper runner) — no separate simulator.
-
-    .venv/bin/python scripts/market/run_maxpain_bot.py
-    .venv/bin/python scripts/market/run_maxpain_bot.py --reclaim 5 --touches 99
-"""
 from __future__ import annotations
 
 import argparse

@@ -143,9 +143,7 @@ describe("PatternFilterRail", () => {
       },
     });
     render(() => <PatternFilterRail {...props} />);
-    // Not present in `results` (first page) but counted across the whole set.
     expect(screen.getByTestId("patterns-filter-pattern-bull_flag")).toHaveTextContent("Bull Flag (12)");
-    // Prefers the summary total over the page-derived count.
     expect(screen.getByTestId("patterns-filter-pattern-falling_wedge")).toHaveTextContent(
       "Falling Wedge (300)",
     );
@@ -169,7 +167,6 @@ describe("PatternFilterRail", () => {
     fireEvent.click(within(screen.getByTestId("patterns-family-select")).getByRole("combobox"));
     expect(await screen.findByRole("option", { name: "Reversal (300)" })).toBeInTheDocument();
     expect(await screen.findByRole("option", { name: "Continuation (12)" })).toBeInTheDocument();
-    // No summary entry -> falls back to the (zero) page-derived count.
     expect(await screen.findByRole("option", { name: "Curve & Cup (0)" })).toBeInTheDocument();
   });
 
@@ -419,8 +416,6 @@ describe("PatternFilterRail", () => {
   test("clearing quality back to Any stores null", async () => {
     const props = makeProps({ filters: { ...FILTERS, quality: "strong" } });
     render(() => <PatternFilterRail {...props} />);
-    // "Any" is a real sentinel value: a blank option made the select show an
-    // empty box instead of the word Any.
     fireEvent.change(within(screen.getByTestId("patterns-quality-select")).getByRole("combobox"), { target: { value: "any" } });
     expect(props.setFilter).toHaveBeenCalledWith("quality", null);
   });

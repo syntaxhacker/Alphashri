@@ -62,7 +62,6 @@ _BY_ID = {tf.id: tf for tf in TIMEFRAMES}
 
 
 def register_timeframe(spec: TFSpec) -> None:
-    """Register or replace a timeframe spec process-wide."""
     tf_id = spec.id
     _BY_ID[tf_id] = spec
     if tf_id in TIMEFRAME_IDS:
@@ -73,7 +72,6 @@ def register_timeframe(spec: TFSpec) -> None:
 
 
 def unregister_timeframe(tf_id: str) -> None:
-    """Remove a custom timeframe; built-ins are never removed."""
     if tf_id in BUILTIN_TIMEFRAME_IDS:
         return
     _BY_ID.pop(tf_id, None)

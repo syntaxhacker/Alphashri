@@ -446,8 +446,6 @@ export function marketColorRampCss(): string {
  */
 export const MARKET_COLOR_SCALE_NOTE = "low → high · position in range, not gain/loss";
 
-// ----- Nested sector → stocks treemap --------------------------------------
-
 /**
  * Legibility guard for the nested map. A full NSE snapshot has ~2,000 names;
  * drawing every stock inside its sector destroys the map. Keep the largest N

@@ -124,11 +124,7 @@ def _ws_spot() -> float:
         return 0.0
 
 
-
-# ---------------------------------------------------------------------------
 # Shared live SPOT state (REST-polled, read by every /ws/nifty/report client).
-# ---------------------------------------------------------------------------
-
 _spot_lock = threading.Lock()
 
 #: Last known Nifty SPOT: ``{"spot": float|None, "ts": iso|None,

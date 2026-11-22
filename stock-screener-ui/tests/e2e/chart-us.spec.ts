@@ -333,7 +333,6 @@ test.describe("Deep-linked US timeframe regression", () => {
 
     await page.goto("/chart/AAPL?market=usa&tf=5m");
 
-    // Wait for the chart request, then let the chart finish rendering.
     await expect.poll(() => chartUrls.length).toBeGreaterThan(0);
     await expectUSChart(page);
 

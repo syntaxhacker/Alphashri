@@ -53,7 +53,6 @@ function strike(
   return { strike: value, ce: leg(ceIv, ceDelta), pe: leg(peIv, peDelta) };
 }
 
-/** Sparse-but-realistic smile: ATM, both wings, the 25Δ strikes and a far row. */
 const CHAIN: NiftyStrike[] = [
   strike(27000, 40, 42, 0.95, -0.05),
   strike(25750, 18, 19, 0.5, -0.5),
@@ -130,8 +129,6 @@ describe("ivSkewStats", () => {
   });
 
   test("25Δ anchors use the strike closest to |delta| 0.25", () => {
-    // Convention: 25Δ RR = call IV - put IV (positive = calls rich), so a
-    // put-rich fixture like this one reads negative.
     expect(legIvAtDelta(CHAIN, "ce", 0.25)).toBe(16.5);
     expect(legIvAtDelta(CHAIN, "pe", 0.25)).toBe(20.5);
     expect(stats.call25).toBe(16.5);
@@ -222,13 +219,10 @@ describe("buildIvSkewChart", () => {
   test("plots the OTM smile: calls at/above ATM, puts at/below it", () => {
     const atmIdx = chart.band.findIndex((p) => p.strike === 25750);
     expect(atmIdx).toBe(2);
-    // Below ATM: CE is masked (ITM), PE is kept.
     expect(chart.series[0].points.slice(0, atmIdx)).toEqual([null, null]);
     expect(chart.series[1].points.slice(0, atmIdx)).toEqual([24, 21]);
-    // Above ATM: CE is kept, PE is masked.
     expect(chart.series[0].points.slice(atmIdx + 1)).toEqual([17, 18.2]);
     expect(chart.series[1].points.slice(atmIdx + 1)).toEqual([null, null]);
-    // Both legs survive at the ATM strike.
     expect(chart.series[0].points[atmIdx]).toBe(18);
     expect(chart.series[1].points[atmIdx]).toBe(19);
   });

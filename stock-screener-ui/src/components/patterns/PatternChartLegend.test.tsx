@@ -91,7 +91,6 @@ describe("PatternChartLegend", () => {
     render(() => <PatternChartLegend lines={lines} />);
 
     expect(screen.getByTestId("patterns-chart-legend")).toBeInTheDocument();
-    // Two boundary segments share the pattern name → a single legend entry.
     expect(screen.getByTestId("patterns-chart-legend-item-Falling Wedge")).toBeInTheDocument();
     expect(screen.getByText("Falling Wedge")).toBeInTheDocument();
   });

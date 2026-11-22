@@ -86,7 +86,6 @@ SCRIPTS = (
     "scripts/market/nifty_research_build.py",
 )
 
-# 2026-10-27 has no futures archive, so there is no futures section to insert.
 SECTIONS_1027 = (
     Section("pin-gamma", "pin_gamma"),
     Section("participant-flow", "participant_flow"),
@@ -118,9 +117,6 @@ class BuildError(RuntimeError):
     pass
 
 
-# --------------------------------------------------------------------------
-# Inputs
-# --------------------------------------------------------------------------
 
 
 def _read_json(path: Path) -> dict:
@@ -279,9 +275,6 @@ def verify_context_1027(review: dict, anatomy: dict) -> None:
         raise BuildError("intraday_anatomy.json no longer records futures as unavailable")
 
 
-# --------------------------------------------------------------------------
-# Formatting helpers
-# --------------------------------------------------------------------------
 
 
 def esc(value: object) -> str:
@@ -329,9 +322,6 @@ def table(headers: list[str], rows: list[list[str]], *, numeric: set[int] | None
     )
 
 
-# --------------------------------------------------------------------------
-# Page sections
-# --------------------------------------------------------------------------
 
 
 CSS = """
@@ -1001,9 +991,6 @@ def build_footer(review: dict, anatomy: dict, generated: datetime) -> str:
 """
 
 
-# --------------------------------------------------------------------------
-# 2026-10-27 chrome (no futures lane: no archive exists for the session)
-# --------------------------------------------------------------------------
 
 
 def build_overview_1027(review: dict, lab: dict, anatomy: dict) -> str:
@@ -1530,9 +1517,6 @@ def build_footer_1027(review: dict, anatomy: dict, generated: datetime) -> str:
 """
 
 
-# --------------------------------------------------------------------------
-# Assembly
-# --------------------------------------------------------------------------
 
 
 def build_page(session: str = DEFAULT_SESSION, generated: datetime | None = None) -> str:
@@ -1669,7 +1653,6 @@ def _shared_checks(page: str, fragments: list[tuple[Section, str]]) -> None:
 
 
 def validate_page(page: str, fragments: list[tuple[Section, str]], review: dict, lab: dict) -> None:
-    """Cheap structural checks; the browser checks live in the validation run."""
     _shared_checks(page, fragments)
 
     if "135.0M" in page:

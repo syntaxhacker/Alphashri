@@ -5,7 +5,6 @@ import {
   buildPressure,
 } from "./niftyPressure";
 
-/** Cumulative volume rows: each row's value is the running total. */
 function rows(cum: Array<[string, number, number]>) {
   return cum.map(([t, ce, pe]) => ({ t: `2026-10-23T${t}:00+05:30`, ce_vol: ce, pe_vol: pe }));
 }

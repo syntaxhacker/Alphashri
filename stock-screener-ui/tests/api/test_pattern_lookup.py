@@ -129,9 +129,6 @@ def _post(client, symbols, timeframe="1D"):
     return client.post(PATH, json={"symbols": symbols, "timeframe": timeframe})
 
 
-# ---------------------------------------------------------------------------
-# Auth
-# ---------------------------------------------------------------------------
 
 def test_lookup_requires_auth(anon_client):
     resp = _post(anon_client, ["RELIANCE"])
@@ -140,9 +137,6 @@ def test_lookup_requires_auth(anon_client):
     assert resp.json()["detail"] == "Not authenticated"
 
 
-# ---------------------------------------------------------------------------
-# Stored hits → item shape
-# ---------------------------------------------------------------------------
 
 def test_lookup_returns_stored_patterns(lookup_client):
     _seed([
@@ -197,9 +191,6 @@ def test_lookup_cold_store_returns_empty_items(lookup_client):
     assert body["source"] == "stored"
 
 
-# ---------------------------------------------------------------------------
-# Scope
-# ---------------------------------------------------------------------------
 
 def test_lookup_only_returns_requested_symbols(lookup_client):
     _seed([
@@ -296,9 +287,6 @@ def test_lookup_rejects_unknown_universe(lookup_client):
     assert "unknown universe" in resp.json()["detail"]
 
 
-# ---------------------------------------------------------------------------
-# Validation
-# ---------------------------------------------------------------------------
 
 def test_lookup_rejects_more_than_500_symbols(lookup_client):
     symbols = [f"SYM{i}" for i in range(501)]
@@ -326,9 +314,6 @@ def test_lookup_rejects_unknown_timeframe(lookup_client):
     assert "unknown timeframe" in resp.json()["detail"]
 
 
-# ---------------------------------------------------------------------------
-# Never runs detection / never fetches candles
-# ---------------------------------------------------------------------------
 
 def test_lookup_never_fetches_candles_or_runs_detection(lookup_client, monkeypatch):
     _seed([_hit("RELIANCE", 1)])
@@ -355,9 +340,6 @@ def test_lookup_never_fetches_candles_or_runs_detection(lookup_client, monkeypat
     assert resp.json()["items"][0]["symbol"] == "RELIANCE"
 
 
-# ---------------------------------------------------------------------------
-# Caching
-# ---------------------------------------------------------------------------
 
 def test_lookup_second_identical_request_is_cached(lookup_client, monkeypatch):
     _seed([_hit("RELIANCE", 1)])
@@ -416,9 +398,6 @@ def test_lookup_single_store_query_for_many_symbols(lookup_client, monkeypatch):
     assert queries[0]["timeframe"] == "1D"
 
 
-# ---------------------------------------------------------------------------
-# Per-symbol cap — no global-LIMIT starvation
-# ---------------------------------------------------------------------------
 
 
 def _volume_hits(symbol, count, *, base_id, first_confidence):

@@ -4,7 +4,6 @@ import * as palette from "@/ui/palette";
 import { LocalCompactPanel } from "./reportBits";
 import type { NiftyStructureShift } from "@/types/niftyReport";
 
-/** Short uppercase labels for the known structural-shift kinds. */
 const STRUCTURE_KIND_LABELS: Record<string, string> = {
   wall_flip: "WALL FLIP",
   wall_move: "WALL MOVE",
@@ -14,13 +13,8 @@ const STRUCTURE_KIND_LABELS: Record<string, string> = {
   level_break: "LEVEL BREAK",
 };
 
-/** Rendered for any absent field so a row never shows a blank cell. */
 export const STRUCTURE_DASH = "—";
 
-/**
- * Critical gets the strongest (negative/red) accent, alert the warning
- * (orange), and watch — like any unknown severity — the weakest muted tone.
- */
 export function structureSeverityAccent(severity: string | null | undefined): string {
   const s = String(severity ?? "").trim().toLowerCase();
   if (s === "critical") return palette.NEGATIVE;
@@ -28,10 +22,6 @@ export function structureSeverityAccent(severity: string | null | undefined): st
   return palette.TEXT_MUTED;
 }
 
-/**
- * Uppercase label for a shift kind. Unknown kinds fall back to a readable
- * form of the raw string (never dropped, never blank).
- */
 export function structureKindLabel(kind: string | null | undefined): string {
   const k = String(kind ?? "").trim().toLowerCase();
   if (STRUCTURE_KIND_LABELS[k]) return STRUCTURE_KIND_LABELS[k];
@@ -58,7 +48,6 @@ export function structureTimeLabel(t: string | null | undefined): string {
   return iso ? iso[1] : STRUCTURE_DASH;
 }
 
-/** Header line, e.g. `7 shifts · 1 critical`. */
 export function structureSummary(shifts: NiftyStructureShift[]): string {
   const total = shifts.length;
   const critical = shifts.filter(

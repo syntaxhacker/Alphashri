@@ -1,10 +1,3 @@
-/**
- * Test-only keepers for option-chain arithmetic that is not used in production.
- *
- * These helpers used to be exported from `optionChainMetrics.ts`, but only the
- * test suite calls them. They live here so the desk's OI/sentiment read stays
- * pinned by tests without shipping unused exports in the production module.
- */
 
 import { safeNum } from "@/utils/reportParsers";
 import type { ChainRow, ChainSide } from "./optionChainMetrics";
@@ -16,9 +9,7 @@ export interface ChainSummary {
   ceBuyers: number;
   peWriters: number;
   peBuyers: number;
-  /** Signed Σ CE ΔOI (writers positive, unwinding negative). */
   netCe: number;
-  /** Signed Σ PE ΔOI. */
   netPe: number;
 }
 
@@ -38,13 +29,6 @@ function volume(leg: ChainSide): number {
   return safeNum(leg.volume);
 }
 
-/**
- * Today's OI build as a percent of yesterday's OI:
- * `oi_change / max(oi - oi_change, 1) * 100`.
- *
- * Returns `null` when `oi` or `oi_change` is absent/non-finite. A zero
- * `oi_change` is a real value (flat day), not a missing one.
- */
 export function oiChangePct(leg: ChainSide): number | null {
   const change = finiteOrNull(leg.oi_change ?? leg.oiChange);
   const total = finiteOrNull(leg.oi);
@@ -53,7 +37,6 @@ export function oiChangePct(leg: ChainSide): number | null {
   return (change / base) * 100;
 }
 
-/** Row-level sort metric: both legs summed, so sorting is side-symmetric. */
 function sortValue(row: ChainRow, by: ChainSortKey): number {
   switch (by) {
     case "strike":
@@ -67,11 +50,6 @@ function sortValue(row: ChainRow, by: ChainSortKey): number {
   }
 }
 
-/**
- * Stable chain ordering — ascending strike, descending OI/volume/ΔOI. Equal
- * values keep their incoming order. Returns a new array; the input is never
- * mutated.
- */
 export function sortChainRows(rows: ChainRow[], by: ChainSortKey): ChainRow[] {
   const direction = by === "strike" ? 1 : -1;
   return rows
@@ -94,13 +72,6 @@ function sentimentLabel(leg: ChainSide): string {
   return raw.trim().toUpperCase();
 }
 
-/**
- * Writer/buyer totals across the chain.
- *
- * Sentiment labels are bucketed exactly as the desk reads them: `SB` (short
- * buildup) is a writer, `LB` (long buildup) is a buyer. Other/absent labels
- * do not contribute, but every leg's ΔOI is still counted in `netCe`/`netPe`.
- */
 export function chainSummary(rows: ChainRow[]): ChainSummary {
   let ceWriters = 0;
   let ceBuyers = 0;

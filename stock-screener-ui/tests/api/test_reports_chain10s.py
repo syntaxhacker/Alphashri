@@ -215,9 +215,6 @@ def test_poll_once_writes_a_snapshot_and_tracks_last(tmp_dir, monkeypatch):
     assert json.loads(written)["rows"][0][0] == 22500.0
 
 
-# --------------------------------------------------------------------------
-# IST stamps — a non-IST host must not split the day file from its contents
-# --------------------------------------------------------------------------
 
 
 def test_poll_stamps_ist_even_when_the_host_is_not_ist(tmp_dir, monkeypatch):
@@ -243,9 +240,6 @@ def test_poll_stamps_ist_even_when_the_host_is_not_ist(tmp_dir, monkeypatch):
     assert (tmp_dir / f"{snap['t'][:10]}.jsonl").exists()
 
 
-# --------------------------------------------------------------------------
-# Gap journal — failures and >2x-interval holes are never silent
-# --------------------------------------------------------------------------
 
 
 def test_gap_journal_records_a_failed_poll_with_detail(tmp_dir, monkeypatch):
@@ -311,9 +305,6 @@ def test_gap_journal_records_an_out_of_window_chain(tmp_dir, monkeypatch):
     assert [g["reason"] for g in gaps] == ["empty-chain"]
 
 
-# --------------------------------------------------------------------------
-# Greeks evidence file — separate, bounded, optional, dead legs are null
-# --------------------------------------------------------------------------
 
 GREEK_ROWS = [
     {"strike": 22500,

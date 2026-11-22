@@ -123,7 +123,6 @@ export function IndexMoversModal(props: IndexMoversModalProps) {
   let abortController: AbortController | null = null;
   let mounted = true;
 
-  // Load all movers when modal opens
   createEffect(() => {
     if (!open()) return;
     index();
@@ -155,7 +154,6 @@ export function IndexMoversModal(props: IndexMoversModalProps) {
     });
   });
 
-  // Derive rows for current tab
   const rows = createMemo(() => {
     const d = data();
     if (!d) return [];
@@ -172,7 +170,6 @@ export function IndexMoversModal(props: IndexMoversModalProps) {
     }));
   });
 
-  // Stale badge
   const isStale = () => data()?.stale === true;
 
   return (

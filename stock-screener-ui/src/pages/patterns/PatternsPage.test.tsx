@@ -8,18 +8,11 @@ import type { JSX } from "solid-js";
 import { For, Show } from "solid-js";
 import { PatternsPage, type PatternsPageProps } from "./PatternsPage";
 
-// These page tests mount the real filter modal (@/ui Autocomplete + Select).
-// Under a full-suite run with 8 workers the multi-select interaction can exceed
-// the 5s default; the assertions are deterministic, so allow a slower machine.
 vi.setConfig({ testTimeout: 20_000 });
 
-// The @/ui Box/Flex/... stubs from src/pages/solidTestStubs.tsx render as
-// intrinsic elements; page tests exercise page wiring, not the theme runtime.
 vi.mock("@/ui", async (importOriginal) => {
   const { uiLayoutStub } = await import("@/pages/solidTestStubs");
   const stubbed = await uiLayoutStub(await importOriginal<Record<string, unknown>>());
-  // Menu stub: bare pass-throughs with an onSelect-fired button; the
-  // suite asserts page wiring, not Menu internals.
   const passthrough = (props: any) => <div>{props.children}</div>;
   const Item = (props: any) => (
     <button
@@ -51,8 +44,6 @@ vi.mock("@/ui", async (importOriginal) => {
   };
 });
 
-// IndexMembersDrawer pulls its own data path; this suite asserts page
-// wiring and filter staging, not the members drawer — render nothing.
 vi.mock("@/components/patterns/IndexMembersDrawer", () => ({
   IndexMembersDrawer: () => null,
 }));
@@ -79,13 +70,11 @@ vi.mock("@/api/patternImages", () => ({
   fetchPatternImages: (...args: unknown[]) => fetchPatternImages(...args),
 }));
 
-// Rendered-prop spies for the trendlines-view wiring tests.
 const gridTrendlinesViews = vi.hoisted(() => [] as unknown[]);
 const fullscreenTrendlinesViews = vi.hoisted(() => [] as unknown[]);
 // Records the `overlays` prop per fullscreen render (single-pattern contract:
 // the page always passes an empty list so only the active hit is drawn).
 const fullscreenOverlays = vi.hoisted(() => [] as unknown[]);
-// Spy on the page hook's per-symbol refresh; the rest of the hook stays real.
 const mockRefreshSymbolChart = vi.hoisted(() => vi.fn());
 
 vi.mock("./patternsFullscreen", async (importOriginal) => {
@@ -464,7 +453,6 @@ describe("PatternsPage", () => {
     expect(screen.getByTestId("patterns-timeframe-select")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-open-filters")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-view-toggle")).toBeInTheDocument();
-    // List is the default dense view; the grid mounts only after toggling.
     expect(screen.getByTestId("patterns-list")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-list-row-IRCON-falling_wedge")).toBeInTheDocument();
     expect(screen.queryByTestId("patterns-grid")).not.toBeInTheDocument();
@@ -498,7 +486,6 @@ describe("PatternsPage", () => {
     const tabList = screen.getByTestId("patterns-tab-list");
     const stats = screen.getByTestId("patterns-stats");
     const panel = screen.getByTestId("patterns-panel-scan");
-    // Same strip: the counters share the tab row's parent, not the panel body.
     expect(tabList.parentElement).toBe(stats.parentElement?.parentElement);
     expect(panel).not.toContainElement(stats);
     // The wrapper owns the single bottom rule; the list's own rule is zeroed.
@@ -617,7 +604,6 @@ describe("PatternsPage", () => {
         "Rising Wedge",
       );
 
-      // Arrow keys step through the same sequence; the dock stays mounted.
       fireEvent.keyDown(document.body, { key: "ArrowUp" });
       expect(await screen.findByTestId("patterns-chart-position")).toHaveTextContent("1 / 2");
       expect(screen.getByTestId("patterns-chart-dock")).toBeInTheDocument();
@@ -762,7 +748,6 @@ describe("PatternsPage", () => {
   test("shows loading state", () => {
     r(<PatternsPage {...makeProps({ loading: true, results: [], total: 0 })} />);
     expect(screen.getByTestId("patterns-loading")).toBeInTheDocument();
-    // Cold load draws the card skeleton, not a centred spinner.
     expect(screen.getByTestId("patterns-skeleton-grid")).toBeInTheDocument();
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     expect(screen.queryByTestId("patterns-empty")).not.toBeInTheDocument();
@@ -843,7 +828,6 @@ describe("PatternsPage", () => {
     // Existing results stay visible (no remount churn)…
     expect(screen.getByTestId("patterns-list")).toBeInTheDocument();
     expect(screen.queryByTestId("patterns-loading")).not.toBeInTheDocument();
-    // …with a delayed chip instead of a blocking overlay.
     const chip = await screen.findByTestId("patterns-refreshing", {}, { timeout: 1000 });
     expect(chip).toBeInTheDocument();
   });
@@ -898,7 +882,6 @@ describe("PatternsPage", () => {
     // Flush the stale promise chain: without the guard it would paint the
     // first hit's candles here and remove "No chart data".
     await new Promise((resolve) => setTimeout(resolve, 0));
-    // The newer selection stands: still the second hit, still no chart data.
     expect(screen.getByTestId("patterns-fullscreen-modal")).toHaveTextContent("Rising Wedge");
     expect(screen.getByText("No chart data")).toBeInTheDocument();
   });
@@ -1070,7 +1053,6 @@ describe("PatternsPage toolbar", () => {
     const toolbar = screen.getByTestId("patterns-results-toolbar");
     expect(within(toolbar).queryByText("1 patterns")).not.toBeInTheDocument();
     expect(within(toolbar).queryByText("Patterns")).not.toBeInTheDocument();
-    // The stats strip still reports the pattern count.
     expect(screen.getByTestId("patterns-stat-patterns")).toHaveTextContent("1");
   });
 
@@ -1143,10 +1125,8 @@ describe("PatternsPage toolbar", () => {
     expect(screen.getByTestId("patterns-scan-status")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-scan-reused")).toHaveTextContent("Cached · 12 min ago");
     expect(screen.getByTestId("patterns-job-status")).toHaveTextContent("through 2026-09-30");
-    // The chip's own Force re-run action re-runs fresh.
     fireEvent.click(screen.getByTestId("patterns-scan-reused-force"));
     expect(props.forceRefresh).toHaveBeenCalledTimes(1);
-    // The existing Force refresh action stays available in the overflow menu.
     fireEvent.click(screen.getByTestId("patterns-overflow"));
     expect(await screen.findByTestId("patterns-force-refresh")).toBeInTheDocument();
   });
@@ -1264,7 +1244,6 @@ describe("PatternsPage toolbar", () => {
         })}
       />,
     );
-    // 335/500 → 67%.
     expect(screen.getByTestId("patterns-scan-fresh")).toHaveTextContent("Cache 67%");
     expect(screen.queryByTestId("patterns-scan-reused")).not.toBeInTheDocument();
   });

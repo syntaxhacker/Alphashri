@@ -150,7 +150,6 @@ describe("Index Report vertical budget", () => {
     expect(main.getAttribute("data-chart-primary")).toBe("true");
     expect(main.className).toContain("flex-1");
     expect(main.className).toContain("min-h-[300px]");
-    // Fill mode must not be capped by the old chartRowHeight max-height.
     expect(main.style.maxHeight).toBe("");
     expect((await screen.findByTestId("nifty-chart-wrap")).getAttribute("data-fill")).toBe("true");
 
@@ -309,7 +308,6 @@ describe("Index Report desktop desk rail (chart + numbers coexist)", () => {
     expect(screen.getByTestId("nifty-main-row").getAttribute("data-chart-floor")).toBe(
       String(DESK_CHART_FLOOR_PX),
     );
-    // The promoted panel stays mounted too — nothing is swapped out by the dock.
     expect(within(screen.getByTestId("desk-insight-rail")).getByTestId("nifty-walls-card-rail")).toBeInTheDocument();
   });
 

@@ -1,7 +1,3 @@
-/**
- * API Utils module
- */
-
 export {
   apiGet,
   apiPost,

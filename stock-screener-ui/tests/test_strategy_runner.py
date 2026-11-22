@@ -90,7 +90,6 @@ class TestSignalGeneratorInitialization:
         )
         from trading.orb_signals import ORBSignalGenerator
         assert isinstance(runner.signal_generator, ORBSignalGenerator)
-        # Check defaults
         assert runner.signal_generator.or_minutes == 45
         assert runner.signal_generator.sl_pct == 1.0
         assert runner.signal_generator.tp_pct == 1.5
@@ -286,7 +285,6 @@ class TestSignalGeneratorInitialization:
             capital_allocation_pct=0.5,
             signal_generator=mock_gen,
         )
-        # Should not have created a new one
         assert runner.signal_generator is mock_gen
 
 

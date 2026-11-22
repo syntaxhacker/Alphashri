@@ -15,11 +15,9 @@ export interface NiftySqueezeRadarProps {
   preMove: PreMoveScore;
   setup: SetupRead;
   history: PreMovePoint[];
-  /** Nearest-wall OI snapshots (panel appends every report poll, ~3 min kept). */
   wallHistory?: WallSnapshot[];
   /** Last 1-min spot move from the replay-filtered tape (no lookahead). */
   spotMove1m?: number | null;
-  /** Optional pre-computed symbol metrics (avoids re-deriving). */
   metrics?: SymbolMetrics;
   /** Latest walls payload (nearest walls + erosion fuel); optional. */
   walls?: WallsPayload | null;
@@ -32,7 +30,6 @@ export interface WallSnapshot {
   oi: number;
 }
 
-/** Calibration from the causal studies (10s arms / 1-min level breaks). */
 export const SQUEEZE_CALIBRATION = {
   armLift: 2.0,
   armN: 422,
@@ -65,7 +62,6 @@ function wallDistance(wall: NiftyWall, spot: number): number {
   return typeof wall.distance === "number" ? wall.distance : wall.strike - spot;
 }
 
-/** Nearest actionable wall in each direction (heaviest when distances tie). */
 function pickWalls(value: NiftyReport): { up: NiftyWall | null; down: NiftyWall | null } {
   const walls = resolveWallBoard(value.wallsNear, value.walls);
   if (!walls) return { up: null, down: null };
@@ -255,7 +251,6 @@ export function NiftySqueezeRadar(props: NiftySqueezeRadarProps) {
   const distScorePct = () => Math.round(distScore() * 100);
   const flowScorePct = () => Math.round(flowScore() * 100);
 
-  // Sparkline geometry.
   const n = () => history().length;
   const scoreY = (score: number) => 2 + (1 - Math.min(9, Math.max(0, score)) / 9) * 18;
   const xAt = (i: number) => (n() <= 1 ? 0 : (i / (n() - 1)) * 1000);
@@ -362,14 +357,12 @@ export function NiftySqueezeRadar(props: NiftySqueezeRadarProps) {
         </div>
       </div>
 
-      {/* Row 1.5: score decomposition — distance / flow / erosion / gamma regime */}
       <div class="flex items-center gap-[4px] text-[11px] min-w-0" style={{ color: palette.TEXT_MUTED }}>
         <span data-testid="squeeze-erosion">
           DIST {distScorePct()} · FLOW {flowScorePct()} · ERODE {erodeScore()} · Γ {gammaLabel()}
         </span>
       </div>
 
-      {/* Row 2: proximity meter with stage zones */}
       <div
         class="relative h-[8px] rounded-[4px] overflow-hidden"
         style={{

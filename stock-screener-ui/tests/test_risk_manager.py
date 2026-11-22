@@ -231,7 +231,6 @@ class TestCalculatePositionSize:
         entry_price = 50000.0  # Very high price
         stop_loss = 49000.0
 
-        # Use custom config with higher max_capital_per_trade to allow at least 1 share
         config = RiskConfig(max_capital_per_trade=0.50)
         custom_manager = RiskManager(config=config)
         shares = custom_manager.calculate_position_size(capital, entry_price, stop_loss)

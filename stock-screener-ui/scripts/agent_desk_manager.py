@@ -70,11 +70,7 @@ _STRANGLE_RE = re.compile(
 _DATE_RE = re.compile(r"\b(20\d{2}-\d{2}-\d{2})\b")
 
 
-# ---------------------------------------------------------------------------
-# pure helpers (unit-tested; no network, no DB)
-# ---------------------------------------------------------------------------
 def _strike(value) -> float | None:
-    """Parse ``22,700`` / ``22700`` / ``22700.0`` → float, else None."""
     try:
         out = float(str(value).replace(",", "").strip())
     except (TypeError, ValueError):
@@ -202,14 +198,6 @@ def find_leg(positions: list[dict], side: str, strike: float,
 
 def package_pnl(positions: list[dict], quotes: dict,
                 lot: int = LOT) -> dict:
-    """Package P&L NET of round-trip costs over the legs that are open.
-
-    Every leg is priced **against its own entry and direction** (a short
-    strangle scored against the old static ENTRY map produced a false
-    -₹2,395 "cut" when a long PE replaced the short one). ``net`` is what
-    closing now would actually bank; ``gross`` and ``costs`` are shown so the
-    charge is visible.
-    """
     gross = costs_total = net = 0.0
     priced = 0
     for pos in positions or []:
@@ -305,11 +293,6 @@ def _close_leg(side: str, strike: float, px: float, reason: str,
 
 
 def _ratchet(quotes: dict) -> None:
-    """Lift each open position's stop to breakeven-after-costs, then trail it.
-
-    Mirrors ``options_paper.manual.auto_manage`` so the same protection runs on
-    a 10 s cadence instead of waiting for the 60 s loop.
-    """
     positions = manual._load()
     changed = False
     for p in positions:
@@ -353,7 +336,6 @@ def _ratchet(quotes: dict) -> None:
 
 
 def _close_all(reason: str, quotes: dict, rows: list[dict] | None = None) -> None:
-    """Flatten every open agent position, using the live ask where available."""
     rows = rows or []
     for pos in list(_open_legs()):
         side = str(pos.get("opt"))
@@ -398,7 +380,6 @@ def _flatten_and_verify(reason: str, quotes: dict,
 
 
 def _legs_arg(value: str) -> dict:
-    """``--leg 22700:PE --leg 23300:CE`` → ``{22700.0: "PE", 23300.0: "CE"}``."""
     try:
         strike, side = str(value).split(":", 1)
     except ValueError:

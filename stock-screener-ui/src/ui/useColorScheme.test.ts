@@ -6,8 +6,17 @@ import { useColorScheme } from "./hooks";
 
 const root = () => document.documentElement;
 
+const setSystemScheme = (scheme: "light" | "dark") => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(prefers-color-scheme: dark)" ? scheme === "dark" : false,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }));
+};
+
 describe("useColorScheme", () => {
   beforeEach(() => {
+    vi.unstubAllGlobals();
     localStorage.clear();
     root().removeAttribute("data-color-scheme");
     root().style.colorScheme = "";
@@ -56,6 +65,50 @@ describe("useColorScheme", () => {
     localStorage.setItem("mui-color-scheme", "dark");
     const { useColorScheme: fresh } = await import("./hooks");
     expect(fresh().colorScheme()).toBe("dark");
+  });
+
+  it("follows an applied dark attribute with no storage and a light system", async () => {
+    setSystemScheme("light");
+    root().setAttribute("data-color-scheme", "dark");
+    const { useColorScheme: fresh } = await import("./hooks");
+    expect(fresh().isDark()).toBe(true);
+    expect(fresh().colorScheme()).toBe("dark");
+  });
+
+  it("lets an applied light attribute win over a dark system preference", async () => {
+    setSystemScheme("dark");
+    root().setAttribute("data-color-scheme", "light");
+    const { useColorScheme: fresh } = await import("./hooks");
+    expect(fresh().colorScheme()).toBe("light");
+    expect(fresh().isDark()).toBe(false);
+  });
+
+  it("lets an applied attribute win over a conflicting stored key", async () => {
+    setSystemScheme("dark");
+    localStorage.setItem("color-scheme", "dark");
+    root().setAttribute("data-color-scheme", "light");
+    const { useColorScheme: fresh } = await import("./hooks");
+    expect(fresh().colorScheme()).toBe("light");
+  });
+
+  it("still prefers a stored key over a dark system when no attribute is applied", async () => {
+    setSystemScheme("dark");
+    localStorage.setItem("color-scheme", "light");
+    const { useColorScheme: fresh } = await import("./hooks");
+    expect(fresh().colorScheme()).toBe("light");
+  });
+
+  it("toggle writes both the attribute and the stored key", () => {
+    const scheme = useColorScheme();
+    scheme.setColorScheme("light");
+
+    scheme.toggleColorScheme();
+    expect(root().getAttribute("data-color-scheme")).toBe("dark");
+    expect(localStorage.getItem("color-scheme")).toBe("dark");
+
+    scheme.toggleColorScheme();
+    expect(root().getAttribute("data-color-scheme")).toBe("light");
+    expect(localStorage.getItem("color-scheme")).toBe("light");
   });
 });
 

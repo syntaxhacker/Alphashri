@@ -6,7 +6,6 @@ import {
   setupMultiStrategyBotMocks,
 } from "../mocks/apiResponses";
 
-// Re-export for convenience
 export { setupMultiStrategyBotMocks, setupApiMocks, loginAsTestUser, setupPaperTradingMocks };
 
 /**
@@ -23,12 +22,10 @@ export async function setupMultiStrategyMocks(page: Page): Promise<void> {
  * Navigate to Paper Trading and select multi-strategy bot
  */
 export async function navigateToMultiStrategyBot(page: Page, _botId: string = "2"): Promise<void> {
-  // Navigate directly to paper trading URL
   await page.goto("/paper");
   await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
 
-  // Select a bot via the MUI Select dropdown
   const botSelect = page.locator('[data-testid="bot-select"]');
   await expect(botSelect).toBeVisible({ timeout: 10000 });
   await botSelect.click();

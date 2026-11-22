@@ -1,7 +1,3 @@
-/**
- * Strategy Management API Client
- */
-
 import type {
   StrategyConfig,
   StrategyCreate,
@@ -13,7 +9,6 @@ import { apiGet, apiPost, apiPut, apiDelete } from "./utils";
 
 const STRATEGY_BASE = "/api/strategies";
 
-// List all strategies
 export async function listStrategies(
   includeTemplates: boolean = false,
   strategyType?: string,
@@ -24,7 +19,6 @@ export async function listStrategies(
   return apiGet<{ strategies: StrategyConfig[]; count: number }>(STRATEGY_BASE, params);
 }
 
-// List strategy templates
 export async function listTemplates(): Promise<{
   templates: StrategyConfig[];
   count: number;
@@ -32,7 +26,6 @@ export async function listTemplates(): Promise<{
   return apiGet<{ templates: StrategyConfig[]; count: number }>(`${STRATEGY_BASE}/templates`);
 }
 
-// Get a specific strategy
 export async function getStrategy(
   strategyId: number,
 ): Promise<{ strategy: StrategyConfig; variations: StrategyConfig[] }> {
@@ -41,7 +34,6 @@ export async function getStrategy(
   );
 }
 
-// Create a new strategy variation
 export async function createStrategy(
   data: StrategyCreate,
 ): Promise<{ status: string; message: string; strategy: StrategyConfig }> {
@@ -51,7 +43,6 @@ export async function createStrategy(
   );
 }
 
-// Update a strategy
 export async function updateStrategy(
   strategyId: number,
   data: StrategyUpdate,
@@ -62,7 +53,6 @@ export async function updateStrategy(
   );
 }
 
-// Sync template params to all child variations
 export async function syncVariations(
   strategyId: number,
 ): Promise<{ status: string; message: string; count: number }> {
@@ -72,19 +62,16 @@ export async function syncVariations(
   );
 }
 
-// Delete a strategy (soft delete)
 export async function deleteStrategy(
   strategyId: number,
 ): Promise<{ status: string; message: string }> {
   return apiDelete<{ status: string; message: string }>(`${STRATEGY_BASE}/${strategyId}`);
 }
 
-// Get strategy performance
 export async function getStrategyPerformance(strategyId: number): Promise<StrategyPerformance> {
   return apiGet<StrategyPerformance>(`${STRATEGY_BASE}/${strategyId}/performance`);
 }
 
-// Get trades for a specific strategy
 export async function getStrategyTrades(
   strategyId: number,
   limit: number = 50,
@@ -95,7 +82,6 @@ export async function getStrategyTrades(
   );
 }
 
-// Get variations of a template
 export async function getStrategyVariations(
   strategyId: number,
 ): Promise<{ parent: StrategyConfig; variations: StrategyConfig[]; count: number }> {
@@ -104,7 +90,6 @@ export async function getStrategyVariations(
   );
 }
 
-// Bot endpoints
 export async function listBots(): Promise<{
   bots: BotConfig[];
   count: number;

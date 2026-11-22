@@ -121,7 +121,6 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
         & ((out["d_ceprem2"] - 0.5 * out["d_spot2"]) / out["atm_ce_ltp"].shift(2) > 0.01)
     )
 
-    # Wall: nearest call wall at i, same strike's OI 2 min ago.
     wall_erode = []
     for i in range(len(out)):
         cur = _nearest_call_wall(out.iloc[i])
@@ -146,7 +145,7 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
     out["vol1"] = vol.diff().clip(lower=0)
     out["rvol"] = out["vol1"] / out["vol1"].shift(1).rolling(20, min_periods=8).median()
     out["particip"] = out["rvol"] >= 1.8
-    out["iv_rich"] = False  # tape has no IV/RV block; penalty applied live only
+    out["iv_rich"] = False
     out["v2"] = (
         2 * out["put"].astype(int)
         + 2 * out["cover"].astype(int)
@@ -155,7 +154,6 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
         + out["gex"].astype(int)
         + out["particip"].astype(int)
     )
-    # v1 for comparison: calls building, not covering.
     out["build"] = (out["d_ce2"] >= 500_000) & (out["d_ceprem2"] >= 1.0)
     out["v1"] = (
         2 * out["put"].astype(int)
@@ -179,7 +177,6 @@ def evaluate(df: pd.DataFrame, col: str, threshold: int, event_pts: float) -> di
     if armed.sum() == 0:
         return {"armed": 0, "precision": 0.0, "recall": 0.0, "lift": 0.0, "base": base}
     precision = float(d.loc[armed, "event"].mean())
-    # Recall: an event is caught if any arm in the prior 10 minutes.
     arm_flag = (d[col] >= threshold).rolling(10, min_periods=1).max().astype(bool)
     caught = d["event"] & arm_flag
     recall = float(caught.sum() / max(d["event"].sum(), 1))

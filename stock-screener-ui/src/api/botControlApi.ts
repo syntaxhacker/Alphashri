@@ -59,17 +59,14 @@ export async function stopPaperBot(): Promise<boolean> {
   }
 }
 
-// Initialize auto-refresh for live view
 export function initLiveAutoRefresh() {
   setupAutoRefresh(refreshLiveData, 20000); // 20 seconds
 }
 
-// Initialize auto-refresh for a specific bot (uses refreshBotLiveData)
 export function initBotAutoRefresh(botId: string) {
   setupAutoRefresh(() => refreshBotLiveData(botId), 20000); // 20 seconds
 }
 
-// Stop auto-refresh
 export function stopLiveAutoRefresh() {
   stopAutoRefresh();
 }
@@ -84,7 +81,6 @@ export async function fetchBotSummaries(): Promise<any[]> {
   }
 }
 
-// List all available bots
 export async function listBots(): Promise<any[]> {
   try {
     const data = await apiFetch(`${API_BASE}/api/bots`);
@@ -95,7 +91,6 @@ export async function listBots(): Promise<any[]> {
   }
 }
 
-// Get bot details
 export async function getBot(botId: string, signal?: AbortSignal): Promise<any | null> {
   try {
     const data = await apiFetch(`${API_BASE}/api/bots/${botId}`, { signal });
@@ -107,7 +102,6 @@ export async function getBot(botId: string, signal?: AbortSignal): Promise<any |
   }
 }
 
-// Start a multi-strategy bot
 export async function startBot(
   botId: string,
 ): Promise<{ success: boolean; pid?: number; log_file?: string | null; message?: string }> {
@@ -137,7 +131,6 @@ export async function startBot(
   }
 }
 
-// Stop a multi-strategy bot
 export async function stopBot(botId: string): Promise<{ success: boolean; message?: string }> {
   try {
     const data = await apiFetch(`${API_BASE}/api/bots/${botId}/stop`, {
@@ -156,7 +149,6 @@ export async function stopBot(botId: string): Promise<{ success: boolean; messag
   }
 }
 
-// Get bot portfolio with per-strategy breakdown
 export async function fetchBotPortfolio(botId: string, signal?: AbortSignal): Promise<any | null> {
   try {
     const data = await apiFetch(`${API_BASE}/api/bots/${botId}/portfolio`, { signal });
@@ -168,7 +160,6 @@ export async function fetchBotPortfolio(botId: string, signal?: AbortSignal): Pr
   }
 }
 
-// Get bot positions (optionally filtered by strategy)
 export async function fetchBotPositions(
   botId: string,
   strategyId?: string,
@@ -192,7 +183,6 @@ export interface ScanItemsResponse {
   timestamp: string | null;
 }
 
-// Get bot scan items (optionally filtered by strategy)
 export async function fetchBotScanItems(
   botId: string,
   strategyId?: string,
@@ -211,7 +201,6 @@ export async function fetchBotScanItems(
   }
 }
 
-// Get bot strategy performance
 export async function fetchBotStrategyPerformance(
   botId: string,
   includeTest: boolean = true,
@@ -263,7 +252,6 @@ export function normalizeBotPortfolio(
 
 let _botDataReqId = 0;
 
-// Refresh data from multi-strategy bot
 export async function refreshBotLiveData(botId: string): Promise<void> {
   _abortController?.abort();
   _abortController = new AbortController();
@@ -290,7 +278,6 @@ export async function refreshBotLiveData(botId: string): Promise<void> {
       })
       .reduce((sum, trade) => sum + (trade.net_pnl ?? trade.pnl ?? 0), 0);
 
-    // Update bot status
     if (botInfo) {
       setBotStatus(!!botInfo.running, botInfo.pid ?? null, null);
     }
@@ -302,7 +289,6 @@ export async function refreshBotLiveData(botId: string): Promise<void> {
         ? portfolioData.watchlist
         : Array.from(new Set(scanItems.map((item: any) => item?.symbol).filter(Boolean)));
 
-    // Convert bot positions to paper positions format
     const paperPositions = positions.map((p: any) => {
       const cp = p.current_price || p.entry_price;
       const side = p.side === "SELL" ? -1 : 1;

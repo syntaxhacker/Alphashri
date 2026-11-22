@@ -6,8 +6,6 @@ import type { WallsPayload } from "@/api/reportNifty";
 import { useReplayWalls } from "./useReplayWalls";
 import type { ReplayWallsOptions } from "./useReplayWalls";
 
-// The hook imports the real fetcher, but every case injects a fake one. Mocking
-// the module keeps the suite network- and auth-store-free.
 vi.mock("@/api/reportNifty", () => ({ fetchOptionsWalls: vi.fn() }));
 
 function wallsAt(tag: string): WallsPayload {
@@ -30,7 +28,6 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-/** Flush the microtask queue (and any 0 ms timers) under fake timers. */
 async function flush() {
   await vi.advanceTimersByTimeAsync(0);
 }
@@ -85,7 +82,6 @@ describe("useReplayWalls", () => {
     expect(result.walls()?.read).toBe("t1");
     expect(result.syncing()).toBe(false);
 
-    // Four scrub ticks inside the 150 ms window.
           await vi.advanceTimersByTimeAsync(20);
     setProps({ at: "2026-10-10T09:16:00+05:30" });
           await vi.advanceTimersByTimeAsync(20);
@@ -93,7 +89,6 @@ describe("useReplayWalls", () => {
           await vi.advanceTimersByTimeAsync(20);
     setProps({ at: "2026-10-10T09:18:00+05:30" });
 
-    // Still one request: the ticks only moved the pending timer's target.
     expect(fetcher).toHaveBeenCalledTimes(1);
 
           await vi.advanceTimersByTimeAsync(150);
@@ -152,8 +147,6 @@ describe("useReplayWalls", () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(fetcher.mock.calls[1][2]).toBe("2026-10-10T09:25:00+05:30");
 
-    // The superseded response still paints: it is newer than the empty card,
-    // so a fast drag shows intermediate minutes instead of freezing.
           older.resolve(wallsAt("older"));
       await vi.advanceTimersByTimeAsync(0);
     expect(result.walls()?.read).toBe("older");
@@ -180,7 +173,6 @@ describe("useReplayWalls", () => {
     await flush();
     expect(fetcher).toHaveBeenCalledTimes(2);
 
-    // Newer reply lands first, then the older one arrives late.
           second.resolve(wallsAt("09:25"));
       await vi.advanceTimersByTimeAsync(0);
     expect(result.walls()?.read).toBe("09:25");
@@ -207,7 +199,6 @@ describe("useReplayWalls", () => {
     setProps({ enabled: false });
           await vi.advanceTimersByTimeAsync(200);
 
-    // Re-enabling starts a fresh request with the newer id.
     setProps({ enabled: true });
     await flush();
     expect(fetcher).toHaveBeenCalledTimes(2);
@@ -230,7 +221,6 @@ describe("useReplayWalls", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
 
           await vi.advanceTimersByTimeAsync(10);
-    // The 10 ms elapsed < 150 ms throttle, but opening the map must not wait.
     setProps({ includeMap: true });
     await flush();
     expect(fetcher).toHaveBeenCalledTimes(2);
@@ -255,7 +245,6 @@ describe("useReplayWalls", () => {
       await vi.advanceTimersByTimeAsync(0);
     expect(result.walls()?.read).toBe("2026-10-09");
 
-    // Date change: the previous card must never paint on the new day.
     setProps({ symbol: "NIFTY", date: "2026-10-10" });
     await flush();
     expect(result.walls()).toBeNull();
@@ -272,7 +261,6 @@ describe("useReplayWalls", () => {
       await vi.advanceTimersByTimeAsync(0);
     expect(result.walls()?.read).toBe("sensex");
 
-    // The NIFTY request that belonged to the previous context settles late.
           dayTwo.resolve(wallsAt("nifty-late"));
       await vi.advanceTimersByTimeAsync(0);
     expect(result.walls()?.read).toBe("sensex");
@@ -314,7 +302,6 @@ describe("useReplayWalls", () => {
       "2026-11-09T11:36:00+05:30",
     );
 
-    // Scrub back to 11:33: the older frame must paint, not be discarded.
     setProps({ at: "2026-11-09T11:33:00+05:30" });
           await vi.advanceTimersByTimeAsync(200);
     expect(fetcher).toHaveBeenCalledTimes(2);
@@ -329,8 +316,8 @@ describe("useReplayWalls", () => {
 
   test("a late future response does not overwrite an older playhead", async () => {
     vi.useFakeTimers();
-    const late = deferred<WallsPayload | null>(); // 11:36, started first
-    const now = deferred<WallsPayload | null>(); // 11:33, started second
+    const late = deferred<WallsPayload | null>();
+    const now = deferred<WallsPayload | null>();
     const fetcher = vi
       .fn()
       .mockReturnValueOnce(late.promise)
@@ -350,7 +337,6 @@ describe("useReplayWalls", () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(fetcher.mock.calls[1][2]).toBe("2026-11-09T11:33:00+05:30");
 
-    // The 11:33 response lands first and paints.
           now.resolve(wallsWithLastT("11:33", "2026-11-09T11:33:00+05:30"));
       await vi.advanceTimersByTimeAsync(0);
     expect(result.walls()?.freshness.last_t).toBe(

@@ -1,14 +1,4 @@
 #!/usr/bin/env python3
-"""Build a deterministic offline gallery of every reusable report chart.
-
-This is a **synthetic fixture**, not market data.  It exists to exercise the
-same panel builders with NIFTY-, SENSEX- and stock-like specs and to provide a
-single page for visual review.  Real report generators should pass their own
-recorded series instead.
-
-Run:
-    .venv/bin/python scripts/market/report_viz/demo/build_demo.py
-"""
 
 from __future__ import annotations
 

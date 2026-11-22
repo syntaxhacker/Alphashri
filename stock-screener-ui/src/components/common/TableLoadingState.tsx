@@ -7,15 +7,6 @@ interface TableLoadingStateProps {
   children?: JSX.Element;
 }
 
-/**
- * Reusable loading state component for tables.
- * Thin wrapper over `InlineLoader`.
- *
- * @example
- * <TableLoadingState />
- * <TableLoadingState message="Loading positions..." />
- * <TableLoadingState showSpinner={false} message="Fetching data..." />
- */
 export function TableLoadingState(props: TableLoadingStateProps) {
   return (
     <InlineLoader

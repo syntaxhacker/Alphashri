@@ -26,27 +26,18 @@ import { cn } from "@/ui/cn";
 
 const FAMILY_ORDER = ["reversal", "continuation", "curve_cup"];
 const FORMED_PRESETS = [1, 3, 5, 10, 20, 30, 60];
-/** Consolidation base-length presets (days); `Any` clears the bound. */
 const BASE_LENGTH_PRESETS = [30, 60, 90, 120, 180];
 
 export interface PatternFilterRailProps {
   patterns: PatternDef[];
   results: PatternHitDTO[];
-  /** Aggregate counts for the whole filtered set (chips prefer these over `props.results`). */
   summary?: PatternSummary | null;
   filters: PatternFilters;
   setFilter: (key: string, value: any) => void;
   resetFilters: () => void;
-  /** Apply a partial filter patch (merged onto defaults) and reload; used by presets. */
   applyFilters: (filters: Partial<PatternFilters>) => void;
-  /** Map of `pattern_id` → reference-image URL (from `fetchPatternImages`). */
   images?: Record<string, string>;
-  /**
-   * `"rail"` (default) = single vertical column. `"panel"` = explicit 3-column
-   * layout for the filter modal (What · Patterns · Refine), top-aligned.
-   */
   layout?: "rail" | "panel";
-  /** Run an as-of replay scan; renders the replay control when provided. */
   onReplayScan?: (args: ReplayScanArgs) => void;
 }
 
@@ -58,7 +49,6 @@ function toggle(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 }
 
-/** Section header: 10px, uppercase, muted, tracking-[0.06em]. */
 function Section(props: {
   title: string;
   info?: JSX.Element;
@@ -77,7 +67,6 @@ function Section(props: {
   );
 }
 
-/** Compact `?` help affordance listing a set of `{label, description}` entries. */
 function InfoTip(props: {
   title: string;
   items: Array<{ label: string; description: string }>;
@@ -121,11 +110,8 @@ function infoItems(
   return Object.values(info).map((entry) => ({ label: entry.label, description: entry.description }));
 }
 
-/** Filter controls: family, patterns, direction, status, quality, formed-within, volume. */
 export function PatternFilterRail(props: PatternFilterRailProps) {
   const panel = () => (props.layout ?? "rail") === "panel";
-  // Compact pattern picker state (panel layout). Search + hide-zero keep the
-  // gallery scannable without forcing a long scroll past empty patterns.
   const [patternQuery, setPatternQuery] = createSignal("");
   // A user who arrives with advanced filters already applied must see them,
   // not a collapsed section that silently hides the active constraints.
@@ -804,21 +790,18 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
 
   const railContent = (
     <>
-      {/* Pattern: presets · family · gallery */}
       <Box className="flex min-w-0 flex-col gap-1">
         {presetsSection}
         {familySection}
         {patternsSection}
       </Box>
       <Divider />
-      {/* Direction/Quality */}
       <Box className="flex min-w-0 flex-col gap-1">
         {directionSection}
         {statusSection}
         {qualitySection}
       </Box>
       <Divider />
-      {/* Score/Range */}
       <Box className="flex min-w-0 flex-col gap-1">
         {formedSection}
         {dateSection}
@@ -841,7 +824,6 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
         {volumeSection}
       </Box>
       <Divider />
-      {/* Triggers/Display */}
       <Box className="flex min-w-0 flex-col gap-1">
         {trendlinesSection}
       </Box>
@@ -849,8 +831,6 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
   );
 
   if (panel()) {
-    // Explicit, top-aligned columns so the grouping is obvious:
-    //   What (presets/family/direction/status/quality) · Patterns · Refine.
     return (
       <CompactPanel flush testId="patterns-filter-rail">
         <Box

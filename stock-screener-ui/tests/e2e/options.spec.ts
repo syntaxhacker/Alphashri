@@ -81,11 +81,9 @@ test.describe("Options View - Option Chain", () => {
   });
 
   test("should switch between table and analysis views", async ({ page }) => {
-    // Switch to Analysis
     await page.locator('[data-testid="chain-tab-analysis"]').click();
     await expect(page.locator('[data-testid="oi-analysis"]')).toBeVisible();
 
-    // Switch back to Table
     await page.locator('[data-testid="chain-tab-table"]').click();
     await expect(page.locator('[data-testid="options-chain-table"]')).toBeVisible();
   });
@@ -100,7 +98,6 @@ test.describe("Options View - Filters", () => {
     const typeSelect = page.locator('[data-testid="option-type-select"] select');
     await expect(typeSelect).toBeVisible();
 
-    // Default is Both CE/PE
     await expect(page.getByText("CALLS (CE)")).toBeVisible();
     await expect(page.getByText("PUTS (PE)")).toBeVisible();
 

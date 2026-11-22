@@ -142,10 +142,6 @@ export interface OptionsAnalytics {
   warnings: AnalyticsWarning[];
 }
 
-/* ------------------------------------------------------------------ */
-/* Raw upstream shapes                                                  */
-/* ------------------------------------------------------------------ */
-
 /** Both a backend CE/PE row and a legacy single IV point land here. */
 interface RawIvRow {
   strike?: unknown;

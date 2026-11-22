@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Assemble the options beginner course HTML from chapter fragments + GSAP layer."""
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -138,7 +137,6 @@ gsap.utils.toArray("svg polyline, svg path.hockey").forEach(function(line){
 </script></body></html>
 """
 
-# fix accidental non-english token the writers may have introduced
 html = SHELL.replace("__SECTIONS__", "\n".join(sections))
 html = html.replace("best本书 CE day (real)", "best CE day (real)")
 OUT.write_text(html)

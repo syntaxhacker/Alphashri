@@ -1,17 +1,4 @@
 #!/usr/bin/env python3
-"""Self-contained hourly-bar backtest of the SENSEX range strategy.
-
-Adapts the 1-min RangeStrategy (scripts/paper_sensex.py) to 60-minute bars so
-that intraday multi-bar confirmation, trailing and cooldown translate to
-bar-counts instead of minutes. No lookahead: day high/low are cumulative up to
-the current bar, day trend uses the day open, and options are priced with
-Black-Scholes at fixed IV/DTE.
-
-Data: yfinance SENSEX (^BSESN) 60m, cached to experiments/data/sensex_60m_cache.pkl.
-Outputs:
-  experiments/data/paper_sensex_sweep_hourly_<date>.jsonl
-  experiments/data/hourly_sweep_trades_<date>.csv
-"""
 from __future__ import annotations
 
 import argparse
@@ -67,7 +54,6 @@ BOUNCE_REJECT = ["support_bounce", "resistance_reject"]
 
 
 def bs_premium(side: str, spot: float, strike: float, t_years: float, iv: float = IV) -> float:
-    """Black-Scholes premium on the spot (shared implementation)."""
     return _gr.bs_price(side, spot, strike, t_years, iv, R)
 
 
@@ -130,7 +116,6 @@ def build_configs():
 
 def replay_day(cfg: dict, bars: list, prev_pivots: dict, t_years: float,
                include_costs: bool) -> tuple:
-    """Replay one config on one day's hourly bars -> (trades, day_close)."""
     target = cfg["target"]
     sl = cfg["sl"]
     trail_trigger = cfg["trail_trigger"]
@@ -173,7 +158,6 @@ def replay_day(cfg: dict, bars: list, prev_pivots: dict, t_years: float,
         sup_anchor = anchor_low if anchor_low is not None else cum_low
         res_anchor = anchor_high if anchor_high is not None else cum_high
 
-        # S/R candidates: OI magnets + cumulative low/high + prior-day pivot S1/R1
         sup_cands = [x for x in [OI_SUP, cum_low, prev_pivots.get("s1")] if x is not None and x < spot]
         res_cands = [x for x in [OI_RES, cum_high, prev_pivots.get("r1")] if x is not None and x > spot]
         cand_sup = max(sup_cands) if sup_cands else cum_low
@@ -181,7 +165,6 @@ def replay_day(cfg: dict, bars: list, prev_pivots: dict, t_years: float,
         sup = sup_anchor if down_day else cand_sup
         res = res_anchor if up_day else cand_res
 
-        # ---- manage open position ----
         if pos:
             pnl_hi = (bs_premium(pos["side"], bar["high"], pos["strike"], t_years) - pos["premium"]) * LOT
             pnl_lo = (bs_premium(pos["side"], bar["low"], pos["strike"], t_years) - pos["premium"]) * LOT
@@ -197,7 +180,7 @@ def replay_day(cfg: dict, bars: list, prev_pivots: dict, t_years: float,
             elif pnl_hi >= target:
                 reason, gross = "TARGET", target
                 exit_prem = pos["premium"] + target / LOT
-            elif hour >= 15:  # EOD on hourly bars (last bar 15:15)
+            elif hour >= 15:
                 exit_prem = bs_premium(pos["side"], spot, pos["strike"], t_years)
                 reason, gross = "EOD", round((exit_prem - pos["premium"]) * LOT, 2)
             if reason:
@@ -213,7 +196,6 @@ def replay_day(cfg: dict, bars: list, prev_pivots: dict, t_years: float,
         if i < cooldown_until or hour >= 15:
             continue
 
-        # ---- entry signals ----
         mom = momentum()
         allow_long = not down_day if trend_filter else True
         allow_short = not up_day if trend_filter else True
@@ -247,7 +229,7 @@ def replay_day(cfg: dict, bars: list, prev_pivots: dict, t_years: float,
                    "time": hm, "date": bars[0]["ts"].strftime("%Y-%m-%d"),
                    "signal": sig, "peak": 0.0}
 
-    if pos:  # close at last bar if still open (EOD)
+    if pos:
         exit_prem = bs_premium(pos["side"], pos and bars[-1]["close"] or spot, pos["strike"], t_years)
         gross = round((exit_prem - pos["premium"]) * LOT, 2)
         net = gross
@@ -275,7 +257,6 @@ def main():
     dte = (EXPIRY - datetime(2026, 8, 5)).total_seconds() / 86400.0
     t_years = max(dte, 1) / 365.0
 
-    # prior-day classic pivots (no lookahead)
     pivots = {}
     prev_ohlc = None
     for d in dates:

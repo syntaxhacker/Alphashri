@@ -21,10 +21,6 @@ const IconHelpCircle = (props: { size?: number }) => (
   </svg>
 );
 
-/**
- * One-page desk glossary. Ten terms, three columns, no nested cards — the
- * reader scans once and never needs the legend again.
- */
 interface DeskGuideEntry {
   term: string;
   text: string;
@@ -74,16 +70,10 @@ export const DESK_GUIDE_ENTRIES: readonly DeskGuideEntry[] = [
 ] as const;
 
 interface NiftyDeskGuideProps {
-  /** Controlled open state (tests/hotkeys); defaults to internal. */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
 
-/**
- * Toolbar `?` button + the "read this once" desk glossary modal.
- * Lives beside Refresh/Snapshot so the legend is one click from the surface
- * it explains; the modal reuses `PanelModal` (Esc + focus trap for free).
- */
 export function NiftyDeskGuide(props: NiftyDeskGuideProps) {
   const openProp = () => props.open;
   const [internalOpen, setInternalOpen] = createSignal(false);

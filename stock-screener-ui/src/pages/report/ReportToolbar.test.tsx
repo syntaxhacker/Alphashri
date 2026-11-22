@@ -55,7 +55,7 @@ describe("ReportToolbar freshness indicators", () => {
         snapshotting: () => false,
         freshness: {
           marketClosed: () => false,
-          isStale: () => true, // WebSocket has been down 1m (90s threshold)
+          isStale: () => true,
           staleMins: () => 1,
           updatedAtMs: () => Date.now(),
         },

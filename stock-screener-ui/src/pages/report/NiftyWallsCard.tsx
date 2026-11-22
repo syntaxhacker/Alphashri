@@ -51,8 +51,6 @@ const WALLS_ROWS = 3;
 
 const WALLS_HEADINGS = ["OI", "NEW", "5m", "30m", "DIST"] as const;
 
-/** Fixed reservation for the READ/SEQ and tracked-history columns so the null
- *  skeleton keeps the same band height as the populated card. */
 const WALLS_RESERVED_H = 96;
 
 function Stat(props: { label: string; value: string; color?: string }) {

@@ -126,7 +126,6 @@ class TestTradingAgentsJsonDumpsSerialization:
         """Verify the se() helper in trading_agents.py uses single json.dumps."""
         import api.trading_agents as ta_mod
 
-        # Simulate se function from stream_analysis
         def se(data: dict) -> str:
             return json.dumps(data, default=str)
 
@@ -210,11 +209,9 @@ class TestChartCachePoisoningIST:
         mod.save_cached_candles("RELIANCE", today, df)
         mod.save_cached_candles("RELIANCE", hist_date, df)
 
-        # Fresh today should hit
         r, hit = mod.get_cached_candles("RELIANCE", today)
         assert hit is True
 
-        # Expire today via old meta
         pkl_path = tmp_path / today / "RELIANCE.pkl"
         meta_path = mod._get_meta_path(pkl_path)
         meta_path.write_text(json.dumps({"ts": time.time() - 120}))

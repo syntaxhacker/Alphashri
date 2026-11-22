@@ -85,7 +85,6 @@ export function detectIFVG(
   if (!Array.isArray(bars) || !Array.isArray(fvgs) || bars.length === 0 || fvgs.length === 0) return [];
   const out: IfvgZone[] = [];
   for (const f of fvgs) {
-    // scan after f.rightIdx
     const start = f.rightIdx + 1;
     if (start >= bars.length) continue;
     for (let j = start; j < bars.length; j++) {

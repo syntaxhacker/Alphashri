@@ -167,7 +167,6 @@ def inventory(data_dir: Path, today: Optional[date] = None) -> list[dict]:
 
 @dataclass
 class CompressionPlan:
-    """One candidate day file and the reason it will (not) be compressed."""
     path: str
     gz: str
     bytes: int
@@ -193,7 +192,6 @@ class RunReport:
 
 
 def _estimate_gz_bytes(path: Path) -> Optional[int]:
-    """Rough gzip size from a 1 MiB sample (None when unreadable/empty)."""
     try:
         with open(path, "rb") as fh:
             sample = fh.read(SAMPLE_BYTES)
@@ -273,7 +271,6 @@ def compress_file(path: Path) -> dict:
                 dst.write(chunk)
         with open(part, "rb") as fh:
             os.fsync(fh.fileno())
-        # Verify: decompress the archive and compare its digest to the source.
         check = hashlib.sha256()
         with gzip.open(part, "rb") as fh:
             for chunk in iter(lambda: fh.read(CHUNK), b""):

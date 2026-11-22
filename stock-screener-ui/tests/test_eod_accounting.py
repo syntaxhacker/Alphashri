@@ -32,9 +32,6 @@ def _install_journal(tmp_path, monkeypatch, days: dict[str, list[dict]]):
     return tmp_path
 
 
-# ---------------------------------------------------------------------------
-# Journal account
-# ---------------------------------------------------------------------------
 
 def test_journal_account_is_never_zero_and_splits_the_books(tmp_path, monkeypatch):
     _install_journal(tmp_path, monkeypatch, {
@@ -67,9 +64,6 @@ def test_journal_account_through_excludes_later_sessions(tmp_path, monkeypatch):
     assert snap["equity"] == pytest.approx(book.INITIAL_CAPITAL + 500.0)
 
 
-# ---------------------------------------------------------------------------
-# Equity curve
-# ---------------------------------------------------------------------------
 
 def test_equity_curve_only_includes_days_up_to_through(tmp_path, monkeypatch):
     _install_journal(tmp_path, monkeypatch, {
@@ -101,9 +95,6 @@ def test_equity_curve_missing_journal_dir(monkeypatch, tmp_path):
     assert eod._equity_curve() == []
 
 
-# ---------------------------------------------------------------------------
-# Journal vs DB reconciliation — the 2026-10-19 shape
-# ---------------------------------------------------------------------------
 
 def test_reconcile_names_the_2026_10_19_divergence(monkeypatch):
     """Journal 32 / net 2,121.21 vs DB 32 / net 5,385.67 on 2026-10-19.
@@ -170,9 +161,6 @@ def test_reconcile_in_sync_when_both_ledgers_match(monkeypatch):
     assert recon["duplicates"] == []
 
 
-# ---------------------------------------------------------------------------
-# Synthetic 2026-10-13 report fixture
-# ---------------------------------------------------------------------------
 
 def test_synthetic_2026_10_13_fixture_is_a_valid_report_snapshot():
     """The 10-13 tape predates ATM premiums; a synthetic snapshot fills the day.

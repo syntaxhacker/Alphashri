@@ -41,7 +41,6 @@ def no_instruments(monkeypatch):
     sa.clear_cache()
 
 
-# --- known curated aliases (seeded from news_symbol_mentions evidence) ---
 
 
 @pytest.mark.parametrize("raw,expected", [
@@ -84,7 +83,6 @@ def test_exact_instruments_pass_through(strict):
     assert sa.resolve_symbol("tcs") == "TCS"
 
 
-# --- ambiguous / junk leftovers: precision over recall ---
 
 
 @pytest.mark.parametrize("raw", [
@@ -114,7 +112,6 @@ def test_fail_open_when_instruments_unavailable(no_instruments):
     assert sa.resolve_symbol("") is None
 
 
-# --- map hygiene ---
 
 
 def test_alias_map_hygiene(strict):
@@ -154,7 +151,6 @@ def test_alias_targets_exist_in_nse_eq():
     assert not missing, f"alias targets missing from NSE_EQ: {missing}"
 
 
-# --- join hit-rate improvement on a fixture (the V4 QIP cases) ---
 
 
 def _row(i, day, sym, headline):

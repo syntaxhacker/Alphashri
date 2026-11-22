@@ -15,15 +15,8 @@ export const DESK_DOCK_OVERLAY_HEIGHT = 220;
 /** The bar is the handle for that 220px drawer; at 26px it read as a strip. */
 export const DESK_DOCK_BAR_HEIGHT = 40;
 
-/**
- * One vocabulary per dock tab. Every tab reads `name focus: live value`, so a
- * user can tell from the chrome which panel a click opens (not just the state
- * the row happens to be in). Labels are shared with the drawer header.
- */
 interface DockHelp {
-  /** Plain-language name; never a Greek letter or a gamma acronym. */
   label: string;
-  /** What the tab opens — always a panel-type noun, never a live value. */
   shows: string;
   ariaLabel: string;
   title: string;
@@ -77,7 +70,6 @@ export function dockHelp(key: DeskDockKey): DockHelp {
   return DOCK_HELP[key];
 }
 
-/** A phone wraps tabs onto a second row and drops the keyboard hint. */
 export function dockLayout(narrow: boolean) {
   return {
     wrap: narrow,

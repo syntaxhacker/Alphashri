@@ -54,18 +54,13 @@ _MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN",
            "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 
 
-# --------------------------------------------------------------------------
-# Pure helpers (no I/O — unit-tested in tests/test_trade_cost.py)
-# --------------------------------------------------------------------------
 
 def db_expiry_label(expiry_iso: str) -> str:
-    """Convert ``YYYY-MM-DD`` to the local instruments-table tail, e.g. ``27 OCT 26``."""
     d = _dt.date.fromisoformat(expiry_iso)
     return f"{d.day:02d} {_MONTHS[d.month - 1]} {d.year % 100:02d}"
 
 
 def spaced_symbol(strike: float, opt: str, expiry_iso: str) -> str:
-    """Local instruments-table symbol format, e.g. ``NIFTY 23000 CE 29 DEC 26``."""
     return f"{UNDERLYING} {int(round(strike))} {opt.upper()} {db_expiry_label(expiry_iso)}"
 
 
@@ -104,13 +99,6 @@ def match_chain_row(
     opt: str,
     strike: float,
 ) -> Optional[dict[str, Any]]:
-    """Pick the chain row for ``strike`` + ``opt`` (CE/PE) from a live
-    ``GET /option/chain`` payload.
-
-    Each row carries ``strike_price`` plus ``call_options.instrument_key``
-    / ``put_options.instrument_key``. Only an exact-strike match is
-    accepted. Returns ``{"instrument_key": ...}`` or ``None``.
-    """
     side_key = "call_options" if opt.upper() == "CE" else "put_options"
     for row in chain:
         try:
@@ -127,7 +115,6 @@ def match_chain_row(
 
 
 def normalize_margin_response(payload: dict[str, Any]) -> dict[str, Any]:
-    """Normalise a POST /charges/margin response. Raises ValueError on error payloads."""
     if not isinstance(payload, dict) or payload.get("status") != "success":
         raise ValueError(f"margin API error: {payload!r}"[:300])
     data = payload.get("data") or {}
@@ -150,12 +137,10 @@ def normalize_margin_response(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def normalize_brokerage_response(payload: dict[str, Any]) -> dict[str, Any]:
-    """Normalise a GET /charges/brokerage response. Raises ValueError on error payloads."""
     if not isinstance(payload, dict) or payload.get("status") != "success":
         raise ValueError(f"brokerage API error: {payload!r}"[:300])
     charges = (payload.get("data") or {}).get("charges") or {}
     taxes = charges.get("taxes") or {}
-    # Docs show both snake_case and camelCase keys; accept either.
     other = charges.get("other_charges") or charges.get("otherCharges") or {}
     return {
         "total": float(charges.get("total") or 0.0),
@@ -171,12 +156,10 @@ def normalize_brokerage_response(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def round_trip_total(legs: list[dict[str, Any]]) -> float:
-    """Sum per-leg ``total`` charges for a round trip."""
     return round(sum(float(leg.get("total") or 0.0) for leg in legs), 2)
 
 
 def compare_totals(api_total: float, local_total: float) -> dict[str, Any]:
-    """Compare API vs local round-trip totals; returns delta, pct and a verdict line."""
     delta = round(api_total - local_total, 2)
     if local_total:
         pct = round(100.0 * delta / local_total, 1)
@@ -191,9 +174,7 @@ def compare_totals(api_total: float, local_total: float) -> dict[str, Any]:
             "delta": delta, "pct": pct, "verdict": verdict}
 
 
-# --------------------------------------------------------------------------
 # I/O (DB reads + Upstox read-only charge calculators)
-# --------------------------------------------------------------------------
 
 def find_instrument_db(opt: str, strike: float, expiry_iso: str) -> tuple[dict[str, Any], list[str]]:
     """Resolve the instrument row from the local table (read-only fallback).
@@ -290,7 +271,6 @@ def get_token() -> str:
 
 def fetch_margin(headers: dict[str, str], instrument_key: str,
                  qty: int, side: str, product: str, price: float) -> dict[str, Any]:
-    """POST /charges/margin — pure calculator, places no order."""
     body = {"instruments": [{
         "instrument_key": instrument_key,
         "quantity": int(qty),
@@ -305,7 +285,6 @@ def fetch_margin(headers: dict[str, str], instrument_key: str,
 
 def fetch_brokerage(headers: dict[str, str], instrument_token: str,
                     qty: int, side: str, product: str, price: float) -> dict[str, Any]:
-    """GET /charges/brokerage — pure calculator, places no order."""
     params = {
         "instrument_token": instrument_token,
         "quantity": int(qty),
@@ -319,9 +298,6 @@ def fetch_brokerage(headers: dict[str, str], instrument_token: str,
     return normalize_brokerage_response(resp.json())
 
 
-# --------------------------------------------------------------------------
-# CLI
-# --------------------------------------------------------------------------
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Read-only Upstox margin + round-trip charges probe.")

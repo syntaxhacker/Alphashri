@@ -12,23 +12,13 @@ import { useCopyFeedback } from "@/hooks/useCopyFeedback";
 import { SymbolLink } from "@/components/common/SymbolLink";
 import { PatternTags, hasTag, rowTags, shortIstDate } from "./rowBadges";
 
-/** Re-fetch cadence for the watch list while the market is open. */
 export const WATCH_POLL_MS = 60000;
-/**
- * Auto-refresh the watch list while the market is open. Disabled for now — the
- * list reloads on the initial load, a filter change, or the REFRESH button.
- */
 export const WATCH_AUTO_REFRESH = false;
-/** Refresh cadence for the holiday-aware market-status probe. */
 export const MARKET_STATUS_POLL_MS = 180000;
 /** Re-render cadence for the snapshot-age label. Ticks `Date.now()` only — never fetches. */
 export const WATCH_SNAPSHOT_TICK_MS = 30000;
 /** Default "Within % of trigger" filter: open focused on actionable rows. */
 export const WATCH_DEFAULT_WITHIN_PCT = 5;
-/**
- * Default gate on the time-adjusted intraday volume (`vol_adj`).
- * Sent as `min_rel_volume`; the backend applies it to `vol_adj`.
- */
 export const WATCH_DEFAULT_MIN_REL_VOLUME = 0.7;
 /**
  * Empty-stream hint delay: when the stream has delivered no `item` for this
@@ -37,7 +27,6 @@ export const WATCH_DEFAULT_MIN_REL_VOLUME = 0.7;
  */
 export const WATCH_SLOW_HINT_MS = 8000;
 
-/** Friendly labels for the known universe ids (singular matches ScanProgress). */
 const WATCH_UNIVERSE_LABELS: Record<string, string> = {
   nifty50: "NIFTY 50",
   nifty100: "NIFTY 100",
@@ -47,40 +36,24 @@ const WATCH_UNIVERSE_LABELS: Record<string, string> = {
   nse_fo: "NSE F&O",
 };
 
-/** Human label for a universe id; unknown ids fall back to the raw id. */
 export function universeLabel(universe: string): string {
   return WATCH_UNIVERSE_LABELS[universe] ?? universe;
 }
 
-/**
- * Stream `meta` echo plus the optional armed `total`: the backend emits an
- * immediate first `meta` (setup + gate) and, after `arm()`, a second `meta`
- * carrying `total` so the UI can show `items.length / total`. Extended
- * locally so older backends (no `total`) keep working via the fallback.
- */
 type WatchStreamMetaWithTotal = WatchStreamMeta & { total?: number | null };
 
 /** IST offset, used only for the hh:mm snapshot stamp (not the session clock). */
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
-/**
- * Backend-supplied fields not yet in the canonical `WatchRow` type
- * (`src/types/chartPatterns.ts` is not owned here). Local extension only:
- * `trigger_date` is the 52W-high trigger date for `near_52w` rows,
- * `last_touch_date` the last time the 52W high was touched. (`tags` is read
- * via the shared `rowTags`/`hasTag` helpers instead.)
- */
 type WatchRowExt = WatchRow & {
   trigger_date?: string | null;
   last_touch_date?: string | null;
 };
 
-/** 52W trigger date for `near_52w` rows (null/undefined = unknown). */
 function triggerDateOf(row: WatchRow): string | null | undefined {
   return (row as WatchRowExt).trigger_date;
 }
 
-/** Last 52W-high touch date (null/undefined = never touched / unknown). */
 function lastTouchDateOf(row: WatchRow): string | null | undefined {
   return (row as WatchRowExt).last_touch_date;
 }
@@ -123,7 +96,6 @@ export interface WatchViewProps {
   timeframe: string;
   minBaseDays?: number | null;
   onOpenSymbol?: (symbol: string) => void;
-  /** Hover intent for the right-side preview (no-op on the Watch tab). */
   onSymbolPreview?: (symbol: string) => void;
   onSymbolPreviewEnd?: (symbol: string) => void;
 }
@@ -168,14 +140,11 @@ function stateCell(ctx: { column?: { accessorKey?: unknown }; row: { original: W
 
 type WatchCellContext = { row: { original: WatchRow } };
 
-/** Read a cell's field off the row using the column's accessorKey, mirroring
- * the TanStack `getValue()` ctx the columns were written against. */
 const ctxGet = (ctx: { column?: { accessorKey?: unknown }; row: { original: WatchRow } }): unknown => {
   const key = ctx.column?.accessorKey;
   return typeof key === "string" ? (ctx.row.original as unknown as Record<string, unknown>)[key] : undefined;
 };
 
-/** Symbol label shared by every setup table, plus F&O/ETF tag badges. */
 const symbolCell = (ctx: WatchCellContext) => {
   const row = ctx.row.original as WatchRow;
   return (
@@ -188,16 +157,10 @@ const symbolCell = (ctx: WatchCellContext) => {
   );
 };
 
-/** Rupee price with two decimals. */
 const priceCell = (ctx: WatchCellContext) => (
   <span>{formatCurrency(Number(ctxGet(ctx) ?? 0), 2)}</span>
 );
 
-/**
- * `near_52w` 52W-high cell: the numeric trigger value stays, and when the
- * backend supplies `trigger_date` the date renders next to it (title carries
- * the full "52W high ₹X · YYYY-MM-DD" caption). No date → plain price.
- */
 const high52wCell = (ctx: WatchCellContext) => {
   const row = ctx.row.original as WatchRow;
   const price = formatCurrency(Number(ctxGet(ctx) ?? 0), 2);
@@ -213,21 +176,18 @@ const high52wCell = (ctx: WatchCellContext) => {
   );
 };
 
-/** Bare two-decimal number (OBV slope, up/down ratio). */
 const plainNumberCell = (ctx: WatchCellContext) => {
   const raw = ctxGet(ctx) as number | null | undefined;
   if (raw == null) return <span>-</span>;
   return <span>{Number(raw).toFixed(2)}</span>;
 };
 
-/** `1.23x` multiple, dash when missing. */
 const ratioCell = (ctx: WatchCellContext) => {
   const raw = ctxGet(ctx) as number | null | undefined;
   if (raw == null) return <span>-</span>;
   return <span>{`${Number(raw).toFixed(2)}x`}</span>;
 };
 
-/** Time-adjusted volume multiple; greens once it clears 1x. */
 const volAdjCell = (ctx: WatchCellContext) => {
   const row = ctx.row.original as WatchRow;
   const raw = ctxGet(ctx) as number | null | undefined;
@@ -240,7 +200,6 @@ const volAdjCell = (ctx: WatchCellContext) => {
   );
 };
 
-/** Identical first two columns of every setup registry. */
 const SYMBOL_COLUMN: TableColumnDef<WatchRow> = {
   id: "symbol",
   header: "Symbol",
@@ -325,7 +284,6 @@ const BREAKOUT_COLUMNS: TableColumnDef<WatchRow>[] = [
   },
 ];
 
-/** `near_52w` accumulation columns: 52W-high proximity + accumulation gauges. */
 const NEAR_52W_COLUMNS: TableColumnDef<WatchRow>[] = [
   SYMBOL_COLUMN,
   STATE_COLUMN,
@@ -423,30 +381,20 @@ const NEAR_52W_COLUMNS: TableColumnDef<WatchRow>[] = [
   },
 ];
 
-/**
- * Setup-aware column registry. Adding a future setup is one entry here plus
- * its default sort in `SORT_BY_SETUP`.
- */
 export const COLUMNS_BY_SETUP: Record<string, TableColumnDef<WatchRow>[]> = {
   breakout: BREAKOUT_COLUMNS,
   near_52w: NEAR_52W_COLUMNS,
 };
 
-/** Default sort per setup: breakout = most advanced first, near_52w = nearest close first. */
 export const SORT_BY_SETUP: Record<string, Array<{ id: string; desc: boolean }>> = {
   breakout: [{ id: "pct_to_trigger", desc: true }],
   near_52w: [{ id: "close_gap", desc: false }],
 };
 
-/** Columns for the active setup (falls back to the generic breakout columns). */
 export function columnsFor(setup: string): TableColumnDef<WatchRow>[] {
   return COLUMNS_BY_SETUP[setup] ?? BREAKOUT_COLUMNS;
 }
 
-/**
- * CSV column mapping for the active setup: same keys/headers as the table so
- * the copied CSV matches the visible columns.
- */
 export function watchCsvColumns(setup: string): CsvColumn[] {
   return columnsFor(setup).map((col) => {
     const accessorKey = (col as { accessorKey?: unknown }).accessorKey;
@@ -456,7 +404,6 @@ export function watchCsvColumns(setup: string): CsvColumn[] {
   });
 }
 
-/** Default `TanStackTable` sorting for the active setup. */
 export function sortFor(setup: string): Array<{ id: string; desc: boolean }> {
   return SORT_BY_SETUP[setup] ?? SORT_BY_SETUP.breakout;
 }
@@ -480,24 +427,17 @@ export function WatchView(props: WatchViewProps) {
   const [updatedAt, setUpdatedAt] = createSignal<string | null>(null);
   const [loading, setLoading] = createSignal(true);
   const [refreshing, setRefreshing] = createSignal(false);
-  /** True while a `/watch/stream` connection is still appending rows. */
   const [streaming, setStreaming] = createSignal(false);
-  /** Stream `meta` echo (setup + gate + optional total), shown as soon as it arrives. */
   const [streamMeta, setStreamMeta] = createSignal<WatchStreamMetaWithTotal | null>(null);
-  /** True once the empty-stream "Computing …" hint becomes relevant. */
   const [showSlowHint, setShowSlowHint] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   const [live, setLive] = createSignal(isWatchLiveNow());
-  // Holiday-aware market status (server clock wins over the client clock).
-  // Null = probe unavailable/failed → fall back to `isWatchLiveNow()`.
   const [marketStatus, setMarketStatus] = createSignal<MarketStatus | null>(null);
   let marketStatusRef: MarketStatus | null = null;
-  // Client-side quick filters over the loaded rows (instant, no refetch).
   const [search, setSearch] = createSignal("");
   const [stateFilter, setStateFilter] = createSignal<WatchRow["state"] | "all">("all");
   const [withinPct, setWithinPct] = createSignal<number | string>(WATCH_DEFAULT_WITHIN_PCT);
   const [hideInvalidated, setHideInvalidated] = createSignal(true);
-  /** Hide ETF-tagged rows by default (the All NSE Equity 52W list is ETF-heavy). */
   const [hideEtfs, setHideEtfs] = createSignal(true);
   let requestRef = 0;
   let streamControllerRef: AbortController | null = null;
@@ -507,8 +447,6 @@ export function WatchView(props: WatchViewProps) {
     streamControllerRef?.abort();
   });
 
-  // Clock for the snapshot-age label only: recomputes the relative age string,
-  // never fetches (polling stays OFF via WATCH_AUTO_REFRESH).
   const [nowMs, setNowMs] = createSignal(Date.now());
   onMount(() => {
     const timer = window.setInterval(() => setNowMs(Date.now()), WATCH_SNAPSHOT_TICK_MS);
@@ -525,7 +463,6 @@ export function WatchView(props: WatchViewProps) {
     const timer = window.setTimeout(() => setShowSlowHint(true), WATCH_SLOW_HINT_MS);
     onCleanup(() => window.clearTimeout(timer));
   });
-  // Load the setup registry once; adopt the active setup's default rel-vol.
   onMount(() => {
     let active = true;
     fetchWatchSetups()
@@ -570,9 +507,6 @@ export function WatchView(props: WatchViewProps) {
       setStreamMeta(null);
       const query = { setup: setup(), universe: universe(), timeframe: timeframe(), minBaseDays: minBaseDays(), minRelVolume: minRelVolume() };
 
-      // Progressive path: append rows as they arrive (`meta` first, then one
-      // `item` per row, then `done`). The 60s poll / Refresh just restart the
-      // stream. Any stream failure falls back to the plain `GET /watch` fetch.
       {
         const streamed: WatchRow[] = [];
         let streamOk = false;
@@ -590,8 +524,6 @@ export function WatchView(props: WatchViewProps) {
               if (requestRef !== token) return;
               streamed.push(row);
               setItems([...streamed]);
-              // First row renders before `done`: drop the full-page spinner
-              // while the stream keeps appending.
               if (!background) setLoading(false);
             },
             onDone: () => {
@@ -618,7 +550,6 @@ export function WatchView(props: WatchViewProps) {
           setError(null);
           return;
         }
-        // Stream failed: fall through to the non-streaming fetch below.
       }
 
       try {
@@ -639,8 +570,6 @@ export function WatchView(props: WatchViewProps) {
       }
     };
 
-  // Initial + filter-driven load. `load` reads setup/universe/… signals
-  // synchronously, so the effect re-runs exactly when those change.
   createEffect(() => {
     void load(false);
   });
@@ -673,9 +602,6 @@ export function WatchView(props: WatchViewProps) {
     });
   });
 
-  // Live badge + (optional) polling. Auto-refresh is disabled via
-  // `WATCH_AUTO_REFRESH` — when off, the list only reloads on the initial load,
-  // a filter change, or the REFRESH button.
   onMount(() => {
     const tickLive = (): boolean => {
       const server = marketStatusRef;
@@ -699,13 +625,9 @@ export function WatchView(props: WatchViewProps) {
   const filtered = createMemo(() => {
     const q = search().trim().toUpperCase();
     const maxAbs = typeof withinPct() === "number" ? (withinPct() as number) : null;
-    // `near_52w` rows carry no `pct_to_trigger`; filter on `close_gap` instead.
     const distanceOf = (row: WatchRow): number | null | undefined =>
       setup() === "near_52w" ? row.close_gap : row.pct_to_trigger;
     return items().filter((row) => {
-      // Client-side ETF gate first: ETF rows are excluded before the
-      // search/state/distance filters. `filtered.length` (and the count
-      // label) therefore already reflect the hiding.
       if (hideEtfs() && hasTag(row, "ETF")) return false;
       if (q && !String(row.symbol || "").toUpperCase().includes(q)) return false;
       if (hideInvalidated() && row.state === "invalidated") return false;
@@ -748,9 +670,6 @@ export function WatchView(props: WatchViewProps) {
   const initialSorting = createMemo(() => sortFor(setup()));
   const csvColumns = createMemo(() => watchCsvColumns(setup()));
   const snapshotAge = createMemo(() => formatSnapshotAge(updatedAt(), nowMs()));
-  // Stream progress: when the second `meta` carries `total`, the counter
-  // shows how many `item`s have arrived against that armed total. Older
-  // backends / pre-`total` metas keep the `filtered / items` display.
   const streamTotal = () => {
     const meta = streamMeta();
     return typeof meta?.total === "number" && Number.isFinite(meta.total) ? meta.total : null;

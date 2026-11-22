@@ -31,7 +31,6 @@ function makeFilters(overrides: Partial<FiltersFixture> = {}): PatternFilters {
   } as PatternFilters;
 }
 
-/** Renders ResultsSearch against a filter store the test can echo back into. */
 function renderHarness(initialFilters: PatternFilters, setFilter: (key: string, value: unknown) => void) {
   let echo!: (f: PatternFilters) => void;
   const result = render(() => {
@@ -69,7 +68,6 @@ describe("ResultsSearch", () => {
     fireEvent.input(input, { target: { value: "bank" } });
     await waitFor(() => expect(setFilter).toHaveBeenCalledWith("q", "bank"));
 
-    // User keeps typing before the store echo lands.
     fireEvent.input(input, { target: { value: "banks" } });
     expect(input).toHaveValue("banks");
 

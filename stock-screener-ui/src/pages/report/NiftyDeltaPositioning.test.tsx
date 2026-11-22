@@ -84,7 +84,6 @@ describe("fmtCr", () => {
 
   test("rounds to 0 decimals", () => {
     expect(fmtCr(1234.6)).toBe("+1,235");
-    // rounds to zero -> unsigned zero, never "-0"
     expect(fmtCr(-0.4)).toBe("0");
   });
 
@@ -128,11 +127,8 @@ describe("verdict + signed tone + split helpers", () => {
     expect(positioningSplitLabel(53185, 10814, 83.1)).toBe(
       "53,185 Cr · bullish 83.1%",
     );
-    // share < 50 is not the dominant share: derive it from the two sides.
     expect(positioningSplitLabel(10000, 40000, 20)).toBe("40,000 Cr · bearish 80%");
-    // share absent -> the two sides still derive the dominant share
     expect(positioningSplitLabel(10000, 40000, null)).toBe("40,000 Cr · bearish 80%");
-    // everything absent -> single dash
     expect(positioningSplitLabel(null, null, null)).toBe(POSITIONING_DASH);
   });
 
@@ -315,7 +311,6 @@ describe("delta profile", () => {
   });
 
   test("accumulates across the whole chain before windowing", () => {
-    // 20,000 sits outside the window and must still feed the running total.
     const rows = [
       strikeRow(20000, 1000),
       strikeRow(23000, -500),
@@ -326,7 +321,6 @@ describe("delta profile", () => {
     const points = buildDeltaProfile(rows, 23_100);
     expect(points.map((p) => p.strike)).toEqual([23000, 23100, 23300]);
     expect(points.map((p) => p.cumulative)).toEqual([500, 200, -200]);
-    // The zero crossing lands between 23,100 and 23,300 — the pivot.
     expect(points[1].cumulative).toBeGreaterThan(0);
     expect(points[2].cumulative).toBeLessThan(0);
   });
@@ -356,8 +350,6 @@ describe("delta profile", () => {
   });
 
   test("a flip outside the band omits the flip marker", () => {
-    // A whole-chain pivot can sit far outside the ±750 window; pinning the
-    // marker to the nearest edge strike would claim a level that is not there.
     r(() => (
       <NiftyDeltaPositioning
         positioning={fullBlock({ deltaFlip: 20000 })}
@@ -370,7 +362,6 @@ describe("delta profile", () => {
     expect(
       screen.queryByTestId("nifty-positioning-profile-marker-flip"),
     ).not.toBeInTheDocument();
-    // The headline chip still reports the true pivot.
     expect(screen.getByTestId("nifty-positioning-flip")).toHaveTextContent(
       "20,000",
     );

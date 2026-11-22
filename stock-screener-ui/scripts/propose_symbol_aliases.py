@@ -40,9 +40,9 @@ except Exception:  # pragma: no cover - fallback when API deps missing
 # Hand rename watchlist: stale/news name -> current NSE_EQ symbol.
 RENAMES = {
     "ZOMATO": "ETERNAL",
-    "TATAMOTORS": None,  # demerger: TMPV + TMCV, structurally ambiguous
+    "TATAMOTORS": None,
     "TATAMOTOR": None,
-    "MM": None,  # ET short code: M&M vs M&MFIN unclear
+    "MM": None,
 }
 
 MC_CODE = re.compile(r"^[A-Z]{1,4}\d{2}[A-Z0-9]*$")

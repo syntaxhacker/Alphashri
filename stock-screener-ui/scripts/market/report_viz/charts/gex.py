@@ -96,7 +96,6 @@ def _gex_span(*series: Iterable[Optional[float]]) -> list[float]:
 
 
 def _scale_mode(*series: Iterable[Optional[float]]) -> str:
-    """Symlog only when one print dwarfs the session, as gamma does at the pin."""
     magnitudes = sorted(abs(value) for one in series for value in _finite(one) if value)
     if not magnitudes:
         return "linear"
@@ -142,7 +141,6 @@ def gamma_flip_gex(
     height: int = 360,
     css_class: str = "",
 ) -> str:
-    """Spot and flip on one price scale, both GEX definitions underneath."""
     t = [str(label) for label in data.get("t") or ()]
     spot = _series(data.get("spot"), field="spot", digits=spec.price_decimals)
     flip = _series(data.get("flip"), field="flip", digits=spec.price_decimals)
@@ -265,7 +263,6 @@ def gex_profiles(
     height: int = 430,
     css_class: str = "",
 ) -> str:
-    """Dealer gamma at several clocks, one shared GEX x-scale."""
     raw_profiles = data.get("profiles") or ()
     if not raw_profiles:
         raise ValueError("gex_profiles needs at least one profile")
@@ -412,7 +409,6 @@ def _snapshot(raw: Mapping[str, Any], index: int, spec: InstrumentSpec, default_
 
 
 def _align_snapshots(snapshots: list[dict[str, Any]]) -> None:
-    """Union the strike ladders; a strike a snapshot lacks is ``None`` there."""
     union = sorted({strike for snapshot in snapshots for strike in snapshot["strikes"] if strike is not None})
     for snapshot in snapshots:
         per = {strike: value for strike, value in zip(snapshot["strikes"], snapshot["net_gex"]) if strike is not None}
@@ -431,7 +427,6 @@ def gex_by_strike(
     height: int = 320,
     css_class: str = "",
 ) -> str:
-    """GEX by strike for one snapshot or several, bars drawn from zero."""
     if isinstance(data, Mapping):
         raw_snapshots = list(data.get("snapshots") or ())
         if not raw_snapshots:

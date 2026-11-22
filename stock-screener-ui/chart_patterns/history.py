@@ -22,7 +22,6 @@ def _span(hit: dict) -> tuple[str, str]:
 
 
 def overlaps(a: dict, b: dict) -> bool:
-    """True when the two hits' date spans intersect (inclusive)."""
     a_start, a_end = _span(a)
     b_start, b_end = _span(b)
     if not a_start or not a_end or not b_start or not b_end:
@@ -35,7 +34,6 @@ def select_last_n(
     n: int = 3,
     non_overlapping: bool = True,
 ) -> list[dict]:
-    """Return at most ``n`` hits, newest first, optionally non-overlapping."""
     if n <= 0:
         return []
     ordered = sorted(

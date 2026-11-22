@@ -1,13 +1,4 @@
 #!/usr/bin/env python
-"""Build the self-contained double-VWAP trade review page and trades.json.
-
-Every price shown comes from the engine's own signal builders / honest simulator.
-The exit fill is reconstructed from the engine's net points and cross-checked
-against its bar-by-bar fill logic; a trade that fails the check is rendered n/a.
-
-Usage:
-  .venv/bin/python scripts/research/double_vwap/agents/plot_trades.py
-"""
 from __future__ import annotations
 
 import json
@@ -16,7 +7,7 @@ import sys
 from datetime import date as _date
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DV = os.path.dirname(HERE)                       # scripts/research/double_vwap
+DV = os.path.dirname(HERE)
 ROOT = os.path.abspath(os.path.join(DV, "..", "..", ".."))
 sys.path.insert(0, DV)
 
@@ -24,7 +15,7 @@ import strategy as S  # noqa: E402
 
 OUTDIR = os.path.join(ROOT, "reports", "DOUBLE_VWAP", "trades")
 COST = 1.1
-RTH_OPEN, RTH_CLOSE = S.RTH_OPEN, S.RTH_CLOSE   # 09:30 / 16:00 ET
+RTH_OPEN, RTH_CLOSE = S.RTH_OPEN, S.RTH_CLOSE
 
 CFG = {
     "A": S.base_cfg(range_src="or30", legs="A", stop_src="sigext",
@@ -40,7 +31,6 @@ REASON_SHORT = {"stop": "SL", "stop_gap": "GAP", "target": "TP", "time": "EOD"}
 
 
 def f(x, nd=4):
-    """Native float, rounded for transport (keeps sub-cent precision)."""
     if x is None:
         return None
     v = float(x)
@@ -53,7 +43,6 @@ def hhmm(minute):
 
 
 def bar_exit(d, side, stop, target, entry_idx):
-    """Mirror of strategy.simulate's fill loop, used only to validate the formula."""
     for j in range(entry_idx, len(d.c)):
         if side > 0 and d.o[j] <= stop:
             return float(d.o[j])
@@ -81,7 +70,6 @@ def bar_exit(d, side, stop, target, entry_idx):
 
 
 def pairs_for(days, cfg):
-    """Replicate strategy.collect while keeping (signal, trade) together."""
     out = []
     for d in days:
         brk = S.first_break(d, cfg["range_src"], cfg["eps"])
@@ -435,7 +423,6 @@ def main():
     day_by_date = {d.date: d for d in days}
     n_sessions_total = len(days)
 
-    # --- build trade records per config -----------------------------------
     records = {}
     stats = {}
     collected = {}
@@ -449,7 +436,6 @@ def main():
     all_trades_flat = [tr for leg in CFG for tr in collected[leg]]
     sessions = sorted({t["date"] for t in all_trades_flat})
 
-    # --- per-session chart payload ----------------------------------------
     payload_sessions = []
     n_na = 0
     for date_key in sessions:
@@ -474,7 +460,6 @@ def main():
         payload_sessions.append({
             "date": date_key.isoformat() if isinstance(date_key, _date) else str(date_key),
             "x": x,
-            # ECharts candlestick expects [open, close, low, high]
             "candles": [[f(o), f(c), f(l), f(h)] for o, h, l, c in zip(wo, wh, wl, wc)],
             "ny": ny,
             "on_vwap": f(d.on_vwap),
@@ -500,7 +485,6 @@ def main():
     }
     payload = {"summary": summary, "sessions": payload_sessions}
 
-    # --- summary cards ----------------------------------------------------
     a, b = stats["A"], stats["B"]
     cards = (
         f'      <div class="card"><div class="k">Sessions w/ trades</div>'
@@ -516,7 +500,6 @@ def main():
             f'<div class="d">n {st["n"]} · win {st["win"]:.1f}% · PF {st["PF"]:.2f}</div></div>\n'
         )
 
-    # --- footer -----------------------------------------------------------
     if n_na:
         footer = (
             "<b>Exit reconstruction:</b> " + str(n_na) +

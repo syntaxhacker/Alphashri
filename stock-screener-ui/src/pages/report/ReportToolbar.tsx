@@ -16,8 +16,6 @@ import {
 } from "./reportTokens";
 import { useNiftyReport } from "./ReportContext";
 
-// The SIM desk owns the largest non-chart bundle (builder, payoff, runs). It
-// streams in on its own so the toolbar chrome paints without it.
 const SimDesk = lazy(() =>
   import("./sim/SimDesk").then((m) => ({ default: m.SimDesk })),
 );
@@ -29,11 +27,6 @@ const SIM_BUTTON_FALLBACK_STYLE: JSX.CSSProperties = {
   "border-radius": "2px",
 };
 
-// One control answers "which underlying". The old symbol Select and the
-// NIFTY|SENSEX segmented control drove different state (`symbol` vs `index`),
-// so two highlights could disagree about the page's subject. `index` had no
-// consumer outside this toolbar; keep the faster two-item-style control and
-// let it drive the symbol that every other panel actually reads.
 const INDEX_DATA: { value: string; label: string }[] = [
   { value: "NIFTY", label: "NIFTY" },
   { value: "SENSEX", label: "SENSEX" },

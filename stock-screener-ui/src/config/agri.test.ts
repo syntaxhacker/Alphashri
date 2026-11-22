@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   AGRICULTURE_UNIT,
   AGRI_CHART_MODES,
+  AGRI_CHART_MODE_KEYS,
+  AGRI_DEFAULT_CHART_MODE,
   AGRI_COMMODITIES,
   AGRI_COMMODITY_UNIT,
   AGRI_GROUPS,
@@ -34,17 +36,33 @@ describe("agri registry", () => {
     expect(AGRICULTURE_UNIT).toBe("₹/quintal");
   });
 
-  it("keeps range ids and chart mode ids stable", () => {
+  it("keeps range ids stable", () => {
     expect(AGRI_RANGE_PRESETS.map((preset) => preset.key)).toEqual(["1m", "3m", "6m", "1y", "max"]);
+    const rangeKeys = AGRI_RANGE_PRESETS.map((preset) => preset.key);
+    expect(new Set(rangeKeys).size).toBe(rangeKeys.length);
     for (const preset of AGRI_RANGE_PRESETS) {
       expect(preset.label).toBeTruthy();
       expect(preset.description).toBeTruthy();
     }
     expect(AGRI_RANGE_PRESETS.find((preset) => preset.key === "max")?.days).toBeNull();
+  });
 
-    expect(AGRI_CHART_MODES.map((mode) => mode.key)).toContain("band");
-    expect(AGRI_CHART_MODES.map((mode) => mode.key)).toContain("arrivals");
-    expect(AGRI_CHART_MODES.map((mode) => mode.key)).toContain("compare");
+  it("registers exactly the seven EDA chart modes with unique ids", () => {
+    const keys = AGRI_CHART_MODES.map((mode) => mode.key);
+    expect(keys).toEqual([
+      "band",
+      "compare",
+      "distribution",
+      "supplyDemand",
+      "heatmap",
+      "rolling",
+      "seasonality",
+    ]);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(keys).not.toContain("ohlc");
+    expect(keys).not.toContain("arrivals");
+    expect(AGRI_CHART_MODE_KEYS).toEqual(keys);
+    expect(AGRI_DEFAULT_CHART_MODE).toBe("band");
     for (const mode of AGRI_CHART_MODES) {
       expect(mode.label).toBeTruthy();
       expect(mode.description).toBeTruthy();

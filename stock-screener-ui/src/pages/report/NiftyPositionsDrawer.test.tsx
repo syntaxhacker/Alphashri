@@ -101,7 +101,6 @@ describe("NiftyPositionsDrawer — toolbar button", () => {
 
     const button = screen.getByTestId("nifty-positions-button");
     expect(button).toHaveTextContent("POS 2");
-    // 500 + 1,000 = 1,500 → compact "+₹1.5K"
     expect(button).toHaveTextContent("+₹1.5K");
     expect(screen.getByTestId("nifty-positions-dot")).toBeInTheDocument();
   });
@@ -134,7 +133,6 @@ describe("NiftyPositionsDrawer — drawer", () => {
     );
 
     const table = within(drawer).getByTestId("nifty-positions-table");
-    // Long call leg — symbol, opt, strike, side, qty, entry, mark, P&L, stop, target.
     expect(table).toHaveTextContent("NIFTY25700CE");
     expect(table).toHaveTextContent("CE");
     expect(table).toHaveTextContent("25,700");
@@ -145,7 +143,6 @@ describe("NiftyPositionsDrawer — drawer", () => {
     expect(table).toHaveTextContent("+₹500.00");
     expect(table).toHaveTextContent("₹110.00");
     expect(table).toHaveTextContent("₹150.00");
-    // Short put leg.
     expect(table).toHaveTextContent("NIFTY25600PE");
     expect(table).toHaveTextContent("SELL");
     expect(table).toHaveTextContent("+₹1,000.00");
@@ -156,13 +153,9 @@ describe("NiftyPositionsDrawer — drawer", () => {
     fireEvent.click(screen.getByTestId("nifty-positions-button"));
 
     const drawer = await screen.findByTestId("nifty-positions-drawer");
-    // Δ = 50×0.52 + (−25)×(−0.48) = 38
     expect(within(drawer).getByTestId("nifty-book-delta")).toHaveTextContent("+38.0");
-    // Γ = 50×0.0018 + (−25)×0.0016 = +0.05
     expect(within(drawer).getByTestId("nifty-book-gamma")).toHaveTextContent("+0.05");
-    // Θ = 50×(−12.5) + (−25)×(−11) = −350
     expect(within(drawer).getByTestId("nifty-book-theta")).toHaveTextContent("-350.00");
-    // V = 50×8.2 + (−25)×7.5 = +222.5
     expect(within(drawer).getByTestId("nifty-book-vega")).toHaveTextContent("+222.50");
   });
 
@@ -186,7 +179,6 @@ describe("NiftyPositionsDrawer — drawer", () => {
     expect(within(drawer).getByTestId("nifty-positions-empty")).toHaveTextContent(
       "No open paper positions",
     );
-    // No table and no fake greeks when there are no legs.
     expect(within(drawer).queryByTestId("nifty-positions-table")).not.toBeInTheDocument();
     expect(within(drawer).getByTestId("nifty-book-delta")).toHaveTextContent("—");
   });
@@ -203,7 +195,6 @@ describe("NiftyPositionsDrawer — drawer", () => {
     vi.advanceTimersByTime(POSITIONS_REFRESH_MS_FOR_TEST);
     expect(onRefresh).toHaveBeenCalledTimes(2);
 
-    // Closing the drawer stops the poll.
     fireEvent.click(screen.getByTestId("panel-modal-close"));
     vi.advanceTimersByTime(POSITIONS_REFRESH_MS_FOR_TEST * 2);
     expect(onRefresh).toHaveBeenCalledTimes(2);
@@ -233,7 +224,6 @@ describe("niftyPositions helpers", () => {
     const book = sumBookGreeks(
       [
         position(),
-        // Equity leg carries no chain row → ignored.
         position({ id: "eq", symbol: "RELIANCE", pnl: 999 }),
       ],
       [CHAIN[0]],

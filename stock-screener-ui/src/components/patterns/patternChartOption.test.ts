@@ -130,8 +130,6 @@ describe("buildPatternChartOption sibling overlays", () => {
     });
     const series = seriesOf<SeriesLike>(option);
     const names = series.map((s) => s.name);
-    // Selected pattern is named (not "Upper/Lower boundary") and drawn solid;
-    // sibling is drawn under its own name.
     expect(names).toContain("Falling Wedge");
     expect(names).toContain("Rising Wedge");
     expect(names).not.toContain("Upper boundary");
@@ -192,8 +190,6 @@ describe("buildPatternChartOption instance identity", () => {
       compact: false,
     });
     const names = seriesOf<SeriesLike>(option).map((s) => s.name);
-    // Selected instance (exact start_date match) is skipped as a sibling, the
-    // other instance stays — disambiguated with a suffix.
     expect(names).toContain("Rising Wedge");
     expect(names).toContain("Rising Wedge (2)");
   });
@@ -222,7 +218,6 @@ describe("buildPatternChartOption instance identity", () => {
     });
     const series = seriesOf<SeriesLike>(option);
     const uniqueNames = new Set(series.map((s) => s.name));
-    // No two series share a legend name.
     expect(uniqueNames.size).toBe(series.length);
     const legend = option.legend as { data?: string[] } | undefined;
     expect(new Set(legend?.data).size).toBe(legend?.data?.length);
@@ -319,7 +314,6 @@ describe("buildPatternChartOption performance", () => {
       overlays,
       compact: false,
     };
-    // Warm up, then take the median of 20 single builds.
     for (let i = 0; i < 5; i++) buildPatternChartOption(input);
     const samples: number[] = [];
     for (let i = 0; i < 20; i++) {

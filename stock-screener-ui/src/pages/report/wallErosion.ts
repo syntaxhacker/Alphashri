@@ -16,7 +16,6 @@ import {
 
 const DASH = "—";
 
-/** Signed distance from spot for a row; falls back to strike − spot. */
 function absDistance(row: WallsRow, spot: number): number | null {
   const raw = row.distance_pts;
   if (raw != null && Number.isFinite(raw)) return Math.abs(raw);
@@ -41,18 +40,11 @@ function nearestByAbsDistance(rows: WallsRow[], spot: number): WallsRow | null {
   return best;
 }
 
-/** Raw finite fuel, 0 when absent — comparisons only, callers clamp for display. */
 function fuelOfRow(row: WallsRow): number {
   const fuel = row.fuel_score;
   return typeof fuel === "number" && Number.isFinite(fuel) ? fuel : 0;
 }
 
-/**
- * The live wall on this side: a BREACHED row always outranks an ERODING one
- * (highest fuel wins within each class); ERODING needs fuel >= 60 so a slow
- * bleed doesn't hijack the board. Deliberately not filtered by side of spot —
- * a breached call can sit at/below spot.
- */
 function activeWall(rows: WallsRow[] | undefined): WallsRow | null {
   if (!Array.isArray(rows)) return null;
   let breached: WallsRow | null = null;
@@ -115,7 +107,6 @@ export function pickNearestWalls(walls: WallsPayload | null): {
   };
 }
 
-/** Finite values only, for the sparkline; non-finite entries are dropped. */
 export const sparkPoints = (values: number[]): number[] => {
   if (!Array.isArray(values)) return [];
   return values.filter(
@@ -125,11 +116,6 @@ export const sparkPoints = (values: number[]): number[] => {
 
 export type FuelTone = "positive" | "warning" | "negative" | "muted";
 
-/**
- * Fuel is an urgency meter, not P&L — high scores mean "about to break".
- * ≥70 reads as pre-blast (warning), 45-69 as loaded (positive), anything
- * lower muted.
- */
 export const fuelTone = (points: number): FuelTone => {
   if (!Number.isFinite(points)) return "muted";
   if (points >= 70) return "warning";
@@ -137,7 +123,6 @@ export const fuelTone = (points: number): FuelTone => {
   return "muted";
 };
 
-/** Short-gamma regime + an eroding/breached wall + high fuel = break imminent. */
 export const isPreBlast = (
   row: WallsRow | null | undefined,
   regime: "LONG" | "SHORT" | null | undefined,
@@ -147,7 +132,6 @@ export const isPreBlast = (
   const fuel = row.fuel_score;
   if (fuel == null || !Number.isFinite(fuel) || fuel < 60) return false;
   const vol = row.vol_mult;
-  // vol_mult absent = no volume confirmation yet, but don't block on it.
   if (vol != null && Number.isFinite(vol) && vol < 1.2) return false;
   return true;
 };
@@ -177,7 +161,6 @@ const fuelScoreOf = (row: WallsRow | null): number => {
   return Math.min(100, Math.max(0, Math.round(raw)));
 };
 
-/** Everything a wall-erosion cell needs, dashed out for a null row. */
 export function wallErosionView(
   row: WallsRow | null,
   side: "CALL" | "PUT",

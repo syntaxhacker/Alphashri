@@ -1,9 +1,3 @@
-/**
- * Chart Preview API
- *
- * Fetches lightweight chart data for hover preview and expanded charts.
- */
-
 import { fetchWithAuth } from "../state/auth";
 import type { ORBZone } from "../types/backtest";
 import { API_ENDPOINTS } from "./config";
@@ -76,15 +70,6 @@ export function previewDaysForDate(date: string, today: Date = new Date()): numb
   return sessions;
 }
 
-/**
- * Fetch chart preview data for a symbol.
- *
- * @param symbol - Stock symbol (e.g., "TATAMOTORS")
- * @param tf - Timeframe in minutes (default 15)
- * @param days - Days of history (default 1 for hover preview)
- * @param orMinutes - Opening range period in minutes (default 45)
- * @returns Chart preview data with candles, ORB zones, and pivot levels
- */
 export async function fetchChartPreview(
   symbol: string,
   tf: number = 15,
@@ -97,7 +82,6 @@ export async function fetchChartPreview(
 
   const cacheKey = `${symbol}:${tf}:${days}:${orMinutes}`;
 
-  // Check cache
   const cached = previewCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
     return cached.data;
@@ -118,7 +102,6 @@ export async function fetchChartPreview(
       return data;
     }
 
-    // Cache the result
     previewCache.set(cacheKey, { data, timestamp: Date.now() });
 
     return data;
@@ -128,12 +111,8 @@ export async function fetchChartPreview(
   }
 }
 
-/**
- * Clear the preview cache for a specific symbol or all.
- */
 export function clearPreviewCache(symbol?: string): void {
   if (symbol) {
-    // Clear all entries for this symbol
     for (const key of previewCache.keys()) {
       if (key.startsWith(symbol + ":")) {
         previewCache.delete(key);

@@ -26,13 +26,6 @@ BLUE, YEL, PUR, TEAL = "#58A6FF", "#D29922", "#A371F7", "#39D2C0"
 
 
 def build(ticker="SNDK", min_move=1.0, max_move=5.0, date=None):
-    """Build the playbook chart for one session.
-
-    date: None (latest session) or a YYYY-MM-DD string / datetime.date.
-    Side/stop follow generate_gallery.py: RED pre -> LONG (stop pre_lo),
-    GREEN pre -> SHORT (stop pre_hi). prev_close is the daily close strictly
-    before D (not iloc[-2], which breaks for back-dated targets).
-    """
     FIG.mkdir(parents=True, exist_ok=True)
     plt.rcParams.update({"figure.facecolor": BG, "axes.facecolor": BG, "text.color": FG,
                          "axes.labelcolor": FG, "xtick.color": DIM, "ytick.color": DIM,
@@ -182,7 +175,7 @@ if __name__ == "__main__":
     _args = [a for a in _sys.argv[1:] if not a.startswith("-")]
     _ticker = _args[0] if _args and not _args[0][:4].isdigit() else "SNDK"
     _dates = [a for a in _args if a[:4].isdigit()]
-    if _ticker[:4].isdigit():  # first arg was a date, not a ticker
+    if _ticker[:4].isdigit():
         _dates = _args
         _ticker = "SNDK"
     if not _dates:

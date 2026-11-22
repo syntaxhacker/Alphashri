@@ -72,7 +72,6 @@ export type {
 } from "./deskPlanTypes";
 export { fmtDeskNum } from "./deskPlanLevels";
 
-/** Reward:risk as one decimal; em dash when the plan has no measurable R:R. */
 export function fmtDeskRr(rr: number | null | undefined): string {
   if (rr === null || rr === undefined || !Number.isFinite(rr) || rr <= 0) return "—";
   return rr.toFixed(1);
@@ -103,16 +102,10 @@ export function deskBias(report: NiftyReport): DeskBias {
   return "neutral";
 }
 
-/** Invalidation distance: 8 index points or 0.08% of the level, whichever is wider. */
 function stopBuffer(level: number): number {
   return Math.max(MIN_STOP_PTS, level * STOP_BUFFER_PCT);
 }
 
-/**
- * Pick the nearest structural level in the trade's direction that actually
- * pays `MIN_RR`. A level 10 points away against an 18-point stop is not a
- * target — skip it. When nothing pays, project `PROJECT_R` multiples of risk.
- */
 function pickTarget(
   trigger: number,
   stop: number,
@@ -152,7 +145,6 @@ function rewardRisk(
   return Math.round((reward / risk) * 100) / 100;
 }
 
-/** Structural target levels for one direction, in the order they are considered. */
 function sideCandidates(report: NiftyReport, levels: Levels, direction: "up" | "down"): number[] {
   const pivots = report.pivots ?? null;
   const gexLevels = report.gex?.levels;
@@ -190,9 +182,6 @@ function emptyEntry(trigger: string): DeskEntry {
   };
 }
 
-/** Primary: a 1-min close through the break level in the trade's direction.
- *  Bear breaks use the lower of support/session low; bull breaks the first
- *  resistance above spot, never a level below it. */
 function breakEntry(report: NiftyReport, levels: Levels, direction: "up" | "down"): DeskEntry {
   const trigger = direction === "down" ? levels.downsideBreak : levels.resistance;
   if (trigger === null) return emptyEntry("wait for pivots/GEX levels to print");

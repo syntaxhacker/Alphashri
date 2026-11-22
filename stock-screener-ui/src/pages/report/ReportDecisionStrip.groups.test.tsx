@@ -110,7 +110,6 @@ const CELL_ROW_IDS = [
   "nifty-stat-group-flow-cells",
 ];
 
-/** Cell wrappers, in visual order, with the group they belong to. */
 function groupsInDom() {
   return GROUP_IDS.map((id, index) => {
     const group = screen.getByTestId(id);

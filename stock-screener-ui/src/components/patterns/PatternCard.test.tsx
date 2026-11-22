@@ -156,16 +156,13 @@ describe("PatternCard", () => {
     expect(breakout).toHaveTextContent("↑ ₹130.00");
     expect(breakout).toHaveTextContent("↓ ₹100.00");
 
-    // Target/Stop/R:R are omitted for consolidation.
     expect(screen.queryByText("Target")).toBeNull();
     expect(screen.queryByText("Stop")).toBeNull();
     expect(screen.queryByText("R:R")).toBeNull();
-    // Base line is retained.
     expect(screen.getByText("Base 120d · 13%")).toBeInTheDocument();
   });
 
   test("base_days alone triggers the consolidation range layout", () => {
-    // A non-consolidation id that still carries a base is treated as a range.
     render(() => <PatternCard hit={{ ...HIT, base_days: 60 }} />);
     const range = screen.getByTestId("patterns-card-range-IRCON");
     expect(range).toHaveTextContent("₹102.50 – ₹112.60");
@@ -190,11 +187,9 @@ describe("PatternCard", () => {
   });
 
   describe("status pill (derived display status)", () => {
-    // CONSOLIDATION: raw status "forming", box ₹100.00 – ₹130.00 (hi = breakout trigger).
     test("consolidation below the trigger but inside the box shows ARMED", () => {
       render(() => <PatternCard hit={{ ...CONSOLIDATION, last_close: 120 }} />);
       expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("ARMED");
-      // (120 - 130) / 130 = -7.7% → distance line is shown.
       expect(screen.getByTestId("patterns-card-to-trigger-CONS")).toHaveTextContent("−7.7% to trigger");
     });
 
@@ -205,25 +200,21 @@ describe("PatternCard", () => {
 
     test("consolidation closed above the trigger within 5% shows BREAKOUT", () => {
       render(() => <PatternCard hit={{ ...CONSOLIDATION, last_close: 133 }} />);
-      // (133 - 130) / 130 ≈ 2.3%
       expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("BREAKOUT");
     });
 
     test("consolidation exactly 5% above the trigger shows BREAKOUT", () => {
       render(() => <PatternCard hit={{ ...CONSOLIDATION, last_close: 136.5 }} />);
-      // (136.5 - 130) / 130 = 5%
       expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("BREAKOUT");
     });
 
     test("consolidation more than 5% above the trigger shows EXTENDED", () => {
       render(() => <PatternCard hit={{ ...CONSOLIDATION, last_close: 140 }} />);
-      // (140 - 130) / 130 ≈ 7.7%
       expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("EXTENDED");
     });
 
     test("consolidation below the box shows INVALID", () => {
       render(() => <PatternCard hit={{ ...CONSOLIDATION, last_close: 90 }} />);
-      // 90 < lower 100
       expect(screen.getByTestId("patterns-status-forming")).toHaveTextContent("INVALID");
     });
 
@@ -238,8 +229,6 @@ describe("PatternCard", () => {
     });
 
     test("non-base patterns keep the raw DB status even with a live price", () => {
-      // Not a consolidation and no base_days → bounds are null → raw mapping,
-      // never ARMED, even though a price exists.
       render(() => <PatternCard hit={{ ...HIT, status: "marginal", last_close: 50 }} />);
       expect(screen.getByTestId("patterns-status-marginal")).toHaveTextContent("MARGINAL");
     });
@@ -390,7 +379,6 @@ describe("PatternCard missing coverage", () => {
 describe("PatternCard single-border shell", () => {
   afterEach(() => cleanup());
 
-  /** Class tokens of the card and every descendant, so inner rules cannot hide in a nested Box. */
   function allTokens(card: HTMLElement): string[] {
     return [card, ...card.querySelectorAll("*")]
       .flatMap((el) => (el.getAttribute("class") ?? "").split(/\s+/))
@@ -401,7 +389,6 @@ describe("PatternCard single-border shell", () => {
     const { container } = render(() => <PatternCard hit={HIT} onExpand={vi.fn()} />);
     const card = container.querySelector<HTMLElement>('[data-testid="patterns-card-IRCON-falling_wedge"]')!;
     expect(card.className).toMatch(/\bborder-fin-(border|primary|negative)\b/);
-    // No section rules and no dividers anywhere inside the tile.
     expect(allTokens(card).filter((t) => /^border-[tlrbx]-/.test(t) || t.startsWith("divide-"))).toEqual([]);
   });
 

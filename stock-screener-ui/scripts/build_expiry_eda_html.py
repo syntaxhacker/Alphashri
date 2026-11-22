@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""Generate a self-contained HTML EDA report for Nifty weekly expiry 2026-10-06.
-
-Reads experiments/data/expiry_snapshots/2026-10-06/ and writes
-reports/EXPIRY_2026-10-06_EDA.html with inline SVG charts (no external deps).
-"""
 from __future__ import annotations
 
 import json
@@ -36,7 +31,6 @@ def load_bundle():
 
 
 def svg_line(series_list, w=860, h=240, title="", bands=(), notes=(), fmt="{:.0f}"):
-    """series_list: [(label, [(x_label, value)], color)]. x positions evenly spaced."""
     import html as H
 
     pad_l, pad_r, pad_t, pad_b = 56, 12, 14, 26
@@ -83,7 +77,6 @@ def svg_line(series_list, w=860, h=240, title="", bands=(), notes=(), fmt="{:.0f
 
 
 def svg_bars(groups, w=860, h=260, title="", fmt="{:,.1f}M"):
-    """groups: [(label, [(series_label, value)], )]. Grouped bars."""
     import html as H
 
     colors = ["#38BDF8", "#F59E0B", "#16A34A", "#DC2626"]
@@ -141,7 +134,6 @@ def echarts_section(bundle, spot, m1, idx, vwap, s26, s27, ce_groups, pe_groups)
             "label": {"color": ZONE_COLORS[i % len(ZONE_COLORS)], "fontSize": 10},
             "xAxis": t0,
         })
-        # end bound needs explicit second dict in ECharts markArea pairs
         mark_areas[-1] = [{"name": f"{z}: {desc}",
                            "itemStyle": {"color": ZONE_COLORS[i % len(ZONE_COLORS)], "opacity": 0.08},
                            "label": {"color": ZONE_COLORS[i % len(ZONE_COLORS)], "fontSize": 10},
@@ -198,7 +190,6 @@ def echarts_section(bundle, spot, m1, idx, vwap, s26, s27, ce_groups, pe_groups)
             ],
         }
 
-    # per-zone stats from 5s closes
     ce = bundle["NSE:NIFTY26O0622700CE"].set_index("dt").between_time("09:15", "15:30")
     pe = bundle["NSE:NIFTY26O0622700PE"].set_index("dt").between_time("09:15", "15:30")
     zrows = []
@@ -268,7 +259,6 @@ def main():
         bands=[(fr("15:15"), fr("15:30"), "#F59E0B", "feed freeze 15:15-15:29")],
     )
 
-    # straddle curves: 22600 fixed + 22700 pinned, 15-min samples
     ce26 = bundle["NSE:NIFTY26O0622600CE"].set_index("dt").between_time("09:15", "15:30")
     pe26 = bundle["NSE:NIFTY26O0622600PE"].set_index("dt").between_time("09:15", "15:30")
     ce27 = bundle["NSE:NIFTY26O0622700CE"].set_index("dt").between_time("09:15", "15:30")
@@ -288,7 +278,6 @@ def main():
         title="Straddle decay (₹, 15-min)", fmt="₹{:.0f}",
     )
 
-    # OI walls first vs last snapshot
     files = sorted(SNAP.glob("chain_*.json"))
     first = json.loads(files[0].read_text())["response"]["data"]["optionsChain"]
     last = json.loads(files[-1].read_text())["response"]["data"]["optionsChain"]

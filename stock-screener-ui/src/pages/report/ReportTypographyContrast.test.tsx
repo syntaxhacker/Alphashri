@@ -25,7 +25,6 @@ const FLOOR = 11;
 const AA_TEXT = 4.5;
 const AA_GRAPHIC = 3;
 
-/** The Index Report typography lane's owned files. */
 const TYPOGRAPHY_FILES = [
   "NiftyOiHeatmap.tsx",
   "NiftyVerdictStrip.tsx",
@@ -62,7 +61,6 @@ function literalSizes(): Array<{ file: string; line: number; px: number }> {
   });
 }
 
-/** Tailwind `fin-*` utility → the palette token behind the CSS variable. */
 const FIN_TOKEN: Record<string, string> = {
   "fin-bg": BG,
   "fin-surface": SURFACE,

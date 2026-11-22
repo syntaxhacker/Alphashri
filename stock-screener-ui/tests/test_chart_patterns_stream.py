@@ -139,9 +139,6 @@ def _no_heartbeat(events: list) -> list:
     return [(name, data) for name, data in events if name != "heartbeat"]
 
 
-# ---------------------------------------------------------------------------
-# /results/stream
-# ---------------------------------------------------------------------------
 
 
 def test_results_stream_meta_items_done_match_batch(cp_client, monkeypatch):
@@ -267,9 +264,6 @@ def test_results_stream_store_failure_emits_error(cp_client, monkeypatch):
         cp_client.get("/api/chart-patterns/results", params={"job_id": "cpj_any"})
 
 
-# ---------------------------------------------------------------------------
-# /watch/stream
-# ---------------------------------------------------------------------------
 
 
 def test_watch_stream_live_rows(cp_client, monkeypatch):
@@ -427,9 +421,6 @@ def test_watch_stream_empty_arm_meta_then_done(cp_client, monkeypatch):
     assert events[-1] == ("done", {})
 
 
-# ---------------------------------------------------------------------------
-# GZip exclusion (streams must never buffer behind compression)
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture

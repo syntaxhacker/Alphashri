@@ -1,6 +1,4 @@
 /**
- * The one copy + one action for a missing/expired broker token.
- *
  * Every options surface renders this component when — and only when — the typed
  * API error says `kind: "auth" | "unauthorized"`. Nothing here reads a token, a
  * status boolean or an error message, so a panel can never claim "connected"

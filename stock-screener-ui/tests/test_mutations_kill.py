@@ -125,7 +125,6 @@ class TestCostsMinVsMaxKills:
 # ── is_test filter (behavioral) ────────────────────────────────────────
 class TestIsTestFilterKills:
     def test_is_test_filter_excluded_in_query(self):
-        # Verify history filter code contains is_test exclusion
         from pathlib import Path
         text = (Path(__file__).parent.parent / "api" / "paper" / "history.py").read_text()
         assert "is_test" in text

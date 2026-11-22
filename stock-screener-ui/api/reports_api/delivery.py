@@ -146,11 +146,6 @@ def _resolve_symbols(
     return _universe_symbols(universe, cap)
 
 
-# --------------------------------------------------------------------------
-# Delivery % (NSE bhavcopy)
-# --------------------------------------------------------------------------
-
-
 def _delivery_disk_path(day: str) -> Path:
     return DELIVERY_DIR / f"{day}.json"
 
@@ -298,10 +293,6 @@ def serve_delivery(day: str, universe: str, limit: int) -> dict:
             return {"date": day, "universe": uid, "as_of": "", "cached": False,
                     "source": "nse-bhavcopy", "rows": []}
 
-
-# --------------------------------------------------------------------------
-# Results/events calendar (yfinance)
-# --------------------------------------------------------------------------
 
 _EVENT_KINDS = ("results", "dividend", "split")
 

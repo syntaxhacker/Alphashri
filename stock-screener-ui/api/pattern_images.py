@@ -42,7 +42,7 @@ CONTENT_TYPE_EXT = {
     "image/webp": "webp",
 }
 
-MAX_IMAGE_BYTES = 2 * 1024 * 1024  # 2 MB
+MAX_IMAGE_BYTES = 2 * 1024 * 1024
 
 
 def _require_admin(user: User = Depends(get_current_user)) -> User:

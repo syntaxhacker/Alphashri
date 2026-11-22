@@ -25,9 +25,6 @@ WINDOW = 300
 BASE_EPOCH = 1_800_000_000.0
 
 
-# ---------------------------------------------------------------------------
-# Helpers — build raw strikes lists + state dicts without any network.
-# ---------------------------------------------------------------------------
 
 def _strikes(strike=100.0, **kw):
     """One raw strike leg with explicit per-side values (defaults 0)."""
@@ -61,9 +58,6 @@ def _reset_prev_state():
     scan_data._PREV_STATE = saved
 
 
-# ---------------------------------------------------------------------------
-# (a) Δvolume × LTP math + descending top-N ranking
-# ---------------------------------------------------------------------------
 
 def test_tape_premium_math_and_descending_rank():
     prev = _state(BASE_EPOCH, [
@@ -121,9 +115,6 @@ def test_tape_caps_at_top_12_by_premium():
     assert tape["rows"][-1]["ticker"] == "T3"
 
 
-# ---------------------------------------------------------------------------
-# (b) Δvolume <= 0 is skipped
-# ---------------------------------------------------------------------------
 
 def test_flat_or_negative_volume_delta_skipped():
     prev = _state(BASE_EPOCH, [
@@ -140,9 +131,6 @@ def test_flat_or_negative_volume_delta_skipped():
     assert opps["rows"] == []
 
 
-# ---------------------------------------------------------------------------
-# (c) first scan / missing baseline -> warming_up, empty rows
-# ---------------------------------------------------------------------------
 
 def test_missing_baseline_is_warming_up():
     cur = _one("RELIANCE", "E", _strikes(100.0, ce_vol=1000.0, ce_ltp=10.0),
@@ -165,9 +153,6 @@ def test_empty_tickers_baseline_is_warming_up():
     assert tape["rows"] == []
 
 
-# ---------------------------------------------------------------------------
-# (d) expiry change -> that ticker contributes nothing
-# ---------------------------------------------------------------------------
 
 def test_expiry_change_skips_ticker():
     prev = _one("RELIANCE", "29-09-2026",
@@ -180,9 +165,6 @@ def test_expiry_change_skips_ticker():
     assert tape["rows"] == []
 
 
-# ---------------------------------------------------------------------------
-# (e) strike absent from previous scan -> skipped
-# ---------------------------------------------------------------------------
 
 def test_new_strike_skipped_but_known_strike_reported():
     prev = _one("RELIANCE", "E",
@@ -196,9 +178,6 @@ def test_new_strike_skipped_but_known_strike_reported():
     assert tape["rows"][0]["premium"] == pytest.approx(100.0 * 10.0)
 
 
-# ---------------------------------------------------------------------------
-# (f) persist -> hydrate round trip; corrupt/missing JSON ignored
-# ---------------------------------------------------------------------------
 
 def test_state_persist_hydrate_round_trip(tmp_path):
     state = _state(BASE_EPOCH, [
@@ -232,9 +211,6 @@ def test_hydrate_non_dict_without_tickers_ignored(tmp_path):
     assert scan_data._hydrate_state(root=tmp_path) is None
 
 
-# ---------------------------------------------------------------------------
-# (g) stale baseline (> 3x interval) -> warming_up
-# ---------------------------------------------------------------------------
 
 def test_stale_baseline_is_warming_up():
     prev = _one("A", "E", _strikes(100.0, ce_vol=1000.0, ce_ltp=10.0),
@@ -268,9 +244,6 @@ def test_baseline_exactly_3x_is_not_stale():
     assert tape["status"] == "ok"
 
 
-# ---------------------------------------------------------------------------
-# (h) opportunities filter + score ordering
-# ---------------------------------------------------------------------------
 
 def test_opportunities_filter_and_score_ordering():
     # A: oi=1000 oich=500 -> ratio .5;  premium 1000 -> score .5*log1p(1000)

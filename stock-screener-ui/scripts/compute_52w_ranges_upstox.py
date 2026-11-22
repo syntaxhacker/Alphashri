@@ -1,16 +1,4 @@
 #!/usr/bin/env python3
-"""Compute 52-week high/low for NSE equities via Upstox daily candles.
-
-Uses trading.week52_utils (same logic as debug_52w.py / runner_risk) and upserts
-into stock_52w_range (+ optional Redis cache used by /api/52w-range).
-
-Usage:
-    cd stock-screener-ui
-    source .venv/bin/activate
-    python scripts/compute_52w_ranges_upstox.py --limit 10          # smoke test
-    python scripts/compute_52w_ranges_upstox.py --redis             # full run + cache
-    python scripts/compute_52w_ranges_upstox.py --symbol RELIANCE   # single symbol
-"""
 
 from __future__ import annotations
 
@@ -146,7 +134,6 @@ def fetch_range_for_symbol(api, symbol: str, to_date: str | None) -> dict | None
 
 
 def _range_changed(row: Stock52WeekRange, info: dict) -> bool:
-    """True when the freshly computed range differs from the stored row."""
     return (
         row.high_52w != info["high"]
         or row.low_52w != info["low"]
@@ -227,7 +214,6 @@ def queue_range(
     info: dict,
     flush_every: int = DB_FLUSH_EVERY,
 ) -> tuple[int, int]:
-    """Buffer one symbol and commit the chunk once it reaches flush_every."""
     pending[symbol] = info
     if len(pending) >= flush_every:
         return flush_pending(pending)
@@ -409,7 +395,6 @@ def main() -> None:
                 if failed <= 10:
                     print(f"  [{done}/{len(symbols)}] {symbol}: ERROR {err}")
 
-    # Only the unflushed remainder; flushing all_ok here re-wrote every chunk.
     if not args.dry_run and pending:
         a, u = flush_pending(pending)
         total_added += a
@@ -418,7 +403,6 @@ def main() -> None:
     if args.redis and not args.dry_run and all_ok:
         from api_server_fastapi import _load_52w_ranges_from_redis, _store_52w_ranges_in_redis
 
-        # Try Redis first (has days_ago), fall back to DB if cache was cleared
         merged = _load_52w_ranges_from_redis()
         if not merged:
             db = SessionLocal()

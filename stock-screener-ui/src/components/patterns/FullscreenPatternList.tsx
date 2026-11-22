@@ -26,7 +26,6 @@ export function sortHitsNewest<T extends Pick<PatternHitDTO, "end_date" | "bars_
   });
 }
 
-/** Newest hit in the list (null when empty). */
 export function newestHit<T extends Pick<PatternHitDTO, "end_date" | "bars_ago" | "confidence">>(
   hits: T[],
 ): T | null {
@@ -40,11 +39,6 @@ export interface FullscreenPatternListProps {
   onSelect: (hit: PatternHitDTO) => void;
 }
 
-/**
- * Compact single-select list of detected patterns for the fullscreen chart,
- * newest first. Selecting a row replaces the chart's single active pattern
- * (radio-style — no multi-select, no dashed siblings).
- */
 export function FullscreenPatternList(props: FullscreenPatternListProps) {
   const sorted = createMemo(() => sortHitsNewest(props.hits).slice(0, 1));
   return (

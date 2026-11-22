@@ -34,7 +34,6 @@ def _frame(closes, *, high=None, low=None) -> pd.DataFrame:
     )
 
 
-# --- envelope_tolerance ------------------------------------------------------
 
 
 @pytest.mark.parametrize("atr", [0.0, 1.0, 2.4, 8.0, -3.0])
@@ -46,7 +45,6 @@ def test_envelope_tolerance_accepts_numpy_scalar():
     assert envelope_tolerance(np.float64(4.0)) == 1.0
 
 
-# --- envelope_value ----------------------------------------------------------
 
 
 def test_envelope_value_matches_slope_times_x_plus_intercept():
@@ -76,7 +74,6 @@ def test_envelope_value_matches_line_value_on_a_fitted_envelope():
         )
 
 
-# --- envelope_common_span -----------------------------------------------------
 
 
 def test_envelope_common_span_uses_max_start_and_min_end():
@@ -103,7 +100,6 @@ def test_envelope_common_span_casts_to_int():
     assert envelope_common_span(upper, lower) == (5, 17)
 
 
-# --- pivots_in ----------------------------------------------------------------
 
 _PIVOTS = [(0, 100.0), (3, 101.0), (5, 99.0), (9, 102.0), (12, 98.0)]
 
@@ -123,7 +119,6 @@ def test_pivots_in_preserves_input_order():
     assert pivots_in(unsorted, 3, 9) == [(9, 102.0), (5, 99.0), (3, 101.0)]
 
 
-# --- breakout_pos -------------------------------------------------------------
 
 _BULL = [100.0, 101.0, 101.5, 102.0, 99.0, 103.0]
 _BEAR = [102.0, 101.0, 101.0, 100.5, 103.0]
@@ -160,7 +155,6 @@ def test_breakout_pos_returns_none_when_never_crossed():
     assert breakout_pos(df, 0, 50.0, "bearish") is None
 
 
-# --- line_breakout_pos --------------------------------------------------------
 
 
 def _line():

@@ -42,13 +42,11 @@ const PAD_R = 64;
 const PAD_T = 8;
 const PAD_B = 18;
 
-/** Strike with Indian grouping (`23,500`), dash when absent. */
 export function formatWallStrike(v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return "—";
   return formatNumberIN(Math.round(v));
 }
 
-/** Step path (`H` then `V`) through finite points; gaps break the path. */
 export function stepPath(
   xs: number[],
   ys: Array<number | null>,

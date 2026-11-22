@@ -31,7 +31,6 @@ DEFAULT_SESSION = "2026-11-17"
 DECILES = 10
 HORIZONS = (15, 30, 60)
 
-# Set by main(); module-level because every helper is called from the builders.
 SESSION = DEFAULT_SESSION
 EXPIRY = DEFAULT_SESSION
 OUT_DIR = ROOT / "reports" / f"nifty_{DEFAULT_SESSION}" / "research"
@@ -39,7 +38,6 @@ SEED = 20261117
 RNG = np.random.default_rng(SEED)
 
 
-# ---------------------------------------------------------------- io helpers
 
 def load_jsonl(path: Path) -> list[dict]:
     with path.open() as fh:
@@ -82,7 +80,6 @@ def r4(x) -> float | None:
     return None if v is None else round(v, 4)
 
 
-# ---------------------------------------------------------------- loaders
 
 def load_session(date: str, expiry: str | None = None) -> dict:
     expiry = expiry or date
@@ -110,7 +107,6 @@ def used_strike(row_chain: dict) -> dict[float, list]:
 
 
 def chain_series(rows: list[dict]) -> dict:
-    """Per-minute aggregates from the 1-minute tape (full strike board)."""
     by_key = {}
     for r in rows:
         by_key[tkey(r["t"])] = r
@@ -200,12 +196,6 @@ def futures_series(candles: list[dict]) -> dict:
 
 
 def price_series(flow: dict, fut: dict) -> dict:
-    """Price + OI series the analytics run on.
-
-    Futures when the archive has them. Otherwise the 1-minute tape spot, with
-    combined CE+PE option OI standing in for a positioning OI — a different
-    object from futures OI, and labelled as such everywhere it is used.
-    """
     if fut.get("rows"):
         return {"rows": fut["rows"], "by_off": fut["by_off"], "base": fut["base"],
                 "source": "futures_1m", "oi_field": "futures_oi",
@@ -244,7 +234,6 @@ def sync_spot(chain_rows: list[dict], fut_rows: list[dict], tol_s: float = 6.0) 
     return out
 
 
-# ---------------------------------------------------------------- statistics
 
 def acf(x: np.ndarray, nlags: int) -> np.ndarray:
     x = np.asarray(x, dtype=float)
@@ -259,7 +248,6 @@ def acf(x: np.ndarray, nlags: int) -> np.ndarray:
 
 
 def n_eff(x: np.ndarray, max_lag: int = 20) -> float:
-    """Bartlett-kernel effective sample size."""
     x = np.asarray(x, dtype=float)
     x = x[np.isfinite(x)]
     if len(x) < 8:
@@ -370,7 +358,6 @@ def shift_excess_p(trigger: np.ndarray, values: np.ndarray, reps: int = 2000) ->
 
 
 def boot_cluster_mean_ci(groups: list[np.ndarray], reps: int = 1200) -> list[float] | None:
-    """Resample whole sessions — the only honest CI when triggers cluster by day."""
     groups = [g[np.isfinite(g)] for g in groups if len(g)]
     if len(groups) < 3:
         return None
@@ -400,8 +387,6 @@ def two_sided_p(r: float, n: int) -> float | None:
     if not math.isfinite(r) or n < 4 or abs(r) >= 1:
         return None
     t = r * math.sqrt((n - 2) / max(1e-12, 1 - r * r))
-    # Normal approximation to the t tail; conservative for n>100 and we only
-    # ever quote thresholds.
     return float(math.erfc(abs(t) / math.sqrt(2)))
 
 
@@ -418,7 +403,6 @@ def ols(y: np.ndarray, X: np.ndarray) -> tuple[np.ndarray, float]:
     return beta, r2_of(y, X @ beta)
 
 
-# ---------------------------------------------------------------- data quality
 
 def data_quality(sess: dict, px: dict, flow: dict) -> dict:
     tape = sess["tape"]
@@ -605,7 +589,6 @@ def effective_sample(sess: dict, flow: dict, px: dict) -> dict:
     return out
 
 
-# ---------------------------------------------------------------- lead-lag
 
 def chain10s_lead_lag(chain: list[dict], max_lag: int = 5) -> dict:
     """Clock-aligned tests inside the chain feed.
@@ -706,7 +689,6 @@ def lead_lag(flow: dict, px: dict, fut: dict, sync: dict, chain: list[dict]) -> 
         "itm_pe_oi_vs_price": lag_scan(p_ret, itm_oi, range(-5, 16)),
         "call_wall_oi_vs_price": lag_scan(p_ret, cw_doi, range(-5, 16)),
     }
-    # Positive lag: x at t+lag against y at t -> y (the flow) leads price by `lag`.
     for name, rows_ in families.items():
         rows_ = rows_
     tests = len(families) * len(lags)
@@ -723,7 +705,6 @@ def lead_lag(flow: dict, px: dict, fut: dict, sync: dict, chain: list[dict]) -> 
                        "p": r4(two_sided_p(best["r"], best["n"])),
                        "n": best["n"], "ci": [r4(x) for x in best["ci"]] if best["ci"] else None,
                        "clears_bonferroni": bool(math.isfinite(best["r"]) and abs(best["r"]) >= r_crit)}
-    # Positive lag = flow leads price; negative = flow arrives after the move.
     lead_side = {k: ("flow_leads" if v["lag"] > 0 else
                      "price_leads" if v["lag"] < 0 else "contemporaneous")
                  for k, v in peaks.items()}
@@ -760,7 +741,6 @@ def lead_lag(flow: dict, px: dict, fut: dict, sync: dict, chain: list[dict]) -> 
         boot_sync = block_boot_lag(f_ret, s_ret_sync, [-2, -1, 0, 1, 2], block=10, reps=1200)
         best_naive = max(scan_naive, key=lambda x: abs(x["r"]))
         best_sync = max(scan_sync, key=lambda x: abs(x["r"]))
-        # lag -1: futures at t against spot at t+1 — the "futures lead" statistic
         naive_lead = [x for x in scan_naive if x["lag"] == -1][0]["r"]
         sync_lead = [x for x in scan_sync if x["lag"] == -1][0]["r"]
         out.update({
@@ -785,7 +765,6 @@ def lead_lag(flow: dict, px: dict, fut: dict, sync: dict, chain: list[dict]) -> 
     return out
 
 
-# ---------------------------------------------------------------- conditional
 
 def forward_returns(series: np.ndarray, offs: list[int], h: int) -> np.ndarray:
     pos = {o: i for i, o in enumerate(offs)}
@@ -798,7 +777,6 @@ def forward_returns(series: np.ndarray, offs: list[int], h: int) -> np.ndarray:
 
 
 def count_episodes(mask: np.ndarray, offs: list[int]) -> int:
-    """Trigger minutes that sit next to each other are one episode, not k draws."""
     n, prev = 0, None
     for m, o in zip(mask, offs):
         if m and (prev is None or o - prev > 1):
@@ -908,7 +886,6 @@ def conditional_returns(flow: dict, px: dict) -> dict:
 
 
 def cross_day_flow(sessions: list[dict]) -> dict:
-    """Pool minute triggers across the 0-DTE sessions that have a tape."""
     per = {}
     store = defaultdict(lambda: defaultdict(list))
     base_store = defaultdict(list)
@@ -1007,7 +984,6 @@ def cross_day_flow(sessions: list[dict]) -> dict:
                      "sessions, so it keeps the day effect.")}
 
 
-# ---------------------------------------------------------------- pin
 
 def pin_today(flow: dict, px: dict, fut: dict) -> dict:
     rows = flow["rows"]
@@ -1177,11 +1153,8 @@ def pin_history_deferred() -> dict:
     }
 
 
-# ---------------------------------------------------------------- events
 
 def auto_events(flow: dict, px: dict) -> dict:
-    """Events are detected, not authored: the largest 15-minute moves, the
-    heaviest flow minutes, and the max-pain relocations."""
     rows = flow["rows"]
     offs = [r["off"] for r in rows]
     spot = np.array([r["spot"] for r in rows], float)
@@ -1302,7 +1275,6 @@ def session_read(flow: dict, px: dict, cond: dict, ev: dict, pin: dict) -> dict:
     return out
 
 
-# ---------------------------------------------------------------- lab
 
 def distributions(flow: dict, px: dict) -> dict:
     rows = px["rows"]
@@ -1386,8 +1358,6 @@ def distributions(flow: dict, px: dict) -> dict:
 
 
 def _smile_points(snap_row: dict) -> tuple[list[float], list[float]]:
-    """Moneyness / IV pairs from a snapshot: vendor iv_surface when present,
-    otherwise the per-strike `iv` field on the OTM side."""
     r = snap_row["report"]
     sp = finite(r.get("spot"))
     if not sp:
@@ -1700,7 +1670,6 @@ def microstructure(flow: dict, snap: list[dict]) -> dict:
     }
 
 
-# ---------------------------------------------------------------- narrative
 
 def fmt(x, nd=1):
     if x is None:
@@ -2285,7 +2254,6 @@ def lab_md(lab: dict) -> str:
     return "\n".join(L)
 
 
-# ---------------------------------------------------------------- builders
 
 def section_rubric(rev: dict) -> list[dict]:
     ll = rev["lead_lag"]
@@ -2799,7 +2767,6 @@ def build_payloads() -> tuple[dict, dict]:
     return review, lab
 
 
-# ---------------------------------------------------------------- validation
 
 def validate(obj, path="root") -> list[str]:
     errs = []

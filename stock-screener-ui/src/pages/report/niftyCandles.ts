@@ -24,23 +24,16 @@ import type { ReplayCandle } from "@/types/replay";
 
 export type CandleLike = NiftyIntradayCandle | ReplayCandle;
 
-/** Minimal tape shape needed to source a missing minute's spot. */
 export interface CandleTapePoint {
   t: string;
   spot: number;
 }
 
 export interface FillCandleGapsOptions {
-  /** Per-minute tape rows used as the spot source for missing minutes. */
   tape?: CandleTapePoint[] | null;
-  /**
-   * Largest gap (minutes) that is treated as a feed hole. Anything wider is a
-   * context break (lunch-less NSE session is 375 min; a next-day gap is huge).
-   */
   maxGapMinutes?: number;
 }
 
-/** One NSE session, 09:15 → 15:30 inclusive. */
 export const MAX_FILL_GAP_MINUTES = 375;
 
 interface CandleClock {
@@ -53,7 +46,6 @@ function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
 
-/** Parse a candle timestamp (ISO with/without offset). Mirrors `niftyChartMath`. */
 function parseCandleClock(time: string): CandleClock | null {
   const m =
     /^(\d{4}-\d{2}-\d{2})[T\s](\d{2}):(\d{2})(?::\d{2})?(Z|[+-]\d{2}:?\d{2})?/.exec(
@@ -66,7 +58,6 @@ function parseCandleClock(time: string): CandleClock | null {
   return { day: m[1], minutes: hh * 60 + mm, offset: m[4] ?? "" };
 }
 
-/** Parse a tape timestamp: full ISO, or a bare `HH:MM[:SS]` clock. */
 function parseTapeClock(t: string): { day: string | null; minutes: number } | null {
   const full = parseCandleClock(t);
   if (full) return { day: full.day, minutes: full.minutes };

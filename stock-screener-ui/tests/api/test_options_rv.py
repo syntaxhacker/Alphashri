@@ -55,9 +55,6 @@ def _clean_cache():
     clear_rv_cache()
 
 
-# ---------------------------------------------------------------------------
-# rv_cone_from_closes — known vol, percentiles, finite output
-# ---------------------------------------------------------------------------
 
 class TestRvConeFromCloses:
     def test_known_vol_recovered_across_tenors(self):
@@ -112,9 +109,6 @@ class TestRvConeFromCloses:
         assert cone["tenors"][0]["p50"] is not None
 
 
-# ---------------------------------------------------------------------------
-# Short / empty / dirty history — warnings, never an exception
-# ---------------------------------------------------------------------------
 
 class TestDegenerateHistory:
     def test_empty_series_warns_and_returns_none_fields(self):
@@ -176,9 +170,6 @@ class TestAsOfFromIndex:
         assert rv._as_of_from_index(idx) == "2026-11-17"
 
 
-# ---------------------------------------------------------------------------
-# realized_vol_cone — fetch boundary, cache, provider failure
-# ---------------------------------------------------------------------------
 
 class TestRealizedVolCone:
     def test_injected_closes_never_touch_provider(self, monkeypatch):
@@ -239,9 +230,6 @@ class TestRealizedVolCone:
         _no_nan(cone)
 
 
-# ---------------------------------------------------------------------------
-# iv_vs_rv — pure ladder reads
-# ---------------------------------------------------------------------------
 
 def _cone():
     """A cone with a single 30-day bucket, RV percentiles 10..90."""

@@ -9,9 +9,6 @@ import { UIProvider } from "@/ui";
 import { ReportContainer } from "./ReportContainer";
 import { fetchSymbolChart, fetchTimeframes } from "@/api/chartPatterns";
 
-// These tests mount the full report container. The 1 s default findBy*
-// timeout flakes under the parallel suite, where the tab bar can take
-// longer than that to appear.
 configure({ asyncUtilTimeout: 8000 });
 
 vi.mock("../../api/report", () => ({

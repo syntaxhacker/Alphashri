@@ -1,13 +1,4 @@
 #!/usr/bin/env python
-"""Evaluate the double-VWAP space honestly: plateaus, walk-forward, placebo.
-
-No single "best cell" is trusted. A config is only interesting if (a) both time
-halves are positive, (b) its neighbourhood is positive too, (c) the result is not
-one outlier trade, and (d) walk-forward selection from earlier folds still makes
-money on the next fold.
-
-  .venv/bin/python scripts/research/double_vwap/analyze.py
-"""
 from __future__ import annotations
 
 import itertools
@@ -107,7 +98,6 @@ def main():
     cfgs = grid2()
     print(f"sessions={n_days}  configs={len(cfgs)}")
 
-    # fold index per day (6 contiguous folds)
     fold_of = {d.date: min(5, i * 6 // n_days) for i, d in enumerate(days)}
     dates = sorted(fold_of)
     cut = dates[int(n_days * 0.6)]
@@ -177,7 +167,6 @@ def main():
         print(f"  {knob:10s}={str(val):>5s}  n={st['n']:4d} avgR={st['avgR']:+.3f} "
               f"t={st['t']:+.2f} PF={st['PF']:.2f} win={st['win']:4.1f}")
 
-    # walk-forward selection: train on folds < k, apply to fold k
     print("\nwalk-forward (select best on prior folds, score next fold)")
     wf = []
     for k in range(1, 6):
@@ -203,7 +192,6 @@ def main():
         print(f"  WF pooled mean {np.mean(wf):+.3f}  positive folds "
               f"{sum(1 for x in wf if x > 0)}/{len(wf)}")
 
-    # outlier check for the top configs
     print("\noutlier sensitivity (drop best and worst trade)")
     for r in rows[:8]:
         cfg = r["cfg"]
@@ -214,7 +202,6 @@ def main():
               f"| ex-3best {np.sort(R)[:-3].mean():+.3f} "
               f"| top3 share {np.sort(R)[-3:].sum() / max(R.sum(), 1e-9):.0%}")
 
-    # placebo: same side/geometry, random entry time inside the first 2h
     print("\nplacebo (same side + same stop/target distance, random entry 09:30-11:30)")
     rng = np.random.default_rng(11)
     for r in rows[:5]:

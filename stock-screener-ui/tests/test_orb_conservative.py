@@ -173,7 +173,6 @@ class TestORBConservativeRiskManagement:
         # The strategy collects candles during this period
         # After OR period, _or_levels is calculated
 
-        # Set up OR levels manually (as if OR period completed)
         strategy._current_date = datetime(2024, 1, 15).date()
         strategy._or_levels = {
             'or_high': 1000.0,
@@ -186,12 +185,10 @@ class TestORBConservativeRiskManagement:
         }
         strategy._or_defined = True
 
-        # Simulate breakout bar (close > or_high * 1.003 = 1003.0)
         b1_ts = _get_ts_ns(2024, 1, 15, 10, 5)
         bar1 = _create_mock_bar(b1_ts, 999.0, 1005.0, 999.0, 1004.0)
         strategy.on_bar(bar1)
 
-        # Check that entry happened
         assert strategy._position_side == "LONG", f"Expected LONG, got {strategy._position_side}"
         assert strategy._entry_price == 1004.0
 
@@ -205,11 +202,9 @@ class TestORBConservativeRiskManagement:
         bar2 = _create_mock_bar(b2_ts, 1004.0, 1017.0, 1004.0, 1016.5)
         strategy.on_bar(bar2)
 
-        # Check that position was closed
         assert strategy._position_side is None
         assert strategy._entry_price is None
 
-        # Check that trade was recorded
         assert len(strategy.trades) == 1
         trade = strategy.trades[0]
         assert trade['exit_reason'] == "TP"
@@ -220,7 +215,6 @@ class TestORBConservativeRiskManagement:
     def test_conservative_long_entry_and_stop_loss(self):
         strategy = self._create_strategy()
 
-        # Set up OR levels
         strategy._current_date = datetime(2024, 1, 15).date()
         strategy._or_levels = {
             'or_high': 1000.0,
@@ -233,7 +227,6 @@ class TestORBConservativeRiskManagement:
         }
         strategy._or_defined = True
 
-        # Simulate breakout bar
         b1_ts = _get_ts_ns(2024, 1, 15, 10, 5)
         bar1 = _create_mock_bar(b1_ts, 999.0, 1005.0, 999.0, 1004.0)
         strategy.on_bar(bar1)
@@ -251,11 +244,9 @@ class TestORBConservativeRiskManagement:
         bar2 = _create_mock_bar(b2_ts, 1004.0, 1004.0, 995.0, 997.0)
         strategy.on_bar(bar2)
 
-        # Check that position was closed
         assert strategy._position_side is None
         assert strategy._entry_price is None
 
-        # Check that trade was recorded
         assert len(strategy.trades) == 1
         trade = strategy.trades[0]
         assert trade['exit_reason'] == "SL"

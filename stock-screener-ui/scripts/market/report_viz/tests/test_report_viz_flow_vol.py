@@ -64,9 +64,6 @@ def asset(name: str) -> str:
     return (ASSET_DIR / name).read_text()
 
 
-# ---------------------------------------------------------------------------
-# flow_stream
-# ---------------------------------------------------------------------------
 
 
 def test_flow_stream_scales_volume_keeps_spot_and_spec():
@@ -129,9 +126,6 @@ def test_flow_stream_omits_optional_axes_and_rejects_bad_scale():
         flow_stream([], spec=stock())
 
 
-# ---------------------------------------------------------------------------
-# flow_share
-# ---------------------------------------------------------------------------
 
 
 def test_flow_share_label_is_pe_volume_axis_in_percent():
@@ -163,9 +157,6 @@ def test_flow_share_rejects_out_of_range_and_empty():
         flow_share([], spec=stock())
 
 
-# ---------------------------------------------------------------------------
-# flow_heatmap
-# ---------------------------------------------------------------------------
 
 
 def test_flow_heatmap_preserves_nulls_and_does_not_zero_fill():
@@ -218,9 +209,6 @@ def test_flow_heatmap_height_grows_with_the_ladder():
     assert "rv-span-1" in long
 
 
-# ---------------------------------------------------------------------------
-# flow_top_itm
-# ---------------------------------------------------------------------------
 
 
 def test_flow_top_itm_ranks_and_derives_share():
@@ -247,9 +235,6 @@ def test_flow_top_itm_ranks_and_derives_share():
     assert "NIFTY" not in html
 
 
-# ---------------------------------------------------------------------------
-# iv_smile
-# ---------------------------------------------------------------------------
 
 
 def test_iv_smile_keeps_missing_quotes_as_gaps():
@@ -297,9 +282,6 @@ def test_iv_smile_rejects_bad_input():
         )
 
 
-# ---------------------------------------------------------------------------
-# levels_distance
-# ---------------------------------------------------------------------------
 
 
 def test_levels_distance_derives_sign_and_uses_spec_currency():
@@ -338,9 +320,6 @@ def test_levels_distance_rejects_empty_and_bad_strike():
         levels_distance([{"label": "x", "kind": "call"}], spot=100, spec=stock())
 
 
-# ---------------------------------------------------------------------------
-# browser assets
-# ---------------------------------------------------------------------------
 
 
 def test_flow_asset_registers_names_and_keeps_nulls_blank():
@@ -353,8 +332,8 @@ def test_flow_asset_registers_names_and_keeps_nulls_blank():
     assert "RV.timeTicks" in text
     assert "pointDecimals(spec)" in text
     assert "RV.money(spec" in text
-    assert 'v + "%"' in text  # share axis is a percentage
-    assert "d.label" in text  # axis title comes from the payload
+    assert 'v + "%"' in text
+    assert "d.label" in text
     assert "missing(" in text
     assert "isBlank" in text
     assert "merge = wide ? 1 : 3" in text

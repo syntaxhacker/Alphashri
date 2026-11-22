@@ -41,9 +41,6 @@ LAST_ENTRY = 15 * 60 + 30
 EOD = 15 * 60 + 55
 
 
-# --------------------------------------------------------------------------- #
-# data
-# --------------------------------------------------------------------------- #
 def load():
     df = pd.read_parquet(BARS)
     df.index = df.index.tz_convert(TZ)
@@ -54,7 +51,7 @@ def load():
 @dataclass
 class Day:
     date: object
-    t: np.ndarray          # minutes-of-day, ET
+    t: np.ndarray
     o: np.ndarray
     h: np.ndarray
     l: np.ndarray
@@ -62,9 +59,9 @@ class Day:
     vol: np.ndarray
     atr: np.ndarray
     ny_vwap: np.ndarray    # cumulative RTH VWAP (NaN outside RTH)
-    on_vwap: float         # overnight VWAP level at 09:30 (constant all session)
-    rth_start: int         # index of the first RTH bar
-    rng: dict              # range source -> (hi, lo, end_index)
+    on_vwap: float
+    rth_start: int
+    rng: dict
 
 
 def _atr(h, l, c, n=14):
@@ -90,7 +87,6 @@ def build_days(df, range_srcs=("on", "or15", "or30", "or60")):
         rs = np.flatnonzero(rth)
         if len(rs) < 60:
             continue
-        # NY session VWAP from 09:30
         cum_v = np.cumsum(np.where(rth, vol, 0.0))
         cum_pv = np.cumsum(np.where(rth, typ * vol, 0.0))
         ny = np.full(len(g), np.nan)
@@ -120,11 +116,7 @@ def build_days(df, range_srcs=("on", "or15", "or30", "or60")):
     return days
 
 
-# --------------------------------------------------------------------------- #
-# session features (causal, computed at signal close)
-# --------------------------------------------------------------------------- #
 def first_break(d: Day, src: str, eps: float):
-    """(index, dir, hi, lo) of the first RTH close outside the range, else None."""
     hi, lo, start = d.rng[src]
     if not np.isfinite(hi) or start < 0:
         return None
@@ -139,7 +131,6 @@ def first_break(d: Day, src: str, eps: float):
 
 
 def on_touched(d: Day, upto: int, tol: float) -> bool:
-    """Did RTH price trade through the overnight VWAP level before `upto`?"""
     s = d.rth_start
     if upto <= s:
         return False
@@ -151,9 +142,6 @@ def swing_extreme(d: Day, i: int, side: int, look: int = 20) -> float:
     return float(d.h[j:i + 1].max()) if side < 0 else float(d.l[j:i + 1].min())
 
 
-# --------------------------------------------------------------------------- #
-# signal construction
-# --------------------------------------------------------------------------- #
 def dir_ok(cfg, dr, hi, lo, on_vwap):
     mode = cfg.get("dir_filter", "none")
     if mode == "none":
@@ -206,7 +194,6 @@ def leg_a_signal(d: Day, brk, cfg):
         return None
     side = -dr
     entry = d.o[j]
-    # the chart's first short sat ABOVE the NY VWAP (a premium fade)
     if cfg.get("a_side_filter") == "stretched":
         if side < 0 and entry <= d.ny_vwap[i]:
             return None
@@ -216,7 +203,7 @@ def leg_a_signal(d: Day, brk, cfg):
         stop = hi + cfg["stop_buf"] if side < 0 else lo - cfg["stop_buf"]
     elif cfg["stop_src"] == "sigext":
         stop = d.h[i] + cfg["stop_buf"] if side < 0 else d.l[i] - cfg["stop_buf"]
-    else:  # atr
+    else:
         stop = entry + cfg["stop_atr"] * d.atr[i] if side < 0 else entry - cfg["stop_atr"] * d.atr[i]
     risk = (entry - stop) if side > 0 else (stop - entry)
     if risk <= 0:
@@ -258,7 +245,7 @@ def leg_b_signal(d: Day, brk, cfg):
         elif cfg["stop_src"] == "swing":
             stop = swing_extreme(d, j, side) + cfg["stop_buf"] if side < 0 \
                 else swing_extreme(d, j, side) - cfg["stop_buf"]
-        else:  # atr
+        else:
             stop = entry + cfg["stop_atr"] * d.atr[j] if side < 0 else entry - cfg["stop_atr"] * d.atr[j]
         risk = (entry - stop) if side > 0 else (stop - entry)
         if risk <= 0:
@@ -273,9 +260,6 @@ def leg_b_signal(d: Day, brk, cfg):
                     on_untouched=not touched_pre, touched_all=touched_all)
     return None
 
-# --------------------------------------------------------------------------- #
-# honest simulator
-# --------------------------------------------------------------------------- #
 def simulate(sig, cost_pts):
     d = sig["day"]
     side, stop, target = sig["side"], sig["stop"], sig["target"]
@@ -283,7 +267,6 @@ def simulate(sig, cost_pts):
     if entry_idx >= len(d.c):
         return None
     entry = d.o[entry_idx]
-    # the signal was built on the previous close: reject a gap that invalidates it
     if (side > 0 and entry <= stop) or (side < 0 and entry >= stop):
         return None
     risk = abs(entry - stop)
@@ -292,14 +275,13 @@ def simulate(sig, cost_pts):
     exit_px, exit_kind, bars = None, None, 0
     for j in range(entry_idx, len(d.c)):
         bars = j - entry_idx
-        # H2: gap through the stop fills at the open
         if side > 0 and d.o[j] <= stop:
             exit_px, exit_kind = d.o[j], "stop_gap"
             break
         if side < 0 and d.o[j] >= stop:
             exit_px, exit_kind = d.o[j], "stop_gap"
             break
-        if j > entry_idx:  # H1: no profit exit on the fill bar
+        if j > entry_idx:
             if side > 0:
                 if d.l[j] <= stop:
                     exit_px, exit_kind = stop, "stop"
@@ -315,7 +297,6 @@ def simulate(sig, cost_pts):
                     exit_px, exit_kind = target, "target"
                     break
         else:
-            # H1 charge: stop may fill on the entry bar
             if side > 0 and d.l[j] <= stop:
                 exit_px, exit_kind = stop, "stop"
                 break
@@ -335,9 +316,6 @@ def simulate(sig, cost_pts):
                 entry_t=d.t[entry_idx])
 
 
-# --------------------------------------------------------------------------- #
-# config + evaluation
-# --------------------------------------------------------------------------- #
 def base_cfg(**kw):
     cfg = dict(range_src="on", legs="AB", stop_src="range", stop_buf=10.0,
                stop_atr=1.0, target_a="mid", target_b="onvwap", fb_rr=2.0,
@@ -464,7 +442,6 @@ def main():
     rows, cut = run_grid(days, costs=(args.cost,))
     with open(os.path.join(OUTDIR, "grid.json"), "w") as fh:
         json.dump(rows, fh, indent=1, default=str)
-    # rank: both halves positive, then pooled t
     ok = [r for r in rows if r["IS"]["avgR"] > 0 and r["OOS"]["avgR"] > 0 and r["all"]["n"] >= 30]
     ok.sort(key=lambda r: (min(r["IS"]["avgR"], r["OOS"]["avgR"]), r["all"]["t"]), reverse=True)
     print(f"\n{len(ok)}/{len(rows)} configs positive in BOTH halves (n>=30)")

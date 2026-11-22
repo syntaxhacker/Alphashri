@@ -71,9 +71,6 @@ def _stock(**overrides) -> InstrumentSpec:
     return InstrumentSpec(**base)
 
 
-# ---------------------------------------------------------------------------
-# fixtures
-# ---------------------------------------------------------------------------
 RIBBON_ROWS = [
     {"t": "09:15", "strike": 100.0, "premium": 12.5, "spot": 105.0},
     {"t": "09:15", "strike": 120.0, "premium": 30.0, "spot": 105.0},
@@ -292,9 +289,6 @@ EVENTS = {
 }
 
 
-# ---------------------------------------------------------------------------
-# 1. PE premium ribbon
-# ---------------------------------------------------------------------------
 def test_premium_ribbon_rows_pivot_into_one_series_per_strike() -> None:
     html = pe_premium_ribbon(RIBBON_ROWS, spec=_sensex())
     payload = _payload(html)
@@ -341,9 +335,6 @@ def test_premium_ribbon_accepts_the_source_time_major_surface() -> None:
     assert data["spot"] == [105.0, 106.0]
 
 
-# ---------------------------------------------------------------------------
-# 2. smile at four clocks
-# ---------------------------------------------------------------------------
 def test_smile_panels_group_by_clock_and_keep_null_quotes() -> None:
     payload = _payload(smile_four_clocks(SMILES, spec=_sensex()))
     panels = payload["data"]["panels"]
@@ -389,9 +380,6 @@ def test_smile_accepts_source_points_that_use_k_for_strike() -> None:
     assert panel["atm_gap"] == -1.0
 
 
-# ---------------------------------------------------------------------------
-# 3. premium vs intrinsic
-# ---------------------------------------------------------------------------
 def test_premium_vs_intrinsic_keeps_gaps_and_reports_time_value() -> None:
     payload = _payload(premium_vs_intrinsic(CONTRACTS, spec=_sensex()))
     contracts = payload["data"]["contracts"]
@@ -436,9 +424,6 @@ def test_premium_vs_intrinsic_accepts_source_px_and_intr_fields() -> None:
     assert contract["stats"]["frozen_change"] == -1.5
 
 
-# ---------------------------------------------------------------------------
-# 4. theta decomposition
-# ---------------------------------------------------------------------------
 def test_theta_decomposition_sums_buckets_and_flags_overstatement() -> None:
     payload = _payload(theta_decomposition(THETA_ROWS, spec=_sensex()))
     data = payload["data"]
@@ -460,9 +445,6 @@ def test_theta_decomposition_window_is_carried_into_the_payload() -> None:
     assert payload["data"]["window"] == "09:15 → 09:16"
 
 
-# ---------------------------------------------------------------------------
-# 5. skew rotation
-# ---------------------------------------------------------------------------
 def test_skew_rotation_keeps_the_fixed_strike_gap_and_stats() -> None:
     payload = _payload(skew_rotation(SKEW, spec=_sensex()))
     data = payload["data"]
@@ -482,9 +464,6 @@ def test_skew_rotation_keeps_the_fixed_strike_gap_and_stats() -> None:
     assert data["unit"] == "vol pts"
 
 
-# ---------------------------------------------------------------------------
-# 6. basis 3D
-# ---------------------------------------------------------------------------
 def test_basis_3d_payload_keeps_null_rows_out_of_the_path() -> None:
     payload = _payload(basis_3d(BASIS_ROWS, spec=_sensex()))
     data = payload["data"]
@@ -518,9 +497,6 @@ def test_basis_3d_accepts_source_short_field_names() -> None:
     assert data["volume"] == [50, 60]
 
 
-# ---------------------------------------------------------------------------
-# 7. basis path + regime strip
-# ---------------------------------------------------------------------------
 def test_basis_regime_strip_derives_runs_when_no_regime_is_supplied() -> None:
     payload = _payload(basis_regime_strip(REGIME_ROWS, spec=_sensex()))
     bands = payload["data"]["bands"]
@@ -567,9 +543,6 @@ def test_basis_regime_strip_accepts_prebuilt_bands_and_custom_labels() -> None:
     assert payload["data"]["minutes"] == [555, 570, 585]
 
 
-# ---------------------------------------------------------------------------
-# 8. lead/lag
-# ---------------------------------------------------------------------------
 def test_lead_lag_clock_alignment_beats_naive_gap_pairing() -> None:
     html = lead_lag(_lead_fixture(), spec=_sensex())
     payload = _payload(html)
@@ -637,9 +610,6 @@ def test_lead_lag_accepts_source_sync_and_n_sync_fields() -> None:
     assert rows[0]["aligned_ci"] == [-0.1, 0.6]
 
 
-# ---------------------------------------------------------------------------
-# 9. normalised comparison
-# ---------------------------------------------------------------------------
 def test_cross_paths_rebase_each_series_and_drop_a_missing_spread_minute() -> None:
     payload = _payload(nifty_vs_sensex(CROSS, spec=_sensex()))
     data = payload["data"]
@@ -662,7 +632,7 @@ def test_cross_paths_require_a_payload_label_and_render_it() -> None:
     assert "Alpha" in html
     assert "Beta" in html
     assert "NIFTY" not in html
-    assert "SENSEX" in html  # the instrument spec, not a hardcoded series label
+    assert "SENSEX" in html
 
     with pytest.raises(ValueError, match="label is required"):
         nifty_vs_sensex(
@@ -708,9 +678,6 @@ def test_cross_paths_accept_column_series_and_label_keyed_series() -> None:
     assert data["spread"][1]["bps"] == 300.0
 
 
-# ---------------------------------------------------------------------------
-# 10. price / OI quadrants
-# ---------------------------------------------------------------------------
 def test_quadrants_classify_all_four_sign_combinations() -> None:
     payload = _payload(futures_quadrants(QUADRANTS, spec=_sensex()))
     points = payload["data"]["points"]
@@ -747,9 +714,6 @@ def test_quadrants_keep_a_bucket_with_a_missing_leg_but_do_not_plot_it() -> None
     assert data["points"][0]["regime"] == "neutral"
 
 
-# ---------------------------------------------------------------------------
-# 11. event study
-# ---------------------------------------------------------------------------
 def test_event_study_preserves_offsets_duration_and_a_null_point() -> None:
     payload = _payload(event_study(EVENTS, spec=_sensex()))
     data = payload["data"]
@@ -810,9 +774,7 @@ def test_event_study_accepts_the_source_small_multiple_shape() -> None:
     assert event["move"] == 8.5
 
 
-# ---------------------------------------------------------------------------
 # registration and browser contract
-# ---------------------------------------------------------------------------
 NAMES = (
     "pe_premium_ribbon",
     "smile_four_clocks",
@@ -866,9 +828,6 @@ def test_render_page_inlines_the_asset_once() -> None:
         assert f'RV.register("{name}"' in html
 
 
-# ---------------------------------------------------------------------------
-# instrument independence and empty payloads
-# ---------------------------------------------------------------------------
 def _panels(spec: InstrumentSpec) -> list[str]:
     return [
         pe_premium_ribbon(RIBBON_ROWS, spec=spec),

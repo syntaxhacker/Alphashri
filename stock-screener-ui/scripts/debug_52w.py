@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""Debug 52-week high data for a symbol.
-
-Usage:
-    python scripts/debug_52w.py TATACOMM
-    python scripts/debug_52w.py TATACOMM --date 2026-05-22
-"""
 
 import argparse
 import sys
@@ -186,7 +180,6 @@ def main():
     days_since = md["days_since_52w_high"]
     pct_from = ((h52 - cp) / cp) * 100 if cp > 0 else 0
 
-    # --- Overview ---
     overview = Table.grid(padding=(0, 2))
     overview.add_row("[bold]Symbol[/bold]", symbol)
     overview.add_row("[bold]Date[/bold]", date_str or datetime.now().strftime("%Y-%m-%d"))
@@ -199,7 +192,6 @@ def main():
     overview.add_row(f"[bold]Volume / Avg20[/bold]", f"{md['volume']:,.0f} / {md['avg_volume_20d']:,.0f}")
     console.print(Panel(overview, title="52W High Overview"))
 
-    # --- Recent 52W touches ---
     touches = []
     threshold_52w = 0.99 * h52
     if h52 > 0:
@@ -216,7 +208,6 @@ def main():
     if touches:
         console.print(Panel("\n".join(touches), title="Recent 52W touches (last 10)"))
 
-    # --- Strategy checks ---
     chaser = check_52w_chaser(md)
     target = check_52w_target(md)
     blind = check_blind_52w(md)
@@ -251,7 +242,6 @@ def main():
 
     console.print(strat_table)
 
-    # --- Raw market data ---
     raw = {k: v for k, v in md.items() if k not in ("daily_highs", "daily_closes", "daily_lows")}
     console.print(Panel(str(raw), title="Raw Market Data"))
 

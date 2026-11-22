@@ -21,9 +21,6 @@ def _lists():
     return [(key, C.CONSTITUENTS[key]) for key in EXPECTED_KEYS]
 
 
- # ---------------------------------------------------------------------------
-# Keys / counts
-# ---------------------------------------------------------------------------
 
 
 def test_constituents_has_exactly_the_four_index_keys():
@@ -35,9 +32,6 @@ def test_list_length_covers_the_index(key, minimum):
     assert len(C.CONSTITUENTS[key]) >= minimum
 
 
-# ---------------------------------------------------------------------------
-# Shape of each list
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("key,_symbols", _lists())
@@ -61,9 +55,6 @@ def test_no_duplicates_within_a_list(key, _symbols):
     assert len(lst) == len(set(lst)), f"{key} contains duplicate symbols"
 
 
-# ---------------------------------------------------------------------------
-# Nesting: each smaller index is a subset of the next larger one
-# ---------------------------------------------------------------------------
 
 
 def test_nifty50_is_subset_of_nifty100():
@@ -83,9 +74,6 @@ def test_sizes_are_strictly_increasing():
     assert sizes[0] < sizes[1] < sizes[2] < sizes[3]
 
 
-# ---------------------------------------------------------------------------
-# Module surface (this module's only "lookup" is the CONSTITUENTS mapping)
-# ---------------------------------------------------------------------------
 
 
 def test_module_exposes_the_named_lists():

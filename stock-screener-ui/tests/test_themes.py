@@ -59,7 +59,6 @@ SEED_ITEMS = [
 VALID = {"HAL", "BEL", "RVNL", "IRFC"}
 
 
-# ---------- seed upsert ----------
 
 def test_seed_upsert_creates_themes_and_drops_unknown(test_db):
     summary = seed_mod.upsert_themes(test_db, SEED_ITEMS, valid_symbols=VALID)
@@ -128,7 +127,6 @@ def test_seed_dry_run_writes_nothing(test_db):
     assert test_db.query(ThemeConstituent).count() == 0
 
 
-# ---------- pure aggregation ----------
 
 def _theme_df() -> pd.DataFrame:
     return pd.DataFrame({
@@ -171,7 +169,6 @@ def test_aggregate_theme_groups_skips_uncovered_and_empty():
     assert sector_module._aggregate_theme_groups(_theme_df(), "change", {}) == []
 
 
-# ---------- endpoints (DB-backed, in-memory) ----------
 
 @pytest.fixture
 def theme_client(test_db_engine, test_db):
@@ -254,7 +251,6 @@ def test_theme_detail_and_404(theme_client):
     assert resp.status_code == 404
 
 
-# ---------- migration chain ----------
 
 def _load_module(name: str, path: Path):
     spec = importlib.util.spec_from_file_location(name, path)

@@ -141,9 +141,6 @@ def test_close_triggers_only_on_bar_close_not_tick():
     assert bar_closes_beyond(bar, "below", 22690.0) is False
 
 
-# ---------------------------------------------------------------------------
-# Pre-trigger buffer
-# ---------------------------------------------------------------------------
 
 def _levels(side, level):
     return [{"side": side, "level": level, "label": "x"}]
@@ -190,9 +187,6 @@ def test_arm_level_already_through_spot_has_no_negative_distance():
     assert levels[0]["trigger"] == pytest.approx(22600.0)
 
 
-# ---------------------------------------------------------------------------
-# Partial-line buffer
-# ---------------------------------------------------------------------------
 
 def test_consume_complete_lines_keeps_the_partial_tail():
     lines, rest = consume_complete_lines("", '{"a": 1}\n{"b": 2}\n{"c"')

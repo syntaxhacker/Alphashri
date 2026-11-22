@@ -15,7 +15,6 @@ function mapColorToVariant(color?: string): ToastType {
   return "default";
 }
 
-/** Bottom-right stack, matching the old notistack anchor. */
 const POSITION = { positionX: "right", positionY: "bottom" } as const;
 
 /** `positionX`/`positionY` are toaster-level config, not per-toast (they are

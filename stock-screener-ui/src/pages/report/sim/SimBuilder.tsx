@@ -71,7 +71,6 @@ function Ctx(props: { label: string; value: JSX.Element; hint?: JSX.Element }) {
   );
 }
 
-/** Desk-level context strip shared by every SIM tab. */
 export function SimContextStrip(props: SimContextStripProps) {
   return (
     <ToolbarRow

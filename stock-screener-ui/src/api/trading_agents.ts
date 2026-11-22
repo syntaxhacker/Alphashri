@@ -1,8 +1,3 @@
-/**
- * TradingAgents API Client
- * Provides functions to interact with TradingAgents backend for stock analysis
- */
-
 import { fetchWithAuth } from "../state/auth";
 import { iterateSse, readSseStream } from "./sse";
 
@@ -94,27 +89,18 @@ async function tradingAgentsError(response: Response, fallback: string): Promise
   throw new Error(error.detail || `HTTP ${response.status}`);
 }
 
-/**
- * Get available configuration options
- */
 export async function getTradingAgentsConfig(): Promise<ConfigResponse> {
   const response = await fetchWithAuth(`${TRADING_AGENTS_BASE}/config`);
   if (!response.ok) await tradingAgentsError(response, "Failed to get config");
   return response.json();
 }
 
-/**
- * Check if TradingAgents is available
- */
 export async function checkTradingAgentsHealth(): Promise<HealthResponse> {
   const response = await fetchWithAuth(`${TRADING_AGENTS_BASE}/health`);
   if (!response.ok) await tradingAgentsError(response, "Health check failed");
   return response.json();
 }
 
-/**
- * Run full stock analysis (non-streaming)
- */
 export async function analyzeStock(request: AnalysisRequest): Promise<AnalysisResponse> {
   const response = await fetchWithAuth(`${TRADING_AGENTS_BASE}/analyze`, {
     method: "POST",
@@ -128,9 +114,6 @@ export async function analyzeStock(request: AnalysisRequest): Promise<AnalysisRe
   return response.json();
 }
 
-/**
- * Stream stock analysis using SSE
- */
 export async function* streamStockAnalysis(
   ticker: string,
   options?: {
@@ -167,7 +150,6 @@ export async function* streamStockAnalysis(
 
     try {
       const parsed = JSON.parse(frame.data);
-      // Determine event type from data
       if (parsed.ticker && !parsed.stats) {
         yield { event: "connected", data: parsed };
       } else if (parsed.percent !== undefined) {
@@ -187,9 +169,6 @@ export async function* streamStockAnalysis(
   }
 }
 
-/**
- * Simple chat for quick questions
- */
 export async function sendChatMessage(request: ChatRequest): Promise<ChatResponse> {
   const response = await fetchWithAuth(`${TRADING_AGENTS_BASE}/chat`, {
     method: "POST",
@@ -203,10 +182,6 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
   return response.json();
 }
 
-/**
- * Parse SSE event stream into readable chunks
- * Useful for implementing custom streaming in components
- */
 export async function listConversations(): Promise<Conversation[]> {
   const response = await fetchWithAuth(`${TRADING_AGENTS_BASE}/conversations`);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);

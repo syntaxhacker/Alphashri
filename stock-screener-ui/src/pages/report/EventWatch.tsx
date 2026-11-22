@@ -50,7 +50,6 @@ function kindOf(ev: EventWatchEvent): EventWatchKind {
   return ev.kind;
 }
 
-/** Parse "3.2x vol" style sub_value into a volume ratio. */
 function parseVolRatio(row: DailyMoveRow): number | undefined {
   const raw = `${row.sub_value ?? ""} ${row.sub_label ?? ""}`;
   const match = /([\d.]+)\s*x/i.exec(raw);

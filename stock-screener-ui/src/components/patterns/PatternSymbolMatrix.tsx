@@ -28,14 +28,11 @@ export interface PatternSymbolMatrixProps {
   onShowMembers?: (symbol: string) => void;
   loading?: boolean;
   emptyMessage?: string;
-  /** Symbol currently shown in the docked chart — highlighted in the matrix. */
   activeSymbol?: string | null;
   /** Emits the rows in rendered (post-sort) order for prev/next navigation. */
   onRowsChange?: (rows: PatternMatrixRow[]) => void;
-  /** Hover intent for the right-side symbol preview (host debounces). */
   onSymbolPreview?: (symbol: string) => void;
   onSymbolPreviewEnd?: (symbol: string) => void;
-  /** Chart icon: open the symbol in the right-side chart. */
   onSymbolOpen?: (symbol: string) => void;
 }
 
@@ -327,7 +324,6 @@ export function PatternSymbolMatrix(props: PatternSymbolMatrixProps) {
         id: "patterns",
         header: "Patterns",
         accessorKey: "hit_count",
-        // Chips are badges, not text — centred like every other badge column.
         meta: { align: "center" },
         cell: (ctx) => {
           const ordered = chipHitsBySymbol().get(ctx.row.original.symbol) ?? [];

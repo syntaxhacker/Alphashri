@@ -1,20 +1,4 @@
 #!/usr/bin/env python3
-"""Fade-only wall book with a CORRECT opposite-break exit.
-
-The shipped engine exits a long CE when `spot < put_wall` — but the live walls
-are not side-filtered, so the put wall can sit ABOVE spot and the exit fires the
-bar after entry (26 of 60 fade trades, -8,923). Here the opposite exit only
-fires on a real break of the fade's own wall:
-
-    fade put  (long CE at a put wall w below spot): exit if prev >= w > spot
-    fade call (long PE at a call wall w above spot): exit if prev <= w < spot
-
-Entries keep the shipped fade rules (top-OI wall for >=3 bars, price within
-0.5xATR, max-pain room, 2-bar rejection). Optional filters via cfg.
-
-Run:
-    .venv/bin/python scripts/wall_replay/hist_fade.py
-"""
 
 from __future__ import annotations
 
@@ -108,12 +92,11 @@ def run(date: str, cfg: dict) -> list[dict]:
                 if cfg.get("be_after") and fav >= cfg["be_after"]:
                     pos["stop"] = max(pos["stop"], pos["entry"])
 
-                # CORRECT opposite: a real break of the fade's own wall
                 w = float(pos["wall"])
-                if pos["why"] in ("fade put", "failed down"):   # long CE, support below
+                if pos["why"] in ("fade put", "failed down"):
                     d = _oi5(rs, i, w, "PE")
                     opp = prev >= w > spot and (w - spot) >= 5 and d is not None and abs(d) >= cfg["oi"]
-                else:                              # long PE, resistance above
+                else:
                     d = _oi5(rs, i, w, "CE")
                     opp = prev <= w < spot and (spot - w) >= 5 and d is not None and abs(d) >= cfg["oi"]
 
@@ -137,10 +120,8 @@ def run(date: str, cfg: dict) -> list[dict]:
                                 "partial_net": cp["net_pnl"], "partial_gross": cp["gross_pnl"],
                                 "partial_costs": cp["costs"], "qty": LOT - pq})
                 reason = reason_full
-                # time stop: a trade that is not working after N bars is cut
                 if cfg.get("time_stop_bars") and held >= cfg["time_stop_bars"] and fav <= cfg.get("time_stop_max", 0.0):
                     reason = "TIME"
-                # structural stop: price went back through the wall (thesis dead)
                 if cfg.get("wall_stop_pts"):
                     if pos["why"] in ("fade put", "failed down") and spot < w - cfg["wall_stop_pts"]:
                         reason = "WALLSTOP"
@@ -188,7 +169,6 @@ def run(date: str, cfg: dict) -> list[dict]:
         else:
             top["call"] = (calls[0]["strike"], 1)
 
-        # remember the latest break so a failure can be faded
         cprev = (rs[i - 1].get("walls") or {}).get("calls") or []
         pprev = (rs[i - 1].get("walls") or {}).get("puts") or []
         if cprev:
@@ -200,7 +180,6 @@ def run(date: str, cfg: dict) -> list[dict]:
             if prev > bw >= spot and bw - spot >= cfg.get("break", 1):
                 last_break = {"i": i, "w": bw, "dir": "down"}
 
-        # failed-break fade: the break went back inside -> fade the wall
         if cfg.get("failed_fade") and last_break and i - last_break["i"] <= cfg.get("fade_window", 10):
             bw = float(last_break["w"]); conf = cfg.get("confirm", 5)
             if last_break["dir"] == "up" and spot <= bw - conf:
@@ -233,7 +212,6 @@ def run(date: str, cfg: dict) -> list[dict]:
                     return False
             return True
 
-        # fade put: support held -> long CE
         if cfg.get("fade_put", True) and top["put"][1] >= cfg.get("wall_bars", 3) and corridor >= cfg.get("min_corridor", cfg["corridor"]):
             w = puts[0]["strike"]
             prox = max(cfg.get("prox_min", 5), cfg.get("prox_atr", 0.5) * a)
@@ -248,7 +226,6 @@ def run(date: str, cfg: dict) -> list[dict]:
                                "target_spot": calls[0]["strike"], "entry_time": rs[i + 1]["t"],
                                "entry_i": i + 1, "why": "fade put", "wall": w}
                         continue
-        # fade call: resistance held -> long PE
         if cfg.get("fade_call", True) and top["call"][1] >= cfg.get("wall_bars", 3) and corridor >= cfg.get("min_corridor", cfg["corridor"]):
             w = calls[0]["strike"]
             prox = max(cfg.get("prox_min", 5), cfg.get("prox_atr", 0.5) * a)

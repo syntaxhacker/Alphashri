@@ -22,7 +22,6 @@ import {
 
 afterEach(cleanup);
 
-/** Chain leg: [ce_ltp, pe_ltp, ce_oi, pe_oi, ce_vol, pe_vol]. */
 function leg(ceLtp: number, peLtp: number, ceOi: number, peOi: number): number[] {
   return [ceLtp, peLtp, ceOi, peOi, 0, 0];
 }
@@ -95,11 +94,9 @@ describe("buildParticipantFlow", () => {
     const buckets = buildParticipantFlow([
       row("09:15", { "23000": leg(50, 40, 1000, 2000) }),
       row("09:20", {
-        // CE: build + up = buyers; PE: unwind + up = cover
         "23000": leg(60, 50, 1200, 1500),
       }),
       row("09:25", {
-        // CE: unwind + down = liquidation (writer side)
         "23000": leg(55, 50, 1000, 1500),
       }),
     ]);

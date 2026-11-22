@@ -35,9 +35,6 @@ from api.paper.paper_api import (
 )
 
 
-# ============================================================================
-# Fixtures
-# ============================================================================
 
 @pytest.fixture(autouse=True)
 def _clean_user_file_dicts():
@@ -77,9 +74,6 @@ def mock_user():
     return user
 
 
-# ============================================================================
-# _get_user_id
-# ============================================================================
 
 class TestGetUserId:
     @pytest.mark.unit
@@ -93,9 +87,6 @@ class TestGetUserId:
         assert _get_user_id(user) == 999
 
 
-# ============================================================================
-# _get_pid_file
-# ============================================================================
 
 class TestGetPidFile:
     @pytest.mark.unit
@@ -109,9 +100,6 @@ class TestGetPidFile:
         assert result == Path("/tmp/alphashri-7-runner.pid")
 
 
-# ============================================================================
-# _read_runner_pid_file
-# ============================================================================
 
 class TestReadRunnerPidFile:
     @pytest.mark.unit
@@ -145,9 +133,6 @@ class TestReadRunnerPidFile:
         assert _read_runner_pid_file() == 9876
 
 
-# ============================================================================
-# _write_runner_pid_file
-# ============================================================================
 
 class TestWriteRunnerPidFile:
     @pytest.mark.unit
@@ -164,9 +149,6 @@ class TestWriteRunnerPidFile:
         assert patch_pid_file.read_text().strip() == "111"
 
 
-# ============================================================================
-# _clear_runner_pid_file
-# ============================================================================
 
 class TestClearRunnerPidFile:
     @pytest.mark.unit
@@ -181,13 +163,9 @@ class TestClearRunnerPidFile:
     @pytest.mark.unit
     def test_no_error_when_file_missing(self, patch_pid_file):
         assert not patch_pid_file.exists()
-        # Should not raise
         _clear_runner_pid_file()
 
 
-# ============================================================================
-# _is_pid_alive
-# ============================================================================
 
 class TestIsPidAlive:
     @pytest.mark.unit
@@ -196,7 +174,6 @@ class TestIsPidAlive:
 
     @pytest.mark.unit
     def test_nonexistent_pid_returns_false(self):
-        # PID 99999 is very unlikely to exist
         assert _is_pid_alive(99999) is False
 
     @pytest.mark.unit
@@ -207,9 +184,6 @@ class TestIsPidAlive:
             assert _is_pid_alive(1) is False
 
 
-# ============================================================================
-# _get_bot_status
-# ============================================================================
 
 class TestGetBotStatus:
     @pytest.mark.unit
@@ -289,9 +263,6 @@ class TestGetBotStatus:
         assert result["running"] is False
 
 
-# ============================================================================
-# _get_symbol_trades_from_db
-# ============================================================================
 
 class TestGetSymbolTradesFromDb:
     @pytest.mark.unit
@@ -350,7 +321,6 @@ class TestGetSymbolTradesFromDb:
         with patch("db.database.SessionLocal", return_value=mock_session):
             _get_symbol_trades_from_db(1, "reliance", "2026-04-20")
 
-        # Verify the filter was called with uppercased symbol
         call_args = mock_session.query.return_value.filter.call_args_list
         # Second filter call is the symbol filter (first is user_id)
         assert call_args[0] is not None
@@ -406,7 +376,6 @@ class TestGetSymbolTradesFromDb:
         mock_session.close.side_effect = Exception("close fail")
 
         with patch("db.database.SessionLocal", return_value=mock_session):
-            # Should not raise
             trades = _get_symbol_trades_from_db(1, "TCS", "2026-04-20")
 
         assert trades == []

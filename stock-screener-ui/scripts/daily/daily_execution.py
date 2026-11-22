@@ -1,4 +1,3 @@
-"""Trade execution and position monitoring for daily ORB trading."""
 
 from datetime import datetime
 
@@ -11,7 +10,6 @@ console = Console()
 
 
 def execute_signal(runner, signal):
-    """Execute a trading signal."""
     if runner.test_mode:
         console.print(f"[yellow]TEST MODE: Would execute {signal.signal_type.value} {signal.symbol} @ \u20b9{signal.price:.2f}[/yellow]")
         return None
@@ -45,7 +43,6 @@ def execute_signal(runner, signal):
 
 
 def monitor_positions(runner):
-    """Monitor open positions for exits using 1-min candle high/low."""
     if not runner.trader.positions:
         return
 

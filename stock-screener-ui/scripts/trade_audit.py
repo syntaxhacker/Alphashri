@@ -50,7 +50,6 @@ def audit_session(date, modes=("inv", "retest")):
                              "zbot": z["bot"], "ztop": z["top"], "zform": z["form"]})
         eng.on_close = patched
         trades = eng.run(bars, ticks)
-        # match fills to arms (same side, fill bar within 3 bars after signal)
         for t in trades:
             fi = bidx.get(int(t["t_in"] // 1000 // 60) * 60, 0)
             match = None

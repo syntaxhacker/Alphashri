@@ -130,7 +130,6 @@ def main() -> None:
     exit_value = QTY * EXIT
     current_value = QTY * q["ltp"]
 
-    # Current-day freshness
     last_now = ce_now[-1]["t"] if ce_now else None
     days_to_expiry = max(0, (datetime.fromisoformat(EXPIRY).date() - datetime.now().date()).days)
 

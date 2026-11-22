@@ -20,9 +20,6 @@ from market_data.market_data import (
 )
 
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 def _make_1m_candles(n: int, base_price: float = 100.0, start: str = "2026-04-09 09:15:00"):
     """Create n 1-minute candles as a DataFrame with IST timezone."""
@@ -43,9 +40,6 @@ def _make_1m_candles(n: int, base_price: float = 100.0, start: str = "2026-04-09
     return pd.DataFrame(data, index=times)
 
 
-# ---------------------------------------------------------------------------
-# _normalize_tz
-# ---------------------------------------------------------------------------
 
 class TestNormalizeTz:
     def test_naive_index_gets_utc(self):
@@ -67,9 +61,6 @@ class TestNormalizeTz:
         assert str(result.index.tz) == "UTC"
 
 
-# ---------------------------------------------------------------------------
-# resample_candles
-# ---------------------------------------------------------------------------
 
 class TestResampleCandles:
     def test_1m_to_5m(self):
@@ -115,9 +106,6 @@ class TestResampleCandles:
         assert len(result) == 10
 
 
-# ---------------------------------------------------------------------------
-# fetch_candles
-# ---------------------------------------------------------------------------
 
 class TestFetchCandles:
     @patch("market_data.market_data.get_api_client")
@@ -277,9 +265,6 @@ class TestFetchCandles:
         assert len(result) == 8
 
 
-# ---------------------------------------------------------------------------
-# _TF_TO_UPSTOX mapping
-# ---------------------------------------------------------------------------
 
 class TestTFMapping:
     def test_all_tfs_have_mappings(self):

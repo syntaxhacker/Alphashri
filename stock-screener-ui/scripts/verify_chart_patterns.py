@@ -45,19 +45,16 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple
 
-# --------------------------------------------------------------------------- #
-# Paths / env
-# --------------------------------------------------------------------------- #
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_DIR = SCRIPT_DIR.parent          # stock-screener-ui
-ROOT_DIR = PROJECT_DIR.parent            # repo root
+PROJECT_DIR = SCRIPT_DIR.parent
+ROOT_DIR = PROJECT_DIR.parent
 
 for _p in (str(PROJECT_DIR), str(ROOT_DIR)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-try:  # optional — config auto-loads .env anyway
+try:
     from dotenv import load_dotenv
 
     for _env in (PROJECT_DIR / ".env", PROJECT_DIR / ".env.dev", ROOT_DIR / ".env"):
@@ -141,9 +138,6 @@ STATUS_SHORT = {
 }
 
 
-# --------------------------------------------------------------------------- #
-# Small helpers
-# --------------------------------------------------------------------------- #
 
 def _log(msg: str) -> None:
     print(msg, flush=True)
@@ -191,7 +185,6 @@ def _hit_to_dict(hit: Any) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     for f in HIT_FIELDS:
         out[f] = _get_arg(hit, f, default=None)
-    # Normalise numeric fields.
     for f in ("confidence", "start_price", "end_price", "breakout_level", "target", "stop", "rr"):
         try:
             out[f] = float(out[f]) if out[f] is not None else None
@@ -209,9 +202,6 @@ def _hit_to_dict(hit: Any) -> Dict[str, Any]:
     return out
 
 
-# --------------------------------------------------------------------------- #
-# Symbol + timeframe resolution
-# --------------------------------------------------------------------------- #
 
 def load_instruments() -> Optional[List[Dict[str, Any]]]:
     if not INSTRUMENTS_FILE.exists():
@@ -245,7 +235,6 @@ def resolve_symbols(raw: Optional[str], limit: int) -> Tuple[List[str], Optional
     }
     picks = [s for s in DEFAULT_LIQUID_SYMBOLS if s in available]
     if limit and limit > 0 and len(picks) < limit:
-        # Top up deterministically (sorted) from the EQ universe.
         extra = sorted(available - set(picks))
         picks.extend(extra)
     return (picks[:limit] if limit and limit > 0 else picks), None
@@ -315,16 +304,13 @@ def resolve_catalog() -> Tuple[List[Dict[str, str]], Optional[str]]:
             break
 
     merged: Dict[str, Dict[str, str]] = {p["pattern_id"]: p for p in CONTRACT_PATTERNS}
-    merged.update(discovered)  # real catalog authority over fallback
+    merged.update(discovered)
     return list(merged.values()), (None if discovered else "pattern catalog not importable — using CONTRACT fallback catalog")
 
 
-# --------------------------------------------------------------------------- #
-# Candle fetch (real V3 transport only)
-# --------------------------------------------------------------------------- #
 
 def _local_resample(df, minutes: int):
-    import pandas as pd  # local import; pandas is an existing dep
+    import pandas as pd
 
     if minutes % 1440 == 0:
         rule = f"{minutes // 1440}D"
@@ -373,12 +359,10 @@ def _call_fetch_for_timeframe(fn, symbol: str, spec: Any, api_client):
             return fn(**kwargs)
         except TypeError:
             return fn(symbol, tf_id)
-    # Positional-only signature.
     return fn(symbol, tf_id)
 
 
 def fetch_for_spec(symbol: str, spec: Any, api_client, from_date: str, to_date: str):
-    """Return (df, error). Uses chart_patterns.candles first, market_data second."""
     candles_mod = _try_import("chart_patterns.candles")
     if candles_mod is not None and hasattr(candles_mod, "fetch_for_timeframe"):
         try:
@@ -386,7 +370,6 @@ def fetch_for_spec(symbol: str, spec: Any, api_client, from_date: str, to_date: 
             if df is not None and not getattr(df, "empty", True):
                 return df, None
         except Exception as exc:
-            # Fall through to the market_data adapter, but remember the reason.
             fallback_reason = str(exc)
         else:
             fallback_reason = "fetch_for_timeframe returned empty"
@@ -435,9 +418,6 @@ def fetch_for_spec(symbol: str, spec: Any, api_client, from_date: str, to_date: 
     return df, None
 
 
-# --------------------------------------------------------------------------- #
-# Core scan
-# --------------------------------------------------------------------------- #
 
 def run_scan(
     symbols: List[str],
@@ -474,7 +454,7 @@ def run_scan(
         }
         try:
             df, err = fetch_for_spec(symbol, spec, api_client, from_date, today_str)
-        except Exception as exc:  # defensive: fetch should not raise
+        except Exception as exc:
             df, err = None, f"{type(exc).__name__}: {exc}"
             entry["fetch_error_trace"] = traceback.format_exc(limit=3)
 
@@ -523,14 +503,10 @@ def run_scan(
                 else:
                     _log(f"  [{tf_id:>4}] {symbol:<12} bars={entry['bars']:<5} hits={len(entry['hits'])}")
 
-    # deterministic order for the report
     results.sort(key=lambda r: (r["timeframe"], r["symbol"]))
     return results
 
 
-# --------------------------------------------------------------------------- #
-# Reporting
-# --------------------------------------------------------------------------- #
 
 def write_csv(path: Path, results: List[Dict[str, Any]]) -> int:
     n = 0
@@ -567,7 +543,6 @@ def build_summary_md(
     pattern_ids = [p["pattern_id"] for p in catalog]
     catalog_by_id = {p["pattern_id"]: p for p in catalog}
 
-    # hits[pattern_id][tf] = list of statuses
     hits: Dict[str, Dict[str, List[str]]] = {pid: defaultdict(list) for pid in pattern_ids}
     for r in results:
         for h in r.get("hits", []):
@@ -593,7 +568,6 @@ def build_summary_md(
         lines.append(f"- ⚠️ Timeframe note: {tf_note}")
     lines.append("")
 
-    # -------- zero hits ---------------------------------------------------- #
     zero_hits = [pid for pid in pattern_ids if not any(hits.get(pid, {}).get(tf) for tf in tf_ids)]
     lines.append("## Patterns with ZERO hits (possible detector gap)")
     lines.append("")
@@ -608,7 +582,6 @@ def build_summary_md(
         lines.append("- None — every catalogued pattern fired at least once. 🎉")
     lines.append("")
 
-    # -------- matrix ------------------------------------------------------- #
     lines.append("## Matrix: pattern_id × timeframe (hit count + statuses)")
     lines.append("")
     lines.append("Status legend: `c`=confirmed, `f`=forming, `x`=failed, `m`=marginal. "
@@ -637,7 +610,6 @@ def build_summary_md(
         )
     lines.append("")
 
-    # -------- per-TF fetch report ----------------------------------------- #
     lines.append("## Fetch / coverage report per timeframe")
     lines.append("")
     lines.append("| timeframe | symbols | fetched ok | skipped (history) | fetch failed | detect errors | median bars |")
@@ -653,7 +625,6 @@ def build_summary_md(
         lines.append(f"| {tf} | {len(rows)} | {len(ok)} | {len(skipped)} | {len(failed)} | {len(detect_err)} | {med} |")
     lines.append("")
 
-    # -------- failures detail --------------------------------------------- #
     failures = [r for r in results if r["fetch_status"] == "failed"]
     lines.append("## Fetch failures (raw)")
     lines.append("")
@@ -685,9 +656,6 @@ def build_summary_md(
     return "\n".join(lines)
 
 
-# --------------------------------------------------------------------------- #
-# CLI
-# --------------------------------------------------------------------------- #
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Verify chart patterns on real Upstox V3 candles.")
@@ -762,7 +730,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         progress=not args.quiet,
     )
 
-    # Artifacts -------------------------------------------------------------
     report = {
         "meta": {
             "generated_at": _today().isoformat(timespec="seconds"),

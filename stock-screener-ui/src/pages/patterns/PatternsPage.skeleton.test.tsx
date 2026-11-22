@@ -4,9 +4,6 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, render, screen } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 
-// `ScanStats` sits at the top of the page tree: making it suspend proves the
-// page's own boundary is what swaps in the skeleton (the route-level lazy
-// chunk is resolved long before this render).
 vi.mock("@/components/patterns/ScanStats", async () => {
   const { lazy } = await import("solid-js");
   return { ScanStats: lazy(() => new Promise(() => {})) };
@@ -95,7 +92,6 @@ describe("PatternsPage cold load", () => {
     ));
     expect(screen.getByTestId("patterns-skeleton")).toBeInTheDocument();
     expect(screen.getAllByTestId("patterns-skeleton-card")).toHaveLength(8);
-    // The real page never mounts while the boundary is held.
     expect(screen.queryByTestId("patterns-page")).not.toBeInTheDocument();
   });
 });

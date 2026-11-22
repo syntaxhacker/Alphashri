@@ -2,13 +2,9 @@ import { describe, expect, test } from "vitest";
 import { symbolMetrics, maxPainTouchTol, pinEdgeHigh, pinEdgeMedium, pinPainPts, wallMaxDist, wallMinOi, levelMaxDist, heatmapWidthPts, atmWindowPts, flowNoiseFor, squeezeRangePts, squeezePriceBreakPts, squeezeAtWallPts } from "./symbolMetrics";
 import type { NiftyReport, NiftyStrike, NiftyWall } from "@/types/niftyReport";
 
-/** Symbol calibration fixtures — kept test-local, not exported from production. */
 const TEST_FIXTURES = {
-  /** SENSEX: ~79,000 spot, 100-pt strike step, lot 20 */
   sensex: { spot: 79_000, strikeStep: 100, lotSize: 20 },
-  /** RELIANCE: ~1,400 spot, 50-pt strike step, lot 500 */
   reliance: { spot: 1_400, strikeStep: 50, lotSize: 500 },
-  /** NIFTY: ~22,800 spot, 50-pt strike step, lot 65 */
   nifty: { spot: 22_800, strikeStep: 50, lotSize: 65 },
 } as const;
 
@@ -55,28 +51,23 @@ describe("symbolMetrics", () => {
     expect(m.totalOi).toBe(20_000_000);
     expect(m.maxWallOi).toBe(11_000_000);
 
-    // Point thresholds
-    expect(m.maxPainTouchTol).toBe(10); // 50 * 0.2
+    expect(m.maxPainTouchTol).toBe(10);
     expect(m.pinEdgeHigh).toBe(50);
     expect(m.pinEdgeMedium).toBe(100);
     expect(m.pinPainPts).toBe(100);
     expect(m.wallMaxDist).toBe(100);
-    // wallMinOi: max(500k, 11M * 0.25) = max(500k, 2.75M) = 2.75M
     expect(m.wallMinOi).toBe(2_750_000);
-    expect(m.levelMaxDist).toBe(60); // round(50 * 1.2)
-    expect(m.heatmapWidthPts).toBe(250); // 50 * 5
-    expect(m.atmWindowPts).toBe(750); // 50 * 15
+    expect(m.levelMaxDist).toBe(60);
+    expect(m.heatmapWidthPts).toBe(250);
+    expect(m.atmWindowPts).toBe(750);
 
-    // Flow noise: absolute floor 50k, relative 0.1%
     expect(m.flowNoise).toBe(50_000);
     expect(m.flowNoiseRel).toBe(0.001);
-    // totalOi = 20M * 0.1% = 20k, max(50k, 20k) = 50k
     expect(m.effectiveFlowNoise).toBe(50_000);
 
-    // Squeeze radar (bps preserved from NIFTY calibration)
-    expect(m.squeezeRangeBps).toBe(Math.round((120 / 22_800) * 10000)); // ~52.6 -> 53
-    expect(m.squeezePriceBreakBps).toBe(Math.round((10 / 22_800) * 10000)); // ~4.4 -> 4
-    expect(m.squeezeAtWallBps).toBe(Math.round((5 / 22_800) * 10000)); // ~2.2 -> 2
+    expect(m.squeezeRangeBps).toBe(Math.round((120 / 22_800) * 10000));
+    expect(m.squeezePriceBreakBps).toBe(Math.round((10 / 22_800) * 10000));
+    expect(m.squeezeAtWallBps).toBe(Math.round((5 / 22_800) * 10000));
     expect(m.squeezeRangePts).toBe(Math.max(1, Math.round((22_800 * m.squeezeRangeBps) / 10000)));
     expect(m.squeezePriceBreakPts).toBe(Math.max(1, Math.round((22_800 * m.squeezePriceBreakBps) / 10000)));
     expect(m.squeezeAtWallPts).toBe(Math.max(1, Math.round((22_800 * m.squeezeAtWallBps) / 10000)));
@@ -102,25 +93,20 @@ describe("symbolMetrics", () => {
     expect(m.lotSize).toBe(20);
     expect(m.maxWallOi).toBe(7_500_000);
 
-    // Point thresholds scale with strikeStep (2x NIFTY)
-    expect(m.maxPainTouchTol).toBe(20); // 100 * 0.2
+    expect(m.maxPainTouchTol).toBe(20);
     expect(m.pinEdgeHigh).toBe(100);
     expect(m.pinEdgeMedium).toBe(200);
     expect(m.pinPainPts).toBe(200);
     expect(m.wallMaxDist).toBe(200);
-    // wallMinOi: max(500k, 7.5M * 0.25) = max(500k, 1.875M) = 1.875M
     expect(m.wallMinOi).toBe(1_875_000);
-    expect(m.levelMaxDist).toBe(120); // round(100 * 1.2)
-    expect(m.heatmapWidthPts).toBe(500); // 100 * 5
-    expect(m.atmWindowPts).toBe(1_500); // 100 * 15
+    expect(m.levelMaxDist).toBe(120);
+    expect(m.heatmapWidthPts).toBe(500);
+    expect(m.atmWindowPts).toBe(1_500);
 
-    // Flow noise: SENSEX totalOi = 1.8M * 0.1% = 1.8k, max(50k, 1.8k) = 50k
-    // (Note: chain OI is lower than tape OI; real SENSEX totalOi ~170M would give 170k)
     expect(m.flowNoise).toBe(50_000);
     expect(m.flowNoiseRel).toBe(0.001);
     expect(m.effectiveFlowNoise).toBe(50_000);
 
-    // Squeeze radar: bps preserved, points scale with spot
     expect(m.squeezeRangeBps).toBe(Math.round((120 / 22_800) * 10000));
     expect(m.squeezePriceBreakBps).toBe(Math.round((10 / 22_800) * 10000));
     expect(m.squeezeAtWallBps).toBe(Math.round((5 / 22_800) * 10000));
@@ -128,7 +114,6 @@ describe("symbolMetrics", () => {
     expect(m.squeezePriceBreakPts).toBe(Math.max(1, Math.round((79_000 * m.squeezePriceBreakBps) / 10000)));
     expect(m.squeezeAtWallPts).toBe(Math.max(1, Math.round((79_000 * m.squeezeAtWallBps) / 10000)));
 
-    // Verify SENSEX range is ~3.46x NIFTY (79k/22.8k)
     const niftyReport = makeReport({ spot: 22_800 });
     const niftyMetrics = symbolMetrics(niftyReport);
     expect(m.squeezeRangePts / niftyMetrics.squeezeRangePts).toBeCloseTo(79_000 / 22_800, 1);
@@ -152,30 +137,24 @@ describe("symbolMetrics", () => {
     expect(m.lotSize).toBe(500);
     expect(m.maxWallOi).toBe(14_000_000);
 
-    // Point thresholds same as NIFTY (same strike step)
     expect(m.maxPainTouchTol).toBe(10);
     expect(m.pinEdgeHigh).toBe(50);
     expect(m.pinEdgeMedium).toBe(100);
     expect(m.pinPainPts).toBe(100);
     expect(m.wallMaxDist).toBe(100);
-    // wallMinOi: max(500k, 14M * 0.25) = max(500k, 3.5M) = 3.5M
     expect(m.wallMinOi).toBe(3_500_000);
     expect(m.levelMaxDist).toBe(60);
     expect(m.heatmapWidthPts).toBe(250);
     expect(m.atmWindowPts).toBe(750);
 
-    // Flow noise: RELIANCE totalOi = 0.6M * 0.1% = 600, max(50k, 600) = 50k
-    // (Note: real RELIANCE totalOi ~50M would give 50k)
     expect(m.flowNoise).toBe(50_000);
     expect(m.flowNoiseRel).toBe(0.001);
     expect(m.effectiveFlowNoise).toBe(50_000);
 
-    // Squeeze radar: bps preserved, points scale with spot (1.4k vs 22.8k)
     expect(m.squeezeRangePts).toBe(Math.max(1, Math.round((1_400 * m.squeezeRangeBps) / 10000)));
     expect(m.squeezePriceBreakPts).toBe(Math.max(1, Math.round((1_400 * m.squeezePriceBreakBps) / 10000)));
     expect(m.squeezeAtWallPts).toBe(Math.max(1, Math.round((1_400 * m.squeezeAtWallBps) / 10000)));
 
-    // Verify RELIANCE range is ~0.061x NIFTY (1.4k/22.8k)
     const niftyReport = makeReport({ spot: 22_800 });
     const niftyMetrics = symbolMetrics(niftyReport);
     expect(m.squeezeRangePts / niftyMetrics.squeezeRangePts).toBeCloseTo(1_400 / 22_800, 1);
@@ -187,8 +166,8 @@ describe("symbolMetrics", () => {
     ];
     const report = makeReport({ strikes, walls: { calls: [], puts: [] } });
     const m = symbolMetrics(report);
-    expect(m.strikeStep).toBe(50); // DEFAULT_STRIKE_STEP
-    expect(m.wallMinOi).toBe(500_000); // floor when no walls
+    expect(m.strikeStep).toBe(50);
+    expect(m.wallMinOi).toBe(500_000);
   });
 
   test("Backward-compatible helpers return same values as symbolMetrics", () => {

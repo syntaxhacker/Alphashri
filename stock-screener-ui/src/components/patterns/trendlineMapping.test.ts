@@ -136,8 +136,6 @@ describe("mapTimeSegment", () => {
   });
 
   it("interpolates the price at the window edge when the segment starts before the window", () => {
-    // Line 100 → 104 across 09:14–09:18; window starts at 09:15 so the value
-    // at the first visible bar is 101, not the original start price 100.
     const points = mapTimeSegment("2026-05-04 09:14", 100, "2026-05-04 09:18", 104, TIMES);
     expect(points).toHaveLength(2);
     expect(points[0]?.index).toBe(0);
@@ -147,8 +145,6 @@ describe("mapTimeSegment", () => {
   });
 
   it("interpolates the price at the window edge when the segment ends after the window", () => {
-    // Line 102 → 106 across 09:17–09:20; window ends at 09:18 so the value at
-    // the last visible bar is 102 + 4/3 ≈ 103.333, not the end price 106.
     const points = mapTimeSegment("2026-05-04 09:17", 102, "2026-05-04 09:20", 106, TIMES);
     expect(points).toHaveLength(2);
     expect(points[0]).toEqual({ index: 2, price: 102 });
@@ -158,8 +154,6 @@ describe("mapTimeSegment", () => {
   });
 
   it("clamps both edges when the segment spans the whole window", () => {
-    // Line 100 → 106 across 09:14–09:20; visible slice 09:15–09:18 maps to
-    // 101 → 104 with a slope of 1/min.
     const points = mapTimeSegment("2026-05-04 09:14", 100, "2026-05-04 09:20", 106, TIMES);
     expect(points).toHaveLength(2);
     expect(points[0]?.index).toBe(0);

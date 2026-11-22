@@ -23,7 +23,6 @@ import type { NiftyGex, NiftyTape, NiftyTapeRow, NiftyWall } from "@/types/nifty
  * desk has not reached yet. The headline numbers come from the same frame.
  */
 
-/** Rendered for any absent field so a stat never shows a blank cell. */
 const GAMMA_DASH = "—";
 
 /**
@@ -34,13 +33,11 @@ const GAMMA_DASH = "—";
  */
 const GAMMA_NA = "n/a";
 
-/** One plotted point: a tape timestamp and its (finite) net gamma. */
 interface GammaPoint {
   t: string;
   netGex: number;
 }
 
-/** The four headline stats. Each is `null` when no source carries it. */
 interface GammaStats {
   now: number | null;
   flip: number | null;
@@ -48,11 +45,6 @@ interface GammaStats {
   putWall: number | null;
 }
 
-/**
- * Finite number or `null` — collapses `null`, `undefined`, `NaN`, `""` and
- * junk. `Number(null) === 0` and `Number("") === 0`, so both are guarded
- * explicitly before coercion.
- */
 function finiteOrNull(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
   const n = Number(v);
@@ -81,7 +73,6 @@ function gammaClock(t: string): string {
   return raw;
 }
 
-/** Signed crore gamma: `+5.50 Cr` / `-2.50 Cr`; dash for anything non-finite. */
 export function formatGammaCr(v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return GAMMA_DASH;
   const sign = v < 0 ? "-" : "+";

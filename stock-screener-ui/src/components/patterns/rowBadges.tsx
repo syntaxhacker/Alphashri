@@ -1,15 +1,8 @@
-/**
- * Shared row-badge + date helpers for the pattern rows (watch list, results
- * list). Tag membership, the F&O/ETF badges and the compact date formats were
- * copied across WatchView / PatternListView; they live here so every surface
- * renders them identically.
- */
 
 import { createMemo, Show } from "solid-js";
 import { Badge } from "@/ui";
 import { formatChartTimestamp } from "./datetime";
 
-/** Backend `tags` on a row (F&O / ETF). Always an array of strings; missing/invalid → []. */
 // `tags` is not declared on `PatternHitDTO` / `WatchRow` (shared types, owned
 // elsewhere) even though the backend sets it on both, so the parameter accepts
 // any row object and reads the field structurally.
@@ -42,32 +35,20 @@ export function shortIstDate(iso: string | null | undefined): string | null {
   return `${day} ${MONTHS_SHORT[month - 1]}`;
 }
 
-/**
- * Full, human-readable date for tooltips (e.g. "05 Nov 2026"). Delegates to
- * the chart timestamp formatter so tooltips read identically to the charts.
- * Null when missing.
- */
 export function fullDate(iso: string | null | undefined): string | null {
   if (!iso) return null;
   return formatChartTimestamp(String(iso));
 }
 
 export interface PatternTagsProps {
-  /** Backend `tags` (F&O / ETF). Tolerated null/undefined — renders nothing. */
   tags: string[] | null | undefined;
   symbol: string;
   /** Testid namespace: badges land at `${testIdPrefix}-tag-fno-${symbol}` / `${testIdPrefix}-tag-etf-${symbol}`. */
   testIdPrefix: string;
-  /** Render the ETF badge too (default true). The results list hides it to keep its current DOM. */
   showEtf?: boolean;
-  /** Dense inline layout for ~28px table rows (size xs, tight gap). Default true. */
   compact?: boolean;
 }
 
-/**
- * F&O (info) / ETF (warning) badges rendered next to the symbol. Additive
- * only — rows without matching tags render nothing extra.
- */
 export function PatternTags(props: PatternTagsProps) {
   const list = createMemo(() => rowTags({ tags: props.tags }));
   const fno = () => list().includes("F&O");

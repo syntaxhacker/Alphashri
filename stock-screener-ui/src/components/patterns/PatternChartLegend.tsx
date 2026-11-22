@@ -10,15 +10,10 @@ export interface PatternLegendLine {
 }
 
 export interface PatternChartLegendProps {
-  /** Line entries as drawn on the chart (see `buildPatternTVData(...).lines`). */
   lines: PatternLegendLine[];
-  /** Horizontal level guides (Breakout/Target/Stop) — toggled like lines. */
   levels?: PatternLegendLine[];
-  /** Marker overlays (e.g. the single swing-pivot entry) — toggled like lines. */
   markers?: PatternLegendLine[];
-  /** Names currently toggled off (hidden) via the legend. */
   hidden?: ReadonlySet<string>;
-  /** Toggle a series on/off. When omitted the legend is display-only. */
   onToggle?: (name: string) => void;
 }
 

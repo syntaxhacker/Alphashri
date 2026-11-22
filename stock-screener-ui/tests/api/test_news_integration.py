@@ -34,9 +34,6 @@ api_server_fastapi._llm_available = True
 client = TestClient(app)
 
 
-# =========================================================================
-# Article Endpoint: Caching
-# =========================================================================
 
 class TestArticleEndpointCaching:
     @patch('api_server_fastapi.fetch_article_content')
@@ -86,9 +83,6 @@ class TestArticleEndpointCaching:
         assert call_args[0] == expected_key
 
 
-# =========================================================================
-# Article Endpoint: LLM Analysis
-# =========================================================================
 
 class TestArticleEndpointLLM:
     @patch('api_server_fastapi.article_analyzer')
@@ -182,9 +176,6 @@ class TestArticleEndpointLLM:
         mock_analyzer.analyze_article.assert_not_called()
 
 
-# =========================================================================
-# Article Endpoint: Symbol Enrichment
-# =========================================================================
 
 class TestArticleEndpointSymbolEnrichment:
     @patch('api_server_fastapi.fetch_article_content')
@@ -223,9 +214,6 @@ class TestArticleEndpointSymbolEnrichment:
         assert data["symbols"] == enriched
 
 
-# =========================================================================
-# Article Endpoint: Persistence
-# =========================================================================
 
 class TestArticleEndpointPersistence:
     @patch('api_server_fastapi.fetch_article_content')
@@ -262,9 +250,6 @@ class TestArticleEndpointPersistence:
         assert data["id"] == 99
 
 
-# =========================================================================
-# Analyze Endpoint: 503 + Cache
-# =========================================================================
 
 class TestAnalyzeEndpoint:
     def test_returns_503_when_llm_not_available(self):
@@ -327,9 +312,6 @@ class TestAnalyzeEndpoint:
         mock_fetcher.assert_not_called()
 
 
-# =========================================================================
-# News List Endpoint: Caching all results
-# =========================================================================
 
 class TestNewsEndpoint:
 

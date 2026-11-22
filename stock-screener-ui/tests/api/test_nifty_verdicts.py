@@ -19,9 +19,6 @@ def _clear_caches():
     nv.clear_caches()
 
 
-# ---------------------------------------------------------------------------
-# helpers
-# ---------------------------------------------------------------------------
 
 def _side(oi, prev_oi, iv=None):
     return {"oi": oi, "prev_oi": prev_oi, "iv": iv}
@@ -43,9 +40,6 @@ def _const_session(day, hi, lo, n=120, minute_start=(9, 15)):
     return rows
 
 
-# ---------------------------------------------------------------------------
-# control
-# ---------------------------------------------------------------------------
 
 class TestControlVerdict:
     @pytest.mark.parametrize("ce_doi,pe_doi,flow,expected", [
@@ -226,9 +220,6 @@ class TestAtmIvs:
         assert nv.atm_ivs([], 100.0) == (None, None)
 
 
-# ---------------------------------------------------------------------------
-# indicators
-# ---------------------------------------------------------------------------
 
 class TestEma:
     def test_hand_computed(self):
@@ -321,9 +312,6 @@ class TestRealizedVolLikeForLike:
         assert nv.rv_iv_ratio(14.43, 0) is None
 
 
-# ---------------------------------------------------------------------------
-# baseline
-# ---------------------------------------------------------------------------
 
 class TestMedianSessionRange:
     def test_median_excludes_today_and_short_sessions(self):
@@ -363,9 +351,6 @@ class TestNormalizeCandles:
         assert nv.normalize_candles([[None]]) == []
 
 
-# ---------------------------------------------------------------------------
-# regime
-# ---------------------------------------------------------------------------
 
 class TestRegimeVerdict:
     def test_range_sell_premium(self):
@@ -551,9 +536,6 @@ class TestComputeRegime:
         assert out["rv"] >= session_only
 
 
-# ---------------------------------------------------------------------------
-# strength
-# ---------------------------------------------------------------------------
 
 class TestStrengthVerdict:
     def test_thresholds(self):
@@ -639,9 +621,6 @@ class TestEmaSeries:
         assert out[2] is None
 
 
-# ---------------------------------------------------------------------------
-# cached network fetchers (mocked)
-# ---------------------------------------------------------------------------
 
 def _vix_payload(ltp=15.0, close=14.45, hi=15.2, lo=13.8):
     return {"status": "success", "data": {"NSE_INDEX:India VIX": {
@@ -767,9 +746,6 @@ class TestIntradayFetcher:
             assert await nv.get_intraday_candles("2026-10-13") is None
 
 
-# ---------------------------------------------------------------------------
-# composition with the live endpoint
-# ---------------------------------------------------------------------------
 
 def _chain_payload():
     def side(ltp, close, oi, prev_oi, vol, iv=14.0):

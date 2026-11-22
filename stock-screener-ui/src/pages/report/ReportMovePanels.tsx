@@ -20,8 +20,6 @@ const MOVE_PANELS: Array<{ id: DailyMovesPanelId; title: string }> = [
   { id: "turnover", title: "Turnover" },
 ];
 
-/** Explicit `minmax(0,1fr)` tracks: a bare `1fr` floor is the content width, so
- *  one long symbol name widens the whole column past its panel. */
 const PANEL_GRID_COLS = [
   "grid-cols-[repeat(1,minmax(0,1fr))]",
   "min-[600px]:grid-cols-[repeat(2,minmax(0,1fr))]",

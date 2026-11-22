@@ -64,9 +64,6 @@ def test_breadth_caches_for_a_minute(monkeypatch):
     assert calls["n"] == 1
 
 
-# ---------------------------------------------------------------------------
-# History + last.json persistence
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture

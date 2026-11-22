@@ -1,14 +1,4 @@
 #!/usr/bin/env python
-"""Opening-range sweep: range width 1..60 min, both directions (fade vs breakout).
-
-Reads "ob from mins to 1hr" as: same opening-range idea, range window from 1 to
-60 minutes, and test the continuation (breakout) side as well as the fade.
-
-Runs the identical grid on the 2026 sample and the unseen 2023 mirror, so the
-answer is "what is robust across regimes", not "what was best in one year".
-
-  .venv/bin/python scripts/research/double_vwap/orb_width_sweep.py
-"""
 from __future__ import annotations
 
 import json
@@ -31,7 +21,6 @@ TARGETS = (1.5, 2.0)
 
 
 def first_break_width(d, width, eps=EPS):
-    """First RTH close outside [09:30, 09:30+width) high/low."""
     end = S.RTH_OPEN + width
     m = (d.t >= S.RTH_OPEN) & (d.t < end)
     if m.sum() < max(1, width // 2):

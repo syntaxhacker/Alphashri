@@ -8,7 +8,6 @@ import type { OiBurst, OiSignal } from "./niftyOiBursts";
 import { useNiftyOiAlerts } from "./useNiftyOiAlerts";
 import { hm } from "./reportTestFixtures";
 
-// Sound/title are browser side-effects; assert the calls, never play audio in CI.
 vi.mock("./alertSound", () => ({
   playAlertSound: vi.fn(),
   flashAlertTitle: vi.fn(),
@@ -38,7 +37,6 @@ function tapeRow(t: string, callDoi: number, putDoi = 0): NiftyTapeRow {
   };
 }
 
-/** Steady +1000/min both sides, with optional extra spikes on chosen minutes. */
 function tape(
   n: number,
   spikes: Array<{ i: number; inc: number; put?: boolean }> = [],
@@ -69,7 +67,6 @@ function side(ltp: number) {
   return { ltp, close: ltp, oi: 1_000, prevOi: 1_000, oiChange: 0, priceChange: 0, sentiment: "LB", volume: 1_000 };
 }
 
-/** Spot 22,722; CE/PE premiums tradeable at 22,650/22,700. */
 const CHAIN: NiftyStrike[] = [
   { strike: 22_650, ce: side(70), pe: side(12) },
   { strike: 22_700, ce: side(22), pe: side(28) },
@@ -77,12 +74,9 @@ const CHAIN: NiftyStrike[] = [
 ];
 const SPOT = 22_722;
 
-/** A history with one detected call burst at 09:20 (i = 5). */
 const HISTORY = detected(tape(12, [{ i: 5, inc: 50_000 }]));
-/** The same tape plus a fresh call burst at 09:28 (i = 13). */
 const HISTORY_PLUS = detected(tape(13, [{ i: 5, inc: 50_000 }, { i: 13, inc: 60_000 }]));
 
-/** The one burst in `HISTORY_PLUS` that was not already in `HISTORY`. */
 const FRESH = HISTORY_PLUS.find((b) => !HISTORY.some((h) => h.id === b.id))!;
 
 interface AlertHarness {
@@ -95,8 +89,6 @@ interface AlertHarness {
   spot?: number;
 }
 
-/** Test harness: creates the accessors the Solid hook expects and returns
- * the signal setters so tests can push new data (effects flush synchronously). */
 function useAlerts(harness: AlertHarness = {}) {
   const [bursts, setBursts] = createSignal<OiBurst[]>(harness.bursts ?? []);
   const [ready, setReady] = createSignal(harness.ready ?? true);
@@ -116,7 +108,6 @@ function useAlerts(harness: AlertHarness = {}) {
   return { result, setters: { setBursts, setReady, setEnabled, setSessionKey } };
 }
 
-/** Hook armed with an empty burst list — the session's first burst must fire. */
 function renderEmptyAlerts() {
   return useAlerts({ bursts: [] });
 }
@@ -129,19 +120,16 @@ afterEach(() => {
 describe("useNiftyOiAlerts", () => {
   test("opening mid-session never toasts history — but the trail is seeded", () => {
     const { result } = useAlerts({ bursts: HISTORY });
-    // nothing "fired"…
     expect(result.toasts()).toEqual([]);
-    // …yet the session is reviewable immediately (post-close / mid-session)
     expect(result.trail()).toHaveLength(HISTORY.length);
   });
 
   test("seeding never resurrects a critical older than the banner TTL", () => {
-    // A 09:58 unwind was reappearing as a live banner at 10:45 after a reload.
     const old = HISTORY.find((b) => b.severity === "critical")!;
     const stale = { ...old, t: new Date(Date.now() - 30 * 60_000).toISOString() };
     const { result } = useAlerts({ bursts: [stale] });
-    expect(result.trail()).toHaveLength(1); // still reviewable
-    expect(result.banners()).toEqual([]); // but never "live"
+    expect(result.trail()).toHaveLength(1);
+    expect(result.banners()).toEqual([]);
   });
 
   test("seedTrail=false keeps a session empty (opt-out)", () => {
@@ -153,11 +141,9 @@ describe("useNiftyOiAlerts", () => {
     const { result, setters } = useAlerts({  bursts: HISTORY, ready: false  });
     expect(result.toasts()).toEqual([]);
 
-    // loading completes: existing history must still not toast
     setters.setBursts(HISTORY); setters.setReady(true);
     expect(result.toasts()).toEqual([]);
 
-    // only a genuinely new burst toasts
     setters.setBursts(HISTORY_PLUS); setters.setReady(true);
     expect(result.toasts()).toHaveLength(1);
   });
@@ -166,8 +152,6 @@ describe("useNiftyOiAlerts", () => {
     const { result, setters } = renderEmptyAlerts();
     expect(result.toasts()).toEqual([]);
 
-    // REGRESSION: if priming waited for a non-empty burst list, this — the
-    // session's first real burst — would be treated as history and lost.
     setters.setBursts(HISTORY);
     expect(result.toasts()).toHaveLength(1);
   });
@@ -181,7 +165,6 @@ describe("useNiftyOiAlerts", () => {
     expect(result.toasts()).toHaveLength(1);
     const a = result.trail()[0];
     expect(a.severity).toBe("critical");
-    // call-side burst → fade with puts, nearest tradeable strike to spot
     expect(a.title).toContain("BUY PE 22,700");
     expect(a.metrics?.some((m) => m.label === "ENTRY")).toBe(true);
     expect(a.metrics?.some((m) => m.label === "SL")).toBe(true);
@@ -189,7 +172,6 @@ describe("useNiftyOiAlerts", () => {
     expect(a.metrics?.some((m) => m.label === "QTY")).toBe(true);
     expect(a.detail).toContain("not advice");
 
-    // re-rendering the same data does not re-fire
     setters.setBursts(HISTORY_PLUS);
     expect(result.toasts()).toHaveLength(1);
   });
@@ -215,7 +197,7 @@ describe("useNiftyOiAlerts", () => {
     expect(result.trail()).toHaveLength(HISTORY_PLUS.length);
 
     setters.setSessionKey("live:2026-10-20");
-    expect(result.trail()).toHaveLength(HISTORY_PLUS.length); // re-seeded
+    expect(result.trail()).toHaveLength(HISTORY_PLUS.length);
     expect(result.toasts()).toEqual([]);
   });
 
@@ -227,7 +209,6 @@ describe("useNiftyOiAlerts", () => {
 
     result.dismissToast(id);
     expect(result.toasts()).toEqual([]);
-    // the trail keeps both the seeded history and the new burst
     expect(result.trail().length).toBeGreaterThan(HISTORY.length);
 
     result.clearTrail();
@@ -236,8 +217,6 @@ describe("useNiftyOiAlerts", () => {
 
   test("toasts auto-expire after the TTL, the trail persists", () => {
     vi.useFakeTimers();
-    // FRESH is critical (90s toast) — downgrade it so this covers the normal
-    // 45s path for non-critical toasts.
     const nonCrit = HISTORY_PLUS.map((b) =>
       b.id === FRESH.id ? { ...b, severity: "watch" as const } : b,
     );
@@ -274,7 +253,6 @@ describe("useNiftyOiAlerts", () => {
     ]);
     expect(playAlertSound).toHaveBeenCalledWith("critical");
     expect(flashAlertTitle).toHaveBeenCalled();
-    // The toast/banner path is unchanged.
     expect(result.banners().length).toBeGreaterThan(0);
   });
 
@@ -306,7 +284,6 @@ describe("useNiftyOiAlerts", () => {
     const trail = result.trail().length;
     const repeat: OiBurst = { ...first, id: "cool-2", t: "2026-10-23T09:42:00+05:30" };
     setters.setBursts([...HISTORY, first, repeat]);
-    // Same side + flow + strike → the second id is the same idea.
     expect(result.trail().length).toBe(trail);
   });
 
@@ -326,7 +303,6 @@ describe("useNiftyOiAlerts", () => {
       cumDoi: 0,
       tickVol: 0,
     };
-    // 6 minutes later, same strike — inside the 10-minute cooldown window.
     const rejected: OiBurst = {
       ...tested,
       id: "wall-reject-1200",
@@ -335,7 +311,6 @@ describe("useNiftyOiAlerts", () => {
       target: 23_650,
       spot: 23_647.7,
     };
-    // A second test of the same wall is the same idea and must not re-toast.
     const retest: OiBurst = {
       ...tested,
       id: "wall-test-1202",
@@ -418,10 +393,7 @@ describe("useNiftyOiAlerts", () => {
 });
 
 describe("useNiftyOiAlerts critical prominence", () => {
-  /** FRESH is critical; clone it into distinct critical bursts. */
   function crit(id: string, t: string): OiBurst {
-    // Distinct strikes: the cooldown dedupes by side + flow + strike, so two
-    // criticals from the same setup inside 10 minutes are one announcement.
     const n = Number(id.replace(/\D/g, "")) || 0;
     return { ...FRESH, id, t, severity: "critical" as const, strike: 22_500 + n * 50 };
   }
@@ -436,7 +408,6 @@ describe("useNiftyOiAlerts critical prominence", () => {
     {
       vi.advanceTimersByTime(46_000);
     }
-    // still up — the normal toast timer must not kill a critical
     expect(result.toasts()).toHaveLength(1);
 
     {
@@ -448,10 +419,8 @@ describe("useNiftyOiAlerts critical prominence", () => {
 
   test("banners fire only for critical bursts", () => {
     const { result, setters } = useAlerts({  bursts: HISTORY  });
-    // the seeded history already carries one critical → one banner
     expect(result.banners()).toHaveLength(1);
 
-    // non-critical fresh burst → toast, but no new banner
     const watch = HISTORY_PLUS.map((b) =>
       b.id === FRESH.id ? { ...b, severity: "watch" as const } : b,
     );
@@ -459,7 +428,6 @@ describe("useNiftyOiAlerts critical prominence", () => {
     expect(result.toasts()).toHaveLength(1);
     expect(result.banners()).toHaveLength(1);
 
-    // critical fresh burst (new minute) → banner, newest first
     setters.setBursts([...watch, crit("crit-2", "09:31")]);
     expect(result.banners()).toHaveLength(2);
     expect(result.banners()[0].id).toBe("crit-2");
@@ -492,7 +460,6 @@ describe("useNiftyOiAlerts critical prominence", () => {
       vi.advanceTimersByTime(5 * 60_000 + 1_000);
     }
     expect(result.banners()).toEqual([]);
-    // the trail keeps the burst long after the banner is gone
     expect(result.trail().length).toBeGreaterThan(0);
   });
 
@@ -510,7 +477,6 @@ setters.setBursts([...HISTORY, crit("crit-1", "09:30"), crit("crit-2", "09:31")]
 
   test("clearTrail and session switch clear banners too", () => {
     const { result, setters } = useAlerts({ bursts: HISTORY_PLUS, sessionKey: "live:nearest" });
-    // HISTORY_PLUS seeds two criticals → two banners (capped at two)
     expect(result.banners()).toHaveLength(2);
 
     result.clearTrail();
@@ -535,7 +501,6 @@ setters.setBursts([...HISTORY, crit("crit-1", "09:30"), crit("crit-2", "09:31")]
 });
 
 describe("useNiftyOiAlerts flow-aware direction", () => {
-  // CHAIN spot 22,722: nearest CE to spot with premium ≥ 10 is 22,700 @ 22.
   function flowBurst(overrides: Partial<OiBurst> = {}): OiBurst {
     return {
       id: "flow-1",
@@ -577,7 +542,6 @@ setters.setBursts([
         trend5m: "up",
       }),
     ]);
-    // without trend5m threading this would be suppressed as counter-trend
     expect(result.trail()[0].title).toContain("BUY CE 22,700");
   });
 

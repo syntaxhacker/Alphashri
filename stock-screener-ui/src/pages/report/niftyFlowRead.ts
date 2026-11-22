@@ -1,17 +1,3 @@
-/**
- * Option-flow read models. Pure: no React, no clock, no network.
- *
- * Two layers:
- *  - **1-minute read** used by the 10 s strip and the pre-move score
- *    (`OiPoint`, `FlowRead`, `readFlow`, `rollingRead`, `premiumResidual`).
- *  - **Rolling 5m/15m OI windows + flip lifecycle** used by the WINDOWS strip:
- *    `flowWindowFromTape`, `classifyFlowLeg`, `detectFlowFlip`,
- *    `detectFlipChange`, and the localStorage flip persistence.
- *
- * OI direction alone is ambiguous — put OI building is bullish when puts were
- * written and bearish when they were bought — so the premium move (against the
- * delta-implied move) is the tiebreaker.
- */
 
 import type {
   NiftyControlVerdict,
@@ -19,20 +5,16 @@ import type {
   NiftyFlowWindow,
 } from "@/types/niftyReport";
 
-/** Server-aggregated 10 s snapshot: absolute totals per side. */
 export interface OiPoint {
   t: string;
   ce: number;
   pe: number;
-  /** Spot at the snapshot (needed to strip the delta move out of premium). */
   spot?: number | null;
-  /** ATM premium at the fixed reference strike (null when the tape lacks it). */
   cePrem?: number | null;
   pePrem?: number | null;
 }
 
 export interface FlowRead {
-  /** Plain-English reason, e.g. "calls sold". */
   reason: string;
   bias: "bull" | "bear";
 }
@@ -42,18 +24,10 @@ export interface FlowRead {
  *  pass per-report noise preserve NIFTY behavior. Per-symbol noise uses
  *  flowNoiseFor() which has a 50k internal floor + 0.1% relative. */
 export const FLOW_NOISE = 100_000;
-/** Default relative noise floor (fraction of total CE+PE OI).
- *  0.1% scales with symbol OI: SENSEX ~170k, RELIANCE ~50k, NIFTY ~100k. */
 export const FLOW_NOISE_REL = 0.001;
 
-/** Internal floor for per-symbol flowNoiseFor (lower than legacy FLOW_NOISE). */
 const FLOW_NOISE_INTERNAL_FLOOR = 50_000;
 
-/**
- * Compute the effective flow noise for a report.
- * Uses max(internal floor 50k, relative fraction * total OI).
- * This yields: NIFTY ~100k, SENSEX ~170k, RELIANCE ~50k.
- */
 export function flowNoiseFor(report: { strikes?: Array<{ ce?: { oi: number }; pe?: { oi: number } }> }): number {
   const strikes = report.strikes ?? [];
   let totalOi = 0;
@@ -63,14 +37,6 @@ export function flowNoiseFor(report: { strikes?: Array<{ ce?: { oi: number }; pe
   return Math.max(FLOW_NOISE_INTERNAL_FLOOR, Math.round(totalOi * FLOW_NOISE_REL));
 }
 
-/**
- * Read the dominant side of the 1-minute move.
- *
- * CE: OI↑ prem↑ = buying (bull) · OI↑ prem↓ = writing (bear)
- *     OI↓ prem↑ = short covering (bull) · OI↓ prem↓ = long liquidation (bear)
- * PE is mirrored: OI↑ prem↑ = buying (bear) · OI↑ prem↓ = writing (bull)
- *     OI↓ prem↑ = covering (bear) · OI↓ prem↓ = liquidation (bull)
- */
 export function readFlow(
   d: { ce: number; pe: number },
   dPremCe: number | null,
@@ -85,7 +51,6 @@ export function readFlow(
   const dprem = side === "ce" ? dPremCe : dPremPe;
 
   if (dprem == null) {
-    // No premium tape: OI direction only.
     if (side === "ce") {
       return doi < 0
         ? { reason: "calls unwound", bias: "bull" }
@@ -110,7 +75,6 @@ export function readFlow(
   return { reason: "puts closed", bias: "bull" };
 }
 
-/** Index at least `sec` seconds before `i` (clamped to 0). */
 export function indexAgo(points: OiPoint[], i: number, sec: number): number {
   const t = Date.parse(points[i].t);
   let j = i;
@@ -118,7 +82,6 @@ export function indexAgo(points: OiPoint[], i: number, sec: number): number {
   return j;
 }
 
-/** The same 1-minute read, evaluated at snapshot `i` (not just the newest). */
 export function rollingRead(points: OiPoint[], i: number, noise: number = FLOW_NOISE): FlowRead | null {
   const j = indexAgo(points, i, 60);
   const d = { ce: points[i].ce - points[j].ce, pe: points[i].pe - points[j].pe };
@@ -134,7 +97,6 @@ export function rollingRead(points: OiPoint[], i: number, noise: number = FLOW_N
   );
 }
 
-/** Premium change minus the delta-implied change, as a fraction of premium. */
 export function premiumResidual(
   premNow: number | null | undefined,
   premPrev: number | null | undefined,
@@ -149,38 +111,20 @@ export function premiumResidual(
   return (premNow - premPrev - implied) / premPrev;
 }
 
-// ---------------------------------------------------------------------------
-// Flow windows — the 5m/15m OI legs beside the session premium read.
-// Moved verbatim from NiftyFlowWindows.tsx (pure; no React, no clock).
-// ---------------------------------------------------------------------------
 
-/** Tone of a flow cell/badge: direction of the read, or two-sided/none. */
 export type FlowTone = "bull" | "bear" | "mixed" | "flat";
 
-/** The last recorded 5m sign flip (persisted across reloads by the panel). */
 export interface FlowLastFlip {
-  /** ISO timestamp of the poll that changed the sign. */
   at: string;
-  /** Why it flipped — `5m vs 15m`, `5m vs session`, or a sign change. */
   reason: string;
 }
 
-/** Minimal tape row shape needed to derive the rolling OI windows. */
 export interface FlowTapeRow {
   t: string;
   ce_oi?: number | null;
   pe_oi?: number | null;
 }
 
-/**
- * Derive the 5m/15m CE/PE OI windows from a generic underline's tape.
- *
- * NIFTY's rich report attaches `flow_window` server-side, but the generic
- * `/options/{symbol}/live` path does not (SENSEX/RELIANCE). Their tape rows
- * carry `ce_oi`/`pe_oi`, so the same windows are computable here. A tape
- * shorter than the window uses its first row — an explicitly partial window,
- * not a fabricated one.
- */
 export function flowWindowFromTape(
   rows: FlowTapeRow[] | null | undefined,
   cutoff?: string | null,
@@ -233,7 +177,6 @@ export function flowWindowFromTape(
   };
 }
 
-/** HH:MM of an ISO stamp, or null when it cannot be parsed. */
 export function flowFlipClock(iso: string | null | undefined): string | null {
   if (!iso) return null;
   const time = iso.includes("T") ? iso.split("T")[1] ?? "" : iso;

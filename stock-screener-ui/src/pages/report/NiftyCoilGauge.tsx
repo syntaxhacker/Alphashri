@@ -3,14 +3,11 @@ import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { NiftyRegimeBlock } from "@/types/niftyReport";
 
-/** Range-compression state derived from realised range vs its baseline. */
 type CoilState = "COIL" | "NORMAL" | "EXPANDING";
 
-/** Thresholds on range as a percentage of the baseline (see `coilRangePct`). */
 export const COIL_MAX_PCT = 70;
 export const EXPANDING_MIN_PCT = 125;
 
-/** One-line read for each state. */
 const COIL_COPY: Record<CoilState, string> = {
   COIL: "breakout risk",
   NORMAL: "baseline range",
@@ -26,7 +23,6 @@ const COMPACT_STATE_LABEL: Record<CoilState, string> = {
   EXPANDING: "EXPAND",
 };
 
-/** Status-dot / text accent per state. */
 const COIL_ACCENT: Record<CoilState, string> = {
   COIL: palette.WARNING,
   NORMAL: palette.TEXT_MUTED,
@@ -55,7 +51,6 @@ export function coilRatio(regime: NiftyRegimeBlock | null | undefined): number |
   return null;
 }
 
-/** Range as a percentage of baseline, the unit the thresholds use. */
 function coilRangePct(
   regime: NiftyRegimeBlock | null | undefined,
 ): number | null {
@@ -63,7 +58,6 @@ function coilRangePct(
   return ratio == null ? null : ratio * 100;
 }
 
-/** COIL <= 70% < NORMAL < 125% <= EXPANDING; null when the range is unknown. */
 export function coilState(
   rangePct: number | null | undefined,
 ): CoilState | null {
@@ -73,14 +67,12 @@ export function coilState(
   return "NORMAL";
 }
 
-/** Convenience: state straight from the report's regime block. */
 export function coilStateFromRegime(
   regime: NiftyRegimeBlock | null | undefined,
 ): CoilState | null {
   return coilState(coilRangePct(regime));
 }
 
-/** `0.9x` — one decimal is enough to read compression vs expansion. */
 function formatCoilRatio(ratio: number | null): string {
   if (ratio == null || !Number.isFinite(ratio)) return "—";
   return `${ratio.toLocaleString("en-IN", {

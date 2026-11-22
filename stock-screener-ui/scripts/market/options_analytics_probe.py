@@ -64,9 +64,6 @@ INDEX_SYMBOLS = {"NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "SENSEX"}
 PARITY_FLAG_PCT = 5.0
 
 
-# ---------------------------------------------------------------------------
-# Pure helpers
-# ---------------------------------------------------------------------------
 
 def raw_num(value: Any) -> Optional[float]:
     """Finite float or None; NaN/inf must not pass as a real greek/price."""
@@ -111,7 +108,6 @@ def leg_from_row(row: dict, side: str) -> dict:
 
 
 def valid_legs(chain: Iterable[dict]) -> tuple[list[dict], list[dict]]:
-    """Return (CE, PE) lists of tradeable legs, each sorted by strike."""
     calls: list[dict] = []
     puts: list[dict] = []
     for row in chain or []:
@@ -184,7 +180,6 @@ def interpolate(points: Iterable[dict], target: float,
 
 
 def atm_iv(calls: Iterable[dict], puts: Iterable[dict], spot: float) -> dict:
-    """ATM IV from the two nearest valid strikes around spot (legs averaged)."""
     by_strike: dict[float, list[float]] = {}
     for leg in list(calls) + list(puts):
         by_strike.setdefault(leg["strike"], []).append(leg["iv"])
@@ -193,12 +188,10 @@ def atm_iv(calls: Iterable[dict], puts: Iterable[dict], spot: float) -> dict:
 
 
 def delta_iv(legs: Iterable[dict], target_delta: float) -> dict:
-    """IV at a target delta (+0.25 call / -0.25 put), interpolated by delta."""
     return interpolate(legs, target_delta, xkey="delta")
 
 
 def smile_stats(calls: list[dict], puts: list[dict], spot: float) -> dict:
-    """ATM IV, 25-delta call/put IV, 25-delta risk reversal and butterfly."""
     atm = atm_iv(calls, puts, spot)
     call25 = delta_iv(calls, 0.25)
     put25 = delta_iv(puts, -0.25)
@@ -210,7 +203,6 @@ def smile_stats(calls: list[dict], puts: list[dict], spot: float) -> dict:
 
 
 def otm_smile(calls: list[dict], puts: list[dict], spot: float, n: int = 6) -> list[dict]:
-    """5-7 OTM points: calls above spot, puts below, nearest to spot first."""
     if spot <= 0 or n <= 0:
         return []
     per_side = max(1, math.ceil(n / 2))
@@ -244,7 +236,6 @@ def otm_smile(calls: list[dict], puts: list[dict], spot: float, n: int = 6) -> l
 def parity_stats(calls: list[dict], puts: list[dict], spot: float, years: float,
                  r: float, q: float, rel: float = 0.02,
                  flag_pct: float = PARITY_FLAG_PCT) -> dict:
-    """Put-call parity error at the ±rel strikes: C - P = S e^-qT - K e^-rT."""
     call_by = {leg["strike"]: leg for leg in calls}
     put_by = {leg["strike"]: leg for leg in puts}
     common = sorted(set(call_by) & set(put_by))
@@ -275,7 +266,6 @@ def parity_stats(calls: list[dict], puts: list[dict], spot: float, years: float,
 
 
 def level_stats(rows: Iterable[dict], spot: float, summary_max_pain: Any) -> dict:
-    """Max pain / OI walls / GEX from the shared api.options_levels formulas."""
     strikes = normalize_strikes(rows)
     pain = compute_max_pain(strikes)
     summary = num(summary_max_pain)
@@ -300,12 +290,8 @@ def level_stats(rows: Iterable[dict], spot: float, summary_max_pain: Any) -> dic
     }
 
 
-# ---------------------------------------------------------------------------
-# HTTP + report assembly
-# ---------------------------------------------------------------------------
 
 class Client:
-    """Tiny bearer-token GET client; ``session`` is injectable for tests."""
 
     def __init__(self, base: str, timeout: float = 20.0,
                  session: Any = None, token: Optional[str] = None):
@@ -339,7 +325,6 @@ class Client:
 def build_symbol_report(client: Client, symbol: str, n_expiries: int,
                         r: float, q: float, smile_n: int = 6,
                         flag_pct: float = PARITY_FLAG_PCT) -> dict:
-    """One symbol: metadata + one analysis entry per requested expiry."""
     info = client.get(f"/api/options/underlying/{symbol}")
     spot = num(info.get("spot"))
     expiries = [e for e in (info.get("expiries") or []) if isinstance(e, dict)][:n_expiries]
@@ -386,16 +371,12 @@ def build_symbol_report(client: Client, symbol: str, n_expiries: int,
     return report
 
 
-# ---------------------------------------------------------------------------
-# Rendering
-# ---------------------------------------------------------------------------
 
 def fmt(value: Any, digits: int = 2, suffix: str = "") -> str:
     return "n/a" if value is None else f"{float(value):.{digits}f}{suffix}"
 
 
 def fmt_level(level: Any) -> str:
-    """GEX levels carry net_gex; OI walls carry oi."""
     if not level:
         return "n/a"
     value = level.get("net_gex")
@@ -407,7 +388,6 @@ def fmt_level(level: Any) -> str:
 
 
 def print_report(report: dict, flag_pct: float) -> None:
-    """Compact fixed-width lines; one block per expiry."""
     print(f"\n=== {report['symbol']}  spot {fmt(report['spot'])}  "
           f"market={report['market_state']}  quotes_live={report['quotes_live']} "
           f"fno={report['fno']} ===")

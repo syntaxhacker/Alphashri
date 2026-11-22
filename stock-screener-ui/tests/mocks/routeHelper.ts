@@ -32,7 +32,6 @@ function smartEscape(path: string): string {
     lastIndex = tokenRegex.lastIndex;
   }
 
-  // Append remaining tail
   if (lastIndex < path.length) {
     result += path.slice(lastIndex);
   }

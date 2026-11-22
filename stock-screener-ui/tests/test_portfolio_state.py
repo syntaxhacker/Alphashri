@@ -80,7 +80,6 @@ class TestRestorePosition:
             'low_price': 2495.0,
             'metadata': {'notes': 'test'},
         }
-        # Set up strategy allocation
         portfolio.strategy_allocations[1] = StrategyAllocation(
             strategy_id=1,
             strategy_name='ORB',
@@ -107,7 +106,6 @@ class TestRestorePosition:
         assert pos.peak_price == 2525.0
         assert pos.low_price == 2495.0
         assert pos.metadata == {'notes': 'test'}
-        # Check strategy allocation updates
         alloc = portfolio.strategy_allocations[1]
         assert alloc.capital_used == 250000.0  # 2500*100
         assert alloc.positions_count == 1
@@ -125,7 +123,6 @@ class TestRestorePosition:
             'strategy_name': 'ORB',
             'strategy_type': 'ORB',
         }
-        # Add an existing position
         existing_pos = SharedPosition(
             symbol='RELIANCE',
             side=OrderSide.BUY,
@@ -138,7 +135,6 @@ class TestRestorePosition:
             strategy_name='ORB',
         )
         portfolio.positions["1_RELIANCE"] = existing_pos
-        # Also strategy allocation
         portfolio.strategy_allocations[1] = StrategyAllocation(
             strategy_id=1,
             strategy_name='ORB',
@@ -237,7 +233,6 @@ class TestResetDaily:
         assert portfolio.day_start == datetime.now(config.IST).date()
 
     def test_does_not_touch_other_attributes(self, portfolio):
-        # Ensure cash, positions, etc. are not affected
         portfolio.cash = 800000.0
         original_positions = portfolio.positions
         original_initial_capital = portfolio.initial_capital

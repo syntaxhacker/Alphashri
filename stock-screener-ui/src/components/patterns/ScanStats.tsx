@@ -5,16 +5,7 @@ import { formatAgeLong, formatNumberIN } from "@/utils/ui-helpers";
 
 export interface ScanStatsProps {
   summary: PatternSummary | null;
-  /**
-   * Live scan job. While `queued`/`running` the strip reports the job's own
-   * progress instead of the last completed scan, which would otherwise look
-   * current while the progress bar is still moving.
-   */
   job?: JobDTO | null;
-  /**
-   * Makes the actionable cells filter the results: `confirmed` toggles the
-   * status filter, `bullish` / `bearish` toggle the direction filter.
-   */
   onSelect?: (kind: "confirmed" | "bullish" | "bearish") => void;
 }
 
@@ -29,7 +20,6 @@ function num(value: number | null | undefined): string {
   return value == null ? "—" : formatNumberIN(value);
 }
 
-/** Compact relative age of the last completed scan ("12 min ago", "2 h ago"). */
 function relativeAge(iso: string | null | undefined): string {
   if (!iso) return "—";
   const ts = Date.parse(iso);
@@ -71,10 +61,6 @@ function buildCells(summary: PatternSummary | null, job?: JobDTO | null): StatCe
   ];
 }
 
-/** Compact counters for the tab strip: `LABEL value` pairs separated by short
- * dividers, one line, tail overflowing horizontally (never wrapping). Numbers
- * are mono + tabular-nums so digits line up across cells. Height is capped to
- * the 30px tab row it lives in. */
 export function ScanStats(props: ScanStatsProps) {
   // `relativeAge` derives from `Date.now()`, so without a tick it freezes until
   // the next store update. Re-render every 60s to keep "x min ago" fresh.

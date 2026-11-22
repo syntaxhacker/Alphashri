@@ -97,9 +97,6 @@ def preponed_expiry_note(
     )
 
 
-# --------------------------------------------------------------------------
-# Templates (mirrors src/pages/report/sim/simSpec.ts)
-# --------------------------------------------------------------------------
 def _leg(action: str, opt: str, strike: str, lots: int = 1) -> dict[str, Any]:
     return {"action": action, "opt": opt, "strike": strike, "lots": lots}
 
@@ -144,9 +141,6 @@ TEMPLATES: list[dict[str, Any]] = [
 ]
 
 
-# --------------------------------------------------------------------------
-# Request models (camelCase on the wire, snake_case in Python)
-# --------------------------------------------------------------------------
 class LegIn(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -187,9 +181,6 @@ class RunIn(BaseModel):
     slippage_ticks: int = Field(default=0, ge=0, le=5, alias="slippageTicks")
 
 
-# --------------------------------------------------------------------------
-# Validation / paths
-# --------------------------------------------------------------------------
 def _today() -> str:
     """Today's session date in IST (never the host's local date)."""
     return datetime.now(config.IST).strftime("%Y-%m-%d")
@@ -304,9 +295,6 @@ def _r2(value: float) -> float:
     return round(float(value), 2)
 
 
-# --------------------------------------------------------------------------
-# Routes
-# --------------------------------------------------------------------------
 @router.get("/strategies")
 def get_strategies() -> dict[str, Any]:
     """The built-in structures the report UI offers as starting points."""

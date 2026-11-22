@@ -47,7 +47,6 @@ import { DEFAULT_PATTERN_FILTERS } from "@/state/chartPatterns";
 import type { CsvColumn } from "@/utils/copyCsv";
 import { useCopyFeedback } from "@/hooks/useCopyFeedback";
 
-/** CSV columns for the pattern results() export (flat card-DTO fields). */
 export const PATTERNS_CSV_COLUMNS: CsvColumn[] = [
   { key: "symbol", header: "Symbol" },
   { key: "pattern_id", header: "Pattern ID" },
@@ -68,10 +67,8 @@ export const PATTERNS_CSV_COLUMNS: CsvColumn[] = [
   { key: "bars_ago", header: "Bars ago" },
 ];
 
-/** Single control height for the scan band: the kit's `xs` inputs are 30px. */
 const TOOLBAR_CONTROL_H = "30px";
 
-/** Order-insensitive shallow comparison used for the modal's dirty check. */
 function sameFilters(a: PatternFilters, b: PatternFilters): boolean {
   const keys = new Set([...Object.keys(a), ...Object.keys(b)]) as Set<keyof PatternFilters>;
   for (const key of keys) {
@@ -104,12 +101,9 @@ export interface PatternsPageProps {
   setFilter: (key: string, value: any) => void;
   resetFilters: () => void;
   applyFilters: (filters: Partial<PatternFilters>) => void;
-  /** Skip server-side trendline computation + hide standalone lines. */
   computeTrendlines: boolean;
   setComputeTrendlines: (value: boolean) => void;
-  /** Reserved id of the custom symbol scope (e.g. `"custom"`). */
   customUniverse: string;
-  /** Set the custom symbol scope (switches to the custom universe) and reload. */
   selectSymbols: (symbols: string[]) => void;
   job: JobDTO | null;
   scanning: boolean;
@@ -117,7 +111,6 @@ export interface PatternsPageProps {
   summary: PatternSummary | null;
   results: PatternHitDTO[];
   total: number;
-  /** True while `/results/stream` is still appending items (progressive render). */
   streaming?: boolean;
   loading: boolean;
   error: string | null;
@@ -125,30 +118,19 @@ export interface PatternsPageProps {
   refresh: () => void;
   /** Clear cached candles for the scope + timeframe and re-scan fresh. */
   forceRefresh: () => void;
-  /** Run an as-of replay scan (slower full-history recompute). */
   scanReplay?: (args: ReplayScanArgs) => void;
-  /** Echo of the last replay scan cutoff (null = live); shown as a label. */
   replayAsOf?: string | null;
-  /** Active workspace tab (default `scan`); controlled by the container for URL sync. */
   tab?: "scan" | "watch";
   setTab?: (tab: "scan" | "watch") => void;
-  /** Initial results view (default `matrix`). */
   defaultView?: "matrix" | "list" | "grid";
-  /** Controlled results view (URL-synced by the container). */
   view?: "matrix" | "list" | "grid";
   setView?: (view: "matrix" | "list" | "grid") => void;
-  /** Index group filter (`all`|`big`|`others`); URL-synced by the container. */
   indexGroup?: IndexGroup;
   setIndexGroup?: (group: IndexGroup) => void;
-  /** Index whose members() drawer is open (null = closed); URL-synced. */
   members?: string | null;
   setMembers?: (indexId: string | null) => void;
 }
 
-/**
- * Patterns workspace: universe() bar + stat strip on top, then a 2-column layout
- * (filter rail | card grid). Clicking a card opens the fullscreen chart.
- */
 function PatternsWorkspace(props: PatternsPageProps) {
   // Solid props are getters — never destructure. Local accessors keep call
   // sites terse while staying lazy; the parent store drives reactivity.
@@ -185,10 +167,6 @@ function PatternsWorkspace(props: PatternsPageProps) {
   const forceRefresh = props.forceRefresh;
   const scanReplay = props.scanReplay;
   const replayAsOf = () => props.replayAsOf ?? null;
-  // Fullscreen pattern chart, shared with the Daily Report page: identical
-  // open/timeframe/as-of/select behaviour via `usePatternFullscreen`.
-  // Top-level compute toggle off: draw no standalone trendlines anywhere,
-  // regardless of the view()-only `trendlines` filter.
   const effectiveTrendlinesView = createMemo(() =>
     computeTrendlines() ? (filters().trendlines ?? "both") : "none",
   );
@@ -215,19 +193,12 @@ function PatternsWorkspace(props: PatternsPageProps) {
     resolutionKey: () => summary()?.last_scan_at ?? job()?.finished_at ?? null,
   });
 
-  // Docked chart inspector: at >=lg a click opens the chart beside the
-  // results (fast row-to-row switching without a modal round-trip);
-  // below lg the same selection opens the fullscreen modal.
   const isDesktop = useMediaQuery("(min-width: 1200px)");
   const [chartMaximized, setChartMaximized] = createSignal(false);
 
-  // Symbol hover-preview timers (declared early so row clicks can cancel a
-  // pending hover before it replaces the pinned chart).
   const previewTimerRef = { current: (null) as number | null };
   const previewCloseTimerRef = { current: (null) as number | null };
   const fullscreenRef = { current: (fullscreen()) };
-  // Kept in an effect (not written during render) so the hover-preview close
-  // timer always reads the latest `fullscreen()`.
   createEffect(() => {
     fullscreenRef.current = fullscreen();
   });
@@ -282,7 +253,6 @@ function PatternsWorkspace(props: PatternsPageProps) {
     liveChange: fullscreen()?.liveChange ?? null,
   }));
   const [filtersOpen, setFiltersOpen] = createSignal(false);
-  /** Dense results() view: symbol `matrix` (default), per-hit `list`, or card `grid`. */
   const [internalView, setInternalView] = createSignal<"matrix" | "list" | "grid">(props.defaultView ?? "matrix");
   const view = createMemo(() => props.view ?? internalView());
   const changeView = (next: "matrix" | "list" | "grid") => {
@@ -398,8 +368,6 @@ function PatternsWorkspace(props: PatternsPageProps) {
   const matrixVisibleTimeframes = createMemo(() => matrixTimeframes().filter((tf) => tfSelection().includes(tf)));
   const hasRows = createMemo(() => view() === "matrix" ? filteredMatrixRows().length > 0 : filteredLatest().length > 0);
   const emptyCustom = createMemo(() => universe() === customUniverse() && (filters().symbols?.length ?? 0) === 0);
-  // Workspace tab: controlled by the container (URL sync) when provided,
-  // otherwise local state defaulting to the scan view().
   const [internalTab, setInternalTab] = createSignal<"scan" | "watch">("scan");
   const activeTab = createMemo(() => props.tab ?? internalTab());
   const handleTabChange = (value: string | null) => {
@@ -407,8 +375,6 @@ function PatternsWorkspace(props: PatternsPageProps) {
       if (props.setTab) props.setTab(value);
       else setInternalTab(value);
     };
-  // Filter edits are staged in a draft and only applied when the user clicks
-  // "Filter" — changing a control no longer triggers an instant reload.
   const [draftFilters, setDraftFilters] = createSignal<PatternFilters>(filters());
   createEffect(() => {
     if (filtersOpen()) setDraftFilters(filters());
@@ -486,8 +452,6 @@ function PatternsWorkspace(props: PatternsPageProps) {
   const draftChipCount = createMemo(() => buildAppliedFilterChips(draftFilters(), patterns()).length);
   const scanActive = createMemo(() => scanning() || job()?.status === "running" || job()?.status === "queued");
   const refreshing = createMemo(() => (view() === "matrix" ? matrixLoading() : loading()));
-  // Delay the refresh affordance: a scope switch or a stream flush fires several
-  // short loads back to back, and an immediate spinner reads as "still broken".
   const [showRefresh, setShowRefresh] = createSignal(false);
   createEffect(() => {
     if (!refreshing()) {
@@ -498,13 +462,11 @@ function PatternsWorkspace(props: PatternsPageProps) {
     onCleanup(() => window.clearTimeout(timer));
   });
 
-  /** Toggle one value of a multi-select filter (used by the clickable stats). */
   const toggleFilterValue = (key: "status" | "direction", value: string): void => {
       const current = (filters()[key] ?? []) as string[];
       setFilter(key, current.includes(value) ? current.filter((v) => v !== value) : [...current, value]);
     };
 
-  // Copy-to-clipboard feedback for the results export (shared hook).
   const { copyMsg, copyFailed, copyRows, copySymbols } = useCopyFeedback();
   const handleCopyCsv = (): void => {
     void copyRows(filteredLatest(), PATTERNS_CSV_COLUMNS);
@@ -513,8 +475,6 @@ function PatternsWorkspace(props: PatternsPageProps) {
     void copySymbols(filteredLatest());
   };
 
-  // Reference images for the pattern tiles: load once, the first time the
-  // Filters modal opens (no cost on page load).
   createEffect(() => {
     if (!filtersOpen()) return;
     let active = true;
@@ -543,8 +503,6 @@ function PatternsWorkspace(props: PatternsPageProps) {
         row.best ? [row.best] : [],
       );
     }
-    // Grid renders `filteredLatest()` directly; only the sorted table needs its
-    // emitted order.
     return view() === "list" ? (listOrder() ?? filteredLatest()) : filteredLatest();
   });
   const activeHitKey = createMemo(() => fullscreen()?.hit ? fullscreenDedupeKey(fullscreen()!.hit!) : null);
@@ -605,7 +563,6 @@ function PatternsWorkspace(props: PatternsPageProps) {
   createEffect(() => {
     if (!isDesktop() || !fullscreen() || filtersOpen() || activeTab() !== "scan") return;
     const onKeyDown = (event: KeyboardEvent): void => {
-      // The local Select/Menu already handled the key.
       if (event.defaultPrevented) return;
       const target = event.target as HTMLElement | null;
       if (
@@ -640,16 +597,12 @@ function PatternsWorkspace(props: PatternsPageProps) {
     return () => window.removeEventListener("keydown", onKeyDown);
   });
 
-  // Keep the active row visible while stepping (the matrix windows its rows,
-  // so this also brings a just-mounted row into view()).
   createEffect(() => {
     if (activeIndex() < 0) return;
     const row = document.querySelector('[data-active="true"]');
     row?.scrollIntoView?.({ block: "nearest" });
   });
 
-  // The dock lives inside the Scan panel; leaving Scan dismisses it so a Watch
-  // row click opens the modal instead of setting an invisible selection.
   const prevTabRef = { current: (activeTab()) };
   createEffect(() => {
     if (prevTabRef.current === "scan" && activeTab() !== "scan" && fullscreen()) {
@@ -675,8 +628,6 @@ function PatternsWorkspace(props: PatternsPageProps) {
       className="flex w-full flex-1 min-h-0 flex-col gap-0.5 px-2 py-[2px]"
     >
       <Tabs value={activeTab()} onChange={handleTabChange} data-testid="patterns-tabs" className="flex flex-1 min-h-0 flex-col">
-        {/* Tabs and live counters share one strip: a terminal puts the scan
-            readout on the tab row, not in a second band under it. */}
         <Box className="flex w-full min-w-0 items-stretch gap-3 border-b border-fin-border">
           <Tabs.List
             data-testid="patterns-tab-list"
@@ -1071,8 +1022,6 @@ function PatternsWorkspace(props: PatternsPageProps) {
                   {...chartViewProps}
                   opened
                   docked
-                  // Replay inputs are modal-only: the dock keeps the chart and
-                  // the meta column, not a 2-row datetime form.
                   onAsOfChange={undefined}
                   onLive={() => changeFullscreenAsOf(null, null)}
                   onPrev={() => stepChart(-1)}
@@ -1171,7 +1120,6 @@ function PatternsWorkspace(props: PatternsPageProps) {
       <PatternFullscreenView
         {...chartViewProps}
         opened={!!fullscreen() && (!isDesktop() || chartMaximized() || activeTab() !== "scan")}
-        // Maximize is a promotion, not a reset: closing returns to the dock.
         onClose={isDesktop() && chartMaximized() && activeTab() === "scan" ? () => setChartMaximized(false) : closeChart}
         onPrev={() => stepChart(-1)}
         onNext={() => stepChart(1)}
@@ -1183,11 +1131,6 @@ function PatternsWorkspace(props: PatternsPageProps) {
   );
 }
 
-/**
- * Route entry: the boundary swaps in a layout-matched skeleton until
- * everything below it has resolved, so a cold load never shows a spinner
- * over an empty page.
- */
 export function PatternsPage(props: PatternsPageProps) {
   let tree!: JSX.Element;
   // Solid leaves its effect queue null when a Suspense is constructed outside

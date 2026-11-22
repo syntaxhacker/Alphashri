@@ -29,8 +29,6 @@ vi.mock("@/api/chartPatterns", () => ({
   fetchWatchSetups: (...args: unknown[]) => fetchWatchSetups(...args),
   fetchWatch: (...args: unknown[]) => fetchWatch(...args),
   fetchMarketStatus: (...args: unknown[]) => fetchMarketStatus(...args),
-  // No live stream in these tests: fail fast so every load exercises the
-  // non-streaming `fetchWatch` fallback deterministically.
   streamWatch: async (_query: unknown, handlers: { onError?: (e: Error) => void }) => {
     handlers.onError?.(new Error("stream unavailable"));
   },
@@ -49,7 +47,6 @@ vi.mock("@/components/patterns/PatternGrid", () => ({
   ),
 }));
 
-// Dense list stub so the page default (list view) renders deterministically.
 vi.mock("@/components/patterns/PatternListView", () => ({
   PatternListView: (props: any) => (
     <div data-testid="patterns-list">

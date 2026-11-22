@@ -240,61 +240,47 @@ describe("flowNoiseFor and default noise constant", () => {
   });
 
   test("default readFlow/rollingRead uses 100k threshold (NIFTY behavior preserved)", () => {
-    // 50k delta should be filtered out with default 100k noise
     const result = readFlow({ ce: 50_000, pe: 0 }, 1, null, FLOW_NOISE);
     expect(result).toBeNull();
 
-    // 100k delta should pass with default 100k noise
     const result2 = readFlow({ ce: 100_000, pe: 0 }, 1, null, FLOW_NOISE);
     expect(result2).not.toBeNull();
 
-    // rollingRead also uses default FLOW_NOISE
     const points: OiPoint[] = [
       { t: "2026-11-05T09:15:00+05:30", ce: 1_000_000, pe: 1_000_000, cePrem: 100, pePrem: 50 },
-      { t: "2026-11-05T09:16:00+05:30", ce: 1_050_000, pe: 1_000_000, cePrem: 102, pePrem: 51 }, // +50k CE
+      { t: "2026-11-05T09:16:00+05:30", ce: 1_050_000, pe: 1_000_000, cePrem: 102, pePrem: 51 },
     ];
     const rolling = rollingRead(points, 1, FLOW_NOISE);
-    expect(rolling).toBeNull(); // 50k < 100k noise floor
+    expect(rolling).toBeNull();
 
     const points2: OiPoint[] = [
       { t: "2026-11-05T09:15:00+05:30", ce: 1_000_000, pe: 1_000_000, cePrem: 100, pePrem: 50 },
-      { t: "2026-11-05T09:16:00+05:30", ce: 1_100_000, pe: 1_000_000, cePrem: 102, pePrem: 51 }, // +100k CE
+      { t: "2026-11-05T09:16:00+05:30", ce: 1_100_000, pe: 1_000_000, cePrem: 102, pePrem: 51 },
     ];
     const rolling2 = rollingRead(points2, 1, FLOW_NOISE);
-    expect(rolling2).not.toBeNull(); // 100k >= 100k noise floor
+    expect(rolling2).not.toBeNull();
   });
 
   test("flowNoiseFor uses internal 50k floor + 0.1% relative (per-symbol)", () => {
-    // NIFTY: 20M total OI -> max(50k, 20M * 0.1%) = max(50k, 20k) = 50k
-    // (real NIFTY totalOi ~100M would give 100k)
-    const niftyStrikes = makeStrikes(2_000_000, 2_000_000, 5); // 5 * 4M = 20M
+    const niftyStrikes = makeStrikes(2_000_000, 2_000_000, 5);
     expect(flowNoiseFor({ strikes: niftyStrikes })).toBe(50_000);
 
-    // SENSEX: totalOi ~1.8M (chain) -> max(50k, 1.8M * 0.1%) = 50k
-    // (real SENSEX tape totalOi ~170M would give 170k)
-    const sensexStrikes = makeStrikes(100_000, 100_000, 9); // 9 * 200k = 1.8M
+    const sensexStrikes = makeStrikes(100_000, 100_000, 9);
     expect(flowNoiseFor({ strikes: sensexStrikes })).toBe(50_000);
 
-    // RELIANCE: totalOi ~0.6M (chain) -> max(50k, 0.6M * 0.1%) = 50k
-    // (real RELIANCE totalOi ~50M would give 50k)
-    const relianceStrikes = makeStrikes(50_000, 50_000, 6); // 6 * 100k = 0.6M
+    const relianceStrikes = makeStrikes(50_000, 50_000, 6);
     expect(flowNoiseFor({ strikes: relianceStrikes })).toBe(50_000);
 
-    // High totalOi triggers relative threshold
-    // totalOi = 100M -> 100M * 0.1% = 100k > 50k floor
-    const highOiStrikes = makeStrikes(10_000_000, 10_000_000, 5); // 5 * 20M = 100M
+    const highOiStrikes = makeStrikes(10_000_000, 10_000_000, 5);
     expect(flowNoiseFor({ strikes: highOiStrikes })).toBe(100_000);
 
-    // Empty strikes returns internal floor
     expect(flowNoiseFor({ strikes: [] as NiftyStrike[] })).toBe(50_000);
   });
 
   test("readFlow with per-symbol noise (flowNoiseFor) captures smaller moves", () => {
-    // Using per-symbol noise of 50k, a 60k delta should pass
     const result = readFlow({ ce: 60_000, pe: 0 }, 1, null, 50_000);
     expect(result).not.toBeNull();
 
-    // But 40k should still be filtered
     const result2 = readFlow({ ce: 40_000, pe: 0 }, 1, null, 50_000);
     expect(result2).toBeNull();
   });

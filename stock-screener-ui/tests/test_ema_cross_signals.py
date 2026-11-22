@@ -213,11 +213,9 @@ class TestEMACrossSignalGenerator:
             "ema_fast_current": 101.0,
             "ema_slow_current": 100.0,
         }
-        # Within cooldown period
         signal = gen.check_entry("RELIANCE", market_data)
         assert signal is None
 
-        # After cooldown period
         gen._bar_number = 13
         signal = gen.check_entry("RELIANCE", market_data)
         assert signal is not None

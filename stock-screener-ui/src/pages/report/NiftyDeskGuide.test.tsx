@@ -23,7 +23,6 @@ describe("NiftyDeskGuide", () => {
     expect(screen.getByTestId("panel-modal-title")).toHaveTextContent(
       "Desk guide — read this once",
     );
-    // Content-hugging compact dialog (not the full 88vh research shell).
     expect(screen.getByTestId("panel-modal")).toHaveAttribute("data-compact", "true");
     const modal = screen.getByTestId("nifty-help-modal");
     expect(modal).toHaveClass("grid", "gap-2");
@@ -51,7 +50,6 @@ describe("NiftyDeskGuide", () => {
     expect(pin?.text).toMatch(/max pain ≥100 pts/i);
     expect(pin?.text).toMatch(/sweep and revert/i);
     expect(pin?.text).toMatch(/two consecutive 1-min closes/i);
-    // Ordering: it follows MAX PAIN and precedes PCR.
     const terms = DESK_GUIDE_ENTRIES.map((entry) => entry.term);
     expect(terms.indexOf("PIN RISK")).toBe(terms.indexOf("MAX PAIN") + 1);
     expect(terms.indexOf("PIN RISK")).toBeLessThan(terms.indexOf("PCR"));

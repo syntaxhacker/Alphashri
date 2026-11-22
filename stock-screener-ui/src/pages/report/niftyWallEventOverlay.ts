@@ -30,14 +30,6 @@ export interface WallOverlayMarker {
 
 const WALL_TYPES = new Set(["wall_test", "rejection", "break", "wall_break"]);
 
-/**
- * Map wall bursts to chart annotations.
- *
- * The 2026-11-03 case is the reference: a dashed line at 23,700 (tested
- * 11:54) plus a marker on the 12:10 rejection and a dashed target line at
- * max pain 23,650. Watch tests are muted; rejection/break markers are the
- * actual events; only one line per level survives.
- */
 export function wallEventOverlay(bursts: WallBurstLike[] | null | undefined): {
   markLines: WallOverlayLine[];
   markers: WallOverlayMarker[];

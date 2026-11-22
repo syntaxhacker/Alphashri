@@ -57,12 +57,6 @@ NON_NIFTY_INDEX_PREFIXES = (
 
 
 def is_nifty_futures_symbol(symbol) -> bool:
-    """True for a NIFTY futures symbol only.
-
-    Requires the symbol to START with ``NIFTY`` (so BANKNIFTY / FINNIFTY /
-    MIDCPNIFTY / NIFTYNXT50 are rejected) and to carry the ``FUT`` marker (so
-    an option row is rejected too).
-    """
     sym = str(symbol or "").strip().upper()
     if not sym.startswith(NIFTY_FUT_PREFIX):
         return False
@@ -71,15 +65,7 @@ def is_nifty_futures_symbol(symbol) -> bool:
     return "FUT" in sym
 
 
-# ---------------------------------------------------------------------------
-# pure helpers (unit-tested, no network)
-# ---------------------------------------------------------------------------
 def parse_search_payload(payload) -> list[dict]:
-    """Normalise ``GET /v2/instruments/search`` → ``[{instrument_key, trading_symbol, expiry}]``.
-
-    Keeps only futures rows (``instrument_type == "FUT"`` or ``FUT`` in the
-    segment). Malformed rows are skipped.
-    """
     data = _data(payload)
     if not isinstance(data, list):
         return []
@@ -103,11 +89,6 @@ def parse_search_payload(payload) -> list[dict]:
 
 
 def pick_current_month(rows: list[dict], today: str) -> dict | None:
-    """Earliest-expiry row with ``expiry >= today`` (both ``YYYY-MM-DD``).
-
-    ``""`` expiries sort last; unparseable rows are skipped. Returns None
-    when nothing qualifies.
-    """
     best: dict | None = None
     for row in rows or []:
         if not isinstance(row, dict):
@@ -125,12 +106,6 @@ def pick_current_month(rows: list[dict], today: str) -> dict | None:
 
 
 def parse_candles(payload) -> list[dict]:
-    """Normalise V3 intraday candles → ``[{ts, volume}]`` oldest-first.
-
-    V3 rows are ``[ts, o, h, l, c, volume, oi]``; Upstox returns newest-first,
-    so the output is reversed into chronological order. Rows with unparseable
-    volume are skipped.
-    """
     data = _data(payload)
     candles = data.get("candles") if isinstance(data, dict) else None
     if not isinstance(candles, list):
@@ -143,12 +118,11 @@ def parse_candles(payload) -> list[dict]:
         if vol is None:
             continue
         out.append({"ts": str(row[0]), "volume": vol})
-    out.reverse()  # newest-first → oldest-first
+    out.reverse()
     return out
 
 
 def window_volumes(volumes: list[float], window: int) -> list[float]:
-    """Sum consecutive non-overlapping ``window``-sized chunks (full only)."""
     if window <= 0:
         raise ValueError("window must be positive")
     vals = [v for v in (volumes or []) if _as_float(v) is not None]
@@ -167,11 +141,6 @@ def _median(values: list[float]) -> float | None:
 
 
 def compute_rvol(volumes: list[float], window: int = 5) -> dict:
-    """RVOL over ``window``-minute buckets: last bucket vs median of priors.
-
-    Returns ``{"rvol", "last", "baseline", "windows"}``; ``rvol`` is None when
-    fewer than 2 full windows exist or the baseline median is 0.
-    """
     wins = window_volumes(volumes, window)
     if len(wins) < 2:
         return {"rvol": None, "last": wins[-1] if wins else None, "baseline": None, "windows": wins}
@@ -181,9 +150,7 @@ def compute_rvol(volumes: list[float], window: int = 5) -> dict:
     return {"rvol": rvol, "last": last, "baseline": baseline, "windows": wins}
 
 
-# ---------------------------------------------------------------------------
 # live sources (network, read-only)
-# ---------------------------------------------------------------------------
 def _get_v2(path: str, params: dict, timeout: float):
     return upstox_common.get(path, params, timeout, base=BASE_V2)
 
@@ -222,14 +189,13 @@ def resolve_futures_from_db(today: str) -> dict | None:
     norm = []
     for row in cands:
         expiry = str(row["expiry"] or "")
-        if len(expiry) > 10:  # stored as datetime — keep the date part
+        if len(expiry) > 10:
             expiry = expiry[:10]
         norm.append({**row, "expiry": expiry})
     return pick_current_month(norm, today)
 
 
 def resolve_futures_from_search(today: str, timeout: float) -> dict | None:
-    """Current-month NIFTY futures row via ``GET /v2/instruments/search``."""
     raw = _get_v2(
         "/instruments/search",
         {"query": "NIFTY", "exchanges": "NSE", "segments": "FO",
@@ -241,7 +207,6 @@ def resolve_futures_from_search(today: str, timeout: float) -> dict | None:
 
 
 def resolve_futures_key(today: str, timeout: float) -> tuple[dict | None, str]:
-    """``(row, source)`` — DB first (``"db"``), then search API (``"search"``)."""
     row = resolve_futures_from_db(today)
     if row is not None:
         return row, "db"
@@ -253,7 +218,6 @@ def resolve_futures_key(today: str, timeout: float) -> tuple[dict | None, str]:
 
 
 def fetch_minute_candles(instrument_key: str, timeout: float) -> list[dict]:
-    """GET V3 intraday 1-minute candles (with volume) → oldest-first ``[{ts, volume}]``."""
     import urllib.parse
 
     quoted = urllib.parse.quote(instrument_key, safe="")
@@ -261,9 +225,6 @@ def fetch_minute_candles(instrument_key: str, timeout: float) -> list[dict]:
     return parse_candles(raw)
 
 
-# ---------------------------------------------------------------------------
-# cli
-# ---------------------------------------------------------------------------
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         prog="futures_volume",

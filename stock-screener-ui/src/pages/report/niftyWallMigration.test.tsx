@@ -34,7 +34,6 @@ function row(overrides?: Partial<WallMigrationRow>): WallMigrationRow {
   };
 }
 
-/** Chain leg: [ce_ltp, pe_ltp, ce_oi, pe_oi, ce_vol, pe_vol]. */
 function leg(ceLtp: number, peLtp: number, ceOi: number, peOi: number): number[] {
   return [ceLtp, peLtp, ceOi, peOi, 0, 0];
 }

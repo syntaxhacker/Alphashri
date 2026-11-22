@@ -1,7 +1,3 @@
-/**
- * Auth state management for Alphashri
- */
-
 import { createSubscriber } from "./createSubscriber";
 
 import { apiErrorFromResponse } from "@/api/apiError";
@@ -13,7 +9,6 @@ const REFRESH_ENDPOINT = "/api/auth/refresh";
 // Refresh ahead of expiry: a token with 5 minutes left cannot finish every in-flight call.
 const REFRESH_SKEW_MS = 300_000;
 
-// Types
 export interface User {
   id: number;
   email: string;
@@ -29,7 +24,6 @@ interface AuthState {
   error: string | null;
 }
 
-// State
 export let authState: AuthState = {
   isAuthenticated: false,
   user: null,
@@ -45,7 +39,6 @@ function updateState(newState: Partial<AuthState>): void {
   notifyAuth();
 }
 
-// Token management
 export function getAccessToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -76,7 +69,6 @@ function base64UrlDecode(segment: string): string | null {
   }
 }
 
-/** JWT `exp` as epoch milliseconds, or null when the token carries no decodable `exp`. */
 function getTokenExpiry(token: string | null): number | null {
   if (!token) return null;
   const payload = token.split(".")[1];
@@ -113,7 +105,6 @@ export function setStoredUser(user: User): void {
   localStorage.setItem(USER_KEY, JSON.stringify(user));
 }
 
-// API helper with auth
 function withAuthHeaders(options: RequestInit, token: string | null): RequestInit {
   // FormData bodies must keep the browser-generated multipart Content-Type
   // (including its boundary); forcing application/json breaks file uploads.
@@ -158,7 +149,6 @@ async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Re
   return fetch(url, withAuthHeaders(options, getAccessToken()));
 }
 
-// Auth API functions
 async function authenticateWithEndpoint(
   endpoint: string,
   body: Record<string, unknown>,
@@ -264,7 +254,6 @@ export async function checkAuth(): Promise<boolean> {
     return false;
   }
 
-  // If we have a stored user, use it initially
   if (storedUser) {
     updateState({
       isAuthenticated: true,
@@ -285,7 +274,6 @@ export async function checkAuth(): Promise<boolean> {
       });
       return true;
     } else {
-      // Token invalid, try refresh
       const refreshed = await refreshTokensOnce();
       if (!refreshed) {
         clearTokens();
@@ -344,7 +332,6 @@ function refreshTokensOnce(): Promise<boolean> {
   return refreshInFlight;
 }
 
-// Export fetchWithAuth for use in other API modules
 export { fetchWithAuth };
 
 /** Fetch JSON from an API endpoint with auth, throwing on non-2xx. */

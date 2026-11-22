@@ -33,13 +33,11 @@ def _change_text(change: float, percent: float) -> str:
 
 
 def time_near_percent(tf_minutes: int, remaining_seconds: float) -> float:
-    """Fraction of the candle already elapsed; 100 means the close is imminent."""
     elapsed = tf_minutes * 60 - remaining_seconds
     return max(0.0, min(100.0, elapsed / (tf_minutes * 60) * 100))
 
 
 def price_near(price: float, low: float, high: float) -> tuple[float, str]:
-    """Where price sits inside the prior candle's range, plus the nearer edge."""
     if high <= low:
         return 50.0, "MID"
     position = max(0.0, min(100.0, (price - low) / (high - low) * 100))

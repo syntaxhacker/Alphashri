@@ -324,7 +324,6 @@ const allBuyerInterestStocks = [
   },
 ];
 
-// Helper to create buyer interest response
 function createBuyerInterestResponse(direction: string) {
   let stocks = allBuyerInterestStocks;
   if (direction === "bullish") {
@@ -364,7 +363,6 @@ function createBuyerInterestResponse(direction: string) {
   };
 }
 
-// Export the counts for assertions
 export const mockBuyerInterestCounts = {
   total: allBuyerInterestStocks.length,
   bullish: allBuyerInterestStocks.filter((s) => s.wick_close_pct >= 60).length,
@@ -555,7 +553,6 @@ export async function setupSectorMocks(page: import("@playwright/test").Page) {
   });
 }
 
-// Track auth state per page object using WeakMap
 const authStateByPage = new WeakMap<import("@playwright/test").Page, boolean>();
 
 // Test user credentials - defined before setupApiMocks
@@ -570,7 +567,6 @@ export const testUser = {
 // Helper to setup API mocks in Playwright tests
 // IMPORTANT: This must be called BEFORE page.goto()
 export async function setupApiMocks(page: import("@playwright/test").Page) {
-  // Reset auth state for this page
   authStateByPage.set(page, false);
 
   // Mock auth endpoints
@@ -639,7 +635,6 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
       return;
     }
 
-    // Check if it's buyer_interest_enhanced
     if (url.includes("screener=buyer_interest_enhanced")) {
       const directionMatch = url.match(/pf_direction=([^&]+)/);
       const direction = directionMatch ? directionMatch[1] : "both";
@@ -652,7 +647,6 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
       return;
     }
 
-    // Default to trending response
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -722,7 +716,6 @@ export const mockStrategyConfig = {
 // Track config state per page object using WeakMap (for parallel test safety)
 const configByPage = new WeakMap<import("@playwright/test").Page, typeof mockStrategyConfig>();
 
-// Helper to get or create config for a page
 function getConfigForPage(page: import("@playwright/test").Page): typeof mockStrategyConfig {
   if (!configByPage.has(page)) {
     configByPage.set(page, { ...mockStrategyConfig });
@@ -771,9 +764,7 @@ export async function loginAsTestUser(page: import("@playwright/test").Page) {
   });
 }
 
-// Helper to setup paper trading API mocks
 export async function setupPaperTradingMocks(page: import("@playwright/test").Page) {
-  // Initialize config for this page
   configByPage.set(page, { ...mockStrategyConfig });
 
   // Mock portfolio endpoint
@@ -884,7 +875,6 @@ export async function setupPaperTradingMocks(page: import("@playwright/test").Pa
         }),
       });
     } else if (route.request().method() === "PUT") {
-      // Handle PUT - update config
       const body = route.request().postDataJSON();
       const updatedConfig = { ...config, ...body };
       configByPage.set(page, updatedConfig);
@@ -926,12 +916,10 @@ export async function setupPaperTradingMocks(page: import("@playwright/test").Pa
   });
 }
 
-// Helper to get current config for a specific page (for test assertions)
 export function getCurrentConfig(page: import("@playwright/test").Page) {
   return { ...getConfigForPage(page) };
 }
 
-// Multi-strategy bot mocks
 export async function setupMultiStrategyBotMocks(page: import("@playwright/test").Page) {
   const BOT_UUID_1 = "550e8400-e29b-41d4-a716-446655440000";
   const BOT_UUID_2 = "81b1e4e1-de04-4989-8357-96daade0bd86";
@@ -1168,7 +1156,6 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
   });
 }
 
-// Correlation API mocks
 export const mockCorrelationResponse = {
   matrix: [
     [1.0, 0.85, 0.32],
@@ -1231,7 +1218,6 @@ export async function setupCorrelationMocks(page: import("@playwright/test").Pag
   });
 }
 
-// Options API mocks
 export async function setupOptionsMocks(page: import("@playwright/test").Page) {
   // Mock underlyings
   await page.route(apiRoute("options/underlyings"), async (route) => {
@@ -1619,7 +1605,6 @@ const mockEmptyPerformanceData: {
   net_pnl: number;
 }[] = [];
 
-// Full strategy mocks for strategies page
 export async function setupStrategiesMocks(page: import("@playwright/test").Page) {
   // Register specific routes BEFORE broad ones to avoid substring regex collisions.
   // apiRoute("strategies") regex also matches /api/strategies/templates, so templates
@@ -1823,7 +1808,6 @@ export async function setupStrategiesMocks(page: import("@playwright/test").Page
   });
 }
 
-// Empty state mocks
 export async function setupStrategiesEmptyMocks(page: import("@playwright/test").Page) {
   await page.route(apiRoute("strategies/templates"), async (route) => {
     await route.fulfill({
@@ -1871,7 +1855,6 @@ export async function setupStrategiesEmptyMocks(page: import("@playwright/test")
   });
 }
 
-// Error state mocks
 export async function setupStrategiesErrorMocks(page: import("@playwright/test").Page) {
   await page.route(apiRoute("strategies/templates"), async (route) => {
     await route.fulfill({
@@ -1890,7 +1873,6 @@ export async function setupStrategiesErrorMocks(page: import("@playwright/test")
   });
 }
 
-// Nifty report API mocks
 export const mockNiftyReport = {
   mode: "live",
   date: "2026-10-12",
@@ -2114,9 +2096,6 @@ export async function setupNiftyTapeMocks(page: import("@playwright/test").Page)
   });
 }
 
-// ---------------------------------------------------------------------------
-// Deep Value scan (GET /api/value/scan)
-// ---------------------------------------------------------------------------
 
 const mockValueRow = {
   symbol: "SBILIFE",
@@ -2874,9 +2853,6 @@ export async function setupOptionDockMocks(
   };
 }
 
-// ---------------------------------------------------------------------------
-// F&O screener (GET /api/options/screener)
-// ---------------------------------------------------------------------------
 
 export const mockFnoScreenerResponse = {
   status: "ok",

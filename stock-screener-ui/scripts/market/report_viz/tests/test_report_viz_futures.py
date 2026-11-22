@@ -100,9 +100,6 @@ ROWS = [
 ]
 
 
-# ---------------------------------------------------------------------------
-# price / open interest
-# ---------------------------------------------------------------------------
 def test_price_oi_payload_carries_series_and_stats() -> None:
     html = futures_price_oi(ROWS, spec=_sensex())
     payload = _payload(html)
@@ -141,9 +138,6 @@ def test_price_oi_uses_spec_for_units_and_session() -> None:
     assert "NIFTY" not in html
 
 
-# ---------------------------------------------------------------------------
-# basis
-# ---------------------------------------------------------------------------
 def test_basis_null_is_a_gap_never_zero() -> None:
     html = futures_basis(ROWS, spec=_sensex())
     payload = _payload(html)
@@ -190,9 +184,6 @@ def test_basis_legend_carries_the_mean_in_price_points() -> None:
     assert "var(--rv-green)" in html
 
 
-# ---------------------------------------------------------------------------
-# regimes
-# ---------------------------------------------------------------------------
 def _regime_rows() -> list[dict]:
     return [
         {"t": "09:15", "close": 100.0, "oi": 1_000, "volume": 10, "regime": "long_buildup"},
@@ -233,7 +224,7 @@ def test_regimes_merge_rows_into_categorical_bands() -> None:
         assert isinstance(band["start_m"], int)
         assert band["end_m"] > band["start_m"]
         assert isinstance(band["regime"], str)
-        assert "y" not in band  # bands are categorical, not a numeric line
+        assert "y" not in band
 
     categories = {category["id"]: category for category in data["categories"]}
     assert categories["long_buildup"] == {
@@ -306,9 +297,6 @@ def test_regimes_require_a_classification() -> None:
         futures_regimes([{"t": "09:15", "close": 100.0}], spec=_sensex())
 
 
-# ---------------------------------------------------------------------------
-# volume
-# ---------------------------------------------------------------------------
 def test_volume_payload_keeps_gaps_and_finds_the_peak() -> None:
     html = futures_volume(ROWS, spec=_sensex())
     payload = _payload(html)
@@ -326,9 +314,6 @@ def test_volume_payload_keeps_gaps_and_finds_the_peak() -> None:
     assert "peak bar highlighted" in html
 
 
-# ---------------------------------------------------------------------------
-# instrument independence
-# ---------------------------------------------------------------------------
 def test_sensex_and_stock_render_from_the_same_builders_with_their_own_units() -> None:
     def panels(spec: InstrumentSpec) -> list[str]:
         return [
@@ -372,9 +357,6 @@ def test_builder_output_has_no_hardcoded_palette_hex_or_nifty_level() -> None:
         assert "NIFTY" not in chrome
 
 
-# ---------------------------------------------------------------------------
-# input handling
-# ---------------------------------------------------------------------------
 def test_column_mapping_input_matches_row_input() -> None:
     columns = {
         "t": [row["t"] for row in ROWS],
@@ -430,9 +412,7 @@ def test_empty_payload_renders_empty_series() -> None:
     assert volume_payload["data"]["stats"]["total"] is None
 
 
-# ---------------------------------------------------------------------------
 # browser asset contract
-# ---------------------------------------------------------------------------
 def test_asset_registers_four_renderers_without_extra_libraries() -> None:
     text = ASSET.read_text()
     for name in (

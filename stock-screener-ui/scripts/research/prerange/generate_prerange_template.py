@@ -46,9 +46,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.patches import Rectangle  # noqa: E402
 
-# --------------------------------------------------------------------------- #
-# Config / constants
-# --------------------------------------------------------------------------- #
 NY = __import__("zoneinfo").ZoneInfo("America/New_York")
 
 TICKER = (sys.argv[1].upper() if len(sys.argv) > 1 else "MU")
@@ -62,8 +59,8 @@ RTH_OPEN = dtime(9, 30)
 RTH_CLOSE = dtime(16, 0)
 EXIT_TIME = dtime(12, 30)
 COMPLETE_BY = dtime(15, 30)  # a "full" session must have a reg bar at/after this
-FILTER_LO = 1.0  # percent
-FILTER_HI = 5.0  # percent
+FILTER_LO = 1.0
+FILTER_HI = 5.0
 
 BG = "#0D1117"
 FG = "#E6EDF3"
@@ -102,9 +99,6 @@ ASSUMPTIONS = [
 ]
 
 
-# --------------------------------------------------------------------------- #
-# Data
-# --------------------------------------------------------------------------- #
 def fetch_intraday(interval: str, period: str) -> pd.DataFrame:
     df = yf.Ticker(TICKER).history(period=period, interval=interval, prepost=True)
     if df is None or df.empty:
@@ -146,9 +140,6 @@ def make_prev_close_lookup(daily: pd.DataFrame):
     return lookup
 
 
-# --------------------------------------------------------------------------- #
-# Simulation
-# --------------------------------------------------------------------------- #
 def pnl_pct(side: str, entry: float, exit_price: float) -> float:
     if side == "LONG":
         return (exit_price / entry - 1.0) * 100.0
@@ -170,13 +161,11 @@ def simulate(reg: pd.DataFrame, side: str, entry: float, stop: float,
     for i in range(n):
         hi, lo, cl = highs[i], lows[i], closes[i]
 
-        # 1) hard stop (intrabar, checked first)
         if side == "LONG" and lo <= stop:
             return _exit(stop, "STOP", i, reg)
         if side == "SHORT" and hi >= stop:
             return _exit(stop, "STOP", i, reg)
 
-        # 2) exit logic
         if variant == "baseline":
             if side == "LONG" and hi >= target:
                 return _exit(target, "TARGET", i, reg)
@@ -210,7 +199,6 @@ def _exit(price: float, reason: str, idx: int, reg: pd.DataFrame) -> dict:
 
 
 def scan_sessions(df: pd.DataFrame, prev_close_lookup) -> list[dict]:
-    """Return one record per session with an eligible entry (pre-filter)."""
     out: list[dict] = []
     days = sorted(set(df.index.date))
     for day in days:
@@ -220,7 +208,7 @@ def scan_sessions(df: pd.DataFrame, prev_close_lookup) -> list[dict]:
         if pre.empty or len(reg) < 2:
             continue
         if reg.index.time.max() < COMPLETE_BY:
-            continue  # incomplete / half day -> skip
+            continue
         prev_close = prev_close_lookup(day)
         if prev_close is None or prev_close <= 0:
             continue
@@ -260,9 +248,6 @@ def scan_sessions(df: pd.DataFrame, prev_close_lookup) -> list[dict]:
     return out
 
 
-# --------------------------------------------------------------------------- #
-# Metrics
-# --------------------------------------------------------------------------- #
 def metrics(trades: list[dict], variant: str) -> dict:
     pnls = [t["variants"][variant]["pnl_pct"] for t in trades]
     n = len(pnls)
@@ -287,7 +272,6 @@ def metrics(trades: list[dict], variant: str) -> dict:
 
 
 def bucket_table(trades: list[dict], variant: str) -> list[dict]:
-    """Edge by |pre_chg|%, computed on entry-eligible trades (pre-filter)."""
     buckets = [
         ("0.2-1", 0.2, 1.0, False),
         ("1-2", 1.0, 2.0, True),
@@ -306,9 +290,6 @@ def bucket_table(trades: list[dict], variant: str) -> list[dict]:
     return rows
 
 
-# --------------------------------------------------------------------------- #
-# Charts
-# --------------------------------------------------------------------------- #
 def draw_candles(ax, xs, o, h, l, c):
     for x, oo, hh, ll, cc in zip(xs, o, h, l, c):
         color = UP if cc >= oo else DOWN
@@ -329,7 +310,7 @@ def vwap(reg: pd.DataFrame) -> np.ndarray:
 
 def make_chart(session: pd.DataFrame, trade: dict, variant: str, path: Path) -> None:
     day = trade["date"]
-    session = session[session.index.time < RTH_CLOSE]  # drop post-market prints
+    session = session[session.index.time < RTH_CLOSE]
     pre = session[session.index.time < RTH_OPEN]
     reg = session[(session.index.time >= RTH_OPEN) & (session.index.time < RTH_CLOSE)]
     res = trade["variants"][variant]
@@ -346,7 +327,6 @@ def make_chart(session: pd.DataFrame, trade: dict, variant: str, path: Path) -> 
 
     draw_candles(ax, xs, full["Open"], full["High"], full["Low"], full["Close"])
 
-    # EMA9 + VWAP on reg bars
     ema9 = reg["Close"].ewm(span=9, adjust=False).mean()
     vw = vwap(reg)
     ax.plot(np.arange(reg_start, reg_start + len(reg)), ema9.to_numpy(float),
@@ -354,18 +334,15 @@ def make_chart(session: pd.DataFrame, trade: dict, variant: str, path: Path) -> 
     ax.plot(np.arange(reg_start, reg_start + len(reg)), vw,
             color="#A371F7", linewidth=1.2, label="VWAP", zorder=4)
 
-    # key levels
     ax.axhline(trade["prev_close"], color=MUTED, linestyle=":", linewidth=1.0, label="prev_close")
     ax.axhline(trade["pre_hi"], color=UP, linestyle="--", linewidth=1.0, label="pre_hi")
     ax.axhline(trade["pre_lo"], color=DOWN, linestyle="--", linewidth=1.0, label="pre_lo")
     ax.axhline(trade["entry"], color=ACCENT, linestyle="-", linewidth=1.3, label="entry")
     ax.axhline(trade["stop"], color=DOWN, linestyle="-", linewidth=1.3, label="stop")
 
-    # session open divider
     if reg_start < len(full):
         ax.axvline(reg_start - 0.5, color=GRID, linewidth=1.0)
 
-    # exit marker
     ex_idx = reg_start + res["bar_idx"]
     ax.scatter([ex_idx], [res["exit_price"]], s=90, marker="X",
                color=(UP if res["pnl_pct"] >= 0 else DOWN), edgecolor=FG, zorder=6)
@@ -407,9 +384,6 @@ def make_chart(session: pd.DataFrame, trade: dict, variant: str, path: Path) -> 
     plt.close(fig)
 
 
-# --------------------------------------------------------------------------- #
-# HTML
-# --------------------------------------------------------------------------- #
 def _pf_cell(m: dict) -> str:
     if m["n"] == 0:
         return "—"
@@ -574,9 +548,6 @@ def build_html(stats: dict, fig_paths: list[Path], verdict: str) -> str:
 </div></body></html>"""
 
 
-# --------------------------------------------------------------------------- #
-# Main
-# --------------------------------------------------------------------------- #
 def human_num(v: float) -> str:
     for div, suf in [(1e9, "B"), (1e6, "M"), (1e3, "K")]:
         if abs(v) >= div:
@@ -674,7 +645,6 @@ def main():
             setB_trades = trades
             setB_df = df
 
-    # bucket table on Set A baseline (entry-eligible, pre-filter)
     if setA_trades:
         rows = bucket_table(setA_trades, "baseline")
         stats["bucket_table_setA_baseline"] = rows
@@ -685,7 +655,6 @@ def main():
                   f"PF={pf}  avg%={_fmt(m['avg_pct'],3)}  total%={_fmt(m['total_pct'],2)}"
                   f"  {'[traded]' if m['in_filter'] else '[filtered]'}")
 
-    # ---- charts: up to 12 Set B baseline trades, evenly spaced -------------
     chart_trades = [t for t in setB_trades if t["in_filter"]]
     fig_paths: list[Path] = []
     if chart_trades and setB_df is not None:
@@ -714,7 +683,6 @@ def main():
             })
     print(f"\ncharts written: {len(fig_paths)}")
 
-    # ---- verdict -----------------------------------------------------------
     verdict = build_verdict(stats)
     stats["verdict"] = verdict
 
@@ -756,7 +724,6 @@ def build_verdict(stats: dict) -> str:
             f"(PF {va['baseline']['pf']}), ema9_1230 {va['ema9_1230']['total_pct']:+.2f}%, "
             f"time_1230 {va['time_1230']['total_pct']:+.2f}%.")
 
-    # why time_1230 wins
     if not a.get("unavailable"):
         base_r = a["variants"]["baseline"].get("exit_reasons", {})
         t_r = a["variants"]["time_1230"].get("exit_reasons", {})

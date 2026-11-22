@@ -8,17 +8,10 @@ export interface ScanProgressProps {
   scanning: boolean;
   universe?: string;
   timeframe?: string;
-  /**
-   * `"block"` = large centered panel for the loading/empty grid state.
-   * `"banner"` = full-width row above the grid (always visible while scanning).
-   * `"inline"` = compact one-liner (bar + count).
-   */
   variant?: "block" | "banner" | "inline";
-  /** Optional re-run action shown next to the reused-scan notice. */
   onForceRefresh?: () => void;
 }
 
-/** Friendly universe labels for the progress line (ids are lowercase). */
 const UNIVERSE_LABELS: Record<string, string> = {
   nifty50: "NIFTY 50",
   nifty100: "NIFTY 100",
@@ -28,7 +21,6 @@ const UNIVERSE_LABELS: Record<string, string> = {
   nse_fo: "NSE F&O",
 };
 
-/** Human label for the combo being scanned, e.g. "NIFTY 50 · 1h". */
 function comboLabel(universe?: string, timeframe?: string): string {
   const id = universe ?? "";
   const u = UNIVERSE_LABELS[id] ?? id.replace(/_/g, " ").toUpperCase();
@@ -50,11 +42,6 @@ function etaLabel(job: JobDTO | null): string | null {
   return `~${Math.round(s / 60)} min left`;
 }
 
-/**
- * Human age of a reused scan, e.g. `"12 min ago"`. Prefers the server's
- * `reused_age_sec`; falls back to `reused_finished_at`/`finished_at` relative
- * to now. Null when no age signal is available.
- */
 export function formatReusedAge(job: JobDTO, now: number = Date.now()): string | null {
   const direct = job.reused_age_sec;
   const fromDirect =
@@ -72,7 +59,6 @@ export function formatReusedAge(job: JobDTO, now: number = Date.now()): string |
 
 export interface ReusedScanNoticeProps {
   job: JobDTO;
-  /** Optional re-run action rendered as a compact button next to the notice. */
   onForceRefresh?: () => void;
 }
 
@@ -83,7 +69,6 @@ export interface ScanCacheState {
   kind: ScanCacheKind;
   /** Cache-hit share 0..100 (`mixed` only, null otherwise). */
   pct: number | null;
-  /** Human reuse age (`reused` only, null when unknown). */
   age: string | null;
 }
 
@@ -127,7 +112,6 @@ export function scanCacheDetails(job: JobDTO, cache: ScanCacheState): string[] {
 
 export interface ScanCacheChipProps {
   job: JobDTO | null;
-  /** Re-run action shown next to the chip when the scan was reused. */
   onForceRefresh?: () => void;
 }
 
@@ -187,10 +171,6 @@ export function ScanCacheChip(props: ScanCacheChipProps) {
   );
 }
 
-/**
- * Notice shown when a non-forced scan reused a previous scan without
- * re-detecting (data unchanged). Pairs with the Force refresh action.
- */
 export function ReusedScanNotice(props: ReusedScanNoticeProps) {
   const age = createMemo(() => formatReusedAge(props.job));
   const when = createMemo(() => (age() ? ` from ${age()}` : ""));
@@ -215,11 +195,6 @@ export function ReusedScanNotice(props: ReusedScanNoticeProps) {
   );
 }
 
-/**
- * Live scan progress: how many symbols of the combo have been processed.
- * Renders nothing when no scan is active (so it never clutters an idle page),
- * except for the reused-scan notice which explains a silently reused scan.
- */
 export function ScanProgress(props: ScanProgressProps) {
   const status = createMemo(() => props.job?.status ?? null);
   const queued = createMemo(() => status() === "queued" || (!props.scanning && status() === "queued"));
@@ -234,7 +209,6 @@ export function ScanProgress(props: ScanProgressProps) {
   const eta = createMemo(() => etaLabel(props.job));
 
   if (reused()) {
-    // `reused()` is only true for a non-null job.
     return <ReusedScanNotice job={props.job!} onForceRefresh={props.onForceRefresh} />;
   }
   if (!running() && !queued()) return null;

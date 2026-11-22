@@ -209,9 +209,6 @@ class TestCoverage:
         assert surface["degraded"] is False
 
 
-# ---------------------------------------------------------------------------
-# hard sanity gates (2026-11-03: 281.25% IV on a 0.0053-delta dead strike)
-# ---------------------------------------------------------------------------
 
 class TestSurfaceSanityGates:
     def test_no_leg_in_the_delta_band_means_no_wing(self):

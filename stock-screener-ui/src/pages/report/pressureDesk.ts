@@ -1,7 +1,5 @@
 import type { WallsFlow, WallsPayload, WallsRow } from "@/api/reportNifty";
 
-/** Pure reads behind the Index Report pressure desk. Keeping the classification
- *  and the 30m indexing here lets the component stay a renderer. */
 
 export type PressureSide = "CALL" | "PUT";
 export type PressureQuadrant = "NE" | "SE" | "NW" | "SW";
@@ -12,9 +10,7 @@ export interface PressureWall {
   side: PressureSide;
   strike: number;
   row: WallsRow;
-  /** 30m OI change in percent, or null when the window is missing. */
   oiPct: number | null;
-  /** 30m premium change in percent, or null when the window is missing. */
   premPct: number | null;
   quadrant: PressureQuadrant | null;
 }

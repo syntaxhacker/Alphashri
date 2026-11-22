@@ -107,7 +107,6 @@ export function Badge(props: UIBadgeProps) {
 
   const shape = (): Record<string, string> => {
     if (isDot) {
-      // Inline status: dot + text, no pill chrome at all.
       return {
         height: `${box.h}px`,
         "border-radius": "0px",

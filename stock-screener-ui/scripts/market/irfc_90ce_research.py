@@ -25,8 +25,8 @@ if str(ROOT) not in sys.path:
 OUT = ROOT / "reports" / "irfc_2026-11-09_90ce"
 OUT.mkdir(parents=True, exist_ok=True)
 
-FUT_KEY = "NSE_FO|61614"          # IRFC FUT 23 NOV 26, lot 5425
-CE_KEY = "NSE_FO|106407"          # IRFC 23 NOV 90 CE
+FUT_KEY = "NSE_FO|61614"
+CE_KEY = "NSE_FO|106407"
 EQ_KEY = "NSE_EQ|INE053F01010"
 EXPIRY = date(2026, 11, 23)
 TRADE_DATE = "2026-11-09"
@@ -66,7 +66,6 @@ def tstamp(iso: str) -> str:
 
 
 def series(rows: list[list], fields: list[str]) -> list[list]:
-    """fields: c=close, o=open, h=high, l=low, oi, v."""
     out = []
     pick = {"o": 1, "h": 2, "l": 3, "c": 4, "v": 5, "oi": 6}
     for row in rows:
@@ -171,7 +170,6 @@ def main() -> None:
             f"trade prints do not match the tape: entry {entry_ce[4]} exit open {exit_ce[1]}"
         )
 
-    # 09 Nov futures / option day stats
     f_close = f9[-1][4]
     f_open = f9[0][1]
     oi9 = [r[6] for r in f9]
@@ -190,7 +188,6 @@ def main() -> None:
     basis9_entry = round(entry_fut - entry_spot, 2)
     basis9_exit = round(exit_fut - exit_spot, 2)
 
-    # 18 Nov intraday
     f18_last = f18[-1]
     e18_last = e18[-1]
     c18_last = c18[-1]

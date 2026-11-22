@@ -72,8 +72,6 @@ def _broke_opposite(df: pd.DataFrame, level: float, direction: str, atr_val: flo
 
 
 def _fit_envelopes(df: pd.DataFrame, ctx: dict, start: int):
-    """Pivot pair and ATR-validated envelopes shared by the window scanners."""
-    # Channels, rectangles and triangles fit the same (frame, window) envelopes.
     cache = ctx.setdefault("_envelope_setups", {})
     key = (id(df), int(start))
     if key in cache:
@@ -100,9 +98,6 @@ def _fit_envelopes(df: pd.DataFrame, ctx: dict, start: int):
     return setup
 
 
-# ---------------------------------------------------------------------------
-# Channels
-# ---------------------------------------------------------------------------
 
 
 def _channel_once(df: pd.DataFrame, ctx: dict, start: int, end: int, ascending: bool):
@@ -233,13 +228,9 @@ def detect_descending_channel(df: pd.DataFrame, ctx: dict | None = None) -> list
     return _channel_impl(df, ctx or {}, ascending=False)
 
 
-# ---------------------------------------------------------------------------
-# Flags / pennant
-# ---------------------------------------------------------------------------
 
 
 def _find_pole_flag(df: pd.DataFrame, bullish: bool):
-    """Search pole+consolidation; return the best ``(dict)`` or ``None``."""
     n = len(df)
     end = n - 1
     close = df["close"].to_numpy(dtype=float)
@@ -327,7 +318,6 @@ def _flag_hit(df, best, pid, bullish, ctx):
     else:
         breakout = best["flow"]
         opposite = best["fhigh"]
-    # R2 of the consolidation closes as a line (quality signal).
     seg = df["close"].iloc[fstart : fend + 1].to_numpy(dtype=float)
     _, _, r2 = F.linreg_fit(np.arange(len(seg)), seg)
     r2 = max(r2, 0.5)
@@ -489,7 +479,7 @@ def _find_pennant(df: pd.DataFrame, ctx: dict | None = None):
             if not (w_end < w_start * PENNANT_CONVERGE and w_end < w_mid * PENNANT_CONVERGE_MID):
                 continue
             if not (eu["slope"] < el["slope"]):
-                continue  # converging: upper falls relative to lower
+                continue
             if F.penetration_ratio(df, eu["slope"], eu["intercept"], cx0, cx1, "upper", atr_val) > PENETRATION_MAX:
                 continue
             if F.penetration_ratio(df, el["slope"], el["intercept"], cx0, cx1, "lower", atr_val) > PENETRATION_MAX:
@@ -542,7 +532,6 @@ def detect_pennant(df: pd.DataFrame, ctx: dict | None = None) -> list:
 
     up_q0, up_q1 = envelope_value(eu, cx0), envelope_value(eu, cx1)
     lo_q0, lo_q1 = envelope_value(el, cx0), envelope_value(el, cx1)
-    # Quality signal: how cleanly the consolidation highs/lows trend.
     xs = np.arange(cx0, cx1 + 1, dtype=float)
     _, _, r2u = F.linreg_fit(xs, df["high"].iloc[cx0 : cx1 + 1].to_numpy(dtype=float))
     _, _, r2l = F.linreg_fit(xs, df["low"].iloc[cx0 : cx1 + 1].to_numpy(dtype=float))
@@ -578,9 +567,6 @@ def detect_pennant(df: pd.DataFrame, ctx: dict | None = None) -> list:
     ]
 
 
-# ---------------------------------------------------------------------------
-# Rectangle
-# ---------------------------------------------------------------------------
 
 
 def _rectangle_once(df: pd.DataFrame, ctx: dict, start: int, end: int):
@@ -678,9 +664,6 @@ def detect_rectangle(df: pd.DataFrame, ctx: dict | None = None) -> list:
     return scan_windows(df, ctx, 40, _rectangle_once, WINDOWS)
 
 
-# ---------------------------------------------------------------------------
-# Triangles
-# ---------------------------------------------------------------------------
 
 
 def _triangle_once(df: pd.DataFrame, ctx: dict, start: int, end: int, ascending: bool):
@@ -784,9 +767,6 @@ def detect_descending_triangle(df: pd.DataFrame, ctx: dict | None = None) -> lis
     return _triangle_impl(df, ctx or {}, ascending=False)
 
 
-# ---------------------------------------------------------------------------
-# registration
-# ---------------------------------------------------------------------------
 
 register("ascending_channel", detect_ascending_channel)
 register("descending_channel", detect_descending_channel)

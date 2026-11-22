@@ -48,11 +48,9 @@ TF_FREQ = {
 OPS = ("patterns", "trendlines")
 
 
-# --- deterministic canonicalisation ----------------------------------------
 
 
 def _sanitize(obj: Any) -> Any:
-    """Reduce detector output to plain JSON-safe scalars in sorted-key form."""
     if is_dataclass(obj) and not isinstance(obj, type):
         return _sanitize(asdict(obj))
     if isinstance(obj, np.generic):
@@ -83,11 +81,9 @@ def _sha(obj: Any) -> str:
     return hashlib.sha256(_canonical(obj).encode("utf-8")).hexdigest()
 
 
-# --- frame sources ----------------------------------------------------------
 
 
 def _synthetic_frame(bars: int, seed: int, freq: str) -> pd.DataFrame:
-    """Seeded OHLCV random walk with a fixed index (same bars on every run)."""
     rng = np.random.default_rng(seed)
     steps = rng.normal(0.0, 0.012, size=bars)
     close = 100.0 * np.exp(np.cumsum(steps))
@@ -103,7 +99,6 @@ def _synthetic_frame(bars: int, seed: int, freq: str) -> pd.DataFrame:
 
 
 def _bucket(tf: str) -> str:
-    """Map a timeframe to the yfinance interval frame that backs it."""
     if tf in {"1D", "1W", "1M"}:
         return "1D"
     if tf in {"1h", "2h", "3h", "4h"}:
@@ -124,7 +119,6 @@ def _synthetic_frames(symbols: int, bars: int, timeframes: list[str], seed: int)
 
 
 def _normalize_yf(raw: pd.DataFrame, ticker: str) -> pd.DataFrame | None:
-    """Pull one ticker's OHLCV block out of a yfinance download result."""
     if isinstance(raw.columns, pd.MultiIndex):
         level0 = raw.columns.get_level_values(0)
         level1 = raw.columns.get_level_values(1)
@@ -146,7 +140,7 @@ def _normalize_yf(raw: pd.DataFrame, ticker: str) -> pd.DataFrame | None:
 
 
 def _download(tickers: list[str], period: str, intraday_period: str) -> dict:
-    import yfinance as yf  # imported only under --real
+    import yfinance as yf
 
     frames: dict[tuple[str, str], pd.DataFrame] = {}
     for interval, span in (("1d", period), ("1h", intraday_period), ("5m", intraday_period)):
@@ -202,7 +196,6 @@ def _load_cache(path: str):
     return payload
 
 
-# --- measurement ------------------------------------------------------------
 
 
 def _apply(op: str, frame: pd.DataFrame, timeframe: str, symbol: str, lookback: int | None):

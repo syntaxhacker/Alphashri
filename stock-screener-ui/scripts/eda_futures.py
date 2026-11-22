@@ -1,24 +1,4 @@
 #!/usr/bin/env python3
-"""
-ES & NQ Futures EDA — session-level analysis (Asia / Europe / NY RTH).
-
-Uses yfinance (no Upstox). Fetches ES=F and NQ=F daily + 1H bars,
-splits the CME Globex session into regional windows, and produces
-charts + self-contained HTML report.
-
-Sessions (CME Globex, ET):
-  Asia-only   18:00–03:00  thin, sets ONH/ONL
-  Europe      03:00–09:30  London ramp
-  NY RTH      09:30–16:00  cash session (max liquidity)
-  Overnight   18:00–09:30  aggregate (Asia+Europe)
-  Post-RTH    16:00–17:00  squaring
-
-Usage:
-    source .venv/bin/activate
-    python scripts/eda_futures.py --start 2026-08-17 --end 2026-08-29
-    python scripts/eda_futures.py --start 2026-08-24 --end 2026-08-30  # next week
-Output → reports/ES_NQ_EDA/
-"""
 import argparse
 import base64
 import json
@@ -61,7 +41,6 @@ def _clean(df):
         return None
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
-    # standardise column names: yfinance returns Open High Low Close Volume
     df.columns = [str(c).strip() for c in df.columns]
     # ensure tz-aware index is UTC
     if df.index.tz is None:
@@ -104,11 +83,9 @@ def _time_in(ts_et, open_h, close_h, close_m=0):
     oh = ts_et.replace(hour=open_h, minute=0, second=0, microsecond=0).time()
     ch = ts_et.replace(hour=close_h, minute=close_m, second=0, microsecond=0).time()
     if open_h < close_h or (open_h==close_h and close_m>0 and open_h < close_h):
-        # normal day window
         if close_m==0:
             return oh <= t < ch
         return oh <= t < ch
-    # overnight wrap
     return t >= oh or t < ch
 
 def split_sessions(hourly):
@@ -124,7 +101,6 @@ def split_sessions(hourly):
         s = df[mask].copy()
         if len(s):
             sessions[name] = s
-    # overnight aggregate
     oname, oh, ch, cm = SESSION_OVERNIGHT
     mask = df["et"].map(lambda x: _time_in(x, oh, ch, cm))
     s = df[mask].copy()
@@ -164,7 +140,6 @@ def cross_stats(es_d, nq_d):
     rs = float((m["ES"]/m["NQ"]).iloc[-1]/(m["ES"]/m["NQ"]).iloc[0]-1)*100 if len(m) else float("nan")
     return {"corr": corr, "beta": beta, "rs_pct": rs}
 
-# ── figures ──
 def fig_daily(es_d, nq_d, out):
     fig, axes = plt.subplots(2,1, figsize=(13,8), sharex=True)
     for ax, df, color, label in [(axes[0], es_d, ES_COLOR, "ES (S&P 500)"), (axes[1], nq_d, NQ_COLOR, "NQ (Nasdaq-100)")]:
@@ -178,7 +153,6 @@ def fig_daily(es_d, nq_d, out):
         ax.fill_between(d.index, d["Low"], d["High"], color=color, alpha=0.07)
         if "ret" in d.columns:
             cols = np.where(d["ret"]>=0, UP, DOWN)
-            # volume as secondary bars scaled
             ax2 = ax.twinx()
             ax2.bar(d.index, d["Volume"]/1e6, color=cols, width=0.7, alpha=0.25)
             ax2.set_ylabel("Vol (M)", fontsize=8, color=GRAY)
@@ -201,11 +175,8 @@ def fig_session_volume(s_es, s_nq, out):
     df = pd.DataFrame(rows)
     if df.empty:
         return
-    # pivot per day per session
     fig, ax = plt.subplots(figsize=(14,6))
-    # aggregate session totals across week for grouped bar
     agg = df.groupby(["symbol","session"])["volume"].sum().reset_index()
-    # order sessions
     order = [s[0] for s in SESSIONS_EXCLUSIVE] + [SESSION_OVERNIGHT[0]]
     agg["session"] = pd.Categorical(agg["session"], categories=order, ordered=True)
     agg = agg.sort_values(["session","symbol"])
@@ -221,11 +192,9 @@ def fig_session_volume(s_es, s_nq, out):
     ax.legend()
     fig.tight_layout()
     fig.savefig(out, bbox_inches="tight"); plt.close(fig)
-    # also daily breakdown as second figure companion
     out2 = out.parent / "fig2b_session_volume_daily.png"
     pivot = df.pivot_table(index="date", columns=["symbol","session"], values="volume", aggfunc="sum").fillna(0)
     fig, ax = plt.subplots(figsize=(14,5))
-    # stack per day: NY vs overnight
     dates = sorted(df["date"].unique())
     x = np.arange(len(dates))
     w = 0.35
@@ -249,9 +218,7 @@ def fig_session_range(s_es, s_nq, out):
     for sym, sdict in [("ES", s_es), ("NQ", s_nq)]:
         for sname, sdf in sdict.items():
             if len(sdf)>=1:
-                # full window range
                 rng = (sdf["High"].max()-sdf["Low"].min())/sdf["Close"].iloc[0]*100 if len(sdf) else 0
-                # also avg daily range: per-date range then mean
                 if "date_et" in sdf.columns:
                     daily_rng = sdf.groupby("date_et").apply(lambda g: (g["High"].max()-g["Low"].min())/g["Close"].iloc[0]*100 if len(g) else 0)
                     avg_rng = float(daily_rng.mean()) if len(daily_rng) else rng
@@ -339,7 +306,6 @@ def build_insights(es_d, nq_d, s_es, s_nq, cross):
         lines.append(f"**ES/NQ corr {cross['corr']:.2f}** beta(ES|NQ) {cross['beta']:.2f}  ES/NQ rel {cross['rs_pct']:+.2f}% — {'tightly coupled' if cross['corr']>0.85 else 'diverging'}")
         if cross["corr"]>0.85:
             lines.append("ES and NQ move together — same directional bet. Use NQ for beta/amplification, ES for cleaner fills.")
-    # plain english
     lines.append("💡 *In plain English:* Check Asia ONH/ONL before NY open — NY often revisits or breaks overnight extremes. London (03:00-09:30 ET) sets the lean into the open.")
     return "\n".join([f"- {l}" for l in lines])
 
@@ -348,13 +314,11 @@ def render_report(es_d, nq_d, s_es, s_nq, cross, start, end, insights):
     FIGDIR.mkdir(parents=True, exist_ok=True)
     def b64(p):
         return base64.b64encode(open(p,"rb").read()).decode()
-    # key levels
     def klin(df):
         if df is None or df.empty:
             return {"last":float("nan"),"hi":float("nan"),"lo":float("nan"),"ma5":float("nan")}
         return {"last":float(df["Close"].iloc[-1]),"hi":float(df["High"].max()),"lo":float(df["Low"].min()),"ma5":float(df["Close"].rolling(5).mean().iloc[-1]) if len(df)>=5 else float(df["Close"].iloc[-1]),"vol5":float(df["Volume"].tail(5).mean()) if "Volume" in df.columns else 0}
     ek, nk = klin(es_d), klin(nq_d)
-    # compute weekly / session helpers for formatted header
     try:
         es_weekly = float((es_d["Close"].iloc[-1]/es_d["Close"].iloc[0]-1)*100) if es_d is not None and len(es_d) else 0
         nq_weekly = float((nq_d["Close"].iloc[-1]/nq_d["Close"].iloc[0]-1)*100) if nq_d is not None and len(nq_d) else 0
@@ -371,7 +335,6 @@ def render_report(es_d, nq_d, s_es, s_nq, cross, start, end, insights):
     nq_ny = _sess(s_nq, "NY RTH (09:30-16:00 ET)")
     nq_on = _sess(s_nq, "Overnight (18:00-09:30 ET)")
     fetched_at = datetime.now().strftime("%Y-%m-%d %H:%M %Z")
-    # try load weekly comparison
     comp_html = ""
     try:
         lw = json.loads((REPORTS/"summary_last_week.json").read_text()) if (REPORTS/"summary_last_week.json").exists() else None
@@ -477,7 +440,6 @@ code{{background:#1e2a44;padding:2px 6px;border-radius:4px;font-size:12px}}
         "fig5_nq_heatmap.png": ("<b>Fig 5b — NQ: Intraday Volume Share by Hour (ET) × Day</b><br>Same as ES but sharper open spike (tech reacts faster). Europe hours 03-09ET show building share ahead of open, especially Thu-Fri this week. <em>Read: NQ Europe ramp predicts NY lean — strong 07-09ET NQ share + green → long bias into open.</em>"),
     }
     imgs = sorted(FIGDIR.glob("*.png")) if FIGDIR.exists() else []
-    # enforce explicit order
     order = ["fig1_daily.png","fig2_session_volume.png","fig2b_session_volume_daily.png","fig3_session_range.png","fig4_es_nq_spread.png","fig5_es_heatmap.png","fig5_nq_heatmap.png"]
     imgs = sorted(imgs, key=lambda p: order.index(p.name) if p.name in order else 99)
     if imgs:
@@ -511,7 +473,6 @@ Sessions are fixed (ET) — no code change needed. Compare <code>sessions_daily.
 <b>If Asia & Europe agree (same direction),</b> NY continuation odds rise. If they fought (choppy overnight), expect NY mean-reversion / ORB fade.
 </div></body></html>""")
     (REPORTS / "es_nq_eda_report.html").write_text("\n".join(html), encoding="utf-8")
-    # markdown
     md = f"""# ES & NQ Futures — Session EDA
 **Window:** {start} → {end}  |  ES=F · NQ=F · yfinance · sessions ET
 ## Insights
@@ -549,7 +510,6 @@ python scripts/eda_futures.py --start 2026-08-24 --end 2026-08-30
 ```
 """
     (REPORTS / "es_nq_eda_report.md").write_text(md, encoding="utf-8")
-    # csv + json
     rows=[]
     for sym, sdict in [("ES", s_es), ("NQ", s_nq)]:
         for sname, sdf in sdict.items():
@@ -583,7 +543,6 @@ def main():
     cross=cross_stats(es_d, nq_d)
     insights=build_insights(es_d, nq_d, s_es, s_nq, cross)
     print("\nInsights:\n", insights)
-    # figures
     fig_daily(es_d, nq_d, FIGDIR/"fig1_daily.png")
     fig_session_volume(s_es, s_nq, FIGDIR/"fig2_session_volume.png")
     fig_session_range(s_es, s_nq, FIGDIR/"fig3_session_range.png")

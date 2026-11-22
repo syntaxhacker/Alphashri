@@ -56,10 +56,10 @@ ANCHOR = "09:45"
 
 RATE = 0.065
 DIV_YIELD = 0.012
-SESSION_MINUTES = 375.0          # 09:15 -> 15:30
+SESSION_MINUTES = 375.0
 TRADING_DAYS = 252
-IV_FLOOR_PREMIUM = 2.00          # points of premium below which IV is tick noise
-IV_MIN, IV_MAX = 0.0, 300.0      # vendor sentinel filter
+IV_FLOOR_PREMIUM = 2.00
+IV_MIN, IV_MAX = 0.0, 300.0
 
 # Filled by configure() from the data. Kept at module scope because the pure
 # builders below read them the same way the original single-session script did.
@@ -89,7 +89,6 @@ def _minutes_clock(mins: float) -> str:
 
 def configure(session: str, expiry: str | None, out_dir: str | None,
               clip: str | None, anchor: str | None, snapshots: str | None) -> None:
-    """Resolve every session-specific constant from the recording itself."""
     global SESSION, EXPIRY, OUT_DIR, SNAPSHOTS, CLIP, ANCHOR, TAPE_START
     global ATM, CONTRACTS, SURFACE_STRIKES, PREMIUM_SURFACE_STRIKES, SMILE_STRIKES
     global SMILE_TIMES, SMILE_CLOSE, RIP_START, RIP_END, MINUTE_LO, MINUTE_HI
@@ -150,11 +149,6 @@ def configure(session: str, expiry: str | None, out_dir: str | None,
 
 
 def _pick_repricing_window(series: list[tuple[str, float]]) -> tuple[str, str]:
-    """Largest 10-minute ATM-IV move, excluding the last 30 minutes.
-
-    The final half hour is dominated by the 0-DTE gamma/theta blow-up, so using
-    it as the "repricing" window would relabel the close as a surface event.
-    """
     cutoff = _minutes_clock(max(_clock_minutes(ANCHOR) + 15, _clock_minutes(CLIP) - 30))
     usable = [(clock, iv) for clock, iv in series if clock <= cutoff]
     if len(usable) < 12:
@@ -176,13 +170,11 @@ def _pick_repricing_window(series: list[tuple[str, float]]) -> tuple[str, str]:
     return best[1], best[2]
 
 
-# ---------------------------------------------------------------- primitives
 def _norm_cdf(x: float) -> float:
     return 0.5 * (1.0 + erf(x / sqrt(2.0)))
 
 
 def bs_price(spot: float, strike: float, tau: float, vol: float, side: str) -> float:
-    """Black-Scholes with a continuous dividend yield. tau in years."""
     if tau <= 1e-9:
         return max(0.0, (spot - strike) if side == "ce" else (strike - spot))
     if vol <= 0:
@@ -216,7 +208,6 @@ def intrinsic(spot: float, strike: float, side: str) -> float:
     return max(0.0, spot - strike) if side == "ce" else max(0.0, strike - spot)
 
 
-# ---------------------------------------------------------------- data access
 def load_snapshots() -> list[dict]:
     rows = []
     with SNAPSHOTS.open() as fh:
@@ -285,9 +276,7 @@ def frames_5min(rows: list[dict], start: str | None = None, end: str | None = No
     return out
 
 
-# ---------------------------------------------------------------- series
 def atm_otm_iv(report: dict) -> float | None:
-    """ATM IV = mean of the nearest OTM call and the nearest OTM put."""
     spot = report["spot"]
     ce_iv = pe_iv = None
     for row in report["strikes"]:
@@ -305,7 +294,6 @@ def atm_otm_iv(report: dict) -> float | None:
 
 
 def iv_at_delta(report: dict, sign: int) -> float | None:
-    """IV interpolated at |delta| = 0.25 on the requested wing."""
     nodes = []
     for row in report["strikes"]:
         side = "ce" if sign > 0 else "pe"
@@ -438,7 +426,6 @@ def contract_path(rows: list[dict], strike: int, side: str, step: int = 2) -> li
 
 
 def frozen_path(rows: list[dict], strike: int, side: str, step: int = 6) -> list[dict]:
-    """Model premium if spot and IV had stayed at the anchor values: pure theta."""
     anchor = nearest(rows, ANCHOR)
     spot0 = anchor["report"]["spot"]
     node0 = leg(anchor["report"], strike, side)
@@ -459,7 +446,6 @@ def frozen_path(rows: list[dict], strike: int, side: str, step: int = 6) -> list
 
 
 def decompose(path: list[dict], strike: int, side: str) -> dict:
-    """Per-step BS repricing; the buckets telescope into the model price change."""
     totals = {"theta": 0.0, "spot": 0.0, "iv": 0.0, "wedge": 0.0, "dp": 0.0, "naive_theta": 0.0}
     for a, b in zip(path, path[1:]):
         if not a["iv"] or not b["iv"]:
@@ -619,7 +605,6 @@ def build_skew(rows: list[dict]) -> dict:
             "fixed": [{"strike": strike, "points": series} for strike, series in fixed.items()]}
 
 
-# ---------------------------------------------------------------- assembly
 def build_payload() -> dict:
     all_rows = load_snapshots()
     rows = [row for row in all_rows if clock_of(row["t"]) <= CLIP]
@@ -772,7 +757,6 @@ def build_payload() -> dict:
     return payload
 
 
-# ---------------------------------------------------------------- html
 def fmt(value, digits: int = 1, dash: str = "—") -> str:
     if value is None:
         return dash

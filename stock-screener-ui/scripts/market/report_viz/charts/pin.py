@@ -33,7 +33,6 @@ _WALL_FIELDS = ("t", "spot", "max_pain", "call_wall", "put_wall")
 
 
 def _number(value: Any) -> Optional[float | int]:
-    """Coerce to a JSON-safe number; anything unusable becomes ``None``."""
     if value is None or isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
@@ -75,12 +74,6 @@ def _labels(data: Mapping[str, Any], key: str, length: int) -> list[Optional[str
 
 
 def _band(data: Mapping[str, Any], spec: InstrumentSpec) -> float:
-    """Half-width of the pin band, in price points.
-
-    The source report used 25 points on a 50-point ladder; here the default is
-    half a strike step so a 100-point index gets 50 and a 20-point stock gets
-    10.  An explicit ``pin_band``/``band`` in the payload always wins.
-    """
     for key in ("pin_band", "band"):
         value = _number(data.get(key))
         if value is not None and value > 0:
@@ -206,12 +199,6 @@ def pin_score(
     title: Optional[str] = None,
     **kw: Any,
 ) -> str:
-    """Pin-score strip: 100 = spot exactly on max pain.
-
-    ``data``: ``t``, ``pin_score``, ``dist_pin`` and an optional ``pin_band``
-    (or ``band``).  ``dist_pin`` is spot minus max pain; either series may be
-    omitted and the renderer derives what it can without filling gaps.
-    """
     data = _mapping(data)
     band = _band(data, spec)
     payload = _payload(data, keys=_SCORE_FIELDS, include_band=True, band=band)
@@ -288,12 +275,6 @@ def wall_migration(
     title: Optional[str] = None,
     **kw: Any,
 ) -> str:
-    """Call/put wall strikes and max pain as step lines through the session.
-
-    ``data``: ``t``, ``spot``, ``max_pain``, ``call_wall``, ``put_wall``.  Wall
-    values far outside the spot range are clipped so the spot path stays
-    readable; clipped segments render as gaps, not as a flat line.
-    """
     data = _mapping(data)
     payload = _payload(data, keys=_WALL_FIELDS)
     colors = palette()

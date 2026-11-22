@@ -70,7 +70,6 @@ describe("ScanProgress", () => {
 
   test("block variant shows the completion percent alongside done/total", () => {
     render(() => <ScanProgress job={makeJob()} scanning variant="block" universe="nifty50" timeframe="1h" />);
-    // 23/50 → 46%
     expect(screen.getByTestId("patterns-scan-progress-count")).toHaveTextContent("23 / 50 stocks");
     expect(screen.getByTestId("patterns-scan-progress")).toHaveTextContent("46%");
   });
@@ -114,7 +113,6 @@ describe("ScanProgress", () => {
     try {
       const now = new Date("2026-10-03T10:00:00Z").getTime();
       vi.setSystemTime(now);
-      // elapsed 46s, done 23/50 → 46/23*27 ≈ 54s left
       const startedAt = new Date(now - 46_000).toISOString();
       render(() =>         <ScanProgress
           job={makeJob({ started_at: startedAt, done: 23, total: 50 })}
@@ -133,7 +131,6 @@ describe("ScanProgress", () => {
     try {
       const now = new Date("2026-10-03T10:00:00Z").getTime();
       vi.setSystemTime(now);
-      // elapsed 60s, done 25/50 → 60s left → ~1 min left
       const startedAt = new Date(now - 60_000).toISOString();
       render(() =>         <ScanProgress
           job={makeJob({ started_at: startedAt, done: 25, total: 50 })}
@@ -364,7 +361,6 @@ describe("ScanCacheChip", () => {
           },
         })}
       />);
-    // The local Tooltip renders the joined layers inside the bubble on hover.
     fireEvent.mouseOver(screen.getByTestId("patterns-scan-reused"));
     expect(
       await screen.findByText(

@@ -1,6 +1,5 @@
 import { For } from "solid-js";
 
-/** Band heights match the real tab / scope / tools strips so nothing shifts. */
 const TAB_BAND_H = 31;
 const SCOPE_BAND_H = 26;
 const TOOLS_BAND_H = 30;
@@ -10,7 +9,6 @@ const CARD_COUNT = 8;
 const TAB_WIDTHS = [48, 44];
 const STAT_WIDTHS = [30, 24, 24, 30, 24];
 const PILL_WIDTHS = [46, 52, 40, 58, 44, 50];
-/** Increasing widths so the tools band reads like a real control cluster. */
 const TOOL_WIDTHS = [96, 132, 168, 210];
 const CARD_SLOTS = Array.from({ length: CARD_COUNT }, (_, i) => i);
 
@@ -26,7 +24,6 @@ function Bar(props: { width: string; height: string; pill?: boolean }) {
   );
 }
 
-/** The results grid alone: mirrors `PatternGrid`'s card rhythm on a cold load. */
 export function PatternGridSkeleton() {
   return (
     <div data-testid="patterns-skeleton-grid" className={CARD_GRID_CLASS}>
@@ -50,11 +47,6 @@ export function PatternGridSkeleton() {
   );
 }
 
-/**
- * Layout-matched placeholder for the Patterns route: the three toolbar bands
- * plus the card grid, so a cold render settles into the real layout instead of
- * a centred spinner over a black page.
- */
 export function PatternSkeleton() {
   return (
     <div

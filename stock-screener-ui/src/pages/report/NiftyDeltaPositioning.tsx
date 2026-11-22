@@ -10,13 +10,8 @@ import type {
 } from "@/types/niftyReport";
 import { REPORT_DASH, formatReportNum, formatReportPoints } from "./reportFormat";
 
-/** Rendered for any absent field so a row never shows a blank/NaN. */
 export const POSITIONING_DASH = REPORT_DASH;
 
-/**
- * Colour tone for the header verdict:
- * bullish = up/green, bearish = down/red, balanced/absent = muted.
- */
 export function positioningAccent(
   verdict: NiftyPositioningVerdict | null | undefined,
 ): string {
@@ -25,7 +20,6 @@ export function positioningAccent(
   return palette.TEXT_MUTED;
 }
 
-/** Uppercase verdict label, or an em dash when absent/unrecognised. */
 export function positioningVerdictLabel(
   verdict: NiftyPositioningVerdict | null | undefined,
 ): string {
@@ -35,25 +29,18 @@ export function positioningVerdictLabel(
   return POSITIONING_DASH;
 }
 
-/** Signed crore with Indian grouping, 0 decimals ("+53,185"), dash if absent. */
 export function fmtCr(value: number | null | undefined): string {
   return formatReportNum(value, { sign: "nonzero", round: true });
 }
 
-/** Unsigned magnitude (Indian grouping, 0 dp) for the split's "N Cr" prefix. */
 function fmtCrMagnitude(value: number): string {
   return formatReportNum(Math.abs(value), { digits: 0 });
 }
 
-/** Integer strike with Indian grouping (`25,750`), or an em dash when absent. */
 export function fmtFlipStrike(value: number | null | undefined): string {
   return formatReportNum(value);
 }
 
-/**
- * `-50 pts` / `+50 pts` / `at spot` — how far a level sits from spot. Used as
- * the delta-flip stat's trailing hint; absent inputs render a dash.
- */
 export function flipDistanceLabel(
   spot: number | null | undefined,
   level: number | null | undefined,
@@ -69,7 +56,6 @@ export function flipDistanceLabel(
   return formatReportPoints(d);
 }
 
-/** Small tone helper for signed numbers; zero/absent stays muted. */
 export function signedPositioningAccent(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value) || value === 0) {
     return palette.TEXT_MUTED;
@@ -91,25 +77,13 @@ export function signedPositioningAccent(value: number | null | undefined): strin
  * 96% bullish" and paint the split bar 96% green.
  */
 interface PositioningSplit {
-  /** Bull side's share of gross initiated (0–100, integer). */
   bullShare: number;
-  /** Bear side's share — the exact complement of `bullShare` (0–100). */
   bearShare: number;
-  /** Which side dominates; `none` on an exact 50/50 split. */
   dominant: "bull" | "bear" | "none";
-  /** The dominant side's gross initiated magnitude (₹ crore). */
   magnitude: number | null;
-  /** The dominant side's share (0–100), `null` when it cannot be known. */
   share: number | null;
 }
 
-/**
- * Resolve the split into its two shares, the dominant side, that side's
- * magnitude and its share.
- *
- * The two shares are exact complements (`bear = 100 − bull`) so rounding can
- * never produce 101% (rounding both halves independently did: 51 + 50).
- */
 export function positioningSplit(
   bullCr: number | null | undefined,
   bearCr: number | null | undefined,
@@ -119,7 +93,6 @@ export function positioningSplit(
   const bear = Number.isFinite(bearCr as number) ? Math.abs(bearCr as number) : null;
   const pct = Number.isFinite(splitPct as number) ? (splitPct as number) : null;
 
-  // Only one side known: the magnitude is real, the share is not.
   if (bull === null || bear === null) {
     const only = bull ?? bear;
     return {
@@ -155,11 +128,6 @@ export function positioningSplit(
   return { bullShare, bearShare, dominant, magnitude, share };
 }
 
-/**
- * `62,631 Cr · bearish 96%` — the dominant side's gross initiated magnitude
- * and its share of gross initiated. The side word is part of the label: the
- * share alone never said WHICH side dominated.
- */
 export function positioningSplitLabel(
   bullCr: number | null | undefined,
   bearCr: number | null | undefined,

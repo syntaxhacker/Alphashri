@@ -8,7 +8,6 @@ import type { Accessor, JSX } from "solid-js";
 // `solid-js` does not re-export JSX.CSSProperties from its package root.
 type CSSProperties = JSX.CSSProperties;
 
-/** A single sort directive: column id + direction. */
 export interface SortEntry {
   id: string;
   desc: boolean;

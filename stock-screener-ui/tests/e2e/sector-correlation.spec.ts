@@ -16,7 +16,6 @@ test.describe("Sector Correlation & Rotation", () => {
     await gotoSector(page);
     await page.locator('[role="tab"]:has-text("Sector Correlation")').click();
 
-    // Check heatmap panel is rendered and visible
     const heatmap = page.locator('[data-testid="sector-correlation-heatmap"]');
     await expect(heatmap).toBeVisible();
 
@@ -42,7 +41,6 @@ test.describe("Sector Correlation & Rotation", () => {
     const table = page.locator('[data-testid="relative-strength-table"] table');
     await expect(table).toBeVisible();
 
-    // Check table headers
     await expect(table.locator("th", { hasText: "Rank" })).toBeVisible();
     await expect(table.locator("th", { hasText: "Sector" })).toBeVisible();
     await expect(table.locator("th", { hasText: "5D RS" })).toBeVisible();
@@ -51,7 +49,6 @@ test.describe("Sector Correlation & Rotation", () => {
     await expect(table.locator("th", { hasText: "Beta" })).toBeVisible();
     await expect(table.locator("th", { hasText: "1M Change" })).toBeVisible();
 
-    // Check sector data
     await expect(table).toContainText("NIFTY 50");
     await expect(table).toContainText("NIFTY BANK");
   });
@@ -78,7 +75,6 @@ test.describe("Sector Correlation & Rotation", () => {
     // <select>, so there is no role=option popup to open.
     await page.getByTestId("market-segment").locator("select").selectOption({ label: "US" });
 
-    // US sector ETFs should appear in table
     await expect(table).toContainText("SPY");
     await expect(table).toContainText("XLK");
   });
@@ -87,14 +83,12 @@ test.describe("Sector Correlation & Rotation", () => {
     await gotoSector(page);
     await page.locator('[role="tab"]:has-text("Sector Correlation")').click();
 
-    // Wait for initial data load
     const table = page.locator('[data-testid="relative-strength-table"]');
     await expect(table).toBeVisible({ timeout: 10000 });
 
     // Change lookback to 1M (also a native <select>)
     await page.getByTestId("lookback-segment").locator("select").selectOption({ label: "1M" });
 
-    // Data should still render
     await expect(table).toBeVisible();
     await expect(table).toContainText("NIFTY 50");
   });
@@ -106,7 +100,6 @@ test.describe("Sector Correlation & Rotation", () => {
     // Look for timestamp indicator (clock icon nearby)
     const view = page.locator('[data-testid="sector-analysis-view"]');
     await expect(view).toBeVisible();
-    // Wait until the last-updated timestamp has been rendered
     await expect
       .poll(async () =>
         view.evaluate((el) => /\d{1,2}:\d{2}:\d{2}\s*(AM|PM)/.test(el.innerText)),

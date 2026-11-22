@@ -339,7 +339,6 @@ describe("AppliedFilters", () => {
         setFilter={vi.fn()}
         resetFilters={vi.fn()}
       />);
-    // 7 chips > cap of 6 -> 6 inline, "+1" overflow.
     expect(screen.getByTestId("patterns-applied-overflow")).toHaveTextContent("+1");
     expect(screen.queryByText("Volume: Confirmed")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("patterns-applied-overflow"));

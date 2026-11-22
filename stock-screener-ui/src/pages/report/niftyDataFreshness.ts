@@ -43,11 +43,8 @@ export interface DataFreshnessInput {
 }
 
 export interface DataFreshness {
-  /** Age of the newest tape row; `null` when the tape has no readable row. */
   tapeAgeMs: number | null;
-  /** Age of the newest of report/tape/burst; `null` when nothing is readable. */
   ageMs: number | null;
-  /** Tape is older than the threshold while the market is open. */
   stale: boolean;
   /**
    * Header text: `DATA 42s` / `STALE` / `DATA —`. Shows the tape age when a

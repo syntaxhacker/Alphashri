@@ -20,7 +20,6 @@ export async function setupPaperTradingTestMocks(page: Page): Promise<void> {
  * Navigate to Paper Trading view
  */
 export async function navigateToPaperTrading(page: Page): Promise<void> {
-  // Navigate directly to paper trading URL
   await page.goto("/paper", { timeout: 30000 });
   await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
@@ -35,7 +34,6 @@ export async function navigateToPaperTradingWithBot(
 ): Promise<void> {
   await navigateToPaperTrading(page);
 
-  // Wait for positions data to load - either table (with data) or empty state
   const positionsTable = page.locator('[data-testid="positions-table-container"]');
   const positionsEmpty = page.locator('[data-testid="positions-empty"]');
   await Promise.race([
@@ -47,18 +45,14 @@ export async function navigateToPaperTradingWithBot(
   const botSelect = page.locator('[data-testid="bot-select"]');
   await expect(botSelect).toBeVisible({ timeout: 10000 });
 
-  // Open the select dropdown and press Enter to confirm current selection
   await botSelect.click();
   await page.waitForTimeout(200);
   await page.keyboard.press("Enter");
 
-  // Wait a moment for the selection to register and API calls to start
   await page.waitForTimeout(500);
 
-  // Wait a moment for the selection to register and API calls to start
   await page.waitForTimeout(500);
 
-  // Wait for positions to load (either data appears or empty state)
   await page.waitForFunction(
     () => {
       const loadingText = document.body.textContent;
@@ -67,7 +61,6 @@ export async function navigateToPaperTradingWithBot(
     { timeout: 10000 },
   );
 
-  // Additional wait for UI to settle
   await page.waitForTimeout(500);
 }
 

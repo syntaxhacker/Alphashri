@@ -26,7 +26,6 @@ from pathlib import Path
 from chart_patterns._symbols import norm_symbol
 from chart_patterns.universes import instruments_path
 
-#: One loaded copy each of the F&O and ETF symbol sets (small, immutable).
 _EMPTY: tuple[frozenset[str], frozenset[str]] = (frozenset(), frozenset())
 
 
@@ -69,27 +68,22 @@ def _membership(path_str: str) -> tuple[frozenset[str], frozenset[str]]:
 
 
 def fno_symbols() -> frozenset[str]:
-    """Cached F&O equity-underlying symbol set (empty on load failure)."""
     return _membership(str(instruments_path()))[0]
 
 
 def etf_symbols() -> frozenset[str]:
-    """Cached ETF / fund-unit symbol set (empty on load failure)."""
     return _membership(str(instruments_path()))[1]
 
 
 def is_fno(symbol: str) -> bool:
-    """True when ``symbol`` is an NSE F&O equity underlying."""
     return norm_symbol(symbol) in fno_symbols()
 
 
 def is_etf(symbol: str) -> bool:
-    """True when ``symbol`` is an ETF/fund unit (INF ISIN)."""
     return norm_symbol(symbol) in etf_symbols()
 
 
 def tags_for(symbol: str) -> list[str]:
-    """Membership tags for ``symbol``: ``["F&O"]``, ``["ETF"]``, both, or ``[]``."""
     sym = norm_symbol(symbol)
     tags: list[str] = []
     if sym in fno_symbols():

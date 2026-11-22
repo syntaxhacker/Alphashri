@@ -140,7 +140,6 @@ describe("buildTapeHead math", () => {
     expect(head.pcrOi).toBe(1.15);
     expect(head.pcrDoiDelta).toBeCloseTo(0.03, 10);
     expect(head.maxPain).toBe(25700);
-    // spot 25750.5 − flip 25762 = −11.5 (the same sign as the "Spot−flip" column)
     expect(head.flipDeltaPts).toBeCloseTo(-11.5, 10);
     expect(head.wallCall).toBe(25900);
     expect(head.wallPut).toBe(25600);
@@ -244,7 +243,6 @@ describe("spot deltas + session roll-up", () => {
     expect(s.spotHi).toBe(22600);
     expect(s.maxCallDoi).toBe(250);
     expect(s.maxPutDoi).toBe(500);
-    // `net` is already cumulative: the roll-up reports the last row, not a sum.
     expect(s.netLast).toBeCloseTo(-80, 5);
   });
 
@@ -291,7 +289,6 @@ describe("spot deltas + session roll-up", () => {
     expect(times()[0]).toBe("09:17");
     fireEvent.click(screen.getByTestId("nifty-tape-order-toggle"));
     expect(times()[0]).toBe("09:15");
-    // the newest row keeps its accent even when listed last
     const rows = within(table).getAllByTestId("nifty-tape-row");
     expect(rows[rows.length - 1].className).toContain("tape-latest");
   });
@@ -304,14 +301,13 @@ describe("live change detection", () => {
       ["09:16", tapeRow({ t: "09:16", call_doi: 200, net: 6, spot: 101 })],
     ]);
     const rows = [
-      tapeRow({ t: "09:15", call_doi: 100, net: 5, spot: 100 }), // unchanged
-      tapeRow({ t: "09:16", call_doi: 250, net: 6, spot: 103 }), // call_doi + spot moved
-      tapeRow({ t: "09:17", call_doi: 999, net: 9, spot: 104 }), // brand new
+      tapeRow({ t: "09:15", call_doi: 100, net: 5, spot: 100 }),
+      tapeRow({ t: "09:16", call_doi: 250, net: 6, spot: 103 }),
+      tapeRow({ t: "09:17", call_doi: 999, net: 9, spot: 104 }),
     ];
     const out = computeChangedCells(prev, rows);
     expect(out.has("09:15")).toBe(false);
     expect([...(out.get("09:16") ?? [])].sort()).toEqual(["call_doi", "spot"]);
-    // new minutes are the row-flash event, never a cell-change
     expect(out.has("09:17")).toBe(false);
   });
 
@@ -330,10 +326,8 @@ describe("live change detection", () => {
   test("a newly arrived minute flashes; a revised existing minute flashes its cells", () => {
     const [rows, setRows] = createSignal([tapeRow({ t: "09:15", call_doi: 100 })]);
     const { container } = r(() => <NiftyTapeTable rows={rows()} />);
-    // same minute, revised value → cell flash only
     setRows([tapeRow({ t: "09:15", call_doi: 999 })]);
     expect(container.querySelectorAll(".tape-cell-flash").length).toBeGreaterThan(0);
-    // brand-new minute → row flash on the newest row
     setRows([tapeRow({ t: "09:15", call_doi: 999 }), tapeRow({ t: "09:16", call_doi: 500 })]);
     const rowEls = within(screen.getByTestId("nifty-tape-table")).getAllByTestId("nifty-tape-row");
     expect(rowEls[0].className).toContain("tape-flash");
@@ -345,13 +339,9 @@ describe("live change detection", () => {
       const first = [tapeRow({ t: "09:15", call_doi: 100 })];
       const [rows, setRows] = createSignal(first);
       const { container } = r(() => <NiftyTapeTable rows={rows()} />);
-      // A brand-new minute on the NEXT snapshot is the row flash; here the
-      // re-pushed snapshot carries identical values under new identities.
       const again = [{ ...first[0] }];
       const timersAfterMount = vi.getTimerCount();
       setRows(again);
-      // No moved cells → no setChanged, no restarted 1.6s timer: an idle
-      // tick costs the diff effect alone, not a second full render cycle.
       expect(vi.getTimerCount()).toBe(timersAfterMount);
       expect(container.querySelectorAll(".tape-cell-flash")).toHaveLength(0);
       expect(container.querySelectorAll(".tape-flash")).toHaveLength(0);
@@ -430,15 +420,12 @@ describe("NiftyTapeTable", () => {
       />
     ));
     const table = screen.getByTestId("nifty-tape-table");
-    // Net column: solid terminal brown on every row
     const netCells = within(table).getAllByText("+170.16M");
     expect(netCells.length).toBe(2);
     for (const cell of netCells) {
-      // getByText returns the inner Text span; the tint lives on its parent
       const tinted = cell.parentElement;
       expect(tinted?.style.background).toMatch(/(#7A4D16|122,\s*77,\s*22)/);
     }
-    // Spot-flip: positive terminal blue, negative terminal brown
     const pos = within(table).getByText("+12").parentElement;
     expect(pos?.style.background).toMatch(/rgba\(31, 127, 255/);
     const neg = within(table).getByText("-8").parentElement;
@@ -454,7 +441,6 @@ describe("NiftyTapeTable", () => {
     const table = screen.getByTestId("nifty-tape-table");
     expect(within(table).getByText("put−call")).toBeInTheDocument();
     expect(within(table).getByText(/spot−flip/i)).toBeInTheDocument();
-    // The footer is the LAST row's cumulative net, never a sum of the column.
     const head = screen.getByTestId("nifty-tape-head");
     expect(within(head).getByText("-20")).toBeInTheDocument();
   });
@@ -472,7 +458,6 @@ describe("NiftyTapeTable", () => {
     expect(head).toBeInTheDocument();
     expect(within(head).getByTestId("nifty-tape-head-pcr-oi")).toHaveTextContent("1.15");
     expect(within(head).getByTestId("nifty-tape-head-pcr-doi")).toHaveTextContent("+0.03");
-    // no baseline_t on the tape → honest fallback is the earliest row
     expect(within(head).getByTestId("nifty-tape-head-pcr-doi")).toHaveTextContent("PCR ΔOI since 09:15");
     expect(within(head).getByTestId("nifty-tape-head-max-pain")).toHaveTextContent("25,700");
     expect(within(head).getByTestId("nifty-tape-head-flip")).toHaveTextContent("25,762");
@@ -567,7 +552,6 @@ describe("tape burst spine", () => {
       />
     ));
     const rows = within(screen.getByTestId("nifty-tape-table")).getAllByTestId("nifty-tape-row");
-    // newest-first → row 0 is 09:16, the newest AND a burst minute
     expect(rows[0].className).toContain("tape-latest");
     expect(rows[0].className).toContain("tape-burst-call");
   });
@@ -580,7 +564,6 @@ describe("tape burst spine", () => {
       />
     ));
     const rows = within(screen.getByTestId("nifty-tape-table")).getAllByTestId("nifty-tape-row");
-    // newest-first → 09:16 (absent) is row 0, 09:15 (call burst) is row 1
     expect(rows[0].className).not.toContain("tape-burst");
     expect(rows[1].className).toContain("tape-burst-call");
   });

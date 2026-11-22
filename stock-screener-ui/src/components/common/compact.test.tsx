@@ -82,7 +82,6 @@ describe("CompactPanel", () => {
       </CompactPanel>),
     );
     expect(screen.getByText("ScrollContent")).toBeInTheDocument();
-    // scrollable adds inner Box for overflow — check that a container with overflow exists
     expect(screen.getByText("Scrollable")).toBeInTheDocument();
   });
 

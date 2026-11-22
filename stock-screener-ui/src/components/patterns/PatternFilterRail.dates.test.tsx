@@ -137,11 +137,6 @@ describe("PatternFilterRail formed-between dates", () => {
   });
 });
 
-/**
- * The date presets were uncontrolled: the dot lit on click and stayed lit after
- * the From field (or "Reset") cleared `from_date`, so the rail disagreed with
- * the filter it was displaying.
- */
 describe("PatternFilterRail date presets — controlled state", () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => cleanup());

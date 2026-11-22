@@ -9,7 +9,6 @@ export interface IconProps {
   stroke?: number;
 }
 
-/** "alert-circle" -> "alertCircle", "menu-2" -> "menu2". */
 const toCamelCase = (name: string) => name.replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase());
 
 /**

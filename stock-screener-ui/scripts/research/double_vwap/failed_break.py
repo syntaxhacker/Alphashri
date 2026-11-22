@@ -59,7 +59,6 @@ def build_signal(d, brk, style, target_mode):
     i, dr, hi, lo = brk
     side = -dr
     if style == "failed":
-        # wait for a close back inside the range, then enter the fade
         j = None
         for k in range(i + 1, len(d.c)):
             if d.t[k] >= CUT:

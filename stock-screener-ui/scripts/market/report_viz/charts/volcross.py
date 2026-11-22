@@ -51,9 +51,6 @@ _REGIME_LABELS = {
 _QUADRANT_IDS = ("long_buildup", "short_buildup", "long_unwinding", "short_covering", "neutral")
 
 
-# ---------------------------------------------------------------------------
-# normalisation helpers
-# ---------------------------------------------------------------------------
 def _is_series(value: Any) -> bool:
     return (
         not isinstance(value, (str, bytes, Mapping))
@@ -133,7 +130,6 @@ def _base_payload(spec: InstrumentSpec) -> dict[str, Any]:
 
 
 def _raw_rows(data: Any, key: str = "rows") -> tuple[list[Any], dict[str, Any]]:
-    """Accept a row list, ``{rows: [...]}``/``{key: [...]}`` or columns."""
     if isinstance(data, Mapping):
         meta: dict[str, Any] = dict(data)
         if key in meta:
@@ -216,7 +212,6 @@ def _series_rows(
 
 
 def _source_rows(raw: Any, where: str) -> list[Any]:
-    """Rows from a row list, a ``{points: [...]}`` wrapper or column series."""
     if isinstance(raw, Mapping):
         if "points" in raw:
             raw = raw["points"]
@@ -294,9 +289,6 @@ def _category(regime: str, labels: Mapping[str, Any] | None = None) -> dict[str,
     return {"id": regime, "label": label, "tone": tone}
 
 
-# ---------------------------------------------------------------------------
-# 1. PE premium ribbon by strike
-# ---------------------------------------------------------------------------
 def pe_premium_ribbon(
     data: Any,
     *,
@@ -433,9 +425,6 @@ def pe_premium_ribbon(
     )
 
 
-# ---------------------------------------------------------------------------
-# 2. IV smile at several clocks
-# ---------------------------------------------------------------------------
 def _smile_panel(raw: Any, index: int, spec: InstrumentSpec) -> dict[str, Any]:
     if not isinstance(raw, Mapping):
         raise ValueError(f"smile {index}: expected a mapping")
@@ -520,7 +509,6 @@ def smile_four_clocks(
     span: int = 2,
     height: int = 420,
 ) -> str:
-    """Call/put IV curves at a small set of clocks (the id says four; any count works)."""
     if isinstance(data, Mapping) and "smiles" in data:
         smiles = data["smiles"]
     elif isinstance(data, Mapping) and "panels" in data:
@@ -579,9 +567,7 @@ def smile_four_clocks(
     )
 
 
-# ---------------------------------------------------------------------------
 # 3. premium vs intrinsic vs frozen-spot model
-# ---------------------------------------------------------------------------
 def _contract_points(raw: Any, where: str) -> list[dict[str, Any]]:
     if not _is_series(raw):
         raise ValueError(f"{where} must be a list of points")
@@ -743,9 +729,6 @@ def premium_vs_intrinsic(
     )
 
 
-# ---------------------------------------------------------------------------
-# 4. theta decomposition
-# ---------------------------------------------------------------------------
 def theta_decomposition(
     data: Any,
     *,
@@ -755,7 +738,6 @@ def theta_decomposition(
     span: int = 2,
     height: int = 380,
 ) -> str:
-    """Spot, time, IV and print-wedge buckets, with the naive theta contrast."""
     if isinstance(data, Mapping) and "attribution" in data:
         windows = data["attribution"]
         if _is_series(windows) and windows:
@@ -853,9 +835,6 @@ def theta_decomposition(
     )
 
 
-# ---------------------------------------------------------------------------
-# 5. skew rotation
-# ---------------------------------------------------------------------------
 def skew_rotation(
     data: Any,
     *,
@@ -865,7 +844,6 @@ def skew_rotation(
     span: int = 2,
     height: int = 360,
 ) -> str:
-    """ATM/wing IV on top and the CE−PE gap at fixed strikes below."""
     if isinstance(data, Mapping) and "skew" in data and "points" not in data:
         data = dict(data["skew"])
     if isinstance(data, Mapping) and "points" in data:
@@ -955,9 +933,6 @@ def skew_rotation(
     )
 
 
-# ---------------------------------------------------------------------------
-# 6. basis 3D
-# ---------------------------------------------------------------------------
 def basis_3d(
     data: Any,
     *,
@@ -967,7 +942,6 @@ def basis_3d(
     span: int = 2,
     height: int = 470,
 ) -> str:
-    """Plotly 3D path of basis against open interest through the session."""
     if isinstance(data, Mapping) and "basis" in data and "rows" not in data and "t" not in data:
         basis_block = data["basis"]
         if isinstance(basis_block, Mapping):
@@ -1045,9 +1019,6 @@ def basis_3d(
     )
 
 
-# ---------------------------------------------------------------------------
-# 7. basis path + regime strip
-# ---------------------------------------------------------------------------
 def basis_regime_strip(
     data: Any,
     *,
@@ -1057,12 +1028,6 @@ def basis_regime_strip(
     span: int = 2,
     height: int = 300,
 ) -> str:
-    """Basis line above, categorical bands below.
-
-    Bands may be supplied with ``data['bands']``.  When they are not, the
-    builder classifies consecutive basis moves into rising / falling / flat
-    runs; pass ``regime`` per row to use the caller's own taxonomy instead.
-    """
     if isinstance(data, Mapping) and "basis" in data and "rows" not in data and "t" not in data:
         block = data["basis"]
         if isinstance(block, Mapping):
@@ -1255,9 +1220,7 @@ def basis_regime_strip(
     )
 
 
-# ---------------------------------------------------------------------------
 # 8. lead/lag: naive row pairing vs clock alignment
-# ---------------------------------------------------------------------------
 def _pearson(xs: Sequence[float], ys: Sequence[float]) -> tuple[float | None, int]:
     n = min(len(xs), len(ys))
     if n < 3:
@@ -1493,9 +1456,6 @@ def lead_lag(
     )
 
 
-# ---------------------------------------------------------------------------
-# 9. two normalised index paths + spread
-# ---------------------------------------------------------------------------
 def nifty_vs_sensex(
     data: Any,
     *,
@@ -1664,9 +1624,6 @@ def nifty_vs_sensex(
     )
 
 
-# ---------------------------------------------------------------------------
-# 10. futures price / OI quadrants
-# ---------------------------------------------------------------------------
 def futures_quadrants(
     data: Any,
     *,
@@ -1676,7 +1633,6 @@ def futures_quadrants(
     span: int = 1,
     height: int = 340,
 ) -> str:
-    """Scatter each bucket by Δprice and ΔOI, coloured by the quadrant."""
     if isinstance(data, Mapping) and "regimes" in data and "rows" not in data and "t" not in data:
         data = {"rows": data["regimes"]}
     raw, _ = _raw_rows(data, "rows")
@@ -1775,9 +1731,6 @@ def futures_quadrants(
     )
 
 
-# ---------------------------------------------------------------------------
-# 11. event study, ±30 minutes
-# ---------------------------------------------------------------------------
 def event_study(
     data: Any,
     *,
