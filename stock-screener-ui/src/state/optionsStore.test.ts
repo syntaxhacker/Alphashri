@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   getOptionsState,
   subscribe,
+  subscribeToFields,
   setExpiry,
+  setUnderlying,
   setFilters,
   resetFilters,
   getFilteredChain,
@@ -11,6 +13,7 @@ import {
   getAvailableUnderlyingSymbols,
   getUnderlyingInfo,
 } from "./optionsStore";
+import { getExpiries, getSpotPrice } from "../api/upstoxOptions";
 import type { OptionContract, Expiry, Underlying } from "../api/upstoxOptions";
 
 vi.mock("../api/upstoxOptions", () => ({
@@ -437,5 +440,61 @@ describe("getUnderlyingInfo", () => {
     (state as any).underlyings = [underlying];
 
     expect(getUnderlyingInfo("NIFTY")).toEqual(underlying);
+  });
+});
+
+describe("subscribeToFields", () => {
+  beforeEach(() => {
+    resetStoreState();
+    vi.mocked(getExpiries).mockResolvedValue([] as any);
+    vi.mocked(getSpotPrice).mockResolvedValue({ spot: 0 } as any);
+  });
+
+  afterEach(() => {
+    resetStoreState();
+    vi.clearAllMocks();
+  });
+
+  it("keeps global subscribe firing on every write while field listeners stay narrow", () => {
+    const global = vi.fn();
+    const onFilters = vi.fn();
+    const onExpiry = vi.fn();
+    const unsubs = [
+      subscribe(global),
+      subscribeToFields(["filters"], onFilters),
+      subscribeToFields(["selectedExpiry"], onExpiry),
+    ];
+
+    setExpiry("2026-02-27");
+    expect(global).toHaveBeenCalledTimes(1);
+    expect(onExpiry).toHaveBeenCalledTimes(1);
+    expect(onFilters).not.toHaveBeenCalled();
+
+    setFilters({ optionType: "CE" });
+    expect(global).toHaveBeenCalledTimes(2);
+    expect(onFilters).toHaveBeenCalledTimes(1);
+    expect(onExpiry).toHaveBeenCalledTimes(1);
+
+    unsubs.forEach((unsub) => unsub());
+  });
+
+  it("notifies each registered field for a compositional write", () => {
+    const onChain = vi.fn();
+    const onExpiry = vi.fn();
+    const onLoading = vi.fn();
+    const unsubs = [
+      subscribeToFields(["optionChain"], onChain),
+      subscribeToFields(["selectedExpiry"], onExpiry),
+      subscribeToFields(["loading"], onLoading),
+    ];
+
+    // setUnderlying resets chain/expiry/spot/expiries and sets loading in one
+    // notify; every registered field listener must see it exactly once.
+    setUnderlying("NIFTY");
+    expect(onChain).toHaveBeenCalledTimes(1);
+    expect(onExpiry).toHaveBeenCalledTimes(1);
+    expect(onLoading).toHaveBeenCalledTimes(1);
+
+    unsubs.forEach((unsub) => unsub());
   });
 });

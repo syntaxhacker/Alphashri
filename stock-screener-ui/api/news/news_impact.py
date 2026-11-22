@@ -105,6 +105,13 @@ def _extract_json_array(text: str) -> Optional[list]:
         return None
 
 
+def _as_bool(value: Any) -> bool:
+    """Parse a model-supplied boolean; `bool("false")` would be True."""
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y"}
+    return bool(value)
+
+
 def _build_user_prompt(headlines: list[str]) -> str:
     lines = [f"{i + 1}. {h}" for i, h in enumerate(headlines)]
     return "Headlines:\n" + "\n".join(lines)
@@ -197,7 +204,7 @@ def score_headlines(
                 direction = "neutral"
             out.append({
                 "index": idx,
-                "move": bool(item.get("move")),
+                "move": _as_bool(item.get("move")),
                 "symbol": str(item.get("symbol") or "")[:24],
                 "dir": direction,
                 "impact": impact,

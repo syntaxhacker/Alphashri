@@ -148,6 +148,36 @@ class TestComputeOnlyJson:
         source = Path(batch.__file__).read_text(encoding="utf-8")
         assert "api_server_fastapi" not in source
 
+    def test_run_summary_reports_fetch_outcomes(self, monkeypatch, compute_only_env):
+        def fetch(api, symbol, to_date):
+            if symbol == "BAD":
+                raise RuntimeError("boom")
+            return {"high": 2.0, "low": 1.0, "close": 1.5}
+
+        monkeypatch.setattr(batch, "fetch_range_for_symbol", fetch)
+        out = compute_only_env / "52w" / "2026-11-21.json"
+        summary = compute_only_env / "52w" / "2026-11-21.summary.json"
+
+        _run(
+            monkeypatch,
+            [
+                "--source", "json",
+                "--symbol", "GOOD",
+                "--symbol", "BAD",
+                "--to-date", "2026-11-21",
+                "--output-json", str(out),
+                "--summary-json", str(summary),
+            ],
+        )
+
+        assert json.loads(summary.read_text(encoding="utf-8")) == {
+            "as_of": "2026-11-21",
+            "ok": 1,
+            "failed": 1,
+            "skipped": 0,
+            "total": 2,
+        }
+
 
 class _FreshRange:
     symbol = "AAA"

@@ -1,6 +1,12 @@
 from datetime import datetime
 from types import SimpleNamespace
 
+import pytest
+
+# The desktop module imports tkinter at module level. Skip the GUI suite only
+# when Tk is genuinely unavailable; the logic tests run wherever Tk is present.
+pytest.importorskip("tkinter", reason="candle_alert_desktop requires tkinter")
+
 import candle_alert_desktop as desktop
 from candle_alert.config import UTC
 

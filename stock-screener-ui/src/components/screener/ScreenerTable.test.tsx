@@ -23,6 +23,11 @@ const prefsMock = vi.hoisted(() => ({
   realApi: null as UseTablePrefsResult | null,
 }));
 
+const selectionMock = vi.hoisted(() => ({
+  symbols: [] as string[],
+  notify: null as (() => void) | null,
+}));
+
 vi.mock("../common/useTablePrefs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../common/useTablePrefs")>();
   const { createSignal } = await import("solid-js");
@@ -57,11 +62,18 @@ vi.mock("../common/useTablePrefs", async (importOriginal) => {
 });
 
 vi.mock("../../state", () => ({
-  selectedSymbols: [],
+  get selectedSymbols() {
+    return selectionMock.symbols;
+  },
   toggleSymbolSelection: vi.fn(),
   clearSelectedSymbols: vi.fn(),
   setSelectedSymbols: vi.fn(),
-  subscribeToSelection: vi.fn(() => vi.fn()),
+  subscribeToSelection: vi.fn((cb: () => void) => {
+    selectionMock.notify = cb;
+    return () => {
+      selectionMock.notify = null;
+    };
+  }),
 }));
 
 const mockStock: Stock = {
@@ -115,6 +127,25 @@ describe("ScreenerTable", () => {
 
   afterEach(() => {
     cleanup();
+    selectionMock.symbols = [];
+    selectionMock.notify = null;
+  });
+
+  it("reflects a store selection notification in the row checkboxes", () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerTable {...defaultProps} />
+      </UIProvider>
+    ));
+
+    const box = () =>
+      screen.getByTestId("sel-checkbox-RELIANCE-wrapper").querySelector('[data-part="checkbox-box"]')!;
+    expect(box()).toHaveTextContent("");
+
+    selectionMock.symbols = ["RELIANCE"];
+    selectionMock.notify?.();
+
+    expect(box()).toHaveTextContent("✔");
   });
 
   it("renders all stocks as rows", () => {

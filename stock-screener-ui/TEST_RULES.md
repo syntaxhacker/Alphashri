@@ -5,6 +5,10 @@
 - **E2E**: Playwright (`tests/e2e/`)
 - **Backend**: pytest (`tests/`)
 
+## Docs index
+
+- [docs/TESTING_INDEX.md](./docs/TESTING_INDEX.md) — start here for the authoritative test/performance docs and folder map.
+
 ---
 
 ## 0. No weak tests — the rule that outranks everything else
@@ -161,19 +165,32 @@ import { render, screen, within, cleanup, fireEvent } from "@solidjs/testing-lib
 
 ## Setup Patterns
 
+### Render helper — one canonical wrapper, never a local copy
+
+Import the shared helper from `@/test-utils/renderWithProviders`. It renders a zero-arg
+component under the app's `UIProvider` and forwards Solid's render options.
+
 ```typescript
-// Wrapper for components that need the app shell
-import type { JSX } from "solid-js";
+import { renderWithProviders } from "@/test-utils/renderWithProviders";
 
-function TestWrapper(props: { children: JSX.Element }) {
-  return <>{props.children}</>;
-}
+renderWithProviders(() => <MyComponent />);
 
-// Render helper — Solid's render() takes a zero-arg component, not a JSX node
-function r(jsx: () => JSX.Element) {
-  return render(jsx, { wrapper: TestWrapper });
-}
+// Options are spread after the default wrapper, so callers keep the full
+// render contract (container, queries, or a narrower wrapper when needed).
+renderWithProviders(() => <MyComponent />, { container: myContainer });
+```
 
+`TestWrapper` is exported from the same module for the rare case where you must call Solid's
+`render()` directly or nest an explicit `<TestWrapper>` in JSX.
+
+**Do not create another render wrapper.** A local `TestWrapper` / `renderWithProviders` in a
+test file is a review blocker: a second copy silently diverges on option handling (the
+original bug was one copy discarding render options entirely). Need a different provider
+(router, auth)? Pass a custom `wrapper` option to `renderWithProviders` instead of adding a
+new helper. `src/test/test-utils.tsx` is a deprecated re-export shim for legacy imports;
+all new code uses the canonical path above.
+
+```typescript
 afterEach(() => {
   cleanup();
   // Reset any module-level mutable state

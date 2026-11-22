@@ -159,6 +159,24 @@ def test_golden_real_360one():
     ]
 
 
+def test_golden_daily_bar_dates_use_ist_session():
+    """18:30Z daily bars belong to the next IST session; hit dates must shift.
+
+    The geometry is identical to ``_sine_base`` (same positions), only the bar
+    stamps move to IST midnight, so every emitted date must be one day later
+    than the 00:00Z golden with no time-of-day suffix leaking through.
+    """
+    closes = _sine_base()
+    df = frame(closes)
+    df.index = pd.date_range("2024-01-01 18:30", periods=len(df), freq="D", tz="UTC")
+    hits = detect_patterns(normalize_ohlcv(df), "1D", "SYN")
+    sigs = [sig(h) for h in hits]
+    assert sigs == [
+        ["rectangle", "failed", 0, 102.5, 85.0, "2024-01-17", "2024-05-06"],
+        ["triple_bottom", "failed", 0, 102.5, 75.0, "2024-01-17", "2024-02-26"],
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Pre-gate contract: every registered detector must have a threshold, and the
 # gate must be a no-op for frames at/above it (covered by the goldens above).

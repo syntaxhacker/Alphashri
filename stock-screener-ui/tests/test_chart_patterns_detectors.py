@@ -434,6 +434,29 @@ def test_consolidation_hit_labels_days_from_index_span():
     assert hit.notes.startswith(f"consolidation {span_days}d;")
 
 
+def test_consolidation_touches_use_only_window_pivots(monkeypatch):
+    """A stale pivot on the box edge outside the base must not count as a touch."""
+    from chart_patterns.detectors import consolidation as C
+    from chart_patterns.detectors.common import fmt_date
+
+    captured = []
+    real_count = F.count_touches
+
+    def spy(pivots, slope, intercept, atr_val, tol_atr=0.75):
+        captured.append([(int(p), float(q)) for p, q in pivots])
+        return real_count(pivots, slope, intercept, atr_val, tol_atr=tol_atr)
+
+    monkeypatch.setattr(F, "count_touches", spy)
+    d = F.normalize_ohlcv(_consolidation())
+    hits = C.detect_consolidation(d, {})
+    assert hits and captured
+    start = next(i for i, t in enumerate(d.index) if fmt_date(t) == hits[0].start_date)
+    # _consolidation() has a high pivot at bar 5 that sits on the box top but
+    # lies before the detected base; it must be excluded from the touch count.
+    assert start > 0
+    assert all(p >= start for line in captured for p, _ in line)
+
+
 def test_volume_confirmation():
     closes = list(np.linspace(100, 110, 30))
     vol = [100.0] * 29 + [500.0]

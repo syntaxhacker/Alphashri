@@ -3,13 +3,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("../state/auth", async () => (await import("./apiTestMocks")).fetchWithAuthModuleMock());
 
 import { fetchWithAuth } from "../state/auth";
-import { buildWatchQuery, fetchWatch, fetchWatchSetups } from "./chartPatterns";
+import { buildWatchQuery, fetchWatch, fetchWatchSetups, clearPatternsApiCache } from "./chartPatterns";
 import { errorResponse, okResponse } from "./apiTestMocks";
 
 const mockedFetch = vi.mocked(fetchWithAuth);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clearPatternsApiCache();
 });
 
 describe("buildWatchQuery", () => {

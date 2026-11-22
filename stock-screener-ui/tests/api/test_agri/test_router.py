@@ -291,3 +291,19 @@ def test_data_source_is_derived_from_returned_rows(make_client):
     ])
     ckan = ckan_client.get("/api/agri/prices?commodity=onion").json()
     assert ckan["data_source"] == "agmarknet_ckan"
+
+
+def test_comparison_keeps_a_stale_key_on_its_own_window(make_client):
+    client, _ = make_client([
+        _row("2026-11-21", key="onion"),
+        _row("2026-05-25", key="potato", modal=1500.0),
+        _row("2026-05-31", key="potato", modal=1600.0),
+    ])
+    payload = client.get(
+        "/api/agri/prices?commodity=onion&compare=potato&range=1m"
+    ).json()
+    assert any("Potato is 174 days behind" in w for w in payload["warnings"])
+    assert len(payload["comparison"]) == 1
+    assert [p["date"] for p in payload["comparison"][0]["points"]] == [
+        "2026-05-25", "2026-05-31",
+    ]

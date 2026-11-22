@@ -40,7 +40,10 @@ def _legacy_order(rows, sort):
         s, _ = pair
         if sort == "pe":
             v = s.get("pe")
-            return (v is None, v if v is not None else 0.0)
+            # P/E ordering intentionally treats non-positive values as "not
+            # cheap" (see test_negative_pe_does_not_rank_as_cheapest).
+            rankable = v is not None and v > 0
+            return (not rankable, v if rankable else 0.0)
         if sort == "fcf_yield":
             v = s.get("fcf_yield")
             return (v is None, -(v if v is not None else 0.0))
@@ -80,3 +83,22 @@ def test_sort_returns_the_raw_rows_untouched():
     out = _apply_sort(rows, "score")
     assert all(r in rows for r in out)
     assert out[0]["name"] in {r["name"] for r in rows}
+
+
+def test_negative_pe_does_not_rank_as_cheapest():
+    """sort=pe is 'P/E ascending' = cheapest first.
+
+    A negative P/E means the company has negative earnings (loss-making), so
+    it is not cheap — it must not sort ahead of real, positive P/E values. The
+    scorer already gives loss-making rows zero value points; the sort must not
+    contradict that. Non-positive P/E shares the 'not rankable' bucket with a
+    missing P/E and keeps its stable input order there.
+    """
+    rows = [
+        _row("LOSS", price_earnings_ttm=-8.0),
+        _row("CHEAP", price_earnings_ttm=6.0),
+        _row("ZERO", price_earnings_ttm=0.0),
+        _row("PRICY", price_earnings_ttm=40.0),
+    ]
+    names = [r["name"] for r in _apply_sort(rows, "pe")]
+    assert names == ["CHEAP", "PRICY", "LOSS", "ZERO"]

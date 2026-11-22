@@ -14,6 +14,7 @@ import { IntervalMoversTable } from "./IntervalMoversTable";
 import { SectorCorrelationTab } from "./SectorCorrelationTab";
 import { RotationTab } from "./RotationTab";
 import { fetchSectorPerformance } from "../../api/sector";
+import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { fetchHeatmapData } from "../../api/heatmap";
 import type { HeatmapStock } from "../../api/heatmap";
 import { subscribeToHolidays, isMarketOpenNow } from "../../state/holidays";
@@ -473,17 +474,6 @@ function useSectorData() {
   return { ...state, loadData };
 }
 
-// src/hooks/useStoreSubscription.ts's useStoreSnapshot misses its createMemo
-// import, so the snapshot is inlined here with the same semantics.
-function useHolidayTick() {
-  const [tick, setTick] = createSignal(0);
-  createEffect(() => {
-    const unsubscribe = subscribeToHolidays(() => setTick((n) => n + 1));
-    onCleanup(unsubscribe);
-  });
-  return tick;
-}
-
 function SectorPageHeader(props: {
   market: "india" | "america";
   setMarket: (m: "india" | "america") => void;
@@ -493,7 +483,9 @@ function SectorPageHeader(props: {
   activeTab: SectorTab;
   setActiveTab: (tab: string | null) => void;
 }) {
-  useHolidayTick();
+  // Only the subscription's lifetime matters here: the header reads holiday
+  // state through isMarketOpenNow(), so it needs a subscription, not a snapshot.
+  useStoreSubscription(subscribeToHolidays);
   const marketOpen = () => isMarketOpenNow();
   return (
     <ToolbarRow

@@ -30,6 +30,29 @@ describe("useDebouncedValue", () => {
     expect(container.textContent).toBe("3");
   });
 
+  it("restarts the timer on later input and never publishes a superseded value", () => {
+    const [query, setQuery] = createSignal("a");
+    const { container } = render(() => {
+      const [debounced] = useDebouncedValue(query, 100);
+      return <span>{debounced()}</span>;
+    });
+
+    expect(container.textContent).toBe("a");
+
+    setQuery("ab");
+    vi.advanceTimersByTime(60);
+    expect(container.textContent).toBe("a");
+
+    // "ab"'s deadline (120ms) has passed, but "abc" restarted the timer — the
+    // stale value must not be published just because its own delay elapsed.
+    setQuery("abc");
+    vi.advanceTimersByTime(60);
+    expect(container.textContent).toBe("a");
+
+    vi.advanceTimersByTime(40);
+    expect(container.textContent).toBe("abc");
+  });
+
   it("accepts a plain value", () => {
     const { container } = render(() => {
       const [debounced] = useDebouncedValue("static", 300);

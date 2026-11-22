@@ -1,30 +1,17 @@
-import { Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
+import { Show } from "solid-js";
 import { alpha } from "@/ui/alpha";
 import { Box, Group, Button, Badge } from "@/ui";
 import { BLACK } from "@/ui/palette";
 import { IconChartDots, IconX } from "./icons";
 import { selectedSymbols, clearSelectedSymbols, subscribeToSelection } from "../../state";
+import { useStoreSnapshot } from "../../hooks/useStoreSubscription";
 
 interface SelectionBarProps {
   onCompare: () => void;
 }
 
-// src/hooks/useStoreSubscription.ts's useStoreSnapshot currently misses its
-// createMemo import, so the snapshot is inlined here with the same semantics.
-function useSelectionSnapshot() {
-  const [tick, setTick] = createSignal(0);
-  createEffect(() => {
-    const unsubscribe = subscribeToSelection(() => setTick((n) => n + 1));
-    onCleanup(unsubscribe);
-  });
-  return createMemo(() => {
-    tick();
-    return selectedSymbols;
-  });
-}
-
 export function SelectionBar(props: SelectionBarProps) {
-  const selection = useSelectionSnapshot();
+  const selection = useStoreSnapshot(subscribeToSelection, () => selectedSymbols);
   const count = () => selection().length;
 
   return (

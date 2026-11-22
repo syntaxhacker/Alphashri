@@ -2,7 +2,7 @@ import { For, Show, createEffect, createMemo } from "solid-js";
 import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { CompactPanel, CompactStat, CompactStatGrid } from "@/components/common/compact";
-import type { NiftyItmPeFlow, NiftyItmPeFlowPoint } from "@/types/niftyReport";
+import type { NiftyItmPeFlow, NiftyItmPeFlowPoint, NiftyItmPeStrike } from "@/types/niftyReport";
 import { createECharts } from "./echartsSolid";
 import {
   formatReportCompact,
@@ -32,6 +32,28 @@ export function sessionShare(series: NiftyItmPeFlowPoint[]): number {
   return total > 0 ? (itm / total) * 100 : 0;
 }
 
+/**
+ * Content key for the minute series and the top-strike list. Both are rebuilt
+ * from a normalized report on every live frame, so identity changes on ticks
+ * whose ITM flow did not move. `as_of` is intentionally excluded: this panel
+ * never paints it, so a newer stamp over unchanged series paints the same
+ * values and must not rebuild the chart.
+ */
+export function itmFlowSignature(flow: NiftyItmPeFlow | null): string {
+  if (!flow) return "null";
+  const series = flow.series ?? [];
+  const top = flow.top ?? [];
+  const seriesKey: string[] = [];
+  for (const p of series) {
+    seriesKey.push(`${p.t}|${p.itm_pe_vol}|${p.total_pe_vol}|${p.share_pct}|${p.spot}`);
+  }
+  const topKey: string[] = [];
+  for (const row of top) {
+    topKey.push(`${row.strike}|${row.volume}|${row.oi}`);
+  }
+  return `${seriesKey.join(";")}#${topKey.join(";")}`;
+}
+
 export function NiftyItmPeFlowPanel(props: {
   flow: NiftyItmPeFlow | null;
   spot: number;
@@ -41,15 +63,28 @@ export function NiftyItmPeFlowPanel(props: {
   const height = () => props.height ?? 190;
   const chart = createECharts();
 
-  const points = createMemo(() =>
-    (flow()?.series ?? []).filter((point) => Number.isFinite(point.itm_pe_vol)).slice(-240),
-  );
-  const top = createMemo(() =>
-    [...(flow()?.top ?? [])]
+  // The report arrives as a fresh object each live frame even when its ITM
+  // minute series is unchanged. Key both derivations on content: a signature
+  // refresh updates the payload cache, but the memos (and the chart-option
+  // effect that reads them) only re-run when the displayed data actually moved.
+  let flowForSig = flow();
+  const flowSig = createMemo(() => {
+    flowForSig = flow();
+    return itmFlowSignature(flowForSig);
+  });
+  const points = createMemo<NiftyItmPeFlowPoint[]>(() => {
+    flowSig();
+    return (flowForSig?.series ?? [])
+      .filter((point) => Number.isFinite(point.itm_pe_vol))
+      .slice(-240);
+  });
+  const top = createMemo<NiftyItmPeStrike[]>(() => {
+    flowSig();
+    return [...(flowForSig?.top ?? [])]
       .filter((row) => row.strike > 0)
       .sort((a, b) => b.volume - a.volume)
-      .slice(0, TOP_STRIKES),
-  );
+      .slice(0, TOP_STRIKES);
+  });
   const topMax = createMemo(() => top().reduce((max, row) => Math.max(max, row.volume), 0));
   const last = () => points()[points().length - 1] ?? null;
   const share = () => (last() ? itmShareOf(last()!) : sessionShare(points()));
@@ -199,7 +234,11 @@ export function NiftyItmPeFlowPanel(props: {
               data-testid="nifty-itm-pe-share-stat"
               label="Share"
               value={formatReportPct(share(), { digits: 1 })}
-              hint={last() ? `${clock(last()!.t)} · session ${formatReportPct(sessionShare(points()), { digits: 1 })}` : "—"}
+              hint={
+                last()
+                  ? `${clock(last()!.t)} · session ${formatReportPct(sessionShare(points()), { digits: 1 })}`
+                  : "—"
+              }
             />
           </CompactStatGrid>
 
@@ -219,7 +258,13 @@ export function NiftyItmPeFlowPanel(props: {
               style={{ "border-color": palette.BORDER }}
             >
               <div class="flex items-baseline justify-between pt-[3px] pb-[1px]">
-                <Text size="xs" c="dimmed" tt="uppercase" fw={700} style={{ "letter-spacing": "0.06em" }}>
+                <Text
+                  size="xs"
+                  c="dimmed"
+                  tt="uppercase"
+                  fw={700}
+                  style={{ "letter-spacing": "0.06em" }}
+                >
                   Top ITM strikes
                 </Text>
                 <Text size="xs" c="dimmed">
@@ -242,7 +287,9 @@ export function NiftyItmPeFlowPanel(props: {
                         padding: "1px 0",
                       }}
                     >
-                      <span style={{ color: palette.TERM_PE, "font-weight": 700, "font-size": "11px" }}>
+                      <span
+                        style={{ color: palette.TERM_PE, "font-weight": 700, "font-size": "11px" }}
+                      >
                         {formatReportNum(row.strike, { round: true })}
                       </span>
                       <span
@@ -263,10 +310,18 @@ export function NiftyItmPeFlowPanel(props: {
                           }}
                         />
                       </span>
-                      <span style={{ "text-align": "right", "font-size": "11px", color: palette.TEXT }}>
+                      <span
+                        style={{ "text-align": "right", "font-size": "11px", color: palette.TEXT }}
+                      >
                         {formatReportCompact(row.volume, { round: true })}
                       </span>
-                      <span style={{ "text-align": "right", "font-size": "11px", color: palette.TEXT_MUTED }}>
+                      <span
+                        style={{
+                          "text-align": "right",
+                          "font-size": "11px",
+                          color: palette.TEXT_MUTED,
+                        }}
+                      >
                         {formatReportCompact(row.oi, { round: true })}
                       </span>
                     </div>

@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { createSubscriber } from "./createSubscriber";
+import { describe, it, expect, vi } from "vitest";
+import { createFieldSubscriber, createSubscriber } from "./createSubscriber";
 
 describe("createSubscriber", () => {
   it("creates subscriber with subscribe and notify", () => {
@@ -78,5 +78,61 @@ describe("createSubscriber", () => {
     unsub();
     notify();
     expect(count).toBe(0);
+  });
+});
+
+describe("createFieldSubscriber", () => {
+  type Field = "loading" | "chain";
+  const setup = () => createFieldSubscriber<Field>();
+
+  it("keeps the global subscribe contract: every notify, with or without fields", () => {
+    const { subscribe, notify } = setup();
+    const listener = vi.fn();
+    subscribe(listener);
+    notify(["loading"]);
+    notify();
+    expect(listener).toHaveBeenCalledTimes(2);
+  });
+
+  it("only notifies a field listener when one of its fields changed", () => {
+    const { subscribeToFields, notify } = setup();
+    const onLoading = vi.fn();
+    const onChain = vi.fn();
+    subscribeToFields(["loading"], onLoading);
+    subscribeToFields(["chain"], onChain);
+
+    notify(["loading"]);
+    expect(onLoading).toHaveBeenCalledTimes(1);
+    expect(onChain).not.toHaveBeenCalled();
+
+    notify(["chain"]);
+    expect(onLoading).toHaveBeenCalledTimes(1);
+    expect(onChain).toHaveBeenCalledTimes(1);
+  });
+
+  it("fires a multi-field listener once even if several of its fields changed", () => {
+    const { subscribeToFields, notify } = setup();
+    const listener = vi.fn();
+    subscribeToFields(["loading", "chain"], listener);
+    notify(["loading", "chain"]);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not fire field listeners for a global-only notify", () => {
+    const { subscribeToFields, notify } = setup();
+    const listener = vi.fn();
+    subscribeToFields(["loading"], listener);
+    notify();
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("field unsubscribe removes the listener for all registered fields", () => {
+    const { subscribeToFields, notify } = setup();
+    const listener = vi.fn();
+    const unsub = subscribeToFields(["loading", "chain"], listener);
+    unsub();
+    notify(["loading"]);
+    notify(["chain"]);
+    expect(listener).not.toHaveBeenCalled();
   });
 });

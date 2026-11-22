@@ -175,6 +175,7 @@ export function ValuePanel(props: ValuePanelProps) {
             </Show>
             <Select
               placeholder="Preset"
+              aria-label="Value preset"
               data={PRESET_OPTIONS}
               value={filters().preset ?? ""}
               onChange={(v) => patch({ preset: v ?? undefined })}

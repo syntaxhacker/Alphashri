@@ -25,9 +25,10 @@ rupees before paneling).
 
 Fail-soft: any error returns ``{sections: []}`` (never 500). A small
 in-process TTL cache (60 s) keyed by (universe, limit, min_market_cap_cr)
-avoids hammering TV; a background ``dashboard_prewarm_task`` (same pattern
-as ``watch_snapshot_task``) keeps the default universe(s) warm every ~60 s
-in market hours.
+avoids rebuilding panels, and the upstream TV frame is cached once by its
+query and shared across every universe and filter combo. A background
+``dashboard_prewarm_task`` (same pattern as ``watch_snapshot_task``) keeps
+the default universe(s) warm every ~60 s in market hours.
 """
 
 from __future__ import annotations
@@ -35,6 +36,7 @@ from __future__ import annotations
 import asyncio
 import math
 import re
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -64,6 +66,13 @@ SPARK_WORKERS = 6
 TV_LIMIT = 4000
 
 _cache: dict[str, tuple[float, dict]] = {}
+
+# The scanner query is the full India frame for every universe and every set
+# of UI filters. Cache it by the query, not by the request's cache key, so
+# prewarm and all filter variants share one upstream scan per TTL window.
+_FRAME_CACHE_KEY = "india-tv-frame"
+_frame_cache: dict[str, tuple[float, Any]] = {}
+_frame_cache_lock = threading.Lock()
 
 
 def logo_url(logoid: Any) -> Optional[str]:
@@ -136,6 +145,26 @@ def _fetch_tv_frame() -> Any:
     )
     _, df = get_scanner_data(q)
     return df
+
+
+def _get_tv_frame() -> Any:
+    """Return the shared India TV frame, scanning at most once per TTL window.
+
+    ``_fetch_tv_frame`` runs the same full-market query for every dashboard
+    request; universe and the cap/limit gates are Python-side filters applied
+    later. The lock closes the gap between prewarm and on-demand callers so a
+    cold window produces exactly one upstream scan.
+    """
+    hit = _frame_cache.get(_FRAME_CACHE_KEY)
+    if hit and time.time() - hit[0] < CACHE_TTL_SECONDS:
+        return hit[1]
+    with _frame_cache_lock:
+        hit = _frame_cache.get(_FRAME_CACHE_KEY)
+        if hit and time.time() - hit[0] < CACHE_TTL_SECONDS:
+            return hit[1]
+        frame = _fetch_tv_frame()
+        _frame_cache[_FRAME_CACHE_KEY] = (time.time(), frame)
+        return frame
 
 
 def _fetch_sparks(symbols: list[str]) -> dict[str, list[float]]:
@@ -558,7 +587,7 @@ async def run_dashboard_prewarm_once(
             from chart_patterns.universes import get_universe
 
             allowed = {str(s).upper() for s in get_universe(uid)}
-            df = await asyncio.to_thread(_fetch_tv_frame)
+            df = await asyncio.to_thread(_get_tv_frame)
             records = _frame_to_records(df, allowed)
             floor = float(min_market_cap_cr) * 1e7
             records = [
@@ -630,7 +659,7 @@ async def screener_dashboard(
         from chart_patterns.universes import get_universe
 
         allowed = {str(s).upper() for s in get_universe(uid)}
-        df = await asyncio.to_thread(_fetch_tv_frame)
+        df = await asyncio.to_thread(_get_tv_frame)
         records = _frame_to_records(df, allowed)
         floor = float(min_market_cap_cr) * 1e7
         records = [
@@ -647,5 +676,6 @@ async def screener_dashboard(
 
 
 def clear_cache() -> None:
-    """Test hook: drop the in-process TTL cache."""
+    """Test hook: drop the in-process TTL caches."""
     _cache.clear()
+    _frame_cache.clear()

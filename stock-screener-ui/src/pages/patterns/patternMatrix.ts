@@ -12,14 +12,11 @@ export function usePatternMatrix(
   const [data, setData] = createSignal<PatternMatrixResponse | null>(null);
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
-  const [nonce, setNonce] = createSignal(0);
   let token = 0;
-  const reload = () => setNonce((n) => n + 1);
 
   createEffect(() => {
     const u = universe();
     const en = enabled();
-    nonce(); // subscribe to manual reloads
     const _key = refreshKey();
     const ids = timeframes().join(",");
     if (!en || !u) return;
@@ -45,5 +42,5 @@ export function usePatternMatrix(
     onCleanup(() => window.clearTimeout(timer));
   });
 
-  return { data, loading, error, reload };
+  return { data, loading, error };
 }

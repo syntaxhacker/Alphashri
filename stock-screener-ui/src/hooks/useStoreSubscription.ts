@@ -29,15 +29,17 @@ export function useStoreSnapshot<T>(
   subscribe: (callback: () => void) => () => void,
   getState: () => T,
 ): () => T {
-  const [, forceUpdate] = createSignal(0);
+  const [version, setVersion] = createSignal(0);
 
   createEffect(() => {
-    const unsubscribe = subscribe(() => forceUpdate((n) => n + 1));
+    const unsubscribe = subscribe(() => setVersion((n) => n + 1));
     onCleanup(() => unsubscribe());
   });
 
   return createMemo(() => {
-    forceUpdate();
+    // The memo must read the getter: Solid tracks dependencies on reads, so
+    // reading the setter never invalidates this memo when the store notifies.
+    version();
     return getState();
   });
 }

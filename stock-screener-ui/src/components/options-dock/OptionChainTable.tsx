@@ -13,7 +13,11 @@ import { TanStackTable, type SortEntry } from "@/components/common/TanStackTable
 import type { ChainLeg, ChainRow, OptionChainLevels } from "@/api/optionsDock";
 import { optionsDockState } from "../../state/optionsDock";
 import { buildStrikeBadges, chainColumns } from "./chain.columns";
-import { highlightChainLevels, railShadow } from "./chainHighlight";
+import {
+  buildHighlightIndex,
+  EMPTY_ROW_DECORATION,
+  type ChainRowDecoration,
+} from "./chainHighlight";
 
 /** Natural strike-ladder order: the default and the target of the reset control. */
 export const DEFAULT_CHAIN_SORTING: SortEntry[] = [{ id: "strike", desc: false }];
@@ -72,16 +76,15 @@ const ATM_BG_STYLE = {
  * only painted on a non-ATM row. The level rails are independent of that — an
  * ATM row can still carry a wall rail — and never touch height or padding.
  */
-function strikeRowStyle(strike: number, atm: number | null, highlight: ReturnType<typeof highlightChainLevels>): JSX.CSSProperties {
+function strikeRowStyle(strike: number, atm: number | null, decoration: ChainRowDecoration): JSX.CSSProperties {
   const style: JSX.CSSProperties = {};
   if (strike === atm) {
     Object.assign(style, ATM_BG_STYLE);
-  } else if (highlight.tint) {
-    style["--level-tint"] = highlight.tint;
+  } else if (decoration.tint) {
+    style["--level-tint"] = decoration.tint;
     style["background-color"] = "var(--level-tint)";
   }
-  const shadow = railShadow(highlight.rails);
-  if (shadow) style["box-shadow"] = shadow;
+  if (decoration.shadow) style["box-shadow"] = decoration.shadow;
   return style;
 }
 
@@ -116,6 +119,11 @@ export function OptionChainTable(props: {
   const levels = () => (props.levels !== undefined ? props.levels : (optionsDockState.chain?.levels ?? null));
   // One map per levels change — cells only look up their strike.
   const badgeMap = createMemo(() => buildStrikeBadges(levels()));
+  // One decoration index per levels change — style and attributes share it, so
+  // a spot/level flush no longer derives each row's highlights twice.
+  const highlightIndex = createMemo(() => buildHighlightIndex(levels()));
+  const decorationFor = (strike: number): ChainRowDecoration =>
+    highlightIndex().get(strike) ?? EMPTY_ROW_DECORATION;
 
   const atmStrike = createMemo(() => {
     const spot = props.spot;
@@ -317,14 +325,11 @@ export function OptionChainTable(props: {
         loadingMessage="Loading chain…"
         emptyMessage="No strikes listed for this expiry"
         getRowTestId={(row) => `options-chain-row-${row.strike}`}
-        getRowStyle={(row) => strikeRowStyle(row.strike, atmStrike(), highlightChainLevels(levels(), row.strike))}
-        getRowAttributes={(row) => {
-          const highlight = highlightChainLevels(levels(), row.strike);
-          return {
-            "data-atm": row.strike === atmStrike() ? "true" : undefined,
-            "data-level": highlight.keys.length ? highlight.keys.join(" ") : undefined,
-          };
-        }}
+        getRowStyle={(row) => strikeRowStyle(row.strike, atmStrike(), decorationFor(row.strike))}
+        getRowAttributes={(row) => ({
+          "data-atm": row.strike === atmStrike() ? "true" : undefined,
+          "data-level": decorationFor(row.strike).levelAttr,
+        })}
         sorting={props.sorting}
         onSortingChange={props.onSortingChange}
         initialState={{ sorting: DEFAULT_CHAIN_SORTING }}

@@ -3,7 +3,14 @@ import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
-import { buildChartHref, buildValueColumns, isInAppChartExchange } from "./valueColumns";
+import {
+  VALUE_CSV_HEADERS,
+  buildChartHref,
+  buildValueColumns,
+  escapeCsvCell,
+  isInAppChartExchange,
+  valueRowToCsvRow,
+} from "./valueColumns";
 import type { ValueRow } from "../../api/valueScan";
 
 function row(overrides: Partial<ValueRow> = {}): ValueRow {
@@ -171,6 +178,32 @@ describe("buildValueColumns symbol cell — in-app text / TV ↗ inversion", () 
     const text = screen.getByTestId("value-name-RELIANCE");
     expect(text.tagName).toBe("A");
     expect(screen.getByTestId("symbol-tv-RELIANCE")).toBeInTheDocument();
+  });
+});
+
+describe("valueRowToCsvRow", () => {
+  it("emits empty cells for null and non-finite fundamentals, never NaN/undefined", () => {
+    const cells = valueRowToCsvRow(
+      row({
+        pe: null,
+        ps: Number.NaN,
+        pb: Number.POSITIVE_INFINITY,
+        fcf_yield: undefined as unknown as number,
+      }),
+    );
+    expect(cells).toHaveLength(VALUE_CSV_HEADERS.length);
+    const csv = cells.map(escapeCsvCell).join(",");
+    expect(csv).not.toContain("NaN");
+    expect(csv).not.toContain("undefined");
+    expect(csv).not.toContain("Infinity");
+    expect(cells[VALUE_CSV_HEADERS.indexOf("pe")]).toBe("");
+    expect(cells[VALUE_CSV_HEADERS.indexOf("ps")]).toBe("");
+  });
+
+  it("keeps valid numbers in the CSV", () => {
+    const cells = valueRowToCsvRow(row());
+    expect(cells[VALUE_CSV_HEADERS.indexOf("symbol")]).toBe("RELIANCE");
+    expect(cells[VALUE_CSV_HEADERS.indexOf("pe")]).toBe(9.1);
   });
 });
 

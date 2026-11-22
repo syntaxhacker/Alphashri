@@ -166,7 +166,9 @@ function inRange(
   const lo = has(min) ? min : null;
   const hi = has(max) ? max : null;
   if (lo === null && hi === null) return true;
-  if (value == null) return false;
+  // A NaN row sits outside a bound no matter which way it is compared, so a
+  // `value == null` check alone let stale cached prints survive every gate.
+  if (!has(value)) return false;
   if (lo !== null && value < lo) return false;
   if (hi !== null && value > hi) return false;
   return true;

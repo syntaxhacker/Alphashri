@@ -1,4 +1,4 @@
-import { Show, createEffect, For, createMemo, createSignal, onCleanup } from "solid-js";
+import { Show, For, createMemo } from "solid-js";
 import { Stack, Button, CopyButton } from "@/ui";
 import { IconCopy, IconCheck } from "./icons";
 import { ScreenerEmpty } from "./ScreenerEmpty";
@@ -7,6 +7,7 @@ import { ScreenerErrorPanel } from "./ScreenerErrorPanel";
 import { ScreenerSection } from "./ScreenerSection";
 import { getColumnsForScreener } from "./columns";
 import { subscribe, profileMetaById } from "../../state";
+import { useStoreSnapshot } from "../../hooks/useStoreSubscription";
 import type { Stock } from "../../types";
 
 function approachRank(stock: Stock): number {
@@ -56,23 +57,9 @@ interface Props {
   activeScreener: string;
 }
 
-// src/hooks/useStoreSubscription.ts's useStoreSnapshot misses its createMemo
-// import, so the snapshot is inlined here with the same semantics.
-function useStateSnapshot() {
-  const [tick, setTick] = createSignal(0);
-  createEffect(() => {
-    const unsubscribe = subscribe(() => setTick((n) => n + 1));
-    onCleanup(unsubscribe);
-  });
-  return createMemo(() => {
-    tick();
-    return { profileMetaById };
-  });
-}
-
 export function ScreenerContent(props: Props) {
-  const store = useStateSnapshot();
-  const meta = () => store().profileMetaById[props.activeScreener];
+  const store = useStoreSnapshot(subscribe, () => profileMetaById);
+  const meta = () => store()[props.activeScreener];
   const scoreFormula = () => meta()?.score_formula || "";
 
   const sections = createMemo<SectionConfig[]>(() => {

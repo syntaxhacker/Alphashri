@@ -96,6 +96,18 @@ def test_daily_single_market_keeps_its_exact_range():
     assert out[0]["max"] == 110.0
 
 
+def test_daily_null_price_bounds_do_not_crash():
+    # min/max_price are nullable in the cache; a day can carry modals alone.
+    rows = [
+        {**_row("2026-05-31", "A", 100.0), "min_price": None, "max_price": None, "arrivals_qtl": None},
+        {**_row("2026-05-31", "B", 120.0), "min_price": None, "max_price": None, "arrivals_qtl": None},
+    ]
+    assert aggregate.aggregate_daily(rows) == [{
+        "date": "2026-05-31", "modal": 110.0, "min": None,
+        "max": None, "arrivals_qtl": None, "market_count": 2,
+    }]
+
+
 def test_changes_use_nearest_date_at_or_before_each_target():
     daily = [
         {"date": "2025-11-20", "modal": 60.0},
@@ -196,6 +208,23 @@ def test_comparison_series_follows_the_range_window(sample_rows):
     assert series[0]["points"][0]["date"] == "2026-05-25"
 
 
+def test_comparison_series_uses_each_keys_own_as_of():
+    by_key = {
+        "onion": [{"date": "2026-11-21", "modal_price": 100.0}],
+        "potato": [
+            {"date": "2026-05-25", "modal_price": 50.0},
+            {"date": "2026-05-31", "modal_price": 60.0},
+        ],
+    }
+    series = aggregate.comparison_series(
+        by_key, "2026-11-21", "1m", as_of_by_key={"potato": "2026-05-31"},
+    )
+    assert [p["date"] for p in series[0]["points"]] == ["2026-11-21"]
+    assert [p["date"] for p in series[1]["points"]] == ["2026-05-25", "2026-05-31"]
+    # Keys without an override still use the shared anchor.
+    assert len(aggregate.comparison_series(by_key, "2026-05-31", "1m")[1]["points"]) == 2
+
+
 def test_freshness_and_warnings(sample_rows):
     assert aggregate.freshness_days("2026-05-31", today=date(2026, 5, 31)) == 0
     assert aggregate.freshness_days(None) is None
@@ -204,3 +233,16 @@ def test_freshness_and_warnings(sample_rows):
     assert any("MSP not verified" in warning for warning in fresh)
     stale = aggregate.collect_warnings(sample_rows, "2026-05-31", today=date(2026, 6, 30))
     assert any("30 days old" in warning for warning in stale)
+
+
+def test_unit_warnings_match_the_conversion_actually_applied():
+    rows = [
+        {"date": "2026-05-31", "price_unit": "Rs./QTL", "arrival_units": "MT", "arrivals_qtl": 50.0},
+        {"date": "2026-05-31", "price_unit": "Rs./Bundle", "arrival_units": "Tons", "arrivals_qtl": 50.0},
+    ]
+    warnings = aggregate.collect_warnings(rows, "2026-05-31", today=date(2026, 5, 31))
+    assert [w for w in warnings if "non-quintal" in w] == [
+        "non-quintal price units left as published: Rs./Bundle"
+    ]
+    assert any("multiplied by 10" in w for w in warnings)  # MT is converted by normalise_arrivals
+    assert any("unrecognised arrival units" in w and "Tons" in w for w in warnings)

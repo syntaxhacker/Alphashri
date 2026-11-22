@@ -30,6 +30,22 @@ export function matchesTradeFilters(t: FilterableTrade, f: TradeFilters): boolea
   return true;
 }
 
+// The blotter, the per-trade chart list and the Edge AI panel all filter the
+// same trades snapshot with the same filter selection. Trade arrays are immutable
+// snapshots in this store, so key the result by array identity + filter values
+// and collapse those passes into one. The WeakMap lets discarded snapshots go.
+const filteredByTrades = new WeakMap<object, Map<string, FilterableTrade[]>>();
+
 export function filterTrades<T extends FilterableTrade>(trades: T[], f: TradeFilters): T[] {
-  return trades.filter((t) => matchesTradeFilters(t, f));
+  const key = `${f.side}\u0000${f.result}\u0000${f.reason}`;
+  let byKey = filteredByTrades.get(trades);
+  if (!byKey) {
+    byKey = new Map();
+    filteredByTrades.set(trades, byKey);
+  }
+  const cached = byKey.get(key);
+  if (cached) return cached as T[];
+  const result: FilterableTrade[] = trades.filter((t) => matchesTradeFilters(t, f));
+  byKey.set(key, result);
+  return result as T[];
 }

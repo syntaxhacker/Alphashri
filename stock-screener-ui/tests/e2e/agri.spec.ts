@@ -203,20 +203,15 @@ test.describe("Agri prices redesign", () => {
     await expect(page.locator('[data-testid="agri-chart"] canvas')).toBeVisible();
   });
 
-  // TODO(W10): AgriPage seeds DEFAULT_COMPARE without the active commodity, so
-  // the compare request currently omits Onion. Flip from fixme when the active
-  // key is forced into the comparison set.
-  test.fixme("compare always includes the active commodity", async ({ page }) => {
+  test("compare always includes the active commodity", async ({ page }) => {
     await openAgri(page, "?mode=compare");
     await expect.poll(() => handle.pricesCalls.at(-1)?.params.compare).toContain("onion");
-    await expect(page.getByTestId("agri-compare-onion")).toContainText("Onion");
+    await expect(page.getByTestId("agri-compare-active")).toContainText("Onion");
   });
 
-  // TODO(W10): the payload carries quotes_total but the table still says
-  // "N quotes" from quotes.length. Flip from fixme when it renders "showing X of Y".
-  test.fixme("quotes panel discloses the total quote count", async ({ page }) => {
+  test("quotes panel discloses the total quote count", async ({ page }) => {
     await openAgri(page);
-    await expect(page.getByTestId("agri-table-panel")).toContainText(/showing\s+2\s+of\s+3,942/i);
+    await expect(page.getByTestId("agri-table-panel")).toContainText(/showing\s+2\s+of\s+3,?942/i);
   });
 
   test("switching group narrows the commodity list and reloads prices", async ({ page }) => {

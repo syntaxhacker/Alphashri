@@ -78,6 +78,7 @@ jobs:
           ARGS=(
             --source json
             --output-json "$RAW"
+            --summary-json build/52w.summary.json
             --no-db
             --no-redis
             --max-symbols "$LIMIT"
@@ -100,16 +101,18 @@ jobs:
         if: ${{ steps.compute.outputs.skip != 'true' }}
         env:
           RAW: build/52w.json
+          SUMMARY: build/52w.summary.json
         run: |
           set -euo pipefail
-          python - "$RAW" "$GITHUB_OUTPUT" <<'PY'
+          python - "$RAW" "$SUMMARY" "$GITHUB_OUTPUT" <<'PY'
           import gzip
           import json
           import math
           import sys
           from datetime import date
+          from pathlib import Path
 
-          path, output = sys.argv[1], sys.argv[2]
+          path, summary_path, output = sys.argv[1:4]
           raw = open(path, "rb").read()
           if raw[:2] == b"\x1f\x8b":
               raw = gzip.decompress(raw)
@@ -117,8 +120,7 @@ jobs:
 
           if not isinstance(data, dict):
               raise SystemExit("52W output is not a JSON object")
-          as_of = str(data.get("as_of") or "")
-          date.fromisoformat(as_of)  # raises on a malformed date
+          as_of = date.fromisoformat(str(data.get("as_of") or "")).isoformat()
           symbols = data.get("symbols")
           if not isinstance(symbols, dict):
               raise SystemExit("52W output is missing symbols{...}")
@@ -129,6 +131,18 @@ jobs:
               # A true no-op exits before writing a file. A zero-row file means
               # every fetch failed, so publishing it would silently freeze data.
               raise SystemExit("52W output has 0 symbols; refusing to publish an empty asset")
+
+          summary = json.loads(Path(summary_path).read_text(encoding="utf-8"))
+          ok, failed, total = (
+              int(summary["ok"]),
+              int(summary["failed"]),
+              int(summary["total"]),
+          )
+          if failed > ok:
+              raise SystemExit(
+                  f"52W fetch failures ({failed}) exceed successes ({ok} of {total}); "
+                  "refusing to publish a partial universe"
+              )
 
           for symbol, entry in symbols.items():
               if not isinstance(entry, dict):
@@ -201,14 +215,32 @@ jobs:
           ASSET: ${{ steps.package.outputs.asset }}
           MANIFEST: ${{ steps.package.outputs.manifest }}
           DATE: ${{ steps.package.outputs.date }}
+          EVENT_NAME: ${{ github.event_name }}
+          REQUESTED_LIMIT: ${{ inputs.limit }}
         run: |
           set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] \
+            && [ -n "${REQUESTED_LIMIT:-}" ] && [ "$REQUESTED_LIMIT" != "0" ]; then
+            echo "::warning::Smoke-test run (limit=$REQUESTED_LIMIT); not publishing a partial asset."
+            exit 0
+          fi
+
           TAG="data-${DATE:0:7}"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" \
               --title "Market data ${DATE:0:7}" \
               --notes "Automated daily refresh assets for ${DATE:0:7}." \
-              --latest=false || true
+              --latest=false || echo "::warning::Could not create $TAG; a concurrent run may have won the race."
           fi
+          gh release view "$TAG" >/dev/null  # fail loudly if the tag still does not exist
+
           gh release upload "$TAG" "$ASSET" "$MANIFEST" --clobber
-          echo "Uploaded $ASSET and $MANIFEST to $TAG"
+
+          PUBLISHED=$(gh release view "$TAG" --json assets --jq '.assets[].name')
+          for name in "$(basename "$ASSET")" "$(basename "$MANIFEST")"; do
+            if ! printf '%s\n' "$PUBLISHED" | grep -Fqx "$name"; then
+              echo "::error::$TAG is missing $name after upload"
+              exit 1
+            fi
+          done
+          echo "Uploaded $ASSET and $MANIFEST to $TAG (verified)"

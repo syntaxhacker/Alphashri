@@ -215,6 +215,7 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
                 variant="subtle"
                 size="sm"
                 onClick={() => props.onCollapse?.()}
+                aria-label={collapseLabel()}
                 data-testid="market-rail-collapse"
               >
                 <IconChevronLeft size={14} />

@@ -474,15 +474,16 @@ function baseQuery(): PatternsQuery {
   };
 }
 
-/** Load timeframe registry, universes and pattern catalog, then initial data. */
-export async function loadCatalog(): Promise<void> {
+/** Load timeframe registry, universes and pattern catalog, then initial data.
+ * `force` bypasses the API layer's registry cache (the Retry / admin-edit path). */
+export async function loadCatalog(force = false): Promise<void> {
   patch({ error: null });
   startLoading();
   try {
     const [timeframes, universes, catalog] = await Promise.all([
-      fetchTimeframes(),
-      fetchUniverses(),
-      fetchPatternCatalog(),
+      fetchTimeframes(force),
+      fetchUniverses(force),
+      fetchPatternCatalog(force),
     ]);
     const known = new Set(timeframes.map((tf) => tf.id));
     const seed =
@@ -533,7 +534,7 @@ export function ensureCatalogLoaded(force = false): Promise<void> {
     if (catalogBootstrap) return catalogBootstrap;
     if (state.timeframes.length > 0 && state.universes.length > 0) return Promise.resolve();
   }
-  const promise = loadCatalog();
+  const promise = loadCatalog(force);
   catalogBootstrap = promise;
   return promise;
 }

@@ -4,8 +4,8 @@ import {
   loginAsTestUser,
   setupPaperTradingMocks,
   setupMultiStrategyBotMocks,
-} from "../mocks/apiResponses";
-import { apiRoute } from "../mocks/routeHelper";
+} from "../../mocks/apiResponses";
+import { apiRoute } from "../../mocks/routeHelper";
 
 export async function setupTradeHistoryMocks(page: Page): Promise<void> {
   await setupApiMocks(page);
@@ -252,11 +252,6 @@ export async function selectWeekFilter(page: Page): Promise<void> {
 export async function isPaginationVisible(page: Page): Promise<void> {
   const pagination = page.locator('[data-testid="trades-header"]');
   await expect(pagination).toBeVisible();
-}
-
-export async function setupTradeHistoryTest(page: Page, _botId: string = "2"): Promise<void> {
-  await setupTradeHistoryMocks(page);
-  await navigateToTradeHistoryWithBot(page, botId);
 }
 
 export async function setupTradeHistoryTestNoBot(page: Page): Promise<void> {

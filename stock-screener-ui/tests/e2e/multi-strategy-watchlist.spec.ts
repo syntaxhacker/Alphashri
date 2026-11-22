@@ -3,8 +3,6 @@ import {
   setupApiMocks,
   loginAsTestUser,
   setupPaperTradingMocks,
-} from "../helpers/multiStrategyHelpers";
-import {
   BOT_IDS,
   setupBotMocksForId,
   navigateToBot,

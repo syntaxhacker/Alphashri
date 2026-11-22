@@ -432,3 +432,45 @@ def test_unknown_universe_is_fail_soft(monkeypatch):
     r = _client().get("/api/screener/dashboard?universe=bogus")
     assert r.status_code == 200
     assert r.json()["sections"] == []
+
+
+def _count_tv_scans(monkeypatch):
+    """Count upstream scanner calls without changing what the frame builder sees."""
+    calls = []
+    real = dashboard.get_scanner_data
+
+    def counting(query):
+        calls.append(query)
+        return real(query)
+
+    monkeypatch.setattr(dashboard, "get_scanner_data", counting)
+    return calls
+
+
+def test_filter_variants_share_one_tv_scan(monkeypatch):
+    """Universe/limit/mincap are Python filters, not reasons to rescan TV.
+
+    The query in ``_fetch_tv_frame`` is the same full India frame for every
+    request. Caching only the built payload under a key that includes the
+    filters made each variant pay for a fresh upstream scan.
+    """
+    calls = _count_tv_scans(monkeypatch)
+    client = _client()
+
+    client.get("/api/screener/dashboard?universe=nifty500")
+    client.get("/api/screener/dashboard?universe=nifty50")
+    client.get("/api/screener/dashboard?universe=nifty500&limit=4")
+    client.get("/api/screener/dashboard?universe=nifty500&min_market_cap_cr=0")
+
+    assert len(calls) == 1
+
+
+async def test_prewarm_shares_one_tv_scan(monkeypatch):
+    """Both prewarm universes must reuse a single TV frame."""
+    calls = _count_tv_scans(monkeypatch)
+
+    warmed = await dashboard.run_dashboard_prewarm_once(
+        limit=8, min_market_cap_cr=500.0)
+
+    assert warmed == 2
+    assert len(calls) == 1

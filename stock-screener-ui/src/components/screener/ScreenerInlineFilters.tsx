@@ -1,7 +1,8 @@
-import { Show, createEffect, createMemo, createSignal, For, onCleanup } from "solid-js";
+import { Show, For } from "solid-js";
 import type { JSX } from "solid-js";
 import { Box, Badge, Button, Paper, Text } from "@/ui";
 import { subscribe, profileMetaById } from "../../state";
+import { useStoreSnapshot } from "../../hooks/useStoreSubscription";
 import { fetchData } from "../../api";
 import * as palette from "@/ui/palette";
 
@@ -14,20 +15,6 @@ interface ScreenerInlineFiltersProps {
   notes?: string[];
 }
 
-// src/hooks/useStoreSubscription.ts's useStoreSnapshot misses its createMemo
-// import, so the snapshot is inlined here with the same semantics.
-function useStateSnapshot() {
-  const [tick, setTick] = createSignal(0);
-  createEffect(() => {
-    const unsubscribe = subscribe(() => setTick((n) => n + 1));
-    onCleanup(unsubscribe);
-  });
-  return createMemo(() => {
-    tick();
-    return { profileMetaById };
-  });
-}
-
 /** Fixed-height band — asserted by tests. Unmounting it shifts the table down. */
 export const SCREENER_INLINE_FILTERS_HEIGHT_CLASS = "h-[24px]";
 export const SCREENER_INLINE_FILTERS_PLACEHOLDER = "No filters";
@@ -37,8 +24,8 @@ const ROW_CLASS =
   `flex items-center gap-2 px-2 ${SCREENER_INLINE_FILTERS_HEIGHT_CLASS} min-h-[24px] flex-nowrap overflow-hidden whitespace-nowrap flex-shrink-0 bg-fin-surface`;
 
 export function ScreenerInlineFilters(props: ScreenerInlineFiltersProps) {
-  const store = useStateSnapshot();
-  const profileMeta = () => store().profileMetaById?.[props.activeScreener];
+  const store = useStoreSnapshot(subscribe, () => profileMetaById);
+  const profileMeta = () => store()?.[props.activeScreener];
   const filters = (): any[] => profileMeta()?.filters || [];
   const notes = () => props.notes ?? [];
   const status = () => props.status ?? "";

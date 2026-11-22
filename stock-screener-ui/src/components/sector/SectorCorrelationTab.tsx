@@ -1,4 +1,4 @@
-import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { Show, createMemo, onMount } from "solid-js";
 import { Box, Stack, Text } from "@/ui";
 import { Button } from "@/ui";
 import { Loader } from "@/ui";
@@ -19,6 +19,7 @@ import {
   fetchCorrelationData,
   subscribe as subscribeToState,
 } from "../../state/sectorCorrelation";
+import { useStoreSnapshot } from "../../hooks/useStoreSubscription";
 import { TanStackTable } from "../common/TanStackTable";
 import { CompactPanel } from "../common/compact";
 import { formatPercentage } from "../../utils/ui-helpers";
@@ -33,26 +34,6 @@ const LOOKBACK_OPTIONS = [
 ];
 
 type SectorRow = SectorCorrelationResponse["sectors"][number];
-
-// src/hooks/useStoreSubscription.ts's useStoreSnapshot misses its createMemo
-// import, so the snapshot is inlined here with the same semantics.
-function useSectorCorrelationSnapshot() {
-  const [tick, setTick] = createSignal(0);
-  createEffect(() => {
-    const unsubscribe = subscribeToState(() => setTick((n) => n + 1));
-    onCleanup(unsubscribe);
-  });
-  return createMemo(() => {
-    tick();
-    return {
-      market: sectorMarket,
-      lookbackDays,
-      data: stateDataRaw,
-      isLoading: stateLoadingFlag,
-      error: stateErrorRaw,
-    };
-  });
-}
 
 function CorrelationHeader(props: { currentMarket: string; currentLookback: number; lastUpdated?: string }) {
   // The header reads props at construction; force re-check on each render pass.
@@ -253,7 +234,13 @@ function ErrorState(props: { error: string }) {
 }
 
 export function SectorCorrelationTab() {
-  const store = useSectorCorrelationSnapshot();
+  const store = useStoreSnapshot(subscribeToState, () => ({
+    market: sectorMarket,
+    lookbackDays,
+    data: stateDataRaw,
+    isLoading: stateLoadingFlag,
+    error: stateErrorRaw,
+  }));
   const { colorScheme } = useColorScheme();
   const isDark = () => colorScheme() === "dark";
 

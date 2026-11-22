@@ -5,6 +5,11 @@ import * as palette from "@/ui/palette";
 import type { JSX } from "solid-js";
 type CSSProperties = JSX.CSSProperties;
 
+type BodyItemInput<T> =
+  | { kind: "row"; row: T; index: number }
+  | { kind: "group"; value: unknown; rows: T[]; baseIndex: number };
+type BodyItem<T> = BodyItemInput<T> & { key: string };
+
 /**
  * Column-level metadata understood by TanStackTable.
  * Usage: `meta: { align: "right" }` on a ColumnDef.
@@ -71,6 +76,8 @@ interface Props<T> {
   getRowClassName?: (row: T) => string | undefined;
   getRowStyle?: (row: T) => CSSProperties | undefined;
   getRowTestId?: (row: T, index: number) => string | undefined;
+  /** Stable row identity. Reused to keep the row DOM element across data ticks. */
+  getRowKey?: (row: T, index: number) => string | number;
   /** Extra DOM attributes for each row (e.g. data-* used for external lookup). */
   getRowAttributes?: (row: T, index: number) => Record<string, string | number | undefined>;
   /**
@@ -113,6 +120,36 @@ function getValue<T>(row: T, column: TableColumnDef<T>): unknown {
   if (column.accessorFn) return column.accessorFn(row);
   if (column.accessorKey) return (row as any)[column.accessorKey];
   return undefined;
+}
+
+// Live ticks replace position objects wholesale. Comparing their flat fields
+// lets an unchanged row keep its DOM node while a changed row still re-renders.
+function shallowEqualValues(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  if (typeof a !== "object" || typeof b !== "object") return false;
+  const aKeys = Object.keys(a as object);
+  if (aKeys.length !== Object.keys(b as object).length) return false;
+  for (const key of aKeys) {
+    if (!Object.prototype.hasOwnProperty.call(b, key)) return false;
+    if ((a as Record<string, unknown>)[key] !== (b as Record<string, unknown>)[key]) return false;
+  }
+  return true;
+}
+
+function sameBodyItem<T>(prev: BodyItem<T>, next: BodyItemInput<T>): boolean {
+  if (prev.kind !== next.kind) return false;
+  if (prev.kind === "row" && next.kind === "row") {
+    return prev.index === next.index && shallowEqualValues(prev.row, next.row);
+  }
+  if (prev.kind === "group" && next.kind === "group") {
+    return (
+      prev.value === next.value &&
+      prev.baseIndex === next.baseIndex &&
+      shallowEqualValues(prev.rows, next.rows)
+    );
+  }
+  return false;
 }
 
 /**
@@ -202,8 +239,8 @@ export function TanStackTable<T>(props: Props<T>) {
   });
 
   const rowKey = (row: T, index: number) => {
-    const testId = props.getRowTestId?.(row, index);
-    return testId != null ? testId : String(index);
+    const key = props.getRowKey?.(row, index) ?? props.getRowTestId?.(row, index);
+    return key != null ? String(key) : String(index);
   };
 
   const groupKey = (value: unknown) => String(value);
@@ -449,22 +486,54 @@ export function TanStackTable<T>(props: Props<T>) {
     );
   };
 
+  // <For> keys by reference, so handing it fresh wrappers on every store tick
+  // remounts every row. Reuse a wrapper when its stable-keyed row is value-equal;
+  // changed rows get a new wrapper and render through the normal path.
+  const itemCache = new Map<string, BodyItem<T>>();
   const bodyItems = createMemo(() => {
-    const items: Array<{ kind: "row"; row: T; index: number } | { kind: "group"; value: unknown; rows: T[]; baseIndex: number }> = [];
+    const items: BodyItem<T>[] = [];
+    const usedKeys = new Set<string>();
+    const occurrences = new Map<string, number>();
+
+    const push = (item: BodyItemInput<T>, baseKey: string) => {
+      const seen = occurrences.get(baseKey) ?? 0;
+      occurrences.set(baseKey, seen + 1);
+      const key = seen === 0 ? baseKey : `${baseKey}#${seen}`;
+      usedKeys.add(key);
+      const prev = itemCache.get(key);
+      if (prev && sameBodyItem(prev, item)) {
+        items.push(prev);
+        return;
+      }
+      const next = { ...item, key } as BodyItem<T>;
+      itemCache.set(key, next);
+      items.push(next);
+    };
+
     const grps = groups();
     if (grps) {
       for (const g of grps) {
-        items.push({ kind: "group", value: g.value, rows: g.rows, baseIndex: g.baseIndex });
+        push(
+          { kind: "group", value: g.value, rows: g.rows, baseIndex: g.baseIndex },
+          `group:${groupKey(g.value)}`,
+        );
         if (isGroupExpanded(g.value)) {
           for (let i = 0; i < g.rows.length; i++) {
-            items.push({ kind: "row", row: g.rows[i], index: g.baseIndex + i });
+            const row = g.rows[i];
+            const index = g.baseIndex + i;
+            push({ kind: "row", row, index }, `row:${rowKey(row, index)}`);
           }
         }
       }
-      return items;
+    } else {
+      const rows = sortedData();
+      for (let i = 0; i < rows.length; i++) {
+        push({ kind: "row", row: rows[i], index: i }, `row:${rowKey(rows[i], i)}`);
+      }
     }
-    for (let i = 0; i < sortedData().length; i++) {
-      items.push({ kind: "row", row: sortedData()[i], index: i });
+
+    for (const key of itemCache.keys()) {
+      if (!usedKeys.has(key)) itemCache.delete(key);
     }
     return items;
   });

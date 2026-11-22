@@ -203,15 +203,19 @@ export function NiftyTapeTable(props: {
   let prevLatest = "";
   let flashPending = false;
 
-  const baseline = createMemo(() => getTapeBaseline(props.tape, props.rows));
-  /** Newest-first (default) or oldest-first; `ascTapeByTime` returns a fresh
-   * array, so the in-place reverse never touches the prop. */
+  // One chronological view per snapshot. Seven derivations used to sort the
+  // same rows independently on every poll, so a tick paid seven O(n log n)
+  // sorts; they now share this memo and each derivation reads it pre-sorted.
+  const ascRows = createMemo(() => ascTapeByTime(props.rows));
+  const baseline = createMemo(() => getTapeBaseline(props.tape, props.rows, ascRows()));
+  /** Newest-first (default) or oldest-first. Reverse a COPY: `ascRows` is the
+   * shared chronological view and must stay ascending for the other memos. */
   const ordered = createMemo(() => {
-    const asc = ascTapeByTime(props.rows);
-    return order() === "newest" ? asc.reverse() : asc;
+    const asc = ascRows();
+    return order() === "newest" ? [...asc].reverse() : asc;
   });
   const scale = createMemo(() => computeTapeScale(props.rows));
-  const spotDeltas = createMemo(() => computeSpotDeltas(props.rows));
+  const spotDeltas = createMemo(() => computeSpotDeltas(props.rows, ascRows()));
   // The column model embeds the live flash map in its cell closures. Keying
   // the memo on a cheap serialised signature (instead of the Map identity)
   // keeps the whole 12-column model stable across ticks whose flash content
@@ -223,7 +227,7 @@ export function NiftyTapeTable(props: {
   // The tape's own last spot is the fallback for the flip placement — the
   // recorded rows are the only spot the tape knows for sure.
   const tapeSpot = createMemo(() => {
-    const asc = ascTapeByTime(props.rows);
+    const asc = ascRows();
     return asc.length > 0 ? asc[asc.length - 1].spot : null;
   });
   // Spot-relative gamma flip: the same level the gamma strip shows. Without
@@ -243,9 +247,9 @@ export function NiftyTapeTable(props: {
       flipAtSpot(),
     ),
   );
-  const head = createMemo(() => buildTapeHead(props.rows, props.tape, flipAtSpot()));
-  const doiLabel = createMemo(() => tapeDoiLabel(props.tape, props.rows));
-  const session = createMemo(() => computeTapeSession(props.rows));
+  const head = createMemo(() => buildTapeHead(props.rows, props.tape, flipAtSpot(), ascRows()));
+  const doiLabel = createMemo(() => tapeDoiLabel(props.tape, props.rows, ascRows()));
+  const session = createMemo(() => computeTapeSession(props.rows, ascRows()));
   const flipSigned = () =>
     `${head().flipDeltaPts >= 0 ? "+" : ""}${head().flipDeltaPts.toLocaleString("en-IN", { maximumFractionDigits: 0 })} pts`;
   const latestT = () => {

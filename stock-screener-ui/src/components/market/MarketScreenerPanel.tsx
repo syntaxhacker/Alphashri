@@ -546,13 +546,17 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   // The rail's price/MCAP units and cap-tier labels follow the active universe.
   const currency = createMemo(() => marketUniverseDescriptor(universe()).currency);
 
+  // Isolate the one filter that changes the column list. Reading `filters()`
+  // directly in the columns memo rebuilt all 16 column defs on every bound
+  // keystroke, which re-ran the table's sort/window/prefs memos and re-rendered
+  // the visible rows even though the column set had not changed.
+  const hideSector = createMemo(() => filters().sectors.length > 0);
   const columns = createMemo(() => {
-    const f = filters();
     return buildMarketColumns({
       onSymbolOpen: selectAndOpen,
       onChartOpen: openChart,
       // A pinned sector makes the column constant; it carries no information.
-      hideSector: f.sectors.length > 0,
+      hideSector: hideSector(),
       // Read through the signal: cells re-render when the lookup lands without
       // rebuilding the column list (a rebuild would remount every row).
       patternsFor: (symbol) => patterns.summary().get(symbol),

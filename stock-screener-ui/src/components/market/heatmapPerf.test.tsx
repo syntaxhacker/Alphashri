@@ -30,6 +30,9 @@ const counts = vi.hoisted(() => ({
   filterMarketRows: 0,
   filterOnFiltered: 0,
   colorDomain: 0,
+  tileColor: 0,
+  setOption: 0,
+  roEntries: [] as Array<{ callback: (entries: any[]) => void; target: Element }>,
   option: null as any,
 }));
 
@@ -44,6 +47,10 @@ vi.mock("./marketTreemap", async (importOriginal) => {
     marketColorDomain: (...args: Parameters<typeof actual.marketColorDomain>) => {
       counts.colorDomain++;
       return actual.marketColorDomain(...args);
+    },
+    marketTileColor: (...args: Parameters<typeof actual.marketTileColor>) => {
+      counts.tileColor++;
+      return actual.marketTileColor(...args);
     },
     suppressTinyFlatLabels: (...args: Parameters<typeof actual.suppressTinyFlatLabels>) => {
       counts.suppress++;
@@ -88,6 +95,7 @@ vi.mock("@/utils/loadEcharts", () => ({
   loadEcharts: async () => ({
     init: () => ({
       setOption: (option: any) => {
+        counts.setOption++;
         counts.option = option;
       },
       on: () => {},
@@ -242,6 +250,19 @@ function stubCanvasSize(width: number, height: number): () => void {
   };
 }
 
+/** Captures observers by target so only the map canvas gets a synthetic resize. */
+function stubResizeObserver(): () => void {
+  class CapturingResizeObserver {
+    constructor(private callback: (entries: any[]) => void) {}
+    observe = (target: Element) => counts.roEntries.push({ callback: this.callback, target });
+    unobserve = () => {};
+    disconnect = () => {};
+  }
+  vi.stubGlobal("ResizeObserver", CapturingResizeObserver);
+  counts.roEntries.length = 0;
+  return () => vi.unstubAllGlobals();
+}
+
 async function renderMap(rows: MarketRow[]) {
   render(() => (
     <UIProvider>
@@ -265,6 +286,9 @@ const reset = () => {
   counts.filterMarketRows = 0;
   counts.filterOnFiltered = 0;
   counts.colorDomain = 0;
+  counts.tileColor = 0;
+  counts.setOption = 0;
+  counts.roEntries.length = 0;
   counts.option = null;
 };
 
@@ -315,6 +339,60 @@ describe("market heatmap — measured hot-function counts", () => {
       // canvas reports its real size. Layout does not depend on size.
       expect(counts.buildOption).toBe(1);
     } finally {
+      restore();
+    }
+  });
+
+  test("a size report that moves no label does not repaint the whole canvas", async () => {
+    const restore = stubCanvasSize(1200, 700);
+    const restoreRO = stubResizeObserver();
+    try {
+      const flat = Array.from({ length: 60 }, (_, i) => row(`S${String(i).padStart(4, "0")}`, 7));
+      await renderMap(flat);
+      const before = counts.setOption;
+      const recolored = counts.tileColor;
+      expect(before).toBeGreaterThan(0);
+      const canvasEntries = counts.roEntries.filter(
+        (e) => e.target.getAttribute("data-testid") === "market-map-canvas",
+      );
+      expect(canvasEntries.length).toBe(1);
+      for (const entry of canvasEntries) {
+        entry.callback([{ contentRect: { width: 1190, height: 700 } }]);
+      }
+      await Promise.resolve();
+      // Before the fix the new box produced a fresh option object even though
+      // no label crossed a visibility threshold: all 60 tiles were recoloured
+      // and ECharts re-laid out the whole treemap on this one size report.
+      expect(counts.setOption).toBe(before);
+      expect(counts.tileColor).toBe(recolored);
+    } finally {
+      restoreRO();
+      restore();
+    }
+  });
+
+  test("a size change that moves labels still repaints with the new decisions", async () => {
+    const restore = stubCanvasSize(1200, 700);
+    const restoreRO = stubResizeObserver();
+    try {
+      const flat = Array.from({ length: 60 }, (_, i) => row(`S${String(i).padStart(4, "0")}`, 7));
+      await renderMap(flat);
+      const before = counts.setOption;
+      const recolored = counts.tileColor;
+      const canvasEntries = counts.roEntries.filter(
+        (e) => e.target.getAttribute("data-testid") === "market-map-canvas",
+      );
+      for (const entry of canvasEntries) {
+        entry.callback([{ contentRect: { width: 1, height: 1 } }]);
+      }
+      await Promise.resolve();
+      expect(counts.setOption).toBe(before + 1);
+      expect(counts.tileColor - recolored).toBeGreaterThanOrEqual(60);
+      const tiles = counts.option.series[0].data as Array<{ label: { show?: boolean } }>;
+      expect(tiles.length).toBe(60);
+      expect(tiles.every((tile) => tile.label.show === false)).toBe(true);
+    } finally {
+      restoreRO();
       restore();
     }
   });

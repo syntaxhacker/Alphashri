@@ -6,16 +6,35 @@ so in-process resets cannot give the cases a clean slate. No network, no DB, no
 market data — the imports never reach an Upstox client.
 """
 
+import importlib.machinery
 import importlib.util
 import os
 import subprocess
+import sys
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
 _UI_DIR = Path(__file__).resolve().parents[1]
-_PYTHON = str(_UI_DIR / ".venv" / "bin" / "python")
-_NAUTILUS_INSTALLED = importlib.util.find_spec("nautilus_trader") is not None
+_PYTHON = sys.executable
+
+
+def _nautilus_installed() -> bool:
+    """Detect the real package even if backtest.sim registered its shim first.
+
+    Shim modules have ``__spec__ = None``, so ``find_spec`` raises ValueError on
+    them. PathFinder searches sys.path directly and bypasses sys.modules.
+    """
+    if getattr(sys.modules.get("nautilus_trader"), "__spec__", "missing") is None:
+        return importlib.machinery.PathFinder.find_spec("nautilus_trader") is not None
+    try:
+        return importlib.util.find_spec("nautilus_trader") is not None
+    except ValueError:
+        return importlib.machinery.PathFinder.find_spec("nautilus_trader") is not None
+
+
+_NAUTILUS_INSTALLED = _nautilus_installed()
 
 
 def _run_child(script: str, *, engine: str | None) -> subprocess.CompletedProcess:
@@ -89,6 +108,14 @@ def test_invalid_engine_is_rejected():
     assert "must be 'nautilus' or 'sim'" in proc.stderr, (
         f"expected validation error in stderr, got:\n{proc.stderr}"
     )
+
+
+def test_specless_shim_does_not_break_nautilus_detection(monkeypatch):
+    """A pre-registered shim has no __spec__; detection must still pick the right branch."""
+    shim = ModuleType("nautilus_trader")
+    shim.__spec__ = None
+    monkeypatch.setitem(sys.modules, "nautilus_trader", shim)
+    assert _nautilus_installed() is _NAUTILUS_INSTALLED
 
 
 @pytest.mark.skipif(not _NAUTILUS_INSTALLED, reason="nautilus_trader is not installed")

@@ -184,8 +184,8 @@ class TestORBSignalGeneratorInit:
         generator = ORBSignalGenerator()
 
         assert generator.or_minutes == 45
-        assert generator.sl_pct == 0.4
-        assert generator.tp_pct == 1.2
+        assert generator.sl_pct == 1.0
+        assert generator.tp_pct == 1.5
         assert generator.min_or_range_pct == 0.5
         assert generator.max_or_range_pct == 3.0
         assert isinstance(generator.breakout_buffer_pct, float)
@@ -243,7 +243,7 @@ class TestORBSignalGeneratorInit:
         assert ORBSignalGenerator.MARKET_OPEN == (9, 15)
         assert ORBSignalGenerator.OR_END == (10, 0)
         assert ORBSignalGenerator.MARKET_CLOSE == (15, 30)
-        assert ORBSignalGenerator.FORCE_EXIT == (14, 45)
+        assert ORBSignalGenerator.FORCE_EXIT == (15, 10)
 
 
 
@@ -299,14 +299,14 @@ class TestCalculateORLevels:
         assert result is None
 
     def test_calculate_or_levels_insufficient_candles(self):
-        """Test OR calculation with fewer than 5 candles."""
+        """Test OR calculation when no candles fall inside the OR period."""
         generator = ORBSignalGenerator()
 
         candles = [
-            {'time': '2024-01-15T09:15:00', 'high': 102, 'low': 99, 'close': 101},
-            {'time': '2024-01-15T09:20:00', 'high': 103, 'low': 100, 'close': 102},
-            {'time': '2024-01-15T09:25:00', 'high': 104, 'low': 101, 'close': 103},
-            {'time': '2024-01-15T09:30:00', 'high': 105, 'low': 102, 'close': 104},
+            {'time': '2024-01-15T11:00:00', 'open': 100, 'high': 102, 'low': 99, 'close': 101},
+            {'time': '2024-01-15T11:05:00', 'open': 101, 'high': 103, 'low': 100, 'close': 102},
+            {'time': '2024-01-15T11:10:00', 'open': 102, 'high': 104, 'low': 101, 'close': 103},
+            {'time': '2024-01-15T11:15:00', 'open': 103, 'high': 105, 'low': 102, 'close': 104},
         ]
 
         result = generator.calculate_or_levels(candles)
@@ -430,14 +430,16 @@ class TestCheckBreakout:
 
     @pytest.fixture
     def generator(self):
-        """Create a generator with standard parameters."""
-        return ORBSignalGenerator(
+        """Create a generator with standard parameters and shorts enabled."""
+        generator = ORBSignalGenerator(
             or_minutes=45,
             sl_pct=0.4,
             tp_pct=1.2,
             min_or_range_pct=0.5,
             max_or_range_pct=3.0,
         )
+        generator.enable_shorts = True
+        return generator
 
     @pytest.fixture
     def valid_or_levels(self):
@@ -1096,8 +1098,8 @@ class TestCreateEntrySignal:
     def test_default_parameters(self):
         """Test that default parameters are used."""
         price = 100.0
-        expected_sl = round(price * (1 - 0.4 / 100), 2)
-        expected_tp = round(price * (1 + 1.2 / 100), 2)
+        expected_sl = round(price * (1 - 1.0 / 100), 2)
+        expected_tp = round(price * (1 + 1.5 / 100), 2)
 
         signal = create_entry_signal(
             symbol="TEST",
@@ -1223,6 +1225,7 @@ class TestORBSignalGeneratorIntegration:
     def test_full_workflow_short_signal(self):
         """Test complete workflow for short signal generation."""
         generator = ORBSignalGenerator()
+        generator.enable_shorts = True
 
         candles = [
             {'time': '2024-01-15T09:15:00', 'open': 100, 'high': 100.5, 'low': 99.8, 'close': 100.2},
@@ -1281,6 +1284,9 @@ class TestEdgeCases:
     def test_zero_price_handling(self):
         """Test handling of zero prices."""
         generator = ORBSignalGenerator()
+        generator.enable_shorts = True
+        # Zero is far below OR low; bypass the chase guard for this edge case.
+        generator.max_distance_from_or_pct = 200
 
         or_levels = {
             'or_high': 100.0,
@@ -1363,6 +1369,7 @@ class TestEdgeCases:
     def test_exact_or_boundary_prices(self):
         """Test signals at exact OR boundary prices."""
         generator = ORBSignalGenerator()
+        generator.enable_shorts = True
         or_levels = {
             'or_high': 100.0,
             'or_low': 98.0,
@@ -1420,7 +1427,7 @@ class TestEdgeCases:
         generator_30min = ORBSignalGenerator(or_minutes=30)
         result_30min = generator_30min.calculate_or_levels(candles)
         assert result_30min is not None
-        assert result_30min['or_candles'] == 7
+        assert result_30min['or_candles'] == 6
 
         generator_60min = ORBSignalGenerator(or_minutes=60)
         result_60min = generator_60min.calculate_or_levels(candles)

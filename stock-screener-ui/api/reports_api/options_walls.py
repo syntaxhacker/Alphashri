@@ -28,7 +28,10 @@ No writes, no network, no background task.
 
 from __future__ import annotations
 
+from bisect import bisect_left
 from datetime import datetime, timedelta
+from functools import lru_cache
+from heapq import nlargest
 import statistics
 from typing import Any, Optional
 
@@ -77,11 +80,44 @@ def _tape_path(symbol: str, date_str: str):
     return DATA_ROOT / TAPE_DIR / symbol / f"{date_str}.jsonl"
 
 
-def _epoch(value: Any) -> float:
+@lru_cache(maxsize=8192)
+def _epoch_str(value: str) -> float:
+    """Parse one ISO timestamp. Pure, so it is cached: the tape's ``t`` values
+    are re-parsed hundreds of times per request by the nearest-row scans."""
     try:
-        return datetime.fromisoformat(str(value)).timestamp()
+        return datetime.fromisoformat(value).timestamp()
     except Exception:
         return 0.0
+
+
+def _epoch(value: Any) -> float:
+    # Coerce to str before the cached lookup so unhashable inputs stay safe.
+    return _epoch_str(str(value))
+
+
+def _epochs_for(rows: list[dict]) -> list[float]:
+    return [_epoch(row.get("t")) for row in rows]
+
+
+def _nearest_index(epochs: list[float], target: float, hi: Optional[int] = None) -> int:
+    """Index of the row in ``epochs[:hi]`` nearest ``target`` (non-decreasing
+    epochs). Ties resolve to the earlier row, matching ``min`` over the rows."""
+    n = len(epochs) if hi is None else hi
+    if n <= 0:
+        return 0
+    i = bisect_left(epochs, target, 0, n)
+    if i <= 0:
+        return 0
+    if i >= n:
+        i = n - 1
+        while i > 0 and epochs[i - 1] == epochs[i]:
+            i -= 1
+        return i
+    if target - epochs[i - 1] <= epochs[i] - target:
+        i -= 1
+        while i > 0 and epochs[i - 1] == epochs[i]:
+            i -= 1
+    return i
 
 
 def _nearest(rows: list[dict], target: float) -> dict:
@@ -115,8 +151,11 @@ def _top(chain: dict, side: str, n: int) -> list[tuple[float, float]]:
         oi = _safe_float(cell[2] if side == "call" else cell[3])
         if oi > 0:
             out.append((oi, strike))
-    out.sort(reverse=True)
-    return out[:n]
+    # (oi, strike) tuples are distinct, so nlargest preserves the exact
+    # order of sorted(out, reverse=True)[:n] without sorting the whole chain.
+    if n == 1:
+        return [max(out)] if out else []
+    return nlargest(n, out)
 
 
 def _wall(chain: dict, base_chain: dict, open_chain: dict, side: str,
@@ -182,7 +221,8 @@ def _clamp(value: float, low: float, high: float) -> float:
 
 
 def _scan_events(
-    rows: list[dict], window_min: int, expiry_day: bool
+    rows: list[dict], window_min: int, expiry_day: bool,
+    epochs: Optional[list[float]] = None,
 ) -> list[dict]:
     """First touch / break transitions across the recorded window.
 
@@ -190,14 +230,21 @@ def _scan_events(
     (14:04 touch that faded, 14:25 break that held). Only transitions are
     emitted, so a break that repeats every minute is one event.
     """
+    if epochs is None:
+        epochs = _epochs_for(rows)
+    ordered = all(a <= b for a, b in zip(epochs, epochs[1:]))
     events: list[dict] = []
     prev_kind: Optional[str] = None
     for idx in range(1, len(rows)):
         row = rows[idx]
-        t = _epoch(row.get("t"))
+        t = epochs[idx]
         if not t:
             continue
-        base = _nearest(rows[: idx + 1], t - window_min * 60)
+        target = t - window_min * 60
+        if ordered:
+            base = rows[_nearest_index(epochs, target, idx + 1)]
+        else:
+            base = _nearest(rows[: idx + 1], target)
         chain = _chain(row)
         base_chain = _chain(base)
         top = _top(base_chain, "call", 1)
@@ -509,11 +556,20 @@ def compute_wall_state(
             dte = None
     expiry_day = dte is not None and 0 <= dte <= 1
 
-    base = _nearest(rows, last_epoch - window_min * 60)
-    base5 = _nearest(rows, last_epoch - 5 * 60)
-    base15 = _nearest(rows, last_epoch - 15 * 60)
-    base30 = _nearest(rows, last_epoch - 30 * 60)
-    base60 = _nearest(rows, last_epoch - 60 * 60)
+    epochs = _epochs_for(rows)
+    ordered_epochs = all(a <= b for a, b in zip(epochs, epochs[1:]))
+    if ordered_epochs:
+        base = rows[_nearest_index(epochs, last_epoch - window_min * 60)]
+        base5 = rows[_nearest_index(epochs, last_epoch - 5 * 60)]
+        base15 = rows[_nearest_index(epochs, last_epoch - 15 * 60)]
+        base30 = rows[_nearest_index(epochs, last_epoch - 30 * 60)]
+        base60 = rows[_nearest_index(epochs, last_epoch - 60 * 60)]
+    else:
+        base = _nearest(rows, last_epoch - window_min * 60)
+        base5 = _nearest(rows, last_epoch - 5 * 60)
+        base15 = _nearest(rows, last_epoch - 15 * 60)
+        base30 = _nearest(rows, last_epoch - 30 * 60)
+        base60 = _nearest(rows, last_epoch - 60 * 60)
     base_chain = _chain(base)
     base5_chain = _chain(base5)
     base15_chain = _chain(base15)
@@ -589,7 +645,7 @@ def compute_wall_state(
                      if len(rows) > 1 else 0.0)
     stale = age_sec > STALE_SEC or last_interval > GAP_SEC
 
-    events = _scan_events(rows, window_min, expiry_day)
+    events = _scan_events(rows, window_min, expiry_day, epochs)
 
     reasons: list[str] = []
     if dte is not None:

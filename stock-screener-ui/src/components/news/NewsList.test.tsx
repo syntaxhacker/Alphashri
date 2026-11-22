@@ -4,7 +4,7 @@ import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { NewsList } from "./NewsList";
 import type { NewsItem } from "./news-types";
-import { TestWrapper } from "../../test/test-utils";
+import { TestWrapper } from "@/test-utils/renderWithProviders";
 
 vi.mock("./SentimentBadge", () => ({
   SentimentBadge: ({ sentiment }: { sentiment?: string }) => (

@@ -8,8 +8,8 @@ import {
   mockTradeHistoryWithSampleData,
   isPaginationVisible,
   selectWeekFilter,
-} from "../helpers/tradeHistoryHelpers";
-import { mockTradeHistoryWithCount } from "../helpers/tradeHistoryHelpers";
+  mockTradeHistoryWithCount,
+} from "./helpers/tradeHistoryHelpers";
 
 async function expandTradeRow(page: Page) {
   await mockTradeHistoryWithSampleData(page);

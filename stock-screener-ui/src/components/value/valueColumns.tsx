@@ -46,24 +46,29 @@ const VALUE_CSV_COLUMNS: ValueCsvColumn[] = [
 
 export const VALUE_CSV_HEADERS: string[] = VALUE_CSV_COLUMNS.map((c) => c.header);
 
+/** A missing metric is an empty CSV cell — never the literal "NaN"/"undefined". */
+function csvNumber(value: number | null | undefined): number | string {
+  return typeof value === "number" && Number.isFinite(value) ? value : "";
+}
+
 export function valueRowToCsvRow(row: ValueRow): (string | number)[] {
   return [
     row.symbol,
     row.name,
     row.exchange,
-    row.price,
-    row.change,
-    row.mcap_bn,
-    row.pe ?? "",
-    row.ps ?? "",
-    row.pb ?? "",
-    row.fcf_yield ?? "",
-    row.roe ?? "",
-    row.rev_yoy ?? "",
-    row.score,
+    csvNumber(row.price),
+    csvNumber(row.change),
+    csvNumber(row.mcap_bn),
+    csvNumber(row.pe),
+    csvNumber(row.ps),
+    csvNumber(row.pb),
+    csvNumber(row.fcf_yield),
+    csvNumber(row.roe),
+    csvNumber(row.rev_yoy),
+    csvNumber(row.score),
     row.peer.bucket,
     row.flags.join("|"),
-    row.off_52w_high ?? "",
+    csvNumber(row.off_52w_high),
   ];
 }
 

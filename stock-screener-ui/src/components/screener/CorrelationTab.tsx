@@ -1,4 +1,4 @@
-import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { Show, createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
 import {
   Alert,
@@ -8,6 +8,7 @@ import {
   Select,
   Stack,
   ToolbarRow,
+  useDebouncedValue,
 } from "@/ui";
 import { IconAlertCircle, IconChartLine } from "./icons";
 import {
@@ -28,6 +29,7 @@ import {
 } from "../../state/correlation";
 import { searchSymbols } from "../../api/symbols";
 import type { SymbolResult } from "../../api/symbols";
+import { useStoreSnapshot } from "../../hooks/useStoreSubscription";
 import { CorrelationMatrix } from "./CorrelationMatrix";
 import { CorrelationChart } from "./CorrelationChart";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
@@ -55,39 +57,13 @@ function firstParam(value: string | string[] | undefined): string | null {
   return raw ?? null;
 }
 
-// Inline Solid twin of useDebouncedValue (the ui-kit helper captures the
-// first value only, so the debounce never fires on later input).
-function useDebouncedSignal(getValue: () => string, wait: number) {
-  const [debounced, setDebounced] = createSignal(getValue());
-  createEffect(() => {
-    const value = getValue();
-    const timer = setTimeout(() => setDebounced(value), wait);
-    onCleanup(() => clearTimeout(timer));
-  });
-  return debounced;
-}
-
-// src/hooks/useStoreSubscription.ts's useStoreSnapshot misses its createMemo
-// import, so the snapshot is inlined here with the same semantics.
-function useCorrelationSnapshot() {
-  const [tick, setTick] = createSignal(0);
-  createEffect(() => {
-    const unsubscribe = subscribe(() => setTick((n) => n + 1));
-    onCleanup(unsubscribe);
-  });
-  return createMemo(() => {
-    tick();
-    return { symbols, timeframe, period, matrix, normalized, meta, isLoading, error };
-  });
-}
-
 export function CorrelationTab() {
-  const store = useCorrelationSnapshot();
+  const store = useStoreSnapshot(subscribe, () => ({ symbols, timeframe, period, matrix, normalized, meta, isLoading, error }));
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [searchData, setSearchData] = createSignal<SymbolResult[]>([]);
   const [searchText, setSearchText] = createSignal("");
-  const debouncedSearch = useDebouncedSignal(searchText, 250);
+  const [debouncedSearch] = useDebouncedValue(searchText, 250);
   const [localSymbols, setLocalSymbols] = createSignal<string[]>(
     firstParam(searchParams.symbols)?.split(",").filter(Boolean) || symbols,
   );
@@ -107,7 +83,10 @@ export function CorrelationTab() {
           setPeriod(parseInt(p, 10));
           setPeriodUnit(tf === "intraday" ? "minutes" : "days");
         }
-        setTimeout(() => fetchCorrelationData(), 0);
+        // Defer so the URL-derived setters above have published before the fetch
+        // reads the store; clear it so leaving the tab cannot fire a late request.
+        const timer = setTimeout(() => fetchCorrelationData(), 0);
+        onCleanup(() => clearTimeout(timer));
       }
     }
   });

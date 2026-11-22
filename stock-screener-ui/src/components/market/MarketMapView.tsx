@@ -342,15 +342,28 @@ export function MarketMapView(props: MarketMapViewProps) {
       "metric",
     ),
   );
-  const built = createMemo(() => {
+  type TreemapOption = ReturnType<typeof layout>;
+  let prevLayout: TreemapOption | undefined;
+  let prevBuilt: TreemapOption | undefined;
+  const built = createMemo<TreemapOption>(() => {
     const option = layout();
-    return {
-      ...option,
-      series: [{
-        ...option.series[0],
-        data: suppressTinyFlatLabels(option.series[0].data, chartWidth(), chartHeight()),
-      }],
-    };
+    if (option !== prevLayout) {
+      prevLayout = option;
+      prevBuilt = undefined;
+    }
+    // Re-apply to the last decorated tiles: suppressTinyFlatLabels' reuse guard
+    // only sees an unchanged decision when its input already carries that
+    // decision. Resizing a stable snapshot must not allocate a new option — the
+    // canvas would recolour every tile and ECharts would re-lay out the map.
+    const source = prevBuilt?.series[0].data ?? option.series[0].data;
+    const data = suppressTinyFlatLabels(source, chartWidth(), chartHeight());
+    if (prevBuilt && data === prevBuilt.series[0].data) return prevBuilt;
+    const next =
+      data === option.series[0].data
+        ? option
+        : { ...option, series: [{ ...option.series[0], data }] };
+    prevBuilt = next;
+    return next;
   });
   // The counter reads the builder's own output, not the filtered row list: a
   // row with no drawable area must not be reported as a tile on the map.

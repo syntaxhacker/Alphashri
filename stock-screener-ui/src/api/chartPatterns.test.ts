@@ -18,6 +18,7 @@ import {
   fetchSummary,
   fetchSymbolDetail,
   fetchSymbolChart,
+  clearPatternsApiCache,
 } from "./chartPatterns";
 import { errorResponse, okResponse } from "./apiTestMocks";
 
@@ -30,6 +31,7 @@ function queryOf(url: string): URLSearchParams {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clearPatternsApiCache();
 });
 
 afterEach(() => {

@@ -1,0 +1,5 @@
+# The repo-root .gitignore ignores *.json globally. Generated timing files
+# (pytest-timings.json, vitest-timings.json, *-summary.json) stay ignored;
+# only the checked-in budget files must be trackable.
+!budgets.json
+!api_budgets.json

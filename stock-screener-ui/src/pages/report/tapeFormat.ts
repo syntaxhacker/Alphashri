@@ -86,22 +86,34 @@ export interface TapeScale {
   spot_flip: number;
 }
 
-export function computeTapeScale(rows: NiftyTapeRow[]): TapeScale {
-  const maxAbs = (pick: (r: NiftyTapeRow) => number | null | undefined): number =>
-    rows.reduce((m, r) => {
-      const v = pick(r);
-      return v === null || v === undefined || !Number.isFinite(v) ? m : Math.max(m, Math.abs(v));
-    }, 0);
-  return {
-    call_doi: maxAbs((r) => r.call_doi),
-    put_doi: maxAbs((r) => r.put_doi),
-    net: maxAbs((r) => r.net),
-    net_pct: maxAbs((r) => r.net_pct),
-    call_tick: maxAbs((r) => r.call_tick),
-    put_tick: maxAbs((r) => r.put_tick),
-    pcr_doi: maxAbs((r) => r.pcr_doi),
-    spot_flip: maxAbs((r) => r.spot_flip),
-  };
+const maxAbs = (cur: number, v: number | null | undefined): number =>
+  v === null || v === undefined || !Number.isFinite(v) ? cur : Math.max(cur, Math.abs(v));
+
+/**
+ * One pass over the rows for all eight maxima. The old version ran eight
+ * `reduce`s — eight full scans of a ~375-row tape on every poll — for the same
+ * numbers.
+ */
+export function computeTapeScale(rows: readonly NiftyTapeRow[]): TapeScale {
+  let call_doi = 0;
+  let put_doi = 0;
+  let net = 0;
+  let net_pct = 0;
+  let call_tick = 0;
+  let put_tick = 0;
+  let pcr_doi = 0;
+  let spot_flip = 0;
+  for (const r of rows) {
+    call_doi = maxAbs(call_doi, r.call_doi);
+    put_doi = maxAbs(put_doi, r.put_doi);
+    net = maxAbs(net, r.net);
+    net_pct = maxAbs(net_pct, r.net_pct);
+    call_tick = maxAbs(call_tick, r.call_tick);
+    put_tick = maxAbs(put_tick, r.put_tick);
+    pcr_doi = maxAbs(pcr_doi, r.pcr_doi);
+    spot_flip = maxAbs(spot_flip, r.spot_flip);
+  }
+  return { call_doi, put_doi, net, net_pct, call_tick, put_tick, pcr_doi, spot_flip };
 }
 
 export function tapeHeat(
@@ -116,19 +128,29 @@ export function tapeHeat(
   return hexToRgba(hue, floor + (ceil - floor) * r);
 }
 
-export function computeSpotDeltas(rows: NiftyTapeRow[]): Map<string, number> {
-  const asc = ascTapeByTime(rows);
+/**
+ * `asc` is an optional pre-sorted view of `rows`. Callers that already hold the
+ * chronological tape pass it in so this derivation never sorts a second time.
+ */
+export function computeSpotDeltas(
+  rows: readonly NiftyTapeRow[],
+  asc?: readonly NiftyTapeRow[],
+): Map<string, number> {
+  const sorted = asc ?? ascTapeByTime(rows);
   const out = new Map<string, number>();
-  for (let i = 1; i < asc.length; i++) {
-    const prev = asc[i - 1];
-    const cur = asc[i];
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1];
+    const cur = sorted[i];
     if (!Number.isFinite(prev.spot) || !Number.isFinite(cur.spot)) continue;
     out.set(cur.t, cur.spot - prev.spot);
   }
   return out;
 }
 
-export function computeTapeSession(rows: NiftyTapeRow[]): {
+export function computeTapeSession(
+  rows: readonly NiftyTapeRow[],
+  asc?: readonly NiftyTapeRow[],
+): {
   spotHi: number;
   spotLo: number;
   maxCallDoi: number;
@@ -139,7 +161,7 @@ export function computeTapeSession(rows: NiftyTapeRow[]): {
   let spotLo = Infinity;
   let maxCallDoi = 0;
   let maxPutDoi = 0;
-  const asc = ascTapeByTime(rows);
+  const sorted = asc ?? ascTapeByTime(rows);
   for (const r of rows) {
     if (Number.isFinite(r.spot)) {
       spotHi = Math.max(spotHi, r.spot);
@@ -150,7 +172,7 @@ export function computeTapeSession(rows: NiftyTapeRow[]): {
     if (Number.isFinite(c)) maxCallDoi = Math.max(maxCallDoi, c);
     if (Number.isFinite(p)) maxPutDoi = Math.max(maxPutDoi, p);
   }
-  const last = asc.length > 0 ? asc[asc.length - 1] : null;
+  const last = sorted.length > 0 ? sorted[sorted.length - 1] : null;
   const netLast = last && Number.isFinite(last.net) ? last.net : 0;
   return {
     spotHi: Number.isFinite(spotHi) ? spotHi : 0,
@@ -196,22 +218,30 @@ export function formatTapeBaseline(t: string | null | undefined): string {
   return formatTapeTime(t).slice(0, 5);
 }
 
-export function getTapeBaseline(tape?: NiftyTape, rows?: NiftyTapeRow[]): string | null {
+export function getTapeBaseline(
+  tape?: NiftyTape,
+  rows?: readonly NiftyTapeRow[],
+  asc?: readonly NiftyTapeRow[],
+): string | null {
   const explicit =
     tape?.baseline_t && tape.baseline_t.length > 0
       ? formatTapeBaseline(tape.baseline_t)
       : "";
   if (explicit) return explicit;
   if (rows && rows.length > 0) {
-    const asc = ascTapeByTime(rows);
-    const hhmm = formatTapeBaseline(asc[0]?.t);
+    const sorted = asc ?? ascTapeByTime(rows);
+    const hhmm = formatTapeBaseline(sorted[0]?.t);
     if (hhmm) return hhmm;
   }
   return null;
 }
 
-export function tapeDoiLabel(tape?: NiftyTape, rows?: NiftyTapeRow[]): string {
-  const baseline = getTapeBaseline(tape, rows);
+export function tapeDoiLabel(
+  tape?: NiftyTape,
+  rows?: readonly NiftyTapeRow[],
+  asc?: readonly NiftyTapeRow[],
+): string {
+  const baseline = getTapeBaseline(tape, rows, asc);
   return baseline ? `PCR ΔOI since ${baseline}` : "PCR ΔOI since open";
 }
 
@@ -224,9 +254,10 @@ export function tapeDoiLabel(tape?: NiftyTape, rows?: NiftyTapeRow[]): string {
  * flip − spot, so one level read with opposite signs in two places.
  */
 export function buildTapeHead(
-  rows: NiftyTapeRow[],
+  rows: readonly NiftyTapeRow[],
   tape?: NiftyTape,
   flipAtSpot?: number | null,
+  asc?: readonly NiftyTapeRow[],
 ): {
   pcrOi: number;
   pcrDoiDelta: number;
@@ -237,9 +268,9 @@ export function buildTapeHead(
   wallPut: number;
   spot: number;
 } {
-  const asc = ascTapeByTime(rows);
-  const first = asc[0];
-  const last = asc[asc.length - 1];
+  const sorted = asc ?? ascTapeByTime(rows);
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
   const pick = (rowVal: number, sumVal?: number): number =>
     rowVal !== 0 ? rowVal : (sumVal ?? 0);
   // A spot-relative flip (from `gexFlipAtSpot`) wins over the row's recorded

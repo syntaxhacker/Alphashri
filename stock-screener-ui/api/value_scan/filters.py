@@ -199,6 +199,10 @@ def _passes(row: Mapping, f: Mapping) -> bool:
 
     sectors = f.get("sectors")
     if sectors:
+        # The HTTP layer delivers a comma-separated query string; callers that
+        # build filter dicts in Python pass a list. Treat both identically.
+        if isinstance(sectors, str):
+            sectors = sectors.split(",")
         wanted = {str(s).strip().lower() for s in sectors if str(s).strip()}
         if wanted and sector_bucket(row.get("sector")).lower() not in wanted:
             return False

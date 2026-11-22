@@ -12,6 +12,7 @@ import {
   type ReplayTrade,
 } from "@/components/replay/tick";
 import { useReplayClock } from "./useReplayClock";
+import { closedCount, newStableArray, revealedCount, stableArray } from "./stableReveal";
 import ReplayChartHost, { type ReplayChartHandle } from "./ReplayChartHost";
 import ReplayControls from "./ReplayControls";
 import SymbolAutocomplete from "@/components/common/SymbolAutocomplete";
@@ -199,9 +200,19 @@ export default function ReplayShell(props: { plugin: ReplayStrategyPlugin; heade
 
   const trades = () => bundle()?.trades ?? EMPTY_TRADES;
 
-  const revealed = createMemo(() => (bundle() ? bundle()!.trades.filter(t => t.time <= clock()) : []));
-  const closed = createMemo(() => revealed().filter(t => t.exit_time <= clock()));
-  const net = () => closed().reduce((a, t) => a + t.pnl, 0);
+  const revealedCache = newStableArray<ReplayTrade>();
+  const closedCache = newStableArray<ReplayTrade>();
+  const revealed = createMemo(() => {
+    const all = trades();
+    const now = clock();
+    return stableArray(all, revealedCount(all, now), () => all.filter(t => t.time <= now), revealedCache);
+  });
+  const closed = createMemo(() => {
+    const rev = revealed();
+    const now = clock();
+    return stableArray(rev, closedCount(rev, now), () => rev.filter(t => t.exit_time <= now), closedCache);
+  });
+  const net = createMemo(() => closed().reduce((a, t) => a + t.pnl, 0));
 
   // Initialize at the END of the session so the chart opens with the full day visible
   // (previously it seeded the first bar and showed a near-empty chart). Pressing Play

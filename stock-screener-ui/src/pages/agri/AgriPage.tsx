@@ -50,8 +50,9 @@ import { buildEdaOption } from "./agriEdaOptions";
 import { monthlyBox, monthlyHeatmap, seasonality, summariseEda, supplyDemand } from "./agriEda";
 import { agriRangeStart, formatAgriSessionDate } from "./agriDates";
 import { AGRI_QUOTE_DEFAULT_SORT, agriColumns, type AgriTableViewRow } from "./agriColumns";
-import { AgriGroupOverview, type AgriGroupSummary } from "./AgriGroupOverview";
+import { AgriGroupOverview } from "./AgriGroupOverview";
 import { AgriFluctuationMatrix } from "./AgriFluctuationMatrix";
+import { buildAgriGroupSummaries } from "./agriGroupSummary";
 
 type SelectOption = { value: string; label: string; group?: string };
 type Mover = { key: string; label: string; change: number };
@@ -198,23 +199,30 @@ export function AgriPage() {
   const statCols = () => (isMobile() ? 2 : isMid() ? 4 : 8);
   const statCardClass = () => (isMobile() ? `${STAT_CARD} w-[176px] shrink-0` : STAT_CARD);
 
+  let activeFilterController: AbortController | null = null;
   function loadFilters() {
+    activeFilterController?.abort();
     const controller = new AbortController();
+    activeFilterController = controller;
     setFiltersLoading(true);
     setFiltersError(null);
     fetchAgriFilters(controller.signal)
       .then((data) => {
+        if (controller.signal.aborted) return;
         setFiltersData(data);
         setReady(true);
       })
       .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
         setFiltersError(error instanceof Error ? error.message : "Failed to load agri filters");
       })
-      .finally(() => setFiltersLoading(false));
-    onCleanup(() => controller.abort());
+      .finally(() => {
+        if (!controller.signal.aborted) setFiltersLoading(false);
+      });
   }
 
   onMount(loadFilters);
+  onCleanup(() => activeFilterController?.abort());
 
   let activeController: AbortController | null = null;
   let requestSeq = 0;
@@ -423,36 +431,7 @@ export function AgriPage() {
   const comparison = createMemo(() => prices()?.comparison ?? []);
   const snapshot = createMemo(() => prices()?.snapshot ?? []);
   const movers = createMemo(() => moversFromSnapshot(snapshot()));
-  const groupSummaries = createMemo<AgriGroupSummary[]>(() =>
-    AGRI_GROUPS.map((group) => {
-      const changeOf = (row: AgriSnapshot) => row.chg_6m_pct ?? row.chg_1m_pct;
-      const rows = snapshot().filter((row) => row.group === group.key && row.date);
-      const changes = rows
-        .map(changeOf)
-        .filter((value): value is number => typeof value === "number" && Number.isFinite(value))
-        .sort((a, b) => a - b);
-      const median = changes.length > 0
-        ? changes[Math.floor((changes.length - 1) / 2)]
-        : null;
-      const ranked = rows
-        .filter((row) => typeof changeOf(row) === "number" && Number.isFinite(changeOf(row)))
-        .sort((a, b) => (changeOf(b) as number) - (changeOf(a) as number));
-      const best = ranked[0];
-      const worst = ranked[ranked.length - 1];
-      return {
-        key: group.key,
-        index: median == null ? null : 100 + median,
-        index_chg_pct: median,
-        up_count: changes.filter((value) => value > 0).length,
-        total_count: rows.length,
-        breadth_pct: rows.length > 0 ? (changes.filter((value) => value > 0).length / rows.length) * 100 : null,
-        best: best ? { key: best.key, label: best.label, chg_pct: changeOf(best) } : null,
-        worst: worst ? { key: worst.key, label: worst.label, chg_pct: changeOf(worst) } : null,
-        mandis: rows.reduce((sum, row) => sum + row.markets, 0),
-        as_of: rows.reduce<string | null>((latest, row) => (!latest || row.date > latest ? row.date : latest), null),
-      };
-    }),
-  );
+  const groupSummaries = createMemo(() => buildAgriGroupSummaries(snapshot()));
 
   const freshness = createMemo(() => {
     const days = freshnessDays();
@@ -546,9 +525,12 @@ export function AgriPage() {
     const count = total != null ? `showing ${shown} of ${total} quotes` : `${shown} quote${shown === 1 ? "" : "s"} shown`;
     return `${count} · API page, not the full mandi universe`;
   });
-  const gapWarnings = createMemo(() => warnings().filter((warning) => warningKind(warning) === "gap"));
+  const classifiedWarnings = createMemo(() =>
+    warnings().map((text) => ({ text, kind: warningKind(text) })),
+  );
+  const gapWarnings = createMemo(() => classifiedWarnings().filter((warning) => warning.kind === "gap"));
   const coverageWarnings = createMemo(() =>
-    warnings().filter((warning) => warningKind(warning) === "coverage"),
+    classifiedWarnings().filter((warning) => warning.kind === "coverage"),
   );
 
   const tableRows = createMemo<AgriTableViewRow[]>(() => {
@@ -638,6 +620,7 @@ export function AgriPage() {
                 size="sm"
                 style={{ width: "100%" }}
                 data-testid="agri-group-select"
+                aria-label="Commodity group"
               />
             </Box>
           </Box>
@@ -651,6 +634,7 @@ export function AgriPage() {
                 size="sm"
                 style={{ width: "100%" }}
                 data-testid="agri-commodity-select"
+                aria-label="Commodity"
               />
             </Box>
           </Box>
@@ -672,6 +656,7 @@ export function AgriPage() {
                   onClick={() => setRange(preset.key)}
                   title={preset.description}
                   data-testid={`agri-range-${preset.key}`}
+                  aria-pressed={range() === preset.key}
                 >
                   {preset.label}
                 </Button>
@@ -696,6 +681,7 @@ export function AgriPage() {
               size="sm"
               style={{ width: "100%" }}
               data-testid="agri-state-select"
+              aria-label="State"
             />
           </Box>
           <Box className="w-[116px] max-sm:w-[104px]">
@@ -710,6 +696,7 @@ export function AgriPage() {
               size="sm"
               style={{ width: "100%" }}
               data-testid="agri-district-select"
+              aria-label="District"
             />
           </Box>
           <Box className="w-[116px] max-sm:w-[104px]">
@@ -721,6 +708,7 @@ export function AgriPage() {
               size="sm"
               style={{ width: "100%" }}
               data-testid="agri-market-select"
+              aria-label="Mandi"
             />
           </Box>
         </Box>
@@ -774,28 +762,25 @@ export function AgriPage() {
           className="shrink-0 rounded-[6px] border border-fin-border bg-fin-surface px-2 py-1"
           data-testid="agri-warnings"
         >
-          <For each={warnings()}>
-            {(warning) => {
-              const kind = warningKind(warning);
-              return (
-                <Text
-                  size="xs"
-                  c="dimmed"
-                  className="block break-words"
-                  style={{ "font-size": "10px" }}
-                  data-testid={
-                    kind === "gap"
-                      ? "agri-gap-warning"
-                      : kind === "coverage"
-                        ? "agri-coverage-warning"
-                        : "agri-warning"
-                  }
-                >
-                  <span style={{ "font-weight": 700, "text-transform": "uppercase" }}>{kind}</span>{" "}
-                  {warning}
-                </Text>
-              );
-            }}
+          <For each={classifiedWarnings()}>
+            {(warning) => (
+              <Text
+                size="xs"
+                c="dimmed"
+                className="block break-words"
+                style={{ "font-size": "10px" }}
+                data-testid={
+                  warning.kind === "gap"
+                    ? "agri-gap-warning"
+                    : warning.kind === "coverage"
+                      ? "agri-coverage-warning"
+                      : "agri-warning"
+                }
+              >
+                <span style={{ "font-weight": 700, "text-transform": "uppercase" }}>{warning.kind}</span>{" "}
+                {warning.text}
+              </Text>
+            )}
           </For>
           <Show when={gapWarnings().length === 0 && coverageWarnings().length === 0}>
             <Text size="xs" c="dimmed" className="block break-words" style={{ "font-size": "10px" }}>
@@ -954,6 +939,7 @@ export function AgriPage() {
                 className={pageView() === "chart" ? "font-semibold" : undefined}
                 onClick={() => setPageView("chart")}
                 data-testid="agri-view-chart"
+                aria-pressed={pageView() === "chart"}
               >
                 Chart
               </Button>
@@ -965,6 +951,7 @@ export function AgriPage() {
                 className={pageView() === "groups" ? "font-semibold" : undefined}
                 onClick={() => setPageView("groups")}
                 data-testid="agri-view-groups"
+                aria-pressed={pageView() === "groups"}
               >
                 Categories
               </Button>
@@ -1074,6 +1061,7 @@ export function AgriPage() {
                           title={item.description}
                           onClick={() => setMode(item.key)}
                           data-testid={`agri-mode-${item.key}`}
+                          aria-pressed={mode() === item.key}
                         >
                           {item.label}
                         </Button>
@@ -1090,6 +1078,7 @@ export function AgriPage() {
                     size="sm"
                     style={{ width: "100%" }}
                     data-testid="agri-mode-select"
+                    aria-label="Chart view"
                   />
                 </Box>
               </Show>
@@ -1131,6 +1120,7 @@ export function AgriPage() {
                       size="xs"
                       style={{ width: "100%" }}
                       data-testid="agri-compare-add"
+                      aria-label="Add commodity to comparison"
                     />
                   </Box>
                 </Show>

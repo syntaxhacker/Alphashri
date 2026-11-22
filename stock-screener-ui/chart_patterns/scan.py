@@ -88,7 +88,17 @@ SCAN_DETECTOR_VERSION = 5
 _FRAME_INTERIOR_COLS = ("close", "high", "low", "volume")
 
 
-def _detector_signature(data_through: Optional[str] = None) -> str:
+def _trendline_sig() -> str:
+    """Fail-soft trendline settings signature (the detector key's variable part)."""
+    try:
+        return config.trendline_signature()
+    except Exception:
+        return "unknown"
+
+
+def _detector_signature(
+    data_through: Optional[str] = None, tl_sig: Optional[str] = None
+) -> str:
     """Cheap detector/data signature for the freshness key.
 
     ``v{version}|tl:{trendline settings}`` identifies the detector build; the
@@ -97,11 +107,13 @@ def _detector_signature(data_through: Optional[str] = None) -> str:
     detector part — a detector change (or a job from before signatures
     existed) forces a recompute. Intra-session data freshness stays bounded
     by the ``_is_fresh`` TTL/session check, not by this string.
+
+    ``tl_sig`` lets a caller that already needed the settings signature reuse
+    it instead of rebuilding the same string (the scan hot path stamps every
+    hit with it). The result is byte-identical to computing it here.
     """
-    try:
-        tl_sig = config.trendline_signature()
-    except Exception:
-        tl_sig = "unknown"
+    if tl_sig is None:
+        tl_sig = _trendline_sig()
     base = f"v{SCAN_DETECTOR_VERSION}|tl:{tl_sig}"
     if data_through:
         return f"{base}|data:{data_through}"
@@ -214,8 +226,9 @@ def _stored_scan_signature(prev: dict) -> Optional[str]:
     return sig if isinstance(sig, str) and sig else None
 
 
-def _signature_matches(prev: dict) -> bool:
-    current = _detector_signature()
+def _signature_matches(prev: dict, current: Optional[str] = None) -> bool:
+    if current is None:
+        current = _detector_signature()
     stored = _stored_scan_signature(prev)
     if not stored:
         return False
@@ -397,8 +410,14 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
                    as_of_date=None, from_date=None,
                    include_partial_today: Optional[bool] = None,
                    prev_hit: Optional[dict] = None,
-                   partial_bar: Optional[pd.DataFrame] = None) -> dict:
+                   partial_bar: Optional[pd.DataFrame] = None,
+                   signature: Optional[tuple[str, str]] = None) -> dict:
     """Fetch + detect one symbol. Never raises; returns a status dict.
+
+    ``signature`` is the job's precomputed ``(detector_sig, tl_sig)`` pair. It
+    is job-invariant, so passing it lets a worker skip rebuilding both strings
+    (once for the source key, once for the stored ``trend_lines_sig``). Direct
+    callers that omit it keep the original per-call lookups.
 
     With ``as_of_date`` set the fetch window ends on that date (its time
     portion truncates the frame via :func:`candles.truncate_frame_to` so
@@ -489,10 +508,14 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
     # detector build + detection params match, skip detection + trendlines and
     # return the stored hit instead. A missing or legacy signature falls
     # through to a normal detect.
-    # The detector build signature is constant for the whole job; compute it
-    # once per symbol instead of once per hit. ``data_through`` already carries
-    # the frame's session date, so reuse it for the frame digest too.
-    detector_sig = _detector_signature()
+    # The detector build signature is constant for the whole job: ``run_job``
+    # computes it once and passes it down. ``data_through`` already carries the
+    # frame's session date, so reuse it for the frame digest too.
+    if signature is None:
+        detector_sig = _detector_signature()
+        tl_sig = config.trendline_signature()
+    else:
+        detector_sig, tl_sig = signature
     source_sig = _source_sig(
         df, timeframe, lookback_bars, compute_trendlines,
         detector_sig=detector_sig, last_date=data_through,
@@ -535,7 +558,7 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
             scan_trend_lines = []
             trend_lines_window = None
 
-    trend_sig = config.trendline_signature() if (compute_trendlines and hits) else None
+    trend_sig = tl_sig if (compute_trendlines and hits) else None
     enriched = []
     for hit in hits:
         try:
@@ -640,6 +663,13 @@ def run_job(job_id: str) -> None:
     is_replay = as_of_date is not None or from_date is not None
     include_partial_today = params.get("include_partial_today", None)
 
+    # Detector settings are job-invariant. Compute both strings once here and
+    # share them with every worker and with the terminal job state instead of
+    # rebuilding them in each symbol and in each state update.
+    _tl_sig = _trendline_sig()
+    _det_sig = _detector_signature(tl_sig=_tl_sig)
+    _job_signature = (_det_sig, _tl_sig)
+
     try:
         if raw_symbols:
             symbols, names = _normalize_universe(raw_symbols)
@@ -692,7 +722,7 @@ def run_job(job_id: str) -> None:
             prev = None
         if (prev and prev.get("job_id") != job_id
                 and _is_fresh(prev.get("finished_at"))
-                and _signature_matches(prev)):
+                and _signature_matches(prev, current=_det_sig)):
             # Fresh + same detector build: reuse the previous counts without
             # re-detecting, but say so on the job state (reused*) so the UI
             # can tell a reuse from a fresh compute. The reuse fields are
@@ -715,7 +745,7 @@ def run_job(job_id: str) -> None:
                 "reused_age_sec": _reuse_age_sec(prev_finished),
                 "reused_finished_at": prev_finished_iso,
                 "reused_signature": _stored_scan_signature(prev),
-                "scan_signature": _detector_signature(),
+                "scan_signature": _det_sig,
                 "provenance": reuse_provenance,
             })
             jobs_mod.update_state(
@@ -727,7 +757,7 @@ def run_job(job_id: str) -> None:
                 reused_age_sec=_reuse_age_sec(prev_finished),
                 reused_finished_at=prev_finished_iso,
                 reused_signature=_stored_scan_signature(prev),
-                scan_signature=_detector_signature(),
+                scan_signature=_det_sig,
                 provenance=reuse_provenance,
                 params=reuse_params,
             )
@@ -794,9 +824,9 @@ def run_job(job_id: str) -> None:
         _empty_state: dict = {
             "status": "completed", "total": 0, "done": 0,
             "failed": 0, "skipped": 0, "finished_at": _now(),
-            "scan_signature": _detector_signature(),
+            "scan_signature": _det_sig,
             "provenance": _empty_provenance,
-            "params": {**params, "scan_signature": _detector_signature(),
+            "params": {**params, "scan_signature": _det_sig,
                        "provenance": _empty_provenance},
         }
         if prefilter_message:
@@ -855,6 +885,7 @@ def run_job(job_id: str) -> None:
             _process_symbol, symbol, timeframe, job_id, names.get(symbol), lookback_bars,
             compute_trendlines, as_of_date, from_date, include_partial_today,
             prev_by_symbol.get(symbol), partial_bars.get(symbol),
+            signature=_job_signature,
         )
 
     def _consume(symbol: str, result: dict) -> None:
@@ -1048,14 +1079,15 @@ def run_job(job_id: str) -> None:
                 params={**params, "reused": reused, "provenance": _done_provenance},
             )
             return
+        _done_det_sig = _detector_signature(max_date, tl_sig=_tl_sig)
         _done_state: dict = {
             "status": "completed", "done": done, "failed": failed,
             "skipped": skipped, "no_hits": no_hits, "reused": reused,
             "data_through": max_date, "finished_at": _now(),
-            "scan_signature": _detector_signature(max_date),
+            "scan_signature": _done_det_sig,
             "provenance": _done_provenance,
             "params": {**params, "reused": reused,
-                       "scan_signature": _detector_signature(max_date),
+                       "scan_signature": _done_det_sig,
                        "provenance": _done_provenance},
         }
         if prefilter_message:

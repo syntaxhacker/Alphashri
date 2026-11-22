@@ -85,3 +85,45 @@ export function highlightChainLevels(
 
   return { keys, ...(tint ? { tint } : {}), rails };
 }
+
+/** Everything the chain row's style and attributes need for one level strike. */
+export interface ChainRowDecoration {
+  /** Canonical level keys joined in `data-level` order. */
+  levelAttr: string | undefined;
+  tint: string | undefined;
+  shadow: string | undefined;
+}
+
+/** Shared value for the many strikes that carry no level — no per-row Set/array. */
+export const EMPTY_ROW_DECORATION: ChainRowDecoration = Object.freeze({
+  levelAttr: undefined,
+  tint: undefined,
+  shadow: undefined,
+});
+
+/**
+ * Index the few strikes that actually carry a level. The old path derived a
+ * highlight twice per row (once for style, once for attributes) on every spot
+ * or levels change — a 60-row window paid 120 Set/filter/join allocations for
+ * what is usually two strikes. Callers now build this once per levels change
+ * and do an O(1) lookup; every other strike reads the frozen empty value.
+ */
+export function buildHighlightIndex(
+  levels: OptionChainLevels | null | undefined,
+): Map<number, ChainRowDecoration> {
+  const index = new Map<number, ChainRowDecoration>();
+  if (!levels) return index;
+  const levelStrikes = new Set<number>();
+  if (levels.callWall) levelStrikes.add(levels.callWall.strike);
+  if (levels.putWall) levelStrikes.add(levels.putWall.strike);
+  if (levels.maxPain) levelStrikes.add(levels.maxPain.strike);
+  for (const strike of levelStrikes) {
+    const highlight = highlightChainLevels(levels, strike);
+    index.set(strike, {
+      levelAttr: highlight.keys.length ? highlight.keys.join(" ") : undefined,
+      tint: highlight.tint,
+      shadow: railShadow(highlight.rails),
+    });
+  }
+  return index;
+}

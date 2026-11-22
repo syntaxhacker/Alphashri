@@ -68,7 +68,13 @@ export function setCorrelationData(data: {
   notify();
 }
 
+// The deep-linked tab, the Calculate button and a Compare landing can all fire
+// this fetch. Only the newest request may publish: a slower, older response
+// must not overwrite its data, error or loading state.
+let requestGeneration = 0;
+
 export async function fetchCorrelationData() {
+  const generation = ++requestGeneration;
   setIsLoading(true);
   setError(null);
   try {
@@ -78,6 +84,7 @@ export async function fetchCorrelationData() {
       period,
       period_unit: periodUnit,
     });
+    if (generation !== requestGeneration) return;
     setCorrelationData({
       matrix: response.matrix,
       normalized: response.normalized,
@@ -85,8 +92,11 @@ export async function fetchCorrelationData() {
     });
     setError(null);
   } catch (err) {
+    if (generation !== requestGeneration) return;
     setError(err instanceof Error ? err.message : "Failed to fetch correlation data");
   } finally {
-    setIsLoading(false);
+    if (generation === requestGeneration) {
+      setIsLoading(false);
+    }
   }
 }

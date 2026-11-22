@@ -234,6 +234,7 @@ export function MiniLineChart(props: MiniLineChartProps) {
           onMouseLeave={() => setHover(null)}
           role="img"
         >
+          <title>{props.series.map((s) => s.name).join(", ")}</title>
           <Show when={zeroLine() && Number.isFinite(geometry().zeroY)}>
             <line
               x1={PAD_L}

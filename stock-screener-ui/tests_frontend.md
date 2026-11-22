@@ -10,9 +10,12 @@ This document outlines the established patterns for writing frontend tests in th
 
 ## 2. Directory Structure
 - `tests/e2e/`: End-to-end test files (`*.spec.ts`).
-- `tests/mocks/`: Centralized API mock data and setup functions (`apiResponses.ts`).
-- `tests/helpers/`: Reusable page objects and interaction helpers.
+- `tests/e2e/helpers/`: **The only TypeScript E2E helper location.** Reusable page objects, navigation and route-mock builders (`botHelpers.ts`, `multiStrategyHelpers.ts`, `paperTradingHelpers.ts`, `tradeHistoryHelpers.ts`, …). Mock payloads and single composed fixtures use the `Mocks`/`Fixture` suffix (`agriMocks.ts`, `premiumFixture.ts`). Ownership and naming rules live in `tests/e2e/helpers/README.md`.
+- `tests/mocks/`: Centralized API mock data and setup functions (`apiResponses.ts`, `routeHelper.ts`). Imported from helpers as `../../mocks/...`.
+- `tests/helpers/`: Python-only test helpers (`db.py`). No TypeScript E2E helpers live here.
 - `src/**/*.test.ts`: Unit tests for utilities and business logic.
+
+E2E specs import helpers from `./helpers/<name>`. Importing `../helpers/*.ts` is forbidden — that path points at the Python helper directory and is how a duplicate helper tree survived.
 
 ## 3. End-to-End (E2E) Patterns
 

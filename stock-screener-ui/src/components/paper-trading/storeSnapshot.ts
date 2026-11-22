@@ -1,12 +1,12 @@
 import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 
 /**
- * Local copy of the store-snapshot hook. The canonical one in
- * `src/hooks/useStoreSubscription.ts` is broken twice: it calls `createMemo`
- * without importing it, and the memo reads the signal *setter* instead of the
- * value getter, so it never re-executes. That file is owned by another
- * agent, so my scope carries a working equivalent instead. Swap back to
- * `useStoreSnapshot` once it is fixed there.
+ * Kept for the paper-trading, backtest and replay modules that still import
+ * from this path. Their tests stub the shared hook module with only
+ * `useStoreSubscription`, so a re-export would leave `useStoreSnapshot`
+ * undefined there. Behaviour matches the shared hook exactly; once those
+ * imports and their mocks move to `@/hooks/useStoreSubscription`, this file
+ * can be deleted.
  */
 export function useStoreSnapshot<T>(
   subscribe: (callback: () => void) => () => void,

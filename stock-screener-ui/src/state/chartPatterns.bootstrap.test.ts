@@ -151,4 +151,13 @@ describe("chartPatterns catalog bootstrap", () => {
 
     expect(mocked.fetchTimeframes).toHaveBeenCalledTimes(2);
   });
+
+  it("a forced retry bypasses the API registry cache", async () => {
+    await ensureCatalogLoaded();
+    await ensureCatalogLoaded(true);
+
+    expect(mocked.fetchTimeframes).toHaveBeenCalledWith(true);
+    expect(mocked.fetchUniverses).toHaveBeenCalledWith(true);
+    expect(mocked.fetchPatternCatalog).toHaveBeenCalledWith(true);
+  });
 });

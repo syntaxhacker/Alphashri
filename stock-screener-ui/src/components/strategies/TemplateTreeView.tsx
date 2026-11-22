@@ -20,46 +20,68 @@ import type { StrategyConfig } from "../../types/strategies";
 import type { TemplateTreeViewProps } from "./types";
 import { EditableNumberCell } from "./EditableNumberCell";
 
-export function TemplateTreeView(props: TemplateTreeViewProps) {
-  const nodeMap = createMemo(() => {
-    const map = new Map<string, StrategyConfig>();
-    for (const t of props.templates) {
-      map.set(`tpl-${t.internal_id}`, t);
-    }
-    for (const s of props.strategies) {
-      map.set(`var-${s.internal_id}`, s);
-    }
-    return map;
-  });
+export interface StrategyTreeIndex {
+  nodeMap: Map<string, StrategyConfig>;
+  variationsByParent: Map<string, StrategyConfig[]>;
+}
 
-  const treeData = createMemo(() =>
-    props.templates.map((t) => ({
+// Single pass over templates and strategies. Per-template filtering would rescan
+// every strategy for every template (O(T*S)) in both treeData and renderNode.
+export function buildStrategyTreeIndex(
+  templates: StrategyConfig[],
+  strategies: StrategyConfig[],
+): StrategyTreeIndex {
+  const nodeMap = new Map<string, StrategyConfig>();
+  for (const t of templates) {
+    nodeMap.set(`tpl-${t.internal_id}`, t);
+  }
+
+  const variationsByParent = new Map<string, StrategyConfig[]>();
+  for (const s of strategies) {
+    nodeMap.set(`var-${s.internal_id}`, s);
+    const parentId = s.parent_id;
+    if (parentId != null) {
+      const key = String(parentId);
+      const group = variationsByParent.get(key);
+      if (group) {
+        group.push(s);
+      } else {
+        variationsByParent.set(key, [s]);
+      }
+    }
+  }
+  return { nodeMap, variationsByParent };
+}
+
+export function TemplateTreeView(props: TemplateTreeViewProps) {
+  const index = createMemo(() => buildStrategyTreeIndex(props.templates, props.strategies));
+
+  const treeData = createMemo(() => {
+    const { variationsByParent } = index();
+    return props.templates.map((t) => ({
       value: `tpl-${t.internal_id}`,
       label: t.name,
-      children: props.strategies
-        .filter(
-          (s) => s.parent_id != null && String(s.parent_id) === String(t.internal_id ?? t.id),
-        )
-        .map((s) => ({
-          value: `var-${s.internal_id}`,
-          label: s.name,
-        })),
-    })),
-  );
+      children: (variationsByParent.get(String(t.internal_id ?? t.id)) ?? []).map((s) => ({
+        value: `var-${s.internal_id}`,
+        label: s.name,
+      })),
+    }));
+  });
 
   const tree = useTree({
     initialExpandedState: getTreeExpandedState(treeData(), "*"),
   });
 
   const renderNode = ({ node, elementProps }: any) => {
-    const config = nodeMap().get(node.value);
+    const { nodeMap, variationsByParent } = index();
+    const config = nodeMap.get(node.value);
     if (!config) return <span {...elementProps}>{node.label}</span>;
 
     const isTemplate = node.value.startsWith("tpl-");
     const id = config.internal_id ?? Number(config.id);
-    const vars = isTemplate
-      ? props.strategies.filter((s) => s.parent_id != null && String(s.parent_id) === String(id))
-      : [];
+    const variationCount = isTemplate
+      ? (variationsByParent.get(String(id)) ?? []).length
+      : 0;
 
     const colStyle: JSX.CSSProperties = { width: "70px", flexShrink: 0 };
 
@@ -166,7 +188,7 @@ export function TemplateTreeView(props: TemplateTreeViewProps) {
                   onClick={() => {
                     if (
                       window.confirm(
-                        `Push "${config.name}" params to ${vars.length} variation(s)?`,
+                        `Push "${config.name}" params to ${variationCount} variation(s)?`,
                       )
                     ) {
                       props.onSyncVariations(id);

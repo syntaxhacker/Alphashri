@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import time
 from datetime import date, datetime, timedelta
+from itertools import chain
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
@@ -264,15 +265,11 @@ def _snapshot_rows(
     latest_by_key: dict[str, Optional[str]],
     keys: Iterable[str],
 ) -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = []
-    for key in keys:
-        own_latest = [row for row in latest_rows if row.get("commodity_key") == key]
-        own_history = [row for row in history_rows if row.get("commodity_key") == key]
-        entry = aggregate.latest_snapshot(
-            own_latest, own_history, as_of=latest_by_key.get(key), keys=[key],
-        )[0]
+    out = aggregate.latest_snapshot(
+        latest_rows, history_rows, keys=keys, as_of_by_key=latest_by_key,
+    )
+    for entry in out:
         entry["freshness_days"] = aggregate.freshness_days(entry.get("date"))
-        out.append(entry)
     return out
 
 
@@ -449,7 +446,9 @@ def get_agri_prices(
             if cached is not None:
                 return cached.model_copy(deep=True)
 
-        global_as_of = _as_of_options(conn)["as_of"] or store.latest_date(conn)
+        # Only the newest date is needed here; the option lists would trigger
+        # several full-table DISTINCT scans on a cold cache.
+        global_as_of = store.latest_date(conn)
         if not global_as_of:
             return PricesResponse(
                 ok=True, data_source=DATA_SOURCE_EMPTY, filters=filters, kpis=empty_kpis,
@@ -506,19 +505,23 @@ def get_agri_prices(
         comparison: list[dict[str, Any]] = []
         if compare_keys:
             by_key: dict[str, list[dict[str, Any]]] = {}
+            compare_as_ofs: dict[str, str] = {}
             for compare_key in compare_keys:
                 compare_as_of = latest_by_key.get(compare_key)
                 if not compare_as_of:
                     compare_as_of = _latest_date_per_key(conn, [compare_key], **geo).get(compare_key)
                 compare_as_of = compare_as_of or as_of
+                compare_as_ofs[compare_key] = compare_as_of
                 cutoff = aggregate.range_cutoff(compare_as_of, range_name, from_day)
                 by_key[compare_key] = _fetch_rows(
                     conn, commodity_keys=[compare_key],
                     from_date=cutoff, to_date=to_day or compare_as_of, **geo,
                 )
-            comparison = aggregate.comparison_series(by_key, as_of, range_name, from_day, to_day)
+            comparison = aggregate.comparison_series(
+                by_key, as_of, range_name, from_day, to_day, as_of_by_key=compare_as_ofs,
+            )
 
-        warning_rows = selected_rows if key else latest_rows + history_rows
+        warning_rows = selected_rows if key else chain(latest_rows, history_rows)
         warnings = aggregate.collect_warnings(warning_rows, as_of, selected_key=key)
         warnings.extend(_per_key_freshness_warnings(snapshot, as_of))
         warnings = list(dict.fromkeys(warnings))
@@ -527,7 +530,7 @@ def get_agri_prices(
             ok=True,
             as_of=as_of,
             freshness_days=aggregate.freshness_days(as_of),
-            data_source=_data_source(selected_rows + latest_rows + history_rows),
+            data_source=_data_source(chain(selected_rows, latest_rows, history_rows)),
             filters=filters,
             kpis=kpis,
             series=series,

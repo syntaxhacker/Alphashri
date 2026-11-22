@@ -35,6 +35,53 @@ import { appendParams, buildQueryString } from "./queryParams";
 
 const CHART_PATTERNS_BASE = `${API_BASE}/api/chart-patterns`;
 
+/**
+ * Short-TTL, single-flight cache for the metadata registries. Every patterns
+ * window mounts independently (and other pages read the same registries), so
+ * without this each mount re-fetches byte-identical catalog payloads.
+ *
+ * Only successful payloads are cached: a failed request must stay retryable.
+ * `force` bypasses both the settled value and an in-flight request, which is
+ * the Retry path after an admin registry edit.
+ */
+export const REGISTRY_TTL_MS = 60_000;
+type RegistryKey = "timeframes" | "universes" | "patterns" | "watchSetups";
+interface RegistryEntry {
+  expiresAt: number;
+  value?: unknown;
+  pending?: Promise<unknown>;
+}
+const registryCache = new Map<RegistryKey, RegistryEntry>();
+
+/** Drop every cached registry payload (operator reset / tests). */
+export function clearPatternsApiCache(): void {
+  registryCache.clear();
+}
+
+async function cachedRegistry<T>(
+  key: RegistryKey,
+  force: boolean,
+  load: () => Promise<T>,
+): Promise<T> {
+  if (!force) {
+    const hit = registryCache.get(key);
+    if (hit?.pending) return hit.pending as Promise<T>;
+    if (hit && Date.now() < hit.expiresAt) return hit.value as T;
+  }
+  const pending = load();
+  // Publish the promise before awaiting so concurrent mounts share one fetch.
+  registryCache.set(key, { expiresAt: 0, pending });
+  try {
+    const value = await pending;
+    registryCache.set(key, { expiresAt: Date.now() + REGISTRY_TTL_MS, value });
+    return value;
+  } catch (error) {
+    // A forced call may have replaced this entry meanwhile; only drop ours.
+    if (registryCache.get(key)?.pending === pending) registryCache.delete(key);
+    throw error;
+  }
+}
+
 /** Thrown by `startScan` when the bounded compute queue is full (HTTP 429). */
 export class QueueFullError extends Error {
   readonly queueSize: number | null;
@@ -181,28 +228,34 @@ export function buildPatternsQuery(query: PatternsQuery = {}): string {
   ]);
 }
 
-export async function fetchTimeframes(): Promise<TFSpec[]> {
-  const data = await getJson<{ timeframes: TFSpec[] }>(
-    `${CHART_PATTERNS_BASE}/timeframes`,
-    "Failed to fetch timeframes",
-  );
-  return data.timeframes ?? [];
+export async function fetchTimeframes(force = false): Promise<TFSpec[]> {
+  return cachedRegistry("timeframes", force, async () => {
+    const data = await getJson<{ timeframes: TFSpec[] }>(
+      `${CHART_PATTERNS_BASE}/timeframes`,
+      "Failed to fetch timeframes",
+    );
+    return data.timeframes ?? [];
+  });
 }
 
-export async function fetchUniverses(): Promise<UniversesResponse> {
-  const data = await getJson<UniversesResponse>(
-    `${CHART_PATTERNS_BASE}/universes`,
-    "Failed to fetch universes",
-  );
-  return { universes: data.universes ?? [], default: data.default ?? "" };
+export async function fetchUniverses(force = false): Promise<UniversesResponse> {
+  return cachedRegistry("universes", force, async () => {
+    const data = await getJson<UniversesResponse>(
+      `${CHART_PATTERNS_BASE}/universes`,
+      "Failed to fetch universes",
+    );
+    return { universes: data.universes ?? [], default: data.default ?? "" };
+  });
 }
 
-export async function fetchPatternCatalog(): Promise<PatternCatalogResponse> {
-  const data = await getJson<PatternCatalogResponse>(
-    `${CHART_PATTERNS_BASE}/patterns`,
-    "Failed to fetch pattern catalog",
-  );
-  return { families: data.families ?? [], patterns: data.patterns ?? [] };
+export async function fetchPatternCatalog(force = false): Promise<PatternCatalogResponse> {
+  return cachedRegistry("patterns", force, async () => {
+    const data = await getJson<PatternCatalogResponse>(
+      `${CHART_PATTERNS_BASE}/patterns`,
+      "Failed to fetch pattern catalog",
+    );
+    return { families: data.families ?? [], patterns: data.patterns ?? [] };
+  });
 }
 
 export async function startScan(req: ScanRequest): Promise<ScanResponse> {
@@ -517,12 +570,14 @@ export function buildWatchQuery(query: WatchQuery): string {
   ]);
 }
 
-export async function fetchWatchSetups(): Promise<WatchSetup[]> {
-  const data = await getJson<{ setups: WatchSetup[] }>(
-    `${CHART_PATTERNS_BASE}/watch/setups`,
-    "Failed to fetch watch setups",
-  );
-  return data.setups ?? [];
+export async function fetchWatchSetups(force = false): Promise<WatchSetup[]> {
+  return cachedRegistry("watchSetups", force, async () => {
+    const data = await getJson<{ setups: WatchSetup[] }>(
+      `${CHART_PATTERNS_BASE}/watch/setups`,
+      "Failed to fetch watch setups",
+    );
+    return data.setups ?? [];
+  });
 }
 
 export async function fetchWatch(query: WatchQuery): Promise<WatchPayload> {

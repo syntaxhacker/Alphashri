@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, screen } from "@solidjs/testing-library";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import type { ChartPatternsState } from "@/state/chartPatterns";
-import { TestWrapper } from "../../../test/test-utils";
+import { renderWithProviders } from "@/test-utils/renderWithProviders";
 import { HOME_PANELS } from "../../../pages/home/homePanels";
 import { WINDOW_PANEL_TYPES } from "../panelRegistry";
 
@@ -125,9 +125,8 @@ function makeState(overrides: Partial<ChartPatternsState> = {}): ChartPatternsSt
 }
 
 function renderPanel() {
-  return render(
-    () => PATTERN_RESULTS_PANEL.mount(() => ({}), { data: () => undefined, commands: {} }),
-    { wrapper: TestWrapper },
+  return renderWithProviders(() =>
+    PATTERN_RESULTS_PANEL.mount(() => ({}), { data: () => undefined, commands: {} }),
   );
 }
 

@@ -270,6 +270,38 @@ describe("TanStackTable", () => {
     expect(screen.getByTestId("group-row-B")).toBeInTheDocument();
   });
 
+  it("makes a group header row keyboard-operable and exposes its expansion state", () => {
+    const groupedData = [
+      { id: "1", name: "Alpha", category: "A" },
+      { id: "2", name: "Gamma", category: "B" },
+    ];
+    const groupedColumns = [
+      { id: "category", header: "Category", accessorKey: "category" },
+      { id: "name", header: "Name", accessorKey: "name" },
+    ];
+    render(() => (<TanStackTable<{ id: string; name: string; category: string }>
+        data={groupedData}
+        columns={groupedColumns}
+        enableGrouping
+        grouping={["category"]}
+        getGroupRowTestId={(value) => `kb-group-${String(value)}`}
+        renderGroupHeader={({ value }) => <span>Group {String(value)}</span>}
+      />),
+    );
+    const groupRow = screen.getByTestId("kb-group-B");
+    expect(groupRow).toHaveAttribute("tabindex", "0");
+    expect(groupRow).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Gamma")).toBeNull();
+
+    fireEvent.keyDown(groupRow, { key: "Enter" });
+    expect(groupRow).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Gamma")).toBeInTheDocument();
+
+    fireEvent.keyDown(groupRow, { key: " " });
+    expect(groupRow).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Gamma")).toBeNull();
+  });
+
   it("clears sorting on third click by default (enableSortingRemoval)", async () => {
           render(() => (<TanStackTable<TestItem> data={data} columns={columns} />));
     const nameTh = screen.getByText("Name").closest("th")!;

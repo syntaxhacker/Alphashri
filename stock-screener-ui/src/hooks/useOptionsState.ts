@@ -2,6 +2,7 @@ import { createEffect, createMemo, onMount } from "solid-js";
 import * as optionsState from "../state/optionsStore";
 import {
   subscribe,
+  subscribeToFields,
   getAvailableExpiries,
   getFilteredChain,
   getStrikeMatrix,
@@ -55,10 +56,22 @@ export function buildStrikeMatrix(
 }
 
 export function useOptionsState() {
+  // The global version still drives the cheap field getters below, preserving
+  // the store's "notify every subscriber on every write" contract. The
+  // expensive derivations subscribe to their own inputs instead: a loading or
+  // positions notification must not re-filter and re-sort the option chain.
   const version = useStoreSubscription(subscribe);
+  const chainVersion = useStoreSubscription((cb) =>
+    subscribeToFields(["optionChain", "filters", "spotPrice"], cb),
+  );
+  const expiryVersion = useStoreSubscription((cb) => subscribeToFields(["expiries"], cb));
+  const underlyingVersion = useStoreSubscription((cb) => subscribeToFields(["underlyings"], cb));
+  const selectionVersion = useStoreSubscription((cb) =>
+    subscribeToFields(["selectedUnderlying", "selectedExpiry"], cb),
+  );
 
   // The store is a module singleton. Reading the subscription counter first is
-  // what makes every getter/memo below re-run when it notifies.
+  // what makes every getter below re-run when it notifies.
   const readState = () => {
     version();
     return optionsState.getOptionsState();
@@ -72,7 +85,8 @@ export function useOptionsState() {
   // Track only the (underlying, expiry) pair. An effect that read the whole
   // store would re-enter itself: fetchChain notifies, which would re-run it.
   const selectionKey = createMemo(() => {
-    const s = readState();
+    selectionVersion();
+    const s = optionsState.getOptionsState();
     return `${s.selectedUnderlying}|${s.selectedExpiry}`;
   });
 
@@ -82,19 +96,18 @@ export function useOptionsState() {
   });
 
   const filteredChain = createMemo(() => {
-    version();
+    chainVersion();
     return getFilteredChain();
   });
-  const strikeMatrix = createMemo(() => {
-    version();
-    return getStrikeMatrix(filteredChain());
-  });
+  // Depends only on the filtered chain: it cannot be invalidated by loading,
+  // positions, expiry or spot-price writes that leave the chain untouched.
+  const strikeMatrix = createMemo(() => getStrikeMatrix(filteredChain()));
   const availableExpiries = createMemo(() => {
-    version();
+    expiryVersion();
     return getAvailableExpiries();
   });
   const availableUnderlyings = createMemo(() => {
-    version();
+    underlyingVersion();
     return getAvailableUnderlyingSymbols();
   });
 

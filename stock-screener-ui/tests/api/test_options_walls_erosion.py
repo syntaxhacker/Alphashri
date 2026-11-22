@@ -207,3 +207,119 @@ def test_missing_tape_returns_404(tmp_path, monkeypatch):
     body = resp.json()["detail"]
     assert body["is_trading_day"] is False
     assert "message" in body
+
+
+# --------------------------------------------------- nearest / top parity guards
+
+def test_nearest_index_matches_linear_min_with_duplicates_and_ties():
+    epochs = [10.0, 10.0, 20.0, 20.0, 20.0, 40.0]
+    for target in (-5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 40.0, 100.0):
+        for hi in range(1, len(epochs) + 1):
+            sub = epochs[:hi]
+            expected = min(range(hi), key=lambda i: abs(sub[i] - target))
+            assert options_walls._nearest_index(epochs, target, hi) == expected
+
+
+def test_top_ordering_matches_full_sort():
+    chain = {
+        "24800": [1.0, 2.0, 100.0, 90.0, 3.0, 4.0],
+        "24900": [2.0, 3.0, 500.0, 800.0, 5.0, 6.0],
+        "25000": [3.0, 4.0, 900.0, 100.0, 7.0, 8.0],
+        "25100": [4.0, 5.0, 100.0, 900.0, 9.0, 10.0],
+        "bad-key": [5.0, 6.0, 700.0, 700.0, 1.0, 1.0],
+        "short": [1.0, 1.0, 999.0],
+    }
+    for side in ("call", "put"):
+        pos = 2 if side == "call" else 3
+        pairs = []
+        for key, cell in chain.items():
+            try:
+                strike = float(key)
+            except (TypeError, ValueError):
+                continue
+            if len(cell) >= 6:
+                pairs.append((options_walls._safe_float(cell[pos]), strike))
+        pairs.sort(reverse=True)
+        for n in (1, 2, 3, 10):
+            assert options_walls._top(chain, side, n) == pairs[:n]
+
+
+def _parity_rows(n=120, n_strikes=25):
+    """Deterministic full-session tape with OI erosion / put build / drift."""
+    start = datetime(2026, 11, 17, 9, 15, 0)
+    strikes = [25000.0 + (i - n_strikes // 2) * 50.0 for i in range(n_strikes)]
+    rows = []
+    for i in range(n):
+        ts = (start + timedelta(minutes=i)).isoformat() + "+05:30"
+        spot = 24980.0 + 60.0 * i / (n - 1)
+        chain = {}
+        for strike in strikes:
+            dist = abs(strike - 25000.0)
+            ce_oi = 4_000_000.0 / (1 + dist / 300.0) - i * 100.0
+            pe_oi = 3_500_000.0 / (1 + dist / 350.0) + i * 60.0
+            ce_ltp = max(1.0, 400.0 - dist / 5.0)
+            pe_ltp = max(1.0, 350.0 - dist / 5.0)
+            chain[str(int(strike))] = [
+                ce_ltp, pe_ltp, ce_oi, pe_oi,
+                100000.0 + i * 100.0 + dist, 90000.0 + i * 90.0 + dist,
+            ]
+        rows.append({
+            "t": ts,
+            "spot": spot,
+            "max_pain": 25000.0 + 50.0 * (i // 30),
+            "flip": 25100.0,
+            "net_gex": 100.0,
+            "atm_strike": 25000.0,
+            "expiry": DATE_STR,
+            "chain": chain,
+        })
+    return rows
+
+
+def test_compute_wall_state_matches_naive_reference(monkeypatch):
+    """The epoch cache, binary-search nearest and nlargest top must not change
+    any returned field or ordering vs. the original linear implementation."""
+    rows = _parity_rows()
+    now = datetime.fromisoformat(rows[-1]["t"]) + timedelta(minutes=1)
+    kwargs = dict(
+        symbol="NIFTY", date_str=DATE_STR, expiry=DATE_STR, now=now,
+        window_min=60, top_n=3,
+    )
+
+    def naive_epoch(value):
+        try:
+            return datetime.fromisoformat(str(value)).timestamp()
+        except Exception:
+            return 0.0
+
+    def naive_nearest_index(epochs, target, hi=None):
+        n = len(epochs) if hi is None else hi
+        return min(range(n), key=lambda i: abs(epochs[i] - target))
+
+    def naive_top(chain, side, n):
+        out: list[tuple[float, float]] = []
+        for key, cell in (chain or {}).items():
+            try:
+                strike = float(key)
+            except (TypeError, ValueError):
+                continue
+            if len(cell) < 6:
+                continue
+            oi = options_walls._safe_float(cell[2] if side == "call" else cell[3])
+            if oi > 0:
+                out.append((oi, strike))
+        out.sort(reverse=True)
+        return out[:n]
+
+    for include_map in (False, True):
+        with monkeypatch.context() as m:
+            m.setattr(options_walls, "_epoch", naive_epoch)
+            m.setattr(options_walls, "_nearest_index", naive_nearest_index)
+            m.setattr(options_walls, "_top", naive_top)
+            expected = options_walls.compute_wall_state(
+                rows, include_map=include_map, **kwargs
+            )
+        actual = options_walls.compute_wall_state(
+            rows, include_map=include_map, **kwargs
+        )
+        assert actual == expected

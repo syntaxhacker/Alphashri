@@ -7,7 +7,7 @@ import {
   gotoBotsViewAndWait,
   mockCreateBotRoute,
   createBotAndSave,
-} from "../helpers/botsHelpers";
+} from "./helpers/botHelpers";
 
 const BOT_ORB_ID = "bot-orb-001";
 const BOT_MIXED_ID = "bot-mixed-001";

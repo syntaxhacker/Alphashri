@@ -112,11 +112,15 @@ const mockBotSnapshot: PaperBotSnapshot = {
 
 // Module-level state — initialized before vi.mock hoists the factory
 let currentState: PaperTradingState = createMockState();
+const storeListeners = vi.hoisted(() => ({ notify: null as null | (() => void) }));
 
 vi.mock("../../state/paperTrading", () => {
   return {
     getPaperTradingState: vi.fn(() => currentState),
-    subscribe: vi.fn(() => vi.fn()),
+    subscribe: vi.fn((cb: () => void) => {
+      storeListeners.notify = cb;
+      return vi.fn();
+    }),
     setSelectedSymbol: vi.fn(),
     setSelectedStrategyTab: vi.fn((tab: string) => {
       currentState.selectedStrategyTab = tab;
@@ -358,6 +362,35 @@ describe("PaperPositionsTable", () => {
       );
       expect(screen.getByText("ORB Strategy")).toBeInTheDocument();
       expect(screen.getByText("SR Breakout")).toBeInTheDocument();
+    });
+  });
+
+  describe("live price tick row identity", () => {
+    test("unchanged position rows keep their DOM elements while the changed price updates and flashes", () => {
+      const pos1 = mockPosition({ symbol: "TICKTEST", order_id: "o1", current_price: 2500, pnl: 0, pnl_pct: 0 });
+      const pos2 = mockPosition({ symbol: "INFY", order_id: "o2", current_price: 1500, pnl: 0, pnl_pct: 0 });
+      setState({ positions: [pos1, pos2], botSnapshot: null });
+      r(() => <PaperPositionsTable />);
+
+      const beforeRel = screen.getByTestId("position-row-1-TICKTEST");
+      const beforeInfy = screen.getByTestId("position-row-1-INFY");
+      const infyText = beforeInfy.textContent;
+      expect(beforeRel.querySelector(".priceFlashUp")).toBeNull();
+
+      setState({
+        positions: [{ ...pos1, current_price: 2510 }, { ...pos2 }],
+        botSnapshot: null,
+      });
+      storeListeners.notify!();
+
+      expect(screen.getByTestId("position-row-1-INFY")).toBe(beforeInfy);
+      expect(beforeInfy.textContent).toBe(infyText);
+      expect(beforeInfy.querySelector(".priceFlashUp")).toBeNull();
+
+      const afterRel = screen.getByTestId("position-row-1-TICKTEST");
+      expect(afterRel).not.toBe(beforeRel);
+      expect(afterRel.textContent).toContain("₹2510.00");
+      expect(afterRel.querySelector(".priceFlashUp")).not.toBeNull();
     });
   });
 

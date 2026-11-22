@@ -457,6 +457,22 @@ describe("PatternsPage rail-modal", () => {
     );
   });
 
+  test("Cmd/Ctrl+Enter applies the latest staged draft, not the draft captured at open", async () => {
+    const props = makeProps();
+    r(<PatternsPage {...props} />);
+    fireEvent.click(screen.getByTestId("patterns-open-filters"));
+    await pickMultiOption("patterns-family-select", /^Reversal/);
+    expect(props.applyFilters).not.toHaveBeenCalled();
+
+    // The shortcut reads a ref kept in sync with the draft signal — firing it
+    // must apply the just-staged family, not the empty draft from mount.
+    fireEvent.keyDown(document.body, { key: "Enter", ctrlKey: true });
+    expect(props.applyFilters).toHaveBeenCalledTimes(1);
+    expect(props.applyFilters).toHaveBeenCalledWith(
+      expect.objectContaining({ family: ["reversal"] }),
+    );
+  });
+
   test("a preset replaces the staged filters instead of merging with them", async () => {
     const props = makeProps();
     r(<PatternsPage {...props} />);

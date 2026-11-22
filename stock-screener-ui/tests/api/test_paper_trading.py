@@ -1544,3 +1544,125 @@ class TestErrorHandling:
         response = client.get("/api/paper/trades?date=invalid-date")
 
         assert response.status_code in [200, 400, 422]
+
+
+class TestDashboardAnalyticsScanComplexity:
+    """Regression: per-bot drawdown scans each trade once, not once per prefix.
+
+    The old code rebuilt the cumulative-P&L curve from a prefix slice for every
+    trade, so ``net_pnl`` reads grew quadratically with the trade count. These
+    tests pin the linear access pattern *and* the exact drawdown figures so the
+    fast path cannot silently change accounting output or trade ordering.
+    """
+
+    class _CountingTrade:
+        def __init__(self, index, bot, base, net_pnl):
+            self.id = index + 1
+            self.symbol = f"SYM{index}"
+            self.side = "BUY"
+            self.quantity = 10
+            self.entry_price = 100.0
+            self.exit_price = 100.0
+            self.entry_time = base
+            self.exit_time = base
+            self.pnl = net_pnl
+            self.pnl_pct = 1.0
+            self.costs = 0.0
+            self.bot = bot
+            self.bot_id = 1
+            self.strategy_id = 10
+            self.strategy_name = "ORB"
+            self.exit_reason = "TP"
+            self._net = net_pnl
+            self.reads = 0
+
+        @property
+        def net_pnl(self):
+            self.reads += 1
+            return self._net
+
+    @staticmethod
+    def _run(values):
+        from datetime import timedelta
+
+        from api.paper import dashboard_analytics as da
+        import config
+
+        bot = MagicMock()
+        bot.id = 1
+        bot.uuid = "bot-1"
+        bot.name = "ORB Bot"
+        base = datetime.now(config.IST) - timedelta(hours=2)
+        trades = [
+            TestDashboardAnalyticsScanComplexity._CountingTrade(i, bot, base, v)
+            for i, v in enumerate(values)
+        ]
+
+        class _Query:
+            def __init__(self, rows):
+                self.rows = rows
+
+            def filter(self, *args, **kwargs):
+                return self
+
+            def order_by(self, *args, **kwargs):
+                return self
+
+            def all(self):
+                return self.rows
+
+        db = MagicMock()
+        db.__enter__.return_value = db
+        db.__exit__.return_value = None
+        db.query.side_effect = [_Query(trades), _Query([bot])]
+        user = MagicMock()
+        user.id = 1
+
+        with patch.object(da, "SessionLocal", return_value=db):
+            result = da.get_dashboard_analytics(preset="ALL", user=user)
+        return result, sum(t.reads for t in trades)
+
+    @staticmethod
+    def _reference_drawdown(values):
+        """The original rebuild-from-prefix algorithm, kept as an oracle."""
+        points = [
+            {"cumulative_pnl": sum(float(v) for v in values[: i + 1])}
+            for i in range(len(values))
+        ]
+        peak = 0.0
+        max_dd = 0.0
+        max_dd_pct = 0.0
+        for point in points:
+            value = float(point["cumulative_pnl"])
+            peak = max(peak, value)
+            drawdown = peak - value
+            drawdown_pct = (drawdown / peak * 100) if peak > 0 else 0.0
+            max_dd = max(max_dd, drawdown)
+            max_dd_pct = max(max_dd_pct, drawdown_pct)
+        return round(max_dd, 2), round(max_dd_pct, 2)
+
+    def test_net_pnl_reads_scale_linearly(self):
+        small = [((-1) ** i) * (100 + i) for i in range(40)]
+        large = [((-1) ** i) * (100 + i) for i in range(160)]
+
+        _, reads_small = self._run(small)
+        _, reads_large = self._run(large)
+
+        # Old code: ~44 reads/trade at N=40 vs ~103 at N=160 (ratio > 2).
+        # A single-pass scan keeps the per-trade count flat regardless of N.
+        assert reads_large / len(large) <= (reads_small / len(small)) * 1.3, (
+            reads_small, reads_large
+        )
+
+    def test_drawdown_values_and_order_preserved(self):
+        values = [120.0, -40.0, -90.0, 200.0, -150.0, 30.0, -25.0, 80.0]
+
+        result, _ = self._run(values)
+        ranking = result["bot_rankings"][0]
+
+        assert ranking["bot_id"] == "bot-1"
+        assert ranking["bot_name"] == "ORB Bot"
+        assert (
+            ranking["max_drawdown"],
+            ranking["max_drawdown_pct"],
+        ) == self._reference_drawdown(values)

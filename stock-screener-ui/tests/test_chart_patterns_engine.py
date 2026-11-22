@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -163,6 +165,36 @@ def test_dedupe_keeps_non_overlapping_same_family():
     a = make_hit(80, "reversal", "bullish", "2024-01-01", "2024-03-01")
     b = make_hit(70, "reversal", "bullish", "2024-05-01", "2024-07-01")
     assert len(_dedupe([a, b])) == 2
+
+
+def test_detector_exception_is_logged_and_isolated(monkeypatch, caplog):
+    """A crashing detector must be observable and must not abort the scan."""
+    import chart_patterns.engine as E
+
+    def boom(df, ctx):
+        raise RuntimeError("detector exploded")
+
+    patched = [
+        ("triple_bottom", boom) if pid == "triple_bottom" else (pid, fn)
+        for pid, fn in E.DETECTORS
+    ]
+    monkeypatch.setattr(E, "DETECTORS", patched)
+
+    with caplog.at_level(logging.ERROR, logger="chart_patterns.engine"):
+        hits = detect_patterns(triple_bottom_frame(), "1D", "TEST")
+
+    # Other detectors still run; the failing pattern contributes nothing.
+    assert hits
+    assert all(h.pattern_id != "triple_bottom" for h in hits)
+    assert any(h.pattern_id == "rectangle" for h in hits)
+    # The failure is logged with enough context to find the offending detector.
+    assert any(
+        "triple_bottom" in r.getMessage()
+        and "TEST" in r.getMessage()
+        and r.exc_info is not None
+        and "detector exploded" in str(r.exc_info[1])
+        for r in caplog.records
+    )
 
 
 def test_detect_patterns_output_is_stable_on_multi_pattern_frame():

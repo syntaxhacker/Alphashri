@@ -59,16 +59,12 @@ export function useDebouncedValue<T>(value: T | (() => T), wait: number): [() =>
   const [debounced, setDebounced] = createSignal<T>(read());
 
   createEffect(() => {
-    const next = read(); // tracked: re-runs when an accessor's dependency changes
-    let timeout: ReturnType<typeof setTimeout> | null = null;
-    const run = () => {
-      timeout = null;
-      setDebounced(() => next);
-    };
-    timeout = setTimeout(run, wait);
-    onCleanup(() => {
-      if (timeout) clearTimeout(timeout);
-    });
+    // This read must stay INSIDE the effect: it is the reactive dependency that
+    // re-runs the effect and restarts the timer on every later input. Reading the
+    // accessor once outside would pin the debounce to the first value forever.
+    const next = read();
+    const timer = setTimeout(() => setDebounced(() => next), wait);
+    onCleanup(() => clearTimeout(timer));
   });
 
   return [debounced];

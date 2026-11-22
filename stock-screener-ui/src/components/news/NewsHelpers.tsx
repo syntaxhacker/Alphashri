@@ -21,9 +21,10 @@ import {
 } from "@/ui";
 import * as palette from "@/ui/palette";
 import { IconArrowLeft, IconChartLine, IconChevronDown, IconChevronUp, IconExternalLink, IconNews, IconRefresh, IconX } from "../common/Icons";
-import { For, Show, Switch, Match, type JSX } from "solid-js";
+import { For, Show, Switch, Match, createMemo, type JSX } from "solid-js";
 import type { NewsItem, NewsSymbol, ArticleResponse } from "./news-types";
 import { AUTO_REFRESH_INTERVALS } from "./NewsLocalStorage";
+import { normalizeSourceName } from "./news-constants";
 import { formatTimeAgo } from "../../utils/ui-helpers";
 
 function ArticleSymbols(props: {
@@ -369,8 +370,6 @@ export function NewsFilterControls(props: {
   );
 }
 
-const normalizeNewsSource = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
-
 export function NewsListContent(props: {
   loading: boolean;
   error: string | null;
@@ -387,12 +386,14 @@ export function NewsListContent(props: {
   itemTestId?: string;
   variant?: "default" | "desk";
 }) {
-  const visibleSources = () => {
-    const normalizedSelectedSource = normalizeNewsSource(props.selectedSource);
+  // Read by <For> and by every group's divider <Show>; without the memo each
+  // of those reads re-filters and re-normalizes the whole source list.
+  const visibleSources = createMemo(() => {
+    const normalizedSelectedSource = normalizeSourceName(props.selectedSource);
     return props.sourceNames.filter(
-      (source) => props.selectedSource === "all" || normalizeNewsSource(source) === normalizedSelectedSource,
+      (source) => props.selectedSource === "all" || normalizeSourceName(source) === normalizedSelectedSource,
     );
-  };
+  });
   const isDesk = () => (props.variant ?? "default") === "desk";
 
   return (

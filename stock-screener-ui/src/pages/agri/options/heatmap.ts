@@ -1,4 +1,5 @@
 import { alpha, BORDER, VIRIDIS_STOPS } from "@/ui/palette";
+import { heatmapColumns } from "./heatmap.columns";
 import {
   asArray,
   asParams,
@@ -55,7 +56,7 @@ export function buildHeatmapOption(input: EdaHeatmapInput | null | undefined): O
     }
     return map;
   });
-  const columns = [...new Set(byRow.flatMap((map) => [...map.keys()]))].sort();
+  const columns = heatmapColumns(byRow);
   if (columns.length === 0) return {};
 
   const raw: (number | null)[][] = [];

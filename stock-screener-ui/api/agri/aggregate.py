@@ -9,11 +9,12 @@ from __future__ import annotations
 import math
 import statistics
 from datetime import date, datetime, timedelta
-from typing import Any, Iterable, Optional
+from itertools import chain
+from typing import Any, Iterable, Mapping, Optional
 
 import config
 
-from . import registry
+from . import canonical, registry
 
 CHANGE_OFFSETS: tuple[int, ...] = (7, 30, 182)
 # A nearest-date anchor may be a few days off (weekends/holidays), but crossing
@@ -74,6 +75,14 @@ def parse_date(value: Any) -> Optional[str]:
     return None
 
 
+def _is_metric_tonnes(lowered: str) -> bool:
+    return "metric ton" in lowered or "tonne" in lowered or lowered in {"mt", "m.t."}
+
+
+def _is_quintal_unit(lowered: str) -> bool:
+    return "quintal" in lowered or lowered in {"qtl", "q"}
+
+
 def normalise_arrivals(quantity: Any, units: Any) -> tuple[Optional[float], str]:
     """Return ``(qtl, raw_unit)``; metric tonnes are ×10 into quintals."""
     amount = to_float(quantity)
@@ -81,9 +90,9 @@ def normalise_arrivals(quantity: Any, units: Any) -> tuple[Optional[float], str]
     if amount is None:
         return None, raw
     lowered = raw.casefold()
-    if "metric ton" in lowered or "tonne" in lowered or lowered in {"mt", "m.t."}:
+    if _is_metric_tonnes(lowered):
         return amount * 10.0, raw
-    if "quintal" in lowered or lowered in {"qtl", "q"}:
+    if _is_quintal_unit(lowered):
         return amount, raw
     return amount, raw
 
@@ -152,15 +161,32 @@ def aggregate_daily(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
 
     out: list[dict[str, Any]] = []
     for day in sorted(by_date):
-        group = by_date[day]
-        modals = [v for v in (to_float(r.get("modal_price")) for r in group) if v is not None]
-        mins = [v for v in (to_float(r.get("min_price")) for r in group) if v is not None]
-        maxs = [v for v in (to_float(r.get("max_price")) for r in group) if v is not None]
-        arrivals = [v for v in (to_float(r.get("arrivals_qtl")) for r in group) if v is not None]
-        markets = {str(r.get("market") or "") for r in group if r.get("market")}
+        modals: list[float] = []
+        mins: list[float] = []
+        maxs: list[float] = []
+        arrivals: list[float] = []
+        markets: set[str] = set()
+        # One pass per date instead of five (prices, bounds, arrivals, markets).
+        for row in by_date[day]:
+            value = to_float(row.get("modal_price"))
+            if value is not None:
+                modals.append(value)
+            value = to_float(row.get("min_price"))
+            if value is not None:
+                mins.append(value)
+            value = to_float(row.get("max_price"))
+            if value is not None:
+                maxs.append(value)
+            value = to_float(row.get("arrivals_qtl"))
+            if value is not None:
+                arrivals.append(value)
+            market = row.get("market")
+            if market:
+                markets.add(str(market))
         # Small samples are exact; only a real cross-market day gets clipped.
-        low = _quantile(mins, 0.02) if len(mins) >= 5 else min(mins)
-        high = _quantile(maxs, 0.98) if len(maxs) >= 5 else max(maxs)
+        # min/max_price are nullable, so a day can carry modals but no bounds.
+        low = (_quantile(mins, 0.02) if len(mins) >= 5 else min(mins)) if mins else None
+        high = (_quantile(maxs, 0.98) if len(maxs) >= 5 else max(maxs)) if maxs else None
         out.append({
             "date": day,
             "modal": _round(statistics.median(modals)) if modals else None,
@@ -194,14 +220,26 @@ def changes_from_daily(
     as_of: str,
     offsets: tuple[int, ...] = CHANGE_OFFSETS,
 ) -> dict[str, Optional[float]]:
-    """1w/1m/6m changes using the nearest available date <= each target."""
+    """1w/1m/6m changes using the nearest available date <= each target.
+
+    ``daily`` is the date-ascending output of :func:`aggregate_daily`. The
+    targets decrease with the offset, so one backwards pointer finds every
+    anchor instead of rescanning the whole series for each offset.
+    """
     out: dict[str, Optional[float]] = {"chg_1w_pct": None, "chg_1m_pct": None, "chg_6m_pct": None}
-    current = _nearest_at_or_before(daily, as_of)
+    if not daily:
+        return out
+    idx = len(daily) - 1
+    while idx >= 0 and daily[idx]["date"] > as_of:
+        idx -= 1
+    current = daily[idx] if idx >= 0 else None
     if not current or current.get("modal") is None:
         return out
-    for days, field in zip(offsets, ("chg_1w_pct", "chg_1m_pct", "chg_6m_pct")):
+    for days, field in sorted(zip(offsets, ("chg_1w_pct", "chg_1m_pct", "chg_6m_pct"))):
         target = _shift(as_of, -days)
-        ref = _nearest_at_or_before(daily, target)
+        while idx >= 0 and daily[idx]["date"] > target:
+            idx -= 1
+        ref = daily[idx] if idx >= 0 else None
         if ref is None:
             continue
         ref_day = parse_date(ref.get("date"))
@@ -240,22 +278,29 @@ def latest_snapshot(
     *,
     as_of: Optional[str] = None,
     keys: Optional[Iterable[str]] = None,
+    as_of_by_key: Optional[Mapping[str, str]] = None,
 ) -> list[dict[str, Any]]:
     """Latest date row for every tracked commodity, with 1w/1m/6m changes.
 
     ``latest_rows`` only needs the most recent date per commodity;
     ``history_rows`` supplies the earlier anchor dates used for changes.
+    ``as_of_by_key`` keeps a stale key on its own anchor instead of moving it
+    to another commodity's newest date. Rows are bucketed once: a separate
+    scan per key cost ~1M dict lookups per request on the real cache.
     """
-    latest = list(latest_rows)
-    history = list(history_rows)
-    all_rows = latest + history
     selected_keys = list(keys) if keys is not None else list(registry.valid_keys())
+    wanted = set(selected_keys)
+    by_key: dict[str, list[dict[str, Any]]] = {}
+    for row in chain(latest_rows, history_rows):
+        key = row.get("commodity_key")
+        if key in wanted:
+            by_key.setdefault(key, []).append(row)
+    overrides = as_of_by_key or {}
     out: list[dict[str, Any]] = []
 
     for key in selected_keys:
         item = registry.commodity(key)
-        own = [r for r in all_rows if r.get("commodity_key") == key]
-        daily = aggregate_daily(own)
+        daily = aggregate_daily(by_key.get(key, ()))
         if not daily:
             out.append({
                 "key": key,
@@ -266,7 +311,7 @@ def latest_snapshot(
             })
             continue
         point = daily[-1]
-        anchor = as_of or point["date"]
+        anchor = overrides.get(key) or as_of or point["date"]
         changes = changes_from_daily(daily, anchor)
         out.append({
             "key": key,
@@ -342,10 +387,20 @@ def comparison_series(
     range_name: str,
     from_date: Optional[str] = None,
     to_date: Optional[str] = None,
+    *,
+    as_of_by_key: Optional[Mapping[str, str]] = None,
 ) -> list[dict[str, Any]]:
+    """One series per key, windowed on ``as_of`` unless a per-key anchor is given.
+
+    ``as_of_by_key`` lets callers with per-key freshness pass each anchor; keys
+    absent from it fall back to ``as_of``. Without it, a stale key's rows are
+    filtered against a newer anchor and its series silently disappears.
+    """
     out: list[dict[str, Any]] = []
+    overrides = as_of_by_key or {}
     for key, rows in rows_by_key.items():
-        daily = filter_by_range(aggregate_daily(rows), as_of, range_name, from_date, to_date)
+        key_as_of = overrides.get(key, as_of)
+        daily = filter_by_range(aggregate_daily(rows), key_as_of, range_name, from_date, to_date)
         out.append({
             "key": key,
             "label": registry.label_for(key),
@@ -380,9 +435,28 @@ def collect_warnings(
     if freshness is not None and freshness > STALE_AFTER_DAYS:
         warnings.append(f"data is {freshness} days old (as_of {as_of}); prices may be stale")
 
-    dated = sorted({day for row in data if (day := parse_date(row.get("date")))})
+    # One pass collects every signal; the four separate comprehensions below
+    # used to scan a 40k-row selection four times.
+    dated: set[str] = set()
+    missing_arrivals = 0
+    seen_price_units: set[str] = set()
+    arrival_units: set[str] = set()
+    for row in data:
+        day = parse_date(row.get("date"))
+        if day:
+            dated.add(day)
+        if to_float(row.get("arrivals_qtl")) is None:
+            missing_arrivals += 1
+        price_unit = str(row.get("price_unit") or "").strip()
+        if price_unit:
+            seen_price_units.add(price_unit)
+        arrival_unit = str(row.get("arrival_units") or "").strip()
+        if arrival_unit:
+            arrival_units.add(arrival_unit)
+
+    ordered_dates = sorted(dated)
     largest_gap = (0, "", "")
-    for earlier, later in zip(dated, dated[1:]):
+    for earlier, later in zip(ordered_dates, ordered_dates[1:]):
         gap = (date.fromisoformat(later) - date.fromisoformat(earlier)).days
         if gap > largest_gap[0]:
             largest_gap = (gap, earlier, later)
@@ -392,19 +466,21 @@ def collect_warnings(
             f"data has a {gap}-day gap ({earlier} → {later}); short-window changes and rolling metrics skip it"
         )
 
-    missing_arrivals = sum(1 for r in data if to_float(r.get("arrivals_qtl")) is None)
     if missing_arrivals:
         warnings.append(f"arrivals are missing for {missing_arrivals} rows")
 
-    price_units = sorted({str(r.get("price_unit") or "").strip() for r in data if r.get("price_unit")})
-    non_quintal = [u for u in price_units if "quintal" not in u.casefold()]
+    price_units = sorted(seen_price_units)
+    non_quintal = [u for u in price_units if not canonical.is_quintal_unit(u)]
     if non_quintal:
         warnings.append(f"non-quintal price units left as published: {', '.join(non_quintal)}")
-
-    arrival_units = {str(r.get("arrival_units") or "").strip() for r in data if r.get("arrival_units")}
-    if any("metric ton" in u.casefold() or "tonne" in u.casefold() for u in arrival_units):
+    # Use the same predicates as normalise_arrivals: a unit that was multiplied
+    # by 10 must not also be reported as unrecognised, and vice versa.
+    if any(_is_metric_tonnes(u.casefold()) for u in arrival_units):
         warnings.append("arrivals from Metric Tonnes were multiplied by 10 to INR/quintal equivalent (qtl)")
-    unknown = sorted(u for u in arrival_units if u and "ton" not in u.casefold() and "quintal" not in u.casefold() and u.casefold() not in {"qtl", "q"})
+    unknown = sorted(
+        u for u in arrival_units
+        if u and not _is_metric_tonnes(u.casefold()) and not _is_quintal_unit(u.casefold())
+    )
     if unknown:
         warnings.append(f"unrecognised arrival units left as published: {', '.join(unknown)}")
 

@@ -248,7 +248,11 @@ export function usePatternsPage(props: PatternsPageProps) {
   // Latest draft in a ref so typing inside the modal does not re-register the
   // window listener on every keystroke.
   const draftFiltersRef = { current: draftFilters() };
-  draftFiltersRef.current = draftFilters();
+  // Keep the ref in sync in its own effect: the keydown effect must not depend
+  // on `draftFilters()` or it would re-register the window listener each edit.
+  createEffect(() => {
+    draftFiltersRef.current = draftFilters();
+  });
   createEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;

@@ -262,6 +262,7 @@ class TestEndpoint:
             "chart_patterns.candles._last_completed_session",
             lambda now=None: _dt.date(2026, 9, 1),
         )
+        monkeypatch.setattr(br, "_today_is_session", lambda: True)
         first = client.get("/api/reports/breakouts?universe=tu").json()
         assert first["cached"] is False
         n = len(calls)
@@ -303,6 +304,9 @@ def _pin_today(monkeypatch):
         "chart_patterns.candles._last_completed_session",
         lambda now=None: _dt.date(2026, 9, 1),
     )
+    # Today's batch/degradation path is gated on the session predicate too;
+    # without this, a weekend clock silently takes the past-date path.
+    monkeypatch.setattr(br, "_today_is_session", lambda: True)
 
 
 def _today_client(monkeypatch, tmp_path):

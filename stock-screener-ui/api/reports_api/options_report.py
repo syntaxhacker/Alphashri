@@ -48,6 +48,7 @@ import json
 import logging
 import re
 import statistics
+import threading
 import time
 import urllib.parse
 from datetime import datetime, timedelta
@@ -139,6 +140,14 @@ _daily_cache: dict[str, dict] = {}
 #: Deliberately NOT ``nifty_tape`` — a RELIANCE frame must never read NIFTY rows.
 TAPE_ROOT = Path(__file__).resolve().parent.parent.parent / "experiments" / "data" / "options_tape"
 _SAFE_SYMBOL_RE = re.compile(r"[^A-Z0-9_.-]+")
+
+#: JSONL tape -> parsed rows, keyed on ``(mtime_ns, size)`` so a recorder append
+#: invalidates it. The UI polls every ~15 s while the recorder appends; without
+#: this, each request re-parsed the entire session file (~24 ms for a 4k-row
+#: tape). Bounded like the other caches so a symbol sweep cannot grow it.
+TAPE_CACHE_MAX_ENTRIES = 32
+_TAPE_CACHE: dict[str, tuple[tuple[int, int], list[dict]]] = {}
+_TAPE_LOCK = threading.Lock()
 
 #: ``trading_symbol``/``asset_symbol`` -> lot size from the NSE_FO contracts.
 #: Lazy, 1h TTL (instrument files only change when the exchange rolls a lot).
@@ -546,30 +555,50 @@ def tape_path(symbol: str, date_str: str) -> Path:
     return TAPE_ROOT / safe / f"{date_str}.jsonl"
 
 
+def _parse_tape(path: Path) -> list[dict]:
+    """Parse one recorder JSONL file; blank/corrupt lines are skipped."""
+    rows: list[dict] = []
+    with open(path) as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            if isinstance(row, dict):
+                rows.append(row)
+    return rows
+
+
 def read_tape(symbol: str, date_str: str) -> list[dict]:
     """Raw recorder rows for this symbol/day; ``[]`` when the file is absent.
 
-    The recorder appends one JSON object per line. Blank/corrupt lines are
-    skipped. This never falls back to ``nifty_tape``.
+    The recorder appends one JSON object per line while the UI polls, so the
+    parsed rows are reused while the file's ``(mtime, size)`` is unchanged.
+    This never falls back to ``nifty_tape``.
     """
     path = tape_path(symbol, date_str)
-    if not path.exists():
-        return []
-    rows: list[dict] = []
     try:
-        with open(path) as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    row = json.loads(line)
-                except (json.JSONDecodeError, ValueError):
-                    continue
-                if isinstance(row, dict):
-                    rows.append(row)
+        stat = path.stat()
+        stamp = (stat.st_mtime_ns, stat.st_size)
     except OSError:
         return []
+    key = str(path)
+    with _TAPE_LOCK:
+        entry = _TAPE_CACHE.get(key)
+        if entry is not None and entry[0] == stamp:
+            return entry[1]
+    try:
+        rows = _parse_tape(path)
+    except OSError:
+        return []
+    with _TAPE_LOCK:
+        _TAPE_CACHE[key] = (stamp, rows)
+        if len(_TAPE_CACHE) > TAPE_CACHE_MAX_ENTRIES:
+            for old in list(_TAPE_CACHE)[: len(_TAPE_CACHE) - TAPE_CACHE_MAX_ENTRIES]:
+                _TAPE_CACHE.pop(old, None)
     return rows
 
 
@@ -664,6 +693,8 @@ def clear_cache() -> None:
     _chain_cache.clear()
     _intraday_cache.clear()
     _daily_cache.clear()
+    with _TAPE_LOCK:
+        _TAPE_CACHE.clear()
 
 
 def _intraday_get(symbol: str, allow_stale: bool = False) -> Optional[list[dict]]:

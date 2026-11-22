@@ -692,6 +692,31 @@ describe("AgriPage data states", () => {
     expect(screen.getByTestId("agri-quotes-table")).toBeInTheDocument();
   });
 
+  it("aborts the previous filters request when Retry starts a new one", async () => {
+    const signals: AbortSignal[] = [];
+    vi.mocked(fetchAgriFilters)
+      .mockImplementationOnce((signal) => {
+        signals.push(signal as AbortSignal);
+        return Promise.reject(new Error("filters down"));
+      })
+      .mockImplementationOnce((signal) => {
+        signals.push(signal as AbortSignal);
+        return Promise.resolve(filtersPayload);
+      });
+
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId("agri-filters-error")).toBeInTheDocument());
+    expect(signals).toHaveLength(1);
+
+    fireEvent.click(screen.getByTestId("agri-filters-error-retry"));
+    await settled();
+
+    expect(signals).toHaveLength(2);
+    expect(signals[0].aborted).toBe(true);
+    expect(signals[1].aborted).toBe(false);
+    expect(screen.getByTestId("agri-quotes-table")).toBeInTheDocument();
+  });
+
   it.each([
     [1, "success"],
     [3, "warning"],
@@ -745,6 +770,62 @@ describe("AgriPage data states", () => {
     renderPage();
     await settled();
     expect(screen.queryByTestId("agri-movers")).not.toBeInTheDocument();
+  });
+});
+
+describe("AgriPage accessibility", () => {
+  it("gives the cascade selects accessible names when their labels are hidden", async () => {
+    renderPage();
+    await settled();
+
+    for (const [testId, label] of [
+      ["agri-group-select", "Commodity group"],
+      ["agri-commodity-select", "Commodity"],
+      ["agri-state-select", "State"],
+      ["agri-district-select", "District"],
+      ["agri-market-select", "Mandi"],
+    ] as const) {
+      expect(selectEl(testId), testId).toHaveAttribute("aria-label", label);
+    }
+  });
+
+  it("exposes pressed state on the range, mode and view segment switches", async () => {
+    renderPage();
+    await settled();
+
+    expect(screen.getByTestId("agri-range-6m")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("agri-range-1m")).toHaveAttribute("aria-pressed", "false");
+
+    const modeStrip = screen.getByTestId("agri-mode-strip");
+    expect(within(modeStrip).getByTestId("agri-mode-band")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(within(modeStrip).getByTestId("agri-mode-heatmap"));
+    await waitFor(() =>
+      expect(within(modeStrip).getByTestId("agri-mode-heatmap")).toHaveAttribute("aria-pressed", "true"),
+    );
+    expect(within(modeStrip).getByTestId("agri-mode-band")).toHaveAttribute("aria-pressed", "false");
+
+    expect(screen.getByTestId("agri-view-chart")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByTestId("agri-view-groups"));
+    await waitFor(() =>
+      expect(screen.getByTestId("agri-view-groups")).toHaveAttribute("aria-pressed", "true"),
+    );
+  });
+
+  it("names the mobile mode select and the compare picker", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("max-width: 640px"),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    renderPage();
+    await settled();
+
+    expect(selectEl("agri-mode-select")).toHaveAttribute("aria-label", "Chart view");
+
+    fireEvent.input(selectEl("agri-mode-select"), { target: { value: "compare" } });
+    await waitFor(() => expect(screen.getByTestId("agri-compare-add")).toBeInTheDocument());
+    expect(selectEl("agri-compare-add")).toHaveAttribute("aria-label", "Add commodity to comparison");
   });
 });
 

@@ -1,4 +1,4 @@
-import { createMemo } from "solid-js";
+import { createMemo, Show } from "solid-js";
 import { Text, Chip, Box } from "@/ui";
 import type { TableColumnDef } from "../../paper-trading/TanStackTable";
 import { TanStackTable } from "../../paper-trading/TanStackTable";
@@ -176,10 +176,13 @@ export function ReplayTradeTable(props: {
       meta: { align: "right" },
       cell: ({ row }) => {
         const t = row.original;
-        return t.exit_time <= props.clock ? (
-          <Text size="xs" className="font-mono tabular-nums" style={{ "font-size": "11px" }}>{t.exit.toFixed(1)}</Text>
-        ) : (
-          <Text size="xs" className="font-mono tabular-nums" style={{ color: palette.TEXT_MUTED, "font-size": "11px" }}>…</Text>
+        return (
+          <Show
+            when={t.exit_time <= props.clock}
+            fallback={<Text size="xs" className="font-mono tabular-nums" style={{ color: palette.TEXT_MUTED, "font-size": "11px" }}>…</Text>}
+          >
+            <Text size="xs" className="font-mono tabular-nums" style={{ "font-size": "11px" }}>{t.exit.toFixed(1)}</Text>
+          </Show>
         );
       },
     },
@@ -192,7 +195,9 @@ export function ReplayTradeTable(props: {
         const t = row.original;
         return (
           <Text size="xs" className="font-mono tabular-nums" style={{ color: palette.TEXT_MUTED, "font-size": "11px" }}>
-            {t.exit_time <= props.clock ? formatDuration((t.exit_time - t.time) / 60) : "…"}
+            <Show when={t.exit_time <= props.clock} fallback="…">
+              {formatDuration((t.exit_time - t.time) / 60)}
+            </Show>
           </Text>
         );
       },
@@ -204,17 +209,21 @@ export function ReplayTradeTable(props: {
       meta: { align: "right" },
       cell: ({ row }) => {
         const t = row.original;
-        if (t.exit_time > props.clock) return <Text size="xs" style={{ color: palette.TEXT_MUTED, "font-size": "11px" }}>…</Text>;
         return (
-          <Text
-            size="xs"
-            data-testid={`replay-pnl-${t.time}`}
-            fw={600}
-            className="font-mono tabular-nums"
-            style={{ "font-size": "11px", color: getPnLTextColor(t.pnl) === "success" ? palette.POSITIVE : palette.NEGATIVE }}
+          <Show
+            when={t.exit_time <= props.clock}
+            fallback={<Text size="xs" style={{ color: palette.TEXT_MUTED, "font-size": "11px" }}>…</Text>}
           >
-            {fmtPts(t.pnl)}
-          </Text>
+            <Text
+              size="xs"
+              data-testid={`replay-pnl-${t.time}`}
+              fw={600}
+              className="font-mono tabular-nums"
+              style={{ "font-size": "11px", color: getPnLTextColor(t.pnl) === "success" ? palette.POSITIVE : palette.NEGATIVE }}
+            >
+              {fmtPts(t.pnl)}
+            </Text>
+          </Show>
         );
       },
     },
@@ -225,16 +234,20 @@ export function ReplayTradeTable(props: {
       meta: { align: "right" },
       cell: ({ row }) => {
         const t = row.original;
-        if (t.exit_time > props.clock) return <Text size="xs" style={{ color: palette.TEXT_MUTED, "font-size": "11px" }}>…</Text>;
         return (
-          <Text
-            size="xs"
-            fw={600}
-            className="font-mono tabular-nums"
-            style={{ "font-size": "11px", color: t.rr >= 0 ? palette.POSITIVE : palette.NEGATIVE }}
+          <Show
+            when={t.exit_time <= props.clock}
+            fallback={<Text size="xs" style={{ color: palette.TEXT_MUTED, "font-size": "11px" }}>…</Text>}
           >
-            {t.rr >= 0 ? "+" : ""}{t.rr.toFixed(1)}R
-          </Text>
+            <Text
+              size="xs"
+              fw={600}
+              className="font-mono tabular-nums"
+              style={{ "font-size": "11px", color: t.rr >= 0 ? palette.POSITIVE : palette.NEGATIVE }}
+            >
+              {t.rr >= 0 ? "+" : ""}{t.rr.toFixed(1)}R
+            </Text>
+          </Show>
         );
       },
     },
@@ -246,9 +259,14 @@ export function ReplayTradeTable(props: {
       enableSorting: false,
       cell: ({ row }) => {
         const t = row.original;
-        return t.exit_time <= props.clock
-          ? <ExitReasonBadge reason={t.result} />
-          : <Chip size="xs" color="warning" style={{ height: "18px", "font-size": "9px" }}>OPEN</Chip>;
+        return (
+          <Show
+            when={t.exit_time <= props.clock}
+            fallback={<Chip size="xs" color="warning" style={{ height: "18px", "font-size": "9px" }}>OPEN</Chip>}
+          >
+            <ExitReasonBadge reason={t.result} />
+          </Show>
+        );
       },
     },
   ]);

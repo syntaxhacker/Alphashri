@@ -28,6 +28,41 @@ sys.path.insert(0, str(ROOT))
 from db.models import BrokerConnection, save_broker_token, delete_broker_token
 
 
+class _SharedSession:
+    """Proxy the test session so helper-owned ``SessionLocal`` calls cannot close it."""
+
+    def __init__(self, session):
+        self._session = session
+
+    def __enter__(self):
+        return self._session
+
+    def __exit__(self, *exc_info):
+        return False
+
+    def close(self):
+        pass
+
+    def __getattr__(self, name):
+        return getattr(self._session, name)
+
+
+@pytest.fixture(autouse=True)
+def _broker_helpers_use_test_db(db: Session, monkeypatch):
+    """Broker token helpers open their own db.database.SessionLocal.
+
+    Point that factory at the schema-initialized test session so the helpers
+    never touch the file-backed DB (empty under SKIP_ALEMBIC in CI).
+    """
+    from db import database as db_module
+
+    monkeypatch.setattr(
+        db_module,
+        "SessionLocal",
+        lambda *args, **kwargs: _SharedSession(db),
+    )
+
+
 class TestGetBrokerStatus:
     """Tests for GET /api/brokers/status endpoint."""
 
@@ -65,23 +100,16 @@ class TestGetBrokerStatus:
 
     def test_status_returns_expired_for_old_token(self, client: TestClient, db: Session):
         """Test: Returns expired when token is older than expiry time."""
-        from db.database import SessionLocal
-
         delete_broker_token("upstox", user_id=None)
-        
-        db_local = SessionLocal()
-        try:
-            old_time = datetime.utcnow() - timedelta(hours=25)
-            conn = BrokerConnection(
-                broker_name="upstox",
-                access_token="old_token",
-                token_timestamp=old_time,
-                user_id=None
-            )
-            db_local.add(conn)
-            db_local.commit()
-        finally:
-            db_local.close()
+
+        old_time = datetime.utcnow() - timedelta(hours=25)
+        db.add(BrokerConnection(
+            broker_name="upstox",
+            access_token="old_token",
+            token_timestamp=old_time,
+            user_id=None,
+        ))
+        db.commit()
 
         response = client.get("/api/brokers/status")
 

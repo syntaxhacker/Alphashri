@@ -84,6 +84,16 @@ CREATE TABLE IF NOT EXISTS {LEDGER_TABLE} (
 CREATE INDEX IF NOT EXISTS idx_agri_ledger_status ON {LEDGER_TABLE}(status, arrival_date);
 """
 
+# Kept out of SCHEMA_SQL on purpose: ``open_reader`` must not write to a cache
+# file. Writers (importer/collector) apply it on their next open, and existing
+# caches can be migrated explicitly with ``ensure_geo_index``. A cold
+# /api/agri/filters then reads geography metadata from this small covering index
+# instead of scanning every price row.
+GEO_INDEX_NAME: str = "idx_agri_geo"
+GEO_INDEX_SQL: str = (
+    f"CREATE INDEX IF NOT EXISTS {GEO_INDEX_NAME} ON {TABLE}(state, district, market)"
+)
+
 # Daily rows carry no arrivals; a null must never erase CKAN history. The
 # source columns travel with the row so a preserved arrival keeps its origin.
 _UPSERT_SQL: str = f"""
@@ -150,6 +160,11 @@ def _connect(path: Path, *, read_only: bool) -> sqlite3.Connection:
     if not read_only:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
+    else:
+        # The metadata scan walks a large index; memory-mapped reads let the OS
+        # page cache serve it without copying every page into SQLite's small
+        # per-connection cache. This is connection-local, never persisted.
+        conn.execute("PRAGMA mmap_size=2147483648")
     conn.execute("PRAGMA busy_timeout=5000")
     return conn
 
@@ -167,10 +182,16 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
     _migrate_columns(conn)
 
 
+def ensure_geo_index(conn: sqlite3.Connection) -> None:
+    """Apply the geography covering index to an existing cache (one-time migration)."""
+    conn.execute(GEO_INDEX_SQL)
+
+
 def open_writer(path: Optional[str | Path] = None) -> sqlite3.Connection:
     """Open (and initialise) the cache for import/collector writes."""
     conn = _connect(_resolve(path), read_only=False)
     ensure_schema(conn)
+    ensure_geo_index(conn)
     return conn
 
 
@@ -399,25 +420,31 @@ def latest_date_per_key(
     selected = list(keys)
     if not selected:
         return {}
-    clauses = [f"commodity_key IN ({', '.join('?' for _ in selected)})"]
-    params: list[Any] = list(selected)
+    clauses = ["commodity_key = ?"]
+    common_params: list[Any] = []
     for column, values in (
         ("state", states), ("district", districts), ("market", markets),
     ):
         items = list(values or ())
         if items:
             clauses.append(f"{column} IN ({', '.join('?' for _ in items)})")
-            params.extend(items)
-    sql = (
-        f"SELECT commodity_key, MAX(date) FROM {TABLE} "
-        f"WHERE {' AND '.join(clauses)} GROUP BY commodity_key"
-    )
-    found = {row[0]: row[1] for row in conn.execute(sql, params)}
-    return {key: found.get(key) for key in selected}
+            common_params.extend(items)
+    # A grouped MAX walks every row of every key. The key/date index already
+    # ends at each key's newest date, so one seek per key answers the same
+    # question (~8s -> ~0.1s over the 1.5M-row cache).
+    sql = f"SELECT MAX(date) FROM {TABLE} WHERE {' AND '.join(clauses)}"
+    return {
+        key: conn.execute(sql, [key, *common_params]).fetchone()[0]
+        for key in selected
+    }
 
 
 _OPTIONS_CACHE: dict[tuple[Any, ...], dict[str, Any]] = {}
 _GEOGRAPHY_CACHE: dict[tuple[Any, ...], dict[str, Any]] = {}
+# Both option lists and the geography cascade derive from the same distinct
+# (state, district, market) rows. Scanning the 1.5M-row cache once here avoids
+# paying for three additional full-table DISTINCT queries in ``/filters``.
+_META_CACHE: dict[tuple[Any, ...], tuple[Any, ...]] = {}
 
 
 def _stat_parts(path: str) -> tuple[int, int]:
@@ -445,22 +472,88 @@ def cache_identity(conn: sqlite3.Connection) -> Optional[tuple[str, int, int, in
     return (path, *main, *wal)
 
 
+def _geo_scan_sql(conn: sqlite3.Connection) -> str:
+    """Pick the cheapest index that covers the three geography columns.
+
+    DISTINCT collapses duplicate tuples inside SQLite: one pass over a covering
+    index returns a few thousand rows instead of materialising every price row
+    in Python. Indexes whose leading columns are exactly the geography tuple
+    need no temporary B-tree and are preferred.
+    """
+    candidates: list[tuple[int, str]] = []
+    for info in conn.execute(f"PRAGMA index_list({TABLE})"):
+        name = str(info["name"] if isinstance(info, sqlite3.Row) else info[1])
+        partial = info["partial"] if isinstance(info, sqlite3.Row) else info[4]
+        if partial:
+            continue
+        quoted = '"' + name.replace('"', '""') + '"'
+        cols = [str(col[2]) for col in conn.execute(f"PRAGMA index_info({quoted})")]
+        if not {"state", "district", "market"} <= set(cols):
+            continue
+        rank = 0 if cols[:3] == ["state", "district", "market"] else 1
+        candidates.append((rank, name))
+    if not candidates:
+        return f"SELECT state, district, market FROM {TABLE}"
+    _, name = min(candidates)
+    quoted = '"' + name.replace('"', '""') + '"'
+    return f"SELECT DISTINCT state, district, market FROM {TABLE} INDEXED BY {quoted}"
+
+
+def _geo_meta(
+    conn: sqlite3.Connection, cache_key: Optional[tuple[Any, ...]]
+) -> tuple[Any, ...]:
+    """Sorted option lists and cascades from one pass over the geography rows."""
+    if cache_key is not None:
+        cached = _META_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+    states: set[str] = set()
+    districts: set[str] = set()
+    markets: set[str] = set()
+    state_districts: dict[str, set[str]] = {}
+    district_markets: dict[str, set[str]] = {}
+    for state, district, market in conn.execute(_geo_scan_sql(conn)):
+        if state:
+            states.add(state)
+        if district:
+            districts.add(district)
+        if market:
+            markets.add(market)
+        if state and district and market:
+            state_districts.setdefault(state, set()).add(district)
+            district_markets.setdefault(
+                f"{state}{DISTRICT_KEY_SEPARATOR}{district}", set()
+            ).add(market)
+    meta = (
+        sorted(states), sorted(districts), sorted(markets),
+        {state: sorted(values) for state, values in state_districts.items()},
+        {key: sorted(values) for key, values in district_markets.items()},
+    )
+    if cache_key is not None:
+        if len(_META_CACHE) >= 4:
+            _META_CACHE.clear()
+        _META_CACHE[cache_key] = meta
+    return meta
+
+
 def fetch_options(conn: sqlite3.Connection) -> dict[str, Any]:
     """Filter metadata, cached until the cache file changes.
 
-    ``SELECT DISTINCT`` over 1.2M rows took ~1.3s on every request; the option
-    lists only change when an import/collector writes the DB.
+    ``SELECT DISTINCT`` over 1.5M rows cost ~22s cold on every request; the
+    option lists only change when an import/collector writes the DB.
     """
     cache_key = cache_identity(conn)
     if cache_key is not None:
         cached = _OPTIONS_CACHE.get(cache_key)
         if cached is not None:
             return dict(cached)
+    states, districts, markets, _, _ = _geo_meta(conn, cache_key)
     as_of = conn.execute(f"SELECT MAX(date) FROM {TABLE}").fetchone()[0]
-    states = [r[0] for r in conn.execute(f"SELECT DISTINCT state FROM {TABLE} WHERE state <> '' ORDER BY state")]
-    districts = [r[0] for r in conn.execute(f"SELECT DISTINCT district FROM {TABLE} WHERE district <> '' ORDER BY district")]
-    markets = [r[0] for r in conn.execute(f"SELECT DISTINCT market FROM {TABLE} WHERE market <> '' ORDER BY market")]
-    result = {"as_of": as_of, "states": states, "districts": districts, "markets": markets}
+    result = {
+        "as_of": as_of,
+        # Fresh lists: callers must not be able to mutate the cached metadata.
+        "states": list(states), "districts": list(districts), "markets": list(markets),
+    }
     if cache_key is not None:
         if len(_OPTIONS_CACHE) >= 4:
             _OPTIONS_CACHE.clear()
@@ -472,28 +565,19 @@ def fetch_geography(conn: sqlite3.Connection) -> dict[str, Any]:
     """State→district and district→market cascades, cached per DB identity.
 
     Kept out of :func:`fetch_options` so the ``/prices`` hot path does not pay
-    for the extra ~1.7s DISTINCT over 1.2M rows on a cold cache.
+    for the geography scan at all; ``/filters`` reuses the same one-pass scan
+    that built the option lists.
     """
     cache_key = cache_identity(conn)
     if cache_key is not None:
         cached = _GEOGRAPHY_CACHE.get(cache_key)
         if cached is not None:
             return dict(cached)
-    state_districts: dict[str, list[str]] = {}
-    district_markets: dict[str, list[str]] = {}
-    for state, district, market in conn.execute(
-        f"SELECT DISTINCT state, district, market FROM {TABLE} "
-        "WHERE state <> '' AND district <> '' AND market <> '' "
-        "ORDER BY state, district, market"
-    ):
-        districts_for_state = state_districts.setdefault(state, [])
-        if district not in districts_for_state:
-            districts_for_state.append(district)
-        key = f"{state}{DISTRICT_KEY_SEPARATOR}{district}"
-        markets_for_district = district_markets.setdefault(key, [])
-        if market not in markets_for_district:
-            markets_for_district.append(market)
-    result = {"state_districts": state_districts, "district_markets": district_markets}
+    _, _, _, state_districts, district_markets = _geo_meta(conn, cache_key)
+    result = {
+        "state_districts": {state: list(values) for state, values in state_districts.items()},
+        "district_markets": {key: list(values) for key, values in district_markets.items()},
+    }
     if cache_key is not None:
         if len(_GEOGRAPHY_CACHE) >= 4:
             _GEOGRAPHY_CACHE.clear()
@@ -543,6 +627,8 @@ __all__ = [
     "COLUMNS",
     "DEFAULT_DB_PATH",
     "DISTRICT_KEY_SEPARATOR",
+    "GEO_INDEX_NAME",
+    "GEO_INDEX_SQL",
     "LEDGER_TABLE",
     "PARTITION_STATUSES",
     "ROOT",
@@ -553,6 +639,7 @@ __all__ = [
     "count_rows",
     "date_range",
     "default_db_path",
+    "ensure_geo_index",
     "ensure_schema",
     "fetch_options",
     "fetch_geography",

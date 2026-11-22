@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
+import { cleanup, fireEvent, screen, waitFor } from "@solidjs/testing-library";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PatternHitDTO } from "@/types/chartPatterns";
-import { TestWrapper } from "../../../test/test-utils";
+import { renderWithProviders } from "@/test-utils/renderWithProviders";
 import { resetChartPatternsState } from "../../../state/chartPatterns";
 
 vi.mock("../../../api/chartPatterns", async () => {
@@ -88,10 +88,8 @@ function PatternWindow() {
 }
 
 function renderWindows(count: number) {
-  return render(() => (
-    <TestWrapper>
-      {Array.from({ length: count }, () => <PatternWindow />)}
-    </TestWrapper>
+  return renderWithProviders(() => (
+    <>{Array.from({ length: count }, () => <PatternWindow />)}</>
   ));
 }
 

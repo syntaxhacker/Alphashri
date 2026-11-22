@@ -16,10 +16,6 @@ vi.mock("../../state", () => ({
   subscribeToSelection: vi.fn(() => vi.fn()),
 }));
 
-vi.mock("../../hooks/useStoreSubscription", () => ({
-  useStoreSubscription: vi.fn(),
-}));
-
 describe("SelectionBar", () => {
   const onCompare = vi.fn();
 

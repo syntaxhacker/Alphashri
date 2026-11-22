@@ -9,6 +9,7 @@ Run:
     .venv/bin/python -m pytest tests/test_backtest_shim_parity.py -q
 """
 
+import importlib.machinery
 import importlib.util
 import json
 import math
@@ -23,6 +24,20 @@ import pytest
 
 _UI_DIR = Path(__file__).resolve().parents[1]
 _NUMERIC_TOL = 1e-9
+
+
+def _nautilus_installed() -> bool:
+    """Detect the real package even if backtest.sim registered a specless shim first.
+
+    Shim modules have ``__spec__ = None``, which makes ``find_spec`` raise
+    ValueError. PathFinder searches sys.path directly and bypasses sys.modules.
+    """
+    if getattr(sys.modules.get("nautilus_trader"), "__spec__", "missing") is None:
+        return importlib.machinery.PathFinder.find_spec("nautilus_trader") is not None
+    try:
+        return importlib.util.find_spec("nautilus_trader") is not None
+    except ValueError:
+        return importlib.machinery.PathFinder.find_spec("nautilus_trader") is not None
 
 # Child program shared by both legs. Backtest engine logging is intentionally left on
 # stdout; the payload is written to a file so log noise cannot corrupt the comparison.
@@ -324,7 +339,7 @@ def _real_nautilus_unavailable(info) -> bool:
 
 def test_parity_against_real_nautilus(legs):
     """Same bars, same params: shim trades must equal nautilus trades field-by-field."""
-    if importlib.util.find_spec("nautilus_trader") is None:
+    if not _nautilus_installed():
         pytest.skip("real nautilus not installed; parity baseline unavailable")
     real_info = legs["nautilus"]
     real = real_info["payload"]

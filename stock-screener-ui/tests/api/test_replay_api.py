@@ -1,9 +1,11 @@
 """Tests for Replay API endpoints."""
 
 import sys
+import types
 from pathlib import Path
 import json
 import pytest
+import pandas as pd
 from unittest.mock import patch, MagicMock
 from datetime import datetime
 
@@ -179,3 +181,106 @@ class TestReplayAPI:
         mock_get_watchlist.assert_not_called()
         # The runner.run_replay should get symbols list
         # We can't easily assert args on run_replay because it's called inside thread; but we can at least verify runner was called.
+
+
+class TestWatchlistScanCache:
+    """The ORB screen fans out to 3 TV profiles + the NSE instrument list.
+
+    Replaying several requests in a session must not repeat that full scan.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _isolated_cache(self):
+        clock = {"now": 1000.0}
+        with patch('api.replay_api._watchlist_cache', None), \
+             patch('api.replay_api._watchlist_clock', side_effect=lambda: clock["now"]):
+            yield clock
+
+    @staticmethod
+    def _install_screener(calls, names):
+        class FakeScreener:
+            def __init__(self, use_relaxed=True):
+                assert use_relaxed is True
+
+            def screen(self, limit=200, verify_nse=True):
+                calls.append((limit, verify_nse))
+                return pd.DataFrame({'name': names})
+
+        fake_module = types.SimpleNamespace(ORBStockScreener=FakeScreener)
+        return patch.dict(sys.modules, {'orb_stock_screener': fake_module})
+
+    def test_repeated_calls_scan_once_within_ttl(self, _isolated_cache):
+        from api.replay_api import _get_dynamic_watchlist
+
+        calls = []
+        with self._install_screener(calls, ['reliance', 'tcs']):
+            results = [_get_dynamic_watchlist() for _ in range(5)]
+
+        assert calls == [(50, True)]  # single full scan, not one per request
+        assert all(r == ['RELIANCE', 'TCS'] for r in results)
+
+    def test_cache_expires_after_ttl(self, _isolated_cache):
+        from api.replay_api import _get_dynamic_watchlist
+
+        calls = []
+        with self._install_screener(calls, ['reliance']):
+            assert _get_dynamic_watchlist() == ['RELIANCE']
+            _isolated_cache["now"] += 299.0
+            assert _get_dynamic_watchlist() == ['RELIANCE']
+            assert len(calls) == 1
+
+            _isolated_cache["now"] += 2.0  # cross the 300s TTL
+            assert _get_dynamic_watchlist() == ['RELIANCE']
+
+        assert len(calls) == 2
+
+    def test_refresh_cache_forces_a_new_scan(self, _isolated_cache):
+        from api.replay_api import _get_dynamic_watchlist, _load_symbols
+
+        calls = []
+        with self._install_screener(calls, ['tcs']):
+            _get_dynamic_watchlist()
+            _get_dynamic_watchlist()
+            _load_symbols(None, force_refresh=True)
+
+        assert len(calls) == 2
+
+    def test_failed_scan_is_not_retried_within_ttl(self, _isolated_cache):
+        from api.replay_api import _get_dynamic_watchlist, DEFAULT_WATCHLIST
+
+        calls = []
+
+        class BrokenScreener:
+            def __init__(self, use_relaxed=True):
+                pass
+
+            def screen(self, limit=200, verify_nse=True):
+                calls.append(limit)
+                raise RuntimeError("TV unavailable")
+
+        fake_module = types.SimpleNamespace(ORBStockScreener=BrokenScreener)
+        with patch.dict(sys.modules, {'orb_stock_screener': fake_module}):
+            first = _get_dynamic_watchlist()
+            second = _get_dynamic_watchlist()
+
+        assert calls == [50]
+        assert first == second == list(DEFAULT_WATCHLIST)
+
+    def test_cached_watchlist_is_a_copy(self, _isolated_cache):
+        from api.replay_api import _get_dynamic_watchlist
+
+        with self._install_screener([], ['reliance']):
+            first = _get_dynamic_watchlist()
+            first.append('POISON')
+            assert _get_dynamic_watchlist() == ['RELIANCE']
+
+    def test_symbols_endpoint_reuses_scan_across_requests(self, _isolated_cache, client):
+        calls = []
+        with self._install_screener(calls, ['infy']):
+            first = client.get('/api/replay/symbols')
+            second = client.get('/api/replay/symbols')
+
+        assert first.status_code == second.status_code == 200
+        assert first.json() == second.json() == {'symbols': ['INFY']}
+        assert len(calls) == 1
+

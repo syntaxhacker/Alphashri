@@ -4,11 +4,8 @@ import {
   loginAsTestUser,
   setupPaperTradingMocks,
   setupMultiStrategyBotMocks,
-} from "../mocks/apiResponses";
+} from "../../mocks/apiResponses";
 
-/**
- * Setup all required mocks for paper trading tests
- */
 export async function setupPaperTradingTestMocks(page: Page): Promise<void> {
   await setupApiMocks(page);
   await loginAsTestUser(page);
@@ -16,18 +13,12 @@ export async function setupPaperTradingTestMocks(page: Page): Promise<void> {
   await setupMultiStrategyBotMocks(page);
 }
 
-/**
- * Navigate to Paper Trading view
- */
 export async function navigateToPaperTrading(page: Page): Promise<void> {
   await page.goto("/paper", { timeout: 30000 });
   await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
 }
 
-/**
- * Navigate to Paper Trading and select a bot
- */
 export async function navigateToPaperTradingWithBot(
   page: Page,
   _botId: string = "2",
@@ -64,18 +55,12 @@ export async function navigateToPaperTradingWithBot(
   await page.waitForTimeout(500);
 }
 
-/**
- * Verify tabs are visible
- */
 export async function verifyPaperTradingTabs(page: Page): Promise<void> {
   await expect(page.locator('[data-testid="tab-live"]')).toBeVisible();
   await expect(page.locator('[data-testid="trade-history-tab"]')).toBeVisible();
   await expect(page.locator('[data-testid="tab-settings"]')).toBeVisible();
 }
 
-/**
- * Get bot selector cards
- */
 export function getBotSelector(page: Page) {
   return page.locator('[data-testid="bot-select"]');
 }

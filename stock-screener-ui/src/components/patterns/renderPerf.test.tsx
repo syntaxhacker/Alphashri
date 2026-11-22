@@ -13,6 +13,7 @@ import type { ChartCandle, PatternHitDTO } from "@/types/chartPatterns";
 import type { MatrixCell, PatternMatrixRow } from "./symbolMatrix";
 import { PatternCard, type PatternCardProps } from "./PatternCard";
 import { PatternGrid } from "./PatternGrid";
+import { PatternListView } from "./PatternListView";
 import { PatternMiniChart } from "./PatternMiniChart";
 import {
   matrixRenderStats,
@@ -36,6 +37,19 @@ vi.mock("@/utils/loadEcharts", () => ({
     }),
   }),
 }));
+
+const { dedupeKeyCalls } = vi.hoisted(() => ({ dedupeKeyCalls: { count: 0 } }));
+
+vi.mock("@/utils/patterns/fullscreenKey", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/utils/patterns/fullscreenKey")>();
+  return {
+    ...actual,
+    fullscreenDedupeKey: (hit: PatternHitDTO) => {
+      dedupeKeyCalls.count += 1;
+      return actual.fullscreenDedupeKey(hit);
+    },
+  };
+});
 
 vi.mock("@/api/chartPatterns", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/api/chartPatterns")>();
@@ -517,4 +531,38 @@ describe("render perf — 200-card grid (results limit)", () => {
     expect(screen.getAllByTestId("patterns-card")).toHaveLength(200);
     expect(counter.renders).toBe(mountRenders); // For keys by reference: zero extra card renders
   }, 20000);
+});
+
+describe("render perf — list highlight", () => {
+  afterEach(() => cleanup());
+
+  test("moving the active hit joins one key, not one per row", () => {
+    const hits = Array.from({ length: 60 }, (_, i) => makeHit(100 + i, `L${i}`));
+    const [active, setActive] = createSignal<PatternHitDTO | null>(hits[0]);
+
+    dedupeKeyCalls.count = 0;
+    render(() => <PatternListView hits={hits} onSelect={vi.fn()} activeHit={active()} />);
+    const mountCalls = dedupeKeyCalls.count;
+    // One join for the docked hit, one per row. Measured baseline: 360 joins
+    // for 60 rows (the plain function re-joined the active hit on every read).
+    expect(mountCalls).toBe(hits.length + 1);
+    // eslint-disable-next-line no-console
+    console.log(`[PERF] list mount 60 rows: dedupe joins=${mountCalls}`);
+
+    expect(screen.getAllByTestId(/^patterns-list-row-/)).toHaveLength(60);
+    expect(screen.getByTestId("patterns-list-row-L0-falling_wedge-100")).toHaveAttribute("data-active", "true");
+
+    dedupeKeyCalls.count = 0;
+    setActive(hits[1]);
+    const changeCalls = dedupeKeyCalls.count;
+    // eslint-disable-next-line no-console
+    console.log(`[PERF] list highlight change 60 rows: dedupe joins=${changeCalls}`);
+    expect(changeCalls).toBe(1); // only the memoized docked-hit key is rebuilt
+    expect(screen.getByTestId("patterns-list-row-L1-falling_wedge-101")).toHaveAttribute("data-active", "true");
+    expect(screen.getByTestId("patterns-list-row-L0-falling_wedge-100")).not.toHaveAttribute("data-active");
+    expect(screen.getAllByTestId(/^patterns-list-row-/)).toHaveLength(60);
+
+    setActive(null);
+    expect(screen.queryByTestId("patterns-list-row-L1-falling_wedge-101")).not.toHaveAttribute("data-active");
+  });
 });

@@ -186,6 +186,22 @@ describe("MiniLineChart render", () => {
     expect(line?.getAttribute("d")?.length).toBeGreaterThan(0);
   });
 
+  test("gives the role=img svg an accessible name from its series", () => {
+    render(() => (<MiniLineChart
+        series={[
+          { name: "Revenue", points: [1, 2, 3], color: palette.PRIMARY },
+          { name: "Cost", points: [3, 2, 1], color: palette.WARNING },
+        ]}
+        labels={["x", "y", "z"]}
+        testId="named-chart"
+      />),
+      { wrapper: TestWrapper },
+    );
+    const svg = svgOf("named-chart");
+    expect(svg).toHaveAttribute("role", "img");
+    expect(svg.querySelector("title")?.textContent).toBe("Revenue, Cost");
+  });
+
   test("shows the empty message when all points are null", () => {
     render(() => (<MiniLineChart
         series={[{ name: "a", points: [null, null], color: palette.PRIMARY }]}
