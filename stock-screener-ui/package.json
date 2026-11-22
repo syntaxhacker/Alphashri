@@ -11,6 +11,8 @@
     "deploy:preview": "wrangler pages deploy dist --project-name=alphashri --branch=preview",
     "test": "vitest run --dir src",
     "test:unit": "vitest run --dir src",
+    "test:coverage": "vitest run --dir src --coverage",
+    "test:coverage:report": "vitest run --dir src --coverage --coverage.thresholds.lines=0 --coverage.thresholds.functions=0 --coverage.thresholds.branches=0 --coverage.thresholds.statements=0",
     "test:e2e": "playwright test tests/e2e",
     "test:ui": "playwright test --ui",
     "test:headed": "playwright test --headed",
