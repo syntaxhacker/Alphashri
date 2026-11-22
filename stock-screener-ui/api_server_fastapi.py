@@ -676,7 +676,6 @@ async def lifespan(app: FastAPI):
     _patterns_task = None
     _watch_task = None
     _dashboard_task = None
-    _digest_task = None
     _touch_task = None
     _nifty_tape_task = None
     _nifty_snapshot_task = None
@@ -767,12 +766,6 @@ async def lifespan(app: FastAPI):
             _market_snapshot_task = _spawn_task("Market snapshot prewarm", market_snapshot_prewarm_task, started="📸 Market snapshot prewarm started", failed="⚠️ Market snapshot prewarm failed: {e}")
 
             try:
-                from api.reports_api.digest import report_digest_task
-                _digest_task = asyncio.create_task(report_digest_task())
-                print("📨 EOD report digest task started")
-            except Exception as e:
-                print(f"⚠️ EOD report digest task failed: {e}")
-                _digest_task = None
                 _touch_task = asyncio.create_task(touch_recorder_task())
                 print("👆 52W touch recorder started")
             except Exception as e:
@@ -892,8 +885,6 @@ async def lifespan(app: FastAPI):
         _dashboard_task.cancel()
     if _market_snapshot_task:
         _market_snapshot_task.cancel()
-    if _digest_task:
-        _digest_task.cancel()
     # Five tasks were started above but never cancelled. Cancel them and wait
     # within a bounded budget so a stuck to_thread worker cannot hang shutdown.
     await _shutdown_cancel_and_wait(
@@ -1605,19 +1596,7 @@ _include_api("api.poc_nq", "router", "POC NQ", msg="✅ POC NQ API loaded at /ap
 
 _include_api("api.screener_api.dashboard", "router", "screener dashboard", msg="✅ Screener Dashboard API loaded at /api/screener/dashboard")
 
-_include_api("api.reports_api.delivery", "router", "reports delivery", msg="✅ Reports delivery/events API loaded at /api/reports")
-
-_include_api("api.reports_api.events_feed", "router", "reports events feed", msg="✅ Reports events feed API loaded at /api/reports/events/upcoming|recent")
-
-_include_api("api.reports_api.breakouts", "router", "reports", msg="✅ Reports API loaded at /api/reports")
-
-_include_api("api.reports_api.followthrough", "router", "reports follow-through", msg="✅ Reports follow-through API loaded at /api/reports/follow-through")
-
 _include_api("api.reports_api.profitability", "router", "reports profitability", msg="✅ Reports profitability API loaded at /api/reports/profitability")
-
-_include_api("api.reports_api.market", "router", "reports", msg="✅ Reports API loaded at /api/reports")
-
-_include_api("api.reports_api.digest", "router", "reports digest", msg="✅ Reports digest API loaded at /api/reports/digest/send")
 
 _include_api("api.reports_api.nifty", "router", "Nifty Report", msg="✅ Nifty Report API loaded at /api/reports/nifty")
 
