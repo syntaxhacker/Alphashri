@@ -426,9 +426,8 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
 
       <Divider />
 
-      {/* Mirrors the ten dashboard.py mover cards plus the report's two New 52W
-          panels. Collapsed by default so the default Market rail is unchanged;
-          each button replaces bounds + sort. */}
+      {/* Mirrors the ten dashboard.py mover cards. Collapsed by default so the
+          default Market rail is unchanged; each button replaces bounds + sort. */}
       <Box role="group" aria-label="Movers" className="flex flex-col gap-1">
         <button
           type="button"

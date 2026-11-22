@@ -1126,16 +1126,6 @@ const MOVER_ROWS: MarketRow[] = [
     change: 0.6, gap: 0, relativeVolume: 1, volume: 850, valueTraded: 8500,
     to52wHighPct: -18, from52wLowPct: 22, rangeVsAtr: 5,
   }),
-  // The frame had no row at/above the 52W high or at/below the 52W low, so the
-  // two "New 52W" presets would otherwise only ever select an empty set here.
-  moverRow("BREAKOUT", {
-    change: 7, gap: 2, relativeVolume: 1, volume: 950, valueTraded: 9500,
-    to52wHighPct: 1.5, from52wLowPct: 90, rangeVsAtr: 1.4,
-  }),
-  moverRow("BREAKDN", {
-    change: -7, gap: -2, relativeVolume: 1, volume: 960, valueTraded: 9600,
-    to52wHighPct: -60, from52wLowPct: -1.2, rangeVsAtr: 1.5,
-  }),
   moverRow("NULLS", {
     change: null, gap: null, rangeVsAtr: null, to52wHighPct: null, from52wLowPct: null,
     volume: null, valueTraded: null, relativeVolume: null,
@@ -1150,9 +1140,7 @@ const PRESET_SUBSETS: Record<string, string[]> = {
   gainers: symbols(MOVER_ROWS),
   losers: symbols(MOVER_ROWS),
   nearHigh: ["NEARHI", "WIN"],
-  newHigh: ["BREAKOUT"],
   nearLow: ["NEARLO"],
-  newLow: ["BREAKDN"],
   volumeSurge: ["SURGE"],
   mostActive: symbols(MOVER_ROWS),
   turnover: symbols(MOVER_ROWS),
@@ -1161,17 +1149,13 @@ const PRESET_SUBSETS: Record<string, string[]> = {
   rangeExpansion: symbols(MOVER_ROWS),
 };
 
-describe("MOVER_PRESETS — dashboard.py thresholds and report panels", () => {
-  test("there is exactly one preset per mover panel id", () => {
-    // The last two come from ReportMovePanels.tsx, which is the only source of
-    // New 52W High / Low; the rest mirror api/screener_api/dashboard.py.
+describe("MOVER_PRESETS — dashboard.py thresholds", () => {
+  test("there is exactly one preset per dashboard mover id", () => {
     expect(MOVER_PRESETS.map((p) => p.id)).toEqual([
       "gainers",
       "losers",
       "nearHigh",
-      "newHigh",
       "nearLow",
-      "newLow",
       "volumeSurge",
       "mostActive",
       "turnover",
@@ -1185,7 +1169,7 @@ describe("MOVER_PRESETS — dashboard.py thresholds and report panels", () => {
     }
   });
 
-  test("every threshold matches its source panel", () => {
+  test("every threshold is copied verbatim from dashboard.py", () => {
     expect(MOVER_PRESETS.map((p) => [p.id, p.filters, p.sort])).toEqual([
       // dashboard.py sorts by change with no threshold — gainers/losers are
       // pure top-N sorts, so the table's "+3 / -3" is deliberately NOT applied.
@@ -1195,13 +1179,7 @@ describe("MOVER_PRESETS — dashboard.py thresholds and report panels", () => {
       ["gainers", { mcapMinCr: 500 }, "day_desc"],
       ["losers", { mcapMinCr: 500 }, "day_asc"],
       ["nearHigh", { mcapMinCr: 500, to52wHighMin: -5, to52wHighMax: 0.5 }, "to_52w_high_desc"],
-      // ReportMovePanels.tsx "new_52w_high" = close at/above the 52W high;
-      // to52wHighPct >= 0 with no ceiling, highest above the high first.
-      ["newHigh", { mcapMinCr: 500, to52wHighMin: 0 }, "to_52w_high_desc"],
       ["nearLow", { mcapMinCr: 500, from52wLowMin: -0.5, from52wLowMax: 5 }, "from_52w_low_asc"],
-      // ReportMovePanels.tsx "new_52w_low" = close at/below the 52W low;
-      // from52wLowPct <= 0 with no lower bound, lowest below the low first.
-      ["newLow", { mcapMinCr: 500, from52wLowMax: 0 }, "from_52w_low_asc"],
       ["volumeSurge", { mcapMinCr: 500, relVolMin: 3 }, "relvol_desc"],
       ["mostActive", { mcapMinCr: 500 }, "volume_desc"],
       ["turnover", { mcapMinCr: 500 }, "value_traded_desc"],
@@ -1243,80 +1221,22 @@ describe("MOVER_PRESETS — dashboard.py thresholds and report panels", () => {
 
   test("every preset sort actually reorders the frame", () => {
     const expected: Record<string, string[]> = {
-      gainers: ["BREAKOUT", "WIN", "GAPUP", "SURGE", "RANGE", "NEARHI", "TURNOV", "ACTIVE", "NEARLO", "GAPDN", "LOSE", "BREAKDN", "NULLS"],
-      losers: ["BREAKDN", "LOSE", "GAPDN", "NEARLO", "ACTIVE", "TURNOV", "NEARHI", "RANGE", "SURGE", "GAPUP", "WIN", "BREAKOUT", "NULLS"],
+      gainers: ["WIN", "GAPUP", "SURGE", "RANGE", "NEARHI", "TURNOV", "ACTIVE", "NEARLO", "GAPDN", "LOSE", "NULLS"],
+      losers: ["LOSE", "GAPDN", "NEARLO", "ACTIVE", "TURNOV", "NEARHI", "RANGE", "SURGE", "GAPUP", "WIN", "NULLS"],
       nearHigh: ["WIN", "NEARHI"],
-      newHigh: ["BREAKOUT"],
       nearLow: ["NEARLO"],
-      newLow: ["BREAKDN"],
       volumeSurge: ["SURGE"],
-      mostActive: ["ACTIVE", "BREAKDN", "BREAKOUT", "RANGE", "GAPDN", "GAPUP", "TURNOV", "SURGE", "NEARLO", "NEARHI", "LOSE", "WIN", "NULLS"],
-      turnover: ["TURNOV", "BREAKDN", "BREAKOUT", "RANGE", "GAPDN", "GAPUP", "ACTIVE", "SURGE", "NEARLO", "NEARHI", "LOSE", "WIN", "NULLS"],
+      mostActive: ["ACTIVE", "RANGE", "GAPDN", "GAPUP", "TURNOV", "SURGE", "NEARLO", "NEARHI", "LOSE", "WIN", "NULLS"],
+      turnover: ["TURNOV", "RANGE", "GAPDN", "GAPUP", "ACTIVE", "SURGE", "NEARLO", "NEARHI", "LOSE", "WIN", "NULLS"],
       gapUp: ["GAPUP"],
       gapDown: ["GAPDN"],
-      rangeExpansion: ["RANGE", "BREAKDN", "BREAKOUT", "GAPDN", "GAPUP", "TURNOV", "ACTIVE", "SURGE", "NEARLO", "NEARHI", "LOSE", "WIN", "NULLS"],
+      rangeExpansion: ["RANGE", "GAPDN", "GAPUP", "TURNOV", "ACTIVE", "SURGE", "NEARLO", "NEARHI", "LOSE", "WIN", "NULLS"],
     };
     for (const preset of MOVER_PRESETS) {
       expect(filterMarketRows(MOVER_ROWS, applyPreset(preset)).map((r) => r.symbol)).toEqual(
         expected[preset.id],
       );
     }
-  });
-});
-
-describe("new 52W high / low presets", () => {
-  const byId = (id: string): MoverPreset => MOVER_PRESETS.find((p) => p.id === id)!;
-
-  test("new high includes a close at/above the 52W high and excludes below", () => {
-    const rows = [
-      moverRow("ATH", { to52wHighPct: 0 }),
-      moverRow("ABOVE", { to52wHighPct: 2.4 }),
-      moverRow("BELOW", { to52wHighPct: -0.01 }),
-    ];
-    const kept = symbols(filterOnlyMarketRows(rows, applyPreset(byId("newHigh"))));
-    expect(kept).toContain("ATH");
-    expect(kept).toContain("ABOVE");
-    expect(kept).not.toContain("BELOW");
-    expect(kept).toEqual(["ABOVE", "ATH"]);
-  });
-
-  test("new low includes a close at/below the 52W low and excludes above", () => {
-    const rows = [
-      moverRow("ATLOW", { from52wLowPct: 0 }),
-      moverRow("BELOWLOW", { from52wLowPct: -2.4 }),
-      moverRow("ABOVELOW", { from52wLowPct: 0.01 }),
-    ];
-    const kept = symbols(filterOnlyMarketRows(rows, applyPreset(byId("newLow"))));
-    expect(kept).toContain("ATLOW");
-    expect(kept).toContain("BELOWLOW");
-    expect(kept).not.toContain("ABOVELOW");
-    expect(kept).toEqual(["ATLOW", "BELOWLOW"]);
-  });
-
-  test("both presets carry the ₹500 Cr floor", () => {
-    // 499 sits just below the dashboard floor, 500 exactly on it.
-    const rows = [
-      moverRow("SMALLHIGH", { marketCapCr: 499, to52wHighPct: 1 }),
-      moverRow("BIGHIGH", { marketCapCr: 500, to52wHighPct: 1 }),
-      moverRow("SMALLLOW", { marketCapCr: 499, from52wLowPct: -1 }),
-      moverRow("BIGLOW", { marketCapCr: 500, from52wLowPct: -1 }),
-    ];
-    expect(symbols(filterOnlyMarketRows(rows, applyPreset(byId("newHigh"))))).toEqual(["BIGHIGH"]);
-    expect(symbols(filterOnlyMarketRows(rows, applyPreset(byId("newLow"))))).toEqual(["BIGLOW"]);
-  });
-
-  test("new high sorts highest above the high first, new low lowest below the low first", () => {
-    const rows = [
-      moverRow("MID", { to52wHighPct: 1.5, from52wLowPct: -1.5 }),
-      moverRow("TOP", { to52wHighPct: 3, from52wLowPct: -3 }),
-      moverRow("EDGE", { to52wHighPct: 0.5, from52wLowPct: -0.5 }),
-    ];
-    expect(filterMarketRows(rows, applyPreset(byId("newHigh"))).map((r) => r.symbol)).toEqual([
-      "TOP", "MID", "EDGE",
-    ]);
-    expect(filterMarketRows(rows, applyPreset(byId("newLow"))).map((r) => r.symbol)).toEqual([
-      "TOP", "MID", "EDGE",
-    ]);
   });
 });
 
@@ -1340,9 +1260,7 @@ describe("mover filter state — defaults, chips and nulls", () => {
     const active: Partial<MarketFilterState>[] = [
       { gapMin: 3 }, { gapMax: -3 }, { rangeVsAtrMin: 2 },
       { to52wHighMin: -5, to52wHighMax: 0.5 },
-      { to52wHighMin: 0 },
       { from52wLowMin: -0.5, from52wLowMax: 5 },
-      { from52wLowMax: 0 },
       { volumeMin: 100 }, { valueTradedMin: 100 },
     ];
     for (const patch of active) {
