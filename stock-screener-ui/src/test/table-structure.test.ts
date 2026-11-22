@@ -55,15 +55,12 @@ const INLINE_COLUMN_ALLOWLIST = new Set<string>([
   "components/strategy-runner/StrategyRunnerTabs.tsx",
   "pages/admin/AdminPatternTimeframesPanel.tsx",
   "pages/admin/LLMStatsPanel.tsx",
-  "pages/report/EventWatch.tsx",
   "pages/report/IndexMoversModal.tsx",
   "pages/report/NiftyPositionsDrawer.tsx",
   "pages/report/NiftyPressureDesk.tsx",
   "pages/report/NiftyTapeColumns.tsx",
   "pages/report/NiftyUnusualVolume.tsx",
   "pages/report/Profitability.tsx",
-  "pages/report/ReportBreakoutTable.tsx",
-  "pages/report/ReportFollowThrough.tsx",
   "pages/report/sim/SimRuns.tsx",
 ]);
 

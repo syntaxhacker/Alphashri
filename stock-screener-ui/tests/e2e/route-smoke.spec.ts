@@ -56,4 +56,14 @@ test.describe("route smoke", () => {
       expect(errors, `${route} threw:\n${errors.join("\n")}`).toEqual([]);
     });
   }
+
+  test("/report redirects to /screener @smoke", async ({ page }) => {
+    await setupApiMocks(page);
+    await loginAsTestUser(page);
+    const errors = watchRuntimeErrors(page);
+    await page.goto(`${BASE_URL}/report`);
+    await expect(page).toHaveURL(/\/screener$/);
+    await expect(page.locator("#app")).toBeVisible();
+    expect(errors, `/report redirect threw:\n${errors.join("\n")}`).toEqual([]);
+  });
 });

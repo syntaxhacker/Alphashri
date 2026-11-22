@@ -25,7 +25,6 @@ const GUARDED_FILES = [
   "ReportStrips.tsx",
   "NiftyGexProfile.tsx",
   "ReportAnalytics.tsx",
-  "ReportLeaderStrip.tsx",
   "IndexMoversModal.tsx",
   "LocalPanelModal.tsx",
   "NiftyDeskGuide.tsx",

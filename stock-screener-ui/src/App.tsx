@@ -30,7 +30,6 @@ const NewsPage = lazy(() => import("./pages/NewsPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const AgriContainer = lazy(() => import("./pages/agri/AgriContainer").then(m => ({ default: m.AgriContainer })));
 const PatternsContainer = lazy(() => import("./pages/patterns/PatternsContainer").then(m => ({ default: m.PatternsContainer })));
-const ReportContainer = lazy(() => import("./pages/report/ReportContainer").then(m => ({ default: m.ReportContainer })));
 const ProfitabilityPage = lazy(() => import("./pages/report/Profitability").then(m => ({ default: m.ProfitabilityPage })));
 const SmcPoc = lazy(() => import("./pages/poc/SmcPoc"));
 const KitPoc = lazy(() => import("./pages/poc/KitPoc").then((m) => ({ default: m.KitPoc })));
@@ -145,7 +144,7 @@ function AppContent() {
           <Route path="/admin" component={AdminPage} />
           <Route path="/agri" component={AgriContainer} />
           <Route path="/patterns" component={PatternsContainer} />
-          <Route path="/report" component={ReportContainer} />
+          <Route path="/report" component={() => <Navigate href="/screener" />} />
           <Route path="/report/profit" component={ProfitabilityPage} />
           <Route path="/poc/kit" component={KitPoc} />
           <Route path="/poc/smc" component={SmcPoc} />
