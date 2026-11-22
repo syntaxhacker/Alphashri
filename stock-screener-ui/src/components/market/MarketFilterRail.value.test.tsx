@@ -108,3 +108,33 @@ describe("MarketFilterRail — collapsible Value group", () => {
     expect(screen.getByTestId("market-value-toggle")).toHaveAttribute("aria-expanded", "true");
   });
 });
+
+describe("MarketFilterRail — collapse affordance", () => {
+  test("the icon-only collapse button has an accessible name", () => {
+    render(() =>
+      createComponent(MarketFilterRail, {
+        filters: defaultMarketFilters(),
+        onChange: vi.fn(),
+        sectors: [],
+        onCollapse: vi.fn(),
+        collapseLabel: "Close filters",
+      }),
+    );
+
+    const collapse = screen.getByTestId("market-rail-collapse");
+    expect(collapse).toHaveAccessibleName("Close filters");
+    expect(screen.getByRole("button", { name: "Close filters" })).toBe(collapse);
+  });
+
+  test("the default label names the desktop collapse button", () => {
+    render(() =>
+      createComponent(MarketFilterRail, {
+        filters: defaultMarketFilters(),
+        onChange: vi.fn(),
+        sectors: [],
+        onCollapse: vi.fn(),
+      }),
+    );
+    expect(screen.getByTestId("market-rail-collapse")).toHaveAccessibleName("Collapse filters");
+  });
+});

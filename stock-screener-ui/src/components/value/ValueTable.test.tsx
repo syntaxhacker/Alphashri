@@ -68,6 +68,29 @@ describe("ValueTable", () => {
     expect(screen.getByTestId("value-score-chip-RELIANCE")).toHaveTextContent("78");
   });
 
+  test("the table exposes an accessible name", () => {
+    r(<ValueTable rows={[makeValueRow()]} />);
+    expect(screen.getByRole("table", { name: "Deep value screening results" })).toBeInTheDocument();
+  });
+
+  test("undefined fundamentals render a dash, never 'undefined'", () => {
+    r(
+      <ValueTable
+        rows={[
+          makeValueRow({
+            symbol: "PARTIAL",
+            pe: undefined as unknown as number,
+            fcf_yield: Number.NaN,
+          }),
+        ]}
+      />,
+    );
+    expect(screen.getByTestId("value-pe-PARTIAL")).toHaveTextContent("–");
+    expect(screen.getByTestId("value-fcf-PARTIAL")).toHaveTextContent("–");
+    expect(screen.getByTestId("value-table").textContent).not.toContain("undefined");
+    expect(screen.getByTestId("value-table").textContent).not.toContain("NaN");
+  });
+
   test("renders flags and null-safe dashes", () => {
     r(
       <ValueTable

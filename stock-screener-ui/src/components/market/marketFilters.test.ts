@@ -399,6 +399,19 @@ describe("filterOnlyMarketRows", () => {
     expect(symbols(filterOnlyMarketRows(ROWS, filters({ rsiMin: 60 })))).toEqual(["LARGECO"]);
   });
 
+  test("a NaN row metric fails an active bound instead of passing every gate", () => {
+    const nan = row("NAN", { change: Number.NaN, close: Number.NaN });
+    const missing = row("MISSING", { rsi: undefined as unknown as null });
+
+    // With no bound on the field the row still renders (its cell shows a dash).
+    expect(symbols(filterOnlyMarketRows([nan, missing], filters()))).toEqual(["MISSING", "NAN"]);
+    // NaN compares false against both ends of a range, so the old `== null`
+    // check let a corrupted print through every gate on that field.
+    expect(symbols(filterOnlyMarketRows([nan], filters({ dayChangeMin: 0 })))).toEqual([]);
+    expect(symbols(filterOnlyMarketRows([nan], filters({ priceMax: 1000 })))).toEqual([]);
+    expect(symbols(filterOnlyMarketRows([missing], filters({ rsiMin: 60 })))).toEqual([]);
+  });
+
   test("filterMarketRows is the filter-only pass composed with sort", () => {
     for (const key of MARKET_SORT_OPTIONS.map((o) => o.value)) {
       const f = filters({ sort: key });

@@ -138,4 +138,25 @@ describe("ValueDetailDrawer subscore bars", () => {
     expect(width("growth")).toBe("50%");
     expect(width("health")).toBe("0%");
   });
+
+  test("non-finite score, subscores and peer medians never print NaN", () => {
+    render(() => (
+      <UIProvider>
+        <ValueDetailDrawer
+          row={row({
+            score: Number.NaN,
+            subscores: { value: Number.NaN, quality: 1, growth: 2, health: 3 },
+            pe: Number.NaN,
+            peer: { bucket: "Energy", pe_median: Number.NaN, roe_median: 11, fcf_yield_median: 4 },
+            flags: ["LOW_PE"],
+          })}
+          onClose={vi.fn()}
+        />
+      </UIProvider>
+    ));
+
+    expect(screen.getByText(/Score breakdown/)).toHaveTextContent("n/a");
+    expect(screen.getByTestId("value-detail-sub-RELIANCE-value")).toHaveTextContent("n/a");
+    expect(document.body.textContent).not.toContain("NaN");
+  });
 });

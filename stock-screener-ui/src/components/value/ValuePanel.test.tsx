@@ -115,6 +115,11 @@ beforeEach(() => {
 });
 
 describe("ValuePanel", () => {
+  test("the preset selector has an accessible name", async () => {
+    r(<ValuePanel />);
+    expect(screen.getByLabelText("Value preset")).toBeInTheDocument();
+  });
+
   test("shows loading state, then renders rows from the mock response", async () => {
     r(<ValuePanel />);
     expect(screen.getByTestId("value-loading")).toBeInTheDocument();

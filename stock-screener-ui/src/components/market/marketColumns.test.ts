@@ -259,6 +259,47 @@ describe("numeric accessors — nulls stay null", () => {
   });
 });
 
+describe("non-finite metric cells", () => {
+  const CELLS = [
+    { id: "close", field: "close", dash: "close" },
+    { id: "day_change", field: "change", dash: "change" },
+    { id: "perf_w", field: "perfW", dash: "perf-w" },
+    { id: "perf_1m", field: "perf1m", dash: "perf-1m" },
+    { id: "rsi", field: "rsi", dash: "rsi" },
+    { id: "adx", field: "adx", dash: "adx" },
+    { id: "relative_volume", field: "relativeVolume", dash: "relvol" },
+  ] as const;
+
+  function renderCell(id: string, row: MarketRow): void {
+    const column = buildMarketColumns().find((candidate) => candidate.id === id);
+    if (!column?.cell) throw new Error(`${id} column has no cell renderer`);
+    render(() => column.cell!(cellArgs(row, column)));
+  }
+
+  test.each(["NaN", "undefined"] as const)("a %s metric takes the dash path, never toFixed", (kind) => {
+    for (const cell of CELLS) {
+      const bad = (kind === "NaN" ? Number.NaN : undefined) as unknown as number;
+      renderCell(cell.id, { ...ROW, [cell.field]: bad });
+      expect(screen.getByTestId(`market-dash-RELIANCE-${cell.dash}`), cell.id).toHaveTextContent("–");
+      expect(document.body.textContent, cell.id).not.toMatch(/NaN|undefined/);
+      cleanup();
+    }
+  });
+
+  test("a NaN 52W position draws the dash instead of a NaN%-wide bar", () => {
+    renderCell("pos_52w", { ...ROW, pos52w: Number.NaN });
+    expect(screen.getByTestId("market-dash-RELIANCE-week52")).toHaveTextContent("–");
+    expect(document.body.textContent).not.toContain("NaN");
+  });
+
+  test("a NaN 52W bound never enters the bar's accessible name", () => {
+    renderCell("pos_52w", { ...ROW, pos52w: 50, high52w: Number.NaN });
+    const bar = screen.getByTestId("market-52w-RELIANCE");
+    expect(bar.getAttribute("aria-label")).toBe("52W position 50%");
+    expect(bar.getAttribute("aria-label")).not.toContain("NaN");
+  });
+});
+
 function pattern(
   patch: Partial<PatternSummaryItem["patterns"][number]> = {},
 ): PatternSummaryItem["patterns"][number] {

@@ -34,6 +34,15 @@ export function subscorePercent(value: number | null | undefined): number {
 }
 
 /**
+ * TradingView sends NaN for unsupported columns; `NaN.toFixed()` would print
+ * the literal "NaN" — exactly what the dash is meant to replace. A number that
+ * is not finite is treated as missing everywhere in this module.
+ */
+function isFiniteNumber(value: number | null | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+/**
  * Signed percentage — `+1.2%` / `-0.8%` / `0.0%`.
  * A missing value prints `dash`.
  */
@@ -42,7 +51,7 @@ export function formatValuePct(
   digits = 1,
   dash = VALUE_DASH,
 ): string {
-  if (value === null || value === undefined) return dash;
+  if (!isFiniteNumber(value)) return dash;
   const sign = value > 0 ? "+" : "";
   return `${sign}${value.toFixed(digits)}%`;
 }
@@ -53,7 +62,7 @@ export function formatValueNum(
   digits = 1,
   dash = VALUE_DASH,
 ): string {
-  if (value === null || value === undefined) return dash;
+  if (!isFiniteNumber(value)) return dash;
   return value.toFixed(digits);
 }
 
@@ -64,12 +73,19 @@ export function formatValueMedian(
   digits = 1,
   dash = VALUE_NA,
 ): string {
-  if (value === null || value === undefined) return dash;
+  if (!isFiniteNumber(value)) return dash;
   return `${value.toFixed(digits)}${suffix}`;
+}
+
+/** Rounded 0–100 score. Non-finite payloads show `n/a`, never "NaN". */
+export function formatValueScore(value: number | null | undefined): string {
+  if (!isFiniteNumber(value)) return VALUE_NA;
+  return String(Math.round(Math.max(0, Math.min(100, value))));
 }
 
 /** Quoted price with the row's currency symbol — `₹1,234.50`. */
 export function formatValuePrice(row: ValueRow): string {
+  if (!isFiniteNumber(row.price)) return VALUE_DASH;
   return `${currencyFor(row.currency).symbol}${row.price.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -78,5 +94,6 @@ export function formatValuePrice(row: ValueRow): string {
 
 /** Market capitalisation in billions, prefixed with the currency symbol. */
 export function formatValueMcap(row: ValueRow): string {
+  if (!isFiniteNumber(row.mcap_bn)) return VALUE_DASH;
   return `${currencyFor(row.currency).symbol}${row.mcap_bn.toFixed(1)}B`;
 }

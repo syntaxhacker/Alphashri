@@ -7,6 +7,7 @@ import {
   formatValueNum,
   formatValuePct,
   formatValuePrice,
+  formatValueScore,
   subscorePercent,
 } from "./valueFormat";
 
@@ -74,5 +75,28 @@ describe("value number helpers", () => {
     expect(formatValueNum(null)).toBe("–");
     expect(formatValueMedian(11.25, "x")).toBe("11.3x");
     expect(formatValueMedian(undefined, "", 1, VALUE_NA)).toBe("n/a");
+  });
+
+  it("prints a dash for NaN/Infinity instead of leaking the literal 'NaN'", () => {
+    // TradingView emits NaN for unsupported columns — it is missing, not zero.
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      expect(formatValuePct(bad), "pct").toBe("–");
+      expect(formatValueNum(bad), "num").toBe("–");
+      expect(formatValueMedian(bad), "median").toBe("n/a");
+      expect(formatValueScore(bad), "score").toBe("n/a");
+      expect(formatValuePrice(row({ price: bad })), "price").toBe("–");
+      expect(formatValueMcap(row({ mcap_bn: bad })), "mcap").toBe("–");
+    }
+  });
+});
+
+describe("formatValueScore", () => {
+  it("rounds and clamps a 0-100 score", () => {
+    expect(formatValueScore(0)).toBe("0");
+    expect(formatValueScore(78.4)).toBe("78");
+    expect(formatValueScore(78.6)).toBe("79");
+    expect(formatValueScore(100)).toBe("100");
+    expect(formatValueScore(-4)).toBe("0");
+    expect(formatValueScore(140)).toBe("100");
   });
 });

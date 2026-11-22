@@ -18,24 +18,29 @@ import { DashCell } from "../common/tableCells";
 
 const DASH = "–";
 
+// A cached snapshot can carry NaN/undefined for a field TV did not return;
+// `=== null` alone let those reach `toFixed` as "NaN%" or "undefined%".
+const finite = (value: number | null | undefined): value is number =>
+  typeof value === "number" && Number.isFinite(value);
+
 /** Cells derive their descriptor from the row's own currency, never the tab. */
 function rowDescriptor(row: MarketRow): MarketUniverseDescriptor {
   return descriptorForCurrency(row.currency);
 }
 
-function fmtPct(value: number | null, signed = true): string {
-  if (value === null) return DASH;
+function fmtPct(value: number | null | undefined, signed = true): string {
+  if (!finite(value)) return DASH;
   const sign = signed && value > 0 ? "+" : "";
   return `${sign}${value.toFixed(2)}%`;
 }
 
-function fmtNum(value: number | null, digits = 1): string {
-  if (value === null) return DASH;
+function fmtNum(value: number | null | undefined, digits = 1): string {
+  if (!finite(value)) return DASH;
   return value.toFixed(digits);
 }
 
-function pctColor(value: number | null): "success" | "error" | undefined {
-  if (value === null) return undefined;
+function pctColor(value: number | null | undefined): "success" | "error" | undefined {
+  if (!finite(value)) return undefined;
   return value >= 0 ? "success" : "error";
 }
 
@@ -59,18 +64,19 @@ const CAP_TIER_COLOR: Record<string, "primary" | "info" | "warning" | "success" 
 /** Horizontal 52-week position bar (0–100), coloured by proximity to the high. */
 function Week52Bar(props: { row: MarketRow }) {
   const pos = () => props.row.pos52w;
+  const clamped = () => Math.max(0, Math.min(100, pos()!));
   const title = () => {
-    if (props.row.high52w !== null && props.row.low52w !== null) {
+    const low = props.row.low52w;
+    const high = props.row.high52w;
+    if (finite(low) && finite(high)) {
       const descriptor = rowDescriptor(props.row);
       const symbol = descriptor.currencySymbol;
-      const low = props.row.low52w.toLocaleString(descriptor.priceLocale);
-      const high = props.row.high52w.toLocaleString(descriptor.priceLocale);
-      return `52W range ${symbol}${low}–${symbol}${high} · at ${Math.max(0, Math.min(100, pos()!)).toFixed(0)}%`;
+      return `52W range ${symbol}${low.toLocaleString(descriptor.priceLocale)}–${symbol}${high.toLocaleString(descriptor.priceLocale)} · at ${clamped().toFixed(0)}%`;
     }
-    return `52W position ${Math.max(0, Math.min(100, pos()!)).toFixed(0)}%`;
+    return `52W position ${clamped().toFixed(0)}%`;
   };
   return (
-    <Show when={pos() !== null} fallback={<DashCell testId={`market-dash-${props.row.symbol}-week52`} />}>
+    <Show when={finite(pos())} fallback={<DashCell testId={`market-dash-${props.row.symbol}-week52`} />}>
       <Tooltip label={title()}>
         <Box
           role="img"
@@ -80,7 +86,7 @@ function Week52Bar(props: { row: MarketRow }) {
         >
           <Box
             className={WEEK52_FILL_CLASS}
-            style={{ width: `${Math.max(0, Math.min(100, pos()!))}%` }}
+            style={{ width: `${clamped()}%` }}
           />
         </Box>
       </Tooltip>
@@ -270,7 +276,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
-        return r.close === null ? (
+        return !finite(r.close) ? (
           <DashCell testId={`market-dash-${r.symbol}-close`} />
         ) : (
           <Text size="xs" fw={600} data-testid={`market-close-${r.symbol}`}>
@@ -288,7 +294,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
-        return r.change === null ? (
+        return !finite(r.change) ? (
           <DashCell testId={`market-dash-${r.symbol}-change`} />
         ) : (
           <Text size="xs" fw={600} c={pctColor(r.change)} data-testid={`market-change-${r.symbol}`}>
@@ -312,7 +318,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
-        return r.perfW === null ? (
+        return !finite(r.perfW) ? (
           <DashCell testId={`market-dash-${r.symbol}-perf-w`} />
         ) : (
           <Text size="xs" c={pctColor(r.perfW)} data-testid={`market-perfw-${r.symbol}`}>
@@ -329,7 +335,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
-        return r.perf1m === null ? (
+        return !finite(r.perf1m) ? (
           <DashCell testId={`market-dash-${r.symbol}-perf-1m`} />
         ) : (
           <Text size="xs" c={pctColor(r.perf1m)} data-testid={`market-perf1m-${r.symbol}`}>
@@ -354,7 +360,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
-        return r.rsi === null ? (
+        return !finite(r.rsi) ? (
           <DashCell testId={`market-dash-${r.symbol}-rsi`} />
         ) : (
           <Text size="xs" data-testid={`market-rsi-${r.symbol}`}>
@@ -371,7 +377,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
-        return r.adx === null ? (
+        return !finite(r.adx) ? (
           <DashCell testId={`market-dash-${r.symbol}-adx`} />
         ) : (
           <Text size="xs" data-testid={`market-adx-${r.symbol}`}>
@@ -388,7 +394,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
       meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
-        return r.relativeVolume === null ? (
+        return !finite(r.relativeVolume) ? (
           <DashCell testId={`market-dash-${r.symbol}-relvol`} />
         ) : (
           <Text size="xs" data-testid={`market-relvol-${r.symbol}`}>

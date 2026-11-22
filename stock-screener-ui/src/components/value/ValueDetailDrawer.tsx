@@ -1,7 +1,13 @@
 import { Show, For } from "solid-js";
 import { Box, Modal, Text, Badge, Divider } from "@/ui";
 import type { ValueRow } from "../../api/valueScan";
-import { VALUE_NA, formatValueNum, formatValuePct, subscorePercent } from "./valueFormat";
+import {
+  VALUE_NA,
+  formatValueNum,
+  formatValuePct,
+  formatValueScore,
+  subscorePercent,
+} from "./valueFormat";
 
 interface ValueDetailDrawerProps {
   row: ValueRow | null;
@@ -15,29 +21,32 @@ const SUBSCORE_LABELS = [
   { key: "health", label: "Health" },
 ] as const;
 
+const finite = (value: number | null | undefined): value is number =>
+  typeof value === "number" && Number.isFinite(value);
+
 function explainFlag(flag: string, row: ValueRow): string {
   const pePeer =
-    row.pe !== null && row.peer.pe_median !== null
+    finite(row.pe) && finite(row.peer.pe_median)
       ? `P/E ${row.pe.toFixed(1)} vs sector median ${row.peer.pe_median.toFixed(1)}`
       : null;
   switch (flag) {
     case "LOW_PE":
       return pePeer ? `Cheap on earnings — ${pePeer}.` : "Cheap on earnings vs its sector.";
     case "HIGH_FCF_YIELD":
-      return row.fcf_yield !== null
+      return finite(row.fcf_yield)
         ? `Strong cash generation — FCF yield ${row.fcf_yield.toFixed(1)}%.`
         : "Strong free-cash-flow yield.";
     case "HIGH_ROE":
-      return row.roe !== null
+      return finite(row.roe)
         ? `High return on equity — ROE ${row.roe.toFixed(1)}%.`
         : "High return on equity.";
     case "LOW_LEVERAGE":
     case "NET_CASH":
-      return row.debt_to_equity !== null
+      return finite(row.debt_to_equity)
         ? `Conservative balance sheet — D/E ${row.debt_to_equity.toFixed(2)}.`
         : "Net cash / low leverage.";
     case "OFF_52W_HIGH":
-      return row.off_52w_high !== null
+      return finite(row.off_52w_high)
         ? `Off its highs — ${row.off_52w_high.toFixed(1)}% below the 52-week high.`
         : "Trading below its 52-week high.";
     case "ABOVE_200DMA":
@@ -45,7 +54,7 @@ function explainFlag(flag: string, row: ValueRow): string {
     case "DISTORTED_PE":
       return "P/E looks distorted (near-zero/negative earnings) — treat the multiple with caution.";
     case "HIGH_YIELD":
-      return row.div_yield !== null
+      return finite(row.div_yield)
         ? `Pays a dividend — yield ${row.div_yield.toFixed(1)}%.`
         : "Pays a dividend yield.";
     default:
@@ -68,7 +77,7 @@ export function ValueDetailDrawer(props: ValueDetailDrawerProps) {
           <Box className="flex flex-col gap-4" data-testid={`value-detail-${r().symbol}`}>
             <Box>
               <Text size="sm" fw={600}>
-                Score breakdown ({Math.round(r().score)}/100)
+                Score breakdown ({formatValueScore(r().score)}/100)
               </Text>
               <For each={SUBSCORE_LABELS}>
                 {(s) => (
@@ -87,7 +96,7 @@ export function ValueDetailDrawer(props: ValueDetailDrawerProps) {
                         />
                     </Box>
                     <Text size="xs" fw={600} className="w-7 text-right">
-                      {r().subscores[s.key]}
+                      {formatValueNum(r().subscores[s.key], 0, VALUE_NA)}
                     </Text>
                   </Box>
                 )}

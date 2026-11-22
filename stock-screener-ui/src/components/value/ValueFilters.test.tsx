@@ -15,6 +15,21 @@ function r(jsx: JSX.Element) {
 afterEach(cleanup);
 
 describe("ValueFilters", () => {
+  test("toolbar controls have accessible names, not placeholder-only labels", () => {
+    r(<ValueFilters filters={{}} onChange={() => {}} />);
+    for (const name of [
+      "Max P/E",
+      "Max P/S",
+      "Min ROE percent",
+      "Min FCF yield percent",
+      "Sectors",
+      "Sort results",
+      "Result limit",
+    ]) {
+      expect(screen.getByLabelText(name), name).toBeInTheDocument();
+    }
+  });
+
   test("changing a numeric filter calls onChange with the numeric value", () => {
     const onChange = vi.fn();
     r(<ValueFilters filters={{}} onChange={onChange} />);

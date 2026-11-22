@@ -17,6 +17,7 @@ export function ValueTable(props: ValueTableProps) {
       data={props.rows}
       columns={columns()}
       dataTestId="value-table"
+      ariaLabel="Deep value screening results"
       loading={props.loading}
       loadingMessage="Scanning for deep value…"
       emptyMessage="No deep-value matches for these filters"

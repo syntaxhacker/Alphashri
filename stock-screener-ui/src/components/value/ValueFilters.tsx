@@ -49,6 +49,7 @@ export function ValueFilters(props: ValueFiltersProps) {
       <ToolbarRow data-testid="value-toolbar" gap={8}>
         <NumberInput
           placeholder="Max P/E"
+          aria-label="Max P/E"
           value={filters().max_pe ?? ""}
           onChange={(v: number | string) => props.onChange({ max_pe: toNum(v) })}
           w={110}
@@ -57,6 +58,7 @@ export function ValueFilters(props: ValueFiltersProps) {
         />
         <NumberInput
           placeholder="Max P/S"
+          aria-label="Max P/S"
           value={filters().max_ps ?? ""}
           onChange={(v: number | string) => props.onChange({ max_ps: toNum(v) })}
           w={110}
@@ -65,6 +67,7 @@ export function ValueFilters(props: ValueFiltersProps) {
         />
         <NumberInput
           placeholder="Min ROE%"
+          aria-label="Min ROE percent"
           value={filters().min_roe ?? ""}
           onChange={(v: number | string) => props.onChange({ min_roe: toNum(v) })}
           w={110}
@@ -73,6 +76,7 @@ export function ValueFilters(props: ValueFiltersProps) {
         />
         <NumberInput
           placeholder="Min FCF%"
+          aria-label="Min FCF yield percent"
           value={filters().min_fcf_yield ?? ""}
           onChange={(v: number | string) => props.onChange({ min_fcf_yield: toNum(v) })}
           w={110}
@@ -88,6 +92,7 @@ export function ValueFilters(props: ValueFiltersProps) {
         />
         <MultiSelect
           placeholder="Sectors"
+          aria-label="Sectors"
           data={sectorOptions()}
           value={filters().sectors ?? []}
           onChange={(vals) => props.onChange({ sectors: vals })}
@@ -97,6 +102,7 @@ export function ValueFilters(props: ValueFiltersProps) {
         />
         <Select
           placeholder="Sort"
+          aria-label="Sort results"
           data={SORT_OPTIONS}
           value={filters().sort ?? "score"}
           onChange={(v) => props.onChange({ sort: v ?? undefined })}
@@ -106,6 +112,7 @@ export function ValueFilters(props: ValueFiltersProps) {
         />
         <Select
           placeholder="Limit"
+          aria-label="Result limit"
           data={LIMIT_OPTIONS}
           value={String(filters().limit ?? 100)}
           onChange={(v) => props.onChange({ limit: v ? Number(v) : undefined })}

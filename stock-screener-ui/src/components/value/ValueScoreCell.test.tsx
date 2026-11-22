@@ -13,10 +13,10 @@ const PEER: ValuePeer = {
   fcf_yield_median: 4.1,
 };
 
-function renderCell(subscores: ValueSubscores, symbol = "TEST") {
+function renderCell(subscores: ValueSubscores, symbol = "TEST", score = 78) {
   return render(() => (
     <UIProvider>
-      <ValueScoreCell score={78} subscores={subscores} peer={PEER} symbol={symbol} />
+      <ValueScoreCell score={score} subscores={subscores} peer={PEER} symbol={symbol} />
     </UIProvider>
   ));
 }
@@ -52,6 +52,12 @@ describe("ValueScoreCell subscore bars", () => {
     expect(fillHeight("TEST", "quality")).toBe("0%");
     expect(fillHeight("TEST", "growth")).toBe("0%");
     expect(fillHeight("TEST", "health")).toBe("0%");
+  });
+
+  test("a non-finite score never renders as NaN", () => {
+    renderCell({ value: 20, quality: 19, growth: 17, health: 22 }, "TEST", Number.NaN);
+    expect(screen.getByTestId("value-score-chip-TEST")).toHaveTextContent("n/a");
+    expect(screen.getByTestId("value-score-chip-TEST")).not.toHaveTextContent("NaN");
   });
 
   test("the tooltip still lists all four subscores and the peer medians", () => {
