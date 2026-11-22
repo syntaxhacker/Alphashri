@@ -108,6 +108,50 @@ components:
       - stats
       title: AnalysisResponse
       type: object
+    AppliedFilters:
+      properties:
+        commodity:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Commodity
+        date_from:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Date From
+        date_to:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Date To
+        district:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: District
+        group:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Group
+        market:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Market
+        range:
+          title: Range
+          type: string
+        state:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: State
+      required:
+      - range
+      title: AppliedFilters
+      type: object
     BacktestRunRequest:
       properties:
         days:
@@ -713,6 +757,79 @@ components:
       - exit_price
       title: ClosePositionRequest
       type: object
+    CommoditiesResponse:
+      properties:
+        commodities:
+          items:
+            $ref: '#/components/schemas/CommodityOption'
+          title: Commodities
+          type: array
+        groups:
+          items:
+            $ref: '#/components/schemas/GroupOption'
+          title: Groups
+          type: array
+        ok:
+          title: Ok
+          type: boolean
+      required:
+      - ok
+      - commodities
+      title: CommoditiesResponse
+      type: object
+    CommodityOption:
+      properties:
+        group:
+          title: Group
+          type: string
+        key:
+          title: Key
+          type: string
+        label:
+          title: Label
+          type: string
+        unit:
+          title: Unit
+          type: string
+      required:
+      - key
+      - label
+      - group
+      - unit
+      title: CommodityOption
+      type: object
+    ComparisonPoint:
+      properties:
+        date:
+          title: Date
+          type: string
+        modal:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Modal
+      required:
+      - date
+      title: ComparisonPoint
+      type: object
+    ComparisonSeries:
+      properties:
+        key:
+          title: Key
+          type: string
+        label:
+          title: Label
+          type: string
+        points:
+          items:
+            $ref: '#/components/schemas/ComparisonPoint'
+          title: Points
+          type: array
+      required:
+      - key
+      - label
+      title: ComparisonSeries
+      type: object
     ConfigEnvelope:
       properties:
         config:
@@ -1023,6 +1140,65 @@ components:
           title: Slope
       title: ExpiryMetrics
       type: object
+    FiltersPayload:
+      properties:
+        as_of:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: As Of
+        commodities:
+          items:
+            $ref: '#/components/schemas/CommodityOption'
+          title: Commodities
+          type: array
+        districts:
+          items:
+            type: string
+          title: Districts
+          type: array
+        freshness_days:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Freshness Days
+        groups:
+          items:
+            $ref: '#/components/schemas/GroupOption'
+          title: Groups
+          type: array
+        markets:
+          items:
+            type: string
+          title: Markets
+          type: array
+        ok:
+          title: Ok
+          type: boolean
+        states:
+          items:
+            type: string
+          title: States
+          type: array
+      required:
+      - ok
+      - commodities
+      - groups
+      title: FiltersPayload
+      type: object
+    GroupOption:
+      properties:
+        key:
+          title: Key
+          type: string
+        label:
+          title: Label
+          type: string
+      required:
+      - key
+      - label
+      title: GroupOption
+      type: object
     GroupPerformanceItem:
       properties:
         advances:
@@ -1103,6 +1279,68 @@ components:
           - type: 'null'
           title: Last
       title: IndexQuote
+      type: object
+    Kpis:
+      properties:
+        arrivals_qtl:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Arrivals Qtl
+        arrivals_unit:
+          title: Arrivals Unit
+          type: string
+        chg_1m_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Chg 1M Pct
+        chg_1w_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Chg 1W Pct
+        chg_6m_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Chg 6M Pct
+        distance_to_msp_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Distance To Msp Pct
+        market_count:
+          default: 0
+          title: Market Count
+          type: integer
+        max:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max
+        min:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Min
+        modal:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Modal
+        msp:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Msp
+        unit:
+          title: Unit
+          type: string
+      required:
+      - unit
+      - arrivals_unit
+      title: Kpis
       type: object
     LegIn:
       properties:
@@ -1464,6 +1702,60 @@ components:
       - legs
       title: PremiumTrackerResponse
       type: object
+    PricesResponse:
+      properties:
+        as_of:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: As Of
+        comparison:
+          items:
+            $ref: '#/components/schemas/ComparisonSeries'
+          title: Comparison
+          type: array
+        data_source:
+          title: Data Source
+          type: string
+        filters:
+          $ref: '#/components/schemas/AppliedFilters'
+        freshness_days:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Freshness Days
+        kpis:
+          $ref: '#/components/schemas/Kpis'
+        ok:
+          title: Ok
+          type: boolean
+        quotes:
+          items:
+            $ref: '#/components/schemas/Quote'
+          title: Quotes
+          type: array
+        series:
+          items:
+            $ref: '#/components/schemas/SeriesPoint'
+          title: Series
+          type: array
+        snapshot:
+          items:
+            $ref: '#/components/schemas/SnapshotRow'
+          title: Snapshot
+          type: array
+        warnings:
+          items:
+            type: string
+          title: Warnings
+          type: array
+      required:
+      - ok
+      - data_source
+      - filters
+      - kpis
+      title: PricesResponse
+      type: object
     PutConfigRequest:
       properties:
         config:
@@ -1478,6 +1770,55 @@ components:
       required:
       - config
       title: PutConfigRequest
+      type: object
+    Quote:
+      properties:
+        arrivals_qtl:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Arrivals Qtl
+        date:
+          title: Date
+          type: string
+        district:
+          title: District
+          type: string
+        grade:
+          title: Grade
+          type: string
+        market:
+          title: Market
+          type: string
+        max:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max
+        min:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Min
+        modal:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Modal
+        state:
+          title: State
+          type: string
+        variety:
+          title: Variety
+          type: string
+      required:
+      - date
+      - state
+      - district
+      - market
+      - variety
+      - grade
+      title: Quote
       type: object
     RecordSurgeRequest:
       properties:
@@ -2143,6 +2484,95 @@ components:
       - last_updated
       - market
       title: SectorResponse
+      type: object
+    SeriesPoint:
+      properties:
+        arrivals_qtl:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Arrivals Qtl
+        date:
+          title: Date
+          type: string
+        market_count:
+          default: 0
+          title: Market Count
+          type: integer
+        max:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max
+        min:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Min
+        modal:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Modal
+      required:
+      - date
+      title: SeriesPoint
+      type: object
+    SnapshotRow:
+      properties:
+        chg_1m_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Chg 1M Pct
+        chg_1w_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Chg 1W Pct
+        chg_6m_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Chg 6M Pct
+        date:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Date
+        group:
+          title: Group
+          type: string
+        key:
+          title: Key
+          type: string
+        label:
+          title: Label
+          type: string
+        markets:
+          default: 0
+          title: Markets
+          type: integer
+        max:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max
+        min:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Min
+        modal:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Modal
+      required:
+      - key
+      - label
+      - group
+      title: SnapshotRow
       type: object
     StartExperimentRequest:
       properties:
@@ -3583,21 +4013,38 @@ paths:
       - admin
   /api/agri/commodities:
     get:
+      description: Backward-compatible option list; now also carries group and unit.
       operationId: get_agri_commodities_api_agri_commodities_get
       responses:
         '200':
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/CommoditiesResponse'
           description: Successful Response
-      summary: Get Agri Commodities
+      summary: Tracked agri commodities
+      tags:
+      - agri
+  /api/agri/filters:
+    get:
+      description: Commodity/group registries and the geographies present in the cache.
+      operationId: get_agri_filters_api_agri_filters_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FiltersPayload'
+          description: Successful Response
+      summary: Agri price filter options
       tags:
       - agri
   /api/agri/prices:
     get:
+      description: Snapshot, time series, mandi quotes, KPIs and up to five comparisons.
       operationId: get_agri_prices_api_agri_prices_get
       parameters:
-      - description: Commodity key (rice, wheat, arhar_tur, urad, moong, masoor, chana, soyabean, onion, potato, tomato)
+      - description: Tracked commodity key
         in: query
         name: commodity
         required: false
@@ -3605,13 +4052,104 @@ paths:
           anyOf:
           - type: string
           - type: 'null'
-          description: Commodity key (rice, wheat, arhar_tur, urad, moong, masoor, chana, soyabean, onion, potato, tomato)
+          description: Tracked commodity key
           title: Commodity
+      - description: Commodity group key
+        in: query
+        name: group
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Commodity group key
+          title: Group
+      - description: State name
+        in: query
+        name: state
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: State name
+          title: State
+      - description: District name
+        in: query
+        name: district
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: District name
+          title: District
+      - description: Market / mandi name
+        in: query
+        name: market
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Market / mandi name
+          title: Market
+      - description: 1m | 3m | 6m | 1y | max, anchored to as_of
+        in: query
+        name: range
+        required: false
+        schema:
+          default: 6m
+          description: 1m | 3m | 6m | 1y | max, anchored to as_of
+          title: Range
+          type: string
+      - description: Inclusive ISO start date
+        in: query
+        name: from
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Inclusive ISO start date
+          title: From
+      - description: Inclusive ISO end date
+        in: query
+        name: to
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Inclusive ISO end date
+          title: To
+      - description: Comma-separated commodity keys (max 5)
+        in: query
+        name: compare
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Comma-separated commodity keys (max 5)
+          title: Compare
+      - description: Maximum quotes to return
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 100
+          description: Maximum quotes to return
+          maximum: 1000
+          minimum: 1
+          title: Limit
+          type: integer
       responses:
         '200':
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/PricesResponse'
           description: Successful Response
         '422':
           content:
@@ -3619,7 +4157,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
-      summary: Get Agri Prices
+      summary: Agri mandi price dashboard payload
       tags:
       - agri
   /api/auth/login:

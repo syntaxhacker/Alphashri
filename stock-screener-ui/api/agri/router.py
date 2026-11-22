@@ -1,164 +1,266 @@
-"""Agri-commodity mandi prices: GET /api/agri/prices.
+"""Agri-commodity mandi prices — read-only HTTP surface.
 
-Reads the daily scalp CSV built by scripts/market/agri_collect.py
-(reports/agri/daily_prices.csv) and returns:
-  - latest snapshot (latest modal price per commodity across markets)
-  - time series for one commodity (modal price over time, state-level median)
-
-Endpoints are read-only and unauthenticated (market data, consistent with the
-chart/market-data endpoints — no broker OAuth needed).
+Prices come from the local SQLite cache built by ``scripts/market/agri_import.py``
+from the Agmarknet CKAN mirror. A missing cache is reported as
+``data_source="empty"``; it is never presented as a successful load.
 """
 
 from __future__ import annotations
 
-import csv
 import logging
-import statistics
-from datetime import datetime
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
-from api.reports_api._numeric import safe_opt_float as _num
+from . import aggregate, registry, store
+from .contract import (
+    MAX_COMPARE,
+    RANGES,
+    AppliedFilters,
+    CommoditiesResponse,
+    FiltersPayload,
+    Kpis,
+    PricesResponse,
+)
 
 router = APIRouter(prefix="/api/agri", tags=["agri"])
 logger = logging.getLogger("agri.router")
 
-CSV_PATH = Path("reports/agri/daily_prices.csv")
-
-# Commodities we track — display name -> Agmarknet commodity value(s)
-COMMODITIES = [
-    {"key": "rice", "label": "Rice", "values": ["Rice"]},
-    {"key": "wheat", "label": "Wheat", "values": ["Wheat"]},
-    {"key": "arhar_tur", "label": "Arhar (Tur) Dal", "values": ["Arhar(Tur)", "Arhar", "Tur"]},
-    {"key": "urad", "label": "Urad Dal", "values": ["Urad"]},
-    {"key": "moong", "label": "Moong Dal", "values": ["Moong"]},
-    {"key": "masoor", "label": "Masoor Dal", "values": ["Masoor"]},
-    {"key": "chana", "label": "Chana / Gram Dal", "values": ["Chana", "Gram Dal", "Gram dal", "Chana Dal"]},
-    {"key": "soyabean", "label": "Soyabean", "values": ["Soyabean"]},
-    {"key": "onion", "label": "Onion", "values": ["Onion"]},
-    {"key": "potato", "label": "Potato", "values": ["Potato"]},
-    {"key": "tomato", "label": "Tomato", "values": ["Tomato"]},
-]
+DB_PATH: Optional[Path] = None
+DATA_SOURCE_EMPTY: str = "empty"
+_DATA_SOURCE_CKAN: str = registry.SOURCE_CKAN
+_HISTORY_LOOKBACK_DAYS: int = 400
 
 
-def _parse_date(d: str) -> Optional[datetime]:
-    for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
-        try:
-            return datetime.strptime(d.strip(), fmt)
-        except ValueError:
-            continue
-    return None
+def _reader() -> Optional[Any]:
+    return store.open_reader(DB_PATH)
 
 
-def _load_rows() -> list[dict[str, Any]]:
-    if not CSV_PATH.exists():
+def _as_of_options(conn: Optional[Any]) -> dict[str, Any]:
+    if conn is None:
+        return {"as_of": None, "states": [], "districts": [], "markets": []}
+    return store.fetch_options(conn)
+
+
+def _check_commodity(value: Optional[str]) -> Optional[str]:
+    if not value or not value.strip():
+        return None
+    key = value.strip().casefold()
+    if registry.commodity(key) is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"unknown commodity '{value}'. valid keys: {', '.join(registry.valid_keys())}",
+        )
+    return key
+
+
+def _check_group(value: Optional[str]) -> Optional[str]:
+    if not value or not value.strip():
+        return None
+    group = value.strip().casefold()
+    if not registry.is_valid_group(group):
+        raise HTTPException(
+            status_code=400,
+            detail=f"unknown group '{value}'. valid groups: {', '.join(g['key'] for g in registry.groups())}",
+        )
+    return group
+
+
+def _check_range(value: str) -> str:
+    name = (value or "").strip().casefold()
+    if name not in RANGES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"unknown range '{value}'. valid ranges: {', '.join(RANGES)}",
+        )
+    return name
+
+
+def _check_date(value: Optional[str], label: str) -> Optional[str]:
+    if not value or not value.strip():
+        return None
+    try:
+        return date.fromisoformat(value.strip()).isoformat()
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"{label} must be an ISO date (YYYY-MM-DD), got '{value}'")
+
+
+def _check_compare(value: Optional[str]) -> list[str]:
+    if not value or not value.strip():
         return []
-    rows: list[dict[str, Any]] = []
-    with open(CSV_PATH, newline="") as f:
-        for row in csv.DictReader(f):
-            rows.append(row)
-    return rows
+    keys = [part.strip().casefold() for part in value.split(",") if part.strip()]
+    if len(keys) > MAX_COMPARE:
+        raise HTTPException(status_code=400, detail=f"compare accepts at most {MAX_COMPARE} commodity keys")
+    for key in keys:
+        if registry.commodity(key) is None:
+            raise HTTPException(status_code=400, detail=f"unknown comparison commodity '{key}'")
+    return keys
 
 
-def _latest_snapshot(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Latest modal price per commodity (median across markets on the latest date)."""
-    if not rows:
-        return []
-    # Latest arrival_date present
-    dates = {_parse_date(r.get("arrival_date", "")) for r in rows}
-    dates = {d for d in dates if d is not None}
-    if not dates:
-        return []
-    latest = max(dates)
-    latest_str = latest.strftime("%d/%m/%Y")
-
-    by_commodity: dict[str, list[float]] = {}
-    for r in rows:
-        if _parse_date(r.get("arrival_date", "")) != latest:
-            continue
-        modal = _num(r.get("modal_price"))
-        if modal is None:
-            continue
-        comm = (r.get("commodity") or "").strip()
-        by_commodity.setdefault(comm, []).append(modal)
-
-    out: list[dict[str, Any]] = []
-    for item in COMMODITIES:
-        mods: list[float] = []
-        for val in item["values"]:
-            mods.extend(by_commodity.get(val, []))
-        if not mods:
-            continue
-        out.append({
-            "key": item["key"],
-            "label": item["label"],
-            "date": latest_str,
-            "modal": round(statistics.median(mods), 2),
-            "min": round(min(mods), 2),
-            "max": round(max(mods), 2),
-            "markets": len(mods),
-        })
-    out.sort(key=lambda x: x["label"])
-    return out
+def _source_names(keys: list[str]) -> list[str]:
+    return sorted({name for key in keys for name in registry.source_names_for(key)})
 
 
-def _series(rows: list[dict[str, Any]], commodity_values: list[str]) -> list[dict[str, Any]]:
-    """Daily median modal price over time for the given commodity values."""
-    by_date: dict[str, list[float]] = {}
-    for r in rows:
-        comm = (r.get("commodity") or "").strip()
-        if comm not in commodity_values:
-            continue
-        modal = _num(r.get("modal_price"))
-        if modal is None:
-            continue
-        arrival = (r.get("arrival_date") or "").strip()
-        by_date.setdefault(arrival, []).append(modal)
-
-    out: list[dict[str, Any]] = []
-    for arrival, mods in by_date.items():
-        d = _parse_date(arrival)
-        if d is None:
-            continue
-        out.append({
-            "date": d.strftime("%Y-%m-%d"),
-            "arrival": arrival,
-            "modal": round(statistics.median(mods), 2),
-        })
-    out.sort(key=lambda x: x["date"])
-    return out
+def _shift(day: str, days: int) -> str:
+    return (date.fromisoformat(day) - timedelta(days=days)).isoformat()
 
 
-@router.get("/prices")
+@router.get("/filters", response_model=FiltersPayload, summary="Agri price filter options")
+def get_agri_filters() -> FiltersPayload:
+    """Commodity/group registries and the geographies present in the cache."""
+    conn = _reader()
+    try:
+        options = _as_of_options(conn)
+    finally:
+        if conn is not None:
+            conn.close()
+    return FiltersPayload(
+        ok=True,
+        as_of=options["as_of"],
+        freshness_days=aggregate.freshness_days(options["as_of"]),
+        commodities=registry.commodities(),
+        groups=registry.groups(),
+        states=options["states"],
+        districts=options["districts"],
+        markets=options["markets"],
+    )
+
+
+@router.get("/prices", response_model=PricesResponse, summary="Agri mandi price dashboard payload")
 def get_agri_prices(
-    commodity: Optional[str] = Query(None, description="Commodity key (rice, wheat, arhar_tur, urad, moong, masoor, chana, soyabean, onion, potato, tomato)"),
-):
-    rows = _load_rows()
-    snapshot = _latest_snapshot(rows)
+    commodity: Optional[str] = Query(None, description="Tracked commodity key"),
+    group: Optional[str] = Query(None, description="Commodity group key"),
+    state: Optional[str] = Query(None, description="State name"),
+    district: Optional[str] = Query(None, description="District name"),
+    market: Optional[str] = Query(None, description="Market / mandi name"),
+    range: str = Query("6m", description="1m | 3m | 6m | 1y | max, anchored to as_of"),
+    date_from: Optional[str] = Query(None, alias="from", description="Inclusive ISO start date"),
+    date_to: Optional[str] = Query(None, alias="to", description="Inclusive ISO end date"),
+    compare: Optional[str] = Query(None, description="Comma-separated commodity keys (max 5)"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum quotes to return"),
+) -> PricesResponse:
+    """Snapshot, time series, mandi quotes, KPIs and up to five comparisons."""
+    key = _check_commodity(commodity)
+    group_key = _check_group(group)
+    range_name = _check_range(range)
+    from_day = _check_date(date_from, "from")
+    to_day = _check_date(date_to, "to")
+    compare_keys = _check_compare(compare)
+    if from_day and to_day and from_day > to_day:
+        raise HTTPException(status_code=400, detail="from must be on or before to")
+    if key and group_key and key not in registry.keys_for_group(group_key):
+        raise HTTPException(
+            status_code=400,
+            detail=f"commodity '{key}' is not in group '{group_key}'",
+        )
 
-    series: list[dict[str, Any]] = []
-    selected: Optional[dict[str, Any]] = None
-    if commodity:
-        item = next((c for c in COMMODITIES if c["key"] == commodity), None)
-        if item:
-            selected = {"key": item["key"], "label": item["label"]}
-            series = _series(rows, item["values"])
-
-    return {
-        "ok": True,
-        "source": str(CSV_PATH),
-        "rows_loaded": len(rows),
-        "snapshot": snapshot,
-        "selected": selected,
-        "series": series,
+    snapshot_keys = list(registry.keys_for_group(group_key)) if group_key else list(registry.valid_keys())
+    geo = {
+        "states": [state] if state else None,
+        "districts": [district] if district else None,
+        "markets": [market] if market else None,
     }
+    filters = AppliedFilters(
+        commodity=key, group=group_key, state=state, district=district,
+        market=market, range=range_name, date_from=from_day, date_to=to_day,
+    )
+    empty_kpis = Kpis(unit=registry.PRICE_UNIT, arrivals_unit=registry.ARRIVALS_UNIT)
+
+    conn = _reader()
+    if conn is None:
+        warnings = ["no rows matched the current filters", "agri price cache is missing; run scripts/market/agri_import.py"]
+        if key:
+            warnings.append(f"MSP not verified for {registry.label_for(key)}; distance_to_msp_pct is null")
+        return PricesResponse(
+            ok=True, data_source=DATA_SOURCE_EMPTY, filters=filters, kpis=empty_kpis,
+            warnings=warnings,
+        )
+
+    try:
+        global_as_of = _as_of_options(conn)["as_of"]
+        if not global_as_of:
+            return PricesResponse(
+                ok=True, data_source=DATA_SOURCE_EMPTY, filters=filters, kpis=empty_kpis,
+                warnings=["agri price cache is empty; run scripts/market/agri_import.py"],
+            )
+
+        as_of = store.latest_date(
+            conn,
+            commodity_names=_source_names(snapshot_keys),
+            **geo,
+        ) or global_as_of
+
+        latest_rows = store.fetch_rows(
+            conn, commodity_names=_source_names(snapshot_keys), on_date=as_of, **geo,
+        )
+        anchor_map = store.anchor_dates(
+            conn,
+            {k: registry.source_names_for(k) for k in snapshot_keys},
+            as_of,
+            aggregate.CHANGE_OFFSETS,
+        )
+        anchor_dates_set = {d for per_key in anchor_map.values() for d in per_key.values() if d}
+        history_rows = store.fetch_rows(
+            conn, commodity_names=_source_names(snapshot_keys), on_dates=anchor_dates_set, **geo,
+        )
+        snapshot = aggregate.latest_snapshot(
+            latest_rows, history_rows, as_of=as_of, keys=snapshot_keys,
+        )
+
+        series: list[dict[str, Any]] = []
+        quotes: list[dict[str, Any]] = []
+        kpis = empty_kpis
+        selected_rows: list[dict[str, Any]] = []
+        if key:
+            # 6m changes must be available even when the chart range is 1m.
+            lookback = (
+                None if range_name == "max"
+                else min(max(aggregate.CHANGE_OFFSETS[-1], aggregate.RANGE_DAYS[range_name] or 0), _HISTORY_LOOKBACK_DAYS)
+            )
+            history_start = _shift(as_of, lookback or _HISTORY_LOOKBACK_DAYS)
+            start = min(from_day, history_start) if from_day else history_start
+            selected_rows = store.fetch_rows(
+                conn, commodity_names=_source_names([key]),
+                from_date=start, to_date=to_day or as_of, **geo,
+            )
+            daily = aggregate.aggregate_daily(selected_rows)
+            series = aggregate.filter_by_range(daily, as_of, range_name, from_day, to_day)
+            quotes = aggregate.selected_quotes(selected_rows, limit=limit)
+            kpis = Kpis(**aggregate.kpis_for(daily, as_of, key))
+
+        comparison: list[dict[str, Any]] = []
+        if compare_keys:
+            by_key: dict[str, list[dict[str, Any]]] = {}
+            cutoff = aggregate.range_cutoff(as_of, range_name, from_day)
+            for compare_key in compare_keys:
+                by_key[compare_key] = store.fetch_rows(
+                    conn, commodity_names=_source_names([compare_key]),
+                    from_date=cutoff, to_date=to_day or as_of, **geo,
+                )
+            comparison = aggregate.comparison_series(by_key, as_of, range_name, from_day, to_day)
+
+        warning_rows = selected_rows if key else latest_rows + history_rows
+        warnings = aggregate.collect_warnings(warning_rows, as_of, selected_key=key)
+        return PricesResponse(
+            ok=True,
+            as_of=as_of,
+            freshness_days=aggregate.freshness_days(as_of),
+            data_source=_DATA_SOURCE_CKAN,
+            filters=filters,
+            kpis=kpis,
+            series=series,
+            snapshot=snapshot,
+            quotes=quotes,
+            comparison=comparison,
+            warnings=warnings,
+        )
+    finally:
+        conn.close()
 
 
-@router.get("/commodities")
-def get_agri_commodities():
-    return {
-        "ok": True,
-        "commodities": [{"key": c["key"], "label": c["label"]} for c in COMMODITIES],
-    }
+@router.get("/commodities", response_model=CommoditiesResponse, summary="Tracked agri commodities")
+def get_agri_commodities() -> CommoditiesResponse:
+    """Backward-compatible option list; now also carries group and unit."""
+    return CommoditiesResponse(ok=True, commodities=registry.commodities(), groups=registry.groups())
