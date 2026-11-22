@@ -68,8 +68,12 @@ unmeasured work is marked **in progress**.
 - **Screener dashboard cache:** identical universe/limit/mincap reads reuse the
   client snapshot (30s, shorter than server TTL), with explicit refresh bypass
   and no failure caching; 716 screener tests pass.
-- **Home desk cache:** unchanged catalyst/derived data is reused across layout
-  changes while current rows still update; 6 cache tests pass.
+- **Home desk cache:** one view-level catalyst lease prevents a refetch on every
+  breakpoint reflow (**4 fetches → 1**); derived arrays are keyed by
+  session/universe/layout with a 30s TTL and explicit clear/refresh. All home
+  tests pass.
+- **Patterns cache:** unchanged catalog/scan keys reuse client/server reads with
+  explicit refresh invalidation; 72 frontend + 6 backend cache tests pass.
 
 ## Final state at 19:12 IST
 
