@@ -26,7 +26,16 @@ unmeasured work is marked **in progress**.
 - **Agri packaging:** 171 complete days / 1,108,145 rows / 20.0MB, all
   171 validated against `sync_refresh_assets`; 3 source-gap partial days skipped.
 - **Release naming:** sync accepts both prefixed local paths and flat GitHub
-  asset names; 31 sync tests pass. Monthly release upload started.
+  asset names; 31 sync tests pass.
+- **Agri released and synced:** six `data-2026-06..11` releases uploaded, 342
+  assets (171 gzip payloads + 171 manifests, 60/62/60/60/62/38 per month).
+  Dry run validated 171 days; local apply wrote **1,108,058 rows** and
+  quarantined 87, with all 22 commodity keys anchored at **2026-11-21**.
+- **Options chain state:** field-scoped store subscribers; 240-contract
+  regression showed chain filter+sort rebuilds on unrelated notifications
+  **18 → 0**. 62 targeted tests pass.
+- **ITM PE report panel:** content-signature memos stop one full ECharts
+  `setOption(notMerge)+resize` per identical live frame; 12 tests pass.
 - **Low-quality tests:** 2 genuinely dead tests removed; 41 stale tests fixed.
 - **Test budgets:** `perf/budgets.json`, pytest/Vitest timing artifacts,
   warning-only check; `AGENTS.md` last checked **2026-11-22**, next **2026-11-29**.
