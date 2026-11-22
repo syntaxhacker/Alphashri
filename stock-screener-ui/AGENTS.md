@@ -584,7 +584,7 @@ npx vitest run src/components/common/SymbolAutocomplete.test.tsx  # use vitest f
 - See [MUTATION_TESTING.md](./MUTATION_TESTING.md) for advanced testing guide
 
 ## Agent Fleet / Subagent Routing
-- **Default subagent model: `opencode/nemotron-3.5-super-vl-free` ("Nemotron 3.5 Super VL Free", $0).** Use it for every subagent unless the user names a different model. Model routing is owned by `SUBAGENT_RULES.md §9` — that section is authoritative; do not keep a second copy of the pool here.
+- **Default and only subagent model: `opencode-go/hy4-flash-free` ("Hy4 flash Free" under OpenCode Go).** Use it for every subagent; the user's standing instruction is one model for the whole fleet. Do not use `opencode/nemotron-3.5-super-vl-free`, `opencode/hy4-flash-free`, DeepSeek, or any other provider/model. Model routing is owned by `SUBAGENT_RULES.md §9` — that section is authoritative; do not keep a second copy of the pool here.
 - Free-tier quota is finite — if a free model returns `Free usage limit reached`, report it and retry later or escalate that one agent, stating why.
 - Escalate a single agent to a stronger model **only** for correctness-critical work (adversarial verification, final holdout) and state why.
 - Long-running loop protocol (waves, ledger, gates, **fill-honesty audit**) lives in the **`non-stop`** skill.
