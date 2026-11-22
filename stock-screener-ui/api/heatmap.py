@@ -8,16 +8,35 @@ from functools import lru_cache
 from datetime import datetime
 
 import config
-from api.tv import get_scanner_data
+from api.tv.cache import FrameDescriptor, invalidate, scan_frame_cached
 
 from fastapi import APIRouter, Query, HTTPException
-from tradingview_screener import Query as TVQuery, col
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["heatmap"])
 
 _heatmap_cache = {"data": None, "timestamp": None}
 CACHE_TTL_SECONDS = 15 * 60
+
+#: The P/E heatmap is a genuinely different scan (positive P/E filter, valuation
+#: columns, no market-cap floor), so it stays a separate descriptor in the
+#: shared gateway rather than being folded into the sector/rotation frame.
+HEATMAP_COLUMNS = (
+    'name', 'close', 'change', 'sector', 'market_cap_basic',
+    'price_earnings_ttm', 'price_book_ratio', 'dividend_yield_recent',
+    'Perf.Y', 'return_on_equity', 'price_52_week_high', 'price_52_week_low',
+)
+HEATMAP_FRAME = FrameDescriptor(
+    market="india",
+    columns=HEATMAP_COLUMNS,
+    filters=(
+        {"left": "sector", "operation": "nequal", "right": ""},
+        {"left": "price_earnings_ttm", "operation": "greater", "right": 0},
+    ),
+    sort="market_cap_basic",
+    order="desc",
+    limit=1000,
+)
 
 
 from requests.exceptions import RequestException, HTTPError, ConnectionError as RequestsConnectionError, Timeout
@@ -26,25 +45,21 @@ import time
 FALLBACK_DATA_KEY = "heatmap_fallback"
 
 
-def _get_cached_stocks() -> List[dict]:
+def _get_cached_stocks(force: bool = False) -> List[dict]:
     max_retries = 3
     last_error = None
 
     for attempt in range(max_retries):
         try:
-            query = TVQuery()
-            query = query.select(
-                'name', 'close', 'change', 'sector',
-                'market_cap_basic', 'price_earnings_ttm',
-                'price_book_ratio', 'dividend_yield_recent',
-                'Perf.Y', 'return_on_equity',
-                'price_52_week_high', 'price_52_week_low',
+            df = scan_frame_cached(
+                HEATMAP_FRAME, ttl_seconds=CACHE_TTL_SECONDS, force=force
             )
-            query = query.set_markets('india')
-            query = query.where(col('sector') != '', col('price_earnings_ttm') > 0)
-            query = query.order_by('market_cap_basic', ascending=False).limit(1000)
 
-            _, df = get_scanner_data(query)
+            # The library used to prepend a `ticker` column; scan_frame returns
+            # only the requested fields, so derive it from TV's exchange-tagged
+            # `name` to keep the NSE-only de-dup below unchanged.
+            if "ticker" not in df.columns and "name" in df.columns:
+                df = df.assign(ticker=df["name"].astype(str))
 
             if df.empty:
                 logger.warning("TradingView screener returned empty result")
@@ -114,16 +129,17 @@ def _get_fallback_data() -> List[dict]:
     return _heatmap_cache.get("fallback", [])
 
 
-def _get_cached_data() -> List[dict]:
+def _get_cached_data(force: bool = False) -> List[dict]:
     now = datetime.now(config.IST)
     if (
-        _heatmap_cache["data"] is not None
+        not force
+        and _heatmap_cache["data"] is not None
         and _heatmap_cache["timestamp"] is not None
         and (now - _heatmap_cache["timestamp"]).total_seconds() < CACHE_TTL_SECONDS
     ):
         return _heatmap_cache["data"]
 
-    data = _get_cached_stocks()
+    data = _get_cached_stocks(force=force)
     _heatmap_cache["data"] = data
     _heatmap_cache["timestamp"] = now
     return data
@@ -185,5 +201,6 @@ async def get_sectors():
 async def refresh_cache():
     global _heatmap_cache
     _heatmap_cache = {"data": None, "timestamp": None}
-    data = _get_cached_data()
+    invalidate(HEATMAP_FRAME)
+    data = _get_cached_data(force=True)
     return {"status": "refreshed", "count": len(data)}
