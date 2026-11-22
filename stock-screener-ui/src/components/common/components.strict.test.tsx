@@ -7,7 +7,6 @@ import { TanStackTable } from "./TanStackTable";
 import { Badge } from "@/ui/feedback/Badge";
 import { Tabs, TabsList, TabsPanel, Tab } from "@/ui/data-display/Tabs";
 import { IconRefresh } from "./Icons";
-import * as palette from "@/ui/palette";
 
 afterEach(cleanup);
 
@@ -23,8 +22,8 @@ describe("CompactPanel — terminal chrome", () => {
     ));
     const style = styleOf(screen.getByTestId("p"));
     expect(style).toContain("border-radius: 2px");
-    expect(style).toContain(`border: 1px solid ${palette.BORDER_COLOR}`);
-    expect(style).toContain(`background-color: ${palette.SURFACE_COLOR}`);
+    expect(style).toContain("var(--color-fin-border)");
+    expect(style).toContain("var(--color-fin-surface)");
   });
 
   it("renders its title as amber uppercase mono with tracking", () => {
@@ -34,7 +33,7 @@ describe("CompactPanel — terminal chrome", () => {
     expect(title!.textContent).toBe("order book");
     const style = styleOf(title);
     expect(style).toContain("text-transform: uppercase");
-    expect(style).toContain(`color: ${palette.PRIMARY}`);
+    expect(style).toContain("var(--color-fin-primary)");
     expect(style).toContain("letter-spacing: 0.08em");
     expect(style).toContain("font-family:");
     expect(style).toContain("monospace");

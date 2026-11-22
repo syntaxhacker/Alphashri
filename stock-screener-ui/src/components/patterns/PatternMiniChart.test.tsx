@@ -129,6 +129,7 @@ describe("PatternMiniChart", () => {
       spy.mockClear();
     }
     buildMock.mockImplementation(() => ({ mocked: "mini-chart" } as never));
+    loadEchartsSpy.mockImplementation(async () => ({ init: initChart }));
     MockIntersectionObserver.instances = [];
     MockIntersectionObserver.autoIntersect = true;
     vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
@@ -310,5 +311,78 @@ describe("PatternMiniChart", () => {
     view.unmount();
     expect(io.disconnect).toHaveBeenCalledTimes(1);
     expect(disposeChart).toHaveBeenCalledTimes(1);
+  });
+
+  test("defers ECharts init so only intersecting cards initialize", async () => {
+    MockIntersectionObserver.autoIntersect = false;
+    render(() => (
+      <>
+        <PatternMiniChart hit={makeHit({ symbol: "VISIBLE", candles: [candle("2026-09-01", 100, 102)] })} />
+        <PatternMiniChart hit={makeHit({ symbol: "OFFSCREEN", candles: [candle("2026-09-01", 100, 102)] })} />
+      </>
+    ));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(MockIntersectionObserver.instances).toHaveLength(2);
+    expect(loadEchartsSpy).not.toHaveBeenCalled();
+    expect(initChart).not.toHaveBeenCalled();
+
+    MockIntersectionObserver.instances[0]!.emit(true);
+    await waitFor(() => expect(initChart).toHaveBeenCalledTimes(1));
+    expect(loadEchartsSpy).toHaveBeenCalledTimes(1);
+    expect(initChart).toHaveBeenCalledTimes(1);
+  });
+
+  test("memoizes the option across unrelated resize events and keeps one instance", async () => {
+    const hit = makeHit({ candles: [candle("2026-09-01", 100, 102)] });
+    render(() => <PatternMiniChart hit={hit} />);
+    await waitFor(() => expect(setChartOption).toHaveBeenCalledTimes(1));
+    expect(buildMock).toHaveBeenCalledTimes(1);
+    expect(initChart).toHaveBeenCalledTimes(1);
+
+    window.dispatchEvent(new Event("resize"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(resizeChart).toHaveBeenCalled();
+    expect(buildMock).toHaveBeenCalledTimes(1);
+    expect(setChartOption).toHaveBeenCalledTimes(1);
+    expect(initChart).toHaveBeenCalledTimes(1);
+  });
+
+  test("rebuilds the option on hit change without creating another instance", async () => {
+    let updateHit!: (hit: PatternHitDTO) => void;
+    buildMock.mockImplementation(
+      (input) => ({ version: input.candles[0]?.t ?? "none" } as never),
+    );
+    render(() => {
+      const [hit, setHit] = createSignal(makeHit({ candles: [candle("2026-09-01", 100, 102)] }));
+      updateHit = setHit;
+      return <PatternMiniChart hit={hit()} />;
+    });
+    await waitFor(() => expect(setChartOption).toHaveBeenCalledTimes(1));
+    expect(buildMock).toHaveBeenCalledTimes(1);
+    expect(initChart).toHaveBeenCalledTimes(1);
+
+    updateHit(makeHit({ candles: [candle("2026-09-02", 200, 205)] }));
+    await waitFor(() => expect(setChartOption).toHaveBeenCalledTimes(2));
+    expect(buildMock).toHaveBeenCalledTimes(2);
+    expect(setChartOption).toHaveBeenLastCalledWith({ version: "2026-09-02" }, true);
+    expect(initChart).toHaveBeenCalledTimes(1);
+  });
+
+  test("ignores an ECharts module that resolves after unmount", async () => {
+    let resolveLoad!: (lib: unknown) => void;
+    loadEchartsSpy.mockImplementation(
+      () => new Promise((resolve) => { resolveLoad = resolve; }),
+    );
+    const hit = makeHit({ candles: [candle("2026-09-01", 100, 102)] });
+    const view = render(() => <PatternMiniChart hit={hit} />);
+    await waitFor(() => expect(loadEchartsSpy).toHaveBeenCalled());
+    view.unmount();
+
+    expect(MockIntersectionObserver.instances[0]!.disconnect).toHaveBeenCalledTimes(1);
+
+    resolveLoad({ init: initChart });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(initChart).not.toHaveBeenCalled();
+    expect(setChartOption).not.toHaveBeenCalled();
   });
 });

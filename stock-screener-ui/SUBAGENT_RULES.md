@@ -351,6 +351,8 @@ Canonical source for model routing **and** concurrency — `AGENTS.md` and
 
 - The user's standing instruction is **one model for every agent** — do not mix models
   across a wave unless asked.
+- **Every subagent must be dispatched in the background by default** (`background: true`).
+  Foreground is allowed only when the user explicitly asks for a blocking result.
 - **Concurrency is 8 simultaneous subagents** (user instruction, 2026-11-16) until the
   user says decrease to 5. Keep one agent per disjoint file set; if a wave would
   overlap, queue the lane instead of sharing files.

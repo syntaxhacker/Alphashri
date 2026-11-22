@@ -247,6 +247,35 @@ describe("buildPatternChartOption instance identity", () => {
   });
 });
 
+describe("buildPatternChartOption purity", () => {
+  it("does not mutate its inputs and is deterministic for equal arguments", () => {
+    const candles: ChartCandle[] = CANDLES.map((c) => ({ ...c }));
+    const trendlines = [
+      [
+        { t: CANDLES[0]!.t, price: 104 },
+        { t: CANDLES[1]!.t, price: 107 },
+      ],
+    ];
+    const candlesBefore = structuredClone(candles);
+    const trendlinesBefore = structuredClone(trendlines);
+    const hitBefore = structuredClone(HIT);
+
+    const input = { candles, trendlines, hit: HIT, compact: false };
+    const first = buildPatternChartOption(input);
+    const second = buildPatternChartOption(input);
+
+    expect(candles).toEqual(candlesBefore);
+    expect(trendlines).toEqual(trendlinesBefore);
+    expect(HIT).toEqual(hitBefore);
+    expect((first.xAxis as { data?: unknown[] }).data).toEqual(
+      (second.xAxis as { data?: unknown[] }).data,
+    );
+    expect(seriesOf<SeriesLike>(first).map((s) => s.data)).toEqual(
+      seriesOf<SeriesLike>(second).map((s) => s.data),
+    );
+  });
+});
+
 describe("buildPatternChartOption performance", () => {
   it("builds the full option for 714 daily candles in under 20ms (median of 20)", () => {
     // Realistic fullscreen dock chart: 714 daily candles, naive engine

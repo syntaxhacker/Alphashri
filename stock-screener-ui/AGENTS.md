@@ -585,6 +585,7 @@ npx vitest run src/components/common/SymbolAutocomplete.test.tsx  # use vitest f
 
 ## Agent Fleet / Subagent Routing
 - **Default and only subagent model: `opencode-go/hy4-flash-free` ("Hy4 flash Free" under OpenCode Go).** Every subagent call MUST pass `model: "opencode-go/hy4-flash-free"` explicitly; omitting the model (which falls back to a harness default) is a violation. Do not use `opencode/nemotron-3.5-super-vl-free`, `opencode/hy4-flash-free`, DeepSeek, or any other provider/model. Model routing is owned by `SUBAGENT_RULES.md §9` — that section is authoritative; do not keep a second copy of the pool here.
+- **Always dispatch subagents in the background by default** (`background: true`). Do not wait on a foreground subagent unless the user explicitly asks for a blocking result. Keep working on non-overlapping integration/tests; merge when each lane reports.
 - Free-tier quota is finite — if a free model returns `Free usage limit reached`, report it and retry later or escalate that one agent, stating why.
 - Escalate a single agent to a stronger model **only** for correctness-critical work (adversarial verification, final holdout) and state why.
 - Long-running loop protocol (waves, ledger, gates, **fill-honesty audit**) lives in the **`non-stop`** skill.

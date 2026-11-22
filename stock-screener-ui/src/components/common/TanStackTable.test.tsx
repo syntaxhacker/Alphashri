@@ -1581,3 +1581,156 @@ describe("TanStackTable — null-safe sorting", () => {
     expect(orderOf("null-multi")).toEqual(["x", "z", "y"]);
   });
 });
+
+describe("TanStackTable — recomputation guards", () => {
+  const makeRows = (n: number): TestItem[] =>
+    Array.from({ length: n }, (_, i) => ({ id: String(i + 1), name: `Row${i}`, value: i }));
+
+  it("keeps every mounted row node when only the visible window grows", () => {
+    render(() => (
+      <TanStackTable<TestItem>
+        data={makeRows(20)}
+        columns={columns}
+        rowWindowSize={5}
+        getRowTestId={(r) => `grow-${r.id}`}
+      />
+    ));
+    const initial = screen.getAllByTestId(/^grow-/);
+    expect(initial).toHaveLength(5);
+    const mounted = initial.slice();
+
+    fireEvent.click(screen.getByTestId("table-load-more"));
+
+    const after = screen.getAllByTestId(/^grow-/);
+    expect(after).toHaveLength(10);
+    // A wider slice must not rebuild the rows already on screen: only the five
+    // newly revealed slots may mount.
+    for (let i = 0; i < mounted.length; i++) expect(after[i]).toBe(mounted[i]);
+  });
+
+  it("keeps cell nodes and their column-derived style across a data replacement", () => {
+    const [rows, setRows] = createSignal<TestItem[]>([
+      { id: "1", name: "Alpha", value: 100 },
+      { id: "2", name: "Beta", value: 200 },
+    ]);
+    render(() => (
+      <TanStackTable<TestItem> data={rows()} columns={columns} getRowTestId={(r) => `cell-${r.id}`} />
+    ));
+    const cells = screen.getByTestId("cell-1").querySelectorAll("td");
+    const nameCell = cells[0] as HTMLElement;
+    const valueCell = cells[1] as HTMLElement;
+    const nameClass = nameCell.className;
+    const nameStyle = nameCell.style.cssText;
+
+    setRows([
+      { id: "1", name: "Alpha", value: 101 },
+      { id: "2", name: "Beta", value: 200 },
+    ]);
+
+    const after = screen.getByTestId("cell-1").querySelectorAll("td");
+    expect(after[0]).toBe(nameCell);
+    expect(after[1]).toBe(valueCell);
+    expect((after[0] as HTMLElement).className).toBe(nameClass);
+    expect((after[0] as HTMLElement).style.cssText).toBe(nameStyle);
+    expect(after[1].textContent).toContain("101");
+  });
+
+  it("does not re-emit visible rows when only column prefs change", () => {
+    const [prefs, setPrefs] = createSignal<ColumnPrefs>({ order: [], hidden: [] });
+    const onVisibleRowsChange = vi.fn();
+    render(() => (
+      <TanStackTable<TestItem>
+        data={data}
+        columns={columns}
+        enableColumnControls
+        columnPrefs={prefs()}
+        onVisibleRowsChange={onVisibleRowsChange}
+      />
+    ));
+    expect(onVisibleRowsChange).toHaveBeenCalledTimes(1);
+
+    setPrefs({ order: [], hidden: ["value"] });
+
+    // The column set changed but the mounted row identities did not, so the
+    // callback must stay silent (it is keyed on rows, not on column layout).
+    expect(onVisibleRowsChange).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("table-column-controls")).toBeInTheDocument();
+  });
+
+  it("re-aligns cells when a column turns numeric after mount", () => {
+    const [rows, setRows] = createSignal<TestItem[]>([]);
+    render(() => <TanStackTable<TestItem> data={rows()} columns={columns} getRowTestId={(r) => `num-${r.id}`} />);
+    expect(screen.queryByTestId("num-1")).toBeNull();
+
+    setRows(data);
+
+    const cells = screen.getByTestId("num-1").querySelectorAll("td");
+    const valueCell = cells[1] as HTMLElement;
+    expect(valueCell.style.textAlign).toBe("right");
+    expect(valueCell.className).toContain("font-mono");
+    const nameCell = cells[0] as HTMLElement;
+    expect(nameCell.style.textAlign).toBe("left");
+    expect(nameCell.className).not.toContain("font-mono");
+  });
+});
+
+describe("TanStackTable — dark surfaces and vertical rhythm", () => {
+  it("paints container, scroll box, table and cells with semantic surface tokens", () => {
+    render(() => (
+      <TanStackTable<TestItem> data={data} columns={columns} dataTestId="surfaces" stickyHeader />
+    ));
+    const container = document.querySelector<HTMLElement>(".paper-tanstack-container")!;
+    const scroll = document.querySelector<HTMLElement>(".paper-tanstack-scroll")!;
+    const table = screen.getByTestId("surfaces");
+    const th = table.querySelector<HTMLElement>("th")!;
+    const cell = table.querySelector<HTMLElement>("tbody td")!;
+
+    expect(container.style.backgroundColor).toBe("var(--color-fin-surface)");
+    expect(container.getAttribute("style")).toContain("var(--color-fin-border)");
+    expect(container.getAttribute("style")).not.toMatch(/#[0-9a-f]{6}/i);
+    expect(scroll.style.backgroundColor).toBe("var(--color-fin-surface)");
+    expect(table.style.backgroundColor).toBe("var(--color-fin-surface)");
+    expect(th.style.backgroundColor).toBe("var(--color-fin-surface-alt)");
+    expect(th.getAttribute("style")).toContain("var(--color-fin-border)");
+    // Cells inherit the row tint; they never paint their own opaque surface.
+    expect(cell.style.backgroundColor).toBe("inherit");
+    expect(cell.getAttribute("style")).toContain("var(--color-fin-border)");
+  });
+
+  it("keeps a token-driven row height and a single consistent cell pad", () => {
+    render(() => <TanStackTable<TestItem> data={data} columns={columns} dataTestId="rhythm" />);
+    const table = screen.getByTestId("rhythm");
+    expect(table.style.getPropertyValue("--tbl-row-h")).toBe("23px");
+    expect(table.style.getPropertyValue("--tbl-cell-pad")).toBe("3px 8px");
+    for (const cell of Array.from(table.querySelectorAll<HTMLElement>("tbody td"))) {
+      expect(cell.style.verticalAlign).toBe("middle");
+    }
+  });
+
+  it("expanded detail rows use the raised surface and a single hairline", () => {
+    const toggleColumns: TableColumnDef<TestItem>[] = [
+      { id: "name", header: "Name", accessorKey: "name" },
+      {
+        id: "toggle",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <button data-testid="detail-toggle" onClick={() => row.toggle()}>toggle</button>
+        ),
+      },
+    ];
+    render(() => (
+      <TanStackTable<TestItem>
+        data={[data[0]]}
+        columns={toggleColumns}
+        getRowCanExpand={() => true}
+        renderSubComponent={() => <span>detail</span>}
+      />
+    ));
+    fireEvent.click(screen.getByTestId("detail-toggle"));
+    const detail = document.querySelector<HTMLElement>(".paper-tanstack-expanded-row td")!;
+    expect(detail.style.backgroundColor).toBe("var(--color-fin-surface-alt)");
+    expect(detail.getAttribute("style")).toContain("var(--color-fin-border)");
+    expect(detail.getAttribute("style")).not.toContain("border-top");
+  });
+});

@@ -156,7 +156,9 @@ export function PatternListView(props: PatternListViewProps) {
       accessorKey: "pattern_name",
       size: 210,
       meta: { align: "left" },
-      cell: (ctx) => <TextCell value={ctx.row.original.pattern_name} />,
+      cell: (ctx) => (
+        <TextCell value={ctx.row.original.pattern_name} title={ctx.row.original.pattern_name ?? undefined} />
+      ),
     },
     {
       id: "confidence",

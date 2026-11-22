@@ -130,10 +130,12 @@ export function CompactPanel(props: CompactPanelProps) {
       data-compact=""
       className={`bg-fin-surface${flush() ? "" : " rounded-fin border border-fin-border"}`}
       style={{
-        "background-color": palette.SURFACE,
+        // Theme tokens, not baked palette hexes: switching colour scheme
+        // repaints the panel with the rest of the app.
+        "background-color": "var(--color-fin-surface)",
         ...(flush()
           ? {}
-          : { "border-radius": "2px", border: `1px solid ${palette.BORDER}` }),
+          : { "border-radius": "2px", border: "1px solid var(--color-fin-border)" }),
         ...panelStyle(),
       }}
       data-testid={own.testId}
@@ -160,7 +162,7 @@ export function CompactPanel(props: CompactPanelProps) {
               "padding-right": flush() ? "0px" : "8px",
               "padding-bottom": "0px",
               width: "100%",
-              "border-bottom": `1px solid ${palette.BORDER}`,
+              "border-bottom": "1px solid var(--color-fin-border)",
             }}
           >
             <Stack spacing={0.5} className="flex flex-start min-w-0">
@@ -177,7 +179,7 @@ export function CompactPanel(props: CompactPanelProps) {
                         "letter-spacing": "0.08em",
                         "text-transform": "uppercase",
                         "line-height": "1.2",
-                        color: palette.PRIMARY,
+                        color: "var(--color-fin-primary)",
                       }}
                     >
                       {own.title}
@@ -234,6 +236,7 @@ export function CompactStat(props: CompactStatProps) {
     "dense",
   ]);
   const tone = () => own.tone ?? "default";
+  const dense = () => own.dense ?? false;
 
   const isPrimitiveHint = () => typeof own.hint === "string" || typeof own.hint === "number";
 
@@ -242,6 +245,7 @@ export function CompactStat(props: CompactStatProps) {
       data-compact-stat=""
       className="bg-fin-surface"
       {...(paperProps as Record<string, unknown>)}
+      bg="var(--color-fin-surface)"
     >
       <Box
         className="flex flex-col w-full"
@@ -249,7 +253,12 @@ export function CompactStat(props: CompactStatProps) {
           display: "flex",
           "flex-direction": "column",
           "justify-content": "center",
-          height: "41px",
+          // Auto height with a floor: a fixed 41px clipped the hint on any
+          // wrapped/floating font, and let the three lines collide.
+          height: "auto",
+          "min-height": dense() ? "40px" : "48px",
+          padding: dense() ? "2px 8px" : "4px 8px",
+          "row-gap": "2px",
           width: "100%",
         }}
       >
@@ -285,7 +294,7 @@ export function CompactStat(props: CompactStatProps) {
         <Show when={own.hint != null}>
           <Show
             when={isPrimitiveHint()}
-            fallback={<Box className="flex w-full" style={{ "margin-top": "4px" }}>{own.hint}</Box>}
+            fallback={<Box className="flex w-full">{own.hint}</Box>}
           >
             <Box className="flex w-full">
               <Text size="xs" c="dimmed">{own.hint}</Text>

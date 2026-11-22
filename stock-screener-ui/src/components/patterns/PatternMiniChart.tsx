@@ -20,16 +20,6 @@ const NO_STANDALONE: TrendLine[] = [];
 // Start the chart just before its card scrolls into view so it is ready on paint.
 const MINI_CHART_ROOT_MARGIN = "200px";
 
-const categoryAxisCache = new Map<number, string[]>();
-function categoryAxis(length: number): string[] {
-  let axis = categoryAxisCache.get(length);
-  if (!axis) {
-    axis = Array.from({ length }, (_, i) => String(i));
-    categoryAxisCache.set(length, axis);
-  }
-  return axis;
-}
-
 export function PatternMiniChart(props: PatternMiniChartProps) {
   let chartEl: HTMLDivElement | undefined;
   let chart: ECharts.ECharts | undefined;
@@ -49,8 +39,14 @@ export function PatternMiniChart(props: PatternMiniChartProps) {
     () => (props.hit.trendlines ?? NO_TRENDLINES).filter((line) => line.length > 0),
   );
 
-  function option(): Record<string, unknown> {
+  // Option construction is pure and memoised on the data that shapes it: the
+  // hit (which carries the timeframe) and the trendline view. The visibility
+  // guard is first so an off-screen card never builds an option at all, and
+  // the memo means unrelated parent activity never rebuilds the arrays.
+  const chartOption = createMemo<Record<string, unknown> | undefined>(() => {
+    if (!visible()) return undefined;
     const hit = props.hit;
+    const view = props.trendlinesView;
     const candleWindow = candles();
     const lines = trendlines();
 
@@ -60,7 +56,7 @@ export function PatternMiniChart(props: PatternMiniChartProps) {
         trendlines: lines,
         hit,
         standaloneTrendLines: hit.trend_lines ?? NO_STANDALONE,
-        trendlinesView: props.trendlinesView ?? "both",
+        trendlinesView: view ?? "both",
         compact: true,
       }) as Record<string, unknown>;
     }
@@ -92,11 +88,15 @@ export function PatternMiniChart(props: PatternMiniChartProps) {
       animation: false,
       grid: { left: 2, right: 2, top: 6, bottom: 2 },
       tooltip: { show: false },
-      xAxis: { type: "category", show: false, data: categoryAxis(length) },
+      xAxis: {
+        type: "category",
+        show: false,
+        data: Array.from({ length }, (_, i) => String(i)),
+      },
       yAxis: { type: "value", show: false, scale: true },
       series,
     };
-  }
+  });
 
   async function applyOption(next: Record<string, unknown>) {
     const token = ++applyToken;
@@ -108,9 +108,8 @@ export function PatternMiniChart(props: PatternMiniChartProps) {
   }
 
   createEffect(() => {
-    // Build the option only once visible so offscreen cards skip that work too.
-    if (!visible()) return;
-    void applyOption(option());
+    const option = chartOption();
+    if (option) void applyOption(option);
   });
 
   onMount(() => {
