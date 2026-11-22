@@ -5,7 +5,7 @@ import { render, screen, cleanup, waitFor, within, fireEvent } from "@solidjs/te
 import { createSignal, type JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import { ValuePanel } from "./ValuePanel";
-import { valueScan } from "../../api/valueScan";
+import { PRESET_IDS, valueScan } from "../../api/valueScan";
 import type { ValueMarket, ValueRow, ValueScanResponse } from "../../api/valueScan";
 
 vi.mock("../../api/valueScan", async (importOriginal) => {
@@ -55,7 +55,7 @@ function row(symbol: string, overrides: Partial<ValueRow> = {}): ValueRow {
     vs_200dma: 2.0,
     off_52w_high: -12.0,
     score: 78,
-    subscores: { value: 80, quality: 75, growth: 70, health: 82 },
+    subscores: { value: 20, quality: 19, growth: 17, health: 22 },
     peer: { bucket: "Banks", pe_median: 11.2, roe_median: 12.0, fcf_yield_median: 4.1 },
     flags: ["LOW_PE"],
     derived: {
@@ -182,6 +182,74 @@ describe("ValuePanel", () => {
     r(<ValuePanel />);
     const err = await screen.findByTestId("value-error");
     expect(err).toHaveTextContent("network down");
+  });
+
+  test("loading, no-data and failed states are mutually exclusive and worded differently", async () => {
+    let resolveScan: ((value: ValueScanResponse) => void) | undefined;
+    mockValueScan.mockImplementation(
+      () =>
+        new Promise<ValueScanResponse>((resolve) => {
+          resolveScan = resolve;
+        }),
+    );
+    r(<ValuePanel />);
+
+    const loading = screen.getByTestId("value-loading");
+    expect(loading).toHaveTextContent("Scanning for deep value");
+    expect(screen.queryByTestId("value-empty")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("value-error")).not.toBeInTheDocument();
+
+    await waitFor(() => expect(resolveScan).toBeDefined(), { timeout: 3000 });
+    resolveScan?.(response([]));
+    const empty = await screen.findByTestId("value-empty");
+    expect(empty).toHaveTextContent("No deep-value matches");
+    expect(screen.queryByTestId("value-loading")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("value-error")).not.toBeInTheDocument();
+
+    mockValueScan.mockRejectedValue(new Error("Value scan failed (HTTP 500)"));
+    await fireEvent.click(screen.getByTestId("value-refresh"));
+    const failed = await screen.findByTestId("value-error");
+    expect(failed).toHaveTextContent("Value scan failed (HTTP 500)");
+    expect(screen.queryByTestId("value-empty")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("value-loading")).not.toBeInTheDocument();
+  });
+
+  test("surfaces a partial-fundamentals note when fields_complete is false", async () => {
+    mockValueScan.mockResolvedValue({ ...response([row("RELIANCE")]), fields_complete: false });
+    r(<ValuePanel />);
+    const note = await screen.findByTestId("value-fields-partial");
+    expect(note).toHaveTextContent("Partial fundamentals");
+    expect(note).toHaveTextContent("not zero");
+    expect(screen.getByTestId("value-row-RELIANCE")).toBeInTheDocument();
+  });
+
+  test("omits the partial-fundamentals note when fields are complete", async () => {
+    r(<ValuePanel />);
+    await screen.findByTestId("value-row-RELIANCE");
+    expect(screen.queryByTestId("value-fields-partial")).not.toBeInTheDocument();
+  });
+
+  test("all generated presets render and each selection round-trips to the request", async () => {
+    r(<ValuePanel />);
+    await screen.findByTestId("value-row-RELIANCE");
+    const select = within(screen.getByTestId("value-preset-select")).getByRole(
+      "combobox",
+    ) as HTMLSelectElement;
+    const options = Array.from(select.querySelectorAll("option")).map((o) => o.value);
+    for (const id of PRESET_IDS) expect(options, id).toContain(id);
+
+    for (const id of PRESET_IDS) {
+      fireEvent.input(select, { target: { value: id } });
+      await waitFor(
+        () =>
+          expect(mockValueScan).toHaveBeenLastCalledWith(
+            expect.objectContaining({ preset: id }),
+            expect.anything(),
+          ),
+        { timeout: 3000 },
+      );
+      expect(select.value, id).toBe(id);
+    }
   });
 
   test("CSV export produces a blob download", async () => {
