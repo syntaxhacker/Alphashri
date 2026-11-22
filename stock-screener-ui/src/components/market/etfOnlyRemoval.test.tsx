@@ -170,4 +170,40 @@ describe("etfOnly removal — no hidden ETF filter", () => {
     });
     expect(filtered.map((r) => r.symbol)).toEqual(["NIFTYBEES"]);
   });
+
+  test("(d) every numeric filter survives a serialize -> parse round trip", () => {
+    // The absolute value gates were declared, applied to rows and rendered as
+    // chips, but absent from the serializer — so they worked until a reload and
+    // then silently reset. Parse reads them all back, which is what makes the
+    // omission invisible without this assertion.
+    const configured = {
+      ...defaultMarketFilters(),
+      peMax: 25,
+      psMax: 4,
+      pbMax: 5,
+      roeMin: 12,
+      divYieldMin: 0.5,
+      fcfYieldMin: 1.5,
+      debtToEquityMax: 1.8,
+      revYoyMin: 5,
+      epsYoyMin: 8,
+      pePctMax: 0.35,
+      roePctMin: 0.45,
+      dePctMax: 0.3,
+      gapMin: 3,
+      volumeMin: 100_000,
+      valueTradedMin: 5_000_000,
+    };
+    const wire = serializeMarketConfig({
+      ...defaultMarketConfig(),
+      filters: configured,
+    });
+    const parsed = parseMarketConfig(wire);
+    expect(parsed).not.toBeNull();
+    const restored = parsed!.filters;
+    for (const [key, value] of Object.entries(configured)) {
+      if (key === "capTiers" || key === "sectors") continue;
+      expect(restored[key as keyof typeof restored], `${key} did not persist`).toEqual(value);
+    }
+  });
 });

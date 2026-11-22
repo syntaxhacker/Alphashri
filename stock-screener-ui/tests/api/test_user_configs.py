@@ -62,6 +62,15 @@ DEFAULTS = {
     "pePctMax": None,
     "roePctMin": None,
     "dePctMax": None,
+    "peMax": None,
+    "psMax": None,
+    "pbMax": None,
+    "roeMin": None,
+    "divYieldMin": None,
+    "fcfYieldMin": None,
+    "debtToEquityMax": None,
+    "revYoyMin": None,
+    "epsYoyMin": None,
     "aboveSma20": False,
     "aboveSma50": False,
     "aboveSma200": False,
@@ -98,6 +107,15 @@ SAMPLE = {
     "pePctMax": 0.35,
     "roePctMin": 0.45,
     "dePctMax": 0.3,
+    "peMax": 25.0,
+    "psMax": 4.0,
+    "pbMax": 5.0,
+    "roeMin": 12.0,
+    "divYieldMin": 0.5,
+    "fcfYieldMin": 1.5,
+    "debtToEquityMax": 1.8,
+    "revYoyMin": 5.0,
+    "epsYoyMin": 8.0,
     "aboveSma20": True,
     "aboveSma50": True,
     "aboveSma200": False,
@@ -184,6 +202,9 @@ _SERIALIZED_KEY_RE = re.compile(r"^\s{4}(?:\w+):\s", re.MULTILINE)
 _MARKET_SORT_OPTIONS_RE = re.compile(
     r"MARKET_SORT_OPTIONS\s*(?::[^=]+)?=\s*\[(?P<body>.*?)\]\s*;", re.DOTALL
 )
+_NUMERIC_LIMITS_RE = re.compile(
+    r"const NUMERIC_LIMITS: [^=]+=\s*\{(?P<body>.*?)\n\};", re.DOTALL
+)
 
 
 def _frontend_market_filter_keys() -> list[str]:
@@ -200,6 +221,21 @@ def _frontend_market_filter_keys() -> list[str]:
     body = match.group("body")
     keys = [line.strip().split(":")[0] for line in body.splitlines() if _SERIALIZED_KEY_RE.match(line)]
     return [k for k in keys if k]
+
+
+def _frontend_numeric_filter_keys() -> list[str]:
+    """Every `number | null` filter declared in the frontend's limits table.
+
+    `NUMERIC_LIMITS` is the authoritative list of writable numeric filters, and
+    `parseMarketConfig` reads all of them back. A filter can therefore be
+    perfectly functional — gate rows and render a chip — and still never persist
+    if the serializer omits it. Nine absolute value gates were in exactly that
+    state: they filtered and showed chips, then silently vanished on reload.
+    """
+    ts_path = ROOT / "src" / "components" / "market" / "useMarketConfig.ts"
+    match = _NUMERIC_LIMITS_RE.search(ts_path.read_text())
+    assert match is not None, f"NUMERIC_LIMITS not found in {ts_path}"
+    return [line.strip().split(":")[0] for line in match.group("body").splitlines() if ":" in line and "[" in line]
 
 
 def _frontend_market_sort_keys() -> list[str]:
@@ -735,6 +771,21 @@ class TestUniverseRegistryDerivation:
         assert not missing, (
             "MarketFiltersV1 is missing keys the frontend serializes: "
             f"{missing} — a save carrying any of them 422s as `unknown_key`"
+        )
+
+    def test_every_numeric_filter_the_frontend_declares_is_serialized(self):
+        """A filter the UI declares and applies must also persist.
+
+        `parseMarketConfig` reads every `NUMERIC_LIMITS` key, so a missing
+        serializer entry is invisible until reload — the filter works, shows its
+        chip, then silently resets. Nine absolute value gates were in that state.
+        """
+        serialized = set(_frontend_market_filter_keys())
+        declared = set(_frontend_numeric_filter_keys())
+        missing = sorted(declared - serialized)
+        assert not missing, (
+            "serializeMarketConfig omits filters that parseMarketConfig reads: "
+            f"{missing} — they filter rows and then vanish on reload"
         )
 
     def test_sort_literal_accepts_every_frontend_market_sort(self):

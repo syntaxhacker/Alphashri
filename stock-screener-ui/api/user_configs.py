@@ -151,6 +151,16 @@ class MarketFiltersV1(BaseModel):
     pePctMax: Optional[float] = Field(default=None, ge=0, le=1)
     roePctMin: Optional[float] = Field(default=None, ge=0, le=1)
     dePctMax: Optional[float] = Field(default=None, ge=0, le=1)
+    # Absolute value gates. Ranges mirror NUMERIC_LIMITS in useMarketConfig.ts.
+    peMax: Optional[float] = Field(default=None, ge=-1000, le=10_000)
+    psMax: Optional[float] = Field(default=None, ge=-1000, le=10_000)
+    pbMax: Optional[float] = Field(default=None, ge=-1000, le=10_000)
+    roeMin: Optional[float] = Field(default=None, ge=-1000, le=1000)
+    divYieldMin: Optional[float] = Field(default=None, ge=-100, le=100)
+    fcfYieldMin: Optional[float] = Field(default=None, ge=-100, le=100)
+    debtToEquityMax: Optional[float] = Field(default=None, ge=-100, le=10_000)
+    revYoyMin: Optional[float] = Field(default=None, ge=-1000, le=10_000)
+    epsYoyMin: Optional[float] = Field(default=None, ge=-10_000, le=10_000)
     aboveSma20: bool = False
     aboveSma50: bool = False
     aboveSma200: bool = False
