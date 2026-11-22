@@ -56,7 +56,12 @@ CACHE_TTL_SECONDS = 60
 SPARK_BARS = 30
 SPARK_MAX_SYMBOLS = 60
 SPARK_WORKERS = 6
-TV_LIMIT = 3000
+# 4000, not 3000. This is an input cap, not what bounds the panels: measured,
+# TV returns 4,000 rows for `india` either way and only ~2,450 of those are in
+# the `all_equity` universe list, which is the real binding limit
+# (`_frame_to_records` drops anything outside `allowed`). Raising this changes
+# nothing today; it stops the constant from being the next ceiling.
+TV_LIMIT = 4000
 
 _cache: dict[str, tuple[float, dict]] = {}
 
