@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@solidjs/testing-library";
-import { TestWrapper } from "../../../test/test-utils";
+import { cleanup, screen, waitFor } from "@solidjs/testing-library";
+import { renderWithProviders } from "@/test-utils/renderWithProviders";
 import type { NewsItem } from "../../news/news-types";
 
 const newsMock = vi.hoisted(() => ({
@@ -30,9 +30,8 @@ const headline: NewsItem = {
 };
 
 function renderPanel() {
-  return render(
-    () => NEWS_FEED_PANEL.mount(() => ({}), { data: () => undefined, commands: {} }),
-    { wrapper: TestWrapper },
+  return renderWithProviders(() =>
+    NEWS_FEED_PANEL.mount(() => ({}), { data: () => undefined, commands: {} }),
   );
 }
 

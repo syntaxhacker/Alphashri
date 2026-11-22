@@ -3,7 +3,7 @@ import { UIProvider } from "@/ui";
 import type { JSX } from "solid-js";
 
 /**
- * Mount a component under the app's providers.
+ * The one UIProvider wrapper shared by every component test.
  *
  * No router here on purpose. In `@solidjs/router` v1 the router only renders
  * `<Route>` definitions — arbitrary JSX children produce zero routes, so a
@@ -12,11 +12,20 @@ import type { JSX } from "solid-js";
  * `useNavigate`/`useSearchParams` (the pattern the converted suites use), which
  * also keeps them hermetic from route-table changes.
  */
+export function TestWrapper(props: { children: JSX.Element }) {
+  return <UIProvider>{props.children}</UIProvider>;
+}
+
+/**
+ * Render a zero-arg component under the canonical provider.
+ *
+ * `options` are spread after the default wrapper so callers keep Solid's full
+ * render contract (container, queries, a narrower wrapper, …) without forking
+ * a second helper.
+ */
 export function renderWithProviders(
   ui: () => JSX.Element,
-  _options?: { initialRoute?: string; user?: unknown },
+  options?: Parameters<typeof render>[1],
 ): ReturnType<typeof render> {
-  return render(ui, {
-    wrapper: (props) => <UIProvider>{props.children}</UIProvider>,
-  });
+  return render(ui, { wrapper: TestWrapper, ...options });
 }
