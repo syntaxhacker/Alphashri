@@ -78,6 +78,26 @@ def _max_drawdown(points: list[dict]) -> tuple[float, float, list[dict]]:
     return round(max_dd, 2), round(max_dd_pct, 2), series
 
 
+def _cumulative_drawdown(trades: list) -> tuple[float, float]:
+    """Peak drawdown over a trade sequence in one pass.
+
+    Mirrors `_max_drawdown` fed by a running cumulative-P&L curve, but never
+    rebuilds the curve from a prefix slice for every trade (that was O(n^2)).
+    """
+    peak = 0.0
+    max_dd = 0.0
+    max_dd_pct = 0.0
+    cumulative = 0.0
+    for t in trades:
+        cumulative += float(t.net_pnl or 0)
+        peak = max(peak, cumulative)
+        drawdown = peak - cumulative
+        drawdown_pct = (drawdown / peak * 100) if peak > 0 else 0.0
+        max_dd = max(max_dd, drawdown)
+        max_dd_pct = max(max_dd_pct, drawdown_pct)
+    return round(max_dd, 2), round(max_dd_pct, 2)
+
+
 def _summary_for_trades(trades: list) -> dict:
     wins = [t for t in trades if float(t.net_pnl or 0) >= 0]
     losses = [t for t in trades if float(t.net_pnl or 0) < 0]
@@ -197,10 +217,7 @@ def get_dashboard_analytics(
             first = bot_trades[0]
             bot = bot_lookup.get(first.bot_id)
             bot_summary = _summary_for_trades(bot_trades)
-            bot_max_dd, bot_max_dd_pct, _ = _max_drawdown([
-                {"date": str(i), "cumulative_pnl": sum(float(t.net_pnl or 0) for t in bot_trades[: i + 1])}
-                for i in range(len(bot_trades))
-            ])
+            bot_max_dd, bot_max_dd_pct = _cumulative_drawdown(bot_trades)
             bot_rankings.append({
                 "bot_id": key,
                 "bot_name": bot.name if bot else "Default",
