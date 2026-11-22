@@ -411,6 +411,60 @@ describe("paper-trading TanStackTable — stable row identity across ticks", () 
     expect(after[2].textContent).toContain("₹300");
   });
 
+  it("derives identity from getRowTestId when getRowKey is absent", () => {
+    let setRows!: (rows: TickRow[]) => void;
+    render(() => {
+      const [rows, update] = createSignal<TickRow[]>([{ id: "a", price: 100 }]);
+      setRows = update;
+      return (
+        <TanStackTable<TickRow>
+          data={rows()}
+          columns={tickColumns}
+          dataTestId="paper-fallback-key"
+          getRowTestId={(r) => `tick-${r.id}`}
+        />
+      );
+    });
+
+    const before = screen.getByTestId("tick-a");
+    setRows([{ id: "a", price: 100 }]);
+    expect(screen.getByTestId("tick-a")).toBe(before);
+  });
+
+  it("keeps an expanded row selected across a tick that replaces the row object", () => {
+    const expandColumns: TableColumnDef<TickRow>[] = [
+      {
+        id: "toggle",
+        header: "",
+        cell: ({ row }) => <button onClick={() => row.toggle()}>toggle</button>,
+      },
+      ...tickColumns,
+    ];
+    let setRows!: (rows: TickRow[]) => void;
+    render(() => {
+      const [rows, update] = createSignal<TickRow[]>([{ id: "a", price: 100 }]);
+      setRows = update;
+      return (
+        <TanStackTable<TickRow>
+          data={rows()}
+          columns={expandColumns}
+          dataTestId="paper-expand-tick"
+          getRowKey={(r) => r.id}
+          getRowTestId={(r) => `tick-${r.id}`}
+          getRowCanExpand={() => true}
+          renderSubComponent={() => <div data-testid="expanded-detail">detail</div>}
+        />
+      );
+    });
+
+    fireEvent.click(screen.getByText("toggle"));
+    expect(screen.getByTestId("expanded-detail")).toBeInTheDocument();
+
+    setRows([{ id: "a", price: 110 }]);
+    expect(screen.getByTestId("expanded-detail")).toBeInTheDocument();
+    expect(screen.getByTestId("tick-a").textContent).toContain("₹110");
+  });
+
   it("remounts only the changed row on a price-only tick across 12 rows", () => {
     const initial = Array.from({ length: 12 }, (_, i) => ({ id: `r${i}`, price: 100 + i }));
     const { setRows, rows } = renderTickTable(initial);
