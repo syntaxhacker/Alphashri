@@ -55,6 +55,12 @@ unmeasured work is marked **in progress**.
 - **DB-backed tests:** broker/bot helper sessions now use the schema-initialized
   test DB; 45 tests pass in default and empty-DB CI simulation (was 26 failures
   in CI simulation).
+- **Date-sensitive tests:** pinned the real `is_derivatives_open` and
+  `_today_is_session` seams and froze the 1D live-edge clock to a weekday;
+  **9 → 0 failures** (43 tests).
+- **Week52 shim tests:** import order fixed and local cache/order_factory
+  setters added; **3 silent skips → 14 passing tests**.
+- **Local PR fast tier:** **686 passed, 3 skipped in 4m10s** (budget < 5m).
 - **Test-debt tracker:** `docs/TEST_DEBT.md` records fixed clusters, remaining
   source-gap/fixture clusters, policy and the fresh full-sweep command.
 
