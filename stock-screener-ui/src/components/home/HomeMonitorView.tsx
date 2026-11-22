@@ -1,4 +1,4 @@
-import { createMemo, For, Match, Show, Switch, type Accessor, type JSX } from "solid-js";
+import { createMemo, For, Index, Match, Show, Switch, type Accessor, type JSX } from "solid-js";
 import { Badge, Box, Button, Loader, Text, useMediaQuery } from "@/ui";
 import type { CatalystBreadth, CatalystSector, CatalystToday } from "@/api/catalysts";
 import { useCatalystToday } from "@/state/catalystStore";
@@ -353,10 +353,13 @@ function SectorPulse() {
 function SessionPlan() {
   const store = useCatalystToday();
   const data = () => store.data();
-  const checks = () => {
+  // buildSessionChecks always returns fresh objects. Keying the rows by index
+  // keeps their DOM alive across a 30s tick that only moves the clock or one
+  // reading; a reference-keyed For would tear down and rebuild all six cards.
+  const checks = createMemo(() => {
     const payload = data();
     return payload ? buildSessionChecks(payload) : [];
-  };
+  });
 
   return (
     <MonitorPanel title="SESSION PLAN" testId="home-session-plan" heading className="shrink-0">
@@ -378,35 +381,35 @@ function SessionPlan() {
         </Match>
         <Match when={true}>
           <Box className="flex min-h-0 flex-col divide-y divide-fin-border">
-            <For each={checks()}>
+            <Index each={checks()}>
               {(check) => (
                 <Box
-                  data-testid={`session-check-${check.id}`}
-                  data-status={check.status}
+                  data-testid={`session-check-${check().id}`}
+                  data-status={check().status}
                   class="flex items-center gap-2 px-2 py-1"
                 >
                   <Text size="xs" className="min-w-0 flex-1 truncate">
-                    {check.label}
+                    {check().label}
                   </Text>
                   <Text
                     size="xs"
                     c="dimmed"
                     className="shrink-0 font-mono tabular-nums"
-                    data-testid={`session-check-${check.id}-value`}
+                    data-testid={`session-check-${check().id}-value`}
                   >
-                    {check.value}
+                    {check().value}
                   </Text>
                   <Badge
                     size="xs"
                     variant="dot"
-                    color={STATUS_BADGE[check.status].color}
-                    data-testid={`session-check-${check.id}-status`}
+                    color={STATUS_BADGE[check().status].color}
+                    data-testid={`session-check-${check().id}-status`}
                   >
-                    {STATUS_BADGE[check.status].label}
+                    {STATUS_BADGE[check().status].label}
                   </Badge>
                 </Box>
               )}
-            </For>
+            </Index>
           </Box>
         </Match>
       </Switch>
