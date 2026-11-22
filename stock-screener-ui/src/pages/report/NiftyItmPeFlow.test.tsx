@@ -2,14 +2,10 @@
 import "@testing-library/jest-dom/vitest";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { render, screen } from "@solidjs/testing-library";
-import type { JSX } from "solid-js";
+import { createSignal, type JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import type { NiftyItmPeFlow, NiftyItmPeFlowPoint } from "@/types/niftyReport";
-import {
-  NiftyItmPeFlowPanel,
-  itmShareOf,
-  sessionShare,
-} from "./NiftyItmPeFlow";
+import { NiftyItmPeFlowPanel, itmFlowSignature, itmShareOf, sessionShare } from "./NiftyItmPeFlow";
 
 const setChartOption = vi.hoisted(() => vi.fn());
 
@@ -79,6 +75,29 @@ describe("itm share math", () => {
   });
 });
 
+describe("itmFlowSignature", () => {
+  test("a fresh-but-equal payload keeps the same key, including a newer as_of stamp", () => {
+    const first = flow();
+    const tick = flow({ as_of: "2026-11-17T10:07:00+05:30" });
+    expect(itmFlowSignature(tick)).toBe(itmFlowSignature(first));
+  });
+
+  test("a moved minute or top strike changes the key", () => {
+    const base = itmFlowSignature(flow());
+    expect(
+      itmFlowSignature(
+        flow({
+          series: [point({ itm_pe_vol: 99_000 }), point({ t: "2026-11-17T10:06:00+05:30" })],
+        }),
+      ),
+    ).not.toBe(base);
+    expect(
+      itmFlowSignature(flow({ top: [{ strike: 26_200, volume: 99_000, oi: 120_000 }] })),
+    ).not.toBe(base);
+    expect(itmFlowSignature(null)).not.toBe(base);
+  });
+});
+
 describe("NiftyItmPeFlowPanel", () => {
   test("shows the latest ITM volume, put book and share", () => {
     r(() => <NiftyItmPeFlowPanel flow={flow()} spot={25_980} />);
@@ -108,7 +127,9 @@ describe("NiftyItmPeFlowPanel", () => {
 
     const rows = screen.getByTestId("nifty-itm-pe-top").children;
     expect(rows).toHaveLength(6);
-    const strikes = Array.from(screen.getByTestId("nifty-itm-pe-top").querySelectorAll("[data-testid^='nifty-itm-pe-top-']"));
+    const strikes = Array.from(
+      screen.getByTestId("nifty-itm-pe-top").querySelectorAll("[data-testid^='nifty-itm-pe-top-']"),
+    );
     expect(strikes.map((row) => row.getAttribute("data-testid"))).toEqual([
       "nifty-itm-pe-top-26100",
       "nifty-itm-pe-top-26200",
@@ -121,9 +142,7 @@ describe("NiftyItmPeFlowPanel", () => {
   test("an absent block says unavailable and paints no chart", () => {
     r(() => <NiftyItmPeFlowPanel flow={null} spot={25_980} />);
 
-    expect(screen.getByTestId("nifty-itm-pe-empty")).toHaveTextContent(
-      "ITM put flow unavailable",
-    );
+    expect(screen.getByTestId("nifty-itm-pe-empty")).toHaveTextContent("ITM put flow unavailable");
     expect(screen.queryByTestId("nifty-itm-pe-chart")).not.toBeInTheDocument();
     expect(setChartOption).not.toHaveBeenCalled();
   });
@@ -142,5 +161,27 @@ describe("NiftyItmPeFlowPanel", () => {
     const panel = screen.getByTestId("nifty-itm-pe-panel");
     expect(panel).toHaveAttribute("data-compact");
     expect(panel.querySelectorAll("[data-compact]")).toHaveLength(0);
+  });
+
+  test("a fresh-but-equal flow frame does not rebuild the chart option", () => {
+    const [flowSig, setFlow] = createSignal(flow());
+    r(() => <NiftyItmPeFlowPanel flow={flowSig()} spot={25_980} />);
+    const buildsAfterMount = setChartOption.mock.calls.length;
+    expect(buildsAfterMount).toBe(1);
+
+    // Live report frames carry a new `itm_pe_flow` object on every tick, even
+    // when the per-minute series is unchanged. No payload content moved: the
+    // chart option (and its full setOption + resize) must stay untouched.
+    setFlow(flow({ as_of: "2026-11-17T10:07:00+05:30" }));
+    expect(setChartOption.mock.calls.length).toBe(buildsAfterMount);
+
+    // A real minute change still rebuilds exactly once — the memo is content-
+    // keyed, not permanently frozen.
+    setFlow(
+      flow({
+        series: [...flow().series, point({ t: "2026-11-17T10:07:00+05:30", itm_pe_vol: 55_000 })],
+      }),
+    );
+    expect(setChartOption.mock.calls.length).toBe(buildsAfterMount + 1);
   });
 });
