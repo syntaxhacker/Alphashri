@@ -1,4 +1,4 @@
-import { Show } from "solid-js";
+import { createMemo, Show } from "solid-js";
 import { Box, Text } from "@/ui";
 import { alpha, PRIMARY } from "@/ui/palette";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
@@ -104,7 +104,21 @@ function QualityGlyph(props: { quality: string | null | undefined }) {
 }
 
 export function PatternListView(props: PatternListViewProps) {
-  const activeKey = () => (props.activeHit ? fullscreenDedupeKey(props.activeHit) : null);
+  // Resolved once per active change: each row used to re-join the docked hit's
+  // identity three times, so a highlight move rebuilt 200×3 keys for nothing.
+  const activeKey = createMemo(() => (props.activeHit ? fullscreenDedupeKey(props.activeHit) : null));
+
+  // A hit's identity fields are immutable, so join each row once and reuse the
+  // key across the style and attribute callbacks for that instance's lifetime.
+  const rowKeyCache = new WeakMap<PatternHitDTO, string>();
+  const rowKey = (hit: PatternHitDTO): string => {
+    let key = rowKeyCache.get(hit);
+    if (key === undefined) {
+      key = fullscreenDedupeKey(hit);
+      rowKeyCache.set(hit, key);
+    }
+    return key;
+  };
 
   const columns: TableColumnDef<PatternHitDTO>[] = [
     {
@@ -295,17 +309,19 @@ export function PatternListView(props: PatternListViewProps) {
         initialState={{ sorting: sortingFor(props.sort) }}
         onRowClick={props.onSelect}
         onSortedRowsChange={props.onOrderChange}
-        getRowStyle={(hit) =>
-          activeKey() && fullscreenDedupeKey(hit) === activeKey()
+        getRowStyle={(hit) => {
+          const key = activeKey();
+          return key && rowKey(hit) === key
             ? {
                 "background-color": alpha(PRIMARY, 0.12),
                 "box-shadow": `inset 3px 0 0 ${PRIMARY}`,
               }
-            : undefined
-        }
-        getRowAttributes={(hit) => ({
-          "data-active": activeKey() && fullscreenDedupeKey(hit) === activeKey() ? "true" : undefined,
-        })}
+            : undefined;
+        }}
+        getRowAttributes={(hit) => {
+          const key = activeKey();
+          return { "data-active": key && rowKey(hit) === key ? "true" : undefined };
+        }}
         getRowTestId={(hit) =>
           `patterns-list-row-${hit.symbol}-${hit.pattern_id}${hit.id != null ? `-${hit.id}` : ""}`
         }

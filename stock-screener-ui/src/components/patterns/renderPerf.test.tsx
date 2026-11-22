@@ -543,8 +543,8 @@ describe("render perf — list highlight", () => {
     dedupeKeyCalls.count = 0;
     render(() => <PatternListView hits={hits} onSelect={vi.fn()} activeHit={active()} />);
     const mountCalls = dedupeKeyCalls.count;
-    // One join for the docked hit, one per row. The old plain-function path
-    // joined the active hit 3x and each row 2x (361 joins for 60 rows).
+    // One join for the docked hit, one per row. Measured baseline: 360 joins
+    // for 60 rows (the plain function re-joined the active hit on every read).
     expect(mountCalls).toBe(hits.length + 1);
     // eslint-disable-next-line no-console
     console.log(`[PERF] list mount 60 rows: dedupe joins=${mountCalls}`);
