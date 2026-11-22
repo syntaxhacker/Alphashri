@@ -1023,7 +1023,7 @@ class TestConfigMerging:
         default_config = StrategyConfigData()
         
         assert default_config.or_minutes == 45
-        assert default_config.sl_pct == 0.4
+        assert default_config.sl_pct == 1.0
         assert default_config.max_positions == 5
 
 

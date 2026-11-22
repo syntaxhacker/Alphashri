@@ -302,8 +302,8 @@ class TestStrategyConfigModel:
         db_session.commit()
         
         assert strategy.or_minutes == 45
-        assert strategy.sl_pct == 0.4
-        assert strategy.tp_pct == 1.2
+        assert strategy.sl_pct == 1.0
+        assert strategy.tp_pct == 1.5
         assert strategy.min_or_range_pct == 0.5
         assert strategy.max_or_range_pct == 3.0
         assert strategy.breakout_buffer_pct == 0.3
