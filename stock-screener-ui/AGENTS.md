@@ -11,6 +11,7 @@
 - **[`docs/AGENT_QUICKSTART.md`](./docs/AGENT_QUICKSTART.md)** — commands, folder map, unit/E2E/backend recipes, fixtures. Read this before exploring the tree.
 - **[`docs/MAP.md`](./docs/MAP.md)** — task → file location.
 - **[`TEST_RULES.md`](./TEST_RULES.md)** — test shape, mocks, guards.
+- **[`docs/PERFORMANCE.md`](./docs/PERFORMANCE.md)** — performance budgets, check cadence, measurement methodology.
 
 ## Tooling — edit files natively
 - Use the native `read` / `edit` / `write` tools for every file read or write. Do **not** shell out to `sed -i`, `python - <<EOF`, `cat >`, `perl -pi`, or `awk` to modify files.
@@ -34,7 +35,7 @@
 1. Branch from the latest `develop`; never commit on `develop`/`main`.
 2. Pre-PR gate: `bun run lint`, `bun run build`, targeted unit + E2E for the touched areas, and `npx tsc --noEmit 2>&1 | grep -c "error TS"` (record the count; it must not rise).
 3. `git push -u origin <branch>`, then `gh pr create --base develop`. The body lists areas changed, behaviour changes (auth, migrations), verification commands/counts, and a test plan.
-4. Wait for checks. PR-to-`develop` runs **E2E Smoke (22)** + frontend unit/lint + 6 Python shards + GitGuardian; **E2E Full (20 shards) never runs on PR-to-develop**. Full E2E is deliberately main-only: it runs on push to `main`, on PR-to-`main`, and on the 02:00 nightly schedule, because 20 shards is slow and the smoke set is the accepted gate for feature branches. There is **no `workflow_dispatch` trigger** in `test.yml`, so a branch cannot request the full suite — treat smoke plus the touched test files as the gate, and let the release PR to `main` run the rest.
+4. Wait for checks. PR-to-`develop` runs **E2E Smoke (22)** + frontend unit/lint + the **662-test Python fast tier across 12 shards** (`unit and not slow`) + GitGuardian; **E2E Full (20 shards) never runs on PR-to-develop**. Push to `main` / the 02:00 nightly schedule instead run the full **8,987-test exclusion sweep** (`not (slow or slow_testcontainers or integration or contract or e2e or testcontainers or postgres)`) across the same 12 shards — that is the debt alarm, not a PR gate (the full suite carries a known ~230-failure debt and is not a gate until green). Full E2E is deliberately main-only: it runs on push to `main`, on PR-to-`main`, and on the 02:00 nightly schedule, because 20 shards is slow and the smoke set is the accepted gate for feature branches. There is **no `workflow_dispatch` trigger** in `test.yml`, so a branch cannot request the full suite — treat smoke plus the touched test files as the gate, and let the release PR to `main` run the rest.
 5. **Attach UI screenshots to every PR with user-visible UI changes.** This is mandatory, not optional. Commit the evidence under `stock-screener-ui/docs/screenshots/<feature>/` (`reports/**` is gitignored) and embed the images in the PR body or a PR comment using their raw GitHub URLs. Cover **1600 and 390** plus every new/changed mode, selector and empty/loading/error state. Read each PNG back before claiming it; a blank canvas, a suspiciously small file, or `undefined`/`NaN` text means the change is not done. Refresh the screenshots in the same commit as the UI change. See `docs/SCREENSHOT_EVIDENCE.md` for the checklist.
 5. Merge with `gh pr merge <n> --merge` (preserves commit messages/measurements; do not squash a multi-commit bundle unless the user asks). Never `--admin`/bypass.
 6. `git switch develop && git pull --ff-only`; verify the merge commit and that the key files/fields actually landed.
@@ -543,11 +544,11 @@ bun test -- --run src/state/correlation.test.ts         # state tests only
 bun test -- --run src/components/screener/CorrelationMatrix.test.tsx  # single file
 source .venv/bin/activate && python -m pytest tests/test_correlation.py -v  # backend
 ```
-**Do NOT run the full suite locally** (6,211 backend / ~6,500 frontend cases, 8 cores, >15 min
-backend). It starves the API/tape writer during market hours and the feedback is too slow to
-be useful — which is how tests stop being run at all. Local = the touched files only (or
-`npx vitest run --changed`). The full pass belongs to CI (20 shards × 4 workers). Run it
-locally only for a `develop → main` release check.
+**Do NOT run the full suite locally** (~8,987 backend in the full exclusion sweep / ~6,500 frontend
+cases, 8 cores, >15 min backend). It starves the API/tape writer during market hours and the
+feedback is too slow to be useful — which is how tests stop being run at all. Local = the touched
+files only (or `npx vitest run --changed`). The full pass belongs to CI (Python 12 shards × 4
+workers; E2E 20 shards × 4 workers). Run it locally only for a `develop → main` release check.
 
 **Scope the test run to the change, not to the suite.** "Verify" does not mean "run everything":
 
@@ -579,6 +580,45 @@ npx vitest run src/components/common/SymbolAutocomplete.test.tsx  # use vitest f
       ...
   ```
   Getting this wrong causes `fixture 'mock_X' not found` errors.
+
+## Performance budgets and checks
+
+- **Last checked: 2026-11-22**
+- **Next check: 2026-11-29**
+- Short index + measurement methodology: [docs/PERFORMANCE.md](./docs/PERFORMANCE.md). Machine-readable budgets: [`perf/budgets.json`](./perf/budgets.json) (test/wall budgets) and [`perf/api_budgets.json`](./perf/api_budgets.json) (API latency budgets). Detail docs: [docs/TESTING_SPEED.md](./docs/TESTING_SPEED.md), [docs/API_LATENCY.md](./docs/API_LATENCY.md), [`scripts/test/run_changed.py`](./scripts/test/run_changed.py).
+
+  **Denominators (do not mix):** **~9,237** node ids collected with no marker filter → **8,987** after the full exclusion marker (`-m "not (slow or … or postgres)"`, push/nightly sweep) → **662** in the PR fast tier (`-m "unit and not slow"`). The 662-test tier is the PR gate; the 8,987 sweep is a push/nightly debt alarm.
+
+| Surface | Budget |
+|---|---|
+| Backend PR fast tier (662 tests, `-m "unit and not slow"`, 12 shards × `-n 4`) | **< 5 min** wall per shard |
+| Backend full exclusion sweep (8,987 tests, push / nightly) | **< 20 min** wall per shard |
+| Backend per-test fixture setup | **p95 < 50 ms** |
+| Backend test collection (`pytest --collect-only -q`) | **< 30 s** |
+| Frontend changed-only (`vitest run --changed`) | **< 2 min** |
+| Frontend full suite | **< 10 min** |
+| API warm reads | per-endpoint **warm p95** budgets in [`perf/api_budgets.json`](./perf/api_budgets.json) (e.g. health 100 ms, login 500 ms, agri filters 500 ms), measured in [docs/API_LATENCY.md](./docs/API_LATENCY.md) |
+| API cold agri filter path | **API_COLD** exception = the `cold` budget for `agri_filters` in [`perf/api_budgets.json`](./perf/api_budgets.json): **10,000 ms**. Other routes have `cold: null` (INFO, not enforced). See the known current breach in [docs/API_LATENCY.md](./docs/API_LATENCY.md) |
+
+The fast tier is the PR gate because the full suite carries a known **~230-failure debt** and is **not a gate until green**; the 8,987-test sweep is a debt alarm on push/nightly, not a branch blocker.
+
+**If a budget is not met, do not lower it silently.** Optimize the code/test, mark the slow test (correct marker/category), or record an explicit exception with **owner + date** in the relevant budget file — `perf/budgets.json` for wall/test budgets, `perf/api_budgets.json` for API latency (API budget changes must also update the contract test; see [docs/API_LATENCY.md](./docs/API_LATENCY.md)). Update **last-checked** and **next-check** on every review, even when no number changed.
+
+Mandatory commands (run the narrow one, never a full sweep as a PR gate):
+```bash
+# Fast changed-test runner (backend, local) — see docs/TESTING_SPEED.md
+.venv/bin/python scripts/test/run_changed.py --dry-run   # preview selection, runs nothing
+.venv/bin/python scripts/test/run_changed.py             # map diff -> tests, run them
+# Nightly full exclusion sweep (the CI debt alarm, not a PR gate)
+.venv/bin/python -m pytest -o addopts="" \
+  -m "not (slow or slow_testcontainers or integration or contract or e2e or testcontainers or postgres)" \
+  -n 4 --dist loadfile -q --tb=short
+# Frontend changed-only
+bun run test:fast          # or: npx vitest run --dir src --changed
+# API benchmark / warm-p95 check — see docs/API_LATENCY.md
+.venv/bin/python scripts/bench_api.py --in-process --mode warm           # report (exits 0)
+.venv/bin/python scripts/bench_api.py --in-process --mode warm --enforce # gate (exits 1 on FAIL)
+```
 
 ## Mutation Testing
 - See [MUTATION_TESTING.md](./MUTATION_TESTING.md) for advanced testing guide
