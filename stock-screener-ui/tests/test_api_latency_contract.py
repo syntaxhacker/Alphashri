@@ -192,8 +192,8 @@ class TestCliAndColdChild:
     def test_password_has_no_hardcoded_default(self, monkeypatch):
         monkeypatch.delenv("BENCH_QA_PASSWORD", raising=False)
         assert bench_api.build_parser().parse_args(["--in-process"]).password is None
-        monkeypatch.setenv("BENCH_QA_PASSWORD", "[REDACTED]")
-        assert bench_api.build_parser().parse_args(["--in-process"]).password == "[REDACTED]"
+        monkeypatch.setenv("BENCH_QA_PASSWORD", "b")
+        assert bench_api.build_parser().parse_args(["--in-process"]).password == "b"
         assert not hasattr(bench_api, "DEFAULT_PASSWORD")
 
     def test_missing_password_reason_is_explicit(self):
