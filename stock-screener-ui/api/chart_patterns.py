@@ -162,6 +162,12 @@ _LOOKUP_CACHE_TTL_SEC = 30.0
 _summary_cache: dict = {}
 _matrix_cache: dict = {}
 _lookup_cache: dict = {}
+#: Registry/catalog endpoints rebuild their payload from module state on every
+#: request. A short TTL removes that churn; the timeframes key carries the
+#: enabled-config fingerprint so an admin edit invalidates immediately. Every
+#: entry is dropped by ``_clear_read_caches`` (tests + operator resets).
+_CATALOG_CACHE_TTL_SEC = float(os.environ.get("CHART_CATALOG_CACHE_TTL_SEC", "60.0"))
+_catalog_cache: dict = {}
 _read_cache_lock = threading.Lock()
 _READ_CACHE_MAX_ENTRIES = 64
 
@@ -222,12 +228,18 @@ def _read_cache_put(cache: dict, key, payload, ttl: Optional[float] = None) -> N
         cache[key] = (now + (_READ_CACHE_TTL_SEC if ttl is None else ttl), payload)
 
 
+def _catalog_cache_key(name: str, fingerprint=None):
+    """Catalog entries are keyed by endpoint plus any input that can change it."""
+    return ("catalog", name, fingerprint)
+
+
 def _clear_read_caches() -> None:
     """Drop the short-TTL read caches (tests + operator resets)."""
     with _read_cache_lock:
         _summary_cache.clear()
         _matrix_cache.clear()
         _lookup_cache.clear()
+        _catalog_cache.clear()
     # The frame watermark drives the matrix cache key, so a reset must also
     # forget which frames we have seen (tests rely on this for isolation).
     _clear_all_enrichment()
@@ -1129,6 +1141,29 @@ def _spec_to_dict(spec) -> dict:
     }
 
 
+def _timeframes_fingerprint():
+    """Cheap identity of the enabled timeframe registry for the catalog key.
+
+    ``get_configs`` is itself cached and invalidated by admin edits, so this
+    changes the moment a timeframe is added/removed/reordered — the catalog
+    entry never outlives the config it was built from. ``None`` means the
+    payload builder falls back to the frozen list.
+    """
+    try:
+        from chart_patterns import timeframe_config
+
+        return tuple(
+            (
+                row.get("id"), row.get("sort_order"), row.get("enabled"),
+                row.get("label"), row.get("minutes"), row.get("native"),
+                row.get("source_tf"), row.get("max_lookback_days"), row.get("min_bars"),
+            )
+            for row in timeframe_config.get_configs()
+        )
+    except Exception:
+        return None
+
+
 def _timeframes_payload() -> list[dict]:
     try:
         from chart_patterns import timeframe_config
@@ -1905,17 +1940,35 @@ def _normalize_symbol_list(raw, cap: Optional[int] = None) -> list[str]:
 
 @router.get("/timeframes")
 async def get_timeframes():
-    return _json_response({"timeframes": _timeframes_payload()})
+    key = _catalog_cache_key("timeframes", _timeframes_fingerprint())
+    cached = _read_cache_get(_catalog_cache, key)
+    if cached is not None:
+        return JSONResponse(content=cached)
+    payload = _sanitize_for_json({"timeframes": _timeframes_payload()})
+    _read_cache_put(_catalog_cache, key, payload, ttl=_CATALOG_CACHE_TTL_SEC)
+    return JSONResponse(content=payload)
 
 
 @router.get("/universes")
 async def get_universes():
-    return _json_response({"universes": _universes_payload(), "default": "nifty50"})
+    key = _catalog_cache_key("universes")
+    cached = _read_cache_get(_catalog_cache, key)
+    if cached is not None:
+        return JSONResponse(content=cached)
+    payload = _sanitize_for_json({"universes": _universes_payload(), "default": "nifty50"})
+    _read_cache_put(_catalog_cache, key, payload, ttl=_CATALOG_CACHE_TTL_SEC)
+    return JSONResponse(content=payload)
 
 
 @router.get("/patterns")
 async def get_patterns():
-    return _json_response({"families": list(_FAMILIES), "patterns": _patterns_payload()})
+    key = _catalog_cache_key("patterns")
+    cached = _read_cache_get(_catalog_cache, key)
+    if cached is not None:
+        return JSONResponse(content=cached)
+    payload = _sanitize_for_json({"families": list(_FAMILIES), "patterns": _patterns_payload()})
+    _read_cache_put(_catalog_cache, key, payload, ttl=_CATALOG_CACHE_TTL_SEC)
+    return JSONResponse(content=payload)
 
 
 @router.post("/detect")
@@ -3404,7 +3457,13 @@ async def get_symbol_chart(
 
 @router.get("/watch/setups")
 async def get_watch_setups():
-    return _json_response({"setups": watch_mod.public_setups()})
+    key = _catalog_cache_key("watch_setups")
+    cached = _read_cache_get(_catalog_cache, key)
+    if cached is not None:
+        return JSONResponse(content=cached)
+    payload = _sanitize_for_json({"setups": watch_mod.public_setups()})
+    _read_cache_put(_catalog_cache, key, payload, ttl=_CATALOG_CACHE_TTL_SEC)
+    return JSONResponse(content=payload)
 
 
 @router.get("/market-status")
