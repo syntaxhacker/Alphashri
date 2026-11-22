@@ -506,17 +506,21 @@ def get_agri_prices(
         comparison: list[dict[str, Any]] = []
         if compare_keys:
             by_key: dict[str, list[dict[str, Any]]] = {}
+            compare_as_ofs: dict[str, str] = {}
             for compare_key in compare_keys:
                 compare_as_of = latest_by_key.get(compare_key)
                 if not compare_as_of:
                     compare_as_of = _latest_date_per_key(conn, [compare_key], **geo).get(compare_key)
                 compare_as_of = compare_as_of or as_of
+                compare_as_ofs[compare_key] = compare_as_of
                 cutoff = aggregate.range_cutoff(compare_as_of, range_name, from_day)
                 by_key[compare_key] = _fetch_rows(
                     conn, commodity_keys=[compare_key],
                     from_date=cutoff, to_date=to_day or compare_as_of, **geo,
                 )
-            comparison = aggregate.comparison_series(by_key, as_of, range_name, from_day, to_day)
+            comparison = aggregate.comparison_series(
+                by_key, as_of, range_name, from_day, to_day, as_of_by_key=compare_as_ofs,
+            )
 
         warning_rows = selected_rows if key else latest_rows + history_rows
         warnings = aggregate.collect_warnings(warning_rows, as_of, selected_key=key)

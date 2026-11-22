@@ -9,11 +9,11 @@ from __future__ import annotations
 import math
 import statistics
 from datetime import date, datetime, timedelta
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Mapping, Optional
 
 import config
 
-from . import registry
+from . import canonical, registry
 
 CHANGE_OFFSETS: tuple[int, ...] = (7, 30, 182)
 # A nearest-date anchor may be a few days off (weekends/holidays), but crossing
@@ -74,6 +74,14 @@ def parse_date(value: Any) -> Optional[str]:
     return None
 
 
+def _is_metric_tonnes(lowered: str) -> bool:
+    return "metric ton" in lowered or "tonne" in lowered or lowered in {"mt", "m.t."}
+
+
+def _is_quintal_unit(lowered: str) -> bool:
+    return "quintal" in lowered or lowered in {"qtl", "q"}
+
+
 def normalise_arrivals(quantity: Any, units: Any) -> tuple[Optional[float], str]:
     """Return ``(qtl, raw_unit)``; metric tonnes are ×10 into quintals."""
     amount = to_float(quantity)
@@ -81,9 +89,9 @@ def normalise_arrivals(quantity: Any, units: Any) -> tuple[Optional[float], str]
     if amount is None:
         return None, raw
     lowered = raw.casefold()
-    if "metric ton" in lowered or "tonne" in lowered or lowered in {"mt", "m.t."}:
+    if _is_metric_tonnes(lowered):
         return amount * 10.0, raw
-    if "quintal" in lowered or lowered in {"qtl", "q"}:
+    if _is_quintal_unit(lowered):
         return amount, raw
     return amount, raw
 
@@ -159,8 +167,9 @@ def aggregate_daily(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
         arrivals = [v for v in (to_float(r.get("arrivals_qtl")) for r in group) if v is not None]
         markets = {str(r.get("market") or "") for r in group if r.get("market")}
         # Small samples are exact; only a real cross-market day gets clipped.
-        low = _quantile(mins, 0.02) if len(mins) >= 5 else min(mins)
-        high = _quantile(maxs, 0.98) if len(maxs) >= 5 else max(maxs)
+        # min/max_price are nullable, so a day can carry modals but no bounds.
+        low = (_quantile(mins, 0.02) if len(mins) >= 5 else min(mins)) if mins else None
+        high = (_quantile(maxs, 0.98) if len(maxs) >= 5 else max(maxs)) if maxs else None
         out.append({
             "date": day,
             "modal": _round(statistics.median(modals)) if modals else None,
@@ -342,10 +351,20 @@ def comparison_series(
     range_name: str,
     from_date: Optional[str] = None,
     to_date: Optional[str] = None,
+    *,
+    as_of_by_key: Optional[Mapping[str, str]] = None,
 ) -> list[dict[str, Any]]:
+    """One series per key, windowed on ``as_of`` unless a per-key anchor is given.
+
+    ``as_of_by_key`` lets callers with per-key freshness pass each anchor; keys
+    absent from it fall back to ``as_of``. Without it, a stale key's rows are
+    filtered against a newer anchor and its series silently disappears.
+    """
     out: list[dict[str, Any]] = []
+    overrides = as_of_by_key or {}
     for key, rows in rows_by_key.items():
-        daily = filter_by_range(aggregate_daily(rows), as_of, range_name, from_date, to_date)
+        key_as_of = overrides.get(key, as_of)
+        daily = filter_by_range(aggregate_daily(rows), key_as_of, range_name, from_date, to_date)
         out.append({
             "key": key,
             "label": registry.label_for(key),
@@ -397,14 +416,19 @@ def collect_warnings(
         warnings.append(f"arrivals are missing for {missing_arrivals} rows")
 
     price_units = sorted({str(r.get("price_unit") or "").strip() for r in data if r.get("price_unit")})
-    non_quintal = [u for u in price_units if "quintal" not in u.casefold()]
+    non_quintal = [u for u in price_units if not canonical.is_quintal_unit(u)]
     if non_quintal:
         warnings.append(f"non-quintal price units left as published: {', '.join(non_quintal)}")
 
     arrival_units = {str(r.get("arrival_units") or "").strip() for r in data if r.get("arrival_units")}
-    if any("metric ton" in u.casefold() or "tonne" in u.casefold() for u in arrival_units):
+    # Use the same predicates as normalise_arrivals: a unit that was multiplied
+    # by 10 must not also be reported as unrecognised, and vice versa.
+    if any(_is_metric_tonnes(u.casefold()) for u in arrival_units):
         warnings.append("arrivals from Metric Tonnes were multiplied by 10 to INR/quintal equivalent (qtl)")
-    unknown = sorted(u for u in arrival_units if u and "ton" not in u.casefold() and "quintal" not in u.casefold() and u.casefold() not in {"qtl", "q"})
+    unknown = sorted(
+        u for u in arrival_units
+        if u and not _is_metric_tonnes(u.casefold()) and not _is_quintal_unit(u.casefold())
+    )
     if unknown:
         warnings.append(f"unrecognised arrival units left as published: {', '.join(unknown)}")
 
