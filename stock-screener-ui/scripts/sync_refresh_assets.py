@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Sync daily refresh assets from GitHub Releases into the local caches.
 
-The scheduled GitHub Actions jobs publish compact, gzipped daily deltas:
+The scheduled GitHub Actions jobs publish compact, gzipped daily deltas as
+flat release assets. Local packaged trees keep the directory-prefixed layout;
+both spellings are accepted everywhere:
 
-    52w/YYYY-MM-DD.json.gz
-    agri/YYYY-MM-DD.jsonl.gz
-    manifests/52w-YYYY-MM-DD.json
-    manifests/agri-YYYY-MM-DD.json
+    52w/YYYY-MM-DD.json.gz    or YYYY-MM-DD.json.gz
+    agri/YYYY-MM-DD.jsonl.gz  or YYYY-MM-DD.jsonl.gz
+    manifests/52w-YYYY-MM-DD.json or 52w-YYYY-MM-DD.json
+    manifests/agri-YYYY-MM-DD.json or agri-YYYY-MM-DD.json
 
 This command downloads the selected assets, verifies each manifest's SHA256 and
 row count, then applies the payload locally:
@@ -58,11 +60,13 @@ DEFAULT_STATE_FILE = PROJECT_ROOT / "reports" / "refresh_runs.json"
 IST = ZoneInfo("Asia/Kolkata")
 
 RELEASE_TAG_RE = re.compile(r"^data-\d{4}-\d{2}$")
+# Releases upload flat filenames; packaging writes the prefixed tree. Matching
+# is deliberately prefix-optional so both sources pair by (kind, date).
 ASSET_PATTERNS: dict[str, re.Pattern[str]] = {
-    "agri": re.compile(r"^agri/(\d{4}-\d{2}-\d{2})\.jsonl\.gz$"),
-    "52w": re.compile(r"^52w/(\d{4}-\d{2}-\d{2})\.json\.gz$"),
+    "agri": re.compile(r"^(?:agri/)?(\d{4}-\d{2}-\d{2})\.jsonl\.gz$"),
+    "52w": re.compile(r"^(?:52w/)?(\d{4}-\d{2}-\d{2})\.json\.gz$"),
 }
-MANIFEST_RE = re.compile(r"^manifests/(agri|52w)-(\d{4}-\d{2}-\d{2})\.json$")
+MANIFEST_RE = re.compile(r"^(?:manifests/)?(agri|52w)-(\d{4}-\d{2}-\d{2})\.json$")
 
 AGRI_NATURAL_KEY = ("date", "state", "district", "market", "commodity", "variety", "grade")
 
@@ -165,6 +169,8 @@ class SyncSummary:
 
 
 def asset_name(kind: str, as_of: str) -> str:
+    # Canonical local name: packaging and log messages depend on the prefix.
+    # Matching (above) accepts flat release names in addition to this form.
     if kind == "agri":
         return f"agri/{as_of}.jsonl.gz"
     if kind == "52w":

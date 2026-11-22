@@ -25,6 +25,7 @@ from scripts import sync_refresh_assets as sync
 pytestmark = pytest.mark.unit
 
 AS_OF = "2026-11-21"
+SECOND_AS_OF = "2026-11-20"
 
 
 def _agri_row(index: int = 0, **overrides):
@@ -48,8 +49,11 @@ def _agri_row(index: int = 0, **overrides):
     return row
 
 
-def _write_manifest(root: Path, kind: str, as_of: str, manifest: dict) -> Path:
-    path = root / "manifests" / f"{kind}-{as_of}.json"
+def _write_manifest(
+    root: Path, kind: str, as_of: str, manifest: dict, *, flat: bool = False
+) -> Path:
+    rel = Path(f"{kind}-{as_of}.json") if flat else Path("manifests") / f"{kind}-{as_of}.json"
+    path = root / rel
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(manifest), encoding="utf-8")
     return path
@@ -64,11 +68,13 @@ def write_agri_fixture(
     write_manifest: bool = True,
     rows_override: int | None = None,
     arrivals_override: bool | None = None,
+    flat: bool = False,
 ) -> tuple[Path, Path]:
     rows = rows if rows is not None else [_agri_row(0), _agri_row(1)]
     raw = ("\n".join(json.dumps(row) for row in rows) + "\n").encode("utf-8")
     compressed = gzip.compress(raw, mtime=0)
-    asset = root / "agri" / f"{as_of}.jsonl.gz"
+    asset_rel = Path(f"{as_of}.jsonl.gz") if flat else Path("agri") / f"{as_of}.jsonl.gz"
+    asset = root / asset_rel
     asset.parent.mkdir(parents=True, exist_ok=True)
     if write_payload:
         asset.write_bytes(compressed)
@@ -88,10 +94,11 @@ def write_agri_fixture(
         "sha256": hashlib.sha256(compressed).hexdigest(),
         "created_at": "2026-11-21T20:30:00+05:30",
     }
+    manifest_rel = Path(f"agri-{as_of}.json") if flat else Path("manifests") / f"agri-{as_of}.json"
     manifest_path = (
-        _write_manifest(root, "agri", as_of, manifest)
+        _write_manifest(root, "agri", as_of, manifest, flat=flat)
         if write_manifest
-        else root / "manifests" / f"agri-{as_of}.json"
+        else root / manifest_rel
     )
     return asset, manifest_path
 
@@ -102,6 +109,7 @@ def write_52w_fixture(
     as_of: str = AS_OF,
     symbols: dict | None = None,
     write_payload: bool = True,
+    flat: bool = False,
 ) -> tuple[Path, Path]:
     symbols = symbols if symbols is not None else {
         "AAA": {"high": 110.0, "low": 80.0, "close": 100.0, "days_ago": 3},
@@ -109,7 +117,8 @@ def write_52w_fixture(
     }
     payload = {"as_of": as_of, "count": len(symbols), "symbols": symbols}
     compressed = gzip.compress(json.dumps(payload).encode("utf-8"), mtime=0)
-    asset = root / "52w" / f"{as_of}.json.gz"
+    asset_rel = Path(f"{as_of}.json.gz") if flat else Path("52w") / f"{as_of}.json.gz"
+    asset = root / asset_rel
     asset.parent.mkdir(parents=True, exist_ok=True)
     if write_payload:
         asset.write_bytes(compressed)
@@ -121,7 +130,7 @@ def write_52w_fixture(
         "sha256": hashlib.sha256(compressed).hexdigest(),
         "created_at": "2026-11-21T20:30:00+05:30",
     }
-    manifest_path = _write_manifest(root, "52w", as_of, manifest)
+    manifest_path = _write_manifest(root, "52w", as_of, manifest, flat=flat)
     return asset, manifest_path
 
 
@@ -341,3 +350,150 @@ class TestApplyIsIdempotent:
             assert runs[-1]["status"] == "ok"
         finally:
             engine.dispose()
+
+
+class TestFlatReleaseNames:
+    """Release assets are flat; packaged trees use directory prefixes."""
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            f"agri/{AS_OF}.jsonl.gz",
+            f"{AS_OF}.jsonl.gz",
+            f"52w/{AS_OF}.json.gz",
+            f"{AS_OF}.json.gz",
+            f"manifests/agri-{AS_OF}.json",
+            f"agri-{AS_OF}.json",
+            f"manifests/52w-{AS_OF}.json",
+            f"52w-{AS_OF}.json",
+        ],
+    )
+    def test_matching_accepts_prefixed_and_flat(self, name):
+        assert sync.asset_date(name) == AS_OF
+        assert sync.is_refresh_asset(name)
+
+    def test_unrelated_files_are_ignored(self):
+        assert sync.asset_date("releases.tsv") is None
+        assert not sync.is_refresh_asset("releases.tsv")
+        assert not sync.is_refresh_asset(f"agri/{AS_OF}.json")
+
+    def test_canonical_names_stay_prefixed(self):
+        assert sync.asset_name("agri", AS_OF) == f"agri/{AS_OF}.jsonl.gz"
+        assert sync.asset_name("52w", AS_OF) == f"52w/{AS_OF}.json.gz"
+        assert sync.manifest_name("agri", AS_OF) == f"manifests/agri-{AS_OF}.json"
+        assert sync.manifest_name("52w", AS_OF) == f"manifests/52w-{AS_OF}.json"
+
+    def test_github_listing_keeps_flat_assets(self, monkeypatch):
+        payload = [{
+            "tag_name": "data-2026-11",
+            "draft": False,
+            "assets": [
+                {"name": f"{AS_OF}.jsonl.gz", "browser_download_url": "u1", "size": 1},
+                {"name": f"agri-{AS_OF}.json", "browser_download_url": "u2", "size": 2},
+                {"name": f"{AS_OF}.json.gz", "browser_download_url": "u3", "size": 3},
+                {"name": f"52w-{AS_OF}.json", "browser_download_url": "u4", "size": 4},
+                {"name": "releases.tsv", "browser_download_url": "u5", "size": 5},
+            ],
+        }]
+        monkeypatch.setattr(sync, "_github_request", lambda url, token: payload)
+
+        assets = sync.list_github_assets()
+
+        assert {asset.name for asset in assets} == {
+            f"{AS_OF}.jsonl.gz",
+            f"agri-{AS_OF}.json",
+            f"{AS_OF}.json.gz",
+            f"52w-{AS_OF}.json",
+        }
+        assert {(pair.kind, pair.as_of) for pair in sync.build_pairs(assets)} == {
+            ("agri", AS_OF),
+            ("52w", AS_OF),
+        }
+
+    def test_flat_assets_dir_pairs_and_validates(self, tmp_path):
+        write_agri_fixture(tmp_path, flat=True)
+        write_52w_fixture(tmp_path, flat=True)
+
+        assets = sync.list_local_assets(tmp_path)
+        assert {asset.name for asset in assets} == {
+            f"{AS_OF}.jsonl.gz",
+            f"agri-{AS_OF}.json",
+            f"{AS_OF}.json.gz",
+            f"52w-{AS_OF}.json",
+        }
+        pairs = sync.build_pairs(assets)
+        assert {(pair.kind, pair.as_of) for pair in pairs} == {
+            ("agri", AS_OF),
+            ("52w", AS_OF),
+        }
+        for pair in pairs:
+            validated = sync.validate_asset(pair, sync.materialize(pair.asset, tmp_path / "cache"))
+            assert validated.as_of == AS_OF
+
+    def test_flat_assets_dir_runs_in_range_mode(self, tmp_path):
+        assets = tmp_path / "assets"
+        write_agri_fixture(assets, flat=True)
+        write_52w_fixture(assets, flat=True)
+
+        summary = sync.run_sync(
+            mode="range",
+            from_date=AS_OF,
+            to_date=AS_OF,
+            assets_dir=assets,
+            cache_dir=tmp_path / "cache",
+            agri_db_path=tmp_path / "missing.db",
+            state_file=tmp_path / "state.json",
+            dry_run=True,
+            use_redis=False,
+        )
+
+        assert summary.agri_dates == [AS_OF]
+        assert summary.week52_dates == [AS_OF]
+        assert summary.agri_rows_verified == 2
+        assert summary.week52_symbols_verified == 2
+
+    def test_mixed_prefixed_and_flat_pairs(self, tmp_path):
+        write_agri_fixture(tmp_path)
+        write_52w_fixture(tmp_path, flat=True)
+        write_agri_fixture(
+            tmp_path,
+            as_of=SECOND_AS_OF,
+            flat=True,
+            rows=[_agri_row(0, date=SECOND_AS_OF), _agri_row(1, date=SECOND_AS_OF)],
+        )
+        write_52w_fixture(tmp_path, as_of=SECOND_AS_OF)
+
+        assets = sync.list_local_assets(tmp_path)
+        assert len(assets) == 8
+        pairs = sync.build_pairs(assets)
+        assert {(pair.kind, pair.as_of) for pair in pairs} == {
+            ("agri", AS_OF),
+            ("agri", SECOND_AS_OF),
+            ("52w", AS_OF),
+            ("52w", SECOND_AS_OF),
+        }
+        for pair in pairs:
+            sync.validate_asset(pair, sync.materialize(pair.asset, tmp_path / "cache"))
+
+    def test_flat_missing_asset_is_rejected(self, tmp_path):
+        write_agri_fixture(tmp_path, flat=True, write_payload=False)
+        with pytest.raises(sync.MissingAsset, match="missing"):
+            sync.build_pairs(sync.list_local_assets(tmp_path))
+
+    def test_flat_missing_manifest_is_rejected(self, tmp_path):
+        write_agri_fixture(tmp_path, flat=True, write_manifest=False)
+        with pytest.raises(sync.MissingAsset, match="manifest"):
+            sync.build_pairs(sync.list_local_assets(tmp_path))
+
+    def test_mixed_orphan_asset_is_rejected(self, tmp_path):
+        write_agri_fixture(tmp_path, flat=True)
+        _, manifest = write_52w_fixture(tmp_path, as_of=SECOND_AS_OF, flat=True)
+        manifest.unlink()
+        with pytest.raises(sync.MissingAsset, match="manifest"):
+            sync.build_pairs(sync.list_local_assets(tmp_path))
+
+    def test_duplicate_names_do_not_create_extra_pairs(self, tmp_path):
+        write_agri_fixture(tmp_path, flat=True)
+        assets = sync.list_local_assets(tmp_path)
+        pairs = sync.build_pairs(list(assets) + list(assets))
+        assert [(pair.kind, pair.as_of) for pair in pairs] == [("agri", AS_OF)]
