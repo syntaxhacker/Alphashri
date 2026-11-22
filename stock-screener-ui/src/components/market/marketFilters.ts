@@ -627,11 +627,12 @@ export interface MoverPreset {
 export const MOVER_MIN_MCAP_CR = 500;
 
 /**
- * Verbatim mirrors of the ten panels in api/screener_api/dashboard.py.
- * Gainers, Losers, Most Active, Top Turnover and Range Expansion have no
- * numeric gate there — they are pure top-N sorts, so their filter patch is
- * empty and the description says so. All ten still carry the dashboard's
- * ₹500 Cr market-cap floor via `filters.mcapMinCr`.
+ * Mirrors of the ten panels in api/screener_api/dashboard.py plus the two
+ * "New 52W" panels in the daily-moves report (ReportMovePanels.tsx), which have
+ * no dashboard card. Gainers, Losers, Most Active, Top Turnover and Range
+ * Expansion have no numeric gate there — they are pure top-N sorts, so their
+ * only bound is the shared market-cap floor and the description says so. All
+ * twelve carry that ₹500 Cr floor via `filters.mcapMinCr`.
  */
 export const MOVER_PRESETS: readonly MoverPreset[] = [
   {
@@ -656,10 +657,24 @@ export const MOVER_PRESETS: readonly MoverPreset[] = [
     sort: "to_52w_high_desc",
   },
   {
+    id: "newHigh",
+    label: "New 52W High",
+    description: "At or above the 52-week high — no upper bound — highest above the high first.",
+    filters: { mcapMinCr: MOVER_MIN_MCAP_CR, to52wHighMin: 0 },
+    sort: "to_52w_high_desc",
+  },
+  {
     id: "nearLow",
     label: "Near 52W Low",
     description: "Within -0.5% to +5% of the 52-week low, nearest to the low first.",
     filters: { mcapMinCr: MOVER_MIN_MCAP_CR, from52wLowMin: -0.5, from52wLowMax: 5 },
+    sort: "from_52w_low_asc",
+  },
+  {
+    id: "newLow",
+    label: "New 52W Low",
+    description: "At or below the 52-week low — no lower bound — lowest below the low first.",
+    filters: { mcapMinCr: MOVER_MIN_MCAP_CR, from52wLowMax: 0 },
     sort: "from_52w_low_asc",
   },
   {

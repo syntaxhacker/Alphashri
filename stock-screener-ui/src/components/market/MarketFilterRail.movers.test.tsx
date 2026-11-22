@@ -30,14 +30,14 @@ describe("MarketFilterRail — Movers band", () => {
     }
   });
 
-  test("expanding reveals all ten one-click presets with readable labels", () => {
+  test("expanding reveals all twelve one-click presets with readable labels", () => {
     mount();
     fireEvent.click(screen.getByTestId("market-movers-toggle"));
     expect(screen.getByTestId("market-movers-toggle")).toHaveAttribute("aria-expanded", "true");
 
     const list = screen.getByTestId("market-movers-list");
     const buttons = within(list).getAllByRole("button");
-    expect(buttons).toHaveLength(10);
+    expect(buttons).toHaveLength(12);
     for (const preset of MOVER_PRESETS) {
       const button = screen.getByTestId(`market-mover-${preset.id}`);
       expect(list).toContainElement(button);
@@ -45,6 +45,20 @@ describe("MarketFilterRail — Movers band", () => {
       expect(button).toHaveAttribute("title", preset.description);
       // Button size="xs" carries text-xs (12px) — above the 11px floor.
       expect(button.className).toContain("text-xs");
+    }
+  });
+
+  test("the two report-only 52W presets render their labels straight from the registry", () => {
+    mount();
+    fireEvent.click(screen.getByTestId("market-movers-toggle"));
+    const list = screen.getByTestId("market-movers-list");
+    for (const [id, label] of [
+      ["newHigh", "New 52W High"],
+      ["newLow", "New 52W Low"],
+    ] as const) {
+      const preset = MOVER_PRESETS.find((p) => p.id === id)!;
+      expect(preset.label).toBe(label);
+      expect(within(list).getByTestId(`market-mover-${id}`)).toHaveTextContent(label);
     }
   });
 
