@@ -33,6 +33,14 @@ OPENROUTER_PRICING = {
 _JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
 
 
+def _safe_int(value: Any, default: int = 0) -> int:
+    """Coerce a model-supplied number; free-form LLM output is not typed."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _extract_json_object(text: str) -> Optional[Dict[str, Any]]:
     """First JSON object in a model reply, tolerating fences and prose."""
     if not text:
@@ -110,6 +118,7 @@ def _call_llm_json(
         usage = payload.get("usage")
         if isinstance(usage, dict):
             parsed["_usage"] = usage
+        parsed["_model"] = candidate
         return parsed
     raise RuntimeError(last_error)
 
@@ -362,30 +371,33 @@ Return ONLY valid JSON. No markdown. Example output:
             
             response_time_ms = int((time.time() - start_time) * 1000)
             
-            # extract token usage from _usage key (attached by preciz)
-            usage = analysis_data.pop("_usage", None) if isinstance(analysis_data, dict) else None
-            prompt_tokens = usage.get("prompt_tokens", 0) if usage else 0
-            completion_tokens = usage.get("completion_tokens", 0) if usage else 0
-            total_tokens = usage.get("total_tokens", 0) if usage else 0
-            cost_usd = self._calculate_cost(self.model_name, prompt_tokens, completion_tokens)
-            
+            if not isinstance(analysis_data, dict):
+                raise RuntimeError("model reply was not a JSON object")
+
+            usage = analysis_data.pop("_usage", None)
+            used_model = analysis_data.pop("_model", None) or self.model_name
+            prompt_tokens = _safe_int(usage.get("prompt_tokens")) if isinstance(usage, dict) else 0
+            completion_tokens = _safe_int(usage.get("completion_tokens")) if isinstance(usage, dict) else 0
+            total_tokens = _safe_int(usage.get("total_tokens")) if isinstance(usage, dict) else 0
+            cost_usd = self._calculate_cost(used_model, prompt_tokens, completion_tokens)
+
             result = {
                 "summary": analysis_data.get("summary", "Summary unavailable."),
                 "key_points": analysis_data.get("key_points", []),
-                "sentiment": analysis_data.get("sentiment", "NEUTRAL").upper(),
-                "impact_score": int(analysis_data.get("impact_score", 0)),
+                "sentiment": str(analysis_data.get("sentiment") or "NEUTRAL").strip().upper(),
+                "impact_score": _safe_int(analysis_data.get("impact_score")),
                 "key_entities": analysis_data.get("key_entities", []),
                 "trade_ideas": analysis_data.get("trade_ideas", [])
             }
-            
+
             if result["sentiment"] not in ["BULLISH", "BEARISH", "NEUTRAL"]:
                  result["sentiment"] = "NEUTRAL"
-                 
+
             self._save_to_cache(cache_key, url, headline, result)
-            
+
             self._log_llm_run(
                 url=url,
-                model=self.model_name,
+                model=used_model,
                 headline=headline,
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
