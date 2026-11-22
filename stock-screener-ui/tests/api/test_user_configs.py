@@ -50,6 +50,18 @@ DEFAULTS = {
     "rsiMax": None,
     "relVolMin": None,
     "relVolMax": None,
+    "gapMin": None,
+    "gapMax": None,
+    "rangeVsAtrMin": None,
+    "to52wHighMin": None,
+    "to52wHighMax": None,
+    "from52wLowMin": None,
+    "from52wLowMax": None,
+    "volumeMin": None,
+    "valueTradedMin": None,
+    "pePctMax": None,
+    "roePctMin": None,
+    "dePctMax": None,
     "aboveSma20": False,
     "aboveSma50": False,
     "aboveSma200": False,
@@ -74,6 +86,18 @@ SAMPLE = {
     "rsiMax": 75.0,
     "relVolMin": 1.5,
     "relVolMax": 10.0,
+    "gapMin": 1.0,
+    "gapMax": 15.0,
+    "rangeVsAtrMin": 2.0,
+    "to52wHighMin": -5.0,
+    "to52wHighMax": 0.0,
+    "from52wLowMin": 20.0,
+    "from52wLowMax": 100.0,
+    "volumeMin": 500_000.0,
+    "valueTradedMin": 10_000_000.0,
+    "pePctMax": 0.35,
+    "roePctMin": 0.45,
+    "dePctMax": 0.3,
     "aboveSma20": True,
     "aboveSma50": True,
     "aboveSma200": False,
@@ -147,6 +171,49 @@ def _frontend_market_view_ids() -> list[str]:
     assert match is not None, f"MARKET_VIEW_OPTIONS not found in {ts_path}"
     values = _VIEW_VALUE_RE.findall(match.group("body"))
     assert values, f"no view ids parsed from {ts_path}"
+    return values
+
+
+#: ``serializeMarketConfig`` returns ``{ key: value }`` entries; each key is the
+#: wire name the backend must accept on PUT.
+_SERIALIZE_MARKET_RE = re.compile(
+    r"export function serializeMarketConfig\b.*?\n  return \{(?P<body>.*?)\n  \};",
+    re.DOTALL,
+)
+_SERIALIZED_KEY_RE = re.compile(r"^\s{4}(?:\w+):\s", re.MULTILINE)
+_MARKET_SORT_OPTIONS_RE = re.compile(
+    r"MARKET_SORT_OPTIONS\s*(?::[^=]+)?=\s*\[(?P<body>.*?)\]\s*;", re.DOTALL
+)
+
+
+def _frontend_market_filter_keys() -> list[str]:
+    """Read the Market config keys straight from the frontend serializer.
+
+    There is no generated contract between the two layers, so parsing the TS is
+    the only way to make the backend model provably track what the UI writes.
+    Every one of the mover/Deep Value filters was missing from the Pydantic
+    model while present here, and each save 422'd as `unknown_key`.
+    """
+    ts_path = ROOT / "src" / "components" / "market" / "useMarketConfig.ts"
+    match = _SERIALIZE_MARKET_RE.search(ts_path.read_text())
+    assert match is not None, f"serializeMarketConfig not found in {ts_path}"
+    body = match.group("body")
+    keys = [line.strip().split(":")[0] for line in body.splitlines() if _SERIALIZED_KEY_RE.match(line)]
+    return [k for k in keys if k]
+
+
+def _frontend_market_sort_keys() -> list[str]:
+    """Read the persisted sort ids from the frontend ``MARKET_SORT_OPTIONS``.
+
+    ``sort`` is written into the saved config, so the backend Literal must accept
+    every id the dropdown can produce. It did not: all seven mover sorts were
+    missing, and applying a mover preset 422'd as `invalid_config` on `sort`.
+    """
+    ts_path = ROOT / "src" / "components" / "market" / "marketFilters.ts"
+    match = _MARKET_SORT_OPTIONS_RE.search(ts_path.read_text())
+    assert match is not None, f"MARKET_SORT_OPTIONS not found in {ts_path}"
+    values = _VIEW_VALUE_RE.findall(match.group("body"))
+    assert values, f"no sort ids parsed from {ts_path}"
     return values
 
 
@@ -650,6 +717,38 @@ class TestUniverseRegistryDerivation:
         assert len(backend) == len(set(backend)), "duplicate in MarketColorBy"
         assert len(frontend) == len(set(frontend)), "duplicate in MARKET_SIZE_METRIC_VALUES"
         assert "colorBy" in uc.MarketFiltersV1.model_fields
+
+    def test_market_filters_accept_every_key_the_frontend_serializes(self):
+        """Every key `serializeMarketConfig` writes must be storable.
+
+        It was not: the Deep Value / mover filters (gap, 52W distance, volume,
+        value traded, sector percentiles) existed only on the frontend, so each
+        save was rejected 422 `unknown_key` and the presets silently failed to
+        persist. The adapter already had `extra="ignore"`, so nothing warned.
+        """
+        import api.user_configs as uc
+
+        backend = set(uc.MarketFiltersV1.model_fields)
+        frontend = _frontend_market_filter_keys()
+        assert frontend, "no keys parsed from serializeMarketConfig"
+        missing = sorted(set(frontend) - backend)
+        assert not missing, (
+            "MarketFiltersV1 is missing keys the frontend serializes: "
+            f"{missing} — a save carrying any of them 422s as `unknown_key`"
+        )
+
+    def test_sort_literal_accepts_every_frontend_market_sort(self):
+        from typing import get_args
+
+        import api.user_configs as uc
+
+        backend = set(get_args(uc.MarketSortKey))
+        frontend = _frontend_market_sort_keys()
+        missing = sorted(set(frontend) - backend)
+        assert not missing, (
+            "MarketSortKey is missing frontend sort ids: "
+            f"{missing} — saving any of them 422s as `invalid_config`"
+        )
 
 
 class TestHostileStoredRow:

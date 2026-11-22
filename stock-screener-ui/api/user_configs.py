@@ -69,6 +69,17 @@ MarketSortKey = Literal[
     "perf_w_desc",
     "pos_52w_desc",
     "symbol_asc",
+    # Mover sorts. They exist in the frontend ``MARKET_SORT_OPTIONS`` registry
+    # and in every mover preset, but not here — so applying any mover preset
+    # (Gap Up/Down, Volume, Turnover, 52W distance, Range) 422'd `invalid_config`
+    # on the sort key and the filter never persisted.
+    "volume_desc",
+    "value_traded_desc",
+    "range_vs_atr_desc",
+    "gap_desc",
+    "gap_asc",
+    "to_52w_high_desc",
+    "from_52w_low_asc",
 ]
 #: Accepts every id in the frontend ``MARKET_VIEW_OPTIONS`` (``MarketViewMode`` in
 #: MarketMapView.tsx) plus the legacy ``map`` id. The frontend renamed ``map`` to
@@ -124,6 +135,22 @@ class MarketFiltersV1(BaseModel):
     rsiMax: Optional[float] = Field(default=None, ge=0, le=100)
     relVolMin: Optional[float] = Field(default=None, ge=0, le=1000)
     relVolMax: Optional[float] = Field(default=None, ge=0, le=1000)
+    # Mover bounds, mirrored from api/screener_api/dashboard.py. They were
+    # missing here, so every save carrying one was rejected as `unknown_key` and
+    # the mover presets silently failed to persist.
+    gapMin: Optional[float] = Field(default=None, ge=-100, le=100)
+    gapMax: Optional[float] = Field(default=None, ge=-100, le=100)
+    rangeVsAtrMin: Optional[float] = Field(default=None, ge=0, le=1000)
+    to52wHighMin: Optional[float] = Field(default=None, ge=-100, le=100)
+    to52wHighMax: Optional[float] = Field(default=None, ge=-100, le=100)
+    from52wLowMin: Optional[float] = Field(default=None, ge=-100, le=100)
+    from52wLowMax: Optional[float] = Field(default=None, ge=-100, le=100)
+    volumeMin: Optional[float] = Field(default=None, ge=0, le=1e15)
+    valueTradedMin: Optional[float] = Field(default=None, ge=0, le=1e15)
+    # Sector-relative gates, 0..1 — "fraction of the row's own sector it beats".
+    pePctMax: Optional[float] = Field(default=None, ge=0, le=1)
+    roePctMin: Optional[float] = Field(default=None, ge=0, le=1)
+    dePctMax: Optional[float] = Field(default=None, ge=0, le=1)
     aboveSma20: bool = False
     aboveSma50: bool = False
     aboveSma200: bool = False
