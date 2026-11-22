@@ -224,12 +224,20 @@ function MarketGrid(props: {
   getRowTestId: (row: MarketRow) => string;
   onVisibleRowsChange?: (rows: MarketRow[]) => void;
   onSortedRowsChange?: (rows: MarketRow[]) => void;
+  /** A preset owns the ordering; the grid must not re-sort the data it is given. */
+  presetOwnsOrder?: boolean;
 }) {
   const { prefs, setSorting, setColumnPrefs } = useTablePrefs("market.grid");
   // Empty saved prefs keep the historical first-load order; the store writes
   // only after a real sort change, so the default is never persisted on mount.
-  const sorting = (): SortEntry[] =>
-    prefs().sorting.length > 0 ? prefs().sorting : DEFAULT_TABLE_SORTING;
+  // `presetOwnsOrder` is the third state: a mover preset whose sort has no
+  // table column (volume, gap, range/ATR, 52W distances) clears the table sort
+  // so the pre-sorted `data` order stands. Without it the mcap fallback silently
+  // re-sorted those presets and three of them rendered identical rows.
+  const sorting = (): SortEntry[] => {
+    if (props.presetOwnsOrder) return [];
+    return prefs().sorting.length > 0 ? prefs().sorting : DEFAULT_TABLE_SORTING;
+  };
   return (
     <TanStackTable
       data={props.data}
@@ -310,7 +318,40 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   // Shares the same ref-counted store instance as MarketGrid. The table's
   // TanStack sort is the single source of truth; the map/snapshot enum is derived
   // from it below (one-way) instead of being bridged in both directions.
-  const { prefs: tablePrefs } = useTablePrefs("market.grid");
+  const {
+    prefs: tablePrefs,
+    setSorting: setTableSorting,
+  } = useTablePrefs("market.grid");
+
+  /**
+   * A preset's ordering has to reach the grid. TanStack owns ordering from
+   * `prefs().sorting` and re-sorts whatever `data` it is handed, so setting only
+   * `filters.sort` left different presets rendering identical row order.
+   *
+   * Two cases:
+   * - the sort maps to a real column (day/mcap/relvol/...) -> drive the table;
+   * - it does not (volume, gap, range/ATR, 52W distances have no column) ->
+   *   CLEAR the table's sorting so the already-sorted `data` order stands.
+   */
+  const [presetOwnsOrder, setPresetOwnsOrder] = createSignal(false);
+  const applyPreset = (patch: Partial<MarketFilterState>) => {
+    const { sort, ...bounds } = patch;
+    if (Object.keys(bounds).length > 0) patchFilters(bounds);
+    if (!sort) {
+      setPresetOwnsOrder(false);
+      return;
+    }
+    const entry = marketSortToSortEntry(sort);
+    // A column the grid can sort by -> drive the table. Otherwise the grid stops
+    // sorting and `filteredRows` orders by `filters.sort`, so that has to be set
+    // too — clearing the table alone left the previous sort in place, which is
+    // why Most Active / Top Turnover / Range Expansion all rendered mcap order.
+    setPresetOwnsOrder(entry == null);
+    if (entry) setTableSorting([entry]);
+    // Always record it: with no table column this is the only thing that orders
+    // the rows, and with one it keeps the map/snapshot enum in step.
+    patchFilters({ sort });
+  };
 
   // Only the toolbar's stale badge subscribes to the clock: a snapshot ages
   // past 15 minutes while the tab sits open and no new data will arrive to
@@ -991,7 +1032,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
           >
             <MarketFilterRail
               filters={filters()}
-              onChange={patchFilters}
+              onChange={applyPreset}
               sectors={sectors()}
               tierCounts={tierCounts()}
               currency={currency()}
@@ -1093,6 +1134,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                       getRowTestId={getRowTestId}
                       onVisibleRowsChange={setVisibleRows}
                       onSortedRowsChange={setSortedRows}
+                      presetOwnsOrder={presetOwnsOrder()}
                     />
                   </Box>
                   <Show when={viewMode() === "vis"}>
@@ -1179,7 +1221,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
           >
             <MarketFilterRail
               filters={filters()}
-              onChange={patchFilters}
+              onChange={applyPreset}
               sectors={sectors()}
               tierCounts={tierCounts()}
               currency={currency()}

@@ -53,6 +53,16 @@ function row(symbol: string, etf: boolean, capTier = "mid"): MarketRow {
     operatingMargin: null,
     revYoy: null,
     epsYoy: null,
+    volume: null,
+    avgVolume: null,
+    gap: null,
+    atr: null,
+    high: null,
+    low: null,
+    valueTraded: null,
+    to52wHighPct: null,
+    from52wLowPct: null,
+    rangeVsAtr: null,
     fno: false,
     etf,
   };
@@ -91,6 +101,16 @@ const RAIL_CONTROL_FOR: Record<string, string> = {
   pePctMax: "market-filter-pePctMax",
   roePctMin: "market-filter-roePctMin",
   dePctMax: "market-filter-dePctMax",
+  // Mover bounds live inside the collapsed "Mover presets" band; expand it too.
+  gapMin: "market-filter-gapMin",
+  gapMax: "market-filter-gapMax",
+  rangeVsAtrMin: "market-filter-rangeVsAtrMin",
+  to52wHighMin: "market-filter-to52wHighMin",
+  to52wHighMax: "market-filter-to52wHighMax",
+  from52wLowMin: "market-filter-from52wLowMin",
+  from52wLowMax: "market-filter-from52wLowMax",
+  volumeMin: "market-filter-volumeMin",
+  valueTradedMin: "market-filter-valueTradedMin",
 };
 
 describe("etfOnly removal — no hidden ETF filter", () => {
@@ -127,6 +147,7 @@ describe("etfOnly removal — no hidden ETF filter", () => {
     // The Value band is collapsed by default, so expand it first — otherwise
     // its nine controls legitimately are not in the document.
     fireEvent.click(screen.getByTestId("market-value-toggle"));
+    fireEvent.click(screen.getByTestId("market-movers-toggle"));
     for (const [key, id] of Object.entries(RAIL_CONTROL_FOR)) {
       expect(screen.getByTestId(id), `no rail control for filter key ${key}`).toBeInTheDocument();
     }

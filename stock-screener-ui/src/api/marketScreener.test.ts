@@ -195,7 +195,9 @@ describe("mapMarketSnapshot", () => {
       ],
     });
     const row = snapshot.rows[0];
-    for (const field of ["industry", "volume", "marketCap", "atr", "perf3m"]) {
+    // Fields the mapper deliberately drops. `volume` and `atr` came off this
+    // list when the mover presets began needing them — they are on the row now.
+    for (const field of ["industry", "marketCap", "perf3m"]) {
       expect(row).not.toHaveProperty(field);
     }
     const before = JSON.stringify({
@@ -210,6 +212,17 @@ describe("mapMarketSnapshot", () => {
     expect(after.length).toBeLessThan(before.length);
     expect(Object.keys(row).sort()).toEqual([
       "adx",
+      "atr",
+      "avgVolume",
+      "from52wLowPct",
+      "gap",
+      "high",
+      "low",
+      "rangeVsAtr",
+      "to52wHighPct",
+      "valueTraded",
+      "volume",
+
       "capTier",
       "change",
       "close",
@@ -402,6 +415,16 @@ describe("decodeColumnarSnapshot", () => {
       operatingMargin: null,
       revYoy: null,
       epsYoy: null,
+      volume: null,
+      avgVolume: null,
+      gap: null,
+      atr: null,
+      high: null,
+      low: null,
+      valueTraded: null,
+      to52wHighPct: null,
+      from52wLowPct: null,
+      rangeVsAtr: null,
       fno: true,
       etf: false,
     });

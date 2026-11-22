@@ -415,6 +415,29 @@ def _shape_rows(rows: list[dict[str, Any]], *, universe: str = "all_equity") -> 
         pos_52w: float | None = None
         if close is not None and low is not None and high is not None and high != low:
             pos_52w = (close - low) / (high - low) * 100.0
+        # Mover-preset ratios. Mirror dashboard._to_52w_pct/_from_52w_low_pct
+        # and its (hi-lo)/atr loop, but ship the raw signed percentages -- the
+        # "hair above/below" tolerance belongs to the preset filter, not here.
+        # `_num` guarantees finite operands; the divisor guards rule out inf/NaN.
+        to_52w_high_pct = (
+            (close - high) / high * 100.0
+            if close is not None and high is not None and high > 0
+            else None
+        )
+        from_52w_low_pct = (
+            (close - low) / low * 100.0
+            if close is not None and low is not None and low > 0
+            else None
+        )
+        day_high = _num(raw.get("high"))
+        day_low = _num(raw.get("low"))
+        atr = _num(raw.get("ATR"))
+        range_vs_atr = (
+            (day_high - day_low) / atr
+            if atr is not None and atr > 0
+            and day_high is not None and day_low is not None
+            else None
+        )
         fcf = _num(raw.get("free_cash_flow_ttm"))
         # Ship the ratio, not two raw numbers: divide only when both operands are
         # finite and non-zero, so a missing/zero cap never yields inf or NaN.
@@ -456,6 +479,17 @@ def _shape_rows(rows: list[dict[str, Any]], *, universe: str = "all_equity") -> 
             "high_52w": high,
             "low_52w": low,
             "pos_52w": pos_52w,
+            # Mover-preset inputs + derived ratios (one scan serves both views).
+            "volume": _num(raw.get("volume")),
+            "avg_volume": _num(raw.get("average_volume_10d_calc")),
+            "gap": _num(raw.get("gap")),
+            "atr": atr,
+            "high": day_high,
+            "low": day_low,
+            "value_traded": _num(raw.get("Value.Traded")),
+            "to_52w_high_pct": to_52w_high_pct,
+            "from_52w_low_pct": from_52w_low_pct,
+            "range_vs_atr": range_vs_atr,
             # Fundamentals for the treemap's metric selector; None when TV
             # has no coverage, which the UI renders as a dash rather than 0.
             "pe_ratio": _num(raw.get("price_earnings_ttm")),
