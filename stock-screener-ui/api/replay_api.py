@@ -1,6 +1,8 @@
 """Replay Trading Day API — SSE streaming endpoint."""
 import asyncio
 import json
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
@@ -15,6 +17,13 @@ router = APIRouter(prefix="/api/replay", tags=["replay"])
 
 executor = ThreadPoolExecutor(max_workers=2)
 
+# A screen fans out to three TradingView profiles and reloads the NSE
+# instrument list, so an unchanged watchlist is reused across replay requests.
+_WATCHLIST_TTL_SECONDS = 300.0
+_watchlist_cache: Optional[tuple[float, list[str]]] = None
+_watchlist_lock = threading.Lock()
+_watchlist_clock = time.monotonic
+
 
 class ReplayRequest(BaseModel):
     date: str
@@ -25,24 +34,48 @@ class ReplayRequest(BaseModel):
     bot_uuid: Optional[str] = None
 
 
-def _load_symbols(symbols_arg: Optional[list[str]]) -> list[str]:
+def _load_symbols(symbols_arg: Optional[list[str]], force_refresh: bool = False) -> list[str]:
     if not symbols_arg:
-        return _get_dynamic_watchlist()
+        return _get_dynamic_watchlist(force=force_refresh)
     return [s.strip().upper() for s in symbols_arg if s.strip()]
 
 
-def _get_dynamic_watchlist() -> list[str]:
-    """Get watchlist from TV screener, fallback to DEFAULT_WATCHLIST."""
-    try:
-        from orb_stock_screener import ORBStockScreener
-        screener = ORBStockScreener(use_relaxed=True)
-        df = screener.screen(limit=50, verify_nse=True)
-        if df is not None and not df.empty:
-            symbols = df['name'].tolist()[:50]
-            return [s.upper() for s in symbols]
-    except Exception:
-        pass
-    return DEFAULT_WATCHLIST
+def _get_dynamic_watchlist(force: bool = False) -> list[str]:
+    """Get watchlist from TV screener, fallback to DEFAULT_WATCHLIST.
+
+    Returns a copy: the runner mutates ``watchlist`` for each replay request.
+    """
+    global _watchlist_cache
+
+    def fresh(now: float) -> bool:
+        return (
+            _watchlist_cache is not None
+            and now - _watchlist_cache[0] < _WATCHLIST_TTL_SECONDS
+        )
+
+    now = _watchlist_clock()
+    if not force and fresh(now):
+        return list(_watchlist_cache[1])
+
+    # Hold the lock across the scan so concurrent /symbols and /run calls do
+    # not each pay for the same three-profile fan-out.
+    with _watchlist_lock:
+        now = _watchlist_clock()
+        if not force and fresh(now):
+            return list(_watchlist_cache[1])
+
+        symbols = list(DEFAULT_WATCHLIST)
+        try:
+            from orb_stock_screener import ORBStockScreener
+            screener = ORBStockScreener(use_relaxed=True)
+            df = screener.screen(limit=50, verify_nse=True)
+            if df is not None and not df.empty:
+                symbols = [s.upper() for s in df['name'].tolist()[:50]]
+        except Exception:
+            pass
+
+        _watchlist_cache = (now, list(symbols))
+        return list(symbols)
 
 
 @router.post("/run")
@@ -63,7 +96,7 @@ async def run_replay(request: ReplayRequest):
 
             from trading.runner_core import MultiStrategyRunner
 
-            symbols = _load_symbols(request.symbols)
+            symbols = _load_symbols(request.symbols, force_refresh=request.refresh_cache)
             if request.bot_uuid:
                 bot_config = MultiStrategyRunner._load_bot_config_by_uuid(request.bot_uuid)
             else:
