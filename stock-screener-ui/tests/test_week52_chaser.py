@@ -31,19 +31,34 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock
 import pandas as pd
 
-try:
-    import nautilus_trader
-except ModuleNotFoundError:
-    pytest.skip("nautilus_trader not available", allow_module_level=True)
-
+# Import the strategy first: backtest.strategies installs the sim shim (the
+# default engine), which registers nautilus_trader before the guard below.
 from backtest.strategies.week52_chaser import (
     Week52ChaserConfig,
     Week52ChaserNautilusStrategy,
     Week52ChaserStrategy,
 )
+
+try:
+    import nautilus_trader
+except ModuleNotFoundError:
+    pytest.skip("nautilus_trader not available", allow_module_level=True)
+
 from nautilus_trader.model.data import BarType
 
 from strategy_test_helpers import MockableStrategyMixin, make_mock_instrument, make_bar, mock_instrument
+
+
+class _MockableSimMixin(MockableStrategyMixin):
+    """Keep MagicMock cache/order_factory when the sim shim seeds real ones in Strategy.__init__."""
+
+    @MockableStrategyMixin.cache.setter
+    def cache(self, _value):
+        pass
+
+    @MockableStrategyMixin.order_factory.setter
+    def order_factory(self, _value):
+        pass
 
 
 @pytest.fixture
@@ -66,7 +81,7 @@ def chaser_config(mock_instrument):
 
 
 try:
-    class TestWeek52ChaserNautilusStrategy(MockableStrategyMixin, Week52ChaserNautilusStrategy):
+    class TestWeek52ChaserNautilusStrategy(_MockableSimMixin, Week52ChaserNautilusStrategy):
         pass
 except TypeError:
     TestWeek52ChaserNautilusStrategy = None

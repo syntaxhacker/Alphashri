@@ -29,17 +29,32 @@ from unittest.mock import MagicMock
 import config
 IST = config.IST
 
-try:
-    import nautilus_trader
-except ModuleNotFoundError:
-    pytest.skip("nautilus_trader not available", allow_module_level=True)
-
+# Import the strategy first: backtest.strategies installs the sim shim (the
+# default engine), which registers nautilus_trader before the guard below.
 from backtest.strategies.orb import (
     ORBConfig,
     ORBNautilusStrategy,
     get_ist_time,
 )
+
+try:
+    import nautilus_trader
+except ModuleNotFoundError:
+    pytest.skip("nautilus_trader not available", allow_module_level=True)
+
 from strategy_test_helpers import MockableStrategyMixin, make_mock_instrument, mock_instrument
+
+
+class _MockableSimMixin(MockableStrategyMixin):
+    """Keep MagicMock cache/order_factory when the sim shim seeds real ones in Strategy.__init__."""
+
+    @MockableStrategyMixin.cache.setter
+    def cache(self, _value):
+        pass
+
+    @MockableStrategyMixin.order_factory.setter
+    def order_factory(self, _value):
+        pass
 
 
 def _create_mock_bar_type():
@@ -84,7 +99,7 @@ def _create_strategy(**kwargs):
 
 
 try:
-    class TestORBNautilusStrategy(MockableStrategyMixin, ORBNautilusStrategy):
+    class TestORBNautilusStrategy(_MockableSimMixin, ORBNautilusStrategy):
         pass
 except TypeError:
     TestORBNautilusStrategy = None
