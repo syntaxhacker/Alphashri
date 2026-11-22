@@ -41,6 +41,10 @@ jobs:
     name: Python Unit Tests (${{ matrix.shard }}/12)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      # Timing bundle: PRs measure the fast known-green tier, main/nightly the full tier.
+      PERF_TIER: ${{ github.event_name == 'pull_request' && 'backend-pr-fast' || 'backend-full' }}
+      PERF_MARKER_EXPR: ${{ github.event_name == 'pull_request' && 'unit and not slow' || 'not (slow or slow_testcontainers or integration or contract or e2e or testcontainers or postgres)' }}
     strategy:
       fail-fast: false
       matrix:
@@ -80,7 +84,10 @@ jobs:
         run: |
           set -e -o pipefail
           cd stock-screener-ui
+          mkdir -p perf
+          # Timing plugin only records; it does not add markers or change selection.
           uv run --python 3.12 pytest -o addopts="" --collect-only -q \
+            -p tests.perf_plugin \
             -m "$MARKER_EXPR" \
             | grep '::' > /tmp/all-tests.txt
           COUNT=$(wc -l < /tmp/all-tests.txt)
@@ -104,6 +111,7 @@ jobs:
           # PRs: fast known-green tier. main push / schedule: full debt alarm.
           MARKER_EXPR: ${{ github.event_name == 'pull_request' && 'unit and not slow' || 'not (slow or slow_testcontainers or integration or contract or e2e or testcontainers or postgres)' }}
           MIN_COUNT: ${{ github.event_name == 'pull_request' && 600 || 8000 }}
+          PERF_TIMINGS_JSON: perf/pytest-collect-timings.json
           JWT_SECRET_KEY: test-secret
           DATABASE_URL: sqlite:///./test.db
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
@@ -115,10 +123,16 @@ jobs:
             echo "::warning::shard ${{ matrix.shard }}/12 has no tests"
             exit 0
           fi
+          mkdir -p perf
           mapfile -t TESTS < "$RUNNER_TEMP/shard.txt"
+          # -p tests.perf_plugin is inert unless PERF_TIMINGS_JSON is set (below).
           uv run --python 3.12 pytest "${TESTS[@]}" \
-            -o addopts="" -n 4 --dist loadfile -q --tb=short
+            -o addopts="" -n 4 --dist loadfile -q --tb=short \
+            -p tests.perf_plugin
         env:
+          PERF_TIMINGS_JSON: perf/pytest-timings.json
+          PERF_SHARD: "${{ matrix.shard }}"
+          PERF_TOTAL_SHARDS: "12"
           JWT_SECRET_KEY: test-secret
           DATABASE_URL: sqlite:///./test.db
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
@@ -143,6 +157,35 @@ jobs:
           fi
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL || 'sqlite:///./test.db' }}
+      - name: Summarize pytest timings
+        if: always()
+        run: |
+          cd stock-screener-ui
+          # Merge the collect-only timings (real collection time) with the
+          # shard run timings (per-test phases). Missing files are tolerated.
+          uv run --python 3.12 python scripts/perf/collect_pytest_timings.py \
+            --input perf/pytest-collect-timings.json \
+            --input perf/pytest-timings.json \
+            --output perf/pytest-summary.json
+      - name: Check test budgets (warning only)
+        if: always()
+        continue-on-error: true
+        run: |
+          cd stock-screener-ui
+          uv run --python 3.12 python scripts/perf/check_test_budgets.py \
+            --budgets perf/budgets.json \
+            --summary perf/pytest-summary.json
+      - name: Upload pytest timing artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-timings-shard-${{ matrix.shard }}
+          path: |
+            stock-screener-ui/perf/pytest-collect-timings.json
+            stock-screener-ui/perf/pytest-timings.json
+            stock-screener-ui/perf/pytest-summary.json
+          if-no-files-found: warn
+          retention-days: 14
 
 
   frontend-lint-typecheck:
@@ -162,6 +205,9 @@ jobs:
     runs-on: ubuntu-24.04
     # Full vitest suite on PRs to main exceeds 5 minutes; --changed on develop stays fast.
     timeout-minutes: 15
+    env:
+      # Which wall-time budget applies to the summary produced below.
+      PERF_TIER: ${{ github.event_name == 'pull_request' && github.base_ref == 'develop' && 'frontend-changed' || 'frontend-full' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -172,13 +218,50 @@ jobs:
       - run: cd stock-screener-ui && bun install --frozen-lockfile
       - name: Run changed unit tests (PR to develop only)
         if: github.event_name == 'pull_request' && github.base_ref == 'develop'
-        run: cd stock-screener-ui && bun x vitest run --changed --reporter=verbose --dir src --exclude 'tests/e2e/**'
+        run: |
+          cd stock-screener-ui
+          mkdir -p perf
+          bun x vitest run --changed --reporter=verbose --reporter=json \
+            --outputFile.json=perf/vitest-timings.json --dir src --exclude 'tests/e2e/**'
       - name: Run all unit tests (PR to main)
         if: github.event_name == 'pull_request' && github.base_ref == 'main'
-        run: cd stock-screener-ui && bun x vitest run --reporter=verbose --dir src --exclude 'tests/e2e/**'
+        run: |
+          cd stock-screener-ui
+          mkdir -p perf
+          bun x vitest run --reporter=verbose --reporter=json \
+            --outputFile.json=perf/vitest-timings.json --dir src --exclude 'tests/e2e/**'
       - name: Run all unit tests (push / nightly)
         if: github.event_name != 'pull_request'
-        run: cd stock-screener-ui && bun x vitest run --reporter=verbose --dir src --exclude 'tests/e2e/**'
+        run: |
+          cd stock-screener-ui
+          mkdir -p perf
+          bun x vitest run --reporter=verbose --reporter=json \
+            --outputFile.json=perf/vitest-timings.json --dir src --exclude 'tests/e2e/**'
+      - name: Summarize vitest timings
+        if: always()
+        run: |
+          cd stock-screener-ui
+          python3 scripts/perf/summarize_vitest.py \
+            --input perf/vitest-timings.json \
+            --output perf/vitest-summary.json
+      - name: Check test budgets (warning only)
+        if: always()
+        continue-on-error: true
+        run: |
+          cd stock-screener-ui
+          python3 scripts/perf/check_test_budgets.py \
+            --budgets perf/budgets.json \
+            --summary perf/vitest-summary.json
+      - name: Upload vitest timing artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-timings
+          path: |
+            stock-screener-ui/perf/vitest-timings.json
+            stock-screener-ui/perf/vitest-summary.json
+          if-no-files-found: warn
+          retention-days: 14
 
   e2e-smoke:
     name: E2E Smoke (22 tests)

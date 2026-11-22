@@ -216,3 +216,126 @@ CI's default remains the safe config. To experiment with threads locally:
 `NODE_OPTIONS=--max-old-space-size=8192 npx vitest run --dir src --pool=threads --execArgv=`
 (the parent-process heap flag keeps the memory guard). Validate pass/fail
 parity on the full suite before ever considering it for CI.
+
+---
+
+## Timing pipeline (pytest + vitest) — 2026-11-22
+
+A single, opt-in timing pipeline now produces comparable "why did tests get
+slower?" artifacts for both tiers. It **does not gate CI yet**: budget misses
+are warnings until a baseline week has been collected.
+
+### Files
+
+| File | Role |
+|---|---|
+| `tests/perf_plugin.py` | pytest plugin; records per-test setup/call/teardown, status, node id, file, markers, and aggregate fixture setup cost. Writes JSON only when `PERF_TIMINGS_JSON` is set. |
+| `scripts/perf/collect_pytest_timings.py` | Merges one or more raw pytest timing JSONs (shard runs + collect-only) into `pytest-summary.json`. |
+| `scripts/perf/summarize_vitest.py` | Converts Vitest's JSON reporter output into `vitest-summary.json`. |
+| `scripts/perf/check_test_budgets.py` | Compares summaries to `perf/budgets.json` and prints actionable misses. Warning-only by default; `--strict` hard-fails (use only after a baseline week). |
+| `perf/budgets.json` | Conservative initial budgets; read-only, never lowered silently. |
+| `.github/workflows/test.yml` | Loads the plugin, writes/uploads artifacts, runs the warning-only check. |
+
+### How it works
+
+* The plugin is imported only with `-p tests.perf_plugin`. Without
+  `PERF_TIMINGS_JSON` every hook is a no-op, so loading it elsewhere changes
+  nothing. It adds no options, markers, or collection filters.
+* Durations come from pytest's own `report.duration` per phase; only two
+  wrapper hooks call `perf_counter()` (collection phase and fixture setup).
+  Under xdist, the controller receives every worker report, so a single
+  process writes a single file — no shard clobbering.
+* `PERF_TIER` (`backend-pr-fast`, `backend-full`, `frontend-changed`,
+  `frontend-full`) travels from CI into the summary and selects the budget.
+  `PERF_SHARD`, `PERF_TOTAL_SHARDS`, and `PERF_MARKER_EXPR` are context only.
+* With xdist, collection happens in workers, so the controller's collection
+  timer is ~0. CI therefore also instruments the `--collect-only` step and the
+  collector takes the **max** collection time across its inputs.
+* Vitest keeps its existing `verbose` reporter and additionally writes JSON:
+  `--reporter=verbose --reporter=json --outputFile.json=perf/vitest-timings.json`.
+  Test behaviour and coverage config are untouched.
+
+### Artifact schema
+
+Raw pytest JSON (`perf/pytest-timings.json`):
+
+```json
+{
+  "schema_version": 1, "generator": "tests/perf_plugin.py",
+  "tier": "backend-pr-fast", "marker_expr": "unit and not slow",
+  "shard": "1", "total_shards": "12", "xdist_workers": 4,
+  "collection_seconds": 0.255, "wall_seconds": 12.3,
+  "tests": [
+    {"nodeid": "tests/test_correlation.py::TestComputeCorrelation::test_perfectly_correlated_series",
+     "file": "tests/test_correlation.py", "name": "test_perfectly_correlated_series",
+     "status": "passed", "setup": 0.0119, "call": 0.0038, "teardown": 0.0001,
+     "markers": ["unit"], "duration": 0.0159}
+  ],
+  "fixtures": {
+    "isolated_cache": {"count": 11, "total_seconds": 0.0004, "mean_ms": 0.032, "max_ms": 0.044}
+  }
+}
+```
+
+Summary JSON (`perf/pytest-summary.json` / `perf/vitest-summary.json`) adds
+counts, `wall_seconds`, `collection_seconds`, `fixture_setup_p95_ms`, and the
+slow tail (`slowest`, `slow_tests` with marker context) that the budget checker
+uses. Vitest's summary uses `full_name`/`duration_seconds` instead of node ids.
+
+### Budgets (initial, warning-only)
+
+| Tier | Metric | Budget |
+|---|---|---|
+| backend PR fast | wall | < 300 s |
+| backend full | wall | < 1200 s |
+| backend (both) | collection | < 30 s |
+| backend (both) | fixture setup p95 (per-test setup phase) | < 50 ms |
+| backend (both) | unmarked test duration | <= 2 s (tests marked `slow`, `slow_testcontainers`, `integration`, `contract`, `e2e`, `testcontainers`, `postgres` are exempt) |
+| frontend changed | wall | < 120 s |
+| frontend full | wall | < 600 s |
+
+### Local reproduction (tiny samples only, no full suite)
+
+```bash
+# backend: before/after on one file
+.venv/bin/python -m pytest tests/test_correlation.py -o addopts="" -q --tb=short
+PERF_TIMINGS_JSON=perf/pytest-timings.json PERF_TIER=backend-pr-fast \
+  .venv/bin/python -m pytest tests/test_correlation.py -o addopts="" -q --tb=short -p tests.perf_plugin
+.venv/bin/python scripts/perf/collect_pytest_timings.py \
+  -i perf/pytest-timings.json -o perf/pytest-summary.json
+
+# frontend: verbose output is preserved alongside the JSON
+npx vitest run src/test-utils/renderWithProviders.test.tsx --reporter=verbose \
+  --reporter=json --outputFile.json=perf/vitest-timings.json --dir src
+PERF_TIER=frontend-changed .venv/bin/python scripts/perf/summarize_vitest.py \
+  -i perf/vitest-timings.json -o perf/vitest-summary.json
+
+# warning-only check (add --strict to hard-fail)
+.venv/bin/python scripts/perf/check_test_budgets.py \
+  -s perf/pytest-summary.json -s perf/vitest-summary.json
+```
+
+Measured on this box (2026-11-22, `npx` vitest 4.1.0, `.venv` pytest 9.2.0;
+other agents were active, so treat deltas as indicative):
+
+| Sample | Before | After (instrumented) |
+|---|---|---|
+| pytest `tests/test_correlation.py` (32 tests) | 3.785 s wall / 0.48 s pytest | 3.950 s wall / 0.58 s pytest; 32 records, p95 setup 2.00 ms |
+| vitest `src/test-utils/renderWithProviders.test.tsx` (4 tests) | 2.566 s wall / 1.29 s vitest | 2.288 s wall / 1.09 s vitest; 4 records, JSON 1.8 KB |
+
+The instrumentation overhead is ~0.1 s on the pytest sample (dominated by the
+per-fixture wrapper and one JSON write) and within run-to-run noise for vitest.
+CI adds `continue-on-error: true` to both budget-check steps: misses are
+printed as `WARN` lines, never a red build, until the baseline week is done.
+
+### Caveats
+
+* The repo-root `.gitignore` ignores `*.json` globally; `perf/.gitignore`
+  re-includes only `budgets.json`. Generated timing JSONs stay ignored locally
+  and are uploaded only as CI artifacts.
+* Vitest wall time is derived from report `startTime`/`endTime` (test execution
+  only, excluding worker startup/bun install). `--wall-seconds` overrides it
+  if end-to-end wall is wanted.
+* "fixture setup p95" is the p95 of the **setup phase** across tests (the phase
+  where fixtures run), which is cheaper to collect than tracing each fixture;
+  per-fixture count/total/max is also in the artifact.

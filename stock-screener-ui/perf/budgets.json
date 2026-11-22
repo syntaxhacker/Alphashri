@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "policy": "Conservative INITIAL budgets. CI reports misses as warnings only until a baseline week of measurements has been collected. Never lower a budget silently; any change must be justified with measured data.",
+  "backend": {
+    "pr_fast": {
+      "wall_seconds": 300
+    },
+    "full": {
+      "wall_seconds": 1200
+    },
+    "collection_seconds": 30,
+    "fixture_setup_p95_ms": 50,
+    "unmarked_test_max_seconds": 2,
+    "unmarked_exempt_markers": [
+      "slow",
+      "slow_testcontainers",
+      "integration",
+      "contract",
+      "e2e",
+      "testcontainers",
+      "postgres"
+    ]
+  },
+  "frontend": {
+    "changed": {
+      "wall_seconds": 120
+    },
+    "full": {
+      "wall_seconds": 600
+    }
+  }
+}
