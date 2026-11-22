@@ -342,3 +342,38 @@ printed as `WARN` lines, never a red build, until the baseline week is done.
 * "fixture setup p95" is the p95 of the **setup phase** across tests (the phase
   where fixtures run), which is cheaper to collect than tracing each fixture;
   per-fixture count/total/max is also in the artifact.
+
+---
+
+## Production bundle budgets (2026-11-22)
+
+`npx vite build` now writes `perf/bundle-sizes.json` (gitignored, like the other
+perf artifacts) from the `bundle-budget-reporter` plugin in `vite.config.ts`.
+It lists every emitted `.js` chunk plus the largest chunk and total JS, and
+logs a `[bundle-budget]` summary line. Budgets live in `perf/budgets.json`
+under `bundle`: `largest_js_chunk_kb` = 520, `total_js_kb` = 4800.
+**Enforcement is warning-only** — misses print as `WARN`, the build still exits
+0, and no CI gate is added until a baseline week exists. Never lower a budget
+silently; justify changes with the measured artifact.
+
+| Metric | Budget | Before | After |
+|---|---|---|---|
+| Largest JS chunk | 520 kB | 1,119.27 kB (`echarts`) | 495.45 kB (`echarts-charts`) |
+| Total JS | 4,800 kB | 4,390.70 kB / 196 chunks | 4,380.90 kB / 200 chunks |
+
+The only chunk above Vite's 500 kB warning limit was the chart engine. The
+`node_modules/echarts` + `node_modules/zrender` rule is kept (still loaded only
+through `loadEcharts()`) but now splits into `echarts-core`,
+`echarts-components`, `echarts-charts` and `echarts-charts-advanced`, all
+acyclic (there are no chart↔component or zrender→echarts imports). `solid-js` /
+`@solidjs` remain in `vendor`.
+
+Route/feature trees are already isolated by the lazy imports in `App.tsx`, so
+no `route-*` manual chunks were added. A trial that grouped `src/pages/<feature>/`
+merged the lazy sub-panels and made things worse — `route-report` 707.32 kB,
+`route-patterns` 625.09 kB — so it was reverted. Measured isolated chunks:
+`PatternsContainer` 141.86 kB, `OptionsContainer` 102.86 kB, `AgriContainer`
+78.11 kB, and report split across ~20 chunks (largest `ReportStrips` 82.80 kB).
+`components/options-dock` and `components/patterns` stay shared deliberately:
+they are used app-wide (screener, window panels, `SymbolDockProvider`), so
+pulling them into a route chunk would load route code on every screen.
