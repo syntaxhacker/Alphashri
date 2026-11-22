@@ -80,6 +80,13 @@ RELIANCE_ROW = {
     "price_book_fq": 1.92,
     "dividend_yield_recent": 0.35,
     "return_on_equity": 9.01,
+    "volume": 12345678.0,
+    "average_volume_10d_calc": 10500000.5,
+    "gap": 0.82,
+    "ATR": 42.5,
+    "high": 2975.0,
+    "low": 2910.0,
+    "Value.Traded": 12345.67,
     "update_mode": "streaming",
 }
 
@@ -111,8 +118,19 @@ EXPECTED_RELIANCE_ROW = {
     "sma20": 2880.0, "sma50": 2800.0, "sma200": 2600.0,
     "perf_w": 2.1, "perf_1m": 4.6,
     "high_52w": 3000.0, "low_52w": 1800.0, "pos_52w": 95.5,
+    "volume": 12345678.0, "avg_volume": 10500000.5,
+    "gap": 0.82, "atr": 42.5, "high": 2975.0, "low": 2910.0,
+    "value_traded": 12345.67,
+    "to_52w_high_pct": -1.7999999999999998,
+    "from_52w_low_pct": 63.66666666666667,
+    "range_vs_atr": 1.5294117647058822,
     "pe_ratio": 22.1, "pb_ratio": 1.92,
     "dividend_yield": 0.35, "roe": 9.01,
+    # Value fields are emitted as null because this fixture carries no value
+    # coverage columns; the exact-dict contract must list them.
+    "ps_ratio": None, "fcf_yield": None, "revenue": None, "net_income": None,
+    "debt_to_equity": None, "current_ratio": None, "gross_margin": None,
+    "operating_margin": None, "rev_yoy": None, "eps_yoy": None,
     "fno": True, "etf": False, "currency": "INR",
 }
 
@@ -228,14 +246,18 @@ def test_snapshot_default_universe(client, mock_tv):
 
 
 def test_dropped_fields_absent_from_response(client, mock_tv):
-    """The five unused row fields never reach the client; market_cap_cr is kept."""
+    """Unused TV fields stay out; the mover fields (incl. volume/atr) ride along."""
     mock_tv.return_value = _frame([RELIANCE_ROW])
     body = client.get("/api/market/snapshot").json()
     assert len(body["rows"]) == 1
     row = body["rows"][0]
-    for field in ("industry", "volume", "market_cap", "atr", "perf_3m"):
+    for field in ("industry", "market_cap", "perf_3m"):
         assert field not in row, field
     assert "market_cap_cr" in row
+    for field in ("volume", "avg_volume", "gap", "atr", "high", "low",
+                  "value_traded", "to_52w_high_pct", "from_52w_low_pct",
+                  "range_vs_atr"):
+        assert field in row, field
     assert len(row) == len(EXPECTED_RELIANCE_ROW)
 
 
@@ -501,7 +523,9 @@ def test_missing_numerics_are_null(client, mock_tv):
     for key in ("close", "change", "relative_volume", "market_cap_cr",
                 "rsi", "adx", "sma20", "sma50",
                 "sma200", "perf_w", "perf_1m", "high_52w",
-                "low_52w", "pos_52w"):
+                "low_52w", "pos_52w", "volume", "avg_volume", "gap", "atr",
+                "high", "low", "value_traded", "to_52w_high_pct",
+                "from_52w_low_pct", "range_vs_atr"):
         assert r[key] is None, key
     assert r["cap_tier"] == "micro"
     assert r["fno"] is False and r["etf"] is False
