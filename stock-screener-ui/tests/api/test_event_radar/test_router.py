@@ -8,6 +8,7 @@ scraper or the database.
 from __future__ import annotations
 
 import datetime as dt
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi import FastAPI
@@ -294,7 +295,13 @@ class TestAnomalies:
         anomaly = payload["anomalies"][0]
         assert set(anomaly) == ANOMALY_KEYS
         assert anomaly["symbol"] == "ORCL"
-        assert anomaly["ts"].endswith("-04:00")
+        # The store restores the market's real offset for the day, so a
+        # hardcoded -04:00 silently breaks every winter run (EST is -05:00).
+        stamp = dt.datetime.fromisoformat(anomaly["ts"])
+        expected_offset = dt.datetime.combine(
+            day, dt.time(14, 19), tzinfo=ZoneInfo("America/New_York")
+        ).utcoffset()
+        assert stamp.utcoffset() == expected_offset
 
         meta = payload["meta"]
         assert set(meta) == {"as_of", "date", "scanned", "thresholds", "warnings"}

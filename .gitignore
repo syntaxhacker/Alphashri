@@ -104,6 +104,9 @@ mutants/
 !stock-screener-ui/tests/fixtures/*.json
 !stock-screener-ui/tests/indicators/fixtures/*.csv
 !stock-screener-ui/tests/indicators/fixtures/*.json
+!stock-screener-ui/tests/api/test_event_radar/fixtures/*.json
+!stock-screener-ui/tests/api/test_event_radar/fixtures/*.csv
+!stock-screener-ui/data/symbol_aliases.json
 
 # ---------------------------------------------------------------------------
 # Root-level caches and local residue

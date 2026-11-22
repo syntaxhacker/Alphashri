@@ -1,0 +1,30 @@
+{
+  "hits": {
+    "hits": [
+      {
+        "_id": "0001341439-26-000087:orcl-8k.htm",
+        "_source": {
+          "ciks": ["0001341439"],
+          "display_names": ["ORACLE CORP (ORCL, ORCL-PD)"],
+          "form": "8-K",
+          "file_date": "2026-10-23",
+          "adsh": "0001341439-26-000087",
+          "items": ["7.01"],
+          "snippet": "Oracle Corporation will host an Investor Day on October 28, 2026 in New York City."
+        }
+      },
+      {
+        "_id": "0000789019-26-000055:msft-8k.htm",
+        "_source": {
+          "ciks": ["0000789019"],
+          "display_names": ["MICROSOFT CORP (MSFT, MSFT-PD)"],
+          "form": "8-K",
+          "file_date": "2026-10-23",
+          "adsh": "0000789019-26-000055",
+          "items": ["7.01"],
+          "snippet": "Microsoft Corporation will host an Investor Day on November 18, 2026."
+        }
+      }
+    ]
+  }
+}
