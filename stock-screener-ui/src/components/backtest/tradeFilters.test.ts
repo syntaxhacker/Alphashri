@@ -64,3 +64,83 @@ describe("filterTrades", () => {
     expect(out[0].side).toBe("LONG");
   });
 });
+
+// Counting only numeric index reads: Array#filter visits each element exactly
+// once via Get(O, Pk), so this is a deterministic proxy for predicate work —
+// no timing, no spies on shared module internals.
+function countedTrades(count: { reads: number }, n: number) {
+  const rows = Array.from({ length: n }, (_, i) => ({
+    net_pnl: i % 2 === 0 ? 10 : -10,
+    exit_reason: i % 3 === 0 ? "SL" : "TP",
+    side: i % 5 === 0 ? "SELL" : "BUY",
+  }));
+  return new Proxy(rows, {
+    get(target, prop, receiver) {
+      if (typeof prop === "string" && /^\d+$/.test(prop)) count.reads += 1;
+      return Reflect.get(target, prop, receiver);
+    },
+  });
+}
+
+describe("filterTrades identity cache", () => {
+  const N = 400;
+  const win = { side: "ALL", result: "WIN", reason: "ALL" };
+
+  test("two consumers filtering the same snapshot pay for one pass", () => {
+    const count = { reads: 0 };
+    const trades = countedTrades(count, N);
+    const blotter = filterTrades(trades, { ...win });
+    expect(count.reads).toBe(N);
+
+    // Edge AI panel + per-trade chart list re-filter with equal-valued objects.
+    const edge = filterTrades(trades, win);
+    const charts = filterTrades(trades, { ...win });
+    expect(edge).toBe(blotter);
+    expect(charts).toBe(blotter);
+    expect(count.reads).toBe(N);
+  });
+
+  test("a distinct filter fingerprint rescans once, then reuses that result", () => {
+    const count = { reads: 0 };
+    const trades = countedTrades(count, N);
+    const winOut = filterTrades(trades, win);
+    const lossOut = filterTrades(trades, { ...win, result: "LOSS" });
+    expect(lossOut).not.toBe(winOut);
+    expect(count.reads).toBe(2 * N);
+
+    filterTrades(trades, { ...win, result: "LOSS" });
+    filterTrades(trades, win);
+    expect(count.reads).toBe(2 * N);
+  });
+
+  test("different trades snapshots never share a cached result", () => {
+    const a = { reads: 0 };
+    const b = { reads: 0 };
+    const tradesA = countedTrades(a, N);
+    const tradesB = countedTrades(b, N);
+    const outA = filterTrades(tradesA, win);
+    const outB = filterTrades(tradesB, win);
+    expect(outA).not.toBe(outB);
+    expect(a.reads).toBe(N);
+    expect(b.reads).toBe(N);
+    expect(outA).toEqual(outB);
+  });
+
+  test("cached results stay semantically identical to a naive filter", () => {
+    const count = { reads: 0 };
+    const trades = countedTrades(count, N);
+    const combos = [
+      win,
+      { ...win, result: "LOSS" },
+      { ...win, side: "LONG" },
+      { ...win, side: "SHORT", reason: "SL" },
+    ];
+    for (const f of combos) {
+      expect(filterTrades(trades, f)).toEqual(trades.filter((t) => matchesTradeFilters(t, f)));
+    }
+    // Warm pass for each combo, then confirm no extra traversal on reuse.
+    const warm = count.reads;
+    for (const f of combos) filterTrades(trades, { ...f });
+    expect(count.reads).toBe(warm);
+  });
+});
