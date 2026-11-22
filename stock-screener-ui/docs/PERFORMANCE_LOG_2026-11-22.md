@@ -52,6 +52,11 @@ unmeasured work is marked **in progress**.
 - **Full-suite debt burned down:** news-poller over-mocking **7 → 0 failures**
   (14 tests), ORB/config/db stale expectations **14 → 0** (204 tests), and
   targeted coverage remained intact.
+- **DB-backed tests:** broker/bot helper sessions now use the schema-initialized
+  test DB; 45 tests pass in default and empty-DB CI simulation (was 26 failures
+  in CI simulation).
+- **Test-debt tracker:** `docs/TEST_DEBT.md` records fixed clusters, remaining
+  source-gap/fixture clusters, policy and the fresh full-sweep command.
 
 ## Final state at 19:12 IST
 
