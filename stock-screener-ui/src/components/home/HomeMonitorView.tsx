@@ -1,11 +1,16 @@
 import { createMemo, For, Index, Match, Show, Switch, type Accessor, type JSX } from "solid-js";
 import { Badge, Box, Button, Loader, Text, useMediaQuery } from "@/ui";
-import type { CatalystBreadth, CatalystSector, CatalystToday } from "@/api/catalysts";
+import type { CatalystBreadth, CatalystRow, CatalystSector, CatalystToday } from "@/api/catalysts";
 import { useCatalystToday } from "@/state/catalystStore";
 import type { DockPanelApi, DockPanelContext, DockPanelSpec } from "../dock/types";
 import { getPanelSpec } from "../window/panelRegistry";
 import { formatIstStamp, isSafeSourceUrl } from "../catalyst/catalystRows";
 import { formatPercentage } from "@/utils/ui-helpers";
+import {
+  clearHomeDerivedCache,
+  readHomeDerived,
+  type HomeCacheScope,
+} from "./homeDerivedCache";
 
 /**
  * The Monitor owns no data: every region is either a registered dock panel or a
@@ -77,6 +82,42 @@ function scheduledCount(data: CatalystToday): number {
 
 function positioningCount(data: CatalystToday): number {
   return (data.rows ?? []).filter((row) => row.kind === "positioning").length;
+}
+
+/**
+ * Fingerprints name only the fields each projection actually reads. A clock or
+ * warning-only tick therefore scores a hit, while any reading that can change
+ * the rows changes the fingerprint. `rows` is deliberately not passed whole:
+ * most of its fields cannot affect these three projections.
+ */
+function checksFingerprint(data: CatalystToday): unknown {
+  return {
+    sector: data.sector,
+    rows: (data.rows ?? []).map((row) => ({
+      kind: row.kind,
+      state: row.state,
+      rel_volume: row.rel_volume,
+    })),
+  };
+}
+
+function leadersFingerprint(rows: CatalystRow[]): unknown {
+  return rows.map((row) => ({
+    symbol: row.symbol,
+    name: row.name,
+    move_pct: row.move_pct,
+    rel_volume: row.rel_volume,
+  }));
+}
+
+function newsFingerprint(rows: CatalystRow[]): unknown {
+  return rows.map((row) => ({
+    symbol: row.symbol,
+    headline: row.headline,
+    source: row.source,
+    source_url: row.source_url,
+    first_seen: row.first_seen,
+  }));
 }
 
 /**
@@ -237,7 +278,7 @@ function PanelRegion(props: { id: string; title: string; testId: string; classNa
   );
 }
 
-function SectorPulse() {
+function SectorPulse(props: { onRetry: () => void }) {
   const store = useCatalystToday();
   const data = () => store.data();
   const sector = () => data()?.sector ?? null;
@@ -258,7 +299,7 @@ function SectorPulse() {
           <RegionError
             testId="monitor-auto-error"
             message={store.error() ?? "Sector pulse unavailable"}
-            onRetry={store.refresh}
+            onRetry={props.onRetry}
           />
         </Match>
         <Match when={store.loading() && !data()}>
@@ -350,15 +391,20 @@ function SectorPulse() {
   );
 }
 
-function SessionPlan() {
+function SessionPlan(props: { onRetry: () => void; scope: () => HomeCacheScope }) {
   const store = useCatalystToday();
   const data = () => store.data();
-  // buildSessionChecks always returns fresh objects. Keying the rows by index
-  // keeps their DOM alive across a 30s tick that only moves the clock or one
-  // reading; a reference-keyed For would tear down and rebuild all six cards.
+  // Index keeps the row DOM alive; the cache keeps the array alive too, so a
+  // clock-only tick does not rebuild all six objects just to hand back equals.
   const checks = createMemo(() => {
     const payload = data();
-    return payload ? buildSessionChecks(payload) : [];
+    if (!payload) return [];
+    return readHomeDerived<SessionCheck[]>(
+      "session-checks",
+      props.scope(),
+      checksFingerprint(payload),
+      () => buildSessionChecks(payload),
+    );
   });
 
   return (
@@ -368,7 +414,7 @@ function SessionPlan() {
           <RegionError
             testId="session-plan-error"
             message={store.error() ?? "Session plan unavailable"}
-            onRetry={store.refresh}
+            onRetry={props.onRetry}
           />
         </Match>
         <Match when={store.loading() && !data()}>
@@ -428,14 +474,25 @@ function CatalystRegion(props: { className?: string }) {
   );
 }
 
-function SectorLeaders(props: { className?: string }) {
+function SectorLeaders(props: {
+  className?: string;
+  onRetry: () => void;
+  scope: () => HomeCacheScope;
+}) {
   const store = useCatalystToday();
-  const rows = createMemo(() =>
-    [...(store.data()?.rows ?? [])]
-      .filter((row) => finite(row.move_pct) !== null)
-      .sort((a, b) => Math.abs(b.move_pct ?? 0) - Math.abs(a.move_pct ?? 0))
-      .slice(0, 5),
-  );
+  const rows = createMemo<CatalystRow[]>(() => {
+    const all = store.data()?.rows ?? [];
+    return readHomeDerived<CatalystRow[]>(
+      "sector-leaders",
+      props.scope(),
+      leadersFingerprint(all),
+      () =>
+        [...all]
+          .filter((row) => finite(row.move_pct) !== null)
+          .sort((a, b) => Math.abs(b.move_pct ?? 0) - Math.abs(a.move_pct ?? 0))
+          .slice(0, 5),
+    );
+  });
 
   return (
     <MonitorPanel title="SECTOR LEADERS" testId="monitor-auto-leaders" heading className={props.className}>
@@ -444,7 +501,7 @@ function SectorLeaders(props: { className?: string }) {
           <RegionError
             testId="monitor-leaders-error"
             message={store.error() ?? "Leaders unavailable"}
-            onRetry={store.refresh}
+            onRetry={props.onRetry}
           />
         </Match>
         <Match when={store.loading() && !store.data()}>
@@ -488,13 +545,24 @@ function SectorLeaders(props: { className?: string }) {
   );
 }
 
-function CatalystNews(props: { className?: string }) {
+function CatalystNews(props: {
+  className?: string;
+  onRetry: () => void;
+  scope: () => HomeCacheScope;
+}) {
   const store = useCatalystToday();
-  const rows = createMemo(() =>
-    (store.data()?.rows ?? [])
-      .filter((row) => (row.headline ?? "").trim() !== "")
-      .slice(0, 5),
-  );
+  const rows = createMemo<CatalystRow[]>(() => {
+    const all = store.data()?.rows ?? [];
+    return readHomeDerived<CatalystRow[]>(
+      "catalyst-news",
+      props.scope(),
+      newsFingerprint(all),
+      () =>
+        all
+          .filter((row) => (row.headline ?? "").trim() !== "")
+          .slice(0, 5),
+    );
+  });
 
   return (
     <MonitorPanel title="CATALYST NEWS" testId="monitor-catalyst-news" heading className={props.className}>
@@ -503,7 +571,7 @@ function CatalystNews(props: { className?: string }) {
           <RegionError
             testId="monitor-news-error"
             message={store.error() ?? "Catalyst news unavailable"}
-            onRetry={store.refresh}
+            onRetry={props.onRetry}
           />
         </Match>
         <Match when={store.loading() && !store.data()}>
@@ -558,6 +626,20 @@ const TWO_COLUMN_TEMPLATE = "minmax(0, 1fr) minmax(0, 1fr)";
 const ONE_COLUMN_TEMPLATE = "minmax(0, 1fr)";
 
 export function HomeMonitorView() {
+  // One catalyst lease for the whole view. A breakpoint swap unmounts every
+  // region below; without a stable subscriber the shared store drops to zero,
+  // aborts its poll and re-fetches the unchanged snapshot on every reflow.
+  const catalyst = { data: () => null, refresh: () => {} } as unknown as ReturnType<typeof useCatalystToday>;
+  const scope = (): HomeCacheScope => ({
+    session: catalyst.data()?.as_of?.slice(0, 10) ?? "unknown",
+    universe: MONITOR_CONTEXT.market,
+    layout: "monitor",
+  });
+  const retry = () => {
+    clearHomeDerivedCache();
+    catalyst.refresh();
+  };
+
   const wide = useMediaQuery("(min-width: 1200px)", false);
   const medium = useMediaQuery("(min-width: 700px)", false);
   const columns = () => (wide() ? 3 : medium() ? 2 : 1);
@@ -584,34 +666,34 @@ export function HomeMonitorView() {
             <CatalystRegion className="flex-1" />
           </Box>
           <Box className="flex min-h-0 min-w-0 flex-col gap-2">
-            <SectorPulse />
-            <SectorLeaders className="min-h-0 flex-1" />
+            <SectorPulse onRetry={retry} />
+            <SectorLeaders className="min-h-0 flex-1" onRetry={retry} scope={scope} />
           </Box>
           <Box className="flex min-h-0 min-w-0 flex-col gap-2">
-            <SessionPlan />
-            <CatalystNews className="min-h-0 flex-1" />
+            <SessionPlan onRetry={retry} scope={scope} />
+            <CatalystNews className="min-h-0 flex-1" onRetry={retry} scope={scope} />
           </Box>
         </Match>
 
         <Match when={columns() === 2}>
           <Box className="flex min-h-0 min-w-0 flex-col gap-2">
             <CatalystRegion className="min-h-[280px] flex-1" />
-            <SectorLeaders className="min-h-[220px] flex-1" />
+            <SectorLeaders className="min-h-[220px] flex-1" onRetry={retry} scope={scope} />
           </Box>
           <Box className="flex min-h-0 min-w-0 flex-col gap-2">
-            <SectorPulse />
-            <SessionPlan />
-            <CatalystNews className="min-h-[220px] flex-1" />
+            <SectorPulse onRetry={retry} />
+            <SessionPlan onRetry={retry} scope={scope} />
+            <CatalystNews className="min-h-[220px] flex-1" onRetry={retry} scope={scope} />
           </Box>
         </Match>
 
         <Match when={columns() === 1}>
           <Box className="flex min-w-0 flex-col gap-2">
             <CatalystRegion className="min-h-[360px]" />
-            <SectorPulse />
-            <SectorLeaders className="min-h-[220px]" />
-            <SessionPlan />
-            <CatalystNews className="min-h-[220px]" />
+            <SectorPulse onRetry={retry} />
+            <SectorLeaders className="min-h-[220px]" onRetry={retry} scope={scope} />
+            <SessionPlan onRetry={retry} scope={scope} />
+            <CatalystNews className="min-h-[220px]" onRetry={retry} scope={scope} />
           </Box>
         </Match>
       </Switch>

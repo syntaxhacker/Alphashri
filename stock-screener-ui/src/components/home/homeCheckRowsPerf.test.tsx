@@ -4,6 +4,7 @@ import { cleanup, render, screen, waitFor } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CatalystToday } from "@/api/catalysts";
+import { clearHomeDerivedCache } from "./homeDerivedCache";
 import { HomeMonitorView } from "./HomeMonitorView";
 
 /** Hoisted holder so the mocked store reads the signal installed per test. */
@@ -72,6 +73,7 @@ function stubWidth(width: number) {
 let setData: (value: CatalystToday | null) => void;
 
 beforeEach(() => {
+  clearHomeDerivedCache();
   stubWidth(1600);
   const [data, write] = createSignal<CatalystToday | null>(snapshot());
   live.read = data;
@@ -137,5 +139,17 @@ describe("HomeMonitorView session rows under a catalyst tick", () => {
     );
     expect(after).toHaveLength(before.length);
     after.forEach((node, index) => expect(node, CHECK_IDS[index]).toBe(before[index]));
+  });
+
+  it("does not re-derive the leaders array when a tick only moves the clock", async () => {
+    const sortSpy = vi.spyOn(Array.prototype, "sort");
+    render(() => <HomeMonitorView />);
+    const afterMount = sortSpy.mock.calls.length;
+    expect(afterMount).toBeGreaterThan(0);
+
+    setData(snapshot({ as_of: "2026-11-19T11:16:00+05:30" }));
+    await Promise.resolve();
+
+    expect(sortSpy.mock.calls.length, "leaders re-sorted on a clock-only tick").toBe(afterMount);
   });
 });
