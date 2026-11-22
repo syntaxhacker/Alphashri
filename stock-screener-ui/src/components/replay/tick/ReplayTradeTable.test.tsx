@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi } from "vitest";
+import { createSignal } from "solid-js";
 import { render, screen, within, fireEvent } from "@solidjs/testing-library";
 import { ReplayTradeTable, type RTrade } from "./ReplayTradeTable";
 
@@ -88,5 +89,24 @@ describe("ReplayTradeTable", () => {
   test("empty state prompts to press play", () => {
     render(() => <ReplayTradeTable trades={[]} clock={0} onSelectTime={() => {}} />);
     expect(screen.getByText(/Press Play/)).toBeInTheDocument();
+  });
+
+  test("clock cells update on clock change without a new trades array", () => {
+    const [clock, setClock] = createSignal(T0 + 100);
+    const trades = [closedTrade];
+    render(() => <ReplayTradeTable trades={trades} clock={clock()} onSelectTime={() => {}} />);
+
+    const row = screen.getByTestId(`replay-trade-row-${T0}-LONG`) as HTMLElement;
+    expect(within(row).queryByTestId(`replay-pnl-${T0}`)).not.toBeInTheDocument();
+    expect(within(row).getByText("OPEN")).toBeInTheDocument();
+
+    // the parent can now keep `trades` referentially stable between trade events;
+    // the exit/P&L/R/result cells must still react to the clock on their own.
+    setClock(T0 + 7200);
+
+    expect(within(row).getByTestId(`replay-pnl-${T0}`)).toBeInTheDocument();
+    expect(within(row).getByText("+14.4")).toBeInTheDocument();
+    expect(within(row).getByText("TP")).toBeInTheDocument();
+    expect(within(row).queryByText("OPEN")).not.toBeInTheDocument();
   });
 });
