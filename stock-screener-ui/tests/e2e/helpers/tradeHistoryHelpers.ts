@@ -254,11 +254,6 @@ export async function isPaginationVisible(page: Page): Promise<void> {
   await expect(pagination).toBeVisible();
 }
 
-export async function setupTradeHistoryTest(page: Page, _botId: string = "2"): Promise<void> {
-  await setupTradeHistoryMocks(page);
-  await navigateToTradeHistoryWithBot(page, botId);
-}
-
 export async function setupTradeHistoryTestNoBot(page: Page): Promise<void> {
   await setupTradeHistoryMocks(page);
   await navigateToTradeHistory(page);
