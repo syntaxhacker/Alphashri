@@ -66,6 +66,15 @@ export interface MarketFilterState {
   debtToEquityMax: number | null;
   revYoyMin: number | null;
   epsYoyMin: number | null;
+  /**
+   * Sector-relative gates, 0..1, "fraction of the row's own sector it beats":
+   * 0 = best, 1 = worst. Preferred over the absolute bounds above for the
+   * presets because a flat threshold means different things per sector and
+   * rejects large caps on rounding (see `sectorPercentiles`).
+   */
+  pePctMax: number | null;
+  roePctMin: number | null;
+  dePctMax: number | null;
   aboveSma20: boolean;
   aboveSma50: boolean;
   aboveSma200: boolean;
@@ -102,6 +111,9 @@ export function defaultMarketFilters(
     debtToEquityMax: null,
     revYoyMin: null,
     epsYoyMin: null,
+    pePctMax: null,
+    roePctMin: null,
+    dePctMax: null,
     aboveSma20: false,
     aboveSma50: false,
     aboveSma200: false,
@@ -125,6 +137,117 @@ function inRange(
   if (lo !== null && value < lo) return false;
   if (hi !== null && value > hi) return false;
   return true;
+}
+
+/* ── Sector-relative percentile gates ────────────────────────────────────────
+ *
+ * Absolute thresholds do not travel: a flat "ROE ≥ 15" rejects SBIN (ROE 14.58)
+ * while admitting a small cap at ROE 4200% off a one-off gain, and the same
+ * number means different things in Utilities and Technology. The value engine
+ * this replaces solved that with percentile gates inside each row's own sector
+ * bucket (api/value_scan/filters.py `_pct`, AGENTS.md "absolute thresholds do
+ * not travel between markets").
+ *
+ * The market frame already carries `sector` on every row and has ~20 buckets
+ * with ≥13 members each, so the same ranking is computable client-side against
+ * the pre-gate frame — which is the requirement: peer medians must describe the
+ * whole frame, never the surviving survivors, or the gate is self-referential.
+ */
+
+/** Which direction is "better" — a cheap multiple is low, a return is high. */
+type PctDirection = "max" | "min";
+
+interface PctMetricSpec {
+  label: string;
+  direction: PctDirection;
+  value: (row: MarketRow) => number | null;
+}
+
+/** Every ranked metric the percentile gates can use. */
+export const PCT_METRICS = {
+  pe: { label: "P/E", direction: "max", value: (r) => r.peRatio },
+  ps: { label: "P/S", direction: "max", value: (r) => r.psRatio },
+  pb: { label: "P/B", direction: "max", value: (r) => r.pbRatio },
+  roe: { label: "ROE", direction: "min", value: (r) => r.roe },
+  de: { label: "D/E", direction: "max", value: (r) => r.debtToEquity },
+  fcfYield: { label: "FCF yield", direction: "min", value: (r) => r.fcfYield },
+  revYoy: { label: "Rev growth", direction: "min", value: (r) => r.revYoy },
+  epsYoy: { label: "EPS growth", direction: "min", value: (r) => r.epsYoy },
+  divYield: { label: "Div yield", direction: "min", value: (r) => r.dividendYield },
+} as const satisfies Record<string, PctMetricSpec>;
+
+export type PctMetricKey = keyof typeof PCT_METRICS;
+
+/**
+ * A bucket needs at least this many members before its ranking means anything.
+ * Below it the metric is treated as UNAVAILABLE for the bucket and the gate is
+ * skipped rather than guessed (mirrors MIN_METRIC_COVERAGE on the server).
+ */
+export const PCT_MIN_BUCKET = 5;
+
+/**
+ * Percentile rank inside the bucket, matching the retired engine exactly:
+ * `count(v <= value) / n` — a plain ascending rank, **not** isolated to
+ * "goodness". The gate then decides direction, so `roe_pct_min: 0.55` reads
+ * "beats at least 55% of its sector" and `pe_pct_max: 0.35` reads "cheapest
+ * 35%". Inverting the rank per metric here would silently flip every gate.
+ */
+function pctRank(sorted: number[], value: number): number {
+  let atOrBelow = 0;
+  for (const v of sorted) if (v <= value) atOrBelow++;
+  return atOrBelow / sorted.length;
+}
+
+const sectorKey = (row: MarketRow): string => (row.sector ?? "").trim() || "Other";
+
+/**
+ * Percentile of each row within its sector bucket, per metric. Computed over the
+ * FULL frame before any predicate runs, so filtering cannot change who counts as
+ * a peer.
+ */
+export function sectorPercentiles(
+  rows: readonly MarketRow[],
+  keys: readonly PctMetricKey[],
+): Map<MarketRow, Partial<Record<PctMetricKey, number>>> {
+  const out = new Map<MarketRow, Partial<Record<PctMetricKey, number>>>();
+  if (keys.length === 0) return out;
+
+  // bucket -> metric -> sorted values, built once.
+  const buckets = new Map<string, Map<PctMetricKey, number[]>>();
+  for (const row of rows) {
+    const key = sectorKey(row);
+    let per = buckets.get(key);
+    if (!per) {
+      per = new Map();
+      buckets.set(key, per);
+    }
+    for (const k of keys) {
+      const v = PCT_METRICS[k].value(row);
+      if (v === null || !Number.isFinite(v)) continue;
+      let list = per.get(k);
+      if (!list) {
+        list = [];
+        per.set(k, list);
+      }
+      list.push(v);
+    }
+  }
+  for (const per of buckets.values()) {
+    for (const list of per.values()) list.sort((a, b) => a - b);
+  }
+
+  for (const row of rows) {
+    const per = buckets.get(sectorKey(row));
+    const ranks: Partial<Record<PctMetricKey, number>> = {};
+    for (const k of keys) {
+      const v = PCT_METRICS[k].value(row);
+      const list = per?.get(k);
+      if (v === null || !Number.isFinite(v) || !list || list.length < PCT_MIN_BUCKET) continue;
+      ranks[k] = pctRank(list, v);
+    }
+    out.set(row, ranks);
+  }
+  return out;
 }
 
 function isAboveSma(close: number | null, sma: number | null): boolean {
@@ -171,7 +294,32 @@ export function filterOnlyMarketRows(
   filters: MarketFilterState,
 ): MarketRow[] {
   const search = filters.search.trim().toLowerCase();
+  // Rank BEFORE any predicate: peer medians must describe the whole frame, or
+  // the gate becomes self-referential (AGENTS.md, Deep Value percentiles).
+  const pctKeys: PctMetricKey[] = [];
+  if (has(filters.pePctMax)) pctKeys.push("pe");
+  if (has(filters.roePctMin)) pctKeys.push("roe");
+  if (has(filters.dePctMax)) pctKeys.push("de");
+  const pct = pctKeys.length > 0 ? sectorPercentiles(rows, pctKeys) : null;
+
   return rows.filter((row) => {
+    if (pct) {
+      const ranks = pct.get(row);
+      // A percentile gate is active: an unranked row (thin sector, missing
+      // metric) cannot be asserted against, so it fails rather than passes.
+      if (has(filters.pePctMax)) {
+        const v = ranks?.pe;
+        if (v === undefined || v > filters.pePctMax!) return false;
+      }
+      if (has(filters.roePctMin)) {
+        const v = ranks?.roe;
+        if (v === undefined || v < filters.roePctMin!) return false;
+      }
+      if (has(filters.dePctMax)) {
+        const v = ranks?.de;
+        if (v === undefined || v > filters.dePctMax!) return false;
+      }
+    }
     if (search) {
       if (!searchableText(row).includes(search)) return false;
     }
@@ -344,28 +492,54 @@ function boundChip(
 }
 
 /**
- * One-click bundle mirroring the retired Deep Value tab's "serious" gates.
+ * A percentile bound reads as a share of the row's own sector, not a number the
+ * user can compare across sectors — so the chip says so explicitly.
+ */
+function pctChip(
+  key: string,
+  label: string,
+  value: number | null | undefined,
+  direction: "min" | "max",
+): MarketFilterChip | null {
+  if (!has(value)) return null;
+  const pct = Math.round(value * 100);
+  const text = direction === "min" ? `top ${100 - pct}%` : `cheapest ${pct}%`;
+  return { key, label: `${label} ${text} of sector` };
+}
+
+/**
+ * One-click bundle of three sector-relative gates. Every bound is an ascending
+ * percentile inside the row's own sector bucket (see `sectorPercentiles`):
+ * cheaper/leaner ranks low, stronger ROE ranks high. This is not a set of
+ * absolute cutoffs — the same number means different things in Utilities and
+ * Technology, so the gates are expressed relative to each row's peers.
  *
- * `fcfYieldMin` is deliberately NOT in the preset. TradingView carries
- * `free_cash_flow_ttm` for only ~6% of Indian names (measured: 3 of 50), so
- * including it reduced the preset to 24 matches out of 3,593 — the filter was
- * doing almost all the narrowing on missing data rather than on bad companies.
- * It stays available as its own filter for markets that do report FCF.
+ * Measured on the live NSE frame, a flat `ROE ≥ 15` rejected SBIN (ROE 14.58)
+ * and NTPC (14.66) — the two largest cheap banks/utilities in the index —
+ * while admitting ROLLT at ROE 4200% off a one-off gain. It also halved the
+ * large-cap matches (53 vs 106).
+ *
+ * `fcfYield` is deliberately absent: TradingView carries `free_cash_flow_ttm`
+ * for only ~6% of Indian names (measured 3 of 50), so a gate on it narrows on
+ * missing data, not on bad companies.
  */
 export const DEEP_VALUE_PRESET: Pick<
   MarketFilterState,
-  "peMax" | "roeMin" | "debtToEquityMax"
+  "pePctMax" | "roePctMin" | "dePctMax"
 > = {
-  peMax: 15,
-  roeMin: 15,
-  debtToEquityMax: 1.5,
+  /** Ascending rank, so ≤ 0.35 = the cheapest 35% of the row's own sector. */
+  pePctMax: 0.35,
+  /** Ascending rank, so ≥ 0.45 = beats 45% of its sector on ROE. */
+  roePctMin: 0.45,
+  /** Ascending rank, so ≤ 0.30 = the least-leveraged 30% of its sector. */
+  dePctMax: 0.3,
 };
 
 export function deepValuePresetActive(filters: MarketFilterState): boolean {
   return (
-    filters.peMax === DEEP_VALUE_PRESET.peMax &&
-    filters.roeMin === DEEP_VALUE_PRESET.roeMin &&
-    filters.debtToEquityMax === DEEP_VALUE_PRESET.debtToEquityMax
+    filters.pePctMax === DEEP_VALUE_PRESET.pePctMax &&
+    filters.roePctMin === DEEP_VALUE_PRESET.roePctMin &&
+    filters.dePctMax === DEEP_VALUE_PRESET.dePctMax
   );
 }
 
@@ -415,8 +589,15 @@ export function buildMarketFilterChips(
   push(boundChip("debtToEquity", "D/E", filters.debtToEquityMax, "max"));
   push(boundChip("revYoy", "Rev growth", filters.revYoyMin, "min", "%"));
   push(boundChip("epsYoy", "EPS growth", filters.epsYoyMin, "min", "%"));
-  if (deepValuePresetActive(filters)) {
+  // Percentile gates share one chip when the preset set all three, otherwise
+  // each is removable on its own.
+  const preset = deepValuePresetActive(filters);
+  if (preset) {
     chips.push({ key: "deepValue", label: "Deep value preset" });
+  } else {
+    push(pctChip("pePct", "P/E", filters.pePctMax, "max"));
+    push(pctChip("roePct", "ROE", filters.roePctMin, "min"));
+    push(pctChip("dePct", "D/E", filters.dePctMax, "max"));
   }
   if (filters.aboveSma20) chips.push({ key: "sma20", label: "Above SMA 20" });
   if (filters.aboveSma50) chips.push({ key: "sma50", label: "Above SMA 50" });
@@ -485,11 +666,16 @@ export function clearMarketFilterChip(
     case "deepValue":
       return {
         ...filters,
-        peMax: null,
-        roeMin: null,
-        fcfYieldMin: null,
-        debtToEquityMax: null,
+        pePctMax: null,
+        roePctMin: null,
+        dePctMax: null,
       };
+    case "pePct":
+      return { ...filters, pePctMax: null };
+    case "roePct":
+      return { ...filters, roePctMin: null };
+    case "dePct":
+      return { ...filters, dePctMax: null };
     case "sma20":
       return { ...filters, aboveSma20: false };
     case "sma50":

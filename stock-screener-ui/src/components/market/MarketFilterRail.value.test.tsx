@@ -19,14 +19,18 @@ function mount(overrides: Partial<MarketFilterState> = {}, onChange = vi.fn()) {
   return onChange;
 }
 
+// Sector-relative gates come first: they are what the preset uses.
 const VALUE_INPUTS = [
-  ["peMax", "P/E ≤"],
-  ["psMax", "P/S ≤"],
-  ["pbMax", "P/B ≤"],
-  ["roeMin", "ROE ≥"],
+  ["pePctMax", "P/E %ile ≤ (cheap)"],
+  ["roePctMin", "ROE %ile ≥ (top)"],
+  ["dePctMax", "D/E %ile ≤ (low)"],
+  ["peMax", "P/E ≤ (absolute)"],
+  ["psMax", "P/S ≤ (absolute)"],
+  ["pbMax", "P/B ≤ (absolute)"],
+  ["roeMin", "ROE ≥ (absolute)"],
   ["divYieldMin", "Div yield ≥"],
   ["fcfYieldMin", "FCF yield ≥"],
-  ["debtToEquityMax", "D/E ≤"],
+  ["debtToEquityMax", "D/E ≤ (absolute)"],
   ["revYoyMin", "Rev growth ≥"],
   ["epsYoyMin", "EPS growth ≥"],
 ] as const;
@@ -40,13 +44,13 @@ describe("MarketFilterRail — collapsible Value group", () => {
     expect(screen.queryByTestId("market-filter-pe-input")).toBeNull();
   });
 
-  test("expanding reveals all nine value inputs with readable labels", () => {
+  test("expanding reveals all twelve value inputs with readable labels", () => {
     mount();
     fireEvent.click(screen.getByTestId("market-value-toggle"));
     expect(screen.getByTestId("market-value-toggle")).toHaveAttribute("aria-expanded", "true");
 
     const group = screen.getByTestId("market-value-fields");
-    expect(within(group).getAllByRole("spinbutton")).toHaveLength(9);
+    expect(within(group).getAllByRole("spinbutton")).toHaveLength(12);
     for (const [key, label] of VALUE_INPUTS) {
       const input = screen.getByTestId(`market-filter-${key}-input`);
       expect(group).toContainElement(input);
@@ -79,5 +83,28 @@ describe("MarketFilterRail — collapsible Value group", () => {
     mount();
     fireEvent.click(screen.getByTestId("market-value-toggle"));
     expect(screen.getByTestId("market-value-fields")).toBeInTheDocument();
+  });
+
+  test("clicking the header text toggles the band", () => {
+    mount();
+    const toggle = screen.getByTestId("market-value-toggle");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(screen.getByText("Value filters"));
+    expect(screen.getByTestId("market-value-toggle")).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(screen.getByText("Value filters"));
+    expect(screen.getByTestId("market-value-toggle")).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("clicking the active-count badge still toggles the band", () => {
+    mount({ pePctMax: 0.35 });
+    const toggle = screen.getByTestId("market-value-toggle");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    // The badge is an absolutely positioned span inside the header button; a
+    // click on it must bubble rather than being swallowed by the indicator.
+    fireEvent.click(screen.getByTestId("market-value-toggle").querySelector("span span span")!);
+    expect(screen.getByTestId("market-value-toggle")).toHaveAttribute("aria-expanded", "true");
   });
 });

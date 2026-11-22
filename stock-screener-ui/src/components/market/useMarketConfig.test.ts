@@ -11,7 +11,7 @@ import {
 import { SCOPES } from "../../state/savedConfig";
 import { DEFAULT_MARKET_UNIVERSE } from "../../api/marketScreener";
 import * as marketFiltersModule from "./marketFilters";
-import { defaultMarketFilters } from "./marketFilters";
+import { DEEP_VALUE_PRESET, defaultMarketFilters } from "./marketFilters";
 
 function payload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return { ...serializeMarketConfig(defaultMarketConfig()), ...overrides };
@@ -334,5 +334,43 @@ describe("serialize", () => {
     expect(parsed.filters.aboveSma200).toBe(true);
     expect(parsed.filters.sort).toBe("relvol_desc");
     expect(parsed.filters.search).toBe("");
+  });
+});
+
+describe("sector-percentile filter persistence", () => {
+  test("the Deep value preset survives a serialize -> parse round-trip", () => {
+    const value = defaultMarketConfig();
+    value.filters = { ...value.filters, ...DEEP_VALUE_PRESET };
+
+    const wire = JSON.parse(JSON.stringify(serializeMarketConfig(value)));
+    expect(wire.pePctMax).toBe(0.35);
+    expect(wire.roePctMin).toBe(0.45);
+    expect(wire.dePctMax).toBe(0.3);
+
+    const parsed = parseMarketConfig(wire)!;
+    expect(parsed.filters.pePctMax).toBe(DEEP_VALUE_PRESET.pePctMax);
+    expect(parsed.filters.roePctMin).toBe(DEEP_VALUE_PRESET.roePctMin);
+    expect(parsed.filters.dePctMax).toBe(DEEP_VALUE_PRESET.dePctMax);
+  });
+
+  test("percentile bounds are clamped to 0..1 on read", () => {
+    const parsed = parseMarketConfig(
+      payload({ pePctMax: 2, roePctMin: -0.1, dePctMax: 1.5 }),
+    )!;
+    expect(parsed.filters.pePctMax).toBeNull();
+    expect(parsed.filters.roePctMin).toBeNull();
+    expect(parsed.filters.dePctMax).toBeNull();
+
+    const edges = parseMarketConfig(payload({ pePctMax: 1, roePctMin: 0, dePctMax: 1 }))!;
+    expect(edges.filters.pePctMax).toBe(1);
+    expect(edges.filters.roePctMin).toBe(0);
+    expect(edges.filters.dePctMax).toBe(1);
+  });
+
+  test("a saved percentile bound is present in the wire payload", () => {
+    const wire = serializeMarketConfig(defaultMarketConfig());
+    for (const key of ["pePctMax", "roePctMin", "dePctMax"]) {
+      expect(wire).toHaveProperty(key);
+    }
   });
 });
