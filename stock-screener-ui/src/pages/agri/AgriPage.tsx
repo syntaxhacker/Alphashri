@@ -775,9 +775,9 @@ export function AgriPage() {
               data-testid="agri-eda-trend"
             />
             <CompactStat
-              label="Realized volatility"
+              label="Price dispersion"
               value={formatEdaPct(edaSummary().volatilityPct)}
-              hint="modal coefficient of variation"
+              hint="modal level CV · not returns"
               data-testid="agri-eda-volatility"
             />
             <CompactStat

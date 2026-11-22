@@ -266,12 +266,10 @@ export function rollingStats(series: AgriEdaPoint[] | null | undefined, window =
 export function seasonality(series: AgriEdaPoint[] | null | undefined): SeasonalityResult {
   const byMonth = new Map<number, number[]>();
   const years = new Map<number, Set<string>>();
-  const allYears = new Set<string>();
   for (const point of rowsOf(series)) {
     const parts = monthParts(point?.date);
     const value = modalOf(point);
     if (!parts || value == null) continue;
-    allYears.add(parts.year);
     const values = byMonth.get(parts.month);
     if (values) values.push(value);
     else byMonth.set(parts.month, [value]);
@@ -292,7 +290,7 @@ export function seasonality(series: AgriEdaPoint[] | null | undefined): Seasonal
       count: values.length,
     });
   }
-  return { months, weak: allYears.size < 2 };
+  return { months, weak: months.length === 0 || months.some((month) => month.years < 2) };
 }
 
 /** Alignment of arrivals with the modal `lagDays` later, plus OLS on finite pairs. */

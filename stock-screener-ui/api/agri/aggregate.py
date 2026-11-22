@@ -16,6 +16,13 @@ import config
 from . import registry
 
 CHANGE_OFFSETS: tuple[int, ...] = (7, 30, 182)
+# A nearest-date anchor may be a few days off (weekends/holidays), but crossing
+# a collection gap would relabel a multi-month move as 1w/1m.
+CHANGE_TOLERANCE_DAYS: dict[str, int] = {
+    "chg_1w_pct": 3,
+    "chg_1m_pct": 7,
+    "chg_6m_pct": 14,
+}
 RANGE_DAYS: dict[str, Optional[int]] = {
     "1m": 30,
     "3m": 91,
@@ -193,8 +200,17 @@ def changes_from_daily(
     if not current or current.get("modal") is None:
         return out
     for days, field in zip(offsets, ("chg_1w_pct", "chg_1m_pct", "chg_6m_pct")):
-        ref = _nearest_at_or_before(daily, _shift(as_of, -days))
-        out[field] = pct_change(current["modal"], ref.get("modal") if ref else None)
+        target = _shift(as_of, -days)
+        ref = _nearest_at_or_before(daily, target)
+        if ref is None:
+            continue
+        ref_day = parse_date(ref.get("date"))
+        if ref_day is None:
+            continue
+        tolerance = CHANGE_TOLERANCE_DAYS.get(field, 0)
+        if abs((date.fromisoformat(ref_day) - date.fromisoformat(target)).days) > tolerance:
+            continue
+        out[field] = pct_change(current["modal"], ref.get("modal"))
     return out
 
 
@@ -364,6 +380,18 @@ def collect_warnings(
     if freshness is not None and freshness > STALE_AFTER_DAYS:
         warnings.append(f"data is {freshness} days old (as_of {as_of}); prices may be stale")
 
+    dated = sorted({day for row in data if (day := parse_date(row.get("date")))})
+    largest_gap = (0, "", "")
+    for earlier, later in zip(dated, dated[1:]):
+        gap = (date.fromisoformat(later) - date.fromisoformat(earlier)).days
+        if gap > largest_gap[0]:
+            largest_gap = (gap, earlier, later)
+    if largest_gap[0] > 7:
+        gap, earlier, later = largest_gap
+        warnings.append(
+            f"data has a {gap}-day gap ({earlier} → {later}); short-window changes and rolling metrics skip it"
+        )
+
     missing_arrivals = sum(1 for r in data if to_float(r.get("arrivals_qtl")) is None)
     if missing_arrivals:
         warnings.append(f"arrivals are missing for {missing_arrivals} rows")
@@ -387,6 +415,7 @@ def collect_warnings(
 
 __all__ = [
     "CHANGE_OFFSETS",
+    "CHANGE_TOLERANCE_DAYS",
     "RANGE_DAYS",
     "STALE_AFTER_DAYS",
     "aggregate_daily",

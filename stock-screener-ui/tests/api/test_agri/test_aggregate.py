@@ -114,6 +114,25 @@ def test_changes_are_null_without_an_earlier_anchor():
     }
 
 
+def test_changes_do_not_cross_a_collection_gap():
+    daily = [
+        {"date": "2026-05-31", "modal": 100.0},
+        {"date": "2026-11-21", "modal": 248.0},
+    ]
+    assert aggregate.changes_from_daily(daily, "2026-11-21") == {
+        "chg_1w_pct": None, "chg_1m_pct": None, "chg_6m_pct": None,
+    }
+
+
+def test_gap_is_reported_as_a_warning():
+    rows = [
+        {"date": "2026-05-31", "modal": 100.0, "arrivals_qtl": 1.0, "price_unit": "Rs./Quintal"},
+        {"date": "2026-11-21", "modal": 248.0, "arrivals_qtl": 1.0, "price_unit": "Rs./Quintal"},
+    ]
+    warnings = aggregate.collect_warnings(rows, "2026-11-21", today=date(2026, 11, 21))
+    assert any("174-day gap" in warning for warning in warnings)
+
+
 def test_range_is_anchored_to_as_of_not_today():
     daily = [
         {"date": "2026-01-01", "modal": 1.0},

@@ -44,6 +44,8 @@ export interface EdaBox {
   max: number | null;
   mean?: number | null;
   count: number;
+  /** Distinct calendar years, when the bucket is month-of-year seasonality. */
+  years?: number;
 }
 
 export interface EdaScatter {
@@ -732,6 +734,8 @@ export function buildSeasonalityOption(input: EdaSeasonalityInput | null | undef
   if (observed.length === 0) return {};
 
   const weak = observed.some(([, box]) => {
+    const years = finite(box.years);
+    if (years != null) return years < 2;
     const count = finite(box.count);
     return count != null && count < WEAK_HISTORY_COUNT;
   });
@@ -757,7 +761,7 @@ export function buildSeasonalityOption(input: EdaSeasonalityInput | null | undef
         field("Observations", formatCount(box.count)),
       ]);
     },
-    weak ? "Weak history — some months have fewer than 3 seasons; read with caution" : undefined,
+    weak ? "Weak history — some months have fewer than 2 seasons; read with caution" : undefined,
   );
 
   return {
