@@ -12,6 +12,8 @@
 - **[`docs/MAP.md`](./docs/MAP.md)** — task → file location.
 - **[`docs/AGRI_DATA_USAGE.md`](./docs/AGRI_DATA_USAGE.md)** — agri mandi data: sources, units, partial days, API/SQLite/release/sync rules. Read before touching agri data or `/agri`.
 - **[`TEST_RULES.md`](./TEST_RULES.md)** — test shape, mocks, guards.
+- **[`docs/TESTING_INDEX.md`](./docs/TESTING_INDEX.md)** — one index for test rules, speed, performance, agri data, fixtures and test-debt docs.
+- **[`docs/TEST_DEBT.md`](./docs/TEST_DEBT.md)** — current backend test-debt clusters, fixed items and how to get a fresh list.
 - **[`docs/PERFORMANCE.md`](./docs/PERFORMANCE.md)** — performance budgets, check cadence, measurement methodology.
 
 ## Tooling — edit files natively
