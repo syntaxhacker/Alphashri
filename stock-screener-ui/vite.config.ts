@@ -1,9 +1,73 @@
 /// <reference types="vite/client" />
 import { fileURLToPath, URL } from 'node:url';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { defineConfig, loadEnv } from 'vite';
 import solid from 'vite-plugin-solid';
 import tailwindcss from '@tailwindcss/vite';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
+
+type EmittedChunk = { type: string; fileName: string; code?: string };
+type ChunkStat = { file: string; bytes: number; kB: number };
+
+/**
+ * Emits a machine-readable chunk-size report after every production build and
+ * prints budget misses as WARN lines. It never fails the build: the bundle
+ * budgets are observational until a baseline week has been collected.
+ */
+function bundleBudgetReporter() {
+  const budgets = JSON.parse(
+    readFileSync(new URL('./perf/budgets.json', import.meta.url), 'utf8'),
+  ).bundle ?? {};
+
+  return {
+    name: 'bundle-budget-reporter',
+    generateBundle(_options: unknown, bundle: Record<string, EmittedChunk>) {
+      const chunks: ChunkStat[] = Object.values(bundle)
+        .filter((chunk) => chunk.type === 'chunk' && typeof chunk.code === 'string')
+        .map((chunk) => {
+          const bytes = Buffer.byteLength(chunk.code as string);
+          return { file: chunk.fileName, bytes, kB: +(bytes / 1000).toFixed(2) };
+        })
+        .sort((a, b) => b.bytes - a.bytes);
+      const totalBytes = chunks.reduce((sum, chunk) => sum + chunk.bytes, 0);
+      const largest = chunks[0] ?? { file: '-', bytes: 0, kB: 0 };
+      const enforcement = budgets.enforcement ?? 'warning-only';
+
+      writeFileSync(
+        new URL('./perf/bundle-sizes.json', import.meta.url),
+        `${JSON.stringify({
+          schema_version: 1,
+          generator: 'vite.config.ts/bundle-budget-reporter',
+          units: 'bytes and decimal kB (1000 bytes) of emitted, uncompressed .js',
+          enforcement,
+          largest_js_chunk: largest,
+          total_js_kb: +(totalBytes / 1000).toFixed(2),
+          total_js_bytes: totalBytes,
+          chunk_count: chunks.length,
+          chunks,
+        }, null, 2)}\n`,
+      );
+
+      const largestBudget = Number(budgets.largest_js_chunk_kb ?? 0);
+      const totalBudget = Number(budgets.total_js_kb ?? 0);
+      console.log(
+        `[bundle-budget] largest JS chunk ${largest.file} ${largest.kB} kB ` +
+          `(budget ${largestBudget || 'n/a'} kB); total JS ${(totalBytes / 1000).toFixed(2)} kB ` +
+          `across ${chunks.length} chunks (budget ${totalBudget || 'n/a'} kB); enforcement=${enforcement}`,
+      );
+      if (largestBudget && largest.kB > largestBudget) {
+        console.warn(
+          `[bundle-budget] WARN largest JS chunk ${largest.file} is ${largest.kB} kB > ${largestBudget} kB budget`,
+        );
+      }
+      if (totalBudget && totalBytes / 1000 > totalBudget) {
+        console.warn(
+          `[bundle-budget] WARN total JS ${(totalBytes / 1000).toFixed(2)} kB > ${totalBudget} kB budget`,
+        );
+      }
+    },
+  };
+}
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
@@ -30,6 +94,7 @@ export default defineConfig(({ mode }) => {
           filesToDeleteAfterUpload: ['dist/**/*.map'],
         },
       }),
+      bundleBudgetReporter(),
     ],
     build: {
       sourcemap: true,
@@ -42,7 +107,17 @@ export default defineConfig(({ mode }) => {
             // Scope to the package itself: a bare `echarts` match also caught
             // src/pages/report/echartsSolid.ts, which dragged loadEcharts.ts
             // into this chunk and turned the dynamic import into a static one.
-            if (id.includes("node_modules/echarts") || id.includes("node_modules/zrender")) return "echarts";
+            // Split by subpackage so no emitted chart chunk trips the 500 kB
+            // warning. zrender and the chart/component trees do not import each
+            // other, so none of these groups can form a circular chunk. All of
+            // them still load only through the loadEcharts() dynamic import.
+            if (id.includes("node_modules/zrender")) return "echarts-zrender";
+            if (id.includes("node_modules/echarts/lib/chart/")) {
+              const advanced = /lib[\\/]chart[\\/](graph|tree|treemap|sankey|sunburst|radar|parallel|lines|custom|map|themeRiver|chord|heatmap|gauge|funnel|boxplot|effectScatter|helper|pie|candlestick)[\\/]/.test(id);
+              return advanced ? "echarts-charts-advanced" : "echarts-charts";
+            }
+            if (id.includes("node_modules/echarts/lib/component/")) return "echarts-components";
+            if (id.includes("node_modules/echarts")) return "echarts-core";
           },
         },
       },

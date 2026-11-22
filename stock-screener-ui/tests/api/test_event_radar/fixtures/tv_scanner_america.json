@@ -1,0 +1,10 @@
+{
+  "data": [
+    {"s": "NASDAQ:ORCL", "d": ["NASDAQ:ORCL", "Oracle Corporation", "NASDAQ", 1794441600, null]},
+    {"s": "NASDAQ:MSFT", "d": ["NASDAQ:MSFT", "Microsoft Corporation", "NASDAQ", 1796860800, 1799971200]},
+    {"s": "NASDAQ:NVDA", "d": ["NASDAQ:NVDA", "NVIDIA Corporation", "NASDAQ", null, null]},
+    {"s": "NYSE:XYZ", "d": ["NYSE:XYZ", "Unknown Corp", "NYSE", 0, null]},
+    {"s": "NYSE:FAR", "d": ["NYSE:FAR", "Far Future Corp", "NYSE", 1830297600, null]},
+    {"s": "NYSE:PAST", "d": ["NYSE:PAST", "Past Event Corp", "NYSE", 1788220800, null]}
+  ]
+}

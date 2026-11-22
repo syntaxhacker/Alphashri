@@ -794,7 +794,7 @@ class TestSnapshotCadence:
         monkeypatch.setattr(nifty, "_compute_live", _fake_compute)
         monkeypatch.setattr(nifty, "write_snapshot",
                             lambda d, s: writes.append(s))
-        monkeypatch.setattr("trading.utils.is_market_open", lambda: True)
+        monkeypatch.setattr("trading.utils.is_derivatives_open", lambda: True)
 
         with pytest.raises(asyncio.CancelledError):
             asyncio.run(nifty.nifty_snapshot_task())
@@ -866,6 +866,7 @@ class TestTelegramFanout:
             sent.append((message, cooldown_key))
 
         module.send_alert = send_alert
+        module._is_available = lambda: True
         monkeypatch.setitem(sys.modules, "trading.telegram_notifier", module)
         return sent
 

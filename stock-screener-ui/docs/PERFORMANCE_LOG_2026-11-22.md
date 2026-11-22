@@ -45,6 +45,19 @@ unmeasured work is marked **in progress**.
   groups+rotation scans **2 → 1**; symbol-search repeats **5 → 1** and
   8 concurrent searches **8 → 1**. Sector `/` and heatmap keep intentionally
   distinct descriptors. Field aliases now resolve known TV name drift.
+- **TV transport hardening:** thread-local pooled sessions; 401/403 cookie
+  refresh + retry, 429/5xx jittered backoff; delayed-feed self-heal inside the
+  cache singleflight. 211 tests pass.
+- **Full-suite debt:** restored 27 curated symbol aliases (48 tests pass),
+  committed the three missing event-radar fixtures (319 tests pass), and fixed
+  the Nifty same-size atomic-replace cache bug with an inode stamp (119 tests).
+- **SQLite maintenance:** read-only check/optimize/explicit vacuum CLI; real
+  agri DB `quick_check=ok`, 2.33M rows, 906MB, 0 freelist pages; two
+  prefix-redundant indexes reported, not dropped.
+- **Bundle:** echarts 1.12MB chunk split into a DAG; largest JS **1,119→495kB**,
+  >500kB warning gone, machine-readable sizes + warning-only budget.
+- **Product:** `/report/profit` now has a sidebar entry; `/report` remains
+  removed.
 - **Report endpoints:** profitability/options-report read paths de-duplicated.
   `compute_report` cold **245.3ms → 87.5ms median (~2.8×)**; eager date
   formatting **331.9ms → 24–33ms (~10–13×)**; repeated tape reads

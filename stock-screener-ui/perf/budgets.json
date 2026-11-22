@@ -28,5 +28,17 @@
     "full": {
       "wall_seconds": 600
     }
+  },
+  "bundle": {
+    "enforcement": "warning-only",
+    "policy": "Initial bundle budgets. vite.config.ts prints [bundle-budget] WARN lines on a miss but the build still exits 0; no CI gate until a baseline week has been collected. Never lower a budget silently; justify changes with perf/bundle-sizes.json measurements.",
+    "units": "decimal kB (1000 bytes) of emitted, uncompressed .js in dist/assets",
+    "measurement": {
+      "command": "npx vite build",
+      "report": "perf/bundle-sizes.json",
+      "reporter": "vite.config.ts bundle-budget-reporter plugin"
+    },
+    "largest_js_chunk_kb": 520,
+    "total_js_kb": 4800
   }
 }

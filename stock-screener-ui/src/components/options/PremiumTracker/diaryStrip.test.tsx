@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, within } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { DiaryStrip } from "./DiaryStrip";
-import { newPaperTrade, type PaperTrade } from "./paperTrades";
+import { newPaperTrade, todaySessionDate, type PaperTrade } from "./paperTrades";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
 
 vi.mock("@/ui", async () => {
@@ -11,7 +11,7 @@ vi.mock("@/ui", async () => {
   return mockSolidUi();
 });
 
-const today = new Date().toISOString().slice(0, 10);
+const today = todaySessionDate();
 
 function makeTrade(overrides: Partial<PaperTrade> = {}): PaperTrade {
   return {

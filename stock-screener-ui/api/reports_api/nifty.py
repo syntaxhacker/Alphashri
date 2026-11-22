@@ -76,12 +76,15 @@ logger = logging.getLogger(__name__)
 # stock-screener-ui/api/reports_api/nifty.py -> parents[2] == stock-screener-ui
 SNAPSHOT_DIR = Path(__file__).resolve().parent.parent.parent / "experiments" / "data" / "nifty_reports"
 
-#: ``read_snapshot`` parse cache keyed by path, validated on (mtime_ns, size):
-#: ``GET /nifty`` polls every 1-2s while the snapshot is rewritten every 20s.
-_SNAPSHOT_READ_CACHE: dict[str, tuple[int, int, dict]] = {}
-#: ``_with_delta_flip`` projection cache, same key. Re-deriving positioning/gex
-#: on every 1-2s poll was pure recomputation of a file that changes every 20s.
-_DERIVED_SNAPSHOT_CACHE: dict[str, tuple[int, int, dict]] = {}
+#: ``read_snapshot`` parse cache keyed by path, validated on
+#: (mtime_ns, size, ino): ``GET /nifty`` polls every 1-2s while the snapshot is
+#: rewritten every 20s. ``os.replace`` swaps in a new inode that can share the
+#: old mtime and size, so the inode is part of the stamp.
+_SNAPSHOT_READ_CACHE: dict[str, tuple[int, int, int, dict]] = {}
+#: ``_with_delta_flip`` projection cache, same (mtime_ns, size, ino) stamp.
+#: Re-deriving positioning/gex on every 1-2s poll was pure recomputation of a
+#: file that changes every 20s.
+_DERIVED_SNAPSHOT_CACHE: dict[str, tuple[int, int, int, dict]] = {}
 
 _LIVE_TTL = 5
 _live_cache: dict[str, dict] = {}
@@ -921,10 +924,11 @@ def read_snapshot(date_str: str) -> Optional[dict]:
     key = str(path)
     cached = _SNAPSHOT_READ_CACHE.get(key)
     if (cached is not None and cached[0] == stat.st_mtime_ns
-            and cached[1] == stat.st_size):
+            and cached[1] == stat.st_size
+            and cached[2] == stat.st_ino):
         # Top-level copy: callers may add a block, but must not mutate the
         # cached snapshot's keys. Nested structures are read-only by contract.
-        return dict(cached[2])
+        return dict(cached[3])
     try:
         with open(path) as f:
             data = json.load(f)
@@ -934,7 +938,7 @@ def read_snapshot(date_str: str) -> Optional[dict]:
         return None
     if len(_SNAPSHOT_READ_CACHE) >= 16:
         _SNAPSHOT_READ_CACHE.clear()
-    _SNAPSHOT_READ_CACHE[key] = (stat.st_mtime_ns, stat.st_size, data)
+    _SNAPSHOT_READ_CACHE[key] = (stat.st_mtime_ns, stat.st_size, stat.st_ino, data)
     return dict(data)
 
 
@@ -2198,7 +2202,7 @@ def _overlay_live_today(report: dict) -> dict:
 
 
 def _derived_snapshot(date_str: str, data: dict) -> dict:
-    """``_with_delta_flip`` behind the snapshot's (mtime_ns, size) stamp.
+    """``_with_delta_flip`` behind the snapshot's (mtime_ns, size, ino) stamp.
 
     ``GET /nifty`` is polled every 1-2s while ``nifty_snapshot_task`` rewrites
     the file every 20s; re-deriving the positioning/GEX blocks on every poll
@@ -2213,12 +2217,13 @@ def _derived_snapshot(date_str: str, data: dict) -> dict:
     key = str(snapshot_path(date_str))
     cached = _DERIVED_SNAPSHOT_CACHE.get(key)
     if (cached is not None and cached[0] == stat.st_mtime_ns
-            and cached[1] == stat.st_size):
-        return dict(cached[2])
+            and cached[1] == stat.st_size
+            and cached[2] == stat.st_ino):
+        return dict(cached[3])
     out = _with_delta_flip(data)
     if len(_DERIVED_SNAPSHOT_CACHE) >= 16:
         _DERIVED_SNAPSHOT_CACHE.clear()
-    _DERIVED_SNAPSHOT_CACHE[key] = (stat.st_mtime_ns, stat.st_size, out)
+    _DERIVED_SNAPSHOT_CACHE[key] = (stat.st_mtime_ns, stat.st_size, stat.st_ino, out)
     return dict(out)
 
 

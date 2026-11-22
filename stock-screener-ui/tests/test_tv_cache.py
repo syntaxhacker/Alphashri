@@ -2,11 +2,14 @@
 import threading
 import time
 from dataclasses import FrozenInstanceError
+from types import SimpleNamespace
 
 import pandas as pd
 import pytest
+import requests
 
 import api.tv.cache as tv_cache
+from api.tv import status as tv_status
 from api.tv.cache import FrameDescriptor, clear, invalidate, scan_frame_cached
 
 _CLOCK = {"t": 1000.0}
@@ -35,9 +38,11 @@ def _reset(monkeypatch):
     """Isolate both caches and drive TTL with a controllable monotonic clock."""
     _CLOCK["t"] = 1000.0
     clear()
+    tv_status._last.update(mode=None, at=None, rows=0)
     monkeypatch.setattr(tv_cache, "_monotonic", lambda: _CLOCK["t"])
     yield
     clear()
+    tv_status._last.update(mode=None, at=None, rows=0)
 
 
 def _scanner(monkeypatch):
@@ -263,3 +268,110 @@ def test_cache_is_bounded(monkeypatch):
     for limit in range(4):
         scan_frame_cached(_desc(limit=limit))
     assert len(tv_cache._cache) == 2
+
+
+# --------------------------------------------------------------------------- #
+# Self-heal inside the singleflight (auth + delayed feed)
+# --------------------------------------------------------------------------- #
+
+def _http_error(code):
+    exc = requests.HTTPError(f"HTTP {code}")
+    exc.response = SimpleNamespace(status_code=code)
+    return exc
+
+
+def test_cache_401_refreshes_cookies_and_retries(monkeypatch):
+    frame = pd.DataFrame({"close": [1.0]})
+    calls, refreshes = [], []
+
+    def scan(**kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            raise _http_error(401)
+        return frame
+
+    monkeypatch.setattr(tv_cache, "scan_frame", scan)
+    monkeypatch.setattr(tv_cache, "refresh_tv_cookies", lambda: refreshes.append(True))
+    monkeypatch.setattr(tv_cache, "tv_feed_status", lambda: {"mode": "streaming"})
+
+    assert scan_frame_cached(_desc()) is frame
+    assert len(calls) == 2
+    assert refreshes == [True]
+    assert not tv_cache._inflight
+
+
+def test_cache_delayed_feed_refreshes_and_retries(monkeypatch):
+    frame = pd.DataFrame({"close": [1.0]})  # no update_mode -> shared status decides
+    calls, refreshes = [], []
+
+    def scan(**kwargs):
+        calls.append(kwargs)
+        return frame
+
+    monkeypatch.setattr(tv_cache, "scan_frame", scan)
+    monkeypatch.setattr(tv_cache, "refresh_tv_cookies", lambda: refreshes.append(True))
+    monkeypatch.setattr(tv_cache, "tv_feed_status",
+                        lambda: {"mode": "delayed_streaming_900"})
+
+    assert scan_frame_cached(_desc()) is frame
+    assert len(calls) == 2
+    assert refreshes == [True]
+
+
+def test_cache_failed_heal_is_not_cached(monkeypatch):
+    refreshes = []
+
+    def scan(**kwargs):
+        raise _http_error(403)
+
+    monkeypatch.setattr(tv_cache, "scan_frame", scan)
+    monkeypatch.setattr(tv_cache, "refresh_tv_cookies", lambda: refreshes.append(True))
+    monkeypatch.setattr(tv_cache, "tv_feed_status", lambda: {"mode": "streaming"})
+
+    with pytest.raises(requests.HTTPError):
+        scan_frame_cached(_desc())
+    assert refreshes == [True]
+    assert not tv_cache._cache
+    assert not tv_cache._inflight
+
+
+def test_concurrent_callers_share_one_auth_retry(monkeypatch):
+    frame = pd.DataFrame({"close": [1.0]})
+    gate = threading.Event()
+    calls, refreshes = [], []
+
+    def scan(**kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            gate.wait(5)
+            raise _http_error(401)
+        return frame
+
+    monkeypatch.setattr(tv_cache, "scan_frame", scan)
+    monkeypatch.setattr(tv_cache, "refresh_tv_cookies", lambda: refreshes.append(True))
+    monkeypatch.setattr(tv_cache, "tv_feed_status", lambda: {"mode": "streaming"})
+
+    desc = _desc()
+    start = threading.Barrier(5)
+    results, errors = [], []
+
+    def worker():
+        try:
+            start.wait(5)
+            results.append(scan_frame_cached(desc))
+        except Exception as exc:  # surfaced by the asserts below
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker) for _ in range(4)]
+    for thread in threads:
+        thread.start()
+    start.wait(5)
+    gate.set()
+    for thread in threads:
+        thread.join(5)
+
+    assert not errors
+    assert len(results) == 4
+    assert all(result is frame for result in results)
+    assert len(calls) == 2  # one gated 401 + one shared retry
+    assert refreshes == [True]

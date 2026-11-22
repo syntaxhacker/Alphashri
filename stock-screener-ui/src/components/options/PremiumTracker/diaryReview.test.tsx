@@ -9,11 +9,11 @@ vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
   return mockSolidUi();
 });
-import type { PaperTrade } from "./paperTrades";
+import { todaySessionDate, type PaperTrade } from "./paperTrades";
 
 const trade: PaperTrade = {
   id: "t1",
-  date: new Date().toISOString().slice(0, 10),
+  date: todaySessionDate(),
   underlying: "NIFTY",
   side: "CE",
   strike: 23150,

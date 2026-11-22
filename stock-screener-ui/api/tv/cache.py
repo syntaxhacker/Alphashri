@@ -7,7 +7,9 @@ consumer: dashboards, reports and screens can share frames without each
 growing its own private cache and lock.
 
 Failures are never cached -- a descriptor that failed once is retried on the
-next call. A frame returned by :func:`scan_frame_cached` is owned by the cache;
+next call. Auth (401/403) and delayed-feed failures self-heal once inside the
+singleflight winner, so concurrent waiters share the refresh/retry. A frame
+returned by :func:`scan_frame_cached` is owned by the cache;
 treat it as **read-only** (or copy it before editing). Mutating it in place
 corrupts every later hit for that descriptor.
 """
@@ -20,7 +22,11 @@ from collections.abc import Mapping as _Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+import requests
+
+from .auth import refresh_tv_cookies
 from .client import scan_frame
+from .status import tv_feed_status
 
 #: Hard safety bound on cached frames. Real usage is well below this -- a
 #: descriptor is one concrete query, not one per UI filter -- so the cap only
@@ -196,6 +202,45 @@ def _complete(key: tuple, inf: _Inflight) -> None:
     inf.event.set()
 
 
+def _auth_failure(exc: BaseException) -> bool:
+    response = getattr(exc, "response", None)
+    return getattr(response, "status_code", None) in (401, 403)
+
+
+def _first_update_mode(frame: Any) -> str | None:
+    try:
+        if len(frame) and "update_mode" in frame.columns:
+            value = frame["update_mode"].iloc[0]
+            if value is None or (isinstance(value, float) and value != value):
+                return None
+            return str(value)
+    except Exception:
+        return None
+    return None
+
+
+def _scan_with_heal(scan_kwargs: dict[str, Any]):
+    """One scan plus at most one auth refresh and one delayed-feed retry.
+
+    Runs entirely inside the singleflight winner's try block, so waiters see
+    either the healed frame or the final exception -- never a failed frame.
+    """
+    try:
+        frame = scan_frame(**scan_kwargs)
+    except requests.HTTPError as exc:
+        if not _auth_failure(exc):
+            raise
+        refresh_tv_cookies()
+        frame = scan_frame(**scan_kwargs)
+    # Prefer this frame's own mode: the shared status can be left over from a
+    # different feed (e.g. a delayed futures scan).
+    mode = _first_update_mode(frame) or tv_feed_status().get("mode")
+    if isinstance(mode, str) and mode.startswith("delayed"):
+        refresh_tv_cookies()
+        frame = scan_frame(**scan_kwargs)
+    return frame
+
+
 def scan_frame_cached(
     descriptor: FrameDescriptor,
     ttl_seconds: float = 60.0,
@@ -225,7 +270,7 @@ def scan_frame_cached(
         return inf.frame
 
     try:
-        frame = scan_frame(**descriptor.to_scan_kwargs())
+        frame = _scan_with_heal(descriptor.to_scan_kwargs())
         with _cache_lock:
             _cache[key] = _Entry(_monotonic(), frame)
         inf.frame = frame
