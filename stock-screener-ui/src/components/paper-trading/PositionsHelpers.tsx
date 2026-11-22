@@ -503,6 +503,7 @@ export function PositionsTableBody(props: {
         background: calcRowBg(pos.current_price, pos.entry_price, pos.stop_loss, pos.take_profit),
         transition: "background 0.5s ease",
       })}
+      getRowKey={(pos) => getCompositeRowId(pos)}
       getRowTestId={(pos) => `position-row-${getCompositeRowId(pos)}`}
       dataTestId="positions-table"
       stickyHeader

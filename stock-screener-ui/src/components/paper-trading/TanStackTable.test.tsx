@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, it, afterEach } from "vitest";
+import { createSignal } from "solid-js";
 import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import { TanStackTable, type TableColumnDef } from "./TanStackTable";
 
@@ -324,5 +325,102 @@ describe("paper-trading TanStackTable — controlled sorting", () => {
     ));
     expect(orderOf("paper-seeded")).toEqual(["r3", "r5", "r1", "r2", "r4"]);
     expect(headerOf("paper-seeded", 1)).toHaveAttribute("aria-sort", "ascending");
+  });
+});
+
+describe("paper-trading TanStackTable — stable row identity across ticks", () => {
+  interface TickRow {
+    id: string;
+    price: number;
+  }
+
+  const tickColumns: TableColumnDef<TickRow>[] = [
+    { id: "id", header: "Id", accessorKey: "id" },
+    {
+      id: "price",
+      header: "Price",
+      accessorKey: "price",
+      cell: ({ row }) => <span>{`₹${row.original.price}`}</span>,
+    },
+  ];
+
+  function renderTickTable(initial: TickRow[]) {
+    let setRows!: (rows: TickRow[]) => void;
+    render(() => {
+      const [rows, update] = createSignal(initial);
+      setRows = update;
+      return (
+        <TanStackTable<TickRow>
+          data={rows()}
+          columns={tickColumns}
+          dataTestId="paper-ticks"
+          getRowKey={(r) => r.id}
+          getRowTestId={(r) => `tick-${r.id}`}
+        />
+      );
+    });
+    const rows = () =>
+      Array.from(document.querySelectorAll<HTMLTableRowElement>("tbody tr[data-row='stock']"));
+    return { setRows, rows };
+  }
+
+  it("keeps every row element when an unrelated tick replaces rows with equal fresh objects", () => {
+    const { setRows, rows } = renderTickTable([
+      { id: "a", price: 100 },
+      { id: "b", price: 200 },
+    ]);
+    const before = rows();
+    const beforeText = before.map((tr) => tr.textContent);
+
+    setRows([
+      { id: "a", price: 100 },
+      { id: "b", price: 200 },
+    ]);
+
+    const after = rows();
+    expect(after[0]).toBe(before[0]);
+    expect(after[1]).toBe(before[1]);
+    expect(after.map((tr) => tr.textContent)).toEqual(beforeText);
+  });
+
+  it("keeps unchanged row elements on a price-only tick while the changed price updates", () => {
+    const { setRows, rows } = renderTickTable([
+      { id: "a", price: 100 },
+      { id: "b", price: 200 },
+      { id: "c", price: 300 },
+    ]);
+    const before = rows();
+    expect(before.map((tr) => tr.textContent!.replace(/\s+/g, ""))).toEqual([
+      "a₹100",
+      "b₹200",
+      "c₹300",
+    ]);
+
+    setRows([
+      { id: "a", price: 100 },
+      { id: "b", price: 210 },
+      { id: "c", price: 300 },
+    ]);
+
+    const after = rows();
+    expect(after[0]).toBe(before[0]);
+    expect(after[2]).toBe(before[2]);
+    expect(after[1]).not.toBe(before[1]);
+    expect(after[1].textContent).toContain("₹210");
+    expect(after[0].textContent).toContain("₹100");
+    expect(after[2].textContent).toContain("₹300");
+  });
+
+  it("remounts only the changed row on a price-only tick across 12 rows", () => {
+    const initial = Array.from({ length: 12 }, (_, i) => ({ id: `r${i}`, price: 100 + i }));
+    const { setRows, rows } = renderTickTable(initial);
+    const before = rows();
+
+    setRows(initial.map((row, i) => (i === 7 ? { ...row, price: row.price + 1 } : { ...row })));
+
+    const after = rows();
+    const remounted = after.filter((tr, i) => tr !== before[i]).length;
+    expect(remounted).toBe(1);
+    expect(after[7].textContent).toContain("₹108");
   });
 });
