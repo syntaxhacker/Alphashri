@@ -232,3 +232,72 @@ modal price to compare it with a raw `Metric Tonnes` arrival.
 | `cache as_of` mismatch | `/filters.as_of` is global `MAX(date)`; `/prices.as_of` can be the selected key's own date. They are not guaranteed equal — cite which one you are using. |
 | Broken release asset | Manifest status must be `complete`; sha256 over gzip bytes, row count, date and `commodities` must match. A checksum mismatch or partial manifest fails the sync — re-download/re-package, never bypass validation. |
 | Repairing a partial day | Re-fetch all aliases, page to the API `total`, union + dedupe. Never overwrite a `complete` partition, zero-fill arrivals, or hand-edit the DB. |
+
+## 11. Database maintenance (opt-in CLI)
+
+`scripts/market/agri_db_maintenance.py` is the only maintenance entry point for
+the cache. It never deletes rows or reports, never drops indexes, and accepts
+only the canonical `reports/agri/agri_prices.db` path (symlinks are resolved;
+any other path is refused). Errors are redacted — local paths become `<db>` or
+`<path>` — so logs do not leak the filesystem layout.
+
+```bash
+# Read-only health report (default mode). Safe while the API/collector are running.
+.venv/bin/python scripts/market/agri_db_maintenance.py --check
+.venv/bin/python scripts/market/agri_db_maintenance.py --check --json
+# Faster metadata-only pass (skips the whole-file integrity scan; still read-only).
+.venv/bin/python scripts/market/agri_db_maintenance.py --check --no-quick-check
+
+# After a large backfill or bulk sync: may refresh sqlite_stat1, then checkpoint WAL.
+.venv/bin/python scripts/market/agri_db_maintenance.py --optimize
+
+# Offline maintenance window ONLY, with the data owner's approval and the app stopped.
+.venv/bin/python scripts/market/agri_db_maintenance.py --vacuum --yes
+```
+
+**When to run**
+
+- `--check` — after imports/backfills/syncs, before packaging a release, or
+  whenever staleness, bloat or corruption is suspected. It opens `mode=ro` +
+  `query_only=ON`: `PRAGMA quick_check`, page/freelist and DB/WAL/SHM sizes,
+  every index with its key columns, a duplicate/redundant-index report and
+  row/partition counts. No DDL, no rows touched. `quick_check` walks the whole
+  file: budget roughly **2 minutes** for the current ~906 MB cache.
+- `--optimize` — after bulk writes or index/schema changes, or periodically
+  (e.g. monthly). `PRAGMA optimize` can update the small `sqlite_stat1` table
+  under a brief write lock, and the `PASSIVE` WAL checkpoint never waits for
+  readers, so the API can keep reading. A concurrent writer may make a step a
+  no-op; the report shows the checkpoint counters (`busy`, `log`,
+  `checkpointed`) rather than hiding it.
+- `--vacuum --yes` — only when `--check` shows a material freelist, during an
+  offline window: stop the API, collector and any other readers first. The tool
+  warns, requires the explicit `--yes`, checks that free space covers the DB +
+  WAL + 10% headroom, refuses if a write lock or WAL shared-memory lock is
+  held, then rebuilds the file. It does **not** delete rows; only free pages
+  are reclaimed. On the real cache this remains an exception to the golden
+  "never hand-edit the cache" rule and needs owner approval.
+
+The tests in `tests/api/test_agri/test_db_maintenance.py` exercise all of this
+against temp SQLite DBs: check output and index analysis, refusal without
+confirmation / while in use / with too little free space, `optimize`, and byte
+for byte proof that check mode does not mutate the file.
+
+**Last observed `--check` on the real cache (2026-11-22; snapshot, not a live
+value):** `quick_check` `ok` in ~107 s; journal mode `wal`; 221,346 pages ×
+4096 B = 906,633,216 B, main file 906,633,216 B, WAL 0 B, SHM 32 KiB;
+**freelist 0 pages** (VACUUM would reclaim nothing right now); 2,328,450 price
+rows, 391 dates (2025-10-27 → 2026-11-21), 22 commodity keys; ledger 171
+`complete` + 3 `partial` partitions. 8 indexes total.
+
+Redundancy report (advisory — **nothing was dropped**):
+
+| Redundant index | Covered by | Reason |
+|---|---|---|
+| `idx_agri_state` `(state)` | `idx_agri_geo` `(state, district, market)` | leading-column prefix |
+| `idx_agri_commodity_key` `(commodity_key)` | `idx_agri_key_date` `(commodity_key, date)` | leading-column prefix |
+
+No exact duplicate indexes were found. Do not run `DROP INDEX` by hand: both
+candidate indexes are declared in `store.SCHEMA_SQL` with `CREATE INDEX IF NOT
+EXISTS`, so the next writer opening the cache would silently recreate them.
+Removing either one is a schema/code decision for the cache owner, not a
+maintenance action.
