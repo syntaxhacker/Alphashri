@@ -1,337 +1,717 @@
-import { createEffect, createSignal, createMemo, onMount, Show, For } from "solid-js";
+import { batch, createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { useSearchParams } from "@solidjs/router";
 import {
   Badge,
   Box,
   Button,
-  Divider,
   Select,
   Text,
   ToolbarRow,
+  useColorScheme,
+  useMediaQuery,
 } from "@/ui";
-import { fetchAgriCommodities, fetchAgriPrices } from "@/api/agri";
-import type { AgriCommodity, AgriCommoditiesResponse, AgriPricesResponse } from "@/types/agri";
-import { useColorScheme } from "@/ui/hooks";
-import { POSITIVE, NEGATIVE, PRIMARY } from "@/ui/palette";
 import * as palette from "@/ui/palette";
-import { formatNumberIN } from "@/utils/ui-helpers";
-import { Icon } from "../../components/common/Icons";
+import { CompactPanel, CompactStat, CompactStatGrid } from "@/components/common/compact";
+import { EmptyState, ErrorAlert, InlineLoader } from "@/components/common/states";
+import { TanStackTable } from "@/components/common/TanStackTable";
 import { EChart } from "@/components/common/EChart";
-import { agriDateDaysAgo } from "./agriDates";
+import { fetchAgriFilters, fetchAgriPrices } from "@/api/agri";
+import type {
+  AgriChartMode,
+  AgriFiltersResponse,
+  AgriPricesParams,
+  AgriPricesResponse,
+  AgriRangeKey,
+} from "@/types/agri";
+import {
+  AGRICULTURE_UNIT,
+  AGRI_CHART_MODES,
+  AGRI_COMMODITIES,
+  AGRI_DEFAULT_CHART_MODE,
+  AGRI_DEFAULT_RANGE,
+  AGRI_GROUPS,
+  AGRI_RANGE_KEYS,
+  AGRI_RANGE_PRESETS,
+  agriCommodity,
+  agriCommodityLabel,
+  agriGroupLabel,
+  agriRange,
+  formatAgriPrice,
+  formatArrivals,
+  formatChangePct,
+} from "@/config/agri";
+import { buildAgriChartOption } from "./agriChartOption";
+import { agriRangeStart, formatAgriSessionDate } from "./agriDates";
+import { agriColumns, type AgriTableViewRow } from "./agriColumns";
 
-const COMMODITY_OPTIONS: AgriCommodity[] = [
-  { key: "rice", label: "Rice" },
-  { key: "wheat", label: "Wheat" },
-  { key: "arhar_tur", label: "Arhar (Tur) Dal" },
-  { key: "urad", label: "Urad Dal" },
-  { key: "moong", label: "Moong Dal" },
-  { key: "masoor", label: "Masoor Dal" },
-  { key: "chana", label: "Chana / Gram Dal" },
-  { key: "soyabean", label: "Soyabean" },
-  { key: "onion", label: "Onion" },
-  { key: "potato", label: "Potato" },
-  { key: "tomato", label: "Tomato" },
-];
+type SelectOption = { value: string; label: string; group?: string };
+const DEFAULT_COMPARE = ["wheat", "tomato", "onion"];
 
-function pctChange(now: number, then: number | null | undefined): number | null {
-  if (!then || then <= 0) return null;
-  return ((now - then) / then) * 100;
+function paramValue(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return value[0] ?? "";
+  return value ?? "";
 }
 
-function nearestOnOrBefore(
-  series: { date: string; modal: number }[],
-  target: string,
-): number | null {
-  let best: { date: string; modal: number } | null = null;
-  for (const p of series) {
-    if (p.date <= target && (!best || p.date > best.date)) best = p;
+function toRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+}
+
+/**
+ * `/api/agri/filters` ships plain name strings today but the TS contract also
+ * admits `{key,label}` options — accept both so a backend shape change cannot
+ * silently empty every cascade select.
+ */
+function selectOptions(value: unknown): SelectOption[] {
+  if (!Array.isArray(value)) return [];
+  const options: SelectOption[] = [];
+  for (const item of value) {
+    if (typeof item === "string") {
+      if (item) options.push({ value: item, label: item });
+      continue;
+    }
+    const record = toRecord(item);
+    if (!record) continue;
+    const key = String(record.key ?? record.value ?? "");
+    if (!key) continue;
+    options.push({
+      value: key,
+      label: String(record.label ?? record.name ?? key),
+      ...(typeof record.group === "string" ? { group: record.group } : {}),
+    });
   }
-  return best ? best.modal : null;
+  return options;
 }
 
-function formatInr(v: number | null): string {
-  if (v == null) return "—";
-  return `₹${formatNumberIN(Math.round(v))}/q`;
+function toneForChange(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value) || value === 0) return "dimmed";
+  return value > 0 ? "success" : "error";
 }
 
 export function AgriPage() {
   const { isDark } = useColorScheme();
-  const [commodity, setCommodity] = createSignal<AgriCommodity>(COMMODITY_OPTIONS[0]);
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [commoditiesData, setCommoditiesData] = createSignal<AgriCommoditiesResponse | null>(null);
-  const [commoditiesLoading, setCommoditiesLoading] = createSignal(true);
+  const initialCommodity = paramValue(searchParams.commodity) ||
+    AGRI_COMMODITIES.find((item) => item.key === "onion")?.key ||
+    AGRI_COMMODITIES[0]?.key ||
+    "";
+  const initialRange = paramValue(searchParams.range);
+  const initialMode = paramValue(searchParams.mode);
 
+  const [group, setGroup] = createSignal(paramValue(searchParams.group));
+  const [commodity, setCommodity] = createSignal(initialCommodity);
+  const [state, setState] = createSignal(paramValue(searchParams.state));
+  const [district, setDistrict] = createSignal(paramValue(searchParams.district));
+  const [market, setMarket] = createSignal(paramValue(searchParams.market));
+  const [range, setRange] = createSignal<AgriRangeKey>(
+    AGRI_RANGE_KEYS.includes(initialRange as AgriRangeKey) ? (initialRange as AgriRangeKey) : AGRI_DEFAULT_RANGE,
+  );
+  const [mode, setMode] = createSignal<AgriChartMode>(
+    AGRI_CHART_MODES.some((item) => item.key === initialMode) ? (initialMode as AgriChartMode) : AGRI_DEFAULT_CHART_MODE,
+  );
+  const [compare, setCompare] = createSignal<string[]>(
+    DEFAULT_COMPARE.filter((key) => key !== initialCommodity).slice(0, 3),
+  );
+
+  const [filtersData, setFiltersData] = createSignal<AgriFiltersResponse | null>(null);
+  const [filtersLoading, setFiltersLoading] = createSignal(true);
+  const [filtersError, setFiltersError] = createSignal<string | null>(null);
   const [prices, setPrices] = createSignal<AgriPricesResponse | null>(null);
   const [pricesLoading, setPricesLoading] = createSignal(true);
   const [pricesError, setPricesError] = createSignal<string | null>(null);
+  const [ready, setReady] = createSignal(false);
+  const [retryToken, setRetryToken] = createSignal(0);
 
-  onMount(() => {
-    fetchAgriCommodities()
-      .then(setCommoditiesData)
-      .catch(() => {
-        // Best-effort: fall back to the static option list.
+  const isMobile = useMediaQuery("(max-width: 640px)");
+  const isMid = useMediaQuery("(max-width: 1180px)");
+  const statCols = () => (isMobile() ? 2 : isMid() ? 4 : 8);
+
+  function loadFilters() {
+    const controller = new AbortController();
+    setFiltersLoading(true);
+    setFiltersError(null);
+    fetchAgriFilters(controller.signal)
+      .then((data) => {
+        setFiltersData(data);
+        setReady(true);
       })
-      .finally(() => setCommoditiesLoading(false));
-  });
+      .catch((error: unknown) => {
+        setFiltersError(error instanceof Error ? error.message : "Failed to load agri filters");
+      })
+      .finally(() => setFiltersLoading(false));
+    onCleanup(() => controller.abort());
+  }
 
-  const options = createMemo<AgriCommodity[]>(() => commoditiesData()?.commodities ?? COMMODITY_OPTIONS);
+  onMount(loadFilters);
 
-  const fetchPrices = async () => {
+  let activeController: AbortController | null = null;
+  let requestSeq = 0;
+  async function loadPrices(params: AgriPricesParams) {
+    const requestId = ++requestSeq;
+    activeController?.abort();
+    const controller = new AbortController();
+    activeController = controller;
     setPricesLoading(true);
     setPricesError(null);
     try {
-      const data = await fetchAgriPrices(commodity().key);
+      const data = await fetchAgriPrices(params, controller.signal);
+      if (requestId !== requestSeq || controller.signal.aborted) return;
       setPrices(data);
-    } catch (err) {
-      setPricesError(err instanceof Error ? err.message : "Failed to load");
+    } catch (error: unknown) {
+      if (requestId !== requestSeq || controller.signal.aborted) return;
+      setPricesError(error instanceof Error ? error.message : "Failed to load agri prices");
     } finally {
-      setPricesLoading(false);
+      if (requestId === requestSeq) setPricesLoading(false);
     }
-  };
+  }
+  onCleanup(() => activeController?.abort());
 
-  // Re-fetch on commodity change and on mount (createEffect runs on mount).
   createEffect(() => {
-    commodity();
-    void fetchPrices();
-  });
-
-  const refresh = () => void fetchPrices();
-
-  const snapshot = createMemo(() => prices()?.snapshot.find((s) => s.key === commodity().key) ?? null);
-  const series = createMemo(() => prices()?.series ?? []);
-
-  const latest = () => snapshot()?.modal ?? null;
-  const prev7d = createMemo(() => nearestOnOrBefore(series(), agriDateDaysAgo(7)));
-  const prev30d = createMemo(() => nearestOnOrBefore(series(), agriDateDaysAgo(30)));
-  const prev180d = createMemo(() => nearestOnOrBefore(series(), agriDateDaysAgo(180)));
-  const chg7d = () => (latest() != null ? pctChange(latest() as number, prev7d()) : null);
-  const chg30d = () => (latest() != null ? pctChange(latest() as number, prev30d()) : null);
-  const chg180d = () => (latest() != null ? pctChange(latest() as number, prev180d()) : null);
-
-  // ---- ECharts option -----------------------------------------------------
-  const option = createMemo(() => {
-    const data = series();
-    if (data.length === 0) return {};
-    const dark = isDark();
-    const dates = data.map((p) => p.date);
-    const values = data.map((p) => p.modal);
-    return {
-      "background-color": "transparent",
-      tooltip: {
-        trigger: "axis",
-        "background-color": dark ? palette.alpha(palette.BG_COLOR, 0.85) : "#fff",
-        textStyle: { color: dark ? palette.TEXT_COLOR : "#000" },
-      },
-      grid: { left: 60, right: 40, top: 40, bottom: 60 },
-      xAxis: {
-        type: "category",
-        data: dates,
-        axisLabel: { "font-size": "10px", color: dark ? palette.TEXT_MUTED_COLOR : palette.TEXT_MUTED_COLOR },
-        axisLine: { lineStyle: { color: dark ? palette.BORDER_COLOR : palette.TEXT_MUTED_COLOR } },
-      },
-      yAxis: {
-        type: "value",
-        axisLabel: { "font-size": "10px", color: dark ? palette.TEXT_MUTED_COLOR : palette.TEXT_MUTED_COLOR, formatter: "₹{value}" },
-        axisLine: { lineStyle: { color: dark ? palette.BORDER_COLOR : palette.TEXT_MUTED_COLOR } },
-        splitLine: { lineStyle: { color: dark ? palette.SURFACE_ALT : palette.TEXT_COLOR, type: "dashed" } },
-      },
-      series: [
-        {
-          type: "line",
-          data: values,
-          smooth: true,
-          symbolSize: 4,
-          itemStyle: { color: PRIMARY },
-          lineStyle: { color: PRIMARY, width: 2 },
-          areaStyle: { color: PRIMARY, opacity: 0.12 },
-        },
-      ],
+    if (!ready()) return;
+    const token = retryToken();
+    const params: AgriPricesParams = {
+      commodity: commodity(),
+      range: range(),
     };
+    if (mode() === "compare") params.compare = compare().slice(0, 3);
+    const selectedGroup = group();
+    const selectedState = state();
+    const selectedDistrict = district();
+    const selectedMarket = market();
+    if (selectedGroup) params.group = selectedGroup;
+    if (selectedState) params.state = selectedState;
+    if (selectedDistrict) params.district = selectedDistrict;
+    if (selectedMarket) params.market = selectedMarket;
+    void token;
+    void loadPrices(params);
   });
 
-  const statColor = (v: number | null): string => {
-    if (v == null) return "dimmed";
-    return v > 0 ? POSITIVE : v < 0 ? NEGATIVE : "dimmed";
-  };
+  let firstWrite = true;
+  createEffect(() => {
+    const nextState = {
+      commodity: commodity(),
+      group: group(),
+      state: state(),
+      district: district(),
+      market: market(),
+      range: range(),
+      mode: mode(),
+    };
+    if (firstWrite) {
+      firstWrite = false;
+      return;
+    }
+    // Solid Router's setSearchParams merges with Object.entries(), so it needs a
+    // plain object — a URLSearchParams instance is silently ignored.
+    const next: Record<string, string> = {};
+    if (nextState.commodity) next.commodity = nextState.commodity;
+    if (nextState.group) next.group = nextState.group;
+    if (nextState.state) next.state = nextState.state;
+    if (nextState.district) next.district = nextState.district;
+    if (nextState.market) next.market = nextState.market;
+    if (nextState.range !== AGRI_DEFAULT_RANGE) next.range = nextState.range;
+    if (nextState.mode !== AGRI_DEFAULT_CHART_MODE) next.mode = nextState.mode;
+    if (new URLSearchParams(next).toString() === searchParams.toString()) return;
+    setSearchParams(next, { replace: true });
+  });
 
-  const pct = (v: number | null): string =>
-    v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
+  function commodityOptionsFor(selectedGroup: string): SelectOption[] {
+    const fromApi = selectOptions(filtersData()?.commodities);
+    const pool = fromApi.length
+      ? fromApi
+      : AGRI_COMMODITIES.map((item) => ({ value: item.key, label: item.label, group: item.group }));
+    if (!selectedGroup) return pool;
+    return pool.filter((option) => {
+      if (option.group) return option.group === selectedGroup;
+      return agriCommodity(option.value)?.group === selectedGroup;
+    });
+  }
 
-  const isLoading = () => commoditiesLoading() || pricesLoading();
-  const snapshotCount = () => prices()?.snapshot.length ?? 0;
+  const groupOptions = createMemo<SelectOption[]>(() => {
+    const fromApi = selectOptions(filtersData()?.groups);
+    return [
+      { value: "", label: "All groups" },
+      ...(fromApi.length
+        ? fromApi
+        : AGRI_GROUPS.map((item) => ({ value: item.key, label: item.label }))),
+    ];
+  });
+  const commodityOptions = createMemo(() => commodityOptionsFor(group()));
+  const stateOptions = createMemo(() => [
+    { value: "", label: "All India" },
+    ...selectOptions(filtersData()?.states),
+  ]);
+  const districtOptions = createMemo(() => [
+    { value: "", label: "All districts" },
+    ...selectOptions(filtersData()?.districts),
+  ]);
+  const marketOptions = createMemo(() => [
+    { value: "", label: "All mandis" },
+    ...selectOptions(filtersData()?.markets),
+  ]);
+
+  function changeGroup(value: string | null) {
+    const next = value ?? "";
+    setGroup(next);
+    const available = commodityOptionsFor(next);
+    if (available.length > 0 && !available.some((option) => option.value === commodity())) {
+      setCommodity(available[0].value);
+    }
+  }
+
+  function changeCommodity(value: string | null) {
+    const next = value ?? "";
+    if (!next) return;
+    setCommodity(next);
+    setCompare((previous) => {
+      if (previous.includes(next)) return previous;
+      const replacement = DEFAULT_COMPARE.find((key) => key !== next && !previous.includes(key));
+      return replacement ? [replacement, ...previous].slice(0, 3) : previous;
+    });
+  }
+
+  function toggleCompare(key: string) {
+    setCompare((previous) =>
+      previous.includes(key)
+        ? previous.filter((item) => item !== key)
+        : [...previous, key].slice(-3),
+    );
+  }
+
+  const kpis = createMemo(() => prices()?.kpis ?? null);
+  const asOf = createMemo(() => prices()?.as_of ?? filtersData()?.as_of ?? null);
+  const freshnessDays = createMemo(
+    () => prices()?.freshness_days ?? filtersData()?.freshness_days ?? null,
+  );
+  const dataSource = createMemo(() => prices()?.data_source ?? "");
+  const warnings = createMemo(() => prices()?.warnings ?? []);
+  const series = createMemo(() => prices()?.series ?? []);
+  const comparison = createMemo(() => prices()?.comparison ?? []);
+
+  const freshness = createMemo(() => {
+    const days = freshnessDays();
+    const tone = days == null || days > 7 ? "error" : days <= 1 ? "success" : "warning";
+    const colour = tone === "success" ? palette.POSITIVE : tone === "warning" ? palette.WARNING : palette.NEGATIVE;
+    const stale = days == null
+      ? "never collected"
+      : days <= 0
+        ? "as of today"
+        : `${days} day${days === 1 ? "" : "s"} stale`;
+    return { tone, colour, stale };
+  });
+
+  const chartOption = createMemo(() =>
+    buildAgriChartOption({
+      mode: mode(),
+      series: series().map((point) => ({
+        date: point.date,
+        modal: point.modal,
+        min: point.min,
+        max: point.max,
+        arrivals_qtl: point.arrivals_qtl,
+        market_count: point.market_count,
+      })),
+      comparison: comparison().map((entry) => ({
+        key: entry.key,
+        label: entry.label,
+        points: entry.points.map((point) => ({ date: point.date, modal: point.modal })),
+      })),
+      unit: AGRICULTURE_UNIT,
+      isDark: isDark(),
+      asOf: asOf() ?? undefined,
+    }),
+  );
+  const canDraw = createMemo(() => Object.keys(chartOption()).length > 0);
+
+  const tableRows = createMemo<AgriTableViewRow[]>(() => {
+    const quotes = prices()?.quotes ?? [];
+    const key = commodity();
+    if (quotes.length > 0) {
+      return quotes.map((quote, index) => ({
+        key: `${quote.date}-${quote.market}-${quote.variety}-${index}`,
+        commodity: agriCommodityLabel(key, key),
+        group: agriGroupLabel(agriCommodity(key)?.group ?? group()),
+        state: quote.state,
+        district: quote.district,
+        market: quote.market,
+        variety: quote.variety,
+        min: quote.min,
+        modal: quote.modal,
+        max: quote.max,
+        arrivals_qtl: quote.arrivals_qtl,
+        date: quote.date,
+        commodityKey: key,
+        stateName: quote.state,
+        districtName: quote.district,
+        marketName: quote.market,
+      }));
+    }
+    return (prices()?.snapshot ?? []).map((snapshot) => ({
+      key: `snapshot-${snapshot.key}`,
+      commodity: snapshot.label || agriCommodityLabel(snapshot.key, snapshot.key),
+      group: snapshot.group ?? "",
+      state: "",
+      district: "",
+      market: "",
+      variety: "",
+      min: snapshot.min,
+      modal: snapshot.modal,
+      max: snapshot.max,
+      arrivals_qtl: null,
+      date: snapshot.date ?? "",
+      commodityKey: snapshot.key,
+      stateName: "",
+      districtName: "",
+      marketName: "",
+    }));
+  });
+  const columns = createMemo(() => agriColumns(asOf()));
+
+  function applyRowFilters(row: AgriTableViewRow) {
+    batch(() => {
+      if (row.commodityKey) setCommodity(row.commodityKey);
+      if (row.stateName) setState(row.stateName);
+      if (row.districtName) setDistrict(row.districtName);
+      if (row.marketName) setMarket(row.marketName);
+    });
+  }
+
+  function refresh() {
+    setRetryToken((value) => value + 1);
+  }
+
+  function retryFilters() {
+    setFiltersData(null);
+    setReady(false);
+    loadFilters();
+  }
+
+  const emptyCopy = () =>
+    asOf()
+      ? `No mandi prices recorded for this selection as of ${formatAgriSessionDate(asOf())}.`
+      : "No mandi prices have been collected yet.";
 
   return (
     <Box
       data-testid="agri-page"
-      className="flex w-full min-h-0 flex-col gap-2 p-3"
+      className="flex h-full w-full min-h-0 flex-col gap-2 overflow-hidden p-2"
     >
-      <ToolbarRow
-        justify="space-between"
-        gap={8}
-        data-testid="agri-toolbar"
-        className="min-h-0"
-      >
-        <Box className="flex shrink-0 items-center gap-2">
-          <Text size="xs" c="dimmed" style={{ "text-transform": "uppercase", "font-size": "10px" }} fw={700}>
+      <ToolbarRow gap={8} data-testid="agri-toolbar" className="shrink-0">
+        <Box className="flex items-center gap-1">
+          <Text size="xs" c="dimmed" fw={700} style={{ "font-size": "10px", "text-transform": "uppercase" }}>
+            Group
+          </Text>
+          <Select
+            data={groupOptions()}
+            value={group()}
+            onChange={changeGroup}
+            placeholder="All groups"
+            clearable
+            size="sm"
+            w={128}
+            data-testid="agri-group-select"
+          />
+        </Box>
+        <Box className="flex items-center gap-1">
+          <Text size="xs" c="dimmed" fw={700} style={{ "font-size": "10px", "text-transform": "uppercase" }}>
             Commodity
           </Text>
           <Select
-            data={options().map((o) => ({ value: o.key, label: o.label }))}
-            value={commodity().key}
-            onChange={(v) => setCommodity(options().find((o) => o.key === v) ?? options()[0])}
+            data={commodityOptions()}
+            value={commodity()}
+            onChange={changeCommodity}
             size="sm"
-            w={170}
+            w={150}
             data-testid="agri-commodity-select"
           />
         </Box>
-        <Box className="flex-1 min-w-0" />
-        <Box className="flex shrink-0 items-center gap-1">
-          <Button
-            size="sm"
-            variant="outline"
-            leftSection={<Icon name="refresh" size={14} />}
-            onClick={refresh}
-            disabled={isLoading()}
-            data-testid="agri-refresh"
-          >
-            Refresh
-          </Button>
+        <Box className="flex items-center gap-1" data-testid="agri-range-strip">
+          <For each={AGRI_RANGE_PRESETS}>
+            {(preset) => (
+              <Button
+                size="xs"
+                variant={range() === preset.key ? "filled" : "subtle"}
+                onClick={() => setRange(preset.key)}
+                title={preset.description}
+                data-testid={`agri-range-${preset.key}`}
+              >
+                {preset.label}
+              </Button>
+            )}
+          </For>
         </Box>
+        <Box className="flex items-center gap-1">
+          <Select
+            data={stateOptions()}
+            value={state()}
+            onChange={(value) => {
+              setState(value ?? "");
+              setDistrict("");
+              setMarket("");
+            }}
+            placeholder="All India"
+            clearable
+            size="sm"
+            w={116}
+            data-testid="agri-state-select"
+          />
+          <Select
+            data={districtOptions()}
+            value={district()}
+            onChange={(value) => {
+              setDistrict(value ?? "");
+              setMarket("");
+            }}
+            placeholder="All districts"
+            clearable
+            disabled={!state()}
+            size="sm"
+            w={124}
+            data-testid="agri-district-select"
+          />
+          <Select
+            data={marketOptions()}
+            value={market()}
+            onChange={(value) => setMarket(value ?? "")}
+            placeholder="All mandis"
+            clearable
+            disabled={!district()}
+            size="sm"
+            w={124}
+            data-testid="agri-market-select"
+          />
+        </Box>
+        <Box className="min-w-0 flex-1" />
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={refresh}
+          disabled={pricesLoading() || filtersLoading()}
+          data-testid="agri-refresh"
+        >
+          Refresh
+        </Button>
       </ToolbarRow>
 
+      <Box
+        data-testid="agri-freshness"
+        data-tone={freshness().tone}
+        className="flex shrink-0 items-center gap-2 rounded border px-2 py-1"
+        style={{
+          "background-color": palette.alpha(freshness().colour, 0.1),
+          "border-color": palette.alpha(freshness().colour, 0.35),
+        }}
+      >
+        <Box
+          className="h-2 w-2 shrink-0 rounded-full"
+          style={{ "background-color": freshness().colour }}
+          data-testid="agri-freshness-dot"
+        />
+        <Text size="xs" fw={700} style={{ color: freshness().colour }}>
+          {asOf() ? `Data as of ${formatAgriSessionDate(asOf())}` : "No data collected yet"}
+          {" · "}{freshness().stale}
+          {" · "}{kpis()?.market_count ?? 0} mandis reporting
+        </Text>
+        <Show when={dataSource() && dataSource() !== "db"}>
+          <Badge color="warning" size="xs" data-testid="agri-data-source">
+            {dataSource()}
+          </Badge>
+        </Show>
+        <Box className="min-w-0 flex-1" />
+        <Show when={warnings().length > 0}>
+          <Text size="xs" c="dimmed" data-testid="agri-warnings" truncate>
+            {warnings().join(" · ")}
+          </Text>
+        </Show>
+      </Box>
+
+      <CompactStatGrid cols={statCols()} data-testid="agri-kpis">
+        <CompactStat
+          label="Modal (₹/quintal)"
+          value={formatAgriPrice(kpis()?.modal)}
+          hint={asOf() ? formatAgriSessionDate(asOf()) : undefined}
+          data-testid="agri-kpi-modal"
+        />
+        <CompactStat
+          label="1 week"
+          value={formatChangePct(kpis()?.chg_1w_pct)}
+          tone={toneForChange(kpis()?.chg_1w_pct)}
+          data-testid="agri-kpi-chg1w"
+        />
+        <CompactStat
+          label="1 month"
+          value={formatChangePct(kpis()?.chg_1m_pct)}
+          tone={toneForChange(kpis()?.chg_1m_pct)}
+          data-testid="agri-kpi-chg1m"
+        />
+        <CompactStat
+          label="6 months"
+          value={formatChangePct(kpis()?.chg_6m_pct)}
+          tone={toneForChange(kpis()?.chg_6m_pct)}
+          data-testid="agri-kpi-chg6m"
+        />
+        <CompactStat
+          label="Min–Max (₹/quintal)"
+          value={`${formatAgriPrice(kpis()?.min)}–${formatAgriPrice(kpis()?.max)}`}
+          data-testid="agri-kpi-range"
+        />
+        <CompactStat
+          label="Mandis reporting"
+          value={String(kpis()?.market_count ?? 0)}
+          data-testid="agri-kpi-markets"
+        />
+        <CompactStat
+          label="Arrivals (qtl)"
+          value={formatArrivals(kpis()?.arrivals_qtl)}
+          data-testid="agri-kpi-arrivals"
+        />
+        <CompactStat
+          label="MSP (₹/quintal)"
+          value={formatAgriPrice(kpis()?.msp)}
+          tone={kpis()?.msp == null ? "dimmed" : undefined}
+          hint={kpis()?.msp == null ? "No MSP notified" : formatChangePct(kpis()?.distance_to_msp_pct)}
+          data-testid="agri-kpi-msp"
+        />
+      </CompactStatGrid>
+
+      <Show when={filtersError()}>
+        <ErrorAlert
+          message={filtersError() ?? "Failed to load agri filters"}
+          data-testid="agri-filters-error"
+          withRetry
+          onRetry={retryFilters}
+        />
+      </Show>
       <Show when={pricesError()}>
-        <Badge color="error" data-testid="agri-error">{pricesError()}</Badge>
+        <ErrorAlert
+          message={pricesError() ?? "Failed to load agri prices"}
+          data-testid="agri-error"
+          withRetry
+          onRetry={refresh}
+        />
+      </Show>
+      <Show when={pricesLoading() && !pricesError()}>
+        <InlineLoader data-testid="agri-loading" message="Loading mandi prices…" />
       </Show>
 
-      {/* Stat strip: selected commodity latest price + changes */}
-      <Box
-        className="flex min-h-0 items-center gap-3 rounded border border-fin-border bg-fin-surface p-3"
-        data-testid="agri-stat-strip"
-      >
-        <Box className="min-w-0">
-          <Text size="xs" c="dimmed" data-testid="agri-stat-date">
-            {snapshot() ? snapshot()!.date : "—"}
-          </Text>
-          <Text size="lg" fw={700} className="font-mono tabular-nums" data-testid="agri-stat-price">
-            {formatInr(latest())}
-          </Text>
-          <Text
-            size="xs"
-            c={statColor(chg7d())}
-            data-testid="agri-stat-chg7d"
+      <Show when={!pricesLoading() && !pricesError()}>
+        <Box data-testid="agri-body" className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+          <CompactPanel
+            testId="agri-chart-panel"
+            className="flex min-h-0 flex-col"
+            scrollable
+            style={{ flex: "3 1 0%", "min-height": isMobile() ? "220px" : "320px" }}
+            title={`Modal price — ${agriCommodityLabel(commodity(), commodity())}`}
+            description={`${agriRange(range())?.label ?? range()} · ${series().length} sessions · ₹/quintal${asOf() ? ` · from ${formatAgriSessionDate(agriRangeStart(asOf(), agriRange(range())?.days ?? null))}` : ""}`}
+            action={
+              <ToolbarRow gap={4} data-testid="agri-mode-strip">
+                <For each={AGRI_CHART_MODES}>
+                  {(item) => (
+                    <Button
+                      size="xs"
+                      variant={mode() === item.key ? "filled" : "subtle"}
+                      title={item.description}
+                      onClick={() => setMode(item.key)}
+                      data-testid={`agri-mode-${item.key}`}
+                    >
+                      {item.label}
+                    </Button>
+                  )}
+                </For>
+              </ToolbarRow>
+            }
           >
-            {chg7d() == null ? "—" : `${pct(chg7d())} 1w`}
-          </Text>
-        </Box>
-        <Divider orientation="vertical" style={{ height: "32px", "margin-left": "8px", "margin-right": "8px" }} />
-        <Box className="min-w-0">
-          <Text size="xs" c="dimmed">1 month</Text>
-          <Text size="sm" fw={600} c={statColor(chg30d())} className="font-mono tabular-nums" data-testid="agri-stat-chg30d">
-            {pct(chg30d())}
-          </Text>
-        </Box>
-        <Divider orientation="vertical" style={{ height: "32px", "margin-left": "8px", "margin-right": "8px" }} />
-        <Box className="min-w-0">
-          <Text size="xs" c="dimmed">6 months</Text>
-          <Text size="sm" fw={600} c={statColor(chg180d())} className="font-mono tabular-nums" data-testid="agri-stat-chg180d">
-            {pct(chg180d())}
-          </Text>
-        </Box>
-        <Box className="flex-1 min-w-0" />
-        <Badge color="info" size="xs" data-testid="agri-stat-markets">
-          {snapshot() ? `${snapshot()!.markets} markets` : "—"}
-        </Badge>
-      </Box>
-
-      <Box
-        className="flex min-h-0 flex-1 min-w-0 flex-col gap-2"
-        data-testid="agri-body"
-      >
-        {/* Left: all-commodities latest prices table */}
-        <Box
-          className="flex min-h-0 flex-1 flex-col gap-1"
-          data-testid="agri-table-region"
-        >
-          <ToolbarRow justify="space-between" gap={8} className="min-h-0">
-            <Text size="sm" fw={600} data-testid="agri-table-title">
-              Latest mandi prices — all commodities
-            </Text>
-            <Text size="xs" c="dimmed" data-testid="agri-table-date">
-              {snapshot() ? snapshot()!.date : "—"}
-            </Text>
-          </ToolbarRow>
-          <Box
-            className="min-h-0 flex-1 overflow-auto rounded border border-fin-border bg-fin-surface"
-            data-testid="agri-table"
-          >
-            <table className="w-full border-collapse text-[11px]" data-testid="agri-table-element">
-              <thead>
-                <tr className="bg-fin-surface-alt">
-                  <th className="px-2 py-1.5 text-left text-[10px] text-fin-text-muted">Commodity</th>
-                  <th className="px-2 py-1.5 text-left text-[10px] text-fin-text-muted">Date</th>
-                  <th className="px-2 py-1.5 text-right text-[10px] text-fin-text-muted">Modal</th>
-                  <th className="px-2 py-1.5 text-right text-[10px] text-fin-text-muted">Min</th>
-                  <th className="px-2 py-1.5 text-right text-[10px] text-fin-text-muted">Max</th>
-                  <th className="px-2 py-1.5 text-center text-[10px] text-fin-text-muted">Markets</th>
-                </tr>
-              </thead>
-              <tbody>
-                <Show
-                  when={snapshotCount() > 0}
-                  fallback={
-                    <tr>
-                      <td colSpan={6} className="py-4 text-center text-fin-text-muted">No prices available.</td>
-                    </tr>
+            <Show when={mode() === "compare"}>
+              <ToolbarRow gap={4} data-testid="agri-compare-strip" className="shrink-0">
+                <Text size="xs" c="dimmed">Compare</Text>
+                <For each={DEFAULT_COMPARE}>
+                  {(key) => (
+                    <Button
+                      size="xs"
+                      variant={compare().includes(key) ? "light" : "subtle"}
+                      onClick={() => toggleCompare(key)}
+                      data-testid={`agri-compare-${key}`}
+                    >
+                      {agriCommodityLabel(key, key)}
+                    </Button>
+                  )}
+                </For>
+              </ToolbarRow>
+            </Show>
+            <Show
+              when={canDraw()}
+              fallback={
+                <EmptyState
+                  kind="no-data"
+                  data-testid="agri-chart-empty"
+                  title="No chart history for this selection"
+                  description={emptyCopy()}
+                  hint={range() !== "max" ? "Try MAX to show the full collected history" : undefined}
+                  action={
+                    range() !== "max" ? (
+                      <Button size="xs" variant="light" onClick={() => setRange("max")} data-testid="agri-empty-max">
+                        Show MAX
+                      </Button>
+                    ) : undefined
                   }
-                >
-                  <For each={prices()?.snapshot ?? []}>
-                    {(r) => (
-                      <tr
-                        className="[&_td]:border-b [&_td]:border-fin-border [&_td]:px-2 [&_td]:py-1"
-                        data-testid={`agri-row-${r.key}`}
-                      >
-                        <td>{r.label}</td>
-                        <td>{r.date}</td>
-                        <td className="text-right font-mono tabular-nums">{formatInr(r.modal)}</td>
-                        <td className="text-right font-mono tabular-nums">{formatInr(r.min)}</td>
-                        <td className="text-right font-mono tabular-nums">{formatInr(r.max)}</td>
-                        <td className="text-center font-mono tabular-nums">{r.markets}</td>
-                      </tr>
-                    )}
-                  </For>
-                </Show>
-              </tbody>
-            </table>
-          </Box>
-        </Box>
+                />
+              }
+            >
+              <Box className="flex min-h-0 flex-1" style={{ "min-height": "280px" }} data-testid="agri-chart-region">
+                <EChart
+                  option={chartOption()}
+                  style={{ height: isMobile() ? "220px" : "420px" }}
+                  data-testid="agri-chart"
+                />
+              </Box>
+            </Show>
+          </CompactPanel>
 
-        {/* Right: chart */}
-        <Box
-          className="flex min-h-0 flex-1 flex-col gap-1 rounded border border-fin-border bg-fin-surface p-2"
-          data-testid="agri-chart-region"
-        >
-          <ToolbarRow justify="space-between" gap={8} className="min-h-0">
-            <Text size="sm" fw={600} data-testid="agri-chart-title">
-              Modal price trend — {commodity().label}
-            </Text>
-            <Text size="xs" c="dimmed" data-testid="agri-chart-range">
-              {series().length} sessions
-            </Text>
-          </ToolbarRow>
-          <Box
-            className="min-h-[300px] min-w-0 flex-1 flex"
-            data-testid="agri-chart"
+          <CompactPanel
+            testId="agri-table-panel"
+            className="flex min-h-0 flex-col"
+            scrollable
+            style={{ flex: "2 1 0%", "min-height": "240px", "max-height": "46vh" }}
+            title="Latest mandi prices"
+            description={`${tableRows().length} rows · ${formatAgriSessionDate(asOf())}`}
           >
-            <EChart option={option()} />
-          </Box>
-          <Show when={series().length === 0}>
-            <Box className="flex flex-1 items-center justify-center text-fin-text-muted">
-              No price history yet. Run the collector to build it:
-              <br />python scripts/market/agri_collect.py
-            </Box>
-          </Show>
+            <Show
+              when={tableRows().length > 0}
+              fallback={
+                <EmptyState
+                  kind="no-data"
+                  data-testid="agri-table-empty"
+                  title="No mandi quotes for this selection"
+                  description={emptyCopy()}
+                />
+              }
+            >
+              <Box
+                className="min-h-0 flex-1 overflow-hidden"
+                style={{
+                  height: isMobile() ? "260px" : "calc(46vh - 56px)",
+                  "max-height": isMobile() ? "260px" : "calc(46vh - 56px)",
+                }}
+                data-testid="agri-table-region"
+              >
+                <TanStackTable
+                  data={tableRows()}
+                  columns={columns()}
+                  dataTestId="agri-quotes-table"
+                  stickyHeader
+                  fillContainer
+                  dense
+                  rowWindowSize={80}
+                  minTableWidth={980}
+                  onRowClick={applyRowFilters}
+                  getRowTestId={(row) => `agri-row-${row.key}`}
+                  ariaLabel="Agricultural mandi prices"
+                />
+              </Box>
+            </Show>
+          </CompactPanel>
         </Box>
-      </Box>
-
+      </Show>
     </Box>
   );
 }

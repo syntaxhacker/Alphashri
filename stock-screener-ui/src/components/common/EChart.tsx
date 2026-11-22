@@ -33,7 +33,17 @@ export function EChart(props: {
     const el = chartEl;
     const resize = () => chart?.resize();
     window.addEventListener("resize", resize);
-    onCleanup(() => window.removeEventListener("resize", resize));
+    let observer: ResizeObserver | undefined;
+    if (el && typeof ResizeObserver !== "undefined") {
+      // Flex/grid parents settle after ECharts' first init; without this the
+      // canvas keeps its initial 100px height even when the panel grows.
+      observer = new ResizeObserver(resize);
+      observer.observe(el);
+    }
+    onCleanup(() => {
+      window.removeEventListener("resize", resize);
+      observer?.disconnect();
+    });
 
     if (!el) return;
     void loadEcharts().then((echartsLib) => {
@@ -66,7 +76,13 @@ export function EChart(props: {
     <div
       ref={(node) => (chartEl = node)}
       class={props.class}
-      style={{ ...props.style, height: props.style?.height ?? "100%", width: props.style?.width ?? "100%" }}
+      style={{
+        ...props.style,
+        flex: props.style?.flex ?? "1 1 0%",
+        "min-height": props.style?.["min-height"] ?? "0px",
+        height: props.style?.height ?? "100%",
+        width: props.style?.width ?? "100%",
+      }}
       data-testid={props["data-testid"]}
     />
   );
