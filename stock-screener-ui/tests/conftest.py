@@ -21,6 +21,32 @@ from api.auth import hash_password, get_current_user
 from tests.helpers.db import import_all_models
 
 
+# CI selects unit/API tests with a marker *exclusion* filter, which also has to
+# catch unmarked tests. A few integration/contract modules rely on their path
+# instead of a marker, so tag them by path at collection time. Adding markers
+# here never skips a test: it only makes -m filters see the real category.
+_PATH_MARKERS = (
+    ("tests/integration/", pytest.mark.integration),
+    ("tests/contract/", pytest.mark.contract),
+    ("tests/e2e/", pytest.mark.e2e),
+    ("tests/testcontainers/", pytest.mark.testcontainers),
+)
+
+
+def pytest_collection_modifyitems(items):
+    for item in items:
+        rel = item.path.relative_to(item.config.rootpath).as_posix()
+        for prefix, marker in _PATH_MARKERS:
+            if rel.startswith(prefix):
+                item.add_marker(marker)
+                break
+        else:
+            # Only the three root-level modules pytest.ini tries to ignore via
+            # its (non-functional) `ignore =` key. test_news_integration.py in
+            # tests/api/ is fully mocked and must stay in the unit shards.
+            if rel.startswith("tests/") and "/" not in rel[6:] and rel.endswith("_integration.py"):
+                item.add_marker(pytest.mark.integration)
+
 
 @pytest.fixture(scope="function")
 def test_db_engine():
