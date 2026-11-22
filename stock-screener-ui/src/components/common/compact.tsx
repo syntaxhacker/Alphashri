@@ -315,7 +315,7 @@ export function CompactStatGrid(props: {
   cols?: number;
   [key: string]: any;
 }) {
-  const [own, rest] = splitProps(props, ["children", "center", "cols"]);
+  const [own, rest] = splitProps(props, ["children", "center", "cols", "className", "style"]);
   const center = () => own.center ?? false;
   const cols = () => {
     const n = typeof own.cols === "number" ? own.cols : 4;
@@ -333,14 +333,15 @@ export function CompactStatGrid(props: {
       className="flex w-full"
     >
       <SimpleGrid
+        {...rest}
         cols={cols()}
-        className={`w-full divide-x divide-fin-border${rest.className ? ` ${rest.className}` : ""}`}
+        className={`w-full divide-x divide-fin-border${own.className ? ` ${own.className}` : ""}`}
         style={{
           "justify-content": center() ? "center" : "flex-start",
           "align-items": center() ? "center" : "stretch",
           width: "100%",
+          ...own.style,
         }}
-        {...rest}
       >
         {own.children}
       </SimpleGrid>

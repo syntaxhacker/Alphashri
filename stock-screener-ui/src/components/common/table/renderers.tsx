@@ -157,6 +157,14 @@ export function renderGroupRow<T>(item: GroupSlot<T>, ctx: TableRenderContext<T>
     <tr
       data-testid={ctx.props.getGroupRowTestId?.(frame().value)}
       onClick={() => ctx.toggleGroup(frame().value)}
+      onKeyDown={(event: KeyboardEvent) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          ctx.toggleGroup(frame().value);
+        }
+      }}
+      tabIndex={0}
+      aria-expanded={expanded()}
       style={{ "cursor": "pointer" }}
       className="paper-tanstack-group-row"
     >

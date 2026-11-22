@@ -369,4 +369,23 @@ describe("CompactStatGrid columns and dividers", () => {
     ));
     expect(screen.getByTestId("stat-grid").style.gap).toBe("4px");
   });
+
+  it("keeps the dividers and layout when the caller supplies className and style", () => {
+    render(() => (
+      <CompactStatGrid
+        data-testid="stat-grid"
+        className="gap-2 p-2"
+        style={{ "background-color": "rgb(1, 2, 3)" }}
+      >
+        <CompactStat label="A" value="1" />
+      </CompactStatGrid>
+    ));
+    const grid = screen.getByTestId("stat-grid");
+    expect(grid.className).toContain("w-full");
+    expect(grid.className).toContain("divide-x");
+    expect(grid.className).toContain("gap-2");
+    expect(grid.style.justifyContent).toBe("flex-start");
+    expect(grid.style.width).toBe("100%");
+    expect(grid.style.backgroundColor).toBe("rgb(1, 2, 3)");
+  });
 });
