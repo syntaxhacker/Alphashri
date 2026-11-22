@@ -101,7 +101,10 @@ type ValueFilterKey =
   | "fcfYieldMin"
   | "debtToEquityMax"
   | "revYoyMin"
-  | "epsYoyMin";
+  | "epsYoyMin"
+  | "pePctMax"
+  | "roePctMin"
+  | "dePctMax";
 
 interface ValueFieldDef {
   key: ValueFilterKey;
@@ -112,13 +115,19 @@ interface ValueFieldDef {
 }
 
 const VALUE_FIELDS: readonly ValueFieldDef[] = [
-  { key: "peMax", label: "P/E ≤", min: 0, step: 0.5 },
-  { key: "psMax", label: "P/S ≤", min: 0, step: 0.1 },
-  { key: "pbMax", label: "P/B ≤", min: 0, step: 0.1 },
-  { key: "roeMin", label: "ROE ≥", suffix: "%", min: -100, step: 1 },
+  // Sector-relative first: these are what the preset uses, because a flat
+  // threshold means different things per sector and rejects large caps on
+  // rounding (SBIN at ROE 14.58 vs a 15 floor).
+  { key: "pePctMax", label: "P/E %ile ≤ (cheap)", min: 0, step: 0.05 },
+  { key: "roePctMin", label: "ROE %ile ≥ (top)", min: 0, step: 0.05 },
+  { key: "dePctMax", label: "D/E %ile ≤ (low)", min: 0, step: 0.05 },
+  { key: "peMax", label: "P/E ≤ (absolute)", min: 0, step: 0.5 },
+  { key: "psMax", label: "P/S ≤ (absolute)", min: 0, step: 0.1 },
+  { key: "pbMax", label: "P/B ≤ (absolute)", min: 0, step: 0.1 },
+  { key: "roeMin", label: "ROE ≥ (absolute)", suffix: "%", min: -100, step: 1 },
   { key: "divYieldMin", label: "Div yield ≥", suffix: "%", min: 0, step: 0.1 },
   { key: "fcfYieldMin", label: "FCF yield ≥", suffix: "%", min: -100, step: 0.1 },
-  { key: "debtToEquityMax", label: "D/E ≤", min: 0, step: 0.1 },
+  { key: "debtToEquityMax", label: "D/E ≤ (absolute)", min: 0, step: 0.1 },
   { key: "revYoyMin", label: "Rev growth ≥", suffix: "%", step: 1 },
   { key: "epsYoyMin", label: "EPS growth ≥", suffix: "%", step: 1 },
 ];
@@ -337,7 +346,7 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
           variant="outline"
           data-testid="market-value-preset"
           onClick={() => props.onChange(DEEP_VALUE_PRESET)}
-          title="P/E ≤ 15 · ROE ≥ 15% · FCF yield > 0 · D/E ≤ 1.5"
+          title="Cheapest 35% on P/E · top 55% on ROE · least-leveraged 30% on D/E — each within the row's own sector"
         >
           Deep value preset
         </Button>

@@ -88,6 +88,9 @@ const RAIL_CONTROL_FOR: Record<string, string> = {
   debtToEquityMax: "market-filter-debtToEquityMax",
   revYoyMin: "market-filter-revYoyMin",
   epsYoyMin: "market-filter-epsYoyMin",
+  pePctMax: "market-filter-pePctMax",
+  roePctMin: "market-filter-roePctMin",
+  dePctMax: "market-filter-dePctMax",
 };
 
 describe("etfOnly removal — no hidden ETF filter", () => {
