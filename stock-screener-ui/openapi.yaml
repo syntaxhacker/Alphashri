@@ -1748,6 +1748,10 @@ components:
             $ref: '#/components/schemas/Quote'
           title: Quotes
           type: array
+        quotes_total:
+          default: 0
+          title: Quotes Total
+          type: integer
         series:
           items:
             $ref: '#/components/schemas/SeriesPoint'
@@ -1792,6 +1796,11 @@ components:
           - type: number
           - type: 'null'
           title: Arrivals Qtl
+        commodity_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Commodity Key
         date:
           title: Date
           type: string
@@ -1819,6 +1828,21 @@ components:
           - type: number
           - type: 'null'
           title: Modal
+        price_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Price Source
+        price_unit:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Price Unit
+        product_form:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Form
         state:
           title: State
           type: string
@@ -2554,6 +2578,11 @@ components:
           - type: string
           - type: 'null'
           title: Date
+        freshness_days:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Freshness Days
         group:
           title: Group
           type: string

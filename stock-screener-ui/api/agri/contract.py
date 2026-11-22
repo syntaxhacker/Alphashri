@@ -64,8 +64,12 @@ class Quote(BaseModel):
     state: str
     district: str
     market: str
+    commodity_key: Optional[str] = None
     variety: str
     grade: str
+    product_form: Optional[str] = None
+    price_unit: Optional[str] = None
+    price_source: Optional[str] = None
     min: Optional[float] = None
     max: Optional[float] = None
     modal: Optional[float] = None
@@ -92,6 +96,7 @@ class SnapshotRow(BaseModel):
     label: str
     group: str
     date: Optional[str] = None
+    freshness_days: Optional[int] = None
     modal: Optional[float] = None
     min: Optional[float] = None
     max: Optional[float] = None
@@ -122,6 +127,7 @@ class PricesResponse(BaseModel):
     series: list[SeriesPoint] = Field(default_factory=list)
     snapshot: list[SnapshotRow] = Field(default_factory=list)
     quotes: list[Quote] = Field(default_factory=list)
+    quotes_total: int = 0
     comparison: list[ComparisonSeries] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 

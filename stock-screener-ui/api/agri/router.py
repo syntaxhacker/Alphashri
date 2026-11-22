@@ -1,17 +1,20 @@
 """Agri-commodity mandi prices — read-only HTTP surface.
 
-Prices come from the local SQLite cache built by ``scripts/market/agri_import.py``
-from the Agmarknet CKAN mirror. A missing cache is reported as
-``data_source="empty"``; it is never presented as a successful load.
+Every query filters on the canonical ``commodity_key``; the raw source spelling
+is audit metadata only. Prices come from the local SQLite cache built by
+``scripts/market/agri_import.py`` and the daily collector. A missing cache is
+reported as ``data_source="empty"``; it is never presented as a successful load.
+
+The read path uses ``store.fetch_rows(commodity_keys=...)`` and
+``store.latest_date_per_key(...)``; raw ``commodity`` matching is never used.
 """
 
 from __future__ import annotations
 
-import logging
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -29,11 +32,9 @@ from .contract import (
 )
 
 router = APIRouter(prefix="/api/agri", tags=["agri"])
-logger = logging.getLogger("agri.router")
 
 DB_PATH: Optional[Path] = None
 DATA_SOURCE_EMPTY: str = "empty"
-_DATA_SOURCE_CKAN: str = registry.SOURCE_CKAN
 _HISTORY_LOOKBACK_DAYS: int = 400
 _PRICES_CACHE_TTL: float = 60.0
 _PRICES_CACHE_MAX: int = 64
@@ -128,12 +129,238 @@ def _check_compare(value: Optional[str]) -> list[str]:
     return keys
 
 
-def _source_names(keys: list[str]) -> list[str]:
-    return sorted({name for key in keys for name in registry.source_names_for(key)})
-
-
 def _shift(day: str, days: int) -> str:
     return (date.fromisoformat(day) - timedelta(days=days)).isoformat()
+
+
+def _row_source(row: dict[str, Any]) -> Optional[str]:
+    return registry.normalise_price_source(row.get("price_source") or row.get("source"))
+
+
+def _fetch_rows(
+    conn: Any,
+    *,
+    commodity_keys: Optional[Iterable[str]] = None,
+    states: Optional[Iterable[str]] = None,
+    districts: Optional[Iterable[str]] = None,
+    markets: Optional[Iterable[str]] = None,
+    on_date: Optional[str] = None,
+    on_dates: Optional[Iterable[str]] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    limit: Optional[int] = None,
+) -> list[dict[str, Any]]:
+    """Rows filtered by canonical key.
+
+    ``store.fetch_rows`` treats an empty key list as "no key filter", so an
+    empty selection must short-circuit here or a missing commodity would read
+    the entire table.
+    """
+    keys = list(commodity_keys) if commodity_keys is not None else None
+    if keys is not None and not keys:
+        return []
+    return store.fetch_rows(
+        conn,
+        commodity_keys=keys,
+        states=states,
+        districts=districts,
+        markets=markets,
+        on_date=on_date,
+        on_dates=on_dates,
+        from_date=from_date,
+        to_date=to_date,
+        limit=limit,
+    )
+
+
+def _latest_date_per_key(
+    conn: Any,
+    keys: Iterable[str],
+    *,
+    states: Optional[Iterable[str]] = None,
+    districts: Optional[Iterable[str]] = None,
+    markets: Optional[Iterable[str]] = None,
+) -> dict[str, Optional[str]]:
+    return store.latest_date_per_key(
+        conn,
+        list(keys),
+        states=states, districts=districts, markets=markets,
+    )
+
+
+def _max_date(
+    conn: Any,
+    key: str,
+    target: str,
+    *,
+    states: Optional[Iterable[str]] = None,
+    districts: Optional[Iterable[str]] = None,
+    markets: Optional[Iterable[str]] = None,
+) -> Optional[str]:
+    clauses = ["commodity_key = ?", "date <= ?"]
+    params: list[Any] = [key, target]
+    for column, values in (
+        ("state", states), ("district", districts), ("market", markets),
+    ):
+        items = list(values or ())
+        if items:
+            clauses.append(f"{column} IN ({', '.join('?' for _ in items)})")
+            params.extend(items)
+    row = conn.execute(
+        f"SELECT MAX(date) FROM {store.TABLE} WHERE " + " AND ".join(clauses),
+        params,
+    ).fetchone()
+    return row[0] if row else None
+
+
+def _anchor_dates(
+    conn: Any,
+    key_to_as_of: dict[str, Optional[str]],
+    offsets: Iterable[int],
+    *,
+    states: Optional[Iterable[str]] = None,
+    districts: Optional[Iterable[str]] = None,
+    markets: Optional[Iterable[str]] = None,
+) -> dict[str, dict[int, Optional[str]]]:
+    out: dict[str, dict[int, Optional[str]]] = {}
+    for key, as_of in key_to_as_of.items():
+        if not as_of:
+            out[key] = {days: None for days in offsets}
+            continue
+        out[key] = {
+            days: _max_date(
+                conn, key, _shift(as_of, days),
+                states=states, districts=districts, markets=markets,
+            )
+            for days in offsets
+        }
+    return out
+
+
+def _fetch_latest_rows(
+    conn: Any,
+    latest_by_key: dict[str, Optional[str]],
+    *,
+    states: Optional[Iterable[str]] = None,
+    districts: Optional[Iterable[str]] = None,
+    markets: Optional[Iterable[str]] = None,
+) -> list[dict[str, Any]]:
+    buckets: dict[str, list[str]] = {}
+    for key, day in latest_by_key.items():
+        if day:
+            buckets.setdefault(str(day), []).append(key)
+    rows: list[dict[str, Any]] = []
+    for day in sorted(buckets):
+        rows.extend(_fetch_rows(
+            conn, commodity_keys=buckets[day], on_date=day,
+            states=states, districts=districts, markets=markets,
+        ))
+    return rows
+
+
+def _snapshot_rows(
+    latest_rows: list[dict[str, Any]],
+    history_rows: list[dict[str, Any]],
+    latest_by_key: dict[str, Optional[str]],
+    keys: Iterable[str],
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for key in keys:
+        own_latest = [row for row in latest_rows if row.get("commodity_key") == key]
+        own_history = [row for row in history_rows if row.get("commodity_key") == key]
+        entry = aggregate.latest_snapshot(
+            own_latest, own_history, as_of=latest_by_key.get(key), keys=[key],
+        )[0]
+        entry["freshness_days"] = aggregate.freshness_days(entry.get("date"))
+        out.append(entry)
+    return out
+
+
+def _quote_from_row(row: dict[str, Any], day: str) -> dict[str, Any]:
+    key = str(row.get("commodity_key") or "") or None
+    return {
+        "date": day,
+        "commodity_key": key,
+        "state": str(row.get("state") or ""),
+        "district": str(row.get("district") or ""),
+        "market": str(row.get("market") or ""),
+        "variety": str(row.get("variety") or ""),
+        "grade": str(row.get("grade") or ""),
+        "product_form": registry.product_form_for(key, row.get("variety"), row.get("product_form")),
+        "price_unit": str(row.get("price_unit") or "").strip() or None,
+        "price_source": _row_source(row),
+        "min": aggregate.to_float(row.get("min_price")),
+        "max": aggregate.to_float(row.get("max_price")),
+        "modal": aggregate.to_float(row.get("modal_price")),
+        "arrivals_qtl": aggregate.to_float(row.get("arrivals_qtl")),
+    }
+
+
+def _selected_quotes(
+    rows: Iterable[dict[str, Any]],
+    *,
+    limit: Optional[int] = None,
+) -> tuple[list[dict[str, Any]], int]:
+    """Latest-date quotes with a stable order and the pre-limit total."""
+    data = [row for row in rows if row.get("date")]
+    if not data:
+        return [], 0
+    latest = max(str(row["date"]) for row in data)
+    chosen: dict[tuple[str, ...], dict[str, Any]] = {}
+    for row in data:
+        if str(row["date"]) != latest:
+            continue
+        key = str(row.get("commodity_key") or "")
+        identity = (
+            str(row.get("state") or ""),
+            str(row.get("district") or ""),
+            str(row.get("market") or ""),
+            key,
+            str(row.get("variety") or ""),
+            str(row.get("grade") or ""),
+            registry.product_form_for(key, row.get("variety"), row.get("product_form")) or "",
+            str(row.get("price_unit") or "").strip(),
+        )
+        chosen.setdefault(identity, row)
+    ordered = [_quote_from_row(row, latest) for _, row in sorted(chosen.items())]
+    total = len(ordered)
+    return (ordered[:limit] if limit is not None else ordered), total
+
+
+def _data_source(rows: Iterable[dict[str, Any]]) -> str:
+    sources = {source for row in rows if (source := _row_source(row))}
+    if not sources:
+        return DATA_SOURCE_EMPTY
+    if len(sources) == 1:
+        return next(iter(sources))
+    return registry.SOURCE_MIXED
+
+
+def _per_key_freshness_warnings(
+    snapshot: Iterable[dict[str, Any]],
+    as_of: Optional[str],
+) -> list[str]:
+    if not as_of:
+        return []
+    try:
+        anchor = date.fromisoformat(as_of)
+    except ValueError:
+        return []
+    out: list[str] = []
+    for row in snapshot:
+        day = row.get("date")
+        if not day:
+            continue
+        try:
+            gap = (anchor - date.fromisoformat(day)).days
+        except ValueError:
+            continue
+        if gap > aggregate.STALE_AFTER_DAYS:
+            out.append(
+                f"{row['label']} is {gap} days behind {as_of} "
+                f"(latest {day}); showing its own latest date"
+            )
+    return out
 
 
 @router.get("/filters", response_model=FiltersPayload, summary="Agri price filter options")
@@ -222,80 +449,91 @@ def get_agri_prices(
             if cached is not None:
                 return cached.model_copy(deep=True)
 
-        global_as_of = _as_of_options(conn)["as_of"]
+        global_as_of = _as_of_options(conn)["as_of"] or store.latest_date(conn)
         if not global_as_of:
             return PricesResponse(
                 ok=True, data_source=DATA_SOURCE_EMPTY, filters=filters, kpis=empty_kpis,
                 warnings=["agri price cache is empty; run scripts/market/agri_import.py"],
             )
 
-        as_of = store.latest_date(
-            conn,
-            commodity_names=_source_names(snapshot_keys),
-            **geo,
-        ) or global_as_of
-
-        latest_rows = store.fetch_rows(
-            conn, commodity_names=_source_names(snapshot_keys), on_date=as_of, **geo,
+        latest_by_key = _latest_date_per_key(conn, snapshot_keys, **geo)
+        dated_keys = [day for day in latest_by_key.values() if day]
+        as_of = (
+            (latest_by_key.get(key) or global_as_of) if key
+            else (max(dated_keys) if dated_keys else global_as_of)
         )
-        anchor_map = store.anchor_dates(
+
+        latest_rows = _fetch_latest_rows(conn, latest_by_key, **geo)
+        anchor_map = _anchor_dates(
             conn,
-            {k: registry.source_names_for(k) for k in snapshot_keys},
-            as_of,
+            {k: day for k, day in latest_by_key.items() if day},
             aggregate.CHANGE_OFFSETS,
+            **geo,
         )
         anchor_dates_set = {d for per_key in anchor_map.values() for d in per_key.values() if d}
-        history_rows = store.fetch_rows(
-            conn, commodity_names=_source_names(snapshot_keys), on_dates=anchor_dates_set, **geo,
+        history_rows = _fetch_rows(
+            conn,
+            commodity_keys=[k for k, day in latest_by_key.items() if day],
+            on_dates=anchor_dates_set,
+            **geo,
         )
-        snapshot = aggregate.latest_snapshot(
-            latest_rows, history_rows, as_of=as_of, keys=snapshot_keys,
-        )
+        snapshot = _snapshot_rows(latest_rows, history_rows, latest_by_key, snapshot_keys)
 
         series: list[dict[str, Any]] = []
         quotes: list[dict[str, Any]] = []
+        quotes_total = 0
         kpis = empty_kpis
         selected_rows: list[dict[str, Any]] = []
         if key:
+            key_as_of = latest_by_key.get(key) or as_of
             # 6m changes must be available even when the chart range is 1m.
             lookback = (
                 None if range_name == "max"
                 else min(max(aggregate.CHANGE_OFFSETS[-1], aggregate.RANGE_DAYS[range_name] or 0), _HISTORY_LOOKBACK_DAYS)
             )
-            history_start = _shift(as_of, lookback or _HISTORY_LOOKBACK_DAYS)
+            history_start = _shift(key_as_of, lookback or _HISTORY_LOOKBACK_DAYS)
             start = min(from_day, history_start) if from_day else history_start
-            selected_rows = store.fetch_rows(
-                conn, commodity_names=_source_names([key]),
-                from_date=start, to_date=to_day or as_of, **geo,
+            selected_rows = _fetch_rows(
+                conn, commodity_keys=[key],
+                from_date=start, to_date=to_day or key_as_of, **geo,
             )
             daily = aggregate.aggregate_daily(selected_rows)
-            series = aggregate.filter_by_range(daily, as_of, range_name, from_day, to_day)
-            quotes = aggregate.selected_quotes(selected_rows, limit=limit)
-            kpis = Kpis(**aggregate.kpis_for(daily, as_of, key))
+            series = aggregate.filter_by_range(daily, key_as_of, range_name, from_day, to_day)
+            quotes, quotes_total = _selected_quotes(selected_rows, limit=limit)
+            kpis = Kpis(**aggregate.kpis_for(daily, key_as_of, key))
+            as_of = key_as_of
 
         comparison: list[dict[str, Any]] = []
         if compare_keys:
             by_key: dict[str, list[dict[str, Any]]] = {}
-            cutoff = aggregate.range_cutoff(as_of, range_name, from_day)
             for compare_key in compare_keys:
-                by_key[compare_key] = store.fetch_rows(
-                    conn, commodity_names=_source_names([compare_key]),
-                    from_date=cutoff, to_date=to_day or as_of, **geo,
+                compare_as_of = latest_by_key.get(compare_key)
+                if not compare_as_of:
+                    compare_as_of = _latest_date_per_key(conn, [compare_key], **geo).get(compare_key)
+                compare_as_of = compare_as_of or as_of
+                cutoff = aggregate.range_cutoff(compare_as_of, range_name, from_day)
+                by_key[compare_key] = _fetch_rows(
+                    conn, commodity_keys=[compare_key],
+                    from_date=cutoff, to_date=to_day or compare_as_of, **geo,
                 )
             comparison = aggregate.comparison_series(by_key, as_of, range_name, from_day, to_day)
 
         warning_rows = selected_rows if key else latest_rows + history_rows
         warnings = aggregate.collect_warnings(warning_rows, as_of, selected_key=key)
+        warnings.extend(_per_key_freshness_warnings(snapshot, as_of))
+        warnings = list(dict.fromkeys(warnings))
+
         response = PricesResponse(
             ok=True,
             as_of=as_of,
             freshness_days=aggregate.freshness_days(as_of),
-            data_source=_DATA_SOURCE_CKAN,
+            data_source=_data_source(selected_rows + latest_rows + history_rows),
             filters=filters,
             kpis=kpis,
             series=series,
             snapshot=snapshot,
             quotes=quotes,
+            quotes_total=quotes_total,
             comparison=comparison,
             warnings=warnings,
         )

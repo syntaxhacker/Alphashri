@@ -1,0 +1,397 @@
+name: Refresh agri mandi prices
+
+# Whole-date agri pull. The collector writes a compact JSONL delta; this job
+# validates/quarantines it, gzips it, writes a manifest, and uploads both to a
+# monthly data-YYYY-MM release. Local application is manual:
+# scripts/sync_refresh_assets.py.
+
+on:
+  schedule:
+    - cron: '30 2 * * *' # 08:00 IST, collect yesterday
+    - cron: '30 14 * * *' # 20:00 IST, catch up late publication
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Single date (DD/MM/YYYY, Asia/Kolkata). Takes precedence over the range.'
+        required: false
+        type: string
+      from_date:
+        description: 'Backfill first date (YYYY-MM-DD). Use with to_date.'
+        required: false
+        type: string
+      to_date:
+        description: 'Backfill last date (YYYY-MM-DD). Defaults to yesterday IST.'
+        required: false
+        type: string
+      allow_empty:
+        description: 'Allow a holiday/no-publication day to produce no asset.'
+        required: false
+        default: false
+        type: boolean
+      replace_date:
+        description: 'Refetch the date even when the local ledger says complete.'
+        required: false
+        default: true
+        type: boolean
+      dry_run:
+        description: 'Validate and package without uploading a release.'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-agri
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production
+    env:
+      PYTHONUNBUFFERED: '1'
+      PYTHONPATH: ${{ github.workspace }}/stock-screener-ui:${{ github.workspace }}
+      DATA_GOV_IN_API_KEY: ${{ secrets.DATA_GOV_IN_API_KEY }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Install agri dependencies
+        run: |
+          uv pip install --system --python 3.12 requests python-dotenv
+
+      - name: Resolve dates (Asia/Kolkata)
+        id: dates
+        env:
+          INPUT_DATE: ${{ inputs.date }}
+          INPUT_FROM_DATE: ${{ inputs.from_date }}
+          INPUT_TO_DATE: ${{ inputs.to_date }}
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          python - "$GITHUB_OUTPUT" <<'PY'
+          import os
+          import sys
+          from datetime import datetime, timedelta
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+
+          output_path = sys.argv[1]
+          ist = ZoneInfo("Asia/Kolkata")
+          yesterday = datetime.now(ist).date() - timedelta(days=1)
+
+          def parse(value, label):
+              text = str(value or "").strip()
+              for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
+                  try:
+                      return datetime.strptime(text, fmt).date()
+                  except ValueError:
+                      pass
+              raise SystemExit(f"{label} must be YYYY-MM-DD or DD/MM/YYYY: {text!r}")
+
+          one = os.getenv("INPUT_DATE", "").strip()
+          start_raw = os.getenv("INPUT_FROM_DATE", "").strip()
+          end_raw = os.getenv("INPUT_TO_DATE", "").strip()
+
+          if one:
+              dates = [parse(one, "date")]
+          elif start_raw or end_raw:
+              start = parse(start_raw, "from_date") if start_raw else parse(end_raw, "to_date")
+              end = parse(end_raw, "to_date") if end_raw else yesterday
+              if start > end:
+                  raise SystemExit(f"from_date {start} is after to_date {end}")
+              dates = [start + timedelta(days=offset) for offset in range((end - start).days + 1)]
+              dates.reverse()  # newest-first for backfill freshness
+          else:
+              dates = [yesterday]
+
+          if len(dates) > 31:
+              raise SystemExit(
+                  f"{len(dates)} dates requested; dispatch at most 31 days per run "
+                  "to stay inside the API quota"
+              )
+
+          Path("build/dates.txt").write_text(
+              "\n".join(item.isoformat() for item in dates) + "\n", encoding="utf-8"
+          )
+          with open(output_path, "a", encoding="utf-8") as out:
+              out.write(f"count={len(dates)}\n")
+          print("Dates: " + ", ".join(item.isoformat() for item in dates))
+          PY
+
+      - name: Collect and package agri deltas
+        env:
+          ALLOW_EMPTY: ${{ inputs.allow_empty || 'false' }}
+          REPLACE_DATE: ${{ inputs.replace_date }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/raw build/agri build/manifests
+          : > build/upload_files.txt
+
+          while IFS= read -r DATE; do
+            [ -n "$DATE" ] || continue
+            RAW="build/raw/${DATE}.jsonl"
+            ASSET="build/agri/${DATE}.jsonl.gz"
+            MANIFEST="build/manifests/agri-${DATE}.json"
+            DDMMYYYY=$(python -c 'import datetime,sys; print(datetime.date.fromisoformat(sys.argv[1]).strftime("%d/%m/%Y"))' "$DATE")
+
+            ARGS=(
+              --date "$DDMMYYYY"
+              --output-jsonl "$RAW"
+              --no-db
+            )
+            if [ "${REPLACE_DATE:-true}" = "true" ]; then
+              ARGS+=(--replace-date)
+            fi
+            if [ "${ALLOW_EMPTY}" = "true" ]; then
+              ARGS+=(--allow-empty)
+            fi
+            COLLECT_LOG="build/raw/${DATE}.collect.log"
+            python stock-screener-ui/scripts/market/agri_collect.py "${ARGS[@]}" | tee "$COLLECT_LOG"
+            STATUS=$(grep -oE '^(COMPLETE|PARTIAL|EMPTY|FAILED):' "$COLLECT_LOG" | head -1 | tr -d ':' || true)
+            case "$STATUS" in
+              COMPLETE)
+                ;;
+              EMPTY)
+                if [ "${ALLOW_EMPTY}" = "true" ]; then
+                  echo "No published rows for $DATE (allowed empty); skipping asset"
+                  continue
+                fi
+                echo "::error::$DATE is empty and allow_empty is false"
+                exit 1
+                ;;
+              *)
+                echo "::error::$DATE collection status ${STATUS:-UNKNOWN}; refusing to publish"
+                sed -n '1,40p' "$COLLECT_LOG"
+                exit 1
+                ;;
+            esac
+
+            if [ ! -s "$RAW" ]; then
+              if [ "${ALLOW_EMPTY}" = "true" ]; then
+                echo "No rows for $DATE (allowed empty date); skipping asset"
+                continue
+              fi
+              echo "::error::No rows for $DATE"
+              exit 1
+            fi
+
+            python - "$DATE" "$RAW" "$ASSET" "$MANIFEST" "build/upload_files.txt" "${ALLOW_EMPTY}" <<'PY'
+          import gzip
+          import hashlib
+          import json
+          import math
+          import sys
+          from datetime import datetime
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+
+          sys.path.insert(0, "stock-screener-ui")
+          from api.agri import registry  # noqa: E402
+
+          as_of, raw_path, asset_path, manifest_path, upload_list, allow_empty = sys.argv[1:7]
+          allow_empty = allow_empty == "true"
+
+          raws = []
+          with open(raw_path, encoding="utf-8") as handle:
+              for line_number, line in enumerate(handle, start=1):
+                  if not line.strip():
+                      continue
+                  try:
+                      row = json.loads(line)
+                  except json.JSONDecodeError as exc:
+                      raise SystemExit(f"{raw_path}:{line_number} is not JSON: {exc}")
+                  if not isinstance(row, dict):
+                      raise SystemExit(f"{raw_path}:{line_number} is not a JSON object")
+                  raws.append(row)
+
+          def parse_date(value):
+              if value is None:
+                  return None
+              text = str(value).strip()
+              for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+                  try:
+                      return datetime.strptime(text, fmt).date().isoformat()
+                  except ValueError:
+                      pass
+              return None
+
+          def as_float(value):
+              if value is None or value == "":
+                  return None
+              try:
+                  number = float(value)
+              except (TypeError, ValueError):
+                  return None
+              return number if math.isfinite(number) else None
+
+          kept = {}
+          quarantined = 0
+          duplicates = 0
+          ingested_at = datetime.now(ZoneInfo("Asia/Kolkata")).isoformat(timespec="seconds")
+          for row in raws:
+              row_date = parse_date(row.get("date") or row.get("arrival_date"))
+              if row_date is None or row_date != as_of:
+                  quarantined += 1
+                  continue
+
+              source_commodity = row.get("source_commodity") or row.get("commodity")
+              key = row.get("commodity_key") or registry.commodity_key_for(source_commodity)
+              if not key or key not in registry.valid_keys():
+                  quarantined += 1
+                  continue
+              row["date"] = as_of
+              row["commodity_key"] = key
+              if not row.get("commodity"):
+                  row["commodity"] = source_commodity or registry.label_for(key)
+              if not row.get("source_commodity"):
+                  row["source_commodity"] = row.get("commodity") or source_commodity
+              if not row.get("price_source"):
+                  row["price_source"] = row.get("source") or registry.SOURCE_DAILY
+              if not row.get("arrivals_source"):
+                  row["arrivals_source"] = (
+                      "daily" if row.get("arrivals_qtl") is not None else "none"
+                  )
+              if not row.get("ingested_at"):
+                  row["ingested_at"] = ingested_at
+
+              minimum = as_float(row.get("min_price"))
+              maximum = as_float(row.get("max_price"))
+              modal = as_float(row.get("modal_price", row.get("modal")))
+              if modal is None or modal <= 0:
+                  quarantined += 1
+                  continue
+              if not str(row.get("price_unit") or "").strip():
+                  quarantined += 1
+                  continue
+              row["min_price"], row["max_price"], row["modal_price"] = minimum, maximum, modal
+              present = [value for value in (minimum, modal, maximum) if value is not None]
+              if any(value <= 0 for value in present):
+                  quarantined += 1
+                  continue
+              if len(present) == 3 and not (minimum <= modal <= maximum):
+                  quarantined += 1
+                  continue
+
+              natural = (
+                  as_of,
+                  str(row.get("state") or ""),
+                  str(row.get("district") or ""),
+                  str(row.get("market") or ""),
+                  str(row.get("commodity") or ""),
+                  str(row.get("variety") or ""),
+                  str(row.get("grade") or ""),
+              )
+              if natural in kept:
+                  duplicates += 1
+              kept[natural] = row
+
+          rows = list(kept.values())
+          if not rows:
+              if allow_empty:
+                  print(f"{as_of}: all rows quarantined; allow_empty is set, skipping asset")
+                  raise SystemExit(0)
+              raise SystemExit(
+                  f"{as_of}: no usable rows after validation "
+                  f"({quarantined} quarantined, {duplicates} duplicates)"
+              )
+
+          payload = "".join(
+              json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n"
+              for row in rows
+          ).encode("utf-8")
+          compressed = gzip.compress(payload, mtime=0)
+          asset = Path(asset_path)
+          asset.parent.mkdir(parents=True, exist_ok=True)
+          asset.write_bytes(compressed)
+          sha = hashlib.sha256(compressed).hexdigest()
+
+          arrivals_present = any(
+              row.get("arrivals_qtl") is not None or row.get("arrivals") is not None
+              for row in rows
+          )
+          commodities = len({row["commodity_key"] for row in rows})
+          manifest = {
+              "kind": "agri",
+              "as_of": as_of,
+              "date": as_of,
+              "rows": len(rows),
+              "commodities": commodities,
+              "source": f"data.gov.in/{registry.DATA_GOV_IN_RESOURCE_ID}",
+              "arrivals_present": arrivals_present,
+              "sha256": sha,
+              "created_at": datetime.now(ZoneInfo("Asia/Kolkata")).isoformat(timespec="seconds"),
+              "status": "complete",
+              "quarantined": quarantined,
+              "duplicates": duplicates,
+          }
+          manifest_file = Path(manifest_path)
+          manifest_file.parent.mkdir(parents=True, exist_ok=True)
+          manifest_file.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+          with open(upload_list, "a", encoding="utf-8") as handle:
+              handle.write(f"{asset_path}\n{manifest_path}\n")
+          print(
+              f"{as_of}: {len(rows)} rows, {commodities} commodities, "
+              f"{quarantined} quarantined, {duplicates} duplicates, "
+              f"arrivals_present={arrivals_present}"
+          )
+          PY
+          done < build/dates.txt
+
+      - name: Upload to monthly data release
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
+        run: |
+          set -euo pipefail
+          if [ ! -s build/upload_files.txt ]; then
+            echo "Nothing to upload."
+            exit 0
+          fi
+
+          python - build/upload_files.txt <<'PY' > build/releases.tsv
+          import re
+          import sys
+          from collections import defaultdict
+
+          grouped = defaultdict(list)
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              for line in handle:
+                  path = line.strip()
+                  if not path:
+                      continue
+                  match = re.search(r"(\d{4}-\d{2}-\d{2})", path)
+                  if not match:
+                      raise SystemExit(f"Cannot derive a date from {path}")
+                  grouped[f"data-{match.group(1)[:7]}"].append(path)
+
+          for tag in sorted(grouped):
+              print(f"{tag}\t{' '.join(sorted(set(grouped[tag])))}")
+          PY
+
+          while IFS=$'\t' read -r TAG FILES; do
+            [ -n "$TAG" ] || continue
+            MONTH="${TAG#data-}"
+            if ! gh release view "$TAG" >/dev/null 2>&1; then
+              gh release create "$TAG" \
+                --title "Market data $MONTH" \
+                --notes "Automated daily refresh assets for $MONTH." \
+                --latest=false || true
+            fi
+            # shellcheck disable=SC2086
+            gh release upload "$TAG" $FILES --clobber
+            echo "Uploaded to $TAG: $FILES"
+          done < build/releases.tsv

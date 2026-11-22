@@ -26,6 +26,30 @@ DATA_GOV_IN_CURRENT_RESOURCE_ID: Final[str] = "9ef84268-d588-465a-a308-a864a43d0
 DATA_GOV_IN_RESOURCE_ID: Final[str] = "35985678-0d79-46b4-9ed6-6f13308a1d24"
 SOURCE_CKAN: Final[str] = "agmarknet_ckan"
 SOURCE_DAILY: Final[str] = "agmarknet_daily"
+SOURCE_MIXED: Final[str] = "mixed"
+
+_SOURCE_ALIASES: Final[dict[str, str]] = {
+    "agmarknet_ckan": SOURCE_CKAN,
+    "ckan": SOURCE_CKAN,
+    "ckan_seed": SOURCE_CKAN,
+    "seed": SOURCE_CKAN,
+    "agmarknet_daily": SOURCE_DAILY,
+    "daily": SOURCE_DAILY,
+    "data.gov.in": SOURCE_DAILY,
+    "data_gov_in": SOURCE_DAILY,
+    "official": SOURCE_DAILY,
+}
+
+# Variety text is the only product signal in the legacy cache; the newer rows
+# carry an explicit product_form column that always wins.
+_PRODUCT_FORM_RULES: Final[dict[str, tuple[tuple[tuple[str, ...], str], ...]]] = {
+    "chilli": ((("green",), "green"), (("dry",), "dry"), (("red",), "red")),
+    "coriander": ((("leave", "leaf"), "leaves"), (("seed",), "seed")),
+    "paddy": ((("basmati",), "basmati"), (("common",), "common")),
+    "rice": ((("broken",), "broken"), (("beaten",), "beaten")),
+    "groundnut": ((("pod",), "pods"), (("seed",), "seed")),
+    "mustard": ((("sarson",), "sarson"), (("toria",), "toria")),
+}
 
 
 @dataclass(frozen=True)
@@ -138,6 +162,32 @@ def msp_for(key: str) -> Optional[float]:
     return item.msp if item else None
 
 
+def normalise_price_source(value: Optional[str]) -> Optional[str]:
+    """Canonical price source for a row; unknown audit strings pass through."""
+    text = str(value or "").strip()
+    if not text:
+        return None
+    return _SOURCE_ALIASES.get(text.casefold(), text)
+
+
+def product_form_for(
+    key: Optional[str],
+    variety: Optional[str],
+    product_form: Optional[str] = None,
+) -> Optional[str]:
+    """Product stratum for a quote: explicit column first, else the variety."""
+    explicit = str(product_form or "").strip()
+    if explicit:
+        return explicit.casefold()
+    text = str(variety or "").strip().casefold()
+    if not text or not key:
+        return None
+    for tokens, form in _PRODUCT_FORM_RULES.get(key, ()):
+        if any(token in text for token in tokens):
+            return form
+    return None
+
+
 def keys_for_group(group: str) -> tuple[str, ...]:
     return tuple(c.key for c in COMMODITIES if c.group == group)
 
@@ -160,6 +210,7 @@ __all__ = [
     "PRICE_UNIT",
     "SOURCE_CKAN",
     "SOURCE_DAILY",
+    "SOURCE_MIXED",
     "Commodity",
     "commodities",
     "commodity",
@@ -170,6 +221,8 @@ __all__ = [
     "keys_for_group",
     "label_for",
     "msp_for",
+    "normalise_price_source",
+    "product_form_for",
     "source_names_for",
     "valid_keys",
 ]

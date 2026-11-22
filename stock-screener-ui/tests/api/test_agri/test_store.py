@@ -106,3 +106,172 @@ def test_cache_identity_changes_after_a_write(db_conn, tmp_path):
     assert after is not None
     assert after[0] == before[0]
     assert after != before
+
+
+_LEGACY_SCHEMA = f"""
+CREATE TABLE {store.TABLE} (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    date           DATE NOT NULL,
+    state          TEXT NOT NULL DEFAULT '',
+    district       TEXT NOT NULL DEFAULT '',
+    market         TEXT NOT NULL DEFAULT '',
+    commodity      TEXT NOT NULL,
+    commodity_key  TEXT NOT NULL,
+    variety        TEXT NOT NULL DEFAULT '',
+    grade          TEXT NOT NULL DEFAULT '',
+    min_price      FLOAT NULL,
+    max_price      FLOAT NULL,
+    modal_price    FLOAT NULL,
+    arrivals_qtl   FLOAT NULL,
+    price_unit     TEXT NOT NULL DEFAULT '',
+    source         TEXT NOT NULL DEFAULT '',
+    UNIQUE(date, state, district, market, commodity, variety, grade)
+);
+"""
+
+
+def test_additive_migration_keeps_existing_rows(tmp_path: Path):
+    path = tmp_path / "legacy.db"
+    legacy = sqlite3.connect(path)
+    legacy.executescript(_LEGACY_SCHEMA)
+    legacy.execute(
+        f"INSERT INTO {store.TABLE} (date, state, district, market, commodity, "
+        "commodity_key, variety, grade, modal_price, arrivals_qtl) "
+        "VALUES ('2026-05-31', 'Punjab', 'Bathinda', 'Bathinda APMC', "
+        "'Wheat', 'wheat', 'FAQ', 'FAQ', 2400, 90)"
+    )
+    legacy.commit()
+    legacy.close()
+
+    conn = store.open_writer(path)
+    try:
+        columns = {row[1] for row in conn.execute(f"PRAGMA table_info({store.TABLE})")}
+        assert {
+            "source_commodity", "product_form", "price_unit", "arrival_units",
+            "price_source", "arrivals_source", "ingested_at",
+        } <= columns
+        assert store.count_rows(conn) == 1
+        assert store.fetch_rows(conn)[0]["modal_price"] == 2400
+        ledger = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        assert store.LEDGER_TABLE in ledger
+    finally:
+        conn.close()
+
+
+def test_writer_enables_wal_and_busy_timeout(tmp_path: Path):
+    conn = store.open_writer(tmp_path / "wal.db")
+    try:
+        assert str(conn.execute("PRAGMA journal_mode").fetchone()[0]).lower() == "wal"
+        assert conn.execute("PRAGMA busy_timeout").fetchone()[0] >= 5000
+    finally:
+        conn.close()
+
+
+def test_daily_null_arrivals_do_not_overwrite_ckan_history(db_conn):
+    store.upsert_rows(db_conn, [{
+        **_row(),
+        "source": "agmarknet_ckan",
+        "source_commodity": "Onion",
+        "arrivals_qtl": 100.0,
+        "arrival_units": "Metric Tonnes",
+        "price_source": "agmarknet_ckan",
+        "arrivals_source": "ckan",
+        "ingested_at": "2026-05-31T10:00:00+05:30",
+    }])
+    store.upsert_rows(db_conn, [{
+        **_row(modal=130.0),
+        "source": "agmarknet_daily",
+        "source_commodity": "Onion",
+        "arrivals_qtl": None,
+        "arrival_units": "",
+        "price_source": "agmarknet_daily",
+        "arrivals_source": "none",
+        "ingested_at": "2026-06-01T10:00:00+05:30",
+    }])
+
+    row = store.fetch_rows(db_conn)[0]
+    assert row["modal_price"] == 130.0
+    assert row["arrivals_qtl"] == 100.0
+    assert row["arrival_units"] == "Metric Tonnes"
+    assert row["arrivals_source"] == "ckan"
+    assert row["price_source"] == "agmarknet_daily"
+    assert row["source"] == "agmarknet_daily"
+    assert row["source_commodity"] == "Onion"
+    assert row["ingested_at"] == "2026-06-01T10:00:00+05:30"
+
+
+def test_commodity_keys_filter_and_latest_date_per_key(db_conn):
+    store.upsert_rows(db_conn, [
+        _row("2026-05-30"),
+        _row("2026-05-31"),
+        {**_row("2026-05-29"), "commodity": "Potato", "commodity_key": "potato",
+         "market": "Pune APMC", "variety": "Local"},
+    ])
+
+    assert len(store.fetch_rows(db_conn, commodity_keys=["onion"])) == 2
+    assert len(store.fetch_rows(db_conn, commodity_keys=["potato"])) == 1
+    assert store.latest_date(db_conn, commodity_keys=["potato"]) == "2026-05-29"
+    assert store.latest_date_per_key(
+        db_conn, ["onion", "potato", "wheat"],
+    ) == {"onion": "2026-05-31", "potato": "2026-05-29", "wheat": None}
+    assert store.latest_date_per_key(
+        db_conn, ["onion", "potato"], districts=["Pune"],
+    ) == {"onion": "2026-05-31", "potato": "2026-05-29"}
+    assert store.latest_date_per_key(
+        db_conn, ["onion", "potato"], states=["Karnataka"],
+    ) == {"onion": None, "potato": None}
+
+
+def test_partition_ledger_only_complete_is_terminal(db_conn):
+    store.upsert_partition(
+        db_conn, source="agmarknet_daily", arrival_date="2026-11-21",
+        status="partial", expected_total=15843, fetched_rows=3942, pages=4,
+        api_updated_at="2026-11-22 05:12:00", run_id="r1",
+        started_at="2026-11-22T08:00:00+05:30",
+        finished_at="2026-11-22T08:01:00+05:30", error="rows_seen 3942 != api total 15843",
+    )
+    row = store.get_partition(db_conn, "agmarknet_daily", "2026-11-21")
+    assert row["status"] == "partial"
+    assert row["expected_total"] == 15843
+    assert row["fetched_rows"] == 3942
+    assert store.get_partition(db_conn, "agmarknet_daily", "2026-11-20") is None
+
+    store.upsert_partition(
+        db_conn, source="agmarknet_daily", arrival_date="2026-11-21",
+        status="complete", expected_total=15843, fetched_rows=15843, pages=16,
+        run_id="r2",
+    )
+    assert store.get_partition(db_conn, "agmarknet_daily", "2026-11-21")["status"] == "complete"
+    assert len(store.fetch_partitions(db_conn, statuses=["complete"])) == 1
+    assert store.fetch_partitions(db_conn, statuses=["partial"]) == []
+
+    with pytest.raises(ValueError):
+        store.upsert_partition(
+            db_conn, source="agmarknet_daily", arrival_date="2026-11-22",
+            status="finished",
+        )
+
+
+def test_open_reader_migrates_legacy_columns(tmp_path):
+    path = tmp_path / "legacy.db"
+    conn = sqlite3.connect(path)
+    conn.execute(
+        f"CREATE TABLE {store.TABLE} ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, date DATE NOT NULL, "
+        "state TEXT NOT NULL DEFAULT '', district TEXT NOT NULL DEFAULT '', "
+        "market TEXT NOT NULL DEFAULT '', commodity TEXT NOT NULL, "
+        "commodity_key TEXT NOT NULL, variety TEXT NOT NULL DEFAULT '', "
+        "grade TEXT NOT NULL DEFAULT '', min_price FLOAT, max_price FLOAT, "
+        "modal_price FLOAT, arrivals_qtl FLOAT, "
+        "price_unit TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT '', "
+        "UNIQUE(date, state, district, market, commodity, variety, grade))"
+    )
+    conn.commit()
+    conn.close()
+    store._MIGRATED_PATHS.clear()
+
+    reader = store.open_reader(path)
+    assert reader is not None
+    columns = {row[1] for row in reader.execute(f"PRAGMA table_info({store.TABLE})")}
+    assert {"source_commodity", "product_form", "arrival_units", "price_source"} <= columns
+    reader.close()
