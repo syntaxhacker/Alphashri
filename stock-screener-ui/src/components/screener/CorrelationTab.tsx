@@ -8,6 +8,7 @@ import {
   Select,
   Stack,
   ToolbarRow,
+  useDebouncedValue,
 } from "@/ui";
 import { IconAlertCircle, IconChartLine } from "./icons";
 import {
@@ -56,25 +57,13 @@ function firstParam(value: string | string[] | undefined): string | null {
   return raw ?? null;
 }
 
-// Inline Solid twin of useDebouncedValue (the ui-kit helper captures the
-// first value only, so the debounce never fires on later input).
-function useDebouncedSignal(getValue: () => string, wait: number) {
-  const [debounced, setDebounced] = createSignal(getValue());
-  createEffect(() => {
-    const value = getValue();
-    const timer = setTimeout(() => setDebounced(value), wait);
-    onCleanup(() => clearTimeout(timer));
-  });
-  return debounced;
-}
-
 export function CorrelationTab() {
   const store = useStoreSnapshot(subscribe, () => ({ symbols, timeframe, period, matrix, normalized, meta, isLoading, error }));
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [searchData, setSearchData] = createSignal<SymbolResult[]>([]);
   const [searchText, setSearchText] = createSignal("");
-  const debouncedSearch = useDebouncedSignal(searchText, 250);
+  const [debouncedSearch] = useDebouncedValue(searchText, 250);
   const [localSymbols, setLocalSymbols] = createSignal<string[]>(
     firstParam(searchParams.symbols)?.split(",").filter(Boolean) || symbols,
   );
