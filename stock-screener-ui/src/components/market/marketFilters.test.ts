@@ -10,16 +10,19 @@ import {
   countByCapTier,
   deepValuePresetActive,
   defaultMarketFilters,
+  DEFAULT_MARKET_SORT,
   DEEP_VALUE_PRESET,
   filterMarketRows,
   filterOnlyMarketRows,
   marketSectorOptions,
   marketSectors,
+  MOVER_PRESETS,
   resetUniverseSpecificFilters,
   sectorPercentiles,
   sortMarketRows,
   MARKET_SORT_OPTIONS,
   type MarketFilterState,
+  type MoverPreset,
 } from "./marketFilters";
 import type { MarketRow } from "../../types/marketScreener";
 import {
@@ -63,6 +66,16 @@ function row(symbol: string, overrides: Partial<MarketRow> = {}): MarketRow {
     operatingMargin: null,
     revYoy: null,
     epsYoy: null,
+    volume: null,
+    avgVolume: null,
+    gap: null,
+    atr: null,
+    high: null,
+    low: null,
+    valueTraded: null,
+    to52wHighPct: null,
+    from52wLowPct: null,
+    rangeVsAtr: null,
     fno: false,
     etf: false,
     ...overrides,
@@ -1031,5 +1044,248 @@ describe("sector percentile gates", () => {
     expect(symbols(filterOnlyMarketRows(rows, filters({ pePctMax: 0.85 })))).toEqual(
       symbols(tied),
     );
+  });
+});
+
+// The mover fields arrive with the parallel MarketRow extension; cast at the
+// fixture boundary so these tests pin the preset contract, not the cast.
+type MoverFields = {
+  gap: number | null;
+  rangeVsAtr: number | null;
+  to52wHighPct: number | null;
+  from52wLowPct: number | null;
+  volume: number | null;
+  valueTraded: number | null;
+};
+
+const moverRow = (
+  symbol: string,
+  overrides: Partial<MarketRow> & Partial<MoverFields> = {},
+): MarketRow =>
+  row(symbol, {
+    gap: null,
+    rangeVsAtr: null,
+    to52wHighPct: null,
+    from52wLowPct: null,
+    volume: null,
+    valueTraded: null,
+    ...overrides,
+  } as Partial<MarketRow>);
+
+const MOVER_ROWS: MarketRow[] = [
+  moverRow("WIN", {
+    change: 5, gap: 1, relativeVolume: 1, volume: 100, valueTraded: 1000,
+    to52wHighPct: -0.2, from52wLowPct: 60, rangeVsAtr: 0.5,
+  }),
+  moverRow("LOSE", {
+    change: -5, gap: -1, relativeVolume: 1, volume: 200, valueTraded: 2000,
+    to52wHighPct: -30, from52wLowPct: 20, rangeVsAtr: 0.6,
+  }),
+  moverRow("NEARHI", {
+    change: 0.5, gap: 0, relativeVolume: 1, volume: 300, valueTraded: 3000,
+    to52wHighPct: -2, from52wLowPct: 70, rangeVsAtr: 0.7,
+  }),
+  moverRow("NEARLO", {
+    change: 0.2, gap: 0, relativeVolume: 1, volume: 400, valueTraded: 4000,
+    to52wHighPct: -40, from52wLowPct: 2, rangeVsAtr: 0.8,
+  }),
+  moverRow("SURGE", {
+    change: 1, gap: 0.5, relativeVolume: 4, volume: 500, valueTraded: 5000,
+    to52wHighPct: -10, from52wLowPct: 30, rangeVsAtr: 0.9,
+  }),
+  moverRow("ACTIVE", {
+    change: 0.3, gap: 0.2, relativeVolume: 1, volume: 9000, valueTraded: 6000,
+    to52wHighPct: -15, from52wLowPct: 25, rangeVsAtr: 1,
+  }),
+  moverRow("TURNOV", {
+    change: 0.4, gap: 0.1, relativeVolume: 1, volume: 600, valueTraded: 99000,
+    to52wHighPct: -12, from52wLowPct: 28, rangeVsAtr: 1.1,
+  }),
+  moverRow("GAPUP", {
+    change: 2, gap: 4, relativeVolume: 1, volume: 700, valueTraded: 7000,
+    to52wHighPct: -8, from52wLowPct: 35, rangeVsAtr: 1.2,
+  }),
+  moverRow("GAPDN", {
+    change: -2, gap: -4, relativeVolume: 1, volume: 800, valueTraded: 8000,
+    to52wHighPct: -25, from52wLowPct: 10, rangeVsAtr: 1.3,
+  }),
+  moverRow("RANGE", {
+    change: 0.6, gap: 0, relativeVolume: 1, volume: 850, valueTraded: 8500,
+    to52wHighPct: -18, from52wLowPct: 22, rangeVsAtr: 5,
+  }),
+  moverRow("NULLS", {
+    change: null, gap: null, rangeVsAtr: null, to52wHighPct: null, from52wLowPct: null,
+    volume: null, valueTraded: null, relativeVolume: null,
+  }),
+];
+
+function applyPreset(preset: MoverPreset): MarketFilterState {
+  return filters({ ...preset.filters, sort: preset.sort });
+}
+
+const PRESET_SUBSETS: Record<string, string[]> = {
+  gainers: symbols(MOVER_ROWS),
+  losers: symbols(MOVER_ROWS),
+  nearHigh: ["NEARHI", "WIN"],
+  nearLow: ["NEARLO"],
+  volumeSurge: ["SURGE"],
+  mostActive: symbols(MOVER_ROWS),
+  turnover: symbols(MOVER_ROWS),
+  gapUp: ["GAPUP"],
+  gapDown: ["GAPDN"],
+  rangeExpansion: symbols(MOVER_ROWS),
+};
+
+describe("MOVER_PRESETS — dashboard.py thresholds", () => {
+  test("there is exactly one preset per dashboard mover id", () => {
+    expect(MOVER_PRESETS.map((p) => p.id)).toEqual([
+      "gainers",
+      "losers",
+      "nearHigh",
+      "nearLow",
+      "volumeSurge",
+      "mostActive",
+      "turnover",
+      "gapUp",
+      "gapDown",
+      "rangeExpansion",
+    ]);
+    for (const preset of MOVER_PRESETS) {
+      expect(preset.label.trim().length).toBeGreaterThan(3);
+      expect(preset.description.trim().length).toBeGreaterThan(10);
+    }
+  });
+
+  test("every threshold is copied verbatim from dashboard.py", () => {
+    expect(MOVER_PRESETS.map((p) => [p.id, p.filters, p.sort])).toEqual([
+      // dashboard.py sorts by change with no threshold — gainers/losers are
+      // pure top-N sorts, so the table's "+3 / -3" is deliberately NOT applied.
+      // Every preset carries the dashboard's default min_market_cap_cr = 500
+      // floor; without it the presets do not mirror the tab (gap>=3 matched 132
+      // rows across all 3,593 but only 9 with the floor).
+      ["gainers", { mcapMinCr: 500 }, "day_desc"],
+      ["losers", { mcapMinCr: 500 }, "day_asc"],
+      ["nearHigh", { mcapMinCr: 500, to52wHighMin: -5, to52wHighMax: 0.5 }, "to_52w_high_desc"],
+      ["nearLow", { mcapMinCr: 500, from52wLowMin: -0.5, from52wLowMax: 5 }, "from_52w_low_asc"],
+      ["volumeSurge", { mcapMinCr: 500, relVolMin: 3 }, "relvol_desc"],
+      ["mostActive", { mcapMinCr: 500 }, "volume_desc"],
+      ["turnover", { mcapMinCr: 500 }, "value_traded_desc"],
+      ["gapUp", { mcapMinCr: 500, gapMin: 3 }, "gap_desc"],
+      ["gapDown", { mcapMinCr: 500, gapMax: -3 }, "gap_asc"],
+      // dashboard.py includes every row with a usable ATR and sorts by
+      // range ÷ ATR — there is no ">= 2" gate to copy.
+      ["rangeExpansion", { mcapMinCr: 500 }, "range_vs_atr_desc"],
+    ]);
+    for (const preset of MOVER_PRESETS) {
+      expect(MARKET_SORT_OPTIONS.map((o) => o.value)).toContain(preset.sort);
+    }
+  });
+
+  test("each preset selects the expected row subset", () => {
+    for (const preset of MOVER_PRESETS) {
+      expect(symbols(filterOnlyMarketRows(MOVER_ROWS, applyPreset(preset)))).toEqual(
+        PRESET_SUBSETS[preset.id],
+      );
+    }
+  });
+
+  test("pure top-N sorts do not narrow the frame at all", () => {
+    // A "pure sort" now carries only the shared market-cap floor, which every
+    // fixture row clears — so it still must not narrow anything.
+    const pureSorts = MOVER_PRESETS.filter(
+      (p) => Object.keys(p.filters).every((k) => k === "mcapMinCr"),
+    );
+    expect(pureSorts.map((p) => p.id)).toEqual([
+      "gainers", "losers", "mostActive", "turnover", "rangeExpansion",
+    ]);
+    for (const preset of pureSorts) {
+      expect(filterOnlyMarketRows(MOVER_ROWS, applyPreset(preset))).toHaveLength(
+        MOVER_ROWS.length,
+      );
+      expect(preset.description.toLowerCase()).toContain("sort");
+    }
+  });
+
+  test("every preset sort actually reorders the frame", () => {
+    const expected: Record<string, string[]> = {
+      gainers: ["WIN", "GAPUP", "SURGE", "RANGE", "NEARHI", "TURNOV", "ACTIVE", "NEARLO", "GAPDN", "LOSE", "NULLS"],
+      losers: ["LOSE", "GAPDN", "NEARLO", "ACTIVE", "TURNOV", "NEARHI", "RANGE", "SURGE", "GAPUP", "WIN", "NULLS"],
+      nearHigh: ["WIN", "NEARHI"],
+      nearLow: ["NEARLO"],
+      volumeSurge: ["SURGE"],
+      mostActive: ["ACTIVE", "RANGE", "GAPDN", "GAPUP", "TURNOV", "SURGE", "NEARLO", "NEARHI", "LOSE", "WIN", "NULLS"],
+      turnover: ["TURNOV", "RANGE", "GAPDN", "GAPUP", "ACTIVE", "SURGE", "NEARLO", "NEARHI", "LOSE", "WIN", "NULLS"],
+      gapUp: ["GAPUP"],
+      gapDown: ["GAPDN"],
+      rangeExpansion: ["RANGE", "GAPDN", "GAPUP", "TURNOV", "ACTIVE", "SURGE", "NEARLO", "NEARHI", "LOSE", "WIN", "NULLS"],
+    };
+    for (const preset of MOVER_PRESETS) {
+      expect(filterMarketRows(MOVER_ROWS, applyPreset(preset)).map((r) => r.symbol)).toEqual(
+        expected[preset.id],
+      );
+    }
+  });
+});
+
+const MOVER_FIELD_KEYS = [
+  "gapMin", "gapMax", "rangeVsAtrMin",
+  "to52wHighMin", "to52wHighMax",
+  "from52wLowMin", "from52wLowMax",
+  "volumeMin", "valueTradedMin",
+] as const;
+
+describe("mover filter state — defaults, chips and nulls", () => {
+  test("every mover bound is null by default and does not narrow the frame", () => {
+    const defaults = defaultMarketFilters();
+    for (const key of MOVER_FIELD_KEYS) expect(defaults[key]).toBeNull();
+    expect(filterOnlyMarketRows(MOVER_ROWS, defaults)).toHaveLength(MOVER_ROWS.length);
+    expect(buildMarketFilterChips(defaults)).toEqual([]);
+  });
+
+  test("a null row value is excluded whenever its preset bound is active", () => {
+    const blank = [moverRow("BLANK")];
+    const active: Partial<MarketFilterState>[] = [
+      { gapMin: 3 }, { gapMax: -3 }, { rangeVsAtrMin: 2 },
+      { to52wHighMin: -5, to52wHighMax: 0.5 },
+      { from52wLowMin: -0.5, from52wLowMax: 5 },
+      { volumeMin: 100 }, { valueTradedMin: 100 },
+    ];
+    for (const patch of active) {
+      expect(filterOnlyMarketRows(blank, filters(patch))).toEqual([]);
+      expect(filterOnlyMarketRows(blank, filters())).toHaveLength(1);
+    }
+  });
+
+  test("each preset emits one removable chip that clears its filters and sort", () => {
+    for (const preset of MOVER_PRESETS) {
+      const f = applyPreset(preset);
+      const key = `mover:${preset.id}`;
+      const chips = buildMarketFilterChips(f);
+      const chip = chips.find((c) => c.key === key);
+      expect(chip?.label).toBe(`${preset.label} preset`);
+
+      const cleared = clearMarketFilterChip(f, key);
+      for (const field of Object.keys(preset.filters) as (keyof MarketFilterState)[]) {
+        expect(cleared[field]).toBeNull();
+      }
+      expect(cleared.sort).toBe(DEFAULT_MARKET_SORT);
+      expect(buildMarketFilterChips(cleared).some((c) => c.key === key)).toBe(false);
+      expect(filterOnlyMarketRows(MOVER_ROWS, cleared)).toHaveLength(MOVER_ROWS.length);
+    }
+  });
+
+  test("new bound keys build chips and are cleared by their own key", () => {
+    const f = filters({
+      gapMin: 3, gapMax: 8, rangeVsAtrMin: 2,
+      to52wHighMin: -5, to52wHighMax: 0.5,
+      from52wLowMin: -0.5, from52wLowMax: 5,
+      volumeMin: 1000, valueTradedMin: 5000,
+    });
+    const keys = buildMarketFilterChips(f).map((c) => c.key);
+    for (const key of ["gap", "rangeVsAtr", "to52wHigh", "from52wLow", "volume", "valueTraded"]) {
+      expect(keys).toContain(key);
+      const cleared = clearMarketFilterChip(f, key);
+      expect(buildMarketFilterChips(cleared).map((c) => c.key)).not.toContain(key);
+    }
   });
 });

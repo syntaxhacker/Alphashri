@@ -170,6 +170,16 @@ interface RawMarketRow {
   operating_margin?: unknown;
   rev_yoy?: unknown;
   eps_yoy?: unknown;
+  volume?: unknown;
+  avg_volume?: unknown;
+  gap?: unknown;
+  atr?: unknown;
+  high?: unknown;
+  low?: unknown;
+  value_traded?: unknown;
+  to_52w_high_pct?: unknown;
+  from_52w_low_pct?: unknown;
+  range_vs_atr?: unknown;
   fno?: unknown;
   etf?: unknown;
 }
@@ -238,6 +248,16 @@ export function mapMarketRow(raw: RawMarketRow | null | undefined): MarketRow {
     operatingMargin: finiteNumber(r.operating_margin),
     revYoy: finiteNumber(r.rev_yoy),
     epsYoy: finiteNumber(r.eps_yoy),
+    volume: finiteNumber(r.volume),
+    avgVolume: finiteNumber(r.avg_volume),
+    gap: finiteNumber(r.gap),
+    atr: finiteNumber(r.atr),
+    high: finiteNumber(r.high),
+    low: finiteNumber(r.low),
+    valueTraded: finiteNumber(r.value_traded),
+    to52wHighPct: finiteNumber(r.to_52w_high_pct),
+    from52wLowPct: finiteNumber(r.from_52w_low_pct),
+    rangeVsAtr: finiteNumber(r.range_vs_atr),
     fno: toBool(r.fno),
     etf: toBool(r.etf),
   };

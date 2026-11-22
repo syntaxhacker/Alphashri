@@ -67,6 +67,23 @@ export interface MarketRow {
   epsYoy: number | null;
   fno: boolean;
   etf: boolean;
+  /* Liquidity + mover inputs — the same scan, so the Movers cards' maths is
+     computable on this row without a second fetch. */
+  volume: number | null;
+  avgVolume: number | null;
+  /** Overnight gap in percent: (open − prevClose) / prevClose × 100. */
+  gap: number | null;
+  atr: number | null;
+  high: number | null;
+  low: number | null;
+  /** Traded value in the quote currency (TradingView `Value.Traded`). */
+  valueTraded: number | null;
+  /* Derived server-side so the client never divides two nullable operands.
+     Signed to match the Movers dashboard: at/below the 52W high is ≤ 0,
+     at/above the 52W low is ≥ 0, and range÷ATR is only defined for atr > 0. */
+  to52wHighPct: number | null;
+  from52wLowPct: number | null;
+  rangeVsAtr: number | null;
 }
 
 export interface MarketSnapshot {

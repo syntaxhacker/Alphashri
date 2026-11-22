@@ -374,3 +374,50 @@ describe("sector-percentile filter persistence", () => {
     }
   });
 });
+
+describe("mover preset persistence", () => {
+  const BOUNDS = {
+    gapMin: 3,
+    gapMax: 12,
+    rangeVsAtrMin: 1.5,
+    to52wHighMin: -10,
+    to52wHighMax: 0.5,
+    from52wLowMin: 2,
+    from52wLowMax: 25,
+    volumeMin: 100_000,
+    valueTradedMin: 50_000_000,
+  } as const;
+  const keys = Object.keys(BOUNDS) as (keyof typeof BOUNDS)[];
+
+  test("a saved mover preset survives serialize -> parse with every bound intact", () => {
+    const value = defaultMarketConfig();
+    value.filters = { ...value.filters, ...BOUNDS };
+
+    const wire = JSON.parse(JSON.stringify(serializeMarketConfig(value)));
+    for (const key of keys) {
+      expect(wire[key], `${key} missing from the wire payload`).toBe(BOUNDS[key]);
+    }
+
+    const parsed = parseMarketConfig(wire)!;
+    for (const key of keys) {
+      expect(parsed.filters[key], `${key} lost on parse`).toBe(BOUNDS[key]);
+    }
+  });
+
+  test("out-of-band mover bounds read as unset instead of poisoning the preset", () => {
+    const parsed = parseMarketConfig(
+      payload({
+        gapMin: 2000,
+        rangeVsAtrMin: -5,
+        to52wHighMax: 0.5,
+        volumeMin: -1,
+        valueTradedMin: 1e20,
+      }),
+    )!;
+    expect(parsed.filters.gapMin).toBeNull();
+    expect(parsed.filters.rangeVsAtrMin).toBeNull();
+    expect(parsed.filters.volumeMin).toBeNull();
+    expect(parsed.filters.valueTradedMin).toBeNull();
+    expect(parsed.filters.to52wHighMax).toBe(0.5);
+  });
+});

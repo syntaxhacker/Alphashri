@@ -18,7 +18,14 @@ export type MarketSortKey =
   | "perf_1m_desc"
   | "perf_w_desc"
   | "pos_52w_desc"
-  | "symbol_asc";
+  | "symbol_asc"
+  | "volume_desc"
+  | "value_traded_desc"
+  | "range_vs_atr_desc"
+  | "gap_desc"
+  | "gap_asc"
+  | "to_52w_high_desc"
+  | "from_52w_low_asc";
 
 export const DEFAULT_MARKET_SORT: MarketSortKey = "mcap_desc";
 
@@ -32,6 +39,13 @@ export const MARKET_SORT_OPTIONS: { value: MarketSortKey; label: string }[] = [
   { value: "perf_w_desc", label: "1W % ↓" },
   { value: "pos_52w_desc", label: "52W Position ↓" },
   { value: "symbol_asc", label: "Symbol A–Z" },
+  { value: "volume_desc", label: "Volume ↓" },
+  { value: "value_traded_desc", label: "Value Traded ↓" },
+  { value: "range_vs_atr_desc", label: "Range ÷ ATR ↓" },
+  { value: "gap_desc", label: "Gap % ↓" },
+  { value: "gap_asc", label: "Gap % ↑" },
+  { value: "to_52w_high_desc", label: "To 52W High ↓" },
+  { value: "from_52w_low_asc", label: "From 52W Low ↑" },
 ];
 
 /** Derived from the descriptor registries — never a second hand-maintained list. */
@@ -56,6 +70,16 @@ export interface MarketFilterState {
   rsiMax: number | null;
   relVolMin: number | null;
   relVolMax: number | null;
+  /** Mover bounds mirrored from api/screener_api/dashboard.py. null = off. */
+  gapMin: number | null;
+  gapMax: number | null;
+  rangeVsAtrMin: number | null;
+  to52wHighMin: number | null;
+  to52wHighMax: number | null;
+  from52wLowMin: number | null;
+  from52wLowMax: number | null;
+  volumeMin: number | null;
+  valueTradedMin: number | null;
   /** Value/fundamental bounds. Ratios and percentages are unit-neutral. */
   peMax: number | null;
   psMax: number | null;
@@ -102,6 +126,15 @@ export function defaultMarketFilters(
     rsiMax: null,
     relVolMin: null,
     relVolMax: null,
+    gapMin: null,
+    gapMax: null,
+    rangeVsAtrMin: null,
+    to52wHighMin: null,
+    to52wHighMax: null,
+    from52wLowMin: null,
+    from52wLowMax: null,
+    volumeMin: null,
+    valueTradedMin: null,
     peMax: null,
     psMax: null,
     pbMax: null,
@@ -126,14 +159,14 @@ export function defaultMarketFilters(
 const has = (v: number | null | undefined): v is number => v != null && Number.isFinite(v);
 
 function inRange(
-  value: number | null,
+  value: number | null | undefined,
   min: number | null | undefined,
   max: number | null | undefined,
 ): boolean {
   const lo = has(min) ? min : null;
   const hi = has(max) ? max : null;
   if (lo === null && hi === null) return true;
-  if (value === null) return false;
+  if (value == null) return false;
   if (lo !== null && value < lo) return false;
   if (hi !== null && value > hi) return false;
   return true;
@@ -279,6 +312,15 @@ const SORT_COMPARATORS: Record<MarketSortKey, (a: MarketRow, b: MarketRow) => nu
   perf_w_desc: (a, b) => (b.perfW ?? -Infinity) - (a.perfW ?? -Infinity),
   pos_52w_desc: (a, b) => (b.pos52w ?? -Infinity) - (a.pos52w ?? -Infinity),
   symbol_asc: (a, b) => a.symbol.localeCompare(b.symbol),
+  volume_desc: (a, b) => (b.volume ?? -Infinity) - (a.volume ?? -Infinity),
+  value_traded_desc: (a, b) => (b.valueTraded ?? -Infinity) - (a.valueTraded ?? -Infinity),
+  range_vs_atr_desc: (a, b) => (b.rangeVsAtr ?? -Infinity) - (a.rangeVsAtr ?? -Infinity),
+  gap_desc: (a, b) => (b.gap ?? -Infinity) - (a.gap ?? -Infinity),
+  gap_asc: (a, b) => (a.gap ?? Infinity) - (b.gap ?? Infinity),
+  to_52w_high_desc: (a, b) =>
+    (b.to52wHighPct ?? -Infinity) - (a.to52wHighPct ?? -Infinity),
+  from_52w_low_asc: (a, b) =>
+    (a.from52wLowPct ?? Infinity) - (b.from52wLowPct ?? Infinity),
 };
 
 export function sortMarketRows(rows: MarketRow[], sort: MarketSortKey): MarketRow[] {
@@ -332,6 +374,12 @@ export function filterOnlyMarketRows(
     if (!inRange(marketCapOf(row), filters.mcapMinCr, filters.mcapMaxCr)) return false;
     if (!inRange(row.rsi, filters.rsiMin, filters.rsiMax)) return false;
     if (!inRange(row.relativeVolume, filters.relVolMin, filters.relVolMax)) return false;
+    if (!inRange(row.gap, filters.gapMin, filters.gapMax)) return false;
+    if (!inRange(row.rangeVsAtr, filters.rangeVsAtrMin, null)) return false;
+    if (!inRange(row.to52wHighPct, filters.to52wHighMin, filters.to52wHighMax)) return false;
+    if (!inRange(row.from52wLowPct, filters.from52wLowMin, filters.from52wLowMax)) return false;
+    if (!inRange(row.volume, filters.volumeMin, null)) return false;
+    if (!inRange(row.valueTraded, filters.valueTradedMin, null)) return false;
     if (!inRange(row.peRatio, null, filters.peMax)) return false;
     if (!inRange(row.psRatio, null, filters.psMax)) return false;
     if (!inRange(row.pbRatio, null, filters.pbMax)) return false;
@@ -409,6 +457,17 @@ export function resetUniverseSpecificFilters(
     rsiMax: filters.rsiMax,
     relVolMin: filters.relVolMin,
     relVolMax: filters.relVolMax,
+    // Mover bounds describe percentages, counts and multiples; the traded value
+    // is read from the row's own currency, so none of them is universe-bound.
+    gapMin: filters.gapMin,
+    gapMax: filters.gapMax,
+    rangeVsAtrMin: filters.rangeVsAtrMin,
+    to52wHighMin: filters.to52wHighMin,
+    to52wHighMax: filters.to52wHighMax,
+    from52wLowMin: filters.from52wLowMin,
+    from52wLowMax: filters.from52wLowMax,
+    volumeMin: filters.volumeMin,
+    valueTradedMin: filters.valueTradedMin,
     // Ratios and growth rates carry no currency/cap unit, so a universe switch
     // must not silently drop them.
     peMax: filters.peMax,
@@ -544,8 +603,126 @@ export function deepValuePresetActive(filters: MarketFilterState): boolean {
 }
 
 /**
+ * A descriptor is filters + sort: applying one click must be able to replace
+ * the current ordering as well as the bounds (Most Active / Top Turnover are
+ * only sorts in dashboard.py).
+ */
+export interface MoverPreset {
+  id: string;
+  label: string;
+  description: string;
+  filters: Partial<MarketFilterState>;
+  sort: MarketSortKey;
+}
+
+/**
+ * The Movers dashboard defaults to `min_market_cap_cr = 500`, so its boards
+ * never show nano-caps. Without the same floor a preset is not a mirror of the
+ * tab: measured on the live NSE frame, `gap >= 3` matches 132 rows across all
+ * 3,593 but only 9 once the ₹500 Cr floor applies — the other 123 are ₹346-491 Cr
+ * micro-caps. Every mover preset therefore carries this floor.
+ */
+export const MOVER_MIN_MCAP_CR = 500;
+
+/**
+ * Verbatim mirrors of the ten panels in api/screener_api/dashboard.py.
+ * Gainers, Losers, Most Active, Top Turnover and Range Expansion have no
+ * numeric gate there — they are pure top-N sorts, so their filter patch is
+ * empty and the description says so. All ten still carry the dashboard's
+ * ₹500 Cr market-cap floor via `filters.mcapMinCr`.
+ */
+export const MOVER_PRESETS: readonly MoverPreset[] = [
+  {
+    id: "gainers",
+    label: "Top Gainers",
+    description: "Pure top-N sort by day change — no threshold; every row is ranked highest first.",
+    filters: { mcapMinCr: MOVER_MIN_MCAP_CR },
+    sort: "day_desc",
+  },
+  {
+    id: "losers",
+    label: "Top Losers",
+    description: "Pure top-N sort by day change — no threshold; every row is ranked lowest first.",
+    filters: { mcapMinCr: MOVER_MIN_MCAP_CR },
+    sort: "day_asc",
+  },
+  {
+    id: "nearHigh",
+    label: "Near 52W High",
+    description: "Within -5% to +0.5% of the 52-week high, nearest to the high first.",
+    filters: { mcapMinCr: MOVER_MIN_MCAP_CR, to52wHighMin: -5, to52wHighMax: 0.5 },
+    sort: "to_52w_high_desc",
+  },
+  {
+    id: "nearLow",
+    label: "Near 52W Low",
+    description: "Within -0.5% to +5% of the 52-week low, nearest to the low first.",
+    filters: { mcapMinCr: MOVER_MIN_MCAP_CR, from52wLowMin: -0.5, from52wLowMax: 5 },
+    sort: "from_52w_low_asc",
+  },
+  {
+    id: "volumeSurge",
+    label: "Volume Surge",
+    description: "Relative volume >= 3x, highest relative volume first.",
+    filters: { mcapMinCr: MOVER_MIN_MCAP_CR, relVolMin: 3 },
+    sort: "relvol_desc",
+  },
+  {
+    id: "mostActive",
+    label: "Most Active",
+    description: "Pure top-N sort by volume — no threshold; every row is ranked by volume descending.",
+    filters: { mcapMinCr: MOVER_MIN_MCAP_CR },
+    sort: "volume_desc",
+  },
+  {
+    id: "turnover",
+    label: "Top Turnover",
+    description: "Pure top-N sort by value traded — no threshold; every row is ranked by turnover descending.",
+    filters: { mcapMinCr: MOVER_MIN_MCAP_CR },
+    sort: "value_traded_desc",
+  },
+  {
+    id: "gapUp",
+    label: "Gap Up",
+    description: "Gap at open >= +3%, largest gap first.",
+    filters: { mcapMinCr: MOVER_MIN_MCAP_CR, gapMin: 3 },
+    sort: "gap_desc",
+  },
+  {
+    id: "gapDown",
+    label: "Gap Down",
+    description: "Gap at open <= -3%, largest down-gap first.",
+    filters: { mcapMinCr: MOVER_MIN_MCAP_CR, gapMax: -3 },
+    sort: "gap_asc",
+  },
+  {
+    id: "rangeExpansion",
+    label: "Range Expansion",
+    description: "Pure top-N sort by range ÷ ATR — no threshold; dashboard.py keeps every row with a usable ATR.",
+    filters: { mcapMinCr: MOVER_MIN_MCAP_CR },
+    sort: "range_vs_atr_desc",
+  },
+];
+
+function patchActive(filters: MarketFilterState, patch: Partial<MarketFilterState>): boolean {
+  for (const [key, value] of Object.entries(patch)) {
+    if ((filters as unknown as Record<string, unknown>)[key] !== value) return false;
+  }
+  return true;
+}
+
+/** The mover preset whose bounds AND sort are currently applied, if any. */
+export function activeMoverPreset(filters: MarketFilterState): MoverPreset | null {
+  for (const preset of MOVER_PRESETS) {
+    if (filters.sort === preset.sort && patchActive(filters, preset.filters)) return preset;
+  }
+  return null;
+}
+
+/**
  * Removable chips for the active filters. Sort is a view control, not a
- * filter, so it is deliberately excluded.
+ * filter, so it is deliberately excluded — except as part of a mover preset,
+ * whose single chip owns both the bounds and the ordering it replaced.
  */
 export function buildMarketFilterChips(
   filters: MarketFilterState,
@@ -580,6 +757,12 @@ export function buildMarketFilterChips(
   );
   push(rangeChip("rsi", "RSI", filters.rsiMin, filters.rsiMax, ""));
   push(rangeChip("relvol", "RelVol", filters.relVolMin, filters.relVolMax, ""));
+  push(rangeChip("gap", "Gap", filters.gapMin, filters.gapMax, "%"));
+  push(boundChip("rangeVsAtr", "Range ÷ ATR", filters.rangeVsAtrMin, "min", "x"));
+  push(rangeChip("to52wHigh", "To 52W high", filters.to52wHighMin, filters.to52wHighMax, "%"));
+  push(rangeChip("from52wLow", "From 52W low", filters.from52wLowMin, filters.from52wLowMax, "%"));
+  push(boundChip("volume", "Volume", filters.volumeMin, "min"));
+  push(boundChip("valueTraded", "Value traded", filters.valueTradedMin, "min"));
   push(boundChip("pe", "P/E", filters.peMax, "max"));
   push(boundChip("ps", "P/S", filters.psMax, "max"));
   push(boundChip("pb", "P/B", filters.pbMax, "max"));
@@ -608,6 +791,9 @@ export function buildMarketFilterChips(
     chips.push({ key: `sector:${sector}`, label: `Sector: ${sector}` });
   }
 
+  const mover = activeMoverPreset(filters);
+  if (mover) chips.push({ key: `mover:${mover.id}`, label: `${mover.label} preset` });
+
   return chips;
 }
 
@@ -634,6 +820,17 @@ export function clearMarketFilterChip(
     next.delete(tier);
     return { ...filters, capTiers: next };
   }
+  if (key.startsWith("mover:")) {
+    const preset = MOVER_PRESETS.find((p) => `mover:${p.id}` === key);
+    if (!preset) return filters;
+    return {
+      ...filters,
+      ...(Object.fromEntries(
+        Object.keys(preset.filters).map((field) => [field, null]),
+      ) as Partial<MarketFilterState>),
+      sort: DEFAULT_MARKET_SORT,
+    };
+  }
   switch (key) {
     case "price":
       return { ...filters, priceMin: null, priceMax: null };
@@ -645,6 +842,18 @@ export function clearMarketFilterChip(
       return { ...filters, rsiMin: null, rsiMax: null };
     case "relvol":
       return { ...filters, relVolMin: null, relVolMax: null };
+    case "gap":
+      return { ...filters, gapMin: null, gapMax: null };
+    case "rangeVsAtr":
+      return { ...filters, rangeVsAtrMin: null };
+    case "to52wHigh":
+      return { ...filters, to52wHighMin: null, to52wHighMax: null };
+    case "from52wLow":
+      return { ...filters, from52wLowMin: null, from52wLowMax: null };
+    case "volume":
+      return { ...filters, volumeMin: null };
+    case "valueTraded":
+      return { ...filters, valueTradedMin: null };
     case "pe":
       return { ...filters, peMax: null };
     case "ps":

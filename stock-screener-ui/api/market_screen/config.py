@@ -48,6 +48,15 @@ COLUMNS = [
     "operating_margin_ttm",
     "total_revenue_yoy_growth_ttm",
     "earnings_per_share_diluted_yoy_growth_ttm",
+    # Mover-preset inputs ride along so one scan serves both the table and the
+    # Movers dashboard (which otherwise needs a second TradingView scan).
+    "volume",
+    "average_volume_10d_calc",
+    "gap",
+    "ATR",
+    "high",
+    "low",
+    "Value.Traded",
     "update_mode",
 ]
 
