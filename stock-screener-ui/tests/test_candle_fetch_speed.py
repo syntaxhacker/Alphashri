@@ -13,6 +13,7 @@ pin the two optimizations that keep the cold path cheap:
 import json
 import sys
 import time
+from datetime import date as _date
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -29,6 +30,36 @@ from market_data import market_data as market_data_mod
 from market_data.market_data import fetch_candles_for_timeframe
 
 IST = config.IST
+
+# A known weekday session: the "official frame lags by one session" fixtures
+# below are built around this day, so the wall clock must never decide whether
+# a frame/tape counts as current (weekends remap "today" to Friday).
+FROZEN_TODAY = "2026-09-11"
+
+
+def _frozen_now_ist() -> datetime:
+    d = _date.fromisoformat(FROZEN_TODAY)
+    # Return the subclass instance so production's
+    # ``isinstance(now, datetime)`` checks still hold when datetime is patched.
+    return _FrozenDatetime(d.year, d.month, d.day, 10, 0, tzinfo=IST)
+
+
+class _FrozenDatetime(datetime):
+    @classmethod
+    def now(cls, tz=None):
+        return _frozen_now_ist().astimezone(tz) if tz is not None else _frozen_now_ist()
+
+
+@pytest.fixture(autouse=True)
+def _pin_session_clock(monkeypatch):
+    """Freeze both clock readers used by the 1D live edge to a trading session."""
+    frozen = _frozen_now_ist()
+    monkeypatch.setattr(candles_mod, "_now_ist", lambda: frozen)
+    monkeypatch.setattr(candles_mod, "_is_trading_day", lambda d: d.weekday() < 5)
+    # Keep candles' `to_date` in step with market_data's "today" so the live
+    # edge is exercised against the frozen session, not the wall clock.
+    monkeypatch.setattr(candles_mod, "datetime", _FrozenDatetime)
+    monkeypatch.setattr(market_data_mod, "datetime", _FrozenDatetime)
 
 
 def _sane_frame(index: pd.DatetimeIndex, base: float = 100.0) -> pd.DataFrame:
@@ -171,7 +202,7 @@ class TestLiveEdgeFetchesMinimalTape:
         """With a real gap, the backfill closes it up to the last session."""
         last_done = candles_mod._last_completed_session()
         last_done_str = last_done.isoformat()
-        today_str = datetime.now(IST).strftime("%Y-%m-%d")
+        today_str = _frozen_now_ist().strftime("%Y-%m-%d")
         prev_biz = (pd.bdate_range(end=last_done_str, periods=3)[0]
                     .date().isoformat())
         history = _daily_history(last_done_str)
@@ -195,7 +226,7 @@ class TestLiveEdgeFetchesMinimalTape:
 
     def test_today_rows_reused_from_backfill_tape(self):
         """The opt-in today bar needs no second fetch when the tape has it."""
-        today = datetime.now(IST).strftime("%Y-%m-%d")
+        today = _frozen_now_ist().strftime("%Y-%m-%d")
         last_done = candles_mod._last_completed_session().isoformat()
         history = _daily_history(last_done)
         tape_hist = _session_tape_1m(last_done, base=200.0)

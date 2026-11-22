@@ -6,7 +6,8 @@ from api.reports_api import nifty
 def test_market_block_shape_when_open(monkeypatch):
     import trading.utils as tu
 
-    monkeypatch.setattr(tu, "is_market_open", lambda: True)
+    # market_block() gates on derivatives-open (09:15-15:40), not equity-open.
+    monkeypatch.setattr(tu, "is_derivatives_open", lambda: True)
     out = nifty.market_block()
     assert set(out) == {"is_open", "session_date", "as_of"}
     assert out["is_open"] is True
@@ -16,7 +17,7 @@ def test_market_block_shape_when_open(monkeypatch):
 def test_market_block_false_when_closed(monkeypatch):
     import trading.utils as tu
 
-    monkeypatch.setattr(tu, "is_market_open", lambda: False)
+    monkeypatch.setattr(tu, "is_derivatives_open", lambda: False)
     assert nifty.market_block()["is_open"] is False
 
 
@@ -26,5 +27,5 @@ def test_market_block_degrades_to_closed_on_error(monkeypatch):
     def boom():
         raise RuntimeError("no calendar")
 
-    monkeypatch.setattr(tu, "is_market_open", boom)
+    monkeypatch.setattr(tu, "is_derivatives_open", boom)
     assert nifty.market_block()["is_open"] is False
