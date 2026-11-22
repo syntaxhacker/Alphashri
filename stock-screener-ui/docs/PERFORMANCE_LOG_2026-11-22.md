@@ -36,6 +36,19 @@ unmeasured work is marked **in progress**.
   **18 → 0**. 62 targeted tests pass.
 - **ITM PE report panel:** content-signature memos stop one full ECharts
   `setOption(notMerge)+resize` per identical live frame; 12 tests pass.
+- **Market map:** one filtered row set reused for counts/rendering instead of
+  repeated passes; 11 heatmap performance tests pass.
+- **Report endpoints:** profitability/options-report read paths de-duplicated;
+  61 targeted tests pass.
+
+## Final state at 19:12 IST
+
+- Worktree clean except untracked `plan.md`.
+- Release assets: 6 monthly tags, 342 assets, dry-run + local apply verified.
+- Four app-wide lanes completed; no new full-suite run.
+- PR #235 remains blocked only by GitGuardian’s historical `qa123` finding;
+  clearing it requires a feature-branch history rewrite or dashboard ignore,
+  both deliberately left for explicit approval.
 - **Low-quality tests:** 2 genuinely dead tests removed; 41 stale tests fixed.
 - **Test budgets:** `perf/budgets.json`, pytest/Vitest timing artifacts,
   warning-only check; `AGENTS.md` last checked **2026-11-22**, next **2026-11-29**.
