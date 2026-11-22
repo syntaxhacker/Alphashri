@@ -58,7 +58,8 @@ class TestOpenRouterClient:
         assert _extract_json_object(f"Here you go:\n{raw}\nDone") == expected
         assert _extract_json_object("not json") is None
 
-    def test_falls_back_to_ernie_when_primary_is_rate_limited(self):
+    def test_falls_back_to_ernie_when_primary_is_rate_limited(self, monkeypatch):
+        monkeypatch.setattr("llm_analyzer.config.OPENROUTER_API_KEY", "k")
         calls = []
 
         def _post(url, headers=None, json=None, timeout=None):
@@ -81,7 +82,8 @@ class TestOpenRouterClient:
         assert out["summary"] == "ok"
         assert out["_usage"]["total_tokens"] == 7
 
-    def test_raises_after_all_models_fail(self):
+    def test_raises_after_all_models_fail(self, monkeypatch):
+        monkeypatch.setattr("llm_analyzer.config.OPENROUTER_API_KEY", "k")
         with patch(
             "llm_analyzer.requests.post",
             return_value=_Resp(500, {"error": "down"}),
