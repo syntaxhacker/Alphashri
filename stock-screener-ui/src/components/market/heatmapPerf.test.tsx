@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { Show, createMemo, createSignal, type Accessor } from "solid-js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { UIProvider } from "@/ui";
+import * as palette from "@/ui/palette";
 import type { MarketRow } from "@/types/marketScreener";
 import { MarketMapView } from "./MarketMapView";
 import {
@@ -205,9 +206,25 @@ function legacySuppressTinyFlatLabels<
   });
 }
 
-// Dark is the app's default scheme; the reference was captured before the
-// dark-theme rollout and pinned light-token colours, so the byte guard never ran.
-const FIXED_OPTION = '{"tooltip":{"trigger":"item","backgroundColor":"#1F242D","borderColor":"#2C313B","textStyle":{"color":"#E8E8E8"},"formatter":"[fn]"},"series":[{"type":"treemap","sort":false,"top":0,"left":0,"right":0,"bottom":0,"roam":false,"nodeClick":false,"squareRatio":1,"label":{"show":true,"formatter":"[fn]","fontSize":10,"fontWeight":"bold","lineHeight":14},"breadcrumb":{"show":false},"itemStyle":{"borderColor":"#13161C","borderWidth":1,"gapWidth":0},"levels":[{"itemStyle":{"borderColor":"#13161C","borderWidth":0,"gapWidth":0}},{"colorSaturation":[0.35,0.5],"itemStyle":{"borderColorSaturation":0.6,"gapWidth":0,"borderWidth":1}}],"data":[{"name":"AAA","value":2,"path":"AAA","nameFull":"AAA","sector":"Energy","price":100,"change":2,"mcap":1000000000000,"pe":null,"metricLabel":"Day Change","metricValue":"+2.0%","metricNumeric":2,"label":{"color":"#000000","show":true},"itemStyle":{"color":"rgb(253,231,37)"}},{"name":"BBB","value":1,"path":"BBB","nameFull":"BBB","sector":"Energy","price":100,"change":-1,"mcap":1000000000000,"pe":null,"metricLabel":"Day Change","metricValue":"-1.0%","metricNumeric":-1,"label":{"color":"#FFFFFF","show":true},"itemStyle":{"color":"rgb(68,1,84)"}},{"name":"CCC","value":0.01,"path":"CCC","nameFull":"CCC","sector":"Energy","price":100,"change":0,"mcap":1000000000000,"pe":null,"metricLabel":"Day Change","metricValue":"+0.0%","metricNumeric":0,"label":{"color":"#FFFFFF","show":true},"itemStyle":{"color":"rgb(49,104,141)"}}]}]}';
+/**
+ * The theme-dependent colours are injected from `palette` rather than pasted in.
+ * This fixture was previously a frozen copy baked against the pre-dark-theme
+ * light palette, so it rotted silently: the byte-identity assertion failed for
+ * five hexes while the production option was correct. `theme-single-source` does
+ * not scan `*.test.tsx`, so nothing caught it.
+ */
+const FIXED_OPTION_TEMPLATE = '{"tooltip":{"trigger":"item","backgroundColor":"__TOOLTIP_BG__","borderColor":"__TOOLTIP_BORDER__","textStyle":{"color":"__TOOLTIP_TEXT__"},"formatter":"[fn]"},"series":[{"type":"treemap","sort":false,"top":0,"left":0,"right":0,"bottom":0,"roam":false,"nodeClick":false,"squareRatio":1,"label":{"show":true,"formatter":"[fn]","fontSize":10,"fontWeight":"bold","lineHeight":14},"breadcrumb":{"show":false},"itemStyle":{"borderColor":"__BORDER_DARK__","borderWidth":1,"gapWidth":0},"levels":[{"itemStyle":{"borderColor":"__BORDER_DARK__","borderWidth":0,"gapWidth":0}},{"colorSaturation":[0.35,0.5],"itemStyle":{"borderColorSaturation":0.6,"gapWidth":0,"borderWidth":1}}],"data":[{"name":"AAA","value":2,"path":"AAA","nameFull":"AAA","sector":"Energy","price":100,"change":2,"mcap":1000000000000,"pe":null,"metricLabel":"Day Change","metricValue":"+2.0%","metricNumeric":2,"label":{"color":"#000000","show":true},"itemStyle":{"color":"rgb(253,231,37)"}},{"name":"BBB","value":1,"path":"BBB","nameFull":"BBB","sector":"Energy","price":100,"change":-1,"mcap":1000000000000,"pe":null,"metricLabel":"Day Change","metricValue":"-1.0%","metricNumeric":-1,"label":{"color":"#FFFFFF","show":true},"itemStyle":{"color":"rgb(68,1,84)"}},{"name":"CCC","value":0.01,"path":"CCC","nameFull":"CCC","sector":"Energy","price":100,"change":0,"mcap":1000000000000,"pe":null,"metricLabel":"Day Change","metricValue":"+0.0%","metricNumeric":0,"label":{"color":"#FFFFFF","show":true},"itemStyle":{"color":"rgb(49,104,141)"}}]}]}';
+
+const FIXED_OPTION = FIXED_OPTION_TEMPLATE.replace(/__(\w+)__/g, (match, key) => {
+  const values: Record<string, string> = {
+    TOOLTIP_BG: palette.TOOLTIP_DARK_BG,
+    TOOLTIP_BORDER: palette.TOOLTIP_DARK_BORDER,
+    TOOLTIP_TEXT: palette.TOOLTIP_DARK_TEXT,
+    BORDER_DARK: palette.SURFACE,
+  };
+  if (!(key in values)) throw new Error(`unknown template key ${match}`);
+  return values[key];
+});
 
 /** happy-dom has no layout engine; pin the canvas box before the component mounts. */
 function stubCanvasSize(width: number, height: number): () => void {
