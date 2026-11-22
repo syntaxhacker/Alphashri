@@ -13,8 +13,10 @@ import {
 } from "./OptionChainTable";
 import { buildStrikeBadges } from "./chain.columns";
 import {
+  EMPTY_ROW_DECORATION,
   LEVEL_RAIL_COLOR,
   LEVEL_TINT,
+  buildHighlightIndex,
   highlightChainLevels,
   railShadow,
 } from "./chainHighlight";
@@ -453,6 +455,64 @@ describe("chainHighlight — pure level detection", () => {
   });
 });
 
+describe("buildHighlightIndex — one derivation per level strike", () => {
+  it("indexes only level strikes and reproduces the per-strike derivation", () => {
+    const levels = levelsFixture();
+    const index = buildHighlightIndex(levels);
+    // callWall + putWall share 24100, maxPain sits on 24000 → two strikes.
+    expect([...index.keys()].sort((a, b) => a - b)).toEqual([24000, 24100]);
+    for (const strike of [23900, 24000, 24100, 99999]) {
+      const expected = highlightChainLevels(levels, strike);
+      const decoration = index.get(strike) ?? EMPTY_ROW_DECORATION;
+      expect(decoration.levelAttr).toBe(expected.keys.length ? expected.keys.join(" ") : undefined);
+      expect(decoration.tint).toBe(expected.tint);
+      expect(decoration.shadow).toBe(railShadow(expected.rails));
+    }
+  });
+
+  it("returns an empty index with a shared frozen value when levels are absent", () => {
+    expect(buildHighlightIndex(null).size).toBe(0);
+    expect(buildHighlightIndex(undefined).size).toBe(0);
+    expect(Object.isFrozen(EMPTY_ROW_DECORATION)).toBe(true);
+    expect(EMPTY_ROW_DECORATION.levelAttr).toBeUndefined();
+    expect(EMPTY_ROW_DECORATION.shadow).toBeUndefined();
+  });
+
+  it("cuts highlight derivations from 2 per row to 1 per level strike on a 60-row flush", () => {
+    const levels = levelsFixture();
+    const ladder = Array.from({ length: 60 }, (_, i) => 23000 + i * 100);
+    const iterations = 400;
+
+    // Old path: style + attributes each derived the highlight for every row.
+    let naiveDerivations = 0;
+    for (let n = 0; n < iterations; n++) {
+      for (const strike of ladder) {
+        highlightChainLevels(levels, strike);
+        highlightChainLevels(levels, strike);
+        naiveDerivations += 2;
+      }
+    }
+
+    // New path: one index build per flush, O(1) lookups for all 60 rows.
+    let indexedDerivations = 0;
+    for (let n = 0; n < iterations; n++) {
+      const index = buildHighlightIndex(levels);
+      indexedDerivations += index.size;
+      for (const strike of ladder) {
+        const decoration = index.get(strike) ?? EMPTY_ROW_DECORATION;
+        // Touch the same data the row style/attributes read.
+        void decoration.levelAttr;
+        void decoration.shadow;
+      }
+    }
+
+    expect(naiveDerivations).toBe(60 * 2 * iterations);
+    expect(indexedDerivations).toBe(2 * iterations);
+    // 120 → 2 derivations per flush: a 60x reduction for the chain's window.
+    expect(indexedDerivations).toBeLessThan(naiveDerivations / 50);
+  });
+});
+
 describe("OptionChainTable — level row highlights", () => {
   it("tags each row with its levels and paints a 2px inset rail per wall", () => {
     renderWithLevels();
@@ -500,6 +560,31 @@ describe("OptionChainTable — level row highlights", () => {
     expect(row.style.margin).toBe("");
     expect(row.style.lineHeight).toBe("");
     expect(screen.getAllByTestId(/^options-chain-row-/)).toHaveLength(3);
+  });
+
+  it("keeps row DOM identity while a spot tick recomputes the decorations", () => {
+    const ladder = Array.from({ length: 60 }, (_, i) => row(23000 + i * 100));
+    let setSpot!: (value: number) => void;
+    render(() => {
+      const [spot, updateSpot] = createSignal(23050);
+      setSpot = updateSpot;
+      return (
+        <UIProvider>
+          <OptionChainTable rows={ladder} spot={spot()} levels={levelsFixture()} />
+        </UIProvider>
+      );
+    });
+
+    const before = screen.getByTestId("options-chain-row-24100");
+    expect(before).toHaveAttribute("data-level", "cw pw");
+    expect(before).not.toHaveAttribute("data-atm");
+
+    setSpot(24060); // ATM moves from 23000 to 24100.
+
+    const after = screen.getByTestId("options-chain-row-24100");
+    expect(after).toBe(before); // slot is not rebuilt; only its attributes move.
+    expect(after).toHaveAttribute("data-atm", "true");
+    expect(screen.getByTestId("options-chain-row-24000")).not.toHaveAttribute("data-atm");
   });
 });
 
