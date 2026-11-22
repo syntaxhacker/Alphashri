@@ -1,9 +1,13 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 import {
+  changeMatrix,
+  groupPulse,
   iqrOutliers,
   monthlyBox,
   monthlyHeatmap,
+  pricePercentile,
+  realizedVolatility,
   rollingStats,
   seasonality,
   summariseEda,
@@ -11,6 +15,7 @@ import {
   type AgriEdaCompareSeries,
   type AgriEdaPoint,
 } from "./agriEda";
+import * as eda from "./agriEda";
 
 function pt(date: string, modal: number | null, overrides: Partial<AgriEdaPoint> = {}): AgriEdaPoint {
   return { date, modal, min: null, max: null, arrivals_qtl: null, market_count: 1, ...overrides };
@@ -123,6 +128,224 @@ describe("rollingStats", () => {
     expect(one[2].mean).toBe(7);
     expect(rollingStats([pt("2026-01-01", 5)], 0)[0].mean).toBe(5);
     expect(rollingStats([], 7)).toEqual([]);
+  });
+
+  it("includes an observation exactly 7 days later, breaks at 8", () => {
+    const boundary = rollingStats([pt("2026-01-01", 10), pt("2026-01-08", 20)], 2);
+    expect(boundary[1]).toMatchObject({ mean: 15, n: 2, gapDays: 7, skippedGaps: 0 });
+
+    const gap = rollingStats([pt("2026-01-01", 10), pt("2026-01-09", 20)], 2);
+    expect(gap[1]).toMatchObject({ mean: null, n: 1, gapDays: 8, skippedGaps: 1 });
+  });
+
+  it("never mixes values across a gap and exposes the skipped hole", () => {
+    const rolled = rollingStats(
+      [
+        pt("2026-01-01", 1),
+        pt("2026-01-02", 2),
+        pt("2026-01-12", 10),
+        pt("2026-01-13", 11),
+        pt("2026-01-14", 12),
+      ],
+      3,
+    );
+    expect(rolled[2]).toMatchObject({ mean: null, n: 1, gapDays: 10, skippedGaps: 1 });
+    expect(rolled[3]).toMatchObject({ mean: null, n: 2, gapDays: 1, skippedGaps: 1 });
+    expect(rolled[4]).toMatchObject({ mean: 11, n: 3, gapDays: 1, skippedGaps: 0 });
+    expect(rolled[4].lower).toBeCloseTo(11 - 1.5 * Math.sqrt(2 / 3), 6);
+  });
+});
+
+describe("realizedVolatility", () => {
+  it("uses population std of log returns", () => {
+    const result = realizedVolatility([
+      pt("2026-01-01", 100),
+      pt("2026-01-02", 110),
+      pt("2026-01-03", 99),
+    ]);
+    const first = Math.log(110 / 100);
+    const second = Math.log(99 / 110);
+    const mean = (first + second) / 2;
+    const expected = Math.sqrt(((first - mean) ** 2 + (second - mean) ** 2) / 2);
+    expect(result).toMatchObject({ n: 2, skippedGaps: 0 });
+    expect(result.value).toBeCloseTo(expected, 12);
+  });
+
+  it("skips a return across a gap longer than maxGapDays", () => {
+    const result = realizedVolatility([
+      pt("2026-01-01", 100),
+      pt("2026-01-02", 110),
+      pt("2026-01-10", 200),
+      pt("2026-01-11", 220),
+    ]);
+    expect(result.n).toBe(2);
+    expect(result.skippedGaps).toBe(1);
+    expect(result.value).toBeCloseTo(0, 12);
+  });
+
+  it("keeps an exactly-7-day return at the boundary", () => {
+    const result = realizedVolatility([
+      pt("2026-01-01", 100),
+      pt("2026-01-08", 110),
+      pt("2026-01-09", 121),
+    ]);
+    expect(result).toMatchObject({ n: 2, skippedGaps: 0 });
+    expect(result.value).not.toBeNull();
+  });
+
+  it("returns null below two usable returns and ignores non-positive prices", () => {
+    expect(realizedVolatility([pt("2026-01-01", 100), pt("2026-01-02", 110)])).toEqual({
+      value: null,
+      n: 1,
+      skippedGaps: 0,
+    });
+    expect(realizedVolatility([pt("2026-01-01", 0), pt("2026-01-02", 110)])).toEqual({
+      value: null,
+      n: 0,
+      skippedGaps: 0,
+    });
+    expect(realizedVolatility([])).toEqual({ value: null, n: 0, skippedGaps: 0 });
+    expect(realizedVolatility(null)).toEqual({ value: null, n: 0, skippedGaps: 0 });
+  });
+});
+
+describe("pricePercentile", () => {
+  it("ranks the current modal against its trailing window", () => {
+    const series = [10, 20, 40, 50, 30].map((modal, i) => pt(`2026-01-0${i + 1}`, modal));
+    expect(pricePercentile(series, 5)).toBe(60);
+    expect(pricePercentile(series.slice(0, 3), 3)).toBe(100);
+  });
+
+  it("uses only the last `window` observations", () => {
+    const series = [1, 2, 100, 200, 150].map((modal, i) => pt(`2026-01-0${i + 1}`, modal));
+    expect(pricePercentile(series, 3)).toBeCloseTo((2 / 3) * 100, 12);
+    expect(pricePercentile(series, 5)).toBe(80);
+  });
+
+  it("is null until the full window exists and ignores missing modals", () => {
+    expect(pricePercentile([10, 20, 30, 40].map((modal, i) => pt(`2026-01-0${i + 1}`, modal)), 5)).toBeNull();
+    expect(pricePercentile([], 5)).toBeNull();
+    expect(pricePercentile(null, 5)).toBeNull();
+    expect(pricePercentile([pt("2026-01-01", 10), pt("2026-01-02", null), pt("2026-01-03", 20), pt("2026-01-04", NaN), pt("2026-01-05", 30)], 3)).toBe(100);
+  });
+});
+
+describe("changeMatrix", () => {
+  it("computes 1W/1M/3M/6M from exact anchors", () => {
+    const result = changeMatrix([
+      pt("2025-10-01", 100),
+      pt("2025-12-31", 100),
+      pt("2026-03-02", 100),
+      pt("2026-03-25", 100),
+      pt("2026-04-01", 120),
+    ]);
+    expect(result).toMatchObject({ asOf: "2026-04-01", modal: 120, n: 5 });
+    expect(result.changes).toEqual({ "1W": 20, "1M": 20, "3M": 20, "6M": 20 });
+    for (const key of ["1W", "1M", "3M", "6M"] as const) {
+      expect(result.anchors[key]).toMatchObject({
+        withinTolerance: true,
+        daysFromTarget: 0,
+        changePct: 20,
+      });
+    }
+    expect(result.anchors["1W"].targetDate).toBe("2026-03-25");
+    expect(result.anchors["1M"].targetDate).toBe("2026-03-02");
+    expect(result.anchors["3M"].targetDate).toBe("2025-12-31");
+    expect(result.anchors["6M"].targetDate).toBe("2025-10-01");
+  });
+
+  it("accepts each tolerance boundary and nulls one day beyond it", () => {
+    const cases = [
+      { window: "1W", target: "2026-03-25", at: "2026-03-22", beyond: "2026-03-21" },
+      { window: "1M", target: "2026-03-02", at: "2026-02-23", beyond: "2026-02-22" },
+      { window: "3M", target: "2025-12-31", at: "2025-12-17", beyond: "2025-12-16" },
+      { window: "6M", target: "2025-10-01", at: "2025-09-10", beyond: "2025-09-09" },
+    ] as const;
+
+    for (const entry of cases) {
+      const at = changeMatrix([pt(entry.at, 100), pt("2026-04-01", 120)]);
+      expect(at.changes[entry.window], `${entry.window} boundary`).toBe(20);
+      expect(at.anchors[entry.window]).toMatchObject({ targetDate: entry.target, withinTolerance: true });
+
+      const beyond = changeMatrix([pt(entry.beyond, 100), pt("2026-04-01", 120)]);
+      expect(beyond.changes[entry.window], `${entry.window} beyond`).toBeNull();
+      expect(beyond.anchors[entry.window]).toMatchObject({
+        targetDate: entry.target,
+        withinTolerance: false,
+        changePct: null,
+      });
+    }
+  });
+
+  it("returns null cells across a collection hole instead of a multi-month move", () => {
+    const result = changeMatrix([pt("2025-09-01", 100), pt("2026-04-01", 200)]);
+    expect(result.asOf).toBe("2026-04-01");
+    expect(result.changes).toEqual({ "1W": null, "1M": null, "3M": null, "6M": null });
+    expect(result.anchors["1W"]).toMatchObject({
+      date: "2025-09-01",
+      withinTolerance: false,
+      changePct: null,
+    });
+    // 6M sees a pre-target observation, but 30 days out is a gap, not the window.
+    expect(result.anchors["6M"]).toMatchObject({
+      date: "2025-09-01",
+      withinTolerance: false,
+      changePct: null,
+    });
+  });
+
+  it("keeps the last finite duplicate and returns nulls for empty input", () => {
+    const result = changeMatrix([
+      pt("2026-03-25", 50),
+      pt("2026-03-25", 100),
+      pt("2026-04-01", 120),
+    ]);
+    expect(result.changes["1W"]).toBe(20);
+    expect(result.n).toBe(2);
+
+    expect(changeMatrix([])).toMatchObject({
+      key: "",
+      label: "",
+      asOf: null,
+      modal: null,
+      n: 0,
+      changes: { "1W": null, "1M": null, "3M": null, "6M": null },
+    });
+    expect(changeMatrix(null, { key: "onion", label: "Onion" })).toMatchObject({ key: "onion", label: "Onion" });
+  });
+});
+
+describe("groupPulse", () => {
+  it("builds one gap-guarded row per comparison series", () => {
+    const source: AgriEdaCompareSeries[] = [
+      {
+        key: "wheat",
+        label: "Wheat",
+        points: [pt("2026-03-25", 100), pt("2026-04-01", 120)],
+      },
+      {
+        key: "onion",
+        label: "Onion",
+        points: [pt("2026-03-25", 200), pt("2026-04-01", 220)],
+      },
+    ];
+    const rows = groupPulse(source);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ key: "wheat", label: "Wheat" });
+    expect(rows[0].changes["1W"]).toBe(20);
+    expect(rows[1].changes["1W"]).toBeCloseTo(10, 12);
+    expect(rows[0].changes["6M"]).toBeNull();
+  });
+
+  it("skips malformed entries and returns [] for empty input", () => {
+    expect(groupPulse([])).toEqual([]);
+    expect(groupPulse(null)).toEqual([]);
+    const rows = groupPulse([
+      { key: "ok", label: "Ok", points: [pt("2026-04-01", 10)] },
+      { key: "bad", label: "Bad", points: [pt("2026-04-01", 10)] },
+    ]);
+    expect(rows.map((row) => row.key)).toEqual(["ok", "bad"]);
+    expect(groupPulse([{ key: 1, label: "x", points: [] } as unknown as AgriEdaCompareSeries])).toEqual([]);
   });
 });
 
@@ -362,6 +585,14 @@ describe("no NaN / undefined leaks", () => {
     ];
     expectClean(monthlyBox(dirty));
     expectClean(rollingStats(dirty, 3));
+    expectClean(realizedVolatility(dirty));
+    expectClean(pricePercentile(dirty, 3));
+    expectClean(changeMatrix(dirty));
+    expectClean(
+      groupPulse([
+        { key: "dirty", label: "Dirty", points: dirty.map((p) => ({ date: p.date, modal: p.modal })) },
+      ]),
+    );
     expectClean(seasonality(dirty));
     expectClean(supplyDemand(dirty, 1));
     expectClean(
@@ -371,5 +602,26 @@ describe("no NaN / undefined leaks", () => {
     );
     expectClean(iqrOutliers(dirty));
     expectClean(summariseEda(dirty));
+  });
+});
+
+describe("public import surface", () => {
+  it("barrel re-exports every runtime symbol", () => {
+    expect(Object.keys(eda).sort()).toEqual(
+      [
+        "CHANGE_WINDOWS",
+        "changeMatrix",
+        "groupPulse",
+        "iqrOutliers",
+        "monthlyBox",
+        "monthlyHeatmap",
+        "pricePercentile",
+        "realizedVolatility",
+        "rollingStats",
+        "seasonality",
+        "summariseEda",
+        "supplyDemand",
+      ].sort(),
+    );
   });
 });

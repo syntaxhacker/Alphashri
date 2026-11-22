@@ -1,7 +1,10 @@
 import { createComponent, type JSX } from "solid-js";
 import { formatAgriPrice, formatArrivals } from "@/config/agri";
-import type { TableColumnDef } from "@/components/common/TanStackTable";
+import type { SortEntry, TableColumnDef } from "@/components/common/TanStackTable";
 import { BadgeCell, NumCell, TextCell } from "@/components/common/tableCells";
+
+/** The quote table's declared default: highest modal price first. */
+export const AGRI_QUOTE_DEFAULT_SORT: SortEntry[] = [{ id: "modal", desc: true }];
 
 /** Row shape shared by live mandi quotes and the older snapshot fallback. */
 export interface AgriTableViewRow {
@@ -74,7 +77,7 @@ export function agriColumns(asOf: string | null = null): TableColumnDef<AgriTabl
     },
     {
       id: "min",
-      header: "Min (₹/quintal)",
+      header: "Min ₹/qtl",
       accessorKey: "min",
       size: 112,
       meta: { align: "right" },
@@ -82,7 +85,7 @@ export function agriColumns(asOf: string | null = null): TableColumnDef<AgriTabl
     },
     {
       id: "modal",
-      header: "Modal (₹/quintal)",
+      header: "Modal ₹/qtl",
       accessorKey: "modal",
       size: 116,
       meta: { align: "right" },
@@ -90,7 +93,7 @@ export function agriColumns(asOf: string | null = null): TableColumnDef<AgriTabl
     },
     {
       id: "max",
-      header: "Max (₹/quintal)",
+      header: "Max ₹/qtl",
       accessorKey: "max",
       size: 112,
       meta: { align: "right" },
@@ -98,7 +101,7 @@ export function agriColumns(asOf: string | null = null): TableColumnDef<AgriTabl
     },
     {
       id: "arrivals",
-      header: "Arrivals (qtl)",
+      header: "Arrivals qtl",
       accessorFn: (row) => row.arrivals_qtl,
       size: 112,
       meta: { align: "right" },

@@ -1,7 +1,8 @@
 // @vitest-environment node
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import * as palette from "@/ui/palette";
+import * as edaOptions from "./agriEdaOptions";
 import {
   buildDistributionOption,
   buildEdaOption,
@@ -9,6 +10,7 @@ import {
   buildRollingOption,
   buildSeasonalityOption,
   buildSupplyDemandOption,
+  ROLLING_WINDOWS,
   type EdaBox,
   type EdaHeatmapRow,
   type EdaScatter,
@@ -51,6 +53,23 @@ const series: EdaSeriesPoint[] = [
   { date: "2024-01-06", modal: 150, min: 130, max: 170, arrivals_qtl: 1000, market_count: 15 },
 ];
 
+const gapSeries: EdaSeriesPoint[] = [
+  { date: "2024-01-01", modal: 100, min: 90, max: 110, arrivals_qtl: null, market_count: 5 },
+  { date: "2024-01-02", modal: 110, min: 100, max: 120, arrivals_qtl: null, market_count: 5 },
+  { date: "2024-01-03", modal: 120, min: 110, max: 130, arrivals_qtl: null, market_count: 5 },
+  { date: "2024-01-20", modal: 200, min: 190, max: 210, arrivals_qtl: null, market_count: 5 },
+  { date: "2024-01-21", modal: 210, min: 200, max: 220, arrivals_qtl: null, market_count: 5 },
+];
+
+const longSeries: EdaSeriesPoint[] = Array.from({ length: 10 }, (_, i) => ({
+  date: `2024-02-${String(i + 1).padStart(2, "0")}`,
+  modal: 100 + i * 5,
+  min: 95 + i * 5,
+  max: 105 + i * 5,
+  arrivals_qtl: null,
+  market_count: 4,
+}));
+
 const scatter: EdaScatter = {
   points: [
     { date: "2024-01-01", arrivals_qtl: 500, modal: 260, laggedModal: 250 },
@@ -66,8 +85,24 @@ const scatter: EdaScatter = {
 };
 
 const rows: EdaHeatmapRow[] = [
-  { key: "rice", label: "Rice", months: [{ month: "2024-01", modal: 100 }, { month: "2", modal: 110 }] },
-  { key: "wheat", label: "Wheat", months: [{ month: "Jan", modal: 220 }, { month: "Mar", modal: 240 }, { month: "Apr", modal: null }] },
+  {
+    key: "rice",
+    label: "Rice",
+    months: [
+      { month: "2024-01", modal: 100 },
+      { month: "2024-02", modal: 110 },
+      { month: "2024-04", modal: null },
+    ],
+  },
+  {
+    key: "wheat",
+    label: "Wheat",
+    months: [
+      { month: "2024-01", modal: 220 },
+      { month: "2024-03", modal: 240 },
+      { month: "2024-04", modal: 250 },
+    ],
+  },
 ];
 
 describe("shared option contracts", () => {
@@ -142,15 +177,53 @@ describe("buildDistributionOption", () => {
     expect((axisOf(option).axisLabel as Series).hideOverlap).toBe(true);
   });
 
-  it("shows min, quartiles, median, max and count in the tooltip", () => {
+  it("shows min, quartiles, median, max, whiskers and n in the tooltip", () => {
     const tooltip = formatterOf(buildDistributionOption({ boxes }));
     const text = tooltip([{ dataIndex: 0 }]);
-    for (const label of ["Min", "Q1", "Median", "Q3", "Max", "Observations"]) {
+    for (const label of ["Min", "Q1", "Median", "Q3", "Max", "Lower whisker", "Upper whisker", "n"]) {
       expect(text).toContain(label);
     }
     expect(text).toContain("100 ₹/quintal");
     expect(text).toContain("12");
     expect(text).not.toMatch(/undefined|NaN/);
+  });
+
+  it("clamps whiskers to the 1.5×IQR fences and plots the far value as an outlier", () => {
+    const outlierBox: EdaBox = {
+      month: "2024-04",
+      label: "Apr",
+      min: 10,
+      q1: 90,
+      median: 100,
+      q3: 110,
+      max: 130,
+      count: 20,
+    };
+    const option = buildDistributionOption({ boxes: [outlierBox] });
+    expect(seriesOf(option).map((s) => s.type)).toEqual(["boxplot", "line", "scatter"]);
+    expect(seriesOf(option)[0].data).toEqual([[60, 90, 100, 110, 130]]);
+    expect(seriesOf(option)[2].data).toEqual([[0, 10]]);
+    const text = formatterOf(option)([{ dataIndex: 0 }]);
+    expect(text).toContain("Outliers");
+    expect(text).toContain("10 ₹/quintal");
+    expect(text).not.toMatch(/undefined|NaN/);
+  });
+
+  it("uses explicit outliers when the box supplies them", () => {
+    const option = buildDistributionOption({
+      boxes: [{ ...boxes[0], outliers: [50, 150] }],
+    });
+    expect((seriesOf(option)[2].data as number[][])).toEqual([[0, 50], [0, 150]]);
+  });
+
+  it("keeps the aggregate whiskers when every value sits inside the fences", () => {
+    const option = buildDistributionOption({ boxes });
+    expect(seriesOf(option).map((s) => s.type)).toEqual(["boxplot", "line"]);
+    expect(seriesOf(option)[0].data).toEqual([
+      [80, 90, 100, 110, 120],
+      [85, 95, 105, 115, 125],
+      [90, 100, 110, 120, 130],
+    ]);
   });
 
   it("returns {} when no box has a median", () => {
@@ -247,69 +320,95 @@ describe("buildSupplyDemandOption", () => {
 });
 
 describe("buildHeatmapOption", () => {
-  it("builds a heatmap with 12 month cells per commodity", () => {
+  it("uses a chronological YYYY-MM column axis", () => {
     const option = buildHeatmapOption({ rows });
     expect(seriesOf(option)[0].type).toBe("heatmap");
-    const data = seriesOf(option)[0].data as (number | null)[][];
-    expect(data).toHaveLength(24);
-    expect(data[0]).toEqual([0, 0, 100]);
-    expect(data[1]).toEqual([1, 0, 110]);
-    expect(data[12]).toEqual([0, 1, 220]);
-    expect(data[14]).toEqual([2, 1, 240]);
+    expect(axisOf(option).data).toEqual(["Jan 24", "Feb 24", "Mar 24", "Apr 24"]);
   });
 
-  it("leaves missing months blank", () => {
-    const data = seriesOf(buildHeatmapOption({ rows }))[0].data as (number | null)[][];
-    expect(data[2]).toEqual([2, 0, null]);
-    expect(data[15]).toEqual([3, 1, null]);
+  it("normalises colour within each row instead of a global price scale", () => {
+    const option = buildHeatmapOption({ rows });
+    const data = seriesOf(option)[0].data as number[][];
+    // Rice 100→110 and Wheat 220→250 both span their own row's full ramp.
+    expect(data).toContainEqual([0, 0, 0]);
+    expect(data).toContainEqual([1, 0, 1]);
+    expect(data).toContainEqual([0, 1, 0]);
+    expect(data).toContainEqual([3, 1, 1]);
+    const mid = data.find((cell) => cell[0] === 2 && cell[1] === 1);
+    expect(mid?.[2]).toBeCloseTo(0.67, 2);
+    const visualMap = (option.visualMap as Array<{ min: number; max: number; seriesIndex: number }>)[0];
+    expect(visualMap.min).toBe(0);
+    expect(visualMap.max).toBe(1);
+    expect(visualMap.seriesIndex).toBe(0);
+  });
+
+  it("renders explicit no-data cells", () => {
+    const option = buildHeatmapOption({ rows });
+    expect(seriesOf(option).map((s) => s.name)).toEqual(["Modal price", "No data"]);
+    expect(seriesOf(option)[1].data).toEqual([[2, 0, 0], [3, 0, 0], [1, 1, 0]]);
+    expect((seriesOf(option)[1].itemStyle as Series).color).toBeDefined();
   });
 
   it("uses a palette ramp and a labelled visualMap", () => {
     const option = buildHeatmapOption({ rows });
-    const visualMap = option.visualMap as {
-      min: number;
-      max: number;
+    const visualMap = (option.visualMap as Array<{
       inRange: { color: string[] };
+      text: string[];
       textStyle: { fontSize: number };
-    };
-    expect(visualMap.min).toBe(100);
-    expect(visualMap.max).toBe(240);
+      itemWidth: number;
+      itemHeight: number;
+    }>)[0];
     expect(visualMap.inRange.color).toEqual([...palette.VIRIDIS_STOPS]);
+    expect(visualMap.text).toEqual(["Row high", "Row low"]);
     expect(visualMap.textStyle.fontSize).toBeGreaterThanOrEqual(10);
+    // A horizontal bar reads length first, then thickness.
+    expect(visualMap.itemWidth).toBeGreaterThan(visualMap.itemHeight);
+  });
+
+  it("pairs both heatmap series with a visualMap so ECharts emits no warning", () => {
+    const option = buildHeatmapOption({ rows });
+    const maps = option.visualMap as Array<{ seriesIndex: number; show?: boolean }>;
+    const heatmapSeries = seriesOf(option).filter((s) => s.type === "heatmap");
+    expect(maps.length).toBe(heatmapSeries.length);
+    expect(maps.map((map) => map.seriesIndex).sort()).toEqual(heatmapSeries.map((_, i) => i));
+    expect(maps.filter((map) => map.show !== false)).toHaveLength(1);
   });
 
   it("uses readable commodity and month labels", () => {
     const option = buildHeatmapOption({ rows });
-    expect(axisOf(option).data).toHaveLength(12);
-    expect(axisOf(option).data[0]).toBe("Jan");
     expect(yAxisOf(option).data).toEqual(["Rice", "Wheat"]);
     expect((axisOf(option).axisLabel as Series).hideOverlap).toBe(true);
     expect((yAxisOf(option).axisLabel as Series).width).toBeGreaterThan(0);
   });
 
-  it("shows the modal price and unit in the tooltip", () => {
+  it("shows the raw modal value, row range and position in the tooltip", () => {
     const tooltip = formatterOf(buildHeatmapOption({ rows }));
-    const filled = tooltip([{ value: [0, 0, 100] }]);
+    const filled = tooltip([{ value: [0, 0, 0] }]);
     expect(filled).toContain("Rice");
-    expect(filled).toContain("Jan");
+    expect(filled).toContain("2024-01");
     expect(filled).toContain("100 ₹/quintal");
-    const blank = tooltip([{ value: [2, 0, null] }]);
-    expect(blank).toContain("—");
+    expect(filled).toContain("Row range");
+    expect(filled).toContain("Row position");
+    const blank = tooltip([{ value: [2, 0, 0] }]);
+    expect(blank).toContain("No data");
     expect(blank).not.toMatch(/undefined|NaN/);
   });
 
   it("returns {} for empty, all-null or malformed rows", () => {
     expect(buildHeatmapOption({ rows: [] })).toEqual({});
-    expect(buildHeatmapOption({ rows: [{ key: "x", label: "X", months: [{ month: "Jan", modal: null }] }] })).toEqual({});
+    expect(buildHeatmapOption({ rows: [{ key: "x", label: "X", months: [{ month: "2024-01", modal: null }] }] })).toEqual({});
     expect(buildHeatmapOption({ rows: [null] as unknown as EdaHeatmapRow[] })).toEqual({});
   });
 
-  it("falls back to the row key and normalises month formats", () => {
+  it("falls back to the row key, normalises YYYY-M and ignores month names without a year", () => {
     const option = buildHeatmapOption({
-      rows: [{ key: "gram", label: "", months: [{ month: "march", modal: 150 }, { month: "bad", modal: 160 }] }],
+      rows: [{ key: "gram", label: "", months: [{ month: "2024-3", modal: 150 }, { month: "march", modal: 160 }] }],
     });
     expect(yAxisOf(option).data).toEqual(["gram"]);
-    expect((seriesOf(option)[0].data as (number | null)[][])[2]).toEqual([2, 0, 150]);
+    expect(axisOf(option).data).toEqual(["Mar 24"]);
+    // A single-value row has no internal spread, so it sits mid-ramp.
+    expect(seriesOf(option)[0].data).toEqual([[0, 0, 0.5]]);
+    expect((seriesOf(option)[1].data as number[][]).length).toBe(0);
   });
 });
 
@@ -351,6 +450,7 @@ describe("buildRollingOption", () => {
     expect(text).toContain("Rolling mean (3)");
     expect(text).toContain("Lower band");
     expect(text).toContain("Upper band");
+    expect(text).toContain("Window n");
     expect(text.match(/₹\/quintal/g)?.length).toBe(4);
     expect(text).not.toMatch(/undefined|NaN/);
   });
@@ -366,6 +466,44 @@ describe("buildRollingOption", () => {
     expect(String((option.title as { text: string }).text)).toContain("6-observation");
     expect((seriesOf(option)[0].data as (number | null)[]).every((value) => value !== null)).toBe(true);
     expect(seriesOf(option)[0].data).toHaveLength(6);
+  });
+
+  it("offers the 7 / 20 / 60 observation windows and defaults to 7", () => {
+    expect([...ROLLING_WINDOWS]).toEqual([7, 20, 60]);
+    expect(String((buildRollingOption({ series: longSeries }).title as { text: string }).text)).toContain("7-observation");
+    expect(String((buildRollingOption({ series: longSeries, window: 20 }).title as { text: string }).text)).toContain("10-observation");
+  });
+
+  it("inserts a null break when a calendar gap exceeds 7 days", () => {
+    const option = buildRollingOption({ series: gapSeries, rolling: 3 });
+    const modal = seriesOf(option)[0].data as (number | null)[];
+    const mean = seriesOf(option)[1].data as (number | null)[];
+    expect(modal).toEqual([100, 110, 120, null, 200, 210]);
+    expect(mean.slice(0, 4)).toEqual([null, 105, 110, null]);
+    // The first observation after the gap cannot borrow the pre-gap window.
+    expect(mean[4]).toBeNull();
+    expect(mean[5]).toBe(205);
+    expect(seriesOf(option)[0].connectNulls).toBe(false);
+    expect(axisOf(option).data).toHaveLength(6);
+    expect(axisOf(option).data[3]).toBe("");
+    expect((option.title as { subtext?: string }).subtext).toContain("1 gap skipped");
+  });
+
+  it("reports the gap in the tooltip without leaking NaN", () => {
+    const text = formatterOf(buildRollingOption({ series: gapSeries, rolling: 3 }))([{ dataIndex: 3 }]);
+    expect(text).toContain("Gap");
+    expect(text).toContain("skipped day");
+    expect(text).not.toMatch(/undefined|NaN/);
+  });
+
+  it("does not break on a gap of exactly seven days", () => {
+    const sevenDays: EdaSeriesPoint[] = [
+      { ...gapSeries[0], date: "2024-01-01", modal: 100 },
+      { ...gapSeries[1], date: "2024-01-08", modal: 110 },
+    ];
+    const option = buildRollingOption({ series: sevenDays, rolling: 2 });
+    expect(seriesOf(option)[0].data).toEqual([100, 110]);
+    expect((option.title as { subtext?: string }).subtext).not.toContain("skipped");
   });
 });
 
@@ -433,6 +571,66 @@ describe("buildSeasonalityOption", () => {
     expect(medians[1]).toBe(150);
     expect(medians[0]).toBeNull();
     expect(formatterOf(option)([{ dataIndex: 1 }])).not.toMatch(/undefined|NaN/);
+  });
+});
+
+describe("layout and legibility invariants", () => {
+  const cases: Array<[string, Option]> = [
+    ["distribution", buildDistributionOption({ boxes })],
+    ["supplyDemand", buildSupplyDemandOption({ scatter })],
+    ["heatmap", buildHeatmapOption({ rows })],
+    ["rolling", buildRollingOption({ series, rolling: 3 })],
+    ["seasonality", buildSeasonalityOption({ seasonality: boxes })],
+    ["seasonality-weak", buildSeasonalityOption({ seasonality: [{ ...boxes[0], count: 1 }] })],
+  ];
+
+  it("stacks title → legend → plot in every builder", () => {
+    for (const [mode, option] of cases) {
+      const title = option.title as { top: number; textStyle: { fontSize: number } };
+      const legend = option.legend as { top: number; textStyle: { fontSize: number } };
+      const grid = (option.grid as Array<{ top: number }>)[0];
+      expect(title.top, mode).toBeLessThan(legend.top);
+      expect(legend.top + 14, mode).toBeLessThanOrEqual(grid.top);
+      expect(title.textStyle.fontSize, mode).toBeGreaterThanOrEqual(10);
+      expect(legend.textStyle.fontSize, mode).toBeGreaterThanOrEqual(10);
+    }
+  });
+
+  it("gives the heatmap enough bottom padding for the visualMap", () => {
+    const option = buildHeatmapOption({ rows });
+    const grid = (option.grid as Array<{ bottom: number }>)[0];
+    expect(grid.bottom).toBeGreaterThanOrEqual(80);
+  });
+
+  it("keeps the supply/demand statistic clear of the title and legend", () => {
+    const option = buildSupplyDemandOption({ scatter });
+    const graphic = (option.graphic as Array<{ bottom?: number; top?: number }>)[0];
+    expect(graphic.bottom).toBeGreaterThan(0);
+    expect(graphic.top).toBeUndefined();
+  });
+});
+
+describe("public export surface after the options split", () => {
+  it("re-exports every builder, ROLLING_WINDOWS and the dispatcher", () => {
+    expect(Object.keys(edaOptions).sort()).toEqual([
+      "ROLLING_WINDOWS",
+      "buildDistributionOption",
+      "buildEdaOption",
+      "buildHeatmapOption",
+      "buildRollingOption",
+      "buildSeasonalityOption",
+      "buildSupplyDemandOption",
+    ]);
+  });
+
+  it("keeps the palette-token invariant across the split modules", () => {
+    const dir = new URL("./options/", import.meta.url);
+    const files = readdirSync(dir).filter((name) => name.endsWith(".ts"));
+    expect(files.length).toBeGreaterThanOrEqual(6);
+    for (const file of files) {
+      const source = readFileSync(new URL(file, dir), "utf8");
+      expect(source.match(/#[0-9a-f]{6}\b/gi) ?? [], file).toEqual([]);
+    }
   });
 });
 

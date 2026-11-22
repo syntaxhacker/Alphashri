@@ -12,6 +12,17 @@ export const AGRICULTURE_UNIT = `${AGRI_CURRENCY_SYMBOL}/quintal`;
 export const AGRI_ARRIVALS_UNIT = "qtl";
 export const AGRI_LOCALE = "en-IN";
 
+/** Backend `/api/agri/prices` refuses more than five comparison keys. */
+export const AGRI_MAX_COMPARE = 5;
+/** Curated starting overlay; the active commodity is always added first. */
+export const AGRI_COMPARE_DEFAULTS: readonly string[] = ["wheat", "tomato"];
+/** `district_markets` keys are `"{state}||{district}"` (api/agri/store.py). */
+export const AGRI_DISTRICT_KEY_SEPARATOR = "||";
+
+export function agriDistrictKey(state: string, district: string): string {
+  return `${state}${AGRI_DISTRICT_KEY_SEPARATOR}${district}`;
+}
+
 export interface AgriGroupDescriptor {
   key: AgriGroupKey;
   label: string;
@@ -38,54 +49,35 @@ export interface AgriCommodityDescriptor {
   aliases?: readonly string[];
 }
 
+/**
+ * Mirrors `api/agri/registry.py` exactly (22 tracked keys, labels and groups).
+ * The live options come from `/api/agri/filters`; this list is only the
+ * offline/first-paint fallback, so a new backend key must not require a second
+ * label taxonomy here.
+ */
 export const AGRI_COMMODITIES: readonly AgriCommodityDescriptor[] = [
   { key: "rice", label: "Rice", group: "cereals", unit: AGRI_COMMODITY_UNIT, hasMsp: true },
+  { key: "paddy", label: "Paddy", group: "cereals", unit: AGRI_COMMODITY_UNIT, hasMsp: true },
   { key: "wheat", label: "Wheat", group: "cereals", unit: AGRI_COMMODITY_UNIT, hasMsp: true },
-  {
-    key: "arhar_tur",
-    label: "Arhar (Tur) Dal",
-    group: "pulses",
-    unit: AGRI_COMMODITY_UNIT,
-    hasMsp: true,
-    aliases: ["Arhar(Tur)", "Arhar", "Tur"],
-  },
-  { key: "urad", label: "Urad Dal", group: "pulses", unit: AGRI_COMMODITY_UNIT, hasMsp: true },
-  { key: "moong", label: "Moong Dal", group: "pulses", unit: AGRI_COMMODITY_UNIT, hasMsp: true },
-  { key: "masoor", label: "Masoor Dal", group: "pulses", unit: AGRI_COMMODITY_UNIT, hasMsp: true },
-  {
-    key: "chana",
-    label: "Chana / Gram Dal",
-    group: "pulses",
-    unit: AGRI_COMMODITY_UNIT,
-    hasMsp: true,
-    aliases: ["Gram Dal"],
-  },
-  {
-    key: "soyabean",
-    label: "Soyabean",
-    group: "oilseeds",
-    unit: AGRI_COMMODITY_UNIT,
-    hasMsp: true,
-  },
+  { key: "maize", label: "Maize", group: "cereals", unit: AGRI_COMMODITY_UNIT, hasMsp: true },
+  { key: "bajra", label: "Bajra", group: "cereals", unit: AGRI_COMMODITY_UNIT, hasMsp: true },
+  { key: "jowar", label: "Jowar", group: "cereals", unit: AGRI_COMMODITY_UNIT, hasMsp: true },
+  { key: "arhar_tur", label: "Arhar (Tur)", group: "pulses", unit: AGRI_COMMODITY_UNIT, hasMsp: true },
+  { key: "urad", label: "Urad", group: "pulses", unit: AGRI_COMMODITY_UNIT, hasMsp: true },
+  { key: "moong", label: "Moong", group: "pulses", unit: AGRI_COMMODITY_UNIT, hasMsp: true },
+  { key: "masoor", label: "Masoor", group: "pulses", unit: AGRI_COMMODITY_UNIT, hasMsp: true },
+  { key: "chana", label: "Chana / Gram", group: "pulses", unit: AGRI_COMMODITY_UNIT, hasMsp: true },
   { key: "onion", label: "Onion", group: "vegetables", unit: AGRI_COMMODITY_UNIT, hasMsp: false },
   { key: "potato", label: "Potato", group: "vegetables", unit: AGRI_COMMODITY_UNIT, hasMsp: false },
   { key: "tomato", label: "Tomato", group: "vegetables", unit: AGRI_COMMODITY_UNIT, hasMsp: false },
-  {
-    key: "chilli",
-    label: "Red Chilli",
-    group: "spices",
-    unit: AGRI_COMMODITY_UNIT,
-    hasMsp: false,
-    aliases: ["Chilli", "Chillies"],
-  },
+  { key: "soyabean", label: "Soyabean", group: "oilseeds", unit: AGRI_COMMODITY_UNIT, hasMsp: true },
+  { key: "groundnut", label: "Groundnut", group: "oilseeds", unit: AGRI_COMMODITY_UNIT, hasMsp: true },
+  { key: "mustard", label: "Mustard", group: "oilseeds", unit: AGRI_COMMODITY_UNIT, hasMsp: true },
+  { key: "sunflower", label: "Sunflower", group: "oilseeds", unit: AGRI_COMMODITY_UNIT, hasMsp: true },
+  { key: "chilli", label: "Chilli", group: "spices", unit: AGRI_COMMODITY_UNIT, hasMsp: false },
   { key: "turmeric", label: "Turmeric", group: "spices", unit: AGRI_COMMODITY_UNIT, hasMsp: false },
-  {
-    key: "coriander",
-    label: "Coriander",
-    group: "spices",
-    unit: AGRI_COMMODITY_UNIT,
-    hasMsp: false,
-  },
+  { key: "coriander", label: "Coriander", group: "spices", unit: AGRI_COMMODITY_UNIT, hasMsp: false },
+  { key: "jeera", label: "Jeera", group: "spices", unit: AGRI_COMMODITY_UNIT, hasMsp: false },
 ];
 
 export const AGRI_COMMODITY_KEYS: readonly string[] = AGRI_COMMODITIES.map((item) => item.key);
@@ -150,7 +142,7 @@ export const AGRI_CHART_MODES: readonly AgriChartModeDescriptor[] = [
   {
     key: "seasonality",
     label: "Seasonality",
-    description: "Average monthly price pattern across years to expose seasonal cycles",
+    description: "Average monthly price pattern across 2+ years; disabled when a month has only one year",
   },
 ];
 

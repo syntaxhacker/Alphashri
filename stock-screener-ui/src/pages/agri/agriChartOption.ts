@@ -1,16 +1,5 @@
 import {
   alpha,
-  BORDER,
-  CHART_CROSSHAIR,
-  CHART_DARK_MUTED,
-  CHART_DARK_OVERLAY,
-  CHART_DARK_SPLIT,
-  CHART_DARK_TEXT,
-  CHART_LIGHT_BORDER,
-  CHART_LIGHT_MUTED,
-  CHART_LIGHT_OVERLAY,
-  CHART_LIGHT_SPLIT,
-  CHART_LIGHT_TEXT,
   INFO,
   NEGATIVE,
   ORB_AREA,
@@ -19,6 +8,28 @@ import {
   SCALE_CYAN,
   SCALE_VIOLET,
 } from "@/ui/palette";
+import {
+  asParams,
+  baseOption,
+  categoryAxis,
+  CHART_LAYOUT,
+  escapeHtml,
+  field,
+  finite,
+  formatAgriDateLabel,
+  formatAgriValue,
+  formatIndexLevel,
+  formatPct,
+  makeDataZoom,
+  themeTokens,
+  titled,
+  tooltipShell,
+  valueAxis,
+  type OptionFragment,
+  type ThemeTokens,
+} from "./agriChartTheme";
+
+export { formatAgriDateLabel, formatAgriValue } from "./agriChartTheme";
 
 export type AgriChartMode = "band" | "arrivals" | "compare" | "ohlc";
 
@@ -51,121 +62,24 @@ export interface AgriChartInput {
   asOf?: string;
 }
 
+/** A gap marker is an empty category, not an observation with zero markets. */
+interface DisplayRow extends AgriChartSeriesPoint {
+  gap: boolean;
+}
+
 const DEFAULT_UNIT = "₹/quintal";
 const MAX_COMPARE = 5;
 const MAX_CANDLES = 60;
 const BAND_STACK = "agri-minmax-band";
 const BAND_NAME = "Min–Max band";
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const COMPARE_COLORS = [PRIMARY, INFO, POSITIVE, SCALE_VIOLET[4], SCALE_CYAN[4]];
-const NUMBER_FMT = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
-const INDEX_FMT = new Intl.NumberFormat("en-IN", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-const COMPACT_FMT = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 1 });
-
-type Series = Record<string, unknown>;
-
-interface ThemeTokens {
-  text: string;
-  muted: string;
-  border: string;
-  split: string;
-  tooltipBg: string;
-  crosshair: string;
-}
-
-interface TooltipParam {
-  dataIndex?: number;
-  seriesName?: string;
-  axisValue?: unknown;
-  value?: unknown;
-  marker?: string;
-}
-
-function themeTokens(isDark: boolean): ThemeTokens {
-  return isDark
-    ? {
-        text: CHART_DARK_TEXT,
-        muted: CHART_DARK_MUTED,
-        border: BORDER,
-        split: CHART_DARK_SPLIT,
-        tooltipBg: CHART_DARK_OVERLAY,
-        crosshair: CHART_CROSSHAIR,
-      }
-    : {
-        text: CHART_LIGHT_TEXT,
-        muted: CHART_LIGHT_MUTED,
-        border: CHART_LIGHT_BORDER,
-        split: CHART_LIGHT_SPLIT,
-        tooltipBg: CHART_LIGHT_OVERLAY,
-        crosshair: CHART_CROSSHAIR,
-      };
-}
-
-function finite(value: number | null | undefined): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function finiteOrNull(value: number | null | undefined): number | null {
-  return finite(value);
-}
-
-export function formatAgriDateLabel(date: string): string {
-  if (typeof date !== "string") return "";
-  const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
-  if (day) {
-    const month = MONTHS[Number(day[2]) - 1];
-    return month ? `${day[3]} ${month}` : date;
-  }
-  return /^\d{4}-\d{2}$/.test(date) ? date : date.slice(0, 10);
-}
-
-export function formatAgriValue(value: number | null | undefined, unit: string): string {
-  const n = finite(value);
-  if (n == null) return "—";
-  const formatted = NUMBER_FMT.format(n);
-  return unit ? `${formatted} ${unit}` : formatted;
-}
-
-function compactAxisLabel(value: number): string {
-  const abs = Math.abs(value);
-  if (abs >= 1_000_000) return `${COMPACT_FMT.format(value / 1_000_000)}M`;
-  if (abs >= 1_000) return `${COMPACT_FMT.format(value / 1_000)}k`;
-  return NUMBER_FMT.format(value);
-}
-
-function formatPct(value: number): string {
-  if (!Number.isFinite(value)) return "—";
-  return `${value >= 0 ? "+" : ""}${INDEX_FMT.format(value)}%`;
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
-function isParam(value: unknown): value is TooltipParam {
-  return typeof value === "object" && value !== null;
-}
-
-function asParams(params: unknown): TooltipParam[] {
-  if (Array.isArray(params)) return params.filter(isParam);
-  return isParam(params) ? [params] : [];
-}
-
-function tooltipShell(header: string, rows: string[]): string {
-  return `<div style="font-family:monospace;font-size:11px;line-height:1.5">` +
-    `<div style="font-weight:600;margin-bottom:4px">${escapeHtml(header)}</div>` +
-    rows.filter((row) => row !== "").join("") +
-    `</div>`;
-}
+const BAND_Q1_PCT = 0.25;
+const BAND_Q3_PCT = 0.75;
+const BAND_FENCE_IQR = 1.5;
 
 function rowTooltip(
   params: unknown,
-  rows: AgriChartSeriesPoint[],
+  rows: DisplayRow[],
   fields: (row: AgriChartSeriesPoint) => string[],
 ): string {
   const list = asParams(params);
@@ -173,95 +87,71 @@ function rowTooltip(
   const withIndex = list.find((p) => Number.isInteger(p.dataIndex));
   const row = rows[withIndex?.dataIndex ?? 0];
   if (!row) return "";
+  if (row.gap) {
+    return tooltipShell("Data gap", [field("Interval", formatAgriDateLabel(row.date))]);
+  }
+  if (row.market_count === 0) return "";
   return tooltipShell(row.date, fields(row));
 }
 
-function field(label: string, value: string): string {
-  return `<div>${escapeHtml(label)}: <b>${value}</b></div>`;
+const GAP_BREAK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Insert one empty category between observations separated by a long gap. */
+function addGapMarkers(dates: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < dates.length; i++) {
+    const current = dates[i];
+    if (i > 0) {
+      const prev = dates[i - 1];
+      const elapsed = Date.parse(`${current}T00:00:00Z`) - Date.parse(`${prev}T00:00:00Z`);
+      if (elapsed > GAP_BREAK_MS) {
+        const marker = new Date(Date.parse(`${prev}T00:00:00Z`) + 24 * 60 * 60 * 1000);
+        out.push(marker.toISOString().slice(0, 10));
+      }
+    }
+    out.push(current);
+  }
+  return out;
 }
 
-function categoryAxis(dates: string[], t: ThemeTokens, gridIndex: number, showLabels: boolean): Series {
-  return {
-    type: "category",
-    gridIndex,
-    data: dates,
-    boundaryGap: gridIndex === 1,
-    axisLine: { lineStyle: { color: t.border } },
-    axisTick: { show: false },
-    axisLabel: showLabels
-      ? { color: t.muted, fontSize: 10, interval: "auto", hideOverlap: true, margin: 8 }
-      : { show: false },
-    splitLine: { show: false },
-  };
+function percentile(sorted: number[], p: number): number {
+  if (sorted.length === 0) return Number.NaN;
+  const position = (sorted.length - 1) * p;
+  const low = Math.floor(position);
+  const high = Math.ceil(position);
+  return sorted[low] + (sorted[high] - sorted[low]) * (position - low);
 }
 
-function valueAxis(t: ThemeTokens, gridIndex: number, name?: string): Series {
-  return {
-    type: "value",
-    gridIndex,
-    scale: true,
-    name,
-    nameTextStyle: { color: t.muted, fontSize: 10 },
-    axisLine: { show: false },
-    axisTick: { show: false },
-    axisLabel: { color: t.muted, fontSize: 10, formatter: (value: number) => compactAxisLabel(value) },
-    splitLine: { lineStyle: { color: t.split, type: "dashed" } },
-  };
+/**
+ * Keep the modal line readable when a single extreme min/max would otherwise
+ * dominate the value axis. The bounds use a 3×IQR fence over the band edges and
+ * are widened to contain every modal value; tooltips still report the raw min/max.
+ */
+export function robustBandBounds(rows: AgriChartSeriesPoint[]): { min: number; max: number } | null {
+  const edges = rows
+    .flatMap((row) => [finite(row.min), finite(row.max)])
+    .filter((value): value is number => value != null)
+    .sort((a, b) => a - b);
+  const modals = rows
+    .map((row) => finite(row.modal))
+    .filter((value): value is number => value != null);
+  if (edges.length === 0 && modals.length === 0) return null;
+  const q1 = edges.length > 0 ? percentile(edges, BAND_Q1_PCT) : Math.min(...modals);
+  const q3 = edges.length > 0 ? percentile(edges, BAND_Q3_PCT) : Math.max(...modals);
+  const iqr = q3 - q1;
+  // Prices are non-negative; without the clamp a low q1 can make the fence
+  // negative and ECharts shows a meaningless negative price axis.
+  let low = Math.max(0, q1 - BAND_FENCE_IQR * iqr);
+  let high = q3 + BAND_FENCE_IQR * iqr;
+  for (const modal of modals) {
+    low = Math.min(low, modal);
+    high = Math.max(high, modal);
+  }
+  const pad = Math.max((high - low) * 0.08, 1);
+  return { min: Math.max(0, low - pad), max: high + pad };
 }
 
-function makeDataZoom(t: ThemeTokens, xAxisIndex: number[], start = 0): Series[] {
-  return [
-    { type: "inside", xAxisIndex, start, end: 100 },
-    {
-      type: "slider",
-      xAxisIndex,
-      start,
-      end: 100,
-      height: 18,
-      bottom: 8,
-      borderColor: t.border,
-      textStyle: { color: t.muted, fontSize: 9 },
-    },
-  ];
-}
-
-function baseOption(
-  t: ThemeTokens,
-  title: string,
-  legend: string[],
-  formatter: (params: unknown) => string,
-): Record<string, unknown> {
-  return {
-    animation: false,
-    // The panel owns the surface; painting a plot background here clashes with
-    // it whenever the caller's theme flag disagrees with the active CSS theme.
-    backgroundColor: "transparent",
-    title: { text: title, left: "center", top: 2, textStyle: { color: t.text, fontSize: 12 } },
-    legend: {
-      show: legend.length > 0,
-      top: 22,
-      data: legend,
-      itemWidth: 12,
-      itemHeight: 8,
-      textStyle: { color: t.muted, fontSize: 10 },
-    },
-    tooltip: {
-      trigger: "axis",
-      axisPointer: { type: "cross", lineStyle: { color: t.crosshair } },
-      backgroundColor: t.tooltipBg,
-      borderColor: t.border,
-      borderWidth: 1,
-      textStyle: { color: t.text, fontSize: 11 },
-      formatter,
-    },
-  };
-}
-
-function titled(mode: string, asOf?: string): string {
-  return asOf ? `${mode} · as of ${asOf}` : mode;
-}
-
-function modalSeries(data: (number | null)[], gridIndex: number, yAxisIndex: number): Series {
+function modalSeries(data: (number | null)[], gridIndex: number, yAxisIndex: number): OptionFragment {
   return {
     name: "Modal",
     type: "line",
@@ -282,17 +172,32 @@ function buildBand(
   unit: string,
   t: ThemeTokens,
   asOf?: string,
-): Record<string, unknown> {
-  const dates = rows.map((r) => formatAgriDateLabel(r.date));
-  const min = rows.map((r) => finiteOrNull(r.min));
+): OptionFragment {
+  const byDate = new Map(rows.map((row) => [row.date, row]));
+  const display: DisplayRow[] = addGapMarkers(rows.map((r) => r.date)).map((date) => {
+    const found = byDate.get(date);
+    if (found) return { ...found, gap: false };
+    return {
+      date,
+      modal: null,
+      min: null,
+      max: null,
+      arrivals_qtl: null,
+      market_count: 0,
+      gap: true,
+    };
+  });
+  const dates = display.map((r) => (r.gap ? "" : formatAgriDateLabel(r.date)));
+  const min = display.map((r) => finite(r.min));
   // The upper stacked series carries only the span so ECharts fills the area
   // between min and max; the tooltip reads the raw values from the source row.
   // It is an informational range, so it reads as an INFO tint, never a grey wash.
-  const span = rows.map((r) => {
+  const span = display.map((r) => {
     const lo = finite(r.min);
     const hi = finite(r.max);
     return lo == null || hi == null ? null : Math.max(0, hi - lo);
   });
+  const bounds = robustBandBounds(display.filter((r) => !r.gap));
 
   return {
     ...baseOption(
@@ -300,19 +205,19 @@ function buildBand(
       titled("Modal price with min–max band", asOf),
       ["Modal", BAND_NAME],
       (params) =>
-        rowTooltip(params, rows, (row) => [
+        rowTooltip(params, display, (row) => [
           field("Modal", formatAgriValue(row.modal, unit)),
           field("Min", formatAgriValue(row.min, unit)),
           field("Max", formatAgriValue(row.max, unit)),
           field("Markets", formatAgriValue(row.market_count, "")),
         ]),
     ),
-    grid: [{ left: 56, right: 24, top: 48, bottom: 64, containLabel: true }],
+    grid: [{ left: 56, right: 24, top: CHART_LAYOUT.gridTop, bottom: CHART_LAYOUT.gridBottomWithZoom, containLabel: true }],
     xAxis: [categoryAxis(dates, t, 0, true)],
-    yAxis: [valueAxis(t, 0)],
+    yAxis: [{ ...valueAxis(t, 0), ...bounds }],
     dataZoom: makeDataZoom(t, [0]),
     series: [
-      modalSeries(rows.map((r) => finiteOrNull(r.modal)), 0, 0),
+      modalSeries(display.map((r) => finite(r.modal)), 0, 0),
       {
         name: "Min",
         type: "line",
@@ -346,9 +251,9 @@ function buildArrivals(
   unit: string,
   t: ThemeTokens,
   asOf?: string,
-): Record<string, unknown> {
+): OptionFragment {
   const dates = rows.map((r) => formatAgriDateLabel(r.date));
-  const arrivals = rows.map((r) => finiteOrNull(r.arrivals_qtl));
+  const arrivals = rows.map((r) => finite(r.arrivals_qtl));
 
   return {
     ...baseOption(
@@ -356,7 +261,7 @@ function buildArrivals(
       titled("Modal price & arrivals", asOf),
       ["Modal", "Arrivals"],
       (params) =>
-        rowTooltip(params, rows, (row) => [
+        rowTooltip(params, rows.map((row) => ({ ...row, gap: false })), (row) => [
           field("Modal", formatAgriValue(row.modal, unit)),
           field("Arrivals", `${formatAgriValue(row.arrivals_qtl, "")} qtl`),
           field("Markets", formatAgriValue(row.market_count, "")),
@@ -364,14 +269,14 @@ function buildArrivals(
     ),
     axisPointer: { link: [{ xAxisIndex: "all" }] },
     grid: [
-      { left: 56, right: 56, top: 48, height: "54%", containLabel: true },
-      { left: 56, right: 56, top: "72%", height: "15%", containLabel: true },
+      { left: 56, right: 56, top: CHART_LAYOUT.gridTop, height: "50%", containLabel: true },
+      { left: 56, right: 56, top: "68%", bottom: 44, containLabel: true },
     ],
     xAxis: [categoryAxis(dates, t, 0, false), categoryAxis(dates, t, 1, true)],
     yAxis: [valueAxis(t, 0), valueAxis(t, 1, "qtl")],
     dataZoom: makeDataZoom(t, [0, 1]),
     series: [
-      modalSeries(rows.map((r) => finiteOrNull(r.modal)), 0, 0),
+      modalSeries(rows.map((r) => finite(r.modal)), 0, 0),
       {
         name: "Arrivals",
         type: "bar",
@@ -402,7 +307,7 @@ function buildCompare(
   comparisons: AgriComparisonSeries[],
   t: ThemeTokens,
   asOf?: string,
-): Record<string, unknown> {
+): OptionFragment {
   const selected = comparisons.slice(0, MAX_COMPARE);
   const prepared = selected
     .filter((c) => c && Array.isArray(c.points) && typeof c.key === "string")
@@ -422,9 +327,10 @@ function buildCompare(
   const commonFirst = allDates.find((date) => prepared.every((s) => s.byDate.get(date) != null));
   if (!commonFirst) return {};
 
-  const dates = allDates.filter((date) => date >= commonFirst);
+  const dates = addGapMarkers(allDates.filter((date) => date >= commonFirst));
+  const gapDates = new Set(dates.filter((date) => prepared.every((s) => s.byDate.get(date) == null)));
   const labels = uniqueLabels(prepared.map((s) => s.label));
-  const series: Series[] = prepared.map((s, i) => {
+  const series: OptionFragment[] = prepared.map((s, i) => {
     const base = s.byDate.get(commonFirst) as number;
     const color = COMPARE_COLORS[i % COMPARE_COLORS.length];
     const data = dates.map((date) => {
@@ -472,7 +378,7 @@ function buildCompare(
       const pct = value - 100;
       return (
         `<div>${p.marker ?? ""}${escapeHtml(p.seriesName ?? "")}: ` +
-        `<b>${INDEX_FMT.format(value)}</b> ` +
+        `<b>${formatIndexLevel(value)}</b> ` +
         `<span style="color:${pct >= 0 ? POSITIVE : NEGATIVE}">${formatPct(pct)}</span></div>`
       );
     });
@@ -481,8 +387,8 @@ function buildCompare(
 
   return {
     ...baseOption(t, titled("Modal price indexed to 100 at common start", asOf), labels, compareTooltip),
-    grid: [{ left: 56, right: 24, top: 48, bottom: 64, containLabel: true }],
-    xAxis: [categoryAxis(dates.map(formatAgriDateLabel), t, 0, true)],
+    grid: [{ left: 56, right: 24, top: CHART_LAYOUT.gridTop, bottom: CHART_LAYOUT.gridBottomWithZoom, containLabel: true }],
+    xAxis: [categoryAxis(dates.map((date) => (gapDates.has(date) ? "" : formatAgriDateLabel(date))), t, 0, true)],
     yAxis: [valueAxis(t, 0)],
     dataZoom: makeDataZoom(t, [0]),
     series,
@@ -494,7 +400,7 @@ function buildOhlc(
   unit: string,
   t: ThemeTokens,
   asOf?: string,
-): Record<string, unknown> {
+): OptionFragment {
   const usable = rows.filter((r) => finite(r.modal) != null);
   if (usable.length === 0) return {};
   const dates = usable.map((r) => formatAgriDateLabel(r.date));
@@ -534,7 +440,7 @@ function buildOhlc(
         ]);
       },
     ),
-    grid: [{ left: 56, right: 24, top: 48, bottom: 64, containLabel: true }],
+    grid: [{ left: 56, right: 24, top: CHART_LAYOUT.gridTop, bottom: CHART_LAYOUT.gridBottomWithZoom, containLabel: true }],
     xAxis: [categoryAxis(dates, t, 0, true)],
     yAxis: [valueAxis(t, 0)],
     dataZoom: makeDataZoom(t, [0], start),

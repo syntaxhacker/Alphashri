@@ -3,6 +3,7 @@ import { mkdirSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
 import {
+  AGRI_GAP,
   agriPricesPayload,
   setupAgriMocks,
   type AgriMockHandle,
@@ -46,10 +47,10 @@ const COLUMNS = [
   "District",
   "Market / Mandi",
   "Variety",
-  "Min (₹/quintal)",
-  "Modal (₹/quintal)",
-  "Max (₹/quintal)",
-  "Arrivals (qtl)",
+  "Min ₹/qtl",
+  "Modal ₹/qtl",
+  "Max ₹/qtl",
+  "Arrivals qtl",
   "Date",
   "Status",
 ];
@@ -99,6 +100,24 @@ async function expectEdaSummary(page: Page, params: Record<string, string> = {})
   await expect(eda).toContainText("%");
 }
 
+test("agri fixture keeps the 173-day hole, null MSP and source strata", () => {
+  const payload = agriPricesPayload({ commodity: "onion", range: "max" });
+  const dates = new Set(payload.series.map((point) => point.date));
+
+  expect(dates.has(AGRI_GAP.boundaryStart)).toBe(true);
+  expect(dates.has(AGRI_GAP.firstMissing)).toBe(false);
+  expect(dates.has(AGRI_GAP.lastMissing)).toBe(false);
+  expect(dates.has(AGRI_GAP.boundaryEnd)).toBe(true);
+  expect(payload.series[payload.series.length - 1]?.arrivals_qtl).toBeNull();
+  expect(payload.kpis.msp).toBeNull();
+  expect(payload.quotes_total).toBe(3_942);
+  expect(payload.quotes[0]).toMatchObject({
+    price_unit: "Rs./Quintal",
+    source: "agmarknet_daily",
+    product_form: "common",
+  });
+});
+
 test.describe("Agri prices redesign", () => {
   let handle: AgriMockHandle;
 
@@ -128,7 +147,10 @@ test.describe("Agri prices redesign", () => {
     await expect(page.getByTestId("agri-kpi-chg6m")).toContainText(formatChangePct(kpis.chg_6m_pct));
     await expect(page.getByTestId("agri-kpi-markets")).toContainText(String(kpis.market_count));
     await expect(page.getByTestId("agri-kpi-arrivals")).toContainText(formatArrivals(kpis.arrivals_qtl));
+    // The official daily feed publishes no arrivals and no verified MSP.
+    await expect(page.getByTestId("agri-kpi-arrivals")).toContainText("—");
     await expect(page.getByTestId("agri-kpi-msp")).toContainText(formatAgriPrice(kpis.msp));
+    await expect(page.getByTestId("agri-kpi-msp")).toContainText("No MSP notified");
 
     await expect(page.getByTestId("agri-quotes-table")).toBeVisible();
     for (const column of COLUMNS) {
@@ -139,6 +161,18 @@ test.describe("Agri prices redesign", () => {
     await expect(page.locator('[data-testid^="agri-row-"]').first()).toContainText(
       formatAgriPrice(kpis.modal),
     );
+  });
+
+  test("surfaces the collection-gap and partial-day warnings", async ({ page }) => {
+    await openAgri(page);
+
+    const warnings = page.getByTestId("agri-warnings");
+    await expect(warnings).toContainText(`${AGRI_GAP.missingDays}-day gap`);
+    await expect(warnings).toContainText(`${AGRI_GAP.firstMissing} → ${AGRI_GAP.lastMissing}`);
+    await expect(warnings).toContainText("3,942 of 15,843");
+    // 1W/1M anchors fall inside the hole, so the backend leaves them null.
+    await expect(page.getByTestId("agri-kpi-chg1w")).toContainText("—");
+    await expect(page.getByTestId("agri-kpi-chg1m")).toContainText("—");
   });
 
   test("shows EDA summary values and units from the active series", async ({ page }) => {
@@ -155,6 +189,34 @@ test.describe("Agri prices redesign", () => {
     }
     await expect(page.getByTestId("agri-mode-ohlc")).toHaveCount(0);
     await expect(page.getByTestId("agri-mode-arrivals")).toHaveCount(0);
+  });
+
+  test("390 mobile replaces the mode strip with a working mode select", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openAgri(page);
+
+    await expect(page.getByTestId("agri-mode-strip")).toHaveCount(0);
+    const select = page.getByTestId("agri-mode-select").locator("select");
+    await expect(select).toHaveValue("band");
+    await select.selectOption("heatmap");
+    await expect(select).toHaveValue("heatmap");
+    await expect(page.locator('[data-testid="agri-chart"] canvas')).toBeVisible();
+  });
+
+  // TODO(W10): AgriPage seeds DEFAULT_COMPARE without the active commodity, so
+  // the compare request currently omits Onion. Flip from fixme when the active
+  // key is forced into the comparison set.
+  test.fixme("compare always includes the active commodity", async ({ page }) => {
+    await openAgri(page, "?mode=compare");
+    await expect.poll(() => handle.pricesCalls.at(-1)?.params.compare).toContain("onion");
+    await expect(page.getByTestId("agri-compare-onion")).toContainText("Onion");
+  });
+
+  // TODO(W10): the payload carries quotes_total but the table still says
+  // "N quotes" from quotes.length. Flip from fixme when it renders "showing X of Y".
+  test.fixme("quotes panel discloses the total quote count", async ({ page }) => {
+    await openAgri(page);
+    await expect(page.getByTestId("agri-table-panel")).toContainText(/showing\s+2\s+of\s+3,942/i);
   });
 
   test("switching group narrows the commodity list and reloads prices", async ({ page }) => {
@@ -196,7 +258,11 @@ test.describe("Agri prices redesign", () => {
     for (const mode of MODES) {
       await page.getByTestId(`agri-mode-${mode}`).click();
       await expect(page.getByTestId(`agri-mode-${mode}`)).toHaveClass(/font-semibold/);
-      await expect(page.locator('[data-testid="agri-chart"] canvas')).toBeVisible();
+      if (mode === "seasonality") {
+        await expect(page.getByTestId("agri-seasonality-weak")).toBeVisible();
+      } else {
+        await expect(page.locator('[data-testid="agri-chart"] canvas')).toBeVisible();
+      }
       if (mode === "compare") {
         await expect(page.getByTestId("agri-compare-strip")).toBeVisible();
         await expect.poll(() => handle.pricesCalls.at(-1)?.params.compare).toContain("wheat");
@@ -317,7 +383,11 @@ for (const viewport of [
 
     for (const mode of SCREENSHOT_MODES) {
       await chooseMode(page, mode, viewport.width);
-      await expect(page.locator('[data-testid="agri-chart"] canvas')).toBeVisible();
+      if (mode === "seasonality") {
+        await expect(page.getByTestId("agri-seasonality-weak")).toBeVisible();
+      } else {
+        await expect(page.locator('[data-testid="agri-chart"] canvas')).toBeVisible();
+      }
       const file = resolve(REPORT_DIR, `agri-${viewport.label}-${mode}.png`);
       await page.screenshot({ path: file });
       expect(statSync(file).size).toBeGreaterThan(40 * 1024);

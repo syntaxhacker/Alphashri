@@ -1,494 +1,417 @@
 # Agri prices — EDA & visual specification
 
-Status: **design decision record for the `/agri` redesign.** This document defines the
-exploratory views, their exact encodings, the derived-only summary strip above the
-chart, the cross-view interactions, and the acceptance checks. Source facts live in
-[`AGRI_PRICES.md`](./AGRI_PRICES.md); descriptors live in `src/config/agri.ts`; the
-wire contract in `src/types/agri.ts`; the aggregation rules in
-`api/agri/aggregate.py`. Where this document and a screenshot disagree, the document
-is the target state and the screenshot is the baseline being replaced.
+Status: **target-state design record for the `/agri` W10 redesign.** This document
+defines the category-first layout, reliability tiers, product/unit strata,
+gap-aware charts and acceptance checks. Source facts live in
+[`AGRI_PRICES.md`](./AGRI_PRICES.md); descriptors live in `src/config/agri.ts`;
+the wire contract in `src/types/agri.ts`; aggregation rules in
+`api/agri/aggregate.py`; refresh operations in
+[`RUNBOOK_REFRESH.md`](./RUNBOOK_REFRESH.md).
 
-> **No invented metrics.** Every number shown is computed from the returned daily
-> `series` / `kpis` / `comparison` payload. Fields the payload leaves `null`
-> (`msp`, `distance_to_msp_pct`, missing `arrivals_qtl`) stay `null` and render `—`
-> with a reason. Nothing is filled from memory, from a vendor's "typical" value,
-> or from a plausible-looking default. A metric that cannot be computed renders
-> `—`, never `0`.
+Where this document and a screenshot disagree, this document is the target state
+and the screenshot is the baseline being replaced. The UI may lag the backend:
+tests for an unwired control must carry an explicit `TODO(W10)` / `test.fixme`,
+never a fake pass.
+
+> **No invented metrics.** Every number is computed from the returned daily
+> `series`, `kpis`, `comparison` or quote payload. Missing inputs stay `null` and
+> render `—` with a reason. MSP is `null` for every commodity until a notified
+> value is verified from an official source. A metric that cannot be computed
+> renders `—`, never `0`, and no price is forecast.
 
 ---
 
 ## 0. Data contract at a glance
 
-One point per date, already aggregated across mandis by `aggregate_daily()`:
+One point per date, aggregated across mandis by `aggregate_daily()`:
 
-| Field | Meaning (source) | Unit | Notes |
+| Field | Meaning | Unit / shape | Notes |
 |---|---|---|---|
-| `date` | ISO arrival date | `YYYY-MM-DD` | Series is anchored to `as_of`, not to today. |
-| `modal` | **Median of the day's per-mandi modal prices**; a mandi's modal is the *most-traded* price, not a mean and not a close | ₹/quintal | This is the primary measure of level. |
-| `min` | Robust **2nd percentile across mandis** on that date (exact min on days with <5 prices) | ₹/quintal | Cross-sectional dispersion, *not* an intraday low. |
-| `max` | Robust **98th percentile across mandis** on that date (exact max on days with <5 prices) | ₹/quintal | Cross-sectional dispersion, *not* an intraday high. |
-| `arrivals_qtl` | Sum across mandis; source metric tonnes ×10 | qtl | Coverage warnings are emitted by the backend. |
-| `market_count` | Distinct reporting mandis | count | Also shown in the freshness banner. |
+| `date` | ISO arrival date | `YYYY-MM-DD` | Anchored to `as_of`, never today. |
+| `modal` | Median of the day's per-mandi modal prices; a mandi modal is the most-traded price, not a mean and not a close | ₹/quintal | Primary level measure. |
+| `min` | Robust **2nd percentile across mandis** (exact min on days with <5 prices) | ₹/quintal | Cross-sectional dispersion, not an intraday low. |
+| `max` | Robust **98th percentile across mandis** (exact max on days with <5 prices) | ₹/quintal | Cross-sectional dispersion, not an intraday high. |
+| `arrivals_qtl` | Reported arrivals; CKAN metric tonnes ×10, daily feed has none | qtl | Never zero-filled. `null` means “not published”. |
+| `market_count` | Distinct reporting mandis | count | Per date and per selected stratum. |
+| `price_unit` | Published unit for the row | e.g. `Rs./Quintal`, `Rs./Bundle` | Not a global constant. |
+| `product_form` | Product line | e.g. `common`, `basmati`, `green`, `dry`, `leaves`, `seed` | Splits chilli, coriander, paddy and rice. |
+| `source` | Row provenance | `agmarknet_daily`, `agmarknet_ckan` | Mixed days are allowed. |
+| `commodity_key` | Canonical registry key | e.g. `onion` | Read path filters this, never the raw spelling. |
+| `source_commodity` | Raw API spelling | string | Audit only; never used for joins. |
 
-`kpis` carries `modal`, `min`, `max`, `chg_1w_pct`, `chg_1m_pct`, `chg_6m_pct`,
-`market_count`, `arrivals_qtl`, `msp`, `distance_to_msp_pct`. `comparison` carries
-up to 5 other commodities' `{date, modal}` points. No new backend field is required
-for any view in this document.
+`kpis` carries `modal`, `min`, `max`, `chg_1w_pct`, `chg_1m_pct`,
+`chg_6m_pct`, `market_count`, `arrivals_qtl`, `arrivals_unit`, `unit`, `msp`,
+`distance_to_msp_pct`. `quotes_total` is the full row count for the selected
+facts, independent of the page limit. `comparison` carries up to five other
+commodity series.
 
----
+### Per-key date and freshness
 
-## 1. Why proxy-OHLC must not be a primary mode
+`as_of` is **not one global date**. Each commodity key has its own `MAX(date)`
+and freshness. A partial day must not advance every key, and a key missing on
+the newest date shows its own latest date rather than a stale anchor. The
+freshness panel therefore reports the selected key's date, `n` sessions, mandi
+count and gap state.
 
-`agriChartOption.ts:buildOhlc()` currently synthesises candles as
-`[open = previous day's modal, close = today's modal, low = min, high = max]` and
-labels them "Proxy OHLC from min/max/modal — not traded OHLC". Even with that
-label, the chart reads as a tradable instrument (see
-`reports/agri/screenshots/desktop-ohlc.png`): rows of long red/green wicks whose
-tops and bottoms invite interpretations the data cannot support.
+### Current cache (2026-11-22)
 
-1. **There is no open.** Agmarknet publishes a daily *modal* price (the most-traded
-   price at a mandi); it does not publish a session open. Using yesterday's modal
-   as today's open invent a continuity and a gap that were never observed. The
-   green/red body then asserts "up/down from an open" for a series that has no
-   traded path.
-2. **`min`/`max` are not a traded high/low.** They are the 2nd/98th percentiles
-   *across mandis on that date*, after the aggregator clips impossible prints.
-   A wick drawn from modal to p98 suggests the price travelled to that level
-   during the day. It did not — another mandi quoted it. The wick length encodes
-   cross-market disagreement, not intraday volatility.
-3. **`modal` is not a close.** It is a mode across trades and then a median across
-   mandis. Labelling it "Close (modal)" in the tooltip is a category error.
-4. **It crowds out the views that fit the data.** The same pixel budget can show
-   the min–max band (honest range), a boxplot (honest dispersion), or arrivals vs
-   price (honest supply/demand). Candles make the least defensible view the most
-   visually dominant one.
-5. **It invites derived strategies that cannot be backtested.** Candles imply
-   gap, body, wick and range signals; none have a traded-time referent in mandi
-   data. That is an invented metric risk, not a presentation choice.
-
-**Decision:** remove `ohlc` from `AGRI_CHART_MODES` / `AgriChartMode` and from the
-mode strip. Do not retain it as a hidden or advanced mode. `min`, `max` and
-`modal` remain first-class inputs to the band and boxplot views — only the
-candle *encoding* is retired. If a raw-range check is ever needed for debugging,
-it belongs in a backend/CSV artifact, not on the screen.
+- `reports/agri/agri_prices.db`: **1,215,303 rows**, **2025-10-27 → 2026-11-21**.
+- The CKAN seed spans **2025-10-27 → 2026-05-31** and carries arrivals.
+- There are **173 missing dates** (`2026-06-01 → 2026-11-20`); the observed
+  boundary span is 174 days. Charts and rolling windows must break the line.
+- **2026-11-21 is partial:** the collector found **3,942 rows** while the API
+  reported **15,843** for that date (≈24.9%). Rice, arhar, chilli, groundnut and
+  chana are 1–10% of their normal coverage. It is **not** a complete session and
+  must not advance the completeness ledger.
+- The official daily feed publishes no arrivals; CKAN arrivals remain for
+  historical dates only. Never fill a daily null with `0`.
+- 48 rows have `modal < min`, 16 have `modal > max`, 5 have `min > max`; these
+  are data errors, not market signals, and are quarantined/flagged separately.
+- MSP is `null` for every commodity. `hasMsp` in `config/agri.ts` is eligibility,
+  not a value, and must never be rendered as one.
 
 ---
 
-## 2. Ranked EDA views for this dataset
+## 1. Agri taxonomy — one registry, explicit reliability
 
-Ranked by how directly each view answers a question the data can actually answer.
+The backend registry (`api/agri/registry.py`) is the single source of truth. The
+UI consumes its key/label/group/unit; there is no second label list.
 
-| # | View | Question it answers | Key requirement | Default state |
-|---|---|---|---|---|
-| 1 | **Price band + modal trend** | "What is the level and the cross-mandi spread over time?" | daily series | **Default ON**, always available |
-| 2 | **Monthly distribution / boxplot** | "How dispersed is the modal within each month; which months are wide?" | ≥6 months | ON, gated |
-| 3 | **Arrivals ↔ price scatter + correlation** | "Do high-arrival days line up with low/high prices?" | ≥6 months + arrivals on ≥60% of days | ON, gated |
-| 4 | **Commodity × month heatmap** | "Which commodity is relatively expensive in which month?" | ≥3 commodities, ≥3 months | ON, gated |
-| 5 | **Rolling mean ± volatility band** | "Is the current move trend or noise?" | ≥30 daily points | ON, gated |
-| 6 | **Seasonality by calendar month** | "Is this month seasonally high or low across years?" | **≥2 years** | **OFF / disabled on the 7-month seed** |
-| 7 | **Top movers / small multiples / sparklines** | "Which commodities moved most, on a comparable scale?" | ≥2 commodities, ≥2 dates | ON, gated |
-| 8 | **MSP gap / below-MSP flags** | "Are prices below a *verified* minimum support price?" | verified MSP in `registry` | **OFF / disabled — all MSPs are null today** |
+### Groups and commodities
 
-The existing `arrivals` dual-axis (modal line + arrivals bar) is **demoted**: it
-survives only as the lower companion strip inside view 3, never as a top-level
-mode. The existing indexed `compare` overlay survives inside view 7 as the
-"Indexed (100 = window start)" toggle, not as a separate rank.
+| Group | Commodities | Character |
+|---|---|---|
+| **Cereals** | Rice, Paddy, Wheat, Maize, Bajra, Jowar | Deep, low-volatility staples; wheat is a tight market |
+| **Pulses** | Arhar/Tur, Urad, Moong, Masoor, Chana/Gram | Policy/seasonality sensitive; thinner than cereals |
+| **Vegetables** | Onion, Potato, Tomato | High volatility, wide cross-mandi dispersion; best scanner candidates |
+| **Oilseeds** | Soyabean, Groundnut, Mustard, Sunflower | Crush/import context; thinner coverage |
+| **Spices** | Chilli, Turmeric, Coriander, Jeera | Thin, product/grade-sensitive; split green/red and bundle/quintal |
+
+### Reliability tier (shown on every screen)
+
+Derived from observed coverage, never hardcoded:
+
+| Tier | Rule | Examples | UI rule |
+|---|---|---|---|
+| **A** | ≥100 mandis/day and ≥80% date coverage | Onion, Potato, Tomato, Wheat, Paddy, Rice | Rank and leaderboard claims allowed with `n` shown |
+| **B** | 20–99 mandis/day | Maize, Bajra, Jowar, Chana, Soyabean, Mustard, Chilli | Rank allowed, sample size shown |
+| **C** | <20 mandis/day | Turmeric, Jeera, Sunflower, Groundnut, Coriander | **“Thin sample”** badge; disable broad rank/leaderboard claims |
+
+A tier must fall when coverage falls; it is a computed property of the selected
+window, not a constant in config.
+
+### Product / unit strata
+
+Add a second selector wherever the source mixes product lines:
+
+- **Chilli:** Green Chilli / Red Chilli / Dry Chillies
+- **Coriander:** Leaves (bundle) / Seed (quintal)
+- **Paddy:** Common / Basmati
+- **Rice:** Rice / Broken Rice / Beaten Rice
+- **Groundnut:** Seed / Pods
+- **Mustard:** Mustard / Sarson / Toria
+
+Rules:
+
+- Never aggregate across `Rs./Bundle` and `Rs./Quintal`.
+- Default to the dominant quintal product and print the selected stratum in the
+  chart title and tooltip.
+- If no conversion exists, display separate series; never blend medians.
+- `product_form` and `price_unit` travel on every quote and series point.
+- Exclude non-quintal rows from quintal aggregates and say so in the coverage
+  panel. The backend warning for non-quintal units stays visible.
 
 ---
 
-## 3. Exact chart specification per view
+## 2. Visual hierarchy — category first
 
-Shared conventions for every view:
+The goal is one glance answering: **is this commodity expensive or cheap versus
+its own history, and is the move broad or local?** A user must not have to pick a
+commodity before seeing what moved.
 
-- **Theme** — reuse `themeTokens(isDark)` from `agriChartOption.ts`. Axes/split
-  lines use the theme `border` / `split` tokens; labels use `text` / `muted`.
-  No raw hex, no new colour pairs.
-- **Colour meaning** — `PRIMARY` = the modal/central estimate; `INFO` (via
-  `alpha(INFO, …)`) = informational range/volume/correlation; `POSITIVE` /
-  `NEGATIVE` = signed direction only; `WARNING` = attention (outliers, gaps,
-  gating); `SCALE_VIOLET[4]` / `SCALE_CYAN[4]` = additional compare series.
-  Never use red for "selected" or "informational". Labels on filled cells use
-  `pickTextColor(fill)` from `src/utils/contrast.ts`.
-- **Number format** — prices via `formatAgriPrice` (grouped Indian rupees,
-  suffix `₹/quintal` in axis title / tooltip); arrivals via `formatArrivals`
-  (`K`/`L`/`Cr qtl`); percentages via `formatChangePct` (signed, 1 decimal).
-  Axis compact labels use the existing `en-IN` ladder.
-- **Tooltip shell** — the existing `tooltipShell` + `field()` helpers: monospace
-  11px, header = date/month/commodity, one row per series, `—` for null.
-  Escape all labels; never concatenate unescaped source strings.
-- **Empty state** — `EmptyState kind="no-data"` with a title, a description that
-  names the *specific* missing precondition, and (where useful) a `Show MAX` /
-  `Switch to 1Y` action. Never a blank canvas and never a zero-filled series.
-- **Disabled view** — the mode button is hidden when its requirement can never
-  be met by the loaded payload (e.g. MSP), or shown disabled with `title`
-  explaining the requirement when the requirement is data-dependent (e.g.
-  seasonality needs 2 years). A disabled mode cannot be selected via URL either:
-  fall back to `band` and keep the URL clean.
+### P0 — orientation and trust
 
-### 3.1 Price band + modal trend (primary, `band`)
+| # | Surface | Question | Default |
+|---|---|---|---|
+| 1 | **Market Pulse strip** | What is the selected commodity doing, and how good is the sample? | Always above the plot |
+| 2 | **Group overview** | Which of the five groups moved, and how broadly? | Five cards |
+| 3 | **Small multiples by group** | Which commodities drove the group move? | One sparkline per commodity |
+| 4 | **Fluctuation matrix** | What are the 1W/1M/3M/6M moves in one grid? | Sorted by 1M |
+| 5 | **Price level vs percentile** | Is today high or low versus own trailing 90 days? | Main line/band |
+| 6 | **Coverage + freshness panel** | How real is this sample? | Always visible |
 
-- **x** — `date`, category axis, labelled with `formatAgriDateLabel` (`DD Mon`),
-  `hideOverlap`, zoom slider (`dataZoom`) as today.
-- **y** — modal in ₹/quintal, value axis, `scale: true` (do not force zero).
-- **Encode** — modal line `PRIMARY`, 2px, no symbols, `z: 5`; min–max band = two
-  stacked invisible lines whose `areaStyle` is `ORB_AREA` (an `alpha(INFO, …)`
-  tint), `silent: true`, `z: 1–2`. The band is an informational range, not a
-  P&L fill. Raw `min`/`max` are *not* plotted as separate visible lines.
-- **Tooltip** — trigger `axis`, cross pointer; rows: Modal, Min, Max, Markets,
-  and `as of` in the header. Show raw values from the source row, never the
-  stacked `span` value.
-- **Annotations** — a dashed `as_of` marker when `as_of < today - 7d` is already
-  covered by the freshness banner; do not duplicate it in the plot. Below-MSP
-  markers are added **only** in view 8 and only for verified MSPs.
-- **Empty state** — "No chart history for this selection" + `emptyCopy()`; action
-  `Show MAX` when `range !== "max"`.
-- **Disable when** — `series.length === 0` (show empty state, keep the mode).
-- **Interaction** — the scatter's `highlightDate` draws a thin dashed vertical
-  marker here; no refetch.
+### P1 — cross-section and risk
 
-### 3.2 Monthly distribution / boxplot (`distribution`)
+7. **Mandi scanner** — latest-date table with state, district, mandi,
+   variety/grade, modal, min–max spread, % vs commodity median, arrivals, rank.
+   Server-side sort + `quotes_total`, explicit “showing X of Y”.
+8. **Gross spread / dispersion** — commodity daily p25–p75, IQR/median,
+   p90/p10, then state/district spreads. Label **“gross, before transport,
+   commission and spoilage”**; no arbitrage profit without cost data.
+9. **Volatility quadrant** — x = gap-guarded 30-day return, y = return
+   volatility (not level CV), size = mandi count, colour = group. Tier C is
+   visibly small/greyed.
+10. **Anomaly layer** — return-z flags on the price band plus separate
+    data-error flags (unit mismatch, `min > modal`, `modal > max`, extreme vs
+    day median). Click a flag to jump to that date.
+11. **Seasonality** — month-of-year only when every month has ≥2 calendar years
+    (prefer 5); show `years` and `n` per month. One year shows an explanatory
+    empty state, never a cycle.
 
-- **x** — calendar month present in the active window, ordered chronologically,
-  label `Mon 'YY` plus `n=` daily observations.
-- **y** — daily `modal` in ₹/quintal, value axis, shared across months.
-- **Encode** — one box per month: box = p25–p75 of that month's daily modal;
-  median line = `PRIMARY` 2px; whiskers = smallest/largest values within
-  1.5×IQR; outlier dots = `WARNING` 4px (attention, not bearish). A small `n`
-  badge in each axis label prevents "one observation looks like a distribution".
-- **Tooltip** — trigger `item`; Month, Median, p25, p75, whisker low/high,
-  outlier count, n sessions, unit. If `n < 5`, add the line
-  "Small sample — treat spread as indicative".
-- **Annotations** — a subtle `INFO` band for the overall window median modal,
-  labelled "window median", so a month can be judged against the whole window.
-- **Empty state** — "Need at least 6 months of history" when the window spans
-  <6 calendar months; otherwise the generic no-data state.
-- **Disable when** — active window spans <6 calendar months **or** any month has
-  <2 modal points. The 7-month seed supports this view (Oct 2025–May 2026 ≈ 7
-  months, ~20–26 points per month).
-- **Interaction** — brushing/clicking a month box sets the `month` selection →
-  filters the table and re-scopes the other views (§6).
+### P2 — later
 
-### 3.3 Arrivals ↔ price scatter + correlation (`scatter`)
+12. State/district leaderboard.
+13. Saved views + CSV/PNG export with `as_of`.
+14. India map only after state aggregates and boundaries exist.
+15. Watchlist/threshold alerts — “next import”, never real-time.
 
-- **x** — `arrivals_qtl` (sum across reporting mandis for that date), compact qtl
-  (`K`/`L`/`Cr`), value axis starting at 0.
-- **y** — daily `modal`, ₹/quintal, value axis, `scale: true`.
-- **Encode** — one dot per date, 6px, colour by calendar month using an `INFO`
-  hue ramp derived from a single anchor (do not add seven new colour tokens);
-  least-squares regression line `y = a + b·x` dashed `INFO` 1.5px; a companion
-  lower strip (height ~20% of the panel) reuses today's arrivals bar series in
-  `alpha(INFO, 0.45)` with a linked axis pointer so the time context is kept.
-- **Tooltip** — trigger `item`; Date, Modal, Arrivals, Markets, Month; plus a
-  panel-level caption showing `Pearson r`, slope `b`, and `n` paired points.
-- **Annotations** — the caption states "Association, not causality — arrivals
-  and price are both seasonal". No causal arrow, no "supply caused price" label.
-- **Empty state** — "Arrivals are missing for this selection" when coverage is
-  <60% of dates; "Need at least 8 paired days" when pairs are too few.
-- **Disable when** — <8 dates with both `arrivals_qtl` and `modal` non-null, or
-  arrivals coverage <60%. Missing arrivals never become 0.
-- **Interaction** — clicking a dot sets `highlightDate` (§6). Brushing an x-range
-  filters to those arrival days and the table.
+---
 
-### 3.4 Commodity × month heatmap (`heatmap`)
+## 3. Exact encodings
 
-- **x** — calendar month present in the window (`Jan … Dec` or the 7 seed months);
-  absent months render a hatched "no data" cell, never 0.
-- **y** — commodity label from `agriCommodityLabel` (≤5 rows visible by default,
-  ordered by group then label; user-selected commodity pinned to the top).
-- **Encode** — cell = **median modal** for that commodity × month; colour =
-  that commodity's *row-relative percentile* (0–100) on a single-hue `INFO` ramp
-  derived with `alpha(INFO, t)`, five steps. Row-relative normalisation is
-  mandatory: raw ₹/quintal differs by an order of magnitude between onion and
-  wheat, so an absolute colour scale would show only "vegetables are cheap".
-  Cell text (the raw median, compacted) uses `pickTextColor(fill)`; small cells
-  drop the text and rely on tooltip.
-- **Tooltip** — Commodity, Month, Median modal ₹/quintal, row percentile, n daily
-  points, and "partial year" when the month comes from the 7-month seed.
-- **Annotations** — caption: "Colour = percentile within each commodity's own
-  window; n = daily points". No "hot/cold" or bearish/bullish wording.
-- **Empty state** — "Need at least 3 commodities and 3 months" with the exact
-  measured counts.
-- **Disable when** — <3 commodities with data, <3 months, or fewer than 2 daily
-  points in any plotted cell (that cell renders "no data", the view stays up).
-- **Interaction** — clicking a cell sets `commodity` **and** the month selection
-  in one batch (§6).
+Shared conventions:
 
-### 3.5 Rolling mean ± volatility band (`rolling`)
+- **Theme** — `themeTokens(isDark)` in the chart-option modules. Axes/splits use
+  theme `border`/`split`; labels use `text`/`muted`; no raw hex.
+- **Colour meaning** — `PRIMARY` = modal/central estimate; `INFO` = range,
+  volume or correlation; `POSITIVE`/`NEGATIVE` = signed direction only;
+  `WARNING` = gaps, outliers or gating. Colour is never the only encoding.
+- **Number format** — prices via `formatAgriPrice`, arrivals via
+  `formatArrivals` (`K`/`L`/`Cr qtl`), percentages via `formatChangePct`.
+- **Empty state** — `EmptyState kind="no-data"`, names the missing precondition,
+  offers `Show MAX` / `Switch to 1Y` where useful. Never a blank canvas and
+  never a zero-filled series.
+- **Accessible table** — every chart has a table or CSV equivalent carrying
+  `as_of`, `n` and units.
 
-- **x** — `date` of each available daily point (category axis; window measured
-  in *observations*, not calendar days, because mandi series have gaps).
+### 3.1 Market Pulse strip
+
+Compacts, in order: current modal, percentile vs trailing 90 days, 1W/1M/3M/6M
+change, coverage (mandis, % of normal, arrivals coverage), and `as_of`.
+Changes use backend `chg_*_pct`; each is `null` when its anchor is missing or
+outside the 3/7/14-day tolerance for 1W/1M/6M. A gap-guarded change renders `—`
+with a “gap” tooltip, never a multi-month move labelled as one week.
+
+### 3.2 Group overview
+
+Five cards (Cereals, Pulses, Vegetables, Oilseeds, Spices). Each shows:
+
+- normalized group index, 100 at window start;
+- breadth = % of group commodities with a positive window change;
+- median price dispersion (level CV, labelled as such);
+- best and worst commodity with their own changes.
+
+Clicking a card filters the commodity list and opens that group's dashboard.
+No card is rendered from a single commodity and called a group move.
+
+### 3.3 Small multiples by group
+
+One mini sparkline per commodity, all indexed to 100 at the same start, with the
+same y-scale inside the group. Direction uses red/green **plus** a signed label.
+This is where broad moves versus one-off spikes become obvious. A commodity with
+no overlapping dates renders a “no data” tile, not a flat line at 100.
+
+### 3.4 Fluctuation matrix
+
+Rows = commodities in the active group; columns = 1W / 1M / 3M / 6M. Each cell
+is a signed % change plus a sparkline; any column sorts. A null cell shows `—`
+with a gap tooltip. Tier C rows carry the “thin sample” badge.
+
+### 3.5 Price band + modal trend (`band`)
+
+- **x** — `date`, category axis, `DD Mon`, zoom slider; gap dates break the line.
+- **y** — modal ₹/quintal, `scale: true`.
+- **Encode** — modal line `PRIMARY` 2px, no symbols; min–max band as a tinted
+  `INFO` area, `silent: true`; raw `min`/`max` are not separate visible lines.
+- **Gaps** — insert `null` for any observed step >7 calendar days. Never connect
+  2026-05-31 to 2026-11-21 with a continuous line. A gap annotation states the
+  missing span.
+- **Tooltip** — Modal, Min, Max, Markets, source/unit, and `as of`.
+- **Percentile strip** — below the band, current modal's percentile vs the same
+  commodity's trailing 90 days. Label “vs own 90-day median”; no forecast.
+- **Empty/when** — no series → empty state with `Show MAX` when not already max.
+
+### 3.6 Monthly distribution / boxplot (`distribution`)
+
+- **x** — calendar month present in the window, chronological, label `Mon 'YY`
+  plus `n=`.
+- **y** — daily modal; shared across months.
+- **Encode** — box = p25–p75; median `PRIMARY`; whiskers = values within
+  1.5×IQR; outliers `WARNING` dots. This is a distribution, not a histogram.
+- **Tooltip** — Month, Median, p25, p75, whisker low/high, outlier count, n,
+  unit. `n < 5` adds “Small sample — treat spread as indicative”.
+- **Interaction** — clicking a month sets `from`/`to` and a removable chip.
+
+### 3.7 Commodity × month heatmap (`heatmap`)
+
+- **x** — chronological month-year columns for the window, not a collapsed
+  Jan–Dec axis.
+- **y** — commodities, ordered by group then label; selected commodity pinned.
+- **Encode** — cell = median modal for that commodity × month; colour =
+  **row-relative percentile** on one hue ramp. An absolute ₹ scale would only
+  say “vegetables are cheap”. Absent months are hatched “no data”, never 0.
+- **Tooltip** — Commodity, Month, Median, row percentile, n, `partial year`
+  where applicable.
+- **Interaction** — clicking a cell sets commodity **and** the month in one
+  batch.
+
+### 3.8 Rolling mean ± dispersion band (`rolling`)
+
+- **x** — dates, with the window measured in **elapsed calendar days**, not
+  observation count, so a long gap cannot silently become the next session.
 - **y** — modal ₹/quintal.
-- **Encode** — raw modal thin muted line (`alpha(PRIMARY, 0.35)`), 1px, behind;
-  rolling mean (default 20 observations; choices 7/20/60) `PRIMARY` or
-  `SCALE_VIOLET[4]` 2px; ±1σ band `alpha(INFO, 0.18)`; ±2σ band
-  `alpha(INFO, 0.08)`; both `silent: true`, `z: 1`.
-- **Tooltip** — Date, Modal, 20d mean, 20d σ (same window size as selected),
-  z-score `(modal − mean) / σ` (show `—` when σ = 0), window size.
-- **Annotations** — a `WARNING` marker at points where |z| > 2, labelled only on
-  hover; the caption reads "σ = standard deviation of modal over the trailing
-  window (observations, not days)".
-- **Empty state** — "Need at least 30 sessions for a 20-day rolling band".
-- **Disable when** — `series.length < 30`, or a 60-observation window is selected
-  with <75 points (drop that window choice, keep the view).
-- **Interaction** — `highlightDate` draws the shared vertical marker.
+- **Encode** — raw modal thin muted line; rolling mean `PRIMARY`; ±1σ and ±2σ
+  `INFO` bands, `silent: true`. A break >7 days starts a new segment and shows
+  `n` plus skipped-gap count.
+- **Tooltip** — Date, Modal, mean, σ, z-score (`—` when σ = 0), window, n.
+- **When** — fewer than the required elapsed days → empty state naming the
+  requirement; no line is drawn across the hole.
 
-### 3.6 Seasonality by calendar month (`seasonality`)
+### 3.9 Arrivals ↔ price (`supplyDemand`)
 
-- **x** — month of year, Jan–Dec.
-- **y** — median modal per calendar month **across years**, ₹/quintal; a second
-  y-axis (or tooltip row) expresses the same value as % deviation from the
-  window-wide median modal.
-- **Encode** — per-month box (p25–p75 across years, whiskers 1.5×IQR, `WARNING`
-  outlier dots), median line `PRIMARY`; an `INFO` dashed line connects the
-  across-year medians to make the seasonal shape readable.
-- **Tooltip** — Month, years covered (e.g. `2024, 2025, 2026`), across-year
-  median, IQR, n years, % vs window median.
-- **Annotations** — caption "Requires ≥2 years; n = distinct years, not days".
-  Do **not** shade sowing/harvest windows unless an official calendar is added to
-  the registry — an unsourced seasonal claim is an invented metric.
-- **Empty state** — "Seasonality needs at least 2 years of daily history. The
-  current cache spans 7 months (Oct 2025 → May 2026). Backfill from data.gov.in
-  (2009→today) to enable this view." No fallback boxplot from a single year.
-- **Disable when** — <24 months of history **or** <2 distinct years **or** any
-  month has <2 years of observations. This view is disabled for the 7-month seed.
-- **Interaction** — clicking a month box sets the month selection (§6); the
-  month then resolves to each year in the backfilled series, not to a single
-  30-day slice.
+- **x** — `arrivals_qtl`, compacted qtl, from 0.
+- **y** — daily modal ₹/quintal.
+- **Encode** — one dot per paired date, month hue from one `INFO` anchor, dashed
+  least-squares line; a lower companion strip keeps the time context.
+- **Missing arrivals** — new daily rows have none. Show “arrivals unavailable for
+  this source” and omit those dots; never call `0` an arrival. A coverage <60%
+  disables the view.
+- **Tooltip/caption** — `Pearson r`, slope, `n`, and “association, not causality”.
 
-### 3.7 Top movers / small multiples / commodity sparklines (`movers`)
+### 3.10 Seasonality (`seasonality`)
 
-- **x** — date (each sparkline shares the active window); **y** — modal indexed
-  to 100 at the first available date in the window (same method as
-  `buildCompare()`). Indexing is mandatory: absolute ₹/quintal makes cereals and
-  vegetables incomparable.
-- **Encode** — one 48px sparkline per commodity in a responsive grid, ordered by
-  window % change descending; top 3 gainers and top 3 losers also appear as a
-  compact strip with `POSITIVE` / `NEGATIVE` signed badges; line colour from the
-  existing `COMPARE_COLORS` cycle, `PRIMARY` for the selected commodity. A dashed
-  `100` baseline is drawn once per sparkline, muted.
-- **Tooltip** — Commodity, start modal, end modal, window % change, n sessions.
-- **Annotations** — caption "Indexed to 100 at window start; % = last / first − 1".
-- **Empty state** — "Need at least 2 commodities with overlapping dates".
-- **Disable when** — <2 commodities or <2 dates. The `Indexed (100 = start)`
-  toggle here replaces the old standalone `compare` mode button.
-- **Interaction** — clicking a sparkline or a mover badge selects that commodity
-  and re-renders views 1–3; keyboard equivalent is a focusable button per tile.
+- **x** — calendar month, Jan–Dec.
+- **y** — median modal across years; a tooltip row gives % deviation from the
+  window-wide median.
+- **Encode** — per-month box + across-year median line.
+- **Gate** — every month must have **≥2 distinct calendar years**; prefer 5.
+  One year shows: “Seasonality needs at least 2 years of daily history…”
+- **Tooltip** — Month, years covered, across-year median, IQR, n years.
+- Do not shade sowing/harvest windows without an official calendar in the
+  registry.
 
-### 3.8 MSP gap / below-MSP flags (`msp`)
+### 3.11 Mandi scanner, spread and anomalies
 
-- **x** — date (time series of `distance_to_msp_pct`) when MSP is verified;
-  **y** — distance from MSP in %, with a dashed zero line. Below-zero points use
-  `NEGATIVE`, at/above use `POSITIVE`; the verified MSP value is shown in the
-  header with its notification source and date.
-- **Encode** — line + symbol per date, 2px; below-MSP points additionally flag the
-  same date on the band view with a small `NEGATIVE` triangle at the modal line.
-- **Tooltip** — Date, modal ₹/quintal, verified MSP ₹/quintal, gap %, source.
-- **Annotations** — "MSP verified from <notification>; gap = (modal − MSP)/MSP".
-- **Empty state** — "MSP not verified for <commodity>; gap remains null." Do not
-  substitute a remembered or estimated MSP.
-- **Disable when** — `kpis.msp == null` or `distance_to_msp_pct == null` (true for
-  every commodity today: `registry.msp_for()` returns `None`, and `hasMsp` in
-  `config/agri.ts` is a declaration, not data). The mode stays hidden until a
-  value is verified against an official notification and added to the registry.
-- **Interaction** — clicking a flagged date sets `highlightDate`; clicking the
-  MSP stat in the KPI strip opens this view only when enabled.
+The scanner is a latest-date table, not the whole universe: show
+`quotes_total`, sorting, a liquidity filter and “showing X of Y”. Clicking a row
+sets state → district → market. Spread views label gross spread; no profit
+number. Anomaly flags are separate from market moves and carry the failing
+validation (unit mismatch, `min > modal`, `modal > max`, extreme vs day median).
 
 ---
 
-## 4. EDA summary above the chart
+## 4. Interactions and selection precedence
 
-Insert a `CompactStatGrid` with `data-testid="agri-eda-summary"` between the freshness
-banner and the chart panel. Six cells covering the five requested concepts (best
-and worst month are separate cells). Desktop 6 columns → mid 3 → mobile 2, using
-`CompactStat` with `label`, `value`, `hint` (formula/definition) and `tone`.
-
-| Cell | Value | Derivation (from the active window's `series`) | Tone / empty |
-|---|---|---|---|
-| **Window trend** | signed % | `(last modal − first modal) / first modal × 100`, using the first/last non-null modal in the window; do not annualise | `success`/`error` by sign; `—` if either endpoint null. For the 1w/1m/6m windows prefer backend `chg_*_pct` and label the cell accordingly |
-| **Realized volatility** | daily σ % | sample stdev of `rᵢ = (modalᵢ / modalᵢ₋₁ − 1) × 100` over consecutive available dates whose calendar gap ≤7 days; require ≥10 returns; hint shows `n` and, optionally, `σ × √252` labelled "annualised (252d)" | neutral; `—` when <10 returns |
-| **Best month** | `Mon 'YY` + median ₹/qtl | highest median modal among months with ≥2 daily points; ties → earliest month | neutral (a high price is not "good"); `—` when no month qualifies |
-| **Worst month** | `Mon 'YY` + median ₹/qtl | lowest median modal under the same rule | neutral; `—` |
-| **Arrivals correlation** | `r` (2 dp) | Pearson r of paired `(arrivals_qtl, modal)` on dates where both are non-null; require ≥8 pairs; hint states n | neutral; `—` when pairs <8. Tooltip: "association, not causality" |
-| **Outliers** | count + share | daily modal points outside the window's robust fence `median ± 3 × 1.4826 × MAD`; if MAD = 0 use `median ± 3 × IQR`; if both degenerate, `—` | `warning` when >0, neutral when 0; `—` only when undefined |
-
-Rules: the summary recomputes from the same `series` the chart draws, so the
-strip can never disagree with the plot; it is recomputed on `range`, `group`,
-commodity and geo filter changes; `msp`/`distance_to_msp_pct` are never summarised
-while null. A backend `warnings` entry (e.g. impossible prints, missing arrivals,
-MT→qtl conversion) stays in the freshness banner — the summary does not absorb or
-hide it.
-
----
-
-## 5. Recommended default order and deprecations
-
-Mode strip order (left → right), with the default selection first:
-
-| Order | Key | Label | Default | Gate |
-|---|---|---|---|---|
-| 1 | `band` | Price band | **yes** | none |
-| 2 | `distribution` | Distribution | no | ≥6 months |
-| 3 | `scatter` | Arrivals ↔ price | no | ≥6 months, arrivals coverage ≥60% |
-| 4 | `heatmap` | Commodity × month | no | ≥3 commodities, ≥3 months |
-| 5 | `rolling` | Rolling band | no | ≥30 sessions |
-| 6 | `movers` | Movers | no | ≥2 commodities |
-| 7 | `seasonality` | Seasonality | no | ≥2 years (disabled on the seed) |
-| 8 | `msp` | MSP gap | no | verified MSP (hidden today) |
-
-Key mapping: this document calls view 3 `scatter`; the chart-option module's
-canonical id is `supplyDemand` and already normalises `scatter`, `supply-demand`,
-`supplydemand` and `regression` to it. Both names refer to the same view — use
-`supplyDemand` in code, `Arrivals ↔ price` in the UI.
-
-**Remove:** `ohlc` (§1) — no replacement candle view.
-**Deprecate as standalone modes:** `arrivals` (fold into `scatter` as its lower
-companion strip) and `compare` (fold into `movers` as the indexed toggle). Keep
-legacy URL values `?mode=ohlc` / `?mode=arrivals` / `?mode=compare` accepted on
-read and normalised to `band` / `scatter` / `movers` respectively, so an old
-shared link never lands on a blank or misleading screen.
-
-With the 7-month seed the usable strip is `band · distribution · scatter ·
-heatmap · rolling · movers`; `seasonality` is visible-but-disabled with the 2-year
-requirement in its `title`, and `msp` is absent.
-
----
-
-## 6. Interactions and selection precedence
-
-One selection store, mirrored to the URL, is the source of truth:
+One selection store mirrored to the URL is the source of truth:
 
 | Action | State change | Effect |
 |---|---|---|
-| Brush/click a **boxplot month** | set `month = YYYY-MM` → `from`/`to` = first/last day of that month clipped to the active range and `as_of` | Refetch prices with the narrowed bounds; table shows only that month's quotes; an active chip "May 2026 ×" appears above the chart. Band/rolling/scatter re-scope to the same days. |
-| Click a **scatter point** | set `highlightDate = YYYY-MM-DD`, client-only (no refetch) | Dashed vertical marker on band/rolling/scatter; matching table row(s) highlighted; a pinned tooltip shows that date's values. Click again or `Escape` clears. |
-| Click a **heatmap cell** | batch: `commodity = key` **and** `month = YYYY-MM` | Commodity select updates, month chip appears, all views and the table re-render for that commodity+month. |
-| Click a **sparkline / mover** | `commodity = key` | Same as changing the commodity select; the selected tile uses `PRIMARY`. |
+| Click a group card | `group = key` | Filters commodity list and opens the group dashboard |
+| Brush a boxplot month | `month = YYYY-MM` → `from`/`to` | Refetches prices, filters table, shows chip |
+| Click a scatter point | `highlightDate` (client only) | Dashed marker on band/rolling; no request |
+| Click a heatmap cell | batch `commodity` + `month` | All views and table re-render |
+| Click a sparkline/mover | `commodity = key` | Same as the commodity select |
+| Toggle compare | `compare` list | Always includes the active commodity; max 5 |
 
-Precedence and invariants:
+Invariants:
 
-1. `range` (plus `from`/`to` from the month selection) bounds the window; geo and
-   group filters are independent and combine with it. `as_of` is always the upper
-   bound — never today's date.
-2. `highlightDate` is a view-only highlight; it does not filter and does not
-   trigger a request. A month filter can coexist with a highlight.
-3. Clearing the month chip restores the previous `range` URL state; clearing the
-   commodity from the select also clears a heatmap-driven selection.
-4. Keyboard parity: every clickable brush/point/cell/tile has a focusable table
-   or list equivalent with `role="button"`, a visible focus ring and Enter/Space
-   activation; `Escape` clears `highlightDate` and the month chip in that order.
-5. ECharts containers stay inside a flex parent (`flex: 1`, `min-height: 0`),
-   never inside `ScrollArea`; the table is the only scrolling region.
+1. `range` + month bounds gate the window; `as_of` is always the upper bound.
+2. `highlightDate` is view-only and never filters or refetches.
+3. Clearing a month chip restores the previous URL range; clearing commodity
+   clears a heatmap-driven selection.
+4. Keyboard parity: every clickable mark has a focusable table/list equivalent;
+   `Escape` clears `highlightDate` then the month chip.
+5. ECharts containers use `flex: 1; min-height: 0`, never `ScrollArea`.
 
 ---
 
-## 7. Data requirements and caveats
+## 5. Data requirements and caveats
 
 **Minimums**
 
-- Daily series with `date`, `modal`, `min`, `max`, `arrivals_qtl`, `market_count`
-  — already present in `AgriPricesResponse.series`.
-- Arrivals on ≥60% of dates for view 3; coverage warnings must remain visible.
-- **≥6 months** for distribution, scatter, rolling (≥30 sessions) and a partial
-  heatmap.
-- **≥2 years (24 months, ≥2 observations per calendar month)** for seasonality;
-  this is a hard gate, not a soft warning.
-- ≥3 commodities with overlapping dates for the heatmap and movers.
-- A verified MSP in `api/agri/registry.py` with a source notification for view 8.
-  `hasMsp` in `config/agri.ts` only declares eligibility — it is **not** an MSP
-  value and must never be rendered as one.
-
-**The 7-month seed (current cache)**
-
-- CKAN seed spans **2025-10-27 → 2026-05-31** (~7 months, ~217 dates; the 6M view
-  shows ~183 sessions). At the screenshot date `as_of` is 175 days stale, surfaced
-  in the freshness banner; charts must be titled "as of 2026-05-31", never "today".
-- Only seven calendar months are present (Oct 2025–May 2026), each with at most
-  **one annual observation**. Month-to-month differences in the boxplot are real
-  within this window but cannot be called seasonality; view 6 stays disabled.
-- The heatmap may render seven columns with a "partial year" caption; it must not
-  imply a full Jan–Dec cycle. Absent months are hatched "no data".
-- `chg_1m` / `chg_6m` can be computed; `chg_1y` cannot — the KPI shows `—` for any
-  window longer than the cache, never a wrapped-around value.
-- The production path to ≥2 years is the data.gov.in historical resource
-  (`35985678-…`, 2009→today, `DATA_GOV_IN_API_KEY` required). Enable seasonality
-  only after backfill has actually advanced `as_of` and month coverage.
+- Daily series with `date`, `modal`, `min`, `max`, `arrivals_qtl`,
+  `market_count`, `price_unit` and `product_form`.
+- Arrivals on ≥60% of dates for view 3.9; missing arrivals remain visible.
+- ≥2 commodities and ≥2 dates for small multiples; ≥3 commodities/months for
+  the heatmap; ≥30 elapsed days for rolling.
+- ≥2 distinct calendar years **per month** for seasonality.
+- A verified MSP with a notification source before any MSP view; until then the
+  view is absent and every MSP value is `—`.
 
 **Caveats to keep visible**
 
-- `min`/`max` are cross-mandi p2/p98, not traded extremes (§1).
+- `min`/`max` are cross-mandi p2/p98, not traded extremes.
 - `modal` is a mode then a median, not a close or a mean.
 - Arrivals from metric tonnes are ×10 to qtl; the backend warning is shown.
-- Nulls (`msp`, `distance_to_msp_pct`, missing arrivals) render `—` with a reason.
-- A summary figure that lacks data is omitted, not zero-filled; no value is
-  inferred from memory or from another commodity.
+- `Rs./Bundle` rows are not converted or blended into ₹/quintal.
+- Nulls (`msp`, `distance_to_msp_pct`, missing arrivals, gap-guarded changes)
+  render `—` with a reason.
+- A partial date never advances completeness or every key's `as_of`.
 
 ---
 
-## 8. Test / visual acceptance checklist (1600 and 390)
+## 6. Explicit non-goals
 
-Run for every view in §3, in **full / empty / loading / error** states, in dark and
-light themes. Screenshot at **1600×900** and **390×844**, then `read` each PNG back
-and look at it — a green build is not evidence the screen works.
+- **No OHLC/candles.** There is no open, and `min`/`max` are cross-mandi
+  percentiles, not an intraday traded range.
+- **No price forecasts** or “best time to sell next week”.
+- **No MSP number** until verified from an official notification.
+- No net arbitrage/profit without transport, commission, fees and spoilage.
+- No seasonality from one annual cycle.
+- No zero-filled arrivals.
+- No blended bundle/quintal aggregates.
+- No Railway or hosted-backend assumptions.
+
+---
+
+## 7. Acceptance checklist (1600 and 390)
 
 **Content correctness**
 
-- [ ] Mode strip order matches §5; `OHLC` is absent; legacy `?mode=ohlc` falls back
-      to `band` with a clean URL.
-- [ ] Every mode renders plausible values: no `undefined`, `NaN`, `function`,
-      `Infinity`, `null`, or "13,50,000" impossible prints in plot or tooltip.
-- [ ] Every tooltip shows all documented fields; null fields show `—`; units are
-      `₹/quintal` and qtl, never bare numbers.
-- [ ] EDA summary values match a hand calculation on
-      `tests/fixtures/agri_prices_sample.csv` (or a mocked response) to 1 dp;
-      `—` appears with an explanatory tooltip when inputs are insufficient.
-- [ ] `MSP gap` mode is hidden and the MSP KPI reads "No MSP notified"; no MSP
-      number appears anywhere.
-- [ ] Seasonality shows the 2-year empty state on the seed; heatmap shows the
-      "partial year" caption and hatched absent months.
+- [ ] Five group cards render and each shows index, breadth, dispersion and
+      best/worst with `n`.
+- [ ] Small multiples share one start and one y-scale inside a group.
+- [ ] Fluctuation matrix has 1W/1M/3M/6M columns; gap-guarded cells show `—`.
+- [ ] The 2026-05-31 → 2026-11-21 hole breaks every line; no chart connects it.
+- [ ] 2026-11-21 is labelled partial (3,942 of 15,843) and does not advance
+      every commodity's `as_of`.
+- [ ] Tier C commodities show “thin sample”; the badge is derived from coverage.
+- [ ] Chilli/coriander/paddy/rice strata are selectable; bundle and quintal are
+      never blended.
+- [ ] `quotes_total` and “showing X of Y” are visible on the mandi table.
+- [ ] Compare includes the active commodity (max 5).
+- [ ] No `undefined`, `NaN`, `function`, `Infinity`, `null` or impossible print
+      in a plot or tooltip.
+- [ ] Every tooltip shows units; nulls show `—` with a reason.
+- [ ] MSP is absent/hidden and no MSP number appears anywhere.
+- [ ] Seasonality shows the ≥2-year empty state when the gate fails.
 
 **Layout / visual**
 
-- [ ] At 1600 the chart panel is above the fold; measure
-      `getBoundingClientRect()`: KPI + EDA summary + chart header do not push the
-      plot below 900px; chart region ≥280px tall.
-- [ ] At 390 no horizontal page overflow (`document.scrollWidth <= 390`); controls
-      wrap in `ToolbarRow`; the table scrolls internally (min width 980), the page
-      does not; EDA summary is 2 columns.
-- [ ] Chart region uses flex (`flex:1`, `min-height:0`), not `ScrollArea`; no fixed
-      heights that collapse when the panel resizes.
-- [ ] Axes/labels ≥9px, meaningful graphics ≥3:1 and text ≥4.5:1; heatmap cell
-      labels use `pickTextColor`; `bun run contrast` plus new fill pairs in
-      `src/test/contrast.test.ts`.
-- [ ] Empty/loading/error states collapse rather than reserving the data height;
-      they never show a blank canvas.
-- [ ] Distrust suspiciously small PNGs and any error text in the frame; check
-      every non-default mode, not just `band`.
+- [ ] At 1600 the Market Pulse + group overview + plot are above the fold; the
+      chart region is ≥280px.
+- [ ] At 390 no horizontal page overflow; controls wrap; the table scrolls
+      internally; the 4 primary KPI cells + “More stats” layout is used.
+- [ ] At 390 the mode strip is replaced by the mode select and every view is
+      reachable from it.
+- [ ] Chart region uses flex (`flex: 1`, `min-height: 0`), not `ScrollArea`.
+- [ ] Axes/labels ≥9px; meaningful graphics ≥3:1 and text ≥4.5:1.
+- [ ] Empty/loading/error states collapse instead of reserving data height.
 
 **Interactions**
 
-- [ ] Boxplot month brush → table row count drops to that month, chip appears,
-      URL carries `from`/`to`; clearing restores the window.
-- [ ] Scatter click → highlight marker + table row, pinned tooltip; click again
-      and `Escape` clear it; no network request fired.
-- [ ] Heatmap cell click → commodity select + month chip both update; band chart
-      and table agree.
-- [ ] Sparkline/mover click selects the commodity; keyboard Enter/Space and
-      `Escape` work; focus ring visible on all clickable marks.
-- [ ] Zoom slider / dataZoom works in band, scatter and rolling without breaking
-      the linked lower strip.
+- [ ] Group card → commodity list + dashboard.
+- [ ] Boxplot month brush → table filtered + chip + URL `from`/`to`.
+- [ ] Scatter click → highlight marker + row, no network request.
+- [ ] Heatmap cell → commodity select + month chip agree with band and table.
+- [ ] Sparkline/mover → selects commodity; Enter/Space/Escape work.
+- [ ] Zoom works in band, scatter and rolling without breaking companions.
 
-**Code gates (for the implementing agent / main)**
+**Code gates**
 
 - [ ] `bun run lint && bun run build` clean.
-- [ ] `npx vitest run <agri component + chart-option tests>` green; backend
-      `.venv/bin/python -m pytest tests/api/test_agri -q` green.
-- [ ] Guard suite: `src/test/{style-keys,no-props-destructure,numeric-typography,
-      table-structure,ui-guard,design-scale,theme-single-source}.test.ts` and
-      `src/ui/inputs/inputs.w-h.test.tsx` green.
-- [ ] `npx tsc --noEmit 2>&1 | grep -c "error TS"` must not rise above the branch
-      baseline.
-- [ ] `tests/e2e/agri.spec.ts` (mocked payloads) covers all modes, the three
-      interactions, both viewports and the disabled/empty states.
-
-This document is a specification only; no source, test or backend file is changed
-by it.
+- [ ] Targeted agri unit + backend agri tests green.
+- [ ] `tests/e2e/agri.spec.ts` covers the gap warning, partial day, 390 mode
+      select, and the `quotes_total`/compare TODOs are `test.fixme`, not silent
+      passes.
+- [ ] Screenshots at 1600 and 390 for full/empty/loading/error and every mode.

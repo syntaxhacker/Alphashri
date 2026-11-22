@@ -6,10 +6,30 @@ import {
   buildAgriChartOption,
   formatAgriDateLabel,
   formatAgriValue,
+  robustBandBounds,
   type AgriChartInput,
   type AgriChartSeriesPoint,
   type AgriComparisonSeries,
 } from "./agriChartOption";
+import {
+  asParams,
+  baseOption,
+  categoryAxis,
+  CHART_LAYOUT,
+  compactAxisLabel,
+  escapeHtml,
+  field,
+  finite,
+  formatAgriDateLabel as themeFormatAgriDateLabel,
+  formatAgriValue as themeFormatAgriValue,
+  formatIndexLevel,
+  formatPct,
+  makeDataZoom,
+  themeTokens,
+  titled,
+  tooltipShell,
+  valueAxis,
+} from "./agriChartTheme";
 
 type Option = Record<string, unknown>;
 type Series = Record<string, unknown>;
@@ -33,6 +53,38 @@ const input = (overrides: Partial<AgriChartInput> = {}): AgriChartInput => ({
   isDark: true,
   ...overrides,
 });
+
+const comparison: AgriComparisonSeries[] = [
+  {
+    key: "rice",
+    label: "Rice",
+    points: [
+      { date: "2024-01-01", modal: 100 },
+      { date: "2024-01-02", modal: 110 },
+      { date: "2024-01-03", modal: null },
+    ],
+  },
+  {
+    key: "wheat",
+    label: "Wheat",
+    points: [
+      { date: "2024-01-02", modal: 200 },
+      { date: "2024-01-03", modal: 220 },
+    ],
+  },
+];
+
+function fontSizes(value: unknown, found: number[] = []): number[] {
+  if (Array.isArray(value)) {
+    for (const entry of value) fontSizes(entry, found);
+  } else if (value && typeof value === "object") {
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      if (key === "fontSize" && typeof entry === "number") found.push(entry);
+      else fontSizes(entry, found);
+    }
+  }
+  return found;
+}
 
 describe("buildAgriChartOption — shared behaviour", () => {
   it("returns {} for empty series and null input", () => {
@@ -183,26 +235,6 @@ describe("arrivals mode", () => {
 });
 
 describe("compare mode", () => {
-  const comparison: AgriComparisonSeries[] = [
-    {
-      key: "rice",
-      label: "Rice",
-      points: [
-        { date: "2024-01-01", modal: 100 },
-        { date: "2024-01-02", modal: 110 },
-        { date: "2024-01-03", modal: null },
-      ],
-    },
-    {
-      key: "wheat",
-      label: "Wheat",
-      points: [
-        { date: "2024-01-02", modal: 200 },
-        { date: "2024-01-03", modal: 220 },
-      ],
-    },
-  ];
-
   it("indexes every series to 100 at the common first date", () => {
     const option = buildAgriChartOption(input({ mode: "compare", comparison }));
     const series = seriesOf(option);
@@ -387,5 +419,273 @@ describe("value formatting", () => {
       const text = formatterOf(buildAgriChartOption(input({ mode })))([{ dataIndex: 1 }]);
       expect(text).not.toMatch(/₹(?!\/quintal)/);
     }
+  });
+});
+
+describe("agriChartTheme — extracted pure helpers", () => {
+  it("keeps the public formatting re-exports identical to the pure module", () => {
+    // The entry point must stay the single import surface for existing callers.
+    expect(formatAgriDateLabel).toBe(themeFormatAgriDateLabel);
+    expect(formatAgriValue).toBe(themeFormatAgriValue);
+  });
+
+  it("has no raw hex colour in the extracted module", () => {
+    const source = readFileSync(new URL("./agriChartTheme.ts", import.meta.url), "utf8");
+    expect(source.match(/#[0-9a-f]{6}\b/gi) ?? []).toEqual([]);
+  });
+
+  it("reuses two frozen theme token sets instead of rebuilding them", () => {
+    const dark = themeTokens(true);
+    const light = themeTokens(false);
+    expect(dark).toBe(themeTokens(true));
+    expect(light).toBe(themeTokens(false));
+    expect(dark).not.toBe(light);
+    expect(Object.isFrozen(dark)).toBe(true);
+    expect(Object.isFrozen(light)).toBe(true);
+
+    expect(dark.text).toBe(palette.CHART_DARK_TEXT);
+    expect(dark.muted).toBe(palette.CHART_DARK_MUTED);
+    expect(dark.border).toBe(palette.BORDER);
+    expect(dark.split).toBe(palette.CHART_DARK_SPLIT);
+    expect(dark.tooltipBg).toBe(palette.CHART_DARK_OVERLAY);
+    expect(dark.crosshair).toBe(palette.CHART_CROSSHAIR);
+    expect(light.text).toBe(palette.CHART_LIGHT_TEXT);
+    expect(light.muted).toBe(palette.CHART_LIGHT_MUTED);
+    expect(light.border).toBe(palette.CHART_LIGHT_BORDER);
+    expect(light.split).toBe(palette.CHART_LIGHT_SPLIT);
+    expect(light.tooltipBg).toBe(palette.CHART_LIGHT_OVERLAY);
+    expect(light.crosshair).toBe(palette.CHART_CROSSHAIR);
+  });
+
+  it("finite rejects null, undefined, NaN and infinities", () => {
+    expect(finite(0)).toBe(0);
+    expect(finite(-12.5)).toBe(-12.5);
+    expect(finite(null)).toBeNull();
+    expect(finite(undefined)).toBeNull();
+    expect(finite(Number.NaN)).toBeNull();
+    expect(finite(Number.POSITIVE_INFINITY)).toBeNull();
+  });
+
+  it("formats dates defensively", () => {
+    expect(formatAgriDateLabel("")).toBe("");
+    expect(formatAgriDateLabel("not-a-date-that-is-long")).toBe("not-a-date");
+    expect(formatAgriDateLabel(undefined as unknown as string)).toBe("");
+  });
+
+  it("compacts axis levels in millions, thousands and units", () => {
+    expect(compactAxisLabel(120)).toBe("120");
+    expect(compactAxisLabel(1_200)).toBe("1.2k");
+    expect(compactAxisLabel(1_200_000)).toBe("1.2M");
+    expect(compactAxisLabel(-1_500)).toBe("-1.5k");
+  });
+
+  it("formats indexed levels and percentages with one decimal", () => {
+    expect(formatIndexLevel(110)).toBe("110.0");
+    expect(formatIndexLevel(100.04)).toBe("100.0");
+    expect(formatPct(10)).toBe("+10.0%");
+    expect(formatPct(-2.5)).toBe("-2.5%");
+    expect(formatPct(Number.NaN)).toBe("—");
+  });
+
+  it("escapes tooltip text and drops empty rows", () => {
+    expect(escapeHtml(`&<>"'`)).toBe("&amp;&lt;&gt;&quot;&apos;");
+    expect(tooltipShell("H", ["a", "", "b"])).toBe(
+      `<div style="font-family:monospace;font-size:11px;line-height:1.5">` +
+        `<div style="font-weight:600;margin-bottom:4px">H</div>ab</div>`,
+    );
+    expect(tooltipShell("<b>", [])).toContain("&lt;b&gt;");
+    expect(field("Modal", "₹100")).toBe("<div>Modal: <b>₹100</b></div>");
+    expect(field("A&B", "x")).toBe("<div>A&amp;B: <b>x</b></div>");
+  });
+
+  it("normalises ECharts tooltip params", () => {
+    const param = { dataIndex: 2 };
+    expect(asParams(param)).toEqual([param]);
+    expect(asParams([param, null, 3, { dataIndex: 4 }])).toEqual([param, { dataIndex: 4 }]);
+    expect(asParams(null)).toEqual([]);
+    expect(asParams("nope")).toEqual([]);
+  });
+
+  it("builds axes, dataZoom and the option shell from theme tokens", () => {
+    const t = themeTokens(false);
+    const category = categoryAxis(["01 Jan"], t, 0, true);
+    expect(category.type).toBe("category");
+    expect(category.boundaryGap).toBe(false);
+    expect(category.axisLabel).toMatchObject({
+      interval: "auto",
+      hideOverlap: true,
+      margin: CHART_LAYOUT.axisMargin,
+    });
+    expect(categoryAxis([], t, 1, false)).toMatchObject({ boundaryGap: true, axisLabel: { show: false } });
+
+    const axis = valueAxis(t, 0, "qtl");
+    expect(axis).toMatchObject({ type: "value", scale: true, name: "qtl", gridIndex: 0 });
+    const labelFormatter = (axis.axisLabel as { formatter: (v: number) => string }).formatter;
+    expect(labelFormatter(1_200)).toBe("1.2k");
+
+    const zoom = makeDataZoom(t, [0, 1], 25);
+    expect(zoom.map((z) => z.type)).toEqual(["inside", "slider"]);
+    expect(zoom[0].start).toBe(25);
+    expect(zoom[0].end).toBe(100);
+    expect((zoom[1].textStyle as { color: string }).color).toBe(t.muted);
+
+    const formatter = () => "tip";
+    const shell = baseOption(t, "T", ["A"], formatter);
+    expect(shell.animation).toBe(false);
+    expect(shell.backgroundColor).toBe("transparent");
+    expect((shell.title as { text: string }).text).toBe("T");
+    expect((shell.legend as { show: boolean; data: string[] }).show).toBe(true);
+    expect((shell.tooltip as { formatter: typeof formatter }).formatter).toBe(formatter);
+    expect((baseOption(t, "T", [], formatter).legend as { show: boolean }).show).toBe(false);
+
+    expect(titled("Mode")).toBe("Mode");
+    expect(titled("Mode", "2024-01-02")).toBe("Mode · as of 2024-01-02");
+  });
+});
+
+describe("band/compare output contracts", () => {
+  it("locks the band header, grid and category axis", () => {
+    const option = buildAgriChartOption(input());
+    expect((option.title as { text: string }).text).toBe("Modal price with min–max band");
+    expect((option.legend as { data: string[] }).data).toEqual(["Modal", "Min–Max band"]);
+    expect((option.grid as unknown[])).toHaveLength(1);
+    expect((option.xAxis as Series[])[0].boundaryGap).toBe(false);
+    expect(((option.xAxis as Series[])[0].axisLabel as { margin: number }).margin).toBe(CHART_LAYOUT.axisMargin);
+    const zoom = option.dataZoom as Series[];
+    expect(zoom.map((z) => z.type)).toEqual(["inside", "slider"]);
+    expect(zoom[0].start).toBe(0);
+  });
+
+  it("locks compare indexing, base markLine and zoom", () => {
+    const option = buildAgriChartOption(input({ mode: "compare", comparison }));
+    const series = seriesOf(option);
+    expect(series.map((s) => s.connectNulls)).toEqual([false, false]);
+    expect((series[0].lineStyle as { width: number }).width).toBe(1.75);
+    const markLine = series[0].markLine as { data: { yAxis: number; label: { formatter: string } }[] };
+    expect(markLine.data[0].yAxis).toBe(100);
+    expect(markLine.data[0].label.formatter).toBe("100 (base)");
+    expect(series[1].markLine).toBeUndefined();
+    expect((option.xAxis as Series[])[0].data).toEqual(["02 Jan", "03 Jan"]);
+    expect((option.dataZoom as Series[]).map((z) => z.type)).toEqual(["inside", "slider"]);
+  });
+});
+
+describe("layout and legibility invariants", () => {
+  const cases: Array<[string, Option]> = [
+    ["band", buildAgriChartOption(input())],
+    ["arrivals", buildAgriChartOption(input({ mode: "arrivals" }))],
+    ["compare", buildAgriChartOption(input({ mode: "compare", comparison }))],
+    ["ohlc", buildAgriChartOption(input({ mode: "ohlc" }))],
+  ];
+
+  it("stacks title → legend → plot in every mode", () => {
+    for (const [mode, option] of cases) {
+      const title = option.title as { top: number; textStyle: { fontSize: number } };
+      const legend = option.legend as { top: number; textStyle: { fontSize: number } };
+      const grid = (option.grid as Array<{ top: number }>)[0];
+      expect(title.top, mode).toBeLessThan(legend.top);
+      expect(legend.top + 14, mode).toBeLessThanOrEqual(grid.top);
+      expect(title.textStyle.fontSize, mode).toBeGreaterThanOrEqual(10);
+      expect(legend.textStyle.fontSize, mode).toBeGreaterThanOrEqual(10);
+    }
+  });
+
+  it("keeps visible x labels clear of the plot edge and the zoom slider", () => {
+    for (const [mode, option] of cases) {
+      const axes = option.xAxis as Series[];
+      const visible = axes.find((axis) => (axis.axisLabel as Series)?.show !== false);
+      const label = visible?.axisLabel as { margin: number; hideOverlap: boolean; fontSize: number };
+      expect(label.margin, mode).toBeGreaterThanOrEqual(8);
+      expect(label.hideOverlap, mode).toBe(true);
+      expect(label.fontSize, mode).toBeGreaterThanOrEqual(10);
+    }
+    for (const [mode, option] of cases) {
+      const grids = option.grid as Array<{ bottom: number | string }>;
+      const last = grids[grids.length - 1];
+      expect(typeof last.bottom === "number" && last.bottom >= 40, mode).toBe(true);
+    }
+  });
+
+  it("never sets a chart font below 10px in any mode", () => {
+    for (const [mode, option] of cases) {
+      expect(fontSizes(option).every((size) => size >= 10), mode).toBe(true);
+    }
+  });
+});
+
+describe("band scale robustness", () => {
+  const withOutlier: AgriChartSeriesPoint[] = [
+    ...Array.from({ length: 8 }, (_, i) => ({
+      date: `2024-01-${String(i + 1).padStart(2, "0")}`,
+      modal: 100 + i,
+      min: 90 + i,
+      max: 115 + i,
+      arrivals_qtl: null,
+      market_count: 3,
+    })),
+    { date: "2024-01-09", modal: 104, min: 0, max: 100_000, arrivals_qtl: null, market_count: 3 },
+  ];
+
+  it("clips the displayed band range to a robust IQR fence", () => {
+    const bounds = robustBandBounds(withOutlier);
+    expect(bounds).not.toBeNull();
+    expect(bounds!.max).toBeLessThan(1_000);
+    expect(bounds!.min).toBeGreaterThan(-100);
+    const option = buildAgriChartOption(input({ series: withOutlier }));
+    const yAxis = (option.yAxis as Series[])[0] as { min: number; max: number };
+    expect(yAxis.max).toBeLessThan(1_000);
+    const modals = withOutlier.map((row) => row.modal as number);
+    expect(yAxis.min).toBeLessThanOrEqual(Math.min(...modals));
+    expect(yAxis.max).toBeGreaterThanOrEqual(Math.max(...modals));
+  });
+
+  it("keeps the raw min/max in the tooltip while the band is clipped", () => {
+    const tooltip = formatterOf(buildAgriChartOption(input({ series: withOutlier })));
+    const text = tooltip([{ dataIndex: 8 }]);
+    expect(text).toContain("0 ₹/quintal");
+    expect(text).toContain("1,00,000 ₹/quintal");
+    expect(text).not.toMatch(/undefined|NaN/);
+  });
+});
+
+describe("gap markers", () => {
+  const gapped: AgriChartSeriesPoint[] = [
+    { date: "2024-01-01", modal: 100, min: 90, max: 110, arrivals_qtl: null, market_count: 4 },
+    { date: "2024-01-02", modal: 110, min: 100, max: 120, arrivals_qtl: null, market_count: 4 },
+    { date: "2024-02-01", modal: 200, min: 190, max: 210, arrivals_qtl: null, market_count: 4 },
+  ];
+
+  it("renders a blank category label and a null break at the gap", () => {
+    const option = buildAgriChartOption(input({ series: gapped }));
+    expect((option.xAxis as Series[])[0].data).toEqual(["01 Jan", "02 Jan", "", "01 Feb"]);
+    expect(seriesOf(option)[0].data).toEqual([100, 110, null, 200]);
+    expect(seriesOf(option)[0].connectNulls).toBeUndefined();
+  });
+
+  it("explains the gap in the tooltip", () => {
+    const text = formatterOf(buildAgriChartOption(input({ series: gapped })))([{ dataIndex: 2 }]);
+    expect(text).toContain("Data gap");
+    expect(text).toContain("Interval");
+    expect(text).not.toMatch(/undefined|NaN/);
+  });
+
+  it("blanks gap labels in compare mode without altering indexed values", () => {
+    const option = buildAgriChartOption(
+      input({
+        mode: "compare",
+        comparison: [
+          {
+            key: "a",
+            label: "A",
+            points: [
+              { date: "2024-01-01", modal: 100 },
+              { date: "2024-02-01", modal: 110 },
+            ],
+          },
+        ],
+      }),
+    );
+    expect((option.xAxis as Series[])[0].data).toEqual(["01 Jan", "", "01 Feb"]);
+    expect(seriesOf(option)[0].data).toEqual([100, null, 110]);
   });
 });

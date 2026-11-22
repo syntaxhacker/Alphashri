@@ -14,13 +14,13 @@
        * a dark-mode user saw a full white page on every load until it ran.
        * Keys and fallback order mirror `src/ui/hooks.ts` exactly; this must stay
        * a few lines of ES5 because it runs before anything is polyfilled.
+       * The financial theme is dark by default: the OS preference is never a
+       * fallback, so a light OS can no longer paint a dark app's shell white.
        */
       (function () {
         try {
           var stored = localStorage.getItem("color-scheme") || localStorage.getItem("mui-color-scheme");
-          var scheme = stored === "light" || stored === "dark"
-            ? stored
-            : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+          var scheme = stored === "light" || stored === "dark" ? stored : "dark";
           document.documentElement.setAttribute("data-color-scheme", scheme);
           document.documentElement.style.colorScheme = scheme;
         } catch (e) {}
@@ -29,6 +29,18 @@
   </head>
   <body>
     <div id="app"></div>
+    <!-- Mirror the already-resolved scheme onto <body> before first paint. The
+         head bootstrap cannot reach <body>; without this, body[data-color-scheme]
+         rules (color-scheme hints) stayed stale until the bundle mounted. -->
+    <script>
+      (function () {
+        try {
+          var scheme = document.documentElement.getAttribute("data-color-scheme") || "dark";
+          document.body.setAttribute("data-color-scheme", scheme);
+          document.body.style.colorScheme = scheme;
+        } catch (e) {}
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

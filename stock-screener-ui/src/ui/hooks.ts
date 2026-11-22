@@ -122,8 +122,19 @@ function initialScheme(): "light" | "dark" {
   }
   const stored = storedScheme();
   if (stored) return stored;
-  if (typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches) return "dark";
-  return "light";
+  // The financial theme is dark by default. The OS preference is deliberately
+  // not a fallback: a light OS must not paint a dark app's shell white.
+  return "dark";
+}
+
+/** Keep the painted CSS and the `body[data-color-scheme]` hints in lockstep. */
+function applyScheme(scheme: "light" | "dark") {
+  if (typeof document === "undefined") return;
+  for (const el of [document.documentElement, document.body]) {
+    if (!el) continue;
+    el.setAttribute("data-color-scheme", scheme);
+    el.style.colorScheme = scheme;
+  }
 }
 
 /**
@@ -136,11 +147,7 @@ const [colorScheme, setColorSchemeSignal] = createSignal<"light" | "dark">(initi
 
 export function useColorScheme(): UIUseColorSchemeResult {
   createEffect(() => {
-    const scheme = colorScheme();
-    if (typeof document !== "undefined") {
-      document.documentElement.setAttribute("data-color-scheme", scheme);
-      document.documentElement.style.colorScheme = scheme;
-    }
+    applyScheme(colorScheme());
   });
 
   const setColorScheme = (scheme: "light" | "dark") => {
@@ -150,10 +157,7 @@ export function useColorScheme(): UIUseColorSchemeResult {
         window.localStorage.setItem("color-scheme", scheme);
       } catch {}
     }
-    if (typeof document !== "undefined") {
-      document.documentElement.setAttribute("data-color-scheme", scheme);
-      document.documentElement.style.colorScheme = scheme;
-    }
+    applyScheme(scheme);
   };
 
   const toggleColorScheme = () => {

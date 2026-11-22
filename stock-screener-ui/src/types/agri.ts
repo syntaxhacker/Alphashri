@@ -43,6 +43,9 @@ export interface AgriFiltersResponse {
   states: Array<string | AgriOption>;
   districts: Array<string | AgriOption>;
   markets: Array<string | AgriOption>;
+  /** State → districts and `"{state}||{district}"` → markets cascades. */
+  state_districts?: Record<string, string[]>;
+  district_markets?: Record<string, string[]>;
 }
 
 export type AgriFiltersPayload = AgriFiltersResponse;
@@ -150,6 +153,8 @@ export interface AgriPricesResponse {
   series: AgriSeriesPoint[];
   snapshot: AgriSnapshot[];
   quotes: AgriQuote[];
+  /** Total quotes before the API page limit; absent on older payloads. */
+  quotes_total?: number | null;
   comparison: AgriComparisonSeries[];
   warnings: string[];
   /** Legacy fields from the pre-redesign endpoint; absent on new payloads. */

@@ -11,7 +11,7 @@ import {
   useMediaQuery,
 } from "@/ui";
 import * as palette from "@/ui/palette";
-import { CompactPanel, CompactStat, CompactStatGrid } from "@/components/common/compact";
+import { CompactPanel, CompactStat } from "@/components/common/compact";
 import { EmptyState, ErrorAlert, InlineLoader } from "@/components/common/states";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { EChart } from "@/components/common/EChart";
@@ -29,13 +29,16 @@ import {
   AGRI_ARRIVALS_UNIT,
   AGRI_CHART_MODES,
   AGRI_COMMODITIES,
+  AGRI_COMPARE_DEFAULTS,
   AGRI_DEFAULT_CHART_MODE,
   AGRI_DEFAULT_RANGE,
   AGRI_GROUPS,
+  AGRI_MAX_COMPARE,
   AGRI_RANGE_KEYS,
   AGRI_RANGE_PRESETS,
   agriCommodity,
   agriCommodityLabel,
+  agriDistrictKey,
   agriGroupLabel,
   agriRange,
   formatAgriPrice,
@@ -46,13 +49,18 @@ import { buildAgriChartOption } from "./agriChartOption";
 import { buildEdaOption } from "./agriEdaOptions";
 import { monthlyBox, monthlyHeatmap, seasonality, summariseEda, supplyDemand } from "./agriEda";
 import { agriRangeStart, formatAgriSessionDate } from "./agriDates";
-import { agriColumns, type AgriTableViewRow } from "./agriColumns";
+import { AGRI_QUOTE_DEFAULT_SORT, agriColumns, type AgriTableViewRow } from "./agriColumns";
+import { AgriGroupOverview, type AgriGroupSummary } from "./AgriGroupOverview";
+import { AgriFluctuationMatrix } from "./AgriFluctuationMatrix";
 
 type SelectOption = { value: string; label: string; group?: string };
 type Mover = { key: string; label: string; change: number };
+type WarningKind = "gap" | "coverage" | "data";
 
-const DEFAULT_COMPARE = ["wheat", "tomato", "onion"];
 const MICRO_LABEL = "text-[10px] font-bold uppercase tracking-[0.08em] text-fin-text-muted whitespace-nowrap";
+const SECTION_LABEL = "text-[10px] font-bold uppercase tracking-[0.08em] text-fin-primary";
+const SECTION_HINT = "text-[10px] text-fin-text-muted";
+const STAT_CARD = "h-full p-2 [&>div]:!h-auto";
 const SEGMENT_TRACK = "inline-flex items-center gap-0.5 rounded-[6px] border border-fin-border bg-fin-surface p-[2px]";
 const CONTROL_CELL = "flex flex-nowrap items-center min-w-0";
 const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -78,6 +86,18 @@ function formatEdaPct(value: number | null): string {
 
 function formatCorrelation(value: number | null): string {
   return value == null || !Number.isFinite(value) ? "—" : value.toFixed(2);
+}
+
+/**
+ * Backend warnings are plain prose. Grouping them keeps a collection gap
+ * visible instead of letting a long list collapse into one muted line.
+ */
+function warningKind(value: string): WarningKind {
+  if (/\bgap\b/i.test(value)) return "gap";
+  if (/coverage|partial|missing|unavailable|unit|bundle|quintal/i.test(value)) {
+    return "coverage";
+  }
+  return "data";
 }
 
 function toRecord(value: unknown): Record<string, unknown> | null {
@@ -159,8 +179,9 @@ export function AgriPage() {
     AGRI_RANGE_KEYS.includes(initialRange as AgriRangeKey) ? (initialRange as AgriRangeKey) : AGRI_DEFAULT_RANGE,
   );
   const [mode, setMode] = createSignal<AgriChartMode>(resolvedMode || AGRI_DEFAULT_CHART_MODE);
-  const [compare, setCompare] = createSignal<string[]>(
-    DEFAULT_COMPARE.filter((key) => key !== initialCommodity).slice(0, 3),
+  const [pageView, setPageView] = createSignal<"chart" | "groups">("chart");
+  const [compareExtras, setCompareExtras] = createSignal<string[]>(
+    AGRI_COMPARE_DEFAULTS.filter((key) => key !== initialCommodity).slice(0, AGRI_MAX_COMPARE - 1),
   );
 
   const [filtersData, setFiltersData] = createSignal<AgriFiltersResponse | null>(null);
@@ -175,6 +196,7 @@ export function AgriPage() {
   const isMobile = useMediaQuery("(max-width: 640px)");
   const isMid = useMediaQuery("(max-width: 1180px)");
   const statCols = () => (isMobile() ? 2 : isMid() ? 4 : 8);
+  const statCardClass = () => (isMobile() ? `${STAT_CARD} w-[176px] shrink-0` : STAT_CARD);
 
   function loadFilters() {
     const controller = new AbortController();
@@ -216,6 +238,12 @@ export function AgriPage() {
   }
   onCleanup(() => activeController?.abort());
 
+  /** Active commodity first, then up to four extras; never duplicated. */
+  function compareKeys(): string[] {
+    const active = commodity();
+    return [active, ...compareExtras().filter((key) => key !== active)].slice(0, AGRI_MAX_COMPARE);
+  }
+
   createEffect(() => {
     if (!ready()) return;
     const token = retryToken();
@@ -223,8 +251,13 @@ export function AgriPage() {
       commodity: commodity(),
       range: range(),
     };
-    if (mode() === "compare" || mode() === "heatmap") {
-      params.compare = compare().slice(0, 3);
+    if (mode() === "compare") {
+      // The active commodity is the anchor: the backend comparison series must
+      // always contain it or the overlay silently drops the selected line.
+      params.compare = compareKeys();
+    } else if (mode() === "heatmap") {
+      // The heatmap already draws the active series separately.
+      params.compare = compareExtras();
     }
     const selectedGroup = group();
     const selectedState = state();
@@ -268,6 +301,23 @@ export function AgriPage() {
     setSearchParams(next, { replace: true });
   });
 
+  const commodityFilters = createMemo(() => filtersData()?.commodities ?? []);
+  const commodityMetaByKey = createMemo(
+    () => new Map(commodityFilters().map((item) => [item.key, item])),
+  );
+  const groupLabelsByKey = createMemo(
+    () => new Map(selectOptions(filtersData()?.groups).map((option) => [option.value, option.label])),
+  );
+
+  /** Labels prefer the backend registry; the static list is a fallback only. */
+  function commodityLabel(key: string, fallback = "—"): string {
+    return commodityMetaByKey().get(key)?.label ?? agriCommodityLabel(key, fallback);
+  }
+
+  function groupLabel(key: string): string {
+    return groupLabelsByKey().get(key) ?? agriGroupLabel(key);
+  }
+
   function commodityOptionsFor(selectedGroup: string): SelectOption[] {
     const fromApi = selectOptions(filtersData()?.commodities);
     const pool = fromApi.length
@@ -294,14 +344,33 @@ export function AgriPage() {
     { value: "", label: "All India" },
     ...selectOptions(filtersData()?.states),
   ]);
-  const districtOptions = createMemo(() => [
-    { value: "", label: "All districts" },
-    ...selectOptions(filtersData()?.districts),
-  ]);
-  const marketOptions = createMemo(() => [
-    { value: "", label: "All mandis" },
-    ...selectOptions(filtersData()?.markets),
-  ]);
+  const districtOptions = createMemo<SelectOption[]>(() => {
+    const selected = state();
+    const geography = filtersData()?.state_districts;
+    // `state_districts` is the cascade source. The flat districts list is only
+    // a compatibility fallback for payloads from before the cascade existed.
+    const names = geography
+      ? selected
+        ? geography[selected] ?? []
+        : []
+      : selected
+        ? selectOptions(filtersData()?.districts).map((option) => option.value)
+        : [];
+    return [{ value: "", label: "All districts" }, ...names.map((name) => ({ value: name, label: name }))];
+  });
+  const marketOptions = createMemo<SelectOption[]>(() => {
+    const selectedState = state();
+    const selectedDistrict = district();
+    const geography = filtersData()?.district_markets;
+    const names = geography
+      ? selectedState && selectedDistrict
+        ? geography[agriDistrictKey(selectedState, selectedDistrict)] ?? []
+        : []
+      : selectedDistrict
+        ? selectOptions(filtersData()?.markets).map((option) => option.value)
+        : [];
+    return [{ value: "", label: "All mandis" }, ...names.map((name) => ({ value: name, label: name }))];
+  });
 
   function changeGroup(value: string | null) {
     const next = value ?? "";
@@ -316,20 +385,32 @@ export function AgriPage() {
     const next = value ?? "";
     if (!next) return;
     setCommodity(next);
-    setCompare((previous) => {
-      if (previous.includes(next)) return previous;
-      const replacement = DEFAULT_COMPARE.find((key) => key !== next && !previous.includes(key));
-      return replacement ? [replacement, ...previous].slice(0, 3) : previous;
-    });
+    setCompareExtras((previous) => previous.filter((key) => key !== next));
   }
 
   function toggleCompare(key: string) {
-    setCompare((previous) =>
-      previous.includes(key)
-        ? previous.filter((item) => item !== key)
-        : [...previous, key].slice(-3),
-    );
+    if (key === commodity()) return;
+    setCompareExtras((previous) => {
+      if (previous.includes(key)) return previous.filter((item) => item !== key);
+      if (compareKeys().length >= AGRI_MAX_COMPARE) return previous;
+      return [...previous, key];
+    });
   }
+
+  function addCompare(value: string | null) {
+    if (!value || value === commodity()) return;
+    setCompareExtras((previous) => {
+      if (previous.includes(value)) return previous;
+      if (compareKeys().length >= AGRI_MAX_COMPARE) return previous;
+      return [...previous, value];
+    });
+  }
+
+  const compareAddOptions = createMemo<SelectOption[]>(() =>
+    commodityOptions()
+      .filter((option) => option.value !== commodity() && !compareExtras().includes(option.value))
+      .map((option) => ({ value: option.value, label: option.label })),
+  );
 
   const kpis = createMemo(() => prices()?.kpis ?? null);
   const asOf = createMemo(() => prices()?.as_of ?? filtersData()?.as_of ?? null);
@@ -340,7 +421,38 @@ export function AgriPage() {
   const warnings = createMemo(() => prices()?.warnings ?? []);
   const series = createMemo(() => prices()?.series ?? []);
   const comparison = createMemo(() => prices()?.comparison ?? []);
-  const movers = createMemo(() => moversFromSnapshot(prices()?.snapshot ?? []));
+  const snapshot = createMemo(() => prices()?.snapshot ?? []);
+  const movers = createMemo(() => moversFromSnapshot(snapshot()));
+  const groupSummaries = createMemo<AgriGroupSummary[]>(() =>
+    AGRI_GROUPS.map((group) => {
+      const changeOf = (row: AgriSnapshot) => row.chg_6m_pct ?? row.chg_1m_pct;
+      const rows = snapshot().filter((row) => row.group === group.key && row.date);
+      const changes = rows
+        .map(changeOf)
+        .filter((value): value is number => typeof value === "number" && Number.isFinite(value))
+        .sort((a, b) => a - b);
+      const median = changes.length > 0
+        ? changes[Math.floor((changes.length - 1) / 2)]
+        : null;
+      const ranked = rows
+        .filter((row) => typeof changeOf(row) === "number" && Number.isFinite(changeOf(row)))
+        .sort((a, b) => (changeOf(b) as number) - (changeOf(a) as number));
+      const best = ranked[0];
+      const worst = ranked[ranked.length - 1];
+      return {
+        key: group.key,
+        index: median == null ? null : 100 + median,
+        index_chg_pct: median,
+        up_count: changes.filter((value) => value > 0).length,
+        total_count: rows.length,
+        breadth_pct: rows.length > 0 ? (changes.filter((value) => value > 0).length / rows.length) * 100 : null,
+        best: best ? { key: best.key, label: best.label, chg_pct: changeOf(best) } : null,
+        worst: worst ? { key: worst.key, label: worst.label, chg_pct: changeOf(worst) } : null,
+        mandis: rows.reduce((sum, row) => sum + row.markets, 0),
+        as_of: rows.reduce<string | null>((latest, row) => (!latest || row.date > latest ? row.date : latest), null),
+      };
+    }),
+  );
 
   const freshness = createMemo(() => {
     const days = freshnessDays();
@@ -366,13 +478,21 @@ export function AgriPage() {
   );
   const edaBoxes = createMemo(() => monthlyBox(series()));
   const edaScatter = createMemo(() => supplyDemand(series()));
-  const edaSeasonality = createMemo(() => seasonality(series()).months);
+  const edaSeasonalityResult = createMemo(() => seasonality(series()));
+  const edaSeasonality = createMemo(() => edaSeasonalityResult().months);
+  const seasonalityWeak = createMemo(() => edaSeasonalityResult().weak);
+  const seasonalityDetail = createMemo(() => {
+    const months = edaSeasonality();
+    if (months.length === 0) return "No monthly history in this window.";
+    const minimum = Math.min(...months.map((month) => month.years));
+    return `${months.length} month${months.length === 1 ? "" : "s"} observed · at least ${minimum} year${minimum === 1 ? "" : "s"} per month · need 2+`;
+  });
   const edaSummary = createMemo(() => summariseEda(series()));
   const edaRows = createMemo(() =>
     monthlyHeatmap([
       {
         key: commodity(),
-        label: agriCommodityLabel(commodity(), commodity()),
+        label: commodityLabel(commodity(), commodity()),
         points: chartSeries().map((point) => ({ date: point.date, modal: point.modal })),
       },
       ...comparison().map((entry) => ({
@@ -395,6 +515,7 @@ export function AgriPage() {
   }));
   const chartOption = createMemo<Record<string, unknown>>(() => {
     const current = mode();
+    if (current === "seasonality" && seasonalityWeak()) return {};
     if (current === "band" || current === "compare") {
       return buildAgriChartOption({
         mode: current,
@@ -413,14 +534,31 @@ export function AgriPage() {
   });
   const canDraw = createMemo(() => Object.keys(chartOption()).length > 0);
 
+  const quotes = createMemo(() => prices()?.quotes ?? []);
+  const quotesTotal = createMemo(() => {
+    const total = prices()?.quotes_total;
+    if (typeof total !== "number" || !Number.isFinite(total)) return null;
+    return total >= quotes().length ? total : null;
+  });
+  const quoteScope = createMemo(() => {
+    const shown = quotes().length;
+    const total = quotesTotal();
+    const count = total != null ? `showing ${shown} of ${total} quotes` : `${shown} quote${shown === 1 ? "" : "s"} shown`;
+    return `${count} · API page, not the full mandi universe`;
+  });
+  const gapWarnings = createMemo(() => warnings().filter((warning) => warningKind(warning) === "gap"));
+  const coverageWarnings = createMemo(() =>
+    warnings().filter((warning) => warningKind(warning) === "coverage"),
+  );
+
   const tableRows = createMemo<AgriTableViewRow[]>(() => {
-    const quotes = prices()?.quotes ?? [];
+    const rows = quotes();
     const key = commodity();
-    if (quotes.length > 0) {
-      return quotes.map((quote, index) => ({
+    if (rows.length > 0) {
+      return rows.map((quote, index) => ({
         key: `${quote.date}-${quote.market}-${quote.variety}-${index}`,
-        commodity: agriCommodityLabel(key, key),
-        group: agriGroupLabel(agriCommodity(key)?.group ?? group()),
+        commodity: commodityLabel(key, key),
+        group: groupLabel(commodityMetaByKey().get(key)?.group ?? agriCommodity(key)?.group ?? group()),
         state: quote.state,
         district: quote.district,
         market: quote.market,
@@ -438,8 +576,8 @@ export function AgriPage() {
     }
     return (prices()?.snapshot ?? []).map((snapshot) => ({
       key: `snapshot-${snapshot.key}`,
-      commodity: snapshot.label || agriCommodityLabel(snapshot.key, snapshot.key),
-      group: snapshot.group ?? "",
+      commodity: snapshot.label || commodityLabel(snapshot.key, snapshot.key),
+      group: groupLabel(snapshot.group ?? ""),
       state: "",
       district: "",
       market: "",
@@ -488,9 +626,9 @@ export function AgriPage() {
     >
       <ToolbarRow gap={8} data-testid="agri-toolbar" className="shrink-0">
         <Box className="flex flex-wrap items-center gap-2 min-w-0" data-testid="agri-scan-group">
-          <Text size="xs" fw={700} className={MICRO_LABEL}>Scan</Text>
+          <Text size="10px" fw={700} className={MICRO_LABEL}>Scan</Text>
           <Box className={CONTROL_CELL}>
-            <Text size="xs" c="dimmed" className={`${MICRO_LABEL} hidden sm:inline`}>Commodity group</Text>
+            <Text size="10px" c="dimmed" className={`${MICRO_LABEL} hidden sm:inline`}>Commodity group</Text>
             <Box className="w-[104px] max-sm:w-[96px]">
               <Select
                 data={groupOptions()}
@@ -504,7 +642,7 @@ export function AgriPage() {
             </Box>
           </Box>
           <Box className={CONTROL_CELL}>
-            <Text size="xs" c="dimmed" className={`${MICRO_LABEL} hidden sm:inline`}>Commodity</Text>
+            <Text size="10px" c="dimmed" className={`${MICRO_LABEL} hidden sm:inline`}>Commodity</Text>
             <Box className="w-[120px] max-sm:w-[104px]">
               <Select
                 data={commodityOptions()}
@@ -521,7 +659,7 @@ export function AgriPage() {
         <Box className="hidden h-5 w-px shrink-0 bg-fin-border md:block" aria-hidden="true" />
 
         <Box className="flex flex-nowrap items-center gap-2 min-w-0" data-testid="agri-range-group">
-          <Text size="xs" c="dimmed" className={MICRO_LABEL}>Range</Text>
+          <Text size="10px" c="dimmed" className={MICRO_LABEL}>Range</Text>
           <Box className={SEGMENT_TRACK} data-testid="agri-range-strip">
             <For each={AGRI_RANGE_PRESETS}>
               {(preset) => (
@@ -545,7 +683,7 @@ export function AgriPage() {
         <Box className="hidden h-5 w-px shrink-0 bg-fin-border lg:block" aria-hidden="true" />
 
         <Box className="flex flex-nowrap items-center gap-1 min-w-0" data-testid="agri-geo-group" title="Geography">
-          <Text size="xs" c="dimmed" className={MICRO_LABEL}>Geo</Text>
+          <Text size="10px" c="dimmed" className={MICRO_LABEL}>Geo</Text>
           <Box className="w-[108px] max-sm:w-[96px]">
             <Select
               data={stateOptions()}
@@ -589,7 +727,7 @@ export function AgriPage() {
 
         <Box className="min-w-0 flex-1" />
 
-        <Box className="flex flex-nowrap items-center gap-2 min-w-0" data-testid="agri-context">
+        <Box className="flex flex-wrap items-center gap-2 min-w-0" data-testid="agri-context">
           <Box className="flex items-center gap-1.5 whitespace-nowrap" data-testid="agri-freshness" data-tone={freshness().tone}>
             <Box
               className="h-2 w-2 shrink-0 rounded-full"
@@ -613,11 +751,17 @@ export function AgriPage() {
               {dataSource()}
             </Badge>
           </Show>
+          <Show when={pricesLoading() && prices()}>
+            <Badge color="info" size="xs" data-testid="agri-refreshing">
+              Refreshing…
+            </Badge>
+          </Show>
           <Button
             size="sm"
             variant="outline"
             onClick={refresh}
             disabled={pricesLoading() || filtersLoading()}
+            title="Reload the current selection without clearing the page"
             data-testid="agri-refresh"
           >
             Refresh
@@ -626,33 +770,61 @@ export function AgriPage() {
       </ToolbarRow>
 
       <Show when={warnings().length > 0}>
-        <Box className="shrink-0 px-1">
-          <Text
-            size="xs"
-            c="dimmed"
-            truncate
-            title={warnings().join(" · ")}
-            data-testid="agri-warnings"
-            style={{ "font-size": "10px" }}
-          >
-            {warnings().join(" · ")}
-          </Text>
+        <Box
+          className="shrink-0 rounded-[6px] border border-fin-border bg-fin-surface px-2 py-1"
+          data-testid="agri-warnings"
+        >
+          <For each={warnings()}>
+            {(warning) => {
+              const kind = warningKind(warning);
+              return (
+                <Text
+                  size="xs"
+                  c="dimmed"
+                  className="block break-words"
+                  style={{ "font-size": "10px" }}
+                  data-testid={
+                    kind === "gap"
+                      ? "agri-gap-warning"
+                      : kind === "coverage"
+                        ? "agri-coverage-warning"
+                        : "agri-warning"
+                  }
+                >
+                  <span style={{ "font-weight": 700, "text-transform": "uppercase" }}>{kind}</span>{" "}
+                  {warning}
+                </Text>
+              );
+            }}
+          </For>
+          <Show when={gapWarnings().length === 0 && coverageWarnings().length === 0}>
+            <Text size="xs" c="dimmed" className="block break-words" style={{ "font-size": "10px" }}>
+              {series().length} sessions · {kpis()?.market_count ?? 0} mandis reporting
+            </Text>
+          </Show>
         </Box>
       </Show>
 
       <ToolbarRow gap={8} className="shrink-0 px-1" data-testid="agri-kpi-head">
-        <Text size="xs" fw={700} style={{ "font-size": "10px", "letter-spacing": "0.08em", "text-transform": "uppercase", color: palette.PRIMARY }}>
+        <Text size="10px" fw={700} className={SECTION_LABEL}>
           Market snapshot
         </Text>
-        <Text size="xs" c="dimmed" style={{ "font-size": "10px" }}>
+        <Text size="10px" c="dimmed" className={SECTION_HINT}>
           Prices ₹/quintal · arrivals qtl · change vs. prior period
         </Text>
       </ToolbarRow>
-      <CompactStatGrid cols={statCols()} data-testid="agri-kpis">
+      <Box
+        data-testid="agri-kpis"
+        className={isMobile()
+          ? "flex shrink-0 gap-2 overflow-x-auto px-1 pb-1"
+          : "grid shrink-0 gap-2 px-1"}
+        style={isMobile() ? undefined : { "grid-template-columns": `repeat(${statCols()}, minmax(0, 1fr))` }}
+      >
         <CompactStat
           label="Modal price"
           value={formatAgriPrice(kpis()?.modal)}
           hint={asOf() ? `${formatAgriSessionDate(asOf())} · ₹/quintal` : "₹/quintal"}
+          className={statCardClass()}
           data-testid="agri-kpi-modal"
         />
         <CompactStat
@@ -660,6 +832,7 @@ export function AgriPage() {
           value={formatChangePct(kpis()?.chg_1w_pct)}
           tone={toneForChange(kpis()?.chg_1w_pct)}
           hint="price change"
+          className={statCardClass()}
           data-testid="agri-kpi-chg1w"
         />
         <CompactStat
@@ -667,6 +840,7 @@ export function AgriPage() {
           value={formatChangePct(kpis()?.chg_1m_pct)}
           tone={toneForChange(kpis()?.chg_1m_pct)}
           hint="price change"
+          className={statCardClass()}
           data-testid="agri-kpi-chg1m"
         />
         <CompactStat
@@ -674,24 +848,28 @@ export function AgriPage() {
           value={formatChangePct(kpis()?.chg_6m_pct)}
           tone={toneForChange(kpis()?.chg_6m_pct)}
           hint="price change"
+          className={statCardClass()}
           data-testid="agri-kpi-chg6m"
         />
         <CompactStat
           label="Min – max"
           value={`${formatAgriPrice(kpis()?.min)}–${formatAgriPrice(kpis()?.max)}`}
           hint="₹/quintal"
+          className={statCardClass()}
           data-testid="agri-kpi-range"
         />
         <CompactStat
           label="Mandis reporting"
           value={String(kpis()?.market_count ?? 0)}
-          hint="markets in this quote set"
+          hint="markets in this API page"
+          className={statCardClass()}
           data-testid="agri-kpi-markets"
         />
         <CompactStat
           label="Arrivals"
           value={formatArrivals(kpis()?.arrivals_qtl)}
           hint="quintals"
+          className={statCardClass()}
           data-testid="agri-kpi-arrivals"
         />
         <CompactStat
@@ -699,14 +877,15 @@ export function AgriPage() {
           value={formatAgriPrice(kpis()?.msp)}
           tone={kpis()?.msp == null ? "dimmed" : undefined}
           hint={kpis()?.msp == null ? "No MSP notified" : `${formatChangePct(kpis()?.distance_to_msp_pct)} vs MSP · ₹/quintal`}
+          className={statCardClass()}
           data-testid="agri-kpi-msp"
         />
-      </CompactStatGrid>
+      </Box>
 
       <Show when={movers()}>
         {(data) => (
           <ToolbarRow gap={4} wrap={false} className="shrink-0 overflow-x-auto px-1" data-testid="agri-movers">
-            <Text size="xs" fw={700} className={MICRO_LABEL}>Top movers · 1M</Text>
+            <Text size="10px" fw={700} className={MICRO_LABEL}>Top movers · 1M</Text>
             <For each={data().gainers}>
               {(mover) => (
                 <Text size="xs" c="success" className="whitespace-nowrap" style={{ "font-size": "11px" }}>
@@ -742,7 +921,7 @@ export function AgriPage() {
           onRetry={refresh}
         />
       </Show>
-      <Show when={pricesLoading() && !pricesError()}>
+      <Show when={pricesLoading() && !prices() && !pricesError() && !filtersError()}>
         <CompactPanel
           testId="agri-loading-panel"
           className="shrink-0"
@@ -753,18 +932,48 @@ export function AgriPage() {
         </CompactPanel>
       </Show>
 
-      <Show when={!pricesLoading() && !pricesError()}>
-        <Box data-testid="agri-body" className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+      <Show when={prices()}>
+        <Box
+          data-testid="agri-body"
+          aria-busy={pricesLoading() ? "true" : undefined}
+          className={`flex min-h-0 flex-1 flex-col gap-2 ${isMobile() ? "overflow-y-auto" : "overflow-hidden"}`}
+        >
           <ToolbarRow gap={8} className="shrink-0 px-1" data-testid="agri-eda-head">
-            <Text size="xs" fw={700} style={{ "font-size": "10px", "letter-spacing": "0.08em", "text-transform": "uppercase", color: palette.PRIMARY }}>
+            <Text size="10px" fw={700} className={SECTION_LABEL}>
               EDA summary
             </Text>
-            <Text size="xs" c="dimmed" style={{ "font-size": "10px" }}>
+            <Text size="10px" c="dimmed" className={SECTION_HINT}>
               derived from the active window · unavailable inputs read —
             </Text>
+            <Box className="ml-auto flex items-center gap-1" data-testid="agri-view-toggle">
+              <Button
+                size="xs"
+                radius="sm"
+                variant={pageView() === "chart" ? "default" : "subtle"}
+                color={pageView() === "chart" ? "primary" : undefined}
+                className={pageView() === "chart" ? "font-semibold" : undefined}
+                onClick={() => setPageView("chart")}
+                data-testid="agri-view-chart"
+              >
+                Chart
+              </Button>
+              <Button
+                size="xs"
+                radius="sm"
+                variant={pageView() === "groups" ? "default" : "subtle"}
+                color={pageView() === "groups" ? "primary" : undefined}
+                className={pageView() === "groups" ? "font-semibold" : undefined}
+                onClick={() => setPageView("groups")}
+                data-testid="agri-view-groups"
+              >
+                Categories
+              </Button>
+            </Box>
           </ToolbarRow>
           <Box
-            className="grid shrink-0 grid-cols-2 gap-1 md:grid-cols-3 xl:grid-cols-6"
+            className={isMobile()
+              ? "flex shrink-0 gap-2 overflow-x-auto px-1 pb-1"
+              : "grid shrink-0 grid-cols-2 gap-2 px-1 md:grid-cols-3 xl:grid-cols-6"}
             data-testid="agri-eda-summary"
           >
             <CompactStat
@@ -772,30 +981,35 @@ export function AgriPage() {
               value={formatChangePct(edaSummary().trendPct)}
               tone={toneForChange(edaSummary().trendPct)}
               hint="first → last modal"
+              className={statCardClass()}
               data-testid="agri-eda-trend"
             />
             <CompactStat
               label="Price dispersion"
               value={formatEdaPct(edaSummary().volatilityPct)}
               hint="modal level CV · not returns"
+              className={statCardClass()}
               data-testid="agri-eda-volatility"
             />
             <CompactStat
               label="Best month"
               value={monthAbbr(edaSummary().bestMonth)}
               hint="highest average modal"
+              className={statCardClass()}
               data-testid="agri-eda-best"
             />
             <CompactStat
               label="Worst month"
               value={monthAbbr(edaSummary().worstMonth)}
               hint="lowest average modal"
+              className={statCardClass()}
               data-testid="agri-eda-worst"
             />
             <CompactStat
               label="Arrivals corr."
               value={formatCorrelation(edaSummary().arrivalsCorrelation)}
               hint="Pearson r · not causality"
+              className={statCardClass()}
               data-testid="agri-eda-correlation"
             />
             <CompactStat
@@ -803,19 +1017,48 @@ export function AgriPage() {
               value={series().length === 0 ? "—" : String(edaSummary().outlierCount)}
               tone={edaSummary().outlierCount > 0 ? "warning" : undefined}
               hint="outside 1.5×IQR fence"
+              className={statCardClass()}
               data-testid="agri-eda-outliers"
             />
           </Box>
+          <Show
+            when={pageView() === "chart"}
+            fallback={
+              <Box className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto" data-testid="agri-groups-view">
+                <AgriGroupOverview
+                  className="shrink-0"
+                  groups={groupSummaries()}
+                  asOf={asOf()}
+                  selected={group()}
+                  onSelect={(key) => {
+                    setGroup(key);
+                    setPageView("chart");
+                  }}
+                />
+                <AgriFluctuationMatrix
+                  className="shrink-0"
+                  rows={snapshot()}
+                  group={group() || null}
+                  asOf={asOf()}
+                  selected={commodity()}
+                  onSelect={(key) => {
+                    setCommodity(key);
+                    setPageView("chart");
+                  }}
+                />
+              </Box>
+            }
+          >
           <CompactPanel
             testId="agri-chart-panel"
             className="flex min-h-0 flex-col"
             scrollable
-            style={{ flex: isMobile() ? "1 1 0%" : "3 2 0%", "min-height": isMobile() ? "208px" : "280px" }}
-            title={`Modal price — ${agriCommodityLabel(commodity(), commodity())}`}
+            style={{ flex: isMobile() ? "0 0 340px" : "3 1 0%", "min-height": isMobile() ? "340px" : "280px" }}
+            title={`Modal price — ${commodityLabel(commodity(), commodity())}`}
             description={`${agriRange(range())?.label ?? range()} · ${series().length} sessions · ₹/quintal${asOf() ? ` · from ${formatAgriSessionDate(agriRangeStart(asOf(), agriRange(range())?.days ?? null))}` : ""}`}
           >
             <ToolbarRow gap={8} className="shrink-0 px-1 pb-1" data-testid="agri-mode-row">
-              <Text size="xs" c="dimmed" className={MICRO_LABEL}>View</Text>
+              <Text size="10px" c="dimmed" className={MICRO_LABEL}>View</Text>
               <Show
                 when={isMobile()}
                 fallback={
@@ -854,54 +1097,109 @@ export function AgriPage() {
 
             <Show when={mode() === "compare"}>
               <ToolbarRow gap={4} data-testid="agri-compare-strip" className="shrink-0 px-1 pb-1">
-                <Text size="xs" c="dimmed" className={MICRO_LABEL}>Compare</Text>
-                <For each={DEFAULT_COMPARE}>
+                <Text size="10px" c="dimmed" className={MICRO_LABEL}>
+                  Compare · max {AGRI_MAX_COMPARE}
+                </Text>
+                <Badge
+                  color="info"
+                  size="xs"
+                  title="The active commodity is always included"
+                  data-testid="agri-compare-active"
+                >
+                  {commodityLabel(commodity(), commodity())}
+                </Badge>
+                <For each={compareExtras()}>
                   {(key) => (
                     <Button
                       size="xs"
-                      variant={compare().includes(key) ? "light" : "subtle"}
+                      variant="light"
                       onClick={() => toggleCompare(key)}
+                      title={`Remove ${commodityLabel(key, key)} from the comparison`}
                       data-testid={`agri-compare-${key}`}
                     >
-                      {agriCommodityLabel(key, key)}
+                      {commodityLabel(key, key)} ×
                     </Button>
                   )}
                 </For>
+                <Show when={compareAddOptions().length > 0 && compareKeys().length < AGRI_MAX_COMPARE}>
+                  <Box className="w-[142px] max-sm:w-[128px]">
+                    <Select
+                      data={compareAddOptions()}
+                      value=""
+                      onChange={addCompare}
+                      placeholder="Add commodity"
+                      size="xs"
+                      style={{ width: "100%" }}
+                      data-testid="agri-compare-add"
+                    />
+                  </Box>
+                </Show>
               </ToolbarRow>
             </Show>
 
-            <Show
-              when={canDraw()}
-              fallback={
-                <EmptyState
-                  kind="no-data"
-                  data-testid="agri-chart-empty"
-                  title="No chart history for this selection"
-                  description={emptyCopy()}
-                  hint={range() !== "max" ? "Try MAX to show the full collected history" : undefined}
-                  action={
-                    range() !== "max" ? (
-                      <Button size="xs" variant="light" onClick={() => setRange("max")} data-testid="agri-empty-max">
-                        Show MAX
-                      </Button>
-                    ) : undefined
-                  }
-                />
-              }
-            >
-              <Box className="flex min-h-0 flex-1" data-testid="agri-chart-region">
-                <EChart option={chartOption()} data-testid="agri-chart" />
-              </Box>
+            <Show when={mode() === "seasonality" && seasonalityWeak()}>
+              <EmptyState
+                kind="no-data"
+                data-testid="agri-seasonality-weak"
+                title="Seasonality is not measurable yet"
+                description={`A month-of-year cycle needs at least two distinct years. ${seasonalityDetail()}`}
+                hint="Showing this on one annual cycle would imply a pattern the data cannot support."
+                action={
+                  <Button
+                    size="xs"
+                    variant="light"
+                    onClick={() => setMode("band")}
+                    data-testid="agri-seasonality-band"
+                  >
+                    Show price band
+                  </Button>
+                }
+              />
+            </Show>
+
+            <Show when={!(mode() === "seasonality" && seasonalityWeak())}>
+              <Show
+                when={canDraw()}
+                fallback={
+                  <EmptyState
+                    kind="no-data"
+                    data-testid="agri-chart-empty"
+                    title="No chart history for this selection"
+                    description={emptyCopy()}
+                    hint={range() !== "max" ? "Try MAX to show the full collected history" : undefined}
+                    action={
+                      range() !== "max" ? (
+                        <Button size="xs" variant="light" onClick={() => setRange("max")} data-testid="agri-empty-max">
+                          Show MAX
+                        </Button>
+                      ) : undefined
+                    }
+                  />
+                }
+              >
+                <Box
+                  className={isMobile() ? "flex min-h-[240px] flex-1" : "flex min-h-0 flex-1"}
+                  data-testid="agri-chart-region"
+                >
+                  <EChart option={chartOption()} data-testid="agri-chart" />
+                </Box>
+              </Show>
             </Show>
           </CompactPanel>
+          </Show>
 
+          <Show when={pageView() === "chart"}>
           <CompactPanel
             testId="agri-table-panel"
             className="flex min-h-0 flex-col"
             scrollable
-            style={{ flex: isMobile() ? "1 1 0%" : "2 1 0%", "min-height": isMobile() ? "176px" : "220px" }}
+            style={{ flex: isMobile() ? "0 0 240px" : "2 1 0%", "min-height": isMobile() ? "240px" : "200px" }}
             title="Latest mandi quotes"
-            description={`${tableRows().length} quotes · ${formatAgriSessionDate(asOf())}`}
+            description={
+              quotes().length > 0
+                ? `${quoteScope()} · ${formatAgriSessionDate(asOf())}`
+                : `${tableRows().length} snapshot rows · ${formatAgriSessionDate(asOf())} · not a mandi universe`
+            }
           >
             <Show
               when={tableRows().length > 0}
@@ -921,22 +1219,31 @@ export function AgriPage() {
                   dataTestId="agri-quotes-table"
                   stickyHeader
                   fillContainer
-                  dense
                   bare
                   rowWindowSize={80}
                   minTableWidth={1168}
+                  initialSorting={AGRI_QUOTE_DEFAULT_SORT}
                   onRowClick={applyRowFilters}
                   getRowTestId={(row) => `agri-row-${row.key}`}
                   ariaLabel="Agricultural mandi prices"
                 />
+                <Text
+                  size="xs"
+                  c="dimmed"
+                  className="shrink-0 px-2 pb-1 break-words text-[10px]"
+                  data-testid="agri-table-scope"
+                >
+                  Sorted by modal price (high → low) · {quoteScope()}
+                </Text>
                 <Show when={isMobile()}>
-                  <Text size="xs" c="dimmed" className="shrink-0 px-2 pb-1" data-testid="agri-table-scroll-hint" style={{ "font-size": "10px" }}>
+                  <Text size="xs" c="dimmed" className="shrink-0 px-2 pb-1 text-[10px]" data-testid="agri-table-scroll-hint">
                     Swipe left / right to see all columns →
                   </Text>
                 </Show>
               </Box>
             </Show>
           </CompactPanel>
+          </Show>
         </Box>
       </Show>
     </Box>

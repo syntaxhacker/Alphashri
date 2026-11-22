@@ -1,9 +1,30 @@
 import type { Page } from "@playwright/test";
 import { apiRoute } from "../../mocks/routeHelper";
 
+const AS_OF = "2026-11-21";
+const HISTORICAL_START = "2025-10-27";
+const HISTORICAL_END = "2026-05-31";
+// The collector stopped on 2026-05-31 and resumed on 2026-11-21. That leaves
+// 173 missing arrival dates (2026-06-01 → 2026-11-20); the observed boundary
+// span is 174 days. The fixture keeps the hole so gap-aware views are exercised.
+const GAP_FIRST_MISSING = "2026-06-01";
+const GAP_LAST_MISSING = "2026-11-20";
+const GAP_MISSING_DAYS = 173;
+const RECENT_DATES = [AS_OF];
+const PARTIAL_ROWS = 3_942;
+const API_TOTAL_ROWS = 15_843;
+
+export const AGRI_GAP = {
+  firstMissing: GAP_FIRST_MISSING,
+  lastMissing: GAP_LAST_MISSING,
+  missingDays: GAP_MISSING_DAYS,
+  boundaryStart: HISTORICAL_END,
+  boundaryEnd: AS_OF,
+} as const;
+
 export const AGRI_FIXTURE = {
   ok: true,
-  as_of: "2026-11-17",
+  as_of: AS_OF,
   freshness_days: 1,
   commodities: [
     { key: "wheat", label: "Wheat", group: "cereals", unit: "INR/quintal" },
@@ -16,6 +37,8 @@ export const AGRI_FIXTURE = {
   states: ["Maharashtra"],
   districts: ["Nashik"],
   markets: ["Lasalgaon"],
+  state_districts: { Maharashtra: ["Nashik"] },
+  district_markets: { "Maharashtra||Nashik": ["Lasalgaon"] },
 };
 
 export type AgriScenario = "ok" | "empty" | "error" | "error-once";
@@ -37,11 +60,13 @@ interface CommoditySeed {
   min: number;
   max: number;
   arrivals: number;
-  chg1w: number;
-  chg1m: number;
-  chg6m: number;
+  chg1w: number | null;
+  chg1m: number | null;
+  chg6m: number | null;
   msp: number | null;
   distanceToMsp: number | null;
+  priceUnit: string;
+  productForm: string;
 }
 
 const SEEDS: Record<string, CommoditySeed> = {
@@ -51,11 +76,13 @@ const SEEDS: Record<string, CommoditySeed> = {
     min: 1980,
     max: 2310,
     arrivals: 18340,
-    chg1w: 1.2,
-    chg1m: -3.4,
+    chg1w: null,
+    chg1m: null,
     chg6m: 8.9,
-    msp: 2185,
-    distanceToMsp: 0.7,
+    msp: null,
+    distanceToMsp: null,
+    priceUnit: "Rs./Quintal",
+    productForm: "common",
   },
   wheat: {
     label: "Wheat",
@@ -63,11 +90,13 @@ const SEEDS: Record<string, CommoditySeed> = {
     min: 2230,
     max: 2560,
     arrivals: 22100,
-    chg1w: 0.8,
-    chg1m: 2.4,
+    chg1w: null,
+    chg1m: null,
     chg6m: -1.1,
-    msp: 2425,
-    distanceToMsp: 1.0,
+    msp: null,
+    distanceToMsp: null,
+    priceUnit: "Rs./Quintal",
+    productForm: "common",
   },
   tomato: {
     label: "Tomato",
@@ -75,41 +104,74 @@ const SEEDS: Record<string, CommoditySeed> = {
     min: 1650,
     max: 2050,
     arrivals: 12400,
-    chg1w: -2.1,
-    chg1m: 5.6,
+    chg1w: null,
+    chg1m: null,
     chg6m: -4.3,
     msp: null,
     distanceToMsp: null,
+    priceUnit: "Rs./Quintal",
+    productForm: "common",
   },
 };
 
-// Two years of daily sessions so every gated EDA view (rolling, seasonality,
-// distribution, heatmap, supplyDemand) has enough data to render.
-const SESSION_COUNT = 730;
+const RANGE_DAYS: Record<string, number> = {
+  "1m": 30,
+  "3m": 90,
+  "6m": 180,
+  "1y": 365,
+};
 
-function isoDaysAgo(days: number): string {
-  const date = new Date(`${AGRI_FIXTURE.as_of}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() - days);
+function isoDaysAfter(iso: string, days: number): string {
+  const date = new Date(`${iso}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 }
 
-function buildSeries(seed: CommoditySeed) {
-  return Array.from({ length: SESSION_COUNT }, (_, index) => {
-    const daysAgo = SESSION_COUNT - 1 - index;
-    const drift = Math.round(18 * Math.sin(index / 46) + 9 * Math.sin(index / 11));
-    const modal = daysAgo === 0 ? seed.base : seed.base + drift;
-    const arrivals = daysAgo === 0
-      ? seed.arrivals
+function isoRange(start: string, end: string): string[] {
+  const out: string[] = [];
+  const cursor = new Date(`${start}T00:00:00Z`);
+  const last = new Date(`${end}T00:00:00Z`);
+  while (cursor.getTime() <= last.getTime()) {
+    out.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return out;
+}
+
+const SESSION_DATES = [
+  ...isoRange(HISTORICAL_START, HISTORICAL_END),
+  ...RECENT_DATES,
+];
+
+function rangeCutoff(range: string | undefined): string | null {
+  if (!range || range === "max") return null;
+  const days = RANGE_DAYS[range];
+  return days ? isoDaysAfter(AS_OF, -days) : null;
+}
+
+function buildSeries(seed: CommoditySeed, range?: string) {
+  const cutoff = rangeCutoff(range);
+  return SESSION_DATES.map((date, index) => {
+    const isRecent = date > HISTORICAL_END;
+    const drift = isRecent ? 0 : Math.round(18 * Math.sin(index / 46) + 9 * Math.sin(index / 11));
+    const modal = seed.base + drift;
+    // The official data.gov.in feed publishes prices but not arrivals; the CKAN
+    // seed carries arrivals only for the historical leg.
+    const arrivals = isRecent
+      ? null
       : Math.max(100, seed.arrivals + Math.round(600 * Math.sin(index / 9) + 220 * Math.sin(index / 23)));
     return {
-      date: isoDaysAgo(daysAgo),
+      date,
       modal,
       min: modal - (seed.base - seed.min),
       max: modal + (seed.max - seed.base),
       arrivals_qtl: arrivals,
       market_count: 42,
+      price_unit: seed.priceUnit,
+      source: isRecent ? "agmarknet_daily" : "agmarknet_ckan",
+      product_form: seed.productForm,
     };
-  });
+  }).filter((point) => cutoff == null || point.date >= cutoff);
 }
 
 function echoFilters(params: Record<string, string>) {
@@ -124,13 +186,17 @@ function echoFilters(params: Record<string, string>) {
   };
 }
 
+function partialRowLabel(value: number): string {
+  return value.toLocaleString("en-IN");
+}
+
 export function agriPricesPayload(params: Record<string, string> = {}) {
   const key = params.commodity ?? "onion";
   const seed = SEEDS[key] ?? SEEDS.onion;
   const state = params.state || "Maharashtra";
   const district = params.district || "Nashik";
   const market = params.market || "Lasalgaon";
-  const series = buildSeries(seed);
+  const series = buildSeries(seed, params.range);
   const last = series[series.length - 1];
   const compareKeys = params.compare
     ? params.compare.split(",").filter(Boolean)
@@ -138,10 +204,18 @@ export function agriPricesPayload(params: Record<string, string> = {}) {
 
   return {
     ok: true,
-    as_of: AGRI_FIXTURE.as_of,
+    as_of: AS_OF,
     freshness_days: AGRI_FIXTURE.freshness_days,
-    data_source: "db",
+    data_source: "mixed",
     filters: echoFilters(params),
+    quotes_total: PARTIAL_ROWS,
+    partial: {
+      as_of: AS_OF,
+      status: "partial",
+      fetched_rows: PARTIAL_ROWS,
+      expected_total: API_TOTAL_ROWS,
+      gap_missing_days: GAP_MISSING_DAYS,
+    },
     kpis: {
       modal: last.modal,
       min: last.min,
@@ -160,7 +234,7 @@ export function agriPricesPayload(params: Record<string, string> = {}) {
     snapshot: [],
     quotes: [
       {
-        date: AGRI_FIXTURE.as_of,
+        date: AS_OF,
         state,
         district,
         market,
@@ -169,10 +243,13 @@ export function agriPricesPayload(params: Record<string, string> = {}) {
         min: last.min,
         modal: last.modal,
         max: last.max,
-        arrivals_qtl: last.arrivals_qtl,
+        arrivals_qtl: null,
+        price_unit: seed.priceUnit,
+        source: "agmarknet_daily",
+        product_form: seed.productForm,
       },
       {
-        date: AGRI_FIXTURE.as_of,
+        date: AS_OF,
         state,
         district,
         market,
@@ -181,7 +258,10 @@ export function agriPricesPayload(params: Record<string, string> = {}) {
         min: last.min - 20,
         modal: last.modal - 30,
         max: last.max - 40,
-        arrivals_qtl: 900,
+        arrivals_qtl: null,
+        price_unit: seed.priceUnit,
+        source: "agmarknet_daily",
+        product_form: seed.productForm,
       },
     ],
     comparison: compareKeys.map((compareKey) => {
@@ -189,19 +269,27 @@ export function agriPricesPayload(params: Record<string, string> = {}) {
       return {
         key: compareKey,
         label: compareSeed.label,
-        points: series.map((point, index) => ({
+        price_unit: compareSeed.priceUnit,
+        source: "mixed",
+        product_form: compareSeed.productForm,
+        points: buildSeries(compareSeed, params.range).map((point) => ({
           date: point.date,
-          modal: compareSeed.base + Math.round(16 * Math.sin(index / 41 + compareKey.length)),
+          modal: point.modal,
         })),
       };
     }),
-    warnings: [],
+    warnings: [
+      `data has a ${GAP_MISSING_DAYS}-day gap (${GAP_FIRST_MISSING} → ${GAP_LAST_MISSING}); short-window changes and rolling metrics skip it`,
+      `${AS_OF} is partial: ${partialRowLabel(PARTIAL_ROWS)} of ${partialRowLabel(API_TOTAL_ROWS)} API rows`,
+    ],
   };
 }
 
 export function agriEmptyPayload(params: Record<string, string> = {}) {
   return {
     ...agriPricesPayload(params),
+    quotes_total: 0,
+    partial: null,
     kpis: {
       modal: null,
       min: null,
