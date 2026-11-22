@@ -208,7 +208,13 @@ def _sort_key(row: dict[str, Any], sort: str):
     """
     if sort == "pe":
         v = _num(row.get("price_earnings_ttm"))
-        return (v is None, v if v is not None else 0.0)
+        # `pe` is sorted ascending ("P/E ↑" = cheapest first). A non-positive
+        # P/E is a loss-making company, not a cheap one — ranking it ahead of
+        # real P/E values would contradict the scorer's zero value points for
+        # loss-makers. Treat it like a missing P/E: push it to the end while
+        # keeping a stable order within that not-rankable bucket.
+        rankable = v is not None and v > 0
+        return (not rankable, v if rankable else 0.0)
     if sort == "fcf_yield":
         v = _fcf_yield(row)
         return (v is None, -(v if v is not None else 0.0))
