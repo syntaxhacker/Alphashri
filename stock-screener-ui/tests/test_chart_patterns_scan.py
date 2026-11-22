@@ -1518,7 +1518,8 @@ def test_genuine_exception_increments_failed(cp_store, monkeypatch):
 
     def fake_process(symbol, timeframe, job_id, name=None, lookback_bars=None,
                      compute_trendlines=True, as_of_date=None, from_date=None,
-                     include_partial_today=None, partial_bar=None, prev_hit=None):
+                     include_partial_today=None, partial_bar=None, prev_hit=None,
+                     signature=None):
         if symbol == "BOOM":
             raise RuntimeError("symbol worker died")
         return {"status": "ok", "data_through": "2026-01-01", "from_cache": False}
@@ -2367,3 +2368,98 @@ def test_auto_cancellation_still_works(cp_store, monkeypatch):
     assert row["status"] == "cancelled"
     assert row["finished_at"] is not None
     assert fetched == [] and detected == []
+
+
+# ---------------------------------------------------------------------------
+# Detector settings are job-invariant: the signature is built once per job,
+# not twice per symbol plus once per state update.
+# ---------------------------------------------------------------------------
+
+
+def test_process_symbol_uses_precomputed_signature(cp_store, monkeypatch):
+    """A supplied (detector_sig, tl_sig) pair is used verbatim, never rebuilt."""
+    from chart_patterns import config as cp_config
+
+    df = _make_df(80)
+    monkeypatch.setattr(
+        scan.candles, "fetch_for_timeframe",
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: df,
+    )
+    monkeypatch.setattr(
+        scan, "engine_mod", SimpleNamespace(detect_patterns=lambda d, tf, s: [_hit(s)])
+    )
+
+    real_sig = cp_config.trendline_signature()
+    calls = []
+
+    def counting_sig():
+        calls.append(1)
+        return real_sig
+
+    monkeypatch.setattr(cp_config, "trendline_signature", counting_sig)
+
+    store.save_job({
+        "job_id": "cpj_sig_pre", "universe": "nifty50", "timeframe": "1D", "status": "queued",
+    })
+    det_sig = f"v{scan.SCAN_DETECTOR_VERSION}|tl:{real_sig}"
+    result = scan._process_symbol(
+        "AAA", "1D", "cpj_sig_pre", signature=(det_sig, real_sig)
+    )
+
+    assert result["status"] == "ok"
+    assert calls == [], "a precomputed signature must not rebuild trendline settings"
+    record = result["hits"][0]
+    assert record["trend_lines_sig"] == real_sig
+    assert record["source_sig"] == scan._source_sig(
+        df, "1D", None, True, detector_sig=det_sig,
+        last_date=scan.candles.frame_last_date(df),
+    )
+
+
+def test_run_job_builds_signature_once_for_all_symbols(cp_store, monkeypatch):
+    """A full job rebuilds the detector settings signature exactly once.
+
+    Before the hoist every symbol rebuilt it twice (source key + hit stamp) and
+    ``run_job`` rebuilt it four more times for the terminal state, so three
+    symbols cost ten identical string builds instead of one.
+    """
+    from chart_patterns import config as cp_config
+
+    df = _make_df(80)
+    monkeypatch.setattr(
+        scan.candles, "fetch_for_timeframe",
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: df,
+    )
+    monkeypatch.setattr(
+        scan, "engine_mod",
+        SimpleNamespace(detect_patterns=lambda d, tf, s: [_hit(s)]),
+    )
+    monkeypatch.setattr(
+        scan, "universes_mod",
+        SimpleNamespace(get_universe=lambda uid: ["AAA", "BBB", "CCC"]),
+    )
+
+    real_sig = cp_config.trendline_signature()
+    calls = []
+
+    def counting_sig():
+        calls.append(1)
+        return real_sig
+
+    monkeypatch.setattr(cp_config, "trendline_signature", counting_sig)
+
+    job_id = "cpj_sig_once"
+    store.save_job({
+        "job_id": job_id, "universe": "nifty50", "timeframe": "1D", "status": "queued",
+    })
+    scan.run_job(job_id)
+
+    assert len(calls) == 1, f"expected one signature build per job, got {len(calls)}"
+    row = store.get_job(job_id)
+    assert row["status"] == "completed"
+    assert row["params"]["scan_signature"].startswith(
+        f"v{scan.SCAN_DETECTOR_VERSION}|tl:{real_sig}"
+    )
+    items, total, _ = store.query_results({"job_id": job_id})
+    assert total == 3
+    assert all(item["trend_lines_sig"] == real_sig for item in items)
