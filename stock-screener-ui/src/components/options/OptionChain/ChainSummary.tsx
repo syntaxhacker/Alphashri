@@ -117,7 +117,7 @@ export function ChainSummary(props: ChainSummaryProps) {
               </Text>
               <Text size="sm" fw={700} className={stats().expectedMove ? "text-fin-primary" : "text-fin-text-muted"}>
                 {stats().expectedMove
-                  ? `${stats().expectedMove.lower} - ${stats().expectedMove.upper}`
+                  ? `${stats().expectedMove?.lower} - ${stats().expectedMove?.upper}`
                   : "Data pending"}
               </Text>
               <Box className="flex items-center gap-[8px]" data-testid="options-chain-support-resistance">

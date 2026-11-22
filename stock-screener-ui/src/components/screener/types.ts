@@ -10,7 +10,7 @@ export type {
   SortDirection,
 } from "../../types";
 
-import type { Stock, SummaryItem, ScreenerOption, SortDirection } from "../../types";
+import type { Stock, SummaryItem, ScreenerOption } from "../../types";
 
 export interface ProfileFilterDef {
   key: string;

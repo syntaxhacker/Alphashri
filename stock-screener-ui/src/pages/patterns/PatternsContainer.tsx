@@ -28,6 +28,7 @@ import {
 } from "@/hooks/usePatternUrlSync";
 import { PatternsPage } from "./PatternsPage";
 import type { ReplayScanArgs } from "@/components/patterns/ReplayScanControl";
+import type { PatternFilters } from "@/types/chartPatterns";
 import type { IndexGroup } from "@/config/indexGroups";
 
 const PATTERN_PARAM_KEYS = [
@@ -251,7 +252,7 @@ export function PatternsContainer() {
     if (p.indexGroup != null && p.indexGroup !== indexGroup()) setIndexGroup(p.indexGroup);
     if (p.members != null && p.members !== members()) setMembers(p.members);
     const filtersDiffer = Object.entries(p.filters).some(([key, value]) => {
-      const current = (filters() as Record<string, unknown>)[key];
+      const current = (filters() as unknown as Record<string, unknown>)[key];
       return !filterValuesEqual(current, value);
     });
     if (filtersDiffer) applyFilters(p.filters);
@@ -281,7 +282,7 @@ export function PatternsContainer() {
         p.indexGroup == null || (state.indexGroup ?? "all") === p.indexGroup;
       const membersOk = p.members == null || (state.members ?? null) === p.members;
       const filtersOk = Object.entries(p.filters).every(([key, value]) => {
-        const current = (state.filters as Record<string, unknown>)[key];
+        const current = (state.filters as unknown as Record<string, unknown>)[key];
         return filterValuesEqual(current, value);
       });
       if (
@@ -334,7 +335,7 @@ export function PatternsContainer() {
     const entries = Object.entries(p.filters);
     if (entries.length > 0) {
       const differs = entries.some(([key, value]) => {
-        const currentValue = (filters() as Record<string, unknown>)[key];
+        const currentValue = (filters() as unknown as Record<string, unknown>)[key];
         return !filterValuesEqual(currentValue, value);
       });
       if (differs) applyFilters(p.filters);
@@ -366,7 +367,7 @@ export function PatternsContainer() {
       universe={universe()}
       setUniverse={selectUniverse}
       filters={filters()}
-      setFilter={setFilter}
+      setFilter={(key, value) => setFilter(key as keyof PatternFilters, value)}
       resetFilters={resetFilters}
       applyFilters={applyFilters}
       computeTrendlines={computeTrendlines()}

@@ -17,6 +17,10 @@ const ARROW_SIDE: Record<TooltipPosition, "t" | "r" | "b" | "l"> = {
   "top-end": "b",
   "bottom-start": "t",
   "bottom-end": "t",
+  "left-start": "r",
+  "left-end": "r",
+  "right-start": "l",
+  "right-end": "l",
 };
 
 type ArrowPos = { bottom?: string; left?: string; transform?: string; top?: string; right?: string };
@@ -29,6 +33,10 @@ const ARROW_POS: Record<TooltipPosition, ArrowPos> = {
   "top-end": { bottom: "-10px", right: "8px" },
   "bottom-start": { top: "-10px", left: "8px" },
   "bottom-end": { top: "-10px", right: "8px" },
+  "left-start": { right: "-10px", top: "8px" },
+  "left-end": { right: "-10px", bottom: "8px" },
+  "right-start": { left: "-10px", top: "8px" },
+  "right-end": { left: "-10px", bottom: "8px" },
 };
 
 /** Gap between the trigger and the floating box, in px. */

@@ -632,7 +632,7 @@ export function HomeMonitorView() {
   const catalyst = useCatalystToday();
   const scope = (): HomeCacheScope => ({
     session: catalyst.data()?.as_of?.slice(0, 10) ?? "unknown",
-    universe: MONITOR_CONTEXT.market,
+    universe: MONITOR_CONTEXT.market ?? "unknown",
     layout: "monitor",
   });
   const retry = () => {

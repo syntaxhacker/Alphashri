@@ -157,10 +157,10 @@ export function RotationRrg(props: RotationRrgProps) {
                       component="span"
                       className="absolute font-bold tracking-[0.6px] whitespace-nowrap text-[8.5px]"
                       style={{
-                        top: topSide ? 5 : "auto",
-                        bottom: topSide ? "auto" : 5,
-                        left: leftSide ? 6 : "auto",
-                        right: leftSide ? "auto" : 6,
+                        top: topSide ? "5px" : "auto",
+                        bottom: topSide ? "auto" : "5px",
+                        left: leftSide ? "6px" : "auto",
+                        right: leftSide ? "auto" : "6px",
                         color: withAlpha(color, 0.95),
                       }}
                     >
@@ -199,8 +199,8 @@ export function RotationRrg(props: RotationRrgProps) {
                   <Box
                     className="font-mono absolute pointer-events-none text-[9px] text-fin-text-muted tabular-nums"
                     style={{
-                      left: isLo ? 4 : isHi ? "auto" : `${x(tick)}%`,
-                      right: isHi ? 4 : "auto",
+                      left: isLo ? "4px" : isHi ? "auto" : `${x(tick)}%`,
+                      right: isHi ? "4px" : "auto",
                       bottom: "3px",
                       transform: isLo || isHi ? "none" : "translateX(-50%)",
                     }}
@@ -219,8 +219,8 @@ export function RotationRrg(props: RotationRrgProps) {
                     className="font-mono absolute pointer-events-none text-[9px] text-fin-text-muted tabular-nums"
                     style={{
                       right: "4px",
-                      bottom: isLo ? 2 : isHi ? "auto" : `${y(tick)}%`,
-                      top: isHi ? 2 : "auto",
+                      bottom: isLo ? "2px" : isHi ? "auto" : `${y(tick)}%`,
+                      top: isHi ? "2px" : "auto",
                       transform: isLo || isHi ? "none" : "translateY(50%)",
                     }}
                   >
@@ -283,8 +283,8 @@ export function RotationRrg(props: RotationRrgProps) {
                           onClick={() => props.onSelect(row.id)}
                           className="block rounded-full p-0 cursor-pointer transition-transform duration-[120ms] hover:scale-135 focus-visible:outline-[1px] focus-visible:outline-solid focus-visible:outline-offset-[2px] focus-visible:outline-fin-text"
                           style={{
-                            width: r * 2,
-                            height: r * 2,
+                            width: `${r * 2}px`,
+                            height: `${r * 2}px`,
                             border: selected
                               ? `1.5px solid ${CREAM}`
                               : `1px solid ${withAlpha(color, 0.9)}`,

@@ -222,7 +222,9 @@ export function usePatternsPage(props: PatternsPageProps) {
   const setDraftFilter = (key: string, value: unknown): void => {
     setDraftFilters((prev) => ({ ...prev, [key]: value }) as PatternFilters);
   };
-  const resetDraft = (): void => setDraftFilters(DEFAULT_PATTERN_FILTERS);
+  const resetDraft = (): void => {
+    setDraftFilters(DEFAULT_PATTERN_FILTERS);
+  };
   const applyDraftPreset = (patch: Partial<PatternFilters>): void => {
     // A preset is a complete filter state: merge onto defaults so keys it does
     // not mention are reset (matching the rail's documented contract) instead

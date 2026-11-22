@@ -10,7 +10,7 @@ interface EditableNumberCellProps {
   min?: number;
   max?: number;
   suffix?: string;
-  onUpdate: (strategyId: number, field: string, value: number) => Promise<void>;
+  onUpdate: (strategyId: number, field: string, value: number) => Promise<unknown>;
 }
 
 export function EditableNumberCell(props: EditableNumberCellProps) {

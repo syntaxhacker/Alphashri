@@ -99,7 +99,7 @@ export default function ReplayChartHost(props: ReplayChartHostProps) {
     cs.setData([]);
     vs.setData([]);
     try {
-      markersRef = createSeriesMarkers(cs as any, []);
+      markersRef = createSeriesMarkers(cs as any, []) as unknown as { setMarkers: (m: unknown[]) => void };
     } catch {
       markersRef = null; // test env without full chart impl
     }
@@ -149,7 +149,7 @@ export default function ReplayChartHost(props: ReplayChartHostProps) {
   // paint: completed 1m bars + live-forming bar built from 5s subs
   const paint = (now: number) => {
     const cs = seriesRef, vs = vwapRef, chart = chartRef;
-    if (!cs || now <= 0) return;
+    if (!cs || !chart || now <= 0) return;
     const bars = props.bars;
     const subs = props.subs;
     const vwap = props.vwap;

@@ -212,8 +212,7 @@ export function BacktestConfig(props: BacktestConfigProps) {
               variant="filled"
               size="sm"
               disabled={props.isRunning || props.selectedSymbols.length === 0}
-              p={0}
-              w={28}
+              style={{ padding: 0, width: "28px" }}
               data-testid="run-menu-btn"
               className="flex items-center justify-center"
             >

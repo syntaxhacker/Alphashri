@@ -108,6 +108,7 @@ export interface StrategyCreate {
   ema_fast_period?: number;
   ema_slow_period?: number;
   // S/R Breakout parameters
+  min_breakout_pct?: number;
   pivot_type?: string;
   breakout_buffer_pct?: number;
   // Trading controls

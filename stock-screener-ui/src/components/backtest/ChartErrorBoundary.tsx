@@ -1,5 +1,5 @@
 // ChartErrorBoundary — keeps a chart crash from unmounting the whole page.
-import { createEffect, createSignal, ErrorBoundary, Show } from "solid-js";
+import { createEffect, createSignal, ErrorBoundary, Show, type JSX } from "solid-js";
 import { Text, Box } from "@/ui";
 interface Props {
   children: JSX.Element;

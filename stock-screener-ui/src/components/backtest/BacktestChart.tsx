@@ -304,8 +304,8 @@ export function BacktestChart(props: BacktestChartProps) {
             highlightedTradeId={props.highlightedTradeId ?? null}
             showAllTrades={props.showAllTrades ?? true}
             markLines={markLines()}
-            emaData={input().emaData}
-            rsiData={input().rsiData}
+            emaData={input()?.emaData}
+            rsiData={input()?.rsiData}
             onTradeClick={props.onTradeClick}
           />
         </Box>

@@ -15,6 +15,9 @@ export type ResultsSurfaceModel = ResultsPlaceholderModel & Pick<
   | "loading"
   | "hasRows"
   | "filteredLatest"
+  | "filters"
+  | "setFilter"
+  | "resetFilters"
 >;
 
 export interface ResultsSurfaceProps {

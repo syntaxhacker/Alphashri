@@ -2,7 +2,8 @@ import { Box } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { ThemeType } from "./chainStyles";
 import { getStyles } from "./chainStyles";
-import type { CSSProperties } from "solid-js";
+import type { JSX } from "solid-js";
+type CSSProperties = JSX.CSSProperties;
 
 interface ChainTableHeaderProps {
   /** Accepted for API compatibility; unused by the header itself. */
@@ -14,10 +15,10 @@ export function ChainTableHeader(props: ChainTableHeaderProps) {
   const headerCell = {
     ...props.styles.headerCell,
     display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    padding: 8,
+    "align-items": "center",
+    "justify-content": "center",
+    gap: "8px",
+    padding: "8px",
   } as CSSProperties;
   return (
     <Box

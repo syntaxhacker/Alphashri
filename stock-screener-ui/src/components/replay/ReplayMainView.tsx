@@ -13,12 +13,12 @@ import { Box, Flex } from "@/ui";
 type ChartHandle = { zoomToTrade: (entryTime: string, exitTime: string) => void } | null;
 
 interface ReplayMainViewProps {
-  candlesBySymbol: Map<string, any[]>;
+  candlesBySymbol: Record<string, import("../../types/replay").ReplayCandle[]>;
   trades: ReplayTrade[];
-  orLevels: Map<string, ReplayORLevels>;
-  pivotLevels: Map<string, ReplayPivotLevels>;
-  high52wLevels: Map<string, Replay52WLevel>;
-  emaData: Map<string, ReplayEMAData>;
+  orLevels: ReplayORLevels[];
+  pivotLevels: ReplayPivotLevels[];
+  high52wLevels: Replay52WLevel[];
+  emaData: Record<string, ReplayEMAData>;
   selectedSymbol: string | null;
   setSelectedSymbol: (symbol: string) => void;
   chartOptions: ReplayChartOptions;

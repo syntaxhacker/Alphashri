@@ -199,7 +199,9 @@ export function parsePatternParams(params: URLSearchParams): ParsedPatternParams
   if (to) filters.to_date = to;
 
   const sort = params.get("sort");
-  if (sort) filters.sort = sort;
+  if (sort && ["confidence", "newest", "range_pos", "breakout", "distance"].includes(sort)) {
+    filters.sort = sort as PatternFilters["sort"];
+  }
 
   // One `symbol=` is the singular symbol filter; several are the multi-symbol
   // filter (mirrors how the API layer serializes them onto one key).
@@ -437,7 +439,8 @@ export function usePatternUrlSync({
   setMembers,
   applyFilters,
 }: UsePatternUrlSyncArgs): void {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [rawSearchParams, setSearchParams] = useSearchParams();
+  const searchParams = rawSearchParams as unknown as URLSearchParams;
   // Plain flags, not refs: Solid needs no mutable box for non-reactive state,
   // and `.current` does not exist here.
   let didRead = false;
@@ -491,7 +494,7 @@ export function usePatternUrlSync({
     if (parsed.members != null && parsed.members !== readOptional(members)) {
       setMembers?.(parsed.members);
     }
-    const currentFilters = readSource(filters) as Record<string, unknown>;
+    const currentFilters = readSource(filters) as unknown as Record<string, unknown>;
     const filtersDiffer = Object.entries(parsed.filters).some(([key, value]) => {
       return !filterValuesEqual(currentFilters[key], value);
     });
@@ -543,7 +546,7 @@ export function usePatternUrlSync({
           parsed.indexGroup == null || (indexGroupValue ?? "all") === parsed.indexGroup;
         const membersOk = parsed.members == null || (membersValue ?? null) === parsed.members;
         const filtersOk = Object.entries(parsed.filters).every(([key, value]) => {
-          const current = (filtersValue as Record<string, unknown>)[key];
+          const current = (filtersValue as unknown as Record<string, unknown>)[key];
           return filterValuesEqual(current, value);
         });
         if (!(universeOk && timeframeOk && timeframesOk && lookbackOk && computeOk && tabOk && viewOk && indexGroupOk && membersOk && filtersOk)) return; // wait for adoption
@@ -570,7 +573,7 @@ export function usePatternUrlSync({
     const nextString = next.toString();
     lastWritten = nextString;
     if (nextString === searchParams.toString()) return;
-    setSearchParams(next, { replace: true });
+    setSearchParams(next as unknown as Record<string, string>, { replace: true });
     // Intentionally keyed on the synced state; `searchParams`/`setSearchParams`
     // are read imperatively and would re-trigger on every navigation.
   });
@@ -590,7 +593,7 @@ export function usePatternUrlSync({
     const viewValue = readOptional(view);
     const indexGroupValue = readOptional(indexGroup);
     const membersValue = readOptional(members);
-    const filtersValue = readSource(filters) as Record<string, unknown>;
+    const filtersValue = readSource(filters) as unknown as Record<string, unknown>;
 
     if (!hydrated) return;
     const currentSearch = searchParams.toString();

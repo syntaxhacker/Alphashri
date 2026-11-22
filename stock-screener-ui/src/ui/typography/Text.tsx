@@ -33,7 +33,7 @@ function isLiteralColor(c: string): boolean {
 }
 
 const TEXT_KNOWN = [
-  "children", "className", "style", "id", "data-testid", "onClick", "onMouseEnter", "onMouseLeave",
+  "children", "className", "class", "style", "id", "data-testid", "onClick", "onMouseEnter", "onMouseLeave",
   "size", "fw", "c", "ta", "tt", "lh", "fs", "truncate", "lineClamp", "span", "inherit", "component",
   "p", "px", "py", "pt", "pb", "pl", "pr", "m", "mx", "my", "mt", "mb", "ml", "mr",
   "w", "maw", "opacity",
@@ -123,7 +123,7 @@ export function Text(props: UITextProps) {
 
   return (
     <Root
-      className={cn(known.className, derived().cls)}
+      className={cn(known.className, known.class, derived().cls)}
       style={{ ...derived().style, ...(known.style as Record<string, unknown> | undefined) }}
       id={known.id}
       data-testid={known["data-testid"]}

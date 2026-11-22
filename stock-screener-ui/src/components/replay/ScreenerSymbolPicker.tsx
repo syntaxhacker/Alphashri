@@ -63,7 +63,7 @@ export function ScreenerSymbolPicker(props: ScreenerSymbolPickerProps) {
     setIsLoading(true);
     setError(null);
     setHasLoaded(false);
-    setSelectedSet(new Set());
+    setSelectedSet(new Set<string>());
     try {
       const res = await fetchWithAuth(
         `${API_BASE}/api/screener?provider=upstox&mode=intraday&screener=${selectedScreener()}`,
@@ -100,7 +100,7 @@ export function ScreenerSymbolPicker(props: ScreenerSymbolPickerProps) {
     if (checked) {
       setSelectedSet(new Set(stocks().map((s) => s.symbol)));
     } else {
-      setSelectedSet(new Set());
+      setSelectedSet(new Set<string>());
     }
   };
 

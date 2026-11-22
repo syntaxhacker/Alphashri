@@ -102,6 +102,7 @@ export interface ChartPatternsState {
   computeTrendlines: boolean;
   job: JobDTO | null;
   scanning: boolean;
+  queuePosition: number | null;
   summary: PatternSummary | null;
   results: PatternHitDTO[];
   total: number;
@@ -137,6 +138,7 @@ function createInitialState(): ChartPatternsState {
     computeTrendlines: true,
     job: null,
     scanning: false,
+    queuePosition: null,
     summary: null,
     results: [],
     total: 0,

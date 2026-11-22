@@ -52,9 +52,10 @@ const SCREENER_PROFILE_OPTIONS = [
 const INTRADAY_TYPES = ["ORB", "SR_BREAKOUT", "EMA_CROSS"];
 const SWING_TYPES = ["52W_CHASER", "52W_TARGET"];
 
-function getNumVal(formData: FormData, key: string, fallback: number): number {
+function getNumVal(formData: FormData, key: string, fallback: number | undefined): number {
   const v = formData.get(key);
-  return v ? Number(v) : fallback;
+  if (v) return Number(v);
+  return fallback ?? 0;
 }
 
 function tabFor(strategyType: string): string {
@@ -128,7 +129,7 @@ export function StrategyForm(props: StrategyFormProps) {
       name: formData.get("name") as string,
       strategy_type: formData.get("strategy_type") as string,
       parent_id:
-        props.template?.id || (formData.get("parent_id") ? Number(formData.get("parent_id")) : undefined),
+        props.template?.id ? Number(props.template.id) : (formData.get("parent_id") ? Number(formData.get("parent_id")) : undefined),
       description: (formData.get("description") as string) || undefined,
       or_minutes: getNumVal(formData, "or_minutes", DEFAULT_VALUES.or_minutes),
       sl_pct: getNumVal(formData, "sl_pct", DEFAULT_VALUES.sl_pct),
@@ -190,7 +191,7 @@ export function StrategyForm(props: StrategyFormProps) {
     const enableFiltersEl = form.querySelector("[name='enable_filters']") as HTMLInputElement;
     data.enable_filters = enableFiltersEl ? enableFiltersEl.checked : false;
 
-    if (data.strategy_type === "EMA_CROSS" && data.ema_fast_period >= data.ema_slow_period) {
+    if (data.strategy_type === "EMA_CROSS" && (data.ema_fast_period ?? 0) >= (data.ema_slow_period ?? 0)) {
       window.alert("Fast EMA period must be less than Slow EMA period");
       return;
     }

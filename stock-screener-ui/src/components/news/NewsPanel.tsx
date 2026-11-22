@@ -172,7 +172,7 @@ function NewsPanelToggle(props: {
     <Indicator
       color={props.hasNewArticles ? "success" : "error"}
       size={16}
-      label={props.unreadCount > 9 ? "9+" : props.unreadCount}
+      label={props.unreadCount > 9 ? "9+" : String(props.unreadCount)}
       disabled={props.unreadCount === 0 || props.isOpen}
       offset={4}
       className={props.hasNewArticles ? "news-badge-pulse" : undefined}
@@ -199,7 +199,7 @@ function NewsPanelOverlay(props: { onClose: () => void }) {
   return (
     <Overlay
       color="secondary"
-      backgroundOpacity={0.5}
+      opacity={0.5}
       onClick={props.onClose}
       zIndex={100}
       data-testid="news-overlay"

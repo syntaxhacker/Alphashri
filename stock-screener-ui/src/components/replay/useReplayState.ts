@@ -5,7 +5,7 @@ import { createEffect, onMount } from "solid-js";
 import { useStoreSnapshot } from "../paper-trading/storeSnapshot";
 import * as rs from "../../state/replay";
 import { runReplay, fetchReplaySymbols, saveReplayConfig } from "../../api/replay";
-import type { ReplayConfig, ReplayEvent, ReplayState } from "../../types/replay";
+import type { ReplayConfig, ReplayEvent, ReplayState, ReplayChartOptions } from "../../types/replay";
 
 function configToParams(config: ReplayConfig): Record<string, string> {
   const p: Record<string, string> = {};
@@ -42,6 +42,7 @@ export interface ReplayStateHandle {
   setSelectedSymbol: (symbol: string) => void;
   setStrategyFilter: (filter: string) => void;
   setHighlightedTrade: (tradeId: number | null) => void;
+  setChartOptions: (options: Partial<ReplayChartOptions>) => void;
   loadSymbols: () => Promise<string[]>;
 }
 
@@ -73,7 +74,6 @@ export function useReplayState(): ReplayStateHandle {
     const autoName = `${config.date}${config.end_date ? '→' + config.end_date : ''}_${config.symbols.length || 'all'}sym`;
     saveReplayConfig(autoName, config, `Auto-saved ${new Date().toISOString()}`).catch(() => {});
     rs.startRunning();
-    let tradeId = 0;
 
     runReplay(
       config,
@@ -131,9 +131,8 @@ export function useReplayState(): ReplayStateHandle {
             });
             break;
           case "trade_close":
-            tradeId++;
             rs.closeOpenPosition(event.symbol, event.strategy);
-            rs.addTrade({ ...event, id: tradeId, exit_reason: event.reason });
+            rs.addTrade({ ...event, exit_reason: event.reason });
             rs.setSelectedSymbol(event.symbol);
             break;
           case "summary":
@@ -180,6 +179,7 @@ export function useReplayState(): ReplayStateHandle {
     // always exported it, the handle just never surfaced it, so any trade click
     // threw "replay.setHighlightedTrade is not a function" and blanked the page.
     setHighlightedTrade: rs.setHighlightedTrade,
+    setChartOptions: rs.setChartOptions,
     loadSymbols,
   };
 }

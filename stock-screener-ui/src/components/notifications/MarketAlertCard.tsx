@@ -536,7 +536,7 @@ export function MarketAlertStack(props: MarketAlertStackProps) {
         display: "flex",
         "flex-direction": "column",
         gap: "0px",
-        width: props.width ?? "100%",
+        width: props.width == null ? "100%" : `${props.width}px`,
         "min-width": "0px",
         "background-color": palette.BG,
         border: `1px solid ${palette.BORDER}`,

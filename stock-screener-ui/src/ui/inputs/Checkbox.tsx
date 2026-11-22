@@ -33,6 +33,7 @@ function toneColor(color?: UICheckboxProps["color"]): string {
 export function Checkbox(props: UICheckboxProps) {
   const [known, _rest] = splitProps(props, [
     "label",
+    "name",
     "checked",
     "defaultChecked",
     "onChange",
@@ -129,6 +130,7 @@ export function Checkbox(props: UICheckboxProps) {
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         disabled={known.disabled}
+        name={known.name}
         id={known.id}
         data-testid={known["data-testid"]}
         // The global `:is(input, …):focus` rule paints an amber outline on every

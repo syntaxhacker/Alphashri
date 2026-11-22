@@ -248,7 +248,7 @@ export default function ReplayShell(props: { plugin: ReplayStrategyPlugin; heade
 
   return (
     <Box p="sm" w="100%" data-testid={plugin().mode === "timeline" ? "tick-replay" : "replay-strategy"}>
-      <Stack direction="row" gap="sm" mb="xs" align="center" wrap>
+      <Stack direction="row" gap="sm" mb="xs" align="center" wrap="wrap">
         <Text fw={600} style={{ "font-size": "1.125rem", color: palette.REPLAY_CHART_TEXT }}>{plugin().label}</Text>
         {props.headerExtra}
       </Stack>
@@ -257,7 +257,7 @@ export default function ReplayShell(props: { plugin: ReplayStrategyPlugin; heade
           {plugin().subtitle}{plugin().summary?.(bundle() ?? EMPTY_BUNDLE, raw())}
         </Text>
       </Show>
-      <Stack direction="row" gap="sm" mb="sm" align="center" wrap>
+      <Stack direction="row" gap="sm" mb="sm" align="center" wrap="wrap">
         <For each={plugin().dates}>{(d) => (
           <Button
             size="xs"
@@ -279,7 +279,7 @@ export default function ReplayShell(props: { plugin: ReplayStrategyPlugin; heade
         when={plugin().mode === "timeline"}
         fallback={
           <>
-            <Stack direction="row" gap="sm" mb="sm" align="center" wrap>
+            <Stack direction="row" gap="sm" mb="sm" align="center" wrap="wrap">
               {paramControls()}
               {!plugin().panel && <Button size="xs" variant="subtle" disabled style={{ "background-color": palette.REPLAY_CHIP_BG, color: palette.POSITIVE, "border-radius": "4px" }}>{trades().length} trades</Button>}
               {loading() && <Button size="xs" variant="subtle" disabled style={{ "background-color": palette.REPLAY_CHIP_BG, color: palette.PRIMARY, "border-radius": "4px" }}>loading ticks…</Button>}

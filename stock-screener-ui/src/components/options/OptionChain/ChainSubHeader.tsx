@@ -1,6 +1,7 @@
 import { Box } from "@/ui";
 import { getStyles } from "./chainStyles";
-import type { CSSProperties } from "solid-js";
+import type { JSX } from "solid-js";
+type CSSProperties = JSX.CSSProperties;
 
 interface ChainSubHeaderProps {
   styles: ReturnType<typeof getStyles>;
@@ -11,20 +12,20 @@ export function ChainSubHeader(props: ChainSubHeaderProps) {
   const numericHeader: CSSProperties = {
     ...props.styles.subHeaderCell,
     display: "flex",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    textAlign: "right",
-    gap: 8,
-    padding: 8,
+    "align-items": "center",
+    "justify-content": "flex-end",
+    "text-align": "right",
+    gap: "8px",
+    padding: "8px",
   };
   const strikeHeader: CSSProperties = {
     ...props.styles.subHeaderCell,
     display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    textAlign: "center",
-    gap: 8,
-    padding: 8,
+    "align-items": "center",
+    "justify-content": "center",
+    "text-align": "center",
+    gap: "8px",
+    padding: "8px",
   };
   return (
     <Box

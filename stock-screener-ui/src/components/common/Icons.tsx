@@ -3,6 +3,8 @@ import type { JSX } from "solid-js";
 export interface IconProps {
   size?: number | string;
   className?: string;
+  style?: JSX.CSSProperties;
+  onClick?: (e: MouseEvent) => void;
   "data-testid"?: string;
   color?: string;
   /** Overrides the default stroke width (tabler default is 2). */
@@ -80,6 +82,7 @@ export function Icon(props: IconProps & { name: string }) {
     <svg
       data-testid={props["data-testid"] ?? `icon-${props.name}`}
       class={props.className}
+      style={props.style}
       width={props.size ?? 16}
       height={props.size ?? 16}
       viewBox="0 0 24 24"

@@ -154,6 +154,8 @@ export interface UIGridColProps extends UIBaseProps {
 }
 
 export interface UITextProps extends UIBaseProps {
+  /** Solid alias for `className`, accepted by Text for legacy call sites. */
+  class?: string;
   component?: keyof JSX.IntrinsicElements;
   p?: number | string;
   px?: number | string;
@@ -177,7 +179,7 @@ export interface UITextProps extends UIBaseProps {
   tt?: "uppercase" | "lowercase" | "capitalize" | "none";
   /** Native tooltip — the full text when the visible label is truncated. */
   title?: string;
-  size?: UISize;
+  size?: UISize | string | number;
   fw?: UIFontWeight;
   c?: UIColor;
   ta?: UIAlign;
@@ -207,6 +209,7 @@ export interface UITitleProps extends UIBaseProps {
 export interface UIAnchorProps extends UITextProps {
   href?: string;
   target?: string;
+  rel?: string;
   underline?: "always" | "hover" | "never";
   onClick?: (e: MouseEvent) => void;
   component?: any;
@@ -359,6 +362,10 @@ export interface UIInputWrapperProps extends UIBaseProps {
 }
 
 export interface UITextInputProps extends UIInputWrapperProps {
+  /** Native autocomplete hint, forwarded to the input. */
+  autoComplete?: string;
+  /** Focus the control on mount, forwarded to the native input. */
+  autoFocus?: boolean;
   value?: string;
   defaultValue?: string;
   onChange?: (value: string) => void;
@@ -469,9 +476,10 @@ export interface UIPasswordInputProps extends UITextInputProps {
 
 export interface UISwitchProps extends UIBaseProps {
   label?: JSX.Element;
+  name?: string;
   checked?: boolean;
   defaultChecked?: boolean;
-  onChange?: (e: Event & { currentTarget: HTMLInputElement | HTMLSelectElement; target: Element }) => void;
+  onChange?: (e: Event & { currentTarget: HTMLInputElement; target: Element }) => void;
   disabled?: boolean;
   size?: UISize;
   color?: UIColor;
@@ -484,9 +492,10 @@ export interface UISwitchProps extends UIBaseProps {
 
 export interface UICheckboxProps extends UIBaseProps {
   label?: JSX.Element;
+  name?: string;
   checked?: boolean;
   defaultChecked?: boolean;
-  onChange?: (e: Event & { currentTarget: HTMLInputElement | HTMLSelectElement; target: Element }) => void;
+  onChange?: (e: Event & { currentTarget: HTMLInputElement; target: Element }) => void;
   disabled?: boolean;
   size?: UISize;
   color?: UIColor;
@@ -536,7 +545,7 @@ export interface UIModalProps extends UIBaseProps {
 export interface UITooltipProps extends UIBaseProps {
   label: JSX.Element;
   withArrow?: boolean;
-  position?: "top" | "bottom" | "left" | "right" | "top-start" | "top-end" | "bottom-start" | "bottom-end";
+  position?: "top" | "bottom" | "left" | "right" | "top-start" | "top-end" | "bottom-start" | "bottom-end" | "left-start" | "left-end" | "right-start" | "right-end";
   openDelay?: number;
   closeDelay?: number;
   disabled?: boolean;
@@ -556,7 +565,7 @@ export interface UIPopoverProps extends Omit<UIBaseProps, "children"> {
   onClose?: () => void;
   /** Mantine-style controlled callback: called with the next opened state. */
   onChange?: (opened: boolean) => void;
-  position?: "top" | "bottom" | "left" | "right" | "top-start" | "top-end" | "bottom-start" | "bottom-end";
+  position?: "top" | "bottom" | "left" | "right" | "top-start" | "top-end" | "bottom-start" | "bottom-end" | "left-start" | "left-end" | "right-start" | "right-end";
   withArrow?: boolean;
   width?: number | string;
   shadow?: string;
@@ -704,7 +713,7 @@ export interface UIMenuProps extends UIBaseProps {
   trigger?: "click" | "hover" | "click-hover";
   opened?: boolean;
   onChange?: (opened: boolean) => void;
-  position?: "top" | "bottom" | "left" | "right" | "top-start" | "top-end" | "bottom-start" | "bottom-end";
+  position?: "top" | "bottom" | "left" | "right" | "top-start" | "top-end" | "bottom-start" | "bottom-end" | "left-start" | "left-end" | "right-start" | "right-end";
   offset?: number;
   withArrow?: boolean;
   shadow?: string;
