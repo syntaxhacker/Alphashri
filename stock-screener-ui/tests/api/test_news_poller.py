@@ -461,3 +461,83 @@ class TestSectorPoller:
             markets = [call.kwargs.get("market") for call in mock_sector.call_args_list if call.kwargs]
             assert "india" in markets
             assert "america" in markets
+
+
+class TestCacheInvalidationCoalescing:
+    @staticmethod
+    def _one_cycle_asyncio():
+        """Real awaitable primitives; MagicMock cannot be awaited by gather/wait_for."""
+        import asyncio as real_asyncio
+
+        class _Shim:
+            CancelledError = real_asyncio.CancelledError
+            TimeoutError = real_asyncio.TimeoutError
+            to_thread = staticmethod(real_asyncio.to_thread)
+            wait_for = staticmethod(real_asyncio.wait_for)
+            gather = staticmethod(real_asyncio.gather)
+
+            def __init__(self):
+                self.sleep_count = 0
+
+            async def sleep(self, delay):
+                self.sleep_count += 1
+                # call 1 = startup sleep(5); call 2 = first cycle's sleep(60).
+                if self.sleep_count >= 2:
+                    raise SystemExit("stop")
+
+        return _Shim()
+
+    @pytest.mark.asyncio
+    async def test_invalidates_once_per_cycle_with_saved_data_unchanged(self):
+        from api.news.news_poller import news_poller_task
+
+        shim = self._one_cycle_asyncio()
+        items = [
+            {
+                'id': f'id{i}',
+                'headline': f'This is a valid long headline for article number {i} in the test',
+                'sourceUrl': f'http://test.com/article/{i}',
+            }
+            for i in range(12)
+        ]
+        content = 'Full article body long enough for the persistence layer.'
+        symbols = [{'code': 'RELIANCE'}]
+        analysis = {'sentiment': 'BULLISH', 'impact_score': 5}
+
+        mock_fetch_news = MagicMock(return_value=items)
+        mock_fetch_article = MagicMock(return_value={'description': content, 'symbols': symbols})
+        mock_analyzer = MagicMock()
+        mock_analyzer.analyze_article.return_value = analysis
+        mock_persistence = MagicMock()
+        mock_persistence.get_article_by_url.return_value = None
+
+        with patch('api.news.news_poller.asyncio', shim), \
+             patch('api.news.news_poller.NEWS_ARTICLE_BUDGET_PER_CYCLE', 12), \
+             patch('api.news.news_poller._get_module_vars', return_value=(
+                 True, True, mock_analyzer, mock_fetch_news, mock_fetch_article,
+                 [{'id': 'mc'}],
+             )), \
+             patch('services.news_persistence.get_persistence_service', return_value=mock_persistence), \
+             patch('api.news.news_poller.news_ws_manager') as mock_ws, \
+             patch('api.news.news_impact.score_recent_articles', return_value={'scored': 0, 'moved': 0}), \
+             patch('cache.redis_client.invalidate_news_cache') as mock_invalidate:
+            mock_ws.broadcast = AsyncMock()
+            with pytest.raises(SystemExit, match="stop"):
+                await news_poller_task()
+
+        # All 12 budgeted articles are saved with their original payloads.
+        assert mock_persistence.save_article.call_count == 12
+        saved_urls = [c.kwargs['url'] for c in mock_persistence.save_article.call_args_list]
+        assert saved_urls == [f'http://test.com/article/{i}' for i in range(12)]
+        first = mock_persistence.save_article.call_args_list[0].kwargs
+        assert first['headline'] == items[0]['headline']
+        assert first['content'] == content
+        assert first['source'] == 'mc'
+        assert first['source_url'] == items[0]['sourceUrl']
+        assert first['symbols'] == symbols
+        assert first['sentiment'] == 'BULLISH'
+        assert first['impact_score'] == 5
+        assert first['analysis'] == analysis
+
+        # One global flush for the cycle, not one per saved article (12).
+        assert mock_invalidate.call_count == 1
