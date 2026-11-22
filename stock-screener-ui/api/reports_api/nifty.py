@@ -91,6 +91,21 @@ _sensex_cache: dict[str, dict] = {}
 _CANDLES_TTL = 60
 _candles_cache: dict[str, dict] = {}
 
+#: ``expiry`` (on /nifty/live) and replay ``date`` are caller-supplied and land
+#: in the keys of the three caches above. Without a cap a long-lived server
+#: grows one ~60KB report per distinct value forever. Cap insertion like the
+#: delivery/events-feed caches; each call site still owns its own freshness
+#: check, so eviction only changes memory use, never response shapes.
+_CACHE_MAX = 64
+
+
+def _cache_put(cache: dict, key, value) -> None:
+    """Insert into a user-keyed cache, evicting the oldest entry past the cap."""
+    cache[key] = value
+    while len(cache) > _CACHE_MAX:
+        cache.pop(next(iter(cache)), None)
+
+
 _TOP_WALLS = 3
 #: An actionable wall is within this many points of spot; beyond it the strike
 #: is book structure, not an intraday level.
@@ -1530,10 +1545,9 @@ async def get_cached_live(expiry: Optional[str] = None,
     supplied, so a cached report would carry another caller's term structure.
     """
     key = expiry or "default"
-    now = time.time()
     if expiries is None:
         hit = _live_cache.get(key)
-        if hit and now - hit["ts"] < _LIVE_TTL:
+        if hit and time.time() - hit["ts"] < _LIVE_TTL:
             return hit["data"]
     if expiries is None:
         report = await _compute_live(expiry)
@@ -1545,7 +1559,10 @@ async def get_cached_live(expiry: Optional[str] = None,
     except Exception:
         pass
     if expiries is None:
-        _live_cache[key] = {"ts": now, "data": report}
+        # Stamp at build COMPLETION: a cold build can take seconds, and a
+        # start-time stamp leaves the entry already stale on write so the next
+        # poll discards it and rebuilds again.
+        _cache_put(_live_cache, key, {"ts": time.time(), "data": report})
     return report
 
 
@@ -1852,7 +1869,8 @@ async def get_live_report(expiry: Optional[str] = None,
                     report = _overlay_ws_blocks(report, snap)
                     if expiries is None:
                         try:
-                            _live_ws_cache[key] = {"ts": time.time(), "data": report}
+                            _cache_put(_live_ws_cache, key,
+                                       {"ts": time.time(), "data": report})
                         except Exception:
                             pass
                     return report
