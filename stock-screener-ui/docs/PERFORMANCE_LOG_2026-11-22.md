@@ -36,8 +36,10 @@ unmeasured work is marked **in progress**.
   **18 → 0**. 62 targeted tests pass.
 - **ITM PE report panel:** content-signature memos stop one full ECharts
   `setOption(notMerge)+resize` per identical live frame; 12 tests pass.
-- **Market map:** one filtered row set reused for counts/rendering instead of
-  repeated passes; 11 heatmap performance tests pass.
+- **Market map:** one filtered row set reused for counts/rendering; a no-op
+  resize no longer triggers a full ECharts relayout/recolour (60-tile fixture:
+  **+1 setOption and +60 tile recolours → 0**). Real label-changing resizes
+  still repaint. 11 heatmap performance tests pass.
 - **Report endpoints:** profitability/options-report read paths de-duplicated;
   61 targeted tests pass.
 
