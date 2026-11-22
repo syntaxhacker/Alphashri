@@ -26,6 +26,11 @@ function sanitizeTestId(name: string): string {
   return name;
 }
 
+/** A partial payload must not turn bar geometry into `width: NaN%`. */
+function finiteChange(value: number | null | undefined): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
 export function GroupPerformancePanel(props: GroupPerformancePanelProps) {
   const [classify, setClassify] = createSignal<SectorClassify>("sector");
   const [period, setPeriod] = createSignal<SectorPeriod>("1D");
@@ -62,7 +67,7 @@ export function GroupPerformancePanel(props: GroupPerformancePanelProps) {
   // name at +34%); default to hiding groups below the threshold.
   const threshold = () => Number(minStocks()) || 1;
   const visible = createMemo(() => groups().filter((g) => g.stock_count >= threshold()));
-  const maxAbs = createMemo(() => visible().reduce((m, g) => Math.max(m, Math.abs(g.change)), 0));
+  const maxAbs = createMemo(() => visible().reduce((m, g) => Math.max(m, Math.abs(finiteChange(g.change))), 0));
 
   return (
     <Switch>
@@ -184,14 +189,23 @@ export function GroupPerformancePanel(props: GroupPerformancePanelProps) {
               <Box className="flex-1 min-h-0 overflow-y-auto flex flex-col px-1 pb-1" data-testid="group-performance-list">
                 <For each={visible()}>
                   {(g) => {
-                    const pct = maxAbs() > 0 ? (Math.abs(g.change) / maxAbs()) * 100 : 0;
-                    const positive = g.change >= 0;
+                    const pct = maxAbs() > 0 ? (Math.abs(finiteChange(g.change)) / maxAbs()) * 100 : 0;
+                    const positive = finiteChange(g.change) >= 0;
                     return (
                       <Box
                         data-testid={`group-performance-row-${sanitizeTestId(g.name)}`}
                         data-group={g.name}
+                        role={props.onSelectGroup ? "button" : undefined}
+                        tabIndex={props.onSelectGroup ? 0 : undefined}
+                        aria-label={props.onSelectGroup ? `Select ${g.name} group` : undefined}
                         onClick={props.onSelectGroup ? () => props.onSelectGroup?.(g.name) : undefined}
-                        className={cn("flex items-center gap-1 px-1 h-[18px] border-b border-fin-border/60 leading-none", props.onSelectGroup ? "cursor-pointer hover:bg-fin-surface-alt" : "cursor-default")}
+                        onKeyDown={props.onSelectGroup ? (e: KeyboardEvent) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            props.onSelectGroup?.(g.name);
+                          }
+                        } : undefined}
+                        className={cn("flex items-center gap-1 px-1 h-[18px] border-b border-fin-border/60 leading-none", props.onSelectGroup ? "cursor-pointer hover:bg-fin-surface-alt focus-visible:bg-fin-surface-alt" : "cursor-default")}
                       >
                         <Text size="xs" truncate span className="flex-1 min-w-0" title={g.name}>
                           {g.name}
@@ -216,7 +230,7 @@ export function GroupPerformancePanel(props: GroupPerformancePanelProps) {
                         </Box>
                         <Text
                           size="xs"
-                          c={getPnLTextColor(g.change)}
+                          c={Number.isFinite(g.change) ? getPnLTextColor(g.change) : "dimmed"}
                           span
                           ta="right"
                           className="w-[52px] flex-shrink-0 font-mono text-[10px] tabular-nums"

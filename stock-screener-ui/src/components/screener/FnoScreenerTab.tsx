@@ -124,7 +124,13 @@ export function FnoScreenerTab() {
     );
   };
 
-  const rows = () => (data()?.rows ?? []).filter(withinRange);
+  const rows = () => (Array.isArray(data()?.rows) ? data()!.rows : []).filter(withinRange);
+  const expiries = () => (Array.isArray(data()?.expiries) ? data()!.expiries : []);
+  const asOfTime = () => {
+    const raw = data()?.as_of;
+    const match = typeof raw === "string" ? /T(\d{2}:\d{2})/.exec(raw) : null;
+    return match ? match[1] : "—";
+  };
   // Symbol mode dedupes by symbol, keeping the first row per symbol (the
   // backend already sorts by the selected preset, so the first is the best
   // candidate). Contract mode shows every row. Both are pure derivations —
@@ -146,14 +152,16 @@ export function FnoScreenerTab() {
   const showError = () => error() !== null && rows().length === 0;
   const backendIssue = createMemo(() => {
     const d = data();
-    if (!d || d.errors.length === 0) return null;
+    const errors = Array.isArray(d?.errors) ? d!.errors : [];
+    const warnings = Array.isArray(d?.warnings) ? d!.warnings : [];
+    if (errors.length === 0) return null;
     // `FnoScreenerResponse.errors` carries `{symbol, stage, error}` objects
     // (see `api/options_screener.py`); an older payload used bare strings.
     // Read it structurally so either shape surfaces a message instead of
     // `undefined`.
-    const first = d.errors[0];
-    if (typeof first === "string") return first || d.warnings[0] || "Upstream options data unavailable";
-    return first?.error || d.warnings[0] || "Upstream options data unavailable";
+    const first = errors[0];
+    if (typeof first === "string") return first || warnings[0] || "Upstream options data unavailable";
+    return first?.error || warnings[0] || "Upstream options data unavailable";
   });
   const showEmpty = () =>
     !isLoading() && error() === null && rows().length === 0 && backendIssue() === null;
@@ -195,7 +203,7 @@ export function FnoScreenerTab() {
                   data-testid="fno-as-of"
                   className="hidden whitespace-nowrap md:block font-mono tabular-nums"
                 >
-                  as of {data()!.as_of.slice(11, 16)}
+                  as of {asOfTime()}
                 </Text>
                 <Text
                   size="xs"
@@ -232,7 +240,7 @@ export function FnoScreenerTab() {
               placeholder="Expiry"
               value={expiry() || undefined}
               onChange={(v) => setExpiry(v ?? "")}
-              data={data()!.expiries.map((e) => ({
+              data={expiries().map((e) => ({
                 value: e.date,
                 label: `${e.date} (${e.days_to_expiry} DTE)`,
               }))}
@@ -339,7 +347,12 @@ export function FnoScreenerTab() {
 }
 
 function money2(value: number): string {
+  if (!Number.isFinite(value)) return "—";
   return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function rupees0(value: number): string {
+  return Number.isFinite(value) ? `₹${Math.round(value).toLocaleString("en-IN")}` : "—";
 }
 
 /** Whole calendar days to a `YYYY-MM-DD` expiry, on the options model's 365-day year. */
@@ -396,9 +409,9 @@ export function FnoRowDetail(props: { row: FnoScreenerRow; expiry?: string }) {
       </Text>
       <CompactStatGrid cols={4} spacing={0.5}>
         <CompactStat label="Premium" value={money2(row().premium)} data-testid="fno-detail-premium" />
-        <CompactStat label="Cost / lot" value={`₹${Math.round(row().cost_lot).toLocaleString("en-IN")}`} data-testid="fno-detail-cost" />
+        <CompactStat label="Cost / lot" value={rupees0(row().cost_lot)} data-testid="fno-detail-cost" />
         <CompactStat label="Breakeven" value={money2(row().breakeven)} data-testid="fno-detail-breakeven" />
-        <CompactStat label="Max loss" value={`₹${Math.round(maxLoss()).toLocaleString("en-IN")}`} tone="error" data-testid="fno-detail-max-loss" />
+        <CompactStat label="Max loss" value={rupees0(maxLoss())} tone="error" data-testid="fno-detail-max-loss" />
         <CompactStat label="POP" value={formatPercentage(row().pop)} data-testid="fno-detail-pop" />
         <CompactStat label="1D%" value={formatPercentage(row().d1)} data-testid="fno-detail-d1" />
         <CompactStat label="5D%" value={formatPercentage(row().d5)} data-testid="fno-detail-d5" />

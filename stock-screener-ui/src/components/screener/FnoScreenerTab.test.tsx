@@ -421,6 +421,47 @@ describe("FnoScreenerTab", () => {
     expect(screen.getByTestId("fno-stale-badge")).toHaveTextContent("STALE");
   });
 
+  it("survives a degraded payload without printing undefined or NaN", async () => {
+    mockFetchFnoScreener.mockResolvedValueOnce({
+      ...baseResponse,
+      as_of: undefined,
+      expiries: undefined,
+      errors: undefined,
+      warnings: undefined,
+    } as never);
+    renderTab();
+    await waitFor(() => expect(screen.getByTestId("fno-row-RELIANCE")).toBeInTheDocument());
+    expect(screen.getByTestId("fno-as-of")).toHaveTextContent("as of —");
+    expect(screen.getByTestId("fno-expiry-select")).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/undefined|NaN/);
+  });
+
+  it("renders non-finite money cells as a dash, not ₹NaN", async () => {
+    mockFetchFnoScreener.mockResolvedValueOnce({
+      ...baseResponse,
+      rows: [{
+        ...baseResponse.rows[0],
+        premium: Number.NaN,
+        cost_lot: Number.NaN,
+        breakeven: Number.NaN,
+      }],
+    });
+    renderTab();
+    await waitFor(() => expect(screen.getByTestId("fno-row-RELIANCE")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("fno-expand-RELIANCE"));
+    await waitFor(() => expect(screen.getByTestId("fno-detail-premium")).toBeInTheDocument());
+
+    for (const id of [
+      "fno-detail-premium",
+      "fno-detail-cost",
+      "fno-detail-breakeven",
+      "fno-detail-max-loss",
+    ]) {
+      expect(screen.getByTestId(id)).toHaveTextContent("—");
+    }
+    expect(screen.getByTestId("fno-row-detail").textContent).not.toMatch(/NaN|undefined/);
+  });
+
   it("renders the empty state when there are no matches", async () => {
     mockFetchFnoScreener.mockResolvedValueOnce({ ...baseResponse, rows: [], matched: 0 });
     renderTab();

@@ -217,4 +217,31 @@ describe("GroupPerformancePanel", () => {
       expect(screen.getByTestId("group-performance-empty")).toBeInTheDocument();
     });
   });
+
+  it("renders a dash and a zero-width bar for a non-finite change", async () => {
+    mockFetchSectorGroups.mockResolvedValue(payload([
+      { name: "Bad", change: Number.NaN, stock_count: 5, advances: 0, declines: 0 },
+      { name: "Good", change: 2, stock_count: 5, advances: 5, declines: 0 },
+    ]));
+    renderWithProvider(<GroupPerformancePanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId("group-performance-row-Bad")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("group-performance-value-Bad")).toHaveTextContent("—");
+    expect(screen.getByTestId("group-performance-bar-Bad").style.width).toBe("0%");
+    expect(screen.getByTestId("group-performance-value-Good").textContent).not.toMatch(/NaN/);
+  });
+
+  it("exposes clickable group rows to the keyboard", async () => {
+    const onSelectGroup = vi.fn();
+    renderWithProvider(<GroupPerformancePanel onSelectGroup={onSelectGroup} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("group-performance-row-IT")).toBeInTheDocument();
+    });
+    const row = screen.getByTestId("group-performance-row-IT");
+    expect(row).toHaveAttribute("role", "button");
+    expect(row).toHaveAttribute("tabindex", "0");
+    fireEvent.keyDown(row, { key: "Enter" });
+    expect(onSelectGroup).toHaveBeenCalledWith("IT");
+  });
 });

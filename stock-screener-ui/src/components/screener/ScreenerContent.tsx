@@ -56,8 +56,8 @@ interface Props {
   activeScreener: string;
 }
 
-// src/hooks/useStoreSubscription.ts's useStoreSnapshot misses its createMemo
-// import, so the snapshot is inlined here with the same semantics.
+// useStoreSnapshot discards the signal getter and calls the setter as a reader,
+// so it never tracks notifications; the snapshot is inlined with correct reads.
 function useStateSnapshot() {
   const [tick, setTick] = createSignal(0);
   createEffect(() => {

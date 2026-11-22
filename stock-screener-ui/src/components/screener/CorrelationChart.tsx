@@ -116,10 +116,13 @@ export function CorrelationChart(props: CorrelationChartProps) {
   };
 
   const option = createMemo(() => (hasData() ? buildOption() : null));
+  let optionGeneration = 0;
 
-  async function applyOption(next: ReturnType<typeof buildOption>) {
+  async function applyOption(next: ReturnType<typeof buildOption>, generation: number) {
     const lib = await loadEcharts();
-    if (disposed || !chartEl || !lib) return;
+    // The loader is async: a slower earlier import must not paint over a newer
+    // result when the store ticks again before it resolves.
+    if (disposed || generation !== optionGeneration || !chartEl || !lib) return;
     if (!chart) chart = lib.init(chartEl, null) as ECharts.ECharts;
     chart.setOption(next, true);
     chart.resize();
@@ -128,7 +131,7 @@ export function CorrelationChart(props: CorrelationChartProps) {
   createEffect(() => {
     const next = option();
     if (!next) return;
-    void applyOption(next);
+    void applyOption(next, ++optionGeneration);
   });
 
   onMount(() => {
@@ -139,6 +142,7 @@ export function CorrelationChart(props: CorrelationChartProps) {
 
   onCleanup(() => {
     disposed = true;
+    optionGeneration++;
     chart?.dispose();
     chart = undefined;
   });
