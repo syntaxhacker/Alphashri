@@ -189,10 +189,13 @@ def auth_client(db: Session) -> TestClient:
     app.dependency_overrides[get_db] = override_get_db_for_client
     app.dependency_overrides[get_current_user] = override_get_current_user
 
+    # No `with`: entering the app lifespan per test starts network-backed
+    # background tasks that wedge TestClient.__exit__ (see tests/api/conftest.py).
+    test_client = TestClient(app)
     try:
-        with TestClient(app) as test_client:
-            yield test_client
+        yield test_client
     finally:
+        test_client.close()
         app.dependency_overrides.clear()
 
 
