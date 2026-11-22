@@ -538,6 +538,9 @@ def _validate_52w_payload(
             value = entry.get(field_name)
             if not isinstance(value, (int, float)) or isinstance(value, bool):
                 raise ManifestError(f"52W entry for {symbol} has invalid {field_name}")
+            # json.loads accepts NaN/Infinity; they must never reach SQLite/Redis.
+            if not math.isfinite(float(value)):
+                raise ManifestError(f"52W entry for {symbol} has non-finite {field_name}")
             if value <= 0:
                 raise ManifestError(f"52W entry for {symbol} has non-positive {field_name}")
         if float(entry["high"]) < float(entry["low"]):
@@ -612,6 +615,8 @@ def validate_asset(pair: AssetPair, path: Path) -> ValidatedAsset:
     expected_rows = manifest.get("rows", manifest.get("count"))
     if not isinstance(expected_rows, int) or expected_rows < 0:
         raise ManifestError("Manifest rows must be a non-negative integer")
+    if pair.kind == "52w" and expected_rows == 0:
+        raise ManifestError("52W asset has 0 symbols; refusing to apply an empty range set")
     expected_sha = manifest.get("sha256")
     if not isinstance(expected_sha, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", expected_sha):
         raise ManifestError("Manifest sha256 must be 64 hex characters")
@@ -1008,7 +1013,10 @@ def _download_and_validate(
         )
         return pair
 
-    _attach_manifest()
+    # Releases are re-uploaded with --clobber. A cached manifest and asset from
+    # an older revision match each other, so a checksum check alone cannot spot
+    # the stale pair — refresh the small manifest first to get the current SHA.
+    _attach_manifest(force=manifest_is_remote)
     payload_path = materialize(pair.asset, cache_dir, token=token)
     try:
         return validate_asset(pair, payload_path)

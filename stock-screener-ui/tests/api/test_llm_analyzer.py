@@ -91,6 +91,21 @@ class TestOpenRouterClient:
             with pytest.raises(RuntimeError, match="HTTP 500"):
                 _call_llm_json([{"role": "user", "content": "hi"}])
 
+    def test_reports_which_model_actually_answered_after_fallback(self, monkeypatch):
+        monkeypatch.setattr("llm_analyzer.config.OPENROUTER_API_KEY", "k")
+        tried = []
+
+        def _post(url, headers=None, json=None, timeout=None):
+            tried.append(json["model"])
+            if len(tried) == 1:
+                return _Resp(429, {"error": "rate limited"})
+            return _Resp(200, {"choices": [{"message": {"content": '{"summary":"ok"}'}}]})
+
+        with patch("llm_analyzer.requests.post", side_effect=_post):
+            out = _call_llm_json([{"role": "user", "content": "hi"}])
+
+        assert out["_model"] == tried[1]
+
 
 class TestArticleAnalyzer:
     def test_cache_initialization(self, analyzer_db):
@@ -158,3 +173,45 @@ class TestArticleAnalyzer:
         assert "Failed to analyze article" in result["summary"]
         assert result["sentiment"] == "NEUTRAL"
         assert result["impact_score"] == 0
+
+    @patch('llm_analyzer._call_llm_json')
+    def test_malformed_sentiment_and_impact_still_produce_a_cached_result(self, mock_call_llm, analyzer_db):
+        """A model that returns sentiment=null and impact_score='high' must not
+        turn a usable reply into the generic failure fallback."""
+        mock_call_llm.return_value = {
+            "summary": "Markets rallied on the policy announcement.",
+            "sentiment": None,
+            "impact_score": "high",
+            "key_entities": ["RBI"],
+            "trade_ideas": [],
+        }
+
+        result = analyzer_db.analyze_article(
+            "https://coerce.com", "RBI news", "Long content about RBI " * 10
+        )
+
+        assert "Failed to analyze" not in result["summary"]
+        assert result["sentiment"] == "NEUTRAL"
+        assert result["impact_score"] == 0
+        assert result["key_entities"] == ["RBI"]
+        cached = analyzer_db._get_from_cache(analyzer_db._generate_cache_key("https://coerce.com"))
+        assert cached is not None
+        assert cached["key_entities"] == ["RBI"]
+
+    @patch('llm_analyzer._call_llm_json')
+    def test_llm_run_logs_the_model_that_answered_not_the_configured_default(self, mock_call_llm, analyzer_db):
+        mock_call_llm.return_value = {
+            "summary": "ok",
+            "sentiment": "BULLISH",
+            "impact_score": 5,
+            "_model": "baidu/ernie-5.5-flash-preview:free",
+            "_usage": {"prompt_tokens": 10, "completion_tokens": 4, "total_tokens": 14},
+        }
+
+        analyzer_db.analyze_article(
+            "https://model.com", "News", "Long content about markets " * 10
+        )
+
+        runs = analyzer_db.get_llm_stats()
+        assert runs[0]["model"] == "baidu/ernie-5.5-flash-preview:free"
+        assert runs[0]["prompt_tokens"] == 10
