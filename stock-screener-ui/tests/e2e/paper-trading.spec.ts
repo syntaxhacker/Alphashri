@@ -3,7 +3,7 @@ import {
   navigateToPaperTrading,
   navigateToPaperTradingWithBot,
   setupPaperTradingTestMocks,
-} from "../helpers/paperTradingHelpers";
+} from "./helpers/paperTradingHelpers";
 import { setupApiMocks, loginAsTestUser, setupPaperTradingMocks } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
 import {

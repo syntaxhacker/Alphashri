@@ -4,8 +4,8 @@ import {
   loginAsTestUser,
   setupPaperTradingMocks,
   setupMultiStrategyBotMocks,
-} from "../mocks/apiResponses";
-import { apiRoute } from "../mocks/routeHelper";
+} from "../../mocks/apiResponses";
+import { apiRoute } from "../../mocks/routeHelper";
 
 export async function setupTradeHistoryMocks(page: Page): Promise<void> {
   await setupApiMocks(page);

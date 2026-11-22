@@ -1,6 +1,14 @@
 import { Page, expect } from "@playwright/test";
 import { setupBotApiMocks } from "./botHelpers";
 import { apiRoute } from "../../mocks/routeHelper";
+import {
+  setupApiMocks,
+  loginAsTestUser,
+  setupPaperTradingMocks,
+  setupMultiStrategyBotMocks,
+} from "../../mocks/apiResponses";
+
+export { setupMultiStrategyBotMocks, setupApiMocks, loginAsTestUser, setupPaperTradingMocks };
 
 export const BOT_IDS = {
   signalGenerators: "200",
@@ -216,4 +224,57 @@ export async function verifyStrategyPanel(page: Page): Promise<void> {
   await expect(positionsContainer.locator('[data-testid^="strategy-card-"]').first()).toBeVisible({
     timeout: 10000,
   });
+}
+
+export async function setupMultiStrategyMocks(page: Page): Promise<void> {
+  await setupApiMocks(page);
+  await loginAsTestUser(page);
+  await setupPaperTradingMocks(page);
+  await setupMultiStrategyBotMocks(page);
+}
+
+export async function navigateToMultiStrategyBot(page: Page, _botId: string = "2"): Promise<void> {
+  await page.goto("/paper");
+  await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
+  await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
+
+  const botSelect = page.locator('[data-testid="bot-select"]');
+  await expect(botSelect).toBeVisible({ timeout: 10000 });
+  await botSelect.click();
+  await page.waitForTimeout(200);
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+
+  // Wait for positions to load (not just "Loading positions...")
+  await page.waitForFunction(
+    () => {
+      const loadingText = document.body.textContent;
+      return !loadingText?.includes("Loading positions...");
+    },
+    { timeout: 10000 },
+  );
+
+  await page.waitForTimeout(300);
+}
+
+export async function clickStrategyTab(page: Page, tabName: string): Promise<boolean> {
+  const tab = page.locator(`.strategy-tab:has-text('${tabName}')`);
+  if ((await tab.count()) > 0) {
+    await tab.click();
+    await page.waitForTimeout(300);
+    return true;
+  }
+  return false;
+}
+
+export async function getScanTableHeaders(page: Page): Promise<string[] | null> {
+  const scanTable = page.locator(".scan-table");
+  if ((await scanTable.count()) > 0) {
+    return await scanTable.locator("th").allTextContents();
+  }
+  return null;
+}
+
+export async function getStrategyTabCount(page: Page): Promise<number> {
+  return await page.locator(".strategy-tab").count();
 }

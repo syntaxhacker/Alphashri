@@ -11,7 +11,7 @@ import {
   gotoBotsViewAndWait,
   mockCreateBotRoute,
   createBotAndSave,
-} from "../helpers/botsHelpers";
+} from "./helpers/botHelpers";
 
 const BOT_ID_1 = "550e8400-e29b-41d4-a716-446655440000";
 const BOT_ID_2 = "81b1e4e1-de04-4989-8357-96daade0bd86";
