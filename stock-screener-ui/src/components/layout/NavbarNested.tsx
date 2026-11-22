@@ -15,6 +15,7 @@ import {
   IconAdjustments,
   IconFlask,
   IconLeaf,
+  IconTrendingUp,
 } from "../common/Icons";
 import { For, Show, createMemo } from "solid-js";
 import { Box, Group, ScrollArea, Stack, ActionIcon, Divider, useColorScheme } from "@/ui";
@@ -44,6 +45,7 @@ const navItems = [
   { label: "Bots", icon: IconRobot, link: "/bots" },
   { label: "Options", icon: IconChartArea, link: "/options" },
   { label: "Index Report", icon: IconChartArea, link: "/report/index" },
+  { label: "Profitability", icon: IconTrendingUp, link: "/report/profit" },
   { label: "Settings", icon: IconSettings, link: "/settings" },
   { label: "Admin", icon: IconShield, link: "/admin" },
 ];

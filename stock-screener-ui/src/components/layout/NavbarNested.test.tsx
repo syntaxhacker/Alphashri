@@ -16,9 +16,9 @@ const mockUserAuth: any = {
   isAuthenticated: true,
 };
 
-/** Every route the rail renders for an admin (17 items incl. HOME and Admin). */
+/** Every route the rail renders for an admin (18 items incl. HOME and Admin). */
 const NAV_IDS =
-  /^nav-(home|screener|news|backtest|experiments|paper|replay|strategy-runner|sector|agri-prices|patterns|strategies|bots|options|index-report|settings|admin)$/;
+  /^nav-(home|screener|news|backtest|experiments|paper|replay|strategy-runner|sector|agri-prices|patterns|strategies|bots|options|index-report|profitability|settings|admin)$/;
 
 function renderNavbar(opts: {
   activePath?: string;
@@ -67,10 +67,10 @@ afterEach(() => {
 
 // ── Nav list contract ──
 describe("NavbarNested nav list contract", () => {
-  it("renders all 17 nav items for admin (enforces list maintenance)", () => {
+  it("renders all 18 nav items for admin (enforces list maintenance)", () => {
     renderNavbar({ auth: mockAdminAuth, activePath: "/" });
     const items = screen.getAllByTestId(/^nav-/);
-    expect(items).toHaveLength(17);
+    expect(items).toHaveLength(18);
     const navIds = items.map((el) => el.getAttribute("data-testid")).filter(Boolean);
     expect(navIds).toContain("nav-home");
     expect(navIds).toContain("nav-screener");
@@ -79,12 +79,12 @@ describe("NavbarNested nav list contract", () => {
     expect(navIds).toContain("nav-strategies");
     expect(navIds).toContain("nav-admin");
     // exact count: the full rail, including the Admin-only entry
-    expect(screen.getAllByTestId(NAV_IDS)).toHaveLength(17);
+    expect(screen.getAllByTestId(NAV_IDS)).toHaveLength(18);
   });
 
-  it("renders 16 items for non-admin (hides Admin)", () => {
+  it("renders 17 items for non-admin (hides Admin)", () => {
     renderNavbar({ auth: mockUserAuth });
-    expect(screen.getAllByTestId(NAV_IDS)).toHaveLength(16);
+    expect(screen.getAllByTestId(NAV_IDS)).toHaveLength(17);
     expect(screen.queryByTestId("nav-admin")).not.toBeInTheDocument();
   });
 
@@ -106,6 +106,7 @@ describe("NavbarNested nav list contract", () => {
       "nav-bots",
       "nav-options",
       "nav-index-report",
+      "nav-profitability",
       "nav-settings",
       "nav-admin",
     ];
@@ -252,7 +253,7 @@ describe("NavbarNested nav item accessible names", () => {
     expect(screen.queryByText("Screener")).not.toBeInTheDocument();
 
     const items = screen.getAllByTestId(NAV_IDS);
-    expect(items).toHaveLength(17);
+    expect(items).toHaveLength(18);
     for (const item of items) {
       const label = item.getAttribute("aria-label");
       expect(label).toBeTruthy();
@@ -266,6 +267,9 @@ describe("NavbarNested nav item accessible names", () => {
     expect(screen.getByRole("button", { name: "Index Report" })).toBe(
       screen.getByTestId("nav-index-report"),
     );
+    expect(screen.getByRole("button", { name: "Profitability" })).toBe(
+      screen.getByTestId("nav-profitability"),
+    );
     expect(screen.getByRole("button", { name: "Admin" })).toBe(
       screen.getByTestId("nav-admin"),
     );
@@ -275,7 +279,7 @@ describe("NavbarNested nav item accessible names", () => {
     renderNavbar({ collapsed: false, auth: mockAdminAuth });
 
     const items = screen.getAllByTestId(NAV_IDS);
-    expect(items).toHaveLength(17);
+    expect(items).toHaveLength(18);
     items.forEach((item) => expect(item).toHaveAttribute("aria-label"));
     // Visible labels still render alongside the accessible name.
     expect(screen.getByText("Screener")).toBeInTheDocument();
