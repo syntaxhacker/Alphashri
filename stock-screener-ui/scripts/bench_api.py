@@ -44,8 +44,11 @@ MODES = ("warm", "cold", "both")
 BUDGET_MODES = ("warm", "cold")
 
 DEFAULT_EMAIL = "qa@test.com"
-DEFAULT_PASSWORD = "[REDACTED]"
 DEFAULT_TIMEOUT = 60.0
+PASSWORD_MISSING_REASON = (
+    "BENCH_QA_PASSWORD is not set and there is no password fallback; "
+    "set BENCH_QA_PASSWORD or pass --password to benchmark login/auth routes"
+)
 
 _TOP_KEYS = frozenset({"schema_version", "description", "defaults", "routes"})
 _ROUTE_KEYS = frozenset({"method", "path", "query", "auth", "budgets_ms", "cache_state"})
@@ -266,8 +269,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--email", default=os.getenv("BENCH_QA_EMAIL", DEFAULT_EMAIL), help="QA login email.")
     parser.add_argument(
         "--password",
-        default=os.getenv("BENCH_QA_PASSWORD", DEFAULT_PASSWORD),
-        help="QA login password (or BENCH_QA_PASSWORD).",
+        default=os.getenv("BENCH_QA_PASSWORD"),
+        help="QA login password from BENCH_QA_PASSWORD (no default; login/auth SKIP when absent).",
     )
     parser.add_argument("--warmups", type=int, default=None, help="Override default warmup count.")
     parser.add_argument("--iterations", type=int, default=None, help="Override default measured iteration count.")
@@ -325,7 +328,8 @@ async def make_client(args: argparse.Namespace) -> Iterator[httpx.AsyncClient]:
         from api_server_fastapi import app  # lazy: importing the app starts DB/config work
 
         async with app.router.lifespan_context(app):
-            seed_qa_user(args.email, args.password)
+            if args.password:
+                seed_qa_user(args.email, args.password)
             transport = httpx.ASGITransport(app=app)
             async with httpx.AsyncClient(
                 transport=transport, base_url="http://bench.local", timeout=args.timeout
@@ -454,13 +458,10 @@ def cold_child_command(args: argparse.Namespace, name: str) -> list[str]:
         str(args.budgets),
         "--email",
         args.email,
-        "--password",
-        args.password,
-        "--timeout",
-        str(args.timeout),
-        "--_cold-child",
-        "--_emit-result-line",
     ]
+    if args.password:
+        command += ["--password", args.password]
+    command += ["--timeout", str(args.timeout), "--_cold-child", "--_emit-result-line"]
     return command
 
 
@@ -508,13 +509,27 @@ async def run_mode(
     if mode == "cold" and args.in_process and not args._cold_child:
         return [run_cold_child(args, name) for name in specs]
 
-    credentials = {"email": args.email, "password": args.password}
+    password_missing = not args.password
+    credentials = {"email": args.email, "password": args.password or ""}
     results: list[Measurement] = []
     async with make_client(args) as client:
         token, token_error = None, "not needed"
-        if any(spec.auth for spec in specs.values()):
+        if password_missing:
+            token_error = PASSWORD_MISSING_REASON
+        elif any(spec.auth for spec in specs.values()):
             token, token_error = await mint_token(client, credentials, login_spec)
         for name, spec in specs.items():
+            if password_missing and spec.name == "login":
+                results.append(
+                    Measurement(
+                        route=name, mode=mode, method=spec.method, path=spec.path,
+                        p50_ms=None, p95_ms=None, p99_ms=None,
+                        budget_ms=spec.budgets_ms.get(mode), verdict="SKIP",
+                        detail=PASSWORD_MISSING_REASON,
+                        cache_state=cache_label(mode, args.in_process),
+                    )
+                )
+                continue
             if spec.auth and not token:
                 results.append(
                     Measurement(

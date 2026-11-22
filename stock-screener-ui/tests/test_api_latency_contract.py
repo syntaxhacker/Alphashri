@@ -159,7 +159,7 @@ class TestRequestConstruction:
         assert kwargs == {}
 
     def test_login_carries_credentials(self, specs):
-        credentials = {"email": "qa@test.com", "password": "[REDACTED]"}
+        credentials = {"email": "a", "password": "b"}
         _, _, kwargs = bench_api.build_request(specs["login"], credentials=credentials, token=None)
         assert kwargs["json"] == credentials
 
@@ -188,6 +188,25 @@ class TestCliAndColdChild:
         assert (args.base_url, args.mode, args.enforce, args.route) == (
             "http://localhost:8765", "cold", True, ["health"]
         )
+
+    def test_password_has_no_hardcoded_default(self, monkeypatch):
+        monkeypatch.delenv("BENCH_QA_PASSWORD", raising=False)
+        assert bench_api.build_parser().parse_args(["--in-process"]).password is None
+        monkeypatch.setenv("BENCH_QA_PASSWORD", "[REDACTED]")
+        assert bench_api.build_parser().parse_args(["--in-process"]).password == "[REDACTED]"
+        assert not hasattr(bench_api, "DEFAULT_PASSWORD")
+
+    def test_missing_password_reason_is_explicit(self):
+        reason = bench_api.PASSWORD_MISSING_REASON
+        assert "BENCH_QA_PASSWORD" in reason
+        assert "no password fallback" in reason
+
+    def test_cold_child_omits_password_when_absent(self, monkeypatch):
+        monkeypatch.delenv("BENCH_QA_PASSWORD", raising=False)
+        args = bench_api.build_parser().parse_args(
+            ["--in-process", "--mode", "cold", "--route", "health"]
+        )
+        assert "--password" not in bench_api.cold_child_command(args, "health")
 
     @pytest.mark.parametrize("flags", [[], ["--in-process", "--base-url", "http://x"]])
     def test_exactly_one_transport_is_required(self, flags):

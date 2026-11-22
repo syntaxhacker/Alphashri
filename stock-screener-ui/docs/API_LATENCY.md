@@ -72,11 +72,13 @@ Two routes need a bearer token: `GET /api/market/snapshot` and
 `GET /api/replay/configs`. The harness mints a token once with
 `POST /api/auth/login` outside the measured samples.
 
-- Default QA credentials are `qa@test.com` / `qa123` (the documented test
-  account). Override with `--email` / `--password` or `BENCH_QA_EMAIL` /
-  `BENCH_QA_PASSWORD`.
+- The email defaults to the documented `qa@test.com` (`BENCH_QA_EMAIL` or
+  `--email` overrides it). **The password has no default**: supply it only via
+  `BENCH_QA_PASSWORD` or `--password`. With no password, `login` and both auth
+  routes are `SKIP` with the reason "BENCH_QA_PASSWORD is not set and there is
+  no password fallback" — the harness never embeds a fallback credential.
 - **In-process** always creates a throwaway SQLite file under `/tmp/opencode`
-  and seeds the QA account into it. It sets `CI_MODE=1`, `SKIP_ALEMBIC=1` and
+  and seeds the QA account into it when a password is supplied. It sets `CI_MODE=1`, `SKIP_ALEMBIC=1` and
   overrides `DATABASE_URL` *before* importing the app, so background jobs,
   Redis and the protected `db/alphashri.db` are never touched. The QA user is
   seeded only for the benchmark DB, not the real one.
