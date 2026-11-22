@@ -399,25 +399,31 @@ def latest_date_per_key(
     selected = list(keys)
     if not selected:
         return {}
-    clauses = [f"commodity_key IN ({', '.join('?' for _ in selected)})"]
-    params: list[Any] = list(selected)
+    clauses = ["commodity_key = ?"]
+    common_params: list[Any] = []
     for column, values in (
         ("state", states), ("district", districts), ("market", markets),
     ):
         items = list(values or ())
         if items:
             clauses.append(f"{column} IN ({', '.join('?' for _ in items)})")
-            params.extend(items)
-    sql = (
-        f"SELECT commodity_key, MAX(date) FROM {TABLE} "
-        f"WHERE {' AND '.join(clauses)} GROUP BY commodity_key"
-    )
-    found = {row[0]: row[1] for row in conn.execute(sql, params)}
-    return {key: found.get(key) for key in selected}
+            common_params.extend(items)
+    # A grouped MAX walks every row of every key. The key/date index already
+    # ends at each key's newest date, so one seek per key answers the same
+    # question (~8s -> ~0.1s over the 1.5M-row cache).
+    sql = f"SELECT MAX(date) FROM {TABLE} WHERE {' AND '.join(clauses)}"
+    return {
+        key: conn.execute(sql, [key, *common_params]).fetchone()[0]
+        for key in selected
+    }
 
 
 _OPTIONS_CACHE: dict[tuple[Any, ...], dict[str, Any]] = {}
 _GEOGRAPHY_CACHE: dict[tuple[Any, ...], dict[str, Any]] = {}
+# Both option lists and the geography cascade derive from the same distinct
+# (state, district, market) rows. Scanning the 1.5M-row cache once here avoids
+# paying for three additional full-table DISTINCT queries in ``/filters``.
+_META_CACHE: dict[tuple[Any, ...], tuple[Any, ...]] = {}
 
 
 def _stat_parts(path: str) -> tuple[int, int]:
@@ -445,22 +451,63 @@ def cache_identity(conn: sqlite3.Connection) -> Optional[tuple[str, int, int, in
     return (path, *main, *wal)
 
 
+def _geo_meta(
+    conn: sqlite3.Connection, cache_key: Optional[tuple[Any, ...]]
+) -> tuple[Any, ...]:
+    """Sorted option lists and cascades from one pass over the geography rows."""
+    if cache_key is not None:
+        cached = _META_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+    states: set[str] = set()
+    districts: set[str] = set()
+    markets: set[str] = set()
+    state_districts: dict[str, set[str]] = {}
+    district_markets: dict[str, set[str]] = {}
+    for state, district, market in conn.execute(
+        f"SELECT state, district, market FROM {TABLE}"
+    ):
+        if state:
+            states.add(state)
+        if district:
+            districts.add(district)
+        if market:
+            markets.add(market)
+        if state and district and market:
+            state_districts.setdefault(state, set()).add(district)
+            district_markets.setdefault(
+                f"{state}{DISTRICT_KEY_SEPARATOR}{district}", set()
+            ).add(market)
+    meta = (
+        sorted(states), sorted(districts), sorted(markets),
+        {state: sorted(values) for state, values in state_districts.items()},
+        {key: sorted(values) for key, values in district_markets.items()},
+    )
+    if cache_key is not None:
+        if len(_META_CACHE) >= 4:
+            _META_CACHE.clear()
+        _META_CACHE[cache_key] = meta
+    return meta
+
+
 def fetch_options(conn: sqlite3.Connection) -> dict[str, Any]:
     """Filter metadata, cached until the cache file changes.
 
-    ``SELECT DISTINCT`` over 1.2M rows took ~1.3s on every request; the option
-    lists only change when an import/collector writes the DB.
+    ``SELECT DISTINCT`` over 1.5M rows cost ~22s cold on every request; the
+    option lists only change when an import/collector writes the DB.
     """
     cache_key = cache_identity(conn)
     if cache_key is not None:
         cached = _OPTIONS_CACHE.get(cache_key)
         if cached is not None:
             return dict(cached)
+    states, districts, markets, _, _ = _geo_meta(conn, cache_key)
     as_of = conn.execute(f"SELECT MAX(date) FROM {TABLE}").fetchone()[0]
-    states = [r[0] for r in conn.execute(f"SELECT DISTINCT state FROM {TABLE} WHERE state <> '' ORDER BY state")]
-    districts = [r[0] for r in conn.execute(f"SELECT DISTINCT district FROM {TABLE} WHERE district <> '' ORDER BY district")]
-    markets = [r[0] for r in conn.execute(f"SELECT DISTINCT market FROM {TABLE} WHERE market <> '' ORDER BY market")]
-    result = {"as_of": as_of, "states": states, "districts": districts, "markets": markets}
+    result = {
+        "as_of": as_of,
+        # Fresh lists: callers must not be able to mutate the cached metadata.
+        "states": list(states), "districts": list(districts), "markets": list(markets),
+    }
     if cache_key is not None:
         if len(_OPTIONS_CACHE) >= 4:
             _OPTIONS_CACHE.clear()
@@ -472,28 +519,19 @@ def fetch_geography(conn: sqlite3.Connection) -> dict[str, Any]:
     """State→district and district→market cascades, cached per DB identity.
 
     Kept out of :func:`fetch_options` so the ``/prices`` hot path does not pay
-    for the extra ~1.7s DISTINCT over 1.2M rows on a cold cache.
+    for the geography scan at all; ``/filters`` reuses the same one-pass scan
+    that built the option lists.
     """
     cache_key = cache_identity(conn)
     if cache_key is not None:
         cached = _GEOGRAPHY_CACHE.get(cache_key)
         if cached is not None:
             return dict(cached)
-    state_districts: dict[str, list[str]] = {}
-    district_markets: dict[str, list[str]] = {}
-    for state, district, market in conn.execute(
-        f"SELECT DISTINCT state, district, market FROM {TABLE} "
-        "WHERE state <> '' AND district <> '' AND market <> '' "
-        "ORDER BY state, district, market"
-    ):
-        districts_for_state = state_districts.setdefault(state, [])
-        if district not in districts_for_state:
-            districts_for_state.append(district)
-        key = f"{state}{DISTRICT_KEY_SEPARATOR}{district}"
-        markets_for_district = district_markets.setdefault(key, [])
-        if market not in markets_for_district:
-            markets_for_district.append(market)
-    result = {"state_districts": state_districts, "district_markets": district_markets}
+    _, _, _, state_districts, district_markets = _geo_meta(conn, cache_key)
+    result = {
+        "state_districts": {state: list(values) for state, values in state_districts.items()},
+        "district_markets": {key: list(values) for key, values in district_markets.items()},
+    }
     if cache_key is not None:
         if len(_GEOGRAPHY_CACHE) >= 4:
             _GEOGRAPHY_CACHE.clear()
