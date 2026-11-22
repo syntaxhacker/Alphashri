@@ -49,6 +49,17 @@ from api.auth import (
 from tests.helpers.db import import_all_models
 
 
+def fast_hash_password(password: str) -> str:
+    """Fixture-only bcrypt hash at cost 4; production hashing is untouched.
+
+    Login/validation tests only need a hash that verify_password accepts. The
+    production cost-12 hash stays in TestPasswordHashing, where strength is the
+    thing under test.
+    """
+    return bcrypt.hashpw(
+        password.encode("utf-8"), bcrypt.gensalt(rounds=4)
+    ).decode("utf-8")
+
 
 # Use in-memory database for test isolation (consistent with conftest.py)
 TEST_SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
@@ -111,7 +122,7 @@ def test_password():
 def test_user(db, test_password):
     user = User(
         email="security_test@example.com",
-        hashed_password=hash_password(test_password),
+        hashed_password=fast_hash_password(test_password),
         display_name="Security Test User",
         is_active=True,
         initial_capital=1000000.0,
@@ -126,7 +137,7 @@ def test_user(db, test_password):
 def second_user(db, test_password):
     user = User(
         email="second_user@example.com",
-        hashed_password=hash_password(test_password),
+        hashed_password=fast_hash_password(test_password),
         display_name="Second User",
         is_active=True,
         initial_capital=500000.0,
@@ -599,14 +610,15 @@ class TestMalformedInput:
         assert response.status_code == 422
 
     def test_extra_fields_are_ignored_or_rejected(self, client, auth_headers):
-        response = client.post("/api/auth/register", json={
-            "email": "extra@example.com",
-            "password": "Password123!",
-            "extra_field": "should_be_ignored",
-            "admin": True,
-            "role": "superuser"
-        })
-        
+        with patch("api.auth.hash_password", side_effect=fast_hash_password):
+            response = client.post("/api/auth/register", json={
+                "email": "extra@example.com",
+                "password": "Password123!",
+                "extra_field": "should_be_ignored",
+                "admin": True,
+                "role": "superuser"
+            })
+
         assert response.status_code in [201, 422]
 
 
@@ -734,7 +746,7 @@ class TestPrivilegeEscalation:
     def test_inactive_user_cannot_login(self, client, db, test_password):
         user = User(
             email="inactive_test@example.com",
-            hashed_password=hash_password(test_password),
+            hashed_password=fast_hash_password(test_password),
             display_name="Inactive User",
             is_active=False,
         )
@@ -1137,10 +1149,11 @@ class TestEndToEndSecurity:
     def test_full_auth_flow_security(self, client, test_password):
         email = "e2e_security@example.com"
         
-        response = client.post("/api/auth/register", json={
-            "email": email,
-            "password": test_password
-        })
+        with patch("api.auth.hash_password", side_effect=fast_hash_password):
+            response = client.post("/api/auth/register", json={
+                "email": email,
+                "password": test_password
+            })
         assert response.status_code == 201
         tokens = response.json()
         assert "access_token" in tokens
