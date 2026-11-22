@@ -9,6 +9,8 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -16,6 +18,18 @@ if str(ROOT) not in sys.path:
 from api.fyers_options import _CHAIN_CACHE, _CHAIN_CACHE_MAX, _cache_put  # noqa: E402
 from api.reports_api import nifty  # noqa: E402
 from api.reports_api import nifty_intel  # noqa: E402
+
+
+@pytest.fixture()
+def _clean_live_caches():
+    """Fresh live caches + flight locks per test (asyncio.Locks bind to a loop)."""
+    nifty._live_cache.clear()
+    nifty._live_ws_cache.clear()
+    nifty._live_flight_locks.clear()
+    yield
+    nifty._live_cache.clear()
+    nifty._live_ws_cache.clear()
+    nifty._live_flight_locks.clear()
 
 
 def test_fyers_chain_cache_is_bounded():
@@ -108,3 +122,105 @@ def test_nifty_live_cache_stamps_build_completion_not_start(monkeypatch):
     asyncio.run(nifty.get_cached_live("expiry-slow"))
     assert nifty._live_cache["expiry-slow"]["ts"] >= t0 + 1.0
     nifty._live_cache.clear()
+
+
+def test_nifty_live_single_flight_dedupes_concurrent_computes(
+        _clean_live_caches, monkeypatch):
+    """Concurrent cold callers share ONE _compute_live, not one each.
+
+    Without the guard every client polling at the 5s boundary fired its own
+    full chain + candles + verdicts + futures build, then each overwrote the
+    cache entry. The barrier makes all callers overlap on the same cold key.
+    """
+    started = asyncio.Event()
+    release = asyncio.Event()
+    calls = []
+
+    async def _slow_compute(expiry, expiries=None):
+        calls.append((expiry, expiries))
+        started.set()
+        await release.wait()
+        return {"spot": 42.0}
+
+    monkeypatch.setattr(nifty, "_compute_live", _slow_compute)
+
+    async def _concurrent():
+        tasks = [asyncio.create_task(nifty.get_cached_live("expiry-flight"))
+                 for _ in range(8)]
+        await started.wait()       # builder is in flight, others are queued
+        await asyncio.sleep(0)     # let the rest reach the lock / re-check
+        release.set()
+        return await asyncio.gather(*tasks)
+
+    results = asyncio.run(_concurrent())
+    assert len(calls) == 1, f"expected one _compute_live, got {len(calls)}"
+    assert calls[0] == ("expiry-flight", None)
+    assert all(r is results[0] for r in results), "callers must share the build"
+    assert results[0]["spot"] == 42.0
+    assert results[0]["feed"] == {"source": "rest"}
+    cached = nifty._live_cache["expiry-flight"]
+    assert cached["data"] is results[0]
+    assert cached["ts"] > 0
+
+
+def test_nifty_live_expiries_bypasses_cache_and_flight(
+        _clean_live_caches, monkeypatch):
+    """An explicit term map still bypasses both the TTL cache and the guard.
+
+    The key cannot describe which extra expiries were supplied, so coalescing
+    these calls would serve one caller's term structure to another.
+    """
+    calls = []
+
+    async def _compute(expiry, expiries=None):
+        calls.append(expiries)
+        return {"spot": 7.0, "term": bool(expiries)}
+
+    monkeypatch.setattr(nifty, "_compute_live", _compute)
+
+    async def _concurrent():
+        return await asyncio.gather(*[
+            nifty.get_cached_live("expiry-extra", expiries={"extra": []})
+            for _ in range(4)
+        ])
+
+    results = asyncio.run(_concurrent())
+    assert len(calls) == 4, "term-map callers must not be coalesced"
+    assert nifty._live_cache == {}, "term-map callers must not populate the cache"
+    assert all(r["term"] is True for r in results)
+
+
+def test_nifty_ws_live_single_flight_dedupes_concurrent_builds(
+        _clean_live_caches, monkeypatch):
+    """Concurrent WS callers share ONE overlay build, not one each.
+
+    The verdict/overlay attachments are the expensive part of get_live_report;
+    without the guard every WS client in the same ~1s window re-ran them.
+    """
+    started = asyncio.Event()
+    release = asyncio.Event()
+    calls = []
+
+    async def _slow_build(expiry, expiries, key):
+        calls.append((expiry, expiries, key))
+        started.set()
+        await release.wait()
+        report = {"spot": 99.0, "build": len(calls)}
+        nifty._live_ws_cache[key] = {"ts": time.time(), "data": report}
+        return report
+
+    monkeypatch.setattr(nifty, "_get_live_report_uncached", _slow_build)
+
+    async def _concurrent():
+        tasks = [asyncio.create_task(nifty.get_live_report("expiry-ws-flight"))
+                 for _ in range(8)]
+        await started.wait()
+        await asyncio.sleep(0)
+        release.set()
+        return await asyncio.gather(*tasks)
+
+    results = asyncio.run(_concurrent())
+    assert len(calls) == 1, f"expected one overlay build, got {len(calls)}"
+    assert calls[0] == ("expiry-ws-flight", None, "expiry-ws-flight")
+    assert all(r is results[0] for r in results), "callers must share the build"
+    assert results[0]["spot"] == 99.0

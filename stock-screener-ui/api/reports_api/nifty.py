@@ -106,6 +106,39 @@ def _cache_put(cache: dict, key, value) -> None:
         cache.pop(next(iter(cache)), None)
 
 
+#: Per-key in-flight build locks for the live caches (single-flight guard).
+#: Keyed by ``(cache name, cache key)`` so the REST and WS caches never share a
+#: lock. ``asyncio.Lock`` (not the ``threading.Lock`` used by nifty_intel) is
+#: required because a build is held across ``await`` — a blocking lock here
+#: would freeze the event loop. Locks bind to the running loop on first
+#: contended use; tests clear this dict between loops.
+_live_flight_locks: dict[tuple[str, str], asyncio.Lock] = {}
+
+
+def _live_flight_lock(cache_name: str, key: str) -> asyncio.Lock:
+    """The build lock for ``(cache_name, key)`` (created on first use).
+
+    Concurrent callers on a cold key queue here so only one runs the expensive
+    build; the rest re-check the cache after it completes. Held locks are never
+    evicted, so a waiter cannot end up on a different lock than the builder it
+    is waiting for.
+    """
+    fk = (cache_name, key)
+    lock = _live_flight_locks.get(fk)
+    if lock is None:
+        lock = asyncio.Lock()
+        _live_flight_locks[fk] = lock
+        if len(_live_flight_locks) > _CACHE_MAX:
+            for stale in list(_live_flight_locks):
+                if stale == fk:
+                    break
+                if not _live_flight_locks[stale].locked():
+                    _live_flight_locks.pop(stale, None)
+                if len(_live_flight_locks) <= _CACHE_MAX:
+                    break
+    return lock
+
+
 _TOP_WALLS = 3
 #: An actionable wall is within this many points of spot; beyond it the strike
 #: is book structure, not an intraday level.
@@ -1543,27 +1576,42 @@ async def get_cached_live(expiry: Optional[str] = None,
     ``expiries`` (the optional IV term map, see :func:`_compute_live`) bypasses
     the TTL cache: the cache key cannot describe which extra expiries were
     supplied, so a cached report would carry another caller's term structure.
+    It bypasses the single-flight guard for the same reason — one caller's term
+    map must never be served to another.
+
+    Concurrent callers on a cold key share one build (single-flight): without
+    the guard every client polling at the same instant fired its own full
+    ``_compute_live`` (chain + candles + verdicts + futures) on the 5s boundary.
     """
     key = expiry or "default"
-    if expiries is None:
+    if expiries is not None:
+        report = await _compute_live(expiry, expiries=expiries)
+        try:
+            report["feed"] = {"source": "rest"}
+        except Exception:
+            pass
+        return report
+
+    hit = _live_cache.get(key)
+    if hit and time.time() - hit["ts"] < _LIVE_TTL:
+        return hit["data"]
+
+    async with _live_flight_lock("rest", key):
+        # A builder that finished while we queued may have filled the cache.
         hit = _live_cache.get(key)
         if hit and time.time() - hit["ts"] < _LIVE_TTL:
             return hit["data"]
-    if expiries is None:
         report = await _compute_live(expiry)
-    else:
-        report = await _compute_live(expiry, expiries=expiries)
-    try:
-        # Where the prices came from — the panel can flag a feed it doubts.
-        report["feed"] = {"source": "rest"}
-    except Exception:
-        pass
-    if expiries is None:
+        try:
+            # Where the prices came from — the panel can flag a feed it doubts.
+            report["feed"] = {"source": "rest"}
+        except Exception:
+            pass
         # Stamp at build COMPLETION: a cold build can take seconds, and a
         # start-time stamp leaves the entry already stale on write so the next
         # poll discards it and rebuilds again.
         _cache_put(_live_cache, key, {"ts": time.time(), "data": report})
-    return report
+        return report
 
 
 #: Minimum distinct strikes for a WS snapshot to count as a real chain.
@@ -1796,29 +1844,15 @@ def _overlay_ws_blocks(report: dict, snapshot: Optional[dict],
     return out
 
 
-async def get_live_report(expiry: Optional[str] = None,
-                          expiries: Optional[Mapping[Any, Iterable[Any]]] = None,
-                          ) -> dict:
-    """Live report, preferring the WS snapshot when it is live.
+async def _get_live_report_uncached(expiry: Optional[str],
+                                    expiries: Optional[Mapping[Any, Iterable[Any]]],
+                                    key: str) -> dict:
+    """Build a live report from the WS snapshot, falling back to REST.
 
-    When ``nifty_md.is_live()`` and the snapshot converts to a full report
-    (its option legs are FRESH — see :func:`build_report_from_live`), it is
-    built once per ~1s (shared across WS clients) with verdicts attached;
-    otherwise this degrades to :func:`get_cached_live` (REST). Never raises
-    anything the REST path wouldn't raise.
-
-    ``expiries`` is the optional IV term map (:func:`_compute_live`); supplying
-    it bypasses the 1s WS cache because that cache is keyed only on expiry.
+    This is the build body of :func:`get_live_report` with no cache lookup —
+    the unit that single-flight coalesces. The verdict/overlay attachments are
+    the expensive part; concurrent callers must not each re-run them.
     """
-    key = expiry or "default"
-    if expiries is None:
-        try:
-            now = time.time()
-            hit = _live_ws_cache.get(key)
-            if hit and now - hit["ts"] < _LIVE_WS_TTL:
-                return hit["data"]
-        except Exception:
-            pass
     try:
         md = _nifty_md()
         if md is not None and bool(md.is_live()):
@@ -1879,6 +1913,40 @@ async def get_live_report(expiry: Optional[str] = None,
     if expiries is None:
         return await get_cached_live(expiry)
     return await get_cached_live(expiry, expiries=expiries)
+
+
+async def get_live_report(expiry: Optional[str] = None,
+                          expiries: Optional[Mapping[Any, Iterable[Any]]] = None,
+                          ) -> dict:
+    """Live report, preferring the WS snapshot when it is live.
+
+    When ``nifty_md.is_live()`` and the snapshot converts to a full report
+    (its option legs are FRESH — see :func:`build_report_from_live`), it is
+    built once per ~1s (shared across WS clients) with verdicts attached;
+    otherwise this degrades to :func:`get_cached_live` (REST). Never raises
+    anything the REST path wouldn't raise.
+
+    Concurrent callers on a cold key share one build (single-flight): the
+    verdicts and WS overlays are expensive and were otherwise re-run by every
+    WS client in the same ~1s window. ``expiries`` bypasses both the 1s WS
+    cache (keyed only on expiry) and the guard for the same reason — one
+    caller's term map must never leak to another.
+    """
+    key = expiry or "default"
+    if expiries is None:
+        try:
+            now = time.time()
+            hit = _live_ws_cache.get(key)
+            if hit and now - hit["ts"] < _LIVE_WS_TTL:
+                return hit["data"]
+        except Exception:
+            pass
+        async with _live_flight_lock("ws", key):
+            hit = _live_ws_cache.get(key)
+            if hit and time.time() - hit["ts"] < _LIVE_WS_TTL:
+                return hit["data"]
+            return await _get_live_report_uncached(expiry, expiries, key)
+    return await _get_live_report_uncached(expiry, expiries, key)
 
 
 @router.get("/nifty/live")
