@@ -32,6 +32,15 @@ const pathNavigations = vi.hoisted(
   () => [] as Array<{ to: string; options?: { replace?: boolean } }>,
 );
 
+/** Compare only seeds the correlation store and navigates; the tab owns the fetch. */
+const correlationSpies = vi.hoisted(() => ({
+  setSymbols: vi.fn(),
+  setTimeframe: vi.fn(),
+  setPeriod: vi.fn(),
+  setPeriodUnit: vi.fn(),
+  fetchCorrelationData: vi.fn(),
+}));
+
 // @solidjs/router's navigation path never settles in happy-dom, so the router is
 // replaced with a reactive window.location-backed route. `useParams`/`useNavigate`
 // are backed by the same signal, so a tab change re-renders the page exactly like
@@ -262,11 +271,11 @@ vi.mock("../../state", () => ({
 }));
 
 vi.mock("../../state/correlation", () => ({
-  setSymbols: vi.fn(),
-  setTimeframe: vi.fn(),
-  setPeriod: vi.fn(),
-  setPeriodUnit: vi.fn(),
-  fetchCorrelationData: vi.fn(),
+  setSymbols: correlationSpies.setSymbols,
+  setTimeframe: correlationSpies.setTimeframe,
+  setPeriod: correlationSpies.setPeriod,
+  setPeriodUnit: correlationSpies.setPeriodUnit,
+  fetchCorrelationData: correlationSpies.fetchCorrelationData,
   clearSelectedSymbols: vi.fn(),
 }));
 
@@ -1046,6 +1055,28 @@ describe("ScreenerPage", () => {
     await waitFor(() => expect(currentRoute().path).toBe("/screener/config"));
     expect(currentSearchParams().symbols).toBeUndefined();
     expect(currentSearchParams().period).toBeUndefined();
+  });
+
+  it("Compare only seeds state and navigates — the CorrelationTab owns the fetch", async () => {
+    selectedSymbolsRef.current = ["INFY", "TCS"];
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=screener" });
+    expect(await screen.findByTestId("screener-table-approaching")).toBeInTheDocument();
+    await waitFor(() => expect(currentRoute().path).toBe("/screener/screener"));
+
+    fireEvent.click(screen.getByTestId("compare-btn"));
+
+    await waitFor(() => expect(currentRoute().path).toBe("/screener/correlation"));
+    expect(correlationSpies.setSymbols).toHaveBeenCalledWith(["INFY", "TCS"]);
+    expect(correlationSpies.setTimeframe).toHaveBeenCalledWith("daily");
+    expect(correlationSpies.setPeriod).toHaveBeenCalledWith(90);
+    expect(correlationSpies.setPeriodUnit).toHaveBeenCalledWith("days");
+    expect(correlationSpies.fetchCorrelationData).not.toHaveBeenCalled();
+    expect(currentSearchParams().symbols).toBe("INFY,TCS");
+    expect(currentSearchParams().timeframe).toBe("daily");
+    expect(currentSearchParams().period).toBe("90");
   });
 
   it("onOpenScan navigates to /screener?view=table (replace) and forwards the symbols", async () => {

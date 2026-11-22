@@ -234,6 +234,25 @@ describe("CorrelationTab", () => {
       expect(mockSetPeriod).toHaveBeenCalledWith(1);
     });
 
+    it("fetches exactly once when initialized from URL search params", async () => {
+      mockSearchParams = { symbols: "RELIANCE,TCS", timeframe: "daily", period: "90" };
+      renderWithProvider(<CorrelationTab />);
+      await waitFor(() => expect(mockFetchCorrelationData).toHaveBeenCalledTimes(1));
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(mockFetchCorrelationData).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not issue the deferred URL fetch after the tab unmounts", async () => {
+      mockSearchParams = { symbols: "RELIANCE,TCS", timeframe: "daily", period: "90" };
+      // The component must be created inside render's owner for onCleanup to run.
+      const { unmount } = render(() => <UIProvider><CorrelationTab /></UIProvider>);
+      await Promise.resolve();
+      const before = mockFetchCorrelationData.mock.calls.length;
+      unmount();
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(mockFetchCorrelationData).toHaveBeenCalledTimes(before);
+    });
+
     it("updates URL search params on calculate", async () => {
       mockSymbols = ["RELIANCE", "TCS", "INFY"];
       mockSearchParams = {};

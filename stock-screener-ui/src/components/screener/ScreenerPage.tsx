@@ -41,7 +41,6 @@ import {
   setTimeframe,
   setPeriod,
   setPeriodUnit,
-  fetchCorrelationData,
 } from "../../state/correlation";
 import type { Stock } from "../../types";
 
@@ -275,7 +274,8 @@ export function ScreenerPage(props: ScreenerPageProps) {
     setTimeframe("daily");
     setPeriod(90);
     setPeriodUnit("days");
-    fetchCorrelationData();
+    // The tab fetches on mount from the params written below; fetching here too
+    // would race it and could let the older response publish last.
     state.clearSelectedSymbols();
     navigateToTab(tabPath("correlation"), searchForTab("correlation"), {
       symbols: syms.join(","),

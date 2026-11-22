@@ -107,7 +107,10 @@ export function CorrelationTab() {
           setPeriod(parseInt(p, 10));
           setPeriodUnit(tf === "intraday" ? "minutes" : "days");
         }
-        setTimeout(() => fetchCorrelationData(), 0);
+        // Defer so the URL-derived setters above have published before the fetch
+        // reads the store; clear it so leaving the tab cannot fire a late request.
+        const timer = setTimeout(() => fetchCorrelationData(), 0);
+        onCleanup(() => clearTimeout(timer));
       }
     }
   });
