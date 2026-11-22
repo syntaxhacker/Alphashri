@@ -7,7 +7,11 @@ returns hits sorted by confidence (descending).
 
 from __future__ import annotations
 
+import logging
+
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 # Import the detectors package for its side effect: every detector registers
 # itself into ``detectors.common.DETECTORS``.
@@ -76,7 +80,12 @@ def detect_patterns(
         try:
             produced = detect(data, ctx) or []
         except Exception:
-            # A single detector must never abort the scan.
+            # Isolate the failure, but never swallow it silently: a crashing
+            # detector would otherwise vanish from every scan with no signal.
+            logger.exception(
+                "chart-pattern detector failed (pattern=%s symbol=%s timeframe=%s)",
+                pattern_id, symbol, timeframe,
+            )
             continue
         for hit in produced:
             if hit is None:

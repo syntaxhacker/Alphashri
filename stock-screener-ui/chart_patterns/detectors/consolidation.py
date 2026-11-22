@@ -461,10 +461,13 @@ def detect_consolidation(df: pd.DataFrame, ctx: dict | None = None) -> list:
     L = [(p, q) for p, q in lows if start <= p <= end]
     touches = 1
     if atr_val > 0:
+        # Count only pivots inside the base window: H/L are filtered to
+        # [start, end], while the full-frame swings would credit stale touches
+        # at the same price level outside the base and inflate confidence.
         touches = max(
             1,
-            F.count_touches(highs, 0.0, hi, atr_val, tol_atr=TOUCH_TOL_ATR)
-            + F.count_touches(lows, 0.0, lo, atr_val, tol_atr=TOUCH_TOL_ATR),
+            F.count_touches(H, 0.0, hi, atr_val, tol_atr=TOUCH_TOL_ATR)
+            + F.count_touches(L, 0.0, lo, atr_val, tol_atr=TOUCH_TOL_ATR),
         )
 
     notes = f"consolidation {base_days}d; range {range_pct:.1f}%, pos {range_pos:.0f}%"
