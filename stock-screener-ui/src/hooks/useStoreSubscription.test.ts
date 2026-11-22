@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { useStoreSubscription } from "./useStoreSubscription";
+import { useStoreSnapshot, useStoreSubscription } from "./useStoreSubscription";
 import { renderSolidHook } from "../test-utils/solidRenderHook";
 
 afterEach(() => {
@@ -66,5 +66,36 @@ describe("useStoreSubscription", () => {
     unmount();
 
     expect(unsub2).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("useStoreSnapshot", () => {
+  it("re-runs the memo with a fresh store value whenever the store notifies", () => {
+    let state = 0;
+    let notify: (() => void) | null = null;
+    const unsubscribe = vi.fn();
+    const subscribe = vi.fn().mockImplementation((cb: () => void) => {
+      notify = cb;
+      return unsubscribe;
+    });
+    const getState = vi.fn(() => state);
+
+    const { result } = renderSolidHook(() => useStoreSnapshot(subscribe, getState));
+
+    expect(notify).not.toBeNull();
+    expect(result.current()).toBe(0);
+    expect(getState).toHaveBeenCalledTimes(1);
+
+    state = 1;
+    notify!();
+
+    expect(getState).toHaveBeenCalledTimes(2);
+    expect(result.current()).toBe(1);
+
+    state = 2;
+    notify!();
+
+    expect(getState).toHaveBeenCalledTimes(3);
+    expect(result.current()).toBe(2);
   });
 });

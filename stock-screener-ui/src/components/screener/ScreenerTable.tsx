@@ -1,4 +1,4 @@
-import { createMemo, createEffect, createSignal, onCleanup, Show, type JSX } from "solid-js";
+import { createMemo, Show, type JSX } from "solid-js";
 import { Checkbox, ActionIcon, CopyButton, Tooltip, Badge, Group, Text, Box, Stack } from "@/ui";
 import { IconCopy, IconCheck } from "./icons";
 import { TanStackTable, type TableColumnDef } from "../common/TanStackTable";
@@ -8,6 +8,7 @@ import { useSymbolDock } from "../common/symbolDockContext";
 import type { ColumnDef, FormattedCell } from "./columns";
 import type { Stock } from "../../types";
 import { selectedSymbols, toggleSymbolSelection, clearSelectedSymbols, setSelectedSymbols, subscribeToSelection } from "../../state";
+import { useStoreSnapshot } from "../../hooks/useStoreSubscription";
 import { getValueColor, getScoreColor, formatNumber } from "../../utils/ui-helpers";
 
 interface ScreenerTableProps {
@@ -21,20 +22,6 @@ interface ScreenerTableProps {
   testId?: string;
   /** Saved-config key. Falls back to `screener.${testId ?? "table"}`. */
   tableId?: string;
-}
-
-// useStoreSnapshot discards the signal getter and calls the setter as a reader,
-// so it never tracks notifications; the snapshot is inlined with correct reads.
-function useSelectionSnapshot() {
-  const [tick, setTick] = createSignal(0);
-  createEffect(() => {
-    const unsubscribe = subscribeToSelection(() => setTick((n) => n + 1));
-    onCleanup(unsubscribe);
-  });
-  return createMemo(() => {
-    tick();
-    return selectedSymbols;
-  });
 }
 
 export function ScreenerTable(props: ScreenerTableProps) {
@@ -51,7 +38,7 @@ export function ScreenerTable(props: ScreenerTableProps) {
 
 function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
   const { prefs, setSorting } = useTablePrefs(props.tableId);
-  const selection = useSelectionSnapshot();
+  const selection = useStoreSnapshot(subscribeToSelection, () => selectedSymbols);
   const visibleSymbols = createMemo(() => props.stocks.map((stock) => stock.symbol));
   const allSymbols = createMemo(() => visibleSymbols().join(", "));
   const selectedSymbolSet = createMemo(() => new Set(selection()));
